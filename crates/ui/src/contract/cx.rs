@@ -1515,6 +1515,7 @@ pub(crate) struct PartExtras {
     pub own_reset: bool,
     pub selected: bool,
     pub default_stop: bool,
+    pub nudges: bool,
     pub toggles: Option<crate::contract::overlay::ToggleDecl>,
 }
 
@@ -1553,6 +1554,13 @@ impl PartBuilder<'_> {
     /// on the first member. The last part declared `selected` wins.
     pub fn selected(self) -> Self {
         self.declared.selected = true;
+        self
+    }
+
+    /// The focused part takes the arrow keys, with any modifier, as nudges of its content (`Intents::take_nudge`),
+    /// wherever it sits: in a collection item too.
+    pub fn nudges(self) -> Self {
+        self.declared.nudges = true;
         self
     }
 

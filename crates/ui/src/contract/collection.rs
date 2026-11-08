@@ -202,6 +202,19 @@ impl ColumnSpec {
     }
 }
 
+/// Who takes a collection's arrow keys while it has the key focus.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ItemKeys {
+    /// The collection: the arrows move the lead, as in a list.
+    #[default]
+    Own,
+    /// The component around the collection (a timeline's time area steps frames with the arrows over its whole area):
+    /// the arrows are no moves of the collection and reach the owner's commands. Home, End and the Page keys stay
+    /// with the collection.
+    Owner,
+}
+
 /// What Space does in a collection (Enter always activates the lead).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
@@ -317,6 +330,8 @@ pub struct CollectionProps {
     /// Typed digits reach the collection's own `update` as `Intent::Digit` (rating keys); other typed text stays
     /// type-ahead.
     pub digit_keys: bool,
+    /// Who takes the arrow keys.
+    pub item_keys: ItemKeys,
     /// A drag from empty space draws a marquee that selects the items it sweeps.
     pub marquee: bool,
     /// Delete and Backspace at the lead report `CollectionEvent::Delete`.
@@ -382,6 +397,7 @@ impl CollectionProps {
             space: SpaceAction::Activate,
             header: true,
             digit_keys: false,
+            item_keys: ItemKeys::Own,
             marquee: false,
             deletable: false,
             drag_payload: None,
@@ -498,6 +514,13 @@ impl CollectionProps {
     #[must_use]
     pub const fn digit_keys(mut self, on: bool) -> Self {
         self.digit_keys = on;
+        self
+    }
+
+    /// Who takes the arrow keys while the collection has the key focus.
+    #[must_use]
+    pub const fn item_keys(mut self, keys: ItemKeys) -> Self {
+        self.item_keys = keys;
         self
     }
 

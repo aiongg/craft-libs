@@ -162,6 +162,7 @@ const COLLECTION: &[Forwarded] = &[
     ("space", "::craft_ui::contract::SpaceAction", "What Space does on the lead row."),
     ("header", "bool", "The header row over the columns is shown."),
     ("digit_keys", "bool", "Digit keys arrive as digit intents instead of type-ahead."),
+    ("item_keys", "::craft_ui::contract::ItemKeys", "Who takes the arrow keys: the collection (moves the lead) or the component around it."),
     ("marquee", "bool", "A drag on the background selects the rows it covers."),
     ("deletable", "bool", "Delete and Backspace at the lead report the items to delete."),
 ];
