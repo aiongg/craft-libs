@@ -341,7 +341,7 @@ impl CellGrid<'_> {
         }
         let horizontal = state.mode == Mode::Edit;
         for (key, direction) in ARROWS {
-            let takes = state.pointing() || horizontal && matches!(direction, CellDirection::Left | CellDirection::Right);
+            let takes = state.pointing() || state.end_mode || horizontal && matches!(direction, CellDirection::Left | CellDirection::Right);
             if takes {
                 cx.claim(Chord::plain(key));
                 cx.claim(Chord::new(Mods::SHIFT, key));
