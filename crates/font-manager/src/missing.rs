@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use craft_behavior::{DisplayOrder, ItemSource};
 use craft_font_catalog::{Catalog, Match};
-use craft_ui::contract::{Bind, Props as _, Remember as _, SaveKey, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, Sizing};
+use craft_ui::contract::{Bind, SaveKey, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, Sizing};
 use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
 use craft_ui::display::Text;
 use craft_ui::form::{Field, FieldGroup};
@@ -226,7 +226,7 @@ impl StackDialog for MissingFontsDialog {
                         List::<usize>::new(words.font.clone()).select(SelectMode::Single).sizing(Sizing::Content).show_items(
                             ui,
                             &Listed(&listed),
-                            &mut |key, _| ListRow::new(listed[*key].as_str()),
+                            &mut |key, _| ListRow::new(listed[*key].clone()),
                         );
                     });
                 });

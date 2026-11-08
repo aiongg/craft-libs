@@ -10,7 +10,7 @@ mod stories;
 
 use std::sync::Arc;
 
-use craft_behavior::{Codec, ColumnKey, EditEvent, GestureId, IconId, Mixed, NotAValue, PartKey, Sense, Value};
+use craft_behavior::{Codec, EditEvent, GestureId, IconId, Mixed, NotAValue, PartKey, Sense, Value};
 use craft_behavior::{HitLevel, HitPriority, NavMove};
 use craft_font_catalog::Catalog;
 use craft_host::Section;
@@ -19,7 +19,7 @@ use craft_ui::contract::{
     Bind, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Outcome, OverlayUi, Overlays as _, PaintUi, PartsCx,
     Pointer as _, Props as _, Remember as _, Role, WordSetCx as _,
 };
-use craft_ui::list::ThumbSize;
+use craft_ui::list::{ThumbSize, TrailingPart};
 use craft_ui::primitives::{IconSpec, TextKey, TextOptions, TextRun};
 use craft_ui::runtime::env::{EnvView, Label};
 use craft_ui::runtime::memory::StageAccess;
@@ -54,14 +54,14 @@ craft_ui::words! {
         no_similar: "fontPicker.noSimilar" = "No similar fonts: the current font doesn't say what it looks like.";
         no_favorites: "fontPicker.noFavorites" = "No favorite fonts yet: click the star beside a font to add it.";
         no_match_filters: "fontPicker.noMatchFilters" = "No fonts match these filters.";
-        serif: "fontPicker.class.serif" = "Serif";
-        slab_serif: "fontPicker.class.slabSerif" = "Slab Serif";
-        sans_serif: "fontPicker.class.sansSerif" = "Sans Serif";
-        script: "fontPicker.class.script" = "Script";
-        monospace: "fontPicker.class.monospace" = "Monospace";
-        handwritten: "fontPicker.class.handwritten" = "Handwritten";
-        blackletter: "fontPicker.class.blackletter" = "Blackletter";
-        decorative: "fontPicker.class.decorative" = "Decorative";
+        serif: "fontPicker.classSerif" = "Serif";
+        slab_serif: "fontPicker.classSlabSerif" = "Slab Serif";
+        sans_serif: "fontPicker.classSansSerif" = "Sans Serif";
+        script: "fontPicker.classScript" = "Script";
+        monospace: "fontPicker.classMonospace" = "Monospace";
+        handwritten: "fontPicker.classHandwritten" = "Handwritten";
+        blackletter: "fontPicker.classBlackletter" = "Blackletter";
+        decorative: "fontPicker.classDecorative" = "Decorative";
     }
 }
 
@@ -288,8 +288,8 @@ const CHEVRON: PartKey = PartKey::new("chevron");
 const CHEVRON_ICON: &str = "chevron_down";
 /// The popup the chevron and Alt+Down toggle.
 const POPUP: &str = "list";
-/// The toggle column of the stars.
-const STAR: ColumnKey = ColumnKey::new("star");
+/// The star at the end of a row.
+const STAR: TrailingPart = TrailingPart::new(0);
 /// The widest family names in common use, which the field's width is sized by.
 const NAME_SAMPLE: &str = "Source Sans Pro Semibold Condensed";
 
@@ -526,7 +526,7 @@ impl Component for FontPicker<'_> {
 
     fn finish(self, mut cx: Cx<'_, Self>) -> FontPickerOutput {
         let list = cx.popup(POPUP);
-        let preview = if list.is_open(&cx) { cx.memory::<Typing>().lead.clone() } else { None };
+        let preview = if list.is_open(&mut cx) { cx.memory::<Typing>().lead.clone() } else { None };
         let edit = cx.edit_response();
         let committed = match &edit.event {
             Some(EditEvent::Commit { after, .. } | EditEvent::Set { after, .. }) => Some(after.clone()),

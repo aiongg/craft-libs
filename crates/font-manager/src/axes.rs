@@ -114,10 +114,10 @@ fn label_in(axis: &FontAxis, labels: &AxisSlidersWords) -> String {
         return axis.name.clone();
     }
     match &axis.tag {
-        b"wght" => labels.weight.clone(),
-        b"wdth" => labels.width.clone(),
-        b"slnt" => labels.slant.clone(),
-        b"ital" => labels.italic.clone(),
+        b"wght" => labels.weight.as_str().to_owned(),
+        b"wdth" => labels.width.as_str().to_owned(),
+        b"slnt" => labels.slant.as_str().to_owned(),
+        b"ital" => labels.italic.as_str().to_owned(),
         tag => Tag::new(tag).to_string(),
     }
 }
@@ -225,7 +225,7 @@ impl<'a> AxisSliders<'a> {
                 let before = matching_instance(instances, &current).and_then(|m| instances.iter().position(|i| std::ptr::eq(i, m)));
                 let mut picked = before;
                 let entries: Vec<Entry<Option<usize>>> =
-                    instances.iter().enumerate().map(|(at, instance)| Entry::new(Some(at), instance.name.as_str())).collect();
+                    instances.iter().enumerate().map(|(at, instance)| Entry::new(Some(at), instance.name.clone())).collect();
                 Field::new(words.style.clone()).show(ui, |ui, _| {
                     Select::new(words.style.clone(), Bind::bound(&mut picked), &entries).placeholder(words.custom.clone()).show(ui);
                 });

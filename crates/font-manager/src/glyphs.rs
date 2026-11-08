@@ -45,19 +45,19 @@ craft_ui::words! {
         selected: template "glyphs.selected" = "U+{code}  ·  {count}";
         /// `{char}` the glyph, `{code}` its code point.
         cell: template "glyphs.cell" = "{char}, U+{code}";
-        punctuation: "glyphs.category.punctuation" = "Punctuation";
-        alternates: "glyphs.category.alternates" = "Alternates for Selection";
-        numbers: "glyphs.category.numbers" = "Numbers";
-        currency: "glyphs.category.currency" = "Currency";
-        symbols: "glyphs.category.symbols" = "Symbols";
-        math_symbols: "glyphs.category.mathSymbols" = "Math Symbols";
-        arrows: "glyphs.category.arrows" = "Arrows";
-        latin: "glyphs.category.latin" = "Latin";
-        greek: "glyphs.category.greek" = "Greek";
-        cyrillic: "glyphs.category.cyrillic" = "Cyrillic";
-        letterlike: "glyphs.category.letterlike" = "Letterlike Symbols";
-        scripts: "glyphs.category.scripts" = "Superscripts and Subscripts";
-        ornaments: "glyphs.category.ornaments" = "Ornaments";
+        punctuation: "glyphs.categoryPunctuation" = "Punctuation";
+        alternates: "glyphs.categoryAlternates" = "Alternates for Selection";
+        numbers: "glyphs.categoryNumbers" = "Numbers";
+        currency: "glyphs.categoryCurrency" = "Currency";
+        symbols: "glyphs.categorySymbols" = "Symbols";
+        math_symbols: "glyphs.categoryMathSymbols" = "Math Symbols";
+        arrows: "glyphs.categoryArrows" = "Arrows";
+        latin: "glyphs.categoryLatin" = "Latin";
+        greek: "glyphs.categoryGreek" = "Greek";
+        cyrillic: "glyphs.categoryCyrillic" = "Cyrillic";
+        letterlike: "glyphs.categoryLetterlike" = "Letterlike Symbols";
+        scripts: "glyphs.categoryScripts" = "Superscripts and Subscripts";
+        ornaments: "glyphs.categoryOrnaments" = "Ornaments";
     }
 }
 
@@ -310,13 +310,13 @@ impl<'a> GlyphsPanel<'a> {
                 if families.is_empty() {
                     Text::new(face_family.clone()).show(ui);
                 } else {
-                    let entries: Vec<Entry<String>> = families.iter().map(|name| Entry::new(name.clone(), name.as_str())).collect();
+                    let entries: Vec<Entry<String>> = families.iter().map(|name| Entry::new(name.clone(), name.clone())).collect();
                     Select::new(words.font.clone(), Bind::bound(&mut face_family), &entries).searchable().show(ui);
                 }
                 if styles.is_empty() {
                     Text::new(face_style.clone()).show(ui);
                 } else {
-                    let entries: Vec<Entry<String>> = styles.iter().map(|name| Entry::new(name.clone(), name.as_str())).collect();
+                    let entries: Vec<Entry<String>> = styles.iter().map(|name| Entry::new(name.clone(), name.clone())).collect();
                     Select::new(words.style.clone(), Bind::bound(&mut face_style), &entries).show(ui);
                 }
             });
@@ -331,7 +331,8 @@ impl<'a> GlyphsPanel<'a> {
             let mut category = state.category.clone();
             Row::new().show(ui, |ui, _| {
                 Text::new(words.show.clone()).show(ui);
-                let entries: Vec<Entry<String>> = CATEGORIES.iter().map(|name| Entry::new((*name).to_owned(), words.category_name(name))).collect();
+                let entries: Vec<Entry<String>> =
+                    CATEGORIES.iter().map(|name| Entry::new((*name).to_owned(), words.category_name(name).to_owned())).collect();
                 Select::new(words.category.clone(), Bind::bound(&mut category), &entries).show(ui);
             });
             state.category = category;
@@ -344,7 +345,7 @@ impl<'a> GlyphsPanel<'a> {
                     let rect = rect.shrink(rect.width().min(rect.height()) * GLYPH_INSET_RATIO);
                     let request = ThumbRequest::for_cell(rect.width().max(rect.height()), ctx.pixels_per_point());
                     let picture = thumbs.state(&ctx, pictures, &key, &request, Priority::VISIBLE);
-                    let ink = DataColor::new(ctx.style().visuals.text_color());
+                    let ink = DataColor::new(ctx.global_style().visuals.text_color());
                     thumbs.paint(cx, rect, &picture, &ThumbPaint::default().tint(ink));
                 }
             };

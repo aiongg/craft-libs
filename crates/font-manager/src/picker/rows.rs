@@ -4,16 +4,17 @@ use std::borrow::Cow;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-use craft_behavior::{ColumnWidth, DisplayOrder, IconId, ItemSource, Selection};
+use craft_behavior::{DisplayOrder, IconId, ItemSource, Selection};
 use craft_ui::buttons::{Button, ToggleButton};
 use craft_ui::choice::{Radio, RadioGroup};
 use craft_ui::contract::{
-    Bind, CollectionEvent, ColumnKind, ColumnSpec, Cx, Overlay, OverlayUi, Props as _, Remember as _, Show as _, ShowCollection as _,
-    ShowContainer as _, ToggleColumn, clicked,
+    Bind, CollectionEvent, Cx, Edit as _, Overlay, OverlayUi, Overlays as _, Props as _, Remember as _, Show as _, ShowCollection as _,
+    ShowContainer as _, WordSetCx as _, clicked,
 };
 use craft_ui::display::Text;
 use craft_ui::layout_components::{Row, Stack};
-use craft_ui::list::{List, ListRow, ThumbAspect, ThumbSize, ToggleCell, ToggleFace, ToggleState};
+use craft_ui::list::{List, ListRow, RowEvent, ThumbAspect, ThumbSize, TrailingFace};
+use craft_ui::primitives::IconSpec;
 use craft_ui::runtime::env::Label;
 use egui::Rect;
 
@@ -62,11 +63,7 @@ impl DisplayOrder<usize> for Slots<'_> {
     }
 }
 
-impl ItemSource<usize> for Slots<'_> {
-    fn toggled(&self, at: usize, column: &craft_behavior::ColumnKey) -> bool {
-        *column == STAR && matches!(&self.0[at], Slot::Family(row) if row.starred)
-    }
-}
+impl ItemSource<usize> for Slots<'_> {}
 
 /// The rows with a gap after the recents.
 fn slots(rows: Vec<FamilyRow>) -> Vec<Slot> {
@@ -184,7 +181,6 @@ pub(super) fn popup<'a>(picker: &mut FontPicker<'a>, ui: &mut OverlayUi<'_>, cx:
         }
     }
     let name = words.list.clone();
-    let columns = vec![ColumnSpec::new(STAR, Label::default(), ColumnWidth::Controls(1.0)).kind(ColumnKind::Toggle(ToggleColumn::sweepable()))];
     let mut stars: Vec<(String, bool)> = Vec::new();
     let events = ui.show(popup, Overlay::dropdown(), |ui, _| {
         let mut events = Vec::new();
@@ -213,20 +209,15 @@ pub(super) fn popup<'a>(picker: &mut FontPicker<'a>, ui: &mut OverlayUi<'_>, cx:
                     }
                     let source = Slots(&slots);
                     let selection = current.filter(|_| query.trim().is_empty()).map_or_else(Selection::default, Selection::single);
-                    let rows = List::<usize>::options(name.clone())
-                        .columns(columns.clone())
-                        .selection(Bind::given(selection))
-                        .rows_stamp(stamp.finish())
-                        .show_items(ui, &source, &mut |key, icx| match &slots[*key] {
+                    let rows = List::<usize>::options(name.clone()).selection(Bind::given(selection)).rows_stamp(stamp.finish()).show_items(
+                        ui,
+                        &source,
+                        &mut |key, _| match &slots[*key] {
                             Slot::Gap => ListRow::spacer(),
                             Slot::Family(row) => {
-                                let star = ToggleCell::new(
-                                    STAR,
-                                    ToggleFace::Icons { on: IconId::new("star_filled"), off: IconId::new("star") },
-                                    ToggleState::of(row.starred),
-                                    words.favorite.clone(),
-                                );
-                                let line = ListRow::new(row.shown.clone()).option().cells(icx.cells()).toggle(star);
+                                let (icon, name) = if row.starred { ("star_filled", words.unstar.clone()) } else { ("star", words.star.clone()) };
+                                let star = TrailingFace::Icon(IconSpec::svg(IconId::new(icon)));
+                                let line = ListRow::new(row.shown.clone()).option().trailing_part(STAR, star, name);
                                 let line = match row.class {
                                     Some(class) => line.trailing(class_mark(class)),
                                     None => line,
@@ -240,7 +231,8 @@ pub(super) fn popup<'a>(picker: &mut FontPicker<'a>, ui: &mut OverlayUi<'_>, cx:
                                     ),
                                 }
                             }
-                        });
+                        },
+                    );
                     events = rows.events;
                 });
             });
@@ -257,11 +249,9 @@ pub(super) fn popup<'a>(picker: &mut FontPicker<'a>, ui: &mut OverlayUi<'_>, cx:
                 }
             }
             CollectionEvent::Activate(key) => picked = Some(key),
-            CollectionEvent::Toggle(edit) => {
-                if let Some(toggle) = edit.value()
-                    && let Some(Slot::Family(row)) = slots.get(toggle.key)
-                {
-                    stars.push((row.family.clone(), toggle.on));
+            CollectionEvent::Item(key, RowEvent::Trailing { part, .. }) if part == STAR => {
+                if let Some(Slot::Family(row)) = slots.get(key) {
+                    stars.push((row.family.clone(), !row.starred));
                 }
             }
             _ => {}
