@@ -1,23 +1,33 @@
-//! Selection statistics in the status bar (N6.08).
+//! Selection statistics in the status bar.
 
-use craft_ui::localized::{Labels as _, fmt};
-use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem};
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
-use egui::accesskit::Role;
-use egui::{CursorIcon, IdSalt, Label, PointerButton, Rect, Response, RichText, Sense, Ui, WidgetInfo, vec2};
+use std::sync::Arc;
 
-use super::style::SheetStyle;
+use craft_behavior::{Axis, CursorIcon, Flow, Metrics, PartKey, Sense};
+use craft_theme::{Stateful, TypeRole};
+use craft_ui::contract::{
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, MeasureCx, Name, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx,
+    PopupKind, Props as _, Role, Show as _, ShowContainer as _, Styled as _, Trigger, WordSetCx as _,
+};
+use craft_ui::menu::{Menu, MenuItem};
+use craft_ui::primitives::TextRun;
+use craft_ui::runtime::commands::{ClipItem, Commands as _};
+use craft_ui::runtime::env::Label;
+use craft_ui::style::{ComponentStyle, FocusLook, StyleCx, TextLook};
+use egui::{Rect, Response, Vec2};
+
+#[cfg(feature = "screen-testing")]
+mod stories;
 
 craft_ui::words! {
-    /// The statistics' names, English by default (GridCraft's, Excel's).
+    /// The statistics' names, English by default (Excel's).
     #[non_exhaustive]
-    pub struct StatsLabels {
-        average: "stats.average" = "Average: {v}";
-        count: "stats.count" = "Count: {v}";
-        numerical_count: "stats.numericalCount" = "Numerical Count: {v}";
-        minimum: "stats.minimum" = "Minimum: {v}";
-        maximum: "stats.maximum" = "Maximum: {v}";
-        sum: "stats.sum" = "Sum: {v}";
+    pub struct StatsWords {
+        average: template "stats.average" = "Average: {v}";
+        count: template "stats.count" = "Count: {v}";
+        numerical_count: template "stats.numericalCount" = "Numerical Count: {v}";
+        minimum: template "stats.minimum" = "Minimum: {v}";
+        maximum: template "stats.maximum" = "Maximum: {v}";
+        sum: template "stats.sum" = "Sum: {v}";
         average_item: "stats.averageItem" = "Average";
         count_item: "stats.countItem" = "Count";
         numerical_count_item: "stats.numericalCountItem" = "Numerical Count";
@@ -25,11 +35,19 @@ craft_ui::words! {
         maximum_item: "stats.maximumItem" = "Maximum";
         sum_item: "stats.sumItem" = "Sum";
         click_to_copy: "stats.clickToCopy" = "Click to copy";
+        menu: "stats.menu" = "Statistics";
     }
 }
 
+/// The part of the statistic at an index.
+const STAT: PartKey = PartKey::new("stat");
+
+/// Why a statistic has no key path of its own.
+const COPY_REASON: &str = "Copy copies the selection; the statistics are values of it";
+
 /// A selection's statistics, worked out by the app over its cells.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct SelectionStats {
     /// Non-empty cells.
     pub count: u64,
@@ -44,6 +62,11 @@ pub struct SelectionStats {
 }
 
 impl SelectionStats {
+    /// The statistics of `count` non-empty cells, `numeric` of them numbers with the given sum, smallest and largest.
+    pub fn new(count: u64, numeric: u64, sum: f64, min: f64, max: f64) -> Self {
+        SelectionStats { count, numeric, sum, min, max }
+    }
+
     /// `None` without numbers.
     pub fn average(&self) -> Option<f64> {
         (self.numeric > 0).then(|| self.sum / self.numeric as f64)
@@ -52,6 +75,7 @@ impl SelectionStats {
 
 /// Which statistics show; one settings section (Excel's status bar menu is app-wide).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct StatsShown {
     /// Show the average.
     pub average: bool,
@@ -67,6 +91,20 @@ pub struct StatsShown {
     pub sum: bool,
 }
 
+impl StatsShown {
+    /// Every statistic shown.
+    pub fn all() -> Self {
+        StatsShown { average: true, count: true, numerical_count: true, minimum: true, maximum: true, sum: true }
+    }
+}
+
+impl StatPart {
+    /// A statistic of `text` ("Average: 3.5") whose value alone is `value` ("3.5").
+    pub fn new(text: impl Into<String>, value: impl Into<String>) -> Self {
+        StatPart { text: text.into(), value: value.into() }
+    }
+}
+
 impl Default for StatsShown {
     /// Excel's: Average, Count and Sum.
     fn default() -> Self {
@@ -74,9 +112,9 @@ impl Default for StatsShown {
     }
 }
 
-/// One statistic of the status bar: the label with its value, and the value alone, which a click
-/// copies.
+/// One statistic of the status bar: the label with its value, and the value alone, which a click copies.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct StatPart {
     /// "Average: 3.5".
     pub text: String,
@@ -84,32 +122,31 @@ pub struct StatPart {
     pub value: String,
 }
 
-/// The status bar's statistics, left to right: Average, Count, Numerical Count, Minimum, Maximum,
-/// Sum, each when shown and the selection has a value for it (Count and Numerical Count with any
-/// cell, the others with numbers). `format` formats a number in the active cell's number format.
-// gridcraft: crates/ui-egui/src/tabs.rs:441 `selection_statistics`.
-pub fn stats_parts(stats: &SelectionStats, shown: &StatsShown, labels: &StatsLabels, format: impl Fn(f64) -> String) -> Vec<StatPart> {
+/// The status bar's statistics, left to right: Average, Count, Numerical Count, Minimum, Maximum, Sum, each when
+/// shown and the selection has a value for it (Count and Numerical Count with any cell, the others with numbers).
+/// `format` formats a number in the active cell's number format.
+pub fn stats_parts(stats: &SelectionStats, shown: &StatsShown, words: &StatsWords, format: impl Fn(f64) -> String) -> Vec<StatPart> {
     let numbers = stats.numeric > 0;
     let any = stats.count > 0;
     let mut parts = Vec::new();
-    let mut push = |label: &str, value: String| parts.push(StatPart { text: fmt(label, &[("v", &value)]), value });
+    let mut push = |word: &craft_ui::runtime::env::WordTemplate, value: String| parts.push(StatPart { text: word.fill(&[("v", &value)]), value });
     if let Some(average) = stats.average().filter(|_| shown.average) {
-        push(&labels.average, format(average));
+        push(&words.average, format(average));
     }
     if shown.count && any {
-        push(&labels.count, stats.count.to_string());
+        push(&words.count, stats.count.to_string());
     }
     if shown.numerical_count && any {
-        push(&labels.numerical_count, stats.numeric.to_string());
+        push(&words.numerical_count, stats.numeric.to_string());
     }
     if shown.minimum && numbers {
-        push(&labels.minimum, format(stats.min));
+        push(&words.minimum, format(stats.min));
     }
     if shown.maximum && numbers {
-        push(&labels.maximum, format(stats.max));
+        push(&words.maximum, format(stats.max));
     }
     if shown.sum && numbers {
-        push(&labels.sum, format(stats.sum));
+        push(&words.sum, format(stats.sum));
     }
     parts
 }
@@ -125,85 +162,202 @@ enum Statistic {
     Sum,
 }
 
-/// The statistics in the status bar for a selection of more than one cell, separated by wide
-/// spaces. A click on a statistic copies its value without the label (GridCraft `tabs.rs:421`);
-/// a secondary click opens the menu of check items (one per statistic), which changes `shown`
-/// directly. The readout is as wide as the room it is given, so its menu opens with no statistic
-/// shown (GridCraft opens it from the whole status bar). Text (AccessKit labels); the menu
-/// items are the Tab stops.
+impl Statistic {
+    const ALL: [Statistic; 6] =
+        [Statistic::Average, Statistic::Count, Statistic::NumericalCount, Statistic::Minimum, Statistic::Maximum, Statistic::Sum];
+
+    fn name(self, words: &StatsWords) -> Label {
+        match self {
+            Statistic::Average => words.average_item.clone(),
+            Statistic::Count => words.count_item.clone(),
+            Statistic::NumericalCount => words.numerical_count_item.clone(),
+            Statistic::Minimum => words.minimum_item.clone(),
+            Statistic::Maximum => words.maximum_item.clone(),
+            Statistic::Sum => words.sum_item.clone(),
+        }
+    }
+
+    fn flag(self, shown: &mut StatsShown) -> &mut bool {
+        match self {
+            Statistic::Average => &mut shown.average,
+            Statistic::Count => &mut shown.count,
+            Statistic::NumericalCount => &mut shown.numerical_count,
+            Statistic::Minimum => &mut shown.minimum,
+            Statistic::Maximum => &mut shown.maximum,
+            Statistic::Sum => &mut shown.sum,
+        }
+    }
+}
+
+/// The style of the statistics readout.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+#[non_exhaustive]
+pub struct SelectionStatsReadoutStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+    #[style(focus)]
+    focus: FocusLook,
+    /// The statistics' text.
+    #[style(text)]
+    text: TextLook,
+    /// The gap between the statistics.
+    gap: f32,
+}
+
+/// What the readout did this pass.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct SelectionStatsOutput {
+    /// The readout's response.
+    pub response: Response,
+    /// The value a click on a statistic copied this pass, without its label.
+    pub copied: Option<String>,
+}
+
+impl Outcome for SelectionStatsOutput {
+    type Value = StatsShown;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// The statistics in the status bar for a selection of more than one cell, in a row. A click on a statistic copies
+/// its value without the label; a secondary click, the Menu key or Shift+F10 opens the menu of check items (one per
+/// statistic), which changes the bound [`StatsShown`]. The readout takes the room it is given, so the menu opens
+/// with no statistic shown. The readout is one Tab stop.
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
+#[component(overlay)]
 pub struct SelectionStatsReadout<'a> {
-    id_salt: IdSalt,
+    #[common]
+    common: Common,
     parts: &'a [StatPart],
-    shown: &'a mut StatsShown,
-    labels: Option<StatsLabels>,
+    shown: Bind<'a, StatsShown>,
+    rects: Vec<Rect>,
+    copied: Option<String>,
 }
 
 impl<'a> SelectionStatsReadout<'a> {
-    /// A readout of `parts`, with `shown` choosing which of them appear; its menu edits `shown`.
-    pub fn new(id_salt: impl egui::AsIdSalt, parts: &'a [StatPart], shown: &'a mut StatsShown) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), parts, shown, labels: None }
+    /// A readout named `label` of `parts`, with `shown` choosing which of them appear; its menu edits `shown`.
+    pub fn new(label: impl Into<Label>, parts: &'a [StatPart], shown: Bind<'a, StatsShown>) -> Self {
+        SelectionStatsReadout { common: Common::new(), parts, shown, rects: Vec::new(), copied: None }.label(label)
     }
 
-    /// Uses these label texts instead of the ones read from the active locale's catalog.
-    pub fn labels(mut self, labels: StatsLabels) -> Self {
-        self.labels = Some(labels);
-        self
+    fn run<'t>(text: &'t str, style: &SelectionStatsReadoutStyle) -> TextRun<'t> {
+        TextRun::new(text).role(style.text.role)
+    }
+}
+
+impl Component for SelectionStatsReadout<'_> {
+    const ROLE: Role = Role::GROUP;
+    type Style = SelectionStatsReadoutStyle;
+    type Output = SelectionStatsOutput;
+
+    fn style(cx: &StyleCx<'_>, _: SelectionStatsReadoutStyleKey) -> SelectionStatsReadoutStyle {
+        SelectionStatsReadoutStyle {
+            metrics: Metrics::new(),
+            focus: cx.focus_look(),
+            text: TextLook::new(TypeRole::Label, Stateful::new(cx.color(cx.tokens.color.text.muted))),
+            gap: cx.tokens.space.gap.stack,
+        }
     }
 
-    // gridcraft: crates/ui-egui/src/tabs.rs:323 `status_bar`, `:479` `status_bar_menu`.
-    /// Shows the readout; its response is the readout's.
-    pub fn show(self, ui: &mut Ui) -> Response {
-        let Self { id_salt, parts, shown, labels } = self;
-        let labels = labels.unwrap_or_else(|| StatsLabels::of(ui));
-        let tokens = Tokens::of(ui);
-        let style = SheetStyle::of(&tokens);
-        let id = ui.make_persistent_id(id_salt);
-        let font = tokens.font(style.stats_text);
-        let color = tokens.color.text.muted.to_egui();
-        let room = ui.available_width();
-        let mut rects = Vec::with_capacity(parts.len());
-        // The readout keeps one text line of height with no statistic shown.
-        let line = ui.fonts_mut(|f| f.row_height(&font));
-        let row = ui.horizontal(|ui| {
-            ui.set_min_height(line);
-            ui.spacing_mut().item_spacing.x = style.stats_gap;
-            for part in parts {
-                let label = ui.add(Label::new(RichText::new(&part.text).font(font.clone()).color(color)).selectable(false));
-                rects.push(label.rect);
+    /// The statistics side by side, at least one text line tall.
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        let line = cx.layout(&Self::run("0", cx.style)).size().y;
+        let mut size = Vec2::new(0.0, line);
+        for (at, part) in self.parts.iter().enumerate() {
+            let text = cx.layout(&Self::run(&part.text, cx.style)).size();
+            size.x += text.x + if at > 0 { cx.style.gap } else { 0.0 };
+            size.y = size.y.max(text.y);
+        }
+        size
+    }
+
+    fn fills(&self) -> Option<Axis> {
+        Some(Axis::X)
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::CLICK | Sense::FOCUS
+    }
+
+    fn bind(&mut self) -> Option<BindMut<'_, StatsShown>> {
+        Some(self.shown.reborrow())
+    }
+
+    fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
+        let words = cx.words::<StatsWords>();
+        self.rects.clear();
+        let mut flow = Flow::new(rect, cx.flow.is_rtl());
+        for (at, part) in self.parts.iter().enumerate() {
+            let width = cx.layout(&Self::run(&part.text, cx.style)).size().x;
+            let (taken, rest) = flow.take_start(width);
+            flow = rest.take_start(cx.style.gap).1;
+            cx.part(STAT.at(at as u64), taken)
+                .sense(Sense::CLICK)
+                .cursor(CursorIcon::PointingHand)
+                .tooltip(words.click_to_copy.clone())
+                .pointer_only(COPY_REASON);
+            self.rects.push(taken);
+        }
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        for (at, part) in self.parts.iter().enumerate() {
+            if cx.part_activated(STAT.at(at as u64)).is_some() {
+                cx.clipboard().put(&[ClipItem::Text(Arc::from(part.value.as_str()))]);
+                self.copied = Some(part.value.clone());
             }
+        }
+        cx.popup("menu").trigger(Trigger::Context, cx);
+    }
+
+    /// The menu: a check row per statistic that leaves the menu open.
+    fn overlay(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
+        let popup = cx.popup("menu");
+        let words = cx.words::<StatsWords>();
+        let shown = cx.value().copied().unwrap_or_default();
+        let picked = ui.show(popup, Overlay::menu(), |ui, _| {
+            Menu::inline(words.menu.clone())
+                .show(ui, |ui, _| {
+                    let mut flags = shown;
+                    let mut picked = None;
+                    for statistic in Statistic::ALL {
+                        let on = *statistic.flag(&mut flags);
+                        if MenuItem::new(statistic.name(&words)).check(on).keep_open(true).show(ui).ran {
+                            picked = Some(statistic);
+                        }
+                    }
+                    picked
+                })
+                .inner
+                .flatten()
         });
-        let area = Rect::from_min_size(row.response.rect.min, vec2(room.max(row.response.rect.width()), row.response.rect.height()));
-        let mut response = ui.interact(area, id, Sense::click());
-        let over = |at: Option<egui::Pos2>| at.and_then(|at| rects.iter().position(|rect| rect.contains(at)));
-        if over(response.hover_pos()).is_some() {
-            response = response.on_hover_cursor(CursorIcon::PointingHand).on_hover_text(&labels.click_to_copy);
-        }
-        if response.clicked_by(PointerButton::Primary)
-            && let Some(part) = over(response.interact_pointer_pos())
-        {
-            ui.ctx().copy_text(parts[part].value.clone());
-        }
-        response.widget_info(|| WidgetInfo::new(Role::GenericContainer));
-        let item = |label: &str, statistic: Statistic, on: bool| MenuEntry::from(MenuItem::new(label, statistic).check(on).keep_open(true));
-        let entries = [
-            item(&labels.average_item, Statistic::Average, shown.average),
-            item(&labels.count_item, Statistic::Count, shown.count),
-            item(&labels.numerical_count_item, Statistic::NumericalCount, shown.numerical_count),
-            item(&labels.minimum_item, Statistic::Minimum, shown.minimum),
-            item(&labels.maximum_item, Statistic::Maximum, shown.maximum),
-            item(&labels.sum_item, Statistic::Sum, shown.sum),
-        ];
-        if let Some(statistic) = ContextMenu::new(&entries).min_width(style.status_menu_min_width).show(ui, &response).chosen {
-            let flag = match statistic {
-                Statistic::Average => &mut shown.average,
-                Statistic::Count => &mut shown.count,
-                Statistic::NumericalCount => &mut shown.numerical_count,
-                Statistic::Minimum => &mut shown.minimum,
-                Statistic::Maximum => &mut shown.maximum,
-                Statistic::Sum => &mut shown.sum,
-            };
+        if let Some(statistic) = picked.flatten() {
+            let mut next = shown;
+            let flag = statistic.flag(&mut next);
             *flag = !*flag;
+            cx.set(next);
         }
-        response
+    }
+
+    fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
+        access.has_popup(PopupKind::Menu);
+        for (at, part) in self.parts.iter().enumerate() {
+            access.node(STAT.at(at as u64), Role::LABEL).name = Name::Text(part.text.clone());
+        }
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let draw = ui.draw();
+        let color = cx.resolve(&cx.style.text.color);
+        for (part, rect) in self.parts.iter().zip(&self.rects) {
+            draw.text(*rect, &Self::run(&part.text, cx.style).color(color));
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> SelectionStatsOutput {
+        SelectionStatsOutput { response: cx.response.clone(), copied: self.copied }
     }
 }
