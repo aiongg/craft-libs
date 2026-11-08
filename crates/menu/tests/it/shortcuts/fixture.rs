@@ -112,7 +112,9 @@ impl Rig {
 
     /// The control with this label; panics when there is none.
     pub(crate) fn find(&self, label: &str) -> Target {
-        self.fixture.by_label(label).unwrap_or_else(|| panic!("no control labelled {label:?}"))
+        self.fixture.by_label(label).unwrap_or_else(|| {
+            panic!("no control labelled {label:?}; buttons {:?}; rows {:?}", self.names_with(Role::BUTTON, ""), self.names_with(Role::ROW, ""))
+        })
     }
 
     /// The names of the nodes of `role` that contain `part`, for a failure message.

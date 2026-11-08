@@ -266,6 +266,7 @@ fn the_help_search_finds_items_and_fires_their_commands() {
     click(&mut fixture, "Help");
     fixture.type_text("redo");
     fixture.settle();
+    let found = fixture.by_label("Redo").map(|target| fixture.tree().role_of(target.node));
     click(&mut fixture, "Redo");
-    assert_eq!(fired(&fixture), [("edit.redo".to_owned(), FireSource::Menu)]);
+    assert_eq!(fired(&fixture), [("edit.redo".to_owned(), FireSource::Menu)], "the node clicked: {found:?}");
 }

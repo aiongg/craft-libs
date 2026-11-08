@@ -6,6 +6,7 @@ use craft_ui::testing::trial;
 use egui::{Key, Modifiers};
 
 use super::fixture::{Rig, keymap, options};
+use craft_ui::contract::Role;
 
 /// A chord pressed while a row records reaches the recorder first, and the row's bindings stay as they were until the
 /// conflict is answered.
@@ -55,7 +56,12 @@ fn conflict_keep_both_lists_the_clash_and_cancel_changes_nothing() {
     assert!(rig.has("Also used by Save"));
     rig.click("1 shortcut is assigned more than once");
     assert!(rig.has("Save: ⌘S") && rig.has("Export…: ⌘S"));
-    assert!(!rig.has("Save As…: ⇧⌘S"), "the Conflicts filter shows only the clash");
+    assert!(
+        !rig.has("Save As…: ⇧⌘S"),
+        "the Conflicts filter shows only the clash: rows {:?}, buttons {:?}",
+        rig.names_with(Role::ROW, ""),
+        rig.names_with(Role::BUTTON, "")
+    );
 }
 
 /// Assign in the detail pane takes a held shortcut without the bar and leaves the command's other shortcuts.
