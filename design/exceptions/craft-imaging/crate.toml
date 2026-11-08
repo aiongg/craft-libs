@@ -1,9 +1,1 @@
 config_version = 1
-
-
-[[exception]]
-name = "Lasso"
-kind = "probe"
-rule = "probe/exempt/freehand-tool"
-path = "crates/imaging/src/ui/select/lasso.rs"
-reason = "The Lasso draws by dragging the pointer; the Select Area... command takes the same outline as points."

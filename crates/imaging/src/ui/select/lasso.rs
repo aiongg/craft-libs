@@ -344,6 +344,6 @@ impl CanvasTool for SelectToolPass<'_, LassoTool> {
     }
 
     fn command_form(&self) -> ToolPath {
-        ToolPath::Freehand
+        ToolPath::Freehand("the Select Area... command takes the same outline as points")
     }
 }

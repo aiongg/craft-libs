@@ -660,6 +660,6 @@ impl CanvasTool for LiquifyCanvasTool<'_> {
     }
 
     fn command_form(&self) -> ToolPath {
-        ToolPath::Freehand
+        ToolPath::Freehand("none; a liquify stroke follows the pointer")
     }
 }

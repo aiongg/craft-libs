@@ -117,7 +117,7 @@ impl CanvasTool for VanishingPointTool<'_> {
 
     fn command_form(&self) -> ToolPath {
         self.run(|work| match work.editor.tool {
-            VanishingTool::Stamp => ToolPath::Freehand,
+            VanishingTool::Stamp => ToolPath::Freehand("none; a stamp stroke follows the pointer"),
             _ => ToolPath::Command("the New Plane… command"),
         })
     }

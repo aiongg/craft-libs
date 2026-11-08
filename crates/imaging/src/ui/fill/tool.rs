@@ -371,6 +371,6 @@ impl CanvasTool for FillCanvasTool<'_> {
     fn paint(&self, _: &Draw<'_>, _: &ToolContext<'_>) {}
 
     fn command_form(&self) -> ToolPath {
-        ToolPath::Freehand
+        ToolPath::Freehand("none; a brush or lasso stroke follows the pointer")
     }
 }

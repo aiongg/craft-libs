@@ -790,7 +790,7 @@ impl CanvasTool for SelectMaskCanvasTool<'_> {
     fn command_form(&self) -> ToolPath {
         match self.tool {
             SelectMaskTool::Object => ToolPath::Command("the Select Subject command"),
-            _ => ToolPath::Freehand,
+            _ => ToolPath::Freehand("none; a brush or lasso stroke follows the pointer"),
         }
     }
 }
