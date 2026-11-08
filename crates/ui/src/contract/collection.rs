@@ -299,6 +299,8 @@ pub struct CollectionProps {
     pub reorder: Option<ReorderRule>,
     /// The item step runs rename through `Collection::rename_editor`.
     pub rename: bool,
+    /// A double click on this column of a renamable item opens its rename editor instead of activating it.
+    pub rename_column: Option<ColumnKey>,
     /// Empty: no columns and no header row.
     pub columns: Vec<ColumnSpec>,
     /// The sorted column and direction; `None` while the rows are unsorted.
@@ -394,6 +396,7 @@ impl CollectionProps {
             select: SelectMode::None,
             reorder: None,
             rename: false,
+            rename_column: None,
             columns: Vec::new(),
             sort: None,
             empty: None,
@@ -443,6 +446,14 @@ impl CollectionProps {
     #[must_use]
     pub fn rename(mut self, on: bool) -> Self {
         self.rename = on;
+        self
+    }
+
+    /// A double click on `column` of a renamable item (`rename`, `Collection::can_rename`) opens its rename editor; the
+    /// double click elsewhere on the row activates it.
+    #[must_use]
+    pub fn rename_column(mut self, column: ColumnKey) -> Self {
+        self.rename_column = Some(column);
         self
     }
 

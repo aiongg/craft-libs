@@ -936,7 +936,15 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                         ActivateOn::DoubleClick => start.clicks == 2,
                         ActivateOn::Click => primary && start.clicks == 1,
                     };
-                    if activates && !self.source.section_stop(at) {
+                    let names = primary
+                        && start.clicks == 2
+                        && props.rename
+                        && props.rename_column.is_some()
+                        && layout.column_at(local(start.origin), offset).and_then(|column| self.header.key_at(column)) == props.rename_column.as_ref()
+                        && comp.can_rename(&key);
+                    if names && !self.source.section_stop(at) {
+                        self.begin_rename(cx, at);
+                    } else if activates && !self.source.section_stop(at) {
                         self.events.push(CollectionEvent::Activate(key));
                     }
                 }

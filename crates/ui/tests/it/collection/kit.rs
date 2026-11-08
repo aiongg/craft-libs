@@ -249,6 +249,21 @@ impl<'a> List<'a> {
         self
     }
 
+    /// Two headerless columns, the first of which a double click renames from.
+    pub fn rename_column(mut self, name: craft_behavior::ColumnKey, other: craft_behavior::ColumnKey) -> Self {
+        use craft_behavior::ColumnWidth;
+        self.items = self
+            .items
+            .rename(true)
+            .rename_column(name.clone())
+            .header(false)
+            .columns(vec![
+                craft_ui::contract::ColumnSpec::new(name, "Name", ColumnWidth::Fixed(100.0)),
+                craft_ui::contract::ColumnSpec::new(other, "Other", ColumnWidth::Fixed(100.0)),
+            ]);
+        self
+    }
+
     /// A plain click on a row asks for its menu.
     pub fn menu_on_click(mut self, on: bool) -> Self {
         self.items = self.items.menu_on_click(on);

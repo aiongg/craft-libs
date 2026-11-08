@@ -363,6 +363,35 @@ fn rename_starts_commits_and_cancels() {
     assert_eq!(renames(), ["begin", "commit one!", "begin", format!("cancel {:?}", CancelReason::Escape).as_str()]);
 }
 
+/// A double click on the rename column opens the row's editor and does not activate it; on another column it activates.
+#[trial]
+fn a_double_click_on_the_rename_column_renames_and_elsewhere_activates() {
+    use craft_behavior::ColumnKey;
+    let words = Words::flat(&["one", "two"]);
+    let seen = Seen::default();
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        show_words(ui, List::new(SelectMode::Single).rename_column(ColumnKey::new("name"), ColumnKey::new("other")), &words, &seen)
+    };
+    frames.idle(3, &mut show);
+    let y = seen.rect.get().min.y + ROW_H / 2.0;
+    let count = |seen: &Seen, wanted: fn(&CollectionEvent<usize, Dismissed>) -> bool| seen.events.borrow().iter().filter(|event| wanted(event)).count();
+    let double = |frames: &mut Frames, at: Pos2, show: &mut dyn FnMut(&mut Ui)| {
+        frames.frame(vec![pointer::moved(at)], &mut *show);
+        for _ in 0..2 {
+            frames.frame(vec![pointer::press(at)], &mut *show);
+            frames.frame(vec![pointer::release(at)], &mut *show);
+        }
+        frames.idle(2, &mut *show);
+    };
+    double(&mut frames, Pos2::new(seen.rect.get().min.x + 150.0, y), &mut show);
+    assert_eq!(count(&seen, |event| matches!(event, CollectionEvent::Activate(_))), 1, "the other column activates");
+    assert_eq!(count(&seen, |event| matches!(event, CollectionEvent::Rename(_))), 0);
+    double(&mut frames, Pos2::new(seen.rect.get().min.x + 50.0, y), &mut show);
+    assert_eq!(count(&seen, |event| matches!(event, CollectionEvent::Rename(EditEvent::Begin { .. }))), 1, "the name column renames");
+    assert_eq!(count(&seen, |event| matches!(event, CollectionEvent::Activate(_))), 1, "and does not activate");
+}
+
 /// A rename requested for a key opens that row's rename field at the next pass, with no key press on the list.
 #[trial]
 fn a_requested_rename_opens_the_rows_field() {
