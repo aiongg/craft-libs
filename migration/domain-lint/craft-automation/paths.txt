@@ -1,6 +1,0 @@
-crates/automation/src/ui
-crates/automation/src/control.rs
-crates/automation/src/screenshot.rs
-crates/automation/src/server.rs
-crates/automation/src/synthetic.rs
-crates/automation/tests/it
