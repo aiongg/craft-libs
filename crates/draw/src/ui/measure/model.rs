@@ -11,6 +11,7 @@ pub const MIN_LINE: f64 = 0.5;
 /// Serialises camelCase, points as kurbo's: the app stores the line in its document.
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct RulerLine {
     /// The first end, and the protractor's vertex.
     pub start: Point,
@@ -22,6 +23,7 @@ pub struct RulerLine {
 
 /// A part of the line a press grabs and the keys move.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum RulerPart {
     /// The line's start.
     Start,
@@ -32,8 +34,8 @@ pub enum RulerPart {
 }
 
 impl RulerPart {
-    /// The part's key for [`Part::key`](craft_ui::canvas::Part::key): 0, 1, 2 in keyboard order.
-    pub fn key(self) -> u64 {
+    /// The part's index in the overlay's part group: 0, 1, 2 in keyboard order.
+    pub(super) fn key(self) -> u64 {
         match self {
             RulerPart::Start => 0,
             RulerPart::End => 1,
@@ -42,7 +44,7 @@ impl RulerPart {
     }
 
     /// The part keyed `key`.
-    pub fn of_key(key: u64) -> Option<RulerPart> {
+    pub(super) fn of_key(key: u64) -> Option<RulerPart> {
         match key {
             0 => Some(RulerPart::Start),
             1 => Some(RulerPart::End),
@@ -55,6 +57,7 @@ impl RulerPart {
 /// What the Ruler measures, as the engine's `ruler_info` gives it: X and Y of the start, W and H
 /// (end minus start, signed), the angle A and the lengths L1 and L2.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct RulerReading {
     /// X of the start.
     pub x: f64,
@@ -77,6 +80,13 @@ impl RulerLine {
     /// A line from `start` to `end` without a protractor.
     pub fn new(start: Point, end: Point) -> Self {
         Self { start, end, protractor: None }
+    }
+
+    /// The line with a protractor arm from `start` to `protractor`.
+    #[must_use]
+    pub fn with_protractor(mut self, protractor: Point) -> Self {
+        self.protractor = Some(protractor);
+        self
     }
 
     /// Whether every point is finite.

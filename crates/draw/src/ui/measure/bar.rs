@@ -1,169 +1,125 @@
-//! [`RulerBar`]: the Ruler tool's options bar body: the seven readouts, Use Measurement Scale,
-//! Straighten Layer and Clear.
-
-use std::sync::Arc;
+//! [`RulerBar`]: the Ruler tool's options as children of the app's options bar: the seven readouts, Use Measurement
+//! Scale, Straighten Layer and Clear.
 
 use super::model::RulerLine;
-use super::style::MeasureStyle;
-use craft_theme::TypeRole;
-use craft_ui::canvas::RulerUnits;
-use craft_ui::controls::{Button, Checkbox};
-use craft_ui::localized::{LocaleNumbers, SharedLabels as _};
-use craft_ui::patterns::{OptionsBar, OptionsBarSlots};
-use craft_ui::primitives::{Content, Text};
-use craft_ui::theme::{Tokens, TokensOf as _};
-use egui::accesskit::Role;
-use egui::{Ui, UiBuilder};
+use super::words::RulerWords;
+use craft_ui::buttons::Button;
+use craft_ui::canvas::CanvasRulers;
+use craft_ui::choice::Checkbox;
+use craft_ui::contract::{Bind, CellWidth, FieldLayout, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, Sizing, clicked};
+use craft_ui::display::{Divider, Text};
+use craft_ui::form::Field;
+use craft_ui::layout_components::Row;
+use craft_ui::runtime::env::{Env, Label};
+use craft_ui::style::TypeRole;
+use egui::{Response, Ui};
 
-craft_ui::words! {
-    /// The Ruler options bar's words, English by default.
-    #[non_exhaustive]
-    pub struct RulerBarLabels {
-        x: "rulerBar.x" = "X:";
-        y: "rulerBar.y" = "Y:";
-        w: "rulerBar.w" = "W:";
-        h: "rulerBar.h" = "H:";
-        angle: "rulerBar.angle" = "A:";
-        l1: "rulerBar.l1" = "L1:";
-        l2: "rulerBar.l2" = "L2:";
-        /// The readouts' AccessKit names, without the caption's colon.
-        x_name: "rulerBar.xName" = "X";
-        y_name: "rulerBar.yName" = "Y";
-        w_name: "rulerBar.wName" = "W";
-        h_name: "rulerBar.hName" = "H";
-        angle_name: "rulerBar.angleName" = "A";
-        l1_name: "rulerBar.l1Name" = "L1";
-        l2_name: "rulerBar.l2Name" = "L2";
-        use_scale: "rulerBar.useScale" = "Use Measurement Scale";
-        straighten_layer: "rulerBar.straightenLayer" = "Straighten Layer";
-        clear: "rulerBar.clear" = "Clear";
-    }
-}
+/// The width of a readout's caption cell: the caption's own.
+const CAPTION: CellWidth = CellWidth::Content;
+
+/// The digits of a readout.
+const DECIMALS: usize = 2;
 
 /// What the Ruler bar reported this pass.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Debug)]
+#[non_exhaustive]
 pub struct RulerBarOutput {
-    /// Straighten Layer was clicked: the app runs its command (the engine's).
+    /// The strip's response.
+    pub response: Response,
+    /// Straighten Layer was clicked: the app runs its command.
     pub straighten_layer: bool,
     /// Clear was clicked: the app clears the line.
     pub clear: bool,
 }
 
-/// The Ruler tool's options bar body.
+impl Outcome for RulerBarOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// The Ruler tool's options, shown as children of the app's options bar.
 ///
-/// ```no_run
-/// use craft_draw::ui::measure::{RulerBar, RulerBarOutput, RulerLine};
-/// use craft_ui::patterns::OptionsBar;
-/// # fn demo(ui: &mut egui::Ui, line: Option<RulerLine>, use_scale: &mut bool, factor: f64) {
-/// let mut out = RulerBarOutput::default();
-/// OptionsBar::new("options").show(ui, |bar| RulerBar::new(line, use_scale).scale(factor).output(&mut out).add_to(bar));
-/// # }
-/// ```
-///
-/// - Readouts X, Y (the start), W, H (end minus start), A, L1 and L2 (blank without a protractor;
-///   all blank without a line), each a muted caption and a value in the numeric type role,
-///   the readout gap apart; live while the line is dragged (the app passes the line of this
-///   pass). Values have two decimals; with [`units`](Self::units) and no measurement scale the
-///   lengths and positions are written in the ruler units (X and W in the first, Y and H in the
-///   second, L1 and L2 in the first), the angle stays a plain number.
+/// - Readouts X, Y (the start), W, H (end minus start), A, L1 and L2 (blank without a protractor; all blank without a
+///   line), each a caption and a tabular value; live while the line is dragged (the app passes the line of this
+///   pass). Values have two decimals. Lengths and positions are written in the canvas's ruler units
+///   ([`rulers`](Self::rulers)) while Use Measurement Scale is off; the angle is a plain number of degrees.
 /// - Use Measurement Scale multiplies X, Y, W, H, L1 and L2 by the scale factor, not the angle
-///   ([`RulerReading::scaled`](super::RulerReading::scaled)).
-/// - One divider after the readouts, then the check box, Straighten Layer and Clear (both disabled
-///   with no line), at [`OptionsBar::CONTROL_SIZE`].
-/// - **AccessKit:** each readout is a labelled static value ("X", "1.00"), named by the
-///   `*_name` words; the check box and the buttons as usual.
+///   ([`RulerReading::scaled`](super::RulerReading::scaled)); the values are then plain numbers in the scale's own
+///   unit, which the bar does not know.
+/// - One rule after the readouts, then the check box, Straighten Layer and Clear (both disabled with no line).
+/// - **AccessKit:** each readout is a field named by the `*_name` words, valued with its text.
+#[must_use = "show the bar's children with `show`"]
+#[derive(craft_ui::contract::Pattern, craft_ui::contract::Props)]
 pub struct RulerBar<'a> {
     line: Option<RulerLine>,
-    use_scale: &'a mut bool,
+    use_scale: Bind<'a, bool>,
+    /// The measurement scale's factor (document units to the scale's units).
+    #[prop(quantity = "scale factor")]
     factor: f64,
-    units: Option<(&'a RulerUnits, &'a RulerUnits)>,
-    labels: Option<RulerBarLabels>,
-    output: Option<&'a mut RulerBarOutput>,
+    /// The units of the canvas the line is on, which `CanvasSpace::rulers` gives: the bar sits outside the canvas, so
+    /// it cannot read them itself. Default: document pixels.
+    #[prop]
+    rulers: CanvasRulers,
 }
 
 impl<'a> RulerBar<'a> {
     /// The bar for `line`, with the Use Measurement Scale check box editing `use_scale`.
-    pub fn new(line: Option<RulerLine>, use_scale: &'a mut bool) -> Self {
-        Self { line, use_scale, factor: 1.0, units: None, labels: None, output: None }
+    pub fn new(line: Option<RulerLine>, use_scale: Bind<'a, bool>) -> Self {
+        Self { line, use_scale, factor: 1.0, rulers: CanvasRulers::default() }
     }
 
-    /// The measurement scale's factor (document units to the scale's units); default 1.
-    pub fn scale(mut self, factor: f64) -> Self {
-        self.factor = factor;
-        self
-    }
-
-    /// The ruler units of the readouts' values ("x, y"), as [`RulerInput::units`](super::RulerInput::units);
-    /// default: plain numbers. They apply while Use Measurement Scale is off: a scaled value is in
-    /// the scale's own unit, which the bar does not know.
-    pub fn units(mut self, x: &'a RulerUnits, y: &'a RulerUnits) -> Self {
-        self.units = Some((x, y));
-        self
-    }
-
-    /// The words; default: [`RulerBarLabels`] of the installed words.
-    pub fn labels(mut self, labels: RulerBarLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    /// Where the bar reports its buttons.
-    pub fn output(mut self, output: &'a mut RulerBarOutput) -> Self {
-        self.output = Some(output);
-        self
-    }
-
-    /// Fills the bar's body slot.
-    pub fn add_to(self, slots: &mut OptionsBarSlots<'a>) {
-        // pc: crates/ui-egui/src/tools/analysis_ui.rs:497 `options_bar` (the Ruler branch), :489
-        // `readout` (11 pt dim caption, monospace value, `{v:.2}`, 6 pt gap).
-        let Self { line, use_scale, factor, units, labels, output } = self;
-        slots.body(move |ui| {
-            let labels = labels.map(Arc::new).unwrap_or_else(|| RulerBarLabels::shared(ui));
-            let gap = MeasureStyle::of(&Tokens::of(ui)).readout_gap;
-            let numbers = LocaleNumbers::of(ui);
+    /// Shows the bar's children.
+    pub fn show(self, ui: &mut Ui) -> RulerBarOutput {
+        let Self { line, mut use_scale, factor, rulers } = self;
+        let env = Env::of(ui);
+        let words = env.words::<RulerWords>();
+        let units = env.units();
+        let mut scaled = false;
+        let mut straighten_layer = false;
+        let mut clear = false;
+        let shown = Row::new().show(ui, |ui, cx| {
+            scaled = use_scale.reborrow().read(cx).is_some_and(|held| matches!(held, craft_behavior::Mixed::Same(true)));
             let reading = line.map(|line| {
                 let reading = line.reading();
-                if *use_scale { reading.scaled(factor) } else { reading }
+                if scaled { reading.scaled(factor) } else { reading }
             });
-            let scaled = *use_scale;
-            let (ux, uy) = if scaled { (None, None) } else { (units.map(|u| u.0), units.map(|u| u.1)) };
-            let length = |unit: Option<&RulerUnits>, v: Option<f64>| {
-                v.map_or_else(String::new, |v| unit.map_or_else(|| numbers.format(v, 2..=2), |unit| unit.format_value(v, 0.0)))
+            let length = |axis_x: bool, value: Option<f64>| -> String {
+                let Some(value) = value else { return String::new() };
+                if scaled {
+                    return units.number(value, DECIMALS..=DECIMALS);
+                }
+                let ruler = if axis_x { &rulers.x } else { &rulers.y };
+                ruler.format(&units, value, 0.0, DECIMALS..=DECIMALS)
             };
-            let angle = reading.map_or_else(String::new, |r| numbers.format(r.angle, 2..=2));
+            let angle = reading.map_or_else(String::new, |r| units.number(r.angle, DECIMALS..=DECIMALS));
             let readouts = [
-                (&labels.x, &labels.x_name, length(ux, reading.map(|r| r.x))),
-                (&labels.y, &labels.y_name, length(uy, reading.map(|r| r.y))),
-                (&labels.w, &labels.w_name, length(ux, reading.map(|r| r.w))),
-                (&labels.h, &labels.h_name, length(uy, reading.map(|r| r.h))),
-                (&labels.angle, &labels.angle_name, angle),
-                (&labels.l1, &labels.l1_name, length(ux, reading.map(|r| r.l1))),
-                (&labels.l2, &labels.l2_name, length(ux, reading.and_then(|r| r.l2))),
+                ("x", &words.x_name, length(true, reading.map(|r| r.x))),
+                ("y", &words.y_name, length(false, reading.map(|r| r.y))),
+                ("w", &words.w_name, length(true, reading.map(|r| r.w))),
+                ("h", &words.h_name, length(false, reading.map(|r| r.h))),
+                ("angle", &words.angle_name, angle),
+                ("l1", &words.l1_name, length(true, reading.map(|r| r.l1))),
+                ("l2", &words.l2_name, length(true, reading.and_then(|r| r.l2))),
             ];
-            for (caption, name, value) in &readouts {
-                readout(ui, caption, name, value, gap);
+            for (salt, name, value) in readouts {
+                readout(ui, salt, name.clone().into(), value);
             }
-            OptionsBar::divider(ui);
-            let size = OptionsBar::CONTROL_SIZE;
-            let _ = Checkbox::bool(labels.use_scale.clone(), use_scale).size(size).show(ui);
+            Divider::vertical().show(ui);
+            Checkbox::new(use_scale.reborrow()).label(words.use_scale.clone()).show(ui);
             let enabled = line.is_some();
-            let straighten = ui.add(Button::new(labels.straighten_layer.to_string()).size(size).enabled(enabled)).clicked();
-            let clear = ui.add(Button::new(labels.clear.to_string()).size(size).enabled(enabled)).clicked();
-            if let Some(output) = output {
-                output.straighten_layer |= straighten;
-                output.clear |= clear;
-            }
+            straighten_layer = clicked(&Button::new(words.straighten_layer.clone()).enabled(enabled).show(ui));
+            clear = clicked(&Button::new(words.clear.clone()).enabled(enabled).show(ui));
         });
+        RulerBarOutput { response: shown.output, straighten_layer, clear }
     }
 }
 
-/// One caption and value, a group named `name` for AccessKit ("X", "1.00"), then the gap.
-fn readout(ui: &mut Ui, caption: &str, name: &str, value: &str, gap: f32) {
-    let builder = UiBuilder::new().accessibility_role(Role::Group).accessibility_label(name).layout(*ui.layout());
-    ui.scope_builder(builder, |ui| {
-        ui.add(Text::new(caption).role(TypeRole::Caption).content(Content::Muted));
-        ui.add(Text::new(value).role(TypeRole::Mono));
+/// One readout: a caption above a tabular value, named `name` for AccessKit.
+fn readout(ui: &mut Ui, salt: &'static str, name: Label, value: String) {
+    Field::new(name).id_salt(salt).layout(FieldLayout::Caption(CAPTION)).sizing(Sizing::Content).show(ui, |ui, _| {
+        Text::new(value.clone()).role(TypeRole::Mono).show(ui);
     });
-    ui.add_space(gap);
 }
