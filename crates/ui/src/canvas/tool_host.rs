@@ -14,8 +14,10 @@
 //!
 //! The host keeps its state under the canvas's id (`CanvasOutput::response.id`), so two canvases never share a
 //! gesture, and hands the tool the canvas's view from the output ([`ToolContext::space`]). A tool changes the view
-//! with [`ToolContext::set_view`]; the host reports the last one in [`ToolHostResponse::view`] and moves no view
-//! itself. `run` also paints the tool's readout; [`ToolHostResponse::readout`] repeats it as data.
+//! with [`ToolContext::set_view`]; the host keeps it inside the document as the canvas does (Overscroll off) and
+//! reports the last one in [`ToolHostResponse::view`]. A view set with [`ToolContext::ease_view`] eases in the
+//! canvas's one zoom ease, which the canvas shows from its next pass. `run` also paints the tool's readout;
+//! [`ToolHostResponse::readout`] repeats it as data.
 //!
 //! Space and the momentary Hand: while a gesture runs the host withholds Space from the shortcuts for the tool, so a
 //! Space pressed mid-drag never starts a momentary Hand; the tool reads it with [`ToolContext::held`]. Away from a
@@ -37,8 +39,9 @@
 
 use super::momentary::{Momentary, MomentaryCommand};
 use super::readout::paint_readout;
-use super::tool::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPointer, ToolRequests, ViewEase};
+use super::tool::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPointer, ToolRequests};
 use super::tools::HandTool;
+use super::zoom_motion::{self, Steer};
 use super::{CanvasOutput, CanvasSpace};
 use crate::primitives::{ContentPainterCx, Draw, DrawEnv, PaintRecord};
 use crate::runtime::commands;
@@ -158,11 +161,10 @@ pub struct ToolHostResponse {
     /// The values the tool wants beside the pointer. The host has painted them already; this is the data for
     /// automation.
     pub readout: Option<ToolReadout>,
-    /// The view a tool set with [`ToolContext::set_view`] this pass (the last one), else the view the canvas's view
-    /// commands asked for ([`CanvasOutput::view`]): the app copies it into its bound view.
+    /// The view a tool set with [`ToolContext::set_view`] this pass (the last one, inside the document with Overscroll
+    /// off), else the canvas's own ([`CanvasOutput::view`]): the one view the app copies into its own. A view that
+    /// eases is its target; the canvas shows the way there.
     pub view: Option<CanvasView>,
-    /// How [`view`](Self::view) eases to its target, when the tool asked for an ease.
-    pub ease: Option<ViewEase>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -292,9 +294,19 @@ impl<'m> ToolHost<'m> {
         if response.view.is_none() {
             response.view = cancelled_view;
         }
-        // The view commands' view, when no tool moved the view: the app copies one view from the host.
+        // A tool's view goes through the canvas's clamp, and its ease through the canvas's one zoom ease; a view that
+        // jumps stops that ease.
+        if let Some(view) = response.view.as_mut() {
+            *view = canvas.clamped(*view);
+            let steer = match (requests.ease, canvas.space) {
+                (Some(ease), Some(drawn)) => Steer::Ease { from: drawn.view, anchor: ease.anchor },
+                _ => Steer::Stop,
+            };
+            zoom_motion::steer(&ctx, canvas.response.id, steer);
+        }
+        // The canvas's own view, when no tool moved the view: the app copies one view from the host.
         if response.view.is_none() {
-            (response.view, response.ease) = (canvas.view, canvas.ease);
+            response.view = canvas.view;
         }
         let phase = canvas.press.phase;
         let over = phase.is_press() || matches!(phase, PressPhase::Hover) || state.gesture.is_some();
@@ -433,7 +445,7 @@ impl<'a> Run<'a> {
                 space.view = view;
             }
             self.response.view = Some(view);
-            self.response.ease = asked.ease;
+            self.requests.ease = asked.ease;
         }
     }
 

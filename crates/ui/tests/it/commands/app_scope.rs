@@ -19,13 +19,13 @@ fn an_app_command_pressed_with_the_focus_in_a_shell_body_is_taken_by_the_body_an
     let taken = RefCell::new(Vec::new());
     let mut show = |ui: &mut Ui| {
         AppShell::new(WindowKey::main())
-            .body(|ui, cx| {
+            .body(|ui, cx, _| {
                 while let Some((command, _)) = cx.take_command::<AppCommand>() {
                     taken.borrow_mut().push(command);
                 }
                 tap.set(Tap::new().id_salt("in").show(ui).id);
             })
-            .show(ui);
+            .show(ui, &mut ());
     };
     let mut frames = Frames::new();
     frames.idle(3, &mut show);
@@ -40,7 +40,7 @@ fn an_app_command_pressed_with_the_focus_in_a_shell_body_is_taken_by_the_body_an
 fn an_app_command_no_shell_body_takes_reaches_the_output_and_so_does_one_in_a_window_without_a_shell() {
     let tap = Cell::new(Id::NULL);
     let mut shell = |ui: &mut Ui| {
-        AppShell::new(WindowKey::main()).body(|ui, _| tap.set(Tap::new().id_salt("in").show(ui).id)).show(ui);
+        AppShell::new(WindowKey::main()).body(|ui, _, _| tap.set(Tap::new().id_salt("in").show(ui).id)).show(ui, &mut ());
     };
     let mut frames = Frames::new();
     frames.idle(3, &mut shell);

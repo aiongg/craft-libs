@@ -222,6 +222,12 @@ mod canvas_navigation {
     /// How far a drag moves the pointer, in points.
     const DRAG: Vec2 = Vec2::new(30.0, 20.0);
 
+    /// A drag far past the image's edge, in points.
+    const PAST: Vec2 = Vec2::new(3000.0, 3000.0);
+
+    /// How close the image's corner stops to the canvas's corner, in points.
+    const EDGE: f32 = 0.01;
+
     /// How far a document point may move under the pointer in a wheel zoom, in image pixels.
     const STILL: f64 = 0.5;
 
@@ -270,6 +276,12 @@ mod canvas_navigation {
             self.view.borrow().device_zoom()
         }
 
+        /// Zooms to 100 %, where the image is larger than the canvas, and lets the canvas settle the view.
+        fn zoom_in(&mut self) {
+            self.view.borrow_mut().set_device_zoom(1.0);
+            self.fixture.frame(Vec::new());
+        }
+
         fn centre(&self) -> Point {
             self.view.borrow().view().center
         }
@@ -312,15 +324,21 @@ mod canvas_navigation {
     }
 
     #[trial]
-    fn the_middle_button_pans_and_so_does_the_hand_tool_a_canvas_without_a_tool_falls_back_to() {
+    fn the_middle_button_pans_up_to_the_image_edge_and_so_does_the_hand_tool_a_canvas_without_a_tool_falls_back_to() {
         let mut middle = rig(NavigationOptions::default());
+        middle.zoom_in();
         let start = middle.centre();
         middle.drag(pointer::middle, OVER, DRAG);
         let panned = middle.centre();
         assert!(panned.x < start.x - 1.0 && panned.y < start.y - 1.0, "the image follows the pointer: {start:?} {panned:?}");
         assert!(!middle.view.borrow().is_fit(), "a pan ends the fit");
+        middle.drag(pointer::middle, OVER, PAST);
+        let view = middle.view.borrow().view();
+        let corner = view.to_screen(Point::ZERO);
+        assert!((corner - view.rect.min).length() < EDGE, "with Overscroll off a drag past the edge stops there: {corner:?} {:?}", view.rect);
 
         let mut hand = rig(NavigationOptions::default());
+        hand.zoom_in();
         let start = hand.centre();
         hand.drag(primary, OVER, DRAG);
         let panned = hand.centre();
