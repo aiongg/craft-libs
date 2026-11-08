@@ -287,8 +287,9 @@ pub(crate) fn forget_bar_return(ctx: &Context) {
     with(ctx, |state| state.bar_return = None);
 }
 
-/// A menu row runs: in this pass, before the row's command fires, focus returns from the chain of menus the run
-/// closes to the stop that held it before the outermost menu opened, or before a menu bar took it. The command then
+/// A menu row runs, or another activation closes the menus: in this pass, before a row's command fires, focus
+/// returns from the chain of menus that closes to the stop that held it before the outermost menu opened, or before
+/// a menu bar took it. The command then
 /// reaches that stop, as an Edit command picked from a menu reaches the text field it edits. Focus in no menu stays.
 pub(crate) fn return_from_menus(ctx: &Context) {
     let focused = egui_focus::focused(ctx);
