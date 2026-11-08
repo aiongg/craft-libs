@@ -160,7 +160,7 @@ fn a_view_never_shown_opens_fitted_and_a_canvas_with_no_area_leaves_the_view_alo
 }
 
 #[trial]
-fn ctrl_wheel_zooms_about_the_pointer_and_a_middle_drag_pans_by_the_pointers_travel() {
+fn ctrl_wheel_zooms_about_the_pointer() {
     let mut document = Document::new(covering(), CANVAS, Options::default());
     document.fixture.settle();
     let pointer = CANVAS.center() + Vec2::new(120.0, -70.0);
@@ -171,8 +171,16 @@ fn ctrl_wheel_zooms_about_the_pointer_and_a_middle_drag_pans_by_the_pointers_tra
     let zoomed = document.view();
     assert!(zoomed.zoom > before.zoom, "Ctrl+wheel up zooms in: {} -> {}", before.zoom, zoomed.zoom);
     assert!((zoomed.to_screen(under) - pointer).length() < SLACK, "the point under the pointer stays: {:?}", zoomed.to_screen(under));
+}
 
-    let from = pointer;
+#[trial]
+fn a_middle_drag_pans_by_the_pointers_travel_and_is_no_tool_press() {
+    let mut document = Document::new(covering(), CANVAS, Options::default());
+    document.fixture.settle();
+    let from = CANVAS.center() + Vec2::new(120.0, -70.0);
+    document.fixture.frame(vec![moved(from)]);
+    let before = document.view();
+    let under = before.to_doc(from);
     let fixture = &mut document.fixture;
     fixture.frame(vec![middle(from, true)]);
     for step in 1..=4 {
@@ -180,7 +188,7 @@ fn ctrl_wheel_zooms_about_the_pointer_and_a_middle_drag_pans_by_the_pointers_tra
     }
     fixture.frame(vec![middle(from + Vec2::new(32.0, 0.0), false)]);
     let panned = document.view();
-    let travel = panned.to_screen(under) - zoomed.to_screen(under);
+    let travel = panned.to_screen(under) - before.to_screen(under);
     assert!((travel - Vec2::new(32.0, 0.0)).length() < SLACK, "the document follows the pointer, slop included: {travel:?}");
     assert_eq!(document.presses.get(), 0, "a middle press is never a tool press");
 }
