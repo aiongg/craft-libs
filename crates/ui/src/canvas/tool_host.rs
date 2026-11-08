@@ -284,8 +284,9 @@ impl<'m> ToolHost<'m> {
         let phase = canvas.press.phase;
         let over = phase.is_press() || matches!(phase, PressPhase::Hover) || state.gesture.is_some();
         let current = state.gesture.map(|active| active.last).or_else(|| over.then(|| hover_pointer(&input, canvas.press)).flatten());
-        let cx = ToolContext::new(rect, space).pointer(current).mods(input.mods).time(input.time).slop(input.slop).down(&down);
-        paint_tool(ui, &env, tool, cx);
+        let context = || ToolContext::new(rect, space).pointer(current).mods(input.mods).time(input.time).slop(input.slop).down(&down);
+        paint_tool(ui, &env, tool, context());
+        let cx = context();
         if over {
             let wanted = tool.cursor(&cx);
             cursor::request(&ctx, wanted.clone(), CursorPriority::Tool);
@@ -521,7 +522,7 @@ impl<'a> Run<'a> {
                 }
                 self.drag(press_pointer(start, pos, self.time, press));
             }
-            PressPhase::Release { start, pos, click } => {
+            PressPhase::Release { start, pos, click, .. } => {
                 if self.state.gesture.is_none() && !self.state.spent {
                     self.begin(press_pointer(start, start.origin, start.time, press), false);
                 }
