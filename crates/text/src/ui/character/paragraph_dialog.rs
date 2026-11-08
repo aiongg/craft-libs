@@ -14,7 +14,7 @@
 
 use std::cell::Cell;
 
-use crate::ui::length::{DocUnit, length_edit, length_field};
+use crate::ui::length::{DocUnit, length_field, shown};
 use craft_behavior::{Axis, EditEvent, Metrics, Mixed, NumberCodec};
 use craft_theme::variant::Tone;
 use craft_ui::contract::{Bind, Common, Component, Cx, Entry, MeasureCx, PaintUi, Props as _, Role, Show as _, ShowContainer as _};
@@ -437,7 +437,7 @@ impl ParagraphDialog {
     fn message(&self, scope: &Scope<'_>, row: Row, caption: &str) -> String {
         let (low, high) = self.bounds(row);
         let show = |bound: f32| match self.count(row) {
-            Count::Length(unit) => scope.units.show(unit.kind, unit.shown(f64::from(bound), scope.units.points_per_inch())),
+            Count::Length(unit) => scope.units.show(unit.kind, shown(scope.units, unit, f64::from(bound))),
             Count::Lines => scope.units.number(f64::from(bound), 0..=AT_DECIMALS),
         };
         scope.words.out_of_range.fill(&[("field", caption), ("min", &show(low)), ("max", &show(high))])
@@ -457,7 +457,7 @@ impl ParagraphDialog {
         let units = scope.units;
         let shown_field = field.show(ui, |ui, _| {
             let out = match count {
-                Count::Length(unit) => length_field(units, caption.clone(), unit, shown, f64::from(low)..=f64::from(high)).enabled(enabled).show(ui),
+                Count::Length(unit) => length_field(unit, caption.clone(), shown, f64::from(low)..=f64::from(high)).enabled(enabled).show(ui),
                 Count::Lines => {
                     // No range: a number typed here replaces the lines with points, whatever it is.
                     let codec = NumberCodec::new(units.reader(None), AT_DECIMALS);
@@ -472,8 +472,7 @@ impl ParagraphDialog {
         }
         let Some(event) = event else { return };
         let event = match count {
-            Count::Length(unit) => length_edit(units, unit, event),
-            Count::Lines => event,
+            Count::Length(_) | Count::Lines => event,
         };
         self.apply(row, &event.map(|value| value.map(|value| value as f32)));
     }

@@ -3,11 +3,11 @@
 
 use super::items::{COLUMN, Item, STRIP, moved, pick, place, without};
 use super::{ColumnBorder, ColumnDrag, RulerValues, SAME_POSITION, TabLeader, TabStop, TextRuler, dropped_off, snap_stop};
-use crate::ui::length::DocUnit;
+use crate::ui::length::{DocUnit, shown};
 use craft_behavior::{CancelReason, GesturePhase, Granularity, Intent, NavMove, PointerButton, PressPhase, RulerUnits, Ticks};
 use craft_ui::canvas::{INCH_SIXTEENTHS, RulerText, Rulers, TickRule, readout};
 use craft_ui::contract::{Cx, Edit as _, Focus as _, Pointer as _, Remember as _, WordSetCx as _};
-use craft_ui::runtime::env::{Label, UnitKind};
+use craft_ui::runtime::env::{Label, UnitKind, Units};
 use egui::Pos2;
 
 /// How many snap steps a Shift nudge moves.
@@ -36,8 +36,8 @@ pub(super) fn rule(unit: DocUnit) -> TickRule<'static> {
 }
 
 /// The ruler's units: ruler units per point, written as the unit's kind.
-pub(super) fn ruler_text(unit: DocUnit, points_per_inch: f64) -> RulerText {
-    RulerText::new(RulerUnits::new(unit.shown(1.0, points_per_inch), Ticks::decimal(false)), unit.kind)
+pub(super) fn ruler_text(unit: DocUnit, units: &Units) -> RulerText {
+    RulerText::new(RulerUnits::new(shown(units, unit, 1.0), Ticks::decimal(false)), unit.kind)
 }
 
 /// The ruler's zoom for the snap grid, screen points per point: the grid is the finest tick shown at this zoom
@@ -101,7 +101,7 @@ impl TextRuler<'_> {
         let values = cx.value().cloned().unwrap_or_default();
         let layout = self.layout(cx.rect, cx.style, cx.flow.is_rtl());
         let numbers = cx.env.units();
-        let text = ruler_text(self.unit, numbers.points_per_inch());
+        let text = ruler_text(self.unit, &numbers);
         let step = snap_step(&text, self.unit);
         let mut held = cx.memory::<Held>().clone();
         if !cx.gesture().is_some() && held.columns.is_none() {
@@ -131,6 +131,9 @@ impl TextRuler<'_> {
         let part = item.part();
         // A stop set in this pass has no part until the next one.
         let Some(press) = cx.part_if_declared(part).map(|declared| declared.press) else { return };
+        if !matches!(press.phase, PressPhase::Idle) {
+            eprintln!("DIAG item {item:?} phase {:?}", press.phase);
+        }
         match press.phase {
             PressPhase::Down { start, .. } if start.button == PointerButton::Primary => {
                 if let Item::Stop(at) = item {

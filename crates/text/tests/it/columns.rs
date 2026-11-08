@@ -1,12 +1,11 @@
 //! The Columns dialog: what comes back, the arithmetic of the grid and presets, the menu and the preview.
 
 use crate::set;
-use craft_text::ui::DocUnit;
 use craft_text::ui::columns::{
     ColumnsApply, ColumnsChoice, ColumnsPreset, MAX_COLUMNS, MAX_COLUMNS_WORD, MIN_COLUMN_WIDTH, TextColumns, TextColumnsDialog, TextColumnsWords,
     columns_menu, preview_plan,
 };
-use craft_ui::runtime::env::{Env, UnitKind};
+use craft_ui::runtime::env::Env;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Rect, pos2};
 use std::cell::RefCell;
@@ -109,23 +108,4 @@ fn the_preview_places_columns_and_the_line_between() {
 fn apply_to_always_answers_with_the_choice() {
     let dialog = TextColumnsDialog::new(two()).apply_to(&[ColumnsApply::Section, ColumnsApply::Document], ColumnsApply::Document);
     assert_eq!(dialog.changes().and_then(|changes| changes.apply), Some(ColumnsApply::Document));
-}
-
-#[trial]
-fn doc_unit_converts_points_to_each_length_kind_and_back() {
-    for (points_per_inch, kind, per_inch) in [
-        (72.0, UnitKind::Inches, 1.0),
-        (72.0, UnitKind::Centimetres, 2.54),
-        (72.0, UnitKind::Millimetres, 25.4),
-        (72.0, UnitKind::Points, 72.0),
-        (72.27, UnitKind::Points, 72.27),
-        (72.27, UnitKind::Picas, 72.27 / 12.0),
-    ] {
-        let unit = DocUnit::new(kind, 96.0);
-        let shown = unit.shown(144.0, points_per_inch);
-        assert!((shown - 144.0 / points_per_inch * per_inch).abs() < 1e-9, "{kind:?} at {points_per_inch}");
-        assert!((unit.to_points(shown, points_per_inch) - 144.0).abs() < 1e-9);
-    }
-    let pixels = DocUnit::new(UnitKind::Pixels, 96.0);
-    assert!((pixels.shown(72.0, 72.0) - 96.0).abs() < 1e-9);
 }

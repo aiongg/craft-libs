@@ -382,7 +382,7 @@ fn body(ui: &mut Ui, given: &Given, form: &mut Form, words: &HyperlinkWords) {
                 match form.mode {
                     Mode::Url => text_field(ui, "url", &words.address, &mut form.url, true),
                     Mode::Email => {
-                        text_field(ui, "email", &words.email_address, &mut form.email, false);
+                        text_field(ui, "email", &words.email_address, &mut form.email, true);
                         text_field(ui, "subject", &words.subject, &mut form.subject, false);
                     }
                     Mode::Place => place_list(ui, given, form, words),
@@ -396,7 +396,7 @@ fn body(ui: &mut Ui, given: &Given, form: &mut Form, words: &HyperlinkWords) {
     });
 }
 
-/// A labelled text field; `default_stop` marks the field the dialog opens on.
+/// A labelled text field; `default_stop` marks the field the dialog opens on: the address of the link's kind.
 fn text_field(ui: &mut Ui, salt: &'static str, label: &Label, value: &mut String, default_stop: bool) {
     Field::new(label.clone()).id_salt(salt).show(ui, |ui, _| {
         let field = TextField::new(label.clone(), Bind::bound(value));

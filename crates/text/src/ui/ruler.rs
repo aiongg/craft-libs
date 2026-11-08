@@ -497,9 +497,8 @@ impl Component for TextRuler<'_> {
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let words = cx.words::<TextRulerWords>();
         let values = cx.value().cloned().unwrap_or_default();
-        let ppi = cx.env.units().points_per_inch();
-        let text = run::ruler_text(self.unit, ppi);
         let numbers = cx.env.units();
+        let text = run::ruler_text(self.unit, &numbers);
         let step = f64::from(run::snap_step(&text, self.unit));
         let range = 0.0..=f64::from(self.width);
         for item in Item::all(&values) {

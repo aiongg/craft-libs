@@ -9,7 +9,7 @@
 //! }
 //! ```
 
-use super::length::{DocUnit, length_edit, length_field};
+use super::length::{DocUnit, length_field, shown};
 use super::ruler::{MAX_POSITION, SAME_POSITION, TabAlign, TabLeader, TabStop};
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, ItemSource, Mixed, Selection, SelectionChange};
 use craft_ui::buttons::Button;
@@ -270,18 +270,17 @@ impl TabStopsDialog {
 
     /// `points` as the number in the unit with its suffix.
     fn text(&self, units: &Units, points: f32) -> String {
-        units.show(self.unit.kind, self.unit.shown(f64::from(points), units.points_per_inch()))
+        units.show(self.unit.kind, shown(units, self.unit, f64::from(points)))
     }
 
     fn default_row(&mut self, ui: &mut Ui, words: &TabStopsWords, units: &Units) {
         let unit = self.unit;
-        let shown = Mixed::Same(Some(f64::from(self.default_interval)));
+        let points = Mixed::Same(Some(f64::from(self.default_interval)));
         let range = f64::from(SAME_POSITION)..=f64::from(MAX_POSITION);
         let edit = Field::new(words.default_stops.clone())
-            .show(ui, |ui, _| length_field(units, words.default_stops.clone(), unit, shown, range.clone()).show(ui))
+            .show(ui, |ui, _| length_field(unit, words.default_stops.clone(), points, range.clone()).show(ui))
             .inner;
         if let Some(event) = edit.and_then(|out| out.edit.event) {
-            let event = length_edit(units, unit, event);
             if !matches!(event, EditEvent::Update { .. } | EditEvent::Commit { .. } | EditEvent::Set { .. }) {
                 return;
             }
@@ -334,9 +333,7 @@ impl TabStopsDialog {
         Row::new().show(ui, |ui, _| {
             let range = -f64::from(MAX_POSITION)..=f64::from(MAX_POSITION);
             let field = Field::new(words.position.clone())
-                .show(ui, |ui, _| {
-                    length_field(units, words.position.clone(), unit, Mixed::Same(Some(f64::from(stop.position))), range.clone()).show(ui)
-                })
+                .show(ui, |ui, _| length_field(unit, words.position.clone(), Mixed::Same(Some(f64::from(stop.position))), range.clone()).show(ui))
                 .inner;
             edits.extend(field.and_then(|field| field.edit.event).map(CellEdit::Position));
             let align = Select::new(words.alignment.clone(), Bind::given(stop.align), &aligns).show(ui);
@@ -347,7 +344,7 @@ impl TabStopsDialog {
         for edit in edits {
             match edit {
                 CellEdit::Position(event) => {
-                    let event = length_edit(units, unit, event).map(|points| points.map(|p| p as f32));
+                    let event = event.map(|points| points.map(|p| p as f32));
                     self.apply_position(at, event);
                 }
                 CellEdit::Align(align) => self.stops[at].align = align,

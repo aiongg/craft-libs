@@ -7,7 +7,7 @@ use super::{TextRuler, TextRulerStyle};
 use craft_ui::canvas::{RulerTick, Rulers};
 use craft_ui::contract::{Cx, Edit as _, PaintUi, Pointer as _, Remember as _, Styled as _};
 use craft_ui::primitives::{PaintShape, StrokeWidth, TextRun, Tick, TickEdge, TickRank};
-use craft_ui::style::{StateSet, StyleColor};
+use craft_ui::style::StyleColor;
 use egui::{CornerRadius, Pos2, Rect, pos2, vec2};
 
 impl TextRuler<'_> {
@@ -32,14 +32,7 @@ impl TextRuler<'_> {
         let base = g.strip.max.y;
         for (at, stop) in values.stops.iter().enumerate() {
             let off = held.off && held.now == Some(Item::Stop(at));
-            // A stop set by a click this pass has no part until the next pass: it paints in the rest look.
-            let line = if off {
-                style.marker_off
-            } else if cx.part_if_declared(Item::Stop(at).part()).is_some() {
-                cx.resolve_part(Item::Stop(at).part(), &style.marker)
-            } else {
-                StateSet::default().resolve(&style.marker)
-            };
+            let line = if off { style.marker_off } else { cx.resolve_part(Item::Stop(at).part(), &style.marker) };
             let (segments, dot) = glyph(&shapes, g.x(stop.position), base, stop.align, g.right_to_left);
             for [a, b] in segments {
                 draw.stroke(&path(a, b), StrokeWidth::Thin, line);
@@ -95,7 +88,7 @@ impl TextRuler<'_> {
         let style: &TextRulerStyle = cx.style;
         let g = self.layout(cx.rect, style, cx.flow.is_rtl()).g;
         let numbers = cx.env.units();
-        let text = ruler_text(self.unit, numbers.points_per_inch());
+        let text = ruler_text(self.unit, &numbers);
         let per_doc = text.units.per_doc;
         let (lo, hi) = g.span();
         let ticks: Vec<RulerTick> =

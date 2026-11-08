@@ -316,9 +316,10 @@ impl<'a> TextStylesPanel<'a> {
                 };
                 let button = FooterAction::new(IconId::new(icon), text.clone()).enabled(facts.action(command).is_some());
                 match command {
-                    TextStyleCommand::New => button
-                        .takes_drops_disabled(true)
-                        .accepts_drops::<ListDrag<u64>>(move |drag| drag.list == list_id && drag.keys.iter().any(|id| *id != 0 || paragraph)),
+                    TextStyleCommand::New => button.takes_drops_disabled(true).accepts_drops::<ListDrag<u64>>(move |drag| {
+                        eprintln!("DIAG accept list {:?} want {:?} keys {:?}", drag.list, list_id, drag.keys);
+                        drag.list == list_id && drag.keys.iter().any(|id| *id != 0 || paragraph)
+                    }),
                     TextStyleCommand::Delete => button
                         .takes_drops_disabled(true)
                         .accepts_drops::<ListDrag<u64>>(move |drag| drag.list == list_id && drag.keys.iter().any(|id| *id != 0)),
@@ -326,7 +327,9 @@ impl<'a> TextStylesPanel<'a> {
                 }
             });
             let shown = Row::new().fill().align(RowAlign::End).show(ui, |ui, _| FooterBar::actions(actions.clone()).show_footer(ui));
+            eprintln!("DIAG footer sizing={} inner={}", ui.is_sizing_pass(), shown.inner.is_some());
             let Some(bar) = shown.inner else { return };
+            eprintln!("DIAG footer dropped={} picked={:?}", bar.dropped.is_some(), bar.picked);
             if let Some(drop) = &bar.dropped
                 && let Some(drag) = drop.payload::<ListDrag<u64>>()
             {

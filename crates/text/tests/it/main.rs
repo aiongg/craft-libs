@@ -2,6 +2,7 @@
 
 mod character;
 mod columns;
+mod diag;
 mod editor;
 mod find;
 mod hyperlink;

@@ -12,7 +12,7 @@ use craft_font_manager::picker::{FontFilters, FontPicker, FontPickerSettings};
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
-use super::length::{DocUnit, length_edit, length_field};
+use super::length::{DocUnit, length_field, shown};
 use craft_behavior::{ColumnWidth, EditEvent, GestureId, IconId, Mixed, NumberCodec};
 use craft_theme::{Rgba, Srgba};
 use craft_ui::buttons::ToggleButton;
@@ -432,13 +432,12 @@ impl<'a> CharacterControls<'a> {
         let words = env.words::<CharacterWords>();
         let units = env.units();
         let lengths = Lengths { units: &units, unit };
-        let ppi = units.points_per_inch();
 
         let size_presets: Vec<Entry<NumberPick>> = SIZE_PRESETS
             .iter()
             .map(|&p| {
-                let shown = unit.shown(f64::from(p), ppi);
-                Entry::new(NumberPick::Number(shown), units.text(unit.kind, shown, 0..=PRESET_DECIMALS))
+                let points = f64::from(p);
+                Entry::new(NumberPick::Number(points), units.text(unit.kind, shown(&units, unit, points), 0..=PRESET_DECIMALS))
             })
             .collect();
         let auto_row = Entry::new(NumberPick::Choice(AUTO_ROW), words.auto.clone()).checked(values.leading == Some(Leading::Auto));
@@ -896,14 +895,11 @@ impl Lengths<'_> {
     fn row(&self, ui: &mut Ui, spec: LengthRow<'_>) -> (Option<EditEvent<Option<f64>>>, Option<NumberPick>) {
         let LengthRow { label, glyph, value, range, presets } = spec;
         let points = value.map_or(Mixed::Mixed, |value| Mixed::Same(Some(f64::from(value))));
-        let shown = Field::new(label.clone()).side(mark(glyph)).show(ui, |ui, _| {
-            let out = length_field(self.units, label.clone(), self.unit, points, range.clone()).presets(presets).scrub_by_label().show(ui);
+        let field = Field::new(label.clone()).side(mark(glyph)).show(ui, |ui, _| {
+            let out = length_field(self.unit, label.clone(), points, range.clone()).presets(presets).scrub_by_label().show(ui);
             (out.edit.event, out.preset)
         });
-        match shown.inner {
-            Some((event, picked)) => (event.map(|event| length_edit(self.units, self.unit, event)), picked),
-            None => (None, None),
-        }
+        field.inner.unwrap_or((None, None))
     }
 
     /// The kerning field: a number or the name of a presets row (Metrics, Optical).
