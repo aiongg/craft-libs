@@ -1655,14 +1655,16 @@ dependencies = [
 name = "craft-text"
 version = "0.1.0"
 dependencies = [
+ "craft-behavior",
  "craft-font-manager",
  "craft-host",
  "craft-theme",
- "craft-ui-legacy",
+ "craft-ui",
  "egui",
  "egui_kittest",
  "hypher",
  "icu_segmenter",
+ "libtest-mimic",
  "miniz_oxide 0.8.9",
  "regex",
  "regex-syntax",

@@ -1,0 +1,186 @@
+# API map of the "Text editing" family: old path to new path and setter renames.
+
+family = "Text editing"
+new_module = "craft_text::ui"
+
+[[type]]
+name = "TextEditor"
+old = "craft_text::ui::editor::TextEditor"
+new = "craft_text::ui::editor::TextEditor"
+status = "replaced"
+note = "A component shown over the canvas at the text's screen bounds: `TextEditor::new(label, &mut host, Bind<TextSelection>).show_at(ui, rect)`."
+
+[[type]]
+name = "TextEditorHost"
+old = "craft_text::ui::editor::TextEditorHost"
+new = "craft_text::ui::editor::TextEditorHost"
+status = "same"
+note = "`contains` is gone (a press outside the rect is the app's); `revision` and `lines` are new."
+
+[[type]]
+name = "TextEditorTool"
+old = "craft_text::ui::editor::TextEditorTool"
+new = ""
+status = "removed"
+note = "The editor takes its own presses; a press outside the text reaches the app's type tool."
+
+[[type]]
+name = "TextEditorResponse"
+old = "craft_text::ui::editor::TextEditorResponse"
+new = ""
+status = "removed"
+note = "Replaced by `TextEditorOutput` (response, changed, selection_changed, commit, cancel)."
+
+[[type]]
+name = "TextEditorOutput"
+old = ""
+new = "craft_text::ui::editor::TextEditorOutput"
+status = "replaced"
+note = "The output of `TextEditor`."
+
+[[type]]
+name = "TextSelection"
+old = "craft_text::ui::editor::TextSelection"
+new = "craft_text::ui::editor::TextSelection"
+status = "same"
+
+[[type]]
+name = "StyleKey"
+old = "craft_text::ui::editor::StyleKey"
+new = "craft_text::ui::editor::StyleKey"
+status = "same"
+note = "The keys are `TextEditorCommand` chords."
+
+[[type]]
+name = "TextEditorCommand"
+old = ""
+new = "craft_text::ui::editor::TextEditorCommand"
+status = "replaced"
+note = "Photoshop's type formatting keys and the commit chord as one command set."
+
+[[type]]
+name = "FindBar"
+old = "craft_text::ui::find::FindBar"
+new = "craft_text::ui::find::FindBar"
+status = "replaced"
+note = "A pattern; `FindBar::new(query, options, matches)`, no id salt."
+
+[[type]]
+name = "FindBarOutput"
+old = "craft_text::ui::find::FindBarOutput"
+new = "craft_text::ui::find::FindBarOutput"
+status = "same"
+
+[[type]]
+name = "FindBarState"
+old = "craft_text::ui::find::FindBarState"
+new = "craft_text::ui::find::FindBarState"
+status = "same"
+
+[[type]]
+name = "FindReplaceDialog"
+old = "craft_text::ui::find::FindReplaceDialog"
+new = "craft_text::ui::find::FindReplaceDialog"
+status = "replaced"
+note = "A pattern on a modeless `Dialog`; `take_request` and `set_message` stay."
+
+[[type]]
+name = "FindLabels"
+old = "craft_text::ui::find::FindLabels"
+new = "craft_text::ui::find::FindLabels"
+status = "replaced"
+note = "A `WordSet` read through `Env::words`; `FindLabels::error` no longer takes number formats."
+
+[[type]]
+name = "NotesEditor"
+old = "craft_text::ui::notes::NotesEditor"
+new = "craft_text::ui::notes::NotesEditor"
+status = "replaced"
+note = "A component over `&mut NotesText`; `NotesEditor::new(label, notes)`."
+
+[[type]]
+name = "NotesView"
+old = "craft_text::ui::notes::NotesView"
+new = ""
+status = "removed"
+note = "The same `NotesEditor` with `Props::read_only(true)`."
+
+[[type]]
+name = "NotesResponse"
+old = "craft_text::ui::notes::NotesResponse"
+new = ""
+status = "removed"
+note = "Replaced by `NotesEditorOutput`."
+
+[[type]]
+name = "NotesEditorOutput"
+old = ""
+new = "craft_text::ui::notes::NotesEditorOutput"
+status = "replaced"
+note = "The output of `NotesEditor`."
+
+[[type]]
+name = "NotesStyle"
+old = "craft_text::ui::notes::NotesStyle"
+new = ""
+status = "removed"
+note = "Replaced by `NotesEditorStyle`, the component's `ComponentStyle`."
+
+[[type]]
+name = "NotesEditorStyle"
+old = ""
+new = "craft_text::ui::notes::NotesEditorStyle"
+status = "replaced"
+note = "The look of `NotesEditor`."
+
+[[type]]
+name = "NotesLabels"
+old = "craft_text::ui::notes::NotesLabels"
+new = "craft_text::ui::notes::NotesLabels"
+status = "replaced"
+note = "A `WordSet` read through `Env::words`."
+
+[[setter]]
+type = "TextEditor"
+old = "new(id, selection)"
+new = "new(label, host, Bind<TextSelection>)"
+
+[[setter]]
+type = "TextEditor"
+old = "canvas(id)"
+new = ""
+
+[[setter]]
+type = "TextEditor"
+old = "update(ctx, host) / finish_pass(ctx, view, host) / press / drag / release / paint"
+new = "show_at(ui, rect)"
+
+[[setter]]
+type = "TextEditor"
+old = "insert / copy / cut / set_selection / text_replaced / end_composition"
+new = "the Bind<TextSelection> and the app's host edits"
+
+[[setter]]
+type = "FindBar"
+old = "new(id_salt, query, options, matches)"
+new = "new(query, options, matches)"
+
+[[setter]]
+type = "FindBar"
+old = "labels(labels)"
+new = ""
+
+[[setter]]
+type = "FindReplaceDialog"
+old = "labels(labels)"
+new = ""
+
+[[setter]]
+type = "NotesEditor"
+old = "new(id_salt, notes)"
+new = "new(label, notes)"
+
+[[setter]]
+type = "NotesEditor"
+old = "labels(labels)"
+new = ""
