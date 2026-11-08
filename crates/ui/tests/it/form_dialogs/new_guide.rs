@@ -87,24 +87,21 @@ fn edit_guide_opens_on_the_given_guide_while_the_bind_holds_another() {
 /// nothing, and an answer sets the colour.
 #[trial]
 fn a_host_cancel_keeps_the_colour_and_an_answer_sets_it() {
-    let values = Rc::new(RefCell::new(NewGuideValues::new(Axis::X, 0.0, GuideColor::Black)));
+    let values = Rc::new(RefCell::new(NewGuideValues::new(Axis::X, 0.0, GuideColor::LightBlue)));
     let requests = Rc::new(RefCell::new(HostRequests::new()));
     let mut fixture = new_guide(&values, &requests);
     let pick_custom = |fixture: &mut Fixture| {
         fixture.key(Key::Tab, Modifiers::NONE);
-        fixture.key(Key::ArrowDown, Modifiers::ALT);
-        fixture.idle(2);
-        fixture.key(Key::Home, Modifiers::NONE);
-        fixture.key(Key::Enter, Modifiers::NONE);
+        fixture.key(Key::ArrowUp, Modifiers::NONE);
         fixture.settle();
     };
     pick_custom(&mut fixture);
     assert!(requests.borrow().clone().take_color().is_some(), "Custom asks the host for a colour");
-    assert_eq!(values.borrow().color, GuideColor::Black, "the colour waits for the answer");
+    assert_eq!(values.borrow().color, GuideColor::LightBlue, "the colour waits for the answer");
     requests.borrow_mut().cancel();
     fixture.settle();
     assert!(requests.borrow_mut().take_color().is_none(), "the cancelled request is gone");
-    assert_eq!(values.borrow().color, GuideColor::Black, "a cancelled pick changes nothing");
+    assert_eq!(values.borrow().color, GuideColor::LightBlue, "a cancelled pick changes nothing");
     let key = "guides.newGuide.color";
     requests.borrow_mut().answer_color(key, PICKED);
     fixture.settle();
