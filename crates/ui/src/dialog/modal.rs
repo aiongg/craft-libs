@@ -53,7 +53,10 @@ pub struct Dialog<'a> {
     /// `BodyCx::memory`, say). Enter's routing is decided from the buttons given to `buttons`.
     #[prop(boxed, name = "settle_buttons")]
     settle: Option<Box<dyn FnMut(&mut BodyCx<'_>, &mut [FooterButton]) + 'a>>,
-    on_pick: Option<frame::PickHook<'a>>,
+    /// Acts on a picked footer button in the footer step, before the close is decided: `act` gets the button's index
+    /// and the dialog's body context. `ResetFooter::install` sets it.
+    #[prop(boxed, name = "on_pick")]
+    on_pick: Option<Box<dyn FnMut(usize, &mut BodyCx<'_>) + 'a>>,
     buttons: Vec<FooterButton>,
     /// Whether Enter closes the dialog as its OK.
     enter: bool,
@@ -221,14 +224,6 @@ impl<'a> Dialog<'a> {
     pub fn footer(mut self, content: impl FnMut(&mut Ui, &mut FooterCx<'_, '_>) + 'a) -> Self {
         self.props = self.props.footer(FOOTER);
         self.footer = Some(Box::new(content));
-        self
-    }
-
-    /// Acts on a picked footer button in the footer step, before the close is decided: `act` gets the button's index
-    /// and the dialog's body context. Only `ResetFooter::install` uses it.
-    #[must_use]
-    pub(crate) fn on_pick(mut self, act: impl FnMut(usize, &mut BodyCx<'_>) + 'a) -> Self {
-        self.on_pick = Some(Box::new(act));
         self
     }
 }

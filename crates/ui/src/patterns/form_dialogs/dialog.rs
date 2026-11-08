@@ -171,6 +171,8 @@ pub struct ParamDialog<'a> {
     #[prop(func = "Fn(&mut Ui, &DialogFields)")]
     below: Option<BelowRows<'a>>,
     shaped: Option<Shaped<'a>>,
+    /// The host's answers to the requests of earlier passes; the dialog writes them into its values first.
+    #[prop]
     answers: Vec<HostAnswer>,
 }
 
@@ -230,13 +232,6 @@ impl<'a> ParamDialog<'a> {
     #[must_use]
     pub fn shaped(mut self, shape: impl FnOnce(Dialog<'a>) -> Dialog<'a> + 'a) -> Self {
         self.shaped = Some(Shaped(Box::new(shape)));
-        self
-    }
-
-    /// The host's answers to the requests of earlier passes; the dialog writes them into its values first.
-    #[must_use]
-    pub fn answers(mut self, answers: Vec<HostAnswer>) -> Self {
-        self.answers = answers;
         self
     }
 

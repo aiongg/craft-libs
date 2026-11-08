@@ -10,6 +10,7 @@ use std::path::PathBuf;
 #[non_exhaustive]
 pub enum HostAnswer {
     /// The colour the picker returned for the colour request `key`.
+    #[non_exhaustive]
     Color {
         /// The request's key.
         key: String,
@@ -17,6 +18,7 @@ pub enum HostAnswer {
         color: Srgba,
     },
     /// The path the file dialog returned for the path request `key`.
+    #[non_exhaustive]
     Path {
         /// The request's key.
         key: String,
@@ -24,6 +26,7 @@ pub enum HostAnswer {
         path: PathBuf,
     },
     /// The colour the eyedropper sampled for the eyedropper request `key`.
+    #[non_exhaustive]
     Eyedropper {
         /// The request's key.
         key: String,

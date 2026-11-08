@@ -9,6 +9,7 @@ use crate::dialog::{Dialog, DialogOutput};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::overlay::CloseReason;
 use crate::runtime::words::CommonWords;
+
 use crate::sections::{DialogRole, FooterButton};
 use craft_behavior::{EditEvent, GestureId, Mixed, Value};
 use egui::{Response, Ui};
@@ -16,6 +17,9 @@ use std::cell::{Cell, RefCell};
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 use std::sync::Arc;
+
+#[cfg(feature = "testing")]
+mod stories;
 
 /// The values the dialog opened with, taken after the body's first pass.
 #[derive(Clone)]
@@ -94,6 +98,8 @@ pub struct FormOutput<V> {
 ///   the value from when the dialog opened (and runs [`on_reset`](FormDialog::on_reset) for what the body keeps).
 /// - The body returns whether the value can be accepted; OK is enabled while it can and `ok_enabled` is true.
 #[must_use = "show the dialog with `show`"]
+#[derive(crate::contract::Pattern)]
+#[pattern(probe(FormDialog<'static, bool>))]
 pub struct FormDialog<'a, V: Value + Default> {
     title: Label,
     bind: Bind<'a, V>,
