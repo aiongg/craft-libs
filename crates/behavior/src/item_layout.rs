@@ -492,16 +492,27 @@ pub struct TileLayout {
     pub count: usize,
     /// The width the tiles wrap in.
     pub width: f32,
+    /// A column count the user set, which replaces the count the width allows.
+    pub fixed_columns: Option<usize>,
 }
 
 impl TileLayout {
     /// One tile of `tile` per entry of `source`, `gap` apart, wrapping at `width`.
     pub fn new<K>(source: &dyn DisplayOrder<K>, width: f32, tile: Vec2, gap: f32) -> Self {
-        Self { tile, gap, count: source.len(), width }
+        Self { tile, gap, count: source.len(), width, fixed_columns: None }
     }
 
-    /// Tiles per row: at least one.
+    /// Exactly `columns` tiles per row, whatever the width (a user setting; at least one).
+    pub fn in_columns(mut self, columns: usize) -> Self {
+        self.fixed_columns = Some(columns.max(1));
+        self
+    }
+
+    /// Tiles per row: the user's count, else what the width allows; at least one.
     pub fn columns(&self) -> usize {
+        if let Some(columns) = self.fixed_columns {
+            return columns;
+        }
         (((self.width + self.gap) / (self.tile.x + self.gap)).floor() as usize).max(1)
     }
 

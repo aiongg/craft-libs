@@ -212,7 +212,7 @@ impl<'a, D: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Documen
                         });
                     }
                 }
-                CollectionEvent::Dropped { key, keys, .. } => events.push(DocumentTabsEvent::DroppedInto { documents: keys, over: key }),
+                CollectionEvent::Dropped { key: Some(key), keys, .. } => events.push(DocumentTabsEvent::DroppedInto { documents: keys, over: key }),
                 _ => {}
             }
         }

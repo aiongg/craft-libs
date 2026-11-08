@@ -784,11 +784,13 @@ pub enum CollectionEvent<K, E> {
     Reorder(EditEvent<ReorderMove<K>>),
     /// The selected items of a free layout moved by an offset.
     Move(EditEvent<Vec2>),
-    /// A drop onto an item.
+    /// A drop from another collection onto an item, between items, or into an empty collection.
     #[non_exhaustive]
     Dropped {
-        /// The item dropped on.
-        key: K,
+        /// The item dropped on; `None` for an empty collection.
+        key: Option<K>,
+        /// The position of the display order the items land before; the source's length drops them after the last item.
+        insert: usize,
         /// What the drop does: move or copy.
         op: DropOperation,
         /// The dragged items in display order, from the drag session's payload.

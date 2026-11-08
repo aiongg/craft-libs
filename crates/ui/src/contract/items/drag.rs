@@ -228,6 +228,11 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         self.drags.grabbed = Some(key);
     }
 
+    /// The one drop spot of an empty collection: its first position, marked over the whole collection.
+    fn empty_spot(&self, rect: Rect, at: Pos2) -> Option<Spot> {
+        rect.contains(at).then_some(Spot { over: 0, insert: 0, parent: None, mark: DropMark::Into(self.on_screen_rect(rect)) })
+    }
+
     /// Where a drop at `at` (the collection's layer space) lands, `None` outside the rows. `groups` is the indent step
     /// of a tree whose reorder rule lets items land inside groups.
     fn spot(&self, layout: &C::ItemLayout, rect: Rect, offset: ScrollPos, rtl: bool, groups: Option<f32>, at: Pos2) -> Option<Spot> {
@@ -271,7 +276,8 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
 
     fn land(&mut self, cx: &mut Cx<'_, C>, payload: &ListDrag<C::Key>, landed: Landed, groups: bool) {
         if payload.list != cx.core.id {
-            self.events.push(CollectionEvent::Dropped { key: self.source.key(landed.spot.over), op: landed.op, keys: payload.keys.clone() });
+            let key = (!self.source.is_empty()).then(|| self.source.key(landed.spot.over));
+            self.events.push(CollectionEvent::Dropped { key, insert: landed.spot.insert, op: landed.op, keys: payload.keys.clone() });
             return;
         }
         // The moved items in display order, as they stand in the source now.
@@ -358,12 +364,16 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     )
                     .icon
                 });
-                let spot = self
-                    .spot(layout, rect, offset, rtl, step, layer(at))
-                    .filter(|spot| comp.accepts(&payload, &self.source.key(spot.over), spot.insert))
-                    .filter(|spot| !(own && groups) || !self.inside_dragged(&payload, spot.parent));
+                let spot = if self.source.is_empty() {
+                    self.empty_spot(rect, layer(at))
+                } else {
+                    self.spot(layout, rect, offset, rtl, step, layer(at))
+                        .filter(|spot| comp.accepts(&payload, &self.source.key(spot.over), spot.insert))
+                        .filter(|spot| !(own && groups) || !self.inside_dragged(&payload, spot.parent))
+                };
                 if let Some(spot) = spot
                     && !own
+                    && !self.source.is_empty()
                 {
                     self.drags.over = Some(self.source.key(spot.over));
                 }
@@ -379,9 +389,8 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             && let Some((files, at)) = cx.dragging::<OsFiles>()
         {
             let at = layer(at);
-            // An empty collection takes files at its first position.
             let spot = if self.source.is_empty() {
-                rect.contains(at).then_some(Spot { over: 0, insert: 0, parent: None, mark: DropMark::Into(self.on_screen_rect(rect)) })
+                self.empty_spot(rect, at)
             } else {
                 self.spot(layout, rect, offset, rtl, None, at)
             };
