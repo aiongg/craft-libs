@@ -1,20 +1,19 @@
 //! Liquify's tools, its brush and the stroke recorder.
 
-use egui::Modifiers;
 use serde::{Deserialize, Serialize};
 
-use craft_ui::edit::{CancelReason, EditEvent, GestureId};
-use craft_ui::icons::Icon;
-use craft_ui::patterns::{RailTool, ToolSlot};
+use craft_behavior::CancelReason;
+use craft_ui::rails::{RailTool, ToolSlot};
 
-use super::LiquifyLabels;
-use super::session::LiquifyStroke;
+use super::LiquifyCommands;
+use super::session::{LiquifyStroke, StrokeEvent};
 
 /// The tools of Liquify's strip, in strip order, with Photoshop's letters. Serialised with the
 /// engine's names (`forwardWarp`, `twirlCw`, `lassoMask`, …) so a [`LiquifyStroke`] passes to
 /// PhotoCraft's engine unchanged.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum LiquifyTool {
     /// W.
     #[default]
@@ -66,27 +65,6 @@ impl LiquifyTool {
         LiquifyTool::Zoom,
     ];
 
-    /// The tool's letter: W R E C S B O F D L H Z; `None` for Twirl Counterclockwise.
-    pub fn shortcut(self) -> Option<char> {
-        // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:808 `shortcut`; H and Z are the rail's
-        // Hand and Zoom (lead call 8).
-        match self {
-            LiquifyTool::ForwardWarp => Some('W'),
-            LiquifyTool::Reconstruct => Some('R'),
-            LiquifyTool::Smooth => Some('E'),
-            LiquifyTool::TwirlClockwise => Some('C'),
-            LiquifyTool::TwirlCounterclockwise => None,
-            LiquifyTool::Pucker => Some('S'),
-            LiquifyTool::Bloat => Some('B'),
-            LiquifyTool::PushLeft => Some('O'),
-            LiquifyTool::Freeze => Some('F'),
-            LiquifyTool::Thaw => Some('D'),
-            LiquifyTool::FreezeLasso => Some('L'),
-            LiquifyTool::Hand => Some('H'),
-            LiquifyTool::Zoom => Some('Z'),
-        }
-    }
-
     /// The tool a press with Alt held paints with: the twirls reverse, Pucker and Bloat swap; the
     /// others are themselves. (Alt on the Freeze Lasso thaws: [`LiquifyStroke::amount`].)
     pub fn alternate(self) -> LiquifyTool {
@@ -100,46 +78,6 @@ impl LiquifyTool {
         }
     }
 
-    /// The strip icon, from the library's set (PhotoCraft's `tool_icon` names, by meaning). The
-    /// twirl and Push Left icons are drawn without a built-in direction: the canvas does not
-    /// mirror under right-to-left, so a mirrored arrow would point the wrong way.
-    fn icon(self) -> Icon {
-        // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:791 `tool_icon`.
-        match self {
-            LiquifyTool::ForwardWarp => Icon::Pointer,
-            LiquifyTool::Reconstruct => Icon::BrushCleaning,
-            LiquifyTool::Smooth => Icon::Droplet,
-            LiquifyTool::TwirlClockwise => Icon::RotateCw,
-            LiquifyTool::TwirlCounterclockwise => Icon::RotateCcw,
-            LiquifyTool::Pucker => Icon::Scan,
-            LiquifyTool::Bloat => Icon::Maximize2,
-            LiquifyTool::PushLeft => Icon::ArrowLeftFixed,
-            LiquifyTool::Freeze => Icon::Lock,
-            LiquifyTool::Thaw => Icon::LockOpen,
-            LiquifyTool::FreezeLasso => Icon::Lasso,
-            LiquifyTool::Hand => Icon::Hand,
-            LiquifyTool::Zoom => Icon::ZoomIn,
-        }
-    }
-
-    fn label(self, labels: &LiquifyLabels) -> &str {
-        match self {
-            LiquifyTool::ForwardWarp => &labels.forward_warp,
-            LiquifyTool::Reconstruct => &labels.reconstruct_tool,
-            LiquifyTool::Smooth => &labels.smooth,
-            LiquifyTool::TwirlClockwise => &labels.twirl_clockwise,
-            LiquifyTool::TwirlCounterclockwise => &labels.twirl_counterclockwise,
-            LiquifyTool::Pucker => &labels.pucker,
-            LiquifyTool::Bloat => &labels.bloat,
-            LiquifyTool::PushLeft => &labels.push_left,
-            LiquifyTool::Freeze => &labels.freeze,
-            LiquifyTool::Thaw => &labels.thaw,
-            LiquifyTool::FreezeLasso => &labels.freeze_lasso,
-            LiquifyTool::Hand => &labels.hand,
-            LiquifyTool::Zoom => &labels.zoom,
-        }
-    }
-
     /// Whether the tool paints with the round brush (all but the Freeze Lasso, Hand and Zoom).
     pub fn is_brush(self) -> bool {
         !matches!(self, LiquifyTool::FreezeLasso | LiquifyTool::Hand | LiquifyTool::Zoom)
@@ -150,22 +88,16 @@ impl LiquifyTool {
         matches!(self, LiquifyTool::Freeze | LiquifyTool::Thaw | LiquifyTool::FreezeLasso)
     }
 
-    /// The strip: one slot per tool, `group_end` after Smooth, Push Left, Thaw and the Freeze
-    /// Lasso (PhotoCraft's 6 pt gaps after the first three; the fourth separates Hand and Zoom),
-    /// each tool's label from `labels` and its letter as the slot's `shortcut`. The icons are
-    /// library `Icon`s until app icons land (gap 27).
-    pub fn slots(labels: &LiquifyLabels) -> Vec<ToolSlot<LiquifyTool>> {
-        // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:888 `draw_tool_strip` (gaps at :904),
-        // :791 `tool_icon`.
+    /// The strip: one slot per tool, each running the tool's command (its label, icon and letter), with a group
+    /// end after Smooth, Push Left, Thaw and the Freeze Lasso (the fourth separates Hand and Zoom).
+    pub fn slots() -> Vec<ToolSlot<LiquifyTool>> {
+        // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:888 `draw_tool_strip` (gaps at :904).
         (0_u32..)
             .zip(Self::ALL)
             .map(|(id, tool)| {
-                let mut entry = RailTool::new(tool, tool.icon(), tool.label(labels));
-                if let Some(letter) = tool.shortcut() {
-                    entry = entry.shortcut(letter);
-                }
+                let tools = vec![RailTool::new(tool, LiquifyCommands::of(tool))];
                 let group_end = matches!(tool, LiquifyTool::Smooth | LiquifyTool::PushLeft | LiquifyTool::Thaw | LiquifyTool::FreezeLasso);
-                ToolSlot::new(id, vec![entry]).group_end(group_end)
+                if group_end { ToolSlot::ending_group(id, tools) } else { ToolSlot::new(id, tools) }
             })
             .collect()
     }
@@ -174,6 +106,7 @@ impl LiquifyTool {
 /// The brush of the painting tools. Serialised in [`LiquifySettings`](super::LiquifySettings).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
+#[non_exhaustive]
 pub struct LiquifyBrush {
     /// Diameter in document pixels, 1..=15000 ([`Self::SIZE_MAX`]); the slider shows 1..=3000
     /// ([`Self::SLIDER_MAX`]), the keys and the resize reach further.
@@ -223,21 +156,21 @@ impl LiquifyBrush {
 ///   with the brush of the stroke and that one new point.
 /// - [`end`](Self::end) adds the release point when it differs from the last, so a short stroke is
 ///   recorded whole (storytold/photocraft#8055: a stroke shorter than the drag threshold still paints), and
-///   reports `Commit` (`changed: true`) with the whole stroke.
+///   reports `Commit` with the whole stroke.
 /// - [`cancel`](Self::cancel) drops the stroke and reports `Cancel`.
 ///
 /// The Freeze Lasso is not recorded here: the canvas tool draws it with an `OutlineDraft` and
 /// records the closed polygon with `amount` 1 (0 with Alt at the press).
 #[derive(Clone, Debug, Default)]
 pub struct StrokeRecorder {
-    stroke: Option<(GestureId, LiquifyStroke)>,
+    stroke: Option<LiquifyStroke>,
 }
 
 impl StrokeRecorder {
     /// A stroke already in progress is replaced without an event: the caller ends it first.
-    pub fn begin(&mut self, tool: LiquifyTool, brush: &LiquifyBrush, at: [f64; 3], modifiers: Modifiers) -> EditEvent<LiquifyStroke> {
+    pub fn begin(&mut self, tool: LiquifyTool, brush: &LiquifyBrush, at: [f64; 3], alt: bool) -> StrokeEvent {
         // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:263 `begin`, :240 `template`.
-        let tool = if modifiers.alt { tool.alternate() } else { tool };
+        let tool = if alt { tool.alternate() } else { tool };
         let stroke = LiquifyStroke {
             tool,
             size: brush.size,
@@ -247,53 +180,52 @@ impl StrokeRecorder {
             points: vec![at],
             amount: None,
         };
-        let id = GestureId::next();
-        self.stroke = Some((id, stroke.clone()));
-        EditEvent::begin_with(id, stroke)
+        self.stroke = Some(stroke.clone());
+        StrokeEvent::Begin(stroke)
     }
 
     /// Adds the point `at` (x, y, pressure) unless it equals the last one, and reports `Update` with it. `None` with no stroke.
-    pub fn extend(&mut self, at: [f64; 3], modifiers: Modifiers) -> Option<EditEvent<LiquifyStroke>> {
+    pub fn extend(&mut self, at: [f64; 3]) -> Option<StrokeEvent> {
         // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:279 `extend`; :704-713 (an equal point is
         // skipped).
-        let (id, stroke) = self.stroke.as_mut()?;
+        let stroke = self.stroke.as_mut()?;
         if stroke.points.last().is_some_and(|last| last[0] == at[0] && last[1] == at[1]) {
             return None;
         }
         stroke.points.push(at);
-        Some(EditEvent::update(*id, stroke.with_points(vec![at]), modifiers))
+        Some(StrokeEvent::Update(stroke.with_points(vec![at])))
     }
 
     /// A held dab: adds `at` even when it equals the last point, because a tool that acts while
     /// the brush rests dabs again in place (unlike [`extend`](Self::extend), which skips a
     /// repeated point), and reports `Update` with that one point. `None` with no stroke.
-    pub fn hold(&mut self, at: [f64; 3], modifiers: Modifiers) -> Option<EditEvent<LiquifyStroke>> {
+    pub fn hold(&mut self, at: [f64; 3]) -> Option<StrokeEvent> {
         // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:1203-1207 (a stationary tool's `Move` at
         // the same point, 30 a second).
-        let (id, stroke) = self.stroke.as_mut()?;
+        let stroke = self.stroke.as_mut()?;
         stroke.points.push(at);
-        Some(EditEvent::update(*id, stroke.with_points(vec![at]), modifiers))
+        Some(StrokeEvent::Update(stroke.with_points(vec![at])))
     }
 
     /// Ends the stroke at `at`, adding the release point if it differs from the last, and reports `Commit`. `None` with no stroke.
-    pub fn end(&mut self, at: [f64; 2], modifiers: Modifiers) -> Option<EditEvent<LiquifyStroke>> {
+    pub fn end(&mut self, at: [f64; 2]) -> Option<StrokeEvent> {
         // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:714-727 (`Up` adds the release point with
         // the last pressure, then `end`).
-        let (id, mut stroke) = self.stroke.take()?;
+        let mut stroke = self.stroke.take()?;
         if let Some(&[x, y, pressure]) = stroke.points.last()
             && (x != at[0] || y != at[1])
         {
             stroke.points.push([at[0], at[1], pressure]);
         }
-        Some(EditEvent::commit(id, stroke, true, modifiers))
+        Some(StrokeEvent::Commit(stroke))
     }
 
     /// Drops the stroke and reports `Cancel` with `reason`. `None` with no stroke.
-    pub fn cancel(&mut self, reason: CancelReason) -> Option<EditEvent<LiquifyStroke>> {
-        // new: PhotoCraft has no stroke cancel; the field already took the dabs, so the workspace
+    pub fn cancel(&mut self, reason: CancelReason) -> Option<StrokeEvent> {
+        // PhotoCraft has no stroke cancel; the field already took the dabs, so the workspace
         // follows a Cancel with a Replay.
-        let (id, _) = self.stroke.take()?;
-        Some(EditEvent::cancel(id, reason))
+        self.stroke.take()?;
+        Some(StrokeEvent::Cancel(reason))
     }
 
     /// Whether a stroke is in progress.
