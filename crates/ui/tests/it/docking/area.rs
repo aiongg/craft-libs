@@ -280,7 +280,8 @@ fn a_column_without_a_width_lays_out_at_the_themes_column_width() {
     });
     fixture.room(AREA).settle();
     let column_width = with_cx(fixture.ctx(), &tokens(Mode::Dark, Contrast::Standard), Variant::SECONDARY, ControlSize::Md, DockSizes::style).column;
-    let group = fixture.by_role(Role::TAB_PANEL).into_iter().next().expect("the column shows its group");
+    let group =
+        fixture.by_role(Role::TAB_PANEL).into_iter().min_by(|a, b| a.rect.min.x.total_cmp(&b.rect.min.x)).expect("the column shows its group");
     assert!(equals_token(group.rect.width(), column_width), "the group is {} wide, the theme's column is {column_width}", group.rect.width());
 }
 
