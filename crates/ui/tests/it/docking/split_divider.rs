@@ -8,6 +8,7 @@ use craft_ui::contract::{Access, Common, Component, Cx, MeasureCx, PartsCx, Prop
 use craft_ui::docking::SplitArea;
 use craft_ui::docking::divider::{self, Divider, Drag};
 use craft_ui::docking::tree::FrameRules;
+use craft_ui::runtime::focus::KeyUse;
 use craft_ui::style::StyleCx;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers, Rect, Response, Vec2, vec2};
@@ -37,6 +38,7 @@ impl Bar {
 
 impl Component for Bar {
     const ROLE: Role = Role::GROUP;
+    const KEYS: KeyUse = KeyUse::SPLITTER;
     type Style = PlainStyle;
     type Output = Response;
 
