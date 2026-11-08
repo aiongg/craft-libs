@@ -1290,16 +1290,16 @@ dependencies = [
 name = "craft-font-manager"
 version = "0.1.0"
 dependencies = [
+ "craft-behavior",
  "craft-font-catalog",
+ "craft-font-manager",
  "craft-font-store",
  "craft-host",
  "craft-i18n",
- "craft-ui-legacy",
+ "craft-ui",
  "egui",
- "egui_kittest",
- "egui_system_font_provider",
  "epaint_default_fonts",
- "image",
+ "libtest-mimic",
  "log",
  "serde",
  "skrifa 0.44.0",
@@ -2399,20 +2399,6 @@ dependencies = [
  "tempfile",
  "toml",
  "wgpu",
-]
-
-[[package]]
-name = "egui_system_font_provider"
-version = "0.37.0"
-source = "git+https://github.com/aiongg/egui.git?rev=4b93a86c52348eb53e883c9b6b9f59c573608e07#4b93a86c52348eb53e883c9b6b9f59c573608e07"
-dependencies = [
- "epaint",
- "fontique",
- "log",
- "poll-promise",
- "skrifa 0.44.0",
- "sys-locale",
- "unicode-script",
 ]
 
 [[package]]
@@ -5332,16 +5318,6 @@ dependencies = [
  "fdeflate",
  "flate2",
  "miniz_oxide 0.8.9",
-]
-
-[[package]]
-name = "poll-promise"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f6a58fecbf9da8965bcdb20ce4fd29788d1acee68ddbb64f0ba1b81bccdb7df"
-dependencies = [
- "document-features",
- "static_assertions",
 ]
 
 [[package]]
@@ -9139,5 +9115,10 @@ source = "git+https://github.com/aiongg/egui.git?rev=4b93a86c52348eb53e883c9b6b9
 
 [[patch.unused]]
 name = "egui_inspection"
+version = "0.37.0"
+source = "git+https://github.com/aiongg/egui.git?rev=4b93a86c52348eb53e883c9b6b9f59c573608e07#4b93a86c52348eb53e883c9b6b9f59c573608e07"
+
+[[patch.unused]]
+name = "egui_system_font_provider"
 version = "0.37.0"
 source = "git+https://github.com/aiongg/egui.git?rev=4b93a86c52348eb53e883c9b6b9f59c573608e07#4b93a86c52348eb53e883c9b6b9f59c573608e07"

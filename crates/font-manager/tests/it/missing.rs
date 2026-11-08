@@ -1,15 +1,16 @@
 //! Missing fonts: resolution and the dialog.
 
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use craft_font_catalog::{Limits, Os};
-use craft_ui::dialog::{DialogHost, DialogResult};
-use craft_ui::theme::{Base, install};
-use egui_kittest::Harness;
-use egui_kittest::kittest::Queryable as _;
-
-use crate::missing::*;
-use crate::{Catalog, FontEnv, Source};
+use craft_font_manager::missing::{
+    DocumentFont, FontStatus, MissingFontsDialog, MissingFontsResult, MissingFontsWords, document_fonts, missing_font_warnings,
+};
+use craft_font_manager::{Catalog, FontEnv, Source};
+use craft_ui::dialog::{DialogResult, DialogStack, StackDialog as _};
+use craft_ui::testing::{Fixture, trial};
 
 /// Hack, the face egui ships.
 fn catalog() -> Arc<Catalog> {
@@ -22,8 +23,8 @@ fn font(family: &str, style: &str, postscript_name: Option<&str>) -> DocumentFon
     DocumentFont { family: family.to_owned(), style: style.to_owned(), postscript_name: postscript_name.map(str::to_owned) }
 }
 
-// A PostScript name that resolves counts as Installed even when the family name differs.
-#[test]
+/// A PostScript name that resolves counts as Installed even when the family name differs.
+#[trial]
 fn postscript_name_resolves_before_family_and_style() {
     let catalog = catalog();
     let fonts = [
@@ -38,38 +39,43 @@ fn postscript_name_resolves_before_family_and_style() {
     assert!(matches!(rows[1].status, FontStatus::OtherStyle(_)));
     assert_eq!(rows[2].status, FontStatus::Missing);
     assert_eq!(
-        missing_font_warnings(&rows, &MissingFontsLabels::default()),
+        missing_font_warnings(&rows, &MissingFontsWords::default()),
         ["font 'Nonesuch' is not installed; text may render using a fallback face"]
     );
 }
 
 struct App {
-    host: DialogHost,
+    dialog: MissingFontsDialog,
+    stack: DialogStack,
     results: Vec<MissingFontsResult>,
 }
 
-// Replace Fonts returns one replacement per missing row, the default font where none was picked.
-#[test]
+/// Replace Fonts returns one replacement per missing row, the default font where none was picked.
+#[trial]
 fn replace_returns_a_replacement_per_missing_row() {
     let catalog = catalog();
     let rows = document_fonts(&catalog, &[font("Nonesuch", "Bold", None), font("Hack", "Regular", None), font("Other", "Regular", None)]);
-    let mut host = DialogHost::default();
-    host.open(MissingFontsDialog::new(catalog, rows).default_family("Hack"));
-    let mut harness =
-        Harness::<App>::builder().with_size([760.0, 640.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
-            |ui, app: &mut App| {
-                app.host.show(ui.ctx());
-                if let Some(DialogResult::Ok(result)) = app.host.take::<MissingFontsDialog>() {
-                    app.results.push(result);
-                }
-            },
-            App { host, results: Vec::new() },
-        );
-    harness.run();
-    harness.get_by_label_contains("2 fonts used in this document are not installed.");
-    harness.get_by_label("Replace Fonts").click();
-    harness.run();
-    let result = harness.state().results.first().expect("Replace Fonts answered");
+    let dialog = MissingFontsDialog::new(catalog, rows).default_family("Hack");
+    let mut stack = DialogStack::default();
+    stack.push(dialog.id(), None);
+    let app = Rc::new(RefCell::new(App { dialog, stack, results: Vec::new() }));
+    let shown = Rc::clone(&app);
+    let mut fixture = Fixture::new(move |ui| {
+        let mut app = shown.borrow_mut();
+        let App { dialog, stack, results } = &mut *app;
+        if let Some(DialogResult::Ok(result)) = dialog.show(ui, stack) {
+            results.push(result);
+        }
+    });
+    fixture.room(egui::vec2(760.0, 640.0));
+    fixture.settle();
+    assert!(fixture.by_label("Replace Fonts").is_some());
+    assert!(fixture.texts().iter().any(|painted| painted.text == "2 fonts used in this document are not installed."));
+    let replace = fixture.by_label("Replace Fonts").expect("Replace Fonts");
+    fixture.click(&replace);
+    fixture.settle();
+    let app = app.borrow();
+    let result = app.results.first().expect("Replace Fonts answered");
     let names: Vec<(&str, &str)> = result.replacements.iter().map(|(f, to)| (f.family.as_str(), to.as_str())).collect();
     assert_eq!(names, [("Nonesuch", "Hack"), ("Other", "Hack")]);
 }
