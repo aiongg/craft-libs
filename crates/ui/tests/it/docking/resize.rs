@@ -7,7 +7,7 @@ use craft_behavior::dock::{Action, Column, DockEdge, Floating, Group, Layout, No
 use craft_theme::{Contrast, ControlSize, Mode};
 use craft_ui::buttons::Button;
 use craft_ui::contract::overlay::Trigger;
-use craft_ui::contract::{Bind, BodyCx, Role, Show as _};
+use craft_ui::contract::{Bind, BodyCx, Role, Show as _, ShowContainer as _};
 use craft_ui::docking::{DockConfig, DockPanels, DockSizes, PanelSpec, WindowMenuRows};
 use craft_ui::menu::Menu;
 use craft_ui::patterns::dock::DockArea;
@@ -89,7 +89,7 @@ fn dragging_a_columns_inner_edge_reports_its_width_and_the_dock_follows() {
     let from = grip.rect.center();
     drag(&mut fixture, from, from + Vec2::new(40.0, 0.0));
     let width = actions.borrow().iter().rev().find_map(|action| match action {
-        Action::ResizeColumn { panel, width } if *panel == FIRST => Some(*width),
+        Action::ResizeColumn { panel, width, .. } if *panel == FIRST => Some(*width),
         _ => None,
     });
     let width = width.expect("the drag reports ResizeColumn");
@@ -108,7 +108,7 @@ fn dragging_an_iconic_columns_edge_reports_its_width() {
     let from = grip.rect.center();
     drag(&mut fixture, from, from + Vec2::new(30.0, 0.0));
     let width = actions.borrow().iter().rev().find_map(|action| match action {
-        Action::ResizeIconic { panel, width } if *panel == FIRST => *width,
+        Action::ResizeIconic { panel, width, .. } if *panel == FIRST => *width,
         _ => None,
     });
     assert!(width.expect("the drag reports ResizeIconic") > rail + 20.0, "the column is wider than the rail");
@@ -123,7 +123,7 @@ fn dragging_the_divider_between_accordion_sections_reports_the_section_height() 
     let from = divider.rect.center();
     drag(&mut fixture, from, from + Vec2::new(0.0, 60.0));
     assert!(
-        actions.borrow().iter().any(|action| matches!(action, Action::ResizeStack { panel, height: Some(_) } if *panel == FIRST)),
+        actions.borrow().iter().any(|action| matches!(action, Action::ResizeStack { panel, height: Some(_), .. } if *panel == FIRST)),
         "the drag reports ResizeStack for the section above: {:?}",
         actions.borrow()
     );
