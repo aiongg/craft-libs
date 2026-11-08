@@ -55,6 +55,7 @@ mod shell;
 mod sections;
 
 mod style;
+mod suite_rtl;
 mod table;
 mod tabs;
 mod text;

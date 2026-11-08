@@ -141,29 +141,34 @@ fn in_document_space(tree: &AccessTree, key: NodeKey) -> bool {
     false
 }
 
-/// Under right-to-left the shown area keeps its size and every interactive node outside document space lies where
-/// the left-to-right layout reflected across the shown area puts it. A story that allocates nothing in flow (a layer
-/// or a full-window mount) is reflected across its component's own node.
+/// Under right-to-left the component keeps its own width and every interactive node outside document space lies
+/// where the left-to-right layout reflected across the shown area puts it. A story that allocates nothing in flow (a
+/// layer or a full-window mount) is reflected across its component's own node. The width is the component's own rect,
+/// not the parent's used rect: egui's used rect always holds the room's start point, so an end-edge component in a bare
+/// room changes the parent's width while its own stays.
 fn rtl_mirrors(subject: &Subject) -> Result<(), String> {
-    for story in &subject.stories {
-        let show = |direction: Direction| {
-            let mut fixture = Fixture::story(story);
-            fixture.direction(direction);
-            fixture.settle();
-            fixture
-        };
-        let (ltr, rtl) = (show(Direction::Ltr), show(Direction::Rtl));
-        let flowless = !ltr.shown().is_positive();
-        let within = if flowless { root_target(&ltr).rect } else { ltr.shown() };
-        if !flowless && (ltr.shown().width() - rtl.shown().width()).abs() > 0.5 {
-            return Err(format!("{}: the width differs between directions", story.name));
-        }
-        let tree = ltr.tree();
-        for key in tree.keys().into_iter().filter(|key| is_interactive(tree, *key) && !in_document_space(tree, *key)) {
-            let (Some(a), Some(b)) = (tree.bounds_of(key), rtl.tree().bounds_of(key)) else { continue };
-            if !mirrored(a, b, within) {
-                return Err(format!("{}: a node at {a:?} is at {b:?} under right-to-left, not its reflection", story.name));
-            }
+    subject.stories.iter().try_for_each(rtl_case)
+}
+
+/// The suite's right-to-left case for one story.
+pub fn rtl_case(story: &Story) -> Result<(), String> {
+    let show = |direction: Direction| {
+        let mut fixture = Fixture::story(story);
+        fixture.direction(direction);
+        fixture.settle();
+        fixture
+    };
+    let (ltr, rtl) = (show(Direction::Ltr), show(Direction::Rtl));
+    let own = (root_target(&ltr).rect, root_target(&rtl).rect);
+    if (own.0.width() - own.1.width()).abs() > 0.5 {
+        return Err(format!("{}: the component's width differs between directions", story.name));
+    }
+    let within = if ltr.shown().is_positive() { ltr.shown() } else { own.0 };
+    let tree = ltr.tree();
+    for key in tree.keys().into_iter().filter(|key| is_interactive(tree, *key) && !in_document_space(tree, *key)) {
+        let (Some(a), Some(b)) = (tree.bounds_of(key), rtl.tree().bounds_of(key)) else { continue };
+        if !mirrored(a, b, within) {
+            return Err(format!("{}: a node at {a:?} is at {b:?} under right-to-left, not its reflection", story.name));
         }
     }
     Ok(())
