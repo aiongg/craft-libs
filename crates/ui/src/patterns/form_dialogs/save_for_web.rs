@@ -475,6 +475,7 @@ struct Last {
 /// What the dialog keeps in its root container's slot besides the settings.
 #[derive(Clone)]
 struct Live {
+    started: bool,
     link: LinkedSize,
     view: WebView,
     shared: PreviewView,
@@ -489,6 +490,7 @@ struct Live {
 impl Default for Live {
     fn default() -> Self {
         Live {
+            started: false,
             link: LinkedSize::new(PixelSize::new(1, 1)),
             view: WebView::default(),
             shared: PreviewView::fitting().zoom_range(ZOOM_RANGE),
@@ -505,7 +507,7 @@ impl Default for Live {
 impl Live {
     /// The state of a dialog that opens now: the document `size` and, when saved, the last view.
     fn open(size: PixelSize, saved: Option<&Last>) -> Self {
-        Live { link: LinkedSize::new(size), view: saved.map_or_else(WebView::default, |last| last.view), ..Live::default() }
+        Live { started: true, link: LinkedSize::new(size), view: saved.map_or_else(WebView::default, |last| last.view), ..Live::default() }
     }
 
     /// Puts back the size from when the dialog opened and asks for new encodes.
@@ -684,7 +686,7 @@ impl<'a> SaveForWebDialog<'a> {
         let mut finished = SaveForWebOptions::default();
         let shown = form.show(ui, |ui, cx, options| {
             let mut live = cx.memory::<Live>().clone();
-            if cx.first() {
+            if !live.started {
                 let saved = remember.as_ref().and_then(|key| cx.saved::<Option<Last>>(key).clone());
                 live = Live::open(size, saved.as_ref());
                 if let Some(last) = &saved {

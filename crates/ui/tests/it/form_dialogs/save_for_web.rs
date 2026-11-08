@@ -166,12 +166,26 @@ fn zz_diag_save_button_per_frame() {
         let mut open = true;
         SaveForWebDialog::new("poster.psd", DOCUMENT, WebPictures::new(), Bind::kept()).opened(Bind::bound(&mut open)).show(ui);
     });
-    let mut seen = Vec::new();
-    for frame in 1..=14 {
+    let mut frames: Vec<Vec<(craft_ui::testing::access::NodeKey, String, egui::Rect)>> = Vec::new();
+    for _ in 0..7 {
         fixture.idle(1);
-        let save = fixture.by_label("Save…").map(|t| t.rect);
-        let dialogs: Vec<_> = fixture.by_role(craft_ui::contract::Role::DIALOG).iter().map(|t| t.rect).collect();
-        seen.push(format!("{frame}: save {save:?} dialog {dialogs:?}"));
+        let tree = fixture.tree();
+        frames.push(
+            tree.keys()
+                .into_iter()
+                .filter_map(|key| Some((key, format!("{:?} {:?}", tree.role_of(key)?, tree.name_of(key).unwrap_or("")), tree.bounds_of(key)?)))
+                .collect(),
+        );
     }
-    panic!("DIAG\n{}", seen.join("\n"));
+    let mut out = Vec::new();
+    for at in 2..6 {
+        out.push(format!("--- frame {} to {}", at + 1, at + 2));
+        for (key, name, rect) in &frames[at + 1] {
+            let old = frames[at].iter().find(|(other, _, _)| other == key).map(|(_, _, rect)| *rect);
+            if old != Some(*rect) {
+                out.push(format!("{name}: {old:?} -> {rect:?}"));
+            }
+        }
+    }
+    panic!("DIAG\n{}", out.join("\n"));
 }
