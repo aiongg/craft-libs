@@ -136,11 +136,12 @@ fn the_status_zoom_is_the_device_percent_and_a_typed_zoom_is_written_into_the_vi
     fixture.settle();
     assert!(fixture.texts().iter().any(|run| run.text.contains("100")), "zoom 0.5 at 2 pixels per point is 100 %");
     let centre = view.borrow().center;
+    let before = zoom::device(&view.borrow(), 2.0);
     tab(&mut fixture);
     fixture.type_text("200");
     fixture.key(Key::Enter, Modifiers::NONE);
     fixture.idle(2);
-    assert_eq!(zoom::device(&view.borrow(), 2.0), 2.0, "the typed 200 % is the view's device zoom");
+    assert_eq!(zoom::device(&view.borrow(), 2.0), before * 2.0, "the typed 200 % doubles the shown 100 %");
     assert_eq!(view.borrow().center, centre, "the zoom keeps the view's centre");
     assert!(reported.get(), "the output carries the view edit");
 }
