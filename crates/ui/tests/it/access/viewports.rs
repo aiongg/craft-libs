@@ -6,7 +6,7 @@ use crate::windows_kit::Windows;
 use craft_ui::contract::{ContainerProps, Props as _, Scroll, Show as _, ShowContainer as _};
 use craft_ui::testing::access::NodeKey;
 use craft_ui::testing::{Frames, trial};
-use egui::{Id, Vec2, ViewportBuilder, ViewportId};
+use egui::{Vec2, ViewportBuilder, ViewportId};
 use std::cell::RefCell;
 
 const CHILD: &str = "second window";

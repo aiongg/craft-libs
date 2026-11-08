@@ -21,6 +21,12 @@ use std::rc::Rc;
 const BODY: PartKey = PartKey::new("body");
 const ADDED: PartKey = PartKey::new("added");
 const SIZE: f32 = 14.0;
+const INK: Color32 = Color32::from_rgb(12, 34, 56);
+/// The value the look takes at rest.
+const REST: f32 = 1.0;
+/// How far the manual clock moves, in seconds.
+const STEP: f64 = 2.5;
+const SLACK: f64 = 1e-6;
 const TEXT: &str = "abcdefghijklmnopqrst";
 
 /// What the lab component read.
@@ -69,7 +75,7 @@ impl Component for Lab<'_> {
         match cx.part(BODY).press.phase {
             PressPhase::Release { click: true, .. } => self.added.set(true),
             PressPhase::Down { start, .. } => {
-                let runs = [DocRun::new(TEXT, FontRef::proportional(), SIZE, DataColor::new(Color32::BLACK))];
+                let runs = [DocRun::new(TEXT, FontRef::proportional(), SIZE, DataColor::new(INK))];
                 let layout = cx.layout_doc(&DocText::new(&runs));
                 let at = start.origin - cx.rect.min;
                 self.log.borrow_mut().character = Some(layout.galley.cursor_from_pos(at).index.0);
@@ -79,7 +85,7 @@ impl Component for Lab<'_> {
     }
 
     fn paint(&mut self, _: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let look = Stateful::new(0.0_f32).off(States::new(1.0, 2.0, 3.0, 4.0));
+        let look = Stateful::new(0.0_f32).off(States::new(REST, REST + 1.0, REST + 2.0, REST + 3.0));
         let mut log = self.log.borrow_mut();
         log.clock.push((self.update_clock, cx.now()));
         if cx.part_if_declared(ADDED).is_none() {
@@ -111,7 +117,7 @@ fn a_part_added_by_a_click_paints_idle_in_the_same_pass() {
     assert!(added.get(), "the click added the part");
     let log = log.borrow();
     let reads = &log.undeclared;
-    assert!(!reads.is_empty() && reads.iter().all(|read| *read == 1.0), "the part declared next pass paints its rest look: {reads:?}");
+    assert!(!reads.is_empty() && reads.iter().all(|read| *read == REST), "the part declared next pass paints its rest look: {reads:?}");
 }
 
 #[trial]
@@ -123,11 +129,11 @@ fn the_pass_clock_follows_the_fixtures_manual_time_in_update_and_paint() {
     };
     frames.frame(vec![], &mut show);
     let before = *log.borrow().clock.last().expect("a pass painted");
-    frames.advance(2.5);
+    frames.advance(STEP);
     frames.frame(vec![], &mut show);
     let after = *log.borrow().clock.last().expect("a pass painted");
-    assert!((after.0 - before.0 - 2.5).abs() < 1e-6, "update reads the advanced time: {before:?} -> {after:?}");
-    assert!((after.1 - before.1 - 2.5).abs() < 1e-6, "paint reads the advanced time: {before:?} -> {after:?}");
+    assert!((after.0 - before.0 - STEP).abs() < SLACK, "update reads the advanced time: {before:?} -> {after:?}");
+    assert!((after.1 - before.1 - STEP).abs() < SLACK, "paint reads the advanced time: {before:?} -> {after:?}");
 }
 
 #[trial]
