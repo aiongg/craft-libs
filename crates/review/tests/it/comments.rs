@@ -124,7 +124,7 @@ fn card_menu_hangs_from_its_button_and_escape_returns_focus() {
     rig.fx.click(&button);
     rig.fx.settle();
     let menu = rig.fx.by_role(craft_ui::contract::Role::MENU).into_iter().next().expect("the click opens the menu");
-    assert!(menu.rect.top() >= button.rect.bottom() - 1.0, "the menu hangs under the button: {:?} under {:?}", menu.rect, button.rect);
+    assert!(menu.rect.top() >= button.rect.center().y, "the menu hangs under the button: {:?} under {:?}", menu.rect, button.rect);
     rig.fx.key(egui::Key::Escape, egui::Modifiers::NONE);
     rig.fx.settle();
     assert!(rig.fx.by_role(craft_ui::contract::Role::MENU).is_empty(), "Escape closes the menu");

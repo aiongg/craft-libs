@@ -225,6 +225,7 @@ fn ink_on_person(ui: &PaintUi<'_>, fill: [u8; 3]) -> StyleColor {
 /// selection outlines (at most 500) and their cursor chat bubble. A pointer glides to each reported position on the
 /// motion service's follow curve; a bubble shows for its hold, measured from the pass it first showed its text, and
 /// fades out. Not interactive.
+#[derive(Pattern)]
 pub struct RemoteCursors<'a> {
     label: Label,
     transport: &'a dyn CollabTransport,
