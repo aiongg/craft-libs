@@ -81,8 +81,7 @@ fn split_views_in_right_to_left_mirror_their_dividers() {
         });
         fixture.direction(direction);
         fixture.settle();
-        let id = fixture.root_id().expect("the split views are the root");
-        let divider = fixture.part(id, craft_behavior::PartKey::new("divider").at(0)).expect("two views have a divider");
+        let divider = fixture.by_role(craft_ui::contract::Role::SPLITTER).into_iter().next().expect("two views have a divider");
         (divider.center().x, fixture.shown().center().x)
     };
     let (left_to_right, middle) = divider_x(craft_i18n::Direction::Ltr);

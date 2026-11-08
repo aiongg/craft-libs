@@ -1,9 +1,9 @@
 //! The divider every docking container shares: dragging, keys, this pass's frames and the layout write-back.
 
+use craft_behavior::Axis;
 use craft_behavior::dock::{Column, Group, Layout, Node, SplitSize};
-use craft_behavior::{Axis, PartKey};
-use craft_ui::contract::Bind;
 use craft_ui::contract::ShowContainer as _;
+use craft_ui::contract::{Bind, Role};
 use craft_ui::docking::frame::maximize;
 use craft_ui::docking::tree::{self, FrameRules};
 use craft_ui::docking::{DockColumn, HidePanels, PanelLimits, PanelSpec, SplitArea};
@@ -43,8 +43,7 @@ fn column() -> (Fixture, Rects) {
 }
 
 fn divider(fixture: &Fixture) -> craft_ui::testing::Target {
-    let id = fixture.root_id().expect("the column is the root");
-    fixture.part(id, PartKey::new("divider").at(0)).expect("a divider between the two open groups")
+    fixture.by_role(Role::SPLITTER).into_iter().next().expect("a divider between the two open groups")
 }
 
 #[trial]
@@ -94,8 +93,7 @@ fn the_groups_are_at_the_dragged_divider_in_the_same_pass() {
         });
     });
     fixture.settle();
-    let id = fixture.root_id().expect("the area is the root");
-    let grip = fixture.part(id, PartKey::new("handle").at(0)).expect("a handle between the two groups");
+    let grip = fixture.by_role(Role::SPLITTER).into_iter().next().expect("a handle between the two groups");
     let at = grip.center();
     fixture.press(&grip);
     for x in [at.x + 10.0, at.x + 40.0] {
