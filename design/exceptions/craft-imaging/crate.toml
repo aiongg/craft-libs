@@ -1,1 +1,9 @@
 config_version = 1
+
+# img-vanishing
+
+[[exception]]
+name = "vanishing-point-pass-tool"
+kind = "probe"
+rule = "probe/exempt/freehand-tool"
+reason = "Stamp is freehand input (clone stamp); no command does the same job. Create Plane and Edit Plane have the New Plane command."

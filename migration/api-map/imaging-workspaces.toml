@@ -12,3 +12,191 @@ new_module = ""
 # type = ""
 # old = ""
 # new = ""
+
+# img-vanishing
+
+[[type]]
+name = "VanishingPointWorkspace"
+old = "craft_imaging::ui::vanishing_point::VanishingPointWorkspace"
+new = "craft_imaging::ui::vanishing_point::VanishingPointWorkspace"
+status = "replaced"
+note = "A pattern the app holds: `show(ui, scene, source)` takes a `Ui` (was a `Context`) and reports `closed: Option<DialogRole>` (was `outcome`) and `response` (was `rect`); `step(craft_behavior::Step)` is the app's Undo and Redo, `momentary(..)` the app's fired Hand and Zoom commands; the preview is `VanishingPointSource::preview_job` (no ticket, no `preview_ready`, no `preview_failed`). The view and the strip's memory live in the dialog body."
+
+[[type]]
+name = "VanishingPointEditor"
+old = "craft_imaging::ui::vanishing_point::VanishingPointEditor"
+new = "craft_imaging::ui::vanishing_point::VanishingPointEditor"
+status = "replaced"
+note = "`pass(session, settings, scene, source)` returns a `VanishingPointPass` whose `tool()` is the canvas tool and `planes()` the canvas control; `delete_selected` takes the history step's name; `cancel(session, reason)` ends a drag (the host cancels only the tool's presses); `add_plane` adds a plane from four typed corners; `labels`, `cursor_options` and `style` are gone."
+
+[[type]]
+name = "VanishingPointPass"
+old = "craft_imaging::ui::vanishing_point::VanishingPointPass"
+new = "craft_imaging::ui::vanishing_point::VanishingPointPass"
+status = "replaced"
+note = "No longer the `CanvasTool`: `tool()` gives the `VanishingPointTool` and `planes()` the `VanishingPlanes` control; both share the pass."
+
+[[type]]
+name = "VanishingPointBar"
+old = "craft_imaging::ui::vanishing_point::VanishingPointBar"
+new = "craft_imaging::ui::vanishing_point::VanishingPointBar"
+status = "replaced"
+note = "A pattern over `&VanishingPointSettings`: `VanishingPointBar::new(tool, &settings, paste, has_clip).has_strokes(..).show(ui)`; it takes no id salt and no labels and edits nothing in place."
+
+[[type]]
+name = "VanishingPointBarOutput"
+old = "craft_imaging::ui::vanishing_point::VanishingPointBarOutput"
+new = "craft_imaging::ui::vanishing_point::VanishingPointBarOutput"
+status = "replaced"
+note = "`edit` is an `EditEvent<VanishingPointSettings>` and `paste_width` an `EditEvent<f64>` (was `paste: Option<PasteImage>`); gains an `Outcome` impl."
+
+[[type]]
+name = "VanishingPointLabels"
+old = "craft_imaging::ui::vanishing_point::VanishingPointLabels"
+new = ""
+status = "removed"
+note = "Replaced by `VanishingPointWords`; the tools' names are the labels of `VanishingPointCommands`."
+
+[[type]]
+name = "VanishingPointStyle"
+old = "craft_imaging::ui::vanishing_point::VanishingPointStyle"
+new = "craft_imaging::ui::vanishing_point::VanishingPointStyle"
+status = "replaced"
+note = "A `ComponentStyle` of the planes control built from `StyleCx`; it has no public fields and no `of(tokens)`."
+
+[[type]]
+name = "VanishingPointSource"
+old = "craft_imaging::ui::vanishing_point::VanishingPointSource"
+new = "craft_imaging::ui::vanishing_point::VanishingPointSource"
+status = "replaced"
+note = "`paste()` returns `Option<&dyn RasterSource>` (was a `SizedTexture`); gains `preview_job`."
+
+[[type]]
+name = "VanishingPointOpen"
+old = "craft_imaging::ui::vanishing_point::VanishingPointOpen"
+new = "craft_imaging::ui::vanishing_point::VanishingPointOpen"
+status = "replaced"
+note = "Loses `cursor_options`; `checkerboard` is a `craft_ui::primitives::Checker` and `navigation` stays."
+
+[[type]]
+name = "VanishingPointOutput"
+old = "craft_imaging::ui::vanishing_point::VanishingPointOutput"
+new = "craft_imaging::ui::vanishing_point::VanishingPointOutput"
+status = "replaced"
+note = "`closed` replaces `outcome`, `response` replaces `rect`; `preview_wanted` is gone (the workspace starts the preview job itself)."
+
+[[type]]
+name = "VanishingPointStripTool"
+old = "craft_imaging::ui::vanishing_point::VanishingPointStripTool"
+new = "craft_imaging::ui::vanishing_point::VanishingPointStripTool"
+status = "same"
+
+[[type]]
+name = "VanishingPointEvent"
+old = "craft_imaging::ui::vanishing_point::VanishingPointEvent"
+new = "craft_imaging::ui::vanishing_point::VanishingPointEvent"
+status = "same"
+
+[[type]]
+name = "paint_editor"
+old = "craft_imaging::ui::vanishing_point::paint_editor"
+new = ""
+status = "removed"
+note = "The planes control paints itself (`VanishingPointPass::planes`)."
+
+[[type]]
+name = "VanishingPointSession"
+old = "craft_imaging::ui::vanishing_point::VanishingPointSession"
+new = "craft_imaging::ui::vanishing_point::VanishingPointSession"
+status = "same"
+
+[[type]]
+name = "VanishingPointSettings"
+old = "craft_imaging::ui::vanishing_point::VanishingPointSettings"
+new = "craft_imaging::ui::vanishing_point::VanishingPointSettings"
+status = "same"
+
+[[type]]
+name = "StampSettings"
+old = "craft_imaging::ui::vanishing_point::StampSettings"
+new = "craft_imaging::ui::vanishing_point::StampSettings"
+status = "same"
+
+[[type]]
+name = "StampStroke"
+old = "craft_imaging::ui::vanishing_point::StampStroke"
+new = "craft_imaging::ui::vanishing_point::StampStroke"
+status = "same"
+
+[[type]]
+name = "StampLimits"
+old = "craft_imaging::ui::vanishing_point::StampLimits"
+new = "craft_imaging::ui::vanishing_point::StampLimits"
+status = "same"
+
+[[type]]
+name = "PasteImage"
+old = "craft_imaging::ui::vanishing_point::PasteImage"
+new = "craft_imaging::ui::vanishing_point::PasteImage"
+status = "same"
+
+[[type]]
+name = "PlaneEdit"
+old = "craft_imaging::ui::vanishing_point::PlaneEdit"
+new = "craft_imaging::ui::vanishing_point::PlaneEdit"
+status = "same"
+
+[[type]]
+name = "VanishingTool"
+old = "craft_imaging::ui::vanishing_point::VanishingTool"
+new = "craft_imaging::ui::vanishing_point::VanishingTool"
+status = "same"
+
+[[type]]
+name = "VanishingScene"
+old = "craft_imaging::ui::vanishing_point::VanishingScene"
+new = "craft_imaging::ui::vanishing_point::VanishingScene"
+status = "same"
+
+[[type]]
+name = "VanishingPlane"
+old = "craft_imaging::ui::vanishing_point::VanishingPlane"
+new = "craft_imaging::ui::vanishing_point::VanishingPlane"
+status = "same"
+
+[[type]]
+name = "TornPlane"
+old = "craft_imaging::ui::vanishing_point::TornPlane"
+new = "craft_imaging::ui::vanishing_point::TornPlane"
+status = "same"
+
+[[type]]
+name = "PlaneCheck"
+old = "craft_imaging::ui::vanishing_point::PlaneCheck"
+new = "craft_imaging::ui::vanishing_point::PlaneCheck"
+status = "same"
+
+[[type]]
+name = "PlaneEdge"
+old = "craft_imaging::ui::vanishing_point::PlaneEdge"
+new = "craft_imaging::ui::vanishing_point::PlaneEdge"
+status = "same"
+
+[[setter]]
+type = "VanishingPointWorkspace"
+old = "labels"
+new = ""
+note = "The words are the installed ones (`VanishingPointWords`)."
+
+[[setter]]
+type = "VanishingPointWorkspace"
+old = "style"
+new = ""
+note = "The style is the planes control's, from the theme."
+
+[[setter]]
+type = "VanishingPointOpen"
+old = "cursor_options"
+new = ""
+note = "The cursor service holds the user's cursor options."
+
