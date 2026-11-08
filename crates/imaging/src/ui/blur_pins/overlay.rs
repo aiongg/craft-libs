@@ -11,12 +11,11 @@ use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Name, Numeric, Outcome, PaintUi, PartsCx,
     Pointer as _, Props as _, Remember as _, Role, WordSetCx as _,
 };
-use craft_ui::primitives::{FocusKind, FocusRing, PaintShape};
+use craft_ui::primitives::{ContentPainterCx, Draw, FocusKind, FocusRing, PaintShape, StrokeWidth};
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::focus::KeyUse;
 use craft_ui::style::StyleCx;
-use egui::epaint::PathShape;
-use egui::{CornerRadius, Pos2, Rect, Response, Shape, Stroke, StrokeKind, Vec2};
+use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
 
 use super::grab::{AXIS_HANDLES, BlurGrab, PinReach, drag, feather_handles, iris_point, round_handle, tilt_point, turn_handle};
 use super::model::{BlurKind, BlurPin, BlurPins};
@@ -316,7 +315,6 @@ impl<'a> BlurPinsOverlay<'a> {
                 next.pins[index].y = y;
             }
         }
-        while cx.intents().take_move().is_some() {}
         let forward = cx.intents().take_exact(&Intent::delete(true, Granularity::Unit));
         let backward = cx.intents().take_exact(&Intent::delete(false, Granularity::Unit));
         if forward || backward {
@@ -363,22 +361,10 @@ impl Outcome for BlurPinsOutput {
     }
 }
 
-/// A halo-edged line from `a` to `b`, dashed when `dash` is set.
-fn line(painter: &egui::Painter, style: &BlurPinsStyle, a: Pos2, b: Pos2, dash: bool) {
-    let (under, over) = (Stroke::new(style.line_halo, style.halo.egui()), Stroke::new(style.line_width, style.line.egui()));
-    if dash {
-        painter.extend(Shape::dashed_line(&[a, b], under, style.dash, style.dash_gap));
-        painter.extend(Shape::dashed_line(&[a, b], over, style.dash, style.dash_gap));
-    } else {
-        painter.line_segment([a, b], under);
-        painter.line_segment([a, b], over);
-    }
-}
-
 impl Component for BlurPinsOverlay<'_> {
     const ROLE: Role = Role::GROUP;
     const OVERLAYS: bool = false;
-    const KEYS: KeyUse = KeyUse { chrome_key: false, ..KeyUse::CANVAS.with_moves() };
+    const KEYS: KeyUse = KeyUse::CANVAS;
     type Style = BlurPinsStyle;
     type Output = BlurPinsOutput;
 
@@ -458,25 +444,21 @@ impl Component for BlurPinsOverlay<'_> {
             return;
         }
         let painter = ui.content_painter(cx);
+        let draw = ui.draw();
         let (style, view, ppp) = (&cx.style, space.view, painter.pixels_per_point());
         let focused = cx.focus_visible().then(|| cx.active_part()).flatten().filter(|part| part.key == PIN).and_then(|part| part.index);
-        let halo = style.halo.egui();
-        let edge = Stroke::new(style.handle_outline, halo);
-        let dot = style.handle.side / 2.0;
-        let paint = &painter.painter;
-        let scene = Scene { painter: paint, view: &view, pins, style, dot, edge };
+        let scene = Scene { painter: &painter, draw: &draw, view: &view, pins, style, dot: style.handle.side / 2.0 };
         for (index, pin) in pins.pins.iter().enumerate() {
             let centre = view.to_screen(pins.to_document(pin));
             if pins.selected == Some(index) {
                 selected(&scene, pin, centre);
             } else {
-                paint.circle_stroke(centre, dot, Stroke::new(style.line_halo, halo));
-                paint.circle_stroke(centre, dot, Stroke::new(style.line_width, style.line.egui()));
+                painter.outline(&PaintShape::Circle(centre, scene.dot));
             }
             if focused == Some(index as u64) {
                 let footprint =
                     PaintShape::Rect(Rect::from_center_size(centre, Vec2::splat(2.0 * style.reach.grab)), CornerRadius::from(style.reach.grab));
-                paint.extend(FocusRing::shapes(&style.focus, FocusKind::Halo, &footprint, ppp));
+                painter.painter.extend(FocusRing::shapes(&style.focus, FocusKind::Halo, &footprint, ppp));
             }
         }
     }
@@ -500,18 +482,56 @@ impl Component for BlurPinsOverlay<'_> {
 /// from the top, and its dot filled.
 #[derive(Clone, Copy)]
 struct Scene<'a> {
-    painter: &'a egui::Painter,
+    painter: &'a ContentPainterCx<'a>,
+    draw: &'a Draw<'a>,
     view: &'a CanvasView,
     pins: &'a BlurPins,
     style: &'a BlurPinsStyle,
     /// A dot's and a handle's radius.
     dot: f32,
-    edge: Stroke,
 }
 
+impl Scene<'_> {
+    /// A filled handle: the handle colour inside a halo-coloured edge.
+    fn handle(&self, shape: &PaintShape) {
+        self.draw.fill(shape, self.style.line);
+        self.draw.stroke(shape, StrokeWidth::Thin, self.style.halo);
+    }
+
+    /// `from` to `to` as dashes along the kit's halo-and-line outline.
+    fn dashed(&self, from: Pos2, to: Pos2) {
+        let length = (to - from).length();
+        let (dash, period) = (self.style.dash.max(f32::EPSILON), (self.style.dash + self.style.dash_gap).max(f32::EPSILON));
+        let along = (to - from) / length.max(f32::EPSILON);
+        let mut start = 0.0;
+        while start < length {
+            let end = (start + dash).min(length);
+            self.painter.outline(&PaintShape::Path(vec![from + along * start, from + along * end]));
+            start += period;
+        }
+    }
+}
+
+/// The part of the document segment from `a` to `b` inside `bounds` (Liang-Barsky), or `None` outside it.
+fn clipped(a: Point, b: Point, bounds: [f64; 4]) -> Option<(Point, Point)> {
+    let (delta, mut enter, mut leave) = (b - a, 0.0f64, 1.0f64);
+    for (p, q) in [(-delta.x, a.x - bounds[0]), (delta.x, bounds[2] - a.x), (-delta.y, a.y - bounds[1]), (delta.y, bounds[3] - a.y)] {
+        if p == 0.0 {
+            if q < 0.0 {
+                return None;
+            }
+        } else {
+            let t = q / p;
+            if p < 0.0 { enter = enter.max(t) } else { leave = leave.min(t) }
+        }
+    }
+    (enter <= leave).then(|| (a + delta * enter, a + delta * leave))
+}
+
+/// The selected pin: its outline and handles (or Tilt-Shift's lines and dots), its ring with the amount as an arc
+/// from the top, and its dot filled.
 fn selected(scene: &Scene<'_>, pin: &BlurPin, centre: Pos2) {
-    let Scene { painter, view, pins, style, dot, edge } = *scene;
-    let (halo, line_color) = (style.halo.egui(), style.line.egui());
+    let Scene { painter, draw, view, pins, style, dot } = *scene;
     let screen = |p: Point| view.to_screen(p);
     if let Some(shape) = pin.iris {
         // Where the blur reaches its full amount (Iris) or where the spin ends.
@@ -524,17 +544,16 @@ fn selected(scene: &Scene<'_>, pin: &BlurPin, centre: Pos2) {
                 screen(iris_point(pins, pin, shape, r * cos, r * sin))
             })
             .collect();
-        painter.add(PathShape::line(outline.clone(), Stroke::new(style.line_halo, halo)));
-        painter.add(PathShape::line(outline, Stroke::new(style.line_width, line_color)));
+        painter.outline(&PaintShape::Path(outline));
         for (u, v) in AXIS_HANDLES {
-            painter.circle(screen(iris_point(pins, pin, shape, u, v)), dot, line_color, edge);
+            scene.handle(&PaintShape::Circle(screen(iris_point(pins, pin, shape, u, v)), dot));
         }
         if pins.kind == BlurKind::Iris {
             let (u, v) = round_handle(shape);
             let square = Rect::from_center_size(screen(iris_point(pins, pin, shape, u, v)), Vec2::splat(2.0 * dot));
-            painter.rect(square, CornerRadius::from(style.round_corner), line_color, edge, StrokeKind::Middle);
+            scene.handle(&PaintShape::Rect(square, CornerRadius::from(style.round_corner)));
             for (u, v) in feather_handles(shape) {
-                painter.circle(screen(iris_point(pins, pin, shape, u, v)), dot + style.feather_extra, line_color, edge);
+                scene.handle(&PaintShape::Circle(screen(iris_point(pins, pin, shape, u, v)), dot + style.feather_extra));
             }
         }
     }
@@ -542,22 +561,25 @@ fn selected(scene: &Scene<'_>, pin: &BlurPin, centre: Pos2) {
         // The sharp band's edges (solid) and where the blur is full (dashed), across the image.
         let side = pins.short_side();
         let b = pins.bounds;
-        let clip =
-            painter.with_clip_rect(Rect::from_two_pos(screen(Point::new(b[0], b[1])), screen(Point::new(b[2], b[3]))).intersect(painter.clip_rect()));
         let reach = (b[2] - b[0]).hypot(b[3] - b[1]);
         for (offset, dash) in [(band.focus, false), (band.focus + band.transition, true)] {
             for sign in [1.0, -1.0] {
                 let o = sign * offset * side;
-                line(&clip, style, screen(tilt_point(pins, pin, band, o, -reach)), screen(tilt_point(pins, pin, band, o, reach)), dash);
+                let ends = (tilt_point(pins, pin, band, o, -reach), tilt_point(pins, pin, band, o, reach));
+                let Some((a, z)) = clipped(ends.0, ends.1, b) else { continue };
+                if dash {
+                    scene.dashed(screen(a), screen(z));
+                } else {
+                    painter.outline(&PaintShape::Path(vec![screen(a), screen(z)]));
+                }
             }
         }
         for sign in [1.0, -1.0] {
-            painter.circle(screen(turn_handle(pins, pin, band, view, &style.reach, sign)), dot + style.turn_extra, line_color, edge);
+            scene.handle(&PaintShape::Circle(screen(turn_handle(pins, pin, band, view, &style.reach, sign)), dot + style.turn_extra));
         }
     }
     let ring = style.reach.ring;
-    painter.circle_stroke(centre, ring, Stroke::new(style.line_halo, halo));
-    painter.circle_stroke(centre, ring, Stroke::new(style.line_width, line_color));
+    painter.outline(&PaintShape::Circle(centre, ring));
     let fraction = (pin.amount / pins.kind.max()).clamp(0.0, 1.0) as f32;
     if fraction > 0.0 {
         let steps = (fraction * ARC_SEGMENTS).ceil().max(1.0) as usize;
@@ -567,8 +589,7 @@ fn selected(scene: &Scene<'_>, pin: &BlurPin, centre: Pos2) {
                 centre + Vec2::angled(a) * ring
             })
             .collect();
-        painter.add(PathShape::line(arc.clone(), Stroke::new(style.arc_halo, halo)));
-        painter.add(PathShape::line(arc, Stroke::new(style.arc, style.amount.egui())));
+        draw.stroke(&PaintShape::Path(arc), StrokeWidth::Thick, style.amount);
     }
-    painter.circle(centre, dot, line_color, edge);
+    scene.handle(&PaintShape::Circle(centre, dot));
 }

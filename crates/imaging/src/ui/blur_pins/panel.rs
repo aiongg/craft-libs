@@ -5,7 +5,7 @@ use craft_ui::contract::{Bind, Outcome as _, Props as _, Show as _, ShowContaine
 use craft_ui::display::{Shade, Text};
 use craft_ui::form::SliderField;
 use craft_ui::layout_components::Stack;
-use craft_ui::runtime::env::{Env, UnitKind};
+use craft_ui::runtime::env::{Env, Label, UnitKind};
 use craft_ui::style::TypeRole;
 use egui::{Response, Ui};
 
@@ -57,11 +57,11 @@ impl<'a> BlurPinsPanel<'a> {
                     }
                 }
                 None => {
-                    ui.add(Text::new(words.no_pin.clone()).role(TypeRole::Label).shade(Shade::Muted));
+                    Text::new(words.no_pin.clone()).role(TypeRole::Label).shade(Shade::Muted).show(ui);
                 }
             }
-            let hint = |ui: &mut Ui, text: &str| {
-                ui.add(Text::new(text.to_owned()).role(TypeRole::Caption).shade(Shade::Muted));
+            let hint = |ui: &mut Ui, text: &Label| {
+                Text::new(text.clone()).role(TypeRole::Caption).shade(Shade::Muted).show(ui);
             };
             hint(ui, if kind == BlurKind::TiltShift { &words.hint_tilt } else { &words.hint_pins });
             match kind {
@@ -70,6 +70,6 @@ impl<'a> BlurPinsPanel<'a> {
                 _ => {}
             }
         });
-        BlurPinsPanelOutput { response: group.response, edit }
+        BlurPinsPanelOutput { response: group.response().clone(), edit }
     }
 }

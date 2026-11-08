@@ -24,19 +24,9 @@ pub struct BlurPinsStyle {
     pub(super) handle: HandleLook,
     /// How near a press grabs each mark.
     pub(super) reach: PinReach,
-    /// A line's width.
-    pub(super) line_width: f32,
-    /// A line's width with a halo on each side.
-    pub(super) line_halo: f32,
-    /// The amount arc's width.
-    pub(super) arc: f32,
-    /// The amount arc's width with a halo on each side.
-    pub(super) arc_halo: f32,
     /// A dash's length and the gap after it.
     pub(super) dash: f32,
     pub(super) dash_gap: f32,
-    /// The outline of a handle.
-    pub(super) handle_outline: f32,
     /// A feather handle's extra radius.
     pub(super) feather_extra: f32,
     /// A turn handle's extra radius.
@@ -62,13 +52,8 @@ impl BlurPinsStyle {
             metrics: Metrics::new(),
             handle: cx.handle(),
             reach: PinReach::new(size.hit.target, size.control.sm, RING_BAND_WIDTH, size.hit.target),
-            line_width: stroke.medium,
-            line_halo: stroke.medium + 2.0 * stroke.thin,
-            arc: stroke.thick,
-            arc_halo: stroke.thick + 2.0 * stroke.thin,
             dash: stroke.dash_gap,
             dash_gap: stroke.dash_gap,
-            handle_outline: stroke.thin,
             feather_extra: FEATHER_EXTRA,
             turn_extra: TURN_EXTRA,
             round_corner: ROUND_CORNER,
