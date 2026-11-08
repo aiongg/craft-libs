@@ -40,6 +40,7 @@ pub const PATH_OPTIONS_COLOR_KEY: &str = "pathOptions.color";
 /// camelCase; unknown fields are ignored and missing ones take their defaults.
 #[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct PathOptionsSettings {
     /// The Pen's rubber band from the last anchor to the pointer. Off by default, as Photoshop. The Curvature mode
     /// always draws its preview curve.

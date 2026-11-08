@@ -5,6 +5,7 @@ use craft_keymap::Mods;
 
 /// What the pen draft does with presses.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum PenMode {
     /// The Pen: clicks add corner anchors, drags pull out handles.
     #[default]
@@ -17,6 +18,7 @@ pub enum PenMode {
 /// The host's path tool, the input of [`PathMode::resolve`]. The Path Selection and Freeform Pen tools are the
 /// app's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum PathTool {
     /// The Pen.
     Pen,
@@ -35,6 +37,7 @@ pub enum PathTool {
 /// What a pass of the pen and path tools shows: the [`BezierOverlay`](super::BezierOverlay)'s tool, and the pen
 /// draft's mode when it shows (`None`: no draft this pass).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct PathMode {
     /// The path overlay's tool.
     pub bezier: BezierTool,

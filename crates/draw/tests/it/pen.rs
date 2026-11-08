@@ -439,7 +439,7 @@ fn a_draft_ended_with_one_anchor_leaves_no_path() {
 #[trial]
 fn enter_after_an_options_bar_change_ends_the_draft_and_every_anchor_stays() {
     let mut pen = Pen::three();
-    pen.fixture.tool_mut().path_options(PathOptionsSettings { rubber_band: true, color: Some([200, 0, 0]), thickness: Some(2.0) });
+    pen.fixture.tool_mut().path_options(options(true, Some([200, 0, 0]), Some(2.0)));
     pen.click_doc(260.0, 160.0);
     assert_eq!(pen.draft().knots.len(), 4, "the anchors before and after the change are one draft");
     pen.key(Key::Enter, Modifiers::NONE);
@@ -488,7 +488,7 @@ fn a_pen_that_does_not_sense_takes_no_press() {
 fn the_rubber_band_follows_the_path_options() {
     let shapes = |rubber_band: bool| {
         let mut pen = pen();
-        pen.fixture.tool_mut().path_options(PathOptionsSettings { rubber_band, ..PathOptionsSettings::default() });
+        pen.fixture.tool_mut().path_options(options(rubber_band, None, None));
         pen.click_doc(60.0, 60.0);
         let far = pen.at(300.0, 200.0);
         pen.move_to(far, Modifiers::NONE);
@@ -621,7 +621,7 @@ fn curvature_hover_cues_follow_sensing() {
 fn curvature_previews_the_next_curve_whatever_the_rubber_band_setting() {
     let shapes = |rubber_band: bool| {
         let mut pen = curvature();
-        pen.fixture.tool_mut().path_options(PathOptionsSettings { rubber_band, ..PathOptionsSettings::default() });
+        pen.fixture.tool_mut().path_options(options(rubber_band, None, None));
         pen.click_doc(60.0, 60.0);
         pen.click_doc(160.0, 60.0);
         let far = pen.at(300.0, 200.0);
@@ -647,8 +647,18 @@ fn curvature_ignores_shift_and_alt() {
 
 // ---- Path modes and Path Options ----
 
-fn mode(bezier: BezierTool, draft: Option<PenMode>, draft_senses: bool) -> PathMode {
-    PathMode { bezier, draft, draft_senses }
+/// A resolved mode as its three parts.
+fn mode(bezier: BezierTool, draft: Option<PenMode>, draft_senses: bool) -> (BezierTool, Option<PenMode>, bool) {
+    (bezier, draft, draft_senses)
+}
+
+fn resolve(tool: PathTool, mods: Mods, drawing: bool, auto_add_delete: bool) -> (BezierTool, Option<PenMode>, bool) {
+    let resolved = PathMode::resolve(tool, mods, drawing, auto_add_delete);
+    (resolved.bezier, resolved.draft, resolved.draft_senses)
+}
+
+fn options(rubber_band: bool, color: Option<[u8; 3]>, thickness: Option<f32>) -> PathOptionsSettings {
+    serde_json::from_value(serde_json::json!({ "rubberBand": rubber_band, "color": color, "thickness": thickness })).expect("settings")
 }
 
 /// `PathMode::resolve` over every row of its table: each tool, drawing or not, Auto Add/Delete on and off, with no
@@ -659,7 +669,7 @@ fn path_mode_resolves_the_pen_tools_and_modifiers() {
     use PathTool as T;
     let (none, shift, alt, cmd) = (Mods::NONE, Mods::SHIFT, Mods::ALT, Mods::CMD);
     let (pen, curve) = (Some(PenMode::Pen), Some(PenMode::Curvature));
-    let r = PathMode::resolve;
+    let r = resolve;
 
     // Command makes any pen or anchor tool Direct Selection; the draft shows only while drawing.
     for tool in [T::Pen, T::AddAnchor, T::DeleteAnchor, T::ConvertPoint] {
@@ -704,7 +714,7 @@ fn path_mode_resolves_the_pen_tools_and_modifiers() {
 fn path_options_settings_default_to_photoshops() {
     let default = PathOptionsSettings::default();
     assert!(!default.rubber_band && default.color.is_none() && default.thickness.is_none());
-    let set = PathOptionsSettings { rubber_band: true, color: Some([1, 2, 3]), thickness: Some(2.5) };
+    let set = options(true, Some([1, 2, 3]), Some(2.5));
     let json = serde_json::to_string(&set).expect("serialises");
     assert!(json.contains("rubberBand"));
     assert_eq!(serde_json::from_str::<PathOptionsSettings>(&json).ok(), Some(set));

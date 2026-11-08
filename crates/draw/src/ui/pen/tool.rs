@@ -17,8 +17,8 @@ use craft_ui::primitives::{Dashes, Draw, PaintShape, StrokeWidth, ToolIcon};
 use craft_ui::style::{HandleLook, StyleColor, StyleCx};
 use egui::{CornerRadius, Pos2, Rect, Vec2};
 
-/// The icon point that sits on the pointer: the pen's tip, in the icon's own 24-unit box.
-const PEN_HOTSPOT: Vec2 = Vec2::new(2.0, 22.0);
+/// The side of the box a tool icon is drawn on; an icon's hotspot is in these units.
+const ICON_BOX: f32 = 24.0;
 
 /// What the pen reports to the host, drained with [`PenTool::take_events`].
 #[derive(Clone, Debug, PartialEq)]
@@ -556,7 +556,8 @@ impl CanvasTool for PenTool {
             PenMode::Pen => ToolIcon::Pen,
             PenMode::Curvature => ToolIcon::CurvaturePen,
         };
-        Cursor::Painted(PaintedCursor::tool(icon.icon(), PEN_HOTSPOT, None))
+        // The pen's tip is the bottom left corner of the icon's box.
+        Cursor::Painted(PaintedCursor::tool(icon.icon(), Vec2::Y * ICON_BOX, None))
     }
 
     fn access(&self, cx: &ToolContext<'_>) -> Option<ToolAccess> {

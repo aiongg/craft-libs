@@ -23,9 +23,8 @@ struct Host {
 fn polygon(key: u64, points: &[(f64, f64)], radius: f64, individual: bool) -> CornerTarget {
     let p: Vec<Point> = points.iter().map(|&(x, y)| Point::new(x, y)).collect();
     let n = p.len();
-    let corners =
-        (0..n).map(|i| CornerPoint { vertex: p[i], prev: p[(i + n - 1) % n], next: p[(i + 1) % n], radius, kind: CornerKind::Round }).collect();
-    CornerTarget { key, corners, individual }
+    let corners = (0..n).map(|i| CornerPoint::new(p[i], p[(i + n - 1) % n], p[(i + 1) % n], radius, CornerKind::Round)).collect();
+    CornerTarget::new(key, corners, individual)
 }
 
 /// A rectangle from (`x`, `y`) of `w` by `h`.
@@ -97,7 +96,7 @@ fn widgets_hide_on_short_sides_and_wide_angles() {
 
     // A vertex of 170 degrees shows under a limit of 177 and hides under 100.
     let flat = polygon(3, &[(-100.0, 0.0), (0.0, 0.0), (98.48, 17.36)], 0.0, false);
-    let open = vec![CornerTarget { corners: vec![flat.corners[1]], ..flat }];
+    let open = vec![CornerTarget::new(flat.key, vec![flat.corners[1]], flat.individual)];
     let (fixture, _) = show(Host { hide_above: 177.0, ..host(open.clone()) });
     assert!(fixture.by_label("Corner 1 of 1").is_some());
     let (fixture, _) = show(Host { hide_above: 100.0, ..host(open) });
@@ -161,11 +160,11 @@ fn alt_click_cycles_the_kind_and_a_double_click_activates() {
     let clicked = widget(&fixture, 2, 8).expect("corner 2");
     fixture.hold(Modifiers::ALT);
     fixture.click(&clicked);
-    assert_eq!(state.borrow().cycled, [CornerRef { target: 1, corner: 1 }]);
+    assert_eq!(state.borrow().cycled, [CornerRef::new(1, 1)]);
     fixture.hold(Modifiers::NONE);
     fixture.click(&clicked);
     fixture.click(&clicked);
-    assert_eq!(state.borrow().activated.last(), Some(&CornerRef { target: 1, corner: 1 }));
+    assert_eq!(state.borrow().activated.last(), Some(&CornerRef::new(1, 1)));
 }
 
 /// A press between two widgets takes the nearer one; of equal distances the first target's.
@@ -199,7 +198,7 @@ fn the_keyboard_steps_the_radius() {
     fixture.key(Key::ArrowRight, Modifiers::ALT);
     assert_eq!(radii(&state, 0), vec![11.0, 11.0, 10.0, 10.0], "the next widget");
     fixture.key(Key::Enter, Modifiers::NONE);
-    assert_eq!(state.borrow().activated.last(), Some(&CornerRef { target: 1, corner: 1 }));
+    assert_eq!(state.borrow().activated.last(), Some(&CornerRef::new(1, 1)));
 }
 
 /// One object per widget, named "Corner i of n" and valued with its radius.
