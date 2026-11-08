@@ -94,6 +94,8 @@ pub struct ColorDiscOutput {
     pub edit: EditResponse<DiscMove>,
     /// The marker a press grabbed: the host selects it.
     pub pressed: Option<usize>,
+    /// The marker a press grabbed and a drag is moving, also on the pass the drag ends.
+    pub grabbed: Option<usize>,
 }
 
 impl Outcome for ColorDiscOutput {
@@ -148,12 +150,15 @@ pub struct ColorDisc<'a> {
     #[prop(into)]
     names: Vec<Label>,
     pressed: Option<usize>,
+    grabbed: Option<usize>,
 }
 
 impl<'a> ColorDisc<'a> {
     /// A disc named `label` ("Harmony") with a marker at each of `markers`, reporting moves through `drag`.
     pub fn new(label: impl Into<Label>, markers: &'a [Srgba], drag: Bind<'a, DiscMove>) -> Self {
-        ColorDisc { common: Common::new(), markers, drag, chosen: None, brightness: 1.0, names: Vec::new(), pressed: None }.label(label).ltr_axis()
+        ColorDisc { common: Common::new(), markers, drag, chosen: None, brightness: 1.0, names: Vec::new(), pressed: None, grabbed: None }
+            .label(label)
+            .ltr_axis()
     }
 
     /// The disc's centre and radius in the area `rect`, `inset` inside its shorter side.
@@ -262,6 +267,7 @@ impl Component for ColorDisc<'_> {
             }
         }
         let grabbed = cx.memory::<Grab>().marker;
+        self.grabbed = grabbed;
         let running = cx.gesture().is_some();
         // A colour of the host's that changed and is not what the drag reported is an outside change.
         if running && let Some(marker) = grabbed.filter(|marker| *marker < self.markers.len()) {
@@ -382,8 +388,8 @@ impl Component for ColorDisc<'_> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> ColorDiscOutput {
-        let pressed = self.pressed;
-        ColorDiscOutput { edit: cx.edit_response(), pressed }
+        let (pressed, grabbed) = (self.pressed, self.grabbed);
+        ColorDiscOutput { edit: cx.edit_response(), pressed, grabbed }
     }
 }
 

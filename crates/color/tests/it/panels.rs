@@ -633,8 +633,8 @@ impl PaletteRig {
     }
 
     fn focused(&self) -> Option<String> {
-        let (id, _) = self.fixture.focused_stop()?;
-        self.fixture.tree().name(id).map(str::to_owned)
+        let tree = self.fixture.tree();
+        tree.name_of(craft_ui::testing::access::focused_key(tree)).map(str::to_owned)
     }
 }
 

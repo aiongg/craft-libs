@@ -274,7 +274,7 @@ name = "ColorDiscResponse"
 old = "craft_color::ui::ColorDiscResponse"
 new = "craft_color::ui::ColorDiscOutput"
 status = "replaced"
-note = "`ColorDiscOutput { edit, pressed }`; `area` and `markers` are gone. An `Outcome`."
+note = "`ColorDiscOutput { edit, pressed, grabbed }`; `area` and `markers` are gone. An `Outcome`."
 
 [[type]]
 name = "ColorDiscStyle"
