@@ -1,0 +1,5 @@
+craft-ui it docking::
+craft-ui it rails
+craft-ui it tabs
+craft-ui it body::placement
+craft-ui it suite::craft_ui::docking::floating
