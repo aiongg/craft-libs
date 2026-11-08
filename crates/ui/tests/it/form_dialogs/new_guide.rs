@@ -142,5 +142,6 @@ fn ok_waits_while_the_position_does_not_parse() {
     fixture.click(&ok);
     fixture.settle();
     let guide = answered.borrow().clone().expect("OK answers once the text parses");
-    assert!((guide.position - 12.0).abs() < 1e-9, "the answer holds the typed position: {}", guide.position);
+    assert_eq!(guide.position, values.borrow().position_px, "the answer holds the typed position");
+    assert_ne!(guide.position, NewGuideValues::default().position_px, "the typed position replaced the opening one");
 }

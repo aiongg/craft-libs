@@ -176,7 +176,26 @@ fn the_orientation_control_swaps_the_sides() {
     let portrait = named(&fixture, "Portrait").expect("the Portrait segment");
     fixture.click(&portrait);
     fixture.settle();
-    assert_eq!(options.borrow().size, PixelSize::new(1500, 2100), "the Portrait segment at {:?} in a window of {WINDOW:?}", portrait.center());
+    assert_eq!(options.borrow().size, PixelSize::new(1500, 2100), "the Portrait segment: {}", where_is(&fixture, &portrait));
+}
+
+/// Where `target` sits after a click on it: its bounds then and now, its ancestors' bounds, the layer under its
+/// centre and the focused node.
+fn where_is(fixture: &Fixture, target: &Target) -> String {
+    let tree = fixture.tree();
+    let mut chain = Vec::new();
+    let mut key = Some(target.node);
+    while let Some(at) = key {
+        chain.push(format!("{:?} {:?} {:?}", tree.role_of(at), tree.name_of(at), tree.bounds_of(at)));
+        key = tree.parent_of_key(at);
+    }
+    let layer = fixture.ctx().layer_id_at(target.center());
+    let focused = fixture.focused().map(|id| tree.name_of(craft_ui::testing::access::NodeKey::of(id)).map(str::to_owned));
+    format!(
+        "clicked at {:?}; now {:?}; layer {layer:?}; focused {focused:?}; chain {chain:#?}",
+        target.rect,
+        fixture.target(target.node).map(|now| now.rect)
+    )
 }
 
 /// Alt turns Close into Reset, which puts back the settings the dialog opened with.
