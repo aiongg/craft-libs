@@ -9,6 +9,8 @@ craft_ui::words! {
         thumb_small: "list.thumbSmall" = "Small";
         thumb_medium: "list.thumbMedium" = "Medium";
         thumb_large: "list.thumbLarge" = "Large";
+        toggle_visibility: "toggleCell.visibility" = "Visibility {row}";
+        toggle_lock: "toggleCell.lock" = "Lock {row}";
         expand: "preset.expand" = "Expand {row}";
         collapse: "preset.collapse" = "Collapse {row}";
     }
