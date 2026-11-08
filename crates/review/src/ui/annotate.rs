@@ -281,6 +281,9 @@ const WIDTH_RANGE: std::ops::RangeInclusive<f64> = 1.0..=12.0;
 const WIDTH_DECIMALS: usize = 1;
 /// A highlight lets the text show through.
 const HIGHLIGHT_OPACITY: f32 = 0.4;
+/// The side of a note, attachment or caret icon on screen, in points, for the tool's hits and the form's notes: a
+/// tool's pointer calls have no style to read `size.icon.md` from, which the overlay paints with.
+pub const ICON_SIDE: f32 = 16.0;
 /// The key of the "New Annotation..." command form.
 pub const NEW_ANNOTATION_FORM: &str = "newAnnotation";
 
@@ -322,7 +325,7 @@ fn read(cx: &ToolContext<'_>, pos: Pos2) -> Option<Reading> {
     Some(Reading {
         at: space.view.to_doc(pos),
         tolerance: space.view.doc_len(cx.slop),
-        icon_side: space.view.doc_len(cx.style()?.tokens.size.icon.md),
+        icon_side: space.view.doc_len(ICON_SIDE),
         words: cx.words::<AnnotateWords>(),
     })
 }
@@ -481,8 +484,8 @@ impl AnnotateTool {
         let area = Rect::from_points(from, to);
         let mut annotation = match kind {
             AnnotationKind::Note => {
-                // The icon kinds take their size from the icon token wherever they show (`Annotation::extent`).
-                let mut note = self.fresh(kind, area);
+                let side = f64::from(ICON_SIDE);
+                let mut note = self.fresh(kind, Rect::from_origin_size(from, (side, side)));
                 note.points = vec![from];
                 note
             }

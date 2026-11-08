@@ -2,7 +2,7 @@
 
 use craft_review::signature::{SavedSignature, SignatureDraft, SignatureTab};
 use craft_review::ui::signature::DrawPad;
-use craft_ui::contract::{Bind, Role, Show as _};
+use craft_ui::contract::{Bind, Show as _};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers, vec2};
 use std::cell::RefCell;
@@ -41,7 +41,7 @@ fn undo_removes_the_last_stroke() {
         let mut strokes = shown.borrow_mut();
         DrawPad::new("Draw", Bind::bound(&mut strokes)).show(ui);
     });
-    let pad = fixture.by_role(Role::IMAGE).into_iter().next().expect("the pad");
+    let pad = fixture.by_label("Draw").expect("the pad");
     fixture.drag(&pad, vec2(40.0, 10.0));
     fixture.drag(&pad, vec2(-30.0, 20.0));
     assert_eq!(strokes.borrow().len(), 2, "two strokes drawn");

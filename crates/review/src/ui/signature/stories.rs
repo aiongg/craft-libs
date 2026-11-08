@@ -2,8 +2,9 @@
 
 use super::{DrawPad, SignaturePadDialog};
 use crate::signature::SignatureDraft;
-use craft_ui::contract::{Bind, Show as _};
+use craft_ui::contract::{Bind, Show as _, Validity};
 use craft_ui::dialog::StackDialog as _;
+use craft_ui::runtime::env::Message;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
@@ -11,6 +12,14 @@ use egui::Ui;
 fn draw_pad_with_strokes(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let strokes = data.value("strokes", vec![vec![[0.1, 0.5], [0.3, 0.2], [0.5, 0.7], [0.8, 0.4]]]);
     DrawPad::new("Draw", Bind::bound(strokes)).show(ui).into()
+}
+
+#[story(DrawPad<'static>, covers = [Invalid], drive = Drive::Never)]
+fn draw_pad_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let refuse_many =
+        |strokes: &Vec<Vec<[f32; 2]>>| if strokes.len() > 3 { Validity::Refuse(Message::new("Too many strokes")) } else { Validity::Ok };
+    let strokes = data.value("strokes", vec![vec![[0.1, 0.2], [0.3, 0.4]]; 4]);
+    DrawPad::new("Draw", Bind::bound(strokes).check(refuse_many)).show(ui).into()
 }
 
 /// A dialog kept across passes.
