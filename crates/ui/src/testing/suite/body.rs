@@ -32,7 +32,8 @@ fn layer_fixture(story: &Story) -> Option<Fixture> {
     on_layer(&fixture).then_some(fixture)
 }
 
-/// A container that is a dialog or a group has a role that needs a name: the title names it.
+/// A container that is a dialog or a group has a role that needs a name: the title names it. A field container's label
+/// names its one control instead, which then carries the name and the `labelled_by` link, and the group has none.
 pub(super) fn title_names_the_container(subject: &Subject) -> Result<(), String> {
     if !is_body(subject) {
         return Ok(());
@@ -42,7 +43,13 @@ pub(super) fn title_names_the_container(subject: &Subject) -> Result<(), String>
         fixture.settle();
         let Some(container) = root(&fixture) else { continue };
         let role = fixture.tree().role_of(container.node);
-        if (role == Some(Role::DIALOG) || role == Some(Role::GROUP)) && crate::testing::access::name(fixture.tree(), container.node).is_none() {
+        let tree = fixture.tree();
+        let names_its_control =
+            || tree.keys().into_iter().any(|key| crate::testing::access::is_interactive(tree, key) && !tree.labelled_by_key(key).is_empty());
+        if (role == Some(Role::DIALOG) || role == Some(Role::GROUP))
+            && crate::testing::access::name(tree, container.node).is_none()
+            && !names_its_control()
+        {
             return Err(format!("{}: the container's node has the role {role:?} and no name", story.name));
         }
     }
