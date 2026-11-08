@@ -5,7 +5,7 @@ use crate::choice::RadioGroup;
 use crate::contract::{Bind, Gap, Props as _, Show as _, ShowContainer as _};
 use crate::display::Text;
 use crate::layout_components::{Row, Stack};
-use crate::testing::{Drive, StoryData, StoryOutput, story};
+use crate::testing::{Drive, StoryData, StoryOutput, show_as_only_item, story};
 use craft_behavior::Mixed;
 use craft_theme::Srgba;
 use egui::Ui;
@@ -65,7 +65,8 @@ fn swatch_palette(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn swatch_table_cells(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     Row::new().gap(Gap::Tight).show(ui, |ui, _| {
         for (n, color) in PALETTE.into_iter().take(6).enumerate() {
-            Swatch::new(format!("Cell {}", n + 1), color).cell().selected(n == 2).show(ui);
+            // A cell's place in its set is the owning table's item step; each story cell stands alone in its own.
+            ui.push_id(n, |ui| show_as_only_item(ui, Swatch::new(format!("Cell {}", n + 1), color).cell().selected(n == 2)));
         }
     });
     StoryOutput::default()
