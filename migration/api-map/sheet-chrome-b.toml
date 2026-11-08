@@ -110,7 +110,7 @@ name = "ChartPrimitive"
 old = "craft_table::ui::chart::ChartPrimitive"
 new = "craft_table::ui::chart::ChartPrimitive"
 status = "same"
-note = "Colours are `DataColor` (text: `Option<StyleColor>`, `None` for the surface's ink); `Text` loses `size`, its size is the body or strong body role. The type is `#[non_exhaustive]`. Lines and outlines paint nothing until `Draw` has a data-colour stroke."
+note = "Colours are `DataColor` (text: `Option<StyleColor>`, `None` for the surface's ink); `Text` loses `size`, its size is the body or strong body role. Built with `ChartPrimitive::rect/line/polygon/wedge/circle/text` and the `filled`, `stroked`, `rounded`, `dashed`, `bold`, `anchored`, `inked` and `rotated` modifiers (the variants are `#[non_exhaustive]`). Lines and outlines paint nothing until `Draw` has a data-colour stroke."
 
 [[type]]
 name = "HAlign"
@@ -158,9 +158,9 @@ status = "replaced"
 note = "Replaces the bare `Response`: `response` and the value a click copied."
 
 [[type]]
-name = "SelectionStatsStyle"
+name = "SelectionStatsReadoutStyle"
 old = ""
-new = "craft_table::ui::stats::SelectionStatsStyle"
+new = "craft_table::ui::stats::SelectionStatsReadoutStyle"
 status = "replaced"
 note = "The readout's own `ComponentStyle`."
 
@@ -262,3 +262,26 @@ old = "paint_chart(painter, origin, primitives, zoom)"
 new = "paint_chart(draw, origin, primitives, zoom)"
 note = "Paints through the `Draw` of a component's `paint`."
 
+[[setter]]
+type = "OutlineGroup"
+old = "OutlineGroup { start, end, level, collapsed, summary_before }"
+new = "OutlineGroup::new(start, end, level).collapsed(collapsed).summary_before(before)"
+note = "The type is `#[non_exhaustive]`."
+
+[[setter]]
+type = "OutlineAxis"
+old = "OutlineAxis { levels, groups }"
+new = "OutlineAxis::new(levels, groups)"
+note = "The type is `#[non_exhaustive]`."
+
+[[setter]]
+type = "SelectionStats"
+old = "SelectionStats { count, numeric, sum, min, max }"
+new = "SelectionStats::new(count, numeric, sum, min, max)"
+note = "The type is `#[non_exhaustive]`."
+
+[[setter]]
+type = "StatPart"
+old = "StatPart { text, value }"
+new = "StatPart::new(text, value)"
+note = "The type is `#[non_exhaustive]`."
