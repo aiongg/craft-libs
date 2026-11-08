@@ -104,10 +104,6 @@ struct Report {
     context: Option<GuideKey>,
 }
 
-/// The guide the focus arrived at, so a move of the focus selects.
-#[derive(Clone, Default)]
-struct Arrival(Option<u64>);
-
 /// The key of the guide a ruler drag is creating, kept for the length of the drag.
 #[derive(Clone, Default)]
 struct PendingKey(Option<GuideKey>);
@@ -317,12 +313,7 @@ impl<'a> Guides<'a> {
     /// The keys of the focused guide: selection follows the focus, the arrows nudge, Delete removes.
     fn run_keys(&mut self, cx: &mut Cx<'_, Self>, space: &CanvasSpace, guides: &[Guide]) {
         let focused = cx.active_part().filter(|part| part.key == GUIDE).and_then(|part| part.index);
-        let arrived = {
-            let slot = cx.memory::<Arrival>();
-            let changed = slot.0 != focused;
-            slot.0 = focused;
-            changed
-        };
+        let arrived = cx.focus_arrived_by_key().is_some_and(|part| part.key == GUIDE);
         let Some(guide) = focused.and_then(|index| guides.iter().find(|guide| guide.key.get() == index)) else { return };
         if arrived && self.report.select.is_none() {
             self.report.select = Some(Some(guide.key));

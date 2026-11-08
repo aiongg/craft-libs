@@ -703,6 +703,10 @@ pub trait Focus {
     /// every pass of the frame; `None` when focus stayed on its part, left the component, or sits on the component
     /// itself.
     fn focus_arrived(&self) -> Option<PartRef>;
+    /// [`focus_arrived`](Focus::focus_arrived) when the part is not under a press: focus came by the keyboard or a
+    /// focus request (Photoshop: Tab into a field selects its text, a click does not). A press on the part reports
+    /// none; the press selects by its own rule.
+    fn focus_arrived_by_key(&self) -> Option<PartRef>;
     /// The component holds key focus.
     fn is_focused(&self) -> bool;
     /// The component holds focus and shows it.
@@ -735,6 +739,12 @@ impl Focus for CxCore<'_> {
     fn focus_arrived(&self) -> Option<PartRef> {
         let facts = if focus::writes() == self.focus.at { self.focus } else { focus::facts(&self.ctx, self.id) };
         facts.arrived.filter(|part| self.results.contains_key(&(part.key, part.index)))
+    }
+
+    fn focus_arrived_by_key(&self) -> Option<PartRef> {
+        self.focus_arrived().filter(|part| {
+            self.results.get(&(part.key, part.index)).is_some_and(|result| matches!(result.press.phase, PressPhase::Idle | PressPhase::Hover))
+        })
     }
 
     fn is_focused(&self) -> bool {
@@ -777,6 +787,10 @@ impl<C: Component> Focus for Cx<'_, C> {
 
     fn focus_arrived(&self) -> Option<PartRef> {
         self.core.focus_arrived()
+    }
+
+    fn focus_arrived_by_key(&self) -> Option<PartRef> {
+        self.core.focus_arrived_by_key()
     }
 
     fn is_focused(&self) -> bool {
