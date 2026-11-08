@@ -236,7 +236,12 @@ fn page_sized_shapes(fixture: &Fixture) -> usize {
 fn hiding_a_layer_with_its_eye_changes_what_the_canvas_paints() {
     let (mut fixture, state) = window(MockState::default());
     let shown = page_sized_shapes(&fixture);
-    let eye = fixture.control("Visibility Mountains").expect("the eye of the top layer");
+    let tree = fixture.tree();
+    let eye = fixture
+        .by_role(Role::BUTTON)
+        .into_iter()
+        .find(|target| tree.name_of(target.node).is_some_and(|name| name.starts_with("Visibility") && name.contains("Mountains")))
+        .expect("the eye of the top layer");
     fixture.click(&eye).settle();
     assert!(!state.borrow().document.layers[0].visible);
     assert_eq!(page_sized_shapes(&fixture), shown - 1, "the hidden layer paints nothing");
