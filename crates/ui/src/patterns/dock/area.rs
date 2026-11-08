@@ -6,7 +6,7 @@ use crate::contract::overlay::PlacementChange;
 use crate::contract::{
     Bind, BindMut, BodyCx, Cx, Entry, NoValue, Outcome, Pad, Pointer as _, Props as _, Show as _, ShowContainer as _, Sizing, WordSetCx as _,
 };
-use crate::docking::stack::{StackDividers, StackSection, section_heights};
+use crate::docking::stack::{StackSection, StackSections, section_heights};
 use crate::docking::tree::FrameRules;
 use crate::docking::{
     DockColumn, DockCommands, DockConfig, DockDropTarget, DockDropped, DockEvent, DockGroup, DockPanels, DockRoot, DockScene, DockSizes, DockSpot,
@@ -578,14 +578,16 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
                     })
                     .collect();
                 let heights = section_heights(&sections, rect.height(), scene.sizes.strip);
-                let mut top = rect.top();
-                for (entry, height) in entries.iter().zip(heights) {
-                    let section = Rect::from_min_size(Pos2::new(rect.left(), top), Vec2::new(rect.width(), height));
-                    top += height;
-                    let look = Look { minimized: !entry.open, section: Some(entry.open) };
-                    self.group(ui, body, std::slice::from_ref(&entry.panel), 0, look, section);
-                }
-                for (at, height) in StackDividers::new(sections).show_at(ui, rect).resized {
+                let shown = StackSections::new(sections).show_at(ui, rect, |ui, inner| {
+                    let mut top = rect.top();
+                    for (entry, height) in entries.iter().zip(&heights) {
+                        let section = Rect::from_min_size(Pos2::new(rect.left(), top), Vec2::new(rect.width(), *height));
+                        top += height;
+                        let look = Look { minimized: !entry.open, section: Some(entry.open) };
+                        self.group(ui, inner, std::slice::from_ref(&entry.panel), 0, look, section);
+                    }
+                });
+                for (at, height) in shown.output.resized {
                     if let Some(entry) = entries.get(at) {
                         self.report.actions.push(Action::resize_stack(entry.panel.clone(), Some(height)));
                     }

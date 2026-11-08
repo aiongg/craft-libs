@@ -154,10 +154,18 @@ new = "craft_behavior::dock::Floating"
 status = "moved"
 
 [[type]]
-name = "DockPlacement"
+name = "Placement"
 old = "craft_ui::docking::model::Placement"
+new = ""
+status = "removed"
+note = "Renamed `DockPlacement`: `craft_behavior::overlay::Placement` is another type."
+
+[[type]]
+name = "DockPlacement"
+old = ""
 new = "craft_behavior::dock::DockPlacement"
-status = "moved"
+status = "replaced"
+note = "Where a panel goes relative to an anchor panel (`Tab`, `Split`, `SplitSized`, `Group`, `Column`, `Edge`)."
 
 [[type]]
 name = "Location"
@@ -1362,22 +1370,22 @@ status = "replaced"
 note = "What `WindowMenuRows::show` reports: the action the picked row asks for."
 
 [[type]]
-name = "StackDividers"
+name = "StackSections"
 old = ""
-new = "craft_ui::docking::stack::StackDividers"
+new = "craft_ui::docking::stack::StackSections"
 status = "replaced"
-note = "The dividers between the open sections of an accordion; their drags come back as `StackDividersOutput::resized`, which `DockArea` sends as `Action::ResizeStack`."
+note = "The sections of an accordion with the dividers between the open ones; their drags come back as `StackSectionsOutput::resized`, which `DockArea` sends as `Action::ResizeStack`."
 
 [[type]]
-name = "StackDividersOutput"
+name = "StackSectionsOutput"
 old = ""
-new = "craft_ui::docking::stack::StackDividersOutput"
+new = "craft_ui::docking::stack::StackSectionsOutput"
 status = "replaced"
-note = "What `StackDividers` reports."
+note = "What `StackSections` reports."
 
 [[type]]
-name = "StackDividersStyle"
+name = "StackSectionsStyle"
 old = ""
-new = "craft_ui::docking::stack::StackDividersStyle"
+new = "craft_ui::docking::stack::StackSectionsStyle"
 status = "replaced"
-note = "The style of `StackDividers`."
+note = "The style of `StackSections`."

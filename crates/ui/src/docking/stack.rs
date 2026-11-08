@@ -1,9 +1,11 @@
 //! The section layout of an accordion (`Node::Stack`): every section shows its title row, and only open sections
-//! take height for their body. `StackDividers` are the dividers between its open sections.
+//! take height for their body. `StackSections` hosts the sections and the dividers between the open ones.
 
 use super::divider::{self, Divider, Drag};
 use super::{DockSizes, DockWords, Splitter};
-use crate::contract::{Access, Common, Component, Cx, NoValue, Outcome, PaintUi, PartsCx, Role, WordSetCx as _};
+use crate::contract::{
+    Access, Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, Pad, PaintUi, PartsCx, Props as _, Role, Sizing, WordSetCx as _,
+};
 use crate::runtime::focus::KeyUse;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::divider::{self as push, Segment};
@@ -94,7 +96,7 @@ pub fn section_heights(sections: &[StackSection], total: f32, header: f32) -> Ve
 /// The style of the stack dividers: the docking sizes of their reach, keys and sections.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
-pub struct StackDividersStyle {
+pub struct StackSectionsStyle {
     #[style(metrics)]
     metrics: Metrics,
     sizes: DockSizes,
@@ -103,7 +105,7 @@ pub struct StackDividersStyle {
 /// What the stack dividers report.
 #[derive(Debug)]
 #[non_exhaustive]
-pub struct StackDividersOutput {
+pub struct StackSectionsOutput {
     /// The dividers' response.
     pub response: Response,
     /// The sections whose body height the user changed this pass, each as its index among the sections with the new
@@ -111,7 +113,7 @@ pub struct StackDividersOutput {
     pub resized: Vec<(usize, f32)>,
 }
 
-impl Outcome for StackDividersOutput {
+impl Outcome for StackSectionsOutput {
     type Value = NoValue;
 
     fn response(&self) -> &Response {
@@ -119,13 +121,17 @@ impl Outcome for StackDividersOutput {
     }
 }
 
-/// The dividers between the open sections of an accordion laid out in the rect it is shown at (`section_heights`
-/// with the strip height of the docking sizes). A drag or an arrow key on a divider moves the boundary between its two
-/// sections and the sections beyond give way in turn; the changed body heights come back in `resized`.
+/// An accordion laid out in the rect it is shown at (`section_heights` with the strip height of the docking sizes),
+/// with a divider between its open sections. The body shows the sections at the rects it computes. A drag or an arrow
+/// key on a divider moves the boundary between its two sections and the sections beyond give way in turn; the changed
+/// body heights come back in `resized`.
 #[derive(crate::contract::Component)]
-pub struct StackDividers {
+#[component(container)]
+pub struct StackSections {
     #[common]
     common: Common,
+    #[container]
+    props: ContainerProps,
     sections: Vec<StackSection>,
     resized: Vec<(usize, f32)>,
 }
@@ -141,10 +147,11 @@ struct Plan {
     dividers: Vec<(u64, usize, Divider)>,
 }
 
-impl StackDividers {
-    /// Dividers over `sections`, in order.
+impl StackSections {
+    /// An accordion of `sections`, in order.
     pub fn new(sections: Vec<StackSection>) -> Self {
-        StackDividers { common: Common::new(), sections, resized: Vec::new() }
+        let props = ContainerProps::new().sizing(Sizing::Fill).pad(Pad::None);
+        StackSections { common: Common::new(), props, sections, resized: Vec::new() }
     }
 
     /// The dividers of the sections laid out in `rect`.
@@ -175,14 +182,14 @@ impl StackDividers {
     }
 }
 
-impl Component for StackDividers {
+impl Component for StackSections {
     const ROLE: Role = Role::GROUP;
     const KEYS: KeyUse = KeyUse::SPLITTER;
-    type Style = StackDividersStyle;
-    type Output = StackDividersOutput;
+    type Style = StackSectionsStyle;
+    type Output = StackSectionsOutput;
 
-    fn style(cx: &StyleCx<'_>, _: StackDividersStyleKey) -> StackDividersStyle {
-        StackDividersStyle { metrics: Metrics::new(), sizes: DockSizes::style(cx) }
+    fn style(cx: &StyleCx<'_>, _: StackSectionsStyleKey) -> StackSectionsStyle {
+        StackSectionsStyle { metrics: Metrics::new(), sizes: DockSizes::style(cx) }
     }
 
     fn sense(&self) -> Sense {
@@ -226,7 +233,9 @@ impl Component for StackDividers {
         }
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> StackDividersOutput {
-        StackDividersOutput { response: cx.response.clone(), resized: self.resized }
+    fn finish(self, cx: Cx<'_, Self>) -> StackSectionsOutput {
+        StackSectionsOutput { response: cx.response.clone(), resized: self.resized }
     }
 }
+
+impl Container for StackSections {}
