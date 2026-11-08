@@ -414,7 +414,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.layout = Some(Arc::new(layout));
         let empty = if !self.source.is_empty() {
             0.0
-        } else if comp.props(Internal::new()).empty.is_some() {
+        } else if comp.items().empty.is_some() {
             // The collection's own empty text is one line of control height.
             scx.control().height
         } else {
@@ -768,7 +768,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             let installed = Env::install_for(&empty_ui, env.derive(|scoped| scoped.values.extend(values)));
             let (resolved, view) = (cx.core.resolved, cx.core.env);
             let mut bcx = BodyCx::new(sub(id, "body"), view, resolved, rect, &mut *cx.core.memory, &mut open, None);
-            match comp.props(Internal::new()).empty.clone() {
+            match comp.items().empty.clone() {
                 Some(text) => {
                     EmptyText::new(text).id(sub(id, "empty_text")).show_at(&mut empty_ui, rect);
                 }
