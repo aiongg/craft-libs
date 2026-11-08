@@ -217,4 +217,9 @@ impl PathEdit {
         }
         *path != before
     }
+
+    /// Applies the edit to the path of `paths` it names and returns whether that changed it.
+    pub fn apply_all(&self, paths: &mut [EditPath]) -> bool {
+        paths.iter_mut().any(|path| self.apply(path))
+    }
 }

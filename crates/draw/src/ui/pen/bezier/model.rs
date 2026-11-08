@@ -2,7 +2,7 @@
 //! the overlays report. The host converts its own path type to these each frame and applies the
 //! edits to its own.
 
-use egui::Color32;
+use craft_theme::Srgba;
 use kurbo::{BezPath, CubicBez, Point, Vec2};
 
 /// One point of a path: its anchor and its two direction handles, in document units. A handle at
@@ -106,8 +106,8 @@ pub struct EditPath {
     /// The path's subpaths.
     pub subpaths: Vec<EditSubpath>,
     /// The layer colour its outline, anchors and handles are drawn in (DesignCraft, VectorCraft);
-    /// `overlay.line` without one.
-    pub color: Option<Color32>,
+    /// the overlay's line colour without one.
+    pub color: Option<Srgba>,
 }
 
 impl EditPath {
