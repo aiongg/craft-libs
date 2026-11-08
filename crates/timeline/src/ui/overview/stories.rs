@@ -46,6 +46,17 @@ fn centre_the_window(fixture: &mut Fixture) {
     fixture.drag_at(from, Vec2::X * (shown.width() * DRAG_SHARE));
 }
 
+/// Shows the overview of the eight tracks over `view`.
+fn shown(ui: &mut Ui, view: Bind<'_, TimeView>) -> StoryOutput {
+    let width = ui.available_width();
+    let runs = overview_runs(&tracks(), Tick::from_seconds_f64(END), Vec2::new(width, ui.available_height()));
+    TimelineOverview::new("Overview", &runs, view, Tick::from_seconds_f64(END))
+        .shown_width(width)
+        .playhead(Tick::from_seconds_f64(END / 2.0))
+        .show(ui)
+        .into()
+}
+
 #[story(TimelineOverview<'static>, covers = [Default], drive = Drive::Custom(centre_the_window))]
 fn eight_tracks(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     shown(ui, Bind::bound(data.value("view", TimeView::new(Tick::from_seconds_f64(10.0), 40.0))))
