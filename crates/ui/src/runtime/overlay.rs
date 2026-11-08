@@ -75,9 +75,10 @@ impl Rank {
         }
     }
 
-    /// Whether a layer of this rank takes keys without a focus scope.
+    /// Whether a layer of this rank takes keys without a focus scope. Modal chrome takes none: Cancel and Enter stay
+    /// with the modal under it.
     const fn takes_keys(self) -> bool {
-        matches!(self, Rank::Popup | Rank::Modal { .. } | Rank::ModalChrome)
+        matches!(self, Rank::Popup | Rank::Modal { .. })
     }
 
     pub(crate) const fn is_modal(self) -> bool {
@@ -175,7 +176,7 @@ impl OpenEntry {
     }
 
     /// Whether the layer takes keys: the layers `top` can name. A layer with a focus scope takes keys whatever its rank.
-    fn takes_keys(&self) -> bool {
+    pub(crate) fn takes_keys(&self) -> bool {
         self.scoped || self.rank.takes_keys()
     }
 

@@ -38,6 +38,12 @@ pub(crate) fn create_node(ctx: &egui::Context, id: Id) -> bool {
     adapter::create_node(ctx, id)
 }
 
+/// Keeps the node egui gives the widget `id` out of the screen-reader tree: a widget that senses input and stands for
+/// no node (a `Role::None` root, a cover's absorber).
+pub(crate) fn hide(ctx: &egui::Context, id: Id) {
+    adapter::hide(ctx, id);
+}
+
 /// Reports `id` as the focused node of this pass.
 pub(crate) fn set_focus(ctx: &egui::Context, id: Id) {
     adapter::set_focus(ctx, id);

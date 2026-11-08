@@ -556,6 +556,10 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
         }
         created
     };
+    // A root with no node whose egui widget senses still gets a node from egui, with actions nobody writes.
+    if C::ROLE == Role::None && !root_sense.is_empty() {
+        access::hide(&ctx, id);
+    }
     cx.core.part_cursors = sensing::hovered_cursor(&decls, &results).into_iter().collect();
     cx.core.rect = rect;
     cx.core.content_rect = flow.inset(metrics.padding);
