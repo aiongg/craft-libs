@@ -219,6 +219,18 @@ adds the part of the window the user can see:
   which puts it in the work area. Call `fit_window` once the monitor is known.
 - `WindowMode` (`Normal`, `Maximized`, `FullScreen`): full screen covers the taskbar on purpose.
 
+## The application menu bar
+
+`native_menu` makes the platform's own menu bar (macOS, feature `appkit`, built on muda) from a plain
+description: `Bar` of `Menu`s of `Node`s (`Item { id, label, enabled, checked, shortcut }`, submenus,
+separators, and the platform's own items such as Services and Zoom). `NativeBar::install` makes it the
+application's menu bar, `NativeBar::apply` keeps it in step (a changed `structure` key rebuilds, a changed
+`windows` key rebuilds only the Windows menu, anything else updates in place), and the `Handler` set with
+`NativeBar::set_handler` receives each chosen item's `id` and, for a key equivalent, the modifiers held.
+`install_app_menu` installs a minimal app menu whose Quit reports to a handler. Off macOS (and without the
+feature) every call does nothing, so callers need no platform check. craft-menu lowers its menu model to
+this description.
+
 ## Window restore
 
 `craft_window::restore` (no egui).

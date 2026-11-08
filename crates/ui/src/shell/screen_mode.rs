@@ -125,10 +125,17 @@ pub(super) struct ScreenModeFollow {
 }
 
 impl ScreenModeFollow {
-    /// Reads the window's mode from `bind`, applies this pass's screen-mode commands, follows the OS window and
-    /// brings it to the mode. Writes the mode back under `name` when it changed. Returns the mode and whether it
-    /// changed.
-    pub(super) fn follow(&mut self, ctx: &Context, cx: &mut BodyCx<'_>, mut bind: BindMut<'_, ScreenMode>, name: Arc<str>) -> (ScreenMode, bool) {
+    /// Reads the mode from `bind` and applies this pass's screen-mode commands. With `os`, follows the OS window and
+    /// brings it to the mode; an embedded shell passes false and its mode only changes what its own region shows.
+    /// Writes the mode back under `name` when it changed. Returns the mode and whether it changed.
+    pub(super) fn follow(
+        &mut self,
+        ctx: &Context,
+        cx: &mut BodyCx<'_>,
+        mut bind: BindMut<'_, ScreenMode>,
+        name: Arc<str>,
+        os: bool,
+    ) -> (ScreenMode, bool) {
         let before = match bind.read(cx) {
             Some(Mixed::Same(held)) => held,
             _ => ScreenMode::default(),
@@ -137,6 +144,20 @@ impl ScreenModeFollow {
         while let Some((command, _)) = cx.take_command::<ScreenModeCommand>() {
             mode = command.apply(mode);
         }
+        if os {
+            mode = self.follow_window(ctx, mode);
+        }
+        self.applied = mode;
+        if mode != before {
+            let event = EditEvent::set(GestureId::default(), Mixed::Same(before), mode, name, None);
+            let _ = bind.write(cx, &event);
+        }
+        (mode, mode != before)
+    }
+
+    /// Follows the OS window out of full screen and sends the actions that bring it to `mode`. Returns the mode the
+    /// window is in.
+    fn follow_window(&mut self, ctx: &Context, mut mode: ScreenMode) -> ScreenMode {
         let host = WindowHost::of(ctx);
         let viewport = pass::current_viewport(ctx);
         let state = host.facts(viewport).map(|facts| facts.state);
@@ -157,12 +178,7 @@ impl ScreenModeFollow {
                 host.act(viewport, action);
             }
         }
-        self.applied = mode;
-        if mode != before {
-            let event = EditEvent::set(GestureId::default(), Mixed::Same(before), mode, name, None);
-            let _ = bind.write(cx, &event);
-        }
-        (mode, mode != before)
+        mode
     }
 }
 

@@ -2,7 +2,7 @@
 
 use super::kit::{Count, Dismissed, Row};
 use super::table::{Free, Table};
-use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, GesturePhase, ItemSource};
+use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, GesturePhase, ItemSource, keyed};
 use craft_ui::contract::{
     CollectionEvent, CollectionProps, CollectionResponse, ColumnCommands, ColumnEvent, ColumnKind, ColumnSort, ColumnSpec, DropMark, ListDrag,
     Props as _, ReorderRule, Role, SelectMode, ShowCollection as _, ToggleColumn,
@@ -88,7 +88,13 @@ impl Scene {
         self.events
             .borrow()
             .iter()
-            .filter_map(|event| if let CollectionEvent::Toggle(edit) = event { edit.value().map(|toggle| (toggle.key, toggle.on)) } else { None })
+            .filter_map(|event| {
+                if let CollectionEvent::Toggle(edit) = event {
+                    edit.value().filter(|_| !matches!(edit, craft_behavior::EditEvent::Commit { .. })).map(|toggle| (toggle.key, toggle.on))
+                } else {
+                    None
+                }
+            })
             .collect()
     }
 
@@ -256,6 +262,37 @@ fn a_toggle_sweep_sets_every_row_it_crosses_once() {
     let by = cell(LAST) - cell(0);
     pointer::drag(&mut frames, cell(0), by, &mut show);
     assert_eq!(scene.toggles(), (0..=LAST).map(|key| (key, true)).collect::<Vec<_>>());
+}
+
+/// A slice shown with `keyed(..).with_toggled(..)` after its first item was removed: the toggle cells show the rows'
+/// own state, and presses and sweeps report the rows' keys, not their positions.
+#[trial]
+fn a_keyed_slice_reports_toggle_presses_and_sweeps_by_key() {
+    let mut rows: Vec<(usize, bool)> = vec![(10, false), (11, false), (12, false), (13, true)];
+    rows.remove(0);
+    let props = || {
+        CollectionProps::new().columns(vec![
+            ColumnSpec::new(NAME, "Name", ColumnWidth::Fixed(COL)),
+            ColumnSpec::new(MUTE, "Mute", ColumnWidth::Fixed(COL)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())),
+        ])
+    };
+    for press in [false, true] {
+        let scene = Scene::default();
+        let mut frames = Frames::new();
+        let mut show = |ui: &mut Ui| {
+            let source = keyed(&rows, |row| row.0).with_toggled(|row, column| *column == MUTE && row.1);
+            show_table(ui, props(), &source, &scene);
+        };
+        frames.idle(3, &mut show);
+        let cell = |key: usize| Pos2::new(ORIGIN.x + COL * 1.5, scene.row(key).center().y);
+        if press {
+            pointer::click(&mut frames, cell(13), &mut show);
+            assert_eq!(scene.toggles(), vec![(13, false)], "the cell shows the row's own state, so a press turns it off");
+        } else {
+            pointer::drag(&mut frames, cell(11), cell(12) - cell(11), &mut show);
+            assert_eq!(scene.toggles(), vec![(11, true), (12, true)], "the sweep reports the rows' keys");
+        }
+    }
 }
 
 /// Turning on a cell of an exclusive toggle column turns the column's other cells off.

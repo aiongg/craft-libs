@@ -25,11 +25,6 @@ pub enum SelectionChange<K> {
     /// Replaces the selection by one range of cells. The anchor cell is at `first` and the column end opposite
     /// `lead_column`; the lead cell is at `last` and `lead_column`. A model of rows selects the rows.
     Cells(CellRange<K>),
-    /// Flips one cell: a cell a range holds by its first or last row leaves the selection (and joins it again when
-    /// it was taken out); any other cell joins it as a range of its own. The lead cell moves to it and the other
-    /// cells stay. A model of rows toggles the row. Only [`CellSelection::toggle`], which has the display order,
-    /// takes out a cell between the rows of a range.
-    ToggleCell(CellAt<K>),
     /// Replaces the whole selection by a result of the cell rules that one range cannot say: several ranges, an
     /// active cell inside a range, a run of Tabs.
     CellSet(Box<CellSelection<K>>),
@@ -289,7 +284,6 @@ impl<K: Value> SelectionModel<K> for Selection<K> {
             SelectionChange::Cells(CellRange { first, last, .. }) => {
                 self.apply(SelectionChange::Set(if first == last { vec![first] } else { vec![first, last] }));
             }
-            SelectionChange::ToggleCell(CellAt { row, .. }) => self.apply(SelectionChange::Toggle(row)),
             SelectionChange::CellSet(cells) => {
                 let mut keys: Vec<K> = Vec::new();
                 for range in cells.ranges() {
@@ -457,23 +451,6 @@ impl<K: Value> SelectionModel<K> for CellSelection<K> {
                     toggled: Vec::new(),
                 };
             }
-            SelectionChange::ToggleCell(cell) => {
-                self.tab_run = None;
-                if self.ranges.is_empty() {
-                    *self = CellSelection::cell(cell);
-                    return;
-                }
-                if let Some(at) = self.toggled.iter().position(|held| *held == cell) {
-                    self.toggled.remove(at);
-                } else if self.ends_hold(&cell) {
-                    self.toggled.push(cell.clone());
-                } else {
-                    self.ranges.push(CellRange::new(cell.row.clone(), cell.row.clone(), cell.column..cell.column.saturating_add(1), cell.column));
-                    self.current = self.ranges.len() - 1;
-                }
-                self.active = Some(cell.clone());
-                self.anchor = Some(cell);
-            }
             SelectionChange::CellSet(cells) => *self = *cells,
         }
     }
@@ -503,15 +480,6 @@ impl<K: Value> SelectionModel<K> for CellSelection<K> {
             .collect();
         let removed = self.toggled.iter().filter_map(|cell| Some((order.index_of(&cell.row)?, cell.column))).collect();
         PlacedSelection::of_cells(ranges, removed)
-    }
-}
-
-impl<K: PartialEq> CellSelection<K> {
-    /// Whether a range holds `cell` by what `apply` can see without an order: the cell lies in a range's columns and
-    /// on its first or last row. A cell between the two rows of a range is held too, but only a rule that has the
-    /// display order ([`toggle`](Self::toggle)) can tell.
-    fn ends_hold(&self, cell: &CellAt<K>) -> bool {
-        self.ranges.iter().any(|range| range.columns.contains(&cell.column) && (range.first == cell.row || range.last == cell.row))
     }
 }
 
@@ -628,30 +596,6 @@ mod tests {
         assert_eq!((cells.lead(), cells.lead_column(), cells.anchor()), (Some(&3), Some(2), Some(&2)));
         cells.apply(SelectionChange::Set(vec![4]));
         assert_eq!((holds(&cells, 4, 0), holds(&cells, 4, 9)), (true, true));
-    }
-
-    #[test]
-    fn a_cell_toggle_takes_out_a_held_cell_and_adds_an_unheld_one_as_a_range() {
-        let at = |row, column| SelectionChange::ToggleCell(CellAt::new(row, column));
-        let order = Positions::new(100);
-        let mut cells = CellSelection::<u32>::default();
-        cells.apply(SelectionChange::Cells(CellRange::new(2, 3, 1..3, 2)));
-        cells.apply(at(7, 0));
-        assert_eq!((cells.ranges().len(), cells.toggled().len(), holds(&cells, 7, 0), holds(&cells, 7, 1)), (2, 0, true, false));
-        assert_eq!((holds(&cells, 2, 1), cells.contains(row_at(&7, &order)), cells.lead()), (true, true, Some(&7)));
-        cells.apply(at(2, 1));
-        assert_eq!((holds(&cells, 2, 1), holds(&cells, 2, 2), holds(&cells, 3, 1)), (false, true, true));
-        cells.apply(at(2, 1));
-        assert_eq!((cells.toggled().len(), holds(&cells, 2, 1)), (0, true));
-    }
-
-    #[test]
-    fn a_row_is_selected_while_one_of_its_cells_is() {
-        let order = Positions::new(100);
-        let mut cells = CellSelection::<u32>::default();
-        cells.apply(SelectionChange::Cells(CellRange::new(4, 4, 1..2, 1)));
-        cells.apply(SelectionChange::ToggleCell(CellAt::new(4, 1)));
-        assert_eq!((cells.contains(row_at(&4, &order)), cells.placed(&order).holds_row(4)), (false, false));
     }
 
     #[test]

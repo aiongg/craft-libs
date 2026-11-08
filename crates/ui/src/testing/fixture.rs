@@ -165,6 +165,13 @@ impl Fixture {
         self
     }
 
+    /// Who draws the root window's frame. A native shell puts its menu bar in the window when the app draws the frame
+    /// ([`WindowChrome::Integrated`]), as the app's shell does.
+    pub fn chrome(&mut self, chrome: craft_host::target::WindowChrome) -> &mut Self {
+        crate::runtime::windows::set_chrome(&self.frames.ctx, chrome);
+        self
+    }
+
     /// The manual clock, moved on by `seconds` before the next frame.
     pub fn advance(&mut self, seconds: f64) -> &mut Self {
         self.frames.advance(seconds);
@@ -285,19 +292,17 @@ impl Fixture {
         Some(Target { node, rect: self.tree.bounds_of(node)? })
     }
 
-    /// The node named `label`.
+    /// The node named `label`: the interactive node whose name resolves to it (its own, or the node that labels it
+    /// through `labelled_by`), else the first node that carries the text.
     pub fn by_label(&self, label: &str) -> Option<Target> {
-        let node = self.tree.keys().into_iter().find(|key| self.tree.name_of(*key) == Some(label))?;
-        self.target(node)
-    }
-
-    /// The interactive node named `label`, by its own name or the nodes that label it: the control, where a field's
-    /// label and group carry the control's name too.
-    pub fn control(&self, label: &str) -> Option<Target> {
         let tree = &self.tree;
-        let node = tree.keys().into_iter().find(|key| {
-            super::access::name(tree, *key) == Some(label) && tree.role_of(*key) != Some(Role::LABEL) && super::access::is_interactive(tree, *key)
-        })?;
+        let node = tree
+            .keys()
+            .into_iter()
+            .find(|key| {
+                super::access::name(tree, *key) == Some(label) && tree.role_of(*key) != Some(Role::LABEL) && super::access::is_interactive(tree, *key)
+            })
+            .or_else(|| tree.keys().into_iter().find(|key| tree.name_of(*key) == Some(label)))?;
         self.target(node)
     }
 
@@ -319,6 +324,12 @@ impl Fixture {
     pub fn part(&self, component: Id, part: impl Into<PartRef>) -> Option<Target> {
         let id = crate::runtime::access::sub_node_id(component, part.into());
         self.target(NodeKey::of(id))
+    }
+
+    /// The rect of the part `part` of the component `owner` as the sensing step recorded it, for parts that have no
+    /// access node (pointer-only ones). Callers assert how rects relate (inside, below), not their size.
+    pub fn part_rect(&self, owner: Id, part: impl Into<PartRef>) -> Option<Rect> {
+        crate::runtime::pointer::part_bounds(self.ctx(), owner, part.into())
     }
 
     /// The node of the component `component`.

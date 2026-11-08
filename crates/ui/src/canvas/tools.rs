@@ -199,14 +199,14 @@ impl CanvasTool for HandTool {
 /// The Zoom tool: a click steps the ladder about the clicked point (Alt: out; Zoom Clicked Point to Center centres
 /// it), a press held still zooms continuously ([`HoldZoom`], Animated Zoom only), a drag scrubs or draws a zoom
 /// rectangle ([`ZoomDrag`], Scrubby Zoom). The cursor is the magnifier, with a minus while Alt is held or `out` is
-/// set (Zoom Out held with Alt+Space). At a zoom limit the view stays put.
+/// set (Zoom Out held with Alt+Space). At a zoom limit the view stays put. The tool reads the document's size from
+/// the canvas's [`CanvasSpace`](super::CanvasSpace) (the size given to [`Canvas::document`](super::Canvas::document));
+/// on a canvas given no document it does nothing.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct ZoomTool {
     /// Zoom out instead of in (Alt+Space held); Alt flips it.
     pub out: bool,
-    /// The document's size in document units (the ladder's lower limit).
-    pub size: Size,
     /// The navigation choices the tool reads.
     pub options: NavigationOptions,
     hold: Option<HoldZoom>,
@@ -220,15 +220,16 @@ pub struct ZoomTool {
 }
 
 impl ZoomTool {
-    /// A Zoom tool for a document of `size` under `options`.
-    pub fn new(size: Size, options: NavigationOptions) -> Self {
-        Self { out: false, size, options, hold: None, drag: None, press: None, last: Pos2::ZERO, dragged: false }
+    /// A Zoom tool under `options`.
+    pub fn new(options: NavigationOptions) -> Self {
+        Self { out: false, options, hold: None, drag: None, press: None, last: Pos2::ZERO, dragged: false }
     }
 
     /// One pass of a press in progress, with the pointer at `at`: the hold zooms once past its delay (and then the
     /// drag has nothing to do), else the drag scrubs or moves the rectangle's corner.
     fn advance(&mut self, at: Pos2, mods: Mods, time: f64, cx: &mut ToolContext<'_>) {
         let (Some(drag), Some(space)) = (self.drag.as_mut(), cx.space()) else { return };
+        let Some(size) = space.document() else { return };
         let ppp = space.pixels_per_point;
         let out = self.out != mods.alt;
         let mut view = space.view;
@@ -236,7 +237,7 @@ impl ZoomTool {
         let mut waiting = false;
         let held = match self.hold.as_mut() {
             Some(hold) => {
-                let held = hold.advance(&mut view, time, out, self.size, ppp);
+                let held = hold.advance(&mut view, time, out, size, ppp);
                 // The press asks for passes while it waits out the delay and while it zooms.
                 waiting = held || hold.waiting(time);
                 held
@@ -244,7 +245,7 @@ impl ZoomTool {
             None => false,
         };
         if !held {
-            drag.drag(&mut view, at, self.size, ppp);
+            drag.drag(&mut view, at, size, ppp);
         }
         if waiting {
             cx.request_repaint();
@@ -278,7 +279,7 @@ impl CanvasTool for ZoomTool {
     }
 
     fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
-        let Some(space) = cx.space() else {
+        let Some(space) = cx.space().filter(|space| space.document().is_some()) else {
             return ToolAction::Claimed;
         };
         let view = space.view;
@@ -306,6 +307,7 @@ impl CanvasTool for ZoomTool {
     fn release(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
         let (Some((start, _, anchor)), Some(drag), Some(space)) = (self.press.take(), self.drag.take(), cx.space()) else { return };
         let hold = self.hold.take();
+        let Some(size) = space.document() else { return };
         let ppp = space.pixels_per_point;
         let out = self.out != pointer.mods.alt;
         // A hold that zoomed has already changed the view; the release is no click.
@@ -314,7 +316,7 @@ impl CanvasTool for ZoomTool {
         }
         if !self.dragged {
             // A click steps from the view the press found.
-            match click_step(&start, anchor, out, self.size, &self.options, ppp) {
+            match click_step(&start, anchor, out, size, &self.options, ppp) {
                 Some(next) if self.options.animated_zoom => {
                     let anchored = (!self.options.zoom_clicked_point_to_center).then(|| (start.to_doc(anchor), anchor));
                     cx.ease_view(next, anchored);
@@ -326,8 +328,8 @@ impl CanvasTool for ZoomTool {
         }
         let mut view = space.view;
         let mut drag = drag;
-        drag.drag(&mut view, pointer.pos, self.size, ppp);
-        drag.release(&mut view, out, self.size, ppp, cx.slop);
+        drag.drag(&mut view, pointer.pos, size, ppp);
+        drag.release(&mut view, out, size, ppp, cx.slop);
         cx.set_view(view);
     }
 

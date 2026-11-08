@@ -136,6 +136,26 @@ fn a_chord_shows_arrow_keys_as_words_off_macos_and_glyphs_on_it() {
     assert_eq!(shown(Os::Mac), ["⌘↓"]);
 }
 
+/// A chord given directly shows its parts per OS, with the word for a key that has one, and speaks `Chord::spoken`.
+#[trial]
+fn a_chord_kbd_shows_its_parts_per_os_and_speaks_the_chord() {
+    let chord = craft_keymap::Chord::parse("Cmd+Shift+Delete").expect("a chord");
+    let shown = |os: Os| {
+        let mut fixture = Fixture::new(move |ui| {
+            Kbd::chord(chord).id_salt("chord").show(ui);
+        });
+        fixture.os(os).settle();
+        fixture.texts().iter().map(|text| text.text.clone()).collect::<Vec<_>>()
+    };
+    assert_eq!(shown(Os::Windows), ["Ctrl+Shift+Delete"]);
+    assert_eq!(shown(Os::Mac), ["⇧⌘⌦"]);
+    let mut fixture = Fixture::new(move |ui| {
+        Kbd::chord(chord).id_salt("chord").show(ui);
+    });
+    fixture.os(Os::Windows).settle();
+    assert!(fixture.by_label(&chord.spoken(Os::Windows)).is_some(), "a screen reader hears the spoken chord");
+}
+
 /// The ink a host paints its part with, set on its selected state.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 struct HostStyle {

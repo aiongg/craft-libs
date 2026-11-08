@@ -538,8 +538,9 @@ impl Param {
         self
     }
 
-    /// Opens the [`eyedropper`](Param::eyedropper) toggle of a colour row armed when `armed`: the host arms its own
-    /// dropper to match, and the first press disarms it. Rows without an eyedropper are unchanged.
+    /// Arms the [`eyedropper`](Param::eyedropper) toggle of a colour row when `armed` becomes true (it opens armed if
+    /// it starts true) and disarms it when it becomes false. Only one row is armed at a time. Rows without an
+    /// eyedropper are unchanged.
     #[must_use]
     pub fn armed(mut self, armed: bool) -> Self {
         self.options.get_or_insert_default().eyedropper_armed = armed;

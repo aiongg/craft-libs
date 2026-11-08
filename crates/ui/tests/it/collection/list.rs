@@ -363,6 +363,35 @@ fn rename_starts_commits_and_cancels() {
     assert_eq!(renames(), ["begin", "commit one!", "begin", format!("cancel {:?}", CancelReason::Escape).as_str()]);
 }
 
+/// A double click on the rename column opens the row's editor and does not activate it; on another column it activates.
+#[trial]
+fn a_double_click_on_the_rename_column_renames_and_elsewhere_activates() {
+    use craft_behavior::ColumnKey;
+    let words = Words::flat(&["one", "two"]);
+    let seen = Seen::default();
+    let mut frames = Frames::new();
+    let mut show =
+        |ui: &mut Ui| show_words(ui, List::new(SelectMode::Single).rename_column(ColumnKey::new("name"), ColumnKey::new("other")), &words, &seen);
+    frames.idle(3, &mut show);
+    let y = seen.rect.get().min.y + ROW_H / 2.0;
+    let count =
+        |seen: &Seen, wanted: fn(&CollectionEvent<usize, Dismissed>) -> bool| seen.events.borrow().iter().filter(|event| wanted(event)).count();
+    let double = |frames: &mut Frames, at: Pos2, show: &mut dyn FnMut(&mut Ui)| {
+        frames.frame(vec![pointer::moved(at)], &mut *show);
+        for _ in 0..2 {
+            frames.frame(vec![pointer::press(at)], &mut *show);
+            frames.frame(vec![pointer::release(at)], &mut *show);
+        }
+        frames.idle(2, &mut *show);
+    };
+    double(&mut frames, Pos2::new(seen.rect.get().min.x + 150.0, y), &mut show);
+    assert_eq!(count(&seen, |event| matches!(event, CollectionEvent::Activate(_))), 1, "the other column activates");
+    assert_eq!(count(&seen, |event| matches!(event, CollectionEvent::Rename(_))), 0);
+    double(&mut frames, Pos2::new(seen.rect.get().min.x + 50.0, y), &mut show);
+    assert_eq!(count(&seen, |event| matches!(event, CollectionEvent::Rename(EditEvent::Begin { .. }))), 1, "the name column renames");
+    assert_eq!(count(&seen, |event| matches!(event, CollectionEvent::Activate(_))), 1, "and does not activate");
+}
+
 /// A rename requested for a key opens that row's rename field at the next pass, with no key press on the list.
 #[trial]
 fn a_requested_rename_opens_the_rows_field() {
@@ -399,6 +428,19 @@ fn an_empty_list_shows_its_empty_state() {
     frames.idle(3, &mut show);
     assert_eq!(empty.get(), seen.rect.get(), "the hook got the content rect");
     assert_eq!(seen.range(), 0..0);
+}
+
+/// The empty-state text of the collection's props is a label node of the list.
+#[trial]
+fn the_empty_state_text_is_a_label_node() {
+    let words = Words::flat(&[]);
+    let seen = Seen::default();
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Single).empty_text("Nothing here"), &words, &seen);
+    frames.idle(3, &mut show);
+    let tree = frames.tree();
+    let label = tree.keys().into_iter().find(|key| tree.name_of(*key) == Some("Nothing here")).expect("the empty text is a node");
+    assert_eq!(tree.role_of(label), Some(craft_ui::contract::Role::LABEL));
 }
 
 /// A tree opens on Right and closes on Left; Left again goes to the parent.
@@ -593,6 +635,36 @@ fn a_secondary_release_on_a_row_asks_for_its_context_menu() {
         .collect();
     assert_eq!(menus, [1]);
     assert!(seen.leads().contains(&1), "the row under the pointer holds the lead");
+}
+
+/// A right-click on a row of a multiple selection keeps the whole selection, so the menu acts on all of it; on a row
+/// outside the selection it selects that row alone.
+#[trial]
+fn a_secondary_press_on_a_selected_row_keeps_the_multiple_selection() {
+    let words = Words::flat(&["a", "b", "c", "d"]);
+    let seen = Seen::default();
+    let selection = RefCell::new(Selection::<usize>::default());
+    selection.borrow_mut().items = vec![0, 1];
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        let mut held = selection.borrow().clone();
+        show_words(ui, List::new(SelectMode::Multi).selection(Bind::bound(&mut held)), &words, &seen);
+        *selection.borrow_mut() = held;
+    };
+    frames.idle(3, &mut show);
+    fn right_click(frames: &mut Frames, show: &mut impl FnMut(&mut Ui), row: f32) {
+        let at = ORIGIN + Vec2::new(30.0, ROW_H * row);
+        frames.frame(vec![pointer::moved(at)], &mut *show);
+        frames.frame(vec![pointer::secondary(at, true)], &mut *show);
+        frames.frame(vec![pointer::secondary(at, false)], &mut *show);
+        frames.idle(1, &mut *show);
+    }
+    right_click(&mut frames, &mut show, 1.5);
+    let mut items = selection.borrow().items.clone();
+    items.sort_unstable();
+    assert_eq!(items, vec![0, 1], "the menu's row is in the selection: all of it stays");
+    right_click(&mut frames, &mut show, 3.5);
+    assert_eq!(selection.borrow().items, vec![3], "a row outside the selection replaces it");
 }
 
 /// A plain click on a row asks for its menu on the release when the list is set to, and not otherwise.

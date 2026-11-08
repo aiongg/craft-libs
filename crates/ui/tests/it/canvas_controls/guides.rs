@@ -3,7 +3,7 @@
 use craft_behavior::kurbo::{Point, Rect as DocRect};
 use craft_behavior::{Axis, CanvasView, EditEvent, GesturePhase, RulerUnits, Ticks};
 use craft_keymap::Mods;
-use craft_ui::canvas::{Canvas, Guide, GuideDrag, GuideKey, RulerText, ToolPath};
+use craft_ui::canvas::{Canvas, Guide, GuideDrag, GuideKey, RulerText};
 use craft_ui::canvas_controls::{GuideCommands, Guides};
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::runtime::env::UnitKind;
@@ -70,7 +70,7 @@ fn harness(guides: Vec<Guide>) -> Harness {
     let mut fixture = Fixture::new(move |ui| {
         let room = ui.available_rect_before_wrap();
         let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
-        let mut canvas = Canvas::new("Document", ToolPath::Command("the New Guide command")).view(view);
+        let mut canvas = Canvas::new("Document").view(view);
         if let Some(text) = shown_units.get() {
             canvas = canvas.rulers(text, text, Point::ZERO);
         }

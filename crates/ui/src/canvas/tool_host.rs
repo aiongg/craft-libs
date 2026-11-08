@@ -14,17 +14,20 @@
 //!
 //! The host keeps its state under the canvas's id (`CanvasOutput::response.id`), so two canvases never share a
 //! gesture, and hands the tool the canvas's view from the output ([`ToolContext::space`]). A tool changes the view
-//! with [`ToolContext::set_view`]; the host reports the last one in [`ToolHostResponse::view`] and moves no view
-//! itself. `run` also paints the tool's readout; [`ToolHostResponse::readout`] repeats it as data.
+//! with [`ToolContext::set_view`]; the host keeps it inside the document as the canvas does (Overscroll off) and
+//! reports the last one in [`ToolHostResponse::view`]. A view set with [`ToolContext::ease_view`] eases in the
+//! canvas's one zoom ease, which the canvas shows from its next pass. `run` also paints the tool's readout;
+//! [`ToolHostResponse::readout`] repeats it as data.
 //!
 //! The context carries the pass's env ([`ToolContext::units`], [`ToolContext::words`]), the snapping the app gave
 //! with [`ToolHost::snap`] ([`ToolContext::snap`]) and, in `paint`, the style context ([`ToolContext::style`]). After
 //! `paint`, `run` emits what [`CanvasTool::access`] returns as nodes under the canvas's node.
 //!
-//! Space and the app's momentary Hand: while a gesture runs the host withholds Space from the app's shortcuts for
-//! the tool, so a Space pressed mid-drag never starts a momentary Hand; the tool reads it with
-//! [`ToolContext::held`]. A press of Space away from a gesture reaches the app as usual. [`ToolHost::momentary`]
-//! takes the app's [`Momentary`] set: while a momentary key is held the host runs the set's Hand or Zoom tool in
+//! Space and the momentary Hand: while a gesture runs the host withholds Space from the shortcuts for the tool, so a
+//! Space pressed mid-drag never starts a momentary Hand; the tool reads it with [`ToolContext::held`]. Away from a
+//! gesture, Space is the [`MomentaryCommand`](super::MomentaryCommand) Hand, routed to the canvas like the view
+//! commands. [`ToolHost::momentary`] takes the app's [`Momentary`] set and `run` feeds it the commands fired for the
+//! canvas, so the app plumbs nothing: while a momentary key is held the host runs the set's Hand or Zoom tool in
 //! place of the selected tool, and a gesture keeps the tool it began with. An app that switches tools itself from
 //! other input asks [`ToolHost::in_gesture`] first and keeps the tool it started the gesture with.
 //!
@@ -38,13 +41,15 @@
 //! # }
 //! ```
 
-use super::momentary::Momentary;
+use super::momentary::{Momentary, MomentaryCommand};
 use super::readout::paint_readout;
-use super::tool::{CanvasTool, ToolAccess, ToolAction, ToolContext, ToolKey, ToolPointer, ToolRequests, ViewEase};
+use super::tool::{CanvasTool, ToolAccess, ToolAction, ToolContext, ToolKey, ToolPointer, ToolRequests};
 use super::tools::HandTool;
+use super::zoom_motion::{self, Steer};
 use super::{CanvasOutput, CanvasSpace, Snap};
 use crate::primitives::{ContentPainterCx, Draw, DrawEnv, PaintRecord};
 use crate::runtime::access::{self, Name, Role, SubDecl, SubNode};
+use crate::runtime::commands;
 use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::{global, with_session};
 use crate::runtime::pointer::{self, PointerFrame};
@@ -163,11 +168,10 @@ pub struct ToolHostResponse {
     /// The values the tool wants beside the pointer. The host has painted them already; this is the data for
     /// automation.
     pub readout: Option<ToolReadout>,
-    /// The view a tool set with [`ToolContext::set_view`] this pass (the last one), else the view the canvas's view
-    /// commands asked for ([`CanvasOutput::view`]): the app copies it into its bound view.
+    /// The view a tool set with [`ToolContext::set_view`] this pass (the last one, inside the document with Overscroll
+    /// off), else the canvas's own ([`CanvasOutput::view`]): the one view the app copies into its own. A view that
+    /// eases is its target; the canvas shows the way there.
     pub view: Option<CanvasView>,
-    /// How [`view`](Self::view) eases to its target, when the tool asked for an ease.
-    pub ease: Option<ViewEase>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -224,7 +228,9 @@ impl<'m> ToolHost<'m> {
 
     /// Runs the momentary tools of `momentary` in place of the selected tool while their keys are held (Space: Hand;
     /// with Cmd or Alt: Zoom). A gesture keeps the tool it began with, and a flick released with the momentary Hand
-    /// keeps gliding after the key comes up. The app feeds the set the fired [`MomentaryCommand`](super::MomentaryCommand)s.
+    /// keeps gliding after the key comes up. `run` feeds the set the [`MomentaryCommand`](super::MomentaryCommand)s fired
+    /// for the canvas (the canvas, or the instance of the `canvasView` scope around it, such as a full-window
+    /// dialog); the app passes the set and nothing else. Without a set, `run` still takes and drops those commands.
     #[must_use]
     pub fn momentary(mut self, momentary: &'m mut Momentary) -> Self {
         self.momentary = Some(momentary);
@@ -258,13 +264,20 @@ impl<'m> ToolHost<'m> {
         let rect = canvas.response.rect;
         let input = pointer::frame(&ctx);
         let mut glide = None;
+        let fired = std::iter::from_fn(|| commands::take_around::<MomentaryCommand>(&ctx, canvas.response.id, env.view().command_chain()));
         let tool: &mut dyn CanvasTool = match momentary {
             Some(momentary) => {
+                for (command, event) in fired {
+                    momentary.fired(command, event.phase);
+                }
                 let (tool, hand) = momentary.substitute(tool, input.mods, state.gesture.is_some());
                 glide = hand;
                 tool
             }
-            None => tool,
+            None => {
+                fired.for_each(drop);
+                tool
+            }
         };
         let mut run = Run {
             tool: &mut *tool,
@@ -299,9 +312,19 @@ impl<'m> ToolHost<'m> {
         if response.view.is_none() {
             response.view = cancelled_view;
         }
-        // The view commands' view, when no tool moved the view: the app copies one view from the host.
+        // A tool's view goes through the canvas's clamp, and its ease through the canvas's one zoom ease; a view that
+        // jumps stops that ease.
+        if let Some(view) = response.view.as_mut() {
+            *view = canvas.clamped(*view);
+            let steer = match (requests.ease, canvas.space) {
+                (Some(ease), Some(drawn)) => Steer::Ease { from: drawn.view, anchor: ease.anchor },
+                _ => Steer::Stop,
+            };
+            zoom_motion::steer(&ctx, canvas.response.id, steer);
+        }
+        // The canvas's own view, when no tool moved the view: the app copies one view from the host.
         if response.view.is_none() {
-            (response.view, response.ease) = (canvas.view, canvas.ease);
+            response.view = canvas.view;
         }
         let phase = canvas.press.phase;
         let over = phase.is_press() || matches!(phase, PressPhase::Hover) || state.gesture.is_some();
@@ -422,7 +445,7 @@ fn paint_tool(ui: &Ui, env: &Env, tool: &dyn CanvasTool, cx: ToolContext<'_>) {
     let painter = ui.painter().with_clip_rect(cx.rect);
     let record = RefCell::new(PaintRecord::default());
     let draw = Draw::new(&painter, &record, DrawEnv { tokens: &env.tokens, direction: env.direction, ink: Ink::default() });
-    let content = ContentPainterCx::new(painter.clone(), &env.tokens, env.direction);
+    let content = ContentPainterCx::new(painter.clone(), &env.tokens, env.direction, env.ink);
     let style = StyleCx::new(ui.ctx(), &env.tokens, &env.values, env.size, Variant::SECONDARY, env.direction, env.scale, env.os, env.active, env.key);
     tool.paint(&draw, &cx.painter(&content).styled(style));
 }
@@ -496,7 +519,7 @@ impl<'a> Run<'a> {
                 space.view = view;
             }
             self.response.view = Some(view);
-            self.response.ease = asked.ease;
+            self.requests.ease = asked.ease;
         }
     }
 
@@ -590,7 +613,8 @@ impl<'a> Run<'a> {
                     self.hover(pointer);
                 }
             }
-            PressPhase::Down { start, .. } => {
+            // `Down` repeats in every pass the button stays down within slop: only the pass it went down in begins.
+            PressPhase::Down { start, .. } if press.went_down => {
                 self.state.spent = false;
                 self.begin(press_pointer(start, start.origin, start.time, press), false);
             }

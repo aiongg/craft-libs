@@ -5,6 +5,7 @@ use std::collections::HashSet;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use craft_keymap::{Chord, CommandRef, Key, Mods};
+use craft_ui::runtime::windows::{WindowAction, WindowHost};
 
 use crate::layout::{Clash, Layout};
 use crate::modal::ModalRules;
@@ -12,6 +13,7 @@ use crate::model::{Builtin, Item, ItemKind, MenuBar, Node};
 
 /// What the native menu reports.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum Event {
     /// An item was chosen with the mouse (or the keyboard inside an open menu), or by a key
     /// equivalent the app's key handling doesn't know ([`crate::Item::layout_shortcut`]): the
@@ -30,6 +32,7 @@ pub enum Event {
 /// How ⌘C, ⌘X and ⌘V reach egui when the native menu takes them as key equivalents (an Edit
 /// menu with Copy, Cut and Paste items).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ClipboardKeys {
     /// As egui-winit makes them without a native menu: ⌘C is [`egui::Event::Copy`], ⌘X
     /// [`egui::Event::Cut`], and ⌘V a [`egui::ViewportCommand::RequestPaste`], which eframe answers
@@ -44,6 +47,7 @@ pub enum ClipboardKeys {
 
 /// What may run from the menus this frame, set by the app.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Gate {
     /// A modal dialog is open.
     pub modal: bool,
@@ -54,6 +58,24 @@ pub struct Gate {
 }
 
 impl Gate {
+    /// A modal dialog is open.
+    pub fn modal(mut self, on: bool) -> Gate {
+        self.modal = on;
+        self
+    }
+
+    /// The shortcut editor is recording a chord.
+    pub fn recording_shortcut(mut self, on: bool) -> Gate {
+        self.recording_shortcut = on;
+        self
+    }
+
+    /// A text field has the keys.
+    pub fn text_editing(mut self, on: bool) -> Gate {
+        self.text_editing = on;
+        self
+    }
+
     /// Whether `item` may run now: while a modal dialog is open or a shortcut is being recorded,
     /// only the built-in items (Hide, Hide Others, Minimize, Quit) do. The built-in Quit stays
     /// because it asks the window to close, and the app's close guard knows about its dialogs; an
@@ -325,7 +347,7 @@ impl NativeMenu {
     /// The commands clicked since the last call that the gate ([`NativeMenu::set_gate`]) allows
     /// now, for the app to run like in-window menu clicks; the others are dropped.
     /// [`Builtin::Minimize`] (minimizes the window) and [`Builtin::Quit`] (asks the window to
-    /// close, see [`craft_quit::on_menu_event`]) are run here and left out. A ⌘V from the menu
+    /// close through the runtime, so the app's close decision runs) are run here and left out. A ⌘V from the menu
     /// ([`ClipboardKeys::Egui`]) is asked of eframe here too.
     pub fn take_clicks(&mut self, ctx: &egui::Context) -> Vec<CommandRef> {
         if std::mem::take(&mut self.paste) {
@@ -337,9 +359,11 @@ impl NativeMenu {
                 continue;
             }
             match Builtin::of(&command) {
-                Some(Builtin::Minimize) => ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true)),
+                Some(Builtin::Minimize) => {
+                    WindowHost::of(ctx).act(egui::ViewportId::ROOT, WindowAction::Minimize);
+                }
                 Some(Builtin::Quit) => {
-                    craft_quit::on_menu_event(ctx, Builtin::Quit.id());
+                    WindowHost::of(ctx).act(egui::ViewportId::ROOT, WindowAction::Close);
                 }
                 _ => out.push(command),
             }

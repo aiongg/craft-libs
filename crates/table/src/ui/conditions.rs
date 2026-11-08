@@ -1,19 +1,29 @@
-//! The condition builder: rows of field, operator and value, with nested groups (N6.02).
+//! The condition builder: rows of field, operator and value, with nested groups.
 
-use super::style::SheetStyle;
-use craft_ui::controls::{Button, Checkbox, ControlSize, DatePicker, IconButton, NumberField, Select, TextField};
-use craft_ui::direction;
-use craft_ui::edit::{EditEvent, GestureDraft};
-use craft_ui::icons::{self, Icon, IconSize};
-use craft_ui::localized::{Labels as _, LocaleNumbers};
-use craft_ui::theme::scale::Stroke as Line;
-use craft_ui::theme::{StrokeExt as _, ToEgui as _, Tokens, TokensOf as _, UiTokens, margin};
-use egui::{Align, AsIdSalt, Frame, Id, IdSalt, Layout, Response, RichText, Sense, Ui, vec2};
+use std::cell::{Cell, RefCell};
+
+use craft_behavior::IconId;
+use craft_theme::variant::Tone;
+use craft_ui::buttons::{Button, IconButton};
+use craft_ui::choice::Checkbox;
+use craft_ui::contract::{Bind, Entry, Held, Pad, Pattern, Props as _, RowAlign, Show as _, ShowContainer as _, clicked};
+use craft_ui::display::Text;
+use craft_ui::layout_components::{Row, Stack};
+use craft_ui::notices::{Notice, NoticeLayout};
+use craft_ui::pickers::{DatePicker, PickedDate, Select};
+use craft_ui::primitives::IconSpec;
+use craft_ui::runtime::env::{Env, Label};
+use craft_ui::runtime::pointer;
+use craft_ui::text::{NumberField, TextField};
+use egui::{Response, Ui};
+
+#[cfg(feature = "screen-testing")]
+mod stories;
 
 craft_ui::words! {
-    /// The builder's words, English by default (LightCraft's).
+    /// The builder's words, English by default.
     #[non_exhaustive]
-    pub struct ConditionLabels {
+    pub struct ConditionWords {
         match_word: "conditions.match" = "Match";
         of_rules: "conditions.ofRules" = "of the following rules:";
         all: "conditions.all" = "all";
@@ -35,6 +45,7 @@ craft_ui::words! {
 
 /// How a group's rules combine.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Match {
     #[default]
     /// Every rule must hold.
@@ -47,15 +58,15 @@ pub enum Match {
 
 /// A value editor kind; the field's kind picks it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ConditionKind {
-    #[allow(missing_docs)]
+    /// Free text.
     Text,
-    #[allow(missing_docs)]
+    /// A number.
     Number,
-    /// A date, edited with the kernel's [`DatePicker`] (its value
-    /// a [`PickedDate`](craft_ui::controls::PickedDate)).
+    /// A date, edited with the date picker.
     Date,
-    #[allow(missing_docs)]
+    /// A yes or no value.
     Bool,
     /// One of the field's choices (an album, a label).
     Choice,
@@ -63,6 +74,7 @@ pub enum ConditionKind {
 
 /// A rule's value.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub enum ConditionValue {
     #[default]
     /// No value.
@@ -74,10 +86,11 @@ pub enum ConditionValue {
     /// Two numbers for "is between".
     Range(f64, f64),
     /// A date (a day, or a month or year for a partial date), the date picker's value.
-    Date(craft_ui::controls::PickedDate),
+    Date(PickedDate),
     /// Two dates for "is between": each picker stops at the other, so the two stay in order.
-    DateRange(craft_ui::controls::PickedDate, craft_ui::controls::PickedDate),
+    DateRange(PickedDate, PickedDate),
     /// "in the last N units".
+    #[non_exhaustive]
     Last {
         /// The number of units.
         n: u32,
@@ -90,8 +103,16 @@ pub enum ConditionValue {
     Choice(String),
 }
 
+impl ConditionValue {
+    /// "In the last `n` `unit`s".
+    pub fn last(n: u32, unit: impl Into<String>) -> Self {
+        ConditionValue::Last { n, unit: unit.into() }
+    }
+}
+
 /// One rule.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct Condition {
     /// The field's id, as `ConditionFields::fields` lists it.
     pub field: String,
@@ -101,8 +122,16 @@ pub struct Condition {
     pub value: ConditionValue,
 }
 
+impl Condition {
+    /// A rule of `field` and `operator` comparing against `value`.
+    pub fn new(field: impl Into<String>, operator: impl Into<String>, value: ConditionValue) -> Self {
+        Condition { field: field.into(), operator: operator.into(), value }
+    }
+}
+
 /// A group of rules and nested groups.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct ConditionGroup {
     /// How the items combine.
     pub matching: Match,
@@ -110,8 +139,16 @@ pub struct ConditionGroup {
     pub items: Vec<ConditionItem>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+impl ConditionGroup {
+    /// A group that combines `items` as `matching` says.
+    pub fn new(matching: Match, items: Vec<ConditionItem>) -> Self {
+        ConditionGroup { matching, items }
+    }
+}
+
 /// One entry of a group: a rule or a nested group.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum ConditionItem {
     /// A single rule.
     Rule(Condition),
@@ -119,16 +156,15 @@ pub enum ConditionItem {
     Group(ConditionGroup),
 }
 
-/// The fields a builder offers and their operators; the app's (LightCraft's photo fields,
-/// WordCraft's recipient columns).
+/// The fields a builder offers and their operators: the app's.
 pub trait ConditionFields {
-    /// `(id, label)` in menu order, grouped by `group` headings when given.
+    /// `(id, label, group)` in menu order; a change of `group` between neighbours puts a rule between them.
     fn fields(&self) -> Vec<(String, String, Option<String>)>;
     /// The kind of value editor `field` takes.
     fn kind(&self, field: &str) -> ConditionKind;
     /// `(id, label)` of the operators for `field` ("is", "contains", "is between").
     fn operators(&self, field: &str) -> Vec<(String, String)>;
-    /// A sensible value for a new `field` / `operator` (LightCraft `rules_editor.rs:17`).
+    /// A sensible value for a new `field` / `operator`.
     fn default_value(&self, field: &str, operator: &str) -> ConditionValue;
     /// The choices of a `Choice` field.
     fn choices(&self, _field: &str) -> Vec<(String, String)> {
@@ -138,56 +174,66 @@ pub trait ConditionFields {
     fn problem(&self, _rule: &Condition) -> Option<String> {
         None
     }
-    /// Why a group can't apply, shown under it with the warning icon (LightCraft
-    /// `rules_editor.rs:299`, `:333`). `path` is the group's place: the indices from the top
-    /// group, empty for the top group itself.
+    /// Why a group can't apply, shown under it. `path` is the group's place: the indices from the top group, empty
+    /// for the top group itself.
     fn group_problem(&self, _path: &[usize], _group: &ConditionGroup) -> Option<String> {
         None
     }
 }
 
-/// LightCraft's smart-collection rules editor: "Match [all ▾] of the following rules:", then a
-/// row per rule: field menu, operator menu, the value editor for the field's kind ("and" between
-/// two values of a range), − (remove) and + (add a rule after it; Alt-click: a group); nested
-/// groups indent with their own Match row and −, up to depth 3; "+ Rule" and "+ Group" at the
-/// bottom. Changing a field resets operator and value to the defaults. Changes `group` directly
-/// and reports `changed`. Every menu, field and button is a Tab stop in reading order.
+/// What the builder did this pass.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct ConditionBuilderOutput {
+    /// The builder's response.
+    pub response: Response,
+    /// Whether the group changed this pass.
+    pub changed: bool,
+}
+
+impl craft_ui::contract::Outcome for ConditionBuilderOutput {
+    type Value = craft_ui::contract::NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// The rules editor: "Match [all] of the following rules:", then a row per rule: field menu, operator menu, the value
+/// editor for the field's kind ("and" between two values of a range), − (remove) and + (add a rule after it;
+/// Alt-click: a group). Nested groups indent with their own Match row and −, up to depth 3; "+ Rule" and "+ Group"
+/// at the bottom. Changing a field resets the operator and the value to the defaults. The builder reads `group` and
+/// writes the edited group back as one edit a pass. Every menu, field and button is a Tab stop in reading order.
+#[derive(Pattern)]
 pub struct ConditionBuilder<'a> {
-    id_salt: IdSalt,
-    group: &'a mut ConditionGroup,
+    label: Label,
+    group: Bind<'a, ConditionGroup>,
     fields: &'a dyn ConditionFields,
-    labels: Option<ConditionLabels>,
 }
 
 impl<'a> ConditionBuilder<'a> {
-    /// A builder that edits `group`, offering `fields`.
-    pub fn new(id_salt: impl AsIdSalt, group: &'a mut ConditionGroup, fields: &'a dyn ConditionFields) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), group, fields, labels: None }
+    /// A builder named `label` that edits `group`, offering `fields`.
+    pub fn new(label: impl Into<Label>, group: Bind<'a, ConditionGroup>, fields: &'a dyn ConditionFields) -> Self {
+        ConditionBuilder { label: label.into(), group, fields }
     }
 
-    /// Uses these label texts instead of the ones read from the active locale's catalog.
-    pub fn labels(mut self, labels: ConditionLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    // lightcraft: crates/ui-egui/src/dialogs/rules_editor.rs:305 `edit`, `:50` `match_combo`,
-    // `:135` `value_editor`, `:241` `field_menu`, `:296` `problem_note`; wordcraft:
-    // crates/ui-egui/src/dialogs/mailings.rs (filter and sort rows).
-    /// Shows the builder; the response is marked changed when `group` changed.
-    pub fn show(self, ui: &mut Ui) -> Response {
-        let Self { id_salt, group, fields, labels } = self;
-        let labels = labels.unwrap_or_else(|| ConditionLabels::of(ui));
-        let numbers = LocaleNumbers::of(ui);
-        let tokens = Tokens::of(ui);
-        let id = ui.make_persistent_id(id_salt);
-        let cx = Cx { id, fields, labels: &labels, numbers: &numbers, tokens: &tokens };
-        let mut changed = false;
-        let mut response = ui.with_layout(direction::column(ui), |ui| edit_group(&cx, ui, group, &mut Vec::new(), &mut changed)).response;
-        if changed {
-            response.mark_changed();
-        }
-        response
+    /// Shows the builder across the width offered.
+    pub fn show(self, ui: &mut Ui) -> ConditionBuilderOutput {
+        let ConditionBuilder { label, group, fields } = self;
+        let words = Env::of(ui).words::<ConditionWords>();
+        let held = RefCell::new(Held::new(group));
+        let changed = Cell::new(false);
+        let shown = Stack::new().label(label.clone()).show(ui, |ui, cx| {
+            let Some(before) = held.borrow_mut().read(cx) else { return };
+            let mut edited = before.clone();
+            let rows = Rows { fields, words: &words };
+            rows.group(ui, &mut edited, &mut Vec::new());
+            if edited != before {
+                held.borrow_mut().write(cx, &before, edited, label.as_str());
+                changed.set(true);
+            }
+        });
+        ConditionBuilderOutput { response: shown.output, changed: changed.get() }
     }
 }
 
@@ -195,15 +241,12 @@ impl<'a> ConditionBuilder<'a> {
 const MAX_DEPTH: usize = 3;
 
 /// What every row of a pass reads.
-struct Cx<'a> {
-    id: Id,
+struct Rows<'a> {
     fields: &'a dyn ConditionFields,
-    labels: &'a ConditionLabels,
-    numbers: &'a LocaleNumbers,
-    tokens: &'a UiTokens,
+    words: &'a ConditionWords,
 }
 
-impl Cx<'_> {
+impl Rows<'_> {
     /// A new rule: the first field, its first operator and their default value.
     fn new_rule(&self) -> Condition {
         let Some((field, ..)) = self.fields.fields().into_iter().next() else { return Condition::default() };
@@ -231,286 +274,220 @@ impl Cx<'_> {
         )
     }
 
-    fn id(&self, path: &[usize], part: &str) -> Id {
-        self.id.with((path, part))
-    }
-}
-
-/// The value of a `Commit` or `Set`: a control that writes into a local value (a menu, a picker)
-/// is read only when it settles, so a preview or a cancelled pick changes nothing.
-fn settled<T>(event: &Option<EditEvent<T>>) -> Option<&T> {
-    match event {
-        Some(EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) => Some(value),
-        _ => None,
-    }
-}
-
-/// A row whose items start at the top, in reading order.
-fn top_row<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
-    let layout = if direction::is_rtl(ui) { Layout::right_to_left(Align::Min) } else { Layout::left_to_right(Align::Min) };
-    ui.allocate_ui_with_layout(vec2(ui.available_width(), ui.spacing().interact_size.y), layout, add).inner
-}
-
-/// The group at `path`: its Match row, its rules and groups, and the buttons that add more.
-fn edit_group(cx: &Cx<'_>, ui: &mut Ui, group: &mut ConditionGroup, path: &mut Vec<usize>, changed: &mut bool) {
-    let labels = cx.labels;
-    let depth = path.len();
-    direction::horizontal(ui, |ui| {
-        ui.label(&labels.match_word);
-        let mut matching = group.matching;
-        let picked = Select::new(cx.id(path, "match"), &labels.match_word, &mut matching)
-            .option(Match::All, &labels.all)
-            .option(Match::Any, &labels.any)
-            .option(Match::None, &labels.none)
-            .show(ui);
-        if settled(&picked.event).is_some() && matching != group.matching {
-            group.matching = matching;
-            *changed = true;
-        }
-        ui.label(&labels.of_rules);
-    });
-    let mut remove = None;
-    let mut insert = None;
-    for (at, item) in group.items.iter_mut().enumerate() {
-        path.push(at);
-        match item {
-            ConditionItem::Group(nested) => {
-                let frame = Frame::new()
-                    .inner_margin(margin(cx.tokens.space.pad.control))
-                    .stroke(Line::Hairline.egui(ui.ctx(), cx.tokens.color.line.divider.to_egui()))
-                    .corner_radius(cx.tokens.radius.control);
-                frame.show(ui, |ui| {
-                    top_row(ui, |ui| {
-                        let button = IconButton::new(Icon::Minus, &labels.remove_group).size(ControlSize::Sm).id_salt(cx.id(path, "remove"));
-                        if ui.add(button).clicked() {
+    /// The group at `path`: its Match row, its rules and groups, and the buttons that add more.
+    fn group(&self, ui: &mut Ui, group: &mut ConditionGroup, path: &mut Vec<usize>) {
+        let words = self.words;
+        let depth = path.len();
+        let modes =
+            [Entry::new(Match::All, words.all.clone()), Entry::new(Match::Any, words.any.clone()), Entry::new(Match::None, words.none.clone())];
+        Row::new().show(ui, |ui, _| {
+            Text::new(words.match_word.clone()).show(ui);
+            Select::new(words.match_word.clone(), Bind::bound(&mut group.matching), &modes).id_salt((path.clone(), "match")).show(ui);
+            Text::new(words.of_rules.clone()).show(ui);
+        });
+        let mut remove = None;
+        let mut insert = None;
+        for (at, item) in group.items.iter_mut().enumerate() {
+            path.push(at);
+            match item {
+                ConditionItem::Group(nested) => {
+                    Row::new().show(ui, |ui, _| {
+                        let button = IconButton::new(IconSpec::svg(IconId::new("minus")))
+                            .label(words.remove_group.clone())
+                            .tooltip(words.remove_group.as_str().to_owned())
+                            .id_salt((path.clone(), "remove"))
+                            .show(ui);
+                        if clicked(&button) {
                             remove = Some(at);
                         }
-                        ui.with_layout(direction::column(ui), |ui| edit_group(cx, ui, nested, path, changed));
+                        Stack::new().pad(Pad::Control).show(ui, |ui, _| self.group(ui, nested, path));
                     });
-                });
+                }
+                ConditionItem::Rule(rule) => self.rule(ui, rule, path, depth, (at, &mut remove, &mut insert)),
             }
-            ConditionItem::Rule(rule) => edit_rule(cx, ui, rule, path, depth, (at, &mut remove, &mut insert), changed),
+            path.pop();
         }
-        path.pop();
+        if let Some(at) = remove {
+            group.items.remove(at);
+        }
+        if let Some((at, item)) = insert {
+            group.items.insert(at.min(group.items.len()), item);
+        }
+        if let Some(problem) = self.fields.group_problem(path, group) {
+            Notice::new(Tone::Warn, problem).layout(NoticeLayout::Inline).show(ui);
+        }
+        if group.items.is_empty() || depth == 0 {
+            Row::new().show(ui, |ui, _| {
+                if clicked(&Button::new(words.add_rule.clone()).id_salt((path.clone(), "add-rule")).show(ui)) {
+                    group.items.push(ConditionItem::Rule(self.new_rule()));
+                }
+                if depth < MAX_DEPTH && clicked(&Button::new(words.add_group.clone()).id_salt((path.clone(), "add-group")).show(ui)) {
+                    group.items.push(ConditionItem::Group(self.new_group()));
+                }
+            });
+        }
     }
-    if let Some(at) = remove {
-        group.items.remove(at);
-        *changed = true;
-    }
-    if let Some((at, item)) = insert {
-        group.items.insert(at.min(group.items.len()), item);
-        *changed = true;
-    }
-    if let Some(problem) = cx.fields.group_problem(path, group) {
-        problem_note(cx, ui, &problem);
-    }
-    if group.items.is_empty() || depth == 0 {
-        direction::horizontal(ui, |ui| {
-            if ui.add(Button::new(&labels.add_rule).size(ControlSize::Sm).id_salt(cx.id(path, "add-rule"))).clicked() {
-                group.items.push(ConditionItem::Rule(cx.new_rule()));
-                *changed = true;
-            }
-            if depth < MAX_DEPTH && ui.add(Button::new(&labels.add_group).size(ControlSize::Sm).id_salt(cx.id(path, "add-group"))).clicked() {
-                group.items.push(ConditionItem::Group(cx.new_group()));
-                *changed = true;
-            }
+
+    /// One rule: field, operator, value editor and, at the end, − and +; the problem under it.
+    fn rule(&self, ui: &mut Ui, rule: &mut Condition, path: &[usize], depth: usize, (at, remove, insert): Pending<'_>) {
+        let words = self.words;
+        Row::new().fill_width().align(RowAlign::SpaceBetween).show(ui, |ui, _| {
+            Row::new().show(ui, |ui, _| {
+                self.pick_field(ui, rule, path);
+                self.pick_operator(ui, rule, path);
+                self.edit_value(ui, rule, path);
+            });
+            Row::new().show(ui, |ui, _| {
+                let minus = IconButton::new(IconSpec::svg(IconId::new("minus")))
+                    .label(words.remove_rule.clone())
+                    .tooltip(words.remove_rule.as_str().to_owned())
+                    .id_salt((path.to_vec(), "remove"))
+                    .show(ui);
+                if clicked(&minus) {
+                    *remove = Some(at);
+                }
+                let plus = IconButton::new(IconSpec::svg(IconId::new("plus")))
+                    .label(words.add_rule_tip.clone())
+                    .tooltip(words.add_rule_tip.as_str().to_owned())
+                    .id_salt((path.to_vec(), "add"))
+                    .show(ui);
+                if clicked(&plus) {
+                    let group = pointer::frame(ui.ctx()).mods.alt && depth < MAX_DEPTH;
+                    let item = if group { ConditionItem::Group(self.new_group()) } else { ConditionItem::Rule(self.new_rule()) };
+                    *insert = Some((at + 1, item));
+                }
+            });
         });
+        if let Some(problem) = self.fields.problem(rule) {
+            Notice::new(Tone::Warn, problem).layout(NoticeLayout::Inline).show(ui);
+        }
+    }
+
+    /// The field menu; a new field takes its first operator and the default value.
+    fn pick_field(&self, ui: &mut Ui, rule: &mut Condition, path: &[usize]) {
+        let mut entries = Vec::new();
+        let mut heading: Option<String> = None;
+        for (at, (id, label, group)) in self.fields.fields().into_iter().enumerate() {
+            if at > 0 && group != heading {
+                entries.push(Entry::separator());
+            }
+            heading = group;
+            entries.push(Entry::new(id, label));
+        }
+        let mut field = rule.field.clone();
+        Select::new(self.words.field.clone(), Bind::bound(&mut field), &entries).id_salt((path.to_vec(), "field")).show(ui);
+        if field != rule.field {
+            rule.operator = self.fields.operators(&field).into_iter().next().map(|(id, _)| id).unwrap_or_default();
+            rule.value = self.fields.default_value(&field, &rule.operator);
+            rule.field = field;
+        }
+    }
+
+    /// The operator menu; an operator that wants another kind of value takes its default.
+    fn pick_operator(&self, ui: &mut Ui, rule: &mut Condition, path: &[usize]) {
+        let entries: Vec<Entry<String>> = self.fields.operators(&rule.field).into_iter().map(|(id, label)| Entry::new(id, label)).collect();
+        let mut operator = rule.operator.clone();
+        Select::new(self.words.operator.clone(), Bind::bound(&mut operator), &entries).id_salt((path.to_vec(), "operator")).show(ui);
+        if operator != rule.operator {
+            let value = self.fields.default_value(&rule.field, &operator);
+            if std::mem::discriminant(&value) != std::mem::discriminant(&rule.value) {
+                rule.value = value;
+            }
+            rule.operator = operator;
+        }
+    }
+
+    /// A number field over `value`; the new number when the user changed it.
+    fn number(&self, ui: &mut Ui, path: &[usize], part: &str, value: f64) -> Option<f64> {
+        let mut number = Some(value);
+        NumberField::new(self.words.value.clone(), Bind::bound(&mut number)).id_salt((path.to_vec(), part.to_owned())).show(ui);
+        number.filter(|number| *number != value)
+    }
+
+    /// The value editor the field's kind and the operator's value call for.
+    fn edit_value(&self, ui: &mut Ui, rule: &mut Condition, path: &[usize]) {
+        let words = self.words;
+        if !self.fits(&rule.field, &rule.value) {
+            rule.value = self.fields.default_value(&rule.field, &rule.operator);
+        }
+        let salt = |part: &str| (path.to_vec(), part.to_owned());
+        match rule.value.clone() {
+            ConditionValue::None => {}
+            ConditionValue::Text(text) => {
+                let mut edited = text.clone();
+                TextField::new(words.value.clone(), Bind::bound(&mut edited)).id_salt(salt("value")).show(ui);
+                if edited != text {
+                    rule.value = ConditionValue::Text(edited);
+                }
+            }
+            ConditionValue::Number(value) => {
+                if let Some(number) = self.number(ui, path, "value", value) {
+                    rule.value = ConditionValue::Number(number);
+                }
+            }
+            ConditionValue::Range(low, high) => {
+                let new_low = self.number(ui, path, "low", low);
+                Text::new(words.and.clone()).show(ui);
+                let new_high = self.number(ui, path, "high", high);
+                if new_low.is_some() || new_high.is_some() {
+                    rule.value = ConditionValue::Range(new_low.unwrap_or(low), new_high.unwrap_or(high));
+                }
+            }
+            ConditionValue::Date(date) => {
+                let mut picked = Some(date);
+                DatePicker::new(words.value.clone(), Bind::bound(&mut picked)).id_salt(salt("value")).show(ui);
+                if let Some(picked) = picked.filter(|picked| *picked != date) {
+                    rule.value = ConditionValue::Date(picked);
+                }
+            }
+            ConditionValue::DateRange(low, high) => {
+                // Each picker stops at the other date.
+                let (mut low_picked, mut high_picked) = (Some(low), Some(high));
+                DatePicker::new(words.value.clone(), Bind::bound(&mut low_picked)).max(high).id_salt(salt("low")).show(ui);
+                Text::new(words.and.clone()).show(ui);
+                DatePicker::new(words.value.clone(), Bind::bound(&mut high_picked)).min(low).id_salt(salt("high")).show(ui);
+                let (new_low, new_high) = (low_picked.unwrap_or(low), high_picked.unwrap_or(high));
+                if (new_low, new_high) != (low, high) {
+                    rule.value = ConditionValue::DateRange(new_low, new_high);
+                }
+            }
+            ConditionValue::Last { n, unit } => {
+                let new_count = self.number(ui, path, "count", f64::from(n)).map(|count| count.max(0.0).round() as u32);
+                let units = self.fields.choices(&rule.field);
+                let mut edited = unit.clone();
+                if units.is_empty() {
+                    TextField::new(words.unit.clone(), Bind::bound(&mut edited)).id_salt(salt("unit")).show(ui);
+                } else {
+                    let entries: Vec<Entry<String>> = units.into_iter().map(|(id, label)| Entry::new(id, label)).collect();
+                    Select::new(words.unit.clone(), Bind::bound(&mut edited), &entries).id_salt(salt("unit")).show(ui);
+                }
+                if new_count.is_some() || edited != unit {
+                    rule.value = ConditionValue::Last { n: new_count.unwrap_or(n), unit: edited };
+                }
+            }
+            ConditionValue::Bool(on) => {
+                let label = self
+                    .fields
+                    .fields()
+                    .into_iter()
+                    .find(|(id, ..)| *id == rule.field)
+                    .map_or_else(|| words.bool_rule.clone(), |(_, label, _)| Label::from(label));
+                let mut checked = on;
+                Checkbox::new(Bind::bound(&mut checked)).label(label).id_salt(salt("value")).show(ui);
+                if checked != on {
+                    rule.value = ConditionValue::Bool(checked);
+                }
+            }
+            ConditionValue::Choice(choice) => {
+                let entries: Vec<Entry<String>> = self.fields.choices(&rule.field).into_iter().map(|(id, label)| Entry::new(id, label)).collect();
+                let mut picked = choice.clone();
+                Select::new(words.value.clone(), Bind::bound(&mut picked), &entries).id_salt(salt("value")).show(ui);
+                if picked != choice {
+                    rule.value = ConditionValue::Choice(picked);
+                }
+            }
+        }
     }
 }
 
 type Pending<'a> = (usize, &'a mut Option<usize>, &'a mut Option<(usize, ConditionItem)>);
-
-/// One rule: field, operator, value editor, the problem under it, and − and + at the end.
-fn edit_rule(cx: &Cx<'_>, ui: &mut Ui, rule: &mut Condition, path: &[usize], depth: usize, (at, remove, insert): Pending<'_>, changed: &mut bool) {
-    let labels = cx.labels;
-    direction::horizontal(ui, |ui| {
-        pick_field(cx, ui, rule, path, changed);
-        pick_operator(cx, ui, rule, path, changed);
-        edit_value(cx, ui, rule, path, changed);
-        let side = IconButton::style(cx.tokens, ControlSize::Sm).side;
-        let buttons = 2.0 * side + ui.spacing().item_spacing.x;
-        ui.add_space((ui.available_width() - buttons).max(0.0));
-        if ui.add(IconButton::new(Icon::Minus, &labels.remove_rule).size(ControlSize::Sm).id_salt(cx.id(path, "remove"))).clicked() {
-            *remove = Some(at);
-        }
-        let add = ui.add(IconButton::new(Icon::Plus, &labels.add_rule_tip).size(ControlSize::Sm).id_salt(cx.id(path, "add")));
-        if add.clicked() {
-            let item = if ui.input(|input| input.modifiers.alt) && depth < MAX_DEPTH {
-                ConditionItem::Group(cx.new_group())
-            } else {
-                ConditionItem::Rule(cx.new_rule())
-            };
-            *insert = Some((at + 1, item));
-        }
-    });
-    if let Some(problem) = cx.fields.problem(rule) {
-        problem_note(cx, ui, &problem);
-    }
-}
-
-/// A problem under a rule or a group: the warning icon, then the text, in the caution colour.
-fn problem_note(cx: &Cx<'_>, ui: &mut Ui, problem: &str) {
-    let color = cx.tokens.color.status.warn.fg.to_egui();
-    let font = cx.tokens.font(SheetStyle::of(cx.tokens).problem_text);
-    direction::horizontal(ui, |ui| {
-        let side = IconSize::Sm.points(cx.tokens);
-        let (rect, _) = ui.allocate_exact_size(vec2(side, side), Sense::hover());
-        icons::paint(ui, rect, Icon::Warning, IconSize::Sm, color);
-        ui.label(RichText::new(problem).font(font).color(color));
-    });
-}
-
-/// Applies a number or text control's event to the rule's value through the rule's draft: a
-/// preview shows while the gesture runs, and Esc restores the value from before it began.
-fn write(cx: &Cx<'_>, ui: &Ui, path: &[usize], value: &mut ConditionValue, event: Option<EditEvent<ConditionValue>>, changed: &mut bool) {
-    let Some(event) = event else { return };
-    let key = cx.id(path, "draft");
-    let mut draft = ui.data(|d| d.get_temp::<GestureDraft<ConditionValue>>(key)).unwrap_or_default();
-    let before = value.clone();
-    draft.apply(value, event);
-    ui.data_mut(|d| d.insert_temp(key, draft));
-    if *value != before {
-        *changed = true;
-    }
-}
-
-/// The field menu; a new field takes its first operator and the default value.
-fn pick_field(cx: &Cx<'_>, ui: &mut Ui, rule: &mut Condition, path: &[usize], changed: &mut bool) {
-    let mut field = rule.field.clone();
-    let mut select = Select::new(cx.id(path, "field"), &cx.labels.field, &mut field);
-    let mut heading: Option<String> = None;
-    for (id, label, group) in cx.fields.fields() {
-        if group != heading {
-            select = match &group {
-                Some(group) => select.group(group),
-                None => select.separator(),
-            };
-            heading = group;
-        }
-        select = select.option(id, label);
-    }
-    let picked = select.show(ui);
-    if settled(&picked.event).is_some() && field != rule.field {
-        rule.operator = cx.fields.operators(&field).into_iter().next().map(|(id, _)| id).unwrap_or_default();
-        rule.value = cx.fields.default_value(&field, &rule.operator);
-        rule.field = field;
-        *changed = true;
-    }
-}
-
-/// The operator menu; an operator that wants another kind of value takes its default.
-fn pick_operator(cx: &Cx<'_>, ui: &mut Ui, rule: &mut Condition, path: &[usize], changed: &mut bool) {
-    let mut operator = rule.operator.clone();
-    let mut select = Select::new(cx.id(path, "operator"), &cx.labels.operator, &mut operator);
-    for (id, label) in cx.fields.operators(&rule.field) {
-        select = select.option(id, label);
-    }
-    let picked = select.show(ui);
-    if settled(&picked.event).is_some() && operator != rule.operator {
-        let value = cx.fields.default_value(&rule.field, &operator);
-        if std::mem::discriminant(&value) != std::mem::discriminant(&rule.value) {
-            rule.value = value;
-        }
-        rule.operator = operator;
-        *changed = true;
-    }
-}
-
-/// The value editor the field's kind and the operator's value call for. Number and text controls
-/// write through the rule's draft ([`write`]); menus, pickers and the check box write when they
-/// settle.
-fn edit_value(cx: &Cx<'_>, ui: &mut Ui, rule: &mut Condition, path: &[usize], changed: &mut bool) {
-    let labels = cx.labels;
-    if !cx.fits(&rule.field, &rule.value) {
-        rule.value = cx.fields.default_value(&rule.field, &rule.operator);
-        *changed = true;
-    }
-    let number = |ui: &mut Ui, part: &str, value: f64| NumberField::new(cx.id(path, part), &labels.value, value, cx.numbers).show(ui).event;
-    let current = rule.value.clone();
-    let settled_value = match &current {
-        ConditionValue::None => return,
-        ConditionValue::Text(text) => {
-            let event = TextField::new(cx.id(path, "value"), &labels.value, text).show(ui).event;
-            write(cx, ui, path, &mut rule.value, event.map(|event| event.map(ConditionValue::Text)), changed);
-            None
-        }
-        ConditionValue::Number(value) => {
-            let event = number(ui, "value", *value);
-            write(cx, ui, path, &mut rule.value, event.map(|event| event.map(ConditionValue::Number)), changed);
-            None
-        }
-        ConditionValue::Range(low, high) => {
-            let low_event = number(ui, "low", *low);
-            ui.label(&labels.and);
-            let high_event = number(ui, "high", *high);
-            write(cx, ui, path, &mut rule.value, low_event.map(|event| event.map(|low| ConditionValue::Range(low, *high))), changed);
-            write(cx, ui, path, &mut rule.value, high_event.map(|event| event.map(|high| ConditionValue::Range(*low, high))), changed);
-            None
-        }
-        ConditionValue::Date(date) => {
-            let mut picked = Some(*date);
-            let out = DatePicker::new(cx.id(path, "value"), &labels.value, &mut picked).show(ui);
-            settled(&out.event).copied().flatten().map(ConditionValue::Date)
-        }
-        ConditionValue::DateRange(low, high) => {
-            // Each picker stops at the other date (LightCraft `rules_editor.rs:187-193`).
-            let (mut low_picked, mut high_picked) = (Some(*low), Some(*high));
-            let low_out = DatePicker::new(cx.id(path, "low"), &labels.value, &mut low_picked).max(Some(*high)).show(ui);
-            ui.label(&labels.and);
-            let high_out = DatePicker::new(cx.id(path, "high"), &labels.value, &mut high_picked).min(Some(*low)).show(ui);
-            let (new_low, new_high) = (settled(&low_out.event).copied().flatten(), settled(&high_out.event).copied().flatten());
-            (new_low.is_some() || new_high.is_some()).then(|| ConditionValue::DateRange(new_low.unwrap_or(*low), new_high.unwrap_or(*high)))
-        }
-        ConditionValue::Last { n, unit } => {
-            let count = number(ui, "count", f64::from(*n));
-            let units = cx.fields.choices(&rule.field);
-            let unit_value = if units.is_empty() {
-                let event = TextField::new(cx.id(path, "unit"), &labels.unit, unit).show(ui).event;
-                write(cx, ui, path, &mut rule.value, event.map(|event| event.map(|unit| ConditionValue::Last { n: *n, unit })), changed);
-                None
-            } else {
-                let mut picked = unit.clone();
-                let mut select = Select::new(cx.id(path, "unit"), &labels.unit, &mut picked);
-                for (id, label) in units {
-                    select = select.option(id, label);
-                }
-                let out = select.show(ui);
-                settled(&out.event).is_some().then_some(picked)
-            };
-            let to_count = |count: f64| count.max(0.0).round() as u32;
-            let unit_now = match &rule.value {
-                ConditionValue::Last { unit, .. } => unit.clone(),
-                _ => unit.clone(),
-            };
-            write(
-                cx,
-                ui,
-                path,
-                &mut rule.value,
-                count.map(|event| event.map(|count| ConditionValue::Last { n: to_count(count), unit: unit_now })),
-                changed,
-            );
-            unit_value.filter(|picked| picked != unit).map(|unit| ConditionValue::Last { n: *n, unit })
-        }
-        ConditionValue::Bool(on) => {
-            let label =
-                cx.fields.fields().into_iter().find(|(id, ..)| *id == rule.field).map_or_else(|| labels.bool_rule.clone(), |(_, label, _)| label);
-            let mut checked = *on;
-            let out = Checkbox::bool(label, &mut checked).id_salt(cx.id(path, "value")).show(ui);
-            settled(&out.event).map(|on| ConditionValue::Bool(*on))
-        }
-        ConditionValue::Choice(choice) => {
-            let mut picked = choice.clone();
-            let mut select = Select::new(cx.id(path, "value"), &labels.value, &mut picked);
-            for (id, label) in cx.fields.choices(&rule.field) {
-                select = select.option(id, label);
-            }
-            let out = select.show(ui);
-            settled(&out.event).is_some().then_some(ConditionValue::Choice(picked))
-        }
-    };
-    if let Some(value) = settled_value.filter(|value| *value != rule.value) {
-        rule.value = value;
-        *changed = true;
-    }
-}

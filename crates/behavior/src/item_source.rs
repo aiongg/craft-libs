@@ -175,17 +175,19 @@ impl<K> NavOutline for Outline<'_, K> {
 
 type KeyFn<'a, T, K> = Box<dyn Fn(&T) -> K + 'a>;
 type TextFn<'a, T> = Box<dyn for<'t> Fn(&'t T) -> Cow<'t, str> + 'a>;
+type ToggledFn<'a, T> = Box<dyn Fn(&T, &ColumnKey) -> bool + 'a>;
 
 /// A slice as an item source, each entry keyed by `key`.
 pub struct Keyed<'a, T, K> {
     items: &'a [T],
     key: KeyFn<'a, T, K>,
     text: Option<TextFn<'a, T>>,
+    toggled: Option<ToggledFn<'a, T>>,
 }
 
 /// Shows `items` keyed by `key`: the one way to show a slice (7.1 rule 4).
 pub fn keyed<'a, T, K>(items: &'a [T], key: impl Fn(&T) -> K + 'a) -> Keyed<'a, T, K> {
-    Keyed { items, key: Box::new(key), text: None }
+    Keyed { items, key: Box::new(key), text: None, toggled: None }
 }
 
 impl<'a, T, K> Keyed<'a, T, K> {
@@ -193,6 +195,13 @@ impl<'a, T, K> Keyed<'a, T, K> {
     #[must_use]
     pub fn with_text(mut self, text: impl for<'t> Fn(&'t T) -> Cow<'t, str> + 'a) -> Self {
         self.text = Some(Box::new(text));
+        self
+    }
+
+    /// Whether an entry's cell in a toggle column is on. Without it every toggle cell is off.
+    #[must_use]
+    pub fn with_toggled(mut self, toggled: impl Fn(&T, &ColumnKey) -> bool + 'a) -> Self {
+        self.toggled = Some(Box::new(toggled));
         self
     }
 }
@@ -211,7 +220,11 @@ impl<T, K> DisplayOrder<K> for Keyed<'_, T, K> {
     }
 }
 
-impl<T, K> ItemSource<K> for Keyed<'_, T, K> {}
+impl<T, K> ItemSource<K> for Keyed<'_, T, K> {
+    fn toggled(&self, at: usize, column: &ColumnKey) -> bool {
+        self.toggled.as_ref().is_some_and(|toggled| toggled(&self.items[at], column))
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -225,5 +238,16 @@ mod tests {
         assert_eq!(source.index_of(&3), Some(1));
         assert_eq!(source.index_of(&9), None);
         assert_eq!(DisplayOrder::text(&source, 1).as_deref(), Some("a"));
+    }
+
+    #[test]
+    fn a_keyed_slice_answers_toggle_cells_from_the_closure() {
+        let rows = [(1_u32, true), (2, false)];
+        let visible = ColumnKey::new("visible");
+        let source = keyed(&rows, |row| row.0).with_toggled(|row, column| row.1 && *column == ColumnKey::new("visible"));
+        assert!(source.toggled(0, &visible));
+        assert!(!source.toggled(1, &visible));
+        assert!(!source.toggled(0, &ColumnKey::new("lock")));
+        assert!(!keyed(&rows, |row| row.0).toggled(0, &visible), "a source without the closure has every cell off");
     }
 }

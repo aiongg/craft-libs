@@ -118,17 +118,31 @@ pub struct TextRun<'a> {
     pub ltr: bool,
     /// Where the lines sit within the run's width.
     pub align: HAlign,
+    /// The factor on the role's size (the role stays the base: a chart label follows the sheet zoom).
+    pub scale: f32,
+    /// The angle the run is painted at, in radians clockwise about the top-left corner of its layout. Layout and
+    /// measure see the unrotated run.
+    pub rotation: f32,
 }
 
 impl<'a> TextRun<'a> {
     /// A one-span run in the label role.
     pub fn new(text: impl Into<Cow<'a, str>>) -> Self {
-        TextRun { spans: vec![Span::new(text)], role: TypeRole::Label, color: None, wrap: Wrap::Line, ltr: false, align: HAlign::Start }
+        TextRun {
+            spans: vec![Span::new(text)],
+            role: TypeRole::Label,
+            color: None,
+            wrap: Wrap::Line,
+            ltr: false,
+            align: HAlign::Start,
+            scale: 1.0,
+            rotation: 0.0,
+        }
     }
 
     /// A run of `spans`.
     pub fn spans(spans: Vec<Span<'a>>) -> Self {
-        TextRun { spans, role: TypeRole::Label, color: None, wrap: Wrap::Line, ltr: false, align: HAlign::Start }
+        TextRun { spans, role: TypeRole::Label, color: None, wrap: Wrap::Line, ltr: false, align: HAlign::Start, scale: 1.0, rotation: 0.0 }
     }
 
     /// Sets the type role.
@@ -152,6 +166,18 @@ impl<'a> TextRun<'a> {
     /// Sets where the lines sit within the run's width.
     pub fn align(mut self, align: HAlign) -> Self {
         self.align = align;
+        self
+    }
+
+    /// Sets the factor on the role's size.
+    pub fn scale(mut self, scale: f32) -> Self {
+        self.scale = scale;
+        self
+    }
+
+    /// Sets the angle the run is painted at, in radians clockwise about the top-left corner of its layout.
+    pub fn rotated(mut self, radians: f32) -> Self {
+        self.rotation = radians;
         self
     }
 
@@ -226,7 +252,9 @@ impl TextRun<'_> {
             _ => text_layout::layout(ctx, self.job(env, self.spans.iter().map(|s| (s, s.text.as_ref())), max_width)),
         };
         let elided = galley.elided || self.wrap == Wrap::ElidePath && galley.job.text != full;
-        TextLayout::new(aligned_rows(galley, self.align, self.is_rtl(env), ctx.pixels_per_point()), elided, full)
+        let mut layout = TextLayout::new(aligned_rows(galley, self.align, self.is_rtl(env), ctx.pixels_per_point()), elided, full);
+        layout.rotation = self.rotation;
+        layout
     }
 
     /// Whether the paragraph runs right to left: the env's direction, unless the run is fixed left to right.
@@ -255,7 +283,8 @@ impl TextRun<'_> {
         let text = &env.tokens.color.text;
         let to_color = |c: craft_theme::Rgba| Color32::from_rgba_unmultiplied(c.0[0], c.0[1], c.0[2], c.0[3]);
         for (span, text_part) in parts {
-            let font_id: FontId = env.tokens.font(env.fonts, self.role, span.mono);
+            let mut font_id: FontId = env.tokens.font(env.fonts, self.role, span.mono);
+            font_id.size *= self.scale;
             let color = if span.muted {
                 to_color(text.muted)
             } else if span.shortcut {
@@ -266,7 +295,7 @@ impl TextRun<'_> {
             let background = if span.highlight { to_color(env.tokens.color.state.r#match) } else { Color32::TRANSPARENT };
             let mut format = TextFormat { font_id, color, italics: span.italic, background, ..TextFormat::default() };
             if let Some(size) = env.tokens.optical_size(env.fonts, self.role, span.mono) {
-                format.coords.push(*b"opsz", size);
+                format.coords.push(*b"opsz", size * self.scale);
             }
             job.append(text_part, 0.0, format);
         }
@@ -362,6 +391,8 @@ pub struct TextLayout {
     pub first_baseline: f32,
     /// The bidi runs of a single-row layout; empty for a wrapped one.
     pub runs: Vec<LayoutRun>,
+    /// The run's paint angle, in radians clockwise about the layout's top-left corner.
+    pub rotation: f32,
 }
 
 impl TextLayout {
@@ -371,7 +402,7 @@ impl TextLayout {
             None => placed.pos.y + placed.row.size.y,
         });
         let runs = if galley.rows.len() <= 1 { Self::build_row_runs(&galley, 0) } else { Vec::new() };
-        TextLayout { galley, elided, full, first_baseline, runs }
+        TextLayout { galley, elided, full, first_baseline, runs, rotation: 0.0 }
     }
 
     /// One run per maximal stretch of glyphs with one direction; an empty row is one empty left-to-right run.

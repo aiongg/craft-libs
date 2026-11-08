@@ -117,10 +117,17 @@ pub(super) fn layer_drop<K: Clone + PartialEq>(
     (slot != *from || mv.copy).then(|| LayerDrop::SubRows(SubRowMove { layer: owner.clone(), group, from: *from, to: slot, copy: mv.copy }))
 }
 
-/// Whether the dragged rows may land before position `insert` of the display order.
-pub(super) fn accepts_drop<T: LayerTree>(tree: &T, drag: &ListDrag<LayerRowKey<T::Id>>, order: &[LayerRowKey<T::Id>], insert: usize) -> bool {
+/// Whether the dragged rows may land before position `insert` of the display order, with the
+/// modifiers held during the hover (Alt copies, as the list's reorder rule does).
+pub(super) fn accepts_drop<T: LayerTree>(
+    tree: &T,
+    drag: &ListDrag<LayerRowKey<T::Id>>,
+    order: &[LayerRowKey<T::Id>],
+    insert: usize,
+    mods: Mods,
+) -> bool {
     let moved_before = order[..insert.min(order.len())].iter().filter(|key| drag.keys.contains(key)).count();
-    let mv = ReorderMove::new(drag.grabbed.clone(), drag.keys.clone(), insert.saturating_sub(moved_before), false);
+    let mv = ReorderMove::new(drag.grabbed.clone(), drag.keys.clone(), insert.saturating_sub(moved_before), mods.alt);
     let parent_of = |id: &T::Id| tree.parent(id);
     match layer_drop(&mv, order, &parent_of, true) {
         Some(LayerDrop::Layers(layers)) => {
@@ -128,7 +135,7 @@ pub(super) fn accepts_drop<T: LayerTree>(tree: &T, drag: &ListDrag<LayerRowKey<T
                 LayerPosition::Into => Some(layers.target.clone()),
                 LayerPosition::Before | LayerPosition::After => tree.parent(&layers.target),
             };
-            tree.accepts_drop(&mv.in_group(parent.map(LayerRowKey::Layer)), Mods::default())
+            tree.accepts_drop(&mv.in_group(parent.map(LayerRowKey::Layer)), mods)
         }
         // Smart Filters go only onto a smart object; Photoshop takes no others.
         Some(LayerDrop::Transfer(transfer)) => {

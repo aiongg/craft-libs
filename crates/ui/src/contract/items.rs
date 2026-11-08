@@ -27,6 +27,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 mod drag;
+mod empty_text;
 mod header;
 mod marquee;
 mod request;
@@ -36,6 +37,7 @@ pub(crate) use request::lead_position;
 pub use request::request_rename;
 
 use drag::Drags;
+use empty_text::EmptyText;
 use header::{Header, HeaderMemory};
 
 /// The rows the item step builds in a pass and where it puts them: what `PartsCx::rect_of` and `offset` read.
@@ -49,8 +51,10 @@ const SECTION: craft_behavior::PartKey = craft_behavior::PartKey::new("section")
 
 /// The part of a collection that stands for the section row `key` (`ItemSource::section_stop`): the item step builds
 /// no row for it, so the access node that AccessKit focus goes to while the section holds the lead, and the pointer
-/// part over it, are this part of the collection.
-pub(crate) fn section_part<K: std::hash::Hash>(key: &K) -> craft_behavior::PartRef {
+/// part over it, are this part of the collection. It is the collection contract's one section mechanism: a component
+/// that draws its own section headers lays them out as this part, so the lead, the pointer and the access tree treat
+/// them as the collection's section rows.
+pub fn section_part<K: std::hash::Hash>(key: &K) -> craft_behavior::PartRef {
     SECTION.at(key_hash(key))
 }
 
@@ -360,6 +364,11 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             if let Some(share) = wheel::take(&ctx, id) {
                 self.offset -= f64::from(share.scroll.y);
                 self.offset_x -= f64::from(share.scroll.x);
+                if share.zoom != 1.0
+                    && let Some(about) = share.at
+                {
+                    self.events.push(CollectionEvent::Zoom { factor: share.zoom, about });
+                }
             }
             if let (Some(rect), Some(bounds)) = (super::take_reveal(&ctx, id), self.last.view) {
                 if rect.min.y < bounds[1] {
@@ -367,6 +376,9 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 } else if rect.max.y > bounds[3] {
                     self.offset += f64::from(rect.max.y - bounds[3]);
                 }
+            }
+            if let Some(to) = super::take_scroll_to(&ctx, id) {
+                (self.offset, self.offset_x) = (to.y, to.x);
             }
             self.offset = self.offset.clamp(0.0, f64::from((self.last.extent - view).max(0.0)));
         }
@@ -408,7 +420,14 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.content = Vec2::new(content.x as f32, content.y as f32);
         self.columns = layout.column_count() as u32;
         self.layout = Some(Arc::new(layout));
-        let empty = if self.source.is_empty() { comp.empty_height(width, scx) } else { 0.0 };
+        let empty = if !self.source.is_empty() {
+            0.0
+        } else if comp.items().empty.is_some() {
+            // The collection's own empty text is one line of control height.
+            scx.control().height
+        } else {
+            comp.empty_height(width, scx)
+        };
         let height = self.content.y.max(empty) + self.header.height;
         if !(self.scrolls && room.y.is_finite()) {
             return Vec2::new(self.content.x, height);
@@ -441,7 +460,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         Some(Rc::new(Rows { rects, offset }))
     }
 
-    fn parts(&mut self, _: &mut C, _: Rect, pcx: &mut PartsCx<'_, C>) {
+    fn parts(&mut self, comp: &mut C, _: Rect, pcx: &mut PartsCx<'_, C>) {
         self.header.parts(pcx);
         if !self.scrolls {
             return;
@@ -458,7 +477,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.offset = self.offset.clamp(0.0, self.max_offset(view.height()));
         let span = ScrollSpan::new(0.0..content, self.offset..self.offset + f64::from(view.height()));
         pcx.scroll(SCROLL, track, Axis::Y, span);
-        wheel::register(&ctx, WheelTaker::new(pcx.id, view).vertical(true).horizontal(self.content.x > view.width()));
+        wheel::register(&ctx, WheelTaker::new(pcx.id, view).vertical(true).horizontal(self.content.x > view.width()).zoom(comp.zooms()));
     }
 
     fn sensed(&mut self, _: &mut C, cx: &mut Cx<'_, C>) {
@@ -645,7 +664,9 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 let builder = UiBuilder::new().max_rect(row).layout(child::column_layout(rtl)).scope_id(sub(item_id, "row"));
                 let builder = if node { access::with_parent(builder, id) } else { builder };
                 let mut row_ui = alloc::child(ui, builder);
-                row_ui.set_clip_rect(rect.intersect(ui.clip_rect()));
+                // A scrolled row slides under the frozen rows: it never paints into their band.
+                let below_frozen = Rect::from_min_max(Pos2::new(rect.min.x, rect.min.y + layout.frozen_band(at)), rect.max);
+                row_ui.set_clip_rect(below_frozen.intersect(ui.clip_rect()));
                 let installed = Env::install_for(
                     &row_ui,
                     base_env.derive_local(|scoped| {
@@ -757,7 +778,12 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             let installed = Env::install_for(&empty_ui, env.derive(|scoped| scoped.values.extend(values)));
             let (resolved, view) = (cx.core.resolved, cx.core.env);
             let mut bcx = BodyCx::new(sub(id, "body"), view, resolved, rect, &mut *cx.core.memory, &mut open, None);
-            comp.empty(&mut empty_ui, &mut bcx);
+            match comp.items().empty.clone() {
+                Some(text) => {
+                    EmptyText::new(text).id(sub(id, "empty_text")).show_at(&mut empty_ui, rect);
+                }
+                None => comp.empty(&mut empty_ui, &mut bcx),
+            }
             Env::restore(&ctx, installed);
         }
         if self.scrolls {
@@ -921,9 +947,12 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                         _ => false,
                     };
                     let hold = primary && !mods.shift && !mods.cmd && holds && self.holds(at);
+                    // A secondary press on a row of the selection leaves the selection whole: its menu acts on all of it.
+                    let keep = !primary && matches!(Self::select_mode(comp), SelectMode::Multi) && self.holds(at);
                     match column {
                         Some(column) => self.cell_press(comp, layout, at, column, mods.shift, mods.cmd),
                         None if hold => self.drags.collapse = Some(key.clone()),
+                        None if keep => {}
                         None => self.pick(comp, at, mods.shift, mods.cmd),
                     }
                     self.move_lead(at, LeadSource::Pointer);
@@ -931,7 +960,16 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                         ActivateOn::DoubleClick => start.clicks == 2,
                         ActivateOn::Click => primary && start.clicks == 1,
                     };
-                    if activates && !self.source.section_stop(at) {
+                    let names = primary
+                        && start.clicks == 2
+                        && props.rename
+                        && props.rename_column.is_some()
+                        && layout.column_at(local(start.origin), offset).and_then(|column| self.header.key_at(column))
+                            == props.rename_column.as_ref()
+                        && comp.can_rename(&key);
+                    if names && !self.source.section_stop(at) {
+                        self.drags.rename = Some(key);
+                    } else if activates && !self.source.section_stop(at) {
                         self.events.push(CollectionEvent::Activate(key));
                     }
                 }
@@ -968,6 +1006,13 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     let request = self.menu_request(layout, Placement { rect, offset, rtl }, row, local(pos));
                     self.events.push(CollectionEvent::ContextMenu(request));
                 }
+                // The press stayed within slop of where it started, whether or not the root senses a click.
+                if let Some(key) = self.drags.rename.take()
+                    && pos.distance(start.origin) <= crate::runtime::pointer::frame(&ctx).slop
+                    && let Some(at) = self.index_of(&key)
+                {
+                    self.begin_rename(cx, at);
+                }
                 if let Some(key) = self.drags.collapse.take()
                     && click
                     && let Some(at) = self.index_of(&key)
@@ -979,7 +1024,10 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     }
                 }
             }
-            PressPhase::Cancel { .. } => self.drags.collapse = None,
+            PressPhase::Cancel { .. } => {
+                self.drags.collapse = None;
+                self.drags.rename = None;
+            }
             _ => {}
         }
         // A secondary release on a row asks for its menu (9.2 rule 3); the row joins the selection unless it is in it.

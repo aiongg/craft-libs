@@ -6,7 +6,6 @@ use super::marquee::MarqueeDrag;
 use crate::contract::collection::{CollectionEvent, CollectionProps, ColumnKind, ListDrag, ReorderMove, ToggleColumn, ToggleEdit};
 use crate::contract::reorder;
 use crate::contract::{Collection, Cx, DragPreview, DropMark, DropTarget, OsFiles, Pointer as _};
-use crate::runtime::env::Env;
 use crate::runtime::env::Label;
 use craft_behavior::{
     Axis, CancelReason, ColumnKey, DropOperation, EditEvent, Flow, GestureId, ItemLayout, Mixed, NavShape, Outline, PointerButton, PressCancel,
@@ -16,12 +15,15 @@ use egui::{Pos2, Rect, Vec2};
 
 /// A toggle sweep: the value it sets and the rows it has crossed.
 #[derive(Clone)]
-struct Sweep {
+struct Sweep<K> {
     column: ColumnKey,
     on: bool,
     /// The modifiers held at the first press, which every flip of the sweep carries.
     mods: craft_keymap::Mods,
     crossed: Vec<usize>,
+    /// The flips made so far, each a gesture that stays open until the release commits it or Escape cancels it:
+    /// its id and the edit that undoes it.
+    open: Vec<(GestureId, ToggleEdit<K>, ToggleEdit<K>)>,
 }
 
 /// What a collection keeps of the drags it runs, in session memory.
@@ -29,19 +31,22 @@ struct Sweep {
 pub(super) struct Drags<K> {
     /// The row a row drag started on: it stays built while scrolled out of view.
     pub(super) grabbed: Option<K>,
-    sweep: Option<Sweep>,
+    sweep: Option<Sweep<K>>,
     moving: Option<GestureId>,
     /// The row a drag from another collection would drop on this pass.
     pub(super) over: Option<K>,
     /// The selected row a plain press landed on: a click on it narrows the selection to it, a drag keeps it.
     pub(super) collapse: Option<K>,
+    /// The row whose rename column got a double press: the editor opens when the press ends as a click, not when it
+    /// becomes a drag.
+    pub(super) rename: Option<K>,
     /// The marquee a press on empty space started.
     pub(super) marquee: Option<MarqueeDrag<K>>,
 }
 
 impl<K> Default for Drags<K> {
     fn default() -> Self {
-        Drags { grabbed: None, sweep: None, moving: None, over: None, collapse: None, marquee: None }
+        Drags { grabbed: None, sweep: None, moving: None, over: None, collapse: None, rename: None, marquee: None }
     }
 }
 
@@ -142,6 +147,13 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let gesture = crate::runtime::edit::next_gesture_id(&cx.core.ctx);
         let before = ToggleEdit { key: key.clone(), column: column.clone(), on: !on, mods };
         let after = ToggleEdit { key, column: column.clone(), on, mods };
+        if let Some(sweep) = &mut self.drags.sweep {
+            // A flip of a sweep stays open until the release, so Escape can restore it.
+            self.events.push(CollectionEvent::Toggle(EditEvent::begin(gesture, Mixed::Same(before.clone()), cx.core.label_arc(), None)));
+            self.events.push(CollectionEvent::Toggle(EditEvent::update(gesture, after.clone())));
+            sweep.open.push((gesture, before, after));
+            return;
+        }
         self.events.push(CollectionEvent::Toggle(EditEvent::set(gesture, Mixed::Same(before), after, cx.core.label_arc(), None)));
     }
 
@@ -155,10 +167,17 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     /// exclusive column, turning a cell on turns the column's other cells off. A cell that is not open to toggling
     /// does nothing and starts no sweep.
     pub(super) fn begin_toggle(&mut self, cx: &mut Cx<'_, C>, at: usize, column: ColumnKey, toggle: ToggleColumn) {
-        let Some(on) = self.flip_toggle(cx, at, column.clone(), toggle) else { return };
         if toggle.sweepable {
             let mods = crate::runtime::pointer::frame(&cx.core.ctx).mods;
-            self.drags.sweep = Some(Sweep { column, on, mods, crossed: vec![at] });
+            self.drags.sweep = Some(Sweep { column: column.clone(), on: false, mods, crossed: vec![at], open: Vec::new() });
+        }
+        match self.flip_toggle(cx, at, column, toggle) {
+            Some(on) => {
+                if let Some(sweep) = &mut self.drags.sweep {
+                    sweep.on = on;
+                }
+            }
+            None => self.drags.sweep = None,
         }
     }
 
@@ -228,6 +247,11 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         self.drags.grabbed = Some(key);
     }
 
+    /// The one drop spot of an empty collection: its first position, marked over the whole collection.
+    fn empty_spot(&self, rect: Rect, at: Pos2) -> Option<Spot> {
+        rect.contains(at).then_some(Spot { over: 0, insert: 0, parent: None, mark: DropMark::Into(self.on_screen_rect(rect)) })
+    }
+
     /// Where a drop at `at` (the collection's layer space) lands, `None` outside the rows. `groups` is the indent step
     /// of a tree whose reorder rule lets items land inside groups.
     fn spot(&self, layout: &C::ItemLayout, rect: Rect, offset: ScrollPos, rtl: bool, groups: Option<f32>, at: Pos2) -> Option<Spot> {
@@ -271,7 +295,8 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
 
     fn land(&mut self, cx: &mut Cx<'_, C>, payload: &ListDrag<C::Key>, landed: Landed, groups: bool) {
         if payload.list != cx.core.id {
-            self.events.push(CollectionEvent::Dropped { key: self.source.key(landed.spot.over), op: landed.op, keys: payload.keys.clone() });
+            let key = (!self.source.is_empty()).then(|| self.source.key(landed.spot.over));
+            self.events.push(CollectionEvent::Dropped { key, insert: landed.spot.insert, op: landed.op, keys: payload.keys.clone() });
             return;
         }
         // The moved items in display order, as they stand in the source now.
@@ -336,13 +361,17 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 if let Some(gesture) = self.drags.moving.take() {
                     self.events.push(CollectionEvent::Move(EditEvent::commit(gesture, Mixed::Same(Vec2::ZERO), layer(pos) - layer(start.origin))));
                 }
-                self.drags.sweep = None;
+                for (gesture, before, after) in self.drags.sweep.take().map(|sweep| sweep.open).unwrap_or_default() {
+                    self.events.push(CollectionEvent::Toggle(EditEvent::commit(gesture, Mixed::Same(before), after)));
+                }
             }
             PressPhase::Cancel { reason, .. } => {
                 if let Some(gesture) = self.drags.moving.take() {
                     self.events.push(CollectionEvent::Move(EditEvent::cancel(gesture, cancel_reason(reason), Some(Mixed::Same(Vec2::ZERO)))));
                 }
-                self.drags.sweep = None;
+                for (gesture, before, _) in self.drags.sweep.take().map(|sweep| sweep.open).unwrap_or_default() {
+                    self.events.push(CollectionEvent::Toggle(EditEvent::cancel(gesture, cancel_reason(reason), Some(Mixed::Same(before)))));
+                }
             }
             _ => {}
         }
@@ -350,20 +379,17 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             let own = payload.list == cx.core.id;
             if (own && props.reorder.is_some()) || (!own && comp.accept_from(payload.list)) {
                 let groups = props.reorder.is_some_and(|rule| rule.into_groups) && matches!(layout.nav(), NavShape::Tree);
-                let step = groups.then(|| {
-                    crate::style::control_metrics(
-                        &Env::of_root(&cx.core.ctx).tokens,
-                        cx.core.resolved.size,
-                        crate::fonts::stack_facts(&cx.core.ctx).line_ratio,
-                    )
-                    .icon
-                });
-                let spot = self
-                    .spot(layout, rect, offset, rtl, step, layer(at))
-                    .filter(|spot| comp.accepts(&payload, &self.source.key(spot.over), spot.insert))
-                    .filter(|spot| !(own && groups) || !self.inside_dragged(&payload, spot.parent));
+                let step = groups.then(|| cx.env.control(cx.core.resolved.size).icon);
+                let spot = if self.source.is_empty() {
+                    self.empty_spot(rect, layer(at))
+                } else {
+                    self.spot(layout, rect, offset, rtl, step, layer(at))
+                        .filter(|spot| comp.accepts(&payload, &self.source.key(spot.over), spot.insert))
+                        .filter(|spot| !(own && groups) || !self.inside_dragged(&payload, spot.parent))
+                };
                 if let Some(spot) = spot
                     && !own
+                    && !self.source.is_empty()
                 {
                     self.drags.over = Some(self.source.key(spot.over));
                 }
@@ -379,12 +405,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             && let Some((files, at)) = cx.dragging::<OsFiles>()
         {
             let at = layer(at);
-            // An empty collection takes files at its first position.
-            let spot = if self.source.is_empty() {
-                rect.contains(at).then_some(Spot { over: 0, insert: 0, parent: None, mark: DropMark::Into(self.on_screen_rect(rect)) })
-            } else {
-                self.spot(layout, rect, offset, rtl, None, at)
-            };
+            let spot = if self.source.is_empty() { self.empty_spot(rect, at) } else { self.spot(layout, rect, offset, rtl, None, at) };
             if let Some(spot) = cx.drop_target::<OsFiles, _>(&FileDrop { spot }) {
                 self.events.push(CollectionEvent::FilesDropped { insert: spot.insert, files: files.files.clone() });
             }

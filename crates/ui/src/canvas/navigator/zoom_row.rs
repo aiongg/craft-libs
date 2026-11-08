@@ -4,12 +4,12 @@ use crate::buttons::IconButton;
 use crate::canvas::{CanvasWords, ViewCommand};
 use crate::contract::{Bind, NoValue, Outcome, Props as _, Show as _, ShowContainer as _};
 use crate::layout_components::Row;
-use crate::runtime::env::{Env, Label, UnitKind};
+use crate::runtime::env::{Env, Label};
 use crate::text::NumberField;
 use crate::value_drag::{Slider, SliderScale};
 use craft_behavior::canvas::zoom;
 use craft_behavior::kurbo::Size;
-use craft_behavior::{CanvasView, EditEvent, IconId, Mixed, NumberCodec, ZoomLadder};
+use craft_behavior::{CanvasView, EditEvent, IconId, Mixed, ZoomLadder};
 use egui::{Response, Ui};
 
 /// What the zoom row reports.
@@ -75,13 +75,12 @@ impl<'a> NavigatorZoomRow<'a> {
             let Some(Mixed::Same(current)) = view.reborrow().read(cx) else { return };
             let device = zoom::device(&current, pixels_per_point);
             let range = ZoomLadder::percent_range(device, document);
-            let at = |device: f64| with_device(&current, device, document, pixels_per_point);
+            let at = |device: f64| zoom::with_device(&current, device, document, pixels_per_point);
             let mut edits: Vec<EditEvent<CanvasView>> = Vec::new();
 
             let ladder = |percent: f64, dir: i32| ZoomLadder::step(percent / 100.0, dir, document) * 100.0;
-            let codec = NumberCodec::new(units.reader(Some(UnitKind::Percent)), PERCENT_DECIMALS);
             let field = NumberField::new(zoom_label.clone(), Bind::given(Some(device * 100.0)))
-                .codec(codec)
+                .codec(units.zoom_codec())
                 .range(range.clone())
                 .stepper(ladder)
                 .enabled(enabled)
@@ -113,14 +112,4 @@ impl<'a> NavigatorZoomRow<'a> {
         });
         NavigatorZoomRowOutput { response: shown.output, view: event }
     }
-}
-
-/// The most decimals the percent field shows: the zoom ladder has rungs such as 66.67 %.
-const PERCENT_DECIMALS: usize = 2;
-
-/// `view` at `device` zoom, clamped to the ladder, with its centre kept.
-fn with_device(view: &CanvasView, device: f64, document: Size, pixels_per_point: f32) -> CanvasView {
-    let mut next = *view;
-    next.zoom = CanvasView::points_per_unit(ZoomLadder::clamp(device, document), pixels_per_point);
-    next
 }

@@ -115,6 +115,13 @@ pub fn device(view: &CanvasView, pixels_per_point: f32) -> f64 {
     view.zoom * f64::from(pixels_per_point)
 }
 
+/// `view` at `device` zoom (1 = 100 %), clamped to the zoom range of a document of `size`, with its centre kept.
+pub fn with_device(view: &CanvasView, device: f64, size: Size, pixels_per_point: f32) -> CanvasView {
+    let mut next = *view;
+    next.zoom = CanvasView::points_per_unit(ZoomLadder::clamp(device, size), pixels_per_point);
+    next
+}
+
 /// The document's width (with the pixel aspect) and height as the view draws them, and the
 /// absolute sine and cosine of its rotation.
 fn shown_extent(view: &CanvasView, size: Size) -> (f64, f64, f64, f64) {

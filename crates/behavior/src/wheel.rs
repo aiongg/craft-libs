@@ -46,17 +46,25 @@ pub struct Wheel {
     pub unit: WheelUnit,
     /// The gesture phase.
     pub phase: WheelPhase,
+    /// Where the pointer was, in screen points; a zoom is about this point.
+    pub at: Option<Pos2>,
 }
 
 impl Wheel {
     /// A scroll of `scroll` points with no zoom.
     pub const fn new(scroll: Vec2, mods: Mods, unit: WheelUnit, phase: WheelPhase) -> Self {
-        Wheel { scroll, zoom: 1.0, mods, unit, phase }
+        Wheel { scroll, zoom: 1.0, mods, unit, phase, at: None }
     }
 
     /// The same gesture with zoom factor `zoom`.
     pub const fn zoom(mut self, zoom: f32) -> Self {
         self.zoom = zoom;
+        self
+    }
+
+    /// The same gesture with the pointer at `at`.
+    pub const fn at(mut self, at: Pos2) -> Self {
+        self.at = Some(at);
         self
     }
 }

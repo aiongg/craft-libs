@@ -1,2 +1,0 @@
-crates/table/src/ui
-crates/table/tests/it

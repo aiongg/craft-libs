@@ -16,6 +16,8 @@ pub(crate) struct Own<'a> {
     pub role: NodeRole,
     pub rect: Rect,
     pub label: &'a str,
+    /// The node's one control carries its label as its name: the node itself has no name.
+    pub names_nothing: bool,
     pub tooltip: Option<&'a str>,
     /// The full text of the first elided run, the name when nothing else names the node.
     pub elided: Option<&'a str>,
@@ -43,6 +45,8 @@ pub(crate) struct Own<'a> {
     /// Parts of the component open its popups: their sub-nodes report the expanded state and serve Expand and
     /// Collapse, so the component's own node does not.
     pub popups_by_part: bool,
+    /// The component's horizontal axis keeps its left-to-right order under a right-to-left interface.
+    pub ltr_axis: bool,
 }
 
 /// A popup an anchor shows this pass.
@@ -199,7 +203,10 @@ pub(crate) fn report_finding(ctx: &Context, finding: Finding) {
 /// Fills the node step 8 created for `own`, registers it for action routing and in the label scope.
 pub(crate) fn report(ctx: &Context, own: &Own<'_>) {
     let access = own.access;
-    let name = named(&access.name, own.label, &[own.tooltip, own.elided]);
+    let mut name = named(&access.name, own.label, &[own.tooltip, own.elided]);
+    if own.names_nothing {
+        name.text = None;
+    }
     let description = access
         .description
         .as_deref()
@@ -242,6 +249,7 @@ pub(crate) fn report(ctx: &Context, own: &Own<'_>) {
         column_count: spec.grid.column_count.or(access.grid.column_count),
     };
     write_states(&mut spec, own.flags, own.enabled, own.read_only);
+    spec.ltr_axis = own.ltr_axis;
     spec.busy |= access.busy;
     if let Some(expanded) = expanded {
         spec.actions.push(if expanded { NodeAction::Collapse } else { NodeAction::Expand });

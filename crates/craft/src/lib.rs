@@ -126,18 +126,12 @@ pub mod story {
         all.extend(craft_font_manager::ui::stories());
         #[cfg(feature = "imaging")]
         all.extend(craft_imaging::ui::stories());
-        #[cfg(feature = "keymap")]
-        all.extend(craft_keymap::ui::stories());
         #[cfg(feature = "pages")]
         all.extend(craft_pages::ui::stories());
         #[cfg(feature = "review")]
         all.extend(craft_review::ui::stories());
-        #[cfg(feature = "table")]
-        all.extend(craft_table::ui::stories());
         #[cfg(feature = "text")]
         all.extend(craft_text::ui::stories());
-        #[cfg(feature = "timeline")]
-        all.extend(craft_timeline::ui::stories());
         all
     }
 }
@@ -163,18 +157,12 @@ pub mod words {
         all.extend(craft_font_manager::ui::WORDS);
         #[cfg(feature = "imaging")]
         all.extend(craft_imaging::ui::WORDS);
-        #[cfg(feature = "keymap")]
-        all.extend(craft_keymap::ui::WORDS);
         #[cfg(feature = "pages")]
         all.extend(craft_pages::ui::WORDS);
         #[cfg(feature = "review")]
         all.extend(craft_review::ui::WORDS);
-        #[cfg(feature = "table")]
-        all.extend(craft_table::ui::WORDS);
         #[cfg(feature = "text")]
         all.extend(craft_text::ui::WORDS);
-        #[cfg(feature = "timeline")]
-        all.extend(craft_timeline::ui::WORDS);
         #[cfg(any(feature = "platform", feature = "dialogs"))]
         all.push(service_messages());
         all
@@ -209,16 +197,12 @@ pub mod words {
         all.push(craft_font_manager::ui::COUNTS);
         #[cfg(feature = "imaging")]
         all.push(craft_imaging::ui::COUNTS);
-        #[cfg(feature = "keymap")]
-        all.push(craft_keymap::ui::COUNTS);
         #[cfg(feature = "pages")]
         all.push(craft_pages::ui::COUNTS);
         #[cfg(feature = "review")]
         all.push(craft_review::ui::COUNTS);
         #[cfg(feature = "text")]
         all.push(craft_text::ui::COUNTS);
-        #[cfg(feature = "timeline")]
-        all.push(craft_timeline::ui::COUNTS);
         all
     }
 }

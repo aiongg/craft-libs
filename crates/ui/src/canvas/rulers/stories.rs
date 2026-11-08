@@ -1,7 +1,7 @@
 //! Stories of the rulers.
 
 use super::{CORNER, Rulers};
-use crate::canvas::{Canvas, RulerText, ToolPath};
+use crate::canvas::{Canvas, RulerText};
 use crate::contract::{Bind, Show as _, ShowContainer as _, Validity};
 use crate::runtime::env::{Env, Message, UnitKind};
 use crate::testing::pointer;
@@ -21,8 +21,6 @@ const LEAST_X: f64 = 0.0;
 
 /// The units the menu story offers.
 const UNITS: [UnitKind; 2] = [UnitKind::Pixels, UnitKind::Points];
-
-const CANVAS_AT: ToolPath = ToolPath::Command("the New Guide... command");
 
 fn pixels() -> RulerText {
     RulerText::new(RulerUnits::pixels(), UnitKind::Pixels)
@@ -53,7 +51,7 @@ fn on_canvas(ui: &mut Ui, zero: Point, mut rulers: impl FnMut(&mut Ui, Rect) -> 
     let content = Rulers::content_rect(&Env::of(ui).tokens, full);
     let view = CanvasView::new(content, CENTRE, 1.0);
     let text = pixels();
-    Canvas::new("Document", CANVAS_AT)
+    Canvas::new("Document")
         .view(view)
         .rulers(text, text, zero)
         .show(ui, |ui, body| rulers(ui, body.rect))

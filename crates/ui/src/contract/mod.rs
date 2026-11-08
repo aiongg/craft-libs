@@ -52,8 +52,8 @@ pub use cx::{Accessible, Activation, BodyCx, Cx, CxCore, Edit, Focus, ItemCx, Me
 pub use entry::Entry;
 pub use group::{GroupHandle, GroupKind, GroupState};
 pub use held::Held;
-pub use items::{ColumnCommands, request_rename};
-pub(crate) use items::{lead_position, section_part};
+pub(crate) use items::lead_position;
+pub use items::{ColumnCommands, request_rename, section_part};
 pub use label::{CellWidth, FieldLabelRole, FieldLayout, GlyphLabel, LabelAlign, LabelKind, Scrub, SideLabel};
 pub use looks::Looks;
 pub use overlay::{Overlay, OverlayUi, Overlays, Popup, PopupHandle, Trigger};
@@ -81,8 +81,9 @@ pub use crate::runtime::drag::{DragPreview, DropMark, DropTarget, OsFile, OsFile
 #[cfg(feature = "testing")]
 pub(crate) use body::MOVE_BAND;
 pub use craft_behavior::DropOperation;
+pub use craft_behavior::ColumnKey;
 pub(crate) use run::measure_under;
-pub(crate) use steps::take_reveal;
+pub(crate) use steps::{take_reveal, take_scroll_to};
 
 /// Where an element's id comes from.
 #[derive(Clone, Copy, Debug, Default)]
@@ -244,6 +245,12 @@ pub trait Component: Meta + Sized {
     /// glyph: with no tooltip set, its label is then its tooltip, since the label is the only visible name the
     /// pointer can reach. A component whose answer varies per instance overrides `shows_label`.
     const SHOWS_LABEL: bool = true;
+
+    /// Whether the component's horizontal axis keeps its left-to-right order under a right-to-left interface: a time
+    /// axis, a ruler, a document view. The component itself sits where the interface puts it; its content flow, keys
+    /// and roving order, and the nodes inside it, do not mirror. The suite's right-to-left case reads the same
+    /// declaration from the access tree.
+    const LTR_AXIS: bool = false;
 
     /// The style type.
     type Style: ComponentStyle;
@@ -460,6 +467,13 @@ pub trait Collection: Component + HasProps + Meta<Shape = shape::Items> {
     /// Whether the collection takes files dragged in from the OS: a drop reports `CollectionEvent::FilesDropped` at the
     /// insert position under the pointer, with the same drop mark an internal drag gets.
     fn takes_files(&self) -> bool {
+        false
+    }
+
+    /// Whether the collection takes the zoom share of the wheel (Ctrl or Cmd with the wheel): it reports
+    /// `CollectionEvent::Zoom` and the app sets its zoom and, with `Focus::scroll_to`, the scroll position that keeps
+    /// the content under the pointer fixed.
+    fn zooms(&self) -> bool {
         false
     }
 

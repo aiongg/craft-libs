@@ -5,7 +5,7 @@ use crate::collection::table::Table;
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, IconId, ItemSource};
 use craft_keymap::Mods;
 use craft_ui::contract::{
-    CollectionEvent, CollectionProps, ColumnKind, ColumnSpec, Props as _, ReorderRule, SelectMode, ShowCollection as _, ToggleColumn,
+    Bind, CollectionEvent, CollectionProps, ColumnKind, ColumnSpec, Props as _, ReorderRule, Role, SelectMode, ShowCollection as _, ToggleColumn,
 };
 use craft_ui::list::{List, ListRow, RowEvent, ThumbSize, ThumbTarget, TrailingFace, TrailingPart};
 use craft_ui::runtime::drag;
@@ -13,6 +13,7 @@ use craft_ui::sections::{FooterAction, FooterBar};
 use craft_ui::testing::internals::place_row;
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::{Fixture, Frames, pointer, trial};
+use craft_ui::text::HexField;
 use egui::{Key, Modifiers, Pos2, Rect, Ui, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -251,7 +252,13 @@ fn a_toggle_click_reports_its_modifiers() {
         .events
         .borrow()
         .iter()
-        .filter_map(|event| if let CollectionEvent::Toggle(edit) = event { edit.value().map(|toggle| toggle.mods) } else { None })
+        .filter_map(|event| {
+            if let CollectionEvent::Toggle(edit) = event {
+                edit.value().filter(|_| !matches!(edit, craft_behavior::EditEvent::Commit { .. })).map(|toggle| toggle.mods)
+            } else {
+                None
+            }
+        })
         .collect();
     assert!(!mods.is_empty() && mods.iter().all(|mods| mods.shift), "{mods:?}");
 }
@@ -293,4 +300,40 @@ fn a_footer_pick_reports_its_modifiers() {
     fixture.hold(Modifiers::ALT);
     fixture.click(&target);
     assert!(picked.borrow().iter().any(|mods: &Mods| mods.alt), "{:?}", picked.borrow());
+}
+
+/// A field hosted in a row takes the typing aimed at it, leaves the row's selection and focus model alone, and Tab
+/// leaves it for the next stop.
+#[trial]
+fn a_hosted_field_takes_typing_and_tab_leaves_it() {
+    let committed = Rc::new(Cell::new(None));
+    let sink = committed.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let sink = sink.clone();
+        let _ = List::new("Items").select(SelectMode::Single).show_items(ui, &Two, &mut |key, _| {
+            let sink = sink.clone();
+            let row = ListRow::new(format!("Row {key}"));
+            if *key == 0 {
+                row.trailing_field(HexField::hex("Hex", Bind::given(craft_theme::Rgba::rgb(0, 0, 0))), move |out| {
+                    if let Some(value) = out.value() {
+                        sink.set(Some(*value));
+                    }
+                })
+            } else {
+                row
+            }
+        });
+    });
+    fixture.settle();
+    let field = fixture.by_role(Role::TEXT_INPUT).into_iter().next().expect("the row hosts a field");
+    fixture.click(&field);
+    fixture.idle(2);
+    fixture.type_text("ff0000");
+    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.idle(2);
+    assert_eq!(committed.get(), Some(craft_theme::Rgba::rgb(255, 0, 0)), "the typing reached the field");
+    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.idle(2);
+    let focused = fixture.focused().expect("Tab lands on a stop");
+    assert!(craft_ui::testing::access::NodeKey::of(focused) != field.node, "Tab leaves the field");
 }

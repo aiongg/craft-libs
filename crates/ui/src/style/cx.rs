@@ -232,6 +232,14 @@ impl<'a> StyleCx<'a> {
         control_metrics(self.tokens, self.size, stack_facts(self.ctx).line_ratio)
     }
 
+    /// The width of `text` set in the face of `role`: the sizes that follow the text (a row header's digit) read it
+    /// here instead of borrowing an icon or control size.
+    pub fn text_width(&self, role: craft_theme::TypeRole, text: &str) -> f32 {
+        let font_id = self.tokens.font(stack_facts(self.ctx), role, false);
+        let job = egui::text::LayoutJob::simple_singleline(text.to_owned(), font_id, Color32::PLACEHOLDER);
+        self.ctx.fonts_mut(|fonts| fonts.layout_job(job)).size().x
+    }
+
     /// What a surface of `kind` draws.
     pub fn surface(&self, kind: SurfaceKind) -> SurfaceStyle {
         surface_style(self.tokens, kind)
@@ -323,7 +331,7 @@ impl<'a> StyleCx<'a> {
 /// token's type line: the control's vertical padding (the token height less the label role's line height, which
 /// the token already holds) around the leading face's line height at the label size. `line_ratio` is that face's
 /// line height per point of text (`0` with no stack installed: the token alone).
-pub fn control_metrics(tokens: &UiTokens, size: ControlSize, line_ratio: f32) -> ControlMetrics {
+pub(crate) fn control_metrics(tokens: &UiTokens, size: ControlSize, line_ratio: f32) -> ControlMetrics {
     let sizes = &tokens.size;
     let label = tokens.typography.label;
     let grown = |token: f32| token + (line_ratio * label.size - label.line_height).max(0.0);

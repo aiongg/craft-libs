@@ -6,6 +6,7 @@
 use crate::runtime::cursor;
 use crate::runtime::egui::input::{self as raw_input, RawInput};
 use crate::runtime::egui::memory::Service;
+use crate::runtime::egui::input_filter::{self, KeyEquivalent};
 use crate::runtime::egui::{injected, pass, scale, screenshot, viewports, widgets};
 use crate::runtime::frame::{PassStep, PerViewport, Stamped};
 use crate::runtime::{overlay, pointer};
@@ -273,6 +274,8 @@ pub struct WindowSpec {
     pub level: WindowLevel,
     /// Whether the window has a taskbar or Dock entry.
     pub taskbar: bool,
+    /// Whether the window opens hidden and appears once its first pass has been laid out and painted.
+    pub shown_after_first_paint: bool,
 }
 
 impl WindowSpec {
@@ -289,7 +292,14 @@ impl WindowSpec {
 
     /// A dialog window with the installed decision's frame.
     pub fn dialog() -> Self {
-        WindowSpec { kind: WindowKind::Dialog, chrome: None, captions: None, level: WindowLevel::Normal, taskbar: true }
+        WindowSpec {
+            kind: WindowKind::Dialog,
+            chrome: None,
+            captions: None,
+            level: WindowLevel::Normal,
+            taskbar: true,
+            shown_after_first_paint: false,
+        }
     }
 
     /// Sets what the window is for.
@@ -335,6 +345,14 @@ impl WindowSpec {
     #[must_use]
     pub fn taskbar(mut self, taskbar: bool) -> Self {
         self.taskbar = taskbar;
+        self
+    }
+
+    /// Sets whether the window opens hidden and appears after its first paint, so a window that shows a capture or
+    /// other content that must be ready does not flash an empty frame.
+    #[must_use]
+    pub fn shown_after_first_paint(mut self, hidden_until_painted: bool) -> Self {
+        self.shown_after_first_paint = hidden_until_painted;
         self
     }
 }
@@ -518,6 +536,8 @@ struct Record {
     primary_down: bool,
     /// Whether the user can resize the window; unknown for a window not opened by `show_viewport`.
     resizable: Option<bool>,
+    /// Whether the window was opened hidden and its first pass has not run yet.
+    awaiting_first_paint: bool,
     /// The last OS move or resize the window was handed.
     handoff: Option<HandOff>,
     /// The geometry last written to the placement store, so an unchanged window writes nothing.
@@ -553,6 +573,13 @@ fn shared<R>(ctx: &Context, f: impl FnOnce(&mut Shared) -> R) -> R {
 /// Called by `install`: keeps the shell, the OS services and the placement store.
 pub(crate) fn install(ctx: &Context, shell: ShellInfo, system: Arc<dyn WindowSystem>, store: Option<Arc<Mutex<Store>>>, frame: Option<Decision>) {
     let layouts = frame.as_ref().map(LayoutWatch::new);
+    let shell = match &frame {
+        Some(decision) => {
+            let window = (*shell.window).clone().chrome(chrome_of(&decision.frame));
+            shell.window(window)
+        }
+        None => shell,
+    };
     shared(ctx, |shared| {
         shared.shell = Some(shell);
         shared.system = Some(system);
@@ -577,11 +604,25 @@ pub(crate) fn os_of(ctx: &Context) -> Os {
 #[cfg(feature = "testing")]
 pub(crate) fn set_os(ctx: &Context, os: Os) {
     shared(ctx, |shared| {
+        let root_chrome = shared.root_frame.as_ref().map(chrome_of);
         let shell = shared.shell.get_or_insert_with(ShellInfo::default);
         shell.os = os;
         if shell.runtime == Runtime::Native {
             shell.caps = Caps::native(os);
-            shell.menu = if shell.caps.contains(Caps::NATIVE_MENU_BAR) { MenuPlacement::ScreenTop } else { MenuPlacement::InWindow };
+            shell.menu = MenuPlacement::of(shell.caps, root_chrome.unwrap_or(shell.window.chrome));
+        }
+    });
+}
+
+/// Makes the root window's frame `chrome`, as a host with that frame reports: a native build's menu placement
+/// follows it. The installed decision, when there is one, decides the chrome instead.
+#[cfg(feature = "testing")]
+pub(crate) fn set_chrome(ctx: &Context, chrome: WindowChrome) {
+    shared(ctx, |shared| {
+        let shell = shared.shell.get_or_insert_with(ShellInfo::default);
+        std::sync::Arc::make_mut(&mut shell.window).chrome = chrome;
+        if shell.runtime == Runtime::Native {
+            shell.menu = MenuPlacement::of(shell.caps, chrome);
         }
     });
 }
@@ -964,6 +1005,12 @@ impl WindowHost {
         injected::inject_key(&self.ctx, viewport, key, mods);
     }
 
+    /// Adds `equivalent` to the next input of `viewport`: a key equivalent the platform's menu took from the window
+    /// reaches the application as the key press the user made.
+    pub fn key_equivalent(&self, viewport: ViewportId, equivalent: KeyEquivalent) {
+        input_filter::add_key_equivalent(&self.ctx, viewport, equivalent);
+    }
+
     /// Queues `text` as typed text.
     pub fn inject_text(&self, viewport: ViewportId, text: &str) {
         injected::inject_text(&self.ctx, viewport, text);
@@ -1214,6 +1261,7 @@ pub(crate) fn show_viewport(ctx: &Context, open: &ViewportOpen<'_>, mut body: im
         record.chrome = Some(chrome);
         record.captions = captions.clone();
         record.resizable = Some(open.resizable);
+        record.awaiting_first_paint |= spec.shown_after_first_paint && record.facts.is_none();
         record.level.get_or_insert(spec.level).for_egui(active, os)
     });
     let opens = viewports::Spec {
@@ -1228,6 +1276,7 @@ pub(crate) fn show_viewport(ctx: &Context, open: &ViewportOpen<'_>, mut body: im
         level,
         resizable: open.resizable,
         taskbar: spec.taskbar,
+        hidden: PerViewport::<Record>::with(ctx, viewport, |record| record.awaiting_first_paint),
     };
     viewports::show_immediate(ctx, viewport, &opens, |ui| {
         let ctx = ui.ctx().clone();
@@ -1245,6 +1294,9 @@ pub(crate) fn show_viewport(ctx: &Context, open: &ViewportOpen<'_>, mut body: im
             record_placement(&ctx, viewport, key, &viewports::current(&ctx));
         }
     });
+    if PerViewport::<Record>::with(ctx, viewport, |record| std::mem::take(&mut record.awaiting_first_paint)) {
+        viewports::show(ctx, viewport);
+    }
 }
 
 /// Whether the OS asked the viewport of container `id` to close in this root frame; once.

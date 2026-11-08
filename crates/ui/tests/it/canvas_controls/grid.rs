@@ -3,7 +3,7 @@
 
 use craft_behavior::kurbo::{Point, Vec2};
 use craft_behavior::{CanvasView, PixelSize};
-use craft_ui::canvas::{Canvas, CanvasSpace, PixelRect, RasterSource, ToolPath};
+use craft_ui::canvas::{Canvas, CanvasSpace, PixelRect, RasterSource};
 use craft_ui::canvas_controls::{CanvasGrid, GridLine, GridSegment, MAX_LINES, PixelGrid};
 use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::primitives::Revision;
@@ -202,7 +202,7 @@ fn the_pixel_grid_reads_only_what_the_source_reports_damaged() {
     let rect = egui::Rect::from_min_size(Pos2::ZERO, egui::Vec2::splat(200.0));
     let view = CanvasView::new(rect, Point::new(128.0, 128.0), ZOOM);
     let mut fixture = Fixture::new(move |ui| {
-        Canvas::new("Document", ToolPath::Freehand).view(view).show(ui, |ui, body| {
+        Canvas::new("Document").view(view).show(ui, |ui, body| {
             PixelGrid::new("Pixel grid", &*shown).show_at(ui, body.rect);
         });
     });

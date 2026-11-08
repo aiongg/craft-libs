@@ -167,7 +167,7 @@ pub fn rtl_case(story: &Story) -> Result<(), String> {
     // direction: `mirrored` reflects across the middle of this span.
     let within = egui::Rect::from_min_max(own.0.min, egui::pos2(own.1.max.x, own.0.max.y));
     let tree = ltr.tree();
-    for key in tree.keys().into_iter().filter(|key| is_interactive(tree, *key) && !in_document_space(tree, *key)) {
+    for key in tree.keys().into_iter().filter(|key| is_interactive(tree, *key) && !in_document_space(tree, *key) && !tree.in_ltr_axis(*key)) {
         let (Some(a), Some(b)) = (tree.bounds_of(key), rtl.tree().bounds_of(key)) else { continue };
         if !mirrored(a, b, within) {
             return Err(format!("{}: a node at {a:?} is at {b:?} under right-to-left, not its reflection", story.name));

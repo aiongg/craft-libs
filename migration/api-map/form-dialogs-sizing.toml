@@ -8,7 +8,7 @@ name = "ImageSizeDialog"
 old = "craft_ui::dialog::sizing::ImageSizeDialog"
 new = ""
 status = "removed"
-note = "Replaced by `ImageSize`, a pattern: `ImageSize::new(Bind<ImageSizeValues>).show(ui) -> ImageSizeOutput { response, closed, result: Option<ImageSizeResult> }`. The dialog is no `StackDialog`: the app shows it each pass while its open state is on (`opened(Bind<bool>)`) and reads `result` the pass OK closes it. The values are the binding the app passes (`ImageSizeValues::new(PixelSize)` with the opening setters), so `fields`, `fields_mut`, the `chosen_*` readers, the `set_*` methods and `confirm` are gone."
+note = "Replaced by `ImageSize`, a pattern: `ImageSize::new(Bind<ImageSizeValues>).show(ui) -> ImageSizeOutput { response, closed, result: Option<ImageSizeResult> }`. Without a host the app shows it each pass while its open state is on (`opened(Bind<bool>)`) and reads `result` the pass OK closes it; a `DialogHost` owns it as `HostedImageSize`. The values are the binding the app passes (`ImageSizeValues::new(PixelSize)` with the opening setters), so `fields`, `fields_mut`, the `chosen_*` readers, the `set_*` methods and `confirm` are gone."
 
 [[type]]
 name = "CanvasSizeDialog"
@@ -23,6 +23,13 @@ old = ""
 new = "craft_ui::patterns::form_dialogs::ImageSize"
 status = "replaced"
 note = "Image Size on `FormDialog<ImageSizeValues>`: width, height and resolution as `UnitSelect` rows over one `LinkedSize`, the chain as `link_toggle`, Resample with a method `Select`, Scale Styles, and `Text` readouts of the file size and dimensions. Alt turns Cancel into Reset; OK is refused for an empty size or one over `MAX_DOCUMENT_SIDE`; with Resample off the pixel fields are disabled."
+
+[[type]]
+name = "HostedImageSize"
+old = ""
+new = "craft_ui::patterns::form_dialogs::HostedImageSize"
+status = "replaced"
+note = "The `StackDialog` form of `ImageSize`: `HostedImageSize::new(values: ImageSizeValues, build)` with `build` making the `ImageSize` over the host-owned values (`|values| ImageSize::new(values)`), `values()`, `Result = ImageSizeResult`, key `sizing.imageSize`. The app opens it on its `DialogHost` with the values of its document and takes the result with `host.take::<HostedImageSize>()`."
 
 [[type]]
 name = "CanvasSize"

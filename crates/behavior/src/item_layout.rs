@@ -52,6 +52,12 @@ pub trait ItemLayout {
         None
     }
 
+    /// The height at the top of the view that item `at` must not paint into: the zoomed frozen-row band for a scrolled
+    /// row, zero for a frozen row and for a layout without frozen rows.
+    fn frozen_band(&self, _at: usize) -> f32 {
+        0.0
+    }
+
     /// The column widths the collection resolved, from the start edge; layouts without columns ignore them.
     fn set_columns(&mut self, _columns: &[(ColumnKey, f32)]) {}
 
@@ -486,16 +492,27 @@ pub struct TileLayout {
     pub count: usize,
     /// The width the tiles wrap in.
     pub width: f32,
+    /// A column count the user set, which replaces the count the width allows.
+    pub fixed_columns: Option<usize>,
 }
 
 impl TileLayout {
     /// One tile of `tile` per entry of `source`, `gap` apart, wrapping at `width`.
     pub fn new<K>(source: &dyn DisplayOrder<K>, width: f32, tile: Vec2, gap: f32) -> Self {
-        Self { tile, gap, count: source.len(), width }
+        Self { tile, gap, count: source.len(), width, fixed_columns: None }
     }
 
-    /// Tiles per row: at least one.
+    /// Exactly `columns` tiles per row, whatever the width (a user setting; at least one).
+    pub fn in_columns(mut self, columns: usize) -> Self {
+        self.fixed_columns = Some(columns.max(1));
+        self
+    }
+
+    /// Tiles per row: the user's count, else what the width allows; at least one.
     pub fn columns(&self) -> usize {
+        if let Some(columns) = self.fixed_columns {
+            return columns;
+        }
         (((self.width + self.gap) / (self.tile.x + self.gap)).floor() as usize).max(1)
     }
 
@@ -684,8 +701,11 @@ impl ItemLayout for SheetLayout {
         let (row, zoom) = (line_of(at), self.zoom_factor());
         let content = self.rows.start(row) * zoom;
         let top = if row < self.frozen_rows { content } else { content - offset.y };
-        let size = Vec2::new((self.columns.total() * zoom) as f32, (self.rows.size(row) * zoom) as f32);
-        Rect::from_min_size(Pos2::new(-(offset.x as f32), top as f32), size)
+        let height = (self.rows.size(row) * zoom) as f32;
+        // A row spans the columns the view shows, from the view's left edge: a row as wide as the whole sheet (16,384
+        // columns) is never a row's rect. Before a view is set the view is empty and the row has no width.
+        let right = self.grid.as_ref().and_then(|grid| grid.sections.last()).and_then(|section| section.edges.last()).copied().unwrap_or(0.0);
+        Rect::from_min_size(Pos2::new(0.0, top as f32), Vec2::new(right, height))
     }
 
     /// The frozen band is checked first: a point in it finds the frozen row under it, whatever the scroll.
@@ -730,6 +750,10 @@ impl ItemLayout for SheetLayout {
 
     fn grid(&self) -> Option<&GridView> {
         self.grid.as_ref()
+    }
+
+    fn frozen_band(&self, at: usize) -> f32 {
+        if at < self.frozen_rows as usize { 0.0 } else { self.band() as f32 }
     }
 
     fn set_view(&mut self, viewport: Vec2, offset: ScrollPos) {

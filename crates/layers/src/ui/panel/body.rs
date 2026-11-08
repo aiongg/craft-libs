@@ -17,7 +17,7 @@ use super::context::PanelContext;
 use super::drag::{LayersDrag, accepts_drop, drop_event};
 use super::events::{ActivateOn, LayerColumn, LayerSelect, LayerToggle, LayersEvent, MenuTarget};
 use super::menu::OpenMenu;
-use super::row::{EYE, FX_PART, LOCK, LOCK_PART, build_row};
+use super::row::{EYE, FX_PART, LOCK, LOCK_PART, NAME, build_row};
 use crate::ui::filter::LayerFilter;
 use crate::ui::tree::{LayerInfo, LayerPart, LayerRowKey, LayerTree, SubRowGroup};
 
@@ -280,7 +280,9 @@ pub(super) fn show_body<T: LayerTree>(
     if cx.lock_column {
         columns.push(ColumnSpec::new(LOCK, Label::Empty, ColumnWidth::Controls(1.0)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())));
     }
+    columns.push(ColumnSpec::new(NAME, Label::Empty, ColumnWidth::fill(1.0)));
     let parent_of = |id: &T::Id| tree.parent(id);
+    let ctx = ui.ctx().clone();
 
     let mut list = List::new(cx.words.list.clone())
         .id(cx.list)
@@ -288,10 +290,13 @@ pub(super) fn show_body<T: LayerTree>(
         .reorder(ReorderRule::new().into_groups().copy_with_alt())
         .allow_empty(true)
         .rename(true)
+        .rename_column(NAME)
         .columns(columns)
         .selection(Bind::bound(&mut selection))
         .can_rename(|key| matches!(key, LayerRowKey::Layer(id) if tree.info(id).renamable))
-        .accepts(|drag: &ListDrag<LayerRowKey<T::Id>>, _over, insert| accepts_drop(tree, drag, &order, insert))
+        .accepts(|drag: &ListDrag<LayerRowKey<T::Id>>, _over, insert| {
+            accepts_drop(tree, drag, &order, insert, craft_ui::runtime::pointer::frame(&ctx).mods)
+        })
         .drag_payload(|drag: &ListDrag<LayerRowKey<T::Id>>| Some(LayersDrag::of_rows(drag)));
     if let Some(key) = reveal_key {
         list = list.reveal(key);
@@ -307,7 +312,8 @@ pub(super) fn show_body<T: LayerTree>(
 
     let mut events: Vec<LayersEvent<T::Id>> = reveal.opens.iter().cloned().map(LayersEvent::Open).collect();
     let selection_changed = out.events.iter().any(|event| matches!(event, CollectionEvent::Selection(_)));
-    map_events(cx, &order, &parent_of, filtered, lock_name, session, out.events, &mut events);
+    let list_events = out.events;
+    map_events(cx, &order, &parent_of, filtered, lock_name, session, list_events, &mut events);
     if !ui.input(|input| input.pointer.primary_down()) {
         session.sweep = None;
     }

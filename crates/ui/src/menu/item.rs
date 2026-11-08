@@ -641,7 +641,8 @@ impl Component for MenuItem<'_> {
         if hovered && waited >= DWELL && level.clear_submenu() {
             frame::request_repaint(&ctx);
         }
-        if typed {
+        // Every activation of a menu row reaches its command as `FireSource::Menu`, whether it was typed, clicked or keyed.
+        if asked && cx.command.is_some() {
             cx.activate(FireSource::Menu);
         }
         if asked && self.keep_open {

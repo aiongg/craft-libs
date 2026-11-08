@@ -372,6 +372,33 @@ impl<T> EditResponse<T> {
     }
 }
 
+impl<T: Clone> EditResponse<T> {
+    /// The response of a child component's edit as the response of the edit of a value built from it: the event, the
+    /// shown value and a fix are mapped by `f`; the response and flags are the child's own.
+    pub fn map<U>(self, f: impl Fn(T) -> U) -> EditResponse<U> {
+        let validity = match self.validity {
+            Validity::Ok => Validity::Ok,
+            Validity::Fix(value) => Validity::Fix(f(value)),
+            Validity::Warn(message) => Validity::Warn(message),
+            Validity::Refuse(message) => Validity::Refuse(message),
+            _ => Validity::Ok,
+        };
+        let shown = self.shown.map(|shown| match shown {
+            Mixed::Same(value) => Mixed::Same(Arc::new(f(Arc::unwrap_or_clone(value)))),
+            Mixed::Mixed => Mixed::Mixed,
+        });
+        EditResponse {
+            response: self.response,
+            event: self.event.map(|event| event.map(&f)),
+            submitted: self.submitted,
+            escaped: self.escaped,
+            unparsed: self.unparsed,
+            validity,
+            shown,
+        }
+    }
+}
+
 impl<T: Value> Outcome for EditResponse<T> {
     type Value = T;
 

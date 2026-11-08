@@ -13,7 +13,7 @@ use crate::buttons::IconButton;
 use crate::choice::Checkbox;
 use crate::contract::{
     Access, Bind, ColumnAlign, ColumnSpec, Common, Component, Cx, DragPreview, ItemOutput, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx,
-    Pointer as _, Props as _, Role, RowState, Styled as _, WordSetCx as _,
+    Pointer as _, Props as _, Role, RowState, Show, Styled as _, WordSetCx as _,
 };
 use crate::controls::disclosure::Disclosure;
 use crate::primitives::{ContentPainterCx, Draw, HAlign, IconSpec, PaintShape, RuleKind, Span, StrokeWidth, TextRun, Wrap};
@@ -242,19 +242,24 @@ impl TrailingFace {
     }
 }
 
+/// Shows a hosted component at the rect the row gives it; the index is the item's place among the trailing items.
+type HostedShow<'a> = Box<dyn FnOnce(&mut PaintUi<'_>, usize, Rect) + 'a>;
+
 /// What a trailing item is.
-pub(super) enum TrailingItem {
+pub(super) enum TrailingItem<'a> {
     /// A caption-role text as wide as it measures.
     Text(Label),
     /// An icon of the row's icon size, named for the screen reader and the tooltip.
     Icon { icon: IconSpec<'static>, name: Label },
     /// A pressable face of the row's icon size.
     Part { part: TrailingPart, face: TrailingFace, name: Label },
+    /// A component of its own, shown in a short field's width; its stop joins the row's group and it takes its own keys.
+    Hosted(Option<HostedShow<'a>>),
 }
 
 /// A trailing item and whether it drops out for room; only a text can be optional.
-pub(super) struct Trailing {
-    pub item: TrailingItem,
+pub(super) struct Trailing<'a> {
+    pub item: TrailingItem<'a>,
     pub optional: bool,
 }
 
@@ -351,7 +356,7 @@ pub struct ListRow<'a> {
     /// The thumbnail the row's editing is aimed at: framed with corner brackets whether or not the row is selected.
     #[prop(name = "thumb_target")]
     pub(super) target: Option<ThumbTarget>,
-    pub(super) trailing: Vec<Trailing>,
+    pub(super) trailing: Vec<Trailing<'a>>,
     /// The row's depth in a tree, which indents it; `None` for a row of a flat list.
     /// The row is at `depth` levels of a tree: indented by it, an `AccessKit` tree item.
     #[prop]
@@ -550,6 +555,18 @@ impl<'a> ListRow<'a> {
         self
     }
 
+    /// A component at the trailing end, in the width of a short field, that always shows: a field that edits a
+    /// value of the row. The row shows `field` as one of its parts and hands its output to `output` in the pass it is
+    /// shown. The row declares the field's rect as a part, and the field's stop joins the row's roving group like the
+    /// row's focusable parts (Forward from the row enters it, Tab leaves the collection); it takes the keys it
+    /// declares.
+    #[must_use]
+    pub fn trailing_field<C: Show + 'a>(mut self, field: C, output: impl FnOnce(C::Output) + 'a) -> Self {
+        let show: HostedShow<'a> = Box::new(move |ui, at, rect| output(ui.child(("field", at), rect, field)));
+        self.trailing.push(Trailing { item: TrailingItem::Hosted(Some(show)), optional: false });
+        self
+    }
+
     /// A drag that starts on the thumbnail `target` drags `payload` through the drag session, with a ghost as large as
     /// the thumbnail, and reports [`RowEvent::ThumbDrag`]; the row does not drag.
     #[must_use]
@@ -568,6 +585,7 @@ const DISCLOSURE: PartKey = PartKey::new("disclosure");
 const LINK: PartKey = PartKey::new("link");
 const TRAILING: PartKey = PartKey::new("trailing");
 const TRAILING_ICON: PartKey = PartKey::new("trailing-icon");
+const TRAILING_FIELD: PartKey = PartKey::new("trailing-field");
 const THUMB: PartKey = PartKey::new("thumb");
 
 /// How far the hover tint of the layer form tints toward the accent.
@@ -585,6 +603,8 @@ struct Sizes {
     pad: f32,
     gap: f32,
     trailing_pad: f32,
+    /// The width of a hosted field.
+    field: f32,
     min_label: f32,
     thumbs: [f32; 3],
     thumb_pad: f32,
@@ -608,6 +628,7 @@ impl Sizes {
             pad: control.pad_x,
             gap: control.gap,
             trailing_pad: tokens.space.pad.panel,
+            field: tokens.size.length.short,
             min_label: MIN_LABEL_HEIGHTS * control.height,
             thumbs: [thumbs.sm, thumbs.md, thumbs.lg],
             thumb_pad: tokens.space.gap.stack,
@@ -843,6 +864,7 @@ impl ListRow<'_> {
         let width = |item: &TrailingItem| match item {
             TrailingItem::Text(text) => text_width(&trailing_run(text)),
             TrailingItem::Icon { .. } | TrailingItem::Part { .. } => sizes.icon,
+            TrailingItem::Hosted(_) => sizes.field,
         };
         self.trailing.iter().map(|trailing| (width(&trailing.item), trailing.optional)).collect()
     }
@@ -1120,6 +1142,10 @@ impl Component for ListRow<'_> {
             let shape = Rect::from_center_size(slot.center(), Vec2::splat(side));
             match &trailing.item {
                 TrailingItem::Text(_) => {}
+                TrailingItem::Hosted(_) => {
+                    let field = Rect::from_center_size(slot.center(), Vec2::new(slot.width(), cx.style.sizes.row));
+                    cx.part(TRAILING_FIELD.at(at as u64), field);
+                }
                 TrailingItem::Icon { name, .. } => {
                     cx.part(TRAILING_ICON.at(at as u64), shape).tooltip(name.clone());
                 }
@@ -1252,7 +1278,7 @@ impl Component for ListRow<'_> {
         }
         for (at, trailing) in self.trailing.iter().enumerate() {
             match &trailing.item {
-                TrailingItem::Text(_) => {}
+                TrailingItem::Text(_) | TrailingItem::Hosted(_) => {}
                 TrailingItem::Icon { name, .. } => {
                     access.node(TRAILING_ICON.at(at as u64), Role::IMAGE).name = Name::Text(name.as_str().to_owned());
                 }
@@ -1320,12 +1346,12 @@ impl Component for ListRow<'_> {
 }
 
 impl ListRow<'_> {
-    fn paint_trailing(&self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>, placed: &Placed) {
+    fn paint_trailing(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>, placed: &Placed) {
         let side = Vec2::splat(cx.style.sizes.icon);
-        for (trailing, slot) in self.trailing.iter().zip(&placed.items) {
+        for (at, (trailing, slot)) in self.trailing.iter_mut().zip(&placed.items).enumerate() {
             let Some(slot) = slot else { continue };
             let shape = Rect::from_center_size(slot.center(), side);
-            match &trailing.item {
+            match &mut trailing.item {
                 TrailingItem::Text(text) => {
                     ui.draw().text(*slot, &trailing_run(text));
                 }
@@ -1333,6 +1359,11 @@ impl ListRow<'_> {
                     let mut icon = icon.clone();
                     icon.color.get_or_insert(cx.resolve(&cx.style.icon.color));
                     ui.draw().icon(shape, &icon);
+                }
+                TrailingItem::Hosted(show) => {
+                    if let Some(show) = show.take() {
+                        show(ui, at, Rect::from_center_size(slot.center(), Vec2::new(slot.width(), cx.style.sizes.row)));
+                    }
                 }
                 TrailingItem::Part { part, face, .. } => {
                     let key = TRAILING.at(u64::from(part.0));
@@ -1581,6 +1612,7 @@ pub(crate) fn placement_under_fixed_sizes(row: &ListRow<'_>, width: f32, rtl: bo
         pad: 6.0,
         gap: 4.0,
         trailing_pad: 8.0,
+        field: 64.0,
         min_label: 60.0,
         thumbs: [24.0, 32.0, 48.0],
         thumb_pad: 4.0,

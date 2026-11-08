@@ -1,7 +1,7 @@
 //! The dump writer: common values once, differing themes as extra lines, and the style groups' dump.
 
 use craft_theme::ControlSize;
-use craft_ui::style::{SurfaceKind, control_metrics};
+use craft_ui::style::SurfaceKind;
 use craft_ui::testing::dump::{Dump, Themed, check_budget, dump_resolved, flatten_debug};
 use craft_ui::testing::trial;
 
@@ -86,7 +86,9 @@ fn style_group_dump_matches_its_file() {
         });
     }
     for size in [ControlSize::Sm, ControlSize::Md] {
-        dump_resolved(&mut dump, &format!("control.{}", format!("{size:?}").to_lowercase()), |tokens| control_metrics(tokens, size, 0.0));
+        dump_resolved(&mut dump, &format!("control.{}", format!("{size:?}").to_lowercase()), |tokens| {
+            craft_ui::testing::style::with_cx(&frames.ctx, tokens, craft_ui::style::Variant::SECONDARY, size, |cx| cx.control())
+        });
     }
     dump.check(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/dumps/style_groups.txt"));
 }

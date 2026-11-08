@@ -8,6 +8,7 @@ mod detail;
 mod layer;
 mod problems;
 mod rows;
+mod stories;
 mod subject;
 mod words;
 

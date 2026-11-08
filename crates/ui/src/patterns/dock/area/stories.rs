@@ -6,7 +6,6 @@ use crate::display::Text;
 use crate::docking::{DockConfig, DockPanels, PanelLimits, PanelSpec};
 use crate::menu::PanelRow;
 use crate::patterns::presets::{PresetPanelMenu, PresetView};
-use crate::runtime::memory::unique;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::Axis;
 use craft_behavior::dock::{Column, DockEdge, Floating, Group, Layout, Node, Permissions, SplitSize, Workspace};
@@ -80,13 +79,7 @@ fn workspace() -> Workspace<usize> {
 
 fn dock(ui: &mut Ui, data: &mut StoryData, demo: &mut Demo) -> StoryOutput {
     let workspace = data.value("workspace", workspace());
-    let id = unique(("dock area story", demo.canvas_view, demo.host_rows));
-    let output = DockArea::new(id, Bind::bound(&mut *workspace), demo, DockConfig::default()).show(ui);
-    for action in output.actions.iter().cloned() {
-        // A refused action leaves the workspace as it was.
-        let _ = workspace.apply(action, false, |panel| if *panel == CANVAS { Permissions::PROTECTED } else { Permissions::ALL });
-    }
-    output.into()
+    DockArea::new("Dock", Bind::bound(&mut *workspace), demo, DockConfig::default()).show(ui).into()
 }
 
 #[story(DockArea<'static, usize>, covers = [Default], drive = Drive::Never)]

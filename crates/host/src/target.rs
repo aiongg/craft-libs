@@ -121,6 +121,15 @@ pub enum MenuPlacement {
     ScreenTop,
 }
 
+impl MenuPlacement {
+    /// Where a window's menu bar lives: at the top of the screen when the OS has such a bar and the OS draws the
+    /// window's frame around it, else in the window (an app-drawn frame carries the bar itself). The one rule the
+    /// shell and every host or fixture derive the placement from.
+    pub fn of(caps: Caps, chrome: WindowChrome) -> MenuPlacement {
+        if caps.contains(Caps::NATIVE_MENU_BAR) && chrome != WindowChrome::Integrated { MenuPlacement::ScreenTop } else { MenuPlacement::InWindow }
+    }
+}
+
 bitflags::bitflags! {
     /// What the host can do. Capabilities are data: a pattern hides an action whose capability is missing.
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -298,15 +307,16 @@ impl ShellInfo {
             backend: Backend::default(),
             desktop: DesktopKind::default(),
             caps,
-            menu: if caps.contains(Caps::NATIVE_MENU_BAR) { MenuPlacement::ScreenTop } else { MenuPlacement::InWindow },
+            menu: MenuPlacement::of(caps, WindowChrome::default()),
             double_click: DoubleClick::default(),
             window: std::sync::Arc::new(WindowInfo::new(WindowKind::Main)),
         }
     }
 
-    /// Sets the capabilities, for a native build run as web in tests.
+    /// Sets the capabilities, for a native build run as web in tests. The menu placement follows them.
     pub fn caps(mut self, caps: Caps) -> Self {
         self.caps = caps;
+        self.menu = MenuPlacement::of(caps, self.window.chrome);
         self
     }
 
@@ -340,8 +350,9 @@ impl ShellInfo {
         self
     }
 
-    /// Sets the main window's facts.
+    /// Sets the main window's facts. The menu placement follows its chrome.
     pub fn window(mut self, window: WindowInfo) -> Self {
+        self.menu = MenuPlacement::of(self.caps, window.chrome);
         self.window = std::sync::Arc::new(window);
         self
     }

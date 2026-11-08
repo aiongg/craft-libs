@@ -1,13 +1,13 @@
 //! Content painters and document text.
 
-use super::text::TextLayout;
+use super::text::{HAlign, TextLayout, aligned_rows};
 use crate::fonts::{FontRef, SEMIBOLD, stack_facts};
 use crate::runtime::egui::text_layout;
-use crate::style::{DataColor, UiTokens};
+use crate::style::{DataColor, Ink, UiTokens, ink_color};
 use craft_i18n::Direction;
 use egui::epaint::text::{FontId, TextDirection};
 use egui::text::{LayoutJob, TextFormat};
-use egui::{Align, Context, FontFamily, Painter, Stroke};
+use egui::{Color32, Context, FontFamily, Painter, Stroke};
 use std::borrow::Cow;
 
 /// The weight of a regular run.
@@ -24,12 +24,19 @@ pub struct ContentPainterCx<'a> {
     pub painter: Painter,
     pub(super) tokens: &'a UiTokens,
     pub(super) direction: Direction,
+    ink: Ink,
 }
 
 impl<'a> ContentPainterCx<'a> {
-    /// A raw painter for a content painter, with the tokens and direction the content-paint kit reads.
-    pub(crate) fn new(painter: Painter, tokens: &'a UiTokens, direction: Direction) -> Self {
-        ContentPainterCx { painter, tokens, direction }
+    /// A raw painter for a content painter, with the tokens, direction and surface ink the content-paint kit reads.
+    pub(crate) fn new(painter: Painter, tokens: &'a UiTokens, direction: Direction, ink: Ink) -> Self {
+        ContentPainterCx { painter, tokens, direction, ink }
+    }
+
+    /// The colour of text and glyphs on the surface being painted: the resolved content-text colour `Draw` paints
+    /// text with.
+    pub fn ink(&self) -> Color32 {
+        ink_color(self.tokens, self.ink)
     }
 
     /// The one sanctioned text layout for content painters: document runs with their own font, size and colour,
@@ -49,7 +56,7 @@ pub struct DocText<'a> {
     /// The wrap width.
     pub wrap: Option<f32>,
     /// The horizontal alignment.
-    pub align: Align,
+    pub align: HAlign,
     /// One row, cut with an ellipsis at the end where `wrap` does not fit it.
     pub elide: bool,
 }
@@ -57,7 +64,7 @@ pub struct DocText<'a> {
 impl<'a> DocText<'a> {
     /// Unwrapped document text of `runs`.
     pub const fn new(runs: &'a [DocRun<'a>]) -> Self {
-        DocText { runs, wrap: None, align: Align::Min, elide: false }
+        DocText { runs, wrap: None, align: HAlign::Start, elide: false }
     }
 
     /// Cuts the text to one row with an ellipsis at the end.
@@ -83,7 +90,6 @@ impl<'a> DocText<'a> {
             job.wrap.max_rows = 1;
             job.wrap.break_anywhere = true;
         }
-        job.halign = self.align;
         if direction == Direction::Rtl {
             job.direction = TextDirection::RightToLeft;
         }
@@ -110,7 +116,7 @@ impl<'a> DocText<'a> {
         }
         let galley = text_layout::layout(ctx, job);
         let elided = galley.elided;
-        TextLayout::new(galley, elided, self.full_text())
+        TextLayout::new(aligned_rows(galley, self.align, direction == Direction::Rtl, ctx.pixels_per_point()), elided, self.full_text())
     }
 }
 

@@ -20,7 +20,7 @@ use crate::runtime::{inspect, keys, layout_memory, wheel};
 use crate::style::{ComponentStyle, Flags, Ink, StateSet, StyleCx, accepted_variant, resolve_style, surface_style};
 use craft_behavior::{
     CancelReason, Cursor, CursorPriority, DragWarp, EditEvent, Gesture, GesturePhase, Input, Intent, KeyRole, Mixed, NavMove, PaintedCursor, PartKey,
-    PartRef, PressCancel, Proposal, Roving, Sense, Value, ValueDrag,
+    PartRef, PressCancel, Proposal, Roving, ScrollPos, Sense, Value, ValueDrag,
 };
 use craft_theme::{ControlSize, State, StateMix, Variant};
 use egui::{Context, Id, Pos2, Rect, Response, Ui, Vec2};
@@ -1101,6 +1101,26 @@ pub(crate) fn take_reveal(ctx: &Context, owner: Id) -> Option<Rect> {
     })
 }
 
+#[derive(Default)]
+struct ScrollTos(Vec<(Id, ScrollPos)>);
+
+/// Asks the scroll region `owner` to show its content at `to` on its next pass.
+pub(crate) fn request_scroll_to(ctx: &Context, owner: Id, to: ScrollPos) {
+    store::Service::<ScrollTos>::run(ctx, |requests| {
+        requests.0.retain(|(id, _)| *id != owner);
+        requests.0.push((owner, to));
+    });
+    repaint::request(ctx);
+}
+
+/// The scroll position requested of `owner`, once; the newest request wins.
+pub(crate) fn take_scroll_to(ctx: &Context, owner: Id) -> Option<ScrollPos> {
+    store::Service::<ScrollTos>::run(ctx, |requests| {
+        let at = requests.0.iter().position(|(id, _)| *id == owner)?;
+        Some(requests.0.remove(at).1)
+    })
+}
+
 /// A page or end move a focused component left untaken, addressed to the scroll owner around it (9.2 rule 5).
 #[derive(Default)]
 struct ScrollMoves(Vec<(Id, NavMove)>);
@@ -1235,6 +1255,7 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         return;
     }
     scope::finish(ctx, id, None);
+    let carried = scope::carried_name(ctx, id);
     let Role::Node(role) = role else { return };
     if !input.node {
         return;
@@ -1246,6 +1267,7 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         role,
         rect: core.rect,
         label: resolved.label,
+        names_nothing: carried.as_deref() == Some(resolved.label),
         tooltip,
         elided: paint.elided.as_deref(),
         description: resolved.description,
@@ -1263,6 +1285,7 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         access: &access,
         popups: &if C::OVERLAYS { super::overlay::popups_shown(ctx, id) } else { Vec::new() },
         popups_by_part: super::overlay::has_toggle_nodes(&core.toggles, &access.nodes),
+        ltr_axis: C::LTR_AXIS,
     };
     access::report(ctx, &own);
     if let Some(facts) = core.text_access.take() {
@@ -1336,6 +1359,7 @@ pub(crate) fn report_inert<C: Component>(cx: &Cx<'_, C>) {
             role,
             rect: core.rect,
             label: core.resolved.label,
+            names_nothing: false,
             tooltip: None,
             elided: None,
             description: None,
@@ -1353,6 +1377,7 @@ pub(crate) fn report_inert<C: Component>(cx: &Cx<'_, C>) {
             access: &access,
             popups: &[],
             popups_by_part: false,
+            ltr_axis: C::LTR_AXIS,
         },
     );
 }

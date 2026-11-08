@@ -16,26 +16,15 @@ serde_json = "1"
 # The `.kys` reader.
 roxmltree = "0.21"
 egui = { workspace = true, optional = true }
-craft-ui = { package = "craft-ui-legacy", path = "../ui-legacy", optional = true }
 craft-i18n = { workspace = true }
 craft-host = { workspace = true }
-# The dialog screenshots (`screen-testing`).
-egui_kittest = { version = "0.37", optional = true }
 
 [dev-dependencies]
-# `serde` for setting `RawInput` fields only the suite's egui fork has; `default_fonts` for the
-# dialog's tests.
+# `serde` for setting `RawInput` fields only the suite's egui fork has.
 egui = { workspace = true, features = ["serde", "default_fonts"] }
 craft-settings = { workspace = true }
 tempfile = "3"
-sha2 = "0.10"
-egui_kittest = "0.37"
-image = { version = "0.25", default-features = false, features = ["png"] }
 
 [features]
 # The egui key conversions and dispatcher.
 egui = ["dep:egui", "craft-host/ui"]
-# The Keyboard Shortcuts dialog.
-ui = ["egui", "dep:craft-ui"]
-# Screenshots of the dialog for review (tests/ui_snapshot.rs; needs a GPU or software adapter).
-screen-testing = ["ui", "dep:egui_kittest", "egui_kittest/wgpu", "craft-ui/screen-testing"]

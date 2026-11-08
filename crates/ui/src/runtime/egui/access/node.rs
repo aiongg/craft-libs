@@ -87,6 +87,8 @@ pub(crate) struct NodeSpec {
     pub modal: bool,
     pub actions: Vec<NodeAction>,
     pub custom_actions: Vec<(i32, String)>,
+    /// The content keeps its left-to-right order under a right-to-left interface.
+    pub ltr_axis: bool,
 }
 
 impl NodeSpec {
@@ -131,6 +133,7 @@ impl NodeSpec {
             modal: false,
             actions: Vec::new(),
             custom_actions: Vec::new(),
+            ltr_axis: false,
         }
     }
 }
@@ -269,6 +272,9 @@ fn write_states(node: &mut accesskit::Node, spec: &NodeSpec) {
     }
     if spec.invalid {
         node.set_invalid(accesskit::Invalid::True);
+    }
+    if spec.ltr_axis {
+        node.set_text_direction(accesskit::TextDirection::LeftToRight);
     }
     for (on, set) in [
         (spec.busy, accesskit::Node::set_busy as fn(&mut accesskit::Node)),

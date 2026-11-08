@@ -235,7 +235,7 @@ fn two_canvases_with_the_same_label_run_separate_gestures() {
     let (shown, seen) = (tools.clone(), Rc::clone(&ids));
     let mut fixture = Fixture::new(move |ui| {
         for (at, salt) in ["first", "second"].into_iter().enumerate() {
-            let canvas = Canvas::new("Document", ToolPath::Command("the Select Area... command")).id_salt(salt).show(ui, |_, _| {});
+            let canvas = Canvas::new("Document").id_salt(salt).show(ui, |_, _| {});
             seen.borrow_mut()[at] = canvas.output.response.id;
             let _ = ToolHost::new().run(ui, &canvas.output, &mut *shown[at].borrow_mut());
         }
@@ -441,7 +441,7 @@ fn press_reader(snapping: bool) -> (Reader, Arc<UnitWords>) {
     let press = Rc::new(Cell::new(false));
     let (shown, seen, id, queue) = (Rc::clone(&tool), Rc::clone(&words), Rc::clone(&canvas), Rc::clone(&press));
     let mut fixture = Fixture::new(move |ui| {
-        let out = Canvas::new("Document", ToolPath::Command("the Reader command")).show(ui, |_, _| {});
+        let out = Canvas::new("Document").show(ui, |_, _| {});
         id.set(out.output.response.id);
         let guide = Snap::new(|along, position, _| if along == Axis::Y && (position - 10.0).abs() < 1.0 { 10.0 } else { position });
         let host = if snapping { ToolHost::new().snap(guide) } else { ToolHost::new() };

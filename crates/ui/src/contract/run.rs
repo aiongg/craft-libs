@@ -481,7 +481,7 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     // 6 place
     let at = host_at.unwrap_or(p.at);
     // A root that fills takes the room of the `Ui` its host runs it in: a pane's or a layer's own, not its parent's.
-    let size = if ui.id() == p.parent { p.size } else { p.hooks.sized(&*p.comp, ui, p.measured) };
+    let size = if ui.scope_id() == p.parent { p.size } else { p.hooks.sized(&*p.comp, ui, p.measured) };
     // In a content-sized column a fill-width child takes its measured width in the flow and shows across the width
     // the column settles on, so it never sets that width.
     let held = !inert && matches!(at, ShowAt::Flow) && p.env.content_column && p.hooks.fills_width(&*p.comp);
@@ -497,6 +497,8 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     // root, or a fill-width one held at its measured width. A root that fills the flow keeps to the room it fills.
     let overflow = if held || !p.hooks.fills_width(&*p.comp) { p.hooks.overflow() } else { 0.0 };
     expand_for_overflow(ui, host_at.unwrap_or(p.at), rect, overflow, rtl);
+    // The component sits where the interface puts it; a component whose axis keeps its order flows its content left to right.
+    let rtl = rtl && !C::LTR_AXIS;
     // A sizing pass of the parent or host `Ui` allocates the size and stops: no parts, no body, and the stage
     // opened at step 3 is written back unchanged.
     if p.sizing || ui.is_sizing_pass() {
@@ -847,7 +849,7 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
         room,
         measured,
         size,
-        parent: ui.id(),
+        parent: ui.scope_id(),
         inert,
         sizing,
         real: false,

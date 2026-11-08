@@ -35,7 +35,7 @@ use crate::tile_grid::{CaptionPlace, GridEvent, Tile, TileGrid, TileGroup, TileZ
 use craft_behavior::{DisplayOrder, EditEvent, GestureId, GesturePhase, IconId, ItemSource, Mixed, Selection, SelectionChange};
 use craft_i18n::matcher::Matcher;
 use craft_theme::variant::Tone;
-use egui::{Rect, Ui};
+use egui::{Id, Rect, Ui};
 use std::cell::RefCell;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
@@ -387,6 +387,13 @@ fn commit<K: Clone + Eq + Hash + Send + Sync + 'static>(cx: &mut BodyCx<'_>, sta
 }
 
 impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
+    /// Asks the browser shown in the scope `scope` (the `scope_id` of the `Ui` it is shown in) to start renaming the
+    /// row `key` at its next pass, as the row menu's Rename does. A key the browser lacks or may not rename is
+    /// ignored; the request is taken once.
+    pub fn request_rename(ctx: &egui::Context, scope: Id, key: &K) {
+        request_rename(ctx, rows_id(scope), key);
+    }
+
     /// Shows the browser across the available width and reports what the user did, in order.
     pub fn show(self, ui: &mut Ui) -> PresetOutput<K> {
         let PresetBrowser {
@@ -410,7 +417,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
         } = self;
         let env = Env::of(ui);
         let words = env.words::<PresetWords>();
-        let list_id = ui.scope_id().with("browser-rows");
+        let list_id = rows_id(ui.scope_id());
         let name = label.as_str().to_owned();
         let has_footer = footer.is_some();
         let state = RefCell::new(state);
@@ -727,4 +734,9 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
 /// The row of the header `group` of the grid's plan over the shown rows.
 fn grid_group_row<'s, K>(shown: &'s [usize], rows: &[PresetRow<K>], group: usize) -> Option<&'s usize> {
     shown.iter().filter(|&&at| rows[at].is_group()).nth(group)
+}
+
+/// The id of the browser's list, derived from the scope the browser is shown in.
+fn rows_id(scope: Id) -> Id {
+    scope.with("browser-rows")
 }

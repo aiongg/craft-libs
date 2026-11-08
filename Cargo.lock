@@ -1414,14 +1414,10 @@ dependencies = [
  "craft-host",
  "craft-i18n",
  "craft-settings",
- "craft-ui-legacy",
  "egui",
- "egui_kittest",
- "image",
  "roxmltree 0.21.2",
  "serde",
  "serde_json",
- "sha2",
  "tempfile",
 ]
 
@@ -1459,16 +1455,17 @@ version = "0.1.0"
 name = "craft-menu"
 version = "0.1.0"
 dependencies = [
+ "craft-behavior",
+ "craft-host",
  "craft-i18n",
  "craft-keymap",
  "craft-quit",
  "craft-theme",
- "craft-ui-legacy",
+ "craft-ui",
+ "craft-window",
  "egui",
- "muda",
- "objc2 0.6.5",
- "objc2-app-kit 0.3.2",
- "objc2-foundation 0.3.2",
+ "libtest-mimic",
+ "serde",
  "serde_json",
 ]
 
@@ -1648,10 +1645,13 @@ dependencies = [
 name = "craft-table"
 version = "0.1.0"
 dependencies = [
+ "craft-behavior",
+ "craft-keymap",
+ "craft-table",
  "craft-theme",
- "craft-ui-legacy",
+ "craft-ui",
  "egui",
- "egui_kittest",
+ "libtest-mimic",
 ]
 
 [[package]]
@@ -1711,10 +1711,12 @@ dependencies = [
 name = "craft-timeline"
 version = "0.1.0"
 dependencies = [
+ "craft-behavior",
+ "craft-keymap",
  "craft-theme",
- "craft-ui-legacy",
+ "craft-ui",
  "egui",
- "egui_kittest",
+ "libtest-mimic",
  "serde",
  "web-time",
 ]
@@ -1950,6 +1952,7 @@ dependencies = [
  "craft-settings",
  "eframe",
  "egui",
+ "muda",
  "objc2 0.6.5",
  "objc2-app-kit 0.3.2",
  "objc2-foundation 0.3.2",

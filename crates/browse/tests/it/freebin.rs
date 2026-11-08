@@ -78,7 +78,7 @@ impl Scene {
         self.events
             .borrow()
             .iter()
-            .filter_map(|event| if let CollectionEvent::Dropped { key, keys, .. } = event { Some((*key, keys.clone())) } else { None })
+            .filter_map(|event| if let CollectionEvent::Dropped { key: Some(key), keys, .. } = event { Some((*key, keys.clone())) } else { None })
             .collect()
     }
 

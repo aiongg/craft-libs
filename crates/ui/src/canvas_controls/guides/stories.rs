@@ -1,7 +1,7 @@
 //! Stories of `Guides`.
 
 use super::{GUIDE, Guides, GuidesOutput};
-use crate::canvas::{Canvas, Guide, GuideDrag, GuideKey, GuideLine, ToolPath};
+use crate::canvas::{Canvas, Guide, GuideDrag, GuideKey, GuideLine};
 use crate::contract::{Bind, Show as _, ShowContainer as _, Validity};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
@@ -9,8 +9,6 @@ use craft_behavior::kurbo::{Point, Rect as DocRect};
 use craft_behavior::{Axis, CanvasView, GesturePhase, Mixed};
 use craft_keymap::Mods;
 use egui::{Ui, Vec2};
-
-const NEW_GUIDE: ToolPath = ToolPath::Command("the New Guide command");
 
 /// The most guides the invalid story accepts.
 const MOST_GUIDES: usize = 2;
@@ -28,7 +26,7 @@ fn on_canvas(ui: &mut Ui, control: Guides<'_>) -> StoryOutput {
     let room = ui.available_rect_before_wrap();
     let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
     let mut control = Some(control);
-    let shown = Canvas::new("Document", NEW_GUIDE)
+    let shown = Canvas::new("Document")
         .view(view)
         .show(ui, |ui, body| -> Option<GuidesOutput> { control.take().map(|control| control.show_at(ui, body.rect)) });
     shown.inner.flatten().map(StoryOutput::from).unwrap_or_default()

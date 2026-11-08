@@ -310,8 +310,8 @@ pub(crate) enum LabelPatch {
     Label { id: Id, text: String },
     /// `node` keeps its name and is described by `label`.
     DescribedBy { node: Id, label: Id },
-    /// `label` replaces `node`'s name.
-    LabelledBy { node: Id, label: Id },
+    /// `node` is named `text`, the label's text, and keeps `label` as the node that labels it.
+    LabelledBy { node: Id, label: Id, text: String },
     /// `container` is labelled by `label`: it holds several controls.
     GroupLabelledBy { container: Id, label: Id },
     /// `text` joins the description of `node`.
@@ -330,7 +330,7 @@ pub(crate) fn label_patches(container: Id, label: &FieldLabel, nodes: &[ScopeNod
         [only] if label.role == FieldLabelRole::Describes || only.keeps_name => {
             patches.push(LabelPatch::DescribedBy { node: only.id, label: label.id });
         }
-        [only] => patches.push(LabelPatch::LabelledBy { node: only.id, label: label.id }),
+        [only] => patches.push(LabelPatch::LabelledBy { node: only.id, label: label.id, text: label.text.clone() }),
         _ => patches.push(LabelPatch::GroupLabelledBy { container, label: label.id }),
     }
     if let Some(text) = &label.detail {
@@ -395,6 +395,13 @@ pub(crate) fn finish(ctx: &Context, container: Id, merged: Option<Merged>) {
     match scope.kind {
         Kind::Label(label) => {
             let patches = label_patches(scope.container, &label, &scope.nodes);
+            let slot = carried_slot(scope.container);
+            if patches.iter().any(|patch| matches!(patch, LabelPatch::LabelledBy { .. })) {
+                store::put(ctx, slot, label.text.clone());
+                memory::adopt::<String>(ctx, scope.owner, slot);
+            } else {
+                let _ = store::take::<String>(ctx, slot);
+            }
             for patch in &patches {
                 adapter::write_label_patch(ctx, patch);
             }
@@ -446,4 +453,15 @@ pub(crate) fn finish(ctx: &Context, container: Id, merged: Option<Merged>) {
             }
         }
     }
+}
+
+/// The label text the one control of `container`'s label scope carries as its name this pass, if it does: the
+/// container's own node is not named by the label as well.
+pub(crate) fn carried_name(ctx: &Context, container: Id) -> Option<String> {
+    store::peek_clone::<String>(ctx, carried_slot(container))
+}
+
+/// The slot of a container's carried label name; it goes with the scope's owner.
+fn carried_slot(container: Id) -> Id {
+    sub(container, "carried_name")
 }

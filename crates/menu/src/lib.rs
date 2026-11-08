@@ -9,8 +9,8 @@
 //! its [`ItemKind`] makes it plain, a check item or a radio item. [`layout`]
 //! arranges them the way the platform's apps do, and [`NativeMenu`] hands the result to a platform
 //! [`Backend`] and brings its events back. This part is pure and platform-free, so it is tested
-//! everywhere and builds for the web; only the backend, `mac` (macOS only, built on muda), touches
-//! AppKit. Its `mac::install` builds the menu bar and returns the [`NativeMenu`].
+//! everywhere and builds for the web; only the backend touches AppKit, in `craft_window::native_menu`.
+//! `mac::install` builds the menu bar through it and returns the [`NativeMenu`] (`None` off macOS).
 //!
 //! **Layouts.** [`layout`] takes a [`Target`] ([`Target::current`] for this build) and calls
 //! [`mac_layout`], [`desktop_layout`] (Windows and Linux) or [`web_layout`]. Each first drops the
@@ -22,7 +22,13 @@
 //! A layout adds the menus it needs when the app has none. A submenu left empty goes; a dynamic
 //! list with nothing in it shows the disabled placeholder item the app supplies.
 //!
-//! **Keymap.** [`apply_keymap`] sets the items' shortcuts from the app's
+//! **In-window bar.** [`MenuBarUi`] shows a laid-out [`MenuBar`] in the window, and [`context::rows`] shows model
+//! rows in any menu body (a context menu's included). Each item is a command row: its enabled state, check mark
+//! and chord follow the command in the runtime's command state and keymap, and a choice is a fired command with
+//! `FireSource::Menu`. [`MenuBar::help_entries`] lists the bar's commands for the Help menu's search and the
+//! command palette.
+//!
+//! **Keymap.** For the native menu, [`apply_keymap`] sets the items' shortcuts from the app's
 //! [`craft_keymap::Keymap`], user overrides included, and makes toggle commands check items;
 //! [`apply_state`] sets enabled and checked per frame from an [`ItemState`] the app returns for
 //! each command. Both run on the app's bar, before the layout.
@@ -61,13 +67,13 @@
 //! while text has the keys, and a Mac app's menu commands (⌘S, ⌘N) run while typing. Only
 //! shortcuts with ⌘ or ⌃ become key equivalents; tool keys (`B`, `⇧B`, `F5`) stay with the app.
 //!
-//! What may run from the menus is the app's [`Gate`], set every frame ([`NativeMenu::set_gate`]):
+//! What may run from the native menu is the app's [`Gate`], set every frame ([`NativeMenu::set_gate`]):
 //! while a modal dialog is open or a shortcut is being recorded, the app's items are greyed (but
 //! the text fields' own Undo, Copy, …) and their clicks dropped, also clicks that arrived before
 //! the gate closed. While a shortcut is
 //! recorded, key equivalents reach egui as plain key presses.
 //!
-//! craft-menu owns muda's one menu event handler: `mac::install` (a full menu bar) and
+//! craft-menu owns the process's one menu event handler: `mac::install` (a full menu bar) and
 //! `mac::install_app_menu` (a minimal app menu, for apps without a [`MenuBar`]) both use it.
 //! [`NativeMenu::on_command`] sees each allowed click as it arrives, also while egui is idle.
 //!
@@ -79,7 +85,7 @@
 //! from egui.
 
 pub mod bar;
-mod context;
+pub mod context;
 mod documents;
 mod driver;
 mod help;
@@ -90,12 +96,11 @@ mod modal;
 mod model;
 mod palette;
 
-#[cfg(target_os = "macos")]
 pub mod mac;
 
-#[allow(deprecated)]
-pub use bar::{BarStyle, EnglishHook, Labeled, MenuBarOutput, MenuBarUi};
-pub use context::CommandContextMenu;
+pub mod shortcuts;
+
+pub use bar::{EnglishHook, Labeled, MenuBarOutput, MenuBarUi};
 pub use craft_keymap::{Chord, CommandRef};
 pub use documents::DOCUMENT_COMMAND_PREFIX;
 pub use driver::{Backend, ClipboardKeys, CommandHook, Dispatch, Event, Gate, NativeMenu, had_input};
@@ -103,24 +108,13 @@ pub use help::{HelpCommand, HelpLabels, HelpLink, HelpMenu};
 pub use keymap::{ItemState, apply_keymap, apply_state};
 pub use language::{LANGUAGE_COMMAND, LanguageChoice, LanguageLabels, LanguageMenu, LanguageRow};
 pub use layout::{Clash, Layout, LayoutOptions, Target, desktop_layout, layout, mac_layout, web_layout};
-/// The labels tables of the Help and Language menus, for the words registry.
-pub const WORDS: &[&[craft_ui::localized::Word]] =
-    &[<HelpLabels as craft_ui::localized::Labels>::WORDS, <LanguageLabels as craft_ui::localized::Labels>::WORDS];
-
 pub use modal::{ModalRules, NAVIGATION_COMMANDS, PendingRule};
 pub use model::{
     Builtin, Document, Item, ItemKind, ItemRole, Menu, MenuBar, MenuRole, Node, Platforms, Row, Standard, from_items, structure_key, tidy, window_key,
 };
 
-#[cfg(test)]
-mod context_tests;
-#[cfg(test)]
-mod documents_tests;
-#[cfg(test)]
-mod help_tests;
-#[cfg(test)]
-mod language_tests;
-#[cfg(test)]
-mod modal_tests;
-#[cfg(test)]
-mod tests;
+#[cfg(feature = "screen-testing")]
+/// The stories and words this crate registers, for the story tests.
+pub mod testing {
+    craft_ui::testing_registered!();
+}

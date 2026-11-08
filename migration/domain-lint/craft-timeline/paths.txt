@@ -1,2 +1,0 @@
-crates/timeline/src/ui
-crates/timeline/tests/it

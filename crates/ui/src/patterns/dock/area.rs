@@ -1,9 +1,11 @@
 //! `DockArea`: the docking pattern. It shows a workspace's docked tree, dock columns, flyouts and floating groups from
-//! the parts of `docking`, takes the drops of tab and group drags, and reports what the host applies.
+//! the parts of `docking`, takes the drops of tab and group drags, and applies their actions to the workspace.
 
 use super::hide::{self, Shown};
 use crate::contract::overlay::PlacementChange;
-use crate::contract::{Bind, BodyCx, Cx, Entry, NoValue, Outcome, Pad, Pointer as _, Props as _, ShowContainer as _, Sizing, WordSetCx as _};
+use crate::contract::{
+    Bind, BindMut, BodyCx, Cx, Entry, NoValue, Outcome, Pad, Pointer as _, Props as _, ShowContainer as _, Sizing, WordSetCx as _,
+};
 use crate::docking::stack::{StackSection, section_heights};
 use crate::docking::tree::{self, FrameRules};
 use crate::docking::{
@@ -39,12 +41,13 @@ pub struct InvalidGeometry {
     pub error: DockError,
 }
 
-/// What a dock area reports in a pass. The host applies `actions` to the workspace (its undo step) and handles
-/// `events`.
+/// What a dock area reports in a pass: the actions it applied to the workspace and the events for the host.
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct DockAreaOutput<P> {
-    /// The changes the user made through the area: tab picks, closes, moves, drops, floats and menu rows.
+    /// The changes the user made through the area that the workspace took, in order: tab picks, closes, moves, drops,
+    /// floats and menu rows. An action the workspace refuses (a protected panel, a locked area) is left out. A given
+    /// workspace is never written: these are the actions it would take, for the host to apply.
     pub actions: Vec<Action<P>>,
     /// Requests for host state and reports of where things ended up.
     pub events: Vec<DockEvent<P>>,
@@ -54,8 +57,8 @@ pub struct DockAreaOutput<P> {
     pub picked: Option<P>,
     /// Why nothing was drawn, when the workspace is invalid.
     pub error: Option<InvalidGeometry>,
-    /// The size edit of a split divider this pass, as the edit of the whole workspace. A workspace bound by
-    /// reference takes it itself; a given one needs the host to apply it.
+    /// The edit of the whole workspace this pass: a split divider's size, or the applied `actions` as one undo step.
+    /// A workspace bound by reference takes it itself; a given one needs the host to apply it.
     pub edit: Option<EditEvent<Workspace<P>>>,
     /// Where commands float a panel, group or column: the area's float bounds and the sizes of what it drew.
     pub float_space: Option<FloatSpace<P>>,
@@ -76,8 +79,9 @@ impl<P> Outcome for DockAreaOutput<P> {
 /// - Shape: the docked tree is a `SplitArea`; a dock's columns are `DockColumn`s, or `IconicColumn`s with their
 ///   flyouts; a group is a `DockGroup`; a floating window is a `FloatingGroup`. The host's `DockPanels` supplies the
 ///   panels.
-/// - Edits: a divider drag writes the workspace's layout through its binding. Every other change is an
-///   [`Action`] in the output, for the host to apply to its workspace set.
+/// - Edits: a divider drag and every [`Action`] of the pass (menu rows, drags, drops) are written to the workspace
+///   through its binding, with the panels' [`DockPanels::permissions`] (narrowed when `locked`). The output lists the
+///   actions the workspace took. A given workspace is not written.
 /// - Hiding: [`hide`](DockArea::hide), the shell's panel visibility and [`maximized`](DockArea::maximized) prune
 ///   what shows; a pruned panel keeps its place for restore.
 /// - Drops: the area is the drop target of tab and group drags. Ctrl or Cmd held at the release floats the drop, and
@@ -87,7 +91,7 @@ impl<P> Outcome for DockAreaOutput<P> {
 #[derive(crate::contract::Pattern, crate::contract::Props)]
 #[pattern(probe(DockArea<'static, usize>))]
 pub struct DockArea<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> {
-    id: Id,
+    label: Label,
     workspace: Bind<'a, Workspace<P>>,
     panels: &'a mut dyn DockPanels<P>,
     config: DockConfig,
@@ -109,15 +113,27 @@ pub struct DockArea<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> {
 }
 
 impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
-    /// A dock area `id` over `workspace`, with its panels from `panels` and its behaviour from `config`.
-    pub fn new(id: Id, workspace: Bind<'a, Workspace<P>>, panels: &'a mut dyn DockPanels<P>, config: DockConfig) -> Self {
-        DockArea { id, workspace, panels, config, hide: HidePanels::None, maximized: None, auto_collapse: false, locked: false, flyout: None }
+    /// A dock area named `label` over `workspace`, with its panels from `panels` and its behaviour from `config`. The
+    /// root's id comes from the label under the parent's id, and inside an `AppShell` from the window too, so two
+    /// windows' docks never share state.
+    pub fn new(label: impl Into<Label>, workspace: Bind<'a, Workspace<P>>, panels: &'a mut dyn DockPanels<P>, config: DockConfig) -> Self {
+        DockArea {
+            label: label.into(),
+            workspace,
+            panels,
+            config,
+            hide: HidePanels::None,
+            maximized: None,
+            auto_collapse: false,
+            locked: false,
+            flyout: None,
+        }
     }
 
     /// A dock area over a layout that is only shown: a given workspace without hidden panels, locked, so nothing
     /// moves, floats or closes.
-    pub fn read_only(id: Id, layout: &Layout<P>, panels: &'a mut dyn DockPanels<P>, config: DockConfig) -> Self {
-        DockArea { locked: true, ..Self::new(id, Bind::given(Workspace::new(layout.clone())), panels, config) }
+    pub fn read_only(label: impl Into<Label>, layout: &Layout<P>, panels: &'a mut dyn DockPanels<P>, config: DockConfig) -> Self {
+        DockArea { locked: true, ..Self::new(label, Bind::given(Workspace::new(layout.clone())), panels, config) }
     }
 }
 
@@ -271,9 +287,13 @@ struct Pass<'s, P> {
 impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
     /// Shows the area across the room offered.
     pub fn show(self, ui: &mut Ui) -> DockAreaOutput<P> {
-        let DockArea { id, mut workspace, panels, config, hide, maximized, auto_collapse, locked, mut flyout } = self;
+        let DockArea { label, mut workspace, panels, config, hide, maximized, auto_collapse, locked, mut flyout } = self;
         let ctx = ui.ctx().clone();
-        let rtl = Env::of(ui).direction.is_rtl();
+        let (rtl, window) = {
+            let env = Env::of(ui);
+            (env.direction.is_rtl(), env.get::<ShellEntry>().0.map(|shell| shell.window().clone()))
+        };
+        let id = ui.scope_id().with(("dock area", label.as_str(), window));
         let held = match workspace.reborrow().get() {
             Some(Mixed::Same(held)) => held,
             _ => Workspace::default(),
@@ -294,7 +314,14 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
         let policy = |panel: &P| rights.get(panel).copied().unwrap_or(Permissions::ALL);
         let specs: HashMap<P, PanelSpec> = current.layout.panels().into_iter().map(|panel| (panel.clone(), panels.spec(panel))).collect();
         let drops = Drops { dock: id, layout: &current.layout, permissions: &policy, config: &config, specs: &specs, rtl };
-        let root = DockRoot::new(|cx| drops.take(cx)).id(id);
+        let dropped: RefCell<Option<Action<P>>> = RefCell::new(None);
+        let root = DockRoot::new(|cx| {
+            let taken = drops.take(cx);
+            *dropped.borrow_mut() = taken.as_ref().map(|taken| taken.action.clone());
+            taken
+        })
+        .id(id)
+        .label(label.clone());
         let mut passed = None;
         let shown = root.show(ui, |ui, body| {
             let Some(sizes) = body.style::<DockRoot<'_, DockDropped<P>>>().map(|style| *style.sizes()) else { return };
@@ -310,20 +337,65 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
                 sizes,
                 rtl,
             };
-            let result = show_area(ui, body, &input, &rights, &mut *panels, flyout.as_mut());
+            let mut result = show_area(ui, body, &input, &rights, &mut *panels, flyout.as_mut());
             if let Some(edit) = result.edit.as_ref() {
                 workspace.reborrow().write(body, edit);
             }
+            result.actions.extend(dropped.take());
+            if !result.actions.is_empty() {
+                let proposed = std::mem::take(&mut result.actions);
+                let applied = apply_actions(&ctx, body, workspace.reborrow(), &current, &*panels, locked, &label, proposed);
+                result.actions = applied.actions;
+                result.edit = applied.edit.or(result.edit.take());
+            }
             passed = Some(result);
         });
-        let Passed { mut actions, events, focused, picked, edit, space } =
+        let Passed { actions, events, focused, picked, edit, space } =
             passed.unwrap_or_else(|| Passed { actions: Vec::new(), events: Vec::new(), focused: None, picked: None, edit: None, space: None });
-        if let Some(dropped) = shown.output.dropped {
+        if shown.output.dropped.is_some() {
             cross_window::accept_cross_window(&ctx);
-            actions.push(dropped.action);
         }
         DockAreaOutput { actions, events, focused, picked, error, edit, float_space: space, response: shown.output.response }
     }
+}
+
+/// What the workspace took of a pass's actions.
+struct Applied<P> {
+    actions: Vec<Action<P>>,
+    edit: Option<EditEvent<Workspace<P>>>,
+}
+
+/// Applies `proposed` in order to the workspace the binding holds, with the panels' permissions (narrowed when
+/// `locked`). A refused action changes nothing and is left out of the result. The accepted ones are written as one
+/// edit, which a given workspace does not take. `current` is the workspace as the pass started.
+fn apply_actions<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
+    ctx: &Context,
+    body: &mut BodyCx<'_>,
+    mut workspace: BindMut<'_, Workspace<P>>,
+    current: &Workspace<P>,
+    panels: &dyn DockPanels<P>,
+    locked: bool,
+    label: &Label,
+    proposed: Vec<Action<P>>,
+) -> Applied<P> {
+    let before = match workspace.read(body) {
+        Some(Mixed::Same(held)) => held,
+        _ => current.clone(),
+    };
+    let permissions = |panel: &P| panels.permissions(panel);
+    let mut next = before.clone();
+    let mut actions = Vec::new();
+    for action in proposed {
+        if next.apply(action.clone(), locked, permissions).is_ok() {
+            actions.push(action);
+        }
+    }
+    if actions.is_empty() {
+        return Applied { actions, edit: None };
+    }
+    let edit = EditEvent::set(crate::runtime::edit::next_gesture_id(ctx), Mixed::Same(before), next, Arc::from(label.as_str()), None);
+    workspace.write(body, &edit);
+    Applied { actions, edit: Some(edit) }
 }
 
 /// What the pattern gives one pass.

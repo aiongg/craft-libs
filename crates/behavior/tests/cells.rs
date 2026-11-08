@@ -334,9 +334,11 @@ fn a_reported_change_rebuilds_the_selection_on_a_copy() {
     assert_eq!(copy, sel);
 
     let held = |selection: &CellSelection<u32>, row: u32, column| selection.contains_cell(RowAt::new(&row, row as usize, &rows), column);
-    copy.apply(SelectionChange::ToggleCell(c(8, 8)));
-    assert_eq!((held(&sel, 8, 8), held(&copy, 8, 8), copy.lead()), (true, false, Some(&8)));
-    copy.apply(SelectionChange::ToggleCell(c(8, 8)));
+    assert!(sel.toggle(c(8, 8), &space));
+    copy.apply(sel.change());
+    assert_eq!((held(&sel, 8, 8), held(&copy, 8, 8), copy.lead()), (false, false, Some(&8)));
+    assert!(sel.toggle(c(8, 8), &space));
+    copy.apply(sel.change());
     assert!(held(&copy, 8, 8));
 }
 
@@ -418,4 +420,16 @@ fn placing_a_selection_looks_up_each_range_end_once() {
     let placed = sel.placed(&order);
     assert_eq!(order.scans.get(), 4, "two ends of each of the two ranges");
     assert_eq!((0..8).filter(|&at| placed.holds_row(at)).count(), 7);
+}
+
+// A row stays unselected once the only cell of its selection is toggled out.
+#[test]
+fn a_row_is_selected_only_while_one_of_its_cells_is() {
+    let rows = Positions::new(10);
+    let space = CellSpace::new(&rows, 4);
+    let mut cells = CellSelection::<u32>::default();
+    assert!(cells.select(CellAt::new(4, 1), &space));
+    assert_eq!(cells.placed(&rows).holds_row(4), true);
+    assert!(cells.toggle(CellAt::new(4, 1), &space));
+    assert_eq!((cells.contains(RowAt::new(&4, 4, &rows)), cells.placed(&rows).holds_row(4)), (false, false));
 }

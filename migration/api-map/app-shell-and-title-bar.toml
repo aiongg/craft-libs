@@ -12,7 +12,7 @@ name = "AppShell"
 old = "craft_ui::shell::AppShell"
 new = "craft_ui::shell::AppShell"
 status = "same"
-note = "A pattern: slots and the body are closures taking `(&mut Ui, &mut BodyCx)`, each slot is a container on `Mount::Pane`, and `show(ui)` returns `AppShellOutput`."
+note = "A pattern, `AppShell<'a, S>`: slots and the body are closures taking `(&mut Ui, &mut BodyCx, &mut S)`, each slot is a container on `Mount::Pane`, and `show(ui, &mut S)` returns `AppShellOutput`; `S = ()` for an app with no shared state. `AppShell::embedded(WindowKey)` shows a shell inside a region of another window: its screen modes act in its region and never on the OS window."
 
 [[type]]
 name = "CanvasShell"
@@ -271,7 +271,7 @@ note = "The shell takes its window's toggles from the frame state; menu and pale
 type = "AppShell"
 old = "title(Slot, f)"
 new = "title(Slot, f) or title_bar(f)"
-note = "The closures take `(&mut Ui, &mut BodyCx)`."
+note = "The closures take `(&mut Ui, &mut BodyCx, &mut S)`."
 
 [[setter]]
 type = "AppShell"
@@ -288,7 +288,7 @@ note = "The body paints the theme's canvas surface, and the scrim in body-only m
 [[setter]]
 type = "AppShell"
 old = "show(ui, body)"
-new = "body(f).show(ui)"
+new = "body(f).show(ui, &mut S)"
 note = "The body closure is set with `body`; the shell data is `BodyCx::shell()`."
 
 [[setter]]
@@ -748,3 +748,12 @@ type = "TitleBar"
 old = "modal_drag_overlay(ctx, rects)"
 new = ""
 note = "replaced: a modal `Dialog` keeps the bar draggable itself; see ModalRects."
+
+# Stage-3 cleanup, fshell.
+
+[[type]]
+name = "WindowDialogs"
+old = ""
+new = "craft_ui::shell::WindowDialogs"
+status = "replaced"
+note = "The handle to the window's `DialogHost` that `BodyCx::dialogs()` returns (`with(|host| ..)`); the `AppShell` of the window runs the host after its body."
