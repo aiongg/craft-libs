@@ -84,7 +84,9 @@ pub use navigator::{
 pub use navigator::NavigatorStyle;
 // End of l4e-navprev.
 
-use crate::contract::{Bind, Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, Sizing};
+use crate::contract::{
+    Bind, Common, Component, Container, ContainerProps, Cx, Focus as _, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, Sizing,
+};
 use crate::runtime::commands::{CommandSet as _, CommandState, Commands as _};
 use crate::runtime::edit::next_gesture_id;
 use crate::runtime::env::Label;
