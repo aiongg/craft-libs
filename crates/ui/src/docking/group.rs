@@ -78,10 +78,10 @@ impl<P: Clone + Send + Sync + 'static> GroupGrip<P> {
         GroupGrip { common: Common::new(), unit, active, ghost: None, movable: true, double: false, started: false }
     }
 
-    /// The drag shows a ghost frame of `size` named `label`.
+    /// The drag shows a ghost frame: its extent and its label.
     #[must_use]
-    pub fn ghost(mut self, size: Vec2, label: Label) -> Self {
-        self.ghost = Some((size, label));
+    pub fn ghost(mut self, ghost: (Vec2, Label)) -> Self {
+        self.ghost = Some(ghost);
         self
     }
 }
@@ -314,7 +314,7 @@ impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
             if open == minimized {
                 reported.toggle_minimized = true;
             }
-            let grip = GroupGrip::new(unit.clone(), active).ghost(ghost.0, ghost.1.clone()).movable(movable).label(move_name.clone()).show(ui);
+            let grip = GroupGrip::new(unit.clone(), active).ghost(ghost.clone()).movable(movable).label(move_name.clone()).show(ui);
             reported.toggle_minimized |= grip.double_pressed;
             reported.drag_started |= grip.drag_started;
 

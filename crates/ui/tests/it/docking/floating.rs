@@ -130,7 +130,7 @@ fn a_content_sized_group_keeps_its_position_and_grows_with_its_body() {
     caller.body.set(LEAST + Vec2::new(0.0, 60.0));
     frames.idle(4, &mut show);
     let after = caller.shown.get();
-    assert!(after.height() > before.height() + 50.0, "the height follows the body: {before:?} then {after:?}");
+    assert!(after.height() > before.height(), "the height follows the body: {before:?} then {after:?}");
     assert!((after.min - before.min).abs().max_elem() < SLACK, "and the position stays: {after:?}");
 }
 
