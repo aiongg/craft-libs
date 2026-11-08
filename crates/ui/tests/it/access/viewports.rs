@@ -6,10 +6,12 @@ use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Rect as DocRect};
 use craft_ui::canvas::{Canvas, CanvasScrollbars};
 use craft_ui::contract::{Bind, Props as _, Role, Show as _, ShowContainer as _};
-use craft_ui::testing::access::NodeKey;
-use craft_ui::testing::{Frames, trial};
+use craft_ui::testing::access::{Declared, NodeKey};
+use craft_ui::testing::focus::AccessActionKind;
+use craft_ui::testing::{Fixture, Frames, trial};
 use egui::{Pos2, Rect, Vec2, ViewportBuilder, ViewportId};
 use std::cell::RefCell;
+use std::rc::Rc;
 
 const CHILD: &str = "second window";
 const LINE: Vec2 = Vec2::new(100.0, 40.0);
@@ -101,4 +103,42 @@ fn a_scroll_bar_node_follows_the_body_nodes_in_tree_order() {
         bars.iter().all(|bar| bar.is_some_and(|index| index > last_row)),
         "the scroll-bar nodes follow the body's nodes: {bars:?} after {last_row}"
     );
+}
+
+/// A document just longer than the view, so the thumb covers each track's centre.
+const BARELY_LONGER: f64 = 410.0;
+
+/// The canvas scroll bars of a view over a document `extent` wide and high, and the view they edit.
+fn scroll_bars(extent: f64) -> (Fixture, Rc<RefCell<CanvasView>>) {
+    let edited = Rc::new(RefCell::new(CanvasView::new(VIEW, Point::new(0.0, 0.0), 1.0)));
+    let document = DocRect::new(0.0, 0.0, extent, extent);
+    let shared = edited.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let view = *shared.borrow();
+        let _ = Canvas::new("Document").view(view).show(ui, |ui, body| {
+            let _ = CanvasScrollbars::new("Scroll bars", Bind::bound(&mut *shared.borrow_mut()), document).show_at(ui, body.rect);
+        });
+    });
+    fixture.settle();
+    (fixture, edited)
+}
+
+/// A scroll track pages toward its centre; where the thumb covers the centre a click pages nowhere, so the track
+/// declares no Click, and where it does page, the track declares Click and a Click pages.
+#[trial]
+fn a_scroll_track_declares_click_only_where_a_click_pages() {
+    let (fixture, _) = scroll_bars(BARELY_LONGER);
+    let bars = fixture.by_role(Role::SCROLL_BAR);
+    assert!(!bars.is_empty(), "the canvas has scroll-bar nodes");
+    assert!(
+        bars.iter().all(|bar| !fixture.tree().declares_key(bar.node, Declared::Click)),
+        "a track whose thumb covers its centre declares no Click"
+    );
+    let (mut fixture, edited) = scroll_bars(DOCUMENT);
+    let before = *edited.borrow();
+    let bars = fixture.by_role(Role::SCROLL_BAR);
+    assert!(bars.iter().all(|bar| fixture.tree().declares_key(bar.node, Declared::Click)), "a track that pages declares Click");
+    fixture.access(AccessActionKind::Click, &bars[0]);
+    fixture.idle(2);
+    assert_ne!(*edited.borrow(), before, "a Click on the track pages the view");
 }

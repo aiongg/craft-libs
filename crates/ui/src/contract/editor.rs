@@ -124,8 +124,6 @@ impl<C: Component> Cx<'_, C> {
             .collect();
         let text = state.lines.iter().map(|line| line.text).collect::<Vec<_>>().join("\n");
         let selection = state.selection.or(Some((state.caret_at, state.caret_at)));
-        let name = self.core.resolved.label.to_owned();
-        *self.core.text_access.borrow_mut() =
-            Some(TextFacts { widget: info.widget, name, text, masked, editable: !info.read_only, lines, selection });
+        *self.core.text_access.borrow_mut() = Some(TextFacts { widget: info.widget, text, masked, editable: !info.read_only, lines, selection });
     }
 }

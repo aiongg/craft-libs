@@ -1280,6 +1280,11 @@ pub(crate) fn take_submit(ctx: &Context) -> bool {
     take_untaken(ctx, &Intent::Submit)
 }
 
+/// Takes an untaken `Cancel` (Escape) for the focused stop, without deciding what the scope does with it.
+pub(crate) fn take_cancel(ctx: &Context) -> bool {
+    take_untaken(ctx, &Intent::Cancel)
+}
+
 fn take_untaken(ctx: &Context, intent: &Intent) -> bool {
     let focused = focus::focused_rec(ctx).map(|rec| rec.stop.id);
     current(ctx, |stage| {
@@ -1297,7 +1302,7 @@ fn take_untaken(ctx: &Context, intent: &Intent) -> bool {
 /// What an untaken Escape does in a scope: `None` when no Escape arrived or a component took it. One scope
 /// takes each Escape.
 pub(crate) fn scope_escape(ctx: &Context, rule: CancelRule, press_captured: bool, scope_clearable: bool) -> Option<EscapeStep> {
-    if !take_untaken(ctx, &Intent::Cancel) {
+    if !take_cancel(ctx) {
         return None;
     }
     let facts = EscapeFacts::new().press_captured(press_captured).in_row_child(focus::in_row_child(ctx)).scope_clearable(scope_clearable);

@@ -743,11 +743,15 @@ fn scrub_warp<C: Component>(cx: &mut Cx<'_, C>, drag: &ValueDrag, pos: Pos2) -> 
 /// registers the control with its label scope so the label senses the drag from the next pass on.
 pub(crate) fn scrub_by_label<C: Component>(comp: &C, cx: &mut Cx<'_, C>) {
     use super::cx::Edit as _;
-    use craft_behavior::PressPhase;
+    use craft_behavior::{PressCancel, PressPhase};
+    let Some(scrub) = comp.scrub() else { return };
+    let running = cx.gesture().is_some_and(|phase| matches!(phase, GesturePhase::Begin | GesturePhase::Update));
     if cx.core.resolved.read_only || !cx.core.resolved.enabled {
+        if running {
+            cx.cancel(CancelReason::Dismissed);
+        }
         return;
     }
-    let Some(scrub) = comp.scrub() else { return };
     let press = if scrub.on_field {
         cx.core.press
     } else {
@@ -772,7 +776,12 @@ pub(crate) fn scrub_by_label<C: Component>(comp: &C, cx: &mut Cx<'_, C>) {
                 cx.propose((scrub.write)(next));
             }
         }
-        PressPhase::Release { .. } if cx.gesture().is_some_and(|phase| matches!(phase, GesturePhase::Begin | GesturePhase::Update)) => cx.commit(),
+        PressPhase::Release { .. } if running => cx.commit(),
+        PressPhase::Cancel { reason, .. } if running => cx.cancel(match reason {
+            PressCancel::Escape => CancelReason::Escape,
+            PressCancel::Removed => CancelReason::Removed,
+            _ => CancelReason::Blur,
+        }),
         _ => {}
     }
 }
@@ -1330,7 +1339,7 @@ fn report_sub(core: &CxCore<'_>, input: &ReportIn<'_>, node: &SubNode, face: Opt
         rect: result.map_or(core.rect, |result| result.rect),
         enabled: core.resolved.enabled && face.is_none_or(|face| face.enabled),
         focusable: takes_focus(core.resolved) && declared.is_some_and(|(_, extras)| extras.focusable),
-        clickable: core.resolved.enabled && declared.is_some_and(|(decl, _)| decl.sense.contains(Sense::CLICK)),
+        clickable: core.resolved.enabled && declared.is_some_and(|(decl, extras)| decl.sense.contains(Sense::CLICK) && !extras.no_access_click),
         active: core.active == Some(node.part),
         face: face.map(|face| FaceFacts { name: &face.name, flags: face.flags, numeric: face.numeric.as_ref(), expanded: face.expanded }),
         label: core.resolved.label,

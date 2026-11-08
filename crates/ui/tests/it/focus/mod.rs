@@ -2,6 +2,7 @@
 
 mod keys;
 mod press;
+mod removed_child;
 mod roving;
 mod scopes;
 

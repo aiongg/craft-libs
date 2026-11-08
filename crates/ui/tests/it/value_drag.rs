@@ -3,6 +3,7 @@
 
 mod dials;
 mod field_scrub;
+mod label_scrub;
 mod thumb_row;
 
 use craft_behavior::{EditEvent, GesturePhase, Mixed, PartKey};

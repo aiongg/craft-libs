@@ -240,9 +240,8 @@ fn facts<C: Component>(
     let rows = adapter::Rows::of(&out.layout, &out.layout.full, rect.min);
     let text = out.layout.full.clone();
     let selection = adapter::selection(&cx.core.ctx, widget).map(|(caret, anchor)| (rows.pos(&text, anchor), rows.pos(&text, caret)));
-    let name = cx.core.resolved.label.to_owned();
     *cx.core.text_access.borrow_mut() =
-        Some(text_access::TextFacts { widget, name, text, masked, editable: !read_only, lines: rows.lines.clone(), selection });
+        Some(text_access::TextFacts { widget, text, masked, editable: !read_only, lines: rows.lines.clone(), selection });
     state.rows = Some(rows);
 }
 
