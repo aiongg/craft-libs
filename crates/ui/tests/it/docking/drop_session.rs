@@ -98,13 +98,15 @@ fn bed(layout: Layout<String>) -> (Fixture, Rc<RefCell<Layout<String>>>, Rc<RefC
     let fixture = Fixture::new(move |ui| {
         let shown = shared_layout.borrow().clone();
         let permissions = |_: &String| Permissions::default();
-        let target = DockDropTarget::new(ui.ctx(), dock_id(), &shown, &permissions);
+        let ctx = ui.ctx().clone();
+        let target = DockDropTarget::new(&ctx, dock_id(), &shown, &permissions);
         let origin = ui.max_rect().min;
         Host { common: Common::new(), target: &target, seen: &shared_taken }.show(ui);
         let limits = |_: &String| PanelLimits::default();
         let rules = FrameRules::new(SIZES, &limits);
         if let Some(root) = shown.root.as_ref() {
-            for group in tree::frames(root, Rect::from_min_size(origin, AREA), &rules, false).groups {
+            let frames = tree::frames(root, Rect::from_min_size(origin, AREA), &rules, false);
+            for group in frames.groups {
                 let (Some(anchor), Node::Tabs { panels, .. }) = (group.anchor().cloned(), group.node) else { continue };
                 let titles: Vec<PanelTitle> = panels.iter().map(|panel| PanelTitle::new(PanelKey::of(panel), panel.as_str())).collect();
                 let active = titles.first().map_or(PanelKey::new(0), |title| title.key);
