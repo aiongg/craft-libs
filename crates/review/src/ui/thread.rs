@@ -15,8 +15,8 @@ use craft_theme::variant::Tone;
 use craft_ui::buttons::{Button, IconButton, ToggleButton};
 use craft_ui::contract::overlay::Anchor;
 use craft_ui::contract::{
-    Bind, Common, Component, Cx, MeasureCx, NoValue, Outcome, PaintUi, Pattern, Pointer as _, Props as _, Remember as _, Role, Show as _,
-    ShowContainer as _, Trigger, clicked,
+    Bind, Commands as _, Common, Component, Cx, MeasureCx, NoValue, Outcome, PaintUi, Pattern, Pointer as _, Props as _, Remember as _, Role,
+    Show as _, ShowContainer as _, Trigger, clicked,
 };
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::{Row, Stack};
@@ -733,6 +733,7 @@ impl ThreadPopover<'_> {
                         });
                     });
                 }
+                let kept = draft.clone();
                 let field = TextField::new(words.reply.clone(), Bind::bound(&mut *draft))
                     .lines(COMPOSER_ROWS)
                     .placeholder(words.reply.clone())
@@ -741,6 +742,10 @@ impl ThreadPopover<'_> {
                     .default_stop()
                     .show(ui);
                 escaped |= field.escaped;
+                // Escape closes the popover and leaves the typed reply for the next time it opens.
+                if field.escaped {
+                    *draft = kept;
+                }
                 let text = draft.trim().to_owned();
                 let post = Button::new(words.post.clone()).enabled(!text.is_empty()).show(ui);
                 if (clicked(&post) || field.submitted) && !text.is_empty() {
@@ -770,6 +775,16 @@ impl<'a> CommentComposer<'a> {
     }
 }
 
+/// The commands of the new-comment composer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui::contract::CommandSet)]
+#[command(prefix = "review", scope = "review.composer")]
+#[non_exhaustive]
+pub enum ComposerCommand {
+    /// Post the comment from the multi-line field.
+    #[command(label = "Post", default = "Cmd+Enter", modal = "always")]
+    Post,
+}
+
 /// What the composer did this pass.
 #[must_use]
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -791,8 +806,15 @@ impl CommentComposer<'_> {
         let mut open = true;
         let mut posted = None;
         let mut cancel = false;
-        let shown =
-            Popover::new(words.add_comment.clone(), Bind::bound(&mut open)).at_point(anchor).initial_focus(Initial::Default).show(ui, |ui, _| {
+        let shown = Popover::new(words.add_comment.clone(), Bind::bound(&mut open))
+            .at_point(anchor)
+            .initial_focus(Initial::Default)
+            .command_scope(<ComposerCommand as craft_ui::contract::CommandSet>::SCOPE)
+            .show(ui, |ui, cx| {
+                let mut chord = false;
+                while cx.take_command::<ComposerCommand>().is_some() {
+                    chord = true;
+                }
                 Stack::new().show(ui, |ui, _| {
                     let field = TextField::new(words.add_comment.clone(), Bind::bound(&mut *draft))
                         .lines(COMPOSER_ROWS)
@@ -802,7 +824,7 @@ impl CommentComposer<'_> {
                         .show(ui);
                     cancel |= field.escaped;
                     let text = draft.trim().to_owned();
-                    if field.submitted && !text.is_empty() {
+                    if (field.submitted || chord) && !text.is_empty() {
                         posted = Some(text.clone());
                     }
                     Row::new().show(ui, |ui, _| {

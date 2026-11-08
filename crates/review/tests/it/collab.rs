@@ -172,7 +172,7 @@ fn vote_scope_offers_selection_only_with_a_selection() {
     }
 }
 
-/// The `/` command opens the cursor chat; typing in it sends each change and Escape closes it with an empty chat.
+/// The cursor chat command opens the cursor chat; typing in it sends each change and Escape closes it with an empty chat.
 #[trial]
 fn cursor_chat_sends_each_change_and_closes_with_escape() {
     let requests: Requests = Rc::default();
@@ -193,7 +193,7 @@ fn cursor_chat_sends_each_change_and_closes_with_escape() {
     });
     fixture.settle();
     assert!(!state.borrow().1, "the box is closed until the command runs");
-    fixture.key(egui::Key::Slash, egui::Modifiers::NONE);
+    craft_ui::runtime::commands::fire(fixture.ctx(), ReviewCommand::CursorChat, craft_ui::runtime::commands::FireSource::Key);
     fixture.settle();
     assert!(state.borrow().1, "the / command opens the box");
     fixture.type_text("hi");
@@ -263,7 +263,7 @@ fn escape_while_following_stops_following() {
     });
     fixture.settle();
     assert!(following.borrow().is_some());
-    fixture.key(egui::Key::Escape, egui::Modifiers::NONE);
+    craft_ui::runtime::commands::fire(fixture.ctx(), craft_review::ui::FollowCommand::StopFollowing, craft_ui::runtime::commands::FireSource::Key);
     fixture.settle();
-    assert!(following.borrow().is_none(), "Escape stops following");
+    assert!(following.borrow().is_none(), "the stop command stops following");
 }

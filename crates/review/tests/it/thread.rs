@@ -280,8 +280,10 @@ fn pins_open_drag_and_cluster() {
 fn your_pin_follows_the_pointer_while_dragged() {
     let (mut fx, _) = pins(vec![(ThreadId(2), pos2(100.0, 100.0), "Me")]);
     let own = fx.by_label("Comment by Me: Check the margin").expect("own pin");
-    let left = |fx: &Fixture| fx.shape_bounds().iter().map(|rect| rect.min.x).fold(f32::INFINITY, f32::min);
+    let left = |fx: &Fixture| fx.texts().iter().map(|run| run.rect.min.x).fold(f32::INFINITY, f32::min);
+    fx.frame(Vec::new());
     let before = left(&fx);
+    assert!(before.is_finite(), "the pin paints its initials");
     let at = own.center();
     fx.frame(vec![pointer::moved(at)]);
     fx.frame(vec![pointer::press(at)]);

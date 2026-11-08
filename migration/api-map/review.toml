@@ -513,3 +513,10 @@ old = ""
 new = "craft_review::ui::FollowFrameOutput"
 status = "replaced"
 note = "`#[non_exhaustive]`: the `FollowFrame` output, `response` and `stopped`."
+
+[[type]]
+name = "ComposerCommand"
+old = ""
+new = "craft_review::ui::ComposerCommand"
+status = "replaced"
+note = "`#[non_exhaustive]` command set of the new-comment composer: `Post`, bound to Cmd+Enter in the multi-line field."
