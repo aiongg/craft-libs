@@ -144,37 +144,44 @@ fn an_icon_button_paints_its_commands_marker_only_while_marked() {
     assert!(marker_circles(true) > 0, "the marked command paints its dot");
 }
 
-/// A tinted button reports its clicks, and its label reads on the tint.
+/// A tinted button reports its clicks.
 #[trial]
-fn a_tinted_button_reports_clicks_and_its_label_reads_on_the_tint() {
+fn a_tinted_button_reports_clicks() {
     let tint = Rgba([0xC4, 0x40, 0x40, 0xFF]);
     let clicks = Rc::new(Cell::new(0));
     let seen = clicks.clone();
-    let mut show = move |ui: &mut egui::Ui| {
+    let mut fixture = Fixture::new(move |ui| {
         if craft_ui::testing::contract::clicked(&Button::new("Play").tint(tint).show(ui)) {
             seen.set(seen.get() + 1);
         }
-    };
-    let fixture_show = show.clone();
-    let mut fixture = Fixture::new(move |ui| fixture_show(ui));
+    });
     fixture.settle();
     let button = fixture.by_label("Play").expect("the button");
     fixture.click(&button);
     assert_eq!(clicks.get(), 1, "a click on a tinted button is reported");
+}
 
-    let mut frames = Frames::new();
-    frames.idle(2, &mut show);
-    let shapes = frames.frame_shapes(&mut show);
-    let ink = shapes
-        .iter()
-        .find_map(|shape| match shape {
-            egui::Shape::Text(text) => text.galley.job.sections.first().map(|section| section.format.color),
-            _ => None,
-        })
-        .expect("the label is painted");
-    let ratio = contrast_ratio(Rgba::from(ink), tint);
+/// A tinted button's label reads on a light, a dark and a mid fill.
+#[trial]
+fn a_tinted_buttons_label_reads_on_light_dark_and_mid_fills() {
     let least = text_contrast_min(craft_theme::Contrast::Standard);
-    assert!(ratio >= least, "the label reads on the tint: {ratio} against {least}");
+    for tint in [Rgba([0xF5, 0xF0, 0xC8, 0xFF]), Rgba([0x14, 0x1E, 0x46, 0xFF]), Rgba([0x80, 0x80, 0x80, 0xFF])] {
+        let mut show = move |ui: &mut egui::Ui| {
+            Button::new("Play").tint(tint).show(ui);
+        };
+        let mut frames = Frames::new();
+        frames.idle(2, &mut show);
+        let shapes = frames.frame_shapes(&mut show);
+        let ink = shapes
+            .iter()
+            .find_map(|shape| match shape {
+                egui::Shape::Text(text) => text.galley.job.sections.first().map(|section| section.format.color),
+                _ => None,
+            })
+            .expect("the label is painted");
+        let ratio = contrast_ratio(Rgba::from(ink), tint);
+        assert!(ratio >= least, "the label reads on {tint:?}: {ratio} against {least}");
+    }
 }
 
 /// A selection with both states: the button reports the mixed toggled state, and a click makes it on.

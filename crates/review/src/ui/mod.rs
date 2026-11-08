@@ -28,12 +28,12 @@ pub use avatar::{Avatar, AvatarOutput, paint_avatar};
 pub use chat::{ChatWords, CursorChatBox, CursorChatBoxOutput, ReviewCommand, paint_chat_bubble};
 pub use comments::{CommentEdit, CommentsPanel, CommentsPanelOutput, CommentsPanelState, CommentsWords};
 pub use join::{JoinField, JoinFieldOutput, JoinWords};
-pub use presence::{FollowFrame, PeopleBar, PeopleBarOutput, PresenceWords, RemoteCursors, paint_pointer};
+pub use presence::{FollowCommand, FollowFrame, FollowFrameOutput, PeopleBar, PeopleBarOutput, PresenceWords, RemoteCursors, paint_pointer};
 pub use revisions::{RevisionsPanel, RevisionsPanelOutput, RevisionsWords};
 pub use signature::{SignaturePadDialog, SignaturePadResult, SignatureSettings, SignatureWords, paint_signature};
 pub use thread::{
-    CommentComposer, CommentComposerOutput, CommentPin, CommentPins, CommentPinsOutput, PinCluster, PinMove, REACTIONS, ThreadPopover,
-    ThreadPopoverOutput, ThreadWords, cluster, insert_mention, mention_matches, mention_query,
+    CommentComposer, CommentComposerOutput, CommentPin, CommentPins, CommentPinsOutput, ComposerCommand, PinCluster, PinMove, REACTIONS,
+    ThreadPopover, ThreadPopoverOutput, ThreadWords, cluster, insert_mention, mention_matches, mention_query,
 };
 pub use versions::{VersionAction, VersionHistoryPanel, VersionHistoryPanelOutput, VersionPreviewBanner, VersionPreviewBannerOutput, VersionsWords};
 pub use vote::{VotePill, VotePillOutput, VoteWords};

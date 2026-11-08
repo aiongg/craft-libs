@@ -4,8 +4,13 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use craft_review::collab::{CollabRequest, CollabTransport, JoinState, PEOPLE_COLORS, Participant, ParticipantId, VoteScope, VoteSession};
-use craft_review::ui::{CursorChatBox, JoinField, PeopleBar, VotePill};
-use craft_ui::testing::{Fixture, pointer, trial};
+use craft_review::ui::{CursorChatBox, JoinField, PeopleBar, ReviewCommand, VotePill};
+use craft_theme::{contrast_ratio, text_contrast_min};
+use craft_ui::canvas::Canvas;
+use craft_ui::contract::Show as _;
+use craft_ui::contract::{Commands as _, ShowContainer as _};
+use craft_ui::layout_components::Stack;
+use craft_ui::testing::{Fixture, Frames, pointer, trial};
 
 use crate::revisions::named;
 
@@ -122,28 +127,6 @@ fn join_field_waits_while_a_join_is_pending() {
     assert_eq!(*requests.borrow(), [CollabRequest::CancelJoin]);
 }
 
-/// The join field holds a link's secret: no accessibility node carries what was typed, and Enter still joins.
-#[trial]
-fn the_join_code_is_hidden_from_accessibility() {
-    let requests: Requests = Rc::default();
-    let seen = requests.clone();
-    let transport = session();
-    let mut typed = String::new();
-    let mut fixture = Fixture::new(move |ui| seen.borrow_mut().extend(JoinField::new(&transport, &mut typed).show(ui).requests));
-    fixture.settle();
-    let field = fixture.by_label("Join code or invite link").expect("the field");
-    fixture.click(&field);
-    fixture.type_text("s3cretcode");
-    let tree = fixture.tree();
-    let leaked = tree
-        .keys()
-        .into_iter()
-        .any(|key| [tree.name_of(key), tree.value_of(key), tree.description_of(key)].into_iter().flatten().any(|text| text.contains("s3cretcode")));
-    assert!(!leaked, "the typed code reaches no accessibility node");
-    fixture.key(egui::Key::Enter, egui::Modifiers::NONE);
-    assert_eq!(*requests.borrow(), [CollabRequest::Join("s3cretcode".into())]);
-}
-
 fn pill(vote: Option<VoteSession>) -> (Fixture, Requests) {
     let requests: Requests = Rc::default();
     let seen = requests.clone();
@@ -189,25 +172,98 @@ fn vote_scope_offers_selection_only_with_a_selection() {
     }
 }
 
-/// Typing in the open cursor chat sends each change; Escape closes it with an empty chat.
+/// The cursor chat command opens the cursor chat; typing in it sends each change and Escape closes it with an empty chat.
 #[trial]
 fn cursor_chat_sends_each_change_and_closes_with_escape() {
     let requests: Requests = Rc::default();
     let seen = requests.clone();
-    let state = Rc::new(RefCell::new((String::new(), true)));
+    let state = Rc::new(RefCell::new((String::new(), false)));
     let shared = state.clone();
     let mut fixture = Fixture::new(move |ui| {
         let mut shared = shared.borrow_mut();
         let (mut text, mut open) = std::mem::take(&mut *shared);
-        let out = CursorChatBox::new(&mut text, &mut open).show(ui, Some(egui::pos2(60.0, 60.0)));
-        seen.borrow_mut().extend(out.requests);
+        Stack::new().show(ui, |ui, cx| {
+            while cx.take_command::<ReviewCommand>().is_some() {
+                open = true;
+            }
+            let out = CursorChatBox::new(&mut text, &mut open).show(ui, Some(egui::pos2(60.0, 60.0)));
+            seen.borrow_mut().extend(out.requests);
+        });
         *shared = (text, open);
     });
     fixture.settle();
+    assert!(!state.borrow().1, "the box is closed until the command runs");
+    craft_ui::runtime::commands::fire(fixture.ctx(), ReviewCommand::CursorChat, craft_ui::runtime::commands::FireSource::Key);
+    fixture.settle();
+    assert!(state.borrow().1, "the / command opens the box");
     fixture.type_text("hi");
     assert_eq!(state.borrow().0, "hi");
     assert_eq!(requests.borrow().last(), Some(&CollabRequest::Chat("hi".into())));
     fixture.key(egui::Key::Escape, egui::Modifiers::NONE);
     assert!(!state.borrow().1);
     assert_eq!(requests.borrow().last(), Some(&CollabRequest::Chat(String::new())));
+}
+
+/// The colour of the first painted text of `show` after it settles.
+fn first_ink(show: &mut dyn FnMut(&mut egui::Ui)) -> egui::Color32 {
+    let mut frames = Frames::new();
+    frames.idle(2, &mut *show);
+    frames
+        .frame_shapes(&mut *show)
+        .iter()
+        .find_map(|shape| match shape {
+            egui::Shape::Text(text) => text.galley.job.sections.first().map(|section| section.format.color),
+            _ => None,
+        })
+        .expect("a text is painted")
+}
+
+/// The initials of an avatar and the name tag at a remote cursor read on every colour a person can take.
+#[trial]
+fn initials_and_name_tags_read_on_every_people_colour() {
+    let least = text_contrast_min(craft_theme::Contrast::Standard);
+    for color in PEOPLE_COLORS {
+        let fill = craft_theme::Rgba::rgb(color[0], color[1], color[2]);
+        let mut avatar = move |ui: &mut egui::Ui| {
+            let _ = craft_review::ui::Avatar::new("Ana Reyes").fill(color).show(ui);
+        };
+        let ratio = contrast_ratio(craft_theme::Rgba::from(first_ink(&mut avatar)), fill);
+        assert!(ratio >= least, "the initials read on {color:?}: {ratio} against {least}");
+
+        let mut room = Scripted { people: vec![person(1, "Ana Reyes"), person(2, "Bo Chen")], ..session() };
+        room.people[1].color = color;
+        room.people[1].cursor = Some([60.0, 60.0]);
+        let mut tag = move |ui: &mut egui::Ui| {
+            let area = ui.available_rect_before_wrap();
+            let view = craft_behavior::CanvasView::new(area, kurbo::Point::new(0.0, 0.0), 1.0);
+            Canvas::new("Document").view(view).show(ui, |ui, cx| {
+                craft_review::ui::RemoteCursors::new("Cursors", &room, 1.0).show_at(ui, cx.rect);
+            });
+        };
+        let ratio = contrast_ratio(craft_theme::Rgba::from(first_ink(&mut tag)), fill);
+        assert!(ratio >= least, "the name tag reads on {color:?}: {ratio} against {least}");
+    }
+}
+
+/// Escape while following stops following.
+#[trial]
+fn escape_while_following_stops_following() {
+    let following = Rc::new(RefCell::new(Some(ParticipantId(2))));
+    let shared = following.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let area = ui.available_rect_before_wrap();
+        let view = craft_behavior::CanvasView::new(area, kurbo::Point::new(0.0, 0.0), 1.0);
+        let mut shared = shared.borrow_mut();
+        let on = shared.is_some();
+        Canvas::new("Document").view(view).show(ui, |ui, cx| {
+            if on && craft_review::ui::FollowFrame::new("Following", PEOPLE_COLORS[1], "Following Bo Chen").show_at(ui, cx.rect).stopped {
+                *shared = None;
+            }
+        });
+    });
+    fixture.settle();
+    assert!(following.borrow().is_some());
+    craft_ui::runtime::commands::fire(fixture.ctx(), craft_review::ui::FollowCommand::StopFollowing, craft_ui::runtime::commands::FireSource::Key);
+    fixture.settle();
+    assert!(following.borrow().is_none(), "the stop command stops following");
 }

@@ -1,79 +1,40 @@
 //! `Avatar`: a person's round face, the initials of their name on their colour.
 
 use craft_behavior::{Metrics, Sense};
-use craft_theme::Rgba;
-use craft_theme::contrast::ensure_contrast;
+use craft_theme::variant::Variant;
 use craft_ui::contract::{Common, Component, Cx, MeasureCx, NoValue, Outcome, PaintUi, Props as _, Role, clicked};
-use craft_ui::fonts::FontRef;
-use craft_ui::primitives::{DocRun, DocText, Draw, PaintShape, StrokeWidth, TextRun};
+use craft_ui::primitives::{Draw, PaintShape, StrokeWidth, TextRun};
 use craft_ui::style::{ComponentStyle, DataColor, FocusLook, StyleColor, StyleCx, TypeRole};
-use egui::{Color32, Pos2, Rect, Response, Vec2};
+use egui::{Color32, Rect, Response, Vec2};
 
 use crate::collab::initials;
 
 #[cfg(feature = "screen-testing")]
 mod stories;
 
-/// The size and contrast rule of the initials, shared by every painter of a face.
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct AvatarFace {
-    /// The font size of the initials.
-    pub size: f32,
-    /// The line height of the initials.
-    pub line: f32,
-    /// The least contrast ratio of the initials on the fill.
-    pub contrast: f64,
-    /// The ink the initials start from, before the contrast rule adjusts it.
-    pub ink: [u8; 3],
+/// Paints a round face filling `rect`: `fill` with the initials of `name` centred on it, in the ink that reads on `fill`.
+pub fn paint_avatar(ui: &PaintUi<'_>, rect: Rect, name: &str, fill: DataColor) {
+    let draw = ui.draw();
+    draw.data_fill(&circle(rect), fill);
+    let ink = ui.with_style(Variant::SECONDARY, |cx| cx.ink_on(fill));
+    paint_initials(&draw, rect, name, ink);
 }
 
-impl AvatarFace {
-    /// The face the style context gives: caption type, the text contrast of the theme.
-    pub fn of(cx: &StyleCx<'_>) -> Self {
-        let caption = cx.tokens.typography.get(TypeRole::Caption);
-        AvatarFace {
-            size: caption.size,
-            line: caption.line_height,
-            contrast: craft_theme::contrast::text_contrast_min(cx.contrast()),
-            ink: rgb8(craft_theme::Srgba::from(cx.tokens.color.text.on_strong)),
-        }
-    }
+/// Paints a round face in a theme colour `fill` with the initials of `name` in `ink`.
+pub(super) fn paint_face(draw: &Draw<'_>, rect: Rect, name: &str, fill: StyleColor, ink: StyleColor) {
+    draw.fill(&circle(rect), fill);
+    paint_initials(draw, rect, name, ink);
 }
 
-/// The ink that reads on `fill`: `ink` where the contrast rule keeps it, else the nearest that it does.
-pub(super) fn ink_on(fill: [u8; 3], ink: [u8; 3], contrast: f64) -> Color32 {
-    let [r, g, b] = fill;
-    let [ir, ig, ib] = ink;
-    let ink = ensure_contrast(Rgba::rgb(ir, ig, ib), Rgba::rgb(r, g, b), contrast);
-    let [r, g, b, _] = ink.0;
-    Color32::from_rgb(r, g, b)
+fn circle(rect: Rect) -> PaintShape {
+    PaintShape::Circle(rect.center(), rect.width().min(rect.height()) / 2.0)
 }
 
-/// The 8-bit channels of a theme colour, the form `paint_avatar` takes a fill in.
-pub(super) fn rgb8(color: craft_theme::Srgba) -> [u8; 3] {
-    let [r, g, b, _] = Color32::from(color).to_array();
-    [r, g, b]
-}
-
-/// Paints a round face filling `rect`: `fill` with the initials of `name` centred on it.
-pub fn paint_avatar(draw: &Draw<'_>, rect: Rect, name: &str, fill: [u8; 3], face: &AvatarFace) {
-    let [r, g, b] = fill;
-    let circle = PaintShape::Circle(rect.center(), rect.width().min(rect.height()) / 2.0);
-    draw.data_fill(&circle, DataColor::new(Color32::from_rgb(r, g, b)));
-    paint_initials(draw, rect, name, DataColor::new(ink_on(fill, face.ink, face.contrast)), face);
-}
-
-fn paint_initials(draw: &Draw<'_>, rect: Rect, name: &str, ink: DataColor, face: &AvatarFace) {
-    let text = initials(name);
-    let runs = [DocRun::new(text, FontRef::proportional(), face.size, ink)];
-    // The face size is the caption role's, so the caption run measures the initials exactly.
-    let width = draw.layout(&TextRun::new(runs[0].text.as_ref()).role(TypeRole::Caption), f32::INFINITY).size().x;
-    let at = Rect::from_min_size(
-        Pos2::new(rect.center().x - width / 2.0, rect.center().y - face.line / 2.0),
-        Vec2::new(width.min(rect.width()), face.line),
-    );
-    draw.doc(at, &DocText::new(&runs));
+fn paint_initials(draw: &Draw<'_>, rect: Rect, name: &str, ink: StyleColor) {
+    let run = TextRun::new(initials(name)).role(TypeRole::Caption).color(ink);
+    let size = draw.layout(&run, f32::INFINITY).size();
+    let size = Vec2::new(size.x.min(rect.width()), size.y);
+    draw.text(Rect::from_center_size(rect.center(), size), &run);
 }
 
 /// The style of an avatar.
@@ -90,10 +51,6 @@ pub struct AvatarStyle {
     on_accent: StyleColor,
     /// The ring of a selected or hovered avatar.
     ring: StyleColor,
-    face_size: f32,
-    face_line: f32,
-    contrast: f64,
-    ink: [u8; 3],
     side: f32,
 }
 
@@ -148,17 +105,12 @@ impl Component for Avatar {
     fn style(cx: &StyleCx<'_>, _: AvatarStyleKey) -> AvatarStyle {
         let colors = &cx.tokens.color;
         let control = cx.control();
-        let face = AvatarFace::of(cx);
         AvatarStyle {
             metrics: Metrics::new().min_size(Vec2::splat(control.height)),
             focus: cx.focus_look(),
             accent: cx.color(colors.accent.solid),
             on_accent: cx.color(colors.text.on_strong),
             ring: cx.color(colors.accent.solid),
-            face_size: face.size,
-            face_line: face.line,
-            contrast: face.contrast,
-            ink: face.ink,
             side: control.height,
         }
     }
@@ -181,15 +133,11 @@ impl Component for Avatar {
         let style = cx.style;
         let side = cx.content_rect.width().min(cx.content_rect.height());
         let face = Rect::from_center_size(cx.content_rect.center(), Vec2::splat(side));
-        let face_look = AvatarFace { size: style.face_size, line: style.face_line, contrast: style.contrast, ink: style.ink };
-        let draw = ui.draw();
         match self.fill {
-            Some(fill) => paint_avatar(&draw, face, cx.resolved.label, fill, &face_look),
-            None => {
-                draw.fill(&PaintShape::Circle(face.center(), side / 2.0), style.accent);
-                paint_initials(&draw, face, cx.resolved.label, DataColor::new(style.on_accent.egui()), &face_look);
-            }
+            Some([r, g, b]) => paint_avatar(ui, face, cx.resolved.label, DataColor::new(Color32::from_rgb(r, g, b))),
+            None => paint_face(&ui.draw(), face, cx.resolved.label, style.accent, style.on_accent),
         }
+        let draw = ui.draw();
         if cx.resolved.selected == Some(true) || (self.pressable && cx.response.hovered()) {
             draw.stroke(&PaintShape::Circle(face.center(), side / 2.0), StrokeWidth::Medium, style.ring);
         }

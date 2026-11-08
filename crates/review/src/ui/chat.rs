@@ -1,28 +1,24 @@
 //! Cursor chat: your box at the pointer, and everyone's bubbles.
 
-use craft_ui::contract::{Bind, NoValue, Outcome, Pattern, Props, Remember as _, Show as _, ShowContainer as _};
+use craft_theme::variant::Variant;
+use craft_ui::contract::{Bind, NoValue, Outcome, PaintUi, Pattern, Props, Remember as _, Show as _, ShowContainer as _};
 use craft_ui::fonts::FontRef;
 use craft_ui::layout_components::Stack;
 use craft_ui::popover::Popover;
-use craft_ui::primitives::{DocRun, DocText, Draw, PaintShape, TextRun, Wrap};
+use craft_ui::primitives::{DocRun, DocText, PaintShape, TextRun, Wrap};
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::runtime::overlay::CloseReason;
 use craft_ui::style::{DataColor, StyleCx, TypeRole};
 use craft_ui::text::TextField;
 use egui::{Color32, CornerRadius, Pos2, Rect, Response, Ui, Vec2};
 
-use super::avatar::ink_on;
 use crate::collab::CollabRequest;
 
 #[cfg(feature = "screen-testing")]
 mod stories;
 
-/// The bubble's text wraps at this many control heights.
-const WIDTH_IN_HEIGHTS: f32 = 10.0;
 /// How much of the ink the name over a bubble's text keeps.
 const NAME_INK: f32 = 0.8;
-/// Where a name tag or bubble sits from the pointer's tip, as fractions of the pointer's size.
-pub(super) const TAG_OFFSET: [f32; 2] = [12.0 / 16.0, 1.0];
 
 craft_ui::words! {
     /// The chat box's words, English by default.
@@ -51,10 +47,6 @@ pub struct BubbleLook {
     pub body: (f32, f32),
     /// The name's size and line height.
     pub caption: (f32, f32),
-    /// The least contrast ratio of text on a person's colour.
-    pub contrast: f64,
-    /// The ink the text starts from, before the contrast rule adjusts it.
-    pub ink: [u8; 3],
 }
 
 impl BubbleLook {
@@ -64,14 +56,12 @@ impl BubbleLook {
         let (body, caption) = (tokens.typography.get(TypeRole::Body), tokens.typography.get(TypeRole::Caption));
         BubbleLook {
             pad: Vec2::new(control.pad_x, tokens.space.gap.inline),
-            gap: tokens.space.gap.inline / 2.0,
+            gap: tokens.space.gap.tight,
             radius: tokens.shape.radius.popup.round().clamp(0.0, 255.0) as u8,
-            offset: Vec2::from(TAG_OFFSET) * tokens.size.icon.md,
-            width: WIDTH_IN_HEIGHTS * control.height,
+            offset: Vec2::new(tokens.size.pointer_tip.x, tokens.size.pointer_tip.y),
+            width: tokens.size.length.field,
             body: (body.size, body.line_height),
             caption: (caption.size, caption.line_height),
-            contrast: craft_theme::contrast::text_contrast_min(cx.contrast()),
-            ink: super::avatar::rgb8(craft_theme::Srgba::from(tokens.color.text.on_strong)),
         }
     }
 }
@@ -79,15 +69,16 @@ impl BubbleLook {
 /// A chat bubble with its corner beside the pointer's `tip`: the name over the text when given, on `fill` (the
 /// person's colour) at `alpha`. As wide as its text, which wraps at the look's width; rounded except the corner at
 /// the pointer, which is square.
-pub fn paint_chat_bubble(draw: &Draw<'_>, look: &BubbleLook, tip: Pos2, name: Option<&str>, text: &str, fill: [u8; 3], alpha: f32) {
-    let ink = ink_on(fill, look.ink, look.contrast);
+pub fn paint_chat_bubble(ui: &PaintUi<'_>, look: &BubbleLook, tip: Pos2, name: Option<&str>, text: &str, fill: [u8; 3], alpha: f32) {
+    let draw = ui.draw();
+    let [r, g, b] = fill;
+    let ink = ui.with_style(Variant::SECONDARY, |cx| cx.ink_on(DataColor::new(Color32::from_rgb(r, g, b)))).egui();
     let measured = draw.layout(&TextRun::new(text).role(TypeRole::Body).wrap(Wrap::Wrap), look.width).size();
     let head = name.map(|name| draw.layout(&TextRun::new(name).role(TypeRole::Caption), look.width).size());
     let head_height = head.map_or(0.0, |size| size.y + look.gap);
     let width = head.map_or(0.0, |size| size.x).max(measured.x);
     let rect = Rect::from_min_size(tip + look.offset, Vec2::new(width, head_height + measured.y) + 2.0 * look.pad);
     let round = look.radius;
-    let [r, g, b] = fill;
     let background = Color32::from_rgb(r, g, b).gamma_multiply(alpha);
     draw.data_fill(&PaintShape::Rect(rect, CornerRadius { nw: 0, ne: round, sw: round, se: round }), DataColor::new(background));
     let mut at = rect.min + look.pad;

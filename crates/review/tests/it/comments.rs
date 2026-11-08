@@ -65,7 +65,15 @@ impl Rig {
     }
 
     fn present(&self, text: &str) -> bool {
-        self.fx.by_label(text).is_some() || self.fx.texts().iter().any(|painted| painted.text == text)
+        let card = format!("{text}, ");
+        let tree = self.fx.tree();
+        self.fx.by_label(text).is_some()
+            || self.fx.texts().iter().any(|painted| painted.text == text)
+            || self
+                .fx
+                .by_role(craft_ui::contract::Role::TREE_ITEM)
+                .iter()
+                .any(|row| tree.name_of(row.node).is_some_and(|name| name.starts_with(&card)))
     }
 
     fn type_into(&mut self, label: &str, text: &str) {

@@ -1,7 +1,7 @@
 //! `StyleCx`: what `style` and the app colour hooks get. Tokens are readable only through it.
 
 use super::key::{EnvKey, Ink};
-use super::look::{FocusLook, StyleColor, SurfaceKind, SurfaceLook, TrackLook};
+use super::look::{DataColor, FocusLook, StyleColor, SurfaceKind, SurfaceLook, TrackLook};
 use super::paint::{HandleLook, ResetMarkLook, RuleKind, RuleLook, ScrollBarLook, handle_look, reset_mark_look, rule_look, scroll_bar_look};
 use super::surface::{SurfaceStyle, surface_style};
 use super::tokens::UiTokens;
@@ -143,6 +143,19 @@ impl<'a> StyleCx<'a> {
     /// The one constructor of `StyleColor`: a semantic token read or a token-group field becomes a style colour here.
     pub fn color(&self, color: Rgba) -> StyleColor {
         StyleColor(egui_color(color))
+    }
+
+    /// The ink for text on a user colour: the higher-contrast of `text.normal` and `text.on_strong` on the fill,
+    /// pushed to the contrast the text needs.
+    pub fn ink_on(&self, fill: DataColor) -> StyleColor {
+        let fill = Rgba::from(fill.0);
+        let text = &self.tokens.color.text;
+        let start = if craft_theme::contrast_ratio(text.on_strong, fill) > craft_theme::contrast_ratio(text.normal, fill) {
+            text.on_strong
+        } else {
+            text.normal
+        };
+        self.color(craft_theme::ensure_contrast(start, fill, craft_theme::text_contrast_min(self.contrast())))
     }
 
     /// The one builder of the focus ring: the line's focus colour at the medium stroke, on the shape's edge.

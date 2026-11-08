@@ -20,7 +20,6 @@ use std::sync::Arc;
 
 use craft_behavior::{DisplayOrder, IconId, ItemSource, Metrics, Proposal, Selection, SpanLayout};
 use craft_i18n::{DateStyle, DateTime, TimeZone};
-use craft_theme::Srgba;
 use craft_ui::buttons::{Button, IconButton};
 use craft_ui::contract::overlay::Anchor;
 use craft_ui::contract::{
@@ -34,26 +33,17 @@ use craft_ui::menu::{Menu, MenuItem};
 use craft_ui::notices::{Notice, NoticeLayout};
 use craft_ui::primitives::{HAlign, IconSpec, PaintShape, TextRun, Wrap};
 use craft_ui::runtime::env::{AgeStyle, Env, EnvView, Label};
-use craft_ui::style::{ComponentStyle, Ink, StyleColor, StyleCx, TypeRole};
+use craft_ui::style::{ComponentStyle, DataColor, Ink, StyleColor, StyleCx, TypeRole};
 use craft_ui::text::TextField;
 use egui::{CornerRadius, Pos2, Rect, Response, Ui, Vec2, vec2};
 
 use super::annotate::{AnnotateWords, PALETTE};
-use super::avatar::{AvatarFace, paint_avatar, rgb8};
+use super::avatar::paint_face;
 use crate::annotate::AnnotationKind;
 use crate::comments::{CommentFilter, CommentSort, CommentThread, ReviewStatus, ThreadId, matches, sort_threads};
 
 /// Ages under this many seconds (one week) read relative; older ones read as a date.
 pub(crate) const AGE_SHOWN_AS_DATE: u64 = 7 * 24 * 60 * 60;
-
-/// A card is this many control heights wide when the room names no width.
-const COLUMN_IN_HEIGHTS: f32 = 20.0;
-
-/// A button of a card is this many control heights wide.
-const BUTTON_IN_HEIGHTS: f32 = 4.0;
-
-/// A heading's count takes this many control heights.
-const COUNT_IN_HEIGHTS: f32 = 2.0;
 
 /// The rows of the add box and of a reply box.
 const REPLY_LINES: usize = 2;
@@ -583,9 +573,11 @@ pub(crate) struct CommentRowStyle {
     faint: StyleColor,
     highlight: StyleColor,
     bar: StyleColor,
-    avatar: [u8; 3],
-    avatar_face: AvatarFace,
+    avatar: StyleColor,
+    avatar_ink: StyleColor,
     bar_width: f32,
+    /// The width of a card when the room names none.
+    column: f32,
     height: f32,
     pad: f32,
     gap: f32,
@@ -645,6 +637,8 @@ enum Slot {
 trait Sink {
     /// Text set in `at`'s width from `at`'s top left; returns its size.
     fn text(&mut self, at: Rect, spec: Spec, text: &str) -> Vec2;
+    /// The width `text` takes on one line.
+    fn width(&mut self, spec: Spec, text: &str) -> f32;
     /// The icon `id` in `rect`.
     fn icon(&mut self, rect: Rect, id: &'static str, tone: Tone);
     /// The avatar of `name`.
@@ -653,6 +647,8 @@ trait Sink {
     fn button(&mut self, slot: Slot, rect: Rect, id: &'static str, name: &Label, on: bool);
     /// A multi-line field at `at`'s top left and width; returns its height.
     fn field(&mut self, slot: Slot, at: Rect, label: &Label, text: &str, lines: usize) -> f32;
+    /// The size the push button `slot` with `label` measures.
+    fn push_size(&mut self, slot: Slot, label: &Label) -> Vec2;
     /// A push button.
     fn push(&mut self, slot: Slot, rect: Rect, label: &Label, enabled: bool);
 }
@@ -672,6 +668,8 @@ pub(crate) struct CommentRow<'r> {
     words: Option<Arc<CommentsWords>>,
     /// The heights the editor field and the reply field measured, for the paint of the same pass.
     heights: [f32; 2],
+    /// The sizes the push buttons measured, for the paint of the same pass.
+    buttons: [Vec2; 3],
     events: Vec<CardEvent>,
 }
 
@@ -688,6 +686,7 @@ impl<'r> CommentRow<'r> {
             reply: "",
             words: None,
             heights: [0.0; 2],
+            buttons: [Vec2::ZERO; 3],
             events: Vec::new(),
         }
         .label(name)
@@ -758,11 +757,11 @@ impl CommentRow<'_> {
         if let Some(heading) = &self.heading {
             let chevron = if heading.open { "chevron_down" } else { "chevron_right" };
             sink.icon(square(Pos2::new(pad, pad), h), chevron, Tone::Muted);
-            let count = COUNT_IN_HEIGHTS * h;
+            let count_spec = Spec::new(TypeRole::Caption, Tone::Muted, Wrap::Wrap).end();
+            let count = sink.width(count_spec, &heading.count);
             let x = pad + h + gap;
             let title = Spec::new(TypeRole::BodyStrong, Tone::Muted, Wrap::Elide);
             sink.text(strip(Pos2::new(x, pad), width - pad - count - gap - x), title, &heading.title);
-            let count_spec = Spec::new(TypeRole::Caption, Tone::Muted, Wrap::Wrap).end();
             sink.text(strip(Pos2::new(width - pad - count, pad), count), count_spec, &heading.count);
             return h + 2.0 * pad;
         }
@@ -821,10 +820,10 @@ impl CommentRow<'_> {
         if self.selected && self.editable {
             let field = sink.field(Slot::ReplyField, strip(Pos2::new(pad, y), room), &words.reply, self.reply, REPLY_LINES);
             y += field + gap;
-            let button = BUTTON_IN_HEIGHTS * h;
-            let post = Rect::from_min_size(Pos2::new(width - pad - button, y), vec2(button, h));
+            let button = sink.push_size(Slot::ReplyPost, &words.post);
+            let post = Rect::from_min_size(Pos2::new(width - pad - button.x, y), button);
             sink.push(Slot::ReplyPost, post, &words.post, !self.reply.trim().is_empty());
-            y += h + gap;
+            y += button.y + gap;
         }
         y - gap + pad
     }
@@ -845,13 +844,13 @@ impl CommentRow<'_> {
             Some((editing, draft)) if editing == index => {
                 let field = sink.field(Slot::EditField, strip(at, room), &words.edit, draft, EDIT_LINES);
                 let y = at.y + field + st.gap;
-                let button = BUTTON_IN_HEIGHTS * st.height;
+                let (post_size, cancel_size) = (sink.push_size(Slot::EditPost, &words.post), sink.push_size(Slot::EditCancel, &words.cancel));
                 let right = at.x + room;
-                let post = Rect::from_min_size(Pos2::new(right - 2.0 * button - st.gap, y), vec2(button, st.height));
+                let cancel = Rect::from_min_size(Pos2::new(right - cancel_size.x, y), cancel_size);
+                let post = Rect::from_min_size(Pos2::new(cancel.left() - st.gap - post_size.x, y), post_size);
                 sink.push(Slot::EditPost, post, &words.post, !draft.trim().is_empty());
-                let cancel = Rect::from_min_size(Pos2::new(right - button, y), vec2(button, st.height));
                 sink.push(Slot::EditCancel, cancel, &words.cancel, true);
-                y + st.height
+                y + post_size.y.max(cancel_size.y)
             }
             _ => {
                 let body = Spec::new(TypeRole::Body, Tone::Normal, Wrap::Wrap);
@@ -865,11 +864,16 @@ impl CommentRow<'_> {
 struct Measure<'a, 'b, 'r> {
     cx: &'a MeasureCx<'b, CommentRow<'r>>,
     fields: [f32; 2],
+    buttons: [Vec2; 3],
 }
 
 impl Sink for Measure<'_, '_, '_> {
     fn text(&mut self, at: Rect, spec: Spec, text: &str) -> Vec2 {
         self.cx.layout_at(&TextRun::new(text).role(spec.role).wrap(spec.wrap), at.width()).size()
+    }
+
+    fn width(&mut self, spec: Spec, text: &str) -> f32 {
+        self.cx.layout_at(&TextRun::new(text).role(spec.role).wrap(Wrap::Line), f32::INFINITY).size().x
     }
 
     fn icon(&mut self, _: Rect, _: &'static str, _: Tone) {}
@@ -885,7 +889,22 @@ impl Sink for Measure<'_, '_, '_> {
         height
     }
 
+    fn push_size(&mut self, slot: Slot, label: &Label) -> Vec2 {
+        let size = self.cx.child(slot, &mut Button::new(label.clone()), Proposal::Ideal);
+        self.buttons[push_index(slot)] = size;
+        size
+    }
+
     fn push(&mut self, _: Slot, _: Rect, _: &Label, _: bool) {}
+}
+
+/// Where the push button `slot`'s measured size is kept.
+fn push_index(slot: Slot) -> usize {
+    match slot {
+        Slot::EditPost => 0,
+        Slot::EditCancel => 1,
+        _ => 2,
+    }
 }
 
 /// Shows the parts of a row.
@@ -897,6 +916,7 @@ struct Paint<'a, 'b> {
     rtl: bool,
     thread: Option<ThreadId>,
     heights: [f32; 2],
+    buttons: [Vec2; 3],
     events: &'a mut Vec<CardEvent>,
 }
 
@@ -926,6 +946,10 @@ impl Paint<'_, '_> {
 }
 
 impl Sink for Paint<'_, '_> {
+    fn width(&mut self, spec: Spec, text: &str) -> f32 {
+        self.ui.draw().layout(&TextRun::new(text).role(spec.role).wrap(Wrap::Line), f32::INFINITY).size().x
+    }
+
     fn text(&mut self, at: Rect, spec: Spec, text: &str) -> Vec2 {
         let mut run = TextRun::new(text).role(spec.role).wrap(spec.wrap).color(self.color(spec.tone));
         if spec.end {
@@ -941,7 +965,7 @@ impl Sink for Paint<'_, '_> {
 
     fn avatar(&mut self, rect: Rect, name: &str) {
         let rect = self.place(rect);
-        paint_avatar(&self.ui.draw(), rect, name, self.st.avatar, &self.st.avatar_face);
+        paint_face(&self.ui.draw(), rect, name, self.st.avatar, self.st.avatar_ink);
     }
 
     fn button(&mut self, slot: Slot, rect: Rect, id: &'static str, name: &Label, on: bool) {
@@ -969,6 +993,10 @@ impl Sink for Paint<'_, '_> {
         height
     }
 
+    fn push_size(&mut self, slot: Slot, _: &Label) -> Vec2 {
+        self.buttons[push_index(slot)]
+    }
+
     fn push(&mut self, slot: Slot, rect: Rect, label: &Label, enabled: bool) {
         let response = self.ui.child(slot, self.place(rect), Button::new(label.clone()).enabled(enabled));
         if clicked(&response) {
@@ -986,6 +1014,12 @@ impl Component for CommentRow<'_> {
     type Style = CommentRowStyle;
     type Output = RowOut;
 
+    fn access(&self, access: &mut craft_ui::contract::Access, cx: &Cx<'_, Self>) {
+        let Some(first) = self.thread.and_then(|thread| thread.messages.first()) else { return };
+        let age = age_text(&cx.env, first.modified.unwrap_or(first.created), self.now);
+        access.name(craft_ui::contract::Name::Joined(vec![cx.resolved.label.to_owned(), age]));
+    }
+
     fn style(cx: &StyleCx<'_>, _: CommentRowStyleKey) -> CommentRowStyle {
         let color = &cx.tokens.color;
         CommentRowStyle {
@@ -997,9 +1031,10 @@ impl Component for CommentRow<'_> {
             faint: cx.color(color.text.faint),
             highlight: cx.color(color.state.selected),
             bar: cx.color(color.accent.solid),
-            avatar: rgb8(Srgba::from(color.accent.strong)),
-            avatar_face: AvatarFace::of(cx),
+            avatar: cx.color(color.accent.strong),
+            avatar_ink: cx.ink_on(DataColor::new(cx.color(color.accent.strong).egui())),
             bar_width: cx.tokens.stroke.thick,
+            column: cx.tokens.size.dock.column,
             height: cx.control().height,
             pad: cx.tokens.space.pad.control,
             gap: cx.tokens.space.gap.row,
@@ -1009,14 +1044,15 @@ impl Component for CommentRow<'_> {
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let width = match cx.proposal {
             Proposal::Width(width) => width,
-            _ => cx.room.unwrap_or(COLUMN_IN_HEIGHTS * cx.style.height),
+            _ => cx.room.unwrap_or(cx.style.column),
         };
         self.words = Some(cx.words::<CommentsWords>());
         let now = self.now;
         let age = |then: i64| age_text(&cx.env, then, now);
-        let mut sink = Measure { cx, fields: [0.0; 2] };
+        let mut sink = Measure { cx, fields: [0.0; 2], buttons: [Vec2::ZERO; 3] };
         let height = self.lay(cx.style, width, &age, &mut sink);
         self.heights = sink.fields;
+        self.buttons = sink.buttons;
         Vec2::new(width, height)
     }
 
@@ -1045,6 +1081,7 @@ impl Component for CommentRow<'_> {
             rtl,
             thread: self.thread.map(|t| t.id),
             heights: self.heights,
+            buttons: self.buttons,
             events: &mut events,
         };
         self.lay(st, rect.width(), &age, &mut sink);

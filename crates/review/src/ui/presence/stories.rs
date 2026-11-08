@@ -80,6 +80,6 @@ fn remote_cursors(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 #[story(FollowFrame, covers = [Default], drive = Drive::Never)]
 fn follow_frame(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     on_canvas(ui, |ui, at| {
-        FollowFrame::new("Following", PEOPLE_COLORS[1], "Following Bo Chen \u{b7} Esc to stop").show_at(ui, at);
+        let _ = FollowFrame::new("Following", PEOPLE_COLORS[1], "Following Bo Chen \u{b7} Esc to stop").show_at(ui, at);
     })
 }

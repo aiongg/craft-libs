@@ -11,13 +11,12 @@ mod stories;
 use std::ops::Range;
 
 use craft_behavior::{IconId, Metrics, PressPhase, Proposal, Sense};
-use craft_theme::Srgba;
 use craft_theme::variant::Tone;
 use craft_ui::buttons::{Button, IconButton, ToggleButton};
 use craft_ui::contract::overlay::Anchor;
 use craft_ui::contract::{
-    Bind, Common, Component, Cx, MeasureCx, NoValue, Outcome, PaintUi, Pattern, Pointer as _, Props as _, Remember as _, Role, Show as _,
-    ShowContainer as _, Trigger, clicked,
+    Bind, Commands as _, Common, Component, Cx, MeasureCx, NoValue, Outcome, PaintUi, Pattern, Pointer as _, Props as _, Remember as _, Role,
+    Show as _, ShowContainer as _, Trigger, clicked,
 };
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::{Row, Stack};
@@ -26,11 +25,11 @@ use craft_ui::popover::Popover;
 use craft_ui::primitives::{Completer, Completion, HAlign, IconSpec, PaintShape, StrokeWidth, TextRun};
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::runtime::focus::Initial;
-use craft_ui::style::{ComponentStyle, StyleColor, StyleCx, TypeRole};
+use craft_ui::style::{ComponentStyle, DataColor, StyleColor, StyleCx, TypeRole};
 use craft_ui::text::TextField;
-use egui::{CornerRadius, Pos2, Rect, Response, Ui, Vec2};
+use egui::{Color32, CornerRadius, Pos2, Rect, Response, Ui, Vec2};
 
-use super::avatar::{Avatar, AvatarFace, paint_avatar, rgb8};
+use super::avatar::{Avatar, paint_avatar, paint_face};
 use super::comments::{CommentEdit, age_text};
 use crate::comments::{CommentThread, ThreadId};
 
@@ -46,6 +45,7 @@ craft_ui::words! {
         delete_thread: "thread.deleteThread" = "Delete thread";
         more: "thread.more" = "More";
         cancel: "thread.cancel" = "Cancel";
+        close: "thread.close" = "Close";
         resolve: "thread.resolve" = "Resolve";
         reopen: "thread.reopen" = "Reopen";
         copy_link: "thread.copyLink" = "Copy link";
@@ -68,9 +68,6 @@ const MENTION_QUERY_CHARS: usize = 40;
 
 /// The words of the thread's text a pin's accessible name carries.
 const PIN_NAME_WORDS: usize = 8;
-
-/// A popover is this many control heights wide.
-const POPOVER_IN_HEIGHTS: f32 = 14.0;
 
 /// The reactions a message offers.
 pub const REACTIONS: [&str; 8] = ["👍", "❤", "😂", "🎉", "👀", "🙏", "🔥", "✅"];
@@ -248,8 +245,8 @@ pub(crate) struct PinStyle {
     dot: StyleColor,
     cluster: StyleColor,
     on_strong: StyleColor,
-    resolved: [u8; 3],
-    avatar_face: AvatarFace,
+    resolved: StyleColor,
+    resolved_ink: StyleColor,
     side: f32,
     inset: f32,
     dot_side: f32,
@@ -275,6 +272,14 @@ impl PinBubble {
     fn mine(&self) -> bool {
         matches!(self.face, Face::Pin { mine: true, .. })
     }
+
+    /// How far the pointer has dragged your own pin from where it was pressed.
+    fn lift(&self, cx: &Cx<'_, Self>) -> Vec2 {
+        match cx.press().phase {
+            PressPhase::DragStart { start, pos, .. } | PressPhase::Drag { start, pos, .. } if self.mine() => pos - start.origin,
+            _ => Vec2::ZERO,
+        }
+    }
 }
 
 impl Component for PinBubble {
@@ -292,8 +297,8 @@ impl Component for PinBubble {
             dot: cx.color(color.accent.strong),
             cluster: cx.color(color.accent.strong),
             on_strong: cx.color(color.text.on_strong),
-            resolved: rgb8(Srgba::from(color.text.faint)),
-            avatar_face: AvatarFace::of(cx),
+            resolved: cx.color(color.text.faint),
+            resolved_ink: cx.ink_on(DataColor::new(cx.color(color.text.faint).egui())),
             side: cx.control().height,
             inset: cx.tokens.space.gap.inline,
             dot_side: cx.tokens.shape.radius.sm * 2.0,
@@ -308,8 +313,10 @@ impl Component for PinBubble {
         let line = cx.layout(&TextRun::new("0").role(TypeRole::Caption)).size().y;
         self.line = line;
         let width = match self.face {
-            Face::Cluster { count } if count >= 100 => cx.style.side * 2.0,
-            Face::Cluster { count } if count >= 10 => cx.style.side * 1.5,
+            Face::Cluster { count } => {
+                let digits = cx.layout(&TextRun::new(count.to_string()).role(TypeRole::Caption)).size().x;
+                cx.style.side.max(digits + 2.0 * cx.style.inset)
+            }
             _ => cx.style.side,
         };
         Vec2::new(width, cx.style.side)
@@ -326,7 +333,7 @@ impl Component for PinBubble {
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let st = cx.style;
-        let rect = cx.rect;
+        let rect = cx.rect.translate(self.lift(cx));
         let radius = CornerRadius { sw: 0, ..CornerRadius::same((rect.height() / 2.0) as u8) };
         let hot = cx.response.hovered() || cx.response.has_focus() || matches!(self.face, Face::Pin { open: true, .. });
         let shape = PaintShape::Rect(rect, radius);
@@ -336,8 +343,12 @@ impl Component for PinBubble {
         let inner = rect.shrink(st.inset);
         match &self.face {
             Face::Pin { author, color, unread, resolved, .. } => {
-                let fill = if *resolved { st.resolved } else { *color };
-                paint_avatar(&draw, inner, author, fill, &st.avatar_face);
+                if *resolved {
+                    paint_face(&draw, inner, author, st.resolved, st.resolved_ink);
+                } else {
+                    let [r, g, b] = *color;
+                    paint_avatar(ui, inner, author, DataColor::new(Color32::from_rgb(r, g, b)));
+                }
                 if *unread {
                     let centre = Pos2::new(rect.right() - st.inset, rect.top() + st.inset);
                     draw.fill(&PaintShape::Circle(centre, st.dot_side / 2.0), st.dot);
@@ -462,15 +473,11 @@ impl CommentPins<'_> {
                     }
                 } else {
                     let name = words.cluster.fill(&[("n", &spot.threads.len().to_string())]);
-                    let width = match spot.threads.len() {
-                        100.. => side * 2.0,
-                        10.. => side * 1.5,
-                        _ => side,
-                    };
+                    let face = Face::Cluster { count: spot.threads.len() };
+                    let width = PinBubble::new(face.clone(), String::new()).measure_in(ui, Proposal::Ideal).x;
                     let rect = Rect::from_min_max(Pos2::new(spot.at.x, spot.at.y - side), Pos2::new(spot.at.x + width, spot.at.y));
                     let first = spot.threads.first().map_or(0, |thread| thread.0);
-                    let bubble =
-                        PinBubble::new(Face::Cluster { count: spot.threads.len() }, name.clone()).id_salt(("cluster", first)).show_at(ui, rect);
+                    let bubble = PinBubble::new(face, name.clone()).id_salt(("cluster", first)).show_at(ui, rect);
                     let mut chosen = None;
                     Menu::new(name).opened_by(&bubble.response, Trigger::Click).show(ui, |ui, _| {
                         for thread in spot.threads.iter().filter_map(|thread| pins.iter().find(|pin| pin.id == *thread)) {
@@ -582,6 +589,28 @@ fn mention_runs(text: &str, names: &[&str]) -> Vec<(String, bool)> {
     runs
 }
 
+/// The runs of a message split at its line breaks, one list of runs per line; an empty line keeps one blank run so it
+/// takes a line's height.
+fn message_lines(runs: Vec<(String, bool)>) -> Vec<Vec<(String, bool)>> {
+    let mut lines = vec![Vec::new()];
+    for (run, mention) in runs {
+        for (index, part) in run.split('\n').enumerate() {
+            if index > 0 {
+                lines.push(Vec::new());
+            }
+            if !part.is_empty() {
+                lines.last_mut().into_iter().for_each(|line| line.push((part.to_owned(), mention)));
+            }
+        }
+    }
+    for line in &mut lines {
+        if line.is_empty() {
+            line.push((" ".to_owned(), false));
+        }
+    }
+    lines
+}
+
 impl ThreadPopover<'_> {
     /// Shows the popover and reports the edits made.
     pub fn show(self, ui: &mut Ui) -> ThreadPopoverOutput {
@@ -589,15 +618,14 @@ impl ThreadPopover<'_> {
         let env = Env::of(ui);
         let words = env.words::<ThreadWords>();
         let view = env.view();
-        let side = Button::new("Aa").measure_in(ui, Proposal::Ideal).y;
         let name = thread.messages.first().map_or_else(String::new, |first| words.pin.fill(&[("author", &first.author)]));
         let mut names: Vec<&str> = people.iter().map(String::as_str).collect();
         names.push(me);
         let mut edits = Vec::new();
         let mut open = true;
         let mut escaped = false;
+        let mut close = false;
         let mut popover = Popover::new(name, Bind::bound(&mut open)).opened_by(opener).initial_focus(Initial::Default);
-        popover = popover.overlay(|overlay| overlay.min_size(egui::vec2(POPOVER_IN_HEIGHTS * side, 0.0)));
         if let Some(rect) = anchor {
             popover = popover.overlay(|overlay| overlay.opener_anchor(Anchor::Rect(rect)));
         }
@@ -627,6 +655,7 @@ impl ThreadPopover<'_> {
                         }
                     });
                     edits.extend(ran);
+                    close |= clicked(&IconButton::new(IconSpec::svg(IconId::new("close"))).label(words.close.clone()).show(ui));
                 });
                 for (index, message) in thread.messages.iter().enumerate() {
                     Row::new().show(ui, |ui, _| {
@@ -674,16 +703,20 @@ impl ThreadPopover<'_> {
                                     }
                                 }
                                 None => {
-                                    Row::new().wrap(true).show(ui, |ui, _| {
-                                        for (run, mention) in mention_runs(&message.text, &names) {
-                                            for word in run.split_inclusive(' ') {
-                                                let text = Text::new(word.to_owned());
-                                                if mention {
-                                                    text.role(TypeRole::BodyStrong).tone(Tone::Accent).show(ui)
-                                                } else {
-                                                    text.show(ui)
-                                                };
-                                            }
+                                    Stack::new().show(ui, |ui, _| {
+                                        for line in message_lines(mention_runs(&message.text, &names)) {
+                                            Row::new().wrap(true).show(ui, |ui, _| {
+                                                for (run, mention) in &line {
+                                                    for word in run.split_inclusive(' ') {
+                                                        let text = Text::new(word.to_owned());
+                                                        if *mention {
+                                                            text.role(TypeRole::BodyStrong).tone(Tone::Accent).show(ui)
+                                                        } else {
+                                                            text.show(ui)
+                                                        };
+                                                    }
+                                                }
+                                            });
                                         }
                                     });
                                 }
@@ -700,6 +733,7 @@ impl ThreadPopover<'_> {
                         });
                     });
                 }
+                let kept = draft.clone();
                 let field = TextField::new(words.reply.clone(), Bind::bound(&mut *draft))
                     .lines(COMPOSER_ROWS)
                     .placeholder(words.reply.clone())
@@ -708,6 +742,10 @@ impl ThreadPopover<'_> {
                     .default_stop()
                     .show(ui);
                 escaped |= field.escaped;
+                // Escape closes the popover and leaves the typed reply for the next time it opens.
+                if field.escaped {
+                    *draft = kept;
+                }
                 let text = draft.trim().to_owned();
                 let post = Button::new(words.post.clone()).enabled(!text.is_empty()).show(ui);
                 if (clicked(&post) || field.submitted) && !text.is_empty() {
@@ -717,7 +755,7 @@ impl ThreadPopover<'_> {
             });
             *cx.keep::<Editing>() = Editing(editing);
         });
-        ThreadPopoverOutput { edits, closed: !open || escaped || shown.output.closed.is_some() }
+        ThreadPopoverOutput { edits, closed: !open || escaped || close || shown.output.closed.is_some() }
     }
 }
 
@@ -735,6 +773,16 @@ impl<'a> CommentComposer<'a> {
     pub fn new(anchor: Option<Pos2>, draft: &'a mut String) -> Self {
         CommentComposer { anchor, draft }
     }
+}
+
+/// The commands of the new-comment composer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui::contract::CommandSet)]
+#[command(prefix = "review", scope = "review.composer")]
+#[non_exhaustive]
+pub enum ComposerCommand {
+    /// Post the comment from the multi-line field.
+    #[command(label = "Post", default = "Cmd+Enter", modal = "always")]
+    Post,
 }
 
 /// What the composer did this pass.
@@ -755,15 +803,18 @@ impl CommentComposer<'_> {
         let mut output = CommentComposerOutput::default();
         let Some(anchor) = anchor else { return output };
         let words = Env::of(ui).words::<ThreadWords>();
-        let side = Button::new("Aa").measure_in(ui, Proposal::Ideal).y;
         let mut open = true;
         let mut posted = None;
         let mut cancel = false;
         let shown = Popover::new(words.add_comment.clone(), Bind::bound(&mut open))
             .at_point(anchor)
             .initial_focus(Initial::Default)
-            .overlay(|overlay| overlay.min_size(egui::vec2(POPOVER_IN_HEIGHTS * side, 0.0)))
-            .show(ui, |ui, _| {
+            .command_scope(<ComposerCommand as craft_ui::contract::CommandSet>::SCOPE)
+            .show(ui, |ui, cx| {
+                let mut chord = false;
+                while cx.take_command::<ComposerCommand>().is_some() {
+                    chord = true;
+                }
                 Stack::new().show(ui, |ui, _| {
                     let field = TextField::new(words.add_comment.clone(), Bind::bound(&mut *draft))
                         .lines(COMPOSER_ROWS)
@@ -773,7 +824,7 @@ impl CommentComposer<'_> {
                         .show(ui);
                     cancel |= field.escaped;
                     let text = draft.trim().to_owned();
-                    if field.submitted && !text.is_empty() {
+                    if (field.submitted || chord) && !text.is_empty() {
                         posted = Some(text.clone());
                     }
                     Row::new().show(ui, |ui, _| {
