@@ -567,7 +567,7 @@ fn run_pass(ui: &mut Ui, cx: &mut BodyCx<'_>, held: &mut Held<'_, PageViewState>
             (page, Vec2::new(size.width as f32, size.height as f32))
         })
         .collect();
-    let pictures = PagePictures::new(source, &pages, &near).label(words.text.clone()).hold(zooming || ratio != 1.0);
+    let pictures = PagePictures::new(source, &pages, &near, paper).label(words.text.clone()).hold(zooming || ratio != 1.0);
     match describer {
         Some(describer) => pictures.describer(describer).show_at(ui, cx.rect),
         None => pictures.show_at(ui, cx.rect),

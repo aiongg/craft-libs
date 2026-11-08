@@ -11,13 +11,12 @@ use craft_ui::contract::{
     Remember as _, Role, Show as _, ShowContainer as _, WordSetCx as _, clicked, spec,
 };
 use craft_ui::layout_components::Row;
-use craft_ui::primitives::PaintShape;
 use craft_ui::primitives::textures::{Priority, TextureStoreOptions, ThumbPaint, ThumbRequest, ThumbnailOptions, Thumbnails, texture_side};
 use craft_ui::runtime::commands::FireSource;
 use craft_ui::runtime::env::Env;
 use craft_ui::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};
 use craft_ui::style::{ComponentStyle, DataColor, FocusLook, StyleCx, UiTokens};
-use egui::{CornerRadius, Pos2, Rect, Response, Ui, Vec2, pos2, vec2};
+use egui::{Pos2, Rect, Response, Ui, Vec2, pos2, vec2};
 
 use super::view::PageSource;
 use crate::layout::SCREEN_POINTS_PER_POINT;
@@ -430,8 +429,7 @@ impl Component for ReadingView<'_> {
             let request = ThumbRequest::for_cell(size.x.max(size.y), ppp);
             let picture = thumbs.state(&ctx, self.source, &page, &request, priority);
             if shown {
-                ui.draw().clipped(viewport, |draw| draw.data_fill(&PaintShape::Rect(at, CornerRadius::ZERO), self.paper));
-                thumbs.paint(&painter, at, &picture, &ThumbPaint::default().checker(false));
+                thumbs.paint(&painter, at, &picture, &ThumbPaint::default().paper(self.paper));
             }
         }
     }

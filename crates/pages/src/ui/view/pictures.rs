@@ -12,7 +12,7 @@ use craft_ui::primitives::textures::{
     Priority, TextureState, TextureStoreOptions, ThumbPaint, ThumbRequest, ThumbnailOptions, Thumbnails, texture_side,
 };
 use craft_ui::runtime::memory::Remember as _;
-use craft_ui::style::{ComponentStyle, StyleCx};
+use craft_ui::style::{ComponentStyle, DataColor, StyleCx};
 use egui::{Rect, Response, Vec2, pos2};
 
 /// The style of the page view's spacing: the gap between pages, the margin, the side column, Hide White Space's pad
@@ -126,6 +126,8 @@ pub(super) struct PagePictures<'a> {
     source: &'a dyn PageSource,
     pages: &'a [PlacedPage],
     near: &'a [(usize, Vec2)],
+    /// The document's paper under each picture.
+    paper: DataColor,
     /// Sharp renders wait: a zoom is under way.
     #[prop]
     hold: bool,
@@ -135,8 +137,8 @@ pub(super) struct PagePictures<'a> {
 }
 
 impl<'a> PagePictures<'a> {
-    pub(super) fn new(source: &'a dyn PageSource, pages: &'a [PlacedPage], near: &'a [(usize, Vec2)]) -> Self {
-        PagePictures { common: Common::new(), source, pages, near, hold: false, describer: None }
+    pub(super) fn new(source: &'a dyn PageSource, pages: &'a [PlacedPage], near: &'a [(usize, Vec2)], paper: DataColor) -> Self {
+        PagePictures { common: Common::new(), source, pages, near, paper, hold: false, describer: None }
     }
 }
 
@@ -177,7 +179,7 @@ impl Component for PagePictures<'_> {
         thumbs.hold(self.hold);
         details.hold(self.hold);
         let ppp = painter.pixels_per_point();
-        let paint = ThumbPaint::default().checker(false);
+        let paint = ThumbPaint::default().paper(self.paper);
         for placed in self.pages {
             let request = ThumbRequest::for_cell(placed.rect.width().max(placed.rect.height()), ppp);
             let state = thumbs.state(&ctx, self.source, &placed.page, &request, Priority::VISIBLE);

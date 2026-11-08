@@ -79,16 +79,18 @@ pub fn paint_chat_bubble(ui: &PaintUi<'_>, look: &BubbleLook, tip: Pos2, name: O
     let width = head.map_or(0.0, |size| size.x).max(measured.x);
     let rect = Rect::from_min_size(tip + look.offset, Vec2::new(width, head_height + measured.y) + 2.0 * look.pad);
     let round = look.radius;
-    let background = Color32::from_rgb(r, g, b).gamma_multiply(alpha);
-    draw.data_fill(&PaintShape::Rect(rect, CornerRadius { nw: 0, ne: round, sw: round, se: round }), DataColor::new(background));
-    let mut at = rect.min + look.pad;
-    if let Some(name) = name {
-        let runs = [DocRun::new(name.to_owned(), FontRef::proportional(), look.caption.0, DataColor::new(ink.gamma_multiply(NAME_INK * alpha)))];
-        draw.doc(Rect::from_min_size(at, Vec2::new(width, look.caption.1)), &DocText::new(&runs));
-        at.y += head_height;
-    }
-    let runs = [DocRun::new(text.to_owned(), FontRef::proportional(), look.body.0, DataColor::new(ink.gamma_multiply(alpha)))];
-    draw.doc(Rect::from_min_size(at, Vec2::new(width, measured.y)), &DocText::new(&runs));
+    draw.faded(alpha, |draw| {
+        let background = Color32::from_rgb(r, g, b);
+        draw.data_fill(&PaintShape::Rect(rect, CornerRadius { nw: 0, ne: round, sw: round, se: round }), DataColor::new(background));
+        let mut at = rect.min + look.pad;
+        if let Some(name) = name {
+            let runs = [DocRun::new(name.to_owned(), FontRef::proportional(), look.caption.0, DataColor::new(ink.gamma_multiply(NAME_INK)))];
+            draw.doc(Rect::from_min_size(at, Vec2::new(width, look.caption.1)), &DocText::new(&runs));
+            at.y += head_height;
+        }
+        let runs = [DocRun::new(text.to_owned(), FontRef::proportional(), look.body.0, DataColor::new(ink))];
+        draw.doc(Rect::from_min_size(at, Vec2::new(width, measured.y)), &DocText::new(&runs));
+    });
 }
 
 /// The review commands outside a widget: `/` opens the cursor chat box. The app binds the chord and sets
