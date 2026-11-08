@@ -521,7 +521,6 @@ impl Component for TrackRow<'_> {
             let node = access.node(part, Role::SPLITTER);
             node.name = Name::Text(template.fill(&[("track", self.track.name)]));
         }
-        access.node(HEADER, Role::LABEL).name = Name::Text(self.track.name.to_owned());
         let node = access.node(LABEL, Role::BUTTON);
         node.name = Name::Text(words.track_color.as_str().to_owned());
         if let (Some(lane), Some(axis)) = (self.cell(&LANE), time_axis(&cx.env)) {

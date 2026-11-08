@@ -466,15 +466,10 @@ fn double_clicking_a_header_toggles_its_height() {
     let mut panel = panel();
     let a1 = panel.row("A1");
     let before = a1.height();
-    let name = panel
-        .fixture
-        .by_role(craft_ui::contract::Role::LABEL)
-        .into_iter()
-        .find(|label| panel.fixture.tree().name_of(label.node) == Some("A1") && a1.contains(label.center()))
-        .expect("the header names its track");
-    panel.fixture.frame(vec![pointer::moved(name.center())]);
-    panel.fixture.click(&name);
-    panel.fixture.click(&name);
+    let at = a1.left_center() + Vec2::new(HEADER_NAME_INSET, 0.0);
+    panel.fixture.frame(vec![pointer::moved(at)]);
+    panel.fixture.click_at(at);
+    panel.fixture.click_at(at);
     let got = panel.heights();
     assert_eq!(got.len(), 1, "one height from the double click: {got:?}");
     assert_eq!(got[0].0, A1);
@@ -483,6 +478,9 @@ fn double_clicking_a_header_toggles_its_height() {
 
 /// The rounding slack of a measured point.
 const SLACK: f32 = 0.5;
+
+/// How far into the row the name column's text lies, clear of the colour strip and the switches.
+const HEADER_NAME_INSET: f32 = 60.0;
 
 /// Captions sit above the video rows; a model with a master volume shows the Mix row below the audio rows.
 #[trial]
@@ -545,10 +543,10 @@ fn the_menu_keys_report_a_context_menu_anchored_on_the_focused_clip() {
     panel.fixture.frame(vec![pointer::secondary(at, true)]);
     panel.fixture.frame(vec![pointer::secondary(at, false)]);
     let click = panel.edits().into_iter().find_map(|edit| match edit {
-        TimelineEdit::ContextMenu { pointer, .. } => Some(pointer),
+        TimelineEdit::ContextMenu { clip, anchor, .. } => Some((clip, anchor)),
         _ => None,
     });
-    assert!(matches!(click, Some(Some(pos)) if (pos - at).length() < 1.0), "{click:?}");
+    assert!(matches!(click, Some((Some(ClipId(1)), anchor)) if (anchor.center() - at).length() < 1.0), "{click:?}");
 }
 
 /// The rects of the panel that are filled with a clip colour or the disabled fill, as one frame paints them.
