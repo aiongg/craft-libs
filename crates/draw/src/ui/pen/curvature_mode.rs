@@ -81,7 +81,7 @@ impl PenTool {
         if let Some(pointer) = pointer
             && self.closes_at(draft, pointer, view, super::tool::reach(cx))
         {
-            paint_close_cue(draw, look, view, draft, pointer);
+            paint_close_cue(draw, look, view, draft);
         }
     }
 }

@@ -8,7 +8,7 @@ use super::bezier::{EditSubpath, HandleSide, Knot, KnotRef};
 use super::{PathOptionsSettings, PenMode, PenWords};
 use craft_behavior::geometry::{Directions, lock_direction};
 use craft_behavior::kurbo::{Point, Rect as DocRect, Vec2 as DocVec};
-use craft_behavior::{CancelReason, CanvasView, Cursor, EditEvent, GestureId, Mixed, PaintedCursor, PointerButton};
+use craft_behavior::{CancelReason, CanvasView, Cursor, CursorBadge, EditEvent, GestureId, Mixed, PaintedCursor, PointerButton};
 use craft_keymap::Mods;
 use craft_theme::Rgba;
 use craft_ui::canvas::{CanvasTool, ToolAccess, ToolAction, ToolAnchor, ToolContext, ToolKey, ToolPath, ToolPointer};
@@ -53,8 +53,6 @@ pub struct PenStyle {
     pub dash: f32,
     /// Gap length of the rubber band.
     pub gap: f32,
-    /// The close cue's ring radius, and its offset from the pointer across and down.
-    pub ring: f32,
 }
 
 impl PenStyle {
@@ -72,7 +70,6 @@ impl PenStyle {
             selected: cx.color(tokens.color.accent.solid),
             dash: tokens.stroke.dash,
             gap: tokens.stroke.dash_gap,
-            ring: tokens.size.handle.md,
         }
     }
 }
@@ -551,13 +548,14 @@ impl CanvasTool for PenTool {
         }
     }
 
-    fn cursor(&self, _: &ToolContext<'_>) -> Cursor {
+    fn cursor(&self, cx: &ToolContext<'_>) -> Cursor {
         let icon = match self.mode {
             PenMode::Pen => ToolIcon::Pen,
             PenMode::Curvature => ToolIcon::CurvaturePen,
         };
         // The pen's tip is the bottom left corner of the icon's box.
-        Cursor::Painted(PaintedCursor::tool(icon.icon(), Vec2::Y * ICON_BOX, None))
+        let badge = self.closes(cx).then_some(CursorBadge::Close);
+        Cursor::Painted(PaintedCursor::tool(icon.icon(), Vec2::Y * ICON_BOX, badge))
     }
 
     fn access(&self, cx: &ToolContext<'_>) -> Option<ToolAccess> {
@@ -626,7 +624,7 @@ impl PenTool {
         if let Some(pointer) = pointer
             && self.closes_at(draft, pointer, view, reach(cx))
         {
-            paint_close_cue(draw, look, view, draft, pointer);
+            paint_close_cue(draw, look, view, draft);
         }
     }
 }
@@ -656,9 +654,7 @@ fn square(draw: &Draw<'_>, look: &PenStyle, at: Pos2, fill: StyleColor) {
     draw.stroke(&shape, StrokeWidth::Thin, look.handle.stroke);
 }
 
-/// The first anchor filled and a ring beside the pointer: a press here closes the path.
-pub(super) fn paint_close_cue(draw: &Draw<'_>, look: &PenStyle, view: &CanvasView, draft: &EditSubpath, pointer: Pos2) {
+/// The first anchor filled: a press here closes the path (the pointer carries the close badge).
+pub(super) fn paint_close_cue(draw: &Draw<'_>, look: &PenStyle, view: &CanvasView, draft: &EditSubpath) {
     square(draw, look, view.to_screen(draft.knots[0].anchor), look.selected);
-    let ring = PaintShape::Circle(pointer + Vec2::splat(look.ring), look.ring);
-    draw.stroke(&ring, StrokeWidth::Medium, look.line);
 }
