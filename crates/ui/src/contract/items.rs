@@ -362,7 +362,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
     fn extent(&mut self, comp: &C, ui: &Ui, at: ShowAt, id: Id, scx: &StyleCx<'_>) -> Vec2 {
         let room = match at {
             ShowAt::Rect(rect) => rect.size(),
-            ShowAt::Flow => ui.available_size_before_wrap(),
+            ShowAt::Flow => crate::layout::flow_room(ui),
         };
         self.room = room;
         self.header.measure(scx);

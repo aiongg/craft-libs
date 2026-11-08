@@ -109,25 +109,31 @@ fn writing_the_bound_flyout_opens_the_same_flyout_as_a_click_and_writing_it_agai
     assert_eq!(*open.borrow(), Some(1));
 }
 
+/// A panel that opens at half the room: its flyout shows the panel's title row and the button under it whole.
+fn roomy_spec(panel: &u8) -> PanelSpec {
+    spec(panel).heights(DockHeights::new(ROOM / 2.0))
+}
+
+/// The panel asks for a height, so the flyout does not open at the least height, where the panel's body would clip
+/// the button and a press on the hidden half would land on the panel.
 #[trial]
 fn a_button_in_the_flyout_takes_its_click_and_leaves_the_flyout_open() {
     let open: Rc<RefCell<Option<u8>>> = Rc::new(RefCell::new(Some(0)));
     let clicks: Rc<Cell<u32>> = Rc::default();
     let (bound, counted) = (Rc::clone(&open), Rc::clone(&clicks));
-    let mut fixture = Fixture::new(move |ui| {
-        let column = Column::new(vec![Group::new(vec![0, 1], 0)], 240.0);
-        let counted = Rc::clone(&counted);
-        IconicColumn::new("Panels", global("dock", "flyout button test"), &column, Bind::bound(&mut bound.borrow_mut()), &spec).show_flyouts(
-            ui,
-            move |_, rect, ui, _| {
-                Panel::new("Panel").show_at(ui, rect, |ui, _| {
-                    if craft_ui::testing::contract::clicked(&Button::new("Apply").show(ui)) {
-                        counted.set(counted.get() + 1);
-                    }
+    let mut fixture =
+        Fixture::new(move |ui| {
+            let column = Column::new(vec![Group::new(vec![0, 1], 0)], 240.0);
+            let counted = Rc::clone(&counted);
+            IconicColumn::new("Panels", global("dock", "flyout button test"), &column, Bind::bound(&mut bound.borrow_mut()), &roomy_spec)
+                .show_flyouts(ui, move |_, rect, ui, _| {
+                    Panel::new("Panel").show_at(ui, rect, |ui, _| {
+                        if craft_ui::testing::contract::clicked(&Button::new("Apply").show(ui)) {
+                            counted.set(counted.get() + 1);
+                        }
+                    });
                 });
-            },
-        );
-    });
+        });
     fixture.settle();
     let apply = fixture.by_label("Apply").expect("the open flyout shows its button");
     fixture.click(&apply);
