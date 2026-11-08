@@ -373,11 +373,12 @@ impl CanvasTool for Sizer {
         let (from, to) = (self.from?, self.to?);
         let units = cx.units();
         let size = to - from;
-        let name = format!("Rectangle {} x {}", units.pixels(f64::from(size.x)), units.pixels(f64::from(size.y)));
+        let value = format!("{} x {}", units.pixels(f64::from(size.x)), units.pixels(f64::from(size.y)));
         let view = cx.space()?.view;
         let (top_left, bottom_right) = (view.to_doc(from), view.to_doc(to));
         Some(
-            ToolAccess::new(name)
+            ToolAccess::new("Rectangle")
+                .value(value)
                 .bounds(DocRect::from_points(top_left, bottom_right))
                 .anchor(ToolAnchor::new("Start", top_left))
                 .anchor(ToolAnchor::new("End", bottom_right)),
@@ -390,19 +391,23 @@ impl CanvasTool for Sizer {
 }
 
 #[trial]
-fn a_drag_tool_node_names_its_live_size_and_goes_with_the_gesture() {
+fn a_drag_tool_node_values_its_live_size_and_goes_with_the_gesture() {
     let view = |room: Rect| CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
     let mut fixture = ToolFixture::with_view("Document", Sizer::default(), view, |_, _| {});
     let from = fixture.canvas().center();
     fixture.press_at(from).move_to(from + BY);
-    let node = fixture.fixture().by_label("Rectangle 60 px x 40 px").expect("the tool's node names the size it is dragging");
+    let value = |fixture: &mut ToolFixture<Sizer>| {
+        let node = fixture.fixture().by_label("Rectangle")?;
+        fixture.fixture().tree().value_of(node.node).map(str::to_owned)
+    };
+    let node = fixture.fixture().by_label("Rectangle").expect("the tool has a node");
     assert!(node.rect.width() > 0.0, "the node covers the drawing: {:?}", node.rect);
+    assert_eq!(value(&mut fixture).as_deref(), Some("60 px x 40 px"), "the node's value is the size it is dragging");
     assert!(fixture.fixture().by_label("Start").is_some() && fixture.fixture().by_label("End").is_some(), "each anchor has a node");
     fixture.move_to(from + BY * 2.0);
-    assert!(fixture.fixture().by_label("Rectangle 120 px x 80 px").is_some(), "the name follows the drag");
-    assert!(fixture.fixture().by_label("Rectangle 60 px x 40 px").is_none(), "one node, not one per pass");
+    assert_eq!(value(&mut fixture).as_deref(), Some("120 px x 80 px"), "the value follows the drag");
     fixture.release_at(from + BY * 2.0);
-    assert!(fixture.fixture().by_label("Rectangle 120 px x 80 px").is_none(), "a tool with nothing to describe has no node");
+    assert!(fixture.fixture().by_label("Rectangle").is_none(), "a tool with nothing to describe has no node");
 }
 
 /// A tool that reads the snapping and the words through its context on a press.

@@ -53,7 +53,7 @@ use crate::runtime::commands;
 use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::{global, with_session};
 use crate::runtime::pointer::{self, PointerFrame};
-use crate::runtime::{cursor, frame, keys};
+use crate::runtime::{cursor, frame, keys, lock_keys};
 use crate::style::{Ink, StyleCx};
 use craft_behavior::kurbo;
 use craft_behavior::{
@@ -252,6 +252,7 @@ impl<'m> ToolHost<'m> {
         let cancelled_view = state.cancelled_view.take();
         let space = canvas.space;
         let down = keys::down(&ctx);
+        let caps = lock_keys::caps_lock(&ctx);
         let rect = canvas.response.rect;
         let input = pointer::frame(&ctx);
         let mut glide = None;
@@ -275,6 +276,7 @@ impl<'m> ToolHost<'m> {
             space,
             slop: input.slop,
             down: &down,
+            caps,
             rect,
             mods: input.mods,
             time: input.time,
@@ -321,7 +323,7 @@ impl<'m> ToolHost<'m> {
         let over = phase.is_press() || matches!(phase, PressPhase::Hover) || state.gesture.is_some();
         let current = state.gesture.map(|active| active.last).or_else(|| over.then(|| hover_pointer(&input, canvas.press)).flatten());
         let context = || {
-            let cx = ToolContext::new(rect, space).pointer(current).mods(input.mods).time(input.time).slop(input.slop).down(&down).env(&env);
+            let cx = ToolContext::new(rect, space).pointer(current).mods(input.mods).time(input.time).slop(input.slop).down(&down).caps(caps).env(&env);
             match canvas.snap.as_ref() {
                 Some(snap) => cx.snapping(snap),
                 None => cx,
@@ -376,7 +378,7 @@ impl<'m> ToolHost<'m> {
         let taken = with_session(ctx, state_id(canvas), |slot: &mut HostState| slot.gesture.take().map(|active| (active, slot.rect, slot.space)));
         let Some((active, rect, space)) = taken else { return false };
         let down = keys::down(ctx);
-        let mut cx = ToolContext::new(rect.unwrap_or(Rect::NOTHING), space).pointer(Some(active.last)).down(&down);
+        let mut cx = ToolContext::new(rect.unwrap_or(Rect::NOTHING), space).pointer(Some(active.last)).down(&down).caps(lock_keys::caps_lock(ctx));
         tool.cancel(reason, &mut cx);
         if let Some(view) = cx.take_requests().view {
             with_session(ctx, state_id(canvas), |state: &mut HostState| state.cancelled_view = Some(view));
@@ -415,6 +417,9 @@ fn report_access(ctx: &Context, canvas: &CanvasOutput, rect: Rect, tool: &ToolAc
     let mut node = SubNode::new(tool_part, Role::GRAPHICS_OBJECT);
     node.name = Name::Text(tool.name.clone());
     node.description.clone_from(&tool.description);
+    if let Some(value) = &tool.value {
+        node.value(value.clone());
+    }
     access::report_sub(ctx, &sub_decl(owner, &node, bounds.unwrap_or(at_centre), owner));
     let parent = access::sub_node_id(owner, tool_part);
     for (index, anchor) in (0u64..).zip(&tool.anchors) {
@@ -477,6 +482,7 @@ struct Run<'a> {
     space: Option<CanvasSpace>,
     slop: f32,
     down: &'a [Key],
+    caps: bool,
     rect: Rect,
     mods: Mods,
     time: f64,
@@ -491,7 +497,7 @@ struct Run<'a> {
 
 impl<'a> Run<'a> {
     fn context(&self, pointer: Option<ToolPointer>) -> ToolContext<'a> {
-        let cx = ToolContext::new(self.rect, self.space).pointer(pointer).mods(self.mods).time(self.time).slop(self.slop).down(self.down);
+        let cx = ToolContext::new(self.rect, self.space).pointer(pointer).mods(self.mods).time(self.time).slop(self.slop).down(self.down).caps(self.caps);
         let cx = cx.env(self.env);
         match self.snap {
             Some(snap) => cx.snapping(snap),

@@ -14,6 +14,7 @@ pub mod inspect;
 pub mod install;
 pub mod keys;
 pub mod layout_memory;
+pub(crate) mod lock_keys;
 pub mod memory;
 pub mod motion;
 pub mod overlay;
