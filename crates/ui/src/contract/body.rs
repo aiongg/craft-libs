@@ -1,7 +1,7 @@
 //! The body step (16.3): the regions of a container (header, body with its scroll region, footer), open and
 //! gate state, scroll offset, move and resize, and the zoomed canvas body.
 
-use super::cx::BodyCx;
+use super::cx::{BodyCx, BodyOwner};
 use super::label::{self, LabelIn};
 use super::overlay::{OverlayFit, Place, PlacementChange, PlacementKind};
 use super::run::{ShapeHooks, ShowAt};
@@ -1344,6 +1344,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             }
         });
         let body_id = sub(id, "body");
+        let owner = BodyOwner::new(cx.style, gap_of(&env.tokens, props.body_gap));
         let frame = RegionFrame { id, rtl, node, env: &region_env };
         let (resolved, env_view) = (cx.core.resolved, region_env.view());
         let mut open = self.open;
@@ -1353,7 +1354,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         // B1 header
         if props.header.is_some() {
             let mut bcx = BodyCx::new(body_id, env_view, resolved, regions.header, &mut *cx.core.memory, &mut open, gate.as_mut())
-                .with_field_message(field_message.clone());
+                .with_field_message(field_message.clone())
+                .with_owner(owner);
             let trailing = props.header.is_some_and(|header| header.trailing);
             close = close.or(self.header_region(comp, ui, &mut bcx, &frame, regions.header, trailing));
         }
@@ -1412,7 +1414,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 }
             });
             let mut bcx = BodyCx::new(body_id, body_env.view(), resolved, body_rect, &mut *cx.core.memory, &mut open, gate.as_mut())
-                .with_field_message(field_message.clone());
+                .with_field_message(field_message.clone())
+                .with_owner(owner);
             let gap = Vec2::splat(gap_of(&env.tokens, props.body_gap));
             let layout_id = sub(id, "layout");
             // While the body opens or closes, it shows only the part of its last height that the presence reaches.
@@ -1510,7 +1513,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             self.view = Some(body_rect);
             if props.end.is_some() {
                 let mut end_cx = BodyCx::new(body_id, line_env.view(), resolved, regions.end, &mut *cx.core.memory, &mut open, gate.as_mut())
-                    .with_field_message(field_message.clone());
+                    .with_field_message(field_message.clone())
+                    .with_owner(owner);
                 // The controls run in reading order, so their roving order is their order on the line; the region is
                 // as wide as they measured, so the last one sits at the end edge.
                 let layout = if rtl { Layout::right_to_left(Align::Center) } else { Layout::left_to_right(Align::Center) };
@@ -1545,7 +1549,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             }
             let offset = if rtl { regions.footer.max.x - footer_rect.max.x } else { footer_rect.min.x - regions.footer.min.x };
             let mut bcx = BodyCx::new(body_id, env_view, resolved, footer_rect, &mut *cx.core.memory, &mut open, gate.as_mut())
-                .with_field_message(field_message);
+                .with_field_message(field_message)
+                .with_owner(owner);
             let mut footer_ui = alloc::child(ui, frame.region("footer", footer_rect));
             let installed = Env::install_for(&footer_ui, region_env.clone());
             comp.footer(&mut footer_ui, &mut bcx);

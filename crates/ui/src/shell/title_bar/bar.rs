@@ -14,7 +14,7 @@ use crate::layout::{Placed, arrange};
 use crate::primitives::RuleKind;
 use crate::runtime::access::Name;
 use crate::runtime::egui::pass;
-use crate::runtime::env::{AppValues, Env, EnvValue};
+use crate::runtime::env::Env;
 use crate::runtime::windows::{self, WindowAction, WindowHost};
 use crate::shell::app_shell::RegionBody;
 use crate::shell::{Caption, CaptionButton, CaptionIcons, Frame, ShellWords, SlotSize};
@@ -96,16 +96,6 @@ pub struct TitleBar<'a> {
     close: bool,
 }
 
-/// The gap between the bar's contents, which the bar's body reads from the env.
-#[derive(Clone, PartialEq)]
-struct ContentGap(f32);
-
-impl EnvValue for ContentGap {
-    fn root() -> Self {
-        ContentGap(0.0)
-    }
-}
-
 /// The facts of the window a pass of the bar reads.
 struct Window {
     frame: Frame,
@@ -156,7 +146,7 @@ impl<'a> TitleBar<'a> {
                 leading(ui, cx);
                 if !native_hidden {
                     let rtl = cx.env.direction().is_rtl();
-                    let margin = cx.env.get::<ContentGap>().0;
+                    let margin = cx.gap().unwrap_or_default();
                     title.show_in_gap(ui, cx, cx.rect.width(), centre_line(cx, rtl), margin);
                 }
             })
@@ -234,10 +224,6 @@ impl Component for TitleBar<'_> {
 
     fn sense(&self) -> Sense {
         Sense::empty()
-    }
-
-    fn content_env(&self, cx: &Cx<'_, Self>, values: &mut AppValues) {
-        values.set(ContentGap(cx.style.gap));
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {

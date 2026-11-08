@@ -1046,18 +1046,18 @@ status = "replaced"
 note = "The error value of a workspace that fails `Workspace::validate`; the area draws nothing for it."
 
 [[type]]
-name = "DockAreaStyle"
+name = "DockRootStyle"
 old = ""
-new = "craft_ui::patterns::dock::DockAreaStyle"
+new = "craft_ui::docking::DockRootStyle"
 status = "replaced"
-note = "The one component style behind `DockStyle`, `DockLook`, `DockSpec` and `DockWith`: the docking sizes, from tokens."
+note = "The one component style behind `DockStyle`, `DockLook`, `DockSpec` and `DockWith`: the docking sizes, from tokens, which the body of a `DockArea` or `PaneArea` reads through `BodyCx::style`."
 
 [[type]]
 name = "DockStyle"
 old = "craft_ui::docking::surface::DockStyle"
 new = ""
 status = "removed"
-note = "Replaced by `craft_ui::patterns::dock::DockAreaStyle` (sizes) and `DockConfig` (behaviour)."
+note = "Replaced by `craft_ui::docking::DockRootStyle` (sizes) and `DockConfig` (behaviour)."
 
 [[type]]
 name = "DockLook"
@@ -1071,14 +1071,14 @@ name = "DockSpec"
 old = "craft_ui::docking::look::DockSpec"
 new = ""
 status = "removed"
-note = "Replaced by `DockAreaStyle`."
+note = "Replaced by `DockRootStyle`."
 
 [[type]]
 name = "DockWith"
 old = "craft_ui::docking::look::DockWith"
 new = ""
 status = "removed"
-note = "Replaced by `DockAreaStyle`."
+note = "Replaced by `DockRootStyle`."
 
 [[setter]]
 type = "DockArea"

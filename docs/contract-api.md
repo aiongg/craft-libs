@@ -1531,6 +1531,8 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub fn request_close(&mut self)`. Asks the container to close, as `CloseReason::Requested`: step 15 closes it.
   - `pub fn request_close_as(&mut self, why: CloseReason)`. Asks the container to close and tells it why (an OK button is `Activated`, Enter is `Enter`): step 15
   - `pub fn labelled<C: Show>(&mut self, ui: &mut Ui, key: impl Hash + Debug, label: Label, side: SideLabel, child: C) -> C::Output`. Runs the label step (B2, 16.3) for one leaf child in the body's flow: `label` sits beside the child or above
+  - `pub fn style<C: Container>(&self) -> Option<&'a C::Style>`. The style of the container `C` whose body this is, as step 2 resolved it for this pass: the one way a body
+  - `pub fn gap(&self) -> Option<f32>`. The gap the body's layout puts between its children (`ContainerProps::body_gap`), for a body that places content of its own beside
 - `craft_ui::contract::BodyLayout`: `pub enum BodyLayout { Stack, Row { wrap: bool, align: RowAlign }, Grid { columns: Cow<'static, [ColumnWidth]> } }`. How a body lays out its children, in reading order: mirrored under a right-to-left direction.
   - `pub const fn stack() -> Self`. Children one under another.
   - `pub const fn row() -> Self`. Children side by side from the start edge, with no wrap.

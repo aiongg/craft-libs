@@ -3,7 +3,7 @@
 
 use super::label::{self, LeafLabel};
 use super::run::ShowAt;
-use super::{Component, EditResponse, Resolved, Show, SideLabel, Tooltip, Validity, ValueOf};
+use super::{Component, Container, EditResponse, Resolved, Show, SideLabel, Tooltip, Validity, ValueOf};
 use crate::primitives::sensing::{PartDecl, PartResults};
 use crate::primitives::{Adopted, PaintRecord, PartResult, TextEnv, TextLayout, TextRun};
 use crate::runtime::access::{self, FieldLabel, Politeness};
@@ -26,6 +26,7 @@ use craft_i18n::{Format, WordSet};
 use craft_keymap::Chord;
 use craft_theme::Flags;
 use egui::{Context, Id, Pos2, Rect, Response, Ui, Vec2};
+use std::any::Any;
 use std::cell::RefCell;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -1186,6 +1187,7 @@ pub struct BodyCx<'a> {
     gate: Option<&'a mut bool>,
     close: Option<CloseReason>,
     field_message: Option<(Message, craft_theme::variant::Tone)>,
+    owner: Option<BodyOwner<'a>>,
 }
 
 impl<'a> BodyCx<'a> {
@@ -1199,7 +1201,7 @@ impl<'a> BodyCx<'a> {
         gate: Option<&'a mut bool>,
     ) -> Self {
         memory.claim(id);
-        BodyCx { id, env, resolved, rect, memory, open, gate, close: None, field_message: None }
+        BodyCx { id, env, resolved, rect, memory, open, gate, close: None, field_message: None, owner: None }
     }
 
     pub(crate) fn with_field_message(mut self, message: Option<(Message, craft_theme::variant::Tone)>) -> Self {
@@ -1275,6 +1277,41 @@ impl<'a> BodyCx<'a> {
         placed.finish(ui.ctx());
         alloc::space(ui, Vec2::new(avail.width(), (bottom - row.top()).max(ideal.y)));
         output
+    }
+}
+
+/// What a container's body reads of its container: the style step 2 resolved for this pass, and the body gap.
+#[derive(Clone, Copy)]
+pub(crate) struct BodyOwner<'a> {
+    style: &'a (dyn Any + Send + Sync),
+    gap: f32,
+}
+
+impl<'a> BodyOwner<'a> {
+    /// The container's `style` and the gap its body lays its children out with.
+    pub(crate) fn new<S: crate::style::ComponentStyle>(style: &'a S, gap: f32) -> Self {
+        BodyOwner { style, gap }
+    }
+}
+
+impl<'a> BodyCx<'a> {
+    pub(crate) fn with_owner(mut self, owner: BodyOwner<'a>) -> Self {
+        self.owner = Some(owner);
+        self
+    }
+
+    /// The style of the container `C` whose body this is, as step 2 resolved it for this pass: the one way a body
+    /// reads what its container's style holds (a dock root's docking sizes). `None` when the body's container has
+    /// another style type, and for a body with no container: a popup's body or a collection's empty state.
+    pub fn style<C: Container>(&self) -> Option<&'a C::Style> {
+        self.owner.and_then(|owner| owner.style.downcast_ref::<C::Style>())
+    }
+
+    /// The gap the body's layout puts between its children (`ContainerProps::body_gap`), for a body that places
+    /// content of its own beside them. `None` for a body with no container: a popup's body or a collection's empty
+    /// state.
+    pub fn gap(&self) -> Option<f32> {
+        self.owner.map(|owner| owner.gap)
     }
 }
 
