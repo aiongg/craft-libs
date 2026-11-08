@@ -31,16 +31,29 @@ use craft_behavior::{Metrics, Sense};
 use egui::{Rect, Response, Ui};
 use std::sync::Arc;
 
-/// The closure that fills a slot or the body; it gets the app state the shell is shown with.
-pub(super) type RegionFn<'a, S> = Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>, &mut S) + 'a>;
+/// The closure that fills a region.
+pub(super) type RegionFn<'a> = Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>;
 
 /// The closure that fills a region, as a `func` prop.
-pub(super) struct RegionBody<'a, S>(pub(super) RegionFn<'a, S>);
+pub(super) struct RegionBody<'a>(pub(super) RegionFn<'a>);
 
-impl<'a, S> RegionBody<'a, S> {
+impl<'a> RegionBody<'a> {
     /// The body that runs `body`.
-    pub(super) fn new(body: impl FnMut(&mut Ui, &mut BodyCx<'_>, &mut S) + 'a) -> Self {
+    pub(super) fn new(body: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
         RegionBody(Box::new(body))
+    }
+}
+
+/// The closure that fills a slot or the body of an `AppShell`; it gets the app state the shell is shown with.
+type SlotFn<'a, S> = Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>, &mut S) + 'a>;
+
+/// The closure that fills the body of an `AppShell`, as a `func` prop.
+struct SlotBody<'a, S>(SlotFn<'a, S>);
+
+impl<'a, S> SlotBody<'a, S> {
+    /// The body that runs `body`.
+    fn new(body: impl FnMut(&mut Ui, &mut BodyCx<'_>, &mut S) + 'a) -> Self {
+        SlotBody(Box::new(body))
     }
 }
 
@@ -146,7 +159,7 @@ struct Placed<'a, S> {
     title: bool,
     /// The slot's name in the shell's words, for a slot of the canvas preset.
     named: Option<fn(&ShellWords) -> Label>,
-    add: RegionFn<'a, S>,
+    add: SlotFn<'a, S>,
 }
 
 impl<S> Placed<'_, S> {
@@ -268,7 +281,7 @@ pub struct AppShell<'a, S> {
     slots: Vec<Placed<'a, S>>,
     /// The body, shown in what the slots leave.
     #[prop(func = "FnMut(&mut Ui, &mut BodyCx<'_>, &mut S)")]
-    body: Option<RegionBody<'a, S>>,
+    body: Option<SlotBody<'a, S>>,
 }
 
 impl<'a, S> AppShell<'a, S> {
@@ -448,7 +461,7 @@ impl<'a, S> AppShell<'a, S> {
                 show_slots(ui, false, app);
                 let center = ShellRegion::pane(ShellPane::new("body").at(regions.body)).surface(backdrop).label(body_label.clone());
                 center.show(ui, |ui, bcx| {
-                    if let Some(RegionBody(body)) = body.as_mut() {
+                    if let Some(SlotBody(body)) = body.as_mut() {
                         body(ui, bcx, app);
                     }
                 });
