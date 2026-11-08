@@ -1,5 +1,5 @@
 //! The regions of a body: an inline header that measures nothing, a full-height end region with the footer in it, a
-//! spread row, the room of a Grid cell, and a filling body placed from this pass's header, footer and end region.
+//! spread row, the room of a Grid cell, and a filling body placed from this pass's header and footer.
 
 use crate::contract::kit::PlainStyle;
 use craft_behavior::{ColumnWidth, Sense};
@@ -202,25 +202,13 @@ fn a_filling_body_lies_between_its_header_and_its_footer_in_the_first_pass() {
 }
 
 #[trial]
-fn a_filling_body_keeps_clear_of_its_end_region_and_footer_in_the_first_pass() {
-    let props = |place: FooterPlace, full: bool| {
-        ContainerProps::new().sizing(Sizing::Fill).end(EndRegion::new().full_height(full)).footer(FooterRegion::new().place(place))
-    };
+fn a_filling_body_ends_at_a_footer_beside_a_full_height_end_region_in_the_first_pass() {
     // Beside a full-height end region the footer lies under the body only.
-    let beside = first_pass(props(FooterPlace::Across, true), None);
-    let (body, end, footer) = (beside.body.unwrap(), beside.end.unwrap(), beside.footer.unwrap());
-    assert!(body.max.x <= end.min.x + EDGE_SLACK, "the body ends where the end region starts: {body:?} {end:?}");
+    let props = ContainerProps::new().sizing(Sizing::Fill).end(EndRegion::new().full_height(true)).footer(FooterRegion::new());
+    let took = first_pass(props, None);
+    let (body, footer) = (took.body.unwrap(), took.footer.unwrap());
     assert!(body.max.y <= footer.min.y + EDGE_SLACK, "the body ends at the footer's top: {body:?} {footer:?}");
     assert!(footer.max.y <= AREA.max.y + EDGE_SLACK, "the footer lies inside the container: {footer:?}");
-    for place in [FooterPlace::EndBottom, FooterPlace::EndTop] {
-        let took = first_pass(props(place, false), None);
-        let (body, end, footer) = (took.body.unwrap(), took.end.unwrap(), took.footer.unwrap());
-        assert!(
-            body.max.x <= end.min.x + EDGE_SLACK && body.max.x <= footer.min.x + EDGE_SLACK,
-            "the body ends where the end region and its footer start: {body:?} {end:?} {footer:?}"
-        );
-        assert!(footer.max.y <= AREA.max.y + EDGE_SLACK, "the footer lies inside the container: {footer:?}");
-    }
 }
 
 #[trial]

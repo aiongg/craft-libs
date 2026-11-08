@@ -1816,27 +1816,27 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         // A footer in the end region is part of a column sized from its content: a fill-width child takes its
         // measured width there and shows across the column, so it never sets the column's width.
         let footer_env = if footer_in_end(&props) { region_env.derive_local(|scoped| scoped.content_column = true) } else { region_env.clone() };
-        // A filling container places its body from the header that ran above and from what its end region and footer
-        // take this pass, measured before the body runs. They show after the body, so reading and Tab order stay
-        // header, body, end region, footer.
+        // A filling container places its body from the header that ran above and from the height its footer across
+        // the bottom takes this pass, measured before the body runs. The footer shows after the body, so reading and
+        // Tab order stay header, body, footer. An inline header, the end region and a footer in it keep last pass's
+        // widths, and so does the footer of a label-scoped container, which starts at the control column the label
+        // step finds after this.
         let regions = if self.sizing(&props) == Sizing::Content {
             regions
         } else {
-            let (mut open_measured, mut gate_measured) = (open, gate);
-            let end = (is_open && props.end.is_some()).then(|| {
-                let mut end_cx =
-                    BodyCx::new(body_id, line_env.view(), resolved, regions.end, &mut *cx.core.memory, &mut open_measured, gate_measured.as_mut())
-                        .with_owner(owner);
-                self.measure_region(ui, end_region(regions.end), &line_env, |ui| comp.end(ui, &mut end_cx))
-            });
-            let footer = props.footer.map(|_| {
+            let across = props.footer.is_some() && !footer_in_end(&props) && props.label.is_none();
+            let footer = if across {
+                let (mut open_measured, mut gate_measured) = (open, gate);
                 let mut footer_cx =
                     BodyCx::new(body_id, env_view, resolved, regions.footer, &mut *cx.core.memory, &mut open_measured, gate_measured.as_mut())
                         .with_owner(owner);
                 self.measure_region(ui, frame.region("footer", regions.footer), &footer_env, |ui| comp.footer(ui, &mut footer_cx))
-            });
-            let header = if props.header.is_some() { self.header_size } else { None };
-            self.regions(&props, inner, room, rtl, RegionSizes { header, footer: footer.unwrap_or(Vec2::ZERO), end })
+            } else {
+                self.footer_last
+            };
+            let inline = props.header.is_some_and(|header| header.inline);
+            let header = if props.header.is_some() && !inline { self.header_size } else { self.header_last };
+            self.regions(&props, inner, room, rtl, RegionSizes { header, footer, end: self.end_last })
         };
         if real {
             crate::runtime::focus::begin_body(&ctx);
