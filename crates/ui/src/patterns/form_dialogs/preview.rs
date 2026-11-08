@@ -8,8 +8,8 @@ use crate::contract::{
 };
 use crate::display::{Progress, Text};
 use crate::layout_components::Row;
-use crate::runtime::access::Access;
 use crate::primitives::ContentPainterCx;
+use crate::runtime::access::Access;
 use crate::runtime::env::{Env, Label};
 use crate::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};
 use crate::style::{ComponentStyle, FocusLook, StyleCx};
@@ -217,7 +217,8 @@ impl PreviewPane<'_> {
 
     /// A pane named `label` showing `state` through `view`.
     pub fn state(label: impl Into<Label>, state: PreviewState, view: &PreviewView) -> Self {
-        PreviewPane { common: Common::new(), state, view: view.clone(), click_centres: true, moved: None, overlay: None, overflow: (false, false) }.label(label)
+        PreviewPane { common: Common::new(), state, view: view.clone(), click_centres: true, moved: None, overlay: None, overflow: (false, false) }
+            .label(label)
     }
 
     /// The view at the next zoom level above the view's, with the picture's centre kept in place.
