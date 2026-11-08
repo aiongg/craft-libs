@@ -9,6 +9,7 @@ use craft_host::target::{Caps, ShellInfo};
 use craft_ui::choice::Checkbox;
 use craft_ui::contract::{Bind, SaveKey};
 use craft_ui::contract::{ContainerProps, DragBand, HeaderRegion, Mount, Overlay, Props as _, Show as _, ShowContainer as _, Sizing};
+use craft_ui::layout_components::Stack;
 use craft_ui::runtime::InstallSpec;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::layout::{Block, in_region};
@@ -335,4 +336,32 @@ fn a_close_request_not_taken_this_frame_does_not_close_the_container_later() {
         frame();
     }
     assert!(ran.get() > before, "the container stayed open: the stale request did not close it");
+}
+
+/// A layer that fills its width takes the room of its own host: opened from inside a content-sized column, whose
+/// children in flow are held at their measured width, it takes the same rect as opened from the window's flow.
+#[trial]
+fn a_filling_layer_opened_in_a_content_column_fills_its_host() {
+    let layer_rect = |in_column: bool| {
+        let rect = Cell::new(Rect::NOTHING);
+        let mut frames = Frames::new();
+        frames.idle(4, |ui| {
+            let mut layer = |ui: &mut Ui| {
+                let props = ContainerProps::new().mount(Mount::Layer(Overlay::floating())).sizing(Sizing::FillWidth);
+                let out = Slab::new(props).id_salt("layer").show(ui, |ui, _| {
+                    Block::new(BODY).show(ui);
+                });
+                rect.set(out.output.rect);
+            };
+            if in_column {
+                Stack::new().id_salt("column").show(ui, |ui, _| layer(ui));
+            } else {
+                layer(ui);
+            }
+        });
+        rect.get()
+    };
+    let (in_flow, in_column) = (layer_rect(false), layer_rect(true));
+    assert!(in_flow.width() > BODY.x, "the layer fills its host's width: {in_flow:?}");
+    assert_eq!(in_column, in_flow, "a content column around the layer's opener does not hold the layer");
 }
