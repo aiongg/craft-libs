@@ -247,7 +247,8 @@ impl<'a> FileListPicker<'a> {
                         CollectionEvent::Delete(mut keys) => {
                             keys.sort_unstable_by(|a, b| b.cmp(a));
                             keys.dedup();
-                            for at in keys.into_iter().filter(|&at| at < now.files.len()) {
+                            let count = now.files.len();
+                            for at in keys.into_iter().filter(|&at| at < count) {
                                 now.files.remove(at);
                             }
                             now.selected = None;

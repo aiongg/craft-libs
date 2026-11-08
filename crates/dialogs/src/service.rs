@@ -377,7 +377,7 @@ impl FilePanels {
                 }
                 Some(dialog) => match dialogs.take_by_id::<StandardPrompt>(dialog) {
                     Some(DialogResult::Ok(answer)) => answer.choice == PromptChoice::Proceed,
-                    Some(DialogResult::Cancel) => false,
+                    Some(_) => false,
                     None if dialogs.get_by_id::<StandardPrompt>(dialog).is_some() => {
                         self.prompts.push(asked);
                         continue;

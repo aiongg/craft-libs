@@ -10,7 +10,7 @@ use craft_ui::contract::{
     WordSetCx as _,
 };
 use craft_ui::primitives::{PaintShape, StrokeWidth};
-use craft_ui::style::{ComponentStyle, DataColor, Flags, FocusLook, StyleColor, StyleCx, UiTokens};
+use craft_ui::style::{ComponentStyle, DataColor, Flags, FocusLook, StyleColor, StyleCx, SurfaceKind};
 use egui::{Color32, CornerRadius, Pos2, Rect, Response, Vec2};
 
 /// The favourite star on the chip's corner.
@@ -149,7 +149,7 @@ impl Component for ThemeChip<'_> {
             focus: cx.focus_look(),
             size: Vec2::new(size.thumb.md, size.thumb.sm),
             outline: Stateful::new(rest).off(States::new(rest, muted, muted, disabled)).on(States::new(accent, accent, accent, disabled)),
-            radius: UiTokens::corner(tokens.shape.radius.sm),
+            radius: cx.surface(SurfaceKind::Raised).radius,
             inset: space.gap.tight,
             strip: space.gap.inline,
             dot: size.handle.sm,
