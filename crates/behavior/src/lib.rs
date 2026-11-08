@@ -80,7 +80,7 @@ pub use grid::{GridCursor, GridMeasure, resolve_columns};
 pub use hit::{HitLevel, HitPriority, HitShape, ResolveFor, Shape, Winner, resolve, resolve_mapped};
 pub use input::Input;
 pub use intent::{AccessRequest, EditCommand, Granularity, Intent, MoveMods, NavMove, TextPos};
-pub use item_layout::{FreeLayout, ItemLayout, SheetLayout, SpanLayout, TileLayout};
+pub use item_layout::{FreeLayout, ItemLayout, LineIndex, SHEET_ZOOM, SheetLayout, SpanLayout, TileLayout};
 pub use item_source::{DisplayOrder, ItemSource, Keyed, Outline, SizeHint, keyed};
 pub use keys::{DropOperation, KeyRole};
 pub use label_column::{LabelColumn, LabelPlacement};
