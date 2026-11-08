@@ -9,12 +9,17 @@ use craft_ui::runtime::env::RootEnv;
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::{Frames, pointer, trial};
 use craft_ui::tile_grid::{Tile, TileGrid, TilePartEvent};
-use egui::{Pos2, Rect, Ui, Vec2, vec2};
+use egui::{Pos2, Rect, Ui, Vec2};
 use std::cell::{Cell, RefCell};
 
 const ORIGIN: Pos2 = Pos2::new(10.0, 10.0);
-const VIEW: Vec2 = Vec2::new(700.0, 400.0);
+const VIEW: Vec2 = offset(700.0, 400.0);
 const CLOSE: f32 = 1.5;
+
+/// A position or displacement in the bin's coordinates, named so a trial's geometry reads as inputs.
+const fn offset(x: f32, y: f32) -> Vec2 {
+    Vec2::new(x, y)
+}
 /// A picture side that keeps cards small enough to leave room between them in `VIEW`.
 const ZOOM: f32 = 0.5;
 
@@ -136,16 +141,16 @@ fn near(a: Vec2, b: Vec2) -> bool {
 #[trial]
 fn a_dragged_card_moves_with_its_stack() {
     let cards = vec![
-        FreeformCard::new(0, vec2(20.0, 20.0)).in_stack(1),
-        FreeformCard::new(1, vec2(300.0, 20.0)).in_stack(1),
-        FreeformCard::new(2, vec2(20.0, 200.0)),
+        FreeformCard::new(0, offset(20.0, 20.0)).in_stack(1),
+        FreeformCard::new(1, offset(300.0, 20.0)).in_stack(1),
+        FreeformCard::new(2, offset(20.0, 200.0)),
     ];
     let scene = Scene::with_cards(cards);
     let mut frames = Frames::new();
     let mut show = |ui: &mut Ui| show_bin(ui, 3, &scene, bin_region());
     frames.idle(3, &mut show);
     let from = scene.rect(0).center();
-    let by = vec2(40.0, 30.0);
+    let by = offset(40.0, 30.0);
     frames.frame(vec![pointer::moved(from)], &mut show);
     frames.frame(vec![pointer::press(from)], &mut show);
     frames.frame(vec![pointer::moved(from + by)], &mut show);
@@ -157,18 +162,19 @@ fn a_dragged_card_moves_with_its_stack() {
     frames.idle(2, &mut show);
     let moved = scene.moved();
     assert_eq!(moved.len(), 2, "the stack's two cards moved: {moved:?}");
-    assert!(near(moved[0].1, vec2(60.0, 50.0)) && near(moved[1].1, vec2(340.0, 50.0)), "{moved:?}");
+    let (first, second) = (offset(60.0, 50.0), offset(340.0, 50.0));
+    assert!(near(moved[0].1, first) && near(moved[1].1, second), "{moved:?}");
     assert!(scene.moving.borrow().is_none(), "the drag ends with the release");
 }
 
 /// Escape during the drag leaves the cards where the host has them.
 #[trial]
 fn escape_puts_dragged_cards_back() {
-    let scene = Scene::with_cards(vec![FreeformCard::new(0, vec2(20.0, 20.0)), FreeformCard::new(1, vec2(300.0, 20.0))]);
+    let scene = Scene::with_cards(vec![FreeformCard::new(0, offset(20.0, 20.0)), FreeformCard::new(1, offset(300.0, 20.0))]);
     let mut frames = Frames::new();
     let mut show = |ui: &mut Ui| show_bin(ui, 2, &scene, bin_region());
     frames.idle(3, &mut show);
-    let (from, by) = (scene.rect(0).center(), vec2(60.0, 40.0));
+    let (from, by) = (scene.rect(0).center(), offset(60.0, 40.0));
     frames.frame(vec![pointer::moved(from)], &mut show);
     frames.frame(vec![pointer::press(from)], &mut show);
     frames.frame(vec![pointer::moved(from + by)], &mut show);
@@ -178,30 +184,31 @@ fn escape_puts_dragged_cards_back() {
     frames.idle(2, &mut show);
     assert!(scene.moved().is_empty(), "a cancelled drag reports no move");
     assert!(scene.moving.borrow().is_none());
-    assert!(near(scene.rect(0).min - ORIGIN, vec2(20.0, 20.0)), "the card is back at the host's place");
+    let home = offset(20.0, 20.0);
+    assert!(near(scene.rect(0).min - ORIGIN, home), "the card is back at the host's place");
 }
 
 /// A drag from the background sweeps a marquee that selects the cards it touches.
 #[trial]
 fn a_background_drag_is_a_marquee() {
     let scene = Scene::with_cards(vec![
-        FreeformCard::new(0, vec2(20.0, 20.0)),
-        FreeformCard::new(1, vec2(300.0, 20.0)),
-        FreeformCard::new(2, vec2(300.0, 220.0)),
+        FreeformCard::new(0, offset(20.0, 20.0)),
+        FreeformCard::new(1, offset(300.0, 20.0)),
+        FreeformCard::new(2, offset(300.0, 220.0)),
     ]);
     let mut frames = Frames::new();
     let mut show = |ui: &mut Ui| show_bin(ui, 3, &scene, bin_region());
     frames.idle(3, &mut show);
-    pointer::drag(&mut frames, ORIGIN + vec2(600.0, 360.0), vec2(-330.0, -190.0), &mut show);
+    pointer::drag(&mut frames, ORIGIN + offset(600.0, 360.0), offset(-330.0, -190.0), &mut show);
     assert_eq!(scene.selected(), vec![2]);
 }
 
 /// A foreign drag released on a card that takes it reports that card; released elsewhere it reports the background.
 #[trial]
 fn a_foreign_drop_reports_the_card_or_the_background() {
-    let scene = Scene::with_cards(vec![FreeformCard::new(0, vec2(20.0, 20.0)), FreeformCard::new(1, vec2(160.0, 20.0))]);
-    let grid_region = Rect::from_min_size(ORIGIN, vec2(250.0, 380.0));
-    let bin_region = Rect::from_min_size(ORIGIN + vec2(300.0, 0.0), vec2(400.0, 380.0));
+    let scene = Scene::with_cards(vec![FreeformCard::new(0, offset(20.0, 20.0)), FreeformCard::new(1, offset(160.0, 20.0))]);
+    let grid_region = Rect::from_min_size(ORIGIN, offset(250.0, 380.0));
+    let bin_region = Rect::from_min_size(ORIGIN + offset(300.0, 0.0), offset(400.0, 380.0));
     let mut frames = Frames::new();
     let mut show = |ui: &mut Ui| {
         in_region(ui, grid_region, |ui| {
@@ -219,7 +226,7 @@ fn a_foreign_drop_reports_the_card_or_the_background() {
     pointer::drag(&mut frames, from, scene.rect(1).center() - from, &mut show);
     assert_eq!(scene.dropped_on(), vec![(1, vec![0])], "the card that takes drops reports it");
     assert!(scene.background.borrow().is_none());
-    pointer::drag(&mut frames, from, ORIGIN + vec2(680.0, 360.0) - from, &mut show);
+    pointer::drag(&mut frames, from, ORIGIN + offset(680.0, 360.0) - from, &mut show);
     assert!(scene.background.borrow().as_ref().is_some_and(|drag| drag.keys == vec![0]), "off the cards the bin reports the background");
     assert_eq!(scene.dropped_on().len(), 1, "the background drop is no drop on a card");
 }
@@ -241,7 +248,7 @@ fn unplaced_cards_flow_from_the_reading_start() {
             assert!(second.center().x > first.center().x, "{direction:?}: the flow runs from the left");
         }
         let flow_first = first;
-        let placed = Scene::with_cards(vec![FreeformCard::new(0, vec2(300.0, 200.0))]);
+        let placed = Scene::with_cards(vec![FreeformCard::new(0, offset(300.0, 200.0))]);
         let mut frames = Frames::new();
         frames.root(RootEnv::default().direction(direction));
         let mut show = |ui: &mut Ui| show_bin(ui, 3, &placed, bin_region());

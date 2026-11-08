@@ -37,11 +37,10 @@ fn bin(ui: &mut Ui, bin: FreeBin<'_, usize>, count: usize) -> StoryOutput {
 
 #[story(FreeBin<'static, usize>, covers = [Default], drive = Drive::Never)]
 fn free_bin(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let cards = [
-        FreeformCard::new(0, vec2(24.0, 24.0)).in_stack(1),
-        FreeformCard::new(1, vec2(48.0, 40.0)).in_stack(1),
-        FreeformCard::new(2, vec2(220.0, 90.0)),
-    ];
+    let room = ui.max_rect().size();
+    let at = |x: f32, y: f32| room * vec2(x, y);
+    let cards =
+        [FreeformCard::new(0, at(0.06, 0.08)).in_stack(1), FreeformCard::new(1, at(0.12, 0.13)).in_stack(1), FreeformCard::new(2, at(0.55, 0.30))];
     bin(ui, FreeBin::new("Footage", &cards), 5)
 }
 
@@ -53,4 +52,9 @@ fn free_bin_empty(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 #[story(FreeBin<'static, usize>, covers = [Many], drive = Drive::Never)]
 fn free_bin_many(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     bin(ui, FreeBin::new("Footage", &[]).zoom(0.5), 60)
+}
+
+#[story(FreeBin<'static, usize>, covers = [One], drive = Drive::Never)]
+fn free_bin_one(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    bin(ui, FreeBin::new("Footage", &[]), 1)
 }

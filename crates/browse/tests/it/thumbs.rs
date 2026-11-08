@@ -122,7 +122,7 @@ impl Setup {
     fn pass(&self, run: impl FnOnce()) {
         let mut run = Some(run);
         self.ctx
-            .run_ui(egui::RawInput::default(), |_| {
+            .run_ui(craft_ui::runtime::egui::input::RawInput::default(), |_| {
                 if let Some(run) = run.take() {
                     run();
                 }
