@@ -238,14 +238,13 @@ fn the_bar_turning_the_stroke_on_is_one_change() {
 }
 
 #[trial]
-fn diag_panel_tree() {
+fn diag_trees() {
     let layer = Layer::new(look(0.0));
-    let fixture = panel(&layer);
-    let tree = fixture.tree();
     let mut out = Vec::new();
-    for role in [Role::BUTTON, Role::COLOR_WELL, Role::COMBO_BOX, Role::GROUP, Role::CHECK_BOX, Role::LABEL] {
-        for t in fixture.by_role(role) {
-            out.push(format!("{role:?} {:?} {:?}", tree.name_of(t.node), t.rect));
+    for (what, fixture) in [("panel", panel(&layer)), ("bar", bar(ShapeKind::Rectangle, &layer))] {
+        let tree = fixture.tree();
+        for key in tree.keys() {
+            out.push(format!("{what}: {:?} {:?}", tree.role_of(key), tree.name_of(key)));
         }
     }
     panic!("DIAG\n{}", out.join("\n"));
