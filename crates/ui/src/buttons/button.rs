@@ -3,16 +3,16 @@
 use super::face::{self, FaceLook, FaceSpec};
 use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, PartsCx, Pointer as _, Props, Role};
 use crate::display::Spinner;
-use crate::primitives::IconSpec;
+use crate::primitives::{IconSpec, PaintShape};
 use crate::runtime::commands::CommandRef;
 use crate::runtime::env::Label;
-use crate::style::{ComponentStyle, FocusLook, IconLook, StyleCx, SurfaceLook, TextLook};
+use crate::style::{ComponentStyle, DataColor, FocusLook, IconLook, StyleColor, StyleCx, SurfaceLook, TextLook, TypeRole};
 use craft_behavior::{Metrics, PartKey, Sense};
 use craft_theme::{
-    Variant,
+    Rgba, Stateful, States, Variant, ensure_contrast, text_contrast_min,
     variant::{Emphasis, Tone},
 };
-use egui::{Rect, Response, Vec2};
+use egui::{Color32, Rect, Response, Vec2};
 
 /// The part a loading button shows its spinner in.
 const SPINNER: PartKey = PartKey::new("spinner");
@@ -35,6 +35,8 @@ pub struct ButtonStyle {
     #[style(icon)]
     icon: IconLook,
     face: FaceLook,
+    /// The state overlay a tinted face carries over its fill.
+    overlay: Stateful<StyleColor>,
 }
 
 impl ButtonStyle {
@@ -48,8 +50,25 @@ impl ButtonStyle {
             text,
             icon,
             face: FaceLook::of(cx),
+            overlay: overlay(cx),
         }
     }
+
+    /// The style of a button whose face is filled with `tint`: the label and icons read on it.
+    fn tinted(cx: &StyleCx<'_>, tint: Rgba) -> ButtonStyle {
+        let mut style = ButtonStyle::of(cx);
+        let ink = cx.color(ensure_contrast(cx.tokens.color.text.normal, tint, text_contrast_min(cx.contrast())));
+        style.text = TextLook::new(TypeRole::Label, Stateful::new(ink));
+        style.icon = IconLook::new(cx.control().icon, Stateful::new(ink));
+        style
+    }
+}
+
+/// The theme's hover and press overlay: clear at rest and while disabled.
+fn overlay(cx: &StyleCx<'_>) -> Stateful<StyleColor> {
+    let state = &cx.tokens.color.state;
+    let clear = cx.color(Rgba::TRANSPARENT);
+    Stateful::new(clear).off(States::new(clear, cx.color(state.hover), cx.color(state.pressed), clear))
 }
 
 /// A push button. A label wider than the room is cut with an ellipsis and shown whole in a tooltip. While `loading`
@@ -68,12 +87,17 @@ pub struct Button<'a> {
     /// Working: a spinner, no activation, AccessKit busy.
     #[prop]
     loading: bool,
+    /// The face is filled with this colour from data instead of the variant's fill, and the label reads on it; hover
+    /// and press show as the theme's state overlay.
+    #[style_key]
+    #[prop]
+    tint: Option<Rgba>,
 }
 
 impl<'a> Button<'a> {
     /// A button showing `label`, which is also its accessible name.
     pub fn new(label: impl Into<Label>) -> Self {
-        Button { common: Common::new(), icon: None, trailing_icon: None, loading: false }.label(label)
+        Button { common: Common::new(), icon: None, trailing_icon: None, loading: false, tint: None }.label(label)
     }
 
     /// A button bound to `command`: its label, enabled state and activation follow the command.
@@ -92,8 +116,11 @@ impl Component for Button<'_> {
     type Style = ButtonStyle;
     type Output = Response;
 
-    fn style(cx: &StyleCx<'_>, _: ButtonStyleKey) -> ButtonStyle {
-        ButtonStyle::of(cx)
+    fn style(cx: &StyleCx<'_>, key: ButtonStyleKey) -> ButtonStyle {
+        match key.tint {
+            Some(tint) => ButtonStyle::tinted(cx, tint),
+            None => ButtonStyle::of(cx),
+        }
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
@@ -129,6 +156,11 @@ impl Component for Button<'_> {
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        if let Some(tint) = self.tint {
+            let shape = PaintShape::Rect(cx.rect, cx.style.surface.radius);
+            ui.draw().data_fill(&shape, DataColor::new(Color32::from(craft_theme::Srgba::from(tint))));
+            ui.draw().fill(&shape, cx.resolve(&cx.style.overlay));
+        }
         face::paint(ui, cx, (&cx.style.text, &cx.style.icon), &cx.style.face, &self.spec(cx.resolved.label), cx.content_rect);
         if cx.part_if_declared(SPINNER).is_some() {
             ui.face(SPINNER, Spinner::new());

@@ -1,7 +1,8 @@
 //! `SplitButton`: the main part runs the action and never opens the menu, the arrow and Alt+Down open it, a pick
 //! reports the entry as one choice and closes the menu.
 
-use craft_ui::buttons::{IconButton, SplitButton};
+use craft_theme::{Rgba, contrast_ratio, text_contrast_min};
+use craft_ui::buttons::{Button, IconButton, SplitButton};
 use craft_ui::contract::{CommandSet, Entry, Role, Show as _};
 use craft_ui::primitives::IconSpec;
 use craft_ui::runtime::commands::{CommandInput, CommandState};
@@ -140,4 +141,37 @@ fn marker_circles(marked: bool) -> usize {
 fn an_icon_button_paints_its_commands_marker_only_while_marked() {
     assert_eq!(marker_circles(false), 0, "no dot without the mark");
     assert!(marker_circles(true) > 0, "the marked command paints its dot");
+}
+
+/// A tinted button reports its clicks, and its label reads on the tint.
+#[trial]
+fn a_tinted_button_reports_clicks_and_its_label_reads_on_the_tint() {
+    let tint = Rgba([0xC4, 0x40, 0x40, 0xFF]);
+    let clicks = Rc::new(Cell::new(0));
+    let seen = clicks.clone();
+    let mut show = move |ui: &mut egui::Ui| {
+        if Button::new("Play").tint(tint).show(ui).clicked() {
+            seen.set(seen.get() + 1);
+        }
+    };
+    let mut fixture_show = show.clone();
+    let mut fixture = Fixture::new(move |ui| fixture_show(ui));
+    fixture.settle();
+    let button = fixture.by_label("Play").expect("the button");
+    fixture.click(&button);
+    assert_eq!(clicks.get(), 1, "a click on a tinted button is reported");
+
+    let mut frames = Frames::new();
+    frames.idle(2, &mut show);
+    let shapes = frames.frame_shapes(&mut show);
+    let ink = shapes
+        .iter()
+        .find_map(|shape| match shape {
+            egui::Shape::Text(text) => text.galley.job.sections.first().map(|section| section.format.color),
+            _ => None,
+        })
+        .expect("the label is painted");
+    let ratio = contrast_ratio(Rgba::from(ink), tint);
+    let least = text_contrast_min(craft_theme::Contrast::Standard);
+    assert!(ratio >= least, "the label reads on the tint: {ratio} against {least}");
 }
