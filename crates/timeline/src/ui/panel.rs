@@ -539,10 +539,13 @@ impl<M: TimelineModel> Timeline<'_, M> {
                     // Both sides of the divider: the video side takes its share of the room, the audio side the rest.
                     let room = ui.available_height();
                     let out = if *side == Side::Upper && both {
-                        ui.allocate_ui(Vec2::new(ui.available_width(), room * share), |ui| shared.show(ui, *side, &pane, indices)).inner
+                        let area = ui.available_rect_before_wrap();
+                        let own = Rect::from_min_size(area.min, Vec2::new(area.width(), room * share));
+                        Stack::new().show_at_taking_room(ui, own, |ui, _| shared.show(ui, *side, &pane, indices)).inner
                     } else {
-                        shared.show(ui, *side, &pane, indices)
+                        Some(shared.show(ui, *side, &pane, indices))
                     };
+                    let Some(out) = out else { continue };
                     pane_rects.push(out.response.rect);
                     let mapping = Mapping { pane: &pane, words: &words, name: header_width, palette: &palette };
                     mapping.collect(&out, &mut edits, &mut memory, &mut reports);
