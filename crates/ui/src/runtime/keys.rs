@@ -839,7 +839,7 @@ fn route_press(
             let vertical = matches!(mv, NavMove::Up | NavMove::Down | NavMove::PageUp | NavMove::PageDown | NavMove::Start | NavMove::End);
             if let Some(owner) = vertical.then(|| focus::leave_row(ctx, rec.stop.key())).flatten() {
                 push(routed, Some(owner), Intent::Move(mv, mods), horizontal);
-            } else if focus::roving_move(ctx, rec.stop.key(), mv, mods, horizontal).is_none() {
+            } else if stop.keys.keep.keeps_arrow(mv) || focus::roving_move(ctx, rec.stop.key(), mv, mods, horizontal).is_none() {
                 push(routed, id, Intent::Move(mv, mods), horizontal);
                 // Page, Home and End go to the scroll owner around the stop; a stop that acts on its moves keeps its arrows.
                 if !stop.role.moves && matches!(press.key, Key::Left | Key::Right | Key::Up | Key::Down) {
@@ -859,6 +859,10 @@ fn route_press(
             } else {
                 push(routed, id, Intent::Submit, false);
             }
+        }
+        // A collection opens its lead with Shift or Alt held (in a new tab, say); the component reads the modifiers.
+        None if press.key == Key::Enter && stop.role.space && stop.keys.activate.enter() && !press.mods.ctrl && !press.mods.cmd => {
+            route_activate(ctx, rec, routed, activated)
         }
         None if press.key == Key::Space && plain && stop.keys.activate.space() => route_activate(ctx, rec, routed, activated),
         None if press.key == Key::Tab && plain && stop.keys.keep == focus::KeepKeys::Tab => push(routed, id, Intent::Tab, false),

@@ -179,7 +179,8 @@ impl<O> WheelTaker<O> {
 /// takes passes to the next enclosing one. A gated taker takes vertical scroll only while it is `focused` or
 /// `armed`. Shift turns a vertical wheel sideways when its vertical owner is a scroll region. Shares of one owner merge.
 pub fn split<O: Copy + PartialEq>(takers: &[WheelTaker<O>], at: Pos2, wheel: Wheel, focused: Option<O>, armed: Option<O>) -> Vec<(O, Wheel)> {
-    let mut under: Vec<&WheelTaker<O>> = takers.iter().filter(|taker| taker.rect.contains(at)).collect();
+    // Takers register outer first, so among equal areas the later one is the deeper (or the upper) and goes first.
+    let mut under: Vec<&WheelTaker<O>> = takers.iter().rev().filter(|taker| taker.rect.contains(at)).collect();
     under.sort_by(|a, b| a.rect.area().total_cmp(&b.rect.area()));
     let open = |taker: &&WheelTaker<O>| !taker.gated || armed == Some(taker.owner) || focused == Some(taker.owner);
     let vertical_taker = (wheel.scroll.y != 0.0).then(|| under.iter().find(|t| t.vertical && open(t))).flatten();
@@ -240,6 +241,14 @@ mod tests {
         let slider = WheelTaker::new(2u8, rect(100.0)).vertical(true).gated(true);
         let kept = split(&[region, slider], pos2(10.0, 10.0), shifted, Some(2), None);
         assert_eq!((kept[0].0, kept[0].1.scroll), (2, Vec2::new(0.0, 7.0)));
+    }
+
+    #[test]
+    fn of_two_takers_with_equal_rects_the_later_registered_one_takes_the_share() {
+        let outer = WheelTaker::new(1u8, rect(200.0)).vertical(true).horizontal(true);
+        let inner = WheelTaker::new(2u8, rect(200.0)).vertical(true).horizontal(true);
+        let shares = split(&[outer, inner], pos2(10.0, 10.0), wheel(0.0, 7.0), None, None);
+        assert_eq!(shares.iter().map(|(owner, _)| *owner).collect::<Vec<_>>(), [2]);
     }
 
     #[test]

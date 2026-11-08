@@ -595,6 +595,22 @@ fn a_menu_list_opens_on_its_first_row_and_follows_the_pointer() {
     assert_eq!(seen.leads(), [2], "a still pointer leaves the lead alone");
 }
 
+/// Enter with Shift or Alt held activates the lead row like a plain Enter; the component reads the held modifiers.
+#[trial]
+fn a_modified_enter_activates_the_lead_row() {
+    for modifiers in [Modifiers::SHIFT, Modifiers::ALT] {
+        let words = Words::flat(&["one", "two"]);
+        let seen = Seen::default();
+        let mut frames = Frames::new();
+        let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Single).menu(), &words, &seen);
+        frames.idle(3, &mut show);
+        focus_list(&mut frames, &seen, &mut show);
+        press(&mut frames, Key::Enter, modifiers, &mut show);
+        let activations = seen.events.borrow().iter().filter(|event| matches!(event, CollectionEvent::Activate(0))).count();
+        assert_eq!(activations, 1, "{modifiers:?}+Enter activates the first row");
+    }
+}
+
 /// A list sized by its content keeps the height of its empty state while it has no rows.
 #[trial]
 fn an_empty_content_sized_list_keeps_the_height_of_its_empty_state() {

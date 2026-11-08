@@ -6,6 +6,7 @@ use super::paint::{HandleLook, ResetMarkLook, RuleKind, RuleLook, ScrollBarLook,
 use super::surface::{SurfaceStyle, surface_style};
 use super::tokens::UiTokens;
 use crate::fonts::stack_facts;
+use crate::primitives::{TextEnv, TextRun, Wrap};
 use crate::runtime::egui::memory::Service;
 use crate::runtime::env::{AppValues, Scale, StyleValue};
 use craft_behavior::ControlMetrics;
@@ -42,6 +43,8 @@ pub struct StyleCx<'a> {
     host: Option<&'a Stateful<StyleColor>>,
     /// The muted text colour of the host part, when the host has one.
     host_muted: Option<&'a Stateful<StyleColor>>,
+    /// The line height per point of text of the interface face, as the scope's frame began.
+    line_ratio: f32,
     ctx: &'a Context,
     values: &'a AppValues,
 }
@@ -111,8 +114,9 @@ impl<'a> StyleCx<'a> {
         os: Os,
         active: bool,
         key: EnvKey,
+        line_ratio: f32,
     ) -> Self {
-        StyleCx { tokens, size, variant, direction, scale, os, active, key, host: None, host_muted: None, ctx, values }
+        StyleCx { tokens, size, variant, direction, scale, os, active, key, host: None, host_muted: None, line_ratio, ctx, values }
     }
 
     /// The same context with another variant.
@@ -230,15 +234,14 @@ impl<'a> StyleCx<'a> {
 
     /// The height, icon side, padding and gap of a control at the ambient size.
     pub fn control(&self) -> ControlMetrics {
-        control_metrics(self.tokens, self.size, stack_facts(self.ctx).line_ratio)
+        control_metrics(self.tokens, self.size, self.line_ratio)
     }
 
     /// The width of `text` set in the face of `role`: the sizes that follow the text (a row header's digit) read it
     /// here instead of borrowing an icon or control size.
     pub fn text_width(&self, role: craft_theme::TypeRole, text: &str) -> f32 {
-        let font_id = self.tokens.font(stack_facts(self.ctx), role, false);
-        let job = egui::text::LayoutJob::simple_singleline(text.to_owned(), font_id, Color32::PLACEHOLDER);
-        self.ctx.fonts_mut(|fonts| fonts.layout_job(job)).size().x
+        let env = TextEnv { tokens: self.tokens, direction: self.direction, ink: Color32::PLACEHOLDER, fonts: stack_facts(self.ctx) };
+        TextRun::new(text).role(role).wrap(Wrap::Line).layout(self.ctx, &env, f32::INFINITY).size().x
     }
 
     /// What a surface of `kind` draws.

@@ -601,3 +601,59 @@ fn a_field_that_drives_a_tree_opens_and_closes_rows_by_arrows() {
     let typed = fixture.focused().and_then(|id| fixture.tree().value(id).map(str::to_owned));
     assert_eq!(typed.as_deref(), Some("b"), "typed text stays in the field");
 }
+
+/// A component whose key use depends on its state: the same instance keeps Tab while `editing` and gives it up
+/// to the focus service otherwise.
+#[derive(craft_ui::contract::Component)]
+struct ModalKeys {
+    #[common]
+    common: Common,
+    editing: bool,
+}
+
+impl Component for ModalKeys {
+    const ROLE: Role = Role::BUTTON;
+    type Style = PlainStyle;
+    type Output = egui::Response;
+
+    fn keys(&self) -> KeyUse {
+        if self.editing { KeyUse::CODE } else { KeyUse::of(Input::Pointer) }
+    }
+
+    fn style(_: &StyleCx<'_>, _: ModalKeysStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> egui::Vec2 {
+        egui::Vec2::new(40.0, 20.0)
+    }
+
+    fn sense(&self) -> craft_behavior::Sense {
+        craft_behavior::Sense::CLICK | craft_behavior::Sense::FOCUS
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> egui::Response {
+        cx.response.clone()
+    }
+}
+
+/// One component, one id: Tab is the field's while the instance says it is editing, and the focus service's after.
+#[trial]
+fn a_component_chooses_its_key_use_per_state() {
+    let mut frames = Frames::new();
+    let editing = Cell::new(false);
+    let tab_kept = Cell::new(false);
+    let mut show = |ui: &mut egui::Ui| {
+        ModalKeys { common: Common::new(), editing: editing.get() }.label("Field").id_salt("field").show(ui);
+        tab_kept.set(ui.input(|i| i.events.iter().any(|e| event_is_key(e, Key::Tab))));
+    };
+    frames.idle(2, &mut show);
+    frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], &mut show);
+    frames.idle(2, &mut show);
+    frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], &mut show);
+    assert!(!tab_kept.get(), "idle: Tab is the focus service's");
+    editing.set(true);
+    frames.idle(2, &mut show);
+    frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], &mut show);
+    assert!(tab_kept.get(), "editing: the same component keeps Tab");
+}

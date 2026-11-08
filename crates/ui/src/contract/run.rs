@@ -387,17 +387,14 @@ fn own_sense<C: Component>(hooks: &dyn ShapeHooks<C>, comp: &C, resolved: &Resol
 }
 
 /// The widget that holds the component's text or editor and the keys it keeps, when it has either.
-fn text_holder<C: Component>(id: Id, parts: &PartsStep) -> (Option<Id>, Option<focus::KeyUse>) {
+fn text_holder<C: Component>(id: Id, parts: &PartsStep, base: focus::KeyUse) -> (Option<Id>, Option<focus::KeyUse>) {
     let text = parts
         .text
         .decl
         .as_ref()
-        .map(|decl| (crate::primitives::text_adapter::text_id(id, decl.key), crate::primitives::text_adapter::keys_of(C::KEYS, &decl.options)));
-    let editor = parts
-        .text
-        .editor
-        .as_ref()
-        .map(|decl| (crate::primitives::ImeSurface::of(id, decl.key).widget(), super::editor::keys_of(C::KEYS, decl.purpose)));
+        .map(|decl| (crate::primitives::text_adapter::text_id(id, decl.key), crate::primitives::text_adapter::keys_of(base, &decl.options)));
+    let editor =
+        parts.text.editor.as_ref().map(|decl| (crate::primitives::ImeSurface::of(id, decl.key).widget(), super::editor::keys_of(base, decl.purpose)));
     match (text, editor) {
         (Some((widget, keys)), _) | (None, Some((widget, keys))) => (Some(widget), Some(keys)),
         (None, None) => (None, None),
@@ -432,7 +429,7 @@ fn stops_step<C: Component>(at: StopsStep<'_>, hooks: &dyn ShapeHooks<C>, comp: 
     }
     let resettable = !matches!(C::INPUT, Input::Text | Input::Editor) && comp.bind().is_some_and(|bind| bind.reset_value().is_some());
     let text = holder_widget.is_some();
-    let keys = text_keys.unwrap_or(C::KEYS);
+    let keys = text_keys.unwrap_or_else(|| comp.keys());
     let role = hooks.key_role(comp).nudge(keys.nudge);
     // A bound component that keeps the arrows reads them as value steps; a text value sets `steps_value` in its text options.
     let arrows = keys.keep == crate::runtime::focus::KeepKeys::BlockArrows;
@@ -548,7 +545,7 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     }
     debug_assert!(declares_parts || steps::declares_none(&parts), "`{}` sets `PARTS = false` and declares a part", std::any::type_name::<C>());
     steps::check_parts(&ctx, std::any::type_name::<C>(), &parts);
-    let (holder_widget, text_keys) = text_holder::<C>(id, &parts);
+    let (holder_widget, text_keys) = text_holder::<C>(id, &parts, comp.keys());
     let own = own_sense(&*p.hooks, comp, resolved, inert);
     // An item never senses the whole row: the collection's root takes the click and the focus (17.2).
     let own = if env.item == Some(id) { own.difference(Sense::CLICK | Sense::FOCUS) } else { own };
@@ -640,9 +637,9 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     // 8b text part
     if parts.text.decl.is_some() {
         let ink = crate::style::ink_color(&env.tokens, env.ink);
-        super::text::run(cx, ui, &mut parts.text, text_keys.unwrap_or(C::KEYS), rtl, ink, env.tokens.stroke.thin);
+        super::text::run(cx, ui, &mut parts.text, text_keys.unwrap_or_else(|| comp.keys()), rtl, ink, env.tokens.stroke.thin);
     } else if holder_widget.is_some() {
-        super::editor::run(cx, ui, &mut parts.text, text_keys.unwrap_or(C::KEYS));
+        super::editor::run(cx, ui, &mut parts.text, text_keys.unwrap_or_else(|| comp.keys()));
     }
     // 9 update
     p.trace.mark(Step::Update);
@@ -653,7 +650,7 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     steps::scrub_by_label(comp, cx);
     comp.update(cx);
     if cfg!(debug_assertions) {
-        let keys = text_keys.unwrap_or(C::KEYS);
+        let keys = text_keys.unwrap_or_else(|| comp.keys());
         let held = |mv: NavMove| match keys.keep {
             focus::KeepKeys::BlockArrows => true,
             focus::KeepKeys::InlineArrows => matches!(mv, NavMove::Back | NavMove::Forward),

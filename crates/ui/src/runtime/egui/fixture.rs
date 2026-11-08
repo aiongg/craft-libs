@@ -1,6 +1,6 @@
 //! The egui calls `craft_ui::testing` needs: frames, raw input and options that apps reach only through the runtime.
 
-use egui::{Context, Event, Key, Modifiers, Pos2, Rect, Shape, Ui, ViewportCommand};
+use egui::{Context, Event, Key, Modifiers, Pos2, Rect, Shape, Ui, Vec2, ViewportCommand};
 use std::sync::Arc;
 
 use super::injected;
@@ -91,8 +91,8 @@ fn window_focus_facts(ctx: &Context, events: &[Event]) -> egui::ViewportIdMap<eg
 struct WindowFocus(Option<bool>);
 
 /// Runs one frame at `time` seconds with `events` and `files`, and drops its texture changes.
-pub(crate) fn run_frame(ctx: &Context, time: f64, events: Vec<Event>, files: OsFiles, ui: impl FnMut(&mut Ui)) -> FrameResult {
-    let screen = Rect::from_min_max(Pos2::ZERO, Pos2::new(800.0, 600.0));
+pub(crate) fn run_frame(ctx: &Context, time: f64, screen: Vec2, events: Vec<Event>, files: OsFiles, ui: impl FnMut(&mut Ui)) -> FrameResult {
+    let screen = Rect::from_min_size(Pos2::ZERO, screen);
     let hovered_files = files.hovered.iter().map(|(name, mime)| egui::HoveredFile { path: Some(name.into()), mime: mime.clone() }).collect();
     let dropped_files = files.dropped.iter().map(|name| Arc::new(DroppedPath(name.into())) as egui::DroppedFileHandle).collect();
     let viewports = window_focus_facts(ctx, &events);
@@ -152,8 +152,8 @@ pub(crate) fn run_frame(ctx: &Context, time: f64, events: Vec<Event>, files: OsF
 }
 
 /// Runs a pass of the viewport `viewport` (a child of the root) with no events, while the root stays live.
-pub(crate) fn run_viewport_pass(ctx: &Context, time: f64, viewport: egui::ViewportId, ui: impl FnMut(&mut Ui)) {
-    let screen = Rect::from_min_max(Pos2::ZERO, Pos2::new(800.0, 600.0));
+pub(crate) fn run_viewport_pass(ctx: &Context, time: f64, screen: Vec2, viewport: egui::ViewportId, ui: impl FnMut(&mut Ui)) {
+    let screen = Rect::from_min_size(Pos2::ZERO, screen);
     let mut input = RawInput { screen_rect: Some(screen), time: Some(time), viewport_id: viewport, ..RawInput::default() };
     for id in [egui::ViewportId::ROOT, viewport] {
         input.viewports.insert(
@@ -219,8 +219,8 @@ pub(crate) fn reordered_fonts() -> egui::FontDefinitions {
 }
 
 /// Runs one frame like `run_frame` and returns the shapes it painted, nested shapes flattened.
-pub(crate) fn run_frame_shapes(ctx: &Context, time: f64, ui: impl FnMut(&mut Ui)) -> Vec<Shape> {
-    let screen = Rect::from_min_max(Pos2::ZERO, Pos2::new(800.0, 600.0));
+pub(crate) fn run_frame_shapes(ctx: &Context, time: f64, screen: Vec2, ui: impl FnMut(&mut Ui)) -> Vec<Shape> {
+    let screen = Rect::from_min_size(Pos2::ZERO, screen);
     let input = RawInput { screen_rect: Some(screen), time: Some(time), ..RawInput::default() };
     let mut output = ctx.run_ui(input, ui);
     output.textures_delta.clear();

@@ -4,6 +4,7 @@ use crate::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Role, S
 use crate::primitives::IconSpec;
 use crate::style::{ComponentStyle, IconLook, Ink, StyleCx};
 use craft_behavior::{Metrics, Sense};
+use craft_theme::variant::Tone;
 use craft_theme::{Stateful, States};
 use egui::{Response, Vec2};
 
@@ -30,13 +31,23 @@ pub struct Icon<'a> {
     /// The ink, which is part of the style key.
     #[style_key]
     ink: Ink,
+    /// The tone the icon takes its colour from, in place of the ink.
+    #[style_key]
+    tone: Option<Tone>,
     spec: IconSpec<'a>,
 }
 
 impl<'a> Icon<'a> {
     /// An icon of `spec`, at the icon side of the control size.
     pub fn new(spec: IconSpec<'a>) -> Self {
-        Icon { common: Common::new(), ink: spec.ink, spec }
+        Icon { common: Common::new(), ink: spec.ink, tone: None, spec }
+    }
+
+    /// The icon in the colour of `tone`, where the tone has an ink: a warning, a failure.
+    #[must_use]
+    pub fn tone(mut self, tone: Tone) -> Self {
+        self.tone = Some(tone);
+        self
     }
 }
 
@@ -51,7 +62,7 @@ impl Component for Icon<'_> {
     type Output = Response;
 
     fn style(cx: &StyleCx<'_>, key: IconStyleKey) -> IconStyle {
-        let color = cx.ink(key.ink);
+        let color = key.tone.map_or_else(|| cx.ink(key.ink), |tone| cx.tone(tone));
         let off = States::new(color, color, color, cx.color(cx.tokens.color.text.disabled));
         IconStyle { metrics: Metrics::new(), icon: IconLook::new(cx.control().icon, Stateful::new(color).off(off)) }
     }

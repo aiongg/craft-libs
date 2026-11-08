@@ -5,6 +5,7 @@ use crate::primitives::{PaintShape, StrokeWidth, TextRun, Wrap};
 use crate::style::{ComponentStyle, FocusLook, Stateful, StyleCx, TextLook, TypeRole};
 use craft_behavior::{CursorIcon, CursorPriority, Flow, Metrics, PointerButton, PressPhase, Sense};
 use craft_theme::States;
+use craft_theme::variant::Tone;
 use egui::{Pos2, Response, Vec2};
 
 /// The style of a link.
@@ -39,13 +40,17 @@ pub struct Link {
     /// the end stays) instead of clipping.
     #[prop]
     wrap: Wrap,
+    /// The tone the link takes its colour from, in place of the accent.
+    #[style_key]
+    #[prop]
+    tone: Option<Tone>,
 }
 
 impl Link {
     /// A link labelled `label`, in body type.
     pub fn new(label: impl Into<crate::runtime::env::Label>) -> Self {
         use crate::contract::Props as _;
-        Link { common: Common::new(), url: None, role: TypeRole::Body, wrap: Wrap::Line }.label(label)
+        Link { common: Common::new(), url: None, role: TypeRole::Body, wrap: Wrap::Line, tone: None }.label(label)
     }
 
     fn run<'a>(&self, label: &'a str) -> TextRun<'a> {
@@ -60,9 +65,9 @@ impl Component for Link {
     type Style = LinkStyle;
     type Output = Response;
 
-    fn style(cx: &StyleCx<'_>, _: LinkStyleKey) -> LinkStyle {
+    fn style(cx: &StyleCx<'_>, key: LinkStyleKey) -> LinkStyle {
         let colors = &cx.tokens.color;
-        let color = cx.color(colors.accent.text);
+        let color = key.tone.map_or_else(|| cx.color(colors.accent.text), |tone| cx.tone(tone));
         LinkStyle {
             metrics: Metrics::new(),
             focus: cx.focus_look(),

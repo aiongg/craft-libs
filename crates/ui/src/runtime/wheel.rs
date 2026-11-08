@@ -31,6 +31,8 @@ pub(crate) fn nearest_scroll_owner(ctx: &Context, rect: Rect) -> Option<Id> {
         state
             .last
             .iter()
+            // Takers register outer first: of equal views the later one is the inner.
+            .rev()
             .filter(|taker| !taker.gated && taker.rect.intersects(rect))
             .min_by(|a, b| a.rect.area().total_cmp(&b.rect.area()))
             .map(|taker| taker.owner)

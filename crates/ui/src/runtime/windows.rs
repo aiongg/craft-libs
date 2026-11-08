@@ -11,9 +11,9 @@ use crate::runtime::egui::{injected, pass, scale, screenshot, viewports, widgets
 use crate::runtime::frame::{PassStep, PerViewport, Stamped};
 use crate::runtime::{overlay, pointer};
 use craft_behavior::{Cursor, CursorIcon, CursorPriority, PartRef, PointerButton};
-use craft_host::target::{Caps, DoubleClick, EdgeInsets, Os, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
 #[cfg(feature = "testing")]
-use craft_host::target::{MenuPlacement, Runtime};
+use craft_host::target::Runtime;
+use craft_host::target::{Caps, DoubleClick, EdgeInsets, Os, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
 use craft_keymap::{Key, Mods};
 use craft_window::Button;
 use craft_window::policy::{CaptionFamily, Captions, Decision, Frame, LayoutWatch, MacInset};
@@ -609,7 +609,9 @@ pub(crate) fn set_os(ctx: &Context, os: Os) {
         shell.os = os;
         if shell.runtime == Runtime::Native {
             shell.caps = Caps::native(os);
-            shell.menu = MenuPlacement::of(shell.caps, root_chrome.unwrap_or(shell.window.chrome));
+            if let Some(chrome) = root_chrome {
+                std::sync::Arc::make_mut(&mut shell.window).chrome = chrome;
+            }
         }
     });
 }
@@ -621,9 +623,6 @@ pub(crate) fn set_chrome(ctx: &Context, chrome: WindowChrome) {
     shared(ctx, |shared| {
         let shell = shared.shell.get_or_insert_with(ShellInfo::default);
         std::sync::Arc::make_mut(&mut shell.window).chrome = chrome;
-        if shell.runtime == Runtime::Native {
-            shell.menu = MenuPlacement::of(shell.caps, chrome);
-        }
     });
 }
 
