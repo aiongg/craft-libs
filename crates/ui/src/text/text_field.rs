@@ -32,7 +32,7 @@ pub struct TextField<'a, C: Codec + Clone + 'static = PlainText> {
     /// The value of an empty field, for a codec whose values have no natural empty: the start a mixed field's typing
     /// parses against (a mixed field shows no text) and what the clear part of a search field sets.
     #[prop]
-    empty: Option<C::Value>,
+    pub(super) empty: Option<C::Value>,
     /// The search form: a clear part while there is text, and Escape clears the text.
     search: bool,
     /// The adornments before the text, in reading order.
