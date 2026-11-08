@@ -1401,8 +1401,9 @@ struct Placed {
 
 /// The pure placement of the anchored forms; the viewport centre or the given position for floats, kept inside the
 /// safe rect. An anchored layer takes its side by its size: below its anchor, above when the room below is too short
-/// and the room above is larger, and keeps that side while it stays open. Before its size is known (a popup's first,
-/// hidden pass) it takes no side and its body is offered the whole cap, so the size it measures decides the side.
+/// and the room above is larger, and keeps that side while it stays open and the content fits there or that side is
+/// the larger. Before its size is known (a popup's first, hidden pass) it takes no side and its body is offered
+/// `content_room`, so the size it measures decides the side.
 fn placement(ctx: &Context, layer: &Layer<'_>, size: Option<egui::Vec2>, bounds: Rect, anchor: Rect) -> Placed {
     let rtl = layer.env.direction.is_rtl();
     let cap = cap(layer.overlay, bounds, anchor);
@@ -1412,8 +1413,10 @@ fn placement(ctx: &Context, layer: &Layer<'_>, size: Option<egui::Vec2>, bounds:
                 let room = content_room(layer.overlay, bounds, anchor, rtl);
                 return Placed { at: anchor.left_bottom().clamp(bounds.min, bounds.max), side: None, room };
             };
-            let kept = overlay::entry(ctx, layer.id).and_then(|entry| entry.side);
-            let request = PlaceRequest::new(anchor, size, bounds).side(*side).align(*align).rtl(rtl).min_width(layer.overlay.min_width).kept(kept);
+            // The side taken in an earlier pass is the preferred one while the layer stays open: it stays while the
+            // content fits there or that side is the larger, so a size measured later (a body that grew) still flips it.
+            let taken = overlay::entry(ctx, layer.id).and_then(|entry| entry.side).unwrap_or(*side);
+            let request = PlaceRequest::new(anchor, size, bounds).side(taken).align(*align).rtl(rtl).min_width(layer.overlay.min_width);
             let placed = craft_behavior::overlay::place(&request);
             // The room is what the side the layer took leaves for a body as large as the cap.
             let room = craft_behavior::overlay::place(&request.kept(Some(placed.side)).size(cap)).rect.size();
