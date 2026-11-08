@@ -1689,6 +1689,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub fn labelled<C: Show>(&mut self, ui: &mut Ui, key: impl Hash + Debug, label: Label, side: SideLabel, child: C) -> C::Output`. Runs the label step (B2, 16.3) for one leaf child in the body's flow: `label` sits beside the child or above
   - `pub fn style<C: Container>(&self) -> Option<&'a C::Style>`. The style of the container `C` whose body this is, as step 2 resolved it for this pass: the one way a body
   - `pub fn gap(&self) -> Option<f32>`. The gap the body's layout puts between its children (`ContainerProps::body_gap`), for a body that places
+  - `pub fn take_cancel(&mut self) -> bool`. Takes the Escape of this pass that no component took: a field that clears on Escape passes it on once it
 - `craft_ui::contract::BodyLayout`: `pub enum BodyLayout { Stack, Row { wrap: bool, align: RowAlign }, Grid { columns: Cow<'static, [ColumnWidth]> } }`. How a body lays out its children, in reading order: mirrored under a right-to-left direction.
   - `pub const fn stack() -> Self`. Children one under another.
   - `pub const fn row() -> Self`. Children side by side from the start edge, with no wrap.
@@ -1818,7 +1819,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `fn begin(&mut self)`. Opens a gesture.
   - `fn commit(&mut self)`. Commits the proposed value.
   - `fn cancel(&mut self, reason: CancelReason)`. Cancels the running gesture.
-- `craft_ui::contract::EditResponse`: `pub struct EditResponse<T> { pub response: Response, pub event: Option<EditEvent<T>>, pub submitted: bool, pub escaped: bool, pub unparsed: bool, pub validity: Validity<T>, pub shown: Option<Mixed<Arc<T>>> }`. The output of a component that edits a value. Only `cx.edit_response()` builds it.
+- `craft_ui::contract::EditResponse`: `pub struct EditResponse<T> { pub response: Response, pub event: Option<EditEvent<T>>, pub submitted: bool, pub submit_mods: craft_keymap::Mods, pub escaped: bool, pub unparsed: bool, pub validity: Validity<T>, pub shown: Option<Mixed<Arc<T>>> }`. The output of a component that edits a value. Only `cx.edit_response()` builds it.
   - `pub fn lifted(response: Response, event: Option<EditEvent<T>>, shown: Option<Mixed<Arc<T>>>) -> Self`. The response of a composite that edits one value through several child components: `event` is the edit of the
   - `pub fn value(&self) -> Option<&T>`. The value the pass's event carries: a proposal, a commit or a set; `None` when nothing was edited or the event
   - `pub fn map<U>(self, f: impl Fn(T) -> U) -> EditResponse<U>`. The response of a child component's edit as the response of the edit of a value built from it: the event, the
@@ -1856,6 +1857,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `fn claim(&mut self, chord: Chord)`. Claims `chord` for the next frames while this component is focused.
   - `fn take_claimed(&mut self, chord: Chord) -> bool`. Whether `chord` arrived this pass for this component, consuming it.
   - `fn active_part(&self) -> Option<PartRef>`. The focused part while the component holds focus.
+  - `fn focus_arrived(&self) -> Option<PartRef>`. The part focus moved onto in this frame (Tab or an arrow into a roving group, a focus request, a click), for
   - `fn is_focused(&self) -> bool`. The component holds key focus.
   - `fn focus_visible(&self) -> bool`. The component holds focus and shows it.
   - `fn reveal(&mut self, rect: Rect)`. Asks the nearest scroll owner to bring `rect` into view.
@@ -2319,6 +2321,7 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
   - `pub fn texture(&self, rect: Rect, texture: TextureId, uv: Rect)`. Paints the part `uv` of `texture` (from `TextureCache` or a `TextureStore`) into `rect`, untinted. A `Draw`
   - `pub fn dashed(&self, path: &[Pos2], pattern: Dashes, width: StrokeWidth, color: StyleColor)`. Strokes the open path `path` as dashes (copy marks, drag previews, reference lines). [`kit::dashed`] is the one
   - `pub fn clipped(&self, rect: Rect, paint: impl FnOnce(&Draw<'_>))`. Runs `paint` with a `Draw` whose painting is cut to `rect` (inside the clip already in force): scrolled content
+  - `pub fn faded(&self, share: f32, paint: impl FnOnce(&Draw<'_>))`. Runs `paint` with a `Draw` whose fills, strokes, text runs, icons and pictures are all `share` as opaque as
 - `craft_ui::primitives::EditorLine`: `pub struct EditorLine<'a> { pub text: &'a str, pub rect: Rect, pub baseline: f32, pub runs: &'a [EditorRun<'a>] }`. One visible line of an own-caret editor.
   - `pub const fn new(text: &'a str, rect: Rect, baseline: f32, runs: &'a [EditorRun<'a>]) -> Self`. A line of `text` at `rect`.
 - `craft_ui::primitives::EditorPurpose`: `pub enum EditorPurpose { Text, Code, Number, Password }`. What an editor part edits.
@@ -2389,6 +2392,10 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
 - `craft_ui::primitives::PartResult`: `pub struct PartResult { pub rect: Rect, pub press: PressState, pub hovered: bool, pub hover_pos: Option<Pos2>, pub flags: Flags, pub inactive: bool }`. A part's results this pass.
   - `pub const IDLE: PartResult`. What a read returns for a part with no press history: face mode, or a part first registered this pass.
 - `craft_ui::primitives::Priority`: re-export of `craft_ui::primitives::textures::Priority` (defined outside these crates).
+- `craft_ui::primitives::ReadingMeasure`: `pub struct ReadingMeasure { pub target: f32, pub least: f32 }`. The width of a reading column, from the text it holds: a count of characters of the role's average character
+  - `pub const TARGET_CHARACTERS: f32`. The characters in the measure a reading column aims for.
+  - `pub const LEAST_CHARACTERS: f32`. The characters in the shortest measure a reading column allows.
+  - `pub fn of(role: TypeRole, layout: impl FnOnce(&TextRun<'static>) -> TextLayout) -> Self`. The widths for text of `role`. `layout` lays a run out the way the component lays out its text
 - `craft_ui::primitives::ResetMark`: `pub struct ResetMark`. The reset mark painter.
   - `pub fn shapes(look: &ResetMarkLook, center: Pos2) -> Vec<Shape>`. The dot centred on `center`.
 - `craft_ui::primitives::Revision`: `pub struct Revision`. The version of a key's picture, computed by the app: a stored fingerprint, an `Arc` address with a `Weak` guard,
@@ -2472,9 +2479,10 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
 - `craft_ui::primitives::TextureWords`: re-export of `craft_ui::primitives::textures::TextureWords` (defined outside these crates).
 - `craft_ui::primitives::ThumbFit`: `pub enum ThumbFit { Contain, Cover }`. How [`Thumbnails::paint`] fits a picture into its cell.
 - `craft_ui::primitives::ThumbJob`: `pub type ThumbJob = Box<dyn FnOnce(&Cancel) -> Result<LoadedPicture, LoadFailure> + Send>`. A background render: runs on a queue lane, checks the [`Cancel`] between steps, and returns the picture, the
-- `craft_ui::primitives::ThumbPaint`: `pub struct ThumbPaint { pub fit: ThumbFit, pub checker: bool, pub tint: DataColor }`. How to paint one thumbnail.
+- `craft_ui::primitives::ThumbPaint`: `pub struct ThumbPaint { pub fit: ThumbFit, pub checker: bool, pub paper: Option<DataColor>, pub tint: DataColor }`. How to paint one thumbnail.
   - `pub fn fit(mut self, fit: ThumbFit) -> Self`. Sets how the picture fits its box.
   - `pub fn checker(mut self, checker: bool) -> Self`. Sets whether the transparency grid shows behind the picture.
+  - `pub fn paper(mut self, paper: DataColor) -> Self`. Sets the paper under the picture: a fill in place of the transparency grid, whatever `checker` says (a page
   - `pub fn tint(mut self, tint: DataColor) -> Self`. Sets the tint that multiplies the picture.
 - `craft_ui::primitives::ThumbRender`: `pub enum ThumbRender { Ready(ColorImage), Later(ThumbJob), Blank }`. What a [`ThumbSource`] renders for a key.
 - `craft_ui::primitives::ThumbRequest`: `pub struct ThumbRequest { pub side: u32, pub pixels_per_point: f32, pub region: Option<Rect> }`. What a thumbnail is asked at: the side in pixels, the screen's density and the part of the frame wanted.
@@ -2600,9 +2608,10 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
 - `craft_ui::primitives::textures::TextureWords`: re-export of `craft_ui::primitives::textures::words::TextureWords` (defined outside these crates).
 - `craft_ui::primitives::textures::ThumbFit`: `pub enum ThumbFit { Contain, Cover }`. How [`Thumbnails::paint`] fits a picture into its cell.
 - `craft_ui::primitives::textures::ThumbJob`: `pub type ThumbJob = Box<dyn FnOnce(&Cancel) -> Result<LoadedPicture, LoadFailure> + Send>`. A background render: runs on a queue lane, checks the [`Cancel`] between steps, and returns the picture, the
-- `craft_ui::primitives::textures::ThumbPaint`: `pub struct ThumbPaint { pub fit: ThumbFit, pub checker: bool, pub tint: DataColor }`. How to paint one thumbnail.
+- `craft_ui::primitives::textures::ThumbPaint`: `pub struct ThumbPaint { pub fit: ThumbFit, pub checker: bool, pub paper: Option<DataColor>, pub tint: DataColor }`. How to paint one thumbnail.
   - `pub fn fit(mut self, fit: ThumbFit) -> Self`. Sets how the picture fits its box.
   - `pub fn checker(mut self, checker: bool) -> Self`. Sets whether the transparency grid shows behind the picture.
+  - `pub fn paper(mut self, paper: DataColor) -> Self`. Sets the paper under the picture: a fill in place of the transparency grid, whatever `checker` says (a page
   - `pub fn tint(mut self, tint: DataColor) -> Self`. Sets the tint that multiplies the picture.
 - `craft_ui::primitives::textures::ThumbRender`: `pub enum ThumbRender { Ready(ColorImage), Later(ThumbJob), Blank }`. What a [`ThumbSource`] renders for a key.
 - `craft_ui::primitives::textures::ThumbRequest`: `pub struct ThumbRequest { pub side: u32, pub pixels_per_point: f32, pub region: Option<Rect> }`. What a thumbnail is asked at: the side in pixels, the screen's density and the part of the frame wanted.
