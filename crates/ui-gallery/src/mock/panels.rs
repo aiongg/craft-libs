@@ -29,11 +29,6 @@ pub(super) struct Panels<'a> {
     pub(super) tools: &'a mut Tools,
 }
 
-/// What the dock may do with `panel`: the canvas stays where it is.
-pub(super) fn permissions(panel: &Panel) -> Permissions {
-    if *panel == Panel::Canvas { Permissions::PROTECTED } else { Permissions::ALL }
-}
-
 fn name(panel: Panel) -> &'static str {
     match panel {
         Panel::Canvas => "Canvas",
@@ -49,7 +44,7 @@ impl DockPanels<Panel> for Panels<'_> {
     }
 
     fn permissions(&self, panel: &Panel) -> Permissions {
-        permissions(panel)
+        if panel.protected() { Permissions::PROTECTED } else { Permissions::ALL }
     }
 
     fn body(&mut self, panel: &Panel, ui: &mut Ui, _: &mut BodyCx<'_>) {

@@ -1,10 +1,8 @@
-//! What the window keeps across passes in its root container: the canvas tools and the dialog host.
+//! What the window keeps across passes in its root container: the canvas tools.
 
 use craft_behavior::CancelReason;
 use craft_ui::canvas::{CanvasTool, HandTool, Momentary, NavigationOptions, ToolAction, ToolContext, ToolPath, ToolPointer, ZoomTool};
-use craft_ui::dialog::DialogHost;
 use craft_ui::primitives::Draw;
-use std::sync::{Arc, Mutex};
 
 /// The tools the canvas runs: Hand, Zoom and the momentary pair of both.
 #[derive(Clone, Debug)]
@@ -20,10 +18,6 @@ impl Default for Tools {
         Tools { hand: HandTool::new(options), zoom: ZoomTool::new(options), momentary: Momentary::new(options) }
     }
 }
-
-/// The dialog host, shared by the passes' copies of the slot.
-#[derive(Clone, Default)]
-pub(super) struct Dialogs(pub(super) Arc<Mutex<DialogHost>>);
 
 /// The freehand tools of the rail: they take the press and draw nothing.
 #[derive(Debug)]
