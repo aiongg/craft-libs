@@ -3,7 +3,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use egui::{Color32, ColorImage, Key, Modifiers, Pos2, pos2, vec2};
+use egui::{Color32, ColorImage, Key, Modifiers, Pos2, vec2};
 use serde_json::json;
 
 use craft_behavior::edit_history::Step;
