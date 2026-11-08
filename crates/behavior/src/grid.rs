@@ -81,6 +81,11 @@ impl GridCursor {
         self.measured.rows[row] = self.measured.rows[row].max(size.y);
         let start: f32 = self.widths.iter().take(column).map(|width| width + self.gap.x).sum();
         let top: f32 = self.last_rows.iter().take(row).map(|height| height + self.gap.y).sum();
+        // A `Content` column is at least as wide as the cell placed in it, so a column no pass has measured yet takes its
+        // first cell's width and the cells after it are placed past it.
+        if let (Some(ColumnWidth::Content), Some(width)) = (self.columns.get(column), self.widths.get_mut(column)) {
+            *width = width.max(size.x);
+        }
         let width = self.widths.get(column).copied().unwrap_or(size.x);
         let height = self.last_rows.get(row).copied().unwrap_or(size.y);
         let span = self.flow.span(start, width);
