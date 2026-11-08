@@ -3,19 +3,14 @@
 //!
 //! The crate keeps its text in English, and that English text is the lookup key, as in the
 //! craft-i18n catalogs. An app with translations passes a [`Translate`] function to
-//! `StartupPrompt::with_translator`, `CheckResultDialog::with_translator` and
-//! `Updater::with_translator`. The dialogs call it each time they draw a string, so a change of
-//! interface language shows on the next frame. Without one the text stays in English.
+//! `Updater::with_translator`. The updater calls it each time it hands the prompt a message, so a change of
+//! interface language shows on the next frame. Without one the text stays in English. The dialogs' own words
+//! are the app's `UpdateWords` set.
 //!
 //! A template names its values in braces (`{app} {version} is available…`) and the function
 //! gets the values beside it, so a translation can put them in another order. An app built on
 //! craft-i18n passes `|text, args| craft_i18n::fmt(i18n.t(lang, text), args)`. That also keeps a
-//! Latin app name in its place in a right-to-left sentence. Button labels are looked up in title
-//! case (`Later`, `Check Again`) and drawn in capitals, so the rows the app already has for its
-//! own buttons serve here too.
-//!
-//! The card otherwise draws only ASCII, so a font that lacks a glyph can't trip it. An app that
-//! translates it must have fonts for its translations, which it needs for its own interface anyway.
+//! Latin app name in its place in a right-to-left sentence.
 
 /// The English `text` (a key) in the interface language, its `{name}` placeholders filled from
 /// `args`. A `fn`, not a closure, so the dialogs stay `Copy` and `Debug`. An app's lookup reads
@@ -55,7 +50,7 @@ pub fn fill(template: &str, args: &[(&str, &str)]) -> String {
     out
 }
 
-/// One of the crate's own messages in the startup prompt ("The update is installed…"), kept as
+/// One of the crate's own messages under the startup prompt ("The update is installed…"), kept as
 /// its English text and values so it is translated each time the prompt draws: a change of
 /// interface language while it shows changes it too.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -79,13 +74,6 @@ impl Note {
     }
 }
 
-/// A button label: `label` (title case, the lookup key) translated, then in capitals, as the card
-/// draws its buttons.
-#[cfg(any(feature = "ui", test))]
-pub(crate) fn button(translate: Translate, label: &str) -> String {
-    translate(label, &[]).to_uppercase()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -107,13 +95,8 @@ mod tests {
     }
 
     #[test]
-    fn english_is_the_default_and_buttons_are_capitals() {
+    fn english_is_the_default() {
         assert_eq!(english("{app} is ready", &[("app", "PdfCraft")]), "PdfCraft is ready");
-        assert_eq!(button(english, "Check Again"), "CHECK AGAIN");
-        fn french(text: &str, args: &[(&str, &str)]) -> String {
-            fill(if text == "Later" { "Plus tard" } else { text }, args)
-        }
-        assert_eq!(button(french, "Later"), "PLUS TARD");
         let note = Note::new("Close {app} to finish", &[("app", "PdfCraft")]);
         assert_eq!(note.translated(english), "Close PdfCraft to finish");
     }
