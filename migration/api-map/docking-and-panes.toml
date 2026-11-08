@@ -128,7 +128,7 @@ name = "DropTarget"
 old = "craft_ui::docking::DropTarget"
 new = ""
 status = "replaced"
-note = "`DockTargets::register(ctx, dock, spot, rect)` registers `DockSpot`s (a group is named by an anchor panel) with hit rects for one dock; `DockTargets::resolve(ctx, dock, at)` resolves a pointer against the previous pass, only inside the dock's `DropTarget::accept`; `DockSpot::mark(rect, rtl)` gives the `DropMark` (dock-drop-a adds the model step)."
+note = "`DockTargets::register(ctx, dock, spot, rect)` registers `DockSpot`s (a group is named by an anchor panel) with hit rects for one dock; `DockTargets::resolve(ctx, dock, at)` resolves a pointer against the previous pass to `(DockSpot<P>, Rect)` (the rect the mark applies to; `register_in` gives it, `register` uses the hit rect), only inside the dock's `DropTarget::accept`; `DockSpot::mark(rect, rtl)` gives the `DropMark` (dock-drop-a adds the model step)."
 
 # Dock model (dock-model-a): moved UI-free into craft-behavior, serde shapes unchanged.
 
@@ -525,7 +525,7 @@ name = "GroupGrip"
 old = ""
 new = "craft_ui::docking::GroupGrip"
 status = "replaced"
-note = "The legacy drag bar of a tab group; a double click minimizes the group and a drag carries a `GroupDrag`."
+note = "The legacy drag bar of a tab group; a double click minimizes the group and a drag starts through `start_group_drag` with a `DragUnit`, carrying a `GroupDrag`."
 
 [[type]]
 name = "section_heights"

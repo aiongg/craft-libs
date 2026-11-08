@@ -1,7 +1,8 @@
 //! `DockGroup`: a group of panels as a container: a header of a collapse arrow, a grip, the panels' tab strip and
 //! the panel menu button over the body of the active panel.
 
-use super::targets::{DockSizes, DockSpot, DockTargets, GroupDrag, ZoneRule};
+use super::drop::{DragUnit, start_group_drag};
+use super::targets::{DockSizes, DockSpot, DockTargets, ZoneRule};
 use super::words::DockWords;
 use super::{PanelDrag, PanelKey, PanelTitle};
 use crate::buttons::IconButton;
@@ -14,7 +15,6 @@ use crate::layout_components::Row;
 use crate::menu::{GroupItem, Menu, MenuWords, PanelMenu, PanelRow};
 use crate::primitives::IconSpec;
 use crate::runtime::access::PopupKind;
-use crate::runtime::drag::DragPreview;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, IconLook, Ink, Stateful, StyleCx, SurfaceKind};
 use crate::tabs::{Tab, TabKind, TabStrip, TornOff};
@@ -54,29 +54,33 @@ impl Outcome for GroupGripOutput {
     }
 }
 
-/// The handle a group is dragged by. A drag carries a `GroupDrag` of the group's anchor; a double click is reported
-/// for the group to minimize.
+/// The handle a group is dragged by. A drag starts through [`start_group_drag`] with the grip's unit; a double
+/// click is reported for the group to minimize.
 #[derive(crate::contract::Component, crate::contract::Props)]
-pub struct GroupGrip {
+#[component(probe(GroupGrip<usize>))]
+pub struct GroupGrip<P: Clone + Send + Sync + 'static> {
     #[common]
     common: Common,
-    anchor: PanelKey,
+    unit: DragUnit<P>,
     active: PanelKey,
-    /// A drag on the grip drags the group.
+    /// The ghost the drag shows: its extent and its label.
+    #[prop]
+    ghost: Option<(Vec2, Label)>,
+    /// A drag on the grip drags the unit.
     #[prop]
     movable: bool,
     double: bool,
     started: bool,
 }
 
-impl GroupGrip {
-    /// The grip of the group named by `anchor`, showing `active`.
-    pub fn new(anchor: PanelKey, active: PanelKey) -> Self {
-        GroupGrip { common: Common::new(), anchor, active, movable: true, double: false, started: false }
+impl<P: Clone + Send + Sync + 'static> GroupGrip<P> {
+    /// The grip of `unit`, whose shown panel is `active`.
+    pub fn new(unit: DragUnit<P>, active: PanelKey) -> Self {
+        GroupGrip { common: Common::new(), unit, active, ghost: None, movable: true, double: false, started: false }
     }
 }
 
-impl Component for GroupGrip {
+impl<P: Clone + Send + Sync + 'static> Component for GroupGrip<P> {
     const ROLE: Role = Role::BUTTON;
     const PARTS: bool = false;
     const SHOWS_LABEL: bool = false;
@@ -84,7 +88,7 @@ impl Component for GroupGrip {
     type Style = GroupGripStyle;
     type Output = GroupGripOutput;
 
-    fn style(cx: &StyleCx<'_>, _: GroupGripStyleKey) -> GroupGripStyle {
+    fn style(cx: &StyleCx<'_>, _: GroupGripStyleKey<P>) -> GroupGripStyle {
         let side = cx.control().icon;
         GroupGripStyle { metrics: Metrics::new().min_size(Vec2::splat(side)), glyph: IconLook::new(side, Stateful::new(cx.ink(Ink::OnPanel))) }
     }
@@ -100,8 +104,7 @@ impl Component for GroupGrip {
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         self.double = cx.press().double_pressed();
         if self.movable && matches!(cx.press().phase, PressPhase::DragStart { .. }) {
-            let preview = DragPreview::frame(Vec2::splat(cx.style.glyph.side), None);
-            cx.start_drag(GroupDrag { anchor: self.anchor, active: self.active }, preview);
+            start_group_drag(cx, self.unit.clone(), self.active, self.ghost.clone());
             self.started = true;
         }
     }
@@ -218,6 +221,8 @@ pub struct DockGroup<'a, P: Clone + Hash + Send + Sync + 'static> {
     /// The host's items after the tab strip.
     #[prop(func = "FnMut(&mut egui::Ui)")]
     extra: Option<HeaderHook<'a>>,
+    /// The size of the group this pass, for the drag ghost.
+    size: Vec2,
     reported: Reported,
 }
 
@@ -240,6 +245,7 @@ impl<'a, P: Clone + Hash + Send + Sync + 'static> DockGroup<'a, P> {
             zones: ZoneRule::Fraction,
             menu: Vec::new(),
             extra: None,
+            size: Vec2::ZERO,
             reported: Reported::default(),
         }
         .label(title)
@@ -258,6 +264,7 @@ impl<P: Clone + Hash + Send + Sync + 'static> Component for DockGroup<'_, P> {
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        self.size = cx.rect.size();
         let Some(dock) = self.dock else { return };
         let (rect, rtl, header) = (cx.rect, cx.flow.is_rtl(), cx.style.header);
         let strip = Rect::from_min_size(rect.min, Vec2::new(rect.width(), header));
@@ -267,7 +274,7 @@ impl<P: Clone + Hash + Send + Sync + 'static> Component for DockGroup<'_, P> {
         }
         let body = Rect::from_min_max(Pos2::new(rect.left(), strip.bottom()), rect.max);
         for (side, zone) in self.zones.zones(body, &cx.style.sizes, rtl) {
-            DockTargets::<P>::register(&cx.core.ctx, dock, DockSpot::group(self.anchor.clone(), side), zone);
+            DockTargets::<P>::register_in(&cx.core.ctx, dock, DockSpot::group(self.anchor.clone(), side), zone, rect);
         }
     }
 
@@ -287,6 +294,13 @@ impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
         let panel_menu = words.panel_menu.clone();
         let mut extra = self.extra.take();
         let (name, move_name) = (Label::from(words.panels.as_str().to_owned()), words.move_group.fill(&[]));
+        let (unit, ghost, dock, anchor, rtl) = (
+            DragUnit::Group(self.anchor.clone()),
+            (self.size, cx.label()),
+            self.dock,
+            self.anchor.clone(),
+            crate::runtime::env::Env::of(ui).direction.is_rtl(),
+        );
         let reported = &mut self.reported;
         Row::new().show(ui, |ui, _| {
             let mut open = !minimized;
@@ -295,7 +309,7 @@ impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
             if open == minimized {
                 reported.toggle_minimized = true;
             }
-            let grip = GroupGrip::new(from, active).movable(movable).label(move_name.clone()).show(ui);
+            let grip = GroupGrip::new(unit.clone(), active).ghost(ghost.clone()).movable(movable).label(move_name.clone()).show(ui);
             reported.toggle_minimized |= grip.double_pressed;
             reported.drag_started |= grip.drag_started;
 
@@ -305,6 +319,7 @@ impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
                 .kind(kind)
                 .shown(active)
                 .tear_off()
+                .accept_from(|_| false)
                 .drag_payload(move |drag: &ListDrag<PanelKey>| Some(PanelDrag { panel: drag.grabbed, from }))
                 .show_items(ui, &source, &mut |key, _| {
                     let title = panels.iter().find(|panel| &panel.key == key).map_or_else(Label::default, |panel| panel.title.clone());
@@ -314,6 +329,9 @@ impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
                 if let crate::contract::CollectionEvent::Selection(craft_behavior::SelectionChange::Set(keys)) = event {
                     reported.picked = keys.last().copied().or(reported.picked);
                 }
+            }
+            if let Some(dock) = dock {
+                register_insertions(ui.ctx(), dock, &anchor, panels, &strip.tab_rects, rtl);
             }
             reported.picked = strip.picked.or(reported.picked);
             reported.closed.extend(strip.closed);
@@ -341,5 +359,30 @@ impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
         let rows = self.menu.clone();
         let shown = Menu::new(name).opened_by(&button, Trigger::Click).show(ui, |ui, _| PanelMenu::new(Vec::new(), rows.clone()).show(ui).picked);
         self.reported.item = shown.inner.flatten().or(self.reported.item);
+    }
+}
+
+/// Registers the tab insertion spots of a group: the half of each shown tab nearer the start edge inserts before
+/// it, the other half after it, and each spot's mark is the line at the boundary it inserts at.
+fn register_insertions<P: Clone + Hash + Send + Sync + 'static>(
+    ctx: &egui::Context,
+    dock: Id,
+    anchor: &P,
+    panels: &[PanelTitle],
+    tab_rects: &[(PanelKey, Rect)],
+    rtl: bool,
+) {
+    for (key, tab) in tab_rects {
+        let Some(at) = panels.iter().position(|panel| panel.key == *key) else { continue };
+        let middle = tab.center().x;
+        let (near, far) = if rtl {
+            (Rect::from_min_max(Pos2::new(middle, tab.top()), tab.max), Rect::from_min_max(tab.min, Pos2::new(middle, tab.bottom())))
+        } else {
+            (Rect::from_min_max(tab.min, Pos2::new(middle, tab.bottom())), Rect::from_min_max(Pos2::new(middle, tab.top()), tab.max))
+        };
+        let (start, end) = if rtl { (tab.right(), tab.left()) } else { (tab.left(), tab.right()) };
+        let boundary = |x: f32| Rect::from_min_max(Pos2::new(x, tab.top()), Pos2::new(x, tab.bottom()));
+        DockTargets::<P>::register_in(ctx, dock, DockSpot::tab(anchor.clone(), at), near, boundary(start));
+        DockTargets::<P>::register_in(ctx, dock, DockSpot::tab(anchor.clone(), at + 1), far, boundary(end));
     }
 }

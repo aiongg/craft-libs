@@ -25,7 +25,7 @@ mod words;
 pub mod desktop;
 
 pub use config::{DockConfig, DockSides};
-pub use drop::{DockDrag, DockDropTarget, DockDropped, DragUnit, cancel_on_replacement, float_drop, panel_key, resolve_drop, start_group_drag};
+pub use drop::{DockDrag, DockDropTarget, DockDropped, DragUnit, cancel_on_replacement, float_drop, resolve_drop, start_group_drag};
 pub use event::{DockEvent, FloatSpace, HidePanels};
 pub use group::{DockGroup, DockGroupOutput, DockGroupStyle, GroupGrip, GroupGripOutput, GroupGripStyle, HeaderHook};
 

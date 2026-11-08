@@ -4,7 +4,7 @@
 //! previous pass's registry, because a drop is decided against what was on screen when the pointer moved. Every
 //! zone is a rect. A spot names a group by an anchor panel, as the dock model does.
 
-use super::{PanelKey, PanelSpec, width_bounds};
+use super::{DragUnit, PanelKey, PanelSpec, width_bounds};
 use crate::contract::DropMark;
 use crate::runtime::frame::{self, PassStep, PerViewport, Stamped};
 use crate::style::StyleCx;
@@ -203,7 +203,7 @@ impl<P> DockSpot<P> {
     /// What the drag ghost paints for a drop on this spot; `None` for [`DockSpot::Blocked`], which takes no drop.
     ///
     /// `rect` is the rect the spot applies to: the group's rect for [`DockSpot::Group`], whose side marks the half
-    /// of it a docked panel would take (mirrored under `rtl`); the registered hit rect for the others. A tab
+    /// of it a docked panel would take (mirrored under `rtl`); the rect it registered with (`DockTargets::register_in`, else its hit rect) for the others. A tab
     /// insertion marks a line across the hit rect's start edge. A band (edge, seam, column, new dock) marks a line
     /// along its middle.
     pub fn mark(&self, rect: Rect, rtl: bool) -> Option<DropMark> {
@@ -252,7 +252,10 @@ impl ZoneRule {
 #[derive(Clone, Debug, PartialEq)]
 struct Target<P> {
     spot: DockSpot<P>,
+    /// Where a drop lands on the spot.
     rect: Rect,
+    /// The rect the spot's mark applies to (see [`DockSpot::mark`]).
+    applies: Rect,
 }
 
 /// The spots of one dock in one pass with their hit rects. Spots are added back to front.
@@ -272,18 +275,18 @@ impl<P: Clone> DockTargets<P> {
         DockTargets::default()
     }
 
-    /// Adds `spot`, taking drops over `rect`. An empty or non-finite rect takes none.
-    fn add(&mut self, spot: DockSpot<P>, rect: Rect) {
+    /// Adds `spot`, taking drops over `rect` and marked against `applies`. An empty or non-finite `rect` takes none.
+    fn add(&mut self, spot: DockSpot<P>, rect: Rect, applies: Rect) {
         if rect.is_finite() && rect.is_positive() {
-            self.targets.push(Target { spot, rect });
+            self.targets.push(Target { spot, rect, applies });
         }
     }
 
     /// The spot a drop at `at` lands on: among the spots whose rect holds `at`, the highest priority (see
     /// [`DockSpot`]), then the one added last. A [`DockSpot::Blocked`] hides the spots added before it, so a rect
-    /// that takes no drop registers after what lies under it. `None` where no spot holds `at` and where the
-    /// winner is `Blocked`.
-    fn at(&self, at: Pos2) -> Option<DockSpot<P>> {
+    /// that takes no drop registers after what lies under it, with the rect its mark applies to. `None` where no
+    /// spot holds `at` and where the winner is `Blocked`.
+    fn at(&self, at: Pos2) -> Option<(DockSpot<P>, Rect)> {
         let hits: Vec<(usize, &Target<P>)> = self.targets.iter().enumerate().filter(|(_, target)| target.rect.contains(at)).collect();
         let hidden_below = hits.iter().rev().find(|(_, target)| matches!(target.spot, DockSpot::Blocked)).map(|(order, _)| *order);
         let winner = hits
@@ -292,7 +295,7 @@ impl<P: Clone> DockTargets<P> {
             .max_by_key(|(order, target)| (target.spot.priority(), *order))?;
         match &winner.1.spot {
             DockSpot::Blocked => None,
-            spot => Some(spot.clone()),
+            spot => Some((spot.clone(), winner.1.applies)),
         }
     }
 }
@@ -332,6 +335,12 @@ impl<P: Clone + Send + 'static> DockTargets<P> {
     /// rendering call it; it does nothing outside a pass. A floating window registers on its own egui layer, and
     /// the drag session orders the layers, so no registry orders them.
     pub fn register(ctx: &Context, dock: Id, spot: DockSpot<P>, rect: Rect) {
+        Self::register_in(ctx, dock, spot, rect, rect);
+    }
+
+    /// Registers `spot` taking drops over `hit`, with its mark drawn against `applies`: the group's rect for a side
+    /// zone of a group, the boundary between two tabs for a tab insertion.
+    pub fn register_in(ctx: &Context, dock: Id, spot: DockSpot<P>, hit: Rect, applies: Rect) {
         Self::with_pass(ctx, |pass| {
             let at = match pass.now.iter().position(|(id, _)| *id == dock) {
                 Some(at) => at,
@@ -340,28 +349,28 @@ impl<P: Clone + Send + 'static> DockTargets<P> {
                     pass.now.len() - 1
                 }
             };
-            pass.now[at].1.add(spot, rect);
+            pass.now[at].1.add(spot, hit, applies);
         });
     }
 
-    /// The spot a drop at `at` lands on in the dock `dock`, by the spots of the previous pass; `None` outside a
-    /// pass.
+    /// The spot a drop at `at` lands on in the dock `dock`, by the spots of the previous pass, with the rect its
+    /// mark applies to (`DockSpot::mark` takes it); `None` outside a pass.
     ///
     /// A dock calls it only inside its own `DropTarget::accept`, so the drag session arbitrates between the dock
     /// and an app's own `DropTarget<PanelDrag>` in a panel body, and between docks, by layer order and
     /// registration order.
-    pub fn resolve(ctx: &Context, dock: Id, at: Pos2) -> Option<DockSpot<P>> {
+    pub fn resolve(ctx: &Context, dock: Id, at: Pos2) -> Option<(DockSpot<P>, Rect)> {
         Self::with_pass(ctx, |pass| pass.before.iter().find(|(id, _)| *id == dock).and_then(|(_, targets)| targets.at(at))).flatten()
     }
 }
 
-/// What a dragged group (the bar or top border of a group) carries, beside `PanelDrag` for one tab. Only a group's
-/// drag bar starts one, so the type is `non_exhaustive` and only the crate builds it.
+/// What a drag of a whole group, window or column carries, beside `PanelDrag` for one tab. Every such drag starts
+/// through [`start_group_drag`](super::start_group_drag), so the type is `non_exhaustive` and only the crate builds it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct GroupDrag<P> {
-    /// A panel of the dragged group: the group's name.
-    pub anchor: P,
-    /// The panel the group shows, for the drag's preview.
+    /// What the drag moves, named by a panel of it.
+    pub unit: DragUnit<P>,
+    /// The panel the unit shows, for the drag's preview.
     pub active: PanelKey,
 }

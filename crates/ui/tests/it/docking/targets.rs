@@ -59,7 +59,7 @@ fn a_pointer_resolves_to_a_tab_insertion_a_group_side_or_the_group() {
             &mut frames,
             |ctx| register_group(ctx, dock, GROUP, rule, &sizes),
             |ctx| {
-                let at = |pos: Pos2| DockTargets::<u32>::resolve(ctx, dock, pos);
+                let at = |pos: Pos2| DockTargets::<u32>::resolve(ctx, dock, pos).map(|(spot, _)| spot);
                 assert_eq!(at(strip().center()), Some(DockSpot::tab(GROUP, 0)), "{rule:?}: the strip");
                 let left = Pos2::new(body().left() + 2.0, body().center().y);
                 assert_eq!(at(left), Some(DockSpot::group(GROUP, DockSide::Start)), "{rule:?}: the start side");
@@ -85,7 +85,7 @@ fn a_spot_is_resolved_in_the_pass_after_its_registration() {
     });
     assert!(unresolved_before, "a spot registered in a pass is not read in the same pass");
     frames.frame(Vec::new(), |ui| {
-        assert_eq!(DockTargets::<u32>::resolve(ui.ctx(), dock, strip().center()), Some(DockSpot::tab(GROUP, 0)));
+        assert_eq!(DockTargets::<u32>::resolve(ui.ctx(), dock, strip().center()), Some((DockSpot::tab(GROUP, 0), strip())));
     });
 }
 
@@ -101,8 +101,8 @@ fn two_docks_in_one_viewport_keep_their_spots_apart() {
         },
         |ctx| {
             let at = strip().center();
-            assert_eq!(DockTargets::<u32>::resolve(ctx, first, at), Some(DockSpot::tab(GROUP, 0)));
-            assert_eq!(DockTargets::<u32>::resolve(ctx, second, at), Some(DockSpot::tab(OTHER, 1)));
+            assert_eq!(DockTargets::<u32>::resolve(ctx, first, at), Some((DockSpot::tab(GROUP, 0), strip())));
+            assert_eq!(DockTargets::<u32>::resolve(ctx, second, at), Some((DockSpot::tab(OTHER, 1), strip())));
             assert_eq!(DockTargets::<u32>::resolve(ctx, dock_id("third"), at), None, "a dock that registered nothing resolves nothing");
         },
     );
@@ -141,10 +141,10 @@ fn an_edge_band_beats_a_group_side_near_the_layouts_border() {
         },
         |ctx| {
             let near = Pos2::new(LAYOUT.left() + 2.0, body().center().y);
-            assert_eq!(DockTargets::<u32>::resolve(ctx, dock, near), Some(DockSpot::Edge(DockSide::Start)));
+            assert_eq!(DockTargets::<u32>::resolve(ctx, dock, near).map(|(spot, _)| spot), Some(DockSpot::Edge(DockSide::Start)));
             let inside = Pos2::new(LAYOUT.left() + sizes.edge_band + 2.0, body().center().y);
             assert_eq!(
-                DockTargets::<u32>::resolve(ctx, dock, inside),
+                DockTargets::<u32>::resolve(ctx, dock, inside).map(|(spot, _)| spot),
                 Some(DockSpot::group(GROUP, DockSide::Start)),
                 "past the band the group's side"
             );
