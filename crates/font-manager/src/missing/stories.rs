@@ -2,7 +2,6 @@
 
 use std::sync::{Arc, Mutex, PoisonError};
 
-use craft_ui::dialog::Dialog;
 use craft_ui::dialog::{DialogStack, StackDialog as _};
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
@@ -33,7 +32,7 @@ fn dialog() -> Held {
     Held(Arc::new(Mutex::new(MissingFontsDialog::new(catalog, rows))))
 }
 
-#[story(Dialog<'static>, covers = [], drive = Drive::Never)]
+#[story(MissingFontsDialog, covers = [], drive = Drive::Never)]
 fn missing_fonts_dialog(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let held = data.value("dialog", dialog()).clone();
     let mut dialog = held.0.lock().unwrap_or_else(PoisonError::into_inner);

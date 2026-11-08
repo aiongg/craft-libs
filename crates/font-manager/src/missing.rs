@@ -147,6 +147,7 @@ pub struct MissingFontsResult {
 /// the footer Replace Fonts (default) / Don't Replace (Cancel). Tab walks the pickers; Enter is Replace Fonts
 /// unless a picker holds it. Result: [`MissingFontsResult`] on Replace; Cancel leaves the text on the default font
 /// with the names kept.
+#[derive(craft_ui::contract::Pattern)]
 pub struct MissingFontsDialog {
     id: DialogId,
     rows: Vec<DocumentFontRow>,

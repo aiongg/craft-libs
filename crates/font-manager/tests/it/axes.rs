@@ -151,6 +151,7 @@ fn slider_drag_is_one_edit_and_instance_sets_all_axes() {
     assert_eq!(weight, Some(ONE_UNIT_UP), "whole units on a wide axis");
     assert!(state.borrow().edits.iter().any(|e| e.value().is_some_and(|v| v.contains(&(WGHT, ONE_UNIT_UP)))));
 
+    let before = state.borrow().edits.len();
     let select = fixture.by_label("Style").expect("the instance list");
     fixture.click(&select);
     fixture.idle(3);
@@ -162,8 +163,8 @@ fn slider_drag_is_one_edit_and_instance_sets_all_axes() {
     for (tag, v) in [(WGHT, 700.0), (WDTH, 100.0), (GRAD, 0.0)] {
         assert_eq!(state.values.iter().find(|(t, _)| *t == tag).map(|x| x.1), Some(v), "{}", String::from_utf8_lossy(&tag));
     }
-    let set = state.edits.iter().filter(|e| matches!(e, EditEvent::Set { .. })).count();
-    assert_eq!(set, 1, "the instance is one edit: {:?}", state.edits);
+    let set = state.edits[before..].iter().filter(|e| matches!(e, EditEvent::Set { .. })).count();
+    assert_eq!(set, 1, "the instance is one edit: {:?}", &state.edits[before..]);
 }
 
 /// With no stored coordinate the sliders show what the style draws: a Bold face reads Weight 700 and the Bold
