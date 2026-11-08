@@ -61,26 +61,26 @@ impl<'a> EditorMock<'a> {
         let parts = RefCell::new(Parts { document, tool, last_used, request, image_size, image_size_open });
         let workspace: &mut Workspace<Panel> = workspace;
         AppShell::new(WindowKey::main())
-            .title_bar_if(true, |ui, _| {
+            .title_bar_if(true, |ui, _, _| {
                 let parts = &mut *parts.borrow_mut();
                 title_bar(ui, parts);
             })
-            .options_bar(true, |ui, _| {
+            .options_bar(true, |ui, _, _| {
                 let parts = parts.borrow();
                 let _ = Bar::new("Options", BarKind::Options).show(ui, |ui, _| {
                     craft_ui::display::Text::new(format!("Tool: {}", parts.tool.name())).show(ui);
                 });
             })
-            .tools(true, |ui, _| {
+            .tools(true, |ui, _, _| {
                 let parts = &mut *parts.borrow_mut();
                 tool_rail(ui, parts);
             })
-            .status(true, |ui, _| {
+            .status(true, |ui, _, _| {
                 let parts = parts.borrow();
                 status_bar(ui, &parts);
             })
             .body_label(label)
-            .body(|ui, cx| {
+            .body(|ui, cx, _| {
                 let mut parts = parts.borrow_mut();
                 let mut tools = cx.keep::<Tools>().clone();
                 let dialogs = cx.keep::<Dialogs>().clone();
@@ -106,7 +106,7 @@ impl<'a> EditorMock<'a> {
                     }
                 }
             })
-            .show(ui)
+            .show(ui, &mut ())
     }
 }
 
