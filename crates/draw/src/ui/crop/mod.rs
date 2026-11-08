@@ -13,7 +13,6 @@ mod perspective_crop;
 mod perspective_tool;
 mod session;
 #[cfg(feature = "screen-testing")]
-mod stories_bar;
 mod tool;
 mod words;
 
