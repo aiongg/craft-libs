@@ -3,8 +3,11 @@
 mod columns;
 mod editor;
 mod find;
+mod hyperlink;
 mod notes;
 mod ruler;
+mod spelling;
+mod style_panel;
 mod tabs_dialog;
 
 use craft_ui::testing::{TRIALS, suite};

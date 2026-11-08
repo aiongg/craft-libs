@@ -37,6 +37,7 @@ craft-font-manager = { workspace = true, optional = true }
 egui_kittest = "0.37"
 libtest-mimic = "0.8"
 unicode-segmentation = "1.13"
+craft-ui = { workspace = true, features = ["testing"] }
 
 [[test]]
 name = "it"

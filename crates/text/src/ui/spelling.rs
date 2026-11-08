@@ -1,10 +1,9 @@
-//! [`CheckSpellingDialog`]: Edit › Check Spelling on the dialog stack, and
-//! [`SpellingSettings`], the user's dictionary as a settings section.
+//! [`CheckSpellingDialog`]: Edit › Check Spelling on the dialog stack, and [`SpellingSettings`], the user's
+//! dictionary as a settings section.
 //!
-//! The dialog walks a list of misspellings the app found (with [`crate::spell::Dictionary`]
-//! over its text objects). Each button the app has to act on comes back from
-//! [`CheckSpellingDialog::take_action`]; the app changes its text, finds the misspellings again
-//! and hands the dialog the new list with [`CheckSpellingDialog::set_items`]:
+//! The dialog walks a list of misspellings the app found (with [`crate::spell::Dictionary`] over its text objects).
+//! Each button the app has to act on comes back from [`CheckSpellingDialog::take_action`]; the app changes its text,
+//! finds the misspellings again and hands the dialog the new list with [`CheckSpellingDialog::set_items`]:
 //!
 //! ```ignore
 //! dialogs.open(CheckSpellingDialog::new(find_misspellings(doc, false, &[])));
@@ -18,29 +17,36 @@
 //! let _ = dialogs.take::<CheckSpellingDialog>(); // Done or the close box
 //! ```
 
+use std::cell::Cell;
 use std::ops::Range;
 
+use craft_behavior::{Selection, SelectionChange, keyed};
 use craft_host::Section;
-use craft_ui::behavior::{FieldTab, RowInfo, Selection};
-use craft_ui::controls::{Button, Checkbox, TextField};
-use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, DialogState, Footer, Outcome, StackDialog, Width};
-use craft_ui::list::{List, ListEvent, ListRow};
-use craft_ui::localized::Labels as _;
-use craft_ui::primitives::{Surface, SurfaceKind};
-use egui::Context;
+use craft_theme::variant::Tone;
+use craft_ui::buttons::Button;
+use craft_ui::choice::Checkbox;
+use craft_ui::contract::{
+    Bind, CollectionEvent, NoValue, Outcome, Props as _, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, Sizing, clicked,
+};
+use craft_ui::dialog::{Dialog, DialogId, DialogOutput, DialogResult, DialogStack, StackDialog, dialog_id};
+use craft_ui::display::Text;
+use craft_ui::form::Field;
+use craft_ui::layout_components::{Row, Stack};
+use craft_ui::list::{List, ListRow};
+use craft_ui::notices::{Notice, NoticeLayout};
+use craft_ui::runtime::env::Env;
+use craft_ui::runtime::overlay::CloseReason;
+use craft_ui::sections::{DialogRole, FooterButton};
+use craft_ui::text::TextField;
+use egui::{Response, Ui};
 use serde::{Deserialize, Serialize};
 
-/// The word and replacement fields are this many `size.control.md` wide.
-const FIELD_WIDTH_CONTROLS: f32 = 9.0;
-/// The suggestion list shows this many rows.
-const SUGGESTION_ROWS: f32 = 5.0;
-/// The least width of the button column.
-const SIDE_MIN_WIDTH: f32 = 96.0;
+#[cfg(feature = "screen-testing")]
+mod stories;
 
 craft_ui::words! {
-    /// The dialog's words, English by default (PhotoCraft's strings).
-    #[non_exhaustive]
-    pub struct CheckSpellingLabels {
+    /// The dialog's words, English by default.
+    pub struct CheckSpellingWords {
         title: "checkSpelling.title" = "Check Spelling";
         not_in_dictionary: "checkSpelling.notInDictionary" = "Not in Dictionary:";
         change_to: "checkSpelling.changeTo" = "Change To:";
@@ -56,8 +62,7 @@ craft_ui::words! {
     }
 }
 
-/// How many suggestions the app asks [`Dictionary::suggest`](crate::spell::Dictionary::suggest)
-/// for (PhotoCraft's `"suggestions": 8`).
+/// How many suggestions the app asks [`Dictionary::suggest`](crate::spell::Dictionary::suggest) for.
 pub const SUGGESTION_COUNT: usize = 8;
 
 /// A button of the right-hand column that the dialog or the app acts on.
@@ -76,6 +81,7 @@ enum Press {
 /// [`UserWords::from_words`](crate::spell::UserWords::from_words).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
+#[non_exhaustive]
 pub struct SpellingSettings {
     /// The words the user added.
     pub user_words: Vec<String>,
@@ -87,8 +93,9 @@ impl Section for SpellingSettings {
 
 /// One misspelling in the app's text.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct SpellingItem {
-    /// The text object holding it (PhotoCraft: the layer id).
+    /// The text object holding it (the layer id, for example).
     pub object: u64,
     /// Byte range of the word in that object's text.
     pub range: Range<usize>,
@@ -100,8 +107,10 @@ pub struct SpellingItem {
 
 /// A button the app acts on. Ignore is the dialog's own (it moves to the next item).
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum SpellingAction {
     /// Replace this one occurrence with `to`.
+    #[non_exhaustive]
     Change {
         /// The misspelling to replace.
         item: SpellingItem,
@@ -109,6 +118,7 @@ pub enum SpellingAction {
         to: String,
     },
     /// Replace every occurrence of `word` with `to`, in every text object when `all_layers`.
+    #[non_exhaustive]
     ChangeAll {
         /// The misspelled word.
         word: String,
@@ -124,18 +134,42 @@ pub enum SpellingAction {
     Relist,
 }
 
-/// Edit › Check Spelling. Photoshop's and PhotoCraft's layout: at the left, "Not in Dictionary:"
-/// with the word (read only), "Change To:" (a text field, opening with the first suggestion),
-/// "Suggestions:" (a list 240 × 110 pt), Check All Layers, and "Spell check complete." once the
-/// list is empty; at the right, Done (default), then Ignore, Ignore All, Change, Change All, Add,
-/// each 100 pt wide and disabled when the list is empty.
+impl SpellingItem {
+    /// The misspelling `word` at `range` of the text object `object`, with the `suggestions` best first.
+    pub fn new(object: u64, range: Range<usize>, word: impl Into<String>, suggestions: Vec<String>) -> Self {
+        SpellingItem { object, range, word: word.into(), suggestions }
+    }
+}
+
+/// What a spelling dialog reports.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct SpellingOutput {
+    /// The dialog's response.
+    pub response: Response,
+    /// How the dialog closed in this pass (Done, Escape or the close action); `None` while it stays open.
+    pub closed: Option<CloseReason>,
+}
+
+impl Outcome for SpellingOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// Edit › Check Spelling. Photoshop's layout: at the left, "Not in Dictionary:" with the word (read only),
+/// "Change To:" (a text field, opening with the first suggestion), "Suggestions:" (a list), Check All Layers, and
+/// "Spell check complete." once the list is empty; at the right, the buttons Ignore, Ignore All, Change, Change All
+/// and Add, disabled when the list is empty, and Done in the footer.
 ///
-/// - A click on a suggestion puts it in Change To; a double-click also changes.
-/// - Enter is Done unless Change To has focus; Esc and the close box are Done too (nothing to
-///   undo: every change was made as it was asked for). Tab walks Change To, the suggestions
-///   (one stop, arrows inside), the check box and the buttons.
-/// - Result: `()`; the dialog always ends with [`DialogResult::Ok`] or, closed from outside,
-///   `Cancel`.
+/// - A click on a suggestion puts it in Change To; a double click or Enter also changes.
+/// - Enter is Done unless Change To has focus; Escape and the close action are Done too (nothing to undo: every
+///   change was made as it was asked for). Tab walks Change To, the suggestions (one stop, arrows inside), the check
+///   box and the buttons.
+/// - Result: `()`; the dialog always ends with [`DialogResult::Ok`] or, closed from outside, `Cancel`.
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::Pattern)]
 pub struct CheckSpellingDialog {
     items: Vec<SpellingItem>,
     index: usize,
@@ -144,17 +178,18 @@ pub struct CheckSpellingDialog {
     change_to: String,
     all_layers: bool,
     action: Option<SpellingAction>,
-    state: DialogState,
+    open: bool,
 }
 
 impl CheckSpellingDialog {
     /// Over `items` from a first search (the current layer: Check All Layers off).
     pub fn new(items: Vec<SpellingItem>) -> Self {
         let change_to = items.first().and_then(|i| i.suggestions.first()).cloned().unwrap_or_default();
-        CheckSpellingDialog { items, index: 0, ignored: Vec::new(), change_to, all_layers: false, action: None, state: DialogState::new() }
+        CheckSpellingDialog { items, index: 0, ignored: Vec::new(), change_to, all_layers: false, action: None, open: true }
     }
 
     /// Open with Check All Layers on.
+    #[must_use]
     pub fn all_layers(mut self, on: bool) -> Self {
         self.all_layers = on;
         self
@@ -165,12 +200,10 @@ impl CheckSpellingDialog {
         self.action.take()
     }
 
-    /// The misspellings found again after an action. The dialog keeps its position in the list
-    /// (after Change, Ignore All and Add those words are gone, so the same position is the next
-    /// misspelling; earlier ones skipped with Ignore stay skipped), except after Check All Layers
-    /// changed, when it starts from the first. Change To gets the current item's first suggestion.
-    // pc: crates/ui-egui/src/panels/type_panels_ui.rs:759 `refresh_spelling` (index kept) and the
-    // "relist" arm of `spelling_window` (:778, index 0).
+    /// The misspellings found again after an action. The dialog keeps its position in the list (after Change, Ignore
+    /// All and Add those words are gone, so the same position is the next misspelling; earlier ones skipped with
+    /// Ignore stay skipped), except after Check All Layers changed, when it starts from the first. Change To gets the
+    /// current item's first suggestion.
     pub fn set_items(&mut self, items: Vec<SpellingItem>) {
         self.items = items;
         self.change_to = self.items.get(self.index).and_then(|i| i.suggestions.first()).cloned().unwrap_or_default();
@@ -185,115 +218,81 @@ impl CheckSpellingDialog {
     pub fn ignored(&self) -> &[String] {
         &self.ignored
     }
-}
 
-impl StackDialog for CheckSpellingDialog {
-    type Result = ();
-
-    fn id(&self) -> DialogId {
-        craft_ui::dialog::dialog_id("check-spelling")
-    }
-
-    // pc: crates/ui-egui/src/panels/type_panels_ui.rs:778 `spelling_window` (layout, sizes,
-    // double-click on a suggestion, the action match). On `Dialog` + `Footer` (Done as OK, no
-    // Cancel) with the right-hand button column.
-    fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<()>> {
-        let labels = CheckSpellingLabels::of_ctx(ctx);
-        let tokens = craft_ui::theme::current(ctx);
-        let gap = tokens.space.gap.inline;
-        let row_height = tokens.size.control.sm;
-        let field_width = FIELD_WIDTH_CONTROLS * tokens.size.control.md;
-        let suggestions_height = SUGGESTION_ROWS * row_height;
+    /// Shows the dialog.
+    pub fn show(&mut self, ui: &mut Ui) -> SpellingOutput {
+        let words = Env::of(ui).words::<CheckSpellingWords>();
         let item = self.items.get(self.index).cloned();
         let has_item = item.is_some();
+        let body_press = Cell::new(None::<Press>);
+        let button_press = Cell::new(None::<Press>);
+        let CheckSpellingDialog { change_to, all_layers, open, .. } = self;
 
-        let mut change_to = std::mem::take(&mut self.change_to);
-        let mut all_layers = self.all_layers;
-        let mut body_press: Option<Press> = None;
-        let mut button_press: Option<Press> = None;
-
-        let footer = {
-            let buttons = [
-                (labels.ignore.clone(), Press::Ignore),
-                (labels.ignore_all.clone(), Press::IgnoreAll),
-                (labels.change.clone(), Press::Change),
-                (labels.change_all.clone(), Press::ChangeAll),
-                (labels.add.clone(), Press::Add),
-            ];
-            let press = &mut button_press;
-            Footer::side().ok(labels.done.clone()).without_cancel().below(move |ui| {
-                let width = ui.available_width();
-                for (index, (label, which)) in buttons.into_iter().enumerate() {
-                    let response = ui.add(Button::new(label).enabled(has_item).min_width(width).id_salt(("check-spelling", "button", index)));
-                    if has_item {
-                        FieldTab::register_stop(ui, response.id);
-                    }
-                    if response.clicked() {
-                        *press = Some(which);
-                    }
-                }
-            })
-        };
-
-        let shown = Dialog::new("check-spelling", labels.title.as_str())
-            .stack(stack)
-            .width(Width::Fixed(field_width + SIDE_MIN_WIDTH + 3.0 * gap))
-            .footer(footer)
-            .show(ctx, &mut self.state, &mut (), |ui, ()| {
-                ui.vertical(|ui| {
-                    ui.label(labels.not_in_dictionary.as_str());
-                    let word = item.as_ref().map_or("", |i| i.word.as_str());
-                    let _ = TextField::new(("check-spelling", "word"), labels.not_in_dictionary.as_str(), word)
-                        .enabled(false)
-                        .width(field_width)
-                        .show(ui);
-                    ui.label(labels.change_to.as_str());
-                    let edit = TextField::new(("check-spelling", "change-to"), labels.change_to.as_str(), &change_to)
-                        .enabled(has_item)
-                        .width(field_width)
-                        .show(ui);
-                    if let Some(value) = edit.event.as_ref().and_then(|e| e.value()) {
-                        change_to.clone_from(value);
-                    }
-                    ui.label(labels.suggestions.as_str());
-                    let suggestions: &[String] = item.as_ref().map_or(&[], |i| i.suggestions.as_slice());
-                    let rows: Vec<RowInfo<usize>> = (0..suggestions.len()).map(RowInfo::leaf).collect();
-                    let mut selection = suggestions.iter().position(|s| *s == change_to).map_or_else(Selection::new, Selection::only);
-                    Surface::new(SurfaceKind::Sunken).show(ui, |ui| {
-                        ui.set_min_size(egui::vec2(field_width, suggestions_height));
-                        ui.set_max_width(field_width);
-                        let out = List::new(("check-spelling", "suggestions"), labels.suggestions.as_str(), rows.as_slice())
-                            .selection(&mut selection)
-                            .row_height(row_height)
-                            .max_height(suggestions_height)
-                            .show(ui, |_, &key| ListRow::new(key, suggestions[key].as_str()).accessible_name(suggestions[key].as_str()));
-                        for event in out.events {
-                            match event {
-                                ListEvent::Selection(change) => {
-                                    if let Some(row) = change.row {
-                                        change_to.clone_from(&suggestions[row]);
-                                    }
-                                }
-                                ListEvent::Activate(row) => {
-                                    change_to.clone_from(&suggestions[row]);
-                                    body_press = Some(Press::Change);
-                                }
-                                _ => {}
-                            }
-                        }
+        let dialog = Dialog::new(words.title.clone()).buttons([FooterButton::new(words.done.clone(), DialogRole::Accept)]).opened(Bind::bound(open));
+        let shown = dialog.show(ui, |ui, _| {
+            Row::new().show(ui, |ui, _| {
+                Stack::new().show(ui, |ui, _| {
+                    let word = item.as_ref().map_or_else(String::new, |i| i.word.clone());
+                    Field::new(words.not_in_dictionary.clone()).id_salt("word").show(ui, |ui, _| {
+                        TextField::new(words.not_in_dictionary.clone(), Bind::given(word.clone())).enabled(false).show(ui);
                     });
-                    if Checkbox::bool(labels.all_layers.as_str(), &mut all_layers).show(ui).event.is_some() {
-                        body_press = Some(Press::Relist);
+                    Field::new(words.change_to.clone()).id_salt("change-to").show(ui, |ui, _| {
+                        TextField::new(words.change_to.clone(), Bind::bound(&mut *change_to)).enabled(has_item).show(ui);
+                    });
+                    Text::new(words.suggestions.clone()).show(ui);
+                    let suggestions: &[String] = item.as_ref().map_or(&[], |i| i.suggestions.as_slice());
+                    let positions: Vec<usize> = (0..suggestions.len()).collect();
+                    let source = keyed(&positions, |at: &usize| *at);
+                    let mut selection =
+                        suggestions.iter().position(|s| s.as_str() == change_to.as_str()).map_or_else(Selection::default, Selection::single);
+                    let events = List::new(words.suggestions.clone())
+                        .select(SelectMode::Single)
+                        .sizing(Sizing::Content)
+                        .selection(Bind::bound(&mut selection))
+                        .show_items(ui, &source, &mut |at, _| ListRow::new(suggestions[*at].clone()))
+                        .events;
+                    for event in events {
+                        match event {
+                            CollectionEvent::Selection(SelectionChange::Set(rows)) => {
+                                if let Some(row) = rows.last() {
+                                    change_to.clone_from(&suggestions[*row]);
+                                }
+                            }
+                            CollectionEvent::Activate(row) => {
+                                change_to.clone_from(&suggestions[row]);
+                                body_press.set(Some(Press::Change));
+                            }
+                            _ => {}
+                        }
+                    }
+                    let before = *all_layers;
+                    Checkbox::new(Bind::bound(&mut *all_layers)).label(words.all_layers.clone()).show(ui);
+                    if *all_layers != before {
+                        body_press.set(Some(Press::Relist));
                     }
                     if !has_item {
-                        ui.label(labels.complete.as_str());
+                        Notice::new(Tone::Neutral, words.complete.clone()).layout(NoticeLayout::Centred).show(ui);
+                    }
+                });
+                Stack::new().show(ui, |ui, _| {
+                    let buttons = [
+                        (&words.ignore, Press::Ignore),
+                        (&words.ignore_all, Press::IgnoreAll),
+                        (&words.change, Press::Change),
+                        (&words.change_all, Press::ChangeAll),
+                        (&words.add, Press::Add),
+                    ];
+                    for (label, which) in buttons {
+                        if clicked(&Button::new(label.clone()).enabled(has_item).show(ui)) {
+                            button_press.set(Some(which));
+                        }
                     }
                 });
             });
+        });
+        let DialogOutput { response, closed, .. } = shown.output;
 
-        self.change_to = change_to;
-        self.all_layers = all_layers;
-        match body_press.or(button_press) {
+        match body_press.get().or(button_press.get()) {
             Some(Press::Ignore) => {
                 self.index = (self.index + 1).min(self.items.len());
                 self.change_to = self.items.get(self.index).and_then(|i| i.suggestions.first()).cloned().unwrap_or_default();
@@ -325,9 +324,19 @@ impl StackDialog for CheckSpellingDialog {
             }
             None => {}
         }
-        match shown.outcome? {
-            Outcome::Ok | Outcome::Cancel | Outcome::Close => Some(DialogResult::Ok(())),
-            _ => None,
-        }
+        SpellingOutput { response, closed }
+    }
+}
+
+impl StackDialog for CheckSpellingDialog {
+    type Result = ();
+
+    fn id(&self) -> DialogId {
+        dialog_id("check-spelling")
+    }
+
+    fn show(&mut self, ui: &mut Ui, _: &DialogStack) -> Option<DialogResult<()>> {
+        let shown = CheckSpellingDialog::show(self, ui);
+        shown.closed.map(|_| DialogResult::Ok(()))
     }
 }
