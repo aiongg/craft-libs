@@ -8,14 +8,14 @@ name = "NewDocumentDialog"
 old = "craft_ui::dialog::new_document::NewDocumentDialog"
 new = "craft_ui::patterns::form_dialogs::NewDocumentDialog"
 status = "moved"
-note = "A form dialog over `FormDialog<DocumentOptions>`: `NewDocumentDialog::new(Bind<DocumentOptions>)` with setters, `show(ui) -> NewDocumentOutput { response, closed, result: Option<DocumentOptions>, requests: HostRequests }`. The dialog opens on the value in the bind and writes its edits back; a colour request is answered with `answers(Vec<HostAnswer>)`. The app keeps the recent list (`recent`, `push_recent`) and the last created settings. A `DialogHost` owns `HostedNewDocument`."
+note = "A form dialog over `FormDialog<DocumentOptions>`: `NewDocumentDialog::new(Bind<DocumentOptions>)` with setters, `show(ui) -> NewDocumentOutput { response, closed, result: Option<NewDocumentResult>, requests: HostRequests }`. The dialog opens on the value in the bind and writes its edits back; a colour request is answered with `answers(Vec<HostAnswer>)`. The recent list is kept under `remember_recent(SaveKey)` and stored by `NewDocumentResult::remember(ui)`; the app keeps the last created settings. A `DialogHost` owns `HostedNewDocument`."
 
 [[type]]
 name = "HostedNewDocument"
 old = ""
 new = "craft_ui::patterns::form_dialogs::HostedNewDocument"
 status = "replaced"
-note = "The `StackDialog` form: `HostedNewDocument::new(values, |options| NewDocumentDialog::new(Bind::bound(options)).clipboard(size))` with `recent`, `recents`, `options`, `pick_color`, `set_color(key, Srgba)` and `cancel_color`, over an embedded `HostRequests`."
+note = "The `StackDialog` form: `HostedNewDocument::new(values, |options| NewDocumentDialog::new(Bind::bound(options)).clipboard(size))` with `options`, `pick_color`, `set_color(key, Srgba)` and `cancel_color`, over an embedded `HostRequests`."
 
 [[type]]
 name = "DocumentOptions"
@@ -166,3 +166,16 @@ new = "HostedNewDocument::set_color(key, Srgba), or NewDocumentDialog::answers w
 type = "NewDocumentDialog"
 old = "cancel_color()"
 new = "HostedNewDocument::cancel_color()"
+
+# l4f-fix: the recent list lives in saved memory.
+[[type]]
+name = "NewDocumentResult"
+old = ""
+new = "craft_ui::patterns::form_dialogs::NewDocumentResult"
+status = "replaced"
+note = "What Create answers with: `options: DocumentOptions` and `remember(&self, ui: &Ui)`, which stores the recent list (the created settings first, name cleared, 20 at most) under the dialog's `remember_recent` key. The app calls it after its create command succeeds."
+
+[[setter]]
+type = "NewDocumentDialog"
+old = "recent(Vec<DocumentOptions>)"
+new = "remember_recent(SaveKey)"
