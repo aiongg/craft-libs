@@ -9,7 +9,7 @@ use craft_review::ui::{
 use craft_review::{CommentAnchor, CommentMessage, CommentThread, ReviewStatus, ThreadId};
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Role, Show as _};
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Key, Modifiers, Pos2, pos2, vec2};
 
 fn names(list: &[&str]) -> Vec<String> {
@@ -101,8 +101,11 @@ struct Popover {
 }
 
 fn popover(author: &str) -> (Fixture, Rc<RefCell<Popover>>) {
-    let message =
-        CommentMessage { author: author.into(), created: 1_000, modified: None, text: "Check @Bo".into(), reactions: Vec::new(), read: true };
+    popover_saying(author, "Check @Bo")
+}
+
+fn popover_saying(author: &str, text: &str) -> (Fixture, Rc<RefCell<Popover>>) {
+    let message = CommentMessage { author: author.into(), created: 1_000, modified: None, text: text.into(), reactions: Vec::new(), read: true };
     let thread = CommentThread {
         id: ThreadId(7),
         anchor: CommentAnchor::Canvas { at: [0.0, 0.0], node: None },
@@ -270,4 +273,39 @@ fn pins_open_drag_and_cluster() {
     fx.settle();
     let moves = app.borrow().moves.clone();
     assert!(matches!(moves.last(), Some(PinMove { thread, to, .. }) if *thread == ThreadId(2) && to.x > start.x), "{moves:?}");
+}
+
+/// While your own pin is dragged it follows the pointer, before the drop.
+#[trial]
+fn your_pin_follows_the_pointer_while_dragged() {
+    let (mut fx, _) = pins(vec![(ThreadId(2), pos2(100.0, 100.0), "Me")]);
+    let own = fx.by_label("Comment by Me: Check the margin").expect("own pin");
+    let left = |fx: &Fixture| fx.shape_bounds().iter().map(|rect| rect.min.x).fold(f32::INFINITY, f32::min);
+    let before = left(&fx);
+    let at = own.center();
+    fx.frame(vec![pointer::moved(at)]);
+    fx.frame(vec![pointer::press(at)]);
+    for step in 1..=3 {
+        fx.frame(vec![pointer::moved(at + vec2(15.0 * step as f32, 0.0))]);
+    }
+    assert!(left(&fx) > before + 20.0, "the pin moved with the pointer: {before} then {}", left(&fx));
+}
+
+/// A message keeps its line breaks.
+#[trial]
+fn a_message_keeps_its_line_breaks() {
+    let (fx, _) = popover_saying("Ana María", "first\nsecond");
+    let first = fx.by_label("first").expect("the first line");
+    let second = fx.by_label("second").expect("the second line");
+    assert!(second.center().y > first.center().y + 1.0, "the second line is below the first");
+}
+
+/// The close button closes the popover.
+#[trial]
+fn the_close_button_closes_the_popover() {
+    let (mut fx, app) = popover("Ana María");
+    let close = fx.by_label("Close").expect("Close");
+    fx.click(&close);
+    fx.settle();
+    assert!(app.borrow().closed);
 }

@@ -45,6 +45,7 @@ craft_ui::words! {
         delete_thread: "thread.deleteThread" = "Delete thread";
         more: "thread.more" = "More";
         cancel: "thread.cancel" = "Cancel";
+        close: "thread.close" = "Close";
         resolve: "thread.resolve" = "Resolve";
         reopen: "thread.reopen" = "Reopen";
         copy_link: "thread.copyLink" = "Copy link";
@@ -274,6 +275,14 @@ impl PinBubble {
     fn mine(&self) -> bool {
         matches!(self.face, Face::Pin { mine: true, .. })
     }
+
+    /// How far the pointer has dragged your own pin from where it was pressed.
+    fn lift(&self, cx: &Cx<'_, Self>) -> Vec2 {
+        match cx.press().phase {
+            PressPhase::DragStart { start, pos } | PressPhase::Drag { start, pos, .. } if self.mine() => pos - start.origin,
+            _ => Vec2::ZERO,
+        }
+    }
 }
 
 impl Component for PinBubble {
@@ -325,7 +334,7 @@ impl Component for PinBubble {
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let st = cx.style;
-        let rect = cx.rect;
+        let rect = cx.rect.translate(self.lift(cx));
         let radius = CornerRadius { sw: 0, ..CornerRadius::same((rect.height() / 2.0) as u8) };
         let hot = cx.response.hovered() || cx.response.has_focus() || matches!(self.face, Face::Pin { open: true, .. });
         let shape = PaintShape::Rect(rect, radius);
@@ -585,6 +594,28 @@ fn mention_runs(text: &str, names: &[&str]) -> Vec<(String, bool)> {
     runs
 }
 
+/// The runs of a message split at its line breaks, one list of runs per line; an empty line keeps one blank run so it
+/// takes a line's height.
+fn message_lines(runs: Vec<(String, bool)>) -> Vec<Vec<(String, bool)>> {
+    let mut lines = vec![Vec::new()];
+    for (run, mention) in runs {
+        for (index, part) in run.split('\n').enumerate() {
+            if index > 0 {
+                lines.push(Vec::new());
+            }
+            if !part.is_empty() {
+                lines.last_mut().into_iter().for_each(|line| line.push((part.to_owned(), mention)));
+            }
+        }
+    }
+    for line in &mut lines {
+        if line.is_empty() {
+            line.push((" ".to_owned(), false));
+        }
+    }
+    lines
+}
+
 impl ThreadPopover<'_> {
     /// Shows the popover and reports the edits made.
     pub fn show(self, ui: &mut Ui) -> ThreadPopoverOutput {
@@ -599,6 +630,7 @@ impl ThreadPopover<'_> {
         let mut edits = Vec::new();
         let mut open = true;
         let mut escaped = false;
+        let mut close = false;
         let mut popover = Popover::new(name, Bind::bound(&mut open)).opened_by(opener).initial_focus(Initial::Default);
         popover = popover.overlay(|overlay| overlay.min_size(egui::vec2(POPOVER_IN_HEIGHTS * side, 0.0)));
         if let Some(rect) = anchor {
@@ -630,6 +662,7 @@ impl ThreadPopover<'_> {
                         }
                     });
                     edits.extend(ran);
+                    close |= clicked(&IconButton::new(IconSpec::svg(IconId::new("close"))).label(words.close.clone()).show(ui));
                 });
                 for (index, message) in thread.messages.iter().enumerate() {
                     Row::new().show(ui, |ui, _| {
@@ -677,16 +710,20 @@ impl ThreadPopover<'_> {
                                     }
                                 }
                                 None => {
-                                    Row::new().wrap(true).show(ui, |ui, _| {
-                                        for (run, mention) in mention_runs(&message.text, &names) {
-                                            for word in run.split_inclusive(' ') {
-                                                let text = Text::new(word.to_owned());
-                                                if mention {
-                                                    text.role(TypeRole::BodyStrong).tone(Tone::Accent).show(ui)
-                                                } else {
-                                                    text.show(ui)
-                                                };
-                                            }
+                                    Stack::new().show(ui, |ui, _| {
+                                        for line in message_lines(mention_runs(&message.text, &names)) {
+                                            Row::new().wrap(true).show(ui, |ui, _| {
+                                                for (run, mention) in &line {
+                                                    for word in run.split_inclusive(' ') {
+                                                        let text = Text::new(word.to_owned());
+                                                        if *mention {
+                                                            text.role(TypeRole::BodyStrong).tone(Tone::Accent).show(ui)
+                                                        } else {
+                                                            text.show(ui)
+                                                        };
+                                                    }
+                                                }
+                                            });
                                         }
                                     });
                                 }
@@ -720,7 +757,7 @@ impl ThreadPopover<'_> {
             });
             *cx.keep::<Editing>() = Editing(editing);
         });
-        ThreadPopoverOutput { edits, closed: !open || escaped || shown.output.closed.is_some() }
+        ThreadPopoverOutput { edits, closed: !open || escaped || close || shown.output.closed.is_some() }
     }
 }
 
