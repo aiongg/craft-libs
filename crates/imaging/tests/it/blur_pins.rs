@@ -4,7 +4,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use craft_behavior::kurbo::Point;
-use craft_behavior::{CanvasView, CursorIcon, EditEvent};
+use craft_behavior::{CanvasView, Cursor, CursorIcon, EditEvent};
 use craft_imaging::ui::blur_pins::{
     AXIS_HANDLES, BlurGrab, BlurKind, BlurPin, BlurPins, BlurPinsCommand, BlurPinsOverlay, BlurPinsPanel, DEFAULT_AMOUNT, IrisShape, MAX_PINS,
     PinReach, TiltBand, drag, feather_handles, grab, iris_point, round_handle, tilt_point, turn_handle,
@@ -427,7 +427,7 @@ fn blur_pins_ring_drag_turns_the_amount_over_several_frames() {
     for step in 1..=200u16 {
         let distance = f32::from(step) / 2.0;
         o.move_to(centre + egui::Vec2::new(distance, 0.0));
-        if o.fixture.ctx().output(|output| output.cursor_icon) == egui::CursorIcon::Alias {
+        if craft_ui::runtime::cursor::current(o.fixture.ctx()) == Some(Cursor::System(CursorIcon::Alias)) {
             radius = Some(distance);
             break;
         }

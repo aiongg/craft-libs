@@ -132,9 +132,12 @@ fn the_most_displaced_triangles_are_drawn_first() {
     }
     let drawn = PreviewMap::mesh(&mesh, frame).build(1.0, [1.0, 1.0]);
     let moved = |k: u32| (drawn.points[k as usize] - drawn.rest[k as usize]).hypot();
-    let per_cell: Vec<f64> = drawn.indices.chunks(6).map(|cell| cell.iter().map(|&k| moved(k)).sum()).collect();
+    // A cell is two triangles over four corners: its first, second, third and last indices.
+    let per_cell: Vec<f64> =
+        drawn.indices.chunks(6).map(|cell| [cell[0], cell[1], cell[2], cell[5]].iter().map(|&k| moved(k)).sum::<f64>() / 4.0).collect();
     assert!(per_cell.len() > 4);
-    assert!(per_cell.windows(2).all(|w| w[0] >= w[1]), "{per_cell:?}");
+    // Cells pulled equally tie, and their sums differ in the last digits.
+    assert!(per_cell.windows(2).all(|w| w[0] >= w[1] - 1e-9), "{per_cell:?}");
     assert!(per_cell[0] > per_cell[per_cell.len() - 1]);
 }
 

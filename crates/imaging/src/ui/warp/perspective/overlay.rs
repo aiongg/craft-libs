@@ -74,7 +74,8 @@ pub struct PerspectiveWarpStyle {
     corner_fill: StyleColor,
     /// A corner's diameter.
     corner: f32,
-    /// The distance within which a dragged corner snaps to another plane's corner, in points.
+    /// The distance within which a dragged corner snaps to another plane's corner, in points: corners that would
+    /// touch.
     reach: f32,
 }
 
@@ -384,7 +385,7 @@ impl Outcome for PerspectiveWarpOutput {
 impl Component for PerspectiveWarp<'_> {
     const ROLE: Role = Role::GROUP;
     const OVERLAYS: bool = false;
-    const KEYS: KeyUse = KeyUse::CANVAS.with_moves();
+    const KEYS: KeyUse = KeyUse::CANVAS.with_moves().with_deletes().with_submits();
     type Style = PerspectiveWarpStyle;
     type Output = PerspectiveWarpOutput;
 
@@ -396,7 +397,7 @@ impl Component for PerspectiveWarp<'_> {
             line: cx.color(overlay.line),
             corner_fill: cx.color(overlay.handle_fill),
             corner: tokens.size.handle.md,
-            reach: tokens.size.hit.target / 2.0,
+            reach: tokens.size.handle.md,
         }
     }
 
@@ -427,7 +428,11 @@ impl Component for PerspectiveWarp<'_> {
             cx.roving(Roving::new(NavShape::Flat).wrap(true).page(Some(1)));
         }
         if !warp {
-            cx.part(PICTURE, HitShape::from(rect)).sense(Sense::DRAG).priority(HitPriority::new(HitLevel::Body, 0)).cursor(CursorIcon::Crosshair);
+            cx.part(PICTURE, HitShape::from(rect))
+                .sense(Sense::DRAG)
+                .priority(HitPriority::new(HitLevel::Body, 0))
+                .cursor(CursorIcon::Crosshair)
+                .pointer_only("PerspectiveCommands::AddPlane adds a plane over the picture");
         }
     }
 

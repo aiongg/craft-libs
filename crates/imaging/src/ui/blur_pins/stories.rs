@@ -1,12 +1,18 @@
 //! Stories of the Blur Gallery's pins and the panel of the selected pin.
 
+use craft_behavior::Mixed;
 use craft_ui::canvas::RasterSource as _;
-use craft_ui::contract::{Bind, Show as _};
-use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
-use egui::Ui;
+use craft_ui::contract::{Bind, Show as _, Validity};
+use craft_ui::runtime::env::Message;
+use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
+use egui::{Ui, Vec2};
 
+use super::overlay::PIN;
 use super::{BlurKind, BlurPin, BlurPins, BlurPinsOverlay, BlurPinsPanel, IrisShape, TiltBand};
 use crate::ui::mock_image::{MockImage, StoryView, story_canvas};
+
+/// The most pins the invalid story accepts.
+const MOST_PINS: usize = 2;
 
 /// The pins' state is the story's value under this name.
 const PINS: &str = "pins";
@@ -29,7 +35,15 @@ fn on_picture(ui: &mut Ui, data: &mut StoryData, build: impl FnOnce(&MockImage) 
     })
 }
 
-#[story(BlurPinsOverlay<'static>, covers = [Default], drive = Drive::Never)]
+/// Drags the selected pin by twice the drag threshold.
+fn drag_selected_pin(fixture: &mut Fixture) {
+    let Some(id) = fixture.root_id() else { return };
+    let Some(pin) = fixture.part(id, PIN.at(1)) else { return };
+    let travel = 2.0 * craft_ui::testing::input::max_click_dist(fixture.ctx());
+    fixture.drag(&pin, Vec2::new(travel, 0.0));
+}
+
+#[story(BlurPinsOverlay<'static>, covers = [Default], drive = Drive::Custom(drag_selected_pin))]
 fn field(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     on_picture(ui, data, |image| {
         let mut pins = BlurPins::new(BlurKind::Field, bounds(image), pin(0.5, 0.5, 30.0));
@@ -37,6 +51,31 @@ fn field(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         pins.selected = Some(1);
         pins.clean();
         pins
+    })
+}
+
+#[story(BlurPinsOverlay<'static>, covers = [Mixed], drive = Drive::Never)]
+fn pins_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let image = MockImage::default();
+    let pins = data.value("mixed", Mixed::<BlurPins>::Mixed);
+    story_canvas(ui, Some(&image), StoryView::Fit, |ui, at| {
+        StoryOutput::from(BlurPinsOverlay::new("Blur pins", Bind::bound_mixed(&mut *pins)).show_at(ui, at))
+    })
+}
+
+#[story(BlurPinsOverlay<'static>, covers = [Invalid], drive = Drive::Never)]
+fn too_many_pins(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let image = MockImage::default();
+    let pins = data.shown(PINS, {
+        let mut pins = BlurPins::new(BlurKind::Field, bounds(&image), pin(0.5, 0.5, 30.0));
+        pins.pins = vec![pin(0.22, 0.55, 8.0), pin(0.5, 0.4, 30.0), pin(0.78, 0.62, 30.0)];
+        pins.selected = Some(1);
+        pins.clean();
+        pins
+    });
+    let few = |pins: &BlurPins| if pins.pins.len() > MOST_PINS { Validity::Refuse(Message::new("There are too many pins")) } else { Validity::Ok };
+    story_canvas(ui, Some(&image), StoryView::Fit, |ui, at| {
+        StoryOutput::from(BlurPinsOverlay::new("Blur pins", Bind::bound(&mut *pins).check(few)).show_at(ui, at))
     })
 }
 

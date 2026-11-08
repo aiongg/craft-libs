@@ -210,6 +210,10 @@ impl Drag {
     }
 }
 
+/// The pin the focus last arrived at, so only a move of the focus selects.
+#[derive(Clone, Default)]
+struct Arrival(Option<usize>);
+
 impl Default for Drag {
     fn default() -> Self {
         Drag { kind: Kind::Place, origin: Point::ZERO, base: Vec::new(), began: false }
@@ -365,8 +369,19 @@ impl PinWarp<'_> {
             self.report.discard = true;
         }
         let focused = cx.active_part().filter(|part| part.key == PIN).and_then(|part| part.index).map(|index| index as usize);
-        let Some(picked) = focused.filter(|&i| i < pins.len()) else { return };
-        if self.report.select.is_none() && self.selection().first() != Some(&picked) {
+        let Some(picked) = focused.filter(|&i| i < pins.len()) else {
+            cx.memory::<Arrival>().0 = None;
+            return;
+        };
+        // A move of the focus selects its pin unless the selection holds it: a Shift-click grows the selection and
+        // focuses the pin it adds, and the pin it takes out stays focused.
+        let arrived = {
+            let slot = cx.memory::<Arrival>();
+            let changed = slot.0 != Some(picked);
+            slot.0 = Some(picked);
+            changed
+        };
+        if arrived && self.report.select.is_none() && !self.selection().contains(&picked) {
             self.report.select = Some(vec![picked]);
         }
         if let Some((direction, mods)) = cx.intents().take_nudge() {
@@ -434,7 +449,7 @@ impl Outcome for PinWarpOutput {
 impl Component for PinWarp<'_> {
     const ROLE: Role = Role::GROUP;
     const OVERLAYS: bool = false;
-    const KEYS: KeyUse = KeyUse::CANVAS.with_moves().with_edits(EditSet::NONE.with(EditCommand::SelectAll));
+    const KEYS: KeyUse = KeyUse::CANVAS.with_moves().with_deletes().with_submits().with_edits(EditSet::NONE.with(EditCommand::SelectAll));
     type Style = PinWarpStyle;
     type Output = PinWarpOutput;
 
@@ -481,7 +496,10 @@ impl Component for PinWarp<'_> {
         let points: Vec<Pos2> = self.mesh.deformed.iter().map(|&p| space.view.to_screen(p)).collect();
         if !points.is_empty() {
             let area = Rect::from_points(&points).expand(TURN_REACH);
-            cx.part(MESH, HitShape::from(area)).sense(Sense::DRAG | Sense::CLICK).priority(HitPriority::new(HitLevel::Body, 0));
+            cx.part(MESH, HitShape::from(area))
+                .sense(Sense::DRAG | Sense::CLICK)
+                .priority(HitPriority::new(HitLevel::Body, 0))
+                .pointer_only("PinWarpCommands::AddPin puts a pin under the pointer or at the middle of the mesh");
         }
     }
 
