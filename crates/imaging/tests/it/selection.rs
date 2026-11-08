@@ -7,7 +7,7 @@ use craft_imaging::selection::PreviewMode;
 use craft_imaging::trace::{MaskRect, MaskSource};
 use craft_imaging::ui::mask_view::{MaskViewChange, MaskViewKeys, MaskViewMode, MaskViewRecipe, MaskViewState};
 use craft_imaging::ui::selection::SelectionOverlay;
-use craft_ui::canvas::{Canvas, ToolPath};
+use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::runtime::commands::FirePhase;
 use craft_ui::testing::{Fixture, Story, StoryData, StoryOutput, trial};
@@ -44,7 +44,7 @@ fn show_overlay(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let at = ui.available_rect_before_wrap();
     let view = CanvasView::new(Rect::from_min_max(pos2(0.0, 0.0), at.max), Point::new(100.0, 75.0), 1.0);
     let mask = Block { revision };
-    let shown = Canvas::new("Document", ToolPath::Freehand)
+    let shown = Canvas::new("Document")
         .view(view)
         .show(ui, |ui, body| SelectionOverlay::new("Selection", &mask).reduction(reduction).preview(PreviewMode::None).show_at(ui, body.rect));
     if let Some(output) = shown.inner {
