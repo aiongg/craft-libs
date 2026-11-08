@@ -157,7 +157,7 @@ fn a_filling_leaf_after_a_fill_cell_gets_its_cells_room() {
     let (filled, divider) = (Cell::new(Rect::NOTHING), Cell::new(Rect::NOTHING));
     let mut frames = Frames::new();
     frames.idle(5, |ui| {
-        Grid::new(&CELLS).sizing(Sizing::Fill).show_at(ui, AREA, |ui, _| {
+        Grid::new(&CELLS).fill().show_at(ui, AREA, |ui, _| {
             filled.set(Stack::new().fill().show(ui, |_, _| {}).output.rect);
             divider.set(Divider::vertical().show(ui).rect);
         });

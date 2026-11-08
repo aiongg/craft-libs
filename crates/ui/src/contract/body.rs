@@ -357,7 +357,8 @@ fn rect_of(parts: [f32; 4]) -> Rect {
 struct Regions {
     header: Rect,
     body: Rect,
-    /// The end region: the line's end edge, as high as the line. The whole line before it has a measured width.
+    /// The end region: the line's end edge, as high as the line or, full height, from under the header to the
+    /// container's bottom, less a footer placed in it.
     end: Rect,
     footer: Rect,
 }

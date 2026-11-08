@@ -128,7 +128,8 @@ impl<'a> FullWindowDialog<'a> {
     /// `DialogOutput::picked` says which.
     #[must_use]
     pub fn buttons(mut self, buttons: impl IntoIterator<Item = FooterButton>) -> Self {
-        self.props = self.props.footer(self.footer_region());
+        let region = self.footer_region();
+        self.props = self.props.footer(region);
         self.buttons = buttons.into_iter().collect();
         self
     }
@@ -136,7 +137,8 @@ impl<'a> FullWindowDialog<'a> {
     /// The footer's content: the closure fills a footer bar above the buttons, or alone.
     #[must_use]
     pub fn footer(mut self, content: impl FnMut(&mut Ui, &mut FooterCx<'_, '_>) + 'a) -> Self {
-        self.props = self.props.footer(self.footer_region());
+        let region = self.footer_region();
+        self.props = self.props.footer(region);
         self.footer = Some(Box::new(content));
         self
     }
@@ -166,7 +168,8 @@ impl<'a> FullWindowDialog<'a> {
 
     fn place_footer(mut self) -> Self {
         if self.props.footer.is_some() {
-            self.props = self.props.footer(self.footer_region());
+            let region = self.footer_region();
+            self.props = self.props.footer(region);
         }
         self
     }

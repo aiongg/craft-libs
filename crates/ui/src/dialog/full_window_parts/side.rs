@@ -3,7 +3,7 @@
 
 use crate::contract::{
     BodyCx, Common, Component, Container, ContainerProps, Cx, FooterPlace, HeaderRegion, NoValue, Outcome, Pad, Props as _, Role, RowAlign, Scroll,
-    ShowContainer as _, Sizing,
+    Show as _, ShowContainer as _, Sizing, WordSetCx as _,
 };
 use crate::layout_components::Row;
 use crate::runtime::focus::FocusPolicy;
@@ -50,7 +50,7 @@ impl<'a> SideFooter<'a> {
     pub(crate) fn show(&mut self, ui: &mut Ui, rest: impl FnOnce(&mut Ui)) {
         let align = if self.leading.is_some() { RowAlign::SpaceBetween } else { RowAlign::End };
         let (leading, mut rest) = (&mut self.leading, Some(rest));
-        Row::new().sizing(Sizing::FillWidth).align(align).show(ui, |ui, _| {
+        Row::new().fill_width().align(align).show(ui, |ui, _| {
             if let Some(add) = leading.as_mut() {
                 add(ui);
             }
