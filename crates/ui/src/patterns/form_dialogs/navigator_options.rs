@@ -2,8 +2,8 @@
 
 use super::{ColorRequest, FormDialog, HostAnswer, HostRequests};
 use crate::canvas::{CanvasWords, NAVIGATOR_PROXY_COLOR_KEY, NavigatorOptions, ProxyColor};
-use crate::contract::Show as _;
 use crate::contract::{Bind, Entry, NoValue, Outcome, Remember as _};
+use crate::contract::{Show as _, ShowContainer as _};
 use crate::form::{Field, FieldGroup};
 use crate::pickers::Select;
 use crate::primitives::IconSpec;
