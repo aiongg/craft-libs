@@ -18,7 +18,7 @@ use crate::docking::{
 use crate::docking::{cross_window, desktop, float_drop, native};
 use crate::layout_components::Stack;
 use crate::menu::{GroupItem, MenuWords, PanelMenu, PanelRow};
-use crate::runtime::commands::{CommandRef, Commands as _, focus_within};
+use crate::runtime::commands::{CommandRef, CommandSet as _, Commands as _, focus_within};
 use crate::runtime::env::{Env, Label, RevealEdge, ShellCx, ShellEntry};
 use crate::runtime::memory::{Remember as _, sub};
 use crate::runtime::windows::WindowHost;
