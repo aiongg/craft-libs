@@ -164,7 +164,7 @@ impl UiFonts<'_> {
             system_ui_pending: false,
             fetcher: self.fetcher.clone(),
         };
-        let defaults = FontDefinitions::default();
+        let defaults = crate::fonts::deflated_default_definitions();
         let cjk_names: Vec<String> = match self.cjk_rows {
             CjkRows::Fit => {
                 self.craft_faces.iter().filter(|face| EM_SQUARE_SCRIPTS.iter().any(|s| covers(face.scripts, s))).map(EmbeddedFace::name).collect()

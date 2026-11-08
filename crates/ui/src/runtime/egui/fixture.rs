@@ -175,13 +175,13 @@ pub(crate) fn bare_context() -> Context {
     ctx
 }
 
-/// The font definitions of every test context: no faces. Text then measures with egui's synthetic glyph boxes, the
-/// same in both directions and in every environment, which the layout, mirroring and size trials rely on.
-/// `egui::FontDefinitions::default()` would not do: it holds egui's faces only when some crate in the build turns on
-/// egui's `default_fonts` feature (the dev-dependency that the fonts trials compare against does), so the fixture
-/// would measure differently from one build to the next.
+/// The font definitions of every test context: egui's default faces from `fonts::deflated_default_definitions`, the
+/// set the font stack starts from. `egui::FontDefinitions::default()` would not do: it holds egui's faces only when
+/// some crate in the build turns on egui's `default_fonts` feature, so the fixture would measure differently from
+/// one build to the next.
 fn test_fonts() -> egui::FontDefinitions {
-    egui::FontDefinitions::empty()
+    static FONTS: std::sync::OnceLock<egui::FontDefinitions> = std::sync::OnceLock::new();
+    FONTS.get_or_init(crate::fonts::deflated_default_definitions).clone()
 }
 
 /// A paragraph of `text` wrapped to the available width.
