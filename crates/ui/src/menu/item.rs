@@ -383,7 +383,9 @@ struct Placed {
 /// A row of a menu: a label, an optional icon, a check or radio mark, shortcut text and a detail. A row bound to a
 /// command takes its label, shortcut, enabled and checked state from the command and fires it as a menu row.
 ///
-/// - Running a row (click, Enter or Space, its mnemonic letter) closes the whole chain of menus it sits in.
+/// - Running a row (click, Enter or Space, its mnemonic letter) closes the whole chain of menus it sits in and
+///   returns focus to where it was before the menus opened (before a menu bar took it, or the Help search field),
+///   and only then fires the command: Undo picked from a menu undoes in the text field that held focus.
 /// - A submenu row opens a submenu instead: the output's `opens_submenu` asks the caller to open the `Menu` it shows
 ///   after the row.
 /// - [`keep_open`](MenuItem::keep_open) keeps the menus open when the row runs (a check row that toggles).
@@ -644,6 +646,10 @@ impl Component for MenuItem<'_> {
         }
         if hovered && waited >= DWELL && level.clear_submenu() {
             frame::request_repaint(&ctx);
+        }
+        // The run closes the menus: focus leaves them first, so the command reaches the stop focus returns to.
+        if asked && !self.keep_open {
+            crate::runtime::focus::return_from_menus(&ctx);
         }
         // Every activation of a menu row reaches its command as `FireSource::Menu`, whether it was typed, clicked or keyed.
         // A typed letter also runs a row that has no command: the injected activation closes the menu.
