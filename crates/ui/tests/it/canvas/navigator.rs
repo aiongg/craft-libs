@@ -116,11 +116,11 @@ fn proxy_colours_resolve_and_the_settings_round_trip() {
     assert!(shown.iter().enumerate().all(|(at, a)| shown[at + 1..].iter().all(|b| a != b)), "the named colours differ");
     assert_eq!(ProxyColor::Custom([1, 2, 3]).rgb(), [1, 2, 3]);
 
-    let red = NavigatorSettings::new(NavigatorOptions::new(ProxyColor::Red));
-    assert_eq!(toml::to_string(&red).expect("settings serialise").trim(), r#"proxyColor = "Red""#);
+    let red = toml::Value::try_from(NavigatorSettings::new(NavigatorOptions::new(ProxyColor::Red))).expect("settings serialise");
+    assert_eq!(red.get("proxyColor").and_then(toml::Value::as_str), Some("Red"), "the options are flattened into the section");
     let custom = NavigatorSettings::new(NavigatorOptions::new(ProxyColor::Custom([1, 2, 3])));
-    let text = toml::to_string(&custom).expect("settings serialise");
-    assert_eq!(toml::from_str::<NavigatorSettings>(&text).expect("settings read back"), custom);
+    let written = toml::Value::try_from(custom).expect("settings serialise");
+    assert_eq!(written.try_into::<NavigatorSettings>().expect("settings read back"), custom);
     assert_eq!(toml::from_str::<NavigatorSettings>("other = 1").expect("unknown fields are ignored"), NavigatorSettings::default());
 }
 
