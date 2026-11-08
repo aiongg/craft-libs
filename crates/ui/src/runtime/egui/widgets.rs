@@ -1,7 +1,44 @@
-//! The pass's widget rects and AccessKit nodes, for bypass detection: what egui made interactive, and which ids the
-//! runtime made on purpose.
+//! The pass's widget rects and AccessKit nodes: the widgets egui's hit test puts above a widget, and, for bypass
+//! detection, what egui made interactive and which ids the runtime made on purpose.
 
-use egui::{Context, Id};
+use egui::{AreaState, Context, Id, Order, Rect};
+
+/// The interact rects, in screen space, of the interactive egui widgets of the running pass that egui's hit test
+/// puts above the widget `below`: those on a layer higher in its order, or later on `below`'s layer. A layer that is
+/// not interactable is click-through and holds none. Widgets in `skip` are left out. Empty when `below` is not shown
+/// in the pass.
+pub(crate) fn above(ctx: &Context, below: Id, skip: &[Id]) -> Vec<Rect> {
+    let (base, layers) = ctx.viewport(|viewport| {
+        let widgets = &viewport.this_pass.widgets;
+        let Some(base) = widgets.get(below).map(|rect| rect.layer_id) else { return (None, Vec::new()) };
+        let mut layers = Vec::new();
+        for (layer, rects) in widgets.layers().filter(|(layer, _)| layer.order.allow_interaction()) {
+            let after = if *layer == base { rects.iter().position(|rect| rect.id == below).map_or(rects.len(), |at| at + 1) } else { 0 };
+            let hits: Vec<Rect> =
+                rects[after..].iter().filter(|rect| rect.sense.interactive() && !skip.contains(&rect.id)).map(|rect| rect.interact_rect).collect();
+            if !hits.is_empty() {
+                layers.push((*layer, hits));
+            }
+        }
+        (Some(base), layers)
+    });
+    let Some(base) = base else { return Vec::new() };
+    // egui's hit test sorts layers by `Order`, then by their place in the layer order; a layer the order does not
+    // list yet stands lowest in its `Order`.
+    let rank = |layer: egui::LayerId| -> (Order, Option<usize>) {
+        (layer.order, ctx.memory(|memory| memory.layer_ids().position(|listed| listed == layer)))
+    };
+    let height = rank(base);
+    let mut found = Vec::new();
+    for (layer, hits) in layers {
+        if layer != base && (rank(layer) <= height || !AreaState::load(ctx, layer.id).is_none_or(|state| state.interactable)) {
+            continue;
+        }
+        let to_screen = ctx.layer_transform_to_global(layer).unwrap_or(egui::emath::TSTransform::IDENTITY);
+        found.extend(hits.into_iter().map(|rect| to_screen * rect));
+    }
+    found
+}
 
 /// An egui widget the runtime makes for a purpose no component registers (a scrim that absorbs presses).
 #[cfg(feature = "testing")]
