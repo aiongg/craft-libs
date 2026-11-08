@@ -167,7 +167,7 @@ impl<'a> TextRun<'a> {
 
 /// The galley moved so its rect starts at x = 0: egui anchors a centred or right-aligned galley at its centre or
 /// right edge, while every caller places a layout by its top-left corner.
-fn anchored_at_start(mut galley: Arc<Galley>) -> Arc<Galley> {
+pub(super) fn anchored_at_start(mut galley: Arc<Galley>) -> Arc<Galley> {
     let shift = -galley.rect.min.x;
     if shift == 0.0 {
         return galley;

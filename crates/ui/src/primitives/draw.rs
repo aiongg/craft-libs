@@ -1,5 +1,6 @@
 //! `Draw`: what a component paints content with. It takes only `StyleColor` or `DataColor`.
 
+use super::content::DocText;
 use super::record::PaintRecord;
 use super::rule::RuleKind;
 use super::surface::Surface;
@@ -78,6 +79,17 @@ impl<'a> Draw<'a> {
         let layout = run.layout(self.painter.ctx(), &self.text_env(), rect.width());
         let at_end = self.env.direction == Direction::Rtl && !run.ltr;
         let x = if at_end { rect.right() - layout.size().x } else { rect.left() };
+        self.galley(Pos2::new(x, rect.top()), &layout);
+        layout
+    }
+
+    /// Lays `text` out in `rect`'s width and paints it at the reading start of `rect`, top aligned, as `text` does for
+    /// a run. Each run keeps its own font, size and colour.
+    pub fn doc(&self, rect: Rect, text: &DocText<'_>) -> TextLayout {
+        let text = DocText { wrap: Some(rect.width()), ..*text };
+        let layout = text.layout(self.painter.ctx(), self.env.tokens, self.env.direction);
+        let layout = TextLayout { galley: super::text::anchored_at_start(layout.galley.clone()), ..layout };
+        let x = if self.env.direction == Direction::Rtl { rect.right() - layout.size().x } else { rect.left() };
         self.galley(Pos2::new(x, rect.top()), &layout);
         layout
     }

@@ -61,7 +61,7 @@ name = "Text"
 old = "craft_ui::primitives::text::Text"
 new = "craft_ui::display::Text"
 status = "moved"
-note = "A `Component` shown with `Show::show`. Text is not selectable and takes no focus; `craft_ui::text::SelectableText` is the focusable form."
+note = "A `Component` shown with `Show::show`. Text is not selectable and takes no focus; `craft_ui::text::SelectableText` is the focusable form. `Text::spans(&[DocRun])` takes the styled spans of `DocText` (font, size, colour, bold, italic, underline, strikethrough, indent) in place of a label's text."
 
 [[type]]
 name = "Icon"

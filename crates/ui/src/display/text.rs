@@ -1,7 +1,7 @@
 //! `Text`: static text in a type role, a shade and optionally a tone.
 
 use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role, Styled as _};
-use crate::primitives::{TextRun, Wrap};
+use crate::primitives::{DocRun, DocText, TextRun, Wrap};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx, TextLook, TypeRole};
 use craft_behavior::{Metrics, Sense};
@@ -70,12 +70,29 @@ pub struct Text {
     /// Where text that does not fit is cut.
     #[prop]
     elide: Elide,
+    /// The styled spans that replace the label's text; empty for plain text.
+    spans: Vec<DocRun<'static>>,
 }
 
 impl Text {
     /// `text`, which is also its accessible name, in body type and the normal shade.
     pub fn new(text: impl Into<Label>) -> Self {
-        Text { common: Common::new(), shade: Shade::Normal, tone: None, role: TypeRole::Body, elide: Elide::Off }.label(text)
+        Text { common: Common::new(), shade: Shade::Normal, tone: None, role: TypeRole::Body, elide: Elide::Off, spans: Vec::new() }.label(text)
+    }
+
+    /// Text of `spans`, each with its own font, size, colour and lines; the joined text is its accessible name. It wraps
+    /// at the room's width, or stays on one row cut at the end under any `elide` but `Off`. The type role, shade and
+    /// tone do not apply: every span names its own.
+    pub fn spans(spans: &[DocRun<'_>]) -> Self {
+        let label: String = spans.iter().map(|span| span.text.as_ref()).collect();
+        let mut text = Text::new(label);
+        text.spans = spans.iter().cloned().map(DocRun::into_owned).collect();
+        text
+    }
+
+    fn doc(&self) -> DocText<'_> {
+        let doc = DocText::new(&self.spans);
+        if self.elide == Elide::Off { doc } else { doc.elide() }
     }
 
     fn run<'a>(&self, role: TypeRole, label: &'a str) -> TextRun<'a> {
@@ -111,6 +128,14 @@ impl Component for Text {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        if !self.spans.is_empty() {
+            let doc = DocText { wrap: Some(cx.room.unwrap_or(f32::INFINITY)), ..self.doc() };
+            let layout = doc.layout(cx.ui.ctx(), cx.tokens, cx.env.direction());
+            return match cx.room {
+                Some(room) if layout.elided => Vec2::new(room, layout.size().y),
+                _ => layout.size(),
+            };
+        }
         let layout = cx.layout(&self.run(cx.style.text.role, cx.resolved.label));
         // A cut line takes the whole room: its width must not follow where the last glyph happened to fit.
         match cx.room {
@@ -124,6 +149,10 @@ impl Component for Text {
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        if !self.spans.is_empty() {
+            ui.draw().doc(cx.content_rect, &self.doc());
+            return;
+        }
         ui.draw().text(cx.content_rect, &self.run(cx.style.text.role, cx.resolved.label).color(cx.resolve(&cx.style.text.color)));
     }
 
