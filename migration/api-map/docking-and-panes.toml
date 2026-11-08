@@ -936,11 +936,18 @@ note = "The output of `SplitArea`: the layout's resize edits."
 
 # dock-commands-a: command sets over the dock model, the workspace switcher, the words.
 [[type]]
-name = "DockCommands"
+name = "DockCommand"
 old = "craft_ui::docking::DockCommand"
+new = ""
+status = "removed"
+note = "The serde command protocol is gone; the dock commands are the `DockCommands` set."
+
+[[type]]
+name = "DockCommands"
+old = ""
 new = "craft_ui::docking::DockCommands"
 status = "replaced"
-note = "The serde command protocol is gone. `DockCommands` is a fieldless `CommandSet` (prefix `dock`, scope `dockGroup`): `DockArea` gives each `DockGroup` the scope, publishes `dock_states` there and runs `actions` and `move_actions` for the command that reaches the group, so a menu row, a key and the palette run the same code. A host with its own dock calls the functions with the panel; `Fixture` replaces the JSON control driver."
+note = "Replaces the serde `DockCommand` protocol. `DockCommands` is a fieldless `CommandSet` (prefix `dock`, scope `dockGroup`): `DockArea` gives each `DockGroup` the scope, publishes `dock_states` there and runs `actions` and `move_actions` for the command that reaches the group, so a menu row, a key and the palette run the same code. A host with its own dock calls the functions with the panel; `Fixture` replaces the JSON control driver."
 
 [[type]]
 name = "UiDock"
