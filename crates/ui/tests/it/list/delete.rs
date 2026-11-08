@@ -40,8 +40,10 @@ fn rig(deletable: bool) -> (Fixture, Rc<RefCell<Vec<Vec<usize>>>>) {
     fixture.settle();
     fixture.key(Key::Tab, Modifiers::NONE);
     fixture.idle(2);
-    fixture.key(Key::ArrowDown, Modifiers::NONE);
-    fixture.idle(2);
+    for _ in 0..2 {
+        fixture.key(Key::ArrowDown, Modifiers::NONE);
+        fixture.idle(2);
+    }
     (fixture, reported)
 }
 
