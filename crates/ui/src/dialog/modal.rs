@@ -7,6 +7,7 @@ use crate::contract::{
     Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, Mount, Overlay, Pad, Props as _, Role, SaveKey,
     ShowContainer as _,
 };
+use crate::edit::outer::{self, OuterEnd};
 use crate::runtime::access::Access;
 use crate::runtime::env::Label;
 use crate::runtime::focus::Initial;
@@ -68,6 +69,8 @@ pub struct Dialog<'a> {
     closable: bool,
     closed: Option<CloseReason>,
     picked: Option<usize>,
+    /// The body ran in this pass: the header region marks it.
+    body_shown: bool,
     alert: bool,
 }
 
@@ -100,6 +103,7 @@ impl<'a> Dialog<'a> {
             closable: true,
             closed: None,
             picked: None,
+            body_shown: false,
             alert: false,
         }
         .label(title)
@@ -191,7 +195,10 @@ impl<'a> Dialog<'a> {
         })
     }
 
-    /// Whether the dialog holds one outer gesture over its body's fields, from open to close.
+    /// Whether the dialog holds one outer gesture over its body's fields, from open to close: the app's `GestureHost`
+    /// keeps one undo step for the dialog, named by its title. OK commits it; Cancel, Escape, the close action and the
+    /// app closing the dialog take its edits back. The host folds every gesture it handles while the dialog is open
+    /// into the step, so it suits a modal dialog.
     #[must_use]
     pub fn outer_gesture(mut self, on: bool) -> Self {
         self.props = self.props.outer_edit(on);
@@ -384,8 +391,15 @@ impl Component for Dialog<'_> {
         }
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> DialogOutput {
-        DialogOutput { response: cx.response.clone(), closed: self.closed, picked: self.picked }
+    fn finish(self, mut cx: Cx<'_, Self>) -> DialogOutput {
+        let output = DialogOutput { response: cx.response.clone(), closed: self.closed, picked: self.picked };
+        if self.props.outer_edit {
+            // The dialog's answer decides the end: an OK commits, every other close cancels.
+            let end = output.result(|| OuterEnd::Commit).map(|answer| answer.ok().unwrap_or(OuterEnd::Cancel));
+            let core = &mut cx.core;
+            outer::settle(&core.ctx, core.memory, core.id, self.body_shown, end);
+        }
+        output
     }
 }
 
@@ -395,6 +409,10 @@ impl Container for Dialog<'_> {
     }
 
     fn header(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
+        self.body_shown = true;
+        if self.props.outer_edit {
+            outer::keep(ui.ctx(), cx);
+        }
         frame::header(ui, cx, frame::close_action(self.closable));
         self.keep_window_draggable(ui);
     }

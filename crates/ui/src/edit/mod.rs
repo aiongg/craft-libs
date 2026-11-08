@@ -3,8 +3,10 @@
 //! The adapter turns the events of a value component into undo steps of an app that keeps its own history, behind one
 //! sink trait. Dialogs, tool sessions and the keymap editor use `craft_behavior::EditHistory` instead.
 
+pub(crate) mod outer;
+
 use crate::runtime::edit::cancel_all;
-use crate::runtime::frame::FrameOutput;
+use crate::runtime::frame::{FrameOutput, OuterEdit};
 use craft_behavior::{CancelReason, DocKey, EditEvent, GestureId, Mixed, Value};
 use egui::Context;
 use std::any::Any;
@@ -50,6 +52,13 @@ struct Under<U: UndoMarks> {
     last: Option<Arc<dyn Any + Send + Sync>>,
 }
 
+/// The outer gesture under way: a container's one undo step over the gestures of its body's fields.
+struct Outer<U: UndoMarks> {
+    id: GestureId,
+    mark: U::Mark,
+    name: StepName,
+}
+
 /// Turns the events of value components into undo steps for a document: one gesture at a time.
 ///
 /// - `Begin` takes an undo mark and names the step.
@@ -62,8 +71,16 @@ struct Under<U: UndoMarks> {
 /// - A `Begin` or `Set` while another gesture is under way first reverts that gesture.
 ///
 /// The `Update`, `Commit` and `Cancel` of a gesture the host has ended are ignored.
+///
+/// An outer gesture ([`OuterEdit`], from `FrameOutput::outer_edits`) is one undo step over every gesture the host
+/// handles while it is open: a dialog whose `outer_edit` is on opens one with its body and ends it with its close, so the
+/// app takes one undo step for the dialog, named by the dialog's title. Its `Begin` takes an undo mark; the gestures of
+/// the body's fields then run as above inside it, and a `Begin` reverts only the field gesture still under way, never the
+/// outer one. Its `Commit` folds everything since its mark into one step; its `Cancel` reverts to the mark, so the fields
+/// show their values from before the dialog. A dialog that edits nothing leaves no step.
 pub struct GestureHost<U: UndoMarks> {
     active: Option<Under<U>>,
+    outer: Option<Outer<U>>,
     /// The newest gesture the host ended before its component did. Ids grow in the order gestures begin and one gesture
     /// is under way at a time, so its remaining events and those of every earlier gesture are stale.
     ended: Option<GestureId>,
@@ -71,7 +88,7 @@ pub struct GestureHost<U: UndoMarks> {
 
 impl<U: UndoMarks> Default for GestureHost<U> {
     fn default() -> Self {
-        GestureHost { active: None, ended: None }
+        GestureHost { active: None, outer: None, ended: None }
     }
 }
 
@@ -81,9 +98,9 @@ impl<U: UndoMarks> GestureHost<U> {
         Self::default()
     }
 
-    /// Whether a gesture is under way.
+    /// Whether a gesture is under way, an outer gesture included.
     pub fn is_active(&self) -> bool {
-        self.active.is_some()
+        self.active.is_some() || self.outer.is_some()
     }
 
     /// Applies one event; `apply` makes the edit for a value and records its undo step.
@@ -127,12 +144,41 @@ impl<U: UndoMarks> GestureHost<U> {
         }
     }
 
-    /// Ends the gesture of this host whose component was evicted while it ran, as a `Cancel` with
-    /// `CancelReason::Removed` does. The app passes each frame's `FrameOutput` to every host it keeps; a host ignores
-    /// the removals of gestures it does not own.
+    /// Applies the frame's outer-gesture steps, then ends the gesture of this host whose component was evicted while it
+    /// ran, as a `Cancel` with `CancelReason::Removed` does. The app passes each frame's `FrameOutput` to every host it
+    /// keeps: each host opens an outer gesture against its own document, and one whose document the dialog did not edit
+    /// keeps no step. A host ignores the removals of gestures it does not own.
     pub fn handle_output(&mut self, output: &FrameOutput, doc: &mut U) {
+        for edit in &output.outer_edits {
+            match edit {
+                OuterEdit::Begin { id, label, doc_key } => {
+                    self.revert(doc);
+                    self.revert_outer(doc);
+                    let name = StepName { label: Arc::clone(label), doc_key: *doc_key };
+                    self.outer = Some(Outer { id: *id, mark: doc.undo_mark(), name });
+                }
+                OuterEdit::Commit { id } => {
+                    if let Some(outer) = self.take_outer(*id) {
+                        // A field gesture still under way keeps what it applied, inside the dialog's step.
+                        if let Some(under) = self.active.take() {
+                            self.ended = Some(under.id);
+                        }
+                        doc.squash_since(outer.mark, &outer.name);
+                    }
+                }
+                OuterEdit::Cancel { id } => {
+                    if let Some(outer) = self.take_outer(*id) {
+                        self.undo_outer(doc, outer);
+                    }
+                }
+                _ => {}
+            }
+        }
         for id in &output.removed_gestures {
             self.cancel(doc, *id, CancelReason::Removed);
+            if let Some(outer) = self.take_outer(*id) {
+                self.undo_outer(doc, outer);
+            }
         }
     }
 
@@ -146,11 +192,29 @@ impl<U: UndoMarks> GestureHost<U> {
         }
     }
 
-    /// The app's undo or redo command: cancels every running gesture of the UI and takes back the one under way, then the
-    /// app changes the document. The component's later `Cancel` is ignored.
+    /// The app's undo or redo command: cancels every running gesture of the UI and takes back the one under way and an
+    /// open outer gesture, then the app changes the document. The component's later `Cancel` is ignored.
     pub fn before_undo(&mut self, ctx: &Context, doc: &mut U) {
         cancel_all(ctx, CancelReason::UndoDuringGesture);
         self.revert(doc);
+        self.revert_outer(doc);
+    }
+
+    /// Reverts the outer gesture under way, with the field gesture inside it.
+    fn revert_outer(&mut self, doc: &mut U) {
+        if let Some(outer) = self.outer.take() {
+            self.undo_outer(doc, outer);
+        }
+    }
+
+    /// Takes back an ended outer gesture: the field gesture under way inside it, then everything since its mark.
+    fn undo_outer(&mut self, doc: &mut U, outer: Outer<U>) {
+        self.revert(doc);
+        doc.revert_to(outer.mark);
+    }
+
+    fn take_outer(&mut self, id: GestureId) -> Option<Outer<U>> {
+        self.outer.take_if(|outer| outer.id == id)
     }
 
     /// Reverts the gesture under way, as a gesture that began elsewhere does.
