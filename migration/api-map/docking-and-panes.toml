@@ -1309,3 +1309,31 @@ type = "DockConfig"
 old = "middle_click_closes_tabs"
 new = ""
 note = "The tab kind decides: with `tab_close_buttons` a group's tabs are document tabs, which close on a middle click; panel tabs do not."
+
+[[type]]
+name = "GroupId"
+old = "craft_behavior::dock::GroupId"
+new = ""
+status = "removed"
+note = "Deleted with the anchor-panel model: a dock group is named by an anchor panel in it (`DockSpot<P>`, `GroupDrag<P>`), and a layout is `Layout<P>` over the app's own panel type `P`."
+
+[[type]]
+name = "DockTree"
+old = "craft_behavior::dock::DockTree"
+new = ""
+status = "removed"
+note = "Deleted with the anchor-panel model: a dock group is named by an anchor panel in it (`DockSpot<P>`, `GroupDrag<P>`), and a layout is `Layout<P>` over the app's own panel type `P`."
+
+[[type]]
+name = "Split"
+old = "craft_behavior::dock::Split"
+new = ""
+status = "removed"
+note = "Deleted with the anchor-panel model: a dock group is named by an anchor panel in it (`DockSpot<P>`, `GroupDrag<P>`), and a layout is `Layout<P>` over the app's own panel type `P`."
+
+[[type]]
+name = "DockHandle"
+old = "craft_behavior::dock::DockHandle"
+new = ""
+status = "removed"
+note = "Deleted with the anchor-panel model: a dock group is named by an anchor panel in it (`DockSpot<P>`, `GroupDrag<P>`), and a layout is `Layout<P>` over the app's own panel type `P`."
