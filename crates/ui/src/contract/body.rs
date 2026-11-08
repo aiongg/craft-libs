@@ -1251,6 +1251,12 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         mounted.host
     }
 
+    /// A container that is an instance of its command scope sees itself in its own context's chain, so a focused
+    /// container (a canvas) is the instance its chords and the commands it takes reach.
+    fn instance_scope(&self, comp: &C) -> Option<commands::CommandScope> {
+        comp.props(Internal::new()).command_scope
+    }
+
     fn dismissed(&mut self, comp: &mut C, cx: &mut Cx<'_, C>, why: CloseReason) {
         self.close = true;
         self.open = false;
@@ -1570,7 +1576,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             if props.header.is_some_and(|header| header.band == DragBand::Reorder) {
                 scoped.commands = scoped.commands.pushed(REORDER_SCOPE, id);
             }
-            if let Some(scope) = props.command_scope {
+            // A host env (a layer's) does not carry the push the container's own context made.
+            if let Some(scope) = props.command_scope
+                && scoped.commands.innermost(scope.name()) != Some(id)
+            {
                 scoped.commands = scoped.commands.pushed(scope, id);
             }
             if let Some(theme) = &props.theme {
