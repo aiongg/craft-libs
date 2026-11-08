@@ -157,6 +157,7 @@ fn position(shares: &[f64], at: usize, width: f32) -> f32 {
 }
 
 impl Component for ColumnBar<'_> {
+    const SINGLE_VALUE: bool = true;
     const ROLE: Role = Role::GROUP;
     const KEYS: KeyUse = KeyUse::SPLITTER;
     const OVERLAYS: bool = false;

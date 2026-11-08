@@ -420,6 +420,7 @@ impl<'a> MarginHandles<'a> {
 }
 
 impl Component for MarginHandles<'_> {
+    const SINGLE_VALUE: bool = true;
     const ROLE: Role = Role::GROUP;
     const KEYS: KeyUse = KeyUse::SPLITTER;
     const OVERLAYS: bool = false;

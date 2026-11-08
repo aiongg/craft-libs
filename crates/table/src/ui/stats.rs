@@ -233,7 +233,6 @@ impl Outcome for SelectionStatsOutput {
 /// with no statistic shown. The readout is one Tab stop.
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
 #[component(overlay)]
-#[component(exempt(case = "state:Mixed", reason = "The value is a set of independent on/off statistics, so no part of it is mixed."))]
 #[component(exempt(case = "state:Invalid", reason = "The user types nothing: a check row only switches a statistic on or off."))]
 pub struct SelectionStatsReadout<'a> {
     #[common]
@@ -256,6 +255,7 @@ impl<'a> SelectionStatsReadout<'a> {
 }
 
 impl Component for SelectionStatsReadout<'_> {
+    const SINGLE_VALUE: bool = true;
     const ROLE: Role = Role::GROUP;
     type Style = SelectionStatsReadoutStyle;
     type Output = SelectionStatsOutput;
