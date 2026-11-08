@@ -129,10 +129,16 @@ fn shown_extent(view: &CanvasView, size: Size) -> (f64, f64, f64, f64) {
 /// 150 % display does not open documents magnified). `size` is in document units; the view's
 /// [`aspect`](CanvasView::aspect) and rotation are taken into account.
 pub fn fit(view: &mut CanvasView, size: Size, pixels_per_point: f32) {
+    fit_up_to(view, size, pixels_per_point, 1.0);
+}
+
+/// [`fit`] with the device zoom allowed up to `max_device` (1 = 100 %) instead of 100 %: a small document is
+/// magnified to fill the canvas, as Photoshop's Fit on Screen does.
+pub fn fit_up_to(view: &mut CanvasView, size: Size, pixels_per_point: f32, max_device: f64) {
     let (shown_w, shown_h, sin, cos) = shown_extent(view, size);
     let (bw, bh) = (shown_w * cos + shown_h * sin, shown_w * sin + shown_h * cos);
     let scale = ((f64::from(view.rect.width()) - 2.0 * FIT_MARGIN) / bw).min((f64::from(view.rect.height()) - 2.0 * FIT_MARGIN) / bh);
-    let device = ZoomLadder::clamp((scale * f64::from(pixels_per_point)).min(1.0), size);
+    let device = ZoomLadder::clamp((scale * f64::from(pixels_per_point)).min(max_device), size);
     view.zoom = CanvasView::points_per_unit(device, pixels_per_point);
     view.center = Point::new(size.width / 2.0, size.height / 2.0);
 }

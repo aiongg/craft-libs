@@ -104,7 +104,7 @@ impl Outcome for FullWindowCanvasOutput {
 /// - **View.** [`FullWindowView`] fits the image on the first pass and keeps fitting it until the user zooms or
 ///   pans. The wheel, pinch and two-finger scroll follow the user's [`NavigationOptions`], zooming about the pointer;
 ///   the middle button pans. Space-drag and the momentary Zoom run in the tool host when the app gives it its
-///   [`Momentary`] set. The zoom commands (`FullWindowZoomKeys`) are the app's to apply to the view.
+///   [`Momentary`] set. The zoom commands (`ViewCommand`) reach the view through the dialog's command scope and the zoom bar.
 /// - **Tool.** One `CanvasTool` in a `ToolHost` on this canvas; presses, drags, keys and the cursor are the host's.
 ///   Without a tool the canvas navigates with the Hand tool.
 /// - **Keyboard and AccessKit.** The canvas is one Tab stop named by its label; while it has the focus its keys are

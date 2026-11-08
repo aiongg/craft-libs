@@ -21,23 +21,29 @@ use egui::Pos2;
 const ROTATE_STEP_DEG: f64 = 15.0;
 
 /// The view commands: the keyboard path of the view tools and of the navigation menu. [`apply`](Self::apply) is the
-/// one place that says what each does to a view; the app binds chords and runs it from the fired command.
+/// one place that says what each does to a view. The commands are scoped: a canvas container and a full-window
+/// dialog can be instances of the `canvasView` scope, and a fired command goes to the instance that holds the key focus,
+/// else the one that held it last, so a chord acts on the dialog's view while the dialog is open. The zoom commands
+/// also fire inside a dialog.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui_macros::CommandSet)]
-#[command(prefix = "canvasView")]
+#[command(prefix = "canvasView", scope = "canvasView")]
 #[non_exhaustive]
 pub enum ViewCommand {
     /// Zoom in to the next step of the zoom ladder about the view's centre.
-    #[command(label = "Zoom In")]
+    #[command(label = "Zoom In", modal = "in_dialogs", default = "Cmd+=", default = "Cmd++")]
     ZoomIn,
     /// Zoom out to the previous step of the zoom ladder about the view's centre.
-    #[command(label = "Zoom Out")]
+    #[command(label = "Zoom Out", modal = "in_dialogs", default = "Cmd+-")]
     ZoomOut,
     /// Show the whole document.
-    #[command(label = "Fit on Screen")]
+    #[command(label = "Fit on Screen", modal = "in_dialogs", default = "Cmd+0")]
     FitOnScreen,
     /// Zoom until the document covers the canvas.
     #[command(label = "Fill Screen")]
     FillScreen,
+    /// Show the document at 100 percent: one document pixel per device pixel, about the view's centre.
+    #[command(label = "100%", modal = "in_dialogs", default = "Cmd+1")]
+    ActualPixels,
     /// Turn the view clockwise by 15 degrees.
     #[command(label = "Rotate View Clockwise")]
     RotateClockwise,
@@ -63,6 +69,9 @@ impl ViewCommand {
             }
             ViewCommand::FitOnScreen => zoom::fit(view, size, pixels_per_point),
             ViewCommand::FillScreen => zoom::fill(view, size, pixels_per_point),
+            ViewCommand::ActualPixels => {
+                zoom::about(view, view.rect.center(), ZoomLadder::clamp(1.0, size), false, pixels_per_point);
+            }
             ViewCommand::RotateClockwise => view.rotation = ViewTurn::wrap_deg(view.rotation + ROTATE_STEP_DEG),
             ViewCommand::RotateCounterclockwise => view.rotation = ViewTurn::wrap_deg(view.rotation - ROTATE_STEP_DEG),
             ViewCommand::ResetRotation => view.rotation = 0.0,
