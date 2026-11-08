@@ -1563,7 +1563,6 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         cx.core.content_rect = cx.core.flow.inset(cx.style.metrics().padding);
         let builder = UiBuilder::new().layer_id(at.ui.layer_id()).max_rect(rect).sizing_pass().invisible();
         let mut measure_ui = Ui::new(ctx.clone(), sub(id, "measure"), builder);
-        measure_ui.set_style(at.ui.style().clone());
         let installed = Env::install_for(&measure_ui, at.env.clone());
         let mut values = AppValues::default();
         comp.content_env(cx, &mut values);

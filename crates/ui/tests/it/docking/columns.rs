@@ -176,6 +176,7 @@ fn a_flyout_is_as_tall_as_its_group_measures() {
                     shown.set((panel, last));
                     None
                 }
+                _ => None,
             },
         );
     });

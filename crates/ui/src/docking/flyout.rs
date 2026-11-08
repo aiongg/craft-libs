@@ -11,6 +11,7 @@ mod stories;
 
 /// Where a group view puts the group it is given: measured at a width, or shown in a rect.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum GroupAt {
     /// Measure the group at this width; the view returns the height it takes.
     Measure(f32),

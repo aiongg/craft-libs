@@ -346,7 +346,7 @@ fn a_filling_layer_opened_in_a_content_column_fills_its_host() {
         let rect = Cell::new(Rect::NOTHING);
         let mut frames = Frames::new();
         frames.idle(4, |ui| {
-            let mut layer = |ui: &mut Ui| {
+            let layer = |ui: &mut Ui| {
                 let props = ContainerProps::new().mount(Mount::Layer(Overlay::floating())).sizing(Sizing::FillWidth);
                 let out = Slab::new(props).id_salt("layer").show(ui, |ui, _| {
                     Block::new(BODY).show(ui);
