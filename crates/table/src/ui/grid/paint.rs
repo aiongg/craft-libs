@@ -3,7 +3,7 @@
 
 use craft_behavior::{CursorIcon, HitLevel, HitPriority, Metrics, PartKey, ScrollPos, Sense, TextPos};
 use craft_ui::contract::{Access, Cx, Focus as _, Name, PaintUi, PartsCx, Remember as _, Role, Styled as _};
-use craft_ui::primitives::{Draw, EditorLine, EditorPurpose, EditorRun, EditorState, HAlign, PaintShape, StrokeWidth, TextRun};
+use craft_ui::primitives::{Dashes, Draw, EditorLine, EditorPurpose, EditorRun, EditorState, HAlign, PaintShape, StrokeWidth, TextRun};
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::motion::Animate as _;
 use craft_ui::style::{Flags, Stateful, StyleCx};
@@ -284,17 +284,14 @@ impl CellGrid<'_> {
             for range in self.copy_mark {
                 match cx.phase(ANT_CYCLE, Some(ANT_STEP)) {
                     Some(phase) => {
-                        for dash in dashes(&corners(outline(range)), style.mark, phase) {
-                            draw.stroke(&PaintShape::Path(dash), StrokeWidth::Medium, style.accent);
-                        }
+                        let pattern = Dashes::even(style.mark).phase(phase * style.mark * 2.0);
+                        draw.dashed(&corners(outline(range)), pattern, StrokeWidth::Medium, style.accent);
                     }
                     None => draw.stroke(&rect(outline(range)), StrokeWidth::Thin, style.accent),
                 }
             }
             if let Some(range) = preview.range() {
-                for dash in dashes(&corners(outline(&range)), style.mark, 0.0) {
-                    draw.stroke(&PaintShape::Path(dash), StrokeWidth::Medium, style.preview);
-                }
+                draw.dashed(&corners(outline(&range)), Dashes::even(style.mark), StrokeWidth::Medium, style.preview);
             }
             let (frozen_rows, frozen_columns) = geometry.frozen();
             let (cells, split) = (geometry.cells(), geometry.split());
@@ -439,31 +436,6 @@ impl CellGrid<'_> {
 /// The closed outline of `rect`, as a path that starts and ends at its top-left corner.
 fn corners(rect: Rect) -> [Pos2; 5] {
     [rect.left_top(), rect.right_top(), rect.right_bottom(), rect.left_bottom(), rect.left_top()]
-}
-
-/// The dashes of `dash` points with gaps of `dash` points along `path`, advanced by `phase` of one period.
-fn dashes(path: &[Pos2], dash: f32, phase: f32) -> Vec<Vec<Pos2>> {
-    let period = dash * 2.0;
-    let mut travelled = -(phase * period);
-    let mut out = Vec::new();
-    for pair in path.windows(2) {
-        let (from, to) = (pair[0], pair[1]);
-        let length = from.distance(to);
-        if length <= 0.0 {
-            continue;
-        }
-        let direction = (to - from) / length;
-        let mut start = travelled.rem_euclid(period) - period;
-        while start < length {
-            let (a, b) = (start.max(0.0), (start + dash).min(length));
-            if b > a {
-                out.push(vec![from + direction * a, from + direction * b]);
-            }
-            start += period;
-        }
-        travelled += length;
-    }
-    out
 }
 
 /// The x offset of byte `at` of `text` in the laid-out runs.

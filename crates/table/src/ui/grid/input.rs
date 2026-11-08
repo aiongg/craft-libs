@@ -70,10 +70,6 @@ enum Grab {
     Move { source: CellRange<u32>, offset: (i64, i64), last: CellAt<u32>, id: GestureId },
 }
 
-/// The ids this grid's gestures take.
-#[derive(Clone, Copy, Debug, Default)]
-struct Ids(u64);
-
 /// The range the fill handle grows `source` to when dragged to `target`: along the axis the pointer overshoots most.
 fn fill_range(source: &CellRange<u32>, target: CellAt<u32>) -> CellRange<u32> {
     let (top, bottom, left, right) = edges(source);
@@ -111,9 +107,10 @@ impl CellGrid<'_> {
     }
 
     fn next_gesture(cx: &mut Cx<'_, Self>) -> GestureId {
-        let ids = cx.keep::<Ids>();
-        ids.0 += 1;
-        GestureId::new(ids.0)
+        {
+        use craft_ui::runtime::commands::CommandAccess as _;
+        craft_ui::runtime::edit::next_gesture_id(cx.command_ctx())
+    }
     }
 
     /// Keys and pointer gestures of one pass.
