@@ -457,7 +457,10 @@ pub struct SubNode {
     pub name: Name,
     /// A description.
     pub description: Option<String>,
-    /// A numeric value.
+    /// A numeric value: the value, its range and, with a step, the Increment and Decrement actions; SetValue is
+    /// declared with any numeric value. The requests reach the component as they do for its own node: a focusable
+    /// part gets the arrow `take_move` on its active part and `take_set_value_at(part)`; a part with no focus stop gets
+    /// `take_access` requests that name the part.
     pub numeric: Option<Numeric>,
     /// A plain text value, for a sub-node that has one and no number.
     pub(crate) value: Option<String>,
@@ -473,6 +476,7 @@ pub struct SubNode {
     /// The column of a cell, which the item step turns into the cell's column index.
     pub(crate) column: Option<craft_behavior::ColumnKey>,
     pub(crate) access_key: Option<char>,
+    pub(crate) shortcut: Option<String>,
     pub(crate) has_popup: Option<PopupKind>,
     pub(crate) current: bool,
     pub(crate) part: PartRef,
@@ -499,6 +503,7 @@ impl SubNode {
             sort: None,
             column: None,
             access_key: None,
+            shortcut: None,
             has_popup: None,
             current: false,
             part,
@@ -558,6 +563,14 @@ impl SubNode {
     /// The mnemonic letter.
     pub fn access_key(&mut self, key: char) -> &mut Self {
         self.access_key = Some(key);
+        self
+    }
+
+    /// The key that activates the sub-node, as the access tree lists it (`Access::shortcut` for the component's own
+    /// node): a header cell that opens its menu with Alt+Down says `"Alt+Down"`. The key acts through the
+    /// component's key use, which delivers it to the focused part.
+    pub fn shortcut(&mut self, text: impl Into<String>) -> &mut Self {
+        self.shortcut = Some(text.into());
         self
     }
 

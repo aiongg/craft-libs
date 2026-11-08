@@ -329,6 +329,7 @@ pub(crate) fn report_sub(ctx: &Context, decl: &SubDecl<'_>) {
     spec.value = node.value.clone();
     spec.expanded = expanded;
     spec.access_key = node.access_key;
+    spec.shortcut = node.shortcut.clone();
     spec.has_popup = node.has_popup;
     spec.current = node.current || flags.contains(Flags::CURRENT);
     if let Some(expanded) = expanded {

@@ -145,6 +145,13 @@ impl AccessTree {
         self.lookup(NodeId(key.0))?.description()
     }
 
+    // fwk-subnode
+    /// The keyboard shortcut a node by key lists.
+    pub fn shortcut_of(&self, key: NodeKey) -> Option<&str> {
+        self.lookup(NodeId(key.0))?.keyboard_shortcut()
+    }
+    // End of fwk-subnode.
+
     /// The text value of a node by key.
     pub fn value_of(&self, key: NodeKey) -> Option<&str> {
         self.lookup(NodeId(key.0))?.value()
