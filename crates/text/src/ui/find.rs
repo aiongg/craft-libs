@@ -572,7 +572,7 @@ impl StackDialog for FindReplaceDialog {
                         (FindTab::GoTo, words.go_to_tab.as_str().to_owned()),
                     ];
                     let source = keyed(&tabs[..], |tab: &(FindTab, String)| tab.0).with_text(|tab| Cow::Borrowed(tab.1.as_str()));
-                    let strip = TabStrip::new(words.title.clone()).kind(TabKind::Text).shown(tab);
+                    let strip = TabStrip::new(words.title.clone()).kind(TabKind::Text).shown(tab).natural_height(true);
                     let out = strip.show_items(ui, &source, &mut |key, _| {
                         Tab::new(tabs.iter().find(|tab| tab.0 == *key).map_or_else(String::new, |tab| tab.1.clone()))
                     });

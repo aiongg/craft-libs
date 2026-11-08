@@ -5,9 +5,9 @@ use crate::set;
 use craft_behavior::GesturePhase;
 use craft_text::ui::DocUnit;
 use craft_text::ui::ruler::{ColumnDrag, RulerValues, TabAlign, TabLeader, TabStop, TextRuler};
-use craft_ui::contract::{Bind, Show as _};
+use craft_ui::contract::{Bind, Role, Show as _};
 use craft_ui::runtime::env::UnitKind;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Fixture, Target, trial};
 use egui::{Key, Modifiers, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -21,6 +21,15 @@ const OFF_SHARE: f32 = 0.25;
 
 fn left_stop(position: f32) -> TabStop {
     TabStop::new(position, TabAlign::Left, TabLeader::None)
+}
+
+/// The stops' nodes in position order: a stop is named by its kind and its position.
+fn stop_nodes(fixture: &Fixture) -> Vec<Target> {
+    fixture
+        .by_role(Role::SLIDER)
+        .into_iter()
+        .filter(|node| fixture.tree().name_of(node.node).is_some_and(|name| name.starts_with("Left Tab")))
+        .collect()
 }
 
 struct Shown {
@@ -63,13 +72,14 @@ fn click_sets_a_stop_of_the_selectors_kind() {
     let values = shown.values.borrow();
     assert_eq!(values.stops.len(), 1);
     assert_eq!(values.stops[0].align, TabAlign::Center);
+    assert_eq!(shown.fixture.focused_stop().and_then(|(_, part)| part).map(|part| part.index), Some(Some(0)), "the new stop has the focus");
 }
 
 #[trial]
 fn dragging_a_stop_off_the_ruler_clears_it() {
     let mut shown = show(set(RulerValues::default(), |v| v.stops = vec![left_stop(144.0)]), None, false, &[]);
     shown.fixture.settle();
-    let stop = shown.fixture.by_label("Left Tab").expect("the stop is a node");
+    let stop = stop_nodes(&shown.fixture).remove(0);
     shown.fixture.drag(&stop, Vec2::Y * (shown.fixture.shown().width() * OFF_SHARE));
     assert!(shown.values.borrow().stops.is_empty());
 }
@@ -101,7 +111,7 @@ fn right_to_left_mirrors_positions() {
     let mut rtl = show(start, None, true, &[]);
     for shown in [&mut ltr, &mut rtl] {
         shown.fixture.settle();
-        let stop = shown.fixture.by_label("Left Tab").expect("the stop is a node");
+        let stop = stop_nodes(&shown.fixture).remove(0);
         shown.fixture.drag(&stop, Vec2::X * (shown.fixture.shown().width() * ALONG_SHARE));
     }
     let (a, b) = (ltr.values.borrow().stops[0].position, rtl.values.borrow().stops[0].position);
@@ -113,10 +123,11 @@ fn delete_and_backspace_clear_the_picked_stop() {
     for key in [Key::Delete, Key::Backspace] {
         let mut shown = show(set(RulerValues::default(), |v| v.stops = vec![left_stop(72.0), left_stop(216.0)]), None, false, &[]);
         shown.fixture.settle();
-        let stop = shown.fixture.by_label("Left Tab").expect("the stop is a node");
-        shown.fixture.click(&stop);
+        let stops = stop_nodes(&shown.fixture);
+        assert_eq!(stops.len(), 2, "the stops are named apart");
+        shown.fixture.click(&stops[1]);
         shown.fixture.key(key, Modifiers::NONE);
-        assert_eq!(shown.values.borrow().stops.len(), 1, "{key:?}");
+        assert_eq!(shown.values.borrow().stops, vec![left_stop(72.0)], "{key:?} clears the picked stop only");
     }
 }
 

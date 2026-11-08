@@ -46,6 +46,7 @@ craft_ui::words! {
         hanging_indent: "textRuler.hangingIndent" = "Hanging Indent";
         left_indent: "textRuler.leftIndent" = "Left Indent";
         right_indent: "textRuler.rightIndent" = "Right Indent";
+        stop: template "textRuler.stop" = "{kind} at {position}";
         tab_selector: template "textRuler.tabSelector" = "Tab Selector: {kind}";
         table_column: "textRuler.tableColumn" = "Table Column Width";
     }
@@ -293,7 +294,8 @@ pub struct TextRulerStyle {
 /// - The tab selector ([`kind`](Self::kind)) sits in the corner square at the interface's start edge of the rect:
 ///   click for the next kind, secondary click for the previous one.
 /// - A table's column borders ([`columns`](Self::columns)): a grip marker on each border of the caret row; dragging
-///   one reports a [`ColumnDrag`] gesture, snapped like a stop (Alt free). Pointer only, as in Word.
+///   one reports a [`ColumnDrag`] gesture, snapped like a stop (Alt free). A border is a slider too: the arrows and the screen
+///   reader's Increment, Decrement and SetValue report a lone [`GesturePhase::Commit`].
 /// - Right-to-left paragraphs mirror the ruler: positions run from the right edge, and the stops' feet point the other
 ///   way.
 /// - Keys: each marker and stop is a Tab stop. Page Down and Page Up move to the next or previous marker or stop, the
@@ -321,9 +323,10 @@ pub struct TextRuler<'a> {
     /// column fits into the strip.
     #[prop(quantity = "scale")]
     scale: Option<f32>,
-    /// The paragraph's direction is right to left: the ruler mirrors.
+    /// The paragraph's direction is right to left (`true`) or left to right (`false`): the ruler mirrors for right to
+    /// left. Unset, the paragraph runs in the interface's direction.
     #[prop]
-    right_to_left: bool,
+    right_to_left: Option<bool>,
     /// The stop shown picked.
     #[prop(name = "picked_stop")]
     selected: Option<usize>,
@@ -341,7 +344,7 @@ impl<'a> TextRuler<'a> {
             unit: DocUnit::points(),
             kind: None,
             scale: None,
-            right_to_left: false,
+            right_to_left: None,
             selected: None,
             report: Report::default(),
         }
@@ -365,7 +368,7 @@ impl<'a> TextRuler<'a> {
         let fit = if self.width > 0.0 { strip.width() / self.width } else { 1.0 };
         let scale = self.scale.filter(|scale| scale.is_finite() && *scale > 0.0).unwrap_or(fit).max(f32::EPSILON);
         Layout {
-            g: Geometry { strip, scale, right_to_left: self.right_to_left, width: self.width },
+            g: Geometry { strip, scale, right_to_left: self.right_to_left.unwrap_or(interface_rtl), width: self.width },
             shapes: Shapes { width: style.marker_width, column: style.column_width, tip: style.marker_height, stem: style.stem, foot: style.foot },
             corner,
         }
@@ -402,7 +405,7 @@ pub(super) struct Layout {
 impl Component for TextRuler<'_> {
     const ROLE: Role = Role::GROUP;
     const OVERLAYS: bool = false;
-    const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_moves().with_activate(ActivateKeys::Neither).with_value(true);
+    const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_moves().with_deletes().with_activate(ActivateKeys::Neither).with_value(true);
     type Style = TextRulerStyle;
     type Output = TextRulerOutput;
 
@@ -466,7 +469,9 @@ impl Component for TextRuler<'_> {
                 .sense(Sense::DRAG)
                 .priority(handle)
                 .cursor(craft_behavior::CursorIcon::ResizeHorizontal)
-                .pointer_only("the table properties dialog sets the column widths");
+                .focusable()
+                .focus_shape(FocusShape::Rect)
+                .value_part();
         }
         if self.kind.is_some() {
             cx.part(SELECTOR, layout.corner)
@@ -492,7 +497,12 @@ impl Component for TextRuler<'_> {
             let at = f64::from(item.position(&values, self.width));
             let shown = text.format_value(&numbers, at, 0.0);
             let node = access.node(item.part(), Role::SLIDER);
-            node.name = Name::Text(Self::item_name(&words, item, &values).to_owned());
+            let kind = Self::item_name(&words, item, &values);
+            node.name = Name::Text(if matches!(item, Item::Stop(_)) {
+                words.stop.fill(&[("kind", kind), ("position", shown.as_str())])
+            } else {
+                kind.to_owned()
+            });
             node.numeric = Some(Numeric::new(at, range.clone()).step(step).text(shown));
         }
         for (index, position) in self.columns.iter().enumerate() {

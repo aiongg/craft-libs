@@ -1,6 +1,7 @@
 //! Stories of the text ruler: Word's ruler with stops and indents, the Tabs panel's with the selector and a picked
 //! stop, and a table row's column borders.
 
+use super::items::FIRST;
 use super::{RulerValues, TabAlign, TabLeader, TabStop, TextRuler};
 use crate::ui::length::DocUnit;
 use craft_behavior::Mixed;
@@ -31,7 +32,7 @@ fn inches() -> DocUnit {
     DocUnit::new(UnitKind::Inches, 96.0)
 }
 
-#[story(TextRuler<'static>, covers = [Default], drive = Drive::Never)]
+#[story(TextRuler<'static>, covers = [Default], drive = Drive::Drag(FIRST))]
 fn with_stops_and_indents(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let values = data.value("values", word());
     TextRuler::new("Ruler", Bind::bound(&mut *values), COLUMN).unit(inches()).show(ui).into()

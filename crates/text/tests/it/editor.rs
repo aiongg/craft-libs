@@ -86,7 +86,8 @@ fn session(text: &str, quotes: Option<QuoteStyle>) -> Session {
         let (mut host, mut selection) = (shown_host.borrow_mut(), shown_selection.borrow_mut());
         Canvas::new("Document").show(ui, |ui, body| {
             let bounds = Rect::from_min_size(body.rect.min, vec2(200.0, 20.0));
-            let output = TextEditor::new("Text", &mut *host, Bind::bound(&mut *selection)).smart_quotes(quotes).show_at(ui, bounds);
+            let editor = TextEditor::new("Text", &mut *host, Bind::bound(&mut *selection));
+            let output = if let Some(style) = quotes { editor.smart_quotes(style) } else { editor }.show_at(ui, bounds);
             if output.commit {
                 shown_commit.set(true);
             }

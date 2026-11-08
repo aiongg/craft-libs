@@ -59,6 +59,39 @@ fn snap_within(position: f32, step: f32, bounds: (f32, f32), free: bool) -> f32 
     snapped.clamp(bounds.0, bounds.1)
 }
 
+/// The moves and nudges taken from the focused part this pass: how far they move it, in points (positive: further
+/// from the start edge), and the Page Down and Page Up moves, which pick the next or previous item.
+fn take_steps(cx: &mut Cx<'_, TextRuler<'_>>, g: &super::Geometry, step: f32) -> (f32, Vec<NavMove>) {
+    let mut by = 0.0;
+    let mut pages = Vec::new();
+    while let Some((mv, mods)) = cx.intents().take_move() {
+        let size = if mods.fine {
+            SAME_POSITION
+        } else if mods.extend {
+            LARGE_NUDGE * step
+        } else {
+            step
+        };
+        match mv {
+            NavMove::PageDown | NavMove::PageUp => pages.push(mv),
+            NavMove::Forward | NavMove::Up => by += size * g.sign(),
+            NavMove::Back | NavMove::Down => by -= size * g.sign(),
+            _ => {}
+        }
+    }
+    if let Some((direction, mods)) = cx.intents().take_nudge() {
+        let size = if mods.alt {
+            SAME_POSITION
+        } else if mods.shift {
+            LARGE_NUDGE * step
+        } else {
+            step
+        };
+        by += direction.x * size * g.sign();
+    }
+    (by, pages)
+}
+
 impl TextRuler<'_> {
     pub(super) fn run(&mut self, cx: &mut Cx<'_, Self>) {
         let values = cx.value().cloned().unwrap_or_default();
@@ -93,7 +126,8 @@ impl TextRuler<'_> {
     /// The pointer on one marker or stop.
     fn run_item(&mut self, cx: &mut Cx<'_, Self>, g: &super::Geometry, step: f32, held: &mut Held, text: &RulerText, item: Item) {
         let part = item.part();
-        let press = cx.part(part).press;
+        // A stop set in this pass has no part until the next one.
+        let Some(press) = cx.part_if_declared(part).map(|declared| declared.press) else { return };
         match press.phase {
             PressPhase::Down { start, .. } if start.button == PointerButton::Primary => {
                 if let Item::Stop(at) = item {
@@ -251,6 +285,14 @@ impl TextRuler<'_> {
         }
     }
 
+    /// A key or the screen reader sets the table column border `index` to `to` points: one gesture of one commit.
+    fn step_column(&mut self, cx: &mut Cx<'_, Self>, g: &super::Geometry, index: usize, to: f32) {
+        let (lo, hi) = g.span();
+        let border = ColumnBorder { index, position: snap_within(to, 0.0, (lo, hi), true) };
+        self.report.column = Some(ColumnDrag { phase: GesturePhase::Commit, border });
+        cx.focus_part(COLUMN.at(index as u64));
+    }
+
     /// Keys on the focused item: Page Down and Page Up move to the next and previous item, the arrows nudge it, Delete
     /// and Backspace clear a stop; a screen reader's SetValue sets an item's position.
     fn run_keys(&mut self, cx: &mut Cx<'_, Self>, g: &super::Geometry, step: f32, held: &mut Held) {
@@ -266,36 +308,28 @@ impl TextRuler<'_> {
                 return;
             }
         }
-        let Some(item) = cx.active_part().and_then(Item::of_part) else { return };
-        let mut by = 0.0;
-        while let Some((mv, mods)) = cx.intents().take_move() {
-            let size = if mods.fine {
-                SAME_POSITION
-            } else if mods.extend {
-                LARGE_NUDGE * step
-            } else {
-                step
-            };
-            match mv {
-                NavMove::PageDown | NavMove::PageUp => {
-                    if let Some(next) = pick(&Item::all(&values), Some(item), mv == NavMove::PageDown) {
-                        cx.focus_part(next.part());
-                    }
-                }
-                NavMove::Forward | NavMove::Up => by += size * g.sign(),
-                NavMove::Back | NavMove::Down => by -= size * g.sign(),
-                _ => {}
+        for index in 0..self.columns.len() {
+            if let Some(to) = cx.intents().take_set_value_at(COLUMN.at(index as u64)) {
+                self.step_column(cx, g, index, to as f32);
+                return;
             }
         }
-        if let Some((direction, mods)) = cx.intents().take_nudge() {
-            let size = if mods.alt {
-                SAME_POSITION
-            } else if mods.shift {
-                LARGE_NUDGE * step
-            } else {
-                step
-            };
-            by += direction.x * size * g.sign();
+        let Some(part) = cx.active_part() else { return };
+        if part.key == COLUMN {
+            let (by, _) = take_steps(cx, g, step);
+            if let (Some(index), true) = (part.index, by != 0.0)
+                && let Some(position) = self.columns.get(index as usize).copied()
+            {
+                self.step_column(cx, g, index as usize, position + by);
+            }
+            return;
+        }
+        let Some(item) = Item::of_part(part) else { return };
+        let (by, pages) = take_steps(cx, g, step);
+        for mv in pages {
+            if let Some(next) = pick(&Item::all(&values), Some(item), mv == NavMove::PageDown) {
+                cx.focus_part(next.part());
+            }
         }
         if by != 0.0 {
             let (value, now) = moved(&values, item, item.position(&values, g.width) + by, g.width);

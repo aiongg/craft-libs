@@ -394,10 +394,11 @@ impl<'a> TextStylesPanel<'a> {
                     .events;
 
                 let alt = craft_ui::runtime::pointer::frame(ui.ctx()).mods.alt;
-                let mut by_pointer = false;
+                // A press reports the selection it makes, then the lead it moved.
+                let by_pointer =
+                    events.iter().any(|event| matches!(event, CollectionEvent::LeadMoved { by: craft_ui::contract::LeadSource::Pointer, .. }));
                 for event in events {
                     match event {
-                        CollectionEvent::LeadMoved { by: craft_ui::contract::LeadSource::Pointer, .. } => by_pointer = true,
                         CollectionEvent::Selection(SelectionChange::Set(keys)) if by_pointer && keys.len() == 1 => {
                             if target && !paragraph && !text_selected {
                                 hint.set(true);
