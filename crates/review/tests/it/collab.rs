@@ -7,8 +7,8 @@ use craft_review::collab::{CollabRequest, CollabTransport, JoinState, PEOPLE_COL
 use craft_review::ui::{CursorChatBox, JoinField, PeopleBar, ReviewCommand, VotePill};
 use craft_theme::{contrast_ratio, text_contrast_min};
 use craft_ui::canvas::Canvas;
+use craft_ui::contract::Show as _;
 use craft_ui::contract::{Commands as _, ShowContainer as _};
-use craft_ui::contract::{Props as _, Show as _};
 use craft_ui::layout_components::Stack;
 use craft_ui::testing::{Fixture, Frames, pointer, trial};
 
@@ -225,7 +225,7 @@ fn initials_and_name_tags_read_on_every_people_colour() {
     for color in PEOPLE_COLORS {
         let fill = craft_theme::Rgba::rgb(color[0], color[1], color[2]);
         let mut avatar = move |ui: &mut egui::Ui| {
-            craft_review::ui::Avatar::new("Ana Reyes").fill(color).show(ui);
+            let _ = craft_review::ui::Avatar::new("Ana Reyes").fill(color).show(ui);
         };
         let ratio = contrast_ratio(craft_theme::Rgba::from(first_ink(&mut avatar)), fill);
         assert!(ratio >= least, "the initials read on {color:?}: {ratio} against {least}");
