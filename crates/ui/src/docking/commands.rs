@@ -167,7 +167,7 @@ pub fn actions<P: Clone + Eq + Hash>(scene: &DockScene<'_, P>, command: DockComm
             // An accordion entry is minimized while it is closed.
             let current = match &place {
                 PanelPlace::Node(_) => match layout.node_of(&place) {
-                    Some(Node::Stack { entries }) => entries.iter().any(|entry| &entry.panel == panel && !entry.open),
+                    Some(Node::Stack { entries, .. }) => entries.iter().any(|entry| &entry.panel == panel && !entry.open),
                     _ => false,
                 },
                 PanelPlace::Floating { window, .. } => layout.floating.get(*window).is_some_and(|window| window.minimized),
