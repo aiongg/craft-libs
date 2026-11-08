@@ -139,15 +139,17 @@ impl<'a> GradientMapEditor<'a> {
                     std::iter::once(header).chain(items)
                 })
                 .collect();
-            let picker = PresetPicker::new(preset_label, Bind::given(None::<GradientRef>), &rows, Bind::kept()).placeholder(custom).show(ui);
+            let picker =
+                PresetPicker::new(preset_label.clone(), Bind::given(None::<GradientRef>), &rows, Bind::kept()).placeholder(custom.clone()).show(ui);
             if let Some(stops) = picker.picked.and_then(|key| self.preset_stops(key)) {
                 event = Some(set(GradientMap { stops, ..base.clone() }));
             }
-            if clicked(&Button::new(import_label).show(ui)) {
+            if clicked(&Button::new(import_label.clone()).show(ui)) {
                 import = true;
             }
             let rules = StopRules { rows: StopRows::ColorOnly, min: MIN_STOPS, max: MAX_STOPS, ..StopRules::default() };
-            let mut editor = GradientEditor::new(stops_label, Bind::given(base.stops.clone())).rules(rules).midpoints(false).location_decimals(1);
+            let mut editor =
+                GradientEditor::new(stops_label.clone(), Bind::given(base.stops.clone())).rules(rules).midpoints(false).location_decimals(1);
             if let Some(sampler) = self.sampler {
                 editor = editor.sampler(sampler);
             }
@@ -157,11 +159,11 @@ impl<'a> GradientMapEditor<'a> {
             }
             color_requested = bar.color_requested;
             let mut reverse = base.reverse;
-            if Checkbox::new(Bind::bound(&mut reverse)).label(reverse_label).show(ui).event.is_some() {
+            if Checkbox::new(Bind::bound(&mut reverse)).label(reverse_label.clone()).show(ui).event.is_some() {
                 event = Some(set(GradientMap { reverse, ..base.clone() }));
             }
             let mut dither = base.dither;
-            if Checkbox::new(Bind::bound(&mut dither)).label(dither_label).show(ui).event.is_some() {
+            if Checkbox::new(Bind::bound(&mut dither)).label(dither_label.clone()).show(ui).event.is_some() {
                 event = Some(set(GradientMap { dither, ..base.clone() }));
             }
         });
