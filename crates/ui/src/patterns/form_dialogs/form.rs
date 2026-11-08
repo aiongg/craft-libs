@@ -4,7 +4,7 @@
 
 use super::dialog::ResetFooter;
 use super::host_requests::{HostAnswer, HostRequests};
-use crate::contract::{Bind, BodyCx, Remember as _};
+use crate::contract::{Bind, BodyCx, Remember as _, ShowContainer as _};
 use crate::dialog::{Dialog, DialogOutput};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::overlay::CloseReason;
