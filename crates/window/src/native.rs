@@ -56,6 +56,11 @@ pub enum CaptionEvent {
     Release(crate::Button),
     /// The press ended away from the button.
     Cancel,
+    /// The primary button went down twice on the drag area, at this client pixel. The operating system's own
+    /// handling (it would maximize the window) is replaced by the app's.
+    BandDouble([f32; 2]),
+    /// The secondary button went up on the drag area, at this client pixel. The system menu does not open.
+    BandMenu([f32; 2]),
 }
 
 /// What a window procedure asks the app side.
@@ -70,7 +75,7 @@ pub trait Hits: Send + Sync {
 
 /// The `WM_NCHITTEST` result for `zone`, or `None` for the default hit test. Only the maximize button is the
 /// operating system's (snap layouts show over it); the other buttons are answered in the client area.
-pub fn hit_code(zone: Option<Zone>) -> Option<u16> {
+pub(crate) fn hit_code(zone: Option<Zone>) -> Option<u16> {
     Some(match zone? {
         Zone::Move => 2,
         Zone::Edge(Edge::Left) => 10,
@@ -96,8 +101,9 @@ pub struct NativeWindow {
 }
 
 impl NativeWindow {
-    /// The window titled `title`. On Windows, among several with that title, the one whose client area starts nearest
-    /// `client_origin` (physical screen pixels) and that is not routed yet; on macOS AppKit finds windows by title,
+    /// The window titled `title`. On Windows, among several with that title, only the one whose client area starts
+    /// within a pixel or two of `client_origin` (physical screen pixels) and that is not routed yet, and none when
+    /// that is not exactly one window (the caller tries again later); on macOS AppKit finds windows by title,
     /// so two windows with one title share what is set on them. `None` where the platform has no such window, an
     /// empty title, and platforms that do not support it.
     pub fn titled(title: &str, client_origin: Option<[i32; 2]>) -> Option<Self> {

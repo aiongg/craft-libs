@@ -98,17 +98,22 @@ pub(crate) fn raise(ctx: &Context, output: &FloatingGroupOutput) -> bool {
     began && host.viewport_of(output.response.id).is_some_and(|viewport| host.act(viewport, WindowAction::Focus))
 }
 
-/// The opacity of a native dock window while its drag highlights a drop target, so the target shows through it. The
-/// theme's opacity scale has no step for it (`Opacity::DISABLED` is 0.4, `Opacity::SCRIM` 0.5).
-const DRAG_OPACITY: f32 = 0.75;
-
 /// Fades the native window of the group that `output` reports on while its drag highlights a drop target, and makes
 /// it opaque again otherwise: over empty space, for a move that cannot dock and while Ctrl or Cmd keeps the drop
 /// floating (the target then takes no drop and shows no mark). Every way a drag ends brings the opacity back, because
-/// this runs in each pass of the window.
+/// this runs in each pass of the group. The group runs in its parent's pass, so the window is the group's own, not the
+/// running viewport.
 pub(crate) fn fade(ctx: &Context, output: &FloatingGroupOutput) {
     let host = WindowHost::of(ctx);
     let Some(viewport) = host.viewport_of(output.response.id) else { return };
-    let highlighted = drag::moves_viewport(ctx) && drag::mark(ctx).is_some();
-    host.act(viewport, WindowAction::SetOpacity(if highlighted { DRAG_OPACITY } else { 1.0 }));
+    let highlighted = drag::moves(ctx, viewport) && drag::mark(ctx).is_some();
+    host.act(viewport, WindowAction::SetOpacity(if highlighted { craft_theme::Opacity::MOVING } else { 1.0 }));
+}
+
+/// Tells the window host that the native window of the group `id` is dragged by its title row from the app (the group
+/// docks its window), so the Windows hit test leaves that row to the app.
+pub(crate) fn keeps_app_drag(ctx: &Context, id: egui::Id) {
+    if let Some(viewport) = WindowHost::of(ctx).viewport_of(id) {
+        crate::runtime::windows::keeps_app_drag(ctx, viewport);
+    }
 }

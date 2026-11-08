@@ -365,6 +365,28 @@ pub(crate) fn moves_viewport(ctx: &Context) -> bool {
     board(ctx, |board| board.session.as_ref().is_some_and(|session| session.moving.viewport == Some(viewport)))
 }
 
+/// Whether the running session's source is the window of `viewport`.
+pub(crate) fn moves(ctx: &Context, viewport: ViewportId) -> bool {
+    board(ctx, |board| board.session.as_ref().is_some_and(|session| session.moving.viewport == Some(viewport)))
+}
+
+/// Starts a session whose source is the container `source`, as the title row of a dock window does, with no payload
+/// of its own. For trials.
+#[cfg(feature = "testing")]
+pub(crate) fn begin_window_drag(ctx: &Context, source: Id) {
+    start(ctx, source, Arc::new(()), None, DragPreview::None);
+}
+
+/// Sets the mark of the target that would take a drop, as one in another window would. For trials.
+#[cfg(feature = "testing")]
+pub(crate) fn show_mark(ctx: &Context, mark: Option<DropMark>) {
+    board(ctx, |board| {
+        if let Some(session) = &mut board.session {
+            session.mark = mark.map(|mark| (ViewportId::from_hash_of("testing.mark"), mark));
+        }
+    });
+}
+
 /// Records that `owner`'s `ordinal`th target on `layer` accepts at the pointer, with its mark in layer space. A
 /// `window` target covers the whole window.
 pub(crate) fn register(ctx: &Context, owner: Id, layer: Layer, mark: DropMark, window: bool) {

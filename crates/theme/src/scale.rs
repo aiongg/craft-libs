@@ -219,4 +219,6 @@ impl Opacity {
     pub const DISABLED: f32 = 0.4;
     /// Alpha of the scrim behind modal surfaces.
     pub const SCRIM: f32 = 0.5;
+    /// Alpha of a window or layer while it moves over a drop target, so what lies under it shows through.
+    pub const MOVING: f32 = 0.75;
 }

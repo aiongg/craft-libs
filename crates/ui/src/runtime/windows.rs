@@ -183,25 +183,50 @@ fn replay_caption_events(ctx: &Context, viewport: ViewportId, input: &mut RawInp
     if events.is_empty() {
         return;
     }
-    let buttons = with_exclusive(ctx, viewport, |exclusive| exclusive.done.as_ref().map(|regions| regions.buttons.clone())).unwrap_or_default();
+    let (buttons, moves) =
+        with_exclusive(ctx, viewport, |exclusive| exclusive.done.as_ref().map(|regions| (regions.buttons.clone(), regions.moves.clone())))
+            .unwrap_or_default();
     let center = |button: Button| buttons.iter().find(|(held, _)| *held == button).map(|(_, rect)| rect.center());
-    let button = |pos, pressed| egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE };
+    let press = |pos, button, pressed| egui::Event::PointerButton { pos, button, pressed, modifiers: egui::Modifiers::NONE };
+    let primary = |pos, pressed| press(pos, egui::PointerButton::Primary, pressed);
+    let scale = scale::pixels_per_point(ctx).max(f32::EPSILON);
+    // Only a position on a drag area is replayed there.
+    let on_band = |pixel: [f32; 2]| {
+        let at = Pos2::new(pixel[0] / scale, pixel[1] / scale);
+        moves.iter().any(|rect| rect.contains(at)).then_some(at)
+    };
+    let mut replay = Vec::new();
     for event in events {
         match event {
-            CaptionEvent::Hover(caption) => input.events.extend(center(caption).map(egui::Event::PointerMoved)),
+            CaptionEvent::Hover(caption) => replay.extend(center(caption).map(egui::Event::PointerMoved)),
             CaptionEvent::Press(caption) => {
                 if let Some(at) = center(caption) {
-                    input.events.extend([egui::Event::PointerMoved(at), button(at, true)]);
+                    replay.extend([egui::Event::PointerMoved(at), primary(at, true)]);
                 }
             }
-            CaptionEvent::Release(caption) => input.events.extend(center(caption).map(|at| button(at, false))),
-            CaptionEvent::Leave => input.events.push(egui::Event::PointerGone),
-            CaptionEvent::Cancel => {
-                input.events.extend([egui::Event::PointerMoved(OUTSIDE), button(OUTSIDE, false), egui::Event::PointerGone]);
+            CaptionEvent::Release(caption) => replay.extend(center(caption).map(|at| primary(at, false))),
+            CaptionEvent::Leave => replay.push(egui::Event::PointerGone),
+            CaptionEvent::Cancel => replay.extend([egui::Event::PointerMoved(OUTSIDE), primary(OUTSIDE, false), egui::Event::PointerGone]),
+            CaptionEvent::BandDouble(pixel) => {
+                if let Some(at) = on_band(pixel) {
+                    replay.extend([egui::Event::PointerMoved(at), primary(at, true), primary(at, false), primary(at, true), primary(at, false)]);
+                }
+            }
+            CaptionEvent::BandMenu(pixel) => {
+                if let Some(at) = on_band(pixel) {
+                    replay.extend([
+                        egui::Event::PointerMoved(at),
+                        press(at, egui::PointerButton::Secondary, true),
+                        press(at, egui::PointerButton::Secondary, false),
+                    ]);
+                }
             }
             _ => {}
         }
     }
+    // Before the events winit delivered in the same frame: a pointer that moved on from the button to the client
+    // area is the later fact.
+    input.events.splice(0..0, replay);
     ctx.request_repaint_of(viewport);
 }
 
@@ -497,7 +522,7 @@ pub enum WindowAction {
     SetTitle(String),
     /// Sets the window's opacity, 1 being opaque (a dock window fades while its drag highlights a drop target).
     /// The platform applies it where it can: a layered window on Windows, `NSWindow.alphaValue` on macOS. The
-    /// request is kept as [`WindowHost::opacity`] either way, and the action returns whether the platform applied it.
+    /// action returns whether the platform applied it.
     SetOpacity(f32),
 }
 
@@ -562,6 +587,9 @@ impl MonitorInfo {
 /// Install-time inputs and the cross-window records of one context.
 #[derive(Default)]
 struct Shared {
+    /// The opacity requests since the last [`take_sent`], for trials: the platform applies them out of reach.
+    #[cfg(feature = "testing")]
+    sent: Vec<(ViewportId, WindowAction)>,
     shell: Option<ShellInfo>,
     system: Option<Arc<dyn WindowSystem>>,
     store: Option<Arc<Mutex<Store>>>,
@@ -614,13 +642,17 @@ struct Record {
     title: Option<String>,
     /// The OS window, once found.
     native: Option<NativeWindow>,
-    /// Whether the search for the OS window has run for `title`: the window exists when its facts do.
-    native_searched: bool,
+    /// The pass of the last failed search for the OS window, so the search repeats only every `SEARCH_EVERY` passes.
+    searched: Option<u64>,
     /// The opacity the window was last set to; 1 is opaque.
     opacity: Option<f32>,
-    /// The opacity the platform last applied to the OS window.
-    opacity_applied: Option<f32>,
+    /// The window's component runs its own drag from the move band (a dock window's title row), so a press on the
+    /// band must reach it and the operating system's move loop is not started from the hit test.
+    app_drag: bool,
 }
+
+/// Passes between searches for an OS window that was not found.
+const SEARCH_EVERY: u64 = 20;
 
 /// An OS move or resize started in the pass `pass`: the OS keeps the press and sends no release. `released` is the
 /// pass whose input the runtime ended the press in.
@@ -642,6 +674,19 @@ struct Geometry {
 
 fn shared<R>(ctx: &Context, f: impl FnOnce(&mut Shared) -> R) -> R {
     Service::<Shared>::run(ctx, f)
+}
+
+/// The opacity requests made since the last call: a trial's window action stream, as the platform applies them where
+/// no egui command shows them.
+#[cfg(feature = "testing")]
+pub(crate) fn take_sent(ctx: &Context) -> Vec<(ViewportId, WindowAction)> {
+    shared(ctx, |shared| std::mem::take(&mut shared.sent))
+}
+
+/// Whether `viewport`'s component declared its own drag from the move band.
+#[cfg(feature = "testing")]
+pub(crate) fn keeps_app_drag_of(ctx: &Context, viewport: ViewportId) -> bool {
+    PerViewport::<Record>::with(ctx, viewport, |record| record.app_drag)
 }
 
 /// Called by `install`: keeps the shell, the OS services and the placement store.
@@ -974,30 +1019,28 @@ pub fn act(ctx: &Context, viewport: ViewportId, action: WindowAction) -> bool {
     true
 }
 
-/// Keeps `opacity` as the window's and applies it to the OS window when it differs from what the platform last
-/// applied. Returns whether the platform applied it now.
+/// Applies `opacity` to the OS window. A faded window is told again in every pass, because the window system's own
+/// style changes can drop the layered style; an opaque one only when it was faded. Returns whether the platform applied
+/// it now.
 fn set_opacity(ctx: &Context, viewport: ViewportId, opacity: f32) -> bool {
     let opacity = opacity.clamp(0.0, 1.0);
-    let applied = PerViewport::<Record>::with(ctx, viewport, |record| {
-        record.opacity = Some(opacity);
-        record.opacity_applied
-    });
-    if applied == Some(opacity) || (applied.is_none() && opacity >= 1.0) {
-        return false;
+    let before = PerViewport::<Record>::with(ctx, viewport, |record| record.opacity.replace(opacity));
+    if before != Some(opacity) {
+        #[cfg(feature = "testing")]
+        shared(ctx, |shared| shared.sent.push((viewport, WindowAction::SetOpacity(opacity))));
     }
-    let done = native_of(ctx, viewport).is_some_and(|native| native.set_opacity(opacity));
-    if done {
-        PerViewport::<Record>::with(ctx, viewport, |record| record.opacity_applied = Some(opacity));
-    }
-    done
+    let faded = opacity < 1.0 || before.is_some_and(|before| before < 1.0);
+    faded && native_of(ctx, viewport).is_some_and(|native| native.set_opacity(opacity))
 }
 
-/// The OS window of `viewport`, found once its window exists: by its title among the thread's windows, nearest the
-/// reported client origin when several share the title. The root window's is set by [`route_root`].
+/// The OS window of `viewport`, found once its window exists: by its title among the thread's windows, when exactly
+/// one starts at the reported client origin. A failed search repeats every `SEARCH_EVERY` passes. The root window's is
+/// set by [`route_root`].
 fn native_of(ctx: &Context, viewport: ViewportId) -> Option<NativeWindow> {
+    let pass = pass::pass_nr(ctx, viewport);
     let (known, title, searched, facts) =
-        PerViewport::<Record>::with(ctx, viewport, |record| (record.native.clone(), record.title.clone(), record.native_searched, record.facts));
-    if known.is_some() || searched {
+        PerViewport::<Record>::with(ctx, viewport, |record| (record.native.clone(), record.title.clone(), record.searched, record.facts));
+    if known.is_some() || searched.is_some_and(|last| pass < last + SEARCH_EVERY) {
         return known;
     }
     let (title, inner) = (title?, facts?.inner?);
@@ -1005,17 +1048,24 @@ fn native_of(ctx: &Context, viewport: ViewportId) -> Option<NativeWindow> {
     let origin = [(inner.min.x * scale).round() as i32, (inner.min.y * scale).round() as i32];
     let found = NativeWindow::titled(&title, Some(origin));
     PerViewport::<Record>::with(ctx, viewport, |record| {
-        record.native_searched = true;
+        record.searched = found.is_none().then_some(pass);
         record.native = found.clone();
     });
     found
+}
+
+/// Records that the component of `viewport`'s window runs its own drag from the window's move band, as the floating
+/// dock group does to dock its window: the Windows hit test then leaves the band to the app, whose press starts that
+/// drag and the OS move together. Runs in each pass of the component.
+pub(crate) fn keeps_app_drag(ctx: &Context, viewport: ViewportId) {
+    PerViewport::<Record>::with(ctx, viewport, |record| record.app_drag = true);
 }
 
 /// Routes the Windows hit test of `viewport`'s window to its hit sink, once, when the OS window exists and the app
 /// draws its frame. A platform without the routing leaves the sink uninstalled, so the app moves and resizes the
 /// window itself.
 fn route_hit_test(ctx: &Context, viewport: ViewportId) {
-    if hit_sink_installed(ctx, viewport) {
+    if hit_sink_installed(ctx, viewport) || PerViewport::<Record>::with(ctx, viewport, |record| record.app_drag) {
         return;
     }
     let Some(native) = native_of(ctx, viewport) else { return };
@@ -1025,16 +1075,18 @@ fn route_hit_test(ctx: &Context, viewport: ViewportId) {
     }
 }
 
-/// Gives the root window its OS window (from eframe's window handle) and routes its hit test when the app draws the
-/// frame. Returns whether the handle was known, which is when the call has done its work.
+/// Gives the root window its OS window (`handle` finds it from eframe's window handle; it runs until the window is
+/// known) and routes its hit test while the app draws the frame. Runs each pass: a frame that becomes integrated later
+/// is routed then.
 #[cfg(windows)]
-pub(crate) fn route_root(ctx: &Context, native: Option<NativeWindow>) -> bool {
-    let Some(native) = native else { return false };
-    PerViewport::<Record>::with(ctx, ViewportId::ROOT, |record| record.native = Some(native));
+pub(crate) fn route_root(ctx: &Context, handle: impl FnOnce() -> Option<NativeWindow>) {
+    if PerViewport::<Record>::with(ctx, ViewportId::ROOT, |record| record.native.is_none()) {
+        let Some(native) = handle() else { return };
+        PerViewport::<Record>::with(ctx, ViewportId::ROOT, |record| record.native = Some(native));
+    }
     if matches!(shared(ctx, |shared| shared.root_frame.clone()), Some(Frame::Integrated(_))) {
         route_hit_test(ctx, ViewportId::ROOT);
     }
-    true
 }
 
 /// The OS took the press that started a move or resize of `viewport`'s window: [`input_hook`] ends it on the next
@@ -1225,11 +1277,6 @@ impl WindowHost {
         PerViewport::<Record>::with(&self.ctx, viewport, |record| record.sink.get_or_insert_with(|| HitSink::linked(&self.ctx, viewport)).clone())
     }
 
-    /// The opacity `viewport`'s window was last set to with [`WindowAction::SetOpacity`]; 1 for a window never set.
-    pub fn opacity(&self, viewport: ViewportId) -> f32 {
-        PerViewport::<Record>::with(&self.ctx, viewport, |record| record.opacity.unwrap_or(1.0))
-    }
-
     /// The desktop pointer in the coordinates of `viewport`, when it lies inside that window.
     pub fn pointer_in(&self, viewport: ViewportId) -> Option<Pos2> {
         let desktop = self.desktop_pointer()?;
@@ -1357,8 +1404,11 @@ pub(crate) fn show_viewport(ctx: &Context, open: &ViewportOpen<'_>, mut body: im
         record.resizable = Some(open.resizable);
         if record.title.as_deref() != Some(open.title) {
             record.title = Some(open.title.to_owned());
-            record.native = None;
-            record.native_searched = false;
+            // A routed window keeps its handle: the title the system shows changes after this pass.
+            if record.sink.is_none() {
+                record.native = None;
+                record.searched = None;
+            }
         }
         record.level.get_or_insert(spec.level).for_egui(active, os)
     });

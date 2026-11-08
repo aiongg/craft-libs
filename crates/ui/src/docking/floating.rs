@@ -248,6 +248,9 @@ impl Component for FloatingGroup<'_> {
     }
 
     fn finish(mut self, mut cx: Cx<'_, Self>) -> FloatingGroupOutput {
+        if self.start_drag.is_some() {
+            native::keeps_app_drag(&cx.core.ctx, cx.core.id);
+        }
         if self.moving
             && let Some(start) = self.start_drag.take()
         {
