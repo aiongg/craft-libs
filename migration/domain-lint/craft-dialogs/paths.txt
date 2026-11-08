@@ -1,2 +1,0 @@
-crates/dialogs/src/ui
-crates/dialogs/tests/it

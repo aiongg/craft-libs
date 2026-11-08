@@ -120,8 +120,6 @@ pub mod story {
         all.extend(craft_browse::ui::stories());
         #[cfg(feature = "color")]
         all.extend(craft_color::ui::stories());
-        #[cfg(feature = "dialogs")]
-        all.extend(craft_dialogs::ui::stories());
         #[cfg(feature = "draw")]
         all.extend(craft_draw::ui::stories());
         #[cfg(feature = "font-manager")]
@@ -165,8 +163,6 @@ pub mod words {
         all.extend(craft_browse::ui::WORDS);
         #[cfg(feature = "color")]
         all.extend(craft_color::ui::WORDS);
-        #[cfg(feature = "dialogs")]
-        all.extend(craft_dialogs::ui::WORDS);
         #[cfg(feature = "draw")]
         all.extend(craft_draw::ui::WORDS);
         #[cfg(feature = "font-manager")]
@@ -221,8 +217,6 @@ pub mod words {
         all.push(craft_browse::ui::COUNTS);
         #[cfg(feature = "color")]
         all.push(craft_color::ui::COUNTS);
-        #[cfg(feature = "dialogs")]
-        all.push(craft_dialogs::ui::COUNTS);
         #[cfg(feature = "draw")]
         all.push(craft_draw::ui::COUNTS);
         #[cfg(feature = "font-manager")]
