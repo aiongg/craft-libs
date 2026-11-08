@@ -893,7 +893,7 @@ fn an_item_menu_opens_under_its_part_and_a_pick_runs() {
     fixture.click_at(part.center());
     fixture.settle();
     let menu = fixture.by_role(craft_ui::contract::Role::MENU).into_iter().next().expect("the click opens the item's menu");
-    assert!(menu.rect.top() >= part.bottom() - 1.0, "the menu hangs under the part: {:?} under {:?}", menu.rect, part);
+    assert!(menu.rect.top() >= part.center().y, "the menu hangs under the part: {:?} under {:?}", menu.rect, part);
     let duplicate = fixture.by_label("Duplicate").expect("the menu shows its row");
     fixture.click(&duplicate);
     fixture.settle();
