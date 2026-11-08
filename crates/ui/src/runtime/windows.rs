@@ -83,6 +83,55 @@ impl CaptionRegions {
     }
 }
 
+/// The Windows hit test of one window: the window procedure asks [`HitSink::answer`] where the OS asks for a hit
+/// test, and the answer comes from the exclusive parts the window's last pass declared, so the caption buttons,
+/// edges and drag areas the app draws are the ones the OS acts on (snap layouts, native move and resize).
+/// [`WindowHost::install_hit_sink`] makes the sink; the platform layer that owns the window procedure holds it.
+#[derive(Clone, Debug, Default)]
+pub struct HitSink {
+    regions: Arc<Mutex<Option<CaptionRegions>>>,
+}
+
+impl HitSink {
+    /// What lies at `point`, in points of the window's viewport. `None` where no exclusive part lies there: the
+    /// window procedure leaves the hit test to the window's content.
+    pub fn answer(&self, point: Pos2) -> Option<WindowHit> {
+        self.regions.lock().unwrap_or_else(std::sync::PoisonError::into_inner).as_ref().and_then(|regions| regions.hit(point))
+    }
+
+    fn publish(&self, regions: Option<CaptionRegions>) {
+        *self.regions.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = regions;
+    }
+}
+
+/// The regions the parts `parts` declare; `None` for none.
+fn regions_of(parts: Vec<ExclusivePart>) -> Option<CaptionRegions> {
+    if parts.is_empty() {
+        return None;
+    }
+    let mut regions = CaptionRegions::default();
+    for ExclusivePart { hit, rect, .. } in parts {
+        match hit {
+            WindowHit::Move => regions.moves.push(rect),
+            WindowHit::Resize(edge) => regions.edges.push((edge, rect)),
+            WindowHit::Caption(button) => regions.buttons.push((button, rect)),
+        }
+    }
+    Some(regions)
+}
+
+/// Gives the viewport's hit-test sink the exclusive parts its pass declared.
+fn publish_sink(ctx: &Context, viewport: ViewportId) {
+    let Some(sink) = PerViewport::<Record>::with(ctx, viewport, |record| record.sink.clone()) else { return };
+    let parts = with_exclusive(ctx, viewport, |exclusive| exclusive.current.clone());
+    sink.publish(regions_of(parts));
+}
+
+/// Whether the platform answers the hit test of `viewport`'s window from the app's exclusive parts.
+pub(crate) fn hit_sink_installed(ctx: &Context, viewport: ViewportId) -> bool {
+    PerViewport::<Record>::with(ctx, viewport, |record| record.sink.is_some())
+}
+
 /// An exclusive part as its component declared it.
 #[derive(Clone, Debug)]
 struct ExclusivePart {
@@ -141,9 +190,10 @@ pub enum WindowLevel {
     AlwaysOnTop,
 }
 
-/// How long none of the app's windows has focus before the app counts as inactive, so that focus moving between
-/// its own windows does not drop a palette.
-const AWAY_SECONDS: f64 = 0.25;
+/// How many consecutive root passes none of the app's windows has focus before the app counts as inactive. Focus
+/// moving between the app's own windows leaves one pass with no focused window while the new window reports; it
+/// must not drop a palette.
+const AWAY_PASSES: u8 = 2;
 
 impl WindowLevel {
     /// The level egui is given while the app is `active` or not, on `os`. An inactive app's palette goes behind
@@ -388,10 +438,13 @@ struct Shared {
     layouts: Option<LayoutWatch>,
     /// Whether the root window had focus in the last root pass.
     root_focused: bool,
-    /// The time some window of the app last had focus.
-    last_focused: f64,
-    /// Whether no window of the app has had focus for [`AWAY_SECONDS`].
+    /// The root passes in a row that saw no window of the app focused, up to [`AWAY_PASSES`].
+    unfocused_passes: u8,
+    /// Whether no window of the app has had focus for [`AWAY_PASSES`] root passes.
     away: bool,
+    /// The app's windows from the one focused longest ago to the one focused last: the stacking order of
+    /// overlapping windows.
+    stacking: Vec<ViewportId>,
 }
 
 /// One viewport's window record.
@@ -418,6 +471,8 @@ struct Record {
     placed: Option<Geometry>,
     last_pos: Option<Pos2>,
     last_inner_size: Option<Vec2>,
+    /// The window procedure's hit test, once the platform layer installed it.
+    sink: Option<HitSink>,
 }
 
 /// An OS move or resize started in the pass `pass`: the OS keeps the press and sends no release. `released` is the
@@ -621,6 +676,7 @@ fn reshow_cursor(ctx: &Context, viewport: ViewportId) {
 /// The end hook: keeps the root window's placement, writes a changed placement store once a second, and drops the
 /// close requests the viewport mounts did not take in this frame.
 pub(crate) fn end(ctx: &Context) {
+    publish_sink(ctx, pass::current_viewport(ctx));
     if pass::current_viewport(ctx) != ViewportId::ROOT {
         return;
     }
@@ -749,25 +805,21 @@ fn hand_off(ctx: &Context, viewport: ViewportId) {
     PerViewport::<Record>::with(ctx, viewport, |record| record.handoff = Some(HandOff { pass, released: None }));
 }
 
-/// Keeps the app's activity current from the windows' focus. A palette's window level follows it: the mounts build
-/// their viewports with the level of the moment, and a change asks for the next frame. Runs in the root pass, which
-/// every frame of the app runs.
+/// Keeps the app's activity and the stacking order of its windows current from the windows' focus. A palette's
+/// window level follows the activity: the mounts build their viewports with the level of the moment, and a change
+/// asks for the next frame. The app is inactive after [`AWAY_PASSES`] root passes in a row with no focused window.
+/// Runs in the root pass, which every frame of the app runs.
 fn follow_activity(ctx: &Context) {
     let windows = viewports::reported(ctx);
-    let now = pass::now(ctx);
-    let focused = windows.iter().any(|(_, facts)| facts.focused);
+    let focused: Vec<ViewportId> = windows.iter().filter(|(_, facts)| facts.focused).map(|(viewport, _)| *viewport).collect();
     let (changed, waiting) = shared(ctx, |shared| {
-        if focused {
-            shared.last_focused = now;
-        }
-        let away = !focused && now - shared.last_focused >= AWAY_SECONDS;
-        let waiting = !focused && !away;
-        (std::mem::replace(&mut shared.away, away) != away, waiting)
+        shared.stacking.retain(|viewport| windows.iter().any(|(open, _)| open == viewport) && !focused.contains(viewport));
+        shared.stacking.extend(&focused);
+        shared.unfocused_passes = if focused.is_empty() { (shared.unfocused_passes + 1).min(AWAY_PASSES) } else { 0 };
+        let away = shared.unfocused_passes >= AWAY_PASSES;
+        (std::mem::replace(&mut shared.away, away) != away, focused.is_empty() && !away)
     });
-    if waiting {
-        crate::runtime::egui::repaint::request_after(ctx, ViewportId::ROOT, AWAY_SECONDS);
-    }
-    if changed {
+    if changed || waiting {
         ctx.request_repaint();
     }
 }
@@ -886,21 +938,27 @@ impl WindowHost {
         PerViewport::<Record>::with(&self.ctx, viewport, |record| record.kind.is_some()).then_some(viewport)
     }
 
-    /// The window under the desktop point `at`: the focused one where windows overlap, else the smallest.
+    /// The window under the desktop point `at`: where windows overlap, the focused one, else the one focused last,
+    /// else the smallest.
     pub fn viewport_at(&self, at: Pos2) -> Option<ViewportId> {
+        self.viewports_at(at).first().copied()
+    }
+
+    /// The windows under the desktop point `at`, the topmost first (the order of [`Self::viewport_at`]).
+    pub fn viewports_at(&self, at: Pos2) -> Vec<ViewportId> {
+        let stacking = shared(&self.ctx, |shared| shared.stacking.clone());
         let mut under: Vec<(ViewportId, WindowFacts)> = viewports::reported(&self.ctx)
             .into_iter()
             .filter_map(|(viewport, _)| self.facts(viewport).map(|facts| (viewport, facts)))
             .filter(|(_, facts)| facts.outer.unwrap_or(facts.inner).contains(at))
             .collect();
-        under.sort_by(|(_, a), (_, b)| {
-            let area = |facts: &WindowFacts| {
-                let rect = facts.outer.unwrap_or(facts.inner);
-                rect.width() * rect.height()
-            };
-            b.focused.cmp(&a.focused).then(area(a).total_cmp(&area(b)))
-        });
-        under.first().map(|(viewport, _)| *viewport)
+        let area = |facts: &WindowFacts| {
+            let rect = facts.outer.unwrap_or(facts.inner);
+            rect.width() * rect.height()
+        };
+        let height = |viewport: &ViewportId| stacking.iter().position(|stacked| stacked == viewport).map_or(0, |at| at + 1);
+        under.sort_by(|(a_id, a), (b_id, b)| b.focused.cmp(&a.focused).then(height(b_id).cmp(&height(a_id))).then(area(a).total_cmp(&area(b))));
+        under.into_iter().map(|(viewport, _)| viewport).collect()
     }
 
     /// Who draws the running viewport's frame, and the caption buttons it shows.
@@ -918,19 +976,14 @@ impl WindowHost {
     /// Where the exclusive parts of `viewport`'s window lay in its last complete pass: the caption buttons, the edge
     /// zones and the drag areas. `None` while the window declared none.
     pub fn caption_regions(&self, viewport: ViewportId) -> Option<CaptionRegions> {
-        let parts = with_exclusive(&self.ctx, viewport, |exclusive| exclusive.last.clone());
-        if parts.is_empty() {
-            return None;
-        }
-        let mut regions = CaptionRegions::default();
-        for ExclusivePart { hit, rect, .. } in parts {
-            match hit {
-                WindowHit::Move => regions.moves.push(rect),
-                WindowHit::Resize(edge) => regions.edges.push((edge, rect)),
-                WindowHit::Caption(button) => regions.buttons.push((button, rect)),
-            }
-        }
-        Some(regions)
+        regions_of(with_exclusive(&self.ctx, viewport, |exclusive| exclusive.last.clone()))
+    }
+
+    /// The hit-test sink of `viewport`'s window, made on the first call. The platform layer calls it once it has put
+    /// its window procedure in place and holds the sink there; from then on the platform answers that window's move,
+    /// resize and caption hits, and the app registers no move or resize parts for it (`app_moves_window`).
+    pub fn install_hit_sink(&self, viewport: ViewportId) -> HitSink {
+        PerViewport::<Record>::with(&self.ctx, viewport, |record| record.sink.get_or_insert_with(HitSink::default).clone())
     }
 
     /// The desktop pointer in the coordinates of `viewport`, when it lies inside that window.

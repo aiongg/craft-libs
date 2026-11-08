@@ -183,13 +183,16 @@ fn opener_of(props: &ContainerProps) -> Option<&super::overlay::Opener> {
 
 /// Whether the app moves and resizes the OS window of `viewport` (16.3, 21.2): the one rule every move band and grip
 /// of the body step reads. It holds when the app draws the frame (the chrome is not `Native`), the window is neither
-/// maximized nor full screen, and the platform does not answer the hit test of an undecorated window's edges itself.
+/// maximized nor full screen, and the platform does not answer the hit test of an undecorated window itself: it does for a window whose hit-test
+/// sink is installed (`WindowHost::install_hit_sink`), where it takes the move, edge and caption hits from the exclusive parts.
 /// When it does not hold, the move and resize parts are not registered: no cursor and no press.
 pub(crate) fn app_moves_window(ctx: &Context, viewport: ViewportId) -> bool {
     let shell = windows::shell_of(ctx, viewport);
     let framed_by_app = shell.window.chrome != WindowChrome::Native;
     let sized_by_os = matches!(shell.window.state, WindowState::Maximized | WindowState::Fullscreen);
-    let answered_by_platform = shell.caps.contains(Caps::OS_RESIZES_UNDECORATED) && shell.window.chrome == WindowChrome::Integrated;
+    let answered_by_platform = shell.caps.contains(Caps::OS_RESIZES_UNDECORATED)
+        && shell.window.chrome == WindowChrome::Integrated
+        && windows::hit_sink_installed(ctx, viewport);
     framed_by_app && !sized_by_os && !answered_by_platform
 }
 

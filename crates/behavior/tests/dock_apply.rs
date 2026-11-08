@@ -1,13 +1,13 @@
 //! Dock transactions, workspaces, arrangements, document windows and native placement.
 
 use craft_behavior::dock::{
-    Action, AnchoredResize, Arrangement, Column, DockEdge, DockError, DockSide, DocumentGroup, DocumentWindows, Floating, Group, Layout,
+    Action, Arrangement, Column, DockEdge, DockError, DockSide, DocumentGroup, DocumentWindows, Floating, Group, Layout,
     NamedWorkspace, NativeSpace, Node, PanelPlace, PanelState, Permissions, Placement, SplitSize, Target, Workspace, WorkspaceChrome, WorkspaceError,
     WorkspaceSet, arrange_rects, kept_reachable, node_at, restore_rect,
 };
 use craft_behavior::placement::{cascade, cascade_rects, monitor_of};
 use craft_behavior::{Axis, Monitor};
-use emath::{Pos2, Rect, Vec2, pos2, vec2};
+use emath::{Rect, Vec2, pos2, vec2};
 
 fn rect(x: f32, y: f32, w: f32, h: f32) -> Rect {
     Rect::from_min_size(pos2(x, y), vec2(w, h))
@@ -538,48 +538,4 @@ fn clamping_onto_a_fractional_origin_does_not_panic() {
     assert!((placed.min - area.min).abs().max_elem() < 0.01, "{placed:?}");
     let placed = restore_rect(rect(5000.0, 0.0, 2000.0, 100.0), None, space(&monitors, None, None));
     assert!((placed.min.x - area.min.x).abs() < 0.01, "{placed:?}");
-}
-
-#[test]
-fn an_anchored_resize_moves_only_the_grabbed_edges_and_stays_inside_the_limits() {
-    let start = Rect::from_min_max(pos2(100.0, 80.0), pos2(400.0, 300.0));
-    let viewport = Rect::from_min_max(Pos2::ZERO, pos2(800.0, 600.0));
-    let (min, max) = (vec2(160.0, 120.0), vec2(500.0, 400.0));
-    for direction in
-        [vec2(-1.0, 0.0), vec2(1.0, 0.0), vec2(0.0, 1.0), vec2(-1.0, 1.0), vec2(1.0, 1.0), vec2(0.0, -1.0), vec2(-1.0, -1.0), vec2(1.0, -1.0)]
-    {
-        let edge = pos2(if direction.x < 0.0 { start.left() } else { start.right() }, if direction.y < 0.0 { start.top() } else { start.bottom() });
-        let pointer = edge + vec2(2.0, -3.0);
-        let resize = AnchoredResize::new(start, pointer, direction).unwrap();
-        let resized = resize.rect(pointer + vec2(20.0, 25.0), viewport, min, max).unwrap();
-        let moved = |d: f32, lo: f32, hi: f32, by: f32| match d {
-            d if d < 0.0 => (lo + by, hi),
-            d if d > 0.0 => (lo, hi + by),
-            _ => (lo, hi),
-        };
-        assert_eq!((resized.left(), resized.right()), moved(direction.x, start.left(), start.right(), 20.0), "{direction:?}");
-        assert_eq!((resized.top(), resized.bottom()), moved(direction.y, start.top(), start.bottom(), 25.0), "{direction:?}");
-    }
-
-    // Overshoot past the viewport or the minimum needs the pointer to come back before the edge follows it.
-    let viewport = Rect::from_min_max(Pos2::ZERO, pos2(600.0, 500.0));
-    let resize = AnchoredResize::new(start, pos2(398.0, 200.0), vec2(1.0, 0.0)).unwrap();
-    let right_edge = |x: f32| resize.rect(pos2(x, 200.0), viewport, min, vec2(1000.0, 1000.0)).unwrap().right();
-    assert_eq!([right_edge(800.0), right_edge(598.0)], [600.0, 600.0]);
-    assert_eq!([right_edge(120.0), right_edge(258.0)], [260.0, 260.0]);
-    assert_eq!(right_edge(278.0), 280.0);
-
-    // The maximum caps the edge without losing the anchor.
-    let capped = AnchoredResize::new(start, start.max, Vec2::splat(1.0)).unwrap();
-    let viewport = rect(0.0, 0.0, 800.0, 600.0);
-    let limits = (vec2(160.0, 120.0), vec2(320.0, 240.0));
-    assert_eq!(capped.rect(pos2(700.0, 550.0), viewport, limits.0, limits.1).unwrap(), Rect::from_min_max(start.min, pos2(420.0, 320.0)));
-}
-
-#[test]
-fn a_resize_is_suspended_when_the_anchor_cannot_hold_the_minimum_or_the_geometry_is_invalid() {
-    let start = rect(0.0, 0.0, 100.0, 90.0);
-    let resize = AnchoredResize::new(start, start.max, Vec2::splat(1.0)).unwrap();
-    assert!(resize.rect(start.max, start, vec2(160.0, 120.0), vec2(500.0, 400.0)).is_none());
-    assert!(AnchoredResize::new(start, pos2(f32::NAN, 0.0), Vec2::splat(1.0)).is_none());
 }

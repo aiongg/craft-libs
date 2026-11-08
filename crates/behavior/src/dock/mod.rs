@@ -30,7 +30,6 @@ mod zones;
 mod apply;
 mod arrange;
 mod placement;
-mod resize;
 mod windows;
 mod workspace;
 mod workspaces;
@@ -47,7 +46,6 @@ pub use zones::{SIDE_ZONE_DEPTH_SHARE, SIDE_ZONE_FRACTION, ZoneSize, zones};
 
 pub use arrange::{Arrangement, arrange_rects};
 pub use placement::{NativeSpace, kept_reachable, restore_rect, sanitized};
-pub use resize::AnchoredResize;
 pub use windows::{DocumentGroup, DocumentWindows};
 pub use workspace::Workspace;
 pub use workspaces::{NamedWorkspace, WorkspaceChrome, WorkspaceCommand, WorkspaceError, WorkspaceSet};
