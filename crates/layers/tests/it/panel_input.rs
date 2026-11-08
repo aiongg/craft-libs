@@ -318,7 +318,7 @@ fn the_lock_indicator_unlocks_without_selecting() {
     fixture.idle(2);
     let events = take(&app);
     let [LayersEvent::Toggle(toggle)] = events.as_slice() else { panic!("one toggle and no select: {events:?}") };
-    assert_eq!((&toggle.row, toggle.column), (&LayerRowKey::Layer(9), LayerColumn::Lock));
+    assert_eq!((&toggle.rows[..], toggle.column), (&[LayerRowKey::Layer(9)][..], LayerColumn::Lock));
     assert!(matches!(&toggle.edit, EditEvent::Set { after: false, .. }), "{:?}", toggle.edit);
 }
 
