@@ -46,6 +46,20 @@ fn a_click_on_a_preset_picks_it() {
     assert_eq!(value.get(), Some(CORAL));
 }
 
+/// A click on the field opens the popover again after a pick closed it.
+#[trial]
+fn the_popover_opens_again_after_a_pick_closed_it() {
+    let (mut fixture, value) = picker();
+    open(&mut fixture);
+    let coral = fixture.by_label("Coral").expect("the preset's tile");
+    fixture.click(&coral);
+    fixture.idle(3);
+    assert_eq!(value.get(), Some(CORAL));
+    assert!(fixture.by_label("Amber").is_none(), "the pick closed the popover");
+    open(&mut fixture);
+    assert!(fixture.by_label("Amber").is_some(), "the popover opened again");
+}
+
 /// Escape closes the popover and the value stays what it was.
 #[trial]
 fn escape_closes_the_popover_without_a_pick() {
@@ -156,7 +170,16 @@ fn the_create_and_detach_rows_follow_the_presets_and_report() {
     assert_eq!(reported.get(), (true, false), "the create row is reported alone");
     assert!(fixture.by_label("Coral").is_none(), "the popover closed");
     open(&mut fixture);
-    let detach = fixture.by_label(DETACH).expect("the detach row");
+    let detach = fixture.by_label(DETACH).unwrap_or_else(|| {
+        let field = fixture.by_role(Role::COMBO_BOX).first().copied().expect("the picker's field");
+        panic!(
+            "the detach row after the reopen: field expanded {:?}, a preset shown {}, the create row shown {}, reported {:?}",
+            fixture.tree().expanded_of(field.node),
+            fixture.by_label("Coral").is_some(),
+            fixture.by_label(NEW_PRESET).is_some(),
+            reported.get()
+        )
+    });
     fixture.click(&detach);
     fixture.idle(3);
     assert_eq!(reported.get(), (false, true), "the detach row is reported alone");

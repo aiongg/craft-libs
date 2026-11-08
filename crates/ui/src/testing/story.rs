@@ -385,6 +385,7 @@ where
         flags: crate::style::Flags::empty(),
         position: crate::runtime::access::SetPosition::new(0).of(1),
         columns: Vec::new(),
+        toggles: Vec::new(),
     };
     let installed =
         crate::runtime::env::Env::install_for(ui, crate::runtime::env::Env::of(ui).derive_local(|scoped| scoped.item_facts = Some(facts)));

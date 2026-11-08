@@ -5,3 +5,5 @@ mod filter;
 mod delete;
 
 mod row_trailing;
+
+mod row_extras;

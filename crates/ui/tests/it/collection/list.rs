@@ -1,16 +1,19 @@
 //! The list trials: wheel and thumb, keys and selection, rename, the empty state, trees and large sources.
 
-use super::kit::{Count, Dismissed, List, ROW_H, Row, Words};
+use super::kit::{Count, DISMISS, Dismissed, List, ROW_H, Row, Words};
 use craft_behavior::PartKey;
 use craft_behavior::{CancelReason, EditEvent, Selection, SelectionChange};
 use craft_ui::contract::{Bind, CollectionEvent, CollectionResponse, Props as _, SelectMode, Show as _, ShowCollection as _};
+use craft_ui::contract::{Role, ShowContainer as _, Trigger};
+use craft_ui::menu::{Menu, MenuItem};
 use craft_ui::runtime::focus::{FocusTarget, request};
 use craft_ui::testing::focus::egui_focused;
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::text::widget_id;
-use craft_ui::testing::{Frames, input, pointer, trial};
+use craft_ui::testing::{Fixture, Frames, input, pointer, trial};
 use egui::{Event, Id, Key, Modifiers, Pos2, Rect, Ui, Vec2};
 use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 
 const VIEW: Vec2 = Vec2::new(300.0, 200.0);
 const ORIGIN: Pos2 = Pos2::new(10.0, 10.0);
@@ -805,4 +808,116 @@ fn a_click_on_the_selected_row_of_a_single_list_that_allows_empty_clears_it() {
     assert_eq!(seen.selections(), [SelectionChange::Set(vec![1]), SelectionChange::Clear], "a click on the selected row empties the selection");
     pointer::click(&mut frames, over(2), &mut show);
     assert_eq!(seen.selections().last(), Some(&SelectionChange::Set(vec![2])), "a click on another row picks it");
+}
+
+fn sectioned() -> Words {
+    let mut words = Words::flat(&["Fruit", "apple", "apricot", "Veg", "kale"]);
+    words.sections = vec![0, 3];
+    words
+}
+
+/// A double click on a section stop (the list activates on a double click) moves the lead to it and reports its activation; the section is never selected.
+#[trial]
+fn a_click_on_a_section_stop_takes_the_lead_and_activates() {
+    let words = sectioned();
+    let seen = Seen::default();
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Multi), &words, &seen);
+    frames.idle(3, &mut show);
+    let at = ORIGIN + Vec2::new(30.0, ROW_H * 3.5);
+    frames.frame(vec![pointer::moved(at)], &mut show);
+    for _ in 0..2 {
+        frames.frame(vec![pointer::press(at)], &mut show);
+        frames.frame(vec![pointer::release(at)], &mut show);
+    }
+    frames.idle(1, &mut show);
+    assert_eq!(seen.leads().last(), Some(&3), "the section holds the lead");
+    let activated: Vec<usize> =
+        seen.events.borrow().iter().filter_map(|event| if let CollectionEvent::Activate(key) = event { Some(*key) } else { None }).collect();
+    assert_eq!(activated, [3], "the click reports the section");
+    assert!(seen.selections().is_empty(), "a section is never selected: {:?}", seen.selections());
+}
+
+/// Arrows reach a section stop, and Enter on it reports its activation.
+#[trial]
+fn arrows_reach_a_section_stop_and_enter_activates_it() {
+    let words = sectioned();
+    let seen = Seen::default();
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Single), &words, &seen);
+    frames.idle(2, &mut show);
+    focus_list(&mut frames, &seen, &mut show);
+    for _ in 0..3 {
+        press(&mut frames, Key::ArrowDown, Modifiers::NONE, &mut show);
+    }
+    assert_eq!(seen.leads().last(), Some(&3), "the third Down stops on the section");
+    press(&mut frames, Key::Enter, Modifiers::NONE, &mut show);
+    assert!(seen.events.borrow().iter().any(|event| matches!(event, CollectionEvent::Activate(3))), "Enter activates the section");
+}
+
+/// A right-click on a row outside the selection selects it, gives it the lead and focuses the list, opening nothing
+/// on the press.
+#[trial]
+fn a_secondary_press_on_an_unselected_row_selects_leads_and_focuses() {
+    let words = Words::flat(&["a", "b", "c"]);
+    let seen = Seen::default();
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Single), &words, &seen);
+    frames.idle(3, &mut show);
+    assert_ne!(egui_focused(&frames.ctx), Some(seen.id()), "the list starts unfocused");
+    let at = ORIGIN + Vec2::new(30.0, ROW_H * 1.5);
+    frames.frame(vec![pointer::moved(at)], &mut show);
+    frames.frame(vec![pointer::secondary(at, true)], &mut show);
+    frames.idle(1, &mut show);
+    let selections = seen.selections();
+    assert!(
+        !selections.is_empty() && selections.iter().all(|change| *change == SelectionChange::Set(vec![1])),
+        "the row is selected on the press: {selections:?}"
+    );
+    assert_eq!(seen.leads().last(), Some(&1));
+    assert_eq!(egui_focused(&frames.ctx), Some(seen.id()), "the list holds focus");
+    assert!(!seen.events.borrow().iter().any(|event| matches!(event, CollectionEvent::ContextMenu(_))), "nothing opens on the press");
+}
+
+/// A click on an item's menu part opens the caller's menu under that part in the pass of the click, a pick runs its
+/// row and Escape closes it.
+#[trial]
+fn an_item_menu_part_opens_the_callers_menu_under_it_and_escape_closes_it() {
+    let picked = Rc::new(Cell::new(0));
+    let shown = picked.clone();
+    let opener = Rc::new(Cell::new(None));
+    let asked = opener.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let words = Words::flat(&["a", "b"]);
+        let out = List::new(SelectMode::Single).id_salt("list").show_items(ui, &words, &mut |key, icx| {
+            if *key == 1 {
+                asked.set(Some(icx.part_opener(DISMISS)));
+            }
+            Row::new().dismissable()
+        });
+        if let Some(response) = opener.get().and_then(|opener| out.opener(opener)) {
+            let picked = shown.clone();
+            Menu::new("Row actions").opened_by(response, Trigger::Click).show(ui, |ui, _| {
+                if MenuItem::new("Duplicate").show(ui).ran {
+                    picked.set(picked.get() + 1);
+                }
+            });
+        }
+    });
+    fixture.settle();
+    let row = fixture.by_role(Role::LIST_ITEM).into_iter().nth(1).expect("the second row has a node");
+    let part = Rect::from_min_size(row.rect.min, Vec2::splat(ROW_H));
+    fixture.click_at(part.center());
+    fixture.settle();
+    let menu = fixture.by_role(Role::MENU).into_iter().next().expect("the click opens the item's menu");
+    assert!(menu.rect.top() >= part.center().y, "the menu hangs under the part: {:?} under {:?}", menu.rect, part);
+    fixture.key(Key::Escape, Modifiers::NONE);
+    fixture.settle();
+    assert!(fixture.by_role(Role::MENU).is_empty(), "Escape closes the menu");
+    fixture.click_at(part.center());
+    fixture.settle();
+    let duplicate = fixture.by_label("Duplicate").expect("the menu shows its row");
+    fixture.click(&duplicate);
+    fixture.settle();
+    assert_eq!(picked.get(), 1, "the pick ran");
 }

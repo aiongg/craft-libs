@@ -1371,6 +1371,14 @@ impl<K> WordSetCx for ItemCx<'_, '_, K> {
 /// Rich tooltip content an item stored.
 pub(crate) type ItemTip<'r> = Box<dyn FnOnce(&mut Ui) + 'r>;
 
+/// The part of one item that opens a menu or popover: `ItemCx::part_opener` names it and
+/// `CollectionResponse::opener` gives its response after the collection has been shown.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ItemOpener {
+    pub(crate) item: Id,
+    pub(crate) part: craft_behavior::PartRef,
+}
+
 /// What the item closure reads for one item: a view over the pipeline's memory stage keyed by the item.
 #[non_exhaustive]
 pub struct ItemCx<'a, 'r, K> {
@@ -1398,6 +1406,8 @@ pub struct ItemCx<'a, 'r, K> {
     pub(crate) id: Id,
     pub(crate) memory: &'a mut MemoryStage,
     pub(crate) tip: Option<ItemTip<'r>>,
+    pub(crate) openers: Vec<ItemOpener>,
+    pub(crate) item: Id,
     pub(crate) cells: Vec<(craft_behavior::ColumnKey, Rect)>,
     pub(crate) grid: Option<&'a craft_behavior::GridView>,
 }
@@ -1426,6 +1436,16 @@ impl<'r, K> ItemCx<'_, 'r, K> {
     /// Rich tooltip content for the item; it may borrow app data.
     pub fn tip(&mut self, tip: impl FnOnce(&mut Ui) + 'r) {
         self.tip = Some(Box::new(tip));
+    }
+
+    /// The opener for the item's part `part`: after the collection is shown, `CollectionResponse::opener` gives the
+    /// part's response (its click this pass and its rect), and a layer-5 menu opens from it with `opened_by`.
+    pub fn part_opener(&mut self, part: impl Into<craft_behavior::PartRef>) -> ItemOpener {
+        let opener = ItemOpener { item: self.item, part: part.into() };
+        if !self.openers.contains(&opener) {
+            self.openers.push(opener);
+        }
+        opener
     }
 }
 

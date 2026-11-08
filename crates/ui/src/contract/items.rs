@@ -9,7 +9,7 @@ use super::collection::{
 use super::cx::BodyCx;
 use super::run::{ShapeHooks, ShowAt};
 use super::steps::ShapeKind;
-use super::{Bind, Collection, Cx, Internal, ItemCx, ItemFn, ItemOutput as _, PartsCx, Props, Show as _, Sizing};
+use super::{Bind, Collection, Cx, Internal, ItemCx, ItemFn, ItemOpener, ItemOutput as _, PartsCx, Props, Show as _, Sizing};
 use crate::primitives::ScrollBar;
 use crate::runtime::access::{self, Role, SetPosition};
 use crate::runtime::egui::{alloc, areas, child, response};
@@ -673,6 +673,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 }
                 let column_keys: Vec<craft_behavior::ColumnKey> = cells.iter().map(|(key, _)| key.clone()).collect();
                 let shown_cells = cells.clone();
+                let toggle_keys: Vec<craft_behavior::ColumnKey> = self.header.toggle_columns().map(|(key, _)| key).collect();
                 let mut icx = ItemCx {
                     key: &key,
                     at,
@@ -688,12 +689,15 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     cells,
                     grid: grid.as_ref(),
                     tip: None,
+                    openers: Vec::new(),
+                    item: item_id,
                     memory: &mut *cx.core.memory,
                 };
                 icx.memory.claim(icx.id);
                 let item = (self.item)(&key, &mut icx);
                 let mut item = comp.dress(item, &state);
                 let tip = icx.tip.take();
+                let openers = std::mem::take(&mut icx.openers);
                 drop(icx);
                 let builder = UiBuilder::new().max_rect(row).layout(child::column_layout(rtl)).scope_id(sub(item_id, "row"));
                 let builder = if node { access::with_parent(builder, id) } else { builder };
@@ -706,7 +710,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     base_env.derive_local(|scoped| {
                         scoped.item = Some(item_id);
                         scoped.row = Some(row_group);
-                        scoped.item_facts = Some(ItemFacts { item: item_id, flags, position, columns: column_keys });
+                        scoped.item_facts = Some(ItemFacts { item: item_id, flags, position, columns: column_keys, toggles: toggle_keys });
                     }),
                 );
                 item = Props::id(item, item_id);
@@ -728,13 +732,16 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     Arc::make_mut(&mut layout).set_width(at, ideal, min);
                     row = self.screen(&layout, rect, at, offset, rtl);
                 }
-                self.report_toggle_cells(&ctx, (id, item_id), (at, &key), (shown_cells.as_slice(), cx.core.resolved.enabled));
+                self.report_toggle_cells(&ctx, (id, item_id), (at, &key), (shown_cells.as_slice(), cx.core.resolved.enabled), &cx.core.env);
                 shown_rows.push(ShownRow::new(key.clone(), row, shown_cells));
                 let out = match tip {
                     Some(tip) => item.show_at_with_tip(&mut row_ui, row, tip),
                     None => item.show_at(&mut row_ui, row),
                 };
                 let label = out.label_rect().unwrap_or(row);
+                if let Some(row) = shown_rows.last_mut() {
+                    row.openers = self.item_openers(&row_ui, &ctx, id, cx.core.resolved.enabled, openers);
+                }
                 if let Some(event) = out.into_event() {
                     self.events.push(CollectionEvent::Item(key.clone(), event));
                 }
@@ -1001,6 +1008,10 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                         None => self.pick(comp, at, mods.shift, mods.cmd),
                     }
                     self.move_lead(at, LeadSource::Pointer);
+                    // A secondary press takes focus the way a primary press does: egui and the press classification only move it for the primary button.
+                    if !primary && props.focus_on_press {
+                        focus::request_now(&ctx, focus::FocusTarget::Id(cx.core.id));
+                    }
                     let activates = match props.activate {
                         ActivateOn::DoubleClick => start.clicks == 2,
                         ActivateOn::Click => primary && start.clicks == 1,
@@ -1014,7 +1025,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                         && comp.can_rename(&key);
                     if names && !self.source.section_stop(at) {
                         self.drags.rename = Some(key);
-                    } else if activates && !self.source.section_stop(at) {
+                    } else if activates {
                         self.events.push(CollectionEvent::Activate(key));
                     }
                 }
@@ -1247,13 +1258,47 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         }
     }
 
+    /// The response of each part an item asked to open a menu from (`ItemCx::part_opener`): the part's click this pass
+    /// and its rect, the rect the press was hit-tested against.
+    fn item_openers(&self, ui: &Ui, ctx: &Context, id: Id, enabled: bool, openers: Vec<ItemOpener>) -> Vec<(ItemOpener, egui::Response)> {
+        if openers.is_empty() {
+            return Vec::new();
+        }
+        let outcome = crate::primitives::sensing::read_outcome(ctx, ArenaId::new(id));
+        openers
+            .into_iter()
+            .filter_map(|opener| {
+                let rect = crate::runtime::pointer::part_bounds(ctx, opener.item, opener.part)?;
+                let on_part =
+                    |hit: Option<crate::primitives::sensing::Hit>| hit.is_some_and(|hit| hit.owner == opener.item && hit.part == Some(opener.part));
+                let view = response::MemberView {
+                    hovered: on_part(outcome.hover),
+                    pressed: on_part(outcome.target) && outcome.phase.is_some(),
+                    clicked: on_part(outcome.activated),
+                    pointer: ctx.pointer_latest_pos(),
+                    ..response::MemberView::default()
+                };
+                let response = response::member(ui, sub(opener.item, ("opener", opener.part)), rect, enabled, view);
+                Some((opener, response))
+            })
+            .collect()
+    }
+
     /// The access sub-node of each toggle cell of row `(at, key)`, named by its column's header and carrying its state,
     /// below the row's node `item`; an AccessKit click on it reaches `toggle_by_access`.
-    fn report_toggle_cells(&self, ctx: &Context, (id, item): (Id, Id), (at, key): (usize, &C::Key), (cells, enabled): (&[(ColumnKey, Rect)], bool)) {
-        for (column, _) in self.header.toggle_columns() {
+    fn report_toggle_cells(
+        &self,
+        ctx: &Context,
+        (id, item): (Id, Id),
+        (at, key): (usize, &C::Key),
+        (cells, enabled): (&[(ColumnKey, Rect)], bool),
+        env: &crate::runtime::env::EnvView<'_>,
+    ) {
+        for (column, toggle) in self.header.toggle_columns() {
             let Some((_, rect)) = cells.iter().find(|(held, _)| *held == column) else { continue };
-            let mut node = access::SubNode::new(TOGGLE_CELL.at(key_hash(&(key, &column))), Role::SWITCH);
-            node.name = access::Name::Text(self.header.header_of(&column).unwrap_or_default().to_owned());
+            let mut node =
+                access::SubNode::new(TOGGLE_CELL.at(key_hash(&(key, &column))), if toggle.exclusive { Role::RADIO_BUTTON } else { Role::SWITCH });
+            node.name = access::Name::Text(self.header.cell_name(&column, env));
             node.flags.set(crate::style::Flags::CHECKED, self.source.toggled(at, &column));
             let decl = access::SubDecl {
                 owner: id,

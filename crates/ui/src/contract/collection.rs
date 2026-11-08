@@ -113,6 +113,8 @@ pub struct ColumnSpec {
     pub tabular: bool,
     /// The first press on the header sorts descending: sizes, dates and ratings, where the largest comes first.
     pub first_descending: bool,
+    /// The icon the column's cells show: the name of a cell that has no header text.
+    pub icon: Option<craft_behavior::IconId>,
 }
 
 /// Where a column's content sits.
@@ -141,6 +143,7 @@ impl ColumnSpec {
             align: ColumnAlign::Start,
             tabular: false,
             first_descending: false,
+            icon: None,
         }
     }
 
@@ -191,6 +194,13 @@ impl ColumnSpec {
     pub fn numeric(mut self) -> Self {
         self.align = ColumnAlign::End;
         self.tabular = true;
+        self
+    }
+
+    /// The icon the column's cells show. A cell of a column with no header text is named after it.
+    #[must_use]
+    pub fn icon(mut self, icon: craft_behavior::IconId) -> Self {
+        self.icon = Some(icon);
         self
     }
 
@@ -898,6 +908,12 @@ impl<K, E> CollectionResponse<K, E> {
     ) -> Self {
         CollectionResponse { response, events, visible, shown, select: gestures.select, rename: gestures.rename, reorder: gestures.reorder }
     }
+
+    /// The response of the item part `opener` names: its click this pass and its rect. A menu or popover hangs from
+    /// it with `opened_by`, as from a button. `None` while the item is not shown.
+    pub fn opener(&self, opener: super::ItemOpener) -> Option<&Response> {
+        self.shown.iter().flat_map(|row| &row.openers).find(|(held, _)| *held == opener).map(|(_, response)| response)
+    }
 }
 
 /// The geometry of one row the collection showed this pass.
@@ -910,11 +926,13 @@ pub struct ShownRow<K> {
     pub rect: egui::Rect,
     /// The rect of each cell, by column key; empty for a collection with no columns.
     pub cells: Vec<(ColumnKey, egui::Rect)>,
+    /// The openers the row's item asked for (`ItemCx::part_opener`), each with the part's response this pass.
+    pub openers: Vec<(super::ItemOpener, Response)>,
 }
 
 impl<K> ShownRow<K> {
     pub(crate) fn new(key: K, rect: egui::Rect, cells: Vec<(ColumnKey, egui::Rect)>) -> Self {
-        ShownRow { key, rect, cells }
+        ShownRow { key, rect, cells, openers: Vec::new() }
     }
 }
 

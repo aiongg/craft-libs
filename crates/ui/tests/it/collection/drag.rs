@@ -208,3 +208,29 @@ fn escape_during_a_tick_sweep_cancels_the_flips_and_restores_the_values() {
     assert!(cancelled.iter().all(|on| !on), "each restores the value from before the sweep");
     assert!(!events.iter().any(|event| matches!(event, CollectionEvent::Toggle(edit) if edit.phase() == Some(craft_behavior::GesturePhase::Commit))));
 }
+
+/// The cells of an icon-only toggle column are named after the column's icon, and an exclusive column's cells are
+/// radios while a sweepable one's are switches.
+#[trial]
+fn toggle_cells_carry_a_name_and_exclusive_columns_are_radios() {
+    use craft_behavior::IconId;
+    use craft_ui::contract::Role;
+    let mut fixture = craft_ui::testing::Fixture::new(|ui| {
+        let source = Switches::new(3, &[], &[]);
+        let props = CollectionProps::new().columns(vec![
+            ColumnSpec::new(NAME, "Name", ColumnWidth::Fixed(COL)),
+            ColumnSpec::new(MUTE, "", ColumnWidth::Fixed(COL)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())).icon(IconId::new("eye")),
+            ColumnSpec::new(ColumnKey::new("solo"), "", ColumnWidth::Fixed(COL))
+                .kind(ColumnKind::Toggle(ToggleColumn::exclusive()))
+                .icon(IconId::new("solo")),
+        ]);
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            Table::new(props).id_salt("table").show_items(ui, &source, &mut |_, _| Row::new());
+        });
+    });
+    fixture.settle();
+    assert_eq!(fixture.by_role(Role::SWITCH).len(), 3, "the sweepable column's cells are switches");
+    assert_eq!(fixture.by_role(Role::RADIO_BUTTON).len(), 3, "the exclusive column's cells are radios");
+    assert!(fixture.by_label("eye").is_some(), "an icon-only column names its cells after the icon");
+    assert!(fixture.by_label("solo").is_some());
+}
