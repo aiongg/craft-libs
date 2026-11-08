@@ -7,7 +7,7 @@ use super::{
 };
 use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::{pass, repaint};
-use crate::runtime::{focus, keys};
+use crate::runtime::{focus, keys, sampler};
 use craft_behavior::{EditCommand, pick_instance, resolve_flags};
 use craft_keymap::{Active, Chord, CommandKind, CommandRef, Keymap, Matcher, ModalRule, Overrides, Platform, Press, Scopes};
 use egui::{Context, Id, ViewportId};
@@ -69,6 +69,9 @@ struct Board {
     /// The instances around the focus from the innermost out to the root of the modal layer the focus is in: the
     /// instances `ModalRule::Blocked` does not block. Empty while the focus is outside every modal layer.
     inside_modal: Vec<Id>,
+    /// The canvas a modal layer keeps open (`runtime::sampler`): its scope's commands reach it while the focus is in
+    /// the dialog.
+    held_open: Option<Id>,
     /// A dialog owns the keys in the running pass.
     dialog_keys: bool,
     /// Bound command ids that no set registers, already logged.
@@ -114,7 +117,8 @@ impl Board {
 
     /// The instance a source with no component of its own delivers `scope`'s commands to.
     fn pick(&self, ctx: &Context, scope: &str) -> Option<Id> {
-        let focused: Vec<Id> = self.focused.iter().flat_map(|(_, chain)| chain.iter().copied()).collect();
+        // The held-open canvas ranks below every instance around the focus.
+        let focused: Vec<Id> = self.held_open.into_iter().chain(self.focused.iter().flat_map(|(_, chain)| chain.iter().copied())).collect();
         pick_instance(&self.live_instances(ctx, scope), &focused, &self.last_focused)
     }
 
@@ -416,7 +420,9 @@ pub(crate) fn begin(ctx: &Context) {
     let focused = focus::record(ctx, viewport).focused;
     let shortcuts = keys::take_shortcuts(ctx);
     let now = pass::now(ctx);
+    let held_open = sampler::held_canvas(ctx);
     let taken = with(ctx, |board| {
+        board.held_open = held_open;
         let chain: Vec<Id> =
             board.chains.get(&viewport).filter(|(id, _)| Some(*id) == focused).map(|(_, chain)| chain.ids().collect()).unwrap_or_default();
         if !chain.is_empty() {
@@ -433,13 +439,20 @@ pub(crate) fn begin(ctx: &Context) {
             return None;
         }
         let keymap = board.keymap.as_ref().map(|cache| Arc::clone(&cache.keymap))?;
-        let scopes: Vec<&'static str> = chain
+        let mut scopes: Vec<&'static str> = chain
             .iter()
             .rev()
             .filter_map(|id| board.instances.iter().find(|i| i.id == *id))
             .map(|i| i.scope.name())
             .filter(|scope| !is_app(scope))
             .collect();
+        // The held-open canvas's scope is around the focus for matching: its commands fire from the dialog.
+        let held_scope = held_open.and_then(|id| board.instances.iter().find(|i| i.id == id)).map(|i| i.scope.name()).filter(|scope| !is_app(scope));
+        if let Some(scope) = held_scope
+            && !scopes.contains(&scope)
+        {
+            scopes.push(scope);
+        }
         Some((keymap, scopes, std::mem::take(&mut board.matcher)))
     });
     let Some((keymap, scopes, mut matcher)) = taken else { return };
