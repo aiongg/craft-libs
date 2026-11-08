@@ -245,7 +245,6 @@ pub(super) struct Record {
 #[derive(Clone, Debug)]
 pub(super) struct Laid {
     pub(super) bar: Rect,
-    pub(super) groups: Vec<Rect>,
     /// Whether the bar is wide enough for its menu button.
     pub(super) menu_button: bool,
 }

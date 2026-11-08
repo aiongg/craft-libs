@@ -244,7 +244,7 @@ impl<P: Value + 'static> Component for IconicColumn<'_, P> {
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let sizes = cx.style.sizes;
         let plan = self.plan(rect, &sizes);
-        locked(&self.shared).laid = Some(Laid { bar: plan.bar, groups: Vec::new(), menu_button: plan.bar.width() > sizes.column.iconic_least });
+        locked(&self.shared).laid = Some(Laid { bar: plan.bar, menu_button: plan.bar.width() > sizes.column.iconic_least });
         cx.part(super::dock_column::BAR, plan.bar)
             .sense(Sense::DRAG)
             .cursor(CursorIcon::Grab)

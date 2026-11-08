@@ -113,7 +113,9 @@ fn tab_in_a_window_whose_only_keys_belong_to_a_dock_area_toggles_nothing() {
         SplitArea::new("Panels", Bind::bound(&mut layout), FrameRules::new(&limits)).show(ui, |_, _| ());
     };
     let mut frames = Frames::new();
-    frames.root(RootEnv { tab_toggles_chrome: true, ..RootEnv::default() });
+    let mut root = RootEnv::default();
+    root.tab_toggles_chrome = true;
+    frames.root(root);
     frames.frame(Vec::new(), &mut show);
     take_output(&frames.ctx);
     frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], &mut show);
@@ -126,7 +128,8 @@ fn a_resize_under_a_pruned_view_keeps_the_hidden_panels() {
     let mut layout = Layout::new(Some(Node::split(Axis::X, SplitSize::Ratio(0.5), Node::tabs(vec![0], 0), rest)), Vec::new());
     let keep = |panel: &usize| *panel != 2;
     let none_protected = |_: &usize| false;
-    let view = maximize(&layout, None, HidePanels::Except(&keep), &none_protected);
+    let original = layout.clone();
+    let view = maximize(&original, None, HidePanels::Except(&keep), &none_protected);
     let mut edited = view.layout.clone().into_owned();
     if let Some(root) = edited.root.as_mut() {
         tree::apply_sizes(root, &[(Vec::new(), SplitSize::Ratio(0.8))]);
