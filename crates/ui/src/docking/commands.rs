@@ -306,7 +306,7 @@ fn float_actions<P: Clone + Eq + Hash>(scene: &DockScene<'_, P>, unit: &DragUnit
 fn placed<P: Clone + Eq + Hash>(scene: &DockScene<'_, P>, unit: &DragUnit<P>) -> Rect {
     let (layout, space) = (scene.layout, scene.space);
     let panel = unit.lead();
-    let docked = layout.place(panel).and_then(|place| layout.column(&place)).map(|column| column.width.unwrap_or(scene.sizes.column));
+    let docked = layout.place(panel).and_then(|place| layout.column(&place)).and_then(|column| column.width);
     let remembered = match unit {
         DragUnit::Panel(_) => space.panel(panel),
         DragUnit::Group(_) | DragUnit::Window(_) => space.group(panel),
