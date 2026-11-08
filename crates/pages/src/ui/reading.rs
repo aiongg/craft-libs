@@ -11,8 +11,8 @@ use craft_ui::contract::{
     Remember as _, Role, Show as _, ShowContainer as _, WordSetCx as _, clicked, spec,
 };
 use craft_ui::layout_components::Row;
-use craft_ui::primitives::{PaintShape, ReadingMeasure};
 use craft_ui::primitives::textures::{Priority, TextureStoreOptions, ThumbPaint, ThumbRequest, ThumbnailOptions, Thumbnails, texture_side};
+use craft_ui::primitives::{PaintShape, ReadingMeasure};
 use craft_ui::runtime::commands::FireSource;
 use craft_ui::runtime::env::Env;
 use craft_ui::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};

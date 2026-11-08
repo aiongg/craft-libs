@@ -1,7 +1,7 @@
 //! Stories of the page thumbnails.
 
 use super::{PageThumbnails, ThumbnailMarks, ThumbnailSection};
-use crate::ui::fixtures::DemoPages;
+use crate::ui::fixtures::{DemoPages, PAPER};
 use craft_behavior::Selection;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
@@ -18,5 +18,5 @@ fn strip_with_sections_and_a_picked_range(ui: &mut Ui, data: &mut StoryData) -> 
         ThumbnailSection { name: "Body".to_owned(), first: 3, count: 5, open: true },
     ];
     let marks = |page: usize| ThumbnailMarks { hidden: page == 5, animated: page == 1 };
-    PageThumbnails::new("Pages", &pages, picked, 4).size(zoom).sections(&sections).marks(&marks).new_page_row(true).show(ui).into()
+    PageThumbnails::new("Pages", &pages, picked, 4, PAPER).size(zoom).sections(&sections).marks(&marks).new_page_row(true).show(ui).into()
 }

@@ -11,8 +11,9 @@ use craft_pages::ui::{
 
 use craft_pages::ui::reading::{ReadingState, ReadingView};
 use craft_ui::contract::{ReorderMove, Role, Show as _};
-use craft_ui::primitives::textures::{Revision, ThumbRender, ThumbRequest, ThumbSource};
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::primitives::textures::{LoadFailure, Revision, ThumbRender, ThumbRequest, ThumbSource};
+use craft_ui::style::DataColor;
+use craft_ui::testing::{Fixture, Frames, trial};
 use egui::{Key, Modifiers, Pos2, Rect, pos2, vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -181,7 +182,7 @@ fn strip_rig(count: usize, picked: Selection<usize>) -> StripRig {
     let pages = DemoPages::new(count);
     let mut fixture = Fixture::new(move |ui| {
         let mut now = kept.borrow().clone();
-        let out = PageThumbnails::new("Pages", &pages, &mut now, 0).show(ui);
+        let out = PageThumbnails::new("Pages", &pages, &mut now, 0, PAPER).show(ui);
         seen.borrow_mut().extend(out.events);
         *kept.borrow_mut() = now;
     });
@@ -455,6 +456,63 @@ fn the_preview_paints_the_paper_under_a_page_without_a_picture() {
             && (f64::from(bounds.width()) - f64::from(bounds.height()) * page.width / page.height).abs() < f64::from(PAPER_SLACK)
     };
     assert!(fixture.shape_bounds().iter().any(paper), "a fill with the page's aspect inside the picture is the paper: {:?}", fixture.shape_bounds());
+}
+
+/// Pages whose pictures never arrive: each render is a job that waits for a signal the source keeps and never sends.
+struct LoadingPages {
+    pages: DemoPages,
+    held: std::sync::Mutex<Vec<std::sync::mpsc::Sender<()>>>,
+}
+
+impl ThumbSource<usize> for LoadingPages {
+    fn revision(&self, key: &usize, request: &ThumbRequest) -> Revision {
+        self.pages.revision(key, request)
+    }
+
+    fn render(&self, _: &usize, _: &ThumbRequest) -> ThumbRender {
+        let (hold, wait) = std::sync::mpsc::channel();
+        self.held.lock().expect("the held signals").push(hold);
+        ThumbRender::Later(Box::new(move |_| {
+            let _ = wait.recv();
+            Err(LoadFailure::Missing)
+        }))
+    }
+}
+
+impl PageSource for LoadingPages {
+    fn page_count(&self) -> usize {
+        self.pages.page_count()
+    }
+
+    fn page_size(&self, page: usize) -> Size {
+        self.pages.page_size(page)
+    }
+}
+
+/// Whether any filled rectangle among `shapes` has the colour `color`.
+fn fills_with(shapes: &[egui::Shape], color: egui::Color32) -> bool {
+    shapes.iter().any(|shape| match shape {
+        egui::Shape::Rect(rect) => rect.fill == color,
+        egui::Shape::Vec(inner) => fills_with(inner, color),
+        _ => false,
+    })
+}
+
+/// A paper colour no other fill of the strip uses.
+const LOADING_PAPER: egui::Color32 = egui::Color32::from_rgb(0x12, 0xab, 0x34);
+
+#[trial]
+fn a_thumbnail_paints_the_paper_in_its_tile_while_its_picture_loads() {
+    let pages = LoadingPages { pages: DemoPages::new(2), held: Default::default() };
+    let mut picked = Selection::single(0);
+    let mut frames = Frames::new();
+    frames.screen(vec2(400.0, 500.0));
+    let mut show = |ui: &mut egui::Ui| {
+        PageThumbnails::new("Pages", &pages, &mut picked, 0, DataColor::new(LOADING_PAPER)).show(ui);
+    };
+    frames.idle(4, &mut show);
+    let shapes = frames.frame_shapes(&mut show);
+    assert!(fills_with(&shapes, LOADING_PAPER), "a tile whose picture is loading shows the paper");
 }
 
 /// A page view over `count` demo pages with the state it starts from, and the rects of the pages it laid out.

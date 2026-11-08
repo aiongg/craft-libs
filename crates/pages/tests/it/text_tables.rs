@@ -6,6 +6,7 @@ use std::rc::Rc;
 
 use craft_behavior::kurbo::{Point, Rect};
 use craft_behavior::{CellAt, CellRange};
+use craft_i18n::Direction;
 use craft_pages::ui::access::{AccessBuilder, AccessDescriber, AccessNode, AccessPosition, BlockRole, MAX_NODES};
 use craft_pages::ui::fixtures::{PAPER, demo_placed};
 use craft_pages::ui::reading::{MAX_COLUMNS, ReadingMetrics, ReadingState, reading_size, reading_viewport, swipe_turn, wheel_turns};
@@ -15,10 +16,9 @@ use craft_pages::ui::table::{
 };
 use craft_pages::ui::text_selection::{PageTextSource, PageTexts, TextSelectState, TextSelectTool, TextSelection, TextSpan};
 use craft_pages::ui::view::{PageView, PageViewState, PlacedPage};
+use craft_theme::{Contrast, Mode};
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
-use craft_i18n::Direction;
-use craft_theme::{Contrast, Mode};
 use craft_ui::primitives::ReadingMeasure;
 use craft_ui::runtime::env::UnitKind;
 use craft_ui::style::{Ink, TypeRole};
@@ -487,7 +487,10 @@ fn the_reading_size_fits_whole_columns() {
     let (width, height) = reading_size(vec2(1200.0, 900.0), 1.0, &metrics, None);
     assert!(width >= metrics.column_min, "no column is narrower than the least width: {width}");
     let columns = (1200.0 / metrics.column_target).round().clamp(1.0, MAX_COLUMNS as f32);
-    assert!((columns * width + (columns + 1.0) * metrics.column_gap - 1200.0).abs() < 1e-3, "{columns} columns of one target each fill the width: {width}");
+    assert!(
+        (columns * width + (columns + 1.0) * metrics.column_gap - 1200.0).abs() < 1e-3,
+        "{columns} columns of one target each fill the width: {width}"
+    );
     assert_eq!(height, 900.0 - metrics.column_gap - metrics.nav_bar);
     let (requested, _) = reading_size(vec2(500.0, 900.0), 1.0, &metrics, Some(612.0));
     assert_eq!(requested, 500.0 - 2.0 * metrics.column_gap, "a chosen width gives way to a narrow window");

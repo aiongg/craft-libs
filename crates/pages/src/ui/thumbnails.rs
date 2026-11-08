@@ -32,6 +32,7 @@ use craft_ui::contract::{
 use craft_ui::list::ThumbAspect;
 use craft_ui::primitives::textures::{Priority, ThumbPaint, ThumbRequest, ThumbnailOptions, Thumbnails};
 use craft_ui::runtime::env::{Env, Label};
+use craft_ui::style::DataColor;
 use craft_ui::tile_grid::{CaptionPlace, GridEvent, ThumbnailSlider, Tile, TileGrid, TileGroup, TileMark, TileZoom, ZoomStep};
 use egui::{Pos2, Response, Ui};
 
@@ -186,6 +187,7 @@ pub struct PageThumbnails<'a> {
     source: &'a dyn PageSource,
     picked: &'a mut Selection<usize>,
     current: usize,
+    paper: DataColor,
     editable: bool,
     zoom: Option<&'a mut f64>,
     caption: CaptionPlace,
@@ -195,13 +197,15 @@ pub struct PageThumbnails<'a> {
 }
 
 impl<'a> PageThumbnails<'a> {
-    /// Thumbnails of `source`'s pages, named `label`; `picked` is the set page commands act on, kept by the app.
-    pub fn new(label: impl Into<Label>, source: &'a dyn PageSource, picked: &'a mut Selection<usize>, current: usize) -> Self {
+    /// Thumbnails of `source`'s pages, named `label`; `picked` is the set page commands act on, kept by the app. A page
+    /// whose picture is still loading shows the document's `paper`.
+    pub fn new(label: impl Into<Label>, source: &'a dyn PageSource, picked: &'a mut Selection<usize>, current: usize, paper: DataColor) -> Self {
         PageThumbnails {
             label: label.into(),
             source,
             picked,
             current,
+            paper,
             editable: true,
             zoom: None,
             caption: CaptionPlace::Below,
@@ -260,7 +264,7 @@ impl<'a> PageThumbnails<'a> {
     // pdfcraft: crates/ui-egui/src/panels/pages.rs:90 `pages`, :36 `thumbnail_size`, :295 `page_drag`; deckcraft:
     // crates/ui-egui/src/panels/thumbs.rs:116 `list` (sections, number at the left, hidden and animation marks).
     pub fn show(self, ui: &mut Ui) -> PageThumbnailsOutput {
-        let PageThumbnails { label, source, picked, current, editable, zoom, caption, sections, marks, new_page_row } = self;
+        let PageThumbnails { label, source, picked, current, paper, editable, zoom, caption, sections, marks, new_page_row } = self;
         let env = Env::of(ui);
         let words = env.words::<ThumbnailWords>();
         let count = source.page_count();
@@ -316,7 +320,7 @@ impl<'a> PageThumbnails<'a> {
                 let ctx = cx.painter.ctx().clone();
                 let request = ThumbRequest::for_cell(rect.width().max(rect.height()), cx.painter.pixels_per_point());
                 let state = thumbs.state(&ctx, source, &page, &request, Priority::VISIBLE);
-                thumbs.paint(cx, rect, &state, &ThumbPaint::default());
+                thumbs.paint(cx, rect, &state, &ThumbPaint::default().paper(paper));
             })
         });
 
