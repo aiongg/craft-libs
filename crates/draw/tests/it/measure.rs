@@ -5,7 +5,7 @@ use craft_behavior::{Axis, CancelReason, CanvasView, EditEvent};
 use craft_draw::ui::measure::{RulerBar, RulerLine, RulerOverlay, RulerPart, RulerTool, box_distances};
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPath, ToolPointer};
-use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::primitives::Draw;
 use craft_ui::testing::{Fixture, ToolFixture, trial};
 use egui::{Key, Modifiers, Pos2, Vec2};
