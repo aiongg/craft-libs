@@ -420,6 +420,8 @@ pub(crate) fn note_cancelled_press(ctx: &Context) {
 /// records keyed by `input.viewport_id`.
 pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) {
     let viewport = input.viewport_id;
+    // H0a: the next injected step joins the input and passes the stages below like real input.
+    let injected = crate::runtime::egui::injected::input_hook(ctx, input);
     // H0: one press per pass.
     let frame = pass::frame_nr(ctx, viewport);
     let held_back = PerViewport::<ViewportRecord>::with(ctx, viewport, |record| raw_input::hold_back_presses(input, frame, &mut record.held));
@@ -432,7 +434,7 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) {
     let absorbed = overlay::absorb_presses(ctx, input);
     // H4: release after an OS resize.
     let released = windows::input_hook(ctx, input);
-    if held_back || stripped || absorbed || released {
+    if injected || held_back || stripped || absorbed || released {
         raw_input::request_repaint_of(ctx, viewport);
     }
 }

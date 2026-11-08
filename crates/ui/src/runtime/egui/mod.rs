@@ -32,3 +32,6 @@ pub mod text_layout;
 pub mod textures;
 pub mod viewports;
 pub mod widgets;
+
+pub mod injected;
+pub mod screenshot;

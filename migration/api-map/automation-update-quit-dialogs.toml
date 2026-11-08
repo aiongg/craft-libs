@@ -19,6 +19,48 @@ old = ""
 new = ""
 status = "pending"
 
+[[type]]
+name = "CaptureSlot"
+old = "craft_ui::capture::CaptureSlot"
+new = ""
+status = "removed"
+note = "`WindowHost::screenshot(viewport, max_image_bytes)` issues the command and returns the slot; the slot is `ScreenshotSlot`."
+
+[[type]]
+name = "CaptureError"
+old = "craft_ui::capture::CaptureError"
+new = ""
+status = "removed"
+note = "`ScreenshotError`, same variants."
+
+[[type]]
+name = "ScreenshotSlot"
+old = ""
+new = "craft_ui::runtime::windows::ScreenshotSlot"
+status = "replaced"
+note = "Made by `WindowHost::screenshot`; `take` and `cancel` as the legacy slot."
+
+[[type]]
+name = "ScreenshotError"
+old = ""
+new = "craft_ui::runtime::windows::ScreenshotError"
+status = "replaced"
+note = "Returned by `ScreenshotSlot::take`."
+
+[[type]]
+name = "ScreenshotFacts"
+old = ""
+new = "craft_ui::runtime::windows::ScreenshotFacts"
+status = "replaced"
+note = "Returned by `WindowHost::screenshot_facts`; replaces the egui reads of `CaptureGeometry::current`."
+
+[[type]]
+name = "events"
+old = "craft_ui::testing::events"
+new = ""
+status = "removed"
+note = "The `WindowHost::inject_move`, `inject_click`, `inject_key` and `inject_text` calls build and queue the events."
+
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
 # type = ""
