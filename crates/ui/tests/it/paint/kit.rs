@@ -116,6 +116,8 @@ fn a_ramp_holds_its_end_colours_out_to_the_edges_and_clamps_stops() {
     assert_eq!(top, [(0.0, red), (25.0, red), (75.0, blue), (100.0, blue)]);
     assert!(found.chunks(2).all(|pair| pair[0].0.y == 0.0 && pair[1].0.y == 10.0), "each stop spans the strip across the axis");
     let down = ramp_vertices(&ramp(rect, &stops[1..2], Axis::Y));
-    assert!(down.iter().all(|(pos, _)| pos.y == 0.0 || pos.y == 10.0), "the vertical ramp runs top to bottom: {down:?}");
+    let rows: Vec<f32> = down.iter().step_by(2).map(|(pos, _)| pos.y).collect();
+    assert_eq!(rows, [0.0, 2.5, 10.0], "the vertical ramp runs top to bottom, holding the stop's colour to both edges");
+    assert!(down.chunks(2).all(|pair| pair[0].0.x == 0.0 && pair[1].0.x == 100.0), "each stop spans the strip across the axis");
     assert!(ramp(rect, &[], Axis::X).is_empty());
 }
