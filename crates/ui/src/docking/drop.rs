@@ -201,14 +201,14 @@ fn spot_action<P: Clone + Eq + Hash>(
 }
 
 /// The action that floats `unit` in a window under `at`, inside the area of `space`, at the size `space` recorded for
-/// it, and the outline the ghost paints for it. The pointer sits on the window's title bar.
+/// it, and the outline the ghost paints for it. The pointer sits in the middle of the window's title row.
 pub fn float_drop<P: Clone + PartialEq>(unit: &DragUnit<P>, space: &FloatSpace<P>, at: Pos2) -> DockDropped<P> {
     let recorded = match unit {
         DragUnit::Panel(panel) => space.panel(panel),
         DragUnit::Group(anchor) | DragUnit::Window(anchor) | DragUnit::Column(anchor) => space.group(anchor),
     };
     let size = recorded.unwrap_or(space.default_size).min(space.area.size());
-    let min = (at - Vec2::new(size.x * 0.5, space.inset)).min(space.area.max - size).max(space.area.min);
+    let min = (at - Vec2::new(size.x * 0.5, space.title_row * 0.5)).min(space.area.max - size).max(space.area.min);
     let rect = Rect::from_min_size(min, size);
     let action = match unit {
         DragUnit::Panel(panel) => Action::float(panel.clone(), rect),

@@ -47,17 +47,17 @@ pub use flyout::Flyout;
 pub use iconic::{IconicColumn, IconicColumnOutput, IconicColumnStyle, IconicSizes};
 
 use crate::contract::{
-    Access, Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, DropMark, DropOperation, DropTarget, Edit as _, EditResponse,
-    Focus as _, Outcome, Pad, PaintUi, PartsCx, Pointer as _, Props as _, Role, Sizing, WordSetCx as _,
+    Access, Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, Focus as _, Outcome, Pad, PaintUi,
+    PartsCx, Pointer as _, Props as _, Role, Sizing, WordSetCx as _,
 };
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
 use crate::runtime::memory::sub;
 use crate::style::{ComponentStyle, StyleCx};
-use craft_behavior::dock::{Layout, ZoneSize, zones};
-use craft_behavior::{Axis, DockSide, Flow, Metrics, PartKey, Sense};
+use craft_behavior::dock::Layout;
+use craft_behavior::{Axis, Flow, Metrics, PartKey, Sense};
 use divider::{Divider, Drag};
-use egui::{Pos2, Rect, Response};
+use egui::{Rect, Response};
 use std::fmt::Debug;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use tree::{FrameRules, SplitHandle};
@@ -110,50 +110,6 @@ pub struct PanelDrag {
     pub from: PanelKey,
 }
 
-/// Where a dropped panel lands: the group the pointer is over and the side of it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct DockDrop {
-    /// The group the pointer is over, named by its anchor panel.
-    pub group: PanelKey,
-    /// The side of the group: an edge docks beside it, the middle joins its tabs.
-    pub side: DockSide,
-}
-
-/// The accepting side of a `SplitArea`: groups take a panel on any side, by move only.
-struct GroupDrops {
-    groups: Vec<(PanelKey, Rect)>,
-    rtl: bool,
-}
-
-impl GroupDrops {
-    /// The side of `rect` that `at` selects, by the dock's zone function.
-    fn side(&self, rect: Rect, at: Pos2) -> DockSide {
-        zones(rect, ZoneSize::Fraction, self.rtl).into_iter().find(|(_, zone)| zone.contains(at)).map_or(DockSide::Center, |(side, _)| side)
-    }
-}
-
-impl DropTarget<PanelDrag> for GroupDrops {
-    type Drop = DockDrop;
-
-    fn accept(&self, payload: &PanelDrag, at: Pos2, op: DropOperation) -> Option<DockDrop> {
-        if !matches!(op, DropOperation::Move) {
-            return None;
-        }
-        let (group, rect) = self.groups.iter().find(|(_, rect)| rect.contains(at))?;
-        let side = self.side(*rect, at);
-        (payload.from != *group || side != DockSide::Center).then_some(DockDrop { group: *group, side })
-    }
-
-    fn mark(&self, drop: &DockDrop) -> DropMark {
-        let rect = self.groups.iter().find(|(group, _)| *group == drop.group).map_or(Rect::NOTHING, |(_, rect)| *rect);
-        match drop.side {
-            DockSide::Center => DropMark::Into(rect),
-            side => DropMark::Split(Flow::new(rect, self.rtl).to_physical(side.area(rect))),
-        }
-    }
-}
-
 /// The style of a split area: the docking sizes its frames, handles and keys read.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
@@ -170,8 +126,8 @@ pub struct SplitAreaStyle {
 pub struct SplitAreaOutput<P> {
     /// The resize edits of the layout and the area's response.
     pub edit: EditResponse<Layout<P>>,
-    /// A panel dropped on a group this pass.
-    pub dropped: Option<DockDrop>,
+    /// A panel or group dropped on the area this pass: the change it makes and the mark it showed.
+    pub dropped: Option<DockDropped<P>>,
 }
 
 impl<P: Clone + PartialEq + Send + Sync + 'static> Outcome for SplitAreaOutput<P> {
@@ -188,8 +144,8 @@ impl<P: Clone + PartialEq + Send + Sync + 'static> Outcome for SplitAreaOutput<P
 }
 
 /// The docked tree of a layout, with a handle between neighbouring groups. Its body shows the groups, each at its
-/// frame (`tree::frames` with the same rules).
-#[derive(crate::contract::Component)]
+/// frame (`tree::frames` with the same rules). With a drop target it takes the drops of tab and group drags.
+#[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container, probe(SplitArea<'static, usize>))]
 pub struct SplitArea<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> {
     #[common]
@@ -198,14 +154,17 @@ pub struct SplitArea<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> {
     props: ContainerProps,
     layout: Bind<'a, Layout<P>>,
     rules: FrameRules<'a, P>,
-    dropped: Option<DockDrop>,
+    /// The dock's drop target; the area is where its spots are hit.
+    #[prop]
+    drops: Option<&'a DockDropTarget<'a, P>>,
+    dropped: Option<DockDropped<P>>,
 }
 
 impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> SplitArea<'a, P> {
     /// A split area named `label` over `layout`, sized by `rules`. A mixed layout shows no handles.
     pub fn new(label: impl Into<Label>, layout: Bind<'a, Layout<P>>, rules: FrameRules<'a, P>) -> Self {
         let props = ContainerProps::new().arena(true).sizing(Sizing::Fill).pad(Pad::None);
-        SplitArea { common: Common::new(), props, layout, rules, dropped: None }.label(label)
+        SplitArea { common: Common::new(), props, layout, rules, drops: None, dropped: None }.label(label)
     }
 }
 
@@ -336,11 +295,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Component for SplitAr
         let groups = cx.value().and_then(|shown| shown.root.as_ref()).map_or_else(Vec::new, |root| {
             tree::frames(root, rect, &sizes, &rules, rtl).groups.iter().filter_map(|group| Some((group.anchor()?.clone(), group.rect))).collect()
         });
-        let keyed = groups.iter().map(|(anchor, rect)| (PanelKey::of(anchor), *rect)).collect();
         cx.core.memory.shown::<PassFrames<P>>(sub(sub(cx.core.id, "body"), FRAMES)).0 = groups;
-        let target = GroupDrops { groups: keyed, rtl };
-        if let Some(drop) = cx.drop_target::<PanelDrag, _>(&target) {
-            self.dropped = Some(drop);
+        if let Some(target) = self.drops {
+            self.dropped = cx.drop_target::<GroupDrag<P>, _>(target).or_else(|| cx.drop_target::<PanelDrag, _>(target));
         }
     }
 

@@ -82,6 +82,8 @@ pub struct FloatSpace<P> {
     pub area: Rect,
     /// Room between the area's top-left corner and a unit a command floats.
     pub inset: f32,
+    /// The height of a floating window's title row (`DockSizes::bar`), which a drop keeps under the pointer.
+    pub title_row: f32,
     /// The size a command floats a panel at when the area never drew it.
     pub default_size: Vec2,
     /// What a drag floats from each drawn panel: the panel alone, its group and its dock column.
@@ -102,6 +104,7 @@ impl<P: PartialEq> FloatSpace<P> {
         FloatSpace {
             area,
             inset: sizes.cascade_inset,
+            title_row: sizes.bar,
             default_size: sizes.float_size,
             panels: Vec::new(),
             groups: Vec::new(),
@@ -163,11 +166,11 @@ impl<P: PartialEq> FloatSpace<P> {
         sizes.iter().find(|(held, _)| held == panel).map(|(_, size)| *size)
     }
 
-    /// `[x, y, width, height]` of `size` inside the area, inset from its top-left corner and shrunk to fit.
-    pub fn place(&self, size: Vec2) -> [f32; 4] {
+    /// The rect of `size` inside the area, inset from its top-left corner and shrunk to fit.
+    pub fn place(&self, size: Vec2) -> Rect {
         let size = size.min(self.area.size());
         let min = (self.area.min + Vec2::splat(self.inset)).min(self.area.max - size).max(self.area.min);
-        [min.x, min.y, size.x, size.y]
+        Rect::from_min_size(min, size)
     }
 
     /// Records the height `panel`'s content used in a body `available` tall. Content that reaches the body's bottom
