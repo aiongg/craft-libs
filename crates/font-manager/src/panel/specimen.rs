@@ -1,10 +1,12 @@
 //! `FontSample`: text in a font face at the user's sample size, on one line at the reading start of its rect.
 
 use craft_behavior::Sense;
-use craft_ui::contract::{Common, Component, Cx, PaintUi, Props as _, Role};
+use craft_ui::contract::{Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role};
 use craft_ui::fonts::FontRef;
+use craft_ui::primitives::{DocRun, DocText};
 use craft_ui::runtime::env::Label;
 use craft_ui::style::{ComponentStyle, DataColor, Metrics, StyleColor, StyleCx};
+use egui::{Color32, Vec2};
 
 use crate::Catalog;
 use crate::FaceInfo;
@@ -81,6 +83,16 @@ impl Component for FontSample<'_> {
 
     fn sense(&self) -> Sense {
         Sense::empty()
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        // A face that is loading keeps the band the interface face would take.
+        let font = match self.face.shown(cx) {
+            Shown::Ready(font) => font,
+            _ => FontRef::proportional(),
+        };
+        let runs = [DocRun::new(self.text, font, self.points, DataColor::new(Color32::PLACEHOLDER))];
+        cx.layout_doc(&DocText::new(&runs)).size()
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {

@@ -14,7 +14,7 @@ use crate::index::{Category, Family, Index, categories, source_label};
 use crate::installed::{InstalledFamily, group};
 use crate::store::{Installer, RemoveRequest, StoreError};
 use crate::{Catalog, FaceInfo, Source};
-use craft_host::{Host, Section};
+use craft_host::{Host, Section, Wake};
 use craft_i18n::Folder;
 use craft_i18n::matcher::Matcher;
 use craft_ui::contract::{NoValue, Outcome, Props as _, ShowContainer as _};
@@ -47,9 +47,6 @@ const PREVIEW_LIMITS: Limits = Limits { max_file_bytes: 64 << 20, max_faces_per_
 /// How often the download consent is read again from the store's settings file, which another Craft app can
 /// change.
 const CONSENT_RECHECK: Duration = Duration::from_secs(3);
-
-/// How often a pass is asked for while a download or a source update runs on a worker thread.
-const JOB_POLL_SECONDS: f64 = 0.05;
 
 craft_ui::words! {
     /// The words of the Fonts panel: the names it shows for categories, sources and styles, the download consent and
@@ -376,11 +373,13 @@ impl FontsPanel {
         let (tx, rx) = std::sync::mpsc::channel();
         let installer = Arc::clone(&self.installer);
         self.sources_job = Some(rx);
+        let wake = self.jobs.waker();
         jobs::spawn(
             host.map(|host| &**host),
             "font-sources",
             Box::new(move || {
                 let _ = tx.send(installer.fetch_indexes());
+                wake.wake();
             }),
         );
     }
@@ -769,6 +768,8 @@ impl<'a> FontsPanelView<'a> {
     /// Shows the panel, filling the room it is given.
     pub fn show(self, ui: &mut Ui) -> FontsPanelOutput {
         let panel = self.panel;
+        let ctx = ui.ctx().clone();
+        panel.jobs.wake_with(|| Wake::new(move || ctx.request_repaint()));
         let env = Env::of(ui);
         let view = env.view();
         let words = env.words::<FontsPanelWords>();
@@ -794,9 +795,6 @@ impl<'a> FontsPanelView<'a> {
         }
         panel.consent_prompt(ui, &env, &words, host.as_ref());
         panel.save_settings(host.as_ref());
-        if panel.jobs.busy() || panel.fetching_sources() {
-            craft_ui::runtime::frame::request_repaint_after(ui.ctx(), JOB_POLL_SECONDS);
-        }
         FontsPanelOutput { response: shown.output }
     }
 }

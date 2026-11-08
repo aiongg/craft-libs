@@ -23,6 +23,7 @@ use super::{
     FamilyRow, FontClass, FontFilters, FontPicker, FontPickerSettings, FontPickerWords, POPUP, STAR, Typing, infos, read, ui_language, write,
 };
 use crate::panel::faces::{Owner, Shown, paint_sample, shown};
+use craft_ui::style::DataColor;
 
 /// The share of a sample thumbnail's height the sample's em takes.
 const SAMPLE_EM: f32 = 0.7;
@@ -147,7 +148,8 @@ fn sample_thumb<'a>(
         let Some(info) = infos.families.get(&row.family) else { return };
         let text = infos.sample_text(picker.catalog, &row.family, sample, &row.shown);
         if let Shown::Ready(font) = shown(cx, picker.catalog, Owner::Installed, &info.regular) {
-            paint_sample(cx, rect, &font, &text, rect.height() * SAMPLE_EM);
+            let ink = DataColor::new(cx.painter.ctx().global_style().visuals.text_color());
+            paint_sample(cx, rect, &font, &text, rect.height() * SAMPLE_EM, ink);
         }
     }
 }

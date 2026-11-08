@@ -32,9 +32,19 @@ pub mod picker;
 pub use craft_font_catalog;
 pub use craft_font_catalog::{Catalog, FaceInfo, FontEnv, Source};
 #[cfg(feature = "ui")]
-pub use panel::{FontSources, FontsPanel, FontsPanelSettings, FontsPanelView, Options, Preset, Tab, install_interface_fonts};
+pub use panel::{
+    FontSources, FontSourcesOutput, FontsBrowseWords, FontsCommand, FontsPanel, FontsPanelOutput, FontsPanelSettings, FontsPanelView,
+    FontsPanelWords, Options, Preset, Tab, install_interface_fonts,
+};
 
 #[cfg(feature = "screen-testing")]
 pub mod testing {
     craft_ui::testing_registered!();
+}
+
+/// The panel's job queue and sample sentences, for `tests/it/panel_parts.rs`.
+#[cfg(feature = "screen-testing")]
+#[doc(hidden)]
+pub mod panel_parts {
+    pub use crate::panel::{jobs, samples};
 }

@@ -9,8 +9,8 @@ mod details;
 pub(crate) mod faces;
 #[cfg(feature = "screen-testing")]
 mod fixtures;
-mod jobs;
-mod samples;
+pub mod jobs;
+pub mod samples;
 mod sources;
 mod specimen;
 
@@ -18,4 +18,4 @@ pub use app::{
     FontsCommand, FontsPanel, FontsPanelOutput, FontsPanelSettings, FontsPanelView, FontsPanelWords, Options, Preset, Tab, install_interface_fonts,
 };
 pub use browse::FontsBrowseWords;
-pub use sources::FontSources;
+pub use sources::{FontSources, FontSourcesOutput};

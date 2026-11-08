@@ -85,19 +85,26 @@ pub struct Jobs {
     next: u64,
     running: BTreeMap<u64, Running>,
     /// Asks the UI for a pass when a job reports or ends.
-    wake: Wake,
+    wake: Option<Wake>,
 }
 
 impl Jobs {
     pub fn new() -> Jobs {
         let (tx, rx) = channel();
-        Jobs { queue: Arc::default(), tx, rx, next: 0, running: BTreeMap::new(), wake: Wake::none() }
+        Jobs { queue: Arc::default(), tx, rx, next: 0, running: BTreeMap::new(), wake: None }
     }
 
-    /// What the job threads call when a report or a result is ready, so the UI runs a pass. Jobs started before the
-    /// call keep the wake they started with.
-    pub fn wake(&mut self, wake: Wake) {
-        self.wake = wake;
+    /// Sets what the job threads call when a report or a result is ready, so the UI runs a pass: `make` runs once, on
+    /// the first call. Jobs started before it ran have no wake.
+    pub fn wake_with(&mut self, make: impl FnOnce() -> Wake) {
+        if self.wake.is_none() {
+            self.wake = Some(make());
+        }
+    }
+
+    /// The wake the job threads call; does nothing before [`Jobs::wake_with`] ran.
+    pub fn waker(&self) -> Wake {
+        self.wake.clone().unwrap_or_else(Wake::none)
     }
 
     /// The job running for `family` of `source` (any source when empty), if any.
@@ -127,7 +134,7 @@ impl Jobs {
         };
         self.running.insert(id, Running { source, family, kind, file, progress: Progress { done: 0, total } });
         let tx = self.tx.clone();
-        let wake = self.wake.clone();
+        let wake = self.waker();
         let task: Task = Box::new(move || {
             let mut progress = |p: Progress| {
                 let _ = tx.send(Msg::Progress(id, p));

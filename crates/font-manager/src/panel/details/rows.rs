@@ -2,6 +2,8 @@
 //! style, offers Install or Remove (or shows the job's progress) at its end, and shows the sample in the style's
 //! face under them.
 
+use std::cell::Cell;
+
 use craft_behavior::{DisplayOrder, Flow, Insets, ItemSource, Proposal, Selection, SpanLayout};
 use craft_ui::buttons::Button;
 use craft_ui::contract::{
@@ -18,9 +20,6 @@ use super::DetailsWords;
 use crate::FaceInfo;
 use crate::panel::faces::Owner;
 use crate::panel::specimen::{FontSample, SampleFace};
-
-/// The action band at a row's end is this many control heights wide.
-const ACTION_IN_HEIGHTS: f32 = 4.0;
 
 /// What a style row offers at its end.
 #[derive(Clone, Debug)]
@@ -177,12 +176,35 @@ pub(super) struct StyleRow<'r> {
     face: SampleFace<'r>,
     words: &'r DetailsWords,
     pressed: bool,
+    /// The width of the action, measured in the pass's measure step and read by its paint.
+    action: Cell<f32>,
 }
 
 impl<'r> StyleRow<'r> {
     /// The row of `line`, a style of `family`, with the sample `sample` at `points` in `face`.
     pub(super) fn new(line: &'r StyleLine, family: &'r str, sample: &'r str, points: f32, face: SampleFace<'r>, words: &'r DetailsWords) -> Self {
-        StyleRow { common: Common::new(), line, family, sample, points, face, words, pressed: false }.label(line.label.clone())
+        StyleRow { common: Common::new(), line, family, sample, points, face, words, pressed: false, action: Cell::new(0.0) }
+            .label(line.label.clone())
+    }
+
+    fn style_name(&self) -> [(&'static str, &str); 1] {
+        [("style", self.line.label.as_str())]
+    }
+
+    fn install_button(&self) -> Button<'_> {
+        Button::new(self.words.install.clone()).description(self.words.install_style.fill(&self.style_name())).variant(Variant::SECONDARY)
+    }
+
+    fn remove_button(&self) -> Button<'_> {
+        Button::new(self.words.remove.clone()).description(self.words.remove_style.fill(&self.style_name())).variant(Variant::DANGER)
+    }
+
+    fn progress(&self, fraction: Option<f32>) -> Progress {
+        match fraction {
+            Some(fraction) => Progress::new(fraction),
+            None => Progress::indeterminate(),
+        }
+        .label(self.words.installing.clone())
     }
 
     fn sample_leaf(&self) -> FontSample<'r> {
@@ -208,7 +230,14 @@ impl Component for StyleRow<'_> {
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let style = cx.style;
         let name = cx.layout(&TextRun::new(self.line.label.as_str())).size().x + 2.0 * style.pad;
-        let room = cx.room.unwrap_or(name + ACTION_IN_HEIGHTS * style.height);
+        let action = match &self.line.action {
+            Action::None => 0.0,
+            Action::Install(_) => cx.child("action", &mut self.install_button(), Proposal::Ideal).x,
+            Action::Remove(_) => cx.child("action", &mut self.remove_button(), Proposal::Ideal).x,
+            Action::Running(fraction) => cx.child("action", &mut self.progress(*fraction), Proposal::Ideal).x,
+        };
+        self.action.set(action);
+        let room = cx.room.unwrap_or(name + action);
         let sample = cx.child("sample", &mut self.sample_leaf(), Proposal::Width(room));
         Vec2::new(room, style.height + sample.y)
     }
@@ -217,26 +246,15 @@ impl Component for StyleRow<'_> {
         let style = cx.style;
         let rtl = cx.env.direction().is_rtl();
         let head = Rect::from_min_size(cx.rect.min, Vec2::new(cx.rect.width(), style.height));
-        let (action, rest) = Flow::new(head, rtl).take_end(ACTION_IN_HEIGHTS * style.height);
+        let (action, rest) = Flow::new(head, rtl).take_end(self.action.get());
         let name = TextRun::new(self.line.label.as_str()).role(style.name.role).color(cx.resolve(&style.name.color)).elide();
         ui.draw().text(rest.inset(Insets::horizontal(style.pad)), &name);
-        let words = self.words;
-        let style_name = [("style", self.line.label.as_str())];
         match &self.line.action {
             Action::None => {}
-            Action::Install(_) => {
-                let button = Button::new(words.install.clone()).description(words.install_style.fill(&style_name)).variant(Variant::SECONDARY);
-                self.pressed = clicked(&ui.child("action", action, button));
-            }
-            Action::Remove(_) => {
-                let button = Button::new(words.remove.clone()).description(words.remove_style.fill(&style_name)).variant(Variant::DANGER);
-                self.pressed = clicked(&ui.child("action", action, button));
-            }
-            Action::Running(Some(fraction)) => {
-                ui.child("action", action, Progress::new(*fraction).label(words.installing.clone()));
-            }
-            Action::Running(None) => {
-                ui.child("action", action, Progress::indeterminate().label(words.installing.clone()));
+            Action::Install(_) => self.pressed = clicked(&ui.child("action", action, self.install_button())),
+            Action::Remove(_) => self.pressed = clicked(&ui.child("action", action, self.remove_button())),
+            Action::Running(fraction) => {
+                ui.child("action", action, self.progress(*fraction));
             }
         }
         let band = Rect::from_min_max(Pos2::new(cx.rect.left(), cx.rect.top() + style.height), cx.rect.max);
