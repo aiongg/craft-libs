@@ -312,8 +312,7 @@ fn placed<P: Clone + Eq + Hash>(scene: &DockScene<'_, P>, unit: &DragUnit<P>) ->
     };
     let width = docked.filter(|_| !matches!(unit, DragUnit::Panel(_))).unwrap_or(space.default_size.x);
     let size = remembered.unwrap_or_else(|| Vec2::new(width, space.default_size.y));
-    let [x, y, width, height] = space.place(size);
-    Rect::from_min_size(egui::pos2(x, y), Vec2::new(width, height))
+    space.place(size)
 }
 
 /// The panels of the last column of the dock on `edge`.
