@@ -70,12 +70,40 @@ impl ColorStop {
     pub const fn new(location: f32, color: Srgba) -> Self {
         Self { location, color, midpoint: 0.5, tag: 0 }
     }
+
+    /// The same stop with the host's `tag`.
+    #[must_use]
+    pub const fn with_tag(mut self, tag: u64) -> Self {
+        self.tag = tag;
+        self
+    }
+
+    /// The same stop with its midpoint at `midpoint`.
+    #[must_use]
+    pub const fn with_midpoint(mut self, midpoint: f32) -> Self {
+        self.midpoint = midpoint;
+        self
+    }
 }
 
 impl OpacityStop {
     /// A stop with a centred midpoint and tag 0.
     pub const fn new(location: f32, opacity: f32) -> Self {
         Self { location, opacity, midpoint: 0.5, tag: 0 }
+    }
+
+    /// The same stop with the host's `tag`.
+    #[must_use]
+    pub const fn with_tag(mut self, tag: u64) -> Self {
+        self.tag = tag;
+        self
+    }
+
+    /// The same stop with its midpoint at `midpoint`.
+    #[must_use]
+    pub const fn with_midpoint(mut self, midpoint: f32) -> Self {
+        self.midpoint = midpoint;
+        self
     }
 }
 
