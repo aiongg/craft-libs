@@ -266,7 +266,7 @@ pub struct LassoLineStyle {
 /// The Freeze Lasso's path while it is drawn, a canvas control over document points: the bad tone when it freezes,
 /// the accent when it thaws.
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
-#[component(canvas_control)]
+#[component(canvas_control, sample = LassoLine::sample)]
 pub struct LassoLine<'a> {
     #[common]
     common: Common,
@@ -281,6 +281,14 @@ impl<'a> LassoLine<'a> {
     /// The line through `points`, document pixels.
     pub fn new(points: &'a [Point]) -> Self {
         LassoLine { common: Common::new(), points, tone: LassoTone::Freeze }
+    }
+}
+
+impl LassoLine<'static> {
+    /// A line across the document, for the suite.
+    fn sample() -> Self {
+        const LINE: [Point; 3] = [Point::new(20.0, 20.0), Point::new(120.0, 40.0), Point::new(80.0, 120.0)];
+        LassoLine::new(&LINE)
     }
 }
 

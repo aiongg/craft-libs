@@ -5,9 +5,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 
-use craft_behavior::kurbo::Point;
 use craft_behavior::PixelSize;
 use craft_behavior::edit_history::Step;
+use craft_behavior::kurbo::Point;
 use craft_imaging::ui::wide_angle::{
     ConstraintOrientation, PreviewDone, WideAngleConstraint, WideAngleGeometry, WideAngleOpen, WideAngleSession, WideAngleSource, WideAngleWorkspace,
 };
