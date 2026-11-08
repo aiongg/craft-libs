@@ -407,3 +407,24 @@ fn two_windows_keep_separate_dialog_hosts() {
     frames.frame(Vec::new(), &mut show);
     assert_eq!(*open.borrow(), [("first", true), ("second", false)]);
 }
+
+#[trial]
+fn zz_diag_prompt_tree() {
+    let asked = Rc::new(Cell::new(false));
+    let a = asked.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        AppShell::new(WindowKey::main())
+            .body(|_, cx, _| {
+                cx.dialogs().expect("shell").with(|host| {
+                    if !a.replace(true) {
+                        host.open(StandardPrompt::confirm_delete(["Layer"], 1));
+                    }
+                });
+            })
+            .show(ui, &mut ());
+    });
+    fixture.idle(OPEN_FRAMES);
+    let tree = fixture.tree();
+    let rows: Vec<String> = tree.keys().into_iter().map(|k| format!("{:?}|{:?}|hidden={}", tree.role_of(k), tree.name_of(k), tree.is_hidden(k))).collect();
+    panic!("TREE\n{}", rows.join("\n"));
+}
