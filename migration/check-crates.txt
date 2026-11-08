@@ -1,7 +1,5 @@
 # Domain crates the compile check builds: one line per crate, `<package> <features>`,
 # features comma-separated (may be empty), lines sorted. Each crate's branch adds its own line.
-<<<<<<< HEAD
-<<<<<<< HEAD
 craft-browse ui
 craft-color ui
 craft-dialogs ui
@@ -14,9 +12,3 @@ craft-theme-store ui
 craft-timeline ui,screen-testing
 craft-ui color_fonts,system_fonts
 craft-update ui
-=======
-craft-draw ui
->>>>>>> mig/d-draw-transform-a
-=======
-craft-draw ui
->>>>>>> mig/d-draw-brush
