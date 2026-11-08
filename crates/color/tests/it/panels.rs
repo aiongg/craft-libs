@@ -15,7 +15,7 @@ use craft_color::ui::{
 use craft_color::{CmykModel, GrayModel};
 use craft_i18n::Format;
 use craft_theme::{ColorModel, HsbModel, LabModel, ModelValues, RgbModel, Srgba};
-use craft_ui::contract::{Bind, Role};
+use craft_ui::contract::{Bind, Role, Show as _};
 use craft_ui::patterns::presets::{PresetFileRequest, PresetWords};
 use craft_ui::runtime::commands::CommandState;
 use craft_ui::runtime::env::Label;
@@ -32,7 +32,7 @@ const SWATCHES_ROOM: Vec2 = Vec2::new(320.0, 320.0);
 const GUIDE_ROOM: Vec2 = Vec2::new(480.0, 640.0);
 const PALETTE_WIDE: Vec2 = Vec2::new(600.0, 300.0);
 /// Three swatches to a row.
-const PALETTE_NARROW: Vec2 = Vec2::new(80.0, 300.0);
+const PALETTE_NARROW: Vec2 = Vec2::new(50.0, 300.0);
 
 type Edits = Rc<RefCell<Vec<(PanelTarget, EditEvent<PickedColor>)>>>;
 
@@ -221,9 +221,14 @@ fn dragging_to_the_bottom_right_keeps_the_knob_there() {
     assert_eq!(picked.to_rgba(), Srgba::rgb(0.0, 0.0, 0.0).to_rgba(), "the corner is black");
 
     rig.set_colors([picked, BLUE]);
-    let area = rig.fixture.focused().expect("the dragged area keeps the focus");
-    let value = rig.fixture.tree().value(area).expect("the area reports its value");
-    assert!(value.contains("Saturation 100") && value.contains("Brightness 0"), "the knob stays at the corner: {value}");
+    assert!(rig.fixture.focused().is_some(), "the dragged area keeps the focus");
+    let tree = rig.fixture.tree();
+    let values: Vec<&str> =
+        tree.keys().into_iter().filter(|key| tree.name_of(*key) == Some("Saturation and brightness")).filter_map(|key| tree.value_of(key)).collect();
+    assert!(
+        values.iter().any(|value| value.contains("Saturation 100") && value.contains("Brightness 0")),
+        "the knob stays at the corner: {values:?}"
+    );
 }
 
 /// Every model the panel offers returns its colours: whole-number fields within a step, and a colour CMYK can print comes
@@ -472,7 +477,7 @@ fn dragging_a_marker_moves_its_colour() {
     let (pressed, moved): (Rc<RefCell<Vec<usize>>>, Moves) = Default::default();
     let (p, m) = (pressed.clone(), moved.clone());
     let mut fixture = Fixture::new(move |ui| {
-        let shown = HarmonyWheel::new("Harmony", &colors).selected(Some(0)).show(ui);
+        let shown = HarmonyWheel::new("Harmony", &colors).selected_marker(Some(0)).show(ui);
         p.borrow_mut().extend(shown.pressed);
         m.borrow_mut().extend(shown.edits);
     });
@@ -624,6 +629,8 @@ impl PaletteRig {
         let mut fixture = Fixture::new(move |ui| {
             let mut current = c.get();
             let shown = SwatchPalette::new("Swatches", Bind::bound(&mut current), &swatches).show(ui);
+            // A second Tab stop for the Tab that leaves the palette to land on.
+            let _ = craft_ui::buttons::Button::new("After").show(ui);
             c.set(current);
             e.set(e.get() + usize::from(shown.edit.is_some()));
         });

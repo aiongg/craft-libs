@@ -136,7 +136,7 @@ fn typed_hex_sets_the_colour_without_model_values() {
 /// colour's.
 #[trial]
 fn a_typed_channel_keeps_the_values_of_its_model() {
-    let (mut fixture, host) = picker(FULL, PickedColor::cmyk(Srgba::rgb(0.5, 0.5, 0.5), [0.0, 0.0, 0.0, 50.0]));
+    let (mut fixture, host) = picker(Setup { cmyk: true, ..FULL }, PickedColor::cmyk(Srgba::rgb(0.5, 0.5, 0.5), [0.0, 0.0, 0.0, 50.0]));
     type_into(&mut fixture, "Magenta", "40");
     let value = host.borrow().value;
     let model = value.model.expect("the edited model's values go out with the colour");
@@ -148,7 +148,7 @@ fn a_typed_channel_keeps_the_values_of_its_model() {
 /// A colour the host gives with model values shows and edits those values, not a conversion of the sRGB.
 #[trial]
 fn host_model_values_survive_in_the_grid() {
-    let (mut fixture, host) = picker(FULL, PickedColor::cmyk(Srgba::rgb(0.5, 0.5, 0.5), [0.0, 0.0, 0.0, 50.0]));
+    let (mut fixture, host) = picker(Setup { cmyk: true, ..FULL }, PickedColor::cmyk(Srgba::rgb(0.5, 0.5, 0.5), [0.0, 0.0, 0.0, 50.0]));
     type_into(&mut fixture, "Cyan", "10");
     let model = host.borrow().value.model.expect("model values");
     assert_eq!([model.values[0], model.values[3]], [10.0, 50.0]);
@@ -207,7 +207,11 @@ fn channels_whose_names_clash_are_qualified() {
 #[trial]
 fn the_full_grid_puts_the_models_in_columns() {
     let (fixture, _) = picker(Setup { cmyk: true, ..FULL }, PickedColor::rgb(Srgba::rgb(0.2, 0.5, 0.8)));
-    let x = |label: &str| fixture.by_label(label).unwrap_or_else(|| panic!("{label} shown")).rect.left();
+    let x = |label: &str| {
+        let tree = fixture.tree();
+        let field = tree.with_role(craft_ui::contract::Role::SPIN_BUTTON).into_iter().find(|key| tree.name_of(*key) == Some(label));
+        tree.bounds_of(field.unwrap_or_else(|| panic!("{label} field shown"))).expect("bounds").left()
+    };
     assert_eq!(x("HSB hue"), x("Red"), "HSB and RGB share the first column");
     assert!(x("Cyan") > x("Red"), "the host's model is in the next column");
     assert!(x("OKLCH hue") > x("Cyan"), "OKLCH is in the last column");

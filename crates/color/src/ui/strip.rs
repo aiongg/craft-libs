@@ -77,7 +77,7 @@ pub struct ColorStrip<'a> {
 impl<'a> ColorStrip<'a> {
     /// A strip named `label` ("Hue") showing `values`, values of `mode`'s model.
     pub fn new(label: impl Into<Label>, mode: AreaMode, values: Bind<'a, ModelValues>) -> Self {
-        ColorStrip { common: Common::new(), mode, values, quantize: None }.label(label)
+        ColorStrip { common: Common::new(), mode, values, quantize: None }.label(label).ltr_axis()
     }
 
     fn levels(&self) -> Option<usize> {
@@ -98,16 +98,14 @@ impl<'a> ColorStrip<'a> {
 
     /// The value after the key `mv` held with `mods`, from `values`; a quantising strip steps again until the colour
     /// is a different one or the component can go no further.
-    fn stepped(&self, values: &ModelValues, mv: NavMove, rtl: bool, mods: craft_behavior::MoveMods) -> ModelValues {
+    fn stepped(&self, values: &ModelValues, mv: NavMove, mods: craft_behavior::MoveMods) -> ModelValues {
         let model = self.mode.model();
         let channel = self.mode.strip();
         let range = channel_range(model, channel);
         let (min, max) = (*range.start(), *range.end());
         let step = channel_step(model, channel);
         let mv = match mv {
-            NavMove::Forward if rtl => NavMove::Down,
             NavMove::Forward => NavMove::Up,
-            NavMove::Back if rtl => NavMove::Up,
             NavMove::Back => NavMove::Down,
             other => other,
         };
@@ -206,10 +204,10 @@ impl Component for ColorStrip<'_> {
             _ => {}
         }
         // A running drag is one edit: keys and SetValue wait for it, and are still taken.
-        let (running, rtl) = (cx.gesture().is_some(), cx.flow.is_rtl());
+        let running = cx.gesture().is_some();
         while let Some((mv, mods)) = cx.intents().take_move() {
             if !running {
-                let next = self.stepped(&current(&*cx), mv, rtl, mods);
+                let next = self.stepped(&current(&*cx), mv, mods);
                 cx.set(next);
             }
         }

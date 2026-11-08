@@ -403,45 +403,49 @@ impl StackDialog for ColorPickerDialog {
         let color = current.color;
         let web_only = memory.web_colors;
         let shown =
-            Dialog::new(title.clone()).opened(Bind::bound(open)).buttons(buttons).initial_focus(Initial::Keep).roomy(true).show(ui, |ui, cx| {
-                if let Some(canvas) = keep_open {
-                    cx.keep_view_open(canvas);
-                }
-                if let Some(canvas) = arm {
-                    cx.arm_sampler(canvas);
-                }
-                let mut models: Vec<&dyn ColorModel> = builtin_models().into_iter().filter(|model| model.default_on().full).collect();
-                models.push(&cmyk);
-                let mut warnings = Vec::new();
-                let rgb = [color.r, color.g, color.b];
-                if let Some(nearest) = cmyk.converter().nearest_in_gamut(rgb, CmykConverter::PICKER_GAMUT_DE) {
-                    warnings.push(ColorWarning::new(words.out_of_gamut.clone(), Srgba { r: nearest[0], g: nearest[1], b: nearest[2], a: color.a }));
-                }
-                if !web_only && let Some(nearest) = not_web_safe(rgb) {
-                    warnings.push(ColorWarning::web_colors(
-                        words.not_web_color.clone(),
-                        Srgba { r: nearest[0], g: nearest[1], b: nearest[2], a: color.a },
-                    ));
-                }
-                let mut picker = ColorPicker::new(title.clone(), Bind::bound(current))
-                    .layout(ColorPickerLayout::Full)
-                    .models(models)
-                    .mode(Bind::bound(&mut memory.mode))
-                    .web_colors(Bind::bound(&mut memory.web_colors))
-                    .warnings(warnings)
-                    .eyedropper(screen)
-                    .eyedropper_busy(busy)
-                    .focus_on_open(true);
-                if let Some(sampled) = sampled {
-                    picker = picker.sampled(sampled);
-                }
-                if let Some(compare) = compare_with {
-                    picker = picker.compare(compare);
-                }
-                if let Some(gesture) = picker.show(ui).screen_pick {
-                    *pending_screen = Some(gesture);
-                }
-            });
+            Dialog::new(title.clone()).opened(Bind::bound(open)).buttons(buttons).close_on_enter(true).initial_focus(Initial::Keep).roomy(true).show(
+                ui,
+                |ui, cx| {
+                    if let Some(canvas) = keep_open {
+                        cx.keep_view_open(canvas);
+                    }
+                    if let Some(canvas) = arm {
+                        cx.arm_sampler(canvas);
+                    }
+                    let mut models: Vec<&dyn ColorModel> = builtin_models().into_iter().filter(|model| model.default_on().full).collect();
+                    models.push(&cmyk);
+                    let mut warnings = Vec::new();
+                    let rgb = [color.r, color.g, color.b];
+                    if let Some(nearest) = cmyk.converter().nearest_in_gamut(rgb, CmykConverter::PICKER_GAMUT_DE) {
+                        warnings
+                            .push(ColorWarning::new(words.out_of_gamut.clone(), Srgba { r: nearest[0], g: nearest[1], b: nearest[2], a: color.a }));
+                    }
+                    if !web_only && let Some(nearest) = not_web_safe(rgb) {
+                        warnings.push(ColorWarning::web_colors(
+                            words.not_web_color.clone(),
+                            Srgba { r: nearest[0], g: nearest[1], b: nearest[2], a: color.a },
+                        ));
+                    }
+                    let mut picker = ColorPicker::new(title.clone(), Bind::bound(current))
+                        .layout(ColorPickerLayout::Full)
+                        .models(models)
+                        .mode(Bind::bound(&mut memory.mode))
+                        .web_colors(Bind::bound(&mut memory.web_colors))
+                        .warnings(warnings)
+                        .eyedropper(screen)
+                        .eyedropper_busy(busy)
+                        .focus_on_open(true);
+                    if let Some(sampled) = sampled {
+                        picker = picker.sampled(sampled);
+                    }
+                    if let Some(compare) = compare_with {
+                        picker = picker.compare(compare);
+                    }
+                    if let Some(gesture) = picker.show(ui).screen_pick {
+                        *pending_screen = Some(gesture);
+                    }
+                },
+            );
 
         let (picked, closed) = (shown.output.picked, shown.output.closed);
         let ok = picked == Some(0) || closed == Some(CloseReason::Enter);

@@ -570,7 +570,21 @@ name = "ColorReadoutOutput"
 old = ""
 new = "craft_color::ui::ColorReadoutOutput"
 status = "replaced"
-note = "Replaces the old `EditResponse<Rgba>` output. `#[non_exhaustive]`: `response`, and `event` (the pass's edits folded into one)."
+note = "Replaces the old `EditResponse<Rgba>` output. `#[non_exhaustive]`: `response`, `event` (the pass's edits of the whole colour folded into one) and `channel` (a channel field's edit while the value is mixed)."
+
+[[type]]
+name = "ChannelEdit"
+old = ""
+new = "craft_color::ui::ChannelEdit"
+status = "replaced"
+note = "`#[non_exhaustive]`: `channel: ReadoutChannel` and `event: EditEvent<Option<u8>>`. The edit of one channel of a mixed colour, for the host to apply to each item."
+
+[[type]]
+name = "ReadoutChannel"
+old = ""
+new = "craft_color::ui::ReadoutChannel"
+status = "replaced"
+note = "`#[non_exhaustive]` enum `Red`, `Green`, `Blue` with `index()`."
 
 [[type]]
 name = "ColorChoice"
@@ -1100,14 +1114,14 @@ name = "SwatchPalette"
 old = "craft_color::ui::SwatchPalette"
 new = "craft_color::ui::SwatchPalette"
 status = "replaced"
-note = "A pattern over a RadioGroup of Swatch members: `new(label, Bind<Srgba>, &[(Label, Srgba)])` in place of `new(id_salt, label, color, swatches)`; `show(ui)` returns `SwatchPaletteOutput { response, edit }` and writes the pick to the binding. `size`, `enabled` and `table` go."
+note = "A pattern over `SwatchTable`: `new(label, Bind<Srgba>, &[(Label, Srgba)])` in place of `new(id_salt, label, color, swatches)`; `show(ui)` returns `SwatchPaletteOutput { response, edit }` and writes the pick to the binding. `size`, `enabled` and `table` go."
 
 [[type]]
 name = "SwatchTable"
 old = ""
 new = "craft_color::ui::SwatchTable"
 status = "replaced"
-note = "An items component on the collection contract with Swatch cells: `new(label, &[(Label, Srgba)])` with `selection(Bind<Selection<usize>>)`, `per_row(n)` in place of `columns` and `multiple(bool)`; `show(ui)` returns `SwatchTableOutput { response, selected, chosen, open }`. Replaces `SwatchPalette::table`."
+note = "An items component on the collection contract with Swatch cells: `new(label, &[(Label, Srgba)])` with `selection(Bind<Selection<usize>>)`, `per_row(n)` in place of `columns` and `multiple(bool)`; `show_all(ui)` returns `SwatchTableOutput { response, selected, chosen, open }`. Replaces `SwatchPalette::table`."
 
 [[type]]
 name = "SwatchTableResponse"
@@ -1374,3 +1388,8 @@ new = "(removed: a disabled ancestor disables it)"
 type = "HarmonyWheel"
 old = "size(f32)"
 new = "(removed: the disc sizes from its style)"
+
+[[setter]]
+type = "HarmonyWheel"
+old = "selected(Option<usize>)"
+new = "selected_marker(Option<usize>)"

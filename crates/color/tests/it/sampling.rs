@@ -159,7 +159,16 @@ fn alt_click_removes_and_renumbers() {
 
 #[trial]
 fn the_sampler_tool_meets_the_tool_rules() {
-    ToolFixture::new("Color Sampler", sampler_tool(&[])).check();
+    // A press on empty canvas only places a point, so the drags of `check` need points under them: one at the
+    // middle and one a quarter of the way in, placed the way a user does.
+    let view = |rect: Rect| CanvasView::new(rect, Point::new(f64::from(SIZE[0]) / 2.0, f64::from(SIZE[1]) / 2.0), 1.0);
+    let mut tool = ToolFixture::with_view("Color Sampler", sampler_tool(&[]), view, |_, _| {});
+    let canvas = tool.canvas().rect;
+    for at in [canvas.center(), canvas.min + canvas.size() * 0.25] {
+        tool.press_at(at).release_at(at);
+    }
+    assert_eq!(tool.tool().samplers().points().len(), 2, "the presses placed the points");
+    tool.check();
 }
 
 #[trial]

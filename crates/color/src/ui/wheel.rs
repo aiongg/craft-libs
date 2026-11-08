@@ -239,18 +239,16 @@ fn value_at(geometry: &WheelGeometry, base: &ModelValues, part: WheelPart, pos: 
     out
 }
 
-/// `values` after the key `mv` on the focused `part`. Left and Right do not mirror: `Forward` is the left arrow under
-/// right-to-left text.
-fn keyed(values: &ModelValues, part: WheelPart, mv: NavMove, far: bool, rtl: bool) -> Option<ModelValues> {
+/// `values` after the key `mv` on the focused `part`.
+fn keyed(values: &ModelValues, part: WheelPart, mv: NavMove, far: bool) -> Option<ModelValues> {
     let by = if far { FAR } else { 1.0 };
-    let right = if rtl { -by } else { by };
     let mut out = *values;
     match part {
         WheelPart::Ring => {
             let hue = finite(values.values[0]);
             let next = match mv {
-                NavMove::Forward => hue + right,
-                NavMove::Back => hue - right,
+                NavMove::Forward => hue + by,
+                NavMove::Back => hue - by,
                 NavMove::Up => hue + by,
                 NavMove::Down => hue - by,
                 NavMove::PageUp => hue + HUE_PAGE,
@@ -265,8 +263,8 @@ fn keyed(values: &ModelValues, part: WheelPart, mv: NavMove, far: bool, rtl: boo
             let step = channel_step(&HsbModel, 1) as f32;
             let (s, b) = (finite(values.values[1]), finite(values.values[2]));
             let (s, b) = match mv {
-                NavMove::Forward => (s + right * step, b),
-                NavMove::Back => (s - right * step, b),
+                NavMove::Forward => (s + by * step, b),
+                NavMove::Back => (s - by * step, b),
                 NavMove::Up => (s, b + by * step),
                 NavMove::Down => (s, b - by * step),
                 NavMove::PageUp => (s, b + BRIGHTNESS_PAGE),
@@ -360,7 +358,7 @@ impl Component for ColorWheel<'_> {
                 _ => {}
             }
         }
-        let (running, rtl) = (cx.gesture().is_some(), cx.flow.is_rtl());
+        let running = cx.gesture().is_some();
         let focused = match cx.active_part() {
             Some(active) if active == RING.into() => Some(WheelPart::Ring),
             Some(active) if active == TRIANGLE.into() => Some(WheelPart::Triangle),
@@ -369,7 +367,7 @@ impl Component for ColorWheel<'_> {
         let mut now = current(&*cx);
         while let Some((mv, mods)) = cx.intents().take_move() {
             if let Some(part) = focused.filter(|_| !running)
-                && let Some(next) = keyed(&now, part, mv, mods.extend, rtl)
+                && let Some(next) = keyed(&now, part, mv, mods.extend)
             {
                 now = next;
                 cx.set(now);

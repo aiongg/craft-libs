@@ -17,5 +17,5 @@ fn harmony_panel(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(HarmonyWheel<'static>, covers = [], drive = Drive::Never)]
 fn harmony_wheel(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let colors = crate::harmony::Harmony::Triad.apply(BASE);
-    HarmonyWheel::new("Harmony", &colors).selected(Some(1)).show(ui).into()
+    HarmonyWheel::new("Harmony", &colors).selected_marker(Some(1)).show(ui).into()
 }
