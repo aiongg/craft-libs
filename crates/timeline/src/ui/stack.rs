@@ -484,10 +484,10 @@ impl Component for TrackRow<'_> {
         }
     }
 
-    /// The row's own shape takes the presses on empty lane space: a click clears the clip selection and a drag sweeps a
-    /// marquee, both in [`ClipLane`].
+    /// The row has no shape of its own: the collection's takes a press on the row and gives the row the lead and the
+    /// focus, and the lane's backdrop part takes the presses on empty lane space.
     fn sense(&self) -> Sense {
-        Sense::CLICK | Sense::DRAG | Sense::FOCUS
+        Sense::empty()
     }
 
     fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
