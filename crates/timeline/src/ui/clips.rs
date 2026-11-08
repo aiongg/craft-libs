@@ -247,8 +247,8 @@ impl Default for Pressed {
 /// - A press acts on what it pressed, worked out on the press pass, not when the drag threshold passes (FilmCraft
 ///   `Pressed`, #259).
 /// - A click picks a clip: a click replaces, Shift toggles, Cmd/Ctrl toggles without linked partners (Premiere's),
-///   reported as a [`SelectionChange`]; a double-click and a secondary click are reported. A click on empty space is the
-///   track collection's.
+///   reported as a [`SelectionChange`]; a double-click and a secondary click are reported. A click on empty space
+///   clears the selection (Shift or Cmd/Ctrl keeps it); a drag from it sweeps a marquee.
 /// - A locked track draws stripes over its clips and starts no gesture.
 /// - Each clip is a focusable part: Enter and Space pick it. AccessKit: a button per clip, named by its name, valued by
 ///   its start and duration.
