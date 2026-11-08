@@ -2,7 +2,7 @@
 
 use craft_behavior::dock::{Column, Group};
 use craft_ui::buttons::Button;
-use craft_ui::contract::{Bind, Show as _};
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::docking::{DockHeights, GroupSize, IconicColumn, PanelSpec, fit_widths, group_heights};
 use craft_ui::sections::Panel;
 use craft_ui::testing::memory::global;
@@ -121,7 +121,7 @@ fn a_button_in_the_flyout_takes_its_click_and_leaves_the_flyout_open() {
             ui,
             move |_, rect, ui, _| {
                 Panel::new("Panel").show_at(ui, rect, |ui, _| {
-                    if craft_ui::testing::contract::clicked(&Button::new("Apply").show(ui).response) {
+                    if craft_ui::testing::contract::clicked(&Button::new("Apply").show(ui)) {
                         counted.set(counted.get() + 1);
                     }
                 });
