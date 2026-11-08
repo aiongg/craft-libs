@@ -35,7 +35,7 @@ use crate::tile_grid::{CaptionPlace, GridEvent, Tile, TileGrid, TileGroup, TileZ
 use craft_behavior::{DisplayOrder, EditEvent, GestureId, GesturePhase, IconId, ItemSource, Mixed, Selection, SelectionChange};
 use craft_i18n::matcher::Matcher;
 use craft_theme::variant::Tone;
-use egui::{Rect, Ui};
+use egui::{Id, Rect, Ui};
 use std::cell::RefCell;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
@@ -120,10 +120,6 @@ pub struct PresetBrowser<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     /// Fixes the view, whatever the state says; the toolbar then has no view buttons.
     #[prop]
     view_lock: Option<PresetView>,
-    /// Starts renaming this row in the pass it is set, as the row menu's Rename does; the host clears it afterwards. A
-    /// key the browser lacks or may not rename is ignored.
-    #[prop]
-    rename: Option<K>,
     /// Which presets and groups may be renamed; F2 does nothing on another.
     #[prop(func = "Fn(&K) -> bool")]
     can_rename: Option<RowTest<'a, K>>,
@@ -161,7 +157,6 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'a, K> {
             toolbar: false,
             row_menu: true,
             view_lock: None,
-            rename: None,
             can_rename: None,
             can_delete: None,
             can_move: None,
@@ -392,6 +387,13 @@ fn commit<K: Clone + Eq + Hash + Send + Sync + 'static>(cx: &mut BodyCx<'_>, sta
 }
 
 impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
+    /// Asks the browser shown in the scope `scope` (the `scope_id` of the `Ui` it is shown in) to start renaming the
+    /// row `key` at its next pass, as the row menu's Rename does. A key the browser lacks or may not rename is
+    /// ignored; the request is taken once.
+    pub fn request_rename(ctx: &egui::Context, scope: Id, key: &K) {
+        request_rename(ctx, rows_id(scope), key);
+    }
+
     /// Shows the browser across the available width and reports what the user did, in order.
     pub fn show(self, ui: &mut Ui) -> PresetOutput<K> {
         let PresetBrowser {
@@ -405,7 +407,6 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
             toolbar,
             row_menu,
             view_lock,
-            rename,
             can_rename,
             can_delete,
             can_move,
@@ -416,7 +417,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
         } = self;
         let env = Env::of(ui);
         let words = env.words::<PresetWords>();
-        let list_id = ui.scope_id().with("browser-rows");
+        let list_id = rows_id(ui.scope_id());
         let name = label.as_str().to_owned();
         let has_footer = footer.is_some();
         let state = RefCell::new(state);
@@ -473,9 +474,6 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
             };
             let accepts = |drag: &ListDrag<K>, over: &K, insert: usize| reorder.as_ref().is_some_and(|rules| rules.allows(rows, drag, over, insert));
             let rename_ok = |key: &K| can_rename.as_ref().is_none_or(|test| test.passes(key));
-            if let Some(key) = rename.as_ref().filter(|key| rename_ok(key) && rows.iter().any(|row| row.key == **key)) {
-                request_rename(ui.ctx(), list_id, key);
-            }
             let painter = thumb.as_ref();
             let paint = |row: &PresetRow<K>, selected: bool| {
                 let key = row.key.clone();
@@ -736,4 +734,9 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
 /// The row of the header `group` of the grid's plan over the shown rows.
 fn grid_group_row<'s, K>(shown: &'s [usize], rows: &[PresetRow<K>], group: usize) -> Option<&'s usize> {
     shown.iter().filter(|&&at| rows[at].is_group()).nth(group)
+}
+
+/// The id of the browser's list, derived from the scope the browser is shown in.
+fn rows_id(scope: Id) -> Id {
+    scope.with("browser-rows")
 }
