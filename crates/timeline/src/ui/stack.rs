@@ -13,8 +13,8 @@ use crate::clips::ClipEdit;
 use crate::model::{ClipId, TrackId, TrackInfo, TrackKind};
 use crate::time::Tick;
 use craft_behavior::{
-    ColumnKey, ColumnWidth, CursorIcon, DisplayOrder, EditEvent, GestureId, HitLevel, HitPriority, IconId, ItemSource, Metrics, Mixed, PartKey,
-    PressPhase, Selection, SelectionChange, Sense, SizeHint, SpanLayout,
+    ColumnKey, ColumnWidth, CursorIcon, DisplayOrder, EditEvent, GestureId, HitLevel, HitPriority, IconId, ItemSource, MarqueeSelect, Metrics, Mixed,
+    PartKey, PressPhase, Selection, SelectionChange, Sense, SizeHint, SpanLayout,
 };
 use craft_ui::contract::{
     Access, Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, ColumnEvent, ColumnKind, ColumnSpec, Common, Component,
@@ -241,11 +241,40 @@ pub struct TrackEvent {
     pub label_menu: bool,
     /// A drag of the row's edge, or a double click on the header.
     pub height: Option<DragEvent<f32>>,
+    /// Where a clip move drag's pointer is over this row.
+    pub pointer: Option<MovePointer>,
+    /// Where a lane drag snapped.
+    pub snapped_at: Option<Tick>,
+    /// The marquee a drag on the lane's empty space sweeps.
+    pub marquee: Option<MarqueeSelect<ClipId>>,
+    /// The marquee was released in this pass.
+    pub marquee_ended: bool,
+}
+
+/// The pointer of a clip move drag over the row that holds the dragged clips: the panel works the track change out
+/// from it and the geometry of every row.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct MovePointer {
+    /// The pointer's y.
+    pub y: f32,
+    /// The row's rect.
+    pub row: Rect,
+    /// The sizes the rows' heights come from.
+    pub sizes: TrackSizes,
 }
 
 impl TrackEvent {
     fn is_empty(&self) -> bool {
-        self.clip.is_none() && self.select.is_none() && self.open.is_none() && self.context.is_none() && !self.label_menu && self.height.is_none()
+        self.clip.is_none()
+            && self.select.is_none()
+            && self.open.is_none()
+            && self.context.is_none()
+            && !self.label_menu
+            && self.height.is_none()
+            && self.pointer.is_none()
+            && self.snapped_at.is_none()
+            && self.marquee.is_none()
     }
 }
 
@@ -257,6 +286,8 @@ pub struct TrackStackStyle {
     metrics: Metrics,
     playhead: StyleColor,
     snap: StyleColor,
+    marquee_fill: StyleColor,
+    marquee_edge: StyleColor,
     sizes: TrackSizes,
 }
 
@@ -275,6 +306,9 @@ pub struct TrackStack {
     /// The time a gesture snapped to, where the snap line is drawn.
     #[prop(into)]
     snapped_at: Option<Tick>,
+    /// The rectangle of a marquee under way, in screen coordinates: the part over this stack is drawn.
+    #[prop(into)]
+    marquee: Option<Rect>,
     name: Option<ColumnWidth>,
     /// The kind and own height of each track, in order.
     heights: Vec<(TrackKind, Option<f32>)>,
@@ -306,6 +340,7 @@ impl TrackStack {
             items: CollectionProps::new().select(SelectMode::None).columns(columns).header(false).item_keys(ItemKeys::Owner),
             playhead: Tick::ZERO,
             snapped_at: None,
+            marquee: None,
             name,
             heights: Vec::new(),
         }
@@ -342,6 +377,8 @@ impl Component for TrackStack {
             metrics: Metrics::new(),
             playhead: cx.color(color.accent.solid),
             snap: cx.color(color.overlay.line),
+            marquee_fill: cx.color(color.accent.soft),
+            marquee_edge: cx.color(color.accent.border),
             sizes: TrackSizes::of(cx.tokens),
         }
     }
@@ -367,6 +404,11 @@ impl Component for TrackStack {
             if x >= left && x <= rect.right() {
                 draw.stroke(&PaintShape::Path(vec![Pos2::new(x, rect.top()), Pos2::new(x, rect.bottom())]), StrokeWidth::Thin, color);
             }
+        }
+        if let Some(swept) = self.marquee.map(|swept| swept.intersect(rect)).filter(|swept| swept.is_positive()) {
+            let area = PaintShape::Rect(swept, CornerRadius::ZERO);
+            draw.fill(&area, cx.style.marquee_fill);
+            draw.stroke(&area, StrokeWidth::Thin, cx.style.marquee_edge);
         }
     }
 
@@ -529,6 +571,11 @@ impl Component for TrackRow<'_> {
         self.row().size().max(Vec2::ZERO)
     }
 
+    /// The row's own presses: clicks and drags on the empty lane (the marquee) and the focus of the row.
+    fn sense(&self) -> Sense {
+        Sense::CLICK | Sense::DRAG | Sense::FOCUS
+    }
+
     fn bind(&mut self) -> Option<BindMut<'_, ClipEdit>> {
         Some(self.edit.reborrow())
     }
@@ -618,6 +665,10 @@ impl Component for TrackRow<'_> {
             self.event.unlinked = events.unlinked;
             self.event.open = events.open;
             self.event.context = events.context;
+            self.event.snapped_at = events.snapped_at;
+            self.event.marquee = events.marquee;
+            self.event.marquee_ended = events.marquee_ended;
+            self.event.pointer = events.pointer_y.map(|y| MovePointer { y, row: self.row(), sizes });
         }
     }
 

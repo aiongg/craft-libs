@@ -6,7 +6,7 @@
 
 use std::rc::Rc;
 
-use craft_behavior::{CursorIcon, HitLevel, HitPriority, Intent, PartKey, PartRef, PointerButton, PressPhase, SelectionChange, Sense};
+use craft_behavior::{CursorIcon, HitLevel, HitPriority, Intent, MarqueeSelect, PartKey, PartRef, PointerButton, PressPhase, SelectionChange, Sense};
 use craft_ui::contract::{
     Access, Component, ContentPainter, Cx, Edit as _, Focus as _, Name, Outcome, PaintUi, PartsCx, Pointer as _, Remember as _,
 };
@@ -177,6 +177,23 @@ pub struct ClipLaneEvents {
     pub context: Option<(ClipId, Rect)>,
     /// Where a drag snapped this pass.
     pub snapped_at: Option<Tick>,
+    /// The pointer's y while a move drag runs: the panel that holds the rows works out the track change from it.
+    pub pointer_y: Option<f32>,
+    /// The marquee a drag on empty lane space sweeps, with the selection it started from. The clips it touches can lie
+    /// on other tracks, so the panel that holds the rows works out the selection.
+    pub marquee: Option<MarqueeSelect<ClipId>>,
+    /// The marquee ended in this pass (released): its last position is in [`marquee`](Self::marquee).
+    pub marquee_ended: bool,
+}
+
+/// A marquee under way on empty lane space, kept from the drag start to the release.
+#[derive(Clone)]
+struct Sweep(MarqueeSelect<ClipId>);
+
+impl Default for Sweep {
+    fn default() -> Self {
+        Sweep(MarqueeSelect::begin(Pos2::ZERO, craft_keymap::Mods::NONE, Vec::new()))
+    }
 }
 
 /// What a press grabbed, worked out on the press pass (FilmCraft `Pressed`, #259).
@@ -385,6 +402,7 @@ impl<'a> ClipLane<'a> {
             *cx.press_slot::<Pressed>() = None;
         }
         self.run_picks(cx, &geometry, &mut events);
+        self.run_marquee(cx, &geometry, &mut events);
         for clip in self.clips {
             if let Some(at) = context_menu(cx, CLIP.at(clip.id.0)) {
                 events.context = Some((clip.id, Rect::from_min_size(at, Vec2::ZERO)));
@@ -407,11 +425,12 @@ impl<'a> ClipLane<'a> {
         C::Output: Outcome<Value = ClipEdit>,
     {
         let Some(start) = phase.start().filter(|start| start.button == PointerButton::Primary) else { return };
-        let x = match phase {
-            PressPhase::Down { start, .. } => start.origin.x,
-            PressPhase::DragStart { pos, .. } | PressPhase::Drag { pos, .. } | PressPhase::Release { pos, .. } => pos.x,
+        let at = match phase {
+            PressPhase::Down { start, .. } => start.origin,
+            PressPhase::DragStart { pos, .. } | PressPhase::Drag { pos, .. } | PressPhase::Release { pos, .. } => pos,
             _ => return,
         };
+        let x = at.x;
         if matches!(phase, PressPhase::Down { .. }) {
             if self.tool == TimelineTool::Razor {
                 let (at, snapped) = geometry.snapped(geometry.rate_snap(geometry.axis.tick_at(start.origin.x, geometry.lane.left())));
@@ -430,6 +449,11 @@ impl<'a> ClipLane<'a> {
         }
         let Some(pressed) = cx.press_slot::<Pressed>().clone() else { return };
         let Some(rest) = geometry.rest(&pressed) else { return };
+        if matches!(rest, ClipEdit::Move { .. })
+            && matches!(phase, PressPhase::DragStart { .. } | PressPhase::Drag { .. } | PressPhase::Release { click: false, .. })
+        {
+            events.pointer_y = Some(at.y);
+        }
         match phase {
             PressPhase::DragStart { .. } => {
                 if let Grab::Body(clip) = pressed.grab
@@ -447,6 +471,46 @@ impl<'a> ClipLane<'a> {
             }
             PressPhase::Release { click: false, .. } => cx.commit(),
             _ => {}
+        }
+    }
+
+    /// A drag from empty lane space sweeps a marquee (Shift adds, Cmd/Ctrl toggles, Alt subtracts); Esc restores the
+    /// selection it started from.
+    fn run_marquee<C: Component>(&self, cx: &mut Cx<'_, C>, geometry: &Lane<'_>, events: &mut ClipLaneEvents) {
+        let press = cx.press();
+        match press.phase {
+            PressPhase::DragStart { start, pos, .. }
+                if start.button == PointerButton::Primary
+                    && self.tool != TimelineTool::Razor
+                    && geometry.lane.contains(start.origin)
+                    && geometry.clip_at(start.origin.x).is_none() =>
+            {
+                let mut marquee = MarqueeSelect::begin(start.origin, press.mods, self.selection.to_vec());
+                marquee.update(pos);
+                *cx.press_slot::<Sweep>() = Some(Sweep(marquee));
+            }
+            PressPhase::Drag { pos, .. } => {
+                if let Some(sweep) = cx.press_slot::<Sweep>().as_mut() {
+                    sweep.0.update(pos);
+                }
+            }
+            PressPhase::Release { pos, click: false, .. } => {
+                if let Some(sweep) = cx.press_slot::<Sweep>().as_mut() {
+                    sweep.0.update(pos);
+                    events.marquee_ended = true;
+                }
+            }
+            PressPhase::Cancel { .. } => {
+                if let Some(Sweep(marquee)) = cx.press_slot::<Sweep>().take() {
+                    let base = marquee.cancel();
+                    events.select = Some(if base.is_empty() { SelectionChange::Clear } else { SelectionChange::Set(base) });
+                }
+            }
+            _ => {}
+        }
+        events.marquee = cx.press_slot::<Sweep>().clone().map(|sweep| sweep.0);
+        if events.marquee_ended {
+            *cx.press_slot::<Sweep>() = None;
         }
     }
 

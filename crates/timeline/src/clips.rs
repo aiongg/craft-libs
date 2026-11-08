@@ -4,7 +4,7 @@
 
 use std::cmp::Ordering;
 
-use crate::model::{ClipId, TrackId};
+use crate::model::ClipId;
 use crate::time::{Tick, TimeRange, TimeView};
 
 /// The hit sizes of clip edges, in points: the widgets pass the edge and roll zones of their look.
@@ -202,27 +202,6 @@ pub enum ClipEdit {
         /// Keep the earlier selection.
         add: bool,
     },
-}
-
-/// The clips a marquee from `a` to `b` (screen points) touches, given each visible clip's track
-/// row and time range.
-// filmcraft: crates/ui-egui/src/panels/timeline/interact.rs:114 `marquee_clips`.
-pub fn marquee_clips(
-    clips: &[(ClipId, TrackId, TimeRange)],
-    rows: &[(TrackId, f32, f32)],
-    view: &TimeView,
-    left: f32,
-    a: [f32; 2],
-    b: [f32; 2],
-) -> Vec<ClipId> {
-    let (x0, x1) = (a[0].min(b[0]), a[0].max(b[0]));
-    let (y0, y1) = (a[1].min(b[1]), a[1].max(b[1]));
-    let (from, to) = (view.time_at(x0, left), view.time_at(x1, left));
-    rows.iter()
-        .filter(|(_, top, bottom)| *top <= y1 && *bottom >= y0)
-        .flat_map(|(track, _, _)| clips.iter().filter(move |(_, t, range)| t == track && range.start < to && range.end() > from))
-        .map(|(clip, _, _)| *clip)
-        .collect()
 }
 
 /// Times a drag snaps to: clip starts and ends (but the dragged clips'), the playhead (but not
