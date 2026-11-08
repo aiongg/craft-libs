@@ -290,6 +290,16 @@ impl Fixture {
         self.target(node)
     }
 
+    /// The interactive node named `label`, by its own name or the nodes that label it: the control, where a field's
+    /// label and group carry the control's name too.
+    pub fn control(&self, label: &str) -> Option<Target> {
+        let tree = &self.tree;
+        let node = tree.keys().into_iter().find(|key| {
+            super::access::name(tree, *key) == Some(label) && tree.role_of(*key) != Some(Role::LABEL) && super::access::is_interactive(tree, *key)
+        })?;
+        self.target(node)
+    }
+
     /// The nodes of `role`.
     pub fn by_role(&self, role: Role) -> Vec<Target> {
         self.tree.with_role(role).into_iter().filter_map(|node| self.target(node)).collect()

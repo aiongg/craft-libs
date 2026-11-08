@@ -524,6 +524,12 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let node = matches!(C::ROLE, Role::Node(_));
         let offset = ScrollPos { x: self.offset_x, y: self.offset };
         Arc::make_mut(&mut layout).set_view(rect.size(), offset);
+        if self.scrolls {
+            let size = self.content.max(rect.size());
+            let left = if rtl { rect.max.x + self.offset_x as f32 - size.x } else { rect.min.x - self.offset_x as f32 };
+            let content = Rect::from_min_size(Pos2::new(left, rect.min.y - self.offset as f32), size);
+            crate::runtime::egui::widgets::note_scroll_region(&ctx, rect.intersect(ui.clip_rect()), content);
+        }
         let sheet = Self::selects_cells(comp);
         let columns: Vec<u64> = match layout.grid() {
             Some(grid) => grid.sections.iter().flat_map(|section| section.columns.clone().map(u64::from)).collect(),

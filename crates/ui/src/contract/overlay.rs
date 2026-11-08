@@ -8,6 +8,7 @@ use crate::runtime::access::{self, PopupKind, PopupShown};
 use crate::runtime::commands::FireSource;
 use crate::runtime::egui::areas::{self, LayerSpec};
 use crate::runtime::egui::memory::Service;
+use crate::runtime::egui::response;
 use crate::runtime::env::Env;
 use crate::runtime::focus::{self, FocusPolicy, Initial};
 use crate::runtime::memory::{MemoryStage, sub};
@@ -152,7 +153,8 @@ pub struct Dismiss {
     pub enter: bool,
     /// Focus moved out of the layer's scope.
     pub focus_left: bool,
-    /// A component inside was activated.
+    /// A component inside was activated. An opener whose activation toggled its popup (a trigger, `Popup::toggle`) and
+    /// a row that keeps the chain open (`Cx::keep_open`) do not count.
     pub on_activate: bool,
     /// The anchor is no longer shown.
     pub anchor_gone: bool,
@@ -184,7 +186,7 @@ impl Dismiss {
         self
     }
 
-    /// Closes when a component inside is activated.
+    /// Closes when a component inside is activated, except an opener toggling its popup.
     pub const fn on_activate(mut self, on: bool) -> Self {
         self.on_activate = on;
         self
@@ -252,20 +254,22 @@ pub struct Opener {
 
 impl Opener {
     fn new(anchor: &Response, trigger: Trigger) -> Opener {
+        // The opener's `Response` carries the press path's verdict, for a root with its own egui widget and for an
+        // arena member alike: whether the open press is on it and whether a click released on it.
+        let pressed_on = response::is_pressed(anchor);
         let (fired, by_pointer, pressed) = pointer::with_pass_pointer(&anchor.ctx, |pass| {
             let Some(frame) = pass.frame.as_ref() else { return (false, false, false) };
-            let on_opener = pass.press_targets.click == Some(anchor.id);
             let inside = frame
                 .pos
                 .is_some_and(|pos| anchor.rect.contains(areas::layer_map(&anchor.ctx, anchor.layer_id).map_or(pos, |map| map.to_layer(pos))));
             let by_pointer = inside && frame.release == Some(PointerButton::Secondary);
             let fired = match trigger {
-                Trigger::Click => on_opener && inside && frame.release == Some(PointerButton::Primary),
-                Trigger::Press => on_opener && frame.press.is_some_and(|press| press.button == PointerButton::Primary),
+                Trigger::Click => frame.release == Some(PointerButton::Primary) && response::pointer_clicked(anchor),
+                Trigger::Press => pressed_on && frame.press.is_some_and(|press| press.button == PointerButton::Primary),
                 Trigger::Context => by_pointer || keys::context_request(&anchor.ctx, anchor.id).is_some(),
                 Trigger::Hover | Trigger::Hold | Trigger::Manual => false,
             };
-            (fired, fired && by_pointer, on_opener && pass.primary_down)
+            (fired, fired && by_pointer, pressed_on && pass.primary_down)
         });
         Opener {
             id: anchor.id,
@@ -359,6 +363,9 @@ pub struct Overlay {
     /// Whether a container mounted as this layer scrolls its body vertically. Off for a layer whose body fills it and
     /// manages its own scrolling (a dock tree); a body that is one collection uses `collection_body` instead.
     pub body_scroll: bool,
+    /// Whether the layer's move band moves the OS window the layer is shown in, in place of the layer: the chrome a
+    /// modal puts over the part of a title bar it covers. The layer stays where it is placed.
+    pub moves_window: bool,
 }
 
 /// The share of the viewport a dropdown list may take. Half the width leaves room for the list to hang from the end
@@ -392,6 +399,7 @@ impl Overlay {
             bounds: None,
             opacity: 1.0,
             body_scroll: true,
+            moves_window: false,
         }
     }
 
@@ -458,6 +466,18 @@ impl Overlay {
         let mut overlay = Overlay::dialog();
         overlay.movable = false;
         overlay.resize = Resize::NONE;
+        overlay
+    }
+
+    /// The chrome of a modal over a part of the window the modal covers, placed at `rect`: above the modal, with no
+    /// focus scope and no dismissal of its own. Its move band moves the window the layer is shown in.
+    pub fn modal_chrome(rect: Rect) -> Overlay {
+        let mut overlay =
+            Overlay::base(Rank::ModalChrome, Place::Float(FloatPlace::centred()), OverlayFit::Content, OwnerClass::Widget, FocusPolicy::NONE);
+        overlay.dismiss = Dismiss::new().outside(Outside::Keep);
+        overlay.placed = Some(rect);
+        overlay.body_scroll = false;
+        overlay.moves_window = true;
         overlay
     }
 
@@ -573,6 +593,12 @@ impl Overlay {
     /// Sets whether the user may move it.
     pub fn movable(mut self, on: bool) -> Overlay {
         self.movable = on;
+        self
+    }
+
+    /// Sets whether the move band moves the OS window the layer is shown in, in place of the layer.
+    pub fn moves_window(mut self, on: bool) -> Overlay {
+        self.moves_window = on;
         self
     }
 
@@ -968,6 +994,9 @@ impl PopupHandle {
             Trigger::Manual => false,
         };
         if toggled {
+            if trigger == Trigger::Click {
+                overlay::claim_activation(&ctx, core.id);
+            }
             queue(&ctx, self.id, if matches!(trigger, Trigger::Click | Trigger::Press) { OpenOp::Toggle } else { OpenOp::Open });
         } else if trigger != Trigger::Manual && core.intents.take(Intent::Open) {
             queue(&ctx, self.id, OpenOp::Open);
@@ -1531,6 +1560,7 @@ pub(crate) fn opener_open(stage: &mut MemoryStage, first: &Opener) -> bool {
             slot.by = Some((opener.id, opener.trigger, opener.by_pointer));
         }
         slot.applied = frame;
+        overlay::claim_activation(&ctx, opener.id);
     } else if let Some((opener, true)) = held
         && !slot.open
     {
@@ -1580,6 +1610,7 @@ impl Popup {
         let slot = cx.core.memory.session::<OpenerOpen>(sub(opener, "opens"));
         slot.open = to.unwrap_or(!slot.open);
         slot.by = None;
+        overlay::claim_activation(&cx.core.ctx, opener);
         frame::request_repaint(&cx.core.ctx);
     }
 

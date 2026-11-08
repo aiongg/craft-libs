@@ -11,7 +11,7 @@ mod view;
 mod zoom_bar;
 
 pub use canvas::{FullWindowCanvas, FullWindowCanvasOutput, RasterOverlay};
-pub use side::{FullWindowSide, FullWindowSideOutput, FullWindowSideStyle, SideFooter, SideWidth};
+pub use side::{FullWindowSide, FullWindowSideOutput, FullWindowSideStyle, SideFooter};
 pub use status::{FullWindowStatus, FullWindowStatusOutput};
 pub use title::{FullWindowTitle, FullWindowTitleOutput};
 pub use view::FullWindowView;

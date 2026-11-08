@@ -247,8 +247,8 @@ impl Shown {
             let mut view = held.borrow_mut();
             let out = Navigator::new("Navigator", Bind::bound(&mut *view), DOC).navigation(navigation).show(ui);
             kinds.borrow_mut().extend(out.view.event.as_ref().and_then(EditKind::of));
-            if let Some((to, _)) = out.ease {
-                target.set(Some(to));
+            if out.ease.is_some() {
+                target.set(out.view.value().copied());
             }
         });
         fixture.settle();
@@ -404,3 +404,14 @@ fn accesskit_scrolls_and_the_scroll_bars_move_the_view_by_the_arrow_step() {
     assert!(near_doc(shown.view().center, stepped), "Increment moves the view by the arrow step: {:?}", shown.view());
 }
 // End of l4e-navprev.
+
+// l4e-navpanel
+
+#[trial]
+fn the_preview_has_an_image_node_named_after_the_document_preview() {
+    let shown = Shown::new(zoom_view(START), false);
+    let picture = shown.fixture.by_label("Document preview").expect("the picture has a node");
+    assert!(shown.fixture.by_role(Role::IMAGE).iter().any(|image| image.node == picture.node), "the picture's node is an image");
+}
+
+// End of l4e-navpanel.

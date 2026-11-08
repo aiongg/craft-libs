@@ -6,9 +6,9 @@
 use crate::runtime::cursor;
 use crate::runtime::egui::input::{self as raw_input, RawInput};
 use crate::runtime::egui::memory::Service;
-use crate::runtime::egui::{areas, pass, scale, viewports};
+use crate::runtime::egui::{pass, scale, viewports, widgets};
 use crate::runtime::frame::{PassStep, PerViewport, Stamped};
-use crate::runtime::{memory, overlay};
+use crate::runtime::{overlay, pointer};
 use craft_behavior::{Cursor, CursorIcon, CursorPriority, PartRef};
 use craft_host::target::{Caps, EdgeInsets, Os, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
 #[cfg(feature = "testing")]
@@ -126,7 +126,7 @@ impl HitSink {
 
 /// The regions the parts `parts` of the running pass declare; `None` for none. A drag area's covers are read from
 /// the pass's widgets, so this runs at the end of the pass.
-fn regions_of(ctx: &Context, parts: &[ExclusivePart]) -> Option<CaptionRegions> {
+fn regions_of(ctx: &Context, viewport: ViewportId, parts: &[ExclusivePart]) -> Option<CaptionRegions> {
     if parts.is_empty() {
         return None;
     }
@@ -135,7 +135,7 @@ fn regions_of(ctx: &Context, parts: &[ExclusivePart]) -> Option<CaptionRegions> 
         match hit {
             WindowHit::Move => {
                 regions.moves.push(*rect);
-                regions.covers.extend(covers_of(ctx, *owner, *part, *rect));
+                regions.covers.extend(covers_of(ctx, viewport, *owner, *part, *rect));
             }
             WindowHit::Resize(edge) => regions.edges.push((*edge, *rect)),
             WindowHit::Caption(button) => regions.buttons.push((*button, *rect)),
@@ -144,45 +144,26 @@ fn regions_of(ctx: &Context, parts: &[ExclusivePart]) -> Option<CaptionRegions> 
     Some(regions)
 }
 
-/// The parts of the drag area `band`, the part `part` of the component `owner`, where an in-app hit lies over it:
-/// each interactive egui widget of the running pass that egui's hit test puts above the component's widget (on a
-/// higher layer, or later on the same layer), clipped to the band. The component's widgets that resolve as the
-/// component (8.3) are not hits over the band: its transform forwarder and the band's own edge widget, which the
-/// sensing core makes for an edge part reaching outside the root rect, under the ids it gives them there.
-fn covers_of(ctx: &Context, owner: Id, part: PartRef, band: Rect) -> Vec<Rect> {
-    let own = [memory::sub(owner, "transform"), memory::sub(owner, ("edge", part.key, part.index))];
-    let (root, above) = ctx.viewport(|viewport| {
-        let widgets = &viewport.this_pass.widgets;
-        let Some(root) = widgets.get(owner).map(|root| root.layer_id) else { return (None, Vec::new()) };
-        let mut above = Vec::new();
-        for (layer, rects) in widgets.layers().filter(|(layer, _)| layer.order.allow_interaction()) {
-            let after = if *layer == root { rects.iter().position(|rect| rect.id == owner).map_or(rects.len(), |at| at + 1) } else { 0 };
-            let hits: Vec<Rect> =
-                rects[after..].iter().filter(|rect| rect.sense.interactive() && !own.contains(&rect.id)).map(|rect| rect.interact_rect).collect();
-            if !hits.is_empty() {
-                above.push((*layer, hits));
-            }
-        }
-        (Some(root), above)
-    });
-    let Some(root) = root else { return Vec::new() };
-    let height = areas::layer_position(ctx, root);
-    let mut covers = Vec::new();
-    for (layer, hits) in above {
-        if layer != root && areas::layer_position(ctx, layer) <= height {
-            continue;
-        }
-        let to_screen = areas::layer_to_screen(ctx, layer);
-        covers.extend(hits.into_iter().map(|rect| (to_screen * rect).intersect(band)).filter(|cover| cover.is_positive()));
-    }
-    covers
+/// The parts of the drag area `band`, the part `part` of the component `owner`, where an in-app hit lies over it,
+/// clipped to the band: each interactive egui widget of the running pass that egui's hit test puts above the
+/// component's widgets, and each of the component's own shapes that a press there goes to instead of the band (a
+/// member over it, a higher part). The component's widgets resolve as the component (8.3), so they are not hits
+/// over the band themselves.
+fn covers_of(ctx: &Context, viewport: ViewportId, owner: Id, part: PartRef, band: Rect) -> Vec<Rect> {
+    let over = pointer::over_part(ctx, viewport, owner, part);
+    widgets::above(ctx, owner, &over.widgets)
+        .into_iter()
+        .chain(over.above)
+        .map(|cover| cover.intersect(band))
+        .filter(|cover| cover.is_positive())
+        .collect()
 }
 
 /// Keeps the regions of the running pass's exclusive parts for [`WindowHost::caption_regions`] and gives them to
 /// the viewport's hit-test sink.
 fn publish_regions(ctx: &Context, viewport: ViewportId) {
     let parts = with_exclusive(ctx, viewport, |exclusive| exclusive.current.clone());
-    let regions = regions_of(ctx, &parts);
+    let regions = regions_of(ctx, viewport, &parts);
     with_exclusive(ctx, viewport, |exclusive| exclusive.done = regions.clone());
     if let Some(sink) = PerViewport::<Record>::with(ctx, viewport, |record| record.sink.clone()) {
         let pixels_per_point = scale::pixels_per_point(ctx);
@@ -1047,7 +1028,8 @@ impl WindowHost {
 
     /// The hit-test sink of `viewport`'s window, made on the first call. The platform layer calls it once it has put
     /// its window procedure in place and holds the sink there; from then on the platform answers that window's move,
-    /// resize and caption hits, and the app registers no move or resize parts for it (`app_moves_window`).
+    /// resize and caption hits. The window's move and resize parts still register, as the exclusive parts the sink
+    /// reads, and a press on them starts no app move.
     pub fn install_hit_sink(&self, viewport: ViewportId) -> HitSink {
         PerViewport::<Record>::with(&self.ctx, viewport, |record| record.sink.get_or_insert_with(HitSink::default).clone())
     }

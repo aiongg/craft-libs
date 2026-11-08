@@ -1,12 +1,11 @@
 //! Stories of the full-window parts.
 
-use super::{FullWindowCanvas, FullWindowSide, FullWindowStatus, FullWindowTitle, FullWindowView, FullWindowZoomBar, RasterOverlay, SideFooter};
+use super::{FullWindowCanvas, FullWindowSide, FullWindowStatus, FullWindowTitle, FullWindowView, FullWindowZoomBar, RasterOverlay};
 use crate::canvas::{PixelRect, RasterSource, ToolPath};
 use crate::contract::{Bind, Show as _, ShowContainer as _};
 use crate::display::Text;
 use crate::primitives::{Checker, Revision};
 use crate::runtime::pending::Pending;
-use crate::sections::{DialogRole, FooterButton};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::PixelSize;
 use egui::{Color32, ColorImage, Ui};
@@ -45,11 +44,9 @@ impl RasterSource for Flat {
     }
 }
 
-#[story(FullWindowSide<'static>, covers = [Default], drive = Drive::Never)]
+#[story(FullWindowSide, covers = [Default], drive = Drive::Never)]
 fn side(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let footer = SideFooter::bottom([FooterButton::new("OK", DialogRole::Accept), FooterButton::new("Cancel", DialogRole::Cancel)]);
     FullWindowSide::new("Properties")
-        .footer(footer)
         .show(ui, |ui, _| {
             Text::new("Radius").show(ui);
         })
@@ -57,11 +54,10 @@ fn side(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
         .into()
 }
 
-#[story(FullWindowSide<'static>, covers = [], drive = Drive::Never)]
-fn side_with_top_footer(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let footer = SideFooter::top([FooterButton::new("OK", DialogRole::Accept), FooterButton::new("Cancel", DialogRole::Cancel)]);
+#[story(FullWindowSide, covers = [], drive = Drive::Never)]
+fn side_headerless(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     FullWindowSide::new("Settings")
-        .footer(footer)
+        .headerless()
         .show(ui, |ui, _| {
             Text::new("Effects").show(ui);
         })

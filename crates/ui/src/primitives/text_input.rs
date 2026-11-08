@@ -66,6 +66,9 @@ pub struct TextOptions {
     pub steps_value: bool,
     /// The whole text is selected when the field takes focus, whatever the codec's caret rule says.
     pub select_on_focus: bool,
+    /// Enter does something in the field itself (it saves or runs a search): the field takes the `Submit` intent, so the
+    /// enclosing dialog's default button does not act on it.
+    pub submits: bool,
 }
 
 impl Default for TextOptions {
@@ -85,6 +88,7 @@ impl Default for TextOptions {
             enabled: true,
             steps_value: false,
             select_on_focus: false,
+            submits: false,
         }
     }
 }

@@ -191,8 +191,10 @@ struct Pass {
     last: Vec<OpenEntry>,
     /// The layers whose bodies are running, innermost last.
     drawing: Vec<Id>,
-    /// The layers a component inside was activated in, this pass.
-    activated: Vec<Id>,
+    /// Each activation of this pass: the component and a layer whose body was running around it.
+    activated: Vec<(Id, Id)>,
+    /// The components whose activation this pass opened or closed a popup (`claim_activation`).
+    claimed: Vec<Id>,
     /// The layers a primary press landed outside of, this pass, while their dismissal keeps them open.
     pressed_outside: Vec<Id>,
     /// The popup a press that opened it ended on, and where, this pass.
@@ -237,6 +239,7 @@ fn with_pass<R>(ctx: &Context, f: impl FnOnce(&mut Pass) -> R) -> R {
             }
             pass.drawing.clear();
             pass.activated.clear();
+            pass.claimed.clear();
             pass.pressed_outside.clear();
             pass.dragged_release = None;
         },
@@ -427,14 +430,24 @@ pub(crate) fn end_layer(ctx: &Context) {
 /// container of, may close on it (`Dismiss.on_activate`).
 pub(crate) fn note_activated(ctx: &Context, id: Id) {
     with_pass(ctx, |pass| {
-        let layers: Vec<Id> = pass.drawing.iter().copied().filter(|layer| *layer != id).collect();
+        let layers: Vec<(Id, Id)> = pass.drawing.iter().copied().filter(|layer| *layer != id).map(|layer| (id, layer)).collect();
         pass.activated.extend(layers);
     });
 }
 
-/// Whether a component inside the layer `id` was activated in this pass.
+/// Records that the activation of `component` in this pass toggled a popup it opens: an opener's activation opens
+/// its popup and is no pick, so the layers it sits in stay open. Called before or after `note_activated`.
+pub(crate) fn claim_activation(ctx: &Context, component: Id) {
+    with_pass(ctx, |pass| {
+        if !pass.claimed.contains(&component) {
+            pass.claimed.push(component);
+        }
+    });
+}
+
+/// Whether a component inside the layer `id` was activated in this pass, other than an opener toggling its popup.
 pub(crate) fn activated_inside(ctx: &Context, id: Id) -> bool {
-    with_pass(ctx, |pass| pass.activated.contains(&id))
+    with_pass(ctx, |pass| pass.activated.iter().any(|(component, layer)| *layer == id && !pass.claimed.contains(component)))
 }
 
 /// The input hook: removes the primary presses that land outside the top menu family, its anchors and its parents,

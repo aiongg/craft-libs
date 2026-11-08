@@ -37,18 +37,19 @@ pub use crate::runtime::pending::{Job, Pending, Progress};
 pub(crate) use body::REORDER_BAND;
 pub use collection::{
     ActivateOn, CollectionEvent, CollectionProps, CollectionResponse, ColumnAlign, ColumnEvent, ColumnKind, ColumnSort, ColumnSpec,
-    ContextMenuRequest, DragPayload, HeaderMenuRequest, LeadOnOpen, LeadSource, ListDrag, OpenChange, Rename, ReorderMove, ReorderRule, RowState,
-    ItemKeys, SelectMode, SpaceAction, ToggleColumn, ToggleEdit,
+    ContextMenuRequest, DragPayload, HeaderMenuRequest, ItemKeys, LeadOnOpen, LeadSource, ListDrag, OpenChange, Rename, ReorderMove, ReorderRule,
+    RowState, SelectMode, SpaceAction, ToggleColumn, ToggleEdit,
 };
 pub use container::{
-    Collapse, ContainerProps, DragBand, EndRegion, FooterRegion, Gap, HeaderRegion, Mount, Notch, Pad, PaneEdge, Scroll, ScrollAnchor, ScrollAxes,
-    ShellPane, Sizing, ThemeScope,
+    Collapse, ContainerProps, DragBand, EndRegion, FooterPlace, FooterRegion, Gap, HeaderRegion, Mount, Notch, Pad, PaneEdge, Scroll, ScrollAnchor,
+    ScrollAxes, ShellPane, Sizing, ThemeScope,
 };
 pub use craft_ui_macros::{CommandSet, Component, Pattern, Props, register_contract};
 pub(crate) use cx::SeenPress;
 pub use cx::{Accessible, Activation, BodyCx, Cx, CxCore, Edit, Focus, ItemCx, MeasureCx, PartBuilder, PartsCx, Pointer, Styled, WordSetCx};
 pub use entry::Entry;
 pub use group::{GroupHandle, GroupKind, GroupState};
+pub use held::Held;
 pub use items::{ColumnCommands, request_rename};
 pub(crate) use items::{lead_position, section_part};
 pub use label::{CellWidth, FieldLabelRole, FieldLayout, GlyphLabel, LabelAlign, LabelKind, Scrub, SideLabel};
@@ -62,7 +63,6 @@ pub use props::{Common, Props, Resolved, Tooltip, TooltipAt, TooltipSpec, Toolti
 pub use registry::REGISTRATIONS;
 #[doc(hidden)]
 pub use registry::{CollectionEntry, ContainerEntry, Exemption, LeafEntry, PatternProbe, Probe, Registration, ShowEntry};
-pub use held::Held;
 pub use values::{Bind, BindMut, EditResponse, ItemOutput, NoValue, Outcome, Validity, ValueOf, clicked};
 
 use crate::runtime::overlay::CloseReason;
@@ -505,9 +505,15 @@ pub trait ShowContainer: Container + sealed::ShowContainer {
         run::show_container(self, ui, ShowAt::Flow, body, None)
     }
 
-    /// Shows the container at `rect`.
+    /// Shows the container at `rect`, with no allocation: a frame over a split or a layer the parent places.
     fn show_at<R>(self, ui: &mut Ui, rect: Rect, body: impl FnMut(&mut Ui, &mut BodyCx<'_>) -> R) -> Inner<Self::Output, R> {
         run::show_container(self, ui, ShowAt::Rect(rect), body, None)
+    }
+
+    /// Shows the container at `rect` and takes that rect's room in the flow of `ui`: what is shown after it lies
+    /// past it, as after [`show`](Self::show).
+    fn show_at_taking_room<R>(self, ui: &mut Ui, rect: Rect, body: impl FnMut(&mut Ui, &mut BodyCx<'_>) -> R) -> Inner<Self::Output, R> {
+        run::show_container_taking(self, ui, rect, body)
     }
 
     /// Shows the container with rich tooltip content.

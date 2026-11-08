@@ -12,7 +12,7 @@ use crate::buttons::IconButton;
 use crate::contract::overlay::{Popup, Trigger};
 use crate::contract::{
     Access, Bind, BindMut, BodyCx, CollectionEvent, Common, Component, Cx, Edit as _, EditResponse, Entry, Focus as _, LeadOnOpen, LeadSource,
-    MeasureCx, Numeric, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role, Show as _,
+    MeasureCx, Numeric, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx, Pointer as _, PopupKind, Props as _, Remember as _, Role, Show as _,
     ShowCollection as _, ShowContainer as _, WordSetCx as _,
 };
 use crate::list::{List, ListRow};
@@ -247,7 +247,8 @@ impl<T: Value + 'static> Component for Select<'_, T> {
                         }
                     }
                     if let Some(rows) = header_menu.as_mut() {
-                        let more = IconButton::new(IconId::new(HEADER_MENU_ICON)).label(words.header_menu.clone()).show(ui);
+                        let more = IconButton::new(IconId::new(HEADER_MENU_ICON)).popup(PopupKind::Menu).label(words.header_menu.clone()).show(ui);
+                        // The toggle claims the button's activation, so the list it sits in stays open under the menu.
                         if crate::contract::clicked(&more) {
                             Popup::toggle(more.id, cx);
                         }

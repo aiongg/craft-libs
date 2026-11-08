@@ -7,23 +7,24 @@
 //! `frame::edge_bands` additionally follows the layout's groups), and the drop marks and the drop-over-a-pane halves
 //! follow the pane order the app keeps.
 
-use crate::contract::overlay::Popup;
+use crate::contract::overlay::{PlacementChange, PlacementKind, Popup};
 use crate::contract::{
     BodyCx, Common, Component, Container, ContainerProps, Cx, DropMark, DropOperation, DropTarget, HeaderRegion, Mount, NoValue, Outcome, Pad,
     PaneEdge, Pointer as _, Props as _, Remember as _, Role, Scroll, ShellPane, Show as _, ShowContainer as _, Sizing, WordSetCx as _,
 };
 use crate::display::Divider;
-use crate::docking::{DockSizes, DockWords, DragUnit, FloatingGroup, GroupDrag, PanelKey, PanelLimits};
+use crate::docking::{DockRoot, DockWords, DragUnit, FloatingGroup, GroupDrag, PanelKey, PanelLimits};
 use crate::menu::MenuItem;
 use crate::runtime::commands::{CommandSet as _, CommandState, Commands as _};
 use crate::runtime::env::Label;
 use crate::runtime::focus::FocusPolicy;
+use crate::runtime::windows::ResizeEdge;
 use crate::sections::{HeaderAction, HeaderStrength, MenuRows, TitleRow};
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::dock::{ZoneSize, zones};
 use craft_behavior::{DockSide, GesturePhase, Metrics, Sense};
 use egui::{Id, Pos2, Rect, Response, Ui, Vec2};
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::fmt::Debug;
 use std::hash::Hash;
 
@@ -75,6 +76,7 @@ impl PaneState {
             PaneRequest::Place(_, place) => self.place = *place,
             PaneRequest::FloatRect(_, rect) => self.float_rect = Some(*rect),
             PaneRequest::Minimize(_, on) => self.minimized = *on,
+            PaneRequest::Resize(_, size) => self.size = Some(*size),
             PaneRequest::Close(_) | PaneRequest::Focus(_) | PaneRequest::Before(..) => {}
         }
     }
@@ -106,6 +108,9 @@ pub enum PaneRequest<P> {
     FloatRect(P, Rect),
     /// The user minimized the floating pane (`true`) or restored it (`false`).
     Minimize(P, bool),
+    /// The user dragged a docked pane's inner edge to this extent along its edge, within the pane's limits. It arrives
+    /// once, when the drag ends; the pane follows the pointer while it runs.
+    Resize(P, f32),
     /// The pane took focus.
     Focus(P),
     /// Move the first pane in `panes` to directly before the second (`None`: after every pane), which puts it
@@ -118,7 +123,13 @@ impl<P> PaneRequest<P> {
     /// The pane the request is about.
     pub fn pane(&self) -> &P {
         match self {
-            Self::Close(p) | Self::Place(p, _) | Self::FloatRect(p, _) | Self::Minimize(p, _) | Self::Focus(p) | Self::Before(p, _) => p,
+            Self::Close(p)
+            | Self::Place(p, _)
+            | Self::FloatRect(p, _)
+            | Self::Minimize(p, _)
+            | Self::Resize(p, _)
+            | Self::Focus(p)
+            | Self::Before(p, _) => p,
         }
     }
 }
@@ -439,6 +450,8 @@ pub struct PaneFrameOutput {
     pub action: Option<HeaderAction>,
     /// Whether the pane holds keyboard focus.
     pub focused: bool,
+    /// The extent the user gave the pane by dragging its inner edge, in the pass the drag ends.
+    pub resized: Option<f32>,
 }
 
 impl Outcome for PaneFrameOutput {
@@ -466,6 +479,7 @@ pub struct PaneFrame<'a> {
     taken: Option<HeaderAction>,
     menu_opener: Option<Id>,
     focused: bool,
+    resized: Option<f32>,
 }
 
 impl<'a> PaneFrame<'a> {
@@ -487,8 +501,18 @@ impl<'a> PaneFrame<'a> {
         if spec.title_bar {
             props = props.header(HeaderRegion::new().rule(true));
         }
-        PaneFrame { common: Common::new(), props, actions: Vec::new(), menu: None, take_drop: None, taken: None, menu_opener: None, focused: false }
-            .label(spec.title.clone())
+        PaneFrame {
+            common: Common::new(),
+            props,
+            actions: Vec::new(),
+            menu: None,
+            take_drop: None,
+            taken: None,
+            menu_opener: None,
+            focused: false,
+            resized: None,
+        }
+        .label(spec.title.clone())
     }
 }
 
@@ -519,7 +543,7 @@ impl Component for PaneFrame<'_> {
         if let Some(opener) = self.menu_opener {
             Popup::toggle(opener, &mut cx);
         }
-        PaneFrameOutput { response: cx.response.clone(), action: self.taken, focused: self.focused }
+        PaneFrameOutput { response: cx.response.clone(), action: self.taken, focused: self.focused, resized: self.resized }
     }
 }
 
@@ -531,75 +555,17 @@ impl Container for PaneFrame<'_> {
             self.menu_opener = rows.hang(ui, &shown, cx.words::<DockWords>().pane_menu.clone());
         }
     }
-}
 
-/// The style of a pane area: the docking sizes of its drop bands and its floating cascade.
-#[derive(Clone, Debug, PartialEq, ComponentStyle)]
-#[non_exhaustive]
-pub struct PaneRootStyle {
-    #[style(metrics)]
-    metrics: Metrics,
-    /// The docking sizes.
-    sizes: DockSizes,
-}
-
-/// What the root of a pane area reports.
-#[derive(Debug)]
-#[non_exhaustive]
-pub struct PaneRootOutput {
-    /// The root's response.
-    pub response: Response,
-}
-
-impl Outcome for PaneRootOutput {
-    type Value = NoValue;
-
-    fn response(&self) -> &Response {
-        &self.response
-    }
-}
-
-/// The room of a pane area: it takes the drops on the area's edges and holds the panes and the centre.
-#[derive(crate::contract::Component, crate::contract::Props)]
-#[component(container)]
-pub struct PaneRoot<'a> {
-    #[common]
-    common: Common,
-    #[container]
-    props: ContainerProps,
-    take_drop: Option<TakeDrop<'a, PaneRoot<'a>>>,
-    sizes: &'a Cell<Option<DockSizes>>,
-}
-
-impl Component for PaneRoot<'_> {
-    const ROLE: Role = Role::GROUP;
-    const PARTS: bool = false;
-    const STOPS: bool = false;
-    type Style = PaneRootStyle;
-    type Output = PaneRootOutput;
-
-    fn style(cx: &StyleCx<'_>, _: PaneRootStyleKey) -> PaneRootStyle {
-        PaneRootStyle { metrics: Metrics::new(), sizes: DockSizes::style(cx) }
-    }
-
-    fn sense(&self) -> Sense {
-        Sense::empty()
-    }
-
-    fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        self.sizes.set(Some(cx.style.sizes));
-        if let Some(mut take) = self.take_drop.take() {
-            take(cx);
-            self.take_drop = Some(take);
+    /// The grip on the pane's inner edge ended a drag: the pane's extent along its edge.
+    fn placement_changed(&mut self, change: &PlacementChange) {
+        if let (GesturePhase::Commit, PlacementKind::Size(edge)) = (change.phase, change.kind) {
+            self.resized = Some(match edge {
+                ResizeEdge::Left | ResizeEdge::Right => change.rect.width(),
+                _ => change.rect.height(),
+            });
         }
     }
-
-    fn finish(self, cx: Cx<'_, Self>) -> PaneRootOutput {
-        PaneRootOutput { response: cx.response.clone() }
-    }
 }
-
-impl Container for PaneRoot<'_> {}
 
 /// The pane that held focus in the last pass, for the `Focus` request.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -663,24 +629,15 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> PaneArea<'a, P> {
         let rtl = crate::runtime::env::Env::of(ui).direction.is_rtl();
         let pass =
             Pass { panes: &shown, policy, rtl, content: RefCell::new(&mut *content), sink: RefCell::new(Vec::new()), focused: RefCell::new(None) };
-        let sizes: Cell<Option<DockSizes>> = Cell::new(None);
-
-        let edges = taker(|cx: &mut Cx<'_, PaneRoot<'_>>| {
-            let band = cx.style.sizes.edge_band;
+        let root = DockRoot::new(|cx| {
+            let band = cx.style.sizes().edge_band;
             let target = PaneDrop { panes: pass.panes, policy, rtl, zone: Zone::Edges { bounds: cx.rect, band } };
-            if let Some(dropped) = cx.drop_target::<GroupDrag<P>, _>(&target) {
-                pass.sink.borrow_mut().extend(dropped.requests);
-            }
-        });
-        let root = PaneRoot {
-            common: Common::new(),
-            props: ContainerProps::new().sizing(Sizing::Fill).pad(Pad::None),
-            take_drop: Some(edges),
-            sizes: &sizes,
-        }
+            cx.drop_target::<GroupDrag<P>, _>(&target).map(|dropped| dropped.requests)
+        })
         .label(label);
 
         let shown_root = root.show(ui, |ui, cx| {
+            let Some(sizes) = cx.style::<DockRoot<'_, Vec<PaneRequest<P>>>>().map(|style| *style.sizes()) else { return };
             let (docks, floats) = cx.shell().as_ref().map_or((true, true), |shell| (shell.dock_visible(), shell.floating_visible()));
             let bounds = cx.shell().map_or(cx.rect, |shell| shell.float_bounds());
             let mut order = [PaneEdge::Bottom, PaneEdge::Top, PaneEdge::Start, PaneEdge::End];
@@ -703,7 +660,7 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> PaneArea<'a, P> {
             }
             centre(ui, cx);
             if floats {
-                let inset = sizes.get().map_or(0.0, |sizes| sizes.cascade_inset);
+                let inset = sizes.cascade_inset;
                 let mut cascade = 0.0;
                 for pane in shown.iter().filter(|s| s.state.place == PanePlace::Floating) {
                     let rect = pane.state.float_rect.unwrap_or_else(|| Rect::from_min_size(bounds.min + Vec2::splat(cascade), pane.spec.float_size));
@@ -720,18 +677,26 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> PaneArea<'a, P> {
             }
             last.0 = held;
         });
-        PaneAreaOutput { response: shown_root.output.response, requests: pass.sink.into_inner(), focused: pass.focused.into_inner() }
+        // A drop is taken before the body runs, so its requests come first.
+        let mut requests = shown_root.output.dropped.unwrap_or_default();
+        requests.extend(pass.sink.into_inner());
+        PaneAreaOutput { response: shown_root.output.response, requests, focused: pass.focused.into_inner() }
     }
 }
 
 /// The extent of a docked pane along its edge: its state's size within the limits.
 fn extent_of<P>(pane: &Shown<P>, edge: PaneEdge) -> Option<f32> {
+    pane.state.size.map(|size| within_limits(pane, edge, size))
+}
+
+/// `size` within the limits of `pane` along `edge`.
+fn within_limits<P>(pane: &Shown<P>, edge: PaneEdge, size: f32) -> f32 {
     let limits = pane.spec.limits;
     let (least, most) = match edge {
         PaneEdge::Start | PaneEdge::End => (limits.min.x, limits.max.map_or(f32::INFINITY, |max| max.x)),
         _ => (limits.min.y, limits.max.map_or(f32::INFINITY, |max| max.y)),
     };
-    pane.state.size.map(|size| size.clamp(least, most.max(least)))
+    size.clamp(least, most.max(least))
 }
 
 /// Shows one docked pane and queues what the user did with it. Returns whether the pane holds focus.
@@ -759,6 +724,9 @@ fn show_docked<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(ui: &mut Ui
             pass.content.borrow_mut().body(&pane.pane, ui, cx);
         })
         .output;
+    if let Some(size) = shown.resized {
+        pass.sink.borrow_mut().push(PaneRequest::Resize(pane.pane.clone(), within_limits(pane, edge, size)));
+    }
     queue_action(shown.action, pass, pane);
     shown.focused
 }
