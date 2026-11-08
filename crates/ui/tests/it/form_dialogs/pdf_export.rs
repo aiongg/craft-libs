@@ -148,11 +148,15 @@ fn the_summary_lists_the_differences_from_the_preset() {
 }
 
 /// Choosing PDF/X-1a moves the version to one it allows and turns off what its files can't have, which the Summary
-/// then shows.
+/// then shows: the layers the settings opened with no longer differ from the preset, and editing data is off.
 #[trial]
 fn choosing_a_standard_applies_its_rules() {
     let settings = PdfSettings { preserve_editing: true, create_layers: true, compatibility: Compatibility::Pdf17, ..PdfSettings::default() };
     let (mut fixture, _) = open_on(settings);
+    let lines = |fixture: &Fixture| fixture.texts().iter().map(|run| run.text.clone()).collect::<Vec<_>>();
+    go_to(&mut fixture, "Summary");
+    assert!(lines(&fixture).iter().any(|text| text.starts_with("General › Create PDF layers")), "the layers differ from the preset at first");
+    go_to(&mut fixture, "General");
     let standard = fixture.control("Standard").expect("the Standard select");
     fixture.click(&standard);
     fixture.settle();
@@ -160,10 +164,9 @@ fn choosing_a_standard_applies_its_rules() {
     fixture.click(&x1a);
     fixture.settle();
     go_to(&mut fixture, "Summary");
-    assert!(shows(&fixture, Standard::PdfX1a.label()), "the standard shows in the Summary");
-    assert!(shows(&fixture, Standard::PdfX1a.version().label()), "the version moved to the one the standard allows");
-    let lines: Vec<&str> = fixture.texts().iter().map(|run| run.text.as_str()).collect();
-    let line = |setting: &str| lines.iter().any(|text| text.starts_with(setting) && text.ends_with("Off"));
-    assert!(line("General › Preserve editing"), "editing data is off: {lines:?}");
-    assert!(line("General › Create PDF layers"), "layers are off: {lines:?}");
+    let lines = lines(&fixture);
+    assert!(lines.iter().any(|text| text == Standard::PdfX1a.label()), "the standard shows in the Summary");
+    assert!(lines.iter().any(|text| text == Standard::PdfX1a.version().label()), "the version moved to the one the standard allows");
+    assert!(lines.iter().any(|text| text.starts_with("General › Preserve editing") && text.ends_with("Off")), "editing data is off: {lines:?}");
+    assert!(!lines.iter().any(|text| text.starts_with("General › Create PDF layers")), "layers are off, as the preset has them: {lines:?}");
 }
