@@ -87,6 +87,7 @@ size.bar.options_narrow
 size.bar.status
 size.bar.tab
 size.bar.title
+size.canvas.compass
 size.checker
 size.control.md
 size.control.sm
@@ -129,6 +130,7 @@ space.gap.row
 space.gap.section
 space.gap.stack
 space.gap.tight
+space.inset.screen
 space.pad.chip
 space.pad.control
 space.pad.dialog

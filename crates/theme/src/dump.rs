@@ -6,10 +6,10 @@
 use std::fmt::Write as _;
 
 use crate::{
-    BarSizes, BySize, ColorToken, ComponentTokens, ControlSizes, DockColumnSizes, Easing, Edge, Elevation, ElevationTokens, FloatSizes, FontSlot,
-    Gaps, HandleSizes, HitSizes, IconSizes, LengthSizes, Motion, MotionTokens, Pads, PaneSizes, PlotSizes, RadiusSet, RailSizes, Rgba, RowStyle,
-    RulerSizes, RulerTickSizes, ShapeTokens, SizeTokens, SliderTokens, SpaceTokens, StrokeTokens, ThumbSizes, Tokens, TypeStyle, TypeTokens,
-    WindowSizes,
+    BarSizes, BySize, CanvasSizes, ColorToken, ComponentTokens, ControlSizes, DockColumnSizes, Easing, Edge, Elevation, ElevationTokens, FloatSizes,
+    FontSlot, Gaps, HandleSizes, HitSizes, IconSizes, Insets, LengthSizes, Motion, MotionTokens, Pads, PaneSizes, PlotSizes, RadiusSet, RailSizes,
+    Rgba, RowStyle, RulerSizes, RulerTickSizes, ShapeTokens, SizeTokens, SliderTokens, SpaceTokens, StrokeTokens, ThumbSizes, Tokens, TypeStyle,
+    TypeTokens, WindowSizes,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -84,7 +84,7 @@ fn stroke_lines(out: &mut Lines, stroke: &StrokeTokens) {
 }
 
 fn space_lines(out: &mut Lines, space: &SpaceTokens) {
-    let SpaceTokens { gap, pad } = space;
+    let SpaceTokens { gap, pad, inset } = space;
     let Gaps { tight, inline, row, stack, section } = gap;
     for (k, v) in [("tight", tight), ("inline", inline), ("row", row), ("stack", stack), ("section", section)] {
         out.line(&format!("space.gap.{k}"), len(*v));
@@ -93,6 +93,8 @@ fn space_lines(out: &mut Lines, space: &SpaceTokens) {
     for (k, v) in [("control", control), ("panel", panel), ("dialog", dialog), ("chip", chip)] {
         out.line(&format!("space.pad.{k}"), len(*v));
     }
+    let Insets { screen } = inset;
+    out.line("space.inset.screen", len(*screen));
 }
 
 fn size_lines(out: &mut Lines, size: &SizeTokens) {
@@ -117,6 +119,7 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
         pane,
         ruler,
         dock,
+        canvas,
     } = size;
     let ControlSizes { sm, md } = control;
     out.line("size.control.sm", len(*sm));
@@ -169,6 +172,8 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
     out.line("size.ruler.tick.mid", len(*mid));
     let DockColumnSizes { column } = dock;
     out.line("size.dock.column", len(*column));
+    let CanvasSizes { compass } = canvas;
+    out.line("size.canvas.compass", len(*compass));
 }
 
 fn slot(s: FontSlot) -> &'static str {

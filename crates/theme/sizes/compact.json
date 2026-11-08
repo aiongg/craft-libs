@@ -22,6 +22,9 @@
         "tab": 26.0,
         "title": 32.0
       },
+      "canvas": {
+        "compass": 24.0
+      },
       "checker": 4.0,
       "control": {
         "md": 24.0,
@@ -93,6 +96,9 @@
         "section": 12.0,
         "stack": 6.0,
         "tight": 2.0
+      },
+      "inset": {
+        "screen": 16.0
       },
       "pad": {
         "chip": 4.0,
