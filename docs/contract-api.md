@@ -1518,11 +1518,11 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `fn can_rename(&self, _key: &Self::Key) -> bool`. Whether the item `key` may be renamed; a rename request on another item does nothing.
   - `fn can_drag(&self, _key: &Self::Key) -> bool`. Whether the item `key` may be dragged (reordered, moved in a free layout, or dragged to another collection).
   - `fn accept_from(&self, _from: Id) -> bool`. Whether a drag from the collection `from` may drop here.
-  - `fn accepts(&self, _drag: &ListDrag<Self::Key>, _over: &Self::Key, _insert: usize) -> bool`. Whether the dragged items may land before `insert` (a position of the display order, `over` is the item the
+  - `fn accepts(&self, _drag: &ListDrag<Self::Key>, _over: Option<&Self::Key>, _insert: usize) -> bool`. Whether the dragged items may land before `insert` (a position of the display order, `over` is the item the
   - `fn takes_files(&self) -> bool`. Whether the collection takes files dragged in from the OS: a drop reports `CollectionEvent::FilesDropped` at the
   - `fn zooms(&self) -> bool`. Whether the collection takes the zoom share of the wheel (Ctrl or Cmd with the wheel): it reports
-  - `fn empty_height(&self, _width: f32, _cx: &StyleCx<'_>) -> f32`. The height of the empty state at `width`: a `Sizing::Content` collection with no rows is this tall.
-  - `fn empty(&mut self, _ui: &mut Ui, _cx: &mut BodyCx<'_>)`. The empty state at the rect the item step placed.
+  - `fn empty_height(&self, width: f32, ui: &Ui, _cx: &StyleCx<'_>) -> f32`. The height of the empty state at `width`: a `Sizing::Content` collection with no rows is this tall. The
+  - `fn empty(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>)`. The empty state at the rect the item step placed. The default shows `CollectionProps::empty`.
 - `craft_ui::contract::Component`: `pub trait Component: Meta + Sized`. The core trait: every UI type is a `Component`.
   - `const ROLE: Role`. The AccessKit role.
   - `const ALT_ROLES: &'static [Role]`. Roles `access` may pick per instance.
@@ -1531,6 +1531,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `const PARTS: bool`. Whether the component declares parts, a text part or an editor part: `false` skips the parts step (the parts
   - `const STOPS: bool`. Whether the component or its parts can take key focus: `false` skips the stop registration of step 7, except
   - `const KEYS: crate::runtime::focus::KeyUse`. Keys the focused component keeps from egui and the shortcut dispatcher.
+  - `fn keys(&self) -> crate::runtime::focus::KeyUse`. The keys this instance keeps in its current state. The default is `KEYS`; a component whose key use depends
   - `const SHOWS_LABEL: bool`. Whether the component paints its label as visible text. `false` for a face that shows only an icon or a
   - `type Style`. The style type.
   - `type Output`. `Response`, `EditResponse<T>` or a richer type.
@@ -3648,6 +3649,7 @@ The focus service's fixture: egui widgets for stops, the egui focus, and the eve
 A fixed-rate frame driver over a context.
 
 - `craft_ui::testing::frames::Frames`: `pub struct Frames { pub ctx: Context }`. One context, advanced frame by frame at 60 Hz.
+  - `pub fn screen(&mut self, room: Vec2)`. The size of the egui screen rect in every following frame: `room` where it is larger than the default
   - `pub fn new() -> Self`. A fresh context with the runtime installed.
   - `pub fn uninstalled() -> Self`. A fresh context without the runtime, for frames that ran before `install`.
   - `pub fn install(&mut self)`. Installs the runtime on the context.
@@ -3891,6 +3893,7 @@ The suite runner: one trial per registered type, running the shared cases of its
 - `craft_ui::testing::suite::trials`: `pub fn trials(package: &'static str, registered: &[&'static Registration]) -> Vec<Trial>`. The trials of one package: a trial per registered type and one per story naming a type that is not linked. The
 - `craft_ui::testing::suite::rtl_case`: `pub fn rtl_case(story: &Story) -> Result<(), String>`. The suite's right-to-left case for one story.
 - `craft_ui::testing::suite::text_size_case`: `pub fn text_size_case(story: &Story) -> Result<(), String>`. The suite's text-size case for one story: under a larger text size, either density and scale 2 the story grows
+- `craft_ui::testing::suite::title_case`: `pub fn title_case(story: &Story) -> Result<(), String>`. The title case for one story.
 
 ## `craft_ui::testing::surface`
 
