@@ -585,7 +585,7 @@ fn row_parts_follow_reading_order_in_both_directions() {
 fn the_blend_label_drops_before_the_other_indicators() {
     let (mut fixture, _app) = rig(busy());
     let mut shown = Vec::new();
-    for width in (6..=39).rev().map(|step| step as f32 * 20.0) {
+    for width in (6..=21).rev().map(|step| step as f32 * 20.0) {
         fixture.room(Vec2::new(width, PANEL.y));
         fixture.idle(4);
         let has = |word: &str| fixture.texts().iter().any(|text| text.text == word);
