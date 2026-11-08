@@ -48,55 +48,55 @@ const MAX_GUIDE_PX: f64 = 1_000_000.0;
 const MAX_LAYOUT_PX: f64 = 300_000.0;
 
 craft_ui::words! {
-    /// The guide dialogs' words, English by default (Photoshop's). OK, Cancel and Reset are the common words.
-    pub struct GuideWords {
-        new_guide_title: "guides.newGuide" = "New Guide";
-        edit_title: "guides.editSelected" = "Edit Selected Guides";
-        orientation: "guides.orientation" = "Orientation";
-        horizontal: "guides.horizontal" = "Horizontal";
-        vertical: "guides.vertical" = "Vertical";
-        position: "guides.position" = "Position";
-        color: "guides.color" = "Color";
-        custom_color: "guides.customColor" = "Custom…";
-        light_blue: "guides.lightBlue" = "Light Blue";
-        light_red: "guides.lightRed" = "Light Red";
-        green: "guides.green" = "Green";
-        medium_blue: "guides.mediumBlue" = "Medium Blue";
-        yellow: "guides.yellow" = "Yellow";
-        magenta: "guides.magenta" = "Magenta";
-        cyan: "guides.cyan" = "Cyan";
-        light_gray: "guides.lightGray" = "Light Gray";
-        black: "guides.black" = "Black";
-        picker_title: "guides.pickerTitle" = "Color Picker (Guides)";
-        layout_title: "guides.layout" = "New Guide Layout";
-        preset: "guides.preset" = "Preset";
-        preset_custom: "guides.presetCustom" = "Custom";
-        preset_five: "guides.presetFive" = "5 Columns, 3 Rows";
-        preset_eight: "guides.presetEight" = "8 Columns";
-        preset_twelve: "guides.presetTwelve" = "12 Columns";
-        target: "guides.target" = "Target";
-        document: "guides.document" = "Document";
-        selected_artboards: "guides.selectedArtboards" = "Selected Artboards";
-        columns: "guides.columns" = "Columns";
-        rows: "guides.rows" = "Rows";
-        number: "guides.number" = "Number";
-        width: "guides.width" = "Width";
-        height: "guides.height" = "Height";
-        gutter: "guides.gutter" = "Gutter";
-        automatic_size: "guides.automaticSize" = "Leave empty for automatic size";
-        margin: "guides.margin" = "Margin";
-        top: "guides.top" = "Top";
-        left: "guides.left" = "Left";
-        bottom: "guides.bottom" = "Bottom";
-        right: "guides.right" = "Right";
-        center_columns: "guides.centerColumns" = "Center Columns";
-        clear_existing: "guides.clearExisting" = "Clear Existing Guides";
-        invalid: "guides.invalid" = "Invalid guide layout";
-        does_not_fit: "guides.doesNotFit" = "The columns or rows, their size and gutter must fit inside the margins.";
-        margins_too_large: "guides.marginsTooLarge" = "The margins must leave space inside the target.";
-        nothing: "guides.nothing" = "Turn on Columns, Rows or Margin.";
-        too_many: "guides.tooMany" = "The layout would make too many guides.";
-        no_artboards: "guides.noArtboards" = "Select an artboard or a layer inside one.";
+    /// The words of the guide dialogs (`newGuideDialog`, `guideLayoutDialog`) and of the guide colour list (`guideColor`), English by default (Photoshop's). OK, Cancel and Reset are the common words.
+    pub struct GuideDialogWords {
+        new_guide_title: "newGuideDialog.title" = "New Guide";
+        edit_title: "newGuideDialog.editTitle" = "Edit Selected Guides";
+        orientation: "newGuideDialog.orientation" = "Orientation";
+        horizontal: "newGuideDialog.horizontal" = "Horizontal";
+        vertical: "newGuideDialog.vertical" = "Vertical";
+        position: "newGuideDialog.position" = "Position";
+        color: "guideColor.label" = "Color";
+        custom_color: "guideColor.custom" = "Custom…";
+        light_blue: "guideColor.lightBlue" = "Light Blue";
+        light_red: "guideColor.lightRed" = "Light Red";
+        green: "guideColor.green" = "Green";
+        medium_blue: "guideColor.mediumBlue" = "Medium Blue";
+        yellow: "guideColor.yellow" = "Yellow";
+        magenta: "guideColor.magenta" = "Magenta";
+        cyan: "guideColor.cyan" = "Cyan";
+        light_gray: "guideColor.lightGray" = "Light Gray";
+        black: "guideColor.black" = "Black";
+        picker_title: "guideColor.pickerTitle" = "Color Picker (Guides)";
+        layout_title: "guideLayoutDialog.title" = "New Guide Layout";
+        preset: "guideLayoutDialog.preset" = "Preset";
+        preset_custom: "guideLayoutDialog.presetCustom" = "Custom";
+        preset_five: "guideLayoutDialog.presetFive" = "5 Columns, 3 Rows";
+        preset_eight: "guideLayoutDialog.presetEight" = "8 Columns";
+        preset_twelve: "guideLayoutDialog.presetTwelve" = "12 Columns";
+        target: "guideLayoutDialog.target" = "Target";
+        document: "guideLayoutDialog.document" = "Document";
+        selected_artboards: "guideLayoutDialog.selectedArtboards" = "Selected Artboards";
+        columns: "guideLayoutDialog.columns" = "Columns";
+        rows: "guideLayoutDialog.rows" = "Rows";
+        number: "guideLayoutDialog.number" = "Number";
+        width: "guideLayoutDialog.width" = "Width";
+        height: "guideLayoutDialog.height" = "Height";
+        gutter: "guideLayoutDialog.gutter" = "Gutter";
+        automatic_size: "guideLayoutDialog.automaticSize" = "Leave empty for automatic size";
+        margin: "guideLayoutDialog.margin" = "Margin";
+        top: "guideLayoutDialog.top" = "Top";
+        left: "guideLayoutDialog.left" = "Left";
+        bottom: "guideLayoutDialog.bottom" = "Bottom";
+        right: "guideLayoutDialog.right" = "Right";
+        center_columns: "guideLayoutDialog.centerColumns" = "Center Columns";
+        clear_existing: "guideLayoutDialog.clearExisting" = "Clear Existing Guides";
+        invalid: "guideLayoutDialog.invalid" = "Invalid guide layout";
+        does_not_fit: "guideLayoutDialog.doesNotFit" = "The columns or rows, their size and gutter must fit inside the margins.";
+        margins_too_large: "guideLayoutDialog.marginsTooLarge" = "The margins must leave space inside the target.";
+        nothing: "guideLayoutDialog.nothing" = "Turn on Columns, Rows or Margin.";
+        too_many: "guideLayoutDialog.tooMany" = "The layout would make too many guides.";
+        no_artboards: "guideLayoutDialog.noArtboards" = "Select an artboard or a layer inside one.";
     }
 }
 
@@ -163,7 +163,7 @@ impl GuideColor {
         GuideColor::NAMED.into_iter().find(|named| named.rgba() == rgba).unwrap_or(GuideColor::Custom(rgba))
     }
 
-    fn label(self, words: &GuideWords) -> Label {
+    fn label(self, words: &GuideDialogWords) -> Label {
         match self {
             GuideColor::LightBlue => words.light_blue.clone(),
             GuideColor::LightRed => words.light_red.clone(),
@@ -205,13 +205,13 @@ impl GuideColorChoice {
         self.color = GuideColor::Custom(rgba);
     }
 
-    fn entries(&self, words: &GuideWords) -> Vec<Entry<GuideColor>> {
+    fn entries(&self, words: &GuideDialogWords) -> Vec<Entry<GuideColor>> {
         let custom = Entry::new(GuideColor::Custom(self.custom), words.custom_color.clone());
         std::iter::once(custom).chain(GuideColor::NAMED.into_iter().map(|named| Entry::new(named, named.label(words)))).collect()
     }
 
     /// The colour row. Returns whether the user asked for the colour picker.
-    fn row(&mut self, ui: &mut Ui, words: &GuideWords) -> bool {
+    fn row(&mut self, ui: &mut Ui, words: &GuideDialogWords) -> bool {
         let entries = self.entries(words);
         let mut asks = false;
         let label = words.color.clone();
@@ -355,7 +355,7 @@ fn accepted(closed: Option<CloseReason>) -> bool {
 
 /// What the length fields of a guide dialog read with.
 struct Measure<'a> {
-    words: &'a GuideWords,
+    words: &'a GuideDialogWords,
     numbers: &'a Units,
     units: &'a GuideUnits,
 }
@@ -497,7 +497,7 @@ impl<'a> GuideLayoutDialog<'a> {
     pub fn show(self, ui: &mut Ui) -> GuideLayoutOutput {
         let GuideLayoutDialog { units, document, values, artboards, existing, first_key, open } = self;
         let env = Env::of(ui);
-        let words = env.words::<GuideWords>();
+        let words = env.words::<GuideDialogWords>();
         let common = env.words::<CommonWords>();
         let preview_word = env.words::<ParamDialogWords>().preview.clone();
         let number_units = env.units();
@@ -600,7 +600,7 @@ struct Form<'a> {
     preview_word: &'a Label,
 }
 
-fn preset_row(ui: &mut Ui, words: &GuideWords, options: &mut GuideLayoutOptions) {
+fn preset_row(ui: &mut Ui, words: &GuideDialogWords, options: &mut GuideLayoutOptions) {
     let entries: Vec<Entry<GuideLayoutPreset>> = GuideLayoutPreset::ALL.into_iter().map(|preset| Entry::new(preset, preset.label(words))).collect();
     let current = options.preset;
     Field::new(words.preset.clone()).show(ui, |ui, _| {
@@ -611,7 +611,7 @@ fn preset_row(ui: &mut Ui, words: &GuideWords, options: &mut GuideLayoutOptions)
     });
 }
 
-fn target_row(ui: &mut Ui, words: &GuideWords, options: &mut GuideLayoutOptions, artboards: bool) {
+fn target_row(ui: &mut Ui, words: &GuideDialogWords, options: &mut GuideLayoutOptions, artboards: bool) {
     let mut entries = vec![Entry::new(GuideTarget::Document, words.document.clone())];
     if artboards {
         entries.push(Entry::new(GuideTarget::SelectedArtboards, words.selected_artboards.clone()));

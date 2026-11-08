@@ -174,7 +174,7 @@ name = "ScreenModeCommand"
 old = ""
 new = "craft_ui::shell::ScreenModeCommand"
 status = "replaced"
-note = "Replaces `ScreenMode::command_id`, `CYCLE_COMMAND` and `ScreenModeLabels`: the window-scope commands `view.screenMode.standard`, `.full_screen_with_menu_bar` (alias `.fullScreenWithMenuBar`), `.full_screen` (alias `.fullScreen`), `.cycle` (F) and `.cycle_back` (Shift+F)."
+note = "Replaces `ScreenMode::command_id`, `CYCLE_COMMAND` and `ScreenModeLabels`: the window-scope commands `screenMode.standard`, `.full_screen_with_menu_bar` (alias `.fullScreenWithMenuBar`), `.full_screen` (alias `.fullScreen`), `.cycle` (F) and `.cycle_back` (Shift+F)."
 
 [[type]]
 name = "ScreenModeLabels"
@@ -202,14 +202,14 @@ name = "CanvasLabels"
 old = "craft_ui::shell::CanvasLabels"
 new = ""
 status = "removed"
-note = "The region names are words of the shell (`AppShellWords`); a slot takes its own name with `Slot::label`."
+note = "The region names are words of the shell (`ShellWords`); a slot takes its own name with `Slot::label`."
 
 [[type]]
-name = "AppShellWords"
+name = "ShellWords"
 old = ""
-new = "craft_ui::shell::AppShellWords"
+new = "craft_ui::shell::ShellWords"
 status = "replaced"
-note = "Replaces `CanvasLabels`: the names of the shell's regions as words."
+note = "The one word set of the shell family. Replaces `CanvasLabels`: the names of the shell's regions (ids `appShell.*`); the start screen's words, replacing `StartLabels` (ids `startScreen.*`); and the caption buttons' names and tooltips (ids `captionButton.minimize`, `maximize`, `restore` and `close`; `window.*` before)."
 
 [[type]]
 name = "CanvasOutput"
@@ -301,7 +301,7 @@ note = "The shell takes its window's Tab toggles itself; `clear_reveal` and `rev
 type = "AppShell"
 old = "labels(CanvasLabels)"
 new = ""
-note = "The regions are named by `AppShellWords`."
+note = "The regions are named by `ShellWords`."
 
 [[setter]]
 type = "AppShell"
@@ -357,14 +357,7 @@ name = "StartLabels"
 old = "craft_ui::shell::StartLabels"
 new = ""
 status = "removed"
-note = "Replaced by `StartWords`, the installed word set; the screen takes no labels."
-
-[[type]]
-name = "StartWords"
-old = ""
-new = "craft_ui::shell::StartWords"
-status = "replaced"
-note = "The start screen's word set, replacing `StartLabels`; ids keep the `start.` prefix."
+note = "Replaced by `ShellWords`, the installed word set; the screen takes no labels."
 
 [[type]]
 name = "ThumbKey"
@@ -437,7 +430,7 @@ note = "The view and sort are bindings the app owns; a change is written through
 type = "StartScreen"
 old = "labels(StartLabels)"
 new = ""
-note = "removed: the words are the installed `StartWords`."
+note = "removed: the words are the installed `ShellWords`."
 
 [[setter]]
 type = "StartScreen"
@@ -493,7 +486,7 @@ name = "CaptionButton"
 old = ""
 new = "craft_ui::shell::CaptionButton"
 status = "replaced"
-note = "`CaptionButton::new(Caption, CaptionFamily)` with `maximized(bool)`, `outermost(CaptionEnd)` and `icons(&CaptionIcons)`; the window's active state comes from the environment, and the labels are the `CaptionLabels` words."
+note = "`CaptionButton::new(Caption, CaptionFamily)` with `maximized(bool)`, `outermost(CaptionEnd)` and `icons(&CaptionIcons)`; the window's active state comes from the environment, and the labels are the `ShellWords` caption words."
 
 [[type]]
 name = "caption_buttons"
@@ -512,9 +505,9 @@ note = "A button's id comes from the component's own id; tests find it by its `W
 [[type]]
 name = "CaptionLabels"
 old = "craft_ui::title_bar::CaptionLabels"
-new = "craft_ui::shell::CaptionLabels"
-status = "moved"
-note = "The words `shell.captionMinimize`, `shell.captionMaximize`, `shell.captionRestore` and `shell.captionClose` (`window.*` before)."
+new = ""
+status = "removed"
+note = "Replaced by the caption words of `ShellWords`."
 
 [[type]]
 name = "CaptionIcon"
@@ -599,7 +592,7 @@ note = "removed: the component's id salt (`id_salt`) names the window's buttons.
 type = "CaptionButton"
 old = "labels(&CaptionLabels)"
 new = ""
-note = "removed: the labels are the `CaptionLabels` words of the scope, translated with the catalog."
+note = "removed: the labels are the `ShellWords` caption words of the scope, translated with the catalog."
 
 [[setter]]
 type = "CaptionButton"

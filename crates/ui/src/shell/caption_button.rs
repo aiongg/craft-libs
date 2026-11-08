@@ -2,7 +2,7 @@
 //! per caption and sends the window command of the click; the button only reports it.
 
 use super::caption_icons::{CaptionIcon, CaptionIcons};
-use super::words::CaptionLabels;
+use super::words::ShellWords;
 use super::{Caption, CaptionFamily, Captions, SlotSize};
 use crate::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, PartsCx, Role, Styled as _, WordSetCx as _};
 use crate::primitives::{Glyph, IconSpec, PaintShape, TextureCache};
@@ -266,7 +266,7 @@ impl CaptionButton<'_> {
         }
     }
 
-    fn word<'w>(&self, labels: &'w CaptionLabels) -> Option<&'w Label> {
+    fn word<'w>(&self, labels: &'w ShellWords) -> Option<&'w Label> {
         match self.caption {
             Caption::Minimize => Some(&labels.minimize),
             Caption::Maximize if self.maximized => Some(&labels.restore),
@@ -349,7 +349,7 @@ impl Component for CaptionButton<'_> {
     }
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
-        let words = cx.words::<CaptionLabels>();
+        let words = cx.words::<ShellWords>();
         let mut part = cx.part(BUTTON, rect);
         part = part.sense(Sense::CLICK).pointer_only("the operating system's window commands minimize, maximize and close the window");
         part = part.exclusive(WindowHit::Caption(self.caption));
@@ -359,7 +359,7 @@ impl Component for CaptionButton<'_> {
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
-        if let Some(word) = self.word(&cx.words::<CaptionLabels>()) {
+        if let Some(word) = self.word(&cx.words::<ShellWords>()) {
             access.name(Name::Text(word.as_str().to_owned()));
         }
     }

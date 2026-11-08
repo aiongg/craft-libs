@@ -66,10 +66,17 @@ status = "moved"
 note = "`id` and `label` (was `title`) are given to `DocumentTab::new`; `modified` and `closable` are setters taking a bool."
 
 [[type]]
-name = "DocumentTabsEvent"
+name = "DocumentTabEvent"
 old = "craft_ui::docking::document_tabs::DocumentTabEvent"
+new = ""
+status = "removed"
+note = "Replaced by `DocumentTabsEvent`."
+
+[[type]]
+name = "DocumentTabsEvent"
+old = ""
 new = "craft_ui::tabs::DocumentTabsEvent"
-status = "moved"
+status = "replaced"
 note = "Variants: Selected, Activated, CloseRequested, Picked, Reordered, DroppedInto (without the destination group number: the receiving strip reports it), TornOff, ContextMenu. `Reordered` and `TornOff` carry the documents of the whole drag."
 
 [[type]]

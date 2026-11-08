@@ -104,7 +104,7 @@ name = "GuideLayoutError"
 old = "craft_ui::dialog::guides::GuideLayoutError"
 new = "craft_ui::patterns::form_dialogs::GuideLayoutError"
 status = "moved"
-note = "The reason text is the dialog`s `GuideWords`; `message` is not public."
+note = "The reason text is the dialog`s `GuideDialogWords`; `message` is not public."
 
 [[type]]
 name = "GuideUnits"
@@ -142,11 +142,18 @@ status = "replaced"
 note = "The Columns or Rows group of a layout: `enabled`, `number`, `size`, `gutter`. Replaces the legacy `GuideAxis` group."
 
 [[type]]
-name = "GuideWords"
+name = "GuidesLabels"
 old = "craft_ui::dialog::guides::GuidesLabels"
-new = "craft_ui::patterns::form_dialogs::GuideWords"
+new = ""
+status = "removed"
+note = "Replaced by `GuideDialogWords`."
+
+[[type]]
+name = "GuideDialogWords"
+old = ""
+new = "craft_ui::patterns::form_dialogs::GuideDialogWords"
 status = "replaced"
-note = "The dialogs` words."
+note = "The words of the New Guide and New Guide Layout dialogs and of the guide colour list, with ids `newGuideDialog.*`, `guideLayoutDialog.*` and `guideColor.*`; the canvas guides' names are `CanvasControlWords`."
 
 [[type]]
 name = "GuideLines"

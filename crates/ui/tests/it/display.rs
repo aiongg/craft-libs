@@ -14,7 +14,7 @@ use std::rc::Rc;
 
 /// Commands of the Kbd trial: one with a default chord and one without.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, CommandSet)]
-#[command(prefix = "kbd_trial")]
+#[command(prefix = "kbdTrial")]
 #[non_exhaustive]
 pub enum KbdCommand {
     #[command(label = "Chorded", default = "Cmd+Alt+Shift+K")]
@@ -116,7 +116,7 @@ fn a_chord_names_a_punctuation_key_by_the_keyboards_layout() {
 #[trial]
 fn a_chord_shows_arrow_keys_as_words_off_macos_and_glyphs_on_it() {
     #[derive(Clone, Copy, Debug, PartialEq, Eq, CommandSet)]
-    #[command(prefix = "kbd_arrow")]
+    #[command(prefix = "kbdArrow")]
     #[non_exhaustive]
     enum Arrow {
         #[command(label = "Next", default = "Cmd+Down")]

@@ -77,7 +77,7 @@ impl RulerPart {
 /// The commands of the rulers. They are app commands: the app that owns the zero point and the unit choice handles a
 /// key bound to one as it handles the output of the same name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui_macros::CommandSet)]
-#[command(prefix = "canvas.rulers")]
+#[command(prefix = "canvasRulers")]
 #[non_exhaustive]
 pub enum RulerCommands {
     /// Put the zero point back at the document's origin.

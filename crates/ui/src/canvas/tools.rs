@@ -23,7 +23,7 @@ const ROTATE_STEP_DEG: f64 = 15.0;
 /// The view commands: the keyboard path of the view tools and of the navigation menu. [`apply`](Self::apply) is the
 /// one place that says what each does to a view; the app binds chords and runs it from the fired command.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui_macros::CommandSet)]
-#[command(prefix = "canvas.view")]
+#[command(prefix = "canvasView")]
 #[non_exhaustive]
 pub enum ViewCommand {
     /// Zoom in to the next step of the zoom ladder about the view's centre.

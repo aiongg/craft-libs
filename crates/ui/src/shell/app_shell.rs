@@ -9,7 +9,7 @@ use super::canvas_shell::slots as keys;
 use super::regions::{Claim, SlotSize, layout};
 use super::reveal::{Aim, Reveal, Tracking};
 use super::screen_mode::{ScreenMode, ScreenModeCommand, ScreenModeFollow};
-use super::words::AppShellWords;
+use super::words::ShellWords;
 use crate::contract::overlay::Resize;
 use crate::contract::{
     Bind, BodyCx, Common, Component, Container, ContainerProps, Cx, Mount, NoValue, Outcome, PaneEdge, Props as _, Remember as _, Role, ShellPane,
@@ -135,7 +135,7 @@ struct Placed<'a> {
     /// The size of a slot that sets none: the title bar for the title, else the edge's default.
     title: bool,
     /// The slot's name in the shell's words, for a slot of the canvas preset.
-    named: Option<fn(&AppShellWords) -> Label>,
+    named: Option<fn(&ShellWords) -> Label>,
     add: RegionFn<'a>,
 }
 
@@ -213,7 +213,7 @@ impl Outcome for AppShellOutput {
 /// - **Extent.** A slot is as high (top, bottom) or wide (start, end) as its [`SlotSize`] says, times its columns for a
 ///   rail. Without a size it takes the default of its edge. The shell lays out every shown slot and the body before any
 ///   slot runs, so `BodyCx::shell()` holds this pass's rects.
-/// - **Screen mode.** The `screen_mode` binding holds the window's mode. The window's `view.screenMode.*` commands
+/// - **Screen mode.** The `screen_mode` binding holds the window's mode. The window's `screenMode.*` commands
 ///   (F and Shift+F cycle) change it, and a change to or from full screen is carried out through `WindowHost::act`.
 ///   In `FullScreen` no slot shows but those built with [`Slot::reveal`], during a reveal.
 /// - **Reveal.** In body-only mode Tab (or the `window.toggle_panels` command) shows the revealing slots until the next
@@ -223,7 +223,7 @@ impl Outcome for AppShellOutput {
 ///   normal mode Tab hides every slot and panel and shows them again.
 /// - **Canvas preset.** [`title_bar_if`](Self::title_bar_if), [`options_bar`](Self::options_bar),
 ///   [`tools`](Self::tools) and [`status`](Self::status) add the slots of a document editor under the keys of
-///   [`slots`](super::slots), named by `AppShellWords`; each takes the host's `visible` flag, passed every frame.
+///   [`slots`](super::slots), named by `ShellWords`; each takes the host's `visible` flag, passed every frame.
 /// - **Shell data.** Slots and the body read the skeleton with `BodyCx::shell()`.
 #[must_use = "show the shell with `show`"]
 #[derive(crate::contract::Pattern, crate::contract::Props)]
@@ -343,7 +343,7 @@ impl<'a> AppShell<'a> {
     pub fn show(self, ui: &mut Ui) -> AppShellOutput {
         let AppShell { window, bare, mut screen_mode, allow_reveal, edge_reveal, document_tabs, body_label, title, slots, mut body } = self;
         let env = Env::of(ui);
-        let words = env.words::<AppShellWords>();
+        let words = env.words::<ShellWords>();
         let tokens = env.tokens.clone();
         let body_label = body_label.unwrap_or_else(|| words.document.clone());
         let mut slots: Vec<Placed<'a>> = title.into_iter().chain(slots).collect();

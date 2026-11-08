@@ -1,7 +1,7 @@
 //! Photoshop's on-canvas brush resize.
 
 use super::{FalloffPreview, TipFalloff};
-use crate::canvas_controls::BrushWords;
+use crate::canvas_controls::CanvasControlWords;
 use crate::runtime::env::{Label, UnitKind, Units};
 use crate::style::DataColor;
 use craft_behavior::kurbo::Point;
@@ -232,7 +232,7 @@ impl BrushResize {
 
     /// The rows of the readout beside the pointer: the diameter in whole pixels and the level (hardness, opacity or
     /// density) in whole percents. No rows when no resize runs. The tool hands them to `ToolContext::readout`.
-    pub fn readout_rows(&self, units: &Units, words: &BrushWords) -> Vec<(Label, String)> {
+    pub fn readout_rows(&self, units: &Units, words: &CanvasControlWords) -> Vec<(Label, String)> {
         let Some(run) = &self.run else { return Vec::new() };
         let label = match run.options.level {
             BrushLevel::Hardness => &words.hardness,

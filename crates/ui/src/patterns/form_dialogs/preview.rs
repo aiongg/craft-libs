@@ -46,9 +46,9 @@ const PAN_SHARE: f32 = 0.1;
 craft_ui::words! {
     /// The words of the preview pane and its zoom row.
     pub struct PreviewWords {
-        zoom_in: "formDialogs.zoomIn" = "Zoom in";
-        zoom_out: "formDialogs.zoomOut" = "Zoom out";
-        rendering: "formDialogs.previewRendering" = "Rendering preview";
+        zoom_in: "preview.zoomIn" = "Zoom in";
+        zoom_out: "preview.zoomOut" = "Zoom out";
+        rendering: "preview.rendering" = "Rendering preview";
     }
 }
 

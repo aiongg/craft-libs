@@ -26,8 +26,8 @@ mod stories;
 craft_ui::words! {
     /// The words of the parameter dialog beside the common OK and Cancel.
     pub struct ParamDialogWords {
-        reset: "formDialogs.reset" = "Reset";
-        preview: "formDialogs.preview" = "Preview";
+        reset: "paramDialog.reset" = "Reset";
+        preview: "paramDialog.preview" = "Preview";
     }
 }
 

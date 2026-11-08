@@ -386,14 +386,14 @@ name = "GuideNames"
 old = "craft_ui::canvas::guides::GuideNames"
 new = ""
 status = "removed"
-note = "The accessible names are the words of `GuideWords`."
+note = "The accessible names are the words of `CanvasControlWords`."
 
 [[type]]
-name = "GuideWords"
+name = "CanvasControlWords"
 old = ""
-new = "craft_ui::canvas_controls::GuideWords"
+new = "craft_ui::canvas_controls::CanvasControlWords"
 status = "replaced"
-note = "Legacy `GuideNames`: the vertical and horizontal guide names and the X and Y readout labels."
+note = "The one word set of the canvas controls. Legacy `GuideNames`: the vertical and horizontal guide names and the X and Y readout labels (ids `guides.*`); the marquee shape names and bounds template (`marquee.*`); and the row labels of the brush resize readout, replacing BrushResizeLabels (ids `brushResize.diameter`, `hardness`, `opacity`, `density`)."
 
 [[type]]
 name = "Orientation"
@@ -414,7 +414,7 @@ name = "GuideCommands"
 old = ""
 new = "craft_ui::canvas_controls::GuideCommands"
 status = "replaced"
-note = "App commands `canvas.guides.{new, clear, delete, lock, unlock}` and `GuideCommands::apply(&mut Vec<Guide>, selected)`. Legacy `Guides::request_delete` is `GuideCommands::Delete`."
+note = "App commands `canvasGuides.{new, clear, delete, lock, unlock}` and `GuideCommands::apply(&mut Vec<Guide>, selected)`. Legacy `Guides::request_delete` is `GuideCommands::Delete`."
 
 [[type]]
 name = "GuideHost"
@@ -469,7 +469,7 @@ new = "snap(Fn(craft_behavior::Axis, f64, craft_keymap::Mods) -> f64)"
 type = "Guides"
 old = "readout(x, y)"
 new = ""
-note = "A dragged guide always shows its position; the labels are `GuideWords::{x, y}`."
+note = "A dragged guide always shows its position; the labels are `CanvasControlWords::{x, y}`."
 
 [[setter]]
 type = "Guides"
@@ -873,14 +873,7 @@ name = "BrushResizeLabels"
 old = "craft_ui::canvas::brush::BrushResizeLabels"
 new = ""
 status = "removed"
-note = "The readout's row labels are words: `craft_ui::canvas_controls::BrushWords`."
-
-[[type]]
-name = "BrushWords"
-old = ""
-new = "craft_ui::canvas_controls::BrushWords"
-status = "replaced"
-note = "The word set of the brush overlays; replaces BrushResizeLabels (ids brushResize.diameter, hardness, opacity, density)."
+note = "The readout's row labels are words: `craft_ui::canvas_controls::CanvasControlWords`."
 
 [[type]]
 name = "BrushStyle"
@@ -987,7 +980,7 @@ new = "preview(&falloff) -> Option<FalloffPreview> shown at the canvas rect with
 [[setter]]
 type = "BrushResize"
 old = "readout(units, labels) -> Option<Readout>"
-new = "readout_rows(units, words: &BrushWords) -> Vec<(Label, String)> for ToolContext::readout"
+new = "readout_rows(units, words: &CanvasControlWords) -> Vec<(Label, String)> for ToolContext::readout"
 
 [[setter]]
 type = "BrushResizeOptions"

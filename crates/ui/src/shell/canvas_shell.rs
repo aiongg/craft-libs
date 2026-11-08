@@ -22,7 +22,7 @@
 mod stories;
 
 use super::app_shell::{RegionBody, RegionFn, ShellRegion};
-use super::words::AppShellWords;
+use super::words::ShellWords;
 use crate::contract::{BodyCx, NoValue, Outcome, PaneEdge, Props as _, ShellPane, ShowContainer as _};
 use crate::runtime::env::{BodyMode, Env, Label, ShellEntry};
 use egui::{Rect, Response, Ui};
@@ -103,7 +103,7 @@ impl<'a> CanvasPanel<'a> {
     pub fn show(self, ui: &mut Ui, mut document: impl FnMut(&mut Ui, &mut BodyCx<'_>)) -> CanvasPanelOutput {
         let CanvasPanel { rail, tabs, opening } = self;
         let env = Env::of(ui);
-        let words = env.words::<AppShellWords>();
+        let words = env.words::<ShellWords>();
         let shell = env.get::<ShellEntry>().0;
         let dock = shell.as_ref().is_none_or(|shell| shell.dock_visible());
         let normal = shell.as_ref().is_none_or(|shell| shell.body_mode() == BodyMode::Normal);

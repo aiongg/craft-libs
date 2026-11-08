@@ -26,27 +26,27 @@ craft_ui::words! {
     /// The words of the password dialog beside the common Cancel. `{name}` is the file's name, `{strength}` one of
     /// the three strength words.
     pub struct PasswordWords {
-        open_title: "formDialogs.passwordOpenTitle" = "Password required";
-        open_message: template "formDialogs.passwordOpenMessage" = "\u{201c}{name}\u{201d} is protected. Enter a password to open it.";
-        open: "formDialogs.passwordOpen" = "Open";
-        permissions_title: "formDialogs.passwordPermissionsTitle" = "Permissions password";
-        permissions_message: template "formDialogs.passwordPermissionsMessage" =
+        open_title: "passwordDialog.openTitle" = "Password required";
+        open_message: template "passwordDialog.openMessage" = "\u{201c}{name}\u{201d} is protected. Enter a password to open it.";
+        open: "passwordDialog.open" = "Open";
+        permissions_title: "passwordDialog.permissionsTitle" = "Permissions password";
+        permissions_message: template "passwordDialog.permissionsMessage" =
             "\u{201c}{name}\u{201d} has security restrictions. Enter its permissions password to lift them.";
-        unlock: "formDialogs.passwordUnlock" = "Unlock";
-        set_title: "formDialogs.passwordSetTitle" = "Set Password";
-        type_password: "formDialogs.passwordType" = "Type Password";
-        retype_password: "formDialogs.passwordRetype" = "Re-type Password";
-        mismatch: "formDialogs.passwordMismatch" = "The passwords don't match.";
-        password: "formDialogs.passwordField" = "Password";
-        show: "formDialogs.passwordShow" = "Show password";
-        hide: "formDialogs.passwordHide" = "Hide password";
-        fields: "formDialogs.passwordFields" = "Password";
-        strength_meter: "formDialogs.passwordStrengthMeter" = "Password strength";
-        strength: template "formDialogs.passwordStrength" = "Strength: {strength}";
-        weak: "formDialogs.passwordWeak" = "Weak";
-        medium: "formDialogs.passwordMedium" = "Medium";
-        strong: "formDialogs.passwordStrong" = "Strong";
-        wrong: "formDialogs.passwordWrong" = "That password is not correct.";
+        unlock: "passwordDialog.unlock" = "Unlock";
+        set_title: "passwordDialog.setTitle" = "Set Password";
+        type_password: "passwordDialog.type" = "Type Password";
+        retype_password: "passwordDialog.retype" = "Re-type Password";
+        mismatch: "passwordDialog.mismatch" = "The passwords don't match.";
+        password: "passwordDialog.field" = "Password";
+        show: "passwordDialog.show" = "Show password";
+        hide: "passwordDialog.hide" = "Hide password";
+        fields: "passwordDialog.fields" = "Password";
+        strength_meter: "passwordDialog.strengthMeter" = "Password strength";
+        strength: template "passwordDialog.strength" = "Strength: {strength}";
+        weak: "passwordDialog.weak" = "Weak";
+        medium: "passwordDialog.medium" = "Medium";
+        strong: "passwordDialog.strong" = "Strong";
+        wrong: "passwordDialog.wrong" = "That password is not correct.";
     }
 }
 

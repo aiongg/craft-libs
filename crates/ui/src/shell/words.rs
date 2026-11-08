@@ -1,54 +1,43 @@
 //! Built-in words of the shell family.
 
-// App shell and canvas preset.
 craft_ui::words! {
-    /// The words of the app shell and its canvas preset: the names of the regions of the window.
-    pub struct AppShellWords {
-        window: "shell.window" = "Window";
-        document: "shell.document" = "Document";
-        document_tabs: "shell.documentTabs" = "Document Tabs";
-        options: "shell.options" = "Options";
-        tools: "shell.tools" = "Tools";
-        status: "shell.status" = "Status";
-        screen_mode: "shell.screenMode" = "Screen Mode";
-    }
-}
+    /// The words of the shell family: the names of the window's regions (`appShell`), the start screen
+    /// (`startScreen`) and the caption buttons (`captionButton`). The labels of the recent files' and pinned
+    /// folders' commands are the commands'.
+    pub struct ShellWords {
+        window: "appShell.window" = "Window";
+        document: "appShell.document" = "Document";
+        document_tabs: "appShell.documentTabs" = "Document Tabs";
+        options: "appShell.options" = "Options";
+        tools: "appShell.tools" = "Tools";
+        status: "appShell.status" = "Status";
+        screen_mode: "appShell.screenMode" = "Screen Mode";
 
-// Start screen.
-craft_ui::words! {
-    /// The words of the start screen. The labels of the recent files' and pinned folders' commands are the commands'.
-    pub struct StartWords {
-        new: "start.new" = "New…";
-        open: "start.open" = "Open…";
-        recent: "start.recent" = "Recent";
-        no_recent: "start.noRecent" = "Files you open show here.";
-        view: "start.view" = "View";
-        grid_view: "start.gridView" = "Grid";
-        list_view: "start.listView" = "List";
-        sort: "start.sort" = "Sort";
-        sort_opened: "start.sortOpened" = "Last Opened";
-        sort_name: "start.sortName" = "Name";
-        sort_created: "start.sortCreated" = "Created";
-        pinned: "start.pinned" = "Pinned Folders";
-        no_pinned: "start.noPinned" = "Pin the folders you open often.";
-        pin_folder: "start.pinFolder" = "Pin Folder…";
-        templates: "start.templates" = "Templates";
-        recent_menu: "start.recentMenu" = "Recent file";
-        pinned_menu: "start.pinnedMenu" = "Pinned folder";
-    }
-}
+        new: "startScreen.new" = "New…";
+        open: "startScreen.open" = "Open…";
+        recent: "startScreen.recent" = "Recent";
+        no_recent: "startScreen.noRecent" = "Files you open show here.";
+        view: "startScreen.view" = "View";
+        grid_view: "startScreen.gridView" = "Grid";
+        list_view: "startScreen.listView" = "List";
+        sort: "startScreen.sort" = "Sort";
+        sort_opened: "startScreen.sortOpened" = "Last Opened";
+        sort_name: "startScreen.sortName" = "Name";
+        sort_created: "startScreen.sortCreated" = "Created";
+        pinned: "startScreen.pinned" = "Pinned Folders";
+        no_pinned: "startScreen.noPinned" = "Pin the folders you open often.";
+        pin_folder: "startScreen.pinFolder" = "Pin Folder…";
+        templates: "startScreen.templates" = "Templates";
+        recent_menu: "startScreen.recentMenu" = "Recent file";
+        pinned_menu: "startScreen.pinnedMenu" = "Pinned folder";
 
-// Entries of the caption buttons.
-craft_ui::words! {
-    /// The names and tooltips of the caption buttons.
-    pub struct CaptionLabels {
         /// The minimize button.
-        minimize: "shell.captionMinimize" = "Minimize";
+        minimize: "captionButton.minimize" = "Minimize";
         /// The maximize button.
-        maximize: "shell.captionMaximize" = "Maximize";
+        maximize: "captionButton.maximize" = "Maximize";
         /// The maximize button while the window is maximized.
-        restore: "shell.captionRestore" = "Restore";
+        restore: "captionButton.restore" = "Restore";
         /// The close button.
-        close: "shell.captionClose" = "Close";
+        close: "captionButton.close" = "Close";
     }
 }

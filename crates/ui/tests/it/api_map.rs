@@ -2,7 +2,7 @@
 //! a status that agrees with the paths, and `[[call]]` entries that are Rust expressions.
 
 use craft_ui::testing::trial;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
@@ -34,7 +34,8 @@ fn is_expression(text: &str) -> bool {
     syn::parse_str::<syn::Expr>(text).is_ok()
 }
 
-fn check_types(name: &str, file: &toml::Table, problems: &mut Vec<String>) {
+/// `claimed` maps each `new` path to the `old` path and file of the entry that claimed it first.
+fn check_types(name: &str, file: &toml::Table, claimed: &mut BTreeMap<String, (String, String)>, problems: &mut Vec<String>) {
     let mut seen = BTreeSet::new();
     for entry in entries(file, "type") {
         let (item, old, new, status) = (text(entry, "name"), text(entry, "old"), text(entry, "new"), text(entry, "status"));
@@ -46,9 +47,23 @@ fn check_types(name: &str, file: &toml::Table, problems: &mut Vec<String>) {
         if !is_path(old) || !is_path(new) {
             problems.push(format!("{at}: `old` and `new` are paths"));
         }
-        let last = if new.is_empty() { old } else { new }.rsplit("::").next().unwrap_or_default();
-        if !last.is_empty() && last != item {
-            problems.push(format!("{at}: the paths end in `{last}`"));
+        for (which, path) in [("old", old), ("new", new)] {
+            let last = path.rsplit("::").next().unwrap_or_default();
+            if !last.is_empty() && last != item {
+                problems.push(format!(
+                    "{at}: `{which}` ends in `{last}`; a renamed type is a `removed` entry for the old name and an entry of its own for the new one"
+                ));
+            }
+        }
+        // The same legacy path mapped to the same new path from several families repeats one mapping; any other second claim is a conflict.
+        if !new.is_empty() {
+            match claimed.get(new) {
+                Some((first_old, first_file)) if old.is_empty() || first_old != old => {
+                    problems.push(format!("{at}: `{new}` is also claimed by {first_file}"));
+                }
+                Some(_) => {}
+                None => drop(claimed.insert(new.to_owned(), (old.to_owned(), name.to_owned()))),
+            }
         }
         let consistent = match status {
             "same" => !old.is_empty() && old == new,
@@ -98,6 +113,7 @@ fn api_map_files_have_the_shape_the_codemods_read() {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migration/api-map");
     let mut problems = Vec::new();
     let mut count = 0;
+    let mut claimed = BTreeMap::new();
     for entry in fs::read_dir(&dir).expect("migration/api-map").flatten() {
         let path = entry.path();
         if path.extension().is_none_or(|extension| extension != "toml") {
@@ -117,7 +133,7 @@ fn api_map_files_have_the_shape_the_codemods_read() {
         if name != "common.toml" && !family_shape {
             problems.push(format!("{name}: a family file has `family` and a `new_module` path"));
         }
-        check_types(&name, &file, &mut problems);
+        check_types(&name, &file, &mut claimed, &mut problems);
         check_rewrites(&name, &file, &mut problems);
     }
     assert!(count > 10, "the api-map directory has its files; found {count}");

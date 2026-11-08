@@ -76,7 +76,7 @@ name = "AboutLabels"
 old = "craft_ui::dialog::about::AboutLabels"
 new = ""
 status = "removed"
-note = "Replaced by `AboutWords`, with ids `formDialogs.about*` and counted words for pull requests and commits."
+note = "Replaced by `AboutWords`, with ids `aboutDialog.*` and counted words for pull requests and commits."
 
 [[type]]
 name = "AboutWords"

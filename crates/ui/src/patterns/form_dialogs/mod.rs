@@ -62,9 +62,9 @@ mod guides;
 mod properties;
 
 pub use guides::{
-    GUIDE_LAYOUT_COLOR_KEY, GuideColor, GuideColorChoice, GuideGroup, GuideLayoutDialog, GuideLayoutError, GuideLayoutOptions, GuideLayoutOutput,
-    GuideLayoutPreset, GuideLayoutResult, GuideLayoutValues, GuideLength, GuideRect, GuideTarget, GuideUnits, GuideWords, HostedGuideLayoutDialog,
-    HostedNewGuideDialog, NEW_GUIDE_COLOR_KEY, NewGuideDialog, NewGuideOutput, NewGuideValues,
+    GUIDE_LAYOUT_COLOR_KEY, GuideColor, GuideColorChoice, GuideDialogWords, GuideGroup, GuideLayoutDialog, GuideLayoutError, GuideLayoutOptions,
+    GuideLayoutOutput, GuideLayoutPreset, GuideLayoutResult, GuideLayoutValues, GuideLength, GuideRect, GuideTarget, GuideUnits,
+    HostedGuideLayoutDialog, HostedNewGuideDialog, NEW_GUIDE_COLOR_KEY, NewGuideDialog, NewGuideOutput, NewGuideValues,
 };
 pub use properties::{PropertiesDialog, PropertiesOutput, PropertiesTab, PropertyRow};
 

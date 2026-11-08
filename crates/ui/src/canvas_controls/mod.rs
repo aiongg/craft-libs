@@ -8,7 +8,7 @@ mod smart_guides;
 
 pub use guides::{GuideCommands, GuideStyle, Guides, GuidesOutput};
 pub use smart_guides::{Measure, SmartGuides, SmartGuidesStyle, SmartLine};
-pub use words::GuideWords;
+pub use words::CanvasControlWords;
 
 // Selection outlines, grids and previews (canvas-controls-b).
 mod bands;
@@ -24,9 +24,7 @@ pub use line_preview::{LineGuideStyle, StraightLinePreview};
 pub use marquee::{Marquee, MarqueeLook, MarqueeShape, MarqueeStyle, Run};
 pub use outline::{HoverMask, HoverOutline, HoverShape, OutlineStyle, SelectionOutline, SelectionOutlineLook};
 pub use pixel_grid::{GridSegment, PixelGrid, PixelGridStyle};
-pub use words::SelectionWords;
 // End of canvas-controls-b.
 
 // Brush overlays.
 pub mod brush;
-pub use words::BrushWords;

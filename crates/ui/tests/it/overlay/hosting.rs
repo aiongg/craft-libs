@@ -284,7 +284,7 @@ fn an_injected_activation_fires_the_bound_command_once_with_its_source() {
     };
     take_output(&frames.ctx);
     frames.idle(4, &mut show);
-    let fired: Vec<Fired> = take_output(&frames.ctx).fired.into_iter().filter(|fired| fired.command.id == "overlay_trial.go").collect();
+    let fired: Vec<Fired> = take_output(&frames.ctx).fired.into_iter().filter(|fired| fired.command.id == "overlayTrial.go").collect();
     assert_eq!(fired.len(), 1, "one activation fired the command once");
     assert_eq!(fired[0].source, FireSource::Key, "with the injected source");
 }
