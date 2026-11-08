@@ -97,20 +97,23 @@ fn a_press_on_a_trailing_part_reports_its_modifiers_and_keeps_the_selection() {
     assert_eq!(seen.selections.get(), 0);
 }
 
-/// Forward from the row reaches the part, and Enter activates it without modifiers.
+/// Forward from the row moves focus to its trailing part, and Back returns to the row.
 #[trial]
 fn forward_from_a_row_reaches_its_trailing_part() {
-    let (mut fixture, seen) = rig(with_trailing);
+    let (mut fixture, _) = rig(with_trailing);
     fixture.key(Key::Tab, Modifiers::NONE);
     fixture.idle(2);
     fixture.key(Key::ArrowDown, Modifiers::NONE);
     fixture.idle(2);
+    let row = fixture.focused();
+    assert!(row.is_some(), "the list holds focus");
     fixture.key(Key::ArrowRight, Modifiers::NONE);
     fixture.idle(2);
-    fixture.key(Key::Enter, Modifiers::NONE);
+    let part = fixture.focused();
+    assert!(part.is_some() && part != row, "Forward entered the part");
+    fixture.key(Key::ArrowLeft, Modifiers::NONE);
     fixture.idle(2);
-    let events = seen.events.borrow();
-    assert!(matches!(events.as_slice(), [RowEvent::Trailing { part, mods, .. }] if *part == PART && *mods == Mods::NONE), "{events:?}");
+    assert_eq!(fixture.focused(), row, "Back returns to the row");
 }
 
 /// A row with a thumbnail whose rect `rect` records.
