@@ -126,7 +126,7 @@ fn fixture(constraints: Vec<WideAngleConstraint>) -> (Fixture, Rc<RefCell<App>>)
 
 /// Where the image pixel `at` is on screen: the fitted image is centred in the canvas.
 fn screen(fixture: &Fixture, app: &Rc<RefCell<App>>, at: [f64; 2]) -> Pos2 {
-    let canvas = fixture.by_label("Image").map(|target| target.center()).unwrap_or_default();
+    let canvas = fixture.by_label("Image").map(|target| target.center()).expect("the Image canvas");
     let zoom = (app.borrow().workspace.zoom_percent() / 100.0) as f32;
     canvas + Vec2::new((at[0] - f64::from(IMAGE[0]) / 2.0) as f32 * zoom, (at[1] - f64::from(IMAGE[1]) / 2.0) as f32 * zoom)
 }

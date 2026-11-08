@@ -259,8 +259,7 @@ fn gallery_footer_is_at_the_top() {
     let rig = rig(FilterGallerySession::new("cutout", &Catalog), true);
     let rect = |label: &str| rig.fixture.by_label(label).unwrap_or_else(|| panic!("{label} is shown")).rect;
     let (ok, cancel) = (rect("OK"), rect("Cancel"));
-    let select =
-        rig.fixture.by_role(Role::COMBO_BOX).into_iter().find(|target| target.rect.top() > ok.bottom()).expect("the Filter select is below").rect;
+    let select = rect("Filter");
     let stack = rect("Effect Layers");
     assert!(ok.bottom() <= select.top() && cancel.bottom() <= select.top(), "{ok:?} {cancel:?} over {select:?}");
     assert!(select.bottom() <= stack.top());

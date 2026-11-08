@@ -14,58 +14,64 @@ use super::tools::LiquifyTool;
 #[non_exhaustive]
 pub enum LiquifyCommands {
     /// Forward Warp.
-    #[command(label = "Forward Warp Tool", icon = "pointer", kind = "tool", default = "W")]
+    #[command(modal = "in_dialogs", label = "Forward Warp Tool", icon = "pointer", kind = "tool", default = "W")]
     ForwardWarp,
     /// Reconstruct.
-    #[command(label = "Reconstruct Tool", icon = "brush-cleaning", kind = "tool", default = "R")]
+    #[command(modal = "in_dialogs", label = "Reconstruct Tool", icon = "brush-cleaning", kind = "tool", default = "R")]
     Reconstruct,
     /// Smooth.
-    #[command(label = "Smooth Tool", icon = "droplet", kind = "tool", default = "E")]
+    #[command(modal = "in_dialogs", label = "Smooth Tool", icon = "droplet", kind = "tool", default = "E")]
     Smooth,
     /// Twirl Clockwise.
-    #[command(label = "Twirl Clockwise Tool", icon = "rotate-cw", kind = "tool", default = "C")]
+    #[command(modal = "in_dialogs", label = "Twirl Clockwise Tool", icon = "rotate-cw", kind = "tool", default = "C")]
     TwirlClockwise,
     /// Twirl Counterclockwise.
-    #[command(label = "Twirl Counterclockwise Tool", icon = "rotate-ccw", kind = "tool")]
+    #[command(modal = "in_dialogs", label = "Twirl Counterclockwise Tool", icon = "rotate-ccw", kind = "tool")]
     TwirlCounterclockwise,
     /// Pucker.
-    #[command(label = "Pucker Tool", icon = "scan", kind = "tool", default = "S")]
+    #[command(modal = "in_dialogs", label = "Pucker Tool", icon = "scan", kind = "tool", default = "S")]
     Pucker,
     /// Bloat.
-    #[command(label = "Bloat Tool", icon = "maximize-2", kind = "tool", default = "B")]
+    #[command(modal = "in_dialogs", label = "Bloat Tool", icon = "maximize-2", kind = "tool", default = "B")]
     Bloat,
     /// Push Left.
-    #[command(label = "Push Left Tool", icon = "arrow-left", kind = "tool", default = "O")]
+    #[command(modal = "in_dialogs", label = "Push Left Tool", icon = "arrow-left", kind = "tool", default = "O")]
     PushLeft,
     /// Freeze Mask.
-    #[command(label = "Freeze Mask Tool", icon = "lock", kind = "tool", default = "F")]
+    #[command(modal = "in_dialogs", label = "Freeze Mask Tool", icon = "lock", kind = "tool", default = "F")]
     Freeze,
     /// Thaw Mask.
-    #[command(label = "Thaw Mask Tool", icon = "lock-open", kind = "tool", default = "D")]
+    #[command(modal = "in_dialogs", label = "Thaw Mask Tool", icon = "lock-open", kind = "tool", default = "D")]
     Thaw,
     /// Freeze Lasso: drag to freeze an area, Alt-drag to thaw it.
-    #[command(label = "Freeze Lasso: drag to freeze an area, Alt-drag to thaw it", icon = "lasso", kind = "tool", default = "L")]
+    #[command(
+        modal = "in_dialogs",
+        label = "Freeze Lasso: drag to freeze an area, Alt-drag to thaw it",
+        icon = "lasso",
+        kind = "tool",
+        default = "L"
+    )]
     FreezeLasso,
     /// Hand.
-    #[command(label = "Hand Tool", icon = "hand", kind = "tool", default = "H")]
+    #[command(modal = "in_dialogs", label = "Hand Tool", icon = "hand", kind = "tool", default = "H")]
     Hand,
     /// Zoom.
-    #[command(label = "Zoom Tool", icon = "zoom-in", kind = "tool", default = "Z")]
+    #[command(modal = "in_dialogs", label = "Zoom Tool", icon = "zoom-in", kind = "tool", default = "Z")]
     Zoom,
     /// Makes the brush smaller.
-    #[command(label = "Smaller Brush", default = "[")]
+    #[command(modal = "in_dialogs", label = "Smaller Brush", default = "[")]
     Smaller,
     /// Makes the brush larger.
-    #[command(label = "Larger Brush", default = "]")]
+    #[command(modal = "in_dialogs", label = "Larger Brush", default = "]")]
     Larger,
     /// Shows or hides the freeze mask; the mask itself stays.
-    #[command(label = "Show Mask", default = "Cmd+H")]
+    #[command(modal = "in_dialogs", label = "Show Mask", default = "Cmd+H")]
     ShowMask,
     /// Inverts the freeze mask.
-    #[command(label = "Invert All", default = "Cmd+I")]
+    #[command(modal = "in_dialogs", label = "Invert All", default = "Cmd+I")]
     InvertMask,
     /// Thaws the whole mask.
-    #[command(label = "Clear Mask", default = "Cmd+D")]
+    #[command(modal = "in_dialogs", label = "Clear Mask", default = "Cmd+D")]
     ClearMask,
 }
 
