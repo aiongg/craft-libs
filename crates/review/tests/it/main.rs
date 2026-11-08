@@ -1,5 +1,6 @@
 //! The integration binary of craft-review: every test is a registered trial.
 
+mod annotate;
 mod comments;
 mod thread;
 
