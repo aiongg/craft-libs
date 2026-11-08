@@ -54,10 +54,10 @@ fn custom_asks_the_host_every_time_and_survives_reopening() {
 
     pick_custom(&mut fixture);
     let again = requests.borrow_mut().take_color().expect("Custom… asks again while it is selected");
-    assert_eq!(again.color, custom.color(), "the picker opens at the custom colour");
+    assert_eq!(again.color, Some(custom.color()), "the picker opens at the custom colour");
 
     let mut reopened = panel_options(&options, &requests);
     pick_custom(&mut reopened);
     let after_reopen = requests.borrow_mut().take_color().expect("Custom… asks after the dialog opened again");
-    assert_eq!(after_reopen.color, custom.color(), "the custom colour is the value when the dialog reopens");
+    assert_eq!(after_reopen.color, Some(custom.color()), "the custom colour is the value when the dialog reopens");
 }
