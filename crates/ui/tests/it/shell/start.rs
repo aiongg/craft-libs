@@ -73,7 +73,8 @@ fn delete_on_a_recent_file_removes_it_and_leaves_the_edit_command() {
     });
     fixture.command_state(EditCommands::Delete, CommandState::new());
     fixture.settle();
-    let row = fixture.by_label("first.fig").expect("the recent file is listed");
+    // A list row with a detail is named by its label and the detail, here the folder.
+    let row = fixture.by_label("first.fig, /work").expect("the recent file is listed");
     fixture.click(&row);
     fixture.idle(2);
     seen.borrow_mut().clear();

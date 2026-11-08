@@ -1,5 +1,6 @@
-//! The toast host (15.5): one layer per viewport that lays out the queued toasts and tracks their holds and ends. A
-//! component of a higher layer draws each card (`notices::ToastStack`).
+//! The toast host (15.5): one layer per window root (its id derives from the scope of the root's body) that lays out
+//! the queued toasts and tracks their holds and ends. A component of
+//! a higher layer draws each card (`notices::ToastStack`).
 
 use super::overlay::{self, Anchor, Layer, Overlay, Place};
 use crate::runtime::egui::memory as store;
@@ -31,7 +32,8 @@ impl CardOutcome {
     }
 }
 
-/// The layer that shows the toast queue of a viewport. The window root calls `show` once per pass.
+/// The layer that shows the toast queue of a viewport. The window root calls `show` once per pass, from its own
+/// body, so two roots in one viewport keep two layers.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ToastHost;
 
@@ -44,7 +46,7 @@ impl ToastHost {
         let ctx = ui.ctx();
         let cards = toast::cards(ctx);
         let env = Env::of(ui);
-        let id = sub(store::unique("craft_ui.toast_host"), crate::runtime::egui::pass::current_viewport(ctx));
+        let id = sub(ui.scope_id(), "toast_host");
         let open = !cards.is_empty();
         let presence = motion::layer_presence(ctx, id, id, env.motion, open, motion::spec::OPEN_FADE);
         if !presence.visible {
