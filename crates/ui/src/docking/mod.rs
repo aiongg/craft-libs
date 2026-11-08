@@ -65,8 +65,8 @@ use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
 use crate::runtime::memory::sub;
 use crate::style::{ComponentStyle, StyleCx};
-use craft_behavior::dock::{DockEdge, Layout, Node};
-use craft_behavior::{Axis, Flow, Metrics, PartKey, Sense};
+use craft_behavior::dock::{DockEdge, Layout, Node, SplitSize};
+use craft_behavior::{Axis, EditEvent, Flow, Metrics, PartKey, Sense};
 use divider::{Divider, Drag};
 use egui::{Rect, Response};
 use std::fmt::Debug;
@@ -139,6 +139,21 @@ pub struct SplitAreaOutput<P> {
     pub edit: EditResponse<Layout<P>>,
 }
 
+/// The first body's share of a pair's room when its layout holds none: an even split.
+const EVEN_SHARE: f32 = 0.5;
+
+impl<P: Clone + PartialEq + Send + Sync + 'static> SplitAreaOutput<P> {
+    /// The edit of a [`SplitArea::pair`]'s share: the first body's fraction of the room left after the divider, as the
+    /// gesture the divider's drag or keys made.
+    pub fn share(&self) -> Option<EditEvent<f32>> {
+        let share = |layout: Layout<P>| match layout.root {
+            Some(Node::Split { size: SplitSize::Ratio(share), .. }) => share,
+            _ => EVEN_SHARE,
+        };
+        self.edit.event.clone().map(|event| event.map(share))
+    }
+}
+
 impl<P: Clone + PartialEq + Send + Sync + 'static> Outcome for SplitAreaOutput<P> {
     type Value = Layout<P>;
 
@@ -170,6 +185,15 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> SplitArea<'a, P> 
     pub fn new(label: impl Into<Label>, layout: Bind<'a, Layout<P>>, rules: FrameRules<'a, P>) -> Self {
         let props = ContainerProps::new().arena(true).sizing(Sizing::Fill).pad(Pad::None);
         SplitArea { common: Common::new(), props, layout, rules }.label(label)
+    }
+
+    /// A two-body area: `bodies.0` first along `axis` and `bodies.1` after it, with one divider between them. The first
+    /// body takes `share` of the room left after the divider; the area's response reports the divider's drags and keys
+    /// as [`SplitAreaOutput::share`], and the host hands the share back in the next pass. The body reads each body's
+    /// rect with [`BodyCx::group_frames`].
+    pub fn pair(label: impl Into<Label>, axis: Axis, bodies: (P, P), share: f32, rules: FrameRules<'a, P>) -> Self {
+        let root = Node::split(axis, SplitSize::Ratio(share), Node::tabs(vec![bodies.0], 0), Node::tabs(vec![bodies.1], 0));
+        Self::new(label, Bind::given(Layout::new(Some(root), Vec::new())), rules)
     }
 }
 

@@ -21,7 +21,8 @@ const BETA: ClipId = ClipId(2);
 const GAMMA: ClipId = ClipId(3);
 /// The share of the room the video side has until the app keeps one.
 const DEFAULT_SHARE: f32 = 0.5;
-const DIVIDER: &str = "Drag to change how the room is shared between video and audio tracks";
+/// The name of the split area's divider.
+const DIVIDER: &str = "Resize panels";
 
 fn seconds(at: f64) -> Tick {
     Tick::from_seconds_f64(at)
@@ -146,8 +147,8 @@ fn clip_rect(fixture: &Fixture, name: &str) -> Rect {
     fixture.by_label(name).unwrap_or_else(|| panic!("clip {name} is in view")).rect
 }
 
-/// Press at `from`, move to `to` in steps and release; `halt` runs after the last move, before the release.
-fn drag_between(fixture: &mut Fixture, from: Pos2, to: Pos2, halt: impl FnOnce(&mut Fixture)) {
+/// A drag from `from` to `to` that pauses before the release: `halt` runs after the last move.
+fn drag_pausing(fixture: &mut Fixture, from: Pos2, to: Pos2, halt: impl FnOnce(&mut Fixture)) {
     fixture.frame(vec![pointer::moved(from)]);
     fixture.frame(vec![pointer::press(from)]);
     for step in 1..=4 {
@@ -188,7 +189,7 @@ fn a_clip_dragged_to_another_track_of_its_kind_moves_there() {
     let alpha = clip_rect(&fixture, "alpha");
 
     let to = |y: f32| alpha.center() + vec2(0.0, y - alpha.center().y);
-    drag_between(&mut fixture, alpha.center(), to(rows[0].center().y), |_| {});
+    fixture.drag_at(alpha.center(), to(rows[0].center().y) - alpha.center());
     assert_eq!(committed(&seen.borrow()), Some((1, false)), "V1 to V2 is one row away from the divider");
     let previewed =
         clip_events(&seen.borrow()).iter().any(|event| matches!(event, EditEvent::Update { value, .. } if track_fields(value) == Some((1, false))));
@@ -196,12 +197,12 @@ fn a_clip_dragged_to_another_track_of_its_kind_moves_there() {
 
     seen.borrow_mut().edits.clear();
     let alpha = clip_rect(&fixture, "alpha");
-    drag_between(&mut fixture, alpha.center(), to(rows[2].center().y), |_| {});
+    fixture.drag_at(alpha.center(), to(rows[2].center().y) - alpha.center());
     assert_eq!(committed(&seen.borrow()), Some((0, false)), "a video clip over an audio row stays");
 
     seen.borrow_mut().edits.clear();
     let beta = clip_rect(&fixture, "beta");
-    drag_between(&mut fixture, beta.center(), beta.center() + vec2(0.0, rows[2].bottom() + 6.0 - beta.center().y), |_| {});
+    fixture.drag_at(beta.center(), vec2(0.0, rows[2].bottom() + 6.0 - beta.center().y));
     assert_eq!(committed(&seen.borrow()), Some((0, true)), "below the last audio track a drop adds one");
 }
 
@@ -211,7 +212,7 @@ fn a_move_onto_a_locked_track_is_refused() {
     let (mut fixture, _, seen) = panel(vec![V2], Vec::new());
     let rows = rows(&fixture);
     let alpha = clip_rect(&fixture, "alpha");
-    drag_between(&mut fixture, alpha.center(), alpha.center() + vec2(0.0, rows[0].center().y - alpha.center().y), |_| {});
+    fixture.drag_at(alpha.center(), vec2(0.0, rows[0].center().y - alpha.center().y));
     assert_eq!(committed(&seen.borrow()), Some((0, false)));
 }
 
@@ -224,20 +225,20 @@ fn a_marquee_selects_the_clips_it_touches_across_tracks() {
     let (alpha, beta) = (clip_rect(&fixture, "alpha"), clip_rect(&fixture, "beta"));
     let from = Pos2::new(alpha.left() - 30.0, rows[0].center().y);
     let to = Pos2::new(beta.right() - 20.0, rows[2].center().y);
-    drag_between(&mut fixture, from, to, |_| {});
+    fixture.drag_at(from, to - from);
     let mut selected = model.borrow().selection.clone();
     selected.sort();
     assert_eq!(selected, vec![ALPHA, BETA], "V1 and A1 clips are swept, the empty V2 lane adds none");
 
     let (mut fixture, model, _) = panel(Vec::new(), vec![GAMMA]);
     fixture.hold(Modifiers::SHIFT);
-    drag_between(&mut fixture, from, to, |_| {});
+    fixture.drag_at(from, to - from);
     let mut selected = model.borrow().selection.clone();
     selected.sort();
     assert_eq!(selected, vec![ALPHA, BETA, GAMMA], "Shift keeps the selection the drag started from");
 
     let (mut fixture, model, _) = panel(Vec::new(), vec![GAMMA]);
-    drag_between(&mut fixture, from, to, |fixture| {
+    drag_pausing(&mut fixture, from, to, |fixture| {
         assert_eq!(model.borrow().selection.len(), 2, "the selection follows the marquee while it runs");
         fixture.key(Key::Escape, Modifiers::NONE);
     });
@@ -260,7 +261,7 @@ fn the_snap_target_shows_as_a_line_while_dragging() {
             .filter(|bounds| bounds.width() < 4.0 && bounds.height() > tall && (bounds.center().x - at(9.0)).abs() < 1.5)
             .count()
     };
-    drag_between(&mut fixture, alpha.center(), alpha.center() + by, |fixture| {
+    drag_pausing(&mut fixture, alpha.center(), alpha.center() + by, |fixture| {
         assert!(lines(fixture) > 0, "a line stands at the snap target");
     });
     fixture.idle(2);

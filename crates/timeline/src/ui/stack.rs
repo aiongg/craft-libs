@@ -22,6 +22,7 @@ use craft_ui::contract::{
     Sizing, Styled as _, ToggleColumn, WordSetCx as _,
 };
 use craft_ui::primitives::{IconSpec, PaintShape, StrokeWidth};
+use craft_ui::runtime::commands::FireSource;
 use craft_ui::runtime::env::Label;
 use craft_ui::style::{ComponentStyle, DataColor, IconLook, Stateful, StyleColor, StyleCx, SurfaceLook, TextLook, TypeRole, UiTokens};
 use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
@@ -214,8 +215,8 @@ pub struct TrackEvent {
     pub unlinked: bool,
     /// A double click on a clip.
     pub open: Option<ClipId>,
-    /// A context menu on a clip, with the clip's rect.
-    pub context: Option<(ClipId, Rect)>,
+    /// A context menu on a clip, with the clip's rect and the pointer's position when a secondary click asked for it.
+    pub context: Option<(ClipId, Rect, Option<Pos2>)>,
     /// The colour strip was clicked: the app shows the label menu.
     pub label_menu: bool,
     /// A drag of the row's edge, or a double click on the header.
@@ -301,6 +302,13 @@ impl TrackStack {
             heights: Vec::new(),
         }
         .label(label)
+    }
+
+    /// The stack takes the height its rows need, up to the room, instead of all the room: a pane that sits above others.
+    #[must_use]
+    pub fn sized_to_rows(mut self) -> Self {
+        self.props = self.props.sizing(Sizing::FillWidth);
+        self
     }
 
     /// The stack stays scrolled to its end when its content grows: the video pane, whose first track is nearest the
@@ -437,6 +445,7 @@ impl<'r> TrackRow<'r> {
             event: TrackEvent::default(),
         }
         .label(track.name.to_owned())
+        .ltr_axis()
     }
 
     fn cell(&self, column: &ColumnKey) -> Option<Rect> {
@@ -523,6 +532,10 @@ impl Component for TrackRow<'_> {
         }
         let node = access.node(LABEL, Role::BUTTON);
         node.name = Name::Text(words.track_color.as_str().to_owned());
+        if self.cell(&NAME).is_some() {
+            let node = access.node(HEADER, Role::BUTTON);
+            node.name = Name::Text(self.track.name.to_owned());
+        }
         if let (Some(lane), Some(axis)) = (self.cell(&LANE), time_axis(&cx.env)) {
             self.lane.access(access, lane, &axis, &cx.style.clip);
         }
@@ -559,8 +572,9 @@ impl Component for TrackRow<'_> {
         if cx.part_activated(LABEL).is_some() {
             self.event.label_menu = true;
         }
-        // A double click on the header toggles the height between the two named heights.
-        if matches!(cx.part(HEADER).press.phase, PressPhase::Release { start, click: true, .. } if start.clicks == 2) {
+        // A double click on the header, or AccessKit's click on its node, toggles the height between the two named heights.
+        let double = matches!(cx.part(HEADER).press.phase, PressPhase::Release { start, click: true, .. } if start.clicks == 2);
+        if double || matches!(cx.part_activated(HEADER), Some(FireSource::Access)) {
             self.event.height = Some(DragEvent::Set(sizes.toggled(height)));
         }
         if let (Some(lane), Some(axis)) = (self.cell(&LANE), time_axis(&cx.env)) {
@@ -665,7 +679,7 @@ impl ItemOutput<TrackEvent> for TrackOut {
 }
 
 /// The kind of pane a track belongs to: where it sits against the divider.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Side {
     /// The caption tracks at the top.
@@ -677,7 +691,8 @@ pub enum Side {
 }
 
 /// A track row's place for a clip move: `kind_index` counts away from the divider within the kind (V1 is 0, V2 is 1;
-/// A1 is 0), `top` and `bottom` are its screen rows.
+/// A1 is 0), `span` is its screen rows, `None` for a row the collection did not build (it still ranks and may be
+/// locked, but no pointer is over it).
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct RowGeom {
@@ -689,16 +704,24 @@ pub struct RowGeom {
     pub kind_index: i32,
     /// The track is locked.
     pub locked: bool,
-    /// The row's top edge.
-    pub top: f32,
-    /// The row's bottom edge.
-    pub bottom: f32,
+    /// The row's top and bottom edges; `None` for a row that is not shown.
+    pub span: Option<(f32, f32)>,
 }
 
 impl RowGeom {
     /// A row of kind `kind` in `side`, ranked `kind_index`, between `top` and `bottom`.
     pub fn new(kind: TrackKind, side: Side, kind_index: i32, top: f32, bottom: f32) -> Self {
-        RowGeom { kind, side, kind_index, locked: false, top, bottom }
+        RowGeom { kind, side, kind_index, locked: false, span: Some((top, bottom)) }
+    }
+
+    /// A row of kind `kind` in `side`, ranked `kind_index`, that is not shown.
+    pub fn unbuilt(kind: TrackKind, side: Side, kind_index: i32) -> Self {
+        RowGeom { kind, side, kind_index, locked: false, span: None }
+    }
+
+    /// Whether the row lies over `y`.
+    fn holds(&self, y: f32) -> bool {
+        self.span.is_some_and(|(top, bottom)| top <= y && y < bottom)
     }
 
     /// The same row, locked.
@@ -736,13 +759,15 @@ pub fn resolve_move(rows: &[RowGeom], sources: &[RowGeom], y: f32, bounds: (f32,
     if !(bounds.0..=bounds.1).contains(&y) {
         return MoveTarget::STAY;
     }
-    let (track_delta, new_track) = match rows.iter().find(|row| row.top <= y && y < row.bottom) {
+    let (track_delta, new_track) = match rows.iter().find(|row| row.holds(y)) {
         Some(row) if row.kind == source.kind => (row.kind_index - source.kind_index, false),
         Some(_) => (0, false),
         None if source.side == Side::Caption => (0, false),
         None => {
-            let same = || rows.iter().filter(|row| row.kind == source.kind);
-            let past = if source.kind == TrackKind::Video { same().all(|row| y < row.top) } else { same().all(|row| y >= row.bottom) };
+            let shown: Vec<(f32, f32)> = rows.iter().filter(|row| row.kind == source.kind).filter_map(|row| row.span).collect();
+            let before_all = |(top, _): &(f32, f32)| y < *top;
+            let after_all = |(_, bottom): &(f32, f32)| y >= *bottom;
+            let past = !shown.is_empty() && if source.kind == TrackKind::Video { shown.iter().all(before_all) } else { shown.iter().all(after_all) };
             (0, past)
         }
     };

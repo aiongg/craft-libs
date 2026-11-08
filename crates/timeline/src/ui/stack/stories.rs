@@ -2,8 +2,6 @@
 
 use super::{TrackRow, TrackStack, Tracks};
 use crate::model::{TrackId, TrackInfo, TrackKind};
-use crate::ui::label_palette;
-use crate::ui::panel::label_menu;
 use craft_ui::contract::CollectionEvent;
 use craft_ui::contract::ShowCollection as _;
 use craft_ui::runtime::env::Env;
@@ -27,7 +25,7 @@ fn track(id: u64, name: &str) -> TrackInfo<'_> {
     }
 }
 
-fn stack(ui: &mut Ui, names: &[&str], menu_open: &mut bool) -> StoryOutput {
+fn stack(ui: &mut Ui, names: &[&str]) -> StoryOutput {
     let tracks: Vec<TrackInfo<'_>> = names.iter().enumerate().map(|(at, name)| track(at as u64 + 1, name)).collect();
     let words = Env::of(ui).words::<crate::ui::view::TimelineWords>();
     let source = Tracks::new(&tracks);
@@ -37,29 +35,24 @@ fn stack(ui: &mut Ui, names: &[&str], menu_open: &mut bool) -> StoryOutput {
         let lane = crate::ui::clips::ClipLane::new(&none);
         TrackRow::new(&tracks[at], icx.cells().to_vec(), lane, false, false)
     });
-    // The strip opens the label menu, as the panel shows it.
-    if out.events.iter().any(|event| matches!(event, CollectionEvent::Item(_, row) if row.label_menu)) {
-        *menu_open = true;
-    }
-    if *menu_open {
-        let palette = label_palette(&Env::of(ui).view());
-        let (_, closed) = label_menu(ui, &words, &palette, None, &out.response, menu_open);
-        *menu_open &= !closed;
-    }
-    out.into()
+    // The strip and the header act through the row's event: an activation of either counts as a click.
+    let acted = out.events.iter().any(|event| matches!(event, CollectionEvent::Item(_, row) if row.label_menu || row.height.is_some()));
+    let mut facts = StoryOutput::from(out);
+    facts.clicked |= acted;
+    facts
 }
 
 #[story(TrackStack, covers = [Empty], drive = Drive::Never)]
-fn track_stack_empty(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    stack(ui, &[], data.value("label_menu", false))
+fn track_stack_empty(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    stack(ui, &[])
 }
 
 #[story(TrackStack, covers = [One], drive = Drive::Never)]
-fn track_stack_one(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    stack(ui, &["V1"], data.value("label_menu", false))
+fn track_stack_one(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    stack(ui, &["V1"])
 }
 
 #[story(TrackStack, covers = [Default, Many], drive = Drive::Never)]
-fn track_stack_many(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    stack(ui, &["V3", "V2", "V1", "A1", "A2"], data.value("label_menu", false))
+fn track_stack_many(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    stack(ui, &["V3", "V2", "V1", "A1", "A2"])
 }
