@@ -363,7 +363,8 @@ pub trait Container: Component + HasProps + Meta<Shape = shape::Body> {
 
     /// The user moved or resized the container's layer: by the move band, a grip or the keyboard Move and Size
     /// modes. Called for each step of the gesture, so a container whose layer the caller places (`Overlay::placed`)
-    /// can take the rect it reports.
+    /// can take the rect it reports. A viewport mount in an OS window is called once per change of the window's outer
+    /// rect, with `Commit`.
     fn placement_changed(&mut self, _change: &overlay::PlacementChange) {}
 }
 

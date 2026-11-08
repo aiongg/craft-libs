@@ -274,6 +274,29 @@ struct WindowMode {
 #[derive(Clone, Default)]
 struct BandDouble(bool);
 
+/// The outer rect of a viewport mount's OS window as the container last learnt it: the window's placement, which the
+/// container keeps as a layer keeps its own.
+#[derive(Clone, Default)]
+struct WindowPlaced(Option<Rect>);
+
+/// The edge or corner a resize from `before` to `after` moved: on each axis whose length changed, the side that moved,
+/// or the far side (bottom, end of the screen's x) when both did.
+fn resized_edge(before: Rect, after: Rect) -> Option<ResizeEdge> {
+    let vertical = (before.height() != after.height()).then(|| before.top() != after.top() && before.bottom() == after.bottom());
+    let horizontal = (before.width() != after.width()).then(|| before.left() != after.left() && before.right() == after.right());
+    Some(match (vertical, horizontal) {
+        (None, None) => return None,
+        (Some(true), None) => ResizeEdge::Top,
+        (Some(false), None) => ResizeEdge::Bottom,
+        (None, Some(true)) => ResizeEdge::Left,
+        (None, Some(false)) => ResizeEdge::Right,
+        (Some(true), Some(true)) => ResizeEdge::TopLeft,
+        (Some(true), Some(false)) => ResizeEdge::TopRight,
+        (Some(false), Some(true)) => ResizeEdge::BottomLeft,
+        (Some(false), Some(false)) => ResizeEdge::BottomRight,
+    })
+}
+
 impl BodyCx<'_> {
     /// Whether the second press of a double click went down on the container's move band in this pass. The body step
     /// only reports it; the container decides what it means (a title bar maximizes the window, a floating frame
@@ -682,6 +705,22 @@ impl BodyHooks<'_> {
         }
     }
 
+    /// A viewport mount in an OS window reports the window's moves and resizes from its facts, through the
+    /// `placement_changed` a layer reports its own through: one `Commit` per change, as the platform tells no gesture
+    /// phase. The first facts are the window's placement, not a change.
+    fn window_placed<C: Container>(&mut self, props: &ContainerProps, cx: &mut Cx<'_, C>) {
+        if !matches!(props.mount, Mount::Viewport { .. }) {
+            return;
+        }
+        let Some(viewport) = os_window(props, &cx.core.ctx, cx.core.id) else { return };
+        let Some(facts) = windows::WindowHost::of(&cx.core.ctx).facts(viewport) else { return };
+        let now = facts.outer.unwrap_or(facts.inner);
+        let placed = &mut cx.core.memory.shown::<WindowPlaced>(sub(sub(cx.core.id, "body"), "window_placed")).0;
+        let Some(before) = placed.replace(now).filter(|before| *before != now) else { return };
+        let kind = resized_edge(before, now).map_or(PlacementKind::Move, PlacementKind::Size);
+        self.reports.push(PlacementChange { rect: now, phase: GesturePhase::Commit, pointer: None, kind });
+    }
+
     /// Records for the container's header hooks whether the second press of a double click went down on the move
     /// band in this pass (`BodyCx::band_double_pressed`).
     fn band_double<C: Container>(&self, cx: &mut Cx<'_, C>) {
@@ -704,11 +743,9 @@ impl BodyHooks<'_> {
         let moves_window = matches!(&props.mount, Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } if overlay.moves_window);
         // A layer moves when its overlay says so; other mounts follow the header's band.
         let movable = match &props.mount {
-            // A band that moves the window below follows the rule of the window the layer is shown in.
-            _ if moves_window => {
-                let viewport = pass::current_viewport(&ctx);
-                WindowParts::of(&ctx, viewport).grips && !answered_by_platform(&ctx, viewport)
-            }
+            // A band that moves the window below follows the rule of the window's own band (a title bar's); where the
+            // platform answers the hit test, the sink reads it from the exclusive list.
+            _ if moves_window => WindowParts::of(&ctx, pass::current_viewport(&ctx)).band,
             Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } => overlay.movable && stands.band,
             _ => props.header.is_some_and(|header| header.band == super::DragBand::Move) && stands.band,
         };
@@ -1547,6 +1584,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             self.window_keys(props, cx);
             self.window_drag(props, cx);
         }
+        self.window_placed(props, cx);
         for change in std::mem::take(&mut self.reports) {
             comp.placement_changed(&change);
         }

@@ -659,12 +659,13 @@ pub enum PlacementKind {
     Keyboard,
 }
 
-/// A move or resize of a layer the user made, reported to `Container::placement_changed`.
+/// A move or resize of a layer the user made, or of the OS window a viewport mount shows in, reported to
+/// `Container::placement_changed`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct PlacementChange {
-    /// The rect after the change, in the layer's parent space, kept inside the overlay's `bounds` and `size_limits`.
-    /// On `Cancel` the rect from before the gesture.
+    /// The rect after the change: a layer's in its parent space, kept inside the overlay's `bounds` and `size_limits`;
+    /// an OS window's outer rect in desktop points. On `Cancel` the rect from before the gesture.
     pub rect: Rect,
     /// Where the gesture stands.
     pub phase: GesturePhase,
