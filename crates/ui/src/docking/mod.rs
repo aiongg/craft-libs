@@ -48,13 +48,13 @@ pub use iconic::{IconicColumn, IconicColumnOutput, IconicColumnStyle, IconicSize
 
 use crate::contract::{
     Access, Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, Focus as _, Outcome, Pad, PaintUi,
-    PartsCx, Pointer as _, Props as _, Role, Sizing, WordSetCx as _,
+    PartsCx, Props as _, Role, Sizing, WordSetCx as _,
 };
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
 use crate::runtime::memory::sub;
 use crate::style::{ComponentStyle, StyleCx};
-use craft_behavior::dock::Layout;
+use craft_behavior::dock::{DockEdge, Layout, Node};
 use craft_behavior::{Axis, Flow, Metrics, PartKey, Sense};
 use divider::{Divider, Drag};
 use egui::{Rect, Response};
@@ -120,14 +120,12 @@ pub struct SplitAreaStyle {
     sizes: DockSizes,
 }
 
-/// What a split area reports: the layout's edits and the drop of a panel.
+/// What a split area reports: the layout's edits.
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct SplitAreaOutput<P> {
     /// The resize edits of the layout and the area's response.
     pub edit: EditResponse<Layout<P>>,
-    /// A panel or group dropped on the area this pass: the change it makes and the mark it showed.
-    pub dropped: Option<DockDropped<P>>,
 }
 
 impl<P: Clone + PartialEq + Send + Sync + 'static> Outcome for SplitAreaOutput<P> {
@@ -144,8 +142,8 @@ impl<P: Clone + PartialEq + Send + Sync + 'static> Outcome for SplitAreaOutput<P
 }
 
 /// The docked tree of a layout, with a handle between neighbouring groups. Its body shows the groups, each at its
-/// frame (`tree::frames` with the same rules). With a drop target it takes the drops of tab and group drags.
-#[derive(crate::contract::Component, crate::contract::Props)]
+/// frame (`tree::frames` with the same rules).
+#[derive(crate::contract::Component)]
 #[component(container, probe(SplitArea<'static, usize>))]
 pub struct SplitArea<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> {
     #[common]
@@ -154,17 +152,13 @@ pub struct SplitArea<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> {
     props: ContainerProps,
     layout: Bind<'a, Layout<P>>,
     rules: FrameRules<'a, P>,
-    /// The dock's drop target; the area is where its spots are hit.
-    #[prop]
-    drops: Option<&'a DockDropTarget<'a, P>>,
-    dropped: Option<DockDropped<P>>,
 }
 
 impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> SplitArea<'a, P> {
     /// A split area named `label` over `layout`, sized by `rules`. A mixed layout shows no handles.
     pub fn new(label: impl Into<Label>, layout: Bind<'a, Layout<P>>, rules: FrameRules<'a, P>) -> Self {
         let props = ContainerProps::new().arena(true).sizing(Sizing::Fill).pad(Pad::None);
-        SplitArea { common: Common::new(), props, layout, rules, drops: None, dropped: None }.label(label)
+        SplitArea { common: Common::new(), props, layout, rules }.label(label)
     }
 }
 
@@ -178,13 +172,24 @@ impl<P> Default for PassFrames<P> {
     }
 }
 
+/// The docks of the layout with the frames the area gave them this pass, for the body.
+#[derive(Clone, Default)]
+struct PassDocks(Vec<(DockEdge, Rect)>);
+
 const FRAMES: &str = "split_frames";
+const DOCKS: &str = "split_docks";
 
 impl BodyCx<'_> {
     /// The groups of the split area this body belongs to, each as its anchor panel and its rect, with this pass's
     /// resize edits applied: a panel placed at its group's rect sits against the handle in the same pass.
     pub fn group_frames<P: Clone + Send + Sync + 'static>(&self) -> Vec<(P, Rect)> {
         self.memory.recall::<PassFrames<P>>(sub(self.id, FRAMES)).0
+    }
+
+    /// The docks of the split area this body belongs to, each as its window edge and its rect, with this pass's
+    /// resize edits applied.
+    pub fn dock_frames(&self) -> Vec<(DockEdge, Rect)> {
+        self.memory.recall::<PassDocks>(sub(self.id, DOCKS)).0
     }
 }
 
@@ -292,13 +297,18 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Component for SplitAr
                 cx.set(next);
             }
         }
-        let groups = cx.value().and_then(|shown| shown.root.as_ref()).map_or_else(Vec::new, |root| {
-            tree::frames(root, rect, &sizes, &rules, rtl).groups.iter().filter_map(|group| Some((group.anchor()?.clone(), group.rect))).collect()
-        });
+        let frames = cx.value().and_then(|shown| shown.root.as_ref()).map(|root| tree::frames(root, rect, &sizes, &rules, rtl));
+        let groups = frames.iter().flat_map(|frames| frames.groups.iter()).filter_map(|group| Some((group.anchor()?.clone(), group.rect))).collect();
+        let docks = frames
+            .iter()
+            .flat_map(|frames| frames.groups.iter())
+            .filter_map(|group| match group.node {
+                Node::Dock { side, .. } => Some((*side, group.rect)),
+                _ => None,
+            })
+            .collect();
+        cx.core.memory.shown::<PassDocks>(sub(sub(cx.core.id, "body"), DOCKS)).0 = docks;
         cx.core.memory.shown::<PassFrames<P>>(sub(sub(cx.core.id, "body"), FRAMES)).0 = groups;
-        if let Some(target) = self.drops {
-            self.dropped = cx.drop_target::<GroupDrag<P>, _>(target).or_else(|| cx.drop_target::<PanelDrag, _>(target));
-        }
     }
 
     fn paint_over(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
@@ -321,7 +331,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Component for SplitAr
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> SplitAreaOutput<P> {
-        SplitAreaOutput { edit: cx.edit_response(), dropped: self.dropped }
+        SplitAreaOutput { edit: cx.edit_response() }
     }
 }
 
