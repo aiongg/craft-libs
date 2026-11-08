@@ -306,6 +306,7 @@ pub(crate) fn report_sub(ctx: &Context, decl: &SubDecl<'_>) {
                 rtl: run.rtl,
                 positions: &run.positions,
                 widths: &run.widths,
+                links: &node.run_links,
             },
         );
         keys::register_node(ctx, id, decl.owner, Some(node.part), false);
