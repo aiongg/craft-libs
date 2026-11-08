@@ -3,22 +3,21 @@
 use craft_behavior::kurbo::Point;
 use craft_behavior::{IconId, Input, Metrics};
 use craft_theme::Srgba;
+use craft_theme::variant::Variant;
 use craft_ui::buttons::IconButton;
 use craft_ui::canvas::canvas_space;
 use craft_ui::contract::{
     Common, Component, Cx, Entry, MeasureCx, NoValue, Outcome, PaintUi, Pattern, Props, Role, Show as _, ShowContainer as _, Trigger,
 };
 use craft_ui::display::Badge;
-use craft_ui::fonts::FontRef;
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::menu::Menu;
-use craft_ui::primitives::{DocRun, DocText, Draw, PaintShape, StrokeWidth};
+use craft_ui::primitives::{Draw, PaintShape, StrokeWidth};
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::style::{ComponentStyle, DataColor, StyleColor, StyleCx};
 use egui::{Color32, CornerRadius, Pos2, Rect, Response, Ui, Vec2};
 
 use super::avatar::Avatar;
-use super::avatar::ink_on;
 use super::chat::{BubbleLook, TAG_OFFSET, paint_chat_bubble};
 use crate::collab::{CollabRequest, CollabTransport, Participant, ParticipantId, chat_alpha};
 
@@ -205,13 +204,20 @@ pub fn paint_pointer(draw: &Draw<'_>, halo: StyleColor, size: f32, tip: Pos2, fi
 }
 
 /// A name on a person's colour, its top left corner at `at`.
-fn paint_name_tag(draw: &Draw<'_>, look: &BubbleLook, at: Pos2, name: &str, fill: [u8; 3]) {
-    let runs = [DocRun::new(name.to_owned(), FontRef::proportional(), look.caption.0, DataColor::new(ink_on(fill, look.ink, look.contrast)))];
-    let width = draw.layout(&craft_ui::primitives::TextRun::new(name).role(craft_ui::style::TypeRole::Caption), look.width).size().x;
+fn paint_name_tag(ui: &PaintUi<'_>, look: &BubbleLook, at: Pos2, name: &str, fill: [u8; 3]) {
+    let draw = ui.draw();
+    let ink = ink_on_person(ui, fill);
+    let run = craft_ui::primitives::TextRun::new(name).role(craft_ui::style::TypeRole::Caption).color(ink);
+    let width = draw.layout(&run, look.width).size().x;
     let pad = Vec2::new(look.pad.y, look.pad.y / 2.0);
     let rect = Rect::from_min_size(at, Vec2::new(width, look.caption.1) + 2.0 * pad);
     draw.data_fill(&PaintShape::Rect(rect, CornerRadius::same(look.radius)), data(fill));
-    draw.doc(Rect::from_min_size(rect.min + pad, Vec2::new(width, look.caption.1)), &DocText::new(&runs));
+    draw.text(Rect::from_min_size(rect.min + pad, Vec2::new(width, look.caption.1)), &run);
+}
+
+/// The ink that reads on a person's colour.
+fn ink_on_person(ui: &PaintUi<'_>, fill: [u8; 3]) -> StyleColor {
+    ui.with_style(Variant::SECONDARY, |cx| cx.ink_on(data(fill)))
 }
 
 /// Other people's cursors over the canvas: a pointer and a name tag in their colour at each reported position, their
@@ -277,8 +283,8 @@ impl Component for RemoteCursors<'_> {
                 (alpha > 0.0).then_some((chat, alpha))
             });
             match bubble {
-                Some((chat, alpha)) => paint_chat_bubble(&draw, &style.bubble, tip, Some(&person.name), &chat.text, person.color, alpha),
-                None => paint_name_tag(&draw, &style.bubble, tip + Vec2::from(TAG_OFFSET) * style.pointer, &person.name, person.color),
+                Some((chat, alpha)) => paint_chat_bubble(ui, &style.bubble, tip, Some(&person.name), &chat.text, person.color, alpha),
+                None => paint_name_tag(ui, &style.bubble, tip + Vec2::from(TAG_OFFSET) * style.pointer, &person.name, person.color),
             }
         }
     }
@@ -333,14 +339,13 @@ impl Component for FollowFrame {
         let (area, look) = (space.view.rect, &cx.style.bubble);
         let draw = ui.draw();
         draw.data_stroke(&PaintShape::Rect(area, CornerRadius::ZERO), StrokeWidth::Thick, data(self.color));
-        let width =
-            draw.layout(&craft_ui::primitives::TextRun::new(self.text.as_str()).role(craft_ui::style::TypeRole::Caption), look.width * 2.0).size().x;
+        let run =
+            craft_ui::primitives::TextRun::new(self.text.as_str()).role(craft_ui::style::TypeRole::Caption).color(ink_on_person(ui, self.color));
+        let width = draw.layout(&run, look.width * 2.0).size().x;
         let pad = Vec2::new(look.pad.x, look.pad.y / 2.0);
         let tag = Rect::from_min_size(Pos2::new(area.center().x - width / 2.0 - pad.x, area.top()), Vec2::new(width, look.caption.1) + 2.0 * pad);
         draw.data_fill(&PaintShape::Rect(tag, CornerRadius { nw: 0, ne: 0, sw: look.radius, se: look.radius }), data(self.color));
-        let runs =
-            [DocRun::new(self.text.clone(), FontRef::proportional(), look.caption.0, DataColor::new(ink_on(self.color, look.ink, look.contrast)))];
-        draw.doc(Rect::from_min_size(tag.min + pad, Vec2::new(width, look.caption.1)), &DocText::new(&runs));
+        draw.text(Rect::from_min_size(tag.min + pad, Vec2::new(width, look.caption.1)), &run);
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {

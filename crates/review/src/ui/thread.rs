@@ -11,7 +11,6 @@ mod stories;
 use std::ops::Range;
 
 use craft_behavior::{IconId, Metrics, PressPhase, Proposal, Sense};
-use craft_theme::Srgba;
 use craft_theme::variant::Tone;
 use craft_ui::buttons::{Button, IconButton, ToggleButton};
 use craft_ui::contract::overlay::Anchor;
@@ -26,11 +25,11 @@ use craft_ui::popover::Popover;
 use craft_ui::primitives::{Completer, Completion, HAlign, IconSpec, PaintShape, StrokeWidth, TextRun};
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::runtime::focus::Initial;
-use craft_ui::style::{ComponentStyle, StyleColor, StyleCx, TypeRole};
+use craft_ui::style::{ComponentStyle, DataColor, StyleColor, StyleCx, TypeRole};
 use craft_ui::text::TextField;
-use egui::{CornerRadius, Pos2, Rect, Response, Ui, Vec2};
+use egui::{Color32, CornerRadius, Pos2, Rect, Response, Ui, Vec2};
 
-use super::avatar::{Avatar, AvatarFace, paint_avatar, rgb8};
+use super::avatar::{Avatar, paint_avatar, paint_face};
 use super::comments::{CommentEdit, age_text};
 use crate::comments::{CommentThread, ThreadId};
 
@@ -248,8 +247,8 @@ pub(crate) struct PinStyle {
     dot: StyleColor,
     cluster: StyleColor,
     on_strong: StyleColor,
-    resolved: [u8; 3],
-    avatar_face: AvatarFace,
+    resolved: StyleColor,
+    resolved_ink: StyleColor,
     side: f32,
     inset: f32,
     dot_side: f32,
@@ -292,8 +291,8 @@ impl Component for PinBubble {
             dot: cx.color(color.accent.strong),
             cluster: cx.color(color.accent.strong),
             on_strong: cx.color(color.text.on_strong),
-            resolved: rgb8(Srgba::from(color.text.faint)),
-            avatar_face: AvatarFace::of(cx),
+            resolved: cx.color(color.text.faint),
+            resolved_ink: cx.ink_on(DataColor::new(cx.color(color.text.faint).egui())),
             side: cx.control().height,
             inset: cx.tokens.space.gap.inline,
             dot_side: cx.tokens.shape.radius.sm * 2.0,
@@ -336,8 +335,12 @@ impl Component for PinBubble {
         let inner = rect.shrink(st.inset);
         match &self.face {
             Face::Pin { author, color, unread, resolved, .. } => {
-                let fill = if *resolved { st.resolved } else { *color };
-                paint_avatar(&draw, inner, author, fill, &st.avatar_face);
+                if *resolved {
+                    paint_face(&draw, inner, author, st.resolved, st.resolved_ink);
+                } else {
+                    let [r, g, b] = *color;
+                    paint_avatar(ui, inner, author, DataColor::new(Color32::from_rgb(r, g, b)));
+                }
                 if *unread {
                     let centre = Pos2::new(rect.right() - st.inset, rect.top() + st.inset);
                     draw.fill(&PaintShape::Circle(centre, st.dot_side / 2.0), st.dot);

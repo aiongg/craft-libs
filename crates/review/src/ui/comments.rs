@@ -20,7 +20,6 @@ use std::sync::Arc;
 
 use craft_behavior::{DisplayOrder, IconId, ItemSource, Metrics, Proposal, Selection, SpanLayout};
 use craft_i18n::{DateStyle, DateTime, TimeZone};
-use craft_theme::Srgba;
 use craft_ui::buttons::{Button, IconButton};
 use craft_ui::contract::overlay::Anchor;
 use craft_ui::contract::{
@@ -34,12 +33,12 @@ use craft_ui::menu::{Menu, MenuItem};
 use craft_ui::notices::{Notice, NoticeLayout};
 use craft_ui::primitives::{HAlign, IconSpec, PaintShape, TextRun, Wrap};
 use craft_ui::runtime::env::{AgeStyle, Env, EnvView, Label};
-use craft_ui::style::{ComponentStyle, Ink, StyleColor, StyleCx, TypeRole};
+use craft_ui::style::{ComponentStyle, DataColor, Ink, StyleColor, StyleCx, TypeRole};
 use craft_ui::text::TextField;
 use egui::{CornerRadius, Pos2, Rect, Response, Ui, Vec2, vec2};
 
 use super::annotate::{AnnotateWords, PALETTE};
-use super::avatar::{AvatarFace, paint_avatar, rgb8};
+use super::avatar::paint_face;
 use crate::annotate::AnnotationKind;
 use crate::comments::{CommentFilter, CommentSort, CommentThread, ReviewStatus, ThreadId, matches, sort_threads};
 
@@ -583,8 +582,8 @@ pub(crate) struct CommentRowStyle {
     faint: StyleColor,
     highlight: StyleColor,
     bar: StyleColor,
-    avatar: [u8; 3],
-    avatar_face: AvatarFace,
+    avatar: StyleColor,
+    avatar_ink: StyleColor,
     bar_width: f32,
     height: f32,
     pad: f32,
@@ -941,7 +940,7 @@ impl Sink for Paint<'_, '_> {
 
     fn avatar(&mut self, rect: Rect, name: &str) {
         let rect = self.place(rect);
-        paint_avatar(&self.ui.draw(), rect, name, self.st.avatar, &self.st.avatar_face);
+        paint_face(&self.ui.draw(), rect, name, self.st.avatar, self.st.avatar_ink);
     }
 
     fn button(&mut self, slot: Slot, rect: Rect, id: &'static str, name: &Label, on: bool) {
@@ -997,8 +996,8 @@ impl Component for CommentRow<'_> {
             faint: cx.color(color.text.faint),
             highlight: cx.color(color.state.selected),
             bar: cx.color(color.accent.solid),
-            avatar: rgb8(Srgba::from(color.accent.strong)),
-            avatar_face: AvatarFace::of(cx),
+            avatar: cx.color(color.accent.strong),
+            avatar_ink: cx.ink_on(DataColor::new(cx.color(color.accent.strong).egui())),
             bar_width: cx.tokens.stroke.thick,
             height: cx.control().height,
             pad: cx.tokens.space.pad.control,
