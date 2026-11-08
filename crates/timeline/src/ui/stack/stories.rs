@@ -25,7 +25,7 @@ fn track(id: u64, name: &str) -> TrackInfo<'_> {
 }
 
 fn stack(ui: &mut Ui, names: &[&str]) -> StoryOutput {
-    let sizes = TrackSizes::of(&Env::of(ui).tokens);
+    let sizes = TrackSizes::read(ui);
     let tracks: Vec<TrackInfo<'_>> = names.iter().enumerate().map(|(at, name)| track(at as u64 + 1, name)).collect();
     let words = Env::of(ui).words::<crate::ui::view::TimelineWords>();
     let source = Tracks::new(&tracks, sizes);

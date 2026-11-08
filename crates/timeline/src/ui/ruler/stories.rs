@@ -63,9 +63,11 @@ impl Demo {
 
 /// Shows `ruler` inside a timeline view over `view`, which publishes the time axis the ruler reads.
 fn in_view<'a>(ui: &mut Ui, view: &mut TimeView, ruler: impl FnOnce() -> TimelineRuler<'a>) -> StoryOutput {
+    let mut ruler = Some(ruler);
     TimelineView::new("Time", Bind::bound(view), format(), secs(END_SECONDS))
-        .show(ui, |ui, _cx| -> TimelineRulerResponse { ruler().show(ui) })
+        .show(ui, |ui, _cx| -> Option<TimelineRulerResponse> { ruler.take().map(|ruler| ruler().show(ui)) })
         .inner
+        .flatten()
         .map(StoryOutput::from)
         .unwrap_or_default()
 }

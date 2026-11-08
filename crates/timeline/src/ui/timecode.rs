@@ -8,7 +8,7 @@ use craft_behavior::{Caret, Codec, DisplayOrder, IconId, ItemSource, NavMove, No
 use craft_ui::buttons::IconButton;
 use craft_ui::contract::{
     Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Held, Input, MeasureCx, NoValue, Outcome, PartsCx, Props, Role, Scrub,
-    SelectMode, Show as _, ShowCollection as _, ShowContainer as _, WordSetCx as _, clicked,
+    SelectMode, Show as _, ShowCollection as _, ShowContainer as _, clicked,
 };
 use craft_ui::display::Divider;
 use craft_ui::layout_components::Stack;
@@ -18,7 +18,7 @@ use craft_ui::primitives::{TextKey, TextOptions, TextRun};
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::runtime::focus::KeyUse;
 use craft_ui::runtime::memory::Remember as _;
-use craft_ui::style::StyleCx;
+use craft_ui::style::{StyleCx, TypeRole};
 use craft_ui::text::FieldStyle;
 use egui::{Rect, Response, Ui, Vec2};
 use std::borrow::Cow;
@@ -240,7 +240,7 @@ impl Component for TimecodeField<'_> {
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let codec = self.codec();
         let sample = codec.sample(cx.value().unwrap_or(&Tick::ZERO));
-        cx.layout(&TextRun::new(sample.as_ref()).mono()).size()
+        cx.layout(&TextRun::new(sample.as_ref()).role(TypeRole::Mono)).size()
     }
 
     fn parts(&mut self, _: Rect, cx: &mut PartsCx<'_, Self>) {

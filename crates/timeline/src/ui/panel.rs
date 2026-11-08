@@ -13,11 +13,11 @@ use crate::clock::FollowMode;
 use crate::markers::{Marker, MarkerColor};
 use crate::model::{ClipId, ClipInfo, TimelineModel, TrackId, TrackInfo, TrackKind};
 use crate::time::{Tick, TimeRange};
-use craft_behavior::{ColumnEvent, ColumnWidth, EditEvent, IconId, Metrics, PressPhase, SelectionChange, Sense};
+use craft_behavior::{ColumnWidth, EditEvent, IconId, Metrics, PressPhase, SelectionChange, Sense};
 use craft_ui::buttons::{IconButton, ToggleButton};
 use craft_ui::contract::{
-    Bind, BindMut, BodyLayout, CollectionEvent, CollectionResponse, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse,
-    NoValue, Outcome, Pattern, Pointer as _, Props, Remember as _, Role, Show as _, ShowCollection as _, ShowContainer as _, Sizing, WordSetCx as _,
+    Bind, BindMut, BodyLayout, CollectionEvent, CollectionResponse, ColumnEvent, Common, Component, Container, ContainerProps, Cx, Edit as _,
+    EditResponse, NoValue, Outcome, Pattern, Pointer as _, Props, Remember as _, Role, Show as _, ShowCollection as _, ShowContainer as _, Sizing,
 };
 use craft_ui::display::Text;
 use craft_ui::layout_components::{Row, Stack};
@@ -26,7 +26,6 @@ use craft_ui::primitives::IconSpec;
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::style::{ComponentStyle, StyleCx};
 use egui::{Pos2, Rect, Response, Ui, Vec2};
-use std::borrow::Cow;
 
 /// A track header switch.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -200,7 +199,7 @@ pub struct Timeline<'a, M: TimelineModel> {
     #[prop(into)]
     divider: Option<f32>,
     /// Paints each clip's content into its body rect (waveforms, thumbnails).
-    #[prop(func = "Fn(&craft_ui::primitives::ContentPainterCx<'_>, egui::Rect, &ClipInfo<'_>)")]
+    #[prop(func = "Fn(&craft_ui::primitives::ContentPainterCx<'_>, egui::Rect, egui::Rect, &ClipInfo<'_>)")]
     content: Option<ClipContent<'a>>,
 }
 
@@ -348,12 +347,12 @@ impl Mapping<'_> {
         let words = self.words;
         let menu = Menu::context(words.track_color.clone(), anchor).show(ui, |ui, _| {
             let mut chosen = None;
-            if MenuItem::new(words.no_label.clone()).checked(current.is_none()).show(ui).ran {
+            if MenuItem::new(words.no_label.clone()).check(current.is_none()).show(ui).ran {
                 chosen = Some(None);
             }
             for n in 0..=u8::MAX.min(15) {
                 let label = MarkerColor(n);
-                if MenuItem::new(words.label_name(label).to_owned()).checked(current == Some(label)).show(ui).ran {
+                if MenuItem::new(words.label_name(label).to_owned()).check(current == Some(label)).show(ui).ran {
                     chosen = Some(Some(label));
                 }
             }
@@ -374,7 +373,7 @@ impl<M: TimelineModel> Timeline<'_, M> {
         let Timeline { label, model, tool, snap, linked_selection, no_modifier_trims, follow, playing, header_width, divider, content } = self;
         let env = Env::of(ui);
         let words = env.words::<TimelineWords>();
-        let sizes = TrackSizes::of(&env.tokens);
+        let sizes = TrackSizes::read(ui);
         let name_width = sizes.name_width(header_width);
         let extent = sizes.header_extent(name_width);
         let mut edits: Vec<TimelineEdit> = Vec::new();
@@ -428,7 +427,7 @@ impl<M: TimelineModel> Timeline<'_, M> {
                 .follow(follow, playing, playhead)
                 .edit_points(&points)
                 .show(ui, |ui, cx| {
-                    TopStrip::new(extent).show(ui, |ui, _| {
+                    TopStrip::new().show(ui, |ui, _| {
                         Stack::new().show(ui, |ui, _| {
                             let field = TimecodeField::new(words.panel.clone(), Bind::given(playhead), format).show(ui);
                             timecode_edit = field.edit.event;
@@ -450,7 +449,7 @@ impl<M: TimelineModel> Timeline<'_, M> {
                             };
                             let ruler = ruler.show(ui);
                             ruler_edits.extend(ruler.playhead.event.map(TimelineEdit::Playhead));
-                            ruler_edits.extend(ruler.work_area.event.map(TimelineEdit::WorkArea));
+                            ruler_edits.extend(ruler.work_area.map(TimelineEdit::WorkArea));
                         });
                     });
                     let mut memory = std::mem::take(cx.keep::<Memory>());
@@ -537,12 +536,9 @@ struct TopStrip {
 }
 
 impl TopStrip {
-    fn new(head: f32) -> Self {
-        let columns = vec![ColumnWidth::Fixed(head), ColumnWidth::fill(1.0)];
-        TopStrip {
-            common: Common::new(),
-            props: ContainerProps::new().sizing(Sizing::FillWidth).layout(BodyLayout::Grid { columns: Cow::Owned(columns) }),
-        }
+    fn new() -> Self {
+        const COLUMNS: &[ColumnWidth] = &[ColumnWidth::Content, ColumnWidth::fill(1.0)];
+        TopStrip { common: Common::new(), props: ContainerProps::new().sizing(Sizing::FillWidth).layout(BodyLayout::grid(COLUMNS)) }
     }
 }
 
@@ -557,7 +553,7 @@ impl Component for TopStrip {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {
-        cx.core.response
+        cx.response.clone()
     }
 }
 
@@ -640,7 +636,7 @@ impl TimelineModel for EmptySequence {
     }
 
     fn format(&self) -> crate::timecode::TimeFormat {
-        crate::timecode::TimeFormat::timecode(crate::rates::FrameRate::NTSC_30)
+        crate::timecode::TimeFormat::timecode(crate::rates::FrameRate::FPS_29_97)
     }
 
     fn playhead(&self) -> Tick {

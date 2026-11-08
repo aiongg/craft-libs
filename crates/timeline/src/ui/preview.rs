@@ -5,7 +5,7 @@ mod stories;
 
 use craft_behavior::{Axis, Metrics};
 use craft_theme::Stateful;
-use craft_ui::contract::{Access, Common, Component, Cx, Input, MeasureCx, Name, PaintUi, Props, Role};
+use craft_ui::contract::{Access, Common, Component, Cx, Input, MeasureCx, Name, PaintUi, Props, Role, Styled as _};
 use craft_ui::primitives::{PaintShape, TextRun};
 use craft_ui::runtime::env::Label;
 use craft_ui::style::{ComponentStyle, DataColor, StyleCx, TextLook, TypeRole};

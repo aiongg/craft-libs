@@ -102,13 +102,15 @@ impl Demo {
 fn shown(ui: &mut Ui, demo: &mut Demo, range: Bind<'_, GraphRange>) -> StoryOutput {
     let Demo { view, curves, selection } = demo;
     let (curves, selection) = (&*curves, &*selection);
+    let mut range = Some(range);
     TimelineView::new("Time", Bind::bound(view), format(), secs(END_SECONDS))
         .show(ui, |ui, _cx| {
             let full = ui.available_rect_before_wrap();
             let rect = Rect::from_min_size(full.min, Vec2::new(full.width(), full.width() * GRAPH_ASPECT));
-            GraphEditor::new("Graph", range, curves, selection).playhead(secs(3.0)).show_at(ui, rect)
+            range.take().map(|range| GraphEditor::new("Graph", range, curves, selection).playhead(secs(3.0)).show_at(ui, rect))
         })
         .inner
+        .flatten()
         .map(StoryOutput::from)
         .unwrap_or_default()
 }

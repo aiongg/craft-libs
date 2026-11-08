@@ -33,7 +33,7 @@ fn card(ctx: &Context) -> TextureHandle {
 fn shown(ui: &mut Ui, fit: FrameFit, status: &str) -> StoryOutput {
     let texture = card(ui.ctx());
     let frame = Some((texture.id(), vec2(CARD[0] as f32, CARD[1] as f32)));
-    ui.allocate_ui(BOX, |ui| FramePreview::new("Program frame", frame).fit(fit).status(status).show(ui)).inner.into()
+    ui.allocate_ui(BOX, |ui| FramePreview::new("Program frame", frame).fit(fit).status(status.to_owned()).show(ui)).inner.into()
 }
 
 #[story(FramePreview, covers = [Default], drive = Drive::Never)]

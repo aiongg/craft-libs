@@ -10,15 +10,15 @@ use crate::timecode::TimeFormat;
 use craft_behavior::scroll::{self, ScrollSpan};
 use craft_behavior::{Axis, EditEvent, GestureId, Granularity, Intent, Metrics, Mixed, NavMove, PartKey, Sense, Wheel};
 use craft_ui::contract::{
-    Access, Bind, BindMut, CommandSet, Commands as _, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, Name, Outcome,
-    PaintUi, PartsCx, Pointer as _, Props, Role, Sizing, WordSetCx as _,
+    Access, Bind, BindMut, CommandSet, Commands as _, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, Focus as _, Name,
+    Outcome, PaintUi, PartsCx, Pointer as _, Props, Remember as _, Role, Sizing, Styled as _, WordSetCx as _,
 };
 use craft_ui::primitives::PaintShape;
 use craft_ui::runtime::access::Numeric;
 use craft_ui::runtime::commands::CommandState;
 use craft_ui::runtime::env::{AppValues, EnvValue, EnvView, Label};
 use craft_ui::runtime::focus::KeyUse;
-use craft_ui::runtime::motion::{Animate as _, MotionSpec};
+use craft_ui::runtime::motion::{Animate as _, spec};
 use craft_ui::style::{ComponentStyle, RuleKind, ScrollBarLook, StyleColor, StyleCx, SurfaceKind};
 use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
 use std::ops::Deref;
@@ -90,7 +90,7 @@ impl TimelineWords {
             &self.label_brown,
             &self.label_yellow,
         ];
-        names[usize::from(label.0) % names.len()]
+        names[usize::from(label.0) % names.len()].as_str()
     }
 }
 
@@ -279,7 +279,7 @@ impl<'a> TimelineView<'a> {
         if !(target.points_per_second > 0.0 && target.points_per_second.is_finite()) {
             return target;
         }
-        let eased = f64::from(cx.anim("timeline.zoom", target.points_per_second.ln() as f32, MotionSpec::MOVE)).exp();
+        let eased = f64::from(cx.anim("timeline.zoom", target.points_per_second.ln() as f32, spec::MOVE)).exp();
         let zooming = (eased - target.points_per_second).abs() / target.points_per_second > ZOOM_SETTLE;
         let mut view = TimeView { start: target.start, points_per_second: if zooming { eased } else { target.points_per_second } };
         if let (true, Some((time, x))) = (zooming, self.anim.anchor) {

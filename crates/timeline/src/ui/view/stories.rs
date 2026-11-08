@@ -10,7 +10,7 @@ use egui::Ui;
 
 #[story(TimelineView<'static>, covers = [Default], drive = Drive::Never)]
 fn timeline_view(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let format = TimeFormat::timecode(FrameRate::NTSC_30).drop_frame(true);
+    let format = TimeFormat::timecode(FrameRate::FPS_29_97).drop_frame(true);
     let view = *data.value("view", TimeView::new(Tick::ZERO, 24.0));
     let out = TimelineView::new("Time", Bind::given(view), format, Tick::from_seconds_f64(30.0)).show(ui, |_, _| {});
     out.output.into()

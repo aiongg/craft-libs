@@ -5,7 +5,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use craft_behavior::{EditEvent, IconId, Selection};
-use craft_timeline::rates::FrameRate;
+use craft_timeline::rates::{FrameRate, PixelAspect};
 use craft_timeline::time::Tick;
 use craft_timeline::timecode::{TimeDisplay, TimeFormat, TimecodeError};
 use craft_timeline::ui::{
@@ -364,4 +364,20 @@ fn time_left_reads_seconds_then_clock_digits() {
     });
     fixture.settle();
     assert_eq!(*read.borrow(), ["45 s", "45 s", "1:00", "2:05", "1:02:05"]);
+}
+
+#[trial]
+fn rate_and_aspect_labels_trim_trailing_zeros() {
+    let labels = Rc::new(RefCell::new(Vec::<String>::new()));
+    let shown = labels.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let units = Env::of(ui).units();
+        let mut all: Vec<String> =
+            [FrameRate::FPS_24, FrameRate::FPS_23_976, FrameRate::FPS_29_97, FrameRate::FPS_59_94].map(|rate| rate.label(&units)).into();
+        all.push(PixelAspect::SQUARE.ratio_label(&units));
+        all.push(PixelAspect { num: 10, den: 11 }.ratio_label(&units));
+        *shown.borrow_mut() = all;
+    });
+    fixture.settle();
+    assert_eq!(*labels.borrow(), ["24", "23.976", "29.97", "59.94", "1.0", "0.9091"]);
 }

@@ -16,15 +16,14 @@ use craft_behavior::{
     ColumnKey, ColumnWidth, CursorIcon, DisplayOrder, EditEvent, GestureId, HitLevel, HitPriority, IconId, ItemSource, Metrics, Mixed, PartKey,
     PressPhase, Selection, SelectionChange, Sense, SizeHint, SpanLayout,
 };
-use craft_theme::UiTokens;
 use craft_ui::contract::{
     Access, Bind, BindMut, Collection, CollectionProps, CollectionResponse, ColumnKind, ColumnSpec, Common, Component, ContainerProps, Cx, Edit as _,
-    EditResponse, ItemKeys, ItemOutput, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pointer as _, Props, Role, Scroll, ScrollAnchor, SelectMode,
-    Sizing, ToggleColumn, WordSetCx as _,
+    ItemKeys, ItemOutput, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props, Remember as _, Role, Scroll, ScrollAnchor,
+    SelectMode, Show as _, Sizing, Styled as _, ToggleColumn, WordSetCx as _,
 };
 use craft_ui::primitives::{IconSpec, PaintShape, StrokeWidth};
 use craft_ui::runtime::env::Label;
-use craft_ui::style::{ComponentStyle, DataColor, IconLook, StyleColor, StyleCx, SurfaceLook, TextLook, TypeRole};
+use craft_ui::style::{ComponentStyle, DataColor, IconLook, Stateful, StyleColor, StyleCx, SurfaceLook, TextLook, TypeRole, UiTokens};
 use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
 use std::sync::Arc;
 
@@ -142,6 +141,67 @@ impl TrackSizes {
     /// `name` within the least and the most.
     pub fn name_width(&self, name: Option<f32>) -> f32 {
         name.unwrap_or(self.name).clamp(self.name_least, self.name_most)
+    }
+}
+
+impl TrackSizes {
+    /// The sizes of the scope `ui` is in. Tokens are read in a style hook only, so a zero-size component reads them
+    /// there and reports them in the same pass.
+    pub fn read(ui: &mut egui::Ui) -> TrackSizes {
+        SizesProbe { common: Common::new() }.show(ui).sizes
+    }
+}
+
+/// A component with no size and no look that reports the [`TrackSizes`] its style hook computed.
+#[derive(Component)]
+struct SizesProbe {
+    #[common]
+    common: Common,
+}
+
+/// The probe's style: the sizes.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+#[non_exhaustive]
+pub struct SizesProbeStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+    sizes: TrackSizes,
+}
+
+/// What the probe reports.
+#[non_exhaustive]
+pub struct SizesOut {
+    /// The probe's response.
+    pub response: Response,
+    /// The sizes the tokens give.
+    pub sizes: TrackSizes,
+}
+
+impl Outcome for SizesOut {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+impl Component for SizesProbe {
+    const ROLE: Role = Role::None;
+    const PARTS: bool = false;
+    const OVERLAYS: bool = false;
+    type Style = SizesProbeStyle;
+    type Output = SizesOut;
+
+    fn style(cx: &StyleCx<'_>, _: SizesProbeStyleKey) -> SizesProbeStyle {
+        SizesProbeStyle { metrics: Metrics::new(), sizes: TrackSizes::of(cx.tokens) }
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::ZERO
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> SizesOut {
+        SizesOut { response: cx.response.clone(), sizes: cx.style.sizes }
     }
 }
 
@@ -488,11 +548,11 @@ impl Component for TrackRow<'_> {
     fn style(cx: &StyleCx<'_>, _: TrackRowStyleKey) -> TrackRowStyle {
         let color = &cx.tokens.color;
         TrackRowStyle {
-            surface: SurfaceLook::new(craft_ui::list::row_surface(cx)),
+            surface: SurfaceLook::new(Stateful::new(cx.color(color.surface.panel))),
             metrics: Metrics::new(),
-            name: TextLook::new(TypeRole::Caption, craft_ui::list::row_ink(cx, color.text.normal)),
-            on: IconLook::new(cx.control().icon, craft_ui::list::row_ink(cx, color.text.normal)),
-            off: IconLook::new(cx.control().icon, craft_ui::list::row_ink(cx, color.text.faint)),
+            name: TextLook::new(TypeRole::Caption, Stateful::new(cx.color(color.text.normal))),
+            on: IconLook::new(cx.control().icon, Stateful::new(cx.color(color.text.normal))),
+            off: IconLook::new(cx.control().icon, Stateful::new(cx.color(color.text.faint))),
             divider: cx.color(color.line.divider),
             hover: cx.color(color.state.hover),
             pad: cx.tokens.space.pad.panel,
@@ -569,7 +629,7 @@ impl Component for TrackRow<'_> {
                     let held = cx.press_slot::<f32>().unwrap_or(self.height);
                     self.event.height = Some(DragEvent::Update(height_at(held, start.origin.y, pos.y)));
                 }
-                PressPhase::Release { start, pos, click: false } => {
+                PressPhase::Release { start, pos, click: false, .. } => {
                     let held = cx.press_slot::<f32>().take().unwrap_or(self.height);
                     self.event.height = Some(DragEvent::Commit(height_at(held, start.origin.y, pos.y)));
                 }

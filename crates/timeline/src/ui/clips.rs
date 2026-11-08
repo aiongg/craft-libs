@@ -473,7 +473,7 @@ impl<'a> ClipLane<'a> {
             return;
         }
         let press = cx.press();
-        if let PressPhase::Release { pos, click: true, start } = press.phase
+        if let PressPhase::Release { pos, click: true, start, .. } = press.phase
             && start.button == PointerButton::Primary
             && geometry.lane.contains(pos)
             && geometry.clip_at(pos.x).is_none()

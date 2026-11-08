@@ -11,7 +11,7 @@ use craft_ui::contract::{Bind, ShowContainer as _};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Event, Key, Modifiers, MouseWheelUnit, Vec2};
 
-const RATE: FrameRate = FrameRate::NTSC_30;
+const RATE: FrameRate = FrameRate::FPS_29_97;
 
 struct Rig {
     view: TimeView,

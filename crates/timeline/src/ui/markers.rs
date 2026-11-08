@@ -13,7 +13,7 @@ use craft_ui::buttons::Button;
 use craft_ui::choice::{RadioGroup, Swatch};
 use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pointer as _,
-    Props as _, Role, Show as _, ShowContainer as _, WordSetCx as _,
+    Props as _, Remember as _, Role, Show as _, ShowContainer as _, WordSetCx as _,
 };
 use craft_ui::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
 use craft_ui::form::{Field, FieldGroup};
@@ -259,7 +259,7 @@ impl Component for MarkerStrip<'_> {
             pad: tokens.space.gap.inline,
             cap_gap: tokens.space.gap.tight,
             cap: tokens.stroke.medium,
-            radius: craft_ui::style::UiTokens::corner(tokens.shape.radius.sm),
+            radius: cx.field().radius,
         }
     }
 
@@ -457,7 +457,7 @@ impl Component for MarkerStrip<'_> {
             node.name = Name::Text(format!("{}, {}", marker.name, format_time(marker.start, &axis.format)));
         }
         if self.bin {
-            access.node(BIN, Role::BUTTON).name = Name::Text(cx.words::<MarkerWords>().bin.clone());
+            access.node(BIN, Role::BUTTON).name = Name::Text(cx.words::<MarkerWords>().bin.as_str().to_owned());
         }
     }
 
@@ -537,7 +537,7 @@ pub enum MarkerDialogAction {
 /// Marker Color (the label swatches, one radio group), Delete, Previous and Next, and OK / Cancel. Enter in a
 /// single-line field is OK; Escape is Cancel; Tab walks the fields in the order they show. Result: a
 /// [`MarkerDialogResult`].
-#[derive(Clone, craft_ui::contract::Pattern)]
+#[derive(Clone, PartialEq, craft_ui::contract::Pattern)]
 pub struct MarkerDialog {
     id: MarkerId,
     draft: MarkerDraft,

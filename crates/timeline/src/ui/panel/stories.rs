@@ -8,12 +8,12 @@ use crate::model::{ClipId, ClipInfo, TimelineModel, TrackId, TrackInfo, TrackKin
 use crate::rates::FrameRate;
 use crate::time::{Tick, TimeRange, TimeView};
 use crate::timecode::TimeFormat;
-use craft_behavior::Selection;
+use craft_behavior::{Selection, SelectionModel as _};
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 use std::sync::{Arc, Mutex};
 
-const RATE: FrameRate = FrameRate::NTSC_30;
+const RATE: FrameRate = FrameRate::FPS_29_97;
 const SEQUENCE_SECONDS: f64 = 30.0;
 /// The seconds the panel shows when the story starts.
 const SHOWN_SECONDS: f64 = 32.0;
@@ -162,7 +162,7 @@ fn sample_sequence(points_per_second: f64) -> Sequence {
             comment: String::new(),
             color: MarkerColor(0),
         }],
-        selection: Selection::only(ClipId(2)),
+        selection: Selection::single(ClipId(2)),
         view: TimeView::new(Tick::ZERO, points_per_second),
         playhead: secs(5.0),
         header_width: None,
@@ -179,7 +179,7 @@ impl Sequence {
                     self.playhead = t.clamp(Tick::ZERO, secs(SEQUENCE_SECONDS));
                 }
             }
-            TimelineEdit::Select { change, .. } => self.selection = change.selection.clone(),
+            TimelineEdit::Select { change, .. } => self.selection.apply(change.clone()),
             TimelineEdit::HeaderWidth(event) => self.header_width = event.value().copied(),
             TimelineEdit::Divider(event) => self.divider = event.value().copied(),
             TimelineEdit::Clip(event) => {
