@@ -163,7 +163,7 @@ impl craft_ui::canvas::RasterSource for Grey {
     }
 
     fn read(&self, _: craft_ui::canvas::PixelRect, _: u32, out: &mut egui::ColorImage) {
-        out.pixels.fill(egui::Color32::GRAY);
+        out.pixels.fill(egui::Color32::from_rgb(0x80, 0x80, 0x80));
     }
 }
 
