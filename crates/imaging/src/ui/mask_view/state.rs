@@ -4,8 +4,9 @@
 use craft_theme::Srgba;
 use serde::{Deserialize, Serialize};
 
-use super::MaskViewLabels;
+use super::{MaskViewKeys, MaskViewWords};
 use crate::selection::ColorIndicates;
+use craft_ui::runtime::commands::FirePhase;
 
 /// One of Select and Mask's seven views, in menu order (the order F cycles).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -61,20 +62,6 @@ impl MaskViewMode {
         MaskViewMode::ALL.into_iter().find(|m| m.id() == id)
     }
 
-    /// The letter that picks the view: O, M, V, A, T, K, Y.
-    pub fn key(self) -> egui::Key {
-        // pc: crates/ui-egui/src/canvas/select_mask_view.rs:73-83 `Mode::key`.
-        match self {
-            MaskViewMode::OnionSkin => egui::Key::O,
-            MaskViewMode::MarchingAnts => egui::Key::M,
-            MaskViewMode::Overlay => egui::Key::V,
-            MaskViewMode::OnBlack => egui::Key::A,
-            MaskViewMode::OnWhite => egui::Key::T,
-            MaskViewMode::BlackAndWhite => egui::Key::K,
-            MaskViewMode::OnLayers => egui::Key::Y,
-        }
-    }
-
     /// The view's opacity in percent until the user changes it: 50 for Onion Skin and Overlay, 100
     /// for On Black and On White, `None` for the three without one.
     pub fn default_opacity(self) -> Option<f32> {
@@ -97,17 +84,29 @@ impl MaskViewMode {
         MaskViewMode::ALL[(i + 1) % MaskViewMode::ALL.len()]
     }
 
-    /// The view's name in `labels`.
-    pub fn label(self, labels: &MaskViewLabels) -> &str {
-        // new: one `MaskViewLabels` field per view.
+    /// The view's name in `words`.
+    pub fn label(self, words: &MaskViewWords) -> &str {
         match self {
-            MaskViewMode::OnionSkin => &labels.onion_skin,
-            MaskViewMode::MarchingAnts => &labels.marching_ants,
-            MaskViewMode::Overlay => &labels.overlay,
-            MaskViewMode::OnBlack => &labels.on_black,
-            MaskViewMode::OnWhite => &labels.on_white,
-            MaskViewMode::BlackAndWhite => &labels.black_and_white,
-            MaskViewMode::OnLayers => &labels.on_layers,
+            MaskViewMode::OnionSkin => words.onion_skin.as_str(),
+            MaskViewMode::MarchingAnts => words.marching_ants.as_str(),
+            MaskViewMode::Overlay => words.overlay.as_str(),
+            MaskViewMode::OnBlack => words.on_black.as_str(),
+            MaskViewMode::OnWhite => words.on_white.as_str(),
+            MaskViewMode::BlackAndWhite => words.black_and_white.as_str(),
+            MaskViewMode::OnLayers => words.on_layers.as_str(),
+        }
+    }
+
+    /// The command that picks the view.
+    pub const fn command(self) -> MaskViewKeys {
+        match self {
+            MaskViewMode::OnionSkin => MaskViewKeys::OnionSkin,
+            MaskViewMode::MarchingAnts => MaskViewKeys::MarchingAnts,
+            MaskViewMode::Overlay => MaskViewKeys::Overlay,
+            MaskViewMode::OnBlack => MaskViewKeys::OnBlack,
+            MaskViewMode::OnWhite => MaskViewKeys::OnWhite,
+            MaskViewMode::BlackAndWhite => MaskViewKeys::BlackAndWhite,
+            MaskViewMode::OnLayers => MaskViewKeys::OnLayers,
         }
     }
 }
@@ -178,6 +177,25 @@ impl MaskViewState {
             MaskViewChange::ShowOriginal(on) => self.show_original = on,
             MaskViewChange::HideView(on) => self.hide_view = on,
         }
+    }
+
+    /// Applies a fired view command and returns the change it made. A view's letter picks it, F the next view, J and P
+    /// toggle Show Edge and Show Original, and X held hides the view until it is released. A repeat of a key does
+    /// nothing, and neither does the release of a key that is not held.
+    pub fn run(&mut self, command: MaskViewKeys, phase: FirePhase) -> Option<MaskViewChange> {
+        let change = match (command, phase) {
+            (MaskViewKeys::HideView, FirePhase::Press) => MaskViewChange::HideView(true),
+            (MaskViewKeys::HideView, FirePhase::Release) => MaskViewChange::HideView(false),
+            (_, FirePhase::Press) => match command {
+                MaskViewKeys::NextView => MaskViewChange::Mode(self.mode.next()),
+                MaskViewKeys::ShowEdge => MaskViewChange::ShowEdge(!self.show_edge),
+                MaskViewKeys::ShowOriginal => MaskViewChange::ShowOriginal(!self.show_original),
+                other => MaskViewChange::Mode(MaskViewMode::ALL.into_iter().find(|mode| mode.command() == other)?),
+            },
+            _ => return None,
+        };
+        self.apply(change);
+        Some(change)
     }
 
     /// What the engine builds for the current view.
