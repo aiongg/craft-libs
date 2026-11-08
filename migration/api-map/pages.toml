@@ -106,7 +106,7 @@ name = "PagePreview"
 old = "craft_pages::ui::preview::PagePreview"
 new = "craft_pages::ui::preview::PagePreview"
 status = "same"
-note = "`new(id_salt, source, pages, &mut at)` becomes `new(source, pages, &mut at)`; `show(ctx)` becomes `show(ui)` on a modal `Dialog`; `opened` and `labels` go (the dialog moves the focus; the words are `PagePreviewWords`)."
+note = "`new(id_salt, source, pages, &mut at)` becomes `new(source, pages, &mut at, paper)` (the paper is a `DataColor` the caller gives and shows under a page whose picture is loading); `show(ctx)` becomes `show(ui)` on a modal `Dialog`; `opened` and `labels` go (the dialog moves the focus; the words are `PagePreviewWords`)."
 
 [[type]]
 name = "PagePreviewResponse"
@@ -279,3 +279,9 @@ type = "PageThumbnails"
 old = "labels"
 new = ""
 note = "Removed: the words are `ThumbnailWords`."
+
+[[setter]]
+type = "ReadingView"
+old = "paper"
+new = "ReadingView::new(label, source, state, paper)"
+note = "The paper is a `DataColor` the caller gives; it shows under each page while its picture loads."
