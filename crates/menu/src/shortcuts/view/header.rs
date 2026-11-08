@@ -2,7 +2,7 @@
 //! keyboard pane's toggle.
 
 use craft_ui::buttons::{IconButton, ToggleButton};
-use craft_ui::contract::{Bind, BodyCx, Entry, Props as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, BodyCx, Entry, Props as _, Show as _, ShowContainer as _, Sizing};
 use craft_ui::form::Field;
 use craft_ui::layout_components::Row;
 use craft_ui::pickers::Select;
@@ -48,7 +48,7 @@ fn area_select(ui: &mut Ui, env: &Env<'_>, state: &mut DialogState) {
     let label = env.text.words().show.clone();
     let entries: Vec<Entry<AreaId>> = state.areas.iter().map(|area| Entry::new(area.id.clone(), area.label.clone())).collect();
     let mut area = state.area.clone();
-    Field::new(label.clone()).id_salt("shortcuts.area").show(ui, |ui, _| {
+    Field::new(label.clone()).id_salt("shortcuts.area").sizing(Sizing::Content).show(ui, |ui, _| {
         Select::new(label.clone(), Bind::bound(&mut area), &entries).id_salt("area").show(ui);
     });
     if area != state.area {
@@ -60,7 +60,7 @@ fn filter_select(ui: &mut Ui, env: &Env<'_>, state: &mut DialogState) {
     let label = env.text.words().filter.clone();
     let entries: Vec<Entry<Filter>> = Filter::ALL.iter().map(|filter| Entry::new(*filter, filter.label(env.text))).collect();
     let mut filter = state.filter;
-    Field::new(label.clone()).id_salt("shortcuts.filter").show(ui, |ui, _| {
+    Field::new(label.clone()).id_salt("shortcuts.filter").sizing(Sizing::Content).show(ui, |ui, _| {
         Select::new(label.clone(), Bind::bound(&mut filter), &entries).id_salt("filter").show(ui);
     });
     if filter != state.filter {
@@ -73,7 +73,7 @@ fn search(ui: &mut Ui, now: f64, env: &mut Env<'_>, state: &mut DialogState) {
     let words = env.text.words();
     let label = words.search.clone();
     let mut query = state.query.clone();
-    Field::new(label.clone()).id_salt("shortcuts.search").show(ui, |ui, _| {
+    Field::new(label.clone()).id_salt("shortcuts.search").sizing(Sizing::Content).show(ui, |ui, _| {
         TextField::search(label.clone(), Bind::bound(&mut query)).id_salt("search").show(ui);
     });
     if query != state.query {
@@ -96,11 +96,14 @@ fn search(ui: &mut Ui, now: f64, env: &mut Env<'_>, state: &mut DialogState) {
     }
     if matches!(state.recording.as_ref().map(|recording| &recording.target), Some(Target::Search)) {
         let shown = recording_text(env, state);
-        let out = ChordRecorder::new(name, true, shown).id_salt("searchRecorder").show(ui);
+        let claim = state.recording.as_ref().is_some_and(|recording| !recording.focused);
+        let out = ChordRecorder::new(name, true, shown).claim(claim).id_salt("searchRecorder").show(ui);
         if !out.chords.is_empty() {
             state.feed(env, &out.chords, now);
         } else if out.response.lost_focus() {
             state.stop_recording();
+        } else if let (true, Some(recording)) = (out.focused, state.recording.as_mut()) {
+            recording.focused = true;
         }
     }
 }

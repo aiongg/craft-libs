@@ -2,6 +2,7 @@
 
 use craft_keymap::{Overrides, Profiles};
 use craft_menu::shortcuts::Outcome;
+use craft_ui::contract::Role;
 use craft_ui::testing::trial;
 use egui::{Key, Modifiers};
 
@@ -17,7 +18,7 @@ fn profiles_with(names: &[&str]) -> Profiles {
 
 fn new_set(rig: &mut Rig, name: &str) {
     rig.click("New Set…");
-    let field = rig.find("Name:");
+    let field = rig.named("Name:", Role::TEXT_INPUT);
     rig.fixture.click(&field);
     rig.fixture.type_text(name);
     rig.fixture.idle(2);

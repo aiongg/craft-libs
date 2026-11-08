@@ -24,7 +24,7 @@ use crate::shortcuts::view::{area_key, recording_text};
 const COMMAND: ColumnKey = ColumnKey::new("command");
 const SHORTCUT: ColumnKey = ColumnKey::new("shortcut");
 /// The command column is this many times as wide as the shortcut column.
-const COMMAND_SHARE: f32 = 1.0;
+const COMMAND_SHARE: f32 = 2.0;
 const SHORTCUT_SHARE: f32 = 1.0;
 const PATH_SEPARATOR: &str = " \u{203a} ";
 
@@ -39,6 +39,8 @@ pub(crate) enum RowAct {
     Chords(Vec<Chord>),
     /// The recording cell lost focus.
     Stopped,
+    /// The recording cell holds key focus.
+    Focused,
 }
 
 /// The lines as the table's source, keyed by position.
@@ -209,6 +211,8 @@ pub(crate) struct RowEnv<'r> {
     /// The cell the recorder replaces: the row's command, the chip it replaces (`None` adds one) and the text it
     /// shows.
     recording: Option<(&'r Target, String)>,
+    /// The recording cell has not held key focus yet: it claims it.
+    claim: bool,
     words: &'r crate::shortcuts::words::ShortcutWords,
 }
 
@@ -374,11 +378,14 @@ impl CommandRow<'_> {
             at += width + gap;
             if *recording_here {
                 let label = words.label_press_keys.fill(&[("label", &line.label)]);
-                let out: RecorderOutput = ChordRecorder::new(label, true, shown).child(ui, ("record", line.key.as_str()), rect);
+                let claim = self.env.claim;
+                let out: RecorderOutput = ChordRecorder::new(label, true, shown).claim(claim).child(ui, ("record", line.key.as_str()), rect);
                 if !out.chords.is_empty() {
                     act = Some(RowAct::Chords(out.chords));
                 } else if out.response.lost_focus() {
                     act = Some(RowAct::Stopped);
+                } else if out.focused && claim {
+                    act = Some(RowAct::Focused);
                 }
                 continue;
             }
@@ -448,7 +455,8 @@ pub(super) fn show(ui: &mut Ui, now: f64, env: &mut Env<'_>, state: &mut DialogS
     let position = state.selected.as_ref().and_then(|command| built.position(command));
     let editable = env.options.editable;
     let shown = recording_text(env, state);
-    let row_env = RowEnv { editable, recording: state.recording.as_ref().map(|recording| (&recording.target, shown.clone())), words };
+    let claim = state.recording.as_ref().is_some_and(|recording| !recording.focused);
+    let row_env = RowEnv { editable, recording: state.recording.as_ref().map(|recording| (&recording.target, shown.clone())), claim, words };
     let columns = vec![
         ColumnSpec::new(COMMAND, words.command.clone(), ColumnWidth::fill(COMMAND_SHARE)),
         ColumnSpec::new(SHORTCUT, words.shortcut.clone(), ColumnWidth::fill(SHORTCUT_SHARE)),
@@ -523,6 +531,11 @@ fn apply(env: &mut Env<'_>, state: &mut DialogState, now: f64, lines: &[Line], o
                     }
                     RowAct::Chords(chords) => state.feed(env, &chords, now),
                     RowAct::Stopped => state.stop_recording(),
+                    RowAct::Focused => {
+                        if let Some(recording) = state.recording.as_mut() {
+                            recording.focused = true;
+                        }
+                    }
                 }
             }
             _ => {}

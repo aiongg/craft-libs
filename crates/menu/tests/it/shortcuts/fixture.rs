@@ -6,6 +6,7 @@ use std::rc::Rc;
 use craft_host::target::Os;
 use craft_keymap::{Bindable, Binding, CommandRef, ImportOptions, Keymap, Kind, Overrides, Platform, ProfileError, Profiles, Scope, Scopes};
 use craft_menu::shortcuts::{DialogState, Options, Outcome, ShortcutsDialog};
+use craft_ui::contract::Role;
 use craft_ui::testing::{Fixture, Target};
 use egui::{Key, Modifiers, Ui};
 
@@ -129,6 +130,16 @@ impl Rig {
         self.fixture.idle(3);
     }
 
+    /// The node of `role` named `label`.
+    pub(crate) fn named(&self, label: &str, role: Role) -> Target {
+        let tree = self.fixture.tree();
+        self.fixture
+            .by_role(role)
+            .into_iter()
+            .find(|node| tree.name_of(node.node) == Some(label))
+            .unwrap_or_else(|| panic!("no {role:?} named {label:?}"))
+    }
+
     /// Runs the frames a change made outside the dialog needs to show.
     pub(crate) fn pass(&mut self) {
         self.fixture.idle(3);
@@ -136,14 +147,39 @@ impl Rig {
 
     /// Types `text` into the Search field.
     pub(crate) fn search(&mut self, text: &str) {
-        self.click("Search:");
+        let field = self.control("Search:", Role::TEXT_INPUT);
+        self.fixture.click(&field);
         self.fixture.type_text(text);
         self.pass();
     }
 
-    /// Picks `entry` in the select named `select`.
-    pub(crate) fn choose(&mut self, select: &str, entry: &str) {
-        self.click(select);
+    /// The control of `role` in the labelled row `label`: the one inside the group the row's label names. The label,
+    /// the group and the control all carry the row's name, so a click on the name alone does not reach the control.
+    pub(crate) fn control(&self, label: &str, role: Role) -> Target {
+        let tree = self.fixture.tree();
+        let row = tree
+            .with_role(Role::GROUP)
+            .into_iter()
+            .filter(|key| tree.name_of(*key) == Some(label))
+            .find_map(|key| tree.bounds_of(key))
+            .unwrap_or_else(|| panic!("no row labelled {label:?}"));
+        self.fixture
+            .by_role(role)
+            .into_iter()
+            .find(|control| row.contains_rect(control.rect))
+            .unwrap_or_else(|| panic!("no {role:?} in the row labelled {label:?}"))
+    }
+
+    /// Opens the select of the row `label`.
+    pub(crate) fn open(&mut self, label: &str) {
+        let select = self.control(label, Role::COMBO_BOX);
+        self.fixture.click(&select);
+        self.fixture.idle(3);
+    }
+
+    /// Picks `entry` in the select of the row `label`.
+    pub(crate) fn choose(&mut self, label: &str, entry: &str) {
+        self.open(label);
         self.click(entry);
     }
 

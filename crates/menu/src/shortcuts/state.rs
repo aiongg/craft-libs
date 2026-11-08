@@ -77,6 +77,8 @@ pub(crate) struct Recording {
     pub target: Target,
     /// With [`Options::double_press`]: a single press waiting [`DOUBLE_PRESS`] for its second press.
     pub waiting: Option<(Trigger, f64)>,
+    /// The recorder field has held key focus since the recording began.
+    pub focused: bool,
 }
 
 /// The New Shortcut field's chord, waiting for Assign.
@@ -216,6 +218,8 @@ pub struct DialogState {
     pub(crate) chip: usize,
     /// Typed entry in the detail pane, and the parse error shown under it.
     pub(crate) typing: Option<String>,
+    /// The typed-entry field takes key focus on its first pass.
+    pub(crate) typing_focus: bool,
     pub(crate) type_error: Option<String>,
     pub(crate) set_form: Option<SetForm>,
     pub(crate) keyboard: KeyboardState,
@@ -258,6 +262,7 @@ impl DialogState {
             outcome: None,
             chip: 0,
             typing: None,
+            typing_focus: false,
             type_error: None,
             set_form: None,
             keyboard: KeyboardState::default(),
@@ -433,7 +438,7 @@ impl DialogState {
         if let Target::Cell { command, .. } | Target::Field { command } = &target {
             self.select_row(command);
         }
-        self.recording = Some(Recording { target, waiting: None });
+        self.recording = Some(Recording { target, waiting: None, focused: false });
     }
 
     pub(crate) fn stop_recording(&mut self) {

@@ -10,7 +10,7 @@ use super::fixture::{self, Rig};
 #[trial]
 fn areas_follow_paths_kind_and_scope() {
     let mut rig = Rig::mac();
-    rig.click("Show:");
+    rig.open("Show:");
     for area in ["All Commands", "File Menu", "Object Menu", "Tools", "Timeline Panel", "Other"] {
         assert!(rig.has(area), "{area} is a Show entry");
     }
@@ -103,7 +103,7 @@ fn import_paths_make_no_areas_or_groups() {
         .with_import_path(vec!["Tools".into(), "Pen Tool".into()])
         .with_default(Binding::parse("P").expect("a key"));
     let mut rig = Rig::new(Keymap::new(vec![pen], Scopes::new(), Platform::Mac), Options::default(), None);
-    rig.click("Show:");
+    rig.open("Show:");
     assert!(rig.has("Tools") && !rig.has("File Menu"), "an import path makes no menu area");
     assert!(rig.has("Pen Tool: P"));
 }

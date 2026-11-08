@@ -11,6 +11,7 @@ use craft_ui::form::Field;
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::pickers::Select;
 use craft_ui::primitives::IconSpec;
+use craft_ui::runtime::focus::{self, FocusTarget};
 use craft_ui::style::TypeRole;
 use craft_ui::text::TextField;
 use egui::Ui;
@@ -138,9 +139,14 @@ fn new_shortcut(ui: &mut Ui, now: f64, env: &mut Env<'_>, state: &mut DialogStat
     let words = env.text.words();
     let title = words.new_shortcut.clone();
     if let Some(mut typed) = state.typing.clone() {
-        let out = Field::new(title.clone())
-            .id_salt("shortcuts.type")
-            .show(ui, |ui, _| TextField::new(title.clone(), Bind::bound(&mut typed)).placeholder("Cmd+Shift+K").id_salt("type").show(ui));
+        let take_focus = std::mem::take(&mut state.typing_focus);
+        let out = Field::new(title.clone()).id_salt("shortcuts.type").show(ui, |ui, _| {
+            let field = TextField::new(title.clone(), Bind::bound(&mut typed)).placeholder("Cmd+Shift+K").id_salt("type").show(ui);
+            if take_focus {
+                focus::request(ui.ctx(), FocusTarget::Id(field.response.id));
+            }
+            field
+        });
         state.typing = Some(typed.clone());
         if let Some(edit) = out.inner {
             if edit.escaped {
@@ -173,7 +179,8 @@ fn new_shortcut(ui: &mut Ui, now: f64, env: &mut Env<'_>, state: &mut DialogStat
     let value = if shown.is_empty() { words.none.as_str().to_owned() } else { shown.clone() };
     let name = words.new_shortcut_chord.fill(&[("chord", &value)]);
     Row::new().show(ui, |ui, _| {
-        let out = ChordRecorder::new(name.clone(), recording, shown.clone()).id_salt("new").show(ui);
+        let claim = recording && state.recording.as_ref().is_some_and(|recording| !recording.focused);
+        let out = ChordRecorder::new(name.clone(), recording, shown.clone()).claim(claim).id_salt("new").show(ui);
         if out.started && !recording {
             state.record(env, Target::Field { command: command.clone() });
         }
@@ -182,11 +189,14 @@ fn new_shortcut(ui: &mut Ui, now: f64, env: &mut Env<'_>, state: &mut DialogStat
                 state.feed(env, &out.chords, now);
             } else if out.response.lost_focus() {
                 state.stop_recording();
+            } else if let (true, Some(recording)) = (out.focused, state.recording.as_mut()) {
+                recording.focused = true;
             }
         }
         if Link::new(words.type_more.clone()).id_salt("typeMore").show(ui).clicked() {
             state.stop_recording();
             state.typing = Some(String::new());
+            state.typing_focus = true;
             state.type_error = None;
         }
     });

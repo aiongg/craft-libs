@@ -3,7 +3,7 @@
 //!
 //! A component's key use is fixed, so the recorder is two components over one look: the idle field with the plain
 //! widget keys (Tab leaves, Enter and Space start recording) and the recording field with `KeyUse::RECORDER`
-//! (every key is a chord, Escape included). Both share the field's id, so focus stays on it when recording starts.
+//! (every key is a chord, Escape included). The recording field claims key focus until it holds it.
 
 use craft_behavior::{Metrics, Sense};
 use craft_keymap::Chord;
@@ -13,7 +13,7 @@ use craft_ui::contract::{
 };
 use craft_ui::primitives::{TextRun, Wrap};
 use craft_ui::runtime::env::Label;
-use craft_ui::runtime::focus::KeyUse;
+use craft_ui::runtime::focus::{self, FocusTarget, KeyUse};
 use craft_ui::style::{ComponentStyle, FocusLook, Ink, StyleCx, SurfaceKind, SurfaceLook, TextLook, TypeRole};
 use egui::{Rect, Response, Ui, Vec2};
 
@@ -30,6 +30,8 @@ pub(crate) struct RecorderOutput {
     pub chords: Vec<Chord>,
     /// A click or Enter asked to start recording.
     pub started: bool,
+    /// The field holds key focus.
+    pub focused: bool,
 }
 
 impl Outcome for RecorderOutput {
@@ -78,6 +80,7 @@ macro_rules! field {
             shown: Label,
             chords: Vec<Chord>,
             started: bool,
+            claim: bool,
         }
 
         impl Component for $name {
@@ -102,6 +105,9 @@ macro_rules! field {
 
             fn update(&mut self, cx: &mut Cx<'_, Self>) {
                 if $recording {
+                    if self.claim && !cx.is_focused() {
+                        focus::request(&cx.response.ctx, FocusTarget::Id(cx.response.id));
+                    }
                     self.chords.extend(cx.intents().take_chords());
                 } else if cx.activation().is_some() {
                     self.started = true;
@@ -119,7 +125,7 @@ macro_rules! field {
             }
 
             fn finish(self, cx: Cx<'_, Self>) -> RecorderOutput {
-                RecorderOutput { response: cx.response.clone(), chords: self.chords, started: self.started }
+                RecorderOutput { response: cx.response.clone(), chords: self.chords, started: self.started, focused: cx.is_focused() }
             }
         }
     };
@@ -135,12 +141,13 @@ pub(crate) struct ChordRecorder {
     recording: bool,
     shown: Label,
     salt: Option<&'static str>,
+    claim: bool,
 }
 
 impl ChordRecorder {
     /// A recorder named `label` showing `shown`.
     pub(crate) fn new(label: impl Into<Label>, recording: bool, shown: impl Into<Label>) -> Self {
-        ChordRecorder { label: label.into(), recording, shown: shown.into(), salt: None }
+        ChordRecorder { label: label.into(), recording, shown: shown.into(), salt: None, claim: false }
     }
 
     /// Salts the field's id.
@@ -150,18 +157,26 @@ impl ChordRecorder {
         self
     }
 
+    /// While recording, asks for key focus on every pass the field does not hold it. A caller passes `true` from the
+    /// pass recording starts until the output says the field holds focus.
+    #[must_use]
+    pub(crate) fn claim(mut self, claim: bool) -> Self {
+        self.claim = claim;
+        self
+    }
+
     /// Shows the field.
     pub(crate) fn show(self, ui: &mut Ui) -> RecorderOutput {
-        let ChordRecorder { label, recording, shown, salt } = self;
+        let ChordRecorder { label, recording, shown, salt, claim } = self;
         let common = Common::new();
         if recording {
-            let mut field = RecordingField { common, shown, chords: Vec::new(), started: false }.label(label);
+            let mut field = RecordingField { common, shown, chords: Vec::new(), started: false, claim }.label(label);
             if let Some(salt) = salt {
                 field = field.id_salt(salt);
             }
             field.show(ui)
         } else {
-            let mut field = IdleField { common, shown, chords: Vec::new(), started: false }.label(label);
+            let mut field = IdleField { common, shown, chords: Vec::new(), started: false, claim }.label(label);
             if let Some(salt) = salt {
                 field = field.id_salt(salt);
             }
@@ -172,12 +187,12 @@ impl ChordRecorder {
     /// Shows the field as a child of a component's paint at `rect`. Idle and recording share `key`, so focus
     /// stays on the field when recording starts.
     pub(crate) fn child(self, ui: &mut PaintUi<'_>, key: impl std::hash::Hash + std::fmt::Debug, rect: Rect) -> RecorderOutput {
-        let ChordRecorder { label, recording, shown, .. } = self;
+        let ChordRecorder { label, recording, shown, claim, .. } = self;
         let common = Common::new();
         if recording {
-            ui.child(key, rect, RecordingField { common, shown, chords: Vec::new(), started: false }.label(label))
+            ui.child(key, rect, RecordingField { common, shown, chords: Vec::new(), started: false, claim }.label(label))
         } else {
-            ui.child(key, rect, IdleField { common, shown, chords: Vec::new(), started: false }.label(label))
+            ui.child(key, rect, IdleField { common, shown, chords: Vec::new(), started: false, claim }.label(label))
         }
     }
 }

@@ -3,10 +3,11 @@
 //! open an inline form under the row.
 
 use craft_keymap::profiles::{Profiles, set_name};
-use craft_ui::bars::{Bar, BarItem, BarItems, BarKind, ItemDisplay};
+use craft_ui::bars::{BarItem, BarItems, ItemDisplay};
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, BodyCx, CommandSet, Entry, Props as _, Show as _, ShowContainer as _, Trigger, clicked};
 use craft_ui::display::Text;
+use craft_ui::layout_components::Row;
 use craft_ui::menu::Menu;
 use craft_ui::pickers::Select;
 use craft_ui::runtime::commands::{CommandState, Commands as _};
@@ -66,7 +67,7 @@ pub(crate) fn show(ui: &mut Ui, cx: &mut BodyCx<'_>, env: &mut Env<'_>, state: &
     let entries: Vec<Entry<String>> = names.iter().map(|n| Entry::new(n.clone(), n.clone())).collect();
     let mut picked = active.clone();
     let mut export_pick = None;
-    Bar::new(set_label.clone(), BarKind::Options).enabled(idle).show(ui, |ui, _| {
+    Row::new().enabled(idle).show(ui, |ui, _| {
         Text::new(set_label.clone()).show(ui);
         Select::new(set_label.clone(), Bind::bound(&mut picked), &entries).show(ui);
         if modified {
@@ -158,7 +159,7 @@ fn form(ui: &mut Ui, env: &mut Env<'_>, state: &mut DialogState, idle: bool, nam
     let current = words.current_shortcuts_heading.as_str().to_owned();
     let based_label = words.based_on.as_str().to_owned();
     let cancel_label = words.cancel.as_str().to_owned();
-    Bar::new(name_label.clone(), BarKind::Options).enabled(idle).show(ui, |ui, _| {
+    Row::new().enabled(idle).show(ui, |ui, _| {
         Text::new(name_label.clone()).show(ui);
         let field = TextField::new(name_label.clone(), Bind::bound(&mut form.name)).show(ui);
         if std::mem::take(&mut form.focus) {

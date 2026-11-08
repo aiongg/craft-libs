@@ -276,18 +276,3 @@ fn the_help_search_finds_items_and_fires_their_commands() {
     click(&mut fixture, "Redo");
     assert_eq!(fired(&fixture), [("edit.redo".to_owned(), FireSource::Menu)]);
 }
-
-#[trial]
-fn zz_dump_e() {
-    let mut out = String::new();
-    for (target, os) in [(Target::Web, Os::Linux), (Target::Web, Os::Mac), (Target::Windows, Os::Linux)] {
-        let mut fixture = rig(sample(), Setup { target, ..LINUX });
-        fixture.os(os);
-        fixture.settle();
-        let tree = fixture.tree();
-        let mut all: Vec<String> = tree.keys().into_iter().filter_map(|k| tree.name_of(k).map(|n| format!("{:?}:{n}", tree.role_of(k)))).collect();
-        all.sort();
-        out.push_str(&format!("{target:?}/{os:?}: {}\n", all.join(" | ")));
-    }
-    panic!("E\n{out}END");
-}
