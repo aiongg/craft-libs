@@ -17,7 +17,8 @@ use std::rc::Rc;
 const DOCKED: usize = 1;
 const WINDOW: usize = 2;
 const SECOND: usize = 3;
-const WINDOW_AT: Rect = Rect { min: Pos2::new(300.0, 200.0), max: Pos2::new(560.0, 420.0) };
+/// Inside the fixture's room, so the area's bounds clamp neither the window nor the moves and resizes made of it.
+const WINDOW_AT: Rect = Rect { min: Pos2::new(130.0, 90.0), max: Pos2::new(330.0, 210.0) };
 /// A point on the window's title row, clear of the action parts at its end.
 const TITLE_AT: Vec2 = Vec2::new(24.0, 10.0);
 const MOVE: Vec2 = Vec2::new(-60.0, 40.0);
