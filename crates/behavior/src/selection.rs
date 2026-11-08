@@ -1,8 +1,14 @@
 //! Selection models: what a collection's selection holds and how a change applies to it.
 
-use crate::columns::ColumnKey;
+use crate::item_source::DisplayOrder;
 use crate::value::Value;
+use serde::de::Error as _;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::ops::Range;
+
+mod cells;
+
+pub use cells::{CellAdvance, CellDirection, CellSpace, Positions};
 
 /// A change to a selection, as a collection reports it.
 #[derive(Clone, Debug, PartialEq)]
@@ -14,56 +20,124 @@ pub enum SelectionChange<K> {
     Toggle(K),
     /// Empties the selection.
     Clear,
-    /// Replaces the selection by the cells of `rows` in `columns`; `lead_column` is the lead cell's column.
-    /// A model with no columns selects the rows.
+    /// Replaces the selection by one range of cells. The anchor cell is at `first` and the column end opposite
+    /// `lead_column`; the lead cell is at `last` and `lead_column`. A model of rows selects the rows.
     Cells(CellRange<K>),
-    /// Adds the cell when it is not selected, removes it when it is; the other cells stay. A model of rows toggles
-    /// the row.
+    /// Flips one cell: it joins the selection when it is not selected and leaves it when it is. The lead cell moves
+    /// to it and the other cells stay. A model of rows toggles the row.
     ToggleCell(CellAt<K>),
+    /// Replaces the whole selection by a result of the cell rules that one range cannot say: several ranges, an
+    /// active cell inside a range, a run of Tabs.
+    CellSet(Box<CellSelection<K>>),
 }
 
-/// The cell a [`SelectionChange::ToggleCell`] flips.
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
+/// A cell: its row key and its column position. `CellAt<u32>` is a cell by position.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct CellAt<K> {
     /// The cell's row.
     pub row: K,
     /// The cell's column position.
     pub column: u32,
-    /// The cell's column key, which becomes the lead cell's column.
-    pub column_key: ColumnKey,
 }
 
 impl<K> CellAt<K> {
-    /// The cell of `row` at column position `column`, whose column is `column_key`.
-    pub fn new(row: K, column: u32, column_key: ColumnKey) -> Self {
-        Self { row, column, column_key }
+    /// The cell of `row` at column position `column`.
+    pub fn new(row: K, column: u32) -> Self {
+        Self { row, column }
     }
 }
 
-/// The cells a [`SelectionChange::Cells`] selects.
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
+/// A rectangle of cells: the rows from `first` to `last` in the display order (either may come first), the column
+/// positions `columns` and the column of the lead cell. A selection reports it with `first` at the anchor end.
+/// `CellRange<u32>` is a rectangle by position (merged cells, covers, whole lines).
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CellRange<K> {
-    /// The selected rows, from the first to the last of the range.
-    pub rows: Vec<K>,
-    /// The column positions the range covers.
+    /// The row at one end of the rectangle.
+    pub first: K,
+    /// The row at the other end.
+    pub last: K,
+    /// The column positions the rectangle covers.
     pub columns: Range<u32>,
     /// The column of the lead cell.
-    pub lead_column: ColumnKey,
+    pub lead_column: u32,
 }
 
 impl<K> CellRange<K> {
-    /// The cells of `rows` in `columns`, with the lead cell in `lead_column`.
-    pub fn new(rows: Vec<K>, columns: Range<u32>, lead_column: ColumnKey) -> Self {
-        Self { rows, columns, lead_column }
+    /// The cells of the rows from `first` to `last` in `columns`, with the lead cell in `lead_column`.
+    pub fn new(first: K, last: K, columns: Range<u32>, lead_column: u32) -> Self {
+        Self { first, last, columns, lead_column }
+    }
+
+    /// The rectangle from the anchor cell `from` to the lead cell `to`, whichever way round they lie.
+    pub fn cells(from: CellAt<K>, to: CellAt<K>) -> Self {
+        let columns = from.column.min(to.column)..from.column.max(to.column).saturating_add(1);
+        Self { first: from.row, last: to.row, columns, lead_column: to.column }
     }
 }
 
+impl<K: PartialEq> CellRange<K> {
+    /// Whether the row `row` lies between `first` and `last` in `row.order`. A rectangle whose end left the order
+    /// holds no row.
+    fn holds_row(&self, row: RowAt<'_, K>) -> bool {
+        let (Some(a), Some(b)) = (row.order.index_of(&self.first), row.order.index_of(&self.last)) else {
+            return false;
+        };
+        a.min(b) <= row.at && row.at <= a.max(b)
+    }
+}
+
+/// The stored form is `{"start": {"row", "column"}, "end": {"row", "column"}}` with inclusive columns; `lead_column`
+/// is the end's column.
+impl<K: Serialize> Serialize for CellRange<K> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        #[derive(Serialize)]
+        struct Stored<'a, K> {
+            start: CellAt<&'a K>,
+            end: CellAt<&'a K>,
+        }
+        Stored { start: CellAt::new(&self.first, self.columns.start), end: CellAt::new(&self.last, self.columns.end.saturating_sub(1)) }
+            .serialize(serializer)
+    }
+}
+
+impl<'de, K: Deserialize<'de>> Deserialize<'de> for CellRange<K> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        struct Stored<K> {
+            start: CellAt<K>,
+            end: CellAt<K>,
+        }
+        let Stored { start, end } = Stored::<K>::deserialize(deserializer)?;
+        if end.column < start.column {
+            return Err(D::Error::custom("a cell range ends in a column before its start"));
+        }
+        Ok(CellRange { first: start.row, last: end.row, columns: start.column..end.column.saturating_add(1), lead_column: end.column })
+    }
+}
+
+/// A row as the item step reads it: its key, its position and the order that places other keys. A rectangle of
+/// cells cannot answer from a key alone.
+pub struct RowAt<'a, K> {
+    /// The row's key.
+    pub key: &'a K,
+    /// The row's position in `order`.
+    pub at: usize,
+    /// The display order the position is in.
+    pub order: &'a dyn DisplayOrder<K>,
+}
+
+impl<K> Clone for RowAt<'_, K> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<K> Copy for RowAt<'_, K> {}
+
 /// The selection a collection reads and the app owns.
 pub trait SelectionModel<K>: Value + Default {
-    /// Whether `key` is selected.
-    fn contains(&self, key: &K) -> bool;
+    /// Whether the row `row` is selected.
+    fn contains(&self, row: RowAt<'_, K>) -> bool;
     /// The item keyboard navigation moves.
     fn lead(&self) -> Option<&K>;
     /// The fixed end of a range extended with Shift.
@@ -71,14 +145,20 @@ pub trait SelectionModel<K>: Value + Default {
     /// Applies a change.
     fn apply(&mut self, change: SelectionChange<K>);
 
-    /// The column of the lead cell; `None` for a model of rows.
-    fn lead_column(&self) -> Option<&ColumnKey> {
+    /// The column position of the lead cell; `None` for a model of rows.
+    fn lead_column(&self) -> Option<u32> {
         None
     }
 
-    /// Whether the cell of row `key` in column position `column` is selected.
-    fn contains_cell(&self, key: &K, _column: u32) -> bool {
-        self.contains(key)
+    /// Whether the cell of row `row` in column position `column` is selected.
+    fn contains_cell(&self, row: RowAt<'_, K>, _column: u32) -> bool {
+        self.contains(row)
+    }
+
+    /// The cell rules of a model of cells, which the item step runs over the collection's `CellSpace`; `None` for a
+    /// model of rows.
+    fn cells_mut(&mut self) -> Option<&mut CellSelection<K>> {
+        None
     }
 }
 
@@ -101,6 +181,13 @@ impl<K> Selection<K> {
     }
 }
 
+impl<K: PartialEq> Selection<K> {
+    /// Whether `key` is selected.
+    pub fn contains(&self, key: &K) -> bool {
+        self.items.contains(key)
+    }
+}
+
 impl<K: Clone> Selection<K> {
     /// A selection of `key` alone, which is also its lead and its anchor.
     pub fn single(key: K) -> Self {
@@ -115,8 +202,8 @@ impl<K> Default for Selection<K> {
 }
 
 impl<K: Value> SelectionModel<K> for Selection<K> {
-    fn contains(&self, key: &K) -> bool {
-        self.items.contains(key)
+    fn contains(&self, row: RowAt<'_, K>) -> bool {
+        self.items.contains(row.key)
     }
 
     fn lead(&self) -> Option<&K> {
@@ -127,6 +214,8 @@ impl<K: Value> SelectionModel<K> for Selection<K> {
         self.anchor.as_ref()
     }
 
+    /// Cells select their rows. A range selects the rows at its two ends: a model of rows has no order to name the
+    /// rows between them, and the item step reports `Set` for it.
     fn apply(&mut self, change: SelectionChange<K>) {
         match change {
             SelectionChange::Set(keys) => {
@@ -149,105 +238,275 @@ impl<K: Value> SelectionModel<K> for Selection<K> {
                 self.lead = None;
                 self.anchor = None;
             }
-            SelectionChange::Cells(CellRange { rows, .. }) => self.apply(SelectionChange::Set(rows)),
+            SelectionChange::Cells(CellRange { first, last, .. }) => {
+                self.apply(SelectionChange::Set(if first == last { vec![first] } else { vec![first, last] }));
+            }
             SelectionChange::ToggleCell(CellAt { row, .. }) => self.apply(SelectionChange::Toggle(row)),
+            SelectionChange::CellSet(cells) => {
+                let mut keys: Vec<K> = Vec::new();
+                for range in cells.ranges() {
+                    for key in [&range.first, &range.last] {
+                        if !keys.contains(key) {
+                            keys.push(key.clone());
+                        }
+                    }
+                }
+                self.apply(SelectionChange::Set(keys));
+            }
         }
     }
 }
 
-/// Cell selection of a sheet: row keys with a lead column, cell ranges and single cells toggled over them. Changes
-/// report as selection changes.
+/// The cell selection of a sheet or table: ranges of cells, the active cell, the anchor and the cells toggled
+/// against the ranges. Changes go through [`apply`](SelectionModel::apply) and the rules in `cells.rs`, which keep
+/// the invariants (ranges cover the merged cells they cross, the active cell is in the current range, a Tab run ends
+/// on any other move).
+///
+/// The empty selection has no ranges and no active cell. A selection that holds ranges holds an active cell.
+/// A range holds rows by key and places them with the display order of the pass, so the rules check the row of the
+/// active cell against its range when they run, and collapse a selection that fails the check to its active cell.
+///
+/// Stored as `ranges`, `current`, `active`, `anchor`, `tab_run` and, when not empty, `toggled`. `current` absent
+/// means the last range. Loading fails when the ranges are empty but an active cell is given, when `current` is out
+/// of range, when ranges are given without an active cell, and when the active column lies outside the current
+/// range's columns.
 #[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
 pub struct CellSelection<K> {
-    /// The selected rows.
-    pub rows: Selection<K>,
-    /// The column of the lead cell.
-    pub lead_column: Option<ColumnKey>,
-    /// Cell ranges: first row, last row and the columns they cover.
-    pub ranges: Vec<(K, K, Range<u32>)>,
-    /// Cells toggled over the rows and ranges: row, column position and whether the cell is selected. Only cells
-    /// that differ from what the rows and ranges say are held, so a range over a million rows stays one entry.
-    pub toggled: Vec<(K, u32, bool)>,
-}
-
-impl<K> CellSelection<K> {
-    /// A selection of `rows`, the column of the lead cell and cell `ranges`.
-    pub fn new(rows: Selection<K>, lead_column: Option<ColumnKey>, ranges: Vec<(K, K, Range<u32>)>) -> Self {
-        CellSelection { rows, lead_column, ranges, toggled: Vec::new() }
-    }
+    ranges: Vec<CellRange<K>>,
+    /// The index in `ranges` of the current range.
+    current: usize,
+    active: Option<CellAt<K>>,
+    anchor: Option<CellAt<K>>,
+    /// The column the current run of Tabs started in, while the last move was a Tab.
+    tab_run: Option<u32>,
+    /// Cells flipped against the ranges: a cell is selected when a range holds it xor it is listed here.
+    toggled: Vec<CellAt<K>>,
 }
 
 impl<K> Default for CellSelection<K> {
     fn default() -> Self {
-        CellSelection { rows: Selection::default(), lead_column: None, ranges: Vec::new(), toggled: Vec::new() }
+        CellSelection { ranges: Vec::new(), current: 0, active: None, anchor: None, tab_run: None, toggled: Vec::new() }
+    }
+}
+
+impl<K> CellSelection<K> {
+    /// The selected ranges, in the order they were added.
+    pub fn ranges(&self) -> &[CellRange<K>] {
+        &self.ranges
+    }
+
+    /// The range Shift extends: the last one added, until Enter or Tab moves into another.
+    pub fn current(&self) -> Option<&CellRange<K>> {
+        self.ranges.get(self.current)
+    }
+
+    /// The active cell: the one an entry goes into.
+    pub fn active(&self) -> Option<&CellAt<K>> {
+        self.active.as_ref()
+    }
+
+    /// The cell of the current range that Shift extends from.
+    pub fn anchor_cell(&self) -> Option<&CellAt<K>> {
+        self.anchor.as_ref()
+    }
+
+    /// The cells flipped against the ranges.
+    pub fn toggled(&self) -> &[CellAt<K>] {
+        &self.toggled
+    }
+}
+
+impl<K: Clone> CellSelection<K> {
+    /// One cell, active and the anchor. A cell inside a merge selects the merge through `select` instead.
+    pub fn cell(c: CellAt<K>) -> Self {
+        let range = CellRange::new(c.row.clone(), c.row.clone(), c.column..c.column.saturating_add(1), c.column);
+        CellSelection { ranges: vec![range], current: 0, active: Some(c.clone()), anchor: Some(c), tab_run: None, toggled: Vec::new() }
+    }
+
+    /// One range with its first row and first column active and the anchor.
+    pub fn range(r: CellRange<K>) -> Self {
+        let top_left = CellAt::new(r.first.clone(), r.columns.start);
+        CellSelection { ranges: vec![r], current: 0, active: Some(top_left.clone()), anchor: Some(top_left), tab_run: None, toggled: Vec::new() }
+    }
+
+    /// Several ranges with `active` in the last one, which is the current range, and the anchor at `active`. `None`
+    /// when `ranges` is empty or the last range's columns do not hold the column of `active`. The row of `active` is
+    /// checked against the range by the first rule that runs.
+    pub fn from_ranges(ranges: Vec<CellRange<K>>, active: CellAt<K>) -> Option<Self> {
+        let holds = ranges.last().is_some_and(|r| r.columns.contains(&active.column));
+        holds.then(|| CellSelection {
+            current: ranges.len() - 1,
+            ranges,
+            active: Some(active.clone()),
+            anchor: Some(active),
+            tab_run: None,
+            toggled: Vec::new(),
+        })
     }
 }
 
 impl<K: Value> SelectionModel<K> for CellSelection<K> {
-    fn contains(&self, key: &K) -> bool {
-        self.rows.contains(key) || self.toggled.iter().any(|(row, _, on)| *on && row == key)
+    /// A row is selected when a range holds it or one of its cells is toggled.
+    fn contains(&self, row: RowAt<'_, K>) -> bool {
+        self.ranges.iter().any(|range| range.holds_row(row)) || self.toggled.iter().any(|cell| cell.row == *row.key)
     }
 
     fn lead(&self) -> Option<&K> {
-        self.rows.lead()
+        self.active.as_ref().map(|cell| &cell.row)
     }
 
     fn anchor(&self) -> Option<&K> {
-        self.rows.anchor()
+        self.anchor.as_ref().map(|cell| &cell.row)
     }
 
     fn apply(&mut self, change: SelectionChange<K>) {
         match change {
-            SelectionChange::ToggleCell(CellAt { row, column, column_key }) => {
-                let on = !self.contains_cell(&row, column);
-                self.toggled.retain(|(held, at, _)| !(*held == row && *at == column));
-                if on != self.in_rows_and_ranges(&row, column) {
-                    self.toggled.push((row.clone(), column, on));
+            SelectionChange::Set(keys) => {
+                let (Some(first), Some(last)) = (keys.first().cloned(), keys.last().cloned()) else {
+                    *self = CellSelection::default();
+                    return;
+                };
+                let ranges: Vec<CellRange<K>> = keys.into_iter().map(whole_row).collect();
+                *self = CellSelection {
+                    current: ranges.len() - 1,
+                    ranges,
+                    active: Some(CellAt::new(last, 0)),
+                    anchor: Some(CellAt::new(first, 0)),
+                    tab_run: None,
+                    toggled: Vec::new(),
+                };
+            }
+            SelectionChange::Toggle(key) => {
+                let whole = whole_row(key.clone());
+                match self.ranges.iter().position(|range| *range == whole) {
+                    Some(at) => {
+                        self.ranges.remove(at);
+                    }
+                    None => self.ranges.push(whole),
                 }
-                self.lead_column = Some(column_key);
-                self.rows.anchor = Some(row.clone());
-                self.rows.lead = Some(row);
-            }
-            SelectionChange::Cells(CellRange { rows, columns, lead_column, .. }) => {
                 self.toggled.clear();
-                if let (Some(first), Some(last)) = (rows.first().cloned(), rows.last().cloned()) {
-                    self.ranges = vec![(first, last, columns)];
+                self.tab_run = None;
+                self.current = self.ranges.len().saturating_sub(1);
+                let cell = self.ranges.get(self.current).map(|range| CellAt::new(range.first.clone(), range.columns.start));
+                self.active = cell.clone();
+                self.anchor = cell;
+            }
+            SelectionChange::Clear => *self = CellSelection::default(),
+            SelectionChange::Cells(range) => {
+                let other_end = if range.lead_column == range.columns.start { range.columns.end.saturating_sub(1) } else { range.columns.start };
+                *self = CellSelection {
+                    active: Some(CellAt::new(range.last.clone(), range.lead_column)),
+                    anchor: Some(CellAt::new(range.first.clone(), other_end)),
+                    ranges: vec![range],
+                    current: 0,
+                    tab_run: None,
+                    toggled: Vec::new(),
+                };
+            }
+            SelectionChange::ToggleCell(cell) => {
+                self.tab_run = None;
+                if self.ranges.is_empty() {
+                    *self = CellSelection::cell(cell);
+                    return;
                 }
-                self.lead_column = Some(lead_column);
-                self.rows.apply(SelectionChange::Set(rows));
+                match self.toggled.iter().position(|held| *held == cell) {
+                    Some(at) => {
+                        self.toggled.remove(at);
+                    }
+                    None => self.toggled.push(cell.clone()),
+                }
+                self.active = Some(cell.clone());
+                self.anchor = Some(cell);
             }
-            SelectionChange::Clear => {
-                self.ranges.clear();
-                self.toggled.clear();
-                self.lead_column = None;
-                self.rows.apply(SelectionChange::Clear);
-            }
-            change => {
-                self.ranges.clear();
-                self.toggled.clear();
-                self.rows.apply(change);
-            }
+            SelectionChange::CellSet(cells) => *self = *cells,
         }
     }
 
-    fn lead_column(&self) -> Option<&ColumnKey> {
-        self.lead_column.as_ref()
+    fn lead_column(&self) -> Option<u32> {
+        self.active.as_ref().map(|cell| cell.column)
     }
 
-    /// A toggled cell is as it was toggled. Any other cell is selected when its row is and a range covers its
-    /// column; rows selected without a range select every column.
-    fn contains_cell(&self, key: &K, column: u32) -> bool {
-        match self.toggled.iter().find(|(row, at, _)| row == key && *at == column) {
-            Some((_, _, on)) => *on,
-            None => self.in_rows_and_ranges(key, column),
-        }
+    /// A cell is selected when a range holds it, flipped by an entry in the toggled cells.
+    fn contains_cell(&self, row: RowAt<'_, K>, column: u32) -> bool {
+        let held = self.ranges.iter().any(|range| range.columns.contains(&column) && range.holds_row(row));
+        held != self.toggled.iter().any(|cell| cell.column == column && cell.row == *row.key)
+    }
+
+    fn cells_mut(&mut self) -> Option<&mut CellSelection<K>> {
+        Some(self)
     }
 }
 
-impl<K: Value> CellSelection<K> {
-    fn in_rows_and_ranges(&self, key: &K, column: u32) -> bool {
-        self.rows.contains(key) && (self.ranges.is_empty() || self.ranges.iter().any(|(_, _, columns)| columns.contains(&column)))
+/// The range of every column of the row `key`.
+fn whole_row<K: Clone>(key: K) -> CellRange<K> {
+    CellRange::new(key.clone(), key, 0..u32::MAX, 0)
+}
+
+fn no_cells<K>(cells: &&[CellAt<K>]) -> bool {
+    cells.is_empty()
+}
+
+impl<K: Serialize> Serialize for CellSelection<K> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        #[derive(Serialize)]
+        struct Stored<'a, K> {
+            ranges: &'a [CellRange<K>],
+            current: usize,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            active: Option<&'a CellAt<K>>,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            anchor: Option<&'a CellAt<K>>,
+            tab_run: Option<u32>,
+            #[serde(skip_serializing_if = "no_cells")]
+            toggled: &'a [CellAt<K>],
+        }
+        Stored {
+            ranges: &self.ranges,
+            current: self.current,
+            active: self.active.as_ref(),
+            anchor: self.anchor.as_ref(),
+            tab_run: self.tab_run,
+            toggled: &self.toggled,
+        }
+        .serialize(serializer)
+    }
+}
+
+impl<'de, K: Deserialize<'de> + Clone> Deserialize<'de> for CellSelection<K> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        struct Stored<K> {
+            ranges: Vec<CellRange<K>>,
+            #[serde(default)]
+            current: Option<usize>,
+            #[serde(default)]
+            active: Option<CellAt<K>>,
+            #[serde(default)]
+            anchor: Option<CellAt<K>>,
+            #[serde(default)]
+            tab_run: Option<u32>,
+            #[serde(default)]
+            toggled: Vec<CellAt<K>>,
+        }
+        let Stored { ranges, current, active, anchor, tab_run, toggled } = Stored::<K>::deserialize(deserializer)?;
+        if ranges.is_empty() {
+            if active.is_some() || current.is_some_and(|current| current > 0) {
+                return Err(D::Error::custom("a cell selection without ranges has no active cell"));
+            }
+            return Ok(CellSelection { tab_run, toggled, ..CellSelection::default() });
+        }
+        let current = current.unwrap_or(ranges.len() - 1);
+        let Some(range) = ranges.get(current) else {
+            return Err(D::Error::custom(format!("a cell selection needs a current range: {} ranges, current {current}", ranges.len())));
+        };
+        let Some(active) = active else {
+            return Err(D::Error::custom("a cell selection with ranges needs an active cell"));
+        };
+        if !range.columns.contains(&active.column) {
+            return Err(D::Error::custom("the active cell is outside the current range"));
+        }
+        let anchor = anchor.unwrap_or_else(|| active.clone());
+        Ok(CellSelection { ranges, current, active: Some(active), anchor: Some(anchor), tab_run, toggled })
     }
 }
 
@@ -274,35 +533,41 @@ mod tests {
         assert_eq!((selection.items.clone(), selection.lead(), selection.anchor()), (vec![2, 7], Some(&3), Some(&3)));
     }
 
+    fn row_at<'a>(key: &'a u32, order: &'a Positions) -> RowAt<'a, u32> {
+        RowAt { key, at: *key as usize, order }
+    }
+
+    fn holds(cells: &CellSelection<u32>, row: u32, column: u32) -> bool {
+        cells.contains_cell(row_at(&row, &Positions(100)), column)
+    }
+
     #[test]
     fn a_cell_range_selects_its_rows_and_columns_and_a_row_change_selects_every_column() {
         let mut cells = CellSelection::<u32>::default();
-        cells.apply(SelectionChange::Cells(CellRange::new(vec![2, 3], 1..3, ColumnKey::new("c"))));
-        assert_eq!((cells.contains_cell(&3, 2), cells.contains_cell(&3, 0), cells.contains_cell(&5, 1)), (true, false, false));
-        assert_eq!((cells.lead(), cells.lead_column()), (Some(&3), Some(&ColumnKey::new("c"))));
+        cells.apply(SelectionChange::Cells(CellRange::new(2, 3, 1..3, 2)));
+        assert_eq!((holds(&cells, 3, 2), holds(&cells, 3, 0), holds(&cells, 5, 1)), (true, false, false));
+        assert_eq!((cells.lead(), cells.lead_column(), cells.anchor()), (Some(&3), Some(2), Some(&2)));
         cells.apply(SelectionChange::Set(vec![4]));
-        assert_eq!((cells.contains_cell(&4, 0), cells.contains_cell(&4, 9)), (true, true));
+        assert_eq!((holds(&cells, 4, 0), holds(&cells, 4, 9)), (true, true));
     }
 
     #[test]
     fn a_cell_toggle_flips_one_cell_and_leaves_the_others() {
-        let at = |row, column| SelectionChange::ToggleCell(CellAt::new(row, column, ColumnKey::new("c")));
+        let at = |row, column| SelectionChange::ToggleCell(CellAt::new(row, column));
+        let order = Positions(100);
         let mut cells = CellSelection::<u32>::default();
-        cells.apply(SelectionChange::Cells(CellRange::new(vec![2, 3], 1..3, ColumnKey::new("c"))));
+        cells.apply(SelectionChange::Cells(CellRange::new(2, 3, 1..3, 2)));
         cells.apply(at(7, 0));
-        assert_eq!(
-            (cells.contains_cell(&7, 0), cells.contains_cell(&7, 1), cells.contains_cell(&2, 1), cells.contains(&7)),
-            (true, false, true, true)
-        );
+        assert_eq!((holds(&cells, 7, 0), holds(&cells, 7, 1), holds(&cells, 2, 1), cells.contains(row_at(&7, &order))), (true, false, true, true));
         cells.apply(at(2, 1));
-        assert_eq!((cells.contains_cell(&2, 1), cells.contains_cell(&2, 2), cells.contains_cell(&3, 1)), (false, true, true));
+        assert_eq!((holds(&cells, 2, 1), holds(&cells, 2, 2), holds(&cells, 3, 1)), (false, true, true));
         cells.apply(at(2, 1));
-        assert_eq!((cells.toggled.len(), cells.contains_cell(&2, 1)), (1, true));
+        assert_eq!((cells.toggled().len(), holds(&cells, 2, 1)), (1, true));
         cells.apply(at(7, 0));
-        assert_eq!((cells.toggled.len(), cells.contains(&7), cells.lead()), (0, false, Some(&7)));
+        assert_eq!((cells.toggled().len(), cells.contains(row_at(&7, &order)), cells.lead()), (0, false, Some(&7)));
         cells.apply(at(5, 2));
         cells.apply(SelectionChange::Set(vec![4]));
-        assert_eq!((cells.contains_cell(&5, 2), cells.contains_cell(&4, 0)), (false, true));
+        assert_eq!((holds(&cells, 5, 2), holds(&cells, 4, 0)), (false, true));
     }
 
     #[test]

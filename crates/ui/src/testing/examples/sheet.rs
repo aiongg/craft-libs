@@ -185,9 +185,8 @@ impl<'a> SheetGrid<'a> {
     /// The row and column of the lead cell.
     fn lead_cell(&mut self) -> Option<(usize, usize)> {
         let Some(Mixed::Same(held)) = self.selection.reborrow().get() else { return None };
-        let row = *held.rows.lead()?;
-        let column = held.lead_column.as_ref().and_then(|key| NAMES.iter().position(|name| ColumnKey::new(name) == *key)).unwrap_or(0);
-        Some((row, column))
+        let active = held.active()?;
+        Some((active.row, active.column as usize))
     }
 
     fn cell_text(&self, (row, column): (usize, usize)) -> &str {

@@ -555,7 +555,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 row_groups.push(row_group);
                 let mut row = self.screen(&layout, rect, at, offset, rtl);
                 let state = RowState {
-                    selected: self.selection.contains(&key),
+                    selected: self.holds(at),
                     lead: lead.as_ref() == Some(&key),
                     renaming: self.renaming.key.as_ref() == Some(&key),
                     striped: striped && {
@@ -850,7 +850,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             if len > 0 {
                 let to = self.lead.at.min(len - 1);
                 self.move_lead(to, LeadSource::Keys);
-                if self.selection.contains(&key) {
+                if self.holds_key(&key, to) {
                     self.pick(comp, to, false, false);
                 }
             }
@@ -891,9 +891,9 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                         SelectMode::Single => props.allow_empty,
                         _ => false,
                     };
-                    let hold = primary && !mods.shift && !mods.cmd && holds && self.selection.contains(&key);
+                    let hold = primary && !mods.shift && !mods.cmd && holds && self.holds(at);
                     match column {
-                        Some(column) => self.cell_press(layout, at, column, mods.shift, mods.cmd),
+                        Some(column) => self.cell_press(comp, layout, at, column, mods.shift, mods.cmd),
                         None if hold => self.drags.collapse = Some(key.clone()),
                         None => self.pick(comp, at, mods.shift, mods.cmd),
                     }
@@ -956,10 +956,10 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             && self.source.enabled(at)
         {
             let key = self.source.key(at);
-            if !self.selection.contains(&key) {
+            if !self.holds(at) {
                 let column = if Self::selects_cells(comp) { layout.column_at(local(pos), offset) } else { None };
                 match column {
-                    Some(column) => self.cell_press(layout, at, column, false, false),
+                    Some(column) => self.cell_press(comp, layout, at, column, false, false),
                     None => self.pick(comp, at, false, false),
                 }
             }
@@ -1002,12 +1002,12 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             };
             match step {
                 NavStep::Moved(to) if cells => {
-                    self.cell_move(layout, to, state.column, mods);
+                    self.cell_move(comp, layout, to, state.column, mods);
                     self.reveal_with(layout, to, view);
                 }
                 NavStep::Column(column) if cells => {
                     if let Some(at) = lead {
-                        self.cell_move(layout, at, column, mods);
+                        self.cell_move(comp, layout, at, column, mods);
                     }
                 }
                 NavStep::Column(column) => self.lead.column = column,
@@ -1091,11 +1091,8 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let back = cx.core.intents.take_exact(&Intent::delete(false, Granularity::Unit));
         let Some(row) = lead_at.filter(|_| forward || back) else { return };
         let lead = self.source.key(row);
-        let keys = if self.selection.contains(&lead) {
-            (0..self.source.len()).map(|at| self.source.key(at)).filter(|key| self.selection.contains(key)).collect()
-        } else {
-            vec![lead]
-        };
+        let keys =
+            if self.holds(row) { (0..self.source.len()).filter(|&at| self.holds(at)).map(|at| self.source.key(at)).collect() } else { vec![lead] };
         self.events.push(CollectionEvent::Delete(keys));
     }
 
@@ -1115,12 +1112,9 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     /// follows to the value the row took, as a sweep would.
     fn toggle_by_key(&mut self, cx: &mut Cx<'_, C>, row: usize) {
         let Some((column, toggle)) = self.header.toggle_columns().find(|(column, _)| self.source.toggle_enabled(row, column)) else { return };
-        let selected = self.selection.contains(&self.source.key(row));
-        let others: Vec<usize> = if selected && !toggle.exclusive {
-            (0..self.source.len()).filter(|&at| at != row && self.selection.contains(&self.source.key(at))).collect()
-        } else {
-            Vec::new()
-        };
+        let selected = self.holds(row);
+        let others: Vec<usize> =
+            if selected && !toggle.exclusive { (0..self.source.len()).filter(|&at| at != row && self.holds(at)).collect() } else { Vec::new() };
         let Some(on) = self.flip_toggle(cx, row, column.clone(), toggle) else { return };
         for at in others {
             if self.source.enabled(at)

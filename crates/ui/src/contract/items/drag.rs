@@ -209,8 +209,8 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     fn begin_row_drag(&mut self, cx: &mut Cx<'_, C>, props: &CollectionProps, at: usize) {
         let id = cx.core.id;
         let key = self.source.key(at);
-        let keys: Vec<C::Key> = if self.selection.contains(&key) {
-            (0..self.source.len()).map(|at| self.source.key(at)).filter(|held| self.selection.contains(held)).collect()
+        let keys: Vec<C::Key> = if self.holds(at) {
+            (0..self.source.len()).filter(|&at| self.holds(at)).map(|at| self.source.key(at)).collect()
         } else {
             vec![key.clone()]
         };
