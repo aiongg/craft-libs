@@ -434,6 +434,9 @@ fn the_reading_view_paints_the_paper_under_a_page_without_a_picture() {
     assert!(paints_shape_of(&fixture, page), "a shape the size of the page is the paper");
 }
 
+/// How far a painted fill may stray from the exact page shape: shapes lie on device pixels, so a side is off by at most a point.
+const PAPER_SLACK: f32 = 1.0;
+
 #[trial]
 fn the_preview_paints_the_paper_under_a_page_without_a_picture() {
     let pages = BlankPages(DemoPages::new(2));
@@ -445,13 +448,13 @@ fn the_preview_paints_the_paper_under_a_page_without_a_picture() {
     fixture.room(vec2(500.0, 500.0));
     fixture.settle();
     let page = DemoPages::new(1).page_size(0);
-    let portrait = page.width < page.height;
-    let picture = fixture.by_role(Role::IMAGE).into_iter().next().expect("the page picture").rect;
-    // The paper is the fill centred in the picture that takes most of its height, in the page's orientation.
+    let picture = fixture.by_label(&DemoPages::new(1).page_label(0)).expect("the page picture").rect;
+    // The paper is the fill of the page's aspect that lies in the picture.
     let paper = |bounds: &Rect| {
-        picture.contains(bounds.center()) && bounds.height() > picture.height() - bounds.height() && (bounds.width() < bounds.height()) == portrait
+        picture.expand(PAPER_SLACK).contains_rect(*bounds)
+            && (f64::from(bounds.width()) - f64::from(bounds.height()) * page.width / page.height).abs() < f64::from(PAPER_SLACK)
     };
-    assert!(fixture.shape_bounds().iter().any(paper), "a page-shaped fill is the paper: {:?}", fixture.shape_bounds());
+    assert!(fixture.shape_bounds().iter().any(paper), "a fill with the page's aspect inside the picture is the paper: {:?}", fixture.shape_bounds());
 }
 
 /// A page view over `count` demo pages with the state it starts from, and the rects of the pages it laid out.
