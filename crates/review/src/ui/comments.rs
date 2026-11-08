@@ -1,53 +1,74 @@
-//! The Comments panel (N5.01).
+//! The Comments panel: a header with the count, search, sort and filter menus, the add box and the cards.
+//!
+//! ```ignore
+//! let out = CommentsPanel::new("Comments", &threads, &mut state).now(unix_seconds).show(ui);
+//! for edit in out.edits {
+//!     match edit {
+//!         CommentEdit::Add { text } => doc.add_note(text),
+//!         CommentEdit::Select(thread) => doc.select(thread),
+//!         _ => {}
+//!     }
+//! }
+//! ```
 
+#[cfg(feature = "screen-testing")]
+mod stories;
+
+use std::borrow::Cow;
 use std::collections::BTreeMap;
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
-use craft_host::Host;
-use craft_i18n::{DateFormat, DateStyle, DateTime, Folder, I18n, TimeZone};
-use craft_theme::{ButtonVariant, TypeRole};
-use craft_ui::controls::{Button, IconButton, SearchField, TextField};
-use craft_ui::edit::EditEvent;
-use craft_ui::icons::{self, Icon, IconSize};
-use craft_ui::localized::{AGE_SHOWN_AS_DATE, AgeStyle, Labels as _, LocaleNumbers, Words, fmt, relative_age};
-use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, corner_radius, role_format};
-use egui::accesskit::Role;
-use egui::text::LayoutJob;
-use egui::{
-    Align, AsIdSalt, Color32, Context, EventFilter, Frame, Id, IdSalt, Key, Layout, Margin, Modifiers, Rect, Response, Sense, Ui, UiBuilder, Vec2,
-    pos2,
+use craft_behavior::{DisplayOrder, IconId, ItemSource, Metrics, Proposal, Selection, SpanLayout};
+use craft_i18n::{DateStyle, DateTime, TimeZone};
+use craft_theme::Srgba;
+use craft_ui::buttons::{Button, IconButton};
+use craft_ui::contract::overlay::Anchor;
+use craft_ui::contract::{
+    ActivateOn, Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, ItemOutput,
+    MeasureCx, NoValue, Outcome, PaintUi, Pattern, Props as _, Role, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, Sizing, Trigger,
+    WordSetCx as _, clicked,
 };
+use craft_ui::display::{Divider, Shade, Text};
+use craft_ui::layout_components::{Row, Stack};
+use craft_ui::menu::{Menu, MenuItem};
+use craft_ui::notices::{Notice, NoticeLayout};
+use craft_ui::primitives::{HAlign, IconSpec, PaintShape, TextRun, Wrap};
+use craft_ui::runtime::env::{AgeStyle, Env, EnvView, Label};
+use craft_ui::style::{ComponentStyle, Ink, StyleColor, StyleCx, TypeRole};
+use craft_ui::text::TextField;
+use egui::{CornerRadius, Pos2, Rect, Response, Ui, Vec2, vec2};
 
-use super::ReviewStyle;
-use super::annotate::{AnnotateLabels, PALETTE};
+use super::annotate::{AnnotateWords, PALETTE};
+use super::avatar::{AvatarFace, paint_avatar, rgb8};
 use crate::annotate::AnnotationKind;
-use crate::collab::initials;
 use crate::comments::{CommentFilter, CommentSort, CommentThread, ReviewStatus, ThreadId, matches, sort_threads};
 
-/// The panel's count words, for the facade's `ui::COUNTS`.
-pub mod counts {
-    use craft_ui::localized::words::Counted;
+/// Ages under this many seconds (one week) read relative; older ones read as a date.
+pub(crate) const AGE_SHOWN_AS_DATE: u64 = 7 * 24 * 60 * 60;
 
-    /// Count word for a thread's reply count.
-    pub const REPLIES: Counted = Counted::new("comments.replies", "{n} reply", "{n} replies");
+/// A card is this many control heights wide when the room names no width.
+const COLUMN_IN_HEIGHTS: f32 = 20.0;
 
-    /// Every count word of the Comments panel.
-    pub const ALL: &[Counted] = &[REPLIES];
-}
+/// A button of a card is this many control heights wide.
+const BUTTON_IN_HEIGHTS: f32 = 4.0;
+
+/// A heading's count takes this many control heights.
+const COUNT_IN_HEIGHTS: f32 = 2.0;
+
+/// The rows of the add box and of a reply box.
+const REPLY_LINES: usize = 2;
+
+/// The rows of an inline editor.
+const EDIT_LINES: usize = 3;
 
 craft_ui::words! {
-    /// The panel's words, English by default (PdfCraft's, Acrobat's).
+    /// The panel's words, English by default.
     #[non_exhaustive]
-    pub struct CommentsLabels {
-        /// The header: the number of comments.
-        title: "comments.title" = "Comments {n}";
-        /// The replies under the header; the English plural of [`counts::REPLIES`].
-        replies: "comments.replies" = "{n} replies";
+    pub struct CommentsWords {
+        title: template "comments.title" = "Comments {n}";
+        replies: count "comments.replies" = "{n} reply" | "{n} replies";
         search: "comments.search" = "Search comments";
-        clear_search: "comments.clearSearch" = "Clear search";
-        /// The Sort by button: the chosen order.
-        sort_by: "comments.sortBy" = "Sort by: {sort}";
+        sort_by: template "comments.sortBy" = "Sort by: {sort}";
         sort_page: "comments.sortPage" = "Page";
         sort_author: "comments.sortAuthor" = "Author";
         sort_date: "comments.sortDate" = "Date";
@@ -67,24 +88,10 @@ craft_ui::words! {
         marked: "comments.marked" = "Marked";
         locked: "comments.locked" = "Locked";
         unknown_author: "comments.unknownAuthor" = "Unknown author";
-        /// A page heading; `{label}` is the page's label.
-        page: "comments.page" = "Page {label}";
-        /// A card's accessible name.
-        card_name: "comments.cardName" = "{author}: {text}";
-        /// The kind of a comment that hangs on no annotation: its heading and filter row.
+        page: template "comments.page" = "Page {label}";
+        card_name: template "comments.cardName" = "{author}: {text}";
         plain_kind: "comments.plainKind" = "Comment";
         no_color: "comments.noColor" = "No color";
-        /// The names of the toolbar's palette colours, in `annotate::PALETTE` order.
-        color_yellow: "comments.colorYellow" = "Yellow";
-        color_orange: "comments.colorOrange" = "Orange";
-        color_red: "comments.colorRed" = "Red";
-        color_pink: "comments.colorPink" = "Pink";
-        color_purple: "comments.colorPurple" = "Purple";
-        color_blue: "comments.colorBlue" = "Blue";
-        color_light_blue: "comments.colorLightBlue" = "Light blue";
-        color_green: "comments.colorGreen" = "Green";
-        color_grey: "comments.colorGrey" = "Grey";
-        color_black: "comments.colorBlack" = "Black";
         no_match: "comments.noMatch" = "No comments match.";
         filter: "comments.filter" = "Filter comments";
         filter_type: "comments.filterType" = "Type";
@@ -95,12 +102,9 @@ craft_ui::words! {
         checked: "comments.checked" = "Checked";
         unchecked: "comments.unchecked" = "Unchecked";
         show_all: "comments.showAll" = "Show all";
-        /// The menu beside the filter: Collapse all pages, Expand all pages.
         pages_menu: "comments.pagesMenu" = "Pages";
         collapse_all: "comments.collapseAll" = "Collapse all pages";
         expand_all: "comments.expandAll" = "Expand all pages";
-        collapse: "comments.collapse" = "Collapse";
-        expand: "comments.expand" = "Expand";
         status_none: "comments.statusNone" = "None";
         accepted: "comments.accepted" = "Accepted";
         rejected: "comments.rejected" = "Rejected";
@@ -110,8 +114,17 @@ craft_ui::words! {
     }
 }
 
+/// Where a card's menu hangs: the thread, the message and the rect of the button that asked.
+#[derive(Clone, Debug, PartialEq)]
+struct OpenMenu {
+    thread: ThreadId,
+    index: usize,
+    anchor: Rect,
+}
+
 /// What the panel keeps between passes; the app keeps one per document window.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct CommentsPanelState {
     /// The search box text; threads match through [`matches`](fn@matches).
     pub search: String,
@@ -129,6 +142,7 @@ pub struct CommentsPanelState {
     pub reply: String,
     /// The "Add a comment" box's draft.
     pub new_comment: String,
+    menu: Option<OpenMenu>,
 }
 
 impl CommentsPanelState {
@@ -147,11 +161,13 @@ impl CommentsPanelState {
 #[non_exhaustive]
 pub enum CommentEdit {
     /// "Add a comment": a sticky note on the current page.
+    #[non_exhaustive]
     Add {
         /// The comment text.
         text: String,
     },
     /// Reply to a thread.
+    #[non_exhaustive]
     Reply {
         #[allow(missing_docs)]
         thread: ThreadId,
@@ -159,6 +175,7 @@ pub enum CommentEdit {
         text: String,
     },
     /// Message `index` (0: the comment) edited.
+    #[non_exhaustive]
     Edit {
         #[allow(missing_docs)]
         thread: ThreadId,
@@ -168,6 +185,7 @@ pub enum CommentEdit {
         text: String,
     },
     /// Message `index` deleted; 0 deletes the thread.
+    #[non_exhaustive]
     Delete {
         #[allow(missing_docs)]
         thread: ThreadId,
@@ -175,6 +193,7 @@ pub enum CommentEdit {
         index: usize,
     },
     /// Set a thread's review status.
+    #[non_exhaustive]
     SetStatus {
         #[allow(missing_docs)]
         thread: ThreadId,
@@ -182,6 +201,7 @@ pub enum CommentEdit {
         status: ReviewStatus,
     },
     /// Set or clear a thread's checkmark.
+    #[non_exhaustive]
     Mark {
         #[allow(missing_docs)]
         thread: ThreadId,
@@ -191,6 +211,7 @@ pub enum CommentEdit {
     /// A card was selected: the app selects the annotation on the page and scrolls to it.
     Select(ThreadId),
     /// Copy text of message `index`; the app puts it on the clipboard.
+    #[non_exhaustive]
     CopyText {
         #[allow(missing_docs)]
         thread: ThreadId,
@@ -198,6 +219,7 @@ pub enum CommentEdit {
         index: usize,
     },
     /// The viewer's reaction `emoji` on message `index` toggled (the thread popover).
+    #[non_exhaustive]
     React {
         #[allow(missing_docs)]
         thread: ThreadId,
@@ -207,6 +229,7 @@ pub enum CommentEdit {
         emoji: String,
     },
     /// Figma's resolve (`true`) or reopen (`false`).
+    #[non_exhaustive]
     Resolve {
         #[allow(missing_docs)]
         thread: ThreadId,
@@ -214,130 +237,92 @@ pub enum CommentEdit {
         resolved: bool,
     },
     /// The app puts a link to the thread on the clipboard.
+    #[non_exhaustive]
     CopyLink {
         #[allow(missing_docs)]
         thread: ThreadId,
     },
     /// The viewer's read state of the thread cleared.
+    #[non_exhaustive]
     MarkUnread {
         #[allow(missing_docs)]
         thread: ThreadId,
     },
 }
 
-/// Acrobat's right-hand comment list (PdfCraft).
+/// "5 min ago" under a week, then the date.
+pub(crate) fn age_text(env: &EnvView<'_>, then: i64, now: i64) -> String {
+    let age = now.saturating_sub(then).max(0).unsigned_abs();
+    if age < AGE_SHOWN_AS_DATE {
+        env.relative_age(age, AgeStyle::Short)
+    } else {
+        env.dates().format(DateTime::from_unix(then, TimeZone::Local), DateStyle::DATE)
+    }
+}
+
+/// Acrobat's right-hand comment list.
 ///
-/// - Header "Comments N" with "N replies" under it, search (a [`SearchField`]; filters by
-///   [`matches`](fn@matches), ignoring case as PdfCraft does), the Sort by menu, the
-///   funnel menu ([`CommentFilter`]: Type, Author, Status, Color, Checkmark rows that hide what
-///   they name, as PdfCraft's Filter comments) and, under the Page sort, a menu with Collapse
-///   all pages and Expand all pages. A search or filter that leaves nothing shows "No comments
-///   match."
-/// - "Add a comment" box: Enter (Cmd+Enter in a multi-line draft) posts a sticky note.
-/// - Cards grouped under headings (by [`sort_threads`]); under
-///   the Page sort a heading names the page ([`page_label`](CommentsPanel::page_label)), shows the
-///   count of the page's comments before filtering, and folds its cards on a click. Each card has: an
-///   avatar with the kind's icon in the annotation colour, author, modified date (relative
-///   under a week with [`relative_age`] in
-///   [`AgeStyle::Short`](craft_ui::localized::AgeStyle), then the date through craft-i18n's
-///   `I18n::dates()`, as `AGE_SHOWN_AS_DATE` describes), the text; a status badge (Accepted:
-///   thumbs-up; Rejected: thumbs-down; Cancelled: circle-x; Completed: check; colours
-///   `ReviewStyle::status_*` of [`ReviewStyle`]); the checkmark (a toggle on the
-///   selected card, a mark otherwise); a lock badge; replies under it, each with its own "…"
-///   ([`PressMenu`]: Edit, Copy text, Delete).
-/// - The selected card has the `accent.solid` bar, the reply box and "…" (Edit, Set
-///   status, Delete). Locked threads and `read_only` hide the editing items.
-/// - Keyboard: Up / Down move between cards (selecting them), Enter focuses the reply box, Esc
-///   leaves an inline edit; every button is a Tab stop. AccessKit: a list of cards, each named
-///   by author and text.
+/// - Header "Comments N" with "N replies" under it, search, the Sort by menu, the funnel menu
+///   ([`CommentFilter`]: Type, Author, Status, Color, Checkmark rows that hide what they name) and,
+///   under the Page sort, a menu with Collapse all pages and Expand all pages. A search or filter
+///   that leaves nothing shows "No comments match."
+/// - "Add a comment" box: a multi-line field and Post.
+/// - Cards in one collection, grouped under headings by [`sort_threads`]; under the Page sort a
+///   heading names the page, shows the count of the page's comments before filtering and folds its
+///   cards. A card shows the kind's icon, author, age (relative under a week, then the date), the
+///   text, a status icon, the checkmark, a lock icon and the replies, each with its own "..." menu.
+/// - The selected card has the accent bar, the reply box and "..." (Edit, Set status, Delete).
+///   Locked threads and `read_only` hide the editing items.
+/// - Keyboard: Up and Down move between cards (selecting them), Enter selects, Escape in a control
+///   of a card returns to the card.
+///
+/// ```ignore
+/// let out = CommentsPanel::new("Comments", &threads, &mut state).now(now).show(ui);
+/// ```
+#[must_use = "show the panel with `show`"]
+#[derive(Pattern)]
 pub struct CommentsPanel<'a> {
-    id_salt: IdSalt,
+    label: Label,
     threads: &'a [CommentThread],
     state: &'a mut CommentsPanelState,
     read_only: bool,
-    labels: Option<CommentsLabels>,
-    annotate_labels: Option<AnnotateLabels>,
-    page_label: Option<PageLabel<'a>>,
+    now: i64,
+    page_label: Option<Box<dyn Fn(usize) -> String + 'a>>,
 }
 
-/// The label of a page, from the app's page index (or number) stored in the anchor.
-type PageLabel<'a> = Box<dyn Fn(usize) -> String + 'a>;
-
 impl<'a> CommentsPanel<'a> {
-    /// The edits carry only the text; the app signs new comments with its own identity.
-    pub fn new(id_salt: impl AsIdSalt, threads: &'a [CommentThread], state: &'a mut CommentsPanelState) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), threads, state, read_only: false, labels: None, annotate_labels: None, page_label: None }
+    /// The panel named `label` over `threads`. The edits carry only the text; the app signs new
+    /// comments with its own identity.
+    pub fn new(label: impl Into<Label>, threads: &'a [CommentThread], state: &'a mut CommentsPanelState) -> Self {
+        CommentsPanel { label: label.into(), threads, state, read_only: false, now: 0, page_label: None }
     }
 
     /// No posting or editing (a document that forbids comments).
+    #[must_use]
     pub fn read_only(mut self, on: bool) -> Self {
         self.read_only = on;
         self
     }
 
-    /// Uses these label texts instead of the ones read from the active locale's catalog.
-    pub fn labels(mut self, labels: CommentsLabels) -> Self {
-        self.labels = Some(labels);
+    /// The current time in Unix seconds, which the ages count from.
+    #[must_use]
+    pub fn now(mut self, unix_seconds: i64) -> Self {
+        self.now = unix_seconds;
         self
     }
 
-    /// The reader's names of the annotation kinds, for headings, the filter and the search
-    /// ([`AnnotateLabels::kind`]); the installed words by default.
-    pub fn annotate_labels(mut self, labels: AnnotateLabels) -> Self {
-        self.annotate_labels = Some(labels);
-        self
-    }
-
-    /// The text of a page heading's `{label}`, from the page stored in the anchor (PdfCraft's
-    /// page labels: "iv", "A-3"); that page itself by default.
+    /// The text of a page heading's `{label}`, from the page stored in the anchor (page labels
+    /// such as "iv" or "A-3"); that page itself by default.
+    #[must_use]
     pub fn page_label(mut self, label: impl Fn(usize) -> String + 'a) -> Self {
         self.page_label = Some(Box::new(label));
         self
-    }
-
-    // pdfcraft: crates/ui-egui/src/panels/comments_panel.rs:115 `show`, `:311` `card`, `:541`
-    // `inline_editor`, `:568` `reply_menu`, `:600` `avatar`, `:626` `header_controls`;
-    // `tools/comments/menu.rs:368` `status_badge`; deckcraft: crates/ui-egui/src/panels/comments.rs:67.
-    /// Shows the panel and reports what the user did.
-    pub fn show(self, ui: &mut Ui) -> CommentsPanelOutput {
-        let Self { id_salt, threads, state, read_only, labels, annotate_labels, page_label } = self;
-        let labels = labels.unwrap_or_else(|| CommentsLabels::of(ui));
-        let kinds = annotate_labels.unwrap_or_else(|| AnnotateLabels::of(ui));
-        let page_label = page_label.unwrap_or_else(|| Box::new(|page: usize| page.to_string()));
-        let tokens = Tokens::of(ui);
-        let style = ReviewStyle::of(&tokens);
-        let numbers = LocaleNumbers::of(ui);
-        let cx = Cx {
-            tokens: &tokens,
-            style: &style,
-            labels: &labels,
-            kinds: &kinds,
-            page_label: &*page_label,
-            numbers: &numbers,
-            id: ui.make_persistent_id(id_salt),
-            read_only,
-        };
-        let mut edits = Vec::new();
-        let response = ui
-            .vertical(|ui| {
-                ui.spacing_mut().item_spacing.y = tokens.space.gap.stack;
-                header(ui, &cx, threads, state);
-                if !read_only {
-                    add_box(ui, &cx, state, &mut edits);
-                }
-                if threads.is_empty() {
-                    text(ui, &tokens, style.body_text, tokens.color.text.muted.to_egui(), &labels.empty);
-                    return;
-                }
-                list(ui, &cx, threads, state, &mut edits);
-            })
-            .response;
-        CommentsPanelOutput { response, edits }
     }
 }
 
 /// What the Comments panel did this pass.
 #[must_use]
+#[non_exhaustive]
 pub struct CommentsPanelOutput {
     /// The panel's response.
     pub response: Response,
@@ -345,27 +330,11 @@ pub struct CommentsPanelOutput {
     pub edits: Vec<CommentEdit>,
 }
 
-/// What every part of the panel reads.
-struct Cx<'a> {
-    tokens: &'a UiTokens,
-    style: &'a ReviewStyle,
-    labels: &'a CommentsLabels,
-    kinds: &'a AnnotateLabels,
-    page_label: &'a dyn Fn(usize) -> String,
-    numbers: &'a LocaleNumbers,
-    id: Id,
-    read_only: bool,
-}
+impl Outcome for CommentsPanelOutput {
+    type Value = NoValue;
 
-impl Cx<'_> {
-    /// A count written in the locale's digits.
-    fn number(&self, n: usize) -> String {
-        self.numbers.format(f64::from(u32::try_from(n).unwrap_or(u32::MAX)), 0..=0)
-    }
-
-    /// The reader's name of a thread's kind.
-    fn kind_name(&self, kind: Option<AnnotationKind>) -> String {
-        kind.map_or_else(|| self.labels.plain_kind.clone(), |kind| self.kinds.kind(kind).to_owned())
+    fn response(&self) -> &Response {
+        &self.response
     }
 }
 
@@ -380,145 +349,13 @@ enum FilterRow {
     ShowAll,
 }
 
-/// What a row of the pages menu does.
-#[derive(Clone, Copy)]
-enum PagesRow {
-    CollapseAll,
-    ExpandAll,
-}
-
-/// What the "…" menu of a card or reply asks for.
+/// What a row of a card's menu does.
 #[derive(Clone, Copy)]
 enum CardMenu {
     Edit,
     Status(ReviewStatus),
     Copy,
     Delete,
-}
-
-/// A label in a type role and colour that wraps.
-pub(super) fn text(ui: &mut Ui, tokens: &UiTokens, role: TypeRole, color: Color32, text: impl Into<String>) -> Response {
-    ui.add(egui::Label::new(LayoutJob::single_section(text.into(), role_format(tokens, role, color))).wrap())
-}
-
-/// Now in seconds since the Unix epoch.
-fn unix_now() -> Option<i64> {
-    let since = web_time::SystemTime::now().duration_since(web_time::UNIX_EPOCH).ok()?;
-    i64::try_from(since.as_secs()).ok()
-}
-
-/// How dates are written in `ctx`'s Host: English (US) without one.
-fn dates(ctx: &Context) -> Arc<DateFormat> {
-    static ENGLISH: LazyLock<Arc<DateFormat>> = LazyLock::new(|| Arc::new(DateFormat::from_tag("en-US")));
-    Host::try_of_ctx(ctx).and_then(|host| host.i18n().map(I18n::dates)).unwrap_or_else(|| Arc::clone(&ENGLISH))
-}
-
-/// "5 min ago" under a week, then the date.
-pub(super) fn age_text(ctx: &Context, then: i64) -> String {
-    let age = unix_now().map(|now| now.saturating_sub(then).max(0).unsigned_abs());
-    match age {
-        Some(age) if age < AGE_SHOWN_AS_DATE => relative_age(ctx, age, AgeStyle::Short),
-        _ => dates(ctx).format(DateTime::from_unix(then, TimeZone::Local), DateStyle::DATE),
-    }
-}
-
-/// A round badge with the initials of `name`.
-pub(super) fn avatar(ui: &mut Ui, tokens: &UiTokens, name: &str) -> Response {
-    let side = tokens.size.control.sm;
-    let (rect, response) = ui.allocate_exact_size(Vec2::splat(side), Sense::hover());
-    let on = tokens.color.text.on_strong.to_egui();
-    ui.painter().circle_filled(rect.center(), side / 2.0, tokens.color.accent.strong.to_egui());
-    let galley = ui.painter().layout_job(LayoutJob::single_section(initials(name), role_format(tokens, ReviewStyle::of(tokens).caption_text, on)));
-    ui.painter().galley(rect.center() - galley.size() / 2.0, galley, on);
-    response
-}
-
-/// The icon of a thread's annotation kind.
-fn kind_icon(kind: Option<AnnotationKind>) -> Icon {
-    use AnnotationKind as K;
-    match kind {
-        Some(K::Highlight | K::Underline | K::StrikeOut | K::Squiggly) => Icon::Brush,
-        Some(K::TextBox | K::Callout) => Icon::Text,
-        Some(K::Ink) => Icon::Pencil,
-        Some(K::Attach) => Icon::Link,
-        _ => Icon::Note,
-    }
-}
-
-/// The icon and colour of a status badge; `None` has none.
-fn status_badge(tokens: &UiTokens, status: ReviewStatus) -> Option<(Icon, Color32)> {
-    match status {
-        ReviewStatus::None => None,
-        ReviewStatus::Accepted => Some((Icon::ThumbsUp, tokens.color.status.good.fg.to_egui())),
-        ReviewStatus::Rejected => Some((Icon::ThumbsDown, tokens.color.status.bad.fg.to_egui())),
-        ReviewStatus::Cancelled => Some((Icon::XCircle, tokens.color.text.faint.to_egui())),
-        ReviewStatus::Completed => Some((Icon::Check, tokens.color.status.good.fg.to_egui())),
-    }
-}
-
-fn status_label(labels: &CommentsLabels, status: ReviewStatus) -> &str {
-    match status {
-        ReviewStatus::None => &labels.status_none,
-        ReviewStatus::Accepted => &labels.accepted,
-        ReviewStatus::Rejected => &labels.rejected,
-        ReviewStatus::Cancelled => &labels.cancelled,
-        ReviewStatus::Completed => &labels.completed,
-    }
-}
-
-/// A small non-interactive icon with a name for AccessKit and the tooltip.
-fn badge(ui: &mut Ui, tokens: &UiTokens, icon: Icon, color: Color32, name: &str) {
-    let (rect, response) = ui.allocate_exact_size(Vec2::splat(tokens.size.icon.md), Sense::hover());
-    response.widget_info(|| egui::WidgetInfo::labeled(Role::Label, true, name));
-    icons::paint(ui, rect, icon, IconSize::Sm, color);
-    response.on_hover_text(name);
-}
-
-/// A status badge: the icon in the status colour on its own `surface.panel` chip, so the
-/// colour keeps its contrast on a selected card too.
-fn status_chip(ui: &mut Ui, tokens: &UiTokens, icon: Icon, color: Color32, name: &str) {
-    let (rect, response) = ui.allocate_exact_size(Vec2::splat(tokens.size.control.sm), Sense::hover());
-    response.widget_info(|| egui::WidgetInfo::labeled(Role::Label, true, name));
-    ui.painter().rect_filled(rect, corner_radius(tokens.shape.radius.control), tokens.color.surface.panel.to_egui());
-    icons::paint(ui, rect, icon, IconSize::Sm, color);
-    response.on_hover_text(name);
-}
-
-fn header(ui: &mut Ui, cx: &Cx, threads: &[CommentThread], state: &mut CommentsPanelState) {
-    let (tokens, labels) = (cx.tokens, cx.labels);
-    let replies: usize = threads.iter().map(CommentThread::replies).sum();
-    text(ui, tokens, cx.style.title_text, tokens.color.text.normal.to_egui(), fmt(&labels.title, &[("n", &cx.number(threads.len()))]));
-    let replies = Words::of(ui).counted(ui.ctx(), counts::REPLIES, &labels.replies, u64::try_from(replies).unwrap_or(u64::MAX));
-    text(ui, tokens, cx.style.caption_text, tokens.color.text.muted.to_egui(), replies);
-    let search = SearchField::new(cx.id.with("search"), &labels.search, &state.search, &labels.clear_search).placeholder(&labels.search).show(ui);
-    if let Some(value) = search.event.as_ref().and_then(EditEvent::value) {
-        state.search.clone_from(value);
-    }
-    ui.horizontal(|ui| {
-        sort_menu(ui, cx, state);
-        filter_menu(ui, cx, threads, state);
-        if state.sort == CommentSort::Page {
-            pages_menu(ui, cx, threads, state);
-        }
-    });
-}
-
-fn sort_menu(ui: &mut Ui, cx: &Cx, state: &mut CommentsPanelState) {
-    let labels = cx.labels;
-    let sorts = [
-        (CommentSort::Page, &labels.sort_page),
-        (CommentSort::Author, &labels.sort_author),
-        (CommentSort::Date, &labels.sort_date),
-        (CommentSort::Type, &labels.sort_type),
-        (CommentSort::Color, &labels.sort_color),
-    ];
-    let current = sorts.iter().find(|(sort, _)| *sort == state.sort).map_or("", |(_, label)| label.as_str());
-    let entries: Vec<MenuEntry<CommentSort>> =
-        sorts.iter().map(|(sort, label)| MenuItem::new((*label).clone(), *sort).radio(state.sort == *sort).into()).collect();
-    let button = ui.add(Button::new(fmt(&labels.sort_by, &[("sort", current)])).trailing_icon(Icon::ChevronDown).id_salt(cx.id.with("sort")));
-    if let Some(chosen) = PressMenu::new(&entries).show(ui, &button).chosen {
-        state.sort = chosen;
-    }
 }
 
 /// Adds `value` to `list`, or takes it out when it is there.
@@ -529,240 +366,6 @@ fn toggle<T: PartialEq>(list: &mut Vec<T>, value: T) {
         }
         None => list.push(value),
     }
-}
-
-/// The funnel: a submenu per property that lists its values as checks (checked = shown), and
-/// Show all while anything is hidden (PdfCraft `header_controls`, `:626`).
-fn filter_menu(ui: &mut Ui, cx: &Cx, threads: &[CommentThread], state: &mut CommentsPanelState) {
-    let labels = cx.labels;
-    let filter = &state.filter;
-    let check = |label: String, row: FilterRow, hidden: bool| MenuItem::new(label, row).check(!hidden).keep_open(true);
-    let mut kinds: Vec<Option<AnnotationKind>> = threads.iter().map(|t| t.kind).collect();
-    kinds.sort_by_cached_key(|kind| cx.kind_name(*kind));
-    kinds.dedup();
-    let mut authors: Vec<&str> = threads.iter().map(|t| t.messages.first().map_or("", |m| m.author.as_str())).collect();
-    authors.sort_unstable();
-    authors.dedup();
-    let mut colors: Vec<Option<[u8; 3]>> = threads.iter().map(|t| t.color).collect();
-    colors.sort_unstable();
-    colors.dedup();
-    let types = kinds.iter().map(|&kind| check(cx.kind_name(kind), FilterRow::Type(kind), filter.hidden_types.contains(&kind)).into()).collect();
-    let by_author = authors
-        .iter()
-        .map(|&author| {
-            let name = if author.is_empty() { labels.unknown_author.clone() } else { author.to_owned() };
-            check(name, FilterRow::Author(author.to_owned()), filter.hidden_authors.iter().any(|hidden| hidden == author)).into()
-        })
-        .collect();
-    let statuses = ReviewStatus::MENU
-        .iter()
-        .map(|&status| check(status_label(labels, status).to_owned(), FilterRow::Status(status), filter.hidden_statuses.contains(&status)).into())
-        .collect();
-    let by_color = colors
-        .iter()
-        .map(|&color| {
-            let name = color.map_or_else(|| labels.no_color.clone(), |color| color_name(labels, color));
-            let row = check(name, FilterRow::Color(color), filter.hidden_colors.contains(&color));
-            match color {
-                Some([r, g, b]) => row.swatch(Color32::from_rgb(r, g, b)).into(),
-                None => row.into(),
-            }
-        })
-        .collect();
-    let checks = [(true, &labels.checked), (false, &labels.unchecked)]
-        .map(|(marked, name)| check(name.clone(), FilterRow::Check(marked), filter.hidden_checks.contains(&marked)).into())
-        .into();
-    let mut entries: Vec<MenuEntry<FilterRow>> = vec![
-        MenuItem::submenu(labels.filter_type.clone(), types).into(),
-        MenuItem::submenu(labels.filter_author.clone(), by_author).into(),
-        MenuItem::submenu(labels.filter_status.clone(), statuses).into(),
-        MenuItem::submenu(labels.filter_color.clone(), by_color).into(),
-        MenuItem::submenu(labels.filter_check.clone(), checks).into(),
-    ];
-    let active = state.filter.is_active();
-    if active {
-        entries.push(MenuEntry::Separator);
-        entries.push(MenuItem::new(labels.show_all.clone(), FilterRow::ShowAll).into());
-    }
-    let button = ui.add(IconButton::new(Icon::Funnel, &labels.filter).selected(active).id_salt(cx.id.with("filter")));
-    let filter = &mut state.filter;
-    match PressMenu::new(&entries).show(ui, &button).chosen {
-        Some(FilterRow::Type(kind)) => toggle(&mut filter.hidden_types, kind),
-        Some(FilterRow::Author(author)) => toggle(&mut filter.hidden_authors, author),
-        Some(FilterRow::Status(status)) => toggle(&mut filter.hidden_statuses, status),
-        Some(FilterRow::Color(color)) => toggle(&mut filter.hidden_colors, color),
-        Some(FilterRow::Check(marked)) => toggle(&mut filter.hidden_checks, marked),
-        Some(FilterRow::ShowAll) => filter.clear(),
-        None => {}
-    }
-}
-
-/// Collapse all pages and Expand all pages (PdfCraft's "…" menu, shown under the Page sort).
-fn pages_menu(ui: &mut Ui, cx: &Cx, threads: &[CommentThread], state: &mut CommentsPanelState) {
-    let labels = cx.labels;
-    let entries: Vec<MenuEntry<PagesRow>> = vec![
-        MenuItem::new(labels.collapse_all.clone(), PagesRow::CollapseAll).into(),
-        MenuItem::new(labels.expand_all.clone(), PagesRow::ExpandAll).into(),
-    ];
-    let button = ui.add(IconButton::new(Icon::More, &labels.pages_menu).id_salt(cx.id.with("pages")));
-    match PressMenu::new(&entries).show(ui, &button).chosen {
-        Some(PagesRow::CollapseAll) => {
-            let mut pages: Vec<usize> = threads.iter().filter_map(|t| t.anchor.page()).collect();
-            pages.sort_unstable();
-            pages.dedup();
-            state.collapsed_pages = pages;
-        }
-        Some(PagesRow::ExpandAll) => state.collapsed_pages.clear(),
-        None => {}
-    }
-}
-
-fn add_box(ui: &mut Ui, cx: &Cx, state: &mut CommentsPanelState, edits: &mut Vec<CommentEdit>) {
-    let labels = cx.labels;
-    let field = TextField::new(cx.id.with("add"), &labels.add_comment, &state.new_comment).placeholder(&labels.add_comment).show(ui);
-    if let Some(value) = field.event.as_ref().and_then(EditEvent::value) {
-        state.new_comment.clone_from(value);
-    }
-    let posted = state.new_comment.trim();
-    if field.submitted && !posted.is_empty() {
-        edits.push(CommentEdit::Add { text: posted.to_owned() });
-        state.new_comment.clear();
-    }
-}
-
-/// A label colour's name when it is one of the toolbar's palette colours, else its hex.
-fn color_name(labels: &CommentsLabels, color: [u8; 3]) -> String {
-    let names = [
-        &labels.color_yellow,
-        &labels.color_orange,
-        &labels.color_red,
-        &labels.color_pink,
-        &labels.color_purple,
-        &labels.color_blue,
-        &labels.color_light_blue,
-        &labels.color_green,
-        &labels.color_grey,
-        &labels.color_black,
-    ];
-    const _: () = assert!(PALETTE.len() == 10);
-    match PALETTE.iter().position(|swatch| *swatch == color).and_then(|at| names.get(at)) {
-        Some(name) => (*name).clone(),
-        None => format!("#{:02X}{:02X}{:02X}", color[0], color[1], color[2]),
-    }
-}
-
-/// The heading a thread falls under for `sort`; `None` for none.
-fn group_of(cx: &Cx, thread: &CommentThread, sort: CommentSort) -> Option<String> {
-    match sort {
-        CommentSort::Page => thread.anchor.page().map(|page| fmt(&cx.labels.page, &[("label", &(cx.page_label)(page))])),
-        CommentSort::Author => Some(thread.messages.first().map_or_else(|| cx.labels.unknown_author.clone(), |m| m.author.clone())),
-        CommentSort::Type => Some(cx.kind_name(thread.kind)),
-        CommentSort::Color => Some(thread.color.map_or_else(|| cx.labels.no_color.clone(), |color| color_name(cx.labels, color))),
-        CommentSort::Date => None,
-    }
-}
-
-/// A page's heading under the Page sort: the fold chevron, the page, and the number of its
-/// comments before filtering (PdfCraft `:246-275`). Returns true when the group was toggled.
-fn page_heading(ui: &mut Ui, cx: &Cx, heading: String, page: usize, count: usize, folded: bool) -> bool {
-    let (tokens, labels) = (cx.tokens, cx.labels);
-    ui.horizontal(|ui| {
-        let (icon, name) = if folded { (Icon::ChevronRight, &labels.expand) } else { (Icon::ChevronDown, &labels.collapse) };
-        let mut toggled = ui.add(IconButton::new(icon, name).id_salt(cx.id.with(("fold", page)))).clicked();
-        let title = LayoutJob::single_section(heading, role_format(tokens, cx.style.strong_text, tokens.color.text.muted.to_egui()));
-        toggled |= ui.add(egui::Label::new(title).sense(Sense::click())).clicked();
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            text(ui, tokens, cx.style.caption_text, tokens.color.text.muted.to_egui(), cx.number(count));
-        });
-        toggled
-    })
-    .inner
-}
-
-fn list(ui: &mut Ui, cx: &Cx, threads: &[CommentThread], state: &mut CommentsPanelState, edits: &mut Vec<CommentEdit>) {
-    let query = state.search.trim().to_owned();
-    let folder = Folder::new("");
-    let kind_name = |kind| cx.kind_name(Some(kind));
-    let shown: Vec<&CommentThread> = sort_threads(threads, state.sort, kind_name)
-        .into_iter()
-        .map(|i| &threads[i])
-        .filter(|t| state.filter.shows(t))
-        .filter(|t| query.is_empty() || matches(t, &query, &folder, kind_name))
-        .collect();
-    if shown.is_empty() {
-        text(ui, cx.tokens, cx.style.body_text, cx.tokens.color.text.muted.to_egui(), &cx.labels.no_match);
-        return;
-    }
-    let mut page_counts: BTreeMap<usize, usize> = BTreeMap::new();
-    for page in threads.iter().filter_map(|t| t.anchor.page()) {
-        *page_counts.entry(page).or_default() += 1;
-    }
-    let by_page = state.sort == CommentSort::Page;
-    let list = ui.scope(|ui| {
-        ui.spacing_mut().item_spacing.y = cx.tokens.space.gap.row;
-        let mut drawn: Vec<&CommentThread> = Vec::new();
-        let mut focused = None;
-        let mut group = None;
-        let mut page = None;
-        for thread in &shown {
-            if by_page {
-                let current = thread.anchor.page();
-                if current != page {
-                    page = current;
-                    if let (Some(number), Some(heading)) = (current, group_of(cx, thread, state.sort)) {
-                        let count = page_counts.get(&number).copied().unwrap_or_default();
-                        let folded = state.collapsed_pages.contains(&number);
-                        if page_heading(ui, cx, heading, number, count, folded) {
-                            if folded {
-                                state.collapsed_pages.retain(|&p| p != number);
-                            } else {
-                                state.collapsed_pages.push(number);
-                            }
-                        }
-                    }
-                }
-                if current.is_some_and(|number| state.collapsed_pages.contains(&number)) {
-                    continue;
-                }
-            } else {
-                let heading = group_of(cx, thread, state.sort);
-                if heading.is_some() && heading != group {
-                    text(ui, cx.tokens, cx.style.strong_text, cx.tokens.color.text.muted.to_egui(), heading.clone().unwrap_or_default());
-                }
-                group = heading;
-            }
-            if card(ui, cx, thread, state, edits) {
-                focused = Some(drawn.len());
-            }
-            drawn.push(thread);
-        }
-        focused.map(|position| (position, drawn))
-    });
-    ui.ctx().accesskit_node_builder(list.response.id, |node| node.set_role(Role::List));
-    let Some((position, drawn)) = list.inner else { return };
-    let step = ui.input_mut(|input| {
-        if input.consume_key(Modifiers::NONE, Key::ArrowDown) {
-            Some(1)
-        } else if input.consume_key(Modifiers::NONE, Key::ArrowUp) {
-            Some(-1)
-        } else {
-            None
-        }
-    });
-    if let Some(step) = step
-        && let Some(next) = position.checked_add_signed(step).and_then(|p| drawn.get(p))
-    {
-        select(next.id, state, edits);
-        ui.memory_mut(|memory| memory.request_focus(card_id(cx, next.id)));
-    }
-}
-
-fn card_id(cx: &Cx, thread: ThreadId) -> Id {
-    cx.id.with(("card", thread))
-}
-
-fn reply_id(cx: &Cx, thread: ThreadId) -> Id {
-    cx.id.with(("reply", thread))
 }
 
 /// Makes `thread` the selected one; false when it already was.
@@ -776,220 +379,1084 @@ fn select_thread(state: &mut CommentsPanelState, thread: ThreadId) -> bool {
     changed
 }
 
-fn select(thread: ThreadId, state: &mut CommentsPanelState, edits: &mut Vec<CommentEdit>) {
-    if select_thread(state, thread) {
-        edits.push(CommentEdit::Select(thread));
+fn status_label(words: &CommentsWords, status: ReviewStatus) -> &Label {
+    match status {
+        ReviewStatus::None => &words.status_none,
+        ReviewStatus::Accepted => &words.accepted,
+        ReviewStatus::Rejected => &words.rejected,
+        ReviewStatus::Cancelled => &words.cancelled,
+        ReviewStatus::Completed => &words.completed,
     }
 }
 
-/// Draws a card; true when the card itself has the keyboard focus.
-fn card(ui: &mut Ui, cx: &Cx, thread: &CommentThread, state: &mut CommentsPanelState, edits: &mut Vec<CommentEdit>) -> bool {
-    let tokens = cx.tokens;
-    let selected = state.selected == Some(thread.id);
-    let editable = !cx.read_only && !thread.locked;
-    let id = card_id(cx, thread.id);
-    let fill = if selected { tokens.color.state.selected.to_egui() } else { Color32::TRANSPARENT };
-    let pad = tokens.space.pad.control;
-    let shown = ui.scope_builder(UiBuilder::new().scope_id(id).sense(Sense::click()), |ui| {
-        let frame = Frame::new().fill(fill).corner_radius(corner_radius(tokens.shape.radius.control)).inner_margin(Margin::same(pad as i8));
-        frame
-            .show(ui, |ui| {
-                ui.set_width(ui.available_width());
-                ui.spacing_mut().item_spacing.y = tokens.space.gap.row;
-                card_head(ui, cx, thread, selected, editable, state, edits);
-                message_body(ui, cx, thread, 0, state, edits);
-                for index in 1..thread.messages.len() {
-                    reply(ui, cx, thread, index, editable, state, edits);
-                }
-                if selected && editable {
-                    reply_box(ui, cx, thread, state, edits);
-                }
-            })
-            .response
-            .rect
-    });
-    let response = shown.response;
-    let rect = shown.inner;
-    if selected {
-        let bar = Rect::from_min_max(rect.min, pos2(rect.min.x + tokens.stroke.thick, rect.max.y));
-        ui.painter().rect_filled(bar, 0.0, tokens.color.accent.solid.to_egui());
+/// A label colour's name when it is one of the toolbar's palette colours, else its hex.
+fn color_name(kinds: &AnnotateWords, color: [u8; 3]) -> String {
+    match PALETTE.iter().position(|swatch| *swatch == color) {
+        Some(at) => kinds.palette_color(at).to_owned(),
+        None => format!("#{:02X}{:02X}{:02X}", color[0], color[1], color[2]),
     }
-    let name = thread.messages.first().map_or_else(String::new, |m| fmt(&cx.labels.card_name, &[("author", &m.author), ("text", &m.text)]));
-    ui.ctx().accesskit_node_builder(response.id, |node| {
-        node.set_role(Role::ListItem);
-        node.set_label(name);
-        node.set_selected(selected);
-    });
-    if response.clicked() {
-        select(thread.id, state, edits);
+}
+
+/// The reader's name of a thread's kind.
+fn kind_name(words: &CommentsWords, kinds: &AnnotateWords, kind: Option<AnnotationKind>) -> String {
+    kind.map_or_else(|| words.plain_kind.as_str().to_owned(), |kind| kinds.kind(kind).to_owned())
+}
+
+/// The key of a row of the card collection.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum CardKey {
+    /// The heading at this position among the headings.
+    Group(usize),
+    /// The card of this thread.
+    Thread(ThreadId),
+}
+
+/// One row of the card collection's source.
+enum RowEntry<'a> {
+    Group { title: String, count: String, page: Option<usize>, open: bool },
+    Card { thread: &'a CommentThread, depth: usize },
+}
+
+/// The shown threads, under their headings, as the collection's source.
+struct Rows<'a> {
+    entries: Vec<(CardKey, RowEntry<'a>)>,
+}
+
+impl DisplayOrder<CardKey> for Rows<'_> {
+    fn len(&self) -> usize {
+        self.entries.len()
     }
-    if response.has_focus() {
-        ui.memory_mut(|memory| memory.set_focus_lock_filter(response.id, EventFilter { vertical_arrows: true, ..EventFilter::default() }));
+
+    fn key(&self, at: usize) -> CardKey {
+        self.entries[at].0
     }
-    if response.has_focus() && ui.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Enter)) {
-        select(thread.id, state, edits);
-        if editable {
-            ui.memory_mut(|memory| memory.request_focus(reply_id(cx, thread.id)));
+
+    fn index_of(&self, key: &CardKey) -> Option<usize> {
+        self.entries.iter().position(|(held, _)| held == key)
+    }
+
+    fn depth(&self, at: usize) -> usize {
+        match &self.entries[at].1 {
+            RowEntry::Group { .. } => 0,
+            RowEntry::Card { depth, .. } => *depth,
         }
     }
-    response.has_focus()
+
+    fn has_children(&self, at: usize) -> bool {
+        matches!(self.entries[at].1, RowEntry::Group { .. })
+    }
+
+    fn open(&self, at: usize) -> bool {
+        matches!(self.entries[at].1, RowEntry::Group { open: true, .. })
+    }
+
+    fn text(&self, at: usize) -> Option<Cow<'_, str>> {
+        match &self.entries[at].1 {
+            RowEntry::Group { title, .. } => Some(Cow::Borrowed(title.as_str())),
+            RowEntry::Card { thread, .. } => thread.messages.first().map(|message| Cow::Borrowed(message.text.as_str())),
+        }
+    }
 }
 
-fn card_head(
-    ui: &mut Ui,
-    cx: &Cx,
-    thread: &CommentThread,
+impl ItemSource<CardKey> for Rows<'_> {}
+
+/// What a card reports; the panel applies it.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum CardEvent {
+    /// A "..." button was pressed: the menu of message `index` hangs from `anchor`.
+    Menu { thread: ThreadId, index: usize, anchor: Rect },
+    /// The checkmark button was pressed.
+    Mark { thread: ThreadId, marked: bool },
+    /// The inline editor's text changed.
+    EditText(String),
+    /// The inline editor's Post.
+    EditPost,
+    /// The inline editor was cancelled.
+    EditCancel,
+    /// The reply box's text changed.
+    ReplyText(String),
+    /// The reply box's Post.
+    ReplyPost,
+}
+
+/// What a card row returns.
+#[non_exhaustive]
+pub(crate) struct RowOut {
+    response: Response,
+    events: Vec<CardEvent>,
+}
+
+impl Outcome for RowOut {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+impl ItemOutput<Vec<CardEvent>> for RowOut {
+    fn into_event(self) -> Option<Vec<CardEvent>> {
+        (!self.events.is_empty()).then_some(self.events)
+    }
+}
+
+/// The card collection: a tree whose headings fold their cards.
+#[derive(craft_ui::contract::Component)]
+#[component(collection)]
+pub(crate) struct CommentList<'a> {
+    #[common]
+    common: Common,
+    #[container]
+    props: ContainerProps,
+    items: CollectionProps,
+    selection: Bind<'a, Selection<CardKey>>,
+    grouped: bool,
+}
+
+impl<'a> CommentList<'a> {
+    /// The list named `label` over the caller's `selection`; `grouped` lists the cards under headings.
+    pub(crate) fn new(label: impl Into<Label>, selection: Bind<'a, Selection<CardKey>>, grouped: bool) -> Self {
+        CommentList {
+            common: Common::new(),
+            props: ContainerProps::new().sizing(Sizing::Fill),
+            items: CollectionProps::new().select(SelectMode::Single).activate(ActivateOn::Click),
+            selection,
+            grouped,
+        }
+        .label(label)
+    }
+}
+
+/// The style of the list: no look of its own.
+#[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
+#[non_exhaustive]
+pub(crate) struct CommentListStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+}
+
+impl Component for CommentList<'_> {
+    const ROLE: Role = Role::TREE;
+    type Style = CommentListStyle;
+    type Output = CollectionResponse<CardKey, Vec<CardEvent>>;
+
+    fn style(_: &StyleCx<'_>, _: CommentListStyleKey) -> CommentListStyle {
+        CommentListStyle::default()
+    }
+
+    fn finish(self, mut cx: Cx<'_, Self>) -> Self::Output {
+        cx.collection_response()
+    }
+}
+
+impl Collection for CommentList<'_> {
+    type Key = CardKey;
+    type ItemLayout = SpanLayout;
+    type Selection = Selection<CardKey>;
+    type Item<'r> = CommentRow<'r>;
+    type ItemEvent = Vec<CardEvent>;
+
+    fn items(&self) -> &CollectionProps {
+        &self.items
+    }
+
+    fn selection(&mut self) -> Option<BindMut<'_, Selection<CardKey>>> {
+        Some(self.selection.reborrow())
+    }
+
+    fn item_layout(&self, source: &dyn ItemSource<CardKey>, width: f32, cx: &StyleCx<'_>) -> SpanLayout {
+        let layout = SpanLayout::sized(source, width, cx.control().height);
+        if self.grouped { layout.tree() } else { layout }
+    }
+}
+
+/// The style of a card or heading row.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+#[non_exhaustive]
+pub(crate) struct CommentRowStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+    normal: StyleColor,
+    muted: StyleColor,
+    good: StyleColor,
+    bad: StyleColor,
+    faint: StyleColor,
+    highlight: StyleColor,
+    bar: StyleColor,
+    avatar: [u8; 3],
+    avatar_face: AvatarFace,
+    bar_width: f32,
+    height: f32,
+    pad: f32,
+    gap: f32,
+}
+
+/// What a heading shows.
+struct Heading {
+    title: String,
+    count: String,
+    open: bool,
+}
+
+/// How a text or icon is inked.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Tone {
+    Normal,
+    Muted,
+    Good,
+    Bad,
+    Faint,
+}
+
+/// How a text is set.
+#[derive(Clone, Copy)]
+struct Spec {
+    role: TypeRole,
+    tone: Tone,
+    wrap: Wrap,
+    end: bool,
+}
+
+impl Spec {
+    const fn new(role: TypeRole, tone: Tone, wrap: Wrap) -> Self {
+        Spec { role, tone, wrap, end: false }
+    }
+
+    const fn end(mut self) -> Self {
+        self.end = true;
+        self
+    }
+}
+
+/// A control of a row, which names its child component.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum Slot {
+    More(usize),
+    Mark,
+    EditField,
+    EditPost,
+    EditCancel,
+    ReplyField,
+    ReplyPost,
+}
+
+/// Where `CommentRow::lay` puts the parts of a row: the measuring pass sizes them, the paint pass shows them.
+/// Rects are relative to the row's top left, laid out left to right; the sink mirrors them.
+trait Sink {
+    /// Text set in `at`'s width from `at`'s top left; returns its size.
+    fn text(&mut self, at: Rect, spec: Spec, text: &str) -> Vec2;
+    /// The icon `id` in `rect`.
+    fn icon(&mut self, rect: Rect, id: &'static str, tone: Tone);
+    /// The avatar of `name`.
+    fn avatar(&mut self, rect: Rect, name: &str);
+    /// A square icon button; it reports its press.
+    fn button(&mut self, slot: Slot, rect: Rect, id: &'static str, name: &Label, on: bool);
+    /// A multi-line field at `at`'s top left and width; returns its height.
+    fn field(&mut self, slot: Slot, at: Rect, label: &Label, text: &str, lines: usize) -> f32;
+    /// A push button.
+    fn push(&mut self, slot: Slot, rect: Rect, label: &Label, enabled: bool);
+}
+
+/// A card or a heading of the card collection.
+#[derive(craft_ui::contract::Component)]
+pub(crate) struct CommentRow<'r> {
+    #[common]
+    common: Common,
+    thread: Option<&'r CommentThread>,
+    heading: Option<Heading>,
     selected: bool,
     editable: bool,
-    state: &mut CommentsPanelState,
-    edits: &mut Vec<CommentEdit>,
-) {
-    let (tokens, labels, style) = (cx.tokens, cx.labels, cx.style);
-    ui.horizontal(|ui| {
-        let side = tokens.size.control.sm;
-        let (rect, _) = ui.allocate_exact_size(Vec2::splat(side), Sense::hover());
-        ui.painter().circle_filled(rect.center(), side / 2.0, tokens.color.surface.sunken.to_egui());
-        let tint = thread.color.map_or(tokens.color.accent.solid.to_egui(), |[r, g, b]| Color32::from_rgb(r, g, b));
-        icons::paint(ui, rect, kind_icon(thread.kind), IconSize::Sm, tint);
+    now: i64,
+    editing: Option<(usize, &'r str)>,
+    reply: &'r str,
+    words: Option<Arc<CommentsWords>>,
+    /// The heights the editor field and the reply field measured, for the paint of the same pass.
+    heights: [f32; 2],
+    events: Vec<CardEvent>,
+}
+
+impl<'r> CommentRow<'r> {
+    fn bare(thread: Option<&'r CommentThread>, heading: Option<Heading>, name: String) -> Self {
+        CommentRow {
+            common: Common::new(),
+            thread,
+            heading,
+            selected: false,
+            editable: false,
+            now: 0,
+            editing: None,
+            reply: "",
+            words: None,
+            heights: [0.0; 2],
+            events: Vec::new(),
+        }
+        .label(name)
+    }
+
+    /// A heading row.
+    pub(crate) fn heading(title: String, count: String, open: bool) -> Self {
+        let name = title.clone();
+        Self::bare(None, Some(Heading { title, count, open }), name)
+    }
+
+    /// The card of `thread`, named `name`.
+    pub(crate) fn card(thread: &'r CommentThread, name: String) -> Self {
+        Self::bare(Some(thread), None, name)
+    }
+
+    /// Whether the card is selected, whether its editing items show and the time its ages count from.
+    pub(crate) fn state(mut self, selected: bool, editable: bool, now: i64) -> Self {
+        self.selected = selected;
+        self.editable = editable;
+        self.now = now;
+        self
+    }
+
+    /// The message being edited and its draft, and the reply draft.
+    pub(crate) fn drafts(mut self, editing: Option<(usize, &'r str)>, reply: &'r str) -> Self {
+        self.editing = editing;
+        self.reply = reply;
+        self
+    }
+}
+
+fn kind_icon(kind: Option<AnnotationKind>) -> &'static str {
+    use AnnotationKind as K;
+    match kind {
+        Some(K::Highlight | K::Underline | K::StrikeOut | K::Squiggly) => "brush",
+        Some(K::TextBox | K::Callout) => "text",
+        Some(K::Ink) => "pencil",
+        Some(K::Attach) => "link",
+        _ => "note",
+    }
+}
+
+fn status_icon(status: ReviewStatus) -> Option<(&'static str, Tone)> {
+    match status {
+        ReviewStatus::None => None,
+        ReviewStatus::Accepted => Some(("thumbs_up", Tone::Good)),
+        ReviewStatus::Rejected => Some(("thumbs_down", Tone::Bad)),
+        ReviewStatus::Cancelled => Some(("x_circle", Tone::Faint)),
+        ReviewStatus::Completed => Some(("check", Tone::Good)),
+    }
+}
+
+fn square(at: Pos2, side: f32) -> Rect {
+    Rect::from_min_size(at, Vec2::splat(side))
+}
+
+fn strip(at: Pos2, width: f32) -> Rect {
+    Rect::from_min_size(at, vec2(width.max(0.0), 0.0))
+}
+
+impl CommentRow<'_> {
+    /// Places every part of the row for `width` and returns the row's height. `age` writes an age.
+    fn lay(&self, st: &CommentRowStyle, width: f32, age: &dyn Fn(i64) -> String, sink: &mut dyn Sink) -> f32 {
+        let words = self.words.clone().unwrap_or_default();
+        let (h, gap, pad) = (st.height, st.gap, st.pad);
+        let room = (width - 2.0 * pad).max(h);
+        if let Some(heading) = &self.heading {
+            let chevron = if heading.open { "chevron_down" } else { "chevron_right" };
+            sink.icon(square(Pos2::new(pad, pad), h), chevron, Tone::Muted);
+            let count = COUNT_IN_HEIGHTS * h;
+            let x = pad + h + gap;
+            let title = Spec::new(TypeRole::BodyStrong, Tone::Muted, Wrap::Elide);
+            sink.text(strip(Pos2::new(x, pad), width - pad - count - gap - x), title, &heading.title);
+            let count_spec = Spec::new(TypeRole::Caption, Tone::Muted, Wrap::Wrap).end();
+            sink.text(strip(Pos2::new(width - pad - count, pad), count), count_spec, &heading.count);
+            return h + 2.0 * pad;
+        }
+        let Some(thread) = self.thread else { return h };
+        let y = pad;
         let first = thread.messages.first();
-        ui.vertical(|ui| {
-            ui.spacing_mut().item_spacing.y = 0.0;
-            let author = first.map_or(labels.unknown_author.as_str(), |m| m.author.as_str());
-            text(ui, tokens, style.strong_text, tokens.color.text.normal.to_egui(), author);
-            if let Some(m) = first {
-                let then = m.modified.unwrap_or(m.created);
-                text(ui, tokens, style.caption_text, tokens.color.text.muted.to_egui(), age_text(ui.ctx(), then));
+        sink.icon(square(Pos2::new(pad, y), h), kind_icon(thread.kind), Tone::Normal);
+        let mut end = width - pad;
+        if self.selected && self.editable {
+            end -= h;
+            sink.button(Slot::More(0), square(Pos2::new(end, y), h), "more", &words.more, false);
+        }
+        if thread.locked {
+            end -= h;
+            sink.icon(square(Pos2::new(end, y), h), "lock", Tone::Muted);
+        }
+        if self.selected && self.editable {
+            end -= h;
+            let name = if thread.marked { &words.unmark } else { &words.mark };
+            sink.button(Slot::Mark, square(Pos2::new(end, y), h), "check", name, thread.marked);
+        } else if thread.marked {
+            end -= h;
+            sink.icon(square(Pos2::new(end, y), h), "check", Tone::Muted);
+        }
+        if let Some((icon, tone)) = status_icon(thread.status) {
+            end -= h;
+            sink.icon(square(Pos2::new(end, y), h), icon, tone);
+        }
+        let name_at = pad + h + gap;
+        let name_room = end - gap - name_at;
+        let author = first.map_or(words.unknown_author.as_str(), |message| message.author.as_str());
+        let author_spec = Spec::new(TypeRole::BodyStrong, Tone::Normal, Wrap::Elide);
+        let author_size = sink.text(strip(Pos2::new(name_at, y), name_room), author_spec, author);
+        let mut head = author_size.y.max(h);
+        if let Some(message) = first {
+            let when = age(message.modified.unwrap_or(message.created));
+            let caption = Spec::new(TypeRole::Caption, Tone::Muted, Wrap::Elide);
+            let size = sink.text(strip(Pos2::new(name_at, y + author_size.y), name_room), caption, &when);
+            head = head.max(author_size.y + size.y);
+        }
+        let mut y = y + head + gap;
+        y = self.message(0, thread, st, Pos2::new(pad, y), room, &words, sink) + gap;
+        for index in 1..thread.messages.len() {
+            let Some(message) = thread.messages.get(index) else { break };
+            sink.avatar(square(Pos2::new(pad, y), h), &message.author);
+            let x = pad + h + gap;
+            let name_room = width - pad - h - gap - x;
+            let author_size = sink.text(strip(Pos2::new(x, y), name_room), author_spec, &message.author);
+            let when = age(message.modified.unwrap_or(message.created));
+            let caption = Spec::new(TypeRole::Caption, Tone::Muted, Wrap::Elide);
+            let size = sink.text(strip(Pos2::new(x, y + author_size.y), name_room), caption, &when);
+            sink.button(Slot::More(index), square(Pos2::new(width - pad - h, y), h), "more", &words.more, false);
+            y += h.max(author_size.y + size.y) + gap;
+            y = self.message(index, thread, st, Pos2::new(x, y), width - pad - x, &words, sink) + gap;
+        }
+        if self.selected && self.editable {
+            let field = sink.field(Slot::ReplyField, strip(Pos2::new(pad, y), room), &words.reply, self.reply, REPLY_LINES);
+            y += field + gap;
+            let button = BUTTON_IN_HEIGHTS * h;
+            let post = Rect::from_min_size(Pos2::new(width - pad - button, y), vec2(button, h));
+            sink.push(Slot::ReplyPost, post, &words.post, !self.reply.trim().is_empty());
+            y += h + gap;
+        }
+        y - gap + pad
+    }
+
+    /// Message `index`'s text, or its inline editor; returns the bottom.
+    fn message(
+        &self,
+        index: usize,
+        thread: &CommentThread,
+        st: &CommentRowStyle,
+        at: Pos2,
+        room: f32,
+        words: &CommentsWords,
+        sink: &mut dyn Sink,
+    ) -> f32 {
+        let Some(message) = thread.messages.get(index) else { return at.y };
+        match self.editing {
+            Some((editing, draft)) if editing == index => {
+                let field = sink.field(Slot::EditField, strip(at, room), &words.edit, draft, EDIT_LINES);
+                let y = at.y + field + st.gap;
+                let button = BUTTON_IN_HEIGHTS * st.height;
+                let right = at.x + room;
+                let post = Rect::from_min_size(Pos2::new(right - 2.0 * button - st.gap, y), vec2(button, st.height));
+                sink.push(Slot::EditPost, post, &words.post, !draft.trim().is_empty());
+                let cancel = Rect::from_min_size(Pos2::new(right - button, y), vec2(button, st.height));
+                sink.push(Slot::EditCancel, cancel, &words.cancel, true);
+                y + st.height
             }
-        });
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if selected && editable {
-                let entries: Vec<MenuEntry<CardMenu>> = vec![
-                    MenuItem::new(labels.edit.clone(), CardMenu::Edit).into(),
-                    MenuItem::submenu(
-                        labels.set_status.clone(),
-                        ReviewStatus::MENU
-                            .iter()
-                            .map(|&s| MenuItem::new(status_label(labels, s), CardMenu::Status(s)).radio(thread.status == s).into())
-                            .collect(),
-                    )
-                    .into(),
-                    MenuEntry::Separator,
-                    MenuItem::new(labels.delete.clone(), CardMenu::Delete).into(),
-                ];
-                let more = ui.add(IconButton::new(Icon::More, &labels.more).id_salt("more"));
-                match PressMenu::new(&entries).show(ui, &more).chosen {
-                    Some(CardMenu::Edit) => {
-                        let text = thread.messages.first().map(|m| m.text.clone()).unwrap_or_default();
-                        state.editing = Some((thread.id, 0, text));
-                    }
-                    Some(CardMenu::Status(status)) => edits.push(CommentEdit::SetStatus { thread: thread.id, status }),
-                    Some(CardMenu::Delete) => edits.push(CommentEdit::Delete { thread: thread.id, index: 0 }),
-                    Some(CardMenu::Copy) | None => {}
-                }
+            _ => {
+                let body = Spec::new(TypeRole::Body, Tone::Normal, Wrap::Wrap);
+                at.y + sink.text(strip(at, room), body, &message.text).y
             }
-            if thread.locked {
-                badge(ui, tokens, Icon::Lock, tokens.color.text.muted.to_egui(), &labels.locked);
-            }
-            if selected && editable {
-                let mut on = thread.marked;
-                let name = if thread.marked { &labels.unmark } else { &labels.mark };
-                if ui.add(IconButton::new(Icon::Check, name).toggle(&mut on).id_salt("mark")).changed() {
-                    edits.push(CommentEdit::Mark { thread: thread.id, marked: on });
-                }
-            } else if thread.marked {
-                badge(ui, tokens, Icon::Check, tokens.color.text.muted.to_egui(), &labels.marked);
-            }
-            if let Some((icon, color)) = status_badge(tokens, thread.status) {
-                status_chip(ui, tokens, icon, color, status_label(labels, thread.status));
-            }
-        });
-    });
+        }
+    }
 }
 
-/// Message `index`: its text, or the inline editor while it is being edited.
-fn message_body(ui: &mut Ui, cx: &Cx, thread: &CommentThread, index: usize, state: &mut CommentsPanelState, edits: &mut Vec<CommentEdit>) {
-    let Some(message) = thread.messages.get(index) else { return };
-    let editing = state.editing.as_ref().is_some_and(|(t, i, _)| *t == thread.id && *i == index);
-    if !editing {
-        text(ui, cx.tokens, ReviewStyle::of(cx.tokens).body_text, cx.tokens.color.text.normal.to_egui(), &message.text);
-        return;
+/// Sizes the parts of a row.
+struct Measure<'a, 'b, 'r> {
+    cx: &'a MeasureCx<'b, CommentRow<'r>>,
+    fields: [f32; 2],
+}
+
+impl Sink for Measure<'_, '_, '_> {
+    fn text(&mut self, at: Rect, spec: Spec, text: &str) -> Vec2 {
+        self.cx.layout_at(&TextRun::new(text).role(spec.role).wrap(spec.wrap), at.width()).size()
     }
-    let draft = state.editing.as_ref().map(|(_, _, text)| text.clone()).unwrap_or_default();
-    let field = TextField::new(cx.id.with(("edit", thread.id, index)), &cx.labels.edit, &draft).multiline(3).show(ui);
-    if let Some(value) = field.event.as_ref().and_then(EditEvent::value)
-        && let Some((_, _, text)) = state.editing.as_mut()
-    {
-        text.clone_from(value);
+
+    fn icon(&mut self, _: Rect, _: &'static str, _: Tone) {}
+
+    fn avatar(&mut self, _: Rect, _: &str) {}
+
+    fn button(&mut self, _: Slot, _: Rect, _: &'static str, _: &Label, _: bool) {}
+
+    fn field(&mut self, slot: Slot, at: Rect, label: &Label, text: &str, lines: usize) -> f32 {
+        let mut field = TextField::new(label.clone(), Bind::given(text.to_owned())).lines(lines);
+        let height = self.cx.child(slot, &mut field, Proposal::Width(at.width())).y;
+        self.fields[usize::from(slot == Slot::ReplyField)] = height;
+        height
     }
-    let text = state.editing.as_ref().map(|(_, _, text)| text.trim().to_owned()).unwrap_or_default();
-    let mut post = field.submitted;
-    let mut cancel = field.escaped;
-    ui.horizontal(|ui| {
-        post |= ui.add(Button::new(&cx.labels.post).variant(ButtonVariant::Primary).id_salt("post")).clicked();
-        cancel |= ui.add(Button::new(&cx.labels.cancel).id_salt("cancel")).clicked();
-    });
-    if cancel {
-        state.editing = None;
-    } else if post && !text.is_empty() {
-        edits.push(CommentEdit::Edit { thread: thread.id, index, text });
-        state.editing = None;
+
+    fn push(&mut self, _: Slot, _: Rect, _: &Label, _: bool) {}
+}
+
+/// Shows the parts of a row.
+struct Paint<'a, 'b> {
+    ui: &'a mut PaintUi<'b>,
+    st: &'a CommentRowStyle,
+    origin: Pos2,
+    width: f32,
+    rtl: bool,
+    thread: Option<ThreadId>,
+    heights: [f32; 2],
+    events: &'a mut Vec<CardEvent>,
+}
+
+impl Paint<'_, '_> {
+    /// `rect` from the row's left-to-right layout, on the screen.
+    fn place(&self, rect: Rect) -> Rect {
+        let moved = rect.translate(self.origin.to_vec2());
+        if self.rtl {
+            let right = self.origin.x + self.width;
+            let left = self.origin.x;
+            let (min_x, max_x) = (left + right - moved.max.x, left + right - moved.min.x);
+            Rect::from_min_max(Pos2::new(min_x, moved.min.y), Pos2::new(max_x, moved.max.y))
+        } else {
+            moved
+        }
+    }
+
+    fn color(&self, tone: Tone) -> StyleColor {
+        match tone {
+            Tone::Normal => self.st.normal,
+            Tone::Muted => self.st.muted,
+            Tone::Good => self.st.good,
+            Tone::Bad => self.st.bad,
+            Tone::Faint => self.st.faint,
+        }
     }
 }
 
-fn reply(ui: &mut Ui, cx: &Cx, thread: &CommentThread, index: usize, editable: bool, state: &mut CommentsPanelState, edits: &mut Vec<CommentEdit>) {
-    let (tokens, labels) = (cx.tokens, cx.labels);
-    let Some(message) = thread.messages.get(index) else { return };
-    ui.horizontal_top(|ui| {
-        avatar(ui, tokens, &message.author);
-        ui.vertical(|ui| {
-            ui.spacing_mut().item_spacing.y = 0.0;
-            ui.horizontal(|ui| {
-                text(ui, tokens, ReviewStyle::of(tokens).strong_text, tokens.color.text.normal.to_egui(), &message.author);
-                text(
+impl Sink for Paint<'_, '_> {
+    fn text(&mut self, at: Rect, spec: Spec, text: &str) -> Vec2 {
+        let mut run = TextRun::new(text).role(spec.role).wrap(spec.wrap).color(self.color(spec.tone));
+        if spec.end {
+            run = run.align(HAlign::End);
+        }
+        self.ui.draw().text(self.place(at), &run).size()
+    }
+
+    fn icon(&mut self, rect: Rect, id: &'static str, tone: Tone) {
+        let spec = IconSpec::svg(IconId::new(id)).color(self.color(tone));
+        self.ui.draw().icon(self.place(rect), &spec);
+    }
+
+    fn avatar(&mut self, rect: Rect, name: &str) {
+        let rect = self.place(rect);
+        paint_avatar(&self.ui.draw(), rect, name, self.st.avatar, &self.st.avatar_face);
+    }
+
+    fn button(&mut self, slot: Slot, rect: Rect, id: &'static str, name: &Label, on: bool) {
+        let button = IconButton::new(IconSpec::svg(IconId::new(id))).label(name.clone()).selected(on);
+        let response = self.ui.child(slot, self.place(rect), button);
+        let (Some(thread), true) = (self.thread, clicked(&response)) else { return };
+        match slot {
+            Slot::More(index) => self.events.push(CardEvent::Menu { thread, index, anchor: response.rect }),
+            Slot::Mark => self.events.push(CardEvent::Mark { thread, marked: !on }),
+            _ => {}
+        }
+    }
+
+    fn field(&mut self, slot: Slot, at: Rect, label: &Label, text: &str, lines: usize) -> f32 {
+        let height = self.heights[usize::from(slot == Slot::ReplyField)];
+        let rect = self.place(Rect::from_min_size(at.min, vec2(at.width(), height)));
+        let field = TextField::new(label.clone(), Bind::given(text.to_owned())).lines(lines).placeholder(label.clone());
+        let out = self.ui.child(slot, rect, field);
+        if let Some(value) = out.value() {
+            self.events.push(if slot == Slot::EditField { CardEvent::EditText(value.clone()) } else { CardEvent::ReplyText(value.clone()) });
+        }
+        if out.escaped && slot == Slot::EditField {
+            self.events.push(CardEvent::EditCancel);
+        }
+        height
+    }
+
+    fn push(&mut self, slot: Slot, rect: Rect, label: &Label, enabled: bool) {
+        let response = self.ui.child(slot, self.place(rect), Button::new(label.clone()).enabled(enabled));
+        if clicked(&response) {
+            self.events.push(match slot {
+                Slot::EditPost => CardEvent::EditPost,
+                Slot::EditCancel => CardEvent::EditCancel,
+                _ => CardEvent::ReplyPost,
+            });
+        }
+    }
+}
+
+impl Component for CommentRow<'_> {
+    const ROLE: Role = Role::TREE_ITEM;
+    type Style = CommentRowStyle;
+    type Output = RowOut;
+
+    fn style(cx: &StyleCx<'_>, _: CommentRowStyleKey) -> CommentRowStyle {
+        let color = &cx.tokens.color;
+        CommentRowStyle {
+            metrics: Metrics::new(),
+            normal: cx.ink(Ink::OnPanel),
+            muted: cx.color(color.text.muted),
+            good: cx.color(color.status.good.fg),
+            bad: cx.color(color.status.bad.fg),
+            faint: cx.color(color.text.faint),
+            highlight: cx.color(color.state.selected),
+            bar: cx.color(color.accent.solid),
+            avatar: rgb8(Srgba::from(color.accent.strong)),
+            avatar_face: AvatarFace::of(cx),
+            bar_width: cx.tokens.stroke.thick,
+            height: cx.control().height,
+            pad: cx.tokens.space.pad.control,
+            gap: cx.tokens.space.gap.row,
+        }
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        let width = match cx.proposal {
+            Proposal::Width(width) => width,
+            _ => cx.room.unwrap_or(COLUMN_IN_HEIGHTS * cx.style.height),
+        };
+        self.words = Some(cx.words::<CommentsWords>());
+        let now = self.now;
+        let age = |then: i64| age_text(&cx.env, then, now);
+        let mut sink = Measure { cx, fields: [0.0; 2] };
+        let height = self.lay(cx.style, width, &age, &mut sink);
+        self.heights = sink.fields;
+        Vec2::new(width, height)
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        self.words = Some(cx.words::<CommentsWords>());
+        let st = cx.style;
+        let rect = cx.rect;
+        let rtl = cx.env.direction().is_rtl();
+        let now = self.now;
+        let age = |then: i64| age_text(&cx.env, then, now);
+        if self.selected {
+            ui.draw().fill(&PaintShape::Rect(rect, CornerRadius::ZERO), st.highlight);
+            let bar = if rtl {
+                Rect::from_min_max(Pos2::new(rect.max.x - st.bar_width, rect.min.y), rect.max)
+            } else {
+                Rect::from_min_max(rect.min, Pos2::new(rect.min.x + st.bar_width, rect.max.y))
+            };
+            ui.draw().fill(&PaintShape::Rect(bar, CornerRadius::ZERO), st.bar);
+        }
+        let mut events = std::mem::take(&mut self.events);
+        let mut sink = Paint {
+            ui,
+            st,
+            origin: rect.min,
+            width: rect.width(),
+            rtl,
+            thread: self.thread.map(|t| t.id),
+            heights: self.heights,
+            events: &mut events,
+        };
+        self.lay(st, rect.width(), &age, &mut sink);
+        self.events = events;
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> RowOut {
+        RowOut { response: cx.response.clone(), events: self.events }
+    }
+}
+
+/// The heading a thread falls under for `sort`, with its page; `None` for none.
+fn group_of(
+    words: &CommentsWords,
+    kinds: &AnnotateWords,
+    page_label: &dyn Fn(usize) -> String,
+    thread: &CommentThread,
+    sort: CommentSort,
+) -> Option<(String, Option<usize>)> {
+    match sort {
+        CommentSort::Page => thread.anchor.page().map(|page| (words.page.fill(&[("label", &page_label(page))]), Some(page))),
+        CommentSort::Author => {
+            Some((thread.messages.first().map_or_else(|| words.unknown_author.as_str().to_owned(), |first| first.author.clone()), None))
+        }
+        CommentSort::Type => Some((kind_name(words, kinds, thread.kind), None)),
+        CommentSort::Color => Some((thread.color.map_or_else(|| words.no_color.as_str().to_owned(), |color| color_name(kinds, color)), None)),
+        CommentSort::Date => None,
+    }
+}
+
+/// The Sort by button and its menu.
+fn sort_menu(ui: &mut Ui, words: &CommentsWords, state: &mut CommentsPanelState) {
+    let sorts = [
+        (CommentSort::Page, &words.sort_page),
+        (CommentSort::Author, &words.sort_author),
+        (CommentSort::Date, &words.sort_date),
+        (CommentSort::Type, &words.sort_type),
+        (CommentSort::Color, &words.sort_color),
+    ];
+    let current = sorts.iter().find(|(sort, _)| *sort == state.sort).map_or("", |(_, label)| label.as_str());
+    let name = words.sort_by.fill(&[("sort", current)]);
+    let button = Button::new(name.clone()).trailing_icon(IconSpec::svg(IconId::new("chevron_down"))).show(ui);
+    let mut chosen = None;
+    let active = state.sort;
+    Menu::new(name).opened_by(&button, Trigger::Click).show(ui, |ui, _| {
+        for (sort, label) in &sorts {
+            if MenuItem::new(label.as_str().to_owned()).radio_mark(active == *sort).show(ui).ran {
+                chosen = Some(*sort);
+            }
+        }
+    });
+    if let Some(sort) = chosen {
+        state.sort = sort;
+    }
+}
+
+/// The funnel and its menu: a submenu per property that lists its values as checks (checked = shown), and
+/// Show all while anything is hidden.
+fn filter_menu(ui: &mut Ui, words: &CommentsWords, kinds: &AnnotateWords, threads: &[CommentThread], state: &mut CommentsPanelState) {
+    let active = state.filter.is_active();
+    let button = IconButton::new(IconSpec::svg(IconId::new("funnel"))).label(words.filter.clone()).selected(active).show(ui);
+    let mut kind_rows: Vec<Option<AnnotationKind>> = threads.iter().map(|thread| thread.kind).collect();
+    kind_rows.sort_by_cached_key(|kind| kind_name(words, kinds, *kind));
+    kind_rows.dedup();
+    let mut authors: Vec<&str> = threads.iter().map(|thread| thread.messages.first().map_or("", |first| first.author.as_str())).collect();
+    authors.sort_unstable();
+    authors.dedup();
+    let mut colors: Vec<Option<[u8; 3]>> = threads.iter().map(|thread| thread.color).collect();
+    colors.sort_unstable();
+    colors.dedup();
+    let filter = state.filter.clone();
+    let mut ran: Option<FilterRow> = None;
+    let check = |ui: &mut Ui, ran: &mut Option<FilterRow>, label: String, row: FilterRow, hidden: bool| {
+        if MenuItem::new(label).check(!hidden).keep_open(true).show(ui).ran {
+            *ran = Some(row);
+        }
+    };
+    Menu::new(words.filter.clone()).opened_by(&button, Trigger::Click).show(ui, |ui, _| {
+        let _ = Menu::submenu_row(ui, words.filter_type.clone(), |ui, _| {
+            for &kind in &kind_rows {
+                check(ui, &mut ran, kind_name(words, kinds, kind), FilterRow::Type(kind), filter.hidden_types.contains(&kind));
+            }
+        });
+        let _ = Menu::submenu_row(ui, words.filter_author.clone(), |ui, _| {
+            for &author in &authors {
+                let name = if author.is_empty() { words.unknown_author.as_str().to_owned() } else { author.to_owned() };
+                check(ui, &mut ran, name, FilterRow::Author(author.to_owned()), filter.hidden_authors.iter().any(|hidden| hidden == author));
+            }
+        });
+        let _ = Menu::submenu_row(ui, words.filter_status.clone(), |ui, _| {
+            for status in ReviewStatus::MENU {
+                check(
                     ui,
-                    tokens,
-                    ReviewStyle::of(tokens).caption_text,
-                    tokens.color.text.muted.to_egui(),
-                    age_text(ui.ctx(), message.modified.unwrap_or(message.created)),
+                    &mut ran,
+                    status_label(words, status).as_str().to_owned(),
+                    FilterRow::Status(status),
+                    filter.hidden_statuses.contains(&status),
                 );
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    let mut entries: Vec<MenuEntry<CardMenu>> = Vec::new();
-                    if editable {
-                        entries.push(MenuItem::new(labels.edit.clone(), CardMenu::Edit).into());
-                    }
-                    entries.push(MenuItem::new(labels.copy_text.clone(), CardMenu::Copy).into());
-                    if editable {
-                        entries.push(MenuEntry::Separator);
-                        entries.push(MenuItem::new(labels.delete.clone(), CardMenu::Delete).into());
-                    }
-                    let more = ui.add(IconButton::new(Icon::More, &labels.more).id_salt(("more", index)));
-                    match PressMenu::new(&entries).show(ui, &more).chosen {
-                        Some(CardMenu::Edit) => state.editing = Some((thread.id, index, message.text.clone())),
-                        Some(CardMenu::Copy) => edits.push(CommentEdit::CopyText { thread: thread.id, index }),
-                        Some(CardMenu::Delete) => edits.push(CommentEdit::Delete { thread: thread.id, index }),
-                        Some(CardMenu::Status(_)) | None => {}
+            }
+        });
+        let _ = Menu::submenu_row(ui, words.filter_color.clone(), |ui, _| {
+            for &color in &colors {
+                let name = color.map_or_else(|| words.no_color.as_str().to_owned(), |color| color_name(kinds, color));
+                check(ui, &mut ran, name, FilterRow::Color(color), filter.hidden_colors.contains(&color));
+            }
+        });
+        let _ = Menu::submenu_row(ui, words.filter_check.clone(), |ui, _| {
+            for (marked, name) in [(true, &words.checked), (false, &words.unchecked)] {
+                check(ui, &mut ran, name.as_str().to_owned(), FilterRow::Check(marked), filter.hidden_checks.contains(&marked));
+            }
+        });
+        if active {
+            Divider::horizontal().show(ui);
+            if MenuItem::new(words.show_all.as_str().to_owned()).show(ui).ran {
+                ran = Some(FilterRow::ShowAll);
+            }
+        }
+    });
+    let filter = &mut state.filter;
+    match ran {
+        Some(FilterRow::Type(kind)) => toggle(&mut filter.hidden_types, kind),
+        Some(FilterRow::Author(author)) => toggle(&mut filter.hidden_authors, author),
+        Some(FilterRow::Status(status)) => toggle(&mut filter.hidden_statuses, status),
+        Some(FilterRow::Color(color)) => toggle(&mut filter.hidden_colors, color),
+        Some(FilterRow::Check(marked)) => toggle(&mut filter.hidden_checks, marked),
+        Some(FilterRow::ShowAll) => filter.clear(),
+        None => {}
+    }
+}
+
+/// Collapse all pages and Expand all pages, shown under the Page sort.
+fn pages_menu(ui: &mut Ui, words: &CommentsWords, threads: &[CommentThread], state: &mut CommentsPanelState) {
+    let button = IconButton::new(IconSpec::svg(IconId::new("more"))).label(words.pages_menu.clone()).show(ui);
+    let mut collapse = None;
+    Menu::new(words.pages_menu.clone()).opened_by(&button, Trigger::Click).show(ui, |ui, _| {
+        if MenuItem::new(words.collapse_all.as_str().to_owned()).show(ui).ran {
+            collapse = Some(true);
+        }
+        if MenuItem::new(words.expand_all.as_str().to_owned()).show(ui).ran {
+            collapse = Some(false);
+        }
+    });
+    match collapse {
+        Some(true) => {
+            let mut pages: Vec<usize> = threads.iter().filter_map(|thread| thread.anchor.page()).collect();
+            pages.sort_unstable();
+            pages.dedup();
+            state.collapsed_pages = pages;
+        }
+        Some(false) => state.collapsed_pages.clear(),
+        None => {}
+    }
+}
+
+/// The menu of message `menu.index` of the card whose "..." was pressed. It hangs from the button's rect.
+fn card_menu(
+    ui: &mut Ui,
+    words: &CommentsWords,
+    list: &Response,
+    menu: &OpenMenu,
+    thread: &CommentThread,
+    editable: bool,
+) -> (bool, Option<CardMenu>) {
+    let mut open = true;
+    let ran = std::cell::Cell::new(None);
+    Menu::new(words.more.clone()).opened_by(list, Trigger::Manual).anchor(Anchor::Rect(menu.anchor)).open(Bind::bound(&mut open)).show(
+        ui,
+        |ui, _| {
+            let row = |ui: &mut Ui, label: &Label, action: CardMenu| {
+                if MenuItem::new(label.as_str().to_owned()).show(ui).ran {
+                    ran.set(Some(action));
+                }
+            };
+            if menu.index == 0 {
+                row(ui, &words.edit, CardMenu::Edit);
+                let _ = Menu::submenu_row(ui, words.set_status.clone(), |ui, _| {
+                    for status in ReviewStatus::MENU {
+                        if MenuItem::new(status_label(words, status).as_str().to_owned()).radio_mark(thread.status == status).show(ui).ran {
+                            ran.set(Some(CardMenu::Status(status)));
+                        }
                     }
                 });
-            });
-            message_body(ui, cx, thread, index, state, edits);
-        });
-    });
+                Divider::horizontal().show(ui);
+                row(ui, &words.delete, CardMenu::Delete);
+            } else {
+                if editable {
+                    row(ui, &words.edit, CardMenu::Edit);
+                }
+                row(ui, &words.copy_text, CardMenu::Copy);
+                if editable {
+                    Divider::horizontal().show(ui);
+                    row(ui, &words.delete, CardMenu::Delete);
+                }
+            }
+        },
+    );
+    (open, ran.into_inner())
 }
 
-fn reply_box(ui: &mut Ui, cx: &Cx, thread: &CommentThread, state: &mut CommentsPanelState, edits: &mut Vec<CommentEdit>) {
-    let labels = cx.labels;
-    let field = TextField::new(cx.id.with(("reply-field", thread.id)), &labels.reply, &state.reply)
-        .placeholder(&labels.reply)
-        .multiline(2)
-        .id(reply_id(cx, thread.id))
-        .show(ui);
-    if let Some(value) = field.event.as_ref().and_then(EditEvent::value) {
-        state.reply.clone_from(value);
+impl CommentsPanel<'_> {
+    /// Shows the panel and reports what the user did.
+    pub fn show(self, ui: &mut Ui) -> CommentsPanelOutput {
+        let CommentsPanel { label, threads, state, read_only, now, page_label } = self;
+        let env = Env::of(ui);
+        let words = env.words::<CommentsWords>();
+        let kinds = env.words::<AnnotateWords>();
+        let folder = env.folder();
+        let format = env.format();
+        let page_label = page_label.unwrap_or_else(|| Box::new(|page: usize| page.to_string()));
+        let mut edits = Vec::new();
+        let body = |ui: &mut Ui, _: &mut craft_ui::contract::BodyCx<'_>| -> Response {
+            let digits = |n: usize| format.integer(n as u64);
+            let replies: usize = threads.iter().map(CommentThread::replies).sum();
+            Text::new(words.title.fill(&[("n", &digits(threads.len()))])).role(TypeRole::Title).show(ui);
+            Text::new(words.replies.text(replies as u64, &digits(replies))).role(TypeRole::Caption).shade(Shade::Muted).show(ui);
+            TextField::search(words.search.clone(), Bind::bound(&mut state.search)).placeholder(words.search.clone()).show(ui);
+            Row::new().show(ui, |ui, _| {
+                sort_menu(ui, &words, state);
+                filter_menu(ui, &words, &kinds, threads, state);
+                if state.sort == CommentSort::Page {
+                    pages_menu(ui, &words, threads, state);
+                }
+            });
+            if !read_only {
+                TextField::new(words.add_comment.clone(), Bind::bound(&mut state.new_comment))
+                    .lines(REPLY_LINES)
+                    .placeholder(words.add_comment.clone())
+                    .show(ui);
+                let text = state.new_comment.trim().to_owned();
+                let post = Button::new(words.post.clone()).enabled(!text.is_empty()).show(ui);
+                if clicked(&post) {
+                    edits.push(CommentEdit::Add { text });
+                    state.new_comment.clear();
+                }
+            }
+            if threads.is_empty() {
+                return Notice::new(craft_theme::variant::Tone::Neutral, words.empty.clone()).layout(NoticeLayout::Centred).show(ui).response;
+            }
+            let query = state.search.trim().to_owned();
+            let kind_of = |kind: AnnotationKind| kind_name(&words, &kinds, Some(kind));
+            let shown: Vec<&CommentThread> = sort_threads(threads, state.sort, kind_of)
+                .into_iter()
+                .map(|i| &threads[i])
+                .filter(|thread| state.filter.shows(thread))
+                .filter(|thread| query.is_empty() || matches(thread, &query, &folder, kind_of))
+                .collect();
+            if shown.is_empty() {
+                return Notice::new(craft_theme::variant::Tone::Neutral, words.no_match.clone()).layout(NoticeLayout::Centred).show(ui).response;
+            }
+            let by_page = state.sort == CommentSort::Page;
+            let grouped = state.sort != CommentSort::Date;
+            let mut page_counts: BTreeMap<usize, usize> = BTreeMap::new();
+            for page in threads.iter().filter_map(|thread| thread.anchor.page()) {
+                *page_counts.entry(page).or_default() += 1;
+            }
+            let heading_of = |thread: &CommentThread| group_of(&words, &kinds, &*page_label, thread, state.sort);
+            let mut shown_counts: BTreeMap<String, usize> = BTreeMap::new();
+            for thread in &shown {
+                if let Some((title, _)) = heading_of(thread) {
+                    *shown_counts.entry(title).or_default() += 1;
+                }
+            }
+            let mut entries: Vec<(CardKey, RowEntry<'_>)> = Vec::new();
+            let mut last: Option<String> = None;
+            let mut groups = 0;
+            // The source lists the rows on show: a folded group keeps its heading and drops its cards.
+            let mut folded = false;
+            for thread in &shown {
+                let heading = if grouped { heading_of(thread) } else { None };
+                let depth = usize::from(heading.is_some());
+                if heading.is_none() {
+                    folded = false;
+                }
+                if let Some((title, page)) = heading {
+                    if last.as_deref() != Some(title.as_str()) {
+                        let count = match page {
+                            Some(number) if by_page => page_counts.get(&number).copied().unwrap_or_default(),
+                            _ => shown_counts.get(&title).copied().unwrap_or_default(),
+                        };
+                        let open = !page.is_some_and(|number| state.collapsed_pages.contains(&number));
+                        folded = !open;
+                        entries.push((CardKey::Group(groups), RowEntry::Group { title: title.clone(), count: digits(count), page, open }));
+                        groups += 1;
+                        last = Some(title);
+                    }
+                }
+                if !folded {
+                    entries.push((CardKey::Thread(thread.id), RowEntry::Card { thread, depth }));
+                }
+            }
+            let source = Rows { entries };
+            let mut selection = state.selected.map_or_else(Selection::default, |thread| Selection::single(CardKey::Thread(thread)));
+            let selected = state.selected;
+            let reply: &str = &state.reply;
+            let editing = state.editing.as_ref().map(|(thread, index, text)| (*thread, *index, text.as_str()));
+            let out = CommentList::new(label.clone(), Bind::bound(&mut selection), grouped).show_items(ui, &source, &mut |_, item| match &source
+                .entries[item.at]
+                .1
+            {
+                RowEntry::Group { title, count, open, .. } => CommentRow::heading(title.clone(), count.clone(), *open),
+                RowEntry::Card { thread, .. } => {
+                    let name = thread
+                        .messages
+                        .first()
+                        .map_or_else(String::new, |first| words.card_name.fill(&[("author", &first.author), ("text", &first.text)]));
+                    let is_selected = selected == Some(thread.id);
+                    let editing = editing.filter(|(id, ..)| *id == thread.id).map(|(_, index, text)| (index, text));
+                    CommentRow::card(thread, name)
+                        .state(is_selected, !read_only && !thread.locked, now)
+                        .drafts(editing, if is_selected { reply } else { "" })
+                }
+            });
+            let list = out.response.clone();
+            let group_page = |at: usize| match source.entries.iter().find(|(key, _)| *key == CardKey::Group(at)) {
+                Some((_, RowEntry::Group { page, .. })) => *page,
+                _ => None,
+            };
+            for event in out.events {
+                match event {
+                    CollectionEvent::Item(_, card_events) => {
+                        for event in card_events {
+                            apply(event, state, &mut edits);
+                        }
+                    }
+                    // A click or Enter on a heading folds or unfolds its page; Left and Right set it.
+                    CollectionEvent::Activate(CardKey::Group(at)) => {
+                        if let Some(page) = group_page(at) {
+                            toggle(&mut state.collapsed_pages, page);
+                        }
+                    }
+                    CollectionEvent::Open(change) => {
+                        if let CardKey::Group(at) = change.key
+                            && let Some(page) = group_page(at)
+                        {
+                            state.collapsed_pages.retain(|&folded| folded != page);
+                            if !change.open {
+                                state.collapsed_pages.push(page);
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            if let Some(CardKey::Thread(thread)) = selection.items.first().copied()
+                && select_thread(state, thread)
+            {
+                edits.push(CommentEdit::Select(thread));
+            }
+            if let Some(menu) = state.menu.clone() {
+                if let Some(thread) = threads.iter().find(|thread| thread.id == menu.thread) {
+                    let editable = !read_only && !thread.locked;
+                    let (open, ran) = card_menu(ui, &words, &list, &menu, thread, editable);
+                    if let Some(action) = ran {
+                        apply_menu(action, thread, menu.index, state, &mut edits);
+                    }
+                    if !open || ran.is_some() {
+                        state.menu = None;
+                    }
+                } else {
+                    state.menu = None;
+                }
+            }
+            list
+        };
+        let shown = Stack::new().fill().show(ui, body);
+        let response = shown.inner.unwrap_or(shown.output);
+        CommentsPanelOutput { response, edits }
     }
-    let text = state.reply.trim().to_owned();
-    let post = ui.add_enabled(!text.is_empty(), Button::new(&labels.post).variant(ButtonVariant::Primary).id_salt("reply-post")).clicked();
-    if (post || field.submitted) && !text.is_empty() {
-        edits.push(CommentEdit::Reply { thread: thread.id, text });
-        state.reply.clear();
+}
+
+/// Applies what a card reported.
+fn apply(event: CardEvent, state: &mut CommentsPanelState, edits: &mut Vec<CommentEdit>) {
+    match event {
+        CardEvent::Menu { thread, index, anchor } => state.menu = Some(OpenMenu { thread, index, anchor }),
+        CardEvent::Mark { thread, marked } => edits.push(CommentEdit::Mark { thread, marked }),
+        CardEvent::EditText(text) => {
+            if let Some((_, _, draft)) = state.editing.as_mut() {
+                *draft = text;
+            }
+        }
+        CardEvent::EditPost => {
+            if let Some((thread, index, text)) = state.editing.take() {
+                let text = text.trim().to_owned();
+                if text.is_empty() {
+                    state.editing = Some((thread, index, text));
+                } else {
+                    edits.push(CommentEdit::Edit { thread, index, text });
+                }
+            }
+        }
+        CardEvent::EditCancel => state.editing = None,
+        CardEvent::ReplyText(text) => state.reply = text,
+        CardEvent::ReplyPost => {
+            let text = state.reply.trim().to_owned();
+            if let (Some(thread), false) = (state.selected, text.is_empty()) {
+                edits.push(CommentEdit::Reply { thread, text });
+                state.reply.clear();
+            }
+        }
+    }
+}
+
+/// Applies the row of a card's menu that ran.
+fn apply_menu(action: CardMenu, thread: &CommentThread, index: usize, state: &mut CommentsPanelState, edits: &mut Vec<CommentEdit>) {
+    let id = thread.id;
+    match action {
+        CardMenu::Edit => {
+            let text = thread.messages.get(index).map(|message| message.text.clone()).unwrap_or_default();
+            state.editing = Some((id, index, text));
+        }
+        CardMenu::Status(status) => edits.push(CommentEdit::SetStatus { thread: id, status }),
+        CardMenu::Copy => edits.push(CommentEdit::CopyText { thread: id, index }),
+        CardMenu::Delete => edits.push(CommentEdit::Delete { thread: id, index }),
     }
 }
