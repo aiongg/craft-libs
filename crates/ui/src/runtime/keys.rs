@@ -845,11 +845,14 @@ fn route_press(
     let mut taken = Taken::Yes;
     match keys::intent(os, press.key, press.mods, stop.role) {
         Some(Intent::Move(mv, mods)) => {
-            // Up, Down, Page, Home and End leave a row's children: the collection takes the move.
+            // Up, Down, Page, Home and End leave a row's children: the collection takes the move. A component stop keeps
+            // its declared arrows from the roving group around it; a part stop belongs to the component's own group.
             let vertical = matches!(mv, NavMove::Up | NavMove::Down | NavMove::PageUp | NavMove::PageDown | NavMove::Start | NavMove::End);
             if let Some(owner) = vertical.then(|| focus::leave_row(ctx, rec.stop.key())).flatten() {
                 push(routed, Some(owner), Intent::Move(mv, mods), horizontal);
-            } else if stop.keys.keep.keeps_arrow(mv) || focus::roving_move(ctx, rec.stop.key(), mv, mods, horizontal).is_none() {
+            } else if (stop.part.is_none() && stop.keys.keep.keeps_arrow(mv))
+                || focus::roving_move(ctx, rec.stop.key(), mv, mods, horizontal).is_none()
+            {
                 push(routed, id, Intent::Move(mv, mods), horizontal);
                 // Page, Home and End go to the scroll owner around the stop; a stop that acts on its moves keeps its arrows.
                 if !stop.role.moves && matches!(press.key, Key::Left | Key::Right | Key::Up | Key::Down) {
@@ -858,6 +861,11 @@ fn route_press(
             }
         }
         Some(Intent::Activate) => route_activate(ctx, rec, routed, activated),
+        // A collection that activates on Enter opens its lead with any modifier held (in a new tab or window, say); the
+        // component reads the modifiers. Fields and dialogs keep SubmitForce.
+        Some(Intent::SubmitForce) if press.key == Key::Enter && stop.role.space && stop.keys.activate.enter() => {
+            route_activate(ctx, rec, routed, activated)
+        }
         Some(Intent::Close) => match driven {
             Some(Driven { layer: Some(layer), .. }) => overlay::request_close(ctx, layer, overlay::CloseReason::Requested),
             _ => push(routed, id, Intent::Close, false),
@@ -870,10 +878,7 @@ fn route_press(
                 push(routed, id, Intent::Submit, false);
             }
         }
-        // A collection opens its lead with Shift or Alt held (in a new tab, say); the component reads the modifiers.
-        None if press.key == Key::Enter && stop.role.space && stop.keys.activate.enter() && !press.mods.ctrl && !press.mods.cmd => {
-            route_activate(ctx, rec, routed, activated)
-        }
+        None if press.key == Key::Enter && stop.role.space && stop.keys.activate.enter() => route_activate(ctx, rec, routed, activated),
         None if press.key == Key::Space && plain && stop.keys.activate.space() => route_activate(ctx, rec, routed, activated),
         None if press.key == Key::Tab && plain && stop.keys.keep == focus::KeepKeys::Tab => push(routed, id, Intent::Tab, false),
         None if stop.role.nudge => {

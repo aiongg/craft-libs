@@ -12,7 +12,7 @@ use craft_ui::contract::{
     PaintUi, Props as _, Remember as _, Role, SelectMode, Sizing,
 };
 use craft_ui::runtime::env::Label;
-use craft_ui::runtime::focus::{KeepKeys, KeyUse};
+use craft_ui::runtime::focus::{EndKey, KeepKeys, KeyUse};
 use craft_ui::style::{ComponentStyle, Stateful, StyleColor, StyleCx, SurfaceLook};
 use egui::{Pos2, Rect, Response, Vec2};
 
@@ -876,7 +876,7 @@ impl<'a> CellGrid<'a> {
 impl craft_ui::contract::Component for CellGrid<'_> {
     const ROLE: Role = Role::GRID;
     const INPUT: craft_ui::contract::Input = craft_ui::contract::Input::Editor;
-    const KEYS: KeyUse = KeyUse::of(craft_ui::contract::Input::Editor).with_keep(KeepKeys::None);
+    const KEYS: KeyUse = KeyUse::of(craft_ui::contract::Input::Editor).with_keep(KeepKeys::None).with_end(EndKey::EndMode);
     type Style = CellGridStyle;
     type Output = GridOutput;
 

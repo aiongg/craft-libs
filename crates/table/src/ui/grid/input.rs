@@ -37,6 +37,7 @@ const fn mods(cmd: bool, shift: bool) -> Mods {
 const ESCAPE: Chord = Chord::plain(Key::Escape);
 const F2: Chord = Chord::plain(Key::F2);
 const HOME: Chord = Chord::plain(Key::Home);
+const END: Chord = Chord::plain(Key::End);
 const CMD_HOME: Chord = Chord::new(Mods::CMD, Key::Home);
 const CMD_END: Chord = Chord::new(Mods::CMD, Key::End);
 const NEXT_SHEET: Chord = Chord::new(Mods::CMD, Key::PageDown);
@@ -147,6 +148,7 @@ impl CellGrid<'_> {
         let home = cx.take_claimed(HOME);
         let cmd_home = cx.take_claimed(CMD_HOME);
         let cmd_end = cx.take_claimed(CMD_END);
+        let end = cx.take_claimed(END);
         let next_sheet = cx.take_claimed(NEXT_SHEET);
         let previous_sheet = cx.take_claimed(PREVIOUS_SHEET);
         let column_key = cx.take_claimed(COLUMN_KEY);
@@ -166,6 +168,9 @@ impl CellGrid<'_> {
             };
             if state.mode != Mode::Ready && lead.is_some_and(|lead| Some(lead) != state.cell) {
                 commit(&mut state, &mut committed);
+            }
+            if escape {
+                state.end_mode = false;
             }
             if state.mode != Mode::Ready && escape {
                 state.close();
@@ -190,6 +195,10 @@ impl CellGrid<'_> {
                 edits.push(GridEdit::BeginEdit { typed: None });
             }
             let pointing = state.pointing();
+            let end_mode = state.end_mode;
+            if !arrows.is_empty() {
+                state.end_mode = false;
+            }
             for &(direction, shift, jump) in &arrows {
                 let direction = match (rtl, direction) {
                     (true, CellDirection::Left) => CellDirection::Right,
@@ -212,7 +221,7 @@ impl CellGrid<'_> {
                         state.draft.apply(EditorInput::Move(step, craft_behavior::MoveMods::new(shift, false, by)));
                     }
                 } else if state.mode == Mode::Ready
-                    && jump
+                    && (jump || end_mode)
                     && let Some(active) = selection.active().copied()
                 {
                     let to = model.data_edge(active, direction);
@@ -234,6 +243,8 @@ impl CellGrid<'_> {
                 }
                 if cmd_end {
                     selection.select(model.last_used(), &space);
+                } else if end {
+                    state.end_mode = true;
                 }
                 if next_sheet {
                     edits.push(GridEdit::NextSheet);
@@ -312,6 +323,9 @@ impl CellGrid<'_> {
 
     /// The chords the grid takes from the key stage this pass.
     fn claim_keys(&self, cx: &mut Cx<'_, Self>, state: &EditState, grabbing: bool) {
+        if state.mode == Mode::Ready {
+            cx.claim(END);
+        }
         for chord in [F2, HOME, CMD_HOME, CMD_END, NEXT_SHEET, PREVIOUS_SHEET, COLUMN_KEY, ROW_KEY] {
             cx.claim(chord);
         }
@@ -327,7 +341,7 @@ impl CellGrid<'_> {
         }
         let horizontal = state.mode == Mode::Edit;
         for (key, direction) in ARROWS {
-            let takes = state.pointing() || horizontal && matches!(direction, CellDirection::Left | CellDirection::Right);
+            let takes = state.pointing() || state.end_mode || horizontal && matches!(direction, CellDirection::Left | CellDirection::Right);
             if takes {
                 cx.claim(Chord::plain(key));
                 cx.claim(Chord::new(Mods::SHIFT, key));

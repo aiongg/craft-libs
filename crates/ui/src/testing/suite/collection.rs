@@ -14,6 +14,7 @@ use crate::runtime::access::Role;
 use crate::runtime::commands::{self, FireSource};
 use crate::runtime::egui::access::Declared;
 use crate::runtime::egui::fixture::AccessActionKind;
+use crate::runtime::focus::EndKey;
 use crate::testing::fixture::{Fixture, Target};
 use crate::testing::story::{CollectionKind, EditKind, Story};
 use craft_behavior::MotionMode;
@@ -54,6 +55,11 @@ fn focus_on_cell(fixture: &Fixture) -> bool {
     fixture.by_role(Role::CELL).iter().any(|cell| cell.node == focused)
 }
 
+/// What End means for the focused stop, as its component declares it.
+fn end_meaning(fixture: &Fixture) -> EndKey {
+    crate::runtime::focus::focused_rec(fixture.ctx()).map_or(EndKey::LastItem, |rec| rec.stop.keys.end)
+}
+
 /// A click on the first row puts the lead there; the keys then move it: Down and Up by one row, End to the last,
 /// Home to the first, Page Down forward. A grid takes Ctrl+End and Ctrl+Home for the last and first row.
 pub(super) fn keys_move_the_lead(subject: &Subject) -> Result<(), String> {
@@ -84,8 +90,29 @@ pub(super) fn keys_move_the_lead(subject: &Subject) -> Result<(), String> {
             found => return Err(format!("{name}: after Down the lead is {found:?}, expected {}", first + 1)),
         }
         expect(&mut fixture, Key::ArrowUp, Modifiers::NONE, first, "Up")?;
-        expect(&mut fixture, Key::End, ends, size - 1, "End")?;
-        expect(&mut fixture, Key::Home, ends, 0, "Home")?;
+        match end_meaning(&fixture) {
+            EndKey::LastItem => {
+                expect(&mut fixture, Key::End, ends, size - 1, "End")?;
+                expect(&mut fixture, Key::Home, ends, 0, "Home")?;
+            }
+            EndKey::EndMode => {
+                // End alone arms the mode and leaves the lead; the next arrow jumps to the data edge, which can lie
+                // outside the shown rows (the grid's own trial checks Ctrl+End).
+                fixture.key(Key::End, Modifiers::NONE);
+                fixture.idle(2);
+                if lead(&fixture, &container) != Some(first) {
+                    return Err(format!("{name}: End moved the lead, but it declares End mode"));
+                }
+                fixture.key(Key::ArrowDown, Modifiers::NONE);
+                fixture.idle(2);
+                // The data edge can lie outside the shown rows, where no row reports the lead: only a one-row step is wrong.
+                if lead(&fixture, &container) == Some(first + 1) {
+                    return Err(format!("{name}: End then Down moved the lead one row, expected the jump to the data edge"));
+                }
+                // The lead is now far from the rows Page Down is checked on.
+                continue;
+            }
+        }
         fixture.key(Key::PageDown, Modifiers::NONE);
         fixture.idle(2);
         if lead(&fixture, &container).is_none_or(|found| found == 0) {

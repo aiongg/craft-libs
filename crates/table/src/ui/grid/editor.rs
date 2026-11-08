@@ -206,6 +206,8 @@ pub(super) struct EditState {
     pub(super) cell: Option<CellAt<u32>>,
     pub(super) draft: Draft,
     pub(super) point: Option<Point>,
+    /// End was pressed and no arrow has followed: the next arrow jumps to the edge of the data region.
+    pub(super) end_mode: bool,
 }
 
 impl EditState {

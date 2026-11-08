@@ -595,10 +595,10 @@ fn a_menu_list_opens_on_its_first_row_and_follows_the_pointer() {
     assert_eq!(seen.leads(), [2], "a still pointer leaves the lead alone");
 }
 
-/// Enter with Shift or Alt held activates the lead row like a plain Enter; the component reads the held modifiers.
+/// Enter with Shift, Alt, Ctrl or Cmd held activates the lead row like a plain Enter; the component reads the held modifiers.
 #[trial]
 fn a_modified_enter_activates_the_lead_row() {
-    for modifiers in [Modifiers::SHIFT, Modifiers::ALT] {
+    for modifiers in [Modifiers::SHIFT, Modifiers::ALT, Modifiers::COMMAND, Modifiers::CTRL] {
         let words = Words::flat(&["one", "two"]);
         let seen = Seen::default();
         let mut frames = Frames::new();

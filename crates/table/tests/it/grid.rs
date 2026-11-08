@@ -126,12 +126,8 @@ impl Rig {
     }
 
     fn drag_part(&mut self, part: impl Into<PartRef>, by: Vec2) {
-        let from = self.press_part(part);
-        for step in 1..=4 {
-            self.fixture.frame(vec![craft_ui::testing::pointer::moved(from + by * (step as f32 / 4.0))]);
-        }
-        self.fixture.frame(vec![craft_ui::testing::pointer::release(from + by)]);
-        self.fixture.idle(1);
+        let from = self.part_rect(part).center();
+        self.fixture.drag_at(from, by);
     }
 }
 
@@ -175,6 +171,20 @@ fn right_to_left_mirrors_the_screen() {
     let shown = sheet.mirror_rect(cell);
     assert!(shown.left() > cell.left(), "the first column is at the end of the screen");
     assert_eq!(sheet.mirror_rect(shown), cell, "mirroring twice returns the rect");
+}
+
+/// End alone only arms End mode; the next arrow jumps to the data edge, and Ctrl+End goes to the last used cell.
+#[trial]
+fn end_arms_a_jump_and_ctrl_end_goes_to_the_last_used_cell() {
+    let mut rig = rig(None, a1(), 1.0);
+    rig.press(Key::End, Modifiers::NONE);
+    assert_eq!(rig.active(), Some(CellAt::new(0, 0)), "End alone moves nothing");
+    rig.press(Key::ArrowDown, Modifiers::NONE);
+    assert_eq!(rig.active(), Some(CellAt::new(SHEET_ROWS - 1, 0)), "the arrow after End jumps to the data edge");
+    rig.press(Key::ArrowUp, Modifiers::NONE);
+    assert_eq!(rig.active(), Some(CellAt::new(SHEET_ROWS - 2, 0)), "the mode ends with that arrow");
+    rig.press(Key::End, Modifiers::COMMAND);
+    assert_eq!(rig.active(), Some(CellAt::new(9, 4)));
 }
 
 #[trial]

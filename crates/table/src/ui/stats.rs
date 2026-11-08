@@ -5,8 +5,8 @@ use std::sync::Arc;
 use craft_behavior::{Axis, CursorIcon, Flow, Metrics, PartKey, Sense};
 use craft_theme::{Stateful, TypeRole};
 use craft_ui::contract::{
-    Access, Bind, BindMut, Common, Component, Cx, Edit as _, MeasureCx, Name, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx,
-    PopupKind, Props as _, Role, Show as _, ShowContainer as _, Styled as _, Trigger, WordSetCx as _,
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, Name, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi,
+    PartsCx, PopupKind, Props as _, Role, Show as _, ShowContainer as _, Styled as _, Trigger, WordSetCx as _,
 };
 use craft_ui::menu::{Menu, MenuItem};
 use craft_ui::primitives::TextRun;
@@ -208,8 +208,8 @@ pub struct SelectionStatsReadoutStyle {
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct SelectionStatsOutput {
-    /// The readout's response.
-    pub response: Response,
+    /// The readout's response and the edits of the menu's check rows.
+    pub edit: EditResponse<StatsShown>,
     /// The value a click on a statistic copied this pass, without its label.
     pub copied: Option<String>,
 }
@@ -218,7 +218,12 @@ impl Outcome for SelectionStatsOutput {
     type Value = StatsShown;
 
     fn response(&self) -> &Response {
-        &self.response
+        &self.edit.response
+    }
+
+    #[cfg(feature = "screen-testing")]
+    fn story_facts(&self) -> craft_ui::testing::StoryOutput {
+        self.edit.story_facts()
     }
 }
 
@@ -228,6 +233,8 @@ impl Outcome for SelectionStatsOutput {
 /// with no statistic shown. The readout is one Tab stop.
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
 #[component(overlay)]
+#[component(exempt(case = "state:Mixed", reason = "The value is a set of independent on/off statistics, so no part of it is mixed."))]
+#[component(exempt(case = "state:Invalid", reason = "The user types nothing: a check row only switches a statistic on or off."))]
 pub struct SelectionStatsReadout<'a> {
     #[common]
     common: Common,
@@ -358,6 +365,6 @@ impl Component for SelectionStatsReadout<'_> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> SelectionStatsOutput {
-        SelectionStatsOutput { response: cx.response.clone(), copied: self.copied }
+        SelectionStatsOutput { edit: cx.edit_response(), copied: self.copied }
     }
 }

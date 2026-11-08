@@ -22,7 +22,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 pub use crate::runtime::keys::Intents;
 pub use craft_behavior::{Letters, Roving};
-pub use policy::{ActivateKeys, EditSet, EnterRule, FocusPolicy, FocusTarget, Initial, KeepKeys, KeyUse};
+pub use policy::{ActivateKeys, EditSet, EndKey, EnterRule, FocusPolicy, FocusTarget, Initial, KeepKeys, KeyUse};
 
 /// The shape the focus ring takes around a part.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
