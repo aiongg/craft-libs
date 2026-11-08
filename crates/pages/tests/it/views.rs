@@ -207,6 +207,27 @@ fn delete_with_nothing_picked_removes_the_current_page_but_never_every_page() {
     assert!(rig.picked.borrow().items.is_empty());
 }
 
+#[trial]
+fn delete_removes_the_picked_pages_but_never_all_of_them() {
+    let mut rig = strip_rig(4, Selection::new(vec![1, 2], Some(2), Some(1)));
+    rig.fixture.key(Key::Tab, Modifiers::NONE);
+    rig.fixture.key(Key::Delete, Modifiers::NONE);
+    assert!(rig.events.borrow().contains(&ThumbnailEvent::Delete(vec![1, 2])), "the picked pages go: {:?}", rig.events.borrow());
+    let mut rig = strip_rig(2, Selection::new(vec![0, 1], Some(1), Some(0)));
+    rig.fixture.key(Key::Tab, Modifiers::NONE);
+    rig.fixture.key(Key::Delete, Modifiers::NONE);
+    assert!(!rig.events.borrow().iter().any(|event| matches!(event, ThumbnailEvent::Delete(_))), "a document keeps one page");
+}
+
+#[trial]
+fn enter_on_a_thumbnail_activates_its_page() {
+    let mut rig = strip_rig(3, Selection::single(1));
+    let tile = rig.fixture.by_label("Page 2").expect("the second page's tile");
+    rig.fixture.click(&tile);
+    rig.fixture.key(Key::Enter, Modifiers::NONE);
+    assert!(rig.events.borrow().contains(&ThumbnailEvent::Activate(1)), "events {:?}", rig.events.borrow());
+}
+
 /// A list of three boards, the second locked.
 struct ListRig {
     fixture: Fixture,
@@ -214,9 +235,13 @@ struct ListRig {
 }
 
 fn list_rig() -> ListRig {
+    list_rig_picking(Selection::single(0_usize))
+}
+
+fn list_rig_picking(start: Selection<usize>) -> ListRig {
     let events: Rc<RefCell<Vec<PageListEvent>>> = Rc::default();
     let seen = Rc::clone(&events);
-    let picked = Rc::new(RefCell::new(Selection::single(0_usize)));
+    let picked = Rc::new(RefCell::new(start));
     let rows = vec![PageListRow::new("Board 1"), PageListRow::new("Board 2").locked(true), PageListRow::new("Board 3").hidden(true)];
     let mut fixture = Fixture::new(move |ui| {
         let mut now = picked.borrow().clone();
@@ -235,6 +260,35 @@ fn a_click_on_a_row_makes_it_the_active_one() {
     let row = rig.fixture.by_label("Board 3").expect("the row is in the tree");
     rig.fixture.click(&row);
     assert!(rig.events.borrow().contains(&PageListEvent::Go(2)), "events {:?}", rig.events.borrow());
+}
+
+#[trial]
+fn enter_on_a_row_activates_it() {
+    let mut rig = list_rig();
+    let row = rig.fixture.by_label("Board 3").expect("the row is in the tree");
+    rig.fixture.click(&row);
+    rig.fixture.key(Key::Enter, Modifiers::NONE);
+    assert!(rig.events.borrow().contains(&PageListEvent::Activate(2)), "events {:?}", rig.events.borrow());
+}
+
+#[trial]
+fn a_click_on_a_lock_toggle_reports_the_toggle() {
+    let mut rig = list_rig();
+    let lock = rig.fixture.by_label("Lock Board 1").expect("the first row's lock");
+    rig.fixture.click(&lock);
+    assert!(rig.events.borrow().iter().any(|event| matches!(event, PageListEvent::Toggle(_))), "events {:?}", rig.events.borrow());
+}
+
+#[trial]
+fn delete_skips_the_locked_rows() {
+    let mut rig = list_rig_picking(Selection::new(vec![0, 1], Some(1), Some(0)));
+    rig.fixture.key(Key::Tab, Modifiers::NONE);
+    rig.fixture.key(Key::Delete, Modifiers::NONE);
+    assert!(rig.events.borrow().contains(&PageListEvent::Delete(vec![0])), "the unlocked picked row goes: {:?}", rig.events.borrow());
+    let mut rig = list_rig_picking(Selection::single(1));
+    rig.fixture.key(Key::Tab, Modifiers::NONE);
+    rig.fixture.key(Key::Delete, Modifiers::NONE);
+    assert!(!rig.events.borrow().iter().any(|event| matches!(event, PageListEvent::Delete(_))), "a locked row stays");
 }
 
 #[trial]

@@ -473,3 +473,69 @@ fn an_empty_section_names_what_a_click_adds() {
     assert!(fixture.by_label("Add header").is_some(), "the hint for a header section");
     assert!(fixture.by_label("Add footer").is_some(), "the hint for a footer section");
 }
+
+// TEMPORARY DIAGNOSTICS (removed before the last commit)
+
+fn spin_values(fixture: &mut Fixture) -> Vec<Option<String>> {
+    let fields = fixture.by_role(craft_ui::contract::Role::SPIN_BUTTON);
+    fields.iter().map(|field| fixture.tree().value_of(field.node).map(str::to_owned)).collect()
+}
+
+#[trial]
+fn zz_diag_range() {
+    let start = PageRange { all: false, from: 3, to: Some(9), subset: Subset::All };
+    let (mut fixture, range) = range_rig(start);
+    let mut log = String::new();
+    let fields = fixture.by_role(craft_ui::contract::Role::SPIN_BUTTON);
+    let to = fields.last().expect("to field");
+    fixture.click(to);
+    log += &format!("click: {:?} {:?}\n", spin_values(&mut fixture), range.borrow());
+    fixture.key(Key::A, Modifiers::COMMAND);
+    log += &format!("select all: {:?} {:?}\n", spin_values(&mut fixture), range.borrow());
+    fixture.type_text("9");
+    log += &format!("typed 9: {:?} {:?}\n", spin_values(&mut fixture), range.borrow());
+    fixture.type_text("9");
+    log += &format!("typed 99: {:?} {:?}\n", spin_values(&mut fixture), range.borrow());
+    fixture.key(Key::Enter, Modifiers::NONE);
+    log += &format!("enter: {:?} {:?}\n", spin_values(&mut fixture), range.borrow());
+    panic!("DIAG range\n{log}");
+}
+
+#[trial]
+fn zz_diag_custom() {
+    let (mut fixture, edited, _) = dialog(PageSetup::default());
+    let mut log = String::new();
+    let paper = fixture.by_label("Paper size").expect("the paper list");
+    fixture.click(&paper);
+    fixture.idle(2);
+    log += &format!("open: {:?} {}x{}\n", fixture.tree().value_of(fixture.by_label("Paper size").unwrap().node), edited.borrow().width, edited.borrow().height);
+    for _ in 0..25 {
+        fixture.key(Key::ArrowDown, Modifiers::NONE);
+    }
+    fixture.idle(2);
+    log += &format!("down x25: {:?} {}x{}\n", fixture.tree().value_of(fixture.by_label("Paper size").unwrap().node), edited.borrow().width, edited.borrow().height);
+    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.idle(2);
+    log += &format!("enter: {:?} {}x{}\n", fixture.tree().value_of(fixture.by_label("Paper size").unwrap().node), edited.borrow().width, edited.borrow().height);
+    panic!("DIAG custom\n{log}");
+}
+
+#[trial]
+fn zz_diag_escape() {
+    let (mut fixture, edited, _) = dialog(PageSetup::default());
+    let mut log = String::new();
+    let width = fixture.by_label("Width").expect("the Width field");
+    log += &format!("start: width {:?} {}x{} {:?}\n", fixture.tree().value_of(width.node), edited.borrow().width, edited.borrow().height, edited.borrow().orientation);
+    fixture.click(&width);
+    fixture.key(Key::A, Modifiers::COMMAND);
+    fixture.type_text("1");
+    log += &format!("typed 1: {}x{} {:?}\n", edited.borrow().width, edited.borrow().height, edited.borrow().orientation);
+    fixture.type_text("2");
+    log += &format!("typed 12: {}x{} {:?} landscape radio {}\n", edited.borrow().width, edited.borrow().height, edited.borrow().orientation, radio_on(&fixture, "Landscape"));
+    fixture.idle(2);
+    log += &format!("idle: {}x{} {:?} landscape radio {}\n", edited.borrow().width, edited.borrow().height, edited.borrow().orientation, radio_on(&fixture, "Landscape"));
+    fixture.key(Key::Escape, Modifiers::NONE);
+    let width = fixture.by_label("Width").expect("the Width field");
+    log += &format!("escape: width {:?} {}x{} {:?}\n", fixture.tree().value_of(width.node), edited.borrow().width, edited.borrow().height, edited.borrow().orientation);
+    panic!("DIAG escape\n{log}");
+}

@@ -148,7 +148,7 @@ name = "PageThumbnails"
 old = "craft_pages::ui::thumbnails::PageThumbnails"
 new = "craft_pages::ui::thumbnails::PageThumbnails"
 status = "same"
-note = "`new(id_salt, ..)` becomes `new(label, ..)`; `size` takes `&mut f64`; `caption_place`, `sections`, `marks`, `new_page_row` as before (the row is a `Button` under the grid); `style` and `id_in` go; `labels` goes. The current page is the grid's `current`."
+note = "`new(id_salt, source, picked, current)` becomes `new(label, source, picked, current, paper)` (the paper is a `DataColor` the caller gives); `size` takes `&mut f64`; `caption_place`, `sections`, `marks`, `new_page_row` as before (the row is a `Button` under the grid); `style` and `id_in` go; `labels` goes. The current page is the grid's `current`."
 
 [[type]]
 name = "PageThumbnailsOutput"
@@ -313,3 +313,27 @@ type = "ReadingView"
 old = "paper"
 new = "ReadingView::new(label, source, state, paper)"
 note = "The paper is a `DataColor` the caller gives; it shows under each page while its picture loads."
+
+[[setter]]
+type = "PageThumbnails"
+old = "new(label, source, picked, current)"
+new = "PageThumbnails::new(label, source, picked, current, paper)"
+note = "The paper is a `DataColor` the caller gives; it shows under each page while its picture loads."
+
+[[setter]]
+type = "TextSelectTool"
+old = "right_to_left"
+new = ""
+note = "Removed: the tool reads the interface direction from its `ToolContext`."
+
+[[setter]]
+type = "ReadingMetrics"
+old = "ReadingMetrics::new(column_gap, nav_bar)"
+new = "ReadingMetrics::new(column_gap, nav_bar, measure)"
+note = "The columns' target and least width are a `ReadingMeasure` of the body text, which the caller measures with the pass's layout."
+
+[[setter]]
+type = "ReadingMetrics"
+old = "ReadingMetrics::of(tokens)"
+new = "ReadingMetrics::of(tokens, measure)"
+note = "As `new`: the column widths come from the `ReadingMeasure` given."
