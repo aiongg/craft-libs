@@ -73,6 +73,7 @@ pub enum ChromeToggle {
 #[non_exhaustive]
 pub enum OuterEdit {
     /// The container opened: the step begins, named by the container's label and document key.
+    #[non_exhaustive]
     Begin {
         /// The outer gesture.
         id: GestureId,
@@ -82,12 +83,14 @@ pub enum OuterEdit {
         doc_key: Option<DocKey>,
     },
     /// The container closed as an OK: the edits since `Begin` stay, as one undo step.
+    #[non_exhaustive]
     Commit {
         /// The outer gesture.
         id: GestureId,
     },
     /// The container closed any other way (Cancel, Escape, the close action, the app closing it): the edits since
     /// `Begin` are taken back.
+    #[non_exhaustive]
     Cancel {
         /// The outer gesture.
         id: GestureId,

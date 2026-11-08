@@ -129,7 +129,7 @@ fn outer_steps(app: &App) -> (Vec<&'static str>, bool) {
         _ => "other",
     };
     let id = |edit: &OuterEdit| match edit {
-        OuterEdit::Begin { id, .. } | OuterEdit::Commit { id } | OuterEdit::Cancel { id } => Some(*id),
+        OuterEdit::Begin { id, .. } | OuterEdit::Commit { id, .. } | OuterEdit::Cancel { id, .. } => Some(*id),
         _ => None,
     };
     let one = app.outer.windows(2).all(|pair| id(&pair[0]) == id(&pair[1]));
