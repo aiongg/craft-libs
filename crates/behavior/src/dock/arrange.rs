@@ -1,7 +1,7 @@
 //! Window › Arrange: the document arrangements over the floating document windows and
 //! the document tab groups, and the rects they produce.
 
-use emath::{Rect, Vec2, pos2, vec2};
+use emath::{Rect, vec2};
 
 /// One Window › Arrange entry. The n-up entries split the document area into that many
 /// cells and put one document group in each; the rest act on windows and views.
@@ -28,7 +28,7 @@ pub enum Arrangement {
     SixUp,
     /// Every document back into one tab group.
     ConsolidateAllToTabs,
-    /// Floating windows stepped from the top left ([`cascade_rects`]).
+    /// Floating windows stepped from the top left ([`cascade_rects`](crate::placement::cascade_rects)).
     Cascade,
     /// Floating windows in an even grid.
     Tile,
@@ -162,24 +162,4 @@ pub fn arrange_rects(arrangement: Arrangement, area: Rect, n: usize) -> Option<V
         }
         _ => return None,
     })
-}
-
-/// Cascade: the first window at the area's top left, each next one `step` points right and down
-/// from the previous one, an axis that would leave `area` starting over at its edge. The host passes its cascade
-/// step as `step`.
-pub fn cascade_rects(area: Rect, size: Vec2, n: usize, step: f32) -> Vec<Rect> {
-    let mut rects = Vec::with_capacity(n);
-    // Per axis: a step past the area's edge starts over at the edge.
-    let axis = |prev: f32, len: f32, lo: f32, hi: f32| {
-        let pos = prev + step;
-        if pos < lo || pos + len > hi { lo } else { pos }
-    };
-    let mut at = area.min;
-    for i in 0..n {
-        if i > 0 {
-            at = pos2(axis(at.x, size.x, area.min.x, area.max.x), axis(at.y, size.y, area.min.y, area.max.y));
-        }
-        rects.push(Rect::from_min_size(at, size));
-    }
-    rects
 }

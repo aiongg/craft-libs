@@ -9,12 +9,14 @@ use crate::contract::{
     Props as _, Role, SaveKey, Show as _, Sizing, WordSetCx as _,
 };
 use crate::runtime::env::Label;
+use crate::runtime::memory::Remember as _;
 use crate::runtime::overlay::CloseReason;
 use crate::runtime::windows::{WindowAction, WindowHost, WindowSpec};
 use crate::sections::{HeaderAction, HeaderStrength, TitleRow};
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
-use craft_behavior::{Metrics, Sense};
-use craft_window::{CASCADE_STEP, cascade, monitor_of};
+use craft_behavior::placement::{cascade, monitor_of};
+use craft_behavior::{Metrics, Monitor, Sense};
+use craft_window::{WindowId, WindowList};
 use egui::{Rect, Response, Ui, Vec2};
 
 /// The style of a document window: the surface comes from the container.
@@ -23,20 +25,26 @@ use egui::{Rect, Response, Ui, Vec2};
 pub struct DocumentWindowStyle {
     #[style(metrics)]
     metrics: Metrics,
+    /// The offset between cascaded windows (`size.window.cascade`).
+    cascade: f32,
 }
 
-/// What a document window reports: its response, whether it was asked to close in this pass, and whether it has OS
+/// What a document window reports: its response, how it was asked to close in this pass, and whether it has OS
 /// focus.
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct DocumentWindowOutput {
     /// The window's response.
     pub response: Response,
-    /// The window was asked to close in this pass, by its OS close button or the fallback layer's close action.
-    /// Reported once for each request.
-    pub close_requested: bool,
+    /// How the window was asked to close in this pass: its OS close button or the fallback layer's close action.
+    /// Reported once for each request. The window stays until the app stops showing it.
+    pub close_requested: Option<CloseReason>,
     /// The window has OS focus. False in the fallback layer, which has no window of its own.
     pub focused: bool,
+    /// The step of a cascade of windows (`size.window.cascade`): the `step` of [`DocumentWindow::cascaded`].
+    pub cascade: f32,
+    /// The window gained OS focus in this pass.
+    pub focus_gained: bool,
 }
 
 impl Outcome for DocumentWindowOutput {
@@ -57,10 +65,11 @@ impl Outcome for DocumentWindowOutput {
 ///   takes over. The minimum and maximum size (through [`overlay`](DocumentWindow::overlay)) and the resizability are the
 ///   fallback layer's, which the OS window reads.
 /// - **Close.** The OS close button, and the close action of the fallback layer, report `close_requested`. The
-///   window closes at once unless the app binds [`opened`](DocumentWindow::opened) to a value it sets again, for
-///   example while it asks about unsaved changes.
+///   window stays while the app shows it, for example while it asks about unsaved changes, and closes when the app
+///   stops showing it.
 /// - **Title and focus.** The title is the label given to `new`; it follows the document while the app changes it.
-///   [`raise`](DocumentWindow::raise) brings the window forward in the pass it is set.
+///   [`raise`](DocumentWindow::raise) brings the window forward in the pass it is set. With
+///   [`in_list`](DocumentWindow::in_list) the window makes itself the list's active window when it gains OS focus.
 /// - **Fallback.** Where OS windows are unavailable the document shows on a movable, resizable layer with a title row.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container)]
@@ -69,9 +78,10 @@ pub struct DocumentWindow<'a> {
     common: Common,
     #[container]
     props: ContainerProps,
-    /// Binds the open state to `open`.
-    #[prop(name = "opened")]
-    open: Option<Bind<'a, bool>>,
+    /// The open state the pipeline reads: always open, so a close request never ends the window.
+    open: Bind<'a, bool>,
+    /// Makes the window the active one of the app's window list.
+    activate: Option<Box<dyn FnMut() + 'a>>,
     /// Raises the window and gives it OS focus in this pass.
     #[prop(flag)]
     raise: bool,
@@ -88,7 +98,7 @@ impl DocumentWindow<'_> {
             .sizing(Sizing::Fill)
             .header(HeaderRegion::new().band(DragBand::Move))
             .mount(Mount::viewport_with(fallback, WindowSpec::document()));
-        DocumentWindow { common: Common::new(), props, open: None, raise: false, closed: None }.label(title)
+        DocumentWindow { common: Common::new(), props, open: Bind::given(true), activate: None, raise: false, closed: None }.label(title)
     }
 
     /// Changes the layer the window falls back to, for the settings without a setter of their own: the smallest and
@@ -114,36 +124,46 @@ impl DocumentWindow<'_> {
         self.overlay(|overlay| overlay.resizable(on))
     }
 
-    /// Saves the window's placement and size under `key`, so a reopened document sits where it was left.
+    /// Makes the window the active one of `windows` when it gains OS focus: the entry `id` the app opened for this
+    /// document. The Window menu's check mark follows.
+    #[must_use]
+    pub fn in_list<T>(mut self, windows: &'a mut WindowList<T>, id: WindowId) -> Self {
+        self.activate = Some(Box::new(move || {
+            windows.focus(id);
+        }));
+        self
+    }
+
+    /// Saves the window's placement and size under `key`, so a reopened document sits where it was left. Build the key
+    /// of each document with [`SaveKey::named`].
     #[must_use]
     pub fn remember(mut self, key: SaveKey) -> Self {
         self.props = self.props.save(key);
         self
     }
 
-    /// Where a window of `size` opens when it follows the window at `previous`: one cascade step down and across;
-    /// an axis on which that would leave the monitor starts again at the monitor's edge. `monitors` are in the points of the window
-    /// at `previous`; without monitors the step is not bounded.
-    pub fn cascade_in(previous: Rect, size: Vec2, monitors: &[Rect]) -> Rect {
-        let rect = |rect: Rect| craft_window::Rect::new(rect.min.x, rect.min.y, rect.width(), rect.height());
-        let monitors: Vec<craft_window::Rect> = monitors.iter().copied().map(rect).collect();
-        match monitor_of(rect(previous), &monitors) {
-            Some(bounds) => {
-                let at = cascade(rect(previous), [size.x, size.y], bounds, CASCADE_STEP);
-                Rect::from_min_size(egui::pos2(at.x, at.y), size)
-            }
-            None => Rect::from_min_size(previous.min + Vec2::splat(CASCADE_STEP), size),
+    /// Where a window of `size` opens when it follows the window at `previous`: one cascade `step` down and across
+    /// on the monitor showing most of `previous`; an axis on which that would leave the monitor starts again at the
+    /// monitor's edge. Without `monitors` the step is not bounded.
+    pub fn cascade_in(previous: Rect, size: Vec2, monitors: &[Monitor], step: f32) -> Rect {
+        match monitor_of(monitors, previous) {
+            Some(monitor) => cascade(previous, size, monitor.rect, step),
+            None => Rect::from_min_size(previous.min + Vec2::splat(step), size),
         }
     }
 
-    /// [`cascade_in`](DocumentWindow::cascade_in) over the monitors the window host lists.
-    pub fn cascaded(ui: &Ui, previous: Rect, size: Vec2) -> Rect {
+    /// [`cascade_in`](DocumentWindow::cascade_in) over the monitors the window host lists. `step` is the
+    /// [`cascade`](DocumentWindowOutput::cascade) a shown window reports.
+    pub fn cascaded(ui: &Ui, previous: Rect, size: Vec2, step: f32) -> Rect {
         let host = WindowHost::of(ui.ctx());
         let scale = host.viewport_at(previous.center()).and_then(|viewport| host.facts(viewport)).map_or(1.0, |facts| facts.scale);
-        let monitors: Vec<Rect> = host.monitors().iter().map(|monitor| monitor.points_at(scale)).collect();
-        Self::cascade_in(previous, size, &monitors)
+        Self::cascade_in(previous, size, &host.monitors_at(scale), step)
     }
 }
+
+/// Whether the window had OS focus in the pass before.
+#[derive(Clone, Copy, Default)]
+struct HadFocus(bool);
 
 impl Component for DocumentWindow<'_> {
     const ROLE: Role = Role::GROUP;
@@ -152,15 +172,15 @@ impl Component for DocumentWindow<'_> {
     type Style = DocumentWindowStyle;
     type Output = DocumentWindowOutput;
 
-    fn style(_: &StyleCx<'_>, _: DocumentWindowStyleKey) -> DocumentWindowStyle {
-        DocumentWindowStyle::default()
+    fn style(cx: &StyleCx<'_>, _: DocumentWindowStyleKey) -> DocumentWindowStyle {
+        DocumentWindowStyle { cascade: cx.tokens.size.window.cascade, ..DocumentWindowStyle::default() }
     }
 
     fn sense(&self) -> Sense {
         Sense::empty()
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> DocumentWindowOutput {
+    fn finish(mut self, mut cx: Cx<'_, Self>) -> DocumentWindowOutput {
         let host = WindowHost::of(&cx.ctx);
         let viewport = host.viewport_of(cx.id);
         if self.raise
@@ -169,13 +189,18 @@ impl Component for DocumentWindow<'_> {
             host.act(viewport, WindowAction::Focus);
         }
         let focused = viewport.and_then(|viewport| host.facts(viewport)).is_some_and(|facts| facts.focused);
-        DocumentWindowOutput { response: cx.response.clone(), close_requested: self.closed.is_some(), focused }
+        let had_focus = std::mem::replace(&mut cx.keep::<HadFocus>().0, focused);
+        let focus_gained = focused && !had_focus;
+        if focus_gained && let Some(activate) = self.activate.as_mut() {
+            activate();
+        }
+        DocumentWindowOutput { response: cx.response.clone(), close_requested: self.closed, focused, cascade: cx.style.cascade, focus_gained }
     }
 }
 
 impl Container for DocumentWindow<'_> {
     fn open(&mut self) -> Option<BindMut<'_, bool>> {
-        self.open.as_mut().map(Bind::reborrow)
+        Some(self.open.reborrow())
     }
 
     /// The title row of the fallback layer; an OS window has the title bar the app composes in its body.

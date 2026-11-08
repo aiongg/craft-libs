@@ -36,6 +36,7 @@ pub mod nav;
 pub mod one_press;
 pub mod overlay;
 pub mod part;
+pub mod placement;
 
 pub mod pixel_size;
 
@@ -73,7 +74,6 @@ pub use dock::{DockHandle, DockSide, DockTree, GroupId};
 pub use edit_history::EditHistory;
 pub use editor::EditorInput;
 pub use flow::{Axis, Flow, Insets};
-pub use monitor::Monitor;
 pub use focus::{CancelRule, KeyOwner, OwnerClass, PressFocus, ScopeKind};
 pub use grid::{GridCursor, GridMeasure, resolve_columns};
 pub use hit::{HitLevel, HitPriority, HitShape, ResolveFor, Shape, Winner, resolve, resolve_mapped};
@@ -85,6 +85,7 @@ pub use keys::{DropOperation, KeyRole};
 pub use label_column::{LabelColumn, LabelPlacement};
 pub use layout_memory::SizeTween;
 pub use marquee::{MarqueeMode, MarqueeSelect};
+pub use monitor::Monitor;
 pub use motion::{MotionKind, MotionMode, Playback};
 pub use nav::{Arrows, Letters, NavOutline, NavShape, NavState, NavStep, Roving, TypeAhead, wheel_step};
 pub use part::{PartKey, PartRef};

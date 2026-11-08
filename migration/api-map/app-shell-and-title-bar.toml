@@ -40,7 +40,7 @@ name = "ViewportWindow"
 old = "craft_ui::viewport::ViewportWindow"
 new = "craft_ui::shell::ViewportWindow"
 status = "moved"
-note = "A `Pattern` over `Dialog::viewport()`: `ViewportWindow::new(title).app_modal(bool).layer(Overlay).remember(SaveKey).show(ui, body) -> ViewportWindowOutput`. It has no viewport id and no builder: the dialog identifies and places the window."
+note = "A `Pattern` over `Dialog::viewport()`: `ViewportWindow::new(title).app_modal(bool).overlay(FnOnce(Overlay) -> Overlay).remember(SaveKey).show(ui, body) -> ViewportWindowOutput`. It has no viewport id and no builder: the dialog identifies and places the window."
 
 [[type]]
 name = "ShellCx"
@@ -188,14 +188,7 @@ name = "full_screen_commands"
 old = "craft_ui::shell::full_screen_commands"
 new = ""
 status = "removed"
-note = "The shell carries out a screen-mode change itself through `WindowHost::act`; `FullScreenPlan` holds the Windows keep-apart steps."
-
-[[type]]
-name = "FullScreenPlan"
-old = ""
-new = "craft_ui::shell::FullScreenPlan"
-status = "replaced"
-note = "Replaces `full_screen_commands`: the steps that bring a window to full screen or back, one `WindowAction` per pass."
+note = "The shell carries out a screen-mode change itself, in the pass it is made, with `WindowAction::SetFullscreen` and `SetMaximized` through `WindowHost::act`; on Windows a maximized window is restored first and maximized again after it leaves full screen."
 
 [[type]]
 name = "CYCLE_COMMAND"
@@ -462,7 +455,7 @@ note = "The actions are `StartOutput.actions`."
 type = "ViewportWindow"
 old = "new(ViewportId, ViewportBuilder)"
 new = "new(title)"
-note = "The title is the constructor argument. The builder's inner and minimum sizes and the opening position go on the `Overlay` given to `layer`: `Overlay::dialog().size_limits(min, max).placed(rect).resizable(true)`."
+note = "The title is the constructor argument. The builder's inner and minimum sizes and the opening position go on the fallback layer through `overlay`: `.overlay(|overlay| overlay.size_limits(min, max).placed(rect))`; the layer starts as the resizable dialog layer."
 
 [[setter]]
 type = "ViewportWindow"

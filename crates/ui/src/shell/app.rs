@@ -5,13 +5,13 @@
 
 use crate::runtime::InstallSpec;
 use crate::runtime::frame::{FrameInput, FrameOutput, set_input, take_output};
-use crate::runtime::windows;
-use craft_host::target::ShellInfo;
-use craft_window::desktop::fit_window;
+use crate::runtime::windows::{self, WindowAction, WindowHost};
+use craft_host::target::{Os, ShellInfo, WindowState};
+use craft_window::desktop::fits;
 use craft_window::policy::{Decision, apply};
 use craft_window::restore::{Defaults, MAIN, Store, place};
 use craft_window::system::{NoWindows, WindowSystem};
-use egui::{Context, Pos2, Ui, ViewportBuilder};
+use egui::{Context, Pos2, Ui, ViewportBuilder, ViewportId};
 use std::sync::{Arc, Mutex};
 
 /// What `run` needs of the app.
@@ -112,6 +112,28 @@ struct Driver<A> {
     app: A,
     /// The `movable` flag last set on the native window.
     movable: Option<bool>,
+    /// Whether the first fit of the root window to its monitor has run.
+    fitted: bool,
+}
+
+/// Maximizes the root window, once its monitor is known, when it is larger than the monitor's usable area (Photoshop
+/// opens maximized on a small display). Never on macOS, which keeps new windows inside the screen's visible frame
+/// itself, and never for a window that is already maximized or in full screen. Returns whether the monitor was
+/// known, which is when the fit has run.
+fn fit_first(ctx: &Context) -> bool {
+    let host = WindowHost::of(ctx);
+    let monitor = ctx.input(|input| input.viewport().monitor_size);
+    let (Some(facts), Some(monitor)) = (host.facts(ViewportId::ROOT), monitor) else { return false };
+    let outer = facts.outer.unwrap_or(facts.inner);
+    if windows::os_of(ctx) != Os::Mac
+        && facts.state == WindowState::Normal
+        && monitor.is_finite()
+        && outer.is_finite()
+        && !fits(outer.size(), monitor)
+    {
+        host.act(ViewportId::ROOT, WindowAction::SetMaximized(true));
+    }
+    true
 }
 
 impl<A: ShellApp> eframe::App for Driver<A> {
@@ -131,7 +153,9 @@ impl<A: ShellApp> eframe::App for Driver<A> {
 
     fn ui(&mut self, ui: &mut Ui, _: &mut eframe::Frame) {
         // The monitor is known only once the window exists, so the fit runs from the first passes, and once.
-        fit_window(ui.ctx());
+        if !self.fitted {
+            self.fitted = fit_first(ui.ctx());
+        }
         self.app.ui(ui);
         super::title_bar::sync_movable(ui.ctx(), &mut self.movable);
     }
@@ -173,7 +197,7 @@ pub fn run<A: ShellApp + 'static>(spec: AppSpec, make: impl FnOnce(&Context) -> 
                 install = install.frame(decision);
             }
             crate::install(&cc.egui_ctx, install).map_err(|error| format!("the runtime could not be installed: {error}"))?;
-            Ok(Box::new(Driver { app: make(&cc.egui_ctx), movable: None }))
+            Ok(Box::new(Driver { app: make(&cc.egui_ctx), movable: None, fitted: false }))
         }),
     )
 }

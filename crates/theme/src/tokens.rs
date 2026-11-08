@@ -806,6 +806,8 @@ pub struct SizeTokens {
     pub pointer_tip: PointerTipOffset,
     /// The windows a dock floats its panels in.
     pub float: FloatSizes,
+    /// The app's windows.
+    pub window: WindowSizes,
 }
 
 /// The sizes of a floating dock window, in logical pixels.
@@ -815,7 +817,12 @@ pub struct FloatSizes {
     pub width: f32,
     /// The height a floating dock window opens at.
     pub height: f32,
-    /// The offset between cascaded floating windows, along both axes.
+}
+
+/// The sizes of the app's windows, in logical pixels.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct WindowSizes {
+    /// The offset between cascaded windows (document windows and floating dock windows), along both axes.
     pub cascade: f32,
 }
 

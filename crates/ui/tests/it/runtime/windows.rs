@@ -268,6 +268,32 @@ fn act_sends_window_commands_only_where_the_capability_is_on() {
     assert!(act(&native.ctx, ViewportId::ROOT, WindowAction::Minimize), "a native build sends the command");
     assert!(!act(&web.ctx, ViewportId::ROOT, WindowAction::Minimize), "a browser build has no window commands");
     assert!(!act(&web.ctx, ViewportId::ROOT, WindowAction::ToggleFullscreen));
+    assert!(!act(&web.ctx, ViewportId::ROOT, WindowAction::SetFullscreen(true)));
+    assert!(!act(&web.ctx, ViewportId::ROOT, WindowAction::SetMaximized(true)));
+}
+
+/// The two set actions state the result, so a sequence of them goes out in one pass whatever state the window
+/// reports: the state is refreshed once per pass and a toggle would read a stale one.
+#[trial]
+fn the_set_actions_send_their_state_and_a_sequence_goes_out_in_one_pass() {
+    let windows = Windows::new();
+    windows.root_info(ViewportInfo { maximized: Some(true), inner_rect: Some(PLACED), native_pixels_per_point: Some(1.0), ..ViewportInfo::default() });
+    let out = windows.frame(vec![], vec![], |ui| {
+        assert!(act(ui.ctx(), ViewportId::ROOT, WindowAction::SetMaximized(false)));
+        assert!(act(ui.ctx(), ViewportId::ROOT, WindowAction::SetFullscreen(true)));
+        assert!(act(ui.ctx(), ViewportId::ROOT, WindowAction::SetFullscreen(true)));
+    });
+    let root: Vec<_> = out
+        .commands
+        .iter()
+        .filter(|(viewport, command)| *viewport == ViewportId::ROOT && matches!(command, ViewportCommand::Maximized(_) | ViewportCommand::Fullscreen(_)))
+        .map(|(_, command)| command.clone())
+        .collect();
+    assert_eq!(
+        root,
+        [ViewportCommand::Maximized(false), ViewportCommand::Fullscreen(true), ViewportCommand::Fullscreen(true)],
+        "each action says what it sets"
+    );
 }
 
 /// A container mounted in an OS viewport that opens as `spec`, with a body the trial gives it.

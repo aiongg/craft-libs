@@ -24,7 +24,7 @@ mod screen_mode;
 pub use app_shell::{AppShell, AppShellOutput, ShellRegion, ShellRegionOutput};
 pub use canvas_shell::{CanvasPanel, CanvasPanelOutput, CanvasShell, slots};
 pub use reveal::{Aim, PanelsHidden, Reveal, Tracking, chrome_toggles};
-pub use screen_mode::{FullScreenPlan, ScreenMode, ScreenModeCommand};
+pub use screen_mode::{ScreenMode, ScreenModeCommand};
 pub use words::AppShellWords;
 
 // Start screen and app windows.

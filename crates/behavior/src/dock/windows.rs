@@ -6,7 +6,8 @@ use std::hash::Hash;
 
 use emath::{Rect, Vec2};
 
-use super::{action::Action, arrange::cascade_rects, layout::Layout};
+use super::{action::Action, layout::Layout};
+use crate::placement::cascade_rects;
 
 /// A document group: the documents in one tab strip, one of them shown.
 #[derive(Clone, Debug, PartialEq)]

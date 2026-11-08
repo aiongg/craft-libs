@@ -6,7 +6,7 @@
 mod stories;
 
 use super::reveal::{Aim, PanelsHidden, Reveal, Tracking};
-use super::screen_mode::{FullScreenPlan, ScreenMode, ScreenModeCommand};
+use super::screen_mode::{ScreenMode, ScreenModeCommand, ScreenModeFollow};
 use super::words::AppShellWords;
 use crate::contract::overlay::Resize;
 use crate::contract::{
@@ -14,18 +14,16 @@ use crate::contract::{
     ShowContainer as _,
 };
 use crate::notices::ToastStack;
-use crate::runtime::commands::{CommandSet as _, Commands as _};
+use crate::runtime::commands::CommandSet as _;
 use crate::runtime::egui::pass;
 use crate::runtime::env::{AppValues, Env, Label, RevealEdge, ShellCx, ShellRegions, SlotKey, WindowKey};
 use crate::runtime::focus::FocusPolicy;
-use crate::runtime::frame::{ChromeToggle, request_repaint};
+use crate::runtime::frame::ChromeToggle;
 use crate::runtime::overlay::{OpenFilter, any_open};
 use crate::runtime::pointer;
-use crate::runtime::windows::{WindowHost, os_of};
 use crate::shell::Slot;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
-use craft_behavior::{EditEvent, GestureId, Metrics, Mixed, Sense};
-use craft_host::target::Os;
+use craft_behavior::{Metrics, Sense};
 use egui::{Rect, Response, Ui, ViewportId};
 use std::sync::Arc;
 
@@ -153,7 +151,7 @@ impl Placed<'_> {
 #[derive(Clone, Debug, Default)]
 struct ShellState {
     reveal: Reveal,
-    plan: FullScreenPlan,
+    screen: ScreenModeFollow,
     body: Option<Rect>,
     slots: Vec<(SlotKey, Rect)>,
 }
@@ -313,32 +311,10 @@ impl<'a> AppShell<'a> {
             let viewport = pass::current_viewport(&ctx);
             let mut state = cx.keep::<ShellState>().clone();
 
-            let before = match screen_mode.reborrow().read(cx) {
-                Some(Mixed::Same(held)) => held,
-                _ => ScreenMode::default(),
-            };
-            let mut mode = before;
-            while let Some((command, _)) = cx.take_command::<ScreenModeCommand>() {
-                mode = command.apply(mode);
-            }
-            if mode != before {
-                let name: Arc<str> = words.screen_mode.as_str().into();
-                let event = EditEvent::set(GestureId::default(), Mixed::Same(before), mode, name, None);
-                let _ = screen_mode.reborrow().write(cx, &event);
+            let name: Arc<str> = words.screen_mode.as_str().into();
+            let (mode, changed) = state.screen.follow(&ctx, cx, screen_mode.reborrow(), name);
+            if changed {
                 state.reveal.clear();
-                if mode.is_full_screen() != before.is_full_screen() {
-                    state.plan.start(mode.is_full_screen());
-                }
-            }
-            if state.plan.is_active() {
-                let host = WindowHost::of(&ctx);
-                if let Some(facts) = host.facts(viewport) {
-                    let keep_apart = os_of(&ctx) == Os::Windows;
-                    if let Some(action) = state.plan.step(keep_apart, facts.state) {
-                        host.act(viewport, action);
-                    }
-                }
-                request_repaint(&ctx);
             }
 
             let host_only = mode.body_only();

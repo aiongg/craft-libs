@@ -3,6 +3,8 @@
 mod caption_button;
 
 mod document_window;
+mod screen_mode;
+mod viewport_window;
 mod window_parts;
 
 // Start screen.

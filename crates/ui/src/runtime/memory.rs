@@ -15,6 +15,7 @@ use std::collections::HashSet;
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// A value kept in memory. `Clone` is required because egui's temp store clones on insert; large caches hold `Arc`s.
@@ -34,18 +35,16 @@ impl SaveKey {
     /// A key `crate_prefix.name`; evaluated in a const context it rejects a malformed name at compile time. The
     /// prefix is lowercase ASCII letters, digits and underscores.
     pub const fn new(key: &'static str) -> Self {
-        let bytes = key.as_bytes();
-        let mut prefix = 0;
-        while prefix < bytes.len() && bytes[prefix] != b'.' {
-            let byte = bytes[prefix];
-            assert!(
-                byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_',
-                "a SaveKey's crate prefix is lowercase ASCII, digits and underscores"
-            );
-            prefix += 1;
-        }
-        assert!(prefix > 0 && prefix + 1 < bytes.len(), "a SaveKey is `crate_prefix.name`");
+        check(key);
         SaveKey(Cow::Borrowed(key))
+    }
+
+    /// A key `crate_prefix.name` built at run time, for slots kept per item, such as a window for each open
+    /// document. The format is `new`'s; a malformed key panics.
+    pub fn named(key: impl Into<Arc<str>>) -> Self {
+        let key: Arc<str> = key.into();
+        check(&key);
+        SaveKey(Cow::Owned(String::from(&*key)))
     }
 
     /// The key's text.
@@ -57,6 +56,21 @@ impl SaveKey {
     fn id(&self) -> Id {
         global("craft_ui.saved", self)
     }
+}
+
+/// Panics unless `key` is `crate_prefix.name`.
+const fn check(key: &str) {
+    let bytes = key.as_bytes();
+    let mut prefix = 0;
+    while prefix < bytes.len() && bytes[prefix] != b'.' {
+        let byte = bytes[prefix];
+        assert!(
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_',
+            "a SaveKey's crate prefix is lowercase ASCII, digits and underscores"
+        );
+        prefix += 1;
+    }
+    assert!(prefix > 0 && prefix + 1 < bytes.len(), "a SaveKey is `crate_prefix.name`");
 }
 
 /// Implemented by `Cx`, `BodyCx` and `ItemCx` over the pipeline's memory stage, each keyed by its own base id.

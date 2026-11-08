@@ -29,7 +29,6 @@
       },
       "dial": 52.0,
       "float": {
-        "cascade": 38.0,
         "height": 300.0,
         "width": 240.0
       },
@@ -71,7 +70,10 @@
         "md": 34.0,
         "sm": 18.0
       },
-      "toggle": 32.4
+      "toggle": 32.4,
+      "window": {
+        "cascade": 38.0
+      }
     },
     "space": {
       "gap": {

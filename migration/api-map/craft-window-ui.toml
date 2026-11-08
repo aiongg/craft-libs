@@ -19,7 +19,7 @@ name = "DocumentWindow"
 old = ""
 new = "craft_ui::shell::DocumentWindow"
 status = "replaced"
-note = "craft_window::Viewports::show plus a container per document: one DocumentWindow for each entry of the WindowList, on Mount::Viewport with WindowSpec::document()."
+note = "craft_window::Viewports::show plus a container per document: one DocumentWindow for each entry of the WindowList, on Mount::Viewport with WindowSpec::document(). `in_list(&mut WindowList<T>, WindowId)` makes the window the list's active one when it gains OS focus (the old `WindowEvent::Focused`); `overlay(FnOnce(Overlay) -> Overlay)` changes the fallback layer; `remember(SaveKey::named(..))` keeps a placement for each document."
 
 [[type]]
 name = "Viewports"
@@ -33,7 +33,7 @@ name = "WindowEvent"
 old = "craft_window::WindowEvent"
 new = ""
 status = "removed"
-note = "Mount::Viewport: DocumentWindowOutput::close_requested and ::focused."
+note = "Mount::Viewport: DocumentWindowOutput::close_requested (an `Option<CloseReason>`; the window stays while the app shows it), ::focused and ::focus_gained (`WindowEvent::Focused`; `DocumentWindow::in_list` acts on it)."
 
 [[type]]
 name = "WindowList"
@@ -55,6 +55,34 @@ old = "craft_window::title_bar::empty_area"
 new = ""
 status = "removed"
 note = "The body step's Move header band."
+
+[[type]]
+name = "cascade"
+old = "craft_window::cascade"
+new = "craft_behavior::placement::cascade"
+status = "moved"
+note = "On `Rect`s of egui's type and a `Vec2` size: `cascade(previous, size, bounds, step) -> Rect`. The craft-window function stays for ui-legacy's viewport manager until cut-over."
+
+[[type]]
+name = "monitor_of"
+old = "craft_window::monitor_of"
+new = "craft_behavior::placement::monitor_of"
+status = "moved"
+note = "`monitor_of(&[Monitor], Rect) -> Option<&Monitor>`: the monitor showing most of the window, else the nearest. The craft-window function stays for ui-legacy's viewport manager until cut-over."
+
+[[type]]
+name = "CASCADE_STEP"
+old = "craft_window::CASCADE_STEP"
+new = ""
+status = "removed"
+note = "The step is the token `size.window.cascade`, reported as `DocumentWindowOutput::cascade` and read by `DockSizes::style`. The constant stays for ui-legacy's viewport manager until cut-over."
+
+[[type]]
+name = "fit_window"
+old = "craft_window::desktop::fit_window"
+new = ""
+status = "removed"
+note = "`shell::app::run` fits the root window once through `WindowHost::act(ViewportId::ROOT, WindowAction::SetMaximized(true))`."
 
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]

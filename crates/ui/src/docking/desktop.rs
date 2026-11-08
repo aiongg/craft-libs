@@ -12,7 +12,7 @@ use crate::runtime::windows::WindowHost;
 pub fn monitors(ctx: &Context) -> Vec<Monitor> {
     let host = WindowHost::of(ctx);
     let Some(scale) = host.facts(ViewportId::ROOT).map(|facts| facts.scale) else { return Vec::new() };
-    host.monitors().into_iter().map(|info| Monitor::new(Some(info.name.clone()), info.points_at(scale), info.scale)).collect()
+    host.monitors_at(scale)
 }
 
 /// The application window under the desktop point `desktop`: the focused one where windows overlap, else the

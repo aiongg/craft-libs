@@ -249,8 +249,16 @@ fn appeared_holds_through_the_discard_pass_of_the_first_frame() {
 fn a_save_key_needs_a_crate_prefix() {
     for bad in [".place", "place", "craft_tests.", "Craft.place", "craft-tests.place"] {
         assert!(std::panic::catch_unwind(|| SaveKey::new(bad)).is_err(), "{bad:?} is no save key");
+        assert!(std::panic::catch_unwind(|| SaveKey::named(bad)).is_err(), "{bad:?} is no save key");
     }
     assert_eq!(SaveKey::new("craft_dialogs.export.place").as_str(), "craft_dialogs.export.place");
+}
+
+/// A key built at run time, one for each open document, names the slots of the same key written out.
+#[trial]
+fn a_save_key_built_at_run_time_names_the_same_slots() {
+    let document = 7;
+    assert_eq!(SaveKey::named(format!("craft_tests.window.{document}")), SaveKey::new("craft_tests.window.7"));
 }
 
 /// Skeleton: `collide::children_and_items_keyed_like_runtime_regions_keep_their_own_ids`.

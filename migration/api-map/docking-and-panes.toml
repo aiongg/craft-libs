@@ -334,7 +334,7 @@ status = "moved"
 [[type]]
 name = "cascade_rects"
 old = "craft_ui::docking::arrange::cascade_rects"
-new = "craft_behavior::dock::cascade_rects"
+new = "craft_behavior::placement::cascade_rects"
 status = "moved"
 
 [[type]]
