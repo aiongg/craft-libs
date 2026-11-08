@@ -7,8 +7,8 @@ use craft_draw::ui::stroke::{
 };
 use craft_ui::contract::{Bind, Role, Show as _};
 use craft_ui::primitives::PaintShape;
-use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers, Pos2, Rect};
+use craft_ui::testing::{Fixture, Frames, trial};
+use egui::{Color32, Key, Modifiers, Pos2, Rect, Shape};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -17,6 +17,8 @@ const SAMPLE: Rect = Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(200.0, 40
 
 /// The dash offset a trial types into its field.
 const TYPED_OFFSET: f32 = 3.0;
+/// One step of an 8-bit alpha, the rounding of a faded fill.
+const ALPHA_STEP: f32 = 1.0;
 
 fn dashed() -> StrokeStyle {
     StrokeStyle::default().with_line_style(LineStyle::Dashed)
@@ -227,4 +229,38 @@ fn stroke_preview_skips_invalid_styles() {
     let half = StrokeStyle { opacity: 0.5, ..StrokeStyle::default() };
     let preview = StrokePreview::new(&half, 4.0);
     assert!(!preview.shapes(SAMPLE).is_empty());
+}
+
+/// The alphas of the filled polygons a stroke button showing `style` paints: the sample's dashes, and any glyph of the
+/// face drawn as a polygon.
+fn sample_alphas(style: &StrokeStyle) -> Vec<u8> {
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut egui::Ui| {
+        let (mut style, mut open) = (style.clone(), false);
+        StrokeButton::new("Stroke Options", Bind::bound(&mut style), Bind::bound(&mut open)).show(ui);
+    };
+    frames.frame_shapes(&mut show);
+    frames
+        .frame_shapes(&mut show)
+        .iter()
+        .filter_map(|shape| match shape {
+            Shape::Path(path) if path.closed && path.fill != Color32::TRANSPARENT => Some(path.fill.a()),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The sample a stroke button shows is painted at the style's opacity: each dash of a half-opaque style has half the
+/// alpha of the same dash at full opacity.
+#[trial]
+fn the_stroke_sample_is_painted_at_the_styles_opacity() {
+    let half = StrokeStyle { opacity: 0.5, ..StrokeStyle::default() };
+    let (full, faded) = (sample_alphas(&StrokeStyle::default()), sample_alphas(&half));
+    assert_eq!(full.len(), faded.len(), "the same sample at both opacities: {full:?} {faded:?}");
+    let dashes: Vec<(u8, u8)> = full.iter().copied().zip(faded.iter().copied()).filter(|(full, faded)| full != faded).collect();
+    assert!(!dashes.is_empty(), "the opacity changes the sample: {full:?}");
+    assert!(
+        dashes.iter().all(|(full, faded)| (f32::from(*full) * half.opacity - f32::from(*faded)).abs() <= ALPHA_STEP),
+        "each dash at half the alpha: {dashes:?}"
+    );
 }
