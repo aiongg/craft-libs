@@ -104,8 +104,8 @@ epaint_default_fonts = "0.37"
 
 [dev-dependencies]
 craft-ui = { path = ".", features = ["testing"] }
-# The fonts trials compare `fonts::deflated_default_definitions` with egui's default fonts.
-egui = { workspace = true, features = ["default_fonts"] }
+# The fonts trials compare `fonts::deflated_default_definitions` with egui's default font files.
+epaint_default_fonts = "0.37"
 # The glossary and api-map trials parse the workspace's sources.
 proc-macro2 = "1"
 syn = { version = "2", features = ["full"] }

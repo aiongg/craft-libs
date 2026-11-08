@@ -11,7 +11,7 @@ use craft_ui::fonts::{
     FontCandidates, MAX_SCRIPT_READS, OnDemandFonts, SystemCandidates, deflated_default_definitions, han_for_locale, on_demand_registered,
 };
 use craft_ui::testing::{Frames, trial};
-use egui::{FontDefinitions, FontFamily, FontId};
+use egui::{FontFamily, FontId};
 
 /// A test face with 日 (and not the Arabic letters of `ARABIC`).
 const CJK: &[u8] = include_bytes!("../../fonts/NotoSansCJKsc-test.otf");
@@ -116,12 +116,17 @@ fn han_preference_follows_ui_language_then_os_locale() {
     assert_eq!(han_for_locale("en", None), None);
 }
 
-/// `deflated_default_definitions` lists egui's faces in egui's family order.
+/// `deflated_default_definitions` holds egui's default font files, with egui's tweaks and family order.
 #[trial]
 fn deflated_defaults_match_egui_defaults() {
-    let egui = FontDefinitions::default();
-    assert!(!egui.font_data.is_empty(), "test builds enable egui's default_fonts");
-    assert_eq!(deflated_default_definitions(), egui);
+    let ours = deflated_default_definitions();
+    let bytes = |name: &str| -> Vec<u8> { ours.font_data.get(name).unwrap_or_else(|| panic!("{name} is missing")).font.as_ref().as_ref().to_vec() };
+    assert_eq!(bytes("Hack"), epaint_default_fonts::HACK_REGULAR);
+    assert_eq!(bytes("Ubuntu-Light"), epaint_default_fonts::UBUNTU_LIGHT);
+    assert_eq!(bytes("egui-icons"), epaint_default_fonts::EGUI_ICONS);
+    let names = |family: FontFamily| ours.families[&family].clone();
+    assert_eq!(names(FontFamily::Proportional), ["Ubuntu-Light", "egui-icons"]);
+    assert_eq!(names(FontFamily::Monospace), ["Hack", "Ubuntu-Light", "egui-icons"]);
 }
 
 /// A source whose lookup is still running: it keeps the wake it was given.

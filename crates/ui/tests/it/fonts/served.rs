@@ -6,7 +6,7 @@ use craft_fonts_build::{EmbeddedFace, ServedFace};
 use craft_ui::fonts::{Emoji, Family, FetchDone, FetchWake, FontFetcher, FontRef, I18nScripts, Stack, SystemFonts, UiFonts};
 use craft_ui::testing::{Frames, trial};
 use egui::epaint::text::{Blob, Fonts, TextOptions};
-use egui::{FontDefinitions, FontFamily, FontId};
+use egui::{FontFamily, FontId};
 
 const ARABIC: &[u8] = include_bytes!("../../fonts/NotoSansArabic-test.ttf");
 /// Noto Sans with Vietnamese ổ but not ẫ.
@@ -50,7 +50,7 @@ const SERVED: &[ServedFace] = &[
 ];
 
 fn egui_face(name: &str) -> egui::FontData {
-    (**FontDefinitions::default().font_data.get(name).expect("egui default_fonts in dev-dependencies")).clone()
+    (**craft_ui::fonts::deflated_default_definitions().font_data.get(name).expect("an egui default face")).clone()
 }
 
 fn web_fonts(ui_language: &str, served: &[ServedFace]) -> UiFonts<'static> {
