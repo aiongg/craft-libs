@@ -340,7 +340,7 @@ impl Shown<'_> {
                 Text::new(words.no_contributors.clone()).show(ui);
                 return;
             }
-            let order = sorted_indices(list, work.names, work.sort, work.descending);
+            let order = sorted_indices(list, work.names, work.sort, !work.descending);
             let columns: Vec<ColumnSpec> = ContributorSort::ALL
                 .iter()
                 .map(|key| {

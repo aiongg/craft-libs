@@ -216,3 +216,18 @@ fn a_preset_name_that_differs_only_in_case_is_refused() {
     assert!(named(&fixture, "poster").is_none(), "the same name in another case is not saved");
     assert!(fixture.by_label("Preset Name").is_some(), "the refused name leaves the Save Preset row open");
 }
+
+/// A card's name carries its size line, which gives the size in the unit the card opens in and its resolution: inches for
+/// a print card, pixels for a screen card, with at most two decimals.
+#[trial]
+fn a_card_is_named_with_its_size_line() {
+    let Rig { mut fixture, .. } = rig();
+    let print = named(&fixture, "Print").expect("the Print tab");
+    fixture.click(&print);
+    fixture.settle();
+    let letter = named(&fixture, "Letter").expect("the Letter card");
+    let name = fixture.tree().name_of(letter.node).expect("named").to_owned();
+    assert_eq!(name, "Letter, 8.5 × 11 in @ 300 ppi");
+    let a4 = named(&fixture, "A4").expect("the A4 card");
+    assert!(fixture.tree().name_of(a4.node).is_some_and(|name| name.starts_with("A4, 8.27 × 11.") && name.ends_with(" in @ 300 ppi")));
+}
