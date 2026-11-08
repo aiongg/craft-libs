@@ -1,20 +1,27 @@
 //! `PaneArea`: task panes around a document. Docked panes are shell panes on the area's edges, floating panes are
 //! floating frames, and the app keeps which panes are open and where they are.
+//!
+//! Drops. A pane area has no dock `Layout`, so it does not register `DockTargets` spots: a spot resolves to a layout
+//! `Action`, and the area's drops resolve to [`PaneRequest`]s on the app's own pane list. The area's edge bands are
+//! the one `craft_behavior::dock::zones` function over the area at the docking `edge_band` size (the dock's own
+//! `frame::edge_bands` additionally follows the layout's groups), and the drop marks and the drop-over-a-pane halves
+//! follow the pane order the app keeps.
 
-use crate::contract::overlay::{Anchor, Popup, Trigger};
+use crate::contract::overlay::Popup;
 use crate::contract::{
     BodyCx, Common, Component, Container, ContainerProps, Cx, DropMark, DropOperation, DropTarget, HeaderRegion, Mount, NoValue, Outcome, Pad,
     PaneEdge, Pointer as _, Props as _, Remember as _, Role, Scroll, ShellPane, Show as _, ShowContainer as _, Sizing, WordSetCx as _,
 };
 use crate::display::Divider;
 use crate::docking::{DockSizes, DockWords, DragUnit, FloatingGroup, GroupDrag, PanelKey, PanelLimits};
-use crate::menu::{Menu, MenuItem};
+use crate::menu::MenuItem;
 use crate::runtime::commands::{CommandSet as _, CommandState, Commands as _};
 use crate::runtime::env::Label;
 use crate::runtime::focus::FocusPolicy;
-use crate::sections::{HeaderAction, HeaderStrength, TitleOutput, TitleRow};
+use crate::sections::{HeaderAction, HeaderStrength, MenuRows, TitleRow};
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
-use craft_behavior::{GesturePhase, Metrics, Sense};
+use craft_behavior::dock::{ZoneSize, zones};
+use craft_behavior::{DockSide, GesturePhase, Metrics, Sense};
 use egui::{Id, Pos2, Rect, Response, Ui, Vec2};
 use std::cell::{Cell, RefCell};
 use std::fmt::Debug;
@@ -47,17 +54,19 @@ pub struct PaneState {
     /// The floating frame's rect, also kept while the pane is docked. `None`: the frame opens at the pane's float
     /// size.
     pub float_rect: Option<Rect>,
+    /// A floating pane shows its title row only. Kept while the pane is docked, where it has no effect.
+    pub minimized: bool,
 }
 
 impl PaneState {
     /// A pane docked to `edge`, `size` along the edge, with no remembered floating rect.
     pub const fn docked(edge: PaneEdge, size: f32) -> Self {
-        PaneState { place: PanePlace::Docked(edge), size: Some(size), float_rect: None }
+        PaneState { place: PanePlace::Docked(edge), size: Some(size), float_rect: None, minimized: false }
     }
 
     /// A pane floating in `rect`.
     pub const fn floating(rect: Rect) -> Self {
-        PaneState { place: PanePlace::Floating, size: None, float_rect: Some(rect) }
+        PaneState { place: PanePlace::Floating, size: None, float_rect: Some(rect), minimized: false }
     }
 
     /// The state after `request`, for an app that keeps states by applying requests.
@@ -65,6 +74,7 @@ impl PaneState {
         match request {
             PaneRequest::Place(_, place) => self.place = *place,
             PaneRequest::FloatRect(_, rect) => self.float_rect = Some(*rect),
+            PaneRequest::Minimize(_, on) => self.minimized = *on,
             PaneRequest::Close(_) | PaneRequest::Focus(_) | PaneRequest::Before(..) => {}
         }
     }
@@ -94,6 +104,8 @@ pub enum PaneRequest<P> {
     Place(P, PanePlace),
     /// The user moved or resized the floating frame to this rect. It arrives every pass a gesture changes the rect.
     FloatRect(P, Rect),
+    /// The user minimized the floating pane (`true`) or restored it (`false`).
+    Minimize(P, bool),
     /// The pane took focus.
     Focus(P),
     /// Move the first pane in `panes` to directly before the second (`None`: after every pane), which puts it
@@ -106,7 +118,7 @@ impl<P> PaneRequest<P> {
     /// The pane the request is about.
     pub fn pane(&self) -> &P {
         match self {
-            Self::Close(p) | Self::Place(p, _) | Self::FloatRect(p, _) | Self::Focus(p) | Self::Before(p, _) => p,
+            Self::Close(p) | Self::Place(p, _) | Self::FloatRect(p, _) | Self::Minimize(p, _) | Self::Focus(p) | Self::Before(p, _) => p,
         }
     }
 }
@@ -115,13 +127,16 @@ impl<P> PaneRequest<P> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui_macros::CommandSet)]
 #[command(prefix = "pane", scope = "pane")]
 #[non_exhaustive]
-pub enum PaneCommand {
+pub enum PaneCommands {
     /// Dock the pane outermost at the start edge.
     #[command(label = "Move to Start")]
     MoveToStart,
     /// Dock the pane outermost at the end edge.
     #[command(label = "Move to End")]
     MoveToEnd,
+    /// Dock the pane outermost at the top edge.
+    #[command(label = "Move to Top")]
+    MoveToTop,
     /// Dock the pane outermost at the bottom edge.
     #[command(label = "Move to Bottom")]
     MoveToBottom,
@@ -132,6 +147,10 @@ pub enum PaneCommand {
     #[command(label = "Close")]
     Close,
 }
+
+/// The commands that move a pane, in menu order.
+const MOVES: [PaneCommands; 5] =
+    [PaneCommands::MoveToStart, PaneCommands::MoveToEnd, PaneCommands::MoveToTop, PaneCommands::MoveToBottom, PaneCommands::Float];
 
 /// What the app says about a pane.
 #[derive(Clone, Debug)]
@@ -152,12 +171,24 @@ pub struct PaneSpec {
     /// `false`: a docked pane has no title row, for a body that draws its own header. A floating pane always has
     /// one, since it moves the frame.
     pub title_bar: bool,
+    /// `true`: the body is one collection (a layers list, a bin) that owns the scroll. `false`: the pane scrolls its
+    /// body.
+    pub collection_body: bool,
 }
 
 impl PaneSpec {
     /// A movable, closable pane titled `title` with a title row and no size limits.
     pub fn new(title: impl Into<Label>, default_state: PaneState, float_size: Vec2) -> Self {
-        PaneSpec { title: title.into(), default_state, limits: PanelLimits::default(), float_size, movable: true, closable: true, title_bar: true }
+        PaneSpec {
+            title: title.into(),
+            default_state,
+            limits: PanelLimits::default(),
+            float_size,
+            movable: true,
+            closable: true,
+            title_bar: true,
+            collection_body: false,
+        }
     }
 }
 
@@ -252,17 +283,18 @@ fn outermost<P>(panes: &[Shown<P>], policy: SidePolicy, edge: PaneEdge, dragged:
 }
 
 /// The requests of a pane command acting on `pane`.
-fn command_requests<P: Clone>(panes: &[Shown<P>], policy: SidePolicy, pane: PanelKey, command: PaneCommand) -> Vec<PaneRequest<P>> {
+fn command_requests<P: Clone>(panes: &[Shown<P>], policy: SidePolicy, pane: PanelKey, command: PaneCommands) -> Vec<PaneRequest<P>> {
     let Some(shown) = panes.iter().find(|s| s.key == pane) else { return Vec::new() };
     let dock = |edge| dock_requests(panes, pane, edge, outermost(panes, policy, edge, pane));
     match command {
-        PaneCommand::MoveToStart if shown.spec.movable => dock(PaneEdge::Start),
-        PaneCommand::MoveToEnd if shown.spec.movable => dock(PaneEdge::End),
-        PaneCommand::MoveToBottom if shown.spec.movable => dock(PaneEdge::Bottom),
-        PaneCommand::Float if shown.spec.movable && shown.state.place != PanePlace::Floating => {
+        PaneCommands::MoveToStart if shown.spec.movable => dock(PaneEdge::Start),
+        PaneCommands::MoveToEnd if shown.spec.movable => dock(PaneEdge::End),
+        PaneCommands::MoveToTop if shown.spec.movable => dock(PaneEdge::Top),
+        PaneCommands::MoveToBottom if shown.spec.movable => dock(PaneEdge::Bottom),
+        PaneCommands::Float if shown.spec.movable && shown.state.place != PanePlace::Floating => {
             vec![PaneRequest::Place(shown.pane.clone(), PanePlace::Floating)]
         }
-        PaneCommand::Close if shown.spec.closable => vec![PaneRequest::Close(shown.pane.clone())],
+        PaneCommands::Close if shown.spec.closable => vec![PaneRequest::Close(shown.pane.clone())],
         _ => Vec::new(),
     }
 }
@@ -287,16 +319,6 @@ impl Side {
         }
     }
 
-    /// The strip of `depth` along this side of `rect`.
-    fn band(self, rect: Rect, depth: f32) -> Rect {
-        match self {
-            Side::Left => Rect::from_min_max(rect.min, Pos2::new(rect.min.x + depth, rect.max.y)),
-            Side::Right => Rect::from_min_max(Pos2::new(rect.max.x - depth, rect.min.y), rect.max),
-            Side::Top => Rect::from_min_max(rect.min, Pos2::new(rect.max.x, rect.min.y + depth)),
-            Side::Bottom => Rect::from_min_max(Pos2::new(rect.min.x, rect.max.y - depth), rect.max),
-        }
-    }
-
     /// The line across `rect` at its outer (`outer`) or inner boundary.
     fn boundary(self, rect: Rect, outer: bool) -> DropMark {
         let (from, to) = match (self, outer) {
@@ -306,6 +328,17 @@ impl Side {
             (Side::Top, false) | (Side::Bottom, true) => (rect.left_bottom(), rect.right_bottom()),
         };
         DropMark::line(from, to)
+    }
+}
+
+/// The edge of the area a dock side names; the centre is no edge.
+fn pane_edge(side: DockSide) -> Option<PaneEdge> {
+    match side {
+        DockSide::Start => Some(PaneEdge::Start),
+        DockSide::End => Some(PaneEdge::End),
+        DockSide::Top => Some(PaneEdge::Top),
+        DockSide::Bottom => Some(PaneEdge::Bottom),
+        _ => None,
     }
 }
 
@@ -337,11 +370,10 @@ impl<P: Clone + Eq + Hash + Send + Sync + 'static> PaneDrop<'_, P> {
         let one_slot = self.policy == SidePolicy::OneSlot;
         let (edge, before, mark) = match self.zone {
             Zone::Edges { bounds, band } => {
-                let edge = [PaneEdge::Start, PaneEdge::End, PaneEdge::Bottom, PaneEdge::Top]
+                let (edge, zone) = zones(bounds, ZoneSize::Depth(band), self.rtl)
                     .into_iter()
-                    .find(|edge| Side::of(*edge, self.rtl).is_some_and(|side| side.band(bounds, band).contains(at)))?;
-                let side = Side::of(edge, self.rtl)?;
-                (edge, outermost(self.panes, self.policy, edge, dragged), DropMark::Into(side.band(bounds, band)))
+                    .find_map(|(side, zone)| zone.contains(at).then(|| pane_edge(side).map(|edge| (edge, zone))).flatten())?;
+                (edge, outermost(self.panes, self.policy, edge, dragged), DropMark::Into(zone))
             }
             Zone::Over { pane, edge, rect } => {
                 let side = Side::of(edge, self.rtl)?;
@@ -417,9 +449,6 @@ impl Outcome for PaneFrameOutput {
     }
 }
 
-/// The rows of the menu a pane hangs from its title row.
-type MenuRows<'a> = Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>;
-
 /// Takes the drop released on a container.
 type TakeDrop<'a, C> = Box<dyn for<'b, 'c> FnMut(&'b mut Cx<'c, C>) + 'a>;
 
@@ -440,8 +469,9 @@ pub struct PaneFrame<'a> {
 }
 
 impl<'a> PaneFrame<'a> {
-    /// A pane titled `title` on `edge`, `extent` along it (`None`: the size it first took).
-    fn new(title: Label, edge: PaneEdge, extent: Option<f32>, titled: bool) -> Self {
+    /// A pane for `spec` on `edge`, `extent` along it (`None`: the size it first took). The body scrolls unless the
+    /// spec says it is one collection, which owns the scroll.
+    fn new(spec: &PaneSpec, edge: PaneEdge, extent: Option<f32>) -> Self {
         let mut pane = ShellPane::new("pane").edge(edge);
         if let Some(extent) = extent {
             pane = pane.extent(extent);
@@ -451,14 +481,14 @@ impl<'a> PaneFrame<'a> {
             .surface(SurfaceKind::Panel)
             .pad(Pad::Regular)
             .sizing(Sizing::Fill)
-            .scroll(Scroll::vertical())
             .focus(FocusPolicy::PANE)
-            .command_scope(PaneCommand::SCOPE);
-        if titled {
+            .command_scope(PaneCommands::SCOPE);
+        props = if spec.collection_body { props.collection_body() } else { props.scroll(Scroll::vertical()) };
+        if spec.title_bar {
             props = props.header(HeaderRegion::new().rule(true));
         }
         PaneFrame { common: Common::new(), props, actions: Vec::new(), menu: None, take_drop: None, taken: None, menu_opener: None, focused: false }
-            .label(title)
+            .label(spec.title.clone())
     }
 }
 
@@ -498,21 +528,9 @@ impl Container for PaneFrame<'_> {
         let shown = TitleRow::new(cx.label()).strength(HeaderStrength::Strong).actions(self.actions.iter().copied()).show(ui);
         self.taken = shown.action.or(self.taken);
         if let Some(rows) = self.menu.as_mut() {
-            self.menu_opener = hang(rows, ui, cx, &shown);
+            self.menu_opener = rows.hang(ui, &shown, cx.words::<DockWords>().pane_menu.clone());
         }
     }
-}
-
-/// Hangs the pane menu from the title row `shown`: it opens from the Menu action and from the context request (right
-/// click, Menu key, Shift+F10). Returns the row's id when the Menu action was taken this pass.
-fn hang(rows: &mut MenuRows<'_>, ui: &mut Ui, cx: &mut BodyCx<'_>, shown: &TitleOutput) -> Option<Id> {
-    let name = cx.words::<DockWords>().pane_menu.clone();
-    let mut menu = Menu::new(name).opened_by(&shown.edit.response, Trigger::Manual);
-    if let Some(button) = shown.menu_rect {
-        menu = menu.anchor(Anchor::Rect(button));
-    }
-    menu.opened_by(&shown.edit.response, Trigger::Context).show(ui, |ui, menu| rows(ui, menu));
-    (shown.action == Some(HeaderAction::Menu)).then_some(shown.edit.response.id)
 }
 
 /// The style of a pane area: the docking sizes of its drop bands and its floating cascade.
@@ -587,10 +605,6 @@ impl Container for PaneRoot<'_> {}
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct LastFocus(Option<PanelKey>);
 
-/// The floating panes shown as their title row only.
-#[derive(Clone, Debug, Default)]
-struct Minimized(Vec<PanelKey>);
-
 /// The app's side panes, bottom panes and floating panes around its document.
 ///
 /// - **Docked panes** are shell panes on the area's edges, in `panes` order with the first outermost. Under
@@ -599,7 +613,7 @@ struct Minimized(Vec<PanelKey>);
 ///   it is released over an edge band or a docked pane.
 /// - **State.** The app owns which panes are open, where they are and how big. The area returns the user's changes as
 ///   [`PaneRequest`]s for the app to apply, and reads the states again through [`PaneContent::state`].
-/// - **Menu.** Each pane's menu holds the app's rows, then the [`PaneCommand`] rows. Every row is also a command that
+/// - **Menu.** Each pane's menu holds the app's rows, then the [`PaneCommands`] rows. Every row is also a command that
 ///   acts on the pane holding focus.
 /// - **Centre.** The closure given to `show` fills what the docked panes leave.
 #[must_use = "show the pane area with `show`"]
@@ -694,7 +708,7 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> PaneArea<'a, P> {
                 for pane in shown.iter().filter(|s| s.state.place == PanePlace::Floating) {
                     let rect = pane.state.float_rect.unwrap_or_else(|| Rect::from_min_size(bounds.min + Vec2::splat(cascade), pane.spec.float_size));
                     cascade += inset;
-                    show_floating(ui, cx, &pass, pane, rect, bounds);
+                    show_floating(ui, &pass, pane, rect, bounds);
                 }
             }
             let held = pass.focused.borrow().as_ref().map(PanelKey::of);
@@ -722,14 +736,14 @@ fn extent_of<P>(pane: &Shown<P>, edge: PaneEdge) -> Option<f32> {
 
 /// Shows one docked pane and queues what the user did with it. Returns whether the pane holds focus.
 fn show_docked<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(ui: &mut Ui, pass: &Pass<'_, P>, pane: &Shown<P>, edge: PaneEdge) -> bool {
-    let mut frame = PaneFrame::new(pane.spec.title.clone(), edge, extent_of(pane, edge), pane.spec.title_bar);
+    let mut frame = PaneFrame::new(&pane.spec, edge, extent_of(pane, edge));
     if pane.spec.movable || pane.spec.closable {
         frame.actions.push(HeaderAction::Menu);
     }
     if pane.spec.closable {
         frame.actions.push(HeaderAction::Close);
     }
-    frame.menu = Some(Box::new(|ui, menu| pane_menu(ui, menu, pane, &pass.content)));
+    frame.menu = Some(MenuRows::new(|ui, menu| pane_menu(ui, menu, pane, &pass.content)));
     let key = pane.key;
     frame.take_drop = Some(taker(|cx: &mut Cx<'_, PaneFrame<'_>>| {
         let zone = Zone::Over { pane: key, edge, rect: cx.rect };
@@ -750,17 +764,12 @@ fn show_docked<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(ui: &mut Ui
 }
 
 /// Shows one floating pane and queues what the user did with it.
-fn show_floating<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
-    ui: &mut Ui,
-    cx: &mut BodyCx<'_>,
-    pass: &Pass<'_, P>,
-    pane: &Shown<P>,
-    rect: Rect,
-    bounds: Rect,
-) {
-    let minimized = cx.keep::<Minimized>().0.contains(&pane.key);
-    let mut group = FloatingGroup::new(pane.spec.title.clone(), rect).bounds(bounds).limits(pane.spec.limits).minimized(minimized);
+fn show_floating<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(ui: &mut Ui, pass: &Pass<'_, P>, pane: &Shown<P>, rect: Rect, bounds: Rect) {
+    let mut group = FloatingGroup::new(pane.spec.title.clone(), rect).bounds(bounds).limits(pane.spec.limits).minimized(pane.state.minimized);
     let mut actions = Vec::new();
+    if pane.spec.collection_body {
+        group = group.collection_body();
+    }
     if pane.spec.movable {
         group = group.window_of(pane.pane.clone());
         actions.push(HeaderAction::Float);
@@ -782,13 +791,7 @@ fn show_floating<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
         pass.sink.borrow_mut().push(PaneRequest::FloatRect(pane.pane.clone(), change.rect));
     }
     if shown.minimized_toggled {
-        let kept = &mut cx.keep::<Minimized>().0;
-        match kept.iter().position(|key| *key == pane.key) {
-            Some(at) => {
-                kept.remove(at);
-            }
-            None => kept.push(pane.key),
-        }
+        pass.sink.borrow_mut().push(PaneRequest::Minimize(pane.pane.clone(), !pane.state.minimized));
     }
     if shown.response.has_focus() {
         *pass.focused.borrow_mut() = Some(pane.pane.clone());
@@ -799,13 +802,14 @@ fn show_floating<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
 /// The request of a title row action. A floating pane's Float action docks it at the edge of its default state.
 fn queue_action<P: Clone>(action: Option<HeaderAction>, pass: &Pass<'_, P>, pane: &Shown<P>) {
     let command = match (action, pane.state.place) {
-        (Some(HeaderAction::Close), _) => PaneCommand::Close,
+        (Some(HeaderAction::Close), _) => PaneCommands::Close,
         (Some(HeaderAction::Float), PanePlace::Floating) => match pane.spec.default_state.place {
-            PanePlace::Docked(PaneEdge::End) => PaneCommand::MoveToEnd,
-            PanePlace::Docked(PaneEdge::Bottom) => PaneCommand::MoveToBottom,
-            _ => PaneCommand::MoveToStart,
+            PanePlace::Docked(PaneEdge::End) => PaneCommands::MoveToEnd,
+            PanePlace::Docked(PaneEdge::Top) => PaneCommands::MoveToTop,
+            PanePlace::Docked(PaneEdge::Bottom) => PaneCommands::MoveToBottom,
+            _ => PaneCommands::MoveToStart,
         },
-        (Some(HeaderAction::Float), _) => PaneCommand::Float,
+        (Some(HeaderAction::Float), _) => PaneCommands::Float,
         _ => return,
     };
     pass.sink.borrow_mut().extend(command_requests(pass.panes, pass.policy, pane.key, command));
@@ -813,11 +817,11 @@ fn queue_action<P: Clone>(action: Option<HeaderAction>, pass: &Pass<'_, P>, pane
 
 /// Publishes the state of the pane commands and queues the ones that reached the pane this pass.
 fn take_commands<P: Clone>(cx: &mut BodyCx<'_>, pass: &Pass<'_, P>, pane: &Shown<P>) {
-    for command in [PaneCommand::MoveToStart, PaneCommand::MoveToEnd, PaneCommand::MoveToBottom, PaneCommand::Float] {
+    for command in MOVES {
         cx.publish(command, CommandState::new().enabled(pane.spec.movable));
     }
-    cx.publish(PaneCommand::Close, CommandState::new().enabled(pane.spec.closable));
-    while let Some((command, _)) = cx.take_command::<PaneCommand>() {
+    cx.publish(PaneCommands::Close, CommandState::new().enabled(pane.spec.closable));
+    while let Some((command, _)) = cx.take_command::<PaneCommands>() {
         pass.sink.borrow_mut().extend(command_requests(pass.panes, pass.policy, pane.key, command));
     }
 }
@@ -828,10 +832,10 @@ fn pane_menu<P: Clone>(ui: &mut Ui, cx: &mut BodyCx<'_>, pane: &Shown<P>, conten
     Divider::horizontal().show(ui);
     let mut commands = Vec::new();
     if pane.spec.movable {
-        commands.extend([PaneCommand::MoveToStart, PaneCommand::MoveToEnd, PaneCommand::MoveToBottom, PaneCommand::Float]);
+        commands.extend(MOVES);
     }
     if pane.spec.closable {
-        commands.push(PaneCommand::Close);
+        commands.push(PaneCommands::Close);
     }
     for command in commands {
         MenuItem::command(command).show(ui);

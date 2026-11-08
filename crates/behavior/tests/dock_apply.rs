@@ -1,9 +1,9 @@
 //! Dock transactions, workspaces, arrangements, document windows and native placement.
 
 use craft_behavior::dock::{
-    Action, Arrangement, Column, DockEdge, DockError, DockSide, DocumentGroup, DocumentWindows, Floating, Group, Layout,
-    NamedWorkspace, NativeSpace, Node, PanelPlace, PanelState, Permissions, Placement, SplitSize, Target, Workspace, WorkspaceChrome, WorkspaceError,
-    WorkspaceSet, arrange_rects, kept_reachable, node_at, restore_rect,
+    Action, Arrangement, Column, DockEdge, DockError, DockSide, DocumentGroup, DocumentWindows, Floating, Group, Layout, NamedWorkspace, NativeSpace,
+    Node, PanelPlace, PanelState, Permissions, Placement, SplitSize, Target, Workspace, WorkspaceChrome, WorkspaceError, WorkspaceSet, arrange_rects,
+    kept_reachable, node_at, restore_rect,
 };
 use craft_behavior::placement::{cascade, cascade_rects, monitor_of};
 use craft_behavior::{Axis, Monitor};
@@ -360,7 +360,7 @@ fn a_document_window_and_a_floating_dock_window_cascade_alike_on_the_monitor_of_
 }
 
 #[test]
-fn arrangements_are_enabled_by_the_document_count_and_round_trip_their_command_ids() {
+fn arrangements_are_enabled_by_the_document_count() {
     assert!(!Arrangement::TwoUpVertical.enabled(1, 1, 0));
     assert!(!Arrangement::MatchAll.enabled(1, 1, 0));
     assert!(Arrangement::FloatInWindow.enabled(1, 1, 0));
@@ -369,7 +369,6 @@ fn arrangements_are_enabled_by_the_document_count_and_round_trip_their_command_i
     assert_eq!(Arrangement::FourUp.group_count(9), Some(4));
     assert_eq!(Arrangement::Tile.group_count(9), Some(9));
     assert_eq!(Arrangement::MatchZoom.group_count(9), None);
-    assert_eq!(Arrangement::from_command_id(Arrangement::FourUp.command_id()), Some(Arrangement::FourUp));
 }
 
 fn windows(documents: &[&'static str]) -> DocumentWindows<&'static str> {

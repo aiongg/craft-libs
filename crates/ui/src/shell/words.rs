@@ -44,5 +44,7 @@ craft_ui::words! {
         title_bar: "titleBar.name" = "Title Bar";
         /// The description of a title that shows the mark of unsaved changes.
         unsaved: "titleBar.unsaved" = "Unsaved changes";
+        /// A document title with the mark of unsaved changes.
+        unsaved_title: template "titleBar.unsavedTitle" = "{title} *";
     }
 }

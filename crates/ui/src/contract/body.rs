@@ -402,7 +402,7 @@ pub(super) struct BodyHooks<'b> {
     /// How far the widest region wants to exceed the width the room allows, from this pass's measure.
     overflow: f32,
     /// The room the mount offers, in which a content-sized body runs.
-    room: Rect,
+    room: Vec2,
     open: bool,
     open_at_read: bool,
     open_bound: bool,
@@ -658,7 +658,7 @@ impl<'b> BodyHooks<'b> {
             end_last: Vec2::ZERO,
             region_gap: 0.0,
             overflow: 0.0,
-            room: Rect::NOTHING,
+            room: Vec2::ZERO,
             open: true,
             open_at_read: true,
             open_bound: false,
@@ -887,7 +887,7 @@ impl<'b> BodyHooks<'b> {
 
     /// The room a content-sized body runs in: what the mount offers, less the padding.
     fn room_size(&self, rect: Rect, inner: Rect) -> Vec2 {
-        self.room.size() - (inner.min - rect.min) * 2.0
+        self.room - (inner.min - rect.min) * 2.0
     }
 
     /// The room a layer offers its content: the safe rect, or the share of it the overlay caps its content at.
@@ -1146,15 +1146,15 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
     fn extent(&mut self, comp: &C, ui: &Ui, at: ShowAt, _id: Id, scx: &StyleCx<'_>) -> Vec2 {
         let props = comp.props(Internal::new());
         self.room = match (overlay_of(props), self.fixed) {
-            (Some(overlay), false) => Self::layer_room(ui.ctx(), overlay),
+            (Some(overlay), false) => Self::layer_room(ui.ctx(), overlay).size(),
             _ => match at {
-                ShowAt::Rect(rect) => rect,
-                ShowAt::Flow => ui.available_rect_before_wrap(),
+                ShowAt::Rect(rect) => rect.size(),
+                ShowAt::Flow => crate::layout::flow_room(ui),
             },
         };
         let remembered = self.remembered.unwrap_or(Vec2::ZERO);
         let body = if self.presence.visible { Vec2::new(remembered.x, remembered.y * self.presence.t) } else { Vec2::ZERO };
-        let room = self.room.width() - 2.0 * pad_of(scx.tokens, props.pad);
+        let room = self.room.x - 2.0 * pad_of(scx.tokens, props.pad);
         let inline = props.header.is_some_and(|header| header.inline);
         let width = if self.remembered.is_some() { self.shared_width(room, inline) } else { 0.0 };
         self.overflow = self.wanted_width(inline).map_or(0.0, |wanted| (wanted - room.max(0.0)).max(0.0));
@@ -1166,14 +1166,14 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
     fn sized(&self, comp: &C, ui: &Ui, size: Vec2) -> Vec2 {
         match self.sizing(comp.props(Internal::new())) {
             Sizing::Fill => {
-                let room = ui.available_size_before_wrap();
+                let room = crate::layout::flow_room(ui);
                 // The available rect, not at least it: a fill child that took the whole room in an earlier pass (a
                 // content-sized layer offers its whole room before the footer is known) must not keep its remembered
                 // size once the room is less.
                 Vec2::new(if room.x.is_finite() { room.x } else { size.x }, if room.y.is_finite() { room.y } else { size.y })
             }
             Sizing::FillWidth => {
-                let room = ui.available_width();
+                let room = crate::layout::flow_room(ui).x;
                 Vec2::new(if room.is_finite() { size.x.max(room) } else { size.x }, size.y)
             }
             Sizing::Content => size,

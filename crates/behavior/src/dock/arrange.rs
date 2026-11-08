@@ -49,57 +49,6 @@ pub enum Arrangement {
 }
 
 impl Arrangement {
-    /// The command id (`window.arrange.tileAllVertically`).
-    pub fn command_id(self) -> &'static str {
-        match self {
-            Self::TileAllVertically => "window.arrange.tileAllVertically",
-            Self::TileAllHorizontally => "window.arrange.tileAllHorizontally",
-            Self::TwoUpVertical => "window.arrange.twoUpVertical",
-            Self::TwoUpHorizontal => "window.arrange.twoUpHorizontal",
-            Self::ThreeUpVertical => "window.arrange.threeUpVertical",
-            Self::ThreeUpHorizontal => "window.arrange.threeUpHorizontal",
-            Self::ThreeUpStacked => "window.arrange.threeUpStacked",
-            Self::FourUp => "window.arrange.fourUp",
-            Self::SixUp => "window.arrange.sixUp",
-            Self::ConsolidateAllToTabs => "window.arrange.consolidateAllToTabs",
-            Self::Cascade => "window.arrange.cascade",
-            Self::Tile => "window.arrange.tile",
-            Self::FloatInWindow => "window.arrange.floatInWindow",
-            Self::FloatAllInWindows => "window.arrange.floatAllInWindows",
-            Self::NewWindowForDocument => "window.arrange.newWindowForDocument",
-            Self::MatchZoom => "window.arrange.matchZoom",
-            Self::MatchLocation => "window.arrange.matchLocation",
-            Self::MatchRotation => "window.arrange.matchRotation",
-            Self::MatchAll => "window.arrange.matchAll",
-        }
-    }
-
-    /// The entry for a command id, `None` for other ids.
-    pub fn from_command_id(id: &str) -> Option<Self> {
-        match id.strip_prefix("window.arrange.")? {
-            "tileAllVertically" => Some(Self::TileAllVertically),
-            "tileAllHorizontally" => Some(Self::TileAllHorizontally),
-            "twoUpVertical" => Some(Self::TwoUpVertical),
-            "twoUpHorizontal" => Some(Self::TwoUpHorizontal),
-            "threeUpVertical" => Some(Self::ThreeUpVertical),
-            "threeUpHorizontal" => Some(Self::ThreeUpHorizontal),
-            "threeUpStacked" => Some(Self::ThreeUpStacked),
-            "fourUp" => Some(Self::FourUp),
-            "sixUp" => Some(Self::SixUp),
-            "consolidateAllToTabs" => Some(Self::ConsolidateAllToTabs),
-            "cascade" => Some(Self::Cascade),
-            "tile" => Some(Self::Tile),
-            "floatInWindow" => Some(Self::FloatInWindow),
-            "floatAllInWindows" => Some(Self::FloatAllInWindows),
-            "newWindowForDocument" => Some(Self::NewWindowForDocument),
-            "matchZoom" => Some(Self::MatchZoom),
-            "matchLocation" => Some(Self::MatchLocation),
-            "matchRotation" => Some(Self::MatchRotation),
-            "matchAll" => Some(Self::MatchAll),
-            _ => None,
-        }
-    }
-
     /// How many document groups an n-up or tile arrangement wants, `None` for the window and
     /// view entries.
     pub fn group_count(self, documents: usize) -> Option<usize> {

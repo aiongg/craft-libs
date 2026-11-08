@@ -3,12 +3,12 @@
 
 mod drag;
 mod keys;
-mod kit;
+pub(crate) mod kit;
 mod list;
 mod reorder_groups;
 mod review;
 mod row_children;
 mod rows;
 mod strip;
-mod table;
+pub(crate) mod table;
 mod table_trials;

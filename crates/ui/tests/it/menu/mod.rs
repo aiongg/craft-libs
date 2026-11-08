@@ -87,8 +87,9 @@ fn rest_on(fixture: &mut Fixture, row: &str) {
 
 #[trial]
 fn resting_on_a_second_submenu_row_closes_the_first_submenu() {
-    let submenu =
-        |label: &str, inner: &str| PanelRow::Submenu(label.to_owned().into(), vec![PanelRow::Item(Entry::new(GroupItem::Float, inner.to_owned()))]);
+    let submenu = |label: &str, inner: &str| {
+        PanelRow::Submenu(label.to_owned().into(), vec![PanelRow::Item(Entry::new(GroupItem::MoveTo(0), inner.to_owned()))])
+    };
     let mut fixture = Fixture::new(move |ui| {
         let opener = Button::new("Panel").show(ui);
         Menu::new("Panel").opened_by(&opener, Trigger::Press).show(ui, |ui, _| {
@@ -176,8 +177,8 @@ fn a_disabled_panel_row_does_not_run() {
         let mut open = true;
         Menu::new("Panel").open(Bind::bound(&mut open)).opened_by(&opener, Trigger::Click).show(ui, |ui, _| {
             let rows = vec![
-                PanelRow::Item(Entry::new(GroupItem::StepGroup(true), "Move Group Up".to_owned()).enabled(false)),
-                PanelRow::Item(Entry::new(GroupItem::Float, "Float".to_owned())),
+                PanelRow::Item(Entry::new(GroupItem::AutoCollapse, "Auto-Collapse Iconic Panels".to_owned()).enabled(false)),
+                PanelRow::Item(Entry::new(GroupItem::CollapseToIcons, "Collapse to Icons".to_owned())),
             ];
             if let Some(item) = PanelMenu::new(Vec::new(), rows).show(ui).picked {
                 shown_picked.set(Some(item));
@@ -185,12 +186,12 @@ fn a_disabled_panel_row_does_not_run() {
         });
     });
     fixture.settle();
-    let disabled = fixture.by_label("Move Group Up").expect("the disabled row shows");
+    let disabled = fixture.by_label("Auto-Collapse Iconic Panels").expect("the disabled row shows");
     fixture.click(&disabled);
     fixture.idle(2);
     assert_eq!(picked.get(), None, "a disabled row reports nothing");
-    let enabled = fixture.by_label("Float").expect("the enabled row shows");
+    let enabled = fixture.by_label("Collapse to Icons").expect("the enabled row shows");
     fixture.click(&enabled);
     fixture.idle(2);
-    assert_eq!(picked.get(), Some(GroupItem::Float), "an enabled row reports its item");
+    assert_eq!(picked.get(), Some(GroupItem::CollapseToIcons), "an enabled row reports its item");
 }

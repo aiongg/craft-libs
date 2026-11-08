@@ -1,10 +1,10 @@
 //! Stories of the row types of the list family: `ListRow`.
 
-use super::{ListRow, RowInk};
+use super::{ListRow, RowInk, TrailingFace, TrailingPart};
 use crate::contract::Show as _;
 use crate::primitives::IconSpec;
 use crate::testing::{Drive, StoryData, StoryOutput, show_as_only_item, story};
-use craft_behavior::ColumnKey;
+use craft_behavior::{ColumnKey, IconId};
 use egui::{Pos2, Rect, Ui};
 
 #[story(ListRow<'static>, covers = [Default], drive = Drive::Activate)]
@@ -39,4 +39,23 @@ fn list_row_text_cell(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
         (SIZE, Rect::from_min_max(Pos2::new(split, 0.0), Pos2::new(left + width, height))),
     ];
     show_as_only_item(ui, ListRow::new("report.pdf").cells(&cells).cell(SIZE, "2.4 MB")).into()
+}
+
+fn trailing_row() -> ListRow<'static> {
+    ListRow::new("Background copy")
+        .trailing("100%")
+        .trailing_icon(IconId::new("lock"), "Locked")
+        .trailing_part(TrailingPart::new(0), TrailingFace::disclosure(false), "Effects")
+        .optional("Multiply")
+}
+
+#[story(ListRow<'static>, covers = [], drive = Drive::Never)]
+fn list_row_trailing_items(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    show_as_only_item(ui, trailing_row()).into()
+}
+
+#[story(ListRow<'static>, covers = [], drive = Drive::Never)]
+fn list_row_trailing_items_narrow(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    ui.set_max_width(ui.available_width() * 0.3);
+    show_as_only_item(ui, trailing_row()).into()
 }

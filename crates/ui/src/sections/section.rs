@@ -4,6 +4,7 @@
 use super::group_box::SECTION_LEVEL;
 use super::stack::StackSlot;
 use super::title_row::{HeaderAction, HeaderStrength, MenuRows, TitleRow};
+use super::words::SectionWords;
 use crate::contract::overlay::Popup;
 use crate::contract::{
     Bind, BindMut, BodyCx, Collapse, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, NoValue, Outcome, Pointer as _,
@@ -213,7 +214,7 @@ impl Container for Section<'_> {
             self.taken = Some(action);
         }
         if let Some(rows) = self.menu.as_mut() {
-            self.menu_opener = rows.hang(ui, cx, &shown);
+            self.menu_opener = rows.hang(ui, &shown, cx.words::<SectionWords>().menu.clone());
         }
     }
 }

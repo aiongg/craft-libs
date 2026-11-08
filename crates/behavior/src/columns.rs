@@ -7,12 +7,32 @@ use std::ops::Range;
 
 /// The key of a column; stable across reordering and resizing.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct ColumnKey(Cow<'static, str>);
+pub struct ColumnKey(KeyRepr);
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum KeyRepr {
+    Name(Cow<'static, str>),
+    Position(u32),
+}
 
 impl ColumnKey {
     /// A key named `key`.
     pub const fn new(key: &'static str) -> Self {
-        ColumnKey(Cow::Borrowed(key))
+        ColumnKey(KeyRepr::Name(Cow::Borrowed(key)))
+    }
+
+    /// The key of the column at `column` in a sheet whose columns are numbered rather than named
+    /// (`SheetLayout::lines`). Keys of equal positions are equal; no allocation.
+    pub const fn index(column: u32) -> Self {
+        ColumnKey(KeyRepr::Position(column))
+    }
+
+    /// The position a key made by [`ColumnKey::index`] holds; `None` for a named key.
+    pub fn position(&self) -> Option<u32> {
+        match self.0 {
+            KeyRepr::Position(column) => Some(column),
+            KeyRepr::Name(_) => None,
+        }
     }
 }
 

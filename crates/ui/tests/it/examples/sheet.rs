@@ -1,7 +1,7 @@
 //! The arrow split of 18.4 in `SheetGrid`: arrows are navigation with no cell open and in Enter mode, the caret's in
 //! Edit mode, and the reference cursor's in formula point mode.
 
-use craft_behavior::{CellSelection, SelectionModel as _};
+use craft_behavior::{CellSelection, RowAt, SelectionModel as _};
 use craft_ui::contract::{Bind, Props as _, Role, ShowCollection as _};
 use craft_ui::testing::examples::sheet::{CellEdit, Rows, SheetGrid, SheetRow};
 use craft_ui::testing::{Fixture, trial};
@@ -54,9 +54,8 @@ impl Rig {
     /// The row and column of the lead cell.
     fn lead(&self) -> (usize, usize) {
         let selection = self.selection.borrow();
-        let row = *selection.rows.lead().expect("a cell holds the lead");
-        let column = selection.lead_column.as_ref().and_then(|key| COLUMNS.iter().position(|name| craft_behavior::ColumnKey::new(name) == *key));
-        (row, column.unwrap_or(0))
+        let active = selection.active().expect("a cell holds the lead");
+        (active.row, active.column as usize)
     }
 
     fn press(&mut self, key: Key) {
@@ -139,7 +138,8 @@ fn ctrl_click_toggles_one_cell_and_keeps_the_others() {
     rig.ctrl_click(grid.center() + Vec2::new(0.0, ROW_STEP));
     let second = rig.lead();
     assert_ne!(second.0, first.0, "the Ctrl-click landed on another row");
-    let cell = |rig: &Rig, (row, column): (usize, usize)| rig.selection.borrow().contains_cell(&row, column as u32);
+    let order = Rows::new(ROWS);
+    let cell = |rig: &Rig, (row, column): (usize, usize)| rig.selection.borrow().contains_cell(RowAt::new(&row, row, &order), column as u32);
     assert!(cell(&rig, first) && cell(&rig, second), "both cells are selected");
     assert!(!cell(&rig, (first.0, other_column)), "the rest of the first cell's row is not");
     rig.ctrl_click(grid.center());

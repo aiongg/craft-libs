@@ -4,5 +4,6 @@ mod access;
 mod hosting;
 pub(crate) mod kit;
 mod modal;
+mod sampler;
 mod toast;
 mod tooltip;

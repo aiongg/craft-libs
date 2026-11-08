@@ -22,7 +22,7 @@ use crate::runtime::focus::{KeepKeys, KeyUse};
 use crate::style::{ComponentStyle, Flags, Stateful, StyleColor, StyleCx, SurfaceLook};
 use craft_behavior::{
     CellSelection, ColumnKey, DisplayOrder, EditorInput, Flow, Granularity, Insets, ItemSource, Metrics, Mixed, MoveMods, NavMove, PartKey,
-    SelectionModel as _, SheetLayout,
+    SheetLayout,
 };
 use craft_keymap::{Chord, Key};
 use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
@@ -185,9 +185,8 @@ impl<'a> SheetGrid<'a> {
     /// The row and column of the lead cell.
     fn lead_cell(&mut self) -> Option<(usize, usize)> {
         let Some(Mixed::Same(held)) = self.selection.reborrow().get() else { return None };
-        let row = *held.rows.lead()?;
-        let column = held.lead_column.as_ref().and_then(|key| NAMES.iter().position(|name| ColumnKey::new(name) == *key)).unwrap_or(0);
-        Some((row, column))
+        let active = held.active()?;
+        Some((active.row, active.column as usize))
     }
 
     fn cell_text(&self, (row, column): (usize, usize)) -> &str {

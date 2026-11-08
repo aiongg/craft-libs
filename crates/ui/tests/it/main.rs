@@ -22,6 +22,7 @@ mod drag;
 mod egui_surface;
 mod examples;
 mod focus;
+mod fonts;
 mod form;
 mod form_dialogs;
 // full-window parts
@@ -29,6 +30,7 @@ mod full_window_parts;
 // end of full-window parts
 mod glossary;
 mod internals;
+mod keys;
 mod label;
 mod layout;
 mod list;
@@ -54,6 +56,7 @@ mod shell;
 mod sections;
 
 mod style;
+mod swatch;
 mod table;
 mod tabs;
 mod text;

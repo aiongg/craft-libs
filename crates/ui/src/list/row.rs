@@ -9,19 +9,24 @@
 
 use super::toggle::{ToggleCell, ToggleFace, ToggleState};
 use super::words::ListWords;
+use crate::buttons::IconButton;
 use crate::choice::Checkbox;
 use crate::contract::{
-    Access, Bind, ColumnAlign, ColumnSpec, Common, Component, Cx, ItemOutput, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _,
-    Props as _, Role, RowState, Styled as _, WordSetCx as _,
+    Access, Bind, ColumnAlign, ColumnSpec, Common, Component, Cx, DragPreview, ItemOutput, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx,
+    Pointer as _, Props as _, Role, RowState, Styled as _, WordSetCx as _,
 };
 use crate::controls::disclosure::Disclosure;
 use crate::primitives::{ContentPainterCx, Draw, HAlign, IconSpec, PaintShape, RuleKind, Span, StrokeWidth, TextRun, Wrap};
+use crate::runtime::commands::FireSource;
 use crate::runtime::env::{Label, WordTemplate};
 use crate::style::{ComponentStyle, Flags, IconLook, Ink, StyleColor, StyleCx, SurfaceLook, TextLook, UiTokens};
-use craft_behavior::{ColumnKey, Flow, IconId, Metrics, Mixed, NavShape, PartKey, PressPhase, Proposal, Roving, Sense};
+use craft_behavior::{ColumnKey, Flow, IconId, Metrics, Mixed, NavShape, PartKey, PartRef, PressPhase, Proposal, Roving, Sense};
+use craft_keymap::Mods;
 use craft_theme::variant::Tone;
-use craft_theme::{ControlSize, Rgba, RowStyle, Stateful, States, TypeRole, over};
+use craft_theme::{ControlSize, LabelColor, Rgba, RowStyle, Stateful, States, TypeRole, over};
 use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
+use std::any::Any;
+use std::sync::Arc;
 
 /// The width of a thumbnail as a multiple of its height.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -60,6 +65,16 @@ impl ThumbSize {
     /// Every setting a user picks from.
     pub const ALL: [ThumbSize; 4] = [ThumbSize::None, ThumbSize::Small, ThumbSize::Medium, ThumbSize::Large];
 
+    /// The side the setting takes from the small, medium and large sides; 0 for `None`.
+    pub(crate) const fn pick(self, sides: [f32; 3]) -> f32 {
+        match self {
+            ThumbSize::None => 0.0,
+            ThumbSize::Small => sides[0],
+            ThumbSize::Medium => sides[1],
+            ThumbSize::Large => sides[2],
+        }
+    }
+
     /// The setting's name in the language of `words`.
     pub fn label(self, words: &ListWords) -> Label {
         match self {
@@ -69,6 +84,25 @@ impl ThumbSize {
             ThumbSize::Large => words.thumb_large.clone(),
         }
     }
+}
+
+/// The name of a label colour, or of no label, in the language of `words`.
+pub fn label_color_label(color: Option<LabelColor>, words: &ListWords) -> Label {
+    let word = match color {
+        None => &words.label_none,
+        Some(LabelColor::Red) => &words.label_red,
+        Some(LabelColor::Orange) => &words.label_orange,
+        Some(LabelColor::Yellow) => &words.label_yellow,
+        Some(LabelColor::Green) => &words.label_green,
+        Some(LabelColor::Seafoam) => &words.label_seafoam,
+        Some(LabelColor::Blue) => &words.label_blue,
+        Some(LabelColor::Indigo) => &words.label_indigo,
+        Some(LabelColor::Magenta) => &words.label_magenta,
+        Some(LabelColor::Fuchsia) => &words.label_fuchsia,
+        Some(LabelColor::Violet) => &words.label_violet,
+        Some(LabelColor::Gray) => &words.label_gray,
+    };
+    word.clone()
 }
 
 /// One of a row's thumbnails.
@@ -115,9 +149,24 @@ pub enum RowEvent {
         linked: bool,
     },
     /// A click landed on a thumbnail.
-    ThumbClicked(ThumbTarget),
-    /// A drag started on an extra thumbnail of a row with `thumb_drags`: the thumbnail is dragged, not the row.
+    #[non_exhaustive]
+    ThumbClicked {
+        /// The thumbnail.
+        target: ThumbTarget,
+        /// The modifiers held at the click; none for a key activation.
+        mods: Mods,
+    },
+    /// A drag started on a thumbnail of a row with [`ListRow::thumb_drag`] for it: the thumbnail is dragged, not the
+    /// row, and the drag session runs with the payload given.
     ThumbDrag(ThumbTarget),
+    /// A trailing part ([`ListRow::trailing_part`]) was activated; the selection is unchanged.
+    #[non_exhaustive]
+    Trailing {
+        /// The part.
+        part: TrailingPart,
+        /// The modifiers held at the click; none for a key activation.
+        mods: Mods,
+    },
 }
 
 /// What a row returns.
@@ -160,11 +209,57 @@ pub(super) struct Thumb<'a> {
     pub link: Option<(bool, Label)>,
 }
 
-/// A trailing item: a caption-role text as wide as it measures, and whether it drops out for room.
+/// The key of a pressable trailing item, chosen by the caller: a row's parts are told apart by it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub struct TrailingPart(u16);
+
+impl TrailingPart {
+    /// The part numbered `n`.
+    pub const fn new(n: u16) -> Self {
+        TrailingPart(n)
+    }
+}
+
+/// How a trailing part looks.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum TrailingFace {
+    /// An icon button face.
+    Icon(IconSpec<'static>),
+    /// The disclosure face of an open or closed section.
+    #[non_exhaustive]
+    Disclosure {
+        /// Whether the section is open.
+        open: bool,
+    },
+}
+
+impl TrailingFace {
+    /// A disclosure face of `open`.
+    pub const fn disclosure(open: bool) -> Self {
+        TrailingFace::Disclosure { open }
+    }
+}
+
+/// What a trailing item is.
+pub(super) enum TrailingItem {
+    /// A caption-role text as wide as it measures.
+    Text(Label),
+    /// An icon of the row's icon size, named for the screen reader and the tooltip.
+    Icon { icon: IconSpec<'static>, name: Label },
+    /// A pressable face of the row's icon size.
+    Part { part: TrailingPart, face: TrailingFace, name: Label },
+}
+
+/// A trailing item and whether it drops out for room; only a text can be optional.
 pub(super) struct Trailing {
-    pub text: Label,
+    pub item: TrailingItem,
     pub optional: bool,
 }
+
+/// The payload a thumbnail's drag session carries.
+type ThumbPayload = Arc<dyn Any + Send + Sync>;
 
 /// A text shown in one column of a row: the body role in the row's ink, on one elided line or wrapped.
 pub(super) struct TextCell {
@@ -223,9 +318,8 @@ pub struct ListRow<'a> {
     pub(super) rule: bool,
     /// The rename editor replaces the label; `state` sets it from the collection's row state.
     pub(super) renaming: bool,
-    /// A press that starts a drag on an extra thumbnail drags the thumbnail instead of the row.
-    #[prop]
-    pub(super) thumb_drags: bool,
+    /// The thumbnails that drag instead of the row, each with what starts its drag session.
+    pub(super) drags: Vec<(ThumbTarget, ThumbPayload)>,
     /// The icon or thumbnails come before the disclosure column instead of after it.
     #[prop]
     pub(super) leading_first: bool,
@@ -291,7 +385,7 @@ impl<'a> ListRow<'a> {
             clipped: false,
             rule: false,
             renaming: false,
-            thumb_drags: false,
+            drags: Vec::new(),
             leading_first: false,
             detail: None,
             lines: None,
@@ -423,14 +517,41 @@ impl<'a> ListRow<'a> {
     /// The first item added is the outermost.
     #[must_use]
     pub fn trailing(mut self, text: impl Into<Label>) -> Self {
-        self.trailing.push(Trailing { text: text.into(), optional: false });
+        self.trailing.push(Trailing { item: TrailingItem::Text(text.into()), optional: false });
         self
     }
 
     /// A text at the trailing end that drops out when the label would get narrower than its least width with it.
     #[must_use]
     pub fn optional(mut self, text: impl Into<Label>) -> Self {
-        self.trailing.push(Trailing { text: text.into(), optional: true });
+        self.trailing.push(Trailing { item: TrailingItem::Text(text.into()), optional: true });
+        self
+    }
+
+    /// An icon at the trailing end, as wide as the row's icon, in the row's ink unless the spec names a colour. It
+    /// always shows. `name` is its name for a screen reader and its tooltip; the icon is no focus stop and `name` is
+    /// part of the row's description.
+    #[must_use]
+    pub fn trailing_icon(mut self, icon: impl Into<IconSpec<'static>>, name: impl Into<Label>) -> Self {
+        self.trailing.push(Trailing { item: TrailingItem::Icon { icon: icon.into(), name: name.into() }, optional: false });
+        self
+    }
+
+    /// A pressable item at the trailing end, as wide as the row's icon, that always shows. A press reports
+    /// [`RowEvent::Trailing`] and leaves the selection as it is; the part is a focus stop reached from the row by
+    /// Forward, and Space and Enter activate it. `name` is its name for a screen reader and its tooltip.
+    #[must_use]
+    pub fn trailing_part(mut self, part: TrailingPart, face: TrailingFace, name: impl Into<Label>) -> Self {
+        self.trailing.push(Trailing { item: TrailingItem::Part { part, face, name: name.into() }, optional: false });
+        self
+    }
+
+    /// A drag that starts on the thumbnail `target` drags `payload` through the drag session, with a ghost as large as
+    /// the thumbnail, and reports [`RowEvent::ThumbDrag`]; the row does not drag.
+    #[must_use]
+    pub fn thumb_drag<P: Clone + Send + Sync + 'static>(mut self, target: ThumbTarget, payload: P) -> Self {
+        self.drags.retain(|(held, _)| *held != target);
+        self.drags.push((target, Arc::new(payload)));
         self
     }
 }
@@ -441,6 +562,8 @@ const TOGGLE_CELL: PartKey = PartKey::new("toggle-cell");
 const LABEL_CELL: PartKey = PartKey::new("label-cell");
 const DISCLOSURE: PartKey = PartKey::new("disclosure");
 const LINK: PartKey = PartKey::new("link");
+const TRAILING: PartKey = PartKey::new("trailing");
+const TRAILING_ICON: PartKey = PartKey::new("trailing-icon");
 const THUMB: PartKey = PartKey::new("thumb");
 
 /// How far the hover tint of the layer form tints toward the accent.
@@ -498,12 +621,7 @@ impl Sizes {
     }
 
     fn side(&self, thumb: ThumbSize) -> f32 {
-        match thumb {
-            ThumbSize::None => 0.0,
-            ThumbSize::Small => self.thumbs[0],
-            ThumbSize::Medium => self.thumbs[1],
-            ThumbSize::Large => self.thumbs[2],
-        }
+        thumb.pick(self.thumbs)
     }
 
     /// The height of a row with a thumbnail of `thumb` and, if `detail`, a detail line: the control height, the
@@ -716,9 +834,13 @@ impl ListRow<'_> {
         }
     }
 
-    /// The widths of the trailing items, as `text_width` measures their texts.
-    fn item_widths(&self, text_width: &dyn Fn(&TextRun<'_>) -> f32) -> Vec<(f32, bool)> {
-        self.trailing.iter().map(|item| (text_width(&trailing_run(item)), item.optional)).collect()
+    /// The widths of the trailing items: as `text_width` measures a text, the icon side for the others.
+    fn item_widths(&self, sizes: &Sizes, text_width: &dyn Fn(&TextRun<'_>) -> f32) -> Vec<(f32, bool)> {
+        let width = |item: &TrailingItem| match item {
+            TrailingItem::Text(text) => text_width(&trailing_run(text)),
+            TrailingItem::Icon { .. } | TrailingItem::Part { .. } => sizes.icon,
+        };
+        self.trailing.iter().map(|trailing| (width(&trailing.item), trailing.optional)).collect()
     }
 
     /// The indent a row asks for before it gives way to the label's least width.
@@ -925,7 +1047,7 @@ impl Component for ListRow<'_> {
         let room = cx.room.unwrap_or(0.0);
         let columns = self.toggles.iter().map(|toggle| &toggle.column).chain(self.texts.iter().map(|text| &text.column));
         let toggles: f32 = columns.filter_map(|key| self.cells.iter().find(|(column, _)| column == key)).map(|(_, cell)| cell.width()).sum();
-        let widths = self.item_widths(&|run| cx.layout_at(run, f32::INFINITY).size().x);
+        let widths = self.item_widths(sizes, &|run| cx.layout_at(run, f32::INFINITY).size().x);
         let probe = self.place_in(&[], sizes, &widths, Rect::from_min_size(Pos2::ZERO, Vec2::new(room, height)), rtl);
         let probe_min = probe.min_width + toggles;
         let band = cx.room.map_or(f32::INFINITY, |_| (probe.label.width() - toggles).max(0.0));
@@ -960,7 +1082,7 @@ impl Component for ListRow<'_> {
         if self.spacer {
             return;
         }
-        let widths = self.item_widths(&|run| cx.layout_at(run, f32::INFINITY).size().x);
+        let widths = self.item_widths(&cx.style.sizes, &|run| cx.layout_at(run, f32::INFINITY).size().x);
         let placed = self.place(&cx.style.sizes, &widths, rect, cx.flow.is_rtl());
         for (at, cell) in &placed.toggles {
             let toggle = &self.toggles[*at];
@@ -988,12 +1110,27 @@ impl Component for ListRow<'_> {
                 focusable = true;
             }
         }
+        let side = cx.style.sizes.icon;
+        for (at, (trailing, slot)) in self.trailing.iter().zip(&placed.items).enumerate() {
+            let Some(slot) = slot else { continue };
+            let shape = Rect::from_center_size(slot.center(), Vec2::splat(side));
+            match &trailing.item {
+                TrailingItem::Text(_) => {}
+                TrailingItem::Icon { name, .. } => {
+                    cx.part(TRAILING_ICON.at(at as u64), shape).tooltip(name.clone());
+                }
+                TrailingItem::Part { part, name, .. } => {
+                    cx.part(TRAILING.at(u64::from(part.0)), shape).sense(Sense::CLICK | Sense::FOCUS).focusable().tooltip(name.clone());
+                    focusable = true;
+                }
+            }
+        }
         if focusable {
             cx.roving(Roving::new(NavShape::Flat));
         }
         let thumbs = placed.first.into_iter().chain(placed.extras.iter().map(|(thumb, _)| *thumb));
         for (at, thumb) in thumbs.enumerate() {
-            let sense = if self.thumb_drags && at > 0 { Sense::CLICK | Sense::DRAG } else { Sense::CLICK };
+            let sense = if self.drags.iter().any(|(held, _)| *held == target_at(at)) { Sense::CLICK | Sense::DRAG } else { Sense::CLICK };
             cx.part(THUMB.at(at as u64), thumb).sense(sense).pointer_only("A thumbnail is a pointer target; the keys act on the row");
         }
     }
@@ -1021,12 +1158,22 @@ impl Component for ListRow<'_> {
         }
         for at in 0..=self.extras.len() {
             let Some(result) = cx.part_if_declared(THUMB.at(at as u64)) else { continue };
-            let target = if at == 0 { ThumbTarget::First } else { ThumbTarget::Extra(at - 1) };
+            let target = target_at(at);
             let phase = result.press.phase;
-            if matches!(phase, PressPhase::DragStart { .. }) && self.thumb_drags && at > 0 {
+            let drag = self.drags.iter().find(|(held, _)| *held == target);
+            if let (PressPhase::DragStart { .. }, Some((_, payload))) = (phase, drag) {
+                let preview = DragPreview::frame(self.thumb_size(&cx.style.sizes), None);
+                crate::runtime::drag::start(&cx.ctx, cx.id, payload.clone(), None, preview);
                 self.event = Some(RowEvent::ThumbDrag(target));
-            } else if cx.part_activated(THUMB.at(at as u64)).is_some() {
-                self.event = Some(RowEvent::ThumbClicked(target));
+            } else if let Some(source) = cx.part_activated(THUMB.at(at as u64)) {
+                self.event = Some(RowEvent::ThumbClicked { target, mods: part_mods(cx, THUMB.at(at as u64), source) });
+            }
+        }
+        for trailing in &self.trailing {
+            let TrailingItem::Part { part, .. } = &trailing.item else { continue };
+            let key = TRAILING.at(u64::from(part.0));
+            if let Some(source) = cx.part_activated(key) {
+                self.event = Some(RowEvent::Trailing { part: *part, mods: part_mods(cx, key, source) });
             }
         }
     }
@@ -1048,13 +1195,15 @@ impl Component for ListRow<'_> {
             (None, None) => Name::FromLabel,
         };
         access.name(name);
-        let description = self.common.description.clone();
-        match (self.clipped, description) {
-            (true, Some(text)) => access.description(format!("{}, {text}", words.clipped.as_str())),
-            (true, None) => access.description(words.clipped.as_str()),
-            (false, Some(text)) => access.description(text),
-            (false, None) => access,
-        };
+        let icons = self.trailing.iter().filter_map(|trailing| match &trailing.item {
+            TrailingItem::Icon { name, .. } => Some(name.as_str().to_owned()),
+            _ => None,
+        });
+        let described: Vec<String> =
+            self.clipped.then(|| words.clipped.as_str().to_owned()).into_iter().chain(self.common.description.clone()).chain(icons).collect();
+        if !described.is_empty() {
+            access.description(described.join(", "));
+        }
         if self.depth.is_some() {
             access.role(Role::TREE_ITEM);
         } else if self.option {
@@ -1097,6 +1246,21 @@ impl Component for ListRow<'_> {
                 access.node(LINK.at(at as u64), Role::BUTTON).name = Name::Text(named(name, label));
             }
         }
+        for (at, trailing) in self.trailing.iter().enumerate() {
+            match &trailing.item {
+                TrailingItem::Text(_) => {}
+                TrailingItem::Icon { name, .. } => {
+                    access.node(TRAILING_ICON.at(at as u64), Role::IMAGE).name = Name::Text(name.as_str().to_owned());
+                }
+                TrailingItem::Part { part, face, name } => {
+                    let node = access.node(TRAILING.at(u64::from(part.0)), Role::BUTTON);
+                    node.name = Name::Text(name.as_str().to_owned());
+                    if let TrailingFace::Disclosure { open } = face {
+                        node.expanded(*open);
+                    }
+                }
+            }
+        }
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
@@ -1107,7 +1271,7 @@ impl Component for ListRow<'_> {
         let sizes = &style.sizes;
         let rtl = cx.env.direction().is_rtl();
         let rect = cx.rect;
-        let widths = self.item_widths(&|run| ui.draw().layout(run, f32::INFINITY).size().x);
+        let widths = self.item_widths(sizes, &|run| ui.draw().layout(run, f32::INFINITY).size().x);
         let placed = self.place(sizes, &widths, rect, rtl);
         self.label_rect = placed.label;
         {
@@ -1143,11 +1307,7 @@ impl Component for ListRow<'_> {
         self.paint_thumbs(ui, cx, &placed, ink);
         self.paint_text(&ui.draw(), cx, placed.label);
         self.paint_cells(&ui.draw(), cx, &placed);
-        for (item, slot) in self.trailing.iter().zip(placed.items) {
-            if let Some(slot) = slot {
-                ui.draw().text(slot, &trailing_run(item));
-            }
-        }
+        self.paint_trailing(ui, cx, &placed);
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> RowOutput {
@@ -1156,6 +1316,31 @@ impl Component for ListRow<'_> {
 }
 
 impl ListRow<'_> {
+    fn paint_trailing(&self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>, placed: &Placed) {
+        let side = Vec2::splat(cx.style.sizes.icon);
+        for (trailing, slot) in self.trailing.iter().zip(&placed.items) {
+            let Some(slot) = slot else { continue };
+            let shape = Rect::from_center_size(slot.center(), side);
+            match &trailing.item {
+                TrailingItem::Text(text) => {
+                    ui.draw().text(*slot, &trailing_run(text));
+                }
+                TrailingItem::Icon { icon, .. } => {
+                    let mut icon = icon.clone();
+                    icon.color.get_or_insert(cx.resolve(&cx.style.icon.color));
+                    ui.draw().icon(shape, &icon);
+                }
+                TrailingItem::Part { part, face, .. } => {
+                    let key = TRAILING.at(u64::from(part.0));
+                    match face {
+                        TrailingFace::Icon(icon) => ui.face(key, IconButton::new(icon.clone()).focusable(false)),
+                        TrailingFace::Disclosure { open } => ui.face(key, Disclosure::new(Bind::given(*open)).node(false)),
+                    }
+                }
+            }
+        }
+    }
+
     fn paint_toggles(&self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>, placed: &Placed) {
         let icon = cx.style.sizes.icon;
         for (at, cell) in &placed.toggles {
@@ -1200,7 +1385,7 @@ impl ListRow<'_> {
             let draw = ui.draw();
             let shape = PaintShape::Rect(*thumb, style.thumb_radius);
             draw.stroke(&shape, StrokeWidth::Thin, style.thumb_edge);
-            let target = if at == 0 { ThumbTarget::First } else { ThumbTarget::Extra(at - 1) };
+            let target = target_at(at);
             if self.target == Some(target) {
                 let r = thumb.expand(outset);
                 for (corner, dx, dy) in
@@ -1293,9 +1478,22 @@ impl ListRow<'_> {
     }
 }
 
-/// The run of a trailing item.
-fn trailing_run(item: &Trailing) -> TextRun<'_> {
-    TextRun::spans(vec![Span::new(item.text.as_str()).muted()]).role(TypeRole::Caption)
+/// The run of a trailing text.
+fn trailing_run(text: &Label) -> TextRun<'_> {
+    TextRun::spans(vec![Span::new(text.as_str()).muted()]).role(TypeRole::Caption)
+}
+
+/// The thumbnail at position `at` of the row's thumbnails: the first, then the extra ones.
+fn target_at(at: usize) -> ThumbTarget {
+    if at == 0 { ThumbTarget::First } else { ThumbTarget::Extra(at - 1) }
+}
+
+/// The modifiers of an activation of `part`: those held at a click, none for a key or AccessKit activation.
+fn part_mods(cx: &Cx<'_, ListRow<'_>>, part: PartRef, source: FireSource) -> Mods {
+    match source {
+        FireSource::Pointer => cx.part(part).press.mods,
+        _ => Mods::NONE,
+    }
 }
 
 /// The down-right clipping mark: a stem down from the top, then a leg toward the reading end with an arrowhead.
@@ -1388,7 +1586,7 @@ pub(crate) fn placement_under_fixed_sizes(row: &ListRow<'_>, width: f32, rtl: bo
         cell_inset: 6.0,
         cell_pad: 4.0,
     };
-    let items = row.item_widths(&|run| FIXED_ADVANCE * run.full_text().chars().count() as f32);
+    let items = row.item_widths(&sizes, &|run| FIXED_ADVANCE * run.full_text().chars().count() as f32);
     let placed = row.place(&sizes, &items, Rect::from_min_size(Pos2::ZERO, Vec2::new(width, sizes.row)), rtl);
     RowPlacement { label: placed.label, items: placed.items, disclosure: placed.disclosure, min_label: sizes.min_label }
 }

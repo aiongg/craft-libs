@@ -144,6 +144,30 @@ impl UnitKind {
     }
 }
 
+impl UnitKind {
+    /// `pixels` in this unit: Pixels as they are, Percent of `extent` pixels, a length through `pixels_per_inch`
+    /// (clamped to at least 1; `points_per_inch` as in [`per_inch`](Self::per_inch)). `None` for a kind that is not
+    /// a pixel or length unit.
+    pub fn from_pixels(self, pixels: f64, extent: f64, pixels_per_inch: f64, points_per_inch: f64) -> Option<f64> {
+        let resolution = pixels_per_inch.max(1.0);
+        Some(match self {
+            UnitKind::Pixels => pixels,
+            UnitKind::Percent => pixels / extent.max(1.0) * 100.0,
+            _ => pixels / resolution * self.per_inch(points_per_inch)?,
+        })
+    }
+
+    /// A value in this unit as pixels; the inverse of [`from_pixels`](Self::from_pixels).
+    pub fn to_pixels(self, value: f64, extent: f64, pixels_per_inch: f64, points_per_inch: f64) -> Option<f64> {
+        let resolution = pixels_per_inch.max(1.0);
+        Some(match self {
+            UnitKind::Pixels => value,
+            UnitKind::Percent => value * extent / 100.0,
+            _ => value / self.per_inch(points_per_inch)? * resolution,
+        })
+    }
+}
+
 /// The English unit words, built once for the process.
 fn english_words() -> Arc<UnitWords> {
     static ENGLISH: OnceLock<Arc<UnitWords>> = OnceLock::new();
@@ -230,6 +254,12 @@ impl Units {
     /// `n` percent: `12%`.
     pub fn percent(&self, n: f64) -> String {
         self.show(UnitKind::Percent, n)
+    }
+
+    /// A zoom of `n` percent: `100%`, `12.5%`, `66.67%`. The fewest digits that show it to two decimals, so the
+    /// ladder's thirds read as Photoshop shows them.
+    pub fn zoom_percent(&self, n: f64) -> String {
+        self.text(UnitKind::Percent, n, 0..=2)
     }
 
     /// `n` degrees: `12°`.

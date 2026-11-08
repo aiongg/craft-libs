@@ -3,7 +3,9 @@
 
 use super::kit::{Count, Dismissed, List, ROW_H, RowOut};
 use crate::contract::kit::PlainStyle;
-use craft_behavior::{CellSelection, ColumnKey, ItemSource, PartKey, Selection, SelectionModel as _, Sense, SheetLayout, SpanLayout, keyed};
+use craft_behavior::{
+    CellAt, CellRange, CellSelection, ColumnKey, ItemSource, PartKey, Selection, SelectionModel as _, Sense, SheetLayout, SpanLayout, keyed,
+};
 use craft_ui::contract::{
     Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, CommandSet, Commands as _, Common, Component, ContainerProps,
     Cx, Focus as _, MeasureCx, PartsCx, Props as _, Role, SelectMode, ShowCollection as _,
@@ -43,6 +45,8 @@ struct Log {
     rects: RefCell<Vec<(usize, Rect)>>,
     grid: RefCell<Vec<Range<u32>>>,
     bumps: RefCell<Vec<&'static str>>,
+    /// The nudges a row's part took: the row, the direction and whether Alt was held.
+    nudges: RefCell<Vec<(usize, Vec2, bool)>>,
     events: RefCell<Vec<CollectionEvent<usize, Dismissed>>>,
     id: Cell<Option<Id>>,
 }
@@ -79,16 +83,22 @@ struct ProbeRow {
     key: usize,
     children: bool,
     tall: bool,
+    nudging: bool,
     log: &'static Log,
 }
 
 impl ProbeRow {
     fn new(key: usize, log: &'static Log) -> Self {
-        ProbeRow { common: Common::new(), key, children: false, tall: false, log }
+        ProbeRow { common: Common::new(), key, children: false, tall: false, nudging: false, log }
     }
 
     fn children(mut self) -> Self {
         self.children = true;
+        self
+    }
+
+    fn nudging(mut self) -> Self {
+        self.nudging = true;
         self
     }
 
@@ -114,13 +124,19 @@ impl Component for ProbeRow {
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         if self.children {
             let half = Vec2::new(rect.width() / 2.0, rect.height());
-            cx.part(CHILD_A, Rect::from_min_size(rect.min, half)).sense(Sense::CLICK).focusable();
+            let a = cx.part(CHILD_A, Rect::from_min_size(rect.min, half)).sense(Sense::CLICK).focusable();
+            if self.nudging {
+                a.nudges();
+            }
             cx.part(CHILD_B, Rect::from_min_size(rect.min + Vec2::new(half.x, 0.0), half)).sense(Sense::CLICK).focusable();
         }
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         self.log.rects.borrow_mut().push((self.key, cx.rect));
+        if let Some((direction, mods)) = cx.intents().take_nudge() {
+            self.log.nudges.borrow_mut().push((self.key, direction, mods.alt));
+        }
         if cx.is_focused() {
             self.log.focus.borrow_mut().push((self.key, cx.active_part().map_or("row", |part| part.key.name())));
         }
@@ -332,7 +348,7 @@ fn forward_enters_a_rows_children_and_arrows_and_escape_leave_them() {
 }
 
 /// 17.7: the arrows move the lead cell, Shift extends the range from the anchor cell, and the selection reports
-/// the rows, the columns and the lead column.
+/// the rows and the columns, with the active cell at the anchor.
 #[trial]
 fn shift_arrows_extend_a_cell_selection_in_a_sheet() {
     let (log, source) = (Log::new(), Count(5));
@@ -352,14 +368,13 @@ fn shift_arrows_extend_a_cell_selection_in_a_sheet() {
     press(&mut frames, Key::ArrowRight, Modifiers::SHIFT, &mut show);
     press(&mut frames, Key::ArrowDown, Modifiers::SHIFT, &mut show);
     let held = selection.borrow().clone();
-    assert_eq!(held.rows.items, vec![0, 1], "the rows between the anchor row and the lead row");
-    assert_eq!(held.ranges, vec![(0, 1, 0..3)], "the columns between the anchor cell and the lead cell");
-    assert_eq!(held.lead_column(), Some(&ColumnKey::new("c")));
+    assert_eq!(held.ranges(), [CellRange::cells(CellAt::new(0, 0), CellAt::new(1, 2))], "the rows and columns between the anchor cell and the head");
+    assert_eq!((held.lead(), held.lead_column()), (Some(&0), Some(0)), "the active cell stays at the anchor");
     press(&mut frames, Key::ArrowLeft, Modifiers::NONE, &mut show);
     let held = selection.borrow().clone();
     assert_eq!(
-        (held.ranges.clone(), held.lead_column().cloned()),
-        (vec![(1, 1, 1..2)], Some(ColumnKey::new("b"))),
+        (held.ranges(), held.lead(), held.lead_column()),
+        ([CellRange::cells(CellAt::new(1, 1), CellAt::new(1, 1))].as_slice(), Some(&1), Some(1)),
         "a plain arrow selects the one cell it moves to"
     );
 }
@@ -466,4 +481,28 @@ fn a_selected_lead_that_leaves_the_source_moves_the_selection_to_the_new_lead() 
     let leads: Vec<usize> =
         events.borrow().iter().filter_map(|event| if let CollectionEvent::LeadMoved { key, .. } = event { Some(*key) } else { None }).collect();
     assert_eq!(leads.last(), Some(&13));
+}
+
+/// A part that declares it takes nudges receives the arrows, Alt included, while it sits in a row; the arrows do not
+/// move focus off the part, and the row's other part still gets row-child moves.
+#[trial]
+fn a_nudging_part_in_a_row_gets_alt_arrows() {
+    let (log, source) = (Log::new(), Count(2));
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            let list = Probe::new(SelectMode::Single, log).id_salt("list");
+            log.take(list.show_items(ui, &source, &mut |key, _| ProbeRow::new(*key, log).children().nudging()));
+        });
+    };
+    frames.idle(3, &mut show);
+    focus_list(&mut frames, log, &mut show);
+    tap(&mut frames, log, Key::ArrowDown, &mut show);
+    tap(&mut frames, log, Key::ArrowRight, &mut show);
+    assert_eq!(log.focus.borrow().last().copied(), Some((0, "a")), "Forward enters the nudging part");
+    press(&mut frames, Key::ArrowRight, Modifiers::ALT, &mut show);
+    press(&mut frames, Key::ArrowDown, Modifiers::NONE, &mut show);
+    assert_eq!(*log.nudges.borrow(), [(0, Vec2::X, true), (0, Vec2::Y, false)]);
+    assert_eq!(log.focus.borrow().last().copied(), Some((0, "a")), "the arrows moved nothing");
+    assert_eq!(log.leads().last(), Some(&0), "the lead stayed");
 }

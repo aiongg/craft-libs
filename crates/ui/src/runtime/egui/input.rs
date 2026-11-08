@@ -318,12 +318,18 @@ pub(crate) fn wheel_read(ctx: &Context, line: f32, page: f32) -> Option<(Vec2, W
 }
 
 /// Removes the events a modal layer in another viewport blocks: button and key presses, wheel, text, clipboard and
-/// touch. Pointer moves and releases stay, so the pointer position stays right and no press or key sticks down. Returns whether anything went and whether a
-/// pointer press did.
-pub(crate) fn drop_under_modal(input: &mut RawInput) -> (bool, bool) {
+/// touch. Pointer moves and releases stay, so the pointer position stays right and no press or key sticks down. The
+/// events `keep` admits stay too (the canvas the modal leaves open, `runtime::sampler`); `pointer` is where the pointer
+/// stood before `input`. Returns whether anything went and whether a pointer press did or was kept.
+pub(crate) fn drop_under_modal(input: &mut RawInput, keep: Option<crate::runtime::sampler::Hole>, pointer: Option<Pos2>) -> (bool, bool) {
     let before = input.events.len();
     let mut press = false;
+    let mut at = pointer;
     input.events.retain(|event| {
+        match event {
+            Event::PointerMoved(pos) | Event::PointerButton { pos, .. } => at = Some(*pos),
+            _ => {}
+        }
         let blocked = matches!(
             event,
             Event::PointerButton { pressed: true, .. }
@@ -336,7 +342,7 @@ pub(crate) fn drop_under_modal(input: &mut RawInput) -> (bool, bool) {
                 | Event::Touch { .. }
         );
         press |= matches!(event, Event::PointerButton { pressed: true, .. });
-        !blocked
+        !blocked || keep.is_some_and(|hole| hole.admits(event, at))
     });
     (input.events.len() != before, press)
 }

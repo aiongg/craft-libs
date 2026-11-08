@@ -38,6 +38,8 @@ use std::sync::Arc;
 pub struct Activation {
     /// By `Intent::Activate` (Enter, Space or an AccessKit click) rather than a primary click.
     pub by_key: bool,
+    /// The modifiers held at the activation.
+    pub mods: craft_keymap::Mods,
 }
 
 /// The non-generic part of every `Cx`; the step functions take this. It is a read-only output: component code
@@ -1515,6 +1517,7 @@ pub(crate) struct PartExtras {
     pub own_reset: bool,
     pub selected: bool,
     pub default_stop: bool,
+    pub nudges: bool,
     pub toggles: Option<crate::contract::overlay::ToggleDecl>,
 }
 
@@ -1553,6 +1556,13 @@ impl PartBuilder<'_> {
     /// on the first member. The last part declared `selected` wins.
     pub fn selected(self) -> Self {
         self.declared.selected = true;
+        self
+    }
+
+    /// The focused part takes the arrow keys, with any modifier, as nudges of its content (`Intents::take_nudge`),
+    /// wherever it sits: in a collection item too.
+    pub fn nudges(self) -> Self {
+        self.declared.nudges = true;
         self
     }
 
@@ -1830,3 +1840,19 @@ impl<K> Drives for ItemCx<'_, '_, K> {
         Driver { stage: self.memory, base: self.id, policy: self.env.motion() }
     }
 }
+
+impl<C: Component> crate::fonts::document::sealed::Sealed for Cx<'_, C> {
+    fn context(&self) -> &Context {
+        &self.core.ctx
+    }
+}
+
+impl<C: Component> crate::fonts::FacesAt for Cx<'_, C> {}
+
+impl<C: Component> crate::fonts::document::sealed::Sealed for MeasureCx<'_, C> {
+    fn context(&self) -> &Context {
+        self.ui.ctx()
+    }
+}
+
+impl<C: Component> crate::fonts::FacesAt for MeasureCx<'_, C> {}

@@ -19,6 +19,7 @@ pub mod motion;
 pub mod overlay;
 pub mod pending;
 pub mod pointer;
+pub mod sampler;
 pub mod toast;
 pub mod wheel;
 pub mod windows;

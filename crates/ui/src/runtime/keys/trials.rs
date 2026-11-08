@@ -128,3 +128,33 @@ fn a_rebound_command_fires_on_its_new_key_and_tab_then_moves_focus() {
     assert!(press(&mut frames, &mut show, Key::Tab, Modifiers::NONE).is_empty());
     assert_eq!(egui_focused(&frames.ctx), Some(id("button")), "Tab moves focus once its command is rebound");
 }
+
+/// What a press of Ctrl+Shift+K gave the stop `name`: the chords it took, and the shortcut events left to the
+/// application's commands.
+fn press_k(name: &str) -> (Vec<craft_keymap::Chord>, usize) {
+    let taken = std::rc::Rc::new(std::cell::RefCell::new((Vec::new(), 0)));
+    let sink = std::rc::Rc::clone(&taken);
+    let stop_id = id(name);
+    let mut show = move |ui: &mut Ui| {
+        stop(ui, "button", KeyUse::of(Input::Pointer));
+        stop(ui, "recorder", KeyUse::RECORDER);
+        let mut intents = super::intents_of(ui.ctx(), Some(stop_id), false);
+        let chords = intents.take_chords();
+        if !chords.is_empty() {
+            let shortcuts = super::take_shortcuts(ui.ctx()).keys.len();
+            *sink.borrow_mut() = (chords, shortcuts);
+        }
+    };
+    let mut frames = shown(false, &mut show);
+    focus_on(&mut frames, &mut show, name);
+    frames.frame(vec![key_press(Key::K, Modifiers::COMMAND | Modifiers::SHIFT)], &mut show);
+    let taken = taken.borrow().clone();
+    taken
+}
+
+#[trial]
+fn a_recorder_reads_a_press_as_one_chord_and_no_command_runs() {
+    let chord = craft_keymap::Chord { mods: craft_keymap::Mods { shift: true, ..craft_keymap::Mods::CMD }, key: craft_keymap::Key::K };
+    assert_eq!(press_k("recorder"), (vec![chord], 0), "the recorder owns the press");
+    assert_eq!(press_k("button").0, Vec::new(), "no other role reads chords");
+}

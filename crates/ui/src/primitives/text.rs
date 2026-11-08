@@ -198,13 +198,13 @@ impl TextRun<'_> {
         let full = self.full_text();
         let galley = match self.wrap {
             Wrap::ElidePath => self.layout_elided_path(ctx, env, max_width),
-            _ => text_layout::layout(ctx, self.job(env, self.spans.iter().map(|s| (s, s.text.as_ref())), max_width)),
+            _ => text_layout::layout(ctx, self.job(ctx, env, self.spans.iter().map(|s| (s, s.text.as_ref())), max_width)),
         };
         let elided = galley.elided || self.wrap == Wrap::ElidePath && galley.job.text != full;
         TextLayout::new(anchored_at_start(galley), elided, full)
     }
 
-    fn job<'s>(&self, env: &TextEnv<'_>, parts: impl Iterator<Item = (&'s Span<'s>, &'s str)>, max_width: f32) -> LayoutJob {
+    fn job<'s>(&self, ctx: &Context, env: &TextEnv<'_>, parts: impl Iterator<Item = (&'s Span<'s>, &'s str)>, max_width: f32) -> LayoutJob {
         let elide = matches!(self.wrap, Wrap::Elide | Wrap::ElidePath);
         let direction = match (self.ltr, env.direction) {
             (false, Direction::Rtl) => TextDirection::RightToLeft,
@@ -233,7 +233,7 @@ impl TextRun<'_> {
         let text = &env.tokens.color.text;
         let to_color = |c: craft_theme::Rgba| Color32::from_rgba_unmultiplied(c.0[0], c.0[1], c.0[2], c.0[3]);
         for (span, text_part) in parts {
-            let font_id: FontId = env.tokens.font(self.role, span.mono);
+            let font_id: FontId = env.tokens.font(ctx, self.role, span.mono);
             let color = if span.muted {
                 to_color(text.muted)
             } else if span.shortcut {
@@ -242,7 +242,11 @@ impl TextRun<'_> {
                 base
             };
             let background = if span.highlight { to_color(env.tokens.color.state.r#match) } else { Color32::TRANSPARENT };
-            job.append(text_part, 0.0, TextFormat { font_id, color, italics: span.italic, background, ..TextFormat::default() });
+            let mut format = TextFormat { font_id, color, italics: span.italic, background, ..TextFormat::default() };
+            if let Some(size) = env.tokens.optical_size(ctx, self.role, span.mono) {
+                format.coords.push(*b"opsz", size);
+            }
+            job.append(text_part, 0.0, format);
         }
         job
     }
@@ -250,14 +254,14 @@ impl TextRun<'_> {
     /// Cuts characters from the middle until the run fits on one row, keeping a longer tail than head.
     fn layout_elided_path(&self, ctx: &Context, env: &TextEnv<'_>, max_width: f32) -> Arc<Galley> {
         let full = self.full_text();
-        let whole = text_layout::layout(ctx, self.job(env, self.spans.iter().map(|s| (s, s.text.as_ref())), f32::INFINITY));
+        let whole = text_layout::layout(ctx, self.job(ctx, env, self.spans.iter().map(|s| (s, s.text.as_ref())), f32::INFINITY));
         if whole.size().x <= max_width {
             return whole;
         }
         let chars: Vec<(usize, char)> = full.char_indices().collect();
         let n = chars.len();
         let fits = |cut: usize| {
-            let galley = text_layout::layout(ctx, self.job_cut(env, &chars, &full, cut));
+            let galley = text_layout::layout(ctx, self.job_cut(ctx, env, &chars, &full, cut));
             (galley.size().x <= max_width, galley)
         };
         let (mut lo, mut hi) = (1, n);
@@ -270,7 +274,7 @@ impl TextRun<'_> {
 
     /// The job with `cut` characters removed from the middle and one ellipsis in their place, in the style of the
     /// span the cut starts in.
-    fn job_cut(&self, env: &TextEnv<'_>, chars: &[(usize, char)], full: &str, cut: usize) -> LayoutJob {
+    fn job_cut(&self, ctx: &Context, env: &TextEnv<'_>, chars: &[(usize, char)], full: &str, cut: usize) -> LayoutJob {
         let n = chars.len();
         let keep = n.saturating_sub(cut);
         let head = keep / 3;
@@ -297,7 +301,7 @@ impl TextRun<'_> {
             at = range.end;
             pieces.push((span, text));
         }
-        self.job(env, pieces.iter().map(|(span, text)| (*span, text.as_str())), f32::INFINITY)
+        self.job(ctx, env, pieces.iter().map(|(span, text)| (*span, text.as_str())), f32::INFINITY)
     }
 }
 

@@ -31,8 +31,13 @@ impl Title {
     }
 
     /// The text shown: the title, followed by an asterisk while the document has unsaved changes.
-    pub fn shown(&self) -> String {
-        if self.unsaved { format!("{} *", self.text) } else { self.text.clone() }
+    pub fn shown(&self, words: &ShellWords) -> String {
+        if self.unsaved { words.unsaved_title.fill(&[("title", self.text.as_str())]) } else { self.text.clone() }
+    }
+
+    /// Whether the document has unsaved changes.
+    pub(super) fn is_unsaved(&self) -> bool {
+        self.unsaved
     }
 
     /// Where a title `width` wide goes in a gap `free` wide, as (offset from the gap's start, width), given the
@@ -50,7 +55,7 @@ impl Title {
     /// body's whole width and `centre` the window's centre line from the body's start edge.
     pub(super) fn show_in_gap(&self, ui: &mut Ui, cx: &BodyCx<'_>, body_width: f32, centre: f32, margin: f32) {
         let words = cx.words::<ShellWords>();
-        let mut text = Text::new(self.shown()).elide(Elide::End);
+        let mut text = Text::new(self.shown(&words)).elide(Elide::End);
         if self.unsaved {
             text = text.description(words.unsaved.as_str());
         }

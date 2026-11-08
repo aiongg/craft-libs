@@ -5,7 +5,7 @@ use super::ItemsHooks;
 use crate::contract::collection::{CollectionProps, SelectMode};
 use crate::contract::{Collection, Cx};
 use crate::runtime::env::Env;
-use craft_behavior::{ItemLayout, MarqueeSelect, PointerButton, PressPhase, ScrollPos, SelectionChange, SelectionModel};
+use craft_behavior::{ItemLayout, MarqueeSelect, PointerButton, PressPhase, ScrollPos, SelectionChange};
 use egui::{Pos2, Rect, Ui, Vec2};
 
 /// Rows per second the view scrolls at when the pointer is a full edge band beyond the view's edge.
@@ -50,7 +50,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 let local = Self::logical(layout, rect, rtl, origin);
                 if rect.contains(origin) && layout.hit(local, seen).is_none() {
                     let selected: Vec<C::Key> =
-                        (0..self.source.len()).map(|at| self.source.key(at)).filter(|key| self.selection_at_read.contains(key)).collect();
+                        (0..self.source.len()).filter(|&at| self.holds_in(&self.selection_at_read, at)).map(|at| self.source.key(at)).collect();
                     let mods = crate::runtime::pointer::frame(&cx.core.ctx).mods;
                     let select = MarqueeSelect::begin(content_point(local, seen), mods, selected.clone());
                     self.drags.marquee = Some(MarqueeDrag { select, last: selected, live: false });

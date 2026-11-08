@@ -117,7 +117,7 @@ name = "PanelMenu"
 old = "craft_ui::docking::panel_menu::PanelMenu"
 new = "craft_ui::menu::PanelMenu"
 status = "replaced"
-note = "A pattern over owned rows: `PanelMenu::new(host: Vec<PanelRow>, group: Vec<PanelRow>)`, `show(ui) -> Option<GroupItem>` in the body of a `Menu`; `PanelMenu::group_rows(..)` replaces `group_entries`. Host rows are `PanelRow::Command(CommandRef)`. `show_context` and `menu_under` are removed: the caller opens the `Menu`."
+note = "A pattern over owned rows: `PanelMenu::new(host: Vec<PanelRow>, group: Vec<PanelRow>)`, `show(ui) -> PanelMenuOutput` in the body of a `Menu`. `group_entries` is removed: the dock's rows are `PanelRow::Command` rows of `craft_ui::docking::DockCommands`, and `GroupItem` keeps only the rows a command cannot name (Move Panel To targets, the column rows). Host rows are `PanelRow::Command(CommandRef)`. `show_context` and `menu_under` are removed: the caller opens the `Menu`."
 
 [[type]]
 name = "MenuBarLabels"

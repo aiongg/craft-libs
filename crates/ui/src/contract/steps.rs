@@ -555,6 +555,7 @@ pub(crate) fn register_stops(input: &StopsIn<'_>) {
     for (decl, extras) in &input.parts.decls {
         if extras.focusable && input.parts_focus {
             let stop = own().part(PartRef { key: decl.key, index: decl.index });
+            let stop = if extras.nudges { stop.role(input.role.nudge(true)) } else { stop };
             let stop = if extras.default_stop { stop.default_stop() } else { stop };
             // A part group that joined the body's roving group has its parts registered there.
             let joined = group.and_then(|parts| focus::registration::part_group(ctx, parts));
@@ -634,12 +635,12 @@ pub(crate) fn takes_focus(resolved: &Resolved<'_>) -> bool {
 /// Step 9, update, the part the library writes: the keyboard activation.
 pub(crate) fn update_inputs(core: &mut CxCore<'_>) {
     if core.intents.take(craft_behavior::Intent::Activate) && takes_activation(core.resolved) {
-        core.activation = Some(super::Activation { by_key: true });
+        core.activation = Some(super::Activation { by_key: true, mods: crate::runtime::pointer::frame(&core.ctx).mods });
     }
     // An AccessKit click on a part is a click on the component as a pointer click on the part is: the response
     // reports it, and a toggling part or a part reader takes it as it takes the pointer's.
     if core.intents.any_access_click() && takes_activation(core.resolved) {
-        core.activation.get_or_insert(super::Activation { by_key: false });
+        core.activation.get_or_insert(super::Activation { by_key: false, mods: crate::runtime::pointer::frame(&core.ctx).mods });
         core.part_clicked = true;
     }
 }
@@ -1218,9 +1219,6 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
     if access.position.is_none() {
         access.position =
             input.group.and_then(|group| focus::group_position(ctx, id, group)).or_else(|| core.env.facts_of(id).map(|facts| facts.position));
-    }
-    if role == Role::TAB && access.position.is_none() {
-        eprintln!("DBGPOS id={:?} group={:?} facts_any={:?}", id, input.group, core.env.facts_of(id).is_some());
     }
     let paint = core.paint.borrow();
     if role == Role::Merged {

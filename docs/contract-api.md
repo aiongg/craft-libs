@@ -635,6 +635,7 @@ Pure canvas geometry in document units: the transform box ([`quad`]), snapping (
 - `craft_behavior::geometry::BoxState`: re-export of `craft_behavior::geometry::quad::BoxState`.
 - `craft_behavior::geometry::Constraint`: re-export of `craft_behavior::geometry::marquee::Constraint`.
 - `craft_behavior::geometry::Directions`: re-export of `craft_behavior::geometry::lock::Directions`.
+- `craft_behavior::geometry::ConstrainStyle`: re-export of `craft_behavior::geometry::move_gesture::ConstrainStyle`.
 - `craft_behavior::geometry::DraftEvent`: re-export of `craft_behavior::geometry::draft::DraftEvent`.
 - `craft_behavior::geometry::DraftKind`: re-export of `craft_behavior::geometry::draft::DraftKind`.
 - `craft_behavior::geometry::DraftPoint`: re-export of `craft_behavior::geometry::draft::DraftPoint`.
@@ -643,6 +644,8 @@ Pure canvas geometry in document units: the transform box ([`quad`]), snapping (
 - `craft_behavior::geometry::LOCK_HYSTERESIS_DEGREES`: re-export of `craft_behavior::geometry::lock::LOCK_HYSTERESIS_DEGREES`.
 - `craft_behavior::geometry::MarqueeGesture`: re-export of `craft_behavior::geometry::marquee::MarqueeGesture`.
 - `craft_behavior::geometry::MarqueeRect`: re-export of `craft_behavior::geometry::marquee::MarqueeRect`.
+- `craft_behavior::geometry::MoveGesture`: re-export of `craft_behavior::geometry::move_gesture::MoveGesture`.
+- `craft_behavior::geometry::MoveValue`: re-export of `craft_behavior::geometry::move_gesture::MoveValue`.
 - `craft_behavior::geometry::OutlineDraft`: re-export of `craft_behavior::geometry::draft::OutlineDraft`.
 - `craft_behavior::geometry::Parts`: re-export of `craft_behavior::geometry::quad::Parts`.
 - `craft_behavior::geometry::SKEW_LIMIT`: re-export of `craft_behavior::geometry::quad::SKEW_LIMIT`.
@@ -655,6 +658,7 @@ Pure canvas geometry in document units: the transform box ([`quad`]), snapping (
 - `craft_behavior::geometry::SnapOptions`: re-export of `craft_behavior::geometry::snap::SnapOptions`.
 - `craft_behavior::geometry::SnapTarget`: re-export of `craft_behavior::geometry::snap::SnapTarget`.
 - `craft_behavior::geometry::SnapTargets`: re-export of `craft_behavior::geometry::snap::SnapTargets`.
+- `craft_behavior::geometry::StrokeLock`: re-export of `craft_behavior::geometry::move_gesture::StrokeLock`.
 - `craft_behavior::geometry::TransformMode`: re-export of `craft_behavior::geometry::quad::TransformMode`.
 - `craft_behavior::geometry::across_axis`: re-export of `craft_behavior::geometry::snap::across_axis`.
 - `craft_behavior::geometry::coordinate_across`: re-export of `craft_behavior::geometry::snap::coordinate_across`.
@@ -663,6 +667,8 @@ Pure canvas geometry in document units: the transform box ([`quad`]), snapping (
 - `craft_behavior::geometry::lock_direction`: re-export of `craft_behavior::geometry::lock::lock_direction`.
 - `craft_behavior::geometry::marquee_pixels`: re-export of `craft_behavior::geometry::marquee::marquee_pixels`.
 - `craft_behavior::geometry::motion_across`: re-export of `craft_behavior::geometry::snap::motion_across`.
+- `craft_behavior::geometry::snap_direction`: re-export of `craft_behavior::geometry::move_gesture::snap_direction`.
+- `craft_behavior::geometry::snap_ray`: re-export of `craft_behavior::geometry::move_gesture::snap_ray`.
 - `craft_behavior::geometry::square_pixels`: re-export of `craft_behavior::geometry::marquee::square_pixels`.
 
 ## `craft_behavior::geometry::draft`
@@ -737,6 +743,27 @@ The Ui-free rules of a marquee drag: [`MarqueeGesture`], the options bar's [`Con
 - `craft_behavior::geometry::marquee::fixed_size_pixels`: `pub fn fixed_size_pixels(a: Point, b: Point, size:(f64, f64)) -> Rect`. The pixel rectangle of a fixed-size marquee between the corners `a` and `b`: exactly `size`
 - `craft_behavior::geometry::marquee::marquee_pixels`: `pub fn marquee_pixels(a: Point, b: Point) -> Rect`. The pixel rectangle a marquee between two corners selects: both edges snapped outwards to
 - `craft_behavior::geometry::marquee::square_pixels`: `pub fn square_pixels(r: Rect, start: Point, end: Point) -> Rect`. A square marquee's pixel rectangle `r`, as [`marquee_pixels`] returns it, with equal sides.
+
+## `craft_behavior::geometry::move_gesture`
+
+A move by drag: direction lock, stroke lock and snapping along a ray. The gestures report values; the tool owns the gesture id, the label, the value before and the cancel.
+
+- `craft_behavior::geometry::move_gesture::ConstrainStyle`: `pub struct ConstrainStyle { pub copy_reach: f64, pub stroke_lock: f64 }`. The distances of the move and stroke rules in screen points.
+  - `pub const fn new(copy_reach: f64, stroke_lock: f64) -> Self`. A tool passes `ToolContext::slop` for both.
+- `craft_behavior::geometry::move_gesture::MoveValue`: `pub struct MoveValue { pub delta: Vec2, pub copy: bool }`. The value of a move drag: the offset after the lock and whether ⌥ at the press made it a copy.
+  - `pub fn changed(&self) -> bool`. An offset or a copy.
+- `craft_behavior::geometry::move_gesture::MoveGesture`: `pub struct MoveGesture`. A Move-tool drag in progress.
+  - `pub fn press(style: &ConstrainStyle, start: Point, mods: Mods, directions: Directions) -> MoveGesture`. Starts a drag with the keys held at the press.
+  - `pub fn follow(&mut self, at: Point, mods: Mods, zoom: f64) -> Option<MoveValue>`. The pointer moved; the value when it changed.
+  - `pub fn release(self, at: Point, mods: Mods, zoom: f64) -> MoveValue`. The release, with the same lock as `follow`.
+  - `pub fn value(&self) -> MoveValue`. The value of the last `follow`.
+- `craft_behavior::geometry::move_gesture::StrokeLock`: `pub struct StrokeLock`. ⇧ during a painting stroke keeps it on a 0°, 45° or 90° line.
+  - `pub fn new(style: &ConstrainStyle) -> Self`. No lock yet.
+  - `pub fn constrain(&mut self, last: Point, p: Point, shift: bool, zoom: f64) -> Point`. The stroke point for the pointer at `p`.
+  - `pub fn locked(&self) -> bool`. Whether a direction is locked.
+  - `pub fn reset(&mut self)`. Forgets the lock.
+- `craft_behavior::geometry::move_gesture::snap_direction`: `pub fn snap_direction(origin: Point, p: Point, step: f64) -> Option<Vec2>`. The unit direction from `origin` towards `p` snapped to the nearest multiple of `step`.
+- `craft_behavior::geometry::move_gesture::snap_ray`: `pub fn snap_ray(origin: Point, p: Point, step: f64) -> Point`. `p` moved onto the nearest ray from `origin`.
 
 ## `craft_behavior::geometry::quad`
 
@@ -1507,7 +1534,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `fn announce(&mut self, text: impl Into<String>, politeness: Politeness)`. Announces transient text; it is flushed at frame end as one status node and returned in `FrameOutput`.
   - `fn field_label(&self) -> Option<FieldLabel>`. The label of the enclosing field container, when the component sits in one.
 - `craft_ui::contract::ActivateOn`: `pub enum ActivateOn { DoubleClick, Click }`. The pointer gesture that activates an item.
-- `craft_ui::contract::Activation`: `pub struct Activation { pub by_key: bool }`. How a component was activated this pass.
+- `craft_ui::contract::Activation`: `pub struct Activation { pub by_key: bool, pub mods: craft_keymap::Mods }`. How a component was activated this pass.
 - `craft_ui::contract::Animate`: re-export of `craft_ui::runtime::motion::Animate`.
 - `craft_ui::contract::Bind`: `pub struct Bind<'a, T>`. The binding of a value component: a value the app owns, the check on it and the value a reset restores. The same
   - `pub fn given(v: impl Into<Mixed<T>>) -> Self`. A value in; every edit comes out as an event.
@@ -1617,7 +1644,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub fn save(mut self, key: SaveKey) -> Self`. Saves placement, size and open state under `key`.
   - `pub const fn outer_edit(mut self, on: bool) -> Self`. One outer gesture over the body's fields.
   - `pub const fn label_column(mut self, on: bool) -> Self`. The labelled rows of the body share the widest label as one column. A nested container with its own
-- `craft_ui::contract::ContextMenuRequest`: `pub struct ContextMenuRequest<K> { pub key: K, pub at: Pos2 }`. A request for the context menu of an item. Collections never open menus: the app does.
+- `craft_ui::contract::ContextMenuRequest`: `pub struct ContextMenuRequest<K> { pub key: K, pub at: Pos2, pub column: Option<ColumnKey> }`. A request for the context menu of an item. Collections never open menus: the app does.
 - `craft_ui::contract::Cx`: `pub struct Cx<'a, C: Component> { pub style: &'a C::Style }`. What component code reads and calls. It derefs to [`CxCore`] for reading only.
   - `pub fn reset_part(&self) -> Option<PartRef>`. The part a reset aimed at, when it declared `own_reset`; `update` proposes the value with that part at its
   - `pub fn open_url(&mut self, url: &str, new_tab: bool)`. Asks the platform to open `url`, in a new tab where the platform has tabs and `new_tab` is set.
@@ -1883,7 +1910,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
 - `craft_ui::contract::ToggleColumn`: `pub struct ToggleColumn { pub sweepable: bool, pub exclusive: bool }`. A toggle column: its cells flip by click, and a drag across them sweeps one value over all of them.
   - `pub const fn sweepable() -> Self`. A sweepable toggle column (eye, lock, mute).
   - `pub const fn exclusive() -> Self`. An exclusive toggle column: one cell is on at a time, and a drag does not sweep.
-- `craft_ui::contract::ToggleEdit`: `pub struct ToggleEdit<K> { pub key: K, pub column: ColumnKey, pub on: bool }`. A toggle column's cell flipped.
+- `craft_ui::contract::ToggleEdit`: `pub struct ToggleEdit<K> { pub key: K, pub column: ColumnKey, pub on: bool, pub mods: craft_keymap::Mods }`. A toggle column's cell flipped.
 - `craft_ui::contract::Tooltip`: `pub struct Tooltip`. A tooltip: one type for components and parts.
   - `pub fn spec(&self) -> &TooltipSpec`. What the tooltip shows and when.
 - `craft_ui::contract::TooltipAt`: `pub enum TooltipAt { Control, Pointer }`. Where a tooltip appears.
@@ -2413,6 +2440,7 @@ Per-pass and per-frame services and the one egui adapter.
   - `pub fn description(&mut self, text: impl Into<String>) -> &mut Self`. A description, over the bound command's hint and the tooltip.
   - `pub fn placeholder(&mut self, text: impl Into<String>) -> &mut Self`. The hint text of an empty input.
   - `pub fn value(&mut self, text: impl Into<String>) -> &mut Self`. The text value of a text component.
+  - `pub fn color(&mut self, color: Srgba) -> &mut Self`. The colour value of a colour well.
   - `pub fn numeric(&mut self, numeric: Numeric) -> &mut Self`. The numeric value of a value component; a step also declares increment and decrement.
   - `pub fn expanded(&mut self, on: bool) -> &mut Self`. Whether a disclosure is open, when no flag says it.
   - `pub fn has_popup(&mut self, kind: PopupKind) -> &mut Self`. What kind of popup the component opens.

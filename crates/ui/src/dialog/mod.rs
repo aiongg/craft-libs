@@ -29,7 +29,7 @@ pub use full_window::{FullWindowDialog, FullWindowDialogStyle};
 // full-window parts
 pub use full_window_parts::{
     FullWindowCanvas, FullWindowCanvasOutput, FullWindowSide, FullWindowSideOutput, FullWindowSideStyle, FullWindowStatus, FullWindowStatusOutput,
-    FullWindowTitle, FullWindowTitleOutput, FullWindowView, FullWindowZoomBar, FullWindowZoomBarOutput, FullWindowZoomKeys, RasterOverlay,
+    FullWindowTitle, FullWindowTitleOutput, FullWindowView, FullWindowZoomBar, FullWindowZoomBarOutput, RasterOverlay,
     SideFooter, SideWidth,
 };
 // end of full-window parts

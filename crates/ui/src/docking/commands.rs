@@ -1,9 +1,10 @@
 //! Docking commands: the panel, arrange and workspace command sets, and the pure functions that turn a command into
 //! the dock model's `Action`s or the host's next step.
 //!
-//! The commands carry no payload. A panel command takes its target from the caller (the panel that holds focus, or
-//! the one whose menu opened), so a menu row, a key and the command palette run the same code. Nothing here reads
-//! `Ui` or egui memory; the host fires `DockCommand`s, calls [`actions`] and applies the result with
+//! The commands carry no payload. A panel command acts on the shown panel of the dock group it reaches: `DockArea`
+//! gives each group the `dockGroup` scope of [`DockCommands`], publishes [`dock_states`] there and runs [`actions`]
+//! for the commands it takes, so a menu row, a key and the command palette run the same code. Nothing here reads
+//! `Ui` or egui memory; a host that shows its own dock calls the same functions and applies the result with
 //! `Workspace::apply_all`.
 
 use super::drop::{beside, members, moving_panels, to_target};
@@ -11,19 +12,19 @@ use super::{DockEvent, DragUnit, FloatSpace};
 use crate::runtime::commands::CommandState;
 use craft_behavior::DockSide;
 use craft_behavior::dock::{
-    Action, Arrangement, DockEdge, DockError, DocumentWindows, Layout, Node, PanelPlace, Permissions, Placement, Target, Workspace, WorkspaceCommand,
-    WorkspaceSet, arrange_rects, node_at,
+    Action, Arrangement, DockEdge, DockError, DocumentWindows, Layout, Node, PanelPlace, Permissions, Placement, Target, Workspace, WorkspaceSet,
+    arrange_rects, node_at,
 };
 use craft_behavior::placement::cascade_rects;
 use egui::{Rect, Vec2};
 use std::hash::Hash;
 
-/// The commands of a docked or floating panel. A panel command acts on one panel or on its tab group; the host
-/// passes the panel.
+/// The commands of a docked or floating panel. A panel command acts on one panel or on its tab group: the shown
+/// panel of the dock group whose scope instance takes it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui_macros::CommandSet)]
-#[command(prefix = "dock")]
+#[command(prefix = "dock", scope = "dockGroup")]
 #[non_exhaustive]
-pub enum DockCommand {
+pub enum DockCommands {
     /// Float the panel into its own frame.
     #[command(label = "Float")]
     FloatPanel,
@@ -65,15 +66,15 @@ pub enum DockCommand {
     AutoCollapse,
 }
 
-impl DockCommand {
+impl DockCommands {
     /// The unit a command that asks for a destination moves, `None` for the other commands.
     pub fn moves<P>(self, panel: &P) -> Option<DragUnit<P>>
     where
         P: Clone,
     {
         match self {
-            DockCommand::MovePanelTo => Some(DragUnit::Panel(panel.clone())),
-            DockCommand::MoveGroupTo => Some(DragUnit::Group(panel.clone())),
+            DockCommands::MovePanelTo => Some(DragUnit::Panel(panel.clone())),
+            DockCommands::MoveGroupTo => Some(DragUnit::Group(panel.clone())),
             _ => None,
         }
     }
@@ -84,8 +85,8 @@ impl DockCommand {
         P: Clone,
     {
         match self {
-            DockCommand::ToggleMaximize => Some(DockEvent::ToggleMaximize { panel: panel.clone() }),
-            DockCommand::AutoCollapse => Some(DockEvent::ToggleAutoCollapse),
+            DockCommands::ToggleMaximize => Some(DockEvent::ToggleMaximize { panel: panel.clone() }),
+            DockCommands::AutoCollapse => Some(DockEvent::ToggleAutoCollapse),
             _ => None,
         }
     }
@@ -153,31 +154,31 @@ impl<P> DockTo<P> {
     }
 }
 
-/// The actions that run a panel command, empty for a command the host carries out ([`DockCommand::event`],
-/// [`DockCommand::moves`]).
+/// The actions that run a panel command, empty for a command the host carries out ([`DockCommands::event`],
+/// [`DockCommands::moves`]).
 ///
 /// # Errors
 ///
 /// A [`DockError`] when the panel is not in the layout or the command does not apply to where it is.
-pub fn actions<P: Clone + Eq + Hash>(scene: &DockScene<'_, P>, command: DockCommand, panel: &P) -> Result<Vec<Action<P>>, DockError> {
+pub fn actions<P: Clone + Eq + Hash>(scene: &DockScene<'_, P>, command: DockCommands, panel: &P) -> Result<Vec<Action<P>>, DockError> {
     let layout = scene.layout;
     let shown = || if layout.contains(panel) { Ok(()) } else { Err(DockError::MissingPanel) };
     let one = |action: Action<P>| Ok(vec![action]);
     match command {
-        DockCommand::FloatPanel => {
+        DockCommands::FloatPanel => {
             shown()?;
             Ok(float_actions(scene, &DragUnit::Panel(panel.clone())))
         }
-        DockCommand::FloatGroup => {
+        DockCommands::FloatGroup => {
             shown()?;
             Ok(float_actions(scene, &DragUnit::Group(panel.clone())))
         }
-        DockCommand::ClosePanel => one(Action::close(panel.clone())),
-        DockCommand::CloseOthers => one(Action::close_others(panel.clone())),
-        DockCommand::CloseGroup => one(Action::close_group(panel.clone())),
-        DockCommand::StepGroupUp => one(Action::step_group(panel.clone(), true)),
-        DockCommand::StepGroupDown => one(Action::step_group(panel.clone(), false)),
-        DockCommand::ToggleMinimized => {
+        DockCommands::ClosePanel => one(Action::close(panel.clone())),
+        DockCommands::CloseOthers => one(Action::close_others(panel.clone())),
+        DockCommands::CloseGroup => one(Action::close_group(panel.clone())),
+        DockCommands::StepGroupUp => one(Action::step_group(panel.clone(), true)),
+        DockCommands::StepGroupDown => one(Action::step_group(panel.clone(), false)),
+        DockCommands::ToggleMinimized => {
             let place = layout.place(panel).ok_or(DockError::MissingPanel)?;
             // An accordion entry is minimized while it is closed.
             let current = match &place {
@@ -190,12 +191,12 @@ pub fn actions<P: Clone + Eq + Hash>(scene: &DockScene<'_, P>, command: DockComm
             };
             one(Action::set_minimized(panel.clone(), !current))
         }
-        DockCommand::CollapseToIcons => {
+        DockCommands::CollapseToIcons => {
             let place = layout.place(panel).ok_or(DockError::MissingPanel)?;
             let column = layout.column(&place).ok_or(DockError::InvalidPlacement)?;
             one(Action::set_iconic(panel.clone(), !column.iconic))
         }
-        DockCommand::MovePanelTo | DockCommand::MoveGroupTo | DockCommand::ToggleMaximize | DockCommand::AutoCollapse => Ok(Vec::new()),
+        DockCommands::MovePanelTo | DockCommands::MoveGroupTo | DockCommands::ToggleMaximize | DockCommands::AutoCollapse => Ok(Vec::new()),
     }
 }
 
@@ -254,8 +255,9 @@ pub fn move_actions<P: Clone + Eq + Hash>(scene: &DockScene<'_, P>, unit: &DragU
 }
 
 /// The state of each panel command for `panel`: enabled as its permissions and place allow, Collapse to Icons
-/// checked while its column is iconic. The host passes them with the app's command input.
-pub fn dock_states<P: Clone + Eq + Hash>(scene: &DockScene<'_, P>, panel: &P) -> Vec<(DockCommand, CommandState)> {
+/// checked while its column is iconic. Maximize Frame applies to a frame of the docked layout, never to a floating
+/// one. `DockArea` publishes them in the panel's group scope.
+pub fn dock_states<P: Clone + Eq + Hash>(scene: &DockScene<'_, P>, panel: &P) -> Vec<(DockCommands, CommandState)> {
     let layout = scene.layout;
     let policy = |p: &P| scene.policy(p);
     let allowed = scene.policy(panel);
@@ -267,19 +269,19 @@ pub fn dock_states<P: Clone + Eq + Hash>(scene: &DockScene<'_, P>, panel: &P) ->
     let floating = matches!(place, Some(PanelPlace::Floating { .. }));
     let movable = allowed.movable && !layout.move_targets(panel, policy).is_empty();
     vec![
-        (DockCommand::FloatPanel, enabled(floatable)),
-        (DockCommand::FloatGroup, enabled(floatable)),
-        (DockCommand::MovePanelTo, enabled(movable)),
-        (DockCommand::MoveGroupTo, enabled(movable)),
-        (DockCommand::ClosePanel, enabled(shown && allowed.closable)),
-        (DockCommand::CloseOthers, enabled(allowed.closable && members(layout, panel).len() > 1)),
-        (DockCommand::CloseGroup, enabled(shown && allowed.closable)),
-        (DockCommand::StepGroupUp, enabled(layout.can_step_group(panel, true, policy))),
-        (DockCommand::StepGroupDown, enabled(layout.can_step_group(panel, false, policy))),
-        (DockCommand::ToggleMinimized, enabled(shown)),
-        (DockCommand::CollapseToIcons, CommandState::new().enabled(iconic.is_some()).checked(iconic.unwrap_or(false))),
-        (DockCommand::ToggleMaximize, enabled(floating)),
-        (DockCommand::AutoCollapse, enabled(true)),
+        (DockCommands::FloatPanel, enabled(floatable)),
+        (DockCommands::FloatGroup, enabled(floatable)),
+        (DockCommands::MovePanelTo, enabled(movable)),
+        (DockCommands::MoveGroupTo, enabled(movable)),
+        (DockCommands::ClosePanel, enabled(shown && allowed.closable)),
+        (DockCommands::CloseOthers, enabled(allowed.closable && members(layout, panel).len() > 1)),
+        (DockCommands::CloseGroup, enabled(shown && allowed.closable)),
+        (DockCommands::StepGroupUp, enabled(layout.can_step_group(panel, true, policy))),
+        (DockCommands::StepGroupDown, enabled(layout.can_step_group(panel, false, policy))),
+        (DockCommands::ToggleMinimized, enabled(shown)),
+        (DockCommands::CollapseToIcons, CommandState::new().enabled(iconic.is_some()).checked(iconic.unwrap_or(false))),
+        (DockCommands::ToggleMaximize, enabled(shown && !floating)),
+        (DockCommands::AutoCollapse, enabled(true)),
     ]
 }
 
@@ -328,7 +330,7 @@ fn last_column<P: Clone + Eq + Hash>(layout: &Layout<P>, edge: DockEdge) -> Opti
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui_macros::CommandSet)]
 #[command(prefix = "arrange")]
 #[non_exhaustive]
-pub enum ArrangeCommand {
+pub enum ArrangeCommands {
     /// Tile every document window across the document area, side by side.
     #[command(label = "Tile All Vertically")]
     TileAllVertically,
@@ -388,62 +390,62 @@ pub enum ArrangeCommand {
     MatchAll,
 }
 
-impl ArrangeCommand {
+impl ArrangeCommands {
     /// The data entry this command runs.
     pub const fn arrangement(self) -> Arrangement {
         match self {
-            ArrangeCommand::TileAllVertically => Arrangement::TileAllVertically,
-            ArrangeCommand::TileAllHorizontally => Arrangement::TileAllHorizontally,
-            ArrangeCommand::TwoUpVertical => Arrangement::TwoUpVertical,
-            ArrangeCommand::TwoUpHorizontal => Arrangement::TwoUpHorizontal,
-            ArrangeCommand::ThreeUpVertical => Arrangement::ThreeUpVertical,
-            ArrangeCommand::ThreeUpHorizontal => Arrangement::ThreeUpHorizontal,
-            ArrangeCommand::ThreeUpStacked => Arrangement::ThreeUpStacked,
-            ArrangeCommand::FourUp => Arrangement::FourUp,
-            ArrangeCommand::SixUp => Arrangement::SixUp,
-            ArrangeCommand::ConsolidateAllToTabs => Arrangement::ConsolidateAllToTabs,
-            ArrangeCommand::Cascade => Arrangement::Cascade,
-            ArrangeCommand::Tile => Arrangement::Tile,
-            ArrangeCommand::FloatInWindow => Arrangement::FloatInWindow,
-            ArrangeCommand::FloatAllInWindows => Arrangement::FloatAllInWindows,
-            ArrangeCommand::NewWindowForDocument => Arrangement::NewWindowForDocument,
-            ArrangeCommand::MatchZoom => Arrangement::MatchZoom,
-            ArrangeCommand::MatchLocation => Arrangement::MatchLocation,
-            ArrangeCommand::MatchRotation => Arrangement::MatchRotation,
-            ArrangeCommand::MatchAll => Arrangement::MatchAll,
+            ArrangeCommands::TileAllVertically => Arrangement::TileAllVertically,
+            ArrangeCommands::TileAllHorizontally => Arrangement::TileAllHorizontally,
+            ArrangeCommands::TwoUpVertical => Arrangement::TwoUpVertical,
+            ArrangeCommands::TwoUpHorizontal => Arrangement::TwoUpHorizontal,
+            ArrangeCommands::ThreeUpVertical => Arrangement::ThreeUpVertical,
+            ArrangeCommands::ThreeUpHorizontal => Arrangement::ThreeUpHorizontal,
+            ArrangeCommands::ThreeUpStacked => Arrangement::ThreeUpStacked,
+            ArrangeCommands::FourUp => Arrangement::FourUp,
+            ArrangeCommands::SixUp => Arrangement::SixUp,
+            ArrangeCommands::ConsolidateAllToTabs => Arrangement::ConsolidateAllToTabs,
+            ArrangeCommands::Cascade => Arrangement::Cascade,
+            ArrangeCommands::Tile => Arrangement::Tile,
+            ArrangeCommands::FloatInWindow => Arrangement::FloatInWindow,
+            ArrangeCommands::FloatAllInWindows => Arrangement::FloatAllInWindows,
+            ArrangeCommands::NewWindowForDocument => Arrangement::NewWindowForDocument,
+            ArrangeCommands::MatchZoom => Arrangement::MatchZoom,
+            ArrangeCommands::MatchLocation => Arrangement::MatchLocation,
+            ArrangeCommands::MatchRotation => Arrangement::MatchRotation,
+            ArrangeCommands::MatchAll => Arrangement::MatchAll,
         }
     }
 }
 
 /// The state of each Arrange command with `documents` open, in `groups` docked groups and `floating` floating
 /// windows.
-pub fn arrange_states(documents: usize, groups: usize, floating: usize) -> Vec<(ArrangeCommand, CommandState)> {
+pub fn arrange_states(documents: usize, groups: usize, floating: usize) -> Vec<(ArrangeCommands, CommandState)> {
     ALL_ARRANGE
         .into_iter()
         .map(|command| (command, CommandState::new().enabled(command.arrangement().enabled(documents, groups, floating))))
         .collect()
 }
 
-const ALL_ARRANGE: [ArrangeCommand; 19] = [
-    ArrangeCommand::TileAllVertically,
-    ArrangeCommand::TileAllHorizontally,
-    ArrangeCommand::TwoUpVertical,
-    ArrangeCommand::TwoUpHorizontal,
-    ArrangeCommand::ThreeUpVertical,
-    ArrangeCommand::ThreeUpHorizontal,
-    ArrangeCommand::ThreeUpStacked,
-    ArrangeCommand::FourUp,
-    ArrangeCommand::SixUp,
-    ArrangeCommand::ConsolidateAllToTabs,
-    ArrangeCommand::Cascade,
-    ArrangeCommand::Tile,
-    ArrangeCommand::FloatInWindow,
-    ArrangeCommand::FloatAllInWindows,
-    ArrangeCommand::NewWindowForDocument,
-    ArrangeCommand::MatchZoom,
-    ArrangeCommand::MatchLocation,
-    ArrangeCommand::MatchRotation,
-    ArrangeCommand::MatchAll,
+const ALL_ARRANGE: [ArrangeCommands; 19] = [
+    ArrangeCommands::TileAllVertically,
+    ArrangeCommands::TileAllHorizontally,
+    ArrangeCommands::TwoUpVertical,
+    ArrangeCommands::TwoUpHorizontal,
+    ArrangeCommands::ThreeUpVertical,
+    ArrangeCommands::ThreeUpHorizontal,
+    ArrangeCommands::ThreeUpStacked,
+    ArrangeCommands::FourUp,
+    ArrangeCommands::SixUp,
+    ArrangeCommands::ConsolidateAllToTabs,
+    ArrangeCommands::Cascade,
+    ArrangeCommands::Tile,
+    ArrangeCommands::FloatInWindow,
+    ArrangeCommands::FloatAllInWindows,
+    ArrangeCommands::NewWindowForDocument,
+    ArrangeCommands::MatchZoom,
+    ArrangeCommands::MatchLocation,
+    ArrangeCommands::MatchRotation,
+    ArrangeCommands::MatchAll,
 ];
 
 /// The document area an arrangement works in.
@@ -487,7 +489,7 @@ pub enum Arranged {
 }
 
 /// Runs an Arrange command on the document windows.
-pub fn arrange<D: Clone + Eq + Hash>(windows: &mut DocumentWindows<D>, command: ArrangeCommand, space: &ArrangeSpace<D>) -> Arranged {
+pub fn arrange<D: Clone + Eq + Hash>(windows: &mut DocumentWindows<D>, command: ArrangeCommands, space: &ArrangeSpace<D>) -> Arranged {
     let arrangement = command.arrangement();
     let ArrangeSpace { area, size, step, active } = space;
     let next_slot = |windows: &DocumentWindows<D>| cascade_rects(*area, *size, windows.floating.len() + 1, *step).pop();
@@ -558,18 +560,6 @@ pub enum WorkspaceCommands {
     /// Refuse moves and closes until it is unlocked; resizing still works.
     #[command(label = "Lock Workspace", kind = "toggle")]
     Lock,
-}
-
-impl WorkspaceCommands {
-    /// The data command this runs.
-    pub const fn data(self) -> WorkspaceCommand {
-        match self {
-            WorkspaceCommands::Reset => WorkspaceCommand::Reset,
-            WorkspaceCommands::New => WorkspaceCommand::New,
-            WorkspaceCommands::Delete => WorkspaceCommand::Delete,
-            WorkspaceCommands::Lock => WorkspaceCommand::LockToggle,
-        }
-    }
 }
 
 /// What the host asks the user after a workspace command.

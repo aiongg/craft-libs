@@ -19,6 +19,7 @@ mod props;
 mod registry;
 pub(crate) mod reorder;
 mod run;
+mod sampler;
 mod shell;
 mod steps;
 pub(crate) mod text;
@@ -37,7 +38,7 @@ pub(crate) use body::REORDER_BAND;
 pub use collection::{
     ActivateOn, CollectionEvent, CollectionProps, CollectionResponse, ColumnAlign, ColumnEvent, ColumnKind, ColumnSort, ColumnSpec,
     ContextMenuRequest, DragPayload, HeaderMenuRequest, LeadOnOpen, LeadSource, ListDrag, OpenChange, Rename, ReorderMove, ReorderRule, RowState,
-    SelectMode, SpaceAction, ToggleColumn, ToggleEdit,
+    ItemKeys, SelectMode, SpaceAction, ToggleColumn, ToggleEdit,
 };
 pub use container::{
     Collapse, ContainerProps, DragBand, EndRegion, FooterRegion, Gap, HeaderRegion, Mount, Notch, Pad, PaneEdge, Scroll, ScrollAnchor, ScrollAxes,
@@ -67,7 +68,7 @@ pub use values::{Bind, BindMut, EditResponse, ItemOutput, NoValue, Outcome, Vali
 use crate::runtime::overlay::CloseReason;
 use crate::style::{ComponentStyle, Flags, StyleCx, StyleKey};
 pub use craft_behavior::Input;
-use craft_behavior::{ItemLayout, ItemSource, Proposal, ScrollPos, SelectionModel, Sense};
+use craft_behavior::{CellSpace, ItemLayout, ItemSource, Proposal, ScrollPos, SelectionModel, Sense};
 use egui::{Id, IdSalt, Rect, Ui, Vec2};
 use run::ShowAt;
 use std::hash::Hash;
@@ -386,6 +387,13 @@ pub trait Collection: Component + HasProps + Meta<Shape = shape::Items> {
     /// The selection binding; `None` keeps it in session memory.
     fn selection(&mut self) -> Option<BindMut<'_, Self::Selection>> {
         None
+    }
+
+    /// The grid a model of cells selects in (17.7). The item step passes the grid it knows, the source's rows and the
+    /// layout's columns with the rows the layout hides left out; a sheet adds its merged cells, hidden columns and
+    /// locked cells from its model.
+    fn cell_space<'s>(&'s self, space: CellSpace<'s, Self::Key>) -> CellSpace<'s, Self::Key> {
+        space
     }
 
     /// A one-shot request to scroll an item into view.

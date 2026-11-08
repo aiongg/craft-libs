@@ -42,21 +42,20 @@ pub struct Dialog<'a> {
     #[prop(name = "opened")]
     open: Option<Bind<'a, bool>>,
     footer: Option<FooterFn<'a>>,
-    /// Lets the host refuse the close of a picked button: `allows` gets the index of every picked button but
-    /// `Cancel` and the dialog's body context, so a host reads its kept state, and returns whether a button that
-    /// closes the dialog may. It is not the place to act on a pick (see
-    /// `ResetFooter::install`). On `false` the dialog stays open, with `DialogOutput::picked` still reporting the pick; the host shows why. A button marked `stays_open` never closes, whatever it returns.
+    /// Lets the host refuse the close of a picked button: `allows` gets every picked button but `Cancel`
+    /// and the dialog's body context, so a host reads its kept state, and returns whether a button that closes the
+    /// dialog may. It is not the place to act on a pick (see `on_pick`). On `false` the dialog stays open, with `DialogOutput::picked` still reporting the pick; the host shows why. A button marked `stays_open` never closes, whatever it returns.
     #[prop(boxed, name = "close_guard")]
-    guard: Option<Box<dyn FnMut(usize, &mut BodyCx<'_>) -> bool + 'a>>,
+    guard: Option<Box<dyn FnMut(&FooterButton, &mut BodyCx<'_>) -> bool + 'a>>,
     /// Sets the buttons' state each pass: `settle` gets the dialog's body context and the buttons when the footer is
     /// shown, after the body ran, so a button's `enabled` can follow what the body wrote in the same pass (through
     /// `BodyCx::memory`, say). Enter's routing is decided from the buttons given to `buttons`.
     #[prop(boxed, name = "settle_buttons")]
     settle: Option<Box<dyn FnMut(&mut BodyCx<'_>, &mut [FooterButton]) + 'a>>,
-    /// Acts on a picked footer button in the footer step, before the close is decided: `act` gets the button's index
-    /// and the dialog's body context. `ResetFooter::install` sets it.
+    /// Acts on a picked footer button in the footer step, before the close is decided: `act` gets the button and the
+    /// dialog's body context. `ResetFooter::install` sets it.
     #[prop(boxed, name = "on_pick")]
-    on_pick: Option<Box<dyn FnMut(usize, &mut BodyCx<'_>) + 'a>>,
+    on_pick: Option<Box<dyn FnMut(&FooterButton, &mut BodyCx<'_>) + 'a>>,
     buttons: Vec<FooterButton>,
     /// Whether Enter closes the dialog as its OK.
     enter: bool,

@@ -71,7 +71,7 @@ pub use columns::{ColumnKey, ColumnWidth, GridSection, GridView};
 pub use command::{CommandFlags, pick_instance, resolve_flags};
 pub use cursor::{Cursor, CursorBadge, CursorIcon, CursorPriority, IconId, PaintedCursor};
 pub use doc_key::DocKey;
-pub use dock::{DockHandle, DockSide, DockTree, GroupId};
+pub use dock::DockSide;
 pub use edit_history::EditHistory;
 pub use editor::EditorInput;
 pub use flow::{Axis, Flow, Insets};
@@ -80,7 +80,7 @@ pub use grid::{GridCursor, GridMeasure, resolve_columns};
 pub use hit::{HitLevel, HitPriority, HitShape, ResolveFor, Shape, Winner, resolve, resolve_mapped};
 pub use input::Input;
 pub use intent::{AccessRequest, EditCommand, Granularity, Intent, MoveMods, NavMove, TextPos};
-pub use item_layout::{FreeLayout, ItemLayout, SheetLayout, SpanLayout, TileLayout};
+pub use item_layout::{FreeLayout, ItemLayout, LineIndex, SHEET_ZOOM, SheetLayout, SpanLayout, TileLayout};
 pub use item_source::{DisplayOrder, ItemSource, Keyed, Outline, SizeHint, keyed};
 pub use keys::{DropOperation, KeyRole};
 pub use label_column::{LabelColumn, LabelPlacement};
@@ -100,7 +100,9 @@ pub use press::{
 pub use quantity::Reader;
 pub use role_rule::{GridFacts, RoleRule, is_checkable, is_selectable, role_violations};
 pub use scroll::{ScrollPos, ScrollSpan};
-pub use selection::{CellAt, CellRange, CellSelection, Selection, SelectionChange, SelectionModel};
+pub use selection::{
+    CellAdvance, CellAt, CellDirection, CellRange, CellSelection, CellSpace, Positions, RowAt, Selection, SelectionChange, SelectionModel,
+};
 pub use sense::Sense;
 pub use sizing::{ControlMetrics, Metrics, Proposal};
 pub use typing::{EditRun, Ended, EscapeRule, Escaped, Typed, TypingRun};

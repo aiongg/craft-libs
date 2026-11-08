@@ -113,6 +113,7 @@ pub struct FormDialog<'a, V: Value + Default> {
     outer_gesture: bool,
     collection_body: bool,
     closable: bool,
+    accept_stays_open: bool,
     footer_extra: Option<Box<dyn FnMut(&mut Ui) + 'a>>,
     shaped: Option<Box<dyn FnOnce(Dialog<'a>) -> Dialog<'a> + 'a>>,
     answers: Vec<HostAnswer>,
@@ -136,6 +137,7 @@ impl<'a, V: Value + Default> FormDialog<'a, V> {
             outer_gesture: false,
             collection_body: false,
             closable: true,
+            accept_stays_open: false,
             footer_extra: None,
             shaped: None,
             answers: Vec::new(),
@@ -203,6 +205,13 @@ impl<'a, V: Value + Default> FormDialog<'a, V> {
         self
     }
 
+    /// Whether OK keeps the dialog open when it is picked, until the host answers with a close (an export asks for a
+    /// path first, say). The body closes it with `FormCx::request_close_as`; the Reset footer is unchanged.
+    pub fn accept_stays_open(mut self, on: bool) -> Self {
+        self.accept_stays_open = on;
+        self
+    }
+
     /// Controls before the buttons in the footer.
     pub fn footer_extra(mut self, extra: impl FnMut(&mut Ui) + 'a) -> Self {
         self.footer_extra = Some(Box::new(extra));
@@ -249,6 +258,7 @@ impl<'a, V: Value + Default> FormDialog<'a, V> {
             outer_gesture,
             collection_body,
             closable,
+            accept_stays_open,
             footer_extra,
             shaped,
             mut answers,
@@ -261,7 +271,8 @@ impl<'a, V: Value + Default> FormDialog<'a, V> {
         let bind = Rc::new(RefCell::new(bind));
 
         let reset = ResetFooter::new(ui, cancel_label, alt_resets);
-        let mut accept = FooterButton::new(ok_label.unwrap_or_else(|| common.ok.clone()), DialogRole::Accept).enabled(ok_enabled);
+        let mut accept =
+            FooterButton::new(ok_label.unwrap_or_else(|| common.ok.clone()), DialogRole::Accept).enabled(ok_enabled).stays_open(accept_stays_open);
         if let (false, Some(reason)) = (ok_enabled, &ok_reason) {
             accept = accept.disabled_reason(reason.clone());
         }

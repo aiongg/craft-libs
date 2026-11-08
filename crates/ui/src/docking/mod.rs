@@ -25,7 +25,7 @@ mod words;
 pub mod desktop;
 
 mod commands;
-pub mod cross_window;
+pub(crate) mod cross_window;
 pub mod native;
 
 pub use config::{DockConfig, DockSides};
@@ -41,7 +41,7 @@ pub use targets::{DockSizes, DockSpot, DockTargets, GroupDrag, ZoneRule};
 pub use words::DockWords;
 
 pub use commands::{
-    ArrangeCommand, ArrangeSpace, Arranged, DockCommand, DockScene, DockTo, WorkspaceAsk, WorkspaceCommands, actions, arrange, arrange_states,
+    ArrangeCommands, ArrangeSpace, Arranged, DockCommands, DockScene, DockTo, WorkspaceAsk, WorkspaceCommands, actions, arrange, arrange_states,
     dock_states, move_actions, run_workspace, select_workspace, workspace_states,
 };
 

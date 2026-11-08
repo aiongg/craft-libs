@@ -3,6 +3,9 @@
 use egui::{Context, Event, Key, Modifiers, Pos2, Rect, Shape, Ui, ViewportCommand};
 use std::sync::Arc;
 
+use super::injected;
+pub(crate) use super::injected::{key_press, key_release, key_repeat, modifiers_changed, pointer_moved, text_event};
+
 /// What a frame sent out that trials read.
 pub(crate) struct FrameResult {
     /// The frame sent a close command.
@@ -149,16 +152,6 @@ pub(crate) fn key_reached(ctx: &Context, key: Key) -> bool {
     ctx.input(|input| input.key_pressed(key))
 }
 
-/// A key press event with `modifiers`.
-pub(crate) fn key_press(key: Key, modifiers: Modifiers) -> Event {
-    Event::Key { key, physical_key: Some(key), pressed: true, repeat: false, modifiers }
-}
-
-/// An auto-repeat event of a held `key`.
-pub(crate) fn key_repeat(key: Key, modifiers: Modifiers) -> Event {
-    Event::Key { key, physical_key: Some(key), pressed: true, repeat: true, modifiers }
-}
-
 /// Gives egui back the option the runtime turns off at install: `Cmd` with `=` or `-` zooms the interface.
 pub(crate) fn allow_zoom_keys(ctx: &Context) {
     ctx.options_mut(|options| options.zoom_with_keyboard = true);
@@ -258,22 +251,17 @@ pub(crate) fn layer_of(ui: &Ui) -> egui::LayerId {
 
 /// The primary button going down or up at `pos`.
 pub(crate) fn primary_button(pos: Pos2, pressed: bool) -> Event {
-    Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE }
+    injected::button(pos, egui::PointerButton::Primary, pressed, Modifiers::NONE)
 }
 
 /// The secondary button going down or up at `pos`.
 pub(crate) fn secondary_button(pos: Pos2, pressed: bool) -> Event {
-    Event::PointerButton { pos, button: egui::PointerButton::Secondary, pressed, modifiers: Modifiers::NONE }
-}
-
-/// The modifiers held from this event on.
-pub(crate) fn modifiers_changed(modifiers: Modifiers) -> Event {
-    Event::ModifiersChanged(modifiers)
+    injected::button(pos, egui::PointerButton::Secondary, pressed, Modifiers::NONE)
 }
 
 /// The middle button going down or up at `pos`.
 pub(crate) fn middle_button(pos: Pos2, pressed: bool) -> Event {
-    Event::PointerButton { pos, button: egui::PointerButton::Middle, pressed, modifiers: Modifiers::NONE }
+    injected::button(pos, egui::PointerButton::Middle, pressed, Modifiers::NONE)
 }
 
 /// A wheel event of `dy` points with the zoom modifier held.
@@ -285,11 +273,6 @@ pub(crate) fn zoom_wheel_event(dy: f32) -> Event {
         modifiers: Modifiers::COMMAND,
         source: egui::MouseWheelSource::Wheel,
     }
-}
-
-/// A key release event.
-pub(crate) fn key_release(key: Key, modifiers: Modifiers) -> Event {
-    Event::Key { key, physical_key: Some(key), pressed: false, repeat: false, modifiers }
 }
 
 /// The actions the focus trials request.
@@ -428,11 +411,6 @@ pub(crate) fn used_rect(ui: &Ui) -> Rect {
     ui.min_rect()
 }
 
-/// Typed text.
-pub(crate) fn text_event(text: &str) -> Event {
-    Event::Text(text.to_owned())
-}
-
 /// An AccessKit `SetValue` request carrying `text` for the node of `target`.
 pub fn set_value_request(target: egui::Id, text: &str) -> Event {
     let target_node = accesskit::NodeId(crate::runtime::egui::access::node_key(target));
@@ -507,11 +485,6 @@ pub(crate) fn wheel_event(dy: f32) -> Event {
         modifiers: Modifiers::NONE,
         source: egui::MouseWheelSource::Wheel,
     }
-}
-
-/// The pointer moving to `pos`.
-pub(crate) fn pointer_moved(pos: Pos2) -> Event {
-    Event::PointerMoved(pos)
 }
 
 /// The pointer leaving the window.

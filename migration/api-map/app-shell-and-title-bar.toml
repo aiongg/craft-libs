@@ -627,6 +627,7 @@ name = "TitleBarOutput"
 old = ""
 new = "craft_ui::shell::TitleBarOutput"
 status = "replaced"
+note = "Replaces the legacy `TitleBarResponse`: `TitleBarOutput { response, caption_clicked, close_requested }`."
 
 [[type]]
 name = "LeadingEnd"

@@ -69,10 +69,13 @@ pub use scrollbars::{CanvasScrollbars, CanvasScrollbarsOutput};
 // canvas-navigator-a
 mod navigator;
 pub use navigator::{
-    NAVIGATOR_PROXY_COLOR_KEY, Navigator, NavigatorCommands, NavigatorOutput, NavigatorPaint, NavigatorPreview, NavigatorOptions, NavigatorSettings, NavigatorZoomOutput, NavigatorZoomRow, ProxyColor, preview_rect,
-    proxy_quad, view_center_for, zoom_to_document_rect,
+    Navigator, NavigatorCommands, NavigatorOptions, NavigatorOutput, NavigatorPaint, NavigatorPreview, NavigatorSettings, NavigatorZoomRow,
+    NavigatorZoomRowOutput, ProxyColor, preview_rect, proxy_quad, view_center_for, zoom_to_document_rect,
 };
 // End of canvas-navigator-a.
+// l4e-navprev
+pub use navigator::NavigatorStyle;
+// End of l4e-navprev.
 
 use crate::contract::{Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, Sizing};
 use crate::runtime::env::Label;
@@ -213,7 +216,7 @@ impl Outcome for CanvasOutput {
 
 impl Component for Canvas {
     const ROLE: Role = Role::CANVAS;
-    const KEYS: KeyUse = KeyUse::CANVAS;
+    const KEYS: KeyUse = KeyUse::CANVAS.with_deletes();
     type Style = CanvasStyle;
     type Output = CanvasOutput;
 

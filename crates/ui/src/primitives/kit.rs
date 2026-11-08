@@ -315,11 +315,16 @@ pub fn ticks(tokens: &UiTokens, rect: Rect, edge: TickEdge, ticks: &[Tick], clip
 
 /// The line that marks a shape on any image: a `thick` halo under a `medium` line, in the overlay colours.
 pub fn outline(tokens: &UiTokens, shape: &PaintShape) -> Vec<Shape> {
-    let (halo, line) = (rgba_color(tokens.color.overlay.halo), rgba_color(tokens.color.overlay.line));
-    let (thick, medium) = (tokens.stroke.thick, tokens.stroke.medium);
-    let mut shapes = stroked(shape, Stroke::new(thick, halo));
-    shapes.extend(stroked(shape, Stroke::new(medium, line)));
-    shapes
+    outline_in(tokens, std::slice::from_ref(shape), rgba_color(tokens.color.overlay.line))
+}
+
+/// The outline of [`outline`] with the line in `line`, a colour the user picked (a Navigator proxy colour), over the
+/// overlay halo. Every halo is drawn under every line, so the edges of one mark that meet or cross stay unbroken.
+pub fn outline_in(tokens: &UiTokens, shapes: &[PaintShape], line: Color32) -> Vec<Shape> {
+    let halo = Stroke::new(tokens.stroke.thick, rgba_color(tokens.color.overlay.halo));
+    let line = Stroke::new(tokens.stroke.medium, line);
+    let halos = shapes.iter().flat_map(|shape| stroked(shape, halo));
+    halos.chain(shapes.iter().flat_map(|shape| stroked(shape, line))).collect()
 }
 
 /// A dashed line along `points`: dashes `dash` long with gaps `gap` long, in `color`, the pattern shifted by `phase`
@@ -552,6 +557,11 @@ impl ContentPainterCx<'_> {
     /// Paints a halo-and-line outline of `shape`.
     pub fn outline(&self, shape: &PaintShape) {
         self.painter.extend(outline(self.tokens, shape));
+    }
+
+    /// Paints the halo-and-line outline of `shapes` with the line in `line`; see [`outline_in`].
+    pub fn outline_in(&self, shapes: &[PaintShape], line: Color32) {
+        self.painter.extend(outline_in(self.tokens, shapes, line));
     }
 
     /// Paints a dashed line along `points`; see [`dashed`].

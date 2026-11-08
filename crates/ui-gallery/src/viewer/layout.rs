@@ -2,27 +2,31 @@
 //!
 //! The dock layout is rebuilt from the shares on load, so a saved layout the build cannot read costs only the layout.
 
+use craft_behavior::Axis;
 use craft_behavior::dock::{Layout, Node, SplitSize};
-use craft_behavior::{Axis, GroupId};
 use serde::{Deserialize, Serialize};
 
-/// The group of the component tree.
-pub const COMPONENTS: GroupId = GroupId::new(0);
-/// The group of the shown stories.
-pub const STORIES: GroupId = GroupId::new(1);
-/// The group of the component's facts.
-pub const FACTS: GroupId = GroupId::new(2);
-/// The group of the decision record.
-pub const RECORD: GroupId = GroupId::new(3);
-
-/// The group of the theme's contrast problems.
-pub const PROBLEMS: GroupId = GroupId::new(4);
-/// The group of the theme's token browser.
-pub const TOKENS: GroupId = GroupId::new(5);
-/// The group of the picked token's detail.
-pub const DETAIL: GroupId = GroupId::new(6);
-/// The group of the app sizes editor.
-pub const OVERRIDES: GroupId = GroupId::new(7);
+/// A panel of the viewer's dock layouts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum GalleryPanel {
+    /// The component tree.
+    Components,
+    /// The shown stories.
+    Stories,
+    /// The component's facts.
+    Facts,
+    /// The decision record.
+    Record,
+    /// The theme's contrast problems.
+    Problems,
+    /// The theme's token browser.
+    Tokens,
+    /// The picked token's detail.
+    Detail,
+    /// The app sizes editor.
+    Overrides,
+}
 
 /// How wide each column is and how the right column divides, as shares of the whole.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -58,17 +62,17 @@ impl PanelShares {
     }
 
     /// The dock layout of the shares: each split gives its first child the fraction of what its two children share.
-    pub fn tree(&self) -> Layout<GroupId> {
+    pub fn tree(&self) -> Layout<GalleryPanel> {
         let [first, second, third] = self.columns;
         let [above, below] = self.right;
-        let group = |id: GroupId| Node::tabs(vec![id], 0);
-        let right = Node::split(Axis::Y, SplitSize::Ratio(above / (above + below)), group(FACTS), group(RECORD));
-        let rest = Node::split(Axis::X, SplitSize::Ratio(second / (second + third)), group(STORIES), right);
-        Layout::new(Some(Node::split(Axis::X, SplitSize::Ratio(first / (first + second + third)), group(COMPONENTS), rest)), Vec::new())
+        let group = |id: GalleryPanel| Node::tabs(vec![id], 0);
+        let right = Node::split(Axis::Y, SplitSize::Ratio(above / (above + below)), group(GalleryPanel::Facts), group(GalleryPanel::Record));
+        let rest = Node::split(Axis::X, SplitSize::Ratio(second / (second + third)), group(GalleryPanel::Stories), right);
+        Layout::new(Some(Node::split(Axis::X, SplitSize::Ratio(first / (first + second + third)), group(GalleryPanel::Components), rest)), Vec::new())
     }
 
     /// The shares of `layout`, when it has the shape `tree` builds.
-    pub fn of_tree(layout: &Layout<GroupId>) -> Option<PanelShares> {
+    pub fn of_tree(layout: &Layout<GalleryPanel>) -> Option<PanelShares> {
         let Some(Node::Split { axis: Axis::X, size: SplitSize::Ratio(outer), second: rest, .. }) = &layout.root else { return None };
         let Node::Split { axis: Axis::X, size: SplitSize::Ratio(middle), second: right, .. } = rest.as_ref() else { return None };
         let Node::Split { axis: Axis::Y, size: SplitSize::Ratio(inner), .. } = right.as_ref() else { return None };
@@ -95,11 +99,11 @@ const THEME_RIGHT: [f32; 2] = [1.0, 1.0];
 
 /// The layout of the theme panels. Problems come first in the tree, so they are shown before the tokens in a pass:
 /// the token browser reveals the row a problem picks in the same pass.
-pub fn theme_layout() -> Layout<GroupId> {
+pub fn theme_layout() -> Layout<GalleryPanel> {
     let [first, second, third] = THEME_COLUMNS;
     let [above, below] = THEME_RIGHT;
-    let group = |id: GroupId| Node::tabs(vec![id], 0);
-    let right = Node::split(Axis::Y, SplitSize::Ratio(above / (above + below)), group(DETAIL), group(OVERRIDES));
-    let rest = Node::split(Axis::X, SplitSize::Ratio(second / (second + third)), group(TOKENS), right);
-    Layout::new(Some(Node::split(Axis::X, SplitSize::Ratio(first / (first + second + third)), group(PROBLEMS), rest)), Vec::new())
+    let group = |id: GalleryPanel| Node::tabs(vec![id], 0);
+    let right = Node::split(Axis::Y, SplitSize::Ratio(above / (above + below)), group(GalleryPanel::Detail), group(GalleryPanel::Overrides));
+    let rest = Node::split(Axis::X, SplitSize::Ratio(second / (second + third)), group(GalleryPanel::Tokens), right);
+    Layout::new(Some(Node::split(Axis::X, SplitSize::Ratio(first / (first + second + third)), group(GalleryPanel::Problems), rest)), Vec::new())
 }

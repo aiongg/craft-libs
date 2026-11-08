@@ -1,43 +1,25 @@
 //! `PanelMenu`: the rows of a dock panel's menu (the button at the end of a group's tab strip and a tab's context
-//! menu): the host's rows, then the dock's group rows.
+//! menu): the host's rows, then the dock's rows.
 
 use super::MenuItem;
 use super::popup::{Menu, entry_rows};
-use super::words::MenuWords;
 use crate::contract::{Entry, Show as _};
 use crate::display::Divider;
 use crate::runtime::commands::CommandRef;
 use crate::runtime::env::Label;
 use egui::Ui;
 
-/// A row of the dock itself at the end of a panel menu; it goes back to the host as the pick.
+/// A dock row of a panel or column menu that a command cannot name: it goes back to the dock as the pick. The panel
+/// commands themselves are `PanelRow::Command` rows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum GroupItem {
-    /// Float the panel into its own frame.
-    Float,
-    /// Move Panel To, the target at this index.
+    /// A target of the Move Panel To submenu, by its index in the dock's move targets.
     MoveTo(usize),
-    /// Close the panel.
-    Close,
+    /// Collapse to Icons, or Expand Panels on an iconic column.
+    CollapseToIcons,
     /// Auto-Collapse Iconic Panels.
     AutoCollapse,
-    /// Close Tab Group.
-    CloseGroup,
-    /// Minimize the group, or expand it when it is minimized.
-    ToggleMinimized,
-    /// Collapse to Icons.
-    CollapseToIcons,
-    /// Float Tab Group.
-    FloatGroup,
-    /// Move Group Up (`true`) or Down (`false`) within its column.
-    StepGroup(bool),
-    /// Move Group To, the target at this index.
-    MoveGroupTo(usize),
-    /// Close Other Panels in Group.
-    CloseOthers,
-    /// Maximize Frame, or restore it when the frame is maximized.
-    ToggleMaximize,
 }
 
 /// One row of a panel menu.
@@ -46,7 +28,8 @@ pub enum GroupItem {
 pub enum PanelRow {
     /// A command row: its label, chord, check and enabled state come from the command, and it runs by itself.
     Command(CommandRef),
-    /// A row of the dock, reported through `PanelMenuOutput::picked`. The entry can be disabled or checked.
+    /// A dock row a command cannot name, reported through `PanelMenuOutput::picked`. The entry can be disabled or
+    /// checked.
     Item(Entry<GroupItem>),
     /// A row that opens a submenu.
     Submenu(Label, Vec<PanelRow>),
@@ -106,23 +89,5 @@ impl PanelMenu {
                 }
             }
         }
-    }
-
-    /// The dock's rows for a panel: Float when it can move and float, Move Panel To with one submenu row per target
-    /// label, Close when it can close and the dock shows close rows.
-    pub fn group_rows(movable: bool, floatable: bool, closable: bool, close_row: bool, targets: &[Label], words: &MenuWords) -> Vec<PanelRow> {
-        let item = |item: GroupItem, label: &str| PanelRow::Item(Entry::new(item, Label::from(label.to_owned())));
-        let mut rows = Vec::new();
-        if movable && floatable {
-            rows.push(item(GroupItem::Float, words.panel_float.as_str()));
-        }
-        if movable && !targets.is_empty() {
-            let targets = targets.iter().enumerate().map(|(at, label)| PanelRow::Item(Entry::new(GroupItem::MoveTo(at), label.clone()))).collect();
-            rows.push(PanelRow::Submenu(Label::from(words.panel_move_to.as_str().to_owned()), targets));
-        }
-        if closable && close_row {
-            rows.push(item(GroupItem::Close, words.panel_close.as_str()));
-        }
-        rows
     }
 }

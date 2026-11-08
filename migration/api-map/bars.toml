@@ -296,3 +296,31 @@ new = "tooltip(StatusItem, impl Into<Label>)"
 type = "FooterAction"
 old = "accepts_drops(bool)"
 new = "accepts_drops::<P>(fn(&P) -> bool)"
+
+[[type]]
+name = "ConstraintFields"
+old = "craft_ui::canvas::marquee::fields::ConstraintFields"
+new = "craft_ui::bars::ConstraintFields"
+status = "replaced"
+note = "`ConstraintFields::new(Bind::bound(&mut constraint))` inside a `Bar` body (`BarKind::Options`); `id_salt` is the Props id_salt; `.enabled(bool)` as before; `.size_units(unit, units, pixels_per_inch, document)` takes `Entry<UnitKind>` rows, one `UnitContext` becomes `pixels_per_inch` and the document `PixelSize`; `.labels(..)` is gone (the words are in `BarWords`)."
+
+[[type]]
+name = "ConstraintFieldsLabels"
+old = "craft_ui::canvas::marquee::fields::ConstraintFieldsLabels"
+new = "craft_ui::bars::BarWords"
+status = "replaced"
+note = "the rows constraint_style, constraint_normal, constraint_fixed_ratio, constraint_fixed_size, constraint_width, constraint_height and constraint_swap"
+
+[[type]]
+name = "ConstraintFieldsOutput"
+old = "craft_ui::canvas::marquee::fields::ConstraintFieldsOutput"
+new = "craft_ui::bars::ConstraintFieldsOutput"
+status = "replaced"
+note = "`event: Option<EditEvent<Constraint>>` is the binding plus `changed: bool`; `unit_picked` is `Option<UnitKind>`; `response` is new"
+
+[[type]]
+name = "LengthUnit"
+old = "craft_ui::localized::units::LengthUnit"
+new = "craft_ui::runtime::env::UnitKind"
+status = "replaced"
+note = "in `ConstraintFields::size_units`"
