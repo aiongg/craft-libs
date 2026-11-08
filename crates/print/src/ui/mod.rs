@@ -1,11 +1,23 @@
 //! Printer selection and asynchronous job feedback, independent of any spooler or document.
 //! Hosts provide workers; applications own PDF generation, commands and translated wording.
-#![allow(deprecated, reason = "the printer and duplex choices use the deprecated combo box until they move to controls::Select")]
 
+mod panel;
+#[cfg(feature = "screen-testing")]
+mod stories;
+
+pub use panel::{PrintPanel, PrintPanelOutput, PrintWords};
+
+use craft_ui::contract::Bind;
+use craft_ui::runtime::frame::request_repaint_after;
+use egui::{Context, Ui};
 use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, TryRecvError};
 
+/// How often a running worker asks for the next pass, in seconds.
+const POLL_SECONDS: f64 = 0.1;
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 /// A printer the spooler offers.
 pub struct Printer {
     /// The spooler's destination: what [`Settings::printer`] and jobs name.
@@ -15,6 +27,27 @@ pub struct Printer {
     pub label: String,
     /// Whether it is the system's default printer.
     pub default: bool,
+}
+
+impl Printer {
+    /// A printer queue named `name`, with no label, not the default.
+    pub fn new(name: impl Into<String>) -> Self {
+        Printer { name: name.into(), label: String::new(), default: false }
+    }
+
+    /// The text the dialog shows for the printer.
+    #[must_use]
+    pub fn label(mut self, label: impl Into<String>) -> Self {
+        self.label = label.into();
+        self
+    }
+
+    /// Whether the printer is the system's default.
+    #[must_use]
+    pub fn is_default(mut self, default: bool) -> Self {
+        self.default = default;
+        self
+    }
 }
 
 /// The text the dialog shows for each of `printers`, in order: its label, or its name when it has
@@ -64,6 +97,7 @@ pub fn shown_names(printers: &[Printer]) -> Vec<String> {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 /// Two-sided printing mode.
 pub enum Duplex {
     /// One-sided printing.
@@ -75,6 +109,7 @@ pub enum Duplex {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 /// What the user chose for one print job.
 pub struct Settings {
     /// The chosen printer's [`Printer::name`].
@@ -102,6 +137,7 @@ pub type Submit = Box<dyn Fn(Vec<u8>, Settings) -> Submission>;
 
 /// Apps format these states in their own language. Receipts and errors are backend text.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Feedback {
     /// Discovery is running.
     FindingPrinters,
@@ -119,72 +155,8 @@ pub enum Feedback {
     WorkerStopped,
 }
 
-/// Translated labels supplied by the app; identity never depends on their text. [`PrintTexts`]
-/// holds the same labels as owned, translatable text.
-pub struct PrintLabels<'a> {
-    #[allow(missing_docs)]
-    pub printer: &'a str,
-    #[allow(missing_docs)]
-    pub select_printer: &'a str,
-    #[allow(missing_docs)]
-    pub refresh: &'a str,
-    #[allow(missing_docs)]
-    pub copies: &'a str,
-    #[allow(missing_docs)]
-    pub printer_default: &'a str,
-    #[allow(missing_docs)]
-    pub duplex: &'a str,
-    #[allow(missing_docs)]
-    pub one_sided: &'a str,
-    #[allow(missing_docs)]
-    pub long_edge: &'a str,
-    #[allow(missing_docs)]
-    pub short_edge: &'a str,
-    #[allow(missing_docs)]
-    pub grayscale: &'a str,
-}
-
-/// The former name of [`PrintLabels`].
-#[deprecated(note = "renamed to PrintLabels")]
-pub type Labels<'a> = PrintLabels<'a>;
-
-craft_ui::words! {
-    /// The labels of [`PrintLabels`] as owned text. `Default` is English; `PrintTexts::of(ui)` reads
-    /// the words installed in the context, and [`PrintTexts::labels`] lends them to
-    /// [`State::show`].
-    pub struct PrintTexts {
-        printer: "print.printer" = "Printer";
-        select_printer: "print.selectPrinter" = "Select a printer";
-        refresh: "print.refresh" = "Refresh";
-        copies: "print.copies" = "Copies";
-        printer_default: "print.printerDefault" = "Printer default";
-        duplex: "print.duplex" = "Two-sided";
-        one_sided: "print.oneSided" = "One-sided";
-        long_edge: "print.longEdge" = "Long edge";
-        short_edge: "print.shortEdge" = "Short edge";
-        grayscale: "print.grayscale" = "Grayscale";
-    }
-}
-
-impl PrintTexts {
-    /// Lends the labels as [`PrintLabels`], for [`State::show`].
-    pub fn labels(&self) -> PrintLabels<'_> {
-        PrintLabels {
-            printer: &self.printer,
-            select_printer: &self.select_printer,
-            refresh: &self.refresh,
-            copies: &self.copies,
-            printer_default: &self.printer_default,
-            duplex: &self.duplex,
-            one_sided: &self.one_sided,
-            long_edge: &self.long_edge,
-            short_edge: &self.short_edge,
-            grayscale: &self.grayscale,
-        }
-    }
-}
-
 #[derive(Default)]
+#[non_exhaustive]
 /// The state of the printer controls: settings, the printer list, the feedback and the running workers.
 pub struct State {
     /// The current choices.
@@ -237,8 +209,8 @@ impl State {
         true
     }
 
-    /// Reads finished workers' results into [`State::printers`] and [`State::message`], and asks for a repaint every 100 ms while a worker runs. Call it once per frame.
-    pub fn poll(&mut self, ctx: &egui::Context) {
+    /// Reads finished workers' results into [`State::printers`] and [`State::message`], and asks for the next pass in a short, fixed interval while a worker runs. Call it once per frame.
+    pub fn poll(&mut self, ctx: &Context) {
         if let Some(receiver) = &self.discovery {
             match receiver.try_recv() {
                 Ok(printers) => {
@@ -275,69 +247,25 @@ impl State {
             }
         }
         if self.discovering() || self.busy() {
-            ctx.request_repaint_after(std::time::Duration::from_millis(100));
+            request_repaint_after(ctx, POLL_SECONDS);
         }
     }
 
-    /// Draw just the controls. Apps render feedback, their preview and the submit/export
-    /// buttons around this component, using their own command and document state.
-    pub fn show(&mut self, ui: &mut egui::Ui, id: egui::Id, discover: &Discover, labels: &PrintLabels<'_>) {
+    /// Polls the workers and shows the printer controls over [`State::settings`], starting discovery
+    /// on the first pass. Apps render feedback, their preview and the submit/export buttons around
+    /// the panel, using their own command and document state.
+    pub fn run(&mut self, ui: &mut Ui, discover: &Discover) -> PrintPanelOutput {
         if !self.loaded {
             self.refresh(discover);
         }
         self.poll(ui.ctx());
-        ui.push_id(id, |ui| {
-            ui.add_enabled_ui(!self.busy(), |ui| {
-                let width = ui.available_width().clamp(32.0, 230.0);
-                let printer_label = ui.label(labels.printer);
-                let shown = shown_names(&self.printers);
-                let selected = self.printers.iter().zip(&shown).find(|(p, _)| p.name == self.settings.printer).map(|(_, text)| text.as_str());
-                craft_ui::ComboBox::from_id_salt("printer")
-                    .width(width)
-                    .wrap_mode(egui::TextWrapMode::Truncate)
-                    .selected_text(if self.settings.printer.is_empty() { labels.select_printer } else { selected.unwrap_or(&self.settings.printer) })
-                    .show_ui(ui, |ui| {
-                        for (printer, text) in self.printers.iter().zip(&shown) {
-                            ui.selectable_value(&mut self.settings.printer, printer.name.clone(), text);
-                        }
-                    })
-                    .response
-                    .labelled_by(printer_label.id);
-                if ui.add_enabled(!self.discovering(), egui::Button::new(labels.refresh)).clicked() {
-                    self.refresh(discover);
-                }
-                ui.horizontal(|ui| {
-                    let label = ui.label(labels.copies);
-                    ui.add(egui::DragValue::new(&mut self.settings.copies).range(1..=999)).labelled_by(label.id);
-                });
-                let choices = [
-                    (None, labels.printer_default),
-                    (Some(Duplex::Off), labels.one_sided),
-                    (Some(Duplex::LongEdge), labels.long_edge),
-                    (Some(Duplex::ShortEdge), labels.short_edge),
-                ];
-                let duplex_label = ui.label(labels.duplex);
-                craft_ui::ComboBox::from_id_salt("duplex")
-                    .width(width)
-                    .wrap_mode(egui::TextWrapMode::Truncate)
-                    .selected_text(
-                        choices.iter().find(|(value, _)| *value == self.settings.duplex).map(|(_, text)| *text).unwrap_or(labels.printer_default),
-                    )
-                    .show_ui(ui, |ui| {
-                        for (value, text) in choices {
-                            ui.selectable_value(&mut self.settings.duplex, value, text);
-                        }
-                    })
-                    .response
-                    .labelled_by(duplex_label.id);
-                ui.checkbox(&mut self.settings.grayscale, labels.grayscale);
-            });
-        });
+        let output = PrintPanel::new(Bind::bound(&mut self.settings), &self.printers)
+            .discovering(self.discovery.is_some())
+            .busy(self.submission.is_some())
+            .show(ui);
+        if output.refresh {
+            self.refresh(discover);
+        }
+        output
     }
 }
-
-/// The labels tables of the print controls, for the words registry.
-pub const WORDS: &[&[craft_ui::localized::Word]] = &[<PrintTexts as craft_ui::localized::Labels>::WORDS];
-
-#[cfg(test)]
-mod tests;
