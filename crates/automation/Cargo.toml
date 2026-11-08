@@ -15,13 +15,15 @@ default = []
 # The egui parts: the Actions panel, the control channel's server side (screenshots, synthetic
 # input) and `ui` stories. Without it the crate has no egui: `ControlOptions`, `ControlClient`,
 # `Params` and the recorded actions' model and files.
-ui = ["dep:craft-ui", "dep:egui"]
-# Screenshot and input tests of the Actions panel with egui_kittest (desktop only).
-screen-testing = ["ui", "craft-ui/screen-testing"]
+ui = ["dep:craft-behavior", "dep:craft-keymap", "dep:craft-ui", "dep:egui"]
+# The Actions panel's stories and mock, and the integration binary `tests/it`.
+screen-testing = ["ui", "craft-ui/testing"]
 
 [dependencies]
+craft-behavior = { workspace = true, optional = true }
+craft-keymap = { workspace = true, optional = true }
 craft-theme = { workspace = true }
-craft-ui = { package = "craft-ui-legacy", path = "../ui-legacy", optional = true }
+craft-ui = { workspace = true, optional = true }
 egui = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -37,6 +39,10 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 egui = { workspace = true, features = ["default_fonts"] }
+libtest-mimic = "0.8"
 
-[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-egui_kittest = { version = "0.37", features = ["wgpu"] }
+[[test]]
+name = "it"
+path = "tests/it/main.rs"
+harness = false
+required-features = ["screen-testing"]

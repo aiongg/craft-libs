@@ -4,8 +4,11 @@ use std::io::{BufReader, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, Sender, channel};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
+use craft_ui::runtime::motion;
+use craft_ui::runtime::windows::WindowHost;
+use egui::ViewportId;
 use serde_json::{Value, json};
 
 use crate::control::{ControlRequest, REPLY_DEADLINE};
@@ -16,9 +19,10 @@ use crate::security::{
 };
 
 /// Bind `127.0.0.1:port` (0 lets the OS pick; the returned address is the one a client needs),
-/// authenticate each connection with `token`, forward requests and wake `ctx`. The app prints
+/// authenticate each connection with `token`, forward requests and wake the root window through
+/// `host`. The app prints
 /// `control server listening on <addr>`.
-pub fn start(port: u16, token: String, ctx: egui::Context) -> std::io::Result<(Receiver<ControlRequest>, SocketAddr)> {
+pub fn start(port: u16, token: String, host: WindowHost) -> std::io::Result<(Receiver<ControlRequest>, SocketAddr)> {
     let (tx, rx) = channel::<ControlRequest>();
     let listener = TcpListener::bind(("127.0.0.1", port))?;
     let addr = listener.local_addr()?;
@@ -32,11 +36,11 @@ pub fn start(port: u16, token: String, ctx: egui::Context) -> std::io::Result<(R
                 continue;
             };
             let tx = tx.clone();
-            let ctx = ctx.clone();
+            let host = host.clone();
             let token = Arc::clone(&token);
             std::thread::spawn(move || {
                 let _permit = permit;
-                serve(stream, &token, &tx, &ctx, AUTH_DEADLINE);
+                serve(stream, &token, &tx, &host, AUTH_DEADLINE);
             });
         }
     });
@@ -45,7 +49,7 @@ pub fn start(port: u16, token: String, ctx: egui::Context) -> std::io::Result<(R
 
 /// Serve one connection: it must complete `auth` within `auth_deadline` of connecting, however
 /// much it sends meanwhile; after that only the idle timeout applies.
-fn serve(stream: TcpStream, token: &str, tx: &Sender<ControlRequest>, ctx: &egui::Context, auth_deadline: Duration) {
+fn serve(stream: TcpStream, token: &str, tx: &Sender<ControlRequest>, host: &WindowHost, auth_deadline: Duration) {
     if configure_stream(&stream).is_err() {
         return;
     }
@@ -92,16 +96,16 @@ fn serve(stream: TcpStream, token: &str, tx: &Sender<ControlRequest>, ctx: &egui
                 let id = msg.get("id").cloned().unwrap_or(Value::Null);
                 let method = msg.get("method").and_then(Value::as_str).unwrap_or("").to_string();
                 let params = msg.get("params").cloned().unwrap_or(json!({}));
-                let deadline = Instant::now() + REPLY_DEADLINE;
+                let deadline = motion::now() + REPLY_DEADLINE;
                 let (mut req, rrx) = ControlRequest::new(method, params);
                 req.deadline = Some(deadline);
                 let dispatch = req.dispatch.clone();
                 if tx.send(req).is_err() {
                     break;
                 }
-                ctx.request_repaint();
+                host.repaint_in(ViewportId::ROOT, -1.0);
                 let mut r = rrx
-                    .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+                    .recv_timeout(deadline.saturating_duration_since(motion::now()))
                     .unwrap_or_else(|_| json!({"ok": false, "error": dispatch.give_up()}));
                 if let Some(o) = r.as_object_mut() {
                     o.insert("id".into(), id);
@@ -115,7 +119,3 @@ fn serve(stream: TcpStream, token: &str, tx: &Sender<ControlRequest>, ctx: &egui
         }
     }
 }
-
-#[cfg(test)]
-#[path = "server_tests.rs"]
-mod server_tests;

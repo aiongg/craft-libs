@@ -1103,12 +1103,14 @@ name = "craft-automation"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
+ "craft-behavior",
+ "craft-keymap",
  "craft-platform",
  "craft-theme",
- "craft-ui-legacy",
+ "craft-ui",
  "egui",
- "egui_kittest",
  "getrandom 0.3.4",
+ "libtest-mimic",
  "log",
  "png 0.17.16",
  "serde",

@@ -6,13 +6,14 @@ use serde_json::json;
 
 use super::*;
 use crate::server::start;
+use craft_ui::runtime::windows::WindowHost;
 
 const TOKEN: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
 // call returns Ok(result) for ok replies and Err(error) otherwise.
 #[test]
 fn call_maps_replies() {
-    let (rx, addr) = start(0, TOKEN.into(), egui::Context::default()).unwrap();
+    let (rx, addr) = start(0, TOKEN.into(), WindowHost::of(&egui::Context::default())).unwrap();
     assert!(ControlClient::connect(addr, &"f".repeat(64)).is_err(), "a wrong token is refused");
     let mut client = ControlClient::connect(addr, TOKEN).unwrap();
     let handler = std::thread::spawn(move || {

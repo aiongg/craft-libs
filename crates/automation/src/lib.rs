@@ -8,7 +8,7 @@
 //! A transport thread ([`server`], or a channel in tests) turns each JSON line into a
 //! [`control::ControlRequest`]; the UI thread drains them between frames through
 //! [`control::ControlChannel`], runs the app's method table on each, and settles the
-//! [`control::Reply`]: a reply now, a reply once queued synthetic input ([`synthetic`]) has been
+//! [`control::Reply`]: a reply now, a reply once injected input ([`synthetic`]) has been
 //! processed, a reply once a background job ends, or a screenshot through the bounded queue
 //! ([`screenshot`]). [`profiler`] and [`trace`] time frames for the channel's `perf` output.
 //!
@@ -49,3 +49,9 @@ pub use protocol::REPLY_DEADLINE;
 pub use screenshot::Captures;
 #[cfg(not(target_arch = "wasm32"))]
 pub use security::AutomationError;
+
+/// The trials this crate registers, for its integration binary.
+#[cfg(feature = "screen-testing")]
+pub mod testing {
+    craft_ui::testing_registered!();
+}
