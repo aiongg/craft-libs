@@ -19,7 +19,7 @@ impl<'a> Snap<'a> {
     }
 
     /// `position` across a guide running `along`, snapped.
-    pub(crate) fn apply(&self, along: Axis, position: f64, mods: Mods) -> f64 {
+    pub fn apply(&self, along: Axis, position: f64, mods: Mods) -> f64 {
         (self.0)(along, position, mods)
     }
 }

@@ -22,7 +22,7 @@ pub use bands::{range_bands, rect_around};
 pub use grid::{CanvasGrid, GridAxis, GridLine, GridLines, GridStyle, MAX_LINES};
 pub use line_preview::{LineGuideStyle, StraightLinePreview};
 pub use marquee::{Marquee, MarqueeLook, MarqueeShape, MarqueeStyle, Run};
-pub use outline::{HoverMask, HoverOutline, HoverShape, OutlineStyle, SelectionOutline, SelectionOutlineLook};
+pub use outline::{HoverMask, HoverOutline, HoverShape, OutlineStyle, SelectionOutline, SelectionOutlineLook, path_runs};
 pub use pixel_grid::{GridSegment, PixelGrid, PixelGridStyle};
 // End of canvas-controls-b.
 

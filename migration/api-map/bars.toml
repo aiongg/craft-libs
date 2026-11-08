@@ -307,9 +307,16 @@ note = "`ConstraintFields::new(Bind::bound(&mut constraint))` inside a `Bar` bod
 [[type]]
 name = "ConstraintFieldsLabels"
 old = "craft_ui::canvas::marquee::fields::ConstraintFieldsLabels"
+new = ""
+status = "removed"
+note = "the rows constraint_style, constraint_normal, constraint_fixed_ratio, constraint_fixed_size, constraint_width, constraint_height and constraint_swap are in `BarWords`"
+
+[[type]]
+name = "BarWords"
+old = ""
 new = "craft_ui::bars::BarWords"
 status = "replaced"
-note = "the rows constraint_style, constraint_normal, constraint_fixed_ratio, constraint_fixed_size, constraint_width, constraint_height and constraint_swap"
+note = "the bars' words, with the ConstraintFields rows constraint_style, constraint_normal, constraint_fixed_ratio, constraint_fixed_size, constraint_width, constraint_height and constraint_swap; read with `env.words::<BarWords>()`"
 
 [[type]]
 name = "ConstraintFieldsOutput"
@@ -321,6 +328,13 @@ note = "`event: Option<EditEvent<Constraint>>` is the binding plus `changed: boo
 [[type]]
 name = "LengthUnit"
 old = "craft_ui::localized::units::LengthUnit"
+new = ""
+status = "removed"
+note = "`UnitKind` replaces it in `ConstraintFields::size_units`"
+
+[[type]]
+name = "UnitKind"
+old = ""
 new = "craft_ui::runtime::env::UnitKind"
 status = "replaced"
-note = "in `ConstraintFields::size_units`"
+note = "the unit of a number or length: pixels, percent, the absolute lengths, degrees and the rest; `ConstraintFields::size_units` takes it"

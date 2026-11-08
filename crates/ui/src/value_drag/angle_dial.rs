@@ -45,7 +45,7 @@ pub enum AngleOrientation {
 
 impl AngleOrientation {
     /// The screen direction (y down) of the needle at `degrees`.
-    fn direction(self, degrees: f64) -> Vec2 {
+    pub fn direction(self, degrees: f64) -> Vec2 {
         let (sin, cos) = degrees.to_radians().sin_cos();
         match self {
             AngleOrientation::CounterClockwise => Vec2::new(cos as f32, -sin as f32),
@@ -54,7 +54,7 @@ impl AngleOrientation {
     }
 
     /// The angle in degrees, in `(-180, 180]`, of the screen offset `offset` (y down) from the centre.
-    fn angle_of(self, offset: Vec2) -> f64 {
+    pub fn angle_of(self, offset: Vec2) -> f64 {
         let (across, up) = (f64::from(offset.x), f64::from(-offset.y));
         match self {
             AngleOrientation::CounterClockwise => up.atan2(across).to_degrees(),
