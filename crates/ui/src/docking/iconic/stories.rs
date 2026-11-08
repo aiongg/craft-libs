@@ -2,8 +2,8 @@
 
 use super::CELL;
 use crate::buttons::Button;
-use crate::contract::Bind;
 use crate::contract::ShowContainer as _;
+use crate::contract::{Bind, Show as _};
 use crate::docking::{IconicColumn, PanelSpec};
 use crate::sections::Panel;
 use crate::testing::memory::global;
