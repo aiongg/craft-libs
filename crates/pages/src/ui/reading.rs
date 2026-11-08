@@ -11,7 +11,7 @@ use craft_ui::contract::{
     Remember as _, Role, Show as _, ShowContainer as _, WordSetCx as _, clicked, spec,
 };
 use craft_ui::layout_components::Row;
-use craft_ui::primitives::PaintShape;
+use craft_ui::primitives::{PaintShape, ReadingMeasure};
 use craft_ui::primitives::textures::{Priority, TextureStoreOptions, ThumbPaint, ThumbRequest, ThumbnailOptions, Thumbnails, texture_side};
 use craft_ui::runtime::commands::FireSource;
 use craft_ui::runtime::env::Env;
@@ -28,11 +28,6 @@ mod stories;
 /// The page-turn parts: one over each gap between the columns and one over each side margin, indexed from the left.
 /// A click on one turns toward its side and a swipe starting on one turns by the swipe's direction.
 const TURN: PartKey = PartKey::new("turn");
-
-/// One column per this much width, screen points.
-const COLUMN_TARGET: f32 = 295.0;
-/// The least column width, screen points.
-const COLUMN_MIN: f32 = 192.0;
 
 /// How far a swipe along the columns must go to turn, as a share of a column's width.
 const SWIPE_SHARE: f32 = 0.2;
@@ -83,19 +78,15 @@ pub struct ReadingMetrics {
 }
 
 impl ReadingMetrics {
-    /// Metrics with these gaps and bar height and the standard column target and least width.
-    pub const fn new(column_gap: f32, nav_bar: f32) -> Self {
-        ReadingMetrics { column_gap, nav_bar, column_target: COLUMN_TARGET, column_min: COLUMN_MIN }
+    /// Metrics with these gaps and bar height and the column widths of `measure`.
+    pub const fn new(column_gap: f32, nav_bar: f32, measure: ReadingMeasure) -> Self {
+        ReadingMetrics { column_gap, nav_bar, column_target: measure.target, column_min: measure.least }
     }
 
-    /// The metrics under `tokens`.
-    pub fn of(tokens: &UiTokens) -> Self {
-        ReadingMetrics {
-            column_gap: tokens.space.gap.section,
-            nav_bar: tokens.size.panel_header,
-            column_target: COLUMN_TARGET,
-            column_min: COLUMN_MIN,
-        }
+    /// The metrics under `tokens` with the column widths of `measure`, which the app takes from the body text it
+    /// lays out: `ReadingMeasure::of(TypeRole::Body, |run| ..)` with the layout of the pass it measures in.
+    pub fn of(tokens: &UiTokens, measure: ReadingMeasure) -> Self {
+        ReadingMetrics::new(tokens.space.gap.section, tokens.size.panel_header, measure)
     }
 }
 
