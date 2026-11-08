@@ -14,7 +14,7 @@ use super::rows::{ParamRows, ParamRowsOutput};
 use crate::choice::Checkbox;
 use crate::contract::{Bind, BodyCx, NoValue, Outcome, Props as _, Remember as _, SaveKey, Show as _, ShowContainer as _};
 
-use crate::dialog::{Dialog, DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
+use crate::dialog::{Dialog, DialogId, DialogResult, DialogStack, FooterHooks, StackDialog, dialog_id};
 
 use crate::layout_components::{Row, Stack};
 
@@ -476,11 +476,11 @@ impl ResetFooter {
         }
     }
 
-    /// `dialog` with this footer: `accept` and the second button, their enabled state settled from what the body
+    /// `dialog` (a `Dialog` or a `FullWindowDialog`) with this footer: `accept` and the second button, their enabled state settled from what the body
     /// passed to [`report`](ResetFooter::report) in the same pass, and `restore` run in the footer step when the Reset
     /// button is picked. `restore` gets the dialog's body context, so it reaches the values and the body's memory;
     /// the dialog shows the restored values in its next pass.
-    pub fn install<'a>(self, dialog: Dialog<'a>, accept: FooterButton, restore: impl FnMut(&mut BodyCx<'_>) + 'a) -> Dialog<'a> {
+    pub fn install<'a, D: FooterHooks<'a>>(self, dialog: D, accept: FooterButton, restore: impl FnMut(&mut BodyCx<'_>) + 'a) -> D {
         let mut restore = restore;
         let pick = self.clone();
         let settle = self.clone();

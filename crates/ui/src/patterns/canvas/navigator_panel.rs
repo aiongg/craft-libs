@@ -14,10 +14,10 @@ use egui::{Response, Ui};
 pub struct NavigatorPanelOutput {
     /// The panel's response.
     pub response: Response,
-    /// The view change of this pass, from the preview box or the zoom row, as one change. With [`ease`](Self::ease)
-    /// set, it is the change to the target of a zoom, which the bound view has not taken.
+    /// The view change of this pass, from the preview box or the zoom row's field and slider, as one change. With
+    /// [`ease`](Self::ease) set, it is the change to the target of a preview zoom, which the bound view has not taken.
     pub view: Option<EditEvent<CanvasView>>,
-    /// How [`view`](Self::view) eases to its target: a zoom with Animated Zoom on. The app starts a
+    /// How [`view`](Self::view) eases to its target: a preview zoom with Animated Zoom on. The app starts a
     /// [`ZoomAnimation`] from the bound view with the ease's anchor and then writes the target.
     ///
     /// [`ZoomAnimation`]: crate::canvas::ZoomAnimation
@@ -35,7 +35,9 @@ impl Outcome for NavigatorPanelOutput {
 /// The Navigator panel (Photoshop's Window, Navigator): the [`Navigator`] preview box over the [`NavigatorZoomRow`],
 /// both bound to one view.
 ///
-/// - Both parts edit the one bound view; a zoom that eases (Animated Zoom) is reported, not written, by either.
+/// - Both parts edit the one bound view; a preview zoom that eases (Animated Zoom) is reported, not written.
+/// - The row's Zoom In and Zoom Out are the view commands of the active canvas: the canvas steps its own view and
+///   reports it in [`CanvasOutput`](crate::canvas::CanvasOutput).
 /// - Tab goes from the preview box to the zoom row's percent field, then through the row in reading order.
 /// - `enabled(false)` disables the preview box and every control of the zoom row.
 #[must_use = "show the panel with `show`"]
@@ -47,7 +49,7 @@ pub struct NavigatorPanel<'a> {
     /// The picture in the preview box.
     #[prop]
     preview: NavigatorPreview<'a>,
-    /// The app's navigation options, for both parts.
+    /// The app's navigation options, for the preview box.
     #[prop]
     navigation: NavigationOptions,
     /// The colour of the proxy rectangle.
@@ -87,12 +89,10 @@ impl<'a> NavigatorPanel<'a> {
                 .proxy(proxy)
                 .enabled(enabled)
                 .show(ui);
-            let row = NavigatorZoomRow::new(view.reborrowed(), document).navigation(navigation).enabled(enabled).show(ui);
-            for (event, eases) in [(preview.view.event.clone(), preview.ease), (row.view, row.ease)] {
-                if let Some(event) = event {
-                    change = EditEvent::fold(change.take(), event);
-                }
-                ease = eases.or(ease);
+            let row = NavigatorZoomRow::new(view.reborrowed(), document).enabled(enabled).show(ui);
+            ease = preview.ease;
+            for event in [preview.view.event.clone(), row.view].into_iter().flatten() {
+                change = EditEvent::fold(change.take(), event);
             }
         });
         NavigatorPanelOutput { response: shown.output, view: change, ease }

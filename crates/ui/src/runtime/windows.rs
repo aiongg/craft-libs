@@ -10,7 +10,7 @@ use crate::runtime::egui::{injected, pass, scale, screenshot, viewports, widgets
 use crate::runtime::frame::{PassStep, PerViewport, Stamped};
 use crate::runtime::{overlay, pointer};
 use craft_behavior::{Cursor, CursorIcon, CursorPriority, PartRef, PointerButton};
-use craft_host::target::{Caps, EdgeInsets, Os, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
+use craft_host::target::{Caps, DoubleClick, EdgeInsets, Os, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
 #[cfg(feature = "testing")]
 use craft_host::target::{MenuPlacement, Runtime};
 use craft_keymap::{Key, Mods};
@@ -412,6 +412,18 @@ pub enum WindowAction {
     SetLevel(WindowLevel),
     /// Changes the window's title.
     SetTitle(String),
+}
+
+/// What a double click on a window's free move band (its title bar, or the strip a modal leaves over it) asks of the
+/// window in `frame`: an integrated frame maximizes or restores; a macOS inset frame follows the system setting
+/// `setting`; a native frame is the OS's.
+pub fn double_click_action(frame: &Frame, setting: DoubleClick, maximized: bool) -> Option<WindowAction> {
+    match (frame, setting) {
+        (Frame::Native, _) => None,
+        (Frame::Integrated(_), _) | (Frame::Inset(_), DoubleClick::Zoom) => Some(WindowAction::SetMaximized(!maximized)),
+        (Frame::Inset(_), DoubleClick::Minimize) => Some(WindowAction::Minimize),
+        _ => None,
+    }
 }
 
 /// What the OS tells about a window, in desktop points.

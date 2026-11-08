@@ -102,7 +102,8 @@ impl Outcome for FullWindowCanvasOutput {
 /// - **View.** [`FullWindowView`], bound by the app, fits the image on the first pass and keeps fitting it until the
 ///   user zooms or pans. The canvas settles it on the rect its body fills and writes it back. The wheel, pinch and two-finger scroll follow the user's [`NavigationOptions`], zooming about the pointer;
 ///   the middle button pans. Space-drag and the momentary Zoom run in the tool host when the app gives it its
-///   [`Momentary`] set. The zoom commands (`ViewCommand`) reach the view through the dialog's command scope and the zoom bar.
+///   [`Momentary`] set. The zoom commands (`ViewCommand`) reach the view through the dialog's command scope and the zoom bar;
+///   the canvas is no instance of them, so the chords act on the view while it has the focus.
 /// - **Tool.** One `CanvasTool` in a `ToolHost` on this canvas; presses, drags, keys and the cursor are the host's.
 ///   Without a tool the canvas navigates with a Hand tool it keeps between passes.
 /// - **Keyboard and AccessKit.** The canvas is one Tab stop named by its label; while it has the focus its keys are
@@ -191,7 +192,7 @@ impl<'a> FullWindowCanvas<'a> {
         // gets: the fit, the drawn image and the hover mapping share it.
         let rect = ui.available_rect_before_wrap();
         let shown = given.settled(rect, size, ppp);
-        let canvas = Canvas::new(label.clone(), path).view(shown.view()).show_at_taking_room(ui, rect, |ui, body| {
+        let canvas = Canvas::new(label.clone(), path).view(shown.view()).outer_view_commands().show_at_taking_room(ui, rect, |ui, body| {
             let mut image = RasterDisplay::new(label.clone(), source);
             if let Some(checker) = checkerboard {
                 image = image.checkerboard(checker);

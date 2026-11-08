@@ -2,7 +2,7 @@
 //! new extent in that frame.
 
 use craft_ui::buttons::Button;
-use craft_ui::contract::{BodyCx, PaneEdge, Show as _};
+use craft_ui::contract::{BodyCx, PaneEdge, Role, Show as _};
 use craft_ui::patterns::dock::{PaneArea, PaneContent, PaneRequest, PaneSpec, PaneState};
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Fixture, trial};
@@ -35,15 +35,27 @@ impl PaneContent<u32> for App {
     }
 }
 
-/// The rect of the pane's node: the largest node named by the pane's title.
-fn pane_rect(fixture: &Fixture) -> Rect {
+/// The nodes from the body button up to the root that the pane's title names, innermost first, with their roles and
+/// bounds.
+fn titled_ancestors(fixture: &Fixture) -> Vec<(Role, Rect)> {
     let tree = fixture.tree();
-    tree.keys()
-        .into_iter()
-        .filter(|key| tree.name_of(*key) == Some("Pane 0"))
-        .filter_map(|key| tree.bounds_of(key))
-        .max_by(|a, b| a.area().total_cmp(&b.area()))
-        .expect("the pane shows")
+    let mut at = fixture.by_label("Body").map(|body| body.node);
+    let mut found = Vec::new();
+    while let Some(key) = at {
+        if tree.name_of(key) == Some("Pane 0")
+            && let (Some(role), Some(bounds)) = (tree.role_of(key), tree.bounds_of(key))
+        {
+            found.push((role, bounds));
+        }
+        at = tree.parent_of_key(key);
+    }
+    found
+}
+
+/// The rect of the pane's frame: the group node named by the pane's title that holds the body.
+fn pane_rect(fixture: &Fixture) -> Rect {
+    let chain = titled_ancestors(fixture);
+    chain.iter().find(|(role, _)| *role == Role::GROUP).map(|(_, bounds)| *bounds).unwrap_or_else(|| panic!("the pane shows: {chain:?}"))
 }
 
 #[trial]
@@ -61,7 +73,7 @@ fn dragging_a_docked_panes_inner_edge_sends_one_resize_and_shows_it() {
     });
     fixture.settle();
     let before = pane_rect(&fixture);
-    assert!((before.width() - WIDTH).abs() < SLACK, "the pane shows its state's width: {before:?}");
+    assert!((before.width() - WIDTH).abs() < SLACK, "the pane shows its state's width: {before:?} {:?}", titled_ancestors(&fixture));
     // Just inside the inner edge, where the grip lies.
     let at = before.right_center() - Vec2::X;
     let by = Vec2::X * GROW;

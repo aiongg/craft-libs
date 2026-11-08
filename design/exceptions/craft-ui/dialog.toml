@@ -1,8 +1,1 @@
 config_version = 1
-
-[[exception]]
-name = "modal-drag-strip-layer-escape"
-kind = "probe"
-rule = "probe/exempt/layer-escape"
-path = "crates/ui/src/dialog/modal.rs"
-reason = "The strip is the chrome of the modal under it and takes no keys: Escape closes that modal."
