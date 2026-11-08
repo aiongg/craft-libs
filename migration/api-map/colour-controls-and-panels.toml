@@ -157,7 +157,7 @@ name = "LutPickerOutput"
 old = ""
 new = "craft_color::ui::LutPickerOutput"
 status = "replaced"
-note = ""
+note = "The output of `LutPicker`, in place of `LutPickerResponse`."
 
 [[type]]
 name = "LutPickerLabels"
@@ -192,7 +192,7 @@ name = "ProfileWords"
 old = ""
 new = "craft_color::ui::ProfileWords"
 status = "replaced"
-note = ""
+note = "The words of the profile controls, in place of the old label structs."
 
 [[type]]
 name = "ColorArea"
@@ -295,7 +295,7 @@ note = "`new(label, Bind<ModelValues>)`; `show(ui)` returns `EditResponse<ModelV
 [[type]]
 name = "ColorWheelResponse"
 old = "craft_color::ui::ColorWheelResponse"
-new = "craft_color::ui::ColorWheelResponse"
+new = ""
 status = "removed"
 note = "The output is `EditResponse<ModelValues>`; `area`, `geometry`, `ring` and `triangle` are gone."
 
@@ -323,7 +323,7 @@ note = "`#[non_exhaustive]`."
 [[type]]
 name = "ColorPartsStyle"
 old = "craft_color::ui::ColorPartsStyle"
-new = "craft_color::ui::ColorPartsStyle"
+new = ""
 status = "removed"
 note = "Each part has its own `ComponentStyle`; a disabled part is faded by the pipeline."
 
@@ -547,7 +547,7 @@ note = "`ColorWarningChip::new(&ColorWarning)`; the output carries `clicked`."
 [[type]]
 name = "HexField"
 old = "craft_color::ui::HexField"
-new = "craft_ui::text::HexField"
+new = ""
 status = "removed"
 note = "Use `TextField::hex(label, Bind<Rgba>)`: lowercase `#rrggbb`, alpha digits only when not opaque, three-digit input. The uppercase codec, fixed `#`, `digits(1)` and the alpha toggle go."
 
