@@ -191,7 +191,9 @@ fn the_delete_layer_row_asks_nothing_with_one_layer_left() {
     let (mut fixture, state) = window(only);
     choose_delete_layer(&mut fixture);
     fixture.idle(DIALOG_OPEN);
-    assert!(fixture.control("Delete").is_none(), "no question was asked");
+    let tree = fixture.tree();
+    let asked = fixture.by_role(Role::BUTTON).into_iter().any(|target| tree.name_of(target.node).is_some_and(|name| name == "Delete"));
+    assert!(!asked, "no question was asked: the prompt's Delete button is absent (the Layer menu's Delete row may stay open)");
     assert_eq!(state.borrow().document.layers.len(), 1);
 }
 
