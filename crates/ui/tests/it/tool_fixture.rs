@@ -2,11 +2,12 @@
 //! a part the first drag left behind.
 
 use craft_behavior::CancelReason;
+use craft_behavior::geometry::CropBox;
 use craft_ui::canvas::{CanvasTool, CropOverlay, ToolAction, ToolContext, ToolPath, ToolPointer};
 use craft_ui::contract::{Bind, Show as _};
 use craft_ui::primitives::Draw;
 use craft_ui::testing::{ToolFixture, trial};
-use egui::{Rect, Vec2};
+use egui::Vec2;
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -56,7 +57,8 @@ fn check_passes_for_a_tool_that_leaves_a_hit_part_where_it_was_dragged() {
         if seen.get() {
             // A crop whose top left corner sits where the first drag began.
             let start = (body.rect.center() - body.rect.min).to_pos2();
-            let mut crop = Rect::from_min_size(start, BY);
+            let (x, y) = (f64::from(start.x), f64::from(start.y));
+            let mut crop = CropBox::upright(craft_behavior::kurbo::Rect::new(x, y, x + f64::from(BY.x), y + f64::from(BY.y)));
             let _ = CropOverlay::new("Crop", Bind::bound(&mut crop)).show_at(ui, body.rect);
         }
     });

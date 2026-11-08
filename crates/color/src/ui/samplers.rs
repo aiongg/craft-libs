@@ -416,7 +416,7 @@ impl SamplerOptions {
         Text::new(Label::from(counted)).show(ui);
         let clear = Button::new(words.clear_all.clone()).enabled(self.count > 0).show(ui);
         Text::new(words.hint.clone()).show(ui);
-        SamplerOptionsOutput { clear_all: craft_ui::contract::clicked(&clear), response: clear }
+        SamplerOptionsOutput { clear_all: craft_ui::contract::clicked(&clear), response: clear.response }
     }
 }
 
