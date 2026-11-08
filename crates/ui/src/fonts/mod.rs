@@ -1,12 +1,14 @@
 //! Font definitions and the on-demand script coverage policy; the egui calls sit in `runtime::egui::fonts`.
 
 mod defaults;
+pub(crate) mod document;
 mod faces;
 pub(crate) mod on_demand;
 pub(crate) mod script;
 pub(crate) mod system;
 
 pub use defaults::deflated_default_definitions;
+pub use document::{DOCUMENT_FACES_PER_PASS, DocumentFaces, FaceBytes, FaceState, FacesAt, MAX_DOCUMENT_FACES};
 pub use faces::{FaceList, RegularWeight, set_weight};
 pub use on_demand::{FontCandidates, MAX_SCRIPT_READS, NoCandidates, OnDemandFonts, SystemCandidates, han_for_locale, on_demand_registered};
 pub use system::system_font_provider;

@@ -1,5 +1,6 @@
 //! Interface fonts.
 
+mod document;
 mod sources;
 
 mod coverage;
