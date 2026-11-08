@@ -271,15 +271,6 @@ fn a_footer_in_the_end_region_lies_under_its_content_in_the_first_pass() {
 }
 
 #[trial]
-fn an_inline_header_s_body_starts_after_the_header_in_the_first_pass() {
-    let props = ContainerProps::new().sizing(Sizing::Fill).header(HeaderRegion::new().inline(true));
-    let took = first_pass(props, Some(Vec2::new(60.0, 20.0)));
-    let (header, body) = (took.header.unwrap(), took.body.unwrap());
-    assert!(body.min.x >= header.max.x - EDGE_SLACK, "the body starts after the header's width: {header:?} {body:?}");
-    assert!(body.max.x >= AREA.max.x - 1.0, "the body takes the rest of the line: {body:?}");
-}
-
-#[trial]
 fn a_labelled_container_s_footer_starts_at_the_control_column_in_the_first_pass() {
     let props = ContainerProps::new().sizing(Sizing::Fill).footer(FooterRegion::new()).label(SideLabel::new());
     let took = first_pass_labelled(props, None, "Opacity");

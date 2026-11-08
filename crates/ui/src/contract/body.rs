@@ -1745,11 +1745,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let inner = cx.core.content_rect.shrink(pad);
         let room = self.room_size(rect, inner);
         let filling = self.sizing(&props) != Sizing::Content;
-        let inline = props.header.is_some_and(|header| header.inline);
-        // An inline header of a filling container runs across the whole line, so what it takes is its own width this
-        // pass; the body is placed after it.
-        let sizes = if filling && inline { RegionSizes { header: None, ..self.last_sizes() } } else { self.last_sizes() };
-        let regions = self.regions(&props, inner, room, rtl, sizes);
+        let regions = self.regions(&props, inner, room, rtl, self.last_sizes());
         let surface_slot = ui.painter().add(Shape::Noop);
         // A measuring run lays out and measures: it registers no instance, focus body, scroll region or body layer,
         // and claims no room in a parent flow.
@@ -1831,10 +1827,13 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         // take this pass, measured before the body runs: the end region (with a footer in it) across the whole line,
         // then a footer across the bottom under the body the end region leaves. They show after the body, so reading
         // and Tab order stay header, body, end region, footer. The footer of a label-scoped container starts at the
-        // control column, so it is measured after the label step finds that column.
+        // control column, so it is measured after the label step finds that column, with the field's message. An
+        // inline header keeps the width it recorded.
         let across = props.footer.is_some() && !footer_in_end(&props);
         let labelled_footer = filling && across && props.label.is_some();
-        let mut sizes = RegionSizes { header: props.header.and(self.header_size), footer: Vec2::ZERO, end: None };
+        let inline = props.header.is_some_and(|header| header.inline);
+        let header = if inline { self.header_last } else { props.header.and(self.header_size) };
+        let mut sizes = RegionSizes { header, footer: Vec2::ZERO, end: None };
         let regions = if filling {
             // The measuring rects: the end region before it measured spans the line.
             let line = self.regions(&props, inner, room, rtl, RegionSizes { footer: self.footer_last, ..sizes });
@@ -1900,8 +1899,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 under.min.x = body_rect.min.x.clamp(under.min.x, under.max.x);
             }
             let (mut open_measured, mut gate_measured) = (open, gate);
-            let mut footer_cx =
-                BodyCx::new(body_id, env_view, resolved, under, &mut *cx.core.memory, &mut open_measured, gate_measured.as_mut()).with_owner(owner);
+            let mut footer_cx = BodyCx::new(body_id, env_view, resolved, under, &mut *cx.core.memory, &mut open_measured, gate_measured.as_mut())
+                .with_field_message(field_message.clone())
+                .with_owner(owner);
             sizes.footer = self.measure_region(ui, frame.region("footer", under), &footer_env, |ui| comp.footer(ui, &mut footer_cx));
             let placed = self.regions(&props, inner, room, rtl, sizes);
             body_rect.max.y = (body_rect.max.y + placed.body.max.y - regions.body.max.y).max(body_rect.min.y);
