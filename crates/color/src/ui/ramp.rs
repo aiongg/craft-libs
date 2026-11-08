@@ -343,6 +343,7 @@ fn moved(cursor: (usize, usize), mv: NavMove, far: bool, rtl: bool) -> (usize, u
 }
 
 impl Component for ColorRamp<'_> {
+    const SINGLE_VALUE: bool = true;
     const ROLE: Role = Role::GROUP;
     const OVERLAYS: bool = false;
     const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_keep(KeepKeys::BlockArrows);

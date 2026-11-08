@@ -6,7 +6,7 @@ use craft_ui::contract::{Bind, Show as _};
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
-#[story(ColorWheel<'static>, covers = [Default], drive = Drive::Never)]
+#[story(ColorWheel<'static>, covers = [Default], drive = Drive::Drag(super::RING))]
 fn color_wheel(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let values = data.value("values", HsbModel.from_srgb(Srgba::rgb(0.2, 0.5, 0.8)));
     ColorWheel::new("Color wheel", Bind::bound(values)).show(ui).into()

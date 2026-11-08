@@ -283,6 +283,7 @@ fn keyed(values: &ModelValues, part: WheelPart, mv: NavMove, far: bool, rtl: boo
 }
 
 impl Component for ColorWheel<'_> {
+    const SINGLE_VALUE: bool = true;
     const ROLE: Role = Role::GROUP;
     const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_keep(KeepKeys::BlockArrows).with_activate(ActivateKeys::Neither);
     const OVERLAYS: bool = false;

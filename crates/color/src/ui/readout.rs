@@ -3,7 +3,7 @@
 #[cfg(feature = "screen-testing")]
 mod stories;
 
-use craft_behavior::{Flow, Metrics, Proposal, Sense};
+use craft_behavior::{Flow, Metrics, Mixed, Proposal, Sense};
 use craft_theme::{Rgba, Srgba};
 use craft_ui::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Props as _, Role, WordSetCx as _};
 use craft_ui::runtime::env::Label;
@@ -86,7 +86,7 @@ impl Component for ColorReadout<'_> {
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let shown = cx.value().copied().unwrap_or(Srgba::BLACK.to_rgba());
+        let shown: Mixed<Rgba> = cx.value().copied().map_or(Mixed::Mixed, Mixed::Same);
         let words = cx.words::<ColorReadoutWords>();
         let gap = cx.style.metrics.gap;
         let flow = Flow::new(cx.rect, cx.env.direction().is_rtl());
@@ -98,11 +98,17 @@ impl Component for ColorReadout<'_> {
         let names = [&words.red, &words.green, &words.blue];
         for (i, name) in names.into_iter().enumerate() {
             let x = cx.style.hex + gap + i as f32 * (cx.style.channel + gap);
-            let field = NumberField::new(name.as_str().to_owned(), Bind::given(Some(f64::from(shown.0[i]))))
-                .range(0.0..=255.0)
-                .step(1.0)
-                .snap_typed(true)
-                .commit_decimals(0);
+            let field = NumberField::new(
+                name.as_str().to_owned(),
+                Bind::given(match shown {
+                    Mixed::Same(color) => Mixed::Same(Some(f64::from(color.0[i]))),
+                    Mixed::Mixed => Mixed::Mixed,
+                }),
+            )
+            .range(0.0..=255.0)
+            .step(1.0)
+            .snap_typed(true)
+            .commit_decimals(0);
             let edit = ui.child(("channel", CHANNELS[i]), place(x, cx.style.channel), field);
             cx.adopt(&edit, &Srgba::BLACK.to_rgba(), |value, mine| {
                 if let Some(value) = value {

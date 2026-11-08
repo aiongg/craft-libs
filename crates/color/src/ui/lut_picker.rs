@@ -216,6 +216,7 @@ impl<'a> LutPicker<'a> {
 }
 
 impl Component for LutPicker<'_> {
+    const SINGLE_VALUE: bool = true;
     const ROLE: Role = Role::GROUP;
     const PARTS: bool = false;
     const STOPS: bool = false;

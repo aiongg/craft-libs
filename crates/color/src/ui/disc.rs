@@ -188,6 +188,7 @@ impl<'a> ColorDisc<'a> {
 
 impl Component for ColorDisc<'_> {
     const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_keep(KeepKeys::BlockArrows).with_activate(ActivateKeys::Neither);
+    const SINGLE_VALUE: bool = true;
     const ROLE: Role = Role::GROUP;
     const OVERLAYS: bool = false;
     type Style = ColorDiscStyle;

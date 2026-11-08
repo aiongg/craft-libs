@@ -5,7 +5,7 @@ use craft_ui::contract::{Bind, Props as _, Show as _};
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
-#[story(LutPicker<'static>, covers = [Default], drive = Drive::Never)]
+#[story(LutPicker<'static>, covers = [Default], drive = Drive::Pick { row: 1 })]
 fn lut_picker(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     LutPicker::new(Bind::bound(data.value("lut", LutChoice::Builtin("warm")))).label("3D LUT File").show(ui).into()
 }

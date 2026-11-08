@@ -94,6 +94,7 @@ impl<'a> ColorArea<'a> {
 }
 
 impl Component for ColorArea<'_> {
+    const SINGLE_VALUE: bool = true;
     const ROLE: Role = Role::GROUP;
     const PARTS: bool = false;
     const STOPS: bool = false;

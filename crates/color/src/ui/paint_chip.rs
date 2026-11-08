@@ -11,7 +11,7 @@ use craft_behavior::{Axis, EditEvent, IconId, Metrics, Selection};
 use craft_behavior::{DisplayOrder, ItemSource, Mixed, SelectionChange};
 use craft_theme::Srgba;
 use craft_ui::buttons::Button;
-use craft_ui::choice::Segmented;
+use craft_ui::choice::{ChoiceWords, Segmented};
 use craft_ui::contract::ShowContainer as _;
 use craft_ui::contract::{
     Access, Activation, Bind, Common, Component, Cx, Edit as _, EditResponse, Entry, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi,
@@ -38,6 +38,8 @@ const CHIP_WIDTH_IN_HEIGHTS: f32 = 1.5;
 const MAX_TILES: f32 = 4096.0;
 /// The No Color diagonal stops this many control heights short of the chip's edges.
 const DIAGONAL_INSET_IN_HEIGHTS: f32 = 0.15;
+/// The length of the dash on a mixed chip, as a share of the chip's width.
+const MIXED_DASH_SHARE: f32 = 0.5;
 
 craft_ui::words! {
     /// The words of [`PaintChip`] and [`PaintList`], English by default.
@@ -181,6 +183,8 @@ pub struct PaintChipStyle {
     none_fill: StyleColor,
     /// The No Color diagonal.
     none_mark: StyleColor,
+    /// The dash on a chip whose selection holds different paints.
+    mixed_mark: StyleColor,
 }
 
 /// The last solid colour the chip held: a switch back to Solid starts from it.
@@ -360,6 +364,7 @@ impl Component for PaintChip<'_> {
             edge: cx.color(colors.line.control_edge),
             none_fill: cx.color(colors.surface.sunken),
             none_mark: cx.color(colors.status.bad.solid),
+            mixed_mark: cx.color(colors.text.muted),
         }
     }
 
@@ -442,7 +447,10 @@ impl Component for PaintChip<'_> {
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let words = cx.words::<PaintWords>();
-        access.value(value_text(&words, cx.value().unwrap_or(&Paint::None)));
+        match cx.value() {
+            Some(paint) => access.value(value_text(&words, paint)),
+            None => access.value(cx.words::<ChoiceWords>().swatch_mixed.as_str()),
+        };
         access.has_popup(PopupKind::Dialog);
     }
 
@@ -450,8 +458,19 @@ impl Component for PaintChip<'_> {
         let style = cx.style;
         let well = cx.rect;
         let shape = PaintShape::Rect(well, style.radius);
-        let paint = cx.value().cloned().unwrap_or(Paint::None);
         let painter = ui.content_painter(cx);
+        let Some(paint) = cx.value().cloned() else {
+            let draw = ui.draw();
+            draw.fill(&shape, style.none_fill);
+            let (center, half) = (well.center(), well.width() * MIXED_DASH_SHARE / 2.0);
+            draw.stroke(
+                &PaintShape::Path(vec![pos2(center.x - half, center.y), pos2(center.x + half, center.y)]),
+                StrokeWidth::Medium,
+                style.mixed_mark,
+            );
+            ui.draw().stroke(&shape, StrokeWidth::Thin, style.edge);
+            return;
+        };
         match &paint {
             Paint::Solid(color) => {
                 if color.a < 1.0 {

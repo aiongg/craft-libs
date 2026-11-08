@@ -1,17 +1,17 @@
 //! [`SwatchPair`]: two overlapping colour wells, foreground over background or fill over stroke.
 
-use craft_behavior::{EditEvent, Flow, HitLevel, HitPriority, IconId, Metrics, NavShape, PartKey, PressPhase, Roving, Sense};
+use craft_behavior::{EditEvent, Flow, HitLevel, HitPriority, IconId, Metrics, Mixed, NavShape, PartKey, PressPhase, Roving, Sense};
 use craft_theme::Srgba;
 use craft_ui::buttons::IconButton;
-use craft_ui::choice::{Swatch, SwatchMetrics};
+use craft_ui::choice::{ChoiceWords, Swatch, SwatchMetrics};
 use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, Focus as _, MeasureCx, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx,
-    Pointer as _, Props as _, Remember as _, Role, clicked,
+    Pointer as _, Props as _, Remember as _, Role, WordSetCx as _, clicked,
 };
 use craft_ui::primitives::{PaintShape, StrokeWidth};
 use craft_ui::runtime::commands::FireSource;
 use craft_ui::runtime::env::Label;
-use craft_ui::style::{ComponentStyle, DataColor, FocusLook, StyleColor, StyleCx};
+use craft_ui::style::{ComponentStyle, DataColor, Flags, FocusLook, StyleColor, StyleCx};
 use egui::{Color32, Rect, Response, Vec2, pos2, vec2};
 
 use super::popover::compact_picker;
@@ -67,14 +67,15 @@ impl Well {
 #[non_exhaustive]
 pub struct PairWell {
     label: Label,
-    color: Srgba,
+    color: Mixed<Srgba>,
     ring: bool,
 }
 
 impl PairWell {
-    /// A well named `label` (its accessible name and tooltip, translated: "Foreground colour") of the host's `color`.
-    pub fn new(label: impl Into<Label>, color: Srgba) -> Self {
-        Self { label: label.into(), color, ring: false }
+    /// A well named `label` (its accessible name and tooltip, translated: "Foreground colour") of the host's `color`;
+    /// `Mixed::Mixed` for a selection whose fills differ, shown as the mixed well.
+    pub fn new(label: impl Into<Label>, color: impl Into<Mixed<Srgba>>) -> Self {
+        Self { label: label.into(), color: color.into(), ring: false }
     }
 
     /// Draws the well as a ring (a stroke, as DesignCraft's stroke well) instead of a filled square. The middle shows
@@ -290,10 +291,13 @@ impl Component for SwatchPair<'_> {
         for (i, logical) in rects.into_iter().enumerate() {
             let front = Well::of(i as u64) == active;
             let at = flow.to_physical(logical.translate(rect.min.to_vec2()));
+            let mut flags = Flags::empty();
+            flags.set(Flags::MIXED, self.wells[i].color.same().is_none());
             let part = cx
                 .part(WELL.at(i as u64), at)
                 .sense(Sense::CLICK | Sense::FOCUS)
                 .priority(HitPriority::new(HitLevel::Body, u8::from(front)))
+                .flags(flags)
                 .focusable();
             if self.popover {
                 part.pointer_only("Enter opens the picker");
@@ -350,7 +354,8 @@ impl Component for SwatchPair<'_> {
     fn overlay(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
         let popup = cx.popup("picker");
         let opened = cx.memory::<Opened>().0.map_or(Well::Primary, Well::of);
-        let (color, name) = (self.wells[opened.index() as usize].color, self.wells[opened.index() as usize].label.clone());
+        let well = &self.wells[opened.index() as usize];
+        let (color, name) = (*well.color.or(&Srgba::BLACK), well.label.clone());
         let setup = self.picker.as_ref();
         let sampled = self.sampled;
         let shown = ui.show(popup, Overlay::popover(), |ui, _| {
@@ -367,9 +372,13 @@ impl Component for SwatchPair<'_> {
         }
     }
 
-    fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
+    fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         for (i, well) in self.wells.iter().enumerate() {
-            access.node(WELL.at(i as u64), Role::COLOR_WELL).value(well.color.to_hex());
+            let value = match well.color.same() {
+                Some(color) => color.to_hex(),
+                None => cx.words::<ChoiceWords>().swatch_mixed.as_str().to_owned(),
+            };
+            access.node(WELL.at(i as u64), Role::COLOR_WELL).value(value);
         }
     }
 
@@ -386,10 +395,9 @@ impl Component for SwatchPair<'_> {
             if well == active {
                 ui.draw().fill(&PaintShape::Rect(at.expand(style.gap), egui::CornerRadius::ZERO), style.ground);
             }
-            if shown.ring {
-                paint_ring(ui, at, shown.color, style);
-            } else {
-                ui.face(WELL.at(well.index()), Swatch::new(shown.label.clone(), shown.color).selected(well == active));
+            match shown.color.same() {
+                Some(color) if shown.ring => paint_ring(ui, at, *color, style),
+                _ => ui.face(WELL.at(well.index()), Swatch::new(shown.label.clone(), shown.color).selected(well == active)),
             }
         }
         let buttons_top = cx.rect.min.y;

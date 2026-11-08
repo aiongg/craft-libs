@@ -102,6 +102,8 @@ pub struct Probe {
     pub canvas_control: bool,
     /// The type's `SHOWS_LABEL`: whether it paints its label as visible text.
     pub shows_label: bool,
+    /// The type's `SINGLE_VALUE`: it edits one value and has no mixed state.
+    pub single_value: bool,
     /// The type's `paint_outset`: how far it paints outside its rect by design.
     pub paint_outset: fn(&crate::style::UiTokens) -> f32,
     /// The type declares `#[component(overlay)]`.
@@ -178,6 +180,7 @@ impl Probe {
             entry,
             canvas_control: T::CANVAS_CONTROL,
             shows_label: T::SHOWS_LABEL,
+            single_value: T::SINGLE_VALUE,
             paint_outset: T::paint_outset,
             overlay,
             exempt,

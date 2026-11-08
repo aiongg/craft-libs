@@ -140,6 +140,7 @@ impl<'a> ColorStrip<'a> {
 }
 
 impl Component for ColorStrip<'_> {
+    const SINGLE_VALUE: bool = true;
     const ROLE: Role = Role::SLIDER;
     const OVERLAYS: bool = false;
     const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_keep(KeepKeys::BlockArrows).with_activate(ActivateKeys::Neither);

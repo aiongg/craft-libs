@@ -1,10 +1,30 @@
 //! Stories of the paint chip and the paint list.
 
 use super::{GradientPreview, ImagePreview, Paint, PaintChip, PaintLink, PaintLinkKind, PaintList, PaintListOptions, PaintRow};
+use craft_behavior::Mixed;
 use craft_theme::Srgba;
+use craft_ui::contract::Role;
 use craft_ui::contract::{Bind, Show as _};
-use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
+use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use egui::Ui;
+
+/// Opens the popover with a click.
+fn open_popover(fixture: &mut Fixture) {
+    let chip = fixture.by_role(Role::COLOR_WELL);
+    if let Some(chip) = chip.first() {
+        fixture.click(chip);
+    }
+    fixture.idle(4);
+}
+
+/// Opens the popover and takes the last fill kind it offers.
+fn take_last_kind(fixture: &mut Fixture) {
+    open_popover(fixture);
+    if let Some(kind) = fixture.by_role(Role::RADIO_BUTTON).last().copied() {
+        fixture.click(&kind);
+    }
+    fixture.idle(2);
+}
 
 const BLUE: Srgba = Srgba::rgb(0.2, 0.4, 0.8);
 
@@ -14,9 +34,20 @@ fn chip(ui: &mut Ui, data: &mut StoryData, paint: Paint) -> StoryOutput {
     PaintChip::new("Fill", Bind::bound(held), BLUE).none_allowed().gradient_editor(GradientPreview::new(stops), |_: &mut Ui| None).show(ui).into()
 }
 
-#[story(PaintChip<'static>, covers = [Default], drive = Drive::Never)]
+#[story(PaintChip<'static>, covers = [Default], drive = Drive::Custom(take_last_kind))]
 fn paint_chip(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     chip(ui, data, Paint::Solid(Srgba { r: 0.9, g: 0.2, b: 0.2, a: 0.6 }))
+}
+
+#[story(PaintChip<'static>, covers = [Mixed], drive = Drive::Never)]
+fn paint_chip_mixed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let held = data.value("mixed", Mixed::<Paint>::Mixed);
+    PaintChip::new("Fill", Bind::bound_mixed(held), BLUE).show(ui).into()
+}
+
+#[story(PaintChip<'static>, covers = [Open], drive = Drive::Custom(open_popover))]
+fn paint_chip_open(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    chip(ui, data, Paint::Solid(BLUE))
 }
 
 #[story(PaintChip<'static>, covers = [], drive = Drive::Never)]

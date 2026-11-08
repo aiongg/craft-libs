@@ -10,7 +10,7 @@ fn pick() -> RampPick {
     RampPick::new(Srgba::rgb(0.2, 0.5, 0.8), false)
 }
 
-#[story(ColorRamp<'static>, covers = [Default], drive = Drive::Never)]
+#[story(ColorRamp<'static>, covers = [Default], drive = Drive::Drag(super::BAR))]
 fn color_ramp(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     ColorRamp::new("Color ramp", RampKind::Spectrum, Bind::bound(data.value("pick", pick()))).kind_name("RGB Spectrum").show(ui).into()
 }

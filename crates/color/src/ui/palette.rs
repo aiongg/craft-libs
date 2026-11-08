@@ -283,6 +283,7 @@ pub struct SwatchTableStyle {
 }
 
 impl Component for SwatchTable<'_> {
+    const SINGLE_VALUE: bool = true;
     const ROLE: Role = Role::LIST_BOX;
     const PARTS: bool = false;
     type Style = SwatchTableStyle;
