@@ -24,7 +24,7 @@ mod words;
 
 pub use alert::{Alert, AlertOutput};
 pub use blocking::{BlockingOverlay, BlockingOverlayStyle};
-pub use frame::{DialogFrame, DialogFrameStyle, DialogOutput, FooterCx};
+pub use frame::{DialogFrame, DialogFrameStyle, DialogOutput, FooterCx, FooterHooks};
 pub use full_window::{FullWindowDialog, FullWindowDialogStyle};
 // full-window parts
 pub use full_window_parts::{

@@ -1,7 +1,7 @@
 //! `Dialog` (16.5): `DialogFrame`'s chrome on an egui layer: modal or modeless, movable by its header, with a
 //! focus trap, placement and size remembered under a `SaveKey`.
 
-use super::frame::{self, DialogOutput, FOOTER, FooterCx, FooterFn};
+use super::frame::{self, DialogOutput, FOOTER, FooterCx, FooterFn, FooterHooks};
 use crate::contract::overlay::{FloatPlace, OverlayFit, Place};
 use crate::contract::{
     Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, Mount, Overlay, Pad, Props as _, Role, SaveKey,
@@ -398,5 +398,23 @@ impl Container for Dialog<'_> {
 
     fn closed(&mut self, why: CloseReason) {
         self.closed.get_or_insert(why);
+    }
+}
+
+impl<'a> FooterHooks<'a> for Dialog<'a> {
+    fn buttons(self, buttons: impl IntoIterator<Item = FooterButton>) -> Self {
+        Dialog::buttons(self, buttons)
+    }
+
+    fn settle_buttons<T: FnMut(&mut BodyCx<'_>, &mut [FooterButton]) + 'a>(self, settle: T) -> Self {
+        Dialog::settle_buttons(self, settle)
+    }
+
+    fn on_pick<T: FnMut(&FooterButton, &mut BodyCx<'_>) + 'a>(self, act: T) -> Self {
+        Dialog::on_pick(self, act)
+    }
+
+    fn close_guard<T: FnMut(&FooterButton, &mut BodyCx<'_>) -> bool + 'a>(self, allows: T) -> Self {
+        Dialog::close_guard(self, allows)
     }
 }

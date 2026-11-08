@@ -311,6 +311,7 @@ mod sides {
     use craft_ui::runtime::overlay::CloseReason;
     use craft_ui::sections::{DialogRole, FooterButton};
     use craft_ui::testing::{Fixture, trial};
+    use craft_ui::text::TextField;
     use egui::{Key, Modifiers, Rect};
     use std::cell::RefCell;
     use std::rc::Rc;
@@ -337,7 +338,7 @@ mod sides {
             dialog: Rect::NOTHING,
         }));
         let shared = seen.clone();
-        let (mut open, mut mesh) = (true, false);
+        let (mut open, mut mesh, mut name) = (true, false, String::new());
         let mut fixture = Fixture::new(move |ui| {
             let footer = ResetFooter::new(ui, None, true);
             let mut seen = shared.borrow_mut();
@@ -349,6 +350,8 @@ mod sides {
                 .sides(|ui, _| {
                     side = FullWindowSide::new("Properties")
                         .show(ui, |ui, _| {
+                            // The first stop is a field, which leaves Enter untaken; a check box would take it as its toggle.
+                            TextField::new("Brush Name", Bind::bound(&mut name)).show(ui);
                             Checkbox::new(Bind::bound(&mut mesh)).label("Show the Mesh, the Pins and the Guides of the Brush Tool").show(ui);
                         })
                         .output
