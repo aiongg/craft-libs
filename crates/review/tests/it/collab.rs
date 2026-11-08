@@ -237,7 +237,7 @@ fn initials_and_name_tags_read_on_every_people_colour() {
             let area = ui.available_rect_before_wrap();
             let view = craft_behavior::CanvasView::new(area, kurbo::Point::new(0.0, 0.0), 1.0);
             Canvas::new("Document").view(view).show(ui, |ui, cx| {
-                craft_review::ui::RemoteCursors::new("Cursors", &room, 1.0).show_at(ui, cx.rect);
+                craft_review::ui::RemoteCursors::new("Cursors", &room).show_at(ui, cx.rect);
             });
         };
         let ratio = contrast_ratio(craft_theme::Rgba::from(first_ink(&mut tag)), fill);

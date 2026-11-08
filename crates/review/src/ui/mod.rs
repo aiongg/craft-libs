@@ -28,7 +28,9 @@ pub use avatar::{Avatar, AvatarOutput, paint_avatar};
 pub use chat::{ChatWords, CursorChatBox, CursorChatBoxOutput, ReviewCommand, paint_chat_bubble};
 pub use comments::{CommentEdit, CommentsPanel, CommentsPanelOutput, CommentsPanelState, CommentsWords};
 pub use join::{JoinField, JoinFieldOutput, JoinWords};
-pub use presence::{FollowCommand, FollowFrame, FollowFrameOutput, PeopleBar, PeopleBarOutput, PresenceWords, RemoteCursors, paint_pointer};
+pub use presence::{
+    FollowCommand, FollowFrame, FollowFrameOutput, PeopleBar, PeopleBarOutput, PresenceWords, RemoteCursor, RemoteCursors, paint_pointer,
+};
 pub use revisions::{RevisionsPanel, RevisionsPanelOutput, RevisionsWords};
 pub use signature::{SignaturePadDialog, SignaturePadResult, SignatureSettings, SignatureWords, paint_signature};
 pub use thread::{

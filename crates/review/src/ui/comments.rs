@@ -18,14 +18,13 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use craft_behavior::{DisplayOrder, IconId, ItemSource, Metrics, Proposal, Selection, SpanLayout};
+use craft_behavior::{DisplayOrder, IconId, ItemSource, Metrics, PartKey, Proposal, Selection, Sense, SpanLayout};
 use craft_i18n::{DateStyle, DateTime, TimeZone};
 use craft_ui::buttons::{Button, IconButton};
-use craft_ui::contract::overlay::Anchor;
 use craft_ui::contract::{
     ActivateOn, Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, ItemOutput,
-    MeasureCx, NoValue, Outcome, PaintUi, Pattern, Props as _, Role, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, Sizing, Trigger,
-    WordSetCx as _, clicked,
+    MeasureCx, NoValue, Outcome, PaintUi, PartsCx, Pattern, Props as _, Role, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, Sizing,
+    Trigger, WordSetCx as _, clicked,
 };
 use craft_ui::display::{Divider, Shade, Text};
 use craft_ui::layout_components::{Row, Stack};
@@ -33,7 +32,7 @@ use craft_ui::menu::{Menu, MenuItem};
 use craft_ui::notices::{Notice, NoticeLayout};
 use craft_ui::primitives::{HAlign, IconSpec, PaintShape, TextRun, Wrap};
 use craft_ui::runtime::env::{AgeStyle, Env, EnvView, Label};
-use craft_ui::style::{ComponentStyle, DataColor, Ink, StyleColor, StyleCx, TypeRole};
+use craft_ui::style::{ComponentStyle, Ink, StyleColor, StyleCx, TypeRole};
 use craft_ui::text::TextField;
 use egui::{CornerRadius, Pos2, Rect, Response, Ui, Vec2, vec2};
 
@@ -104,14 +103,6 @@ craft_ui::words! {
     }
 }
 
-/// Where a card's menu hangs: the thread, the message and the rect of the button that asked.
-#[derive(Clone, Debug, PartialEq)]
-struct OpenMenu {
-    thread: ThreadId,
-    index: usize,
-    anchor: Rect,
-}
-
 /// What the panel keeps between passes; the app keeps one per document window.
 #[derive(Clone, Debug, Default, PartialEq)]
 #[non_exhaustive]
@@ -132,7 +123,6 @@ pub struct CommentsPanelState {
     pub reply: String,
     /// The "Add a comment" box's draft.
     pub new_comment: String,
-    menu: Option<OpenMenu>,
 }
 
 impl CommentsPanelState {
@@ -454,7 +444,6 @@ impl ItemSource<CardKey> for Rows<'_> {}
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum CardEvent {
     /// A "..." button was pressed: the menu of message `index` hangs from `anchor`.
-    Menu { thread: ThreadId, index: usize, anchor: Rect },
     /// The checkmark button was pressed.
     Mark { thread: ThreadId, marked: bool },
     /// The inline editor's text changed.
@@ -653,6 +642,9 @@ trait Sink {
     fn push(&mut self, slot: Slot, rect: Rect, label: &Label, enabled: bool);
 }
 
+/// The "..." button of message `index` of a card: a part of the row that opens the message's menu.
+const MORE: PartKey = PartKey::new("more");
+
 /// A card or a heading of the card collection.
 #[derive(craft_ui::contract::Component)]
 pub(crate) struct CommentRow<'r> {
@@ -670,6 +662,8 @@ pub(crate) struct CommentRow<'r> {
     heights: [f32; 2],
     /// The sizes the push buttons measured, for the paint of the same pass.
     buttons: [Vec2; 3],
+    /// The messages whose "..." button the parts step declared.
+    mores: Vec<usize>,
     events: Vec<CardEvent>,
 }
 
@@ -687,6 +681,7 @@ impl<'r> CommentRow<'r> {
             words: None,
             heights: [0.0; 2],
             buttons: [Vec2::ZERO; 3],
+            mores: Vec::new(),
             events: Vec::new(),
         }
         .label(name)
@@ -865,6 +860,8 @@ struct Measure<'a, 'b, 'r> {
     cx: &'a MeasureCx<'b, CommentRow<'r>>,
     fields: [f32; 2],
     buttons: [Vec2; 3],
+    /// The message index and left-to-right rect of each "..." button.
+    more: Vec<(usize, Rect)>,
 }
 
 impl Sink for Measure<'_, '_, '_> {
@@ -880,7 +877,11 @@ impl Sink for Measure<'_, '_, '_> {
 
     fn avatar(&mut self, _: Rect, _: &str) {}
 
-    fn button(&mut self, _: Slot, _: Rect, _: &'static str, _: &Label, _: bool) {}
+    fn button(&mut self, slot: Slot, rect: Rect, _: &'static str, _: &Label, _: bool) {
+        if let Slot::More(index) = slot {
+            self.more.push((index, rect));
+        }
+    }
 
     fn field(&mut self, slot: Slot, at: Rect, label: &Label, text: &str, lines: usize) -> f32 {
         let mut field = TextField::new(label.clone(), Bind::given(text.to_owned())).lines(lines);
@@ -923,15 +924,7 @@ struct Paint<'a, 'b> {
 impl Paint<'_, '_> {
     /// `rect` from the row's left-to-right layout, on the screen.
     fn place(&self, rect: Rect) -> Rect {
-        let moved = rect.translate(self.origin.to_vec2());
-        if self.rtl {
-            let right = self.origin.x + self.width;
-            let left = self.origin.x;
-            let (min_x, max_x) = (left + right - moved.max.x, left + right - moved.min.x);
-            Rect::from_min_max(Pos2::new(min_x, moved.min.y), Pos2::new(max_x, moved.max.y))
-        } else {
-            moved
-        }
+        placed(self.origin, self.width, self.rtl, rect)
     }
 
     fn color(&self, tone: Tone) -> StyleColor {
@@ -942,6 +935,20 @@ impl Paint<'_, '_> {
             Tone::Bad => self.st.bad,
             Tone::Faint => self.st.faint,
         }
+    }
+}
+
+/// `rect` from a row's left-to-right layout, on the screen: moved to the row's `origin` and mirrored across its
+/// `width` under right-to-left.
+fn placed(origin: Pos2, width: f32, rtl: bool, rect: Rect) -> Rect {
+    let moved = rect.translate(origin.to_vec2());
+    if rtl {
+        let right = origin.x + width;
+        let left = origin.x;
+        let (min_x, max_x) = (left + right - moved.max.x, left + right - moved.min.x);
+        Rect::from_min_max(Pos2::new(min_x, moved.min.y), Pos2::new(max_x, moved.max.y))
+    } else {
+        moved
     }
 }
 
@@ -970,10 +977,13 @@ impl Sink for Paint<'_, '_> {
 
     fn button(&mut self, slot: Slot, rect: Rect, id: &'static str, name: &Label, on: bool) {
         let button = IconButton::new(IconSpec::svg(IconId::new(id))).label(name.clone()).selected(on);
+        if let Slot::More(index) = slot {
+            self.ui.face(MORE.at(index as u64), button);
+            return;
+        }
         let response = self.ui.child(slot, self.place(rect), button);
         let (Some(thread), true) = (self.thread, clicked(&response)) else { return };
         match slot {
-            Slot::More(index) => self.events.push(CardEvent::Menu { thread, index, anchor: response.rect }),
             Slot::Mark => self.events.push(CardEvent::Mark { thread, marked: !on }),
             _ => {}
         }
@@ -1015,6 +1025,11 @@ impl Component for CommentRow<'_> {
     type Output = RowOut;
 
     fn access(&self, access: &mut craft_ui::contract::Access, cx: &Cx<'_, Self>) {
+        if let Some(words) = &self.words {
+            for &index in &self.mores {
+                access.node(MORE.at(index as u64), Role::BUTTON).name = craft_ui::contract::Name::Text(words.more.as_str().to_owned());
+            }
+        }
         let Some(first) = self.thread.and_then(|thread| thread.messages.first()) else { return };
         let age = age_text(&cx.env, first.modified.unwrap_or(first.created), self.now);
         access.name(craft_ui::contract::Name::Joined(vec![cx.resolved.label.to_owned(), age]));
@@ -1032,7 +1047,7 @@ impl Component for CommentRow<'_> {
             highlight: cx.color(color.state.selected),
             bar: cx.color(color.accent.solid),
             avatar: cx.color(color.accent.strong),
-            avatar_ink: cx.ink_on(DataColor::new(cx.color(color.accent.strong).egui())),
+            avatar_ink: cx.color(color.text.on_strong),
             bar_width: cx.tokens.stroke.thick,
             column: cx.tokens.size.dock.column,
             height: cx.control().height,
@@ -1049,11 +1064,23 @@ impl Component for CommentRow<'_> {
         self.words = Some(cx.words::<CommentsWords>());
         let now = self.now;
         let age = |then: i64| age_text(&cx.env, then, now);
-        let mut sink = Measure { cx, fields: [0.0; 2], buttons: [Vec2::ZERO; 3] };
+        let mut sink = Measure { cx, fields: [0.0; 2], buttons: [Vec2::ZERO; 3], more: Vec::new() };
         let height = self.lay(cx.style, width, &age, &mut sink);
         self.heights = sink.fields;
         self.buttons = sink.buttons;
         Vec2::new(width, height)
+    }
+
+    fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
+        self.words = Some(cx.words::<CommentsWords>());
+        let (now, rtl) = (self.now, cx.flow.is_rtl());
+        let age = |then: i64| age_text(&cx.env, then, now);
+        let mut sink = Measure { cx: &**cx, fields: self.heights, buttons: self.buttons, more: Vec::new() };
+        self.lay(cx.style, rect.width(), &age, &mut sink);
+        self.mores = sink.more.iter().map(|(index, _)| *index).collect();
+        for (index, local) in sink.more {
+            cx.part(MORE.at(index as u64), placed(rect.min, rect.width(), rtl, local)).sense(Sense::CLICK | Sense::FOCUS).focusable();
+        }
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
@@ -1236,49 +1263,38 @@ fn pages_menu(ui: &mut Ui, words: &CommentsWords, threads: &[CommentThread], sta
     }
 }
 
-/// The menu of message `menu.index` of the card whose "..." was pressed. It hangs from the button's rect.
-fn card_menu(
-    ui: &mut Ui,
-    words: &CommentsWords,
-    list: &Response,
-    menu: &OpenMenu,
-    thread: &CommentThread,
-    editable: bool,
-) -> (bool, Option<CardMenu>) {
-    let mut open = true;
+/// The menu of message `index` of `thread`, hanging from the message's "..." button.
+fn card_menu(ui: &mut Ui, words: &CommentsWords, button: &Response, index: usize, thread: &CommentThread, editable: bool) -> Option<CardMenu> {
     let ran = std::cell::Cell::new(None);
-    Menu::new(words.more.clone()).opened_by(list, Trigger::Manual).anchor(Anchor::Rect(menu.anchor)).open(Bind::bound(&mut open)).show(
-        ui,
-        |ui, _| {
-            let row = |ui: &mut Ui, label: &Label, action: CardMenu| {
-                if MenuItem::new(label.as_str().to_owned()).show(ui).ran {
-                    ran.set(Some(action));
-                }
-            };
-            if menu.index == 0 {
-                row(ui, &words.edit, CardMenu::Edit);
-                let _ = Menu::submenu_row(ui, words.set_status.clone(), |ui, _| {
-                    for status in ReviewStatus::MENU {
-                        if MenuItem::new(status_label(words, status).as_str().to_owned()).radio_mark(thread.status == status).show(ui).ran {
-                            ran.set(Some(CardMenu::Status(status)));
-                        }
+    Menu::new(words.more.clone()).id_salt(index).opened_by(button, Trigger::Click).show(ui, |ui, _| {
+        let row = |ui: &mut Ui, label: &Label, action: CardMenu| {
+            if MenuItem::new(label.as_str().to_owned()).show(ui).ran {
+                ran.set(Some(action));
+            }
+        };
+        if index == 0 {
+            row(ui, &words.edit, CardMenu::Edit);
+            let _ = Menu::submenu_row(ui, words.set_status.clone(), |ui, _| {
+                for status in ReviewStatus::MENU {
+                    if MenuItem::new(status_label(words, status).as_str().to_owned()).radio_mark(thread.status == status).show(ui).ran {
+                        ran.set(Some(CardMenu::Status(status)));
                     }
-                });
+                }
+            });
+            Divider::horizontal().show(ui);
+            row(ui, &words.delete, CardMenu::Delete);
+        } else {
+            if editable {
+                row(ui, &words.edit, CardMenu::Edit);
+            }
+            row(ui, &words.copy_text, CardMenu::Copy);
+            if editable {
                 Divider::horizontal().show(ui);
                 row(ui, &words.delete, CardMenu::Delete);
-            } else {
-                if editable {
-                    row(ui, &words.edit, CardMenu::Edit);
-                }
-                row(ui, &words.copy_text, CardMenu::Copy);
-                if editable {
-                    Divider::horizontal().show(ui);
-                    row(ui, &words.delete, CardMenu::Delete);
-                }
             }
-        },
-    );
-    (open, ran.into_inner())
+        }
+    });
+    ran.into_inner()
 }
 
 impl CommentsPanel<'_> {
@@ -1377,6 +1393,7 @@ impl CommentsPanel<'_> {
             let selected = state.selected;
             let reply: &str = &state.reply;
             let editing = state.editing.as_ref().map(|(thread, index, text)| (*thread, *index, text.as_str()));
+            let mut openers = Vec::new();
             let out = CommentList::new(label.clone(), Bind::bound(&mut selection), grouped).show_items(ui, &source, &mut |_, item| match &source
                 .entries[item.at]
                 .1
@@ -1389,6 +1406,9 @@ impl CommentsPanel<'_> {
                         .map_or_else(String::new, |first| words.card_name.fill(&[("author", &first.author), ("text", &first.text)]));
                     let is_selected = selected == Some(thread.id);
                     let editing = editing.filter(|(id, ..)| *id == thread.id).map(|(_, index, text)| (index, text));
+                    if is_selected {
+                        openers.extend((0..thread.messages.len()).map(|index| (index, item.part_opener(MORE.at(index as u64)))));
+                    }
                     CommentRow::card(thread, name)
                         .state(is_selected, !read_only && !thread.locked, now)
                         .drafts(editing, if is_selected { reply } else { "" })
@@ -1430,18 +1450,13 @@ impl CommentsPanel<'_> {
             {
                 edits.push(CommentEdit::Select(thread));
             }
-            if let Some(menu) = state.menu.clone() {
-                if let Some(thread) = threads.iter().find(|thread| thread.id == menu.thread) {
-                    let editable = !read_only && !thread.locked;
-                    let (open, ran) = card_menu(ui, &words, &list, &menu, thread, editable);
-                    if let Some(action) = ran {
-                        apply_menu(action, thread, menu.index, state, &mut edits);
+            if let Some(thread) = state.selected.and_then(|selected| threads.iter().find(|thread| thread.id == selected)) {
+                let editable = !read_only && !thread.locked;
+                for (index, opener) in openers {
+                    let Some(button) = out.opener(opener) else { continue };
+                    if let Some(action) = card_menu(ui, &words, button, index, thread, editable) {
+                        apply_menu(action, thread, index, state, &mut edits);
                     }
-                    if !open || ran.is_some() {
-                        state.menu = None;
-                    }
-                } else {
-                    state.menu = None;
                 }
             }
             list
@@ -1455,7 +1470,6 @@ impl CommentsPanel<'_> {
 /// Applies what a card reported.
 fn apply(event: CardEvent, state: &mut CommentsPanelState, edits: &mut Vec<CommentEdit>) {
     match event {
-        CardEvent::Menu { thread, index, anchor } => state.menu = Some(OpenMenu { thread, index, anchor }),
         CardEvent::Mark { thread, marked } => edits.push(CommentEdit::Mark { thread, marked }),
         CardEvent::EditText(text) => {
             if let Some((_, _, draft)) = state.editing.as_mut() {

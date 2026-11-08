@@ -249,7 +249,7 @@ pub(crate) struct PinStyle {
     resolved_ink: StyleColor,
     side: f32,
     inset: f32,
-    dot_side: f32,
+    mark_side: f32,
 }
 
 /// A speech-bubble pin or a cluster of them: round on three corners, square at the spot (bottom-left).
@@ -297,11 +297,11 @@ impl Component for PinBubble {
             dot: cx.color(color.accent.strong),
             cluster: cx.color(color.accent.strong),
             on_strong: cx.color(color.text.on_strong),
-            resolved: cx.color(color.text.faint),
-            resolved_ink: cx.ink_on(DataColor::new(cx.color(color.text.faint).egui())),
+            resolved: cx.color(color.surface.sunken),
+            resolved_ink: cx.color(color.text.muted),
             side: cx.control().height,
             inset: cx.tokens.space.gap.inline,
-            dot_side: cx.tokens.shape.radius.sm * 2.0,
+            mark_side: cx.tokens.size.icon.sm,
         }
     }
 
@@ -351,10 +351,10 @@ impl Component for PinBubble {
                 }
                 if *unread {
                     let centre = Pos2::new(rect.right() - st.inset, rect.top() + st.inset);
-                    draw.fill(&PaintShape::Circle(centre, st.dot_side / 2.0), st.dot);
+                    draw.icon(Rect::from_center_size(centre, Vec2::splat(st.mark_side)), &IconSpec::disc().color(st.dot));
                 }
                 if *resolved {
-                    let check = Rect::from_center_size(Pos2::new(rect.right() - st.inset, rect.bottom() - st.inset), Vec2::splat(st.dot_side * 2.0));
+                    let check = Rect::from_center_size(Pos2::new(rect.right() - st.inset, rect.bottom() - st.inset), Vec2::splat(st.mark_side));
                     draw.icon(check, &IconSpec::svg(IconId::new("check")).color(st.dot));
                 }
             }
