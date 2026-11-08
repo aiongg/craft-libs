@@ -8,7 +8,7 @@ mod units;
 pub use label::{Label, Message, Word};
 pub(crate) use shell::ShellEntry;
 pub use shell::{BodyMode, RevealEdge, ShellCx, ShellRegions, SlotKey, WindowKey};
-pub use units::{PointSize, UnitKind, UnitWords, Units};
+pub use units::{LengthUnits, PointSize, UnitKind, UnitWords, Units};
 
 use crate::runtime::commands::CommandChain;
 use crate::runtime::egui::memory::{FastMap, Service};

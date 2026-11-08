@@ -17,7 +17,7 @@ use crate::contract::{
 };
 use crate::list::{List, ListRow};
 use crate::primitives::{IconSpec, TextOptions, TextRun};
-use crate::runtime::env::{Label, UnitKind, Units};
+use crate::runtime::env::{Label, LengthUnits, UnitKind, Units};
 use crate::style::{ComponentStyle, Ink, StyleCx, SurfaceLook, TextLook, TypeRole};
 use crate::value_drag::Slider;
 use craft_behavior::Value;
@@ -273,6 +273,8 @@ struct Ruled<V> {
     decimals: Option<usize>,
     mixed: bool,
     names: Vec<(u32, String)>,
+    /// How many shown units make one stored unit (1 for a field that shows what it holds).
+    scale: f64,
     value: PhantomData<fn() -> V>,
 }
 
@@ -285,6 +287,7 @@ impl<V> Clone for Ruled<V> {
             decimals: self.decimals,
             mixed: self.mixed,
             names: self.names.clone(),
+            scale: self.scale,
             value: PhantomData,
         }
     }
@@ -294,6 +297,11 @@ impl<V: NumberValue> Ruled<V> {
     fn held(&self, number: f64) -> f64 {
         let snapped = if self.snap { self.rule.snap(number) } else { number };
         self.rule.settle(self.decimals.map_or(snapped, |decimals| round_to(snapped, decimals)))
+    }
+
+    /// The number the value holds, as the field shows it.
+    fn shown(&self, v: &V) -> Option<f64> {
+        v.number().map(|number| number * self.scale)
     }
 
     /// The name `text` spells, as a value of the field's type.
@@ -309,7 +317,7 @@ impl<V: NumberValue> Codec for Ruled<V> {
     fn format(&self, v: &V) -> String {
         match v.named().and_then(|id| self.names.iter().find(|(name, _)| *name == id)) {
             Some((_, label)) => label.clone(),
-            None => self.inner.format(&v.number()),
+            None => self.inner.format(&self.shown(v)),
         }
     }
 
@@ -320,9 +328,9 @@ impl<V: NumberValue> Codec for Ruled<V> {
         if text.trim().is_empty() && (self.mixed || V::blank().is_none()) {
             return Err(NotAValue);
         }
-        let read = self.inner.parse(text, &start.number())?;
+        let read = self.inner.parse(text, &self.shown(start))?;
         match read {
-            Some(number) => Ok(V::of_number(self.held(number))),
+            Some(number) => Ok(V::of_number(self.held(number) / self.scale)),
             None => V::blank().ok_or(NotAValue),
         }
     }
@@ -338,7 +346,7 @@ impl<V: NumberValue> Codec for Ruled<V> {
     fn normalise(&self, text: &str, v: &V) -> String {
         match v.named() {
             Some(_) => self.format(v),
-            None => self.inner.normalise(text, &v.number()),
+            None => self.inner.normalise(text, &self.shown(v)),
         }
     }
 
@@ -349,7 +357,7 @@ impl<V: NumberValue> Codec for Ruled<V> {
     fn sample(&self, current: &V) -> Cow<'_, str> {
         match current.named() {
             Some(_) => Cow::Owned(self.format(current)),
-            None => self.inner.sample(&current.number()),
+            None => self.inner.sample(&self.shown(current)),
         }
     }
 }
@@ -409,6 +417,10 @@ pub struct NumberField<'a, V: NumberValue + 'static = Option<f64>> {
     /// The decimals a committed value is rounded to; the display keeps the codec's.
     #[prop]
     commit_decimals: Option<usize>,
+    /// The lengths a length field keeps and shows (`NumberField::length`).
+    lengths: Option<LengthUnits>,
+    /// How many shown units make one stored unit, read from the env in measure and parts; 1 for a plain field.
+    scale: f64,
     options: TextOptions,
     scrub: bool,
     picked: Option<NumberPick>,
@@ -419,6 +431,19 @@ impl<'a> NumberField<'a, Option<f64>> {
     /// A number field named `label`; empty text is `None`.
     pub fn new(label: impl Into<Label>, value: Bind<'a, Option<f64>>) -> Self {
         Self::of(label, value)
+    }
+
+    /// A number field over a length the binding keeps in `lengths.stored` (the document's unit) and shows in
+    /// `lengths.shown` (the user's unit), after the shown unit's symbol. Typed text reads any pixel or length unit
+    /// spelling ("10 mm" in a field that shows inches) and a bare number in the shown unit; the binding, its check
+    /// and its edit events are in the stored unit. `range` is in the stored unit and `popup_slider` and presets
+    /// numbers too; the step is in the shown unit and defaults to the shown unit's own.
+    pub fn length(label: impl Into<Label>, value: Bind<'a, Option<f64>>, lengths: LengthUnits) -> Self {
+        let mut field = Self::of(label, value);
+        field.lengths = Some(lengths);
+        field.unit_kind = Some(lengths.shown);
+        field.step = Some(lengths.shown.step());
+        field
     }
 }
 
@@ -442,6 +467,8 @@ impl<'a, V: NumberValue + 'static> NumberField<'a, V> {
             popup_slider: None,
             snap_typed: false,
             commit_decimals: None,
+            lengths: None,
+            scale: 1.0,
             options: TextOptions::default(),
             scrub: false,
             picked: None,
@@ -457,13 +484,52 @@ impl<'a, V: NumberValue + 'static> NumberField<'a, V> {
         self
     }
 
+    /// The range and step in the shown unit.
     fn rule(&self) -> Rule {
-        Rule::new(self.range.as_ref(), self.step)
+        let range = self.range.as_ref().map(|range| range.start() * self.scale..=range.end() * self.scale);
+        Rule::new(range.as_ref(), self.step)
     }
 
-    /// The field's codec: the one set, else the env's locale and the spellings of the unit kind.
+    /// Reads what a length field keeps from the env: the scale from stored to shown, and the shown unit's symbol
+    /// after the number unless the field sets a unit.
+    fn settle_lengths(&mut self, units: &Units) {
+        let Some(lengths) = self.lengths else { return };
+        self.scale = units.length_scale(lengths).unwrap_or(1.0);
+        if self.unit.is_none() {
+            self.unit = Some(units.symbol(lengths.shown).into());
+        }
+    }
+
+    /// `stored` in the shown unit.
+    fn to_shown(&self, stored: f64) -> f64 {
+        stored * self.scale
+    }
+
+    /// `shown` in the stored unit.
+    fn to_stored(&self, shown: f64) -> f64 {
+        shown / self.scale
+    }
+
+    /// `stored` kept in the range.
+    fn settle_stored(&self, stored: f64) -> f64 {
+        self.to_stored(self.rule().settle(self.to_shown(stored)))
+    }
+
+    /// The number the field holds, in the shown unit.
+    fn shown_number(&self, value: Option<&V>) -> Option<f64> {
+        value.and_then(NumberValue::number).map(|stored| self.to_shown(stored))
+    }
+
+    /// The field's codec: the one set, else the env's locale and the spellings of the unit kind (a length field
+    /// reads every length spelling).
     fn number_codec(&self, units: &Units) -> NumberCodec {
-        self.codec.clone().unwrap_or_else(|| NumberCodec::new(units.reader(self.unit_kind), self.decimals()))
+        self.codec.clone().unwrap_or_else(|| {
+            let reader = match self.lengths {
+                Some(lengths) => units.length_reader(lengths),
+                None => units.reader(self.unit_kind),
+            };
+            NumberCodec::new(reader, self.decimals())
+        })
     }
 
     /// The most decimals the field writes.
@@ -490,6 +556,7 @@ impl<'a, V: NumberValue + 'static> NumberField<'a, V> {
             decimals: self.commit_decimals,
             mixed,
             names,
+            scale: self.scale,
             value: PhantomData,
         }
     }
@@ -562,7 +629,7 @@ impl<'a, V: NumberValue + 'static> NumberField<'a, V> {
         });
         if let Some(pick) = picked {
             match pick {
-                NumberPick::Number(value) => cx.set(V::of_number(self.rule().settle(value))),
+                NumberPick::Number(value) => cx.set(V::of_number(self.settle_stored(value))),
                 NumberPick::Choice(id) => {
                     if let Some(name) = V::from_name(id) {
                         cx.set(name);
@@ -575,11 +642,11 @@ impl<'a, V: NumberValue + 'static> NumberField<'a, V> {
 
     fn show_slider(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>, range: &RangeInclusive<f64>) {
         let popup = cx.popup("slider");
-        let rule = self.rule();
-        let start = cx.value().and_then(NumberValue::number).unwrap_or_else(|| rule.settle((range.start() + range.end()) / 2.0));
+        let start = cx.value().and_then(NumberValue::number).unwrap_or_else(|| self.settle_stored((range.start() + range.end()) / 2.0));
         let mut shown = start;
         let name = cx.label();
-        let step = self.step;
+        let step = self.step.map(|step| self.to_stored(step));
+        let (rule, scale) = (self.rule(), self.scale);
         let edit = ui.show(popup, Overlay::popover(), |ui, _| {
             let slider = Slider::new(Bind::bound(&mut shown), range.clone()).label(name.clone());
             match step {
@@ -588,7 +655,7 @@ impl<'a, V: NumberValue + 'static> NumberField<'a, V> {
             }
         });
         if let Some(edit) = edit {
-            cx.adopt(&edit, &V::of_number(start), |value, mine| *mine = V::of_number(rule.settle(*value)));
+            cx.adopt(&edit, &V::of_number(start), |value, mine| *mine = V::of_number(rule.settle(*value * scale) / scale));
         }
     }
 }
@@ -645,6 +712,7 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        self.settle_lengths(&cx.env.units());
         let codec = self.ruled(&cx.env.units(), false, self.names(|row| cx.env.resolve(&row.label().clone())));
         let sample = cx.value().map_or(Cow::Borrowed(""), |value| codec.sample(value));
         let text = cx.layout(&TextRun::new(sample.as_ref())).size();
@@ -660,6 +728,7 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
     }
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
+        self.settle_lengths(&cx.env.units());
         self.unit_size = self.unit_extent(cx);
         let rtl = cx.flow.is_rtl();
         let chevrons = self.chevrons(&cx.words::<TextWords>());
@@ -693,7 +762,10 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         // Rounded to the field's decimals, so a scrubbed value carries no float noise. The step is not a grid
         // here: an Alt drag moves by a share of it.
         let decimals = self.decimals();
-        self.scrub.then(|| Scrub::new(drag, |value: &V| value.number().unwrap_or(0.0), move |number| V::of_number(round_to(number, decimals))))
+        let scale = self.scale;
+        self.scrub.then(|| {
+            Scrub::new(drag, move |value: &V| value.number().unwrap_or(0.0) * scale, move |number| V::of_number(round_to(number, decimals) / scale))
+        })
     }
 
     /// Arrows, Page keys and the wheel step the value, AccessKit sets it, and the chevrons open the popups. Up and
@@ -711,26 +783,26 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
                 NavMove::PageDown => (-1, LARGE_STEPS),
                 _ => continue,
             };
-            let from = cx.value().and_then(NumberValue::number).unwrap_or_else(|| rule.blank());
+            let from = self.shown_number(cx.value()).unwrap_or_else(|| rule.blank());
             let next = match &self.stepper {
                 Some(stepper) => rule.settle(stepper.next(from, notches)),
                 None => rule.stepped(from, notches, scale),
             };
-            cx.set(V::of_number(next));
+            cx.set(V::of_number(self.to_stored(next)));
         }
         if let Some(wheel) = cx.take_wheel() {
-            let from = cx.value().and_then(NumberValue::number).unwrap_or_else(|| rule.blank());
+            let from = self.shown_number(cx.value()).unwrap_or_else(|| rule.blank());
             let steps = ValueSteps::new(from, rule.low, rule.high, rule.step, rule.step * LARGE_STEPS).fine(rule.step / LARGE_STEPS);
             if let StepResult::Set(next) = wheel_step(&steps, ValueAxes::Both, &wheel, cx.env.direction().is_rtl()) {
                 let next = match &self.stepper {
                     Some(stepper) if next != from => stepper.next(from, if next > from { 1 } else { -1 }),
                     _ => round_to(next, decimals_for_step(rule.step / LARGE_STEPS)),
                 };
-                cx.set(V::of_number(rule.settle(next)));
+                cx.set(V::of_number(self.to_stored(rule.settle(next))));
             }
         }
         if let Some(next) = cx.intents().take_set_value() {
-            cx.set(V::of_number(rule.settle(next)));
+            cx.set(V::of_number(self.to_stored(rule.settle(next))));
         }
     }
 
@@ -747,7 +819,7 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
     /// The numeric value, and a button node per chevron named by its word (the painted face).
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let rule = self.rule();
-        let numeric = match cx.value().and_then(NumberValue::number) {
+        let numeric = match self.shown_number(cx.value()) {
             Some(value) => Numeric::new(value, rule.bounds()),
             None => Numeric::empty(rule.bounds()),
         };

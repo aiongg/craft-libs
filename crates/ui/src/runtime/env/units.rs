@@ -181,6 +181,26 @@ impl UnitKind {
     }
 }
 
+/// A length kept in one unit and shown in another: what a length field reads and writes (`stored`, the document's
+/// unit) and what it shows and parses bare numbers in (`shown`, the user's unit). Both are `UnitKind::Pixels` or one
+/// of [`UnitKind::LENGTHS`]; the document's resolution sizes pixels.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LengthUnits {
+    /// The unit of the value the field's binding holds.
+    pub stored: UnitKind,
+    /// The unit the field shows.
+    pub shown: UnitKind,
+    /// Pixels per inch of the document, for `Pixels` on either side.
+    pub pixels_per_inch: f64,
+}
+
+impl LengthUnits {
+    /// A length kept in `stored` and shown in `shown`, with `pixels_per_inch` sizing pixels.
+    pub const fn new(stored: UnitKind, shown: UnitKind, pixels_per_inch: f64) -> Self {
+        LengthUnits { stored, shown, pixels_per_inch }
+    }
+}
+
 /// The English unit words, built once for the process.
 fn english_words() -> Arc<UnitWords> {
     static ENGLISH: OnceLock<Arc<UnitWords>> = OnceLock::new();
@@ -335,6 +355,28 @@ impl Units {
     /// length a dialog's own point size converts.
     pub fn reader_with_points(&self, kind: Option<UnitKind>, points_per_inch: f64) -> Reader {
         if points_per_inch == self.points_per_inch() { self.reader(kind) } else { self.build_reader(kind, points_per_inch) }
+    }
+
+    /// How many units of `kind` make an inch, for Pixels (at `pixels_per_inch`) and the length kinds.
+    fn length_per_inch(&self, kind: UnitKind, pixels_per_inch: f64) -> Option<f64> {
+        let per = match kind {
+            UnitKind::Pixels => Some(pixels_per_inch),
+            kind => kind.per_inch(self.points_per_inch()),
+        };
+        per.filter(|per| per.is_finite() && *per > 0.0)
+    }
+
+    /// How many `lengths.shown` make one `lengths.stored`; `None` when either is not a pixel or length unit or the
+    /// resolution is not a positive number.
+    pub fn length_scale(&self, lengths: LengthUnits) -> Option<f64> {
+        Some(self.length_per_inch(lengths.shown, lengths.pixels_per_inch)? / self.length_per_inch(lengths.stored, lengths.pixels_per_inch)?)
+    }
+
+    /// A reader for lengths shown in `lengths.shown`: the spellings of every length unit and of pixels convert to it,
+    /// and a bare number is in it. Plain numbers when `lengths` is not a pixel or length pair.
+    pub fn length_reader(&self, lengths: LengthUnits) -> Reader {
+        let Some(shown) = self.length_per_inch(lengths.shown, lengths.pixels_per_inch) else { return self.reader(None) };
+        self.reader_over(|other| Some(shown / self.length_per_inch(other, lengths.pixels_per_inch)?))
     }
 
     /// The index of the reader for `kind` in `readers`: 0 for plain numbers, then one per unit kind.
