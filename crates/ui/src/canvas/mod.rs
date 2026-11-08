@@ -37,7 +37,7 @@ pub use split::{SplitAt, SplitLayout, SplitOutput, SplitPane, SplitStyle, SplitV
 pub use words::SplitWords;
 
 mod raster;
-pub use raster::{DetailPlan, RasterDisplay, RasterOutput, RasterStyle, snap_to_texels};
+pub use raster::{DetailPlan, RasterDisplay, RasterDisplayOutput, RasterStyle, snap_to_texels};
 
 // l4d-space
 mod snap;

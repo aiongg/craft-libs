@@ -70,9 +70,14 @@ pub trait RasterSource {
     /// The document's size in pixels.
     fn size(&self) -> PixelSize;
 
-    /// Changes whenever the pixels or the size change; the `Revision` the texture stores key their pictures by. A new
-    /// revision with no damage reported since the last frame re-reads everything.
+    /// Changes whenever the pixels or the size change; the `Revision` the texture stores key their pictures by.
     fn revision(&self) -> Revision;
+
+    /// The region that changed since the source had revision `since`, as one rectangle: empty when nothing changed.
+    /// `None` when the source cannot tell (it no longer remembers `since`, or the whole document or its size
+    /// changed), and a display then reads everything. A display asks with the revision its picture shows, so the
+    /// answer covers every change since then, including those of passes the display did not run in.
+    fn damage(&self, since: Revision) -> Option<PixelRect>;
 
     /// Writes the composite of `region` into `out` (sRGBA, unmultiplied), one texel per `factor` pixels each way
     /// (`factor` is a power of two for a detail texture and `texture_factor` of `primitives::textures` for the base

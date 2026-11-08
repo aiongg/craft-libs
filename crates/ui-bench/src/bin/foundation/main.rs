@@ -430,6 +430,10 @@ impl RasterSource for Wide {
         Revision::new(1)
     }
 
+    fn damage(&self, _: Revision) -> Option<PixelRect> {
+        Some(PixelRect::default())
+    }
+
     fn read(&self, region: PixelRect, factor: u32, out: &mut ColorImage) {
         let [width, height] = out.size;
         for row in 0..height {

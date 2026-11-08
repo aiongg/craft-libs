@@ -10,19 +10,23 @@ use crate::canvas::canvas_space;
 use crate::contract::{Access, Animate as _, Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role, WordSetCx as _};
 use crate::primitives::{ContentPainterCx, ellipse};
 use crate::runtime::env::Label;
-use crate::style::{ComponentStyle, StyleColor, StyleCx};
+use crate::style::{ComponentStyle, DataColor, StyleColor, StyleCx};
 use craft_behavior::kurbo::{Point, Rect, Vec2};
 use craft_behavior::{CanvasView, Input, Metrics};
 use egui::{Color32, Pos2, Response, Shape, Stroke};
 
-/// Opacity of the light line under an outline being drawn.
-const DRAWING_HALO_ALPHA: f32 = 0.55;
+/// Opacity of the halo under an outline being drawn.
+const HALO_ALPHA: f32 = 0.55;
 
 /// Seconds the ants take to march one dash period.
 const MARCH_SECONDS: f64 = 1.0;
 
+/// Seconds between steps of the march (the legacy marquee's 0.1 s). Photoshop's ants step rather than glide, and a
+/// shown selection repaints once per step instead of every frame.
+const MARCH_TICK: f64 = 0.1;
+
 /// How a marquee is drawn.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 #[non_exhaustive]
 pub enum MarqueeLook {
     /// Marching ants laid out in device pixels, for selections, marquee drags and zoom boxes.
@@ -33,6 +37,9 @@ pub enum MarqueeLook {
     /// An outline still being drawn (a lasso): a dark thin line over a wider translucent light line. A polygon is an
     /// open path in this look.
     Drawing,
+    /// A line in the given colour over a halo, for a shape being drawn over any image: a rectangle, an ellipse or a
+    /// line, closed like the ants' outline.
+    Contrast(DataColor),
 }
 
 /// What a marquee outlines, in document units.
@@ -97,15 +104,15 @@ pub struct Run {
 pub struct MarqueeStyle {
     #[style(metrics)]
     metrics: Metrics,
-    /// The band's line and the light line of an outline being drawn.
+    /// The band's line and the halo of an outline being drawn.
     light: StyleColor,
-    /// The band's dashes and the line of an outline being drawn.
+    /// The band's dashes, the line of an outline being drawn and the halo under a contrast line.
     dark: StyleColor,
     /// The band's line width.
     band_width: f32,
     /// The band's dash length and gap.
     band_dash: f32,
-    /// The width of the light line under an outline being drawn.
+    /// The width of the halo under an outline being drawn.
     drawing_halo: f32,
     /// The ants' dash length, which sets how far a march covers.
     ants_dash: f32,
@@ -186,10 +193,10 @@ fn paint_band(painter: &ContentPainterCx<'_>, run: &Run, style: &MarqueeStyle) {
     painter.dashed(&dashed, style.band_width, style.band_dash, style.band_dash, 0.0, dark);
 }
 
-fn paint_drawing(painter: &ContentPainterCx<'_>, run: &Run, style: &MarqueeStyle) {
-    let halo: Color32 = style.light.egui().gamma_multiply(DRAWING_HALO_ALPHA);
-    painter.painter.add(line(&run.points, run.closed, Stroke::new(style.drawing_halo, halo)));
-    painter.painter.add(line(&run.points, run.closed, Stroke::new(style.band_width, style.dark.egui())));
+/// A thin line over a wider translucent halo.
+fn paint_haloed(painter: &ContentPainterCx<'_>, run: &Run, style: &MarqueeStyle, halo: Color32, ink: Color32) {
+    painter.painter.add(line(&run.points, run.closed, Stroke::new(style.drawing_halo, halo.gamma_multiply(HALO_ALPHA))));
+    painter.painter.add(line(&run.points, run.closed, Stroke::new(style.band_width, ink)));
 }
 
 impl Component for Marquee {
@@ -209,7 +216,7 @@ impl Component for Marquee {
             dark: cx.color(overlay.halo),
             band_width: stroke.thin,
             band_dash: stroke.dash_gap,
-            drawing_halo: stroke.thick + 2.0 * stroke.thin,
+            drawing_halo: stroke.thick,
             ants_dash: stroke.dash,
         }
     }
@@ -225,13 +232,14 @@ impl Component for Marquee {
         match self.look {
             MarqueeLook::Ants => {
                 // One march covers a dash and its gap; where motion is off the ants stand still.
-                let phase = cx.phase(MARCH_SECONDS, None).map_or(0.0, |turn| turn * 2.0 * cx.style.ants_dash);
+                let phase = cx.phase(MARCH_SECONDS, Some(MARCH_TICK)).map_or(0.0, |turn| turn * 2.0 * cx.style.ants_dash);
                 for run in &runs {
                     painter.marching_ants(&run.points, run.closed, phase);
                 }
             }
             MarqueeLook::Band => runs.iter().for_each(|run| paint_band(&painter, run, &cx.style)),
-            MarqueeLook::Drawing => runs.iter().for_each(|run| paint_drawing(&painter, run, &cx.style)),
+            MarqueeLook::Drawing => runs.iter().for_each(|run| paint_haloed(&painter, run, &cx.style, cx.style.light.egui(), cx.style.dark.egui())),
+            MarqueeLook::Contrast(color) => runs.iter().for_each(|run| paint_haloed(&painter, run, &cx.style, cx.style.dark.egui(), color.0)),
         }
     }
 

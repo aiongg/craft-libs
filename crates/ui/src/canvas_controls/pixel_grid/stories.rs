@@ -26,6 +26,10 @@ impl RasterSource for Halves {
         Revision::new(1)
     }
 
+    fn damage(&self, _: Revision) -> Option<PixelRect> {
+        Some(PixelRect::default())
+    }
+
     fn read(&self, region: PixelRect, _: u32, out: &mut ColorImage) {
         let width = region.width() as usize;
         for (at, pixel) in out.pixels.iter_mut().enumerate() {

@@ -641,7 +641,7 @@ name = "GridLines"
 old = ""
 new = "craft_ui::canvas_controls::GridLines"
 status = "replaced"
-note = "The lines a grid draws, public for hosts that snap to them; legacy GridLines was crate-private."
+note = "The lines a grid draws, public for hosts that snap to them; legacy GridLines was crate-private. `CanvasGrid::lines(&space)` returns them; the type is `craft_ui::primitives::GridLines`, which `kit::grid_lines` paints."
 
 [[type]]
 name = "PixelGrid"
@@ -683,7 +683,8 @@ new = "segments(label, segments)"
 [[setter]]
 type = "Marquee"
 old = "look(MarqueeLook)"
-new = "look(MarqueeLook), without the Contrast variant"
+new = "look(MarqueeLook)"
+note = "`MarqueeLook::Contrast(DataColor)` is the legacy `Contrast(Color32)`."
 
 [[setter]]
 type = "Marquee"

@@ -313,7 +313,7 @@ name = "RasterSource"
 old = "craft_ui::canvas::raster::RasterSource"
 new = "craft_ui::canvas::RasterSource"
 status = "moved"
-note = "Same methods, with `size() -> craft_behavior::PixelSize` and `revision() -> craft_ui::primitives::Revision` (`Revision::new(n)`) in place of `[u32; 2]` and `u64`; `read(region, factor, out)` is unchanged; `PixelRect` moved with it to `craft_ui::canvas::PixelRect`, built with `PixelRect::new` (`#[non_exhaustive]`). `PixelRect::visible(&CanvasView, size)` is not here: canvas-raster-a writes it over the new `CanvasView`."
+note = "Same methods plus the required `damage(&self, since: Revision) -> Option<PixelRect>` (what changed since the revision the display shows; `None` reads everything), with `size() -> craft_behavior::PixelSize` and `revision() -> craft_ui::primitives::Revision` (`Revision::new(n)`) in place of `[u32; 2]` and `u64`; `read(region, factor, out)` is unchanged; `PixelRect` moved with it to `craft_ui::canvas::PixelRect`, built with `PixelRect::new` (`#[non_exhaustive]`). `PixelRect::visible(&CanvasView, size)` is not here: canvas-raster-a writes it over the new `CanvasView`."
 
 [[type]]
 name = "PixelRect"
@@ -550,19 +550,19 @@ name = "RasterDisplay"
 old = "craft_ui::canvas::raster::RasterDisplay"
 new = "craft_ui::canvas::RasterDisplay"
 status = "moved"
-note = "A canvas control: `RasterDisplay::new(label, &source).checkerboard().damaged(rect).show_at(ui, body.rect)` inside a `Canvas` given a view; the view and the interface scale come from the canvas (`canvas_space`), so `show(ui, &view, &source)` is gone. Outside a canvas, or in one without a view, it draws nothing."
+note = "A canvas control: `RasterDisplay::new(label, &source).checkerboard(Checker::new()).show_at(ui, body.rect)` inside a `Canvas` given a view; the view and the interface scale come from the canvas (`canvas_space`), so `show(ui, &view, &source)` is gone. Outside a canvas, or in one without a view, it draws nothing."
 
 [[type]]
 name = "RasterResponse"
 old = "craft_ui::canvas::raster::RasterResponse"
 new = ""
 status = "removed"
-note = "Replaced by `RasterOutput`: `read` and `detail` stay; `id` is gone with the egui-memory calls that took it, and `response` is the display's response."
+note = "Replaced by `RasterDisplayOutput`: `read` and `detail` stay; `id` is gone with the egui-memory calls that took it, and `response` is the display's response."
 
 [[type]]
-name = "RasterOutput"
+name = "RasterDisplayOutput"
 old = ""
-new = "craft_ui::canvas::RasterOutput"
+new = "craft_ui::canvas::RasterDisplayOutput"
 status = "replaced"
 note = "The output of `RasterDisplay`: `response`, `read: Option<PixelRect>`, `detail: Option<DetailPlan>`."
 
@@ -578,7 +578,7 @@ name = "Checkerboard"
 old = "craft_ui::canvas::raster::Checkerboard"
 new = ""
 status = "removed"
-note = "The transparency grid is `kit::checker` (cells of the `size.checker` token, colours of the `overlay.checker_*` tokens), which `RasterDisplay::checkerboard()` and `ThumbPaint::checker(true)` draw. The size and colour preferences have no home yet."
+note = "The transparency grid is `craft_ui::primitives::Checker` (size and two colours, each unset one the theme's: the `size.checker` token and the `overlay.checker_*` tokens), which `RasterDisplay::checkerboard(Checker)` takes and `kit::checker` draws by default; `ThumbPaint::checker(true)` draws the default."
 
 [[type]]
 name = "CheckerSize"
@@ -683,8 +683,8 @@ note = "The id comes from the label and the place in the tree; the source is a p
 [[setter]]
 type = "RasterDisplay"
 old = "checkerboard(Checkerboard)"
-new = "checkerboard()"
-note = "A flag; the grid's size and colours are tokens."
+new = "checkerboard(Checker)"
+note = "`Checker::new().size(points).colors(light, dark)`; an empty `Checker::new()` is the theme's grid."
 
 [[setter]]
 type = "RasterDisplay"
@@ -695,8 +695,8 @@ note = "Inside a `Canvas` given a view."
 [[setter]]
 type = "RasterDisplay"
 old = "damage(ctx, id, region)"
-new = "damaged(PixelRect)"
-note = "A prop for the pass that shows the change: the region changed since the display last showed, unioned by the app."
+new = "RasterSource::damage(since)"
+note = "The source answers with the region changed since the revision the display shows; the display has no damage prop."
 
 [[setter]]
 type = "RasterDisplay"
