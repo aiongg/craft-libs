@@ -169,7 +169,7 @@ pub(super) fn warn_link(ui: &mut Ui, text: String, salt: &'static str, n: usize)
     let mut followed = false;
     Row::new().show(ui, |ui, _| {
         Icon::new(IconSpec::svg(IconId::new("warning"))).show(ui);
-        followed = clicked(&Link::new(text).id_salt((salt, n)).show(ui));
+        followed = clicked(&Link::new(text.clone()).id_salt((salt, n)).show(ui));
     });
     followed
 }
