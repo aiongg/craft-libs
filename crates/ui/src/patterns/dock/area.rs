@@ -521,8 +521,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
     fn leaf(&mut self, ui: &mut Ui, body: &mut BodyCx<'_>, node: &Node<P>, rect: Rect) {
         let scene = self.scene;
         match node {
-            Node::Tabs { panels: members, active } => self.group(ui, body, members, *active, Look { minimized: false, section: None }, rect),
-            Node::Stack { entries } => {
+            Node::Tabs { panels: members, active, .. } => self.group(ui, body, members, *active, Look { minimized: false, section: None }, rect),
+            Node::Stack { entries, .. } => {
                 let sections: Vec<StackSection> = entries
                     .iter()
                     .map(|entry| {
