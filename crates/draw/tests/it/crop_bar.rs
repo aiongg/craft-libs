@@ -3,7 +3,7 @@
 use craft_behavior::geometry::crop::{CropGuide, GuideShow};
 use craft_draw::ui::crop::{
     CROP_RATIOS, CROP_SIZES, CropBar, CropBarWords, CropDocKey, CropDocument, CropFill, CropOptionsMenu, CropOverlayMenu, CropPresetChoice,
-    CropRatio, CropRatioChange, CropSettings, CropSizeFields, CropUserPreset, RATIO_STEP, ResolutionUnit,
+    CropRatio, CropRatioChange, CropSettings, CropSizeFields, CropUserPreset, ResolutionUnit,
 };
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::canvas::ShieldColor;
@@ -289,8 +289,8 @@ fn the_bar_reports_new_and_delete_and_edits_options() {
     rig.fixture.key(Key::ArrowUp, Modifiers::NONE).settle();
     let stepped = rig.settings.borrow().ratio;
     assert!(
-        matches!((preset, stepped), (CropRatio::Sides { width: before, height, .. }, CropRatio::Sides { width: after, height: kept, .. }) if after == before + RATIO_STEP && kept == height),
-        "the arrow adds one step to the width and keeps the height: {stepped:?}"
+        matches!((preset, stepped), (CropRatio::Sides { width: before, height, .. }, CropRatio::Sides { width: after, height: kept, .. }) if after == before + 1.0 && kept == height),
+        "one arrow press adds 1 to the width and keeps the height: {stepped:?}"
     );
     assert!(rig.seen.borrow().iter().any(|s| s.ratio.is_some()));
 

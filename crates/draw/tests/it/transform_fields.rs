@@ -328,9 +328,6 @@ struct BarHost {
     unit: Option<UnitKind>,
 }
 
-/// A room wide enough for every cell of the bar, so none is out of reach of the pointer.
-const BAR_ROOM: Vec2 = Vec2::new(2000.0, 300.0);
-
 fn bar(warp: bool) -> (Fixture, Rc<RefCell<BarHost>>) {
     let mut session = TransformSession::<()>::new(START);
     if warp {
@@ -355,7 +352,7 @@ fn bar(warp: bool) -> (Fixture, Rc<RefCell<BarHost>>) {
         (*apply, *discard, *reset) = (*apply | output.apply, *discard | output.discard, *reset | output.reset_warp);
         *unit = unit.or(output.unit_picked);
     });
-    fixture.room(BAR_ROOM).settle();
+    fixture.settle();
     (fixture, host)
 }
 

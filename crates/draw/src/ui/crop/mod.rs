@@ -21,7 +21,7 @@ pub use bar_words::CropBarWords;
 pub use menus::{CropOptionsMenu, CropOptionsMenuOutput, CropOverlayMenu};
 pub use options::{
     CROP_RATIOS, CROP_SIZES, CropFill, CropPresetChoice, CropRatio, CropSettings, CropSizeFields, CropSizePreset, CropTarget, CropUserPreset,
-    FIELD_MAX, RATIO_DECIMALS, RATIO_MAX, RATIO_STEP, ResolutionUnit,
+    FIELD_MAX, RATIO_DECIMALS, RATIO_MAX, ResolutionUnit,
 };
 pub use perspective_crop::{
     PerspectiveCropOutput, PerspectiveCropQuad, PerspectiveCropStyle, PerspectiveQuad, grid_lines, grid_steps, is_valid, ordered,

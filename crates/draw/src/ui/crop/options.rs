@@ -13,7 +13,7 @@ use super::session::CropDocument;
 /// The largest number a ratio side keeps: 99,999 (PhotoCraft's ratio fields).
 pub const RATIO_MAX: f64 = 99_999.0;
 /// What one arrow press on a ratio field adds to its side.
-pub const RATIO_STEP: f64 = 1.0;
+pub(super) const RATIO_STEP: f64 = 1.0;
 /// Decimals a ratio side keeps and shows: 3, so 1.414 : 1 (ISO A sizes) survives (#6487).
 pub const RATIO_DECIMALS: usize = 3;
 /// The largest number a length or resolution field keeps: 1e9 (the crop command refuses what is
