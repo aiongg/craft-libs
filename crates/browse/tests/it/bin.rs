@@ -402,26 +402,14 @@ fn the_sorts_and_column_widths_are_saved() {
 
 #[trial]
 fn zz_probe() {
-    let mut out = String::new();
     let mut bin = setup(false, |_| {});
-    let beach = bin.fixture.by_label("Beach.mov").unwrap();
-    out += &format!("beach {:?}\narchive {:?}\nbin {:?}\nshown {:?}\n", beach.rect, bin.rect("Archive"), bin.fixture.by_label("Bin path").map(|t| t.rect), bin.fixture.shown());
-    let from = beach.center();
+    let from = bin.rect("Beach.mov").center();
     let to = bin.rect("Archive").center();
     bin.fixture.frame(vec![pointer::moved(from)]);
     bin.fixture.frame(vec![pointer::press(from)]);
     for step in 1..=4 {
         bin.fixture.frame(vec![pointer::moved(from + (to - from) * (step as f32 / 4.0))]);
-        out += &format!("step {step} active={}\n", craft_ui::runtime::drag::active::<ListDrag<u32>>(bin.fixture.ctx()).is_some());
     }
     bin.fixture.frame(vec![pointer::release(to)]);
-    bin.fixture.frame(Vec::new());
-    out += &format!("events {:?}\n", bin.events.borrow());
-    out += &format!("two items {:?} one of {:?}\n", bin.fixture.by_label("2 items").map(|t| t.rect), bin.fixture.by_label("1 of 2 items selected").map(|t| t.rect));
-    let mut shift = setup(false, |_| {});
-    shift.click("Archive");
-    shift.fixture.hold(Modifiers::SHIFT).key(Key::Enter, Modifiers::SHIFT);
-    shift.fixture.settle();
-    out += &format!("shift events {:?}\n", shift.events.borrow());
-    panic!("{out}");
+    panic!("probe");
 }

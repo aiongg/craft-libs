@@ -63,17 +63,22 @@ fn ready() -> RenderState {
     RenderState::Ready
 }
 
-/// Two panes over one view stay in step: a zoom through the first is the view the second draws.
+/// Two panes over one view stay in step: a drag through the first pans the view the second draws, once a zoom
+/// leaves the picture larger than the pane.
 #[trial]
 fn compare_tiles_share_zoom_and_pan() {
     let (mut fixture, seen) = pair(640.0, ready);
-    let fitted = seen.borrow().view.clone();
-    assert!(fitted.fit, "the pair starts fitted");
+    assert!(seen.borrow().view.fit, "the pair starts fitted");
     let select = fixture.by_label("Select").expect("the Select pane is shown");
+    fixture.click(&select);
+    fixture.click(&select);
+    fixture.settle();
+    let zoomed = seen.borrow().view.clone();
+    assert!(!zoomed.fit, "a double click shows 1:1");
     fixture.drag(&select, offset(24.0, 0.0));
     fixture.settle();
-    let moved = seen.borrow().view.clone();
-    assert!(!moved.fit, "a drag leaves fit");
+    let panned = seen.borrow().view.clone();
+    assert_ne!(panned.transform.offset, zoomed.transform.offset, "a drag pans the shared view");
     assert_eq!(fixture.by_label("Candidate").map(|pane| pane.rect.size()), fixture.by_label("Select").map(|pane| pane.rect.size()));
 }
 
@@ -140,15 +145,4 @@ fn compare_panes_are_equal_and_mirror() {
     let [select_rtl, candidate_rtl] = ComparePair::new(SPACE).rtl(true).rects(area);
     assert_eq!(select_rtl, candidate);
     assert_eq!(candidate_rtl, select);
-}
-
-#[trial]
-fn zz_probe() {
-    let (mut fixture, seen) = pair(640.0, ready);
-    let select = fixture.by_label("Select").unwrap();
-    let mut out = format!("select {:?} drag_part {:?} click_part {:?}\n", select.rect, fixture.drag_part(), fixture.click_part());
-    fixture.drag(&select, offset(24.0, 0.0));
-    fixture.settle();
-    out += &format!("view {:?} clicked {:?}\n", seen.borrow().view.fit, seen.borrow().clicked);
-    panic!("{out}");
 }

@@ -995,6 +995,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         }
         match cx.core.press.phase {
             PressPhase::Release { click, start, pos, .. } => {
+                eprintln!("RELPROBE click={click} clicks={} rename={}", start.clicks, self.drags.rename.is_some());
                 if click
                     && props.menu_on_click
                     && start.button == craft_behavior::PointerButton::Primary

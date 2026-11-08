@@ -337,6 +337,16 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         self.drags.over = None;
         let free = matches!(layout.nav(), NavShape::Spatial);
         let phase = cx.core.press.phase;
+        if !matches!(phase, PressPhase::Idle | PressPhase::Hover) {
+            eprintln!(
+                "DRAGPROBE {:?} {:?} reorder={} grabbed={} payload={}",
+                cx.core.id,
+                phase,
+                props.reorder.is_some(),
+                self.drags.grabbed.is_some(),
+                props.drag_payload.is_some()
+            );
+        }
         // The pointer comes in screen space; the rows and a move's offset are in the rows' own space.
         let xf = self.xf;
         let layer = |point: Pos2| xf.map_or(point, |map| map.to_layer(point));
