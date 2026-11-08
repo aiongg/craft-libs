@@ -23,8 +23,8 @@ use details::Right;
 
 pub use presets::{
     BackgroundContents, BitDepth, ColorMode, ColorProfiles, DocumentOptions, DocumentPreset, NewDocumentPresetWords, Orientation, PresetCategory,
-    push_recent, size_line,
 };
+pub(crate) use presets::{push_recent, size_line};
 
 /// The key of the colour request Custom makes.
 pub const BACKGROUND_COLOR_KEY: &str = "newDocument.backgroundColor";

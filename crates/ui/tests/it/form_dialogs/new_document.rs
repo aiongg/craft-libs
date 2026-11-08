@@ -3,34 +3,19 @@
 
 use craft_behavior::PixelSize;
 use craft_ui::contract::Bind;
-use craft_ui::patterns::form_dialogs::{
-    DocumentOptions, DocumentPreset, NewDocumentDialog, NewDocumentPresetWords, Orientation, PresetCategory, push_recent,
-};
+use craft_ui::patterns::form_dialogs::{DocumentOptions, DocumentPreset, NewDocumentDialog, NewDocumentPresetWords, Orientation, PresetCategory};
 use craft_ui::runtime::env::{Env, UnitKind};
 use craft_ui::testing::{Fixture, Target, trial};
 use egui::Vec2;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-/// The most the Recent list keeps.
-const RECENT_KEPT: usize = 20;
-/// More documents than Recent keeps.
-const CREATED: u32 = 25;
-/// The side of a recent document, in pixels.
-const SIDE: u32 = 10;
 /// The resolution a print card is asked to open at, in pixels per inch.
 const PRINT_PPI: f64 = 600.0;
 /// The resolution a screen card is asked to open at, in pixels per inch.
 const SCREEN_PPI: f64 = 96.0;
 /// The room of an app window the dialog opens in: wide and tall enough for the cards beside the whole details column.
 const WINDOW: Vec2 = Vec2::new(1100.0, 900.0);
-
-fn recent(width: u32, name: &str) -> DocumentOptions {
-    let mut options = DocumentOptions::default();
-    options.size = PixelSize::new(width, SIDE);
-    options.name = name.to_owned();
-    options
-}
 
 /// The categories come in Photoshop's order and every built-in card is named by the word set under its id, in the
 /// English the data carries.
@@ -75,20 +60,6 @@ fn a_card_turns_to_the_orientation() {
     let square = DocumentPreset::new("square-5x5", "Square, 5 x 5", 1500, 1500, 300.0);
     assert_eq!(square.turned(Orientation::Landscape), square);
     assert_eq!(Orientation::of(PixelSize::new(3, 3)), Orientation::Portrait);
-}
-
-/// The recent list puts the newest first, keeps twenty and moves an equal document to the front instead of repeating
-/// it.
-#[trial]
-fn recent_documents_keep_twenty_and_do_not_repeat() {
-    let mut list = Vec::new();
-    for width in 1..=CREATED {
-        push_recent(&mut list, recent(width, ""), RECENT_KEPT);
-    }
-    assert_eq!((list.len(), list[0].size.width), (RECENT_KEPT, CREATED));
-    push_recent(&mut list, recent(SIDE, "Other"), RECENT_KEPT);
-    assert_eq!((list.len(), list[0].size.width), (RECENT_KEPT, SIDE), "an equal document moves to the front");
-    assert_eq!(list.iter().filter(|held| held.size.width == SIDE).count(), 1);
 }
 
 /// A fixture with the dialog over its settings, which collects what each pass of Create answers with.

@@ -85,8 +85,9 @@ status = "moved"
 [[type]]
 name = "password_strength"
 old = "craft_ui::dialog::password::password_strength"
-new = "craft_ui::patterns::form_dialogs::password_strength"
-status = "moved"
+new = ""
+status = "removed"
+note = "Crate-private: the dialog applies the rule itself; no app calls it."
 
 [[type]]
 name = "ReportDialog"

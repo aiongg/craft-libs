@@ -3,6 +3,7 @@
 
 use super::{DialogFields, FormDialog, Param, ParamRows, ParamRowsOutput, open_fields};
 use crate::contract::{Bind, CollectionEvent, NoValue, Outcome, Remember as _, Show as _, ShowCollection as _};
+use crate::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
 use crate::display::Text;
 use crate::runtime::env::{Env, Label};
 use crate::runtime::overlay::CloseReason;
@@ -10,7 +11,7 @@ use crate::runtime::words::CommonWords;
 use crate::sections::{DialogRole, FooterButton};
 use crate::tabs::{Tab, TabKind, TabStrip};
 use craft_behavior::{DisplayOrder, ItemSource, SelectionChange};
-use egui::{Response, Ui};
+use egui::{Response, Sense, Ui, Vec2};
 use std::borrow::Cow;
 use std::cell::RefCell;
 
@@ -33,6 +34,8 @@ pub enum PropertyRow {
     Field(Box<Param>),
     /// A heading over the rows that follow, up to the next heading.
     Heading(Label),
+    /// An empty row that separates the rows around it.
+    Space,
 }
 
 impl PropertyRow {
@@ -44,6 +47,11 @@ impl PropertyRow {
     /// A row for `param`.
     pub fn field(param: Param) -> Self {
         PropertyRow::Field(Box::new(param))
+    }
+
+    /// An empty row between two groups of rows.
+    pub fn space() -> Self {
+        PropertyRow::Space
     }
 
     /// A heading.
@@ -80,6 +88,9 @@ impl PropertiesTab {
                 }
                 PropertyRow::Field(param) => (**param).clone(),
                 PropertyRow::Heading(label) => Param::section(label.clone()),
+                PropertyRow::Space => {
+                    Param::custom(format!("properties.{at}.{row}"), Label::Empty, |ui, _, _| ui.allocate_response(Vec2::ZERO, Sense::hover()))
+                }
             })
             .collect()
     }
@@ -209,5 +220,61 @@ impl<'a> PropertiesDialog<'a> {
             _ => shown.accepted,
         };
         PropertiesOutput { response: shown.response, closed: shown.closed, result, rows: rows.into_inner() }
+    }
+}
+
+/// Builds the dialog over the host-owned values of a [`HostedPropertiesDialog`] for one pass.
+type Build = dyn for<'b> Fn(Bind<'b, DialogFields>) -> PropertiesDialog<'b> + Send;
+
+/// A hosted properties dialog: the `DialogHost` owns the values, and `build` makes the dialog over them each pass.
+/// It answers with the edited values at OK, and with empty values when the dialog is read-only.
+///
+/// ```ignore
+/// host.open(HostedPropertiesDialog::new("file.properties", DialogFields::new(), move |values| {
+///     PropertiesDialog::new("Properties", tabs.clone(), values)
+/// }));
+/// ```
+pub struct HostedPropertiesDialog {
+    id: DialogId,
+    key: String,
+    fields: DialogFields,
+    build: Box<Build>,
+}
+
+impl HostedPropertiesDialog {
+    /// A dialog for `key` opening with `fields`; `build` makes it over the values.
+    pub fn new(
+        key: impl Into<String>,
+        fields: DialogFields,
+        build: impl for<'b> Fn(Bind<'b, DialogFields>) -> PropertiesDialog<'b> + Send + 'static,
+    ) -> Self {
+        let key = key.into();
+        HostedPropertiesDialog { id: dialog_id(key.as_str()), key, fields, build: Box::new(build) }
+    }
+
+    /// The values the dialog shows.
+    pub fn fields(&self) -> &DialogFields {
+        &self.fields
+    }
+}
+
+impl StackDialog for HostedPropertiesDialog {
+    type Result = DialogFields;
+
+    fn id(&self) -> DialogId {
+        self.id
+    }
+
+    fn show(&mut self, ui: &mut Ui, _: &DialogStack) -> Option<DialogResult<DialogFields>> {
+        let shown = (self.build)(Bind::bound(&mut self.fields)).show(ui);
+        match (shown.result, shown.closed) {
+            (Some(result), _) => Some(DialogResult::Ok(result)),
+            (None, Some(_)) => Some(DialogResult::Cancel),
+            (None, None) => None,
+        }
+    }
+
+    fn key(&self) -> Option<&str> {
+        Some(&self.key)
     }
 }

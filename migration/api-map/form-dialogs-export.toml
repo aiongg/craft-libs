@@ -243,23 +243,23 @@ note = "`{ response, edit, browse }`."
 
 [[call]]
 old = "craft_ui::dialog::export::export_file_name(name, fallback)"
-new = "craft_ui::patterns::form_dialogs::export_file_name(name, fallback)"
-note = "Moved unchanged."
+new = ""
+note = "Crate-private: the dialog applies the rule itself; no app calls it."
 
 [[call]]
 old = "craft_ui::dialog::export::numbered_paths(first, names, exists)"
-new = "craft_ui::patterns::form_dialogs::numbered_paths(first, names, exists)"
-note = "Moved; the wasm special case is gone (the app's `exists` answers false there)."
+new = ""
+note = "Removed: no dialog or app used it."
 
 [[call]]
 old = "craft_ui::dialog::export::jpeg_quality_percent(quality)"
-new = "craft_ui::patterns::form_dialogs::jpeg_quality_percent(quality)"
-note = "Moved unchanged."
+new = ""
+note = "Crate-private: the dialog applies the rule itself; no app calls it."
 
 [[call]]
 old = "craft_ui::dialog::export::jpeg_quality_label(quality, &labels)"
-new = "craft_ui::patterns::form_dialogs::jpeg_quality_preset(quality)"
-note = "Returns a `JpegPreset`; the dialog maps it to the word."
+new = ""
+note = "Crate-private: the dialog applies the rule itself; no app calls it."
 
 [[call]]
 old = "craft_ui::dialog::export::resize_from_scale(source, scale)"

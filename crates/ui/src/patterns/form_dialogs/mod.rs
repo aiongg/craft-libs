@@ -35,7 +35,7 @@ mod password;
 mod report;
 
 pub use list_manager::{ActionEnabled, ListManager, ListManagerAction, ListManagerChoice, ListManagerEntry, ListManagerOutput, ListManagerWords};
-pub use password::{PasswordAnswer, PasswordDialog, PasswordOutput, PasswordPurpose, PasswordStrength, PasswordWords, Secret, password_strength};
+pub use password::{PasswordAnswer, PasswordDialog, PasswordOutput, PasswordPurpose, PasswordStrength, PasswordWords, Secret};
 pub use report::{ReportDialog, ReportNote, ReportOutput, ReportWords};
 
 mod sizing;
@@ -49,14 +49,13 @@ mod new_document;
 
 pub use new_document::{
     BACKGROUND_COLOR_KEY, BackgroundContents, BitDepth, ColorMode, ColorProfiles, DocumentOptions, DocumentPreset, HostedNewDocument,
-    NewDocumentDialog, NewDocumentOutput, NewDocumentPresetWords, NewDocumentWords, Orientation, PresetCategory, push_recent, size_line,
+    NewDocumentDialog, NewDocumentOutput, NewDocumentPresetWords, NewDocumentWords, Orientation, PresetCategory,
 };
 
 mod about;
 
 pub use about::{
     AboutDialog, AboutInfo, AboutLink, AboutOutput, AboutTab, AboutWords, CommitShare, Contributor, ContributorSort, Credits, ModelCredit, NameMode,
-    commit_day, commit_share, sorted_contributors,
 };
 
 mod color_choice;
@@ -68,7 +67,7 @@ pub use guides::{
     GuideLayoutPreset, GuideLayoutResult, GuideLayoutValues, GuideLength, GuideRect, GuideTarget, GuideUnits, HostedGuideLayoutDialog,
     HostedNewGuideDialog, NEW_GUIDE_COLOR_KEY, NewGuideDialog, NewGuideOutput, NewGuideValues,
 };
-pub use properties::{PropertiesDialog, PropertiesOutput, PropertiesTab, PropertyRow};
+pub use properties::{HostedPropertiesDialog, PropertiesDialog, PropertiesOutput, PropertiesTab, PropertyRow};
 
 // canvas-navigator-a
 mod navigator_options;
@@ -82,23 +81,19 @@ pub use export::{
     DdsCompression, DdsOptions, ExportAsDialog, ExportAsOutput, ExportAsResult, ExportFormat, ExportFormatDefaults, ExportMetadata, ExportOptions,
     ExportOptionsKind, ExportPreview, ExportProfile, ExportSize, ExportWords, FormatOptions, FormatOptionsDialog, FormatOptionsOutput,
     FormatOptionsWords, JpegFormat, JpegOptions, JpegPreset, OutputPathOutput, OutputPathRow, OutputPathWords, SizeEstimate, TargaOptions,
-    TiffOptions, export_file_name, jpeg_quality_percent, jpeg_quality_preset, numbered_paths,
+    TiffOptions,
 };
 
 // Save PDF.
 mod pdf_export;
 
-pub use pdf_export::{
-    PdfArtboards, PdfExportDialog, PdfExportOutput, PdfExportResult, PdfExportWords, PdfPresetEvent, PdfSection, RangeError, apply_standard,
-    check_range, differences,
-};
+pub use pdf_export::{PdfArtboards, PdfExportDialog, PdfExportOutput, PdfExportResult, PdfExportWords, PdfPresetEvent, PdfSection, RangeError};
 
 mod save_for_web;
 mod watermark;
 
 pub use save_for_web::{
     Animation, ColorTable, Dither, HostedSaveForWeb, MATTE_COLOR_KEY, SAVE_PATH_KEY, SaveForWebDialog, SaveForWebOptions, SaveForWebOutput,
-    SaveForWebResult, SaveForWebWords, WantedVariant, WebFormat, WebMetadata, WebPane, WebPictures, WebPreset, WebVariant, WebView, advance_frame,
-    download_seconds, four_up_variants,
+    SaveForWebResult, SaveForWebWords, WantedVariant, WebFormat, WebMetadata, WebPane, WebPictures, WebPreset, WebVariant, WebView,
 };
 pub use watermark::{ROTATIONS, WATERMARK_IMAGE_KEY, Watermark, WatermarkOutput, WatermarkSettings, WatermarkStyle, WatermarkWords};

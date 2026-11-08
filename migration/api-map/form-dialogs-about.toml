@@ -95,14 +95,16 @@ note = "`AboutOutput { response, closed, link }`: `link` is `AboutDialog::take_l
 [[type]]
 name = "sorted_contributors"
 old = "craft_ui::dialog::about::sorted_contributors"
-new = "craft_ui::patterns::form_dialogs::sorted_contributors"
-status = "moved"
+new = ""
+status = "removed"
+note = "Crate-private: the dialog applies the rule itself; no app calls it."
 
 [[type]]
 name = "commit_share"
 old = "craft_ui::dialog::about::commit_share"
-new = "craft_ui::patterns::form_dialogs::commit_share"
-status = "moved"
+new = ""
+status = "removed"
+note = "Crate-private: the dialog applies the rule itself; no app calls it."
 
 [[setter]]
 type = "AboutDialog"
