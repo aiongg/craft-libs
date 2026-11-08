@@ -1,12 +1,12 @@
 //! `SymmetryHandles`: the centre and the rotation handle of Transform Symmetry, a canvas control.
 
+use super::HANDLE_SHARE;
 use super::menu::SymmetryWords;
 use super::model::{Symmetry, TURN_STEP_DEGREES};
-use super::HANDLE_SHARE;
 use craft_behavior::kurbo::{Point, Size};
 use craft_behavior::{
-    Axis, Cursor, CursorIcon, CursorPriority, HitLevel, HitPriority, HitShape, Metrics, NavShape, PartKey, PartRef, PointerButton, PressPhase, Roving,
-    Sense,
+    Axis, Cursor, CursorIcon, CursorPriority, HitLevel, HitPriority, HitShape, Metrics, NavShape, PartKey, PartRef, PointerButton, PressPhase,
+    Roving, Sense,
 };
 use craft_ui::canvas::{CanvasSpace, NUDGE, NUDGE_FAR, canvas_space};
 use craft_ui::contract::{

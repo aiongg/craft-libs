@@ -7,9 +7,9 @@ use super::session::{TransformEdit, TransformPhase, TransformSession, TransformS
 use super::transform_fields::{BarGroups, TransformFields, TransformRow, size_unit_of};
 use craft_behavior::{EditEvent, GestureId, IconId, Mixed, RulerUnits};
 use craft_ui::bars::{Bar, BarKind};
+use craft_ui::buttons::IconButton;
 use craft_ui::canvas::RulerText;
 use craft_ui::choice::Checkbox;
-use craft_ui::buttons::IconButton;
 use craft_ui::contract::{Bind, Entry, Outcome, Props as _, Show as _, ShowContainer as _, clicked};
 use craft_ui::display::Divider;
 use craft_ui::runtime::env::{Env, Label, UnitKind};
@@ -179,8 +179,8 @@ impl<'a, W: TransformWarp> TransformBar<'a, W> {
             } else {
                 let unit = current.size_unit.unwrap_or(UnitKind::Percent);
                 let row = TransformRow::new(*session.state(), session.skew_v());
-                let entries: Option<Vec<Entry<UnitKind>>> = size_units
-                    .map(|rows| rows.iter().map(|entry| entry.clone().checked(entry.value() == Some(&unit))).collect());
+                let entries: Option<Vec<Entry<UnitKind>>> =
+                    size_units.map(|rows| rows.iter().map(|entry| entry.clone().checked(entry.value() == Some(&unit))).collect());
                 let mut fields = TransformFields::new(label.clone(), Bind::given(row), session.rect(), Bind::given(current.aspect_linked))
                     .bar()
                     .groups(groups)
@@ -217,7 +217,14 @@ impl<'a, W: TransformWarp> TransformBar<'a, W> {
                 let _ = settings.reborrow().write(cx, &EditEvent::set(GestureId::default(), Mixed::Same(current), next, name.clone(), None));
             }
         });
-        TransformBarOutput { response: shown.output.response.clone(), edits, apply: shown.output.committed, discard: shown.output.cancelled, reset_warp, unit_picked }
+        TransformBarOutput {
+            response: shown.output.response.clone(),
+            edits,
+            apply: shown.output.committed,
+            discard: shown.output.cancelled,
+            reset_warp,
+            unit_picked,
+        }
     }
 
     /// Shows `fields` and collects what they report: the row's edit, the aspect link, the interpolation and the unit.
