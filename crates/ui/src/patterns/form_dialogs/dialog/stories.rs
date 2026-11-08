@@ -51,7 +51,7 @@ fn param_dialog_close_without_reset(ui: &mut Ui, data: &mut StoryData) -> StoryO
         .into()
 }
 
-const COMMAND_SPEC: &str = r#"{"name":"","size":1..100=10,"method":"fit|fill","keep":bool}"#;
+const COMMAND_SPEC: &str = r#"{"name":text,"size":1..100=10,"method":"fit|fill","keep":bool}"#;
 
 #[story(ParamDialog<'static>, covers = [], drive = Drive::Never)]
 fn command_form(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
