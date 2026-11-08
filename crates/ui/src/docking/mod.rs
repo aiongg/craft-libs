@@ -169,7 +169,7 @@ impl<P: Clone + PartialEq + Send + Sync + 'static> Outcome for SplitAreaOutput<P
 
 /// The docked tree of a layout, with a handle between neighbouring groups. Its body shows the groups, each at its
 /// frame (`tree::frames` with the same rules).
-#[derive(crate::contract::Component)]
+#[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container, probe(SplitArea<'static, usize>))]
 pub struct SplitArea<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> {
     #[common]
@@ -178,6 +178,9 @@ pub struct SplitArea<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> {
     props: ContainerProps,
     layout: Bind<'a, Layout<P>>,
     rules: FrameRules<'a, P>,
+    /// The accessibility name of the area's dividers, for a split whose dividers are not "Resize panels": "Resize
+    /// preview", "Resize timeline".
+    #[prop(into)]
     divider_label: Option<Label>,
 }
 
@@ -195,14 +198,6 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> SplitArea<'a, P> 
     pub fn pair(label: impl Into<Label>, axis: Axis, bodies: (P, P), share: f32, rules: FrameRules<'a, P>) -> Self {
         let root = Node::split(axis, SplitSize::Ratio(share), Node::tabs(vec![bodies.0], 0), Node::tabs(vec![bodies.1], 0));
         Self::new(label, Bind::given(Layout::new(Some(root), Vec::new())), rules)
-    }
-
-    /// The accessibility name of the area's dividers, for a split whose dividers are not "Resize panels": "Resize
-    /// preview", "Resize timeline".
-    #[must_use]
-    pub fn divider_label(mut self, label: impl Into<Label>) -> Self {
-        self.divider_label = Some(label.into());
-        self
     }
 }
 

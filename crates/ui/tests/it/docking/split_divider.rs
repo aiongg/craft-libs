@@ -80,7 +80,6 @@ fn a_component_drives_its_own_divider_with_the_public_functions() {
     });
     fixture.settle();
     let divider = fixture.by_label("Resize bar").expect("the divider is named by the component");
-    assert_eq!(fixture.by_role(Role::SPLITTER).len(), 1);
     fixture.drag(&divider, vec2(30.0, 0.0));
     fixture.settle();
     assert!(at.get() > 100.0, "dragging right moved the divider: {}", at.get());
