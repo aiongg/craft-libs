@@ -200,7 +200,7 @@ fn a_mixed_toggle_reports_mixed_and_a_click_turns_it_on() {
 /// A mixed toggle paints the off look, not a blend of off and on.
 #[trial]
 fn a_mixed_toggle_paints_the_off_fill() {
-    let fill_of = |value: Mixed| {
+    let fill_of = |value: Mixed<bool>| {
         let mut show = move |ui: &mut egui::Ui| {
             let mut current = value;
             ToggleButton::new("Bold", Bind::bound_mixed(&mut current)).show(ui);
