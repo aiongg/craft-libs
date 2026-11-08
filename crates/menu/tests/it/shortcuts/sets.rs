@@ -77,6 +77,30 @@ fn an_open_prompt_holds_the_set_row_table_and_edit_actions() {
     assert!(rig.has_outcome(|o| matches!(o, Outcome::Ok)));
 }
 
+/// A delete prompt that outlives its set's activity (the app made another set active meanwhile) deletes the set it
+/// names and keeps the edits of the active set.
+#[trial]
+fn a_stale_delete_prompt_neither_reloads_nor_drops_edits() {
+    let mut rig = Rig::mac_with_sets(profiles_with(&["Mine", "Other"]));
+    rig.click("Save: ⌘S");
+    rig.press(Modifiers::NONE, Key::F2);
+    rig.click("Delete");
+    assert!(rig.has("Delete the set “Other”?"));
+    {
+        let mut shared = rig.shared.borrow_mut();
+        let (profiles, _) = shared.sets.as_mut().expect("the rig has sets");
+        profiles.select("Mine", &builtins()).expect("Mine exists");
+    }
+    rig.fixture.idle(2);
+    rig.answer("Delete");
+    let shared = rig.shared.borrow();
+    let profiles = shared.sets.as_ref().map(|(profiles, _)| profiles).expect("the rig has sets");
+    assert!(!profiles.sets().contains_key("Other"));
+    assert_eq!(profiles.active(), "Mine");
+    drop(shared);
+    assert_eq!(rig.bindings("file.save"), ["F2"], "the active set keeps its edits");
+}
+
 /// OK stores the edits of a built-in set as a set named Custom.
 #[trial]
 fn ok_stores_edits_of_a_builtin_as_a_copy() {

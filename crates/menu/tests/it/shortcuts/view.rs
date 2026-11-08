@@ -80,11 +80,11 @@ fn typed_entry_parses_and_shows_errors() {
     rig.click("Type…");
     rig.fixture.type_text("Cmd+Nope");
     rig.press(Modifiers::NONE, Key::Enter);
-    assert!(rig.has("⚠ unknown key Nope"));
+    assert!(rig.has("unknown key Nope"));
     rig.press(Modifiers::COMMAND, Key::A);
     rig.fixture.type_text("Cmd+Shift+K");
     rig.press(Modifiers::NONE, Key::Enter);
-    assert!(!rig.has("⚠ unknown key Nope"));
+    assert!(!rig.has("unknown key Nope"));
     rig.click("Assign");
     assert_eq!(rig.bindings("file.save"), ["Cmd+S", "Cmd+Shift+K"]);
 }

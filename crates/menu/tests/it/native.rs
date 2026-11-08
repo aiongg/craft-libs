@@ -10,7 +10,7 @@ use craft_menu::{
     Backend, Builtin, ClipboardKeys, CommandRef, Dispatch, Event, Gate, ItemKind, ItemState, LayoutOptions, Menu, MenuBar, MenuRole, NativeMenu,
     Node, apply_state, mac_layout, structure_key,
 };
-use craft_ui::testing::trial;
+use craft_ui::testing::{Frames, trial};
 use egui::{Key, Modifiers};
 
 use crate::sample::{chord, cmd, held, sample, typing};
@@ -75,12 +75,16 @@ fn take_clicks(menu: &mut NativeMenu) -> Vec<CommandRef> {
     clicks
 }
 
-/// What egui sees of `events` after the menu's `raw_input` has dropped the closing click and added
-/// the key equivalents.
-fn through(menu: &mut NativeMenu, events: Vec<egui::Event>) -> Vec<egui::Event> {
-    let mut input = egui::RawInput { events, ..Default::default() };
-    menu.raw_input(&mut input);
-    input.events
+/// What egui sees of `events` in a frame of `frames` after the menu has been polled: the window host's input
+/// filter has dropped the closing click and added the key equivalents. The menu is polled again after the frame,
+/// as in an app, so that a close the filter asked for reaches the backend.
+fn through(menu: &mut NativeMenu, frames: &mut Frames, events: Vec<egui::Event>) -> Vec<egui::Event> {
+    frames.ctx.set_os(egui::os::OperatingSystem::Mac);
+    menu.poll(&frames.ctx);
+    let mut seen = Vec::new();
+    frames.frame(events, |ui| seen = ui.ctx().input(|input| input.events.clone()));
+    menu.poll(&frames.ctx);
+    seen
 }
 
 /// ⌘ on a Mac keyboard, with ⇧ when `shift`: the modifiers egui reports for a key equivalent.
@@ -102,12 +106,12 @@ fn press() -> egui::Event {
 fn a_click_waiting_when_a_dialog_opens_is_dropped() {
     let (mut menu, _, events, _) = driver();
     events.borrow_mut().extend([Event::Click(cmd("file.save")), Event::Click(Builtin::HideOthers.command())]);
-    menu.raw_input(&mut Default::default());
+    menu.poll(&egui::Context::default());
     menu.set_gate(modal());
     assert_eq!(take_clicks(&mut menu), [Builtin::HideOthers.command()]);
 
     events.borrow_mut().push(Event::Click(cmd("file.save")));
-    menu.raw_input(&mut Default::default());
+    menu.poll(&egui::Context::default());
     menu.set_gate(Gate::default());
     assert_eq!(take_clicks(&mut menu), [cmd("file.save")]);
 }
@@ -169,13 +173,13 @@ fn on_command_sees_allowed_clicks_only() {
     menu.set_gate(Gate::default());
     assert_eq!(*seen.lock().unwrap(), [cmd("file.save")]);
 
-    menu.raw_input(&mut Default::default());
+    menu.poll(&egui::Context::default());
     assert_eq!(take_clicks(&mut menu), [cmd("file.save")], "a click the hook didn't run");
 
     menu.on_command(Box::new(|c| c.id == "file.save"));
     events.borrow_mut().extend([mouse(&cmd("file.save")), mouse(&cmd("file.export"))]);
     assert_eq!(events.borrow()[0], Event::Handled(cmd("file.save")));
-    menu.raw_input(&mut Default::default());
+    menu.poll(&egui::Context::default());
     assert_eq!(take_clicks(&mut menu), [cmd("file.export")], "the hook ran file.save");
 }
 
@@ -183,6 +187,7 @@ fn on_command_sees_allowed_clicks_only() {
 /// shortcut is tapped (press and release, since a click has no key-up), not the app's command run.
 #[trial]
 fn a_click_on_a_text_editing_item_while_typing_taps_its_shortcut() {
+    let mut frames = Frames::new();
     let (mut menu, _, events, dispatch) = driver();
     menu.set_gate(typing(true));
     let (copy, undo, save) = (chord("Cmd+C"), chord("Cmd+Z"), chord("Cmd+S"));
@@ -194,7 +199,7 @@ fn a_click_on_a_text_editing_item_while_typing_taps_its_shortcut() {
 
     menu.set_gate(typing(true));
     events.borrow_mut().extend([Event::Tap(undo), Event::Tap(copy)]);
-    let seen = through(&mut menu, vec![]);
+    let seen = through(&mut menu, &mut frames, vec![]);
     assert_eq!(seen, [key(Key::Z, true, mac_cmd(false)), key(Key::Z, false, mac_cmd(false)), egui::Event::Copy]);
     assert!(take_clicks(&mut menu).is_empty());
 }
@@ -263,6 +268,7 @@ fn only_command_or_control_shortcuts_are_key_equivalents() {
 /// clipboard keys.
 #[trial]
 fn recording_a_shortcut_passes_key_equivalents_through() {
+    let mut frames = Frames::new();
     let (mut menu, _, events, dispatch) = driver();
     menu.set_gate(recording());
     let cmd_held = held([true, false, false, false]);
@@ -278,7 +284,7 @@ fn recording_a_shortcut_passes_key_equivalents_through() {
 
     menu.set_gate(recording());
     events.borrow_mut().extend([Event::Key(chord("Cmd+C")), Event::Key(chord("Cmd+V"))]);
-    let seen = through(&mut menu, vec![]);
+    let seen = through(&mut menu, &mut frames, vec![]);
     assert_eq!(seen, [key(Key::C, true, mac_cmd(false)), key(Key::V, true, mac_cmd(false))], "no Copy or Paste events");
 }
 
@@ -306,6 +312,7 @@ fn dynamic_lists_rebuild_when_they_grow_or_shrink() {
 /// an app taking the raw clipboard keys gets it.) The press carries the modifiers that were held.
 #[trial]
 fn key_equivalents_become_one_key_press() {
+    let mut frames = Frames::new();
     let events = Rc::new(RefCell::new(Vec::new()));
     let mut menu = NativeMenu::new(Box::new(Fake { events: events.clone(), ..Default::default() })).clipboard_keys(ClipboardKeys::Raw);
     let paste = chord("Cmd+V");
@@ -313,16 +320,16 @@ fn key_equivalents_become_one_key_press() {
     let pressed = key(Key::V, true, mac_cmd(false));
 
     events.borrow_mut().push(Event::Key(paste));
-    let seen = through(&mut menu, vec![egui::Event::ModifiersChanged(Modifiers::COMMAND), release.clone()]);
+    let seen = through(&mut menu, &mut frames, vec![egui::Event::ModifiersChanged(Modifiers::COMMAND), release.clone()]);
     assert_eq!(seen, [egui::Event::ModifiersChanged(Modifiers::COMMAND), pressed.clone(), release]);
 
     events.borrow_mut().push(Event::Key(paste));
-    let seen = through(&mut menu, vec![]);
+    let seen = through(&mut menu, &mut frames, vec![]);
     assert_eq!(seen, [pressed], "no made-up release: the real one comes in a later frame");
 
     // ⌘⇧Z and ⌃⌘M: ⌘ and ⌃ stay distinct.
     events.borrow_mut().extend([Event::Key(chord("Shift+Cmd+Z")), Event::Key(chord("Ctrl+Cmd+M"))]);
-    let seen = through(&mut menu, vec![]);
+    let seen = through(&mut menu, &mut frames, vec![]);
     let ctrl_cmd = Modifiers { ctrl: true, ..mac_cmd(false) };
     assert_eq!(seen, [key(Key::Z, true, mac_cmd(true)), key(Key::M, true, ctrl_cmd)]);
 }
@@ -331,6 +338,7 @@ fn key_equivalents_become_one_key_press() {
 /// laid out again only when the state changed or an event arrived.
 #[trial]
 fn clicks_and_syncs() {
+    let mut frames = Frames::new();
     let synced = Rc::new(RefCell::new(Vec::new()));
     let events = Rc::new(RefCell::new(vec![
         Event::Click(Builtin::Minimize.command()),
@@ -338,7 +346,7 @@ fn clicks_and_syncs() {
         Event::Click(craft_quit::QUIT_MENU_ID.into()),
     ]));
     let mut menu = NativeMenu::new(Box::new(Fake { synced: synced.clone(), events: events.clone(), ..Default::default() }));
-    let seen = through(&mut menu, vec![]);
+    let seen = through(&mut menu, &mut frames, vec![]);
     assert!(seen.is_empty());
 
     let ctx = egui::Context::default();
@@ -360,7 +368,7 @@ fn clicks_and_syncs() {
     assert_eq!(builds.get(), 1, "same state: nothing built");
     assert!(menu.sync_with(2, build).is_empty(), "same clashes: not reported again");
     events.borrow_mut().push(Event::Click("edit.redo".into()));
-    menu.raw_input(&mut Default::default());
+    menu.poll(&egui::Context::default());
     menu.sync_with(2, build);
     assert_eq!((builds.get(), synced.borrow().len()), (3, 3), "an event re-syncs");
 }
@@ -370,37 +378,40 @@ fn clicks_and_syncs() {
 /// in case one is on screen).
 #[trial]
 fn outside_press_dismisses_without_starting_a_canvas_gesture() {
+    let mut frames = Frames::new();
     let tracking = Rc::new(Cell::new(true));
     let cancels = Rc::new(Cell::new(0));
     let mut menu = NativeMenu::new(Box::new(Fake { tracking: tracking.clone(), cancels: cancels.clone(), ..Default::default() }));
     let moved = egui::Event::PointerMoved(egui::pos2(300.0, 200.0));
-    let seen = through(&mut menu, vec![moved.clone(), press()]);
+    let seen = through(&mut menu, &mut frames, vec![moved.clone(), press()]);
     assert_eq!(seen, [moved]);
     assert_eq!((cancels.get(), tracking.get()), (1, false));
 
-    let seen = through(&mut menu, vec![press()]);
+    let seen = through(&mut menu, &mut frames, vec![press()]);
     assert_eq!(seen, [press()], "ordinary canvas presses still reach egui");
     assert_eq!(cancels.get(), 2);
 
-    through(&mut menu, vec![egui::Event::PointerMoved(egui::pos2(1.0, 1.0))]);
+    through(&mut menu, &mut frames, vec![egui::Event::PointerMoved(egui::pos2(1.0, 1.0))]);
     assert_eq!(cancels.get(), 2, "a pointer move closes nothing");
 }
 
 #[trial]
 fn escape_dismisses_an_open_menu_without_reaching_the_active_tool() {
+    let mut frames = Frames::new();
     let tracking = Rc::new(Cell::new(true));
     let mut menu = NativeMenu::new(Box::new(Fake { tracking: tracking.clone(), ..Default::default() }));
     let escape = |pressed| key(Key::Escape, pressed, Modifiers::NONE);
-    let seen = through(&mut menu, vec![escape(true), escape(false)]);
+    let seen = through(&mut menu, &mut frames, vec![escape(true), escape(false)]);
     assert!(seen.is_empty());
     assert!(!tracking.get());
 }
 
 #[trial]
 fn moving_the_pointer_does_not_dismiss_an_open_menu() {
+    let mut frames = Frames::new();
     let cancels = Rc::new(Cell::new(0));
     let mut menu = NativeMenu::new(Box::new(Fake { tracking: Rc::new(Cell::new(true)), cancels: cancels.clone(), ..Default::default() }));
-    let seen = through(&mut menu, vec![egui::Event::PointerMoved(egui::pos2(300.0, 200.0))]);
+    let seen = through(&mut menu, &mut frames, vec![egui::Event::PointerMoved(egui::pos2(300.0, 200.0))]);
     assert_eq!((seen.len(), cancels.get()), (1, 0));
 }
 
@@ -408,18 +419,19 @@ fn moving_the_pointer_does_not_dismiss_an_open_menu() {
 /// reports the menu closed, the next open menu's closing click is kept from egui again.
 #[trial]
 fn a_stuck_open_menu_keeps_only_one_click() {
+    let mut frames = Frames::new();
     let tracking = Rc::new(Cell::new(true));
     let mut menu = NativeMenu::new(Box::new(Fake { tracking: tracking.clone(), stuck: true, ..Default::default() }));
-    let seen = through(&mut menu, vec![press()]);
+    let seen = through(&mut menu, &mut frames, vec![press()]);
     assert!(seen.is_empty(), "the click that closes the menu");
     for _ in 0..3 {
-        let seen = through(&mut menu, vec![press()]);
+        let seen = through(&mut menu, &mut frames, vec![press()]);
         assert_eq!(seen, [press()], "later clicks reach egui");
     }
     tracking.set(false);
-    menu.raw_input(&mut Default::default());
+    menu.poll(&egui::Context::default());
     tracking.set(true);
-    let seen = through(&mut menu, vec![press()]);
+    let seen = through(&mut menu, &mut frames, vec![press()]);
     assert!(seen.is_empty());
 }
 
@@ -427,17 +439,18 @@ fn a_stuck_open_menu_keeps_only_one_click() {
 /// Paste events: the driver makes them, unless the app takes the raw keys.
 #[trial]
 fn clipboard_key_equivalents_reach_text_fields() {
+    let mut frames = Frames::new();
     let events = Rc::new(RefCell::new(Vec::new()));
     let mut menu = NativeMenu::new(Box::new(Fake { events: events.clone(), ..Default::default() }));
     let equivalent = |s: &str| Event::Key(chord(s));
     events.borrow_mut().extend([equivalent("Cmd+C"), equivalent("Cmd+X"), equivalent("Cmd+Shift+V")]);
     let release = key(Key::C, false, Modifiers::COMMAND);
-    let seen = through(&mut menu, vec![release.clone()]);
+    let seen = through(&mut menu, &mut frames, vec![release.clone()]);
     let shift_v = key(Key::V, true, mac_cmd(true));
     assert_eq!(seen, [egui::Event::Copy, release, egui::Event::Cut, shift_v], "⌘⇧V is an app shortcut");
 
     events.borrow_mut().push(equivalent("Cmd+V"));
-    let seen = through(&mut menu, vec![]);
+    let seen = through(&mut menu, &mut frames, vec![]);
     assert!(seen.is_empty(), "the paste comes from eframe, with the clipboard's text");
     let ctx = egui::Context::default();
     let mut out = ctx.run_ui(Default::default(), |ui| {
@@ -449,7 +462,7 @@ fn clipboard_key_equivalents_reach_text_fields() {
 
     let mut menu = NativeMenu::new(Box::new(Fake { events: events.clone(), ..Default::default() })).clipboard_keys(ClipboardKeys::Raw);
     events.borrow_mut().extend([equivalent("Cmd+C"), equivalent("Cmd+V")]);
-    let seen = through(&mut menu, vec![]);
+    let seen = through(&mut menu, &mut frames, vec![]);
     assert_eq!(seen, [key(Key::C, true, mac_cmd(false)), key(Key::V, true, mac_cmd(false))]);
 }
 

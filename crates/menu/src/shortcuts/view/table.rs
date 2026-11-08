@@ -3,7 +3,7 @@
 
 use std::borrow::Cow;
 
-use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, Flow, Insets, ItemSource, Metrics, Selection, SelectionChange, SpanLayout};
+use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, Flow, Insets, ItemSource, Metrics, Proposal, Selection, SelectionChange, SpanLayout};
 use craft_keymap::chord::Chord;
 use craft_keymap::keymap::{Binding, MAX_BINDINGS};
 use craft_ui::buttons::{Button, IconButton};
@@ -11,7 +11,7 @@ use craft_ui::contract::{
     Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, ColumnSpec, Common, Component, ContainerProps, Cx, ItemOutput,
     MeasureCx, Outcome, PaintUi, Props as _, Role, SelectMode, ShowCollection as _, Sizing, Styled as _, clicked,
 };
-use craft_ui::display::{Elide, Shade, Text};
+use craft_ui::display::{Elide, Icon, Shade, Text};
 use craft_ui::primitives::{IconSpec, Span, TextRun};
 use craft_ui::style::{ComponentStyle, Ink, Stateful, StyleCx, TextLook, TypeRole};
 use egui::{Pos2, Rect, Response, Ui, Vec2};
@@ -180,6 +180,8 @@ pub(crate) struct CommandRowStyle {
     height: f32,
     pad: f32,
     gap: f32,
+    /// The side of the conflict mark.
+    icon: f32,
 }
 
 /// What a row returns.
@@ -224,9 +226,18 @@ pub(crate) struct CommandRow<'r> {
     line: &'r Line,
     env: &'r RowEnv<'r>,
     cells: Vec<(ColumnKey, Rect)>,
-    /// The width of every text the shortcut cell draws as a chip, measured in `measure` (paint cannot lay text out).
-    widths: std::collections::BTreeMap<String, f32>,
+    /// The width of every text the shortcut cell shows, measured in `measure` as the child that shows it (paint
+    /// cannot lay out).
+    widths: std::collections::BTreeMap<(Shown, String), f32>,
     act: Option<RowAct>,
+}
+
+/// What the shortcut cell shows a text as.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Shown {
+    Chip,
+    Unparsed,
+    Recording,
 }
 
 impl<'r> CommandRow<'r> {
@@ -249,12 +260,19 @@ impl<'r> CommandRow<'r> {
             },
             Line::Header { name, .. } => name.clone(),
         };
-        CommandRow { common: Common::new(), line, env, cells: cells.to_vec(), widths: std::collections::BTreeMap::new(), act: None }.label(name)
+        let conflict = matches!(line, Line::Row(row) if row.conflict);
+        let row = CommandRow { common: Common::new(), line, env, cells: cells.to_vec(), widths: std::collections::BTreeMap::new(), act: None };
+        if conflict { row.description(words.shares_a_shortcut.as_str().to_owned()).label(name) } else { row.label(name) }
     }
 
     fn cell(&self, column: ColumnKey) -> Rect {
         self.cells.iter().find(|(key, _)| *key == column).map_or(Rect::NOTHING, |(_, rect)| *rect)
     }
+}
+
+/// A saved text that is not a shortcut, shown in the shortcut cell under `name`.
+fn unparsed_note(text: &str, name: String) -> Text {
+    Text::new(text.to_owned()).shade(Shade::Faint).elide(Elide::End).label(name)
 }
 
 /// The part of `row` that starts `at` from its leading edge and runs `length`, over the row's full height.
@@ -276,17 +294,26 @@ impl Component for CommandRow<'_> {
             height: cx.control().height,
             pad: cx.control().pad_x,
             gap: cx.tokens.space.gap.inline,
+            icon: cx.control().icon,
         }
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         self.widths.clear();
         if let Line::Row(line) = self.line {
-            let recording = self.env.recording.as_ref().map(|(_, shown)| shown.as_str());
-            let texts = line.chips.iter().map(|chip| chip.text.as_str()).chain(line.unparsed.iter().map(String::as_str)).chain(recording);
-            for text in texts {
-                let width = cx.layout(&TextRun::new(text).role(TypeRole::Label)).size().x + 2.0 * cx.style.pad;
-                self.widths.insert(text.to_owned(), width);
+            for chip in &line.chips {
+                let width = cx.child(("chip", &chip.text), &mut Button::new(chip.text.clone()), Proposal::Ideal).x;
+                self.widths.insert((Shown::Chip, chip.text.clone()), width);
+            }
+            for text in &line.unparsed {
+                let width = cx.child(("unparsed", text), &mut unparsed_note(text, String::new()), Proposal::Ideal).x;
+                self.widths.insert((Shown::Unparsed, text.clone()), width);
+            }
+            if let Some((Target::Cell { command, .. }, shown)) = &self.env.recording
+                && *command == line.command
+            {
+                let width = ChordRecorder::new(String::new(), true, shown.clone()).width(cx, ("record", &line.key));
+                self.widths.insert((Shown::Recording, shown.clone()), width);
             }
         }
         Vec2::new(0.0, cx.style.height)
@@ -315,10 +342,19 @@ impl CommandRow<'_> {
     /// after.
     fn paint_label(&self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>, area: Rect, line: &Row) {
         let words = self.env.words;
-        let mut spans = Vec::new();
+        let mut area = area;
         if line.conflict {
-            spans.push(Span::new("\u{26a0} "));
+            let flow = Flow::new(area, cx.env.direction().is_rtl());
+            let side = cx.style.icon;
+            let slot = flow.span(0.0, side);
+            ui.child(
+                "conflict",
+                Rect::from_center_size(slot.center(), Vec2::splat(side)),
+                Icon::new(IconSpec::svg(craft_behavior::IconId::new("warning"))),
+            );
+            area = band(&flow, area, side + cx.style.gap, (area.width() - side - cx.style.gap).max(0.0));
         }
+        let mut spans = Vec::new();
         for part in &line.prefix {
             spans.push(Span::new(part.as_str()).muted());
             spans.push(Span::new(PATH_SEPARATOR).muted());
@@ -355,7 +391,7 @@ impl CommandRow<'_> {
         let (gap, height) = (cx.style.gap, cx.style.height);
         let editable = self.env.editable;
         let widths = &self.widths;
-        let width_of = |text: &str| widths.get(text).copied().unwrap_or(0.0);
+        let width_of = |kind: Shown, text: &str| widths.get(&(kind, text.to_owned())).copied().unwrap_or(0.0);
         let recording = self.env.recording.as_ref().and_then(|(target, shown)| match target {
             Target::Cell { command, old } if *command == line.command => Some((old.clone(), shown.clone())),
             _ => None,
@@ -373,7 +409,8 @@ impl CommandRow<'_> {
                 (Some((_, shown)), true) => shown.clone(),
                 _ => chip.map_or_else(String::new, |chip| chip.text.clone()),
             };
-            let width = width_of(&shown).min((reset_at - at).max(0.0));
+            let kind = if *recording_here { Shown::Recording } else { Shown::Chip };
+            let width = width_of(kind, &shown).min((reset_at - at).max(0.0));
             let rect = band(&flow, cell, at, width);
             at += width + gap;
             if *recording_here {
@@ -407,12 +444,11 @@ impl CommandRow<'_> {
             at = reset_at;
         }
         for (n, text) in line.unparsed.iter().enumerate() {
-            let width = width_of(text).min((reset_at - at).max(0.0));
+            let width = width_of(Shown::Unparsed, text).min((reset_at - at).max(0.0));
             let rect = band(&flow, cell, at, width);
             at += width + gap;
             let name = words.label_chord.fill(&[("label", &line.label), ("chord", text)]);
-            let note =
-                Text::new(text.clone()).shade(Shade::Faint).elide(Elide::End).label(name).tooltip(words.this_saved_text_is_not_a.as_str().to_owned());
+            let note = unparsed_note(text, name).tooltip(words.this_saved_text_is_not_a.as_str().to_owned());
             ui.child(("unparsed", line.key.as_str(), n), rect, note);
         }
         let adding = matches!(&recording, Some((None, _)));
