@@ -85,6 +85,8 @@ pub struct WheelTaker<O> {
     pub zoom: bool,
     /// A value control: it takes vertical scroll only while focused or armed. Horizontal scroll needs no gate.
     pub gated: bool,
+    /// A scroll region (a scrolling body or collection): Shift turns the vertical wheel sideways over it.
+    pub scrolls: bool,
     /// The distance of one wheel line.
     pub notch: WheelNotch,
 }
@@ -107,7 +109,7 @@ impl WheelNotch {
 impl<O> WheelTaker<O> {
     /// A taker over `rect` that takes no axis yet.
     pub const fn new(owner: O, rect: Rect) -> Self {
-        WheelTaker { owner, rect, horizontal: false, vertical: false, zoom: false, gated: false, notch: WheelNotch::DEFAULT }
+        WheelTaker { owner, rect, horizontal: false, vertical: false, zoom: false, gated: false, scrolls: false, notch: WheelNotch::DEFAULT }
     }
 
     /// The taker a shape with `sense` registers, `None` when `sense` has no wheel bit: `WHEEL` takes both scroll
@@ -151,6 +153,13 @@ impl<O> WheelTaker<O> {
         self
     }
 
+    /// The taker is a scroll region (`WheelTaker::scrolls`).
+    #[must_use]
+    pub const fn scrolls(mut self, on: bool) -> Self {
+        self.scrolls = on;
+        self
+    }
+
     /// `scroll`, given in `unit`s of the device, as points of this taker's view: a line is one notch, a page is
     /// the view.
     pub fn points(&self, scroll: Vec2, unit: WheelUnit) -> Vec2 {
@@ -168,12 +177,20 @@ impl<O> WheelTaker<O> {
 
 /// The split rule: each axis of `wheel` goes to the innermost taker under `at` that takes it; a share no taker
 /// takes passes to the next enclosing one. A gated taker takes vertical scroll only while it is `focused` or
-/// `armed`. Shares of one owner merge.
+/// `armed`. Shift turns a vertical wheel sideways when its vertical owner is a scroll region. Shares of one owner merge.
 pub fn split<O: Copy + PartialEq>(takers: &[WheelTaker<O>], at: Pos2, wheel: Wheel, focused: Option<O>, armed: Option<O>) -> Vec<(O, Wheel)> {
     let mut under: Vec<&WheelTaker<O>> = takers.iter().filter(|taker| taker.rect.contains(at)).collect();
     under.sort_by(|a, b| a.rect.area().total_cmp(&b.rect.area()));
     let open = |taker: &&WheelTaker<O>| !taker.gated || armed == Some(taker.owner) || focused == Some(taker.owner);
-    let vertical = (wheel.scroll.y != 0.0).then(|| under.iter().find(|t| t.vertical && open(t))).flatten().map(|t| t.owner);
+    let vertical_taker = (wheel.scroll.y != 0.0).then(|| under.iter().find(|t| t.vertical && open(t))).flatten();
+    // Shift turns the vertical wheel sideways over a scroll region (Photoshop); a value control that takes the
+    // vertical wheel keeps Shift as its modifier, and a device that already sends a sideways axis keeps it.
+    let wheel = if wheel.mods.shift && wheel.scroll.x == 0.0 && vertical_taker.is_some_and(|t| t.scrolls) {
+        Wheel { scroll: Vec2::new(wheel.scroll.y, 0.0), ..wheel }
+    } else {
+        wheel
+    };
+    let vertical = if wheel.scroll.y != 0.0 { vertical_taker.map(|t| t.owner) } else { None };
     let horizontal = (wheel.scroll.x != 0.0).then(|| under.iter().find(|t| t.horizontal)).flatten().map(|t| t.owner);
     let zoom = (wheel.zoom != 1.0).then(|| under.iter().find(|t| t.zoom)).flatten().map(|t| t.owner);
     let mut shares: Vec<(O, Wheel)> = Vec::new();
@@ -212,6 +229,17 @@ mod tests {
         assert_eq!(share.points(Vec2::new(0.0, 2.0), WheelUnit::Line), Vec2::new(0.0, 100.0));
         assert_eq!(share.points(Vec2::new(0.0, 1.0), WheelUnit::Page), Vec2::new(0.0, 200.0));
         assert_eq!(share.points(Vec2::new(0.0, 7.0), WheelUnit::Point), Vec2::new(0.0, 7.0));
+    }
+
+    #[test]
+    fn shift_turns_the_wheel_sideways_over_a_scroll_region_and_not_over_a_value_control() {
+        let shifted = Wheel::new(Vec2::new(0.0, 7.0), Mods { shift: true, ..Mods::NONE }, WheelUnit::Point, WheelPhase::Move);
+        let region = WheelTaker::new(1u8, rect(200.0)).vertical(true).horizontal(true).scrolls(true);
+        let sideways = split(&[region], pos2(10.0, 10.0), shifted, None, None);
+        assert_eq!(sideways[0].1.scroll, Vec2::new(7.0, 0.0));
+        let slider = WheelTaker::new(2u8, rect(100.0)).vertical(true).gated(true);
+        let kept = split(&[region, slider], pos2(10.0, 10.0), shifted, Some(2), None);
+        assert_eq!((kept[0].0, kept[0].1.scroll), (2, Vec2::new(0.0, 7.0)));
     }
 
     #[test]

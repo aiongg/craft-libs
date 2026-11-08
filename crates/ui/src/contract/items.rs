@@ -481,7 +481,10 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.offset = self.offset.clamp(0.0, self.max_offset(view.height()));
         let span = ScrollSpan::new(0.0..content, self.offset..self.offset + f64::from(view.height()));
         pcx.scroll(SCROLL, track, Axis::Y, span);
-        wheel::register(&ctx, WheelTaker::new(pcx.id, view).vertical(true).horizontal(self.content.x > view.width()).zoom(comp.zooms()));
+        wheel::register(
+            &ctx,
+            WheelTaker::new(pcx.id, view).vertical(true).horizontal(self.content.x > view.width()).scrolls(true).zoom(comp.zooms()),
+        );
     }
 
     fn sensed(&mut self, _: &mut C, cx: &mut Cx<'_, C>) {

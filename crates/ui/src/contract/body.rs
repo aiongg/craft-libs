@@ -1490,7 +1490,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                     Notch::Lines(lines) => WheelNotch::Points(lines * tokens.tokens().typography.body.line_height),
                     Notch::ViewShare(share) => WheelNotch::ViewShare(share),
                 };
-                wheel::register(&ctx, WheelTaker::new(pcx.id, view).vertical(scroll.vertical_on()).horizontal(scroll.horizontal_on()).notch(notch));
+                wheel::register(
+                    &ctx,
+                    WheelTaker::new(pcx.id, view).vertical(scroll.vertical_on()).horizontal(scroll.horizontal_on()).scrolls(true).notch(notch),
+                );
             }
         }
         self.nudge = gap_of(tokens, Gap::Row);
