@@ -12,6 +12,19 @@ use egui::{Id, Key, Modifiers, Pos2, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+/// A move of the pointer, in points.
+fn shift(dx: f32, dy: f32) -> Vec2 {
+    Vec2::new(dx, dy)
+}
+
+/// A move in document units.
+fn doc_shift(dx: f64, dy: f64) -> DocVec {
+    DocVec::new(dx, dy)
+}
+
+/// What the Horizontal distortion field is typed.
+const TYPED: f64 = -30.0;
+
 const RECT: DocRect = DocRect::new(100.0, 80.0, 280.0, 200.0);
 
 /// What one pass reported about the edit.
@@ -173,7 +186,7 @@ fn the_nearest_point_within_12_points_takes_the_press_in_a_turned_flipped_view()
         let at = anchor + out * offset;
         h.drag(at, at + out * 20.0);
         match h.edit.get() {
-            Some(WarpEdit::Point { index, by }) => {
+            Some(WarpEdit::Point { index, by, .. }) => {
                 assert!(taken, "{offset} pt");
                 assert_eq!(index, 15);
                 assert!((by.hypot() - 20.0).abs() < 1e-3, "{by:?}");
@@ -185,7 +198,7 @@ fn the_nearest_point_within_12_points_takes_the_press_in_a_turned_flipped_view()
     // On a small mesh a handle 3 pt away beats its anchor 5 pt away.
     let mut h = harness(WarpMesh::identity(DocRect::new(190.0, 140.0, 214.0, 158.0), 1, 1));
     let at = h.screen(Point::new(195.0, 140.0));
-    h.drag(at, at + Vec2::new(0.0, -10.0));
+    h.drag(at, at + shift(0.0, -10.0));
     assert!(matches!(h.edit.get(), Some(WarpEdit::Point { index: 1, .. })), "{:?}", h.edit.get());
     assert_eq!(h.picked.get(), Some(1));
 }
@@ -194,18 +207,18 @@ fn the_nearest_point_within_12_points_takes_the_press_in_a_turned_flipped_view()
 fn a_press_on_the_surface_pulls_it_at_its_parameters() {
     let mut h = harness(WarpMesh::identity(RECT, 1, 1));
     let from = h.screen(RECT.center());
-    h.drag(from, from + Vec2::new(20.0, 10.0));
+    h.drag(from, from + shift(20.0, 10.0));
     assert_eq!(h.seen.borrow().first(), Some(&Seen::Begin));
     assert_eq!(h.count(Seen::Commit), 1, "one drag commits once");
-    let Some(WarpEdit::Surface { s, t, by }) = h.edit.get() else { panic!("{:?}", h.edit.get()) };
+    let Some(WarpEdit::Surface { s, t, by, .. }) = h.edit.get() else { panic!("{:?}", h.edit.get()) };
     assert!((s - 0.5).abs() < 1e-3 && (t - 0.5).abs() < 1e-3, "({s}, {t})");
-    assert!((by - DocVec::new(20.0, 10.0)).hypot() < 1e-3, "{by:?}");
+    assert!((by - doc_shift(20.0, 10.0)).hypot() < 1e-3, "{by:?}");
     assert!(h.mesh().eval(0.5, 0.5).distance(RECT.center() + by) < 1e-6, "the pull follows the pointer");
 
     // Off the surface and off the points the press is the tool's.
     h.edit.set(None);
     let off = h.screen(Point::new(40.0, 40.0));
-    h.drag(off, off + Vec2::new(10.0, 0.0));
+    h.drag(off, off + shift(10.0, 0.0));
     assert_eq!(h.edit.get(), None);
 }
 
@@ -220,11 +233,11 @@ fn arrows_move_the_picked_point() {
     assert_eq!(h.picked.get(), Some(1));
     let handle = h.mesh().points[1];
     h.fixture.key(Key::ArrowRight, Modifiers::NONE);
-    assert_eq!(h.edit.get(), Some(WarpEdit::Point { index: 1, by: DocVec::new(1.0, 0.0) }));
+    assert!(matches!(h.edit.get(), Some(WarpEdit::Point { index: 1, by, .. }) if by == doc_shift(1.0, 0.0)), "{:?}", h.edit.get());
     h.fixture.key(Key::ArrowDown, Modifiers::SHIFT);
-    assert_eq!(h.edit.get(), Some(WarpEdit::Point { index: 1, by: DocVec::new(0.0, 10.0) }));
+    assert!(matches!(h.edit.get(), Some(WarpEdit::Point { index: 1, by, .. }) if by == doc_shift(0.0, 10.0)), "{:?}", h.edit.get());
     assert_eq!(h.count(Seen::Set), 2);
-    assert_eq!(h.mesh().points[1], handle + DocVec::new(1.0, 10.0));
+    assert_eq!(h.mesh().points[1], handle + doc_shift(1.0, 10.0));
     assert_eq!(h.mesh().points[0], Point::new(RECT.x0, RECT.y0), "the handle moves alone");
     h.fixture.key(Key::End, Modifiers::NONE);
     assert_eq!(h.picked.get(), Some(14), "End picks the last anchor");
@@ -236,7 +249,7 @@ fn a_grid_of_lines_only_has_no_points_and_takes_no_press() {
     h.set(|h| h.lines_only.set(true));
     assert!(h.point(0).is_none());
     let anchor = h.screen(Point::new(RECT.x0, RECT.y0));
-    h.drag(anchor, anchor + Vec2::new(20.0, 0.0));
+    h.drag(anchor, anchor + shift(20.0, 0.0));
     assert_eq!(h.edit.get(), None);
 }
 
@@ -343,7 +356,7 @@ fn alt_or_ctrl_with_no_tool_is_a_quick_split_chosen_by_the_pointer() {
     // Without the key the press pulls the surface as ever.
     let mut h = harness(WarpMesh::identity(RECT, 1, 1));
     let from = h.at_fraction(0.5, 0.5);
-    h.drag(from, from + Vec2::new(10.0, 0.0));
+    h.drag(from, from + shift(10.0, 0.0));
     assert!(matches!(h.edit.get(), Some(WarpEdit::Surface { .. })), "{:?}", h.edit.get());
 }
 
@@ -444,7 +457,7 @@ fn a_split_off_the_surface_splits_at_the_nearest_point_of_it() {
 
 fn warped(mesh: &mut WarpMesh) {
     for (k, p) in mesh.points.iter_mut().enumerate() {
-        *p += DocVec::new((k % 5) as f64 * 3.0, (k % 7) as f64 * 2.0);
+        *p += doc_shift((k % 5) as f64 * 3.0, (k % 7) as f64 * 2.0);
     }
 }
 
@@ -657,10 +670,10 @@ fn bend_and_distortion_fields_act_only_on_a_preset_style() {
     let target = f.fixture.by_label("Horizontal distortion").expect("the H field");
     f.fixture.click(&target);
     f.fixture.key(Key::A, Modifiers::COMMAND);
-    f.fixture.type_text("-30");
+    f.fixture.type_text(&TYPED.to_string());
     f.fixture.key(Key::Enter, Modifiers::NONE);
     assert!(
-        matches!(f.edits.borrow().last(), Some(WarpFieldsEdit::Horizontal(EditEvent::Commit { after, .. })) if *after == -30.0),
+        matches!(f.edits.borrow().last(), Some(WarpFieldsEdit::Horizontal(EditEvent::Commit { after, .. })) if *after == TYPED),
         "{:?}",
         f.edits.borrow()
     );

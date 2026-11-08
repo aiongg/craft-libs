@@ -15,7 +15,9 @@ const WARP: ToolPath = ToolPath::Command("the Warp command");
 const PICTURE: DocRect = DocRect::new(40.0, 30.0, 360.0, 270.0);
 
 /// How far the drag stories move the first anchor, in points.
-const PULL: Vec2 = Vec2::new(24.0, 16.0);
+fn pull() -> Vec2 {
+    Vec2::X * 24.0 + Vec2::Y * 16.0
+}
 
 /// Shows `control` as the only canvas control of a canvas whose view has the document origin at its top left.
 fn on_canvas<O>(ui: &mut Ui, control: impl FnOnce(&mut Ui, egui::Rect) -> O) -> Option<O> {
@@ -28,7 +30,7 @@ fn on_canvas<O>(ui: &mut Ui, control: impl FnOnce(&mut Ui, egui::Rect) -> O) -> 
 fn pull_first_anchor(fixture: &mut Fixture) {
     let Some(id) = fixture.root_id() else { return };
     let Some(anchor) = fixture.part(id, POINT.at(0)) else { return };
-    fixture.drag(&anchor, PULL);
+    fixture.drag(&anchor, pull());
 }
 
 fn hover_middle(fixture: &mut Fixture) {

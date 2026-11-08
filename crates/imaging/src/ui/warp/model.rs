@@ -16,6 +16,7 @@ use kurbo::{BezPath, Point, Rect, Vec2};
 /// The other points on those rows and columns are the anchors' handles; the points inside a patch
 /// shape its inside and are neither drawn nor dragged.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct WarpMesh {
     /// Column patch boundaries in the mesh's parameter space, increasing from 0 to 1.
     pub us: Vec<f64>,
@@ -553,6 +554,7 @@ pub enum WarpSplit {
 #[non_exhaustive]
 pub enum WarpEdit {
     /// Move the control point `index` (an anchor carries its handles along: the host's rule).
+    #[non_exhaustive]
     Point {
         /// The index of the point.
         index: usize,
@@ -560,6 +562,7 @@ pub enum WarpEdit {
         by: Vec2,
     },
     /// Pull the surface at the host's parameters `(s, t)` ([`WarpGrid::surface`](super::WarpGrid)).
+    #[non_exhaustive]
     Surface {
         /// The mesh parameter across the columns.
         s: f64,
@@ -574,6 +577,7 @@ pub enum WarpEdit {
     /// `thirds` is set when the cut is of a one-patch mesh that PhotoCraft's custom warp first
     /// divides at its thirds ([`WarpMesh::commit_thirds`]): the host applies that to its mesh
     /// before `split`, and `column`, `row`, `u` and `v` name a patch of the result.
+    #[non_exhaustive]
     Split {
         /// Which lines to insert.
         split: WarpSplit,
