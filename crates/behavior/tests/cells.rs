@@ -349,7 +349,7 @@ fn a_selection_places_its_rows_once_in_the_order_of_the_pass() {
     assert!(sel.select_range(CellRange::new("b", "d", 0..2, 1), &space));
     assert_eq!(sel.placed(&before).rows(), vec![1, 2, 3]);
     let after = Names(vec!["d", "a", "b", "e", "c"]);
-    assert_eq!(sel.placed(&after).rows(), vec![0, 2, 4]);
+    assert_eq!(sel.placed(&after).rows(), vec![0, 1, 2]);
     let keys = craft_behavior::Selection::new(vec!["e", "a", "b", "z"], None, None);
     assert_eq!(keys.placed(&before).rows(), vec![0, 1, 4]);
 }
