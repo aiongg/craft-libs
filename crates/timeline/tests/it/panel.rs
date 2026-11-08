@@ -9,7 +9,7 @@ use craft_timeline::ui::view::TimelineView;
 use craft_timeline::{FollowMode, FrameRate, Tick, TimeFormat, TimeView, TrackKind};
 use craft_ui::contract::{Bind, ShowContainer as _};
 use craft_ui::testing::{Fixture, pointer, trial};
-use egui::{Key, Modifiers, Vec2};
+use egui::{Event, Key, Modifiers, MouseWheelSource, MouseWheelUnit, TouchPhase, Vec2};
 
 const RATE: FrameRate = FrameRate::FPS_29_97;
 
@@ -108,16 +108,18 @@ fn zoom_keys_zoom_about_the_playhead_and_fit_the_sequence() {
     assert_eq!(state.borrow().view.start, Tick::ZERO);
 }
 
+/// A wheel turn of `delta` points over the view's middle, carrying `modifiers` the way a device reports them.
 fn wheel(fixture: &mut Fixture, delta: Vec2, modifiers: Modifiers) {
     let at = fixture.shown().center();
-    fixture.hold(modifiers);
-    fixture.frame(vec![pointer::moved(at), pointer::wheel(delta.y)]);
-    fixture.hold(Modifiers::NONE);
+    let turn = Event::MouseWheel { unit: MouseWheelUnit::Point, delta, phase: TouchPhase::Move, modifiers, source: MouseWheelSource::Wheel };
+    fixture.frame(vec![pointer::moved(at)]);
+    fixture.frame(vec![turn]);
 }
 
-/// Alt+wheel zooms about the pointer by `1 + dy * 0.01`; Cmd or Ctrl and the wheel scroll time sideways.
+/// Alt+wheel zooms about the pointer by `1 + dy * 0.01`; Cmd or Ctrl+wheel zooms as the pinch does; Shift+wheel scrolls
+/// time sideways; the plain wheel leaves the time alone.
 #[trial]
-fn the_wheel_maps_as_filmcraft_does() {
+fn the_wheel_maps_to_zoom_and_sideways_scroll() {
     let (mut fixture, state) = rig();
     let before = state.borrow().view.points_per_second;
     wheel(&mut fixture, Vec2::new(0.0, 10.0), Modifiers::ALT);
@@ -127,9 +129,23 @@ fn the_wheel_maps_as_filmcraft_does() {
 
     state.borrow_mut().view = TimeView::new(secs(10.0), 40.0);
     fixture.idle(2);
-    wheel(&mut fixture, Vec2::new(0.0, 40.0), Modifiers::COMMAND);
-    let start = state.borrow().view.start;
-    assert!(start < secs(10.0), "a downward Cmd+wheel moves the view to later times as FilmCraft does: {start:?}");
+    wheel(&mut fixture, Vec2::new(0.0, 40.0), Modifiers::SHIFT);
+    let view = state.borrow().view;
+    assert!(view.start < secs(10.0), "a downward Shift+wheel moves the view to earlier times as FilmCraft does: {:?}", view.start);
+    assert_eq!(view.points_per_second, 40.0, "Shift+wheel does not zoom");
+
+    state.borrow_mut().view = TimeView::new(secs(10.0), 40.0);
+    fixture.idle(2);
+    wheel(&mut fixture, Vec2::new(0.0, 40.0), Modifiers::NONE);
+    assert_eq!(state.borrow().view.start, secs(10.0), "the plain wheel scrolls the tracks, not the time");
+
+    state.borrow_mut().view = TimeView::new(Tick::ZERO, 40.0);
+    fixture.idle(2);
+    let at = fixture.shown().center();
+    fixture.frame(vec![pointer::moved(at)]);
+    fixture.frame(vec![pointer::zoom_wheel(40.0)]);
+    fixture.idle(30);
+    assert!(state.borrow().view.points_per_second > 40.0, "Cmd+wheel zooms: {:?}", state.borrow().view);
 }
 
 /// While playing the view follows the playhead; a jump while stopped reveals it.
