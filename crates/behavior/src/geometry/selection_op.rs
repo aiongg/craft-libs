@@ -10,8 +10,8 @@ use crate::cursor::CursorBadge;
 /// With the gesture's own modifier held (⌘ on a thumbnail; none for a selection tool), Shift adds,
 /// Alt (Option) subtracts, Shift and Alt together intersect, and nothing else replaces
 /// ([`from_mods`](Self::from_mods)). Command and Ctrl are not read: the caller has
-/// already used them to recognise the gesture.
-///
+/// already used them to recognise the gesture. A drag over list items combines by the item rule instead
+/// ([`MarqueeMode`](crate::item_marquee::MarqueeMode): Cmd or Ctrl toggles, no intersect).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum SelectionOperation {
