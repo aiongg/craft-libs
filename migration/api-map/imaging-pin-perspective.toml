@@ -1,0 +1,337 @@
+# API map of the "Puppet and Perspective Warp" family: Puppet Warp (pins) and Perspective Warp (planes).
+
+family = "Puppet and Perspective Warp"
+new_module = "craft_imaging::ui::warp"
+
+[[type]]
+name = "PinWarp"
+old = "craft_imaging::ui::warp::pin::PinWarp"
+new = "craft_imaging::ui::warp::pin::PinWarp"
+status = "same"
+
+[[type]]
+name = "PinWarpBar"
+old = "craft_imaging::ui::warp::pin::PinWarpBar"
+new = "craft_imaging::ui::warp::pin::PinWarpBar"
+status = "same"
+
+[[type]]
+name = "PinWarpBarOutput"
+old = "craft_imaging::ui::warp::pin::PinWarpBarOutput"
+new = "craft_imaging::ui::warp::pin::PinWarpBarOutput"
+status = "same"
+
+[[type]]
+name = "PerspectiveWarp"
+old = "craft_imaging::ui::warp::perspective::PerspectiveWarp"
+new = "craft_imaging::ui::warp::perspective::PerspectiveWarp"
+status = "same"
+
+[[type]]
+name = "PerspectiveBar"
+old = "craft_imaging::ui::warp::perspective::PerspectiveBar"
+new = "craft_imaging::ui::warp::perspective::PerspectiveBar"
+status = "same"
+
+[[type]]
+name = "PerspectiveBarOutput"
+old = "craft_imaging::ui::warp::perspective::PerspectiveBarOutput"
+new = "craft_imaging::ui::warp::perspective::PerspectiveBarOutput"
+status = "same"
+
+[[type]]
+name = "PinWarpResponse"
+old = "craft_imaging::ui::warp::pin::PinWarpResponse"
+new = ""
+status = "replaced"
+note = "`PinWarpOutput`: `pins: EditResponse<Vec<Pin>>` (the edit), `select`, `apply`, `discard`, `hovered`, `pointer`; `PinWarpOutput::edits()` gives the `PinEdit`s in the legacy order (select, pins). `id` is `pins.response.id`; `claimed` is gone (the arena is the one press path)."
+
+[[type]]
+name = "PinWarpOutput"
+old = ""
+new = "craft_imaging::ui::warp::pin::PinWarpOutput"
+status = "replaced"
+note = "Replaces `PinWarpResponse`."
+
+[[type]]
+name = "PerspectiveWarpResponse"
+old = "craft_imaging::ui::warp::perspective::PerspectiveWarpResponse"
+new = ""
+status = "replaced"
+note = "`PerspectiveWarpOutput`: `planes: EditResponse<Vec<Plane>>`, `apply`, `discard`, `hovered`; `PerspectiveWarpOutput::edits()` gives the `PerspectiveEdit`s. `claimed` is gone."
+
+[[type]]
+name = "PerspectiveWarpOutput"
+old = ""
+new = "craft_imaging::ui::warp::perspective::PerspectiveWarpOutput"
+status = "replaced"
+note = "Replaces `PerspectiveWarpResponse`."
+
+[[type]]
+name = "PinWarpLabels"
+old = "craft_imaging::ui::warp::pin::PinWarpLabels"
+new = ""
+status = "replaced"
+note = "`PinWarpWords`, a `words!` set read from the env; there is no `labels()` setter."
+
+[[type]]
+name = "PinWarpWords"
+old = ""
+new = "craft_imaging::ui::warp::pin::PinWarpWords"
+status = "replaced"
+note = "Replaces `PinWarpLabels`."
+
+[[type]]
+name = "PinWarpBarLabels"
+old = "craft_imaging::ui::warp::pin::PinWarpBarLabels"
+new = ""
+status = "replaced"
+note = "`PinWarpBarWords`, a `words!` set read from the env; there is no `labels()` setter."
+
+[[type]]
+name = "PinWarpBarWords"
+old = ""
+new = "craft_imaging::ui::warp::pin::PinWarpBarWords"
+status = "replaced"
+note = "Replaces `PinWarpBarLabels`."
+
+[[type]]
+name = "PerspectiveWarpLabels"
+old = "craft_imaging::ui::warp::perspective::PerspectiveWarpLabels"
+new = ""
+status = "replaced"
+note = "`PerspectiveWarpWords`, a `words!` set read from the env; there is no `labels()` setter."
+
+[[type]]
+name = "PerspectiveWarpWords"
+old = ""
+new = "craft_imaging::ui::warp::perspective::PerspectiveWarpWords"
+status = "replaced"
+note = "Replaces `PerspectiveWarpLabels`."
+
+[[type]]
+name = "PerspectiveBarLabels"
+old = "craft_imaging::ui::warp::perspective::PerspectiveBarLabels"
+new = ""
+status = "replaced"
+note = "`PerspectiveBarWords`, a `words!` set read from the env; there is no `labels()` setter."
+
+[[type]]
+name = "PerspectiveBarWords"
+old = ""
+new = "craft_imaging::ui::warp::perspective::PerspectiveBarWords"
+status = "replaced"
+note = "Replaces `PerspectiveBarLabels`."
+
+[[type]]
+name = "PinWarpStyle"
+old = "craft_imaging::ui::warp::PinWarpStyle"
+new = "craft_imaging::ui::warp::pin::PinWarpStyle"
+status = "moved"
+note = "The component style of `PinWarp`, defined beside it; the look comes from theme tokens (pin disc `size.handle.md`, core `size.handle.sm`, ring and core `overlay.handle_stroke`, fixed-rotation ring `overlay.stroke`) and Photoshop's yellow as a fixed data colour. Its fields are private."
+
+[[type]]
+name = "PerspectiveWarpStyle"
+old = "craft_imaging::ui::warp::PerspectiveWarpStyle"
+new = "craft_imaging::ui::warp::perspective::PerspectiveWarpStyle"
+status = "moved"
+note = "The component style of `PerspectiveWarp`, defined beside it; outline and thirds in `overlay.line`, corners at `size.handle.md` filled with `overlay.handle_fill`. Its fields are private."
+
+[[type]]
+name = "PLANES"
+old = "craft_imaging::ui::warp::perspective::PLANES"
+new = ""
+status = "removed"
+
+[[type]]
+name = "PerspectiveStoryLabels"
+old = "craft_imaging::ui::warp::perspective::stories::PerspectiveStoryLabels"
+new = ""
+status = "removed"
+
+[[type]]
+name = "PinWarpStoryLabels"
+old = "craft_imaging::ui::warp::pin::stories::PinWarpStoryLabels"
+new = ""
+status = "removed"
+
+[[type]]
+name = "PinWarpCommands"
+old = ""
+new = "craft_imaging::ui::warp::pin::PinWarpCommands"
+status = "replaced"
+note = "New: Insert places a pin (`PinWarpCommands::AddPin`, default chord Insert); the app runs it with `PinWarpCommands::apply(session, solver, mesh, pointer)`. It replaces the Insert key the overlay read."
+
+[[type]]
+name = "PerspectiveCommands"
+old = ""
+new = "craft_imaging::ui::warp::perspective::PerspectiveCommands"
+status = "replaced"
+note = "New: Insert adds a plane in Layout (`PerspectiveCommands::AddPlane`, default chord Insert); the app runs it with `PerspectiveCommands::apply(session)`. It replaces the Insert key the overlay read."
+
+[[setter]]
+type = "PinWarp"
+old = "new(id_salt, session)"
+new = "new(label, Bind<Vec<Pin>>, mesh)"
+note = "Bind::given(session.pins().to_vec()); the selection is the `selected_pins` prop and Show Mesh the `show_mesh` prop."
+
+[[setter]]
+type = "PinWarp"
+old = "labels(labels)"
+new = ""
+note = "The words come from the env (`PinWarpWords`)."
+
+[[setter]]
+type = "PinWarp"
+old = "units(x, y)"
+new = ""
+note = "The accessible values read the canvas's rulers."
+
+[[setter]]
+type = "PinWarp"
+old = "modifiers(modifiers)"
+new = ""
+note = "The press carries its modifiers."
+
+[[setter]]
+type = "PinWarp"
+old = "policy(policy)"
+new = ""
+note = "The binding carries the edit policy."
+
+[[setter]]
+type = "PinWarp"
+old = "style(tokens)"
+new = ""
+note = "The look is the component style `PinWarpStyle`."
+
+[[setter]]
+type = "PinWarp"
+old = "show(ui, canvas, view, mesh)"
+new = "show_at(ui, body.rect)"
+note = "Inside a `Canvas` body; the view comes from the canvas."
+
+[[setter]]
+type = "PerspectiveWarp"
+old = "new(id_salt, session)"
+new = "new(label, Bind<Vec<Plane>>, mode, generation)"
+note = "Bind::given(session.planes().to_vec()) with session.mode() and session.generation()."
+
+[[setter]]
+type = "PerspectiveWarp"
+old = "labels(labels)"
+new = ""
+note = "The words come from the env (`PerspectiveWarpWords`)."
+
+[[setter]]
+type = "PerspectiveWarp"
+old = "units(x, y)"
+new = ""
+note = "The accessible values read the canvas's rulers."
+
+[[setter]]
+type = "PerspectiveWarp"
+old = "modifiers(modifiers)"
+new = ""
+note = "The press carries its modifiers."
+
+[[setter]]
+type = "PerspectiveWarp"
+old = "policy(policy)"
+new = ""
+note = "The binding carries the edit policy."
+
+[[setter]]
+type = "PerspectiveWarp"
+old = "style(tokens)"
+new = ""
+note = "The look is the component style `PerspectiveWarpStyle`."
+
+[[setter]]
+type = "PerspectiveWarp"
+old = "show(ui, canvas, view)"
+new = "show_at(ui, body.rect)"
+note = "Inside a `Canvas` body; the view comes from the canvas."
+
+[[setter]]
+type = "PinWarpBar"
+old = "new(id_salt, session)"
+new = "new(session)"
+
+[[setter]]
+type = "PinWarpBar"
+old = "labels(labels)"
+new = ""
+note = "The words come from the env."
+
+[[setter]]
+type = "PinWarpBar"
+old = "output(output)"
+new = ""
+note = "`show(ui)` returns the output."
+
+[[setter]]
+type = "PinWarpBar"
+old = "add_to(slots)"
+new = "show(ui)"
+note = "The whole options bar, commit and cancel included."
+
+[[setter]]
+type = "PerspectiveBar"
+old = "new(id_salt, session)"
+new = "new(session)"
+
+[[setter]]
+type = "PerspectiveBar"
+old = "labels(labels)"
+new = ""
+note = "The words come from the env."
+
+[[setter]]
+type = "PerspectiveBar"
+old = "output(output)"
+new = ""
+note = "`show(ui)` returns the output."
+
+[[setter]]
+type = "PerspectiveBar"
+old = "add_to(slots)"
+new = "show(ui)"
+note = "The whole options bar, commit and cancel included."
+
+[[setter]]
+type = "PinWarpSession"
+old = "nudge_pause(seconds)"
+new = ""
+note = "Each arrow nudge is one history step (Photoshop)."
+
+[[setter]]
+type = "PinWarpSession"
+old = "settle(now, busy)"
+new = ""
+note = "`EditHistory` records the edit events `apply` takes."
+
+[[setter]]
+type = "PinWarpSession"
+old = "apply(edit, solver, now)"
+new = "apply(edit, solver)"
+note = "The time argument went with the nudge pause."
+
+[[setter]]
+type = "PerspectiveSession"
+old = "nudge_pause(seconds)"
+new = ""
+note = "Each arrow nudge is one history step (Photoshop)."
+
+[[setter]]
+type = "PerspectiveSession"
+old = "settle(now, busy)"
+new = ""
+note = "`EditHistory` records the edit events `apply` takes."
+
+[[setter]]
+type = "PerspectiveSession"
+old = "apply(edit, now)"
+new = "apply(edit)"
+note = "The time argument went with the nudge pause."
+

@@ -4,6 +4,8 @@ mod blend_keys;
 mod blur_pins;
 mod curve;
 mod histogram;
+mod perspective_warp;
+mod pin_warp;
 mod scopes;
 mod selection;
 mod transform_preview;
