@@ -89,6 +89,7 @@ impl<W> Outcome for TransformBarOutput<W> {
 ///   the W and H unit) to its settings binding as well.
 #[must_use = "show the bar with `show`"]
 #[derive(craft_ui::contract::Pattern)]
+#[pattern(probe(TransformBar<'static, ()>))]
 pub struct TransformBar<'a, W> {
     label: Label,
     session: &'a TransformSession<W>,

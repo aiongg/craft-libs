@@ -5,8 +5,7 @@ use super::menu::SymmetryWords;
 use super::model::{Symmetry, TURN_STEP_DEGREES};
 use craft_behavior::kurbo::{Point, Size};
 use craft_behavior::{
-    Axis, Cursor, CursorIcon, CursorPriority, HitLevel, HitPriority, HitShape, Metrics, NavShape, PartKey, PartRef, PointerButton, PressPhase,
-    Roving, Sense,
+    Axis, Cursor, CursorIcon, CursorPriority, HitLevel, HitPriority, HitShape, Metrics, NavShape, PartKey, PointerButton, PressPhase, Roving, Sense,
 };
 use craft_ui::canvas::{CanvasSpace, NUDGE, NUDGE_FAR, canvas_space};
 use craft_ui::contract::{
@@ -75,7 +74,7 @@ impl<'a> SymmetryHandles<'a> {
     }
 
     /// The symmetry the pointer at `pos` gives a drag held with `grip`.
-    fn dragged(&self, space: &CanvasSpace, shown: &Symmetry, grip: Grip, pos: Pos2, shift: bool) -> Symmetry {
+    fn proposal(&self, space: &CanvasSpace, shown: &Symmetry, grip: Grip, pos: Pos2, shift: bool) -> Symmetry {
         match grip {
             Grip::Idle => *shown,
             Grip::Move { from, centre } => Self::with(shown, centre + (space.view.to_doc(pos) - from), shown.rotation),
@@ -115,12 +114,12 @@ impl<'a> SymmetryHandles<'a> {
                     if matches!(press.phase, PressPhase::DragStart { .. }) {
                         cx.begin();
                     }
-                    cx.propose(self.dragged(space, shown, held, pos, press.mods.shift));
+                    cx.propose(self.proposal(space, shown, held, pos, press.mods.shift));
                     cx.cursor(Cursor::System(icon), CursorPriority::Drag);
                 }
                 PressPhase::Release { pos, click, .. } => {
                     if !click && !matches!(held, Grip::Idle) {
-                        cx.propose(self.dragged(space, shown, held, pos, press.mods.shift));
+                        cx.propose(self.proposal(space, shown, held, pos, press.mods.shift));
                         cx.commit();
                     }
                     held = Grip::Idle;

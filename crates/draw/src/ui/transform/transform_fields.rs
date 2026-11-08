@@ -94,18 +94,32 @@ impl Default for BarGroups {
 pub enum SizeUnit {
     /// The scale in percent of the box's size before the transform, shown and committed with up to `decimals`
     /// decimals.
+    #[non_exhaustive]
     Percent {
         /// Most decimals shown and committed.
         decimals: usize,
     },
     /// The box's length in the document's units along each axis: the unit the W and H menu picked, which PhotoCraft
     /// keeps apart from the rulers'.
+    #[non_exhaustive]
     Length {
         /// The unit along x.
         x: RulerText,
         /// The unit along y.
         y: RulerText,
     },
+}
+
+impl SizeUnit {
+    /// Percent of the box before the transform, with up to `decimals` decimals.
+    pub fn percent(decimals: usize) -> Self {
+        Self::Percent { decimals }
+    }
+
+    /// A length in `x` and `y`.
+    pub fn length(x: RulerText, y: RulerText) -> Self {
+        Self::Length { x, y }
+    }
 }
 
 impl Default for SizeUnit {
@@ -653,9 +667,9 @@ impl Cells<'_> {
     fn bar(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         let mut pass = self.pass(cx);
         let groups = self.groups;
-        let mut any = false;
-        let mut divide = |ui: &mut Ui, shown: bool| {
-            if shown && std::mem::replace(&mut any, true) {
+        let any = std::cell::Cell::new(false);
+        let divide = |ui: &mut Ui, shown: bool| {
+            if shown && any.replace(true) {
                 Divider::vertical().show(ui);
             }
             shown
@@ -666,7 +680,7 @@ impl Cells<'_> {
         if groups.position {
             self.field(ui, cx, &mut pass, TransformField::X);
             self.field(ui, cx, &mut pass, TransformField::Y);
-            any = true;
+            any.set(true);
         }
         if divide(ui, groups.size) {
             self.field(ui, cx, &mut pass, TransformField::W);

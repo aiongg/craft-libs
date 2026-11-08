@@ -104,7 +104,7 @@ impl Symmetry {
     /// shorter side (the handle share, 0.35), at least 1 unit.
     pub fn rotation_handle(&self, size: Size, share: f64) -> Point {
         // pc: crates/ui-egui/src/tools/symmetry_ui.rs:227 `rotation_handle`.
-        let d = self.axes().into_iter().next().unwrap_or(Vec2::new(1.0, 0.0));
+        let d = self.axes().into_iter().next().unwrap_or(Vec2::from_angle(0.0));
         let r = (size.width.min(size.height) * share).max(1.0);
         self.center + d * r
     }

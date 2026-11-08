@@ -114,6 +114,11 @@ impl Harness {
     }
 }
 
+/// A screen displacement.
+fn by(x: f32, y: f32) -> Vec2 {
+    Vec2::new(x, y)
+}
+
 fn near(a: f64, b: f64) -> bool {
     (a - b).abs() < 1e-3
 }
@@ -184,7 +189,7 @@ fn an_arrow_step_reports_a_box() {
 #[trial]
 fn a_cancelled_skew_scrub_restores_the_host_s_skew() {
     let mut h = harness_of(TransformRow::new(BoxState::from_rect(START), 5.0), plain());
-    h.scrub("Vertical skew", Vec2::new(40.0, 0.0));
+    h.scrub("Vertical skew", by(40.0, 0.0));
     h.fixture.key(Key::Escape, Modifiers::NONE);
     h.release();
     assert!(near(h.row().skew_v, 5.0), "{}", h.row().skew_v);
@@ -194,7 +199,7 @@ fn a_cancelled_skew_scrub_restores_the_host_s_skew() {
 #[trial]
 fn a_skew_scrub_cancelled_by_the_host_restores_the_host_s_skew() {
     let mut h = harness_of(TransformRow::new(BoxState::from_rect(START), 5.0), plain());
-    h.scrub("Vertical skew", Vec2::new(40.0, 0.0));
+    h.scrub("Vertical skew", by(40.0, 0.0));
     h.host.borrow_mut().enabled = false;
     h.fixture.idle(2);
     h.release();
@@ -248,7 +253,7 @@ fn the_bar_form_lays_out_the_reference_point_then_captioned_cells_in_photocraft_
 /// A length typed in another unit sets the width: 40px in an inch field is 40 document units.
 #[trial]
 fn a_typed_length_in_another_unit_sets_the_width() {
-    let length = craft_draw::ui::transform::SizeUnit::Length { x: inches(), y: inches() };
+    let length = SizeUnit::length(inches(), inches());
     let mut h = harness_of(TransformRow::new(BoxState::from_rect(START), 0.0), Config { size_unit: length, units: Some(inches()), ..plain() });
     let link = h.target("Maintain aspect ratio");
     h.fixture.click(&link);
@@ -288,7 +293,7 @@ fn typing_into_w_of_a_perspective_box_keeps_the_typed_text_through_the_hosts_wri
 /// In percent mode a typed value is rounded to the percent decimals and no further.
 #[trial]
 fn a_typed_length_in_percent_mode_is_rounded_to_the_percent_decimals_only() {
-    let mut h = harness_of(TransformRow::new(BoxState::from_rect(START), 0.0), Config { size_unit: SizeUnit::Percent { decimals: 1 }, ..plain() });
+    let mut h = harness_of(TransformRow::new(BoxState::from_rect(START), 0.0), Config { size_unit: SizeUnit::percent(1), ..plain() });
     h.type_into("Width", "33.349");
     assert!(near(h.parts().w * 100.0, 33.3), "{:?}", h.parts());
 }

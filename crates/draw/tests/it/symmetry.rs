@@ -23,11 +23,11 @@ const SYMMETRY: PartKey = PartKey::new("symmetry");
 
 /// A vertical symmetry at (200, 150): the rotation handle sits at (200, 255).
 fn start() -> Symmetry {
-    Symmetry::new(SymmetryMode::Vertical, Point::new(200.0, 150.0), 0.0).unwrap_or_else(|| unreachable!("a valid symmetry"))
+    Symmetry::new(SymmetryMode::Vertical, Point::new(200.0, 150.0), 0.0).expect("a valid symmetry")
 }
 
 fn sym(mode: SymmetryMode, rotation: f64) -> Symmetry {
-    Symmetry::new(mode, Point::new(20.0, 30.0), rotation).unwrap_or_else(|| unreachable!("a valid symmetry"))
+    Symmetry::new(mode, Point::new(20.0, 30.0), rotation).expect("a valid symmetry")
 }
 
 fn near(a: f64, b: f64) -> bool {
@@ -56,7 +56,7 @@ fn axes_start_at_90_0_45_degrees_plus_rotation_and_dual_adds_the_perpendicular()
 fn segments_clip_to_the_page_and_vanish_when_the_centre_line_misses_it() {
     for size in [Size::new(100.0, 100.0), Size::new(101.0, 53.0)] {
         for mode in SymmetryMode::ALL {
-            let s = Symmetry::new(mode, Point::new(size.width / 2.0, size.height / 2.0), 0.0).unwrap_or_else(|| unreachable!("valid"));
+            let s = Symmetry::new(mode, Point::new(size.width / 2.0, size.height / 2.0), 0.0).expect("a valid symmetry");
             let segments = s.segments(size);
             assert_eq!(segments.len(), if mode == SymmetryMode::Dual { 2 } else { 1 });
             for line in segments {
@@ -66,7 +66,7 @@ fn segments_clip_to_the_page_and_vanish_when_the_centre_line_misses_it() {
             }
         }
     }
-    let off = Symmetry::new(SymmetryMode::Horizontal, Point::new(50.0, -5.0), 0.0).unwrap_or_else(|| unreachable!("valid"));
+    let off = Symmetry::new(SymmetryMode::Horizontal, Point::new(50.0, -5.0), 0.0).expect("a valid symmetry");
     assert!(off.segments(Size::new(100.0, 100.0)).is_empty());
 }
 
@@ -181,7 +181,7 @@ struct Harness {
 }
 
 fn harness() -> Harness {
-    let rect = egui::Rect::from_min_size(Pos2::ZERO, Vec2::new(400.0, 300.0));
+    let rect = egui::Rect::from_min_size(Pos2::ZERO, by(400.0, 300.0));
     let view = CanvasView::new(rect, Point::new(200.0, 150.0), 1.0);
     let host = Rc::new(RefCell::new(Host { session: SymmetryTransform::begin(start()), view, id: egui::Id::NULL, events: Vec::new() }));
     let shown = Rc::clone(&host);
@@ -330,7 +330,7 @@ fn escape_during_a_drag_cancels_the_drag_not_the_session() {
 }
 
 fn tool_context() -> ToolContext<'static> {
-    let rect = egui::Rect::from_min_size(Pos2::ZERO, Vec2::new(400.0, 300.0));
+    let rect = egui::Rect::from_min_size(Pos2::ZERO, by(400.0, 300.0));
     let space = CanvasSpace::new(CanvasView::new(rect, Point::new(200.0, 150.0), 1.0), 1.0);
     ToolContext::new(rect, Some(space))
 }

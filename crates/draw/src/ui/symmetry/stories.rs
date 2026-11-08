@@ -13,7 +13,7 @@ const PAGE: Size = Size::new(400.0, 300.0);
 
 /// The symmetry of the stories: Dual Axis at the page centre, turned a little.
 fn sample(mode: SymmetryMode) -> Symmetry {
-    Symmetry::new(mode, Point::new(200.0, 150.0), 20.0).unwrap_or_else(|| unreachable!("a finite centre inside the limits"))
+    Symmetry { mode, center: Point::new(200.0, 150.0), rotation: 20.0 }
 }
 
 /// A view that shows the whole page at its origin.
