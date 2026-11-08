@@ -97,13 +97,14 @@ fn field_menus_move_between_areas() {
     assert_eq!(mv.fields, ["Region".to_string()]);
 }
 
-/// A drag from one area onto a field of another ends as a move into the second, before that field.
+/// A drag from one area to the top edge of a field of another ends as a move into the second, before that field.
 #[trial]
 fn dragging_a_field_onto_another_area_moves_it() {
     let (mut fixture, app) = rig();
     let from = area_row(&fixture, "Region");
     let over = area_row(&fixture, "Product");
-    fixture.drag(&from, over.center() - from.center());
+    let before = egui::pos2(over.rect.center().x, over.rect.top());
+    fixture.drag(&from, before - from.center());
     fixture.idle(2);
     let app = app.borrow();
     let moved = app.edits.iter().find_map(|edit| match edit {
@@ -141,4 +142,35 @@ fn the_field_menu_sorts_and_groups() {
     let edits = &app.borrow().edits;
     let [FieldListEdit::Sort { field, order, .. }] = &edits[..] else { panic!("one sort: {edits:?}") };
     assert_eq!((field.as_str(), *order), ("Region", FieldSort::Descending));
+}
+
+fn moves_into(app: &Rc<RefCell<App>>, area: FieldArea) -> Option<(Vec<String>, usize)> {
+    app.borrow().edits.iter().find_map(|edit| match edit {
+        FieldListEdit::Move { to, change, .. } if *to == area => change.value().map(|mv| (mv.fields.clone(), mv.position)),
+        _ => None,
+    })
+}
+
+/// A field dropped into an empty area lands first in it.
+#[trial]
+fn dragging_a_field_into_an_empty_area_moves_it_there() {
+    let (mut fixture, app) = rig();
+    let from = area_row(&fixture, "Product");
+    let area = named(&fixture, Role::LIST_BOX, "Filters").pop().expect("the empty Filters list");
+    fixture.drag(&from, area.center() - from.center());
+    fixture.idle(2);
+    assert_eq!(moves_into(&app, FieldArea::Filters), Some((vec!["Product".to_string()], 0)));
+}
+
+/// A field dropped between two fields of an area lands between them.
+#[trial]
+fn dragging_a_field_between_two_fields_lands_between_them() {
+    let (mut fixture, app) = rig();
+    let from = area_row(&fixture, "Product");
+    let (above, below) = (area_row(&fixture, "Region"), area_row(&fixture, "Year"));
+    let gap = (above.rect.bottom() + below.rect.top()) / 2.0;
+    let target = egui::pos2(above.rect.center().x, gap);
+    fixture.drag(&from, target - from.center());
+    fixture.idle(2);
+    assert_eq!(moves_into(&app, FieldArea::Rows), Some((vec!["Product".to_string()], 1)));
 }

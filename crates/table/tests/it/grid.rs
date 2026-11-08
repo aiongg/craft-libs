@@ -4,7 +4,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
-use craft_behavior::{CellSelection, EditEvent, PartKey};
+use craft_behavior::{CellSelection, EditEvent, PartKey, PartRef};
 use craft_table::ui::{
     CellAt, CellEdit, CellGrid, CellProblem, CellRange, ColumnFilter, GridEdit, GridLayout, GridModel, GridState, LineIndex, SHEET_COLUMNS,
     SHEET_ROWS, SheetGeometry, SheetMetrics, absolute_reference, column_letters,
@@ -107,9 +107,31 @@ impl Rig {
         self.edits.borrow_mut().drain(..).collect()
     }
 
-    fn part(&self, key: PartKey, index: u32) -> craft_ui::testing::Target {
+    /// The rect of a pointer-only part, as the sensing step recorded it.
+    fn part_rect(&self, part: impl Into<PartRef>) -> Rect {
         let id = self.grid.get().expect("the grid showed");
-        self.fixture.part(id, key.at(u64::from(index))).expect("the part has a node")
+        self.fixture.part_rect(id, part).expect("the part was sensed")
+    }
+
+    fn click_part(&mut self, part: impl Into<PartRef>) {
+        let at = self.part_rect(part).center();
+        self.fixture.click_at(at);
+    }
+
+    fn press_part(&mut self, part: impl Into<PartRef>) -> Pos2 {
+        let at = self.part_rect(part).center();
+        self.fixture.frame(vec![craft_ui::testing::pointer::moved(at)]);
+        self.fixture.frame(vec![craft_ui::testing::pointer::press(at)]);
+        at
+    }
+
+    fn drag_part(&mut self, part: impl Into<PartRef>, by: Vec2) {
+        let from = self.press_part(part);
+        for step in 1..=4 {
+            self.fixture.frame(vec![craft_ui::testing::pointer::moved(from + by * (step as f32 / 4.0))]);
+        }
+        self.fixture.frame(vec![craft_ui::testing::pointer::release(from + by)]);
+        self.fixture.idle(1);
     }
 }
 
@@ -162,8 +184,11 @@ fn arrows_tab_and_enter_move_the_active_cell() {
     assert_eq!(rig.active(), Some(CellAt::new(1, 0)));
     rig.press(Key::Tab, Modifiers::NONE);
     assert_eq!(rig.active(), Some(CellAt::new(1, 1)), "Tab advances along the row");
+    rig.press(Key::Tab, Modifiers::NONE);
+    assert_eq!(rig.active(), Some(CellAt::new(1, 2)));
     rig.press(Key::Enter, Modifiers::NONE);
-    assert_eq!(rig.active(), Some(CellAt::new(2, 1)), "Enter advances down");
+    assert_eq!(rig.active(), Some(CellAt::new(2, 0)), "Enter goes down to the column the Tab run started in");
+    rig.press(Key::Tab, Modifiers::NONE);
     rig.press(Key::Tab, Modifiers::SHIFT);
     assert_eq!(rig.active(), Some(CellAt::new(2, 0)), "Shift+Tab goes back");
 }
@@ -186,8 +211,8 @@ fn resizes(edits: &[GridEdit]) -> Vec<&EditEvent<f32>> {
 #[trial]
 fn header_edges_resize_and_double_click_autofits() {
     let mut rig = rig(None, a1(), 1.0);
-    let edge = rig.part(PartKey::new("column_edge"), 1);
-    rig.fixture.drag(&edge, Vec2::X * (ROW + ROW / 2.0));
+    let edge = PartKey::new("column_edge").at(1);
+    rig.drag_part(edge, Vec2::X * (ROW + ROW / 2.0));
     let edits = rig.take_edits();
     let events = resizes(&edits);
     assert!(matches!(events.first(), Some(EditEvent::Begin { .. })), "the drag begins one gesture");
@@ -195,16 +220,16 @@ fn header_edges_resize_and_double_click_autofits() {
         matches!(events.last(), Some(EditEvent::Commit { after, .. }) if (*after - (COLUMN + ROW + ROW / 2.0)).abs() < 1.0),
         "and commits the dragged width"
     );
-    rig.fixture.click(&edge).click(&edge);
+    rig.click_part(edge);
+    rig.click_part(edge);
     assert!(rig.take_edits().iter().any(|edit| matches!(edit, GridEdit::AutoFitColumn { column: 1, .. })), "a double click autofits");
 }
 
 #[trial]
 fn escape_cancels_a_header_resize() {
     let mut rig = rig(None, a1(), 1.0);
-    let edge = rig.part(PartKey::new("column_edge"), 1);
-    rig.fixture.press(&edge);
-    rig.fixture.frame(vec![craft_ui::testing::pointer::moved(edge.center() + Vec2::X * ROW)]);
+    let from = rig.press_part(PartKey::new("column_edge").at(1));
+    rig.fixture.frame(vec![craft_ui::testing::pointer::moved(from + Vec2::X * ROW)]);
     rig.press(Key::Escape, Modifiers::NONE);
     let edits = rig.take_edits();
     assert!(resizes(&edits).iter().any(|event| matches!(event, EditEvent::Cancel { .. })), "Esc cancels the resize");
@@ -214,8 +239,9 @@ fn escape_cancels_a_header_resize() {
 #[trial]
 fn a_double_click_on_a_hidden_edge_unhides() {
     let mut rig = rig(Some(2), a1(), 1.0);
-    let edge = rig.part(PartKey::new("column_edge"), 1);
-    rig.fixture.click(&edge).click(&edge);
+    let edge = PartKey::new("column_edge").at(1);
+    rig.click_part(edge);
+    rig.click_part(edge);
     assert!(rig.take_edits().iter().any(|edit| matches!(edit, GridEdit::UnhideColumn { column: 2, .. })));
 }
 
@@ -226,14 +252,13 @@ fn selected_block() -> CellSelection<u32> {
 #[trial]
 fn the_fill_handle_drags_a_range() {
     let mut rig = rig(None, selected_block(), 1.0);
-    let handle = rig.part(PartKey::new("fill_handle"), 0);
-    rig.fixture.drag(&handle, Vec2::Y * (ROW * 2.0));
+    rig.drag_part(PartKey::new("fill_handle"), Vec2::Y * (ROW * 1.5));
     let fills: Vec<_> =
         rig.take_edits().into_iter().filter_map(|edit| if let GridEdit::Fill { range, .. } = edit { Some(range) } else { None }).collect();
     assert!(matches!(fills.first(), Some(EditEvent::Begin { .. })));
     assert!(
         matches!(fills.last(), Some(EditEvent::Commit { after, .. }) if after.rows().end() - after.rows().start() == 3),
-        "the range grows two rows below the block"
+        "the handle sits on the block corner, so 1.5 rows down ends in the second row below: the range grows two rows"
     );
 }
 
@@ -242,8 +267,8 @@ fn the_fill_handle_drags_a_range() {
 #[trial]
 fn a_secondary_drag_of_the_fill_handle_reports_the_menu() {
     let mut rig = rig(None, selected_block(), 1.0);
-    let from = rig.part(PartKey::new("fill_handle"), 0).center();
-    let to = from + Vec2::Y * (ROW * 2.0);
+    let from = rig.part_rect(PartKey::new("fill_handle")).center();
+    let to = from + Vec2::Y * (ROW * 1.5);
     let button = |pos: Pos2, pressed| Event::PointerButton { pos, button: PointerButton::Secondary, pressed, modifiers: Modifiers::NONE };
     rig.fixture.frame(vec![Event::PointerMoved(from)]);
     rig.fixture.frame(vec![button(from, true)]);
@@ -262,8 +287,7 @@ fn a_secondary_drag_of_the_fill_handle_reports_the_menu() {
 #[trial]
 fn the_selection_border_drags_cells() {
     let mut rig = rig(None, selected_block(), 1.0);
-    let border = rig.part(PartKey::new("range_border"), 0);
-    rig.fixture.drag(&border, Vec2::X * COLUMN);
+    rig.drag_part(PartKey::new("range_border").at(0), Vec2::X * COLUMN);
     let moves: Vec<_> =
         rig.take_edits().into_iter().filter_map(|edit| if let GridEdit::MoveCells { to, .. } = edit { Some(to) } else { None }).collect();
     assert!(matches!(moves.last(), Some(EditEvent::Commit { after, .. }) if after.column == 2), "the block moves one column right");
@@ -272,8 +296,7 @@ fn the_selection_border_drags_cells() {
 #[trial]
 fn a_click_on_the_selection_border_selects_without_moving() {
     let mut rig = rig(None, selected_block(), 1.0);
-    let border = rig.part(PartKey::new("range_border"), 0);
-    rig.fixture.click(&border);
+    rig.click_part(PartKey::new("range_border").at(0));
     assert!(!rig.take_edits().iter().any(|edit| matches!(edit, GridEdit::MoveCells { .. })));
     assert!(rig.active().is_some());
 }
@@ -357,7 +380,7 @@ fn an_error_tag_beside_a_cell_takes_the_press() {
         }
     });
     fixture.settle();
-    let tag = fixture.by_label("Number stored as text").expect("the tag is named by its problem");
+    let tag = fixture.by_label("Error checking options").expect("the tag is a named button");
     let cell = tag.rect;
     fixture.click(&tag);
     assert!(cell.height() > 0.0, "the tag takes room beside the cell");
@@ -375,7 +398,7 @@ fn the_error_tag_sits_left_or_right_of_the_cell() {
         shown.borrow_mut().push(out.geometry.mirror_rect(out.geometry.cell_rect(CellAt::new(2, 2))));
     });
     fixture.settle();
-    let tag = fixture.by_label("Problem").expect("the tag has a node").rect;
+    let tag = fixture.by_label("Error checking options").expect("the tag has a node").rect;
     let cell = *rects.borrow().last().expect("the grid showed");
     assert!(tag.right() <= cell.left() || tag.left() >= cell.right(), "the tag sits beside the cell, not over it");
 }
