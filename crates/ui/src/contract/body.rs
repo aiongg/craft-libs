@@ -821,7 +821,10 @@ impl<'b> BodyHooks<'b> {
             let line_h = if inline { body_h.max(header_h) } else { body_h }.max(end_h).min(body_room);
             (top + body_room, top + line_h)
         } else {
-            (inner.max.y - footer_h, inner.max.y - footer_h)
+            // A fill-width body is offered the room the parent gives this pass, never the height its content took last
+            // pass: a collection that scrolls takes its rows up to that room, and from zero it would stay at zero.
+            let offered = (self.sizing(props) == Sizing::FillWidth && room.y.is_finite()).then(|| top + (room.y - stacked_h - footer_h).max(0.0));
+            (offered.unwrap_or(inner.max.y - footer_h), inner.max.y - footer_h)
         };
         let width = if content_sized { self.shared_width(room.x, inline) } else { inner.width() };
         let (left, right) = if rtl { (inner.max.x - width, inner.max.x) } else { (inner.min.x, inner.min.x + width) };

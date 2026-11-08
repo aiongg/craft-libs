@@ -115,3 +115,34 @@ fn shift_f10_on_a_focused_section_opens_its_menu() {
     fixture.settle();
     assert!(!fixture.by_role(Role::MENU).is_empty(), "Shift+F10 on the focused section opens its menu");
 }
+
+struct Rows(usize);
+
+impl craft_behavior::DisplayOrder<usize> for Rows {
+    fn len(&self) -> usize {
+        self.0
+    }
+
+    fn key(&self, at: usize) -> usize {
+        at
+    }
+}
+
+impl craft_behavior::ItemSource<usize> for Rows {}
+
+/// A scrolling list takes its room from the space the section is offered in this pass, so its rows show; the section's
+/// own height before its first pass is zero.
+#[trial]
+fn a_scrolling_list_in_a_fixed_section_shows_its_rows() {
+    use craft_ui::contract::ShowCollection as _;
+    use craft_ui::list::{List, ListRow};
+    let mut fixture = Fixture::new(|ui| {
+        Section::fixed("Recent").show(ui, |ui, _| {
+            let _ = List::new("Items").show_items(ui, &Rows(3), &mut |key, _| ListRow::new(format!("Row {key}")));
+        });
+    });
+    fixture.settle();
+    for key in 0..3 {
+        assert!(fixture.by_label(&format!("Row {key}")).is_some(), "row {key} is shown");
+    }
+}
