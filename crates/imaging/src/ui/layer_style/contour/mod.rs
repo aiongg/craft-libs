@@ -128,6 +128,14 @@ pub struct ContourRequest {
     pub contour: Contour,
 }
 
+impl ContourRequest {
+    /// A request to edit `contour`, which belongs to `key`.
+    #[must_use]
+    pub fn new(key: impl Into<String>, contour: Contour) -> Self {
+        Self { key: key.into(), contour }
+    }
+}
+
 /// What [`ContourField::show`] returns.
 #[derive(Debug)]
 #[must_use = "the app applies the field's edits and requests"]

@@ -168,11 +168,6 @@ fn stale_with_refresh(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     histogram(ui, data, "stale", Mode::Rgb, settings, Look { original: true, stale: true, ..Look::default() })
 }
 
-/// The range of a zone's control: Exposure is in stops, the others in percent.
-fn limit(key: &str) -> f32 {
-    if key == "exposure" { 5.0 } else { 100.0 }
-}
-
 fn zone_text(key: &str, value: f32) -> String {
     if key == "exposure" { format!("{value:+.2}") } else { format!("{value:+.0}") }
 }

@@ -2,10 +2,10 @@
 //! plot reports for the pointer, the keys and the stale mark.
 
 use craft_imaging::ui::histogram::paint::{
-    Blend, outline, outline_shapes, plot_shapes, product, rgb_heights, rgb_mesh, selection_shapes, sum, tone_heights, tone_mesh,
+    outline, outline_shapes, plot_shapes, product, rgb_heights, rgb_mesh, selection_shapes, sum, tone_heights, tone_mesh,
 };
 use craft_imaging::ui::histogram::{
-    ChannelColor, Histogram, HistogramData, HistogramInks, HistogramLook, HistogramScale, LevelRange, StaleMark, level_at,
+    Blend, ChannelColor, Histogram, HistogramData, HistogramInks, HistogramLook, HistogramScale, LevelRange, StaleMark, level_at,
 };
 use craft_theme::{Contrast, ControlSize, Mode, Variant};
 use craft_ui::contract::{Bind, Role, Show as _};

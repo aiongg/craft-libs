@@ -213,7 +213,7 @@ fn pin_and_function_maps_draw_their_meshes() {
     let rest = [pt(10.0, 20.0), pt(30.0, 20.0), pt(30.0, 60.0), pt(10.0, 60.0)];
     let deformed = [pt(15.0, 25.0), pt(35.0, 25.0), pt(35.0, 65.0), pt(15.0, 65.0)];
     let triangle_list = [[0, 1, 2], [0, 2, 3]];
-    let view = PinMeshView { rest: &rest, deformed: &deformed, triangles: &triangle_list, order: &[1, 0] };
+    let view = PinMeshView::new(&rest, &deformed, &triangle_list, &[1, 0]);
     let pins = PreviewMap::pins(view, Rect::new(10.0, 20.0, 30.0, 60.0)).build(1.0, [0.5, 0.5]);
     assert_eq!(pins.points, deformed);
     assert_eq!(pins.indices, vec![0, 2, 3, 0, 1, 2]);

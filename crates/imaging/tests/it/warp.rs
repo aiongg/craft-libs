@@ -6,7 +6,7 @@ use craft_imaging::ui::warp::{
     POINT, WarpEdit, WarpFieldValues, WarpFields, WarpFieldsEdit, WarpGrid, WarpGridChoice, WarpMesh, WarpSplit, WarpStyleEntry,
 };
 use craft_ui::canvas::Canvas;
-use craft_ui::contract::{Bind, Show as _};
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, Target, pointer, trial};
 use egui::{Id, Key, Modifiers, Pos2, Vec2};
 use std::cell::{Cell, RefCell};
@@ -665,7 +665,7 @@ fn a_type_layer_greys_split_and_grid_and_hides_custom() {
 fn bend_and_distortion_fields_act_only_on_a_preset_style() {
     let mut f = fields("arc", false);
     f.click("Change warp orientation");
-    assert_eq!(*f.edits.borrow(), vec![WarpFieldsEdit::Orientation { vertical: true }]);
+    assert_eq!(*f.edits.borrow(), vec![WarpFieldsEdit::orientation(true)]);
 
     let target = f.fixture.by_label("Horizontal distortion").expect("the H field");
     f.fixture.click(&target);

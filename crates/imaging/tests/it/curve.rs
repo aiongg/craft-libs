@@ -58,7 +58,7 @@ fn rig_with(curve: Curve, config: Config) -> Rig {
     let mut fixture = Fixture::new(move |ui| {
         let mut value = c.borrow().clone();
         let histogram = HistogramData::tone(&bins, ChannelColor::Neutral);
-        let mut editor = CurveEditor::new("Curve", Bind::bound(&mut value)).channels(&channels).channel(ch.get()).selected(s.get());
+        let mut editor = CurveEditor::new("Curve", Bind::bound(&mut value)).channels(&channels).channel(ch.get()).selection(s.get());
         if let Some(max) = config.max_points {
             editor = editor.max_points(max);
         }
@@ -156,7 +156,7 @@ const WIDE_PLOTS: u8 = 5;
 const TALL_PLOTS: u8 = 6;
 
 fn room() -> Vec2 {
-    let unit = style::tokens(Mode::Light, Contrast::Normal).size.plot.width;
+    let unit = style::tokens(Mode::Light, Contrast::Standard).size.plot.width;
     Vec2::new(unit * f32::from(WIDE_PLOTS), unit * f32::from(TALL_PLOTS))
 }
 /// A point in whole levels.
@@ -422,7 +422,7 @@ fn a_pencil_stroke_is_one_gesture_and_draws_a_map_without_points() {
 /// The Corner check box toggles the selected point, and there is none without corners.
 #[trial]
 fn the_corner_check_box_toggles_the_selected_point_and_exists_only_with_corners() {
-    let mut plain = rig(&THREE);
+    let plain = rig(&THREE);
     assert!(plain.fixture.by_label("Corner").is_none());
     let mut corners = rig_with(Curve::smooth(THREE.to_vec()), Config { corners: true, ..Config::default() });
     corners.click([100.0, 100.0]);
@@ -452,7 +452,7 @@ fn a_corner_dragged_off_the_plot_and_back_keeps_its_flag() {
 /// Host rows show between the graph and the fields, and the fields still edit.
 #[trial]
 fn a_host_row_between_shows_between_the_graph_and_the_fields() {
-    let mut rig = rig_with(Curve::smooth(THREE.to_vec()), Config { between: true, ..Config::default() });
+    let rig = rig_with(Curve::smooth(THREE.to_vec()), Config { between: true, ..Config::default() });
     let between = rig.fixture.by_label("Between").expect("the host row");
     let input = rig.fixture.by_label("Input").expect("the Input field");
     let point = rig.fixture.by_label("Point 1 of 3").expect("a point");

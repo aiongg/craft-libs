@@ -188,6 +188,13 @@ pub enum WarpFieldsEdit {
     Vertical(EditEvent<f64>),
 }
 
+impl WarpFieldsEdit {
+    /// The orientation button's edit: the new orientation is `vertical`.
+    pub fn orientation(vertical: bool) -> Self {
+        Self::Orientation { vertical }
+    }
+}
+
 /// What the group reported this pass.
 #[derive(Clone, Debug, Default, PartialEq)]
 #[non_exhaustive]
@@ -290,7 +297,7 @@ impl<'a> WarpFields<'a> {
                     .icon_only()
                     .show(ui);
                 if button.value().is_some() {
-                    edits.push(WarpFieldsEdit::Orientation { vertical: !values.vertical });
+                    edits.push(WarpFieldsEdit::orientation(!values.vertical));
                 }
                 let fields: [(_, _, f64, fn(EditEvent<f64>) -> WarpFieldsEdit); 3] = [
                     (&words.bend, &words.bend_name, values.bend, WarpFieldsEdit::Bend),

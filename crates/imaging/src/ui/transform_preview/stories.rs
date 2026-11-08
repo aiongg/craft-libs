@@ -79,12 +79,6 @@ impl RasterSource for Blank {
 }
 
 impl Document {
-    /// A document of `width` × `height` pixels.
-    pub(crate) fn new(width: f64, height: f64) -> Self {
-        let pixels = |v: f64| v.round().clamp(16.0, 8000.0) as u32;
-        Self { size: [pixels(width), pixels(height)] }
-    }
-
     /// The default document.
     pub(crate) fn standard() -> Self {
         Self { size: DOCUMENT }
@@ -213,28 +207,6 @@ fn bent(r: Rect, percent: f64) -> WarpMesh {
         point.y -= lift * inside * (1.0 - j as f64 / (height - 1) as f64);
     }
     mesh
-}
-
-/// The most story canvases side by side: three columns of the tile overflow it by a point.
-const ACROSS: usize = 2;
-/// The narrowest story canvas, in points.
-const MIN_CANVAS: f32 = 240.0;
-
-/// `items` in rows of up to [`ACROSS`] columns, fewer where the tile is too narrow for that many
-/// story canvases; `show` draws one in its column.
-pub(crate) fn grid<T>(ui: &mut Ui, items: Vec<T>, mut show: impl FnMut(&mut Ui, T)) {
-    let gap = ui.spacing().item_spacing.x;
-    let fit = ((ui.available_width() + gap) / (MIN_CANVAS + gap)).floor() as usize;
-    let across = fit.clamp(1, ACROSS);
-    let mut items = items.into_iter().peekable();
-    while items.peek().is_some() {
-        let row: Vec<T> = items.by_ref().take(across).collect();
-        ui.columns(across, |columns| {
-            for (column, item) in columns.iter_mut().zip(row) {
-                show(column, item);
-            }
-        });
-    }
 }
 
 /// The layer through `map` on a story canvas at `at`, clipped to the document.

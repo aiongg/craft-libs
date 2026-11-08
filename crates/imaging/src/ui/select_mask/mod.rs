@@ -54,7 +54,7 @@ use std::sync::Arc;
 use egui::{Id, Response, Ui};
 
 use craft_behavior::edit_history::Step;
-use craft_behavior::{CancelReason, EditEvent, EditHistory, GestureId, IconId, Mixed, PixelSize};
+use craft_behavior::{CancelReason, EditEvent, EditHistory, GestureId, IconId, Mixed};
 use craft_theme::Srgba;
 use craft_ui::buttons::IconButton;
 use craft_ui::canvas::{NavigationOptions, PickStep, RasterSource, ToolHost, ViewCommand, ZoomTool, tool_pick};
@@ -241,7 +241,6 @@ pub struct SelectMaskWorkspace {
     limits: SelectMaskLimits,
     target_mask: bool,
     subject: String,
-    size: PixelSize,
     navigation: NavigationOptions,
     checkerboard: Checker,
     // View state outside the history.
@@ -281,7 +280,6 @@ impl SelectMaskWorkspace {
         if let Some(options) = open.cursor_options {
             canvas.cursor_options(options);
         }
-        let [width, height] = open.size;
         Self {
             history: EditHistory::new(&session),
             settled: session.clone(),
@@ -291,7 +289,6 @@ impl SelectMaskWorkspace {
             limits: open.limits,
             target_mask: open.target_mask,
             subject: open.subject,
-            size: PixelSize::new(width, height),
             navigation: open.navigation,
             checkerboard: open.checkerboard,
             view: FullWindowView::new(),

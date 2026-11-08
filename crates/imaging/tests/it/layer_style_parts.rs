@@ -91,7 +91,7 @@ fn the_contour_editor_answers_the_contour_on_ok() {
     let answer: Rc<RefCell<Option<DialogResult<Contour>>>> = Rc::new(RefCell::new(None));
     let sink = Rc::clone(&answer);
     let host = Rc::new(RefCell::new(DialogHost::new()));
-    host.borrow_mut().open(ContourEditorDialog::new(ContourRequest { key: String::from("Contour"), contour: Contour::linear() }));
+    host.borrow_mut().open(ContourEditorDialog::new(ContourRequest::new("Contour", Contour::linear())));
     let shared = Rc::clone(&host);
     let mut fixture = Fixture::new(move |ui| {
         let mut host = shared.borrow_mut();
@@ -113,7 +113,7 @@ fn the_contour_editor_answers_nothing_on_cancel() {
     let answer: Rc<RefCell<Option<DialogResult<Contour>>>> = Rc::new(RefCell::new(None));
     let sink = Rc::clone(&answer);
     let host = Rc::new(RefCell::new(DialogHost::new()));
-    host.borrow_mut().open(ContourEditorDialog::new(ContourRequest { key: String::from("Contour"), contour: Contour::linear() }));
+    host.borrow_mut().open(ContourEditorDialog::new(ContourRequest::new("Contour", Contour::linear())));
     let shared = Rc::clone(&host);
     let mut fixture = Fixture::new(move |ui| {
         let mut host = shared.borrow_mut();
@@ -133,7 +133,7 @@ fn the_contour_editor_answers_nothing_on_cancel() {
 #[trial]
 fn new_in_the_contour_editor_suggests_the_contour_word() {
     let host = Rc::new(RefCell::new(DialogHost::new()));
-    host.borrow_mut().open(ContourEditorDialog::new(ContourRequest { key: String::from("Contour"), contour: Contour::linear() }));
+    host.borrow_mut().open(ContourEditorDialog::new(ContourRequest::new("Contour", Contour::linear())));
     let shared = Rc::clone(&host);
     let mut fixture = Fixture::new(move |ui| shared.borrow_mut().run(ui));
     fixture.settle();

@@ -188,25 +188,40 @@ fn at(point: (f64, f64)) -> Pos2 {
     pos2(point.0 as f32, point.1 as f32)
 }
 
-fn inject<T: Reports + 'static>(rig: &mut Rig<T>, input: ToolInput) {
+fn inject<T: Reports + 'static>(rig: &mut Rig<T>, input: ToolInput)
+where
+    for<'a> SelectToolPass<'a, T>: CanvasTool,
+{
     let (ctx, id) = (rig.fixture().ctx().clone(), rig.canvas_id());
     ToolHost::inject(&ctx, id, input);
     rig.fixture().frame(Vec::new());
 }
 
-fn down<T: Reports + 'static>(rig: &mut Rig<T>, point: (f64, f64), mods: Mods) {
+fn down<T: Reports + 'static>(rig: &mut Rig<T>, point: (f64, f64), mods: Mods)
+where
+    for<'a> SelectToolPass<'a, T>: CanvasTool,
+{
     inject(rig, ToolInput::down(PointerButton::Primary, at(point)).mods(mods));
 }
 
-fn drag_to<T: Reports + 'static>(rig: &mut Rig<T>, point: (f64, f64), mods: Mods) {
+fn drag_to<T: Reports + 'static>(rig: &mut Rig<T>, point: (f64, f64), mods: Mods)
+where
+    for<'a> SelectToolPass<'a, T>: CanvasTool,
+{
     inject(rig, ToolInput::moved(at(point)).mods(mods));
 }
 
-fn up<T: Reports + 'static>(rig: &mut Rig<T>, point: (f64, f64), mods: Mods) {
+fn up<T: Reports + 'static>(rig: &mut Rig<T>, point: (f64, f64), mods: Mods)
+where
+    for<'a> SelectToolPass<'a, T>: CanvasTool,
+{
     inject(rig, ToolInput::up(at(point)).mods(mods));
 }
 
-fn click<T: Reports + 'static>(rig: &mut Rig<T>, point: (f64, f64), mods: Mods) {
+fn click<T: Reports + 'static>(rig: &mut Rig<T>, point: (f64, f64), mods: Mods)
+where
+    for<'a> SelectToolPass<'a, T>: CanvasTool,
+{
     down(rig, point, mods);
     up(rig, point, mods);
 }
@@ -220,12 +235,18 @@ fn stroke(rig: &mut Rig<MarqueeTool>, from: (f64, f64), to: (f64, f64), at_press
 }
 
 /// Holds `mods` for the passes that follow.
-fn hold<T: Reports + 'static>(rig: &mut Rig<T>, mods: Modifiers) {
+fn hold<T: Reports + 'static>(rig: &mut Rig<T>, mods: Modifiers)
+where
+    for<'a> SelectToolPass<'a, T>: CanvasTool,
+{
     rig.fixture().hold(mods);
 }
 
 /// Gives the canvas the keyboard with a click that the tool then forgets.
-fn focus<T: Reports + 'static>(rig: &mut Rig<T>) {
+fn focus<T: Reports + 'static>(rig: &mut Rig<T>)
+where
+    for<'a> SelectToolPass<'a, T>: CanvasTool,
+{
     let corner = rig.canvas().rect.left_top() + egui::vec2(2.0, 2.0);
     rig.press_at(corner).release_at(corner);
     let mut tool = rig.tool_mut();
@@ -233,7 +254,10 @@ fn focus<T: Reports + 'static>(rig: &mut Rig<T>) {
     tool.events();
 }
 
-fn press_key<T: Reports + 'static>(rig: &mut Rig<T>, key: Key, mods: Modifiers) {
+fn press_key<T: Reports + 'static>(rig: &mut Rig<T>, key: Key, mods: Modifiers)
+where
+    for<'a> SelectToolPass<'a, T>: CanvasTool,
+{
     rig.fixture().key(key, mods);
 }
 
@@ -260,7 +284,10 @@ fn tags(events: &[SelectEvent]) -> Vec<String> {
 }
 
 /// The value of the tool's accessible node named "Selection outline", `None` while it has none.
-fn outline_value<T: Reports + 'static>(rig: &mut Rig<T>) -> Option<String> {
+fn outline_value<T: Reports + 'static>(rig: &mut Rig<T>) -> Option<String>
+where
+    for<'a> SelectToolPass<'a, T>: CanvasTool,
+{
     let node = rig.fixture().by_label("Selection outline")?;
     rig.fixture().tree().value_of(node.node).map(str::to_owned)
 }

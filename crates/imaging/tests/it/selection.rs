@@ -8,7 +8,7 @@ use craft_imaging::trace::{MaskRect, MaskSource};
 use craft_imaging::ui::mask_view::{MaskViewChange, MaskViewKeys, MaskViewMode, MaskViewRecipe, MaskViewState};
 use craft_imaging::ui::selection::SelectionOverlay;
 use craft_ui::canvas::Canvas;
-use craft_ui::contract::{Show as _, ShowContainer as _};
+use craft_ui::contract::ShowContainer as _;
 use craft_ui::runtime::commands::FirePhase;
 use craft_ui::testing::{Fixture, Story, StoryData, StoryOutput, trial};
 use egui::{Rect, Ui, pos2};

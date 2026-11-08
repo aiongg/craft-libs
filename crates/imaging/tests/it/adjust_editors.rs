@@ -9,7 +9,7 @@ use craft_imaging::ui::adjust::{
     HueSaturationEditor, PhotoFilter, PhotoFilterEditor, PhotoFilterPreset, SelectiveColor, SelectiveColorEditor, ThresholdEditor,
 };
 use craft_theme::Srgba;
-use craft_ui::contract::{Bind, Role, Show as _};
+use craft_ui::contract::{Bind, Role};
 use craft_ui::runtime::requests::ColorRequest;
 use craft_ui::style::DataColor;
 use craft_ui::testing::focus::AccessActionKind;

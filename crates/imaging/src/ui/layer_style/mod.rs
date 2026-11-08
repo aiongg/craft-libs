@@ -34,7 +34,10 @@ mod stories;
 mod styles;
 
 pub use blend_if::{BlendIfBar, BlendIfWords};
-pub use contour::{ContourAction, ContourEditorDialog, ContourField, ContourFieldOutput, ContourKey, ContourRequest, ContourWords, contour_rows};
+pub use contour::{
+    ContourAction, ContourEditorDialog, ContourField, ContourFieldOutput, ContourKey, ContourRequest, ContourWords, contour_rows, from_curve,
+    to_curve,
+};
 pub use dialog::{LayerStyleDialog, LayerStyleOutput};
 pub use labels::LayerStyleWords;
 pub use list::LayerStyleCommand;
