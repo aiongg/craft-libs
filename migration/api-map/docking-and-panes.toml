@@ -201,7 +201,7 @@ name = "DockSide"
 old = ""
 new = "craft_behavior::DockSide"
 status = "replaced"
-note = "`DockSide` in reading order: `Left` is `Start` and `Right` is `End`; saved layouts and actions with `Left`/`Right` load through serde aliases. `Placement::for_zone` loses its `right_to_left` argument."
+note = "`DockSide` in reading order: `Left` is `Start` and `Right` is `End`; saved layouts and actions with `Left`/`Right` load through serde aliases. `DockPlacement::for_zone` loses its `right_to_left` argument."
 
 [[type]]
 name = "Monitor"
@@ -1344,3 +1344,40 @@ old = "craft_behavior::dock::DockHandle"
 new = ""
 status = "removed"
 note = "Deleted with the anchor-panel model: a dock group is named by an anchor panel in it (`DockSpot<P>`, `GroupDrag<P>`), and a layout is `Layout<P>` over the app's own panel type `P`."
+
+# Final fix pass, task dock.
+
+[[type]]
+name = "WindowMenuRows"
+old = ""
+new = "craft_ui::docking::WindowMenuRows"
+status = "replaced"
+note = "The Window menu's check rows over a layout: `WindowMenuRows::new(&Layout<P>, &dyn DockPanels<P>, &[P]).show(ui) -> WindowMenuRowsOutput<P> { action: Option<Action<P>> }`. Replaces a menu's hand-written panel rows."
+
+[[type]]
+name = "WindowMenuRowsOutput"
+old = ""
+new = "craft_ui::docking::WindowMenuRowsOutput"
+status = "replaced"
+note = "What `WindowMenuRows::show` reports: the action the picked row asks for."
+
+[[type]]
+name = "StackDividers"
+old = ""
+new = "craft_ui::docking::stack::StackDividers"
+status = "replaced"
+note = "The dividers between the open sections of an accordion; their drags come back as `StackDividersOutput::resized`, which `DockArea` sends as `Action::ResizeStack`."
+
+[[type]]
+name = "StackDividersOutput"
+old = ""
+new = "craft_ui::docking::stack::StackDividersOutput"
+status = "replaced"
+note = "What `StackDividers` reports."
+
+[[type]]
+name = "StackDividersStyle"
+old = ""
+new = "craft_ui::docking::stack::StackDividersStyle"
+status = "replaced"
+note = "The style of `StackDividers`."
