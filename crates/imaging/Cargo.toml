@@ -15,7 +15,7 @@ default = []
 # The editing widgets (`craft_imaging::ui`).
 ui = ["dep:craft-behavior", "dep:craft-ui", "dep:egui", "dep:kurbo"]
 # Screenshot and input tests of the widgets with egui_kittest (desktop only).
-screen-testing = ["ui", "craft-ui/screen-testing"]
+screen-testing = ["ui", "craft-ui/testing"]
 
 [dependencies]
 craft-behavior = { workspace = true, optional = true }
