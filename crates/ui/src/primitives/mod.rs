@@ -2,6 +2,7 @@
 
 mod content;
 mod draw;
+mod faces;
 mod focus_ring;
 pub(crate) mod glyph;
 mod handle;

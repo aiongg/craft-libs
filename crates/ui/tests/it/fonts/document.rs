@@ -6,8 +6,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use craft_behavior::Metrics;
-use craft_ui::contract::{Common, Component, Cx, MeasureCx, Props as _, Role, Show as _};
-use craft_ui::fonts::{self, DOCUMENT_FACES_PER_PASS, DocumentFaces, FaceBytes, FaceState, MAX_DOCUMENT_FACES};
+use craft_ui::contract::{Common, Component, Cx, FacesCx as _, MeasureCx, Props as _, Role, Show as _};
+use craft_ui::fonts::{self, DOCUMENT_FACES_PER_PASS, FaceBytes, FaceState, MAX_DOCUMENT_FACES};
 use craft_ui::style::{ComponentStyle, StyleCx};
 use craft_ui::testing::{Frames, trial};
 use egui::{FontDefinitions, Response, Vec2};
@@ -62,7 +62,7 @@ impl Component for Owner {
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         for key in &self.keys {
-            let state = DocumentFaces::face(cx, key, || {
+            let state = cx.document_face(key, || {
                 self.tally.loads.fetch_add(1, Ordering::Relaxed);
                 (!self.loads_fail).then(|| FaceBytes::new(Arc::from(FONT), 0))
             });

@@ -90,10 +90,3 @@ impl<'a> DocRun<'a> {
     }
 }
 
-impl crate::fonts::document::sealed::Sealed for ContentPainterCx<'_> {
-    fn context(&self) -> &egui::Context {
-        self.painter.ctx()
-    }
-}
-
-impl crate::fonts::FacesAt for ContentPainterCx<'_> {}

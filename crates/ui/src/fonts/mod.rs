@@ -8,7 +8,7 @@ pub(crate) mod script;
 pub(crate) mod system;
 
 pub use defaults::deflated_default_definitions;
-pub use document::{DOCUMENT_FACES_PER_PASS, DocumentFaces, FaceBytes, FaceState, FacesAt, MAX_DOCUMENT_FACES};
+pub use document::{DOCUMENT_FACES_PER_PASS, FaceBytes, FaceState, MAX_DOCUMENT_FACES};
 pub use faces::{FaceList, RegularWeight, set_weight};
 pub use on_demand::{FontCandidates, MAX_SCRIPT_READS, NoCandidates, OnDemandFonts, SystemCandidates, han_for_locale, on_demand_registered};
 pub use system::system_font_provider;

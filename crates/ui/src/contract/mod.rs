@@ -6,6 +6,7 @@ mod container;
 mod cx;
 pub(crate) mod editor;
 mod entry;
+mod faces;
 pub mod ghost;
 mod group;
 mod held;
@@ -48,6 +49,7 @@ pub use craft_ui_macros::{CommandSet, Component, Pattern, Props, register_contra
 pub(crate) use cx::SeenPress;
 pub use cx::{Accessible, Activation, BodyCx, Cx, CxCore, Edit, Focus, ItemCx, MeasureCx, PartBuilder, PartsCx, Pointer, Styled, WordSetCx};
 pub use entry::Entry;
+pub use faces::FacesCx;
 pub use group::{GroupHandle, GroupKind, GroupState};
 pub use items::{ColumnCommands, request_rename};
 pub(crate) use items::{lead_position, section_part};
