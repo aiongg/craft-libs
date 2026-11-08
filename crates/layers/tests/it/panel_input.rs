@@ -367,6 +367,8 @@ fn text_inputs(fixture: &Fixture) -> usize {
 }
 
 /// Seconds between two separate double clicks: longer than the interval in which presses count as one multi-click.
+/// The advance models the user's pause between two renames; the 3rd and 4th click of an unbroken chain are a triple
+/// click and begin no rename (Finder, Photoshop).
 const BETWEEN_DOUBLE_CLICKS: f64 = 1.0;
 
 /// Opens the rename field of `name` by a double click on it, a while after the last click.

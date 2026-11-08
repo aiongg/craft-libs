@@ -14,7 +14,7 @@ use craft_docpath::Refused;
 use craft_docpath::links::{FakeLinkFiles, Link, LinkIdentity, LinkStatus, identity_of};
 use craft_host::{Jobs, ManualJobs};
 use craft_ui::contract::{Bind, Show as _};
-use craft_ui::dialog::{Dialog, DialogStack, StackDialog as _};
+use craft_ui::dialog::{DialogStack, StackDialog as _};
 use craft_ui::display::Text;
 use craft_ui::list::ThumbSize;
 use craft_ui::primitives::textures::{FakeThumbSource, ThumbnailOptions, Thumbnails};
@@ -158,17 +158,17 @@ fn dialog_story(ui: &mut Ui, data: &mut StoryData, search: bool, finish: bool) -
     StoryOutput::default()
 }
 
-#[story(Dialog<'static>, covers = [], drive = Drive::Never)]
+#[story(RelinkDialog<u32>, covers = [], drive = Drive::Never)]
 fn relink_dialog_before_search(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     dialog_story(ui, data, false, false)
 }
 
-#[story(Dialog<'static>, covers = [], drive = Drive::Never)]
+#[story(RelinkDialog<u32>, covers = [], drive = Drive::Never)]
 fn relink_dialog_searching(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     dialog_story(ui, data, true, false)
 }
 
-#[story(Dialog<'static>, covers = [], drive = Drive::Never)]
+#[story(RelinkDialog<u32>, covers = [], drive = Drive::Never)]
 fn relink_dialog_with_candidates(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     dialog_story(ui, data, true, true)
 }

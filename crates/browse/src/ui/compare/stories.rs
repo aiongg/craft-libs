@@ -4,9 +4,10 @@ use craft_theme::Srgba;
 use craft_ui::contract::Bind;
 use craft_ui::patterns::form_dialogs::PreviewView;
 use craft_ui::primitives::textures::Revision;
+use craft_ui::runtime::env::Env;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use craft_ui::tile_grid::TileFlag;
-use egui::{ColorImage, Rect, Ui, Vec2, pos2, vec2};
+use egui::{ColorImage, Rect, Sense, Ui, Vec2, pos2, vec2};
 
 use super::{ArrangeSpace, CompareCaption, CompareImage, ComparePair, CompareTile, RenderState, survey_columns};
 
@@ -38,12 +39,19 @@ fn caption(label: &str, name: &str) -> CompareCaption {
     CompareCaption::new(label, name).rating(Some(4)).flag(Some(TileFlag::Picked)).label_color(Some(Srgba::rgb(0.86, 0.31, 0.24)))
 }
 
+/// The room the story fills, taken from the parent so the tiles placed in it are inside what the story allocated.
+fn area(ui: &mut Ui) -> Rect {
+    let size = ui.available_size();
+    ui.allocate_exact_size(size, Sense::hover()).0
+}
+
 #[story(CompareTile<'static>, covers = [Default], drive = Drive::Never)]
 fn compare_pair(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let mut active = *data.value("active", 0usize);
     let view = data.value("view", PreviewView::fitting());
-    let area = ui.max_rect();
-    let [left, right] = ComparePair::new(ArrangeSpace::new(18.0, 16.0)).rects(area);
+    let area = area(ui);
+    let rtl = Env::of(ui).direction().is_rtl();
+    let [left, right] = ComparePair::new(ArrangeSpace::new(18.0, 16.0)).rtl(rtl).rects(area);
     let select =
         CompareTile::new("Select", Bind::bound(view), image(1, 0.58)).caption(caption("Select", "IMG_0001.jpg")).active(active == 0).place(ui, left);
     if select.clicked {
@@ -64,7 +72,8 @@ fn compare_pair(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(CompareTile<'static>, covers = [LongText], drive = Drive::Never)]
 fn compare_tile_narrow(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let view = data.value("view", PreviewView::fitting());
-    let rect = Rect::from_min_size(ui.max_rect().min, Vec2::splat(ui.max_rect().width() * NARROW_SHARE));
+    let room = area(ui);
+    let rect = Rect::from_min_size(room.min, Vec2::splat(room.width() * NARROW_SHARE));
     CompareTile::new("Select", Bind::bound(view), image(1, 0.58))
         .caption(caption("Select", "A_file_name_much_longer_than_the_tile.jpeg"))
         .place(ui, rect)
@@ -74,20 +83,22 @@ fn compare_tile_narrow(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(CompareTile<'static>, covers = [], drive = Drive::Never)]
 fn compare_tile_pending(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let view = data.value("view", PreviewView::fitting());
+    let room = area(ui);
     CompareTile::new("Candidate", Bind::bound(view), image(2, 0.08))
         .caption(caption("Candidate", "IMG_0002.jpg"))
         .state(RenderState::Pending(true))
-        .place(ui, ui.max_rect())
+        .place(ui, room)
         .into()
 }
 
 #[story(CompareTile<'static>, covers = [], drive = Drive::Never)]
 fn compare_tile_failed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let view = data.value("view", PreviewView::fitting());
+    let room = area(ui);
     CompareTile::new("Candidate", Bind::bound(view), CompareImage::None)
         .caption(CompareCaption::new("Candidate", "IMG_0002.jpg"))
         .state(RenderState::Failed("The renderer stopped".into()))
-        .place(ui, ui.max_rect())
+        .place(ui, room)
         .into()
 }
 
@@ -97,7 +108,7 @@ fn compare_survey(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     const COUNT: usize = 12;
     const ASPECT: f32 = 1.5;
     let view = data.value("view", PreviewView::fitting());
-    let area = ui.max_rect();
+    let area = area(ui);
     let columns = survey_columns(COUNT, area, ASPECT);
     let rows = COUNT.div_ceil(columns);
     let cell = vec2(area.width() / columns as f32, area.height() / rows as f32);

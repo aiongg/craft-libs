@@ -154,9 +154,10 @@ impl CellGrid<'_> {
         let column_key = cx.take_claimed(COLUMN_KEY);
         let row_key = cx.take_claimed(ROW_KEY);
         let inputs: Vec<EditorInput> = cx.editor_input().collect();
-        // End mode (Excel): a bare End toggles it in Ready mode. The key stage hands the bare End to a grid that
-        // declares `EndKey::EndMode` as a claimed chord; in an edit it moves the caret.
-        let end_mode_key = end && state.mode == Mode::Ready;
+        // End mode (Excel): a bare End toggles it in Ready mode and while pointing at a reference. The key stage hands
+        // the bare End to a grid that declares `EndKey::EndMode` as a claimed chord; in an edit it moves the caret.
+        let end_mode_allowed = state.mode == Mode::Ready || state.pointing();
+        let end_mode_key = end && end_mode_allowed;
         // Any key other than an arrow or End, and any press, ends the mode.
         let other_key = escape
             || advance.is_some()
@@ -169,7 +170,7 @@ impl CellGrid<'_> {
             || column_key
             || row_key
             || !inputs.is_empty();
-        let armed = state.mode == Mode::Ready && state.end_mode;
+        let armed = end_mode_allowed && state.end_mode;
         state.end_mode = if end_mode_key { !armed } else { armed && arrows.is_empty() && !other_key && !cx.press().went_down };
 
         let mut deferred = Vec::new();
@@ -218,7 +219,12 @@ impl CellGrid<'_> {
                 };
                 if pointing {
                     let at = state.point.as_ref().map(|point| CellAt::new(point.range.last, point.range.lead_column)).or(state.cell);
-                    if let Some(next) = at.and_then(|at| space.neighbour(at, direction)) {
+                    let next = match at {
+                        Some(at) if jump || armed => Some(model.data_edge(at, direction)),
+                        Some(at) => space.neighbour(at, direction),
+                        None => None,
+                    };
+                    if let Some(next) = next {
                         state.point_to(next, shift);
                     }
                 } else if state.mode == Mode::Edit {
