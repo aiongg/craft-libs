@@ -3,7 +3,7 @@
 use std::cell::RefCell;
 
 use craft_theme::Srgba;
-use craft_ui::contract::{Bind, ShowContainer as _, Sizing};
+use craft_ui::contract::{Bind, ShowContainer as _};
 use craft_ui::layout_components::Row;
 use craft_ui::patterns::form_dialogs::PreviewView;
 use craft_ui::primitives::textures::Revision;
@@ -46,7 +46,7 @@ fn caption(label: &str, name: &str) -> CompareCaption {
 /// tiles are placed in.
 fn filling(ui: &mut Ui, content: impl FnOnce(&mut Ui, Rect) -> StoryOutput) -> StoryOutput {
     let content = RefCell::new(Some(content));
-    let shown = Row::new().sizing(Sizing::Fill).show(ui, |ui, body| content.borrow_mut().take().map(|content| content(ui, body.rect)));
+    let shown = Row::new().fill().show(ui, |ui, body| content.borrow_mut().take().map(|content| content(ui, body.rect)));
     shown.inner.flatten().unwrap_or_default()
 }
 
