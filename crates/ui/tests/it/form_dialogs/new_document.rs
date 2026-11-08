@@ -8,6 +8,7 @@ use craft_ui::patterns::form_dialogs::{
 };
 use craft_ui::runtime::env::{Env, UnitKind};
 use craft_ui::testing::{Fixture, Target, trial};
+use egui::Vec2;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -21,6 +22,8 @@ const SIDE: u32 = 10;
 const PRINT_PPI: f64 = 600.0;
 /// The resolution a screen card is asked to open at, in pixels per inch.
 const SCREEN_PPI: f64 = 96.0;
+/// The room of an app window the dialog opens in: wide and tall enough for the cards beside the whole details column.
+const WINDOW: Vec2 = Vec2::new(1100.0, 900.0);
 
 fn recent(width: u32, name: &str) -> DocumentOptions {
     let mut options = DocumentOptions::default();
@@ -111,6 +114,7 @@ fn rig() -> Rig {
             done.set(true);
         }
     });
+    fixture.room(WINDOW);
     fixture.settle();
     Rig { fixture, options, created, closed }
 }
@@ -211,15 +215,14 @@ fn enter_in_the_preset_name_saves_without_creating() {
     assert!(named(&fixture, "My size").is_some(), "the preset is listed under Saved");
 }
 
-/// A name that differs from a saved one only in case is refused by the library's name check: the row stays open and the
-/// list keeps one preset.
+/// A name that differs from a saved one only in case is refused by the library's name check: the row stays open and
+/// the list keeps the one preset.
 #[trial]
 fn a_preset_name_that_differs_only_in_case_is_refused() {
     let Rig { mut fixture, .. } = rig();
     save_preset_as(&mut fixture, "Poster");
+    assert!(named(&fixture, "Poster").is_some(), "the first preset is listed");
     save_preset_as(&mut fixture, "poster");
-    assert!(fixture.by_label("Save").is_some(), "the refused name leaves the Save Preset row open");
-    let tree = fixture.tree();
-    let listed = tree.keys().into_iter().filter(|key| tree.name_of(*key).is_some_and(|name| name.to_lowercase().starts_with("poster"))).count();
-    assert_eq!(listed, 1, "one Poster is listed");
+    assert!(named(&fixture, "poster").is_none(), "the same name in another case is not saved");
+    assert!(fixture.by_label("Preset Name").is_some(), "the refused name leaves the Save Preset row open");
 }
