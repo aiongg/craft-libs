@@ -86,7 +86,7 @@ fn a_scroll_bar_part_keeps_its_emit_order_after_the_body() {
     let (slab, rows) = (slab.expect("shown"), seen.each_ref().map(|seen| seen.borrow().id.expect("updated")));
     let slab = NodeKey::of(slab);
     let children = tree.children_of(slab);
-    let region = |id: &Id| child_holding(tree, NodeKey::of(*id), slab);
+    let region = |id: &Id| child_holding(&tree, NodeKey::of(*id), slab);
     let body = region(&rows[0]).expect("the first row is below the container");
     assert!(rows.iter().all(|id| region(id) == Some(body)), "every row is in the body's region");
     let holder = tree.parent_of_key(NodeKey::of(rows[0])).expect("the first row has a parent");

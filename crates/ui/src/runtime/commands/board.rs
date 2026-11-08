@@ -422,14 +422,6 @@ pub(crate) fn publish(ctx: &Context, chain: &CommandChain, command: &CommandRef,
             let number = board.number(&command.id);
             // The pass that publishes is the one that knows the layers around the caller.
             let in_modal = chain.ids().any(|id| board.modal_roots.iter().any(|(_, root)| *root == id));
-            eprintln!(
-                "DIAG publish {} instance={:?} chain={:?} roots={:?} in_modal={}",
-                command.id,
-                instance,
-                chain.ids().collect::<Vec<_>>(),
-                board.modal_roots,
-                in_modal
-            );
             if in_modal {
                 board.modal_published.insert((number, Some(instance)));
             }
