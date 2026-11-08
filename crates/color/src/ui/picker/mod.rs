@@ -21,6 +21,7 @@ use craft_ui::contract::{
     ShowContainer, Sizing,
 };
 use craft_ui::layout::BodyLayout;
+use craft_ui::runtime::env::Label;
 use craft_ui::runtime::focus::{self, FocusTarget};
 use craft_ui::style::{ComponentStyle, StyleCx};
 use egui::{Id, Pos2, Response, Ui};
@@ -186,25 +187,25 @@ struct Events {
 
 /// What `update` settled for the body: the colour shown and the rules its edits go through.
 #[derive(Clone)]
-pub(super) struct Pass<'a> {
-    pub shown: PickedColor,
-    pub rules: Rules<'a>,
-    pub mode: AreaMode,
+struct Pass<'a> {
+    shown: PickedColor,
+    rules: Rules<'a>,
+    mode: AreaMode,
     /// The model of the Compact rows.
-    pub model: Option<&'static str>,
+    model: Option<&'static str>,
     /// Only Web Colors, as the host holds it.
-    pub web: bool,
+    web: bool,
     /// The id the hex field is shown under, which the first show of the layout focuses.
-    pub hex: Id,
+    hex: Id,
 }
 
 /// A child's edit, ready to be adopted as the picker's own once `paint_over` has the picker's context.
-type Adopt<'a> = Box<dyn FnOnce(&Cx<'_, ColorPicker<'a>>) + 'a>;
+type Adopt<'a> = Box<dyn FnOnce(&Cx<'_, PickerFrame<'a>>) + 'a>;
 
 /// What the container and its body closure share within one `show`: the container's `update` fills the pass, the
 /// body reads it and leaves what the children reported.
 #[derive(Default)]
-pub(super) struct Shared<'a> {
+struct Shared<'a> {
     pass: RefCell<Option<Pass<'a>>>,
     adopts: RefCell<Vec<Adopt<'a>>>,
     events: RefCell<Events>,
@@ -212,16 +213,16 @@ pub(super) struct Shared<'a> {
 
 impl<'a> Shared<'a> {
     /// The pass `update` settled; `None` when no pass ran `update`.
-    pub(super) fn pass(&self) -> Option<Pass<'a>> {
+    fn pass(&self) -> Option<Pass<'a>> {
         self.pass.borrow().clone()
     }
 
     /// Adopts `edit` of a child as an edit of the picker's colour, `map` applying it to the colour shown.
-    pub(super) fn adopt<V: Value>(&self, edit: EditResponse<V>, shown: PickedColor, map: impl FnOnce(&V, &mut PickedColor) + 'a) {
+    fn adopt<V: Value>(&self, edit: EditResponse<V>, shown: PickedColor, map: impl FnOnce(&V, &mut PickedColor) + 'a) {
         self.adopts.borrow_mut().push(Box::new(move |cx| cx.adopt(&edit, &shown, map)));
     }
 
-    pub(super) fn events(&self) -> std::cell::RefMut<'_, Events> {
+    fn events(&self) -> std::cell::RefMut<'_, Events> {
         self.events.borrow_mut()
     }
 }
@@ -251,13 +252,9 @@ impl<'a> Shared<'a> {
 /// AccessKit: a `Group` named by the label; channel fields and sliders are named by the channel's name ("Hue"), or
 /// `<model> <channel>` ("OKLCH hue") while another shown model has a channel of that name.
 #[must_use = "show the picker with `show`"]
-#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
-#[component(container)]
+#[derive(craft_ui::contract::Pattern, craft_ui::contract::Props)]
 pub struct ColorPicker<'a> {
-    #[common]
-    common: Common,
-    #[container]
-    props: ContainerProps,
+    label: Label,
     value: Bind<'a, PickedColor>,
     /// The layout; Compact by default.
     #[prop]
@@ -296,16 +293,13 @@ pub struct ColorPicker<'a> {
     /// Whether the Full layout focuses its hex field when it first shows; on by default.
     #[prop]
     focus_on_open: bool,
-    rules: Rules<'a>,
-    shared: Rc<Shared<'a>>,
 }
 
 impl<'a> ColorPicker<'a> {
     /// A picker named `label` editing `value`.
     pub fn new(label: impl Into<craft_ui::runtime::env::Label>, value: Bind<'a, PickedColor>) -> Self {
         ColorPicker {
-            common: Common::new(),
-            props: ContainerProps::new().sizing(Sizing::Content).layout(BodyLayout::stack()),
+            label: label.into(),
             value,
             layout: ColorPickerLayout::default(),
             models: None,
@@ -320,10 +314,7 @@ impl<'a> ColorPicker<'a> {
             constrain: None,
             sampled: None,
             focus_on_open: true,
-            rules: Rules { web: false, constrain: None },
-            shared: Rc::default(),
         }
-        .label(label)
     }
 
     /// Every key a picker offering `models` may ask the host's catalogue for, each once: the area's names
@@ -358,14 +349,6 @@ impl<'a> ColorPicker<'a> {
         self
     }
 
-    /// The models shown: the host's, or the built-in models on in the layout.
-    fn models_list(&self) -> Vec<&'a dyn ColorModel> {
-        let full = self.layout == ColorPickerLayout::Full;
-        self.models
-            .clone()
-            .unwrap_or_else(|| builtin_models().into_iter().filter(|m| if full { m.default_on().full } else { m.default_on().compact }).collect())
-    }
-
     /// The modes the Full layout's radios offer.
     pub(super) fn offered(models: &[&dyn ColorModel]) -> Vec<AreaMode> {
         AreaMode::PHOTOSHOP.into_iter().chain(AreaMode::OKLCH).filter(|mode| models.iter().any(|m| m.id() == mode.model().id())).collect()
@@ -374,24 +357,80 @@ impl<'a> ColorPicker<'a> {
 
 impl<'a> ColorPicker<'a> {
     /// Shows the picker.
-    pub fn show(mut self, ui: &mut Ui) -> ColorPickerOutput {
+    pub fn show(self, ui: &mut Ui) -> ColorPickerOutput {
+        let ColorPicker {
+            label,
+            value,
+            layout,
+            models,
+            mode,
+            web_colors,
+            alpha,
+            dynamic_tracks,
+            eyedropper,
+            eyedropper_busy,
+            compare,
+            warnings,
+            constrain,
+            sampled,
+            focus_on_open,
+        } = self;
+        let full = layout == ColorPickerLayout::Full;
+        let models: Vec<&'a dyn ColorModel> = models
+            .unwrap_or_else(|| builtin_models().into_iter().filter(|m| if full { m.default_on().full } else { m.default_on().compact }).collect());
+        let shared = Rc::new(Shared::default());
         let body = compact::Body {
-            layout: self.layout,
-            models: self.models_list(),
-            warnings: std::mem::take(&mut self.warnings),
-            compare: self.compare,
-            alpha: self.alpha,
-            dynamic_tracks: self.dynamic_tracks,
-            eyedropper: self.eyedropper,
-            eyedropper_busy: self.eyedropper_busy,
-            has_web_check: self.web_colors.is_some(),
-            shared: Rc::clone(&self.shared),
+            layout,
+            models: models.clone(),
+            warnings,
+            compare,
+            alpha,
+            dynamic_tracks,
+            eyedropper,
+            eyedropper_busy,
+            has_web_check: web_colors.is_some(),
+            shared: Rc::clone(&shared),
         };
-        ShowContainer::show(self, ui, move |ui, _| body.run(ui)).output
+        let frame = PickerFrame {
+            common: Common::new(),
+            props: ContainerProps::new().sizing(Sizing::Content).layout(BodyLayout::stack()),
+            value,
+            layout,
+            models,
+            mode,
+            web_colors,
+            constrain,
+            sampled,
+            focus_on_open,
+            rules: Rules { web: false, constrain: None },
+            shared,
+        }
+        .label(label);
+        ShowContainer::show(frame, ui, move |ui, _| body.run(ui)).output
     }
 }
 
-impl<'a> Component for ColorPicker<'a> {
+/// The container behind [`ColorPicker`]: it holds the colour, runs the pass's rules and adopts the children's edits.
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
+#[component(container)]
+struct PickerFrame<'a> {
+    #[common]
+    common: Common,
+    #[container]
+    props: ContainerProps,
+    value: Bind<'a, PickedColor>,
+    layout: ColorPickerLayout,
+    models: Vec<&'a dyn ColorModel>,
+    mode: Option<Bind<'a, AreaMode>>,
+    web_colors: Option<Bind<'a, bool>>,
+    constrain: Option<ColorConstraint<'a>>,
+    sampled: Option<Srgba>,
+    focus_on_open: bool,
+    rules: Rules<'a>,
+    shared: Rc<Shared<'a>>,
+}
+
+impl<'a> Component for PickerFrame<'a> {
     const ROLE: Role = Role::GROUP;
     const PARTS: bool = false;
     const STOPS: bool = false;
@@ -399,7 +438,7 @@ impl<'a> Component for ColorPicker<'a> {
     type Style = ColorPickerStyle;
     type Output = ColorPickerOutput;
 
-    fn style(_: &StyleCx<'_>, _: ColorPickerStyleKey) -> ColorPickerStyle {
+    fn style(_: &StyleCx<'_>, _: PickerFrameStyleKey) -> ColorPickerStyle {
         ColorPickerStyle::default()
     }
 
@@ -413,7 +452,7 @@ impl<'a> Component for ColorPicker<'a> {
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let full = self.layout == ColorPickerLayout::Full;
-        let models = self.models_list();
+        let models = self.models.clone();
         let memo = cx.memory::<Memo>().clone();
         let held_mode = self.mode.as_mut().and_then(|mode| mode.reborrow().read(&mut *cx)).and_then(|mode| mode.same().copied());
         let mut mode = held_mode.unwrap_or(memo.mode);
@@ -422,7 +461,7 @@ impl<'a> Component for ColorPicker<'a> {
 
         // The Full layout shows a mode its models offer.
         if full {
-            let offered = Self::offered(&models);
+            let offered = ColorPicker::offered(&models);
             let wanted = offered.first().copied().filter(|first| !offered.contains(&mode) && *first != mode);
             if let Some(next) = wanted {
                 if let Some(held) = self.mode.as_mut() {
@@ -496,4 +535,4 @@ impl<'a> Component for ColorPicker<'a> {
     }
 }
 
-impl Container for ColorPicker<'_> {}
+impl Container for PickerFrame<'_> {}
