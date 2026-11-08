@@ -417,11 +417,11 @@ fn a_newer_release_opens_the_prompt_and_later_closes_it() {
     u.settle_for_tests(fixture.ctx());
     assert!(u.prompt_open());
     assert_eq!(u.status(), &Status::Idle);
-    assert_eq!(u.show(&mut dialogs.borrow_mut(), true), Action::None);
+    assert_eq!(u.run(&mut dialogs.borrow_mut(), true), Action::None);
     fixture.idle(3);
     assert!(dialogs.borrow().is_open::<UpdatePromptDialog>(), "the prompt is on the host");
     click(&mut fixture, "Later");
-    assert_eq!(u.show(&mut dialogs.borrow_mut(), true), Action::None);
+    assert_eq!(u.run(&mut dialogs.borrow_mut(), true), Action::None);
     assert!(!u.prompt_open());
     fixture.idle(3);
     assert!(!dialogs.borrow().is_open::<UpdatePromptDialog>());
@@ -518,7 +518,7 @@ fn the_updaters_own_failures_are_translated_and_the_installers_are_not() {
 fn nothing_starts_once_an_update_is_installed() {
     let mut u = updater(Ok(Some(newer())));
     install_ends(&mut u, TestInstall::Done);
-    assert_eq!(u.show(&mut DialogHost::new(), true), Action::Close);
+    assert_eq!(u.run(&mut DialogHost::new(), true), Action::Close);
     u.check_now();
     assert_eq!(u.status(), &Status::Idle, "no check after an install");
     u.offer(newer());
@@ -533,10 +533,10 @@ fn an_install_waits_while_the_app_holds_unsaved_work() {
     u.request_install(false);
     assert!(!u.is_installing(), "nothing is scheduled while there is unsaved work");
     assert!(u.status_message().is_some());
-    u.show(&mut dialogs.borrow_mut(), false);
+    u.run(&mut dialogs.borrow_mut(), false);
     fixture.idle(3);
     click(&mut fixture, "Later");
-    u.show(&mut dialogs.borrow_mut(), false);
+    u.run(&mut dialogs.borrow_mut(), false);
     assert!(!u.prompt_open());
     assert!(u.request_install(false), "a release the updater knows of needs no open prompt");
     assert!(!updater(Ok(None)).request_install(true), "no known release reports false");
@@ -584,9 +584,9 @@ fn a_finished_install_keeps_asking_to_close_until_the_app_can() {
     u.offer(newer());
     install_ends(&mut u, TestInstall::Done);
     let mut dialogs = DialogHost::new();
-    assert_eq!(u.show(&mut dialogs, false), Action::None, "unsaved work holds the close back");
-    assert_eq!(u.show(&mut dialogs, true), Action::Close);
-    assert_eq!(u.show(&mut dialogs, true), Action::None);
+    assert_eq!(u.run(&mut dialogs, false), Action::None, "unsaved work holds the close back");
+    assert_eq!(u.run(&mut dialogs, true), Action::Close);
+    assert_eq!(u.run(&mut dialogs, true), Action::None);
 }
 
 #[trial]
@@ -603,8 +603,8 @@ fn a_finished_install_asks_the_app_to_close_once() {
     let mut u = updater(Ok(None));
     install_ends(&mut u, TestInstall::Done);
     let mut dialogs = DialogHost::new();
-    assert_eq!(u.show(&mut dialogs, true), Action::Close);
-    assert_eq!(u.show(&mut dialogs, true), Action::None);
+    assert_eq!(u.run(&mut dialogs, true), Action::Close);
+    assert_eq!(u.run(&mut dialogs, true), Action::None);
 }
 
 /// A version-choice file holding `track` for PhotoCraft.

@@ -7,7 +7,7 @@ use std::sync::OnceLock;
 
 use craft_theme::variant::Tone;
 use craft_ui::buttons::Link;
-use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::dialog::{Dialog, DialogId, DialogOutput, DialogResult, DialogStack, StackDialog, dialog_id};
 use craft_ui::display::{Picture, PictureSize, Shade, Spinner, Text};
 use craft_ui::layout_components::{Row, Stack};
@@ -61,6 +61,7 @@ craft_ui::words! {
 
 /// What the user chose in the update prompt.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum UpdateChoice {
     /// Update and Restart: the default where the app can update itself.
     UpdateAndRestart,
@@ -259,6 +260,7 @@ impl StackDialog for UpdatePromptDialog {
 
 /// What the user chose in the check-result dialog.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum CheckChoice {
     /// Close the dialog.
     Close,

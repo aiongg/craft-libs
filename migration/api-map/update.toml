@@ -76,14 +76,14 @@ note = "The updater holds its prompt as data and puts it on the app's `DialogHos
 [[setter]]
 type = "Updater"
 old = "show(ctx)"
-new = "show(&mut DialogHost, can_start) -> Action"
+new = "run(&mut DialogHost, can_start) -> Action"
 note = "Enqueues the prompt at `StartupStage::Update` when one is due, feeds the open one the install's progress and maps its `UpdateChoice` to an `Action`. Call it before `DialogHost::run`."
 
 [[setter]]
 type = "Updater"
 old = "show_if(ctx, can_start)"
-new = "show(&mut DialogHost, can_start) -> Action"
-note = "`show` takes `can_start`."
+new = "run(&mut DialogHost, can_start) -> Action"
+note = "`run` takes `can_start`; `show` is a contract entry-point name, so the updater's method is `run` like `DialogHost::run`."
 
 [[setter]]
 type = "Updater"

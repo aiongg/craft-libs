@@ -49,6 +49,7 @@ pub use time::parse_rfc3339;
 pub use version::{Version, is_newer, parse as parse_version};
 
 #[cfg(feature = "screen-testing")]
+/// The registrations of this package for the integration binary.
 pub mod testing {
     craft_ui::testing_registered!();
 }

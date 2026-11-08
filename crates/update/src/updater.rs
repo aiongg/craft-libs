@@ -1,6 +1,6 @@
 //! The update flow of an egui app in one place: a check at start or on request, the startup prompt,
 //! and the self-update worker. An app creates one [`Updater`], calls [`Updater::tick`] and
-//! [`Updater::show`] each frame before it runs its `DialogHost`, and acts on the [`Action`] it returns,
+//! [`Updater::run`] each frame before it runs its `DialogHost`, and acts on the [`Action`] it returns,
 //! so every app gets the same handling of failures, dropped workers, repaints and quitting.
 //!
 //! An app the launcher keeps on another version (see [`crate::pins`]) offers nothing itself: the
@@ -26,6 +26,7 @@ pub type CheckSource = Arc<dyn Fn() -> Result<Option<Release>, String> + Send + 
 
 /// What a requested check came to, for a window that answers Help ▸ Check for Updates.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Status {
     /// Nothing to report.
     Idle,
@@ -37,8 +38,9 @@ pub enum Status {
     Failed(String),
 }
 
-/// What the app should do after [`Updater::show`].
+/// What the app should do after [`Updater::run`].
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Action {
     /// Nothing for the app to do this frame.
     None,
@@ -86,6 +88,7 @@ impl Offer {
 /// How an installation ends in [`Updater::finish_install_for_tests`].
 #[cfg(feature = "screen-testing")]
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TestInstall {
     /// The installer succeeds.
     Done,
@@ -199,7 +202,7 @@ impl Updater {
         Note::new("The update is installed. Close {app} to finish; it restarts by itself.", &[("app", self.app.name)])
     }
 
-    /// Drops the prompt; one already on the host is withdrawn on a later [`Updater::show`].
+    /// Drops the prompt; one already on the host is withdrawn on a later [`Updater::run`].
     fn drop_prompt(&mut self) {
         if self.prompt.take().is_some_and(|offer| offer.shown) {
             self.stale = true;
@@ -355,7 +358,7 @@ impl Updater {
         }
     }
 
-    /// Picks up a finished check or installation. Call once per frame, before [`Self::show`]. It
+    /// Picks up a finished check or installation. Call once per frame, before [`Self::run`]. It
     /// asks for the next pass every [`POLL_SECONDS`] while either is running.
     pub fn tick(&mut self, ctx: &egui::Context) {
         if let Some(rx) = &self.check {
@@ -416,7 +419,7 @@ impl Updater {
 
     /// Whether the app should close now so the installed update can restart it, without showing
     /// the startup prompt (a host that shows the progress in its own dialog calls this instead of
-    /// [`show`](Self::show)). True once per finished install, and only with `can_start`
+    /// [`run`](Self::run)). True once per finished install, and only with `can_start`
     /// true: while the app holds unsaved work the close waits and is asked again.
     pub fn take_close(&mut self, can_start: bool) -> bool {
         let close = self.restart && can_start;
@@ -431,7 +434,7 @@ impl Updater {
     /// an app passes `false` while it holds unsaved work, because the restart helper is scheduled before the app
     /// closes, and a close that the user then cancels would leave it waiting for an exit that never comes. The app
     /// calls this before `DialogHost::run`.
-    pub fn show(&mut self, dialogs: &mut DialogHost, can_start: bool) -> Action {
+    pub fn run(&mut self, dialogs: &mut DialogHost, can_start: bool) -> Action {
         // The close waits for the app to hold no unsaved work: the user may have edited while the
         // update installed, and a close they cancel is asked again once the work is saved.
         if self.take_close(can_start) {
@@ -493,7 +496,7 @@ impl Updater {
     /// happens. With `can_start` false (the app holds unsaved work) nothing starts and
     /// [`status_message`](Self::status_message) asks the user to save first. Progress and failures
     /// show through [`is_installing`](Self::is_installing) and `status_message`, and a finished
-    /// install ends in [`Action::Close`] from [`show`](Self::show).
+    /// install ends in [`Action::Close`] from [`run`](Self::run).
     pub fn request_install(&mut self, can_start: bool) -> bool {
         if self.prompt.is_none()
             && let Some(release) = self.known.clone()
@@ -559,9 +562,11 @@ impl Updater {
 
     /// Ticks until the running check has reported (tests).
     pub fn settle_for_tests(&mut self, ctx: &egui::Context) {
-        use std::time::{Duration, Instant};
-        let deadline = Instant::now() + Duration::from_secs(10);
-        while self.check.is_some() && Instant::now() < deadline {
+        use std::time::Duration;
+        for _ in 0..2000 {
+            if self.check.is_none() {
+                break;
+            }
             self.tick(ctx);
             std::thread::sleep(Duration::from_millis(5));
         }
