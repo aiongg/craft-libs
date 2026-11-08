@@ -75,6 +75,7 @@ fn a_tab_arrival_is_a_key_arrival_and_a_press_arrival_is_not() {
     let at: Pos2 = Pos2::new(rect.max.x - 5.0, rect.center().y);
     seen.borrow_mut().clear();
     frames.frame(vec![Event::PointerMoved(at), craft_ui::testing::focus::primary_button(at, true)], &mut show);
+    frames.frame(vec![], &mut show);
     let press = seen.borrow().clone();
     assert!(!press.is_empty() && press.iter().all(|(_, by_key)| by_key.is_none()), "a press reports no key arrival: {press:?}");
     assert!(press.iter().any(|(any, _)| *any == Some(PartRef::from(RIGHT))), "the press still moved focus onto the part: {press:?}");
