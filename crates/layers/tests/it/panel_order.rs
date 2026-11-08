@@ -8,7 +8,7 @@ use craft_layers::ui::panel::{LayerDrop, LayerPosition, LayersEvent, LayersFoote
 use craft_layers::ui::tree::{
     LayerInfo, LayerKind, LayerPart, LayerProperties, LayerRowKey, LayerSelection, LayerTree, LayersFooterState, SubRowGroup, SubRows,
 };
-use craft_ui::contract::{Bind, Entry, Props as _, ReorderMove};
+use craft_ui::contract::{Bind, Entry, ReorderMove};
 use craft_ui::testing::{Fixture, Target, layout, pointer, trial};
 use egui::{Modifiers, Pos2, Rect, Vec2};
 use std::cell::RefCell;
@@ -524,9 +524,11 @@ fn footer_buttons_refuse_a_drag_from_another_list() {
     let mut fixture = Fixture::new(move |ui| {
         for (at, sink) in sinks.iter().enumerate() {
             let left = Pos2::new(400.0 * at as f32, 0.0);
-            layout::in_region(ui, Rect::from_min_size(left, ONE_PANEL), |ui| {
-                let out = LayersPanel::new(&tree).id_salt(at).show(ui);
-                sink.borrow_mut().extend(out.events);
+            ui.push_id(at, |ui| {
+                layout::in_region(ui, Rect::from_min_size(left, ONE_PANEL), |ui| {
+                    let out = LayersPanel::new(&tree).show(ui);
+                    sink.borrow_mut().extend(out.events);
+                });
             });
         }
     });
