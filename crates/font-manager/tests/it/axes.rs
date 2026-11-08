@@ -6,12 +6,14 @@ use std::rc::Rc;
 use craft_behavior::EditEvent;
 use craft_font_manager::axes::{AxisSliders, AxisValues, FontAxis, NamedInstance, axis_label, matching_instance, read_axes, read_named_instances};
 use craft_ui::contract::{Bind, Role};
-use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers};
+use egui::Vec2;
 
-/// The weight one arrow press above the default, on an axis wide enough to step by whole units.
-const ONE_UNIT_UP: f32 = 401.0;
+/// A rightward drag along the slider, in points: short enough to stay on the track.
+const DRAG_BY: f32 = 40.0;
+
+/// The Weight the sliders start at in the drag trial.
+const START_WEIGHT: f32 = 400.0;
 
 const WGHT: [u8; 4] = *b"wght";
 const WDTH: [u8; 4] = *b"wdth";
@@ -136,20 +138,27 @@ fn rig(values: AxisValues, drawn: Option<(f32, bool)>) -> (Fixture, Rc<RefCell<S
     (fixture, state)
 }
 
-/// A key step on the Weight slider is one edit of the values; picking an instance sets every axis in one edit, and
-/// hidden axes get no slider.
+/// A drag on the Weight slider previews while it runs and commits once, after every preview; picking an instance sets
+/// every axis in one edit, and hidden axes get no slider.
 #[trial]
 fn slider_drag_is_one_edit_and_instance_sets_all_axes() {
-    let (mut fixture, state) = rig(vec![(WGHT, 400.0)], None);
+    let (mut fixture, state) = rig(vec![(WGHT, START_WEIGHT)], None);
     let sliders = fixture.by_role(Role::SLIDER);
     assert_eq!(sliders.len(), 2, "the hidden axis has no row");
 
-    fixture.access(AccessActionKind::Focus, &sliders[0]);
-    fixture.key(Key::ArrowRight, Modifiers::NONE);
+    fixture.drag(&sliders[0], Vec2::new(DRAG_BY, 0.0));
     fixture.idle(3);
-    let weight = state.borrow().values.iter().find(|(t, _)| *t == WGHT).map(|v| v.1);
-    assert_eq!(weight, Some(ONE_UNIT_UP), "whole units on a wide axis");
-    assert!(state.borrow().edits.iter().any(|e| e.value().is_some_and(|v| v.contains(&(WGHT, ONE_UNIT_UP)))));
+    {
+        let state = state.borrow();
+        assert!(matches!(state.edits.first(), Some(EditEvent::Begin { .. })), "the gesture begins first: {:?}", state.edits);
+        let commits: Vec<usize> = (state.edits.iter().enumerate()).filter(|(_, e)| matches!(e, EditEvent::Commit { .. })).map(|(at, _)| at).collect();
+        assert_eq!(commits.len(), 1, "one commit per gesture: {:?}", state.edits);
+        assert_eq!(commits[0], state.edits.len() - 1, "nothing commits mid-drag: {:?}", state.edits);
+        let previews = state.edits.iter().filter(|e| matches!(e, EditEvent::Update { .. })).count();
+        assert!(previews >= 1, "the drag previews before it commits: {:?}", state.edits);
+        let weight = state.values.iter().find(|(t, _)| *t == WGHT).map(|v| v.1);
+        assert!(weight.is_some_and(|w| w > START_WEIGHT), "dragging right raises the weight: {weight:?}");
+    }
 
     let before = state.borrow().edits.len();
     let select = fixture.by_label("Style").expect("the instance list");

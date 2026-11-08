@@ -4,7 +4,6 @@ mod axes;
 mod glyphs;
 mod missing;
 mod panel;
-mod panel_parts;
 mod picker;
 
 use craft_font_manager::testing::registered;

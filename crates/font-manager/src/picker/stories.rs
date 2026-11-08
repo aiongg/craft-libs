@@ -48,7 +48,7 @@ fn font_picker(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn type_query(fixture: &mut Fixture) {
     fixture.key(Key::Tab, Modifiers::NONE);
     fixture.type_text("u");
-    fixture.idle(4);
+    fixture.settle();
 }
 
 #[story(FontPicker<'static>, covers = [Open], drive = Drive::Custom(type_query))]
@@ -61,7 +61,7 @@ fn font_picker_open_with_query(ui: &mut Ui, data: &mut StoryData) -> StoryOutput
 fn open_list(fixture: &mut Fixture) {
     fixture.key(Key::Tab, Modifiers::NONE);
     fixture.key(Key::ArrowDown, Modifiers::ALT);
-    fixture.idle(4);
+    fixture.settle();
 }
 
 #[story(FontPicker<'static>, covers = [], drive = Drive::Custom(open_list))]

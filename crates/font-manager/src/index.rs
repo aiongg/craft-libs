@@ -19,16 +19,17 @@ pub fn source_label<'a>(index: &'a Index, family: &'a Family) -> (&'a str, bool)
 
 /// A Google Fonts category that the filter offers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Category {
-    #[allow(missing_docs)]
+    /// Sans serif faces.
     SansSerif,
-    #[allow(missing_docs)]
+    /// Serif faces.
     Serif,
-    #[allow(missing_docs)]
+    /// Display faces.
     Display,
-    #[allow(missing_docs)]
+    /// Handwriting faces.
     Handwriting,
-    #[allow(missing_docs)]
+    /// Monospaced faces.
     Monospace,
 }
 

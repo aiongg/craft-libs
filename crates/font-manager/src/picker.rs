@@ -27,7 +27,6 @@ use craft_ui::text::{Adornment, place, reserve};
 use egui::{Rect, Response, Vec2};
 use serde::{Deserialize, Serialize};
 
-pub use rank::accept_row;
 use rank::{Info, infos, shown_name};
 
 craft_ui::words! {
@@ -60,6 +59,15 @@ craft_ui::words! {
         handwritten: "fontPicker.classHandwritten" = "Handwritten";
         blackletter: "fontPicker.classBlackletter" = "Blackletter";
         decorative: "fontPicker.classDecorative" = "Decorative";
+        /// The short mark at the end of a row for a class.
+        mark_serif: "fontPicker.markSerif" = "Se";
+        mark_slab_serif: "fontPicker.markSlabSerif" = "Sl";
+        mark_sans_serif: "fontPicker.markSansSerif" = "Sa";
+        mark_script: "fontPicker.markScript" = "Sc";
+        mark_monospace: "fontPicker.markMonospace" = "Mo";
+        mark_handwritten: "fontPicker.markHandwritten" = "Ha";
+        mark_blackletter: "fontPicker.markBlackletter" = "Bl";
+        mark_decorative: "fontPicker.markDecorative" = "De";
     }
 }
 

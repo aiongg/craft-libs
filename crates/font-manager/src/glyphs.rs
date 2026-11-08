@@ -346,7 +346,7 @@ impl<'a> GlyphsPanel<'a> {
                     let rect = rect.shrink(rect.width().min(rect.height()) * GLYPH_INSET_RATIO);
                     let request = ThumbRequest::for_cell(rect.width().max(rect.height()), ctx.pixels_per_point());
                     let picture = thumbs.state(&ctx, pictures, &key, &request, Priority::VISIBLE);
-                    let ink = DataColor::new(ctx.global_style().visuals.text_color());
+                    let ink = DataColor::new(cx.ink());
                     thumbs.paint(cx, rect, &picture, &ThumbPaint::default().tint(ink));
                 }
             };

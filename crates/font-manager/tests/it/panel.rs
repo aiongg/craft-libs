@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 
 use craft_font_manager::craft_font_catalog::Os;
 use craft_font_manager::index::Index;
@@ -52,7 +52,23 @@ fn index() -> Index {
 
 /// A Host with `sections` as its settings and inline jobs.
 fn host(sections: Arc<MemorySections>) -> Arc<Host> {
-    Arc::new(Host::builder(APP).settings(sections).jobs(Arc::new(InlineJobs) as Arc<dyn Jobs>).build())
+    host_with(sections, Arc::new(InlineJobs))
+}
+
+fn host_with(sections: Arc<MemorySections>, jobs: Arc<dyn Jobs>) -> Arc<Host> {
+    Arc::new(Host::builder(APP).settings(sections).jobs(jobs).build())
+}
+
+type Task = Box<dyn FnOnce() + Send>;
+
+/// Keeps the spawned jobs until the test runs them.
+#[derive(Default)]
+struct Deferred(Mutex<Vec<Task>>);
+
+impl Jobs for Deferred {
+    fn spawn(&self, _: &str, job: Task) {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner).push(job);
+    }
 }
 
 struct Rig {
@@ -74,6 +90,10 @@ fn setup(name: &str) -> Rig {
 }
 
 fn setup_with(name: &str, sections: Arc<MemorySections>) -> Rig {
+    setup_jobs(name, sections, Arc::new(InlineJobs))
+}
+
+fn setup_jobs(name: &str, sections: Arc<MemorySections>, jobs: Arc<dyn Jobs>) -> Rig {
     let root = root(name);
     let system = root.join("usr/share/fonts");
     std::fs::create_dir_all(&system).unwrap();
@@ -93,7 +113,7 @@ fn setup_with(name: &str, sections: Arc<MemorySections>) -> Rig {
     let mut fx = Fixture::new(move |ui| {
         FontsPanelView::new(&mut shown.borrow_mut()).show(ui);
     });
-    fx.room(ROOM).host(host(sections));
+    fx.room(ROOM).host(host_with(sections, jobs));
     fx.settle();
     Rig { fx, panel, store }
 }
@@ -108,6 +128,34 @@ impl Rig {
                     .is_some_and(|found| found == name || found.starts_with(&format!("{name},")))
             })
             .unwrap_or_else(|| panic!("no {role:?} named `{name}` on screen"))
+    }
+
+    /// Presses the button named `name` whose description is `description`: the style rows of the details sheet share
+    /// their name and differ in the description.
+    fn click_described(&mut self, name: &str, description: &str) {
+        let target = self
+            .fx
+            .by_role(Role::BUTTON)
+            .into_iter()
+            .find(|target| {
+                craft_ui::testing::access::name(self.fx.tree(), target.node) == Some(name)
+                    && self.fx.tree().description_of(target.node) == Some(description)
+            })
+            .unwrap_or_else(|| panic!("no button `{name}` described `{description}` on screen"));
+        self.fx.click(&target);
+        self.fx.settle();
+    }
+
+    /// Presses the notice action named `name`: a link beside the message, a button when the actions stack.
+    fn click_notice_action(&mut self, name: &str) {
+        let target = [Role::LINK, Role::BUTTON]
+            .into_iter()
+            .find_map(|role| {
+                (self.fx.by_role(role).into_iter()).find(|target| craft_ui::testing::access::name(self.fx.tree(), target.node) == Some(name))
+            })
+            .unwrap_or_else(|| panic!("no notice action `{name}` on screen"));
+        self.fx.click(&target);
+        self.fx.settle();
     }
 
     fn click_role(&mut self, role: Role, name: &str) {
@@ -245,11 +293,11 @@ fn install_and_remove_one_style() {
     let mut rig = setup("style");
     rig.allow();
     rig.open("Hack");
-    rig.click("Install Regular");
+    rig.click_described("Install", "Install Regular");
     assert_eq!(rig.store.calls(), [Call::InstallFile("Hack".into(), HACK.into())]);
     assert!(rig.has_installed("Hack"));
 
-    rig.click("Remove Regular");
+    rig.click_described("Remove", "Remove Regular");
     assert_eq!(rig.store.calls().last(), Some(&Call::Remove("Hack".into())));
     assert!(!rig.has_installed("Hack"));
 }
@@ -285,7 +333,7 @@ fn nothing_downloads_without_consent() {
 
     // Allowed from the note, a preview downloads without asking and installs nothing.
     rig.type_into("Search", "Hack");
-    rig.click_role(Role::BUTTON, "Allow downloads");
+    rig.click_notice_action("Allow downloads");
     assert!(rig.panel.borrow().downloads_allowed());
     assert!(!rig.present("Downloads are off"));
     rig.click("Preview");
@@ -400,4 +448,31 @@ fn an_added_source_is_not_curated_and_can_be_removed() {
     rig.fx.settle();
     assert_eq!(rig.results().len(), 4);
     assert!(rig.store.user_sources().is_empty());
+}
+
+#[trial]
+fn queued_installs_run_one_runner_in_request_order() {
+    let deferred = Arc::new(Deferred::default());
+    let mut rig = setup_jobs("queue", Arc::new(MemorySections::default()), deferred.clone());
+    rig.allow();
+    // Each card offers its own Install; a card whose job is queued shows progress instead, so the second press lands on
+    // the next family.
+    rig.click("Install");
+    rig.click("Install");
+
+    let mut spawned = std::mem::take(&mut *deferred.0.lock().unwrap_or_else(PoisonError::into_inner));
+    assert_eq!(spawned.len(), 1, "one runner drains the queue");
+    assert!(rig.store.calls().is_empty(), "nothing runs before the runner does");
+    spawned.remove(0)();
+    assert_eq!(rig.store.calls(), [Call::Install("Amiri".into()), Call::Install("Hack".into())]);
+}
+
+#[trial]
+fn samples_follow_the_language_filter_then_the_script() {
+    let mut rig = setup("samples");
+    assert!(rig.present("The quick brown fox jumps over the lazy dog"));
+    rig.type_into("Find a language", "日本");
+    rig.click_role(Role::LIST_ITEM, "Japanese · 日本語");
+    assert_eq!(rig.results(), ["Noto Sans JP"]);
+    assert!(rig.present("いろはにほへと ちりぬるを 色は匂へど 散りぬるを"));
 }
