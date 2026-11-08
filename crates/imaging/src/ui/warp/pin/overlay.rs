@@ -3,8 +3,8 @@
 
 use craft_behavior::kurbo::{Point, Vec2 as DocVec};
 use craft_behavior::{
-    Axis, CancelReason, CanvasView, CursorIcon, EditCommand, Granularity, HitLevel, HitPriority, HitShape, Intent, Metrics, MoveMods, NavMove,
-    NavShape, PartKey, PointerButton, PressPhase, Roving, Sense,
+    Axis, CancelReason, CanvasView, CursorIcon, EditCommand, Granularity, HitLevel, HitPriority, HitShape, Intent, Metrics, NavShape, PartKey,
+    PointerButton, PressPhase, Roving, Sense,
 };
 use craft_ui::canvas::{CanvasSpace, NUDGE, NUDGE_FAR, canvas_space};
 use craft_ui::contract::{
@@ -381,21 +381,6 @@ impl PinWarp<'_> {
         let Some(picked) = focused.filter(|&i| i < pins.len()) else {
             return;
         };
-        // The pin keys pick: Page cycles through the pins, Home and End go to the ends, and the pin they reach is
-        // focused and selected.
-        let target = [
-            (NavMove::PageDown, (picked + 1) % pins.len()),
-            (NavMove::PageUp, (picked + pins.len() - 1) % pins.len()),
-            (NavMove::Start, 0),
-            (NavMove::End, pins.len() - 1),
-        ]
-        .into_iter()
-        .find(|(mv, _)| cx.intents().take_exact(&Intent::Move(*mv, MoveMods::PLAIN)))
-        .map(|(_, to)| to);
-        if let Some(to) = target {
-            cx.focus_part(PIN.at(to as u64));
-            self.report.select = Some(vec![to]);
-        }
         if let Some((direction, mods)) = cx.intents().take_nudge() {
             let step = if mods.shift { NUDGE_FAR } else { NUDGE };
             let toward = space.view.unmap_vec(direction);
@@ -506,7 +491,7 @@ impl Component for PinWarp<'_> {
             }
         }
         if !pins.is_empty() {
-            cx.roving(Roving::new(NavShape::Flat).wrap(true).home_end(false));
+            cx.roving(Roving::new(NavShape::Flat).wrap(true).page(Some(1)));
         }
         let points: Vec<Pos2> = self.mesh.deformed.iter().map(|&p| space.view.to_screen(p)).collect();
         if !points.is_empty() {
