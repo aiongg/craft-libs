@@ -89,7 +89,10 @@ fn rig_with(curve: Curve, config: Config) -> Rig {
     fixture.room(room());
     fixture.settle();
     let mut rig = Rig { fixture, curve: shared, selected, channel, kinds, origin: Pos2::ZERO, scale: Vec2::ZERO };
-    rig.calibrate(&curve);
+    // Pencil mode shows no points to calibrate against.
+    if !config.pencil {
+        rig.calibrate(&curve);
+    }
     rig
 }
 

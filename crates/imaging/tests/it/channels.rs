@@ -208,7 +208,8 @@ fn an_alpha_drag_reorders_and_refuses_other_rows() {
     let to = below(&fixture, "Alpha 2");
     drag(&mut fixture, from, to);
     let made = moves(take(&app));
-    let Some(EditEvent::Commit { after, .. }) = made.last() else { panic!("expected a committed move, got {made:?}") };
+    // A drop reports its move as one `Set` (craft-ui contract/items/drag.rs `land`, `CollectionEvent::Reorder`).
+    let [EditEvent::Set { after, .. }] = made.as_slice() else { panic!("expected one set of the move, got {made:?}") };
     assert_eq!((after.keys.clone(), after.to), (vec![ALPHA_1], 5));
     for name in ["Red", "RGB"] {
         let from = row(&fixture, "Alpha 1").center();

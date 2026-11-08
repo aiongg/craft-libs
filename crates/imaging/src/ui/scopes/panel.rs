@@ -13,19 +13,17 @@ use craft_behavior::{ColumnWidth, EditEvent, IconId, Proposal};
 use craft_theme::{ControlSize, Mode};
 use craft_ui::buttons::IconButton;
 use craft_ui::contract::{
-    Access, Bind, BodyCx, Common, Component, Container, ContainerProps, Cx, Entry, FieldLabelRole, Gap, NoValue, Outcome, Pattern, Props as _, Role,
-    Show as _, ShowContainer as _, SideLabel, Sizing, ThemeScope, clicked,
+    Bind, BodyCx, Entry, FieldLabelRole, Gap, NoValue, Outcome, Pattern, Props as _, Show as _, ShowContainer as _, SideLabel, ThemeScope, clicked,
 };
 use craft_ui::contract::{CommandSet as _, Commands as _};
 use craft_ui::display::{Badge, Shade, Text};
 use craft_ui::form::Field;
-use craft_ui::layout::BodyLayout;
-use craft_ui::layout_components::{Grid, Row};
+use craft_ui::layout_components::{Grid, Row, Stack};
 use craft_ui::menu::{Menu, MenuItem};
 use craft_ui::pickers::Select;
 use craft_ui::runtime::commands::FirePhase;
 use craft_ui::runtime::env::{Env, Label};
-use craft_ui::style::{ComponentStyle, StyleCx, TypeRole};
+use craft_ui::style::TypeRole;
 use egui::{Rect, Response, Ui, pos2};
 
 /// The Channel key of [`HistogramSet::colors`]'s overlay entry, kept in
@@ -290,68 +288,13 @@ pub struct ScopePanelState {
 /// The columns of the statistics grid: label and value, twice.
 static STATISTICS_COLUMNS: [ColumnWidth; 4] = [ColumnWidth::Content; 4];
 
-/// The style of the panel's blocks: no padding of their own.
-#[derive(Clone, Debug, PartialEq, ComponentStyle)]
-pub(super) struct BlockStyle {
-    #[style(metrics)]
-    metrics: craft_behavior::Metrics,
-}
-
-/// A container with no surface: the panel's command scope, and the dark theme scope of a plot that is dark in every
-/// theme.
-#[derive(craft_ui::contract::Component)]
-#[component(container)]
-pub(super) struct Block {
-    #[common]
-    common: Common,
-    #[container]
-    props: ContainerProps,
-}
-
-impl Block {
-    pub(super) fn new(label: impl Into<Label>, props: ContainerProps) -> Self {
-        Block { common: Common::new(), props: props.sizing(Sizing::Content).layout(BodyLayout::stack()) }.label(label)
-    }
-
-    /// The panel's body: the instance of the `panel.scopes` command scope.
-    fn panel(label: impl Into<Label>) -> Self {
-        Block::new(label, ContainerProps::new().command_scope(ScopeCommand::SCOPE))
-    }
-
-    /// A plot block that resolves its tokens in the dark mode.
-    pub(super) fn dark(label: impl Into<Label>) -> Self {
-        Block::new(label, ContainerProps::new().theme(ThemeScope::mode(Mode::Dark)))
-    }
-}
-
-impl Component for Block {
-    const ROLE: Role = Role::GROUP;
-    const ALT_ROLES: &'static [Role] = &[Role::None];
-    type Style = BlockStyle;
-    type Output = Response;
-
-    fn style(_: &StyleCx<'_>, _: BlockStyleKey) -> BlockStyle {
-        BlockStyle { metrics: craft_behavior::Metrics::new() }
-    }
-
-    fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
-        access.role(Role::None);
-    }
-
-    fn finish(self, cx: Cx<'_, Self>) -> Response {
-        cx.response.clone()
-    }
-}
-
-impl Container for Block {}
-
 /// Runs `content` in a block that resolves the dark mode when `dark`, else in the flow.
-fn themed<R>(ui: &mut Ui, dark: bool, label: &Label, content: impl FnOnce(&mut Ui) -> R) -> Option<R> {
+fn themed<R>(ui: &mut Ui, dark: bool, content: impl FnOnce(&mut Ui) -> R) -> Option<R> {
     if !dark {
         return Some(content(ui));
     }
     let mut content = Some(content);
-    Block::dark(label.clone()).show(ui, |ui, _| content.take().map(|content| content(ui))).inner.flatten()
+    Stack::new().theme(ThemeScope::mode(Mode::Dark)).show(ui, |ui, _| content.take().map(|content| content(ui))).inner.flatten()
 }
 
 /// Photoshop's Histogram panel and Camera Raw's scope in one widget.
@@ -426,7 +369,7 @@ impl<'a> ScopePanel<'a> {
         let words = env.words::<ScopeWords>();
         let mut pass = Pass { panel: self, words, env, report: Report::default() };
         let label = Label::from(pass.words.histogram.clone());
-        let shown = Block::panel(label).show(ui, |ui, cx| pass.rows(ui, cx));
+        let shown = Stack::new().label(label).command_scope(ScopeCommand::SCOPE).show(ui, |ui, cx| pass.rows(ui, cx));
         let Report { settings_changed, refresh, source_changed, channel_changed, zone, hovered_level, clipping_toggled } = pass.report;
         ScopePanelOutput {
             response: shown.output,
@@ -515,7 +458,7 @@ impl Pass<'_> {
         let dark = matches!(shown, Shown::Colors(_));
         let plot_label = Label::from(words.histogram.clone());
         let (markers, state) = (self.panel.markers, &mut *self.panel.state);
-        let histogram = themed(ui, dark, &plot_label, |ui| {
+        let histogram = themed(ui, dark, |ui| {
             let mut histogram = Histogram::new(plot_label.clone(), &plot.data).value(value).markers(markers).height(PlotHeight::Standard);
             if let Some(outline) = &plot.outline {
                 histogram = histogram.outline(outline);
@@ -547,7 +490,7 @@ impl Pass<'_> {
             && let Some(vectorscope) = frame.vectorscope.as_ref()
         {
             let label = Label::from(words.vectorscope.clone());
-            let plot = themed(ui, true, &label, |ui| {
+            let plot = themed(ui, true, |ui| {
                 VectorscopePlot::new(label.clone(), vectorscope).red_right(settings.red_right).skin_tone(settings.skin_tone).show(ui)
             });
             openers.extend(plot);

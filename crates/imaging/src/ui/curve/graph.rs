@@ -798,10 +798,10 @@ impl CurveGraph<'_> {
         }
         let Some(at) = selected else { return selected };
         if delete {
-            if let Some(next) = CurveRules::deleted(curve, at) {
-                cx.set(next.clone());
-                *curve = next;
-            }
+            // An end point stays, and so does the selection on it.
+            let Some(next) = CurveRules::deleted(curve, at) else { return selected };
+            cx.set(next.clone());
+            *curve = next;
             return None;
         }
         if by != [0.0, 0.0]

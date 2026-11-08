@@ -642,11 +642,8 @@ impl<'a> PhotoFilterEditor<'a> {
             });
             let mode = group.output.value().copied();
             let mut run = Run::start(&mut value, context, now, cx.memory::<FilterMemory>().began);
-            if let Some(edit) = preset_edit {
-                run.push(cx, edit, |now, entry: &Option<PhotoFilterPreset>| PhotoFilter {
-                    color: entry.map_or(now.color, PhotoFilterPreset::color),
-                    ..*now
-                });
+            if let Some(&entry) = preset_edit.as_ref().and_then(|picked| picked.value()).filter(|&&entry| entry != preset) {
+                run.set(cx, &words.filter, PhotoFilter { color: entry.map_or(now.color, PhotoFilterPreset::color), ..now });
             }
             let density = AdjustField::new("density", words.density.clone(), 0.0..=100.0, DENSITY_DEFAULT).unit_kind(UnitKind::Percent);
             run.slider_row(ui, cx, &density, now.density, |now, density| PhotoFilter { density, ..*now });

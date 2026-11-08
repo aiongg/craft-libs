@@ -1,6 +1,8 @@
 //! The Levels editor and panel, the Curves panel's point helper and the tone pickers, driven through the public
 //! widgets as a host would show them.
 
+use craft_behavior::CanvasView;
+use craft_behavior::kurbo::Point;
 use craft_imaging::ui::adjust::{
     CurvesMode, CurvesPanel, Levels, LevelsEditor, LevelsPanel, ToneChannel, ToneChannels, ToneCurves, TonePick, TonePickTool, TonePicker,
     TonePickerRow, ToneSpace,
@@ -115,14 +117,6 @@ fn auto_follows_the_clip_rule_at_both_ends() {
     assert_eq!((auto.in_black, auto.in_white), (1.0, 253.0));
 }
 
-/// The input points Auto finds in the histogram of `the_auto_button_sets_the_shown_channel`: the first and last
-/// level that clears the clipping share, with the gamma left at one and the output range kept.
-const AUTO_BLACK: f64 = 1.0;
-const AUTO_GAMMA: f64 = 1.0;
-const AUTO_WHITE: f64 = 254.0;
-const START_OUT_BLACK: f64 = 10.0;
-const START_OUT_WHITE: f64 = 240.0;
-
 /// The Auto button sets the shown channel as one change.
 #[trial]
 fn the_auto_button_sets_the_shown_channel() {
@@ -146,7 +140,7 @@ fn the_auto_button_sets_the_shown_channel() {
     let auto = fixture.by_label("Auto").expect("the Auto button");
     fixture.click(&auto);
     fixture.idle(2);
-    assert_eq!(levels.borrow()[0], Levels::new(AUTO_BLACK, AUTO_GAMMA, AUTO_WHITE, START_OUT_BLACK, START_OUT_WHITE));
+    assert_eq!(levels.borrow()[0], start.auto(&composite));
     assert_eq!(levels.borrow()[1], start, "the other channels are untouched");
 }
 
@@ -217,12 +211,21 @@ fn an_unavailable_row_disables_every_picker_and_says_why() {
     assert_eq!(armed.get(), None);
 }
 
+/// A canvas whose view lets the tool map the pointer to a document point.
+fn pick_canvas(label: &'static str, tool: TonePickTool<'static>) -> ToolFixture<TonePickTool<'static>> {
+    let view = |room: egui::Rect| {
+        let centre = room.center();
+        CanvasView::new(room, Point::new(f64::from(centre.x), f64::from(centre.y)), 1.0)
+    };
+    ToolFixture::with_view(label, tool, view, |_, _| {})
+}
+
 /// A press on the canvas samples at the document point and `take` yields a pick for the armed picker once.
 #[trial]
 fn the_pick_tool_reports_the_sample_for_the_armed_picker() {
     let tool = TonePickTool::new(TonePicker::White, |at| Some(Srgba::rgb(at[0] as f32 / 1200.0, 0.0, 0.0)));
     assert_eq!(tool.picker(), TonePicker::White);
-    let mut fixture = ToolFixture::new("Tone pick", tool);
+    let mut fixture = pick_canvas("Tone pick", tool);
     let centre = fixture.canvas().center();
     fixture.press_at(centre);
     fixture.release_at(centre);
@@ -235,7 +238,7 @@ fn the_pick_tool_reports_the_sample_for_the_armed_picker() {
 /// Off the image the sample function returns nothing and nothing is reported.
 #[trial]
 fn the_pick_tool_reports_nothing_off_the_image() {
-    let mut fixture = ToolFixture::new("Tone pick off", TonePickTool::new(TonePicker::Black, |_| None));
+    let mut fixture = pick_canvas("Tone pick off", TonePickTool::new(TonePicker::Black, |_| None));
     let centre = fixture.canvas().center();
     fixture.press_at(centre);
     fixture.release_at(centre);

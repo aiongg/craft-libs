@@ -3,13 +3,13 @@
 
 use craft_behavior::kurbo::{Point, Vec2 as DocVec};
 use craft_behavior::{
-    Axis, CancelReason, CanvasView, CursorIcon, EditCommand, Granularity, HitLevel, HitPriority, HitShape, Intent, Metrics, NavShape, PartKey,
-    PointerButton, PressPhase, Roving, Sense,
+    Axis, CancelReason, CanvasView, CursorIcon, EditCommand, Granularity, HitLevel, HitPriority, HitShape, Intent, Metrics, MoveMods, NavMove,
+    NavShape, PartKey, PointerButton, PressPhase, Roving, Sense,
 };
 use craft_ui::canvas::{CanvasSpace, NUDGE, NUDGE_FAR, canvas_space};
 use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Name, Numeric, Outcome, PaintUi, PartsCx,
-    Pointer as _, Props as _, Remember as _, Role, WordSetCx as _,
+    Pointer as _, Props as _, Role, WordSetCx as _,
 };
 use craft_ui::primitives::{PaintShape, StrokeWidth};
 use craft_ui::runtime::env::{Label, Units, WordTemplate};
@@ -211,10 +211,6 @@ impl Drag {
     }
 }
 
-/// The pin the focus last arrived at, so only a move of the focus selects.
-#[derive(Clone, Default)]
-struct Arrival(Option<usize>);
-
 impl Default for Drag {
     fn default() -> Self {
         Drag { kind: Kind::Place, origin: Point::ZERO, base: Vec::new(), began: false }
@@ -371,19 +367,23 @@ impl PinWarp<'_> {
         }
         let focused = cx.active_part().filter(|part| part.key == PIN).and_then(|part| part.index).map(|index| index as usize);
         let Some(picked) = focused.filter(|&i| i < pins.len()) else {
-            cx.memory::<Arrival>().0 = None;
             return;
         };
-        // A move of the focus selects its pin unless the selection holds it: a Shift-click grows the selection and
-        // focuses the pin it adds, and the pin it takes out stays focused.
-        let arrived = {
-            let slot = cx.memory::<Arrival>();
-            let changed = slot.0 != Some(picked);
-            slot.0 = Some(picked);
-            changed
-        };
-        if arrived && self.report.select.is_none() && !self.selection().contains(&picked) {
-            self.report.select = Some(vec![picked]);
+        // The pin keys pick: Page cycles through the pins, Home and End go to the ends, and the pin they reach is
+        // focused and selected. A Shift-click grows the selection and focuses the pin it adds, so focus alone
+        // selects nothing.
+        let target = [
+            (NavMove::PageDown, (picked + 1) % pins.len()),
+            (NavMove::PageUp, (picked + pins.len() - 1) % pins.len()),
+            (NavMove::Start, 0),
+            (NavMove::End, pins.len() - 1),
+        ]
+        .into_iter()
+        .find(|(mv, _)| cx.intents().take_exact(&Intent::Move(*mv, MoveMods::PLAIN)))
+        .map(|(_, to)| to);
+        if let Some(to) = target {
+            cx.focus_part(PIN.at(to as u64));
+            self.report.select = Some(vec![to]);
         }
         if let Some((direction, mods)) = cx.intents().take_nudge() {
             let step = if mods.shift { NUDGE_FAR } else { NUDGE };
@@ -494,7 +494,7 @@ impl Component for PinWarp<'_> {
             }
         }
         if !pins.is_empty() {
-            cx.roving(Roving::new(NavShape::Flat).wrap(true).page(Some(1)));
+            cx.roving(Roving::new(NavShape::Flat).wrap(true).home_end(false));
         }
         let points: Vec<Pos2> = self.mesh.deformed.iter().map(|&p| space.view.to_screen(p)).collect();
         if !points.is_empty() {
