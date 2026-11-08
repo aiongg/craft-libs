@@ -63,8 +63,12 @@ impl Document {
                 NavigatorPanel::new("Navigator", Bind::bound(&mut *held.borrow_mut()), DOC).navigation(navigation).show(ui);
             }
             let given = *held.borrow();
-            let shown =
-                Canvas::new("Document").view(given).document(DOC).navigation(navigation).show_rulers(ruled.get()).show_at(ui, at.get(), |_, body| {
+            let shown = Canvas::new("Document")
+                .view(given)
+                .document(DOC)
+                .navigation(navigation)
+                .show_rulers(ruled.get())
+                .show_at(ui, at.get(), |_, body| {
                     if let Some(space) = canvas_space(&body.env) {
                         saw.borrow_mut().push((body.rect, space.view));
                     }
