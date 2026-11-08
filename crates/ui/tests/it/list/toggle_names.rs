@@ -2,7 +2,7 @@
 //! it.
 
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, ItemSource, Mixed};
-use craft_ui::contract::{CollectionEvent, ColumnKind, ColumnSpec, Props as _, Role, Show as _, ShowCollection as _, ToggleColumn};
+use craft_ui::contract::{CollectionEvent, ColumnKind, ColumnSpec, Role, ShowCollection as _, ToggleColumn};
 use craft_ui::list::{List, ListRow, ToggleCell, ToggleState};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers, Vec2};

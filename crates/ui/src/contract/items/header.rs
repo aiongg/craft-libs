@@ -60,15 +60,14 @@ enum Grab {
 #[derive(Clone, Default)]
 struct ToggleNames(std::sync::Arc<[(ColumnKey, String)]>);
 
-/// Records the accessible names of the toggle cells of the row `item`, with `{row}` filled, for the collection's cell
-/// nodes of the same pass. A cell that gives no name is left out.
+/// Records the toggle cells of the row `item` with their accessible names (`{row}` filled; empty when the cell gives
+/// none), for the collection's cell nodes of the same pass. A row that has none records an empty list.
 pub(crate) fn put_toggle_names(ctx: &Context, item: Id, names: Vec<(ColumnKey, String)>) {
-    crate::runtime::egui::memory::put(ctx, sub(item, "toggle_names"), ToggleNames(names.into_iter().filter(|(_, name)| !name.is_empty()).collect()));
+    crate::runtime::egui::memory::put(ctx, sub(item, "toggle_names"), ToggleNames(names.into()));
 }
 
-fn given_toggle_name(ctx: &Context, item: Id, column: &ColumnKey) -> Option<String> {
-    let ToggleNames(names) = crate::runtime::egui::memory::peek_clone::<ToggleNames>(ctx, sub(item, "toggle_names"))?;
-    names.iter().find(|(held, _)| held == column).map(|(_, name)| name.clone())
+fn recorded_toggle_names(ctx: &Context, item: Id) -> Option<std::sync::Arc<[(ColumnKey, String)]>> {
+    crate::runtime::egui::memory::peek_clone::<ToggleNames>(ctx, sub(item, "toggle_names")).map(|ToggleNames(names)| names)
 }
 
 /// What the header keeps in session memory under the collection's id.
@@ -172,17 +171,23 @@ impl Header {
     }
 
     /// The name of the cell of toggle column `key` in the row `item`: the name the row's cell gave (`put_toggle_names`),
-    /// else the column's header text, else its icon's name, resolved in `env`.
-    pub(super) fn cell_name(&self, ctx: &Context, item: Id, key: &ColumnKey, env: &crate::runtime::env::EnvView<'_>) -> String {
-        if let Some(name) = given_toggle_name(ctx, item, key) {
-            return name;
+    /// else the column's header text, else its icon's name, resolved in `env`. `None` when the row recorded its toggle
+    /// cells and has none in this column: the collection reports no node there.
+    pub(super) fn cell_name(&self, ctx: &Context, item: Id, key: &ColumnKey, env: &crate::runtime::env::EnvView<'_>) -> Option<String> {
+        let recorded = recorded_toggle_names(ctx, item);
+        let given = match &recorded {
+            Some(names) => Some(names.iter().find(|(held, _)| held == key).map(|(_, name)| name.as_str())?),
+            None => None,
+        };
+        if let Some(name) = given.filter(|name| !name.is_empty()) {
+            return Some(name.to_owned());
         }
-        let Some(spec) = self.specs.iter().find(|spec| spec.key == *key) else { return String::new() };
+        let Some(spec) = self.specs.iter().find(|spec| spec.key == *key) else { return Some(String::new()) };
         let header = env.resolve(&spec.header);
-        match (header.as_str(), &spec.icon) {
+        Some(match (header.as_str(), &spec.icon) {
             ("", Some(icon)) => icon.name().to_owned(),
             (text, _) => text.to_owned(),
-        }
+        })
     }
 
     /// The key of the column at position `at`.

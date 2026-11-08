@@ -1212,11 +1212,11 @@ impl Component for ListRow<'_> {
     }
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
+        self.record_toggle_names(cx);
         if self.spacer {
             return;
         }
         self.adopt_toggle_columns(&cx.env, cx.resolved.id);
-        self.record_toggle_names(cx);
         let widths = self.item_widths(&cx.style.sizes, &|run| cx.layout_at(run, f32::INFINITY).size().x);
         let placed = self.place(&cx.style.sizes, &widths, rect, cx.flow.is_rtl());
         for (at, cell) in &placed.toggles {
