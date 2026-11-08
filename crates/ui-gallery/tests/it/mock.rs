@@ -191,7 +191,7 @@ fn the_delete_layer_row_asks_nothing_with_one_layer_left() {
     let (mut fixture, state) = window(only);
     choose_delete_layer(&mut fixture);
     fixture.idle(DIALOG_OPEN);
-    assert!(fixture.control("(D)elete").is_none(), "no question was asked");
+    assert!(fixture.control("Delete").is_none(), "no question was asked");
     assert_eq!(state.borrow().document.layers.len(), 1);
 }
 

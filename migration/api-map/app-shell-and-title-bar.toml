@@ -448,7 +448,7 @@ note = "The actions are `StartOutput.actions`."
 type = "ViewportWindow"
 old = "new(ViewportId, ViewportBuilder)"
 new = "new(title)"
-note = "The title is the constructor argument. The builder's inner and minimum sizes and the opening position go on the fallback layer through `overlay`: `.overlay(|overlay| overlay.size_limits(min, max).placed(rect))`; the layer starts as the resizable dialog layer."
+note = "The title is the constructor argument. The builder's inner and minimum sizes and the opening position go on the fallback layer through `overlay`: `.overlay(|overlay| overlay.size_limits(SizeLimits::new(min, max)).placed(rect))`; the layer starts as the resizable dialog layer."
 
 [[setter]]
 type = "ViewportWindow"
