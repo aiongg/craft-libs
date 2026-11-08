@@ -354,7 +354,7 @@ impl SelectMaskWorkspace {
         let env = Env::of(ui);
         let words = env.words::<SelectMaskWords>();
         let common = env.words::<CommonWords>();
-        let title = FullWindowTitle::new(words.name.clone()).subject(self.subject.as_str()).zoom(self.zoom_percent).label(&env);
+        let title = FullWindowTitle::new(words.name.clone()).subject(self.subject.clone()).zoom(self.zoom_percent).label(&env);
         let settings_before = self.settings.clone();
         let mut asked_steps = std::mem::take(&mut self.requested);
         let slots = SelectMaskTool::slots();

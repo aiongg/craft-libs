@@ -413,10 +413,11 @@ impl WideAngleWorkspace {
                                 chosen = Some(WideAngleConstraintEdit::Delete(index));
                             }
                         });
+                        let picked = chosen.is_some();
                         if let Some(edit) = chosen {
                             actions.borrow_mut().push(Action::Constraint(edit));
                         }
-                        if chosen.is_some() || !open || menu.output.closed.is_some() {
+                        if picked || !open || menu.output.closed.is_some() {
                             body.menu = None;
                         }
                     }

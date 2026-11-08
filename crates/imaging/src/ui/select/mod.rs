@@ -100,19 +100,35 @@ pub enum DragKind {
     Outline,
     /// The selected pixels, or the floating piece: Cmd cuts them out first, Cmd+Alt (`copy`) lifts a copy, a floating
     /// piece moves with a plain press.
+    #[non_exhaustive]
     Pixels {
         /// Lift a copy instead of cutting.
         copy: bool,
     },
 }
 
+impl DragKind {
+    /// Drags the selected pixels, lifting a copy when `copy` is set.
+    pub fn pixels(copy: bool) -> Self {
+        Self::Pixels { copy }
+    }
+}
+
 /// The value of a selection drag: what moves and by how much.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct SelectionDrag {
     /// What the drag moves.
     pub kind: DragKind,
     /// The offset from the press in whole document pixels (rounded, each within 10^7).
     pub delta: [i32; 2],
+}
+
+impl SelectionDrag {
+    /// A drag of `kind` by `delta` whole document pixels.
+    pub fn new(kind: DragKind, delta: [i32; 2]) -> Self {
+        Self { kind, delta }
+    }
 }
 
 /// What a selection tool reports. The app drains them after `ToolHost::run`, in order.
@@ -121,6 +137,7 @@ pub struct SelectionDrag {
 pub enum SelectEvent {
     /// An outline closed or a marquee was released: select `shape` with `operation` (latched at the press,
     /// `SelectionOperation::resolve`). One undo step.
+    #[non_exhaustive]
     Commit {
         /// What to select.
         shape: SelectionShape,
@@ -135,6 +152,13 @@ pub enum SelectEvent {
     DragSelection(EditEvent<SelectionDrag>),
 }
 
+impl SelectEvent {
+    /// Select `shape` with `operation`.
+    pub fn commit(shape: SelectionShape, operation: SelectionOperation) -> Self {
+        Self::Commit { shape, operation }
+    }
+}
+
 /// What a selection tool is doing, for the status line and a test.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 #[non_exhaustive]
@@ -144,17 +168,31 @@ pub enum SelectPhase {
     Idle,
     /// A marquee being dragged: the rectangle the release would select (whole pixels), `None` while the drag is still
     /// a click.
+    #[non_exhaustive]
     Marquee {
         /// The pixel rectangle.
         rect: Option<Rect>,
     },
     /// An outline being drawn with `points` points so far.
+    #[non_exhaustive]
     Outline {
         /// The point count.
         points: usize,
     },
     /// The selection being dragged.
     Dragging(DragKind),
+}
+
+impl SelectPhase {
+    /// A marquee being dragged, with the rectangle a release would select.
+    pub fn marquee(rect: Option<Rect>) -> Self {
+        Self::Marquee { rect }
+    }
+
+    /// An outline with `points` points so far.
+    pub fn outline(points: usize) -> Self {
+        Self::Outline { points }
+    }
 }
 
 /// What a selection tool asks the app about the active document. The app implements it over its document for one

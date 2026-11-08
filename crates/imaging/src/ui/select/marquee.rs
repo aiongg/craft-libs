@@ -18,6 +18,7 @@ const ELLIPSE_SEGMENTS: usize = 96;
 
 /// Which marquee.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum MarqueeKind {
     /// A rectangle on whole pixels.
     #[default]

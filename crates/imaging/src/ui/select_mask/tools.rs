@@ -43,6 +43,7 @@ pub(super) fn default_cursor_options() -> BrushCursorOptions {
 #[non_exhaustive]
 pub enum EditPhase<T> {
     /// The gesture began. The value is the first point's edit, when it makes one.
+    #[non_exhaustive]
     Begin {
         /// The gesture.
         id: GestureId,
@@ -50,6 +51,7 @@ pub enum EditPhase<T> {
         value: Option<T>,
     },
     /// The gesture grew (only with Real-Time Refinement on): the edit so far.
+    #[non_exhaustive]
     Update {
         /// The gesture.
         id: GestureId,
@@ -57,6 +59,7 @@ pub enum EditPhase<T> {
         value: T,
     },
     /// The gesture ended with this edit. The workspace has already recorded it in the session.
+    #[non_exhaustive]
     Commit {
         /// The gesture.
         id: GestureId,
@@ -64,6 +67,7 @@ pub enum EditPhase<T> {
         value: T,
     },
     /// The gesture ended without an edit: Esc, a lost pointer, a tool switch, an undo, or the limits refused it.
+    #[non_exhaustive]
     Cancel {
         /// The gesture.
         id: GestureId,
@@ -71,6 +75,7 @@ pub enum EditPhase<T> {
         reason: CancelReason,
     },
     /// A button made this edit at once (Select Subject, Clear Selection, Invert).
+    #[non_exhaustive]
     Set {
         /// The edit's id.
         id: GestureId,
@@ -79,9 +84,37 @@ pub enum EditPhase<T> {
     },
 }
 
+impl<T> EditPhase<T> {
+    /// The gesture began, with the edit at the press when it makes one.
+    pub fn begin(id: GestureId, value: Option<T>) -> Self {
+        Self::Begin { id, value }
+    }
+
+    /// The gesture grew: the edit so far.
+    pub fn update(id: GestureId, value: T) -> Self {
+        Self::Update { id, value }
+    }
+
+    /// The gesture ended with `value`.
+    pub fn commit(id: GestureId, value: T) -> Self {
+        Self::Commit { id, value }
+    }
+
+    /// The gesture ended without an edit, for `reason`.
+    pub fn cancel(id: GestureId, reason: CancelReason) -> Self {
+        Self::Cancel { id, reason }
+    }
+
+    /// A button made `value` at once.
+    pub fn set(id: GestureId, value: T) -> Self {
+        Self::Set { id, value }
+    }
+}
+
 /// The tools of Select and Mask's strip, with Photoshop's letters. Quick Selection and Object
 /// Selection share the W slot, Lasso and Polygonal Lasso the L slot.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum SelectMaskTool {
     /// W.
     #[default]
@@ -146,6 +179,7 @@ impl SelectMaskTool {
 /// The diameters the three brush tools remember apart (1..=5000; 30 each when the workspace
 /// opens). Not in the history, not persisted.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct BrushSizes {
     /// The Quick Selection diameter.
     pub quick: f64,
@@ -202,6 +236,7 @@ impl BrushSizes {
 
 /// The tools' options: the bar's values, outside the history and not persisted.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct SelectMaskToolOptions {
     /// + (true) or − in the bar.
     pub add: bool,

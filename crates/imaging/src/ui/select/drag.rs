@@ -12,15 +12,24 @@ use super::{DragKind, SelectEvent, SelectionDrag, SelectionProbe};
 
 /// How a tool takes a press inside the selection.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum PressRule {
     /// A drag tool (the marquees, the Lasso): a plain press with the operation New drags the outline, Cmd the pixels.
     Drags,
     /// A click-driven tool (the Polygonal Lasso, the app's Magic Wand): only Cmd drags, and never while
     /// `outline_open`.
+    #[non_exhaustive]
     Clicks {
         /// The tool has an outline open (the Polygonal Lasso between clicks).
         outline_open: bool,
     },
+}
+
+impl PressRule {
+    /// A click-driven tool, with or without an outline open.
+    pub fn clicks(outline_open: bool) -> Self {
+        Self::Clicks { outline_open }
+    }
 }
 
 /// What a press at `at` with `mods` drags, or `None` when it draws (or is not the tool's).

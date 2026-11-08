@@ -480,7 +480,6 @@ impl ContentAwareFillWorkspace {
             return match step {
                 Step::Undo => self.history.can_undo(),
                 _ => self.history.can_redo(),
-                _ => false,
             };
         }
         self.step_now(step)

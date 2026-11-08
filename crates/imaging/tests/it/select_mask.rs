@@ -32,14 +32,14 @@ use serde_json::json;
 const DOCUMENT: [u32; 2] = [800, 600];
 
 /// The edit limits the session tests use.
-const LIMITS: SelectMaskLimits = SelectMaskLimits { edits: 3, edit_points: 10, strokes: 2, stroke_points: 4 };
+const LIMITS: SelectMaskLimits = SelectMaskLimits::new(3, 10, 2, 4);
 
 fn quick(points: usize) -> SelectMaskEdit {
-    SelectMaskEdit::Quick { points: vec![[1.0, 2.0]; points], size: 30.0, mode: EditMode::Add, sample_all_layers: false }
+    SelectMaskEdit::quick(vec![[1.0, 2.0]; points], 30.0, EditMode::Add, false)
 }
 
 fn refine_stroke(points: usize) -> RefineStroke {
-    RefineStroke { points: vec![[3.0, 4.0]; points], size: 20.0, mode: EditMode::Subtract }
+    RefineStroke::new(vec![[3.0, 4.0]; points], 20.0, EditMode::Subtract)
 }
 
 // ---- The tools, on a tool fixture ----
@@ -124,7 +124,7 @@ fn rig(tool: SelectMaskTool, real_time: bool) -> ToolFixture<Rig> {
         SelectMaskTool::Brush => "Brush",
         SelectMaskTool::Lasso => "Lasso",
         SelectMaskTool::PolygonalLasso => "Polygonal Lasso",
-        SelectMaskTool::Object | SelectMaskTool::Hand | SelectMaskTool::Zoom => "Canvas",
+        _ => "Canvas",
     };
     let view = |room: Rect| CanvasView::new(room, Point::ZERO, 1.0);
     ToolFixture::with_view(label, Rig::new(tool, real_time), view, |_, _| {})
@@ -204,7 +204,7 @@ fn select_mask_polygonal_lasso_enter_escape_backspace() {
     fixture.fixture().key(Key::Enter, Modifiers::NONE);
     let got = events(&fixture);
     assert_eq!(tags(&got), ["begin", "commit"]);
-    let SelectMaskEdit::Lasso { points, mode } = committed(&got) else { panic!("a lasso edit") };
+    let SelectMaskEdit::Lasso { points, mode, .. } = committed(&got) else { panic!("a lasso edit") };
     assert_eq!((points, mode), (vec![[50.0, 50.0], [150.0, 50.0], [150.0, 150.0]], EditMode::Add));
     assert!(!fixture.tool().canvas.polygon_open());
 
@@ -398,10 +398,10 @@ fn select_mask_command_matches_the_engine_params() {
     );
     session.edits = vec![
         quick(1),
-        SelectMaskEdit::Brush { points: vec![[0.5, 0.5]], size: 9.0, hardness: 50.0, mode: EditMode::Subtract },
-        SelectMaskEdit::Object { target: ObjectTarget::Rect([1.0, 2.0, 3.0, 4.0]), mode: EditMode::Add, sample_all_layers: true },
-        SelectMaskEdit::Object { target: ObjectTarget::Point([7.0, 8.0]), mode: EditMode::Add, sample_all_layers: false },
-        SelectMaskEdit::Subject { sample_all_layers: true },
+        SelectMaskEdit::brush(vec![[0.5, 0.5]], 9.0, 50.0, EditMode::Subtract),
+        SelectMaskEdit::object(ObjectTarget::Rect([1.0, 2.0, 3.0, 4.0]), EditMode::Add, true),
+        SelectMaskEdit::object(ObjectTarget::Point([7.0, 8.0]), EditMode::Add, false),
+        SelectMaskEdit::subject(true),
         SelectMaskEdit::Clear,
     ];
     let full = serde_json::to_value(session.command(true, true)).unwrap_or_default();
@@ -554,7 +554,7 @@ fn select_mask_tools_make_edits_and_undo_redo_them() {
     assert!(!app.borrow_mut().workspace.step(Step::Undo));
     assert!(app.borrow_mut().workspace.step(Step::Redo));
     assert!(app.borrow_mut().workspace.step(Step::Redo));
-    assert_eq!(app.borrow().workspace.session().edits, [SelectMaskEdit::Subject { sample_all_layers: false }, SelectMaskEdit::Invert]);
+    assert_eq!(app.borrow().workspace.session().edits, [SelectMaskEdit::subject(false), SelectMaskEdit::Invert]);
 }
 
 #[trial]

@@ -27,7 +27,9 @@ const PIPETTE_BOX: f32 = 24.0;
 /// How far the pipette's tip lies in from the icon's bottom left corner.
 const PIPETTE_TIP_INSET: f32 = 2.0;
 /// The cursor's hot spot: the pipette's tip, at the bottom left of its icon.
-const PIPETTE_HOTSPOT: Vec2 = Vec2::new(PIPETTE_TIP_INSET, PIPETTE_BOX - PIPETTE_TIP_INSET);
+fn pipette_hotspot() -> Vec2 {
+    Vec2::X * PIPETTE_TIP_INSET + Vec2::Y * (PIPETTE_BOX - PIPETTE_TIP_INSET)
+}
 
 /// One of the three point pickers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -224,7 +226,7 @@ impl<'a> TonePickTool<'a> {
 
 impl CanvasTool for TonePickTool<'_> {
     fn cursor(&self, _cx: &ToolContext<'_>) -> Cursor {
-        Cursor::Painted(PaintedCursor::tool(IconId::new("eyedropper"), PIPETTE_HOTSPOT, None))
+        Cursor::Painted(PaintedCursor::tool(IconId::new("eyedropper"), pipette_hotspot(), None))
     }
 
     fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {

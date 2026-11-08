@@ -238,7 +238,7 @@ fn press_key<T: Reports + 'static>(rig: &mut Rig<T>, key: Key, mods: Modifiers) 
 }
 
 fn commit(rect: (f64, f64, f64, f64), operation: SelectionOperation) -> SelectEvent {
-    SelectEvent::Commit { shape: SelectionShape::Rectangle(Rect::new(rect.0, rect.1, rect.2, rect.3)), operation }
+    SelectEvent::commit(SelectionShape::Rectangle(Rect::new(rect.0, rect.1, rect.2, rect.3)), operation)
 }
 
 fn polygon(points: &[(f64, f64)]) -> SelectionShape {
@@ -319,9 +319,9 @@ fn marquee_corners_follow_constraint_and_modifiers() {
 fn marquee_single_row_and_column_follow_the_pointer() {
     let mut rig = rig("Marquee", MarqueeTool::new(MarqueeKind::SingleRow), Fake::empty());
     down(&mut rig, (50.0, 40.7), NONE);
-    assert_eq!(rig.tool().phase(), SelectPhase::Marquee { rect: Some(Rect::new(0.0, 40.0, 400.0, 41.0)) }, "a press selects");
+    assert_eq!(rig.tool().phase(), SelectPhase::marquee(Some(Rect::new(0.0, 40.0, 400.0, 41.0))), "a press selects");
     drag_to(&mut rig, (60.0, 90.2), NONE);
-    assert_eq!(rig.tool().phase(), SelectPhase::Marquee { rect: Some(Rect::new(0.0, 90.0, 400.0, 91.0)) });
+    assert_eq!(rig.tool().phase(), SelectPhase::marquee(Some(Rect::new(0.0, 90.0, 400.0, 91.0))));
     drag_to(&mut rig, (60.0, 500.0), NONE);
     up(&mut rig, (60.0, 500.0), NONE);
     assert_eq!(rig.tool_mut().events(), [commit((0.0, 299.0, 400.0, 300.0), SelectionOperation::New)]);
@@ -333,7 +333,7 @@ fn marquee_single_row_and_column_follow_the_pointer() {
     for (kind, line) in [(MarqueeKind::SingleRow, (0.0, 150.0, 400.0, 151.0)), (MarqueeKind::SingleColumn, (150.0, 0.0, 151.0, 300.0))] {
         let mut inside = self::rig("Marquee", MarqueeTool::new(kind), Fake::selected(selection));
         down(&mut inside, (150.0, 150.0), NONE);
-        assert_eq!(inside.tool().phase(), SelectPhase::Marquee { rect: Some(Rect::new(line.0, line.1, line.2, line.3)) }, "{kind:?}");
+        assert_eq!(inside.tool().phase(), SelectPhase::marquee(Some(Rect::new(line.0, line.1, line.2, line.3))), "{kind:?}");
         up(&mut inside, (150.0, 150.0), NONE);
         assert_eq!(inside.tool_mut().events(), [commit(line, SelectionOperation::New)], "{kind:?}");
     }
@@ -380,7 +380,7 @@ fn marquee_cmd_press_cuts_and_cmd_alt_copies() {
     let mut rig = rig("Marquee", MarqueeTool::new(MarqueeKind::Rectangle), Fake::selected(Rect::new(100.0, 100.0, 200.0, 200.0)));
     for (mods, copy) in [(Mods::CMD, false), (Mods { cmd: true, alt: true, ..NONE }, true)] {
         down(&mut rig, (150.0, 150.0), mods);
-        assert_eq!(rig.tool().phase(), SelectPhase::Dragging(DragKind::Pixels { copy }));
+        assert_eq!(rig.tool().phase(), SelectPhase::Dragging(DragKind::pixels(copy)));
         up(&mut rig, (150.0, 150.0), mods);
         rig.tool_mut().events();
     }
@@ -396,7 +396,7 @@ fn marquee_floating_piece_moves_with_a_plain_drag() {
     let probe = Fake { piece: Some(Rect::new(300.0, 50.0, 360.0, 110.0)), ..Fake::selected(Rect::new(100.0, 100.0, 200.0, 200.0)) };
     let mut rig = rig("Marquee", MarqueeTool::new(MarqueeKind::Rectangle), probe);
     down(&mut rig, (330.0, 80.0), NONE);
-    assert_eq!(rig.tool().phase(), SelectPhase::Dragging(DragKind::Pixels { copy: false }));
+    assert_eq!(rig.tool().phase(), SelectPhase::Dragging(DragKind::pixels(false)));
     up(&mut rig, (330.0, 80.0), NONE);
     rig.tool_mut().events();
 
@@ -434,10 +434,10 @@ fn marquee_space_moves_the_marquee() {
     let mut rig = rig("Marquee", MarqueeTool::new(MarqueeKind::Rectangle), Fake::empty());
     down(&mut rig, (10.0, 10.0), NONE);
     drag_to(&mut rig, (30.0, 30.0), NONE);
-    assert_eq!(rig.tool().phase(), SelectPhase::Marquee { rect: Some(Rect::new(10.0, 10.0, 30.0, 30.0)) });
+    assert_eq!(rig.tool().phase(), SelectPhase::marquee(Some(Rect::new(10.0, 10.0, 30.0, 30.0))));
     rig.fixture().frame(vec![input::key_press(Key::Space, Modifiers::NONE)]);
     drag_to(&mut rig, (60.0, 50.0), NONE);
-    assert_eq!(rig.tool().phase(), SelectPhase::Marquee { rect: Some(Rect::new(40.0, 30.0, 60.0, 50.0)) }, "same size, moved by the pointer");
+    assert_eq!(rig.tool().phase(), SelectPhase::marquee(Some(Rect::new(40.0, 30.0, 60.0, 50.0))), "same size, moved by the pointer");
     up(&mut rig, (60.0, 50.0), NONE);
     assert_eq!(rig.tool_mut().events(), [commit((40.0, 30.0, 60.0, 50.0), SelectionOperation::New)]);
 }
@@ -463,12 +463,9 @@ fn lasso_commits_a_closed_outline_with_the_latched_operation() {
     down(&mut rig, (50.0, 50.0), Mods::SHIFT);
     drag_to(&mut rig, (150.0, 50.0), NONE);
     drag_to(&mut rig, (150.0, 150.0), NONE);
-    assert_eq!(rig.tool().phase(), SelectPhase::Outline { points: 3 });
+    assert_eq!(rig.tool().phase(), SelectPhase::outline(3));
     up(&mut rig, (150.0, 150.0), NONE);
-    assert_eq!(
-        rig.tool_mut().events(),
-        [SelectEvent::Commit { shape: polygon(&[(50.0, 50.0), (150.0, 50.0), (150.0, 150.0)]), operation: SelectionOperation::Add }]
-    );
+    assert_eq!(rig.tool_mut().events(), [SelectEvent::commit(polygon(&[(50.0, 50.0), (150.0, 50.0), (150.0, 150.0)]), SelectionOperation::Add)]);
     assert_eq!(rig.tool().phase(), SelectPhase::Idle);
 }
 
@@ -485,20 +482,17 @@ fn lasso_takes_retract_and_enter_only_while_an_outline_is_open() {
     for point in [(50.0, 50.0), (150.0, 50.0), (150.0, 150.0)] {
         click(&mut rig, point, Mods::ALT);
     }
-    assert_eq!(rig.tool().phase(), SelectPhase::Outline { points: 3 });
+    assert_eq!(rig.tool().phase(), SelectPhase::outline(3));
     press_key(&mut rig, Key::Backspace, Modifiers::ALT);
-    assert_eq!(rig.tool().phase(), SelectPhase::Outline { points: 3 }, "Backspace with Alt is not a retract");
+    assert_eq!(rig.tool().phase(), SelectPhase::outline(3), "Backspace with Alt is not a retract");
     hold(&mut rig, Modifiers::NONE);
     press_key(&mut rig, Key::Backspace, Modifiers::NONE);
-    assert_eq!(rig.tool().phase(), SelectPhase::Outline { points: 2 });
+    assert_eq!(rig.tool().phase(), SelectPhase::outline(2));
     hold(&mut rig, Modifiers::ALT);
     click(&mut rig, (100.0, 150.0), Mods::ALT);
     hold(&mut rig, Modifiers::NONE);
     press_key(&mut rig, Key::Enter, Modifiers::NONE);
-    assert_eq!(
-        rig.tool_mut().events(),
-        [SelectEvent::Commit { shape: polygon(&[(50.0, 50.0), (150.0, 50.0), (100.0, 150.0)]), operation: SelectionOperation::New }]
-    );
+    assert_eq!(rig.tool_mut().events(), [SelectEvent::commit(polygon(&[(50.0, 50.0), (150.0, 50.0), (100.0, 150.0)]), SelectionOperation::New)]);
 }
 
 // Releasing Alt with the button up closes the outline, and a double click closes it.
@@ -512,7 +506,7 @@ fn lasso_alt_release_and_double_click_close() {
     assert!(rig.tool_mut().events().is_empty());
     hold(&mut rig, Modifiers::NONE);
     let expected = polygon(&[(50.0, 50.0), (150.0, 50.0), (150.0, 150.0)]);
-    assert_eq!(rig.tool_mut().events(), [SelectEvent::Commit { shape: expected, operation: SelectionOperation::New }]);
+    assert_eq!(rig.tool_mut().events(), [SelectEvent::commit(expected, SelectionOperation::New)]);
 
     hold(&mut rig, Modifiers::ALT);
     for point in [(50.0, 50.0), (150.0, 50.0), (150.0, 150.0)] {
@@ -548,11 +542,11 @@ fn lasso_is_dropped_on_reset_or_document_change() {
     hold(&mut rig, Modifiers::ALT);
     click(&mut rig, (50.0, 50.0), Mods::ALT);
     click(&mut rig, (150.0, 50.0), Mods::ALT);
-    assert_eq!(rig.tool().phase(), SelectPhase::Outline { points: 2 });
+    assert_eq!(rig.tool().phase(), SelectPhase::outline(2));
     rig.tool_mut().tool().reset();
     assert_eq!(rig.tool().phase(), SelectPhase::Idle);
     click(&mut rig, (50.0, 50.0), Mods::ALT);
-    assert_eq!(rig.tool().phase(), SelectPhase::Outline { points: 1 });
+    assert_eq!(rig.tool().phase(), SelectPhase::outline(1));
     rig.tool_mut().probe.document = 2;
     rig.fixture().frame(Vec::new());
     assert_eq!(rig.tool().phase(), SelectPhase::Idle);
@@ -601,7 +595,7 @@ fn polygon_shift_constrains_to_45_degrees() {
     hold(&mut rig, Modifiers::NONE);
     press_key(&mut rig, Key::Enter, Modifiers::NONE);
     let events = rig.tool_mut().events();
-    let [SelectEvent::Commit { shape: SelectionShape::Polygon(points), operation }] = events.as_slice() else { panic!("one commit: {events:?}") };
+    let [SelectEvent::Commit { shape: SelectionShape::Polygon(points), operation, .. }] = events.as_slice() else { panic!("one commit: {events:?}") };
     assert_eq!(*operation, SelectionOperation::Add);
     let turned = Point::new(50.0 + 100.0_f64.hypot(20.0), 50.0);
     assert_eq!(points.len(), 3);
@@ -615,13 +609,13 @@ fn polygon_shift_constrains_to_45_degrees() {
 fn polygon_click_driven_needs_cmd_to_drag() {
     let mut rig = rig("Polygonal Lasso", PolygonLassoTool::new(), Fake::selected(Rect::new(100.0, 100.0, 200.0, 200.0)));
     click(&mut rig, (150.0, 150.0), NONE);
-    assert_eq!(rig.tool().phase(), SelectPhase::Outline { points: 1 });
+    assert_eq!(rig.tool().phase(), SelectPhase::outline(1));
     click(&mut rig, (180.0, 120.0), Mods::CMD);
-    assert_eq!(rig.tool().phase(), SelectPhase::Outline { points: 2 }, "Cmd with an outline open places a vertex too");
+    assert_eq!(rig.tool().phase(), SelectPhase::outline(2), "Cmd with an outline open places a vertex too");
     assert!(rig.tool_mut().events().is_empty());
     rig.tool_mut().tool().reset();
     down(&mut rig, (150.0, 150.0), Mods::CMD);
-    assert_eq!(rig.tool().phase(), SelectPhase::Dragging(DragKind::Pixels { copy: false }));
+    assert_eq!(rig.tool().phase(), SelectPhase::Dragging(DragKind::pixels(false)));
     drag_to(&mut rig, (155.0, 150.0), Mods::CMD);
     up(&mut rig, (155.0, 150.0), Mods::CMD);
     assert_eq!(tags(&rig.tool_mut().events()), ["begin", "update 5,0", "commit 5,0"]);
@@ -647,9 +641,9 @@ fn polygon_secondary_click_removes_the_last_vertex_then_cancels() {
         click(&mut rig, point, NONE);
     }
     secondary(&mut rig);
-    assert_eq!(rig.tool().phase(), SelectPhase::Outline { points: 2 });
+    assert_eq!(rig.tool().phase(), SelectPhase::outline(2));
     press_key(&mut rig, Key::Backspace, Modifiers::NONE);
-    assert_eq!(rig.tool().phase(), SelectPhase::Outline { points: 1 });
+    assert_eq!(rig.tool().phase(), SelectPhase::outline(1));
     secondary(&mut rig);
     assert_eq!(rig.tool().phase(), SelectPhase::Idle);
     assert!(rig.tool_mut().events().is_empty());
@@ -665,7 +659,7 @@ fn polygon_new_outline_replaces_the_selection() {
     rig.tool_mut().tool().reset();
     assert!(!rig.tool_mut().tool().replaces_selection());
     click(&mut rig, (20.0, 20.0), Mods::SHIFT);
-    assert_eq!(rig.tool().phase(), SelectPhase::Outline { points: 1 });
+    assert_eq!(rig.tool().phase(), SelectPhase::outline(1));
     assert!(!rig.tool_mut().tool().replaces_selection(), "Add keeps the selection visible");
 }
 
@@ -773,7 +767,7 @@ fn glide(rig: &mut Rig<MagneticLassoTool<Circle>>, point: Point, mods: Mods) {
 }
 
 fn commit_points(events: &[SelectEvent]) -> (Vec<Point>, SelectionOperation) {
-    let [SelectEvent::Commit { shape: SelectionShape::Polygon(points), operation }] = events else { panic!("one polygon commit: {events:?}") };
+    let [SelectEvent::Commit { shape: SelectionShape::Polygon(points), operation, .. }] = events else { panic!("one polygon commit: {events:?}") };
     (points.clone(), *operation)
 }
 
@@ -938,7 +932,7 @@ fn magnetic_outline_being_drawn_is_one_accessible_object() {
     assert_eq!(outline_value(&mut rig), None);
     click(&mut rig, pt(on(0.0)), NONE);
     glide(&mut rig, on(0.3), NONE);
-    let SelectPhase::Outline { points } = rig.tool().phase() else { panic!("open") };
+    let SelectPhase::Outline { points, .. } = rig.tool().phase() else { panic!("open") };
     assert_eq!(outline_value(&mut rig), Some(format!("{points} points")));
     rig.tool_mut().tool().reset();
     rig.fixture().frame(Vec::new());

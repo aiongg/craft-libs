@@ -156,7 +156,7 @@ impl<'a> WideAnglePanel<'a> {
                     add = true;
                 }
             });
-            Checkbox::new(preview.reborrow()).label(words.preview.clone()).id_salt("preview").show(ui);
+            Checkbox::new(preview.reborrowed()).label(words.preview.clone()).id_salt("preview").show(ui);
             Text::new(words.hint.clone()).role(TypeRole::Caption).shade(Shade::Faint).show(ui);
         });
         WideAnglePanelOutput { response: shown.output, edit, constraint, add }

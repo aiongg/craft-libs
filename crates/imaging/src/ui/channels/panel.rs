@@ -199,7 +199,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> ChannelsPanel<'a,
                         let kind = payload_kinds.iter().find(|(key, _)| *key == drag.grabbed).map(|(_, kind)| *kind)?;
                         Some(ChannelDrag { list: drag.list, grabbed: drag.grabbed.clone(), kind })
                     })
-                    .show_items(ui, &order, &mut |key, item| {
+                    .show_items(ui, &order, &mut |_key, item| {
                         let at = item.at;
                         channel_row(&row_cx, at).cells(item.cells()).state(item.row)
                     });

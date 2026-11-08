@@ -331,7 +331,7 @@ impl LiquifyWorkspace {
         let words = env.words::<LiquifyWords>();
         let common = env.words::<CommonWords>();
         let layers = source.layers();
-        let title = FullWindowTitle::new(words.name.clone()).subject(self.subject.as_str()).zoom(self.zoom_percent).label(&env);
+        let title = FullWindowTitle::new(words.name.clone()).subject(self.subject.clone()).zoom(self.zoom_percent).label(&env);
         let settings_before = self.settings.clone();
         let mut asked_steps = std::mem::take(&mut self.requested);
         self.events = std::mem::take(&mut self.queued);

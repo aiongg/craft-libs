@@ -17,12 +17,20 @@ const ICON_HOTSPOT: Vec2 = Vec2::ZERO;
 
 /// The detection settings of one edge query.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct EdgeSearch {
     /// How far from the pointer edges are looked for, in document pixels (Width, narrowed by
     /// stylus pressure when [`MagneticSettings::pressure_width`] is on).
     pub width: f64,
     /// The weakest edge that counts, 0..=1 (Contrast / 100).
     pub contrast: f64,
+}
+
+impl EdgeSearch {
+    /// A search for edges within `width` document pixels of the pointer, at least `contrast` (0..=1) strong.
+    pub fn new(width: f64, contrast: f64) -> Self {
+        Self { width, contrast }
+    }
 }
 
 /// The app's edge finder over the pixels being traced (the active layer's pixels or the composite). The tool calls it
@@ -40,6 +48,7 @@ pub trait EdgeTracer {
 /// [`MagneticLassoTool::settings_mut`]; `[` and `]` change `width` in the tool.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
+#[non_exhaustive]
 pub struct MagneticSettings {
     /// Width in document pixels, 1..=256. Default 10.
     pub width: f32,

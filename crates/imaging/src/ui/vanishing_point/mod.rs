@@ -297,7 +297,7 @@ impl VanishingPointWorkspace {
         let env = Env::of(ui);
         let words = env.words::<VanishingPointWords>();
         let common = env.words::<CommonWords>();
-        let title = FullWindowTitle::new(words.name.clone()).subject(self.subject.as_str()).zoom(self.zoom_percent).label(&env);
+        let title = FullWindowTitle::new(words.name.clone()).subject(self.subject.clone()).zoom(self.zoom_percent).label(&env);
         let settings_before = self.settings;
         let mut asked = std::mem::take(&mut self.requested);
         let slots = slots();
