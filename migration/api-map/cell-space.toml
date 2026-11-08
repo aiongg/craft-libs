@@ -82,3 +82,10 @@ new = "anchor_cell()"
 type = "CellSpace"
 old = "new(rows, columns)"
 new = "new(&Positions::new(rows), columns)"
+
+[[type]]
+name = "PlacedSelection"
+old = ""
+new = "craft_behavior::PlacedSelection"
+status = "replaced"
+note = "A selection by position in one display order, from `SelectionModel::placed(order)`: `holds_row(at)`, `holds_cell(at, column)`, `rows()`. Read once per pass instead of `contains` per row. `CellSelection::toggle(cell, space)` is Cmd/Ctrl+click with the order; `CellSpace::all()` and `whole_columns()` return `Option` (`None` for an empty order); `ItemLayout::column_shown(index)` answers hidden columns; `SelectionModel::cells_mut()` became `cells(&self)`."
