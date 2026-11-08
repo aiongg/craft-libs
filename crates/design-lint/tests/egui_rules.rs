@@ -229,3 +229,11 @@ fn text_shortcuts_on_builders_are_not_ui_calls() {
     let src = "fn f(field: Field) { let _ = field.label(\"x\"); }";
     assert!(rules_at(src, "src/a.rs", &StaticScope::new()).is_empty());
 }
+
+#[test]
+fn widget_shortcuts_are_flagged_on_a_ui_receiver_only() {
+    let on_ui = "fn f(ui: &mut Ui) { ui.radio(true, \"x\"); }";
+    assert_eq!(rules_at(on_ui, "src/a.rs", &StaticScope::new()), ["contract/egui-widget"]);
+    let on_model = "fn f(item: Item) { let _ = item.radio(true); let _ = Item::radio(true); }";
+    assert!(rules_at(on_model, "src/a.rs", &StaticScope::new()).is_empty());
+}
