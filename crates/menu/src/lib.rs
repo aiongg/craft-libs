@@ -56,7 +56,7 @@
 //! **Keys stay with egui.** AppKit runs a menu's key equivalents before the window sees the key,
 //! which would skip the app's own key rules (a focused text field keeps ⌘C, ⌘V and ⌘Z, dialogs
 //! are modal, a tool may have its own ⌘Z). So the backend reports a key equivalent as
-//! [`Event::Key`], and [`NativeMenu::raw_input`] feeds it to egui as the input egui-winit would
+//! [`Event::Key`], and [`NativeMenu::poll`] hands it to the window host's input filter, which feeds it to egui as the input egui-winit would
 //! have made of it: a key press, or for ⌘C, ⌘X and ⌘V egui's copy, cut and paste events
 //! ([`ClipboardKeys`]). The shortcut runs through the app's key handling as without a native
 //! menu. A click is [`Event::Click`], and [`NativeMenu::take_clicks`] returns its command for the app
@@ -77,11 +77,10 @@
 //! `mac::install_app_menu` (a minimal app menu, for apps without a [`MenuBar`]) both use it.
 //! [`NativeMenu::on_command`] sees each allowed click as it arrives, also while egui is idle.
 //!
-//! Per frame: [`NativeMenu::raw_input`] before egui reads the input (`eframe::App::raw_input_hook`),
-//! then [`NativeMenu::set_gate`], [`NativeMenu::take_clicks`] and run the commands, then
+//! Per frame: [`NativeMenu::poll`], then [`NativeMenu::set_gate`], [`NativeMenu::take_clicks`] and run the commands, then
 //! [`NativeMenu::sync_with`], which lays the menus out again only when the app's state changed
 //! (or [`NativeMenu::sync`], which compares a layout built every frame).
-//! [`NativeMenu::raw_input`] also keeps a click or Escape that closes an open native menu away
+//! The input filter also keeps a click or Escape that closes an open native menu away
 //! from egui.
 
 pub mod bar;

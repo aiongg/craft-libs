@@ -125,7 +125,11 @@ fn collect_names(items: &[syn::Item], names: &mut BTreeSet<String>) {
                     collect_names(inner, names);
                 }
             }
-            syn::Item::Macro(i) if i.mac.path.is_ident("macro_rules") => names.extend(i.ident.as_ref().map(ToString::to_string)),
+            // A macro a crate defines names itself, and the items its rules generate (`pub enum Key` in `keys!`).
+            syn::Item::Macro(i) if i.mac.path.is_ident("macro_rules") => {
+                names.extend(i.ident.as_ref().map(ToString::to_string));
+                keyword_names(i.mac.tokens.clone(), names);
+            }
             // Types defined by a macro invocation: `keyword Name` among its tokens.
             syn::Item::Macro(i) => keyword_names(i.mac.tokens.clone(), names),
             _ => {}

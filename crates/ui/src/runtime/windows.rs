@@ -1011,6 +1011,17 @@ impl WindowHost {
         input_filter::add_key_equivalent(&self.ctx, viewport, equivalent);
     }
 
+    /// Records whether the platform's menu of `viewport` is open. While it is, the window's next press or Escape is
+    /// taken from the input once (it closes the menu); see [`take_menu_close`](Self::take_menu_close).
+    pub fn menu_open(&self, viewport: ViewportId, open: bool) {
+        input_filter::set_menu_open(&self.ctx, viewport, open);
+    }
+
+    /// True once after a press or Escape reached `viewport`'s input: the platform's menu is to close.
+    pub fn take_menu_close(&self, viewport: ViewportId) -> bool {
+        input_filter::take_menu_close(&self.ctx, viewport)
+    }
+
     /// Queues `text` as typed text.
     pub fn inject_text(&self, viewport: ViewportId, text: &str) {
         injected::inject_text(&self.ctx, viewport, text);

@@ -1,12 +1,13 @@
 //! Context menus from menu-model rows.
 
 use craft_menu::{Item, Node, context};
+use craft_ui::buttons::Button;
 use craft_ui::contract::ShowContainer as _;
 use craft_ui::menu::Menu;
 use craft_ui::runtime::commands::{CommandState, FireSource};
 use craft_ui::runtime::frame::take_output;
 use craft_ui::testing::{Fixture, pointer, trial};
-use egui::{Key, Modifiers, Pos2, Sense, Vec2};
+use egui::{Key, Modifiers, Pos2};
 
 fn rows() -> Vec<Node> {
     vec![
@@ -17,23 +18,24 @@ fn rows() -> Vec<Node> {
     ]
 }
 
-/// A context menu of the rows over an area at the room's corner, opened by a secondary click at `AT`.
+/// A context menu of the rows over a button, opened by a secondary click on it.
 fn rig() -> Fixture {
     let nodes = rows();
     let mut fixture = Fixture::new(move |ui| {
-        let target = ui.allocate_response(Vec2::new(100.0, 40.0), Sense::click());
+        let target = Button::new(TARGET).show(ui);
         Menu::context("Canvas menu", &target).show(ui, |ui, _| context::rows(ui, &nodes));
     });
     fixture.settle();
     fixture
 }
 
-const AT: Pos2 = Pos2::new(20.0, 10.0);
+const TARGET: &str = "Canvas";
 
 fn open(fixture: &mut Fixture) {
-    fixture.frame(vec![pointer::moved(AT)]);
-    fixture.frame(vec![pointer::secondary(AT, true)]);
-    fixture.frame(vec![pointer::secondary(AT, false)]);
+    let at: Pos2 = fixture.by_label(TARGET).expect("the target has a node").center();
+    fixture.frame(vec![pointer::moved(at)]);
+    fixture.frame(vec![pointer::secondary(at, true)]);
+    fixture.frame(vec![pointer::secondary(at, false)]);
     fixture.settle();
 }
 

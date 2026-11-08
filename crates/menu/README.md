@@ -220,8 +220,8 @@ until the menu closes. A rebuild that fails keeps the menus as they were.
 
 ## Per frame
 
-Key equivalents stay with egui: the backend reports them as `Event::Key`, and `raw_input` feeds
-each one to egui as egui-winit would have, so the app's own key handling (text fields, dialogs,
+Key equivalents stay with egui: the backend reports them as `Event::Key`, and `poll` hands
+each one to the window host's input filter, which puts it into the next frame's input as egui-winit would have, so the app's own key handling (text fields, dialogs,
 tool-specific undo) runs as without a native menu. ⌘C, ⌘X and ⌘V become egui's Copy, Cut and
 Paste (`ClipboardKeys::Egui`, the default), so text fields copy and paste; an app that runs its
 clipboard commands from the keys itself sets `menu.clipboard_keys(ClipboardKeys::Raw)` to get
@@ -238,8 +238,7 @@ The app tells the menu what may run with a `Gate`, every frame (`set_gate`):
 
 Each frame, in this order:
 
-1. `raw_input`, before egui reads the input (`eframe::App::raw_input_hook`). It uses the gate
-   from the last `set_gate`.
+1. `poll`. It uses the gate from the last `set_gate`.
 2. `set_gate`, with the app's state for this frame.
 3. `take_clicks`, and run the commands it returns: the clicks since the last frame that the gate
    allows now. Minimize and Quit are already handled.
@@ -247,13 +246,9 @@ Each frame, in this order:
    arrived, and re-syncs them in place when the gate changed.
 
 ```rust
-// eframe::App::raw_input_hook, before egui reads the input:
-if let Some(menu) = &mut self.native_menu {
-    menu.raw_input(raw_input);
-}
-
 // In the frame:
 if let Some(menu) = &mut self.native_menu {
+    menu.poll(ctx);
     menu.set_gate(
         Gate::default()
             .modal(self.dialog.is_some())
