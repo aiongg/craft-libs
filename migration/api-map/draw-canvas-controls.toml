@@ -187,3 +187,52 @@ new = "removed: CanvasTool::cancel owns the cancel and restores the tool's mark;
 type = "ConstrainStyle"
 old = "of(&tokens)"
 new = "new(copy_reach, stroke_lock), a tool passes ToolContext.slop for both"
+
+[[type]]
+name = "SymmetryOverlay"
+old = "craft_draw::ui::SymmetryOverlay"
+new = "craft_draw::ui::SymmetryOverlay"
+status = "same"
+note = "A paint-only canvas control: `SymmetryOverlay::new(label, &symmetry, page).editing(bool)` shown with `show_at(ui, body.rect)`. The guides take the overlay line colour; the marks take `StyleCx::handle()`."
+
+[[type]]
+name = "SymmetryHandles"
+old = ""
+new = ""
+status = "new"
+note = "A canvas control over `Bind<Symmetry>` with two parts in one group: the centre and the rotation handle. Replaces the parts of `SymmetryTransformPass`."
+
+[[type]]
+name = "SymmetryTool"
+old = ""
+new = ""
+status = "new"
+note = "The `CanvasTool` of an open session: Nudge moves the centre, Submit commits, Cancel discards."
+
+[[type]]
+name = "SymmetryTransformPass"
+old = "craft_draw::ui::SymmetryTransformPass"
+new = ""
+status = "removed"
+note = "Replaced by `SymmetryHandles` (pointer and part keys) and `SymmetryTool` (the keys of the canvas)."
+
+[[type]]
+name = "SymmetryInput"
+old = "craft_draw::ui::SymmetryInput"
+new = ""
+status = "removed"
+note = "`valid` is the second argument of `SymmetryTool::new(session, valid)`."
+
+[[type]]
+name = "SymmetryStyle"
+old = "craft_draw::ui::SymmetryStyle"
+new = ""
+status = "removed"
+note = "Every size and colour comes from the style hooks."
+
+[[type]]
+name = "SymmetryTransform"
+old = "craft_draw::ui::SymmetryTransform"
+new = "craft_draw::ui::SymmetryTransform"
+status = "same"
+note = "Keeps `begin`, `original`, `preview`, `commit` and `discard`; `apply(&EditEvent<Symmetry>)` takes the edits of the handles; `pass` and `labels` go."
