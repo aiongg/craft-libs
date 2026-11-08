@@ -1,0 +1,758 @@
+//! `TrackStack` and `TrackRow`: the tracks of one pane of a timeline on the collection contract (20.6).
+//!
+//! A stack is one collection keyed by [`TrackId`]. Its columns are the colour strip, the track name (the header width the
+//! app keeps, frozen and resizable), one sweepable toggle column per switch of the [`TrackInfo`] and the lane. A row paints
+//! its header in the cells and registers the lane's clips as parts of the lane cell through [`ClipLane`], so a track of
+//! any number of clips costs one pipeline run. Switches reach the app as the collection's `Toggle` events, the width of
+//! the header as its `Column` events; everything else a row reports is its [`TrackEvent`].
+
+use super::clips::{ClipLane, ClipLaneEvents, ClipLook};
+use super::view::{TimelineWords, time_axis};
+use super::{LabelPalette, label_palette};
+use crate::clips::ClipEdit;
+use crate::model::{ClipId, TrackId, TrackInfo, TrackKind};
+use crate::time::Tick;
+use craft_behavior::{
+    ColumnKey, ColumnWidth, CursorIcon, DisplayOrder, EditEvent, GestureId, HitLevel, HitPriority, IconId, ItemSource, Metrics, Mixed, PartKey,
+    PressPhase, Selection, SelectionChange, Sense, SizeHint, SpanLayout,
+};
+use craft_theme::UiTokens;
+use craft_ui::contract::{
+    Access, Bind, BindMut, Collection, CollectionProps, CollectionResponse, ColumnKind, ColumnSpec, Common, Component, ContainerProps, Cx, Edit as _,
+    EditResponse, ItemKeys, ItemOutput, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props, Role, Scroll, ScrollAnchor,
+    SelectMode, Sizing, ToggleColumn, WordSetCx as _,
+};
+use craft_ui::primitives::{IconSpec, PaintShape, StrokeWidth};
+use craft_ui::runtime::env::Label;
+use craft_ui::style::{ComponentStyle, DataColor, IconLook, StyleColor, StyleCx, SurfaceLook, TextLook, TypeRole};
+use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
+use std::sync::Arc;
+
+/// The colour strip: a click on it opens the label menu.
+pub const STRIP: ColumnKey = ColumnKey::new("strip");
+/// The track name.
+pub const NAME: ColumnKey = ColumnKey::new("name");
+/// The lock switch.
+pub const LOCK: ColumnKey = ColumnKey::new("lock");
+/// The targeting switch.
+pub const TARGET: ColumnKey = ColumnKey::new("target");
+/// The sync lock switch.
+pub const SYNC_LOCK: ColumnKey = ColumnKey::new("syncLock");
+/// The output switch (the eye or the speaker).
+pub const OUTPUT: ColumnKey = ColumnKey::new("output");
+/// The mute switch.
+pub const MUTE: ColumnKey = ColumnKey::new("mute");
+/// The solo switch.
+pub const SOLO: ColumnKey = ColumnKey::new("solo");
+/// The lane with the clips.
+pub const LANE: ColumnKey = ColumnKey::new("lane");
+
+const LABEL: PartKey = PartKey::new("label");
+const HEADER: PartKey = PartKey::new("header");
+const EDGE_BOTTOM: PartKey = PartKey::new("heightBottom");
+const EDGE_TOP: PartKey = PartKey::new("heightTop");
+
+/// The switch columns in header order, each with its icon while on and off.
+const SWITCHES: [(ColumnKey, &str, &str); 6] = [
+    (LOCK, "lock", "lock"),
+    (TARGET, "target", "target"),
+    (SYNC_LOCK, "link", "link"),
+    (OUTPUT, "eye", "eye"),
+    (MUTE, "mute", "mute"),
+    (SOLO, "solo", "solo"),
+];
+
+/// The colour strip is this many control heights wide.
+const STRIP_IN_CONTROLS: f32 = 0.25;
+/// How strongly a track's colour label tints its header: a share of the label colour (FilmCraft `TRACK_HEADER_TINT`).
+const HEADER_LABEL_TINT: f32 = 0.18;
+
+/// The sizes of a timeline's tracks and headers, all from the tokens.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct TrackSizes {
+    /// A video track's default height.
+    pub video: f32,
+    /// An audio or other track's default height.
+    pub audio: f32,
+    /// A caption track's default height.
+    pub caption: f32,
+    /// The least a track's height can be dragged to.
+    pub least: f32,
+    /// The most a track's height can be dragged to.
+    pub most: f32,
+    /// One control height: the width of a switch column.
+    pub unit: f32,
+    /// The name column's default width.
+    pub name: f32,
+    /// The least the name column can be dragged to.
+    pub name_least: f32,
+    /// The most the name column can be dragged to.
+    pub name_most: f32,
+}
+
+/// A track's tallest is this many control heights.
+const MOST_IN_CONTROLS: f32 = 8.0;
+/// The name column is this many control heights wide by default.
+const NAME_IN_CONTROLS: f32 = 6.0;
+const NAME_LEAST_IN_CONTROLS: f32 = 3.0;
+const NAME_MOST_IN_CONTROLS: f32 = 12.0;
+
+impl TrackSizes {
+    /// The sizes the tokens give.
+    pub fn of(tokens: &UiTokens) -> TrackSizes {
+        let unit = tokens.size.control.md;
+        let tall = tokens.size.thumb.lg;
+        TrackSizes {
+            video: tall + tokens.space.pad.panel,
+            audio: tall + tokens.space.gap.stack,
+            caption: unit,
+            least: unit,
+            most: unit * MOST_IN_CONTROLS,
+            unit,
+            name: unit * NAME_IN_CONTROLS,
+            name_least: unit * NAME_LEAST_IN_CONTROLS,
+            name_most: unit * NAME_MOST_IN_CONTROLS,
+        }
+    }
+
+    /// The height of `track`: its own, or the default of its kind, within the least and the most.
+    pub fn height_of(&self, track: &TrackInfo<'_>) -> f32 {
+        let default = match track.kind {
+            TrackKind::Video => self.video,
+            TrackKind::Caption => self.caption,
+            TrackKind::Audio | TrackKind::Other => self.audio,
+        };
+        track.height.filter(|height| height.is_finite() && *height > 0.0).unwrap_or(default).clamp(self.least, self.most)
+    }
+
+    /// The height a double click on a header gives a track of height `now`: the tall one below the middle, else the
+    /// short one.
+    pub fn toggled(&self, now: f32) -> f32 {
+        let (short, tall) = (self.caption, self.video);
+        if now < (short + tall) / 2.0 { tall } else { short }
+    }
+
+    /// The width of the headers (colour strip, name and the switches) for a name column `name` wide: where the lane
+    /// begins.
+    pub fn header_extent(&self, name: f32) -> f32 {
+        self.unit * (STRIP_IN_CONTROLS + SWITCHES.len() as f32) + name.clamp(self.name_least, self.name_most)
+    }
+
+    /// `name` within the least and the most.
+    pub fn name_width(&self, name: Option<f32>) -> f32 {
+        name.unwrap_or(self.name).clamp(self.name_least, self.name_most)
+    }
+}
+
+/// The tracks of a pane as a collection source: keyed by track, each as tall as its height says.
+#[non_exhaustive]
+pub struct Tracks<'a> {
+    /// The tracks, top to bottom.
+    pub tracks: &'a [TrackInfo<'a>],
+    /// The sizes the heights resolve with.
+    pub sizes: TrackSizes,
+}
+
+impl<'a> Tracks<'a> {
+    /// The source over `tracks`.
+    pub fn new(tracks: &'a [TrackInfo<'a>], sizes: TrackSizes) -> Self {
+        Tracks { tracks, sizes }
+    }
+}
+
+impl DisplayOrder<TrackId> for Tracks<'_> {
+    fn len(&self) -> usize {
+        self.tracks.len()
+    }
+
+    fn key(&self, at: usize) -> TrackId {
+        self.tracks[at].id
+    }
+
+    fn text(&self, at: usize) -> Option<std::borrow::Cow<'_, str>> {
+        Some(std::borrow::Cow::Borrowed(self.tracks[at].name))
+    }
+}
+
+impl ItemSource<TrackId> for Tracks<'_> {
+    fn size_hint(&self, at: usize) -> SizeHint {
+        SizeHint::Height(self.sizes.height_of(&self.tracks[at]))
+    }
+
+    fn toggled(&self, at: usize, column: &ColumnKey) -> bool {
+        let track = &self.tracks[at];
+        let on = if *column == LOCK {
+            track.locked
+        } else if *column == TARGET {
+            track.targeted
+        } else if *column == SYNC_LOCK {
+            track.sync_lock
+        } else if *column == OUTPUT {
+            track.enabled
+        } else if *column == MUTE {
+            track.muted
+        } else {
+            track.solo
+        };
+        on.unwrap_or(false)
+    }
+
+    fn toggle_enabled(&self, at: usize, column: &ColumnKey) -> bool {
+        let track = &self.tracks[at];
+        let switch = if *column == LOCK {
+            track.locked
+        } else if *column == TARGET {
+            track.targeted
+        } else if *column == SYNC_LOCK {
+            track.sync_lock
+        } else if *column == OUTPUT {
+            track.enabled
+        } else if *column == MUTE {
+            track.muted
+        } else {
+            track.solo
+        };
+        switch.is_some()
+    }
+}
+
+/// What a track row reports beyond the collection's own events, in one pass.
+#[derive(Clone, Debug, Default)]
+#[non_exhaustive]
+pub struct TrackEvent {
+    /// A clip gesture of the lane.
+    pub clip: Option<EditEvent<ClipEdit>>,
+    /// A change of the clip selection.
+    pub select: Option<SelectionChange<ClipId>>,
+    /// Cmd or Ctrl was held at the pick: the app leaves linked partners out.
+    pub unlinked: bool,
+    /// A double click on a clip.
+    pub open: Option<ClipId>,
+    /// A context menu on a clip, with the clip's rect.
+    pub context: Option<(ClipId, Rect)>,
+    /// The colour strip was clicked: the app shows the label menu.
+    pub label_menu: bool,
+    /// A drag of the row's edge, or a double click on the header.
+    pub height: Option<EditEvent<f32>>,
+}
+
+impl TrackEvent {
+    fn is_empty(&self) -> bool {
+        self.clip.is_none() && self.select.is_none() && self.open.is_none() && self.context.is_none() && !self.label_menu && self.height.is_none()
+    }
+}
+
+/// The style of the stack: the playhead line and the snap line over the rows.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+#[non_exhaustive]
+pub struct TrackStackStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+    playhead: StyleColor,
+    snap: StyleColor,
+    sizes: TrackSizes,
+}
+
+/// The tracks of one pane. The video pane keeps its last track nearest the divider by anchoring its scroll at the end.
+#[derive(Component)]
+#[component(collection)]
+pub struct TrackStack {
+    #[common]
+    common: Common,
+    #[container]
+    props: ContainerProps,
+    items: CollectionProps,
+    playhead: Tick,
+    snapped: Option<Tick>,
+    name_width: f32,
+}
+
+impl TrackStack {
+    /// A stack named `label` whose name column is `name_width` wide and whose lane begins `header_extent` from the start
+    /// edge.
+    pub fn new(label: impl Into<Label>, name_width: f32, words: &TimelineWords) -> Self {
+        let switch_name = |key: &ColumnKey| match () {
+            _ if *key == LOCK => words.lock.clone(),
+            _ if *key == TARGET => words.target.clone(),
+            _ if *key == SYNC_LOCK => words.sync_lock.clone(),
+            _ if *key == OUTPUT => words.output.clone(),
+            _ if *key == MUTE => words.mute.clone(),
+            _ => words.solo.clone(),
+        };
+        let mut columns = vec![
+            ColumnSpec::new(STRIP, words.track_color.clone(), ColumnWidth::Controls(STRIP_IN_CONTROLS)),
+            ColumnSpec::new(NAME, "", ColumnWidth::Fixed(name_width)).resizable().frozen(),
+        ];
+        for (key, _, _) in SWITCHES {
+            let header = switch_name(&key);
+            columns.push(ColumnSpec::new(key, header, ColumnWidth::Controls(1.0)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())));
+        }
+        columns.push(ColumnSpec::new(LANE, "", ColumnWidth::fill(1.0)));
+        TrackStack {
+            common: Common::new(),
+            props: ContainerProps::new().sizing(Sizing::Fill).scroll(Scroll::vertical()),
+            items: CollectionProps::new().select(SelectMode::None).columns(columns).header(false).item_keys(ItemKeys::Owner),
+            playhead: Tick::ZERO,
+            snapped: None,
+            name_width,
+        }
+        .label(label)
+    }
+
+    /// The stack stays scrolled to its end when its content grows: the video pane, whose first track is nearest the
+    /// divider.
+    #[must_use]
+    pub fn anchored_at_end(mut self) -> Self {
+        let mut scroll = Scroll::vertical();
+        scroll.anchor = ScrollAnchor::End;
+        self.props = self.props.scroll(scroll);
+        self
+    }
+
+    /// The playhead the line over the rows is drawn at.
+    #[must_use]
+    pub fn playhead(mut self, at: Tick) -> Self {
+        self.playhead = at;
+        self
+    }
+
+    /// The time a gesture snapped to, where the snap line is drawn.
+    #[must_use]
+    pub fn snapped_at(mut self, at: Option<Tick>) -> Self {
+        self.snapped = at;
+        self
+    }
+}
+
+impl Component for TrackStack {
+    const ROLE: Role = Role::LIST;
+    const OVERLAYS: bool = false;
+    type Style = TrackStackStyle;
+    type Output = CollectionResponse<TrackId, TrackEvent>;
+
+    fn style(cx: &StyleCx<'_>, _: TrackStackStyleKey) -> TrackStackStyle {
+        let color = &cx.tokens.color;
+        TrackStackStyle {
+            metrics: Metrics::new(),
+            playhead: cx.color(color.accent.solid),
+            snap: cx.color(color.overlay.line),
+            sizes: TrackSizes::of(cx.tokens),
+        }
+    }
+
+    /// The playhead's hairline over the rows and the lanes' clips: a part above the items, painted in `paint_over`.
+    fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
+        let Some(axis) = time_axis(&cx.env) else { return };
+        let left = rect.left() + cx.style.sizes.header_extent(self.name_width);
+        let x = axis.x_of(self.playhead, left);
+        let reach = cx.style.sizes.unit / 2.0;
+        let line = Rect::from_min_max(Pos2::new(x - reach, rect.top()), Pos2::new(x + reach, rect.bottom())).intersect(rect);
+        cx.part(PLAYHEAD, line).over().priority(HitPriority::new(HitLevel::Handle, 0));
+    }
+
+    fn paint_over(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let Some(axis) = time_axis(&cx.env) else { return };
+        let rect = cx.rect;
+        let left = rect.left() + cx.style.sizes.header_extent(self.name_width);
+        let draw = ui.draw();
+        for (at, color) in [(self.snapped, cx.style.snap), (Some(self.playhead), cx.style.playhead)] {
+            let Some(at) = at else { continue };
+            let x = axis.x_of(at, left);
+            if x >= left && x <= rect.right() {
+                draw.stroke(&PaintShape::Path(vec![Pos2::new(x, rect.top()), Pos2::new(x, rect.bottom())]), StrokeWidth::Thin, color);
+            }
+        }
+    }
+
+    fn finish(self, mut cx: Cx<'_, Self>) -> Self::Output {
+        cx.collection_response()
+    }
+}
+
+const PLAYHEAD: PartKey = PartKey::new("playhead");
+
+impl Collection for TrackStack {
+    type Key = TrackId;
+    type ItemLayout = SpanLayout;
+    type Selection = Selection<TrackId>;
+    type Item<'r> = TrackRow<'r>;
+    type ItemEvent = TrackEvent;
+
+    fn items(&self) -> &CollectionProps {
+        &self.items
+    }
+
+    /// The column widths come from the specs; a row is as tall as its track says.
+    fn item_layout(&self, source: &dyn ItemSource<TrackId>, width: f32, cx: &StyleCx<'_>) -> SpanLayout {
+        SpanLayout::sized(source, width, cx.control().height)
+    }
+}
+
+/// The style of a track row: the header's inks and fills.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+#[non_exhaustive]
+pub struct TrackRowStyle {
+    #[style(surface)]
+    surface: SurfaceLook,
+    #[style(metrics)]
+    metrics: Metrics,
+    /// The track name.
+    #[style(text)]
+    name: TextLook,
+    /// A switch while on.
+    #[style(icon)]
+    on: IconLook,
+    /// A switch while off.
+    #[style(icon)]
+    off: IconLook,
+    /// The line under the header.
+    divider: StyleColor,
+    /// The colour strip while the track has no label and the pointer is over it.
+    hover: StyleColor,
+    /// Between the strip and the name, and the indent of one level of depth.
+    pad: f32,
+    /// The reach of a height edge each side of the row's boundary.
+    edge: f32,
+    sizes: TrackSizes,
+    /// The clips' fills and strokes.
+    clip: ClipLook,
+}
+
+/// One track: its header in the header cells, its clips as parts of the lane cell.
+#[derive(Component)]
+pub struct TrackRow<'r> {
+    #[common]
+    common: Common,
+    track: &'r TrackInfo<'r>,
+    cells: Vec<(ColumnKey, Rect)>,
+    height: Bind<'r, f32>,
+    lane: ClipLane<'r>,
+    above_divider: bool,
+    top_edge: bool,
+    event: TrackEvent,
+}
+
+impl<'r> TrackRow<'r> {
+    /// A row of `track` in `cells`, the rects the item context lists, with the lane's clips and the height the user may
+    /// drag. `above_divider` rows grow upward; the top video row also has a top edge.
+    pub(crate) fn new(
+        track: &'r TrackInfo<'r>,
+        cells: Vec<(ColumnKey, Rect)>,
+        height: Bind<'r, f32>,
+        lane: ClipLane<'r>,
+        above_divider: bool,
+        top_edge: bool,
+    ) -> Self {
+        TrackRow { common: Common::new(), track, cells, height, lane, above_divider, top_edge, event: TrackEvent::default() }
+    }
+
+    fn cell(&self, column: &ColumnKey) -> Option<Rect> {
+        self.cells.iter().find(|(key, _)| key == column).map(|(_, rect)| *rect)
+    }
+
+    fn row(&self) -> Rect {
+        self.cells.iter().fold(Rect::NOTHING, |all, (_, rect)| all.union(*rect))
+    }
+
+    fn headers(&self) -> Rect {
+        self.cells.iter().filter(|(key, _)| *key != LANE).fold(Rect::NOTHING, |all, (_, rect)| all.union(*rect))
+    }
+
+    /// The grab rect of an edge of the row, centred on the row's boundary `y`.
+    fn edge(&self, y: f32, reach: f32) -> Rect {
+        let row = self.row();
+        Rect::from_min_max(Pos2::new(row.left(), y - reach), Pos2::new(row.right(), y + reach))
+    }
+}
+
+impl Component for TrackRow<'_> {
+    const ROLE: Role = Role::ROW;
+    const OVERLAYS: bool = false;
+    type Style = TrackRowStyle;
+    type Output = TrackOut;
+
+    fn style(cx: &StyleCx<'_>, _: TrackRowStyleKey) -> TrackRowStyle {
+        let color = &cx.tokens.color;
+        TrackRowStyle {
+            surface: SurfaceLook::new(craft_ui::list::row_surface(cx)),
+            metrics: Metrics::new(),
+            name: TextLook::new(TypeRole::Caption, craft_ui::list::row_ink(cx, color.text.normal)),
+            on: IconLook::new(cx.control().icon, craft_ui::list::row_ink(cx, color.text.normal)),
+            off: IconLook::new(cx.control().icon, craft_ui::list::row_ink(cx, color.text.faint)),
+            divider: cx.color(color.line.divider),
+            hover: cx.color(color.state.hover),
+            pad: cx.tokens.space.pad.panel,
+            edge: cx.tokens.size.hit.target / 2.0,
+            clip: ClipLook::of(cx),
+            sizes: TrackSizes::of(cx.tokens),
+        }
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+        self.row().size().max(Vec2::ZERO)
+    }
+
+    fn bind(&mut self) -> Option<BindMut<'_, f32>> {
+        Some(self.height.reborrow())
+    }
+
+    fn parts(&mut self, _: Rect, cx: &mut PartsCx<'_, Self>) {
+        if let Some(strip) = self.cell(&STRIP) {
+            cx.part(LABEL, strip).sense(Sense::CLICK).pointer_only("the track's context menu sets its colour label");
+        }
+        if let Some(name) = self.cell(&NAME) {
+            cx.part(HEADER, name).sense(Sense::CLICK).pointer_only("the host's track height command");
+        }
+        let row = self.row();
+        let reach = cx.style.edge;
+        let drag = |part: PartKey, y: f32, cx: &mut PartsCx<'_, Self>| {
+            let grab = Rect::from_min_max(Pos2::new(row.left(), y - reach), Pos2::new(row.right(), y + reach));
+            cx.part(part, grab)
+                .sense(Sense::DRAG)
+                .priority(HitPriority::new(HitLevel::Edge, 0))
+                .cursor(CursorIcon::ResizeVertical)
+                .pointer_only("the host's track height command");
+        };
+        drag(EDGE_BOTTOM, row.bottom(), cx);
+        if self.top_edge {
+            drag(EDGE_TOP, row.top(), cx);
+        }
+        if let (Some(lane), Some(axis)) = (self.cell(&LANE), time_axis(&cx.env)) {
+            self.lane.parts(lane, &axis, cx);
+        }
+    }
+
+    fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
+        let words = cx.words::<TimelineWords>();
+        for (part, template) in [(EDGE_BOTTOM, &words.track_height), (EDGE_TOP, &words.track_height_top)] {
+            if part == EDGE_TOP && !self.top_edge {
+                continue;
+            }
+            let node = access.node(part, Role::SPLITTER);
+            node.name = Name::Text(template.fill(&[("track", self.track.name)]));
+        }
+        let node = access.node(LABEL, Role::BUTTON);
+        node.name = Name::Text(words.track_color.as_str().to_owned());
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        let Some(height) = cx.value().copied() else { return };
+        let sizes = cx.style.sizes;
+        let sign = if self.above_divider { -1.0 } else { 1.0 };
+        for part in [EDGE_BOTTOM, EDGE_TOP] {
+            let Some(result) = cx.part_if_declared(part) else { continue };
+            let phase = result.press.phase;
+            match phase {
+                PressPhase::DragStart { .. } => cx.begin(),
+                PressPhase::Drag { start, pos, .. } => {
+                    cx.propose((height + sign * (pos.y - start.origin.y)).clamp(sizes.least, sizes.most));
+                }
+                PressPhase::Release { click: false, .. } => cx.commit(),
+                _ => {}
+            }
+        }
+        if matches!(cx.part(LABEL).press.phase, PressPhase::Release { click: true, .. }) {
+            self.event.label_menu = true;
+        }
+        // A double click on the header toggles the height between the two named heights.
+        if matches!(cx.part(HEADER).press.phase, PressPhase::Release { start, click: true, .. } if start.clicks == 2) {
+            cx.set(sizes.toggled(height));
+        }
+        if let (Some(lane), Some(axis)) = (self.cell(&LANE), time_axis(&cx.env)) {
+            let events: ClipLaneEvents = self.lane.update(lane, &axis, cx);
+            self.event.clip = events.edit;
+            self.event.select = events.select;
+            self.event.unlinked = events.unlinked;
+            self.event.open = events.open;
+            self.event.context = events.context;
+        }
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let rtl = cx.flow.is_rtl();
+        let style = cx.style;
+        let draw = ui.draw();
+        let headers = self.headers();
+        if let Some(label) = self.track.label {
+            let palette: LabelPalette = label_palette(&cx.env);
+            let tint = palette.0[usize::from(label.0) % palette.0.len()];
+            draw.data_fill(&PaintShape::Rect(headers, CornerRadius::ZERO), DataColor::new(tint.gamma_multiply(HEADER_LABEL_TINT)));
+            if let Some(strip) = self.cell(&STRIP) {
+                draw.data_fill(&PaintShape::Rect(strip, CornerRadius::ZERO), DataColor::new(tint));
+            }
+        } else if let Some(strip) = self.cell(&STRIP).filter(|_| cx.part(LABEL).hovered) {
+            draw.fill(&PaintShape::Rect(strip, CornerRadius::ZERO), style.hover);
+        }
+        let divider = [Pos2::new(headers.left(), headers.bottom()), Pos2::new(headers.right(), headers.bottom())];
+        draw.stroke(&PaintShape::Path(divider.to_vec()), StrokeWidth::Hairline, style.divider);
+        if let Some(cell) = self.cell(&NAME) {
+            let indent = f32::from(self.track.depth) * style.pad;
+            let flow = craft_behavior::Flow::new(cell, rtl);
+            let text = flow.inset(craft_behavior::Insets::horizontal(style.pad + indent));
+            draw.text(text, &craft_ui::primitives::TextRun::new(self.track.name).elide());
+        }
+        for (key, on_icon, off_icon) in SWITCHES {
+            let Some(cell) = self.cell(&key) else { continue };
+            let Some(on) = self.switch(&key) else { continue };
+            let look = if on { &style.on } else { &style.off };
+            let color = cx.resolve(&look.color);
+            let icon = IconSpec::svg(IconId::new(if on { on_icon } else { off_icon })).color(color);
+            draw.icon(Rect::from_center_size(cell.center(), Vec2::splat(look.side)), &icon);
+        }
+        if let (Some(lane), Some(axis)) = (self.cell(&LANE), time_axis(&cx.env)) {
+            self.lane.paint(ui, lane, &axis, &style.clip, cx);
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> TrackOut {
+        let height = cx.edit_response();
+        let mut event = self.event;
+        event.height = height.event;
+        TrackOut { response: cx.response.clone(), event: (!event.is_empty()).then_some(event) }
+    }
+}
+
+impl TrackRow<'_> {
+    /// Whether the track's switch in `column` is on; `None` when the track has no such switch.
+    fn switch(&self, column: &ColumnKey) -> Option<bool> {
+        let track = self.track;
+        if *column == LOCK {
+            track.locked
+        } else if *column == TARGET {
+            track.targeted
+        } else if *column == SYNC_LOCK {
+            track.sync_lock
+        } else if *column == OUTPUT {
+            track.enabled
+        } else if *column == MUTE {
+            track.muted
+        } else {
+            track.solo
+        }
+    }
+}
+
+/// What a track row returns.
+#[non_exhaustive]
+pub struct TrackOut {
+    /// The row's response.
+    pub response: Response,
+    /// What the row reported this pass.
+    pub event: Option<TrackEvent>,
+}
+
+impl Outcome for TrackOut {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+impl ItemOutput<TrackEvent> for TrackOut {
+    fn into_event(self) -> Option<TrackEvent> {
+        self.event
+    }
+}
+
+/// The kind of pane a track belongs to: where it sits against the divider.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Side {
+    /// The caption tracks at the top.
+    Caption,
+    /// The video tracks above the divider, stacked upward from it.
+    Upper,
+    /// The audio and other tracks below the divider.
+    Lower,
+}
+
+/// A track row's place for a clip move: `kind_index` counts away from the divider within the kind (V1 is 0, V2 is 1;
+/// A1 is 0), `top` and `bottom` are its screen rows.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct RowGeom {
+    /// The track's kind.
+    pub kind: TrackKind,
+    /// The pane the row is in.
+    pub side: Side,
+    /// The row's rank in its kind, counted from the divider.
+    pub kind_index: i32,
+    /// The track is locked.
+    pub locked: bool,
+    /// The row's top edge.
+    pub top: f32,
+    /// The row's bottom edge.
+    pub bottom: f32,
+}
+
+impl RowGeom {
+    /// A row of kind `kind` in `side`, ranked `kind_index`, between `top` and `bottom`.
+    pub fn new(kind: TrackKind, side: Side, kind_index: i32, top: f32, bottom: f32) -> Self {
+        RowGeom { kind, side, kind_index, locked: false, top, bottom }
+    }
+
+    /// The same row, locked.
+    #[must_use]
+    pub fn locked(mut self) -> Self {
+        self.locked = true;
+        self
+    }
+}
+
+/// Where a clip move is headed: how many tracks it changes, whether it adds one, and whether it is refused because a
+/// locked track is involved.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct MoveTarget {
+    /// How many rows of the same kind the move changes.
+    pub track_delta: i32,
+    /// The pointer is past the last track of the kind, where a drop adds one.
+    pub new_track: bool,
+    /// The move starts on or reaches a locked track.
+    pub refused: bool,
+}
+
+impl MoveTarget {
+    /// A move that stays on its track.
+    pub const STAY: MoveTarget = MoveTarget { track_delta: 0, new_track: false, refused: false };
+}
+
+/// What a drag at `y` does to a move from `sources` (the lane's own row first, then the rows of the other moved clips):
+/// `track_delta` counts the rows the pointer's row is away from the lane's when it is of the same kind and 0 off every
+/// row; `new_track` is a separate flag for the empty space past the last track of the kind, where the drop adds a
+/// track. A move that starts on or reaches a locked track is refused and stays where it was.
+pub fn resolve_move(rows: &[RowGeom], sources: &[RowGeom], y: f32, bounds: (f32, f32)) -> MoveTarget {
+    let Some(source) = sources.first() else { return MoveTarget::STAY };
+    if !(bounds.0..=bounds.1).contains(&y) {
+        return MoveTarget::STAY;
+    }
+    let (track_delta, new_track) = match rows.iter().find(|row| row.top <= y && y < row.bottom) {
+        Some(row) if row.kind == source.kind => (row.kind_index - source.kind_index, false),
+        Some(_) => (0, false),
+        None if source.side == Side::Caption => (0, false),
+        None => {
+            let same = || rows.iter().filter(|row| row.kind == source.kind);
+            let past = if source.kind == TrackKind::Video { same().all(|row| y < row.top) } else { same().all(|row| y >= row.bottom) };
+            (0, past)
+        }
+    };
+    let reaches_locked = |from: &RowGeom| {
+        let count = rows.iter().filter(|row| row.kind == from.kind).count() as i32;
+        let target = (from.kind_index + track_delta).clamp(0, (count - 1).max(0));
+        rows.iter().any(|row| row.kind == from.kind && row.kind_index == target && row.locked)
+    };
+    if sources.iter().any(|from| from.locked || (track_delta != 0 && reaches_locked(from))) {
+        return MoveTarget { track_delta: 0, new_track: false, refused: true };
+    }
+    MoveTarget { track_delta, new_track, refused: false }
+}
+
+/// The one-step event a header gesture without a drag reports (a width a column resize gave): a `Set`.
+pub(crate) fn set_event<T>(before: T, after: T, label: &str) -> EditEvent<T> {
+    EditEvent::set(GestureId::default(), Mixed::Same(before), after, Arc::from(label), None)
+}
+
+#[cfg(feature = "screen-testing")]
+mod stories;
