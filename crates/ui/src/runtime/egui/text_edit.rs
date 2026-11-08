@@ -53,7 +53,7 @@ pub(crate) struct Shown {
 impl Shown {
     /// The character index a screen position falls at.
     pub fn char_at(&self, pos: egui::Pos2) -> usize {
-        self.galley.cursor_from_pos(pos - self.galley_pos.to_vec2()).index
+        self.galley.cursor_from_pos(pos - self.galley_pos).index.0
     }
 }
 
