@@ -142,7 +142,7 @@ impl<'a> TitleBar<'a> {
     /// Shows the bar with `leading` content at its start, `title` in the gap and `trailing` content before the end's
     /// captions.
     pub fn show_titled(
-        self,
+        mut self,
         ui: &mut Ui,
         title: Title,
         mut leading: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a,
