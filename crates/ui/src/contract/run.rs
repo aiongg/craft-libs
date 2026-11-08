@@ -1017,7 +1017,7 @@ fn measure_shape<C: Component>(
     let resolved = steps::resolved(id, &step1, &common);
     let width = match proposal {
         Proposal::Width(width) => Some(width),
-        Proposal::Ideal | Proposal::Min => None,
+        _ => None,
     };
     // A leaf adds nothing to its own measure, so it opens no stage.
     let (extent, shown) = if hooks.shape() == ShapeKind::Leaf {

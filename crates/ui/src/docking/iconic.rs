@@ -1,8 +1,8 @@
 //! `IconicColumn`: a column collapsed to one icon per panel, and the flyouts its icons open.
 
 use super::divider::{self, Divider, Drag};
-use super::dock_column::{BarRecord, GroupView, bar_name, drag_column, register_edges, show_bar};
-use super::{DockSizes, DockSpot, DockTargets, DockWords, DragUnit, Flyout, PanelKey, PanelSpec, Splitter, start_group_drag};
+use super::dock_column::{BarRecord, bar_name, drag_column, register_edges, show_bar};
+use super::{DockSizes, DockSpot, DockTargets, DockWords, DragUnit, Flyout, GroupAt, PanelKey, PanelSpec, Splitter, start_group_drag};
 use crate::buttons::IconButton;
 use crate::contract::overlay::Popup;
 use crate::contract::{
@@ -96,7 +96,8 @@ pub struct IconicColumnStyle {
 /// The open flyout is the bound `Option<P>` of [`new`](IconicColumn::new), owned by the host like the layout: a click
 /// on an icon, Escape and auto-collapse write it, and the host opens a panel (the Window menu) by writing it. The column registers the drop bands of its edges and of the halves of
 /// each icon group with the dock `dock`. The flyout shows its group through the `view` of
-/// [`show_flyouts`](IconicColumn::show_flyouts), with the opened panel active.
+/// [`show_flyouts`](IconicColumn::show_flyouts), with the opened panel active, as tall as the view measures the
+/// group within the room and at least the height of its panels' default heights.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container, overlay, probe(IconicColumn<'static, u8>))]
 pub struct IconicColumn<'a, P: Value + Hash + 'static> {
@@ -117,7 +118,7 @@ pub struct IconicColumn<'a, P: Value + Hash + 'static> {
     #[prop]
     within: Rect,
     open: Bind<'a, Option<P>>,
-    view: Option<GroupView<'a, P>>,
+    view: Option<FlyoutView<'a, P>>,
     bar: Rect,
     menu_button: bool,
     record: BarRecord,
@@ -167,8 +168,13 @@ impl<'a, P: Value + Hash + 'static> IconicColumn<'a, P> {
         .label(label)
     }
 
-    /// Shows the column; `view` shows the group of an open flyout in the rect it gets.
-    pub fn show_flyouts(mut self, ui: &mut Ui, view: impl FnMut(&Group<P>, Rect, &mut Ui, &mut BodyCx<'_>) + 'a) -> IconicColumnOutput<P> {
+    /// Shows the column; `view` measures the group of an open flyout at the width it gets and returns its height
+    /// (`None` takes the flyout's least height), then shows it in the rect it gets.
+    pub fn show_flyouts(
+        mut self,
+        ui: &mut Ui,
+        view: impl FnMut(&Group<P>, GroupAt, &mut Ui, &mut BodyCx<'_>) -> Option<f32> + 'a,
+    ) -> IconicColumnOutput<P> {
         self.view = Some(Box::new(view));
         self.show(ui, |_, _| ()).output
     }
@@ -235,6 +241,9 @@ impl<'a, P: Value + Hash + 'static> IconicColumn<'a, P> {
         Some(shown)
     }
 }
+
+/// What measures and shows the group of an open flyout.
+type FlyoutView<'a, P> = Box<dyn FnMut(&Group<P>, GroupAt, &mut Ui, &mut BodyCx<'_>) -> Option<f32> + 'a>;
 
 impl<P: Value + Hash + 'static> Component for IconicColumn<'_, P> {
     const ROLE: Role = Role::GROUP;
@@ -411,7 +420,8 @@ impl<P: Value + Hash + 'static> Component for IconicColumn<'_, P> {
         for (at, group) in groups.into_iter().enumerate() {
             let Some((group, height)) = group else { continue };
             let anchor = ui.anchor_part(CELL.at(at as u64));
-            Flyout::new(edge, Vec2::new(width, height), auto_collapse).show(ui, popup.at(at), anchor, |ui, body, rect| view(&group, rect, ui, body));
+            Flyout::new(edge, Vec2::new(width, height), auto_collapse)
+                .show(ui, popup.at(at), anchor, |ui, body, place| view(&group, place, ui, body));
             dismissed |= ui.dismissed(popup.at(at));
         }
         if dismissed {

@@ -4,7 +4,7 @@ use super::CELL;
 use crate::buttons::Button;
 use crate::contract::ShowContainer as _;
 use crate::contract::{Bind, Show as _, Validity};
-use crate::docking::{IconicColumn, PanelSpec};
+use crate::docking::{GroupAt, IconicColumn, PanelSpec};
 use crate::runtime::env::Message;
 use crate::sections::Panel;
 use crate::testing::memory::global;
@@ -21,9 +21,11 @@ fn spec(panel: &u8) -> PanelSpec {
 fn icon_groups(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let column = Column::new(vec![Group::new(vec![0, 1], 0), Group::new(vec![2], 0)]);
     IconicColumn::new("Panels", global("iconic column", "story"), &column, Bind::kept(), &spec)
-        .show_flyouts(ui, |group, rect, ui, _| {
+        .show_flyouts(ui, |group, at, ui, _| {
+            let GroupAt::Show(rect) = at else { return None };
             let title = group.active_panel().map_or_else(String::new, |panel| spec(panel).label.as_str().to_owned());
             Panel::new(title).show_at(ui, rect, |_, _| ());
+            None
         })
         .into()
 }
@@ -41,9 +43,11 @@ fn icon_flyout_open(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let open = data.value("open", None::<u8>);
     let column = Column::new(vec![Group::new(vec![0, 1], 0), Group::new(vec![2], 0)]);
     IconicColumn::new("Panels", global("iconic column", "open story"), &column, Bind::bound(open), &spec)
-        .show_flyouts(ui, |group, rect, ui, _| {
+        .show_flyouts(ui, |group, at, ui, _| {
+            let GroupAt::Show(rect) = at else { return None };
             let title = group.active_panel().map_or_else(String::new, |panel| spec(panel).label.as_str().to_owned());
             Panel::new(title).show_at(ui, rect, |_, _| ());
+            None
         })
         .into()
 }
@@ -53,10 +57,12 @@ fn icon_flyout_open(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn icon_flyout_control(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let column = Column::new(vec![Group::new(vec![0, 1], 0)]);
     IconicColumn::new("Panels", global("iconic column", "control story"), &column, Bind::kept(), &spec)
-        .show_flyouts(ui, |_, rect, ui, _| {
+        .show_flyouts(ui, |_, at, ui, _| {
+            let GroupAt::Show(rect) = at else { return None };
             Panel::new("Panel").show_at(ui, rect, |ui, _| {
                 Button::new("Apply").show(ui);
             });
+            None
         })
         .into()
 }
@@ -64,8 +70,10 @@ fn icon_flyout_control(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 fn flyout_of(ui: &mut Ui, open: Bind<'_, Option<u8>>) -> StoryOutput {
     let column = Column::new(vec![Group::new(vec![0, 1], 0)]);
     IconicColumn::new("Panels", global("iconic column", "value story"), &column, open, &spec)
-        .show_flyouts(ui, |_, rect, ui, _| {
+        .show_flyouts(ui, |_, at, ui, _| {
+            let GroupAt::Show(rect) = at else { return None };
             Panel::new("Panel").show_at(ui, rect, |_, _| ());
+            None
         })
         .into()
 }
