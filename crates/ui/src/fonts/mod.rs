@@ -12,6 +12,19 @@ pub use on_demand::{FontCandidates, MAX_SCRIPT_READS, NoCandidates, OnDemandFont
 pub use system::system_font_provider;
 pub use system::ui_face::{SYSTEM_UI_OPTICAL_SIZE, SYSTEM_UI_REGULAR, SYSTEM_UI_SEMIBOLD, SystemUiFace, poll_system_ui_face, system_ui_face};
 
+mod coverage;
+mod language;
+mod served;
+mod stack;
+
+pub use coverage::{Missing, Sample, assert_covers, assert_covers_with_system, missing_glyphs};
+pub use craft_fonts_build::{EmbeddedFace, ServedFace};
+pub use language::{I18nScripts, LanguageScripts};
+pub use served::loader::{FetchDone, FetchWake, FontFetcher};
+pub use served::loading;
+pub use stack::{CjkRows, Emoji, Family, SEMIBOLD, Stack, SystemFonts, UiFonts};
+pub(crate) use stack::{installed_families, system_ui_installed};
+
 use crate::runtime::egui::fonts as egui_fonts;
 use crate::runtime::frame;
 use crate::runtime::layout_memory;
