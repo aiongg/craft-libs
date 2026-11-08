@@ -4,17 +4,18 @@ use craft_behavior::EditEvent;
 use craft_keymap::Mods;
 use craft_layers::ui::filter::{FilterKind, LayerFilter};
 use craft_layers::ui::mock::FakeLayers;
-use craft_layers::ui::panel::{
-    LayerDrop, LayerMove, LayerPosition, LayersEvent, LayersFooterAction, LayersFooterButton, LayersPanel, RowTransfer, SubRowMove,
-};
+use craft_layers::ui::panel::{LayerDrop, LayerPosition, LayersEvent, LayersFooterAction, LayersFooterButton, LayersPanel};
 use craft_layers::ui::tree::{
     LayerInfo, LayerKind, LayerPart, LayerProperties, LayerRowKey, LayerSelection, LayerTree, LayersFooterState, SubRowGroup, SubRows,
 };
 use craft_ui::contract::{Bind, Entry, ReorderMove};
-use craft_ui::testing::{Fixture, Target, pointer, trial};
-use egui::{Modifiers, Pos2, vec2};
+use craft_ui::testing::{Fixture, Target, layout, pointer, trial};
+use egui::{Modifiers, Pos2, Rect, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
+
+/// One panel's room; the screen of a fixture is 800 by 600 points.
+const HALF: Vec2 = Vec2::new(400.0, 560.0);
 
 type Seen = Rc<RefCell<Vec<LayersEvent<u32>>>>;
 type Shared<T> = Rc<RefCell<T>>;
@@ -38,7 +39,7 @@ fn rig_of<T: LayerTree<Id = u32> + 'static>(tree: T) -> Rig<T> {
         let out = LayersPanel::new(&*tree).filter(Bind::bound(&mut *filter)).show(ui);
         sink.borrow_mut().extend(out.events);
     });
-    fixture.room(vec2(400.0, 560.0));
+    fixture.room(HALF);
     fixture.settle();
     Rig { fixture, seen, tree, filter }
 }
@@ -515,16 +516,15 @@ fn footer_buttons_refuse_a_drag_from_another_list() {
     let sinks = [Rc::clone(&seen[0]), Rc::clone(&seen[1])];
     let tree = FakeLayers::sample();
     let mut fixture = Fixture::new(move |ui| {
-        ui.columns(2, |columns| {
-            for (at, ui) in columns.iter_mut().enumerate() {
-                ui.push_id(at, |ui| {
-                    let out = LayersPanel::new(&tree).show(ui);
-                    sinks[at].borrow_mut().extend(out.events);
-                });
-            }
-        });
+        for (at, sink) in sinks.iter().enumerate() {
+            let left = Pos2::new(400.0 * at as f32, 0.0);
+            layout::in_region(ui, Rect::from_min_size(left, HALF), |ui| {
+                let out = LayersPanel::new(&tree).show(ui);
+                sink.borrow_mut().extend(out.events);
+            });
+        }
     });
-    fixture.room(vec2(800.0, 560.0));
+    fixture.room(Vec2::new(800.0, 560.0));
     fixture.settle();
     let all = |fixture: &Fixture, label: &str| -> Vec<Target> {
         let tree = fixture.tree();
