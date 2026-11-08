@@ -59,3 +59,20 @@ fn custom_asks_the_host_every_time_and_survives_reopening() {
     let after_reopen = requests.borrow_mut().take_color().expect("Custom… asks after the dialog opened again");
     assert_eq!(after_reopen.color, custom.color(), "the custom colour is the value when the dialog reopens");
 }
+
+#[trial]
+fn diag_open_state() {
+    use craft_ui::contract::Role;
+    let mut report = String::new();
+    for start in [ProxyColor::Blue, ProxyColor::custom(PICKED)] {
+        let options = Rc::new(RefCell::new(NavigatorOptions::new(start)));
+        let requests = Rc::new(RefCell::new(HostRequests::new()));
+        let mut fixture = panel_options(&options, &requests);
+        let before = fixture.by_role(Role::OPTION).len();
+        let list = fixture.by_label("Color").expect("Color");
+        fixture.click(&list);
+        fixture.settle();
+        report += &format!("[{start:?}: options before {before}, after click {}, focused {}] ", fixture.by_role(Role::OPTION).len(), fixture.focused().is_some());
+    }
+    panic!("{report}");
+}
