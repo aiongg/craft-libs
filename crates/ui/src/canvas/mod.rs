@@ -19,7 +19,7 @@ mod tool;
 mod tool_groups;
 mod tool_host;
 
-pub use crop::{CropOverlay, CropStyle};
+pub use crop::{CropOverlay, CropOverlayOutput, CropShield, CropStyle, ShieldColor};
 pub use guide::{Guide, GuideDrag, GuideKey, GuideLine};
 pub use readout::readout;
 pub use space::{CanvasSpace, RulerText, canvas_space};

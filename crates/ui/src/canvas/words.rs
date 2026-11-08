@@ -3,10 +3,19 @@
 craft_ui::words! {
     /// The words of the canvas controls.
     pub struct CanvasWords {
+        crop_group: "canvas.cropGroup" = "Crop frame";
+        crop_whole: "canvas.cropWhole" = "Whole frame";
         crop_top_left: "canvas.cropTopLeft" = "Crop corner, top left";
         crop_top_right: "canvas.cropTopRight" = "Crop corner, top right";
-        crop_bottom_left: "canvas.cropBottomLeft" = "Crop corner, bottom left";
         crop_bottom_right: "canvas.cropBottomRight" = "Crop corner, bottom right";
+        crop_bottom_left: "canvas.cropBottomLeft" = "Crop corner, bottom left";
+        crop_top_edge: "canvas.cropTopEdge" = "Crop edge, top";
+        crop_right_edge: "canvas.cropRightEdge" = "Crop edge, right";
+        crop_bottom_edge: "canvas.cropBottomEdge" = "Crop edge, bottom";
+        crop_left_edge: "canvas.cropLeftEdge" = "Crop edge, left";
+        crop_width: "canvas.cropWidth" = "W:";
+        crop_height: "canvas.cropHeight" = "H:";
+        crop_angle: "canvas.cropAngle" = "Angle:";
         // canvas-navigate-a
         rotate_compass: "canvas.rotateCompass" = "Rotation compass";
 

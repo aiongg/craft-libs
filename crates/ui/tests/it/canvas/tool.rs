@@ -14,7 +14,7 @@ use craft_ui::rails::{LastUsed, RailTool};
 use craft_ui::runtime::commands::EditCommands;
 use craft_ui::runtime::env::{Env, Label, UnitWords};
 use craft_ui::testing::{Fixture, ToolFixture, focus, input, trial};
-use egui::{Id, Modifiers, Pos2, Rect, Vec2};
+use egui::{Id, Modifiers, Pos2, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -134,7 +134,7 @@ fn escape_during_a_drag_cancels_once_and_a_second_escape_does_nothing() {
 
 #[trial]
 fn a_press_on_a_canvas_control_never_reaches_the_tool_and_one_away_from_it_does() {
-    let crop = Rc::new(RefCell::new(Rect::from_min_max(Pos2::new(20.0, 20.0), Pos2::new(100.0, 80.0))));
+    let crop = Rc::new(RefCell::new(craft_behavior::geometry::CropBox::upright(craft_behavior::kurbo::Rect::new(20.0, 20.0, 100.0, 80.0))));
     let shown = Rc::clone(&crop);
     let mut fixture = ToolFixture::with_body("Document", Recorder::default(), move |ui, body| {
         let _ = CropOverlay::new("Crop", Bind::bound(&mut *shown.borrow_mut())).show_at(ui, body.rect);

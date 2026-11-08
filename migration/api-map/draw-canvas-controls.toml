@@ -852,3 +852,166 @@ type = "CornerWidgets"
 old = "policy(EditPolicy)"
 new = ""
 note = "The bound value carries the policy."
+# draw-crop-a
+
+[[type]]
+name = "CropResponse"
+old = "craft_draw::ui::CropResponse"
+new = "craft_ui::canvas::CropOverlayOutput"
+status = "replaced"
+
+[[type]]
+name = "CropBox"
+old = "craft_draw::ui::CropBox"
+new = "craft_behavior::geometry::CropBox"
+status = "moved"
+
+[[type]]
+name = "CropGuide"
+old = "craft_draw::ui::CropGuide"
+new = "craft_behavior::geometry::CropGuide"
+status = "moved"
+
+[[type]]
+name = "GuideShow"
+old = "craft_draw::ui::GuideShow"
+new = "craft_behavior::geometry::GuideShow"
+status = "moved"
+
+[[type]]
+name = "hit_rect"
+old = "craft_draw::ui::hit_rect"
+new = "craft_behavior::geometry::hit_rect"
+status = "moved"
+
+[[type]]
+name = "CropShield"
+old = "craft_draw::ui::CropShield"
+new = "craft_ui::canvas::CropShield"
+status = "moved"
+
+[[type]]
+name = "ShieldColor"
+old = "craft_draw::ui::ShieldColor"
+new = "craft_ui::canvas::ShieldColor"
+status = "moved"
+
+[[type]]
+name = "CropStyle"
+old = "craft_draw::ui::CropStyle"
+new = ""
+status = "removed"
+note = "the overlay's craft_ui::canvas::CropStyle is a ComponentStyle"
+
+[[type]]
+name = "CropNames"
+old = "craft_draw::ui::CropNames"
+new = ""
+status = "removed"
+note = "craft_ui::canvas::CanvasWords rows canvas.cropGroup, canvas.cropWhole, canvas.cropTopLeft ... canvas.cropLeftEdge (old ids crop.group ... crop.leftEdge)"
+
+[[type]]
+name = "CropLabels"
+old = "craft_draw::ui::CropLabels"
+new = ""
+status = "removed"
+note = "CanvasWords rows canvas.cropWidth, canvas.cropHeight, canvas.cropAngle"
+
+[[type]]
+name = "CropPress"
+old = "craft_draw::ui::CropPress"
+new = ""
+status = "removed"
+note = "one path: the overlay's parts and its output"
+
+[[type]]
+name = "CropPressKind"
+old = "craft_draw::ui::CropPressKind"
+new = ""
+status = "removed"
+note = "one path: the overlay's parts and its output"
+
+[[type]]
+name = "CropTrack"
+old = "craft_draw::ui::CropTrack"
+new = ""
+status = "removed"
+note = "one path: the overlay's parts and its output"
+
+[[type]]
+name = "CropRelease"
+old = "craft_draw::ui::CropRelease"
+new = ""
+status = "removed"
+note = "one path: the overlay's parts and its output"
+
+[[type]]
+name = "CropKeyAction"
+old = "craft_draw::ui::CropKeyAction"
+new = ""
+status = "removed"
+note = "one path: the overlay's parts and its output"
+
+[[type]]
+name = "CropReadout"
+old = "craft_draw::ui::CropReadout"
+new = ""
+status = "removed"
+note = "one path: the overlay's parts and its output"
+
+[[type]]
+name = "Polyline"
+old = "craft_draw::ui::Polyline"
+new = ""
+status = "removed"
+note = "one path: the overlay's parts and its output"
+
+[[setter]]
+type = "CropFrame"
+old = "new(id_salt, &state, names)"
+new = "CropOverlay::new(label, Bind<CropBox>)"
+
+[[setter]]
+type = "CropFrame"
+old = "units(x, y)"
+new = "removed: the canvas's rulers"
+
+[[setter]]
+type = "CropFrame"
+old = "modifiers(..)"
+new = "removed: the press carries the modifiers"
+
+[[setter]]
+type = "CropFrame"
+old = "policy(..)"
+new = "removed: Bind and the pipeline"
+
+[[setter]]
+type = "CropFrame"
+old = "value(..)"
+new = "removed: the group value comes from the rulers"
+
+[[setter]]
+type = "CropFrame"
+old = "readout(labels)"
+new = "removed: always shown with the words"
+
+[[setter]]
+type = "CropFrame"
+old = "snap(closure)"
+new = "snap(&SnapTargets)"
+
+[[setter]]
+type = "CropFrame"
+old = "show(ui, canvas, view)"
+new = "show_at(ui, canvas_rect)"
+
+[[setter]]
+type = "CropFrame"
+old = "focus(ctx, id)"
+new = "removed"
+
+[[setter]]
+type = "CropOverlay"
+old = "new(label, Bind<Rect>)"
+new = "new(label, Bind<CropBox>)"
