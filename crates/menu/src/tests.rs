@@ -8,10 +8,8 @@ use egui::{Key, Modifiers};
 use super::*;
 use crate::driver::key_event;
 
-mod bar;
 mod layout;
 mod native;
-mod palette;
 
 fn chord(s: &str) -> Chord {
     Chord::parse(s).unwrap()
@@ -336,7 +334,7 @@ fn key_equivalents_become_one_key_press() {
     assert_eq!(raw.events, [press], "no made-up release: the real one comes in a later frame");
 }
 
-/// Minimize and craft-quit's Quit run in the crate; other clicks go to the app. The menus are
+/// Minimize and Quit run in the crate, through the runtime's window actions; other clicks go to the app. The menus are
 /// laid out again only when the state changed or an event arrived.
 #[test]
 fn clicks_and_syncs() {
@@ -357,8 +355,7 @@ fn clicks_and_syncs() {
     out.textures_delta.clear(); // not painted
     assert_eq!(clicks, [cmd("edit.undo")]);
     let commands = out.viewport_output.remove(&egui::ViewportId::ROOT).map(|o| o.commands).unwrap_or_default();
-    assert!(commands.contains(&egui::ViewportCommand::Minimized(true)));
-    assert!(commands.contains(&egui::ViewportCommand::Close), "Quit asks the window to close");
+    assert!(commands.contains(&egui::ViewportCommand::Close), "Quit asks the root window to close through the runtime");
 
     let opts = LayoutOptions::new("Sample");
     let builds = Cell::new(0);

@@ -2,9 +2,8 @@
 //! links between them.
 //!
 //! Photoshop's Help menu: Photoshop Help…, Hands-on Tutorials…, What's New…, Updates…, System
-//! Info…, About Photoshop (Windows). PhotoCraft's: its links (Discord, website, ArtCraft website,
-//! GitHub, Report an Issue…), Check for Updates…, a separator, System Info…, About PhotoCraft
-//! (`crates/engine/src/shell_commands.rs:90-98`, ordered in `crates/ui-egui/src/menus/items.rs:185`).
+//! Info…, About Photoshop (Windows). An app's own links come after Keyboard Shortcuts…, then
+//! Report an Issue…, Check for Updates…, a separator, System Info… and About.
 //! [`HelpMenu`] builds that menu as model rows; the app runs the commands it reports, opening the
 //! link URLs with [`HelpMenu::url`].
 
@@ -37,8 +36,6 @@ pub enum HelpCommand {
 impl HelpCommand {
     /// The command id: `help.helpCenter`, `help.keyboardShortcuts`, `help.checkForUpdates`,
     /// `help.reportIssue`, `help.systemInfo`, `help.about`.
-    // pc: crates/engine/src/shell_commands.rs:96-98 (`help.reportIssue`, `help.systemInfo`,
-    // `help.about`); crates/engine/src/cmd/updates_cmds.rs:120 (`help.checkForUpdates`).
     pub fn command_id(self) -> &'static str {
         match self {
             HelpCommand::HelpCenter => "help.helpCenter",
@@ -124,7 +121,6 @@ impl HelpMenu {
     }
 
     /// Adds an app link after Keyboard Shortcuts… and the links before it.
-    // pc: crates/ui-egui/src/links.rs:17 `COMMANDS`.
     pub fn link(mut self, link: HelpLink) -> Self {
         self.links.push(link);
         self
@@ -149,32 +145,30 @@ impl HelpMenu {
     }
 
     /// The rows in the kit's order, with About tagged [`crate::ItemRole::About`].
-    // pc: crates/ui-egui/src/menus/items.rs:185-197 (update check before the separator, then
-    // System Info and About).
     pub fn items(&self, labels: &HelpLabels) -> Vec<Node> {
         let app = self.app_name.as_str();
-        let row = |command: HelpCommand, label: &str| Node::Item(Item::new(command.command_id(), craft_i18n::fmt(label, &[("app", app)])));
+        let row = |command: HelpCommand, label: &str| Node::Item(Item::new(command.command_id(), label));
         let mut nodes = Vec::new();
         if self.help_center.is_some() {
-            nodes.push(row(HelpCommand::HelpCenter, &labels.help_center));
+            nodes.push(row(HelpCommand::HelpCenter, &labels.help_center.fill(&[("app", app)])));
         }
         if self.keyboard_shortcuts {
-            nodes.push(row(HelpCommand::KeyboardShortcuts, &labels.keyboard_shortcuts));
+            nodes.push(row(HelpCommand::KeyboardShortcuts, labels.keyboard_shortcuts.as_str()));
         }
         nodes.extend(self.links.iter().map(|l| Node::Item(Item::new(l.id.as_str(), l.label.as_str()))));
         if self.report_issue.is_some() {
-            nodes.push(row(HelpCommand::ReportIssue, &labels.report_issue));
+            nodes.push(row(HelpCommand::ReportIssue, labels.report_issue.as_str()));
         }
         if self.check_for_updates {
-            nodes.push(row(HelpCommand::CheckForUpdates, &labels.check_for_updates));
+            nodes.push(row(HelpCommand::CheckForUpdates, labels.check_for_updates.as_str()));
         }
         if !nodes.is_empty() {
             nodes.push(Node::Separator);
         }
         if self.system_info {
-            nodes.push(row(HelpCommand::SystemInfo, &labels.system_info));
+            nodes.push(row(HelpCommand::SystemInfo, labels.system_info.as_str()));
         }
-        nodes.push(Node::Item(Item::new(HelpCommand::About.command_id(), craft_i18n::fmt(&labels.about, &[("app", app)])).role(ItemRole::About)));
+        nodes.push(Node::Item(Item::new(HelpCommand::About.command_id(), labels.about.fill(&[("app", app)])).role(ItemRole::About)));
         nodes
     }
 
@@ -186,7 +180,6 @@ impl HelpMenu {
     /// The URL a Help row opens: Help Center, Report an Issue… or an app link. `None` for the
     /// rows the app runs itself (Keyboard Shortcuts…, Check for Updates…, System Info…, About)
     /// and for other commands.
-    // pc: crates/ui-egui/src/links.rs:20 `url_for`.
     pub fn url(&self, command: &CommandRef) -> Option<&str> {
         if let Some(link) = self.links.iter().find(|l| l.id == command.id) {
             return Some(link.url.as_str());
@@ -204,11 +197,11 @@ craft_ui::words! {
     #[non_exhaustive]
     pub struct HelpLabels {
         help: "help.menu" = "Help";
-        help_center: "help.helpCenter" = "{app} Help";
+        help_center: template "help.helpCenter" = "{app} Help";
         keyboard_shortcuts: "help.keyboardShortcuts" = "Keyboard Shortcuts…";
         report_issue: "help.reportIssue" = "Report an Issue…";
         check_for_updates: "help.checkForUpdates" = "Check for Updates…";
         system_info: "help.systemInfo" = "System Info…";
-        about: "help.about" = "About {app}";
+        about: template "help.about" = "About {app}";
     }
 }
