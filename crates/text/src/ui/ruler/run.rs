@@ -40,9 +40,13 @@ pub(super) fn ruler_text(unit: DocUnit, points_per_inch: f64) -> RulerText {
     RulerText::new(RulerUnits::new(unit.shown(1.0, points_per_inch), Ticks::decimal(false)), unit.kind)
 }
 
-/// The distance a snapping drag moves by: the ruler's smallest tick, in points.
-pub(super) fn snap_step(text: &RulerText, unit: DocUnit, scale: f32) -> f32 {
-    let ticks = Rulers::ticks(&text.units, rule(unit), f64::from(scale), 0.0..=0.0);
+/// The ruler's zoom for the snap grid, screen points per point: the grid is the finest tick shown at this zoom
+/// (1/16 in for inches), so it does not change with the zoom the ruler is shown at.
+const SNAP_ZOOM: f64 = 2.0;
+
+/// The distance a snapping drag moves by: the ruler's smallest tick at [`SNAP_ZOOM`], in points.
+pub(super) fn snap_step(text: &RulerText, unit: DocUnit) -> f32 {
+    let ticks = Rulers::ticks(&text.units, rule(unit), SNAP_ZOOM, 0.0..=0.0);
     let gap = ticks.windows(2).find_map(|pair| match pair {
         [a, b] => Some(b.value - a.value),
         _ => None,
@@ -99,7 +103,7 @@ impl TextRuler<'_> {
         let g = layout.g;
         let numbers = cx.env.units();
         let text = ruler_text(self.unit, numbers.points_per_inch());
-        let step = snap_step(&text, self.unit, g.scale);
+        let step = snap_step(&text, self.unit);
         let mut held = cx.memory::<Held>().clone();
         if !cx.gesture().is_some() && held.columns.is_none() {
             held.off = false;

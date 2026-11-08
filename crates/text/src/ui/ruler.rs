@@ -500,7 +500,7 @@ impl Component for TextRuler<'_> {
         let ppi = cx.env.units().points_per_inch();
         let text = run::ruler_text(self.unit, ppi);
         let numbers = cx.env.units();
-        let step = f64::from(run::snap_step(&text, self.unit, self.layout(cx.rect, cx.style, cx.flow.is_rtl()).g.scale));
+        let step = f64::from(run::snap_step(&text, self.unit));
         let range = 0.0..=f64::from(self.width);
         for item in Item::all(&values) {
             let at = f64::from(item.position(&values, self.width));
