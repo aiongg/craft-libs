@@ -493,12 +493,7 @@ impl<'a> NewDocumentDialog<'a> {
             remember,
             answers,
         } = self;
-        let recent: Vec<DocumentOptions> = remember_recent.as_ref().map_or_else(Vec::new, |key| {
-            let mut stage = MemoryStage::open(ui.ctx(), unique(("craft_ui::new_document_recent", key.as_str())));
-            let held = stage.saved::<Vec<DocumentOptions>>(key).clone();
-            stage.write_back();
-            held
-        });
+        let recent: Vec<DocumentOptions> = remember_recent.as_ref().map_or_else(Vec::new, |key| MemoryStage::peek_saved(ui.ctx(), key));
         let env = Env::of(ui);
         let words = env.words::<NewDocumentWords>();
         let preset_words = env.words::<NewDocumentPresetWords>();
