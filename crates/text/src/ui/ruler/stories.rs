@@ -55,7 +55,7 @@ fn indent_too_wide(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(TextRuler<'static>, covers = [], drive = Drive::Never)]
 fn tabs_panel(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let values = data.value("values", word());
-    TextRuler::new("Ruler", Bind::bound(&mut *values), COLUMN).unit(inches()).kind(TabAlign::Decimal).selected(Some(1)).show(ui).into()
+    TextRuler::new("Ruler", Bind::bound(&mut *values), COLUMN).unit(inches()).kind(TabAlign::Decimal).picked_stop(1).show(ui).into()
 }
 
 #[story(TextRuler<'static>, covers = [], drive = Drive::Never)]

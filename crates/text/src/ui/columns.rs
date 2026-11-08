@@ -7,9 +7,7 @@ use craft_behavior::{EditEvent, Metrics, Mixed, NumberCodec};
 use craft_theme::variant::Tone;
 use craft_ui::buttons::Button;
 use craft_ui::choice::Checkbox;
-use craft_ui::contract::{
-    Bind, Common, Component, Cx, Entry, MeasureCx, PaintUi, Props as _, Role, Show as _, ShowContainer as _, WordSetCx as _, clicked,
-};
+use craft_ui::contract::{Bind, Common, Component, Cx, Entry, MeasureCx, PaintUi, Props as _, Role, Show as _, ShowContainer as _, clicked};
 use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
 use craft_ui::form::{Field, FieldGroup};
 use craft_ui::layout_components::Row;
@@ -113,6 +111,7 @@ pub enum ColumnsApply {
 
 /// Word's Layout › Columns presets.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ColumnsPreset {
     #[allow(missing_docs)]
     One,
@@ -366,7 +365,7 @@ impl TextColumnsDialog {
                     self.edited = before;
                 }
             }
-            None => {}
+            Some(_) | None => {}
         }
     }
 
@@ -418,14 +417,14 @@ impl TextColumnsDialog {
 
     fn body(&mut self, ui: &mut Ui, words: &TextColumnsWords, units: &Units, valid: &Cell<bool>) {
         if self.word.is_some() {
-            GroupBox::new(words.presets.clone()).show(ui, |ui, _| self.presets(ui, words));
+            GroupBox::new(words.presets.clone(), None).show(ui, |ui, _| self.presets(ui, words));
         }
         FieldGroup::new(words.title.clone()).show(ui, |ui, _| {
             let bad = !self.count_in_range();
             let shown = self.edited.count.map_or(Mixed::Mixed, |n| Mixed::Same(Some(f64::from(n))));
             let codec = NumberCodec::new(units.reader(None), 0);
             let edit = Field::new(words.number.clone())
-                .show(ui, |ui, _| NumberField::new(words.number.clone(), Bind::given(shown)).codec(codec).show(ui))
+                .show(ui, |ui, _| NumberField::new(words.number.clone(), Bind::given(shown)).codec(codec.clone()).show(ui))
                 .inner;
             self.edit_count(edit.and_then(|out| out.edit.event));
             if bad {
@@ -448,7 +447,7 @@ impl TextColumnsDialog {
         });
         if self.word.is_some() {
             Row::new().show(ui, |ui, _| {
-                GroupBox::new(words.width_and_spacing.clone()).show(ui, |ui, _| self.grid(ui, words, units));
+                GroupBox::new(words.width_and_spacing.clone(), None).show(ui, |ui, _| self.grid(ui, words, units));
                 let text_width = self.word.unwrap_or(0.0);
                 let preview = ColumnsPreview::new(words.preview.clone(), self.rows(), text_width, self.edited.line_between == Some(true));
                 preview.show(ui);
@@ -683,6 +682,7 @@ impl Component for ColumnsPreview {
 
 /// A choice from the Columns menu.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ColumnsChoice {
     /// One of the column presets.
     Preset(ColumnsPreset),

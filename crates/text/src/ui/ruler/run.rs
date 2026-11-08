@@ -37,7 +37,7 @@ pub(super) fn rule(unit: DocUnit) -> TickRule<'static> {
 
 /// The ruler's units: ruler units per point, written as the unit's kind.
 pub(super) fn ruler_text(unit: DocUnit, points_per_inch: f64) -> RulerText {
-    RulerText::new(RulerUnits::new(unit.shown(1.0, points_per_inch), Ticks::Decimal { whole: false }), unit.kind)
+    RulerText::new(RulerUnits::new(unit.shown(1.0, points_per_inch), Ticks::decimal(false)), unit.kind)
 }
 
 /// The distance a snapping drag moves by: the ruler's smallest tick, in points.
@@ -95,7 +95,7 @@ impl TextRuler<'_> {
         let part = item.part();
         let press = cx.part(part).press;
         match press.phase {
-            PressPhase::Down { start } if start.button == PointerButton::Primary => {
+            PressPhase::Down { start, .. } if start.button == PointerButton::Primary => {
                 if let Item::Stop(at) = item {
                     self.report.picked = Some(at);
                     if start.clicks >= 2 {
@@ -104,7 +104,7 @@ impl TextRuler<'_> {
                 }
                 cx.focus_part(part);
             }
-            PressPhase::DragStart { start, pos } if start.button == PointerButton::Primary => {
+            PressPhase::DragStart { start, pos, .. } if start.button == PointerButton::Primary => {
                 let anchor = cx.value().cloned().unwrap_or_default();
                 *held = Held { anchor: Some(anchor), from: Some(item), now: Some(item), ..Held::default() };
                 cx.focus_part(part);
@@ -117,7 +117,7 @@ impl TextRuler<'_> {
                     self.drag_item(cx, g, step, held, text, start.origin, pos, press.mods.alt);
                 }
             }
-            PressPhase::Release { start, click: false, pos } if start.button == PointerButton::Primary && held.from == Some(item) => {
+            PressPhase::Release { start, click: false, pos, .. } if start.button == PointerButton::Primary && held.from == Some(item) => {
                 self.drag_item(cx, g, step, held, text, start.origin, pos, press.mods.alt);
                 if held.off
                     && let (Some(anchor), Some(Item::Stop(grab))) = (held.anchor.clone(), held.from)
@@ -177,7 +177,7 @@ impl TextRuler<'_> {
         let kind = self.kind.unwrap_or_default();
         let stop_at = |x: f32, free: bool| TabStop { position: snap_stop(g.at(x), step, g.width, free), align: kind, leader: TabLeader::None };
         match press.phase {
-            PressPhase::DragStart { start, pos } if start.button == PointerButton::Primary && g.column().contains(start.origin) => {
+            PressPhase::DragStart { start, pos, .. } if start.button == PointerButton::Primary && g.column().contains(start.origin) => {
                 *held = Held { anchor: Some(values.clone()), placing: true, ..Held::default() };
                 cx.begin();
                 self.drag_placing(cx, g, held, text, pos, &stop_at(pos.x, press.mods.alt));
@@ -197,7 +197,7 @@ impl TextRuler<'_> {
                 cx.cancel(CancelReason::Escape);
                 *held = Held::default();
             }
-            PressPhase::Release { start, click: true, pos } if start.button == PointerButton::Primary && g.column().contains(pos) => {
+            PressPhase::Release { start, click: true, pos, .. } if start.button == PointerButton::Primary && g.column().contains(pos) => {
                 let (value, at) = place(values, stop_at(pos.x, press.mods.alt));
                 cx.set(value);
                 self.report.picked = Some(at);
@@ -236,7 +236,7 @@ impl TextRuler<'_> {
                     let to = from + (pos.x - start.origin.x) / g.scale * g.sign();
                     self.report.column = report(GesturePhase::Update, snap_within(to, step, (lo, hi), press.mods.alt));
                 }
-                PressPhase::Release { start, pos, click: false } if held.columns.is_some() => {
+                PressPhase::Release { start, pos, click: false, .. } if held.columns.is_some() => {
                     let from = held.columns.as_ref().and_then(|columns| columns.get(index)).copied().unwrap_or(position);
                     let to = from + (pos.x - start.origin.x) / g.scale * g.sign();
                     self.report.column = report(GesturePhase::Commit, snap_within(to, step, (lo, hi), press.mods.alt));

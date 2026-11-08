@@ -5,10 +5,10 @@ use super::items::Item;
 use super::run::{Held, rule, ruler_text};
 use super::{TextRuler, TextRulerStyle};
 use craft_ui::canvas::{RulerTick, Rulers};
-use craft_ui::contract::{Cx, PaintUi, Remember as _, Styled as _};
+use craft_ui::contract::{Cx, Edit as _, PaintUi, Remember as _, Styled as _};
 use craft_ui::primitives::{PaintShape, StrokeWidth, TextRun, Tick, TickEdge};
 use craft_ui::style::StyleColor;
-use egui::{CornerRadius, Pos2, Rect, pos2};
+use egui::{CornerRadius, Pos2, Rect, pos2, vec2};
 
 impl TextRuler<'_> {
     pub(super) fn paint_ruler(&self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
@@ -47,11 +47,7 @@ impl TextRuler<'_> {
             let middle = marker.center();
             for k in GRIP_LINES {
                 let at = pos2(middle.x + k * style.pad, middle.y);
-                draw.stroke(
-                    &path(at - egui::vec2(0.0, style.pad / 2.0), at + egui::vec2(0.0, style.pad / 2.0)),
-                    StrokeWidth::Thin,
-                    cx.resolve(&style.marker),
-                );
+                draw.stroke(&path(at - vec2(0.0, style.pad / 2.0), at + vec2(0.0, style.pad / 2.0)), StrokeWidth::Thin, cx.resolve(&style.marker));
             }
         }
         let x = |item: Item| g.x(item.position(&values, g.width));
@@ -76,7 +72,7 @@ impl TextRuler<'_> {
             let corner = layout.corner;
             draw.fill(&rect(corner), style.fill);
             let side = style.thickness.min(corner.width()).min(corner.height());
-            let boxed = Rect::from_center_size(corner.center(), egui::vec2(side, side));
+            let boxed = Rect::from_center_size(corner.center(), vec2(side, side));
             draw.stroke(&rect(boxed), StrokeWidth::Thin, style.tick);
             let (segments, dot) = glyph(&shapes, boxed.center().x, boxed.max.y - (boxed.height() - style.stem) / 2.0, kind, false);
             for [a, b] in segments {
@@ -97,24 +93,26 @@ impl TextRuler<'_> {
         let (lo, hi) = g.span();
         let ticks: Vec<RulerTick> =
             Rulers::ticks(&text.units, rule(self.unit), f64::from(g.scale), (f64::from(lo) * per_doc)..=(f64::from(hi) * per_doc));
-        let draw = ui.draw();
         let marks: Vec<Tick> = ticks.iter().map(|tick| Tick::new(g.x((tick.value / per_doc) as f32) - g.strip.min.x, tick.major)).collect();
-        draw.ticks(g.strip, TickEdge::Bottom, &marks);
+        ui.content_painter(cx).ticks(g.strip, TickEdge::Bottom, &marks);
+        let draw = ui.draw();
         let color: StyleColor = cx.resolve(&style.label.color);
         for tick in ticks.iter().filter(|tick| tick.major) {
             let x = g.x((tick.value / per_doc) as f32);
-            let run = TextRun::new(text.tick_label(&numbers, tick.value, tick.step)).role(style.label.role).color(color);
-            let layout = draw.layout(&run, f32::INFINITY);
-            let size = layout.size();
-            let at = if g.right_to_left { pos2(x - style.pad - size.x, g.strip.top()) } else { pos2(x + style.pad, g.strip.top()) };
+            let label = text.tick_label(&numbers, tick.value, tick.step);
+            let width = label.chars().count() as f32 * style.thickness * DIGIT_SHARE;
+            let size = vec2(width, g.strip.height());
+            let at = if g.right_to_left { pos2(x - style.pad - width, g.strip.top()) } else { pos2(x + style.pad, g.strip.top()) };
             let boxed = Rect::from_min_size(at, size);
             if g.strip.contains_rect(boxed) && !keep_clear.iter().any(|clear| clear.intersects(boxed)) {
-                draw.galley(at, &layout);
+                draw.text(boxed, &TextRun::new(label).role(style.label.role).color(color));
             }
         }
     }
 }
 
+/// The width of a digit as a share of the strip's depth, which sizes a tick number's box.
+const DIGIT_SHARE: f32 = 0.5;
 /// The three grip lines across a table column marker, in marker-gap steps from its middle.
 const GRIP_LINES: [f32; 3] = [-1.0, 0.0, 1.0];
 /// The decimal dot's radius is this share of the glyph's stem height.

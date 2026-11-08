@@ -17,10 +17,10 @@
 use super::length::DocUnit;
 use craft_behavior::{GesturePhase, HitLevel, HitPriority, Metrics, Sense};
 use craft_ui::contract::{
-    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Name, Numeric, Outcome, PaintUi, PartsCx,
-    Pointer as _, Props as _, Role, WordSetCx as _,
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Input, MeasureCx, Name, Numeric, Outcome, PaintUi, PartsCx, Props as _,
+    Role, WordSetCx as _,
 };
-use craft_ui::runtime::focus::{ActivateKeys, FocusShape, KeepKeys, KeyUse};
+use craft_ui::runtime::focus::{ActivateKeys, FocusShape, KeyUse};
 use craft_ui::style::{ComponentStyle, Flags, FocusLook, Stateful, StyleColor, StyleCx, TextLook, TypeRole};
 use egui::{Rect, Response, Vec2};
 
@@ -54,6 +54,7 @@ craft_ui::words! {
 /// How a tab stop aligns the text after it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum TabAlign {
     #[allow(missing_docs)]
     #[default]
@@ -84,6 +85,7 @@ impl TabAlign {
 /// What fills the space before a stop.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum TabLeader {
     #[allow(missing_docs)]
     #[default]
@@ -280,7 +282,7 @@ pub struct TextRulerStyle {
 ///   focus the one before it. Each key is one edit. Each marker and stop is a slider named by its kind, with its value
 ///   in the unit; Increment, Decrement and SetValue act on it.
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
-#[component(probe(TextRuler<'static>))]
+#[component(content_painter)]
 pub struct TextRuler<'a> {
     #[common]
     common: Common,
@@ -304,7 +306,7 @@ pub struct TextRuler<'a> {
     #[prop]
     right_to_left: bool,
     /// The stop shown picked.
-    #[prop]
+    #[prop(name = "picked_stop")]
     selected: Option<usize>,
     report: Report,
 }
@@ -381,7 +383,7 @@ pub(super) struct Layout {
 impl Component for TextRuler<'_> {
     const ROLE: Role = Role::GROUP;
     const OVERLAYS: bool = false;
-    const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_keep(KeepKeys::BlockArrows).with_activate(ActivateKeys::Neither).with_value(true);
+    const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_moves().with_activate(ActivateKeys::Neither).with_value(true);
     type Style = TextRulerStyle;
     type Output = TextRulerOutput;
 

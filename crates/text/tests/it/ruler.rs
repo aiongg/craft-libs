@@ -4,7 +4,7 @@
 use craft_behavior::GesturePhase;
 use craft_text::ui::DocUnit;
 use craft_text::ui::ruler::{ColumnDrag, RulerValues, TabAlign, TabLeader, TabStop, TextRuler};
-use craft_ui::contract::{Bind, Props as _, Show as _};
+use craft_ui::contract::{Bind, Show as _};
 use craft_ui::runtime::env::UnitKind;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers, Vec2};
@@ -13,10 +13,10 @@ use std::rc::Rc;
 
 /// The column's width, points.
 const COLUMN: f32 = 468.0;
-/// A drag along the strip, screen points.
-const ALONG: f32 = 40.0;
-/// A drag far enough off the strip to take a stop off it, screen points.
-const OFF: f32 = 80.0;
+/// A drag along the strip, as a share of the ruler's width.
+const ALONG_SHARE: f32 = 0.1;
+/// A drag far enough off the strip to take a stop off it, as a share of the ruler's width.
+const OFF_SHARE: f32 = 0.25;
 
 fn left_stop(position: f32) -> TabStop {
     TabStop { position, align: TabAlign::Left, leader: TabLeader::None }
@@ -66,7 +66,7 @@ fn dragging_a_stop_off_the_ruler_clears_it() {
     let mut shown = show(RulerValues { stops: vec![left_stop(144.0)], ..RulerValues::default() }, None, false, &[]);
     shown.fixture.settle();
     let stop = shown.fixture.by_label("Left Tab").expect("the stop is a node");
-    shown.fixture.drag(&stop, Vec2::new(0.0, OFF));
+    shown.fixture.drag(&stop, Vec2::Y * (shown.fixture.shown().width() * OFF_SHARE));
     assert!(shown.values.borrow().stops.is_empty());
 }
 
@@ -74,16 +74,17 @@ fn dragging_a_stop_off_the_ruler_clears_it() {
 fn indent_markers_move_as_word_does() {
     let mut shown = show(indents(), None, false, &[]);
     shown.fixture.settle();
-    let first_line = 72.0 + 36.0;
+    let start = shown.values.borrow().clone();
+    let first_line = start.left_indent + start.first_line_indent;
     let hanging = shown.fixture.by_label("Hanging Indent").expect("the hanging marker is a node");
-    shown.fixture.drag(&hanging, Vec2::new(ALONG, 0.0));
+    shown.fixture.drag(&hanging, Vec2::X * (shown.fixture.shown().width() * ALONG_SHARE));
     let values = shown.values.borrow().clone();
-    assert!(values.left_indent > 72.0, "the hanging marker moves the left indent");
+    assert!(values.left_indent > start.left_indent, "the hanging marker moves the left indent");
     assert!((values.left_indent + values.first_line_indent - first_line).abs() < 1e-3, "and leaves the first line where it was");
     drop(values);
     let left = shown.fixture.by_label("Left Indent").expect("the left indent box is a node");
     let before = shown.values.borrow().clone();
-    shown.fixture.drag(&left, Vec2::new(ALONG, 0.0));
+    shown.fixture.drag(&left, Vec2::X * (shown.fixture.shown().width() * ALONG_SHARE));
     let after = shown.values.borrow().clone();
     assert!(after.left_indent > before.left_indent);
     assert!((after.first_line_indent - before.first_line_indent).abs() < 1e-3, "the box moves first line and left indent together");
@@ -97,10 +98,10 @@ fn right_to_left_mirrors_positions() {
     for shown in [&mut ltr, &mut rtl] {
         shown.fixture.settle();
         let stop = shown.fixture.by_label("Left Tab").expect("the stop is a node");
-        shown.fixture.drag(&stop, Vec2::new(ALONG, 0.0));
+        shown.fixture.drag(&stop, Vec2::X * (shown.fixture.shown().width() * ALONG_SHARE));
     }
-    assert!(ltr.values.borrow().stops[0].position > 144.0);
-    assert!(rtl.values.borrow().stops[0].position < 144.0);
+    let (a, b) = (ltr.values.borrow().stops[0].position, rtl.values.borrow().stops[0].position);
+    assert!(a > b, "left to right moves a stop up, right to left down: {a} {b}");
 }
 
 #[trial]
@@ -121,7 +122,7 @@ fn a_table_column_border_drags_as_one_gesture() {
     let mut shown = show(RulerValues::default(), None, false, &BORDERS);
     shown.fixture.settle();
     let border = shown.fixture.by_label("Table Column Width").expect("the border is a node");
-    shown.fixture.drag(&border, Vec2::new(ALONG, 0.0));
+    shown.fixture.drag(&border, Vec2::X * (shown.fixture.shown().width() * ALONG_SHARE));
     let phases: Vec<GesturePhase> = shown.columns.borrow().iter().map(|drag| drag.phase).collect();
     assert_eq!(phases.iter().filter(|phase| **phase == GesturePhase::Begin).count(), 1);
     assert_eq!(phases.iter().filter(|phase| **phase == GesturePhase::Commit).count(), 1);

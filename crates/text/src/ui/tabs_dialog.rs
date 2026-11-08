@@ -136,7 +136,6 @@ impl TabStopsDialog {
         self.stops.push(TabStop { position, align: TabAlign::Left, leader: TabLeader::None });
         self.stops.sort_by(|a, b| a.position.total_cmp(&b.position));
         self.selected = self.stops.iter().position(|stop| (stop.position - position).abs() < SAME_POSITION);
-        self.to_edit = self.selected;
         self.edited = None;
     }
 
@@ -277,7 +276,7 @@ impl TabStopsDialog {
         let shown = Mixed::Same(Some(f64::from(self.default_interval)));
         let range = f64::from(SAME_POSITION)..=f64::from(MAX_POSITION);
         let edit = Field::new(words.default_stops.clone())
-            .show(ui, |ui, _| length_field(units, words.default_stops.clone(), unit, shown, range).show(ui))
+            .show(ui, |ui, _| length_field(units, words.default_stops.clone(), unit, shown, range.clone()).show(ui))
             .inner;
         if let Some(event) = edit.and_then(|out| out.edit.event) {
             let event = length_edit(units, unit, event);
@@ -333,7 +332,9 @@ impl TabStopsDialog {
         Row::new().show(ui, |ui, _| {
             let range = -f64::from(MAX_POSITION)..=f64::from(MAX_POSITION);
             let field = Field::new(words.position.clone())
-                .show(ui, |ui, _| length_field(units, words.position.clone(), unit, Mixed::Same(Some(f64::from(stop.position))), range).show(ui))
+                .show(ui, |ui, _| {
+                    length_field(units, words.position.clone(), unit, Mixed::Same(Some(f64::from(stop.position))), range.clone()).show(ui)
+                })
                 .inner;
             edits.extend(field.and_then(|field| field.edit.event).map(CellEdit::Position));
             let align = Select::new(words.alignment.clone(), Bind::given(stop.align), &aligns).show(ui);
