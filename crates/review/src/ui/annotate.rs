@@ -953,7 +953,7 @@ impl CanvasTool for AnnotateTool {
         let shift = cx.mods.shift;
         match &self.gesture {
             Some(Drag::Marquee { origin, current, .. }) => {
-                cx.marching_ants(&screen(&corners(Rect::from_points(*origin, *current))), true, 0.0);
+                cx.marching_ants(&screen(&corners(Rect::from_points(*origin, *current))), true);
             }
             Some(Drag::Shape { kind, origin, current }) => {
                 let color = drawn(*kind);
@@ -980,7 +980,7 @@ impl CanvasTool for AnnotateTool {
                 }
             }
             Some(Drag::Stroke(points)) => outline(screen(points), false, drawn(AnnotationKind::Ink)),
-            Some(Drag::Erase { path, .. }) => cx.marching_ants(&screen(path), false, 0.0),
+            Some(Drag::Erase { path, .. }) => cx.marching_ants(&screen(path), false),
             Some(Drag::Edit { .. }) | None => {}
         }
         for stroke in &self.strokes {

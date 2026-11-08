@@ -237,8 +237,8 @@ impl<'a> PageList<'a> {
                         let options = IconSpec::svg(IconId::new("settings"));
                         ListRow::new(rows[row].name.clone())
                             .cells(icx.cells())
-                            .toggle(ToggleCell::eye(VISIBLE, !rows[row].hidden, words.visibility.clone()))
-                            .toggle(ToggleCell::lock(LOCKED, rows[row].locked, words.locking.clone()))
+                            .toggle(ToggleCell::eye(VISIBLE, !rows[row].hidden).name(words.visibility.clone()))
+                            .toggle(ToggleCell::lock(LOCKED, rows[row].locked).name(words.locking.clone()))
                             .trailing_part(OPTIONS, TrailingFace::Icon(options), words.options.clone())
                     });
                 *list_id.borrow_mut() = Some(shown.response.id);
