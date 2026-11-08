@@ -35,6 +35,10 @@ default = []
 app = ["dep:eframe", "craft-window/ui"]
 # `craft_ui::testing`: the fixture and suite runner.
 testing = ["dep:libtest-mimic"]
+# Draw colour glyphs (COLR, sbix, CBDT), e.g. colour emoji.
+color_fonts = ["dep:epaint", "epaint/color_fonts"]
+# Find installed fonts for characters the app's faces lack (desktop only).
+system_fonts = ["dep:fontique", "dep:unicode-script"]
 
 [dependencies]
 craft-behavior = { workspace = true }
@@ -63,19 +67,45 @@ toml_edit = { version = "0.25", features = ["serde"] }
 # `patterns::form_dialogs::PdfExportDialog` edits `craft_pdf::settings::PdfSettings`.
 craft-pdf = { workspace = true, default-features = false }
 
+# `fonts`: character maps and variation axes of faces, and inflating egui's default fonts, stored deflated.
+skrifa = { version = "0.44", default-features = false, features = ["std"] }
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+# The installed font folders, for the on-demand font candidates (`fonts::SystemCandidates`).
+craft-font-catalog = { workspace = true, default-features = false }
+# The craft-fonts faces (`fonts::EmbeddedFace`, `fonts::ServedFace`).
+craft-fonts-build = { workspace = true }
+# Only `color_fonts` reads it: the feature turns on epaint's colour glyphs.
+epaint = { version = "0.37", default-features = false, optional = true }
+
 # Icon rasterising; the version egui_extras's `svg` feature uses, so apps build one copy.
 resvg = { version = "0.45.1", default-features = false }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# The versions egui_system_font_provider 0.37 uses.
+fontique = { version = "0.11.1", default-features = false, features = ["system", "fontconfig-dlopen"], optional = true }
+unicode-script = { version = "0.5.8", optional = true }
+
+# Fetching served fonts (`fonts::UiFonts::served_faces`); already in every eframe web build.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = "0.3"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = ["Window", "RequestInit", "Response", "console"] }
 
 # `shell::title_bar::sync_movable` sets `NSWindow.movable` through craft-window's AppKit code, without its egui layer.
 [target.'cfg(target_os = "macos")'.dependencies]
 craft-window = { workspace = true, features = ["appkit"] }
 
-# build.rs reads icons/icons.toml.
+# build.rs reads icons/icons.toml and deflates egui's default fonts for `fonts::deflated_default_definitions`.
 [build-dependencies]
 toml = { version = "1.1", default-features = false, features = ["std", "parse", "serde"] }
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+epaint_default_fonts = "0.37"
 
 [dev-dependencies]
 craft-ui = { path = ".", features = ["testing"] }
+# The fonts trials compare `fonts::deflated_default_definitions` with egui's default fonts.
+egui = { workspace = true, features = ["default_fonts"] }
 # The glossary and api-map trials parse the workspace's sources.
 proc-macro2 = "1"
 syn = { version = "2", features = ["full"] }

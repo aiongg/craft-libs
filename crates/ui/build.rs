@@ -35,6 +35,26 @@ fn main() {
     check_files(&dir, &sets, &icons);
     let out = std::env::var("OUT_DIR").expect("OUT_DIR");
     std::fs::write(Path::new(&out).join("icons.rs"), generate(&root, &sets, &icons)).expect("write icons.rs");
+    deflate_egui_fonts(Path::new(&out));
+}
+
+/// Deflate egui's default fonts into `OUT_DIR/egui_fonts/` for `fonts::deflated_default_definitions`:
+/// egui's `default_fonts` feature embeds the same files uncompressed (1.4 MB), more than a web
+/// build's size budget allows.
+fn deflate_egui_fonts(out: &Path) {
+    use std::io::Write as _;
+    let dir = out.join("egui_fonts");
+    let fonts = [
+        ("Hack-Regular", epaint_default_fonts::HACK_REGULAR),
+        ("egui-icons", epaint_default_fonts::EGUI_ICONS),
+        ("Ubuntu-Light", epaint_default_fonts::UBUNTU_LIGHT),
+    ];
+    std::fs::create_dir_all(&dir).expect("create egui_fonts");
+    for (name, bytes) in fonts {
+        let mut z = flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::best());
+        z.write_all(bytes).expect("deflate");
+        std::fs::write(dir.join(format!("{name}.ttf.deflate")), z.finish().expect("deflate")).expect("write egui font");
+    }
 }
 
 fn str_field<'a>(table: &'a Table, key: &str, what: &str) -> &'a str {

@@ -1,7 +1,8 @@
 //! `UiTokens`: the runtime's egui-ready view of one resolved token set.
 
+use crate::fonts::{SEMIBOLD, installed_families, system_ui_installed};
 use craft_theme::{Contrast, GroupValues, Size, Tokens, TypeRole};
-use egui::{CornerRadius, FontFamily, FontId};
+use egui::{Context, CornerRadius, FontFamily, FontId};
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 use std::sync::Arc;
@@ -64,14 +65,27 @@ impl UiTokens {
         self.key
     }
 
-    /// The font of `role`, or the mono face for a mono run.
-    pub(crate) fn font(&self, role: TypeRole, mono: bool) -> FontId {
+    /// The font of `role`, or the mono face for a mono run. The semibold slot draws in the `semibold` family when the font
+    /// stack installed in `ctx` has one, and in the proportional family otherwise, so text never lands in a family with no
+    /// faces.
+    pub(crate) fn font(&self, ctx: &Context, role: TypeRole, mono: bool) -> FontId {
         let style = if mono { self.typography.mono } else { self.typography.get(role) };
         let family = match style.font {
             craft_theme::FontSlot::Mono => FontFamily::Monospace,
-            craft_theme::FontSlot::Ui | craft_theme::FontSlot::UiSemibold => FontFamily::Proportional,
+            craft_theme::FontSlot::Ui => FontFamily::Proportional,
+            craft_theme::FontSlot::UiSemibold => {
+                let semibold = FontFamily::Name(SEMIBOLD.into());
+                if installed_families(ctx).is_some_and(|families| families.contains(&semibold)) { semibold } else { FontFamily::Proportional }
+            }
         };
         FontId::new(style.size, family)
+    }
+
+    /// The optical size (`opsz`) a run of `role` is set at, in points: its text size, when the OS interface face draws in
+    /// the font stack installed in `ctx`. `None` for mono runs and for the suite's faces, which keep their default.
+    pub(crate) fn optical_size(&self, ctx: &Context, role: TypeRole, mono: bool) -> Option<f32> {
+        let style = if mono { self.typography.mono } else { self.typography.get(role) };
+        (style.font != craft_theme::FontSlot::Mono && system_ui_installed(ctx)).then_some(style.size)
     }
 
     /// `px` as a corner radius, the same at every corner. A radius above 255 clamps; egui clamps a corner to half the shape.
