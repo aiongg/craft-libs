@@ -34,7 +34,6 @@ regex-syntax = { version = "0.8", optional = true }
 craft-font-manager = { workspace = true, optional = true }
 
 [dev-dependencies]
-egui_kittest = "0.37"
 libtest-mimic = "0.8"
 unicode-segmentation = "1.13"
 craft-ui = { workspace = true, features = ["testing"] }
