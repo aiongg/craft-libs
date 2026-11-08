@@ -542,13 +542,12 @@ fn outcome_in(ctx: &Context, read: &PassRead, arena: ArenaId, layer: Layer, enab
         .cancel(cancel);
         let mut machine = std::mem::take(&mut state.machine);
         let step = machine.step(input, |at| {
-            // The press-target rule: egui's click target decides, its drag target for a drag-only root and where egui
-            // gives no click target because a drag-only widget lies on top (an `over` divider or grip above a nested
-            // root); the root starts a press when that target is its own or there is none.
+            // The press-target rule: egui's click target decides, its drag target only for a drag-only root; the
+            // root starts a press when that target is its own or there is none.
             let mine = |id: Option<Id>| id.is_none_or(|id| state.widgets.contains(&id) || member_over_widget(&state.previous, id));
             let targets = pass_pointer.press_targets;
             let allowed = if union_sense.contains(Sense::CLICK) {
-                mine(targets.click.or(targets.drag))
+                mine(targets.click)
             } else if union_sense.contains(Sense::DRAG) {
                 mine(targets.drag)
             } else {
