@@ -1,16 +1,13 @@
-//! A chart drawn from a primitive list (N6.05).
+//! A chart drawn from a primitive list.
 
-use craft_ui::theme::current;
-use egui::epaint::{PathShape, PathStroke, TextShape};
-use egui::{Color32, FontId, Mesh, Painter, Pos2, Rect, Shape, Stroke, StrokeKind, pos2, vec2};
+use craft_theme::TypeRole;
+use craft_ui::primitives::{Draw, PaintShape, TextRun};
+use craft_ui::style::{DataColor, StyleColor};
+use egui::{CornerRadius, Pos2, Rect, pos2, vec2};
 
-use super::style::SheetStyle;
+#[cfg(feature = "screen-testing")]
+mod stories;
 
-/// A line's width never shrinks below this share of its chart width (a zoom floor, not a size).
-const MIN_STROKE_ZOOM: f32 = 0.5;
-/// A dashed line's dash and gap, at 100 % zoom (GridCraft `chartview.rs:64`).
-const CHART_DASH: f32 = 4.0;
-const CHART_DASH_GAP: f32 = 3.0;
 /// One wedge step spans this many radians.
 const WEDGE_STEP: f32 = 0.05;
 /// A wedge has between these many steps.
@@ -21,31 +18,35 @@ const COLLINEAR: f32 = 1e-3;
 /// Horizontal text anchor.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum HAlign {
+    /// The text starts at the anchor.
     #[default]
-    #[allow(missing_docs)]
     Left,
-    #[allow(missing_docs)]
+    /// The text is centred on the anchor.
     Center,
-    #[allow(missing_docs)]
+    /// The text ends at the anchor.
     Right,
 }
 
 /// Vertical text anchor.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum VAlign {
+    /// The text hangs from the anchor.
     #[default]
-    #[allow(missing_docs)]
     Top,
-    #[allow(missing_docs)]
+    /// The text is centred on the anchor.
     Center,
-    #[allow(missing_docs)]
+    /// The text stands on the anchor.
     Bottom,
 }
 
-/// A drawing primitive in chart coordinates (origin top-left, y down, points). Colours are
-/// straight RGBA. The app's chart engine (GridCraft's `gridcraft-chart`) produces the list; the
-/// library paints it.
+/// A drawing primitive in chart coordinates (origin top-left, y down, points). The app's chart engine produces the
+/// list; the library paints it.
+///
+/// Lines and outlines (`Line`, and every `stroke`) need a data-colour stroke at a data width, which `Draw` does not
+/// offer; they paint nothing. Text takes its size from the body and strong body roles and is not rotated: a text
+/// with a `rotation` other than zero paints nothing.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum ChartPrimitive {
     /// A rectangle.
     Rect {
@@ -58,9 +59,9 @@ pub enum ChartPrimitive {
         /// Height.
         height: f32,
         /// Fill colour; `None` for no fill.
-        fill: Option<[u8; 4]>,
+        fill: Option<DataColor>,
         /// Stroke colour and width; `None` for no stroke.
-        stroke: Option<([u8; 4], f32)>,
+        stroke: Option<(DataColor, f32)>,
         /// Corner radius.
         radius: f32,
     },
@@ -69,7 +70,7 @@ pub enum ChartPrimitive {
         /// The vertices, in order.
         points: Vec<[f32; 2]>,
         /// Stroke colour.
-        color: [u8; 4],
+        color: DataColor,
         /// Stroke width.
         width: f32,
         /// Draw dashed.
@@ -80,9 +81,9 @@ pub enum ChartPrimitive {
         /// The vertices, in order.
         points: Vec<[f32; 2]>,
         /// Fill colour.
-        fill: [u8; 4],
+        fill: DataColor,
         /// Stroke colour and width; `None` for no stroke.
-        stroke: Option<([u8; 4], f32)>,
+        stroke: Option<(DataColor, f32)>,
     },
     /// A pie or doughnut sector: centre, radii, angles in radians (0 at 12 o'clock, clockwise).
     Wedge {
@@ -99,9 +100,9 @@ pub enum ChartPrimitive {
         /// End angle.
         end_angle: f32,
         /// Fill colour.
-        fill: [u8; 4],
+        fill: DataColor,
         /// Stroke colour and width; `None` for no stroke.
-        stroke: Option<([u8; 4], f32)>,
+        stroke: Option<(DataColor, f32)>,
     },
     /// A circle.
     Circle {
@@ -112,12 +113,11 @@ pub enum ChartPrimitive {
         /// Radius.
         radius: f32,
         /// Fill colour; `None` for no fill.
-        fill: Option<[u8; 4]>,
+        fill: Option<DataColor>,
         /// Stroke colour and width; `None` for no stroke.
-        stroke: Option<([u8; 4], f32)>,
+        stroke: Option<(DataColor, f32)>,
     },
-    /// Text anchored at `(x, y)` by `align` / `valign`, rotated by `rotation` radians about the
-    /// anchor; `size` in points.
+    /// Text anchored at `(x, y)` by `align` / `valign`, rotated by `rotation` radians about the anchor.
     Text {
         /// Anchor x.
         x: f32,
@@ -125,10 +125,8 @@ pub enum ChartPrimitive {
         y: f32,
         /// The text to draw.
         text: String,
-        /// Font size in points.
-        size: f32,
-        /// Text colour.
-        color: [u8; 4],
+        /// The text colour; `None` takes the surface's ink.
+        color: Option<StyleColor>,
         /// Draw in bold.
         bold: bool,
         /// Horizontal anchor.
@@ -140,99 +138,65 @@ pub enum ChartPrimitive {
     },
 }
 
-/// Paints `primitives` with their origin at `origin`, scaled by `zoom`: rects (stroke inside),
-/// lines (stroke width × max(zoom, 0.5); dashed 4 / 3 points × zoom), polygons (a convex fill,
-/// else GridCraft's area-chart strip mesh: vertical strips between the first half of the points
-/// and the second half, exact for an area chart's "mountain" polygon and only acceptable for
-/// other concave shapes, `chartview.rs:171`), wedges as meshes with one step per 0.05 rad (2…400 steps)
-/// and their outline, circles, text at `size × zoom` in the UI face (bold when asked), rotated
-/// about its anchor.
-// gridcraft: crates/ui-egui/src/chartview.rs:45 `paint_prims`, `:152` `is_convex`, `:173`
-// `area_mesh`; crates/chart/src/lib.rs:53 `Prim`.
-pub fn paint_chart(painter: &Painter, origin: Pos2, primitives: &[ChartPrimitive], zoom: f32) {
-    let tokens = current(painter.ctx());
-    let style = SheetStyle::of(&tokens);
+/// Paints `primitives` with their origin at `origin`, scaled by `zoom`: rects, polygons (a convex one whole, else
+/// as the vertical strips of an area chart's polygon: its top edge along the first half of the points and its
+/// baseline back along the second half, exact for an area chart's "mountain" shape), wedges as one convex shape per
+/// step of 0.05 rad (2…400 steps), circles, and text anchored by its alignment.
+pub fn paint_chart(draw: &Draw<'_>, origin: Pos2, primitives: &[ChartPrimitive], zoom: f32) {
     let at = |x: f32, y: f32| pos2(origin.x + x * zoom, origin.y + y * zoom);
-    let rgba = |c: [u8; 4]| Color32::from_rgba_unmultiplied(c[0], c[1], c[2], c[3]);
-    let stroke_zoom = zoom.max(MIN_STROKE_ZOOM);
     for primitive in primitives {
         match primitive {
-            ChartPrimitive::Rect { x, y, width, height, fill, stroke, radius } => {
+            ChartPrimitive::Rect { x, y, width, height, fill, radius, .. } => {
                 let rect = Rect::from_min_size(at(*x, *y), vec2(width * zoom, height * zoom));
                 if let Some(fill) = fill {
-                    painter.rect_filled(rect, radius * zoom, rgba(*fill));
-                }
-                if let Some((color, width)) = stroke {
-                    painter.rect_stroke(rect, radius * zoom, Stroke::new(width * stroke_zoom, rgba(*color)), StrokeKind::Inside);
+                    let corners = CornerRadius::same((radius * zoom).round().clamp(0.0, 255.0) as u8);
+                    draw.data_fill(&PaintShape::Rect(rect, corners), *fill);
                 }
             }
-            ChartPrimitive::Line { points, color, width, dash } => {
-                let points: Vec<Pos2> = points.iter().map(|q| at(q[0], q[1])).collect();
-                if points.len() < 2 {
-                    continue;
-                }
-                let stroke = Stroke::new(width * stroke_zoom, rgba(*color));
-                if *dash {
-                    painter.extend(Shape::dashed_line(&points, stroke, CHART_DASH * zoom, CHART_DASH_GAP * zoom));
-                } else {
-                    painter.add(PathShape::line(points, PathStroke::new(stroke.width, stroke.color)));
-                }
-            }
-            ChartPrimitive::Polygon { points, fill, stroke } => {
+            ChartPrimitive::Line { .. } => {}
+            ChartPrimitive::Polygon { points, fill, .. } => {
                 let points: Vec<Pos2> = points.iter().map(|q| at(q[0], q[1])).collect();
                 if points.len() < 3 {
                     continue;
                 }
                 if is_convex(&points) {
-                    painter.add(PathShape { points: points.clone(), closed: true, fill: rgba(*fill), stroke: PathStroke::NONE });
+                    draw.data_fill(&PaintShape::Polygon(points), *fill);
                 } else {
-                    painter.add(Shape::mesh(area_mesh(&points, rgba(*fill))));
-                }
-                if let Some((color, width)) = stroke {
-                    painter.add(PathShape::closed_line(points, PathStroke::new(width * stroke_zoom, rgba(*color))));
+                    for strip in area_strips(&points) {
+                        draw.data_fill(&PaintShape::Polygon(strip.to_vec()), *fill);
+                    }
                 }
             }
-            ChartPrimitive::Wedge { center_x, center_y, outer_radius, inner_radius, start_angle, end_angle, fill, stroke } => {
+            ChartPrimitive::Wedge { center_x, center_y, outer_radius, inner_radius, start_angle, end_angle, fill, .. } => {
                 let centre = at(*center_x, *center_y);
                 let steps = (((end_angle - start_angle).abs() / WEDGE_STEP).ceil() as usize).clamp(WEDGE_STEPS.0, WEDGE_STEPS.1);
                 let on = |angle: f32, radius: f32| pos2(centre.x + radius * zoom * angle.sin(), centre.y - radius * zoom * angle.cos());
                 let angle = |i: usize| start_angle + (end_angle - start_angle) * i as f32 / steps as f32;
-                let color = rgba(*fill);
-                let mut mesh = Mesh::default();
-                for i in 0..=steps {
-                    mesh.colored_vertex(on(angle(i), *outer_radius), color);
-                    mesh.colored_vertex(if *inner_radius > 0.0 { on(angle(i), *inner_radius) } else { centre }, color);
-                }
-                for i in 0..steps as u32 {
-                    let b = i * 2;
-                    mesh.add_triangle(b, b + 1, b + 2);
-                    mesh.add_triangle(b + 1, b + 3, b + 2);
-                }
-                painter.add(Shape::mesh(mesh));
-                if let Some((color, width)) = stroke {
-                    let mut outline: Vec<Pos2> = (0..=steps).map(|i| on(angle(i), *outer_radius)).collect();
-                    if *inner_radius > 0.0 {
-                        outline.extend((0..=steps).rev().map(|i| on(angle(i), *inner_radius)));
+                for i in 0..steps {
+                    let (a, b) = (angle(i), angle(i + 1));
+                    let step = if *inner_radius > 0.0 {
+                        vec![on(a, *outer_radius), on(b, *outer_radius), on(b, *inner_radius), on(a, *inner_radius)]
                     } else {
-                        outline.push(centre);
-                    }
-                    painter.add(PathShape::closed_line(outline, PathStroke::new(width * stroke_zoom, rgba(*color))));
+                        vec![on(a, *outer_radius), on(b, *outer_radius), centre]
+                    };
+                    draw.data_fill(&PaintShape::Polygon(step), *fill);
                 }
             }
-            ChartPrimitive::Circle { center_x, center_y, radius, fill, stroke } => {
+            ChartPrimitive::Circle { center_x, center_y, radius, fill, .. } => {
                 if let Some(fill) = fill {
-                    painter.circle_filled(at(*center_x, *center_y), radius * zoom, rgba(*fill));
-                }
-                if let Some((color, width)) = stroke {
-                    painter.circle_stroke(at(*center_x, *center_y), radius * zoom, Stroke::new(width * stroke_zoom, rgba(*color)));
+                    draw.data_fill(&PaintShape::Circle(at(*center_x, *center_y), radius * zoom), *fill);
                 }
             }
-            ChartPrimitive::Text { x, y, text, size, color, bold, align, valign, rotation } => {
-                let role = if *bold { style.chart_text_strong } else { style.chart_text };
-                let family = tokens.font(role).family;
-                let color = rgba(*color);
-                let galley = painter.layout_no_wrap(text.clone(), FontId::new(size * zoom, family), color);
-                let size = galley.size();
+            ChartPrimitive::Text { x, y, text, color, bold, align, valign, rotation } => {
+                if *rotation != 0.0 {
+                    continue;
+                }
+                let mut run = TextRun::new(text.as_str()).role(if *bold { TypeRole::BodyStrong } else { TypeRole::Body });
+                if let Some(color) = color {
+                    run = run.color(*color);
+                }
+                let layout = draw.layout(&run, f32::INFINITY);
+                let size = layout.size();
                 let ax = match align {
                     HAlign::Left => 0.0,
                     HAlign::Center => 0.5,
@@ -244,16 +208,7 @@ pub fn paint_chart(painter: &Painter, origin: Pos2, primitives: &[ChartPrimitive
                     VAlign::Bottom => 1.0,
                 };
                 let anchor = at(*x, *y);
-                if *rotation == 0.0 {
-                    painter.galley(pos2(anchor.x - size.x * ax, anchor.y - size.y * ay), galley, color);
-                } else {
-                    let (sin, cos) = rotation.sin_cos();
-                    let off = vec2(-size.x * ax, -size.y * ay);
-                    let turned = vec2(off.x * cos - off.y * sin, off.x * sin + off.y * cos);
-                    let mut shape = TextShape::new(anchor + turned, galley, color);
-                    shape.angle = *rotation;
-                    painter.add(shape);
-                }
+                draw.galley(pos2(anchor.x - size.x * ax, anchor.y - size.y * ay), &layout);
             }
         }
     }
@@ -277,21 +232,9 @@ fn is_convex(points: &[Pos2]) -> bool {
     true
 }
 
-/// A mesh of vertical strips for an area chart's polygon: its top edge runs along the first half
-/// of the points and its baseline back along the second half.
-fn area_mesh(points: &[Pos2], color: Color32) -> Mesh {
-    let mut mesh = Mesh::default();
+/// The vertical strips of an area chart's polygon, each a convex quad: the top edge runs along the first half of
+/// the points and the baseline back along the second half.
+fn area_strips(points: &[Pos2]) -> Vec<[Pos2; 4]> {
     let n = points.len();
-    if n < 3 {
-        return mesh;
-    }
-    for i in 0..(n / 2).saturating_sub(1) {
-        let base = mesh.vertices.len() as u32;
-        for q in [points[i], points[i + 1], points[n - 2 - i], points[n - 1 - i]] {
-            mesh.colored_vertex(q, color);
-        }
-        mesh.add_triangle(base, base + 1, base + 2);
-        mesh.add_triangle(base, base + 2, base + 3);
-    }
-    mesh
+    (0..(n / 2).saturating_sub(1)).map(|i| [points[i], points[i + 1], points[n - 2 - i], points[n - 1 - i]]).collect()
 }
