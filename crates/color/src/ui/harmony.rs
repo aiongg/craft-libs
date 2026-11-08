@@ -159,7 +159,7 @@ impl<'a> HarmonyWheel<'a> {
             let disc = disc.brightness(brightness).names(names.clone()).show(ui);
             pressed = disc.pressed;
             if let Some(event) = disc.edit.event {
-                let marker = event.value().map(|m| m.marker).or(selected);
+                let marker = event.value().map(|m| m.marker).or(disc.grabbed).or(selected);
                 if let Some(marker) = marker {
                     edits.push((marker, event.map(|m| [Some(m.hue), Some(m.saturation), None])));
                 }

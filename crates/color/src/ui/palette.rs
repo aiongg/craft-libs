@@ -1,14 +1,14 @@
-//! `SwatchPalette`: a wrapping row of colour wells that is a radio group. `SwatchTable`: a table of touching cells
+//! `SwatchPalette`: a wrapping grid of colour cells that chooses one colour. `SwatchTable`: a table of touching cells
 //! selected by index, for a colour table whose entries may repeat a colour.
 
-use craft_behavior::{DisplayOrder, EditEvent, GestureId, ItemSource, Metrics, Mixed, NavShape, PartKey, Selection, Sense, TileLayout};
+use craft_behavior::{DisplayOrder, EditEvent, GestureId, ItemSource, Metrics, Mixed, PartKey, Selection, Sense, TileLayout};
 use craft_theme::Srgba;
-use craft_ui::choice::{RadioGroup, Swatch, SwatchMetrics};
+use craft_ui::choice::{Swatch, SwatchMetrics};
 use craft_ui::contract::{
     Access, ActivateOn, Bind, BindMut, Collection, CollectionEvent, CollectionProps, Common, Component, ContainerProps, Cx, Held, MeasureCx, NoValue,
-    Outcome, PaintUi, PartsCx, Pattern, Props, Role, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, Sizing, Styled as _,
+    Outcome, PaintUi, PartsCx, Pattern, Props, Role, SelectMode, ShowCollection as _, ShowContainer as _, Sizing, Styled as _,
 };
-use craft_ui::layout_components::{Row, Stack};
+use craft_ui::layout_components::Stack;
 use craft_ui::runtime::env::Label;
 use craft_ui::style::{ComponentStyle, Flags, FocusLook, StyleCx};
 use egui::{Rect, Response, Ui, Vec2};
@@ -43,14 +43,15 @@ impl Outcome for SwatchPaletteOutput {
     }
 }
 
-/// A wrapping row of colour wells from the host's list of named colours that chooses one colour as a radio group does.
+/// A wrapping grid of colour cells from the host's list of named colours that chooses one colour.
 ///
 /// - The swatch equal to the colour (compared in 8 bits, the first when several are) is selected; the name is its
 ///   tooltip.
-/// - A click, Enter or Space on a swatch, or a screen reader's click, sets its colour as one `Set`.
+/// - A click, Space or Enter on a swatch, or a screen reader's click, sets its colour as one `Set`.
 /// - The palette is one Tab stop: Tab enters on the selected swatch (the first when none is) and the next Tab leaves.
-///   Arrows move the focus through the wells as the rows lie, Up and Down to the well above or below.
-/// - AccessKit: a radio group named by the label; each well a radio button named by its name, with the hex colour as
+///   Arrows move the focus through the cells as the rows lie, Up and Down to the cell above or below; they choose
+///   nothing.
+/// - AccessKit: a list box named by the label; each cell a list box option named by its name, with the hex colour as
 ///   its value.
 #[must_use = "show the palette with `show`"]
 #[derive(Pattern)]
@@ -74,16 +75,13 @@ impl<'a> SwatchPalette<'a> {
         let shown = Stack::new().show(ui, |ui, cx| {
             let before = held.read(cx)?;
             let selected = swatches.iter().position(|(_, c)| c.to_rgba() == before.to_rgba());
-            let group =
-                RadioGroup::new(label.clone(), Bind::given(selected.map_or(Mixed::Mixed, Mixed::Same))).nav(NavShape::Spatial).show(ui, |ui, _| {
-                    Row::new().wrap(true).show(ui, |ui, _| {
-                        for (i, (swatch, rgb)) in swatches.iter().enumerate() {
-                            Swatch::new(swatch.clone(), *rgb).member(i).tooltip(swatch.clone()).show(ui);
-                        }
-                    });
-                });
-            let picked: usize = group.output.value().copied()?;
+            let current = selected.map_or_else(Selection::default, Selection::single);
+            let table = SwatchTable::new(label.clone(), swatches).tips(true).selection(Bind::given(current)).show_all(ui);
+            let picked = table.selected.or(table.open)?;
             let after = swatches.get(picked)?.1;
+            if after.to_rgba() == before.to_rgba() {
+                return None;
+            }
             held.write(cx, &before, after, name.as_str());
             Some(EditEvent::set(GestureId::default(), Mixed::Same(before), after, Arc::from(name.as_str()), None))
         });
@@ -136,7 +134,6 @@ pub struct SwatchCellStyle {
 
 /// One cell of a [`SwatchTable`]: a touching, square swatch named by its entry and valued by its hex colour.
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
-#[component(sample = SwatchCell::sample)]
 pub struct SwatchCell {
     #[common]
     common: Common,
@@ -147,12 +144,6 @@ impl SwatchCell {
     /// A cell of `color` named `name`.
     pub fn new(name: impl Into<Label>, color: Srgba) -> Self {
         SwatchCell { common: Common::new(), color }.label(name)
-    }
-
-    /// A cell of one colour, for the registry's style measurements.
-    #[cfg(feature = "screen-testing")]
-    fn sample() -> Self {
-        SwatchCell::new("Swatch", Srgba::rgb(0.2, 0.4, 0.8))
     }
 }
 
@@ -241,6 +232,9 @@ pub struct SwatchTable<'a> {
     /// A fixed number of cells to a row instead of wrapping to the width.
     #[prop]
     per_row: Option<usize>,
+    /// Whether each cell's name is its tooltip.
+    #[prop]
+    tips: bool,
 }
 
 impl<'a> SwatchTable<'a> {
@@ -253,6 +247,7 @@ impl<'a> SwatchTable<'a> {
             swatches,
             selection: None,
             per_row: None,
+            tips: false,
         }
         .label(label)
     }
@@ -266,10 +261,11 @@ impl<'a> SwatchTable<'a> {
 
     /// Shows the table.
     pub fn show_all(self, ui: &mut Ui) -> SwatchTableOutput {
-        let swatches = self.swatches;
+        let (swatches, tips) = (self.swatches, self.tips);
         self.show_items(ui, &SwatchRows::new(swatches), &mut |key, _| {
             let (name, color) = &swatches[*key];
-            SwatchCell::new(name.clone(), *color)
+            let cell = SwatchCell::new(name.clone(), *color);
+            if tips { cell.tooltip(name.clone()) } else { cell }
         })
     }
 }

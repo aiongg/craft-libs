@@ -101,7 +101,7 @@ name = "SwatchPairResponse"
 old = "craft_color::ui::SwatchPairResponse"
 new = "craft_color::ui::SwatchPairOutput"
 status = "replaced"
-note = "`edit` is `Option<EditResponse<PickedColor>>`; `eyedropper_requested` and `picker_id` are `screen_pick`."
+note = "`edit` is `Option<EditEvent<PickedColor>>`; `choice` is the `EditResponse<Well>` of the active well; `eyedropper_requested` and `picker_id` are `screen_pick`."
 
 [[type]]
 name = "SwatchPairStyle"
@@ -274,7 +274,7 @@ name = "ColorDiscResponse"
 old = "craft_color::ui::ColorDiscResponse"
 new = "craft_color::ui::ColorDiscOutput"
 status = "replaced"
-note = "`ColorDiscOutput { edit, pressed }`; `area` and `markers` are gone. An `Outcome`."
+note = "`ColorDiscOutput { edit, pressed, grabbed }`; `area` and `markers` are gone. An `Outcome`."
 
 [[type]]
 name = "ColorDiscStyle"
@@ -554,7 +554,14 @@ name = "ColorReadout"
 old = "craft_color::ui::ColorReadout"
 new = "craft_color::ui::ColorReadout"
 status = "moved"
-note = "`ColorReadout::new(label, Bind<Rgba>)`; the output is `EditResponse<Rgba>`; the names are `ColorReadoutWords`."
+note = "A pattern: `ColorReadout::new(label, Bind<Rgba>)` shows a private container; the output is `ColorReadoutOutput { response, event }`; the names are `ColorReadoutWords`."
+
+[[type]]
+name = "ColorReadoutOutput"
+old = "craft_color::ui::ColorReadout (EditResponse<Rgba>)"
+new = "craft_color::ui::ColorReadoutOutput"
+status = "moved"
+note = "`#[non_exhaustive]`: `response`, and `event` (the pass's edits folded into one)."
 
 [[type]]
 name = "ColorChoice"

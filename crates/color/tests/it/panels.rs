@@ -4,7 +4,7 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use craft_behavior::{EditEvent, Mixed, Selection};
+use craft_behavior::{EditEvent, Selection};
 use craft_cms::convert::CmykConverter;
 use craft_color::palette::{SwatchColor, SwatchEntry, SwatchFormat, SwatchGroup, SwatchNote, SwatchReport};
 use craft_color::ui::{
@@ -633,20 +633,17 @@ impl PaletteRig {
     }
 
     fn focused(&self) -> Option<String> {
-        let (id, _) = self.fixture.focused_stop()?;
-        self.fixture.tree().name(id).map(str::to_owned)
+        let tree = self.fixture.tree();
+        tree.name_of(craft_ui::testing::access::focused_key(tree)).map(str::to_owned)
     }
 }
 
-/// The palette is a radio group that selects by click and moves focus by arrows.
+/// The palette is a pick collection: a click, Space or Enter chooses, the arrows only move the focus.
 #[trial]
-fn the_palette_is_a_radio_group_that_selects_by_click_and_moves_focus_by_arrows() {
+fn the_palette_chooses_by_click_space_or_enter_and_moves_focus_by_arrows() {
     let green = Srgba::rgb(0.19, 0.64, 0.42);
     let mut rig = PaletteRig::new(green, PALETTE_WIDE);
-    let radios = rig.fixture.by_role(Role::RADIO_BUTTON);
-    assert_eq!(radios.len(), SWATCHES.len());
-    let checked: Vec<_> = radios.iter().filter(|r| rig.fixture.tree().toggled_of(r.node) == Some(Mixed::Same(true))).collect();
-    assert_eq!(checked.len(), 1, "only the colour in use is checked");
+    assert_eq!(rig.fixture.by_role(Role::LIST_BOX_OPTION).len(), SWATCHES.len());
 
     // One Tab stop: Tab enters on the colour in use and the next Tab leaves.
     rig.fixture.key(Key::Tab, Modifiers::NONE);
@@ -673,6 +670,10 @@ fn the_palette_is_a_radio_group_that_selects_by_click_and_moves_focus_by_arrows(
     rig.fixture.click(&orange);
     assert_eq!(rig.events.get(), 2, "a click is one Set");
     assert_eq!(rig.color.get().to_hex(), "#f76b15");
+    rig.fixture.key(Key::ArrowRight, Modifiers::NONE);
+    rig.fixture.key(Key::Enter, Modifiers::NONE);
+    assert_eq!(rig.events.get(), 3, "Enter chooses the focused swatch: one Set");
+    assert_eq!(rig.color.get().to_hex(), "#30a36b");
 }
 
 /// Up and Down walk the wrapped rows of the palette to the swatch in the same column.

@@ -3,13 +3,17 @@
 #[cfg(feature = "screen-testing")]
 mod stories;
 
-use craft_behavior::{Flow, Metrics, Mixed, Proposal, Sense};
-use craft_theme::{Rgba, Srgba};
-use craft_ui::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Props as _, Role, WordSetCx as _};
-use craft_ui::runtime::env::Label;
+use craft_behavior::{EditEvent, Metrics, Mixed};
+use craft_theme::Rgba;
+use craft_ui::contract::{
+    Bind, Common, Component, Container, ContainerProps, Cx, Outcome, Pattern, Props as _, Role, Show as _, ShowContainer as _, Sizing,
+};
+use craft_ui::layout::BodyLayout;
+use craft_ui::layout_components::Row;
+use craft_ui::runtime::env::{Env, Label};
 use craft_ui::style::{ComponentStyle, StyleCx};
 use craft_ui::text::{NumberField, TextField};
-use egui::{Rect, Vec2, pos2};
+use egui::{Response, Ui};
 
 /// The channels' names and letters.
 const CHANNELS: [&str; 3] = ["Red", "Green", "Blue"];
@@ -29,16 +33,39 @@ craft_ui::words! {
     }
 }
 
-/// The style of the readout: the gap between fields and the width of each.
+/// The style of the readout: the gap between its fields.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 pub struct ColorReadoutStyle {
     #[style(metrics)]
     metrics: Metrics,
-    /// The width of the hex field.
-    hex: f32,
-    /// The width of a channel field.
-    channel: f32,
+}
+
+/// What a [`ColorReadout`] reports.
+#[derive(Debug)]
+#[non_exhaustive]
+#[must_use = "the host applies the edit"]
+pub struct ColorReadoutOutput {
+    /// The readout's response.
+    pub response: Response,
+    /// The pass's edits of the colour folded into one; `None` when nothing was edited.
+    pub event: Option<EditEvent<Rgba>>,
+}
+
+impl Outcome for ColorReadoutOutput {
+    type Value = Rgba;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+
+    #[cfg(feature = "screen-testing")]
+    fn story_facts(&self) -> craft_ui::testing::StoryOutput {
+        let mut facts = craft_ui::testing::StoryOutput::default();
+        facts.id = Some(self.response.id);
+        facts.edits = self.event.iter().filter_map(craft_ui::testing::EditKind::of).collect();
+        facts
+    }
 }
 
 /// A colour as a hex field and three number fields (R, G, B, each 0 to 255), in one row. An edit in any field
@@ -46,79 +73,97 @@ pub struct ColorReadoutStyle {
 ///
 /// AccessKit: a group named by the label, the hex field "Hex color" and a spin button per channel named by its
 /// colour.
-#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
+#[must_use = "show the readout with `show`"]
+#[derive(Pattern)]
 pub struct ColorReadout<'a> {
-    #[common]
-    common: Common,
+    label: Label,
     value: Bind<'a, Rgba>,
 }
 
 impl<'a> ColorReadout<'a> {
     /// A readout of `value` named `label`.
     pub fn new(label: impl Into<Label>, value: Bind<'a, Rgba>) -> Self {
-        ColorReadout { common: Common::new(), value }.label(label)
+        ColorReadout { label: label.into(), value }
+    }
+
+    /// Shows the readout.
+    pub fn show(self, ui: &mut Ui) -> ColorReadoutOutput {
+        let ColorReadout { label, mut value } = self;
+        let words = Env::of(ui).words::<ColorReadoutWords>();
+        let shown = ReadoutFrame::new().label(label).show(ui, |ui, body| {
+            let held: Mixed<Rgba> = value.reborrow().read(&mut *body).unwrap_or(Mixed::Mixed);
+            let mut events: Vec<EditEvent<Rgba>> = Vec::new();
+            Row::new().show(ui, |ui, _| {
+                events.extend(TextField::hex(words.hex.as_str().to_owned(), Bind::given(held)).show(ui).event);
+                let names = [&words.red, &words.green, &words.blue];
+                for (i, name) in names.into_iter().enumerate() {
+                    let field = NumberField::new(
+                        name.as_str().to_owned(),
+                        Bind::given(match held {
+                            Mixed::Same(color) => Mixed::Same(Some(f64::from(color.0[i]))),
+                            Mixed::Mixed => Mixed::Mixed,
+                        }),
+                    )
+                    .range(0.0..=255.0)
+                    .step(1.0)
+                    .snap_typed(true)
+                    .commit_decimals(0);
+                    let base = held.same().copied().unwrap_or(Rgba::rgb(0, 0, 0));
+                    let channel = move |number: Option<f64>| {
+                        let mut mine = base;
+                        if let Some(number) = number {
+                            mine.0[i] = number.round().clamp(0.0, 255.0) as u8;
+                        }
+                        mine
+                    };
+                    let out = field.show(ui);
+                    events.extend(out.event.as_ref().map(|event| event.clone().map(channel)));
+                }
+            });
+            for event in &events {
+                let _ = value.reborrow().write(&mut *body, event);
+            }
+            events.into_iter().fold(None, EditEvent::fold)
+        });
+        ColorReadoutOutput { response: shown.output, event: shown.inner.flatten() }
     }
 }
 
-impl Component for ColorReadout<'_> {
+/// The container behind [`ColorReadout`]: the group the fields sit in.
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
+#[component(container)]
+struct ReadoutFrame {
+    #[common]
+    common: Common,
+    #[container]
+    props: ContainerProps,
+}
+
+impl ReadoutFrame {
+    fn new() -> Self {
+        ReadoutFrame { common: Common::new(), props: ContainerProps::new().sizing(Sizing::Content).layout(BodyLayout::stack()) }
+    }
+}
+
+impl Component for ReadoutFrame {
     const ROLE: Role = Role::GROUP;
     const PARTS: bool = false;
     const STOPS: bool = false;
     const OVERLAYS: bool = false;
     type Style = ColorReadoutStyle;
-    type Output = EditResponse<Rgba>;
+    type Output = Response;
 
-    fn style(cx: &StyleCx<'_>, _: ColorReadoutStyleKey) -> ColorReadoutStyle {
-        ColorReadoutStyle { metrics: Metrics::new().gap(cx.control().gap), hex: cx.tokens.size.length.field, channel: cx.tokens.size.length.short }
+    fn style(cx: &StyleCx<'_>, _: ReadoutFrameStyleKey) -> ColorReadoutStyle {
+        ColorReadoutStyle { metrics: Metrics::new().gap(cx.control().gap) }
     }
 
-    fn sense(&self) -> Sense {
-        Sense::empty()
+    fn sense(&self) -> craft_behavior::Sense {
+        craft_behavior::Sense::empty()
     }
 
-    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let height = cx.child("hex", &mut TextField::hex("", Bind::given(Srgba::BLACK.to_rgba())), Proposal::Ideal).y;
-        Vec2::new(cx.style.hex + 3.0 * (cx.style.channel + cx.gap()), height)
-    }
-
-    fn bind(&mut self) -> Option<BindMut<'_, Rgba>> {
-        Some(self.value.reborrow())
-    }
-
-    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let shown: Mixed<Rgba> = cx.value().copied().map_or(Mixed::Mixed, Mixed::Same);
-        let words = cx.words::<ColorReadoutWords>();
-        let gap = cx.style.metrics.gap;
-        let flow = Flow::new(cx.rect, cx.env.direction().is_rtl());
-        let place = |x: f32, width: f32| {
-            flow.to_physical(Rect::from_min_size(pos2(x, 0.0), Vec2::new(width, cx.rect.height())).translate(cx.rect.min.to_vec2()))
-        };
-        let hex = ui.child("hex", place(0.0, cx.style.hex), TextField::hex(words.hex.as_str().to_owned(), Bind::given(shown)));
-        cx.adopt(&hex, &Srgba::BLACK.to_rgba(), |value, mine| *mine = *value);
-        let names = [&words.red, &words.green, &words.blue];
-        for (i, name) in names.into_iter().enumerate() {
-            let x = cx.style.hex + gap + i as f32 * (cx.style.channel + gap);
-            let field = NumberField::new(
-                name.as_str().to_owned(),
-                Bind::given(match shown {
-                    Mixed::Same(color) => Mixed::Same(Some(f64::from(color.0[i]))),
-                    Mixed::Mixed => Mixed::Mixed,
-                }),
-            )
-            .range(0.0..=255.0)
-            .step(1.0)
-            .snap_typed(true)
-            .commit_decimals(0);
-            let edit = ui.child(("channel", CHANNELS[i]), place(x, cx.style.channel), field);
-            cx.adopt(&edit, &Srgba::BLACK.to_rgba(), |value, mine| {
-                if let Some(value) = value {
-                    mine.0[i] = value.round().clamp(0.0, 255.0) as u8;
-                }
-            });
-        }
-    }
-
-    fn finish(self, cx: Cx<'_, Self>) -> EditResponse<Rgba> {
-        cx.edit_response()
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
     }
 }
+
+impl Container for ReadoutFrame {}

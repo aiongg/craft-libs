@@ -4,7 +4,8 @@ use super::{GradientPreview, ImagePreview, Paint, PaintChip, PaintLink, PaintLin
 use craft_behavior::Mixed;
 use craft_theme::Srgba;
 use craft_ui::contract::Role;
-use craft_ui::contract::{Bind, Show as _};
+use craft_ui::contract::{Bind, Show as _, Validity};
+use craft_ui::runtime::env::Message;
 use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use egui::Ui;
 
@@ -89,4 +90,11 @@ fn paint_list_selection_colors(ui: &mut Ui, data: &mut StoryData) -> StoryOutput
         .rows(&rows)
         .show(ui)
         .into()
+}
+
+#[story(PaintChip<'static>, covers = [Invalid], drive = Drive::Never)]
+fn paint_chip_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let refuse_none = |paint: &Paint| if matches!(paint, Paint::None) { Validity::Refuse(Message::new("A fill is required")) } else { Validity::Ok };
+    let held = Bind::bound(data.value("paint", Paint::None)).check(refuse_none);
+    PaintChip::new("Fill", held, BLUE).none_allowed().show(ui).into()
 }

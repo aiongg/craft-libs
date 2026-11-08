@@ -2,7 +2,8 @@
 
 use super::{ColorRamp, RampKind, RampPick};
 use craft_theme::Srgba;
-use craft_ui::contract::{Bind, Show as _};
+use craft_ui::contract::{Bind, Show as _, Validity};
+use craft_ui::runtime::env::Message;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
@@ -32,4 +33,14 @@ fn color_ramp_between(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(ColorRamp<'static>, covers = [], drive = Drive::Never)]
 fn color_ramp_web_safe(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     ColorRamp::new("Color ramp", RampKind::Spectrum, Bind::bound(data.value("pick", pick()))).web_safe(true).kind_name("Web colors").show(ui).into()
+}
+
+#[story(ColorRamp<'static>, covers = [Invalid], drive = Drive::Never)]
+fn color_ramp_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let refuse_dark = |pick: &RampPick| if pick.color.b < 0.5 { Validity::Refuse(Message::new("Too dark")) } else { Validity::Ok };
+    let dark = RampPick::new(Srgba::rgb(0.1, 0.1, 0.1), false);
+    ColorRamp::new("Color ramp", RampKind::Spectrum, Bind::bound(data.value("pick", dark)).check(refuse_dark))
+        .kind_name("RGB Spectrum")
+        .show(ui)
+        .into()
 }

@@ -7,14 +7,14 @@
 //! tabs ([`PaintChip::pattern_editor`], [`PaintChip::picture_editor`]: craft-draw's
 //! `PatternFillEditor` and `PictureFillEditor`).
 
-use craft_behavior::{Axis, EditEvent, IconId, Metrics, Selection};
+use craft_behavior::{Axis, EditEvent, IconId, Metrics, PartKey, Selection};
 use craft_behavior::{DisplayOrder, ItemSource, Mixed, SelectionChange};
 use craft_theme::Srgba;
 use craft_ui::buttons::Button;
-use craft_ui::choice::{ChoiceWords, Segmented};
+use craft_ui::choice::{ChoiceWords, Segmented, Swatch};
 use craft_ui::contract::ShowContainer as _;
 use craft_ui::contract::{
-    Access, Activation, Bind, Common, Component, Cx, Edit as _, EditResponse, Entry, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi,
+    Access, Activation, Bind, Common, Component, Cx, Edit as _, EditResponse, Entry, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx,
     Pointer as _, PopupKind, Props as _, Remember as _, Role, Show as _, ShowCollection as _, WordSetCx as _,
 };
 use craft_ui::contract::{CollectionEvent, NoValue, Rename};
@@ -38,8 +38,8 @@ const CHIP_WIDTH_IN_HEIGHTS: f32 = 1.5;
 const MAX_TILES: f32 = 4096.0;
 /// The No Color diagonal stops this many control heights short of the chip's edges.
 const DIAGONAL_INSET_IN_HEIGHTS: f32 = 0.15;
-/// The length of the dash on a mixed chip, as a share of the chip's width.
-const MIXED_DASH_SHARE: f32 = 0.5;
+/// The chip's face: a mixed paint shows the colour well's mixed look.
+const WELL: PartKey = PartKey::new("well");
 
 craft_ui::words! {
     /// The words of [`PaintChip`] and [`PaintList`], English by default.
@@ -185,8 +185,6 @@ pub struct PaintChipStyle {
     none_fill: StyleColor,
     /// The No Color diagonal.
     none_mark: StyleColor,
-    /// The dash on a chip whose selection holds different paints.
-    mixed_mark: StyleColor,
 }
 
 /// The last solid colour the chip held: a switch back to Solid starts from it.
@@ -219,6 +217,11 @@ impl Outcome for PaintChipOutput {
 
     fn response(&self) -> &Response {
         &self.edit.response
+    }
+
+    #[cfg(feature = "screen-testing")]
+    fn story_facts(&self) -> craft_ui::testing::StoryOutput {
+        self.edit.story_facts()
     }
 }
 
@@ -351,7 +354,6 @@ fn value_text(words: &PaintWords, paint: &Paint) -> String {
 
 impl Component for PaintChip<'_> {
     const ROLE: Role = Role::COLOR_WELL;
-    const PARTS: bool = false;
     type Style = PaintChipStyle;
     type Output = PaintChipOutput;
 
@@ -366,7 +368,6 @@ impl Component for PaintChip<'_> {
             edge: cx.color(colors.line.control_edge),
             none_fill: cx.color(colors.surface.sunken),
             none_mark: cx.color(colors.status.bad.solid),
-            mixed_mark: cx.color(colors.text.muted),
         }
     }
 
@@ -376,6 +377,10 @@ impl Component for PaintChip<'_> {
 
     fn measure(&mut self, cx: &craft_ui::contract::MeasureCx<'_, Self>) -> egui::Vec2 {
         vec2(cx.style.height * CHIP_WIDTH_IN_HEIGHTS, cx.style.height)
+    }
+
+    fn parts(&mut self, rect: egui::Rect, cx: &mut PartsCx<'_, Self>) {
+        let _ = cx.part(WELL, rect);
     }
 
     fn bind(&mut self) -> Option<craft_ui::contract::BindMut<'_, Paint>> {
@@ -460,19 +465,11 @@ impl Component for PaintChip<'_> {
         let style = cx.style;
         let well = cx.rect;
         let shape = PaintShape::Rect(well, style.radius);
-        let painter = ui.content_painter(cx);
         let Some(paint) = cx.value().cloned() else {
-            let draw = ui.draw();
-            draw.fill(&shape, style.none_fill);
-            let (center, half) = (well.center(), well.width() * MIXED_DASH_SHARE / 2.0);
-            draw.stroke(
-                &PaintShape::Path(vec![pos2(center.x - half, center.y), pos2(center.x + half, center.y)]),
-                StrokeWidth::Medium,
-                style.mixed_mark,
-            );
-            ui.draw().stroke(&shape, StrokeWidth::Thin, style.edge);
+            ui.face(WELL, Swatch::new(cx.resolved.label.to_owned(), Mixed::<Srgba>::Mixed));
             return;
         };
+        let painter = ui.content_painter(cx);
         match &paint {
             Paint::Solid(color) => {
                 if color.a < 1.0 {

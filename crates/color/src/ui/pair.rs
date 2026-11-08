@@ -5,8 +5,8 @@ use craft_theme::Srgba;
 use craft_ui::buttons::IconButton;
 use craft_ui::choice::{ChoiceWords, Swatch, SwatchMetrics};
 use craft_ui::contract::{
-    Access, Bind, BindMut, Common, Component, Cx, Edit as _, Focus as _, MeasureCx, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx,
-    Pointer as _, Props as _, Remember as _, Role, WordSetCx as _,
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Outcome, Overlay, OverlayUi, Overlays as _,
+    PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role, WordSetCx as _,
 };
 use craft_ui::primitives::{PaintShape, StrokeWidth};
 use craft_ui::runtime::commands::FireSource;
@@ -150,6 +150,8 @@ pub struct SwatchPairOutput {
     pub screen_pick: Option<ScreenPickGesture>,
     /// The well whose popup is open after this pass.
     pub open: Option<Well>,
+    /// The edit of the active well: another well made active is one `Set`.
+    pub choice: EditResponse<Well>,
 }
 
 impl Outcome for SwatchPairOutput {
@@ -157,6 +159,11 @@ impl Outcome for SwatchPairOutput {
 
     fn response(&self) -> &Response {
         &self.response
+    }
+
+    #[cfg(feature = "screen-testing")]
+    fn story_facts(&self) -> craft_ui::testing::StoryOutput {
+        self.choice.story_facts()
     }
 }
 
@@ -426,9 +433,10 @@ impl Component for SwatchPair<'_> {
 
     fn finish(self, cx: Cx<'_, Self>) -> SwatchPairOutput {
         let open = cx.recall::<Opened>().0.map(Well::of).filter(|_| self.edit.is_some() || self.edited.is_some());
+        let (response, active) = (cx.response.clone(), cx.value().copied().unwrap_or_default());
         SwatchPairOutput {
-            response: cx.response.clone(),
-            active: cx.value().copied().unwrap_or_default(),
+            response,
+            active,
             activated: self.activated,
             clicked: self.clicked,
             double_clicked: self.double_clicked,
@@ -438,6 +446,7 @@ impl Component for SwatchPair<'_> {
             defaults: self.defaults,
             screen_pick: self.screen_pick,
             open,
+            choice: cx.edit_response(),
         }
     }
 }
