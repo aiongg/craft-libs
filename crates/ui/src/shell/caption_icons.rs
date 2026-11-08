@@ -19,7 +19,7 @@ const MAX_DIRS: usize = 4096;
 /// How deep an index's unlisted directories are looked for (`symbolic/ui`, `16x16@2/actions`).
 const SCAN_DEPTH: usize = 3;
 /// The most a [`ThemeFiles::read`] returns.
-pub const MAX_FILE: u64 = 1 << 20;
+const MAX_FILE: u64 = 1 << 20;
 /// File probes one theme load makes while looking for the four icons, over all themes of the chain. A theme listing
 /// thousands of directories hits it and gets the family's own glyphs.
 const MAX_PROBES: usize = 20_000;
@@ -265,7 +265,7 @@ impl Theme {
 }
 
 /// A theme and the themes it inherits, in search order.
-pub struct IconThemeChain<'a> {
+struct IconThemeChain<'a> {
     themes: Vec<Theme>,
     files: &'a dyn ThemeFiles,
     /// Probes left for [`find_svg`](Self::find_svg), over all icons of a load.
@@ -275,7 +275,7 @@ pub struct IconThemeChain<'a> {
 impl<'a> IconThemeChain<'a> {
     /// `name` and the themes it inherits, then `hicolor`, looked up in `bases`. `None` when no theme in the chain has
     /// an `index.theme`.
-    pub fn load(name: &str, bases: &[PathBuf], files: &'a dyn ThemeFiles) -> Option<Self> {
+    fn load(name: &str, bases: &[PathBuf], files: &'a dyn ThemeFiles) -> Option<Self> {
         let mut chain: Vec<String> = vec![name.to_string()];
         let mut themes = vec![];
         let mut i = 0;
@@ -320,7 +320,7 @@ impl<'a> IconThemeChain<'a> {
 
     /// The first `<icon>.svg` in search order: each theme's listed directories, then its unlisted ones, before its
     /// parent.
-    pub fn find_svg(&self, icon: &str) -> Option<PathBuf> {
+    fn find_svg(&self, icon: &str) -> Option<PathBuf> {
         if !valid_name(icon) {
             return None;
         }

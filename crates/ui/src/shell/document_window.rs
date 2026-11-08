@@ -156,8 +156,9 @@ impl<'a> DocumentWindow<'a> {
     /// [`cascade`](DocumentWindowOutput::cascade) a shown window reports.
     pub fn cascaded(ui: &Ui, previous: Rect, size: Vec2, step: f32) -> Rect {
         let host = WindowHost::of(ui.ctx());
-        let scale = host.viewport_at(previous.center()).and_then(|viewport| host.facts(viewport)).map_or(1.0, |facts| facts.scale);
-        Self::cascade_in(previous, size, &host.monitors_at(scale), step)
+        let scale = host.viewport_at(previous.center()).and_then(|viewport| host.facts(viewport)).and_then(|facts| facts.scale);
+        let monitors = scale.map(|scale| host.monitors(scale)).unwrap_or_default();
+        Self::cascade_in(previous, size, &monitors, step)
     }
 }
 

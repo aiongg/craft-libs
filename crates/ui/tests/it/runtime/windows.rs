@@ -525,8 +525,9 @@ fn window_actions_and_queries_follow_the_window_system() {
     assert_eq!(host.facts(viewport).map(|facts| facts.inner), Some(PLACED));
     assert_eq!(host.viewport_at(IN_PLACED), Some(viewport));
     assert_eq!(host.viewport_at(NOWHERE), None, "nothing is there");
-    let monitors: Vec<_> = host.monitors().into_iter().map(|monitor| (monitor.name, monitor.pixels, monitor.scale)).collect();
-    assert_eq!(monitors, [("DP-1".to_owned(), MONITOR_PIXELS, MONITOR_SCALE)], "monitors in pixels");
+    let monitors: Vec<_> = host.monitors(MONITOR_SCALE).into_iter().map(|monitor| (monitor.name, monitor.rect, monitor.scale)).collect();
+    let points = Rect::from_min_max(MONITOR_PIXELS.min / MONITOR_SCALE, MONITOR_PIXELS.max / MONITOR_SCALE);
+    assert_eq!(monitors, [(Some("DP-1".to_owned()), points, MONITOR_SCALE)], "monitors in the window's points");
     assert!(act(&windows.ctx, viewport, WindowAction::SetOuterPosition(MOVE_TO)));
     assert!(act(&windows.ctx, viewport, WindowAction::SetInnerSize(SIZE_TO)));
     frame();
@@ -556,12 +557,35 @@ fn monitors_of_different_scales_touch_in_one_window_scale() {
         Monitor::new(MonitorKey::new("DP-2", [1920, 1080]), [3840, 0], [1920, 1080], 1.0),
     ]);
     let windows = Windows::with(InstallSpec::new(ShellInfo::default(), system));
-    let monitors = WindowHost::of(&windows.ctx).monitors();
     for scale in [1.0, 1.5, 2.0] {
-        let [left, right] = [&monitors[0], &monitors[1]].map(|monitor| monitor.points_at(scale));
+        let monitors = WindowHost::of(&windows.ctx).monitors(scale);
+        let [left, right] = [monitors[0].rect, monitors[1].rect];
         assert_eq!(left.max.x, right.min.x, "the monitors touch at scale {scale}");
         assert_eq!((left.min.y, right.min.y), (0.0, 0.0));
     }
+}
+
+/// A window whose platform reports no scale has the scale of the monitor it lies on; on no known monitor it has
+/// none.
+#[trial]
+fn a_window_without_a_platform_scale_has_its_monitors_scale() {
+    let system = Arc::new(FakeSystem::new());
+    system.set_monitors(vec![
+        Monitor::new(MonitorKey::new("DP-1", [3840, 2160]), [0, 0], [3840, 2160], 2.0),
+        Monitor::new(MonitorKey::new("DP-2", [1920, 1080]), [3840, 0], [1920, 1080], 1.0),
+    ]);
+    let windows = Windows::with(InstallSpec::new(ShellInfo::default(), system));
+    let scale_of = |rect: Rect| {
+        windows.root_info(ViewportInfo { inner_rect: Some(rect), outer_rect: Some(rect), ..ViewportInfo::default() });
+        windows.frame(vec![], vec![], |_| {});
+        WindowHost::of(&windows.ctx).facts(ViewportId::ROOT).expect("the root reported").scale
+    };
+    let on_left = Rect::from_min_size(Pos2::new(100.0, 100.0), Vec2::new(400.0, 300.0));
+    let on_right = Rect::from_min_size(Pos2::new(3900.0, 100.0), Vec2::new(400.0, 300.0));
+    let nowhere = Rect::from_min_size(Pos2::new(-9000.0, -9000.0), Vec2::new(400.0, 300.0));
+    assert_eq!(scale_of(on_left), Some(2.0), "the left monitor's scale");
+    assert_eq!(scale_of(on_right), Some(1.0), "the right monitor's scale");
+    assert_eq!(scale_of(nowhere), None, "a window on no monitor has no scale");
 }
 
 /// `SetLevel` on a window the runtime did not open (the root) sends the level command.
