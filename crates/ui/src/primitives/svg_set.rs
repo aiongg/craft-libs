@@ -1,7 +1,9 @@
 //! The SVG icon catalog the build embeds, and its rasteriser.
 
 use egui::{Color32, ColorImage};
-use resvg::{tiny_skia, usvg};
+use resvg::tiny_skia;
+
+use super::svg_tree;
 
 include!(concat!(env!("OUT_DIR"), "/icons.rs"));
 
@@ -39,14 +41,13 @@ pub(crate) fn rasterise(index: usize, set: IconSet, px: u32, stroke_px: f32, mir
 
 /// `set` is the set whose file `svg` is: strokes are rewritten only for a stroke set's own files.
 fn draw(svg: &[u8], set: IconSet, px: u32, stroke_px: f32, mirrored: bool) -> Result<tiny_skia::Pixmap, String> {
-    let options = usvg::Options::default();
-    let mut tree = usvg::Tree::from_data(svg, &options).map_err(|e| e.to_string())?;
+    let mut tree = svg_tree::parse(svg)?;
     let view = tree.size();
     if let Some(own) = set.stroke_width() {
         // Every `stroke-width` scales by the same factor, so a set's thinner details stay thinner.
         let units = stroke_px * view.width() / px as f32;
         let text = std::str::from_utf8(svg).map_err(|e| e.to_string())?;
-        tree = usvg::Tree::from_str(&scale_stroke_widths(text, units / own), &options).map_err(|e| e.to_string())?;
+        tree = svg_tree::parse(scale_stroke_widths(text, units / own).as_bytes())?;
     }
     let mut pixmap = tiny_skia::Pixmap::new(px, px).ok_or("zero size")?;
     let (sx, sy) = (px as f32 / view.width(), px as f32 / view.height());

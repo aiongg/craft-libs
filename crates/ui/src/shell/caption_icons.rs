@@ -10,6 +10,8 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
 
+use crate::primitives::svg_tree;
+
 /// Bounds on what a theme's files can make the search do: themes in an inheritance chain, directories a theme lists,
 /// and the bytes read from one file.
 const MAX_THEMES: usize = 32;
@@ -21,8 +23,6 @@ pub const MAX_FILE: u64 = 1 << 20;
 /// File probes one theme load makes while looking for the four icons, over all themes of the chain. A theme listing
 /// thousands of directories hits it and gets the family's own glyphs.
 const MAX_PROBES: usize = 20_000;
-/// Elements and text nodes an icon SVG may have; a glyph has a handful.
-const MAX_SVG_NODES: u32 = 10_000;
 /// The largest side a mask is rendered at, in device pixels.
 const MAX_MASK_SIDE: u32 = 256;
 /// The size the caption glyphs are drawn at, in the spec's units.
@@ -31,8 +31,6 @@ const ICON_SIZE: i64 = 16;
 const MAX_INDEX_NUMBER: i64 = 1 << 16;
 /// The threshold a `Threshold` directory has when its index gives none.
 const DEFAULT_THRESHOLD: i64 = 2;
-/// The first bytes of a gzip stream.
-const GZIP_MAGIC: [u8; 2] = [0x1f, 0x8b];
 /// The theme the glyphs come from when neither the portal nor the desktop names one.
 const FALLBACK_THEME: &str = "Adwaita";
 
@@ -341,22 +339,11 @@ impl<'a> IconThemeChain<'a> {
 /// An SVG's coverage (alpha) as a `px` x `px` mask, the drawing fitted and centred. `None` for an unreadable SVG or
 /// an absurd size.
 fn rasterize_mask(svg: &[u8], px: u32) -> Option<CaptionMask> {
-    use resvg::{tiny_skia, usvg};
+    use resvg::tiny_skia;
     if !(1..=MAX_MASK_SIDE).contains(&px) {
         return None;
     }
-    // Glyphs are paths: no `<image>` is loaded, so an icon cannot make the renderer read another file or nest an SVG.
-    let opts = usvg::Options {
-        image_href_resolver: usvg::ImageHrefResolver { resolve_data: Box::new(|_, _, _| None), resolve_string: Box::new(|_, _| None) },
-        ..usvg::Options::default()
-    };
-    // `Tree::from_data` would gunzip with no size limit and allow DTDs, so the XML is parsed here.
-    if svg.starts_with(&GZIP_MAGIC) {
-        return None;
-    }
-    let xml = usvg::roxmltree::ParsingOptions { allow_dtd: false, nodes_limit: MAX_SVG_NODES };
-    let doc = usvg::roxmltree::Document::parse_with_options(std::str::from_utf8(svg).ok()?, xml).ok()?;
-    let tree = usvg::Tree::from_xmltree(&doc, &opts).ok()?;
+    let tree = svg_tree::parse(svg).ok()?;
     let size = tree.size();
     let side = size.width().max(size.height());
     if !side.is_finite() || side <= 0.0 {

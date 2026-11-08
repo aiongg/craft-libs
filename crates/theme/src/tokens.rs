@@ -245,10 +245,16 @@ pub struct DataColors {
 pub struct CaptionColors {
     /// Close button under the pointer.
     pub close_hover: Rgba,
-    /// Close glyph on `close_hover`.
+    /// Close button while pressed; follows `close_hover` at 90 % unless pinned.
+    pub close_pressed: Rgba,
+    /// Close glyph on `close_hover` and `close_pressed`.
     pub close_text: Rgba,
+    /// Resting disc of a round caption button (Adwaita); follows `text.normal` at 10 % unless pinned.
+    pub disc: Rgba,
     /// Caption glyphs of an inactive window; follows `text.faint` unless pinned.
     pub inactive: Rgba,
+    /// Pressed disc of an inverting caption button (Breeze); follows `text.muted` unless pinned.
+    pub pressed: Rgba,
 }
 
 /// Bevel colours, used when `shape.edge` is [`Edge::Bevel`].
@@ -329,7 +335,7 @@ impl ColorTokens {
                 checker_dark: c,
             },
             data: DataColors { series: [c; 8], red: c, green: c, blue: c, luma: c, cyan: c, magenta: c, yellow: c, scope: c },
-            caption: CaptionColors { close_hover: c, close_text: c, inactive: c },
+            caption: CaptionColors { close_hover: c, close_pressed: c, close_text: c, disc: c, inactive: c, pressed: c },
             edge: EdgeColors { light: c, dark: c },
         }
     }
@@ -559,10 +565,16 @@ color_tokens! {
     DataScope = "data.scope" => data.scope;
     /// `caption.close_hover`
     CaptionCloseHover = "caption.close_hover" => caption.close_hover;
+    /// `caption.close_pressed`
+    CaptionClosePressed = "caption.close_pressed" => caption.close_pressed;
     /// `caption.close_text`
     CaptionCloseText = "caption.close_text" => caption.close_text;
+    /// `caption.disc`
+    CaptionDisc = "caption.disc" => caption.disc;
     /// `caption.inactive`
     CaptionInactive = "caption.inactive" => caption.inactive;
+    /// `caption.pressed`
+    CaptionPressed = "caption.pressed" => caption.pressed;
     /// `edge.light`
     EdgeLight = "edge.light" => edge.light;
     /// `edge.dark`
