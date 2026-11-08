@@ -57,7 +57,7 @@ fn picture_editor_tile_fields_and_stretch_offsets() {
     assert!(matches!(value.borrow().mode, PictureMode::Stretch { .. }));
     type_into(&mut fixture, "Offset left", &LEFT_INSET.to_string());
     match value.borrow().mode {
-        PictureMode::Stretch { offsets } => assert_eq!(offsets[0], LEFT_INSET),
+        PictureMode::Stretch { offsets, .. } => assert_eq!(offsets[0], LEFT_INSET),
         other => panic!("stretched, got {other:?}"),
     }
     let tile = fixture.by_label("Tile picture as texture").expect("the tile check is shown");

@@ -229,5 +229,5 @@ fn stroke_preview_skips_invalid_styles_and_applies_opacity() {
     let half = StrokeStyle { opacity: 0.5, ..StrokeStyle::default() };
     let preview = StrokePreview::new(&half, 4.0);
     assert!(!preview.shapes(SAMPLE).is_empty());
-    assert_eq!(preview.ink(INK).a(), INK.gamma_multiply(half.opacity).a());
+    assert_eq!(preview.ink(INK).a(), INK.gamma_multiply(half.opacity as f32).a());
 }
