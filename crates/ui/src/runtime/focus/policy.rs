@@ -220,6 +220,17 @@ impl EditSet {
     }
 }
 
+/// What a bare End means for a focused component.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum EndKey {
+    /// The last item of the component's content (a list's last row, a text field's line end).
+    LastItem,
+    /// A sheet's End mode: End arms the next arrow, which jumps to the edge of the data region. Ctrl/Cmd+End goes to
+    /// the last used cell.
+    EndMode,
+}
+
 /// A component's declared keys.
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
@@ -252,6 +263,8 @@ pub struct KeyUse {
     /// The component acts on Enter itself (a text field that saves or searches on it): it takes the `Submit` intent, so
     /// the enclosing dialog's default button does not receive it. A component that does not leaves Enter to that button.
     pub submits: bool,
+    /// What a bare End means for the component.
+    pub end: EndKey,
 }
 
 impl KeyUse {
@@ -272,6 +285,7 @@ impl KeyUse {
         nudge: true,
         deletes: false,
         submits: false,
+        end: EndKey::LastItem,
     };
     /// A divider between panes: it takes the arrows as moves of its value, but it is no document and no canvas tool, so
     /// it marks no window as showing a document and takes no nudges.
@@ -294,7 +308,20 @@ impl KeyUse {
             _ => EditSet::NONE,
         };
         let owner_text = matches!(owner, OwnerClass::Text);
-        KeyUse { keep, activate, claims: &[], edits, owner, value: false, moves: false, chrome_key: false, nudge: false, deletes: owner_text, submits: false }
+        KeyUse {
+            keep,
+            activate,
+            claims: &[],
+            edits,
+            owner,
+            value: false,
+            moves: false,
+            chrome_key: false,
+            nudge: false,
+            deletes: owner_text,
+            submits: false,
+            end: EndKey::LastItem,
+        }
     }
 
     /// The same use claiming `claims`.
@@ -336,6 +363,12 @@ impl KeyUse {
     /// The same use declaring that the component acts on Enter and takes `Intent::Submit`.
     pub const fn with_submits(mut self) -> Self {
         self.submits = true;
+        self
+    }
+
+    /// The same use with `end` as the meaning of a bare End.
+    pub const fn with_end(mut self, end: EndKey) -> Self {
+        self.end = end;
         self
     }
 

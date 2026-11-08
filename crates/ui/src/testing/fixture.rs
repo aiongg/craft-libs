@@ -377,7 +377,11 @@ impl Fixture {
 
     /// Press on `target`, move by `by` in four steps, release.
     pub fn drag(&mut self, target: &Target, by: Vec2) -> &mut Self {
-        let from = target.center();
+        self.drag_at(target.center(), by)
+    }
+
+    /// A drag from the point `from` by `by`: the same frames as [`Fixture::drag`], for a point that is no target.
+    pub fn drag_at(&mut self, from: Pos2, by: Vec2) -> &mut Self {
         self.frame(vec![super::pointer::moved(from)]);
         self.frame(vec![super::pointer::press(from)]);
         for step in 1..=4 {
