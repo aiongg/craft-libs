@@ -12,6 +12,7 @@ use crate::runtime::windows::WindowSpec;
 use crate::style::SurfaceKind;
 use craft_behavior::{CanvasTransform, Roving};
 use craft_theme::ControlSize;
+use egui::Rect;
 
 pub use crate::runtime::env::ThemeScope;
 
@@ -82,24 +83,45 @@ pub enum PaneEdge {
 }
 
 /// One of `AppShell`'s panes.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+///
+/// A pane is placed one of three ways. With [`at`](Self::at) it fills the rect its caller laid out, takes no room from
+/// its siblings (so a pane can overlay another) and ignores the extent. Otherwise an edge pane takes
+/// [`extent`](Self::extent) along its edge from the room left, or, without an extent, the size it first took, which it
+/// keeps in pane memory until the user resizes it. The central pane fills what the edge panes leave.
+#[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ShellPane {
     /// The pane's name.
     pub name: &'static str,
     /// The edge the pane sits on.
     pub edge: PaneEdge,
+    /// The pane's size along its edge, if fixed: the height of a top or bottom pane, the width of a start or end pane.
+    pub extent: Option<f32>,
+    /// The rect the caller laid the pane out in.
+    pub at: Option<Rect>,
 }
 
 impl ShellPane {
     /// The central pane named `name`.
     pub const fn new(name: &'static str) -> Self {
-        ShellPane { name, edge: PaneEdge::Center }
+        ShellPane { name, edge: PaneEdge::Center, extent: None, at: None }
     }
 
     /// The pane at `edge`.
     pub const fn edge(mut self, edge: PaneEdge) -> Self {
         self.edge = edge;
+        self
+    }
+
+    /// The pane's size along its edge, exactly: the pane host shows it at this extent in every pass.
+    pub const fn extent(mut self, extent: f32) -> Self {
+        self.extent = Some(extent);
+        self
+    }
+
+    /// The pane in `rect`, which the caller laid out for this pass. The pane takes no room from its siblings.
+    pub const fn at(mut self, rect: Rect) -> Self {
+        self.at = Some(rect);
         self
     }
 }

@@ -1,49 +1,13 @@
 //! What a window hides and reveals: the chrome toggles, the Tab reveal and the edge reveal of body-only mode.
 
 use crate::contract::PaneEdge;
-use crate::runtime::commands::{ChromeCommand, CommandSet as _, FireSource};
-use crate::runtime::egui::viewports;
-use crate::runtime::env::{EnvValue, RevealEdge};
-use crate::runtime::frame::{ChromeToggle, FrameOutput};
+use crate::runtime::env::RevealEdge;
+use crate::runtime::frame::ChromeToggle;
 use crate::shell::Slot;
-use egui::{Context, Pos2, Rect, ViewportId, pos2};
+use egui::{Pos2, Rect, pos2};
 
-/// Whether the window's panels are hidden while its tools and bars stay (Shift+Tab). The shell sets it beside its
-/// `ShellCx`, and a body that hosts panels reads it with `Env::get`.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct PanelsHidden(pub bool);
-
-impl PanelsHidden {
-    /// The panels are hidden (`true`) or shown.
-    pub const fn new(hidden: bool) -> Self {
-        PanelsHidden(hidden)
-    }
-}
-
-impl EnvValue for PanelsHidden {
-    fn root() -> Self {
-        PanelsHidden(false)
-    }
-}
-
-/// The chrome toggles of this frame: the key stage's own, and the menu, palette and automation fires of the chrome
-/// commands, which reach the app as ordinary fires with no window and are mapped to the focused window. Call it
-/// once per frame with the output taken from the frame loop, and pass the result to each shell.
-pub fn chrome_toggles(ctx: &Context, output: &FrameOutput) -> Vec<(ViewportId, ChromeToggle)> {
-    let mut toggles = output.chrome_toggles.clone();
-    let focused = viewports::reported(ctx).into_iter().find(|(_, facts)| facts.focused).map(|(viewport, _)| viewport);
-    for fired in &output.fired {
-        // A key fire already wrote its toggle in the key stage.
-        if fired.source == FireSource::Key {
-            continue;
-        }
-        if let (Some(command), Some(viewport)) = (ChromeCommand::from_ref(&fired.command), focused) {
-            toggles.push((viewport, command.toggle()));
-        }
-    }
-    toggles
-}
+/// The width of the strip along a window edge where the pointer reveals the edge's hidden slots.
+pub const EDGE_REVEAL_STRIP: f32 = 8.0;
 
 /// The reveal state of one window.
 ///
@@ -60,7 +24,6 @@ pub struct Reveal {
     tab: bool,
     edges: [bool; 3],
     shown: Vec<(RevealEdge, Rect)>,
-    applied: Option<u64>,
 }
 
 /// What the reveal depends on in this pass.
@@ -75,7 +38,7 @@ pub struct Tracking {
     pub edge_reveal: bool,
 }
 
-/// Where the pointer is, and the strips it reveals from.
+/// Where the pointer is; the strips it reveals from are [`EDGE_REVEAL_STRIP`] wide.
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
 pub struct Aim {
@@ -85,8 +48,6 @@ pub struct Aim {
     pub frozen: bool,
     /// The shell's rect.
     pub window: Rect,
-    /// The width of the strip along an edge.
-    pub zone: f32,
     /// Start and end are mirrored.
     pub rtl: bool,
 }
@@ -108,26 +69,19 @@ impl Tracking {
 
 impl Aim {
     /// The pointer and the strips for one pass.
-    pub const fn new(pointer: Option<Pos2>, frozen: bool, window: Rect, zone: f32, rtl: bool) -> Self {
-        Aim { pointer, frozen, window, zone, rtl }
+    pub const fn new(pointer: Option<Pos2>, frozen: bool, window: Rect, rtl: bool) -> Self {
+        Aim { pointer, frozen, window, rtl }
     }
 }
 
 const EDGES: [RevealEdge; 3] = [RevealEdge::Top, RevealEdge::Start, RevealEdge::End];
 
 impl Reveal {
-    /// Applies the toggles that name `window`, once per frame (`frame` is the frame number; a discard pass of the
-    /// same frame applies nothing). `host_only` says the screen mode shows the body only; `allow_reveal` is off for a
-    /// presentation.
-    pub fn apply(&mut self, toggles: &[(ViewportId, ChromeToggle)], window: ViewportId, frame: u64, host_only: bool, allow_reveal: bool) {
-        if self.applied == Some(frame) {
-            return;
-        }
-        self.applied = Some(frame);
-        for (viewport, toggle) in toggles {
-            if *viewport == window {
-                self.toggle(*toggle, host_only, allow_reveal);
-            }
+    /// Applies the toggles the window's shell took from the frame state in this pass. `host_only` says the screen mode
+    /// shows the body only; `allow_reveal` is off for a presentation.
+    pub fn apply(&mut self, toggles: &[ChromeToggle], host_only: bool, allow_reveal: bool) {
+        for toggle in toggles {
+            self.toggle(*toggle, host_only, allow_reveal);
         }
     }
 
@@ -199,7 +153,7 @@ impl Reveal {
         }
         let pointer = aim.pointer.filter(|point| aim.window.contains(*point));
         for edge in EDGES {
-            let in_zone = pointer.is_some_and(|point| strip(aim.window, edge, aim.zone, aim.rtl).contains(point));
+            let in_zone = pointer.is_some_and(|point| strip(aim.window, edge, aim.rtl).contains(point));
             let over_slot =
                 self.edges[at(edge)] && pointer.is_some_and(|point| self.shown.iter().any(|(shown, rect)| *shown == edge && rect.contains(point)));
             self.edges[at(edge)] = in_zone || over_slot;
@@ -215,14 +169,16 @@ impl Reveal {
         allow_reveal && slot.reveals() && (self.tab || edge.reveal_edge().is_some_and(|edge| self.edges[at(edge)]))
     }
 
-    /// Records the rects of the shown slots by the edge they sit on, for the next pass's hit test.
+    /// Records the rects of the shown slots and the revealed panels the body registered, by the edge they sit on, for
+    /// the next pass's hit test.
     pub fn record(&mut self, shown: Vec<(RevealEdge, Rect)>) {
         self.shown = shown;
     }
 }
 
-/// The strip of `zone` along `edge` of `window`.
-fn strip(window: Rect, edge: RevealEdge, zone: f32, rtl: bool) -> Rect {
+/// The strip of [`EDGE_REVEAL_STRIP`] along `edge` of `window`.
+fn strip(window: Rect, edge: RevealEdge, rtl: bool) -> Rect {
+    let zone = EDGE_REVEAL_STRIP;
     match edge {
         RevealEdge::Top => Rect::from_min_max(window.min, pos2(window.max.x, window.min.y + zone)),
         _ => {

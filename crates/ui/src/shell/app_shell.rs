@@ -5,7 +5,9 @@
 #[cfg(feature = "testing")]
 mod stories;
 
-use super::reveal::{Aim, PanelsHidden, Reveal, Tracking};
+use super::canvas_shell::slots as keys;
+use super::regions::{Claim, SlotSize, layout};
+use super::reveal::{Aim, Reveal, Tracking};
 use super::screen_mode::{FullScreenPlan, ScreenMode, ScreenModeCommand};
 use super::words::AppShellWords;
 use crate::contract::overlay::Resize;
@@ -14,19 +16,19 @@ use crate::contract::{
     ShowContainer as _,
 };
 use crate::notices::ToastStack;
-use crate::runtime::commands::{CommandSet as _, Commands as _};
+use crate::runtime::commands::{CommandAccess as _, CommandSet as _, Commands as _};
 use crate::runtime::egui::pass;
-use crate::runtime::env::{AppValues, Env, Label, RevealEdge, ShellCx, ShellRegions, SlotKey, WindowKey};
+use crate::runtime::env::{AppValues, BodyMode, Env, Label, RevealEdge, ShellCx, ShellRegions, WindowKey};
 use crate::runtime::focus::FocusPolicy;
-use crate::runtime::frame::{ChromeToggle, request_repaint};
+use crate::runtime::frame::{note_shell, request_repaint, take_chrome_toggles};
 use crate::runtime::overlay::{OpenFilter, any_open};
 use crate::runtime::pointer;
 use crate::runtime::windows::{WindowHost, os_of};
 use crate::shell::Slot;
-use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
+use crate::style::{ComponentStyle, StyleCx, SurfaceKind, UiTokens};
 use craft_behavior::{EditEvent, GestureId, Metrics, Mixed, Sense};
 use craft_host::target::Os;
-use egui::{Rect, Response, Ui, ViewportId};
+use egui::{Rect, Response, Ui};
 use std::sync::Arc;
 
 /// The closure that fills a slot or the body.
@@ -76,7 +78,6 @@ pub struct ShellRegion {
     #[container]
     props: ContainerProps,
     shell: Option<ShellCx>,
-    panels_hidden: PanelsHidden,
 }
 
 impl ShellRegion {
@@ -84,19 +85,19 @@ impl ShellRegion {
     pub fn window() -> Self {
         let props =
             ContainerProps::new().mount(Mount::window(Resize::GRIPS)).surface(SurfaceKind::Background).command_scope(ScreenModeCommand::SCOPE);
-        ShellRegion { common: Common::new(), props, shell: None, panels_hidden: PanelsHidden::new(false) }
+        ShellRegion { common: Common::new(), props, shell: None }
     }
 
     /// An inline region that fills its room and sets `shell` for everything inside it.
-    pub fn scope(shell: ShellCx, panels_hidden: PanelsHidden) -> Self {
+    pub fn scope(shell: ShellCx) -> Self {
         let props = ContainerProps::new().sizing(crate::contract::Sizing::Fill);
-        ShellRegion { common: Common::new(), props, shell: Some(shell), panels_hidden }
+        ShellRegion { common: Common::new(), props, shell: Some(shell) }
     }
 
     /// A pane of the window; it fills the room its edge gives it.
     pub fn pane(pane: ShellPane) -> Self {
         let props = ContainerProps::new().mount(Mount::Pane(pane)).focus(FocusPolicy::PANE);
-        ShellRegion { common: Common::new(), props, shell: None, panels_hidden: PanelsHidden::new(false) }
+        ShellRegion { common: Common::new(), props, shell: None }
     }
 }
 
@@ -119,7 +120,6 @@ impl Component for ShellRegion {
     fn content_env(&self, _: &Cx<'_, Self>, values: &mut AppValues) {
         if let Some(shell) = &self.shell {
             shell.put(values);
-            values.set(self.panels_hidden);
         }
     }
 
@@ -134,6 +134,10 @@ impl Container for ShellRegion {}
 struct Placed<'a> {
     slot: Slot,
     edge: PaneEdge,
+    /// The size of a slot that sets none: the title bar for the title, else the edge's default.
+    title: bool,
+    /// The slot's name in the shell's words, for a slot of the canvas preset.
+    named: Option<fn(&AppShellWords) -> Label>,
     add: RegionFn<'a>,
 }
 
@@ -147,6 +151,18 @@ impl Placed<'_> {
             _ => 3,
         }
     }
+
+    /// The slot's extent along its edge: its size, or the default of its edge, with a rail's columns side by side.
+    fn extent(&self, tokens: &UiTokens) -> f32 {
+        let size = self.slot.slot_size().unwrap_or(match self.edge {
+            PaneEdge::Top if self.title => SlotSize::TitleBar,
+            PaneEdge::Top => SlotSize::OptionsBar,
+            PaneEdge::Bottom => SlotSize::StatusBar,
+            _ => SlotSize::RailWidth,
+        });
+        let columns = if matches!(self.edge, PaneEdge::Start | PaneEdge::End) { self.slot.column_count() } else { 1 };
+        size.resolve(tokens) * columns as f32
+    }
 }
 
 /// What the shell keeps between passes, in the root container's slot.
@@ -154,8 +170,6 @@ impl Placed<'_> {
 struct ShellState {
     reveal: Reveal,
     plan: FullScreenPlan,
-    body: Option<Rect>,
-    slots: Vec<(SlotKey, Rect)>,
 }
 
 /// What a pass of the shell leaves.
@@ -178,7 +192,7 @@ pub struct AppShellOutput {
     /// Slots are shown by a reveal on this pass (Tab or edge).
     pub revealed: bool,
     /// The panels are hidden while the tools and bars stay (Shift+Tab). A body that hosts panels reads it with
-    /// `Env::get::<PanelsHidden>()`.
+    /// `ShellCx::panels_hidden`.
     pub panels_hidden: bool,
     /// The screen mode after this pass.
     pub screen_mode: ScreenMode,
@@ -198,14 +212,20 @@ impl Outcome for AppShellOutput {
 ///   order from the window's top edge inward; the `bottom` slots from the bottom edge inward; then `start`, then `end`;
 ///   then the body in what is left. Start and end swap sides in a right-to-left window; top and bottom do not. A theme or
 ///   size never changes the order.
+/// - **Extent.** A slot is as high (top, bottom) or wide (start, end) as its [`SlotSize`] says, times its columns for a
+///   rail. Without a size it takes the default of its edge. The shell lays out every shown slot and the body before any
+///   slot runs, so `BodyCx::shell()` holds this pass's rects.
 /// - **Screen mode.** The `screen_mode` binding holds the window's mode. The window's `view.screenMode.*` commands
 ///   (F and Shift+F cycle) change it, and a change to or from full screen is carried out through `WindowHost::act`.
 ///   In `FullScreen` no slot shows but those built with [`Slot::reveal`], during a reveal.
 /// - **Reveal.** In body-only mode Tab (or the `window.toggle_panels` command) shows the revealing slots until the next
 ///   Tab; the pointer at the top, start or end edge shows that edge's slots, unless a button is held or a popup is
-///   open or `edge_reveal` is off. A screen-mode change ends a reveal. The shell acts on the toggles it is given with
-///   `chrome_toggles` (see [`chrome_toggles`](super::chrome_toggles)): in normal mode Tab hides every slot and panel and
-///   shows them again.
+///   open or `edge_reveal` is off. Revealed slots cover the body and leave its rect as it is. A screen-mode change ends
+///   a reveal. The shell takes its own window's Tab toggles from the frame state in the pass that records them: in
+///   normal mode Tab hides every slot and panel and shows them again.
+/// - **Canvas preset.** [`title_bar_if`](Self::title_bar_if), [`options_bar`](Self::options_bar),
+///   [`tools`](Self::tools) and [`status`](Self::status) add the slots of a document editor under the keys of
+///   [`slots`](super::slots), named by `AppShellWords`; each takes the host's `visible` flag, passed every frame.
 /// - **Shell data.** Slots and the body read the skeleton with `BodyCx::shell()`.
 #[must_use = "show the shell with `show`"]
 #[derive(crate::contract::Pattern, crate::contract::Props)]
@@ -227,9 +247,6 @@ pub struct AppShell<'a> {
     /// The name of the body region; the translated "Document" without it.
     #[prop(into)]
     body_label: Option<Label>,
-    /// The chrome toggles of this frame, from [`chrome_toggles`](super::chrome_toggles).
-    #[prop]
-    chrome_toggles: &'a [(ViewportId, ChromeToggle)],
     title: Option<Placed<'a>>,
     slots: Vec<Placed<'a>>,
     /// The body, shown in what the slots leave.
@@ -248,7 +265,6 @@ impl<'a> AppShell<'a> {
             edge_reveal: true,
             document_tabs: true,
             body_label: None,
-            chrome_toggles: &[],
             title: None,
             slots: Vec::new(),
             body: None,
@@ -264,12 +280,39 @@ impl<'a> AppShell<'a> {
     /// The title bar slot, the first top slot, keyed `"title"`: visible, and revealing in body-only mode. The title bar
     /// types fill it.
     pub fn title_bar(self, add: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
-        self.title(Slot::new("title").reveal(), add)
+        self.title(Slot::new(keys::TITLE).reveal(), add)
     }
 
     /// The title slot with a slot of your own, for a title that follows the host's menu bar flag.
     pub fn title(mut self, slot: Slot, add: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
-        self.title = Some(Placed { slot, edge: PaneEdge::Top, add: Box::new(add) });
+        self.title = Some(Placed { slot, edge: PaneEdge::Top, title: true, named: None, add: Box::new(add) });
+        self
+    }
+
+    /// The title bar slot with the host's menu bar flag: `visible` shows it, and it reveals in body-only mode only when
+    /// it is on.
+    pub fn title_bar_if(self, visible: bool, add: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
+        self.title(Slot::new(keys::TITLE).visible(visible).reveal_if(visible), add)
+    }
+
+    /// The options bar, a top slot keyed `"options"` that reveals in body-only mode.
+    pub fn options_bar(mut self, visible: bool, add: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
+        let slot = Slot::new(keys::OPTIONS).visible(visible).reveal();
+        self.slots.push(Placed { slot, edge: PaneEdge::Top, title: false, named: Some(|words| words.options.clone()), add: Box::new(add) });
+        self
+    }
+
+    /// The tool rail, a start slot keyed `"tools"` that reveals in body-only mode.
+    pub fn tools(mut self, visible: bool, add: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
+        let slot = Slot::new(keys::TOOLS).visible(visible).reveal();
+        self.slots.push(Placed { slot, edge: PaneEdge::Start, title: false, named: Some(|words| words.tools.clone()), add: Box::new(add) });
+        self
+    }
+
+    /// The status bar, a bottom slot keyed `"status"` that never reveals.
+    pub fn status(mut self, visible: bool, add: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
+        let slot = Slot::new(keys::STATUS).visible(visible);
+        self.slots.push(Placed { slot, edge: PaneEdge::Bottom, title: false, named: Some(|words| words.status.clone()), add: Box::new(add) });
         self
     }
 
@@ -294,20 +337,21 @@ impl<'a> AppShell<'a> {
     }
 
     fn place(mut self, edge: PaneEdge, slot: Slot, add: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
-        self.slots.push(Placed { slot, edge, add: Box::new(add) });
+        self.slots.push(Placed { slot, edge, title: false, named: None, add: Box::new(add) });
         self
     }
 
     /// Lays out the slots, then the body in what is left, and shows the toasts of the window.
     pub fn show(self, ui: &mut Ui) -> AppShellOutput {
-        let AppShell { window, bare, mut screen_mode, allow_reveal, edge_reveal, document_tabs, body_label, chrome_toggles, title, slots, mut body } =
-            self;
-        let words = Env::of(ui).words::<AppShellWords>();
+        let AppShell { window, bare, mut screen_mode, allow_reveal, edge_reveal, document_tabs, body_label, title, slots, mut body } = self;
+        let env = Env::of(ui);
+        let words = env.words::<AppShellWords>();
+        let tokens = env.tokens.clone();
         let body_label = body_label.unwrap_or_else(|| words.document.clone());
         let mut slots: Vec<Placed<'a>> = title.into_iter().chain(slots).collect();
         slots.sort_by_key(Placed::rank);
 
-        let root = ShellRegion::window().label(words.window.clone());
+        let root = ShellRegion::window().id_salt(window.as_str()).label(words.window.clone());
         let shown = root.show(ui, |ui, cx| {
             let ctx = ui.ctx().clone();
             let viewport = pass::current_viewport(&ctx);
@@ -342,72 +386,78 @@ impl<'a> AppShell<'a> {
             }
 
             let host_only = mode.body_only();
-            state.reveal.apply(chrome_toggles, viewport, pass::frame_nr(&ctx, viewport), host_only, allow_reveal);
+            if let Some(root) = cx.command_chain().innermost(ScreenModeCommand::SCOPE.name()) {
+                note_shell(&ctx, viewport, &window, root);
+            }
+            state.reveal.apply(&take_chrome_toggles(&ctx, viewport, &window), host_only, allow_reveal);
             let only = state.reveal.only(host_only);
             let pointer = pointer::frame(&ctx);
             let frozen = !pointer.buttons.is_empty() || any_open(&ctx, OpenFilter::Keys);
-            state.reveal.track(
-                Tracking::new(only, allow_reveal, edge_reveal),
-                Aim::new(pointer.pos, frozen, cx.rect, pointer.target, cx.env.direction().is_rtl()),
-            );
+            let rtl = cx.env.direction().is_rtl();
+            state.reveal.track(Tracking::new(only, allow_reveal, edge_reveal), Aim::new(pointer.pos, frozen, cx.rect, rtl));
 
+            // Every shown slot's rect and the body's, before any slot runs. Slots that a reveal shows in body-only mode
+            // cover the body.
             let visible: Vec<bool> = slots.iter().map(|placed| !bare && state.reveal.shows(&placed.slot, placed.edge, only, allow_reveal)).collect();
-            let mut earlier = ShellRegions::new(state.body.unwrap_or(cx.rect));
-            for (placed, shown) in slots.iter().zip(&visible) {
-                if *shown {
-                    let rect = state.slots.iter().find(|(key, _)| *key == placed.slot.key()).map_or(Rect::ZERO, |(_, rect)| *rect);
-                    earlier = earlier.with_slot(placed.slot.key(), rect);
-                }
-            }
+            let claims: Vec<Claim> = slots
+                .iter()
+                .zip(&visible)
+                .filter(|(_, shown)| **shown)
+                .map(|(placed, _)| Claim { key: placed.slot.key(), edge: placed.edge, extent: placed.extent(&tokens), overlay: only })
+                .collect();
+            let regions = layout(cx.rect, &claims, rtl);
+
             let tabs = mode.tabs_visible() && document_tabs;
-            let mut shell =
-                ShellCx::new(window.clone(), if only { crate::runtime::env::BodyMode::Only } else { crate::runtime::env::BodyMode::Normal }, earlier)
-                    .with_tabs(tabs)
-                    .with_tab_reveal(state.reveal.tab());
+            let mut shell = ShellCx::new(window.clone(), if only { BodyMode::Only } else { BodyMode::Normal }, regions.clone())
+                .with_tabs(tabs)
+                .with_tab_reveal(state.reveal.tab())
+                .with_panels_hidden(state.reveal.panels_hidden());
             for edge in [RevealEdge::Top, RevealEdge::Start, RevealEdge::End] {
                 shell = shell.with_edge_reveal(edge, state.reveal.edge(edge));
             }
             let backdrop = if only { SurfaceKind::Scrim } else { SurfaceKind::Canvas };
             let panels_hidden = state.reveal.panels_hidden();
 
-            let laid = ShellRegion::scope(shell, PanelsHidden::new(panels_hidden)).id_salt("shell").show(ui, |ui, _| {
-                let mut placed_rects: Vec<(SlotKey, PaneEdge, Rect)> = Vec::new();
-                for (placed, shown) in slots.iter_mut().zip(&visible) {
-                    if !*shown {
-                        continue;
+            let rect_of = |key| regions.slots.iter().find(|(shown, _)| *shown == key).map_or(Rect::ZERO, |(_, rect)| *rect);
+            let scope = shell.clone();
+            ShellRegion::scope(shell).id_salt("shell").show(ui, |ui, _| {
+                let mut show_slots = |ui: &mut Ui, covering: bool| {
+                    for (placed, shown) in slots.iter_mut().zip(&visible) {
+                        if !*shown || only != covering {
+                            continue;
+                        }
+                        let extent = placed.extent(&tokens);
+                        let Placed { slot, edge, named, add, .. } = placed;
+                        let pane = ShellPane::new(slot.key()).edge(*edge).extent(extent).at(rect_of(slot.key()));
+                        let mut region = ShellRegion::pane(pane).id_salt(("slot", slot.key()));
+                        if let Some(label) = slot.name().cloned().or_else(|| named.map(|name| name(&words))) {
+                            region = region.label(label);
+                        }
+                        region.show(ui, |ui, bcx| add(ui, bcx));
                     }
-                    let Placed { slot, edge, add } = placed;
-                    let mut region = ShellRegion::pane(ShellPane::new(slot.key()).edge(*edge)).id_salt(("slot", slot.key()));
-                    if let Some(label) = slot.name() {
-                        region = region.label(label.clone());
-                    }
-                    let out = region.show(ui, |ui, bcx| add(ui, bcx));
-                    placed_rects.push((slot.key(), *edge, out.response.rect));
-                }
-                let center = ShellRegion::pane(ShellPane::new("body")).surface(backdrop).label(body_label.clone());
-                let out = center.show(ui, |ui, bcx| {
+                };
+                show_slots(ui, false);
+                let center = ShellRegion::pane(ShellPane::new("body").at(regions.body)).surface(backdrop).label(body_label.clone());
+                center.show(ui, |ui, bcx| {
                     if let Some(RegionBody(body)) = body.as_mut() {
                         body(ui, bcx);
                     }
                 });
-                (placed_rects, out.response.rect)
+                show_slots(ui, true);
             });
-            let (placed_rects, body_rect) = laid.inner.unwrap_or_else(|| (Vec::new(), cx.rect));
 
             ToastStack::show(ui);
 
-            let mut regions = ShellRegions::new(body_rect);
-            let mut edges = Vec::new();
-            for (key, edge, rect) in &placed_rects {
-                regions = regions.with_slot(*key, *rect);
-                if let Some(edge) = edge.reveal_edge() {
-                    edges.push((edge, *rect));
-                }
-            }
+            let mut edges: Vec<(RevealEdge, Rect)> = regions
+                .slots
+                .iter()
+                .filter_map(|(key, rect)| {
+                    slots.iter().find(|placed| placed.slot.key() == *key).and_then(|placed| placed.edge.reveal_edge()).map(|edge| (edge, *rect))
+                })
+                .collect();
+            edges.extend(scope.revealed_rects());
             state.reveal.record(edges);
-            state.body = Some(body_rect);
-            state.slots = placed_rects.iter().map(|(key, _, rect)| (*key, *rect)).collect();
-            let revealed = only && !placed_rects.is_empty();
+            let revealed = only && !regions.slots.is_empty();
             *cx.keep::<ShellState>() = state;
             Parts { regions, revealed, panels_hidden, mode }
         });
