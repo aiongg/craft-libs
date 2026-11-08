@@ -159,6 +159,8 @@ pub(crate) struct Review {
 pub(crate) struct SetForm {
     pub kind: SetFormKind,
     pub name: String,
+    /// The name field takes key focus on the form's first frame.
+    pub focus: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -210,19 +212,11 @@ pub struct DialogState {
     changed: bool,
     outcome: Option<Outcome>,
     // ---- The view's own state ----
-    /// The table's share of the table/detail split.
-    pub(crate) split: f32,
     /// The chip of the selected row that Enter and Delete act on.
     pub(crate) chip: usize,
     /// Typed entry in the detail pane, and the parse error shown under it.
     pub(crate) typing: Option<String>,
     pub(crate) type_error: Option<String>,
-    /// Height of the bars and footer under the table, measured last frame.
-    pub(crate) bottom_h: f32,
-    /// One of the dialog's text fields had focus at the end of last frame.
-    pub(crate) text_focus: bool,
-    /// The table lines drawn last frame.
-    pub(crate) visible: std::ops::Range<usize>,
     pub(crate) set_form: Option<SetForm>,
     pub(crate) keyboard: KeyboardState,
     /// The app tab shown (its [`DialogTab::id`]); `None` is Keyboard Shortcuts.
@@ -262,13 +256,9 @@ impl DialogState {
             rows: RowCache::default(),
             changed: false,
             outcome: None,
-            split: 0.62,
             chip: 0,
             typing: None,
             type_error: None,
-            bottom_h: 0.0,
-            text_focus: false,
-            visible: 0..0,
             set_form: None,
             keyboard: KeyboardState::default(),
             tab: None,

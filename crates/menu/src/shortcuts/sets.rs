@@ -10,6 +10,7 @@ use craft_ui::display::Text;
 use craft_ui::menu::Menu;
 use craft_ui::pickers::Select;
 use craft_ui::runtime::commands::{CommandState, Commands as _};
+use craft_ui::runtime::focus::{self, FocusTarget};
 use craft_ui::text::TextField;
 use egui::Ui;
 
@@ -88,8 +89,8 @@ pub(crate) fn show(ui: &mut Ui, cx: &mut BodyCx<'_>, env: &mut Env<'_>, state: &
     }
     while let Some((command, _)) = cx.take_command::<SetCommand>() {
         match command {
-            SetCommand::New => state.set_form = Some(SetForm { kind: SetFormKind::New { based_on: None }, name: String::new() }),
-            SetCommand::Rename => state.set_form = Some(SetForm { kind: SetFormKind::Rename, name: active.clone() }),
+            SetCommand::New => state.set_form = Some(SetForm { kind: SetFormKind::New { based_on: None }, name: String::new(), focus: true }),
+            SetCommand::Rename => state.set_form = Some(SetForm { kind: SetFormKind::Rename, name: active.clone(), focus: true }),
             SetCommand::Delete => state.ask_delete_set(env),
             SetCommand::Save => state.save_set(env),
             SetCommand::Revert => state.revert_set(env),
@@ -160,6 +161,9 @@ fn form(ui: &mut Ui, env: &mut Env<'_>, state: &mut DialogState, idle: bool, nam
     Bar::new(name_label.clone(), BarKind::Options).enabled(idle).show(ui, |ui, _| {
         Text::new(name_label.clone()).show(ui);
         let field = TextField::new(name_label.clone(), Bind::bound(&mut form.name)).show(ui);
+        if std::mem::take(&mut form.focus) {
+            focus::request(ui.ctx(), FocusTarget::Id(field.response.id));
+        }
         submit |= field.submitted;
         cancel |= field.escaped;
         if let SetFormKind::New { based_on } = &mut form.kind {

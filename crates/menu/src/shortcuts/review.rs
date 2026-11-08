@@ -88,7 +88,7 @@ pub(crate) fn show(ui: &mut Ui, _cx: &mut BodyCx<'_>, env: &mut Env<'_>, state: 
         Some(Act::Pick(s, c)) => state.pick_suggestion(env, s, c),
         Some(Act::Import) => state.import_reviewed(env),
         Some(Act::Close) => state.close_review(),
-        Some(Act::Copy(text)) => state.request_copy(text),
+        Some(Act::Copy(text)) => ui.ctx().copy_text(text),
         None => {}
     }
 }
