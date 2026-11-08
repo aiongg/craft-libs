@@ -140,9 +140,9 @@ fn drawn(events: &[ArtboardEvent]) -> Vec<Rect> {
 #[trial]
 fn a_drag_on_the_pasteboard_draws_a_board_and_a_short_one_draws_nothing() {
     let mut h = harness(ArtboardRules::PHOTOSHOP, &[0]);
-    let from = h.screen(10.0, 300.0);
-    h.drag(from, from + by(100.0, 60.0), Modifiers::NONE);
-    assert_eq!(drawn(&h.events()), [Rect::new(10.0, 300.0, 110.0, 360.0)], "{:?}", h.events());
+    let from = h.screen(10.0, 250.0);
+    h.drag(from, from + by(100.0, 30.0), Modifiers::NONE);
+    assert_eq!(drawn(&h.events()), [Rect::new(10.0, 250.0, 110.0, 280.0)], "{:?}", h.events());
     let count = h.events().len();
     h.drag(from, from + by(2.0, 1.0), Modifiers::NONE);
     assert!(drawn(&h.events()[count..]).is_empty(), "a drag under the click slop draws nothing");
@@ -199,7 +199,7 @@ fn the_second_rule_set_toggles_copies_and_marquees() {
     assert_eq!(moved_by(&h.events()), Some((vec![0], Vec2::new(40.0, 0.0), true)), "Alt-drag moves a copy");
 
     let mut h = harness(ArtboardRules::ILLUSTRATOR, &[]);
-    let from = h.screen(200.0, 280.0);
+    let from = h.screen(200.0, 250.0);
     h.drag(from, h.screen(300.0, 100.0), Modifiers::SHIFT);
     assert!(
         h.events().iter().any(|event| matches!(event, ArtboardEvent::Select { indices, .. } if indices == &[1])),
@@ -232,8 +232,11 @@ fn escape_cancels_a_move_and_the_second_rule_set_leaves_on_escape() {
     assert!(h.events().iter().any(|event| matches!(event, ArtboardEvent::Move { event: EditEvent::Cancel { .. }, .. })), "{:?}", h.events());
 
     let mut h = harness(ArtboardRules::ILLUSTRATOR, &[0]);
+    // The canvas has the keyboard once the user has worked on it.
+    h.fixture.click_at(h.screen(60.0, 100.0));
+    h.app.borrow_mut().events.clear();
     h.fixture.key(Key::Escape, Modifiers::NONE);
-    assert!(h.events().contains(&ArtboardEvent::Leave));
+    assert!(h.events().contains(&ArtboardEvent::Leave), "{:?}", h.events());
 }
 
 #[trial]

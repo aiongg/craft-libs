@@ -332,7 +332,12 @@ fn esc_cancels_a_drag_and_the_rest_of_the_press_does_nothing() {
     let mut h = upright();
     let from = h.screen(Point::new(150.0, 110.0));
     h.hold_drag(from, from + by(40.0, 0.0));
-    assert!(near(&h.state(), &BoxState::from_rect(RECT).moved(doc(40.0, 0.0))), "the host shows the drag");
+    assert!(
+        near(&h.state(), &BoxState::from_rect(RECT).moved(doc(40.0, 0.0))),
+        "the host shows the drag: {:?} {:?}",
+        h.state(),
+        h.host.borrow().events
+    );
     h.fixture.key(Key::Escape, Modifiers::NONE);
     assert_eq!(h.count(Seen::Cancel), 1, "{:?}", h.host.borrow().events);
     assert_eq!(h.state(), BoxState::from_rect(RECT), "Esc undoes the drag");
@@ -403,8 +408,10 @@ fn arrows_move_the_picked_part_as_a_plain_drag_of_it_would() {
     assert!((h.state().quad[0].y - start.quad[0].y).abs() > 1e-6, "proportional: the height follows");
     assert!(matches!(h.host.borrow().events.last(), Some(Seen::Set)));
 
-    let inside = h.part(BoxPart::Inside).expect("the whole box has a part");
-    h.fixture.click(&inside);
+    assert!(h.part(BoxPart::Inside).is_some(), "the whole box has a part");
+    // The middle of the box is the reference point's: press the whole box away from it.
+    let inside = h.screen(Point::new(150.0, 110.0));
+    h.fixture.click_at(inside);
     let before = h.state();
     h.fixture.key(Key::ArrowDown, Modifiers::SHIFT);
     assert_eq!(h.state(), before.moved(doc(0.0, 10.0)), "Shift moves ten units");
@@ -414,8 +421,10 @@ fn arrows_move_the_picked_part_as_a_plain_drag_of_it_would() {
 fn page_keys_skip_the_parts_the_mode_refuses() {
     use BoxPart::{Corner, Inside, Pivot};
     let mut h = harness(BoxState::from_rect(RECT), |config| config.rules = BoxRules::in_mode(TransformMode::Distort));
-    let inside = h.part(Inside).expect("the whole box has a part");
-    h.fixture.click(&inside);
+    assert!(h.part(Inside).is_some(), "the whole box has a part");
+    // The middle of the box is the reference point's: press the whole box away from it.
+    let inside = h.screen(Point::new(150.0, 110.0));
+    h.fixture.click_at(inside);
     let mut order = vec![h.host.borrow().picked];
     for _ in 0..5 {
         h.fixture.key(Key::PageDown, Modifiers::NONE);

@@ -240,7 +240,7 @@ fn bar(settings: CropSettings, users: Vec<CropUserPreset>) -> Rig {
         });
         *shared.borrow_mut() = settings;
     });
-    fixture.room(Vec2::new(1800.0, 400.0)).settle();
+    fixture.room(Vec2::new(1800.0, 1400.0)).settle();
     Rig { fixture, settings: state, seen }
 }
 
@@ -377,7 +377,7 @@ fn menu(settings: CropSettings, which: Menu) -> Rig {
         }
         *shared.borrow_mut() = settings;
     });
-    fixture.room(Vec2::new(480.0, 600.0)).settle();
+    fixture.room(Vec2::new(480.0, 1400.0)).settle();
     Rig { fixture, settings: state, seen }
 }
 
@@ -410,7 +410,8 @@ fn gear_menu_greys_two_rows_in_classic_mode() {
     settings.shield.classic_mode = true;
     let mut rig = menu(settings, Menu::Gear);
     rig.click("Set additional Crop options");
-    assert!(rig.disabled("Show Cropped Area") && rig.disabled("Auto Center Preview"));
+    assert!(rig.disabled("Show Cropped Area"), "Show Cropped Area");
+    assert!(rig.disabled("Auto Center Preview"), "Auto Center Preview");
     assert!(!rig.disabled("Use Classic Mode"));
     assert!(!rig.seen.borrow().iter().any(|s| s.colour));
 

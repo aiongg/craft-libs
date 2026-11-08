@@ -335,9 +335,6 @@ impl<'a> TransformBox<'a> {
                     let moves_pivot = mods.alt && self.reference_point && matches!(part, BoxPart::Inside | BoxPart::Outside);
                     let (part, begin) = if moves_pivot { (BoxPart::Pivot, BoxState::new(shown.quad, from)) } else { (part, *shown) };
                     held = Some(Grip { part, start: begin, from, began: false, moves_pivot, last: *shown });
-                    if press.double_pressed() && part == BoxPart::Inside {
-                        self.report.apply = true;
-                    }
                 }
                 PressPhase::DragStart { pos, .. } | PressPhase::Drag { pos, .. } => {
                     let Some(mut grip) = held else { continue };
@@ -361,6 +358,10 @@ impl<'a> TransformBox<'a> {
                     cx.cursor(cursor, CursorPriority::Drag);
                 }
                 PressPhase::Release { start, click, .. } => {
+                    // A double click inside applies, whether or not the first press of the release was seen.
+                    if click && start.clicks >= 2 && start.button == PointerButton::Primary && part == BoxPart::Inside {
+                        self.report.apply = true;
+                    }
                     let Some(grip) = held.take() else { continue };
                     if grip.began {
                         cx.commit();
