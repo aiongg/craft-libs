@@ -248,7 +248,10 @@ fn fill_expand_uses_the_bars_amount() {
     let mut rig = Rig::standard();
     rig.lasso();
     rig.fixture.idle(2);
-    let Some(expand) = rig.fixture.by_label("Expand") else { panic!("the Lasso's bar has Expand") };
+    let Some(expand) = rig.fixture.by_label("Expand") else {
+        let texts: Vec<String> = rig.fixture.texts().iter().map(|t| format!("{}@{:?}", t.text, t.rect)).collect();
+        panic!("the Lasso's bar has Expand {texts:?}")
+    };
     rig.fixture.click(&expand);
     let edits: Vec<FillAreaEdit> = rig
         .events()
