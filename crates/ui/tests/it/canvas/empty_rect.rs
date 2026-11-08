@@ -77,9 +77,10 @@ fn squeezed() -> (Fixture, Rc<RefCell<Seen>>, Rc<RefCell<Marquee>>) {
         FullWindowDialog::new("Content-Aware Fill")
             .sides(|ui, _| {
                 FullWindowSide::new("Settings").show(ui, |ui, _| {
+                    // More buttons than any window fits side by side: the full-window mount takes the window's room.
                     Row::new().show(ui, |ui, _| {
-                        for name in ["Sampling", "Colour", "Rotation", "Scale", "Mirror", "Output"] {
-                            Button::new(name).show(ui);
+                        for n in 0..40 {
+                            Button::new(format!("Option {n}")).show(ui);
                         }
                     });
                 });
