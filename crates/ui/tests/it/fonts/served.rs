@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 
 use craft_fonts_build::{EmbeddedFace, ServedFace};
 use craft_ui::fonts::{Emoji, Family, FetchDone, FetchWake, FontFetcher, FontRef, I18nScripts, Stack, SystemFonts, UiFonts};
-use craft_ui::testing::trial;
+use craft_ui::testing::{Frames, trial};
 use egui::epaint::text::{Blob, Fonts, TextOptions};
 use egui::{FontDefinitions, FontFamily, FontId};
 
@@ -365,7 +365,7 @@ const MATH_URL: &str = "fonts/noto-sans-math/NotoSansMath-Regular.ttf";
 
 /// An English UI on the web whose faces lack Vietnamese ổ and the keyboard keys, with `fetch`
 /// fetching its served faces; and whether the context draws a character, as a pass would ask.
-fn web_context(fetch: &Arc<FakeFetch>) -> (egui::Context, impl Fn(char) -> bool) {
+fn web_context(fetch: &Arc<FakeFetch>) -> (egui::Context, impl FnMut(char) -> bool) {
     let mut faces = SERVED_SYMBOLS.to_vec();
     faces[0].coverage = coverage_of(NOTO_SANS_LATIN);
     faces[2].coverage = coverage_of(SYMBOLS);
@@ -377,13 +377,14 @@ fn web_context(fetch: &Arc<FakeFetch>) -> (egui::Context, impl Fn(char) -> bool)
 
 /// A web context in `ui_language` with these served faces, fetched by `fetch`; and whether the
 /// context draws a character, as a pass would ask.
-fn web_context_with(ui_language: &str, faces: &[ServedFace], fetch: &Arc<FakeFetch>) -> (egui::Context, impl Fn(char) -> bool + use<>) {
-    let ctx = egui::Context::default();
+fn web_context_with(ui_language: &str, faces: &[ServedFace], fetch: &Arc<FakeFetch>) -> (egui::Context, impl FnMut(char) -> bool + use<>) {
+    let mut frames = Frames::new();
+    let ctx = frames.ctx.clone();
     web_fonts(ui_language, faces).fetcher(Arc::clone(fetch) as Arc<dyn FontFetcher>).install(&ctx);
     let draws = {
         let ctx = ctx.clone();
         move |c: char| {
-            ctx.run_ui(egui::RawInput::default(), |_| {}).textures_delta.clear();
+            frames.frame(vec![], |_| {});
             ctx.fonts_mut(|f| f.has_glyph(&FontId::proportional(14.0), c))
         }
     };
@@ -393,7 +394,7 @@ fn web_context_with(ui_language: &str, faces: &[ServedFace], fetch: &Arc<FakeFet
 #[trial]
 fn a_missing_character_fetches_only_the_face_that_draws_it() {
     let fetch = Arc::new(FakeFetch::default());
-    let (_ctx, draws) = web_context(&fetch);
+    let (_ctx, mut draws) = web_context(&fetch);
     assert!(fetch.requested().is_empty(), "English needs no served face up front");
 
     assert!(!draws('ổ'));
@@ -419,20 +420,22 @@ fn a_missing_character_fetches_only_the_face_that_draws_it() {
 #[trial]
 fn the_ui_language_faces_are_fetched_at_install_and_reported_as_loading() {
     let fetch = Arc::new(FakeFetch::default());
-    let ctx = egui::Context::default();
+    let mut frames = Frames::new();
+    let ctx = frames.ctx.clone();
     assert!(!craft_ui::fonts::loading(&ctx));
     web_fonts("ar", SERVED).fetcher(Arc::clone(&fetch) as Arc<dyn FontFetcher>).install(&ctx);
     assert_eq!(fetch.requested(), ["fonts/noto-sans-arabic/NotoSansArabic.ttf"]);
     assert!(craft_ui::fonts::loading(&ctx));
     fetch.answer("fonts/noto-sans-arabic/NotoSansArabic.ttf", Ok(ARABIC));
     assert!(!craft_ui::fonts::loading(&ctx));
-    ctx.run_ui(egui::RawInput::default(), |_| {}).textures_delta.clear();
+    frames.frame(vec![], |_| {});
     assert!(ctx.fonts_mut(|f| f.has_glyph(&FontId::proportional(14.0), 'ع')));
 }
 
 #[trial]
 fn served_faces_are_never_fetched_without_a_fetcher() {
-    let ctx = egui::Context::default();
+    let frames = Frames::new();
+    let ctx = frames.ctx.clone();
     let stack = web_fonts("ar", SERVED).install(&ctx);
     assert_eq!(names(stack.ui_downloads()), ["Noto Sans Arabic Regular"]);
     assert!(!craft_ui::fonts::loading(&ctx));
@@ -450,7 +453,7 @@ fn bytes_fetched_under_one_integrity_never_reach_a_face_requiring_another() {
     let installed = |ctx: &egui::Context, name: &str| ctx.fonts(|f| f.definitions().font_data.contains_key(name));
 
     let fetch = Arc::new(FakeFetch::default());
-    let (ctx, draws) = web_context_with("en", &faces, &fetch);
+    let (ctx, mut draws) = web_context_with("en", &faces, &fetch);
     assert!(!draws('ก'));
     assert_eq!(fetch.requested(), [URL]);
     fetch.answer_checked(URL, Some(STRICT), Ok(ARABIC));
@@ -459,7 +462,7 @@ fn bytes_fetched_under_one_integrity_never_reach_a_face_requiring_another() {
     assert!(!installed(&ctx, "Noto Sans Arabic Regular"), "fetched under a strict check: the unchecked face does not take it");
 
     let fetch = Arc::new(FakeFetch::default());
-    let (ctx, draws) = web_context_with("en", &faces, &fetch);
+    let (ctx, mut draws) = web_context_with("en", &faces, &fetch);
     assert!(!draws('ع'));
     fetch.answer_checked(URL, Some(""), Ok(ARABIC));
     assert!(draws('ع'));
@@ -481,7 +484,7 @@ fn a_han_character_fetches_the_one_interface_face_that_has_it() {
         ServedFace { coverage: coverage_of(NOTO_SANS_LATIN), ..SERVED_SYMBOLS[0] },
     ];
     let fetch = Arc::new(FakeFetch::default());
-    let (_ctx, draws) = web_context_with("zh-Hans", &faces, &fetch);
+    let (_ctx, mut draws) = web_context_with("zh-Hans", &faces, &fetch);
     assert_eq!(fetch.requested(), ["fonts/ui/SC.ttf"], "the UI language's face, at once");
     fetch.answer("fonts/ui/SC.ttf", Ok(CJK));
 
@@ -519,7 +522,7 @@ fn a_han_character_fetches_the_one_interface_face_that_has_it() {
 #[trial]
 fn a_failed_download_moves_on_and_is_retried_later() {
     let fetch = Arc::new(FakeFetch::default());
-    let (_ctx, draws) = web_context(&fetch);
+    let (_ctx, mut draws) = web_context(&fetch);
 
     assert!(!draws('⌥'));
     assert_eq!(fetch.requested(), [SYMBOLS_2_URL]);

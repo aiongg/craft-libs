@@ -7,7 +7,7 @@ use craft_fonts_build::EmbeddedFace;
 use craft_ui::fonts::{
     CjkRows, Emoji, FaceList, Family, FontRef, I18nScripts, RegularWeight, Stack, SystemFonts, UiFonts, set_weight, system_font_provider,
 };
-use craft_ui::testing::trial;
+use craft_ui::testing::{Frames, trial};
 use egui::epaint::text::{Fonts, TextOptions};
 use egui::{FallbackRequest, FontData, FontDefinitions, FontFamily, FontId, FontInsert, FontPriority, FontProvider, InsertFontFamily};
 
@@ -299,7 +299,7 @@ fn cjk_uis_keep_the_rows_of_a_latin_ui() {
         for (size, ppp) in [(14.0, 1.0), (13.0, 1.5), (40.0, 2.0)] {
             let font = FontId::proportional(size);
             let layout = |stack: &Stack, text: &str| {
-                measuring(stack).with_pixels_per_point(ppp).layout_no_wrap(text.to_owned(), font.clone(), egui::Color32::WHITE)
+                measuring(stack).with_pixels_per_point(ppp).layout_no_wrap(text.to_owned(), font.clone(), egui::Color32::default())
             };
             let label = layout(&stack, "Ab漢한中");
             let row = egui::Rect::from_x_y_ranges(label.rect.x_range(), layout(&latin, "Ab").rect.y_range());
@@ -314,7 +314,7 @@ fn cjk_uis_keep_the_rows_of_a_latin_ui() {
 fn cjk_glyphs_sit_on_the_latin_baseline() {
     let size = 40.0;
     let ink_of = |fonts: &mut Fonts, text: &str| {
-        let galley = fonts.with_pixels_per_point(1.0).layout_no_wrap(text.to_owned(), FontId::proportional(size), egui::Color32::WHITE);
+        let galley = fonts.with_pixels_per_point(1.0).layout_no_wrap(text.to_owned(), FontId::proportional(size), egui::Color32::default());
         (galley.rows[0].glyphs[0].pos.y, galley.mesh_bounds)
     };
     // The CJK face alone, as it draws unfitted: its ink above and below its own baseline.
@@ -351,12 +351,13 @@ fn install_keeps_the_context_providers_unless_it_brings_a_system_lookup() {
         ))
     };
     let draws_arabic = |system: SystemFonts| {
-        let ctx = egui::Context::default();
+        let mut frames = Frames::new();
+        let ctx = frames.ctx.clone();
         ctx.add_font_provider(Arc::new(arabic));
         let stack = UiFonts::new(&I18nScripts).app_face("ui", egui_face("Ubuntu-Light"), &[FontRef::proportional()]).system_fonts(system).stack();
         stack.install(&ctx);
         stack.install(&ctx);
-        ctx.run_ui(egui::RawInput::default(), |_| {}).textures_delta.clear();
+        frames.frame(vec![], |_| {});
         ctx.fonts_mut(|f| f.has_glyph(&FontId::proportional(14.0), 'ع'))
     };
     assert!(!draws_arabic(SystemFonts::Off), "Off asks no system fonts");
