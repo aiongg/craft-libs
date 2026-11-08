@@ -2,7 +2,7 @@
 # Filled in by the family track; the codemods and the app scan read it.
 
 family = "Review"
-new_module = ""
+new_module = "craft_review::ui"
 
 # One entry per public type: `old` is the path an app calls today, `new` the path after migration.
 # `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
@@ -12,3 +12,66 @@ new_module = ""
 # type = ""
 # old = ""
 # new = ""
+
+# review-a
+
+[[type]]
+name = "AnnotateTool"
+old = "craft_review::ui::annotate::AnnotateTool"
+new = "craft_review::ui::annotate::AnnotateTool"
+status = "same"
+note = "A `CanvasTool` on the new tool host. Pointers arrive in screen points and the tool maps them to page units with the canvas's space. `take_edits` and the public fields stay; a selection edit carries a `SelectionChange` (`Set`, `Toggle`, `Clear`); edit events carry the undo step's name and a `Mixed` before value. `new_annotation_params` and `create_from_form` serve the `New Annotation...` command form."
+
+[[type]]
+name = "AnnotationOverlay"
+old = "craft_review::ui::annotate::AnnotationOverlay"
+new = "craft_review::ui::annotate::AnnotationOverlay"
+status = "same"
+note = "A canvas control: `new(label, annotations, selected)` and `show_at(ui, canvas_rect)`. `paint(painter, tokens, to_screen)` is gone: the view is the canvas's."
+
+[[type]]
+name = "AnnotationToolbar"
+old = "craft_review::ui::annotate::AnnotationToolbar"
+new = "craft_review::ui::annotate::AnnotationToolbar"
+status = "same"
+note = "A pattern over a `Bar`: `new(tool)` (the id salt is gone) and `show(ui)`. Each group is a `FlyoutButton` of `AnnotateCommand`s."
+
+[[type]]
+name = "AnnotationToolbarOutput"
+old = "craft_review::ui::annotate::AnnotationToolbarOutput"
+new = "craft_review::ui::annotate::AnnotationToolbarOutput"
+status = "same"
+note = "`response` and `changed`; `flyouts` is gone."
+
+[[type]]
+name = "AnnotateLabels"
+old = "craft_review::ui::annotate::AnnotateLabels"
+new = "craft_review::ui::annotate::AnnotateWords"
+status = "replaced"
+note = "Words register through `words!`. The per-tool tooltips are the labels of `AnnotateCommand`; `kind` and `palette_color` stay beside the type."
+
+[[setter]]
+type = "AnnotationToolbar"
+old = "new(id_salt, tool)"
+new = "new(tool)"
+
+[[setter]]
+type = "AnnotationToolbar"
+old = "labels(labels)"
+note = "Removed: words register through `words!`."
+
+[[setter]]
+type = "AnnotationToolbarOutput"
+old = "flyouts"
+note = "Removed: `FlyoutButton` owns its flyout."
+
+[[setter]]
+type = "AnnotationOverlay"
+old = "new(annotations, selected)"
+new = "new(label, annotations, selected)"
+
+[[setter]]
+type = "AnnotationOverlay"
+old = "paint(painter, tokens, to_screen)"
+new = "show_at(ui, rect)"
+note = "The overlay maps through the canvas's view."
