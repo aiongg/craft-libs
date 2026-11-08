@@ -228,23 +228,3 @@ fn stroke_preview_skips_invalid_styles() {
     let preview = StrokePreview::new(&half, 4.0);
     assert!(!preview.shapes(SAMPLE).is_empty());
 }
-
-#[trial]
-fn diag_stroke_button_open() {
-    let mut style = StrokeStyle::default();
-    let mut open = true;
-    let mut fixture = Fixture::new(move |ui| {
-        StrokeButton::new("Stroke Options", Bind::bound(&mut style), Bind::bound(&mut open)).show(ui);
-    });
-    fixture.room(egui::vec2(800.0, 600.0));
-    fixture.settle();
-    let tree = fixture.tree();
-    let mut out = Vec::new();
-    for role in [Role::BUTTON, Role::LIST_ITEM, Role::LIST_BOX_OPTION, Role::LABEL, Role::GROUP, Role::CHECK_BOX, Role::SPIN_BUTTON] {
-        for t in fixture.by_role(role) {
-            out.push(format!("{role:?} {:?} {:?}", tree.name_of(t.node), t.rect));
-        }
-    }
-    out.push(format!("by_label Dashed: {:?}", fixture.by_label("Dashed").map(|t| (tree.role_of(t.node), t.rect))));
-    panic!("DIAG\n{}", out.join("\n"));
-}

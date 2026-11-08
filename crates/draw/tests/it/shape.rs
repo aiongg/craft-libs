@@ -102,6 +102,15 @@ fn field(fixture: &Fixture, name: &str) -> Target {
         .unwrap_or_else(|| panic!("{name} is shown"))
 }
 
+/// The paint chip named `name` by its field's caption.
+fn chip(fixture: &Fixture, name: &str) -> Target {
+    fixture
+        .by_role(Role::COLOR_WELL)
+        .into_iter()
+        .find(|target| craft_ui::testing::access::name(fixture.tree(), target.node) == Some(name))
+        .unwrap_or_else(|| panic!("the {name} chip is shown"))
+}
+
 fn field_names(fixture: &Fixture) -> Vec<String> {
     fixture
         .by_role(Role::SPIN_BUTTON)
@@ -151,7 +160,7 @@ fn stroke_width_zero_adds_no_stroke_and_turning_it_on_gives_three_px() {
     fixture.settle();
     assert!(layer.borrow().events.is_empty(), "{:?}", layer.borrow().events);
 
-    let chip = fixture.by_label("Stroke color").expect("the stroke chip");
+    let chip = chip(&fixture, "Stroke");
     fixture.click(&chip);
     fixture.settle();
     let solid = fixture.by_label("Solid").expect("the Solid tab");
@@ -224,7 +233,7 @@ fn the_bar_shows_the_field_of_each_kind() {
 fn the_bar_turning_the_stroke_on_is_one_change() {
     let layer = Layer::new(look(0.0));
     let mut fixture = bar(ShapeKind::Rectangle, &layer);
-    let chip = fixture.by_label("Stroke color").expect("the stroke chip");
+    let chip = chip(&fixture, "Stroke");
     fixture.click(&chip);
     fixture.settle();
     let solid = fixture.by_label("Solid").expect("the Solid tab");
@@ -235,17 +244,4 @@ fn the_bar_turning_the_stroke_on_is_one_change() {
         matches!(changes.as_slice(), [ShapeChange::Stroke { paint: Paint::Solid(_), width: Some(w), .. }] if *w == ShapeChange::ENABLED_STROKE_WIDTH),
         "{changes:?}"
     );
-}
-
-#[trial]
-fn diag_trees() {
-    let layer = Layer::new(look(0.0));
-    let mut out = Vec::new();
-    for (what, fixture) in [("panel", panel(&layer)), ("bar", bar(ShapeKind::Rectangle, &layer))] {
-        let tree = fixture.tree();
-        for key in tree.keys() {
-            out.push(format!("{what}: {:?} {:?}", tree.role_of(key), tree.name_of(key)));
-        }
-    }
-    panic!("DIAG\n{}", out.join("\n"));
 }
