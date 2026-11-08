@@ -1,11 +1,19 @@
 //! Variable font axes (F14.09): the axes and named instances of a face, and the row of sliders
 //! that edits them (Photoshop's Properties › Character axis sliders; FigCraft's axis panel).
 
-use craft_ui::composites::SliderRow;
-use craft_ui::controls::Select;
-use craft_ui::edit::EditEvent;
-use craft_ui::localized::{Labels as _, LocaleNumbers};
-use egui::{AsIdSalt, IdSalt, Modifiers, Ui};
+#[cfg(feature = "screen-testing")]
+mod stories;
+
+use std::sync::Arc;
+
+use craft_behavior::{EditEvent, GestureId, Mixed};
+use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Pattern, Props, Show as _, ShowContainer as _};
+use craft_ui::form::{Field, FieldGroup, SliderField};
+use craft_ui::pickers::Select;
+use craft_ui::runtime::env::{Env, Label};
+use egui::{Response, Ui};
+
+use crate::picker::{read_bind, write_event};
 use skrifa::raw::types::Tag;
 use skrifa::string::StringId;
 use skrifa::{FontRef, MetadataProvider as _};
@@ -13,7 +21,7 @@ use skrifa::{FontRef, MetadataProvider as _};
 craft_ui::words! {
     /// The words of the axis sliders, English by default.
     #[non_exhaustive]
-    pub struct AxisSlidersLabels {
+    pub struct AxisSlidersWords {
         weight: "axisSliders.weight" = "Weight";
         width: "axisSliders.width" = "Width";
         slant: "axisSliders.slant" = "Slant";
@@ -98,10 +106,10 @@ pub fn matching_instance<'a>(instances: &'a [NamedInstance], values: &[([u8; 4],
 /// The label of an axis: its name when the font gives one, else the registered tag's
 /// (`Weight`, `Width`, `Slant`, `Italic`), else the tag itself.
 pub fn axis_label(axis: &FontAxis) -> String {
-    label_in(axis, &AxisSlidersLabels::default())
+    label_in(axis, &AxisSlidersWords::default())
 }
 
-fn label_in(axis: &FontAxis, labels: &AxisSlidersLabels) -> String {
+fn label_in(axis: &FontAxis, labels: &AxisSlidersWords) -> String {
     if !axis.name.is_empty() {
         return axis.name.clone();
     }
@@ -111,111 +119,6 @@ fn label_in(axis: &FontAxis, labels: &AxisSlidersLabels) -> String {
         b"slnt" => labels.slant.clone(),
         b"ital" => labels.italic.clone(),
         tag => Tag::new(tag).to_string(),
-    }
-}
-
-/// What changed in the sliders this pass.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct AxisSlidersResponse {
-    /// The gesture events of this pass, in drawing order, keyed by axis tag: a slider drag or a
-    /// field edit reports `Begin`, `Update` and `Commit`; a key step, a typed value and an
-    /// instance pick report `Set` (one per axis of the instance). The sliders have already stored
-    /// the values the events carry.
-    pub edits: Vec<([u8; 4], EditEvent<f32>)>,
-    /// A named instance was picked from the list.
-    pub instance: Option<NamedInstance>,
-}
-
-/// One `SliderRow` per visible axis (label, slider, number field with the axis's range), plus a
-/// `Select` of named instances above them when the face has any. Hidden axes, `opsz` (the text
-/// layout sets the optical size from the font size, as in PhotoCraft) and axes with an
-/// empty or non-finite range are left out. Values are the current coordinates; an axis without
-/// one shows what the layout draws ([`AxisSliders::drawn`]; else its default). Axes whose range is 10 wide or more step by whole units, the others by
-/// hundredths.
-pub struct AxisSliders<'a> {
-    axes: &'a [FontAxis],
-    instances: &'a [NamedInstance],
-    values: &'a mut Vec<([u8; 4], f32)>,
-    drawn: Drawn,
-    salt: IdSalt,
-}
-
-/// The style the sliders' unset axes show.
-#[derive(Clone, Copy, Default)]
-struct Drawn {
-    weight: Option<f32>,
-    italic: bool,
-}
-
-impl<'a> AxisSliders<'a> {
-    /// `id_salt` names the sliders to egui; give each instance on a screen its own, such as the
-    /// layer or style they edit.
-    pub fn new(id_salt: impl AsIdSalt, axes: &'a [FontAxis], values: &'a mut Vec<([u8; 4], f32)>) -> Self {
-        AxisSliders { axes, instances: &[], values, drawn: Drawn::default(), salt: IdSalt::new(id_salt) }
-    }
-
-    /// What the layout draws for an axis `values` has no coordinate for: the style's `weight` on
-    /// `wght` and the axis maximum on `ital` for an italic style, as PhotoCraft's `axis_value`.
-    /// Without it an unset axis shows its default.
-    pub fn drawn(mut self, weight: f32, italic: bool) -> Self {
-        self.drawn = Drawn { weight: Some(weight), italic };
-        self
-    }
-
-    /// Show a named-instance list above the sliders.
-    pub fn instances(mut self, instances: &'a [NamedInstance]) -> Self {
-        self.instances = instances;
-        self
-    }
-
-    // pc: crates/ui-egui/src/tools/type_tool/fonts.rs:189 `axis_sliders` and `:166 axis_value`.
-    /// Draw the sliders (and the instance list, if any) and report the edits made this frame.
-    pub fn show(self, ui: &mut Ui) -> AxisSlidersResponse {
-        let labels = AxisSlidersLabels::of(ui);
-        let numbers = LocaleNumbers::of(ui);
-        let mut out = AxisSlidersResponse::default();
-        let AxisSliders { axes, instances, values, drawn, salt } = self;
-
-        if !instances.is_empty() {
-            let current: Vec<([u8; 4], f32)> = axes.iter().map(|a| (a.tag, value_of(values, a, drawn))).collect();
-            let mut picked = matching_instance(instances, &current)
-                .map_or(usize::MAX, |m| instances.iter().position(|i| std::ptr::eq(i, m)).unwrap_or(usize::MAX));
-            let before = picked;
-            let mut select = Select::new((salt, "instances"), labels.style.clone(), &mut picked).placeholder(labels.custom.clone());
-            for (i, instance) in instances.iter().enumerate() {
-                select = select.option(i, instance.name.clone());
-            }
-            let response = select.show(ui);
-            ui.add_space(ui.spacing().item_spacing.y);
-            if let Some(EditEvent::Commit { changed: true, .. } | EditEvent::Set { .. }) = response.event
-                && picked != before
-                && let Some(instance) = instances.get(picked)
-            {
-                for &(tag, value) in &instance.coordinates {
-                    set_value(values, tag, value);
-                    out.edits.push((tag, EditEvent::set(value, Modifiers::NONE)));
-                }
-                out.instance = Some(instance.clone());
-            }
-        }
-
-        for axis in axes.iter().filter(|a| !a.hidden && a.tag != *b"opsz" && a.min.is_finite() && a.max.is_finite() && a.min < a.max) {
-            let wide = axis.max - axis.min >= 10.0;
-            let value = value_of(values, axis, drawn);
-            let row = SliderRow::new((salt, axis.tag), label_in(axis, &labels), value, f64::from(axis.min)..=f64::from(axis.max), &numbers)
-                .step(if wide { 1.0 } else { 0.01 })
-                .decimals(if wide { 0 } else { 2 })
-                .default_value(axis.default.clamp(axis.min, axis.max))
-                .show(ui);
-            for event in row.edits() {
-                let event = event.map(|v| (v as f32).clamp(axis.min, axis.max));
-                if let Some(&v) = event.value() {
-                    set_value(values, axis.tag, v);
-                }
-                out.edits.push((axis.tag, event));
-            }
-        }
-        out
     }
 }
 
@@ -233,9 +136,136 @@ fn value_of(values: &[([u8; 4], f32)], axis: &FontAxis, drawn: Drawn) -> f32 {
     stored.or(styled).unwrap_or(default).clamp(lo, hi)
 }
 
-fn set_value(values: &mut Vec<([u8; 4], f32)>, tag: [u8; 4], value: f32) {
+fn set_value(values: &mut AxisValues, tag: [u8; 4], value: f32) {
     match values.iter_mut().find(|(t, _)| *t == tag) {
         Some(slot) => slot.1 = value,
         None => values.push((tag, value)),
+    }
+}
+
+/// The axes the sliders show: not hidden, not `opsz`, with a finite, non-empty range.
+fn shown_axes(axes: &[FontAxis]) -> impl Iterator<Item = &FontAxis> {
+    axes.iter().filter(|a| !a.hidden && a.tag != *b"opsz" && a.min.is_finite() && a.max.is_finite() && a.min < a.max)
+}
+
+/// What changed in the sliders this pass.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct AxisSlidersOutput {
+    /// The sliders' response.
+    pub response: Response,
+    /// The edit of this pass on the values, folded: a slider drag is one gesture (begin, updates, commit); a key
+    /// step, a typed value and an instance pick are one set. The binding has already taken the values the events
+    /// carry.
+    pub edit: Option<EditEvent<AxisValues>>,
+    /// A named instance was picked from the list.
+    pub instance: Option<NamedInstance>,
+}
+
+impl Outcome for AxisSlidersOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// The values of the axes: (tag, value) for every axis that has one.
+pub type AxisValues = Vec<([u8; 4], f32)>;
+
+/// The style the sliders' unset axes show.
+#[derive(Clone, Copy, Default)]
+struct Drawn {
+    weight: Option<f32>,
+    italic: bool,
+}
+
+/// One slider field per visible axis (label, slider, number field with the axis's range), plus a `Select` of named
+/// instances above them when the face has any. Hidden axes, `opsz` (the text layout sets the optical size from the
+/// font size) and axes with an empty or non-finite range are left out. Values are the current coordinates; an axis
+/// without one shows what the layout draws ([`AxisSliders::drawn`]; else its default). Axes whose range is 10 wide
+/// or more step by whole units, the others by hundredths. A drag is one edit; an instance sets every axis in one
+/// edit.
+#[must_use = "show the sliders with `show`"]
+#[derive(Pattern, Props)]
+pub struct AxisSliders<'a> {
+    label: Label,
+    axes: &'a [FontAxis],
+    values: Bind<'a, AxisValues>,
+    /// The named instances of the face, listed above the sliders.
+    #[prop]
+    instances: &'a [NamedInstance],
+    drawn: Drawn,
+}
+
+impl<'a> AxisSliders<'a> {
+    /// Sliders named `label` over the `axes` of a face, editing the coordinates `values`.
+    pub fn new(label: impl Into<Label>, axes: &'a [FontAxis], values: Bind<'a, AxisValues>) -> Self {
+        AxisSliders { label: label.into(), axes, values, instances: &[], drawn: Drawn::default() }
+    }
+
+    /// What the layout draws for an axis `values` has no coordinate for: the style's `weight` on `wght` and the axis
+    /// maximum on `ital` for an italic style. Without it an unset axis shows its default.
+    pub fn drawn(mut self, weight: f32, italic: bool) -> Self {
+        self.drawn = Drawn { weight: Some(weight), italic };
+        self
+    }
+
+    /// Draws the sliders (and the instance list, if any) and reports the edit made this pass.
+    pub fn show(self, ui: &mut Ui) -> AxisSlidersOutput {
+        let AxisSliders { label, axes, mut values, instances, drawn } = self;
+        let env = Env::of(ui);
+        let words = env.words::<AxisSlidersWords>();
+        let mut edit: Option<EditEvent<AxisValues>> = None;
+        let mut instance: Option<NamedInstance> = None;
+        let shown = FieldGroup::new(label).show(ui, |ui, cx| {
+            if !instances.is_empty() {
+                let held = read_bind(&mut values, cx).unwrap_or_default();
+                let current: AxisValues = axes.iter().map(|a| (a.tag, value_of(&held, a, drawn))).collect();
+                let before = matching_instance(instances, &current).and_then(|m| instances.iter().position(|i| std::ptr::eq(i, m)));
+                let mut picked = before;
+                let entries: Vec<Entry<Option<usize>>> =
+                    instances.iter().enumerate().map(|(at, instance)| Entry::new(Some(at), instance.name.as_str())).collect();
+                Field::new(words.style.clone()).show(ui, |ui, _| {
+                    Select::new(words.style.clone(), Bind::bound(&mut picked), &entries).placeholder(words.custom.clone()).show(ui);
+                });
+                if picked != before
+                    && let Some(chosen) = picked.and_then(|at| instances.get(at))
+                {
+                    let mut after = held.clone();
+                    for &(tag, value) in &chosen.coordinates {
+                        set_value(&mut after, tag, value);
+                    }
+                    let event = EditEvent::set(GestureId::default(), Mixed::Same(held), after, Arc::from("Font instance"), None);
+                    write_event(&mut values, cx, &event);
+                    edit = EditEvent::fold(edit.take(), event);
+                    instance = Some(chosen.clone());
+                }
+            }
+            for axis in shown_axes(axes) {
+                let held = read_bind(&mut values, cx).unwrap_or_default();
+                let wide = axis.max - axis.min >= 10.0;
+                let mut value = f64::from(value_of(&held, axis, drawn));
+                let name = Label::from(label_in(axis, &words));
+                let default = f64::from(axis.default.clamp(axis.min, axis.max));
+                let slider = Field::new(name.clone()).show(ui, |ui, _| {
+                    SliderField::new(name.clone(), Bind::bound(&mut value).reset(default), f64::from(axis.min)..=f64::from(axis.max))
+                        .step(if wide { 1.0 } else { 0.01 })
+                        .show(ui)
+                });
+                let Some(slider) = slider.inner else { continue };
+                if let Some(event) = slider.event {
+                    let clamp = |v: f64| (v as f32).clamp(axis.min, axis.max);
+                    let event = event.map(|v| {
+                        let mut all = held.clone();
+                        set_value(&mut all, axis.tag, clamp(v));
+                        all
+                    });
+                    write_event(&mut values, cx, &event);
+                    edit = EditEvent::fold(edit.take(), event);
+                }
+            }
+        });
+        AxisSlidersOutput { response: shown.output, edit, instance }
     }
 }

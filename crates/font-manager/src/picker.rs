@@ -1,37 +1,39 @@
-//! [`FontPicker`] (F14.01, gap 17): the font family field of the type tool, the Character panel,
-//! the style panels and the Glyphs panel. A text field that filters the installed families as the
-//! user types, with a list under it of family rows drawn in their own face, favourites (stars),
-//! recent families at the top, class and feature filters above the list and a "similar fonts"
-//! filter. Behaviour follows Photoshop's font menu; PhotoCraft's `family_picker_in` is the source.
+//! [`FontPicker`]: the font family field of the type tool, the Character panel, the style panels and the Glyphs
+//! panel. A text field that filters the installed families as the user types, with a list under it of family rows
+//! drawn in their own face, favourites (stars), recent families at the top, class and feature filters above the
+//! list and a "similar fonts" filter. Behaviour follows Photoshop's font menu.
 
-use std::cell::Cell;
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex, PoisonError, Weak};
+mod rank;
+mod rows;
+#[cfg(feature = "screen-testing")]
+mod stories;
 
-use craft_font_catalog::{Catalog, FaceInfo, LocalizedName};
-use craft_host::{Host, Section};
-use craft_ui::behavior::{RowInfo, Selection, SelectionMode};
-use craft_ui::controls::{Button, IconButton, TextField};
-use craft_ui::edit::EditEvent;
-use craft_ui::icons::{self, Icon, IconSize};
-use craft_ui::list::{List, ListEvent, ListRow, RowEvent, ToggleColumn};
-use craft_ui::localized::Labels as _;
-use craft_ui::popover::{CloseReason, Popover, PopoverAnchor, PopoverClose};
-use craft_ui::theme::{Tokens, TokensOf as _, TypeRole, UiTokens};
-use egui::epaint::text::FontId;
-use egui::text::CCursorRange;
-use egui::text_edit::TextEditState;
-use egui::{Align2, AsIdSalt, Color32, Context, Event, Id, IdSalt, Key, Modifiers, Rect, Response, Sense, Ui, pos2, vec2};
+use std::sync::Arc;
+
+use craft_behavior::{Codec, ColumnKey, EditEvent, GestureId, IconId, Mixed, NotAValue, PartKey, Sense, Value};
+use craft_behavior::{HitLevel, HitPriority, NavMove};
+use craft_font_catalog::Catalog;
+use craft_host::Section;
+use craft_ui::buttons::IconButton;
+use craft_ui::contract::{
+    Bind, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Outcome, OverlayUi, Overlays as _, PaintUi, PartsCx,
+    Pointer as _, Props as _, Remember as _, Role, WordSetCx as _,
+};
+use craft_ui::list::ThumbSize;
+use craft_ui::primitives::{IconSpec, TextKey, TextOptions, TextRun};
+use craft_ui::runtime::env::{EnvView, Label};
+use craft_ui::runtime::memory::StageAccess;
+use craft_ui::text::{Adornment, place, reserve};
+use egui::{Rect, Response, Vec2};
 use serde::{Deserialize, Serialize};
-use skrifa::MetadataProvider as _;
-use skrifa::raw::{FontRef, TableProvider};
 
-use crate::panel::faces::{FaceFonts, Owner, SharedFaces, Shown};
+pub use rank::accept_row;
+use rank::{Info, infos, shown_name};
 
 craft_ui::words! {
     /// The picker's words, English by default.
     #[non_exhaustive]
-    pub struct FontPickerLabels {
+    pub struct FontPickerWords {
         search: "fontPicker.search" = "Search fonts";
         recent: "fontPicker.recent" = "Recent";
         favorites: "fontPicker.favorites" = "Show favorite fonts";
@@ -44,6 +46,7 @@ craft_ui::words! {
         no_match: "fontPicker.noMatch" = "No fonts match";
         star: "fontPicker.star" = "Add to favorites";
         unstar: "fontPicker.unstar" = "Remove from favorites";
+        /// A whole name with `{row}` for the row's label.
         favorite: "fontPicker.favorite" = "Favorite {row}";
         list: "fontPicker.list" = "Fonts";
         hide_classes: "fontPicker.hideClasses" = "Hide Font Classes";
@@ -66,21 +69,21 @@ craft_ui::words! {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FontClass {
-    #[allow(missing_docs)]
+    /// Serif faces.
     Serif,
-    #[allow(missing_docs)]
+    /// Slab serif faces.
     SlabSerif,
-    #[allow(missing_docs)]
+    /// Sans serif faces.
     SansSerif,
-    #[allow(missing_docs)]
+    /// Script faces.
     Script,
-    #[allow(missing_docs)]
+    /// Monospaced faces.
     Monospace,
-    #[allow(missing_docs)]
+    /// Handwritten faces.
     Handwritten,
-    #[allow(missing_docs)]
+    /// Blackletter faces.
     Blackletter,
-    #[allow(missing_docs)]
+    /// Decorative faces.
     Decorative,
 }
 
@@ -99,11 +102,8 @@ impl FontClass {
 
     /// The class of a family from its PANOSE and OS/2 data, else from its name; `None` when the
     /// face can't be read.
-    // pc: crates/ui-egui/src/text/font_filters.rs:44 `traits` and crates/text/src/font_class.rs.
     pub fn of(catalog: &Catalog, family: &str) -> Option<FontClass> {
-        let faces = catalog.styles(family);
-        let face = regular_face(&faces)?;
-        read_traits(catalog, face)?.class
+        rank::class_of(catalog, family)
     }
 }
 
@@ -114,30 +114,28 @@ impl FontClass {
 pub enum FontPreviewSize {
     /// No sample in the rows.
     None,
-    #[allow(missing_docs)]
+    /// A small sample.
     Small,
-    #[allow(missing_docs)]
+    /// A medium sample (the default).
     #[default]
     Medium,
-    #[allow(missing_docs)]
+    /// A large sample.
     Large,
-    #[allow(missing_docs)]
+    /// An extra large sample.
     ExtraLarge,
-    #[allow(missing_docs)]
+    /// A huge sample.
     Huge,
 }
 
 impl FontPreviewSize {
-    /// The sample's point size, `None` for no sample.
-    // pc: crates/ui-egui/src/text/font_preview.rs:40 `sample`.
-    pub fn points(self) -> Option<f32> {
+    /// The height of the sample's thumbnail in a row; `ThumbSize::None` for no sample. The three largest sizes
+    /// share the largest thumbnail.
+    pub fn thumb(self) -> ThumbSize {
         match self {
-            FontPreviewSize::None => None,
-            FontPreviewSize::Small => Some(14.0),
-            FontPreviewSize::Medium => Some(18.0),
-            FontPreviewSize::Large => Some(24.0),
-            FontPreviewSize::ExtraLarge => Some(32.0),
-            FontPreviewSize::Huge => Some(40.0),
+            FontPreviewSize::None => ThumbSize::None,
+            FontPreviewSize::Small => ThumbSize::Small,
+            FontPreviewSize::Medium => ThumbSize::Medium,
+            FontPreviewSize::Large | FontPreviewSize::ExtraLarge | FontPreviewSize::Huge => ThumbSize::Large,
         }
     }
 }
@@ -223,8 +221,7 @@ impl FontPickerSettings {
     }
 }
 
-/// One row of the list, for apps that draw their own list from the picker's filtering
-/// ([`FontPicker::rows`]).
+/// One row of the list, for apps that draw their own list from the picker's filtering ([`family_rows`]).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FamilyRow {
     /// The family as the catalog names it.
@@ -241,939 +238,308 @@ pub struct FamilyRow {
     pub recent: bool,
 }
 
-/// What the user did this pass.
-#[derive(Clone, Debug)]
-pub struct FontPickerResponse {
-    /// A family was picked: Enter on the typed name, a click or Enter on a row, or the wheel on the
-    /// closed field. The caller applies it (and notes it as recent).
-    pub picked: Option<String>,
-    /// The family under the pointer or the keyboard row while the list is open, for a live preview
-    /// of the selected text (Photoshop previews on hover). `None` restores the committed family.
-    pub preview: Option<String>,
-    /// The field's response, for `changed`, focus and layout.
-    pub response: Response,
+/// The families `listing` would show, in list order: recents first (when the query is empty and no filter is on),
+/// then the matching families, the best match first and ties in the order of `language` (its code, `ja`, `pt-BR`).
+/// For apps that draw their own list from the picker's filtering.
+pub fn family_rows(
+    catalog: &Arc<Catalog>,
+    query: &str,
+    settings: Option<&FontPickerSettings>,
+    filters: &FontFilters,
+    current: &str,
+    language: &str,
+) -> Vec<FamilyRow> {
+    let (folder, collator) = (craft_i18n::Folder::new(language), craft_i18n::Collator::new(language));
+    let listing = rank::Listing { query, settings, filters, current, language };
+    rank::list(catalog, &infos(catalog), &listing, &rank::Language { folder: &folder, collator: &collator }, true).0
 }
 
-/// The font family picker. Built per pass over the catalog and the app's settings:
-///
-/// ```ignore
-/// let mut settings = host.setting::<FontPickerSettings>();
-/// let r = FontPicker::new("type-family", &catalog, &mut family).settings(&mut settings).width(220.0).show(ui);
-/// if let Some(picked) = r.picked { settings.note_recent(&picked); host.set_setting(&settings); apply(picked); }
-/// ```
-///
-/// What the user sees and does:
-/// - A text field with a chevron. Typing filters the list to families whose name (in any
-///   language) contains the text; the list opens on the first keystroke or on the chevron. The
-///   current family is scrolled into view when the list opens.
-/// - Rows: star, the family name in the UI face, a sample in the family's own face at the
-///   preview size (the family name when the face can't draw "Sample"), the class glyph at the
-///   right. Recent families form a group at the top, separated by a rule. A row under the pointer
-///   or the keyboard row previews on the canvas.
-/// - Above the list: the search field is the picker's own field; a row of filter toggles
-///   (class list button, star, similar, variable) and Clear All, as Photoshop's font menu. The
-///   class list is a collapsible column at the left.
-/// - Keys: ↓/↑ move the keyboard row (stopping at the ends), Enter picks it (or the exact typed name), Esc
-///   closes and restores the field text, Tab picks and moves on. While the IME composes, Enter,
-///   Esc and the arrows belong to the composition; a later Enter picks. On the closed field the
-///   wheel steps to the previous or next family in list order and picks it (Photoshop).
-/// - Platform: the list is a `Popover` and is keyed `(id_salt, "popup")`; on the web the
-///   sample images are rendered from served faces as they arrive.
+/// What a [`FontPicker`] reports.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct FontPickerOutput {
+    /// The field's edit: a pick commits the family; a hovered or keyed row is a running proposal.
+    pub edit: EditResponse<String>,
+    /// A family was picked: Enter or a click on a row, Enter on the exact typed name, or the wheel or arrows on the
+    /// closed field. The picker has already noted it as recent.
+    pub picked: Option<String>,
+    /// The family under the pointer or the keyboard row while the list is open, for a live preview of the selected
+    /// text (Photoshop previews on hover). `None` restores the committed family.
+    pub preview: Option<String>,
+}
+
+impl Outcome for FontPickerOutput {
+    type Value = String;
+
+    fn response(&self) -> &Response {
+        &self.edit.response
+    }
+
+    #[cfg(feature = "screen-testing")]
+    fn story_facts(&self) -> craft_ui::testing::StoryOutput {
+        self.edit.story_facts()
+    }
+}
+
+/// The text part.
+const TEXT: PartKey = PartKey::new("text");
+/// The chevron that opens and closes the list.
+const CHEVRON: PartKey = PartKey::new("chevron");
+const CHEVRON_ICON: &str = "chevron_down";
+/// The popup the chevron and Alt+Down toggle.
+const POPUP: &str = "list";
+/// The toggle column of the stars.
+const STAR: ColumnKey = ColumnKey::new("star");
+/// The widest family names in common use, which the field's width is sized by.
+const NAME_SAMPLE: &str = "Source Sans Pro Semibold Condensed";
+
+fn text_key() -> TextKey<String> {
+    TextKey::new(TEXT)
+}
+
+/// The family field's text: the family's name in the interface language, and a typed name read back as a family.
+#[derive(Clone)]
+struct FamilyCodec {
+    infos: Arc<rank::Infos>,
+    language: String,
+}
+
+impl FamilyCodec {
+    fn shown(&self, family: &str, info: &Info) -> String {
+        shown_name(info, family, &self.language, false)
+    }
+}
+
+impl Codec for FamilyCodec {
+    type Value = String;
+
+    fn format(&self, family: &String) -> String {
+        self.infos.families.get(family).map_or_else(|| family.clone(), |info| self.shown(family, info))
+    }
+
+    /// A family whose name, shown or in the catalog, is the text apart from case.
+    fn parse(&self, text: &str, _: &String) -> Result<String, NotAValue> {
+        let wanted = text.trim().to_lowercase();
+        let named = |(family, info): (&String, &Info)| {
+            (family.to_lowercase() == wanted || self.shown(family, info).to_lowercase() == wanted).then(|| family.clone())
+        };
+        self.infos.families.iter().find_map(named).ok_or(NotAValue)
+    }
+
+    fn sample(&self, current: &String) -> std::borrow::Cow<'_, str> {
+        std::borrow::Cow::Owned(format!("{}{}", NAME_SAMPLE, self.format(current)))
+    }
+}
+
+/// What the picker keeps between passes: the draft the list was last filtered for, the family the list previews
+/// and whether the class column is hidden.
+#[derive(Clone, Default)]
+struct Typing {
+    draft: Option<String>,
+    lead: Option<String>,
+    hide_classes: bool,
+}
+
+/// The interface language code of the host, English without one.
+fn ui_language(env: &EnvView<'_>) -> String {
+    env.host().and_then(|host| host.i18n_shared().map(|i18n| i18n.code(host.lang()).to_owned())).unwrap_or_else(|| "en".to_owned())
+}
+
+/// Writes `event` to `bind` as the pipeline would: the binding's check and policy apply, and a given binding takes
+/// nothing. Returns whether the value changed.
+pub(crate) fn write_event<T: Value>(bind: &mut Bind<'_, T>, cx: &mut impl StageAccess, event: &EditEvent<T>) -> bool {
+    bind.reborrow().write(cx, event)
+}
+
+/// Writes `after` to `bind` as one change named `label`.
+pub(crate) fn write_bind<T: Value>(bind: &mut Bind<'_, T>, cx: &mut impl StageAccess, after: T, label: &str) {
+    let mut at = bind.reborrow();
+    let before = at.read(cx).unwrap_or(Mixed::Mixed);
+    at.write(cx, &EditEvent::set(GestureId::default(), before, after, Arc::from(label), None));
+}
+
+/// The value of `bind`, if it holds one.
+pub(crate) fn read_bind<T: Value>(bind: &mut Bind<'_, T>, cx: &mut impl StageAccess) -> Option<T> {
+    match bind.reborrow().read(cx)? {
+        Mixed::Same(value) => Some(value),
+        Mixed::Mixed => None,
+    }
+}
+
+fn write<T: Value>(bind: &mut Option<Bind<'_, T>>, cx: &mut impl StageAccess, after: T, label: &str) {
+    if let Some(bind) = bind {
+        write_bind(bind, cx, after, label);
+    }
+}
+
+fn read<T: Value>(bind: &mut Option<Bind<'_, T>>, cx: &mut impl StageAccess) -> Option<T> {
+    read_bind(bind.as_mut()?, cx)
+}
+
+/// The font family field. Typing filters the list to the families whose name (in any language) matches, the best
+/// match first, and opens it; the chevron and Alt+Down open it on every family, Alt+Up closes it. Rows: a star, the
+/// family name in the interface face, a sample in the family's own face at the preview size and the class mark.
+/// Recent families form a group at the top. Up, Down and Page keys move the keyboard row, which previews, Enter or a
+/// click on a row picks it, Enter on a typed name that is a family picks that family, Escape closes the list and
+/// restores the field, and Tab picks the keyboard row and moves on. While an input method composes, Enter, Escape
+/// and the arrows are the composition's. On the closed, focused field the arrows and the wheel step to the previous
+/// or next family in list order and pick it. The list is the field's own popup: filter toggles above, the class
+/// column at the reading start and the families beside it.
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
+#[component(overlay)]
 pub struct FontPicker<'a> {
-    salt: IdSalt,
+    #[common]
+    common: Common,
+    family: Bind<'a, String>,
     catalog: &'a Arc<Catalog>,
-    current: &'a mut String,
-    settings: Option<&'a mut FontPickerSettings>,
-    filters: Option<&'a mut FontFilters>,
-    width: Option<f32>,
-    list_height: Option<f32>,
-    labels: Option<FontPickerLabels>,
-    language: Option<String>,
-    start_open: bool,
+    /// Stars, recents, the preview size and the names language; the picker records a pick as recent through it.
+    #[prop]
+    settings: Option<Bind<'a, FontPickerSettings>>,
+    /// The filters, kept by the caller so they survive the list closing; without them the filter row is hidden.
+    #[prop]
+    filters: Option<Bind<'a, FontFilters>>,
+    picked: Option<String>,
 }
 
 impl<'a> FontPicker<'a> {
-    /// A picker over `catalog` editing `current` (the family name). `id_salt` keeps its ids apart
-    /// from other pickers in the same `Ui`.
-    pub fn new(id_salt: impl AsIdSalt, catalog: &'a Arc<Catalog>, current: &'a mut String) -> Self {
-        FontPicker {
-            salt: IdSalt::new(id_salt),
-            catalog,
-            current,
-            settings: None,
-            filters: None,
-            width: None,
-            list_height: None,
-            labels: None,
-            language: None,
-            start_open: false,
-        }
+    /// A picker named `label` over the family `family` of `catalog`.
+    pub fn new(label: impl Into<Label>, family: Bind<'a, String>, catalog: &'a Arc<Catalog>) -> Self {
+        FontPicker { common: Common::new(), family, catalog, settings: None, filters: None, picked: None }.label(label)
     }
 
-    /// Stars, recents and the preview size; without it no stars or recents are shown.
-    pub fn settings(mut self, settings: &'a mut FontPickerSettings) -> Self {
-        self.settings = Some(settings);
-        self
+    fn trailing(name: Label) -> [Adornment; 1] {
+        [Adornment::button(CHEVRON, IconSpec::svg(IconId::new(CHEVRON_ICON)), name)]
     }
 
-    /// The filters, kept by the caller so they survive the list closing; without it the filter
-    /// row is hidden.
-    pub fn filters(mut self, filters: &'a mut FontFilters) -> Self {
-        self.filters = Some(filters);
-        self
+    fn codec(&self, env: &EnvView<'_>) -> FamilyCodec {
+        FamilyCodec { infos: infos(self.catalog), language: ui_language(env) }
     }
 
-    /// The field's width; the list is at least as wide.
-    pub fn width(mut self, width: f32) -> Self {
-        self.width = Some(width);
-        self
-    }
-
-    /// Start with the list open when the field has no state yet (the stories' open list).
-    pub(crate) fn start_open(mut self, open: bool) -> Self {
-        self.start_open = open;
-        self
-    }
-
-    /// The open list's height.
-    pub fn list_height(mut self, height: f32) -> Self {
-        self.list_height = Some(height);
-        self
-    }
-
-    /// Use `labels` instead of the English words or the installed translation.
-    pub fn labels(mut self, labels: FontPickerLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    /// The interface language (`ja`, `pt-BR`) the family names are shown in; by default the
-    /// Host's, English without one. A name the family has no record in stays the family name.
-    pub fn language(mut self, language: impl Into<String>) -> Self {
-        self.language = Some(language.into());
-        self
-    }
-
-    /// The rows the list would show for `query` and the filters, in list order: recents first
-    /// (when the query is empty and no filter is on), then the matching families collated in the
-    /// UI language.
-    // pc: crates/ui-egui/src/tools/type_tool/fonts.rs:69 `font_menu_rows` and
-    // crates/ui-egui/src/text/font_filters.rs:65 `apply` (similar fonts ranked by trait distance).
-    pub fn rows(&self, query: &str) -> Vec<FamilyRow> {
-        self.list(query, true).0
-    }
-
-    /// The rows for `query`, narrowed by the filters and headed by the recents when `narrowed`.
-    /// The flag is false when Show Similar Fonts is on and the current family has nothing to
-    /// compare (its rows are then left as they were).
-    fn list(&self, query: &str, narrowed: bool) -> (Vec<FamilyRow>, bool) {
+    /// The families in list order without filters or recents, which the arrows and the wheel step through.
+    fn ordered(&self, cx: &Cx<'_, Self>, settings: Option<&FontPickerSettings>) -> Vec<FamilyRow> {
         let infos = infos(self.catalog);
-        let language = self.language.as_deref().unwrap_or("en");
-        let settings = self.settings.as_deref();
-        let filters = if narrowed { self.filters.as_deref().cloned().unwrap_or_default() } else { FontFilters::default() };
-        let english = settings.is_some_and(|s| s.names_in_english);
-        let query = query.to_lowercase();
-        let mut rows: Vec<FamilyRow> = self
-            .catalog
-            .families()
-            .iter()
-            .filter_map(|family| {
-                let info = infos.families.get(family)?;
-                let shown = shown_name(info, family, language, english);
-                let matches = query.is_empty()
-                    || family.to_lowercase().contains(&query)
-                    || shown.to_lowercase().contains(&query)
-                    || info.localized.iter().any(|n| n.name.to_lowercase().contains(&query));
-                matches.then(|| FamilyRow {
-                    family: family.clone(),
-                    starred: settings.is_some_and(|s| s.favorites.iter().any(|f| f == family)),
-                    class: infos.known_class(family),
-                    variable: info.variable,
-                    recent: false,
-                    shown,
-                })
-            })
-            .collect();
-        rows.sort_by_cached_key(|r| r.shown.to_lowercase());
-        if filters.favorites {
-            rows.retain(|r| r.starred);
-        }
-        if filters.variable {
-            rows.retain(|r| r.variable);
-        }
-        if let Some(class) = filters.class {
-            rows.retain_mut(|r| {
-                r.class = infos.traits(self.catalog, &r.family).and_then(|t| t.class);
-                r.class == Some(class)
-            });
-        }
-        let mut comparable = true;
-        if filters.similar {
-            let reference = infos.traits(self.catalog, self.current).filter(|t| t.class.is_some() || t.panose.iter().any(|d| *d > 1));
-            if let Some(reference) = reference {
-                let mut scored: Vec<(f32, FamilyRow)> = rows
-                    .drain(..)
-                    .filter_map(|r| {
-                        let traits = infos.traits(self.catalog, &r.family)?;
-                        let distance = if r.family == *self.current { -1.0 } else { reference.difference(&traits) };
-                        Some((distance, r))
-                    })
-                    .collect();
-                scored.sort_by(|a, b| a.0.total_cmp(&b.0));
-                rows = scored.into_iter().take(SIMILAR_COUNT).map(|(_, r)| r).collect();
-            } else {
-                comparable = false;
-            }
-        }
-        if narrowed
-            && query.is_empty()
-            && !filters.any()
-            && let Some(settings) = settings
-        {
-            let recent: Vec<FamilyRow> = settings
-                .recent
-                .iter()
-                .take(settings.recent_limit)
-                .filter_map(|f| rows.iter().find(|r| r.family == *f))
-                .map(|r| FamilyRow { recent: true, ..r.clone() })
-                .collect();
-            rows.splice(0..0, recent);
-        }
-        (rows, comparable)
-    }
-
-    /// The family `notches` steps from the current one in list order (up, positive, is the
-    /// previous), unfiltered and without recents so stepping doesn't depend on past picks.
-    fn stepped_family(&self, notches: f32) -> Option<String> {
-        if notches == 0.0 {
-            return None;
-        }
-        let all = self.list("", false).0;
-        let i = all.iter().position(|r| r.family == *self.current)?;
-        let n = wheel_family_index(i, all.len(), notches)?;
-        (all[n].family != *self.current).then(|| all[n].family.clone())
-    }
-
-    /// Draw the field and, when open, the list.
-    // pc: crates/ui-egui/src/tools/type_tool/fonts.rs:388 `family_picker_in` (field, keys, IME
-    // guard, popup, wheel) and `:843 wheel_family_index`; rows through `list_row`.
-    pub fn show(mut self, ui: &mut Ui) -> FontPickerResponse {
-        let ctx = ui.ctx().clone();
-        let labels = self.labels.take().unwrap_or_else(|| FontPickerLabels::of(ui));
-        let language = self.language.get_or_insert_with(|| ui_language(&ctx)).clone();
-        let infos = infos(self.catalog);
-        let english = self.settings.as_deref().is_some_and(|s| s.names_in_english);
-        let shown_of = |family: &str| infos.families.get(family).map_or_else(|| family.to_owned(), |i| shown_name(i, family, &language, english));
-
-        let field_id = ui.make_persistent_id(("font-picker", self.salt));
-        let edit_id = field_id.with("edit");
-        let enabled = ui.is_enabled();
-        let focused = ui.memory(|m| m.has_focus(field_id));
-        let mut edit: Edit =
-            ctx.data(|d| d.get_temp::<Edit>(edit_id)).filter(|e| e.current == *self.current && (e.open || focused)).unwrap_or_else(|| Edit {
-                text: shown_of(self.current),
-                current: self.current.clone(),
-                open: self.start_open,
-                reveal: if self.start_open { 2 } else { 0 },
-                ..Edit::default()
-            });
-        let was_open = edit.open;
-        let live = enabled && (focused || was_open);
-        if live {
-            ui.input(|i| {
-                for event in &i.events {
-                    match event {
-                        Event::Ime(egui::ImeEvent::Preedit { text, .. }) => edit.composing = !text.is_empty(),
-                        Event::Ime(egui::ImeEvent::Commit(_)) => edit.composing = false,
-                        _ => {}
-                    }
-                }
-            });
-        }
-        // The arrows are the picker's before the text edit can move its caret with them; during a
-        // composition they and Enter and Esc stay the input method's.
-        let consume = |ui: &mut Ui, key| live && !edit.composing && ui.input_mut(|i| i.consume_key(Modifiers::NONE, key));
-        let down = consume(ui, Key::ArrowDown);
-        let up = consume(ui, Key::ArrowUp);
-        let tab = live && ui.input(|i| i.key_pressed(Key::Tab));
-
-        let mut field = TextField::new((self.salt, "field"), labels.search.clone(), &edit.text)
-            .id(field_id)
-            .trailing_arrow(true)
-            .keep_focus(true)
-            .enabled(enabled);
-        if let Some(width) = self.width {
-            field = field.width(width);
-        }
-        let mut field = field.show(ui);
-        let rect = field.response.rect;
-        let arrow_rect = if craft_ui::direction::is_rtl(ui) {
-            Rect::from_min_size(rect.min, vec2(rect.height(), rect.height()))
-        } else {
-            Rect::from_min_size(pos2(rect.right() - rect.height(), rect.top()), vec2(rect.height(), rect.height()))
-        };
-        let arrow = ui.interact(arrow_rect, field_id.with("arrow"), Sense::click());
-        arrow.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, labels.list.clone()));
-        icons::paint(ui, arrow_rect, Icon::ChevronDown, IconSize::Sm, ui.style().interact(&arrow).fg_stroke.color);
-
-        let mut open = was_open;
-        if let Some(text) = field.event.as_ref().and_then(EditEvent::value) {
-            edit.text.clone_from(text);
-            edit.query.clone_from(text);
-            edit.row = None;
-            open = true;
-        }
-        if field.response.clicked() && !was_open {
-            open = true;
-            edit.select = true;
-        }
-        if arrow.clicked() {
-            open = !open;
-            ctx.memory_mut(|m| m.request_focus(field_id));
-        }
-        if open && !was_open {
-            edit.reveal = 2;
-        }
-
-        let (rows, comparable) = self.list(&edit.query, true);
-        let current_row = rows.iter().position(|r| r.family == *self.current);
-        let mut picked: Option<String> = None;
-        if open && (down || up) && !rows.is_empty() {
-            let last = rows.len() - 1;
-            let next = match edit.row.or(current_row) {
-                Some(i) if down => (i + 1).min(last),
-                Some(i) => i.saturating_sub(1),
-                None if down => 0,
-                None => last,
-            };
-            edit.row = Some(next);
-            edit.text.clone_from(&rows[next].shown);
-            edit.select = true;
-            edit.reveal = 1;
-        }
-        if open && field.submitted {
-            picked = accept_row(&rows, &edit.text, edit.row).map(|i| rows[i].family.clone());
-        }
-        if open && tab && (edit.row.is_some() || !edit.query.is_empty()) {
-            picked = accept_row(&rows, &edit.text, edit.row).map(|i| rows[i].family.clone());
-        }
-        if !open && enabled {
-            let mut notches = if focused { f32::from(u8::from(up)) - f32::from(u8::from(down)) } else { 0.0 };
-            if field.response.hovered() || arrow.hovered() {
-                notches += take_wheel_notch(ui);
-            }
-            picked = picked.or_else(|| self.stepped_family(notches));
-        }
-
-        // The popup.
-        let mut filters = self.filters.take();
-        let preview_size = self.settings.as_deref().and_then(|s| s.preview.points());
-        let favorites_empty = self.settings.as_deref().is_none_or(|s| s.favorites.is_empty());
-        let hide_id = field_id.with("hide-classes");
-        let hide_classes = ctx.data(|d| d.get_temp::<bool>(hide_id)).unwrap_or(false);
-        let faces = FaceFonts::shared(&ctx);
-        let reveal = (edit.reveal > 0).then(|| edit.row.or(current_row)).flatten();
-        let tokens = craft_ui::theme::current(&ctx);
-        let list_width = rect.width().max(name_list_width(ui, &tokens));
-        let list_height = self.list_height.unwrap_or(FONT_LIST_ROWS * tokens.size.control.md);
-        let catalog = self.catalog;
-        let popup = Popover::new((self.salt, "popup"), PopoverAnchor::Control(field.response.clone()))
-            .close(PopoverClose::default().focus_left(false))
-            .keep_anchor_focus(true)
-            .toggle(arrow.id)
-            .label(labels.list.clone())
-            .show(ui, &mut open, |ui, pop| {
-                let mut out = PopupOut::default();
-                let mut hide = hide_classes;
-                if let Some(f) = filters.as_deref_mut() {
-                    filter_bar(ui, f, &mut hide, &labels);
-                }
-                let any = filters.as_deref().is_some_and(FontFilters::any);
-                let similar = filters.as_deref().is_some_and(|f| f.similar);
-                let favorites = filters.as_deref().is_some_and(|f| f.favorites);
-                ui.horizontal_top(|ui| {
-                    if let (Some(f), false) = (filters.as_deref_mut(), hide) {
-                        class_column(ui, field_id, f, &labels);
-                    }
-                    ui.vertical(|ui| {
-                        ui.set_width(list_width);
-                        if similar && !comparable {
-                            ui.label(&labels.no_similar);
-                        }
-                        if rows.is_empty() {
-                            let message = if favorites && favorites_empty {
-                                &labels.no_favorites
-                            } else if any {
-                                &labels.no_match_filters
-                            } else {
-                                &labels.no_match
-                            };
-                            ui.label(message);
-                            return;
-                        }
-                        let lists = ListContext {
-                            ui_id: field_id.with("list"),
-                            rows: &rows,
-                            infos: &infos,
-                            catalog,
-                            faces: &faces,
-                            labels: &labels,
-                            preview: preview_size,
-                            selected: edit.row.or(current_row),
-                            reveal,
-                            height: list_height,
-                            class_glyph: tokens.size.control.md,
-                        };
-                        lists.show(ui, &mut out);
-                    });
-                });
-                if hide != hide_classes {
-                    ui.data_mut(|d| d.insert_temp(hide_id, hide));
-                }
-                if out.picked.is_some() {
-                    pop.close();
-                }
-                out
-            });
-        self.filters = filters;
-        let mut out = PopupOut::default();
-        let mut closed_by = None;
-        if let Some(response) = popup {
-            closed_by = response.closed_by;
-            out = response.inner;
-        }
-        for (family, on) in out.stars {
-            if let Some(settings) = self.settings.as_deref_mut() {
-                settings.set_favorite(&family, on);
-            }
-        }
-        picked = picked.or(out.picked);
-        let escaped = field.escaped || closed_by == Some(CloseReason::Escape);
-        let hovered = out.hovered;
-        if edit.reveal > 0 && open {
-            edit.reveal -= 1;
-            ctx.request_repaint();
-        }
-
-        if let Some(family) = &picked {
-            self.current.clone_from(family);
-            edit.text = shown_of(family);
-            edit.select = true;
-            ctx.memory_mut(|m| m.request_focus(field_id));
-            field.response.mark_changed();
-        }
-        if escaped {
-            open = false;
-        }
-        if picked.is_some() || (was_open && !open) || escaped {
-            if picked.is_none() {
-                edit.text = shown_of(self.current);
-            }
-            edit.query.clear();
-            edit.row = None;
-            edit.composing = false;
-            open = false;
-        }
-        if edit.select && !escaped {
-            select_all(&ctx, field_id, &edit.text);
-            edit.select = false;
-            ctx.request_repaint();
-        }
-        let preview = if open { hovered.or_else(|| edit.row.and_then(|i| rows.get(i)).map(|r| r.family.clone())) } else { None };
-        edit.current.clone_from(self.current);
-        edit.open = open;
-        if open || ui.memory(|m| m.has_focus(field_id)) {
-            ctx.data_mut(|d| d.insert_temp(edit_id, edit));
-        } else {
-            ctx.data_mut(|d| d.remove::<Edit>(edit_id));
-        }
-        FontPickerResponse { picked, preview, response: field.response }
+        let (folder, collator) = (cx.env.folder(), cx.env.collator());
+        let filters = FontFilters::default();
+        let language = ui_language(&cx.env);
+        let listing = rank::Listing { query: "", settings, filters: &filters, current: "", language: &language };
+        rank::list(self.catalog, &infos, &listing, &rank::Language { folder: &folder, collator: &collator }, false).0
     }
 }
 
-/// The row of a list the keyboard lands on after typing `text`: the exact match, else the row that
-/// was selected, else the first row. Pure, for the tests.
-// pc: crates/ui-egui/src/tools/type_tool/fonts.rs:365 `accept_row`.
-pub fn accept_row(rows: &[FamilyRow], text: &str, selected: Option<usize>) -> Option<usize> {
-    let exact = text.to_lowercase();
-    rows.iter()
-        .position(|r| r.family.to_lowercase() == exact || r.shown.to_lowercase() == exact)
-        .or(selected.filter(|i| *i < rows.len()))
-        .or_else(|| (!rows.is_empty()).then_some(0))
-}
+impl Component for FontPicker<'_> {
+    const ROLE: Role = Role::COMBO_BOX;
+    const INPUT: Input = Input::Text;
+    const KEYS: craft_ui::runtime::focus::KeyUse = craft_ui::runtime::focus::KeyUse::of(Input::Text).with_moves();
+    type Style = craft_ui::text::FieldStyle;
+    type Output = FontPickerOutput;
 
-/// What the field keeps between passes while it has the focus or the list is open.
-#[derive(Clone, Default)]
-struct Edit {
-    /// The field's text: what was typed, or the name of the keyboard row.
-    text: String,
-    /// What was typed, which narrows the list.
-    query: String,
-    /// The keyboard row.
-    row: Option<usize>,
-    /// The current family when the state was made; a different one starts it afresh.
-    current: String,
-    open: bool,
-    composing: bool,
-    /// Select the whole text from the next pass, so typing replaces it.
-    select: bool,
-    /// Passes left in which the list scrolls the marked row into view (the popover's first pass
-    /// only measures).
-    reveal: u8,
-}
+    fn style(cx: &craft_ui::style::StyleCx<'_>, _: FontPickerStyleKey) -> craft_ui::text::FieldStyle {
+        craft_ui::text::FieldStyle::at(cx)
+    }
 
-#[derive(Default)]
-struct PopupOut {
-    picked: Option<String>,
-    hovered: Option<String>,
-    stars: Vec<(String, bool)>,
-}
+    fn sense(&self) -> Sense {
+        Sense::CLICK | Sense::FOCUS | Sense::TAKE_FOCUS
+    }
 
-/// Everything the list of rows needs.
-struct ListContext<'a> {
-    ui_id: Id,
-    rows: &'a [FamilyRow],
-    infos: &'a Arc<Infos>,
-    catalog: &'a Arc<Catalog>,
-    faces: &'a SharedFaces,
-    labels: &'a FontPickerLabels,
-    preview: Option<f32>,
-    selected: Option<usize>,
-    reveal: Option<usize>,
-    height: f32,
-    class_glyph: f32,
-}
+    /// The width of the longest family names in common use, so the field keeps its size whichever family is picked.
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        let current = cx.value().map_or("", String::as_str);
+        let widest = [NAME_SAMPLE, current].into_iter().map(|text| cx.layout(&TextRun::new(text)).size()).fold(Vec2::ZERO, Vec2::max);
+        let name = cx.words::<FontPickerWords>().list.clone();
+        Vec2::new(widest.x + reserve(cx.style, &[], &Self::trailing(name)), widest.y)
+    }
 
-impl ListContext<'_> {
-    fn show(&self, ui: &mut Ui, out: &mut PopupOut) {
-        self.faces.begin_frame(ui.ctx());
-        let tokens = Tokens::of(ui);
-        let base = ListRow::<usize>::style(&tokens).row_height;
-        let row_height = self.preview.map_or(base, |size| base.max((size * 4.0 / 3.0).ceil() + 4.0));
-        let order: Vec<RowInfo<usize>> = (0..self.rows.len()).map(RowInfo::leaf).collect();
-        let mut selection = self.selected.map(Selection::only).unwrap_or_default();
-        let hovered = Cell::new(None);
-        let mut list = List::new(self.ui_id, self.labels.list.clone(), order.as_slice())
-            .mode(SelectionMode::Single)
-            .selection(&mut selection)
-            .row_height(row_height)
-            .max_height(self.height);
-        if let Some(key) = self.reveal {
-            list = list.reveal(key);
+    fn parts(&mut self, _: Rect, cx: &mut PartsCx<'_, Self>) {
+        let name = cx.words::<FontPickerWords>().list.clone();
+        let trailing = Self::trailing(name);
+        let placed = place(cx.content_rect, cx.style, &[], &trailing, cx.flow.is_rtl());
+        if let Some(at) = placed.trailing.first() {
+            cx.part(CHEVRON, *at)
+                .sense(Sense::CLICK | Sense::KEEP_FOCUS)
+                .priority(HitPriority::new(HitLevel::Handle, 0))
+                .pointer_only("Alt+Down opens the list")
+                .toggles(POPUP)
+                .on_press();
         }
-        let output = list.show(ui, |_, &key| list_row(self, key, &hovered));
-        for event in output.events {
-            match event {
-                ListEvent::Clicked(key) | ListEvent::Activate(key) => out.picked = self.rows.get(key).map(|r| r.family.clone()),
-                ListEvent::Row(RowEvent::Toggle(EditEvent::Set { value, .. } | EditEvent::Commit { value, changed: true, .. })) => {
-                    if let Some(row) = self.rows.get(value.row) {
-                        out.stars.push((row.family.clone(), value.on));
-                    }
-                }
+        let codec = self.codec(&cx.env);
+        let family = cx.value().cloned().unwrap_or_default();
+        let mut options = TextOptions::new();
+        options.select_on_focus = true;
+        cx.text(text_key(), placed.text, &codec, &family, &options);
+    }
+
+    fn bind(&mut self) -> Option<craft_ui::contract::BindMut<'_, String>> {
+        Some(self.family.reborrow())
+    }
+
+    /// A changed draft filters the list: it opens on the matches, and closes when the draft ended (committed,
+    /// cancelled or replaced by a pick). A preview that the list closed on without a pick is cancelled. While the
+    /// list is closed, the arrows and the wheel step through the families.
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        let list = cx.popup(POPUP);
+        let draft = cx.text(&text_key()).and_then(|outcome| outcome.draft.clone());
+        let before = std::mem::replace(&mut cx.memory::<Typing>().draft, draft.clone());
+        if before != draft {
+            match &draft {
+                Some(_) => list.open(cx),
+                None => list.close(cx),
+            }
+        }
+        if list.is_open(cx) {
+            return;
+        }
+        cx.memory::<Typing>().lead = None;
+        if matches!(cx.gesture(), Some(craft_behavior::GesturePhase::Begin | craft_behavior::GesturePhase::Update)) {
+            cx.cancel(craft_behavior::CancelReason::Dismissed);
+        }
+        let settings = read(&mut self.settings, cx);
+        let current = cx.value().cloned().unwrap_or_default();
+        let all = self.ordered(cx, settings.as_ref());
+        let Some(here) = all.iter().position(|row| row.family == current) else { return };
+        let mut to = here;
+        while let Some((step, mods)) = cx.intents().take_move() {
+            match step {
+                NavMove::Down if !mods.fine => to = (to + 1).min(all.len() - 1),
+                NavMove::Up if !mods.fine => to = to.saturating_sub(1),
                 _ => {}
             }
         }
-        out.hovered = hovered.take().and_then(|key| self.rows.get(key)).map(|r| r.family.clone());
-    }
-}
-
-/// One list row: the star column, the name, the sample in the family's own face and the class
-/// glyph at the right. A pointer over the row's visible part is reported through `hovered`.
-// pc: crates/ui-egui/src/text/font_preview.rs:132 `paint` (sample images, cached per family and
-// size) and crates/ui-egui/src/tools/type_tool/fonts.rs:600 (the row).
-fn list_row<'a>(cx: &'a ListContext<'a>, key: usize, hovered: &'a Cell<Option<usize>>) -> ListRow<'a, usize> {
-    let row = &cx.rows[key];
-    let labels = cx.labels;
-    let star = ToggleColumn::new(labels.favorite.clone(), Icon::StarFilled, Icon::Star, row.starred);
-    let glyph = ListRow::new(key, row.shown.clone()).toggle(star).trailing_item(cx.class_glyph, move |ui| {
-        if ui.rect_contains_pointer(ui.clip_rect()) {
-            hovered.set(Some(key));
+        if let Some(wheel) = cx.take_wheel()
+            && wheel.scroll.y != 0.0
+        {
+            to = if wheel.scroll.y < 0.0 { (to + 1).min(all.len() - 1) } else { to.saturating_sub(1) };
         }
-        if let Some(class) = cx.infos.traits(cx.catalog, &row.family).and_then(|t| t.class) {
-            ui.label(egui::RichText::new(class_glyph(class)).weak()).on_hover_text(class_label(class, labels));
-        }
-    });
-    let Some(size) = cx.preview else { return glyph };
-    glyph.trailing_item(size * SAMPLE_WIDTH_PER_POINT, move |ui| {
-        let Some(info) = cx.infos.families.get(&row.family) else { return };
-        let text = sample_text(ui.ctx(), cx.catalog, info, &labels.sample, &row.shown);
-        paint_sample(ui, cx, &info.regular, &text, size);
-    })
-}
-
-/// The sample's width per point of its size: PhotoCraft's 100 pt box at its 18 pt medium.
-const SAMPLE_WIDTH_PER_POINT: f32 = 100.0 / 18.0;
-
-/// The row of filter toggles above the list: the class list's collapse button, variable fonts,
-/// favourites and similar fonts, and Clear All.
-fn filter_bar(ui: &mut Ui, f: &mut FontFilters, hide_classes: &mut bool, labels: &FontPickerLabels) {
-    ui.horizontal(|ui| {
-        let (icon, label) = if *hide_classes { (Icon::ChevronsRight, &labels.show_classes) } else { (Icon::ChevronsLeft, &labels.hide_classes) };
-        ui.add(IconButton::new(icon, label.clone()).toggle(hide_classes));
-        ui.add(IconButton::new(Icon::FontVariable, labels.variable.clone()).toggle(&mut f.variable));
-        let star = if f.favorites { Icon::StarFilled } else { Icon::Star };
-        ui.add(IconButton::new(star, labels.favorites.clone()).toggle(&mut f.favorites));
-        ui.add(IconButton::new(Icon::FontSimilar, labels.similar.clone()).toggle(&mut f.similar));
-        if ui.add_enabled(f.any(), Button::new(labels.clear_all.clone())).clicked() {
-            f.clear();
-        }
-    });
-}
-
-/// Rows the popup list shows without scrolling.
-const FONT_LIST_ROWS: f32 = 14.0;
-
-/// A name as long as the longest family names in common use, to size the list by.
-const NAME_SAMPLE: &str = "Source Sans Pro Semibold Condensed";
-
-/// The popup list's width: the sample name, its toggle and class columns and the padding.
-fn name_list_width(ui: &Ui, tokens: &UiTokens) -> f32 {
-    let name = ui.painter().layout_no_wrap(NAME_SAMPLE.to_owned(), tokens.font(TypeRole::Body), Color32::PLACEHOLDER).size().x;
-    (name + tokens.size.icon.md + 2.0 * tokens.size.control.md + 2.0 * tokens.space.pad.control).ceil()
-}
-
-/// The class list at the left: All Classes and the eight classes, one selected.
-fn class_column(ui: &mut Ui, field_id: Id, filters: &mut FontFilters, labels: &FontPickerLabels) {
-    let names: Vec<&str> = std::iter::once(labels.all_classes.as_str()).chain(FontClass::ALL.map(|c| class_label(c, labels))).collect();
-    let tokens = Tokens::of(ui);
-    let font = tokens.font(TypeRole::Body);
-    let widest =
-        names.iter().map(|name| ui.painter().layout_no_wrap((*name).to_owned(), font.clone(), Color32::PLACEHOLDER).size().x).fold(0.0, f32::max);
-    let width = (widest + 2.0 * tokens.space.pad.control).ceil();
-    let order: Vec<RowInfo<usize>> = (0..names.len()).map(RowInfo::leaf).collect();
-    let selected = filters.class.and_then(|c| FontClass::ALL.iter().position(|a| *a == c)).map_or(0, |i| i + 1);
-    let mut selection = Selection::only(selected);
-    ui.allocate_ui(vec2(width, 0.0), |ui| {
-        ui.set_width(width);
-        let _ = List::new(field_id.with("classes"), labels.classes.clone(), order.as_slice())
-            .mode(SelectionMode::Single)
-            .allow_empty(false)
-            .selection(&mut selection)
-            .show(ui, |_, &key| ListRow::new(key, names[key]));
-    });
-    let chosen = selection.items.first().copied().unwrap_or(0);
-    if chosen != selected {
-        filters.class = chosen.checked_sub(1).and_then(|i| FontClass::ALL.get(i).copied());
-    }
-}
-
-fn class_label(class: FontClass, labels: &FontPickerLabels) -> &str {
-    match class {
-        FontClass::Serif => &labels.serif,
-        FontClass::SlabSerif => &labels.slab_serif,
-        FontClass::SansSerif => &labels.sans_serif,
-        FontClass::Script => &labels.script,
-        FontClass::Monospace => &labels.monospace,
-        FontClass::Handwritten => &labels.handwritten,
-        FontClass::Blackletter => &labels.blackletter,
-        FontClass::Decorative => &labels.decorative,
-    }
-}
-
-/// The two letters that mark a class at the end of a row.
-fn class_glyph(class: FontClass) -> &'static str {
-    match class {
-        FontClass::Serif => "Se",
-        FontClass::SlabSerif => "Sl",
-        FontClass::SansSerif => "Sa",
-        FontClass::Script => "Sc",
-        FontClass::Monospace => "Mo",
-        FontClass::Handwritten => "Ha",
-        FontClass::Blackletter => "Bl",
-        FontClass::Decorative => "De",
-    }
-}
-
-/// The row `notches` wheel notches from row `index` of `len` (up, positive, is the previous one),
-/// stopping at the ends; none when the wheel did not move.
-// pc: crates/ui-egui/src/tools/type_tool/fonts.rs:843 `wheel_family_index`.
-fn wheel_family_index(index: usize, len: usize, notches: f32) -> Option<usize> {
-    let steps = notches.abs().min(len as f32) as usize;
-    if steps == 0 || len == 0 {
-        return None;
-    }
-    let last = len - 1;
-    Some(if notches < 0.0 { index.saturating_add(steps).min(last) } else { index.saturating_sub(steps) })
-}
-
-/// One notch in the direction of this pass's wheel events (up: 1, down: -1), taking them out of
-/// the input so nothing under the field scrolls. A plain wheel only; Alt and Ctrl/Cmd zoom the view.
-fn take_wheel_notch(ui: &mut Ui) -> f32 {
-    let total: f32 = ui.input(|i| {
-        i.events
-            .iter()
-            .filter_map(|e| match e {
-                Event::MouseWheel { delta, modifiers, .. } if !modifiers.alt && !modifiers.ctrl && !modifiers.command => Some(delta.y),
-                _ => None,
-            })
-            .sum()
-    });
-    if total != 0.0 {
-        ui.input_mut(|i| i.smooth_scroll_delta = egui::Vec2::ZERO);
-    }
-    total.signum() * f32::from(u8::from(total != 0.0))
-}
-
-/// Selects all of `text` in the text edit `id` from the next pass.
-fn select_all(ctx: &Context, id: Id, text: &str) {
-    let mut state = TextEditState::load(ctx, id).unwrap_or_default();
-    state.cursor.set_char_range(Some(CCursorRange::select_all_str(text)));
-    state.store(ctx, id);
-}
-
-/// The Host's interface language code, English without one.
-fn ui_language(ctx: &Context) -> String {
-    Host::try_of_ctx(ctx).and_then(|h| h.i18n().map(|i| i.code(h.lang()).to_owned())).unwrap_or_else(|| "en".to_owned())
-}
-
-fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-    m.lock().unwrap_or_else(PoisonError::into_inner)
-}
-
-// Family data.
-
-/// What the catalog says about a family, read once per catalog generation.
-struct Info {
-    localized: Vec<LocalizedName>,
-    variable: bool,
-    /// The upright face nearest weight 400: the one that stands for the family.
-    regular: FaceInfo,
-}
-
-/// What a face's tables say about its family, as the class filter and similar fonts read them.
-#[derive(Clone, Debug)]
-struct Traits {
-    class: Option<FontClass>,
-    panose: [u8; 10],
-    weight: u16,
-}
-
-impl Traits {
-    /// How unlike `other` is to `self`: 0 for the same traits, larger the more they differ. The
-    /// class matters most, then the PANOSE digits both fonts state, then the weight.
-    // pc: crates/text/src/font_class.rs `difference`.
-    fn difference(&self, other: &Traits) -> f32 {
-        let mut d = 0.0;
-        if self.class != other.class {
-            d += 20.0;
-        }
-        // Digits 1..=9; 0 and 1 mean "any"/"no fit", so only stated digits count.
-        for (x, y) in self.panose.iter().zip(other.panose.iter()).skip(1) {
-            if *x > 1 && *y > 1 {
-                d += f32::from(x.abs_diff(*y)).min(6.0);
-            }
-        }
-        d + f32::from(self.weight.abs_diff(other.weight)) / 100.0
-    }
-}
-
-struct Infos {
-    families: HashMap<String, Info>,
-    traits: Mutex<HashMap<String, Option<Traits>>>,
-}
-
-impl Infos {
-    fn build(catalog: &Catalog) -> Infos {
-        let mut groups: HashMap<String, Vec<FaceInfo>> = HashMap::new();
-        for face in catalog.faces().iter() {
-            groups.entry(face.family.clone()).or_default().push(face.clone());
-        }
-        let families = groups
-            .into_iter()
-            .filter_map(|(family, faces)| {
-                let regular = regular_face(&faces)?.clone();
-                let localized = faces.iter().flat_map(|f| f.localized_families.iter().cloned()).collect();
-                Some((family, Info { localized, variable: faces.iter().any(|f| f.variable), regular }))
-            })
-            .collect();
-        Infos { families, traits: Mutex::new(HashMap::new()) }
-    }
-
-    /// The family's traits, read from its regular face on first use.
-    fn traits(&self, catalog: &Catalog, family: &str) -> Option<Traits> {
-        if let Some(t) = lock(&self.traits).get(family) {
-            return t.clone();
-        }
-        let traits = self.families.get(family).and_then(|i| read_traits(catalog, &i.regular));
-        lock(&self.traits).insert(family.to_owned(), traits.clone());
-        traits
-    }
-
-    /// The class if the family's traits were read already.
-    fn known_class(&self, family: &str) -> Option<FontClass> {
-        lock(&self.traits).get(family).and_then(|t| t.as_ref()).and_then(|t| t.class)
-    }
-}
-
-type CacheEntry = (Weak<Catalog>, u64, Arc<Infos>);
-static CACHE: Mutex<Vec<CacheEntry>> = Mutex::new(Vec::new());
-
-/// The family data of `catalog`, rebuilt when its generation moves.
-fn infos(catalog: &Arc<Catalog>) -> Arc<Infos> {
-    let generation = catalog.generation();
-    let same = |w: &Weak<Catalog>| std::ptr::eq(w.as_ptr(), Arc::as_ptr(catalog));
-    let mut cache = lock(&CACHE);
-    cache.retain(|(w, _, _)| w.strong_count() > 0);
-    if let Some((_, _, infos)) = cache.iter().find(|(w, g, _)| *g == generation && same(w)) {
-        return Arc::clone(infos);
-    }
-    cache.retain(|(w, _, _)| !same(w));
-    let infos = Arc::new(Infos::build(catalog));
-    cache.push((Arc::downgrade(catalog), generation, Arc::clone(&infos)));
-    infos
-}
-
-/// The upright face nearest weight 400.
-fn regular_face(faces: &[FaceInfo]) -> Option<&FaceInfo> {
-    faces.iter().min_by_key(|f| (f.italic, (f.weight - 400.0).abs() as u32))
-}
-
-/// The name shown for a family: its record in the interface language, else the family name.
-fn shown_name(info: &Info, family: &str, language: &str, english: bool) -> String {
-    let primary = |tag: &str| tag.split(['-', '_']).next().unwrap_or(tag).to_ascii_lowercase();
-    if english || primary(language) == "en" {
-        return family.to_owned();
-    }
-    let exact = |n: &&LocalizedName| n.language.as_deref().is_some_and(|l| l.replace('_', "-").eq_ignore_ascii_case(&language.replace('_', "-")));
-    let same_language = |n: &&LocalizedName| n.language.as_deref().is_some_and(|l| primary(l) == primary(language));
-    info.localized.iter().find(exact).or_else(|| info.localized.iter().find(same_language)).map_or_else(|| family.to_owned(), |n| n.name.clone())
-}
-
-fn font_of<'a>(bytes: &'a [u8], face: &FaceInfo) -> Option<FontRef<'a>> {
-    FontRef::from_index(bytes, face.index).ok()
-}
-
-/// A face's class, PANOSE and weight from its `OS/2` and `post` tables.
-// pc: crates/text/src/font_class.rs `traits_of`.
-fn read_traits(catalog: &Catalog, face: &FaceInfo) -> Option<Traits> {
-    let data = catalog.load(face).ok()?;
-    let font = font_of(&data.bytes, face)?;
-    let os2 = font.os2().ok();
-    let family_class = os2.as_ref().map_or(0, |t| t.s_family_class());
-    let mut panose = [0u8; 10];
-    if let Some(bytes) = os2.as_ref().map(|t| t.panose_10()) {
-        for (slot, b) in panose.iter_mut().zip(bytes.iter()) {
-            *slot = *b;
+        if to != here {
+            self.picked = Some(all[to].family.clone());
+            cx.set(all[to].family.clone());
         }
     }
-    let weight = os2.as_ref().map_or(400, |t| t.us_weight_class()).clamp(1, 1000);
-    let fixed_pitch = font.post().ok().is_some_and(|p| p.is_fixed_pitch() != 0);
-    Some(Traits { class: classify(&face.family, family_class, panose, fixed_pitch), panose, weight })
-}
 
-/// Name fragments (lowercase) that mark a blackletter face; the tables have no class for it.
-const BLACKLETTER: [&str; 7] = ["fraktur", "blackletter", "black letter", "textura", "old english", "schwabacher", "rotunda"];
+    fn overlay(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
+        rows::popup(self, ui, cx);
+    }
 
-/// Classify from the OS/2 `sFamilyClass` (high byte: the IBM class), the PANOSE digits, the
-/// `post` fixed-pitch flag and, last, the family name.
-// pc: crates/text/src/font_class.rs `classify`.
-fn classify(family: &str, family_class: i16, panose: [u8; 10], fixed_pitch: bool) -> Option<FontClass> {
-    let name = family.to_lowercase();
-    let has = |words: &[&str]| words.iter().any(|w| name.contains(w));
-    // Whole words of the name, so "Encode Sans" isn't read as a "code" font.
-    let words: Vec<&str> = name.split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).collect();
-    // PANOSE Latin Text proportion 9 is monospaced.
-    if fixed_pitch || (panose[0] == 2 && panose[3] == 9) {
-        return Some(FontClass::Monospace);
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let name = cx.words::<FontPickerWords>().list.clone();
+        ui.face(CHEVRON, IconButton::new(IconId::new(CHEVRON_ICON)).label(name));
     }
-    if has(&BLACKLETTER) {
-        return Some(FontClass::Blackletter);
-    }
-    // PANOSE family kind: 3 Latin Hand Written, 4 Latin Decoratives, 5 Latin Symbol.
-    match panose[0] {
-        3 => return Some(if family_class >> 8 == 10 { FontClass::Script } else { FontClass::Handwritten }),
-        4 | 5 => return Some(FontClass::Decorative),
-        _ => {}
-    }
-    match family_class >> 8 {
-        // 4 is Clarendon: bracketed serifs (Georgia), not slabs.
-        1..=4 | 7 => return Some(FontClass::Serif),
-        5 => return Some(FontClass::SlabSerif),
-        8 => return Some(FontClass::SansSerif),
-        9 | 12 => return Some(FontClass::Decorative),
-        10 => return Some(if has(&["hand", "marker", "brush", "pen", "chalk"]) { FontClass::Handwritten } else { FontClass::Script }),
-        _ => {}
-    }
-    // PANOSE Latin Text serif style: 11-15 are sans (normal, obtuse, perpendicular, flared,
-    // rounded); square (6) is a slab; the rest, the square coves (bracketed serifs, as Georgia's)
-    // included, are serifs.
-    if panose[0] == 2 {
-        match panose[1] {
-            11..=15 => return Some(FontClass::SansSerif),
-            6 => return Some(FontClass::SlabSerif),
-            2..=10 => return Some(FontClass::Serif),
-            _ => {}
+
+    fn finish(self, mut cx: Cx<'_, Self>) -> FontPickerOutput {
+        let list = cx.popup(POPUP);
+        let preview = if list.is_open(&cx) { cx.memory::<Typing>().lead.clone() } else { None };
+        let edit = cx.edit_response();
+        let committed = match &edit.event {
+            Some(EditEvent::Commit { after, .. } | EditEvent::Set { after, .. }) => Some(after.clone()),
+            _ => None,
+        };
+        let picked = committed.or(self.picked);
+        let mut bind = self.settings;
+        if let Some(family) = &picked
+            && let Some(mut settings) = read(&mut bind, &mut cx)
+        {
+            settings.note_recent(family);
+            write(&mut bind, &mut cx, settings, "Recent font");
         }
+        FontPickerOutput { edit, picked, preview }
     }
-    // Last, the name.
-    if words.iter().any(|w| matches!(*w, "mono" | "monospace" | "monospaced" | "code" | "courier") || w.starts_with("consol")) {
-        Some(FontClass::Monospace)
-    } else if has(&["slab"]) {
-        Some(FontClass::SlabSerif)
-    } else if has(&["sans", "grotesk", "grotesque", "gothic"]) {
-        Some(FontClass::SansSerif)
-    } else if has(&["serif", "roman", "garamond", "times", "bodoni", "baskerville", "caslon"]) {
-        Some(FontClass::Serif)
-    } else if has(&["hand", "marker", "brush", "chalk"]) {
-        Some(FontClass::Handwritten)
-    } else if has(&["script"]) {
-        Some(FontClass::Script)
-    } else {
-        None
-    }
-}
-
-// Samples.
-
-/// Sample texts resolved per family, dropped when the catalog changes.
-#[derive(Clone, Default)]
-struct Samples {
-    generation: u64,
-    texts: HashMap<(String, String), String>,
-}
-
-/// What the row's sample says: `sample` when the family's face draws it, else its name, else the
-/// first glyphs the face has (a symbol or non-Latin face).
-// pc: crates/ui-egui/src/text/font_preview.rs `sample_texts`.
-fn sample_text(ctx: &Context, catalog: &Catalog, info: &Info, sample: &str, shown: &str) -> String {
-    let id = Id::unique("craft-font-picker-samples");
-    let generation = catalog.generation();
-    let key = (info.regular.family.clone(), sample.to_owned());
-    let cached = ctx.data(|d| d.get_temp::<Samples>(id)).filter(|s| s.generation == generation).and_then(|s| s.texts.get(&key).cloned());
-    if let Some(text) = cached {
-        return text;
-    }
-    let text = (|| {
-        let data = catalog.load(&info.regular).ok()?;
-        let font = font_of(&data.bytes, &info.regular)?;
-        let map = font.charmap();
-        let drawn = |t: &str| t.chars().filter(|c| !c.is_whitespace()).all(|c| map.map(c).is_some());
-        if drawn(sample) {
-            return Some(sample.to_owned());
-        }
-        if drawn(shown) {
-            return Some(shown.to_owned());
-        }
-        Some(map.mappings().filter_map(|(cp, _)| char::from_u32(cp)).filter(|c| !c.is_whitespace() && !c.is_control()).take(6).collect())
-    })()
-    .unwrap_or_default();
-    ctx.data_mut(|d| {
-        let samples = d.get_temp_mut_or_default::<Samples>(id);
-        if samples.generation != generation {
-            *samples = Samples { generation, texts: HashMap::new() };
-        }
-        samples.texts.insert(key, text.clone());
-    });
-    text
-}
-
-/// Draws `text` at `size` points in `face`, from the start of the cell; nothing until egui has
-/// loaded the face.
-fn paint_sample(ui: &Ui, cx: &ListContext<'_>, face: &FaceInfo, text: &str, size: f32) {
-    let shown = cx.faces.family(ui.ctx(), cx.catalog, Owner::Installed, face);
-    let Shown::Ready(family) = shown else { return };
-    let cell = ui.max_rect();
-    let (align, at) =
-        if craft_ui::direction::is_rtl(ui) { (Align2::RIGHT_CENTER, cell.right_center()) } else { (Align2::LEFT_CENTER, cell.left_center()) };
-    ui.painter().with_clip_rect(cell).text(at, align, text, FontId::new(size, family), ui.visuals().text_color());
 }
