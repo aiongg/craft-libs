@@ -734,6 +734,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
         {
             self.report.actions.push(float_drop(&DragUnit::Panel(panel.clone()), scene.space, torn.pointer).action);
         }
+        None
     }
 
     fn group_of(&mut self, ui: &mut Ui, body: &mut BodyCx<'_>, group: &Group<P>, at: GroupAt) -> Option<f32> {
