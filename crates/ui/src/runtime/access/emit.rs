@@ -232,6 +232,7 @@ pub(crate) fn report(ctx: &Context, own: &Own<'_>) {
     spec.controls = relations.controls.clone();
     spec.flow_to = relations.flow_to.clone();
     spec.live = access.live;
+    spec.current = own.flags.contains(Flags::CURRENT);
     write_position(&mut spec, access.position, access.level);
     spec.grid = GridPlace {
         row_index: spec.grid.row_index.or(access.grid.row_index),
@@ -298,7 +299,7 @@ pub(crate) fn report_sub(ctx: &Context, decl: &SubDecl<'_>) {
     spec.expanded = expanded;
     spec.access_key = node.access_key;
     spec.has_popup = node.has_popup;
-    spec.current = node.current;
+    spec.current = node.current || flags.contains(Flags::CURRENT);
     if let Some(expanded) = expanded {
         spec.actions.push(if expanded { NodeAction::Collapse } else { NodeAction::Expand });
     }

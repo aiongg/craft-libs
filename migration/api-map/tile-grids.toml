@@ -387,8 +387,8 @@ note = "Words come from the environment."
 [[setter]]
 type = "TileGrid"
 old = "current(K)"
-new = ""
-note = "Not built: see the report (page-panel features)."
+new = "current(Option<K>)"
+note = "`CollectionProps::current`, forwarded by every collection: the current item shows the accent ring through the state layer and its node reports itself as the current one of its set. It is not the lead or the selection."
 
 [[setter]]
 type = "TileGrid"

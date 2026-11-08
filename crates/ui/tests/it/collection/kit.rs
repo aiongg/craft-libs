@@ -261,6 +261,19 @@ impl<'a> List<'a> {
         self
     }
 
+    /// The list takes the height of all its rows and leaves the scroll to the page it sits in.
+    pub fn natural_height(mut self) -> Self {
+        self.items = self.items.natural_height(true);
+        self.props = self.props.sizing(craft_ui::contract::Sizing::FillWidth);
+        self
+    }
+
+    /// Row `key` is the current one.
+    pub fn current(mut self, key: usize) -> Self {
+        self.items = self.items.current(Some(key));
+        self
+    }
+
     pub fn selection(mut self, selection: Bind<'a, Selection<usize>>) -> Self {
         self.selection = Some(selection);
         self
