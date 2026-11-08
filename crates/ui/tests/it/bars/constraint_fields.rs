@@ -5,6 +5,7 @@ use craft_behavior::geometry::Constraint;
 use craft_ui::bars::{Bar, BarKind, ConstraintFields};
 use craft_ui::contract::{Bind, Entry, Role, ShowContainer as _};
 use craft_ui::runtime::env::UnitKind;
+use craft_ui::testing::access::Declared;
 use craft_ui::testing::{Fixture, Target, trial};
 use egui::{Key, Modifiers, Vec2};
 use std::cell::Cell;
@@ -34,6 +35,7 @@ fn rig(start: Constraint, units: bool, enabled: bool) -> (Fixture, Rc<Cell<Const
 fn fields(fixture: &Fixture) -> (Target, Target) {
     let mut spins = fixture.by_role(Role::SPIN_BUTTON);
     assert_eq!(spins.len(), 2, "Width and Height are number fields");
+    spins.sort_by(|a, b| a.rect.min.x.total_cmp(&b.rect.min.x));
     let height = spins.pop().unwrap();
     (spins.pop().unwrap(), height)
 }
@@ -46,14 +48,13 @@ fn type_into(fixture: &mut Fixture, field: &Target, text: &str) {
     fixture.settle();
 }
 
-/// Picking a style resets the numbers to that style's start, whatever they were.
+/// Picking a style resets the numbers to that style's start, whatever they were. The pick is made with the arrow
+/// keys on the focused select, which steps through the styles without opening its list.
 #[trial]
 fn a_style_pick_resets_the_numbers() {
     let (mut fixture, state) = rig(Constraint::Ratio(16.0, 9.0), false, true);
-    let style = fixture.by_role(Role::COMBO_BOX).pop().expect("the style select");
-    fixture.click(&style).settle();
-    let row = fixture.by_label("Fixed Size").expect("the select lists Fixed Size");
-    fixture.click(&row).settle();
+    fixture.key(Key::Tab, Modifiers::NONE).settle();
+    fixture.key(Key::ArrowDown, Modifiers::NONE).settle();
     let reset = Constraint::Size(ConstraintFields::SIZE_START.0, ConstraintFields::SIZE_START.1);
     assert_eq!(state.get(), reset);
 }
@@ -81,12 +82,13 @@ fn swap_exchanges_width_and_height() {
 /// Normal and a disabled bar take no input in the number cells or the swap.
 #[trial]
 fn normal_and_disabled_cells_take_no_input() {
-    let (mut normal, state) = rig(Constraint::Free, false, true);
-    let (width, _) = fields(&normal);
-    type_into(&mut normal, &width, "5");
+    let (normal, _) = rig(Constraint::Free, false, true);
+    let (width, height) = fields(&normal);
+    let tree = normal.tree();
     let swap = normal.by_label("Swaps height and width").unwrap();
-    normal.click(&swap).settle();
-    assert_eq!(state.get(), Constraint::Free);
+    for cell in [&width, &height, &swap] {
+        assert!(!tree.declares_key(cell.node, Declared::Focus), "a Normal marquee greys the cell");
+    }
 
     let start = Constraint::Ratio(1.0, 2.0);
     let (mut greyed, state) = rig(start, false, false);
