@@ -37,6 +37,7 @@ mod glossary;
 mod internals;
 mod keys;
 mod label;
+mod layer;
 mod layout;
 mod list;
 mod lists;
