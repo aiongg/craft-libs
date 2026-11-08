@@ -22,12 +22,23 @@ fn version(id: u64, title: &str, autosave: bool) -> Version {
     }
 }
 
+/// The history row whose name starts with `title`: a row's name carries its date and author after the title.
+fn row_named(fixture: &Fixture, title: &str) -> Target {
+    let tree = fixture.tree();
+    let found = [Role::TREE_ITEM, Role::LIST_ITEM]
+        .into_iter()
+        .flat_map(|role| fixture.by_role(role))
+        .find(|row| tree.name_of(row.node).is_some_and(|name| name.starts_with(title)));
+    found.unwrap_or_else(|| panic!("no row `{title}`"))
+}
+
 fn panel() -> (Fixture, Rc<RefCell<Vec<VersionAction>>>) {
     let actions = Rc::new(RefCell::new(Vec::new()));
     let seen = actions.clone();
     let versions = vec![version(1, "Draft", false), version(2, "", true), version(3, "", true), version(4, "Final", false)];
     let branches = vec![Branch { id: BranchId(1), name: "Dark mode".into(), state: BranchState::Merged, created: 500, author: "Bo".into() }];
     let mut fixture = Fixture::new(move |ui| seen.borrow_mut().extend(VersionHistoryPanel::new(&versions, &branches, NOW).show(ui).actions));
+    fixture.room(vec2(360.0, 700.0));
     fixture.settle();
     (fixture, actions)
 }
@@ -72,7 +83,7 @@ fn a_branch_row_names_its_state_and_has_a_menu() {
 
 /// The "More" button of the row named `row`: the part of that row, not the first node of that name.
 fn more_of(fixture: &Fixture, row: &str) -> Target {
-    let row = fixture.by_label(row).unwrap_or_else(|| panic!("no row `{row}`"));
+    let row = row_named(fixture, row);
     let tree = fixture.tree();
     let key =
         tree.children_of(row.node).into_iter().find(|key| tree.name_of(*key) == Some("More")).unwrap_or_else(|| panic!("the row has no More part"));
@@ -137,7 +148,7 @@ fn cancelling_the_delete_strip_keeps_the_version() {
     fixture.click(&cancel);
     assert!(actions.borrow().is_empty());
     assert!(fixture.by_label("Delete \u{201c}Final\u{201d}? This can't be undone.").is_none());
-    assert!(fixture.by_label("Final").is_some());
+    assert!(fixture.by_role(Role::TREE_ITEM).iter().any(|row| fixture.tree().name_of(row.node).is_some_and(|name| name.starts_with("Final"))));
 }
 
 /// A run of autosaves is one row that counts them and opens and closes on a click.
@@ -182,10 +193,11 @@ fn a_long_description_wraps_under_the_title() {
     });
     fixture.room(vec2(260.0, 500.0));
     fixture.settle();
-    let pieces: Vec<String> =
-        fixture.texts().iter().map(|painted| painted.text.trim().to_owned()).filter(|text| text.len() > 8 && long.contains(text.as_str())).collect();
-    assert!(pieces.len() >= 2, "the description paints on several lines: {pieces:?}");
-    assert!(pieces.iter().all(|piece| piece != long));
+    let texts = fixture.texts();
+    let title = texts.iter().find(|painted| painted.text == "Draft").expect("the title is painted");
+    let note = texts.iter().find(|painted| painted.text == long).expect("the description is painted whole");
+    assert!(!note.elided, "the description wraps, it is not cut");
+    assert!(note.rect.height() > title.rect.height() * 1.5, "the description takes several lines under the title");
 }
 
 /// Edit description opens the form with the version's text; Enter reports title and description.

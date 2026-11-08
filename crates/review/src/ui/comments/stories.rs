@@ -66,7 +66,7 @@ fn list(ui: &mut Ui, threads: &[CommentThread]) -> StoryOutput {
     CommentList::new("Comments", Bind::kept(), false)
         .show_items(ui, &source, &mut |_, item| match &source.entries[item.at].1 {
             RowEntry::Card { thread, .. } => CommentRow::card(thread, thread.messages.first().map_or_else(String::new, |first| first.text.clone()))
-                .state(false, true, NOW)
+                .state(item.row.selected, true, NOW)
                 .drafts(None, ""),
             RowEntry::Group { title, count, open, .. } => CommentRow::heading(title.clone(), count.clone(), *open),
         })

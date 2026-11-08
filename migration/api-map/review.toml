@@ -243,33 +243,33 @@ note = "`#[story]` registration and the crate's `testing` module."
 name = "CommentsPanel"
 old = "craft_review::ui::CommentsPanel"
 new = "craft_review::ui::CommentsPanel"
-status = "moved"
+status = "same"
 
 [[type]]
 name = "CommentsPanelOutput"
 old = "craft_review::ui::CommentsPanelOutput"
 new = "craft_review::ui::CommentsPanelOutput"
-status = "moved"
+status = "same"
 
 [[type]]
 name = "CommentsPanelState"
 old = "craft_review::ui::CommentsPanelState"
 new = "craft_review::ui::CommentsPanelState"
-status = "moved"
+status = "replaced"
 note = "`#[non_exhaustive]`: start from `CommentsPanelState::default()` and assign fields."
 
 [[type]]
 name = "CommentEdit"
 old = "craft_review::ui::CommentEdit"
 new = "craft_review::ui::CommentEdit"
-status = "moved"
+status = "replaced"
 note = "Every struct-like variant is `#[non_exhaustive]`: match them with `..`."
 
 [[type]]
 name = "CommentPins"
 old = "craft_review::ui::CommentPins"
 new = "craft_review::ui::CommentPins"
-status = "moved"
+status = "same"
 
 [[type]]
 name = "CommentPin"
@@ -282,7 +282,7 @@ note = "`#[non_exhaustive]`: build with `CommentPin::new(id, point, author, text
 name = "CommentPinsOutput"
 old = "craft_review::ui::CommentPinsOutput"
 new = "craft_review::ui::CommentPinsOutput"
-status = "moved"
+status = "same"
 
 [[type]]
 name = "PinMove"
@@ -302,19 +302,19 @@ note = "`#[non_exhaustive]`: read its fields; the panel builds it."
 name = "ThreadPopover"
 old = "craft_review::ui::ThreadPopover"
 new = "craft_review::ui::ThreadPopover"
-status = "moved"
+status = "same"
 
 [[type]]
 name = "ThreadPopoverOutput"
 old = "craft_review::ui::ThreadPopoverOutput"
 new = "craft_review::ui::ThreadPopoverOutput"
-status = "moved"
+status = "same"
 
 [[type]]
 name = "CommentComposer"
 old = "craft_review::ui::CommentComposer"
 new = "craft_review::ui::CommentComposer"
-status = "moved"
+status = "same"
 
 [[type]]
 name = "CommentComposerResponse"

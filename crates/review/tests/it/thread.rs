@@ -8,7 +8,7 @@ use craft_review::ui::{
 };
 use craft_review::{CommentAnchor, CommentMessage, CommentThread, ReviewStatus, ThreadId};
 use craft_ui::buttons::Button;
-use craft_ui::contract::Show as _;
+use craft_ui::contract::{Role, Show as _};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers, Pos2, pos2, vec2};
 
@@ -77,6 +77,7 @@ fn composer() -> (Fixture, Rc<RefCell<Composer>>) {
 #[trial]
 fn composer_posts_with_command_enter_and_cancels_with_escape() {
     let (mut fx, app) = composer();
+    focus_field(&mut fx);
     fx.type_text("looks off");
     fx.key(Key::Enter, Modifiers::COMMAND);
     fx.settle();
@@ -84,6 +85,7 @@ fn composer_posts_with_command_enter_and_cancels_with_escape() {
     assert_eq!(app.borrow().draft, "");
 
     let (mut fx, app) = composer();
+    focus_field(&mut fx);
     fx.type_text("never mind");
     fx.key(Key::Escape, Modifiers::NONE);
     fx.settle();
@@ -130,7 +132,12 @@ fn popover(author: &str) -> (Fixture, Rc<RefCell<Popover>>) {
 
 /// The popover opens with focus on its first stop; the reply field takes it by a click.
 fn focus_reply(fx: &mut Fixture) {
-    let field = fx.by_label("Reply").expect("the reply field");
+    focus_field(fx);
+}
+
+/// A click on the (only) text field on screen.
+fn focus_field(fx: &mut Fixture) {
+    let field = fx.by_role(Role::MULTILINE_TEXT_INPUT).into_iter().chain(fx.by_role(Role::TEXT_INPUT)).next().expect("a text field on screen");
     fx.click(&field);
 }
 

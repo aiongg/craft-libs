@@ -24,8 +24,8 @@ use craft_theme::Srgba;
 use craft_ui::buttons::{Button, IconButton};
 use craft_ui::contract::overlay::Anchor;
 use craft_ui::contract::{
-    Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, ItemOutput, MeasureCx,
-    NoValue, Outcome, PaintUi, Pattern, Props as _, Role, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, Sizing, Trigger,
+    ActivateOn, Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, ItemOutput,
+    MeasureCx, NoValue, Outcome, PaintUi, Pattern, Props as _, Role, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, Sizing, Trigger,
     WordSetCx as _, clicked,
 };
 use craft_ui::display::{Divider, Shade, Text};
@@ -519,7 +519,7 @@ impl<'a> CommentList<'a> {
         CommentList {
             common: Common::new(),
             props: ContainerProps::new().sizing(Sizing::Fill),
-            items: CollectionProps::new().select(SelectMode::Single),
+            items: CollectionProps::new().select(SelectMode::Single).activate(ActivateOn::Click),
             selection,
             grouped,
         }
@@ -1350,7 +1350,6 @@ impl CommentsPanel<'_> {
                 }
             });
             let list = out.response.clone();
-            let mut toggled: Vec<usize> = Vec::new();
             let group_page = |at: usize| match source.entries.iter().find(|(key, _)| *key == CardKey::Group(at)) {
                 Some((_, RowEntry::Group { page, .. })) => *page,
                 _ => None,
@@ -1362,29 +1361,29 @@ impl CommentsPanel<'_> {
                             apply(event, state, &mut edits);
                         }
                     }
+                    // A click or Enter on a heading folds or unfolds its page; Left and Right set it.
+                    CollectionEvent::Activate(CardKey::Group(at)) => {
+                        if let Some(page) = group_page(at) {
+                            toggle(&mut state.collapsed_pages, page);
+                        }
+                    }
                     CollectionEvent::Open(change) => {
-                        if let CardKey::Group(at) = change.key {
-                            toggled.push(at);
+                        if let CardKey::Group(at) = change.key
+                            && let Some(page) = group_page(at)
+                        {
+                            state.collapsed_pages.retain(|&folded| folded != page);
+                            if !change.open {
+                                state.collapsed_pages.push(page);
+                            }
                         }
                     }
                     _ => {}
                 }
             }
-            match selection.items.first().copied() {
-                Some(CardKey::Thread(thread)) => {
-                    if select_thread(state, thread) {
-                        edits.push(CommentEdit::Select(thread));
-                    }
-                }
-                Some(CardKey::Group(at)) => toggled.push(at),
-                None => {}
-            }
-            toggled.sort_unstable();
-            toggled.dedup();
-            for at in toggled {
-                if let Some(page) = group_page(at) {
-                    toggle(&mut state.collapsed_pages, page);
-                }
+            if let Some(CardKey::Thread(thread)) = selection.items.first().copied()
+                && select_thread(state, thread)
+            {
+                edits.push(CommentEdit::Select(thread));
             }
             if let Some(menu) = state.menu.clone() {
                 if let Some(thread) = threads.iter().find(|thread| thread.id == menu.thread) {
