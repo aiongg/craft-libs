@@ -636,7 +636,8 @@ impl ContentAwareFillWorkspace {
             FillTool::Hand => canvas.tool(&mut self.hand).show(ui),
             FillTool::Zoom => canvas.tool(&mut self.zoom).show(ui),
             FillTool::SamplingBrush | FillTool::Lasso => {
-                let mut tool = self.canvas.tool(self.tool, &mut self.options, &self.session, &self.limits, &self.cursor_options);
+                let env = Env::of(ui);
+                let mut tool = self.canvas.tool(self.tool, &mut self.options, &self.session, &self.limits, &self.cursor_options).env(&env);
                 canvas.tool(&mut tool).show(ui)
             }
         };

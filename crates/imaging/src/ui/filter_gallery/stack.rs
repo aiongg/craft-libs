@@ -125,11 +125,10 @@ impl<'a> EffectStack<'a> {
                 .show_items(ui, &layers, &mut |key, icx| {
                     let effect = &effects[*key];
                     let ink = if effect.visible { RowInk::Normal } else { RowInk::Dimmed };
-                    ListRow::new(index.label(&effect.filter)).cells(icx.cells()).ink(ink).toggle(ToggleCell::eye(
-                        EYE,
-                        effect.visible,
-                        words.visibility_of.clone(),
-                    ))
+                    ListRow::new(index.label(&effect.filter))
+                        .cells(icx.cells())
+                        .ink(ink)
+                        .toggle(ToggleCell::eye(EYE, effect.visible).name(words.visibility_of.clone()))
                 });
             for event in &out.events {
                 match event {

@@ -336,7 +336,7 @@ impl CanvasTool for SelectToolPass<'_, MarqueeTool> {
     fn paint(&self, _draw: &Draw<'_>, cx: &ToolContext<'_>) {
         let (Some(place), Some(rect)) = (Place::of(cx), self.tool.press.as_ref().and_then(|press| self.tool.pixels(press))) else { return };
         let points: Vec<Pos2> = outline(rect, self.tool.kind == MarqueeKind::Ellipse).into_iter().map(|at| place.screen(at)).collect();
-        cx.marching_ants(&points, true, 0.0);
+        cx.marching_ants(&points, true);
     }
 
     /// The marquee being dragged as one object: named `SelectWords::outline`, valued with its pixel size, over the

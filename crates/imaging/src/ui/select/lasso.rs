@@ -78,7 +78,7 @@ pub(super) fn paint_outline(draft: &OutlineDraft, draw: &Draw<'_>, cx: &ToolCont
     let Some(place) = Place::of(cx) else { return };
     let points: Vec<Pos2> = draft.points().iter().map(|&at| place.screen(at)).collect();
     if points.len() >= 2 {
-        cx.marching_ants(&points, false, 0.0);
+        cx.marching_ants(&points, false);
     }
     if let Some([a, b]) = draft.rubber_band()
         && let Some(style) = cx.style()

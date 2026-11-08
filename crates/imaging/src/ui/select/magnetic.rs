@@ -445,7 +445,7 @@ impl<T: EdgeTracer> CanvasTool for SelectToolPass<'_, MagneticLassoTool<T>> {
     /// lasso icon with the operation's badge.
     fn cursor(&self, cx: &ToolContext<'_>) -> Cursor {
         let tool = &*self.tool;
-        if (tool.precise || cx.caps_lock())
+        if (tool.precise || cx.caps_lock)
             && let Some(place) = Place::of(cx)
         {
             let (min, max) = MagneticSettings::WIDTH_RANGE;
@@ -582,7 +582,7 @@ impl<T: EdgeTracer> CanvasTool for SelectToolPass<'_, MagneticLassoTool<T>> {
         let (Some(o), Some(place)) = (&self.tool.outline, Place::of(cx)) else { return };
         let points: Vec<Pos2> = o.points().map(|at| place.screen(at)).collect();
         if points.len() >= 2 {
-            cx.marching_ants(&points, false, 0.0);
+            cx.marching_ants(&points, false);
         }
         let Some(style) = cx.style() else { return };
         let (tokens, overlay) = (style.tokens, &style.tokens.color.overlay);

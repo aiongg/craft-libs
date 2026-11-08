@@ -304,7 +304,7 @@ impl<'a, K: Value + Eq + Hash> BrushSectionList<'a, K> {
                                 if let Some(locked) = section.locked {
                                     uses.push(LOCK);
                                     let tip = if locked { words.unlock_tip.clone() } else { words.lock_tip.clone() };
-                                    row = row.toggle(ToggleCell::lock(LOCK, locked, lock_name.clone()).tooltip(tip).always_visible());
+                                    row = row.toggle(ToggleCell::lock(LOCK, locked).name(lock_name.clone()).tooltip(tip).always_visible());
                                 }
                             }
                         }

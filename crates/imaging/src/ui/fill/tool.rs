@@ -10,15 +10,13 @@ use craft_ui::canvas_controls::CanvasControlWords;
 use craft_ui::canvas_controls::brush::{BrushCursor, BrushCursorOptions, BrushDimensions, BrushResize, BrushResizeOptions, BrushTip, PaintingCursor};
 use craft_ui::primitives::Draw;
 use craft_ui::rails::{RailTool, ToolSlot};
+use craft_ui::runtime::env::Env;
 
 use super::FillEvent;
 use super::commands::FillCommands;
 use super::lasso::FillAreaEdit;
 use super::session::{FillLimit, FillLimits, FillSession, FillStrokeEvent, SamplingStroke};
 use crate::ui::select_mask::EditMode;
-
-/// The arm of the crosshair that replaces a brush outline too small to read, in points.
-const CROSSHAIR_REACH: f32 = 6.0;
 
 /// The tools of Content-Aware Fill's strip: Sampling Brush (B), Lasso (L), Hand (H), Zoom (Z).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -95,7 +93,7 @@ impl FillToolOptions {
 
 /// The brush outline options Photoshop's defaults give.
 pub(super) fn default_cursor_options() -> BrushCursorOptions {
-    BrushCursorOptions::new(PaintingCursor::default(), CROSSHAIR_REACH)
+    BrushCursorOptions::new(PaintingCursor::default())
 }
 
 /// The state of Content-Aware Fill's canvas between passes: the stroke being painted, the lasso
@@ -126,7 +124,7 @@ impl FillCanvas {
         limits: &'a FillLimits,
         cursor: &'a BrushCursorOptions,
     ) -> FillCanvasTool<'a> {
-        FillCanvasTool { canvas: self, tool, options, session, limits, cursor }
+        FillCanvasTool { canvas: self, tool, options, session, limits, cursor, env: None }
     }
 
     /// Takes the events collected since the last call.
@@ -185,6 +183,16 @@ pub struct FillCanvasTool<'a> {
     session: &'a FillSession,
     limits: &'a FillLimits,
     cursor: &'a BrushCursorOptions,
+    env: Option<&'a Env>,
+}
+
+impl<'a> FillCanvasTool<'a> {
+    /// The env the brush cursor reads its reach from (`size.hit.target`). Without one the brush shows the system arrow.
+    #[must_use]
+    pub fn env(mut self, env: &'a Env) -> Self {
+        self.env = Some(env);
+        self
+    }
 }
 
 impl FillCanvasTool<'_> {
@@ -238,11 +246,11 @@ impl CanvasTool for FillCanvasTool<'_> {
                 if self.canvas.resize.active() {
                     return Cursor::Painted(PaintedCursor::Hidden);
                 }
-                let Some(space) = cx.space() else { return Cursor::System(CursorIcon::Default) };
+                let (Some(space), Some(env)) = (cx.space(), self.env) else { return Cursor::System(CursorIcon::Default) };
                 // A hard round brush: the 50 % contour is the edge.
                 let size = self.options.brush_size;
                 let tip = BrushTip::round(size, size / 2.0);
-                BrushCursor::new(&tip).painting(self.canvas.stroke.is_some()).cursor(self.cursor, &space.view, cx.caps_lock())
+                BrushCursor::new(&tip).painting(self.canvas.stroke.is_some()).cursor(env, self.cursor, &space.view, cx.caps_lock)
             }
             FillTool::Lasso => Cursor::Painted(PaintedCursor::Crosshair),
             FillTool::Hand | FillTool::Zoom => Cursor::System(CursorIcon::Default),

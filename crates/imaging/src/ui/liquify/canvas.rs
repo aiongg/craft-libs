@@ -14,6 +14,7 @@ use craft_ui::canvas_controls::CanvasControlWords;
 use craft_ui::canvas_controls::brush::{BrushCursor, BrushCursorOptions, BrushDimensions, BrushLevel, BrushResize, BrushResizeOptions, BrushTip};
 use craft_ui::contract::{Access, Common, Component, Cx, PaintUi, Role};
 use craft_ui::primitives::{Draw, PaintShape, Revision, StrokeWidth};
+use craft_ui::runtime::env::Env;
 use craft_ui::style::{ComponentStyle, StyleColor, StyleCx};
 
 use super::LiquifyEvent;
@@ -367,7 +368,7 @@ impl LiquifyCanvas {
     /// The canvas tool for this pass over `settings` (the tool, the brush; the resize writes the
     /// brush's size and density).
     pub fn tool<'a>(&'a mut self, settings: &'a mut LiquifySettings, cursor: &'a BrushCursorOptions) -> LiquifyCanvasTool<'a> {
-        LiquifyCanvasTool { canvas: self, settings, cursor }
+        LiquifyCanvasTool { canvas: self, settings, cursor, env: None }
     }
 
     /// The timing of the latest brush stroke; `None` before the first.
@@ -434,12 +435,9 @@ fn acts_at_rest(tool: LiquifyTool) -> bool {
     !matches!(tool, LiquifyTool::ForwardWarp | LiquifyTool::PushLeft | LiquifyTool::FreezeLasso | LiquifyTool::Hand | LiquifyTool::Zoom)
 }
 
-/// The arm of the crosshair that replaces a brush outline too small to read, in points.
-const CROSSHAIR_REACH: f32 = 6.0;
-
 /// The brush outline options Photoshop's defaults give.
 pub(super) fn default_cursor_options() -> BrushCursorOptions {
-    BrushCursorOptions::new(craft_ui::canvas_controls::brush::PaintingCursor::default(), CROSSHAIR_REACH)
+    BrushCursorOptions::new(craft_ui::canvas_controls::brush::PaintingCursor::default())
 }
 
 /// [`LiquifyCanvas`] as the `CanvasTool` of one pass.
@@ -458,6 +456,16 @@ pub struct LiquifyCanvasTool<'a> {
     canvas: &'a mut LiquifyCanvas,
     settings: &'a mut LiquifySettings,
     cursor: &'a BrushCursorOptions,
+    env: Option<&'a Env>,
+}
+
+impl<'a> LiquifyCanvasTool<'a> {
+    /// The env the brush cursor reads its reach from (`size.hit.target`). Without one the brush shows the system arrow.
+    #[must_use]
+    pub fn env(mut self, env: &'a Env) -> Self {
+        self.env = Some(env);
+        self
+    }
 }
 
 impl LiquifyCanvasTool<'_> {
@@ -539,9 +547,9 @@ impl CanvasTool for LiquifyCanvasTool<'_> {
         if self.settings.tool == LiquifyTool::FreezeLasso {
             return Cursor::Painted(PaintedCursor::Crosshair);
         }
-        let Some(space) = cx.space() else { return Cursor::System(CursorIcon::Default) };
+        let (Some(space), Some(env)) = (cx.space(), self.env) else { return Cursor::System(CursorIcon::Default) };
         let size = self.settings.brush.size;
-        BrushCursor::new(&BrushTip::round(size, size / 2.0)).painting(self.canvas.recorder.is_active()).cursor(self.cursor, &space.view, false)
+        BrushCursor::new(&BrushTip::round(size, size / 2.0)).painting(self.canvas.recorder.is_active()).cursor(env, self.cursor, &space.view, false)
     }
 
     fn takes(&self, button: PointerButton, mods: Mods) -> bool {

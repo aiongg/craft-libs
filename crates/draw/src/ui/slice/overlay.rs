@@ -58,8 +58,6 @@ pub struct SliceOverlayStyle {
     radius: f32,
     /// The dash and gap of an auto slice's line.
     dash: f32,
-    /// The width of an auto slice's line.
-    width: f32,
 }
 
 /// What the control reports: the events of the pass in order.
@@ -354,7 +352,6 @@ impl Component for SliceOverlay<'_> {
             gap: cx.tokens.space.gap.tight,
             radius: cx.tokens.shape.radius.sm,
             dash: AUTO_DASH * cx.tokens.stroke.thin,
-            width: cx.tokens.stroke.thin,
         }
     }
 
@@ -430,7 +427,7 @@ impl Component for SliceOverlay<'_> {
                 if auto {
                     let mut path = quad.clone();
                     path.push(quad[0]);
-                    painter.dashed(&path, style.width, Dashes::even(style.dash), slice_color.gamma_multiply(AUTO_ALPHA));
+                    painter.dashed(&path, Dashes::even(style.dash), StrokeWidth::Thin, slice_color.gamma_multiply(AUTO_ALPHA));
                 } else {
                     draw.data_stroke(&PaintShape::Polygon(quad.clone()), StrokeWidth::Thin, line);
                 }
