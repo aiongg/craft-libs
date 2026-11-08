@@ -749,7 +749,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
                 let Some(output) = region(ui, cell, |ui| {
                     IconicColumn::new(name.clone(), scene.dock, column, Bind::given(open.clone()), &spec)
                         .edge(plan.edge)
-                        .room(body.rect.width() - scene.sizes.least_pane)
+                        .within(body.rect)
                         .auto_collapse(scene.auto_collapse)
                         .show_flyouts(ui, |group, rect, ui, body| self.group_of(ui, body, group, rect))
                 }) else {
@@ -764,7 +764,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
                 let Some(output) = region(ui, cell, |ui| {
                     DockColumn::new(name.clone(), scene.dock, column, &spec)
                         .edge(plan.edge)
-                        .room(body.rect.width() - scene.sizes.least_pane)
+                        .within(body.rect)
                         .auto_collapse(scene.auto_collapse)
                         .show_groups(ui, |group, rect, ui, body| self.group_of(ui, body, group, rect))
                 }) else {

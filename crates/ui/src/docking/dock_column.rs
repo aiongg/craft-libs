@@ -363,9 +363,9 @@ pub struct DockColumn<'a, P: Value + Hash + 'static> {
     /// The window edge the column's dock sits on; the column's inner edge faces away from it.
     #[prop]
     edge: DockEdge,
-    /// The width of the dock the column sits in, the most its inner edge can give it.
+    /// The rect the dock may grow within, which bounds how wide its inner edge can make the column.
     #[prop]
-    room: f32,
+    within: Rect,
     bar: BarRecord,
     /// The plan `parts` laid out this pass, which update, paint and access read.
     laid: Option<Plan>,
@@ -386,7 +386,7 @@ impl<'a, P: Value + Hash + 'static> DockColumn<'a, P> {
             spec,
             auto_collapse: false,
             edge: DockEdge::Start,
-            room: 0.0,
+            within: Rect::NOTHING,
             bar: BarRecord::default(),
             laid: None,
             resized: Vec::new(),
@@ -425,7 +425,7 @@ impl<'a, P: Value + Hash + 'static> DockColumn<'a, P> {
     /// The divider on the column's inner edge, which moves between the width bounds of its panels.
     fn edge_divider(&self, rect: Rect, sizes: &DockSizes) -> Divider {
         let (least, most) = sizes.width_bounds(self.column, self.spec);
-        Divider::column_edge(rect, self.edge, (least, most.min(self.room.max(rect.width()))), sizes.reach)
+        Divider::column_edge(rect, self.edge, (least, most.min((self.within.width() - sizes.least_pane).max(rect.width()))), sizes.reach)
     }
 
     /// Takes the width the coordinate `coord` of the inner edge asks for, kept within the divider's travel.

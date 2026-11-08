@@ -11,6 +11,8 @@ use std::hash::Hash;
 /// layout (closed panels are not), and its label and icon come from [`DockPanels::spec`]. A pick returns the action
 /// that shows the panel (open a closed one, bring a panel behind another tab to the front) or closes it (a panel
 /// showing); the app applies it through the same path as the actions of a `DockArea`.
+#[derive(crate::contract::Pattern)]
+#[pattern(probe(WindowMenuRows<'static, u32>))]
 pub struct WindowMenuRows<'a, P> {
     layout: &'a Layout<P>,
     panels: &'a dyn DockPanels<P>,

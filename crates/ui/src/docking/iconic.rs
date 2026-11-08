@@ -113,9 +113,9 @@ pub struct IconicColumn<'a, P: Value + Hash + 'static> {
     /// Whether Auto-Collapse Iconic Panels is on.
     #[prop]
     auto_collapse: bool,
-    /// The width of the dock the column sits in, the most its inner edge can give it.
+    /// The rect the dock may grow within, which bounds how wide its inner edge can make the column.
     #[prop]
-    room: f32,
+    within: Rect,
     open: Bind<'a, Option<P>>,
     view: Option<GroupView<'a, P>>,
     bar: Rect,
@@ -153,7 +153,7 @@ impl<'a, P: Value + Hash + 'static> IconicColumn<'a, P> {
             spec,
             edge: DockEdge::Start,
             auto_collapse: false,
-            room: 0.0,
+            within: Rect::NOTHING,
             open,
             view: None,
             bar: Rect::NOTHING,
@@ -177,7 +177,7 @@ impl<'a, P: Value + Hash + 'static> IconicColumn<'a, P> {
     /// The divider on the column's inner edge: the width runs from the rail to the width the column expands to.
     fn edge_divider(&self, rect: Rect, sizes: &DockSizes) -> Divider {
         let least = sizes.iconic_least;
-        let most = sizes.expanded_width(self.column, self.spec).max(least).min(self.room.max(rect.width()));
+        let most = sizes.expanded_width(self.column, self.spec).max(least).min((self.within.width() - sizes.least_pane).max(rect.width()));
         Divider::column_edge(rect, self.edge, (least, most), sizes.reach)
     }
 
