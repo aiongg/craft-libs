@@ -107,12 +107,12 @@ fn picker_frame(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     ColorPicker::new("Foreground color", Bind::bound(color)).show(ui).into()
 }
 
-#[story(ScreenPickButton, covers = [], drive = Drive::Never)]
+#[story(ScreenPickButton, covers = [Default], drive = Drive::Never)]
 fn screen_pick_button(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     ScreenPickButton::new().label("Sample color from the screen").show(ui).into()
 }
 
-#[story(TrackRamp, covers = [], drive = Drive::Never)]
+#[story(TrackRamp, covers = [Default], drive = Drive::Never)]
 fn track_ramp(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     TrackRamp::new(vec![Srgba::rgb(0.0, 0.0, 0.0), Srgba::rgb(1.0, 1.0, 1.0)], false).show(ui).into()
 }
