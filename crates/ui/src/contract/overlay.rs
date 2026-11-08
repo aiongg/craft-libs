@@ -1067,7 +1067,7 @@ impl<'a> OverlayUi<'a> {
             return None;
         }
         let anchor = resolve_anchor(&ctx, &overlay, self.anchor, self.to_screen);
-        let layer = Layer { id: popup.id, owner, overlay: &overlay, anchor, env: &self.env, exiting: !open, fade: presence.t };
+        let layer = Layer { id: popup.id, owner, overlay: &overlay, anchor, env: &self.env, exiting: !open, fade: presence.t, size: None };
         let resolved = self.resolved;
         let mut result = None;
         let mut requested = false;
@@ -1111,6 +1111,9 @@ pub(crate) struct Layer<'a> {
     pub exiting: bool,
     /// The opacity the open and close motion gives.
     pub fade: f32,
+    /// The size the layer's content takes in this pass, when its container measured it before the layer shows; else
+    /// the layer is placed by the size it took last pass.
+    pub size: Option<egui::Vec2>,
 }
 
 /// What the host reports.
@@ -1269,8 +1272,9 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
     let mut memory = recall(layer, ctx);
     let anchor = anchor_rect(ctx, layer, bounds, &mut memory);
     let area = area_id(layer.id);
-    // A container's layer is placed by the size it took last pass. The layout memory entry under `size_id` marks that
-    // read, so a change of the size asks for the discard pass that places the layer by its real size, under the rule
+    // A container's layer is placed by the size its container measured for this pass (`Layer::size`), so a body that
+    // changed size is placed by it in the same pass. The layout memory entry under `size_id` marks that read, so a
+    // size the layer took other than that asks for the discard pass that places the layer by its real size, under the rule
     // every measured size follows: no ask when the size also changed in the previous frame. A popup is placed by its
     // anchor and opens from its opener's queued request, which a discard pass would replay.
     let size_id = sub(layer.id, "layer_size");
@@ -1278,7 +1282,7 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
     if sized {
         let _ = layout_memory::read(ctx, size_id);
     }
-    let size = areas::layer_rect(ctx, area).map_or(egui::Vec2::ZERO, |rect| rect.size());
+    let size = layer.size.or_else(|| areas::layer_rect(ctx, area).map(|rect| rect.size())).unwrap_or(egui::Vec2::ZERO);
     let cap = match overlay.fit {
         OverlayFit::ContentCapped(share) => {
             egui::Vec2::new((bounds.width() * share.x).max(overlay.min_width.points(anchor.width())), bounds.height() * share.y)
