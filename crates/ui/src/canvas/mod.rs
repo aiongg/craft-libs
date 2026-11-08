@@ -294,7 +294,7 @@ impl Canvas {
             None => {}
         }
         let shown = motion.animation.shown(&target, progress);
-        motion.put(&ctx, id);
+        motion.restore(&ctx, id);
         Settled { target, shown }
     }
 

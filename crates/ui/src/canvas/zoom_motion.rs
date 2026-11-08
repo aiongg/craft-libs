@@ -137,7 +137,7 @@ impl ViewMotion {
     }
 
     /// Puts the motion back after the canvas's pass, keeping a steer asked for during it.
-    pub(crate) fn put(self, ctx: &Context, canvas: Id) {
+    pub(crate) fn restore(self, ctx: &Context, canvas: Id) {
         with_session(ctx, Self::id(canvas), |slot: &mut ViewMotion| {
             let steer = slot.steer.take();
             *slot = self;
