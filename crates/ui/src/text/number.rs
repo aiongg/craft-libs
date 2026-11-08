@@ -702,7 +702,8 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         let field = FieldStyle::at(cx);
         NumberStyle {
             surface: field.surface.clone(),
-            // The width comes from the codec's widest value (`measure`), so the field's minimum is only its height.
+            // The width comes from the range's widest value or, with no range, the field's minimum (`measure`); the
+            // style's minimum is only the height.
             metrics: field.metrics.min_size(Vec2::new(0.0, field.metrics.min_size.y)),
             unit: TextLook::new(TypeRole::Body, Stateful::new(cx.ink(Ink::OnPanel))),
             field,
@@ -726,7 +727,16 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         let probe = Rect::from_min_size(Pos2::ZERO, cx.style.field.metrics().min_size);
         let placed = Self::laid_out(cx.style, probe, false, &chevrons);
         let adornments = placed.trailing.last().map_or(0.0, |last| last.max.x - placed.text.max.x);
-        Vec2::new(text.x + unit + adornments, text.y.max(self.unit_size.y))
+        let width = text.x + unit + adornments;
+        // A field over no range has no widest value to size from, so it keeps the field's minimum width.
+        let rule = self.rule();
+        let width = if rule.low.is_finite() && rule.high.is_finite() {
+            width
+        } else {
+            let field = cx.style.field.metrics();
+            width.max(field.min_size.x - field.padding.start - field.padding.end)
+        };
+        Vec2::new(width, text.y.max(self.unit_size.y))
     }
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
