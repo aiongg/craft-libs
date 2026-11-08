@@ -48,3 +48,11 @@ fn the_gesture_begins_once() {
     assert!(gesture.has_begun());
     assert!(!gesture.begin());
 }
+
+#[test]
+fn every_marquee_style_survives_a_save_and_load() {
+    for style in [Constraint::Free, Constraint::Ratio(3.0, 2.0), Constraint::Size(64.0, 48.0)] {
+        let saved = serde_json::to_string(&style).unwrap();
+        assert_eq!(serde_json::from_str::<Constraint>(&saved).unwrap(), style, "{saved}");
+    }
+}

@@ -8,7 +8,9 @@
 //! Animated Zoom, publishes the view it shows as a [`CanvasSpace`] to its body, and reports the view the app copies.
 
 mod crop;
+mod frame_step;
 mod guide;
+mod march;
 mod readout;
 mod space;
 #[cfg(feature = "testing")]
@@ -20,7 +22,9 @@ mod tool_groups;
 mod tool_host;
 
 pub use crop::{CropOverlay, CropStyle};
+pub use frame_step::{FRAME_STEP_MAX, frame_step};
 pub use guide::{Guide, GuideDrag, GuideKey, GuideLine};
+pub(crate) use march::{MARCH_SECONDS, MARCH_TICK, march_shift};
 pub use readout::readout;
 pub use space::{CanvasSpace, RulerText, canvas_space};
 pub use words::CanvasWords;

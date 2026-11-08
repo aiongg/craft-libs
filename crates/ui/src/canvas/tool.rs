@@ -4,9 +4,10 @@
 //! canvas's press, hover and keys to the trait's calls; pointer positions are screen points, and the tool maps
 //! them to document units with the canvas's view ([`ToolContext::space`]), so it holds no copy of the view.
 
-use super::{CanvasSpace, ToolPath};
+use super::{CanvasSpace, MARCH_SECONDS, MARCH_TICK, ToolPath, march_shift};
 use crate::primitives::{ContentPainterCx, Draw};
-use crate::runtime::env::Label;
+use crate::runtime::env::{Label, MotionPolicy};
+use crate::runtime::motion::loop_phase;
 use craft_behavior::kurbo::Point;
 use craft_behavior::{CancelReason, CanvasView, Cursor, CursorIcon, PointerButton, PointerSample};
 use craft_keymap::{Chord, Key, Mods};
@@ -135,7 +136,15 @@ pub struct ToolContext<'a> {
     space: Option<CanvasSpace>,
     down: &'a [Key],
     painter: Option<&'a ContentPainterCx<'a>>,
+    march: Option<March>,
     requests: ToolRequests,
+}
+
+/// What a paint call needs to march ants: the motion mode and the ants' dash length.
+#[derive(Clone, Copy)]
+pub(crate) struct March {
+    pub(crate) policy: MotionPolicy,
+    pub(crate) dash: f32,
 }
 
 impl<'a> ToolContext<'a> {
@@ -151,6 +160,7 @@ impl<'a> ToolContext<'a> {
             space,
             down: &[],
             painter: None,
+            march: None,
             requests: ToolRequests::default(),
         }
     }
@@ -192,8 +202,9 @@ impl<'a> ToolContext<'a> {
 
     /// The painter of a paint call; the host sets it.
     #[must_use]
-    pub(crate) fn painter(mut self, painter: &'a ContentPainterCx<'a>) -> Self {
+    pub(crate) fn painter(mut self, painter: &'a ContentPainterCx<'a>, march: March) -> Self {
         self.painter = Some(painter);
+        self.march = Some(march);
         self
     }
 
@@ -231,12 +242,13 @@ impl<'a> ToolContext<'a> {
         self.requests.ease
     }
 
-    /// Paints marching ants along `points` (closed when `closed`), shifted `phase` points, in a paint call; it paints
-    /// nothing in any other.
-    pub fn marching_ants(&self, points: &[Pos2], closed: bool, phase: f32) {
-        if let Some(painter) = self.painter {
-            painter.marching_ants(points, closed, phase);
-        }
+    /// Paints marching ants along `points` (closed when `closed`) in a paint call; it paints nothing in any other.
+    /// The ants march on the runtime's pass clock, step by step, and the pass asks for its next repaint a step ahead
+    /// only while some are painted; where motion is off they stand still.
+    pub fn marching_ants(&self, points: &[Pos2], closed: bool) {
+        let (Some(painter), Some(march)) = (self.painter, self.march) else { return };
+        let turn = loop_phase(painter.painter.ctx(), march.policy, MARCH_SECONDS, Some(MARCH_TICK));
+        painter.marching_ants(points, closed, march_shift(turn, march.dash));
     }
 
     /// Whether `key` is down now, whatever the tool kept: a marquee that sizes from its centre while Space is held

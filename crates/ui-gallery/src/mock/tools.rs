@@ -102,7 +102,7 @@ impl CanvasTool for MarqueeTool<'_> {
         let (Some(space), Some(drag)) = (cx.space(), self.document.dragging) else { return };
         let DocRect { x0, y0, x1, y1 } = drag.rect();
         let corners = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)].map(|(x, y)| space.view.to_screen(Point::new(x, y)));
-        cx.marching_ants(&corners, true, 0.0);
+        cx.marching_ants(&corners, true);
     }
 
     fn cursor(&self, _: &ToolContext<'_>) -> Cursor {

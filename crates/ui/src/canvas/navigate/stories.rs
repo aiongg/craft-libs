@@ -2,8 +2,9 @@
 
 use crate::canvas::rotate::RIM;
 use crate::canvas::{Canvas, RotateView, RotateViewOutput};
-use crate::contract::{Bind, Show as _, ShowContainer as _, Validity};
+use crate::contract::{Bind, Show as _, Validity};
 use crate::runtime::env::Message;
+use crate::testing::canvas_story::on_canvas_with;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::Mixed;
 use egui::{Ui, Vec2};
@@ -15,12 +16,11 @@ const TURNED: f64 = 30.0;
 const MOST: f64 = 90.0;
 
 /// Shows `compass` in the corner of a canvas and returns its output.
-fn on_canvas(ui: &mut Ui, mut compass: impl FnMut(&mut Ui, egui::Rect) -> RotateViewOutput) -> StoryOutput {
-    let shown = Canvas::new("Document").show(ui, |ui, body| {
-        let at = RotateView::compass_rect(ui, body.rect);
+fn in_corner(ui: &mut Ui, compass: impl FnOnce(&mut Ui, egui::Rect) -> RotateViewOutput) -> StoryOutput {
+    on_canvas_with(ui, Canvas::new("Document"), |ui, rect| {
+        let at = RotateView::compass_rect(ui, rect);
         compass(ui, at)
-    });
-    shown.inner.map(StoryOutput::from).unwrap_or_default()
+    })
 }
 
 /// Drags the compass rim to the right by twice the drag threshold. The compass is a member of its canvas's arena, so
@@ -35,19 +35,19 @@ fn drag_rim(fixture: &mut Fixture) {
 #[story(RotateView<'static>, covers = [Default], drive = Drive::Custom(drag_rim))]
 fn compass(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let angle = data.value("angle", TURNED);
-    on_canvas(ui, |ui, at| RotateView::new("Rotation", Bind::bound(&mut *angle), false).show_at(ui, at))
+    in_corner(ui, |ui, at| RotateView::new("Rotation", Bind::bound(&mut *angle), false).show_at(ui, at))
 }
 
 #[story(RotateView<'static>, covers = [Mixed], drive = Drive::Custom(drag_rim))]
 fn views_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let angle = data.value("angle", Mixed::<f64>::Mixed);
-    on_canvas(ui, |ui, at| RotateView::new("Rotation", Bind::bound_mixed(&mut *angle), false).show_at(ui, at))
+    in_corner(ui, |ui, at| RotateView::new("Rotation", Bind::bound_mixed(&mut *angle), false).show_at(ui, at))
 }
 
 #[story(RotateView<'static>, covers = [Invalid], drive = Drive::Custom(drag_rim))]
 fn too_far(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let angle = data.value("angle", MOST + TURNED);
-    on_canvas(ui, |ui, at| {
+    in_corner(ui, |ui, at| {
         let near =
             |angle: &f64| if angle.abs() > MOST { Validity::Refuse(Message::new("The view turns at most a quarter turn")) } else { Validity::Ok };
         RotateView::new("Rotation", Bind::bound(&mut *angle).check(near), false).show_at(ui, at)

@@ -28,7 +28,7 @@ impl MarqueeRect {
 }
 
 /// The options bar's marquee style.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub enum Constraint {
     /// Sized by the drag; ⇧ makes it square.

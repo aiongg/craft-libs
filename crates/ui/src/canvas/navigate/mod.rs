@@ -16,6 +16,7 @@ pub use keys::PageKey;
 pub use options::NavigationOptions;
 pub use wheel::{WheelAction, WheelInput, WheelNavigation};
 
+use super::frame_step;
 use craft_behavior::kurbo::{Rect as DocRect, Size, Vec2 as DocVec};
 use craft_behavior::{CanvasView, Wheel, WheelPhase, WheelUnit};
 use egui::{Pos2, Rect, Vec2};
@@ -53,14 +54,12 @@ impl FlickPan {
     const MIN_SPEED: f32 = 15.0;
     /// Fastest glide; a glitchy delta cannot fling the view away.
     const MAX_SPEED: f32 = 6000.0;
-    /// Longest pass step the glide integrates.
-    const MAX_DT: f32 = 0.1;
 
-    /// Seconds since the previous pass, within `0..=MAX_DT`; records `now`.
+    /// The frame step since the previous pass; records `now`.
     fn tick(&mut self, now: f64) -> f32 {
-        let dt = self.last.map_or(0.0, |last| (now - last) as f32);
+        let dt = self.last.map_or(0.0, |last| frame_step(now - last));
         self.last = Some(now);
-        if dt.is_finite() { dt.clamp(0.0, Self::MAX_DT) } else { 0.0 }
+        dt as f32
     }
 
     /// One pass of a Hand drag at `now`: the pointer moved by `delta` screen points. Stops a glide.
@@ -266,8 +265,6 @@ impl Autoscroll {
     pub const MAX_SPEED: f32 = 2400.0;
     /// Extra speed per point the pointer is past the edge.
     pub const GAIN: f32 = 12.0;
-    /// A long frame scrolls at most this many seconds' worth.
-    pub const MAX_DT: f32 = 0.05;
 
     /// The scroll this pass, in screen points, for a drag with the pointer at `pointer` over a canvas `rect`: zero
     /// inside it, each axis toward the pointer.
@@ -284,7 +281,7 @@ impl Autoscroll {
                 0.0
             }
         };
-        let dt = dt.min(Self::MAX_DT);
+        let dt = frame_step(f64::from(dt)) as f32;
         let axis = |d: f32| if d == 0.0 { 0.0 } else { d.signum() * (Self::MIN_SPEED + Self::GAIN * d.abs()).min(Self::MAX_SPEED) * dt };
         Vec2::new(axis(past(pointer.x, rect.left(), rect.right())), axis(past(pointer.y, rect.top(), rect.bottom())))
     }

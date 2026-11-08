@@ -2,7 +2,7 @@
 
 use super::PixelGrid;
 use crate::canvas::{PixelRect, RasterSource};
-use crate::canvas_controls::marquee::stories::on_canvas;
+use crate::testing::canvas_story::on_canvas;
 use crate::contract::Show as _;
 use crate::primitives::Revision;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
@@ -41,5 +41,5 @@ impl RasterSource for Halves {
 
 #[story(PixelGrid<'static>, covers = [Default], drive = Drive::Never)]
 fn magnified(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    on_canvas(ui, ZOOM, |ui, at| PixelGrid::new("Pixel grid", &Halves).show_at(ui, at))
+    on_canvas(ui, ZOOM, |ui, at, _| PixelGrid::new("Pixel grid", &Halves).show_at(ui, at))
 }

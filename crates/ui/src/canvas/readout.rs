@@ -1,7 +1,7 @@
 //! The readout: values beside the pointer during a canvas gesture ("W 120 px", "Angle 15 deg").
 
 use crate::contract::ghost;
-use crate::primitives::{Draw, DrawEnv, PaintRecord, TextRun};
+use crate::primitives::{Draw, DrawEnv, PaintRecord, Span, TextRun};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::StageAccess;
 use crate::style::{Corners, Ink, SurfaceKind};
@@ -13,7 +13,8 @@ use std::cell::RefCell;
 /// pass only: a gesture calls it each pass it runs. The readout takes no input. It sits toward the lower end side
 /// of the pointer (the lower right, mirrored under right-to-left), flips to the other side where the window has no
 /// room and stays inside the window. Labels start at the reading start and values end at the reading end, the widest
-/// label and the widest value a section gap apart. No rows paint nothing.
+/// label and the widest value a section gap apart. Labels are in the muted ink and values in the normal one. No rows
+/// paint nothing.
 pub fn readout(cx: &impl StageAccess, at: Pos2, rows: &[(Label, String)]) {
     paint_readout(cx.stage().ctx(), at, rows);
 }
@@ -31,7 +32,9 @@ pub(super) fn paint_readout(ctx: &Context, at: Pos2, rows: &[(Label, String)]) {
     let runs: Vec<(String, String)> = rows.iter().map(|(label, value)| (view.resolve(label).as_str().to_owned(), value.clone())).collect();
     let layouts: Vec<_> = runs
         .iter()
-        .map(|(label, value)| (draw.layout(&TextRun::new(label), f32::INFINITY), draw.layout(&TextRun::new(value), f32::INFINITY)))
+        .map(|(label, value)| {
+            (draw.layout(&TextRun::spans(vec![Span::new(label.as_str()).muted()]), f32::INFINITY), draw.layout(&TextRun::new(value), f32::INFINITY))
+        })
         .collect();
     let space = &env.tokens.space;
     let pad = vec2(space.gap.stack, space.gap.row);

@@ -1,12 +1,11 @@
 //! Stories of the pasteboard.
 
 use super::{NAME, PageBorder, PageFrame, Pasteboard, PasteboardColor};
-use crate::canvas::Canvas;
-use crate::contract::{Show as _, ShowContainer as _};
+use crate::contract::Show as _;
 use crate::style::DataColor;
+use crate::testing::canvas_story::{on_canvas, on_canvas_view, origin_view};
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
-use craft_behavior::CanvasView;
-use craft_behavior::kurbo::{Point, Rect as DocRect};
+use craft_behavior::kurbo::Rect as DocRect;
 use egui::{Color32, Ui};
 
 /// Degrees the turned story rotates the view by.
@@ -19,18 +18,6 @@ fn boards() -> Vec<PageFrame> {
     ]
 }
 
-/// The view of the canvas the story shows, with the document origin at the top left.
-fn view(ui: &Ui) -> CanvasView {
-    let rect = ui.available_rect_before_wrap();
-    CanvasView::new(rect, Point::new(f64::from(rect.width()) / 2.0, f64::from(rect.height()) / 2.0), 1.0)
-}
-
-/// Shows `pasteboard` as the only canvas control of a canvas with `view`.
-fn on_canvas<'p>(ui: &mut Ui, view: CanvasView, pasteboard: impl Fn() -> Pasteboard<'p>) -> StoryOutput {
-    let shown = Canvas::new("Document").view(view).show(ui, |ui, body| pasteboard().show_at(ui, body.rect));
-    shown.inner.map(StoryOutput::from).unwrap_or_default()
-}
-
 /// Clicks the name of the first page.
 fn click_first_name(fixture: &mut Fixture) {
     let Some(id) = fixture.root_id() else { return };
@@ -41,20 +28,17 @@ fn click_first_name(fixture: &mut Fixture) {
 #[story(Pasteboard<'static>, covers = [Default], drive = Drive::Custom(click_first_name))]
 fn artboards(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let pages: &[PageFrame] = data.value("pages", boards());
-    let view = view(ui);
-    on_canvas(ui, view, || Pasteboard::new("Pasteboard", pages))
+    on_canvas(ui, 1.0, |ui, at, _| Pasteboard::new("Pasteboard", pages).show_at(ui, at))
 }
 
 #[story(Pasteboard<'static>, covers = [Default], drive = Drive::Never)]
 fn page_with_a_line(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let pages: &[PageFrame] = data.value("pages", vec![PageFrame::new(DocRect::new(60.0, 40.0, 300.0, 220.0))]);
-    let view = view(ui);
-    on_canvas(ui, view, || Pasteboard::new("Pasteboard", pages).color(PasteboardColor::DarkGray).border(PageBorder::Line))
+    on_canvas(ui, 1.0, |ui, at, _| Pasteboard::new("Pasteboard", pages).color(PasteboardColor::DarkGray).border(PageBorder::Line).show_at(ui, at))
 }
 
 #[story(Pasteboard<'static>, covers = [Default], drive = Drive::Never)]
 fn turned_view(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let pages: &[PageFrame] = data.value("pages", boards());
-    let view = view(ui).rotation(TURN);
-    on_canvas(ui, view, || Pasteboard::new("Pasteboard", pages))
+    on_canvas_view(ui, |room| origin_view(room, 1.0).rotation(TURN), |ui, at, _| Pasteboard::new("Pasteboard", pages).show_at(ui, at))
 }

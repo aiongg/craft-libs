@@ -345,7 +345,7 @@ impl CanvasTool for ZoomTool {
     fn paint(&self, _draw: &Draw<'_>, cx: &ToolContext<'_>) {
         let Some(rect) = self.drag.as_ref().and_then(ZoomDrag::rect) else { return };
         let corners = [rect.left_top(), rect.right_top(), rect.right_bottom(), rect.left_bottom()];
-        cx.marching_ants(&corners, true, 0.0);
+        cx.marching_ants(&corners, true);
     }
 
     fn cursor(&self, cx: &ToolContext<'_>) -> Cursor {
