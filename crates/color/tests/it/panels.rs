@@ -219,15 +219,9 @@ fn dragging_to_the_bottom_right_keeps_the_knob_there() {
     assert_eq!(picked.to_rgba(), Srgba::rgb(0.0, 0.0, 0.0).to_rgba(), "the corner is black");
 
     rig.set_colors([picked, BLUE]);
-    assert!(rig.fixture.focused().is_some(), "the dragged area keeps the focus");
-    // The focused node is the area's inner picker, which speaks bare numbers; the area's own node names the components.
-    let tree = rig.fixture.tree();
-    let values: Vec<&str> =
-        tree.keys().into_iter().filter(|key| tree.name_of(*key) == Some("Saturation and brightness")).filter_map(|key| tree.value_of(key)).collect();
-    assert!(
-        values.iter().any(|value| value.contains("Saturation 100") && value.contains("Brightness 0")),
-        "the knob stays at the corner: {values:?}"
-    );
+    let area = rig.fixture.focused().expect("the dragged area keeps the focus");
+    let value = rig.fixture.tree().value(area).expect("the area reports its value");
+    assert!(value.contains("Saturation 100") && value.contains("Brightness 0"), "the knob stays at the corner: {value}");
 }
 
 /// Every model the panel offers returns its colours: whole-number fields within a step, and a colour CMYK can print comes
