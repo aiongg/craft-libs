@@ -28,6 +28,9 @@
         "sm": 24.0
       },
       "dial": 52.0,
+      "dock": {
+        "column": 240.0
+      },
       "float": {
         "height": 300.0,
         "width": 240.0

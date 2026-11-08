@@ -29,7 +29,10 @@ fn tabs(panels: &[u32], active: usize) -> Node<u32> {
 /// window with groups [6, 7] and [8].
 fn docked() -> Layout<u32> {
     let middle = Node::split(Axis::Y, SplitSize::Ratio(0.7), tabs(&[1], 0), tabs(&[11, 12], 1));
-    let dock = Node::dock(DockEdge::End, vec![Column::new(vec![g(&[2, 3], 1), g(&[4], 0)], 180.0), Column::new(vec![g(&[5], 0)], 120.0)]);
+    let dock = Node::dock(
+        DockEdge::End,
+        vec![Column::new(vec![g(&[2, 3], 1), g(&[4], 0)]).with_width(180.0), Column::new(vec![g(&[5], 0)]).with_width(120.0)],
+    );
     let root = Node::split(Axis::X, SplitSize::FixedSecond(300.0), middle, dock);
     Layout::new(Some(root), vec![Floating::stack(vec![g(&[6, 7], 1), g(&[8], 0)], window()).unwrap()])
 }

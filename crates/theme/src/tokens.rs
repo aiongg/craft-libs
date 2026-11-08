@@ -822,6 +822,8 @@ pub struct SizeTokens {
     pub window: WindowSizes,
     /// The panes a dock splits its area into.
     pub pane: PaneSizes,
+    /// The docks' columns.
+    pub dock: DockColumnSizes,
     /// The rulers of a canvas.
     pub ruler: RulerSizes,
 }
@@ -846,6 +848,13 @@ pub struct RulerTickSizes {
 pub struct PaneSizes {
     /// The least extent of a pane along a split, and of a dock, before its panels' own limits.
     pub least: f32,
+}
+
+/// The sizes of a dock's columns, in logical pixels.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct DockColumnSizes {
+    /// The width an expanded column has until the user resizes it.
+    pub column: f32,
 }
 
 /// The sizes of a floating dock window, in logical pixels.

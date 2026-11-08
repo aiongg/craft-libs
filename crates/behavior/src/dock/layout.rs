@@ -282,7 +282,8 @@ impl<P: Clone + Eq + Hash> Layout<P> {
         }
         let state = location.group.as_ref();
         if state.is_some_and(|s| {
-            !valid_height(s.height) || s.column.is_some_and(|c| !valid_width(c.width) || c.iconic_width.is_some_and(|w| !valid_width(w)))
+            !valid_height(s.height)
+                || s.column.is_some_and(|c| c.width.is_some_and(|w| !valid_width(w)) || c.iconic_width.is_some_and(|w| !valid_width(w)))
         }) {
             return Err(DockError::InvalidGeometry);
         }
@@ -292,7 +293,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
                 Group { panels: vec![panel.clone()], active: 0, minimized: state.is_some_and(|s| s.minimized), height: state.and_then(|s| s.height) };
             let column = state.and_then(|s| s.column);
             Moving {
-                width: column.map(|c| c.width),
+                width: column.and_then(|c| c.width),
                 iconic: column.is_some_and(|c| c.iconic),
                 iconic_width: column.and_then(|c| c.iconic_width),
                 ..Moving::group(group)

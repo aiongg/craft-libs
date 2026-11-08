@@ -29,7 +29,10 @@ fn hsplit(size: SplitSize, first: Node<u32>, second: Node<u32>) -> Node<u32> {
 /// ([5]); a floating window with groups [6, 7] and [8].
 fn docked() -> Layout<u32> {
     let middle = Node::split(Axis::Y, SplitSize::Ratio(0.7), tabs(&[1], 0), tabs(&[11, 12], 1));
-    let dock = Node::dock(DockEdge::End, vec![Column::new(vec![g(&[2, 3], 1), g(&[4], 0)], 180.0), Column::new(vec![g(&[5], 0)], 120.0)]);
+    let dock = Node::dock(
+        DockEdge::End,
+        vec![Column::new(vec![g(&[2, 3], 1), g(&[4], 0)]).with_width(180.0), Column::new(vec![g(&[5], 0)]).with_width(120.0)],
+    );
     Layout::new(Some(hsplit(SplitSize::FixedSecond(300.0), middle, dock)), vec![Floating::stack(vec![g(&[6, 7], 1), g(&[8], 0)], WINDOW).unwrap()])
 }
 
@@ -52,17 +55,17 @@ fn validation_rejects_two_docks_per_side_nested_docks_empty_columns_and_bad_widt
 
     let mut nan_height = g(&[2], 0);
     nan_height.height = Some(f32::NAN);
-    let mut nan_iconic = Column::new(vec![g(&[2], 0)], 100.0);
+    let mut nan_iconic = Column::new(vec![g(&[2], 0)]).with_width(100.0);
     nan_iconic.iconic_width = Some(f32::NAN);
     let bad = [
-        Column::new(Vec::new(), 100.0),
-        Column::new(vec![g(&[], 0)], 100.0),
-        Column::new(vec![g(&[2], 1)], 100.0),
-        Column::new(vec![nan_height], 100.0),
-        Column::new(vec![g(&[2], 0)], 0.0),
-        Column::new(vec![g(&[2], 0)], -5.0),
-        Column::new(vec![g(&[2], 0)], f32::INFINITY),
-        Column::new(vec![g(&[2], 0)], 2.0e6),
+        Column::new(Vec::new()).with_width(100.0),
+        Column::new(vec![g(&[], 0)]).with_width(100.0),
+        Column::new(vec![g(&[2], 1)]).with_width(100.0),
+        Column::new(vec![nan_height]).with_width(100.0),
+        Column::new(vec![g(&[2], 0)]).with_width(0.0),
+        Column::new(vec![g(&[2], 0)]).with_width(-5.0),
+        Column::new(vec![g(&[2], 0)]).with_width(f32::INFINITY),
+        Column::new(vec![g(&[2], 0)]).with_width(2.0e6),
         nan_iconic,
     ];
     for column in bad {
@@ -79,7 +82,7 @@ fn validation_rejects_bad_floating_windows_and_duplicate_panels() {
     empty_window.floating[0].root = tabs(&[], 0);
     assert_eq!(empty_window.validate(), Err(DockError::InvalidGeometry));
     let mut docked_window = docked();
-    docked_window.floating[0].root = Node::dock(DockEdge::End, vec![Column::new(vec![g(&[6, 7], 0)], 100.0)]);
+    docked_window.floating[0].root = Node::dock(DockEdge::End, vec![Column::new(vec![g(&[6, 7], 0)]).with_width(100.0)]);
     assert_eq!(docked_window.validate(), Err(DockError::InvalidPlacement));
     let mut native = docked();
     native.floating[0].native = Some(area(0.0, 0.0, -1.0, 10.0));
@@ -111,10 +114,10 @@ fn without(skip: Option<u32>) -> Layout<u32> {
         group.height = Some(90.0);
     }
     let a: Vec<Group<u32>> = [group(&[2, 3], 1), minimized, group(&[9], 0)].into_iter().flatten().collect();
-    let mut b = Column::new(group(&[5], 0).into_iter().collect(), 120.0);
+    let mut b = Column::new(group(&[5], 0).into_iter().collect()).with_width(120.0);
     b.iconic = true;
     b.iconic_width = Some(48.0);
-    let columns: Vec<Column<u32>> = [Column::new(a, 180.0), b].into_iter().filter(|c| !c.groups.is_empty()).collect();
+    let columns: Vec<Column<u32>> = [Column::new(a).with_width(180.0), b].into_iter().filter(|c| !c.groups.is_empty()).collect();
     let end = Node::dock(DockEdge::End, columns);
     let windows: Vec<Group<u32>> = [group(&[6], 0), tall].into_iter().flatten().collect();
     Layout::new(
@@ -176,7 +179,7 @@ fn move_targets_offer_other_groups_that_accept_tabs() {
 
 #[test]
 fn step_group_never_passes_a_protected_group() {
-    let column = Column::new(vec![g(&[2], 0), g(&[9], 0), g(&[4], 0)], 180.0);
+    let column = Column::new(vec![g(&[2], 0), g(&[9], 0), g(&[4], 0)]).with_width(180.0);
     let layout = with_column(column);
     let all = |_: &u32| Permissions::default();
     assert!(layout.can_step_group(&2, false, all));
@@ -250,7 +253,11 @@ fn a_layout_saved_with_the_physical_names_loads_and_writes_back_in_reading_order
     let layout: Layout<u32> = serde_json::from_str(saved).unwrap();
     layout.validate().unwrap();
     let expected = Layout::new(
-        Some(hsplit(SplitSize::FixedSecond(300.0), tabs(&[1, 2], 1), Node::dock(DockEdge::End, vec![Column::new(vec![g(&[3], 0)], 180.0)]))),
+        Some(hsplit(
+            SplitSize::FixedSecond(300.0),
+            tabs(&[1, 2], 1),
+            Node::dock(DockEdge::End, vec![Column::new(vec![g(&[3], 0)]).with_width(180.0)]),
+        )),
         vec![Floating::single(vec![4], 0, area(1.0, 2.0, 300.0, 200.0)).with_id(5)],
     );
     assert_eq!(layout, expected);
@@ -259,6 +266,17 @@ fn a_layout_saved_with_the_physical_names_loads_and_writes_back_in_reading_order
     let mut renamed: serde_json::Value = serde_json::from_str(saved).unwrap();
     renamed["root"]["Split"]["axis"] = json!("X");
     assert_eq!(written, renamed);
+}
+
+#[test]
+fn a_column_keeps_no_width_until_resized_and_a_resized_width_survives_a_save() {
+    let mut layout =
+        Layout::new(Some(hsplit(SplitSize::Ratio(0.5), tabs(&[1], 0), Node::dock(DockEdge::End, vec![Column::new(vec![g(&[3], 0)])]))), Vec::new());
+    let reload = |layout: &Layout<u32>| serde_json::from_str::<Layout<u32>>(&serde_json::to_string(layout).unwrap()).unwrap();
+    let widths = |layout: &Layout<u32>| layout.column(&layout.place(&3).unwrap()).map(|column| column.width);
+    assert_eq!(widths(&reload(&layout)), Some(None), "a column nobody resized has no stored width");
+    layout.apply(Action::resize_column(3, 222.0)).unwrap();
+    assert_eq!(widths(&reload(&layout)), Some(Some(222.0)));
 }
 
 #[test]

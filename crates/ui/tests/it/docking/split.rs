@@ -26,7 +26,7 @@ type Rects = Rc<RefCell<Vec<Rect>>>;
 
 /// A column of two open groups whose resizes the host applies each pass, and the groups' rects of the last pass.
 fn column() -> (Fixture, Rects) {
-    let column = Rc::new(RefCell::new(Column::new(vec![Group::new(vec![1], 0), Group::new(vec![2], 0)], 240.0)));
+    let column = Rc::new(RefCell::new(Column::new(vec![Group::new(vec![1], 0), Group::new(vec![2], 0)]).with_width(240.0)));
     let rects: Rects = Rc::default();
     let seen = Rc::clone(&rects);
     let fixture = Fixture::new(move |ui| {

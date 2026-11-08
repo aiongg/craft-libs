@@ -37,8 +37,8 @@ impl<P> Clone for FrameRules<'_, P> {
 impl<P> Copy for FrameRules<'_, P> {}
 
 impl<'a, P> FrameRules<'a, P> {
-    /// Rules with the panels' `limits`. A dock is as wide as its columns' stored widths until a `dock_width` says
-    /// otherwise, and every panel has a strip.
+    /// Rules with the panels' `limits`. A dock is as wide as its columns' stored widths (the dock column width for
+    /// a column without one) until a `dock_width` says otherwise, and every panel has a strip.
     pub fn new(limits: &'a dyn Fn(&P) -> SizeLimits) -> Self {
         FrameRules { limits, dock_width: None, stripless: None }
     }
@@ -57,8 +57,8 @@ impl<'a, P> FrameRules<'a, P> {
         self
     }
 
-    fn dock_width_of(&self, columns: &[Column<P>]) -> f32 {
-        self.dock_width.map_or_else(|| columns.iter().map(|column| column.width).sum(), |width| width(columns))
+    fn dock_width_of(&self, columns: &[Column<P>], default: f32) -> f32 {
+        self.dock_width.map_or_else(|| columns.iter().map(|column| column.width.unwrap_or(default)).sum(), |width| width(columns))
     }
 }
 
@@ -297,7 +297,7 @@ impl<P> Sizer<'_, '_, P> {
         let bound = SizeLimits::BOUND;
         match node {
             Node::Dock { columns, .. } => {
-                let width = self.rules.dock_width_of(columns);
+                let width = self.rules.dock_width_of(columns, sizes.column);
                 Bounds { min: vec2(width.clamp(sizes.least_pane, bound), sizes.least_pane), max: OPEN_MAX }
             }
             // A group is as large as its largest panel allows: a panel without a maximum lifts the maximum of
@@ -357,7 +357,7 @@ impl<P> Sizer<'_, '_, P> {
     fn dock_cells(&self, edge: DockEdge, columns: &[Column<P>], other: &Node<P>, rect: Rect) -> (Rect, Rect) {
         let gap = self.sizes.gap;
         let room = (rect.width() - gap - self.bounds(other).min.x).clamp(0.0, rect.width());
-        let width = self.rules.dock_width_of(columns).clamp(0.0, room);
+        let width = self.rules.dock_width_of(columns, self.sizes.column).clamp(0.0, room);
         match edge {
             DockEdge::End => (
                 Rect::from_min_max(pos2(rect.right() - width, rect.top()), rect.max),

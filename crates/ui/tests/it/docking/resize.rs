@@ -84,7 +84,7 @@ fn sizes() -> DockSizes {
 
 #[trial]
 fn dragging_a_columns_inner_edge_reports_its_width_and_the_dock_follows() {
-    let (mut fixture, actions) = bed(docked(Column::new(vec![Group::new(vec![FIRST], 0)], COLUMN_WIDTH)));
+    let (mut fixture, actions) = bed(docked(Column::new(vec![Group::new(vec![FIRST], 0)]).with_width(COLUMN_WIDTH)));
     let grip = splitters(&fixture, true).into_iter().find(|bar| bar.rect.center().x <= COLUMN_WIDTH).expect("the column shows its inner edge grip");
     let from = grip.rect.center();
     drag(&mut fixture, from, from + Vec2::new(40.0, 0.0));
@@ -100,7 +100,7 @@ fn dragging_a_columns_inner_edge_reports_its_width_and_the_dock_follows() {
 
 #[trial]
 fn dragging_an_iconic_columns_edge_reports_its_width() {
-    let mut column = Column::new(vec![Group::new(vec![FIRST], 0)], COLUMN_WIDTH);
+    let mut column = Column::new(vec![Group::new(vec![FIRST], 0)]).with_width(COLUMN_WIDTH);
     column.iconic = true;
     let (mut fixture, actions) = bed(docked(column));
     let rail = sizes().iconic_least;
@@ -131,7 +131,7 @@ fn dragging_the_divider_between_accordion_sections_reports_the_section_height() 
 
 #[trial]
 fn dragging_the_lower_half_of_a_columns_group_divider_reports_the_group_height() {
-    let column = Column::new(vec![Group::new(vec![FIRST], 0), Group::new(vec![SECOND], 0)], COLUMN_WIDTH);
+    let column = Column::new(vec![Group::new(vec![FIRST], 0), Group::new(vec![SECOND], 0)]).with_width(COLUMN_WIDTH);
     let (mut fixture, actions) = bed(docked(column));
     let divider = splitters(&fixture, false).into_iter().find(|bar| bar.rect.center().x < COLUMN_WIDTH).expect("the stacked groups show a divider");
     // The lower half of the band lies on the lower group's tab row, a root of its own; the divider stacks above it.
@@ -161,7 +161,7 @@ fn dragging_a_divider_inside_a_floating_window_reports_the_window_split() {
 
 #[trial]
 fn groups_stacked_in_a_column_stay_inside_it_and_apart() {
-    let column = Column::new(vec![Group::new(vec![FIRST], 0), Group::new(vec![SECOND], 0)], COLUMN_WIDTH);
+    let column = Column::new(vec![Group::new(vec![FIRST], 0), Group::new(vec![SECOND], 0)]).with_width(COLUMN_WIDTH);
     let (fixture, _) = bed(docked(column));
     let mut tabs: Vec<Target> = fixture.by_role(Role::TAB).into_iter().filter(|tab| tab.rect.center().x < COLUMN_WIDTH).collect();
     tabs.sort_by(|a, b| a.rect.min.y.total_cmp(&b.rect.min.y));

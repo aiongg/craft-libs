@@ -6,9 +6,10 @@
 use std::fmt::Write as _;
 
 use crate::{
-    BarSizes, BySize, ColorToken, ComponentTokens, ControlSizes, Easing, Edge, Elevation, ElevationTokens, FloatSizes, FontSlot, Gaps, HandleSizes,
-    HitSizes, IconSizes, LengthSizes, Motion, MotionTokens, Pads, PaneSizes, PlotSizes, RadiusSet, RailSizes, Rgba, RowStyle, RulerSizes,
-    RulerTickSizes, ShapeTokens, SizeTokens, SliderTokens, SpaceTokens, StrokeTokens, ThumbSizes, Tokens, TypeStyle, TypeTokens, WindowSizes,
+    BarSizes, BySize, ColorToken, ComponentTokens, ControlSizes, DockColumnSizes, Easing, Edge, Elevation, ElevationTokens, FloatSizes, FontSlot,
+    Gaps, HandleSizes, HitSizes, IconSizes, LengthSizes, Motion, MotionTokens, Pads, PaneSizes, PlotSizes, RadiusSet, RailSizes, Rgba, RowStyle,
+    RulerSizes, RulerTickSizes, ShapeTokens, SizeTokens, SliderTokens, SpaceTokens, StrokeTokens, ThumbSizes, Tokens, TypeStyle, TypeTokens,
+    WindowSizes,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -115,6 +116,7 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
         window,
         pane,
         ruler,
+        dock,
     } = size;
     let ControlSizes { sm, md } = control;
     out.line("size.control.sm", len(*sm));
@@ -165,6 +167,8 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
     let RulerSizes { tick } = ruler;
     let RulerTickSizes { mid } = tick;
     out.line("size.ruler.tick.mid", len(*mid));
+    let DockColumnSizes { column } = dock;
+    out.line("size.dock.column", len(*column));
 }
 
 fn slot(s: FontSlot) -> &'static str {
