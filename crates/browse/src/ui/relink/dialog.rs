@@ -881,7 +881,7 @@ impl<K: Clone + PartialEq + Send + Sync + 'static> Model<K> {
                     self.auto_selected = false;
                 }
             }
-            self.preview_box(ui, env, words, selected_path);
+            self.preview_box(ui, env, words, selected_path.clone());
         });
     }
 
