@@ -71,7 +71,7 @@ impl CompareCaption {
         match self.flag {
             Some(TileFlag::Picked) => details.extend([", ", words.picked.as_str()]),
             Some(TileFlag::Rejected) => details.extend([", ", words.rejected.as_str()]),
-            None => {}
+            Some(_) | None => {}
         }
         words.tile_name.fill(&[("label", &self.label), ("name", &self.name), ("details", &details)])
     }
@@ -86,9 +86,10 @@ impl CompareCaption {
         if let Some(n) = stars {
             marks += Rating::new(Bind::given(n), STARS).enabled(false).measure_in(ui, Proposal::Ideal).x;
         }
-        let flag = self.flag.map(|flag| match flag {
-            TileFlag::Picked => IconSpec::svg(IconId::new("flag")),
-            TileFlag::Rejected => IconSpec::svg(IconId::new("ban")),
+        let flag = self.flag.and_then(|flag| match flag {
+            TileFlag::Picked => Some(IconSpec::svg(IconId::new("flag"))),
+            TileFlag::Rejected => Some(IconSpec::svg(IconId::new("ban"))),
+            _ => None,
         });
         if let Some(flag) = &flag {
             marks += Icon::new(flag.clone()).measure_in(ui, Proposal::Ideal).x;

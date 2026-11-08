@@ -37,23 +37,24 @@ fn caption(label: &str, name: &str) -> CompareCaption {
 
 #[story(CompareTile<'static>, covers = [Default], drive = Drive::Never)]
 fn compare_pair(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let mut active = *data.value("active", 0usize);
     let view = data.value("view", PreviewView::fitting());
-    let active = data.value("active", 0usize);
     let area = ui.max_rect();
     let [left, right] = ComparePair::new(ArrangeSpace::new(18.0, 16.0)).rects(area);
     let select =
-        CompareTile::new("Select", Bind::bound(view), image(1, 0.58)).caption(caption("Select", "IMG_0001.jpg")).active(*active == 0).place(ui, left);
+        CompareTile::new("Select", Bind::bound(view), image(1, 0.58)).caption(caption("Select", "IMG_0001.jpg")).active(active == 0).place(ui, left);
     if select.clicked {
-        *active = 0;
+        active = 0;
     }
     let candidate = CompareTile::new("Candidate", Bind::bound(view), image(2, 0.08))
         .caption(caption("Candidate", "IMG_0002.jpg"))
-        .active(*active == 1)
+        .active(active == 1)
         .rejected(true)
         .place(ui, right);
     if candidate.clicked {
-        *active = 1;
+        active = 1;
     }
+    *data.value("active", 0usize) = active;
     select.into()
 }
 

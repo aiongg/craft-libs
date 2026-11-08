@@ -442,7 +442,7 @@ fn visible_links<'a, K: TextureKey>(
 }
 
 /// One pass's inputs shared by every row.
-struct RowInputs<'p, 'a, K> {
+struct RowInputs<'p, 'a, K: TextureKey> {
     ctx: &'p egui::Context,
     words: &'p LinkListWords,
     page_number: &'p dyn Fn(u32) -> String,

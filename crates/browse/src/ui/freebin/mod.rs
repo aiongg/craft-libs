@@ -14,9 +14,8 @@ use std::collections::HashMap;
 use craft_behavior::{GesturePhase, ItemSource, Metrics, Selection};
 use craft_ui::contract::{
     Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, DropMark, DropTarget,
-    EditResponse, ListDrag, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, RowState, SelectMode, Sizing,
+    EditResponse, ListDrag, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, RowState, SelectMode, Show as _, Sizing,
 };
-use craft_ui::list::RowTest;
 use craft_ui::primitives::textures::TextureKey;
 use craft_ui::runtime::env::Label;
 use craft_ui::style::{ComponentStyle, StyleCx};
@@ -46,6 +45,20 @@ impl<K> FreeformCard<K> {
     pub fn in_stack(mut self, stack: u32) -> Self {
         self.stack = Some(stack);
         self
+    }
+}
+
+/// Which cards take a drop of a foreign drag: the test `FreeBin::drop_into` is given.
+pub struct TakesDrop<'a, K>(Box<dyn Fn(&K) -> bool + 'a>);
+
+impl<'a, K> TakesDrop<'a, K> {
+    /// The test that runs `test`.
+    pub fn new(test: impl Fn(&K) -> bool + 'a) -> Self {
+        TakesDrop(Box::new(test))
+    }
+
+    fn passes(&self, key: &K) -> bool {
+        (self.0)(key)
     }
 }
 
@@ -137,7 +150,7 @@ pub struct FreeBin<'a, K: TextureKey + 'static> {
     moving: Option<FreeBinMove<K>>,
     /// Which cards take a drop of a foreign drag.
     #[prop(func = "Fn(&K) -> bool")]
-    drop_into: Option<RowTest<'a, K>>,
+    drop_into: Option<TakesDrop<'a, K>>,
     cards: &'a [FreeformCard<K>],
     /// The cards of this pass in display order with their places before any drag.
     slots: RefCell<Vec<Slot<K>>>,

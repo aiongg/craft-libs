@@ -43,7 +43,7 @@ where
         .id(id)
         .select(SelectMode::Multi)
         .selection(selection)
-        .zoom(state.settings.zoom)
+        .zoom(state.settings.zoom as f32)
         .aspect(ASPECT)
         .flow_all(searching)
         .drop_into(&drop_into)

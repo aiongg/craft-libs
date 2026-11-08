@@ -316,11 +316,11 @@ struct Memory {
 }
 
 /// What the tree reads from the environment, once per pass.
-struct Surroundings {
+struct Surroundings<'a> {
     window_active: bool,
     desktop: bool,
     mac: bool,
-    format: Format,
+    format: &'a Format,
 }
 
 impl PlacesTree<'_> {
@@ -336,7 +336,7 @@ impl PlacesTree<'_> {
                 window_active: shell.window.active,
                 desktop: shell.runtime == Runtime::Native,
                 mac: shell.os == Os::Mac,
-                format: view.format().clone(),
+                format: view.format(),
             }
         };
         let favorites_group = places.groups.iter().any(|group| group.kind == PlaceGroupKind::Favorites);
@@ -363,7 +363,7 @@ impl PlacesTree<'_> {
                 }
             }
 
-            let rows = rows(places, cache, &memory.open, &words, &around.format);
+            let rows = rows(places, cache, &memory.open, &words, around.format);
             if memory.pending.as_ref().is_some_and(|key| !rows.contains(key)) && !rows.has_loading() {
                 memory.pending = None;
             }
@@ -611,7 +611,7 @@ struct MenuRows<'a> {
     places: &'a Places,
     host: &'a [Entry<String>],
     words: &'a PlacesWords,
-    around: &'a Surroundings,
+    around: &'a Surroundings<'a>,
     favorites_group: bool,
 }
 

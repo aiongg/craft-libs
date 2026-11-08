@@ -5,7 +5,7 @@ use std::cell::RefCell;
 
 use craft_behavior::CanvasTransform;
 use craft_ui::contract::{
-    Bind, Common, Component, Container, ContainerProps, Cx, FooterRegion, NoValue, Outcome, PaintUi, Props, Remember as _, Role, Show as _,
+    Bind, Common, Component, Container, ContainerProps, Cx, FooterRegion, Held, NoValue, Outcome, PaintUi, Props, Remember as _, Role, Show as _,
     ShowContainer as _, Sizing, clicked,
 };
 use craft_ui::patterns::form_dialogs::{PaneOverlay, PreviewPane, PreviewState, PreviewView};
@@ -189,7 +189,8 @@ impl<'a> CompareTile<'a> {
         let salt = self.label.as_str().to_owned();
         let shown = self.label(name).show_at(ui, rect, |ui, cx| {
             let content = content.borrow_mut().take()?;
-            let Content { label, mut view, image, state, survey, overlay } = content;
+            let Content { label, view, image, state, survey, overlay } = content;
+            let mut view = Held::new(view);
             let ppp = ui.pixels_per_point();
             let picture = match image {
                 CompareImage::Texture(texture, size) => Some(SizedTexture::new(texture.id, points(size, ppp))),
@@ -200,7 +201,7 @@ impl<'a> CompareTile<'a> {
                 }
                 CompareImage::None => None,
             };
-            let held = if survey { PreviewView::fitting() } else { view.reborrow().read(cx).unwrap_or_else(PreviewView::fitting) };
+            let held = if survey { PreviewView::fitting() } else { view.read(cx).unwrap_or_else(PreviewView::fitting) };
             let preview = match (&state, picture) {
                 (RenderState::Failed(message), _) => PreviewState::Failed(Label::from(message.clone())),
                 (RenderState::Pending(true), _) | (_, None) => PreviewState::Pending(None),
@@ -223,7 +224,7 @@ impl<'a> CompareTile<'a> {
                 out.view.clone()
             };
             if let Some(next) = &next {
-                view.reborrow().write(cx, &held, next.clone(), "Zoom");
+                view.write(cx, &held, next.clone(), "Zoom");
             }
             Some(Shown { clicked: clicked(&out.response), double_clicked, view: next })
         });

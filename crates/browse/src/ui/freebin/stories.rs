@@ -30,7 +30,7 @@ impl ItemSource<usize> for Cards {}
 fn bin(ui: &mut Ui, bin: FreeBin<'_, usize>, count: usize) -> StoryOutput {
     bin.show_items(ui, &Cards(count), &mut |key, _| {
         let tile = Tile::new(format!("Clip {}", key + 1)).thumb(ThumbAspect::new(1, 1), |_, _| {});
-        if key == 0 { tile.stack(2) } else { tile }
+        if *key == 0 { tile.stack(2) } else { tile }
     })
     .into()
 }

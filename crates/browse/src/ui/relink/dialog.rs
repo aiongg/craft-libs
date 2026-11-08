@@ -15,14 +15,15 @@ use craft_theme::variant::Tone;
 use craft_ui::buttons::Button;
 use craft_ui::choice::Checkbox;
 use craft_ui::contract::{
-    Bind, BodyCx, CollectionEvent, ColumnEvent, ColumnSort, ColumnSpec, Politeness, SelectMode, Show as _, ShowCollection as _, ShowContainer as _,
-    Sizing, announce, clicked,
+    Bind, BodyCx, CollectionEvent, ColumnEvent, ColumnSort, ColumnSpec, Politeness, Props as _, SelectMode, Show as _, ShowCollection as _,
+    ShowContainer as _, Sizing, announce, clicked,
 };
 use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
 use craft_ui::display::{Divider, Shade, Text};
 use craft_ui::layout_components::Row;
 use craft_ui::list::{List, ListRow};
 use craft_ui::patterns::form_dialogs::{PreviewPane, PreviewState, PreviewView};
+use craft_ui::primitives::IconSpec;
 use craft_ui::primitives::textures::{TextureState, TextureWords, ThumbRequest, ThumbnailOptions, Thumbnails};
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::runtime::overlay::CloseReason;
@@ -761,7 +762,7 @@ impl<K: Clone + PartialEq + Send + Sync + 'static> Model<K> {
                     .cell(STATUS, data.status.clone())
             });
         for event in out.events {
-            if let CollectionEvent::Column(ColumnEvent::Sort { key, descending }) = event {
+            if let CollectionEvent::Column(ColumnEvent::Sort { key, descending, .. }) = event {
                 self.sort = Some(ColumnSort::new(key, descending));
             }
         }
@@ -892,10 +893,10 @@ impl<K: Clone + PartialEq + Send + Sync + 'static> Model<K> {
                 let thumbnails = Thumbnails::<FileThumbKey>::in_context(&ctx, (KEY, "preview"), options);
                 let request = ThumbRequest::for_cell(PREVIEW_SIDE, ctx.pixels_per_point());
                 match thumbnails.state(&ctx, source, &FileThumbKey::file(path), &request, Priority::VISIBLE) {
-                    TextureState::Ready(texture) | TextureState::Loading { stand_in: Some(texture) } => {
+                    TextureState::Ready(texture) | TextureState::Loading { stand_in: Some(texture), .. } => {
                         PreviewState::Ready(SizedTexture::new(texture.id, texture.size_vec2()))
                     }
-                    TextureState::Failed { failure } => PreviewState::Failed(Label::from(failure.text(&env.words::<TextureWords>()).to_owned())),
+                    TextureState::Failed { failure, .. } => PreviewState::Failed(Label::from(failure.text(&env.words::<TextureWords>()).to_owned())),
                     TextureState::Empty => PreviewState::Failed(words.no_preview.clone()),
                     _ => PreviewState::Pending(None),
                 }
@@ -951,7 +952,7 @@ fn candidate_row<'r>(words: &RelinkWords, format: &Format, candidate: &Candidate
         Some(mark_words) => format!("{path}, {}", mark_words.as_str()),
         None => path.clone(),
     };
-    let mut row = ListRow::new(path).striped(at % 2 == 1).icon(IconId::new(icon)).tone(tone).accessible_name(name);
+    let mut row = ListRow::new(path).striped(at % 2 == 1).icon(IconSpec::svg(IconId::new(icon))).tone(tone).accessible_name(name);
     if let Some(mark_words) = mark_words {
         row = row.trailing(mark_words.clone());
     }
