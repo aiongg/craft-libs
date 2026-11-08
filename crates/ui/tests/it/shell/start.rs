@@ -85,6 +85,13 @@ fn delete_on_a_recent_file_removes_it_and_leaves_the_edit_command() {
     let _ = take_output(fixture.ctx());
     fixture.key(Key::Delete, Modifiers::NONE);
     fixture.idle(2);
-    assert_eq!(*seen.borrow(), [StartAction::RemoveRecent("/work/first.fig".into())]);
-    assert!(take_output(fixture.ctx()).fired.is_empty(), "the application's Delete command did not fire");
+    let fired = take_output(fixture.ctx()).fired;
+    assert_eq!(
+        *seen.borrow(),
+        [StartAction::RemoveRecent("/work/first.fig".into())],
+        "focus {:?}, app commands fired {}",
+        fixture.focused(),
+        fired.len()
+    );
+    assert!(fired.is_empty(), "the application's Delete command did not fire");
 }
