@@ -101,8 +101,8 @@ impl Outcome for FullWindowCanvasOutput {
 /// - **View.** [`FullWindowView`], bound by the app, fits the image on the first pass and keeps fitting it until the
 ///   user zooms or pans. The canvas settles it on the rect its body fills and writes it back. The inner `Canvas`
 ///   moves the view as every document canvas does: the wheel, pinch and two-finger scroll follow the user's
-///   [`NavigationOptions`], zooming about the pointer; the middle button pans; a tool's eased zoom eases. The image
-///   scrolls past its edges whatever the Overscroll option says: Overscroll is a document window's option. Space-drag and the momentary Zoom run in the tool host when the app gives it its
+///   [`NavigationOptions`], zooming about the pointer; the middle button pans; Overscroll off keeps the image in view;
+///   a tool's eased zoom eases. Space-drag and the momentary Zoom run in the tool host when the app gives it its
 ///   [`Momentary`] set. The zoom commands (`ViewCommand`) reach the view through the dialog's command scope and the
 ///   zoom bar; the canvas is no instance of them, so the chords act on the view while it has the focus.
 /// - **Tool.** One `CanvasTool` in a `ToolHost` on this canvas; presses, drags, keys and the cursor are the host's.
@@ -193,12 +193,10 @@ impl<'a> FullWindowCanvas<'a> {
         // gets: the fit, the drawn image and the hover mapping share it.
         let rect = ui.available_rect_before_wrap();
         let shown = given.settled(rect, size, ppp);
-        let mut scrolls = navigation;
-        scrolls.overscroll = true;
         let canvas = Canvas::new(label.clone(), path)
             .view(shown.view())
             .document(shown.size())
-            .navigation(scrolls)
+            .navigation(navigation)
             .outer_view_commands()
             .show_at_taking_room(ui, rect, |ui, body| {
                 let mut image = RasterDisplay::new(label.clone(), source);
