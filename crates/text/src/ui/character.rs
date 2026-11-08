@@ -63,14 +63,14 @@ craft_ui::words! {
         subscript: "character.subscript" = "Subscript";
         underline: "character.underline" = "Underline";
         strikethrough: "character.strikethrough" = "Strikethrough";
-        standard_ligatures: "type.openType.standardLigatures" = "Standard Ligatures";
-        contextual_alternates: "type.openType.contextualAlternates" = "Contextual Alternates";
-        discretionary_ligatures: "type.openType.discretionaryLigatures" = "Discretionary Ligatures";
-        swash: "type.openType.swash" = "Swash";
-        stylistic_alternates: "type.openType.stylisticAlternates" = "Stylistic Alternates";
-        titling_alternates: "type.openType.titlingAlternates" = "Titling Alternates";
-        ordinals: "type.openType.ordinals" = "Ordinals";
-        fractions: "type.openType.fractions" = "Fractions";
+        standard_ligatures: "character.standardLigatures" = "Standard Ligatures";
+        contextual_alternates: "character.contextualAlternates" = "Contextual Alternates";
+        discretionary_ligatures: "character.discretionaryLigatures" = "Discretionary Ligatures";
+        swash: "character.swash" = "Swash";
+        stylistic_alternates: "character.stylisticAlternates" = "Stylistic Alternates";
+        titling_alternates: "character.titlingAlternates" = "Titling Alternates";
+        ordinals: "character.ordinals" = "Ordinals";
+        fractions: "character.fractions" = "Fractions";
         language: "character.language" = "Language";
     }
 }
