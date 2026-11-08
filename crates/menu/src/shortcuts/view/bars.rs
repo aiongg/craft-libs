@@ -119,7 +119,7 @@ fn info(ui: &mut Ui, env: &mut Env<'_>, state: &mut DialogState) {
         if clashes > 0 {
             let n = clashes as u64;
             let text = words.count_clashes.text(n, &n.to_string());
-            conflicts = clicked(&Link::new(format!("\u{26a0} {text}")).id_salt("clashes").show(ui));
+            conflicts = super::warn_link(ui, text, "clashes", 0);
         }
         if shadows > 0 {
             let n = shadows as u64;

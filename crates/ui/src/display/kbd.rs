@@ -8,7 +8,7 @@ use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleColor, StyleCx, SurfaceKind, SurfaceLook, TextLook, TypeRole};
 use craft_behavior::{Insets, Metrics, Sense};
 use craft_host::target::Os;
-use craft_keymap::{Chord, Layout};
+use craft_keymap::{Chord, Layout, ReturnGlyph, Trigger};
 use craft_theme::Stateful;
 use egui::{Rect, Response, Vec2, pos2};
 
@@ -62,6 +62,23 @@ fn written_keys(text: &str) -> Vec<String> {
     keys
 }
 
+/// How [`Kbd::text`] writes a trigger.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ChordWrite {
+    /// The glyph a Mac shows for Return.
+    pub return_glyph: ReturnGlyph,
+}
+
+impl ChordWrite {
+    /// Return shown as `glyph` on a Mac.
+    #[must_use]
+    pub fn return_glyph(mut self, glyph: ReturnGlyph) -> Self {
+        self.return_glyph = glyph;
+        self
+    }
+}
+
 /// A key chord. It shows the chord of the bound command in the platform's notation (`Ctrl+Shift+S`, `⇧⌘S`); with
 /// no command it shows the text it was given, written by the caller. A chord keeps its left-to-right order under
 /// right-to-left. The keycap form draws each key in its own small raised box. AccessKit reports a label with the
@@ -93,6 +110,33 @@ impl Kbd {
     /// `DisplayWords`; a screen reader hears `Chord::spoken`.
     pub fn chord(chord: Chord) -> Self {
         Kbd { shown: Some(chord), ..Kbd::new(Label::Empty) }
+    }
+
+    /// `trigger` as one text, the way `Kbd` shows a chord: the platform's modifier notation and the key named from
+    /// `words`; a double press is written twice. Menus and dialogs that need the chord as a string build on it.
+    pub fn text(trigger: &Trigger, os: Os, words: &DisplayWords, write: ChordWrite) -> String {
+        let key = trigger.chord.key;
+        let one = trigger.chord.display_with_return(os, write.return_glyph);
+        let one = match words.key_name(key, os) {
+            Some(name) => {
+                let base = Chord::plain(key).display_with_return(os, write.return_glyph);
+                match one.strip_suffix(base.as_str()) {
+                    Some(mods) => format!("{mods}{name}"),
+                    None => one,
+                }
+            }
+            None => one,
+        };
+        if trigger.double { format!("{one} {one}") } else { one }
+    }
+
+    /// The name of `key` alone for `os`, in the language of `words`: its word when it has one, else the key as the
+    /// platform writes it.
+    pub fn key_name(key: craft_keymap::Key, os: Os, words: &DisplayWords) -> String {
+        match words.key_name(key, os) {
+            Some(name) => name.to_owned(),
+            None => Chord::plain(key).display(os),
+        }
     }
 
     /// The chord of `command`, in the platform's notation; a command with no chord shows nothing.

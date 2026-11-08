@@ -99,7 +99,7 @@ pub(crate) struct ConflictBar {
     pub old: Option<Binding>,
     pub binding: Binding,
     pub holders: Vec<Holder>,
-    /// "⚠ {chord} is used by {label}".
+    /// "{chord} is used by {label}".
     pub text: String,
 }
 
@@ -107,7 +107,7 @@ pub(crate) struct ConflictBar {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Message {
     pub text: String,
-    /// Nothing changed: shown with ⚠.
+    /// Nothing changed: shown as a warning.
     pub refused: bool,
     /// Offers Go to Conflict.
     pub goto: Option<CommandRef>,
