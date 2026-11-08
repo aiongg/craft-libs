@@ -8,9 +8,9 @@ mod ticks;
 
 pub use ticks::{INCH_EIGHTHS, INCH_SIXTEENTHS, RulerTick, TickRule};
 
-use self::ticks::LABEL_STEP_MIN;
+pub(crate) use self::ticks::LABEL_STEP_MIN;
 use super::words::CanvasWords;
-use super::{CanvasSpace, GuideDrag, RulerText, canvas_space, readout};
+use super::{CanvasRulers, CanvasSpace, GuideDrag, RulerText, Snap, canvas_space, context_menu, readout};
 use crate::contract::overlay::Anchor;
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Entry, Focus as _, MeasureCx, Name, Outcome, OverlayUi, Overlays as _,
@@ -18,15 +18,14 @@ use crate::contract::{
 };
 use crate::menu::Menu;
 use crate::primitives::{PaintShape, StrokeWidth, TextRun, Tick, TickEdge};
-use crate::runtime::env::{Label, UnitKind};
+use crate::runtime::env::{EnvView, Label, UnitKind};
 use crate::runtime::focus::KeyUse;
 use crate::runtime::memory::Remember as _;
 use crate::style::{ComponentStyle, RuleKind, StyleColor, StyleCx, TextLook, TypeRole, UiTokens};
 use craft_behavior::geometry::{across_axis, coordinate_across, motion_across};
 use craft_behavior::kurbo::Point;
 use craft_behavior::{
-    Axis, CanvasView, CursorIcon, GesturePhase, HitLevel, HitPriority, Intent, Metrics, PartKey, PointerButton, PressPhase, RulerUnits, Sense,
-    resize_cursor,
+    Axis, CanvasView, CursorIcon, GesturePhase, HitLevel, HitPriority, Metrics, PartKey, PointerButton, PressPhase, RulerUnits, Sense, resize_cursor,
 };
 use craft_keymap::Mods;
 use craft_theme::Stateful;
@@ -37,10 +36,10 @@ use std::ops::{Deref, Range};
 const STRIP: PartKey = PartKey::new("strip");
 const CORNER: PartKey = PartKey::new("corner");
 
-/// The distance an arrow key moves the zero point of a focused corner, in document units; Shift moves it by
-/// `NUDGE_FAR`.
-const NUDGE: f64 = 1.0;
-const NUDGE_FAR: f64 = 10.0;
+/// The distance an arrow key moves the zero point of a focused corner or a selected guide, in document units; Shift
+/// moves it by `NUDGE_FAR`.
+pub(crate) const NUDGE: f64 = 1.0;
+pub(crate) const NUDGE_FAR: f64 = 10.0;
 
 /// The zero point is written to this many decimal places' worth of document units.
 const ZERO_ROUND: f64 = 1000.0;
@@ -125,17 +124,6 @@ impl RulerMargins {
     }
 }
 
-/// The app's snapping of the zero point when Shift is not held: the axis a guide at the coordinate would run along (x
-/// is `Axis::Y`) and the document coordinate under the pointer, to the coordinate it lands on.
-pub struct ZeroSnap<'a>(Box<dyn Fn(Axis, f64, Mods) -> f64 + 'a>);
-
-impl<'a> ZeroSnap<'a> {
-    /// The snapping that runs `snap`.
-    pub fn new(snap: impl Fn(Axis, f64, Mods) -> f64 + 'a) -> Self {
-        ZeroSnap(Box::new(snap))
-    }
-}
-
 /// The style of the rulers.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
@@ -188,24 +176,23 @@ enum MenuRow {
 /// marker, the guide drag-out and the zero point's corner.
 ///
 /// - Show it with `show_at` over the canvas's rect inside the `Canvas` body, and lay the view out in
-///   [`Rulers::content_rect`] of that rect.
-/// - A drag on the top ruler reports a horizontal guide in [`RulerOutput::guide`], one on the left ruler a vertical
+///   [`Rulers::content_rect`] of that rect. The units come from the canvas ([`Canvas::rulers`](super::Canvas::rulers));
+///   the rulers hold the zero point's edit.
+/// - A drag on the top ruler reports a horizontal guide in [`RulersOutput::guide`], one on the left ruler a vertical
 ///   guide; Alt turns it, Shift snaps it to the ticks, and a release over a ruler or off the document reports no
 ///   position, which removes the guide.
 /// - A drag out of the corner moves the zero point: cross hairs show where it lands, Shift snaps to the ticks
 ///   (otherwise the app's [`snap`](Rulers::snap)), dropped back on the corner it stays, Esc cancels. A double click
-///   reports [`RulerOutput::reset_zero`]. The arrow keys move the focused corner. [`origin_locked`](Rulers::origin_locked)
+///   reports [`RulersOutput::reset_zero`]. The arrow keys move the focused corner. [`origin_locked`](Rulers::origin_locked)
 ///   turns the drag and the reset off.
-/// - A secondary click on a strip or the corner opens the units menu when [`units`](Rulers::units) lists units, and
-///   reports [`RulerOutput::context`] either way. The menu's rows are also the [`RulerCommands`].
+/// - A secondary click on a strip or the corner, or the Menu key or Shift+F10 on the focused corner, opens the units
+///   menu when [`units`](Rulers::units) lists units, and reports [`RulersOutput::context`] either way. The menu's rows are also the [`RulerCommands`].
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(canvas_control, content_painter, overlay)]
 pub struct Rulers<'a> {
     #[common]
     common: Common,
     zero: Bind<'a, Point>,
-    x: &'a RulerText,
-    y: &'a RulerText,
     /// Whether the zero point is locked: no drag and no reset.
     #[prop]
     origin_locked: bool,
@@ -217,7 +204,7 @@ pub struct Rulers<'a> {
     margins: RulerMargins,
     /// The app's snapping of the zero point when Shift is not held.
     #[prop(func = "Fn(Axis, f64, Mods) -> f64")]
-    snap: Option<ZeroSnap<'a>>,
+    snap: Option<Snap<'a>>,
     /// The units the secondary click's menu offers; the unit of the top ruler is checked. Without it the rulers open
     /// no menu.
     #[prop]
@@ -229,13 +216,12 @@ pub struct Rulers<'a> {
 }
 
 impl<'a> Rulers<'a> {
-    /// Rulers named `label` measuring the x axis in `x` and the y axis in `y`, counted from `zero` (document units).
-    pub fn new(label: impl Into<Label>, x: &'a RulerText, y: &'a RulerText, zero: Bind<'a, Point>) -> Self {
+    /// Rulers named `label` that edit the zero point `zero` (document units). The units and the zero they count from
+    /// are the canvas's ([`Canvas::rulers`](super::Canvas::rulers)); the app passes the same zero to both.
+    pub fn new(label: impl Into<Label>, zero: Bind<'a, Point>) -> Self {
         Rulers {
             common: Common::new(),
             zero,
-            x,
-            y,
             origin_locked: false,
             interactive: true,
             margins: RulerMargins::default(),
@@ -265,21 +251,23 @@ impl<'a> Rulers<'a> {
         value.copied().unwrap_or(Point::ZERO)
     }
 
-    fn text(&self, part: RulerPart) -> &RulerText {
-        if part == RulerPart::Vertical { self.y } else { self.x }
+    /// The units the canvas published, whatever the pass.
+    fn published(env: &EnvView<'_>) -> CanvasRulers {
+        canvas_space(env).map(|space| space.rulers()).unwrap_or_default()
     }
 
     /// Where the zero point lands for the pointer at `pos`: on the nearest tick of the rulers with Shift, else where
     /// the app's snap puts it.
     fn landing(&self, space: &CanvasSpace, pos: Pos2, mods: Mods, zero: Point) -> Point {
         let doc = space.view.to_doc(pos);
+        let rulers = space.rulers();
         let (x, y) = if mods.shift {
             (
-                self.x.units.snap_to_tick(doc.x, zero.x, space.view.zoom_x(), LABEL_STEP_MIN),
-                self.y.units.snap_to_tick(doc.y, zero.y, space.view.zoom, LABEL_STEP_MIN),
+                rulers.x.units.snap_to_tick(doc.x, zero.x, space.view.zoom_x(), LABEL_STEP_MIN),
+                rulers.y.units.snap_to_tick(doc.y, zero.y, space.view.zoom, LABEL_STEP_MIN),
             )
-        } else if let Some(ZeroSnap(snap)) = &self.snap {
-            (snap(Axis::Y, doc.x, mods), snap(Axis::X, doc.y, mods))
+        } else if let Some(snap) = &self.snap {
+            (snap.apply(Axis::Y, doc.x, mods), snap.apply(Axis::X, doc.y, mods))
         } else {
             (doc.x, doc.y)
         };
@@ -301,9 +289,10 @@ impl<'a> Rulers<'a> {
         let at = (phase != GesturePhase::Cancel && content.contains(pos)).then(|| {
             let across = coordinate_across(along, space.view.to_doc(pos));
             if press.mods.shift {
-                let (text, origin, zoom) = match along {
-                    Axis::X => (self.y, zero.y, space.view.zoom),
-                    _ => (self.x, zero.x, space.view.zoom_x()),
+                let (text, _) = space.rulers().across(along);
+                let (origin, zoom) = match along {
+                    Axis::X => (zero.y, space.view.zoom),
+                    _ => (zero.x, space.view.zoom_x()),
                 };
                 text.units.snap_to_tick(across, origin, zoom, LABEL_STEP_MIN)
             } else {
@@ -314,9 +303,9 @@ impl<'a> Rulers<'a> {
     }
 
     /// The ticks of one ruler along `strip`, each with its screen coordinate along the strip.
-    fn axis_ticks(&self, level: &CanvasView, strip: Rect, part: RulerPart, zero: Point) -> Vec<(RulerTick, f32)> {
+    fn axis_ticks(text: &RulerText, level: &CanvasView, strip: Rect, part: RulerPart, zero: Point) -> Vec<(RulerTick, f32)> {
         let vertical = part == RulerPart::Vertical;
-        let units = &self.text(part).units;
+        let units = &text.units;
         if !(units.per_doc.is_finite() && units.per_doc > 0.0) {
             return Vec::new();
         }
@@ -339,7 +328,7 @@ impl Component for Rulers<'_> {
     const ROLE: Role = Role::GROUP;
     const KEYS: KeyUse = KeyUse::CANVAS;
     type Style = RulersStyle;
-    type Output = RulerOutput;
+    type Output = RulersOutput;
 
     fn style(cx: &StyleCx<'_>, _: RulersStyleKey) -> RulersStyle {
         let c = &cx.tokens.color;
@@ -432,16 +421,9 @@ impl Component for Rulers<'_> {
             }
         }
 
-        let pointer = crate::runtime::pointer::frame(&cx.core.ctx);
-        let secondary = (pointer.release == Some(PointerButton::Secondary))
-            .then(|| [RulerPart::Horizontal, RulerPart::Vertical, RulerPart::Corner].into_iter().find(|part| cx.part(part.part()).hovered))
-            .flatten();
-        let key_menu = focused && cx.intents().take(Intent::ContextMenu);
-        let opened = match (secondary, pointer.pos, key_menu) {
-            (Some(part), Some(pos), _) => Some((part, pos)),
-            (None, _, true) => Some((RulerPart::Corner, corner.left_bottom())),
-            _ => None,
-        };
+        let opened = [RulerPart::Horizontal, RulerPart::Vertical, RulerPart::Corner]
+            .into_iter()
+            .find_map(|part| context_menu(cx, part.part()).map(|at| (part, at)));
         if let Some((part, at)) = opened.filter(|_| self.interactive) {
             self.context = Some(part);
             if self.units.is_some() {
@@ -457,8 +439,9 @@ impl Component for Rulers<'_> {
         let popup = cx.popup("menu");
         let numbers = cx.env.units();
         let words = cx.words::<CanvasWords>();
+        let shown = Self::published(&cx.env).x.kind;
         let mut entries: Vec<Entry<MenuRow>> =
-            units.iter().map(|&kind| Entry::new(MenuRow::Unit(kind), Label::from(numbers.symbol(kind))).checked(kind == self.x.kind)).collect();
+            units.iter().map(|&kind| Entry::new(MenuRow::Unit(kind), Label::from(numbers.symbol(kind))).checked(kind == shown)).collect();
         entries.push(Entry::separator());
         entries.push(Entry::new(MenuRow::ResetZero, Label::from(words.ruler_reset_zero.as_str().to_owned())).enabled(!self.origin_locked));
         let name = Label::from(words.ruler_menu.as_str().to_owned());
@@ -491,8 +474,11 @@ impl Component for Rulers<'_> {
             }
             if let Some(at) = crate::runtime::pointer::frame(&cx.core.ctx).pos {
                 let numbers = cx.env.units();
-                let rows =
-                    [(Label::from("X"), self.x.format_value(&numbers, zero.x, 0.0)), (Label::from("Y"), self.y.format_value(&numbers, zero.y, 0.0))];
+                let rulers = space.rulers();
+                let rows = [
+                    (Label::from("X"), rulers.x.format_value(&numbers, zero.x, 0.0)),
+                    (Label::from("Y"), rulers.y.format_value(&numbers, zero.y, 0.0)),
+                ];
                 readout(cx, at, &rows);
             }
         }
@@ -505,6 +491,8 @@ impl Component for Rulers<'_> {
             return;
         };
         let level = space.view.level(zero);
+        let rulers = space.rulers();
+        let text_of = |part: RulerPart| if part == RulerPart::Vertical { rulers.y } else { rulers.x };
         for (part, strip, spans) in [(RulerPart::Horizontal, top, &self.margins.horizontal), (RulerPart::Vertical, left, &self.margins.vertical)] {
             let vertical = part == RulerPart::Vertical;
             for span in spans {
@@ -536,12 +524,12 @@ impl Component for Rulers<'_> {
         let shows = |strip: Rect, text: Rect| text.intersects(strip) && cx.rect.contains_rect(text);
         for (part, strip, edge) in [(RulerPart::Horizontal, top, TickEdge::Bottom), (RulerPart::Vertical, left, TickEdge::Right)] {
             let vertical = part == RulerPart::Vertical;
-            let ticks = self.axis_ticks(&level, strip, part, zero);
+            let ticks = Self::axis_ticks(&text_of(part), &level, strip, part, zero);
             let marks: Vec<Tick> =
                 ticks.iter().map(|(tick, at)| Tick::new(*at - if vertical { strip.top() } else { strip.left() }, tick.major)).collect();
             painter.ticks(strip, edge, &marks);
             for (tick, at) in ticks.iter().filter(|(tick, _)| tick.major) {
-                let text = self.text(part).tick_label(&numbers, tick.value, tick.step);
+                let text = text_of(part).tick_label(&numbers, tick.value, tick.step);
                 if vertical {
                     // One character per line, centred in the strip: a narrow "1" lines up with a "0".
                     let mut y = at + style.pad;
@@ -587,10 +575,10 @@ impl Component for Rulers<'_> {
         }
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> RulerOutput {
+    fn finish(self, cx: Cx<'_, Self>) -> RulersOutput {
         let zero = cx.edit_response();
         let content = Rulers::content_rect_of(cx.rect, cx.style.thickness);
-        RulerOutput { zero, guide: self.guide, reset_zero: self.reset, unit_picked: self.picked, context: self.context, content }
+        RulersOutput { zero, guide: self.guide, reset_zero: self.reset, unit_picked: self.picked, context: self.context, content }
     }
 }
 
@@ -603,7 +591,7 @@ impl Rulers<'_> {
 /// What the rulers report in a pass.
 #[derive(Debug)]
 #[non_exhaustive]
-pub struct RulerOutput {
+pub struct RulersOutput {
     /// The zero point (document units): a corner drag's gesture, a nudge of the focused corner.
     pub zero: EditResponse<Point>,
     /// The guide a drag from a strip is placing in this pass. The app forwards it to the guides control; it ends
@@ -614,19 +602,20 @@ pub struct RulerOutput {
     pub reset_zero: bool,
     /// A unit picked from the rulers' own menu ([`Rulers::units`]): the app keeps it as the ruler unit.
     pub unit_picked: Option<UnitKind>,
-    /// A strip or the corner was clicked with the secondary button, or the focused corner asked for its menu.
+    /// A strip or the corner was clicked with the secondary button, or the focused corner asked for its menu (the Menu
+    /// key, Shift+F10).
     pub context: Option<RulerPart>,
     content: Rect,
 }
 
-impl RulerOutput {
+impl RulersOutput {
     /// The part of the canvas's rect inside the strips: where the view lies.
     pub fn content_rect(&self) -> Rect {
         self.content
     }
 }
 
-impl Deref for RulerOutput {
+impl Deref for RulersOutput {
     type Target = EditResponse<Point>;
 
     fn deref(&self) -> &Self::Target {
@@ -634,7 +623,7 @@ impl Deref for RulerOutput {
     }
 }
 
-impl Outcome for RulerOutput {
+impl Outcome for RulersOutput {
     type Value = Point;
 
     fn response(&self) -> &Response {

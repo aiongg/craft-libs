@@ -1,11 +1,12 @@
 //! `Guides`: keyboard order, nudges, drags, deletion and the ruler hand-off.
 
 use craft_behavior::kurbo::{Point, Rect as DocRect};
-use craft_behavior::{Axis, CanvasView, EditEvent, GesturePhase};
+use craft_behavior::{Axis, CanvasView, EditEvent, GesturePhase, RulerUnits, Ticks};
 use craft_keymap::Mods;
-use craft_ui::canvas::{Canvas, Guide, GuideDrag, GuideKey, ToolPath};
+use craft_ui::canvas::{Canvas, Guide, GuideDrag, GuideKey, RulerText, ToolPath};
 use craft_ui::canvas_controls::{GuideCommands, Guides};
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::runtime::env::UnitKind;
 use craft_ui::testing::{Fixture, Target, pointer, trial};
 use egui::{Id, Key, Modifiers, Pos2, Vec2};
 use std::cell::{Cell, RefCell};
@@ -39,6 +40,7 @@ struct Harness {
     pending: Rc<Cell<Option<GuideDrag>>>,
     bounds: Rc<Cell<Option<DocRect>>>,
     tool_click: Rc<Cell<Option<Pos2>>>,
+    units: Rc<Cell<Option<RulerText>>>,
 }
 
 fn key(id: u64) -> GuideKey {
@@ -61,12 +63,18 @@ fn harness(guides: Vec<Guide>) -> Harness {
     let pending = Rc::new(Cell::new(None));
     let bounds = Rc::new(Cell::new(None));
     let tool_click = Rc::new(Cell::new(None));
+    let units = Rc::new(Cell::new(None));
     let (shown_id, shown_guides, shown_selected, shown_seen, shown_pending, shown_bounds, shown_click) =
         (Rc::clone(&id), Rc::clone(&guides), Rc::clone(&selected), Rc::clone(&seen), Rc::clone(&pending), Rc::clone(&bounds), Rc::clone(&tool_click));
+    let shown_units = Rc::clone(&units);
     let mut fixture = Fixture::new(move |ui| {
         let room = ui.available_rect_before_wrap();
         let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
-        let canvas = Canvas::new("Document", ToolPath::Command("the New Guide command")).view(view).show(ui, |ui, body| {
+        let mut canvas = Canvas::new("Document", ToolPath::Command("the New Guide command")).view(view);
+        if let Some(text) = shown_units.get() {
+            canvas = canvas.rulers(text, text, Point::ZERO);
+        }
+        let canvas = canvas.show(ui, |ui, body| {
             let mut held = shown_guides.borrow_mut();
             let mut control = Guides::new("Guides", Bind::bound(&mut *held)).interactive(true).pending(shown_pending.get());
             if let Some(selected) = shown_selected.get() {
@@ -96,7 +104,7 @@ fn harness(guides: Vec<Guide>) -> Harness {
         }
     });
     fixture.settle();
-    Harness { fixture, id, guides, selected, seen, pending, bounds, tool_click }
+    Harness { fixture, id, guides, selected, seen, pending, bounds, tool_click, units }
 }
 
 impl Harness {
@@ -282,4 +290,30 @@ fn the_guide_commands_edit_the_guides() {
     assert!(guides.iter().all(|guide| !guide.locked));
     assert_eq!(GuideCommands::Clear.apply(&mut guides, None), Some(None));
     assert!(guides.is_empty());
+}
+
+#[trial]
+fn a_press_on_the_canvas_background_clears_the_selection_without_app_code() {
+    let mut harness = harness(mixed());
+    harness.click(11);
+    assert_eq!(harness.selected.get(), Some(key(11)));
+    let canvas = harness.fixture.by_role(craft_ui::contract::Role::CANVAS).into_iter().next().expect("the canvas has a node");
+    harness.fixture.click_at(Pos2::new(canvas.rect.left() + 150.0, canvas.rect.top() + 120.0));
+    assert_eq!(harness.selected.get(), None, "a press that reaches the tool deselects the guide");
+}
+
+#[trial]
+fn guides_read_the_canvas_units_with_no_unit_props() {
+    let inches = RulerText::new(RulerUnits::new(1.0 / 96.0, Ticks::decimal(false)), UnitKind::Inches);
+    let mut harness = harness(mixed());
+    harness.units.set(Some(inches));
+    harness.fixture.settle();
+    let from = harness.guide(11).center();
+    harness.fixture.frame(vec![pointer::moved(from)]);
+    harness.fixture.frame(vec![pointer::press(from)]);
+    harness.fixture.frame(vec![pointer::moved(from + Vec2::new(8.0, 0.0))]);
+    harness.fixture.frame(vec![pointer::moved(from + Vec2::new(SHIFT as f32, 0.0))]);
+    let texts: Vec<String> = harness.fixture.texts().iter().map(|text| text.text.to_string()).collect();
+    assert!(texts.iter().any(|text| text.contains("1.25")), "the readout of a guide at 120 pixels is in the canvas's inches: {texts:?}");
+    assert!(texts.iter().all(|text| !text.contains("px")), "no readout falls back to pixels: {texts:?}");
 }

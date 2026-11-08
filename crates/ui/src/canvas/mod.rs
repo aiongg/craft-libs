@@ -39,6 +39,15 @@ pub use words::SplitWords;
 mod raster;
 pub use raster::{DetailPlan, RasterDisplay, RasterOutput, RasterStyle, snap_to_texels};
 
+// l4d-space
+mod snap;
+pub use guide::GuideColor;
+pub(crate) use rulers::{LABEL_STEP_MIN, NUDGE, NUDGE_FAR};
+pub use snap::Snap;
+pub(crate) use space::context_menu;
+pub use space::{BackgroundPress, CanvasRulers, context_click};
+// End of l4d-space.
+
 // canvas-navigate-a
 mod momentary;
 mod navigate;
@@ -54,15 +63,14 @@ pub use zoom_motion::{HoldZoom, ZoomAnimation, ZoomDrag};
 
 mod rulers;
 mod scrollbars;
-pub use rulers::{
-    INCH_EIGHTHS, INCH_SIXTEENTHS, RulerCommands, RulerMargins, RulerOutput, RulerPart, RulerTick, Rulers, TickRule, ZeroSnap,
-};
+pub use rulers::{INCH_EIGHTHS, INCH_SIXTEENTHS, RulerCommands, RulerMargins, RulerPart, RulerTick, Rulers, RulersOutput, TickRule};
 pub use scrollbars::{CanvasScrollbars, ScrollbarsOutput};
 
 use crate::contract::{Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, Sizing};
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
+use craft_behavior::kurbo::Point;
 use craft_behavior::{CanvasTransform, CanvasView, HitLevel, HitPriority, Metrics, PartKey, PointerButton, PressPhase, PressState, Sense, Wheel};
 use egui::{Pos2, Rect, Response, Vec2};
 
@@ -112,6 +120,8 @@ pub struct Canvas {
     /// square view only.
     #[prop]
     view: Option<CanvasView>,
+    /// The rulers' units and zero point, published to the body in its [`CanvasSpace`].
+    rulers: Option<CanvasRulers>,
     wheel: Option<Wheel>,
 }
 
@@ -119,11 +129,33 @@ impl Canvas {
     /// A canvas named `label` whose active tool is reached through `path`.
     pub fn new(label: impl Into<Label>, path: ToolPath) -> Self {
         let props = ContainerProps::new().surface(SurfaceKind::Canvas).arena(true).sizing(Sizing::Fill);
-        Canvas { common: Common::new(), props, path, view: None, wheel: None }.label(label)
+        Canvas { common: Common::new(), props, path, view: None, rulers: None, wheel: None }.label(label)
     }
 
-    fn space(&self, pixels_per_point: f32) -> Option<CanvasSpace> {
-        self.view.map(|view| CanvasSpace::new(view, pixels_per_point))
+    /// Measures the document's axes in `x` and `y`, counted from `zero` (document units). The rulers, the guides and
+    /// the measures of the body read the units and the zero from the canvas's [`CanvasSpace`], so the app states them
+    /// once. A canvas that publishes none measures in pixels from the document's origin.
+    #[must_use]
+    pub fn rulers(mut self, x: RulerText, y: RulerText, zero: Point) -> Self {
+        self.rulers = Some(CanvasRulers::new(x, y, zero));
+        self
+    }
+
+    fn space(&self, pixels_per_point: f32, background: BackgroundPress) -> Option<CanvasSpace> {
+        self.view.map(|view| CanvasSpace::new(view, pixels_per_point).with_rulers(self.rulers).with_background(background))
+    }
+
+    /// The press on the background part as the canvas reports it, and the pan of a middle-button drag: a middle press
+    /// pans and is never a tool press.
+    fn background_press(cx: &Cx<'_, Self>) -> (PressState, Option<Vec2>) {
+        let press = cx.part(BACKGROUND).press;
+        let middle = press.phase.start().is_some_and(|start| start.button == PointerButton::Middle);
+        match press.phase {
+            PressPhase::DragStart { start, pos, .. } if middle => (PressState::IDLE, Some(pos - start.origin)),
+            PressPhase::Drag { delta, .. } if middle => (PressState::IDLE, Some(delta)),
+            _ if middle => (PressState::IDLE, None),
+            _ => (press, None),
+        }
     }
 
     /// Shows the body zoomed and moved by `transform`, so controls and members keep canvas-space geometry.
@@ -192,7 +224,7 @@ impl Component for Canvas {
 
     /// The canvas's [`CanvasSpace`] for its body; a canvas without a view hides an outer canvas's.
     fn content_env(&self, cx: &Cx<'_, Self>, values: &mut crate::runtime::env::AppValues) {
-        space::publish(values, self.space(cx.env.scale().0));
+        space::publish(values, self.space(cx.env.scale().0, BackgroundPress::of(&Self::background_press(cx).0)));
     }
 
     /// The background part the active tool gets. It sits in the canvas root's space, the parent layer's. A press on it
@@ -205,15 +237,8 @@ impl Component for Canvas {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> CanvasOutput {
-        let press = cx.part(BACKGROUND).press;
-        let middle = press.phase.start().is_some_and(|start| start.button == PointerButton::Middle);
-        let (press, pan) = match press.phase {
-            PressPhase::DragStart { start, pos, .. } if middle => (PressState::IDLE, Some(pos - start.origin)),
-            PressPhase::Drag { delta, .. } if middle => (PressState::IDLE, Some(delta)),
-            _ if middle => (PressState::IDLE, None),
-            _ => (press, None),
-        };
-        let space = self.space(cx.env.scale().0);
+        let (press, pan) = Self::background_press(&cx);
+        let space = self.space(cx.env.scale().0, BackgroundPress::of(&press));
         CanvasOutput { response: cx.response.clone(), press, wheel: self.wheel, pan, space }
     }
 }

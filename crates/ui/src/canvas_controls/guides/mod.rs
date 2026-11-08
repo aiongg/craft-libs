@@ -6,35 +6,29 @@ mod place;
 mod stories;
 
 use super::words::GuideWords;
-use crate::canvas::{CanvasSpace, Guide, GuideDrag, GuideKey, GuideLine, RulerText, canvas_space, readout};
+use crate::canvas::{
+    CanvasSpace, Guide, GuideDrag, GuideKey, GuideLine, LABEL_STEP_MIN, NUDGE, NUDGE_FAR, Snap, canvas_space, context_menu, readout,
+};
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Name, Numeric, Outcome, PaintUi, PartsCx,
     Pointer as _, Props as _, Remember as _, Role, WordSetCx as _,
 };
-use crate::primitives::Rule;
-use crate::runtime::env::{Label, UnitKind};
+use crate::primitives::{FocusKind, FocusRing, PaintShape, Rule};
+use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
-use crate::style::{ComponentStyle, FocusLook, RuleLook, StyleColor, StyleCx};
+use crate::style::{ComponentStyle, Flags, FocusLook, RuleLook, StyleColor, StyleCx};
 use craft_behavior::geometry::{coordinate_across, motion_across};
 use craft_behavior::kurbo::{Point, Rect as DocRect};
 use craft_behavior::{
     Axis, CancelReason, GesturePhase, Granularity, HitLevel, HitPriority, HitShape, Intent, Metrics, NavMove, NavShape, PartKey, PointerButton,
-    PressPhase, Roving, RulerUnits, Sense, resize_cursor,
+    PressPhase, Roving, Sense, resize_cursor,
 };
 use craft_keymap::Mods;
 use craft_theme::Rgba;
-use egui::{Color32, Pos2, Response, Vec2};
+use egui::{Color32, Pos2, Rect, Response, Vec2};
 
 /// The part of one guide: `GUIDE.at(key)` with the guide's `GuideKey::get`.
 pub(super) const GUIDE: PartKey = PartKey::new("guide");
-
-/// The least distance in points between two labelled ruler steps. Shift snaps a dragged guide to the minor ticks the
-/// ruler draws at this pitch.
-const RULER_STEP_MIN: f32 = 60.0;
-
-/// The distance an arrow key moves a guide, in document units; Shift moves it by `NUDGE_FAR`.
-const NUDGE: f64 = 1.0;
-const NUDGE_FAR: f64 = 10.0;
 
 /// The commands of the guides (11). They are app commands: the app owns the guide vector and the dialog, and runs
 /// them with [`GuideCommands::apply`] and its own "New Guide" dialog.
@@ -84,23 +78,6 @@ impl GuideCommands {
     }
 }
 
-/// The host's snapping of a guide (View › Snap To): the axis the guide runs along, the pointer's position across it
-/// and the modifiers held, to the position to use.
-pub struct GuideSnap<'a>(Box<dyn Fn(Axis, f64, Mods) -> f64 + 'a>);
-
-impl<'a> GuideSnap<'a> {
-    /// The snapping that runs `snap`.
-    pub fn new(snap: impl Fn(Axis, f64, Mods) -> f64 + 'a) -> Self {
-        GuideSnap(Box::new(snap))
-    }
-}
-
-impl GuideSnap<'_> {
-    fn apply(&self, along: Axis, position: f64, mods: Mods) -> f64 {
-        (self.0)(along, position, mods)
-    }
-}
-
 /// The style of the guides.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
@@ -111,15 +88,9 @@ pub struct GuideStyle {
     line: StyleColor,
     /// The selected guide.
     selected: StyleColor,
-    /// Under the focus lines, so they read on any image.
-    halo: StyleColor,
     focus: FocusLook,
     /// The width of a guide line.
     width: f32,
-    /// The width of the halo of a focus line.
-    halo_width: f32,
-    /// From a guide's centre line to a focus line's centre line.
-    focus_gap: f32,
     dash: f32,
     gap: f32,
 }
@@ -151,9 +122,12 @@ struct PendingKey(Option<GuideKey>);
 /// - The guides are one Tab stop. Page Up and Page Down select the previous or next guide (vertical guides left to
 ///   right, then horizontal ones top to bottom), the arrow keys nudge the selected one across its axis (Shift moves
 ///   it by the large step) and Delete or Backspace removes it.
-/// - A press on a guide selects it, so [`GuidesOutput::select`] reports the key. A press that reaches the canvas's
-///   tool clears the selection; the app reads it from `CanvasOutput::press`.
-/// - [`pending`](Guides::pending) shows the guide a ruler drag is creating.
+/// - A press on a guide selects it, so [`GuidesOutput::select`] reports the key. A press on the canvas background
+///   (one that reaches the canvas's tool) clears the selection, reported as `Some(None)`.
+/// - The units, the zero point and the ruler a guide is placed in come from the canvas
+///   ([`Canvas::rulers`](crate::canvas::Canvas::rulers)).
+/// - [`pending`](Guides::pending) shows the guide a ruler drag is creating. Show the `Rulers` before the guides in
+///   the canvas body: the guides read the drag the rulers reported in the same pass.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(canvas_control, content_painter)]
 pub struct Guides<'a> {
@@ -172,25 +146,14 @@ pub struct Guides<'a> {
     bounds: Option<DocRect>,
     /// The host's snapping of a guide being dragged.
     #[prop(func = "Fn(Axis, f64, Mods) -> f64")]
-    snap: Option<GuideSnap<'a>>,
-    /// The x ruler's units, for the readout, the accessible values and the snap to ticks.
-    #[prop]
-    x_units: Option<RulerText>,
-    /// The y ruler's units.
-    #[prop]
-    y_units: Option<RulerText>,
-    /// The document point the rulers count from.
-    #[prop]
-    zero: Point,
+    snap: Option<Snap<'a>>,
     /// The distance an arrow key moves a guide, in document units.
     #[prop(quantity = "document units")]
     step: f64,
     /// The distance an arrow key moves a guide with Shift held, in document units.
     #[prop(quantity = "document units")]
     big_step: f64,
-    /// The guide a ruler is creating, as the ruler reports it each pass.
-    #[prop]
-    pending: Option<Option<GuideDrag>>,
+    pending: Option<GuideDrag>,
     report: Report,
 }
 
@@ -204,9 +167,6 @@ impl<'a> Guides<'a> {
             interactive: false,
             bounds: None,
             snap: None,
-            x_units: None,
-            y_units: None,
-            zero: Point::ZERO,
             step: NUDGE,
             big_step: NUDGE_FAR,
             pending: None,
@@ -215,20 +175,19 @@ impl<'a> Guides<'a> {
         .label(label)
     }
 
-    /// The units a guide running `along` is placed in: the x ruler's for a vertical guide.
-    fn ruler(&self, along: Axis) -> RulerText {
-        let units = match along {
-            Axis::X => self.y_units,
-            _ => self.x_units,
-        };
-        units.unwrap_or(RulerText::new(RulerUnits::pixels(), UnitKind::Pixels))
+    /// The guide a ruler is creating, as the rulers report it in this pass (`RulersOutput::guide`); `None` shows none.
+    #[must_use]
+    pub fn pending(mut self, drag: Option<GuideDrag>) -> Self {
+        self.pending = drag;
+        self
     }
 
     /// `position` snapped: to the ruler's minor ticks with Shift, otherwise by the host.
     fn snapped(&self, space: &CanvasSpace, along: Axis, position: f64, mods: Mods) -> f64 {
         if mods.shift {
             let zoom = place::zoom_across(&space.view, along);
-            self.ruler(along).units.snap_to_tick(position, coordinate_across(along, self.zero), zoom, RULER_STEP_MIN)
+            let (ruler, zero) = space.rulers().across(along);
+            ruler.units.snap_to_tick(position, zero, zoom, LABEL_STEP_MIN)
         } else if let Some(snap) = &self.snap {
             snap.apply(along, position, mods)
         } else {
@@ -264,11 +223,11 @@ impl<'a> Guides<'a> {
     }
 
     /// Shows the position of a dragged guide beside the pointer.
-    fn show_readout(&self, cx: &Cx<'_, Self>, at: Pos2, along: Axis, position: f64) {
+    fn show_readout(&self, cx: &Cx<'_, Self>, space: &CanvasSpace, at: Pos2, along: Axis, position: f64) {
         let words = cx.words::<GuideWords>();
-        let ruler = self.ruler(along);
+        let (ruler, zero) = space.rulers().across(along);
         let digits = (*ruler.kind.decimals().end()).max(1);
-        let value = ruler.format(&cx.env.units(), position, coordinate_across(along, self.zero), 0..=digits);
+        let value = ruler.format(&cx.env.units(), position, zero, 0..=digits);
         let label = if along == Axis::Y { &words.x } else { &words.y };
         readout(cx, at, &[(Label::from(label.as_str().to_owned()), value)]);
     }
@@ -311,7 +270,8 @@ impl<'a> Guides<'a> {
         }
     }
 
-    /// The pointer on the guides: select, drag, click, double click and the secondary click.
+    /// The pointer on the guides: select, drag, click, double click and the context request (a secondary click, the
+    /// Menu key or Shift+F10 on the focused guide).
     fn run_pointer(&mut self, cx: &mut Cx<'_, Self>, space: &CanvasSpace, guides: &[Guide]) {
         let area = cx.rect;
         for guide in guides.iter().filter(|guide| !guide.locked) {
@@ -331,7 +291,7 @@ impl<'a> Guides<'a> {
                     let (lo, hi) = self.drag_range(space, guide.along);
                     let position = place::clamped(self.pointer_position(space, guide.along, pos, press.mods), (lo, hi));
                     cx.propose(place::moved(guides, guide.key, position));
-                    self.show_readout(cx, pos, guide.along, position);
+                    self.show_readout(cx, space, pos, guide.along, position);
                 }
                 PressPhase::Release { start, pos, click, .. } => match (start.button, click) {
                     (PointerButton::Primary, true) => {
@@ -349,10 +309,14 @@ impl<'a> Guides<'a> {
                         }
                         cx.commit();
                     }
-                    (PointerButton::Secondary, true) => self.report.context = Some(guide.key),
                     _ => {}
                 },
                 _ => {}
+            }
+        }
+        for guide in guides.iter().filter(|guide| !guide.locked) {
+            if context_menu(cx, guide.key.part(GUIDE)).is_some() {
+                self.report.context = Some(guide.key);
             }
         }
     }
@@ -430,6 +394,15 @@ impl Outcome for GuidesOutput {
     }
 }
 
+/// The shape the focus ring surrounds for the guide line from `a` to `b` drawn `width` wide: a rect when the view is
+/// axis aligned, else the quad of the line.
+fn footprint(space: &CanvasSpace, a: Pos2, b: Pos2, width: f32) -> PaintShape {
+    let along = (b - a).normalized();
+    let half = Vec2::new(-along.y, along.x) * (width / 2.0);
+    let quad = [a + half, b + half, b - half, a - half];
+    if space.view.axis_aligned() { PaintShape::Rect(Rect::from_points(&quad), egui::CornerRadius::ZERO) } else { PaintShape::Polygon(quad.to_vec()) }
+}
+
 fn data_color(color: Rgba) -> Color32 {
     let [r, g, b, a] = color.0;
     Color32::from_rgba_unmultiplied(r, g, b, a)
@@ -449,11 +422,8 @@ impl Component for Guides<'_> {
             metrics: Metrics::new(),
             line: cx.color(tokens.color.overlay.guide),
             selected: cx.color(tokens.color.accent.solid),
-            halo: cx.color(tokens.color.overlay.halo),
             focus,
             width: tokens.stroke.thin,
-            halo_width: focus.stroke.width + 2.0 * tokens.stroke.thin,
-            focus_gap: tokens.stroke.thin / 2.0 + focus.offset + focus.stroke.width / 2.0,
             dash: tokens.stroke.dash,
             gap: tokens.stroke.dash_gap,
         }
@@ -482,7 +452,7 @@ impl Component for Guides<'_> {
                 .cursor(resize_cursor(&space.view, motion_across(guide.along)))
                 .focusable();
             if self.selected == Some(guide.key) {
-                part.selected();
+                part.selected().flags(Flags::SELECTED);
             }
             any = true;
         }
@@ -494,12 +464,15 @@ impl Component for Guides<'_> {
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let Some(space) = canvas_space(&cx.env) else { return };
         let guides = cx.value().cloned().unwrap_or_default();
-        if let Some(Some(drag)) = self.pending {
+        if let Some(drag) = self.pending {
             self.run_pending(cx, &space, &guides, drag);
         }
         if self.interactive {
             self.run_pointer(cx, &space, &guides);
             self.run_keys(cx, &space, &guides);
+            if space.background().pressed && self.selected.is_some() && self.report.select.is_none() {
+                self.report.select = Some(None);
+            }
         }
     }
 
@@ -517,18 +490,7 @@ impl Component for Guides<'_> {
                 GuideLine::Dots => painter.dashed(&[a, b], style.width, style.width, style.gap, 0.0, color),
             }
             if focused == Some(guide.key.get()) && (b - a).length() > 0.0 {
-                let along = (b - a).normalized();
-                let normal = Vec2::new(-along.y, along.x) * style.focus_gap;
-                for side in [normal, -normal] {
-                    let halo = RuleLook { color: style.halo.egui(), width: style.halo_width };
-                    painter.painter.extend(Rule::shapes(&halo, a + side, b + side, ppp));
-                    painter.painter.extend(Rule::shapes(
-                        &RuleLook { color: style.focus.stroke.color, width: style.focus.stroke.width },
-                        a + side,
-                        b + side,
-                        ppp,
-                    ));
-                }
+                painter.painter.extend(FocusRing::shapes(&style.focus, FocusKind::Halo, &footprint(&space, a, b, style.width), ppp));
             }
         }
     }
@@ -539,10 +501,10 @@ impl Component for Guides<'_> {
         let words = cx.words::<GuideWords>();
         let units = cx.env.units();
         for guide in guides.iter().filter(|guide| !guide.locked) {
-            let ruler = self.ruler(guide.along);
+            let (ruler, zero) = space.rulers().across(guide.along);
             let (lo, hi) = self.nudge_range(&space, guide.along);
             let range = lo.min(hi).min(guide.position)..=hi.max(lo).max(guide.position);
-            let text = ruler.format_value(&units, guide.position, coordinate_across(guide.along, self.zero));
+            let text = ruler.format_value(&units, guide.position, zero);
             let mut numeric = Numeric::new(guide.position, range).text(text);
             if self.interactive {
                 numeric = numeric.step(self.step);

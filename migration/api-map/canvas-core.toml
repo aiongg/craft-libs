@@ -103,7 +103,7 @@ name = "Rulers"
 old = "craft_ui::canvas::rulers::Rulers"
 new = "craft_ui::canvas::Rulers"
 status = "moved"
-note = "A canvas control: `Rulers::new(label, &RulerText, &RulerText, Bind::bound(&mut zero))` shown with `show_at(ui, body.rect)` inside the `Canvas` body, over a `Canvas::view`. The strips and the corner are parts at handle priority, so a drag from a strip reaches the rulers and not the canvas tool. The output is `RulerOutput`."
+note = "A canvas control: `Rulers::new(label, Bind::bound(&mut zero))` shown with `show_at(ui, body.rect)` inside the `Canvas` body, over a `Canvas::view` that publishes the units and the zero point with `Canvas::rulers(x, y, zero)` (the guides, the measures and the rulers read them from `CanvasSpace`). The strips and the corner are parts at handle priority, so a drag from a strip reaches the rulers and not the canvas tool. The output is `RulersOutput`."
 
 [[type]]
 name = "RulerStyle"
@@ -124,14 +124,14 @@ name = "RulersResponse"
 old = "craft_ui::canvas::rulers::RulersResponse"
 new = ""
 status = "removed"
-note = "`RulerOutput` replaces it: `origin` is `zero: EditResponse<Point>`, `reset_origin` is `reset_zero`, `id` is gone (the zero point is a `Bind`, and the host commands are `RulerCommands`), `context` and `unit_picked` stay."
+note = "`RulersOutput` replaces it: `origin` is `zero: EditResponse<Point>`, `reset_origin` is `reset_zero`, `id` is gone (the zero point is a `Bind`, and the host commands are `RulerCommands`), `context` and `unit_picked` stay."
 
 [[type]]
-name = "RulerOutput"
+name = "RulersOutput"
 old = ""
-new = "craft_ui::canvas::RulerOutput"
+new = "craft_ui::canvas::RulersOutput"
 status = "replaced"
-note = "`RulerOutput { zero: EditResponse<Point>, guide: Option<GuideDrag>, reset_zero, unit_picked: Option<UnitKind>, context: Option<RulerPart> }` with `content_rect()`. `guide` is the guide a drag from a strip is placing in this pass; the app forwards it to the guides control."
+note = "`RulersOutput { zero: EditResponse<Point>, guide: Option<GuideDrag>, reset_zero, unit_picked: Option<UnitKind>, context: Option<RulerPart> }` with `content_rect()`. `guide` is the guide a drag from a strip is placing in this pass; the app forwards it to the guides control."
 
 [[type]]
 name = "RulerPart"
@@ -195,11 +195,11 @@ status = "replaced"
 note = "The margin bands of the two strips, `RulerMargins::new(horizontal, vertical)`, set with `Rulers::margins`."
 
 [[type]]
-name = "ZeroSnap"
+name = "Snap"
 old = ""
-new = "craft_ui::canvas::ZeroSnap"
+new = "craft_ui::canvas::Snap"
 status = "replaced"
-note = "The app's snapping of the zero point; `Rulers::snap(|axis, value, mods| ..)` builds it."
+note = "The app's snapping of a coordinate the pointer sets, one type for the rulers' zero point (`Rulers::snap(|axis, value, mods| ..)`) and the guides (`Guides::snap(..)`); the setters take the closure."
 
 [[type]]
 name = "CanvasScrollbars"
@@ -1014,3 +1014,18 @@ type = "CanvasScrollbars"
 old = "show(ui, &mut view, doc)"
 new = "show_at(ui, view_rect)"
 note = "Inside the `Canvas` body."
+
+# l4d-space
+[[type]]
+name = "CanvasRulers"
+old = ""
+new = "craft_ui::canvas::CanvasRulers"
+status = "replaced"
+note = "The units and the zero point a canvas measures its document in: `x` and `y` (`RulerText`) and `zero`. `Canvas::rulers(x, y, zero)` publishes them; `CanvasSpace::rulers()` reads them (pixels from the origin when the canvas publishes none) and `CanvasRulers::across(along)` gives the ruler and zero for a guide running along an axis."
+
+[[type]]
+name = "BackgroundPress"
+old = ""
+new = "craft_ui::canvas::BackgroundPress"
+status = "replaced"
+note = "The presses on the canvas background in a pass, read with `CanvasSpace::background()`: `pressed` (a button went down) and `context` (a secondary click's position). `canvas::context_click(&PressState)` is the one reading of a secondary click."

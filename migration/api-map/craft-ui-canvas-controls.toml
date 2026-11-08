@@ -417,13 +417,6 @@ status = "replaced"
 note = "App commands `canvas.guides.{new, clear, delete, lock, unlock}` and `GuideCommands::apply(&mut Vec<Guide>, selected)`. Legacy `Guides::request_delete` is `GuideCommands::Delete`."
 
 [[type]]
-name = "GuideSnap"
-old = ""
-new = "craft_ui::canvas_controls::GuideSnap"
-status = "replaced"
-note = "The named closure type of `Guides::snap`; the setter takes the closure."
-
-[[type]]
 name = "GuideHost"
 old = "craft_ui::canvas::guides::GuideHost"
 new = ""
@@ -449,12 +442,12 @@ name = "Measure"
 old = "craft_ui::canvas::guides::Measure"
 new = "craft_ui::canvas_controls::Measure"
 status = "moved"
-note = "`#[non_exhaustive]`: built with `Measure::new(a, b, label)`."
+note = "`#[non_exhaustive]`: built with `Measure::new(a, b)`, which labels the distance in the canvas's ruler units; `.labelled(text)` gives the app's text."
 
 [[setter]]
 type = "Guides"
 old = "new(id_salt, &guides, &x_units, &y_units, names)"
-new = "new(label, Bind<Vec<Guide>>) with x_units(RulerText) and y_units(RulerText)"
+new = "new(label, Bind<Vec<Guide>>); the units and the zero point come from the canvas (`Canvas::rulers(x, y, zero)`)"
 
 [[setter]]
 type = "Guides"
@@ -492,7 +485,7 @@ note = "The edit policy belongs to the `Bind`."
 [[setter]]
 type = "Guides"
 old = "drag_from_ruler(ctx, guides, orientation)"
-new = "pending(Option<GuideDrag>), fed by `RulerOutput::guide`"
+new = "pending(Option<GuideDrag>), fed by `RulersOutput::guide`; show the Rulers before the Guides"
 
 [[setter]]
 type = "Guides"

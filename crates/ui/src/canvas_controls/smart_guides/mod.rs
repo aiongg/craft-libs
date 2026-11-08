@@ -4,9 +4,10 @@
 #[cfg(feature = "testing")]
 mod stories;
 
-use crate::canvas::canvas_space;
+use crate::canvas::{CanvasRulers, canvas_space};
 use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Role};
 use crate::primitives::{PaintShape, Rule, StrokeWidth, TextRun};
+use crate::runtime::env::Units;
 use crate::style::{ComponentStyle, DataColor, RuleLook, StyleColor, StyleCx, TypeRole, UiTokens};
 use craft_behavior::geometry::snap::SnapLine;
 use craft_behavior::kurbo::{Point, Rect as DocRect};
@@ -61,14 +62,32 @@ pub struct Measure {
     pub a: Point,
     /// The other end of the distance.
     pub b: Point,
-    /// The app's formatted distance (`24 px`).
-    pub label: String,
+    /// The app's text in place of the distance in the canvas's units.
+    pub label: Option<String>,
 }
 
 impl Measure {
-    /// The distance from `a` to `b`, labelled `label`.
-    pub fn new(a: Point, b: Point, label: impl Into<String>) -> Self {
-        Self { a, b, label: label.into() }
+    /// The distance from `a` to `b`, labelled in the canvas's ruler units (`24 px`) along the axis it runs more
+    /// along.
+    pub fn new(a: Point, b: Point) -> Self {
+        Self { a, b, label: None }
+    }
+
+    /// The same distance labelled `label`.
+    #[must_use]
+    pub fn labelled(mut self, label: impl Into<String>) -> Self {
+        self.label = Some(label.into());
+        self
+    }
+
+    /// The label: the app's, else the distance in the unit of the axis the measure runs more along.
+    fn text(&self, rulers: &CanvasRulers, numbers: &Units) -> String {
+        if let Some(label) = &self.label {
+            return label.clone();
+        }
+        let (ruler, from, to) =
+            if (self.b.x - self.a.x).abs() >= (self.b.y - self.a.y).abs() { (rulers.x, self.a.x, self.b.x) } else { (rulers.y, self.a.y, self.b.y) };
+        ruler.format(numbers, from.max(to), from.min(to), ruler.kind.decimals())
     }
 }
 
@@ -97,7 +116,8 @@ pub struct SmartGuidesStyle {
 /// The alignment lines and distances an app shows while something moves (Smart Guides and Alt distances).
 ///
 /// Paint only: the app computes what aligns and how far apart things are. A [`SmartLine`] is a thin line in the smart
-/// guide colour, an extension is dashed, a [`Measure`] has end caps and a label on a pill. [`color`](Self::color)
+/// guide colour, an extension is dashed, a [`Measure`] has end caps and a label on a pill (the distance in the
+/// canvas's ruler units unless the app gives the text). [`color`](Self::color)
 /// replaces the colour (an app's "Smart Guide Color" preference); the label text stays dark or light, whichever
 /// contrasts more with it. [`bounds`](Self::bounds) outlines the moving object. Not in the accessibility tree: they
 /// are hints during a gesture, whose result the moved object's own value reports.
@@ -184,6 +204,7 @@ impl Component for SmartGuides<'_> {
         }
         let ink = if contrast(fill, style.ink_dark) >= contrast(fill, style.ink_light) { style.ink_dark } else { style.ink_light };
         let draw = ui.draw();
+        let (rulers, numbers) = (space.rulers(), cx.env.units());
         for measure in self.measures {
             let (a, b) = (view.to_screen(measure.a), view.to_screen(measure.b));
             painter.painter.extend(Rule::shapes(&line, a, b, ppp));
@@ -192,7 +213,8 @@ impl Component for SmartGuides<'_> {
             for end in [a, b] {
                 painter.painter.extend(Rule::shapes(&line, end - cap, end + cap, ppp));
             }
-            let run = TextRun::new(measure.label.as_str()).role(TypeRole::Caption).color(ink);
+            let text = measure.text(&rulers, &numbers);
+            let run = TextRun::new(text.as_str()).role(TypeRole::Caption).color(ink);
             let layout = draw.layout(&run, f32::INFINITY);
             let pill = egui::Rect::from_center_size(a.lerp(b, 0.5), layout.size() + 2.0 * style.pad).round_to_pixels(ppp);
             painter.painter.rect_filled(pill, style.radius, fill);
