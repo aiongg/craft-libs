@@ -10,7 +10,7 @@ use egui::Pos2;
 use kurbo::{Point, Rect};
 
 use super::overlay::{ConnectorLook, paint_route, paint_sites};
-use super::place::{ATTACH_REACH, Placed, anchor, end_at, glued};
+use super::place::{Placed, anchor, end_at, glued};
 use super::words::ConnectorWords;
 use super::{ConnectionTarget, ConnectorDraft, ConnectorEnd, ConnectorEvent};
 use crate::geometry::connector::{RouteEnd, Routing, route};
@@ -147,7 +147,7 @@ impl ConnectorTool {
     /// The end under the pointer for a gesture: a free end snaps with the canvas, and ⇧ turns it to
     /// 45° steps from `origin`.
     fn place(&self, pointer: &ToolPointer, view: &CanvasView, cx: &ToolContext<'_>, origin: Option<Point>) -> Placed {
-        let placed = end_at(&self.targets, view.to_doc(pointer.pos), view, ATTACH_REACH, pointer.mods);
+        let placed = end_at(&self.targets, view.to_doc(pointer.pos), view, cx.reach(), pointer.mods);
         let ConnectorEnd::Free(raw) = placed.end else { return placed };
         let mut at = cx.snap(raw);
         if let (Some(origin), true) = (origin, pointer.mods.shift && self.snap_free_end) {
@@ -236,7 +236,7 @@ impl CanvasTool for ConnectorTool {
     fn hover(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
         // inv-figcraft: crates/engine/src/boards/board/tools.rs:171-174 `connector_hover`.
         let Some(space) = cx.space() else { return };
-        let placed = end_at(&self.targets, space.view.to_doc(pointer.pos), &space.view, ATTACH_REACH, pointer.mods);
+        let placed = end_at(&self.targets, space.view.to_doc(pointer.pos), &space.view, cx.reach(), pointer.mods);
         self.hover = placed.target.map(|t| (t, placed.active));
     }
 

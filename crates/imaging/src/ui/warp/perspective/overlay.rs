@@ -74,8 +74,8 @@ pub struct PerspectiveWarpStyle {
     corner_fill: StyleColor,
     /// A corner's diameter.
     corner: f32,
-    /// The distance within which a dragged corner snaps to another plane's corner, in points: corners that would
-    /// touch.
+    /// How far from a corner a press takes it, and the distance within which a dragged corner snaps to another
+    /// plane's corner, in points.
     reach: f32,
 }
 
@@ -397,7 +397,7 @@ impl Component for PerspectiveWarp<'_> {
             line: cx.color(overlay.line),
             corner_fill: cx.color(overlay.handle_fill),
             corner: tokens.size.handle.md,
-            reach: tokens.size.handle.md,
+            reach: tokens.size.hit.target,
         }
     }
 
@@ -413,7 +413,7 @@ impl Component for PerspectiveWarp<'_> {
     /// them.
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let (Some(space), Some(planes)) = (canvas_space(&cx.env), cx.value()) else { return };
-        let radius = cx.style.corner / 2.0;
+        let radius = cx.style.reach;
         let warp = self.warp();
         for (p, plane) in planes.iter().enumerate() {
             for (c, &at) in corners(plane, warp).iter().enumerate() {

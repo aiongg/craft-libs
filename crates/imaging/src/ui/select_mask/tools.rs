@@ -21,12 +21,6 @@ use super::edits::{EditMode, ObjectTarget, RefineStroke, SelectMaskEdit, round_p
 /// edit's points, not a size on screen (PhotoCraft's).
 const FREEHAND_STEP: f64 = 0.5;
 
-/// How near a press closes a Polygonal Lasso outline, in screen points (PhotoCraft's 6; the kernel's is 8).
-const CLOSE_REACH: f64 = 6.0;
-
-/// An Object Selection drag shorter than this many screen points is a click.
-const CLICK_REACH: f64 = 4.0;
-
 /// The share of its colour the brush stroke being drawn shows: the accent at this opacity.
 const TRAIL_SHARE: f32 = 0.43;
 
@@ -414,8 +408,8 @@ fn report(events: &mut Vec<SelectMaskEvent>, refine: bool, id: GestureId, phase:
 }
 
 /// What the gesture of `tool` over `points` makes, or `None` while it makes nothing (a Lasso with
-/// fewer than 3 points). `zoom` turns an Object Selection drag into screen points.
-fn build(tool: SelectMaskTool, options: &SelectMaskToolOptions, add: bool, points: &[Point], zoom: f64) -> Option<Built> {
+/// fewer than 3 points). `zoom` turns an Object Selection drag into screen points; one shorter than `slop` is a click.
+fn build(tool: SelectMaskTool, options: &SelectMaskToolOptions, add: bool, points: &[Point], zoom: f64, slop: f64) -> Option<Built> {
     // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:554 `finish`.
     let mode = if add { EditMode::Add } else { EditMode::Subtract };
     let first = *points.first()?;
@@ -430,7 +424,7 @@ fn build(tool: SelectMaskTool, options: &SelectMaskToolOptions, add: bool, point
         SelectMaskTool::Object => {
             let last = *points.last()?;
             let (width, height) = (last.x - first.x, last.y - first.y);
-            let target = if width.abs().max(height.abs()) * zoom < CLICK_REACH {
+            let target = if width.abs().max(height.abs()) * zoom < slop {
                 ObjectTarget::Point(round_point([first.x, first.y]))
             } else {
                 let (origin, size) = (round_point([first.x, first.y]), round_point([width, height]));
@@ -471,7 +465,6 @@ pub struct SelectMaskCanvasTool<'a> {
     real_time: bool,
 }
 
-
 impl SelectMaskCanvasTool<'_> {
     /// The hardness (0..=1) a resize of the tool starts from: the Brush's; the others are hard.
     fn level(&self) -> f64 {
@@ -502,8 +495,8 @@ impl SelectMaskCanvasTool<'_> {
     }
 
     /// What the gesture over `points` makes now.
-    fn built(&self, tool: SelectMaskTool, add: bool, points: &[Point], zoom: f64) -> Option<Built> {
-        build(tool, self.options, add, points, zoom)
+    fn built(&self, tool: SelectMaskTool, add: bool, points: &[Point], zoom: f64, slop: f64) -> Option<Built> {
+        build(tool, self.options, add, points, zoom, slop)
     }
 
     /// Writes the values of a resize to the options.
@@ -540,7 +533,7 @@ impl SelectMaskCanvasTool<'_> {
 
     fn press_polygon(&mut self, pointer: &ToolPointer, doc: Point, zoom: f64, cx: &ToolContext<'_>) -> ToolAction {
         // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:590-603 `begin` (PolygonalLasso), :1796-1802.
-        let reach = DraftReach::new(CLOSE_REACH, f64::from(cx.slop));
+        let reach = DraftReach::new(f64::from(cx.reach()), f64::from(cx.slop));
         let add = self.options.add;
         let canvas = &mut *self.canvas;
         let draft = canvas.polygon.get_or_insert_with(|| OutlineDraft::new(DraftKind::Polygonal, reach));
@@ -557,7 +550,7 @@ impl SelectMaskCanvasTool<'_> {
     }
 
     /// Adds the pointer to the gesture and reports the stroke so far when Real-Time Refinement is on.
-    fn extend(&mut self, at: Point, zoom: f64) {
+    fn extend(&mut self, at: Point, zoom: f64, slop: f64) {
         // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:620 `extend`.
         let Some((id, tool, add, points)) = self.canvas.gesture.as_mut() else { return };
         if *tool == SelectMaskTool::Object {
@@ -573,7 +566,7 @@ impl SelectMaskCanvasTool<'_> {
         }
         if self.real_time {
             let (id, add, points, tool) = (*id, *add, points.clone(), *tool);
-            let built = self.built(tool, add, &points, zoom);
+            let built = self.built(tool, add, &points, zoom, slop);
             report(&mut self.canvas.events, tool == SelectMaskTool::RefineEdge, id, Phase::Update, built);
         }
     }
@@ -599,7 +592,11 @@ impl CanvasTool for SelectMaskCanvasTool<'_> {
             let tip = BrushTip::round(size, size / 2.0);
             // The bar's mode, reversed while Alt is held (the press reads it the same way).
             let badge = if self.options.add != cx.mods.alt { CursorBadge::Add } else { CursorBadge::Subtract };
-            return BrushCursor::new(&tip).painting(self.canvas.gesture.is_some()).badge(Some(badge)).cursor(cx, &self.canvas.cursor_options, &space.view);
+            return BrushCursor::new(&tip).painting(self.canvas.gesture.is_some()).badge(Some(badge)).cursor(
+                cx,
+                &self.canvas.cursor_options,
+                &space.view,
+            );
         }
         Cursor::Painted(PaintedCursor::Crosshair)
     }
@@ -627,7 +624,7 @@ impl CanvasTool for SelectMaskCanvasTool<'_> {
         let add = self.options.add != pointer.mods.alt;
         let id = self.canvas.next_id();
         let points = vec![doc];
-        let built = self.built(tool, add, &points, space.view.zoom);
+        let built = self.built(tool, add, &points, space.view.zoom, f64::from(cx.slop));
         self.canvas.trail = None;
         self.canvas.gesture = Some((id, tool, add, points));
         report(&mut self.canvas.events, tool == SelectMaskTool::RefineEdge, id, Phase::Begin, built);
@@ -653,7 +650,7 @@ impl CanvasTool for SelectMaskCanvasTool<'_> {
             }
             return;
         }
-        self.extend(doc, space.view.zoom);
+        self.extend(doc, space.view.zoom, f64::from(cx.slop));
     }
 
     fn release(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
@@ -678,10 +675,10 @@ impl CanvasTool for SelectMaskCanvasTool<'_> {
             canvas.forget_closed_polygon();
             return;
         }
-        self.extend(doc, space.view.zoom);
+        self.extend(doc, space.view.zoom, f64::from(cx.slop));
         let Some((id, tool, add, points)) = self.canvas.gesture.take() else { return };
         // The value comes from the gesture's own tool: the strip may have changed since the press.
-        let built = self.built(tool, add, &points, space.view.zoom);
+        let built = self.built(tool, add, &points, space.view.zoom, f64::from(cx.slop));
         let phase = if built.is_some() { Phase::Commit } else { Phase::Cancel(CancelReason::Escape) };
         if built.is_some() && tool.brushes() {
             self.canvas.trail = Some((tool, points));

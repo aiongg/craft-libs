@@ -37,8 +37,8 @@ const MESH: PartKey = PartKey::new("mesh");
 /// Photoshop's pin yellow.
 const PIN_FILL: DataColor = DataColor::new(Color32::from_rgb(255, 214, 10));
 
-/// How far from a selected pin an Alt press turns it, and the radius of the fixed-rotation ring, in points.
-const TURN_REACH: f32 = 18.0;
+/// The radius of the fixed-rotation ring, in points.
+const TURN_RING: f32 = 18.0;
 
 /// The commands of Puppet Warp (11). They are app commands: the app runs them with [`PinWarpCommands::apply`] while
 /// the session is open.
@@ -97,6 +97,8 @@ pub struct PinWarpStyle {
     turn: StyleColor,
     /// The mesh lines while Show Mesh is on.
     mesh: StyleColor,
+    /// How far from a selected pin an Alt press turns it.
+    reach: f32,
 }
 
 /// What the pins report beyond the edit of the pin list.
@@ -287,7 +289,7 @@ impl PinWarp<'_> {
     fn press_mesh(&mut self, cx: &mut Cx<'_, Self>, space: &CanvasSpace, pins: &[Pin], alt: bool, origin: Pos2) {
         let at = space.view.to_doc(origin);
         if alt {
-            let turn = nearest_selected(&space.view, pins, self.selection(), origin, TURN_REACH).and_then(|i| {
+            let turn = nearest_selected(&space.view, pins, self.selection(), origin, cx.style.reach).and_then(|i| {
                 let pin = pins[i];
                 let base = pin.angle.or_else(|| self.mesh.turn_at(pin.rest))?;
                 Some(Drag { kind: Kind::Turn { pin: i, base, from: angle_of(at - pin.at)? }, origin: at, base: pins.to_vec(), began: false })
@@ -463,6 +465,7 @@ impl Component for PinWarp<'_> {
             ring: cx.color(overlay.handle_stroke),
             turn: cx.color(overlay.stroke),
             mesh: cx.color(overlay.line),
+            reach: tokens.size.hit.target,
         }
     }
 
@@ -495,7 +498,7 @@ impl Component for PinWarp<'_> {
         }
         let points: Vec<Pos2> = self.mesh.deformed.iter().map(|&p| space.view.to_screen(p)).collect();
         if !points.is_empty() {
-            let area = Rect::from_points(&points).expand(TURN_REACH);
+            let area = Rect::from_points(&points).expand(cx.style.reach);
             cx.part(MESH, HitShape::from(area))
                 .sense(Sense::DRAG | Sense::CLICK)
                 .priority(HitPriority::new(HitLevel::Body, 0))
@@ -533,8 +536,8 @@ impl Component for PinWarp<'_> {
                 if let Some(angle) = pin.angle {
                     let direction = space.view.map_vec(DocVec::from_angle(angle.to_radians()));
                     let direction = if direction.length() > 0.0 { direction.normalized() } else { Vec2::X };
-                    draw.stroke(&PaintShape::Circle(center, TURN_REACH), StrokeWidth::Thin, style.turn);
-                    draw.stroke(&PaintShape::Path(vec![center, center + direction * TURN_REACH]), StrokeWidth::Thin, style.turn);
+                    draw.stroke(&PaintShape::Circle(center, TURN_RING), StrokeWidth::Thin, style.turn);
+                    draw.stroke(&PaintShape::Path(vec![center, center + direction * TURN_RING]), StrokeWidth::Thin, style.turn);
                 }
             }
         }

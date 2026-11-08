@@ -9,13 +9,6 @@ use kurbo::Point;
 use super::{ConnectionTarget, ConnectorEnd, ConnectorEndKind, ConnectorItem};
 use crate::geometry::connector::{ConnectionSide, RouteEnd, Routing, path_handles, route_along};
 
-/// An end within this many screen points of a site glues to it (FigCraft's `ATTACH_PX`). A tool reads
-/// no sizes from the theme outside `paint`, so the reach is a constant of the connector.
-pub(crate) const ATTACH_REACH: f32 = 8.0;
-
-/// A target is hit within this many screen points of its bounds.
-pub(crate) const TARGET_TOLERANCE: f32 = 2.0;
-
 /// The shortest elbow run, in screen points, that has a bend handle.
 pub(crate) const MIN_RUN: f32 = 28.0;
 
@@ -77,7 +70,7 @@ pub(crate) fn anchor(end: RouteEnd) -> Point {
 }
 
 /// The end at `at`: glued to the nearest site of the topmost target containing `at` within `reach`
-/// screen points, else the side the point is towards, else free. With ⌘ or Ctrl held, a target with
+/// screen points, a target being hit within `reach` of its bounds, else the side the point is towards, else free. With ⌘ or Ctrl held, a target with
 /// no sites takes the point itself.
 pub(crate) fn end_at(targets: &[ConnectionTarget], at: Point, view: &CanvasView, reach: f32, mods: Mods) -> Placed {
     // inv-figcraft: crates/engine/src/boards/board/tools.rs:98-124 (the side within `ATTACH_PX`
@@ -86,7 +79,7 @@ pub(crate) fn end_at(targets: &[ConnectionTarget], at: Point, view: &CanvasView,
     // numbered sites glues only within the radius of one).
     let free = Placed { end: ConnectorEnd::Free(at), route: RouteEnd::Point(at), target: None, active: None };
     let reach = view.doc_len(reach);
-    let slack = view.doc_len(TARGET_TOLERANCE);
+    let slack = reach;
     let Some(t) = targets.iter().find(|t| t.bounds.abs().inflate(slack, slack).contains(at)) else { return free };
     let b = t.bounds.abs();
     let target = Some(t.id);
