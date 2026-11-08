@@ -4,10 +4,11 @@
 use craft_behavior::EditEvent;
 use craft_imaging::ui::curve::{Curve, CurveChannel, CurveEditor};
 use craft_imaging::ui::{ChannelColor, HistogramData};
+use craft_theme::{Contrast, Mode};
 use craft_ui::contract::{Bind, Role, Show as _};
 use craft_ui::display::Text;
 use craft_ui::testing::pointer::{moved, press, release, secondary};
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Fixture, style, trial};
 use egui::{Key, Modifiers, Pos2, Vec2, pos2, vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -85,7 +86,7 @@ fn rig_with(curve: Curve, config: Config) -> Rig {
         s.set(out.selected);
         *c.borrow_mut() = value;
     });
-    fixture.room(Vec2::new(ROOM_WIDTH, ROOM_HEIGHT));
+    fixture.room(room());
     fixture.settle();
     let mut rig = Rig { fixture, curve: shared, selected, channel, kinds, origin: Pos2::ZERO, scale: Vec2::ZERO };
     rig.calibrate(&curve);
@@ -150,9 +151,14 @@ impl Rig {
     }
 }
 
-/// Room for the editor at its greatest size.
-const ROOM_WIDTH: f32 = 700.0;
-const ROOM_HEIGHT: f32 = 900.0;
+/// The room is this many plot widths wide and tall: the editor at its greatest size and the rows under it.
+const WIDE_PLOTS: u8 = 5;
+const TALL_PLOTS: u8 = 6;
+
+fn room() -> Vec2 {
+    let unit = style::tokens(Mode::Light, Contrast::Normal).size.plot.width;
+    Vec2::new(unit * f32::from(WIDE_PLOTS), unit * f32::from(TALL_PLOTS))
+}
 /// A point in whole levels.
 fn level(x: u16, y: u16) -> [f32; 2] {
     [f32::from(x), f32::from(y)]
