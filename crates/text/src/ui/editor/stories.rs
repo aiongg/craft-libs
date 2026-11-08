@@ -3,14 +3,12 @@
 use std::ops::Range;
 
 use craft_behavior::kurbo::Point;
-use craft_ui::canvas::{Canvas, ToolPath};
+use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::{Rect, Ui};
 
 use super::{CaretLine, EditKind, HostLine, HostRun, TextEditor, TextEditorHost, TextSelection};
-
-const TYPE_TOOL: ToolPath = ToolPath::Command("the Type tool");
 
 /// A text of lines at `\n` in a monospace layout: char `c` of a line sits at x = 8c, line `l` at y = 16l.
 struct MonoHost {
@@ -131,7 +129,7 @@ fn on_canvas(ui: &mut Ui, data: &mut StoryData, text: &str, selection: TextSelec
     let mut host = MonoHost { text: data.value("text", text.to_owned()).clone(), revision: 0 };
     let selection = data.value("selection", selection);
     let _ = marked;
-    let shown = Canvas::new("Document", TYPE_TOOL).show(ui, |ui, body| {
+    let shown = Canvas::new("Document").show(ui, |ui, body| {
         let bounds = Rect::from_min_size(body.rect.min, egui::vec2(240.0, 48.0));
         TextEditor::new("Text", &mut host, Bind::bound(&mut *selection)).show_at(ui, bounds)
     });

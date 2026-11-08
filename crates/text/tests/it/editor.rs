@@ -7,7 +7,7 @@ use std::rc::Rc;
 use craft_behavior::kurbo::Point;
 use craft_text::quotes::QuoteStyle;
 use craft_text::ui::editor::{CaretLine, EditKind, HostLine, TextEditor, TextEditorHost, TextSelection, click_count, click_selection, word_boundary};
-use craft_ui::canvas::{Canvas, ToolPath};
+use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, ShowContainer as _};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers, Rect, pos2, vec2};
@@ -90,7 +90,7 @@ fn session(text: &str, quotes: Option<QuoteStyle>) -> Session {
     let (shown_host, shown_selection, shown_commit) = (Rc::clone(&host), Rc::clone(&selection), Rc::clone(&commit));
     let mut fixture = Fixture::new(move |ui| {
         let (mut host, mut selection) = (shown_host.borrow_mut(), shown_selection.borrow_mut());
-        Canvas::new("Document", ToolPath::Command("the Type tool")).show(ui, |ui, body| {
+        Canvas::new("Document").show(ui, |ui, body| {
             let bounds = Rect::from_min_size(body.rect.min, vec2(200.0, 20.0));
             let output = TextEditor::new("Text", &mut *host, Bind::bound(&mut *selection)).smart_quotes(quotes).show_at(ui, bounds);
             if output.commit {

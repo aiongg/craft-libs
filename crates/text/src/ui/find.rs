@@ -22,6 +22,7 @@ use craft_ui::menu::Menu;
 use craft_ui::pickers::Select;
 use craft_ui::runtime::access::PopupKind;
 use craft_ui::runtime::env::{Env, Label};
+use craft_ui::runtime::focus::{self, FocusTarget};
 use craft_ui::sections::{DialogRole, FooterButton};
 use craft_ui::tabs::{Tab, TabKind, TabStrip};
 use craft_ui::text::TextField;
@@ -159,7 +160,7 @@ impl FindBarState {
         self.opened = true;
     }
 
-    /// Whether the keyboard is still owed to the field.
+    /// Whether the bar was asked for since the last pass.
     pub fn is_opening(&self) -> bool {
         self.opened
     }
@@ -214,7 +215,7 @@ impl<'a> FindBar<'a> {
     pub fn show(self, ui: &mut Ui) -> FindBarOutput {
         let FindBar { query, options, matches, progress, state } = self;
         let words = Env::of(ui).words::<FindLabels>();
-        let _opened = state.is_some_and(|state| std::mem::take(&mut state.opened));
+        let opened = state.is_some_and(|state| std::mem::take(&mut state.opened));
         let mut out = FindBarOutput { search: false, stepped: false, closed: false, response: ui.response() };
         let mut step: Option<bool> = None;
         let row = Row::new().show(ui, |ui, cx: &mut BodyCx<'_>| {
@@ -222,6 +223,9 @@ impl<'a> FindBar<'a> {
                 step = Some(command == FindStep::Previous);
             }
             let edit = TextField::search(words.find_text.clone(), Bind::given(query.clone())).placeholder(words.find_text.clone()).show(ui);
+            if opened {
+                focus::request(ui.ctx(), FocusTarget::Id(edit.response.id));
+            }
             if let Some(value) = edit.event.as_ref().and_then(|event| event.value()) {
                 query.clone_from(value);
                 out.search = true;

@@ -100,19 +100,18 @@ impl TextRuler<'_> {
         for tick in ticks.iter().filter(|tick| tick.major) {
             let x = g.x((tick.value / per_doc) as f32);
             let label = text.tick_label(&numbers, tick.value, tick.step);
-            let width = label.chars().count() as f32 * style.thickness * DIGIT_SHARE;
+            let run = TextRun::new(label).role(style.label.role).color(color);
+            let width = draw.layout(&run, f32::INFINITY).size().x;
             let size = vec2(width, g.strip.height());
             let at = if g.right_to_left { pos2(x - style.pad - width, g.strip.top()) } else { pos2(x + style.pad, g.strip.top()) };
             let boxed = Rect::from_min_size(at, size);
             if g.strip.contains_rect(boxed) && !keep_clear.iter().any(|clear| clear.intersects(boxed)) {
-                draw.text(boxed, &TextRun::new(label).role(style.label.role).color(color));
+                draw.text(boxed, &run);
             }
         }
     }
 }
 
-/// The width of a digit as a share of the strip's depth, which sizes a tick number's box.
-const DIGIT_SHARE: f32 = 0.5;
 /// The three grip lines across a table column marker, in marker-gap steps from its middle.
 const GRIP_LINES: [f32; 3] = [-1.0, 0.0, 1.0];
 /// The decimal dot's radius is this share of the glyph's stem height.
