@@ -154,6 +154,9 @@ pub enum Intent {
         forward: bool,
         /// How much to delete.
         by: Granularity,
+        /// Shift was held: a component that gives Shift+Delete its own meaning (Fill, a ripple delete) takes
+        /// this one, and `take_exact` of a plain delete leaves it.
+        shift: bool,
     },
     /// Space on a collection: the item step turns it into the collection's `SpaceAction`.
     Space,
@@ -194,7 +197,12 @@ pub enum Intent {
 impl Intent {
     /// `Delete` of `by`, forward or back.
     pub const fn delete(forward: bool, by: Granularity) -> Intent {
-        Intent::Delete { forward, by }
+        Intent::Delete { forward, by, shift: false }
+    }
+
+    /// `Delete` of `by` with Shift held.
+    pub const fn shift_delete(forward: bool, by: Granularity) -> Intent {
+        Intent::Delete { forward, by, shift: true }
     }
 
     /// `SwitchPage` to the next page when `forward`.

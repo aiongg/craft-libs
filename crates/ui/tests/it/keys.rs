@@ -1,7 +1,7 @@
 //! Which key roles take Delete: a command scope gets Delete from a focused button, while a deletable list and a text
 //! field keep it, and a collection that leaves its arrows to its owner lets the owner's arrow command run.
 
-use craft_behavior::{DisplayOrder, ItemSource};
+use craft_behavior::{DisplayOrder, Granularity, Input, Intent, ItemSource};
 use craft_ui::buttons::Button;
 use craft_ui::contract::{
     Bind, CollectionEvent, CommandSet, Commands as _, ItemKeys, Props as _, SelectMode, Show as _, ShowCollection as _, ShowContainer as _,
@@ -9,9 +9,11 @@ use craft_ui::contract::{
 use craft_ui::list::{List, ListRow};
 use craft_ui::popover::Popover;
 use craft_ui::runtime::commands::CommandScope;
-use craft_ui::runtime::focus::Initial;
+use craft_ui::runtime::focus::{FocusTarget, Initial, KeyUse, request};
 use craft_ui::sections::Section;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::focus::{AccessActionKind, Stop, access_request, intents_of, register_node, register_stop, widget};
+use craft_ui::testing::input::key_press;
+use craft_ui::testing::{Fixture, Frames, trial};
 use craft_ui::text::TextField;
 use egui::{Key, Modifiers};
 use std::cell::{Cell, RefCell};
@@ -166,4 +168,52 @@ fn a_collection_that_leaves_its_arrows_to_the_owner_lets_the_owner_command_run()
     };
     assert_eq!(run(ItemKeys::Own), (0, 1), "the list takes the arrow");
     assert_eq!(run(ItemKeys::Owner), (1, 0), "the owner's command takes the arrow");
+}
+
+fn named(name: &str) -> egui::Id {
+    craft_ui::testing::focus::named_id(name)
+}
+
+fn stop(ui: &mut egui::Ui, keys: KeyUse) {
+    widget(ui, named("target"));
+    register_stop(ui.ctx(), Stop::new(named("target"), keys));
+}
+
+/// A component takes Shift+Delete apart from Delete: a plain-delete reader leaves it, and the Shift reader sees it.
+#[trial]
+fn shift_delete_reaches_a_deleting_component_as_its_own_intent() {
+    let mut frames = Frames::new();
+    let seen = Cell::new((false, false));
+    let mut show = |ui: &mut egui::Ui| {
+        stop(ui, KeyUse::of(Input::Pointer).with_deletes());
+        let mut intents = intents_of(ui.ctx(), Some(named("target")), false);
+        let plain = intents.take_exact(&Intent::delete(true, Granularity::Unit));
+        let shifted = intents.take_exact(&Intent::shift_delete(true, Granularity::Unit));
+        seen.set((seen.get().0 || plain, seen.get().1 || shifted));
+    };
+    frames.idle(2, &mut show);
+    request(&frames.ctx, FocusTarget::Id(named("target")));
+    frames.frame(Vec::new(), &mut show);
+    frames.frame(vec![key_press(Key::Delete, Modifiers::SHIFT)], &mut show);
+    assert_eq!(seen.get(), (false, true), "Shift+Delete is the shifted intent only");
+    frames.frame(vec![key_press(Key::Delete, Modifiers::NONE)], &mut show);
+    assert_eq!(seen.get(), (true, true), "Delete alone is the plain intent");
+}
+
+/// A scroll request from assistive technology reaches the component that owns the node, through its intents.
+#[trial]
+fn a_component_reads_a_scroll_request_through_its_intents() {
+    let mut frames = Frames::new();
+    let scrolls = Cell::new(0);
+    let mut show = |ui: &mut egui::Ui| {
+        stop(ui, KeyUse::of(Input::Pointer));
+        register_node(ui.ctx(), named("target"), named("target"), None, true);
+        let mut intents = intents_of(ui.ctx(), Some(named("target")), false);
+        while intents.take_scroll_access(false).is_some() {
+            scrolls.set(scrolls.get() + 1);
+        }
+    };
+    frames.idle(2, &mut show);
+    frames.frame(vec![access_request(AccessActionKind::ScrollDown, named("target"))], &mut show);
+    assert_eq!(scrolls.get(), 1);
 }

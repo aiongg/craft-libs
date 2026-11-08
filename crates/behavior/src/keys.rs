@@ -267,7 +267,7 @@ fn movement(mac: bool, key: Key, mods: Mods, role: KeyRole) -> Option<Intent> {
         Key::PageDown if !mods.alt && !mods.cmd && !mods.ctrl => moved(NavMove::PageDown, Granularity::Unit),
         Key::Delete | Key::Backspace if role.deletes && (!mods.alt || mac) => {
             let by = if by_word { Granularity::Word } else { Granularity::Unit };
-            Some(Intent::delete(key == Key::Delete, by))
+            Some(Intent::Delete { forward: key == Key::Delete, by, shift: mods.shift })
         }
         _ => None,
     }
@@ -317,6 +317,7 @@ mod tests {
             check(os, Key::Backspace, NONE, any, None);
             check(os, Key::Delete, NONE, deleter, Some(Intent::delete(true, Granularity::Unit)));
             check(os, Key::Backspace, Mods::CMD, deleter, Some(Intent::delete(false, Granularity::Word)));
+            check(os, Key::Delete, Mods::SHIFT, deleter, Some(Intent::shift_delete(true, Granularity::Unit)));
             check(os, Key::Down, Mods::ALT, nudge, None);
             check(os, Key::Left, NONE, KeyRole::new().owner_arrows(true), None);
         }

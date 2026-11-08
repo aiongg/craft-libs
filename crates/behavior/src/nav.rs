@@ -254,15 +254,19 @@ fn neighbour(outline: &dyn NavOutline, state: &NavState, from: usize, forward: b
     None
 }
 
-/// `count` selectable positions from `from`, stopping at the last one reached.
-fn advance(outline: &dyn NavOutline, from: usize, forward: bool, count: usize) -> usize {
-    let no_wrap = NavState::new();
+/// `count` selectable positions from `from`, stopping at the last one reached. A page move that starts on the last
+/// position of its direction wraps like a single step does, when the state wraps.
+fn advance(outline: &dyn NavOutline, state: &NavState, from: usize, forward: bool, count: usize) -> usize {
+    let stop = NavState { wrap: false, ..*state };
     let mut at = from;
     for _ in 0..count {
-        match neighbour(outline, &no_wrap, at, forward) {
+        match neighbour(outline, &stop, at, forward) {
             Some(next) => at = next,
             None => break,
         }
+    }
+    if at == from && state.wrap {
+        return neighbour(outline, state, from, forward).unwrap_or(from);
     }
     at
 }
@@ -275,8 +279,8 @@ fn linear(outline: &dyn NavOutline, state: &NavState, lead: usize, mv: NavMove) 
     match mv {
         NavMove::Back | NavMove::Up => moved(neighbour(outline, state, lead, false)),
         NavMove::Forward | NavMove::Down => moved(neighbour(outline, state, lead, true)),
-        NavMove::PageUp => NavStep::Moved(advance(outline, lead, false, state.page)),
-        NavMove::PageDown => NavStep::Moved(advance(outline, lead, true, state.page)),
+        NavMove::PageUp => NavStep::Moved(advance(outline, state, lead, false, state.page)),
+        NavMove::PageDown => NavStep::Moved(advance(outline, state, lead, true, state.page)),
         NavMove::Start => moved(first_enabled(outline)),
         NavMove::End => moved(last_enabled(outline)),
     }
@@ -754,6 +758,16 @@ mod tests {
         assert_eq!(go(NavShape::Flat, &rows, &mut state, NavMove::PageDown), NavStep::Moved(4));
         let mut none = NavState::new();
         assert_eq!(go(NavShape::Flat, &rows, &mut none, NavMove::Up), NavStep::Moved(4), "the first backward move lands on the last row");
+    }
+
+    #[test]
+    fn a_page_move_from_the_last_row_wraps_only_when_the_state_wraps() {
+        let rows = Rows::flat(5);
+        let mut stops = NavState::at(4);
+        assert_eq!(go(NavShape::Flat, &rows, &mut stops, NavMove::PageDown), NavStep::Moved(4));
+        let mut wraps = NavState::at(4).wrap(true);
+        assert_eq!(go(NavShape::Flat, &rows, &mut wraps, NavMove::PageDown), NavStep::Moved(0));
+        assert_eq!(go(NavShape::Flat, &rows, &mut wraps, NavMove::PageUp), NavStep::Moved(4));
     }
 
     #[test]
