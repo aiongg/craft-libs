@@ -9,7 +9,7 @@ use craft_behavior::{Metrics, Proposal, Sense};
 use craft_keymap::Chord;
 use craft_theme::Stateful;
 use craft_ui::contract::{
-    Access, Common, Component, Cx, MeasureCx, Name, NoValue, Outcome, PaintUi, Pointer as _, Props as _, Role, Show as _, Styled as _,
+    Access, Common, Component, Cx, Focus as _, MeasureCx, Name, NoValue, Outcome, PaintUi, Pointer as _, Props as _, Role, Show as _, Styled as _,
 };
 use craft_ui::primitives::{TextRun, Wrap};
 use craft_ui::runtime::env::Label;
