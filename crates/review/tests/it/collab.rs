@@ -122,6 +122,28 @@ fn join_field_waits_while_a_join_is_pending() {
     assert_eq!(*requests.borrow(), [CollabRequest::CancelJoin]);
 }
 
+/// The join field holds a link's secret: no accessibility node carries what was typed, and Enter still joins.
+#[trial]
+fn the_join_code_is_hidden_from_accessibility() {
+    let requests: Requests = Rc::default();
+    let seen = requests.clone();
+    let transport = session();
+    let mut typed = String::new();
+    let mut fixture = Fixture::new(move |ui| seen.borrow_mut().extend(JoinField::new(&transport, &mut typed).show(ui).requests));
+    fixture.settle();
+    let field = fixture.by_label("Join code or invite link").expect("the field");
+    fixture.click(&field);
+    fixture.type_text("s3cretcode");
+    let tree = fixture.tree();
+    let leaked = tree
+        .keys()
+        .into_iter()
+        .any(|key| [tree.name_of(key), tree.value_of(key), tree.description_of(key)].into_iter().flatten().any(|text| text.contains("s3cretcode")));
+    assert!(!leaked, "the typed code reaches no accessibility node");
+    fixture.key(egui::Key::Enter, egui::Modifiers::NONE);
+    assert_eq!(*requests.borrow(), [CollabRequest::Join("s3cretcode".into())]);
+}
+
 fn pill(vote: Option<VoteSession>) -> (Fixture, Requests) {
     let requests: Requests = Rc::default();
     let seen = requests.clone();
