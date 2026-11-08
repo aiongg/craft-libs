@@ -109,12 +109,16 @@ fn bar_rig(line: Option<RulerLine>, scale: bool, factor: f64) -> Fixture {
     fixture
 }
 
-/// The value of the readout field named `label`: the field's group node carries the text its body shows.
-fn readout(fixture: &Fixture, label: &str) -> Option<String> {
+/// The values of the readout fields in bar order (X, Y, W, H, A, L1, L2): each field's group node carries the text its
+/// body shows.
+fn readouts(fixture: &Fixture) -> Vec<String> {
     let tree = fixture.tree();
-    let group = fixture.by_role(Role::GROUP).into_iter().find(|group| tree.name_of(group.node) == Some(label))?;
-    tree.value_of(group.node).map(str::to_owned)
+    fixture.by_role(Role::GROUP).into_iter().filter_map(|group| tree.value_of(group.node).map(str::to_owned)).collect()
 }
+
+/// The index of the angle and of the first length in [`readouts`].
+const ANGLE: usize = 4;
+const L1: usize = 5;
 
 /// Use Measurement Scale multiplies the lengths and positions in the readouts, not the angle.
 #[trial]
@@ -122,9 +126,10 @@ fn scale_multiplies_lengths_not_the_angle() {
     let line = RulerLine::new(Point::new(1.0, 2.0), Point::new(4.0, 6.0));
     let plain = bar_rig(Some(line), false, 2.0);
     let scaled = bar_rig(Some(line), true, 2.0);
-    assert!(readout(&plain, "L1").is_some());
-    assert_ne!(readout(&plain, "L1"), readout(&scaled, "L1"));
-    assert_eq!(readout(&plain, "A"), readout(&scaled, "A"));
+    let (plain, scaled) = (readouts(&plain), readouts(&scaled));
+    assert!(plain.get(L1).is_some(), "{plain:?}");
+    assert_ne!(plain[L1], scaled[L1]);
+    assert_eq!(plain[ANGLE], scaled[ANGLE]);
 }
 
 /// Straighten Layer and Clear are disabled without a line.
@@ -141,8 +146,8 @@ fn buttons_are_disabled_without_a_line() {
 #[trial]
 fn readouts_show_the_ruler_units() {
     let rig = bar_rig(Some(RulerLine::new(Point::new(3.0, 4.0), Point::new(6.0, 8.0))), false, 1.0);
-    let value = readout(&rig, "L1");
-    assert!(value.as_ref().is_some_and(|v| v.contains("5.00") && v.contains("px")), "{value:?}");
+    let values = readouts(&rig);
+    assert!(values.get(L1).is_some_and(|v| v.contains("5.00") && v.contains("px")), "{values:?}");
 }
 
 /// The tool for the fixture: it builds a pass over the shared line for every call and applies the events the pass

@@ -5,7 +5,8 @@ use super::{Symmetry, SymmetryChoice, SymmetryHandles, SymmetryMenu, SymmetryMod
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Size};
 use craft_ui::canvas::Canvas;
-use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
+use craft_ui::runtime::env::Message;
 use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use egui::{Ui, Vec2};
 
@@ -73,5 +74,20 @@ fn handles_on_a_canvas(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let shown = Canvas::new("Document")
         .view(view(room))
         .show(ui, |ui, body| SymmetryHandles::new("Symmetry", Bind::bound(&mut *symmetry), PAGE).show_at(ui, body.rect));
+    shown.inner.map(|output| StoryOutput::from(output.edit)).unwrap_or_default()
+}
+
+/// The handles refuse a centre off the page.
+fn refuse_a_centre_off_the_page(symmetry: &Symmetry) -> Validity<Symmetry> {
+    if symmetry.center.x < 0.0 { Validity::Refuse(Message::new("The centre is off the page")) } else { Validity::Ok }
+}
+
+#[story(SymmetryHandles<'static>, covers = [Invalid], drive = Drive::Never)]
+fn centre_off_the_page(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let symmetry = data.value("off-page", Symmetry { mode: SymmetryMode::Vertical, center: Point::new(-40.0, 150.0), rotation: 0.0 });
+    let room = ui.available_rect_before_wrap();
+    let shown = Canvas::new("Document").view(view(room)).show(ui, |ui, body| {
+        SymmetryHandles::new("Symmetry", Bind::bound(&mut *symmetry).check(refuse_a_centre_off_the_page), PAGE).show_at(ui, body.rect)
+    });
     shown.inner.map(|output| StoryOutput::from(output.edit)).unwrap_or_default()
 }

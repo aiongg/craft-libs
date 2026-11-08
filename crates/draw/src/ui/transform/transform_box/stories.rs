@@ -1,10 +1,12 @@
 //! Stories of the transform box: Free Transform with its reference point, the Move tool's controls and Distort.
 
 use super::{BOX, RotateZone, TransformBox};
+use craft_behavior::CanvasView;
 use craft_behavior::geometry::quad::{BoxPart, BoxRules, BoxState, TransformMode};
 use craft_behavior::kurbo::Rect as DocRect;
 use craft_ui::canvas::Canvas;
-use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
+use craft_ui::runtime::env::Message;
 use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use egui::{Ui, Vec2};
 
@@ -15,7 +17,8 @@ const PICTURE: DocRect = DocRect::new(200.0, 120.0, 440.0, 280.0);
 fn on_canvas(ui: &mut Ui, data: &mut StoryData, configure: impl for<'a> FnOnce(TransformBox<'a>) -> TransformBox<'a>) -> StoryOutput {
     let state = data.value("box", BoxState::from_rect(PICTURE));
     let mut configure = Some(configure);
-    let shown = Canvas::new("Document").show(ui, |ui, body| {
+    let room = ui.available_rect_before_wrap();
+    let shown = Canvas::new("Document").view(CanvasView::new(room, PICTURE.center(), 1.0)).show(ui, |ui, body| {
         configure
             .take()
             .map(|configure| configure(TransformBox::new("Free Transform", Bind::bound(&mut *state), PICTURE, 0.0)).show_at(ui, body.rect))
@@ -45,4 +48,19 @@ fn move_tool_controls(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(TransformBox<'static>, covers = [Default])]
 fn distort(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     on_canvas(ui, data, |control| control.rules(BoxRules::in_mode(TransformMode::Distort)))
+}
+
+/// The box refuses a state without a width.
+fn refuse_a_collapsed_box(state: &BoxState) -> Validity<BoxState> {
+    if state.quad[0] == state.quad[1] { Validity::Refuse(Message::new("The box has no width")) } else { Validity::Ok }
+}
+
+#[story(TransformBox<'static>, covers = [Invalid], drive = Drive::Never)]
+fn collapsed_box(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let state = data.value("collapsed", BoxState::from_rect(DocRect::new(PICTURE.x0, PICTURE.y0, PICTURE.x0, PICTURE.y1)));
+    let room = ui.available_rect_before_wrap();
+    let shown = Canvas::new("Document").view(CanvasView::new(room, PICTURE.center(), 1.0)).show(ui, |ui, body| {
+        TransformBox::new("Free Transform", Bind::bound(&mut *state).check(refuse_a_collapsed_box), PICTURE, 0.0).show_at(ui, body.rect)
+    });
+    shown.inner.map(|output| StoryOutput::from(output.edit)).unwrap_or_default()
 }
