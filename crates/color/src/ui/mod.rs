@@ -1,669 +1,75 @@
-//! The colour picker, [`ColorPicker`], and its parts: [`ColorArea`], the 2D field of two
-//! components of a colour, and [`ColorStrip`], the strip of the third, as PhotoCraft's Color
-//! Picker field and component strip.
+//! The colour widgets.
 //!
-//! Both edit a colour as one [`ColorModel`]'s values ([`ModelValues`]), the model and components
-//! an [`AreaMode`] chooses, and report through the edit lifecycle ([`craft_ui::edit`]): a press sets
-//! the value under the pointer and a drag is one gesture, each key is a
-//! [`Set`](craft_ui::edit::EditEvent::Set). Working in model values keeps what sRGB can't say: a
-//! drag to grey keeps the hue, a drag to black keeps hue and saturation.
+//! - Fields and strips of a colour model: [`ColorArea`], [`ColorStrip`], [`ColorRamp`], [`ColorDisc`], [`ColorWheel`].
+//! - The picker: [`ColorPicker`], its popover and dialog, the hex and readout fields, the choice list and the droppers.
+//! - Wells and paints: [`SwatchPair`], [`PaintChip`], [`PaintList`], [`SwatchPalette`], [`SwatchTable`].
+//! - Panels: [`ColorPanel`], [`HarmonyPanel`], [`SwatchesPanel`].
+//! - Sampling: the eyedropper, colour samplers and the screen picker.
+//! - Imaging prompts: [`LutPicker`] and [`ProfileMismatchDialog`].
+//!
+//! Colour edits are values of a colour model ([`ModelValues`](craft_theme::ModelValues)) or of [`PickedColor`], and
+//! report through the edit lifecycle of the contract.
 
 mod area;
+mod channels;
 mod choice;
-#[cfg(test)]
-mod choice_tests;
-mod color_stories;
-#[cfg(test)]
-mod dialog_tests;
 mod disc;
-mod disc_stories;
-#[cfg(test)]
-mod disc_tests;
 mod droppers;
-#[cfg(test)]
-mod droppers_tests;
 mod eyedropper;
-#[cfg(test)]
-mod eyedropper_tests;
-mod full_stories;
-#[cfg(test)]
-mod full_tests;
 mod harmony;
-#[cfg(test)]
-mod harmony_tests;
 mod hex;
-#[cfg(test)]
-mod hex_tests;
-#[cfg(test)]
-mod id_tests;
 mod lut_picker;
-#[cfg(test)]
-mod lut_picker_tests;
 mod paint_chip;
-#[cfg(test)]
-mod paint_chip_tests;
-mod paint_stories;
 mod pair;
-mod pair_stories;
-#[cfg(test)]
-mod pair_tests;
 mod palette;
-#[cfg(test)]
-mod palette_tests;
 mod panel;
-#[cfg(test)]
-mod panel_tests;
 mod picker;
 mod picker_dialog;
-#[cfg(test)]
-mod picker_dialog_tests;
-#[cfg(test)]
-mod picker_tests;
-pub mod popover;
-#[cfg(test)]
-mod popover_tests;
+mod popover;
 mod profile_prompts;
-#[cfg(test)]
-mod profile_prompts_tests;
-#[cfg(test)]
-mod quantize_tests;
 mod ramp;
-mod ramp_stories;
-#[cfg(test)]
-mod ramp_tests;
 mod readout;
-#[cfg(test)]
-mod readout_tests;
 mod samplers;
-#[cfg(test)]
-mod samplers_tests;
 mod screen_picker;
-#[cfg(test)]
-mod screen_picker_tests;
 mod strip;
 mod swatches;
-#[cfg(test)]
-mod swatches_tests;
-#[cfg(test)]
-mod tests;
+#[cfg(feature = "screen-testing")]
+pub mod testing;
 mod wheel;
-mod wheel_stories;
-#[cfg(test)]
-mod wheel_tests;
-
-use craft_theme::{ColorModel, ModelValues};
-use egui::{Color32, Stroke, Ui, Vec2, vec2};
 
 pub use crate::AreaMode;
 pub use area::ColorArea;
-pub use disc::{ColorDisc, ColorDiscResponse, ColorDiscStyle, DiscMove};
-pub use hex::{HexField, HexPairField};
-pub use pair::{PairWell, SwatchPair, SwatchPairResponse, SwatchPairStyle, Well};
-pub use palette::{SwatchPalette, SwatchTable, SwatchTableResponse};
-pub use picker::{ColorPicker, ColorPickerLayout, ColorPickerResponse, ColorWarning, ColorWarningChip, PickedColor};
-pub use popover::{ColorPopover, ColorPopoverResponse};
-pub use ramp::{ColorRamp, ColorRampResponse, ColorRampStyle, RampKind, RampPick};
-pub use readout::ColorReadout;
-pub use strip::ColorStrip;
-pub use wheel::{ColorWheel, ColorWheelResponse, ColorWheelStyle, WheelGeometry, WheelPart};
-
-pub use choice::{ChosenColor, ColorChoice, ColorChoiceLabels, ColorChoiceResponse, NamedColor};
-pub use droppers::{DropperButton, DropperButtonResponse, DropperKind, DropperState, DropperTool};
-pub use eyedropper::{
-    EyedropperBar, EyedropperLabels, EyedropperOptions, EyedropperPick, EyedropperTool, SampleSize, SampleSource, SamplingRingStyle, eyedropper_ring,
-};
+pub use choice::{ChosenColor, ColorChoice, NamedColor};
+pub use disc::{ColorDisc, ColorDiscOutput, DiscMove};
+pub use droppers::{DropperButton, DropperKind, DropperTool};
+pub use eyedropper::{EyedropperBar, EyedropperOptions, EyedropperPick, EyedropperTool, SampleSize, SampleSource};
 pub use harmony::{
-    HARMONY_WORDS, HarmonyLabels, HarmonyMenuAction, HarmonyPanel, HarmonyPanelResponse, HarmonyPanelState, HarmonyWheel, HarmonyWheelResponse,
+    HarmonyCommand, HarmonyMenu, HarmonyMenuAction, HarmonyPanel, HarmonyPanelOutput, HarmonyPanelState, HarmonyPicked, HarmonyWheel,
+    HarmonyWheelOutput, HarmonyWords,
 };
-pub use lut_picker::{LUT_WORDS, LutChoice, LutPicker, LutPickerLabels, LutPickerResponse};
+pub use hex::{HexPairField, PairCodec};
+pub use lut_picker::{LutChoice, LutPicker, LutPickerOutput, LutWords};
 pub use paint_chip::{
-    FillKind, GradientPreview, ImagePreview, Paint, PaintChip, PaintKindLabels, PaintLabels, PaintLink, PaintLinkKind, PaintList, PaintListEvent,
-    PaintListLabels, PaintListOptions, PaintListResponse, PaintRow,
+    FillKind, GradientPreview, ImagePreview, Paint, PaintChip, PaintChipOutput, PaintEditor, PaintLink, PaintLinkKind, PaintList, PaintListEvent,
+    PaintListOptions, PaintListOutput, PaintRow, PaintWords,
 };
-pub use panel::{ColorPanel, ColorPanelLabels, ColorPanelMode, ColorPanelRamp, ColorPanelResponse, ColorPanelState, PanelTarget};
-pub use picker_dialog::{ColorPickerDialog, ColorPickerLabels, ColorPickerMemory, ColorPickerResult};
-pub use profile_prompts::{ProfileAction, ProfileAnswer, ProfileLabels, ProfileMismatchDialog, ProfileMode, ProfileQuestion, ProfileStatus};
+pub use pair::{PairWell, SwatchPair, SwatchPairOutput, Well};
+pub use palette::{SwatchPalette, SwatchTable, SwatchTableOutput};
+pub use panel::{ColorPanel, ColorPanelCommand, ColorPanelMenu, ColorPanelMode, ColorPanelOutput, ColorPanelRamp, ColorPanelState, ColorPanelWords, PanelTarget};
+pub use picker::{ColorPicker, ColorPickerLayout, ColorPickerOutput, ColorPickerWords, PickedColor, ScreenPickGesture};
+pub use picker::full::{ColorWarning, ColorWarningChip};
+pub use picker_dialog::{ColorPickerDialog, ColorPickerDialogWords, ColorPickerMemory, ColorPickerResult};
+pub use popover::{ColorPopover, ColorPopoverOutput};
+pub use profile_prompts::{ProfileAction, ProfileAnswer, ProfileMismatchDialog, ProfileMode, ProfileQuestion, ProfileStatus, ProfileWords};
+pub use ramp::{ColorRamp, ColorRampOutput, RampKind, RampPick};
+pub use readout::ColorReadout;
 pub use samplers::{
-    ColorSamplerLabels, ColorSamplerTool, ColorSamplers, MAX_SAMPLERS, SAMPLER_HIT, SamplerError, SamplerReadout, SamplerReadouts, sampler_options,
+    ColorSamplerMarks, ColorSamplerTool, ColorSamplers, MAX_SAMPLERS, SamplerError, SamplerOptions, SamplerReadout, SamplerReadouts,
 };
-pub use screen_picker::{CaptureResult, CaptureSource, LOUPE_PIXELS, LOUPE_ZOOM, ScreenColorPicker, ScreenPickerLabels, StillCapture};
-pub use swatches::{MAX_GROUPS, MAX_SWATCHES, SwatchAt, SwatchLibrary, SwatchesLabels, SwatchesMenuResponse, SwatchesPanel, SwatchesPanelResponse};
-
-use craft_ui::controls::slider::{self, Scale};
-use craft_ui::edit::{self, EditEvent};
-use craft_ui::localized::{Labels, LocaleNumbers};
-use craft_ui::primitives::{Content, Gap, Row, Stack, Text};
-use craft_ui::story::{Level, SizeArg, Story, StoryArgs, StoryChoice, StoryLabels};
-use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
-use craft_ui::typed_story;
-
-/// The area's and the strip's sizes and colours, from [`ColorArea::style`].
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct ColorPartsStyle {
-    /// Side of the Full picker's area, and the strip's default height: five `size.thumb.lg`.
-    pub area: f32,
-    /// Height of the Compact picker's area: three `size.thumb.lg`.
-    pub area_height: f32,
-    /// Width of the strip in the Full picker, its default: `size.icon.lg`.
-    pub strip_full: f32,
-    /// Width of the strip in the Compact picker: `size.icon.md`.
-    pub strip: f32,
-    /// The edge round the area and the strip, outside them: one `stroke.thin` of `line.control_edge`.
-    pub edge: Stroke,
-    /// The area marker's inner circle: a fifth of `size.control.md`, a `stroke.thick` stroke of
-    /// `overlay.handle_fill`.
-    pub marker_inner_radius: f32,
-    /// The inner ring's stroke: width and colour.
-    pub marker_inner: Stroke,
-    /// The marker's outer ring: the inner radius plus `stroke.medium`, a `stroke.medium` stroke
-    /// of `overlay.halo`. One of the two rings reads on any colour, and neither tints it.
-    pub marker_outer_radius: f32,
-    /// The outer ring's stroke: width and colour.
-    pub marker_outer: Stroke,
-    /// A strip pointer triangle, its depth across and its height: 0.3 and 0.417 of
-    /// `size.control.md`.
-    pub pointer: Vec2,
-    /// The pointers' fill: `text.normal`, outlined in the strip's edge.
-    pub pointer_color: Color32,
-}
-
-fn parts_style(tokens: &UiTokens) -> ColorPartsStyle {
-    let c = &tokens.color;
-    let control = tokens.size.control.md;
-    let marker_inner_radius = control * MARKER_INNER_RADIUS_PER_CONTROL;
-    ColorPartsStyle {
-        area: tokens.size.thumb.lg * 5.0,
-        area_height: tokens.size.thumb.lg * 3.0,
-        strip_full: tokens.size.icon.lg,
-        strip: tokens.size.icon.md,
-        edge: Stroke::new(tokens.stroke.thin, c.line.control_edge.to_egui()),
-        marker_inner_radius,
-        marker_inner: Stroke::new(tokens.stroke.thick, c.overlay.handle_fill.to_egui()),
-        marker_outer_radius: marker_inner_radius + tokens.stroke.medium,
-        marker_outer: Stroke::new(tokens.stroke.medium, c.overlay.halo.to_egui()),
-        pointer: vec2(control * POINTER_WIDTH_PER_CONTROL, control * POINTER_HEIGHT_PER_CONTROL),
-        pointer_color: c.text.normal.to_egui(),
-    }
-}
-
-/// The area marker's inner radius, as a fraction of `size.control.md`.
-const MARKER_INNER_RADIUS_PER_CONTROL: f32 = 0.217;
-/// A strip pointer's depth across the strip, as a fraction of `size.control.md`.
-const POINTER_WIDTH_PER_CONTROL: f32 = 0.3;
-/// A strip pointer's height along the strip, as a fraction of `size.control.md`.
-const POINTER_HEIGHT_PER_CONTROL: f32 = 0.417;
-
-/// A disabled part's edge, marker and pointers are faded; its colours are not.
-fn faded(color: Color32, enabled: bool) -> Color32 {
-    if enabled { color } else { color.gamma_multiply(0.5) }
-}
-
-fn faded_stroke(stroke: Stroke, enabled: bool) -> Stroke {
-    Stroke::new(stroke.width, faded(stroke.color, enabled))
-}
-
-/// The scale of a model channel: its range, snapping to its step.
-fn scale_of(model: &dyn ColorModel, channel: usize) -> Scale {
-    let ch = model.channels()[channel];
-    Scale::new(&(f64::from(ch.min)..=f64::from(ch.max)), Some(f64::from(ch.step)))
-}
-
-/// Where `value` lies in `scale`, from its start (0) to its end (1).
-fn fraction(scale: &Scale, value: f32) -> f32 {
-    let span = scale.max - scale.min;
-    if span > 0.0 { ((scale.place(f64::from(value)) - scale.min) / span) as f32 } else { 0.0 }
-}
-
-/// The value at `t` (0 at the start, 1 at the end) of `scale`, on its nearest step.
-fn value_at(scale: &Scale, t: f32) -> f32 {
-    scale.snap(scale.min + f64::from(t.clamp(0.0, 1.0)) * (scale.max - scale.min)) as f32
-}
-
-/// Cells per side of a quantised field, and rows of a quantised strip: fine enough that the
-/// level edges follow the colour model, coarse enough to draw every frame.
-const QUANTIZE_CELLS: usize = 64;
-
-/// `values` with each red, green and blue channel of their colour on the nearest of `levels`
-/// evenly spaced levels (at least two) from 0 to 1, in the model's values again (a web-safe
-/// colour has 6). The other components are what the snapped colour gives.
-fn quantized(model: &dyn ColorModel, values: &ModelValues, levels: usize) -> ModelValues {
-    model.from_srgb(snapped(model.to_srgb(&values.values), levels))
-}
-
-/// `color` with each channel on the nearest of `levels` levels.
-fn snapped(color: craft_theme::Srgba, levels: usize) -> craft_theme::Srgba {
-    let top = (levels.max(2) - 1) as f32;
-    let snap = |v: f32| (v.clamp(0.0, 1.0) * top).round() / top;
-    craft_theme::Srgba::new(snap(color.r), snap(color.g), snap(color.b), color.a)
-}
-
-/// A component as a screen reader reads it: "Saturation 40 %", "Hue 120°", "Lightness 50".
-fn spoken(name: &str, model: &dyn ColorModel, channel: usize, value: f32) -> String {
-    let ch = model.channels()[channel];
-    let factor = 10f32.powi(i32::from(ch.decimals));
-    // Adding zero turns a rounded -0 into 0.
-    let value = (value * factor).round() / factor + 0.0;
-    let number = format!("{value:.*}", usize::from(ch.decimals));
-    match ch.unit {
-        "" => format!("{name} {number}"),
-        "°" => format!("{name} {number}°"),
-        unit => format!("{name} {number} {unit}"),
-    }
-}
-
-craft_ui::words! {
-    /// The sample text of the colour stories, English by default.
-    #[non_exhaustive]
-    pub struct ColorStoryLabels {
-        hex_color: "colorStory.hexColor" = "Hex color";
-    }
-}
-
-/// The labels tables of the colour widgets, for the words registry.
-pub const WORDS: &[&[craft_ui::localized::Word]] = &[
-    picker::WORDS,
-    <ColorStoryLabels as Labels>::WORDS,
-    <ColorChoiceLabels as Labels>::WORDS,
-    <ColorPanelLabels as Labels>::WORDS,
-    <ColorPickerLabels as Labels>::WORDS,
-    <EyedropperLabels as Labels>::WORDS,
-    <HarmonyLabels as Labels>::WORDS,
-    HARMONY_WORDS,
-    <LutPickerLabels as Labels>::WORDS,
-    LUT_WORDS,
-    <PaintLabels as Labels>::WORDS,
-    <paint_chip::PaintKindLabels as Labels>::WORDS,
-    <paint_chip::PaintListLabels as Labels>::WORDS,
-    <paint_stories::PaintStoryLabels as Labels>::WORDS,
-    <ProfileLabels as Labels>::WORDS,
-    <ColorSamplerLabels as Labels>::WORDS,
-    <ScreenPickerLabels as Labels>::WORDS,
-    <SwatchesLabels as Labels>::WORDS,
-];
-
-/// The count words of the colour widgets: their plural forms are in [`WORDS`], these give the
-/// singular forms a catalog extraction needs.
-pub const COUNTS: &[craft_ui::localized::words::Counted] = swatches::COUNTS;
-
-/// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &[
-    "ColorArea",
-    "ColorChoice",
-    "ColorDisc",
-    "ColorPanel",
-    "ColorPicker",
-    "ColorPickerDialog",
-    "ColorPopover",
-    "ColorRamp",
-    "ColorSamplers",
-    "ColorWheel",
-    "EyedropperBar",
-    "HarmonyPanel",
-    "HexField",
-    "LutPicker",
-    "PaintChip",
-    "PaintList",
-    "ProfileMismatchDialog",
-    "SwatchPair",
-    "SwatchPalette",
-    "SwatchesPanel",
-];
-
-#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
-enum ModeArg {
-    #[choice(name = "H")]
-    H,
-    #[choice(name = "S")]
-    S,
-    #[choice(name = "B")]
-    B,
-    #[choice(name = "R")]
-    R,
-    #[choice(name = "G")]
-    G,
-    #[choice(name = "B (blue)")]
-    BBlue,
-    #[choice(name = "L")]
-    L,
-    #[choice(name = "a")]
-    A,
-    #[choice(name = "b")]
-    Bb,
-    #[choice(name = "OKLCH L")]
-    OklchL,
-    #[choice(name = "OKLCH C")]
-    OklchC,
-    #[choice(name = "OKLCH H")]
-    OklchH,
-}
-
-impl ModeArg {
-    /// The mode at this option's position in [`AreaMode::PHOTOSHOP`] then [`AreaMode::OKLCH`].
-    fn mode(self) -> AreaMode {
-        AreaMode::PHOTOSHOP.into_iter().chain(AreaMode::OKLCH).nth(self as usize).unwrap_or_default()
-    }
-}
-
-#[derive(StoryArgs, Debug, PartialEq)]
-struct PartsArgs {
-    mode: ModeArg,
-    compact: bool,
-    disabled: bool,
-    #[arg(name = "web colours only")]
-    web_colours_only: bool,
-}
-
-#[derive(StoryArgs, Debug, PartialEq)]
-struct CompactArgs {
-    alpha: bool,
-    eyedropper: bool,
-    #[arg(name = "dynamic tracks")]
-    dynamic_tracks: bool,
-    #[arg(name = "web colours only")]
-    web_colours_only: bool,
-    disabled: bool,
-    #[arg(range = 160.0..=480.0)]
-    width: f32,
-}
-
-#[derive(StoryArgs, Debug, PartialEq)]
-struct PopoverArgs {
-    size: SizeArg,
-    alpha: bool,
-    eyedropper: bool,
-    disabled: bool,
-}
-
-#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
-enum DigitsArg {
-    #[choice(name = "2")]
-    Two,
-    #[choice(name = "1")]
-    One,
-}
-
-#[derive(StoryArgs, Debug, PartialEq)]
-struct HexFieldArgs {
-    digits: DigitsArg,
-    alpha: bool,
-    disabled: bool,
-}
-
-#[derive(StoryArgs, Debug, PartialEq)]
-struct PaletteArgs {
-    size: SizeArg,
-    #[arg(range = 60.0..=400.0)]
-    width: f32,
-    disabled: bool,
-}
-
-#[derive(StoryArgs, Debug, PartialEq)]
-struct PaletteTableArgs {
-    sixteen_columns: bool,
-    #[arg(range = 60.0..=480.0)]
-    width: f32,
-    disabled: bool,
-}
-
-/// The stories of the colour widgets.
-pub fn stories() -> Vec<Story> {
-    let mut stories = vec![
-        typed_story!(
-            "composites/color-area/parts",
-            Level::Composites,
-            "ColorArea",
-            "Area and strip",
-            PartsArgs { mode: ModeArg::H, compact: false, disabled: false, web_colours_only: false },
-            show_parts
-        ),
-        typed_story!(
-            "composites/color/compact",
-            Level::Composites,
-            "ColorPicker",
-            "Compact",
-            CompactArgs { alpha: false, eyedropper: true, dynamic_tracks: true, web_colours_only: false, disabled: false, width: 260.0 },
-            show_compact
-        ),
-        typed_story!(
-            "composites/color/popover",
-            Level::Composites,
-            "ColorPopover",
-            "Popover",
-            PopoverArgs { size: SizeArg::Md, alpha: true, eyedropper: true, disabled: false },
-            show_popover
-        ),
-        typed_story!(
-            "composites/color/hex-field",
-            Level::Composites,
-            "HexField",
-            "Hex field",
-            HexFieldArgs { digits: DigitsArg::Two, alpha: false, disabled: false },
-            show_hex_field
-        ),
-        typed_story!(
-            "composites/color/palette",
-            Level::Composites,
-            "SwatchPalette",
-            "Palette",
-            PaletteArgs { size: SizeArg::Md, width: 200.0, disabled: false },
-            show_palette
-        ),
-        typed_story!(
-            "composites/color/palette-table",
-            Level::Composites,
-            "SwatchPalette",
-            "Table",
-            PaletteTableArgs { sixteen_columns: true, width: 240.0, disabled: false },
-            show_palette_table
-        ),
-    ];
-    stories.extend(full_stories::stories());
-    stories.extend(pair_stories::stories());
-    stories.extend(wheel_stories::stories());
-    stories.extend(ramp_stories::stories());
-    stories.extend(disc_stories::stories());
-    stories.extend(color_stories::stories());
-    stories.extend(paint_stories::stories());
-    stories
-}
-
-/// A Compact picker editing one colour as a panel does: every event applied, a cancel puts the
-/// colour from before the gesture back; the eyedropper "samples" orange at once.
-fn show_compact(ui: &mut Ui, args: &mut CompactArgs) {
-    let numbers = LocaleNumbers::from_tag("en");
-    let start = craft_theme::Srgba::new(0.2, 0.55, 0.8, 1.0);
-    slider::with_values(ui, "color-compact", [(start, start, String::new())], |ui, state| {
-        let (color, before, last) = &mut state[0];
-        ui.set_width(args.width.min(ui.available_width()));
-        let mut web = args.web_colours_only;
-        let mut picker = ColorPicker::new("color-compact", "Foreground colour", *color, &numbers)
-            .web_colors(&mut web)
-            .alpha(args.alpha)
-            .dynamic_tracks(args.dynamic_tracks)
-            .enabled(!args.disabled);
-        if args.eyedropper {
-            picker = picker.eyedropper("Pick screen color");
-        }
-        let picked = picker.show(ui);
-        if picked.eyedropper_requested {
-            ColorPicker::sampled(ui.ctx(), picked.edit.response.id, craft_theme::Srgba::rgb(1.0, 0.6, 0.0));
-        }
-        if let Some(event) = &picked.edit.event {
-            match event {
-                EditEvent::Begin { .. } => *before = *color,
-                EditEvent::Cancel { .. } => *color = *before,
-                _ => {}
-            }
-            if let Some(p) = event.value() {
-                *color = p.color;
-            }
-            *last = edit::describe(&event.clone().map(|p| (p.color.to_rgba().to_hex(), p.model.map(|m| m.model))));
-        }
-        ui.add(Text::new(format!("Last event: {last}")).content(Content::Muted));
-    });
-}
-
-/// The levels of a web colour's channels: 0x00, 0x33 ... 0xFF.
-const WEB_LEVELS: usize = 6;
-
-/// The nearest web colour.
-fn web_color(c: craft_theme::Srgba) -> craft_theme::Srgba {
-    snapped(c, WEB_LEVELS)
-}
-
-/// An area and a strip in a mode, editing one colour that keeps the values last edited, as a
-/// picker keeps them.
-fn show_parts(ui: &mut Ui, args: &mut PartsArgs) {
-    let mode = args.mode.mode();
-    let (compact, enabled) = (args.compact, !args.disabled);
-    let web = args.web_colours_only;
-    let model = mode.model();
-    let start = craft_theme::Srgba::rgb(0.2, 0.55, 0.8);
-    slider::with_values(ui, "color-parts", [(start, None::<ModelValues>)], |ui, state| {
-        let (color, kept) = &mut state[0];
-        let values = craft_theme::kept_or_converted(model, *color, kept.as_ref());
-        let style = ColorArea::style(&Tokens::of(ui));
-        let height = if compact { style.area_height } else { style.area };
-        let strip_width = if compact { style.strip } else { style.strip_full };
-        let names = |i: usize| model.channels()[i].name;
-        Stack::new(Gap::Stack).show(ui, |ui| {
-            Row::new(Gap::Inline).show(ui, |ui| {
-                let mut area = ColorArea::new("color-parts-area", mode.name(), mode, values).size(Vec2::new(style.area, height)).enabled(enabled);
-                let mut strip =
-                    ColorStrip::new("color-parts-strip", names(mode.strip()), mode, values).size(Vec2::new(strip_width, height)).enabled(enabled);
-                if web {
-                    (area, strip) = (area.quantize(WEB_LEVELS), strip.quantize(WEB_LEVELS));
-                }
-                let edits = [area.show(ui), strip.show(ui)];
-                for edit in edits {
-                    if let Some(v) = edit.event.as_ref().and_then(|e| e.value()) {
-                        *color = model.to_srgb(&v.values);
-                        *kept = Some(*v);
-                    }
-                }
-            });
-            let text = model.channels().iter().enumerate().map(|(i, ch)| spoken(ch.label, model, i, values.values[i])).collect::<Vec<_>>().join(", ");
-            ui.add(Text::new(format!("{}  {text}", color.to_rgba().to_hex().to_uppercase())));
-        });
-    });
-}
-
-/// A colour popover on a colour that a palette under it also sets; the eyedropper "samples" orange
-/// at once.
-fn show_popover(ui: &mut Ui, args: &mut PopoverArgs) {
-    let numbers = LocaleNumbers::from_tag("en");
-    let size = args.size.control();
-    let start = craft_theme::Srgba::new(0.2, 0.55, 0.8, 1.0);
-    slider::with_values(ui, "color-popover", [(start, String::new())], |ui, state| {
-        let (color, last) = &mut state[0];
-        let (alpha, eyedropper) = (args.alpha, args.eyedropper);
-        let popover = ColorPopover::new("color-popover", "Fill colour", *color, &numbers).size(size).enabled(!args.disabled).picker(|picker| {
-            let picker = picker.alpha(alpha);
-            if eyedropper { picker.eyedropper("Pick screen color") } else { picker }
-        });
-        let shown = popover.show(ui);
-        if shown.eyedropper_requested
-            && let Some(id) = shown.picker_id
-        {
-            ColorPicker::sampled(ui.ctx(), id, craft_theme::Srgba::rgb(1.0, 0.6, 0.0));
-        }
-        if let Some(event) = &shown.edit.event {
-            if let Some(p) = event.value() {
-                *color = p.color;
-            }
-            *last = edit::describe(&event.clone().map(|p| p.color.to_rgba().to_hex()));
-        }
-        ui.add(Text::new(format!("Last event: {last}")).content(Content::Muted));
-    });
-}
-
-/// A hex field on a colour; one digit per channel takes web colours as `RGB`.
-fn show_hex_field(ui: &mut Ui, args: &mut HexFieldArgs) {
-    let start = craft_theme::Rgba::rgb(0x33, 0x66, 0x99);
-    slider::with_values(ui, "color-hex-field", [(start, String::new())], |ui, state| {
-        let (color, last) = &mut state[0];
-        let digits = if args.digits == DigitsArg::One { 1 } else { 2 };
-        ui.set_width(160.0);
-        let edit = HexField::new("color-hex-field", &ColorStoryLabels::of(ui).hex_color, *color)
-            .digits(digits)
-            .alpha(args.alpha)
-            .enabled(!args.disabled)
-            .show(ui);
-        if let Some(event) = &edit.event {
-            if let Some(c) = event.value() {
-                *color = *c;
-            }
-            *last = edit::describe(&event.clone().map(|c| c.to_hex()));
-        }
-        ui.add(Text::new(format!("Last event: {last}")).content(Content::Muted));
-    });
-}
-
-const PALETTE: [(&str, [u8; 3]); 12] = [
-    ("Red", [0xe5, 0x48, 0x4d]),
-    ("Orange", [0xf7, 0x6b, 0x15]),
-    ("Amber", [0xf5, 0xa5, 0x24]),
-    ("Yellow", [0xf5, 0xd9, 0x0a]),
-    ("Lime", [0x7a, 0xc5, 0x5c]),
-    ("Green", [0x30, 0xa4, 0x6c]),
-    ("Teal", [0x12, 0xa5, 0x94]),
-    ("Sky", [0x00, 0x9e, 0xe1]),
-    ("Blue", [0x3e, 0x63, 0xdd]),
-    ("Violet", [0x8e, 0x4e, 0xc6]),
-    ("Pink", [0xd6, 0x40, 0x9f]),
-    ("Grey", [0x88, 0x8d, 0x91]),
-];
-
-/// A 64-entry colour table with repeated colours and a clear entry: a click selects, a
-/// double-click or Enter asks to edit.
-fn show_palette_table(ui: &mut Ui, args: &mut PaletteTableArgs) {
-    let start = (None::<usize>, String::new());
-    slider::with_values(ui, "color-palette-table", [start], |ui, state| {
-        let (selected, last) = &mut state[0];
-        let entries = (0..64).map(|i| {
-            let shade = (i % 16) as f32 / 15.0;
-            let color = match i {
-                7 => craft_theme::Srgba::new(0.0, 0.0, 0.0, 0.0),
-                i if i % 2 == 1 => craft_theme::Srgba::rgb(shade, 0.35, 1.0 - shade),
-                _ => craft_theme::Srgba::rgb(0.9, 0.9, 0.9),
-            };
-            (format!("Index {i}: {}", color.to_rgba().to_hex()), color)
-        });
-        let mut table =
-            SwatchPalette::table("color-palette-table", &StoryLabels::of(ui).color_table, entries).selected(*selected).enabled(!args.disabled);
-        if args.sixteen_columns {
-            table = table.columns(16);
-        } else {
-            ui.set_width(args.width.min(ui.available_width()));
-        }
-        let shown = table.show(ui);
-        if let Some(index) = shown.selected {
-            *selected = Some(index);
-            *last = format!("select {index}");
-        }
-        if let Some(index) = shown.open {
-            *last = format!("open {index}");
-        }
-        ui.add(Text::new(format!("Last event: {last}")).content(Content::Muted));
-    });
-}
-
-/// Twelve swatches wrapping to the width, choosing one colour.
-fn show_palette(ui: &mut Ui, args: &mut PaletteArgs) {
-    let size = args.size.control();
-    let start = craft_theme::Srgba::from(craft_theme::Rgba::rgb(0x3e, 0x63, 0xdd));
-    slider::with_values(ui, "color-palette", [(start, String::new())], |ui, state| {
-        let (color, last) = &mut state[0];
-        ui.set_width(args.width.min(ui.available_width()));
-        let swatches = PALETTE.map(|(name, [r, g, b])| (name, craft_theme::Srgba::from(craft_theme::Rgba::rgb(r, g, b))));
-        let picked = SwatchPalette::new("color-palette", "Swatches", *color, swatches).size(size).enabled(!args.disabled).show(ui);
-        if let Some(event) = &picked.event {
-            if let Some(c) = event.value() {
-                *color = *c;
-            }
-            *last = edit::describe(&event.clone().map(|c| c.to_rgba().to_hex()));
-        }
-        ui.add(Text::new(format!("Last event: {last}")).content(Content::Muted));
-    });
-}
+pub use screen_picker::{CaptureSource, LOUPE_PIXELS, LOUPE_ZOOM, ScreenColorPicker, ScreenPick, StillCapture};
+pub use strip::ColorStrip;
+pub use swatches::{
+    MAX_GROUPS, MAX_SWATCHES, SwatchAt, SwatchLibrary, SwatchesCommand, SwatchesMenu, SwatchesMenuOutput, SwatchesPanel, SwatchesPanelOutput,
+    SwatchesState, SwatchesWords,
+};
+pub use wheel::{WheelGeometry, WheelPart};
