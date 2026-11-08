@@ -1,7 +1,7 @@
 //! A row's thumbnail click reports its press count, as a button's output does.
 
 use craft_behavior::{DisplayOrder, ItemSource};
-use craft_ui::contract::{CollectionEvent, CollectionProps, Props as _, SelectMode, ShowCollection as _};
+use craft_ui::contract::{CollectionEvent, SelectMode, ShowCollection as _};
 use craft_ui::list::{List, ListRow, RowEvent, ThumbSize};
 use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Pos2, Rect};

@@ -4,7 +4,7 @@
 use craft_behavior::Mixed;
 use craft_theme::Srgba;
 use craft_ui::choice::Swatch;
-use craft_ui::contract::{Props as _, Show as _};
+use craft_ui::contract::Show as _;
 use craft_ui::patterns::form_dialogs::HostRequests;
 use craft_ui::runtime::requests::HostAnswer;
 use craft_ui::testing::{Fixture, trial};
