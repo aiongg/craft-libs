@@ -15,7 +15,7 @@ use crate::runtime::access::{self, Role, SetPosition};
 use crate::runtime::egui::{alloc, areas, child, response};
 use crate::runtime::env::{AppValues, ArenaId, Env, ItemFacts};
 use crate::runtime::memory::{MemoryStage, sub};
-use crate::runtime::{focus, frame, overlay, wheel};
+use crate::runtime::{focus, frame, keys, overlay, wheel};
 use crate::style::{StyleCx, scroll_bar_look};
 use craft_behavior::{
     Axis, CancelReason, ColumnKey, EditEvent, Flow, GestureId, Granularity, Intent, ItemLayout, ItemSource, Mixed, MoveMods, NavMove, NavState,
@@ -760,7 +760,19 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                         if matches!(editor.event, Some(EditEvent::Commit { .. } | EditEvent::Cancel { .. })) {
                             self.refocus = focus::is_focused(&ctx, editor.response.id);
                         }
+                        // An Escape the editor left untaken (it holds no draft yet) cancels the rename.
+                        let escaped = editor.event.is_none() && focus::is_focused(&ctx, editor.response.id) && {
+                            let mut intents = keys::intents_of(&ctx, Some(editor.response.id), rtl);
+                            let left = intents.take(Intent::Cancel);
+                            keys::settle(&ctx, Some(editor.response.id), &intents);
+                            left
+                        };
                         match editor.event {
+                            None if escaped => {
+                                self.events.push(CollectionEvent::Rename(EditEvent::cancel(gesture, CancelReason::Escape, Some(before))));
+                                self.ended_rename = true;
+                                self.refocus = true;
+                            }
                             Some(EditEvent::Commit { after, .. }) => {
                                 let after = Rename { key: key.clone(), name: after };
                                 self.events.push(CollectionEvent::Rename(EditEvent::commit(gesture, before, after)));
