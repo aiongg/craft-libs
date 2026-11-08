@@ -240,5 +240,12 @@ fn a_filling_child_of_the_scrolling_body_measures_its_content() {
     fixture.room(Vec2::new(900.0, 80.0)).settle();
     let path = fixture.by_label("Path").expect("the breadcrumb has a node");
     let bar = fixture.by_role(Role::GROUP).into_iter().next().expect("the bar is shown");
-    assert!(path.rect.width() < bar.rect.width(), "the breadcrumb is as wide as its crumbs: {:?} in {:?}", path.rect, bar.rect);
+    let last = fixture.by_label("trip").expect("the last crumb is shown");
+    assert!(
+        path.rect.width().is_finite() && path.rect.width() < bar.rect.width(),
+        "the breadcrumb is bounded by the bar: {:?} in {:?}",
+        path.rect,
+        bar.rect
+    );
+    assert!(path.rect.right() >= last.rect.right(), "the breadcrumb is at least as wide as its crumbs: {:?} holds {:?}", path.rect, last.rect);
 }
