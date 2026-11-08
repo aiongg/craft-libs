@@ -740,13 +740,15 @@ impl BodyHooks<'_> {
         let ctx = cx.core.ctx.clone();
         let pressed = sensed && {
             let pass = pointer::pass_pointer(&ctx);
-            pass.frame.as_ref().and_then(|frame| frame.press).filter(|press| press.button == egui::PointerButton::Primary).is_some_and(|press| {
-                let layer = cx.core.response.layer_id;
-                let at = areas::layer_map(&ctx, layer).map_or(press.origin, |map| map.to_layer(press.origin));
-                areas::layer_at(&ctx, press.origin) == Some(layer)
-                    && cx.core.rect.contains(at)
-                    && pointer::press_winner(&ctx, press.origin, pass.press_targets).is_none()
-            })
+            pass.frame.as_ref().and_then(|frame| frame.press).filter(|press| press.button == craft_behavior::PointerButton::Primary).is_some_and(
+                |press| {
+                    let layer = cx.core.response.layer_id;
+                    let at = areas::layer_map(&ctx, layer).map_or(press.origin, |map| map.to_layer(press.origin));
+                    areas::layer_at(&ctx, press.origin) == Some(layer)
+                        && cx.core.rect.contains(at)
+                        && pointer::press_winner(&ctx, press.origin, pass.press_targets).is_none()
+                },
+            )
         };
         cx.core.memory.shown::<SurfacePress>(sub(sub(cx.core.id, "body"), "surface_press")).0 = pressed;
     }
