@@ -6,8 +6,8 @@ use craft_theme::Srgba;
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
 use craft_ui::runtime::env::Message;
-use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
-use egui::Ui;
+use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
+use egui::{Key, Modifiers, Ui};
 
 use super::GradientOverlay;
 use crate::ui::gradient::{ColorStop, GradientEditor, GradientExtent, GradientLine, GradientStops, LineGradient, StopRef};
@@ -55,15 +55,24 @@ fn gradient_overlay_mirror(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     on_canvas(ui, |ui, at| GradientOverlay::new("Gradient", Bind::bound(&mut *value)).extent(GradientExtent::Mirror).show_at(ui, at).edit)
 }
 
-#[story(GradientOverlay<'static>, covers = [Default])]
+/// The bar's focused stop steps one percent and the overlay shows the move; the bar's edit is the story's too.
+fn step_the_bar_stop(fixture: &mut Fixture) {
+    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.key(Key::ArrowRight, Modifiers::NONE);
+    fixture.idle(2);
+}
+
+#[story(GradientOverlay<'static>, covers = [Default], drive = Drive::Custom(step_the_bar_stop))]
 fn gradient_overlay_shared(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let (value, selected) = state(data, StopRef::Color(0));
     let mut stops = value.stops.clone();
-    GradientEditor::new("Stops", Bind::bound(&mut stops)).shared_selection(Bind::bound(&mut *selected)).show(ui);
+    let bar = GradientEditor::new("Stops", Bind::bound(&mut stops)).shared_selection(Bind::bound(&mut *selected)).show(ui).edit;
     value.stops = stops;
-    on_canvas(ui, |ui, at| {
+    let mut output = on_canvas(ui, |ui, at| {
         GradientOverlay::new("Gradient", Bind::bound(&mut *value)).shared_selection(Bind::bound(&mut *selected)).show_at(ui, at).edit
-    })
+    });
+    output.edits.extend(StoryOutput::from(bar).edits);
+    output
 }
 
 #[story(GradientOverlay<'static>, covers = [Invalid], drive = Drive::Never)]

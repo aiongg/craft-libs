@@ -9,7 +9,7 @@ use craft_behavior::Mixed;
 use craft_ui::contract::{Bind, Show as _, Validity};
 use craft_ui::primitives::ContentPainterCx;
 use craft_ui::runtime::env::Message;
-use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
+use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use egui::{Pos2, Rect, Shape, Stroke, Ui};
 
 /// The arrowhead's size as a share of the preview's height.
@@ -181,7 +181,15 @@ fn stroke_button_refused(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     StrokeButton::new("Stroke Options", Bind::bound(style).check(refuse_dashes), Bind::bound(open)).show(ui).into()
 }
 
-#[story(StrokeButton<'static>, covers = [Open], drive = Drive::Never)]
+/// Picks the Dashed preset in the open popover.
+fn pick_dashed(fixture: &mut Fixture) {
+    if let Some(preset) = fixture.by_label("Dashed") {
+        fixture.click(&preset);
+        fixture.idle(2);
+    }
+}
+
+#[story(StrokeButton<'static>, covers = [Open], drive = Drive::Custom(pick_dashed))]
 fn stroke_button_open(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let (style, open) = data.value("button open", (StrokeStyle::default(), true));
     StrokeButton::new("Stroke Options", Bind::bound(style), Bind::bound(open)).show(ui).into()

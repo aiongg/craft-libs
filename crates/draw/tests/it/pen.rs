@@ -727,7 +727,8 @@ struct Options {
     asked: Vec<String>,
 }
 
-/// The checkbox changes the bound settings; the swatch asks the host for the colour under the popover's key.
+/// The checkbox changes the bound settings; the swatch, showing the host's line colour, asks the host for the colour
+/// under the popover's key.
 #[trial]
 fn the_path_options_popover_changes_the_settings_and_asks_for_the_colour() {
     let state = Rc::new(RefCell::new(Options { settings: PathOptionsSettings::default(), open: true, asked: Vec::new() }));
@@ -735,7 +736,9 @@ fn the_path_options_popover_changes_the_settings_and_asks_for_the_colour() {
     let mut fixture = Fixture::new(move |ui| {
         let mut options = shown.borrow_mut();
         let Options { settings, open, asked } = &mut *options;
-        let output = PathOptionsPopover::new("Path Options", craft_ui::contract::Bind::bound(settings)).show(ui, open);
+        let output = PathOptionsPopover::new("Path Options", craft_ui::contract::Bind::bound(settings))
+            .default_color(craft_theme::Srgba::rgb(0.0, 0.5, 1.0))
+            .show(ui, open);
         asked.extend(output.pick_color.iter().map(|request| request.key.to_string()));
     });
     fixture.settle();

@@ -4,7 +4,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use craft_behavior::EditEvent;
+use craft_behavior::{EditEvent, PartKey};
 use craft_draw::ui::gradient::stops::{self, StopRules, default_sampler, sample};
 use craft_draw::ui::gradient::{ColorStop, GradientEditor, GradientStops, OpacityStop, StopDrop, StopRef, StopRow, StopRows};
 use craft_theme::Srgba;
@@ -308,8 +308,12 @@ fn plus_and_minus_walk_the_markers_and_up_and_down_change_rows() {
 fn a_click_on_empty_space_adds_a_stop_and_enter_on_a_colour_stop_asks_for_its_colour() {
     let mut rig = rig(three(), StopRules::default(), false);
     let middle = rig.marker("Color stop 2 of 3");
-    let ramp_y = middle.rect.top() - 20.0;
-    rig.fixture.click_at(egui::pos2(middle.center().x - 60.0, ramp_y));
+    rig.fixture.click(&middle);
+    rig.fixture.idle(2);
+    let (bar, _) = rig.fixture.focused_stop().expect("a clicked marker takes the focus");
+    let ramp = rig.fixture.part_rect(bar, PartKey::new("ramp")).expect("the ramp is a part of the bar");
+    let colour_half_y = ramp.center().y + ramp.height() / 4.0;
+    rig.fixture.click_at(egui::pos2(middle.center().x - 60.0, colour_half_y));
     rig.fixture.idle(2);
     assert_eq!(rig.stops.borrow().color.len(), 4, "a click on the ramp adds a stop");
 
@@ -344,8 +348,8 @@ fn the_bar_and_its_markers_are_in_the_accesskit_tree() {
 fn color_only_editors_have_no_opacity_markers_and_the_fields_edit_the_selected_stop() {
     let mut rig = rig(three(), StopRules::new(StopRows::ColorOnly), true);
     assert!(rig.fixture.by_label("Opacity stop 1 of 2").is_none(), "no opacity row");
-    let middle = rig.marker("Color stop 2 of 3");
-    rig.fixture.click(&middle);
+    let first = rig.marker("Color stop 1 of 3");
+    rig.fixture.click(&first);
     rig.fixture.idle(2);
     let location = rig.fixture.by_label("Location").expect("the Location field is shown for the selected stop");
     rig.fixture.click(&location);
@@ -353,6 +357,6 @@ fn color_only_editors_have_no_opacity_markers_and_the_fields_edit_the_selected_s
     rig.fixture.type_text("80");
     rig.fixture.key(Key::Enter, Modifiers::NONE);
     rig.fixture.idle(3);
-    assert_eq!(rig.tags(), [1, 3, 2], "the stop moved to 80 % past its neighbour");
-    assert_eq!(rig.seen.borrow().selected, Some(StopRef::Color(2)), "the selection stayed on the moved stop");
+    assert_eq!(rig.tags(), [2, 1, 3], "the first stop moved to 80 %, past the middle one");
+    assert_eq!(rig.seen.borrow().selected, Some(StopRef::Color(1)), "the selection stayed on the moved stop");
 }

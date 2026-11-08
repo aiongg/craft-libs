@@ -290,7 +290,7 @@ impl<'a, P: Clone + Send + Sync + 'static> GradientEditor<'a, P> {
                 .location_decimals(location_decimals)
                 .enabled(enabled);
             if let Some(held) = held {
-                bar = bar.marker(held);
+                bar = bar.selected_marker(held);
             }
             if let Some(sampler) = sampler {
                 bar = bar.sampler(sampler);

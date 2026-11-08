@@ -767,13 +767,16 @@ impl<'a> BezierOverlay<'a> {
         let active = cx.active_part();
         let current: Option<&Item> = active.and_then(|part| keyboard.iter().copied().find(|item| item.part() == part));
         let keyed = self.tool.keyed();
-        // Focus arriving at an anchor (Tab) selects it alone, as picking it does.
+        // Focus arriving at an anchor (Tab) selects it alone, as picking it does. A press holds the pointer's own
+        // selection (Shift on a selected anchor takes it out, and the focus the press took must not put it back).
+        let pressing = cx.press_slot::<Held>().is_some();
         let arrived = {
             let slot = cx.memory::<Arrival>();
             std::mem::replace(&mut slot.0, active) != active
         };
         if arrived
             && keyed
+            && !pressing
             && self.report.select.is_none()
             && let Some(item) = current
             && item.kind == Kind::Anchor

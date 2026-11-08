@@ -220,7 +220,7 @@ fn a_bend_dragged_reshapes_the_elbow_from_the_path_the_drag_began_with() {
     let elbow = item(glued(1, ConnectionSide::Right), glued(5, ConnectionSide::Left), Routing::Elbow);
     let (mut fixture, app) = handles(elbow, targets);
     let before = middle_x(None);
-    let bend = fixture.by_label("Bend 1 of 1").expect("the middle run's handle");
+    let bend = fixture.by_label("Bend 2 of 3").expect("the middle run's handle: an elbow of three runs has three bends");
     fixture.drag(&bend, vec2(-BEND_DRAG as f32, 0.0));
     let held = app.borrow().item.clone().expect("a connector");
     let path = held.path.expect("a reshaped path");

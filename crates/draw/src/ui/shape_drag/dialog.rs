@@ -322,9 +322,10 @@ fn size_field(
     }
 }
 
-/// The units a shape's size is entered in.
-const LENGTH_UNITS: [UnitKind; 7] =
-    [UnitKind::Pixels, UnitKind::Percent, UnitKind::Points, UnitKind::Inches, UnitKind::Centimetres, UnitKind::Millimetres, UnitKind::Picas];
+/// The units a shape's size is entered in: pixels, a percentage of the document and the physical lengths.
+fn length_units() -> impl Iterator<Item = UnitKind> {
+    [UnitKind::Pixels, UnitKind::Percent].into_iter().chain(UnitKind::LENGTHS)
+}
 
 /// `value` in `unit` as a length the document converts.
 fn length(value: f64, unit: UnitKind) -> craft_ui::patterns::form_dialogs::GuideLength {
@@ -341,10 +342,9 @@ fn body(
     latest: &RefCell<Option<Memory>>,
 ) -> bool {
     let document = values.units.unwrap_or_else(pixels_only);
-    let entries: Vec<Entry<UnitKind>> = LENGTH_UNITS
-        .iter()
-        .filter(|kind| values.units.is_some() || **kind != UnitKind::Percent)
-        .map(|&kind| Entry::new(kind, Label::from(numbers.symbol(kind))))
+    let entries: Vec<Entry<UnitKind>> = length_units()
+        .filter(|kind| values.units.is_some() || *kind != UnitKind::Percent)
+        .map(|kind| Entry::new(kind, Label::from(numbers.symbol(kind))))
         .collect();
     let kind = values.kind;
     let name = match kind {

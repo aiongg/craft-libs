@@ -7,7 +7,7 @@ use craft_ui::contract::{
 };
 use craft_ui::display::Text;
 use craft_ui::list::ThumbAspect;
-use craft_ui::pickers::SelectFace;
+use craft_ui::pickers::{SelectFace, toggle_on_key};
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::memory::Remember as _;
 use craft_ui::style::{ComponentStyle, FocusLook, StyleCx, SurfaceLook, TypeRole};
@@ -163,13 +163,7 @@ impl Component for StrokeButton<'_> {
     /// `open` is written when it differs from the popover.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let popup = cx.popup("editor");
-        if cx.activation().is_some_and(|activation| activation.by_key) {
-            if popup.is_open(cx) {
-                popup.close(cx);
-            } else {
-                popup.open(cx);
-            }
-        }
+        toggle_on_key(cx, popup);
         let is_open = popup.is_open(cx);
         if is_open {
             let opened = cx.memory::<Opened>().clone();

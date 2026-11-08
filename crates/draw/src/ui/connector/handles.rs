@@ -145,7 +145,7 @@ impl Component for ConnectorHandles<'_> {
     fn parts(&mut self, _rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let (Some(space), Some(item)) = (canvas_space(&cx.env), cx.value()) else { return };
         let Some((_, _, points)) = geometry(self.targets, item) else { return };
-        let reach = cx.style.look.handle;
+        let reach = cx.style.reach;
         let ends = [points.first(), points.last()];
         for (at, end) in ends.into_iter().enumerate() {
             let Some(&end) = end else { continue };

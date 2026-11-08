@@ -120,7 +120,7 @@ impl<'a> GradientMapEditor<'a> {
         let words = Env::of(ui).words::<GradientMapWords>();
         let base = self.value.clone();
         let label: Arc<str> = Arc::from(words.gradient_map.as_str());
-        let set = |after: GradientMap| EditEvent::set(GestureId::new(0), Mixed::Same(base.clone()), after, Arc::clone(&label), None);
+        let set = |after: GradientMap| EditEvent::set(GestureId::default(), Mixed::Same(base.clone()), after, Arc::clone(&label), None);
         let mut event = None;
         let mut color_requested = None;
         let mut import = false;
