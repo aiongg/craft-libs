@@ -14,15 +14,15 @@ use craft_ui::contract::{
 };
 use craft_ui::dialog::Dialog;
 use craft_ui::layout_components::Row;
-use craft_ui::primitives::TextRun;
 use craft_ui::primitives::textures::{
     MAX_TEXTURE, Priority, TextureState, TextureStoreOptions, ThumbPaint, ThumbRequest, ThumbnailOptions, Thumbnails,
 };
+use craft_ui::primitives::{PaintShape, TextRun};
 use craft_ui::runtime::env::Env;
 use craft_ui::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};
 use craft_ui::runtime::memory::Remember as _;
 use craft_ui::style::{ComponentStyle, DataColor, StyleColor, StyleCx, TypeRole};
-use egui::{Rect, Response, Ui, Vec2};
+use egui::{CornerRadius, Rect, Response, Ui, Vec2};
 use std::cell::Cell;
 
 craft_ui::words! {
@@ -217,6 +217,8 @@ impl Component for PagePicture<'_> {
         let rect = Rect::from_center_size(area.center(), shape);
         let request = ThumbRequest::for_cell(shape.max_elem(), painter.pixels_per_point());
         let state = thumbs.state(&ctx, self.source, &self.page, &request, Priority::VISIBLE);
+        // The paper shows under a page that has no picture yet; under a picture the thumbnail paints it.
+        ui.draw().data_fill(&PaintShape::Rect(rect, CornerRadius::ZERO), self.paper);
         thumbs.paint(&painter, rect, &state, &ThumbPaint::default().paper(self.paper));
         if matches!(state, TextureState::Failed { .. }) {
             let run = TextRun::new(self.unavailable).role(TypeRole::Caption).color(cx.style.message);
