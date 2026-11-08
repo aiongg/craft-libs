@@ -102,10 +102,6 @@ struct Held {
 #[derive(Clone, Default)]
 struct HeldSlot(Option<Held>);
 
-/// The pin the focus arrived at, so a move of the focus selects.
-#[derive(Clone, Default)]
-struct Arrival(Option<u64>);
-
 /// One mark of the pins that takes the pointer.
 struct Mark {
     part: PartRef,
@@ -293,15 +289,13 @@ impl<'a> BlurPinsOverlay<'a> {
     /// The keys of the focused pin: selection follows the focus, the arrows move it, Delete removes it.
     fn run_keys(&mut self, cx: &mut Cx<'_, Self>, view: &CanvasView, pins: &BlurPins) {
         let focused = cx.active_part().filter(|part| part.key == PIN).and_then(|part| part.index);
-        let arrived = {
-            let slot = cx.memory::<Arrival>();
-            let changed = slot.0 != focused;
-            slot.0 = focused;
-            changed
-        };
+        // Focus arriving on a pin by a key or a request selects it; a press selects by its own rule.
+        let arrived = cx.focus_arrived().filter(|part| part.key == PIN).and_then(|part| part.index).is_some_and(|index| {
+            cx.part_if_declared(PIN.at(index)).is_some_and(|result| matches!(result.press.phase, PressPhase::Idle | PressPhase::Hover))
+        });
         let Some(index) = focused.and_then(|index| usize::try_from(index).ok()).filter(|index| *index < pins.pins.len()) else { return };
         let mut next = pins.clone();
-        if arrived || pins.selected != Some(index) {
+        if arrived {
             next.selected = Some(index);
         }
         if let Some((direction, mods)) = cx.intents().take_nudge() {

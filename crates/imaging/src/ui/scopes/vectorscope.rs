@@ -7,12 +7,14 @@ use craft_ui::fonts::FontRef;
 use craft_ui::primitives::{DocRun, DocText, HAlign, PaintShape, StrokeWidth};
 use craft_ui::runtime::env::Label;
 use craft_ui::style::{ComponentStyle, DataColor, StyleColor, StyleCx, SurfaceKind};
-use egui::{Color32, CornerRadius, Mesh, Pos2, Rect, Response, Shape, Vec2, vec2};
+use egui::{Color32, CornerRadius, Pos2, Rect, Response, Vec2, vec2};
 
 /// The rings' alpha on `text.faint`.
 const RING_ALPHA: f32 = 0.45;
 /// The spokes' alpha on `text.faint`.
 const SPOKE_ALPHA: f32 = 0.4;
+/// The share of its full opacity a cloud dot has at the least density, so a sparse bin stays visible.
+const DENSITY_FLOOR: f32 = 0.2;
 /// The smallest half-side of a cloud dot.
 const DOT_MIN: f32 = 0.7;
 /// The largest half-side of a cloud dot.
@@ -222,17 +224,18 @@ impl Component for VectorscopePlot<'_> {
         }
         let painter = ui.content_painter(cx);
         let peak = frame.counts.iter().copied().max().unwrap_or(1).max(1) as f32;
-        let mut mesh = Mesh::default();
         if frame.saturations > 1 && frame.hues > 0 {
             let dot = (radius / (frame.saturations - 1) as f32).clamp(DOT_MIN, DOT_MAX);
             for (index, count) in frame.counts.iter().enumerate().filter(|(_, count)| **count > 0) {
                 let hue = (index / frame.saturations) as f32 / frame.hues as f32;
                 let saturation = (index % frame.saturations) as f32 / (frame.saturations - 1) as f32;
-                let color = scope_hue(hue, saturation, style.level).gamma_multiply(0.2 + 0.8 * (*count as f32 / peak).sqrt());
-                mesh.add_colored_rect(Rect::from_center_size(point(hue, saturation), vec2(dot * 2.0, dot * 2.0)), color);
+                let color = scope_hue(hue, saturation, style.level);
+                let square = Rect::from_center_size(point(hue, saturation), vec2(dot * 2.0, dot * 2.0));
+                draw.faded(density_share(*count as f32 / peak), |dot| {
+                    dot.data_fill(&PaintShape::Rect(square, CornerRadius::ZERO), DataColor::new(color))
+                });
             }
         }
-        painter.painter.add(Shape::mesh(mesh));
         for (index, letter) in ["R", "Y", "G", "C", "B", "M"].into_iter().enumerate() {
             let hue = index as f32 / 6.0;
             let color = scope_hue(hue, 1.0, style.level);
@@ -261,4 +264,10 @@ impl Component for VectorscopePlot<'_> {
     fn finish(self, cx: Cx<'_, Self>) -> Response {
         cx.response.clone()
     }
+}
+
+/// How opaque a dot is for a bin holding `density` (0 to 1) of the densest bin's count: from [`DENSITY_FLOOR`] up to
+/// full, rising with the square root so mid-density bins read clearly.
+fn density_share(density: f32) -> f32 {
+    DENSITY_FLOOR + (1.0 - DENSITY_FLOOR) * density.sqrt()
 }

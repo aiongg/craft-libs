@@ -10,9 +10,12 @@ use craft_imaging::ui::adjust::{
 use craft_imaging::ui::curve::Curve;
 use craft_imaging::ui::histogram::ChannelColor;
 use craft_theme::Srgba;
-use craft_ui::contract::{Bind, Role, Show as _};
+use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
+use craft_ui::dialog::Dialog;
+use craft_ui::runtime::focus::Initial;
+use craft_ui::sections::{DialogRole, FooterButton};
 use craft_ui::testing::{Fixture, Target, ToolFixture, trial};
-use egui::{Vec2, vec2};
+use egui::{Key, Modifiers, Vec2, vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -189,6 +192,32 @@ fn the_picker_row_arms_and_disarms() {
     fixture.click(&gray);
     fixture.idle(2);
     assert_eq!(armed.get(), None, "the disabled picker takes no click");
+}
+
+/// Photoshop's Levels and Curves: Escape ends an armed picker, and a second Escape cancels the dialog.
+#[trial]
+fn escape_ends_an_armed_picker_before_it_closes_the_dialog() {
+    let armed = Rc::new(Cell::new(Some(TonePicker::Black)));
+    let open = Rc::new(Cell::new(true));
+    let (shown_armed, shown_open) = (armed.clone(), open.clone());
+    let mut fixture = Fixture::new(move |ui| {
+        let (mut is_open, mut picker) = (shown_open.get(), shown_armed.get());
+        Dialog::new("Adjust")
+            .opened(Bind::bound(&mut is_open))
+            .initial_focus(Initial::First)
+            .buttons([FooterButton::new("OK", DialogRole::Accept), FooterButton::new("Cancel", DialogRole::Cancel)])
+            .show(ui, |ui, _| {
+                TonePickerRow::new(Bind::bound(&mut picker)).show(ui);
+            });
+        shown_open.set(is_open);
+        shown_armed.set(picker);
+    });
+    fixture.settle();
+    fixture.key(Key::Escape, Modifiers::NONE).settle();
+    assert_eq!(armed.get(), None, "Escape disarmed the picker");
+    assert!(open.get(), "the first Escape leaves the dialog open");
+    fixture.key(Key::Escape, Modifiers::NONE).settle();
+    assert!(!open.get(), "the second Escape closes the dialog");
 }
 
 /// In a colour mode without pickers every picker is disabled and the note shows.
