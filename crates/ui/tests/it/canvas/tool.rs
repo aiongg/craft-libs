@@ -11,10 +11,11 @@ use craft_ui::primitives::Draw;
 use craft_ui::rails::{LastUsed, RailTool};
 use craft_ui::runtime::commands::EditCommands;
 use craft_ui::runtime::env::Label;
-use craft_ui::testing::{Fixture, ToolFixture, focus, input, trial};
+use craft_ui::testing::{Fixture, Frames, ToolFixture, focus, input, trial};
 use egui::{Id, Modifiers, Pos2, Rect, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
+use std::time::Duration;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Call {
@@ -338,3 +339,46 @@ fn tool_pick_selects_the_last_used_tool_and_cycles_through_the_enabled_ones() {
     assert_eq!(pick(&tools, UNDO, &last, PickStep::Next, &[REDO, CUT]), Some(UNDO), "a group of one enabled tool stays on it");
     assert_eq!(pick(&tools, OUTSIDE, &last, PickStep::Last, &[UNDO, REDO, CUT]), None, "a group with no enabled tool picks nothing");
 }
+
+/// A tool that shows one outline of marching ants.
+struct Outline;
+
+impl CanvasTool for Outline {
+    fn press(&mut self, _: &ToolPointer, _: &mut ToolContext<'_>) -> ToolAction {
+        ToolAction::Ignored
+    }
+
+    fn drag(&mut self, _: &ToolPointer, _: &mut ToolContext<'_>) {}
+
+    fn release(&mut self, _: &ToolPointer, _: &mut ToolContext<'_>) {}
+
+    fn cancel(&mut self, _: CancelReason, _: &mut ToolContext<'_>) {}
+
+    fn paint(&self, _: &Draw<'_>, cx: &ToolContext<'_>) {
+        let corners = [Pos2::new(40.0, 40.0), Pos2::new(160.0, 40.0), Pos2::new(160.0, 120.0), Pos2::new(40.0, 120.0)];
+        cx.marching_ants(&corners, true);
+    }
+
+    fn command_form(&self) -> ToolPath {
+        ToolPath::Freehand
+    }
+}
+
+#[trial]
+fn a_tools_marching_ants_step_with_the_clock_and_ask_for_the_next_repaint() {
+    let mut outline = Outline;
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut egui::Ui| {
+        let shown = Canvas::new("Document").show(ui, |_, _| ());
+        let _ = ToolHost::new().run(ui, &shown.output, &mut outline);
+    };
+    frames.idle(3, &mut show);
+    let before = frames.frame_shapes(&mut show);
+    frames.advance(MARCH_STEP);
+    let after = frames.frame_shapes(&mut show);
+    assert_ne!(format!("{before:?}"), format!("{after:?}"), "the ants moved one step in a march step of the clock");
+    assert!(frames.repaint_delay().is_some_and(|wait| wait <= Duration::from_secs_f64(MARCH_STEP)), "shown ants ask for the next step");
+}
+
+/// Seconds of one march step.
+const MARCH_STEP: f64 = 0.1;

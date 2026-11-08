@@ -5,6 +5,7 @@
 //! draw. Each canvas runs one, under its id: its own zoom commands start it, and the tool host and the Navigator
 //! start it through [`ease`].
 
+use super::frame_step;
 use super::navigate::WheelNavigation;
 use crate::runtime::frame;
 use crate::runtime::memory::{global, with_session};
@@ -170,8 +171,6 @@ impl HoldZoom {
     pub const DELAY: f64 = 0.3;
     /// Doublings (halvings zooming out) per second.
     pub const RATE: f64 = 2.0;
-    /// The longest frame gap a hold zooms over, so a stalled frame never jumps the zoom.
-    pub const MAX_DT: f64 = 0.25;
 
     /// A press at `screen` over document point `doc` at `time`.
     pub fn press(screen: Pos2, doc: Point, time: f64) -> Self {
@@ -188,7 +187,7 @@ impl HoldZoom {
             }
             self.last = Some(begin);
         }
-        let dt = time - self.last.unwrap_or(time);
+        let dt = frame_step(time - self.last.unwrap_or(time));
         let current = zoom::device(view, pixels_per_point);
         let next = Self::zoom_after(current, dt, out, size);
         // At a limit the view stays as it is.
@@ -209,10 +208,10 @@ impl HoldZoom {
         self.last.is_none() && time < self.pressed_at + Self::DELAY
     }
 
-    /// The zoom after holding for `dt` seconds at `zoom`, within the document's range. A non-finite or negative `dt`
-    /// changes nothing; `dt` is capped at [`MAX_DT`](Self::MAX_DT).
+    /// The zoom after holding for a frame step of `dt` seconds at `zoom`, within the document's range. A non-finite
+    /// or negative `dt` changes nothing, and `dt` is capped at [`FRAME_STEP_MAX`](super::FRAME_STEP_MAX).
     pub fn zoom_after(zoom: f64, dt: f64, out: bool, size: Size) -> f64 {
-        let dt = if dt.is_finite() { dt.clamp(0.0, Self::MAX_DT) } else { 0.0 };
+        let dt = frame_step(dt);
         let doublings = if out { -Self::RATE * dt } else { Self::RATE * dt };
         ZoomLadder::clamp(zoom * doublings.exp2(), size)
     }

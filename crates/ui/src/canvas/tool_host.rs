@@ -39,7 +39,7 @@
 
 use super::momentary::{Momentary, MomentaryCommand};
 use super::readout::paint_readout;
-use super::tool::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPointer, ToolRequests};
+use super::tool::{CanvasTool, March, ToolAction, ToolContext, ToolKey, ToolPointer, ToolRequests};
 use super::tools::HandTool;
 use super::zoom_motion::{self, Steer};
 use super::{CanvasOutput, CanvasSpace};
@@ -380,7 +380,8 @@ fn paint_tool(ui: &Ui, env: &Env, tool: &dyn CanvasTool, cx: ToolContext<'_>) {
     let record = RefCell::new(PaintRecord::default());
     let draw = Draw::new(&painter, &record, DrawEnv { tokens: &env.tokens, direction: env.direction, ink: Ink::default() });
     let content = ContentPainterCx::new(painter.clone(), &env.tokens, env.direction);
-    tool.paint(&draw, &cx.painter(&content));
+    let march = March { policy: env.motion, dash: env.tokens.stroke.dash };
+    tool.paint(&draw, &cx.painter(&content, march));
 }
 
 /// The hover sample of the pass: the pointer's latest position with the pen's reading.

@@ -383,22 +383,7 @@ impl Driver<'_> {
     }
 
     pub(crate) fn phase(&self, period: f64, tick: Option<f64>) -> Option<f32> {
-        if self.policy.mode.playback(MotionKind::Loop) != Playback::Run || period <= 0.0 {
-            return None;
-        }
-        let ctx = self.stage.ctx();
-        let now = frame::clock(ctx);
-        match tick.filter(|tick| *tick > 0.0) {
-            Some(tick) => {
-                let step = (now / tick).floor();
-                self.wake_at((step + 1.0) * tick);
-                Some((((step * tick) % period) / period) as f32)
-            }
-            None => {
-                note_unsettled(ctx);
-                Some(((now % period) / period) as f32)
-            }
-        }
+        loop_phase(self.stage.ctx(), self.policy, period, tick)
     }
 
     /// Whether a caret that last moved or was typed at `restart` shows its stroke now. It shows solid for a
@@ -419,8 +404,34 @@ impl Driver<'_> {
     }
 
     pub(crate) fn wake_at(&self, at: f64) {
-        let ctx = self.stage.ctx();
-        PerViewport::<Wanted>::with(ctx, pass::current_viewport(ctx), |wanted| wanted.wake = Some(wanted.wake.map_or(at, |old| old.min(at))));
+        wake_at(self.stage.ctx(), at);
+    }
+}
+
+/// Asks for a pass of the running viewport at `at`; the earliest request wins.
+fn wake_at(ctx: &Context, at: f64) {
+    PerViewport::<Wanted>::with(ctx, pass::current_viewport(ctx), |wanted| wanted.wake = Some(wanted.wake.map_or(at, |old| old.min(at))));
+}
+
+/// The 0 to 1 position of a loop of `period` seconds on the pass clock, stepped every `tick` seconds when given
+/// (and then waking the viewport at the next step; an unstepped loop keeps it repainting); `None` when `policy`'s
+/// mode asks for the still frame. It is the one reading of a loop, for components (`Animate::phase`) and for a canvas
+/// tool's paint, which has no component context.
+pub(crate) fn loop_phase(ctx: &Context, policy: MotionPolicy, period: f64, tick: Option<f64>) -> Option<f32> {
+    if policy.mode.playback(MotionKind::Loop) != Playback::Run || period <= 0.0 {
+        return None;
+    }
+    let now = frame::clock(ctx);
+    match tick.filter(|tick| *tick > 0.0) {
+        Some(tick) => {
+            let step = (now / tick).floor();
+            wake_at(ctx, (step + 1.0) * tick);
+            Some((((step * tick) % period) / period) as f32)
+        }
+        None => {
+            note_unsettled(ctx);
+            Some(((now % period) / period) as f32)
+        }
     }
 }
 

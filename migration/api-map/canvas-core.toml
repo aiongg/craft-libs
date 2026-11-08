@@ -40,7 +40,7 @@ name = "ToolContext"
 old = "craft_ui::canvas::tool_host::ToolContext"
 new = "craft_ui::canvas::ToolContext"
 status = "moved"
-note = "`pointer`, `mods` (was `modifiers`), `rect` and `time`; `space() -> Option<CanvasSpace>` is the canvas's view; `held(Key) -> bool` says whether a key is down; `readout(rows)`, `request_repaint()` and `keep_keys()` stay. `canvas_id`, `view`, `canvas`, `snap`, `snap_tolerance`, `tokens`, `numbers`, `direction`, `caps_lock`, `parts_focused`, `set_view` and `set_cursor` are gone."
+note = "`pointer`, `mods` (was `modifiers`), `rect` and `time`; `space() -> Option<CanvasSpace>` is the canvas's view; `held(Key) -> bool` says whether a key is down; `readout(rows)`, `request_repaint()` and `keep_keys()` stay; `marching_ants(points, closed)` paints ants that march on the pass clock (the phase argument is gone). `canvas_id`, `view`, `canvas`, `snap`, `snap_tolerance`, `tokens`, `numbers`, `direction`, `caps_lock`, `parts_focused`, `set_view` and `set_cursor` are gone."
 
 [[type]]
 name = "ToolAction"
@@ -1256,3 +1256,19 @@ old = ""
 new = "craft_ui::canvas::NoTool"
 status = "replaced"
 note = "The tool of a canvas that has none: it takes no press, paints nothing, and its `command_form` is `ToolPath::Freehand`. `Canvas::new(label)` takes no `ToolPath`: the background part declares one fixed pointer-only reason that names the running tool's command form, and `CanvasTool::command_form` stays the one owner of the fact."
+
+# l4z-canvas
+[[type]]
+name = "frame_step"
+old = ""
+new = "craft_ui::canvas::frame_step"
+status = "replaced"
+note = "`frame_step(dt: f64) -> f64`: the one step Hand glides, held Zoom presses and autoscroll integrate over, capped at `FRAME_STEP_MAX` (0.1 s). Replaces `FlickPan`'s, `Autoscroll::MAX_DT` and `HoldZoom::MAX_DT`, which never shipped."
+
+[[type]]
+name = "FRAME_STEP_MAX"
+old = ""
+new = "craft_ui::canvas::FRAME_STEP_MAX"
+status = "replaced"
+note = "The longest frame step of canvas motion, in seconds."
+# End of l4z-canvas.

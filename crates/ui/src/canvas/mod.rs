@@ -8,7 +8,9 @@
 //! Animated Zoom, publishes the view it shows as a [`CanvasSpace`] to its body, and reports the view the app copies.
 
 mod crop;
+mod frame_step;
 mod guide;
+mod march;
 mod readout;
 mod space;
 #[cfg(feature = "testing")]
@@ -20,7 +22,9 @@ mod tool_groups;
 mod tool_host;
 
 pub use crop::{CropOverlay, CropStyle};
+pub use frame_step::{FRAME_STEP_MAX, frame_step};
 pub use guide::{Guide, GuideDrag, GuideKey, GuideLine};
+pub(crate) use march::{MARCH_SECONDS, MARCH_TICK, march_shift};
 pub use readout::readout;
 pub use space::{CanvasSpace, RulerText, canvas_space};
 pub use words::CanvasWords;
@@ -304,9 +308,7 @@ impl Canvas {
 
     fn space(&self, pixels_per_point: f32, background: BackgroundPress) -> Option<CanvasSpace> {
         let view = self.settled.map(|settled| settled.shown).or(self.view);
-        view.map(|view| {
-            CanvasSpace::new(view, pixels_per_point).with_document(self.document).with_rulers(self.rulers).with_background(background)
-        })
+        view.map(|view| CanvasSpace::new(view, pixels_per_point).with_document(self.document).with_rulers(self.rulers).with_background(background))
     }
 
     /// The press on the background part as the canvas reports it, and the pan of a middle-button drag: a middle press

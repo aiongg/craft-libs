@@ -1,8 +1,8 @@
 //! Stories of `CanvasGrid`.
 
 use super::{CanvasGrid, GridLine};
-use crate::canvas_controls::marquee::stories::on_canvas;
 use crate::contract::Show as _;
+use crate::testing::canvas_story::on_canvas;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
@@ -15,20 +15,20 @@ fn grid() -> CanvasGrid {
 
 #[story(CanvasGrid, covers = [Default], drive = Drive::Never)]
 fn solid(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    on_canvas(ui, 1.0, |ui, at| grid().show_at(ui, at))
+    on_canvas(ui, 1.0, |ui, at, _| grid().show_at(ui, at))
 }
 
 #[story(CanvasGrid, covers = [Default], drive = Drive::Never)]
 fn dashed(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    on_canvas(ui, 1.0, |ui, at| grid().line(GridLine::Dashed).show_at(ui, at))
+    on_canvas(ui, 1.0, |ui, at, _| grid().line(GridLine::Dashed).show_at(ui, at))
 }
 
 #[story(CanvasGrid, covers = [Default], drive = Drive::Never)]
 fn dots(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    on_canvas(ui, 1.0, |ui, at| grid().line(GridLine::Dots).show_at(ui, at))
+    on_canvas(ui, 1.0, |ui, at, _| grid().line(GridLine::Dots).show_at(ui, at))
 }
 
 #[story(CanvasGrid, covers = [Default], drive = Drive::Never)]
 fn crossings(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    on_canvas(ui, 1.0, |ui, at| grid().line(GridLine::Crossings).show_at(ui, at))
+    on_canvas(ui, 1.0, |ui, at, _| grid().line(GridLine::Crossings).show_at(ui, at))
 }
