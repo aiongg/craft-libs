@@ -3,7 +3,7 @@
 
 use super::kit::{PlainStyle, Probe, Seen};
 use craft_behavior::{PartKey, PressPhase, Sense};
-use craft_ui::contract::{Common, Component, Container, ContainerProps, Cx, PaintUi, PartsCx, Props as _, Role, ShowContainer as _};
+use craft_ui::contract::{Common, Component, Container, ContainerProps, Cx, PaintUi, PartsCx, Pointer as _, Props as _, Role, ShowContainer as _};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Frames, trial};

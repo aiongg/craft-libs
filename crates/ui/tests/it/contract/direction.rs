@@ -10,7 +10,7 @@ use craft_ui::runtime::env::RootEnv;
 use craft_ui::style::StyleCx;
 use craft_ui::testing::{Frames, trial};
 use egui::{Rect, Response, Vec2};
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 
 const HEBREW: &str = "שלום";
 const WIDTH: f32 = 300.0;
