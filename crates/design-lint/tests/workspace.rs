@@ -57,7 +57,12 @@ fn scope_reads_layer_map_manifests_and_spec_allowances() {
 /// apply to their egui and platform code): `unsafe` is allowed in craft-win32 and the benchmark's allocator only.
 #[test]
 fn only_craft_win32_and_the_benchmark_allocator_allow_unsafe_code() {
+    // A lint path names a directory or a single source file.
     fn sources(dir: &Path, out: &mut Vec<PathBuf>) {
+        if dir.is_file() {
+            out.push(dir.to_owned());
+            return;
+        }
         for entry in std::fs::read_dir(dir).unwrap().flatten() {
             let path = entry.path();
             if path.is_dir() {
