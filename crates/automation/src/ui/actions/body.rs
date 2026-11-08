@@ -6,7 +6,7 @@ use craft_theme::variant::Tone;
 use craft_ui::buttons::Button;
 use craft_ui::contract::{
     Bind, CollectionEvent, ColumnKind, ColumnSpec, ListDrag, OpenChange, Outcome as _, Props as _, ReorderMove, ReorderRule, Scroll, SelectMode,
-    Show as _, ShowCollection as _, ShowContainer as _, ToggleColumn, clicked, request_rename,
+    Show as _, ShowCollection as _, ShowContainer as _, ToggleColumn, request_rename,
 };
 use craft_ui::display::Text;
 use craft_ui::layout_components::{Row, Stack};
@@ -121,7 +121,7 @@ fn show_buttons(ui: &mut Ui, body: &Body<'_>) -> BodyOutput {
                         button = button.tint(color.fill());
                     }
                     let response = button.show(ui);
-                    if clicked(&response) && !response.double_clicked() && !response.triple_clicked() {
+                    if response.clicks == 1 {
                         events.push(ActionsEvent::Play { action: index, from: 0 });
                     }
                 }
