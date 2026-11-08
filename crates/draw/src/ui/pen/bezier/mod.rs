@@ -35,7 +35,7 @@ use kurbo::ParamCurve as _;
 use hit_test::{Shown, nearest_on_screen, shown_handles};
 pub(crate) use mark::paint_mark;
 pub use mark::{AnchorsShown, HitMark, SegmentMark};
-use mark::{Fill, paint_handle, run_shapes, segment_path, stroke};
+use mark::{Fill, paint_handle, segment_path, stroke};
 pub use model::{EditPath, EditSubpath, HandleSide, Knot, KnotRef, PathEdit, PathSelection};
 pub use style::BezierStyle;
 pub use words::BezierWords;
@@ -91,7 +91,6 @@ pub enum HandlesShown {
 #[non_exhaustive]
 pub enum BezierHit {
     /// A shown direction handle's end.
-    #[non_exhaustive]
     Handle {
         /// The path's id.
         path: u64,
@@ -101,7 +100,6 @@ pub enum BezierHit {
         side: HandleSide,
     },
     /// An anchor.
-    #[non_exhaustive]
     Anchor {
         /// The path's id.
         path: u64,
@@ -109,7 +107,6 @@ pub enum BezierHit {
         knot: KnotRef,
     },
     /// The segment leaving `segment`, at its parameter `t`.
-    #[non_exhaustive]
     Segment {
         /// The path's id.
         path: u64,
@@ -227,6 +224,10 @@ struct Held {
     /// Past the click slop: the gesture began.
     began: bool,
 }
+
+/// The part the focus was on in the last pass, so a move of the focus to an anchor selects it.
+#[derive(Clone, Default)]
+struct Arrival(Option<PartRef>);
 
 /// Where a press is in a pass: the view and snap it maps through, the press, the pointer and the modifiers held.
 #[derive(Clone, Copy)]
@@ -758,6 +759,20 @@ impl<'a> BezierOverlay<'a> {
         let active = cx.active_part();
         let current: Option<&Item> = active.and_then(|part| keyboard.iter().copied().find(|item| item.part() == part));
         let keyed = self.tool.keyed();
+        // Focus arriving at an anchor (Tab) selects it alone, as picking it does.
+        let arrived = {
+            let slot = cx.memory::<Arrival>();
+            std::mem::replace(&mut slot.0, active) != active
+        };
+        if arrived
+            && keyed
+            && self.report.select.is_none()
+            && let Some(item) = current
+            && item.kind == Kind::Anchor
+            && !self.selection.has_anchor(item.key, item.knot)
+        {
+            self.report.select = Some(PathSelection { path: Some(item.key), anchors: vec![item.knot], segment: None });
+        }
         while let Some((mv, mods)) = cx.intents().take_move() {
             let here = current.and_then(|c| keyboard.iter().position(|item| item.part() == c.part()));
             let picked: Option<&Item> = match mv {
@@ -790,8 +805,8 @@ impl<'a> BezierOverlay<'a> {
             }
         }
         if keyed && let Some((direction, mods)) = cx.intents().take_nudge() {
-            let step = if mods.shift { NUDGE_FAR } else { NUDGE };
-            let by = nudge_vector(&space.view, direction, step);
+            let distance = if mods.shift { NUDGE_FAR } else { NUDGE };
+            let by = nudge_vector(&space.view, direction, distance);
             match current {
                 Some(Item { kind: Kind::Handle(side), key, knot, .. }) => {
                     if self.tool != BezierTool::Curvature
@@ -830,7 +845,7 @@ impl<'a> BezierOverlay<'a> {
         {
             self.report.delete = Some((path, self.selection.anchors.clone()));
         }
-        if keyed && cx.intents().take(Intent::Cancel) && *self.selection != PathSelection::default() {
+        if keyed && cx.gesture().is_none() && cx.intents().take(Intent::Cancel) && *self.selection != PathSelection::default() {
             self.report.select = Some(PathSelection::default());
         }
     }
