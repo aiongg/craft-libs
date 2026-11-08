@@ -596,16 +596,6 @@ fn the_blend_label_drops_before_the_other_indicators() {
         let has = |word: &str| fixture.texts().iter().any(|text| text.text == word);
         shown.push((width, has("Multiply"), has("fx")));
     }
-    fixture.room(Vec2::new(780.0, PANEL.y));
-    fixture.idle(4);
-    for t in fixture.texts() {
-        eprintln!("DIAG text {:?} {:?}", t.text, t.rect);
-    }
-    for k in fixture.tree().keys() {
-        if let Some(t) = fixture.target(k) {
-            eprintln!("DIAG node {:?} {:?}", fixture.tree().name_of(k), t.rect);
-        }
-    }
     assert!(shown.first().is_some_and(|(_, label, fx)| *label && *fx), "both show with room: {shown:?}");
     assert!(shown.iter().all(|(_, label, fx)| !*label || *fx), "the fx mark never drops before the label: {shown:?}");
     assert!(shown.iter().any(|(_, label, fx)| !*label && *fx), "the label drops while the fx mark stays: {shown:?}");

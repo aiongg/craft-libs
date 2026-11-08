@@ -17,7 +17,7 @@ use super::context::PanelContext;
 use super::drag::{LayersDrag, accepts_drop, drop_event};
 use super::events::{ActivateOn, LayerColumn, LayerSelect, LayerToggle, LayersEvent, MenuTarget};
 use super::menu::OpenMenu;
-use super::row::{EYE, FX_PART, LOCK, LOCK_PART, build_row};
+use super::row::{EYE, FX_PART, LOCK, LOCK_PART, NAME, build_row};
 use crate::ui::filter::LayerFilter;
 use crate::ui::tree::{LayerInfo, LayerPart, LayerRowKey, LayerTree, SubRowGroup};
 
@@ -280,6 +280,7 @@ pub(super) fn show_body<T: LayerTree>(
     if cx.lock_column {
         columns.push(ColumnSpec::new(LOCK, Label::Empty, ColumnWidth::Controls(1.0)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())));
     }
+    columns.push(ColumnSpec::new(NAME, Label::Empty, ColumnWidth::fill(1.0)));
     let parent_of = |id: &T::Id| tree.parent(id);
 
     let mut list = List::new(cx.words.list.clone())

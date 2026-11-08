@@ -43,7 +43,7 @@ pub struct GroupBox<'a> {
 impl<'a> GroupBox<'a> {
     /// A group box titled `title`, gated by `gate` when it has one.
     pub fn new(title: impl Into<crate::runtime::env::Label>, gate: Option<Bind<'a, bool>>) -> Self {
-        let props = ContainerProps::new().surface(SurfaceKind::Frame).pad(Pad::Regular).sizing(Sizing::Fill).header(HeaderRegion::new());
+        let props = ContainerProps::new().surface(SurfaceKind::Frame).pad(Pad::Regular).sizing(Sizing::FillWidth).header(HeaderRegion::new());
         GroupBox { common: Common::new(), props, gate, strength: HeaderStrength::Section, header_fill: true }.label(title)
     }
 
@@ -58,7 +58,7 @@ impl<'a> GroupBox<'a> {
     /// Whether the frame fills the width offered (the default) or is as wide as its content.
     #[must_use]
     pub fn fill(mut self, fill: bool) -> Self {
-        self.props = self.props.sizing(if fill { Sizing::Fill } else { Sizing::Content });
+        self.props = self.props.sizing(if fill { Sizing::FillWidth } else { Sizing::Content });
         self
     }
 }

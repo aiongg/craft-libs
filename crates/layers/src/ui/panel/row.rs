@@ -21,6 +21,8 @@ use crate::ui::tree::{LayerInfo, LayerKind, LayerPart, LayerRowKey, LayerTree, M
 pub(super) const EYE: ColumnKey = ColumnKey::new("eye");
 /// The lock column.
 pub(super) const LOCK: ColumnKey = ColumnKey::new("lock");
+/// The column that holds the thumbnails, the name and the indicators: the rest of the row after the toggle columns.
+pub(super) const NAME: ColumnKey = ColumnKey::new("name");
 
 /// The trailing lock indicator.
 pub(super) const LOCK_PART: u16 = 0;

@@ -194,7 +194,6 @@ impl StackDialog for LayersOptionsDialog {
         let words = env.words::<LayersOptionsWords>();
         let list = env.words::<ListWords>();
         let shown = FormDialog::new(Label::from(words.title.clone()), Bind::bound(&mut self.options)).show(ui, |ui, _, options| {
-            eprintln!("DIAG body ran avail={:?} rect={:?}", ui.available_size(), ui.max_rect());
             Stack::new().show(ui, |ui, _| {
                 GroupBox::new(Label::from(words.thumbnail_size.clone()), None).show(ui, |ui, _| {
                     RadioGroup::new(Label::from(words.thumbnail_size.clone()), Bind::bound(&mut options.thumbnail_size)).show(ui, |ui, _| {
@@ -231,7 +230,6 @@ impl StackDialog for LayersOptionsDialog {
                     Checkbox::new(Bind::bound(value)).label(Label::from(label.clone())).show(ui);
                 }
             });
-            eprintln!("DIAG body end min={:?} clip={:?}", ui.min_rect(), ui.clip_rect());
             true
         });
         match (shown.accepted, shown.closed) {
