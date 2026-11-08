@@ -281,7 +281,7 @@ impl Component for TimecodeField<'_> {
         let ended = edit.submitted || !cx.is_focused();
         let draft = cx.text(&TextKey::<Tick>::new(TEXT)).and_then(|text| text.draft.as_deref());
         let error = match draft {
-            Some(draft) if edit.unparsed && ended => parse_time(draft, &self.format, cx.value().copied().unwrap_or(Tick::ZERO)).err(),
+            Some(draft) if ended => parse_time(draft, &self.format, cx.value().copied().unwrap_or(Tick::ZERO)).err(),
             _ => None,
         };
         TimecodeFieldOutput { edit, error }

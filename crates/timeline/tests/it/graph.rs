@@ -141,39 +141,57 @@ fn plot_height(fixture: &Fixture) -> f32 {
     editor.height() - bar.height()
 }
 
+/// The span of the value range the editors are shown over, in value units.
+const VALUE_SPAN: f32 = 100.0;
+/// How far a drag result may be from the dragged distance, in seconds and in value units.
+const TIME_SLACK: f64 = 0.02;
+const VALUE_SLACK: f64 = 1.0;
+/// The part of a dragged time a Shift-constrained drag must still report.
+const MOST_OF_THE_TIME: f64 = 0.8;
+
+/// The pointer travel that moves a point by `seconds` along the time axis and up by `value` units of a plot `plot` points tall.
+fn travel(seconds: f64, value: f32, plot: f32) -> Vec2 {
+    Vec2::new((seconds * POINTS_PER_SECOND) as f32, -value / VALUE_SPAN * plot)
+}
+
 #[trial]
 fn dragging_keys_reports_time_and_value() {
+    let (seconds, rise) = (0.5, 20.0);
     let mut shown = shown(vec![curve(vec![key(1, 2.0, 50.0)])], Selection::default(), false);
     let tall = plot_height(&shown.fixture);
     let name = format!("{CURVE} 00:00:02:00");
     let at = shown.fixture.by_label(&name).expect("the key has a node").center();
-    drag_between(&mut shown.fixture, at, at + Vec2::new(50.0, -0.2 * tall), Modifiers::NONE);
+    drag_between(&mut shown.fixture, at, at + travel(seconds, rise, tall), Modifiers::NONE);
     {
         let moved = shown.moved.borrow();
         let Some(DragEvent::Commit(value)) = moved.last().cloned() else { panic!("{moved:?}") };
-        assert!((value.delta_time.seconds() - 0.5).abs() < 0.02 && (value.delta_value - 20.0).abs() < 1.0, "{value:?}");
+        let (time_error, value_error) = ((value.delta_time.seconds() - seconds).abs(), (value.delta_value - f64::from(rise)).abs());
+        assert!(time_error < TIME_SLACK && value_error < VALUE_SLACK, "{value:?}");
     }
     assert!(shown.selection.borrow().contains(&KeyframeId::new(1)), "grabbing a key selects it");
 
     let mut constrained = self::shown(vec![curve(vec![key(1, 2.0, 50.0)])], Selection::default(), false);
     let at = constrained.fixture.by_label(&name).expect("the key has a node").center();
-    drag_between(&mut constrained.fixture, at, at + Vec2::new(50.0, -0.05 * tall), Modifiers::SHIFT);
+    drag_between(&mut constrained.fixture, at, at + travel(seconds, rise / 4.0, tall), Modifiers::SHIFT);
     let moved = constrained.moved.borrow();
     let Some(DragEvent::Commit(value)) = moved.last().cloned() else { panic!("{moved:?}") };
-    assert!(value.delta_time.seconds() > 0.4 && value.delta_value == 0.0, "Shift keeps the time axis: {value:?}");
+    let keeps_time = value.delta_time.seconds() > seconds * MOST_OF_THE_TIME;
+    assert!(keeps_time && value.delta_value == 0.0, "Shift keeps the time axis: {value:?}");
 }
 
 #[trial]
 fn dragging_a_handle_reports_its_position() {
-    let with_handle = key(1, 2.0, 50.0).handles((secs(1.0), 50.0), (secs(3.0), 50.0));
+    let (handle_at, seconds, rise) = (3.0, 0.5, 30.0);
+    let with_handle = key(1, 2.0, 50.0).handles((secs(1.0), 50.0), (secs(handle_at), 50.0));
     let mut shown = shown(vec![curve(vec![with_handle])], selected(&[1]), false);
     let tall = plot_height(&shown.fixture);
     let at = shown.fixture.by_label(&format!("{CURVE} 00:00:02:00 outgoing handle")).expect("the handle has a node").center();
-    drag_between(&mut shown.fixture, at, at + Vec2::new(50.0, -0.3 * tall), Modifiers::ALT);
+    drag_between(&mut shown.fixture, at, at + travel(seconds, rise, tall), Modifiers::ALT);
     let handles = shown.handles.borrow();
     let Some(DragEvent::Commit(value)) = handles.last().cloned() else { panic!("{handles:?}") };
     assert_eq!((value.key, value.side, value.broken), (KeyframeId::new(1), HandleSide::Out, true));
-    assert!((value.time.seconds() - 3.5).abs() < 0.02 && (value.value - 80.0).abs() < 1.0, "{value:?}");
+    let (time_error, value_error) = ((value.time.seconds() - (handle_at + seconds)).abs(), (value.value - (50.0 + f64::from(rise))).abs());
+    assert!(time_error < TIME_SLACK && value_error < VALUE_SLACK, "{value:?}");
 }
 
 #[trial]
@@ -221,7 +239,8 @@ fn ctrl_wheel_zooms_the_value_range_about_its_middle() {
     let range = *shown.range.borrow();
     assert!(!range.auto_zoom, "zooming ends auto-zoom");
     let (low, high) = auto_range(&[curve(vec![key(1, 2.0, 50.0)])], GraphMode::Value);
-    assert!(((range.low + range.high) / 2.0 - (low + high) / 2.0).abs() < 1e-9, "the middle stays: {range:?}");
+    let middle = |low: f64, high: f64| (low + high) / 2.0;
+    assert!((middle(range.low, range.high) - middle(low, high)).abs() < 1e-9, "the middle stays: {range:?}");
     assert!(range.high - range.low < high - low, "wheel up zooms in: {range:?}");
 }
 
