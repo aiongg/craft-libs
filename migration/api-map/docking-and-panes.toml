@@ -10,8 +10,9 @@ new_module = "craft_ui::docking"
 [[type]]
 name = "DockArea"
 old = "craft_ui::docking::surface::DockArea"
-new = "craft_ui::docking::DockArea"
-status = "pending"
+new = "craft_ui::patterns::dock::DockArea"
+status = "moved"
+note = "A pattern: `DockArea::new(id, Bind<Workspace<P>>, &mut dyn DockPanels<P>, DockConfig)` and `show(ui) -> DockAreaOutput<P>` (legacy `DockArea::new(id)` and `show(ui, layout, ..)`); `DockArea::read_only(id, &Layout<P>, ..)` shows a layout that is not edited."
 
 [[type]]
 name = "FloatingFrame"
@@ -94,7 +95,7 @@ name = "FloatSpace"
 old = "craft_ui::docking::FloatSpace"
 new = "craft_ui::docking::FloatSpace"
 status = "same"
-note = "`FloatSpace::new(area, &DockSizes)` takes the default float size and the cascade inset from the sizes; the lookups `panel`, `group`, `column` and `place` are public."
+note = "`FloatSpace::new(area, &DockSizes)` takes the default float size, the cascade inset and the title row height from the sizes; the lookups `panel`, `group`, `column` and `place` are public; `place` returns a `Rect`."
 
 [[type]]
 name = "HidePanels"
@@ -114,7 +115,7 @@ name = "DockContent"
 old = "craft_ui::docking::DockContent"
 new = ""
 status = "replaced"
-note = "`DockPanels<P>`: `spec(&P) -> PanelSpec` carries the label, icon, limits, heights, float size, native and window-kind policy; `body`, `group_view(panels, active, ui, rect, cx)` (was `custom_group(panels, active, floating)`), `group_header(panels, active, ui, cx)` and `panel_rows` stay hooks; a group is named by one of its panels. Permissions are the dock model's."
+note = "`DockPanels<P>`: `spec(&P) -> PanelSpec` carries the label, icon, limits, heights, float size, native and window-kind policy; `body`, `group_view(panels, active, ui, rect, cx)` (was `custom_group(panels, active, floating)`), `group_header(panels, active, ui, cx)` and `panel_rows` stay hooks; a group is named by one of its panels. Permissions are the dock model's, read through `DockPanels::permissions`."
 
 [[type]]
 name = "ZoneRule"
@@ -918,7 +919,7 @@ name = "SplitAreaOutput"
 old = ""
 new = "craft_ui::docking::SplitAreaOutput"
 status = "replaced"
-note = "The output of `SplitArea`: the layout's resize edits and the panel dropped on a group."
+note = "The output of `SplitArea`: the layout's resize edits."
 
 # dock-commands-a: command sets over the dock model, the workspace switcher, the words.
 [[type]]
@@ -1007,3 +1008,123 @@ new = "WorkspaceSwitcher::new(set)"
 type = "WorkspaceSwitcher"
 old = "labels(labels)"
 new = ""
+
+
+# dock-area-a: the area pattern, its output, its style and the hide prune.
+[[type]]
+name = "DockAreaOutput"
+old = ""
+new = "craft_ui::patterns::dock::DockAreaOutput"
+status = "replaced"
+note = "Replaces the legacy `DockOutput`: `actions`, `events`, `focused`, `error`, `edit` (a divider's size edit as an edit of the workspace), `float_space` and `response`; forwarded input and files are the runtime's."
+
+[[type]]
+name = "DockOutput"
+old = "craft_ui::docking::surface::DockOutput"
+new = ""
+status = "removed"
+note = "Replaced by `craft_ui::patterns::dock::DockAreaOutput`."
+
+[[type]]
+name = "InvalidGeometry"
+old = ""
+new = "craft_ui::patterns::dock::InvalidGeometry"
+status = "replaced"
+note = "The error value of a workspace that fails `Workspace::validate`; the area draws nothing for it."
+
+[[type]]
+name = "DockAreaStyle"
+old = ""
+new = "craft_ui::patterns::dock::DockAreaStyle"
+status = "replaced"
+note = "The one component style behind `DockStyle`, `DockLook`, `DockSpec` and `DockWith`: the docking sizes, from tokens."
+
+[[type]]
+name = "DockStyle"
+old = "craft_ui::docking::surface::DockStyle"
+new = ""
+status = "removed"
+note = "Replaced by `craft_ui::patterns::dock::DockAreaStyle` (sizes) and `DockConfig` (behaviour)."
+
+[[type]]
+name = "DockLook"
+old = "craft_ui::docking::look::DockLook"
+new = ""
+status = "removed"
+note = "Colours, surfaces and shapes belong to the parts the area assembles; the theme's semantic tokens set them."
+
+[[type]]
+name = "DockSpec"
+old = "craft_ui::docking::look::DockSpec"
+new = ""
+status = "removed"
+note = "Replaced by `DockAreaStyle`."
+
+[[type]]
+name = "DockWith"
+old = "craft_ui::docking::look::DockWith"
+new = ""
+status = "removed"
+note = "Replaced by `DockAreaStyle`."
+
+[[setter]]
+type = "DockArea"
+old = "hide_panels(HidePanels)"
+new = "hide(HidePanels)"
+
+[[setter]]
+type = "DockArea"
+old = "maximized(Option<P>)"
+new = "maximized(Option<P>)"
+
+[[setter]]
+type = "DockArea"
+old = "auto_collapse_iconic(bool)"
+new = "auto_collapse()"
+
+[[setter]]
+type = "DockArea"
+old = "locked(bool)"
+new = "locked()"
+
+[[setter]]
+type = "DockArea"
+old = "float_bounds(Rect)"
+new = ""
+note = "The area's float bounds are the shell's window region (`ShellCx::float_bounds`)."
+
+[[setter]]
+type = "DockArea"
+old = "native_windows(bool)"
+new = ""
+note = "Native floating is `PanelSpec::allow_native` with `WindowHost::viewports_available`; native-a wires it."
+
+[[setter]]
+type = "DockArea"
+old = "monitors(Vec<Monitor>)"
+new = ""
+note = "Monitors come from `WindowHost::monitors`."
+
+[[setter]]
+type = "DockArea"
+old = "input_blocked(bool)"
+new = ""
+note = "The runtime blocks input behind modal layers."
+
+[[setter]]
+type = "DockArea"
+old = "native_input_hook(hook)"
+new = ""
+note = "Forwarded input is the runtime's."
+
+[[setter]]
+type = "DockArea"
+old = "raise_panel(P)"
+new = ""
+note = "A picked tab is `Action::activate`; windows raise with their layer."
+
+[[setter]]
+type = "DockArea"
+old = "blocked_rects(&[Rect])"
+new = ""
+note = "Layers above the area block it by the drag session's layer test."

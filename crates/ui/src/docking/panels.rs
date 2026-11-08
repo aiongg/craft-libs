@@ -3,6 +3,7 @@
 use super::spec::PanelSpec;
 use crate::contract::BodyCx;
 use crate::menu::PanelRow;
+use craft_behavior::dock::Permissions;
 use egui::{Rect, Ui};
 
 /// The host's panels. A dock calls, in one pass and for each group it shows:
@@ -17,6 +18,12 @@ use egui::{Rect, Ui};
 pub trait DockPanels<P> {
     /// What the dock reads of `panel`.
     fn spec(&self, panel: &P) -> PanelSpec;
+
+    /// What may happen to `panel`: whether it moves, floats, closes and takes tabs and splits (the default allows
+    /// everything). A canvas is `Permissions::PROTECTED`. A locked workspace narrows these itself.
+    fn permissions(&self, _panel: &P) -> Permissions {
+        Permissions::ALL
+    }
 
     /// Shows `panel`'s body in `ui`.
     fn body(&mut self, panel: &P, ui: &mut Ui, cx: &mut BodyCx<'_>);

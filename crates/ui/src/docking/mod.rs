@@ -54,17 +54,17 @@ pub use flyout::Flyout;
 pub use iconic::{IconicColumn, IconicColumnOutput, IconicColumnStyle, IconicSizes};
 
 use crate::contract::{
-    Access, Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, DropMark, DropOperation, DropTarget, Edit as _, EditResponse,
-    Focus as _, Outcome, Pad, PaintUi, PartsCx, Pointer as _, Props as _, Role, Sizing, WordSetCx as _,
+    Access, Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, Focus as _, Outcome, Pad, PaintUi,
+    PartsCx, Props as _, Role, Sizing, WordSetCx as _,
 };
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
 use crate::runtime::memory::sub;
 use crate::style::{ComponentStyle, StyleCx};
-use craft_behavior::dock::{Layout, ZoneSize, zones};
-use craft_behavior::{Axis, DockSide, Flow, Metrics, PartKey, Sense};
+use craft_behavior::dock::{DockEdge, Layout, Node};
+use craft_behavior::{Axis, Flow, Metrics, PartKey, Sense};
 use divider::{Divider, Drag};
-use egui::{Pos2, Rect, Response};
+use egui::{Rect, Response};
 use std::fmt::Debug;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use tree::{FrameRules, SplitHandle};
@@ -117,50 +117,6 @@ pub struct PanelDrag {
     pub from: PanelKey,
 }
 
-/// Where a dropped panel lands: the group the pointer is over and the side of it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct DockDrop {
-    /// The group the pointer is over, named by its anchor panel.
-    pub group: PanelKey,
-    /// The side of the group: an edge docks beside it, the middle joins its tabs.
-    pub side: DockSide,
-}
-
-/// The accepting side of a `SplitArea`: groups take a panel on any side, by move only.
-struct GroupDrops {
-    groups: Vec<(PanelKey, Rect)>,
-    rtl: bool,
-}
-
-impl GroupDrops {
-    /// The side of `rect` that `at` selects, by the dock's zone function.
-    fn side(&self, rect: Rect, at: Pos2) -> DockSide {
-        zones(rect, ZoneSize::Fraction, self.rtl).into_iter().find(|(_, zone)| zone.contains(at)).map_or(DockSide::Center, |(side, _)| side)
-    }
-}
-
-impl DropTarget<PanelDrag> for GroupDrops {
-    type Drop = DockDrop;
-
-    fn accept(&self, payload: &PanelDrag, at: Pos2, op: DropOperation) -> Option<DockDrop> {
-        if !matches!(op, DropOperation::Move) {
-            return None;
-        }
-        let (group, rect) = self.groups.iter().find(|(_, rect)| rect.contains(at))?;
-        let side = self.side(*rect, at);
-        (payload.from != *group || side != DockSide::Center).then_some(DockDrop { group: *group, side })
-    }
-
-    fn mark(&self, drop: &DockDrop) -> DropMark {
-        let rect = self.groups.iter().find(|(group, _)| *group == drop.group).map_or(Rect::NOTHING, |(_, rect)| *rect);
-        match drop.side {
-            DockSide::Center => DropMark::Into(rect),
-            side => DropMark::Split(Flow::new(rect, self.rtl).to_physical(side.area(rect))),
-        }
-    }
-}
-
 /// The style of a split area: the docking sizes its frames, handles and keys read.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
@@ -171,14 +127,12 @@ pub struct SplitAreaStyle {
     sizes: DockSizes,
 }
 
-/// What a split area reports: the layout's edits and the drop of a panel.
+/// What a split area reports: the layout's edits.
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct SplitAreaOutput<P> {
     /// The resize edits of the layout and the area's response.
     pub edit: EditResponse<Layout<P>>,
-    /// A panel dropped on a group this pass.
-    pub dropped: Option<DockDrop>,
 }
 
 impl<P: Clone + PartialEq + Send + Sync + 'static> Outcome for SplitAreaOutput<P> {
@@ -205,14 +159,13 @@ pub struct SplitArea<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> {
     props: ContainerProps,
     layout: Bind<'a, Layout<P>>,
     rules: FrameRules<'a, P>,
-    dropped: Option<DockDrop>,
 }
 
 impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> SplitArea<'a, P> {
     /// A split area named `label` over `layout`, sized by `rules`. A mixed layout shows no handles.
     pub fn new(label: impl Into<Label>, layout: Bind<'a, Layout<P>>, rules: FrameRules<'a, P>) -> Self {
         let props = ContainerProps::new().arena(true).sizing(Sizing::Fill).pad(Pad::None);
-        SplitArea { common: Common::new(), props, layout, rules, dropped: None }.label(label)
+        SplitArea { common: Common::new(), props, layout, rules }.label(label)
     }
 }
 
@@ -226,13 +179,24 @@ impl<P> Default for PassFrames<P> {
     }
 }
 
+/// The docks of the layout with the frames the area gave them this pass, for the body.
+#[derive(Clone, Default)]
+struct PassDocks(Vec<(DockEdge, Rect)>);
+
 const FRAMES: &str = "split_frames";
+const DOCKS: &str = "split_docks";
 
 impl BodyCx<'_> {
     /// The groups of the split area this body belongs to, each as its anchor panel and its rect, with this pass's
     /// resize edits applied: a panel placed at its group's rect sits against the handle in the same pass.
     pub fn group_frames<P: Clone + Send + Sync + 'static>(&self) -> Vec<(P, Rect)> {
         self.memory.recall::<PassFrames<P>>(sub(self.id, FRAMES)).0
+    }
+
+    /// The docks of the split area this body belongs to, each as its window edge and its rect, with this pass's
+    /// resize edits applied.
+    pub fn dock_frames(&self) -> Vec<(DockEdge, Rect)> {
+        self.memory.recall::<PassDocks>(sub(self.id, DOCKS)).0
     }
 }
 
@@ -340,15 +304,18 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Component for SplitAr
                 cx.set(next);
             }
         }
-        let groups = cx.value().and_then(|shown| shown.root.as_ref()).map_or_else(Vec::new, |root| {
-            tree::frames(root, rect, &sizes, &rules, rtl).groups.iter().filter_map(|group| Some((group.anchor()?.clone(), group.rect))).collect()
-        });
-        let keyed = groups.iter().map(|(anchor, rect)| (PanelKey::of(anchor), *rect)).collect();
+        let frames = cx.value().and_then(|shown| shown.root.as_ref()).map(|root| tree::frames(root, rect, &sizes, &rules, rtl));
+        let groups = frames.iter().flat_map(|frames| frames.groups.iter()).filter_map(|group| Some((group.anchor()?.clone(), group.rect))).collect();
+        let docks = frames
+            .iter()
+            .flat_map(|frames| frames.groups.iter())
+            .filter_map(|group| match group.node {
+                Node::Dock { side, .. } => Some((*side, group.rect)),
+                _ => None,
+            })
+            .collect();
+        cx.core.memory.shown::<PassDocks>(sub(sub(cx.core.id, "body"), DOCKS)).0 = docks;
         cx.core.memory.shown::<PassFrames<P>>(sub(sub(cx.core.id, "body"), FRAMES)).0 = groups;
-        let target = GroupDrops { groups: keyed, rtl };
-        if let Some(drop) = cx.drop_target::<PanelDrag, _>(&target) {
-            self.dropped = Some(drop);
-        }
     }
 
     fn paint_over(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
@@ -371,7 +338,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Component for SplitAr
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> SplitAreaOutput<P> {
-        SplitAreaOutput { edit: cx.edit_response(), dropped: self.dropped }
+        SplitAreaOutput { edit: cx.edit_response() }
     }
 }
 

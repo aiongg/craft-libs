@@ -17,6 +17,7 @@ mod targets;
 
 mod columns;
 
+mod area;
 mod commands;
 
 /// The docking sizes of the default theme with the given divider gap, least pane and strip height.
