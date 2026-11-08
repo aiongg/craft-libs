@@ -206,7 +206,7 @@ struct ClickRun {
 impl<'a> EdgePicker<'a> {
     /// A picker named `label` editing `edges`.
     pub fn new(label: impl Into<Label>, edges: Bind<'a, BorderEdges>) -> Self {
-        EdgePicker { common: Common::new(), edges, paragraph: false }.label(label)
+        EdgePicker { common: Common::new(), edges, paragraph: false }.label(label).ltr_axis()
     }
 
     /// The name of `edge`.

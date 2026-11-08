@@ -7,15 +7,17 @@
 use craft_behavior::{IconId, Metrics, NavMove, PartKey, PressPhase, Sense};
 use craft_ui::buttons::IconButton;
 use craft_ui::contract::{
-    Access, Animate as _, Common, Component, Cx, Focus as _, Input, MeasureCx, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _,
-    Remember as _, Role, Show as _, ShowContainer as _, clicked, spec,
+    Access, Animate as _, Common, Component, Cx, Focus as _, Input, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _,
+    Remember as _, Role, Show as _, ShowContainer as _, WordSetCx as _, clicked, spec,
 };
 use craft_ui::layout_components::Row;
+use craft_ui::primitives::PaintShape;
 use craft_ui::primitives::textures::{Priority, TextureStoreOptions, ThumbPaint, ThumbRequest, ThumbnailOptions, Thumbnails, texture_side};
+use craft_ui::runtime::commands::FireSource;
 use craft_ui::runtime::env::Env;
 use craft_ui::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};
-use craft_ui::style::{ComponentStyle, FocusLook, StyleCx, UiTokens};
-use egui::{Pos2, Rect, Response, Ui, Vec2, pos2, vec2};
+use craft_ui::style::{ComponentStyle, DataColor, FocusLook, StyleCx, UiTokens};
+use egui::{CornerRadius, Pos2, Rect, Response, Ui, Vec2, pos2, vec2};
 
 use super::view::PageSource;
 use crate::layout::SCREEN_POINTS_PER_POINT;
@@ -23,8 +25,9 @@ use crate::layout::SCREEN_POINTS_PER_POINT;
 #[cfg(feature = "screen-testing")]
 mod stories;
 
-/// The swipe along the columns: the whole view is the part.
-const SWIPE: PartKey = PartKey::new("swipe");
+/// The page-turn parts: one over each gap between the columns and one over each side margin, indexed from the left.
+/// A click on one turns toward its side and a swipe starting on one turns by the swipe's direction.
+const TURN: PartKey = PartKey::new("turn");
 
 /// One column per this much width, screen points.
 const COLUMN_TARGET: f32 = 295.0;
@@ -188,6 +191,8 @@ pub struct ReadingViewStyle {
     focus: FocusLook,
     /// The gap between columns.
     gap: f32,
+    /// The least width of a side margin's page-turn part.
+    reach: f32,
 }
 
 /// What the view did this pass.
@@ -221,8 +226,10 @@ struct LastSize(Option<Vec2>);
 ///   Ctrl and the wheel: the reading size is the app's.
 /// - In a right-to-left interface the row mirrors: the first column is at the right and a swipe toward the left turns
 ///   back, so an arrow or swipe always moves toward the side it points at.
-/// - A click or Space (and a screen reader's Click) turns to the next column.
-/// - The text stays selectable; the app's editing caret doesn't move the columns.
+/// - A click on a gap between the columns or on a side margin turns toward that side (a screen reader's Click on
+///   such a part turns forward), and a swipe that starts there turns; Space turns forward. A click or drag inside a
+///   column is the app's, so the text stays selectable; the app's editing caret doesn't move the columns.
+/// - Every page is painted on `paper` while its picture loads.
 /// - Show it over the reading area with `show_at`: it takes the rect it is given.
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
 #[component(content_painter)]
@@ -235,13 +242,14 @@ pub struct ReadingView<'a> {
     #[prop(quantity = "zoom factor")]
     zoom: f32,
     resizing: bool,
+    paper: DataColor,
 }
 
 impl<'a> ReadingView<'a> {
-    /// A view named `label` (the document's name) of the pages of `source`, with `state` kept by the app between
-    /// passes.
-    pub fn new(label: impl Into<craft_ui::runtime::env::Label>, source: &'a dyn PageSource, state: &'a mut ReadingState) -> Self {
-        ReadingView { common: Common::new(), source, state, zoom: 1.0, resizing: false }.label(label)
+    /// A view named `label` (the document's name) of the pages of `source` on `paper`, with `state` kept by the app
+    /// between passes.
+    pub fn new(label: impl Into<craft_ui::runtime::env::Label>, source: &'a dyn PageSource, state: &'a mut ReadingState, paper: DataColor) -> Self {
+        ReadingView { common: Common::new(), source, state, zoom: 1.0, resizing: false, paper }.label(label)
     }
 
     /// Screen points per page point at `zoom`.
@@ -251,6 +259,30 @@ impl<'a> ReadingView<'a> {
 
     fn column_width(&self, scale: f32) -> f32 {
         self.source.page_size(0).width as f32 * scale
+    }
+
+    /// The page-turn parts' rects, from the leading edge: the leading margin with the first gap, the gaps between the
+    /// columns of `viewport`, the last gap with the trailing margin. A margin part is at least `reach` wide.
+    fn turn_rects(full: Rect, viewport: Rect, column: f32, gap: f32, reach: f32, rtl: bool) -> Vec<Rect> {
+        let step = column + gap;
+        let columns = (((viewport.width() - gap) / step).round().max(1.0)) as usize;
+        (0..=columns)
+            .map(|at| {
+                let (left, right) = (viewport.left() + at as f32 * step, viewport.left() + at as f32 * step + gap);
+                let (left, right) = match at {
+                    0 => (full.left(), right.max(full.left() + reach)),
+                    _ if at == columns => (left.min(full.right() - reach), full.right()),
+                    _ => (left, right),
+                };
+                let (left, right) = if rtl { (full.left() + full.right() - right, full.left() + full.right() - left) } else { (left, right) };
+                Rect::from_min_max(pos2(left, full.top()), pos2(right, full.bottom()))
+            })
+            .collect()
+    }
+
+    /// Whether a turn from a click or Click at `x` goes forward: toward the right in a left-to-right interface.
+    fn forward_at(x: f32, centre: f32, rtl: bool) -> bool {
+        (x > centre) != rtl
     }
 }
 
@@ -266,6 +298,7 @@ impl Component for ReadingView<'_> {
             metrics: Metrics::new().min_size(Vec2::new(cx.tokens.size.plot.width, cx.tokens.size.plot.height)),
             focus: cx.focus_look(),
             gap: cx.tokens.space.gap.section,
+            reach: cx.tokens.size.hit.target,
         }
     }
 
@@ -274,15 +307,38 @@ impl Component for ReadingView<'_> {
     }
 
     fn sense(&self) -> Sense {
-        Sense::FOCUS | Sense::CLICK | Sense::WHEEL_X | Sense::WHEEL_Y
+        Sense::FOCUS | Sense::WHEEL_X | Sense::WHEEL_Y
     }
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
-        cx.part(SWIPE, rect).sense(Sense::DRAG).pointer_only("the arrow keys, Page keys and Space turn the screen");
+        if self.source.page_count() == 0 {
+            return;
+        }
+        let scale = Self::screen_scale(self.zoom);
+        let (column, gap, reach) = (self.column_width(scale), cx.style.gap, cx.style.reach);
+        let viewport = reading_viewport(rect, column, gap, scale);
+        for (at, shape) in Self::turn_rects(rect, viewport, column, gap, reach, cx.flow.is_rtl()).into_iter().enumerate() {
+            cx.part(TURN.at(at as u64), shape).sense(Sense::CLICK | Sense::DRAG).pointer_only("the arrow keys, Page keys and Space turn the screen");
+        }
     }
 
-    fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
+    fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         access.pans(false, true);
+        if self.source.page_count() == 0 {
+            return;
+        }
+        let words = cx.words::<ReadingViewWords>();
+        let scale = Self::screen_scale(self.zoom);
+        let (column, gap, reach) = (self.column_width(scale), cx.style.gap, cx.style.reach);
+        let viewport = reading_viewport(cx.rect, column, gap, scale);
+        let rtl = cx.flow.is_rtl();
+        for (at, shape) in Self::turn_rects(cx.rect, viewport, column, gap, reach, rtl).into_iter().enumerate() {
+            let forward = Self::forward_at(shape.center().x, viewport.center().x, rtl);
+            let word = if forward { &words.next } else { &words.previous };
+            let node = access.node(TURN.at(at as u64), Role::BUTTON);
+            node.name = Name::Text(cx.env.resolve(word).as_str().to_owned());
+            node.bounds(shape);
+        }
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
@@ -301,8 +357,22 @@ impl Component for ReadingView<'_> {
         if let Some(wheel) = cx.take_wheel() {
             turn += wheel_turns(wheel.scroll, &mut self.state.wheel);
         }
-        if let PressPhase::Release { start, pos, click: false, .. } = cx.part(SWIPE).press.phase {
-            turn += swipe_turn(start.origin, pos, column, if rtl { -1.0 } else { 1.0 });
+        let viewport = reading_viewport(cx.rect, column, cx.style.gap, Self::screen_scale(self.zoom));
+        let parts = Self::turn_rects(cx.rect, viewport, column, cx.style.gap, cx.style.reach, rtl).len();
+        for at in 0..parts {
+            let part = TURN.at(at as u64);
+            match (cx.part_activated(part), cx.part(part).press.phase) {
+                (Some(FireSource::Pointer), PressPhase::Release { pos, .. }) => {
+                    turn += if Self::forward_at(pos.x, viewport.center().x, rtl) { 1 } else { -1 };
+                }
+                (Some(FireSource::Access), _) => {
+                    turn += if Self::forward_at(cx.part(part).rect.center().x, viewport.center().x, rtl) { 1 } else { -1 };
+                }
+                (_, PressPhase::Release { start, pos, click: false, .. }) => {
+                    turn += swipe_turn(start.origin, pos, column, if rtl { -1.0 } else { 1.0 });
+                }
+                _ => {}
+            }
         }
         while let Some((mv, _)) = cx.intents().take_move() {
             match mv {
@@ -313,7 +383,7 @@ impl Component for ReadingView<'_> {
                 _ => {}
             }
         }
-        if cx.activation().is_some() {
+        if cx.activation().is_some_and(|activation| activation.by_key) {
             turn += 1;
         }
         self.state.column = self.state.column.min(last_column);
@@ -360,6 +430,7 @@ impl Component for ReadingView<'_> {
             let request = ThumbRequest::for_cell(size.x.max(size.y), ppp);
             let picture = thumbs.state(&ctx, self.source, &page, &request, priority);
             if shown {
+                ui.draw().clipped(viewport, |draw| draw.data_fill(&PaintShape::Rect(at, CornerRadius::ZERO), self.paper));
                 thumbs.paint(&painter, at, &picture, &ThumbPaint::default().checker(false));
             }
         }

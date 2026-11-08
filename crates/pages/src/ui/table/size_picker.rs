@@ -77,8 +77,8 @@ pub struct TableSizePickerStyle {
 /// - The pointer hovers a square only on the square itself; the gap between squares hovers none (WordCraft's picker).
 /// - Squares up to the hovered one fill with the selected fill; the others are sunken.
 /// - Keys: the grid is one Tab stop; the arrows move the hovered square and stop at the grid's edges, Home and End go
-///   to the ends of the grid, Space or Enter inserts the hovered size. The squares sit as rows and columns do, so
-///   they do not mirror in a right-to-left interface.
+///   to the ends of the grid, Space or Enter inserts the hovered size. The grid previews a new table in the
+///   interface's flow: under right-to-left the first column is at the right and the arrows follow the screen.
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
 pub struct TableSizePicker {
     #[common]
@@ -117,10 +117,12 @@ impl TableSizePicker {
         )
     }
 
-    fn cell_rect(rect: Rect, index: usize, style: &TableSizePickerStyle) -> Rect {
+    fn cell_rect(rect: Rect, index: usize, style: &TableSizePickerStyle, rtl: bool) -> Rect {
         let step = style.cell + style.gap;
         let (row, column) = (index / COLUMNS, index % COLUMNS);
-        Rect::from_min_size(Self::grid_rect(rect, style).min + vec2(column as f32 * step, row as f32 * step), Vec2::splat(style.cell))
+        let grid = Self::grid_rect(rect, style);
+        let x = if rtl { grid.max.x - style.cell - column as f32 * step } else { grid.min.x + column as f32 * step };
+        Rect::from_min_size(pos2(x, grid.min.y + row as f32 * step), Vec2::splat(style.cell))
     }
 
     /// The label above the grid: the hovered size, or the picker's own name while none is.
@@ -175,7 +177,8 @@ impl Component for TableSizePicker {
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         for index in 0..ROWS * COLUMNS {
-            let part = cx.part(Self::part(index), Self::cell_rect(rect, index, &cx.style)).sense(Sense::CLICK | Sense::FOCUS).focusable();
+            let part =
+                cx.part(Self::part(index), Self::cell_rect(rect, index, &cx.style, cx.flow.is_rtl())).sense(Sense::CLICK | Sense::FOCUS).focusable();
             if self.lead == Some(index) {
                 part.flags(Flags::CHECKED);
             }
@@ -211,7 +214,7 @@ impl Component for TableSizePicker {
             let (row, column) = (index / COLUMNS, index % COLUMNS);
             let chosen = lit.is_some_and(|(r, c)| row <= r && column <= c);
             let look = if chosen { &cx.style.on } else { &cx.style.off };
-            draw.fill(&PaintShape::Rect(Self::cell_rect(cx.rect, index, &cx.style), cx.style.radius), cx.resolve(look));
+            draw.fill(&PaintShape::Rect(Self::cell_rect(cx.rect, index, &cx.style, cx.flow.is_rtl()), cx.style.radius), cx.resolve(look));
         }
         let label = Rect::from_min_max(cx.rect.min, pos2(cx.rect.max.x, Self::grid_rect(cx.rect, &cx.style).min.y));
         draw.text(label, &TextRun::new(self.text(&words, cx)).role(cx.style.label.role).color(cx.resolve(&cx.style.label.color)));

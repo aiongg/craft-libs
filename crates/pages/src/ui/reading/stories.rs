@@ -5,7 +5,7 @@ use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
 use super::{ReadingNav, ReadingState, ReadingView};
-use crate::ui::fixtures::DemoPages;
+use crate::ui::fixtures::{DemoPages, PAPER};
 
 const PAGES: usize = 6;
 
@@ -14,7 +14,7 @@ const PAGES: usize = 6;
 fn reading_view(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let source = DemoPages::new(PAGES);
     let state = data.value("state", ReadingState::default());
-    ReadingView::new("Document", &source, state).show(ui).into()
+    ReadingView::new("Document", &source, state, PAPER).show(ui).into()
 }
 
 #[story(ReadingNav<'static>, covers = [], drive = Drive::Never)]

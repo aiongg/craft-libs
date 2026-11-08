@@ -116,7 +116,7 @@ pub struct ColumnBar<'a> {
 impl<'a> ColumnBar<'a> {
     /// A bar named `label` for `widths` (one entry per column).
     pub fn new(label: impl Into<Label>, widths: Bind<'a, Vec<f64>>) -> Self {
-        ColumnBar { common: Common::new(), widths, names: &[], double_clicked: None }.label(label)
+        ColumnBar { common: Common::new(), widths, names: &[], double_clicked: None }.label(label).ltr_axis()
     }
 
     fn name(&self, at: usize, words: &ColumnBarWords) -> String {
@@ -125,16 +125,6 @@ impl<'a> ColumnBar<'a> {
             None => words.column.fill(&[("letter", letter(at).as_str())]).as_str().to_owned(),
         }
     }
-}
-
-/// The distance from the bar's reading start to `x`.
-fn logical(rect: Rect, rtl: bool, x: f32) -> f32 {
-    if rtl { rect.right() - x } else { x - rect.left() }
-}
-
-/// The screen x of the distance `along` from the bar's reading start.
-fn physical(rect: Rect, rtl: bool, along: f32) -> f32 {
-    if rtl { rect.right() - along } else { rect.left() + along }
 }
 
 /// The columns as segments of the bar `width` wide, each keeping [`MIN_SHARE`].
@@ -176,7 +166,7 @@ impl Component for ColumnBar<'_> {
             fill_alt: cx.color(colors.surface.sunken),
             label: cx.color(colors.text.normal),
             radius: cx.field().radius,
-            grab: cx.tokens.size.hit.slop,
+            grab: cx.tokens.size.hit.target,
         }
     }
 
@@ -195,17 +185,16 @@ impl Component for ColumnBar<'_> {
     /// A strip across each column that names it on hover, and a grab zone on each divider above them, its own Tab stop.
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let Some(widths) = cx.value() else { return };
-        let (shares, rtl, words) = (shares(widths), cx.flow.is_rtl(), cx.words::<ColumnBarWords>());
+        let (shares, words) = (shares(widths), cx.words::<ColumnBarWords>());
         let mut start = 0.0;
         for (at, share) in shares.iter().enumerate() {
             let end = start + *share as f32 * rect.width();
-            let (a, b) = (physical(rect, rtl, start), physical(rect, rtl, end));
-            let column = Rect::from_x_y_ranges(a.min(b)..=a.max(b), rect.y_range());
+            let column = Rect::from_x_y_ranges((rect.left() + start)..=(rect.left() + end), rect.y_range());
             cx.part(COLUMN.at(at as u64), column).tooltip(self.name(at, &words)).pointer_only("the divider's name and value describe the column");
             start = end;
         }
         for at in 0..shares.len().saturating_sub(1) {
-            let x = physical(rect, rtl, position(&shares, at, rect.width()));
+            let x = rect.left() + position(&shares, at, rect.width());
             let reach = cx.style.grab.min(shares[at].min(shares[at + 1]) as f32 * rect.width() / 2.0);
             let grab = Rect::from_x_y_ranges((x - reach)..=(x + reach), rect.y_range());
             cx.part(DIVIDER.at(at as u64), grab)
@@ -218,7 +207,7 @@ impl Component for ColumnBar<'_> {
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let Some(widths) = cx.value().cloned() else { return };
-        let (rect, rtl) = (cx.rect, cx.flow.is_rtl());
+        let rect = cx.rect;
         let width = rect.width();
         let dividers = widths.len().saturating_sub(1);
         for at in 0..dividers {
@@ -228,7 +217,7 @@ impl Component for ColumnBar<'_> {
             }
             match press.phase {
                 PressPhase::DragStart { .. } => cx.begin(),
-                PressPhase::Drag { pos, .. } => cx.propose(pushed(&widths, at, logical(rect, rtl, pos.x), width)),
+                PressPhase::Drag { pos, .. } => cx.propose(pushed(&widths, at, pos.x - rect.left(), width)),
                 PressPhase::Release { click: false, .. } => cx.commit(),
                 _ => {}
             }
@@ -257,7 +246,7 @@ impl Component for ColumnBar<'_> {
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let Some(widths) = cx.value() else { return };
-        let (rect, rtl, style) = (cx.rect, cx.flow.is_rtl(), &cx.style);
+        let (rect, style) = (cx.rect, &cx.style);
         let shares = shares(widths);
         let draw = ui.draw();
         let words = cx.words::<ColumnBarWords>();
@@ -266,8 +255,7 @@ impl Component for ColumnBar<'_> {
         let mut start = 0.0;
         for (at, share) in shares.iter().enumerate() {
             let end = start + *share as f32 * rect.width();
-            let (a, b) = (physical(rect, rtl, start), physical(rect, rtl, end));
-            let column = Rect::from_x_y_ranges(a.min(b)..=a.max(b), rect.y_range());
+            let column = Rect::from_x_y_ranges((rect.left() + start)..=(rect.left() + end), rect.y_range());
             draw.fill(&PaintShape::Rect(column, CornerRadius::ZERO), if at % 2 == 0 { style.fill } else { style.fill_alt });
             let percent = units.number(*share * 100.0, 0..=0);
             let run = TextRun::new(words.percent.fill(&[("value", percent.as_str())]).as_str().to_owned()).role(TypeRole::Caption).color(style.label);
@@ -280,7 +268,7 @@ impl Component for ColumnBar<'_> {
         }
         draw.stroke(&PaintShape::Rect(rect, style.radius), StrokeWidth::Thin, style.outline);
         for at in 0..shares.len().saturating_sub(1) {
-            let x = physical(rect, rtl, position(&shares, at, rect.width()));
+            let x = rect.left() + position(&shares, at, rect.width());
             let active =
                 cx.part(DIVIDER.at(at as u64)).hovered || cx.part(DIVIDER.at(at as u64)).press.phase.is_press() || focused == Some(at as u64);
             let (color, width) = if active { (style.divider_active, StrokeWidth::Thick) } else { (style.divider, StrokeWidth::Medium) };

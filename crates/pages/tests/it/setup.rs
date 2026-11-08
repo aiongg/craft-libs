@@ -10,7 +10,9 @@ use craft_pages::ui::{
     ColumnBar, HeaderFooterPage, HeaderFooterZones, HiddenMark, MarginEdge, MarginHandles, MarginRules, PageEdges, PageRangeCodec, PageRangeOptions,
     PageSetupDialog, Zone, ZoneAt, ZoneBands, clamp_margin, dragged_margin, margin_range,
 };
+use craft_theme::{Contrast, Mode};
 use craft_ui::contract::{Bind, Show as _};
+use craft_ui::runtime::env::Direction;
 use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers, Pos2, Vec2, pos2, vec2};
@@ -218,6 +220,11 @@ fn characters_map_to_their_hidden_marks() {
 
 /// A column bar over four equal columns, and the widths it keeps.
 fn column_rig() -> (Fixture, Rc<RefCell<Vec<f64>>>) {
+    column_rig_in(Direction::Ltr)
+}
+
+/// The same bar in `direction`.
+fn column_rig_in(direction: Direction) -> (Fixture, Rc<RefCell<Vec<f64>>>) {
     let widths = Rc::new(RefCell::new(vec![EQUAL; COLUMNS]));
     let seen = Rc::clone(&widths);
     let mut fixture = Fixture::new(move |ui| {
@@ -225,8 +232,34 @@ fn column_rig() -> (Fixture, Rc<RefCell<Vec<f64>>>) {
         ColumnBar::new("Columns", Bind::bound(&mut current)).show(ui);
         *seen.borrow_mut() = current;
     });
+    fixture.direction(direction);
     fixture.settle();
     (fixture, widths)
+}
+
+#[trial]
+fn the_column_bar_keeps_its_columns_left_to_right_in_a_right_to_left_interface() {
+    let (mut fixture, widths) = column_rig_in(Direction::Rtl);
+    let divider = fixture.by_label("Column 1 width").expect("the first divider");
+    fixture.click(&divider);
+    fixture.key(Key::ArrowRight, Modifiers::NONE);
+    assert!(widths.borrow()[0] > EQUAL, "ArrowRight moves the divider right, widening the column at its left: {:?}", widths.borrow());
+    let divider = fixture.by_label("Column 1 width").expect("the first divider");
+    let travel = craft_ui::testing::input::max_click_dist(fixture.ctx()) * 8.0;
+    let before = widths.borrow()[0];
+    fixture.drag(&divider, Vec2::new(-travel, 0.0));
+    assert!(widths.borrow()[0] < before, "a drag to the left narrows it: {:?}", widths.borrow());
+}
+
+#[trial]
+fn a_press_half_a_hit_target_off_a_column_edge_grabs_it() {
+    let (mut fixture, widths) = column_rig_in(Direction::Ltr);
+    let divider = fixture.by_label("Column 1 width").expect("the first divider");
+    let target = craft_ui::testing::style::tokens(Mode::Light, Contrast::Standard).size.hit.target;
+    let off = divider.center() + Vec2::new(target / 2.0, 0.0);
+    let travel = craft_ui::testing::input::max_click_dist(fixture.ctx()) * 8.0;
+    fixture.drag_at(off, Vec2::new(travel, 0.0));
+    assert!(widths.borrow()[0] > EQUAL, "the divider followed the drag: {:?}", widths.borrow());
 }
 
 #[trial]
@@ -253,6 +286,10 @@ fn a_screen_reader_steps_a_divider() {
 
 /// The margin handles of one Letter page at the start of a room, and the edges they edit.
 fn margin_rig() -> (Fixture, Rc<RefCell<PageEdges>>) {
+    margin_rig_in(Direction::Ltr)
+}
+
+fn margin_rig_in(direction: Direction) -> (Fixture, Rc<RefCell<PageEdges>>) {
     let edges = Rc::new(RefCell::new(PageEdges::new(Margins::uniform(72.0))));
     let seen = Rc::clone(&edges);
     let mut fixture = Fixture::new(move |ui| {
@@ -263,8 +300,19 @@ fn margin_rig() -> (Fixture, Rc<RefCell<PageEdges>>) {
         *seen.borrow_mut() = current;
     });
     fixture.room(vec2(800.0, 900.0));
+    fixture.direction(direction);
     fixture.settle();
     (fixture, edges)
+}
+
+#[trial]
+fn the_arrows_move_a_margin_edge_on_the_screen_in_a_right_to_left_interface() {
+    let (mut fixture, edges) = margin_rig_in(Direction::Rtl);
+    let left = fixture.by_label("Left Margin").expect("the left edge");
+    fixture.click(&left);
+    let before = edges.borrow().margins.left;
+    fixture.key(Key::ArrowLeft, Modifiers::NONE);
+    assert!(edges.borrow().margins.left < before, "ArrowLeft moves the left edge to the left: {:?}", edges.borrow());
 }
 
 #[trial]
@@ -323,7 +371,9 @@ fn from_and_to_stay_inside_the_document_and_in_order() {
     let start = PageRange { all: false, from: 3, to: Some(9), subset: Subset::All };
     let (mut fixture, range) = range_rig(start);
     type_number(&mut fixture, "9", "99");
-    assert_eq!(range.borrow().to, Some(12), "a page past the end is the last page: {:?}", range.borrow());
+    let shown: Vec<_> =
+        fixture.by_role(craft_ui::contract::Role::SPIN_BUTTON).iter().map(|field| fixture.tree().value_of(field.node).map(str::to_owned)).collect();
+    assert_eq!(range.borrow().to, Some(12), "a page past the end is the last page: {:?}, the fields show {shown:?}", range.borrow());
     let (mut fixture, range) = range_rig(start);
     type_number(&mut fixture, "3", "11");
     assert_eq!((range.borrow().from, range.borrow().to), (11, Some(11)), "the end follows a start past it");
@@ -334,13 +384,21 @@ fn from_and_to_stay_inside_the_document_and_in_order() {
 
 /// The header and footer zones of one page, the zone being edited, and what the zones last reported.
 fn zones_rig() -> (Fixture, Rc<RefCell<(Option<ZoneAt>, bool)>>) {
+    zones_rig_editing(Some(ZoneAt::new(0, Zone::new(true, 2))))
+}
+
+fn zones_rig_editing(editing: Option<ZoneAt>) -> (Fixture, Rc<RefCell<(Option<ZoneAt>, bool)>>) {
     let reported = Rc::new(RefCell::new((None, false)));
     let seen = Rc::clone(&reported);
     let mut fixture = Fixture::new(move |ui| {
         let placed = demo_placed(1, pos2(20.0, 20.0));
         let bands = |_: usize| ZoneBands::new(72.0, 72.0, [50.0, 50.0]);
         let room = ui.available_rect_before_wrap();
-        let out = HeaderFooterZones::new("Zones", &placed, &bands, PAPER, INK).editing(ZoneAt::new(0, Zone::new(true, 2))).show_at(ui, room);
+        let mut zones = HeaderFooterZones::new("Zones", &placed, &bands, PAPER, INK);
+        if let Some(at) = editing {
+            zones = zones.editing(at);
+        }
+        let out = zones.show_at(ui, room);
         let mut seen = seen.borrow_mut();
         seen.0 = out.begin.or(seen.0);
         seen.1 |= out.end;
@@ -379,9 +437,39 @@ fn custom_size_stays_chosen_while_the_numbers_match_a_paper() {
     let paper = fixture.by_label("Paper size").expect("the paper list");
     fixture.click(&paper);
     fixture.idle(2);
-    let custom = fixture.by_label("Custom size").expect("the Custom size entry");
-    fixture.click(&custom);
+    // The list shows the papers that fit its height, so the last entry, Custom size, is reached with End.
+    fixture.key(Key::End, Modifiers::NONE);
+    fixture.key(Key::Enter, Modifiers::NONE);
     fixture.idle(2);
     let paper = fixture.by_label("Paper size").expect("the paper list");
     assert_eq!(fixture.tree().value_of(paper.node), Some("Custom size"), "the size is still Letter's");
+}
+
+/// Whether the radio named `label` is on.
+fn radio_on(fixture: &Fixture, label: &str) -> bool {
+    let radio = fixture.by_label(label).unwrap_or_else(|| panic!("the {label} radio"));
+    fixture.tree().toggled_of(radio.node) == Some(craft_behavior::Mixed::Same(true))
+}
+
+#[trial]
+fn escape_in_a_width_field_puts_back_the_size_and_the_orientation() {
+    let (mut fixture, _, _) = dialog(PageSetup::default());
+    let width = fixture.by_label("Width").expect("the Width field");
+    let before = fixture.tree().value_of(width.node).map(str::to_owned);
+    assert!(radio_on(&fixture, "Portrait"), "Letter starts upright");
+    fixture.click(&width);
+    fixture.key(Key::A, Modifiers::COMMAND);
+    fixture.type_text("12");
+    assert!(radio_on(&fixture, "Landscape"), "a width past the height turns the page as it is typed");
+    fixture.key(Key::Escape, Modifiers::NONE);
+    let width = fixture.by_label("Width").expect("the Width field");
+    assert_eq!(fixture.tree().value_of(width.node).map(str::to_owned), before, "Escape puts the width back");
+    assert!(radio_on(&fixture, "Portrait"), "and the orientation with it");
+}
+
+#[trial]
+fn an_empty_section_names_what_a_click_adds() {
+    let (fixture, _) = zones_rig_editing(None);
+    assert!(fixture.by_label("Add header").is_some(), "the hint for a header section");
+    assert!(fixture.by_label("Add footer").is_some(), "the hint for a footer section");
 }

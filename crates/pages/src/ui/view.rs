@@ -483,10 +483,14 @@ fn run_pass(ui: &mut Ui, cx: &mut BodyCx<'_>, held: &mut Held<'_, PageViewState>
         geo = zoom_about(build, &mut state, &geo, rect, pointer, shown.zoom / given.zoom);
         want = state.offset;
     } else {
+        // The canvas was given the view the pass started with, so its change of it is the pan; the state's offset
+        // may have moved on since (a scale change anchors the page at the top), and the pan adds to that.
         let panned = drawn_frame.offset_of(shown.center, vw, vh);
-        if (panned.0 - state.offset.0).abs() > OFFSET_EPSILON || (panned.1 - state.offset.1).abs() > OFFSET_EPSILON {
-            wheel_left = panned.1 - state.offset.1;
-            want = panned;
+        let given_at = drawn_frame.offset_of(given.center, vw, vh);
+        let (along_x, along_y) = (panned.0 - given_at.0, panned.1 - given_at.1);
+        if along_x.abs() > OFFSET_EPSILON || along_y.abs() > OFFSET_EPSILON {
+            wheel_left = along_y;
+            want = (state.offset.0 + along_x, state.offset.1 + along_y);
         }
     }
     if wheel_left == 0.0 {
