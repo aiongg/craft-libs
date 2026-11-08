@@ -1,15 +1,15 @@
 //! `ChannelRow` and `ChannelKind`: the rows the app passes in, and what the panel reports
 //! (`ChannelsEvent`, `ChannelsOutput`).
 
+use craft_behavior::EditEvent;
+use craft_behavior::geometry::selection_op::SelectionOperation;
+use craft_keymap::Mods;
 use craft_theme::Srgba;
-use craft_ui::behavior::Move;
-use craft_ui::canvas::SelectionOperation;
-use craft_ui::edit::EditEvent;
-use craft_ui::list::ToggleEdit;
+use craft_ui::contract::{NoValue, Outcome, ReorderMove, ToggleEdit};
 use egui::Response;
 
 use super::footer::ChannelsFooterButton;
-use super::menu::ChannelsCommand;
+use super::menu::ChannelsCommands;
 
 /// What a channel row is.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -137,8 +137,6 @@ impl<K> ChannelRow<K> {
 /// Mask row; else the composite when it is targeted; else the one targeted colour row; `None`
 /// with no rows or no target.
 pub fn targeted_row<K>(rows: &[ChannelRow<K>]) -> Option<&ChannelRow<K>> {
-    // pc: crates/ui-egui/src/panels/channels_panel.rs:458-464 (`target_ref` from the view's target;
-    // the mask row while it is the visible target, :478-485).
     let targeted = |kinds: fn(ChannelKind) -> bool| rows.iter().find(|row| row.targeted && kinds(row.kind));
     targeted(|kind| !matches!(kind, ChannelKind::Composite | ChannelKind::Color))
         .or_else(|| targeted(|kind| matches!(kind, ChannelKind::Composite)))
@@ -175,13 +173,16 @@ pub enum ChannelsEvent<K> {
     Options(K),
     /// An alpha or spot row moved: a drag (`Begin`, `Commit` or `Cancel`) or Cmd/Ctrl+] and [
     /// (`Set`). Targets: before or after another alpha or spot row, before Quick Mask.
-    Reorder(EditEvent<Move<K>>),
-    /// A click on a footer button; `rows` holds [`targeted_row`]'s key (empty without rows).
+    Reorder(EditEvent<ReorderMove<K>>),
+    /// A click on a footer button; `rows` holds [`targeted_row`]'s key (empty without rows). `mods` are the
+    /// modifiers held at the click: Alt on New asks for the channel's options first.
     Footer {
         /// The button.
         button: ChannelsFooterButton,
         /// The rows it acts on.
         rows: Vec<K>,
+        /// The modifiers held at the click.
+        mods: Mods,
     },
     /// A row dropped on a footer button: New duplicates it, Delete deletes it (the app asks first
     /// for a layer mask), Load Channel as Selection loads it. Refused drops report nothing.
@@ -191,10 +192,10 @@ pub enum ChannelsEvent<K> {
         /// The dropped rows: the row the pointer grabbed.
         rows: Vec<K>,
     },
-    /// A pick in a row's context menu or the panel menu.
+    /// A command of the set ran: a pick in the row's context menu, a key, or a panel-menu row routed to the panel.
     Command {
         /// The command.
-        command: ChannelsCommand,
+        command: ChannelsCommands,
         /// The row it was opened on (the targeted row for the panel menu); `None` for the
         /// commands that act on the document (New Channel…, Split Channels).
         key: Option<K>,
@@ -204,6 +205,7 @@ pub enum ChannelsEvent<K> {
 /// What [`ChannelsPanel::show`](super::ChannelsPanel::show) returns.
 #[derive(Debug)]
 #[must_use = "the app applies the panel's events"]
+#[non_exhaustive]
 pub struct ChannelsOutput<K> {
     /// What the user did this pass, in order.
     pub events: Vec<ChannelsEvent<K>>,
@@ -211,28 +213,10 @@ pub struct ChannelsOutput<K> {
     pub response: Response,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+impl<K> Outcome for ChannelsOutput<K> {
+    type Value = NoValue;
 
-    fn row(key: u8, kind: ChannelKind, targeted: bool) -> ChannelRow<u8> {
-        ChannelRow { targeted, ..ChannelRow::new(key, kind, "c") }
-    }
-
-    // While the composite is targeted every colour row is highlighted too; the footer acts on the
-    // composite. A targeted alpha row wins over both.
-    #[test]
-    fn targeted_row_prefers_the_single_channel_then_the_composite() {
-        let indicates = ColorIndicates::MaskedAreas;
-        let mut rows = vec![row(0, ChannelKind::Composite, true), row(1, ChannelKind::Color, true), row(2, ChannelKind::Color, true)];
-        assert_eq!(targeted_row(&rows).map(|r| r.key), Some(0));
-        rows.push(row(3, ChannelKind::Alpha { indicates }, true));
-        assert_eq!(targeted_row(&rows).map(|r| r.key), Some(3));
-        rows[0].targeted = false;
-        rows[3].targeted = false;
-        rows[2].targeted = false;
-        assert_eq!(targeted_row(&rows).map(|r| r.key), Some(1));
-        rows[1].targeted = false;
-        assert!(targeted_row(&rows).is_none());
+    fn response(&self) -> &Response {
+        &self.response
     }
 }

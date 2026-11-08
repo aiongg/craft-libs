@@ -3,90 +3,99 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use craft_ui::behavior::ListDrag;
-use craft_ui::composites::PanelFooter;
-use craft_ui::icons::Icon;
+use craft_behavior::IconId;
+use craft_ui::primitives::IconSpec;
+use craft_ui::sections::{FooterAction, FooterBar};
 use egui::{Id, Ui};
 
-use super::labels::ChannelsLabels;
+use super::labels::ChannelsWords;
 use super::model::{ChannelKind, ChannelRow, ChannelsEvent, targeted_row};
 
 /// A button of the Channels footer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ChannelsFooterButton {
-    /// Delete current channel (`Icon::Trash`): disabled while the target is the composite, a
-    /// colour channel or Quick Mask.
+    /// Delete current channel: disabled while the target is the composite, a colour channel or Quick Mask.
     Delete,
-    /// Create new channel (`Icon::Plus`); a row dropped on it is duplicated.
+    /// Create new channel; a row dropped on it is duplicated.
     New,
-    /// Save selection as channel (`Icon::RectDashed`); takes no drops.
+    /// Save selection as channel; takes no drops.
     SaveSelection,
-    /// Load channel as selection (`Icon::EllipseDashed`); a row dropped on it is loaded.
+    /// Load channel as selection; a row dropped on it is loaded.
     LoadSelection,
 }
 
-/// Draws the footer with [`PanelFooter`](craft_ui::composites::PanelFooter) and returns its
-/// events in order. `list` is the id of the panel's list (`ListOutput::response.id`): only its
-/// rows drop on the buttons.
-///
-/// - Buttons from the reading end: Delete, New, Save selection as channel, Load channel as
-///   selection (so Photoshop's order from the left is Load, Save, New, Delete), named and tipped
-///   by the `ChannelsLabels` footer words. Delete is disabled for a click while
-///   [`targeted_row`](super::targeted_row) is the composite, a colour channel or Quick Mask, or
-///   there is none.
-/// - A click reports [`ChannelsEvent::Footer`] with `rows` = [`targeted_row`](super::targeted_row).
-/// - Delete, New and Load are `PanelFooter::drop_button::<ListDrag<K>>`: a drop reports
-///   [`ChannelsEvent::FooterDrop`] with the row the pointer grabbed (`ListDrag::grabbed`, not the
-///   first of the selection). A button shows the list's drop outline, and Delete reads enabled,
-///   while the grabbed row is one it accepts ([`accepts_footer_drop`]); otherwise it shows
-///   nothing and reports nothing. Delete takes a dragged alpha or spot channel even while the
-///   composite is targeted.
-/// - Keyboard: each button is a Tab stop after the list.
-pub(super) fn show_footer<K: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
-    ui: &mut Ui,
-    rows: &[ChannelRow<K>],
-    labels: &ChannelsLabels,
-    list: Id,
-) -> Vec<ChannelsEvent<K>> {
-    // pc: crates/ui-egui/src/panels/channels_panel.rs:456-487 (the footer, Photoshop's order from the left);
-    // pc: crates/ui-egui/src/panels/channels_panel.rs:528-540 `drop_action`.
-    let target = targeted_row(rows);
-    let delete_enabled = target.is_some_and(|row| accepts_footer_drop(ChannelsFooterButton::Delete, row.kind));
-    let buttons = [
-        (ChannelsFooterButton::Delete, Icon::Trash, labels.delete.as_str(), delete_enabled),
-        (ChannelsFooterButton::New, Icon::Plus, labels.new.as_str(), true),
-        (ChannelsFooterButton::SaveSelection, Icon::RectDashed, labels.save_selection.as_str(), true),
-        (ChannelsFooterButton::LoadSelection, Icon::EllipseDashed, labels.load_selection.as_str(), true),
-    ];
-    let mut events = Vec::new();
-    PanelFooter::show(ui, |ui| {
-        for (button, icon, label, enabled) in buttons {
-            let (response, dropped) = if button == ChannelsFooterButton::SaveSelection {
-                (PanelFooter::button(ui, icon, label), None)
-            } else {
-                PanelFooter::drop_button::<ListDrag<K>>(ui, icon, label, enabled, |drag| {
-                    drag.list == list && rows.iter().find(|row| row.key == drag.grabbed).is_some_and(|row| accepts_footer_drop(button, row.kind))
-                })
-            };
-            if response.clicked() {
-                events.push(ChannelsEvent::Footer { button, rows: target.map(|row| row.key.clone()).into_iter().collect() });
-            }
-            if let Some(drag) = dropped {
-                events.push(ChannelsEvent::FooterDrop { button, rows: vec![drag.grabbed.clone()] });
-            }
-        }
-    });
-    events
+/// What a row drag carries for the footer's buttons: the list it started in, the row the pointer grabbed and that
+/// row's kind.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct ChannelDrag<K> {
+    pub(super) list: Id,
+    pub(super) grabbed: K,
+    pub(super) kind: ChannelKind,
 }
 
-/// Whether `button` takes a drop of a row of `kind`: Delete refuses the composite, colour
-/// channels and Quick Mask (PhotoCraft does nothing for them); New and Load take every row; Save
-/// takes none.
+/// Whether `button` takes a drop of a row of `kind`: Delete refuses the composite, colour channels and Quick Mask;
+/// New and Load take every row; Save takes none.
 pub(super) fn accepts_footer_drop(button: ChannelsFooterButton, kind: ChannelKind) -> bool {
-    // pc: crates/ui-egui/src/panels/channels_panel.rs:528-540 `drop_action` (`None` for Delete on other rows).
     match button {
         ChannelsFooterButton::Delete => !matches!(kind, ChannelKind::Composite | ChannelKind::Color | ChannelKind::QuickMask { .. }),
         ChannelsFooterButton::New | ChannelsFooterButton::LoadSelection => true,
         ChannelsFooterButton::SaveSelection => false,
     }
+}
+
+// Photoshop's order from the leading end.
+const LOAD: usize = 0;
+const SAVE: usize = 1;
+const NEW: usize = 2;
+const DELETE: usize = 3;
+
+fn button_at(at: usize) -> Option<ChannelsFooterButton> {
+    match at {
+        LOAD => Some(ChannelsFooterButton::LoadSelection),
+        SAVE => Some(ChannelsFooterButton::SaveSelection),
+        NEW => Some(ChannelsFooterButton::New),
+        DELETE => Some(ChannelsFooterButton::Delete),
+        _ => None,
+    }
+}
+
+/// Shows the footer and returns its events in order.
+///
+/// - Buttons from the leading end: Load channel as selection, Save selection as channel, New, Delete. Delete is
+///   disabled for a click while the targeted row is the composite, a colour channel or Quick Mask, or there is none.
+/// - A click reports [`ChannelsEvent::Footer`] with `rows` = [`targeted_row`] and the modifiers held.
+/// - Delete, New and Load take a dragged row of the panel's list: a drop reports [`ChannelsEvent::FooterDrop`] with
+///   the row the pointer grabbed. A button shows the drop outline, and Delete reads enabled, while the grabbed row is
+///   one it accepts; otherwise it shows nothing and reports nothing.
+pub(super) fn show_footer<K: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
+    ui: &mut Ui,
+    rows: &[ChannelRow<K>],
+    words: &ChannelsWords,
+    list: Id,
+) -> Vec<ChannelsEvent<K>> {
+    let target = targeted_row(rows);
+    let delete_enabled = target.is_some_and(|row| accepts_footer_drop(ChannelsFooterButton::Delete, row.kind));
+    let takes = |button: ChannelsFooterButton| move |drag: &ChannelDrag<K>| drag.list == list && accepts_footer_drop(button, drag.kind);
+    let icon = |name: &'static str| IconSpec::svg(IconId::new(name));
+    let actions = [
+        FooterAction::new(icon("ellipse_dashed"), words.load_selection.clone()).accepts_drops(takes(ChannelsFooterButton::LoadSelection)),
+        FooterAction::new(icon("rect_dashed"), words.save_selection.clone()),
+        FooterAction::new(icon("plus"), words.new.clone()).accepts_drops(takes(ChannelsFooterButton::New)),
+        FooterAction::new(icon("trash"), words.delete.clone())
+            .enabled(delete_enabled)
+            .takes_drops_disabled(true)
+            .accepts_drops(takes(ChannelsFooterButton::Delete)),
+    ];
+    let out = FooterBar::actions(actions).show_footer(ui);
+    let mut events = Vec::new();
+    if let Some(button) = out.picked.and_then(button_at) {
+        events.push(ChannelsEvent::Footer { button, rows: target.map(|row| row.key.clone()).into_iter().collect(), mods: out.mods });
+    }
+    if let Some(dropped) = &out.dropped
+        && let (Some(button), Some(drag)) = (button_at(dropped.index), dropped.payload::<ChannelDrag<K>>())
+    {
+        events.push(ChannelsEvent::FooterDrop { button, rows: vec![drag.grabbed.clone()] });
+    }
+    events
 }
