@@ -12,8 +12,8 @@ use craft_ui::canvas::{
 use craft_ui::canvas_controls::{Guides, Marquee};
 use craft_ui::contract::SizeLimits;
 use craft_ui::contract::{
-    Bind, BodyCx, CollectionEvent, ColumnKind, ColumnSpec, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, ToggleColumn,
-    WordSetCx as _,
+    Bind, BodyCx, CollectionEvent, ColumnKind, ColumnSpec, Remember as _, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, SweepApply,
+    SweepStep, ToggleColumn, WordSetCx as _,
 };
 use craft_ui::docking::{DockPanels, GroupAt, PanelSpec};
 use craft_ui::list::{ListRow, ToggleCell};
@@ -70,13 +70,13 @@ impl DockPanels<Panel> for Panels<'_> {
         if panel.protected() { Permissions::PROTECTED } else { Permissions::ALL }
     }
 
-    fn body(&mut self, panel: &Panel, ui: &mut Ui, _: &mut BodyCx<'_>) {
+    fn body(&mut self, panel: &Panel, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         match panel {
             Panel::Navigator => {
                 let size = self.document.size;
                 let _ = NavigatorPanel::new("Navigator", Bind::bound(&mut self.document.view), size).show(ui);
             }
-            Panel::Layers => layers(ui, self.document),
+            Panel::Layers => layers(ui, cx, self.document),
             Panel::Canvas => {}
         }
     }
@@ -217,7 +217,7 @@ fn canvas(ui: &mut Ui, document: &mut Document, tool: Tool, tools: &mut Tools) {
 
 /// The layer table: an eye column and a name column over the layers, top first, with several layers selectable and
 /// the lead being the current layer.
-fn layers(ui: &mut Ui, document: &mut Document) {
+fn layers(ui: &mut Ui, cx: &mut BodyCx<'_>, document: &mut Document) {
     let columns = vec![
         ColumnSpec::new(VISIBLE, "Visible", ColumnWidth::Controls(1.5)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())),
         ColumnSpec::new(NAME, "Layer", ColumnWidth::fill(1.0)),
@@ -239,7 +239,8 @@ fn layers(ui: &mut Ui, document: &mut Document) {
     };
     for event in events {
         let CollectionEvent::Toggle(edit) = event else { continue };
-        if let Some(toggle) = edit.value() {
+        let step = cx.keep::<SweepApply>().feed(&edit);
+        if let Some(SweepStep::Flip(toggle) | SweepStep::ShowOnly(toggle) | SweepStep::Restore(toggle) | SweepStep::UndoShowOnly(toggle)) = step {
             document.set_visible(toggle.key, toggle.on);
         }
     }

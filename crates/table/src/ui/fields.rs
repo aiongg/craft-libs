@@ -8,8 +8,8 @@ use std::sync::Arc;
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, GestureId, IconId, ItemSource, Mixed};
 use craft_ui::buttons::Button;
 use craft_ui::contract::{
-    CollectionEvent, ColumnKind, ColumnSpec, Pattern, Props as _, Remember as _, ReorderMove, ReorderRule, Show as _, ShowCollection as _,
-    ShowContainer as _, ToggleColumn, Trigger, clicked,
+    CollectionEvent, ColumnKind, ColumnSpec, Pattern, Props as _, Remember, ReorderMove, ReorderRule, Show as _, ShowCollection as _,
+    ShowContainer as _, SweepApply, SweepStep, ToggleColumn, Trigger, clicked,
 };
 use craft_ui::display::{Divider, Shade, Text};
 use craft_ui::list::{List, ListRow, ToggleCell, ToggleState};
@@ -336,8 +336,8 @@ impl<'a> FieldListPane<'a> {
         let edits = RefCell::new(Vec::new());
         let ids = FieldArea::ALL.map(|area| ui.scope_id().with(("fields-area", area)));
         let model = Model { fields, areas, values_row, words: &words };
-        let shown = Panel::new(words.title.clone()).footer(|ui, _| model.footer(ui, &edits)).show(ui, |ui, _| {
-            model.checklist(ui, &edits);
+        let shown = Panel::new(words.title.clone()).footer(|ui, _| model.footer(ui, &edits)).show(ui, |ui, cx| {
+            model.checklist(ui, cx, &edits);
             Divider::horizontal().show(ui);
             Text::new(words.areas_hint.clone()).role(TypeRole::Caption).shade(Shade::Muted).show(ui);
             for area in FieldArea::ALL {
@@ -484,7 +484,7 @@ impl Model<'_> {
     }
 
     /// The checklist of source fields.
-    fn checklist(&self, ui: &mut Ui, edits: &Edits) {
+    fn checklist(&self, ui: &mut Ui, cx: &mut impl Remember, edits: &Edits) {
         let source = Checklist { fields: self.fields, ticked: self.fields.iter().map(|field| self.ticked(&field.name)).collect() };
         let columns = vec![ColumnSpec::new(CHECK, Label::Empty, ColumnWidth::Controls(1.0)).kind(ColumnKind::Toggle(ToggleColumn::sweepable()))];
         let separator = self.words.samples_separator.as_str();
@@ -503,7 +503,11 @@ impl Model<'_> {
         let mut seen = HashSet::new();
         for event in out.events {
             let CollectionEvent::Toggle(edit) = event else { continue };
-            let Some(toggle) = edit.value() else { continue };
+            let step = cx.keep::<SweepApply>().feed(&edit);
+            let Some(SweepStep::Flip(toggle) | SweepStep::ShowOnly(toggle) | SweepStep::Restore(toggle) | SweepStep::UndoShowOnly(toggle)) = step
+            else {
+                continue;
+            };
             if self.ticked(&toggle.key) != toggle.on && seen.insert(toggle.key.clone()) {
                 edits.borrow_mut().push(Self::tick_edit(toggle.key.clone(), toggle.on));
             }
