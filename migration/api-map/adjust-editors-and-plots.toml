@@ -110,8 +110,6 @@ status = "pending"
 # old = ""
 # new = ""
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 [[setter]]
 type = "CurveEditor"
 old = "new(id_salt, label, &curve, numbers)"
@@ -141,7 +139,6 @@ type = "CurvePreview"
 old = "new(&curve, size, label)"
 new = "new(label, &curve)"
 note = "The size comes from the theme."
-=======
 # craft-imaging adjust editors (track img-adjust-b): the slider-based editors, the slider table and the session.
 
 [[type]]
@@ -526,8 +523,6 @@ type = "AdjustField"
 old = "vibrance(labels, units)"
 new = "vibrance(words)"
 
->>>>>>> mig/d-img-adjust-b
-=======
 [[type]]
 name = "LevelsEditor"
 old = "craft_imaging::ui::adjust::levels_editor::LevelsEditor"
@@ -702,4 +697,3 @@ type = "AdjustContext"
 old = "wheel()"
 new = ""
 note = "Removed."
->>>>>>> mig/d-img-adjust-a
