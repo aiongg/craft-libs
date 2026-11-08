@@ -1,103 +1,100 @@
 //! The brush Size row ([`BrushSizeField`]): a value field over a log slider.
 
-use craft_ui::controls::{IconButton, NumberField, Slider, SliderScale};
-use craft_ui::direction;
-use craft_ui::edit::{EditEvent, EditResponse};
-use craft_ui::icons::Icon;
-use craft_ui::localized::{Labels as _, LocaleNumbers, UnitKind, Units};
-use craft_ui::primitives::{Content, Text};
-use egui::{AsIdSalt, IdSalt, Ui};
+use std::sync::Arc;
 
-use super::labels::BrushSettingsLabels;
+use craft_behavior::{EditEvent, GestureId, IconId, Mixed};
+use craft_ui::buttons::IconButton;
+use craft_ui::contract::{Bind, EditResponse, Outcome, Props as _, Show as _, ShowContainer as _, clicked};
+use craft_ui::form::{Field, SliderField};
+use craft_ui::runtime::env::{Env, Label, UnitKind};
+use craft_ui::value_drag::SliderScale;
+use egui::{Response, Ui};
 
-/// The brush Size row of Brush Tip Shape and of the Brush Preset picker's head: the label and a
-/// [`NumberField`](craft_ui::controls::NumberField) (px, whole pixels, 1 to the maximum, the
-/// field's default width) on one line, a [`Slider`](craft_ui::controls::Slider) with
-/// [`SliderScale::Log`](craft_ui::controls::SliderScale::Log) under it, and with
-/// [`restore`](Self::restore) Photoshop's "Restore original size" icon button (sampled tips)
-/// before the field.
-///
-/// The field and the slider show one value: a slider drag rounds to whole pixels and stays one
-/// gesture (`Begin`, `Update`, `Commit`) while the app writes the rounded value back; a typed
-/// value is a `Set`; restore is a `Set` of the original size. Esc during a drag cancels.
-///
-/// AccessKit: the field is a `SpinButton` named by the label, the slider a `Slider` of the same
-/// name, the restore button a `Button` "Restore original size".
-#[must_use = "show the field with `show`"]
-pub struct BrushSizeField {
-    id_salt: IdSalt,
-    label: String,
-    diameter: f64,
-    max: f64,
-    restore: Option<f64>,
-    labels: Option<BrushSettingsLabels>,
+use super::words::BrushSettingsWords;
+
+/// What [`BrushSizeField::show`] reports.
+#[derive(Debug)]
+#[non_exhaustive]
+#[must_use = "the host applies the size edit"]
+pub struct BrushSizeOutput {
+    /// The row.
+    pub response: Response,
+    /// The slider field's edit, or the restore button's `Set`; `None` when the body did not run.
+    pub edit: Option<EditResponse<f64>>,
 }
 
-impl BrushSizeField {
-    /// A Size row named `label` for `diameter` pixels, 1 to `max` (the app's engine limit).
-    pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, diameter: f64, max: f64) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), label: label.into(), diameter, max, restore: None, labels: None }
+impl Outcome for BrushSizeOutput {
+    type Value = f64;
+
+    fn response(&self) -> &Response {
+        &self.response
     }
 
-    /// Shows the "Restore original size" button, which sets `original` (clamped to 1 to the
-    /// maximum). `None`: no button.
-    pub fn restore(mut self, original: Option<f64>) -> Self {
-        self.restore = original;
-        self
+    #[cfg(feature = "screen-testing")]
+    fn story_facts(&self) -> craft_ui::testing::StoryOutput {
+        match &self.edit {
+            Some(edit) => edit.story_facts(),
+            None => craft_ui::testing::StoryOutput::default(),
+        }
     }
+}
 
-    /// The words; the installed language's by default.
-    pub fn labels(mut self, labels: BrushSettingsLabels) -> Self {
-        self.labels = Some(labels);
-        self
+/// The brush Size row of Brush Tip Shape and of the Brush Preset picker's head: a log slider with a number
+/// field (px, whole pixels, 1 to the maximum) under the label, and with [`restore`](Self::restore) Photoshop's
+/// "Restore original size" icon button before them (sampled tips).
+///
+/// The field and the slider show one value: a slider drag rounds to whole pixels and stays one gesture while the
+/// binding takes the rounded value; a typed value is a `Set`; restore is a `Set` of the original size. Escape
+/// during a drag cancels.
+#[must_use = "show the field with `show`"]
+#[derive(craft_ui::contract::Pattern, craft_ui::contract::Props)]
+pub struct BrushSizeField<'a> {
+    label: Label,
+    diameter: Bind<'a, f64>,
+    max: f64,
+    /// The size the restore button sets, clamped to 1 to the maximum; without one there is no button.
+    #[prop(quantity = "pixels")]
+    restore: Option<f64>,
+}
+
+impl<'a> BrushSizeField<'a> {
+    /// A Size row named `label` over `diameter` pixels, 1 to `max` (the app's engine limit).
+    pub fn new(label: impl Into<Label>, diameter: Bind<'a, f64>, max: f64) -> Self {
+        Self { label: label.into(), diameter, max, restore: None }
     }
 
     /// Shows the row and reports the new diameter.
-    pub fn show(self, ui: &mut Ui) -> EditResponse<f64> {
-        // pc: crates/ui-egui/src/panels/brush_sections.rs:129-150 `size_row` (field 74 wide, restore button, log slider, 4 pt after)
-        // pc: crates/ui-egui/src/tools/brush_picker.rs:232-247 (the picker head's Size: field and log slider)
-        let labels = self.labels.unwrap_or_else(|| BrushSettingsLabels::of(ui));
-        let numbers = LocaleNumbers::of(ui);
-        let max = if self.max.is_finite() { self.max.max(1.0) } else { 1.0 };
-        let shown = if self.diameter.is_finite() { self.diameter.clamp(1.0, max) } else { 1.0 };
-        let mut restored = None;
-        let field = ui
-            .horizontal(|ui| {
-                ui.add(Text::new(self.label.as_str()).content(Content::Muted));
-                ui.with_layout(direction::trailing(ui), |ui| {
-                    let field = NumberField::new((&self.id_salt, "field"), self.label.as_str(), shown, &numbers)
-                        .range(1.0..=max)
-                        .step(1.0)
-                        .decimals(0..=0)
-                        .snap_typed(true)
-                        .unit(Units::of(ui).unit(UnitKind::Pixels))
-                        .show(ui);
-                    if let Some(original) = self.restore
-                        && original.is_finite()
-                        && ui.add(IconButton::new(Icon::Undo, labels.restore_size.as_str()).id_salt((&self.id_salt, "restore"))).clicked()
-                    {
-                        restored = Some(original.clamp(1.0, max));
-                    }
-                    field
-                })
-                .inner
-            })
-            .inner;
-        let slider = Slider::new((&self.id_salt, "slider"), self.label.as_str(), shown, 1.0..=max)
-            .step(1.0)
-            .scale(SliderScale::Log)
-            .enabled(max > 1.0 && ui.is_enabled())
-            .show(ui);
-        ui.add_space(ui.spacing().item_spacing.y);
-        let modifiers = ui.input(|i| i.modifiers);
-        let (submitted, escaped) = (field.submitted, field.escaped);
-        let event = match restored {
-            Some(original) => Some(EditEvent::set(original, modifiers)),
-            None => slider.event.or(field.event),
-        };
-        let mut out = EditResponse::new(slider.response, event);
-        out.submitted = submitted;
-        out.escaped = escaped || slider.escaped;
-        out
+    pub fn show(self, ui: &mut Ui) -> BrushSizeOutput {
+        let BrushSizeField { label, mut diameter, max, restore } = self;
+        let words = Env::of(ui).words::<BrushSettingsWords>();
+        let max = if max.is_finite() { max.max(1.0) } else { 1.0 };
+        let name: Arc<str> = Arc::from(label.as_str());
+        let shown = Field::new(label.clone()).show(ui, |ui, cx| {
+            let mut restored = None;
+            if let Some(original) = restore.filter(|original| original.is_finite()) {
+                let button = IconButton::new(IconId::new("undo")).label(words.restore_size.clone()).show(ui);
+                if clicked(&button) {
+                    let value = original.clamp(1.0, max);
+                    let before = match diameter.reborrow().read(cx) {
+                        Some(Mixed::Same(held)) => held,
+                        _ => value,
+                    };
+                    let event = EditEvent::set(GestureId::default(), Mixed::Same(before), value, name.clone(), None);
+                    diameter.reborrow().write(cx, &event);
+                    restored = Some(event);
+                }
+            }
+            let mut edit = SliderField::new(label.clone(), diameter.reborrowed(), 1.0..=max)
+                .scale(SliderScale::Log)
+                .step(1.0)
+                .unit_kind(UnitKind::Pixels)
+                .enabled(max > 1.0)
+                .show(ui);
+            if restored.is_some() {
+                edit.event = restored;
+            }
+            edit
+        });
+        BrushSizeOutput { response: shown.output, edit: shown.inner }
     }
 }

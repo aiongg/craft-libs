@@ -51,7 +51,7 @@ old = "names([String; 9])"
 new = ""
 note = "The nine names are the picker family's words (`PickerWords`)."
 
-# draw-slice-artboard
+# draw-brush: the Brush Settings panel and the Brush Preset picker.
 
 [[type]]
 name = "ShapePanel"
@@ -1593,4 +1593,253 @@ type = "ArtboardProperties"
 old = "ArtboardProperties::new(id_salt, board, presets)"
 new = "ArtboardProperties::new(board, presets)"
 note = "No id salt."
+
+[[type]]
+name = "BrushSettingsPanel"
+old = "craft_draw::ui::brush_settings::BrushSettingsPanel"
+new = "craft_draw::ui::brush_settings::BrushSettingsPanel"
+status = "same"
+note = "Shown with `show(ui, |ui, cx, key| ..)`; the pane closure also gets the body context. `new(label, sections, Bind<K>)` replaces `new(id_salt)` with `sections(..)` and `selected(..)`."
+
+[[type]]
+name = "BrushSettingsPanelOutput"
+old = "craft_draw::ui::brush_settings::BrushSettingsPanelOutput"
+new = "craft_draw::ui::brush_settings::BrushSettingsPanelOutput"
+status = "same"
+note = "`sections`, `action` and `body` as before."
+
+[[type]]
+name = "BrushPanelAction"
+old = "craft_draw::ui::brush_settings::BrushPanelAction"
+new = "craft_draw::ui::brush_settings::BrushPanelAction"
+status = "same"
+
+[[type]]
+name = "BrushSectionList"
+old = "craft_draw::ui::brush_settings::BrushSectionList"
+new = "craft_draw::ui::brush_settings::BrushSectionList"
+status = "same"
+note = "`new(label, sections, Bind<K>)`; the shown pane is a binding."
+
+[[type]]
+name = "BrushSectionListResponse"
+old = "craft_draw::ui::brush_settings::BrushSectionListResponse"
+new = "craft_draw::ui::brush_settings::BrushSectionListOutput"
+status = "replaced"
+note = "Renamed `BrushSectionListOutput { response, events }`."
+
+[[type]]
+name = "BrushStrokeStrip"
+old = "craft_draw::ui::brush_settings::BrushStrokeStrip"
+new = "craft_draw::ui::brush_settings::BrushStrokeStrip"
+status = "same"
+note = "`new(label, revision, StripImage)`; a leaf shown with `show(ui)`."
+
+[[type]]
+name = "BrushSizeField"
+old = "craft_draw::ui::brush_settings::BrushSizeField"
+new = "craft_draw::ui::brush_settings::BrushSizeField"
+status = "same"
+note = "`new(label, Bind<f64>, max)`; the output is `BrushSizeOutput { response, edit: Option<EditResponse<f64>> }`."
+
+[[type]]
+name = "TipEllipse"
+old = "craft_draw::ui::brush_settings::TipEllipse"
+new = "craft_draw::ui::brush_settings::TipEllipse"
+status = "same"
+note = "`new(label, Bind<TipAngle>)`; the output is `EditResponse<TipAngle>`."
+
+[[type]]
+name = "TipEllipseGrab"
+old = "craft_draw::ui::brush_settings::TipEllipseGrab"
+new = "craft_draw::ui::brush_settings::TipEllipseGrab"
+status = "same"
+
+[[type]]
+name = "DynamicControlRow"
+old = "craft_draw::ui::brush_settings::DynamicControlRow"
+new = "craft_draw::ui::brush_settings::DynamicControlRow"
+status = "same"
+note = "`new(controls, Bind<C>, Bind<f64>)` for the control and the Fade steps; `curve(open, shaped)` stays."
+
+[[type]]
+name = "DynamicControlRowResponse"
+old = "craft_draw::ui::brush_settings::DynamicControlRowResponse"
+new = "craft_draw::ui::brush_settings::DynamicControlRowOutput"
+status = "replaced"
+note = "Renamed `DynamicControlRowOutput { response, curve_toggled }`; the control and the Fade steps are bindings."
+
+[[type]]
+name = "BrushSettingsStyle"
+old = "craft_draw::ui::brush_settings::BrushSettingsStyle"
+new = ""
+status = "removed"
+note = "Each component has its own `ComponentStyle` from tokens."
+
+[[type]]
+name = "TipEllipseStyle"
+old = "craft_draw::ui::brush_settings::TipEllipseStyle"
+new = "craft_draw::ui::brush_settings::TipEllipseStyle"
+status = "same"
+note = "A `ComponentStyle` built from tokens; the fields are private."
+
+[[type]]
+name = "BrushSettingsLabels"
+old = "craft_draw::ui::brush_settings::BrushSettingsLabels"
+new = "craft_draw::ui::brush_settings::BrushSettingsWords"
+status = "replaced"
+note = "The words set `BrushSettingsWords` (`words!`)."
+
+[[type]]
+name = "BrushPresetPicker"
+old = "craft_draw::ui::brush_presets::BrushPresetPicker"
+new = "craft_draw::ui::brush_presets::BrushPresetPicker"
+status = "same"
+note = "`new(label, Bind<Option<K>>, rows, Bind<BrushPickerState<K>>, values)` and `show(ui)`; the closed field opens the popover."
+
+[[type]]
+name = "BrushPresetPickerOutput"
+old = "craft_draw::ui::brush_presets::BrushPresetPickerOutput"
+new = "craft_draw::ui::brush_presets::BrushPresetPickerOutput"
+status = "same"
+note = "`{ response, edit, diameter, hardness, picks, settings }`."
+
+[[type]]
+name = "BrushPickerState"
+old = "craft_draw::ui::brush_presets::BrushPickerState"
+new = "craft_draw::ui::brush_presets::BrushPickerState"
+status = "same"
+note = "Holds the browser's `PresetState` and the parts."
+
+[[type]]
+name = "BrushPresetChip"
+old = "craft_draw::ui::brush_presets::BrushPresetChip"
+new = "craft_draw::ui::brush_presets::BrushPresetChip"
+status = "replaced"
+note = "The closed field of `PresetPicker` (`PickerField::ThumbnailAndName`, the size as `display_name`)."
+
+[[type]]
+name = "BrushPresetChipResponse"
+old = "craft_draw::ui::brush_presets::BrushPresetChipResponse"
+new = ""
+status = "removed"
+note = "The picker's field reports through `BrushPresetPickerOutput::edit`."
+
+[[type]]
+name = "BrushPresetChipStyle"
+old = "craft_draw::ui::brush_presets::BrushPresetChipStyle"
+new = ""
+status = "removed"
+note = "`ComponentStyle` of `PresetPicker`."
+
+[[type]]
+name = "BrushPresetCards"
+old = "craft_draw::ui::brush_presets::BrushPresetCards"
+new = "craft_draw::ui::brush_presets::BrushPresetCards"
+status = "replaced"
+note = "`PresetBrowser` inside the picker, with `PresetState`."
+
+[[type]]
+name = "BrushCardLayout"
+old = "craft_draw::ui::brush_presets::BrushCardLayout"
+new = "craft_draw::ui::brush_presets::BrushCardLayout"
+status = "replaced"
+note = "The browser lays tiles and rows out."
+
+[[type]]
+name = "BrushCardsState"
+old = "craft_draw::ui::brush_presets::BrushCardsState"
+new = "craft_draw::ui::brush_presets::BrushCardsState"
+status = "replaced"
+note = "`BrushPickerState` with `PresetState`."
+
+[[type]]
+name = "BrushCardStyle"
+old = "craft_draw::ui::brush_presets::BrushCardStyle"
+new = ""
+status = "removed"
+note = "The browser's tiles and rows carry the look."
+
+[[type]]
+name = "BrushPickerStyle"
+old = "craft_draw::ui::brush_presets::BrushPickerStyle"
+new = ""
+status = "removed"
+note = "`PresetPicker`'s own style."
+
+[[type]]
+name = "BrushPickerLabels"
+old = "craft_draw::ui::brush_presets::BrushPickerLabels"
+new = "craft_draw::ui::brush_presets::BrushPresetWords"
+status = "replaced"
+note = "The words set `BrushPresetWords`."
+
+[[type]]
+name = "BrushCardLabels"
+old = "craft_draw::ui::brush_presets::BrushCardLabels"
+new = ""
+status = "removed"
+note = "`BrushPresetWords::preset_size` names a row."
+
+[[type]]
+name = "BrushCardPart"
+old = "craft_draw::ui::brush_presets::BrushCardPart"
+new = "craft_draw::ui::brush_presets::BrushCardPart"
+status = "same"
+
+[[type]]
+name = "BrushCardParts"
+old = "craft_draw::ui::brush_presets::BrushCardParts"
+new = "craft_draw::ui::brush_presets::BrushCardParts"
+status = "same"
+
+[[type]]
+name = "BrushPickerSettings"
+old = "craft_draw::ui::brush_presets::BrushPickerSettings"
+new = "craft_draw::ui::brush_presets::BrushPickerSettings"
+status = "same"
+
+[[type]]
+name = "BrushPickerValues"
+old = "craft_draw::ui::brush_presets::BrushPickerValues"
+new = "craft_draw::ui::brush_presets::BrushPickerValues"
+status = "same"
+note = "Built with `BrushPickerValues::new(diameter, hardness)`."
+
+[[type]]
+name = "BrushPick"
+old = "craft_draw::ui::brush_presets::BrushPick"
+new = "craft_draw::ui::brush_presets::BrushPick"
+status = "same"
+note = "`Select(K)` and `Activate(K)` replace `List(PresetEvent::Select|Activate)`; `Rename(K)` is new."
+
+[[setter]]
+type = "BrushPresetPicker"
+old = "BrushPresetPicker::new(id_salt, anchor, state, rows) and show(ui, open)"
+new = "BrushPresetPicker::new(label, current, rows, state, values) and show(ui)"
+note = "The field opens the popover; `max_diameter`, `import` stay as setters."
+
+[[setter]]
+type = "BrushPresetCards"
+old = "BrushPresetCards::row(key, name, depth, diameter, labels, numbers)"
+new = "brush_row(key, name, depth, diameter, parts, env, paint)"
+note = "A free function in `brush_presets`; `BrushRowPaint::new(tip, stroke)` holds the engine's painters."
+
+[[setter]]
+type = "TipEllipse"
+old = "TipEllipse::new(id_salt, value) and labels(..)"
+new = "TipEllipse::new(label, Bind<TipAngle>)"
+note = "The label names it; the value is a binding."
+
+[[setter]]
+type = "BrushSizeField"
+old = "BrushSizeField::new(id_salt, label, diameter, max) and labels(..)"
+new = "BrushSizeField::new(label, Bind<f64>, max)"
+note = "The value is a binding."
+
+[[setter]]
+type = "BrushStrokeStrip"
+old = "BrushStrokeStrip::new(id_salt, revision).show(ui, make)"
+new = "BrushStrokeStrip::new(label, revision, StripImage).show(ui)"
+note = "`StripImage::new(Fn([usize; 2]) -> ColorImage)`."
 
