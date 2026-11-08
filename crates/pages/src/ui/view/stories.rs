@@ -55,6 +55,6 @@ fn page_pictures(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let placed = demo_placed(1, Pos2::new(room.min.x + 20.0, room.min.y + 10.0));
     let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
     let near: [(usize, Vec2); 0] = [];
-    let shown = Canvas::new("Document").view(view).show(ui, |ui, body| PagePictures::new(&pages, &placed, &near).show_at(ui, body.rect));
+    let shown = Canvas::new("Document").view(view).show(ui, |ui, body| PagePictures::new(&pages, &placed, &near, PAPER).show_at(ui, body.rect));
     shown.inner.map(StoryOutput::from).unwrap_or_default()
 }
