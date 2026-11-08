@@ -100,6 +100,12 @@ pub(crate) trait ShapeHooks<C: Component> {
         comp.fills() == Some(craft_behavior::Axis::X)
     }
 
+    /// Whether the root fills the width alone: a root that fills both axes takes the room of a `Content` grid column
+    /// and sets its width.
+    fn fills_width_only(&self, comp: &C) -> bool {
+        comp.fills() == Some(craft_behavior::Axis::X)
+    }
+
     /// The root's sense, from the component's own `own`.
     fn sense(&self, _comp: &C, own: Sense) -> Sense {
         own
@@ -484,8 +490,10 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     let size = if ui.scope_id() == p.parent { p.size } else { p.hooks.sized(&*p.comp, ui, p.measured) };
     // In a content-sized column a fill-width child takes its measured width in the flow and shows across the width
     // the column settles on, so it never sets that width.
-    let in_content_column = p.env.content_column || crate::layout::in_grid_content_column(ui);
-    let held = !inert && matches!(at, ShowAt::Flow) && in_content_column && p.hooks.fills_width(&*p.comp);
+    let held = !inert
+        && matches!(at, ShowAt::Flow)
+        && ((p.env.content_column && p.hooks.fills_width(&*p.comp))
+            || (crate::layout::in_grid_content_column(ui) && p.hooks.fills_width_only(&*p.comp)));
     let rect = if held {
         let flowed = steps::place(ui, at, Vec2::new(p.measured.x.min(size.x), size.y));
         let across = Vec2::new(size.x.max(flowed.width()), flowed.height());

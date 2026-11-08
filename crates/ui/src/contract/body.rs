@@ -1470,6 +1470,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         self.sizing(comp.props(Internal::new())) != Sizing::Content
     }
 
+    fn fills_width_only(&self, comp: &C) -> bool {
+        self.sizing(comp.props(Internal::new())) == Sizing::FillWidth
+    }
+
     fn parts(&mut self, comp: &mut C, rect: Rect, pcx: &mut PartsCx<'_, C>) {
         let props = comp.props(Internal::new()).clone();
         let ctx = pcx.ui.ctx().clone();
