@@ -40,7 +40,7 @@ impl TextEditorHost for Host {
     }
 
     fn caret(&mut self, offset: usize, _: Option<usize>) -> Option<CaretLine> {
-        Some(CaretLine { top: Point::new(offset as f64, 0.0), bottom: Point::new(offset as f64, 1.0) })
+        Some(CaretLine::new(Point::new(offset as f64, 0.0), Point::new(offset as f64, 1.0)))
     }
 
     fn selection_quads(&mut self, _: Range<usize>) -> Vec<[Point; 4]> {
@@ -53,13 +53,7 @@ impl TextEditorHost for Host {
 
     fn lines(&mut self) -> Vec<HostLine> {
         let count = self.text.chars().count();
-        vec![HostLine {
-            text: self.text.clone(),
-            chars: 0..count,
-            rect: Rect::from_min_size(pos2(0.0, 0.0), vec2(count as f32, 1.0)),
-            baseline: 1.0,
-            runs: Vec::new(),
-        }]
+        vec![HostLine::new(self.text.clone(), 0..count, Rect::from_min_size(pos2(0.0, 0.0), vec2(count as f32, 1.0)), 1.0, Vec::new())]
     }
 
     fn line_range(&mut self, _: usize) -> Range<usize> {
@@ -118,7 +112,7 @@ impl Session {
 fn typing_inserts_at_the_caret_and_replaces_the_selection() {
     let mut editor = session("hello", None);
     editor.focus();
-    *editor.selection.borrow_mut() = TextSelection { anchor: 0, caret: 5 };
+    *editor.selection.borrow_mut() = TextSelection::new(0, 5);
     editor.fixture.type_text("bye").settle();
     assert_eq!(editor.text(), "bye");
 }
@@ -137,7 +131,7 @@ fn backspace_deletes_by_char_and_selection() {
     editor.focus();
     editor.fixture.key(Key::Backspace, Modifiers::NONE).settle();
     assert_eq!(editor.text(), "ab");
-    *editor.selection.borrow_mut() = TextSelection { anchor: 0, caret: 2 };
+    *editor.selection.borrow_mut() = TextSelection::new(0, 2);
     editor.fixture.key(Key::Backspace, Modifiers::NONE).settle();
     assert_eq!(editor.text(), "");
 }
@@ -148,7 +142,7 @@ fn shift_arrows_extend_and_arrows_collapse() {
     editor.focus();
     *editor.selection.borrow_mut() = TextSelection::caret_at(0);
     editor.fixture.key(Key::ArrowRight, Modifiers::SHIFT).settle();
-    assert_eq!(*editor.selection.borrow(), TextSelection { anchor: 0, caret: 1 });
+    assert_eq!(*editor.selection.borrow(), TextSelection::new(0, 1));
     editor.fixture.key(Key::ArrowRight, Modifiers::NONE).settle();
     assert_eq!(*editor.selection.borrow(), TextSelection::caret_at(1));
 }

@@ -46,6 +46,7 @@ craft_ui::words! {
 
 /// A run of notes text with its formatting.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct NotesRun {
     /// The run's text.
     pub text: String,
@@ -61,9 +62,52 @@ pub struct NotesRun {
     pub color: Option<Color32>,
 }
 
+impl NotesRun {
+    /// A plain run of `text`.
+    pub fn new(text: impl Into<String>) -> Self {
+        NotesRun { text: text.into(), ..NotesRun::default() }
+    }
+
+    /// The run bold (`on`) or not.
+    #[must_use]
+    pub fn bold(mut self, on: bool) -> Self {
+        self.bold = on;
+        self
+    }
+
+    /// The run italic (`on`) or not.
+    #[must_use]
+    pub fn italic(mut self, on: bool) -> Self {
+        self.italic = on;
+        self
+    }
+
+    /// The run underlined (`on`) or not.
+    #[must_use]
+    pub fn underline(mut self, on: bool) -> Self {
+        self.underline = on;
+        self
+    }
+
+    /// The run struck through (`on`) or not.
+    #[must_use]
+    pub fn strikethrough(mut self, on: bool) -> Self {
+        self.strikethrough = on;
+        self
+    }
+
+    /// The run in `color` (`None`: the editor's text colour).
+    #[must_use]
+    pub fn color(mut self, color: Option<Color32>) -> Self {
+        self.color = color;
+        self
+    }
+}
+
 /// One paragraph: its runs, list level and marker, and its margins (points; `None` takes
 /// [`crate::lists::LEVEL_INDENT`] per level).
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct NotesParagraph {
     /// The runs of the paragraph, in order.
     pub runs: Vec<NotesRun>,
@@ -77,14 +121,43 @@ pub struct NotesParagraph {
     pub indent: Option<f64>,
 }
 
+impl NotesParagraph {
+    /// A paragraph of `runs`, at level 0 without a list marker.
+    pub fn new(runs: Vec<NotesRun>) -> Self {
+        NotesParagraph { runs, ..NotesParagraph::default() }
+    }
+
+    /// The paragraph at list `level`, with `marker` if it is a list item.
+    #[must_use]
+    pub fn list(mut self, level: u8, marker: Option<ListMarker>) -> Self {
+        self.level = level;
+        self.marker = marker;
+        self
+    }
+
+    /// The start-edge `margin` of the lines after the first and the first-line `indent`, in points.
+    #[must_use]
+    pub fn margins(mut self, margin: Option<f64>, indent: Option<f64>) -> Self {
+        self.margin = margin;
+        self.indent = indent;
+        self
+    }
+}
+
 /// The notes as the editor sees them.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct NotesText {
     /// The paragraphs, in order.
     pub paragraphs: Vec<NotesParagraph>,
 }
 
 impl NotesText {
+    /// Notes of `paragraphs`.
+    pub fn new(paragraphs: Vec<NotesParagraph>) -> Self {
+        NotesText { paragraphs }
+    }
+
     /// Plain paragraphs, one per line of `text`.
     pub(super) fn from_plain(text: &str) -> NotesText {
         let paragraph = |line: &str| NotesParagraph {
@@ -258,12 +331,15 @@ struct Cursor {
 /// - An empty editor shows the placeholder; the editor is named by the notes word.
 /// - Read-only (`Props::read_only`) it filters input to what changes no text and is the presenter's view.
 /// - Bold, italic and underline toggles are the app's commands, not the editor's.
-#[derive(craft_ui::contract::Component)]
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
 #[component(content_painter)]
 pub struct NotesEditor<'a> {
     #[common]
     common: Common,
     notes: &'a mut NotesText,
+    /// The notes pane's zoom (PowerPoint's Zoom of the notes pane), a factor over the body type role's size; 1 by
+    /// default.
+    #[prop(quantity = "zoom factor")]
     zoom: f32,
     changed: bool,
 }
@@ -272,14 +348,6 @@ impl<'a> NotesEditor<'a> {
     /// An editor named `label` over `notes`, shown at the body size.
     pub fn new(label: impl Into<Label>, notes: &'a mut NotesText) -> Self {
         NotesEditor { common: Common::new(), notes, zoom: 1.0, changed: false }.label(label)
-    }
-
-    /// The notes pane's zoom (PowerPoint's Zoom of the notes pane), a factor over the body type role's size; 1 by
-    /// default.
-    #[must_use]
-    pub fn zoom(mut self, zoom: f32) -> Self {
-        self.zoom = zoom;
-        self
     }
 }
 

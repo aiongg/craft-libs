@@ -58,7 +58,7 @@ name = "Leading"
 old = "craft_text::ui::character::Leading"
 new = "craft_text::ui::character::Leading"
 status = "same"
-note = "Non-exhaustive."
+note = "Non-exhaustive. The variant `Points(f32)` is `Set(f32)`."
 
 [[type]]
 name = "Kerning"

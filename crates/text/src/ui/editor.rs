@@ -51,6 +51,7 @@ use edits::{Edits, Session, char_slice, fingerprint};
 /// The selection: `anchor` stays where it started, `caret` moves. Equal: a caret with nothing selected. Char
 /// offsets.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct TextSelection {
     /// Char offset of the caret, the end that moves.
     pub caret: usize,
@@ -59,6 +60,11 @@ pub struct TextSelection {
 }
 
 impl TextSelection {
+    /// A selection from `anchor` to `caret`.
+    pub fn new(anchor: usize, caret: usize) -> Self {
+        TextSelection { caret, anchor }
+    }
+
     /// A caret at `at` with nothing selected.
     pub fn caret_at(at: usize) -> Self {
         TextSelection { caret: at, anchor: at }
@@ -78,11 +84,19 @@ impl TextSelection {
 /// The caret as a segment in document units, from the line's ascent to its descent: vertical in horizontal text,
 /// horizontal in vertical text, slanted when the layer is rotated or skewed.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct CaretLine {
     /// The caret's top end, at the line's ascent.
     pub top: Point,
     /// The caret's bottom end, at the line's descent.
     pub bottom: Point,
+}
+
+impl CaretLine {
+    /// A caret from `top` to `bottom`.
+    pub fn new(top: Point, bottom: Point) -> Self {
+        CaretLine { top, bottom }
+    }
 }
 
 /// What kind of edit a [`TextEditorHost::replace`] call is, for the app's history and styling.
@@ -140,6 +154,7 @@ pub enum StyleKey {
 
 /// One bidi run of a [`HostLine`].
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct HostRun {
     /// The run's bytes in the line's text.
     pub bytes: Range<usize>,
@@ -151,8 +166,17 @@ pub struct HostRun {
     pub widths: Vec<f32>,
 }
 
+impl HostRun {
+    /// A run over `bytes` of the line, left to right unless `rtl`, with each char's start `positions` and advance
+    /// `widths`.
+    pub fn new(bytes: Range<usize>, rtl: bool, positions: Vec<f32>, widths: Vec<f32>) -> Self {
+        HostRun { bytes, rtl, positions, widths }
+    }
+}
+
 /// One laid-out line of the host's text, in document units, for the input method and assistive technology.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct HostLine {
     /// The line's text without its line break.
     pub text: String,
@@ -164,6 +188,13 @@ pub struct HostLine {
     pub baseline: f32,
     /// The bidi runs; a single-direction line is one run.
     pub runs: Vec<HostRun>,
+}
+
+impl HostLine {
+    /// A line of `text` covering `chars` of the host's text, in the box `rect` with its `baseline` y and bidi `runs`.
+    pub fn new(text: String, chars: Range<usize>, rect: Rect, baseline: f32, runs: Vec<HostRun>) -> Self {
+        HostLine { text, chars, rect, baseline, runs }
+    }
 }
 
 /// The app's text as the editor sees it. Implemented over the edited text object (a type layer, a text frame, a
@@ -277,13 +308,18 @@ impl Outcome for TextEditorOutput {
 ///   [`TextEditorCommand`]s format. In vertical text the arrows turn with the flow.
 /// - Typed straight quotes become the language's marks while [`smart_quotes`](Self::smart_quotes) is set; pasted
 ///   text is kept as it is. Pasted line endings become `\n`.
-#[derive(craft_ui::contract::Component)]
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
 pub struct TextEditor<'a> {
     #[common]
     common: Common,
     host: &'a mut dyn TextEditorHost,
     selection: Bind<'a, TextSelection>,
+    /// Convert typed straight quotes with this style (unset: off). The app sets it from its Use Smart Quotes
+    /// preference and the text's language at the caret.
+    #[prop]
     smart_quotes: Option<QuoteStyle>,
+    /// Whether Esc commits (Photoshop's default) or cancels the session.
+    #[prop]
     esc_commits: bool,
     changed: bool,
     selection_changed: bool,
@@ -306,21 +342,6 @@ impl<'a> TextEditor<'a> {
             cancel: false,
         }
         .label(label)
-    }
-
-    /// Convert typed straight quotes with `style` (`None`: off). The app sets it from its Use Smart Quotes
-    /// preference and the text's language at the caret.
-    #[must_use]
-    pub fn smart_quotes(mut self, style: Option<QuoteStyle>) -> Self {
-        self.smart_quotes = style;
-        self
-    }
-
-    /// Whether Esc commits (Photoshop's default) or cancels the session.
-    #[must_use]
-    pub fn esc_commits(mut self, on: bool) -> Self {
-        self.esc_commits = on;
-        self
     }
 }
 

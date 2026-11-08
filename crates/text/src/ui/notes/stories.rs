@@ -8,23 +8,12 @@ use super::{NotesEditor, NotesParagraph, NotesRun, NotesText};
 use crate::lists::ListMarker;
 
 fn bullets() -> NotesText {
-    let run = |text: &str, bold: bool| NotesRun { text: text.to_owned(), bold, ..NotesRun::default() };
-    NotesText {
-        paragraphs: vec![
-            NotesParagraph {
-                runs: vec![run("Open with ", false), run("the demo", true)],
-                level: 0,
-                marker: Some(ListMarker::Bullet("•".into())),
-                ..NotesParagraph::default()
-            },
-            NotesParagraph {
-                runs: vec![run("Then the numbers", false)],
-                level: 1,
-                marker: Some(ListMarker::Bullet("•".into())),
-                ..NotesParagraph::default()
-            },
-        ],
-    }
+    let run = |text: &str, bold: bool| NotesRun::new(text).bold(bold);
+    let bullet = || Some(ListMarker::Bullet("•".into()));
+    NotesText::new(vec![
+        NotesParagraph::new(vec![run("Open with ", false), run("the demo", true)]).list(0, bullet()),
+        NotesParagraph::new(vec![run("Then the numbers", false)]).list(1, bullet()),
+    ])
 }
 
 #[story(NotesEditor<'static>, covers = [Default], drive = Drive::Never)]

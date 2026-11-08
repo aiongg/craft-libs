@@ -177,7 +177,7 @@ fn justify_buttons_need_a_box() {
 /// The leading menu's Auto row reports `Leading(Auto)` as the one edit of the pass.
 #[trial]
 fn leading_menu_has_an_auto_row() {
-    let values = set(base(), |v| v.leading = Some(Leading::Points(20.0)));
+    let values = set(base(), |v| v.leading = Some(Leading::Set(20.0)));
     let mut panel = Panel::new(values, DocUnit::points());
     panel.pick_preset("Leading", "Auto");
     assert_eq!(panel.last(), Some(CharacterChange::Leading(Leading::Auto)));

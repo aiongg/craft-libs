@@ -14,6 +14,7 @@ use craft_ui::buttons::{Button, IconButton};
 use craft_ui::choice::Checkbox;
 use craft_ui::contract::{
     Bind, BodyCx, CollectionEvent, Commands as _, Entry, Outcome as _, Props as _, Show as _, ShowCollection as _, ShowContainer as _, Trigger,
+    clicked,
 };
 use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
 use craft_ui::display::Text;
@@ -240,10 +241,10 @@ impl<'a> FindBar<'a> {
             if !text.is_empty() {
                 Text::new(text).show(ui);
             }
-            if IconButton::command(IconId::new("chevron_up"), FindStep::Previous).show(ui).clicked() {
+            if clicked(&IconButton::command(IconId::new("chevron_up"), FindStep::Previous).show(ui)) {
                 step = Some(true);
             }
-            if IconButton::command(IconId::new("chevron_down"), FindStep::Next).show(ui).clicked() {
+            if clicked(&IconButton::command(IconId::new("chevron_down"), FindStep::Next).show(ui)) {
                 step = Some(false);
             }
             let active = options.match_case || options.whole_word;
@@ -263,7 +264,7 @@ impl<'a> FindBar<'a> {
                 }
                 None => {}
             }
-            if IconButton::new(IconId::new("close")).label(words.close.clone()).show(ui).clicked() {
+            if clicked(&IconButton::new(IconId::new("close")).label(words.close.clone()).show(ui)) {
                 out.closed = true;
             }
         });
@@ -350,6 +351,7 @@ pub enum FindTab {
 #[non_exhaustive]
 pub enum FindRequest {
     /// Find the next match.
+    #[non_exhaustive]
     FindNext {
         /// The Find what text.
         query: String,
@@ -357,6 +359,7 @@ pub enum FindRequest {
         options: FindOptions,
     },
     /// Replace the current match, then find the next.
+    #[non_exhaustive]
     Replace {
         /// The Find what text.
         query: String,
@@ -366,6 +369,7 @@ pub enum FindRequest {
         options: FindOptions,
     },
     /// Replace every match.
+    #[non_exhaustive]
     ReplaceAll {
         /// The Find what text.
         query: String,
@@ -375,6 +379,7 @@ pub enum FindRequest {
         options: FindOptions,
     },
     /// Word's Reading Highlight: highlight every match (`on`) or clear the highlight.
+    #[non_exhaustive]
     Highlight {
         /// The Find what text.
         query: String,
@@ -384,12 +389,40 @@ pub enum FindRequest {
         on: bool,
     },
     /// Go To: the kind's index in [`FindReplaceDialog::go_to_kinds`] and the typed target.
+    #[non_exhaustive]
     GoTo {
         /// Index into the Go To kinds.
         kind: usize,
         /// The typed target, such as a page number.
         target: String,
     },
+}
+
+impl FindRequest {
+    /// Find the next match of `query`.
+    pub fn find_next(query: impl Into<String>, options: FindOptions) -> Self {
+        FindRequest::FindNext { query: query.into(), options }
+    }
+
+    /// Replace the current match of `query` with `with`.
+    pub fn replace(query: impl Into<String>, with: impl Into<String>, options: FindOptions) -> Self {
+        FindRequest::Replace { query: query.into(), with: with.into(), options }
+    }
+
+    /// Replace every match of `query` with `with`.
+    pub fn replace_all(query: impl Into<String>, with: impl Into<String>, options: FindOptions) -> Self {
+        FindRequest::ReplaceAll { query: query.into(), with: with.into(), options }
+    }
+
+    /// Highlight every match of `query` (`on`) or clear the highlight.
+    pub fn highlight(query: impl Into<String>, options: FindOptions, on: bool) -> Self {
+        FindRequest::Highlight { query: query.into(), options, on }
+    }
+
+    /// Go To the `target` of the Go To kind at index `kind`.
+    pub fn go_to(kind: usize, target: impl Into<String>) -> Self {
+        FindRequest::GoTo { kind, target: target.into() }
+    }
 }
 
 /// The two text fields of the Find and Replace tabs.
@@ -604,7 +637,7 @@ impl StackDialog for FindReplaceDialog {
                     check(ui, &words.whole_words.clone().into(), &mut options.whole_word, true);
                     return;
                 }
-                if Button::new(words.search_options.clone()).show(ui).clicked() {
+                if clicked(&Button::new(words.search_options.clone()).show(ui)) {
                     more = !more;
                 }
                 if !more {

@@ -184,3 +184,76 @@ new = "new(label, notes)"
 type = "NotesEditor"
 old = "labels(labels)"
 new = ""
+
+[[type]]
+name = "CaretLine"
+old = "craft_text::ui::editor::CaretLine"
+new = "craft_text::ui::editor::CaretLine"
+status = "same"
+note = "The struct is `#[non_exhaustive]`: build it with `CaretLine::new(top, bottom)`."
+
+[[type]]
+name = "HostLine"
+old = "craft_text::ui::editor::HostLine"
+new = "craft_text::ui::editor::HostLine"
+status = "same"
+note = "The struct is `#[non_exhaustive]`: build it with `HostLine::new(text, chars, rect, baseline, runs)`."
+
+[[type]]
+name = "HostRun"
+old = "craft_text::ui::editor::HostRun"
+new = "craft_text::ui::editor::HostRun"
+status = "same"
+note = "The struct is `#[non_exhaustive]`: build it with `HostRun::new(bytes, rtl, positions, widths)`."
+
+[[type]]
+name = "NotesRun"
+old = "craft_text::ui::notes::NotesRun"
+new = "craft_text::ui::notes::NotesRun"
+status = "same"
+note = "The struct is `#[non_exhaustive]`: build it with `NotesRun::new(text)` and the `bold`, `italic`, `underline`, `strikethrough` and `color` builders."
+
+[[type]]
+name = "NotesParagraph"
+old = "craft_text::ui::notes::NotesParagraph"
+new = "craft_text::ui::notes::NotesParagraph"
+status = "same"
+note = "The struct is `#[non_exhaustive]`: build it with `NotesParagraph::new(runs)`, `list(level, marker)` and `margins(margin, indent)`."
+
+[[type]]
+name = "NotesText"
+old = "craft_text::ui::notes::NotesText"
+new = "craft_text::ui::notes::NotesText"
+status = "same"
+note = "The struct is `#[non_exhaustive]`: build it with `NotesText::new(paragraphs)`."
+
+[[type]]
+name = "FindRequest"
+old = "craft_text::ui::find::FindRequest"
+new = "craft_text::ui::find::FindRequest"
+status = "same"
+note = "The variants `FindNext`, `Replace`, `ReplaceAll`, `Highlight` and `GoTo` are `#[non_exhaustive]`: build them with `FindRequest::find_next`, `replace`, `replace_all`, `highlight` and `go_to`; match them with `..`."
+
+[[setter]]
+type = "TextSelection"
+old = "TextSelection { caret, anchor }"
+new = "TextSelection::new(anchor, caret)"
+note = "The struct is `#[non_exhaustive]`."
+
+[[setter]]
+type = "TextEditor"
+old = "smart_quotes(Option<QuoteStyle>)"
+new = "smart_quotes(QuoteStyle)"
+note = "Written by `#[derive(Props)]`; the option is the setter's presence."
+
+[[setter]]
+type = "TextEditor"
+old = "esc_commits(bool)"
+new = "esc_commits(bool)"
+note = "Written by `#[derive(Props)]`."
+
+[[setter]]
+type = "NotesEditor"
+old = "zoom(f32)"
+new = "zoom(f32)"
+note = "Written by `#[derive(Props)]`; a zoom factor, declared with `quantity`."

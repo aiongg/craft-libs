@@ -146,12 +146,13 @@ fn tabs_button_answers_with_open_tabs() {
 /// spacing moves the lines under it.
 #[trial]
 fn the_preview_lays_out_the_values() {
+    let (indent, leading, space_before, tolerance) = (18.0_f32, 20.0_f32, 10.0_f32, 0.01_f32);
     let format = set(ParagraphFormat::default(), |f| {
-        f.before_text = Some(36.0);
+        f.before_text = Some(2.0 * indent);
         f.special = Some(SpecialIndent::Hanging);
-        f.by = Some(18.0);
-        f.space_before = Some(10.0);
-        f.line_spacing = Some(LineSpacing::Exactly(20.0));
+        f.by = Some(indent);
+        f.space_before = Some(space_before);
+        f.line_spacing = Some(LineSpacing::Exactly(leading));
     });
     let mut fixture = Fixture::new(move |ui| {
         ParagraphPreview::new("Preview", &format, "Sample Text").show(ui);
@@ -160,10 +161,10 @@ fn the_preview_lays_out_the_values() {
     let lines = fixture.texts().to_vec();
     assert_eq!(lines.len(), 9, "three paragraphs of three lines");
     let subject = &lines[3..6];
-    assert!((subject[1].rect.left() - subject[0].rect.left() - 18.0).abs() < 0.01, "the hanging indent pulls the first line out");
-    assert!((subject[1].rect.top() - subject[0].rect.top() - 20.0).abs() < 0.01, "the lines are 20 apart");
+    assert!((subject[1].rect.left() - subject[0].rect.left() - indent).abs() < tolerance, "the hanging indent pulls the first line out");
+    assert!((subject[1].rect.top() - subject[0].rect.top() - leading).abs() < tolerance, "the lines are the exact leading apart");
     let before = lines[2].rect.top();
-    assert!(subject[0].rect.top() - before >= 10.0, "the space before moves the paragraph down");
+    assert!(subject[0].rect.top() - before >= space_before, "the space before moves the paragraph down");
 }
 
 /// A spacing kept in lines shows its number without points, answers the kind it opened with while the value is

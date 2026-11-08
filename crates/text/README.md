@@ -8,7 +8,7 @@ plain text and a language and return what layout needs before it shapes and plac
 | `hyphen` | `hyphen` (default) | Hyphenation points |
 | `segment` | `segment` (default) | Line-break opportunities with kinsoku; Thai, Lao, Khmer and Burmese words; grapheme-cluster emergency breaks |
 | `bidi` | `bidi` (default) | Bidirectional text: embedding levels, line reordering, mirroring |
-| `linebreak` | `linebreak` (default) | Line breaking on a box/glue/penalty model |
+| `linebreak` | always | Line breaking on a box/glue/penalty model |
 | `spell` | `spell` | Spelling with a bundled US English word list (SCOWL 50), suggestions and the user's words |
 | `quotes` | always | Smart quotes: typed straight quotes become the language's quotation marks |
 | `find` | `find` | Find and replace patterns (Acrobat's and Word's options, Word's `^` codes and wildcards) and the matches across pages; pulls `regex` |

@@ -156,8 +156,8 @@ static TWO_COLUMNS: [ColumnWidth; 2] = [ColumnWidth::fill(1.0), ColumnWidth::fil
 pub enum Leading {
     /// Auto.
     Auto,
-    /// The leading in points.
-    Points(f32),
+    /// The leading as set, in points.
+    Set(f32),
 }
 
 /// Kerning: from the font's pairs, from the glyph shapes, or a value in thousandths of an em
@@ -416,7 +416,7 @@ impl<'a> CharacterControls<'a> {
         let style_entries = string_entries(styles.iter().map(|name| (name.clone(), name.clone())));
         let language_entries = languages.map(|languages| string_entries(languages.iter().cloned()));
         let leading_value = match values.leading {
-            Some(Leading::Points(points)) => Some(points),
+            Some(Leading::Set(points)) => Some(points),
             Some(Leading::Auto) => values.size.map(|size| size * AUTO_LEADING),
             None => None,
         };
@@ -476,7 +476,7 @@ impl<'a> CharacterControls<'a> {
                     presets: &leading_presets,
                 };
                 let (event, picked) = lengths.row(ui, leading);
-                edits.extend(number_change(event, |points| CharacterChange::Leading(Leading::Points(points))));
+                edits.extend(number_change(event, |points| CharacterChange::Leading(Leading::Set(points))));
                 if picked == Some(NumberPick::Choice(AUTO_ROW)) {
                     edits.push(picked_event(CharacterChange::Leading(Leading::Auto), words.leading.as_str()));
                 }
