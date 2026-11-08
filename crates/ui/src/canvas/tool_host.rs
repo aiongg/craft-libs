@@ -323,7 +323,8 @@ impl<'m> ToolHost<'m> {
         let over = phase.is_press() || matches!(phase, PressPhase::Hover) || state.gesture.is_some();
         let current = state.gesture.map(|active| active.last).or_else(|| over.then(|| hover_pointer(&input, canvas.press)).flatten());
         let context = || {
-            let cx = ToolContext::new(rect, space).pointer(current).mods(input.mods).time(input.time).slop(input.slop).down(&down).caps(caps).env(&env);
+            let cx =
+                ToolContext::new(rect, space).pointer(current).mods(input.mods).time(input.time).slop(input.slop).down(&down).caps(caps).env(&env);
             match canvas.snap.as_ref() {
                 Some(snap) => cx.snapping(snap),
                 None => cx,
@@ -497,7 +498,8 @@ struct Run<'a> {
 
 impl<'a> Run<'a> {
     fn context(&self, pointer: Option<ToolPointer>) -> ToolContext<'a> {
-        let cx = ToolContext::new(self.rect, self.space).pointer(pointer).mods(self.mods).time(self.time).slop(self.slop).down(self.down).caps(self.caps);
+        let cx =
+            ToolContext::new(self.rect, self.space).pointer(pointer).mods(self.mods).time(self.time).slop(self.slop).down(self.down).caps(self.caps);
         let cx = cx.env(self.env);
         match self.snap {
             Some(snap) => cx.snapping(snap),
