@@ -351,7 +351,7 @@ The pure rules of command routing (spec 11.3): which state a command resolves to
 Cursor requests as plain data and the rule that picks the winner (8.5).
 
 - `craft_behavior::cursor::Cursor`: `pub enum Cursor { System(CursorIcon), Painted(PaintedCursor) }`. What a cursor request names.
-- `craft_behavior::cursor::CursorBadge`: `pub enum CursorBadge { Add, Subtract, Intersect, Copy, NotAllowed }`. A mark beside a painted cursor.
+- `craft_behavior::cursor::CursorBadge`: `pub enum CursorBadge { Add, Subtract, Intersect, Copy, NotAllowed, Scissors, Close }`. A mark beside a painted cursor.
 - `craft_behavior::cursor::CursorIcon`: `pub enum CursorIcon { Default, None, ContextMenu, Help, PointingHand, Progress, Wait, Cell, Crosshair, Text, VerticalText, Alias, Copy, Move, NoDrop, NotAllowed, Grab, Grabbing, AllScroll, ResizeHorizontal, ResizeNeSw, ResizeNwSe, ResizeVertical, ResizeColumn, ResizeEast, ResizeSouthEast, ResizeSouth, ResizeSouthWest, ResizeWest, ResizeNorthWest, ResizeNorth, ResizeNorthEast, ZoomIn, ZoomOut }`. A system cursor: craft-behavior's copy of egui's set, converted by `runtime::egui::output`.
 - `craft_behavior::cursor::CursorPriority`: `pub enum CursorPriority { Default, Tool, Hover, Part, DropTarget, Drag }`. Who asks, in ascending order of precedence.
 - `craft_behavior::cursor::IconId`: `pub struct IconId`. An icon's egui-free key (5.2), so plain data such as [`PaintedCursor::Tool`] names icons without egui.
@@ -537,6 +537,7 @@ The dock model: the tree of splits over panel frames, the side of a group a drop
   - `pub fn record(&mut self, event: &EditEvent<T>)`. Takes in one event. Events of a gesture other than the open one are ignored.
   - `pub fn is_open(&self) -> bool`. A gesture is open: a caller that restores a draft waits for it to end.
   - `pub fn step(&mut self, now: &mut T, step: Step) -> bool`. Steps `now` back or forward. False when there is nowhere to go. An open gesture is abandoned.
+  - `pub fn drop_last(&mut self) -> bool`. Drops the newest undo step without applying it, for a step that turned out to change nothing (a fill over an
   - `pub fn undo_name(&self) -> Option<&str>`. The name of the step an undo would take back ("Opacity" for "Undo Opacity").
   - `pub fn redo_name(&self) -> Option<&str>`. The name of the step a redo would apply.
   - `pub fn can_undo(&self) -> bool`. An undo would change something.
@@ -1727,7 +1728,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub const fn overflow(mut self, axis: Axis) -> Self`. The axis the rows overflow along (see [`CollectionProps::overflow`]).
   - `pub fn current<K: Send + Sync + 'static>(mut self, key: Option<K>) -> Self`. The current item: `Some(key)` marks the item with that key, `None` marks none. `K` is the collection's key type;
   - `pub fn empty(mut self, text: impl Into<Label>) -> Self`. The empty-state text.
-- `craft_ui::contract::CollectionResponse`: `pub struct CollectionResponse<K, E> { pub response: Response, pub events: Vec<CollectionEvent<K, E>>, pub visible: Range<usize>, pub select: SelectMode, pub rename: bool, pub reorder: bool }`. The output of a collection.
+- `craft_ui::contract::CollectionResponse`: `pub struct CollectionResponse<K, E> { pub response: Response, pub events: Vec<CollectionEvent<K, E>>, pub visible: Range<usize>, pub shown: Vec<ShownRow<K>>, pub select: SelectMode, pub rename: bool, pub reorder: bool }`. The output of a collection.
 - `craft_ui::contract::ColumnAlign`: `pub enum ColumnAlign { Start, End }`. Where a column's content sits.
 - `craft_ui::contract::ColumnCommands`: `pub enum ColumnCommands { Resize, MoveLeft, MoveRight }`. The commands of a column header (17.1): resize and move work from the keyboard through them. The app lists
   - `pub const ALL: [ColumnCommands; 3]`. Every header command, in menu order.
@@ -1792,6 +1793,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub fn focus_part(&mut self, part: impl Into<PartRef>)`. Moves focus to one of this component's focusable parts, in this pass: the rest of the pass reads the new
   - `pub fn focus_own(&mut self)`. Moves focus to the component's own stop (not a part), under the rule of `focus_part`.
 - `craft_ui::contract::CxCore`: `pub struct CxCore<'a> { pub env: EnvView<'a>, pub resolved: &'a Resolved<'a>, pub id: Id, pub rect: Rect, pub content_rect: Rect, pub visible: Rect, pub flow: Flow, pub response: Response, pub command: Option<Arc<ResolvedCommand>> }`. The non-generic part of every `Cx`; the step functions take this. It is a read-only output: component code
+  - `pub fn part_state(&self, part: PartRef) -> StateSet`. The state set of `part`: its press and hover, its own flags, and the focus flags only when it is the
 - `craft_ui::contract::DragBand`: `pub enum DragBand { None, Move, Reorder }`. What dragging the header does.
 - `craft_ui::contract::DragPayload`: `pub struct DragPayload`. A mapping from a row drag to the payload of type `P` that other drop targets take; the drag session carries it
   - `pub fn new<K: 'static, P: Send + Sync + 'static>(map: impl Fn(&ListDrag<K>) -> Option<P> + Send + Sync + 'static) -> Self`. The payload `map` makes of a drag of the collection whose keys are `K`; `None` for a row that carries none.
@@ -1812,6 +1814,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `fn commit(&mut self)`. Commits the proposed value.
   - `fn cancel(&mut self, reason: CancelReason)`. Cancels the running gesture.
 - `craft_ui::contract::EditResponse`: `pub struct EditResponse<T> { pub response: Response, pub event: Option<EditEvent<T>>, pub submitted: bool, pub escaped: bool, pub unparsed: bool, pub validity: Validity<T>, pub shown: Option<Mixed<Arc<T>>> }`. The output of a component that edits a value. Only `cx.edit_response()` builds it.
+  - `pub fn lifted(response: Response, event: Option<EditEvent<T>>, shown: Option<Mixed<Arc<T>>>) -> Self`. The response of a composite that edits one value through several child components: `event` is the edit of the
   - `pub fn value(&self) -> Option<&T>`. The value the pass's event carries: a proposal, a commit or a set; `None` when nothing was edited or the event
   - `pub fn map<U>(self, f: impl Fn(T) -> U) -> EditResponse<U>`. The response of a child component's edit as the response of the edit of a value built from it: the event, the
 - `craft_ui::contract::EndRegion`: `pub struct EndRegion { pub full_height: bool }`. An end region, filled by `Container::end`: content in reading order at the line's end edge, beside the body and
@@ -1823,11 +1826,13 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub fn icon(mut self, icon: impl Into<IconSpec<'static>>) -> Self`. An icon before the label. A separator has none.
   - `pub fn swatch(self, color: Srgba) -> Self`. A swatch of `color` before the label, in the icon's place (a guide colour, a matte colour). A separator has none.
   - `pub fn enabled(mut self, on: bool) -> Self`. Whether the entry can be picked; a disabled entry shows dimmed and never takes the lead.
+  - `pub fn disabled_reason(mut self, reason: impl Into<Label>) -> Self`. Disables the entry and says why: the row shows `reason` as its tooltip and its accessible description while the
   - `pub fn checked(mut self, on: bool) -> Self`. Whether the entry shows as the current choice.
   - `pub fn value(&self) -> Option<&T>`. The value a pick reports; `None` for a separator.
   - `pub fn label(&self) -> &Label`. The label; empty for a separator.
   - `pub fn icon_spec(&self) -> Option<&IconSpec<'static>>`. The icon before the label.
   - `pub fn is_enabled(&self) -> bool`. Whether the entry can be picked; false for a separator.
+  - `pub fn why_disabled(&self) -> Option<&Label>`. Why the entry is disabled, while it is.
   - `pub fn is_checked(&self) -> bool`. Whether the entry shows as the current choice.
   - `pub fn is_separator(&self) -> bool`. Whether the entry is a separator.
 - `craft_ui::contract::FacesCx`: `pub trait FacesCx`. Where a document face is asked for: a component's context, its measure or a content painter.
@@ -1953,7 +1958,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub fn cursor(self, cursor: impl Into<Cursor>) -> Self`. The cursor while the pointer is over the part.
   - `pub fn drag_cursor(self, cursor: CursorIcon) -> Self`. The cursor while the part is dragged.
   - `pub fn focusable(self) -> Self`. The part is a focus stop.
-  - `pub fn disabled(self, disabled: bool) -> Self`. The part is disabled: a `Draw` from `PaintUi::draw_part` fills data colours with the theme's disabled fill. The
+  - `pub fn inactive(self, inactive: bool) -> Self`. The part is inactive (a switched-off clip): it paints with the Disabled state, and a `Draw` from
   - `pub fn selected(self) -> Self`. The part is the arrival of the component's part roving group: Tab and Shift+Tab into the group land here, not
   - `pub fn nudges(self) -> Self`. The focused part takes the arrow keys, with any modifier, as nudges of its content (`Intents::take_nudge`),
   - `pub fn default_stop(self) -> Self`. The part's stop is its scope's default (`Initial::Default`); the scope focuses the first default stop in tab order.
@@ -2040,6 +2045,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub const fn edge(mut self, edge: PaneEdge) -> Self`. The pane at `edge`.
   - `pub const fn extent(mut self, extent: f32) -> Self`. The pane's size along its edge, exactly: the pane host shows it at this extent in every pass.
   - `pub const fn at(mut self, rect: Rect) -> Self`. The pane in `rect`, which the caller laid out for this pass. The pane takes no room from its siblings.
+- `craft_ui::contract::ShownRow`: `pub struct ShownRow<K> { pub key: K, pub rect: egui::Rect, pub cells: Vec<(ColumnKey, egui::Rect)> }`. The geometry of one row the collection showed this pass.
 - `craft_ui::contract::SideLabel`: `pub struct SideLabel { pub kind: LabelKind, pub layout: FieldLayout, pub align: LabelAlign, pub role: FieldLabelRole, pub scrub: bool, pub icon: Option<IconSpec<'static>>, pub detail: Option<Label> }`. What `ContainerProps.label` holds: how the label is shown and what it does. The text is `Common.label`.
   - `pub const fn new() -> Self`. A text label beside its control that names it.
   - `pub fn kind(mut self, kind: LabelKind) -> Self`. How the label is shown.
@@ -2269,6 +2275,7 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
   - `pub fn new(label: impl Into<Label>, insert: impl Into<String>) -> Self`. A candidate shown as `label` that inserts `insert`.
 - `craft_ui::primitives::ContentPainterCx`: `pub struct ContentPainterCx<'a> { pub painter: Painter }`. The raw painter of an allowlisted content painter, clipped to its rect.
   - `pub fn ink(&self) -> Color32`. The colour of text and glyphs on the surface being painted: the resolved content-text colour `Draw` paints
+  - `pub fn stroke_width(&self, width: StrokeWidth) -> f32`. The width in points of a named stroke width on this display, as `Draw::stroke` strokes it: a content painter
   - `pub fn layout(&self, text: &DocText<'_>) -> TextLayout`. The one sanctioned text layout for content painters: document runs with their own font, size and colour,
 - `craft_ui::primitives::Dashes`: `pub struct Dashes { pub dash: f32, pub gap: f32, pub phase: f32 }`. The lengths of a dashed stroke, in points along the path.
   - `pub fn new(dash: f32, gap: f32) -> Self`. Dashes of `dash` with gaps of `gap`, starting at the pattern's beginning.
@@ -2297,8 +2304,8 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
   - `pub fn surface(&self, rect: Rect, kind: SurfaceKind, corners: Corners)`. Paints a surface of `kind` (tracks, plot wells).
   - `pub fn fill(&self, shape: &PaintShape, color: StyleColor)`. Fills `shape`.
   - `pub fn stroke(&self, shape: &PaintShape, width: StrokeWidth, color: StyleColor)`. Strokes `shape`.
-  - `pub fn data_fill(&self, shape: &PaintShape, color: DataColor)`. Fills `shape` with a colour from data (a swatch well, a layer label dot, an avatar). A `Draw` for a disabled
-  - `pub fn data_stroke(&self, shape: &PaintShape, width: StrokeWidth, color: DataColor)`. Strokes `shape` with a colour from data (a chart series, a curve).
+  - `pub fn data_fill(&self, shape: &PaintShape, color: DataColor)`. Fills `shape` with a colour from data (a swatch well, a layer label dot, an avatar). A `Draw` for an inactive
+  - `pub fn data_stroke(&self, shape: &PaintShape, width: StrokeWidth, color: DataColor)`. Strokes `shape` with a colour from data (a chart series, a curve). A `Draw` for an inactive part strokes with
   - `pub fn dashed(&self, path: &[Pos2], pattern: Dashes, width: StrokeWidth, color: StyleColor)`. Strokes the open path `path` as dashes (copy marks, drag previews, reference lines). [`kit::dashed`] is the one
   - `pub fn clipped(&self, rect: Rect, paint: impl FnOnce(&Draw<'_>))`. Runs `paint` with a `Draw` whose painting is cut to `rect` (inside the clip already in force): scrolled content
 - `craft_ui::primitives::EditorLine`: `pub struct EditorLine<'a> { pub text: &'a str, pub rect: Rect, pub baseline: f32, pub runs: &'a [EditorRun<'a>] }`. One visible line of an own-caret editor.
@@ -2349,6 +2356,7 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
   - `pub fn swatch(color: Srgba) -> Self`. A swatch of `color`, painted by [`Draw::data_fill`](super::Draw::data_fill).
   - `pub fn ink(mut self, ink: Ink) -> Self`. Sets the ink.
   - `pub fn color(mut self, color: StyleColor) -> Self`. Sets the colour, in place of the ink's.
+  - `pub fn data_color(mut self, color: DataColor) -> Self`. Sets the colour from data, in place of the ink's: an icon drawn in document content (an annotation pictogram),
   - `pub fn mirror(mut self, mirror: Mirror) -> Self`. Sets the mirroring.
   - `pub fn set(mut self, set: IconSet) -> Self`. Sets the set an SVG icon is drawn from.
 - `craft_ui::primitives::ImeSurface`: `pub struct ImeSurface`. The handle of an editor part's focus widget.
@@ -2366,7 +2374,7 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
 - `craft_ui::primitives::MAX_TEXTURE`: `pub const MAX_TEXTURE: u32`. The largest texture side the library uploads.
 - `craft_ui::primitives::Mirror`: `pub enum Mirror { Auto, Never }`. Whether a directional icon flips under right-to-left.
 - `craft_ui::primitives::PaintShape`: `pub enum PaintShape { Rect(Rect, CornerRadius), Circle(Pos2, f32), Polygon(Vec<Pos2>), Path(Vec<Pos2>) }`. A shape `Draw::fill` and `Draw::stroke` paint.
-- `craft_ui::primitives::PartResult`: `pub struct PartResult { pub rect: Rect, pub press: PressState, pub hovered: bool, pub hover_pos: Option<Pos2>, pub flags: Flags, pub disabled: bool }`. A part's results this pass.
+- `craft_ui::primitives::PartResult`: `pub struct PartResult { pub rect: Rect, pub press: PressState, pub hovered: bool, pub hover_pos: Option<Pos2>, pub flags: Flags, pub inactive: bool }`. A part's results this pass.
   - `pub const IDLE: PartResult`. What a read returns for a part with no press history: face mode, or a part first registered this pass.
 - `craft_ui::primitives::Priority`: re-export of `craft_ui::primitives::textures::Priority` (defined outside these crates).
 - `craft_ui::primitives::ResetMark`: `pub struct ResetMark`. The reset mark painter.
@@ -2822,9 +2830,10 @@ AccessKit node building, `register_accesskit_parent` and `set_accesskit_focus`: 
   - `pub fn current_of(&self, key: NodeKey) -> bool`. Whether the node of `key` is the current item of its set (the current page).
   - `pub fn parent_of(&self, id: Id) -> Option<NodeKey>`. The nearest ancestor of `id` that screen readers see: AccessKit's consumer drops generic containers.
   - `pub fn parent_of_key(&self, key: NodeKey) -> Option<NodeKey>`. [`AccessTree::parent_of`] for a node by key.
-  - `pub fn in_ltr_axis(&self, key: NodeKey) -> bool`. Whether the node lies inside a component whose horizontal axis keeps its left-to-right order
+  - `pub fn in_ltr_axis(&self, key: NodeKey) -> bool`. Whether the node is, or lies inside, a component whose horizontal axis keeps its left-to-right order
   - `pub fn keys(&self) -> Vec<NodeKey>`. Every node that assistive technology reports.
   - `pub fn role_of(&self, key: NodeKey) -> Option<Role>`. The role of a node by key.
+  - `pub fn selected_of(&self, key: NodeKey) -> Option<bool>`. Whether a node by key is reported as selected: `None` for a node that reports no selected state.
   - `pub fn bounds_of(&self, key: NodeKey) -> Option<egui::Rect>`. The bounds of a node by key, in points.
   - `pub fn is_disabled_key(&self, key: NodeKey) -> bool`. Whether a node by key is reported as disabled.
   - `pub fn declares_key(&self, key: NodeKey, action: Declared) -> bool`. Whether a node by key declares `action`.
@@ -2894,7 +2903,8 @@ One-shot screenshot slots and the facts a screenshot is measured against.
   - `fn root() -> Self`. The value where nothing above sets one; computed at its first `get`, outside every hook.
   - `fn style_hash(&self) -> Option<u64>`. The hash of the value, folded into `EnvKey` when `AFFECTS_STYLE`. Written by `#[env(style)]`; a value
 - `craft_ui::runtime::env::EnvView`: `pub struct EnvView<'a>`. What component code sees: everything in `Env` except tokens, size, enabled, read-only, arena, transform
-  - `pub fn direction(&self) -> Direction`. The layout direction.
+  - `pub fn direction(&self) -> Direction`. The flow direction: layout order, arrow keys and roving.
+  - `pub fn text_direction(&self) -> Direction`. The paragraph direction of text, which only a scope that sets the interface's direction changes.
   - `pub fn mode(&self) -> Mode`. The light or dark mode the scope's tokens are resolved in: the app's, or the one a scope with its own tokens
   - `pub fn motion(&self) -> MotionPolicy`. The motion mode in effect.
   - `pub fn scale(&self) -> Scale`. The pixels per point.
@@ -2927,7 +2937,7 @@ One-shot screenshot slots and the facts a screenshot is measured against.
   - `pub fn today(mut self, date: CalendarDate) -> Self`. Sets today's date, as the host's clock and time zone give it.
 - `craft_ui::runtime::env::Scale`: `pub struct Scale(pub f32)`. The interface scale: pixels per point.
   - `pub const fn new(pixels_per_point: f32) -> Self`. `pixels_per_point` pixels per point.
-- `craft_ui::runtime::env::Scoped`: `pub struct Scoped { pub ink: Ink, pub size: ControlSize, pub enabled: bool, pub read_only: bool, pub direction: Direction, pub motion: MotionPolicy, pub ids_stable: bool, pub scale: Scale, pub arena: Option<ArenaId>, pub transform: Option<CanvasTransform> }`. The values of an env.
+- `craft_ui::runtime::env::Scoped`: `pub struct Scoped { pub ink: Ink, pub size: ControlSize, pub enabled: bool, pub read_only: bool, pub direction: Direction, pub text_direction: Direction, pub motion: MotionPolicy, pub ids_stable: bool, pub scale: Scale, pub arena: Option<ArenaId>, pub transform: Option<CanvasTransform> }`. The values of an env.
 - `craft_ui::runtime::env::StyleValue`: `pub trait StyleValue: EnvValue + Hash`. Marker for values `style` may read. `Hash`, because the value is folded into the style key.
 - `craft_ui::runtime::env::ThemeScope`: `pub struct ThemeScope`. Token-changing values for a container's body: the body and everything under it resolve their styles from
   - `pub fn new(tokens: UiTokens) -> Self`. A scope whose body resolves from `tokens`.
@@ -2973,6 +2983,7 @@ One-shot screenshot slots and the facts a screenshot is measured against.
   - `pub fn with_slot(mut self, key: SlotKey, rect: Rect) -> Self`. The layout with the shown slot `key` at `rect`, after the slots already listed.
 - `craft_ui::runtime::env::SlotKey`: `pub type SlotKey = &'static str`. The stable key of a slot.
 - `craft_ui::runtime::env::UnitKind`: `pub enum UnitKind { Pixels, Percent, Degrees, Points, Times, Inches, Centimetres, Millimetres, Picas, PixelsPerInch, PixelsPerCentimetre, Minutes }`. What a number counts.
+  - `pub const LENGTHS: [UnitKind; 5]`. The kinds that measure a length, which [`per_inch`](Self::per_inch) answers for: what a length field offers.
   - `pub const fn decimals(self) -> RangeInclusive<usize>`. The digits after the decimal mark a number of this kind shows by default, at most.
   - `pub const fn step(self) -> f64`. What one arrow press, wheel notch or scrub point changes a number of this kind by, where the control that shows
   - `pub const POINTS_PER_INCH: f64`. The points in an inch of PostScript points, the default of Points and Picas.
@@ -3432,6 +3443,7 @@ The fixture, the suite runner and the story helpers.
 - `craft_ui::testing::ToolFixture`: re-export of `craft_ui::testing::tool_fixture::ToolFixture`.
 - `craft_ui::testing::install_spec`: re-export of `craft_ui::testing::windows::install_spec`.
 - `craft_ui::testing::story`: re-export of `craft_ui_macros::story` (outside these crates).
+- `craft_ui::testing::tool_story`: `pub fn tool_story(ui: &mut Ui, label: &'static str, tool: &mut dyn CanvasTool) -> StoryOutput`. Shows `tool` on a canvas named `label` over the room left in `ui`, and runs it as the canvas's active tool. The
 - `craft_ui::testing::trial`: re-export of `craft_ui_macros::trial` (outside these crates).
 
 ## `craft_ui::testing::access`
@@ -3442,6 +3454,7 @@ What the accessibility trials read: the AccessKit tree a frame produced, and the
 - `craft_ui::testing::access::focused_key`: `pub fn focused_key(tree: &AccessTree) -> NodeKey`. The node AccessKit reports as focused.
 - `craft_ui::testing::access::is_interactive`: `pub fn is_interactive(tree: &AccessTree, key: NodeKey) -> bool`. Whether the node declares an action a user can take: focus, click or a value change.
 - `craft_ui::testing::access::name`: `pub fn name(tree: &AccessTree, key: NodeKey) -> Option<&str>`. The accessible name of the node, when it has a non-empty one: its own, else the first non-empty name of the nodes
+- `craft_ui::testing::access::tree_of`: `pub fn tree_of(output: &mut crate::runtime::egui::fixture::FullOutput) -> AccessTree`. The AccessKit tree a finished pass of a viewport produced, taken out of its output; empty when it made none.
 - `craft_ui::testing::access::violations`: `pub fn violations(ctx: &Context, tree: &AccessTree) -> Vec<String>`. The rule violations of a frame: interactive nodes with no name, and every finding the runtime's role rules
 - `craft_ui::testing::access::AccessTree`: `pub struct AccessTree`. The AccessKit tree update of one frame.
   - `pub fn has(&self, id: Id) -> bool`. Whether the node of `id` exists.
@@ -3476,9 +3489,10 @@ What the accessibility trials read: the AccessKit tree a frame produced, and the
   - `pub fn current_of(&self, key: NodeKey) -> bool`. Whether the node of `key` is the current item of its set (the current page).
   - `pub fn parent_of(&self, id: Id) -> Option<NodeKey>`. The nearest ancestor of `id` that screen readers see: AccessKit's consumer drops generic containers.
   - `pub fn parent_of_key(&self, key: NodeKey) -> Option<NodeKey>`. [`AccessTree::parent_of`] for a node by key.
-  - `pub fn in_ltr_axis(&self, key: NodeKey) -> bool`. Whether the node lies inside a component whose horizontal axis keeps its left-to-right order
+  - `pub fn in_ltr_axis(&self, key: NodeKey) -> bool`. Whether the node is, or lies inside, a component whose horizontal axis keeps its left-to-right order
   - `pub fn keys(&self) -> Vec<NodeKey>`. Every node that assistive technology reports.
   - `pub fn role_of(&self, key: NodeKey) -> Option<Role>`. The role of a node by key.
+  - `pub fn selected_of(&self, key: NodeKey) -> Option<bool>`. Whether a node by key is reported as selected: `None` for a node that reports no selected state.
   - `pub fn bounds_of(&self, key: NodeKey) -> Option<egui::Rect>`. The bounds of a node by key, in points.
   - `pub fn is_disabled_key(&self, key: NodeKey) -> bool`. Whether a node by key is reported as disabled.
   - `pub fn declares_key(&self, key: NodeKey, action: Declared) -> bool`. Whether a node by key declares `action`.
@@ -3921,7 +3935,7 @@ Stories: named ways to show one registered type, and the data and output the run
 
 - `craft_ui::testing::story::CollectionKind`: `pub enum CollectionKind { Selection, LeadMoved, Activate, ContextMenu, Delete, Open, Reorder(EditKind), Move(EditKind), Dropped, Zoom, FilesDropped, Rename(EditKind), Toggle(EditKind), Column, HeaderMenu, Item }`. The kind of a collection event, with the edit kind of the events that carry one.
   - `pub fn of<K, E>(event: &CollectionEvent<K, E>) -> Option<CollectionKind>`. The kind of `event`, `None` for an edit event of a kind the runner does not know.
-- `craft_ui::testing::story::Drive`: `pub enum Drive { Auto, Activate, Step, Drag(PartKey), Type(&'static str), Pick { row: usize }, Custom(fn(&mut Fixture)), Never }`. How the runner changes the value a story shows.
+- `craft_ui::testing::story::Drive`: `pub enum Drive { Auto, Activate, Step, Drag(PartKey), DragChild(PartRef), Type(&'static str), Pick { row: usize }, Custom(fn(&mut Fixture)), Never }`. How the runner changes the value a story shows.
 - `craft_ui::testing::story::EditKind`: `pub enum EditKind { Begin, Update, Commit, Cancel, Set }`. The kind of an edit event.
   - `pub fn of<T>(event: &EditEvent<T>) -> Option<EditKind>`. The kind of `event`.
 - `craft_ui::testing::story::Required`: `pub enum Required { Default, Mixed, Invalid, LongText, Open, Empty, One, Many }`. A state a registered type must show in some story.
@@ -4017,6 +4031,7 @@ Reading text parts in trials: the widget id, the caret and the text a frame pain
   - `pub fn gestures(&self) -> Vec<GesturePhase>`. The gesture phases the host reported, one per pass that began, moved or ended a gesture, since the last
   - `pub fn forget(&mut self) -> &mut Self`. Forgets the phases reported so far.
   - `pub fn press_at(&mut self, at: Pos2) -> &mut Self`. Hover and press at `at` with the primary button, in separate frames.
+  - `pub fn double_press_at(&mut self, at: Pos2) -> &mut Self`. Hover at `at`, then press and release twice there in successive frames: the runtime's click count reads the
   - `pub fn move_to(&mut self, to: Pos2) -> &mut Self`. Moves to `to` in one frame.
   - `pub fn release_at(&mut self, at: Pos2) -> &mut Self`. Releases the primary button at `at`, then one idle frame.
   - `pub fn drag_from(&mut self, from: Pos2, by: Vec2) -> &mut Self`. Presses at `from`, moves by `by` in four steps and releases.
@@ -4025,7 +4040,7 @@ Reading text parts in trials: the widget id, the caret and the text a frame pain
   - `pub fn secondary_drag_from(&mut self, from: Pos2, by: Vec2) -> &mut Self`. [`ToolFixture::drag_from`] with the secondary button.
   - `pub fn drag_and_escape_from(&mut self, from: Pos2, by: Vec2) -> &mut Self`. Presses at `from`, moves halfway by `by`, presses Escape, moves the rest of the way and releases.
   - `pub fn escape(&mut self) -> &mut Self`. Presses Escape.
-  - `pub fn check(&mut self)`. The checks every tool owes the canvas, on a drag from the middle of the canvas:
+  - `pub fn check(&mut self)`. The checks every tool owes the canvas, on a drag from the middle of the canvas and an Escape drag from a quarter of the way in:
 
 ## `craft_ui::testing::wheel`
 
