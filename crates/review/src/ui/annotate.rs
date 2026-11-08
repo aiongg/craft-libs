@@ -281,8 +281,8 @@ const WIDTH_RANGE: std::ops::RangeInclusive<f64> = 1.0..=12.0;
 const WIDTH_DECIMALS: usize = 1;
 /// A highlight lets the text show through.
 const HIGHLIGHT_OPACITY: f32 = 0.4;
-/// The side of a note, attachment or caret icon on screen, in points. The tool hits and the overlay paints icon
-/// kinds at this size whatever the zoom.
+/// The side of a note, attachment or caret icon on screen, in points, for the tool's hits and the form's notes: a
+/// tool's pointer calls have no style to read `size.icon.md` from, which the overlay paints with.
 pub const ICON_SIDE: f32 = 16.0;
 /// The key of the "New Annotation..." command form.
 pub const NEW_ANNOTATION_FORM: &str = "newAnnotation";
@@ -1075,7 +1075,13 @@ fn pictogram(kind: AnnotationKind) -> Vec<(Vec<(f32, f32)>, bool)> {
     }
 }
 
-fn paint_annotation(painter: &ContentPainterCx<'_>, draw: &Draw<'_>, a: &Annotation, to_screen: &impl Fn(Point) -> Pos2, text_size: f32) {
+fn paint_annotation(
+    painter: &ContentPainterCx<'_>,
+    draw: &Draw<'_>,
+    a: &Annotation,
+    to_screen: &impl Fn(Point) -> Pos2,
+    (text_size, icon_side): (f32, f32),
+) {
     use AnnotationKind as K;
     let scale = (to_screen(Point::new(1.0, 0.0)) - to_screen(Point::ZERO)).length();
     let color = color32(a);
@@ -1148,7 +1154,7 @@ fn paint_annotation(painter: &ContentPainterCx<'_>, draw: &Draw<'_>, a: &Annotat
             });
         }
         K::Note | K::Attach | K::Caret => {
-            let slot = egui::Rect::from_min_size(to_screen(Point::new(a.rect.x0, a.rect.y0)), egui::vec2(ICON_SIDE, ICON_SIDE));
+            let slot = egui::Rect::from_min_size(to_screen(Point::new(a.rect.x0, a.rect.y0)), egui::Vec2::splat(icon_side));
             for (run, closed) in pictogram(a.kind) {
                 let points: Vec<Pos2> = run.iter().map(|&(x, y)| slot.min + egui::vec2(x * slot.width(), y * slot.height())).collect();
                 raw.add(if closed { Shape::closed_line(points, stroke) } else { Shape::line(points, stroke) });
@@ -1166,6 +1172,8 @@ pub struct AnnotationOverlayStyle {
     handle: HandleLook,
     line: StyleColor,
     text_size: f32,
+    /// The side of a note, attachment or caret icon on screen, whatever the zoom.
+    icon_side: f32,
 }
 
 /// Draws a page's annotations over it: markups as translucent quads (highlight at the annotation's opacity, lines
@@ -1203,6 +1211,7 @@ impl Component for AnnotationOverlay<'_> {
             handle: cx.handle(),
             line: cx.color(cx.tokens.color.overlay.line),
             text_size: cx.tokens.typography.body.size,
+            icon_side: cx.tokens.size.icon.md,
         }
     }
 
@@ -1217,7 +1226,7 @@ impl Component for AnnotationOverlay<'_> {
         let painter = ui.content_painter(cx);
         let draw = ui.draw();
         for a in self.annotations {
-            paint_annotation(&painter, &draw, a, &to_screen, cx.style.text_size);
+            paint_annotation(&painter, &draw, a, &to_screen, (cx.style.text_size, cx.style.icon_side));
         }
         let outline = Stroke::new(cx.style.handle.stroke_width, cx.style.line.egui());
         let raw = &painter.painter;
