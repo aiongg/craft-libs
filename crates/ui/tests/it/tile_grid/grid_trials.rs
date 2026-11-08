@@ -225,6 +225,7 @@ fn space_toggles_the_lead_tiles_check() {
     let (mut fixture, seen) = rig(4, |grid| grid.checks(true), |_, tile| tile.check(ToggleState::Off));
     // A click on the far corner of the picture only selects; the check box sits at its start corner.
     let picture = seen.borrow().picture(1);
+    eprintln!("DBG picture {picture:?}");
     fixture.click_at(picture.max - Vec2::splat(4.0));
     fixture.idle(2);
     fixture.key(Key::Space, Modifiers::NONE);

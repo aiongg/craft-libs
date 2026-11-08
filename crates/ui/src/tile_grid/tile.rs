@@ -721,7 +721,7 @@ impl Component for Tile<'_> {
             self.event = Some(TilePartEvent::Rate(if star == current { 0 } else { star }));
         }
         if let Some(src) = cx.part_activated(CHECK) {
-            eprintln!("DBG tile check activated {src:?}");
+            eprintln!("DBG tile check activated {src:?} rect {:?} press {:?} tile {:?}", cx.part(CHECK).rect, cx.part(CHECK).press.phase, cx.content_rect);
             self.event = Some(TilePartEvent::Check { mods: cx.part(CHECK).press.mods });
         }
         if cx.part_activated(CORNER).is_some() {
