@@ -1,171 +1,188 @@
 //! [`EffectStack`]: the effect-layer stack under the settings.
 
-use egui::{AsIdSalt, IdSalt, Key, KeyboardShortcut, Modifiers, Rect, Response, Ui, UiBuilder};
+use std::borrow::Cow;
 
-use craft_ui::behavior::{Axis, DropPosition, Move, Reorder, RowInfo, Selection, SelectionMode};
-use craft_ui::composites::PanelFooter;
-use craft_ui::edit::EditEvent;
-use craft_ui::icons::Icon;
-use craft_ui::list::{List, ListEvent, ListRow, RowEvent, ToggleColumn};
-use craft_ui::theme::{Tokens, TokensOf as _};
+use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, IconId, ItemSource, Selection};
+use craft_ui::contract::{
+    CollectionEvent, ColumnKind, ColumnSpec, NoValue, Outcome, ReorderMove, ReorderRule, SelectMode, Show as _, ShowCollection as _,
+    ShowContainer as _, ToggleColumn,
+};
+use craft_ui::layout_components::Stack;
+use craft_ui::list::{List, ListRow, RowInk, ToggleCell};
+use craft_ui::runtime::env::Env;
+use craft_ui::sections::{FooterAction, FooterBar};
+use egui::{Response, Ui};
 
-use craft_ui::localized::Labels as _;
-
-use super::FilterGalleryLabels;
+use super::catalog::FilterIndex;
 use super::session::{EffectChange, EffectLayer};
-use super::style::FilterGalleryStyle;
+use super::words::FilterGalleryWords;
+
+const EYE: ColumnKey = ColumnKey::new("eye");
+const NAME: ColumnKey = ColumnKey::new("name");
+
+/// The effect layers in display order: the top row is the layer applied last, so row `at` is effect
+/// `count - 1 - at`, and a row's key is its effect's index.
+struct Layers<'a> {
+    effects: &'a [EffectLayer],
+    index: &'a FilterIndex,
+}
+
+impl Layers<'_> {
+    fn effect_at(&self, at: usize) -> usize {
+        self.effects.len() - 1 - at
+    }
+}
+
+impl DisplayOrder<usize> for Layers<'_> {
+    fn len(&self) -> usize {
+        self.effects.len()
+    }
+
+    fn key(&self, at: usize) -> usize {
+        self.effect_at(at)
+    }
+
+    fn index_of(&self, key: &usize) -> Option<usize> {
+        (*key < self.effects.len()).then(|| self.effects.len() - 1 - *key)
+    }
+
+    fn text(&self, at: usize) -> Option<Cow<'_, str>> {
+        Some(Cow::Owned(self.index.label(&self.effects[self.effect_at(at)].filter).as_str().to_owned()))
+    }
+}
+
+impl ItemSource<usize> for Layers<'_> {
+    fn toggled(&self, at: usize, column: &ColumnKey) -> bool {
+        *column == EYE && self.effects[self.effect_at(at)].visible
+    }
+}
 
 /// What [`EffectStack::show`] reports.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 #[non_exhaustive]
-pub struct EffectStackResponse {
-    /// The list's response.
+pub struct EffectStackOutput {
+    /// The stack's response.
     pub response: Response,
-    /// The row picked (click, Up, Down).
+    /// The layer picked (click, Up, Down).
     pub selected: Option<usize>,
     /// An eye, a move, New or Delete.
     pub change: Option<EffectChange>,
 }
 
-/// The stack (lead call 39): a library `List` of `FilterGalleryStyle::stack_height`, top row last
-/// applied (so the rows show `effects` in reverse), each row with an eye column
-/// (`ToggleColumn::eye`) and the filter's name; the selected row is the list's selection. Under it
-/// a `PanelFooter` with Move up and Move down at the reading start and New effect layer and Delete
-/// effect layer (disabled with one layer) at the reading end; Tab visits them in that order. Rows reorder by drag (`Reorder`). The rows are as high as the list's rows.
+impl Outcome for EffectStackOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// The stack: a `List` named "Effect Layers" that takes the height of its rows, top row last applied (so the
+/// rows show `effects` in reverse), each row with a sweepable eye column and the filter's name, a hidden
+/// layer's name dimmed; the selected row is the list's selection. Under it a footer bar with Move up, Move
+/// down, New effect layer and Delete effect layer (disabled with one layer; the moves disabled at the ends).
+/// Rows reorder by drag and by the collection's move keys.
 ///
-/// Keyboard: Up and Down select, Space toggles the eye, ⌘] and ⌘[ move the row. AccessKit: a
-/// list named "Effect Layers"; rows named by their filter with the eye as a toggle.
+/// Keyboard: Up and Down select, Space toggles the eye of the lead row. AccessKit: a list named "Effect
+/// Layers"; rows named by their filter with the eye as a toggle.
+#[derive(craft_ui::contract::Pattern)]
 #[must_use = "show the stack with `show`"]
 pub struct EffectStack<'a> {
-    id_salt: IdSalt,
     effects: &'a [EffectLayer],
     selected: usize,
-    labels_of: &'a dyn Fn(&str) -> String,
-    labels: Option<FilterGalleryLabels>,
+    index: &'a FilterIndex,
 }
 
 impl<'a> EffectStack<'a> {
-    /// Starts the stack over `effects` with the layer at index `selected` selected; `labels_of` gives a filter key's display name.
-    pub fn new(id_salt: impl AsIdSalt, effects: &'a [EffectLayer], selected: usize, labels_of: &'a dyn Fn(&str) -> String) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), effects, selected, labels_of, labels: None }
-    }
-
-    /// The words (default: [`FilterGalleryLabels::of`]).
-    pub fn labels(mut self, labels: FilterGalleryLabels) -> Self {
-        self.labels = Some(labels);
-        self
+    /// The stack over `effects` with the layer at index `selected` selected; `index` names the filters.
+    pub fn new(effects: &'a [EffectLayer], selected: usize, index: &'a FilterIndex) -> Self {
+        Self { effects, selected, index }
     }
 
     /// Draws the stack and its buttons and reports any selection or change.
-    pub fn show(self, ui: &mut Ui) -> EffectStackResponse {
-        // pc: crates/ui-egui/src/dialogs/gallery_ui.rs:780, :832-881 (list 190 high, rows 24 with the eye,
-        // the four buttons).
-        let Self { id_salt, effects, selected, labels_of, labels } = self;
-        let labels = labels.unwrap_or_else(|| FilterGalleryLabels::of(ui));
+    pub fn show(self, ui: &mut Ui) -> EffectStackOutput {
+        let Self { effects, selected, index } = self;
+        let words = Env::of(ui).words::<FilterGalleryWords>();
         let count = effects.len();
-        let id = ui.make_persistent_id(id_salt);
-        let tokens = Tokens::of(ui);
-        let height = FilterGalleryStyle::of(&tokens).stack_height;
-        // The top row is applied last: the display order runs from the last effect to the first.
-        let order: Vec<RowInfo<usize>> = (0..count).rev().map(RowInfo::leaf).collect();
-        let mut selection = Selection::only(selected.min(count.saturating_sub(1)));
-        let eye_name = labels.visibility_of.as_str();
-        let space = KeyboardShortcut::new(Modifiers::NONE, Key::Space);
-
-        let out = List::new(id.with("list"), labels.effect_layers.as_str(), order.as_slice())
-            .selection(&mut selection)
-            .mode(SelectionMode::Single)
-            .allow_empty(false)
-            .max_height(height)
-            .reorder(Reorder::new(Axis::Vertical))
-            .show(ui, |_, &index| {
-                let effect = effects.get(index);
-                let visible = effect.is_none_or(|e| e.visible);
-                let name = effect.map_or_else(String::new, |e| labels_of(&e.filter));
-                ListRow::new(index, name).dimmed(!visible).toggle(ToggleColumn::eye(eye_name, visible).key(space))
-            });
-
-        let mut change = None;
-        for event in &out.events {
-            match event {
-                ListEvent::Row(RowEvent::Toggle(edit)) => {
-                    if let Some(toggle) = edit.value()
-                        && effects.get(toggle.row).is_some_and(|e| e.visible != toggle.on)
-                    {
-                        change = Some(EffectChange::Visible { index: toggle.row, visible: toggle.on });
-                    }
-                }
-                ListEvent::Reorder(edit) => {
-                    if let Some(mv) = finished(edit)
-                        && let Some((from, to)) = effect_move(count, mv)
-                    {
-                        change = Some(EffectChange::Move { from, to });
-                    }
-                }
-                _ => {}
-            }
-        }
-
         let current = selected.min(count.saturating_sub(1));
-        let footer = PanelFooter::show(ui, |ui| {
-            // Move up and Move down at the reading start, New and Delete at the reading end, as
-            // PhotoCraft lays them out. Each group is a row in reading order, created in turn, so
-            // Tab and AccessKit visit up, down, new, delete.
-            let style = PanelFooter::style(&tokens, ui.pixels_per_point());
-            let bar = ui.max_rect();
-            let width = 2.0 * style.button + style.gap;
-            let end = if craft_ui::direction::is_rtl(ui) {
-                Rect::from_x_y_ranges(bar.left()..=bar.left() + width, bar.y_range())
-            } else {
-                Rect::from_x_y_ranges(bar.right() - width..=bar.right(), bar.y_range())
-            };
-            let mut start_row = ui.new_child(UiBuilder::new().max_rect(bar).layout(craft_ui::direction::row(ui)));
-            let up = start_row.add_enabled_ui(current + 1 < count, |ui| PanelFooter::button(ui, Icon::ChevronUp, &labels.move_up)).inner;
-            let down = start_row.add_enabled_ui(current > 0, |ui| PanelFooter::button(ui, Icon::ChevronDown, &labels.move_down)).inner;
-            let mut end_row = ui.new_child(UiBuilder::new().max_rect(end).layout(craft_ui::direction::row(ui)));
-            let add = PanelFooter::button(&mut end_row, Icon::NewLayer, &labels.new_layer);
-            let delete = end_row.add_enabled_ui(count > 1, |ui| PanelFooter::button(ui, Icon::Trash, &labels.delete_layer)).inner;
-            if delete.clicked() {
-                Some(EffectChange::Delete)
-            } else if add.clicked() {
-                Some(EffectChange::Add)
-            } else if down.clicked() {
-                Some(EffectChange::Move { from: current, to: current - 1 })
-            } else if up.clicked() {
-                Some(EffectChange::Move { from: current, to: current + 1 })
-            } else {
-                None
+        let layers = Layers { effects, index };
+        let mut selection = Selection::single(current);
+        let columns = vec![
+            ColumnSpec::new(EYE, words.visibility_of.clone(), ColumnWidth::Controls(1.0)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())),
+            ColumnSpec::new(NAME, words.filter.clone(), ColumnWidth::fill(1.0)),
+        ];
+        let mut change = None;
+        let mut picked = None;
+        let shown = Stack::new().show(ui, |ui, _| {
+            let out = List::<usize>::new(words.effect_layers.clone())
+                .select(SelectMode::Single)
+                .allow_empty(false)
+                .header(false)
+                .columns(columns.clone())
+                .reorder(ReorderRule::new())
+                .natural_height(true)
+                .selection(craft_ui::contract::Bind::bound(&mut selection))
+                .show_items(ui, &layers, &mut |key, icx| {
+                    let effect = &effects[*key];
+                    let ink = if effect.visible { RowInk::Normal } else { RowInk::Dimmed };
+                    ListRow::new(index.label(&effect.filter)).cells(icx.cells()).ink(ink).toggle(ToggleCell::eye(
+                        EYE,
+                        effect.visible,
+                        words.visibility_of.clone(),
+                    ))
+                });
+            for event in &out.events {
+                match event {
+                    CollectionEvent::Toggle(edit) => {
+                        if let Some(toggle) = edit.value()
+                            && effects.get(toggle.key).is_some_and(|effect| effect.visible != toggle.on)
+                        {
+                            change = Some(EffectChange::Visible { index: toggle.key, visible: toggle.on });
+                        }
+                    }
+                    CollectionEvent::Reorder(edit) => {
+                        if let Some(mv) = finished(edit)
+                            && let Some((from, to)) = effect_move(count, mv)
+                        {
+                            change = Some(EffectChange::Move { from, to });
+                        }
+                    }
+                    _ => {}
+                }
             }
+            let actions = [
+                FooterAction::new(IconId::new("chevron_up"), words.move_up.clone()).enabled(current + 1 < count),
+                FooterAction::new(IconId::new("chevron_down"), words.move_down.clone()).enabled(current > 0),
+                FooterAction::new(IconId::new("new_layer"), words.new_layer.clone()),
+                FooterAction::new(IconId::new("trash"), words.delete_layer.clone()).enabled(count > 1),
+            ];
+            let footer = FooterBar::actions(actions).show_footer(ui);
+            change = match footer.picked {
+                Some(0) => Some(EffectChange::Move { from: current, to: current + 1 }),
+                Some(1) => Some(EffectChange::Move { from: current, to: current.saturating_sub(1) }),
+                Some(2) => Some(EffectChange::Add),
+                Some(3) => Some(EffectChange::Delete),
+                _ => change,
+            };
+            picked = selection.lead.filter(|&lead| lead != selected && lead < count);
+            out.response
         });
-
-        let picked = selection.lead.filter(|&lead| lead != selected && lead < count);
-        EffectStackResponse { response: out.response, selected: picked, change: footer.or(change) }
+        EffectStackOutput { response: shown.inner, selected: picked, change }
     }
 }
 
-/// The move a finished drag or stacking key makes.
-fn finished(edit: &EditEvent<Move<usize>>) -> Option<&Move<usize>> {
+/// The move a finished drag or move key makes.
+fn finished(edit: &EditEvent<ReorderMove<usize>>) -> Option<&ReorderMove<usize>> {
     match edit {
-        EditEvent::Set { value, .. } | EditEvent::Commit { value, changed: true, .. } => Some(value),
+        EditEvent::Set { after, .. } | EditEvent::Commit { after, .. } => Some(after),
         _ => None,
     }
 }
 
-/// `mv` of display rows as the effect indices to move from and to: the display order runs from the
-/// last effect to the first.
-fn effect_move(count: usize, mv: &Move<usize>) -> Option<(usize, usize)> {
-    let &[from] = mv.items.as_slice() else { return None };
-    let mut display: Vec<usize> = (0..count).rev().collect();
-    display.retain(|&index| index != from);
-    let target = display.iter().position(|&index| index == mv.target);
-    let at = match (mv.position, target) {
-        (DropPosition::Before, Some(at)) => at,
-        (DropPosition::After, Some(at)) => at + 1,
-        // Dropped onto itself, or into a row: the order stays.
-        _ => return None,
-    };
-    display.insert(at, from);
-    let shown = display.iter().position(|&index| index == from)?;
-    let to = count - 1 - shown;
+/// `mv` of display rows as the effect indices to move from and to: the display order runs from the last effect
+/// to the first, and `mv.to` counts display rows once the moved row is taken out.
+fn effect_move(count: usize, mv: &ReorderMove<usize>) -> Option<(usize, usize)> {
+    let &[from] = mv.keys.as_slice() else { return None };
+    let to = (count - 1).checked_sub(mv.to)?;
     (to != from).then_some((from, to))
 }

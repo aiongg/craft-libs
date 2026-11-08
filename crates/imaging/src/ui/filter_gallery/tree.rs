@@ -1,177 +1,123 @@
-//! [`FilterTree`]: the middle column's category folders with thumbnails.
+//! [`FilterTree`]: the folders column's category folders with thumbnails.
 
-use egui::accesskit::Role;
-use egui::text::{LayoutJob, TextWrapping};
-use egui::{AsIdSalt, Id, IdSalt, Rect, Response, Sense, Stroke, StrokeKind, Ui, UiBuilder, pos2, vec2};
+use std::borrow::Cow;
 
-use craft_theme::{Stroke as Line, TypeRole};
-use craft_ui::behavior::GridNav;
-use craft_ui::canvas::textures::{Priority, ThumbFit, ThumbPaint, ThumbRequest, ThumbSource, Thumbnails};
-use craft_ui::composites::SectionHeader;
-use craft_ui::primitives::{Content, Corner, Gap, Interactive, Text};
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
+use craft_behavior::{DisplayOrder, ItemSource, Selection};
+use craft_ui::contract::{
+    ActivateOn, Bind, CollectionEvent, NoValue, Outcome, Props as _, SaveKey, SelectMode, Show as _, ShowCollection as _, ShowContainer as _,
+};
+use craft_ui::layout_components::Stack;
+use craft_ui::list::ThumbAspect;
+use craft_ui::primitives::textures::{Priority, ThumbFit, ThumbPaint, ThumbRequest, ThumbSource, Thumbnails};
+use craft_ui::sections::Section;
+use craft_ui::tile_grid::{Tile, TileGrid};
+use egui::{Response, Ui};
 
-use craft_ui::localized::Labels as _;
+use super::catalog::{FilterIndex, GalleryThumb};
 
-use super::FilterGalleryLabels;
-use super::catalog::{FilterCategory, GalleryThumb};
-use super::style::FilterGalleryStyle;
+/// A filter thumbnail's shape: PhotoCraft's 80 by 56.
+const THUMB_ASPECT: (u16, u16) = (10, 7);
 
-/// Thumbnails in a row of a folder.
-const COLUMNS: usize = 3;
+/// The keys of one folder, in menu order.
+struct Folder<'a> {
+    keys: &'a [String],
+    index: &'a FilterIndex,
+}
+
+impl DisplayOrder<String> for Folder<'_> {
+    fn len(&self) -> usize {
+        self.keys.len()
+    }
+
+    fn key(&self, at: usize) -> String {
+        self.keys[at].clone()
+    }
+
+    fn index_of(&self, key: &String) -> Option<usize> {
+        self.keys.iter().position(|held| held == key)
+    }
+
+    fn text(&self, at: usize) -> Option<Cow<'_, str>> {
+        Some(Cow::Owned(self.index.label(&self.keys[at]).as_str().to_owned()))
+    }
+}
+
+impl ItemSource<String> for Folder<'_> {}
 
 /// What [`FilterTree::show`] reports.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 #[non_exhaustive]
-pub struct FilterTreeResponse {
+pub struct FilterTreeOutput {
     /// The tree's response.
     pub response: Response,
     /// The filter whose thumbnail was clicked (or picked with Enter or Space).
     pub picked: Option<String>,
 }
 
-/// The middle column: one collapsible folder per category (its open state in egui memory; the
-/// folder of a newly selected filter opens), each a grid of thumbnails, three a row, at the size
-/// the thumb width × `.thumb_height`, with the filter's name under it in the caption
-/// role; the selected filter's thumbnail has a 2 pt accent ring (`Stroke::W2`), the others a
-/// 1 pt `line.divider` outline. Thumbnails come from a `Thumbnails<GalleryThumb>` cache over the
-/// app's `ThumbSource` (the placeholder while loading).
+impl Outcome for FilterTreeOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// The folders column: one collapsible folder per category (its open state remembered; the folder of the
+/// filter the tree opens on starts open), each a `TileGrid` of the folder's filters, with the filter's name
+/// under its thumbnail. The current filter's tile is the grid's selection. Thumbnails come from a
+/// `Thumbnails<GalleryThumb>` cache over the app's `ThumbSource` (the placeholder while loading).
 ///
-/// Keyboard: each folder header is a Tab stop; the thumbnails of an open folder are one grid
-/// (`GridNav::roving_stop`: arrows move, Enter or Space picks) with one Tab stop. AccessKit: a
-/// folder header is a disclosure triangle named by the category, a thumbnail a button named by
-/// its filter, `selected` when current; the folders sit in a group named by the column's word.
+/// Keyboard: the grid's keys; arrows move, Enter or Space picks. A click picks.
+#[derive(craft_ui::contract::Pattern)]
 #[must_use = "show the tree with `show`"]
 pub struct FilterTree<'a> {
-    id_salt: IdSalt,
-    categories: &'a [FilterCategory],
-    labels_of: &'a dyn Fn(&str) -> String,
+    index: &'a FilterIndex,
     selected: &'a str,
     thumbs: &'a Thumbnails<GalleryThumb>,
     source: &'a dyn ThumbSource<GalleryThumb>,
-    labels: Option<FilterGalleryLabels>,
 }
 
 impl<'a> FilterTree<'a> {
-    /// The folders of `categories`; `labels_of` gives a filter key's translated name and `source`
-    /// renders the pictures `thumbs` asks for.
-    pub fn new(
-        id_salt: impl AsIdSalt,
-        categories: &'a [FilterCategory],
-        labels_of: &'a dyn Fn(&str) -> String,
-        selected: &'a str,
-        thumbs: &'a Thumbnails<GalleryThumb>,
-        source: &'a dyn ThumbSource<GalleryThumb>,
-    ) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), categories, labels_of, selected, thumbs, source, labels: None }
-    }
-
-    /// The words (default: [`FilterGalleryLabels::of`]).
-    pub fn labels(mut self, labels: FilterGalleryLabels) -> Self {
-        self.labels = Some(labels);
-        self
+    /// The folders of `index`, with the filter `selected` current; `source` renders the pictures `thumbs`
+    /// asks for.
+    pub fn new(index: &'a FilterIndex, selected: &'a str, thumbs: &'a Thumbnails<GalleryThumb>, source: &'a dyn ThumbSource<GalleryThumb>) -> Self {
+        Self { index, selected, thumbs, source }
     }
 
     /// Draws the category folders and filter thumbnails and reports the filter picked.
-    pub fn show(self, ui: &mut Ui) -> FilterTreeResponse {
-        // pc: crates/ui-egui/src/dialogs/gallery_ui.rs:702-754 (folders, thumbnails 80 × 56, three
-        // a row, names under them), :616 `update_thumbs`.
-        let Self { id_salt, categories, labels_of, selected, thumbs, source, labels } = self;
-        let labels = labels.unwrap_or_else(|| FilterGalleryLabels::of(ui));
-        let id = ui.make_persistent_id(id_salt);
+    pub fn show(self, ui: &mut Ui) -> FilterTreeOutput {
+        let Self { index, selected, thumbs, source } = self;
         let mut picked = None;
-        let group = UiBuilder::new().id_salt(id).accessibility_role(Role::Group).accessibility_label(labels.filters.as_str());
-        let scope = ui.scope_builder(group, |ui| {
-            // The folder of a filter that has just become the selected one opens.
-            let seen_id = id.with("selected");
-            let seen: Option<String> = ui.data(|d| d.get_temp(seen_id));
-            let newly_selected = seen.as_deref() != Some(selected);
-            if newly_selected {
-                ui.data_mut(|d| d.insert_temp(seen_id, selected.to_owned()));
-            }
-            for category in categories {
-                let open_id = id.with(("open", category.key.as_str()));
-                let mut open = ui.data_mut(|d| d.get_persisted::<bool>(open_id));
-                if newly_selected && category.filters.iter().any(|key| key == selected) {
-                    open = Some(true);
-                }
-                let mut open = open.unwrap_or(false);
-                SectionHeader::new(open_id, category.label.as_str()).open(&mut open).show(ui, |ui| {
-                    let folder = Folder { id: id.with(("folder", category.key.as_str())), category, labels_of, selected, thumbs, source };
-                    if let Some(key) = folder.show(ui) {
-                        picked = Some(key);
+        let stack = Stack::new().show(ui, |ui, _| {
+            for category in index.categories() {
+                let current = category.filters.iter().any(|key| key == selected);
+                let key = SaveKey::named(format!("craft_imaging.filter_gallery.{}", category.key));
+                Section::new(category.label.clone()).id_salt(category.key.as_str()).initially_open(current).remember(key).show(ui, |ui, _| {
+                    let folder = Folder { keys: &category.filters, index };
+                    let mut selection = if current { Selection::single(selected.to_owned()) } else { Selection::default() };
+                    let out = TileGrid::<String>::new(category.label.clone())
+                        .select(SelectMode::Single)
+                        .activate(ActivateOn::Click)
+                        .natural_height(true)
+                        .selection(Bind::bound(&mut selection))
+                        .show_items(ui, &folder, &mut |key, _| {
+                            let filter = GalleryThumb::new(key.clone());
+                            let (wide, high) = THUMB_ASPECT;
+                            Tile::new(index.label(key)).thumb(ThumbAspect::new(wide, high), move |cx, rect| {
+                                let ctx = cx.painter.ctx();
+                                let request = ThumbRequest::for_cell(rect.width(), ctx.pixels_per_point());
+                                let state = thumbs.state(ctx, source, &filter, &request, Priority::VISIBLE);
+                                thumbs.paint(cx, rect, &state, &ThumbPaint::default().fit(ThumbFit::Cover).checker(false));
+                            })
+                        });
+                    for event in out.response.events {
+                        if let CollectionEvent::Activate(key) = event {
+                            picked = Some(key);
+                        }
                     }
                 });
-                ui.data_mut(|d| d.insert_persisted(open_id, open));
             }
         });
-        FilterTreeResponse { response: scope.response, picked }
-    }
-}
-
-/// One open folder: its thumbnails as a grid of rows of [`COLUMNS`].
-struct Folder<'a> {
-    id: Id,
-    category: &'a FilterCategory,
-    labels_of: &'a dyn Fn(&str) -> String,
-    selected: &'a str,
-    thumbs: &'a Thumbnails<GalleryThumb>,
-    source: &'a dyn ThumbSource<GalleryThumb>,
-}
-
-impl Folder<'_> {
-    /// Draws the thumbnails; returns the filter picked.
-    fn show(&self, ui: &mut Ui) -> Option<String> {
-        let tokens = Tokens::of(ui);
-        let sizes = FilterGalleryStyle::of(&tokens);
-        let gap = Gap::Row.points(&tokens);
-        let ppp = ui.pixels_per_point();
-        let name_format = Text::format(&tokens, TypeRole::Caption, Content::Normal);
-        let name_height = ui.painter().layout_no_wrap("Ag".to_owned(), name_format.font_id.clone(), name_format.color).size().y;
-        let cell = vec2(sizes.thumb_width, sizes.thumb_height + gap / 2.0 + name_height);
-        let keys = &self.category.filters;
-        let rows = keys.len().div_ceil(COLUMNS);
-        let width = COLUMNS as f32 * cell.x + (COLUMNS - 1) as f32 * gap;
-        let (_, area) = ui.allocate_space(vec2(width, rows as f32 * cell.y + rows.saturating_sub(1) as f32 * gap));
-        let ids: Vec<Id> = keys.iter().map(|key| Interactive::id_in(ui, (self.id, key.as_str()))).collect();
-        let current = keys.iter().position(|key| key == self.selected);
-        let nav = GridNav::wrapped(keys.len(), COLUMNS).rtl(craft_ui::direction::is_rtl(ui));
-        let stop = GridNav::roving_move_in(ui, &ids, &nav, current, true).0;
-        let request = ThumbRequest::for_cell(sizes.thumb_width, ppp);
-        let outline = Stroke::new(Line::W1.width(ppp), tokens.color.line.divider.to_egui());
-        let ring = Stroke::new(Line::W2.width(ppp), Content::Accent.color(&tokens).to_egui());
-        let mut picked = None;
-        for (n, key) in keys.iter().enumerate() {
-            let (row, column) = (n / COLUMNS, n % COLUMNS);
-            let origin = area.min + vec2(column as f32 * (cell.x + gap), row as f32 * (cell.y + gap));
-            let cell_rect = Rect::from_min_size(origin, cell);
-            let thumb = Rect::from_min_size(origin, vec2(sizes.thumb_width, sizes.thumb_height));
-            let on = *key == self.selected;
-            let name = (self.labels_of)(key);
-            let mut element =
-                Interactive::with_id(ids[n], Role::Button, name.as_str()).corner(Corner::Control).selected(on).position_in_set(n).state_layer(false);
-            if n != stop {
-                element = element.sense(Sense::CLICK);
-            }
-            let response = element.interact_at(ui, cell_rect).finish(ui);
-            if ui.is_rect_visible(cell_rect) {
-                let painter = ui.painter();
-                let state = self.thumbs.state(ui.ctx(), self.source, &GalleryThumb { filter: key.clone() }, &request, Priority::VISIBLE);
-                self.thumbs.paint(painter, thumb, &state, &ThumbPaint::default().fit(ThumbFit::Cover).checker(false));
-                painter.rect_stroke(thumb, 0.0, if on { ring } else { outline }, StrokeKind::Outside);
-                let mut job = LayoutJob::single_section(name.clone(), name_format.clone());
-                job.wrap = TextWrapping::truncate_at_width(cell.x);
-                let galley = painter.layout_job(job);
-                let color = if on { Content::Normal } else { Content::Muted }.color(&tokens).to_egui();
-                painter.galley(pos2(origin.x, thumb.bottom() + gap / 2.0), galley, color);
-            }
-            if response.gained_focus() {
-                ui.scroll_to_rect(cell_rect, None);
-            }
-            if response.clicked() {
-                picked = Some(key.clone());
-            }
-        }
-        picked
+        FilterTreeOutput { response: stack.output, picked }
     }
 }
