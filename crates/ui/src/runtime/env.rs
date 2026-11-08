@@ -336,6 +336,9 @@ pub struct Scoped {
     pub(crate) today: Option<CalendarDate>,
     /// `RootEnv::tab_toggles_chrome`.
     pub(crate) tab_toggles_chrome: bool,
+    /// The line height per point of text of the leading face of the interface stack, as the frame began: control
+    /// heights depend on it, so the key covers it.
+    pub(crate) line_ratio: f32,
     /// The key of everything above that the style cache depends on.
     pub(crate) key: EnvKey,
     /// Ambient control size; the root default is `Md`.
@@ -470,12 +473,14 @@ impl Env {
         let motion = MotionPolicy::new(motion_mode(ctx, root), tokens.tokens().motion);
         let os = windows::os_of(ctx);
         let scale = Scale(pixels_per_point);
+        let line_ratio = crate::fonts::stack_facts(ctx).line_ratio;
         let shell = Arc::new(windows::shell_of(ctx, pass::current_viewport(ctx)));
         let active = shell.window.active;
         let keyboard = Arc::new(crate::runtime::keys::layout_of(ctx));
         Env {
             scoped: Arc::new(Scoped {
-                key: EnvKey::new(tokens.key(), root.direction, scale, os, active, root.values.style_hash()),
+                key: EnvKey::new(tokens.key(), root.direction, scale, os, active, root.values.style_hash()).with_line(line_ratio),
+                line_ratio,
                 tokens,
                 os,
                 active,
@@ -567,7 +572,8 @@ impl Env {
     pub(crate) fn derive(&self, f: impl FnOnce(&mut Scoped)) -> Env {
         let mut scoped = (*self.scoped).clone();
         f(&mut scoped);
-        scoped.key = EnvKey::new(scoped.tokens.key(), scoped.direction, scoped.scale, scoped.os, scoped.active, scoped.values.style_hash());
+        scoped.key = EnvKey::new(scoped.tokens.key(), scoped.direction, scoped.scale, scoped.os, scoped.active, scoped.values.style_hash())
+            .with_line(scoped.line_ratio);
         Env { scoped: Arc::new(scoped) }
     }
 

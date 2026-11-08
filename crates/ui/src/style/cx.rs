@@ -5,6 +5,7 @@ use super::look::{FocusLook, StyleColor, SurfaceKind, SurfaceLook, TrackLook};
 use super::paint::{HandleLook, ResetMarkLook, RuleKind, RuleLook, ScrollBarLook, handle_look, reset_mark_look, rule_look, scroll_bar_look};
 use super::surface::{SurfaceStyle, surface_style};
 use super::tokens::UiTokens;
+use crate::fonts::stack_facts;
 use crate::runtime::egui::memory::Service;
 use crate::runtime::env::{AppValues, Scale, StyleValue};
 use craft_behavior::ControlMetrics;
@@ -228,7 +229,7 @@ impl<'a> StyleCx<'a> {
 
     /// The height, icon side, padding and gap of a control at the ambient size.
     pub fn control(&self) -> ControlMetrics {
-        control_metrics(self.tokens, self.size)
+        control_metrics(self.tokens, self.size, stack_facts(self.ctx).line_ratio)
     }
 
     /// What a surface of `kind` draws.
@@ -317,13 +318,20 @@ impl<'a> StyleCx<'a> {
 }
 
 /// The height, icon side, padding and gap of a control of `size`.
-pub fn control_metrics(tokens: &UiTokens, size: ControlSize) -> ControlMetrics {
+///
+/// The height is the size token, or more when the face that leads the interface stack sets taller rows than the
+/// token's type line: the control's vertical padding (the token height less the label role's line height, which
+/// the token already holds) around the leading face's line height at the label size. `line_ratio` is that face's
+/// line height per point of text (`0` with no stack installed: the token alone).
+pub fn control_metrics(tokens: &UiTokens, size: ControlSize, line_ratio: f32) -> ControlMetrics {
     let sizes = &tokens.size;
+    let label = tokens.typography.label;
+    let grown = |token: f32| token + (line_ratio * label.size - label.line_height).max(0.0);
     let pad = tokens.space.pad.control;
     let gap = tokens.space.gap.inline;
     ControlMetrics::at(
         size,
-        &BySize { sm: sizes.control.sm, md: sizes.control.md },
+        &BySize { sm: grown(sizes.control.sm), md: grown(sizes.control.md) },
         &BySize { sm: sizes.icon.sm, md: sizes.icon.md },
         &BySize { sm: pad, md: pad },
         &BySize { sm: gap, md: gap },

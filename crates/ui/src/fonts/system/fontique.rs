@@ -11,6 +11,7 @@ use fontique::{
 
 use super::index::{FontIndex, Lookup, Shared};
 use super::ui_face::{self, SystemUiFace, instance};
+use crate::fonts::script;
 
 pub(super) struct Index {
     collection: Collection,
@@ -203,12 +204,12 @@ fn other_locales(script: Script) -> &'static [Language] {
     if script == HAN { &HAN_LOCALES } else { &[] }
 }
 
-/// The script of a character, `None` for characters shared between scripts.
+/// The script of a character by the one character-to-script table, `None` for symbols, mathematics, emoji and
+/// characters of no listed block, which have no fallback.
 fn script_of(c: char) -> Option<Script> {
-    use unicode_script::UnicodeScript as _;
-    match c.script() {
-        unicode_script::Script::Common | unicode_script::Script::Inherited | unicode_script::Script::Unknown => None,
-        script => Script::parse(script.short_name()).ok(),
+    match script::script_of(c)? {
+        script::EMOJI | script::SYMBOLS | script::MATH => None,
+        tag => Script::parse(tag).ok(),
     }
 }
 

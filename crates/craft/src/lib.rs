@@ -3,6 +3,8 @@
 
 pub mod egui_fork;
 
+#[cfg(all(feature = "ui-system_fonts", target_arch = "wasm32"))]
+compile_error!("`ui-system_fonts` is desktop-only: the system font index needs fontique, which has no web build");
 #[cfg(feature = "ai-core")]
 pub use craft_ai_core as ai_core;
 #[cfg(feature = "atomic")]

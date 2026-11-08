@@ -78,22 +78,27 @@ struct Registry {
     budget: usize,
     frame: u64,
     begun: bool,
+    evicted: Option<u64>,
     hooked: bool,
 }
 
 impl Registry {
-    /// Starts frame `now` unless it has started: the budget is full again and, past the cap, the faces the previous
-    /// frame did not draw are dropped and returned.
-    fn begin(&mut self, now: u64) -> Vec<String> {
+    /// Starts frame `now` unless it has started: the budget is full again.
+    fn begin(&mut self, now: u64) {
         if self.begun && self.frame == now {
-            return Vec::new();
+            return;
         }
         self.begun = true;
         self.frame = now;
         self.budget = DOCUMENT_FACES_PER_PASS;
-        if self.faces.len() <= MAX_DOCUMENT_FACES {
+    }
+
+    /// Past the cap, drops the faces the previous frame did not draw and returns them. Once per frame.
+    fn evict(&mut self, now: u64) -> Vec<String> {
+        if self.evicted == Some(now) || self.faces.len() <= MAX_DOCUMENT_FACES {
             return Vec::new();
         }
+        self.evicted = Some(now);
         let stale: Vec<String> = self.faces.iter().filter(|(_, face)| face.used + 1 < now).map(|(key, _)| key.clone()).collect();
         for key in &stale {
             self.faces.remove(key);
@@ -113,17 +118,27 @@ enum Known {
     New,
 }
 
-/// Starts the frame in the registry, and the registry's begin-pass step on the context's fonts plugin.
-fn begin(ctx: &Context) {
-    let hook = memory::with::<Registry, _>(ctx, |registry| !std::mem::replace(&mut registry.hooked, true));
-    if hook {
-        egui_fonts::on_begin_pass(ctx, begin);
-    }
+/// The begin-pass step: starts the frame and evicts the faces past the cap. Eviction happens only here, before any
+/// install of the pass can queue its definitions, because it rebuilds them from the applied ones.
+fn begin_pass(ctx: &Context) {
     let now = pass::root_frame_nr(ctx);
-    let stale = memory::with::<Registry, _>(ctx, |registry| registry.begin(now));
+    let stale = memory::with::<Registry, _>(ctx, |registry| {
+        registry.begin(now);
+        registry.evict(now)
+    });
     if !stale.is_empty() {
         egui_fonts::remove_faces(ctx, &stale);
     }
+}
+
+/// Hooks the begin-pass step on the context's fonts plugin and starts the frame's budget.
+fn begin(ctx: &Context) {
+    let hook = memory::with::<Registry, _>(ctx, |registry| !std::mem::replace(&mut registry.hooked, true));
+    if hook {
+        egui_fonts::on_begin_pass(ctx, begin_pass);
+    }
+    let now = pass::root_frame_nr(ctx);
+    memory::with::<Registry, _>(ctx, |registry| registry.begin(now));
 }
 
 /// The document faces: the families drawn from font files a document names. Reached through `FacesCx`.
