@@ -9,7 +9,7 @@ use super::stack::{
     LANE, LOCK, MUTE, MovePointer, MoveTarget, NAME, NAME_DEFAULT, OUTPUT, RowGeom, SOLO, SYNC_LOCK, Side, TARGET, TrackEvent, TrackRow, TrackSizes,
     TrackStack, Tracks, resolve_move, set_event,
 };
-use super::view::{TimelineView, TimelineWords, time_axis};
+use super::view::{Overlay, TimelineView, TimelineViewStyle, TimelineWords, time_axis};
 use super::{DragEvent, LabelPalette, TimecodeField, label_palette};
 use crate::clips::{ClipEdit, SnapTargets};
 use crate::clock::FollowMode;
@@ -20,7 +20,8 @@ use craft_behavior::{ColumnWidth, EditEvent, IconId, MarqueeSelect, Metrics, Pre
 use craft_ui::buttons::{IconButton, ToggleButton};
 use craft_ui::contract::{
     Bind, BindMut, BodyLayout, CollectionEvent, CollectionResponse, ColumnEvent, Common, Component, Container, ContainerProps, Cx, Edit as _,
-    EditResponse, NoValue, Outcome, Pattern, Pointer as _, Props, Remember as _, Role, Show as _, ShowCollection as _, ShowContainer as _, Sizing,
+    EditResponse, MeasureCx, NoValue, Outcome, Pattern, Pointer as _, Props, Remember as _, Role, Show as _, ShowCollection as _, ShowContainer as _,
+    Sizing,
 };
 use craft_ui::display::Text;
 use craft_ui::layout_components::{Row, Stack};
@@ -29,7 +30,7 @@ use craft_ui::primitives::IconSpec;
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::style::{ComponentStyle, StyleCx};
 use egui::{Pos2, Rect, Response, Ui, Vec2};
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 
 /// A track header switch.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -246,10 +247,6 @@ struct Memory {
     label_menu: Option<TrackId>,
     /// Whether that menu shows.
     label_open: bool,
-    /// Where the last pass's drag snapped, for the snap line over every pane.
-    snapped: Option<Tick>,
-    /// The rectangle of the marquee under way, for every pane to draw its part.
-    marquee: Option<Rect>,
 }
 
 /// What the panes reported in a pass that the panel works out across all of them.
@@ -286,15 +283,12 @@ struct PlacedRow {
 struct Panes<'p, 'a> {
     words: &'p TimelineWords,
     name: Option<ColumnWidth>,
-    playhead: Tick,
     selection: &'p [ClipId],
     targets: Option<&'p SnapTargets>,
     tool: TimelineTool,
     no_modifier_trims: bool,
     content: Option<&'p ClipContent<'a>>,
     clips: &'p [Vec<ClipInfo<'p>>],
-    snapped: Cell<Option<Tick>>,
-    marquee: Cell<Option<Rect>>,
     /// The first row each pane showed, by pane.
     anchors: RefCell<[Option<Anchor>; 3]>,
 }
@@ -307,13 +301,7 @@ impl Panes<'_, '_> {
             Side::Upper => "Video",
             Side::Lower => "Audio",
         };
-        let mut stack = TrackStack::new(label, self.name, self.words).tracks(pane).playhead(self.playhead);
-        if let Some(at) = self.snapped.get() {
-            stack = stack.snapped_at(at);
-        }
-        if let Some(swept) = self.marquee.get() {
-            stack = stack.marquee(swept);
-        }
+        let mut stack = TrackStack::new(label, self.name, self.words).tracks(pane);
         if side == Side::Upper {
             stack = stack.anchored_at_end();
         }
@@ -481,15 +469,12 @@ impl<M: TimelineModel> Timeline<'_, M> {
             let shared = Panes {
                 words: &words,
                 name: header_width,
-                playhead,
                 selection: &selection,
                 targets: targets.as_ref(),
                 tool,
                 no_modifier_trims,
                 content: content.as_ref(),
                 clips: &clips,
-                snapped: Cell::new(None),
-                marquee: Cell::new(None),
                 anchors: RefCell::new([None; 3]),
             };
             let palette = label_palette(&env.view());
@@ -497,8 +482,12 @@ impl<M: TimelineModel> Timeline<'_, M> {
             let mut ruler_edits: Vec<TimelineEdit> = Vec::new();
             let mut ruler_snapped: Option<Tick> = None;
 
-            let area =
-                TimelineView::new(label, Bind::given(view), format, duration).headers(true).follow(follow, playing, playhead).edit_points(&points);
+            let overlay = Overlay::default();
+            let area = TimelineView::new(label, Bind::given(view), format, duration)
+                .headers(true)
+                .follow(follow, playing, playhead)
+                .edit_points(&points)
+                .overlay(&overlay);
             let area = match header_width {
                 Some(width) => area.header_width(width),
                 None => area,
@@ -531,8 +520,6 @@ impl<M: TimelineModel> Timeline<'_, M> {
                     });
                 });
                 let mut memory = std::mem::take(cx.keep::<Memory>());
-                shared.snapped.set(memory.snapped);
-                shared.marquee.set(memory.marquee);
                 let mut reports = Reports { snapped: ruler_snapped, ..Reports::default() };
                 let mut pane_rects: Vec<Rect> = Vec::new();
                 let both = !panes[1].1.is_empty() && !panes[2].1.is_empty();
@@ -561,7 +548,8 @@ impl<M: TimelineModel> Timeline<'_, M> {
                         edits.extend(divided.event.map(TimelineEdit::Divider));
                     }
                 }
-                let placed = placed_rows(&panes, &tracks, &shared.anchors.borrow(), reports.drag.map(|(_, pointer)| pointer.sizes));
+                let sizes = cx.style::<TimelineView<'_>>().map(TimelineViewStyle::sizes);
+                let placed = placed_rows(&panes, &tracks, &shared.anchors.borrow(), sizes);
                 if let Some((dragged, pointer)) = reports.drag {
                     let bounds = pane_rects
                         .iter()
@@ -614,11 +602,12 @@ impl<M: TimelineModel> Timeline<'_, M> {
                     }
                     marquee_rect = (!ended).then(|| marquee.rect());
                 }
-                if memory.snapped != reports.snapped || memory.marquee != marquee_rect {
-                    ui.ctx().request_repaint();
+                overlay.snapped(reports.snapped);
+                overlay.marquee(marquee_rect);
+                let lane_left = shared.anchors.borrow().iter().flatten().map(|anchor| anchor.lane_left).next();
+                if let (Some(lane_left), Some(panes)) = (lane_left, pane_rects.iter().copied().reduce(Rect::union)) {
+                    overlay.panes(panes, lane_left);
                 }
-                memory.snapped = reports.snapped;
-                memory.marquee = marquee_rect;
                 if let Some(db) = model.master_volume_db() {
                     mix_row(ui, &words, &env.view().format().number(f64::from(db), 1));
                 }
@@ -789,7 +778,16 @@ impl Component for Divider<'_> {
     type Output = EditResponse<f32>;
 
     fn style(cx: &StyleCx<'_>, _: DividerStyleKey) -> DividerStyle {
-        DividerStyle { metrics: Metrics::new().min_size(Vec2::new(0.0, cx.tokens.size.hit.target)) }
+        DividerStyle { metrics: Metrics::new(), grip: cx.tokens.size.hit.target }
+    }
+
+    /// As tall as the pointer's grab distance, across the width the panes have.
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(0.0, cx.style.grip)
+    }
+
+    fn fills(&self) -> Option<craft_behavior::Axis> {
+        Some(craft_behavior::Axis::X)
     }
 
     fn sense(&self) -> Sense {
@@ -816,12 +814,14 @@ impl Component for Divider<'_> {
     }
 }
 
-/// The divider has only its minimum size.
+/// The divider is as tall as the pointer's grab distance.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 pub struct DividerStyle {
     #[style(metrics)]
     metrics: Metrics,
+    /// The divider's height.
+    grip: f32,
 }
 
 #[cfg(feature = "screen-testing")]

@@ -277,7 +277,8 @@ fn the_divider_changes_and_keeps_the_share() {
     grip.rect = Rect::from_center_size(divider.center() + vec2(0.0, divider.rect.height() / 4.0), vec2(0.0, 0.0));
     fixture.drag(&grip, vec2(0.0, -divider.rect.height()));
     fixture.idle(2);
-    let share = seen.borrow().divider.expect("the drag reports a share");
+    let share = seen.borrow().divider;
+    let share = share.unwrap_or_else(|| panic!("the drag reports a share: the divider is at {:?}, the rows at {:?}", divider.rect, rows(&fixture)));
     assert!(share < DEFAULT_SHARE, "dragging up gives the video side less: {share}");
     let after = rows(&fixture)[2].top();
     assert!(after < before, "the audio side moved up with the divider: {before} -> {after}");
