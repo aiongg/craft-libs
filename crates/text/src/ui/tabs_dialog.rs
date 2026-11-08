@@ -1,6 +1,6 @@
-//! [`TabStopsDialog`] (N3.09): Word's and PowerPoint's Tabs dialog on the dialog stack: the
-//! default tab stops interval, the list of stops (position, alignment, leader, each editable in
-//! place), Set, Clear and Clear All; OK applies them together.
+//! [`TabStopsDialog`]: Word's and PowerPoint's Tabs dialog on the dialog stack: the default tab stops interval, the
+//! list of stops (position, alignment, leader), the selected stop's fields, Set, Clear and Clear All; OK applies them
+//! together.
 //!
 //! ```ignore
 //! dialogs.open(TabStopsDialog::new(paragraph.tabs.clone(), doc.default_tab).unit(unit));
@@ -9,27 +9,35 @@
 //! }
 //! ```
 
-use std::ops::RangeInclusive;
-use std::sync::Arc;
-
-use craft_ui::behavior::{RowInfo, Selection, SelectionMode};
-use craft_ui::controls::expr::ExprUnits;
-use craft_ui::controls::{Button, Select};
-use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, DialogState, Footer, InitialFocus, Outcome, StackDialog, Width};
-use craft_ui::edit::{DraftStep, EditEvent, EditResponse, GestureDraft};
-use craft_ui::list::{Table, TableColumn, TableEvent, TableLayout};
-use craft_ui::localized::units::{LengthUnit, UnitContext};
-use craft_ui::localized::{LocaleNumbers, SharedLabels as _, Units, fmt};
-use craft_ui::patterns::unit_number_field;
-use craft_ui::theme::{Tokens, TokensOf as _};
-use egui::{Context, Id, Ui};
-
+use super::length::{DocUnit, length_edit, length_field};
 use super::ruler::{MAX_POSITION, SAME_POSITION, TabAlign, TabLeader, TabStop};
+use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, ItemSource, Mixed, Selection, SelectionChange};
+use craft_ui::buttons::Button;
+use craft_ui::contract::{
+    Bind, CollectionEvent, ColumnSpec, Entry, Props as _, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, clicked,
+};
+use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
+use craft_ui::form::Field;
+use craft_ui::layout_components::{Row, Stack};
+use craft_ui::list::ListRow;
+use craft_ui::pickers::Select;
+use craft_ui::runtime::env::{Env, Units};
+use craft_ui::runtime::words::CommonWords;
+use craft_ui::sections::{DialogRole, FooterButton};
+use craft_ui::table::Table;
+use egui::Ui;
+use std::borrow::Cow;
+
+#[cfg(feature = "screen-testing")]
+mod stories;
+
+const POSITION: ColumnKey = ColumnKey::new("position");
+const ALIGNMENT: ColumnKey = ColumnKey::new("alignment");
+const LEADER: ColumnKey = ColumnKey::new("leader");
 
 craft_ui::words! {
-    /// The dialog's words (WordCraft's strings; PowerPoint's dialog uses the same).
-    #[non_exhaustive]
-    pub struct TabStopsLabels {
+    /// The dialog's words (Word's; PowerPoint's dialog uses the same).
+    pub struct TabStopsWords {
         title: "tabs.title" = "Tabs";
         default_stops: "tabs.defaultStops" = "Default tab stops:";
         position: "tabs.position" = "Tab stop position:";
@@ -43,9 +51,8 @@ craft_ui::words! {
         decimal: "tabs.decimal" = "Decimal";
         bar: "tabs.bar" = "Bar";
         leader_none: "tabs.leaderNone" = "None";
-        /// A leader option: Word numbers the fills, "1 ……" (the number is the leader's access key
-        /// in Word's list).
-        leader_option: "tabs.leaderOption" = "{n} {fill}";
+        /// A leader option: Word numbers the fills, "1 ……" (the number is the leader's access key in Word's list).
+        leader_option: template "tabs.leaderOption" = "{n} {fill}";
         set: "tabs.set" = "Set";
         clear: "tabs.clear" = "Clear";
         clear_all: "tabs.clearAll" = "Clear All";
@@ -67,84 +74,48 @@ pub struct TabStopsResult {
 /// The most stops the dialog reads from a paragraph (Word's 64).
 pub const MAX_STOPS: usize = 64;
 
+/// The interval Set steps by when the document's is not a positive number: Word's 0.5 in.
+const FALLBACK_INTERVAL: f32 = 36.0;
+
 /// The Tabs dialog.
 ///
-/// - The stops are a craft-ui [`Table`] (columns Position, Alignment,
-///   Leader; one Tab stop with the list keys and selection) whose cells are a `unit_number_field`
-///   in the unit and two `Select`s (the leader's options numbered as Word's: "1 ……"); editing a
-///   row in place keeps the table in row order until the edit ends, then
-///   [`TabStopsDialog::normalize`] restores position order and merges stops moved onto one
+/// - The stops are a `Table` (columns Position, Alignment, Leader; one Tab stop with the list keys and single
+///   selection). The selected stop's fields sit under it: a position field in the unit, an alignment `Select` and a
+///   leader `Select` whose options read as Word's list does ("1 ……"). Editing the position keeps the rows in order
+///   until the edit ends, then [`TabStopsDialog::normalize`] restores position order and merges stops moved onto one
 ///   another (the edited row wins).
-/// - Set adds a stop at the next free multiple of the default interval after the last stop, left
-///   aligned, no leader, selected and ready to edit; Clear moves the selected stop to "to be
-///   cleared"; Clear All clears every stop.
-/// - Positions are clamped to ±[`MAX_POSITION`]; at most
-///   [`MAX_STOPS`] stops are read from a paragraph.
-/// - Keys: Enter is OK unless a row's field has the keyboard (it commits the field), Esc Cancel.
+/// - Set adds a stop at the next free multiple of the default interval after the last stop, left aligned, no leader,
+///   selected; Clear moves the selected stop to "to be cleared"; Clear All clears every stop.
+/// - Positions are clamped to ±[`MAX_POSITION`]; at most [`MAX_STOPS`] stops are read from a paragraph.
+/// - Keys: Enter is OK unless a field owns it, Escape is Cancel.
+#[derive(craft_ui::contract::Pattern)]
 pub struct TabStopsDialog {
     stops: Vec<TabStop>,
     cleared: Vec<f32>,
     default_interval: f32,
     selected: Option<usize>,
     edited: Option<usize>,
-    unit: LengthUnit,
-    labels: Option<TabStopsLabels>,
-    state: DialogState,
-    layout: TableLayout<Col>,
-    /// The row whose position field takes the keyboard in the next pass (a stop Set just added).
-    to_edit: Option<usize>,
-    /// The row an in-place position edit is on and the position it began from, for Esc.
-    draft: Option<(usize, GestureDraft<f32>)>,
+    unit: DocUnit,
+    /// The row and position an in-place position edit began from, for Escape.
+    draft: Option<(usize, f32)>,
 }
-
-/// The stops table's columns.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Col {
-    Position,
-    Alignment,
-    Leader,
-}
-
-/// The rows the stops table shows before it scrolls.
-const VISIBLE_ROWS: usize = 6;
-
-/// The interval Set steps by when the document's is not a positive number: Word's 0.5 in.
-const FALLBACK_INTERVAL: f32 = 36.0;
 
 impl TabStopsDialog {
     /// The dialog over a paragraph's `stops` and the document's default interval (points).
     pub fn new(mut stops: Vec<TabStop>, default_interval: f32) -> Self {
         stops.retain(|stop| stop.position.is_finite());
         stops.truncate(MAX_STOPS);
-        TabStopsDialog {
-            stops,
-            cleared: Vec::new(),
-            default_interval,
-            selected: None,
-            edited: None,
-            unit: LengthUnit::Inches,
-            labels: None,
-            state: DialogState::new(),
-            layout: TableLayout { order: vec![Col::Position, Col::Alignment, Col::Leader], hidden: Vec::new(), widths: Vec::new(), sort: None },
-            to_edit: None,
-            draft: None,
-        }
+        TabStopsDialog { stops, cleared: Vec::new(), default_interval, selected: None, edited: None, unit: DocUnit::default(), draft: None }
     }
 
     /// Sets the unit the position fields show.
-    pub fn unit(mut self, unit: LengthUnit) -> Self {
+    #[must_use]
+    pub fn unit(mut self, unit: DocUnit) -> Self {
         self.unit = unit;
         self
     }
 
-    /// Sets the translated labels; the default reads them from the interface locale.
-    pub fn labels(mut self, labels: TabStopsLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
     /// Set: a stop at the next free multiple of the default interval after the last stop.
-    // wordcraft: crates/ui-egui/src/dialogs/dialogs_para.rs:75 `TabsForm::new_stop`.
     pub fn new_stop(&mut self) {
         if self.stops.len() >= MAX_STOPS {
             return;
@@ -171,7 +142,6 @@ impl TabStopsDialog {
 
     /// Position order after in-place edits, merging stops within [`SAME_POSITION`] (the edited
     /// row wins), the selection kept on its stop.
-    // wordcraft: crates/ui-egui/src/dialogs/dialogs_para.rs:123 `TabsForm::normalize`.
     pub fn normalize(&mut self) {
         let Some(edited) = self.edited.take() else { return };
         let followed = self.selected.and_then(|at| self.stops.get(at)).copied();
@@ -194,7 +164,7 @@ impl TabStopsDialog {
 
     /// An in-place edit of the stop at `at`: clamped, and a cleared position it lands on is no
     /// longer cleared. The rows keep their order until [`normalize`](Self::normalize).
-    pub(super) fn edit_position(&mut self, at: usize, position: f32) {
+    pub fn edit_position(&mut self, at: usize, position: f32) {
         if !position.is_finite() {
             return;
         }
@@ -205,12 +175,12 @@ impl TabStopsDialog {
         self.edited = Some(at);
     }
 
-    pub(super) fn select(&mut self, at: Option<usize>) {
+    pub fn select(&mut self, at: Option<usize>) {
         self.selected = at.filter(|at| *at < self.stops.len());
     }
 
     /// Clear: the selected stop moves to "to be cleared".
-    pub(super) fn clear(&mut self) {
+    pub fn clear(&mut self) {
         let Some(at) = self.selected.filter(|at| *at < self.stops.len()) else { return };
         let stop = self.stops.remove(at);
         self.cleared.push(stop.position);
@@ -219,266 +189,225 @@ impl TabStopsDialog {
     }
 
     /// Clear All.
-    pub(super) fn clear_all(&mut self) {
+    pub fn clear_all(&mut self) {
         self.cleared.extend(self.stops.drain(..).map(|stop| stop.position));
         self.selected = None;
         self.edited = None;
     }
 
-    /// What OK returns.
-    pub(super) fn result(&mut self) -> TabStopsResult {
+    /// What OK returns: the stops normalized, the cleared positions and the default interval.
+    pub fn result(&mut self) -> TabStopsResult {
         self.normalize();
         TabStopsResult { stops: self.stops.clone(), cleared: self.cleared.clone(), default_interval: self.default_interval }
     }
 }
 
+/// The stops as a collection source, keyed by position.
+struct Stops<'a> {
+    stops: &'a [TabStop],
+    texts: &'a [String],
+}
+
+impl DisplayOrder<usize> for Stops<'_> {
+    fn len(&self) -> usize {
+        self.stops.len()
+    }
+
+    fn key(&self, at: usize) -> usize {
+        at
+    }
+
+    fn index_of(&self, key: &usize) -> Option<usize> {
+        (*key < self.stops.len()).then_some(*key)
+    }
+
+    fn text(&self, at: usize) -> Option<Cow<'_, str>> {
+        self.texts.get(at).map(|text| Cow::Borrowed(text.as_str()))
+    }
+}
+
+impl ItemSource<usize> for Stops<'_> {}
+
 impl StackDialog for TabStopsDialog {
     type Result = TabStopsResult;
 
     fn id(&self) -> DialogId {
-        craft_ui::dialog::dialog_id("tab-stops")
+        dialog_id("tab-stops")
     }
 
-    // wordcraft: crates/ui-egui/src/dialogs/dialogs_para.rs:195 `tabs`; deckcraft:
-    // crates/ui-egui/src/dialogs/tabs.rs:7 `tabs_dialog` (PowerPoint's: default spacing, list, Set, Clear All).
-    fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<TabStopsResult>> {
-        let labels = match &self.labels {
-            Some(labels) => Arc::new(labels.clone()),
-            None => TabStopsLabels::shared_ctx(ctx),
-        };
-        let numbers = LocaleNumbers::of_ctx(ctx);
-        let mut state = std::mem::take(&mut self.state);
-        let shown = Dialog::with_id(self.id(), labels.title.as_str())
-            .stack(stack)
-            .width(Width::Standard)
-            .initial_focus(InitialFocus::Field(self.field_id("default")))
-            .footer(Footer::standard())
-            .show(ctx, &mut state, &mut (), |ui, ()| self.body(ui, &labels, &numbers));
-        self.state = state;
-        match shown.outcome {
-            Some(Outcome::Ok) => Some(DialogResult::Ok(self.result())),
-            Some(Outcome::Cancel | Outcome::Close) => Some(DialogResult::Cancel),
-            _ => None,
-        }
+    fn show(&mut self, ui: &mut Ui, _: &DialogStack) -> Option<DialogResult<TabStopsResult>> {
+        let env = Env::of(ui);
+        let words = env.words::<TabStopsWords>();
+        let common = env.words::<CommonWords>();
+        let units = env.units();
+        let buttons = [FooterButton::new(common.ok.clone(), DialogRole::Accept), FooterButton::new(common.cancel.clone(), DialogRole::Cancel)];
+        let shown = Dialog::new(words.title.clone()).buttons(buttons).show(ui, |ui, _| self.body(ui, &words, &units));
+        shown.output.result(|| self.result())
     }
 }
 
-/// A length field in `unit` over points.
-struct Lengths<'a> {
-    unit: LengthUnit,
-    numbers: &'a LocaleNumbers,
-    units: &'a Units,
-}
-
-fn rounded(value: f64, unit: LengthUnit) -> f64 {
-    let scale = 10f64.powi(unit.decimals() as i32);
-    (value * scale).round() / scale
-}
-
-impl Lengths<'_> {
-    /// The field for `points`; its events carry points.
-    fn field(&self, ui: &mut Ui, salt: impl egui::AsIdSalt, caption: &str, points: f32, range: RangeInclusive<f32>, id: Id) -> EditResponse<f32> {
-        let context = UnitContext::default();
-        let convert = |points: f64| context.from_pixels(points, self.unit).unwrap_or(points);
-        let shown = rounded(convert(f64::from(points)), self.unit);
-        let units = ExprUnits { unit: Some(self.unit), suffix: self.unit.suffix(), context };
-        let field = unit_number_field(salt, caption, shown, self.numbers, &units)
-            .range(convert(f64::from(*range.start()))..=convert(f64::from(*range.end())))
-            .with_id(id);
-        field.show(ui).map(|value| context.to_pixels(value, self.unit).map_or(points, |points| points as f32))
-    }
-
-    /// `points` as the number in the unit with its suffix.
-    fn text(&self, points: f32) -> String {
-        let value = UnitContext::default().from_pixels(f64::from(points), self.unit).unwrap_or(f64::from(points));
-        self.units.length(self.unit, value)
-    }
-}
-
-/// A change made in a cell of the stops table.
+/// A change made in the selected stop's fields.
 enum CellEdit {
-    Position(usize, EditEvent<f32>),
-    Align(usize, TabAlign),
-    Leader(usize, TabLeader),
+    Position(EditEvent<Option<f64>>),
+    Align(TabAlign),
+    Leader(TabLeader),
 }
 
 impl TabStopsDialog {
-    fn field_id(&self, name: &str) -> Id {
-        self.id().with(name)
-    }
-
-    fn body(&mut self, ui: &mut Ui, labels: &TabStopsLabels, numbers: &LocaleNumbers) {
-        let units = Units::of(ui);
-        let lengths = Lengths { unit: self.unit, numbers, units: &units };
-        self.default_row(ui, labels, &lengths);
-        let edits = self.table(ui, labels, &lengths);
-        for edit in edits {
-            self.apply(edit);
-        }
-        self.buttons(ui, labels);
-        if !self.cleared.is_empty() {
-            ui.label(labels.to_be_cleared.as_str());
-            let positions: Vec<String> = self.cleared.iter().map(|gone| lengths.text(*gone)).collect();
-            ui.label(positions.join(", "));
-        }
-    }
-
-    fn default_row(&mut self, ui: &mut Ui, labels: &TabStopsLabels, lengths: &Lengths<'_>) {
-        ui.horizontal(|ui| {
-            ui.label(labels.default_stops.as_str());
-            let edit = lengths.field(
-                ui,
-                "tabs-default",
-                &labels.default_stops,
-                self.default_interval,
-                SAME_POSITION..=MAX_POSITION,
-                self.field_id("default"),
-            );
-            if let Some(value) = edit.event.as_ref().and_then(|event| match event {
-                EditEvent::Commit { changed: false, .. } => None,
-                event => event.value().copied(),
-            }) {
-                self.default_interval = value;
+    fn body(&mut self, ui: &mut Ui, words: &TabStopsWords, units: &Units) {
+        Stack::new().show(ui, |ui, _| {
+            self.default_row(ui, words, units);
+            self.table(ui, words, units);
+            self.fields(ui, words, units);
+            self.buttons(ui, words);
+            if !self.cleared.is_empty() {
+                let positions: Vec<String> = self.cleared.iter().map(|gone| self.text(units, *gone)).collect();
+                craft_ui::display::Text::new(format!("{} {}", words.to_be_cleared.as_str(), positions.join(", "))).show(ui);
             }
         });
     }
 
-    fn columns(labels: &TabStopsLabels) -> Vec<TableColumn<Col>> {
-        let column = |key, label: &str| TableColumn::new(key, label).sortable(false);
-        vec![column(Col::Position, &labels.position_column), column(Col::Alignment, &labels.alignment), column(Col::Leader, &labels.leader)]
+    /// `points` as the number in the unit with its suffix.
+    fn text(&self, units: &Units, points: f32) -> String {
+        units.show(self.unit.kind, self.unit.shown(f64::from(points), units.points_per_inch()))
     }
 
-    /// The stops table; returns the edits its cells made.
-    fn table(&mut self, ui: &mut Ui, labels: &TabStopsLabels, lengths: &Lengths<'_>) -> Vec<CellEdit> {
-        let columns = Self::columns(labels);
-        let rows: Vec<RowInfo<usize>> = (0..self.stops.len()).map(RowInfo::leaf).collect();
-        let style = Table::style(&Tokens::of(ui));
-        let body = self.stops.len().clamp(1, VISIBLE_ROWS) as f32 * style.row_height;
-        let mut selection = self.selected.map_or_else(Selection::new, Selection::only);
-        let (stops, to_edit) = (self.stops.clone(), self.to_edit.take());
-        let edit_ids: Vec<Id> = (0..stops.len()).map(|at| self.field_id("position").with(at)).collect();
+    fn default_row(&mut self, ui: &mut Ui, words: &TabStopsWords, units: &Units) {
+        let unit = self.unit;
+        let shown = Mixed::Same(Some(f64::from(self.default_interval)));
+        let range = f64::from(SAME_POSITION)..=f64::from(MAX_POSITION);
+        let edit = Field::new(words.default_stops.clone())
+            .show(ui, |ui, _| length_field(units, words.default_stops.clone(), unit, shown, range).show(ui))
+            .inner;
+        if let Some(event) = edit.and_then(|out| out.edit.event) {
+            let event = length_edit(units, unit, event);
+            if !matches!(event, EditEvent::Update { .. } | EditEvent::Commit { .. } | EditEvent::Set { .. }) {
+                return;
+            }
+            if let Some(Some(points)) = event.value() {
+                self.default_interval = *points as f32;
+            }
+        }
+    }
+
+    /// The stops table; a selection change moves the selected stop.
+    fn table(&mut self, ui: &mut Ui, words: &TabStopsWords, units: &Units) {
+        let columns = vec![
+            ColumnSpec::new(POSITION, words.position_column.clone(), ColumnWidth::fill(1.0)),
+            ColumnSpec::new(ALIGNMENT, words.alignment.clone(), ColumnWidth::fill(1.0)),
+            ColumnSpec::new(LEADER, words.leader.clone(), ColumnWidth::fill(1.0)),
+        ];
+        let texts: Vec<String> = self.stops.iter().map(|stop| self.text(units, stop.position)).collect();
+        let selection = self.selected.map_or_else(Selection::default, Selection::single);
+        let stops = self.stops.clone();
+        let out = Table::<usize>::new(words.title.clone(), columns.clone()).select(SelectMode::Single).selection(Bind::given(selection)).show_items(
+            ui,
+            &Stops { stops: &stops, texts: &texts },
+            &mut |key, icx| {
+                let stop = &stops[*key];
+                ListRow::new(texts[*key].clone())
+                    .cells(icx.cells())
+                    .columns(&columns)
+                    .cell(ALIGNMENT, align_text(words, stop.align))
+                    .cell(LEADER, leader_text(words, stop.leader))
+            },
+        );
+        for event in out.events {
+            if let CollectionEvent::Selection(change) = event {
+                match change {
+                    SelectionChange::Set(keys) => self.select(keys.last().copied()),
+                    SelectionChange::Clear => self.select(None),
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    /// The selected stop's position, alignment and leader.
+    fn fields(&mut self, ui: &mut Ui, words: &TabStopsWords, units: &Units) {
+        let Some((at, stop)) = self.selected.and_then(|at| self.stops.get(at).map(|stop| (at, *stop))) else { return };
+        let unit = self.unit;
+        let aligns: Vec<Entry<TabAlign>> = TabAlign::ALL.into_iter().map(|align| Entry::new(align, align_text(words, align))).collect();
+        let leaders: Vec<Entry<TabLeader>> = TabLeader::ALL.into_iter().map(|leader| Entry::new(leader, leader_text(words, leader))).collect();
         let mut edits = Vec::new();
-        let output = Table::new("tabs-stops", labels.title.as_str(), &columns, &mut self.layout, rows.as_slice())
-            .selection(&mut selection)
-            .mode(SelectionMode::Single)
-            .movable(false)
-            .max_height(body)
-            .show(ui, |ui, &at, column, _| {
-                let Some(stop) = stops.get(at) else { return };
-                match column {
-                    Col::Position => {
-                        let id = edit_ids.get(at).copied().unwrap_or_else(|| ui.scope_id().with(("tabs-position", at)));
-                        if to_edit == Some(at) {
-                            ui.memory_mut(|m| m.request_focus(id));
-                        }
-                        let edit = lengths.field(ui, ("tabs-position", at), &labels.position, stop.position, -MAX_POSITION..=MAX_POSITION, id);
-                        edits.extend(edit.event.map(|event| CellEdit::Position(at, event)));
-                    }
-                    Col::Alignment => {
-                        let mut align = stop.align;
-                        let _ = align_select(ui, at, labels, &mut align);
-                        if align != stop.align {
-                            edits.push(CellEdit::Align(at, align));
-                        }
-                    }
-                    Col::Leader => {
-                        let mut leader = stop.leader;
-                        let _ = leader_select(ui, at, labels, &mut leader);
-                        if leader != stop.leader {
-                            edits.push(CellEdit::Leader(at, leader));
-                        }
-                    }
+        Row::new().show(ui, |ui, _| {
+            let range = -f64::from(MAX_POSITION)..=f64::from(MAX_POSITION);
+            let field = Field::new(words.position.clone())
+                .show(ui, |ui, _| length_field(units, words.position.clone(), unit, Mixed::Same(Some(f64::from(stop.position))), range).show(ui))
+                .inner;
+            edits.extend(field.and_then(|field| field.edit.event).map(CellEdit::Position));
+            let align = Select::new(words.alignment.clone(), Bind::given(stop.align), &aligns).show(ui);
+            edits.extend(align.value().copied().map(CellEdit::Align));
+            let leader = Select::new(words.leader.clone(), Bind::given(stop.leader), &leaders).show(ui);
+            edits.extend(leader.value().copied().map(CellEdit::Leader));
+        });
+        for edit in edits {
+            match edit {
+                CellEdit::Position(event) => {
+                    let event = length_edit(units, unit, event).map(|points| points.map(|p| p as f32));
+                    self.apply_position(at, event);
                 }
-            });
-        for event in output.events {
-            if let TableEvent::Selection(change) = event {
-                self.select(change.selection.lead);
-            }
-        }
-        edits
-    }
-
-    fn apply(&mut self, edit: CellEdit) {
-        match edit {
-            CellEdit::Position(at, event) => self.apply_position(at, event),
-            CellEdit::Align(at, align) => {
-                if let Some(stop) = self.stops.get_mut(at) {
-                    stop.align = align;
-                }
-            }
-            CellEdit::Leader(at, leader) => {
-                if let Some(stop) = self.stops.get_mut(at) {
-                    stop.leader = leader;
-                }
+                CellEdit::Align(align) => self.stops[at].align = align,
+                CellEdit::Leader(leader) => self.stops[at].leader = leader,
             }
         }
     }
 
-    /// An in-place position edit: rows keep their order until the edit ends. The draft helper
-    /// restores the position the edit began from on Cancel.
-    pub(super) fn apply_position(&mut self, at: usize, event: EditEvent<f32>) {
-        let Some(mut position) = self.stops.get(at).map(|stop| stop.position) else { return };
-        let (row, mut draft) = match self.draft.take() {
-            Some((row, draft)) if row == at && draft.active() => (row, draft),
-            _ => (at, GestureDraft::new()),
-        };
-        let step = draft.apply(&mut position, event);
-        self.edit_position(row, position);
-        match step {
-            DraftStep::Previewed => self.draft = Some((row, draft)),
-            DraftStep::Committed => {
-                self.edited = self.edited.or(Some(at));
+    /// An in-place position edit: rows keep their order until the edit ends. Escape restores the position the edit
+    /// began from.
+    pub fn apply_position(&mut self, at: usize, event: EditEvent<Option<f32>>) {
+        let Some(current) = self.stops.get(at).map(|stop| stop.position) else { return };
+        match event {
+            EditEvent::Begin { .. } => self.draft = Some((at, current)),
+            EditEvent::Update { value: Some(position), .. } => {
+                self.draft.get_or_insert((at, current));
+                self.edit_position(at, position);
+            }
+            EditEvent::Commit { after: Some(position), .. } | EditEvent::Set { after: Some(position), .. } => {
+                self.draft = None;
+                self.edit_position(at, position);
                 self.normalize();
             }
-            DraftStep::Restored | DraftStep::Set => self.normalize(),
+            EditEvent::Cancel { .. } => {
+                if let Some((row, start)) = self.draft.take() {
+                    self.edit_position(row, start);
+                    self.normalize();
+                }
+            }
             _ => {}
         }
     }
 
-    fn buttons(&mut self, ui: &mut Ui, labels: &TabStopsLabels) {
-        ui.horizontal(|ui| {
-            let button =
-                |ui: &mut Ui, name: &str, label: &str, enabled: bool| ui.add(Button::new(label).enabled(enabled).id_salt(("tabs", name))).clicked();
-            if button(ui, "set", &labels.set, self.stops.len() < MAX_STOPS) {
+    fn buttons(&mut self, ui: &mut Ui, words: &TabStopsWords) {
+        Row::new().show(ui, |ui, _| {
+            if clicked(&Button::new(words.set.clone()).enabled(self.stops.len() < MAX_STOPS).show(ui)) {
                 self.new_stop();
             }
-            if button(ui, "clear", &labels.clear, self.selected.is_some()) {
+            if clicked(&Button::new(words.clear.clone()).enabled(self.selected.is_some()).show(ui)) {
                 self.clear();
             }
-            if button(ui, "clear-all", &labels.clear_all, !self.stops.is_empty()) {
+            if clicked(&Button::new(words.clear_all.clone()).enabled(!self.stops.is_empty()).show(ui)) {
                 self.clear_all();
             }
         });
     }
 }
 
-fn align_select(ui: &mut Ui, at: usize, labels: &TabStopsLabels, align: &mut TabAlign) -> EditResponse<TabAlign> {
-    Select::new(("tabs-align", at), labels.alignment.as_str(), align)
-        .option(TabAlign::Left, labels.left.as_str())
-        .option(TabAlign::Center, labels.center.as_str())
-        .option(TabAlign::Right, labels.right.as_str())
-        .option(TabAlign::Decimal, labels.decimal.as_str())
-        .option(TabAlign::Bar, labels.bar.as_str())
-        .show(ui)
-}
-
-/// The leader's options read as Word's list does: "None", then each fill after its number. The
-/// closed box shows the fill alone, as Word's does.
-fn leader_select(ui: &mut Ui, at: usize, labels: &TabStopsLabels, leader: &mut TabLeader) -> EditResponse<TabLeader> {
-    let mut select = Select::new(("tabs-leader", at), labels.leader.as_str(), leader);
-    for kind in TabLeader::ALL {
-        select = select.option(kind, leader_text(labels, kind));
-        if kind != TabLeader::None {
-            select = select.option_closed_text(kind.sample());
-        }
+fn align_text(words: &TabStopsWords, align: TabAlign) -> String {
+    match align {
+        TabAlign::Left => words.left.as_str(),
+        TabAlign::Center => words.center.as_str(),
+        TabAlign::Right => words.right.as_str(),
+        TabAlign::Decimal => words.decimal.as_str(),
+        TabAlign::Bar => words.bar.as_str(),
     }
-    select.show(ui)
+    .to_owned()
 }
 
-/// A leader option's text: "None", or the fill after its number.
-pub(super) fn leader_text(labels: &TabStopsLabels, kind: TabLeader) -> String {
+/// A leader option's text as Word's list reads: "None", or the fill after its number.
+pub fn leader_text(words: &TabStopsWords, kind: TabLeader) -> String {
     match TabLeader::ALL.iter().position(|other| *other == kind) {
-        Some(n) if kind != TabLeader::None => fmt(&labels.leader_option, &[("n", &n.to_string()), ("fill", kind.sample())]),
-        _ => labels.leader_none.clone(),
+        Some(n) if kind != TabLeader::None => words.leader_option.fill(&[("n", &n.to_string()), ("fill", kind.sample())]),
+        _ => words.leader_none.as_str().to_owned(),
     }
 }
