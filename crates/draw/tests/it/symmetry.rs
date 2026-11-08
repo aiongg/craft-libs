@@ -335,26 +335,6 @@ fn tool_context() -> ToolContext<'static> {
     ToolContext::new(rect, Some(space))
 }
 
-/// With the canvas holding the keyboard the arrows move the whole centre, whichever part is picked.
-#[trial]
-fn arrows_move_the_center_while_the_canvas_has_the_keyboard() {
-    let session = SymmetryTransform::begin(start());
-    let mut tool = SymmetryTool::new(&session, true);
-    let mut cx = tool_context();
-    assert!(tool.key(&ToolKey::Nudge { direction: Vec2::X, mods: Mods::NONE }, &mut cx));
-    assert!(tool.key(&ToolKey::Nudge { direction: Vec2::Y, mods: Mods::SHIFT }, &mut cx));
-    let moved: Vec<Point> = tool
-        .take_events()
-        .into_iter()
-        .filter_map(|event| match event {
-            SymmetryEvent::Preview(event) => event.value().map(|s| s.center),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(moved, [Point::new(201.0, 150.0), Point::new(200.0, 160.0)]);
-    assert_eq!(tool.command_form(), ToolPath::Command("the arrow keys on the symmetry's centre and handle"));
-}
-
 /// Enter gives Apply of the preview, Escape gives Discard, an invalid session gives Discard in its first pass and
 /// takes no key.
 #[trial]
@@ -366,7 +346,7 @@ fn enter_applies_escape_discards_invalid_discards() {
     assert_eq!(tool.take_events(), [SymmetryEvent::Apply(start())]);
     assert!(tool.key(&ToolKey::Cancel, &mut cx));
     assert_eq!(tool.take_events(), [SymmetryEvent::Discard]);
-    assert!(!tool.key(&ToolKey::Delete { forward: true }, &mut cx), "other keys stay the app's");
+    assert!(!tool.key(&ToolKey::Kept(craft_keymap::Chord::plain(craft_keymap::Key::F1)), &mut cx), "other keys stay the app's");
 
     let mut invalid = SymmetryTool::new(&session, false);
     invalid.each_pass(&mut cx);

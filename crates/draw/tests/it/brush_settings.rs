@@ -34,9 +34,9 @@ fn ellipse_grab_prefers_the_dots_within_the_reach() {
 #[trial]
 fn ellipse_drag_sets_angle_and_roundness() {
     let start = TipAngle::new(10.0, 0.5);
-    let turned = ellipse_drag(TipEllipseGrab::Angle, Vec2::NEG_Y * PULL, start, RADIUS);
+    let turned = ellipse_drag(TipEllipseGrab::Angle, -Vec2::Y * PULL, start, RADIUS);
     assert_eq!((turned.degrees, turned.roundness), (90.0, 0.5));
-    let squashed = ellipse_drag(TipEllipseGrab::Roundness, Vec2::NEG_Y * RADIUS, TipAngle::new(0.0, 0.5), RADIUS);
+    let squashed = ellipse_drag(TipEllipseGrab::Roundness, -Vec2::Y * RADIUS, TipAngle::new(0.0, 0.5), RADIUS);
     assert_eq!((squashed.degrees, squashed.roundness), (0.0, 1.0));
     assert_eq!(ellipse_drag(TipEllipseGrab::Angle, Vec2::X * NEAR_CENTRE, start, RADIUS), start);
 }
@@ -109,7 +109,7 @@ fn a_click_on_a_pane_row_selects_and_enables_it() {
     fixture.idle(2);
     let seen = events.borrow();
     assert!(seen.contains(&BrushSectionEvent::Select(1)));
-    assert!(seen.iter().any(|event| matches!(event, BrushSectionEvent::Enable { key: 1, on: true })));
+    assert!(seen.iter().any(|event| matches!(event, BrushSectionEvent::Enable { key: 1, on: true, .. })));
 }
 
 /// A click on the link row opens the Brushes panel and nothing else.
@@ -136,6 +136,6 @@ fn switch_rows_only_toggle() {
     fixture.click(&target);
     fixture.idle(2);
     let seen = events.borrow();
-    assert!(seen.iter().any(|event| matches!(event, BrushSectionEvent::Switch { key: 10, on: true })));
+    assert!(seen.iter().any(|event| matches!(event, BrushSectionEvent::Switch { key: 10, on: true, .. })));
     assert!(!seen.iter().any(|event| matches!(event, BrushSectionEvent::Select(_))));
 }

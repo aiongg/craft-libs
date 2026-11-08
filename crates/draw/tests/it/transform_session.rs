@@ -159,7 +159,7 @@ fn mode_and_interpolation_stay_outside_the_undo_steps() {
 fn a_field_typing_run_builds_every_report_from_the_box_at_its_start() {
     let mut s = session();
     let id = GestureId::new(1);
-    let row = |dx: f64, skew_v: f64| TransformRow { state: moved(doc(dx, 0.0)), skew_v };
+    let row = |dx: f64, skew_v: f64| TransformRow::new(moved(doc(dx, 0.0)), skew_v);
     s.apply(TransformEdit::Fields(begin(id)), 0.0);
     s.apply(TransformEdit::Fields(update(id, row(3.0, 5.0))), 0.0);
     s.settle(0.0, false);
@@ -199,7 +199,7 @@ fn entering_warp_asks_for_a_warp_and_carries_the_box() {
     let mut s = session();
     drag(&mut s, moved(doc(10.0, 0.0)), 0.0);
     let request = s.apply(TransformEdit::WarpRequested, 1.0);
-    let Some(TransformRequest::NeedWarp { rect, state }) = request else { panic!("expected NeedWarp") };
+    let Some(TransformRequest::NeedWarp { rect, state, .. }) = request else { panic!("expected NeedWarp") };
     assert_eq!((rect, state), (FRAME, moved(doc(10.0, 0.0))));
     assert_eq!(s.phase(), TransformPhase::Box);
     s.apply(TransformEdit::Warp(Warp(false)), 1.0);

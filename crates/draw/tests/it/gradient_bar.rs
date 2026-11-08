@@ -330,13 +330,13 @@ fn the_bar_and_its_markers_are_in_the_accesskit_tree() {
     let rig = rig(stops, StopRules::default(), false);
     let tree = rig.fixture.tree();
     let bar = rig.fixture.by_label("Gradient").expect("the bar is named by its label");
-    assert_eq!(tree.role(bar.node.id()), Some(Role::GROUP));
-    assert_eq!(tree.value(bar.node.id()), Some("2 color stops, 2 opacity stops"));
+    assert_eq!(tree.role_of(bar.node), Some(Role::GROUP));
+    assert_eq!(tree.value_of(bar.node), Some("2 color stops, 2 opacity stops"));
     for (name, value) in [("Color stop 1 of 2", "0%, #FF0000"), ("Color stop 2 of 2", "100%, #0000FF"), ("Opacity stop 2 of 2", "100%, opacity 50%")]
     {
         let marker = rig.marker(name);
-        assert_eq!(tree.role(marker.node.id()), Some(Role::GRAPHICS_OBJECT), "{name}");
-        assert_eq!(tree.value(marker.node.id()), Some(value), "{name}");
+        assert_eq!(tree.role_of(marker.node), Some(Role::GRAPHICS_OBJECT), "{name}");
+        assert_eq!(tree.value_of(marker.node), Some(value), "{name}");
     }
 }
 

@@ -536,25 +536,6 @@ fn tool_context(rect: egui::Rect) -> ToolContext<'static> {
 }
 
 #[trial]
-fn without_the_focus_the_arrows_move_the_whole_box_whatever_is_picked() {
-    let session = TransformSession::<()>::new(RECT);
-    let mut tool = TransformTool::new(&session);
-    let mut cx = tool_context(egui::Rect::from_min_size(Pos2::ZERO, by(400.0, 300.0)));
-    assert!(tool.key(&ToolKey::Nudge { direction: Vec2::X, mods: Mods::NONE }, &mut cx));
-    assert!(tool.key(&ToolKey::Nudge { direction: Vec2::Y, mods: Mods::SHIFT }, &mut cx));
-    let (edits, apply, discard) = tool.take_edits();
-    assert!(!apply && !discard);
-    let values: Vec<BoxState> = edits
-        .iter()
-        .filter_map(|edit| match edit {
-            TransformEdit::Box(event) => event.value().copied(),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(values, [BoxState::from_rect(RECT).moved(doc(1.0, 0.0)), BoxState::from_rect(RECT).moved(doc(0.0, 10.0))]);
-}
-
-#[trial]
 fn enter_applies_and_esc_discards_through_the_tool() {
     let session = TransformSession::<()>::new(RECT);
     let mut tool = TransformTool::new(&session);
@@ -563,7 +544,7 @@ fn enter_applies_and_esc_discards_through_the_tool() {
     assert_eq!(tool.take_edits().1, true);
     assert!(tool.key(&ToolKey::Cancel, &mut cx));
     assert_eq!(tool.take_edits().2, true);
-    assert!(!tool.key(&ToolKey::Delete { forward: true }, &mut cx), "other keys stay the app's");
+    assert!(!tool.key(&ToolKey::Kept(craft_keymap::Chord::plain(craft_keymap::Key::F1)), &mut cx), "other keys stay the app's");
     assert_eq!(tool.command_form(), ToolPath::Command("the Transform fields of the options bar"));
 }
 

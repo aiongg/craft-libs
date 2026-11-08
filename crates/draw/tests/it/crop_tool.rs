@@ -9,6 +9,7 @@ use craft_draw::ui::crop::{
 };
 use craft_keymap::{Chord, Key, Mods};
 use craft_ui::canvas::{Canvas, CanvasSpace, CanvasTool as _, ToolContext, ToolHost, ToolKey};
+use craft_ui::contract::ShowContainer as _;
 use craft_ui::runtime::access::Role;
 use craft_ui::runtime::env::Units;
 use craft_ui::testing::{Fixture, pointer, trial};

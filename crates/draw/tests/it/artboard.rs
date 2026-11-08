@@ -65,6 +65,7 @@ fn harness(rules: ArtboardRules, selected: &[usize]) -> Harness {
                 ArtboardEvent::Resize {
                     index,
                     event: EditEvent::Update { value, .. } | EditEvent::Commit { after: value, .. } | EditEvent::Set { after: value, .. },
+                    ..
                 } => {
                     app.items[*index].rect = *value;
                 }
@@ -276,10 +277,8 @@ fn make_portrait_shows_only_while_the_board_is_wider_than_tall() {
 
 #[trial]
 fn properties_background_other_asks_for_a_color() {
-    let board = ArtboardItem {
-        background: ArtboardBackground::Custom(craft_theme::Srgba::rgb(0.9, 0.4, 0.2)),
-        ..ArtboardItem::new("One", Rect::new(0.0, 0.0, 100.0, 100.0))
-    };
+    let mut board = ArtboardItem::new("One", Rect::new(0.0, 0.0, 100.0, 100.0));
+    board.background = ArtboardBackground::Custom(craft_theme::Srgba::rgb(0.9, 0.4, 0.2));
     let asked = Rc::new(RefCell::new(None));
     let seen = Rc::clone(&asked);
     let presets = presets();

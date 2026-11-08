@@ -13,7 +13,7 @@ use craft_draw::ui::connector::{
 use craft_draw::ui::stroke::{StrokeChoice, StrokeChoiceRow};
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::canvas::{Canvas, CanvasSpace, CanvasTool as _, ToolContext, ToolPointer};
-use craft_ui::contract::{Bind, ShowContainer as _};
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, ToolFixture, trial};
 use egui::{Key, Modifiers, Pos2, Vec2, pos2, vec2};
 
@@ -237,6 +237,7 @@ fn glued_to(end: &ConnectorEnd) -> Option<u64> {
     match end {
         ConnectorEnd::Glued { target, .. } => Some(*target),
         ConnectorEnd::Free(_) => None,
+        _ => None,
     }
 }
 

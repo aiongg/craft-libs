@@ -424,7 +424,7 @@ fn a_draft_ended_with_one_anchor_leaves_no_path() {
     pen.key(Key::Escape, Modifiers::NONE);
     assert!(pen.filed().is_none() && pen.finished(), "{:?}", pen.kinds());
     // A resumed path of two anchors that shrinks to one is removed from the host: the empty draft is committed.
-    let path = EditSubpath { knots: vec![Knot::corner(doc(300.0, 250.0)), Knot::corner(doc(360.0, 200.0))], closed: false };
+    let path = EditSubpath::new(vec![Knot::corner(doc(300.0, 250.0)), Knot::corner(doc(360.0, 200.0))], false);
     let mut pen = pen_with(PenTool::new(), view_of);
     pen.fixture.tool_mut().draft(Some(&path));
     pen.fixture.fixture().idle(1);
@@ -665,7 +665,7 @@ fn options(rubber_band: bool, color: Option<[u8; 3]>, thickness: Option<f32>) ->
 /// key, Shift, Alt and Command.
 #[trial]
 fn path_mode_resolves_the_pen_tools_and_modifiers() {
-    use BezierTool::{AddAnchor, AutoAddDelete, Convert, Curvature, DeleteAnchor, Direct, Show};
+    use BezierTool::{AddAnchor, Anchors, AutoAddDelete, Convert, Curvature, DeleteAnchor, Direct};
     use PathTool as T;
     let (none, shift, alt, cmd) = (Mods::NONE, Mods::SHIFT, Mods::ALT, Mods::CMD);
     let (pen, curve) = (Some(PenMode::Pen), Some(PenMode::Curvature));
@@ -680,19 +680,19 @@ fn path_mode_resolves_the_pen_tools_and_modifiers() {
     assert_eq!(r(T::Curvature, cmd, true, false), mode(Direct, curve, false));
 
     // The Pen.
-    assert_eq!(r(T::Pen, none, true, true), mode(Show, pen, true));
+    assert_eq!(r(T::Pen, none, true, true), mode(Anchors, pen, true));
     assert_eq!(r(T::Pen, none, false, true), mode(AutoAddDelete, pen, true));
-    assert_eq!(r(T::Pen, none, false, false), mode(Show, pen, true));
+    assert_eq!(r(T::Pen, none, false, false), mode(Anchors, pen, true));
     assert_eq!(r(T::Pen, alt, false, true), mode(Convert, pen, true));
     for held in [shift, alt] {
-        assert_eq!(r(T::Pen, held, true, true), mode(Show, pen, true));
+        assert_eq!(r(T::Pen, held, true, true), mode(Anchors, pen, true));
     }
-    assert_eq!(r(T::Pen, shift, false, true), mode(Show, pen, true));
+    assert_eq!(r(T::Pen, shift, false, true), mode(Anchors, pen, true));
 
     // The Curvature Pen.
     for held in [none, shift, alt] {
         assert_eq!(r(T::Curvature, held, false, true), mode(Curvature, curve, true));
-        assert_eq!(r(T::Curvature, held, true, true), mode(Show, curve, true));
+        assert_eq!(r(T::Curvature, held, true, true), mode(Anchors, curve, true));
     }
 
     // The anchor tools: the swap with Alt is the overlay's; the draft shows without sensing.
