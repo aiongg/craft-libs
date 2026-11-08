@@ -425,6 +425,10 @@ fn map_events<T: LayerTree>(
                     }
                 }
             }
+            CollectionEvent::Item(LayerRowKey::Layer(id), RowEvent::Open { open, all, .. }) => {
+                let change = OpenChange::new(id, open);
+                events.push(LayersEvent::Open(if all { change.all() } else { change }));
+            }
             CollectionEvent::Item(row, RowEvent::LinkToggled { thumb, linked, .. }) => {
                 if let Some(mask) = tree.info(row.layer()).masks.get(thumb) {
                     events.push(LayersEvent::MaskLink { layer: row.layer().clone(), part: mask.part, linked });
