@@ -236,7 +236,9 @@ pub(super) fn run(fixture: &mut Fixture, plan: Plan, variant: usize) {
             drag(fixture, grip, variant == 1);
         }
         Plan::Type(text, story) => {
-            if !focus_subject(fixture) {
+            // A disabled subject takes no focus and no text, which the disabled case checks.
+            let disabled = super::nodes::root(fixture).is_some_and(|root| fixture.tree().data_of(root.node).is_some_and(|node| node.is_disabled()));
+            if !focus_subject(fixture) && !disabled {
                 panic!("{story}: Tab never moved focus into the component, so the typed text has nowhere to go");
             }
             fixture.type_text(text);
