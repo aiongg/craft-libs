@@ -7,6 +7,7 @@ mod blur_pins;
 mod channels;
 mod curve;
 mod histogram;
+mod layer_style;
 mod layer_style_parts;
 mod perspective_warp;
 mod pin_warp;

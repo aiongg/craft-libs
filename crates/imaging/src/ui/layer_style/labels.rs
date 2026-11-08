@@ -1,6 +1,7 @@
-//! The words of the Layer Style dialog, the Blend If bar and the contour field.
+//! The words of the Layer Style dialog: pages, effects, fields, choices and the Blending Options page.
 
 use crate::layer_style::EffectKind;
+use craft_ui::runtime::env::Label;
 
 craft_ui::words! {
     /// Every word of the Layer Style dialog, English by default: pages, effect names, field
@@ -9,27 +10,27 @@ craft_ui::words! {
     /// it ([`field`](Self::field), [`choice`](Self::choice), [`effect`](Self::effect)); an
     /// app's own specs show their own labels.
     #[non_exhaustive]
-    pub struct LayerStyleLabels {
+    pub struct LayerStyleWords {
         /// The effect list's accessible name.
         effects: "layerStyle.effects" = "Effects";
         styles: "layerStyle.styles" = "Styles";
         blending_options: "layerStyle.blendingOptions" = "Blending Options";
-        bevel_emboss: "layerStyle.effect.bevelEmboss" = "Bevel & Emboss";
-        stroke: "layerStyle.effect.stroke" = "Stroke";
-        inner_shadow: "layerStyle.effect.innerShadow" = "Inner Shadow";
-        inner_glow: "layerStyle.effect.innerGlow" = "Inner Glow";
-        satin: "layerStyle.effect.satin" = "Satin";
-        color_overlay: "layerStyle.effect.colorOverlay" = "Color Overlay";
-        gradient_overlay: "layerStyle.effect.gradientOverlay" = "Gradient Overlay";
-        pattern_overlay: "layerStyle.effect.patternOverlay" = "Pattern Overlay";
-        outer_glow: "layerStyle.effect.outerGlow" = "Outer Glow";
-        drop_shadow: "layerStyle.effect.dropShadow" = "Drop Shadow";
+        bevel_emboss: "layerStyle.effectBevelEmboss" = "Bevel & Emboss";
+        stroke: "layerStyle.effectStroke" = "Stroke";
+        inner_shadow: "layerStyle.effectInnerShadow" = "Inner Shadow";
+        inner_glow: "layerStyle.effectInnerGlow" = "Inner Glow";
+        satin: "layerStyle.effectSatin" = "Satin";
+        color_overlay: "layerStyle.effectColorOverlay" = "Color Overlay";
+        gradient_overlay: "layerStyle.effectGradientOverlay" = "Gradient Overlay";
+        pattern_overlay: "layerStyle.effectPatternOverlay" = "Pattern Overlay";
+        outer_glow: "layerStyle.effectOuterGlow" = "Outer Glow";
+        drop_shadow: "layerStyle.effectDropShadow" = "Drop Shadow";
         /// The `+` button's accessible name; `{effect}` is the effect's name.
-        add_instance: "layerStyle.addInstance" = "Add another {effect}";
+        add_instance: template "layerStyle.addInstance" = "Add another {effect}";
         /// The `−` button's accessible name.
-        remove_instance: "layerStyle.removeInstance" = "Remove this {effect}";
+        remove_instance: template "layerStyle.removeInstance" = "Remove this {effect}";
         /// The name of the instance `{number}` of an effect that has several: "Drop Shadow 2".
-        instance_name: "layerStyle.instanceName" = "{effect} {number}";
+        instance_name: template "layerStyle.instanceName" = "{effect} {number}";
         preview: "layerStyle.preview" = "Preview";
         new_style: "layerStyle.newStyle" = "New Style…";
         make_default: "layerStyle.makeDefault" = "Make Default";
@@ -37,68 +38,68 @@ craft_ui::words! {
         /// The colour picker's title for an effect colour.
         color_picker_title: "layerStyle.colorPickerTitle" = "Color Picker (Layer Style Color)";
         /// One line over a page whose host values have the wrong type; `{field}` names the first.
-        invalid_value: "layerStyle.invalidValue" = "{field} has a value this page can't show. It is kept as it is.";
-        blend_mode: "layerStyle.field.blend" = "Blend Mode";
-        color: "layerStyle.field.color" = "Color";
-        opacity: "layerStyle.field.opacity" = "Opacity";
-        fill_opacity: "layerStyle.field.fillOpacity" = "Fill Opacity";
-        angle: "layerStyle.field.angle" = "Angle";
-        use_global_light: "layerStyle.field.useGlobalLight" = "Use Global Light";
-        distance: "layerStyle.field.distance" = "Distance";
-        spread: "layerStyle.field.spread" = "Spread";
-        choke: "layerStyle.field.choke" = "Choke";
-        size: "layerStyle.field.size" = "Size";
-        contour: "layerStyle.field.contour" = "Contour";
-        noise: "layerStyle.field.noise" = "Noise";
-        knocks_out: "layerStyle.field.knocksOut" = "Layer Knocks Out Drop Shadow";
-        technique: "layerStyle.field.technique" = "Technique";
-        source: "layerStyle.field.source" = "Source";
-        range: "layerStyle.field.range" = "Range";
-        position: "layerStyle.field.position" = "Position";
-        overprint: "layerStyle.field.overprint" = "Overprint";
-        from: "layerStyle.field.from" = "From";
-        to: "layerStyle.field.to" = "To";
-        reverse: "layerStyle.field.reverse" = "Reverse";
-        style: "layerStyle.field.style" = "Style";
-        scale: "layerStyle.field.scale" = "Scale";
-        method: "layerStyle.field.method" = "Method";
-        pattern: "layerStyle.field.pattern" = "Pattern";
-        link: "layerStyle.field.link" = "Link with Layer";
-        depth: "layerStyle.field.depth" = "Depth";
-        direction: "layerStyle.field.direction" = "Direction";
-        soften: "layerStyle.field.soften" = "Soften";
-        altitude: "layerStyle.field.altitude" = "Altitude";
-        gloss_contour: "layerStyle.field.glossContour" = "Gloss Contour";
-        highlight_mode: "layerStyle.field.highlightBlend" = "Highlight Mode";
-        highlight_color: "layerStyle.field.highlightColor" = "Highlight Color";
-        highlight_opacity: "layerStyle.field.highlightOpacity" = "Highlight Opacity";
-        shadow_mode: "layerStyle.field.shadowBlend" = "Shadow Mode";
-        shadow_color: "layerStyle.field.shadowColor" = "Shadow Color";
-        shadow_opacity: "layerStyle.field.shadowOpacity" = "Shadow Opacity";
-        invert: "layerStyle.field.invert" = "Invert";
-        softer: "layerStyle.choice.softer" = "Softer";
-        precise: "layerStyle.choice.precise" = "Precise";
-        edge: "layerStyle.choice.edge" = "Edge";
-        center: "layerStyle.choice.center" = "Center";
-        outside: "layerStyle.choice.outside" = "Outside";
-        inside: "layerStyle.choice.inside" = "Inside";
-        linear: "layerStyle.choice.linear" = "Linear";
-        radial: "layerStyle.choice.radial" = "Radial";
-        angle_style: "layerStyle.choice.angle" = "Angle";
-        reflected: "layerStyle.choice.reflected" = "Reflected";
-        diamond: "layerStyle.choice.diamond" = "Diamond";
-        inner_bevel: "layerStyle.choice.inner" = "Inner Bevel";
-        outer_bevel: "layerStyle.choice.outer" = "Outer Bevel";
-        emboss: "layerStyle.choice.emboss" = "Emboss";
-        pillow_emboss: "layerStyle.choice.pillow" = "Pillow Emboss";
-        smooth: "layerStyle.choice.smooth" = "Smooth";
-        chisel_hard: "layerStyle.choice.chiselHard" = "Chisel Hard";
-        chisel_soft: "layerStyle.choice.chiselSoft" = "Chisel Soft";
-        up: "layerStyle.choice.up" = "Up";
-        down: "layerStyle.choice.down" = "Down";
-        perceptual: "layerStyle.choice.perceptual" = "Perceptual";
-        classic: "layerStyle.choice.classic" = "Classic";
-        custom: "layerStyle.choice.custom" = "Custom";
+        invalid_value: template "layerStyle.invalidValue" = "{field} has a value this page can't show. It is kept as it is.";
+        blend_mode: "layerStyle.fieldBlend" = "Blend Mode";
+        color: "layerStyle.fieldColor" = "Color";
+        opacity: "layerStyle.fieldOpacity" = "Opacity";
+        fill_opacity: "layerStyle.fieldFillOpacity" = "Fill Opacity";
+        angle: "layerStyle.fieldAngle" = "Angle";
+        use_global_light: "layerStyle.fieldUseGlobalLight" = "Use Global Light";
+        distance: "layerStyle.fieldDistance" = "Distance";
+        spread: "layerStyle.fieldSpread" = "Spread";
+        choke: "layerStyle.fieldChoke" = "Choke";
+        size: "layerStyle.fieldSize" = "Size";
+        contour: "layerStyle.fieldContour" = "Contour";
+        noise: "layerStyle.fieldNoise" = "Noise";
+        knocks_out: "layerStyle.fieldKnocksOut" = "Layer Knocks Out Drop Shadow";
+        technique: "layerStyle.fieldTechnique" = "Technique";
+        source: "layerStyle.fieldSource" = "Source";
+        range: "layerStyle.fieldRange" = "Range";
+        position: "layerStyle.fieldPosition" = "Position";
+        overprint: "layerStyle.fieldOverprint" = "Overprint";
+        from: "layerStyle.fieldFrom" = "From";
+        to: "layerStyle.fieldTo" = "To";
+        reverse: "layerStyle.fieldReverse" = "Reverse";
+        style: "layerStyle.fieldStyle" = "Style";
+        scale: "layerStyle.fieldScale" = "Scale";
+        method: "layerStyle.fieldMethod" = "Method";
+        pattern: "layerStyle.fieldPattern" = "Pattern";
+        link: "layerStyle.fieldLink" = "Link with Layer";
+        depth: "layerStyle.fieldDepth" = "Depth";
+        direction: "layerStyle.fieldDirection" = "Direction";
+        soften: "layerStyle.fieldSoften" = "Soften";
+        altitude: "layerStyle.fieldAltitude" = "Altitude";
+        gloss_contour: "layerStyle.fieldGlossContour" = "Gloss Contour";
+        highlight_mode: "layerStyle.fieldHighlightBlend" = "Highlight Mode";
+        highlight_color: "layerStyle.fieldHighlightColor" = "Highlight Color";
+        highlight_opacity: "layerStyle.fieldHighlightOpacity" = "Highlight Opacity";
+        shadow_mode: "layerStyle.fieldShadowBlend" = "Shadow Mode";
+        shadow_color: "layerStyle.fieldShadowColor" = "Shadow Color";
+        shadow_opacity: "layerStyle.fieldShadowOpacity" = "Shadow Opacity";
+        invert: "layerStyle.fieldInvert" = "Invert";
+        softer: "layerStyle.choiceSofter" = "Softer";
+        precise: "layerStyle.choicePrecise" = "Precise";
+        edge: "layerStyle.choiceEdge" = "Edge";
+        center: "layerStyle.choiceCenter" = "Center";
+        outside: "layerStyle.choiceOutside" = "Outside";
+        inside: "layerStyle.choiceInside" = "Inside";
+        linear: "layerStyle.choiceLinear" = "Linear";
+        radial: "layerStyle.choiceRadial" = "Radial";
+        angle_style: "layerStyle.choiceAngle" = "Angle";
+        reflected: "layerStyle.choiceReflected" = "Reflected";
+        diamond: "layerStyle.choiceDiamond" = "Diamond";
+        inner_bevel: "layerStyle.choiceInner" = "Inner Bevel";
+        outer_bevel: "layerStyle.choiceOuter" = "Outer Bevel";
+        emboss: "layerStyle.choiceEmboss" = "Emboss";
+        pillow_emboss: "layerStyle.choicePillow" = "Pillow Emboss";
+        smooth: "layerStyle.choiceSmooth" = "Smooth";
+        chisel_hard: "layerStyle.choiceChiselHard" = "Chisel Hard";
+        chisel_soft: "layerStyle.choiceChiselSoft" = "Chisel Soft";
+        up: "layerStyle.choiceUp" = "Up";
+        down: "layerStyle.choiceDown" = "Down";
+        perceptual: "layerStyle.choicePerceptual" = "Perceptual";
+        classic: "layerStyle.choiceClassic" = "Classic";
+        custom: "layerStyle.choiceCustom" = "Custom";
         general_blending: "layerStyle.generalBlending" = "General Blending";
         advanced_blending: "layerStyle.advancedBlending" = "Advanced Blending";
         channels: "layerStyle.channels" = "Channels:";
@@ -119,10 +120,9 @@ craft_ui::words! {
     }
 }
 
-impl LayerStyleLabels {
+impl LayerStyleWords {
     /// The name of `kind` ("Drop Shadow").
-    pub fn effect(&self, kind: EffectKind) -> &str {
-        // pc: crates/ui-egui/src/dialogs/layer_style.rs:53-64 `KINDS` (the second column).
+    pub fn effect(&self, kind: EffectKind) -> &Label {
         match kind {
             EffectKind::BevelEmboss => &self.bevel_emboss,
             EffectKind::Stroke => &self.stroke,
@@ -141,8 +141,7 @@ impl LayerStyleLabels {
     /// built-in tables don't have, so the page shows the spec's own label. Bevel & Emboss's
     /// `contour` check is "Contour", its `contourName` row has no label, `contourRange` is
     /// "Range".
-    pub fn field(&self, key: &str) -> Option<&str> {
-        // pc: crates/ui-egui/src/dialogs/layer_style.rs:90-216 `spec` (keys and labels).
+    pub fn field(&self, key: &str) -> Option<&Label> {
         let label = match key {
             "blend" => &self.blend_mode,
             "color" => &self.color,
@@ -189,8 +188,7 @@ impl LayerStyleLabels {
 
     /// The label of a built-in choice value (`"chiselHard"` → "Chisel Hard"; Gradient Overlay's
     /// `"angle"` style → "Angle"); `None` for another value.
-    pub fn choice(&self, value: &str) -> Option<&str> {
-        // pc: crates/ui-egui/src/dialogs/layer_style.rs:91-97 (choice tables), :1084-1094 (methods).
+    pub fn choice(&self, value: &str) -> Option<&Label> {
         let label = match value {
             "softer" => &self.softer,
             "precise" => &self.precise,
@@ -218,67 +216,5 @@ impl LayerStyleLabels {
             _ => return None,
         };
         Some(label)
-    }
-}
-
-craft_ui::words! {
-    /// The accessible names of a [`BlendIfBar`](super::BlendIfBar)'s handles, English by default.
-    #[non_exhaustive]
-    pub struct BlendIfBarLabels {
-        black_low: "blendIf.blackLow" = "Black low";
-        black_high: "blendIf.blackHigh" = "Black high";
-        white_low: "blendIf.whiteLow" = "White low";
-        white_high: "blendIf.whiteHigh" = "White high";
-        /// A handle's name: `{handle}` is one of the four above, `{layer}` the bar's name ("This
-        /// Layer").
-        handle: "blendIf.handle" = "{handle}, {layer}";
-        /// A split side's levels in the readout: `{low}` and `{high}`.
-        split_levels: "blendIf.splitLevels" = "{low} / {high}";
-        /// The readout over the bar: `{black}` is the black handles' side, `{white}` the white
-        /// handles'.
-        readout: "blendIf.readout" = "{black}    {white}";
-    }
-}
-
-craft_ui::words! {
-    /// The words of a [`ContourField`](super::ContourField), its preset picker and the Contour
-    /// Editor, English by default.
-    #[non_exhaustive]
-    pub struct ContourFieldLabels {
-        /// The thumbnail's accessible name and tooltip: it opens the editor.
-        editor: "contourField.editor" = "Contour Editor";
-        /// The picker arrow's accessible name.
-        presets: "contourField.presets" = "Contour presets";
-        anti_aliased: "contourField.antiAliased" = "Anti-aliased";
-        load_contours: "contourField.loadContours" = "Load Contours…";
-        replace_contours: "contourField.replaceContours" = "Replace Contours…";
-        save_contours: "contourField.saveContours" = "Save Contours…";
-        delete_contour: "contourField.deleteContour" = "Delete Contour";
-        preset: "contourField.preset" = "Preset";
-        input: "contourField.input" = "Input:";
-        output: "contourField.output" = "Output:";
-        corner: "contourField.corner" = "Corner";
-        new: "contourField.new" = "New…";
-        load: "contourField.load" = "Load…";
-        save: "contourField.save" = "Save…";
-        name: "contourField.name" = "Name";
-        /// The name New… suggests for the edited curve.
-        suggested_name: "contourField.suggestedName" = "Contour";
-        /// The built-in presets' names (Photoshop's), and the name of an edited preset.
-        preset_linear: "contourField.presetLinear" = "Linear";
-        preset_cone: "contourField.presetCone" = "Cone";
-        preset_cone_inverted: "contourField.presetConeInverted" = "Cone - Inverted";
-        preset_cove_deep: "contourField.presetCoveDeep" = "Cove - Deep";
-        preset_cove_shallow: "contourField.presetCoveShallow" = "Cove - Shallow";
-        preset_gaussian: "contourField.presetGaussian" = "Gaussian";
-        preset_half_round: "contourField.presetHalfRound" = "Half Round";
-        preset_ring: "contourField.presetRing" = "Ring";
-        preset_ring_double: "contourField.presetRingDouble" = "Ring - Double";
-        preset_rolling_slope: "contourField.presetRollingSlope" = "Rolling Slope - Descending";
-        preset_rounded_steps: "contourField.presetRoundedSteps" = "Rounded Steps";
-        preset_sawtooth: "contourField.presetSawtooth" = "Sawtooth 1";
-        preset_custom: "contourField.presetCustom" = "Custom";
-        ok: "" = "OK";
-        cancel: "" = "Cancel";
     }
 }

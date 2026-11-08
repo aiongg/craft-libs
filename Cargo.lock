@@ -1387,7 +1387,10 @@ dependencies = [
  "craft-host",
  "craft-i18n",
  "craft-imaging",
+<<<<<<<
+=======
  "craft-keymap",
+>>>>>>>
  "craft-theme",
  "craft-ui",
  "egui",
