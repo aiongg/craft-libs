@@ -5,6 +5,8 @@ use crate::item_source::{DisplayOrder, ItemSource, SizeHint};
 use crate::nav::NavShape;
 use crate::scroll::ScrollPos;
 use emath::{Pos2, Rect, Vec2};
+use std::collections::BTreeMap;
+use std::ops::{Range, RangeInclusive};
 
 /// Item geometry in content units. Offsets are `f64`, so a sheet of a million rows places its last row
 /// exactly. Every rect and point the trait takes or returns is `f32` and relative to the viewport's top-left,
@@ -94,25 +96,213 @@ pub trait ItemLayout {
     fn set_view(&mut self, _viewport: Vec2, _offset: ScrollPos) {}
 }
 
-/// Per-row heights of a layout whose rows differ: the tops are the running sum, so a row and a hit are found by
-/// binary search.
-#[derive(Clone, Debug)]
-struct Rows {
-    auto: Vec<bool>,
-    heights: Vec<f32>,
-    tops: Vec<f64>,
+/// Lines (rows or columns) with a default size, the lines whose size differs and their prefix sums, so the start
+/// of a line and the line at a position are a binary search over the differing lines only: a sheet of 1,048,576
+/// rows or 16,384 columns of which a few differ stores a few entries. Starts and sizes are `f64`, so the last of a
+/// million rows places exactly. A size of `0.0` hides the line. Sizes are in points at 100 % zoom; the owner of a
+/// zoom multiplies them.
+///
+/// An index may hold no line (`count() == 0`); `at` and `span` then find nothing.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LineIndex {
+    default: f64,
+    count: u32,
+    /// (line, its start, its size), sorted by line.
+    lines: Vec<(u32, f64, f64)>,
 }
 
-impl Rows {
-    fn retop(&mut self) {
-        self.tops.clear();
-        let mut top = 0.0;
-        self.tops.push(top);
-        for &height in &self.heights {
-            top += f64::from(height);
-            self.tops.push(top);
+impl LineIndex {
+    /// `count` lines of `size` each (negative or NaN sizes count as `0.0`).
+    pub fn uniform(size: f32, count: u32) -> Self {
+        Self::from_sorted(size, count, std::iter::empty())
+    }
+
+    /// `custom`: the lines whose size isn't `default` (`0.0` for a hidden line); `count` lines in all (1,048,576
+    /// rows and 16,384 columns in Excel). Lines at or past `count` are ignored.
+    pub fn new(custom: &BTreeMap<u32, f32>, default: f32, count: u32) -> Self {
+        Self::from_sorted(default, count, custom.iter().map(|(&line, &size)| (line, size)))
+    }
+
+    /// One line per size, in order; the lines at `default` are not stored.
+    pub fn from_sizes(sizes: impl IntoIterator<Item = f32>, default: f32) -> Self {
+        let default_size = f64::from(default.max(0.0));
+        let mut custom = Vec::new();
+        let mut count = 0u32;
+        for size in sizes {
+            if f64::from(size.max(0.0)) != default_size {
+                custom.push((count, size));
+            }
+            let Some(next) = count.checked_add(1) else { break };
+            count = next;
+        }
+        Self::from_sorted(default, count, custom)
+    }
+
+    /// `custom` is sorted by line.
+    fn from_sorted(default: f32, count: u32, custom: impl IntoIterator<Item = (u32, f32)>) -> Self {
+        let mut index = Self { default: f64::from(default.max(0.0)), count, lines: Vec::new() };
+        index.lines.extend(
+            custom
+                .into_iter()
+                .take_while(|&(line, _)| line < count)
+                .map(|(line, size)| (line, 0.0, f64::from(size.max(0.0))))
+                .filter(|&(_, _, size)| size != index.default),
+        );
+        index.restart(0);
+        index
+    }
+
+    /// Recomputes the starts of the stored lines from entry `from` on.
+    fn restart(&mut self, from: usize) {
+        let default = self.default;
+        let mut before = from.checked_sub(1).and_then(|k| self.lines.get(k)).copied();
+        for entry in self.lines.iter_mut().skip(from) {
+            entry.1 = match before {
+                Some((line, start, size)) => start + size + f64::from(entry.0 - line - 1) * default,
+                None => f64::from(entry.0) * default,
+            };
+            before = Some(*entry);
         }
     }
+
+    /// Gives `line` the size `size`; the lines after it move. A line at or past `count` is ignored.
+    pub fn set(&mut self, line: u32, size: f32) {
+        if line >= self.count {
+            return;
+        }
+        let size = f64::from(size.max(0.0));
+        let start = self.start(line);
+        match self.lines.binary_search_by(|entry| entry.0.cmp(&line)) {
+            Ok(i) if size == self.default => {
+                self.lines.remove(i);
+                self.restart(i);
+            }
+            Ok(i) => {
+                self.lines[i].2 = size;
+                self.restart(i + 1);
+            }
+            Err(_) if size == self.default => {}
+            Err(i) => {
+                self.lines.insert(i, (line, start, size));
+                self.restart(i + 1);
+            }
+        }
+    }
+
+    /// `set` for many lines at once: one restart instead of one per line.
+    fn set_all(&mut self, changes: &[(u32, f32)]) {
+        let mut sizes: BTreeMap<u32, f64> = self.lines.iter().map(|&(line, _, size)| (line, size)).collect();
+        for &(line, size) in changes.iter().filter(|(line, _)| *line < self.count) {
+            sizes.insert(line, f64::from(size.max(0.0)));
+        }
+        let default = self.default;
+        self.lines = sizes.into_iter().filter(|&(_, size)| size != default).map(|(line, size)| (line, 0.0, size)).collect();
+        self.restart(0);
+    }
+
+    /// The start of `line`: the sum of the sizes before it. A line past the last one continues at the default size.
+    pub fn start(&self, line: u32) -> f64 {
+        match self.lines.binary_search_by(|entry| entry.0.cmp(&line)) {
+            Ok(i) => self.lines.get(i).map_or(0.0, |entry| entry.1),
+            Err(i) => match i.checked_sub(1).and_then(|k| self.lines.get(k)) {
+                Some(&(before, start, size)) => start + size + f64::from(line - before - 1) * self.default,
+                None => f64::from(line) * self.default,
+            },
+        }
+    }
+
+    /// The end of `line`: its start plus its size.
+    pub fn end(&self, line: u32) -> f64 {
+        self.start(line) + self.size(line)
+    }
+
+    /// The size of `line`; `0.0` for a hidden line, the default for a line with no custom size.
+    pub fn size(&self, line: u32) -> f64 {
+        match self.lines.binary_search_by(|entry| entry.0.cmp(&line)) {
+            Ok(i) => self.lines.get(i).map_or(self.default, |entry| entry.2),
+            Err(_) => self.default,
+        }
+    }
+
+    /// Whether `line` exists and has a size above zero.
+    pub fn shown(&self, line: u32) -> bool {
+        line < self.count && self.size(line) > 0.0
+    }
+
+    /// The line holding `pos`: line 0 for a negative or NaN position, the last line past the end. A hidden line
+    /// holds no position; the next shown line is returned instead.
+    pub fn at(&self, pos: f64) -> u32 {
+        if pos.is_nan() || pos <= 0.0 {
+            return 0;
+        }
+        let last = self.count.saturating_sub(1);
+        let after = self.lines.partition_point(|entry| entry.1 <= pos);
+        let (first, first_start) = match after.checked_sub(1).and_then(|k| self.lines.get(k)) {
+            Some(&(line, start, size)) if pos < start + size => return line.min(last),
+            Some(&(line, start, size)) => (line + 1, start + size),
+            None => (0, 0.0),
+        };
+        if self.default <= 0.0 {
+            return first.min(last);
+        }
+        let line = f64::from(first) + ((pos - first_start) / self.default).floor();
+        if line >= f64::from(self.count) { last } else { line as u32 }
+    }
+
+    /// The lines that intersect `from..to`, ascending. A hidden line inside the range is in the range and has no
+    /// extent of its own; one at either end is not. Empty for an empty or reversed range and past the last line.
+    pub fn span(&self, from: f64, to: f64) -> Range<u32> {
+        if from.is_nan() || to.is_nan() || to <= from {
+            return 0..0;
+        }
+        let from = from.max(0.0);
+        if from >= self.total() {
+            return 0..0;
+        }
+        let first = self.at(from);
+        let last = self.starting_before(to);
+        first..last.max(first)
+    }
+
+    /// The number of lines that start before `pos`.
+    fn starting_before(&self, pos: f64) -> u32 {
+        let after = self.lines.partition_point(|entry| entry.1 < pos);
+        let (first, first_start) = match after.checked_sub(1).and_then(|k| self.lines.get(k)) {
+            Some(&(line, start, size)) => (line + 1, start + size),
+            None => (0, 0.0),
+        };
+        if first_start >= pos {
+            return first;
+        }
+        let next = self.lines.get(after).map_or(self.count, |entry| entry.0);
+        if self.default <= 0.0 {
+            return next;
+        }
+        let between = ((pos - first_start) / self.default).ceil();
+        (f64::from(first) + between).min(f64::from(next)) as u32
+    }
+
+    /// The number of lines.
+    pub fn count(&self) -> u32 {
+        self.count
+    }
+
+    /// The sum of all sizes: where the line after the last would start.
+    pub fn total(&self) -> f64 {
+        self.start(self.count)
+    }
+}
+
+/// The line number of item `at`; items past `u32::MAX` clamp there.
+fn line_of(at: usize) -> u32 {
+    u32::try_from(at).unwrap_or(u32::MAX)
+}
+
+/// The rows of a `SpanLayout::sized` layout: their extents, and which of them take their measured height.
+#[derive(Clone, Debug)]
+struct Sized {
+    lines: LineIndex,
+    auto: Vec<bool>,
 }
 
 /// Rows of equal height, optionally split into columns: lists, popup lists, tab strips and timeline tracks.
@@ -129,7 +319,7 @@ pub struct SpanLayout {
     pub columns: Vec<(ColumnKey, f32)>,
     /// Whether the rows form a tree: arrows expand, collapse and step to the parent.
     pub tree: bool,
-    rows: Option<Rows>,
+    rows: Option<Sized>,
 }
 
 impl SpanLayout {
@@ -142,30 +332,31 @@ impl SpanLayout {
     /// rows take `row_h` until the item step feeds their measured height.
     pub fn sized<K>(source: &dyn ItemSource<K>, width: f32, row_h: f32) -> Self {
         let hints: Vec<SizeHint> = (0..source.len()).map(|at| source.size_hint(at)).collect();
-        let heights = hints
-            .iter()
-            .map(|hint| match *hint {
+        let lines = LineIndex::from_sizes(
+            hints.iter().map(|hint| match *hint {
                 SizeHint::Height(height) => height,
                 SizeHint::Rect(size) => size.y,
                 SizeHint::Aspect(aspect) if aspect > 0.0 => width / aspect,
                 _ => row_h,
-            })
-            .collect();
+            }),
+            row_h,
+        );
         let auto = hints.iter().map(|hint| matches!(hint, SizeHint::Auto)).collect();
-        let mut rows = Rows { auto, heights, tops: Vec::new() };
-        rows.retop();
-        Self { row_h, count: hints.len(), width, columns: Vec::new(), tree: false, rows: Some(rows) }
+        Self { row_h, count: hints.len(), width, columns: Vec::new(), tree: false, rows: Some(Sized { lines, auto }) }
     }
 
     fn top(&self, at: usize) -> f64 {
         match &self.rows {
-            Some(rows) => rows.tops.get(at).or(rows.tops.last()).copied().unwrap_or(0.0),
+            Some(rows) => rows.lines.start(line_of(at.min(self.count))),
             None => at as f64 * f64::from(self.row_h),
         }
     }
 
     fn height(&self, at: usize) -> f32 {
-        self.rows.as_ref().map_or(self.row_h, |rows| rows.heights.get(at).copied().unwrap_or(self.row_h))
+        match &self.rows {
+            Some(rows) if at < self.count => rows.lines.size(line_of(at)) as f32,
+            _ => self.row_h,
+        }
     }
 
     /// The columns with their widths, from the start edge.
@@ -191,9 +382,8 @@ impl ItemLayout for SpanLayout {
     fn visible(&self, offset: ScrollPos, view: Vec2, out: &mut Vec<usize>) {
         let bottom = offset.y + f64::from(view.y);
         if let Some(rows) = &self.rows {
-            let first = rows.tops[1..].partition_point(|&row_bottom| row_bottom <= offset.y);
-            let last = rows.tops[..self.count].partition_point(|&row_top| row_top < bottom);
-            out.extend(first..last.max(first));
+            let span = rows.lines.span(offset.y, bottom);
+            out.extend(span.start as usize..(span.end as usize).min(self.count));
             return;
         }
         let h = f64::from(self.row_h);
@@ -210,8 +400,7 @@ impl ItemLayout for SpanLayout {
     fn hit(&self, point: Pos2, offset: ScrollPos) -> Option<usize> {
         let y = f64::from(point.y) + offset.y;
         if let Some(rows) = &self.rows {
-            let at = rows.tops[1..].partition_point(|&row_bottom| row_bottom <= y);
-            return (y >= 0.0 && at < self.count).then_some(at);
+            return (0.0..rows.lines.total()).contains(&y).then(|| rows.lines.at(y) as usize).filter(|&at| at < self.count);
         }
         let at = (y / f64::from(self.row_h)).floor();
         (at >= 0.0 && (at as usize) < self.count).then_some(at as usize)
@@ -235,22 +424,17 @@ impl ItemLayout for SpanLayout {
 
     fn measured(&mut self, heights: &dyn Fn(usize) -> Option<f32>) {
         if let Some(rows) = &mut self.rows {
-            for at in (0..rows.heights.len()).filter(|&at| rows.auto[at]) {
-                if let Some(height) = heights(at) {
-                    rows.heights[at] = height;
-                }
-            }
-            rows.retop();
+            let changes: Vec<(u32, f32)> =
+                (0..rows.auto.len()).filter(|&at| rows.auto[at]).filter_map(|at| heights(at).map(|height| (line_of(at), height))).collect();
+            rows.lines.set_all(&changes);
         }
     }
 
     fn set_height(&mut self, at: usize, height: f32) {
         if let Some(rows) = &mut self.rows
             && rows.auto.get(at).copied().unwrap_or(false)
-            && rows.heights[at] != height
         {
-            rows.heights[at] = height;
-            rows.retop();
+            rows.lines.set(line_of(at), height);
         }
     }
 
@@ -359,67 +543,117 @@ impl ItemLayout for TileLayout {
     }
 }
 
-/// Rows of a sheet: one position per row, each split into the sheet's columns. A million rows place and hit
-/// exactly, because the rows are computed in `f64` from the offset.
+/// The least and greatest zoom of a sheet (10 %…400 %).
+pub const SHEET_ZOOM: RangeInclusive<f32> = 0.1..=4.0;
+
+/// Rows of a sheet: one position per row, each split into the sheet's columns, over one [`LineIndex`] for the rows
+/// and one for the columns. A row or column has its own size at 100 %, and a size of `0.0` hides it. The first
+/// rows and columns can stay in view while the others scroll, and everything is multiplied by the zoom
+/// ([`SHEET_ZOOM`]). The line indexes are the only owner of line positions: a million rows by 16,384 columns place
+/// and hit exactly, because rows and columns are computed in `f64` and only the lines in the viewport are visited.
+///
+/// The scroll offset is in zoomed content units and counts the frozen bands: a scrolled row or column with the
+/// content position `p` sits at `p - offset`, so it slides under the frozen band when it passes it.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct SheetLayout {
-    /// Height of one row.
-    pub row_h: f32,
-    /// Number of rows.
-    pub rows: usize,
-    /// The columns with their widths, from the start edge.
-    pub columns: Vec<(ColumnKey, f32)>,
-    /// How many leading columns stay in view while the others scroll.
-    pub frozen: usize,
+    rows: LineIndex,
+    columns: LineIndex,
+    /// The keys of a sheet built with `new`; a sheet built with `lines` keys its columns by position.
+    keys: Option<Vec<ColumnKey>>,
+    frozen_columns: u32,
+    frozen_rows: u32,
+    zoom: f32,
     grid: Option<GridView>,
 }
 
 impl SheetLayout {
-    /// A row of `row_h` per entry of `source`, split into `columns`.
+    /// A row of `row_h` per entry of `source`, split into `columns`, each with its key and width.
     pub fn new<K>(source: &dyn DisplayOrder<K>, row_h: f32, columns: Vec<(ColumnKey, f32)>) -> Self {
-        Self { row_h, rows: source.len(), columns, frozen: 0, grid: None }
+        let default = columns.first().map_or(0.0, |(_, width)| *width);
+        let widths = LineIndex::from_sizes(columns.iter().map(|(_, width)| *width), default);
+        let keys = columns.into_iter().map(|(key, _)| key).collect();
+        let rows = LineIndex::uniform(row_h, line_of(source.len()));
+        Self { rows, columns: widths, keys: Some(keys), frozen_columns: 0, frozen_rows: 0, zoom: 1.0, grid: None }
+    }
+
+    /// A sheet with the size of every row and column in `rows` and `columns`, at 100 % zoom. A column's key is
+    /// [`ColumnKey::index`] of its position.
+    pub fn lines(rows: LineIndex, columns: LineIndex) -> Self {
+        Self { rows, columns, keys: None, frozen_columns: 0, frozen_rows: 0, zoom: 1.0, grid: None }
     }
 
     /// The first `count` columns stay in view while the others scroll.
     #[must_use]
     pub fn frozen(mut self, count: usize) -> Self {
-        self.frozen = count;
+        self.frozen_columns = line_of(count);
         self
     }
 
-    fn row_width(&self) -> f32 {
-        self.columns.iter().map(|(_, width)| width).sum()
+    /// The first `count` rows stay in view while the others scroll. Hidden rows among them take no room.
+    #[must_use]
+    pub fn frozen_rows(mut self, count: u32) -> Self {
+        self.frozen_rows = count;
+        self
     }
 
-    fn frozen_width(&self) -> f32 {
-        self.columns.iter().take(self.frozen).map(|(_, width)| width).sum()
+    /// Every row height and column width is multiplied by `zoom`, clamped to [`SHEET_ZOOM`].
+    #[must_use]
+    pub fn zoom(mut self, zoom: f32) -> Self {
+        self.zoom = zoom.max(*SHEET_ZOOM.start()).min(*SHEET_ZOOM.end());
+        self
+    }
+
+    /// The row extents at 100 %.
+    pub fn rows(&self) -> &LineIndex {
+        &self.rows
+    }
+
+    /// The column extents at 100 %.
+    pub fn columns(&self) -> &LineIndex {
+        &self.columns
+    }
+
+    fn zoom_factor(&self) -> f64 {
+        f64::from(self.zoom)
+    }
+
+    /// The zoomed height of the frozen rows.
+    fn band(&self) -> f64 {
+        self.rows.start(self.frozen_rows.min(self.rows.count())) * self.zoom_factor()
+    }
+
+    /// The zoomed width of the frozen columns.
+    fn frozen_width(&self) -> f64 {
+        self.columns.start(self.frozen_columns.min(self.columns.count())) * self.zoom_factor()
+    }
+
+    /// The row at the zoomed content position `y`, if there is a shown one.
+    fn row_at(&self, y: f64) -> Option<usize> {
+        let at = y / self.zoom_factor();
+        (0.0..self.rows.total()).contains(&at).then(|| self.rows.at(at)).filter(|&row| self.rows.shown(row)).map(|row| row as usize)
     }
 
     /// The sections of a viewport scrolled to `offset_x`: the frozen columns at the start edge, then the scrolling
-    /// columns that intersect the rest of the viewport. Edges are viewport-relative x positions.
+    /// columns that intersect the rest of the viewport. Edges are viewport-relative x positions, for those columns
+    /// only; a hidden column among them has the same edge on both sides.
     fn sections(&self, viewport: Vec2, offset_x: f64) -> GridView {
-        let mut lefts = Vec::with_capacity(self.columns.len() + 1);
-        let mut along = 0.0;
-        lefts.push(along);
-        for (_, width) in &self.columns {
-            along += width;
-            lefts.push(along);
-        }
-        let frozen = self.frozen.min(self.columns.len());
-        let frozen_w = lefts[frozen];
+        let zoom = self.zoom_factor();
+        let edge = |column: u32, shift: f64| (self.columns.start(column) * zoom - shift) as f32;
+        let frozen = self.frozen_columns.min(self.columns.count());
+        let frozen_w = edge(frozen, 0.0);
         let mut sections = Vec::new();
         if frozen > 0 {
             let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(frozen_w, viewport.y));
-            sections.push(GridSection::new(rect, 0..frozen as u32, lefts[..=frozen].to_vec()));
+            sections.push(GridSection::new(rect, 0..frozen, (0..=frozen).map(|column| edge(column, 0.0)).collect()));
         }
-        let shift = offset_x as f32;
-        if let Some(first) = (frozen..self.columns.len()).find(|&column| lefts[column + 1] - shift > frozen_w) {
-            let end = (first..self.columns.len()).find(|&column| lefts[column] - shift >= viewport.x).unwrap_or(self.columns.len());
-            let edges: Vec<f32> = (first..=end).map(|column| lefts[column] - shift).collect();
-            let (start, stop) = ((lefts[first] - shift).max(frozen_w), (lefts[end] - shift).min(viewport.x));
+        let span = self.columns.span((offset_x + f64::from(frozen_w)) / zoom, (offset_x + f64::from(viewport.x)) / zoom);
+        let first = span.start.max(frozen);
+        if first < span.end {
+            let edges: Vec<f32> = (first..=span.end).map(|column| edge(column, offset_x)).collect();
+            let (start, stop) = (edges[0].max(frozen_w), edges[edges.len() - 1].min(viewport.x));
             let rect = Rect::from_min_max(Pos2::new(start, 0.0), Pos2::new(stop.max(start), viewport.y));
-            sections.push(GridSection::new(rect, first as u32..end as u32, edges));
+            sections.push(GridSection::new(rect, first..span.end, edges));
         }
         GridView::new(sections)
     }
@@ -427,46 +661,65 @@ impl SheetLayout {
 
 impl ItemLayout for SheetLayout {
     fn content_size(&self) -> ScrollPos {
-        ScrollPos { x: f64::from(self.row_width()), y: f64::from(self.row_h) * self.rows as f64 }
+        let zoom = self.zoom_factor();
+        ScrollPos { x: self.columns.total() * zoom, y: self.rows.total() * zoom }
     }
 
+    /// The shown frozen rows, then the shown scrolled rows that intersect the viewport below the frozen band.
     fn visible(&self, offset: ScrollPos, view: Vec2, out: &mut Vec<usize>) {
-        let h = f64::from(self.row_h);
-        let first = (offset.y / h).floor().max(0.0) as usize;
-        let last = (((offset.y + f64::from(view.y)) / h).ceil().max(0.0) as usize).min(self.rows);
-        out.extend(first..last);
+        let frozen = self.frozen_rows.min(self.rows.count());
+        out.extend((0..frozen).filter(|&row| self.rows.shown(row)).map(|row| row as usize));
+        let zoom = self.zoom_factor();
+        let span = self.rows.span((offset.y + self.band()) / zoom, (offset.y + f64::from(view.y)) / zoom);
+        out.extend((span.start.max(frozen)..span.end).filter(|&row| self.rows.shown(row)).map(|row| row as usize));
     }
 
+    /// A frozen row ignores `offset.y`; a scrolled row sits at its content position minus the offset.
     fn rect(&self, at: usize, offset: ScrollPos) -> Rect {
-        let top = (at as f64 * f64::from(self.row_h) - offset.y) as f32;
-        Rect::from_min_size(Pos2::new(-(offset.x as f32), top), Vec2::new(self.row_width(), self.row_h))
+        let (row, zoom) = (line_of(at), self.zoom_factor());
+        let content = self.rows.start(row) * zoom;
+        let top = if row < self.frozen_rows { content } else { content - offset.y };
+        let size = Vec2::new((self.columns.total() * zoom) as f32, (self.rows.size(row) * zoom) as f32);
+        Rect::from_min_size(Pos2::new(-(offset.x as f32), top as f32), size)
     }
 
+    /// The frozen band is checked first: a point in it finds the frozen row under it, whatever the scroll.
     fn hit(&self, point: Pos2, offset: ScrollPos) -> Option<usize> {
-        let at = ((f64::from(point.y) + offset.y) / f64::from(self.row_h)).floor();
-        (at >= 0.0 && (at as usize) < self.rows).then_some(at as usize)
+        let y = f64::from(point.y);
+        self.row_at(if self.frozen_rows > 0 && y < self.band() { y } else { y + offset.y })
+    }
+
+    fn shown(&self, at: usize) -> bool {
+        self.rows.shown(line_of(at))
     }
 
     fn nav(&self) -> NavShape {
         NavShape::Cell
     }
 
+    /// The cells of the shown columns in the grid view; all shown columns before a view was set. A hidden column has
+    /// no cell.
     fn cells(&self, at: usize, offset: ScrollPos, out: &mut Vec<(ColumnKey, Rect)>) {
         let row = self.rect(at, offset);
+        let mut cell = |column: u32, left: f32, right: f32| {
+            if self.columns.shown(column)
+                && let Some(key) = self.column_key(column as usize)
+            {
+                out.push((key, Rect::from_min_max(Pos2::new(left, row.top()), Pos2::new(right, row.bottom()))));
+            }
+        };
         if let Some(grid) = &self.grid {
             for section in &grid.sections {
                 for (edge, column) in section.columns.clone().enumerate() {
-                    let (left, right) = (section.edges[edge], section.edges[edge + 1]);
-                    let rect = Rect::from_min_max(Pos2::new(left, row.top()), Pos2::new(right, row.bottom()));
-                    out.push((self.columns[column as usize].0.clone(), rect));
+                    cell(column, section.edges[edge], section.edges[edge + 1]);
                 }
             }
             return;
         }
-        let mut along = 0.0;
-        for (key, width) in &self.columns {
-            out.push((key.clone(), Rect::from_min_size(Pos2::new(row.left() + along, row.top()), Vec2::new(*width, row.height()))));
-            along += width;
+        let zoom = self.zoom_factor();
+        for column in 0..self.columns.count() {
+            let (left, right) = (self.columns.start(column) * zoom, self.columns.end(column) * zoom);
+            cell(column, row.left() + left as f32, row.left() + right as f32);
         }
     }
 
@@ -479,16 +732,24 @@ impl ItemLayout for SheetLayout {
     }
 
     fn column_count(&self) -> usize {
-        self.columns.len()
+        self.columns.count() as usize
     }
 
     fn column_key(&self, index: usize) -> Option<ColumnKey> {
-        self.columns.get(index).map(|(key, _)| key.clone())
+        match &self.keys {
+            Some(keys) => keys.get(index).cloned(),
+            None => (index < self.column_count()).then(|| ColumnKey::index(line_of(index))),
+        }
     }
 
     fn column_at(&self, point: Pos2, offset: ScrollPos) -> Option<usize> {
-        let x = if self.frozen > 0 && point.x < self.frozen_width() { f64::from(point.x) } else { f64::from(point.x) + offset.x };
-        column_under(self.columns.iter().map(|(_, width)| *width), x)
+        let x = if self.frozen_columns > 0 && f64::from(point.x) < self.frozen_width() { f64::from(point.x) } else { f64::from(point.x) + offset.x };
+        let at = x / self.zoom_factor();
+        (0.0..self.columns.total())
+            .contains(&at)
+            .then(|| self.columns.at(at))
+            .filter(|&column| self.columns.shown(column))
+            .map(|column| column as usize)
     }
 }
 
@@ -664,5 +925,88 @@ mod tests {
         layout.cells(1_048_575, offset, &mut cells);
         assert_eq!(cells.iter().map(|(_, rect)| rect.left()).collect::<Vec<_>>(), vec![0.0, 30.0]);
         assert_eq!(layout.nav(), NavShape::Cell);
+    }
+
+    #[test]
+    fn line_index_finds_starts_and_lines() {
+        let custom = BTreeMap::from([(2, 40.0), (3, 0.0)]);
+        let lines = LineIndex::new(&custom, 20.0, 100);
+        let starts: Vec<_> = (0..6).map(|line| lines.start(line)).collect();
+        assert_eq!(starts, [0.0, 20.0, 40.0, 80.0, 80.0, 100.0]);
+        assert_eq!((lines.size(2), lines.size(3), lines.size(7)), (40.0, 0.0, 20.0));
+        assert_eq!([-5.0, 0.0, 19.9, 40.0, 79.9, 80.0, 99.9, 100.0, 1.0e9].map(|pos| lines.at(pos)), [0, 0, 0, 2, 2, 4, 4, 5, 99]);
+        assert_eq!(lines.count(), 100);
+        assert!(!lines.shown(3) && lines.shown(4));
+        assert!((0..2000).map(|tenth| lines.at(f64::from(tenth) / 10.0)).all(|line| lines.shown(line)), "no position lands on a hidden line");
+        assert_eq!((lines.span(30.0, 90.0), lines.span(80.0, 90.0), lines.span(10.0, 80.0)), (1..5, 4..5, 0..3));
+        let mut moved = lines.clone();
+        moved.set(1, 30.0);
+        moved.set(3, 20.0);
+        assert_eq!((moved.start(2), moved.start(4), moved.total()), (50.0, 110.0, 2030.0));
+    }
+
+    fn sheet(rows: LineIndex, columns: LineIndex) -> SheetLayout {
+        SheetLayout::lines(rows, columns)
+    }
+
+    #[test]
+    fn a_full_size_sheet_with_a_tall_and_a_hidden_line_places_and_hits_its_last_cell_exactly() {
+        let rows = LineIndex::new(&BTreeMap::from([(5, 60.0), (7, 0.0)]), 20.0, 1_048_576);
+        let columns = LineIndex::new(&BTreeMap::from([(3, 0.0)]), 80.0, 16_384);
+        let mut layout = sheet(rows, columns);
+        let (total, view) = (layout.content_size(), Vec2::new(200.0, 100.0));
+        assert_eq!((total.y, total.x), (20_971_540.0, 1_310_640.0));
+        let offset = ScrollPos { x: total.x - 200.0, y: total.y - 100.0 };
+        layout.set_view(view, offset);
+        assert_eq!(layout.rect(1_048_575, offset).top(), 80.0);
+        assert_eq!(layout.hit(Pos2::new(10.0, 90.0), offset), Some(1_048_575));
+        assert_eq!(layout.column_at(Pos2::new(190.0, 90.0), offset), Some(16_383));
+        let mut cells = Vec::new();
+        layout.cells(1_048_575, offset, &mut cells);
+        let last = cells.last().expect("the viewport holds cells");
+        assert_eq!((last.0.clone(), last.1.left(), last.1.width()), (ColumnKey::index(16_383), 120.0, 80.0));
+        let mut shown = Vec::new();
+        layout.visible(offset, view, &mut shown);
+        assert_eq!(shown, (1_048_571..1_048_576).collect::<Vec<_>>(), "only the viewport's rows");
+        shown.clear();
+        layout.visible(ScrollPos { x: 0.0, y: 170.0 }, Vec2::new(100.0, 30.0), &mut shown);
+        assert_eq!(shown, vec![6, 8], "the hidden row takes no place");
+        assert!(!layout.shown(7) && layout.shown(6));
+        assert_eq!(layout.hit(Pos2::new(1.0, 5.0), ScrollPos { x: 0.0, y: 180.0 }), Some(8));
+    }
+
+    #[test]
+    fn frozen_rows_and_columns_stay_in_place_under_scroll() {
+        let (rows, columns) = (LineIndex::uniform(20.0, 100), LineIndex::uniform(40.0, 10));
+        let mut layout = sheet(rows, columns).frozen(1).frozen_rows(2);
+        let (offset, view) = (ScrollPos { x: 50.0, y: 30.0 }, Vec2::new(100.0, 100.0));
+        layout.set_view(view, offset);
+        assert_eq!((layout.rect(0, offset).top(), layout.rect(1, offset).top()), (0.0, 20.0));
+        assert_eq!(layout.rect(3, offset).top(), 30.0, "a scrolled row moves by the offset");
+        let mut shown = Vec::new();
+        layout.visible(offset, view, &mut shown);
+        assert_eq!(shown, vec![0, 1, 3, 4, 5, 6], "row 2 is under the frozen band");
+        assert_eq!((layout.hit(Pos2::new(10.0, 25.0), offset), layout.hit(Pos2::new(10.0, 45.0), offset)), (Some(1), Some(3)));
+        assert_eq!((layout.column_at(Pos2::new(10.0, 5.0), offset), layout.column_at(Pos2::new(60.0, 5.0), offset)), (Some(0), Some(2)));
+        let grid = layout.grid().expect("a view was set");
+        let edges: Vec<_> = grid.sections.iter().map(|section| (section.columns.clone(), section.edges.clone())).collect();
+        assert_eq!(edges, vec![(0..1, vec![0.0, 40.0]), (2..4, vec![30.0, 70.0, 110.0])]);
+    }
+
+    #[test]
+    fn zoom_scales_cells_and_hits() {
+        let lines = || (LineIndex::uniform(20.0, 100), LineIndex::new(&BTreeMap::new(), 80.0, 10));
+        let (rows, columns) = lines();
+        let (plain, zoomed) = (sheet(rows, columns), {
+            let (rows, columns) = lines();
+            sheet(rows, columns).zoom(2.0)
+        });
+        let offset = ScrollPos::default();
+        let (a, b) = (plain.rect(3, offset), zoomed.rect(3, offset));
+        assert_eq!((b.top(), b.size()), (a.top() * 2.0, a.size() * 2.0));
+        assert_eq!(zoomed.hit(Pos2::new(5.0, 130.0), offset), Some(3));
+        assert_eq!(plain.hit(Pos2::new(5.0, 65.0), offset), Some(3));
+        assert_eq!(zoomed.column_at(Pos2::new(170.0, 5.0), offset), Some(1));
+        assert_eq!(zoomed.content_size().y, 2.0 * plain.content_size().y);
     }
 }
