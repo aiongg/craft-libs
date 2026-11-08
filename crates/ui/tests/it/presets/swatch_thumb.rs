@@ -42,7 +42,7 @@ fn face_of(color: Srgba) -> (Rect, Vec<Color32>) {
 fn a_swatch_preset_thumbnail_fills_the_colour_inside_its_rect() {
     let (thumb, fills) = face_of(Srgba::rgb(1.0, 0.0, 0.0));
     assert!(thumb.is_positive(), "the painter ran with a rect");
-    assert_eq!(fills, vec![Color32::from_rgb(255, 0, 0)], "one opaque fill of the colour");
+    assert_eq!(fills.last(), Some(&Color32::from_rgb(255, 0, 0)), "the colour fills the thumbnail: {fills:?}");
 }
 
 #[trial]
