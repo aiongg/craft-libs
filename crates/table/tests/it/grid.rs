@@ -332,6 +332,13 @@ fn a_filter_button_over_the_header_takes_the_press() {
         }
     });
     fixture.settle();
+    {
+        let tree = fixture.tree();
+        eprintln!("DUMP shown={:?}", fixture.shown());
+        for key in tree.keys() {
+            eprintln!("DUMP node role={:?} name={:?} rect={:?}", tree.role_of(key), tree.name_of(key), tree.bounds_of(key));
+        }
+    }
     let button = fixture.by_label("B").expect("the filter button is named after its column");
     fixture.click(&button);
     assert_eq!(*hits.borrow(), vec![1], "the press opened the filter and did not select the header");

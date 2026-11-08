@@ -133,6 +133,13 @@ fn setup(other: bool, configure: impl FnOnce(&mut BinState<u32>)) -> Setup {
         });
     });
     fixture.settle();
+    {
+        let tree = fixture.tree();
+        eprintln!("DUMP shown={:?}", fixture.shown());
+        for key in tree.keys() {
+            eprintln!("DUMP node role={:?} name={:?} rect={:?}", tree.role_of(key), tree.name_of(key), tree.bounds_of(key));
+        }
+    }
     Setup { fixture, state, selection, events }
 }
 
