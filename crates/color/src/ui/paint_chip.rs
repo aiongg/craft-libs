@@ -26,7 +26,8 @@ use craft_ui::runtime::env::Label;
 use craft_ui::style::{ComponentStyle, DataColor, FocusLook, StyleColor, StyleCx};
 use egui::{Color32, Pos2, Rect, Response, Ui, pos2, vec2};
 
-use super::{ColorPicker, ColorPickerLayout, PickedColor, ScreenPickGesture};
+use super::popover::compact_picker;
+use super::{PickedColor, ScreenPickGesture};
 
 #[cfg(feature = "screen-testing")]
 mod stories;
@@ -408,14 +409,7 @@ impl Component for PaintChip<'_> {
             match &paint {
                 Paint::None => {}
                 Paint::Solid(color) => {
-                    let mut picker = ColorPicker::new(name.clone(), Bind::given(PickedColor::rgb(*color)))
-                        .layout(ColorPickerLayout::Compact)
-                        .alpha(true)
-                        .eyedropper(true);
-                    if let Some(sampled) = sampled {
-                        picker = picker.sampled(sampled);
-                    }
-                    let picked = picker.show(ui);
+                    let picked = compact_picker(name.clone(), Bind::given(PickedColor::rgb(*color)), sampled).alpha(true).eyedropper(true).show(ui);
                     shown.edit = Some(picked.edit);
                     shown.screen_pick = picked.screen_pick;
                 }

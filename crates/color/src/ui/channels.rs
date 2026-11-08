@@ -70,6 +70,15 @@ pub(crate) fn finite(value: f32) -> f32 {
     if value.is_finite() { value } else { 0.0 }
 }
 
+/// `values` with every non-finite channel set to 0, as PhotoCraft's model wrapper did: a NaN or infinity from
+/// automation or a field must not reach the colour or the remembered values.
+pub fn finite_values(mut values: ModelValues) -> ModelValues {
+    for v in &mut values.values {
+        *v = finite(*v);
+    }
+    values
+}
+
 /// Whether the press that `press` reports was made with the primary button: a drag with another button is the host's.
 pub(crate) fn primary(press: &craft_behavior::PressState) -> bool {
     press.phase.start().is_some_and(|start| start.button == craft_behavior::PointerButton::Primary)

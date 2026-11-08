@@ -14,7 +14,8 @@ use craft_ui::runtime::env::Label;
 use craft_ui::style::{ComponentStyle, DataColor, FocusLook, StyleColor, StyleCx};
 use egui::{Color32, Rect, Response, Vec2, pos2, vec2};
 
-use super::{ColorPicker, ColorPickerLayout, PickedColor, ScreenPickGesture};
+use super::popover::compact_picker;
+use super::{ColorPicker, PickedColor, ScreenPickGesture};
 
 #[cfg(feature = "screen-testing")]
 mod stories;
@@ -352,13 +353,9 @@ impl Component for SwatchPair<'_> {
         let setup = self.picker.as_ref();
         let sampled = self.sampled;
         let shown = ui.show(popup, Overlay::popover(), |ui, _| {
-            let mut picker =
-                ColorPicker::new(name.clone(), Bind::given(PickedColor::rgb(color))).layout(ColorPickerLayout::Compact).alpha(true).eyedropper(true);
+            let mut picker = compact_picker(name.clone(), Bind::given(PickedColor::rgb(color)), sampled).alpha(true).eyedropper(true);
             if let Some(setup) = setup {
                 picker = (setup.0)(picker);
-            }
-            if let Some(sampled) = sampled {
-                picker = picker.sampled(sampled);
             }
             picker.show(ui)
         });

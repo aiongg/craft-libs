@@ -17,6 +17,7 @@ use craft_ui::runtime::env::{Env, Label};
 use craft_ui::runtime::requests::ColorRequest;
 use egui::{Response, Ui};
 
+use super::channels::finite_values;
 use super::picker::{ChannelRow, ChannelRule, channel_name};
 use super::{
     AreaMode, ColorArea, ColorPickerDialogWords, ColorRamp, ColorReadout, ColorStrip, ColorWarning, ColorWarningChip, ColorWheel, PairWell,
@@ -488,17 +489,6 @@ impl ColorPanelMenu {
         }
         None
     }
-}
-
-/// `values` with every non-finite channel set to 0, as PhotoCraft's model wrapper did: a NaN or infinity from
-/// automation or a field must not reach the colour or the remembered values.
-fn finite_values(mut values: ModelValues) -> ModelValues {
-    for v in &mut values.values {
-        if !v.is_finite() {
-            *v = 0.0;
-        }
-    }
-    values
 }
 
 /// What the panel draws and collects in one pass.

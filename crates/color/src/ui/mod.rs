@@ -38,39 +38,48 @@ pub mod testing;
 mod wheel;
 
 pub use crate::AreaMode;
-pub use area::ColorArea;
-pub use choice::{ChosenColor, ColorChoice, NamedColor};
-pub use disc::{ColorDisc, ColorDiscOutput, DiscMove};
-pub use droppers::{DropperButton, DropperKind, DropperTool};
-pub use eyedropper::{EyedropperBar, EyedropperOptions, EyedropperPick, EyedropperTool, SampleSize, SampleSource};
+pub use area::{ColorArea, ColorAreaStyle};
+pub use channels::finite_values;
+pub use choice::{ChosenColor, ColorChoice, ColorChoiceOutput, ColorChoiceWords, NamedColor};
+pub use disc::{ColorDisc, ColorDiscOutput, ColorDiscStyle, ColorDiscWords, DiscMove};
+pub use droppers::{DropperButton, DropperButtonOutput, DropperKind, DropperTool};
+pub use eyedropper::{
+    EyedropperBar, EyedropperBarOutput, EyedropperOptions, EyedropperPick, EyedropperTool, EyedropperWords, SampleSize, SampleSource,
+};
 pub use harmony::{
     HarmonyCommand, HarmonyMenu, HarmonyMenuAction, HarmonyPanel, HarmonyPanelOutput, HarmonyPanelState, HarmonyPicked, HarmonyWheel,
     HarmonyWheelOutput, HarmonyWords,
 };
-pub use hex::{HexPairField, PairCodec};
+pub use hex::{HexPair, HexPairField, PairCodec};
 pub use lut_picker::{LutChoice, LutPicker, LutPickerOutput, LutWords};
 pub use paint_chip::{
     FillKind, GradientPreview, ImagePreview, Paint, PaintChip, PaintChipOutput, PaintEditor, PaintLink, PaintLinkKind, PaintList, PaintListEvent,
     PaintListOptions, PaintListOutput, PaintRow, PaintWords,
 };
 pub use pair::{PairWell, SwatchPair, SwatchPairOutput, Well};
-pub use palette::{SwatchPalette, SwatchTable, SwatchTableOutput};
-pub use panel::{ColorPanel, ColorPanelCommand, ColorPanelMenu, ColorPanelMode, ColorPanelOutput, ColorPanelRamp, ColorPanelState, ColorPanelWords, PanelTarget};
+pub use palette::{SwatchCell, SwatchCellStyle, SwatchPalette, SwatchPaletteOutput, SwatchRows, SwatchTable, SwatchTableOutput, SwatchTableStyle};
+pub use panel::{
+    ColorPanel, ColorPanelCommand, ColorPanelMenu, ColorPanelMode, ColorPanelOutput, ColorPanelRamp, ColorPanelState, ColorPanelWords, PanelTarget,
+};
 pub use picker::{
-    ColorPicker, ColorPickerLayout, ColorPickerOutput, ColorPickerWords, ColorWarning, ColorWarningChip, PickedColor, ScreenPickGesture,
+    ColorConstraint, ColorPicker, ColorPickerLayout, ColorPickerOutput, ColorPickerWords, ColorWarning, ColorWarningChip, ColorWarningChipOutput,
+    PickedColor, ScreenPickGesture,
 };
 pub use picker_dialog::{ColorPickerDialog, ColorPickerDialogWords, ColorPickerMemory, ColorPickerResult};
 pub use popover::{ColorPopover, ColorPopoverOutput};
 pub use profile_prompts::{ProfileAction, ProfileAnswer, ProfileMismatchDialog, ProfileMode, ProfileQuestion, ProfileStatus, ProfileWords};
-pub use ramp::{ColorRamp, ColorRampOutput, RampKind, RampPick};
-pub use readout::ColorReadout;
+pub use ramp::{ColorRamp, ColorRampOutput, ColorRampStyle, ColorRampWords, Gamut, RampKind, RampPick};
+pub use readout::{ColorReadout, ColorReadoutWords};
 pub use samplers::{
-    ColorSamplerMarks, ColorSamplerTool, ColorSamplers, MAX_SAMPLERS, SamplerError, SamplerOptions, SamplerReadout, SamplerReadouts,
+    ColorSamplerCommand, ColorSamplerMarks, ColorSamplerTool, ColorSamplers, MAX_SAMPLERS, SamplerCache, SamplerError, SamplerOptions,
+    SamplerOptionsOutput, SamplerReadout, SamplerReadouts, SamplerWords,
 };
-pub use screen_picker::{CaptureSource, LOUPE_PIXELS, LOUPE_ZOOM, ScreenColorPicker, ScreenPick, StillCapture};
-pub use strip::ColorStrip;
+pub use screen_picker::{CaptureResult, CaptureSource, LOUPE_PIXELS, LOUPE_ZOOM, ScreenPick, ScreenPickerWords, StillCapture};
+pub use strip::{ColorStrip, ColorStripStyle};
 pub use swatches::{
-    MAX_GROUPS, MAX_SWATCHES, SwatchAt, SwatchLibrary, SwatchesCommand, SwatchesMenu, SwatchesMenuOutput, SwatchesPanel, SwatchesPanelOutput,
-    SwatchesState, SwatchesWords,
+    MAX_GROUPS, MAX_SWATCHES, SwatchAt, SwatchKey, SwatchLibrary, SwatchesCommand, SwatchesFileOutput, SwatchesMenu, SwatchesMenuOutput,
+    SwatchesPanel, SwatchesPanelOutput, SwatchesState, SwatchesWords,
 };
-pub use wheel::{WheelGeometry, WheelPart};
+pub use wheel::{
+    ColorWheel, ColorWheelStyle, ColorWheelWords, WheelGeometry, WheelPart, hue_at, hue_direction, triangle_corners, triangle_point, triangle_sv,
+};

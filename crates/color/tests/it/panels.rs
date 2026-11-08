@@ -10,7 +10,7 @@ use craft_color::palette::{SwatchColor, SwatchEntry, SwatchFormat, SwatchGroup, 
 use craft_color::ui::{
     ColorPanel, ColorPanelCommand, ColorPanelMenu, ColorPanelMode, ColorPanelRamp, ColorPanelState, HarmonyCommand, HarmonyMenu, HarmonyPanel,
     HarmonyPanelState, HarmonyPicked, HarmonyWheel, PanelTarget, PickedColor, SwatchAt, SwatchLibrary, SwatchPalette, SwatchTable, SwatchesCommand,
-    SwatchesMenu, SwatchesPanel, SwatchesState, SwatchesWords,
+    SwatchesMenu, SwatchesPanel, SwatchesState, SwatchesWords, finite_values,
 };
 use craft_color::{CmykModel, GrayModel};
 use craft_i18n::Format;
@@ -707,4 +707,13 @@ fn a_screen_readers_focus_on_a_palette_swatch_moves_the_stop_there() {
     assert_eq!(rig.events.get(), 0, "focusing selects nothing");
     rig.fixture.key(Key::ArrowRight, Modifiers::NONE);
     assert_eq!(rig.focused().as_deref(), Some("Blue"), "the arrows go on from there");
+}
+
+/// Non-finite channel values become 0, as PhotoCraft's model wrapper did; finite ones stay.
+#[trial]
+fn non_finite_channels_become_zero() {
+    let cleaned = finite_values(ModelValues::new("hsb", &[f32::NAN, f32::INFINITY, 40.0]));
+    assert_eq!(cleaned.values[..3], [0.0, 0.0, 40.0]);
+    let cleaned = finite_values(ModelValues::new("rgb", &[f32::NEG_INFINITY, 12.0, 255.0]));
+    assert_eq!(cleaned.values[..3], [0.0, 12.0, 255.0]);
 }

@@ -127,7 +127,7 @@ fn popover(
     open: Bind<'_, bool>,
 ) -> (Option<EditResponse<PickedColor>>, Option<ScreenPickGesture>, bool) {
     let shown = Popover::new(label.clone(), open).opened_by(opener).show(ui, |ui, _| {
-        let mut picker = ColorPicker::new(label.clone(), value.reborrowed()).layout(ColorPickerLayout::Compact).focus_on_open(true);
+        let mut picker = compact_picker(label.clone(), value.reborrowed(), None).focus_on_open(true);
         if let Some(setup) = setup.take() {
             picker = setup(picker);
         }
@@ -137,5 +137,15 @@ fn popover(
     match shown.inner {
         Some(ColorPickerOutput { edit, screen_pick, .. }) => (Some(edit), screen_pick, open),
         None => (None, None, open),
+    }
+}
+
+/// The Compact picker every colour popover of the crate shows: [`ColorPopover`] and the overlays of the swatch pair
+/// and the paint chip build their picker here. `sampled` answers a pending screen pick.
+pub(super) fn compact_picker<'a>(label: Label, value: Bind<'a, PickedColor>, sampled: Option<Srgba>) -> ColorPicker<'a> {
+    let picker = ColorPicker::new(label, value).layout(ColorPickerLayout::Compact);
+    match sampled {
+        Some(color) => picker.sampled(color),
+        None => picker,
     }
 }
