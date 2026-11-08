@@ -117,6 +117,7 @@ impl<'a, P> DockScene<'a, P> {
 #[non_exhaustive]
 pub enum DockTo<P> {
     /// Into the group of `anchor` as tabs, before `before`, or at the end.
+    #[non_exhaustive]
     Tabs {
         /// A panel of the destination group.
         anchor: P,
@@ -124,6 +125,7 @@ pub enum DockTo<P> {
         before: Option<P>,
     },
     /// Beside the group of `anchor`; [`DockSide::Center`] joins its tabs.
+    #[non_exhaustive]
     Beside {
         /// A panel of the destination group.
         anchor: P,
@@ -136,6 +138,18 @@ pub enum DockTo<P> {
     Dock(DockEdge),
     /// Back to the docked layout: a tab of the first docked panel outside the unit. Nothing for a docked unit.
     Docked,
+}
+
+impl<P> DockTo<P> {
+    /// Into the group of `anchor` as tabs, before `before` or at the end.
+    pub fn tabs(anchor: P, before: Option<P>) -> Self {
+        DockTo::Tabs { anchor, before }
+    }
+
+    /// Beside the group of `anchor`, on `side`.
+    pub fn beside(anchor: P, side: DockSide) -> Self {
+        DockTo::Beside { anchor, side }
+    }
 }
 
 /// The actions that run a panel command, empty for a command the host carries out ([`DockCommand::event`],

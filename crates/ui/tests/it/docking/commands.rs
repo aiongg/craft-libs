@@ -121,7 +121,7 @@ fn move_actions_dock_a_panel_as_a_tab_beside_a_group_or_in_a_new_dock() {
 
     let mut tabbed = workspace();
     let scene = DockScene::new(&tabbed.layout, &space, false, &permissions);
-    let planned = move_actions(&scene, &DragUnit::Panel(TOP), DockTo::Tabs { anchor: LOWER, before: None }).unwrap();
+    let planned = move_actions(&scene, &DragUnit::Panel(TOP), DockTo::tabs(LOWER, None)).unwrap();
     tabbed.apply_all(planned, false, permissions).unwrap();
     assert_eq!(tabbed.layout.place(&TOP), tabbed.layout.place(&LOWER), "the panel joined the lower group");
 
@@ -133,7 +133,7 @@ fn move_actions_dock_a_panel_as_a_tab_beside_a_group_or_in_a_new_dock() {
 
     let mut beside = workspace();
     let scene = DockScene::new(&beside.layout, &space, false, &permissions);
-    let planned = move_actions(&scene, &DragUnit::Panel(LOWER), DockTo::Beside { anchor: TOP, side: DockSide::End }).unwrap();
+    let planned = move_actions(&scene, &DragUnit::Panel(LOWER), DockTo::beside(TOP, DockSide::End)).unwrap();
     beside.apply_all(planned, false, permissions).unwrap();
     match (beside.layout.place(&TOP), beside.layout.place(&LOWER)) {
         (Some(PanelPlace::Dock { column: a, .. }), Some(PanelPlace::Dock { column: b, .. })) => assert_ne!(a, b, "a new column beside the first"),
