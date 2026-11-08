@@ -187,9 +187,9 @@ impl Component for Slider<'_> {
         if self.track_face.is_some() {
             cx.part(track::GROOVE, track::groove_rect(&cx.style.track, area));
         }
-        cx.part(TRACK, area).sense(Sense::CLICK | Sense::DRAG).value_part().pointer_only("the arrow keys step the value");
+        cx.part(TRACK, area).sense(Sense::CLICK | Sense::DRAG | Sense::TAKE_FOCUS).value_part().pointer_only("the arrow keys step the value");
         cx.part(THUMB, thumb)
-            .sense(Sense::DRAG)
+            .sense(Sense::DRAG | Sense::TAKE_FOCUS)
             .priority(HitPriority::new(HitLevel::Handle, 0))
             .value_part()
             .pointer_only("the arrow keys step the value");

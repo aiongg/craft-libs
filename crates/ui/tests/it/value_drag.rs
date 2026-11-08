@@ -5,7 +5,7 @@ mod dials;
 mod field_scrub;
 mod thumb_row;
 
-use craft_behavior::{EditEvent, GesturePhase, Mixed};
+use craft_behavior::{EditEvent, GesturePhase, Mixed, PartKey};
 use craft_i18n::Direction;
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
@@ -65,6 +65,23 @@ fn a_slider_steps_toward_the_end_edge_of_the_reading_direction() {
     assert_eq!(after(Direction::Ltr, Key::ArrowLeft, Modifiers::NONE), START - STEP);
     assert_eq!(after(Direction::Rtl, Key::ArrowLeft, Modifiers::NONE), START + STEP, "the mirrored slider grows toward the left");
     assert_eq!(after(Direction::Ltr, Key::ArrowRight, Modifiers::SHIFT), 100.0, "Shift steps ten times as far, to the end of the range");
+}
+
+/// A press on the track of an unfocused slider focuses it, so the next arrow steps it.
+#[trial]
+fn a_track_press_focuses_the_slider() {
+    let mut fixture = Fixture::story(&Story::new("slider", show));
+    fixture.settle();
+    let id = fixture.root_id().expect("the slider is shown");
+    assert_eq!(fixture.focused_stop().map(|(stop, _)| stop), None, "nothing has the focus yet");
+    let track = fixture.part_rect(id, PartKey::new("track")).expect("the track is a part");
+    fixture.click_at(track.lerp_inside(Vec2::new(0.1, 0.5)));
+    fixture.idle(2);
+    assert_eq!(fixture.focused_stop().map(|(stop, _)| stop), Some(id), "the press focused the slider");
+    let pressed = *fixture.data().value("value", START);
+    fixture.key(Key::ArrowRight, Modifiers::NONE);
+    fixture.idle(2);
+    assert_eq!(*fixture.data().value("value", START), pressed + STEP);
 }
 
 fn show_log(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
