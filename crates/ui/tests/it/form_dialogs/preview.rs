@@ -252,6 +252,31 @@ fn a_fitting_pane_follows_its_well_until_the_user_zooms_and_a_double_click_retur
     assert!((held.shown.get().scale - expected(bigger)).abs() < EDGE, "the view is the fit view again: {:?}", held.shown.get());
 }
 
+/// The second press of a double click on the well is reported in the output, and a single click is not.
+#[trial]
+fn a_double_click_on_the_well_is_reported_in_the_output() {
+    let seen = Rc::new(Cell::new(false));
+    let handle: RefCell<Option<TextureHandle>> = RefCell::new(None);
+    let flag = Rc::clone(&seen);
+    let mut fixture = Fixture::new(move |ui| {
+        let mut handle = handle.borrow_mut();
+        let texture = handle
+            .get_or_insert_with(|| ui.ctx().load_texture("preview-double", ColorImage::filled(BIG, Default::default()), TextureOptions::LINEAR));
+        let sized = SizedTexture::new(texture.id(), Vec2::new(BIG[0] as f32, BIG[1] as f32));
+        let out = PreviewPane::new("Preview", sized, &fitting()).show_at(ui, Rect::from_min_size(ORIGIN, WELL));
+        flag.set(flag.get() || out.double_clicked);
+    });
+    fixture.settle();
+    let at = ORIGIN + WELL / 2.0;
+    fixture.frame(vec![pointer::moved(at)]);
+    fixture.frame(vec![pointer::press(at)]);
+    fixture.frame(vec![pointer::release(at)]);
+    fixture.idle(2);
+    assert!(!seen.get(), "one click is not a double click");
+    double_click(&mut fixture, at);
+    assert!(seen.get(), "the double click is reported");
+}
+
 /// The wheel and the zoom buttons stop at the ends of `zoom_range`.
 #[trial]
 fn zoom_range_bounds_the_wheel_and_the_buttons() {

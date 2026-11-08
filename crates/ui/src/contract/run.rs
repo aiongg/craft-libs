@@ -186,7 +186,10 @@ pub(crate) trait ShapeHooks<C: Component> {
     fn record(&mut self, _stage: &mut MemoryStage, _ctx: &Context, _id: Id) {}
 }
 
-struct LeafHooks;
+/// The leaf shape; `scope` is the command scope the leaf is an instance of, when its caller named one.
+struct LeafHooks {
+    scope: Option<commands::CommandScope>,
+}
 
 impl<C: Component> ShapeHooks<C> for LeafHooks {
     fn shape(&self) -> ShapeKind {
@@ -202,6 +205,16 @@ impl<C: Component> ShapeHooks<C> for LeafHooks {
     }
 
     fn content(&mut self, _: &mut C, _: &mut Ui, _: &Env, _: &mut Cx<'_, C>, _: &AppValues) {}
+
+    fn read(&mut self, _: &mut C, stage: &mut MemoryStage, id: Id, _: &Env) {
+        if let Some(scope) = self.scope {
+            commands::register_instance(stage.ctx(), scope, id);
+        }
+    }
+
+    fn instance_scope(&self, _: &C) -> Option<commands::CommandScope> {
+        self.scope
+    }
 
     fn sized(&self, comp: &C, ui: &Ui, size: Vec2) -> Vec2 {
         let room = ui.available_size_before_wrap();
@@ -857,7 +870,8 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
 }
 
 pub(crate) fn show_leaf<C: Component + Meta<Shape = super::shape::Leaf>>(comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>>) -> C::Output {
-    run(comp, ui, at, tip, &mut LeafHooks)
+    let scope = comp.common(Internal::new()).command_scope;
+    run(comp, ui, at, tip, &mut LeafHooks { scope })
 }
 
 pub(crate) fn show_container<C: Container, R>(

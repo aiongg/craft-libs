@@ -96,7 +96,7 @@ pub struct CxCore<'a> {
     pub(crate) press: PressState,
     pub(crate) cursor: Option<(Cursor, CursorPriority)>,
     /// The declared cursors of the parts hovered this pass, recorded at step 8 and written at step 16.
-    pub(crate) part_cursors: Vec<CursorIcon>,
+    pub(crate) part_cursors: Vec<Cursor>,
     pub(crate) claims: Vec<Chord>,
     pub(crate) reveal: Option<Rect>,
     pub(crate) press_cancel: Option<PressCancel>,
@@ -1204,6 +1204,12 @@ impl<'a> BodyCx<'a> {
         BodyCx { id, env, resolved, rect, memory, open, gate, close: None, field_message: None }
     }
 
+    /// Asks the platform to open `url`, in a new tab where the platform has tabs and `new_tab` is set: the opener
+    /// `Link` uses. The footer's closure gets this context too.
+    pub fn open_url(&mut self, url: &str, new_tab: bool) {
+        crate::runtime::egui::output::open_url(self.memory.ctx(), url, new_tab);
+    }
+
     pub(crate) fn with_field_message(mut self, message: Option<(Message, craft_theme::variant::Tone)>) -> Self {
         self.field_message = message;
         self
@@ -1535,8 +1541,8 @@ impl PartBuilder<'_> {
     }
 
     /// The cursor while the pointer is over the part.
-    pub fn cursor(self, cursor: CursorIcon) -> Self {
-        self.decl.cursor = Some(cursor);
+    pub fn cursor(self, cursor: impl Into<Cursor>) -> Self {
+        self.decl.cursor = Some(cursor.into());
         self
     }
 
@@ -1796,16 +1802,16 @@ pub(crate) fn scroll_moves(decls: &[ScrollDecl], results: &PartResults) -> Vec<(
 }
 
 /// The cursor requests of the hovered parts' declared cursors, in registration order.
-pub(crate) fn declared_cursor(core: &CxCore<'_>) -> Option<CursorIcon> {
-    core.part_cursors.first().copied()
+pub(crate) fn declared_cursor(core: &CxCore<'_>) -> Option<Cursor> {
+    core.part_cursors.first().cloned()
 }
 
 /// Writes the cursor a component asked for into the cursor service.
 pub(crate) fn write_cursor(core: &CxCore<'_>) {
     if let Some((cursor, priority)) = core.cursor.clone() {
         cursor::request(&core.ctx, cursor, priority);
-    } else if let Some(icon) = declared_cursor(core) {
-        cursor::request(&core.ctx, Cursor::System(icon), CursorPriority::Part);
+    } else if let Some(cursor) = declared_cursor(core) {
+        cursor::request(&core.ctx, cursor, CursorPriority::Part);
     }
 }
 

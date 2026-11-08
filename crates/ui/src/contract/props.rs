@@ -1,7 +1,7 @@
 //! `Common`, `Props`, `Resolved` and `Tooltip` (chapter 3).
 
 use super::{IdSource, Internal, Meta};
-use crate::runtime::commands::CommandRef;
+use crate::runtime::commands::{CommandRef, CommandScope};
 use crate::runtime::env::Label;
 use craft_behavior::DocKey;
 use craft_theme::{ControlSize, Variant};
@@ -26,6 +26,8 @@ pub struct Common {
     pub(crate) access_key: Option<char>,
     pub(crate) default_stop: bool,
     pub(crate) doc_key: Option<DocKey>,
+    /// The scope a leaf is an instance of while it holds key focus.
+    pub(crate) command_scope: Option<CommandScope>,
 }
 
 impl Common {
@@ -46,6 +48,7 @@ impl Common {
             access_key: None,
             default_stop: false,
             doc_key: None,
+            command_scope: None,
         }
     }
 }
@@ -128,6 +131,16 @@ pub trait Props: Meta + Sized {
     /// component that owns the key handling reads the letter; the node only reports it.
     fn access_key(mut self, key: char) -> Self {
         self.common_mut(Internal::new()).access_key = Some(key);
+        self
+    }
+
+    /// A leaf is an instance of `scope` while it holds key focus: commands of `scope` reach it and the items it
+    /// shows. Containers and collections take the scope as their own `command_scope` prop.
+    fn command_scope(mut self, scope: CommandScope) -> Self
+    where
+        Self: Meta<Shape = super::shape::Leaf>,
+    {
+        self.common_mut(Internal::new()).command_scope = Some(scope);
         self
     }
 

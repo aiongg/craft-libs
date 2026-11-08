@@ -313,6 +313,9 @@ impl Deref for Env {
 pub struct Scoped {
     /// The resolved tokens of the scope; read in `style` only.
     pub(crate) tokens: Arc<UiTokens>,
+    /// The light or dark mode the tokens were resolved in: the app's, until a scope that resolves its tokens in
+    /// another mode sets it with them.
+    pub(crate) mode: Mode,
     /// The operating system.
     pub(crate) os: Os,
     /// Whether the window is active.
@@ -501,6 +504,7 @@ impl Env {
                 dates: host_dates(ctx, host.as_ref()),
                 today: root.today,
                 tab_toggles_chrome: root.tab_toggles_chrome,
+                mode: root.mode,
                 host,
                 values: root.values.clone(),
             }),
@@ -745,6 +749,12 @@ impl<'a> EnvView<'a> {
     /// The layout direction.
     pub fn direction(&self) -> Direction {
         self.scoped.direction
+    }
+
+    /// The light or dark mode the scope's tokens are resolved in: the app's, or the one a scope with its own tokens
+    /// set.
+    pub fn mode(&self) -> Mode {
+        self.scoped.mode
     }
 
     /// The motion mode in effect.

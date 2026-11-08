@@ -162,6 +162,7 @@ const COLLECTION: &[Forwarded] = &[
     ("space", "::craft_ui::contract::SpaceAction", "What Space does on the lead row."),
     ("header", "bool", "The header row over the columns is shown."),
     ("digit_keys", "bool", "Digit keys arrive as digit intents instead of type-ahead."),
+    ("menu_on_click", "bool", "A plain click on a row asks for its menu, as a secondary click does."),
     ("item_keys", "::craft_ui::contract::ItemKeys", "Who takes the arrow keys: the collection (moves the lead) or the component around it."),
     ("marquee", "bool", "A drag on the background selects the rows it covers."),
     ("deletable", "bool", "Delete and Backspace at the lead report the items to delete."),
@@ -186,18 +187,35 @@ const CONTAINER: &[Forwarded] = &[
     ("collection_body", "", "The body holds one collection that owns the scroll: a layer's own body scroll is off."),
 ];
 
+/// The builders a `#[container(a, b)]` field names; a bare `#[collection]` or `#[container]` forwards them all.
+fn forwarded_names(attr: &Attribute) -> syn::Result<Option<Vec<syn::Path>>> {
+    match &attr.meta {
+        Meta::Path(_) => Ok(None),
+        Meta::List(_) => {
+            Ok(Some(attr.parse_args_with(syn::punctuated::Punctuated::<syn::Path, syn::Token![,]>::parse_terminated)?.into_iter().collect()))
+        }
+        Meta::NameValue(_) => Err(syn::Error::new_spanned(attr, "name the builders in parentheses: `#[container(command_scope)]`")),
+    }
+}
+
 fn forwarders(field: &Field, attr: &Attribute, owner: &str, list: &[Forwarded]) -> syn::Result<Vec<TokenStream>> {
     let Some(field_name) = &field.ident else {
         return Err(syn::Error::new_spanned(field, "`#[collection]` and `#[container]` need a named field"));
     };
-    attr.meta.require_path_only()?;
+    let only = forwarded_names(attr)?;
     if !is_named(&field.ty, owner) {
         return Err(syn::Error::new_spanned(
             &field.ty,
             format!("`#[{}]` is for a field of type `{owner}`", attr.path().get_ident().map_or_else(String::new, ToString::to_string)),
         ));
     }
+    if let Some(only) = &only {
+        if let Some(unknown) = only.iter().find(|name| !list.iter().any(|(listed, ..)| name.is_ident(listed))) {
+            return Err(syn::Error::new_spanned(unknown, format!("`{owner}` forwards no builder of this name")));
+        }
+    }
     list.iter()
+        .filter(|(name, ..)| only.as_ref().is_none_or(|only| only.iter().any(|picked| picked.is_ident(name))))
         .map(|(name, ty, doc)| {
             let name = Ident::new(name, field_name.span());
             if ty.is_empty() {

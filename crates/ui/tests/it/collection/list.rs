@@ -595,6 +595,31 @@ fn a_secondary_release_on_a_row_asks_for_its_context_menu() {
     assert!(seen.leads().contains(&1), "the row under the pointer holds the lead");
 }
 
+/// A plain click on a row asks for its menu on the release when the list is set to, and not otherwise.
+#[trial]
+fn a_plain_click_on_a_row_asks_for_its_menu_only_when_the_list_is_set_to() {
+    let menus_after_click = |on: bool| {
+        let words = Words::flat(&["a", "b", "c"]);
+        let seen = Seen::default();
+        let mut frames = Frames::new();
+        let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Single).menu_on_click(on), &words, &seen);
+        frames.idle(3, &mut show);
+        let at = ORIGIN + Vec2::new(30.0, ROW_H * 1.5);
+        frames.frame(vec![pointer::moved(at)], &mut show);
+        frames.frame(vec![pointer::press(at)], &mut show);
+        assert!(!seen.events.borrow().iter().any(|event| matches!(event, CollectionEvent::ContextMenu(_))), "nothing opens on the press");
+        frames.frame(vec![pointer::release(at)], &mut show);
+        frames.idle(1, &mut show);
+        seen.events
+            .borrow()
+            .iter()
+            .filter_map(|event| if let CollectionEvent::ContextMenu(request) = event { Some(request.key) } else { None })
+            .collect::<Vec<usize>>()
+    };
+    assert_eq!(menus_after_click(true), [1], "the click names the row under the pointer");
+    assert!(menus_after_click(false).is_empty(), "a list that is not set to takes a click as a pick only");
+}
+
 /// A press on a row of a popup list whose opener keeps focus picks the row while the opener's text field stays
 /// focused with its draft open.
 #[trial]

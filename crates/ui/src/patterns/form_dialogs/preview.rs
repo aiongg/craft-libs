@@ -153,6 +153,9 @@ pub struct PreviewOutput {
     /// while fitting. A caller that keeps the view adopts `view.unwrap_or(shown)`, so a zoom row steps from what is on
     /// screen.
     pub shown: PreviewView,
+    /// The well took the second press of a double click this pass. The pane returns to fit on it; a caller may
+    /// also act on it (open the picture larger, say).
+    pub double_clicked: bool,
 }
 
 impl Outcome for PreviewOutput {
@@ -188,6 +191,8 @@ pub struct PreviewPane {
     click_centres: bool,
     /// The view after this pass, when the user changed it.
     moved: Option<PreviewView>,
+    /// The well took the second press of a double click this pass.
+    double_clicked: bool,
     /// Whether the picture overflows the well horizontally, and vertically. Set by `parts`, which runs before the
     /// root's sense is read: the wheel scrolls the pane only on an axis it pans on.
     overflow: (bool, bool),
@@ -201,7 +206,16 @@ impl PreviewPane {
 
     /// A pane named `label` showing `state` through `view`.
     pub fn state(label: impl Into<Label>, state: PreviewState, view: &PreviewView) -> Self {
-        PreviewPane { common: Common::new(), state, view: view.clone(), click_centres: true, moved: None, overflow: (false, false) }.label(label)
+        PreviewPane {
+            common: Common::new(),
+            state,
+            view: view.clone(),
+            click_centres: true,
+            moved: None,
+            double_clicked: false,
+            overflow: (false, false),
+        }
+        .label(label)
     }
 
     /// The view at the next zoom level above the view's, with the picture's centre kept in place.
@@ -360,7 +374,10 @@ impl Component for PreviewPane {
                 next.offset += delta;
                 cx.cursor(CursorIcon::Grabbing, CursorPriority::Drag);
             }
-            PressPhase::Down { start, .. } if start.clicks >= 2 => refit = true,
+            PressPhase::Down { start, .. } if start.clicks >= 2 => {
+                refit = true;
+                self.double_clicked = true;
+            }
             PressPhase::Release { start, pos, click: true, .. } if self.click_centres && start.clicks < 2 => {
                 next.offset += well.center() - pos;
             }
@@ -459,7 +476,7 @@ impl Component for PreviewPane {
 
     fn finish(self, cx: Cx<'_, Self>) -> PreviewOutput {
         let shown = PreviewView { transform: self.shown(cx.rect.size()), ..self.view.clone() };
-        PreviewOutput { response: cx.response.clone(), view: self.moved, shown }
+        PreviewOutput { response: cx.response.clone(), view: self.moved, shown, double_clicked: self.double_clicked }
     }
 }
 
