@@ -47,10 +47,7 @@ fn docked() -> Workspace<usize> {
     Workspace::new(Layout::new(Some(root), Vec::new()))
 }
 
-fn shown_panels(
-    workspace: Workspace<usize>,
-    hide: impl for<'a> Fn() -> HidePanels<'a, usize> + 'static,
-) -> (Vec<usize>, Option<DockAreaOutput<usize>>) {
+fn shown_panels(workspace: Workspace<usize>, hide_all: bool) -> (Vec<usize>, Option<DockAreaOutput<usize>>) {
     let shown = Rc::new(RefCell::new(Vec::new()));
     let output: Rc<RefCell<Option<DockAreaOutput<usize>>>> = Rc::default();
     let (seen, kept) = (Rc::clone(&shown), Rc::clone(&output));
