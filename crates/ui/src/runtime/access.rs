@@ -5,6 +5,7 @@
 //! `report` per node kind fills a node; `runtime::access::{item, text}` add theirs beside `report` and `report_sub`.
 
 mod emit;
+pub(crate) mod fold;
 pub(crate) mod items;
 mod live;
 pub(crate) mod scope;
