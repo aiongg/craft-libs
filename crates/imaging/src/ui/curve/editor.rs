@@ -93,7 +93,7 @@ struct Memory {
 /// of points from one corner to the next is interpolated on its own. A new point is smooth. With corners on, smooth
 /// points are round and corner points square.
 ///
-/// The selection is view state: the editor keeps it, or the host sets it with [`selected`](CurveEditor::selected) and
+/// The selection is view state: the editor keeps it, or the host sets it with [`selection`](CurveEditor::selection) and
 /// stores the output's. It clears when the [`channel`](CurveEditor::channel) changes.
 #[must_use = "show the editor with `show`"]
 #[derive(Pattern, Props)]
@@ -137,7 +137,9 @@ pub struct CurveEditor<'a> {
     /// The curve of every channel, in the order of the channels: the other channels' curves draw behind the active one.
     #[prop]
     overlays: &'a [Curve],
-    selected: Option<Option<usize>>,
+    /// The selected point, kept by the host: the editor shows it and reports changes in the output.
+    #[prop]
+    selection: Option<Option<usize>>,
     /// The host's rows between the graph and the fields.
     #[prop(func = "FnMut(&mut Ui, &mut BodyCx<'_>)")]
     between: Option<CurveRows<'a>>,
@@ -162,7 +164,7 @@ impl<'a> CurveEditor<'a> {
             corners: false,
             histogram: None,
             overlays: &[],
-            selected: None,
+            selection: None,
             between: None,
         }
     }
@@ -170,12 +172,6 @@ impl<'a> CurveEditor<'a> {
     /// The top level of input and output.
     pub fn levels(mut self, levels: u32) -> Self {
         self.levels = levels.max(1);
-        self
-    }
-
-    /// The selected point, kept by the host: the editor shows it and reports changes in the output.
-    pub fn selected(mut self, selected: Option<usize>) -> Self {
-        self.selected = Some(selected);
         self
     }
 
@@ -197,7 +193,7 @@ impl<'a> CurveEditor<'a> {
             corners,
             histogram,
             overlays,
-            selected: host_selected,
+            selection: host_selection,
             mut between,
         } = self;
         let words = craft_ui::runtime::env::Env::of(ui).words::<CurveWords>();
@@ -211,7 +207,7 @@ impl<'a> CurveEditor<'a> {
                 memory.selected = None;
             }
             memory.channel = Some(channel);
-            let selected = match host_selected {
+            let selected = match host_selection {
                 Some(_) if cleared => None,
                 Some(host) => host,
                 None => memory.selected,
@@ -222,11 +218,15 @@ impl<'a> CurveEditor<'a> {
                 .levels(levels)
                 .max_points(max_points)
                 .bars(bars)
-                .overlays(overlays)
-                .with_sampler(sampler.take())
-                .selected(selected);
+                .overlays(overlays);
             if let Some(data) = histogram {
                 graph = graph.histogram(data);
+            }
+            if let Some(sampler) = sampler.take() {
+                graph = graph.sampler(sampler);
+            }
+            if let Some(at) = selected {
+                graph = graph.selection(at);
             }
             if pencil {
                 graph = graph.pencil();

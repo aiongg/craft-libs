@@ -40,7 +40,7 @@ impl<'a> ToneRamp<'a> {
 impl ToneRamp<'static> {
     /// A black to white ramp, for the suite.
     fn sample() -> Self {
-        const BLACK_TO_WHITE: [DataColor; 2] = [DataColor::new(egui::Color32::BLACK), DataColor::new(egui::Color32::WHITE)];
+        const BLACK_TO_WHITE: [DataColor; 2] = [DataColor::new(egui::Color32::from_gray(0)), DataColor::new(egui::Color32::from_gray(u8::MAX))];
         ToneRamp::new(&BLACK_TO_WHITE)
     }
 }

@@ -3,12 +3,14 @@
 
 /// A tone curve in levels (`0..=levels`, 255 for 8-bit tones): input across, output up.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub enum Curve {
     /// Control points `[input, output]`, sorted by input, whole levels, the first and last the
     /// curve's end points. `corners[i]` marks point `i` as a corner point (the contour editor): a
     /// corner breaks the curve, and the points from one corner to the next (both included) take
     /// the host's interpolation (its sampler) as a run of their own. A short `corners` reads as smooth
     /// points; [`Curve::smooth`] and [`Curve::from_parts`] make the value.
+    #[non_exhaustive]
     Points {
         /// Control points `[input, output]`.
         points: Vec<[f32; 2]>,
@@ -265,6 +267,7 @@ pub(crate) const SAME_POINT: f32 = 2.0;
 /// [`CurveEditor`](super::CurveEditor) applies to its points, for hosts that add points
 /// themselves (a Curves eyedropper).
 #[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
 pub struct CurveRules {
     /// Greatest level of the curve; inputs and outputs run `0..=levels`.
     pub levels: f32,
@@ -273,6 +276,11 @@ pub struct CurveRules {
 }
 
 impl CurveRules {
+    /// The rules of a curve with `levels` levels and at most `max_points` points.
+    pub const fn new(levels: f32, max_points: usize) -> CurveRules {
+        CurveRules { levels, max_points }
+    }
+
     /// Adds a point at `v`, kept sorted, and returns its index. A point within
     /// `SAME_POINT` input levels of `v` is returned instead; a full curve takes none.
     pub fn insert(&self, points: &mut Vec<[f32; 2]>, v: [f32; 2]) -> Option<usize> {

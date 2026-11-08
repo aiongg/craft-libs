@@ -78,7 +78,7 @@ fn curve_editor_corners(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn curve_editor_percent(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let selected = *data.value("selected", Some(1usize));
     let curve = data.value("percent", bent());
-    let output = CurveEditor::new("Curve", Bind::bound(curve)).percent().selected(selected).show(ui);
+    let output = CurveEditor::new("Curve", Bind::bound(curve)).percent().selection(selected).show(ui);
     *data.value("selected", Some(1usize)) = output.selected;
     output.into()
 }
@@ -93,6 +93,6 @@ fn curve_preview(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 /// The ramp the tone bars and the slider tracks share.
 #[story(ToneRamp<'static>, covers = [Default], drive = Drive::Never)]
 fn tone_ramp(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let stops = [DataColor::new(Color32::BLACK), DataColor::new(Color32::WHITE)];
+    let stops = [DataColor::new(Color32::from_gray(0)), DataColor::new(Color32::from_gray(u8::MAX))];
     ToneRamp::new(&stops).show(ui).into()
 }

@@ -226,7 +226,7 @@ pub struct CurveGraphStyle {
     handle: f32,
     point_fill: StyleColor,
     point_edge: StyleColor,
-    selected_fill: StyleColor,
+    chosen_fill: StyleColor,
     halo: StyleColor,
     /// The light end of the tone bars per channel, in `ChannelColor::ALL` order. Image data, so a data colour.
     bar_ends: [DataColor; 7],
@@ -241,7 +241,7 @@ fn bar_end(color: ChannelColor, cx: &StyleCx<'_>) -> DataColor {
         ChannelColor::Cyan => data.cyan,
         ChannelColor::Magenta => data.magenta,
         ChannelColor::Yellow => data.yellow,
-        _ => return DataColor::new(Color32::WHITE),
+        _ => return DataColor::new(Color32::from_gray(u8::MAX)),
     };
     let [r, g, b, a] = rgba.0;
     DataColor::new(Color32::from_rgba_unmultiplied(r, g, b, a))
@@ -324,29 +324,40 @@ pub struct CurveGraph<'a> {
     #[common]
     common: Common,
     value: Bind<'a, Curve>,
+    /// The dialog's channels.
     #[prop]
     channels: &'a [CurveChannel],
+    /// The active channel, an index into the channels.
     #[prop]
     channel: usize,
     levels: f32,
+    /// The most points the curve holds.
     #[prop(quantity = "points")]
     max_points: usize,
-    #[prop(func = "Fn(&[[f32; 2]]) -> Vec<f32>")]
+    /// The interpolation of the curve through its points.
+    #[prop]
     sampler: Option<CurveSampler<'a>>,
     /// Whether the tone bars show under the plot and beside it.
     #[prop]
     bars: bool,
+    /// Pencil mode: a drag draws one output per input level.
     #[prop(flag)]
     pencil: bool,
+    /// Points can be corner points.
     #[prop(flag)]
     corners: bool,
+    /// Accessible values in percent of the levels.
     #[prop(flag)]
     percent: bool,
+    /// The active channel's histogram, drawn behind the curve.
     #[prop]
     histogram: Option<&'a HistogramData>,
+    /// The curve of every channel, in the order of the channels.
     #[prop]
     overlays: &'a [Curve],
-    selected: Option<usize>,
+    /// The selected point.
+    #[prop]
+    selection: Option<usize>,
     /// The selection after `update`, for the output.
     chosen: Option<usize>,
 }
@@ -368,7 +379,7 @@ impl<'a> CurveGraph<'a> {
             percent: false,
             histogram: None,
             overlays: &[],
-            selected: None,
+            selection: None,
             chosen: None,
         }
         .label(label)
@@ -378,20 +389,6 @@ impl<'a> CurveGraph<'a> {
     #[must_use]
     pub fn levels(mut self, levels: u32) -> Self {
         self.levels = levels.max(1) as f32;
-        self
-    }
-
-    /// The interpolation `sampler`.
-    #[must_use]
-    pub(super) fn with_sampler(mut self, sampler: Option<CurveSampler<'a>>) -> Self {
-        self.sampler = sampler;
-        self
-    }
-
-    /// The selected point.
-    #[must_use]
-    pub fn selected(mut self, selected: Option<usize>) -> Self {
-        self.selected = selected;
         self
     }
 
@@ -415,7 +412,7 @@ impl<'a> CurveGraph<'a> {
     /// The squares of the graph in `rect`.
     fn frame(&self, rect: Rect, style: &CurveGraphStyle) -> Frame {
         let edge = if self.bars { style.bar + style.bar_gap } else { 0.0 };
-        let plot = Rect::from_min_size(rect.min + vec2(edge, 0.0), (rect.size() - vec2(edge, edge)).max(vec2(1.0, 1.0)));
+        let plot = Rect::from_min_size(rect.min + vec2(edge, 0.0), (rect.size() - vec2(edge, edge)).max(Vec2::ZERO));
         let area = plot.shrink(style.look.pad);
         let under =
             Rect::from_min_max(pos2(area.left(), plot.bottom() + style.bar_gap), pos2(area.right(), plot.bottom() + style.bar_gap + style.bar));
@@ -505,7 +502,7 @@ impl Component for CurveGraph<'_> {
             handle: tokens.size.handle.md,
             point_fill: cx.color(colors.surface.sunken),
             point_edge: cx.color(colors.text.normal),
-            selected_fill: cx.color(colors.text.normal),
+            chosen_fill: cx.color(colors.text.normal),
             halo: cx.color(colors.overlay.halo),
             bar_ends: ChannelColor::ALL.map(|c| bar_end(c, cx)),
         }
@@ -545,7 +542,7 @@ impl Component for CurveGraph<'_> {
             return;
         };
         let frame = self.frame(cx.rect, cx.style);
-        let mut selected = self.selected;
+        let mut selected = self.selection;
         if self.pencil {
             self.pencil_update(cx, &frame, &curve);
             self.chosen = None;
@@ -678,7 +675,7 @@ impl Component for CurveGraph<'_> {
             let node = access.node(POINT.at(i as u64), Role::GRAPHICS_OBJECT);
             node.name = Name::Text(name);
             node.description = Some(value);
-            node.current(self.selected == Some(i));
+            node.current(self.selection == Some(i));
         }
     }
 
@@ -704,13 +701,13 @@ impl Component for CurveGraph<'_> {
                 if let (true, Some(points)) = (self.points_mode(Some(curve)), curve.points()) {
                     for (i, p) in points.iter().enumerate() {
                         let smooth = self.corners && !curve.is_corner(i);
-                        point(&draw, style, frame.map.screen(*p), smooth, self.selected == Some(i));
+                        point(&draw, style, frame.map.screen(*p), smooth, self.selection == Some(i));
                     }
                 }
             }
         }
         if self.bars {
-            let stops = [DataColor::new(Color32::BLACK), style.bar_ends[slot(color)]];
+            let stops = [DataColor::new(Color32::from_gray(0)), style.bar_ends[slot(color)]];
             ui.child("under", frame.under, ToneRamp::new(&stops));
             ui.child("left", frame.left, ToneRamp::new(&stops).vertical());
         }
@@ -733,7 +730,7 @@ fn point(draw: &Draw<'_>, style: &CurveGraphStyle, center: Pos2, smooth: bool, s
     };
     if selected {
         draw.stroke(&shape(0.0), StrokeWidth::Thin, style.halo);
-        draw.fill(&shape(0.0), style.selected_fill);
+        draw.fill(&shape(0.0), style.chosen_fill);
     } else {
         draw.fill(&shape(0.0), style.point_fill);
         draw.stroke(&shape(0.0), StrokeWidth::Thin, style.point_edge);
