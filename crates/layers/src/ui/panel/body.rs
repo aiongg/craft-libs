@@ -4,7 +4,8 @@
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, GestureId, IconId, ItemSource, Mixed, Selection, SelectionChange};
 use craft_keymap::Mods;
 use craft_ui::contract::{
-    Bind, CollectionEvent, ColumnKind, ColumnSpec, ListDrag, OpenChange, Props as _, ReorderRule, ShowCollection as _, ToggleColumn, request_rename,
+    Bind, CollectionEvent, ColumnKind, ColumnSpec, ListDrag, OpenChange, Props as _, ReorderRule, ShowCollection as _, SweepApply, SweepStep,
+    ToggleColumn, request_rename,
 };
 use craft_ui::list::{List, RowEvent, ThumbTarget};
 use craft_ui::runtime::env::Label;
@@ -245,13 +246,25 @@ fn thumb_part<Id>(key: &LayerRowKey<Id>, info: &LayerInfo, which: ThumbTarget) -
     }
 }
 
-/// The sweep down an eye or lock column that is running: the gesture it reports under, kept across passes while the
-/// pointer is held.
-#[derive(Clone)]
-pub(super) struct ToggleSweep {
-    gesture: GestureId,
-    column: LayerColumn,
-    show_only: bool,
+/// The readers of the eye and lock sweeps, and the gesture the running sweep reports under, kept across passes while
+/// the pointer is held.
+#[derive(Clone, Default)]
+pub(super) struct ToggleSweeps {
+    eye: SweepApply,
+    lock: SweepApply,
+    gesture: Option<GestureId>,
+}
+
+impl ToggleSweeps {
+    /// The sweep reader of `column`.
+    fn of(&mut self, column: LayerColumn) -> &mut SweepApply {
+        if column == LayerColumn::Visibility { &mut self.eye } else { &mut self.lock }
+    }
+
+    /// The pointer came up: the next sweep reports under its own gesture.
+    pub(super) fn release(&mut self) {
+        self.gesture = None;
+    }
 }
 
 /// What the rows' pass returns.
@@ -321,7 +334,7 @@ pub(super) fn show_body<T: LayerTree>(
     let list_events = out.events;
     map_events(cx, &order, &parent_of, filtered, lock_name, session, list_events, &mut events);
     if !ui.input(|input| input.pointer.primary_down()) {
-        session.sweep = None;
+        session.sweeps.release();
     }
     if selection_changed {
         let mut layers: Vec<T::Id> = Vec::new();
@@ -427,7 +440,7 @@ fn map_events<T: LayerTree>(
                 }
             }
             CollectionEvent::Reorder(edit) => events.extend(drop_event(edit, order, parent_of, filtered)),
-            CollectionEvent::Toggle(edit) => toggle_events(edit, &mut session.sweep, &mut toggle_label, events),
+            CollectionEvent::Toggle(edit) => toggle_events(edit, &mut session.sweeps, &mut toggle_label, events),
             CollectionEvent::Rename(edit) => {
                 if let EditEvent::Commit { after, .. } | EditEvent::Set { after, .. } = edit
                     && let LayerRowKey::Layer(id) = &after.key
@@ -492,40 +505,45 @@ fn column_of(column: &ColumnKey) -> LayerColumn {
     if *column == EYE { LayerColumn::Visibility } else { LayerColumn::Lock }
 }
 
-/// The cells of an eye or lock sweep as events. The list reports each cell a sweep crosses as a gesture of its own,
-/// opened by a `Begin` (which names the gesture in `label`), given its value by an `Update` and ended by a `Commit` on
-/// release or a `Cancel` on Escape. The cells of one sweep share the gesture of its first, and the cells of one pass
-/// share one event, in the order crossed; an Escape reports each cell with the state it had before. Alt on the first
-/// press of an eye sweep shows only that layer and drops the rest of the sweep.
+/// The cells of an eye or lock sweep as events. The cells of one sweep share the gesture of its first, and the cells of
+/// one pass share one event, in the order crossed; an Escape reports each cell with the state it had before. Alt on the
+/// first press of an eye sweep shows only that layer and drops the rest of the sweep.
 fn toggle_events<Id: Clone + PartialEq>(
     edit: EditEvent<craft_ui::contract::ToggleEdit<LayerRowKey<Id>>>,
-    sweep: &mut Option<ToggleSweep>,
+    sweeps: &mut ToggleSweeps,
     label: &mut Arc<str>,
     events: &mut Vec<LayersEvent<Id>>,
 ) {
-    match edit {
-        EditEvent::Begin { label: named, .. } => *label = named,
-        EditEvent::Update { id, value, .. } => {
-            let column = column_of(&value.column);
-            if sweep.as_ref().is_none_or(|running| running.column != column) {
-                let show_only = value.mods.alt && column == LayerColumn::Visibility;
-                *sweep = Some(ToggleSweep { gesture: id, column, show_only });
-                if show_only {
-                    events.push(LayersEvent::ShowOnly(value.key));
-                    return;
-                }
-            }
-            let Some(running) = sweep.as_ref().filter(|running| !running.show_only) else { return };
-            let edit = EditEvent::set(running.gesture, Mixed::Same(!value.on), value.on, label.clone(), None);
-            push_cell(events, running.gesture, value.key, column, edit);
+    if let EditEvent::Begin { label: named, .. } = &edit {
+        *label = named.clone();
+    }
+    let column = match &edit {
+        EditEvent::Update { value: cell, .. } | EditEvent::Set { after: cell, .. } => column_of(&cell.column),
+        EditEvent::Begin { before: Mixed::Same(cell), .. } | EditEvent::Cancel { before: Some(Mixed::Same(cell)), .. } => column_of(&cell.column),
+        _ => {
+            // A release ends the sweep of either column.
+            sweeps.eye.feed(&edit);
+            sweeps.lock.feed(&edit);
+            return;
         }
-        EditEvent::Cancel { reason, before: Some(Mixed::Same(before)), .. } => {
-            let column = column_of(&before.column);
-            let Some(running) = sweep.as_ref().filter(|running| !running.show_only && running.column == column) else { return };
-            let edit = EditEvent::cancel(running.gesture, reason, Some(Mixed::Same(before.on)));
-            push_cell(events, running.gesture, before.key, column, edit);
+    };
+    let Some(step) = sweeps.of(column).feed(&edit) else { return };
+    // A plain press is a gesture of its own; the cells of a sweep report under its first.
+    let gesture = if matches!(edit, EditEvent::Set { .. }) { edit.id() } else { *sweeps.gesture.get_or_insert(edit.id()) };
+    match step {
+        // Only the eye column shows one layer; on a lock column the first cell is a plain flip.
+        SweepStep::ShowOnly(cell) if column == LayerColumn::Visibility => events.push(LayersEvent::ShowOnly(cell.key)),
+        SweepStep::Flip(cell) | SweepStep::ShowOnly(cell) => {
+            let edit = EditEvent::set(gesture, Mixed::Same(!cell.on), cell.on, label.clone(), None);
+            push_cell(events, gesture, cell.key, column, edit);
         }
-        _ => {}
+        SweepStep::Restore(cell) => {
+            let EditEvent::Cancel { reason, .. } = edit else { return };
+            let edit = EditEvent::cancel(gesture, reason, Some(Mixed::Same(cell.on)));
+            push_cell(events, gesture, cell.key, column, edit);
+        }
+        // The rows an Alt sweep turned off have no event to take them back.
+        SweepStep::UndoShowOnly(_) => {}
     }
 }
 
