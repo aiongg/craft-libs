@@ -238,9 +238,10 @@ pub struct TrackRow<'r> {
 }
 
 impl<'r> TrackRow<'r> {
-    /// A row of `track` in `cells`, the rects the item context lists, with a lane showing `visible` seconds.
+    /// A row of `track` in `cells`, the rects the item context lists, with a lane showing `visible` seconds. The row is
+    /// named by the track, whether or not its painted name is elided.
     pub fn new(track: &'r Track, cells: Vec<(ColumnKey, Rect)>, visible: f32) -> Self {
-        TrackRow { common: Common::new(), track, cells, visible, event: None }
+        TrackRow { common: Common::new(), track, cells, visible, event: None }.label(track.name.clone())
     }
 
     fn cell(&self, column: &ColumnKey) -> Option<Rect> {

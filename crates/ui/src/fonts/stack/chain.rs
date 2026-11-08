@@ -14,7 +14,8 @@ use crate::fonts::{FontRef, set_weight};
 /// Scripts the app's own UI faces cover unless [`UiFonts::app_scripts`] says otherwise.
 pub(super) const APP_SCRIPTS: &[&str] = &["Latn", "Cyrl", "Grek"];
 
-/// Scripts whose characters sit inside the em square, so they fit a row of a Latin face.
+/// Scripts whose characters sit inside the em square, so they fit a row of a Latin face. These are the CJK scripts
+/// ([`is_cjk`]); the CJK face tags of craft-fonts-build (`CJK_SCRIPTS`) cover exactly these through [`covers`].
 pub(in crate::fonts) const EM_SQUARE_SCRIPTS: &[&str] = &["Hani", "Hira", "Kana", "Hang", "Bopo"];
 
 /// craft-fonts' interface face for Japanese; its manifest also lists serif Japanese faces.
@@ -32,10 +33,16 @@ pub(in crate::fonts) fn covers(tags: &[&str], script: &str) -> bool {
             || match *tag {
                 "Jpan" => matches!(script, "Hani" | "Hira" | "Kana"),
                 "Kore" => matches!(script, "Hang" | "Hani"),
-                "Hans" | "Hant" | "Hant-HK" => script == "Hani",
+                "Hans" | "Hant-HK" => script == "Hani",
+                "Hant" => matches!(script, "Hani" | "Bopo"),
                 _ => false,
             }
     })
+}
+
+/// Whether `script` is a CJK script: Han, Kana (Hiragana included), Hangul or Bopomofo.
+pub(in crate::fonts) fn is_cjk(script: &str) -> bool {
+    EM_SQUARE_SCRIPTS.contains(&script)
 }
 
 fn han_region(face: &EmbeddedFace) -> Option<Han> {

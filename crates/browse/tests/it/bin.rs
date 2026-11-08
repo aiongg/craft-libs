@@ -1,17 +1,19 @@
 //! `MediaBin` behaviour: what its own logic adds to the collections it shows.
 
 use craft_behavior::{CancelReason, ColumnKey, DisplayOrder, EditEvent, GestureId, IconId, ItemSource, Mixed, Selection};
-use craft_browse::ui::bin::{BinEntry, BinEvent, BinItem, BinModel, BinState, BinView, MediaBin, OpenHow, name_matches};
-use craft_ui::contract::{Bind, ColumnSort, ListDrag, Props as _, ReorderRule, ShowCollection as _, ShowContainer as _, Sizing};
-use craft_ui::layout_components::Stack;
+use craft_browse::ui::bin::{BinEntry, BinEvent, BinItem, BinModel, BinSettings, BinState, BinView, MediaBin, OpenHow, name_matches};
+use craft_ui::contract::{Bind, ColumnSort, ListDrag, Props as _, ReorderRule, ShowCollection as _, Sizing};
 use craft_ui::list::{List, ListRow};
 use craft_ui::sections::FooterAction;
+use craft_ui::testing::layout::in_region;
 use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Key, Modifiers, Rect, pos2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
 const NAME: ColumnKey = ColumnKey::new("name");
+/// The share of the room a foreign list takes above the bin.
+const FOREIGN_SHARE: f32 = 0.25;
 
 struct Node {
     key: u32,
@@ -107,13 +109,18 @@ fn setup(other: bool, configure: impl FnOnce(&mut BinState<u32>)) -> Setup {
         let project = Project::new();
         let mut state = shown_state.borrow_mut();
         let mut selection = shown_selection.borrow_mut();
-        Stack::new().fill().show(ui, |ui, _| {
-            if other {
+        let area = ui.max_rect();
+        let (above, below) = area.split_top_bottom_at_fraction(FOREIGN_SHARE);
+        let below = if other { below } else { area };
+        if other {
+            in_region(ui, above, |ui| {
                 let _ = List::<u32>::new("Other")
                     .sizing(Sizing::Content)
                     .reorder(ReorderRule::new())
                     .show_items(ui, &Other, &mut |key, _| ListRow::new(format!("Other {key}")));
-            }
+            });
+        }
+        in_region(ui, below, |ui| {
             let columns = vec![craft_ui::contract::ColumnSpec::new(NAME, "Name", craft_behavior::ColumnWidth::fill(1.0)).sortable()];
             let action = FooterAction::new(IconId::new("plus"), "New Item").accepts_drops::<ListDrag<u32>>(|drag| !drag.keys.is_empty());
             let out = MediaBin::new("bin", Bind::bound(&mut *state), &project)
@@ -386,4 +393,16 @@ fn freeform_drops_on_a_bin_card_and_the_background_become_drops() {
     let room = bin.empty_room();
     bin.drag_to("Other 20", room);
     assert_eq!(bin.drops(), [(vec![20], None)], "{:?}", bin.events.borrow());
+}
+
+/// The List view's sort, the Icon view's sort and the dragged column widths survive the host's save and load.
+#[trial]
+fn the_sorts_and_column_widths_are_saved() {
+    let mut settings = BinSettings::default();
+    settings.sort = Some(ColumnSort::new(NAME, true));
+    settings.icon_sort = Some(ColumnSort::new(ColumnKey::new("rating"), false));
+    settings.widths = vec![(NAME, 140.0)];
+    let text = serde_json::to_string(&settings).expect("the settings serialize");
+    let loaded: BinSettings = serde_json::from_str(&text).expect("the settings load");
+    assert_eq!(loaded, settings);
 }

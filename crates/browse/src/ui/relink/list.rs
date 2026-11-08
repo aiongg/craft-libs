@@ -26,6 +26,7 @@ use super::StatusBadge;
 
 /// Which links the list shows.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[non_exhaustive]
 pub enum LinkFilter {
     /// Every link.
     #[default]
@@ -40,6 +41,7 @@ pub enum LinkFilter {
 
 /// The list's order.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[non_exhaustive]
 pub enum LinkSort {
     /// By name, digits by value.
     #[default]
@@ -53,6 +55,7 @@ pub enum LinkSort {
 /// The list's saved choices; the host stores them.
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
+#[non_exhaustive]
 pub struct LinkListSettings {
     /// The filter.
     pub filter: LinkFilter,
@@ -67,6 +70,7 @@ pub struct LinkListSettings {
 /// What the app keeps for a [`LinkList`]: the selection (session state the app reads) and the
 /// saved [`LinkListSettings`].
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct LinkListState<K> {
     /// The selected links.
     pub selection: Selection<K>,
@@ -169,9 +173,6 @@ craft_ui::words! {
 /// The thumbnails a list draws with: the cache and the app's source, keyed by the link key.
 type ThumbPair<'a, K> = (&'a Thumbnails<K>, &'a dyn ThumbSource<K>);
 
-/// The host's content of the Link Info section.
-type InfoFn<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
-
 /// The Links panel: rows of the document's links with thumbnail, name, page and status.
 ///
 /// - **Rows.** `ListRow`s, striped: a thumbnail by `LinkListSettings::thumbnails`, the name, the
@@ -203,7 +204,9 @@ pub struct LinkList<'a, K: TextureKey + std::fmt::Debug> {
     /// Shows the action row under the list.
     #[prop]
     actions: bool,
-    info: Option<InfoFn<'a>>,
+    /// The Link Info section's body for the lead link.
+    #[prop(boxed)]
+    info: Option<Box<dyn FnOnce(&mut Ui) + 'a>>,
 }
 
 impl<'a, K: TextureKey + std::fmt::Debug> LinkList<'a, K> {
@@ -217,13 +220,6 @@ impl<'a, K: TextureKey + std::fmt::Debug> LinkList<'a, K> {
     #[must_use]
     pub fn thumbnails(mut self, thumbnails: &'a Thumbnails<K>, source: &'a dyn ThumbSource<K>) -> Self {
         self.thumbnails = Some((thumbnails, source));
-        self
-    }
-
-    /// The Link Info section's body for the lead link.
-    #[must_use]
-    pub fn info(mut self, info: impl FnOnce(&mut Ui) + 'a) -> Self {
-        self.info = Some(Box::new(info));
         self
     }
 }

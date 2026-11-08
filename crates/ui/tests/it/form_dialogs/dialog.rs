@@ -2,7 +2,7 @@
 
 use craft_behavior::CanvasTransform;
 use craft_ui::contract::{Bind, Role, ShowContainer as _};
-use craft_ui::dialog::Dialog;
+use craft_ui::dialog::{Dialog, FullWindowDialog};
 use craft_ui::patterns::form_dialogs::{
     DialogFields, FieldValue, HostRequests, Param, ParamDialog, ParamKind, ParamRows, PreviewPane, ResetFooter, ResetPick,
 };
@@ -165,6 +165,32 @@ fn the_shared_reset_footer_serves_any_dialog() {
         fixture.idle(2);
         assert_eq!(picked.get(), Some(if alt { ResetPick::Reset } else { ResetPick::Cancel }), "the footer answers with the pick (alt: {alt})");
     }
+}
+
+/// A full-window dialog takes the Reset footer through `ResetFooter::install`: Reset runs the restore and keeps the
+/// dialog open.
+#[trial]
+fn a_full_window_dialog_resets_through_the_installed_footer() {
+    let restored = Rc::new(Cell::new(0));
+    let open = Rc::new(Cell::new(true));
+    let (count, state) = (Rc::clone(&restored), Rc::clone(&open));
+    let mut fixture = Fixture::new(move |ui| {
+        let mut now = state.get();
+        let count = Rc::clone(&count);
+        let footer = ResetFooter::new(ui, None, true);
+        let dialog =
+            footer.install(FullWindowDialog::new("Liquify").opened(Bind::bound(&mut now)), FooterButton::new("OK", DialogRole::Accept), move |_| {
+                count.set(count.get() + 1)
+            });
+        dialog.show(ui, |_, cx| ResetFooter::report(cx, true, true));
+        state.set(now);
+    });
+    fixture.hold(Modifiers::ALT);
+    fixture.settle();
+    let reset = fixture.by_label("Reset").expect("Alt turns Cancel into Reset");
+    fixture.click(&reset).settle();
+    assert_eq!(restored.get(), 1, "Reset ran the restore");
+    assert!(open.get(), "Reset keeps the dialog open");
 }
 
 /// A fixture with a `ParamDialog` whose `close_guard` answers `allow` and counts its calls.

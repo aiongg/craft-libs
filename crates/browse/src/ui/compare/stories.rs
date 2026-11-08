@@ -6,9 +6,12 @@ use craft_ui::patterns::form_dialogs::PreviewView;
 use craft_ui::primitives::textures::Revision;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use craft_ui::tile_grid::TileFlag;
-use egui::{ColorImage, Rect, Ui, pos2, vec2};
+use egui::{ColorImage, Rect, Ui, Vec2, pos2, vec2};
 
 use super::{ArrangeSpace, CompareCaption, CompareImage, ComparePair, CompareTile, RenderState, survey_columns};
+
+/// The share of the room's width the narrow tile takes: too little for the caption's file name.
+const NARROW_SHARE: f32 = 0.4;
 
 /// The picture's size in pixels.
 const PICTURE: [u32; 2] = [480, 320];
@@ -61,7 +64,7 @@ fn compare_pair(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(CompareTile<'static>, covers = [LongText], drive = Drive::Never)]
 fn compare_tile_narrow(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let view = data.value("view", PreviewView::fitting());
-    let rect = Rect::from_min_size(ui.max_rect().min, vec2(160.0, 160.0));
+    let rect = Rect::from_min_size(ui.max_rect().min, Vec2::splat(ui.max_rect().width() * NARROW_SHARE));
     CompareTile::new("Select", Bind::bound(view), image(1, 0.58))
         .caption(caption("Select", "A_file_name_much_longer_than_the_tile.jpeg"))
         .place(ui, rect)

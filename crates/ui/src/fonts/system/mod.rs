@@ -14,7 +14,7 @@ use egui::{Context, FontProvider};
 /// A system font provider that prefers `locale`'s fonts, shared by every stack and check that asks
 /// for the same locale. Every locale's provider asks one index of the installed fonts, built once
 /// on a background thread; a lookup before it is built waits for it. `None` without the
-/// `system_fonts` feature and on the web.
+/// `system_fonts` feature, which is desktop-only (the facade refuses `ui-system_fonts` on wasm32).
 #[cfg(feature = "system_fonts")]
 pub fn system_font_provider(locale: &str) -> Option<Arc<dyn FontProvider>> {
     use std::collections::BTreeMap;
@@ -25,7 +25,7 @@ pub fn system_font_provider(locale: &str) -> Option<Arc<dyn FontProvider>> {
 }
 
 /// A system font provider that prefers `locale`'s fonts, shared by every stack and check that asks
-/// for the same locale. `None` without the `system_fonts` feature and on the web.
+/// for the same locale. `None` without the `system_fonts` feature, which is desktop-only (the facade refuses `ui-system_fonts` on wasm32).
 #[cfg(not(feature = "system_fonts"))]
 pub fn system_font_provider(_locale: &str) -> Option<Arc<dyn FontProvider>> {
     None

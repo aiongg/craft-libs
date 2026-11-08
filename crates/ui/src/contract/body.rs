@@ -692,7 +692,8 @@ impl BodyHooks<'_> {
 
     /// The move band and the grips (16.3). A layer's move and resize the layer; those of an OS window (`os_window`)
     /// stand by `WindowParts` and join the window's exclusive list, which the hit-test sink reads. A layer's parts never
-    /// join it, or the sink would move the OS window from a dialog inside it.
+    /// join it, or the sink would move the OS window from a dialog inside it, except the band of a layer that moves the
+    /// window it is shown in (`Overlay::moves_window`): that band is a drag area of the window.
     fn move_parts<C: Container>(props: &ContainerProps, regions: &Regions, rect: Rect, pcx: &mut PartsCx<'_, C>) {
         let ctx = pcx.ui.ctx().clone();
         let handle = pcx.tokens.tokens().size.handle.sm;
@@ -700,10 +701,11 @@ impl BodyHooks<'_> {
         let os = os_window(props, &ctx, pcx.id);
         let stands = os.map_or(WindowParts::LAYER, |viewport| WindowParts::of(&ctx, viewport));
         let exclusive = |hit: WindowHit| os.is_some().then_some(hit);
+        let moves_window = matches!(&props.mount, Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } if overlay.moves_window);
         // A layer moves when its overlay says so; other mounts follow the header's band.
         let movable = match &props.mount {
             // A band that moves the window below follows the rule of the window the layer is shown in.
-            Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } if overlay.moves_window => {
+            _ if moves_window => {
                 let viewport = pass::current_viewport(&ctx);
                 WindowParts::of(&ctx, viewport).grips && !answered_by_platform(&ctx, viewport)
             }
@@ -719,7 +721,7 @@ impl BodyHooks<'_> {
                 .cursor(CursorIcon::Grab)
                 .drag_cursor(CursorIcon::Grabbing)
                 .pointer_only(reason);
-            if let Some(hit) = exclusive(WindowHit::Move) {
+            if let Some(hit) = exclusive(WindowHit::Move).or(moves_window.then_some(WindowHit::Move)) {
                 part.exclusive(hit);
             }
         }
@@ -1251,6 +1253,12 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         mounted.host
     }
 
+    /// A container that is an instance of its command scope sees itself in its own context's chain, so a focused
+    /// container (a canvas) is the instance its chords and the commands it takes reach.
+    fn instance_scope(&self, comp: &C) -> Option<commands::CommandScope> {
+        comp.props(Internal::new()).command_scope
+    }
+
     fn dismissed(&mut self, comp: &mut C, cx: &mut Cx<'_, C>, why: CloseReason) {
         self.close = true;
         self.open = false;
@@ -1572,7 +1580,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             if props.header.is_some_and(|header| header.band == DragBand::Reorder) {
                 scoped.commands = scoped.commands.pushed(REORDER_SCOPE, id);
             }
-            if let Some(scope) = props.command_scope {
+            // A host env (a layer's) does not carry the push the container's own context made.
+            if let Some(scope) = props.command_scope
+                && scoped.commands.innermost(scope.name()) != Some(id)
+            {
                 scoped.commands = scoped.commands.pushed(scope, id);
             }
             if let Some(theme) = &props.theme {

@@ -1498,7 +1498,12 @@ impl<C: Component> MeasureCx<'_, C> {
 
     /// Lays `run` out `width` wide, for a text that paints in a band narrower than the room.
     pub fn layout_at(&self, run: &TextRun<'_>, width: f32) -> TextLayout {
-        let env = TextEnv { tokens: self.tokens, direction: self.env.direction(), ink: crate::style::ink_color(self.tokens, self.ink) };
+        let env = TextEnv {
+            tokens: self.tokens,
+            direction: self.env.direction(),
+            ink: crate::style::ink_color(self.tokens, self.ink),
+            fonts: crate::fonts::stack_facts(self.ui.ctx()),
+        };
         run.layout(self.ui.ctx(), &env, width)
     }
 
@@ -1517,7 +1522,7 @@ impl<C: Component> MeasureCx<'_, C> {
 
     /// The icon side of the component's size.
     pub fn icon(&self) -> f32 {
-        crate::style::control_metrics(self.tokens, self.resolved.size).icon
+        crate::style::control_metrics(self.tokens, self.resolved.size, crate::fonts::stack_facts(self.ui.ctx()).line_ratio).icon
     }
 
     /// The gap between the component's items.

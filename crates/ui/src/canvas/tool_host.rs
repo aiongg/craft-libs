@@ -163,8 +163,8 @@ pub struct ToolHostResponse {
     /// The values the tool wants beside the pointer. The host has painted them already; this is the data for
     /// automation.
     pub readout: Option<ToolReadout>,
-    /// The view a tool set with [`ToolContext::set_view`] this pass (the last one): the app copies it into its
-    /// bound view.
+    /// The view a tool set with [`ToolContext::set_view`] this pass (the last one), else the view the canvas's view
+    /// commands asked for ([`CanvasOutput::view`]): the app copies it into its bound view.
     pub view: Option<CanvasView>,
     /// How [`view`](Self::view) eases to its target, when the tool asked for an ease.
     pub ease: Option<ViewEase>,
@@ -298,6 +298,10 @@ impl<'m> ToolHost<'m> {
         let Run { mut response, requests, .. } = run;
         if response.view.is_none() {
             response.view = cancelled_view;
+        }
+        // The view commands' view, when no tool moved the view: the app copies one view from the host.
+        if response.view.is_none() {
+            (response.view, response.ease) = (canvas.view, canvas.ease);
         }
         let phase = canvas.press.phase;
         let over = phase.is_press() || matches!(phase, PressPhase::Hover) || state.gesture.is_some();

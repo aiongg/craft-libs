@@ -1,5 +1,6 @@
 //! `TextRun`, the one description of UI text for measure, layout and paint, and `TextLayout`, its laid-out form.
 
+use crate::fonts::StackFacts;
 use crate::runtime::egui::text_layout;
 use crate::style::{StyleColor, TypeRole, UiTokens};
 use craft_i18n::Direction;
@@ -182,12 +183,36 @@ pub(super) fn anchored_at_start(mut galley: Arc<Galley>) -> Arc<Galley> {
     galley
 }
 
+/// The galley with each row placed within the widest one by `align`: at the left edge or the right, the centre, with
+/// Start and End swapping sides in a right-to-left paragraph. One rule for both directions, so a run measures the same
+/// by direction. The rect of the galley already spans its widest row, which stays where it is.
+pub(super) fn aligned_rows(mut galley: Arc<Galley>, align: HAlign, rtl: bool, pixels_per_point: f32) -> Arc<Galley> {
+    // The share of the free room before the row: 0 at the left edge, 1 at the right.
+    let share = match (align, rtl) {
+        (HAlign::Center, _) => 0.5,
+        (HAlign::Start, true) | (HAlign::End, false) => 1.0,
+        _ => 0.0,
+    };
+    let width = galley.rect.width();
+    if share == 0.0 || galley.rows.iter().all(|placed| placed.size.x >= width) {
+        return galley;
+    }
+    let galley_mut = Arc::make_mut(&mut galley);
+    for placed in &mut galley_mut.rows {
+        let free = (width - placed.size.x).max(0.0);
+        placed.pos.x = (free * share * pixels_per_point).round() / pixels_per_point;
+    }
+    galley
+}
+
 /// What a layout reads from the env: the tokens, the direction and the ink colour.
 #[derive(Clone, Copy)]
 pub(crate) struct TextEnv<'a> {
     pub tokens: &'a UiTokens,
     pub direction: Direction,
     pub ink: Color32,
+    /// The font stack of the context, read once for the layout.
+    pub fonts: StackFacts,
 }
 
 impl TextRun<'_> {
@@ -198,29 +223,26 @@ impl TextRun<'_> {
         let full = self.full_text();
         let galley = match self.wrap {
             Wrap::ElidePath => self.layout_elided_path(ctx, env, max_width),
-            _ => text_layout::layout(ctx, self.job(ctx, env, self.spans.iter().map(|s| (s, s.text.as_ref())), max_width)),
+            _ => text_layout::layout(ctx, self.job(env, self.spans.iter().map(|s| (s, s.text.as_ref())), max_width)),
         };
         let elided = galley.elided || self.wrap == Wrap::ElidePath && galley.job.text != full;
-        TextLayout::new(anchored_at_start(galley), elided, full)
+        TextLayout::new(aligned_rows(galley, self.align, self.is_rtl(env), ctx.pixels_per_point()), elided, full)
     }
 
-    fn job<'s>(&self, ctx: &Context, env: &TextEnv<'_>, parts: impl Iterator<Item = (&'s Span<'s>, &'s str)>, max_width: f32) -> LayoutJob {
+    /// Whether the paragraph runs right to left: the env's direction, unless the run is fixed left to right.
+    fn is_rtl(&self, env: &TextEnv<'_>) -> bool {
+        !self.ltr && env.direction == Direction::Rtl
+    }
+
+    fn job<'s>(&self, env: &TextEnv<'_>, parts: impl Iterator<Item = (&'s Span<'s>, &'s str)>, max_width: f32) -> LayoutJob {
         let elide = matches!(self.wrap, Wrap::Elide | Wrap::ElidePath);
-        let direction = match (self.ltr, env.direction) {
-            (false, Direction::Rtl) => TextDirection::RightToLeft,
-            _ => TextDirection::LeftToRight,
-        };
-        let rtl = matches!(direction, TextDirection::RightToLeft);
+        let direction = if self.is_rtl(env) { TextDirection::RightToLeft } else { TextDirection::LeftToRight };
+        // Every row stays at the left edge: egui's own alignment trims the first glyph's offset from an aligned row only,
+        // so a run would measure differently by direction. `aligned_rows` places the rows.
         let mut job = LayoutJob {
             direction,
-            halign: match (self.align, rtl) {
-                (HAlign::Center, _) => Align::Center,
-                (HAlign::End, false) => Align::RIGHT,
-                _ => Align::LEFT,
-            },
-            // Start follows the paragraph's direction; an end-aligned run in a right-to-left interface puts every
-            // line on the left.
-            halign_min_is_start: !(self.align == HAlign::End && rtl),
+            halign: Align::LEFT,
+            halign_min_is_start: false,
             wrap: TextWrapping {
                 max_width: if self.wrap == Wrap::Line { f32::INFINITY } else { max_width },
                 max_rows: if elide { 1 } else { usize::MAX },
@@ -233,7 +255,7 @@ impl TextRun<'_> {
         let text = &env.tokens.color.text;
         let to_color = |c: craft_theme::Rgba| Color32::from_rgba_unmultiplied(c.0[0], c.0[1], c.0[2], c.0[3]);
         for (span, text_part) in parts {
-            let font_id: FontId = env.tokens.font(ctx, self.role, span.mono);
+            let font_id: FontId = env.tokens.font(env.fonts, self.role, span.mono);
             let color = if span.muted {
                 to_color(text.muted)
             } else if span.shortcut {
@@ -243,7 +265,7 @@ impl TextRun<'_> {
             };
             let background = if span.highlight { to_color(env.tokens.color.state.r#match) } else { Color32::TRANSPARENT };
             let mut format = TextFormat { font_id, color, italics: span.italic, background, ..TextFormat::default() };
-            if let Some(size) = env.tokens.optical_size(ctx, self.role, span.mono) {
+            if let Some(size) = env.tokens.optical_size(env.fonts, self.role, span.mono) {
                 format.coords.push(*b"opsz", size);
             }
             job.append(text_part, 0.0, format);
@@ -254,14 +276,14 @@ impl TextRun<'_> {
     /// Cuts characters from the middle until the run fits on one row, keeping a longer tail than head.
     fn layout_elided_path(&self, ctx: &Context, env: &TextEnv<'_>, max_width: f32) -> Arc<Galley> {
         let full = self.full_text();
-        let whole = text_layout::layout(ctx, self.job(ctx, env, self.spans.iter().map(|s| (s, s.text.as_ref())), f32::INFINITY));
+        let whole = text_layout::layout(ctx, self.job(env, self.spans.iter().map(|s| (s, s.text.as_ref())), f32::INFINITY));
         if whole.size().x <= max_width {
             return whole;
         }
         let chars: Vec<(usize, char)> = full.char_indices().collect();
         let n = chars.len();
         let fits = |cut: usize| {
-            let galley = text_layout::layout(ctx, self.job_cut(ctx, env, &chars, &full, cut));
+            let galley = text_layout::layout(ctx, self.job_cut(env, &chars, &full, cut));
             (galley.size().x <= max_width, galley)
         };
         let (mut lo, mut hi) = (1, n);
@@ -274,7 +296,7 @@ impl TextRun<'_> {
 
     /// The job with `cut` characters removed from the middle and one ellipsis in their place, in the style of the
     /// span the cut starts in.
-    fn job_cut(&self, ctx: &Context, env: &TextEnv<'_>, chars: &[(usize, char)], full: &str, cut: usize) -> LayoutJob {
+    fn job_cut(&self, env: &TextEnv<'_>, chars: &[(usize, char)], full: &str, cut: usize) -> LayoutJob {
         let n = chars.len();
         let keep = n.saturating_sub(cut);
         let head = keep / 3;
@@ -301,7 +323,7 @@ impl TextRun<'_> {
             at = range.end;
             pieces.push((span, text));
         }
-        self.job(ctx, env, pieces.iter().map(|(span, text)| (*span, text.as_str())), f32::INFINITY)
+        self.job(env, pieces.iter().map(|(span, text)| (*span, text.as_str())), f32::INFINITY)
     }
 }
 
