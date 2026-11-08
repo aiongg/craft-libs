@@ -460,10 +460,14 @@ fn an_empty_list_shows_its_empty_state() {
 /// The empty-state text of the collection's props is a label node of the list.
 #[trial]
 fn the_empty_state_text_is_a_label_node() {
-    let words = Words::flat(&[]);
-    let seen = Seen::default();
     let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Single).empty_text("Nothing here"), &words, &seen);
+    let mut show = |ui: &mut Ui| {
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            let _ = craft_ui::list::List::<usize>::new("Items")
+                .empty("Nothing here")
+                .show_items(ui, &Count(0), &mut |_, _| craft_ui::list::ListRow::new(""));
+        });
+    };
     frames.idle(3, &mut show);
     let tree = frames.tree();
     let label = tree.keys().into_iter().find(|key| tree.name_of(*key) == Some("Nothing here")).expect("the empty text is a node");

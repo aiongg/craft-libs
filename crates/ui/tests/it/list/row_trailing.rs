@@ -363,8 +363,15 @@ fn a_hosted_field_takes_typing_and_tab_leaves_it() {
     fixture.key(Key::Tab, Modifiers::NONE);
     fixture.idle(2);
     let after = fixture.by_label("After the list").expect("the control after the list has a node");
-    let focused = fixture.focused().expect("Tab lands on a stop");
-    assert_eq!(craft_ui::testing::access::NodeKey::of(focused), after.node, "Tab leaves the collection for the next control");
+    let focused = craft_ui::testing::access::NodeKey::of(fixture.focused().expect("Tab lands on a stop"));
+    let tree = fixture.tree();
+    assert_eq!(
+        focused,
+        after.node,
+        "Tab leaves the collection for the next control; it landed on {:?} {:?}",
+        tree.role_of(focused),
+        tree.name_of(focused)
+    );
 }
 
 /// Forward from a row reaches the field hosted in it.
@@ -383,6 +390,7 @@ fn forward_from_a_row_enters_its_hosted_field() {
     fixture.idle(2);
     fixture.key(Key::ArrowRight, Modifiers::NONE);
     fixture.idle(2);
-    let focused = fixture.focused().expect("Forward lands on a stop");
-    assert_eq!(craft_ui::testing::access::NodeKey::of(focused), field.node, "Forward from the row reaches the field");
+    let focused = craft_ui::testing::access::NodeKey::of(fixture.focused().expect("Forward lands on a stop"));
+    let tree = fixture.tree();
+    assert_eq!(focused, field.node, "Forward from the row reaches the field; it landed on {:?} {:?}", tree.role_of(focused), tree.name_of(focused));
 }
