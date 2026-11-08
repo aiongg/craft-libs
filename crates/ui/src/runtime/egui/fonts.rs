@@ -64,6 +64,26 @@ pub(crate) fn add_face(ctx: &Context, name: String, data: FontData) {
     ctx.add_font(FontInsert { name, data, families });
 }
 
+/// Adds `data` as a face named after `family` and makes it the highest-priority face of `family` alone. The face is
+/// loaded at the next pass.
+pub(crate) fn add_family_face(ctx: &Context, family: &FontRef, data: FontData) {
+    let insert = InsertFontFamily { family: family.family(), priority: FontPriority::Highest };
+    ctx.add_font(FontInsert { name: family.family().to_string(), data, families: vec![insert] });
+}
+
+/// Whether egui's definitions hold the family `family`.
+pub(crate) fn has_family(ctx: &Context, family: &FontRef) -> bool {
+    ctx.fonts(|fonts| fonts.definitions().families.contains_key(&family.family()))
+}
+
+/// Takes the faces called `names`, and the families of those names, out of egui's definitions.
+pub(crate) fn remove_faces(ctx: &Context, names: &[String]) {
+    let mut definitions = ctx.fonts(|fonts| fonts.definitions().clone());
+    definitions.font_data.retain(|name, _| !names.contains(name));
+    definitions.families.retain(|family, _| !matches!(family, FontFamily::Name(name) if names.iter().any(|gone| gone.as_str() == &**name)));
+    set_definitions(ctx, definitions);
+}
+
 /// Whether egui's definitions hold the face called `name`.
 pub(crate) fn has_face(ctx: &Context, name: &str) -> bool {
     ctx.fonts(|fonts| fonts.definitions().font_data.contains_key(name))
