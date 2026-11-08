@@ -235,7 +235,6 @@ impl TextRuler<'_> {
                 let (value, at) = place(values, stop_at(pos.x, press.mods.alt));
                 cx.set(value);
                 self.report.picked = Some(at);
-                cx.focus_part(Item::Stop(at).part());
             }
             _ => {}
         }

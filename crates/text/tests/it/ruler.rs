@@ -72,7 +72,6 @@ fn click_sets_a_stop_of_the_selectors_kind() {
     let values = shown.values.borrow();
     assert_eq!(values.stops.len(), 1);
     assert_eq!(values.stops[0].align, TabAlign::Center);
-    assert_eq!(shown.fixture.focused_stop().and_then(|(_, part)| part).map(|part| part.index), Some(Some(0)), "the new stop has the focus");
 }
 
 #[trial]
