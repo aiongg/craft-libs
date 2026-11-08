@@ -21,9 +21,10 @@ status = "pending"
 
 [[type]]
 name = "PenDraft"
-old = ""
+old = "craft_draw::ui::pen::PenDraft"
 new = ""
-status = "pending"
+status = "removed"
+note = "The draft is the canvas tool `PenTool`: the host shows it with `ToolHost::run` and drains `PenTool::take_events`."
 
 [[type]]
 name = "GradientOverlay"
@@ -700,3 +701,154 @@ new = "same: a pure associated function (the view is `craft_behavior::CanvasView
 type = "BezierOverlay"
 old = "tool(tool), handles(handles), segment_mark(mark), anchors(anchors), path_options(options)"
 new = "same"
+# draw-pen-b: the Pen tool and the corner widgets
+
+[[type]]
+name = "PenTool"
+old = ""
+new = "craft_draw::ui::pen::PenTool"
+status = "replaced"
+note = "The pen draft as a `CanvasTool`; setters `draft`, `mode`, `sensing`, `auto_add_delete`, `path_options`, `ends`, `remove_last`; `take_events` returns `PenEvent`s."
+
+[[type]]
+name = "PenResponse"
+old = "craft_draw::ui::pen::PenResponse"
+new = ""
+status = "removed"
+note = "The tool reports `PenEvent::{Edit, Finished, Resumed}` through `take_events`; `closes` is `PenTool::closes`, and `claimed` goes (the tool host owns the press)."
+
+[[type]]
+name = "PenEvent"
+old = ""
+new = "craft_draw::ui::pen::PenEvent"
+status = "replaced"
+note = "Replaces the fields of `PenResponse`: `event` is `Edit`, `finished` is `Finished`, `resumed` is `Resumed`."
+
+[[type]]
+name = "PenNames"
+old = "craft_draw::ui::pen::PenNames"
+new = ""
+status = "removed"
+note = "The words are `PenWords`, read from the env."
+
+[[type]]
+name = "PenWords"
+old = ""
+new = "craft_draw::ui::pen::PenWords"
+status = "replaced"
+note = "The `words!` set of the pen: group, anchor template, undo step name."
+
+[[type]]
+name = "PenStyle"
+old = "craft_draw::ui::pen::PenStyle"
+new = "craft_draw::ui::pen::PenStyle"
+status = "same"
+note = "Built from a `StyleCx` in a paint call with `PenStyle::of`; the sizes are the theme handle look and dash tokens."
+
+[[type]]
+name = "CornerWidgets"
+old = "craft_draw::ui::corner::CornerWidgets"
+new = "craft_draw::ui::corner::CornerWidgets"
+status = "same"
+note = "A canvas control over `Bind<Vec<CornerTarget>>`; `new(label, targets)`."
+
+[[type]]
+name = "CornerWidgetsResponse"
+old = "craft_draw::ui::corner::CornerWidgetsResponse"
+new = ""
+status = "removed"
+note = "The output is `CornerWidgetsOutput { edit, change, cycle_kind, activate }`."
+
+[[type]]
+name = "CornerWidgetsOutput"
+old = ""
+new = "craft_draw::ui::corner::CornerWidgetsOutput"
+status = "replaced"
+note = "The edit of the bound targets, the `CornerEdit` operation, the corner to cycle and the corner to activate."
+
+[[type]]
+name = "CornerWidgetsLabels"
+old = "craft_draw::ui::corner::CornerWidgetsLabels"
+new = ""
+status = "removed"
+note = "The words are `CornerWords`."
+
+[[type]]
+name = "CornerWords"
+old = ""
+new = "craft_draw::ui::corner::CornerWords"
+status = "replaced"
+note = "The `words!` set of the corner widgets."
+
+[[type]]
+name = "CornerStyle"
+old = "craft_draw::ui::corner::CornerStyle"
+new = "craft_draw::ui::corner::CornerStyle"
+status = "same"
+note = "A `ComponentStyle` of `CornerWidgets` with private fields; `look` is gone."
+
+[[setter]]
+type = "PenTool"
+old = "PenDraft::new(id_salt, draft, names)"
+new = "PenTool::new()"
+note = "The tool keeps the draft; `draft(Option<&EditSubpath>)` hands in a resumed path only."
+
+[[setter]]
+type = "PenTool"
+old = "units(x, y) / zero(point)"
+new = ""
+note = "The anchors read the units and zero from `ToolContext::space()?.rulers()`."
+
+[[setter]]
+type = "PenTool"
+old = "look(PenStyle)"
+new = ""
+note = "The look is built from the theme in the paint call."
+
+[[setter]]
+type = "PenTool"
+old = "remove_last(bool)"
+new = "remove_last() -> bool"
+note = "Called by the host when Undo runs, not set each pass; false while a press is held."
+
+[[setter]]
+type = "PenTool"
+old = "sensing(bool)"
+new = "sensing(bool)"
+note = "Also kept: `takes` is false while Cmd is held."
+
+[[setter]]
+type = "CornerWidgets"
+old = "new(id_salt, targets, units)"
+new = "new(label, Bind<Vec<CornerTarget>>)"
+note = "The units come from the canvas rulers; the edit is the bound value and the `CornerEdit` operation is reported as `change`."
+
+[[setter]]
+type = "CornerWidgets"
+old = "kinds(bool)"
+new = "kinds(bool)"
+note = "A prop; `cycle_kind` reports the corner only."
+
+[[setter]]
+type = "CornerWidgets"
+old = "steps(step, big_step)"
+new = ""
+note = "The arrow steps are the canvas nudge distances (1 and, with Shift, 10)."
+
+[[setter]]
+type = "CornerWidgets"
+old = "labels(CornerWidgetsLabels)"
+new = ""
+note = "Words come from the env."
+
+[[setter]]
+type = "CornerWidgets"
+old = "look(CornerStyle)"
+new = ""
+note = "The style is the component style."
+
+[[setter]]
+type = "CornerWidgets"
+old = "policy(EditPolicy)"
+new = ""
+note = "The bound value carries the policy."

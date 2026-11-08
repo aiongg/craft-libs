@@ -1,169 +1,160 @@
-//! The pen's Path Options: the rubber band, the path colour and thickness
-//! ([`PathOptionsSettings`]), and the gear popover that edits them ([`PathOptionsPopover`]).
+//! The pen's Path Options: the rubber band, the path colour and thickness ([`PathOptionsSettings`]), and the gear
+//! popover that edits them ([`PathOptionsPopover`]).
 
 use std::ops::RangeInclusive;
+use std::sync::Arc;
 
-use egui::{AsIdSalt, IdSalt, Response, Ui};
-
-use craft_theme::{Rgba, Srgba};
-use craft_ui::composites::{FieldControl as _, FormGrid};
-use craft_ui::controls::{Checkbox, IconButton, NumberField, Swatch};
-use craft_ui::dialog::ColorRequest;
-use craft_ui::edit::EditEvent;
-use craft_ui::icons::Icon;
-use craft_ui::localized::{Labels as _, LocaleNumbers, UnitKind, Units};
-use craft_ui::popover::{Popover, PopoverAnchor, PopoverClose};
-use craft_ui::theme::{Tokens, TokensOf as _};
+use craft_behavior::{EditEvent, GestureId, IconId, Mixed};
+use craft_theme::Srgba;
+use craft_ui::buttons::IconButton;
+use craft_ui::choice::{Checkbox, Swatch};
+use craft_ui::contract::{Bind, NoValue, Outcome, Props as _, Show as _, ShowContainer as _};
+use craft_ui::form::{Field, FieldGroup};
+use craft_ui::popover::Popover;
+use craft_ui::runtime::env::{Env, Label, UnitKind};
+use craft_ui::runtime::requests::ColorRequest;
+use craft_ui::text::NumberField;
+use egui::{Response, Ui};
 
 craft_ui::words! {
     /// The words of [`PathOptionsPopover`], English by default (Photoshop's Pen gear popover).
-    #[non_exhaustive]
-    pub struct PathOptionsLabels {
+    pub struct PathOptionsWords {
         /// The gear button's accessible name and tooltip, and the popover's title.
         title: "pathOptions.title" = "Path Options";
         /// The thickness number field.
         thickness: "pathOptions.thickness" = "Thickness";
         /// The colour swatch button, and the colour picker's title.
         color: "pathOptions.color" = "Color";
+        /// The button that clears the colour.
+        default_color: "pathOptions.defaultColor" = "Default";
         /// The rubber band checkbox.
         rubber_band: "pathOptions.rubberBand" = "Rubber Band";
     }
 }
 
-/// The [`ColorRequest::key`] of the path colour the popover asks for.
+/// The key of the colour request the popover files: the host opens its colour picker for it and answers with the
+/// colour.
 pub const PATH_OPTIONS_COLOR_KEY: &str = "pathOptions.color";
 
-/// The pen's Path Options, persisted by the app with its preferences (Photoshop's Pen gear
-/// popover; VectorCraft's two rubber band preferences map to the one setting plus a
-/// [`PenDraft::path_options`](super::PenDraft::path_options) per tool). Serialised in camelCase;
-/// unknown fields are ignored and missing ones take their defaults.
+/// The pen's Path Options, persisted by the app with its preferences (Photoshop's Pen gear popover). Serialised in
+/// camelCase; unknown fields are ignored and missing ones take their defaults.
 #[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct PathOptionsSettings {
-    /// The Pen's rubber band from the last anchor to the pointer. Off by default, as Photoshop
-    /// (PhotoCraft always draws it; its users turn this on once). The Curvature mode always draws
-    /// its preview curve.
+    /// The Pen's rubber band from the last anchor to the pointer. Off by default, as Photoshop. The Curvature mode
+    /// always draws its preview curve.
     pub rubber_band: bool,
-    /// The path colour as sRGB bytes; `None` uses `overlay.line`. Paths with a colour of their
-    /// own (a layer colour) keep it.
+    /// The path colour as sRGB bytes; `None` uses the overlay line colour. Paths with a colour of their own (a layer
+    /// colour) keep it.
     pub color: Option<[u8; 3]>,
-    /// The path line's width in points, within [`THICKNESS_RANGE`](Self::THICKNESS_RANGE);
-    /// `None` uses the line for paths and the draft line for the draft.
+    /// The path line's width in pixels, within [`THICKNESS_RANGE`](Self::THICKNESS_RANGE); `None` uses the theme's
+    /// medium line.
     pub thickness: Option<f32>,
 }
 
 impl PathOptionsSettings {
-    /// The thicknesses the popover offers, in points.
+    /// The thicknesses the popover offers, in pixels.
     pub const THICKNESS_RANGE: RangeInclusive<f32> = 0.5..=8.0;
+    /// What one arrow press or scrub step of the thickness field changes.
+    const THICKNESS_STEP: f64 = 0.5;
 }
 
-/// What [`PathOptionsPopover::show`] reports.
-#[derive(Clone, Debug)]
+/// What the popover reports.
+#[derive(Debug)]
 #[non_exhaustive]
-pub struct PathOptionsPopoverResponse {
+pub struct PathOptionsOutput {
     /// The gear button.
     pub response: Response,
-    /// The settings changed: the checkbox is a `Set`, the thickness field its own gesture (a typed
-    /// value a `Set`, a scrub `Begin`, `Update`, `Commit`). The value is the whole new
-    /// [`PathOptionsSettings`]; they are preferences, so the host stores the latest value and makes
-    /// no undo step.
-    pub event: Option<EditEvent<PathOptionsSettings>>,
-    /// The colour swatch was clicked: the app opens its colour picker keyed
-    /// [`PATH_OPTIONS_COLOR_KEY`] and, on OK, stores the colour in
-    /// [`PathOptionsSettings::color`] itself.
+    /// The settings changed in this pass, as a `Set` of the whole value. They are preferences, so the host stores the
+    /// latest value and makes no undo step; a binding that writes through already holds it.
+    pub edit: Option<EditEvent<PathOptionsSettings>>,
+    /// The colour swatch was activated: the host opens its colour picker keyed [`PATH_OPTIONS_COLOR_KEY`] and, on OK,
+    /// stores the colour in [`PathOptionsSettings::color`] itself.
     pub pick_color: Option<ColorRequest>,
 }
 
-/// The Pen's gear button in the options bar and its Path Options popover (Photoshop's): a
-/// "Thickness" number field (points, [`PathOptionsSettings::THICKNESS_RANGE`], empty while the
-/// token's width is used), a "Color" swatch button showing the path colour (`overlay.line` while
-/// unset), and a "Rubber Band" checkbox.
+impl Outcome for PathOptionsOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// The Pen's gear button in the options bar and its Path Options popover (Photoshop's): a Thickness number field
+/// (pixels, [`THICKNESS_RANGE`](PathOptionsSettings::THICKNESS_RANGE), empty while the theme's line is used), a Color
+/// swatch with a Default button that clears it, and a Rubber Band checkbox.
 ///
-/// ```no_run
-/// use craft_draw::ui::pen::{PathOptionsPopover, PathOptionsSettings};
-/// # fn demo(ui: &mut egui::Ui, settings: &mut PathOptionsSettings, open: &mut bool) {
-/// let r = PathOptionsPopover::new("pen-path-options", settings).show(ui, open);
-/// if let Some(value) = r.event.as_ref().and_then(|e| e.value()) {
-///     *settings = *value;
-/// }
-/// # }
-/// ```
-///
-/// - The gear is an `IconButton` (`Icon::Settings`) named [`PathOptionsLabels::title`]; a click
-///   or Enter toggles the popover (craft-ui `Popover`, opening below it). Focus moves into the
-///   popover; Tab goes Thickness, Color, Rubber Band; Esc closes it and returns focus to the gear;
-///   a press outside closes it.
-/// - AccessKit: the popover is a group named [`PathOptionsLabels::title`] holding a number field,
-///   a button and a checkbox with their names.
+/// - The gear is an icon button named by [`PathOptionsWords::title`]; a click or Enter toggles the popover below it.
+///   Focus moves into the popover; Tab goes Thickness, Color, Default, Rubber Band; Escape closes it and returns
+///   focus to the gear; a press outside closes it.
 /// - The popover reports every change at once; there is no OK button.
+#[must_use = "show the popover with `show`"]
+#[derive(craft_ui::contract::Pattern)]
 pub struct PathOptionsPopover<'a> {
-    id_salt: IdSalt,
-    settings: &'a PathOptionsSettings,
-    labels: Option<PathOptionsLabels>,
+    label: Label,
+    settings: Bind<'a, PathOptionsSettings>,
+    default_color: Option<Srgba>,
 }
 
 impl<'a> PathOptionsPopover<'a> {
-    /// The gear and popover for the host's `settings`.
-    pub fn new(id_salt: impl AsIdSalt, settings: &'a PathOptionsSettings) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), settings, labels: None }
+    /// The gear and popover for the host's `settings`, named `label` for assistive technology.
+    pub fn new(label: impl Into<Label>, settings: Bind<'a, PathOptionsSettings>) -> Self {
+        Self { label: label.into(), settings, default_color: None }
     }
 
-    /// The words; the installed ones by default.
-    pub fn labels(mut self, labels: PathOptionsLabels) -> Self {
-        self.labels = Some(labels);
+    /// The colour the swatch shows while the settings hold none (the overlay line colour the pen draws in). Without
+    /// it the swatch shows a neutral well.
+    pub fn default_color(mut self, color: Srgba) -> Self {
+        self.default_color = Some(color);
         self
     }
 
     /// Adds the gear button to `ui` and, while `open`, the popover under it. The host owns `open`.
-    pub fn show(self, ui: &mut Ui, open: &mut bool) -> PathOptionsPopoverResponse {
-        // new: Photoshop's Pen gear popover (Thickness, Color, Rubber Band); PhotoCraft has no
-        // such options (step7-pen lead call 12). Built from `IconButton`, `Popover`,
-        // `NumberField` (unit [`UnitKind::Points`]), `Checkbox` and a `Swatch` asking through
-        // `ColorRequest::new(PATH_OPTIONS_COLOR_KEY, ..).title(labels.color)`.
-        let labels = self.labels.unwrap_or_else(|| PathOptionsLabels::of(ui));
-        let settings = *self.settings;
-        let id = ui.make_persistent_id(self.id_salt);
-
-        let response = ui.add(IconButton::new(Icon::Settings, labels.title.as_str()).id_salt((id, "gear")).selected(*open));
-        if response.clicked() {
-            *open = !*open;
-        }
-
-        let numbers = LocaleNumbers::of(ui);
-        let units = Units::of(ui);
-        let tokens = Tokens::of(ui);
-        let shown: Rgba = settings.color.map_or(tokens.color.overlay.line, |[r, g, b]| Rgba::rgb(r, g, b));
-        let (mut event, mut pick_color) = (None, None);
-        Popover::new((id, "popover"), PopoverAnchor::Control(response.clone()))
-            .close(PopoverClose::default().swallow_outside(true))
-            .toggle(response.id)
-            .label(labels.title.as_str())
-            .show(ui, open, |ui, _| {
-                let mut rubber_band = settings.rubber_band;
-                FormGrid::new((id, "grid")).show(ui, |form| {
-                    let range = PathOptionsSettings::THICKNESS_RANGE;
-                    let edit = form
-                        .row(&labels.thickness, |ui, _| {
-                            NumberField::optional((id, "thickness"), labels.thickness.as_str(), settings.thickness.map(f64::from), &numbers)
-                                .range(range)
-                                .step(0.5)
-                                .decimals(0..=1)
-                                .unit(units.unit(UnitKind::Points))
-                                .show_optional(ui)
-                        })
-                        .inner;
-                    event = edit.event.map(|e| e.map(|v| PathOptionsSettings { thickness: v.map(|v| v as f32), ..settings }));
-                    let swatch = form.row(&labels.color, |ui, _| ui.add(Swatch::new((id, "color"), labels.color.as_str(), shown)).own_name()).inner;
-                    if swatch.control().clicked() {
-                        pick_color = Some(ColorRequest::new(PATH_OPTIONS_COLOR_KEY, Srgba::from(shown)).title(labels.color.as_str()));
-                    }
-                    let check =
-                        form.unlabelled(|ui| Checkbox::bool(labels.rubber_band.as_str(), &mut rubber_band).id_salt((id, "rubber")).show(ui)).inner;
-                    if event.is_none() {
-                        event = check.event.map(|e| e.map(|v| PathOptionsSettings { rubber_band: v, ..settings }));
+    pub fn show(mut self, ui: &mut Ui, open: &mut bool) -> PathOptionsOutput {
+        let words = Env::of(ui).words::<PathOptionsWords>();
+        let gear = IconButton::new(IconId::new("settings")).label(words.title.clone()).show(ui);
+        let (mut edit, mut pick_color) = (None, None);
+        let (settings, default_color) = (&mut self.settings, self.default_color);
+        let _shown = Popover::new(self.label.clone(), Bind::bound(open)).opened_by(&gear).show(ui, |ui, cx| {
+            let before = match settings.reborrow().read(cx) {
+                Some(Mixed::Same(held)) => held,
+                _ => PathOptionsSettings::default(),
+            };
+            let mut now = before;
+            FieldGroup::new(words.title.clone()).show(ui, |ui, _| {
+                Field::new(words.thickness.clone()).show(ui, |ui, _| {
+                    let range = f64::from(*PathOptionsSettings::THICKNESS_RANGE.start())..=f64::from(*PathOptionsSettings::THICKNESS_RANGE.end());
+                    let field = NumberField::new(words.thickness.clone(), Bind::given(before.thickness.map(f64::from)))
+                        .range(range)
+                        .step(PathOptionsSettings::THICKNESS_STEP)
+                        .unit_kind(UnitKind::Pixels)
+                        .show(ui);
+                    if let Some(thickness) = field.value().copied() {
+                        now.thickness = thickness.map(|value| value as f32);
                     }
                 });
+                Field::new(words.color.clone()).show(ui, |ui, _| {
+                    let shown = before.color.map(|[r, g, b]| Srgba::from(craft_theme::Rgba::rgb(r, g, b))).or(default_color);
+                    let swatch = Swatch::new(words.color.clone(), shown.map_or(Mixed::Mixed, Mixed::Same)).picker(PATH_OPTIONS_COLOR_KEY).show(ui);
+                    pick_color = swatch.pick_color;
+                    let clear = IconButton::new(IconId::new("undo")).label(words.default_color.clone()).enabled(before.color.is_some()).show(ui);
+                    if craft_ui::contract::clicked(&clear) {
+                        now.color = None;
+                    }
+                });
+                let rubber = Checkbox::new(Bind::given(before.rubber_band)).label(words.rubber_band.clone()).show(ui);
+                if let Some(rubber_band) = rubber.value().copied() {
+                    now.rubber_band = rubber_band;
+                }
             });
-        PathOptionsPopoverResponse { response, event, pick_color }
+            if now != before {
+                let event = EditEvent::set(GestureId::default(), Mixed::Same(before), now, Arc::from(words.title.as_str()), None);
+                let _ = settings.reborrow().write(cx, &event);
+                edit = Some(event);
+            }
+        });
+        PathOptionsOutput { response: gear, edit, pick_color }
     }
 }

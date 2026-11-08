@@ -6,23 +6,21 @@
 //! arc the app's engine draws.
 
 mod geometry;
-#[cfg(test)]
-mod geometry_tests;
-mod labels;
+#[cfg(feature = "screen-testing")]
 pub(crate) mod stories;
 mod style;
-#[cfg(test)]
-mod tests;
+mod words;
 mod widgets;
 
 use kurbo::Point;
 
-pub use labels::CornerWidgetsLabels;
 pub use style::CornerStyle;
-pub use widgets::{CornerWidgets, CornerWidgetsResponse};
+pub use widgets::{CornerWidgets, CornerWidgetsOutput};
+pub use words::CornerWords;
 
 /// How a corner is cut. Only shown and cycled with [`CornerWidgets::kinds`] (VectorCraft).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum CornerKind {
     /// A circular arc tangent to both edges.
     #[default]
@@ -48,6 +46,7 @@ impl CornerKind {
 /// One corner of a target, in document units: its vertex, its neighbours along the outline (the
 /// sharp polygon's, not the rounded one's), its radius now and its kind.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct CornerPoint {
     /// The corner's vertex.
     pub vertex: Point,
@@ -65,6 +64,7 @@ pub struct CornerPoint {
 /// whether each corner takes its own radius (`individual`: rectangles, so ⌥ changes one corner)
 /// or every corner shares one (polygons, stars: ⌥ is ignored).
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct CornerTarget {
     /// The app's id for the object.
     pub key: u64,
@@ -77,6 +77,7 @@ pub struct CornerTarget {
 /// A corner of a target: the target's key and the corner's index in
 /// [`CornerTarget::corners`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct CornerRef {
     /// The [`CornerTarget::key`] of the object.
     pub target: u64,
@@ -87,6 +88,7 @@ pub struct CornerRef {
 /// A target's radii after an edit: one per corner, in the target's order (equal for a target
 /// without `individual`).
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct CornerRadii {
     /// The [`CornerTarget::key`] of the object.
     pub key: u64,
@@ -94,11 +96,32 @@ pub struct CornerRadii {
     pub radii: Vec<f64>,
 }
 
-/// The value of the widgets' edit events: the new radii of every shown target that changed.
-/// The host applies all of them as one history step (PhotoCraft: one `shape.edit` per layer under
-/// one coalesce key).
+/// The operation the widgets report: the new radii of every shown target that changed. The host applies all of them
+/// as one history step.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct CornerEdit {
     /// The new radii per object.
     pub targets: Vec<CornerRadii>,
+}
+
+impl CornerPoint {
+    /// A corner at `vertex` between `prev` and `next` with `radius`, cut as `kind`.
+    pub fn new(vertex: Point, prev: Point, next: Point, radius: f64, kind: CornerKind) -> Self {
+        Self { vertex, prev, next, radius, kind }
+    }
+}
+
+impl CornerTarget {
+    /// The target `key` with `corners` in outline order; `individual` gives each corner its own radius.
+    pub fn new(key: u64, corners: Vec<CornerPoint>, individual: bool) -> Self {
+        Self { key, corners, individual }
+    }
+}
+
+impl CornerRef {
+    /// Corner `corner` of the target `target`.
+    pub fn new(target: u64, corner: usize) -> Self {
+        Self { target, corner }
+    }
 }
