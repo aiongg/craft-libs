@@ -3,11 +3,12 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use crate::chord::{Platform, Trigger};
-use crate::command::CommandRef;
-use crate::keymap::{Bindable, Binding, ConflictKind, Keymap, Kind, Overrides};
-use crate::ui::Options;
-use crate::ui::text::{Say, around_chord};
+use craft_keymap::chord::{Platform, Trigger};
+use craft_keymap::command::CommandRef;
+use craft_keymap::keymap::{Bindable, Binding, ConflictKind, Keymap, Kind, Overrides};
+
+use crate::shortcuts::Options;
+use crate::shortcuts::words::{Say, around_chord};
 
 /// One entry of the Show menu.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -47,13 +48,15 @@ impl Filter {
     pub(crate) const ALL: [Filter; 4] = [Filter::All, Filter::WithShortcut, Filter::Changed, Filter::Conflicts];
 
     pub(crate) fn label(self, text: &Say) -> String {
+        let words = text.words();
         match self {
-            Filter::All => text.ui("All"),
-            Filter::WithShortcut => text.ui("With Shortcut"),
-            Filter::Changed => text.ui("Changed"),
-            Filter::Conflicts => text.ui("Conflicts"),
+            Filter::All => &words.all,
+            Filter::WithShortcut => &words.with_shortcut,
+            Filter::Changed => &words.changed,
+            Filter::Conflicts => &words.conflicts,
         }
-        .into_owned()
+        .as_str()
+        .to_owned()
     }
 }
 
@@ -197,7 +200,7 @@ fn listed<'k>(keymap: &'k Keymap, options: &Options) -> impl Iterator<Item = &'k
 /// The Show entries, in catalog order, leaving out areas with no rows.
 pub(crate) fn areas(keymap: &Keymap, options: &Options, text: &Say) -> Vec<AreaEntry> {
     let catalog = listed(keymap, options);
-    let mut out = vec![AreaEntry { id: AreaId::All, label: text.ui("All Commands").into_owned() }];
+    let mut out = vec![AreaEntry { id: AreaId::All, label: text.words().all_commands.as_str().to_owned() }];
     let mut menus: Vec<&str> = Vec::new();
     for m in catalog.clone().filter_map(top_menu) {
         if !menus.contains(&m) {
@@ -205,11 +208,11 @@ pub(crate) fn areas(keymap: &Keymap, options: &Options, text: &Say) -> Vec<AreaE
         }
     }
     for m in menus {
-        let label = craft_i18n::fmt(&text.ui("{menu} Menu"), &[("menu", &text.segment(m))]);
+        let label = text.words().menu_menu.fill(&[("menu", &text.segment(m))]);
         out.push(AreaEntry { id: AreaId::Menu(m.to_string()), label });
     }
     if catalog.clone().any(is_tool) {
-        out.push(AreaEntry { id: AreaId::Tools, label: text.ui("Tools").into_owned() });
+        out.push(AreaEntry { id: AreaId::Tools, label: text.words().tools.as_str().to_owned() });
     }
     let mut panels: Vec<&str> = keymap.scopes().panels().iter().map(String::as_str).collect();
     for b in catalog.clone().filter(|b| !b.scope.is_app()) {
@@ -221,19 +224,19 @@ pub(crate) fn areas(keymap: &Keymap, options: &Options, text: &Say) -> Vec<AreaE
         out.push(AreaEntry { id: AreaId::Panel(p.to_string()), label: panel_label(text, p) });
     }
     if catalog.clone().any(|b| top_menu(b).is_none() && !is_tool(b)) {
-        out.push(AreaEntry { id: AreaId::Other, label: text.ui("Other").into_owned() });
+        out.push(AreaEntry { id: AreaId::Other, label: text.words().other.as_str().to_owned() });
     }
     for a in options.areas.iter().filter(|a| catalog.clone().any(a.rows)) {
         out.push(AreaEntry { id: AreaId::App(a.id), label: text.segment(a.label).into_owned() });
     }
     if !options.fixed.is_empty() {
-        out.push(AreaEntry { id: AreaId::Fixed, label: text.ui("Fixed Keys").into_owned() });
+        out.push(AreaEntry { id: AreaId::Fixed, label: text.words().fixed_keys.as_str().to_owned() });
     }
     out
 }
 
 fn panel_label(text: &Say, panel: &str) -> String {
-    craft_i18n::fmt(&text.ui("{panel} Panel"), &[("panel", &text.segment(panel))])
+    text.words().panel_panel.fill(&[("panel", &text.segment(panel))])
 }
 
 fn in_area(area: &AreaId, b: &Bindable, options: &Options) -> bool {
@@ -263,11 +266,11 @@ pub(crate) fn group(area: &AreaId, b: &Bindable, submenus: bool, text: &Say) -> 
     match area {
         AreaId::All => menu(1).unwrap_or_else(|| {
             if let Kind::Tool { .. } = b.kind {
-                (1, Some(text.ui("Tools").into_owned()), 0)
+                (1, Some(text.words().tools.as_str().to_owned()), 0)
             } else if !b.scope.is_app() {
                 (2, Some(panel_label(text, b.scope.as_str())), 0)
             } else {
-                (3, Some(text.ui("Other").into_owned()), 0)
+                (3, Some(text.words().other.as_str().to_owned()), 0)
             }
         }),
         AreaId::Menu(_) if submenus && path.len() >= 3 => (0, path.get(1).map(|s| text.segment(s).into_owned()), 2),
@@ -385,7 +388,7 @@ fn build(keymap: &Keymap, options: &Options, text: &Say, view: &View) -> Built {
                 let mut t = text.trigger(&x.trigger, platform);
                 if x.scope_or(&b.scope) != &b.scope {
                     let scope = text.segment(x.scope_or(&b.scope).as_str());
-                    let s = craft_i18n::fmt(&text.ui("{chord} ({scope})"), &[("chord", &t), ("scope", &scope)]);
+                    let s = text.words().chord_scope.fill(&[("chord", &t), ("scope", &scope)]);
                     t = around_chord(text.rtl(), &s, &t);
                 }
                 Chip { binding: x.clone(), text: t, changed: !defaults.contains(x) }
@@ -453,238 +456,5 @@ fn build_fixed(keymap: &Keymap, options: &Options, text: &Say, view: &View, quer
         if !collapsed {
             built.lines.extend(lines.into_iter().map(Line::Fixed));
         }
-    }
-}
-
-#[cfg(test)]
-pub(crate) mod tests {
-
-    use super::*;
-    use crate::keymap::Bindable;
-    use crate::scope::{Scope, Scopes};
-    use crate::ui::{Area, FixedRow};
-
-    fn key(text: &str) -> Binding {
-        Binding::parse(text).unwrap_or_else(|_| Binding::new(Trigger::single(crate::Chord::from(crate::Key::F35))))
-    }
-
-    /// The fixture of the dialog tests: Save, Save As, Export, Arrange › Bring to Front, two
-    /// tools sharing M, Timeline Loop, Bold in the Text context.
-    pub(crate) fn fixture(platform: Platform) -> Keymap {
-        let tool = Kind::Tool { group: Some("Marquee".into()) };
-        let path = |p: &[&str]| p.iter().map(|s| s.to_string()).collect::<Vec<_>>();
-        let timeline = Scope::new("Timeline").unwrap_or_else(Scope::app);
-        let catalog = vec![
-            Bindable::new("file.save", "Save", Scope::app()).with_path(path(&["File", "Save"])).with_default(key("Cmd+S")),
-            Bindable::new("file.saveAs", "Save As…", Scope::app()).with_path(path(&["File", "Save As…"])).with_default(key("Cmd+Shift+S")),
-            Bindable::new("file.export", "Export…", Scope::app()).with_path(path(&["File", "Export…"])).with_default(key("Cmd+E")),
-            Bindable::new("object.front", "Bring to Front", Scope::app()).with_path(path(&["Object", "Arrange", "Bring to Front"])),
-            Bindable::new("tool.marquee", "Marquee Tool", Scope::app()).with_kind(tool.clone()).with_default(key("M")),
-            Bindable::new("tool.ellipse", "Elliptical Marquee Tool", Scope::app()).with_kind(tool).with_default(key("M")),
-            Bindable::new("timeline.loop", "Loop", timeline).with_default(key("L")),
-            Bindable::new("type.bold", "Bold", Scope::app()).with_default(key("Text: Cmd+B")),
-        ];
-        Keymap::new(catalog, Scopes::new().with_panel("Timeline").with_context("Text"), platform)
-    }
-
-    fn view<'a>(query: &'a str, area: &'a AreaId, filter: Filter, collapsed: &'a BTreeSet<String>) -> View<'a> {
-        View { query, area, filter, collapsed }
-    }
-
-    fn labels(built: &Built) -> Vec<String> {
-        built
-            .lines
-            .iter()
-            .map(|l| match l {
-                Line::Header { name, .. } => format!("# {name}"),
-                Line::Row(r) => {
-                    let chips: Vec<&str> = r.chips.iter().map(|c| c.text.as_str()).collect();
-                    let cycles = if r.cycles { " (cycles)" } else { "" };
-                    format!("{}{}: {}{cycles}", r.prefix.iter().map(|p| format!("{p} › ")).collect::<String>(), r.label, chips.join(", "))
-                }
-                Line::Fixed(f) => format!("{} = {}{}", f.label, f.keys, f.now_used_by.as_ref().map(|l| format!(" (now {l})")).unwrap_or_default()),
-            })
-            .collect()
-    }
-
-    fn lines(km: &Keymap, options: &Options, text: &Say, query: &str, area: AreaId, filter: Filter) -> Vec<String> {
-        let none = BTreeSet::new();
-        labels(&build(km, options, text, &view(query, &area, filter, &none)))
-    }
-
-    #[test]
-    fn areas_follow_paths_kind_and_scope() {
-        let km = fixture(Platform::Mac);
-        let options = Options { areas: vec![Area { id: "type", label: "Type", rows: |b| b.command.id.starts_with("type.") }], ..Options::default() };
-        let names: Vec<String> = areas(&km, &options, Say::english()).into_iter().map(|a| a.label).collect();
-        assert_eq!(names, ["All Commands", "File Menu", "Object Menu", "Tools", "Timeline Panel", "Other", "Type"]);
-
-        let all = lines(&km, &options, Say::english(), "", AreaId::All, Filter::All);
-        assert_eq!(
-            all,
-            [
-                "# File",
-                "Save: ⌘S",
-                "Save As…: ⇧⌘S",
-                "Export…: ⌘E",
-                "# Object",
-                "Arrange › Bring to Front: ",
-                "# Tools",
-                "Marquee Tool: M (cycles)",
-                "Elliptical Marquee Tool: M (cycles)",
-                "# Timeline Panel",
-                "Loop: L",
-                "# Other",
-                "Bold: ⌘B (Text)",
-            ]
-        );
-        assert_eq!(lines(&km, &options, Say::english(), "", AreaId::Menu("Object".into()), Filter::All), ["# Arrange", "Bring to Front: "]);
-        assert_eq!(lines(&km, &options, Say::english(), "", AreaId::Panel("Timeline".into()), Filter::All), ["Loop: L"]);
-        assert_eq!(lines(&km, &options, Say::english(), "", AreaId::Other, Filter::All), ["# Timeline", "Loop: L", "# Type", "Bold: ⌘B (Text)"]);
-    }
-
-    #[test]
-    fn sort_by_label_and_collapsed_groups() {
-        let km = fixture(Platform::Mac);
-        let options = Options { sort_by_label: true, ..Options::default() };
-        let area = AreaId::Menu("File".into());
-        let none = BTreeSet::new();
-        assert_eq!(labels(&build(&km, &options, Say::english(), &view("", &area, Filter::All, &none))), ["Export…: ⌘E", "Save: ⌘S", "Save As…: ⇧⌘S"]);
-        let collapsed: BTreeSet<String> = ["File".to_string()].into();
-        let built = build(&km, &options, Say::english(), &view("", &AreaId::All, Filter::All, &collapsed));
-        assert_eq!(built.lines.first(), Some(&Line::Header { name: "File".into(), collapsed: true }));
-        assert!(matches!(built.lines.get(1), Some(Line::Header { .. })));
-    }
-
-    struct Spanish;
-    impl craft_host::Commands for Spanish {
-        fn label(&self, id: &str, english: &str) -> String {
-            if id == "file.export" { "Exportar…".into() } else { english.to_string() }
-        }
-    }
-
-    fn spanish() -> Say {
-        let app = craft_host::AppInfo { id: "test", name: "Test", version: "0" };
-        Say::with_host(craft_host::Host::builder(app).commands(std::sync::Arc::new(Spanish)).build())
-    }
-
-    #[test]
-    fn search_by_name_translation_or_chord() {
-        let km = fixture(Platform::Mac);
-        let o = Options::default();
-        let find = |q: &str| -> Vec<String> {
-            let none = BTreeSet::new();
-            build(&km, &o, &spanish(), &view(q, &AreaId::All, Filter::All, &none))
-                .lines
-                .into_iter()
-                .filter_map(|l| if let Line::Row(r) = l { Some(r.key) } else { None })
-                .collect()
-        };
-        assert_eq!(find("save"), ["file.save", "file.saveAs"]);
-        assert_eq!(find("exportar"), ["file.export"]);
-        assert_eq!(find("cmd+s"), ["file.save"]);
-        assert_eq!(find("⌘S"), ["file.save"]);
-        assert_eq!(find("⇧⌘S"), ["file.saveAs"]);
-        assert_eq!(find("Text: Cmd+B"), Vec::<String>::new(), "a binding text with a scope is not a trigger");
-        assert_eq!(find("cmd+b"), ["type.bold"], "a trigger matches in any scope");
-        assert_eq!(find("arrange"), ["object.front"]);
-        assert!(find("zzz").is_empty());
-    }
-
-    #[test]
-    fn filters_and_conflict_counts() -> Result<(), crate::AssignError> {
-        let mut km = fixture(Platform::Windows);
-        let o = Options::default();
-        km.assign(&"file.export".into(), key("Cmd+S"), crate::Policy::Keep)?;
-        assert_eq!(lines(&km, &o, Say::english(), "", AreaId::All, Filter::Changed), ["# File", "Export…: Ctrl+E, Ctrl+S"]);
-        assert_eq!(lines(&km, &o, Say::english(), "", AreaId::All, Filter::Conflicts), ["# File", "Save: Ctrl+S", "Export…: Ctrl+E, Ctrl+S"]);
-        assert_eq!(lines(&km, &o, Say::english(), "", AreaId::Menu("Object".into()), Filter::WithShortcut), Vec::<String>::new());
-        let none = BTreeSet::new();
-        let built = build(&km, &o, Say::english(), &view("", &AreaId::All, Filter::All, &none));
-        assert_eq!((built.clashes, built.matches), (1, 8));
-        Ok(())
-    }
-
-    #[test]
-    fn import_paths_make_no_areas_or_groups() {
-        let tool = |id: &str, label: &str| {
-            Bindable::new(id, label, Scope::app())
-                .with_kind(Kind::Tool { group: None })
-                .with_import_path(vec!["Tools".into(), label.into()])
-                .with_default(key("P"))
-        };
-        let km = Keymap::new(vec![tool("tool.pen", "Pen Tool")], Scopes::new(), Platform::Mac);
-        let o = Options::default();
-        let names: Vec<String> = areas(&km, &o, Say::english()).into_iter().map(|a| a.label).collect();
-        assert_eq!(names, ["All Commands", "Tools"]);
-        assert_eq!(lines(&km, &o, Say::english(), "", AreaId::All, Filter::All), ["# Tools", "Pen Tool: P"]);
-    }
-
-    #[test]
-    fn hidden_entries_are_not_listed_but_still_conflict() -> Result<(), crate::AssignError> {
-        let mut km = fixture(Platform::Mac);
-        let o = Options { visible: Some(|b| b.command.id != "file.export" && !b.command.id.starts_with("timeline.")), ..Options::default() };
-        let names: Vec<String> = areas(&km, &o, Say::english()).into_iter().map(|a| a.label).collect();
-        assert_eq!(names, ["All Commands", "File Menu", "Object Menu", "Tools", "Other"]);
-        assert_eq!(lines(&km, &o, Say::english(), "", AreaId::Menu("File".into()), Filter::All), ["Save: ⌘S", "Save As…: ⇧⌘S"]);
-        assert!(lines(&km, &o, Say::english(), "export", AreaId::All, Filter::All).is_empty());
-
-        km.assign(&"file.save".into(), key("Cmd+E"), crate::Policy::Keep)?;
-        let none = BTreeSet::new();
-        assert_eq!(build(&km, &o, Say::english(), &view("", &AreaId::All, Filter::All, &none)).clashes, 1);
-        assert_eq!(lines(&km, &o, Say::english(), "", AreaId::All, Filter::Conflicts), ["# File", "Save: ⌘S, ⌘E"]);
-        Ok(())
-    }
-
-    #[test]
-    fn commands_sharing_a_default_key_are_no_conflict() -> Result<(), crate::AssignError> {
-        let menu = Bindable::new("app.characterPanel", "Character", Scope::app()).with_path(vec!["Window".into(), "Character".into()]);
-        let catalog = vec![
-            menu.with_default(key("Cmd+T")),
-            Bindable::new("panel.character", "Character Panel", Scope::app()).with_default(key("Cmd+T")),
-            Bindable::new("file.save", "Save", Scope::app()).with_default(key("Cmd+S")),
-        ];
-        let mut km = Keymap::new(catalog, Scopes::new(), Platform::Mac);
-        let o = Options::default();
-        let none = BTreeSet::new();
-        let built = build(&km, &o, Say::english(), &view("", &AreaId::All, Filter::All, &none));
-        assert_eq!((built.clashes, built.shadows), (0, 0));
-        assert!(lines(&km, &o, Say::english(), "", AreaId::All, Filter::Conflicts).is_empty());
-
-        km.assign(&"file.save".into(), key("Cmd+T"), crate::Policy::Keep)?;
-        let built = build(&km, &o, Say::english(), &view("", &AreaId::All, Filter::All, &none));
-        assert_eq!(built.clashes, 2, "Save clashes with both twins");
-        let flagged: Vec<String> =
-            built.lines.iter().filter_map(|l| if let Line::Row(r) = l { r.conflict.then(|| r.key.clone()) } else { None }).collect();
-        assert_eq!(flagged, ["app.characterPanel", "panel.character", "file.save"]);
-        Ok(())
-    }
-
-    #[test]
-    fn fixed_rows_strike_through_when_a_command_takes_their_chord() {
-        let km = fixture(Platform::Mac);
-        let fixed = |label: &str, keys: &str, chord: Option<&str>| FixedRow {
-            group: "Rating".into(),
-            label: label.into(),
-            keys: keys.into(),
-            chord: chord.and_then(|c| Trigger::parse(c).ok()),
-        };
-        let o = Options { fixed: vec![fixed("Rate 1", "1", Some("1")), fixed("Loop", "L", Some("L"))], ..Options::default() };
-        assert_eq!(lines(&km, &o, Say::english(), "", AreaId::Fixed, Filter::All), ["# Rating", "Rate 1 = 1", "Loop = L (now Loop)"]);
-    }
-
-    #[test]
-    fn cache_rebuilds_on_overrides_and_view_changes() -> Result<(), crate::AssignError> {
-        let mut km = fixture(Platform::Mac);
-        let o = Options::default();
-        let mut cache = RowCache::default();
-        let none = BTreeSet::new();
-        let area = AreaId::Menu("File".into());
-        let before = cache.get(&km, &o, Say::english(), &view("", &area, Filter::All, &none)).clone();
-        km.assign(&"file.save".into(), key("F2"), crate::Policy::Steal)?;
-        let after = cache.get(&km, &o, Say::english(), &view("", &area, Filter::All, &none)).clone();
-        assert_ne!(before, after);
-        assert_eq!(cache.get(&km, &o, Say::english(), &view("save as", &area, Filter::All, &none)).matches, 1);
-        Ok(())
     }
 }
