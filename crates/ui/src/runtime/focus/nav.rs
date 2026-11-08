@@ -400,7 +400,11 @@ pub(super) fn begin(state: &mut State, input: BeginIn) -> (Vec<Act>, Vec<String>
         acts.extend(state.apply_target(target));
     }
     for forward in input.nav.tabs {
-        acts.extend(state.tab(forward, input.tab_all_controls));
+        let moved = state.tab(forward, input.tab_all_controls);
+        if let Some(from) = input.focused.filter(|_| !moved.is_empty()) {
+            state.press.tabbed_from = Some((from, forward));
+        }
+        acts.extend(moved);
     }
     for forward in input.nav.panes {
         let (moved, said) = state.pane(forward, input.tab_all_controls);

@@ -48,17 +48,24 @@ pub struct Activation {
 pub(crate) trait TextResult {
     /// The modifiers of the Enter that submitted the part this pass; none when it did not submit.
     fn submit_mods(&self) -> craft_keymap::Mods;
+    /// Whether Tab (`Some(true)`) or Shift+Tab (`Some(false)`) moved focus off the part this pass.
+    fn left_by_tab(&self) -> Option<bool>;
     fn as_any(&self) -> &dyn Any;
 }
 
 pub(crate) struct RecordedText<V> {
     pub(crate) outcome: crate::primitives::TextOutcome<V>,
     pub(crate) submit_mods: craft_keymap::Mods,
+    pub(crate) left_by_tab: Option<bool>,
 }
 
 impl<V: 'static> TextResult for RecordedText<V> {
     fn submit_mods(&self) -> craft_keymap::Mods {
         self.submit_mods
+    }
+
+    fn left_by_tab(&self) -> Option<bool> {
+        self.left_by_tab
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -988,6 +995,7 @@ impl<C: Component> Edit for Cx<'_, C> {
         response.escaped = self.core.escaped || matches!(self.events.last(), Some(EditEvent::Cancel { reason: CancelReason::Escape, .. }));
         response.submitted = self.core.submitted;
         response.submit_mods = self.core.texts.as_ref().map_or(craft_keymap::Mods::NONE, |(_, text)| text.submit_mods());
+        response.left_by_tab = self.core.texts.as_ref().and_then(|(_, text)| text.left_by_tab());
         response.unparsed = self.core.text_invalid;
         response.shown = match (&self.shown, self.mixed) {
             (_, true) => Some(Mixed::Mixed),

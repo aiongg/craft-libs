@@ -416,6 +416,11 @@ pub(crate) fn commit_now(ctx: &Context) -> Option<Id> {
     with(ctx, |state| state.press.commit_now)
 }
 
+/// Whether a Tab (`Some(true)`) or Shift+Tab (`Some(false)`) moved focus off the widget `widget` in this pass.
+pub(crate) fn tabbed_off(ctx: &Context, widget: Id) -> Option<bool> {
+    with(ctx, |state| state.press.tabbed_from.filter(|(from, _)| *from == widget).map(|(_, forward)| forward))
+}
+
 /// Sets modality: keyboard use shows focus rings, a pointer press hides them.
 pub(crate) fn set_visible(ctx: &Context, viewport: ViewportId, visible: bool) {
     with_viewport(ctx, viewport, |state| state.visible = visible);

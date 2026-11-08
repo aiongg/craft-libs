@@ -18,8 +18,8 @@ use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::{focus, frame, overlay, wheel};
 use crate::style::{StyleCx, scroll_bar_look};
 use craft_behavior::{
-    Axis, ColumnKey, EditEvent, Flow, GestureId, Granularity, Intent, ItemLayout, ItemSource, Mixed, MoveMods, NavMove, NavState, NavStep, Outline,
-    PressPhase, Proposal, ScrollPos, ScrollSpan, SelectionChange, SelectionModel, Sense, TypeAhead, WheelTaker, nav,
+    Axis, CancelReason, ColumnKey, EditEvent, Flow, GestureId, Granularity, Intent, ItemLayout, ItemSource, Mixed, MoveMods, NavMove, NavState,
+    NavStep, Outline, PressPhase, Proposal, ScrollPos, ScrollSpan, SelectionChange, SelectionModel, Sense, TypeAhead, WheelTaker, nav,
 };
 use egui::{Context, Id, Pos2, Rect, Ui, UiBuilder, Vec2};
 use std::ops::Range;
@@ -770,7 +770,20 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                                 self.events.push(CollectionEvent::Rename(EditEvent::cancel(gesture, reason, Some(before))));
                                 self.ended_rename = true;
                             }
+                            None if editor.left_by_tab.is_some() => {
+                                self.events.push(CollectionEvent::Rename(EditEvent::cancel(gesture, CancelReason::Blur, Some(before))));
+                                self.ended_rename = true;
+                            }
                             _ => {}
+                        }
+                        if let Some(forward) = editor.left_by_tab.filter(|_| self.ended_rename) {
+                            // Tab continues the rename on the next renamable row; past the last one focus returns to the collection.
+                            let renamable = |row: &usize| !self.source.section_stop(*row) && comp.can_rename(&self.source.key(*row));
+                            let next = if forward { (at + 1..len).find(renamable) } else { (0..at).rev().find(renamable) };
+                            self.refocus = next.is_none();
+                            if let Some(next) = next {
+                                request::request_rename(&ctx, id, &self.source.key(next));
+                            }
                         }
                     }
                 }
