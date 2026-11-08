@@ -222,6 +222,24 @@ old = "stroke_open(&mut bool)"
 new = "stroke_open(Bind<bool>)"
 
 [[setter]]
+type = "ShapePanel"
+old = "(none)"
+new = "pixels_per_inch(f64)"
+note = "The document's pixels per inch, which sizes a length typed in inches or points; 72 by default."
+
+[[setter]]
+type = "ShapeBar"
+old = "(none)"
+new = "pixels_per_inch(f64)"
+note = "As `ShapePanel::pixels_per_inch`; 72 by default."
+
+[[setter]]
+type = "StrokePreview"
+old = "ink(Color32)"
+new = "(removed)"
+note = "`paint` applies the stroke's opacity; the ink comes from the painter."
+
+[[setter]]
 type = "PatternFillEditor"
 old = "PatternFillEditor::new(id_salt, &PatternFillOptions, &[PatternSwatch])"
 new = "PatternFillEditor::new(label, Bind<PatternFillOptions>, &[PatternSwatch])"
