@@ -3,16 +3,17 @@
 
 use crate::contract::kit::PlainStyle;
 use crate::windows_kit::Windows;
-use craft_behavior::{PressCancel, Sense};
+use craft_behavior::{PartKey, PressCancel, Sense};
 use craft_host::target::{Caps, Os, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
+use craft_ui::buttons::Button;
 use craft_ui::contract::{
-    Bind, Common, Component, Container, ContainerProps, Cx, Mount, Overlay, Pointer as _, Props as _, Role, Show as _, ShowContainer as _,
+    Bind, Common, Component, Container, ContainerProps, Cx, Mount, Overlay, PartsCx, Pointer as _, Props as _, Role, Show as _, ShowContainer as _,
 };
 use craft_ui::runtime::InstallSpec;
 use craft_ui::runtime::commands::FireSource;
 use craft_ui::runtime::env::Env;
 use craft_ui::runtime::frame::take_output;
-use craft_ui::runtime::windows::{ResizeEdge, WindowAction, WindowHost, WindowLevel, WindowSpec, act};
+use craft_ui::runtime::windows::{ResizeEdge, WindowAction, WindowHit, WindowHost, WindowLevel, WindowSpec, act};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::{moved, press, release};
@@ -277,7 +278,12 @@ fn act_sends_window_commands_only_where_the_capability_is_on() {
 #[trial]
 fn the_set_actions_send_their_state_and_a_sequence_goes_out_in_one_pass() {
     let windows = Windows::new();
-    windows.root_info(ViewportInfo { maximized: Some(true), inner_rect: Some(PLACED), native_pixels_per_point: Some(1.0), ..ViewportInfo::default() });
+    windows.root_info(ViewportInfo {
+        maximized: Some(true),
+        inner_rect: Some(PLACED),
+        native_pixels_per_point: Some(1.0),
+        ..ViewportInfo::default()
+    });
     let out = windows.frame(vec![], vec![], |ui| {
         assert!(act(ui.ctx(), ViewportId::ROOT, WindowAction::SetMaximized(false)));
         assert!(act(ui.ctx(), ViewportId::ROOT, WindowAction::SetFullscreen(true)));
@@ -286,7 +292,9 @@ fn the_set_actions_send_their_state_and_a_sequence_goes_out_in_one_pass() {
     let root: Vec<_> = out
         .commands
         .iter()
-        .filter(|(viewport, command)| *viewport == ViewportId::ROOT && matches!(command, ViewportCommand::Maximized(_) | ViewportCommand::Fullscreen(_)))
+        .filter(|(viewport, command)| {
+            *viewport == ViewportId::ROOT && matches!(command, ViewportCommand::Maximized(_) | ViewportCommand::Fullscreen(_))
+        })
         .map(|(_, command)| command.clone())
         .collect();
     assert_eq!(
@@ -415,29 +423,87 @@ fn a_viewport_window_takes_its_limits_and_position_from_the_overlay() {
     assert!(act(&windows.ctx, grips_id, WindowAction::StartResize(ResizeEdge::Left)));
 }
 
-/// A palette stays above the app's windows while one has focus and drops to the normal level once none has had it
-/// for a moment; focus coming back raises it again.
+/// A palette stays above the app's windows while one of them has focus. Each frame's activity is decided once
+/// every window has reported its focus in its own pass, and the palette's window is built with it in the next frame.
+/// Focus moving from the main window to the palette's never drops the palette, though the main window's input still
+/// lists the palette's window as unfocused in that frame; focus leaving every window drops it in the next frame, and
+/// focus coming back raises it in the next frame again.
 #[trial]
 fn a_palette_drops_its_level_while_the_app_is_inactive() {
     let windows = Windows::new();
-    let level = |windows: &Windows| {
-        let mut out = None;
-        for _ in 0..3 {
-            out = Some(windows.frame(vec![], vec![], |ui| {
-                Palette::new("tool", Some(WindowSpec::tool())).show(ui, |_, _| {});
-            }));
-        }
-        builder_titled(&out.expect("frames ran"), "tool").1.window_level
-    };
     let focus = |on| ViewportInfo { focused: Some(on), ..ViewportInfo::default() };
-    windows.root_info(focus(true));
-    windows.child_info(focus(false));
-    assert_eq!(level(&windows), Some(egui::WindowLevel::AlwaysOnTop), "the main window has focus");
-    windows.root_info(focus(false));
-    windows.advance(1.0);
-    assert_eq!(level(&windows), Some(egui::WindowLevel::Normal), "no window of the app has focus");
-    windows.root_info(focus(true));
-    assert_eq!(level(&windows), Some(egui::WindowLevel::AlwaysOnTop), "the app is active again");
+    // One frame in which the main window reports `main` and the palette's window, in its own pass, `palette`. Like an
+    // integration, the kit lists the palette's window in the main window's input as it reported in its last pass.
+    let frame = |main: bool, palette: bool| {
+        windows.root_info(focus(main));
+        let out = windows.frame(vec![], vec![], |ui| {
+            windows.child_info(focus(palette));
+            Palette::new("tool", Some(WindowSpec::tool())).show(ui, |_, _| {});
+        });
+        builder_titled(&out, "tool").1.window_level
+    };
+    let on_top = Some(egui::WindowLevel::AlwaysOnTop);
+    assert_eq!(frame(true, false), on_top, "the main window has focus");
+    for _ in 0..2 {
+        assert_eq!(frame(false, true), on_top, "focus moved to the palette's window: the app stays active in every frame");
+    }
+    // Focus leaves the palette's window, which the main window's input still lists as focused.
+    frame(false, false);
+    assert_eq!(frame(false, false), Some(egui::WindowLevel::Normal), "the frame after focus left every window");
+    frame(true, false);
+    assert_eq!(frame(true, false), on_top, "the frame after the main window took focus again");
+}
+
+const BAND: PartKey = PartKey::new("band");
+/// A title strip whose whole rect is the window's drag area, with a button shown over its end.
+const STRIP: Rect = Rect { min: Pos2::new(0.0, 0.0), max: Pos2::new(400.0, 32.0) };
+const OVER_STRIP: Rect = Rect { min: Pos2::new(300.0, 4.0), max: Pos2::new(360.0, 28.0) };
+/// A point of the strip beside the button, where an unscaled pixel would fall below the strip.
+const BESIDE: Pos2 = Pos2::new(40.0, 20.0);
+
+/// A strip whose one part drags the window.
+#[derive(craft_ui::contract::Component)]
+struct Strip {
+    #[common]
+    common: Common,
+}
+
+impl Component for Strip {
+    const ROLE: Role = Role::GROUP;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: StripStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
+        cx.part(BAND, rect).sense(Sense::DRAG).exclusive(WindowHit::Move).pointer_only("the window command set moves the window");
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+/// The hit-test sink answers `Move` only where the drag area is the top in-app hit: a button shown over the strip
+/// keeps its clicks, the rest of the strip moves the window. The sink takes physical pixels and holds the scale
+/// itself.
+#[trial]
+fn the_hit_sink_moves_the_window_only_where_the_band_is_the_top_hit() {
+    let windows = Windows::new();
+    let sink = WindowHost::of(&windows.ctx).install_hit_sink(ViewportId::ROOT);
+    windows.root_info(ViewportInfo { native_pixels_per_point: Some(MONITOR_SCALE), ..ViewportInfo::default() });
+    windows.frame(vec![], vec![], |ui| {
+        Strip { common: Common::new() }.id_salt("strip").show_at(ui, STRIP);
+        Button::new("Open").id_salt("open").show_at(ui, OVER_STRIP);
+    });
+    let scale = windows.ctx.pixels_per_point();
+    assert!(scale > 1.0, "the trial's window has more than one pixel per point");
+    let pixel = |point: Pos2| (point.to_vec2() * scale).to_pos2();
+    assert_eq!(sink.answer(pixel(OVER_STRIP.center())), None, "the button over the strip keeps its press");
+    assert_eq!(sink.answer(pixel(BESIDE)), Some(WindowHit::Move), "beside the button the strip moves the window");
+    assert_eq!(sink.answer(pixel(STRIP.max + STRIP.size())), None, "outside the strip the content answers");
 }
 
 /// `SetOuterPosition` and `SetInnerSize` move and size the window as the facts show; the window host lists the
