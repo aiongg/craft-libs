@@ -92,6 +92,7 @@ screen-testing = [
     "craft-draw?/screen-testing",
     "craft-imaging?/screen-testing",
     "craft-layers?/screen-testing",
+    "craft-menu?/screen-testing",
     "craft-review?/screen-testing",
     "craft-table?/screen-testing",
     "craft-theme-store?/screen-testing",

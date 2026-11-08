@@ -11,6 +11,19 @@ fn stories_list_the_kernel_first_then_each_enabled_crate() {
     assert!(ids[kernel..].contains(&"patterns/fonts-panel/panel"));
 }
 
+/// The Keyboard Shortcuts dialog lives in craft-menu and registers with the UI contract's registry, not the legacy
+/// story list above; the check fails when the dialog's registration is gone.
+#[test]
+#[cfg(all(feature = "menu", feature = "screen-testing"))]
+fn the_menu_crate_registers_the_shortcuts_dialog() {
+    let registered = craft::menu::testing::registered();
+    assert!(
+        registered.iter().any(|r| r.pattern_probe().is_some_and(|probe| probe.type_name().contains("ShortcutsDialog"))),
+        "no registration of ShortcutsDialog among {} craft-menu registrations",
+        registered.len()
+    );
+}
+
 #[test]
 fn words_list_the_kernel_tables_first_then_each_enabled_crate() {
     let tables = craft::words::all();
