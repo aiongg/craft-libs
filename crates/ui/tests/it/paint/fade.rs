@@ -17,13 +17,13 @@ fn content(draw: &Draw<'_>) {
     draw.text(RECT, &TextRun::new("Label"));
 }
 
-/// The alpha of each filled rect and the opacity factor of each text run `paint` leaves, in paint order.
-fn painted(paint: impl Fn(&Draw<'_>)) -> (Vec<u8>, Vec<f32>) {
+/// The alpha of each filled rect and the alpha of each text run's colour `paint` leaves, in paint order.
+fn painted(paint: impl Fn(&Draw<'_>)) -> (Vec<u8>, Vec<u8>) {
     let mut frames = Frames::new();
     let tokens = tokens(Mode::Light, Contrast::Standard);
     let (shapes, _) = paint_frame(&mut frames, &tokens, Direction::Ltr, Ink::OnPanel, |draw| paint(draw));
     let fills = shapes.iter().filter_map(|s| if let Shape::Rect(r) = s { Some(r.fill.a()) } else { None }).collect();
-    let texts = shapes.iter().filter_map(|s| if let Shape::Text(t) = s { Some(t.opacity_factor) } else { None }).collect();
+    let texts = shapes.iter().filter_map(|s| if let Shape::Text(t) = s { Some(t.fallback_color.a()) } else { None }).collect();
     (fills, texts)
 }
 
