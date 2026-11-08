@@ -569,12 +569,12 @@ pub struct VersionPreviewBanner<'a> {
 impl<'a> VersionPreviewBanner<'a> {
     /// A banner for the previewed `version`; `now` is the time, in Unix seconds, its age counts from.
     pub fn new(version: &'a Version, now: i64) -> Self {
-        VersionPreviewBanner { version, now }
+        VersionPreviewBanner { label: Label::Empty, version, now }
     }
 
     /// Shows the banner at the top of `canvas`.
     pub fn show(self, ui: &mut Ui, canvas: Rect) -> VersionPreviewBannerOutput {
-        let VersionPreviewBanner { version, now } = self;
+        let VersionPreviewBanner { label, version, now } = self;
         let env = Env::of(ui);
         let words = env.words::<VersionsWords>();
         let name = version_name(&env.view(), version, now);
@@ -582,7 +582,7 @@ impl<'a> VersionPreviewBanner<'a> {
         let mut open = true;
         let mut action = None;
         let shown = Popover::new(title.clone(), Bind::bound(&mut open)).at_point(Pos2::new(canvas.center().x, canvas.top())).show(ui, |ui, _| {
-            Row::new().show(ui, |ui, _| {
+            Row::new().label(label).show(ui, |ui, _| {
                 Text::new(title.clone()).role(TypeRole::Label).show(ui);
                 Text::new(age_text(&env.view(), version.created, now)).shade(Shade::Muted).show(ui);
                 if clicked(&Button::new(words.restore.clone()).variant(Variant::PRIMARY).show(ui)) {

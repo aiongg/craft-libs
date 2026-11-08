@@ -163,87 +163,79 @@ note = "Replaced by `Avatar` (a leaf) and `paint_avatar(draw, rect, name, fill, 
 [[type]]
 name = "ReviewStyle"
 old = "craft_review::ui::ReviewStyle"
-new = "craft_review::ui::ReviewStyle"
+new = ""
 status = "removed"
 note = "Each component's style hook reads the tokens."
 
 [[type]]
 name = "PresenceLabels"
 old = "craft_review::ui::PresenceLabels"
-new = "craft_review::ui::PresenceLabels"
+new = ""
 status = "removed"
 note = "`PresenceWords`."
 
 [[type]]
 name = "VersionsLabels"
 old = "craft_review::ui::VersionsLabels"
-new = "craft_review::ui::VersionsLabels"
+new = ""
 status = "removed"
 note = "`VersionsWords`."
 
 [[type]]
 name = "SignatureLabels"
 old = "craft_review::ui::SignatureLabels"
-new = "craft_review::ui::SignatureLabels"
+new = ""
 status = "removed"
 note = "`SignatureWords`."
 
 [[type]]
 name = "RevisionsLabels"
 old = "craft_review::ui::RevisionsLabels"
-new = "craft_review::ui::RevisionsLabels"
+new = ""
 status = "removed"
 note = "`RevisionsWords`."
 
 [[type]]
 name = "VoteLabels"
 old = "craft_review::ui::VoteLabels"
-new = "craft_review::ui::VoteLabels"
+new = ""
 status = "removed"
 note = "`VoteWords`."
 
 [[type]]
 name = "JoinLabels"
 old = "craft_review::ui::JoinLabels"
-new = "craft_review::ui::JoinLabels"
+new = ""
 status = "removed"
 note = "`JoinWords`."
 
 [[type]]
 name = "ChatLabels"
 old = "craft_review::ui::ChatLabels"
-new = "craft_review::ui::ChatLabels"
+new = ""
 status = "removed"
 note = "`ChatWords`."
 
 [[type]]
 name = "WORDS"
 old = "craft_review::ui::WORDS"
-new = "craft_review::ui::WORDS"
+new = ""
 status = "removed"
 note = "Registered by `words!`; the crate's `testing` module lists them."
 
 [[type]]
 name = "COUNTS"
 old = "craft_review::ui::COUNTS"
-new = "craft_review::ui::COUNTS"
+new = ""
 status = "removed"
 note = "Registered by `words!`."
 
 [[type]]
 name = "stories"
 old = "craft_review::ui::stories"
-new = "craft_review::ui::stories"
+new = ""
 status = "removed"
 note = "`#[story]` registration and the crate's `testing` module."
-
-# One entry per renamed, removed or reshaped setter or constructor.
-# [[setter]]
-# type = ""
-# old = ""
-# new = ""
-
-# review-c
 
 [[type]]
 name = "CommentsPanel"
@@ -320,23 +312,23 @@ status = "moved"
 [[type]]
 name = "CommentComposerResponse"
 old = "craft_review::ui::thread::CommentComposerResponse"
-new = "craft_review::ui::CommentComposerOutput"
-status = "replaced"
-note = "`closed` is `cancelled`; `posted` is unchanged."
+new = ""
+status = "removed"
+note = "`closed` is `cancelled`; `posted` is unchanged. Replaced by `CommentComposerOutput`."
 
 [[type]]
 name = "CommentsLabels"
 old = "craft_review::ui::CommentsLabels"
-new = "craft_review::ui::CommentsWords"
+new = ""
 status = "removed"
-note = "Replaced by the words! set of the new name; apps no longer pass labels."
+note = "Replaced by the words! set of the new name; apps no longer pass labels. Replaced by `CommentsWords`."
 
 [[type]]
 name = "ThreadLabels"
 old = "craft_review::ui::ThreadLabels"
-new = "craft_review::ui::ThreadWords"
+new = ""
 status = "removed"
-note = "Replaced by the words! set of the new name; apps no longer pass labels."
+note = "Replaced by the words! set of the new name; apps no longer pass labels. Replaced by `ThreadWords`."
 
 [[setter]]
 type = "CommentsPanel"
@@ -431,9 +423,9 @@ note = "`response` and `changed`; `flyouts` is gone."
 [[type]]
 name = "AnnotateLabels"
 old = "craft_review::ui::annotate::AnnotateLabels"
-new = "craft_review::ui::annotate::AnnotateWords"
-status = "replaced"
-note = "Words register through `words!`. The per-tool tooltips are the labels of `AnnotateCommand`; `kind` and `palette_color` stay beside the type."
+new = ""
+status = "removed"
+note = "Words register through `words!`. The per-tool tooltips are the labels of `AnnotateCommand`; `kind` and `palette_color` stay beside the type. Replaced by `AnnotateWords`."
 
 [[setter]]
 type = "AnnotationToolbar"
@@ -460,3 +452,31 @@ type = "AnnotationOverlay"
 old = "paint(painter, tokens, to_screen)"
 new = "show_at(ui, rect)"
 note = "The overlay maps through the canvas's view."
+
+[[type]]
+name = "CommentComposerOutput"
+old = ""
+new = "craft_review::ui::CommentComposerOutput"
+status = "replaced"
+note = "Replaces `CommentComposerResponse`. `closed` is `cancelled`; `posted` is unchanged."
+
+[[type]]
+name = "CommentsWords"
+old = ""
+new = "craft_review::ui::CommentsWords"
+status = "replaced"
+note = "Replaces `CommentsLabels`. Replaced by the words! set of the new name; apps no longer pass labels."
+
+[[type]]
+name = "ThreadWords"
+old = ""
+new = "craft_review::ui::ThreadWords"
+status = "replaced"
+note = "Replaces `ThreadLabels`. Replaced by the words! set of the new name; apps no longer pass labels."
+
+[[type]]
+name = "AnnotateWords"
+old = ""
+new = "craft_review::ui::annotate::AnnotateWords"
+status = "replaced"
+note = "Replaces `AnnotateLabels`. Words register through `words!`. The per-tool tooltips are the labels of `AnnotateCommand`; `kind` and `palette_color` stay beside the type."

@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use craft_review::collab::{CollabRequest, CollabTransport, JoinState, PEOPLE_COLORS, Participant, ParticipantId, VoteScope, VoteSession};
-use craft_review::ui::{JoinField, PeopleBar, VotePill};
+use craft_review::ui::{CursorChatBox, JoinField, PeopleBar, VotePill};
 use craft_ui::testing::{Fixture, pointer, trial};
 
 use crate::revisions::named;
@@ -147,4 +147,45 @@ fn vote_pill_starts_and_ends_votes() {
     let end = fixture.by_label("End vote").expect("End vote");
     fixture.click(&end);
     assert_eq!(*requests.borrow(), [CollabRequest::EndVote]);
+}
+
+/// Vote on offers Selection only while something is selected.
+#[trial]
+fn vote_scope_offers_selection_only_with_a_selection() {
+    for (has_selection, offered) in [(false, false), (true, true)] {
+        let transport = session();
+        let mut fixture = Fixture::new(move |ui| {
+            let _ = VotePill::new(&transport).has_selection(has_selection).show(ui);
+        });
+        fixture.settle();
+        let open = fixture.by_label("Voting session").expect("the session button");
+        fixture.click(&open);
+        let scope = fixture.by_label("Vote on").expect("the scope field");
+        fixture.click(&scope);
+        assert!(fixture.by_label("Sticky notes").is_some(), "the other scopes are there");
+        assert_eq!(fixture.by_label("Selection").is_some(), offered, "has_selection {has_selection}");
+    }
+}
+
+/// Typing in the open cursor chat sends each change; Escape closes it with an empty chat.
+#[trial]
+fn cursor_chat_sends_each_change_and_closes_with_escape() {
+    let requests: Requests = Rc::default();
+    let seen = requests.clone();
+    let state = Rc::new(RefCell::new((String::new(), true)));
+    let shared = state.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let mut shared = shared.borrow_mut();
+        let (mut text, mut open) = std::mem::take(&mut *shared);
+        let out = CursorChatBox::new(&mut text, &mut open).show(ui, Some(egui::pos2(60.0, 60.0)));
+        seen.borrow_mut().extend(out.requests);
+        *shared = (text, open);
+    });
+    fixture.settle();
+    fixture.type_text("hi");
+    assert_eq!(state.borrow().0, "hi");
+    assert_eq!(requests.borrow().last(), Some(&CollabRequest::Chat("hi".into())));
+    fixture.key(egui::Key::Escape, egui::Modifiers::NONE);
+    assert!(!state.borrow().1);
+    assert_eq!(requests.borrow().last(), Some(&CollabRequest::Chat(String::new())));
 }
