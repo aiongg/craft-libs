@@ -5,21 +5,22 @@
 //! The library reports the sample; turning it into a Levels or Curves value needs the document's
 //! colour management and mode, so the app does that, as with the Eyedropper.
 
-use craft_theme::{ControlSize, Srgba};
-use egui::{AsIdSalt, Color32, IdSalt, Key, Modifiers, Painter, Response, RichText, Stroke, Ui, vec2};
+#[cfg(feature = "screen-testing")]
+mod stories;
 
-use craft_theme::TypeRole;
-use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolCursor, ToolPointer};
-use craft_ui::controls::IconButton;
-use craft_ui::direction;
-use craft_ui::edit::CancelReason;
-use craft_ui::focus;
-use craft_ui::icons::Icon;
-use craft_ui::localized::Labels as _;
-use craft_ui::primitives::{Content, Text};
-use craft_ui::theme::{Tokens, TokensOf as _};
+use craft_behavior::{CancelReason, Cursor, IconId, PaintedCursor};
+use craft_theme::Srgba;
+use craft_ui::buttons::ToggleButton;
+use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolPath, ToolPointer};
+use craft_ui::contract::{Bind, Held, NoValue, Outcome, Pattern, Props, Sampler as _, Show as _, ShowContainer as _};
+use craft_ui::display::{Shade, Text};
+use craft_ui::layout_components::Row;
+use craft_ui::primitives::Draw;
+use craft_ui::runtime::env::{Env, Label};
+use craft_ui::style::TypeRole;
+use egui::{Id, Response, Ui, vec2};
 
-use super::{AdjustLabels, AdjustStyle};
+use super::AdjustWords;
 
 /// One of the three point pickers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -36,7 +37,7 @@ impl TonePicker {
     /// The three, in the row's order.
     pub const ALL: [TonePicker; 3] = [TonePicker::Black, TonePicker::Gray, TonePicker::White];
 
-    /// The grey of the picker's tone dot: 0, 128, 255. An image tone, the same in every theme.
+    /// The grey of the picker's tone: 0, 128, 255. An image tone, the same in every theme.
     // pc: crates/ui-egui/src/dialogs/adjust_dialog.rs:196-198.
     pub fn tone(self) -> u8 {
         match self {
@@ -46,12 +47,12 @@ impl TonePicker {
         }
     }
 
-    /// The picker's name ("Set Black Point"), its tooltip and AccessKit name.
-    pub fn label(self, labels: &AdjustLabels) -> &str {
+    /// The picker's name ("Set Black Point"), its tooltip and accessible name.
+    pub fn label(self, words: &AdjustWords) -> Label {
         match self {
-            TonePicker::Black => &labels.set_black_point,
-            TonePicker::Gray => &labels.set_gray_point,
-            TonePicker::White => &labels.set_white_point,
+            TonePicker::Black => words.set_black_point.clone(),
+            TonePicker::Gray => words.set_gray_point.clone(),
+            TonePicker::White => words.set_white_point.clone(),
         }
     }
 
@@ -61,118 +62,109 @@ impl TonePicker {
     pub fn supported(self, rgb: bool, gray: bool) -> bool {
         rgb || (gray && self != TonePicker::Gray)
     }
+
+    /// The picker's pipette: Photoshop's black, grey or white one.
+    fn icon(self) -> IconId {
+        IconId::new(match self {
+            TonePicker::Black => "eyedropper-black",
+            TonePicker::Gray => "eyedropper-gray",
+            TonePicker::White => "eyedropper-white",
+        })
+    }
 }
 
 /// What [`TonePickerRow::show`] reports.
 #[derive(Debug)]
 #[non_exhaustive]
-pub struct TonePickerResponse {
+pub struct TonePickerRowOutput {
     /// The row.
     pub response: Response,
     /// The armed picker changed this pass: `Some(Some(p))` arms `p`, `Some(None)` disarms. The
-    /// host keeps the armed picker (and puts a [`TonePickTool`] on the canvas while one is).
+    /// binding has the new value already when it writes through.
     pub change: Option<Option<TonePicker>>,
 }
 
-/// The "Eyedroppers:" row: three icon buttons (Set Black Point, Set Neutral Gray Point, Set White
-/// Point), each a pipette with its tone dot, and the "Unavailable in this color mode" note.
-///
-/// - A button is `icon_button` Md (28) showing `Icon::Eyedropper`, selected while its picker is
-///   armed, with a tone dot ([`TonePicker::tone`]; radius the picker dot 3.5, centred 5.5 in
-///   from the bottom-trailing corner, 1 pt ring in the border).
-/// - Click a disarmed button: arms it (`Some(Some(p))`); click the armed one again: disarms
-///   (`Some(None)`). Esc while a picker button has focus and a picker is armed disarms it and
-///   keeps the press (the dialog stays open); otherwise Esc is the dialog's.
-/// - A picker the host disabled ([`enabled`](Self::enabled)) shows disabled and takes no click.
-///   [`unavailable`](Self::unavailable) disables all three and shows the note after them
-///   (`type.caption`, `text.faint`).
-/// - Keyboard: each button is a Tab stop; Space or Enter acts as a click.
-/// - AccessKit: each button is a `Button` with a toggled state, named by [`TonePicker::label`].
-#[must_use = "show the row with `show`"]
-pub struct TonePickerRow {
-    id_salt: IdSalt,
-    armed: Option<TonePicker>,
-    enabled: [bool; 3],
-    unavailable: bool,
-    labels: Option<AdjustLabels>,
+impl Outcome for TonePickerRowOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
 }
 
-impl TonePickerRow {
-    /// The row with `armed` shown selected.
-    pub fn new(id_salt: impl AsIdSalt, armed: Option<TonePicker>) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), armed, enabled: [true; 3], unavailable: false, labels: None }
+/// The "Eyedroppers:" row: three icon-only toggle buttons (Set Black Point, Set Neutral Gray Point,
+/// Set White Point), each a pipette in its own tone, and the "Unavailable in this color mode" note.
+///
+/// - A button is pressed while its picker is armed. A click on a disarmed button arms it; a click on
+///   the armed one disarms it.
+/// - While a picker is armed and [`canvas`](Self::canvas) names the document's canvas, the row
+///   arms the canvas's sampler in every pass: a primary press on the canvas under the modal dialog
+///   reaches the canvas's tool (a [`TonePickTool`]), and the wheel and middle-drag navigate it.
+///   Keys, focus and Escape stay the dialog's.
+/// - A picker the host disabled ([`enabled_picker`](Self::enabled_picker)) shows disabled.
+///   [`unavailable`](Self::unavailable) disables all three and shows the note after them.
+/// - Keyboard: each button is a Tab stop; Space or Enter acts as a click.
+#[must_use = "show the row with `show`"]
+#[derive(Pattern, Props)]
+pub struct TonePickerRow<'a> {
+    armed: Bind<'a, Option<TonePicker>>,
+    /// The document canvas the armed picker samples (the canvas component's id).
+    #[prop]
+    canvas: Option<Id>,
+    enabled: [bool; 3],
+    /// The document's mode has no point pickers (Lab, CMYK, Bitmap): every button is disabled and the
+    /// note shows.
+    #[prop(flag)]
+    unavailable: bool,
+}
+
+impl<'a> TonePickerRow<'a> {
+    /// The row over the armed picker `armed`.
+    pub fn new(armed: Bind<'a, Option<TonePicker>>) -> Self {
+        Self { armed, canvas: None, enabled: [true; 3], unavailable: false }
     }
 
     /// Enables or disables one picker (the host passes [`TonePicker::supported`] for its mode).
-    pub fn enabled(mut self, picker: TonePicker, enabled: bool) -> Self {
+    pub fn enabled_picker(mut self, picker: TonePicker, enabled: bool) -> Self {
         self.enabled[picker as usize] = enabled;
         self
     }
 
-    /// The document's mode has no point pickers (Lab, CMYK, Bitmap): every button is disabled
-    /// and the note shows.
-    pub fn unavailable(mut self, unavailable: bool) -> Self {
-        self.unavailable = unavailable;
-        self
-    }
-
-    /// The words; the installed ones by default.
-    pub fn labels(mut self, labels: AdjustLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
     /// Draws the row and reports an arm or disarm.
-    pub fn show(self, ui: &mut Ui) -> TonePickerResponse {
-        // pc: crates/ui-egui/src/dialogs/adjust_dialog.rs:177-183 `picker_button` (28 pt pipette,
-        // dot 3.5 at 5.5, ring `field_border`, `WidgetInfo::selected`), :186-216 `picker_controls`
-        // ("Eyedroppers:" caption, the note at 11 pt `text_faint`).
-        // new: a second click and Esc disarm (PhotoCraft keeps the picker armed); the look from
-        // `AdjustStyle::of`.
-        let Self { id_salt, armed, enabled, unavailable, labels } = self;
-        let labels = labels.unwrap_or_else(|| AdjustLabels::of(ui));
-        let style = AdjustStyle::of(&Tokens::of(ui));
-        let rtl = direction::is_rtl(ui);
+    pub fn show(self, ui: &mut Ui) -> TonePickerRowOutput {
+        // pc: crates/ui-egui/src/dialogs/adjust_dialog.rs:177-183 `picker_button`, :186-216
+        // `picker_controls` ("Eyedroppers:" caption, the note in the caption role, faint).
+        let Self { armed, canvas, enabled, unavailable } = self;
+        let words = Env::of(ui).words::<AdjustWords>();
+        let mut held = Held::new(armed);
         let mut change = None;
-        let row = direction::horizontal(ui, |ui| {
-            ui.add(Text::new(labels.eyedroppers.as_str()).role(TypeRole::Label).content(Content::Muted));
-            let mut escaped = false;
+        let shown = Row::new().label(words.eyedroppers.clone()).show(ui, |ui, cx| {
+            let current = held.read(cx).flatten();
+            if let (Some(canvas), Some(_)) = (canvas, current) {
+                cx.arm_sampler(canvas);
+            }
+            Text::new(words.eyedroppers.clone()).shade(Shade::Muted).role(TypeRole::Label).show(ui);
             for picker in TonePicker::ALL {
-                let is_armed = armed == Some(picker);
+                let on = current == Some(picker);
                 let usable = enabled[picker as usize] && !unavailable;
-                let name = picker.label(&labels);
-                let button =
-                    IconButton::new(Icon::Eyedropper, name).size(ControlSize::Md).selected(is_armed).enabled(usable).id_salt((id_salt, picker as u8));
-                let response = ui.add(button);
-                // The tone dot sits in the button's bottom-trailing corner; it is an image tone, so
-                // it dims with a disabled button but never takes the theme's colours.
-                let corner = if rtl {
-                    response.rect.left_bottom() + vec2(style.picker_dot_inset, -style.picker_dot_inset)
-                } else {
-                    response.rect.right_bottom() - vec2(style.picker_dot_inset, style.picker_dot_inset)
-                };
-                let dot = Color32::from_gray(picker.tone());
-                let (dot, ring) = if usable {
-                    (dot, style.picker_ring)
-                } else {
-                    (dot.gamma_multiply(style.disabled_alpha), style.picker_ring.gamma_multiply(style.disabled_alpha))
-                };
-                ui.painter().circle_filled(corner, style.picker_dot, dot);
-                ui.painter().circle_stroke(corner, style.picker_dot, Stroke::new(1.0, ring));
-                escaped |= focus::escaped(&response);
-                if response.clicked() {
-                    change = Some(if is_armed { None } else { Some(picker) });
+                let toggle = ToggleButton::new(picker.label(&words), Bind::given(on))
+                    .icon(picker.icon())
+                    .icon_only()
+                    .enabled(usable)
+                    .id_salt(picker as u8)
+                    .show(ui);
+                if let Some(next) = toggle.value().copied() {
+                    change = Some(next.then_some(picker));
                 }
             }
-            // Esc on a picker button disarms and keeps the press, so the dialog stays open.
-            if change.is_none() && armed.is_some() && escaped && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
-                change = Some(None);
-            }
             if unavailable {
-                ui.label(RichText::new(labels.unavailable_mode.as_str()).font(style.note_font.clone()).color(style.note_color));
+                Text::new(words.unavailable_mode.clone()).shade(Shade::Faint).role(TypeRole::Caption).show(ui);
+            }
+            if let Some(next) = change {
+                held.write(cx, &current, next, "Point picker");
             }
         });
-        TonePickerResponse { response: row.response, change }
+        TonePickerRowOutput { response: shown.output, change }
     }
 }
 
@@ -192,9 +184,8 @@ pub struct TonePick {
 /// The canvas tool of an armed point picker: a press samples the host's `sample` function at the
 /// document point and reports a [`TonePick`] for the picker (taken with [`take`](Self::take)
 /// after the tool host's pass). Off the image `sample` returns `None` and nothing is reported. A
-/// drag does nothing more; the release ends the gesture. The cursor is the pipette
-/// (`Icon::Eyedropper`, hotspot at its tip, as craft-color's `EyedropperTool`, whose shape this
-/// tool follows).
+/// drag does nothing more; the release ends the gesture. The cursor is the pipette with its
+/// hotspot at its tip.
 ///
 /// The host applies the pick with its engine (Photoshop maps the sample to black, neutral grey
 /// or white in each channel) and passes the new value back to the panel, which takes it as an
@@ -224,37 +215,38 @@ impl<'a> TonePickTool<'a> {
 }
 
 impl CanvasTool for TonePickTool<'_> {
-    fn cursor(&self, _cx: &ToolContext<'_>) -> ToolCursor {
-        // craft-color: crates/color/src/ui/eyedropper.rs:327-330 (the pipette, hotspot (2, 22)).
-        ToolCursor::Tool { icon: Icon::Eyedropper, hotspot: vec2(2.0, 22.0), badge: None }
+    fn cursor(&self, _cx: &ToolContext<'_>) -> Cursor {
+        // The pipette's tip is at the bottom left of its 24-unit icon.
+        Cursor::Painted(PaintedCursor::tool(IconId::new("eyedropper"), vec2(2.0, 22.0), None))
     }
 
-    fn press(&mut self, pointer: &ToolPointer, _cx: &mut ToolContext<'_>) -> ToolAction {
+    fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
         // pc: crates/ui-egui/src/dialogs/adjust_dialog.rs:52-80 `sample_at` (the armed picker samples
         // the composite at the click).
-        self.picked =
-            (self.sample)([pointer.doc.x, pointer.doc.y]).map(|color| TonePick { picker: self.picker, at: [pointer.doc.x, pointer.doc.y], color });
+        let Some(space) = cx.space() else { return ToolAction::Ignored };
+        let at = space.view.to_doc(pointer.pos);
+        self.picked = (self.sample)([at.x, at.y]).map(|color| TonePick { picker: self.picker, at: [at.x, at.y], color });
         ToolAction::Claimed
     }
 
-    fn drag(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {
-        // new: nothing; the press took the sample.
-    }
+    fn drag(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {}
 
-    fn release(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {
-        // new: nothing to commit.
-    }
+    fn release(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {}
 
     fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {
-        // new: drops a pick not yet taken.
+        // A pick not yet taken is dropped.
         self.picked = None;
     }
 
-    fn paint(&self, _painter: &Painter, _cx: &ToolContext<'_>) {
-        // new: no feedback beyond the cursor.
-    }
+    fn paint(&self, _draw: &Draw<'_>, _cx: &ToolContext<'_>) {}
 
     fn autoscrolls(&self) -> bool {
         false
+    }
+
+    fn command_form(&self) -> ToolPath {
+        // Photoshop has no tool for the dialog's point pickers: the sample is the dialog's own, and the
+        // value it sets is a field of the same dialog.
+        ToolPath::Command("the Levels or Curves dialog's point picker")
     }
 }

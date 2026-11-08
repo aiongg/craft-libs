@@ -2,12 +2,10 @@
 //! Levels and Curves ([`ToneSpace`], [`ToneChannel`], [`ToneChannels`]).
 
 use craft_theme::Srgba;
-use egui::accesskit::Role;
-use egui::{Id, InnerResponse, Ui, UiBuilder};
+use craft_ui::runtime::env::Label;
 
-use craft_ui::composites::ChannelColor;
-
-use super::AdjustLabels;
+use super::AdjustWords;
+use crate::ui::histogram::ChannelColor;
 
 /// Where an adjustment editor is shown and how its sliders look: one value for every editor.
 ///
@@ -15,10 +13,10 @@ use super::AdjustLabels;
 /// use craft_imaging::ui::adjust::AdjustContext;
 /// // Image › Adjustments › Hue/Saturation, with Preferences › Interface › Dynamic Color Sliders on.
 /// let dialog = AdjustContext::dialog(true);
-/// assert!(dialog.wheel());
+/// assert!(dialog.is_dialog());
 /// // The same editor on an adjustment layer in the Properties panel.
 /// let panel = AdjustContext::properties(true).gray(true);
-/// assert!(!panel.wheel() && panel.is_gray());
+/// assert!(!panel.is_dialog() && panel.is_gray());
 /// ```
 // pc: crates/ui-egui/src/dialogs/adjust_editors.rs:105-124 `EditorCx` (`dialog`,
 // `dynamic_color_sliders`, `gray`).
@@ -30,16 +28,14 @@ pub struct AdjustContext {
 }
 
 impl AdjustContext {
-    /// An editor in an Image › Adjustments dialog: the mouse wheel over a slider steps it without
-    /// focus, by its wheel step (1; Exposure 0.01), as in Photoshop's dialogs. `dynamic` is
-    /// Preferences › Interface › Dynamic Color Sliders: colour tracks on the colour sliders, the
-    /// plain track when off.
+    /// An editor in an Image › Adjustments dialog. `dynamic` is Preferences › Interface › Dynamic
+    /// Color Sliders: colour tracks on the colour sliders, the plain track when off.
     pub fn dialog(dynamic: bool) -> Self {
         Self { dialog: true, dynamic_color_sliders: dynamic, gray: false }
     }
 
-    /// An editor in the Properties panel (an adjustment layer): the wheel scrolls the panel and
-    /// never steps a slider. `dynamic` as in [`dialog`](Self::dialog).
+    /// An editor in the Properties panel (an adjustment layer). `dynamic` as in
+    /// [`dialog`](Self::dialog).
     pub fn properties(dynamic: bool) -> Self {
         Self { dialog: false, dynamic_color_sliders: dynamic, gray: false }
     }
@@ -53,11 +49,6 @@ impl AdjustContext {
 
     /// Whether the editor is in a dialog.
     pub fn is_dialog(&self) -> bool {
-        self.dialog
-    }
-
-    /// Whether the wheel steps an unfocused slider: in a dialog only.
-    pub fn wheel(&self) -> bool {
         self.dialog
     }
 
@@ -98,34 +89,34 @@ pub enum ToneSpace {
 pub enum ToneChannel {
     /// The composite of RGB ("RGB") or CMYK ("CMYK").
     Composite(ToneSpace),
-    #[allow(missing_docs)]
+    /// Red.
     Red,
-    #[allow(missing_docs)]
+    /// Green.
     Green,
-    #[allow(missing_docs)]
+    /// Blue.
     Blue,
-    #[allow(missing_docs)]
+    /// Cyan.
     Cyan,
-    #[allow(missing_docs)]
+    /// Magenta.
     Magenta,
-    #[allow(missing_docs)]
+    /// Yellow.
     Yellow,
-    #[allow(missing_docs)]
+    /// CMYK Black.
     Black,
-    #[allow(missing_docs)]
+    /// Lab Lightness.
     Lightness,
-    #[allow(missing_docs)]
+    /// Lab a.
     A,
-    #[allow(missing_docs)]
+    /// Lab b.
     B,
     /// The one channel of a grey document.
     Gray,
     /// A channel the host names, shown exactly as given (a user-named alpha channel, a layer mask
     /// or Quick Mask isolated in the Channels panel, storytold/photocraft#5335), in `color`.
     Named {
-        #[allow(missing_docs)]
+        /// The name as the host gave it.
         name: String,
-        #[allow(missing_docs)]
+        /// The channel's colour.
         color: ChannelColor,
     },
 }
@@ -148,26 +139,26 @@ impl ToneChannel {
         }
     }
 
-    /// The channel's name in the Channel select, from `labels` ("RGB", "Red", "a"); a
+    /// The channel's name in the Channel select, from `words` ("RGB", "Red", "a"); a
     /// [`Named`](Self::Named) channel's own name.
-    pub fn label<'l>(&'l self, labels: &'l AdjustLabels) -> &'l str {
+    pub fn label(&self, words: &AdjustWords) -> Label {
         // pc: crates/ui-egui/src/dialogs/adjust_editors/curves.rs:18-41 `tone_channels` (the
         // labels), :50 `channel_picker_opts` (a user-typed name shown as entered).
         match self {
-            ToneChannel::Composite(ToneSpace::Rgb) => &labels.rgb,
-            ToneChannel::Composite(ToneSpace::Cmyk) => &labels.cmyk,
-            ToneChannel::Composite(ToneSpace::Lab) | ToneChannel::Lightness => &labels.lightness,
-            ToneChannel::Red => &labels.red,
-            ToneChannel::Green => &labels.green,
-            ToneChannel::Blue => &labels.blue,
-            ToneChannel::Cyan => &labels.cyan,
-            ToneChannel::Magenta => &labels.magenta,
-            ToneChannel::Yellow => &labels.yellow,
-            ToneChannel::Black => &labels.black,
-            ToneChannel::A => &labels.lab_a,
-            ToneChannel::B => &labels.lab_b,
-            ToneChannel::Gray => &labels.gray,
-            ToneChannel::Named { name, .. } => name,
+            ToneChannel::Composite(ToneSpace::Rgb) => words.rgb.clone(),
+            ToneChannel::Composite(ToneSpace::Cmyk) => words.cmyk.clone(),
+            ToneChannel::Composite(ToneSpace::Lab) | ToneChannel::Lightness => words.lightness.clone(),
+            ToneChannel::Red => words.red.clone(),
+            ToneChannel::Green => words.green.clone(),
+            ToneChannel::Blue => words.blue.clone(),
+            ToneChannel::Cyan => words.cyan.clone(),
+            ToneChannel::Magenta => words.magenta.clone(),
+            ToneChannel::Yellow => words.yellow.clone(),
+            ToneChannel::Black => words.black.clone(),
+            ToneChannel::A => words.lab_a.clone(),
+            ToneChannel::B => words.lab_b.clone(),
+            ToneChannel::Gray => words.gray.clone(),
+            ToneChannel::Named { name, .. } => Label::from(name.clone()),
         }
     }
 }
@@ -241,18 +232,4 @@ impl ToneChannels {
     pub fn is_composite(&self, index: usize) -> bool {
         matches!(self.channels.get(index), Some(ToneChannel::Composite(_)))
     }
-}
-
-/// Draws `add` in a group node named `name` for screen readers, disabled when `enabled` is false.
-/// The group's node gets its bounds from the scope, which egui does not give a `Ui`'s node.
-pub(super) fn named_group<R>(ui: &mut Ui, id: Id, name: &str, enabled: bool, add: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
-    let mut builder = UiBuilder::new().scope_id(id).accessibility_role(Role::Group).accessibility_label(name);
-    if !enabled {
-        builder = builder.disabled();
-    }
-    let group = ui.scope_builder(builder, add);
-    let rect = group.response.rect;
-    let bounds = egui::accesskit::Rect { x0: rect.min.x.into(), y0: rect.min.y.into(), x1: rect.max.x.into(), y1: rect.max.y.into() };
-    ui.ctx().accesskit_node_builder(id, |node| node.set_bounds(bounds));
-    group
 }
