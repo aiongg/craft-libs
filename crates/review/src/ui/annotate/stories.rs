@@ -54,7 +54,7 @@ fn on_canvas(ui: &mut Ui, mut body: impl FnMut(&mut Ui, egui::Rect)) -> egui::Re
     room
 }
 
-#[story(AnnotationToolbar<'static>, covers = [Default], drive = Drive::Never)]
+#[story(AnnotationToolbar<'static>, covers = [], drive = Drive::Never)]
 fn toolbar(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let mut tool = AnnotateTool::new(AnnotationTool::Select, 0);
     AnnotationToolbar::new(&mut tool).show(ui);

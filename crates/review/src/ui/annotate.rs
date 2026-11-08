@@ -46,53 +46,53 @@ craft_ui::words! {
         width: "annotate.width" = "Line width";
 
         /// The reader's names of the annotation kinds: card headings and sort groups.
-        kind_note: "annotate.kind.note" = "Note";
-        kind_text_box: "annotate.kind.textBox" = "Text box";
-        kind_callout: "annotate.kind.callout" = "Callout";
-        kind_attach: "annotate.kind.attach" = "Attachment";
-        kind_highlight: "annotate.kind.highlight" = "Highlight";
-        kind_underline: "annotate.kind.underline" = "Underline";
-        kind_strike_out: "annotate.kind.strikeOut" = "Strikethrough";
-        kind_squiggly: "annotate.kind.squiggly" = "Squiggly";
-        kind_caret: "annotate.kind.caret" = "Insert text";
-        kind_replace_text: "annotate.kind.replaceText" = "Replace text";
-        kind_ink: "annotate.kind.ink" = "Drawing";
-        kind_line: "annotate.kind.line" = "Line";
-        kind_arrow: "annotate.kind.arrow" = "Arrow";
-        kind_rectangle: "annotate.kind.rectangle" = "Rectangle";
-        kind_oval: "annotate.kind.oval" = "Oval";
-        kind_poly_line: "annotate.kind.polyLine" = "Polyline";
-        kind_polygon: "annotate.kind.polygon" = "Polygon";
-        kind_cloud: "annotate.kind.cloud" = "Cloud";
+        kind_note: "annotate.kindNote" = "Note";
+        kind_text_box: "annotate.kindTextBox" = "Text box";
+        kind_callout: "annotate.kindCallout" = "Callout";
+        kind_attach: "annotate.kindAttach" = "Attachment";
+        kind_highlight: "annotate.kindHighlight" = "Highlight";
+        kind_underline: "annotate.kindUnderline" = "Underline";
+        kind_strike_out: "annotate.kindStrikeOut" = "Strikethrough";
+        kind_squiggly: "annotate.kindSquiggly" = "Squiggly";
+        kind_caret: "annotate.kindCaret" = "Insert text";
+        kind_replace_text: "annotate.kindReplaceText" = "Replace text";
+        kind_ink: "annotate.kindInk" = "Drawing";
+        kind_line: "annotate.kindLine" = "Line";
+        kind_arrow: "annotate.kindArrow" = "Arrow";
+        kind_rectangle: "annotate.kindRectangle" = "Rectangle";
+        kind_oval: "annotate.kindOval" = "Oval";
+        kind_poly_line: "annotate.kindPolyLine" = "Polyline";
+        kind_polygon: "annotate.kindPolygon" = "Polygon";
+        kind_cloud: "annotate.kindCloud" = "Cloud";
 
         /// The names of the palette colours, in `PALETTE` order.
-        palette_yellow: "annotate.palette.0" = "Yellow";
-        palette_orange: "annotate.palette.1" = "Orange";
-        palette_red: "annotate.palette.2" = "Red";
-        palette_pink: "annotate.palette.3" = "Pink";
-        palette_purple: "annotate.palette.4" = "Purple";
-        palette_blue: "annotate.palette.5" = "Blue";
-        palette_light_blue: "annotate.palette.6" = "Light blue";
-        palette_green: "annotate.palette.7" = "Green";
-        palette_grey: "annotate.palette.8" = "Grey";
-        palette_black: "annotate.palette.9" = "Black";
+        palette_yellow: "annotate.paletteYellow" = "Yellow";
+        palette_orange: "annotate.paletteOrange" = "Orange";
+        palette_red: "annotate.paletteRed" = "Red";
+        palette_pink: "annotate.palettePink" = "Pink";
+        palette_purple: "annotate.palettePurple" = "Purple";
+        palette_blue: "annotate.paletteBlue" = "Blue";
+        palette_light_blue: "annotate.paletteLightBlue" = "Light blue";
+        palette_green: "annotate.paletteGreen" = "Green";
+        palette_grey: "annotate.paletteGrey" = "Grey";
+        palette_black: "annotate.paletteBlack" = "Black";
 
-        edit_select: "annotate.edit.select" = "Select Annotations";
-        edit_move: "annotate.edit.move" = "Move Annotations";
-        edit_resize: "annotate.edit.resize" = "Resize Annotation";
-        edit_reshape: "annotate.edit.reshape" = "Reshape Annotation";
-        edit_create: "annotate.edit.create" = "Add Annotation";
-        edit_delete: "annotate.edit.delete" = "Delete Annotations";
-        edit_erase: "annotate.edit.erase" = "Erase Ink";
-        edit_open: "annotate.edit.open" = "Open Annotation";
+        edit_select: "annotate.editSelect" = "Select Annotations";
+        edit_move: "annotate.editMove" = "Move Annotations";
+        edit_resize: "annotate.editResize" = "Resize Annotation";
+        edit_reshape: "annotate.editReshape" = "Reshape Annotation";
+        edit_create: "annotate.editCreate" = "Add Annotation";
+        edit_delete: "annotate.editDelete" = "Delete Annotations";
+        edit_erase: "annotate.editErase" = "Erase Ink";
+        edit_open: "annotate.editOpen" = "Open Annotation";
 
-        form_title: "annotate.form.title" = "New Annotation";
-        form_kind: "annotate.form.kind" = "Kind";
-        form_page: "annotate.form.page" = "Page";
-        form_x: "annotate.form.x" = "X (points)";
-        form_y: "annotate.form.y" = "Y (points)";
-        form_width: "annotate.form.width" = "Width (points)";
-        form_height: "annotate.form.height" = "Height (points)";
+        form_title: "annotate.formTitle" = "New Annotation";
+        form_kind: "annotate.formKind" = "Kind";
+        form_page: "annotate.formPage" = "Page";
+        form_x: "annotate.formX" = "X (points)";
+        form_y: "annotate.formY" = "Y (points)";
+        form_width: "annotate.formWidth" = "Width (points)";
+        form_height: "annotate.formHeight" = "Height (points)";
     }
 }
 
@@ -474,7 +474,7 @@ impl AnnotateTool {
     /// and width. Returns whether it made one: a form that describes no valid shape makes none.
     pub fn create_from_form(&mut self, fields: &DialogFields, words: &AnnotateWords) -> bool {
         let Some(FieldValue::Text(id)) = fields.get("kind") else { return false };
-        let Some(kind) = FORM_KINDS.iter().copied().find(|&kind| form_id(kind) == id) else { return false };
+        let Some(kind) = FORM_KINDS.iter().copied().find(|&kind| form_id(kind) == id.as_str()) else { return false };
         let number = |key: &str| fields.number(key).filter(|value| value.is_finite());
         let (Some(x), Some(y), Some(width), Some(height)) = (number("x"), number("y"), number("width"), number("height")) else { return false };
         let page = number("page").map_or(self.page, |page| (page.round().max(1.0) as usize) - 1);
