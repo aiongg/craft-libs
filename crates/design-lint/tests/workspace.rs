@@ -53,7 +53,8 @@ fn scope_reads_layer_map_manifests_and_spec_allowances() {
     assert!(!scope.allows("behavior/pipeline-only", Path::new("crates/ui/src/buttons/mod.rs")));
 }
 
-/// Every crate's sources, not only the linted paths: `unsafe` is allowed in one file of craft-window and nowhere else.
+/// The linted paths and craft-window, which the lint does not scan (every other rule would apply to its egui and
+/// platform code): `unsafe` is allowed in one file of craft-window and nowhere else.
 #[test]
 fn only_the_win32_module_allows_unsafe_code_anywhere_in_the_workspace() {
     fn sources(dir: &Path, out: &mut Vec<PathBuf>) {
@@ -67,8 +68,11 @@ fn only_the_win32_module_allows_unsafe_code_anywhere_in_the_workspace() {
         }
     }
     let root = root();
+    let config = Config::load(&root.join("design-lint.toml")).unwrap();
     let mut files = Vec::new();
-    sources(&root.join("crates"), &mut files);
+    for path in config.paths.iter().map(PathBuf::as_path).chain([Path::new("crates/window")]) {
+        sources(&root.join(path), &mut files);
+    }
     let scope = craft_design_lint::StaticScope::new();
     let mut found = Vec::new();
     for file in files {
