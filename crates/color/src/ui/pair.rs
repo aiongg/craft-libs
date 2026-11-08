@@ -6,7 +6,7 @@ use craft_ui::buttons::IconButton;
 use craft_ui::choice::{ChoiceWords, Swatch, SwatchMetrics};
 use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, Focus as _, MeasureCx, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx,
-    Pointer as _, Props as _, Remember as _, Role, WordSetCx as _, clicked,
+    Pointer as _, Props as _, Remember as _, Role, WordSetCx as _,
 };
 use craft_ui::primitives::{PaintShape, StrokeWidth};
 use craft_ui::runtime::commands::FireSource;
@@ -23,9 +23,9 @@ mod stories;
 /// One of the wells, `WELL.at(0)` the primary and `WELL.at(1)` the secondary.
 const WELL: PartKey = PartKey::new("well");
 /// The Default Colours button.
-const DEFAULT: &str = "default";
+const DEFAULT: PartKey = PartKey::new("default");
 /// The Swap Colours button.
-const SWAP: &str = "swap";
+const SWAP: PartKey = PartKey::new("swap");
 /// A ring well's band, as a share of the well's side.
 const RING_SHARE: f32 = 0.3;
 
@@ -240,6 +240,13 @@ impl<'a> SwatchPair<'a> {
         self.swap_button.is_some() || self.default_button.is_some()
     }
 
+    /// The buttons' rects in logical coordinates from the pair's start edge: default colours at the start, swap at the
+    /// end.
+    fn button_rects(style: &SwatchPairStyle) -> [Rect; 2] {
+        let side = Vec2::splat(style.buttons);
+        [Rect::from_min_size(pos2(0.0, 0.0), side), Rect::from_min_size(pos2(style.well + style.step - style.buttons, 0.0), side)]
+    }
+
     /// The wells' rects in logical coordinates from the pair's start edge, primary first.
     fn well_rects(&self, style: &SwatchPairStyle, size: Vec2) -> [Rect; 2] {
         let top = if self.has_buttons() { style.buttons + style.metrics.gap } else { 0.0 };
@@ -303,6 +310,13 @@ impl Component for SwatchPair<'_> {
                 part.pointer_only("Enter opens the picker");
             }
         }
+        let buttons = Self::button_rects(cx.style);
+        for (key, button, shown) in [(DEFAULT, buttons[0], self.default_button.is_some()), (SWAP, buttons[1], self.swap_button.is_some())] {
+            if shown {
+                let at = flow.to_physical(button.translate(rect.min.to_vec2()));
+                cx.part(key, at).sense(Sense::CLICK).pointer_only("The host's Default Colours and Swap Colours commands");
+            }
+        }
         cx.roving(Roving::new(NavShape::Flat));
     }
 
@@ -338,6 +352,8 @@ impl Component for SwatchPair<'_> {
                 }
             }
         }
+        self.defaults |= cx.part_activated(DEFAULT).is_some();
+        self.swap |= cx.part_activated(SWAP).is_some();
         if self.click_activates
             && cx.is_focused()
             && let Some(part) = cx.active_part()
@@ -400,17 +416,11 @@ impl Component for SwatchPair<'_> {
                 _ => ui.face(WELL.at(well.index()), Swatch::new(shown.label.clone(), shown.color).selected(well == active)),
             }
         }
-        let buttons_top = cx.rect.min.y;
-        let side = style.buttons;
         if let Some(name) = self.default_button.clone() {
-            let at = place(Rect::from_min_size(pos2(0.0, 0.0), Vec2::splat(side)));
-            let at = Rect::from_min_size(pos2(at.min.x, buttons_top), at.size());
-            self.defaults |= clicked(&ui.child(DEFAULT, at, IconButton::new(IconId::new("default-colors")).label(name)));
+            ui.face(DEFAULT, IconButton::new(IconId::new("default-colors")).label(name));
         }
         if let Some(name) = self.swap_button.clone() {
-            let at = place(Rect::from_min_size(pos2(style.well + style.step - side, 0.0), Vec2::splat(side)));
-            let at = Rect::from_min_size(pos2(at.min.x, buttons_top), at.size());
-            self.swap |= clicked(&ui.child(SWAP, at, IconButton::new(IconId::new("swap-colors")).label(name)));
+            ui.face(SWAP, IconButton::new(IconId::new("swap-colors")).label(name));
         }
     }
 
