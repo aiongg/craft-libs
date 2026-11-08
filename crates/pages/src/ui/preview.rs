@@ -103,7 +103,7 @@ impl<'a> PagePreview<'a> {
                 });
             })
             .show(ui, |ui, body| {
-                let picture = PagePicture::new(source, page, words.unavailable.as_str()).show_at(ui, body.rect);
+                let picture = PagePicture::new(source, page, words.unavailable.as_str()).label(source.page_label(page)).show_at(ui, body.rect);
                 step.set(step.get() + picture.step);
             });
         let target = (*at as isize + step.get()).clamp(0, last as isize) as usize;

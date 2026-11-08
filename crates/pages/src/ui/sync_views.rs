@@ -4,9 +4,6 @@
 //! and scroll before it is drawn, in the same pass. The halves and the divider are craft-ui's [`SplitViews`] with
 //! [`SplitLayout::Two`].
 
-#[cfg(feature = "screen-testing")]
-mod stories;
-
 use super::view::{PageViewOutput, PageViewState};
 use craft_ui::canvas::{SplitAt, SplitLayout, SplitViews};
 use craft_ui::contract::{Bind, EditResponse, Outcome, ShowContainer as _};

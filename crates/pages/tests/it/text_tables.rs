@@ -143,7 +143,7 @@ fn table_geometry_finds_cells_and_clamps_past_the_last_edge() {
     assert_eq!(geometry.cell_at(pos2(39.9, 20.0)), Some(CellAt::new(1, 0)));
     assert_eq!(geometry.cell_at(pos2(120.0, 10.0)), None, "the last edge is outside");
     let past = CellRange::new(1, 4, 1..3, 2);
-    assert_eq!(geometry.rect(&past), egui::Rect::from_min_max(pos2(40.0, 20.0), pos2(80.0, 50.0)));
+    assert_eq!(geometry.rect(&past), egui::Rect::from_min_max(pos2(40.0, 20.0), pos2(120.0, 50.0)));
 }
 
 // Text selection

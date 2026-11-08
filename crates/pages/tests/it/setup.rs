@@ -95,6 +95,7 @@ fn ok_answers_the_edited_setup() {
     let (mut fixture, edited, answered) = dialog(PageSetup::default());
     let top = fixture.by_label("Top").expect("the Top field");
     fixture.click(&top);
+    fixture.key(Key::A, Modifiers::COMMAND);
     fixture.type_text("1.5");
     fixture.key(Key::Enter, Modifiers::NONE);
     assert!(close(edited.borrow().margins.top, TOP), "1.5 inches typed in Top: {:?}", edited.borrow().margins);

@@ -1,0 +1,103 @@
+FAIL: failure (4m28s) https://github.com/aiongg/craft-libs/actions/runs/42486717940
+=== craft-pages it 
+test result: FAILED. 54 passed; 16 failed; 0 ignored; 0 measured; 0 filtered out; finished in 27.15s
+=== craft-ui it api_map
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1719 filtered out; finished in 0.11s
+error: test failed, to rerun pass `-p craft-pages --test it`
+error: test failed, to rerun pass `-p craft-ui --test it`
+thread '<unnamed>' (5739) panicked at crates/ui/src/contract/items.rs:323:9:
+a collection owns its scroll: show it outside a scrolling body, or give it the natural height (16.3)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test views::a_click_on_a_row_makes_it_the_active_one                                 ... FAILED
+test views::clicking_a_thumbnail_goes_to_its_page                                    ... ok
+test views::moving_a_page_to_the_front_pushes_the_rest_back                          ... ok
+
+thread '<unnamed>' (5737) panicked at crates/ui/src/contract/items.rs:323:9:
+a collection owns its scroll: show it outside a scrolling body, or give it the natural height (16.3)
+test views::a_name_typed_in_place_is_trimmed_and_never_empty                         ... FAILED
+test views::zoom_steps_start_from_the_shown_zoom_and_end_a_fit                       ... ok
+test views::fit_width_keeps_the_zoom_equal_to_what_shows                             ... ok
+test views::only_the_row_of_the_current_page_shows_when_not_continuous               ... ok
+test views::the_current_page_follows_the_middle_line                                 ... ok
+test views::delete_with_nothing_picked_removes_the_current_page_but_never_every_page ... ok
+test text_tables::presets_set_or_toggle_edges                                        ... ok
+test text_tables::an_alt_drag_selects_a_column                                       ... ok
+test text_tables::turns_stay_within_the_columns                                      ... ok
+test text_tables::the_reading_size_fits_whole_columns                                ... ok
+test text_tables::multi_clicks_select_word_line_and_page                             ... ok
+
+thread '<unnamed>' (5738) panicked at crates/pages/tests/it/text_tables.rs:453:5:
+assertion `left == right` failed: the builder stops at the cap
+  left: 0
+ right: 6000
+test text_tables::the_node_count_is_capped                                           ... FAILED
+test text_tables::a_drag_selects_a_run_anchored_at_the_press                         ... ok
+test text_tables::the_size_picker_keys_stop_at_the_edges                             ... ok
+test text_tables::escape_clears_the_selection_and_cancels_a_drag                     ... ok
+test views::the_preview_steps_with_its_buttons_and_stops_at_the_ends                 ... ok
+
+thread '<unnamed>' (5740) panicked at crates/pages/tests/it/text_tables.rs:434:5:
+assertion `left == right` failed
+  left: 0
+ right: 1
+test text_tables::blocks_nest_as_a_document_a_screen_reader_can_walk                 ... FAILED
+test text_tables::the_pointer_sizes_rows_by_columns_and_a_click_picks                ... ok
+
+thread '<unnamed>' (5737) panicked at crates/pages/tests/it/text_tables.rs:146:5:
+assertion `left == right` failed
+  left: [[40.0 20.0] - [120.0 50.0]]
+ right: [[40.0 20.0] - [80.0 50.0]]
+test text_tables::table_geometry_finds_cells_and_clamps_past_the_last_edge           ... FAILED
+test text_tables::edge_clicks_toggle_double_picks_a_group_triple_toggles_all         ... ok
+test text_tables::only_the_pages_in_view_and_one_either_side_are_described           ... ok
+test text_tables::shift_arrows_extend_toward_the_arrows_side_in_either_direction     ... ok
+test setup::landscape_turns_the_page                                                 ... ok
+
+thread '<unnamed>' (5737) panicked at crates/pages/tests/it/setup.rs:100:5:
+1.5 inches typed in Top: Margins { top: 828.0, bottom: 72.0, left: 72.0, right: 72.0 }
+test setup::ok_answers_the_edited_setup                                              ... FAILED
+test setup::the_sections_mirror_right_to_left                                        ... ok
+test setup::mirrored_even_pages_swap_the_edges                                       ... ok
+test setup::dragged_margins_snap_and_leave_room                                      ... ok
+test setup::characters_map_to_their_hidden_marks                                     ... ok
+test setup::a_divider_pushes_the_columns_beyond_it                                   ... ok
+test setup::pages_use_the_first_odd_and_even_headers                                 ... ok
+test setup::the_ruler_bands_follow_the_visible_edges                                 ... ok
+test setup::the_band_splits_in_thirds_between_the_sides                              ... ok
+test setup::header_and_footer_distances_bound_the_margins                            ... ok
+test setup::an_arrow_key_moves_the_focused_divider_one_step                          ... ok
+test setup::page_range_text_reads_and_writes_the_same_format                         ... ok
+test setup::margins_that_do_not_fit_refuse_ok                                        ... ok
+test text_tables::the_properties_panel_reports_the_change_made                       ... ok
+thread '<unnamed>' (5740) panicked at crates/ui/src/contract/items.rs:323:9:
+a collection owns its scroll: show it outside a scrolling body, or give it the natural height (16.3)
+test suite::craft_pages::ui::list::PageList<'_>                                      ... FAILED
+test suite::craft_pages::ui::preview::PagePreview<'_>                                ... FAILED
+test suite::craft_pages::ui::reading::ReadingNav<'_>                                 ... ok
+test suite::craft_pages::ui::thumbnails::PageThumbnails<'_>                          ... ok
+test suite::craft_pages::ui::setup::PageSetupDialog<'_>                              ... ok
+test suite::craft_pages::ui::setup::PageLayoutMenus<'_>                              ... ok
+test suite::stories::linked                                                          ... FAILED
+test suite::craft_pages::ui::view::pictures::PagePictures<'_>                        ... ok
+test suite::craft_pages::ui::reading::ReadingView<'_>                                ... FAILED
+test suite::craft_pages::ui::table::size_picker::TableSizePicker                     ... FAILED
+
+failures:
+
+---- views::a_click_on_a_row_makes_it_the_active_one ----
+thread '<unnamed>' (6037) panicked at crates/ui/tests/it/api_map.rs:140:5:
+api-map problems:
+preferences.toml: type `ColorRequest`: status `moved` does not fit `old` and `new`
+theme-store-print-host-ui.toml: setter ``: a setter entry names its `type` and `old`
+browse-places.toml: type `PlacesEvent`: `old` ends in `PlacesEvent<K>`; a renamed type is a `removed` entry for the old name and an entry of its own for the new one
+browse-places.toml: type `PlacesOutput`: `old` ends in `PlacesOutput<K>`; a renamed type is a `removed` entry for the old name and an entry of its own for the new one
+browse-places.toml: type `PlacesLabels`: `new` ends in `PlacesWords`; a renamed type is a `removed` entry for the old name and an entry of its own for the new one
+browse-places.toml: type `CompareResponse`: `new` ends in `CompareOutput`; a renamed type is a `removed` entry for the old name and an entry of its own for the new one
+browse-places.toml: type `CompareLabels`: `new` ends in `CompareWords`; a renamed type is a `removed` entry for the old name and an entry of its own for the new one
+browse-places.toml: type `CompareStyle`: `new` ends in `CompareTileStyle`; a renamed type is a `removed` entry for the old name and an entry of its own for the new one
+browse.toml: type `LinkListLabels`: `new` ends in `LinkListWords`; a renamed type is a `removed` entry for the old name and an entry of its own for the new one
+browse.toml: type `RelinkLabels`: `new` ends in `RelinkWords`; a renamed type is a `removed` entry for the old name and an entry of its own for the new one
+keymap-ui-words.toml: type `text`: `new` ends in `kys_error_text`; a renamed type is a `removed` entry for the old name and an entry of its own for the new one
+keymap-ui-words.toml: type `text`: status `removed` does not fit `old` and `new`
+form-dialogs.toml: type `ColorRequest`: `craft_ui::runtime::requests::ColorRequest` is also claimed by preferences.toml
+keymap-ui.toml: type `NAVIGATION_COMMANDS`: `craft_menu::NAVIGATION_COMMANDS` is also claimed by craft-menu.toml

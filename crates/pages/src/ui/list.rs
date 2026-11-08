@@ -232,6 +232,7 @@ impl<'a> PageList<'a> {
                     .rename(true)
                     .deletable(true)
                     .current(Some(active))
+                    .natural_height(true)
                     .show_items(ui, &source, &mut |&row, icx| {
                         let options = IconSpec::svg(IconId::new("settings"));
                         ListRow::new(rows[row].name.clone())
