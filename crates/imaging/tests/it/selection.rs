@@ -121,7 +121,11 @@ fn each_view_keeps_its_own_opacity() {
 
 #[trial]
 fn the_recipe_follows_the_view() {
-    let recipe = |mode| MaskViewState { mode, ..MaskViewState::default() }.recipe();
+    let recipe = |mode| {
+        let mut state = MaskViewState::default();
+        state.mode = mode;
+        state.recipe()
+    };
     let onion: MaskViewRecipe = recipe(MaskViewMode::OnionSkin);
     assert!(onion.hide_other_layers && onion.veils.is_empty() && onion.layer_floor == Some(0.5));
     assert!(recipe(MaskViewMode::MarchingAnts).ants);

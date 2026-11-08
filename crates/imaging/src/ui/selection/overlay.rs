@@ -47,6 +47,7 @@ pub enum OutlineSource<'a> {
     Mask(&'a dyn MaskSource),
     /// Segments the app traced itself (in a job), in document pixels of the full-size document, with the content
     /// `bounds` for the accessible value. Drawn as they are: no cache, no preview texture.
+    #[non_exhaustive]
     Segments {
         /// The traced edges.
         segments: &'a [Segment],

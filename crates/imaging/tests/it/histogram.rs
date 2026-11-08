@@ -11,13 +11,16 @@ use craft_theme::{Contrast, ControlSize, Mode, Variant};
 use craft_ui::contract::{Bind, Role, Show as _};
 use craft_ui::testing::style::{tokens, with_cx};
 use craft_ui::testing::{Fixture, Frames, Story, StoryData, StoryOutput, pointer, trial};
-use egui::{Color32, Key, Mesh, Modifiers, Pos2, Rect, Shape, Ui, Vec2, pos2, vec2};
+use egui::{Color32, Key, Mesh, Modifiers, Pos2, Rect, Shape, Ui, Vec2, pos2};
 
 const BINS: usize = 100;
+const WHITE: Color32 = Color32::from_rgb(255, 255, 255);
+const PLOT: Vec2 = Vec2::new(256.0, 100.0);
+const SIDE: f32 = 100.0;
 const TOLERANCE: f32 = 1e-5;
 
 fn rect() -> Rect {
-    Rect::from_min_size(pos2(10.0, 20.0), vec2(256.0, 100.0))
+    Rect::from_min_size(pos2(10.0, 20.0), PLOT)
 }
 
 fn flat(n: usize, v: f32) -> Vec<f32> {
@@ -116,23 +119,23 @@ fn overlaps_combine_the_channels_whatever_their_order() {
     assert_eq!(red_green, Color32::from_rgb(255, 255, 160));
     assert_eq!(at([0.8, 0.5, 0.0], &colors, 0.2), Some(red_green));
     assert_eq!(at([0.5, 0.8, 0.0], &[colors[1], colors[0], colors[2]], 0.2), Some(red_green), "the same data with the roles swapped");
-    assert_eq!(at([0.5, 0.5, 0.5], &colors, 0.2), Some(Color32::WHITE));
+    assert_eq!(at([0.5, 0.5, 0.5], &colors, 0.2), Some(WHITE));
     assert_eq!(at([0.8, 0.5, 0.0], &colors, 0.7), Some(colors[0]));
     assert_eq!(at([0.5, 0.5, 0.5], &colors, 0.7), None, "nothing above the tallest");
 
     let inks = [Color32::from_rgb(200, 100, 0), Color32::from_rgb(100, 200, 255)];
     assert_eq!(product(&inks, 0b11), Color32::from_rgb(78, 78, 0));
-    assert_eq!(product(&inks, 0), Color32::WHITE);
+    assert_eq!(product(&inks, 0), WHITE);
     let heights = vec![flat(8, 0.8), flat(8, 0.4)];
     let at = |blend| color_at(&rgb_mesh(rect, &heights, &inks, blend), pos2(rect.center().x, rect.bottom() - 5.0));
     assert_eq!(at(Blend::Multiply), Some(Color32::from_rgb(78, 78, 0)));
-    assert_eq!(at(Blend::Add), Some(Color32::WHITE));
+    assert_eq!(at(Blend::Add), Some(WHITE));
 }
 
 #[trial]
 fn crossing_channels_keep_the_overlap_colour_under_both() {
     let rect = rect();
-    let colors = [Color32::from_rgb(255, 0, 0), Color32::from_rgb(0, 255, 0), Color32::BLUE];
+    let colors = [Color32::from_rgb(255, 0, 0), Color32::from_rgb(0, 255, 0), Color32::from_rgb(0, 0, 255)];
     let mesh = rgb_mesh(rect, &[vec![0.9, 0.9, 0.1, 0.1], vec![0.1, 0.1, 0.9, 0.9], flat(4, 0.0)], &colors, Blend::Add);
     for x in [0.1, 0.3, 0.5, 0.7, 0.9] {
         let point = pos2(rect.left() + x * rect.width(), rect.bottom() - 0.05 * rect.height());
@@ -144,7 +147,7 @@ fn crossing_channels_keep_the_overlap_colour_under_both() {
 fn bins_of_any_count_span_the_plot_width() {
     let rect = rect();
     for n in [1, 2, 3, 7, 256, 1000] {
-        let mesh = tone_mesh(rect, &flat(n, 0.5), Color32::WHITE);
+        let mesh = tone_mesh(rect, &flat(n, 0.5), WHITE);
         let xs: Vec<f32> = mesh.vertices.iter().map(|v| v.pos.x).collect();
         let (min, max) = (xs.iter().copied().fold(f32::MAX, f32::min), xs.iter().copied().fold(f32::MIN, f32::max));
         assert_eq!((min, max), (rect.left(), rect.right()), "{n} bins");
@@ -158,10 +161,10 @@ fn empty_and_degenerate_input_draws_nothing() {
     let data = HistogramData::tone(&[1u32, 2, 3], ChannelColor::Red);
     let rgb = HistogramData::rgb([&[1u32, 2, 3], &[1, 2, 3], &[1, 2, 3]]);
     let bad = [
-        Rect::from_min_size(pos2(0.0, 0.0), vec2(0.0, 100.0)),
-        Rect::from_min_size(pos2(0.0, 0.0), vec2(100.0, -5.0)),
-        Rect::from_min_size(pos2(f32::NAN, 0.0), vec2(100.0, 100.0)),
-        Rect::from_min_size(pos2(0.0, 0.0), vec2(f32::INFINITY, 100.0)),
+        Rect::from_min_size(pos2(0.0, 0.0), Vec2::new(0.0, SIDE)),
+        Rect::from_min_size(pos2(0.0, 0.0), Vec2::new(SIDE, -5.0)),
+        Rect::from_min_size(pos2(f32::NAN, 0.0), Vec2::new(SIDE, SIDE)),
+        Rect::from_min_size(pos2(0.0, 0.0), Vec2::new(f32::INFINITY, SIDE)),
     ];
     for rect in bad {
         for (data, look) in [(&data, HistogramLook::Tone), (&data, HistogramLook::Backdrop), (&rgb, HistogramLook::Rgb)] {
@@ -219,7 +222,7 @@ fn the_outline_shares_the_fills_scale_in_the_tone_look() {
 fn the_selection_band_covers_whole_bin_slots() {
     let rect = rect();
     let slot = rect.width() / 64.0;
-    let band = |range: LevelRange| match &selection_shapes(rect, 64, range, 1.5, Color32::WHITE)[0] {
+    let band = |range: LevelRange| match &selection_shapes(rect, 64, range, 1.5, WHITE)[0] {
         Shape::Rect(r) => r.rect,
         other => panic!("{other:?}"),
     };
@@ -229,7 +232,7 @@ fn the_selection_band_covers_whole_bin_slots() {
     assert!((many.left() - one.left()).abs() < 1e-4 && (many.width() - 11.0 * slot).abs() < 1e-4, "{many:?}");
     let all = band(LevelRange::new(0.0, 63.0));
     assert_eq!((all.left(), all.right()), (rect.left(), rect.right()));
-    assert_eq!(selection_shapes(rect, 64, LevelRange::new(10.0, 20.0), 1.5, Color32::WHITE).len(), 3, "the band and an edge at each end");
+    assert_eq!(selection_shapes(rect, 64, LevelRange::new(10.0, 20.0), 1.5, WHITE).len(), 3, "the band and an edge at each end");
 }
 
 fn bins() -> HistogramData {

@@ -1,7 +1,9 @@
 //! Stories of the histogram: one per state the plot shows.
 
 use super::{ChannelColor, Histogram, HistogramData, HistogramScale, LevelRange, StaleMark};
-use craft_ui::contract::{Bind, Show as _};
+use craft_behavior::Mixed;
+use craft_ui::contract::{Bind, Show as _, Validity};
+use craft_ui::runtime::env::Message;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
@@ -70,4 +72,19 @@ fn selection(ui: &mut Ui, story: &mut StoryData) -> StoryOutput {
 fn stale_button(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let data = HistogramData::tone(&humps(), ChannelColor::Neutral);
     Histogram::new("Histogram", &data).stale(StaleMark::Button("Recalculate".into())).show(ui).into()
+}
+
+#[story(Histogram<'static>, covers = [Mixed], drive = Drive::Never)]
+fn selection_that_differs(ui: &mut Ui, story: &mut StoryData) -> StoryOutput {
+    let data = HistogramData::tone(&humps(), ChannelColor::Neutral);
+    let range = story.value("mixed", Mixed::<Option<LevelRange>>::Mixed);
+    Histogram::new("Histogram", &data).selection(Bind::bound_mixed(range)).show(ui).into()
+}
+
+#[story(Histogram<'static>, covers = [Invalid], drive = Drive::Never)]
+fn selection_that_is_refused(ui: &mut Ui, story: &mut StoryData) -> StoryOutput {
+    let data = HistogramData::tone(&humps(), ChannelColor::Neutral);
+    let refuse_any = |range: &Option<LevelRange>| if range.is_some() { Validity::Refuse(Message::new("Not available")) } else { Validity::Ok };
+    let range = story.value("refused", Some(LevelRange::new(60.0, 120.0)));
+    Histogram::new("Histogram", &data).selection(Bind::bound(range).check(refuse_any)).show(ui).into()
 }

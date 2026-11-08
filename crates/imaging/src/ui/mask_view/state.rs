@@ -11,6 +11,7 @@ use craft_ui::runtime::commands::FirePhase;
 /// One of Select and Mask's seven views, in menu order (the order F cycles).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum MaskViewMode {
     /// Only the masked layer, its unselected area see-through by the opacity. Default.
     #[default]
@@ -114,6 +115,7 @@ impl MaskViewMode {
 /// The view state of the Select and Mask dialog (PhotoCraft's `__view`, `__opacity`,
 /// `__showEdge`, `__showOriginal`, `__hideView` fields). View state, not undoable.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct MaskViewState {
     /// The view shown.
     pub mode: MaskViewMode,
@@ -144,7 +146,7 @@ impl Default for MaskViewState {
             show_edge: false,
             show_original: false,
             hide_view: false,
-            overlay_color: Srgba { r: 1.0, g: 0.0, b: 0.0, a: 1.0 }, // design: allow(Photoshop's rubylith red, document data)
+            overlay_color: Srgba { r: 1.0, g: 0.0, b: 0.0, a: 1.0 },
             overlay_indicates: ColorIndicates::MaskedAreas,
         }
     }
@@ -223,8 +225,8 @@ impl MaskViewState {
         } else {
             MaskCoverage::Refined
         };
-        let black = Srgba { r: 0.0, g: 0.0, b: 0.0, a: 1.0 }; // design: allow(the On Black view's veil)
-        let white = Srgba { r: 1.0, g: 1.0, b: 1.0, a: 1.0 }; // design: allow(the On White view's veil)
+        let black = Srgba { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
+        let white = Srgba { r: 1.0, g: 1.0, b: 1.0, a: 1.0 };
         let mut veils = Vec::new();
         let mut layer_floor = None;
         let mut hide_other_layers = false;
@@ -255,6 +257,7 @@ impl MaskViewState {
 
 /// Which coverage the view shows.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum MaskCoverage {
     /// The refined selection (the engine runs the refinement).
     #[default]
@@ -268,6 +271,7 @@ pub enum MaskCoverage {
 
 /// Which part of the canvas a veil covers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum VeilMask {
     /// Everywhere.
     Everywhere,
@@ -279,6 +283,7 @@ pub enum VeilMask {
 
 /// A solid fill over the image, as the engine adds it (PhotoCraft's veil fill layers).
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct Veil {
     /// Encoded sRGB.
     pub color: Srgba,

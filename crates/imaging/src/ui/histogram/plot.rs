@@ -175,8 +175,6 @@ type Caption = (f32, String, Vec2);
 /// The plot is a Tab stop only with a [`selection`](Histogram::selection) or a stale button.
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
 #[component(content_painter)]
-#[component(exempt(case = "state:Mixed", reason = "The selection is one range of one plot; there is no multi-selection of plots."))]
-#[component(exempt(case = "state:Invalid", reason = "No check can refuse a range of levels."))]
 pub struct Histogram<'a> {
     #[common]
     common: Common,

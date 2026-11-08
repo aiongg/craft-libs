@@ -72,7 +72,7 @@ impl ChannelColor {
     /// dark end is black in every theme (image data).
     pub fn bar(self, cx: &StyleCx<'_>) -> Color32 {
         match self {
-            ChannelColor::Neutral => Color32::WHITE,
+            ChannelColor::Neutral => Color32::from_rgb(u8::MAX, u8::MAX, u8::MAX),
             other => other.tone(cx),
         }
     }

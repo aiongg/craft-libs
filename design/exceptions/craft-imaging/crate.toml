@@ -1,1 +1,8 @@
 config_version = 1
+
+[[exception]]
+name = "outline-trace-required-states"
+kind = "probe"
+rule = "probe/exempt/required-states"
+path = "crates/imaging/src/ui/selection/overlay.rs"
+reason = "A tracing step with no look of its own: the selection overlay's stories show it."
