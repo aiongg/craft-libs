@@ -92,6 +92,15 @@ fn at(rect: Rect, seconds: f64) -> Pos2 {
     Pos2::new(rect.left() + seconds as f32 * POINTS_PER_SECOND as f32, rect.center().y + rect.height() * 0.2)
 }
 
+/// The pointer travel along the ruler that spans `seconds`.
+fn travel(seconds: f64) -> egui::Vec2 {
+    egui::vec2(seconds as f32 * POINTS_PER_SECOND as f32, 0.0)
+}
+
+/// Where a scrub starts and ends, in seconds.
+const SCRUB_FROM: f64 = 1.0;
+const SCRUB_TO: f64 = 3.0;
+
 #[trial]
 fn ruler_ticks_label_in_the_format() {
     let shown = shown(None);
@@ -106,18 +115,19 @@ fn ruler_ticks_label_in_the_format() {
 fn dragging_the_ruler_scrubs_the_playhead() {
     let mut shown = shown(None);
     let rect = shown.fixture.by_label(RULER).expect("the ruler has a node").rect;
-    drag_between(&mut shown.fixture, at(rect, 1.0), at(rect, 3.0));
+    drag_between(&mut shown.fixture, at(rect, SCRUB_FROM), at(rect, SCRUB_TO));
+    let scrubbed_to = secs(SCRUB_TO);
     {
         let events = shown.edits.borrow();
         assert!(matches!(events.first(), Some(EditEvent::Begin { .. })), "{events:?}");
         assert!(events.iter().any(|event| matches!(event, EditEvent::Update { .. })), "{events:?}");
-        assert!(matches!(events.last(), Some(EditEvent::Commit { after, .. }) if *after == secs(3.0)), "{events:?}");
+        assert!(matches!(events.last(), Some(EditEvent::Commit { after, .. }) if *after == scrubbed_to), "{events:?}");
     }
-    assert_eq!(*shown.playhead.borrow(), secs(3.0));
+    assert_eq!(*shown.playhead.borrow(), scrubbed_to);
 
     let mut cancelled = self::shown(None);
     cancelled.edits.borrow_mut().clear();
-    let (from, to) = (at(rect, 1.0), at(rect, 2.0));
+    let (from, to) = (at(rect, SCRUB_FROM), at(rect, SCRUB_FROM + 1.0));
     cancelled.fixture.frame(vec![pointer::moved(from)]);
     cancelled.fixture.frame(vec![pointer::press(from)]);
     cancelled.fixture.frame(vec![pointer::moved(to)]);
@@ -147,19 +157,22 @@ fn work_area() -> TimeRange {
 #[trial]
 fn dragging_the_work_area_moves_it_or_an_end() {
     let mut shown = shown(Some(work_area()));
+    let (area, shift, stretch) = (work_area(), 0.5, 1.0);
     let bar = shown.fixture.by_label("Work Area").expect("the work-area bar has a node").center();
-    drag_between(&mut shown.fixture, bar, bar + egui::vec2(50.0, 0.0));
+    let moved = TimeRange::new(area.start + secs(shift), area.duration);
+    drag_between(&mut shown.fixture, bar, bar + travel(shift));
     {
         let events = shown.work.borrow();
         assert!(matches!(events.first(), Some(DragEvent::Begin(_))), "{events:?}");
-        assert!(matches!(events.last(), Some(DragEvent::Commit(range)) if *range == TimeRange::new(secs(2.5), secs(2.0))), "{events:?}");
+        assert!(matches!(events.last(), Some(DragEvent::Commit(range)) if *range == moved), "{events:?}");
     }
 
     let mut ended = self::shown(Some(work_area()));
     let end = ended.fixture.by_label("Work Area End").expect("the end has a node").center();
-    drag_between(&mut ended.fixture, end, end + egui::vec2(100.0, 0.0));
+    drag_between(&mut ended.fixture, end, end + travel(stretch));
+    let stretched = TimeRange::from_bounds(area.start, area.end() + secs(stretch));
     let events = ended.work.borrow();
-    assert!(matches!(events.last(), Some(DragEvent::Commit(range)) if *range == TimeRange::from_bounds(secs(2.0), secs(5.0))), "{events:?}");
+    assert!(matches!(events.last(), Some(DragEvent::Commit(range)) if *range == stretched), "{events:?}");
 }
 
 #[trial]

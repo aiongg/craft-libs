@@ -5,13 +5,13 @@ use std::rc::Rc;
 
 use craft_behavior::{Selection, SelectionChange};
 use craft_timeline::ui::{
-    KeyframeId, KeyframeInterpolation, KeyframeLane, KeyframeMark, MarkerEdit, MarkerStrip, OverviewRun, ThumbnailMode, TimelineOverview,
-    TimelineView, overview_runs, thumbnail_tiles,
+    KeyframeId, KeyframeInterpolation, KeyframeLane, KeyframeMark, LabelPalette, MarkerEdit, MarkerStrip, OverviewRun, ThumbnailMode,
+    TimelineOverview, TimelineView, overview_runs, thumbnail_tiles,
 };
 use craft_timeline::{FrameRate, Marker, MarkerColor, MarkerId, Tick, TimeFormat, TimeRange, TimeView};
 use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, Target, trial};
-use egui::{Color32, Key, Modifiers, Rect, vec2};
+use egui::{Key, Modifiers, Rect, vec2};
 
 const ROOM: egui::Vec2 = vec2(600.0, 60.0);
 const POINTS_PER_SECOND: f64 = 50.0;
@@ -40,7 +40,7 @@ fn thumbnail_tiles_follow_the_mode() {
 /// A drum edit holds tens of thousands of clips under a point wide: touching clips of one colour are one run.
 #[trial]
 fn runs_merge_touching_clips_of_one_colour() {
-    let (red, blue) = (Color32::RED, Color32::BLUE);
+    let [red, blue, ..] = LabelPalette::default().0;
     let clip = |at: f64, color| (TimeRange::new(seconds(at), seconds(1.0)), color);
     let tracks = vec![vec![clip(0.0, red), clip(1.0, red), clip(2.0, blue), clip(5.0, blue)]];
     let runs: Vec<OverviewRun> = overview_runs(&tracks, seconds(10.0), vec2(200.0, 10.0));
@@ -56,7 +56,8 @@ fn click_centres_the_view() {
     let shown = view.clone();
     let mut fixture = Fixture::new(move |ui| {
         let mut view = shown.borrow_mut();
-        let runs = overview_runs(&[vec![(TimeRange::new(seconds(0.0), seconds(20.0)), Color32::RED)]], seconds(40.0), vec2(ROOM.x, 30.0));
+        let [red, ..] = LabelPalette::default().0;
+        let runs = overview_runs(&[vec![(TimeRange::new(seconds(0.0), seconds(20.0)), red)]], seconds(40.0), vec2(ROOM.x, 30.0));
         TimelineOverview::new("Overview", &runs, Bind::bound(&mut *view), seconds(40.0)).shown_width(100.0).show(ui);
     });
     fixture.room(ROOM);
@@ -65,7 +66,8 @@ fn click_centres_the_view() {
     let at = overview.rect.min + vec2(overview.rect.width() * 0.75, overview.rect.height() / 2.0);
     fixture.click_at(at);
     let start = view.borrow().start;
-    assert!(start > seconds(30.0) && start < seconds(40.0), "the window is centred at three quarters of 50 s: {start:?}");
+    let (earliest, latest) = (seconds(30.0), seconds(40.0));
+    assert!(start > earliest && start < latest, "the window is centred at three quarters of 50 s: {start:?}");
 }
 
 /// What a lane fixture reports.

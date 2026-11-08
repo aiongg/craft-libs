@@ -226,6 +226,7 @@ fn buttons_report_presses_and_show_pause_while_playing() {
 #[trial]
 fn hidden_buttons_are_left_out_and_the_editor_changes_them() {
     let mut rig = bar();
+    assert!(rig.fixture.by_label("Loop").is_some(), "Loop shows until it is hidden");
     rig.settings.borrow_mut().hidden.push(TransportButton::Loop);
     rig.fixture.settle();
     assert!(rig.fixture.by_label("Loop").is_none());
@@ -245,6 +246,13 @@ fn hidden_buttons_are_left_out_and_the_editor_changes_them() {
     assert_eq!(rig.changed.get(), 2);
 }
 
+/// The media position, the media length, and the arrow nudge, in seconds.
+const MEDIA_POSITION: f64 = 6.5;
+const MEDIA_LENGTH: f64 = 10.0;
+const MEDIA_NUDGE: f64 = 0.25;
+/// How far from the middle a click on the seek track may land and still count as the middle.
+const MIDDLE_SLACK: f64 = 2.0;
+
 /// Play toggles, the arrows nudge a quarter second, the track seeks.
 #[trial]
 fn media_controls_toggle_nudge_and_seek() {
@@ -253,7 +261,7 @@ fn media_controls_toggle_nudge_and_seek() {
     let seeks = Rc::new(RefCell::new(Vec::new()));
     let (shown_toggles, shown_nudges, shown_seeks) = (toggles.clone(), nudges.clone(), seeks.clone());
     let mut fixture = Fixture::new(move |ui| {
-        let out = MediaControls::new("Media controls", 6.5, 10.0).trim((2.0, 8.0)).show(ui);
+        let out = MediaControls::new("Media controls", MEDIA_POSITION, MEDIA_LENGTH).trim((2.0, 8.0)).show(ui);
         shown_toggles.set(shown_toggles.get() + usize::from(out.toggle));
         shown_nudges.borrow_mut().extend(out.nudge);
         shown_seeks.borrow_mut().extend(out.seek);
@@ -264,16 +272,17 @@ fn media_controls_toggle_nudge_and_seek() {
         fixture.click(&button);
     }
     assert_eq!(toggles.get(), 1);
-    assert_eq!(*nudges.borrow(), [-0.25, 0.25]);
+    assert_eq!(*nudges.borrow(), [-MEDIA_NUDGE, MEDIA_NUDGE]);
 
     let seek = fixture.by_role(Role::SLIDER).first().cloned().expect("the seek slider");
     fixture.click(&seek);
     let value = seeks.borrow().iter().find_map(|event| event.value().copied()).expect("a click on the track seeks");
-    assert!((3.0..=7.0).contains(&value), "mid-track is about 5 s: {value}");
+    let near_middle = (value - MEDIA_LENGTH / 2.0).abs() <= MIDDLE_SLACK;
+    assert!(near_middle, "a click mid-track seeks about the middle: {value}");
 
     seeks.borrow_mut().clear();
     fixture.key(Key::ArrowRight, Modifiers::NONE);
-    assert_eq!(seeks.borrow().iter().find_map(|event| event.value().copied()), Some(6.75), "Right moves a quarter second");
+    assert_eq!(seeks.borrow().iter().find_map(|event| event.value().copied()), Some(MEDIA_POSITION + MEDIA_NUDGE), "Right moves a quarter second");
 }
 
 /// A 4:3 frame in a 16:9 box is centred at full height.
