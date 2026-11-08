@@ -12,6 +12,6 @@ use egui::Ui;
 /// The tool's type registers as a story host with `#[derive(Pattern)]` and `#[pattern(tool)]`.
 pub fn tool_story(ui: &mut Ui, label: &'static str, tool: &mut dyn CanvasTool) -> StoryOutput {
     let shown = Canvas::new(label).show(ui, |_, _| ());
-    ToolHost::new().run(ui, &shown.output, tool);
+    let _ = ToolHost::new().run(ui, &shown.output, tool);
     shown.output.into()
 }
