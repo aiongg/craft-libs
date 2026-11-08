@@ -8,8 +8,9 @@ use craft_ui::contract::{Entry, Show as _};
 use craft_ui::runtime::egui::injected::{
     cancel, hook_without_pass, idle, inject_click, inject_key, inject_text, move_focus_without_pass, take_withdrawn, withdraw,
 };
+use craft_ui::testing::focus::named_id;
 use craft_ui::testing::{Fixture, trial};
-use egui::{Context, Event, Id, ViewportId};
+use egui::{Context, Event, ViewportId};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -62,7 +63,7 @@ fn a_step_in_flight_is_withdrawn_when_focus_moves_before_its_pass() {
     assert!(matches!(first[..], [Event::Key { pressed: true, .. }]), "the first step is injected: {first:?}");
     assert!(!take_withdrawn(&ctx));
 
-    move_focus_without_pass(&ctx, Id::unique("elsewhere"));
+    move_focus_without_pass(&ctx, named_id("elsewhere"));
     assert!(hook_without_pass(&ctx, viewport).is_empty(), "the withdrawn step injects nothing");
     assert!(take_withdrawn(&ctx), "the withdrawal is reported");
     assert!(!take_withdrawn(&ctx), "and once");
