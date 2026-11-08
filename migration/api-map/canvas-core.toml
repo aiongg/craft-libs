@@ -247,7 +247,137 @@ note = "`CanvasScrollbarsOutput { view: EditResponse<CanvasView>, over: bool }`.
 name = "Navigator"
 old = "craft_ui::canvas::navigator::preview::Navigator"
 new = "craft_ui::canvas::Navigator"
-status = "pending"
+status = "moved"
+note = "A component: `Navigator::new(label, Bind::bound(&mut view), document).preview(..).navigation(..).proxy(..).show(ui)`; the zoom row is the separate `NavigatorZoomRow`."
+
+[[type]]
+name = "NavigatorOutput"
+old = "craft_ui::canvas::navigator::preview::NavigatorOutput"
+new = "craft_ui::canvas::NavigatorOutput"
+status = "moved"
+note = "`view` (the `EditResponse<CanvasView>`) and `animate_zoom`."
+
+[[type]]
+name = "NavigatorPreview"
+old = "craft_ui::canvas::navigator::preview::NavigatorPreview"
+new = "craft_ui::canvas::NavigatorPreview"
+status = "moved"
+note = "`Texture(CachedTexture)`, `Paint(NavigatorPaint)` or `None`."
+
+[[type]]
+name = "NavigatorPaint"
+old = "craft_ui::canvas::navigator::preview::NavigatorPaint"
+new = "craft_ui::canvas::NavigatorPaint"
+status = "moved"
+note = "`NavigatorPaint::new(|painter: &ContentPainterCx, rect| ..)`."
+
+[[type]]
+name = "NavigatorSettings"
+old = "craft_ui::canvas::navigator::options::NavigatorSettings"
+new = "craft_ui::canvas::NavigatorSettings"
+status = "moved"
+note = "Plain data the app persists; `NavigatorSettings::new(options)`; the type is `#[non_exhaustive]`."
+
+[[type]]
+name = "NavigatorOptions"
+old = "craft_ui::canvas::navigator::options::NavigatorOptions"
+new = "craft_ui::canvas::NavigatorOptions"
+status = "moved"
+note = "`NavigatorOptions::new(proxy_color)`; the type is `#[non_exhaustive]`."
+
+[[type]]
+name = "ProxyColor"
+old = "craft_ui::canvas::navigator::options::ProxyColor"
+new = "craft_ui::canvas::ProxyColor"
+status = "moved"
+note = "`label(&CanvasWords)` replaces `label(&NavigatorLabels)`; `color()` takes no tokens and gives an `Srgba`; `ProxyColor::custom(Srgba)` makes the Custom colour of a picker's answer."
+
+[[type]]
+name = "NavigatorOptionsDialog"
+old = "craft_ui::canvas::navigator::options::NavigatorOptionsDialog"
+new = "craft_ui::patterns::form_dialogs::NavigatorOptionsDialog"
+status = "moved"
+note = "A pattern over `FormDialog<NavigatorOptions>`: `NavigatorOptionsDialog::new(Bind::bound(&mut options)).answers(host.take_answers()).show(ui)`; `initial`, `options`, `pick_color`, `set_color` and `cancel_color` are `Bind`, `NavigatorOptionsDialogOutput::requests` (`HostRequests::take_color`, `answer_color`, `cancel`) and `answers`."
+
+[[type]]
+name = "NavigatorOptionsDialogOutput"
+old = ""
+new = "craft_ui::patterns::form_dialogs::NavigatorOptionsDialogOutput"
+status = "replaced"
+note = "`response`, `closed`, `accepted` (the options the pass the dialog closed as OK), `value` and `requests`."
+
+[[type]]
+name = "NavigatorZoomRow"
+old = ""
+new = "craft_ui::canvas::NavigatorZoomRow"
+status = "replaced"
+note = "The legacy zoom row (`navigator::zoom_row`): percent `NumberField`, `IconButton`s and a logarithmic `Slider` as children of a `Row`. `NavigatorZoomRow::new(Bind::bound(&mut view), document).navigation(options).show(ui)`."
+
+[[type]]
+name = "NavigatorZoomOutput"
+old = ""
+new = "craft_ui::canvas::NavigatorZoomOutput"
+status = "replaced"
+note = "`response`, `view` (the pass's `EditEvent<CanvasView>`) and `animate_zoom`."
+
+[[type]]
+name = "NavigatorCommands"
+old = ""
+new = "craft_ui::canvas::NavigatorCommands"
+status = "replaced"
+note = "The panel menu's Panel Options row is the command `canvasNavigator.options`."
+
+[[type]]
+name = "NavigatorPanel"
+old = "craft_ui::canvas::navigator::menu::NavigatorPanel"
+new = ""
+status = "removed"
+note = "The panel menu row is the command `canvasNavigator.options` (`NavigatorCommands::Options`); the dock lists it."
+
+[[type]]
+name = "NavigatorMenuAction"
+old = "craft_ui::canvas::navigator::menu::NavigatorMenuAction"
+new = ""
+status = "removed"
+note = "The app handles the command `canvasNavigator.options` and opens `NavigatorOptionsDialog`."
+
+[[type]]
+name = "NavigatorLabels"
+old = "craft_ui::canvas::navigator::labels::NavigatorLabels"
+new = ""
+status = "removed"
+note = "The words are rows of `CanvasWords`."
+
+[[type]]
+name = "NavigatorStyle"
+old = "craft_ui::canvas::navigator::style::NavigatorStyle"
+new = ""
+status = "removed"
+note = "The look comes from the tokens through the component styles of the children."
+
+[[type]]
+name = "preview_rect"
+old = "craft_ui::canvas::navigator::proxy::preview_rect"
+new = "craft_ui::canvas::preview_rect"
+status = "moved"
+
+[[type]]
+name = "proxy_quad"
+old = "craft_ui::canvas::navigator::proxy::proxy_quad"
+new = "craft_ui::canvas::proxy_quad"
+status = "moved"
+
+[[type]]
+name = "zoom_to_document_rect"
+old = "craft_ui::canvas::navigator::proxy::zoom_to_document_rect"
+new = "craft_ui::canvas::zoom_to_document_rect"
+status = "moved"
+
+[[type]]
+name = "view_center_for"
+old = "craft_ui::canvas::navigator::proxy::view_center_for"
+new = "craft_ui::canvas::view_center_for"
+status = "moved"
 
 [[type]]
 name = "CanvasView"
@@ -1043,3 +1173,30 @@ old = ""
 new = "craft_ui::canvas::BackgroundPress"
 status = "replaced"
 note = "The presses on the canvas background in a pass, read with `CanvasSpace::background()`: `pressed` (a button went down) and `context` (a secondary click's position). `canvas::context_click(&PressState)` is the one reading of a secondary click."
+
+# canvas-navigator-a setters.
+[[setter]]
+type = "NavigatorZoomRow"
+old = "zoom_row(ui, &mut view, size, numbers, labels, style, control, animated_zoom)"
+new = "NavigatorZoomRow::new(Bind::bound(&mut view), document).navigation(options).show(ui)"
+note = "The row's words come from `CanvasWords`; the field takes the percent unit's decimals."
+
+[[setter]]
+type = "NavigatorOptionsDialog"
+old = "initial(options)"
+new = "new(Bind::bound(&mut options))"
+
+[[setter]]
+type = "NavigatorOptionsDialog"
+old = "pick_color()"
+new = "show(ui).requests.take_color()"
+
+[[setter]]
+type = "NavigatorOptionsDialog"
+old = "set_color(key, color)"
+new = "answers(requests.take_answers()) after requests.answer_color(key, color)"
+
+[[setter]]
+type = "NavigatorOptionsDialog"
+old = "cancel_color()"
+new = "requests.cancel_color()"

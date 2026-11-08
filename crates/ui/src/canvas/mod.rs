@@ -66,6 +66,14 @@ mod scrollbars;
 pub use rulers::{INCH_EIGHTHS, INCH_SIXTEENTHS, RulerCommands, RulerMargins, RulerPart, RulerTick, Rulers, RulersOutput, TickRule};
 pub use scrollbars::{CanvasScrollbars, CanvasScrollbarsOutput};
 
+// canvas-navigator-a
+mod navigator;
+pub use navigator::{
+    NAVIGATOR_PROXY_COLOR_KEY, Navigator, NavigatorCommands, NavigatorOutput, NavigatorPaint, NavigatorPreview, NavigatorOptions, NavigatorSettings, NavigatorZoomOutput, NavigatorZoomRow, ProxyColor, preview_rect,
+    proxy_quad, view_center_for, zoom_to_document_rect,
+};
+// End of canvas-navigator-a.
+
 use crate::contract::{Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, Sizing};
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
