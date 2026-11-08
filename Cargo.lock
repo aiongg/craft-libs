@@ -1734,6 +1734,7 @@ dependencies = [
  "syn 2.0.119",
  "toml",
  "toml_edit",
+ "zeroize",
 ]
 
 [[package]]

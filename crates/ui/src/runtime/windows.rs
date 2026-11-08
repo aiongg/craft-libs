@@ -758,6 +758,7 @@ pub(crate) fn end(ctx: &Context) {
 
 /// Whether the root window was asked to close and nothing has cancelled it yet. Valid in the app's `logic`, which
 /// eframe runs while the window is minimized or hidden too.
+#[cfg(feature = "app")]
 pub(crate) fn root_close_requested(ctx: &Context) -> bool {
     root_close_asked(ctx) && blocking_modal(ctx).is_none()
 }
