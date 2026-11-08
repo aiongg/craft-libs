@@ -1,42 +1,36 @@
 //! Keyframe lanes, the keyframe navigator and the animation toggle (N1.04).
 
-use craft_ui::behavior::{ClaimedKey, KeyClaim, ListSelection, RowInfo, Selection, SelectionChange, SelectionMode, SelectionPick, Step};
-use craft_ui::controls::IconButton;
-use craft_ui::direction;
-use craft_ui::edit::{EditEvent, EditPolicy, EditResponse, Gesture};
-use craft_ui::icons::{self, Icon, IconSize};
-use craft_ui::localized::Labels as _;
-use craft_ui::primitives::{Corner, FocusRing, Interactive};
-use craft_ui::theme::{StrokeExt as _, ToEgui as _, Tokens, TokensOf as _, scale};
-use egui::accesskit::Role;
-use egui::{
-    AsIdSalt, Color32, EventFilter, Id, IdSalt, Key, Modifiers, Painter, PointerButton, Pos2, Rect, Response, Sense, Ui, WidgetInfo, pos2, vec2,
+#[cfg(feature = "screen-testing")]
+mod stories;
+
+use craft_behavior::{
+    Granularity, HitLevel, HitPriority, IconId, Intent, MarqueeSelect, Metrics, PartKey, PointerButton, PressPhase, Selection, SelectionChange, Sense,
 };
+use craft_ui::buttons::{IconButton, ToggleButton};
+use craft_ui::contract::{
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Gap, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pattern,
+    Pointer as _, Props as _, Remember as _, Role, Show as _, ShowContainer as _,
+};
+use craft_ui::layout_components::Row;
+use craft_ui::primitives::{IconSpec, Mirror, PaintShape, StrokeWidth};
+use craft_ui::runtime::env::Label;
+use craft_ui::runtime::focus::KeyUse;
+use craft_ui::style::{ComponentStyle, StyleColor, StyleCx};
+use egui::{CornerRadius, Pos2, Rect, Response, Vec2, pos2, vec2};
 
-use super::style::TimelineStyle;
-use crate::rates::FrameRate;
-use crate::time::{TICKS_PER_SECOND, Tick, TimeRange, TimeView};
-use crate::timecode::{TimeFormat, format_time};
-
-craft_ui::words! {
-    /// The keyframe controls' tooltips and names, English by default (FilmCraft's).
-    #[non_exhaustive]
-    pub struct KeyframeLabels {
-        previous: "keyframes.previous" = "Go to previous keyframe";
-        next: "keyframes.next" = "Go to next keyframe";
-        add_remove: "keyframes.addRemove" = "Add/Remove Keyframe";
-        toggle_animation: "keyframes.toggleAnimation" = "Toggle animation";
-        lane: "keyframes.lane" = "Keyframes";
-    }
-}
+use super::clips::context_menu;
+use super::{TimeAxis, time_axis};
+use crate::time::{TICKS_PER_SECOND, Tick, TimeRange};
+use crate::timecode::format_time;
 
 /// A keyframe's id, the app's.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct KeyframeId(pub u64);
 
-/// How the segment leaving a keyframe interpolates (Premiere's temporal set; After Effects'
-/// Linear, Bezier and Hold are a subset). Also picks the glyph.
+/// How the segment leaving a keyframe interpolates (Premiere's temporal set; After Effects' Linear, Bezier and Hold
+/// are a subset). Also picks the glyph.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum KeyframeInterpolation {
     #[default]
     /// Straight line to the next key.
@@ -57,6 +51,7 @@ pub enum KeyframeInterpolation {
 
 /// A keyframe on a lane.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct KeyframeMark {
     /// The keyframe's identity.
     pub id: KeyframeId,
@@ -66,347 +61,154 @@ pub struct KeyframeMark {
     pub interpolation: KeyframeInterpolation,
 }
 
-/// The icon that marks a key of `interpolation` on a lane: solid shapes, as FilmCraft draws them
-/// (a diamond for Linear, a square for Hold, a circle for the Bezier kinds), with After Effects'
-/// own marks for Auto, Continuous and the eases.
-pub const fn keyframe_icon(interpolation: KeyframeInterpolation) -> Icon {
-    match interpolation {
-        KeyframeInterpolation::Linear => Icon::KeyLinearFilled,
-        KeyframeInterpolation::Hold => Icon::KeyHold,
-        KeyframeInterpolation::Bezier => Icon::KeyBezier,
-        KeyframeInterpolation::AutoBezier => Icon::KeyAutoBezier,
-        KeyframeInterpolation::ContinuousBezier => Icon::KeyContinuousBezier,
-        KeyframeInterpolation::EaseIn => Icon::KeyEaseIn,
-        KeyframeInterpolation::EaseOut => Icon::KeyEaseOut,
+impl KeyframeMark {
+    /// A keyframe `id` at `time` that interpolates as `interpolation`.
+    pub const fn new(id: KeyframeId, time: Tick, interpolation: KeyframeInterpolation) -> Self {
+        KeyframeMark { id, time, interpolation }
     }
 }
 
-/// Draws a keyframe glyph ([`keyframe_icon`]) centred at `center`, `style.keyframe_glyph` points
-/// wide ([`TimelineStyle`]).
-// filmcraft: crates/ui-egui/src/panels/effect_controls_selection.rs:256 `paint`.
-pub fn paint_keyframe(painter: &Painter, center: Pos2, interpolation: KeyframeInterpolation, color: Color32, style: &super::TimelineStyle) {
-    paint_icon(painter, center, keyframe_icon(interpolation), color, style);
+/// The icon that marks a key of `interpolation` on a lane: a diamond for Linear, a square for Hold, a circle for the
+/// Bezier kinds, with After Effects' own marks for Auto and the eases. Continuous Bezier has no mark of its own and
+/// shows the Bezier circle.
+pub(crate) fn keyframe_icon(interpolation: KeyframeInterpolation) -> IconSpec<'static> {
+    let name = match interpolation {
+        KeyframeInterpolation::Linear => "keyframe_linear",
+        KeyframeInterpolation::Hold => "keyframe_hold",
+        KeyframeInterpolation::Bezier | KeyframeInterpolation::ContinuousBezier => "keyframe_bezier",
+        KeyframeInterpolation::AutoBezier => "keyframe_auto_bezier",
+        KeyframeInterpolation::EaseIn => "keyframe_ease_in",
+        KeyframeInterpolation::EaseOut => "keyframe_ease_out",
+    };
+    IconSpec::svg(IconId::new(name))
 }
 
-fn paint_icon(painter: &Painter, center: Pos2, icon: Icon, color: Color32, style: &super::TimelineStyle) {
-    let rect = Rect::from_center_size(center, vec2(style.keyframe_glyph, style.keyframe_glyph));
-    icons::paint_on(painter, rect, icon, icons::active(painter.ctx()), style.keyframe_glyph, IconSize::Sm.stroke(), color);
+craft_ui::words! {
+    /// The keyframe controls' words, English by default (FilmCraft's).
+    #[non_exhaustive]
+    pub struct KeyframeWords {
+        previous: "keyframes.previous" = "Go to previous keyframe";
+        next: "keyframes.next" = "Go to next keyframe";
+        add_remove: "keyframes.addRemove" = "Add/Remove Keyframe";
+        toggle_animation: "keyframes.toggleAnimation" = "Toggle animation";
+    }
+}
+
+/// The key of one keyframe's part: `KEY.at(id)`.
+const KEY: PartKey = PartKey::new("keyframe");
+
+/// The style of a keyframe lane.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+#[non_exhaustive]
+pub struct KeyframeLaneStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+    #[style(focus)]
+    focus: craft_ui::style::FocusLook,
+    /// A key.
+    key: StyleColor,
+    /// A selected key.
+    selected: StyleColor,
+    /// A key on a disabled lane.
+    disabled: StyleColor,
+    /// The marquee's fill.
+    marquee_fill: StyleColor,
+    /// The marquee's outline.
+    marquee_edge: StyleColor,
+    /// The side of a key's glyph, and of its hit area.
+    glyph: f32,
+    /// How near the playhead or another key a Shift-dragged key snaps, in points.
+    snap_reach: f32,
+}
+
+/// A key drag under way: the keys it moves and the press it measures from.
+#[derive(Clone, Debug, Default)]
+struct Drag {
+    group: Vec<KeyframeId>,
+    press_x: f32,
+    /// The time of the key that was grabbed.
+    anchor: Tick,
+}
+
+/// A marquee under way.
+#[derive(Clone)]
+struct Sweep(MarqueeSelect<KeyframeId>);
+
+impl Default for Sweep {
+    fn default() -> Self {
+        Sweep(MarqueeSelect::begin(Pos2::ZERO, craft_keymap::Mods::NONE, Vec::new()))
+    }
+}
+
+/// What the lane's paint reads of the pass's presses.
+#[derive(Clone, Debug, Default)]
+struct Seen {
+    marquee: Option<Rect>,
+    group: Vec<KeyframeId>,
 }
 
 /// The keyframes of one property row on its lane.
 ///
-/// - The selection is the app's [`Selection`] of keys in time order; clicks and keys change it
-///   with the kernel's [`ListSelection`] rules over that
-///   order, with Photoshop's and Premiere's picks: a click replaces, Shift+click and
-///   Cmd/Ctrl+click toggle the key; a drag on empty lane draws a marquee (Shift adds to the
-///   selection). The lane applies the change to the `&mut Selection` in the pass and reports it
-///   as a [`SelectionChange`].
-/// - Dragging a selected key moves every selected key by the same delta, snapped to frames of
-///   `rate` and kept inside `bounds` (the clip); with Shift it snaps to the playhead and the
-///   other keys within `style.keyframe_snap`. Reported as an `EditEvent<Tick>` (the delta)
-///   gesture; Esc cancels. The lane draws the selected keys moved by the gesture's delta, so the
-///   app applies the delta at the commit and keeps passing the keys as they were.
-/// - A double-click and a secondary click on a key are reported (After Effects opens the
-///   keyframe's dialog and menu, `timeline.rs:4083`, `:4101`).
-/// - Keyboard: one Tab stop when it has keys; Left and Right move the selection to the previous
-///   and next key, Shift+Left/Right nudge the selected keys one frame (a `Set` on
-///   [`KeyframeLaneResponse::moved`]), Delete and Backspace report [`KeyframeLaneResponse::delete`] (claimed
-///   through [`KeyClaim`] so the app's Delete shortcut leaves it).
-///   AccessKit: a `ListBox` named by [`KeyframeLabels::lane`], one `ListBoxOption` per key named
-///   by its time as timecode of the lane's rate, `selected` set.
+/// - The selection is the app's [`Selection`] of keys; clicks, the marquee and keys change it and the lane reports each
+///   change as a [`SelectionChange`]: a click replaces, Shift+click and Cmd/Ctrl+click toggle the key; a drag on empty
+///   lane draws a marquee ([`MarqueeSelect`]: Shift adds, Cmd/Ctrl toggles, Alt subtracts).
+/// - Dragging a selected key moves every selected key by the same delta, snapped to frames and kept inside
+///   [`bounds`](Self::bounds); with Shift it snaps to the [`playhead`](Self::playhead) and the other keys within the
+///   snap reach. The delta is the lane's value: one gesture from press to release, Esc cancels. The lane draws the
+///   selected keys moved by the delta, so the app applies the delta at the commit and keeps passing the keys as they
+///   were.
+/// - A double-click and a secondary click on a key are reported (After Effects opens the keyframe's dialog and menu,
+///   `timeline.rs:4083`, `:4101`).
+/// - Keyboard: one Tab stop when it has keys; Left and Right select the previous and next key, Shift+Left/Right nudge
+///   the selected keys one frame (a `Set` of the delta), Delete and Backspace report
+///   [`KeyframeLaneOutput::delete`].
+/// - AccessKit: a list box named by the lane's label, one option per key named by its time as timecode.
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
 pub struct KeyframeLane<'a> {
-    id_salt: IdSalt,
+    #[common]
+    common: Common,
     keys: &'a [KeyframeMark],
-    selection: &'a mut Selection<KeyframeId>,
-    view: &'a TimeView,
-    rate: FrameRate,
-    playhead: Tick,
-    bounds: Option<TimeRange>,
-    labels: Option<KeyframeLabels>,
-}
-
-impl<'a> KeyframeLane<'a> {
-    /// A lane for `keys` with the app's key `selection`, on the time `view`; times snap to the frames of `rate`.
-    pub fn new(
-        id_salt: impl AsIdSalt,
-        keys: &'a [KeyframeMark],
-        selection: &'a mut Selection<KeyframeId>,
-        view: &'a TimeView,
-        rate: FrameRate,
-    ) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), keys, selection, view, rate, playhead: Tick::ZERO, bounds: None, labels: None }
-    }
-
+    selection: &'a Selection<KeyframeId>,
+    delta: Bind<'a, Tick>,
     /// The playhead time; Shift-dragged keys snap to it.
-    pub fn playhead(mut self, t: Tick) -> Self {
-        self.playhead = t;
-        self
-    }
-
+    #[prop]
+    playhead: Tick,
     /// Keys stay inside this range while dragged (the clip).
-    pub fn bounds(mut self, range: TimeRange) -> Self {
-        self.bounds = Some(range);
-        self
-    }
-
-    /// The tooltip words; `KeyframeLabels::of` when not set.
-    pub fn labels(mut self, labels: KeyframeLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    /// Show the lane in `rect` and report what the user did.
-    // filmcraft: crates/ui-egui/src/panels/effect_controls_selection.rs:81 `update` (snapping),
-    // `:110` `Interaction::begin`; effectcraft: crates/ui-egui/src/panels/timeline.rs:4059
-    // `key_select`, `:4191` `key_drag_begin`, `:4246` `key_hit`.
-    pub fn show(self, ui: &mut Ui, rect: Rect) -> KeyframeLaneResponse {
-        let Self { id_salt, keys, selection, view, rate, playhead, bounds, labels } = self;
-        let labels = labels.unwrap_or_else(|| KeyframeLabels::of(ui));
-        let tokens = Tokens::of(ui);
-        let style = TimelineStyle::of(&tokens);
-        let enabled = ui.is_enabled();
-        let id = ui.make_persistent_id(id_salt);
-        let sense = if keys.is_empty() { Sense::CLICK | Sense::DRAG } else { Sense::click_and_drag() };
-        let response = ui.interact(rect, id, sense);
-        response.widget_info(|| WidgetInfo::labeled(Role::ListBox, enabled, labels.lane.as_str()));
-
-        let mut sorted: Vec<&KeyframeMark> = keys.iter().collect();
-        sorted.sort_by_key(|key| key.time);
-        let order: Vec<RowInfo<KeyframeId>> = sorted.iter().map(|key| RowInfo::leaf(key.id)).collect();
-        let moves = Moves {
-            keys,
-            rate,
-            playhead,
-            bounds,
-            points_per_tick: view.points_per_second / TICKS_PER_SECOND as f64,
-            snap: f64::from(style.keyframe_snap),
-        };
-        let center_y = rect.center().y;
-        let half = style.keyframe_glyph / 2.0;
-        let center_of = |time: Tick| pos2(view.x_of(time, rect.left()), center_y);
-        let hit = |pos: Pos2| {
-            sorted
-                .iter()
-                .filter(|key| {
-                    let center = center_of(key.time);
-                    (pos.x - center.x).abs() <= half && (pos.y - center.y).abs() <= half
-                })
-                .min_by(|a, b| (center_of(a.time).x - pos.x).abs().total_cmp(&(center_of(b.time).x - pos.x).abs()))
-                .map(|key| key.id)
-        };
-
-        let drag_key = id.with("drag");
-        let marquee_key = id.with("marquee");
-        let reported = Gesture::<Tick>::reported(ui, id).map_or(Tick::ZERO, |(_, delta)| delta);
-        let mut gesture = Gesture::load(ui, id, &reported, EditPolicy::default()).enabled(enabled);
-        if !gesture.is_active() {
-            ui.data_mut(|d| d.remove::<Drag>(drag_key));
-        }
-        let modifiers = ui.input(|i| i.modifiers);
-        let mut out = Interaction::default();
-
-        if enabled {
-            if response.drag_started_by(PointerButton::Primary)
-                && let Some(origin) = ui.input(|i| i.pointer.press_origin())
-            {
-                response.request_focus();
-                let additive = modifiers.shift || modifiers.command;
-                match hit(origin).and_then(|key| keys.iter().find(|k| k.id == key)) {
-                    Some(grabbed) => {
-                        let mut group = selection.items.clone();
-                        if !selection.contains(&grabbed.id) {
-                            let mut next = if additive { Selection { items: group, ..Selection::new() } } else { Selection::new() };
-                            next.items.push(grabbed.id);
-                            next.lead = Some(grabbed.id);
-                            next.anchor = Some(grabbed.id);
-                            group = next.items.clone();
-                            let pick = if additive { SelectionPick::Toggle } else { SelectionPick::Replace };
-                            out.change = Some(SelectionChange { pick, row: Some(grabbed.id), selection: next });
-                        }
-                        ui.data_mut(|d| d.insert_temp(drag_key, Drag { group, press_x: origin.x, anchor: grabbed.time }));
-                        gesture.begin();
-                    }
-                    None => {
-                        let base = if additive { selection.clone() } else { Selection::new() };
-                        ui.data_mut(|d| d.insert_temp(marquee_key, Marquee { origin, base }));
-                    }
-                }
-            }
-            if let Some(drag) = ui.data(|d| d.get_temp::<Drag>(drag_key))
-                && response.dragged_by(PointerButton::Primary)
-                && gesture.is_active()
-                && let Some(pos) = ui.input(|i| i.pointer.interact_pos())
-            {
-                gesture.update(moves.delta(&drag, pos.x, modifiers.shift, view), modifiers);
-            }
-            if response.drag_stopped() {
-                gesture.commit();
-                ui.data_mut(|d| d.remove::<Marquee>(marquee_key));
-            }
-            if let Some(marquee) = ui.data(|d| d.get_temp::<Marquee>(marquee_key)) {
-                let cancelled = ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape));
-                if cancelled {
-                    ui.data_mut(|d| d.remove::<Marquee>(marquee_key));
-                }
-                let pointer = ui.input(|i| i.pointer.interact_pos());
-                let next = if cancelled {
-                    Some(marquee.base.clone())
-                } else {
-                    pointer.map(|pos| marquee.extended(Rect::from_two_pos(marquee.origin, pos).intersect(rect), &sorted, center_of))
-                };
-                if let Some(next) = next.filter(|next| *next != *selection) {
-                    out.change = Some(SelectionChange {
-                        pick: if next.is_empty() { SelectionPick::Clear } else { SelectionPick::Replace },
-                        row: next.lead,
-                        selection: next,
-                    });
-                }
-            }
-            out.pointer(&response, &hit, &order, selection, modifiers);
-            if response.has_focus() && !keys.is_empty() {
-                out.keyboard(ui, id, &order, selection, &moves, &mut gesture);
-            }
-        }
-
-        if let Some(change) = &out.change {
-            *selection = change.selection.clone();
-        }
-        let shown = *gesture.shown();
-        let group = ui.data(|d| d.get_temp::<Drag>(drag_key)).map(|drag| drag.group).unwrap_or_default();
-        let painter = ui.painter_at(rect);
-        let colors = &tokens.color;
-        for key in &sorted {
-            let on = selection.contains(&key.id);
-            let center = center_of(if on && group.contains(&key.id) { key.time + shown } else { key.time });
-            if !rect.expand(half).contains(center) {
-                continue;
-            }
-            let color = match (enabled, on) {
-                (false, _) => colors.text.disabled,
-                (true, true) => colors.accent.text,
-                (true, false) => colors.text.muted,
-            };
-            paint_keyframe(&painter, center, key.interpolation, color.to_egui(), &style);
-            let name = format_time(key.time, &TimeFormat::timecode(rate));
-            let box_rect = Rect::from_center_size(center, vec2(style.keyframe_glyph, style.keyframe_glyph));
-            Interactive::with_id(id.with(("key", key.id.0)), Role::ListBoxOption, name)
-                .sense(Sense::hover())
-                .selected(on)
-                .state_layer(false)
-                .focus_ring(false)
-                .interact_at(ui, box_rect)
-                .finish(ui);
-        }
-        if let Some(marquee) = ui.data(|d| d.get_temp::<Marquee>(marquee_key))
-            && let Some(pos) = ui.input(|i| i.pointer.interact_pos())
-        {
-            let area = Rect::from_two_pos(marquee.origin, pos).intersect(rect);
-            painter.rect_filled(area, 0.0, colors.accent.soft.to_egui());
-            painter.rect_stroke(area, 0.0, scale::Stroke::Hairline.egui(ui.ctx(), colors.accent.border.to_egui()), egui::StrokeKind::Inside);
-        }
-        let radius = Corner::Control.radius(&tokens);
-        let lead = selection.lead.and_then(|lead| sorted.iter().find(|key| key.id == lead));
-        let ring = lead.map_or(rect, |lead| Rect::from_center_size(center_of(lead.time), vec2(style.keyframe_glyph, style.keyframe_glyph)));
-        FocusRing::paint_radius(ui, ring, radius, &response);
-
-        KeyframeLaneResponse {
-            response,
-            selection: out.change,
-            moved: gesture.finish(),
-            double_clicked: out.double_clicked,
-            context_menu: out.context_menu,
-            delete: out.delete,
-        }
-    }
+    #[prop]
+    bounds: Option<TimeRange>,
+    report: Report,
 }
 
-/// The keys that delete the selected keyframes: Delete, and Backspace where the Delete key sends
-/// it (Premiere on a Mac keyboard).
-const DELETE: [ClaimedKey; 2] = [ClaimedKey::exact(Modifiers::NONE, Key::Delete), ClaimedKey::exact(Modifiers::NONE, Key::Backspace)];
-
-/// What a pass of input did, besides the key move.
-#[derive(Default)]
-struct Interaction {
-    change: Option<SelectionChange<KeyframeId>>,
+/// What the lane reports besides the delta.
+#[derive(Clone, Debug, Default)]
+struct Report {
+    select: Option<SelectionChange<KeyframeId>>,
     double_clicked: Option<KeyframeId>,
-    context_menu: Option<KeyframeId>,
+    context: Option<KeyframeId>,
     delete: bool,
 }
 
-impl Interaction {
-    /// Clicks, double clicks and secondary clicks on the lane.
-    fn pointer(
-        &mut self,
-        response: &Response,
-        hit: &impl Fn(Pos2) -> Option<KeyframeId>,
-        order: &[RowInfo<KeyframeId>],
-        selection: &Selection<KeyframeId>,
-        modifiers: Modifiers,
-    ) {
-        let rules = ListSelection::new(SelectionMode::Multiple);
-        let at = response.interact_pointer_pos().and_then(hit).and_then(|key| order.iter().position(|row| row.key == key));
-        if response.clicked_by(PointerButton::Primary) {
-            response.request_focus();
-            // Shift toggles a key as Cmd/Ctrl does; a range has no meaning on a lane.
-            self.change = match at {
-                Some(at) => rules.click(selection, order, at, Modifiers { command: modifiers.command || modifiers.shift, ..Modifiers::NONE }),
-                None if modifiers.shift || modifiers.command => None,
-                None => rules.click_empty(selection),
-            };
+impl<'a> KeyframeLane<'a> {
+    /// A lane named `label` for `keys`, with the app's key `selection`.
+    pub fn new(label: impl Into<Label>, keys: &'a [KeyframeMark], selection: &'a Selection<KeyframeId>) -> Self {
+        KeyframeLane {
+            common: Common::new(),
+            keys,
+            selection,
+            delta: Bind::given(Tick::ZERO),
+            playhead: Tick::ZERO,
+            bounds: None,
+            report: Report::default(),
         }
-        let key = at.map(|at| order[at].key);
-        if response.double_clicked_by(PointerButton::Primary) {
-            self.double_clicked = key;
-        }
-        if response.secondary_clicked() {
-            self.context_menu = key;
-        }
+        .label(label)
     }
 
-    /// Left and Right select the previous and next key, Shift+Left and Right nudge the selected
-    /// keys a frame, Delete asks to delete them.
-    fn keyboard(
-        &mut self,
-        ui: &Ui,
-        id: Id,
-        order: &[RowInfo<KeyframeId>],
-        selection: &Selection<KeyframeId>,
-        moves: &Moves<'_>,
-        gesture: &mut Gesture<Tick>,
-    ) {
-        ui.memory_mut(|m| m.set_focus_lock_filter(id, EventFilter { horizontal_arrows: true, ..EventFilter::default() }));
-        KeyClaim::claim(ui.ctx(), id, &DELETE);
-        let rules = ListSelection::new(SelectionMode::Multiple);
-        let selected: Vec<KeyframeId> = moves.keys.iter().filter(|key| selection.contains(&key.id)).map(|key| key.id).collect();
-        for (key, step, toward) in [(Key::ArrowLeft, Step::Previous, -1), (Key::ArrowRight, Step::Next, 1)] {
-            if ui.input_mut(|i| i.consume_key(Modifiers::SHIFT, key)) {
-                let (low, high) = moves.limits(&selected);
-                let delta = Tick(moves.rate.frame_duration().0 * toward);
-                if !selected.is_empty() && (low..=high).contains(&delta.0) {
-                    gesture.set(delta);
-                }
-            } else if ui.input_mut(|i| i.consume_key(Modifiers::NONE, key)) {
-                self.change = rules.select(selection, order, step, 1, false);
-            }
-        }
-        // Both keys are consumed even when both were pressed.
-        let pressed = DELETE.map(|key| ui.input_mut(|i| key.consume(i))).contains(&true);
-        self.delete = pressed && !selection.is_empty();
+    fn sorted(&self) -> Vec<&'a KeyframeMark> {
+        let mut sorted: Vec<&KeyframeMark> = self.keys.iter().collect();
+        sorted.sort_by_key(|key| key.time);
+        sorted
     }
-}
 
-/// The keys of a lane and how a drag moves them.
-struct Moves<'a> {
-    keys: &'a [KeyframeMark],
-    rate: FrameRate,
-    playhead: Tick,
-    bounds: Option<TimeRange>,
-    points_per_tick: f64,
-    /// How near the playhead or another key a Shift-dragged key snaps, in points.
-    snap: f64,
-}
-
-impl Moves<'_> {
     /// The range of deltas that keeps all of `group` inside the bounds.
     fn limits(&self, group: &[KeyframeId]) -> (i64, i64) {
         let (mut low, mut high) = (i64::MIN, i64::MAX);
@@ -419,21 +221,22 @@ impl Moves<'_> {
         if low > high { (0, 0) } else { (low, high) }
     }
 
-    /// The delta of a drag that has reached screen `x`: on the frame grid and inside the bounds;
-    /// with `snapping` on the playhead or an unmoved key when one is near enough.
-    fn delta(&self, drag: &Drag, x: f32, snapping: bool, view: &TimeView) -> Tick {
+    /// The delta of a drag that has reached screen `x`: on the frame grid and inside the bounds; with `snapping` on
+    /// the playhead or an unmoved key when one is near enough.
+    fn delta_at(&self, drag: &Drag, x: f32, snapping: bool, axis: &TimeAxis, reach: f32) -> Tick {
         let (low, high) = self.limits(&drag.group);
-        let raw = Tick((f64::from(x - drag.press_x) * TICKS_PER_SECOND as f64 / view.points_per_second).round() as i64);
-        let requested = self.rate.snap_nearest(drag.anchor + raw) - drag.anchor;
+        let raw = Tick((f64::from(x - drag.press_x) * TICKS_PER_SECOND as f64 / axis.view.points_per_second).round() as i64);
+        let requested = axis.format.rate.snap_nearest(drag.anchor + raw) - drag.anchor;
         let mut delta = Tick(requested.0.clamp(low, high));
         if snapping {
-            let mut closest = self.snap;
+            let points_per_tick = axis.view.points_per_second / TICKS_PER_SECOND as f64;
+            let mut closest = f64::from(reach);
             let targets: Vec<Tick> =
                 std::iter::once(self.playhead).chain(self.keys.iter().filter(|k| !drag.group.contains(&k.id)).map(|k| k.time)).collect();
             for moved in self.keys.iter().filter(|k| drag.group.contains(&k.id)) {
                 for target in &targets {
                     let snap = (*target - moved.time).0;
-                    let distance = ((snap - requested.0) as f64 * self.points_per_tick).abs();
+                    let distance = ((snap - requested.0) as f64 * points_per_tick).abs();
                     if distance <= closest && (low..=high).contains(&snap) {
                         closest = distance;
                         delta = Tick(snap);
@@ -443,74 +246,295 @@ impl Moves<'_> {
         }
         delta
     }
+
+    fn glyph_rect(&self, key: &KeyframeMark, axis: &TimeAxis, lane: Rect, glyph: f32) -> Rect {
+        Rect::from_center_size(pos2(axis.x_of(key.time, lane.left()), lane.center().y), vec2(glyph, glyph))
+    }
 }
 
-/// A key drag under way: the keys it moves and the press it measures from.
-#[derive(Clone)]
-struct Drag {
-    group: Vec<KeyframeId>,
-    press_x: f32,
-    /// The time of the key that was grabbed.
-    anchor: Tick,
-}
+impl Component for KeyframeLane<'_> {
+    const ROLE: Role = Role::LIST_BOX;
+    const OVERLAYS: bool = false;
+    const KEYS: KeyUse = KeyUse::CANVAS.with_deletes().with_chrome_key(false);
+    type Style = KeyframeLaneStyle;
+    type Output = KeyframeLaneOutput;
 
-/// A marquee under way: where it began and the selection it adds to.
-#[derive(Clone)]
-struct Marquee {
-    origin: Pos2,
-    base: Selection<KeyframeId>,
-}
-
-impl Marquee {
-    /// The base selection with the keys whose centres are inside `area`.
-    fn extended(&self, area: Rect, keys: &[&KeyframeMark], center_of: impl Fn(Tick) -> Pos2) -> Selection<KeyframeId> {
-        let mut next = self.base.clone();
-        for key in keys.iter().filter(|key| area.contains(center_of(key.time))) {
-            if !next.contains(&key.id) {
-                next.items.push(key.id);
-            }
-            next.lead = Some(key.id);
-            next.anchor = Some(key.id);
+    fn style(cx: &StyleCx<'_>, _: KeyframeLaneStyleKey) -> KeyframeLaneStyle {
+        let tokens = cx.tokens;
+        KeyframeLaneStyle {
+            metrics: Metrics::new(),
+            focus: cx.focus_look(),
+            key: cx.color(tokens.color.text.muted),
+            selected: cx.color(tokens.color.accent.text),
+            disabled: cx.color(tokens.color.text.disabled),
+            marquee_fill: cx.color(tokens.color.accent.soft),
+            marquee_edge: cx.color(tokens.color.accent.border),
+            glyph: tokens.size.icon.md,
+            snap_reach: tokens.size.hit.target,
         }
-        next
+    }
+
+    fn sense(&self) -> Sense {
+        let press = Sense::CLICK | Sense::DRAG | Sense::CONTEXT_CLICK;
+        if self.keys.is_empty() { press } else { press | Sense::FOCUS | Sense::TAKE_FOCUS }
+    }
+
+    fn fills(&self) -> Option<craft_behavior::Axis> {
+        Some(craft_behavior::Axis::X)
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(0.0, cx.style.glyph)
+    }
+
+    fn bind(&mut self) -> Option<BindMut<'_, Tick>> {
+        Some(self.delta.reborrow())
+    }
+
+    /// The keys, above the lane's own press: a drag that starts on a key moves it.
+    fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
+        let Some(axis) = time_axis(&cx.env) else { return };
+        let glyph = cx.style.glyph;
+        let keys = self.sorted();
+        for key in keys {
+            let at = self.glyph_rect(key, &axis, rect, glyph);
+            if !rect.expand(glyph / 2.0).intersects(at) {
+                continue;
+            }
+            let part = cx
+                .part(KEY.at(key.id.0), at)
+                .sense(Sense::CLICK | Sense::DRAG | Sense::CONTEXT_CLICK | Sense::TAKE_FOCUS)
+                .priority(HitPriority::new(HitLevel::Handle, 0))
+                .pointer_only("the lane's arrow keys select and move the keys");
+            if self.selection.contains(&key.id) {
+                part.selected();
+            }
+        }
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        let Some(axis) = time_axis(&cx.env) else { return };
+        let (glyph, reach) = (cx.style.glyph, cx.style.snap_reach);
+        let lane = cx.rect;
+        let sorted = self.sorted();
+        let mut out = Report::default();
+        let mut seen = Seen::default();
+        let selection = self.selection;
+
+        for key in &sorted {
+            let part = KEY.at(key.id.0);
+            let Some(result) = cx.part_if_declared(part) else { continue };
+            let press = result.press;
+            if press.double_pressed() {
+                out.double_clicked = Some(key.id);
+            }
+            if context_menu(cx, part).is_some() {
+                out.context = Some(key.id);
+            }
+            let Some(start) = press.phase.start().filter(|start| start.button == PointerButton::Primary) else { continue };
+            let additive = press.mods.shift || press.mods.cmd;
+            match press.phase {
+                PressPhase::DragStart { .. } => {
+                    let mut group = selection.items.clone();
+                    if !selection.contains(&key.id) {
+                        if additive {
+                            group.push(key.id);
+                            out.select = Some(SelectionChange::Toggle(key.id));
+                        } else {
+                            group = vec![key.id];
+                            out.select = Some(SelectionChange::Set(vec![key.id]));
+                        }
+                    }
+                    *cx.press_slot::<Drag>() = Some(Drag { group, press_x: start.origin.x, anchor: key.time });
+                    cx.propose(Tick::ZERO);
+                }
+                PressPhase::Drag { pos, .. } => {
+                    if let Some(drag) = cx.press_slot::<Drag>().clone() {
+                        cx.propose(self.delta_at(&drag, pos.x, press.mods.shift, &axis, reach));
+                    }
+                }
+                PressPhase::Release { click: false, .. } => cx.commit(),
+                PressPhase::Release { click: true, .. } => {
+                    out.select = Some(if additive { SelectionChange::Toggle(key.id) } else { SelectionChange::Set(vec![key.id]) });
+                }
+                _ => {}
+            }
+        }
+        if let Some(drag) = cx.press_slot::<Drag>().clone() {
+            seen.group = drag.group;
+        }
+
+        // The marquee and clicks on the empty lane.
+        let press = cx.press();
+        let mods = press.mods;
+        match press.phase {
+            PressPhase::DragStart { start, pos, .. } if start.button == PointerButton::Primary => {
+                let mut marquee = MarqueeSelect::begin(start.origin, mods, selection.items.clone());
+                marquee.update(pos);
+                *cx.press_slot::<Sweep>() = Some(Sweep(marquee));
+            }
+            PressPhase::Drag { start, pos, .. } if start.button == PointerButton::Primary => {
+                if let Some(sweep) = cx.press_slot::<Sweep>().as_mut() {
+                    sweep.0.update(pos);
+                }
+            }
+            PressPhase::Cancel { .. } => {
+                if let Some(Sweep(marquee)) = cx.press_slot::<Sweep>().take() {
+                    out.select = restore(marquee.cancel(), selection);
+                }
+            }
+            PressPhase::Release { click: true, start, .. } if start.button == PointerButton::Primary && out.select.is_none() => {
+                if !(mods.shift || mods.cmd) && !selection.items.is_empty() {
+                    out.select = Some(SelectionChange::Clear);
+                }
+            }
+            _ => {}
+        }
+        if let Some(Sweep(marquee)) = cx.press_slot::<Sweep>().clone() {
+            let items = sorted.iter().map(|key| (key.id, self.glyph_rect(key, &axis, lane, glyph)));
+            let keys = marquee.selection(items);
+            if keys != selection.items {
+                out.select = Some(if keys.is_empty() { SelectionChange::Clear } else { SelectionChange::Set(keys) });
+            }
+            seen.marquee = Some(marquee.rect().intersect(lane));
+        }
+        *cx.memory::<Seen>() = seen;
+
+        // The keyboard.
+        if cx.is_focused() && !sorted.is_empty() {
+            self.run_keys(cx, &axis, &sorted, &mut out);
+        }
+        self.report = out;
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let Some(axis) = time_axis(&cx.env) else { return };
+        let (style, lane) = (cx.style, cx.rect);
+        let seen = cx.recall::<Seen>();
+        let shown = cx.value().copied().unwrap_or(Tick::ZERO);
+        let enabled = cx.resolved.enabled;
+        let draw = ui.draw();
+        for key in self.sorted() {
+            let on = self.selection.contains(&key.id);
+            let moved = if on && seen.group.contains(&key.id) { key.time + shown } else { key.time };
+            let at = Rect::from_center_size(pos2(axis.x_of(moved, lane.left()), lane.center().y), vec2(style.glyph, style.glyph));
+            if !lane.expand(style.glyph / 2.0).intersects(at) {
+                continue;
+            }
+            let color = match (enabled, on) {
+                (false, _) => style.disabled,
+                (true, true) => style.selected,
+                (true, false) => style.key,
+            };
+            draw.icon(at, &keyframe_icon(key.interpolation).color(color));
+        }
+        if let Some(area) = seen.marquee {
+            let shape = PaintShape::Rect(area, CornerRadius::ZERO);
+            draw.fill(&shape, style.marquee_fill);
+            draw.stroke(&shape, StrokeWidth::Hairline, style.marquee_edge);
+        }
+    }
+
+    /// A list box, one option per key named by its time.
+    fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
+        let Some(axis) = time_axis(&cx.env) else { return };
+        for key in self.sorted() {
+            let node = access.node(KEY.at(key.id.0), Role::LIST_BOX_OPTION);
+            node.name = Name::Text(format_time(key.time, &axis.format));
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> KeyframeLaneOutput {
+        let Report { select, double_clicked, context, delete } = self.report;
+        KeyframeLaneOutput { delta: cx.edit_response(), select, double_clicked, context, delete }
+    }
+}
+
+/// The selection change `base` makes against `current`: the selection a cancelled marquee restores.
+fn restore(base: Vec<KeyframeId>, current: &Selection<KeyframeId>) -> Option<SelectionChange<KeyframeId>> {
+    if base == current.items {
+        None
+    } else if base.is_empty() {
+        Some(SelectionChange::Clear)
+    } else {
+        Some(SelectionChange::Set(base))
+    }
+}
+
+impl KeyframeLane<'_> {
+    /// Left and Right select the previous and next key, Shift+Left and Right nudge the selected keys a frame, Delete
+    /// asks to delete them.
+    fn run_keys(&self, cx: &mut Cx<'_, Self>, axis: &TimeAxis, sorted: &[&KeyframeMark], out: &mut Report) {
+        if let Some((direction, mods)) = cx.intents().take_nudge()
+            && direction.x != 0.0
+        {
+            let toward = if direction.x < 0.0 { -1 } else { 1 };
+            if mods.shift {
+                let selected: Vec<KeyframeId> = sorted.iter().filter(|key| self.selection.contains(&key.id)).map(|key| key.id).collect();
+                let (low, high) = self.limits(&selected);
+                let step = Tick(axis.frame().0 * toward);
+                if !selected.is_empty() && (low..=high).contains(&step.0) {
+                    cx.set(step);
+                }
+            } else {
+                let last = sorted.len() - 1;
+                let lead = self.selection.lead.and_then(|lead| sorted.iter().position(|key| key.id == lead));
+                let at = if toward > 0 { lead.map_or(0, |at| (at + 1).min(last)) } else { lead.map_or(last, |at| at.saturating_sub(1)) };
+                out.select = Some(SelectionChange::Set(vec![sorted[at].id]));
+            }
+        }
+        let forward = cx.intents().take_exact(&Intent::delete(true, Granularity::Unit));
+        let backward = cx.intents().take_exact(&Intent::delete(false, Granularity::Unit));
+        out.delete = (forward || backward) && !self.selection.items.is_empty();
     }
 }
 
 /// What a keyframe lane did this pass.
-pub struct KeyframeLaneResponse {
-    /// The lane's response, for hover and focus.
-    pub response: Response,
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct KeyframeLaneOutput {
+    /// The delta the dragged keys move by (the selected keys, all by the same delta): one gesture from the drag's
+    /// start to its release, or a `Set` of one frame from the keyboard.
+    pub delta: EditResponse<Tick>,
     /// A click, marquee or key changed the selection.
-    pub selection: Option<SelectionChange<KeyframeId>>,
-    /// The selected keys' move, as a delta.
-    pub moved: Option<EditEvent<Tick>>,
+    pub select: Option<SelectionChange<KeyframeId>>,
     /// The key that was double-clicked.
     pub double_clicked: Option<KeyframeId>,
-    /// The key that got a secondary click; the app opens its menu.
-    pub context_menu: Option<KeyframeId>,
+    /// The key that asked for its menu; the app opens it.
+    pub context: Option<KeyframeId>,
     /// Delete or Backspace was pressed with keys selected.
     pub delete: bool,
 }
 
-/// Premiere's keyframe navigator at a property row: ◀ (previous key), ◆ (add a key at the
-/// playhead, or remove the one there), ▶ (next key). The arrows are
-/// `style.keyframe_arrow_width` × `style.keyframe_arrow_height`, `style.keyframe_nav_step`
-/// either side of the diamond, dimmed without a key that way; the diamond is filled when a key is
-/// at the playhead, else an outline. Three Tab stops (buttons named by [`KeyframeLabels`]),
-/// Space or Enter presses.
+impl Outcome for KeyframeLaneOutput {
+    type Value = Tick;
+
+    fn response(&self) -> &Response {
+        &self.delta.response
+    }
+
+    #[cfg(feature = "screen-testing")]
+    fn story_facts(&self) -> craft_ui::testing::StoryOutput {
+        self.delta.story_facts()
+    }
+}
+
+/// Premiere's keyframe navigator at a property row: a previous-key button, a diamond that adds a key at the playhead
+/// or removes the one there, and a next-key button. A button without a key that way is disabled; the diamond is filled
+/// when a key is at the playhead, else an outline. Three Tab stops, Space or Enter presses.
+#[derive(Pattern)]
 pub struct KeyframeNavigator {
-    id_salt: IdSalt,
+    label: Label,
     animated: bool,
     has_previous: bool,
     has_next: bool,
     at_key: bool,
-    labels: Option<KeyframeLabels>,
 }
 
 impl KeyframeNavigator {
-    /// `has_previous` / `has_next`: a key before / after the playhead; `at_key`: one at it.
-    pub fn new(id_salt: impl AsIdSalt, has_previous: bool, has_next: bool, at_key: bool) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), animated: true, has_previous, has_next, at_key, labels: None }
+    /// A navigator named `label`. `has_previous` / `has_next`: a key before / after the playhead; `at_key`: one at it.
+    pub fn new(label: impl Into<Label>, has_previous: bool, has_next: bool, at_key: bool) -> Self {
+        KeyframeNavigator { label: label.into(), animated: true, has_previous, has_next, at_key }
     }
 
     /// Without animation only the diamond shows (it turns animation on).
@@ -519,68 +543,35 @@ impl KeyframeNavigator {
         self
     }
 
-    /// The tooltip words; `KeyframeLabels::of` when not set.
-    pub fn labels(mut self, labels: KeyframeLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    /// Show the navigator and report the button pressed.
+    /// Shows the navigator and reports the button pressed.
     // filmcraft: crates/ui-egui/src/panels/effect_controls.rs:487 `keyframe_nav`.
-    pub fn show(self, ui: &mut Ui) -> KeyframeNavigatorOutput {
-        let Self { id_salt, animated, has_previous, has_next, at_key, labels } = self;
-        let labels = labels.unwrap_or_else(|| KeyframeLabels::of(ui));
-        let tokens = Tokens::of(ui);
-        let style = TimelineStyle::of(&tokens);
-        let colors = &tokens.color;
-        let id = ui.make_persistent_id(id_salt);
-        let width = if animated { 2.0 * style.keyframe_nav_step + style.keyframe_arrow_width } else { style.keyframe_glyph };
-        let height = style.keyframe_arrow_height.max(style.keyframe_glyph);
-        let (rect, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
-        let center = rect.center();
+    pub fn show(self, ui: &mut egui::Ui) -> KeyframeNavigatorOutput {
+        let KeyframeNavigator { label, animated, has_previous, has_next, at_key } = self;
+        let words = craft_ui::runtime::env::Env::of(ui).words::<KeyframeWords>();
         let mut out = KeyframeNavigatorOutput::default();
-
-        let arrow_size = vec2(style.keyframe_arrow_width, style.keyframe_arrow_height);
-        let press = |ui: &mut Ui, name: &'static str, label: &str, area: Rect, active: bool| {
-            let sensed = Interactive::with_id(id.with(name), Role::Button, label).sense(Sense::click()).interact_at(ui, area);
-            let clicked = sensed.response().clicked();
-            let response = sensed.finish(ui);
-            (response, clicked && active)
-        };
-        if animated {
-            for (name, label, direction, active) in [("previous", &labels.previous, -1.0_f32, has_previous), ("next", &labels.next, 1.0, has_next)] {
-                let area = Rect::from_center_size(center + vec2(direction * style.keyframe_nav_step, 0.0), arrow_size);
-                let (response, clicked) = press(ui, name, label, area, active);
-                // The time axis is never mirrored, so the arrows swap their icons where the kernel mirrors directional ones.
-                let icon = if (direction < 0.0) != direction::is_rtl(ui) { Icon::ChevronLeft } else { Icon::ChevronRight };
-                let color = if active { colors.text.normal } else { colors.text.faint };
-                let size = IconSize::Sm;
-                icons::paint_on(ui.painter(), area, icon, icons::active(ui.ctx()), size.points(&tokens), size.stroke(), color.to_egui());
-                FocusRing::paint(ui, area, Corner::Control, &response);
-                if direction < 0.0 {
-                    out.previous = clicked;
-                } else {
-                    out.next = clicked;
-                }
+        let shown = Row::new().label(label).gap(Gap::Tight).show(ui, |ui, _| {
+            if animated {
+                // The time axis is never mirrored, so the arrows keep their directions.
+                let previous = IconSpec::svg(IconId::new("chevron_left")).mirror(Mirror::Never);
+                let step = IconButton::new(previous).label(words.previous.clone()).enabled(has_previous).show(ui);
+                out.previous = step.clicked();
             }
-        }
-        let area = Rect::from_center_size(center, vec2(style.keyframe_glyph, style.keyframe_glyph));
-        let (response, clicked) = press(ui, "toggle", &labels.add_remove, area, true);
-        out.toggle = clicked;
-        if at_key {
-            paint_keyframe(ui.painter(), center, KeyframeInterpolation::Linear, colors.accent.text.to_egui(), &style);
-        } else {
-            let color = if response.hovered() { colors.text.normal } else { colors.text.muted };
-            paint_icon(ui.painter(), center, Icon::KeyLinear, color.to_egui(), &style);
-        }
-        FocusRing::paint(ui, area, Corner::Control, &response);
+            let diamond = IconId::new(if at_key { "keyframe_linear" } else { "diamond" });
+            out.toggle = IconButton::new(diamond).label(words.add_remove.clone()).show(ui).clicked();
+            if animated {
+                let next = IconSpec::svg(IconId::new("chevron_right")).mirror(Mirror::Never);
+                out.next = IconButton::new(next).label(words.next.clone()).enabled(has_next).show(ui).clicked();
+            }
+        });
+        out.response = Some(shown.output);
         out
     }
 }
 
 /// Which navigator button was pressed.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default)]
 #[must_use]
+#[non_exhaustive]
 pub struct KeyframeNavigatorOutput {
     /// The previous-key button was pressed.
     pub previous: bool,
@@ -588,47 +579,35 @@ pub struct KeyframeNavigatorOutput {
     pub next: bool,
     /// The diamond: add a key at the playhead, or remove the one there.
     pub toggle: bool,
+    /// The navigator's response.
+    pub response: Option<Response>,
 }
 
-/// The stopwatch that turns a property's animation on and off (Premiere's Toggle animation,
-/// After Effects' Time-Vary Stopwatch). A toggle button: one Tab stop, Space toggles; reports
-/// the new state as a `Set`.
+/// The stopwatch that turns a property's animation on and off (Premiere's Toggle animation, After Effects' Time-Vary
+/// Stopwatch). A toggle button: one Tab stop, Space toggles; reports the new state as a `Set`.
+#[derive(Pattern)]
 pub struct AnimationToggle<'a> {
-    id_salt: IdSalt,
-    on: &'a bool,
-    labels: Option<KeyframeLabels>,
+    label: Option<Label>,
+    on: Bind<'a, bool>,
 }
 
 impl<'a> AnimationToggle<'a> {
-    /// A toggle for `on`, the property's animation state.
-    pub fn new(id_salt: impl AsIdSalt, on: &'a bool) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), on, labels: None }
+    /// A toggle for `on`, the property's animation state, named by the keyframe words unless `label` names it.
+    pub fn new(on: Bind<'a, bool>) -> Self {
+        AnimationToggle { label: None, on }
     }
 
-    /// The tooltip words; `KeyframeLabels::of` when not set.
-    pub fn labels(mut self, labels: KeyframeLabels) -> Self {
-        self.labels = Some(labels);
+    /// The toggle's accessible name.
+    pub fn label(mut self, label: impl Into<Label>) -> Self {
+        self.label = Some(label.into());
         self
     }
 
-    /// Show the toggle; the response carries the new state when it changed.
+    /// Shows the toggle; the response carries the new state when it changed.
     // effectcraft: crates/ui-egui/src/panels/timeline.rs:3922 `prop_stopwatch`.
-    pub fn show(self, ui: &mut Ui) -> craft_ui::edit::EditResponse<bool> {
-        let Self { id_salt, on, labels } = self;
-        let labels = labels.unwrap_or_else(|| KeyframeLabels::of(ui));
-        let style = TimelineStyle::of(&Tokens::of(ui));
-        let enabled = ui.is_enabled();
-        let id = ui.make_persistent_id(id_salt);
-        let mut gesture = Gesture::load(ui, id, on, EditPolicy::default()).enabled(enabled);
-        let button = IconButton::new(Icon::Clock, labels.toggle_animation.as_str())
-            .with_id(id)
-            .side(style.keyframe_glyph)
-            .icon_size(style.keyframe_glyph)
-            .selected(*gesture.shown());
-        let response = ui.add(button);
-        if response.clicked() {
-            gesture.set(!*gesture.shown());
-        }
-        EditResponse::new(response, gesture.finish())
+    pub fn show(self, ui: &mut egui::Ui) -> EditResponse<bool> {
+        let AnimationToggle { label, on } = self;
+        let label = label.unwrap_or_else(|| Label::from(craft_ui::runtime::env::Env::of(ui).words::<KeyframeWords>().toggle_animation.clone()));
+        ToggleButton::new(label, on).icon(IconSpec::svg(IconId::new("clock"))).icon_only().show(ui)
     }
 }

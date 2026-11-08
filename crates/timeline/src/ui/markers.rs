@@ -1,469 +1,54 @@
 //! Markers on a ruler or a clip bar, and the Marker dialog (N1.12).
 
-use craft_ui::behavior::{ClaimedKey, KeyClaim};
-use craft_ui::composites::FormGrid;
-use craft_ui::controls::{Swatch, TextField, TooltipExt as _};
-use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, DialogState, Footer, InitialFocus, Outcome, StackDialog, Width};
-use craft_ui::edit::{EditEvent, EditPolicy, Gesture, GestureDraft};
-use craft_ui::icons::{Icon, IconSize};
-use craft_ui::localized::Labels as _;
-use craft_ui::primitives::{Corner, FocusRing};
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format, scale};
-use egui::accesskit::Role;
-use egui::text::LayoutJob;
-use egui::{
-    AsIdSalt, Context, CursorIcon, EventFilter, Id, IdSalt, Key, Modifiers, PointerButton, Pos2, Rect, Response, Sense, Shape, Stroke, Ui,
-    WidgetInfo, pos2, vec2,
-};
+#[cfg(feature = "screen-testing")]
+mod stories;
 
-use super::LabelPalette;
-use super::style::TimelineStyle;
+use std::cell::Cell;
+
+use craft_behavior::{
+    Arrows, CursorIcon, Granularity, HitLevel, HitPriority, Input, Intent, Metrics, Mixed, NavShape, PartKey, PointerButton, PressPhase, Roving,
+    Sense,
+};
+use craft_ui::buttons::Button;
+use craft_ui::choice::{RadioGroup, Swatch};
+use craft_ui::contract::{
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pointer as _,
+    Props as _, Role, Show as _, ShowContainer as _, WordSetCx as _,
+};
+use craft_ui::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
+use craft_ui::form::{Field, FieldGroup};
+use craft_ui::layout_components::Row;
+use craft_ui::patterns::form_dialogs::FormDialog;
+use craft_ui::primitives::{IconSpec, PaintShape, StrokeWidth, TextRun};
+use craft_ui::runtime::env::{Env, Label};
+use craft_ui::runtime::focus::{self, FocusTarget, KeyUse};
+use craft_ui::style::{ComponentStyle, DataColor, StyleColor, StyleCx, TypeRole};
+use craft_ui::text::TextField;
+use egui::{Color32, CornerRadius, Pos2, Rect, Response, Ui, Vec2, pos2};
+
+use super::clips::context_menu;
+use super::{TimeAxis, TimecodeCodec, TimelineWords, label_palette, time_axis};
 use crate::clips::{SnapTargets, snap_time};
 use crate::markers::{Marker, MarkerColor, MarkerId};
-use crate::time::{Tick, TimeView};
+use crate::time::Tick;
 use crate::timecode::{TimeFormat, format_time};
 
-use super::timecode::TimecodeField;
-
-/// The fill of a range marker's duration bar, as a share of the label colour (EffectCraft
-/// `markers_ui.rs:296`). A drawing detail (decisions §3.4).
+/// The fill of a range marker's duration bar, as a share of the label colour (EffectCraft `markers_ui.rs:296`).
 const DURATION_TINT: f32 = 0.5;
-
-/// What a marker gesture asks of the app.
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub enum MarkerEdit {
-    /// A drag of the marker: its new time (snapped), as one gesture; Esc cancels.
-    Move {
-        /// The marker that moves.
-        id: MarkerId,
-        /// The new start time.
-        to: EditEvent<Tick>,
-    },
-    /// An Alt-drag: its new duration, as one gesture.
-    SetDuration {
-        /// The marker whose duration changes.
-        id: MarkerId,
-        /// The new duration.
-        duration: EditEvent<Tick>,
-    },
-    /// Cmd-click (Ctrl-click on Windows and Linux), or Delete with the marker picked.
-    Delete(MarkerId),
-    /// Double-click or Enter: open the Marker dialog on it.
-    Open(MarkerId),
-    /// A marker dragged out of the marker bin and dropped at `at`, or Add Marker (M).
-    Add {
-        /// Where the new marker starts.
-        at: Tick,
-    },
-}
-
-/// A row of markers in `rect` (the ruler's marker band, a clip or layer bar): a flag
-/// `style.marker_width` wide ([`TimelineStyle`]) pointing down at its time
-/// (the point at [`MARKER_POINT`] of the height), coloured by its label, a duration bar for
-/// range markers, the name beside it when there is room.
-///
-/// After Effects' gestures (EffectCraft `markers_ui.rs:1`): drag moves (snapping to `snap`),
-/// Alt-drag sets the duration, Cmd-click (Ctrl-click on Windows and Linux) deletes, a
-/// double-click opens the dialog, a secondary click is reported for the app's menu (Settings,
-/// Convert, Delete). With [`bin`](Self::bin) a marker dragged out of the bin at the right end
-/// adds one where it is dropped. Tooltips show name and comment. Keyboard: the strip is one Tab
-/// stop (the markers and the bin are pointer-only), Left / Right pick the previous / next
-/// marker, Enter opens it, Delete and Backspace delete it (claimed through
-/// [`KeyClaim`]); each chord matches its modifiers exactly.
-/// AccessKit: a `ListBox` named by [`MarkerStripLabels`]' title, holding the markers named by
-/// name and time.
-pub struct MarkerStrip<'a> {
-    id_salt: IdSalt,
-    markers: &'a [Marker],
-    view: &'a TimeView,
-    snap: Option<&'a SnapTargets>,
-    palette: Option<&'a LabelPalette>,
-    bin: Option<Rect>,
-    format: Option<TimeFormat>,
-    labels: Option<MarkerStripLabels>,
-}
-
-impl<'a> MarkerStrip<'a> {
-    /// A strip for `markers` on the time `view`.
-    pub fn new(id_salt: impl AsIdSalt, markers: &'a [Marker], view: &'a TimeView) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), markers, view, snap: None, palette: None, bin: None, format: None, labels: None }
-    }
-
-    /// The accessibility words; `MarkerStripLabels::of` when not set.
-    pub fn labels(mut self, labels: MarkerStripLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    /// The snap targets for drags; `None` turns snapping off.
-    pub fn snap(mut self, targets: Option<&'a SnapTargets>) -> Self {
-        self.snap = targets;
-        self
-    }
-
-    /// The palette that gives the markers' label colours; the default palette when not set.
-    pub fn palette(mut self, palette: &'a LabelPalette) -> Self {
-        self.palette = Some(palette);
-        self
-    }
-
-    /// The marker bin (After Effects' at the right end of the ruler, EffectCraft `:429`).
-    pub fn bin(mut self, rect: Rect) -> Self {
-        self.bin = Some(rect);
-        self
-    }
-
-    /// The time format of the markers' accessible names (name and time); without one the names
-    /// are the markers' names alone.
-    pub fn format(mut self, format: TimeFormat) -> Self {
-        self.format = Some(format);
-        self
-    }
-
-    /// Show the strip in `rect` and report what the user did.
-    // effectcraft: crates/ui-egui/src/panels/markers_ui.rs:274 `marker_shape`, `:282` `marker`,
-    // `:253` `snap`, `:380` `name_box_x`, `:408` `comp_markers`, `:429` `marker_bin`.
-    pub fn show(self, ui: &mut Ui, rect: Rect) -> MarkerStripResponse {
-        let Self { id_salt, markers, view, snap, palette, bin, format, labels } = self;
-        let tokens = Tokens::of(ui);
-        let style = TimelineStyle::of(&tokens);
-        let labels = labels.unwrap_or_else(|| MarkerStripLabels::of(ui));
-        let owned;
-        let palette = match palette {
-            Some(palette) => palette,
-            None => {
-                owned = LabelPalette::default();
-                &owned
-            }
-        };
-        let enabled = ui.is_enabled();
-        let id = ui.make_persistent_id(id_salt);
-        let response = ui.interact(rect, id, Sense::focusable_noninteractive());
-        response.widget_info(|| WidgetInfo::labeled(Role::ListBox, enabled, labels.title.as_str()));
-
-        let mut order: Vec<&Marker> = markers.iter().collect();
-        order.sort_by_key(|marker| marker.start);
-        let drag_key = id.with("drag");
-        let picked_key = id.with("picked");
-        let (move_id, length_id) = (id.with("move"), id.with("duration"));
-        let reported = |gesture: Id| Gesture::<Tick>::reported(ui, gesture).map_or(Tick::ZERO, |(_, delta)| delta);
-        let mut moving = Gesture::load(ui, move_id, &reported(move_id), EditPolicy::default()).enabled(enabled);
-        let mut sizing = Gesture::load(ui, length_id, &reported(length_id), EditPolicy::default()).enabled(enabled);
-        if !moving.is_active() && !sizing.is_active() {
-            ui.data_mut(|d| d.remove::<Drag>(drag_key));
-        }
-        let mut drag = ui.data(|d| d.get_temp::<Drag>(drag_key));
-        let mut picked = ui.data(|d| d.get_temp::<MarkerId>(picked_key)).filter(|picked| markers.iter().any(|m| m.id == *picked));
-        let modifiers = ui.input(|i| i.modifiers);
-        let half_hit = style.marker_hit / 2.0;
-        let mut out = MarkerStripResponse { response, edits: Vec::new(), context_menu: None };
-
-        // Where a dragged time lands: on a snap target other than the marker's own place.
-        let settle = |t: Tick, own: Option<Tick>| match snap {
-            Some(targets) => {
-                let mut others = SnapTargets::new();
-                others.extend(targets.times().iter().copied().filter(|target| Some(*target) != own));
-                snap_time(&others, t.max(Tick::ZERO), view, style.snap_distance).0
-            }
-            None => t.max(Tick::ZERO),
-        };
-        let (moved, resized) = (*moving.shown(), *sizing.shown());
-        let shown = |marker: &Marker, drag: Option<Drag>, moved: Tick, resized: Tick| match drag {
-            Some(grab) if grab.id == marker.id => (grab.start + moved, grab.length + resized),
-            _ => (marker.start, marker.duration),
-        };
-
-        if enabled {
-            for marker in &order {
-                let (start, _) = shown(marker, drag, moved, resized);
-                let x = view.x_of(start, rect.left());
-                let grabbed = drag.is_some_and(|grab| grab.id == marker.id);
-                if !grabbed && (x < rect.left() - half_hit || x > rect.right() + half_hit) {
-                    continue;
-                }
-                let hit = Rect::from_min_max(pos2(x - half_hit, rect.top()), pos2(x + half_hit, rect.bottom()));
-                let marker_response = ui.interact(hit, id.with(("marker", marker.id.0)), Sense::CLICK | Sense::DRAG);
-                if marker_response.drag_started_by(PointerButton::Primary) {
-                    out.response.request_focus();
-                    picked = Some(marker.id);
-                    let grab = Drag { id: marker.id, length_drag: modifiers.alt, start: marker.start, length: marker.duration };
-                    ui.data_mut(|d| d.insert_temp(drag_key, grab));
-                    drag = Some(grab);
-                    if grab.length_drag {
-                        sizing.begin();
-                    } else {
-                        moving.begin();
-                    }
-                }
-                if let Some(grab) = drag.filter(|grab| grab.id == marker.id)
-                    && marker_response.dragged_by(PointerButton::Primary)
-                    && let Some(pos) = ui.input(|i| i.pointer.interact_pos())
-                {
-                    let at = settle(view.time_at(pos.x, rect.left()), Some(grab.start));
-                    if grab.length_drag {
-                        sizing.update(at.max(grab.start) - grab.start - grab.length, modifiers);
-                    } else {
-                        moving.update(at - grab.start, modifiers);
-                    }
-                }
-                if marker_response.drag_stopped() {
-                    moving.commit();
-                    sizing.commit();
-                }
-                if marker_response.clicked_by(PointerButton::Primary) {
-                    out.response.request_focus();
-                    picked = Some(marker.id);
-                    if modifiers.command {
-                        out.edits.push(MarkerEdit::Delete(marker.id));
-                    }
-                }
-                if marker_response.double_clicked_by(PointerButton::Primary) {
-                    out.edits.push(MarkerEdit::Open(marker.id));
-                }
-                if marker_response.secondary_clicked() {
-                    out.context_menu = Some(marker.id);
-                }
-                let name = match &format {
-                    Some(format) => format!("{}, {}", marker.name, format_time(marker.start, format)),
-                    None => marker.name.clone(),
-                };
-                let on = picked == Some(marker.id);
-                marker_response.widget_info(|| WidgetInfo::selected(Role::ListBoxOption, enabled, on, name.as_str()));
-                let tip =
-                    [marker.name.as_str(), marker.comment.as_str()].iter().filter(|text| !text.is_empty()).copied().collect::<Vec<_>>().join("\n");
-                marker_response.tooltip(if tip.is_empty() { labels.title.clone() } else { tip });
-            }
-            if out.response.has_focus() && !order.is_empty() {
-                pick_by_key(ui, id, &order, &mut picked, &mut out.edits);
-            }
-            ui.data_mut(|d| match picked {
-                Some(picked) => {
-                    d.insert_temp(picked_key, picked);
-                }
-                None => {
-                    d.remove::<MarkerId>(picked_key);
-                }
-            });
-        }
-
-        let (moved, resized) = (*moving.shown(), *sizing.shown());
-
-        // The drag's events, in the markers' own times.
-        if let Some(grab) = drag {
-            let to = moving.finish_as(|delta| grab.start + delta);
-            let duration = sizing.finish_as(|delta| grab.length + delta);
-            out.edits.extend(to.map(|to| MarkerEdit::Move { id: grab.id, to }));
-            out.edits.extend(duration.map(|duration| MarkerEdit::SetDuration { id: grab.id, duration }));
-        } else {
-            let _ = (moving.finish(), sizing.finish());
-        }
-
-        // Paint: duration bars and names first, then every flag above them.
-        let painter = ui.painter_at(rect);
-        let color = &tokens.color;
-        let hairline = scale::Stroke::Hairline.width(ui.pixels_per_point());
-        let height = rect.height().min(style.marker_height);
-        let text = role_format(&tokens, style.marker_text, color.text.normal.to_egui());
-        let radius = Corner::Control.radius(&tokens);
-        let placed: Vec<(&Marker, Tick, Tick)> = order
-            .iter()
-            .map(|marker| {
-                let (start, length) = shown(marker, drag, moved, resized);
-                (*marker, start, length)
-            })
-            .collect();
-        for &(marker, start, length) in &placed {
-            let x = view.x_of(start, rect.left());
-            let tint = palette.color(marker.color);
-            let end = (length > Tick::ZERO).then(|| view.x_of(start + length, rect.left()));
-            if let Some(end) = end {
-                let bar = Rect::from_min_max(pos2(x, rect.top() + hairline), pos2(end, rect.top() + height - hairline));
-                painter.rect_filled(bar, egui::CornerRadius::ZERO, tint.gamma_multiply(DURATION_TINT));
-            }
-            if marker.name.is_empty() {
-                continue;
-            }
-            let galley = ui.fonts_mut(|fonts| fonts.layout_job(LayoutJob::single_section(marker.name.clone(), text.clone())));
-            let width = galley.size().x + 2.0 * tokens.space.gap.inline;
-            if let Some(left) = name_box_x(x, width, end, rect, tokens.space.gap.inline, tokens.space.gap.tight) {
-                let name_box = Rect::from_min_size(pos2(left, rect.top()), vec2(width, height.max(galley.size().y)));
-                painter.rect(
-                    name_box,
-                    radius,
-                    color.surface.sunken.to_egui(),
-                    Stroke::new(hairline, color.line.control_edge.to_egui()),
-                    egui::StrokeKind::Inside,
-                );
-                painter.galley(pos2(name_box.left() + tokens.space.gap.inline, name_box.center().y - galley.size().y / 2.0), galley, text.color);
-            }
-        }
-        for &(marker, start, length) in &placed {
-            let x = view.x_of(start, rect.left());
-            let tint = palette.color(marker.color);
-            let flag = flag(x, rect.top(), style.marker_width, height);
-            painter.add(Shape::convex_polygon(flag, tint, Stroke::NONE));
-            if length > Tick::ZERO {
-                let end = view.x_of(start + length, rect.left());
-                painter.line_segment(
-                    [pos2(end, rect.top()), pos2(end, rect.top() + height)],
-                    Stroke::new(scale::Stroke::W1.width(ui.pixels_per_point()), tint),
-                );
-            }
-        }
-        if let Some(picked) = picked
-            && out.response.has_focus()
-            && let Some(&(_, start, _)) = placed.iter().find(|(marker, ..)| marker.id == picked)
-        {
-            let ring = Rect::from_center_size(pos2(view.x_of(start, rect.left()), rect.top() + height / 2.0), vec2(style.marker_hit, height));
-            FocusRing::paint_radius(ui, ring, radius, &out.response);
-        } else {
-            FocusRing::paint_radius(ui, rect, radius, &out.response);
-        }
-
-        if let Some(bin) = bin {
-            let bin_cx = BinCx {
-                bin,
-                strip: rect,
-                height,
-                flag_width: style.marker_width,
-                enabled,
-                labels: &labels,
-                tint: palette.color(MarkerColor::default()),
-            };
-            if let Some(at) = marker_bin(ui, id.with("bin"), &bin_cx, view, &settle, &tokens) {
-                out.edits.push(MarkerEdit::Add { at });
-            }
-        }
-        out
-    }
-}
-
-/// Whether `key` was pressed with no modifier this pass, and consumes it; an extra Shift or Alt
-/// is another chord.
-fn pressed(ui: &Ui, key: Key) -> bool {
-    ui.input_mut(|i| ClaimedKey::exact(Modifiers::NONE, key).consume(i))
-}
-
-/// Left and Right pick the previous and next marker, Enter opens the picked one, Delete and
-/// Backspace delete it.
-fn pick_by_key(ui: &Ui, id: Id, order: &[&Marker], picked: &mut Option<MarkerId>, edits: &mut Vec<MarkerEdit>) {
-    ui.memory_mut(|m| m.set_focus_lock_filter(id, EventFilter { horizontal_arrows: true, ..EventFilter::default() }));
-    KeyClaim::claim(ui.ctx(), id, &[ClaimedKey::exact(Modifiers::NONE, Key::Delete), ClaimedKey::exact(Modifiers::NONE, Key::Backspace)]);
-    let at = picked.and_then(|picked| order.iter().position(|m| m.id == picked));
-    if pressed(ui, Key::ArrowRight) {
-        *picked = Some(order[at.map_or(0, |at| (at + 1).min(order.len() - 1))].id);
-    }
-    if pressed(ui, Key::ArrowLeft) {
-        *picked = Some(order[at.map_or(order.len() - 1, |at| at.saturating_sub(1))].id);
-    }
-    if let Some(picked) = *picked {
-        if pressed(ui, Key::Enter) {
-            edits.push(MarkerEdit::Open(picked));
-        }
-        if pressed(ui, Key::Delete) || pressed(ui, Key::Backspace) {
-            edits.push(MarkerEdit::Delete(picked));
-        }
-    }
-}
-
-/// The flag's outline: a tab `width` wide pointing down at `x`, `height` tall from `top`
-/// (EffectCraft `markers_ui.rs:274`).
-fn flag(x: f32, top: f32, width: f32, height: f32) -> Vec<Pos2> {
-    let half = width / 2.0;
-    let point = top + height * MARKER_POINT;
-    vec![pos2(x - half, top), pos2(x + half, top), pos2(x + half, point), pos2(x, top + height), pos2(x - half, point)]
-}
-
-/// The marker bin and what its drag needs.
-struct BinCx<'a> {
-    bin: Rect,
-    strip: Rect,
-    height: f32,
-    flag_width: f32,
-    enabled: bool,
-    labels: &'a MarkerStripLabels,
-    tint: egui::Color32,
-}
-
-/// The marker bin at the right end of the ruler: a marker dragged out of it follows the pointer
-/// along the strip, and dropping it there answers the time to add one at.
-// effectcraft: crates/ui-egui/src/panels/markers_ui.rs:429 `marker_bin`.
-fn marker_bin(ui: &mut Ui, id: Id, cx: &BinCx<'_>, view: &TimeView, settle: &dyn Fn(Tick, Option<Tick>) -> Tick, tokens: &UiTokens) -> Option<Tick> {
-    let BinCx { bin, strip, height, flag_width, enabled, labels, tint } = *cx;
-    let color = &tokens.color;
-    let response = ui.interact(bin, id, Sense::DRAG);
-    response.widget_info(|| WidgetInfo::labeled(Role::Button, enabled, labels.bin.as_str()));
-    let response = response.tooltip(labels.bin_hint.clone());
-    let hot = response.hovered() || response.dragged();
-    if hot {
-        ui.ctx().set_cursor_icon(if response.dragged() { CursorIcon::Grabbing } else { CursorIcon::Grab });
-    }
-    craft_ui::icons::paint(ui, bin, Icon::Flag, IconSize::Md, if hot { color.accent.solid } else { color.text.muted }.to_egui());
-    let pos = response.interact_pointer_pos().filter(|pos| pos.x >= strip.left() && pos.x < strip.right())?;
-    let at = settle(view.time_at(pos.x, strip.left()), None);
-    if response.dragged() {
-        let flag = flag(view.x_of(at, strip.left()), strip.top(), flag_width, height);
-        ui.painter_at(strip).add(Shape::convex_polygon(flag, tint, Stroke::NONE));
-    }
-    response.drag_stopped().then_some(at)
-}
-
-/// A marker drag under way: which marker, whether it sets the duration, and the marker's start
-/// and duration when it was grabbed (the gestures carry the change from these).
-#[derive(Clone, Copy)]
-struct Drag {
-    id: MarkerId,
-    length_drag: bool,
-    start: Tick,
-    length: Tick,
-}
-
-/// The left edge of a marker's name box: after the flag, after a range marker's end cap when that
-/// is in the way, else before the flag; `None` when it fits nowhere in `clip`.
-// effectcraft: crates/ui-egui/src/panels/markers_ui.rs:380 `name_box_x`.
-fn name_box_x(x: f32, width: f32, end: Option<f32>, clip: Rect, gap: f32, end_gap: f32) -> Option<f32> {
-    let start = x + gap;
-    let right = match end {
-        Some(end) if end > start && end < start + width => end + end_gap,
-        _ => start,
-    };
-    if right + width <= clip.right() {
-        return Some(right);
-    }
-    let left = x - gap - width;
-    (left >= clip.left()).then_some(left)
-}
-
-/// Where a marker's point sits, as a share of the strip's height (EffectCraft `markers_ui.rs:274`).
-/// A proportion of the strip, not a size.
+/// Where a marker's point sits, as a share of the strip's height (EffectCraft `markers_ui.rs:274`). A proportion of
+/// the strip, not a size.
 pub const MARKER_POINT: f32 = 0.6;
-
-/// What the strip did this pass. A drag reports its gesture in [`MarkerEdit::Move`] and
-/// [`MarkerEdit::SetDuration`]: the app previews `Update`s and applies the `Commit`.
-pub struct MarkerStripResponse {
-    /// The strip's response, for hover and focus.
-    pub response: Response,
-    /// This pass's edits, in order.
-    pub edits: Vec<MarkerEdit>,
-    /// The marker that got a secondary click; the app opens its menu.
-    pub context_menu: Option<MarkerId>,
-}
+/// The Comments field's height in lines (EffectCraft `markers_ui.rs:151`).
+const COMMENT_ROWS: usize = 3;
+/// The sixteen label colours.
+const LABELS: u8 = 16;
 
 craft_ui::words! {
-    /// The marker strip's words, English by default.
+    /// The marker strip's and the Marker dialog's words, English by default.
     #[non_exhaustive]
-    pub struct MarkerStripLabels {
-        title: "markerStrip.title" = "Markers";
+    pub struct MarkerWords {
         bin: "markerStrip.bin" = "Marker bin";
         bin_hint: "markerStrip.binHint" = "Marker bin: drag a marker to the time ruler";
-    }
-}
-
-craft_ui::words! {
-    /// The Marker dialog's words, English by default.
-    #[non_exhaustive]
-    pub struct MarkerDialogLabels {
         title: "markerDialog.title" = "Marker";
         name: "markerDialog.name" = "Name:";
         comment: "markerDialog.comment" = "Comments:";
@@ -476,11 +61,440 @@ craft_ui::words! {
     }
 }
 
-/// The Comments field's height in lines (EffectCraft `markers_ui.rs:151`).
-const COMMENT_ROWS: usize = 3;
+/// What a marker gesture asks of the app, besides the drag the strip's value carries.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum MarkerEdit {
+    /// Cmd-click (Ctrl-click on Windows and Linux), or Delete with the marker picked.
+    Delete(MarkerId),
+    /// Double-click or Enter: open the Marker dialog on it.
+    Open(MarkerId),
+    /// A marker dragged out of the marker bin and dropped at `at`, or Add Marker (M).
+    Add {
+        /// Where the new marker starts.
+        at: Tick,
+    },
+}
+
+/// A dragged marker's place: the strip's value. A drag moves `start`; an Alt-drag sets `duration`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct MarkerSpan {
+    /// The marker that moves.
+    pub id: MarkerId,
+    /// Where it starts.
+    pub start: Tick,
+    /// How long it lasts; zero for a point marker.
+    pub duration: Tick,
+}
+
+impl MarkerSpan {
+    /// The place of marker `id`.
+    pub const fn new(id: MarkerId, start: Tick, duration: Tick) -> Self {
+        MarkerSpan { id, start, duration }
+    }
+}
+
+/// The part of marker `MARKER.at(id)`, and the marker bin.
+const MARKER: PartKey = PartKey::new("marker");
+const BIN: PartKey = PartKey::new("bin");
+
+/// The style of the marker strip.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+#[non_exhaustive]
+pub struct MarkerStripStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+    /// The marker's name.
+    name: StyleColor,
+    /// The box behind a name.
+    name_fill: StyleColor,
+    /// The outline of that box.
+    name_edge: StyleColor,
+    /// The bin's glyph, idle and while a marker is dragged out of it.
+    bin_idle: StyleColor,
+    bin_hot: StyleColor,
+    /// The flag's width and the strip's height.
+    flag_width: f32,
+    height: f32,
+    /// How far from a marker's time a press still takes it, and how near a snap target a dragged time snaps.
+    reach: f32,
+    /// The room around a name, and the gap before a range marker's end cap.
+    pad: f32,
+    cap_gap: f32,
+    /// The width of a range marker's end cap.
+    cap: f32,
+    radius: CornerRadius,
+}
+
+/// A marker drag under way: which marker, whether it sets the duration, and the marker's start and duration when it
+/// was grabbed.
+#[derive(Clone, Copy, Debug, Default)]
+struct Grab {
+    id: u64,
+    length_drag: bool,
+    start: Tick,
+    length: Tick,
+}
+
+/// What the strip's paint reads of the pass: the marker being dragged out of the bin.
+#[derive(Clone, Debug, Default)]
+struct Pulled {
+    at: Option<Tick>,
+}
+
+/// What the strip reports besides the drag.
+#[derive(Clone, Debug, Default)]
+struct Report {
+    edits: Vec<MarkerEdit>,
+    context: Option<MarkerId>,
+}
+
+/// A row of markers in the rect it is shown at (the ruler's marker band, a clip or layer bar): a flag pointing down
+/// at its time (the point at [`MARKER_POINT`] of the height), coloured by its label, a duration bar for range markers,
+/// the name beside it when there is room.
+///
+/// After Effects' gestures (EffectCraft `markers_ui.rs:1`): drag moves (snapping to [`snap`](Self::snap)), Alt-drag
+/// sets the duration, Cmd-click (Ctrl-click on Windows and Linux) deletes, a double-click opens the dialog, a secondary
+/// click is reported for the app's menu (Settings, Convert, Delete). The drag is the strip's value, a [`MarkerSpan`]:
+/// one gesture from press to release, Esc cancels. With [`bin`](Self::bin) a marker dragged out of the bin at the
+/// right end adds one where it is dropped. Tooltips show name and comment. Keyboard: the markers are one roving
+/// group, so the strip is one Tab stop; Left / Right pick the previous / next marker, Enter opens it, Delete and
+/// Backspace delete it. AccessKit: a list box named by the strip's label, holding the markers named by name and time.
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
+pub struct MarkerStrip<'a> {
+    #[common]
+    common: Common,
+    markers: &'a [Marker],
+    span: Bind<'a, MarkerSpan>,
+    /// The snap targets for drags; none turns snapping off.
+    #[prop]
+    snap: Option<&'a SnapTargets>,
+    /// Shows the marker bin at the right end.
+    #[prop(flag)]
+    bin: bool,
+    report: Report,
+}
+
+impl<'a> MarkerStrip<'a> {
+    /// A strip named `label` for `markers`.
+    pub fn new(label: impl Into<Label>, markers: &'a [Marker]) -> Self {
+        MarkerStrip { common: Common::new(), markers, span: Bind::given(Mixed::Mixed), snap: None, bin: false, report: Report::default() }
+            .label(label)
+    }
+
+    fn sorted(&self) -> Vec<&'a Marker> {
+        let mut order: Vec<&Marker> = self.markers.iter().collect();
+        order.sort_by_key(|marker| marker.start);
+        order
+    }
+
+    /// Where a dragged time lands: on a snap target other than the marker's own place.
+    fn settle(&self, axis: &TimeAxis, reach: f32, t: Tick, own: Option<Tick>) -> Tick {
+        match self.snap {
+            Some(targets) => {
+                let mut others = SnapTargets::new();
+                others.extend(targets.times().iter().copied().filter(|target| Some(*target) != own));
+                snap_time(&others, t.max(Tick::ZERO), &axis.view, reach).0
+            }
+            None => t.max(Tick::ZERO),
+        }
+    }
+
+    /// The marker's start and duration as drawn: the dragged marker's, while it is dragged.
+    fn shown(marker: &Marker, dragged: Option<&MarkerSpan>) -> (Tick, Tick) {
+        match dragged {
+            Some(span) if span.id == marker.id => (span.start, span.duration),
+            _ => (marker.start, marker.duration),
+        }
+    }
+
+    /// The bin's rect at the right end of `rect`.
+    fn bin_rect(rect: Rect, height: f32) -> Rect {
+        Rect::from_min_size(pos2(rect.right() - height, rect.top()), Vec2::splat(height))
+    }
+
+    /// The name box's left edge: after the flag, after a range marker's end cap when that is in the way, else before
+    /// the flag; `None` when it fits nowhere in `clip` (EffectCraft `markers_ui.rs:380` `name_box_x`).
+    fn name_box_x(x: f32, width: f32, end: Option<f32>, clip: Rect, gap: f32, end_gap: f32) -> Option<f32> {
+        let start = x + gap;
+        let right = match end {
+            Some(end) if end > start && end < start + width => end + end_gap,
+            _ => start,
+        };
+        if right + width <= clip.right() {
+            return Some(right);
+        }
+        let left = x - gap - width;
+        (left >= clip.left()).then_some(left)
+    }
+
+    /// The flag's outline: a tab `width` wide pointing down at `x`, `height` tall from `top`.
+    fn flag(x: f32, top: f32, width: f32, height: f32) -> Vec<Pos2> {
+        let half = width / 2.0;
+        let point = top + height * MARKER_POINT;
+        vec![pos2(x - half, top), pos2(x + half, top), pos2(x + half, point), pos2(x, top + height), pos2(x - half, point)]
+    }
+}
+
+impl Component for MarkerStrip<'_> {
+    const ROLE: Role = Role::LIST_BOX;
+    const OVERLAYS: bool = false;
+    const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_deletes();
+    type Style = MarkerStripStyle;
+    type Output = MarkerStripOutput;
+
+    fn style(cx: &StyleCx<'_>, _: MarkerStripStyleKey) -> MarkerStripStyle {
+        let tokens = cx.tokens;
+        MarkerStripStyle {
+            metrics: Metrics::new(),
+            name: cx.color(tokens.color.text.normal),
+            name_fill: cx.color(tokens.color.surface.sunken),
+            name_edge: cx.color(tokens.color.line.control_edge),
+            bin_idle: cx.color(tokens.color.text.muted),
+            bin_hot: cx.color(tokens.color.accent.solid),
+            flag_width: tokens.size.handle.md,
+            height: cx.control().height,
+            reach: tokens.size.hit.target,
+            pad: tokens.space.gap.inline,
+            cap_gap: tokens.space.gap.tight,
+            cap: tokens.stroke.medium,
+            radius: craft_ui::style::UiTokens::corner(tokens.shape.radius.sm),
+        }
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::HOVER
+    }
+
+    fn fills(&self) -> Option<craft_behavior::Axis> {
+        Some(craft_behavior::Axis::X)
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(0.0, cx.style.height)
+    }
+
+    fn bind(&mut self) -> Option<BindMut<'_, MarkerSpan>> {
+        Some(self.span.reborrow())
+    }
+
+    /// One focusable part per marker in time order, in one roving group; the bin is pointer-only.
+    fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
+        let Some(axis) = time_axis(&cx.env) else { return };
+        let (height, half) = (cx.style.height.min(rect.height()), cx.style.reach / 2.0);
+        let mut any = false;
+        for marker in self.sorted() {
+            let x = axis.x_of(marker.start, rect.left());
+            if x < rect.left() - half || x > rect.right() + half {
+                continue;
+            }
+            let hit = Rect::from_min_max(pos2(x - half, rect.top()), pos2(x + half, rect.top() + height));
+            let tip = [marker.name.as_str(), marker.comment.as_str()].iter().filter(|text| !text.is_empty()).copied().collect::<Vec<_>>().join("\n");
+            let part = cx
+                .part(MARKER.at(marker.id.0), hit)
+                .sense(Sense::CLICK | Sense::DRAG | Sense::CONTEXT_CLICK | Sense::TAKE_FOCUS)
+                .priority(HitPriority::new(HitLevel::Handle, 0))
+                .focusable();
+            if !tip.is_empty() {
+                part.tooltip(tip);
+            }
+            any = true;
+        }
+        if any {
+            cx.roving(Roving::new(NavShape::Flat).arrows(Arrows::Horizontal));
+        }
+        if self.bin {
+            let hint = cx.words::<MarkerWords>().bin_hint.clone();
+            cx.part(BIN, Self::bin_rect(rect, height))
+                .sense(Sense::DRAG)
+                .cursor(CursorIcon::Grab)
+                .drag_cursor(CursorIcon::Grabbing)
+                .tooltip(hint)
+                .pointer_only("Add Marker adds a marker at the playhead");
+        }
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        let Some(axis) = time_axis(&cx.env) else { return };
+        let (reach, strip) = (cx.style.reach, cx.rect);
+        let mut report = Report::default();
+        for marker in self.sorted() {
+            let part = MARKER.at(marker.id.0);
+            let Some(result) = cx.part_if_declared(part) else { continue };
+            let press = result.press;
+            if press.double_pressed() {
+                report.edits.push(MarkerEdit::Open(marker.id));
+            }
+            if context_menu(cx, part).is_some() {
+                report.context = Some(marker.id);
+            }
+            if cx.part_activated(part) == Some(craft_ui::runtime::commands::FireSource::Key) {
+                report.edits.push(MarkerEdit::Open(marker.id));
+            }
+            if press.phase.start().is_none_or(|start| start.button != PointerButton::Primary) {
+                continue;
+            }
+            match press.phase {
+                PressPhase::DragStart { .. } => {
+                    let grab = Grab { id: marker.id.0, length_drag: press.mods.alt, start: marker.start, length: marker.duration };
+                    *cx.press_slot::<Grab>() = Some(grab);
+                    cx.propose(MarkerSpan::new(marker.id, marker.start, marker.duration));
+                }
+                PressPhase::Drag { pos, .. } => {
+                    if let Some(grab) = cx.press_slot::<Grab>().clone() {
+                        let at = self.settle(&axis, reach, axis.tick_at(pos.x, strip.left()), Some(grab.start));
+                        let span = if grab.length_drag {
+                            MarkerSpan::new(marker.id, grab.start, at.max(grab.start) - grab.start)
+                        } else {
+                            MarkerSpan::new(marker.id, at, grab.length)
+                        };
+                        cx.propose(span);
+                    }
+                }
+                PressPhase::Release { click: false, .. } => cx.commit(),
+                PressPhase::Release { click: true, .. } if press.mods.cmd => report.edits.push(MarkerEdit::Delete(marker.id)),
+                _ => {}
+            }
+        }
+        // Delete and Backspace delete the focused marker.
+        if let Some(index) = cx.active_part().filter(|part| part.key == MARKER).and_then(|part| part.index) {
+            let forward = cx.intents().take_exact(&Intent::delete(true, Granularity::Unit));
+            let backward = cx.intents().take_exact(&Intent::delete(false, Granularity::Unit));
+            if forward || backward {
+                report.edits.push(MarkerEdit::Delete(MarkerId(index)));
+            }
+        }
+        // The marker bin: a marker dragged out of it follows the pointer along the strip.
+        let mut pulled = Pulled::default();
+        if self.bin
+            && let Some(result) = cx.part_if_declared(BIN)
+        {
+            let phase = result.press.phase;
+            match phase {
+                PressPhase::Drag { pos, .. } | PressPhase::DragStart { pos, .. } if strip.x_range().contains(pos.x) => {
+                    pulled.at = Some(self.settle(&axis, reach, axis.tick_at(pos.x, strip.left()), None));
+                }
+                PressPhase::Release { pos, click: false, .. } if strip.x_range().contains(pos.x) => {
+                    let at = self.settle(&axis, reach, axis.tick_at(pos.x, strip.left()), None);
+                    report.edits.push(MarkerEdit::Add { at });
+                }
+                _ => {}
+            }
+        }
+        *cx.memory::<Pulled>() = pulled;
+        self.report = report;
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let Some(axis) = time_axis(&cx.env) else { return };
+        let (style, rect) = (cx.style, cx.rect);
+        let palette = label_palette(&cx.env);
+        let tint = |color: MarkerColor| palette.0[usize::from(color.0) % palette.0.len()];
+        let dragged = cx.value().copied();
+        let height = rect.height().min(style.height);
+        let draw = ui.draw();
+        let placed: Vec<(&Marker, Tick, Tick)> = self
+            .sorted()
+            .into_iter()
+            .map(|marker| {
+                let (start, length) = Self::shown(marker, dragged.as_ref());
+                (marker, start, length)
+            })
+            .collect();
+        // The duration bars and names first, then every flag above them.
+        for &(marker, start, length) in &placed {
+            let x = axis.x_of(start, rect.left());
+            let end = (length > Tick::ZERO).then(|| axis.x_of(start + length, rect.left()));
+            if let Some(end) = end {
+                let bar = Rect::from_min_max(pos2(x, rect.top()), pos2(end, rect.top() + height));
+                draw.data_fill(&PaintShape::Rect(bar, CornerRadius::ZERO), DataColor::new(tint(marker.color).gamma_multiply(DURATION_TINT)));
+            }
+            if marker.name.is_empty() {
+                continue;
+            }
+            let run = TextRun::new(marker.name.as_str()).role(TypeRole::Caption).color(style.name);
+            let layout = draw.layout(&run, f32::INFINITY);
+            let width = layout.size().x + 2.0 * style.pad;
+            if let Some(left) = Self::name_box_x(x, width, end, rect, style.pad, style.cap_gap) {
+                let name_box = Rect::from_min_size(pos2(left, rect.top()), Vec2::new(width, height.max(layout.size().y)));
+                let shape = PaintShape::Rect(name_box, style.radius);
+                draw.fill(&shape, style.name_fill);
+                draw.stroke(&shape, StrokeWidth::Hairline, style.name_edge);
+                draw.galley(pos2(name_box.left() + style.pad, name_box.center().y - layout.size().y / 2.0), &layout);
+            }
+        }
+        for &(marker, start, length) in &placed {
+            let x = axis.x_of(start, rect.left());
+            let color = DataColor::new(tint(marker.color));
+            draw.data_fill(&PaintShape::Polygon(Self::flag(x, rect.top(), style.flag_width, height)), color);
+            if length > Tick::ZERO {
+                let end = axis.x_of(start + length, rect.left());
+                let cap = Rect::from_min_max(pos2(end - style.cap / 2.0, rect.top()), pos2(end + style.cap / 2.0, rect.top() + height));
+                draw.data_fill(&PaintShape::Rect(cap, CornerRadius::ZERO), color);
+            }
+        }
+        if self.bin {
+            let pulled = cx.recall::<Pulled>();
+            let hot = pulled.at.is_some() || cx.part_if_declared(BIN).is_some_and(|result| result.hovered);
+            let bin = Self::bin_rect(rect, height);
+            draw.icon(bin, &IconSpec::svg(craft_behavior::IconId::new("flag")).color(if hot { style.bin_hot } else { style.bin_idle }));
+            if let Some(at) = pulled.at {
+                let x = axis.x_of(at, rect.left());
+                draw.data_fill(
+                    &PaintShape::Polygon(Self::flag(x, rect.top(), style.flag_width, height)),
+                    DataColor::new(tint(MarkerColor::default())),
+                );
+            }
+        }
+    }
+
+    /// A list box of the markers, each named by name and time.
+    fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
+        let Some(axis) = time_axis(&cx.env) else { return };
+        for marker in self.sorted() {
+            let node = access.node(MARKER.at(marker.id.0), Role::LIST_BOX_OPTION);
+            node.name = Name::Text(format!("{}, {}", marker.name, format_time(marker.start, &axis.format)));
+        }
+        if self.bin {
+            access.node(BIN, Role::BUTTON).name = Name::Text(cx.words::<MarkerWords>().bin.clone());
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> MarkerStripOutput {
+        let Report { edits, context } = self.report;
+        MarkerStripOutput { span: cx.edit_response(), edits, context }
+    }
+}
+
+/// What the strip did this pass.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct MarkerStripOutput {
+    /// The marker being dragged and where it is: the app previews each `Update` and applies the `Commit`.
+    pub span: EditResponse<MarkerSpan>,
+    /// This pass's edits, in order.
+    pub edits: Vec<MarkerEdit>,
+    /// The marker that asked for its menu; the app opens it.
+    pub context: Option<MarkerId>,
+}
+
+impl Outcome for MarkerStripOutput {
+    type Value = MarkerSpan;
+
+    fn response(&self) -> &Response {
+        &self.span.response
+    }
+
+    #[cfg(feature = "screen-testing")]
+    fn story_facts(&self) -> craft_ui::testing::StoryOutput {
+        self.span.story_facts()
+    }
+}
 
 /// The marker as the dialog edits it.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct MarkerDraft {
     /// The marker's name.
     pub name: String,
@@ -496,6 +510,7 @@ pub struct MarkerDraft {
 
 /// What the Marker dialog answers with.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct MarkerDialogResult {
     /// The marker the dialog edited.
     pub marker: MarkerId,
@@ -503,8 +518,8 @@ pub struct MarkerDialogResult {
     pub action: MarkerDialogAction,
 }
 
-/// OK with the edited values, Delete, or Previous / Next (Premiere's: the edits are kept and the
-/// app opens the dialog again on the neighbouring marker).
+/// OK with the edited values, Delete, or Previous / Next (Premiere's: the edits are kept and the app opens the
+/// dialog again on the neighbouring marker).
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum MarkerDialogAction {
@@ -518,28 +533,15 @@ pub enum MarkerDialogAction {
     SaveAndNext(MarkerDraft),
 }
 
-/// Premiere's Marker dialog on the dialog host: Name, Time and Duration (timecode fields),
-/// Comments (multi-line), Marker Color (the label swatches), Delete, and OK / Cancel. Enter in a
-/// single-line field is OK; Tab walks the fields (the dialog's field Tab, decisions §4.1).
-/// Result: a [`MarkerDialogResult`].
+/// Premiere's Marker dialog on the dialog host: Name, Time and Duration (timecode fields), Comments (multi-line),
+/// Marker Color (the label swatches, one radio group), Delete, Previous and Next, and OK / Cancel. Enter in a
+/// single-line field is OK; Escape is Cancel; Tab walks the fields in the order they show. Result: a
+/// [`MarkerDialogResult`].
+#[derive(Clone, craft_ui::contract::Pattern)]
 pub struct MarkerDialog {
     id: MarkerId,
     draft: MarkerDraft,
     format: TimeFormat,
-    palette: LabelPalette,
-    labels: Option<MarkerDialogLabels>,
-    state: DialogState,
-    /// What each field held before the gesture running in it, to restore on Esc.
-    drafts: FieldDrafts,
-}
-
-/// One [`GestureDraft`] per field of the dialog.
-#[derive(Default)]
-struct FieldDrafts {
-    name: GestureDraft<String>,
-    comment: GestureDraft<String>,
-    start: GestureDraft<Tick>,
-    duration: GestureDraft<Tick>,
 }
 
 impl MarkerDialog {
@@ -552,108 +554,94 @@ impl MarkerDialog {
             duration: marker.duration,
             color: marker.color,
         };
-        Self {
-            id: marker.id,
-            draft,
-            format,
-            palette: LabelPalette::default(),
-            labels: None,
-            state: DialogState::new(),
-            drafts: FieldDrafts::default(),
-        }
+        MarkerDialog { id: marker.id, draft, format }
     }
+}
 
-    /// The palette that gives the swatches' colours; the default palette when not set.
-    pub fn palette(mut self, palette: LabelPalette) -> Self {
-        self.palette = palette;
-        self
-    }
-
-    /// The dialog's words; the default words when not set.
-    pub fn labels(mut self, labels: MarkerDialogLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
+/// The footer buttons beyond OK and Cancel.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Extra {
+    Delete,
+    Previous,
+    Next,
 }
 
 impl StackDialog for MarkerDialog {
     type Result = MarkerDialogResult;
 
     fn id(&self) -> DialogId {
-        craft_ui::dialog::dialog_id("timeline-marker")
+        dialog_id("timeline-marker")
     }
 
-    // effectcraft: crates/ui-egui/src/panels/markers_ui.rs:124 `dialog`, `:47` `MarkerDraft`;
-    // layout as Premiere's Marker dialog, on `Dialog` + `FormGrid` + `Footer`.
-    fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<Self::Result>> {
-        let labels = self.labels.clone().unwrap_or_else(|| MarkerDialogLabels::of_ctx(ctx));
-        let footer = Footer::side().extra(labels.delete.as_str()).extra(labels.previous.as_str()).extra(labels.next.as_str());
-        let mut state = std::mem::take(&mut self.state);
-        let shown = Dialog::with_id(self.id(), labels.title.as_str())
-            .stack(stack)
-            .width(Width::Standard)
-            .initial_focus(InitialFocus::Field(self.id().with("name")))
-            .footer(footer)
-            .show(ctx, &mut state, &mut (), |ui, ()| self.body(ui, &labels));
-        self.state = state;
+    // effectcraft: crates/ui-egui/src/panels/markers_ui.rs:124 `dialog`, `:47` `MarkerDraft`; layout as Premiere's
+    // Marker dialog.
+    fn show(&mut self, ui: &mut Ui, _: &DialogStack) -> Option<DialogResult<Self::Result>> {
+        let env = Env::of(ui);
+        let words = env.words::<MarkerWords>();
+        let format = self.format;
+        let picked = Cell::new(None::<Extra>);
+        let shown = FormDialog::new(words.title.clone(), Bind::bound(&mut self.draft))
+            .outer_gesture(true)
+            .footer_extra(|ui| {
+                for (extra, label) in [(Extra::Delete, &words.delete), (Extra::Previous, &words.previous), (Extra::Next, &words.next)] {
+                    if Button::new(label.clone()).show(ui).clicked() {
+                        picked.set(Some(extra));
+                    }
+                }
+            })
+            .show(ui, |ui, form, draft| {
+                let first = form.first();
+                let timeline_words = Env::of(ui).words::<TimelineWords>();
+                let palette = label_palette(&form.env);
+                FieldGroup::new(words.title.clone()).show(ui, |ui, _| {
+                    Field::new(words.name.clone()).show(ui, |ui, _| {
+                        let field = TextField::new(words.name.clone(), Bind::bound(&mut draft.name)).show(ui);
+                        if first {
+                            focus::request(ui.ctx(), FocusTarget::Id(field.response().id));
+                        }
+                    });
+                    Field::new(words.time.clone()).show(ui, |ui, _| {
+                        TextField::with_codec(words.time.clone(), Bind::bound(&mut draft.start), TimecodeCodec::new(format)).show(ui);
+                    });
+                    Field::new(words.duration.clone()).show(ui, |ui, _| {
+                        TextField::with_codec(words.duration.clone(), Bind::bound(&mut draft.duration), TimecodeCodec::new(format)).show(ui);
+                    });
+                    Field::new(words.comment.clone()).show(ui, |ui, _| {
+                        TextField::new(words.comment.clone(), Bind::bound(&mut draft.comment)).lines(COMMENT_ROWS).show(ui);
+                    });
+                    Field::new(words.color.clone()).show(ui, |ui, _| {
+                        let mut chosen = draft.color.0;
+                        RadioGroup::new(words.color.clone(), Bind::bound(&mut chosen)).show(ui, |ui, _| {
+                            Row::new().show(ui, |ui, _| {
+                                for n in 0..LABELS {
+                                    let label = MarkerColor(n);
+                                    Swatch::new(timeline_words.label_name(label).to_owned(), srgba(palette.0[usize::from(n)])).member(n).show(ui);
+                                }
+                            });
+                        });
+                        draft.color = MarkerColor(chosen);
+                    });
+                });
+                true
+            });
         let answer = |action| Some(DialogResult::Ok(MarkerDialogResult { marker: self.id, action }));
-        if let Some(extra) = shown.extra {
+        if let Some(extra) = picked.get() {
             return match extra {
-                0 => answer(MarkerDialogAction::Delete),
-                1 => answer(MarkerDialogAction::SaveAndPrevious(self.draft.clone())),
-                _ => answer(MarkerDialogAction::SaveAndNext(self.draft.clone())),
+                Extra::Delete => answer(MarkerDialogAction::Delete),
+                Extra::Previous => answer(MarkerDialogAction::SaveAndPrevious(self.draft.clone())),
+                Extra::Next => answer(MarkerDialogAction::SaveAndNext(self.draft.clone())),
             };
         }
-        match shown.outcome {
-            Some(Outcome::Ok) => answer(MarkerDialogAction::Save(self.draft.clone())),
-            Some(Outcome::Cancel | Outcome::Close) => Some(DialogResult::Cancel),
-            _ => None,
+        match (shown.accepted, shown.closed) {
+            (Some(draft), _) => answer(MarkerDialogAction::Save(draft)),
+            (None, Some(_)) => Some(DialogResult::Cancel),
+            (None, None) => None,
         }
     }
 }
 
-impl MarkerDialog {
-    fn body(&mut self, ui: &mut Ui, labels: &MarkerDialogLabels) {
-        let name_id = self.id().with("name");
-        FormGrid::new("marker-dialog").show(ui, |form| {
-            let name = form.row(labels.name.as_str(), |ui, _| {
-                TextField::new(("marker", "name"), labels.name.as_str(), self.draft.name.as_str()).id(name_id).show(ui)
-            });
-            if let Some(event) = name.inner.event {
-                self.drafts.name.apply(&mut self.draft.name, event);
-            }
-            let time = form.row(labels.time.as_str(), |ui, _| TimecodeField::new(("marker", "time"), self.draft.start, &self.format).show(ui));
-            if let Some(event) = time.inner.event {
-                self.drafts.start.apply(&mut self.draft.start, event);
-            }
-            let length =
-                form.row(labels.duration.as_str(), |ui, _| TimecodeField::new(("marker", "duration"), self.draft.duration, &self.format).show(ui));
-            if let Some(event) = length.inner.event {
-                self.drafts.duration.apply(&mut self.draft.duration, event);
-            }
-            let comment = form.row(labels.comment.as_str(), |ui, _| {
-                TextField::new(("marker", "comment"), labels.comment.as_str(), self.draft.comment.as_str()).multiline(COMMENT_ROWS).show(ui)
-            });
-            if let Some(event) = comment.inner.event {
-                self.drafts.comment.apply(&mut self.draft.comment, event);
-            }
-            let mut chosen = None;
-            form.row(labels.color.as_str(), |ui, _| {
-                ui.horizontal(|ui| {
-                    for (index, color) in self.palette.0.iter().enumerate() {
-                        let label = MarkerColor(index as u8);
-                        let on = self.draft.color == label;
-                        let swatch = Swatch::new(("marker", "color", index), format!("{}", index + 1), *color).radio(on).position_in_set(index);
-                        if ui.add(swatch).clicked() {
-                            chosen = Some(label);
-                        }
-                    }
-                })
-                .response
-            });
-            if let Some(color) = chosen {
-                self.draft.color = color;
-            }
-        });
-    }
+/// `color` as the theme's colour type.
+fn srgba(color: Color32) -> craft_theme::Srgba {
+    let channel = |value: u8| f32::from(value) / 255.0;
+    craft_theme::Srgba { r: channel(color.r()), g: channel(color.g()), b: channel(color.b()), a: channel(color.a()) }
 }
