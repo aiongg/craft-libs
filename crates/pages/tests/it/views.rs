@@ -444,9 +444,11 @@ fn the_preview_paints_the_paper_under_a_page_without_a_picture() {
     });
     fixture.room(vec2(500.0, 500.0));
     fixture.settle();
-    let aspect = 612.0 / 792.0;
+    let page = DemoPages::new(1).page_size(0);
+    let aspect = (page.width / page.height) as f32;
+    let room = fixture.shown().height();
     assert!(
-        fixture.shape_bounds().iter().any(|bounds| bounds.height() > 200.0 && (bounds.width() / bounds.height() - aspect).abs() < 0.01),
+        fixture.shape_bounds().iter().any(|bounds| bounds.height() > room / 2.0 && (bounds.width() / bounds.height() - aspect).abs() < 0.01),
         "a page-shaped fill is the paper"
     );
 }
