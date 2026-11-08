@@ -3,7 +3,7 @@
 
 use craft_behavior::{PartKey, Sense};
 use craft_theme::{Contrast, Mode, Rgba};
-use craft_ui::contract::{Common, Component, Cx, PaintUi, PartsCx, Props as _, Role, Show as _};
+use craft_ui::contract::{Common, Component, Cx, PaintUi, PartsCx, Pointer as _, Props as _, Role, Show as _};
 use craft_ui::primitives::{DataWidth, PaintShape, StrokeWidth, TextureCache};
 use craft_ui::style::{ComponentStyle, DataColor, StyleCx};
 use craft_ui::testing::style::tokens;
