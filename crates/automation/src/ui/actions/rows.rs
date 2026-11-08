@@ -3,7 +3,7 @@
 use std::borrow::Cow;
 
 use craft_behavior::{ColumnKey, DisplayOrder, IconId, ItemSource};
-use craft_ui::composites::Tone;
+use craft_theme::variant::Tone;
 use craft_ui::list::{ListRow, RowInk, ToggleCell, ToggleFace, ToggleState};
 use craft_ui::primitives::IconSpec;
 use craft_ui::runtime::env::Label;

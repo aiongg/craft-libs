@@ -22,6 +22,7 @@ struct ReadoutStyle {
     metrics: Metrics,
 }
 
+#[derive(Clone, Copy)]
 struct WholeNumber;
 
 impl Codec for WholeNumber {
