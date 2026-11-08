@@ -236,6 +236,7 @@ fn diag_stroke_button_open() {
     let mut fixture = Fixture::new(move |ui| {
         StrokeButton::new("Stroke Options", Bind::bound(&mut style), Bind::bound(&mut open)).show(ui);
     });
+    fixture.room(egui::vec2(800.0, 600.0));
     fixture.settle();
     let tree = fixture.tree();
     let mut out = Vec::new();

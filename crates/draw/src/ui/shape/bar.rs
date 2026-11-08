@@ -104,7 +104,7 @@ impl<'a> ShapeBar<'a> {
         let env = Env::of(ui);
         let (words, units) = (env.words::<ShapeWords>(), env.units());
         let mut pass = Cells::new(&words, &units, pixels_per_inch, appearance, fallbacks, sampled, chips, stroke_open);
-        Row::new().enabled(!appearance.locked).show(ui, |ui, _| {
+        Row::new().sizing(Sizing::Content).enabled(!appearance.locked).show(ui, |ui, _| {
             pass.begin();
             let fill_on = !matches!(appearance.fill, craft_color::ui::Paint::None);
             let check = Field::new(words.fill.clone())
