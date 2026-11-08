@@ -5,7 +5,7 @@ use craft_behavior::{CanvasView, ZoomLadder};
 use craft_ui::canvas::{
     Navigator, NavigatorOptions, NavigatorSettings, NavigatorZoomRow, ProxyColor, preview_rect, proxy_quad, view_center_for, zoom_to_document_rect,
 };
-use craft_ui::contract::Bind;
+use craft_ui::contract::{Bind, Show as _};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Pos2, Rect};
 use std::cell::{Cell, RefCell};

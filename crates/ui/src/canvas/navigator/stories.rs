@@ -1,7 +1,7 @@
 //! Stories of the Navigator's zoom row.
 
 use super::{Navigator, NavigatorPaint, NavigatorPreview, NavigatorZoomRow};
-use crate::contract::Bind;
+use crate::contract::{Bind, Show as _};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::kurbo::{Point, Size};
 use craft_behavior::{CanvasView, Mixed};
