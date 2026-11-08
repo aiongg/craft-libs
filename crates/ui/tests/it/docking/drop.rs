@@ -1,6 +1,6 @@
 //! Drop resolution: a spot under the pointer becomes the model action that moves the dragged panel or group.
 
-use craft_behavior::dock::{Action, Column, DockEdge, Floating, Group, Layout, Node, Permissions, Placement, SplitSize, Target};
+use craft_behavior::dock::{Action, Column, DockEdge, Floating, Group, Layout, Node, Permissions, DockPlacement, SplitSize, Target};
 use craft_behavior::{Axis, DockSide};
 use craft_theme::{Contrast, ControlSize, Mode};
 use craft_ui::docking::{DockDrag, DockSizes, DockSpot, DockTargets, DragUnit, FloatSpace, float_drop, resolve_drop};
@@ -72,7 +72,7 @@ fn open(_: &u32) -> Permissions {
 #[trial]
 fn a_panel_dropped_on_a_strip_joins_the_tabs_before_the_tab_there() {
     let action = drop_of(DragUnit::Panel(LOWER_GROUP), at(150.0, 10.0), open);
-    assert_eq!(action, Some(Action::move_beside(LOWER_GROUP, TOP_GROUP, Placement::tab(Some(TOP_SECOND_TAB)))));
+    assert_eq!(action, Some(Action::move_beside(LOWER_GROUP, TOP_GROUP, DockPlacement::tab(Some(TOP_SECOND_TAB)))));
 }
 
 #[trial]
@@ -80,7 +80,7 @@ fn a_tab_dropped_after_its_own_neighbour_reorders_its_group() {
     let action = drop_of(DragUnit::Panel(TOP_GROUP), at(10.0, 10.0), open);
     assert_eq!(
         action,
-        Some(Action::move_beside(TOP_GROUP, TOP_SECOND_TAB, Placement::tab(None))),
+        Some(Action::move_beside(TOP_GROUP, TOP_SECOND_TAB, DockPlacement::tab(None))),
         "the destination is a panel that stays, not the dragged one"
     );
 }
@@ -88,15 +88,15 @@ fn a_tab_dropped_after_its_own_neighbour_reorders_its_group() {
 #[trial]
 fn a_group_side_docks_beside_in_the_vocabulary_of_its_container() {
     let below = drop_of(DragUnit::Panel(TOP_SECOND_TAB), at(100.0, 136.0), open);
-    assert_eq!(below, Some(Action::move_beside(TOP_SECOND_TAB, TOP_GROUP, Placement::group(true, None))), "a dock column stacks groups");
+    assert_eq!(below, Some(Action::move_beside(TOP_SECOND_TAB, TOP_GROUP, DockPlacement::group(true, None))), "a dock column stacks groups");
     let start = drop_of(DragUnit::Panel(LOWER_GROUP), at(10.0, 60.0), open);
-    assert_eq!(start, Some(Action::move_beside(LOWER_GROUP, TOP_GROUP, Placement::column(false))), "a column edge makes a column");
+    assert_eq!(start, Some(Action::move_beside(LOWER_GROUP, TOP_GROUP, DockPlacement::column(false))), "a column edge makes a column");
 }
 
 #[trial]
 fn the_middle_of_a_group_joins_it_but_never_its_own_group() {
     let joined = drop_of(DragUnit::Group(LOWER_GROUP), at(100.0, 60.0), open);
-    assert_eq!(joined, Some(Action::move_group(LOWER_GROUP, Target::at(TOP_GROUP, Placement::Split(DockSide::Center)))));
+    assert_eq!(joined, Some(Action::move_group(LOWER_GROUP, Target::at(TOP_GROUP, DockPlacement::Split(DockSide::Center)))));
     assert_eq!(drop_of(DragUnit::Panel(TOP_GROUP), at(100.0, 60.0), open), None, "a panel gains nothing joining its own group");
     assert_eq!(drop_of(DragUnit::Group(LOWER_GROUP), at(100.0, 250.0), open), None, "a group cannot dock on itself");
 }
@@ -131,7 +131,7 @@ fn a_float_drop_puts_the_window_under_the_pointer_inside_the_area() {
 #[trial]
 fn a_floating_window_docks_as_one_unit_on_the_spot_under_it() {
     let action = drop_of(DragUnit::Window(WINDOW), at(100.0, 60.0), open);
-    assert_eq!(action, Some(Action::move_window(WINDOW, Target::at(TOP_GROUP, Placement::Split(DockSide::Center)))));
+    assert_eq!(action, Some(Action::move_window(WINDOW, Target::at(TOP_GROUP, DockPlacement::Split(DockSide::Center)))));
 }
 
 #[trial]

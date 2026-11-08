@@ -154,9 +154,9 @@ new = "craft_behavior::dock::Floating"
 status = "moved"
 
 [[type]]
-name = "Placement"
+name = "DockPlacement"
 old = "craft_ui::docking::model::Placement"
-new = "craft_behavior::dock::Placement"
+new = "craft_behavior::dock::DockPlacement"
 status = "moved"
 
 [[type]]

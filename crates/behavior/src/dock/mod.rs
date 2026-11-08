@@ -34,7 +34,7 @@ mod windows;
 mod workspace;
 mod workspaces;
 
-pub use action::{Action, Location, Placement};
+pub use action::{Action, Location, DockPlacement};
 pub use edit::{first_active, node_at, tree_panels};
 pub use groups::{Column, ColumnLocation, DockEdge, Group, GroupLocation, PanelPlace, PanelState, Target};
 pub use layout::Layout;

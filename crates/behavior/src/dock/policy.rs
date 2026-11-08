@@ -16,8 +16,8 @@ pub struct Permissions {
     pub closable: bool,
     /// Other panels may join this panel's group as tabs.
     pub accepts_tabs: bool,
-    /// Other panels may split this panel's frame (`Placement::Split` with a side zone).
-    /// Outer-edge frames ([`Placement::Edge`]) are not splits of the anchor.
+    /// Other panels may split this panel's frame (`DockPlacement::Split` with a side zone).
+    /// Outer-edge frames ([`DockPlacement::Edge`]) are not splits of the anchor.
     pub accepts_splits: bool,
 }
 
