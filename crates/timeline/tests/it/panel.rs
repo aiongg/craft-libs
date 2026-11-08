@@ -224,6 +224,7 @@ fn a_selected_clip_on_a_locked_track_out_of_view_refuses_the_new_track() {
 const V1: TrackId = TrackId(1);
 const V2: TrackId = TrackId(2);
 const A1: TrackId = TrackId(3);
+const V3: TrackId = TrackId(4);
 const C1: TrackId = TrackId(9);
 /// The panel's room.
 const PANEL_ROOM: Vec2 = Vec2::new(900.0, 500.0);
@@ -341,6 +342,11 @@ fn panel() -> Panel {
     panel_with(named(&[(V2, TrackKind::Video, "V2"), (V1, TrackKind::Video, "V1"), (A1, TrackKind::Audio, "A1")]), None)
 }
 
+/// Three video tracks, which share one pane.
+fn three_video() -> Panel {
+    panel_with(named(&[(V3, TrackKind::Video, "V3"), (V2, TrackKind::Video, "V2"), (V1, TrackKind::Video, "V1")]), None)
+}
+
 /// V1 over A1 and many more audio tracks.
 fn many_audio() -> Panel {
     let mut tracks = named(&[(V1, TrackKind::Video, "V1"), (A1, TrackKind::Audio, "A1")]);
@@ -431,10 +437,10 @@ fn header_switches_report_their_new_state() {
 }
 
 impl Panel {
-    /// Presses the Lock switch of V2 and moves down over the Lock switches of V1 and A1, then returns the switches reported
-    /// so far (the pointer is still down).
+    /// Presses the Lock switch of V3 and moves down over the Lock switches of V2 and V1 (one pane), then returns the
+    /// switches reported so far (the pointer is still down).
     fn sweep_locks(&mut self) -> Vec<(TrackId, bool)> {
-        let centers: Vec<_> = ["V2", "V1", "A1"].map(|name| self.in_row("Toggle Track Lock", self.row(name)).center()).into();
+        let centers: Vec<_> = ["V3", "V2", "V1"].map(|name| self.in_row("Toggle Track Lock", self.row(name)).center()).into();
         self.fixture.frame(vec![pointer::moved(centers[0])]);
         self.fixture.frame(vec![pointer::press(centers[0])]);
         for center in &centers[1..] {
@@ -457,9 +463,9 @@ impl Panel {
 /// A sweep across Lock switches flips each one as the pointer crosses it, before the release.
 #[trial]
 fn a_sweep_across_lock_switches_flips_each_before_release() {
-    let mut panel = panel();
-    assert_eq!(panel.sweep_locks(), [(V2, true), (V1, true), (A1, true)]);
-    let end = panel.in_row("Toggle Track Lock", panel.row("A1")).center();
+    let mut panel = three_video();
+    assert_eq!(panel.sweep_locks(), [(V3, true), (V2, true), (V1, true)]);
+    let end = panel.in_row("Toggle Track Lock", panel.row("V1")).center();
     panel.fixture.frame(vec![pointer::release(end)]);
     assert_eq!(panel.locks().len(), 3, "the release repeats nothing");
 }
@@ -467,12 +473,12 @@ fn a_sweep_across_lock_switches_flips_each_before_release() {
 /// Escape in the middle of a sweep puts every crossed switch back.
 #[trial]
 fn escape_in_a_lock_sweep_restores_every_crossed_switch() {
-    let mut panel = panel();
+    let mut panel = three_video();
     panel.sweep_locks();
     panel.fixture.key(Key::Escape, Modifiers::NONE);
     panel.fixture.idle(2);
     let restored: Vec<_> = panel.locks().into_iter().skip(3).collect();
-    assert_eq!(restored, [(V2, false), (V1, false), (A1, false)]);
+    assert_eq!(restored, [(V3, false), (V2, false), (V1, false)]);
 }
 
 /// A row resizes from its own height: video rows grow upward, so an edge dragged up adds height, and the top video row
