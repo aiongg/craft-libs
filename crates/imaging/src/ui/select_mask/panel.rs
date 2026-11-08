@@ -2,25 +2,28 @@
 
 use std::ops::RangeInclusive;
 
+use egui::{Response, Ui};
+
+use craft_behavior::EditEvent;
 use craft_theme::TypeRole;
-use craft_ui::composites::{SectionHeader, SliderRow};
-use craft_ui::controls::{Button, Checkbox, Select, Swatch, ToggleButton, TooltipExt as _};
-use craft_ui::dialog::ColorRequest;
-use craft_ui::dialog::full_window::FullWindowStyle;
-use craft_ui::direction;
-use craft_ui::edit::EditEvent;
-use craft_ui::localized::{Labels as _, LocaleNumbers, Unit};
-use craft_ui::primitives::{Content, Text};
-use craft_ui::theme::{Tokens, TokensOf as _};
-use egui::text::LayoutJob;
-use egui::{AsIdSalt, IdSalt, Label, Modifiers, Response, Ui};
+use craft_theme::variant::Tone;
+use craft_ui::buttons::{Button, ToggleButton};
+use craft_ui::choice::{Checkbox, Swatch};
+use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Pattern, Props as _, SaveKey, Show as _, ShowContainer as _, TooltipSpec, clicked};
+use craft_ui::display::Text;
+use craft_ui::form::{Field, SliderField};
+use craft_ui::layout_components::{Row, Stack};
+use craft_ui::pickers::Select;
+use craft_ui::runtime::env::{Env, Label, UnitKind};
+use craft_ui::runtime::requests::ColorRequest;
+use craft_ui::sections::Section;
 
 use crate::selection::ColorIndicates;
-use crate::ui::mask_view::{MaskViewControls, MaskViewLabels, MaskViewState};
+use crate::ui::mask_view::{MaskViewControls, MaskViewMode, MaskViewState};
 
-use super::SelectMaskLabels;
 use super::edits::SelectMaskEdit;
 use super::session::{OutputTo, RefineSettings, SelectMaskSettings};
+use super::words::SelectMaskWords;
 
 /// The [`ColorRequest::key`] of the Overlay colour swatch; the app answers with
 /// `SelectMaskWorkspace::set_color`.
@@ -46,47 +49,59 @@ pub struct SelectMaskPanelOutput {
     pub pick_color: Option<ColorRequest>,
 }
 
-/// The Properties panel in the Wide side column with the header "Properties", top to bottom:
+impl Outcome for SelectMaskPanelOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// The Properties panel in the side column, top to bottom:
 ///
 /// - Remember Settings.
-/// - **View Mode**: [`MaskViewControls`](crate::ui::mask_view::MaskViewControls) (the view, its
-///   opacity, Show Edge, Show Original), then Real-Time Refinement and High Quality Preview; with
-///   Overlay, Color (a swatch that asks the app through `ColorRequest`) and Indicates (Masked
-///   Areas, Selected Areas).
-/// - **Refine Mode**: Color Aware (on) and Object Aware, disabled with the tooltip "Object Aware
-///   needs a segmentation model, which isn't available yet".
+/// - **View Mode**: [`MaskViewControls`] (the view, its opacity, Show Edge, Show Original), then Real-Time
+///   Refinement and High Quality Preview; with Overlay, Color (a swatch that asks the app through `ColorRequest`)
+///   and Indicates (Masked Areas, Selected Areas).
+/// - **Refine Mode**: Color Aware (on) and Object Aware, disabled with the reason "Object Aware needs a segmentation
+///   model, which isn't available yet".
 /// - **Edge Detection**: Radius (0..=250 px), Smart Radius.
-/// - **Global Refinements**: Smooth (0..=100), Feather (0..=1000 px), Contrast (0..=100 %), Shift
-///   Edge (−100..=100 %); buttons Clear Selection and Invert.
-/// - **Output Settings**: Decontaminate Colors, Amount (0..=100 %, enabled with it), Output To
-///   (the targets [`OutputTo::allowed`](super::OutputTo::allowed)).
-/// - The error line (the limit message, or the preview's failure) in `status.bad.fg`, caption
-///   role.
+/// - **Global Refinements**: Smooth (0..=100), Feather (0..=1000 px), Contrast (0..=100 %), Shift Edge (−100..=100 %);
+///   buttons Clear Selection and Invert.
+/// - **Output Settings**: Decontaminate Colors, Amount (0..=100 %, enabled with it), Output To (the targets
+///   [`OutputTo::allowed`]).
+/// - The error line (the limit message, or the preview's failure) in the bad tone, caption role.
 ///
-/// Each section is a collapsible `SectionHeader`. The footer (Reset at the leading end, OK and
-/// Cancel) is the side column's, drawn by the workspace.
+/// Each section remembers whether it is open. The footer (Reset at the leading end, OK and Cancel) is the dialog's.
+#[derive(Pattern)]
 pub struct SelectMaskPanel<'a> {
-    id_salt: IdSalt,
     settings: &'a mut SelectMaskSettings,
     refine: &'a mut RefineSettings,
     view: &'a mut MaskViewState,
     error: Option<&'a str>,
-    labels: Option<SelectMaskLabels>,
+}
+
+/// Where a control writes its value in the refinement.
+type Setter<T> = fn(&mut RefineSettings, T);
+
+/// A control's edit of one refinement field as an edit of the refinement: the refinement at the start of the pass
+/// with that field replaced.
+fn lift<T: Clone + 'static>(event: EditEvent<T>, base: &RefineSettings, set: Setter<T>) -> EditEvent<RefineSettings> {
+    event.map(|value| {
+        let mut refine = base.clone();
+        set(&mut refine, value);
+        refine
+    })
 }
 
 impl<'a> SelectMaskPanel<'a> {
-    /// Starts the panel over `settings`, `refine` and `view`, which it edits in place; `id_salt` keeps its state apart from other panels.
-    pub fn new(id_salt: impl AsIdSalt, settings: &'a mut SelectMaskSettings, refine: &'a mut RefineSettings, view: &'a mut MaskViewState) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), settings, refine, view, error: None, labels: None }
-    }
-
-    /// The words; the installed ones by default.
-    pub fn labels(mut self, labels: SelectMaskLabels) -> Self {
-        self.labels = Some(labels);
-        self
+    /// The panel over `settings`, `refine` and `view`, which it edits in place.
+    pub fn new(settings: &'a mut SelectMaskSettings, refine: &'a mut RefineSettings, view: &'a mut MaskViewState) -> Self {
+        Self { settings, refine, view, error: None }
     }
 
     /// The error line under the panel.
+    #[must_use]
     pub fn error(mut self, error: Option<&'a str>) -> Self {
         self.error = error;
         self
@@ -95,139 +110,181 @@ impl<'a> SelectMaskPanel<'a> {
     /// Draws the panel and returns its response and any edits.
     pub fn show(self, ui: &mut Ui) -> SelectMaskPanelOutput {
         // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:1540 `properties`.
-        let Self { id_salt, settings, refine, view, error, labels } = self;
-        let labels = labels.unwrap_or_else(|| SelectMaskLabels::of(ui));
-        let labels = &labels;
-        let id = ui.make_persistent_id(id_salt);
-        let numbers = LocaleNumbers::of(ui);
-        let view_labels = MaskViewLabels::of(ui);
-        let refine_before = refine.clone();
-        let mut last = None;
+        let Self { settings, refine, view, error } = self;
+        let words = Env::of(ui).words::<SelectMaskWords>();
+        let base = refine.clone();
+        let mut rows = Rows { base: &base, edit: None };
         let (mut view_changed, mut selection_edit, mut pick_color) = (false, None, None);
-        let response = ui
-            .scope(|ui| {
-                let _ = Checkbox::bool(labels.remember.as_str(), &mut settings.remember).id_salt((id, "remember")).show(ui);
+        let shown = Stack::new().show(ui, |ui, _| {
+            let remember = Checkbox::new(Bind::given(settings.remember)).label(words.remember.clone()).show(ui);
+            if let Some(&on) = remember.event.as_ref().and_then(EditEvent::value) {
+                settings.remember = on;
+            }
 
-                SectionHeader::new((id, "view"), labels.view_mode.as_str()).show(ui, |ui| {
-                    let controls = MaskViewControls::new((id, "view-controls"), view).labels(view_labels).show(ui);
-                    view_changed |= controls.changed.is_some();
-                    let _ = Checkbox::bool(labels.real_time.as_str(), &mut settings.real_time).id_salt((id, "real-time")).show(ui);
-                    let high_quality = settings.high_quality;
-                    let _ = Checkbox::bool(labels.high_quality.as_str(), &mut settings.high_quality).id_salt((id, "high-quality")).show(ui);
-                    view_changed |= settings.high_quality != high_quality;
-                    if view.mode == crate::ui::mask_view::MaskViewMode::Overlay {
-                        direction::horizontal(ui, |ui| {
-                            ui.add(Text::new(labels.overlay_color.as_str()).role(TypeRole::Label).content(Content::Muted));
-                            let color = view.overlay_color;
-                            if ui.add(Swatch::new((id, "color"), labels.overlay_color.as_str(), color)).clicked() {
-                                pick_color = Some(ColorRequest::new(OVERLAY_COLOR_KEY, color).title(labels.overlay_color.as_str()));
-                            }
-                            ui.add(Text::new(labels.indicates.as_str()).role(TypeRole::Label).content(Content::Muted));
-                            let mut indicates = view.overlay_indicates;
-                            let _ = Select::new((id, "indicates"), labels.indicates.as_str(), &mut indicates)
-                                .option(ColorIndicates::MaskedAreas, labels.masked_areas.as_str())
-                                .option(ColorIndicates::SelectedAreas, labels.selected_areas.as_str())
-                                .show(ui);
-                            if indicates != view.overlay_indicates {
-                                view.overlay_indicates = indicates;
-                                view_changed = true;
-                            }
-                        });
+            Section::new(words.view_mode.clone()).remember(SaveKey::new("craft_imaging.select_mask.view")).show(ui, |ui, _| {
+                view_changed |= MaskViewControls::new(view).show(ui).changed.is_some();
+                let real_time = Checkbox::new(Bind::given(settings.real_time)).label(words.real_time.clone()).show(ui);
+                if let Some(&on) = real_time.event.as_ref().and_then(EditEvent::value) {
+                    settings.real_time = on;
+                }
+                let high_quality = Checkbox::new(Bind::given(settings.high_quality)).label(words.high_quality.clone()).show(ui);
+                if let Some(&on) = high_quality.event.as_ref().and_then(EditEvent::value) {
+                    settings.high_quality = on;
+                    view_changed = true;
+                }
+                if view.mode == MaskViewMode::Overlay {
+                    Field::new(words.overlay_color.clone()).show(ui, |ui, _| {
+                        let swatch = Swatch::new(words.overlay_color.clone(), view.overlay_color).picker(OVERLAY_COLOR_KEY).show(ui);
+                        pick_color = swatch.pick_color;
+                    });
+                    let entries = [
+                        Entry::new(ColorIndicates::MaskedAreas, words.masked_areas.clone()),
+                        Entry::new(ColorIndicates::SelectedAreas, words.selected_areas.clone()),
+                    ];
+                    let indicates = Select::new(words.indicates.clone(), Bind::given(view.overlay_indicates), &entries).show(ui);
+                    if let Some(&picked) = indicates.event.as_ref().and_then(EditEvent::value)
+                        && picked != view.overlay_indicates
+                    {
+                        view.overlay_indicates = picked;
+                        view_changed = true;
+                    }
+                }
+            });
+
+            Section::new(words.refine_mode.clone()).remember(SaveKey::new("craft_imaging.select_mask.refine-mode")).show(ui, |ui, _| {
+                Row::new().show(ui, |ui, _| {
+                    // Color Aware is the one mode there is: pressing it changes nothing.
+                    ToggleButton::new(words.color_aware.clone(), Bind::given(true)).id_salt("color-aware").show(ui);
+                    ToggleButton::new(words.object_aware.clone(), Bind::given(false))
+                        .id_salt("object-aware")
+                        .enabled(false)
+                        .tooltip(TooltipSpec::new(words.object_aware.clone()).disabled_text(words.object_aware_missing.clone()))
+                        .show(ui);
+                });
+            });
+
+            Section::new(words.edge_detection.clone()).remember(SaveKey::new("craft_imaging.select_mask.edge")).show(ui, |ui, _| {
+                rows.slider(ui, Track::new(&words.radius, base.radius, 0.0..=250.0).unit(UnitKind::Pixels), |s, v| s.radius = v);
+                rows.check(ui, &words.smart_radius, base.smart_radius, |s, v| s.smart_radius = v);
+            });
+
+            Section::new(words.global_refinements.clone()).remember(SaveKey::new("craft_imaging.select_mask.global")).show(ui, |ui, _| {
+                rows.slider(ui, Track::new(&words.smooth, base.smooth, 0.0..=100.0), |s, v| s.smooth = v);
+                rows.slider(ui, Track::new(&words.feather, base.feather, 0.0..=1000.0).unit(UnitKind::Pixels), |s, v| s.feather = v);
+                rows.slider(ui, Track::new(&words.contrast, base.contrast, 0.0..=100.0).unit(UnitKind::Percent), |s, v| s.contrast = v);
+                rows.slider(ui, Track::new(&words.shift_edge, base.shift_edge, -100.0..=100.0).unit(UnitKind::Percent), |s, v| s.shift_edge = v);
+                Row::new().show(ui, |ui, _| {
+                    if clicked(&Button::new(words.clear_selection.clone()).id_salt("clear").show(ui)) {
+                        selection_edit = Some(SelectMaskEdit::Clear);
+                    }
+                    if clicked(&Button::new(words.invert.clone()).id_salt("invert").show(ui)) {
+                        selection_edit = Some(SelectMaskEdit::Invert);
                     }
                 });
+            });
 
-                SectionHeader::new((id, "refine-mode"), labels.refine_mode.as_str()).show(ui, |ui| {
-                    direction::horizontal(ui, |ui| {
-                        // Color Aware is the one mode there is: pressing it changes nothing.
-                        let mut color_aware = true;
-                        ui.add(ToggleButton::new(labels.color_aware.as_str(), &mut color_aware).id_salt((id, "color-aware")));
-                        let mut object_aware = false;
-                        ui.add(ToggleButton::new(labels.object_aware.as_str(), &mut object_aware).id_salt((id, "object-aware")).enabled(false))
-                            .tooltip(labels.object_aware_missing.as_str());
-                    });
+            Section::new(words.output_settings.clone()).remember(SaveKey::new("craft_imaging.select_mask.output")).show(ui, |ui, _| {
+                rows.check(ui, &words.decontaminate, base.decontaminate, |s, v| {
+                    s.decontaminate = v;
+                    s.follow_decontaminate();
                 });
-
-                SectionHeader::new((id, "edge"), labels.edge_detection.as_str()).show(ui, |ui| {
-                    slider(ui, (id, "radius"), &labels.radius, &mut refine.radius, 0.0..=250.0, "{n} px", true, &numbers, &mut last);
-                    let _ = Checkbox::bool(labels.smart_radius.as_str(), &mut refine.smart_radius).id_salt((id, "smart-radius")).show(ui);
+                rows.slider(ui, Track::new(&words.amount, base.amount, 0.0..=100.0).unit(UnitKind::Percent).enabled(base.decontaminate), |s, v| {
+                    s.amount = v
                 });
+                let decontaminate = rows.base.decontaminate;
+                let targets: Vec<(OutputTo, &Label)> = OutputTo::ALL
+                    .into_iter()
+                    .filter(|target| target.allowed(decontaminate))
+                    .map(|target| (target, output_label(&words, target)))
+                    .collect();
+                rows.choose(ui, &words.output_to, base.output, &targets, |s, v| s.output = v);
+            });
 
-                SectionHeader::new((id, "global"), labels.global_refinements.as_str()).show(ui, |ui| {
-                    slider(ui, (id, "smooth"), &labels.smooth, &mut refine.smooth, 0.0..=100.0, "{n}", true, &numbers, &mut last);
-                    slider(ui, (id, "feather"), &labels.feather, &mut refine.feather, 0.0..=1000.0, "{n} px", true, &numbers, &mut last);
-                    slider(ui, (id, "contrast"), &labels.contrast, &mut refine.contrast, 0.0..=100.0, "{n}%", true, &numbers, &mut last);
-                    slider(ui, (id, "shift"), &labels.shift_edge, &mut refine.shift_edge, -100.0..=100.0, "{n}%", true, &numbers, &mut last);
-                    direction::horizontal(ui, |ui| {
-                        if ui.add(Button::new(labels.clear_selection.as_str()).id_salt((id, "clear"))).clicked() {
-                            selection_edit = Some(SelectMaskEdit::Clear);
-                        }
-                        if ui.add(Button::new(labels.invert.as_str()).id_salt((id, "invert"))).clicked() {
-                            selection_edit = Some(SelectMaskEdit::Invert);
-                        }
-                    });
-                });
-
-                SectionHeader::new((id, "output"), labels.output_settings.as_str()).show(ui, |ui| {
-                    let _ = Checkbox::bool(labels.decontaminate.as_str(), &mut refine.decontaminate).id_salt((id, "decontaminate")).show(ui);
-                    let decontaminate = refine.decontaminate;
-                    slider(ui, (id, "amount"), &labels.amount, &mut refine.amount, 0.0..=100.0, "{n}%", decontaminate, &numbers, &mut last);
-                    refine.follow_decontaminate();
-                    direction::horizontal(ui, |ui| {
-                        ui.add(Text::new(labels.output_to.as_str()).role(TypeRole::Label).content(Content::Muted));
-                        let mut select = Select::new((id, "output-to"), labels.output_to.as_str(), &mut refine.output);
-                        for target in OutputTo::ALL.into_iter().filter(|target| target.allowed(decontaminate)) {
-                            select = select.option(target, output_label(labels, target));
-                        }
-                        let _ = select.show(ui);
-                    });
-                });
-
-                if let Some(error) = error {
-                    let tokens = Tokens::of(ui);
-                    let mut format = Text::format(&tokens, TypeRole::Caption, Content::Normal);
-                    format.color = FullWindowStyle::of(&tokens).error;
-                    drop(tokens);
-                    ui.add(Label::new(LayoutJob::single_section(error.to_owned(), format)).wrap());
-                }
-            })
-            .response;
-        // A check box or the Output To choice has no gesture: it is one `Set`.
-        let edit = last
-            .map(|event: EditEvent<f64>| event.map(|_| refine.clone()))
-            .or_else(|| (*refine != refine_before).then(|| EditEvent::set(refine.clone(), Modifiers::NONE)));
-        SelectMaskPanelOutput { response, edit, view_changed, selection_edit, pick_color }
-    }
-}
-
-fn output_label(labels: &SelectMaskLabels, target: OutputTo) -> &str {
-    match target {
-        OutputTo::Selection => &labels.output_selection,
-        OutputTo::LayerMask => &labels.output_layer_mask,
-        OutputTo::NewLayer => &labels.output_new_layer,
-        OutputTo::NewLayerWithMask => &labels.output_new_layer_with_mask,
-        OutputTo::NewDocument => &labels.output_new_document,
-        OutputTo::NewDocumentWithMask => &labels.output_new_document_over_mask,
-    }
-}
-
-/// One slider row: the events set `value`; `last` takes the pass's last event.
-#[expect(clippy::too_many_arguments, reason = "a private helper over one panel's rows")]
-fn slider(
-    ui: &mut Ui,
-    id_salt: impl AsIdSalt,
-    label: &str,
-    value: &mut f64,
-    range: RangeInclusive<f64>,
-    unit: &str,
-    enabled: bool,
-    numbers: &LocaleNumbers,
-    last: &mut Option<EditEvent<f64>>,
-) {
-    let row = SliderRow::new(id_salt, label, *value, range, numbers).unit(Unit::new(unit)).enabled(enabled).show(ui);
-    for event in row.edits() {
-        if let Some(next) = event.value() {
-            *value = *next;
+            if let Some(error) = error {
+                Text::new(error.to_owned()).role(TypeRole::Caption).tone(Tone::Bad).show(ui);
+            }
+        });
+        let edit = rows.edit;
+        if let Some(value) = edit.as_ref().and_then(EditEvent::value) {
+            refine.clone_from(value);
         }
-        *last = Some(event);
+        SelectMaskPanelOutput { response: shown.output, edit, view_changed, selection_edit, pick_color }
+    }
+}
+
+/// One slider row: its label, value, range, unit and whether it is enabled.
+struct Track<'a> {
+    label: &'a Label,
+    value: f64,
+    range: RangeInclusive<f64>,
+    unit: Option<UnitKind>,
+    enabled: bool,
+}
+
+impl<'a> Track<'a> {
+    fn new(label: &'a Label, value: f64, range: RangeInclusive<f64>) -> Self {
+        Track { label, value, range, unit: None, enabled: true }
+    }
+
+    fn unit(mut self, unit: UnitKind) -> Self {
+        self.unit = Some(unit);
+        self
+    }
+
+    fn enabled(mut self, on: bool) -> Self {
+        self.enabled = on;
+        self
+    }
+}
+
+/// The controls of one pass: the refinement they started from and the edit they add up to.
+struct Rows<'p> {
+    base: &'p RefineSettings,
+    edit: Option<EditEvent<RefineSettings>>,
+}
+
+impl Rows<'_> {
+    /// A slider with a number field over `track`; its edit is the pass's edit.
+    fn slider(&mut self, ui: &mut Ui, track: Track<'_>, set: Setter<f64>) {
+        let mut field = SliderField::new(track.label.clone(), Bind::given(track.value), track.range).step(1.0).enabled(track.enabled);
+        if let Some(kind) = track.unit {
+            field = field.unit_kind(kind);
+        }
+        if let Some(event) = field.show(ui).event {
+            self.edit = Some(lift(event, self.base, set));
+        }
+    }
+
+    /// A check box over `value`; its edit is the pass's edit.
+    fn check(&mut self, ui: &mut Ui, label: &Label, value: bool, set: Setter<bool>) {
+        if let Some(event) = Checkbox::new(Bind::given(value)).label(label.clone()).show(ui).event {
+            self.edit = Some(lift(event, self.base, set));
+        }
+    }
+
+    /// A select over `options` named `label`; its edit is the pass's edit.
+    fn choose<T: Clone + PartialEq + Send + Sync + 'static>(
+        &mut self,
+        ui: &mut Ui,
+        label: &Label,
+        current: T,
+        options: &[(T, &Label)],
+        set: Setter<T>,
+    ) {
+        let entries: Vec<Entry<T>> = options.iter().map(|(value, text)| Entry::new(value.clone(), (*text).clone())).collect();
+        if let Some(event) = Select::new(label.clone(), Bind::given(current), &entries).show(ui).event {
+            self.edit = Some(lift(event, self.base, set));
+        }
+    }
+}
+
+fn output_label(words: &SelectMaskWords, target: OutputTo) -> &Label {
+    match target {
+        OutputTo::Selection => &words.output_selection,
+        OutputTo::LayerMask => &words.output_layer_mask,
+        OutputTo::NewLayer => &words.output_new_layer,
+        OutputTo::NewLayerWithMask => &words.output_new_layer_with_mask,
+        OutputTo::NewDocument => &words.output_new_document,
+        OutputTo::NewDocumentWithMask => &words.output_new_document_over_mask,
     }
 }
