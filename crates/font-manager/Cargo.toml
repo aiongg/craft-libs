@@ -10,7 +10,9 @@ repository.workspace = true
 [features]
 default = []
 # `FontsPanel`: the whole interface as one egui panel.
-ui = ["dep:egui", "dep:craft-ui", "dep:craft-host", "dep:serde", "dep:log", "dep:epaint_default_fonts", "dep:skrifa"]
+ui = ["dep:egui", "dep:craft-behavior", "dep:craft-theme", "dep:craft-ui", "dep:craft-host", "dep:serde", "dep:log", "dep:epaint_default_fonts", "dep:skrifa"]
+# The panel's stories and trials (`tests/it`).
+screen-testing = ["ui", "craft-ui/testing"]
 
 [dependencies]
 craft-font-catalog = { workspace = true }
@@ -23,7 +25,10 @@ egui = { workspace = true, features = ["default_fonts"], optional = true }
 epaint_default_fonts = { version = "0.37", optional = true }
 # A host that wants installed fonts for characters its interface faces lack (language names in
 # their own scripts in the language filter) enables craft-ui's `system_fonts` itself.
-craft-ui = { package = "craft-ui-legacy", path = "../ui-legacy", optional = true }
+craft-ui = { workspace = true, optional = true }
+# The family list's item layout and the vocabulary of the tone variants.
+craft-behavior = { workspace = true, optional = true }
+craft-theme = { workspace = true, optional = true }
 # The Host: settings section, jobs and interface language.
 craft-host = { workspace = true, features = ["ui"], optional = true }
 serde = { workspace = true, optional = true }
@@ -32,14 +37,14 @@ log = { version = "0.4", optional = true }
 skrifa = { version = "0.44", default-features = false, features = ["std"], optional = true }
 
 [dev-dependencies]
-egui_kittest = { version = "0.37", features = ["wgpu", "snapshot"] }
-image = { version = "0.25", default-features = false, features = ["png"] }
-# The system's fonts for the Japanese and Arabic screenshots.
-egui_system_font_provider = "0.37"
+craft-font-manager = { path = ".", features = ["screen-testing"] }
+libtest-mimic = "0.8"
 
 [[test]]
-name = "flows"
-required-features = ["ui"]
+name = "it"
+path = "tests/it/main.rs"
+harness = false
+required-features = ["screen-testing"]
 
 [lints]
 workspace = true

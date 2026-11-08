@@ -1290,16 +1290,16 @@ dependencies = [
 name = "craft-font-manager"
 version = "0.1.0"
 dependencies = [
+ "craft-behavior",
  "craft-font-catalog",
  "craft-font-store",
  "craft-host",
  "craft-i18n",
- "craft-ui-legacy",
+ "craft-theme",
+ "craft-ui",
  "egui",
- "egui_kittest",
- "egui_system_font_provider",
  "epaint_default_fonts",
- "image",
+ "libtest-mimic",
  "log",
  "serde",
  "skrifa 0.44.0",
