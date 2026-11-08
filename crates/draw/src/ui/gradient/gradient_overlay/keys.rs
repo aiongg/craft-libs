@@ -9,17 +9,12 @@ use craft_ui::contract::{Cx, Edit as _, Focus as _, Remember as _};
 use super::parts::line_part;
 use super::parts::{part_ref, selection_of};
 use super::{CMD_ENTER, ENTER, GradientOverlay, INSERT, SPACE};
-use crate::ui::gradient::stops::{self, round_location};
+use crate::ui::gradient::stops::{self, STOP_STEP, STOP_STEP_FAR, round_location};
 use crate::ui::gradient::{GradientLine, LineGradient, LinePart, Sampler, StopRow, default_sampler};
 
 /// The part the focus arrived at, so a move of the focus selects.
 #[derive(Clone, Copy, Default)]
 struct Arrival(Option<PartRef>);
-
-/// One Left or Right step of a stop or midpoint, as a share of the line.
-const STEP: f32 = 0.01;
-/// One Shift step.
-const BIG_STEP: f32 = 0.1;
 
 impl GradientOverlay<'_> {
     /// Selection follows the focus. While focused: the keys of the picked part (the line when none is picked).
@@ -75,7 +70,7 @@ impl GradientOverlay<'_> {
                         part = LinePart::Stop(j);
                     }
                 } else if let Some((direction, mods)) = nudge.filter(|(direction, _)| direction.x != 0.0) {
-                    let by = direction.x.signum() * if mods.shift { BIG_STEP } else { STEP };
+                    let by = direction.x.signum() * if mods.shift { STOP_STEP_FAR } else { STOP_STEP };
                     let moved = match part {
                         LinePart::Midpoint(_) => {
                             let at = value.stops.color[i].midpoint + by;

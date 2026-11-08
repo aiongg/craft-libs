@@ -20,7 +20,7 @@ use craft_ui::style::{ComponentStyle, DataColor, Flags, FocusLook, StyleColor, S
 use egui::{Color32, CornerRadius, Pos2, Rect, Response, Vec2, pos2, vec2};
 
 use crate::ui::gradient::ramp::GradientRamp;
-use crate::ui::gradient::stops::{self, Sampler, StopRules, default_sampler, location, locations, midpoint, midpoint_at};
+use crate::ui::gradient::stops::{self, STOP_STEP, STOP_STEP_FAR, Sampler, StopRules, default_sampler, location, locations, midpoint, midpoint_at};
 use crate::ui::gradient::value::{GradientStops, StopRef, StopRow, StopRows};
 use crate::ui::gradient::words::GradientWords;
 use craft_ui::runtime::env::UnitKind;
@@ -40,9 +40,6 @@ pub(super) const OPACITY_MIDPOINT: PartKey = PartKey::new("opacity_midpoint");
 const MIN_GAP: f32 = 0.001;
 /// The tear-off distance as a multiple of the control height.
 const TEAR_OFF_SHARE: f32 = 1.17;
-/// Most a stop moves for one arrow press, and with Shift.
-const NUDGE: f32 = 0.01;
-const NUDGE_FAR: f32 = 0.10;
 
 /// The keys a focused bar keeps from the app's shortcuts. `+` is claimed both as itself and as `=`: many keyboards
 /// type it with Shift.
@@ -191,7 +188,7 @@ pub struct GradientBar<'a, P: Clone + Send + Sync + 'static = ()> {
     drop_target: bool,
     /// The selected marker.
     #[prop]
-    marker: Option<StopRef>,
+    selected_marker: Option<StopRef>,
     select: Option<Option<StopRef>>,
     color_requested: Option<usize>,
     field_requested: bool,
@@ -211,7 +208,7 @@ impl<'a, P: Clone + Send + Sync + 'static> GradientBar<'a, P> {
             sampler: None,
             location_decimals: 0,
             drop_target: false,
-            marker: None,
+            selected_marker: None,
             select: None,
             color_requested: None,
             field_requested: false,
@@ -219,6 +216,7 @@ impl<'a, P: Clone + Send + Sync + 'static> GradientBar<'a, P> {
             payload: PhantomData,
         }
         .label(label)
+        .ltr_axis()
     }
 
     fn rows(&self) -> StopRows {
@@ -478,7 +476,7 @@ impl<P: Clone + Send + Sync + 'static> GradientBar<'_, P> {
 
     /// Selects `marker`, as the bar's report to the editor.
     fn choose(&mut self, marker: Option<StopRef>) {
-        self.marker = marker;
+        self.selected_marker = marker;
         self.select = Some(marker);
     }
 
@@ -535,7 +533,7 @@ impl<P: Clone + Send + Sync + 'static> GradientBar<'_, P> {
                     press: start.origin,
                     grab: geo.location_of(stops, marker),
                     copy: press.mods.alt && marker.is_stop(),
-                    before: self.marker,
+                    before: self.selected_marker,
                 };
                 self.choose(Some(marker));
                 cx.begin();
@@ -581,10 +579,10 @@ impl<P: Clone + Send + Sync + 'static> GradientBar<'_, P> {
 
     /// Selects the next or previous marker of the selected row; the first or last with nothing selected.
     fn step(&mut self, cx: &mut Cx<'_, Self>, geo: &Geometry, stops: &GradientStops, forward: bool) {
-        let row = self.marker.map_or(StopRow::Color, StopRef::row);
+        let row = self.selected_marker.map_or(StopRow::Color, StopRef::row);
         let order = geo.order(stops, row);
         let Some(last) = order.len().checked_sub(1) else { return };
-        let k = match self.marker.and_then(|s| order.iter().position(|m| *m == s)) {
+        let k = match self.selected_marker.and_then(|s| order.iter().position(|m| *m == s)) {
             None if forward => 0,
             None => last,
             Some(k) if forward => (k + 1).min(last),
@@ -596,10 +594,10 @@ impl<P: Clone + Send + Sync + 'static> GradientBar<'_, P> {
 
     /// Selects the stop of `row` nearest the selected marker's location.
     fn switch(&mut self, cx: &mut Cx<'_, Self>, geo: &Geometry, stops: &GradientStops, row: StopRow) {
-        if self.marker.is_some_and(|s| s.row() == row) {
+        if self.selected_marker.is_some_and(|s| s.row() == row) {
             return;
         }
-        let at = self.marker.map_or(0.0, |s| geo.location_of(stops, s));
+        let at = self.selected_marker.map_or(0.0, |s| geo.location_of(stops, s));
         let nearest = locations(stops, row).into_iter().enumerate().min_by(|a, b| (a.1 - at).abs().total_cmp(&(b.1 - at).abs())).map(|(i, _)| i);
         if let Some(i) = nearest {
             self.choose(Some(StopRef::stop(row, i)));
@@ -618,8 +616,8 @@ impl<P: Clone + Send + Sync + 'static> GradientBar<'_, P> {
             self.step(cx, geo, &stops, false);
         }
         while cx.take_claimed(Chord::plain(Key::Insert)) | cx.take_claimed(Chord::new(Mods::CMD, Key::Enter)) {
-            let row = self.marker.map_or(StopRow::Color, StopRef::row);
-            let after = self.marker.map(StopRef::index).filter(|i| *i < stops.len(row));
+            let row = self.selected_marker.map_or(StopRow::Color, StopRef::row);
+            let after = self.selected_marker.map(StopRef::index).filter(|i| *i < stops.len(row));
             let default = default_sampler(self.rows());
             let sampler: &Sampler = self.sampler.unwrap_or(&default);
             if let Some((added, j)) = stops::add(&stops, row, stops::halfway(&stops, row, after), sampler, &self.rules) {
@@ -629,13 +627,13 @@ impl<P: Clone + Send + Sync + 'static> GradientBar<'_, P> {
             }
         }
         if cx.intents().take(Intent::Activate) {
-            match self.marker {
+            match self.selected_marker {
                 Some(StopRef::Color(i)) => self.color_requested = Some(i),
                 Some(_) => self.field_requested = true,
                 None => {}
             }
         }
-        if let Some(m) = self.marker.filter(|m| geo.valid(&stops, *m)) {
+        if let Some(m) = self.selected_marker.filter(|m| geo.valid(&stops, *m)) {
             let removed = [true, false].into_iter().any(|forward| cx.intents().take_exact(&Intent::delete(forward, Granularity::Unit)));
             if removed && m.is_stop() {
                 if let Some((out, j)) = stops::remove(&stops, m.row(), m.index(), &self.rules) {
@@ -653,8 +651,8 @@ impl<P: Clone + Send + Sync + 'static> GradientBar<'_, P> {
                 self.switch(cx, geo, &stops, if dir.y < 0.0 { StopRow::Opacity } else { StopRow::Color });
                 continue;
             }
-            let by = dir.x.signum() * if mods.shift { NUDGE_FAR } else { NUDGE };
-            let Some(m) = self.marker.filter(|m| geo.valid(&stops, *m)).filter(|_| dir.x != 0.0) else { continue };
+            let by = dir.x.signum() * if mods.shift { STOP_STEP_FAR } else { STOP_STEP };
+            let Some(m) = self.selected_marker.filter(|m| geo.valid(&stops, *m)).filter(|_| dir.x != 0.0) else { continue };
             let moved = match m {
                 StopRef::Midpoint(row, i) => stops::set_midpoint(&stops, row, i, midpoint(&stops, row, i) + by, &self.rules).map(|(s, _)| (s, m)),
                 _ => stops::move_to(&stops, m.row(), m.index(), location(&stops, m.row(), m.index()) + by, &self.rules)
@@ -735,7 +733,7 @@ impl<P: Clone + Send + Sync + 'static> Component for GradientBar<'_, P> {
                 .focusable()
                 .nudges()
                 .focus_shape(FocusShape::Rect);
-            if self.marker == Some(*marker) {
+            if self.selected_marker == Some(*marker) {
                 part.selected().flags(Flags::SELECTED);
             }
         }
@@ -748,8 +746,8 @@ impl<P: Clone + Send + Sync + 'static> Component for GradientBar<'_, P> {
         let Some(stops) = cx.value().cloned() else { return };
         let geo = self.geometry(cx.rect, cx.style);
         let enabled = cx.resolved.enabled;
-        let was = self.marker;
-        self.marker = self.marker.filter(|m| geo.valid(&stops, *m));
+        let was = self.selected_marker;
+        self.selected_marker = self.selected_marker.filter(|m| geo.valid(&stops, *m));
         if enabled {
             let focused = cx.active_part().and_then(marker_of).filter(|m| geo.valid(&stops, *m));
             let arrived = {
@@ -779,8 +777,8 @@ impl<P: Clone + Send + Sync + 'static> Component for GradientBar<'_, P> {
                 self.dropped = cx.drop_target::<P, _>(&target);
             }
         }
-        if self.marker != was && self.select.is_none() {
-            self.select = Some(self.marker);
+        if self.selected_marker != was && self.select.is_none() {
+            self.select = Some(self.selected_marker);
         }
     }
 
@@ -823,7 +821,7 @@ impl<P: Clone + Send + Sync + 'static> Component for GradientBar<'_, P> {
         let draw = ui.draw();
         draw.stroke(&PaintShape::Rect(geo.ramp, CornerRadius::ZERO), StrokeWidth::Thin, cx.resolve(&style.ramp_edge));
         let edge_of = |m: StopRef| {
-            if self.marker == Some(m) {
+            if self.selected_marker == Some(m) {
                 style.selected
             } else if !dragging && cx.hover_pos(part_of(m)).is_some() {
                 style.hovered
@@ -833,13 +831,13 @@ impl<P: Clone + Send + Sync + 'static> Component for GradientBar<'_, P> {
         };
         let mut markers = geo.markers(stops);
         // The selected marker on top of the others.
-        markers.sort_by_key(|m| self.marker == Some(*m));
+        markers.sort_by_key(|m| self.selected_marker == Some(*m));
         for m in markers {
             let edge = edge_of(m);
             match m {
                 StopRef::Midpoint(row, i) => {
                     let shape = diamond(geo.diamond_center(row, midpoint_at(stops, row, i)), geo.diamond);
-                    if self.marker == Some(m) {
+                    if self.selected_marker == Some(m) {
                         draw.fill(&shape, style.selected);
                     }
                     draw.stroke(&shape, StrokeWidth::Thin, edge);

@@ -207,7 +207,7 @@ impl<'a> GradientOverlay<'a> {
         match self.shared_selection.as_mut() {
             Some(bind) => {
                 let label: Arc<str> = Arc::from(cx.words::<GradientLineWords>().group.as_str());
-                let event = EditEvent::set(GestureId::new(0), Mixed::Same(before), next, label, None);
+                let event = EditEvent::set(GestureId::default(), Mixed::Same(before), next, label, None);
                 bind.reborrow().write(cx, &event);
             }
             None => cx.keep::<OwnSelection>().0 = next,
