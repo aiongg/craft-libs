@@ -789,6 +789,14 @@ fn glide(rig: &mut Rig<MagneticLassoTool<Circle>>, point: Point, mods: Mods) {
     inject(rig, ToolInput::moved(at(pt(point))).mods(mods));
 }
 
+/// The pointer moves along the circle from angle `from` to angle `to` in small samples, as a hand follows an edge.
+fn glide_along(rig: &mut Rig<MagneticLassoTool<Circle>>, from: f64, to: f64) {
+    let samples = ((to - from).abs() / 0.05).ceil() as usize;
+    for k in 1..=samples {
+        glide(rig, on(from + (to - from) * k as f64 / samples as f64), NONE);
+    }
+}
+
 fn commit_points(events: &[SelectEvent]) -> (Vec<Point>, SelectionOperation) {
     let [SelectEvent::Commit { shape: SelectionShape::Polygon(points), operation, .. }] = events else { panic!("one polygon commit: {events:?}") };
     (points.clone(), *operation)
@@ -803,8 +811,8 @@ fn magnetic_fastens_every_spacing_and_walks_jumps() {
         let (mut rig, log) = magnetic();
         rig.tool_mut().tool().settings_mut().frequency = frequency;
         click(&mut rig, pt(start), NONE);
-        // One hover sample 2.5 rad (200 px of arc) along the circle.
-        glide(&mut rig, on(2.5), NONE);
+        // The pointer follows 2.5 rad (200 px of arc) of the circle.
+        glide_along(&mut rig, 0.0, 2.5);
         log.starts()
     };
     let (slow, normal, fast) = (fastened(0.0), fastened(57.0), fastened(100.0));
@@ -904,6 +912,7 @@ fn magnetic_closes_along_edges_or_straight() {
     let (mut rig, _) = magnetic();
     rig.tool_mut().tool().operation(SelectionOperation::Add);
     click(&mut rig, pt(start), NONE);
+    glide_along(&mut rig, 0.0, 1.5);
     click(&mut rig, pt(on(1.5)), NONE);
     close_with(&mut rig, Modifiers::NONE);
     let (points, operation) = commit_points(&rig.tool_mut().events());
@@ -921,7 +930,9 @@ fn magnetic_closes_along_edges_or_straight() {
 
     let (mut rig, _) = magnetic();
     click(&mut rig, pt(start), NONE);
+    glide_along(&mut rig, 0.0, 1.5);
     click(&mut rig, pt(on(1.5)), NONE);
+    glide_along(&mut rig, 1.5, 3.0);
     click(&mut rig, pt(on(3.0)), NONE);
     assert!(rig.tool_mut().events().is_empty());
     click(&mut rig, pt(start + Vec2::new(1.0, 1.0)), NONE);

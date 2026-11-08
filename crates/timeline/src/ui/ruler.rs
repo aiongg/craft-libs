@@ -397,9 +397,7 @@ impl Component for TimelineRuler<'_> {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        // The ruler fills the width it is offered; measured alone (a content-sized grid column) it is one grab wide, so the
-        // pass still shows it and its slider node carries a range.
-        Vec2::new(cx.style.grab, cx.style.height())
+        Vec2::new(0.0, cx.style.height())
     }
 
     fn sense(&self) -> Sense {

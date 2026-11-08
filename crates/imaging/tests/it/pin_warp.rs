@@ -414,21 +414,43 @@ fn shift_click_toggles_the_selection_and_a_drag_moves_every_selected_pin() {
     assert_eq!(h.selected(), vec![2], "a plain press on an unselected pin selects only it");
 }
 
-/// A distance from a pin that is past the pin and inside the turn reach.
-const NEAR: f64 = 17.0;
+/// The radius of the ring a pin's fixed rotation is set on, from the tokens.
+fn turn_ring() -> f64 {
+    f64::from(craft_ui::testing::style::tokens(craft_theme::Mode::Light, craft_theme::Contrast::Standard).size.handle.ring)
+}
+
+/// How far inside or outside the turn ring a press is placed.
+const RING_MARGIN: f64 = 1.0;
 
 #[trial]
 fn alt_drag_near_a_selected_pin_turns_it_and_fixes_its_rotation() {
-    let mut h = harness(vec![pin(200.0, 150.0)], vec![0]);
-    h.drag((200.0 + NEAR, 150.0), (200.0, 190.0), Modifiers::ALT);
+    let ring = turn_ring();
+    let (centre, release) = (Point::new(200.0, 150.0), Point::new(200.0, 190.0));
+    let press = Point::new(centre.x + ring - RING_MARGIN, centre.y);
+    // The turn is the angle the drag sweeps around the pin, from the press to the release.
+    let swept = ((release.y - centre.y).atan2(release.x - centre.x) - (press.y - centre.y).atan2(press.x - centre.x)).to_degrees();
+    let mut h = harness(vec![pin(centre.x, centre.y)], vec![0]);
+    h.drag((press.x, press.y), (release.x, release.y), Modifiers::ALT);
     let turned = h.state.borrow().session.pins()[0];
-    assert!((turned.angle.expect("fixed") - 90.0).abs() < 1e-9, "{:?}", turned.angle);
-    assert_eq!(turned.at, Point::new(200.0, 150.0), "the pin stays where it is");
+    assert!((turned.angle.expect("fixed") - swept).abs() < 1e-9, "{:?} vs {swept}", turned.angle);
+    assert_eq!(turned.at, centre, "the pin stays where it is");
     assert_eq!(h.seen(), [Seen::Begin, Seen::Commit]);
 
     h.state.borrow_mut().seen.clear();
+    h.drag((centre.x + ring + RING_MARGIN, centre.y), (release.x, release.y), Modifiers::ALT);
+    assert!(h.seen().is_empty(), "just outside the turn ring the press turns nothing: {:?}", h.seen());
+
     h.drag((300.0, 150.0), (300.0, 190.0), Modifiers::ALT);
     assert!(h.seen().is_empty(), "far from the pin the press turns nothing: {:?}", h.seen());
+}
+
+#[trial]
+fn tab_onto_a_pin_selects_it() {
+    let mut h = harness(vec![pin(100.0, 100.0), pin(200.0, 100.0)], vec![]);
+    h.key(Key::Tab, Modifiers::NONE);
+    assert_eq!(h.selected(), vec![0]);
+    h.key(Key::Tab, Modifiers::NONE);
+    assert_eq!(h.selected(), vec![1], "the pin Tab reaches is the selection");
 }
 
 #[trial]
@@ -507,7 +529,8 @@ fn the_keyboard_places_picks_moves_and_removes_pins() {
 #[trial]
 fn alt_drag_turns_a_fixed_pin_by_the_swept_angle() {
     let mut h = harness(vec![turned(pin(200.0, 150.0), 30.0)], vec![0]);
-    h.drag((200.0, 150.0 + NEAR), (200.0 - NEAR, 150.0), Modifiers::ALT);
+    let near = turn_ring() - RING_MARGIN;
+    h.drag((200.0, 150.0 + near), (200.0 - near, 150.0), Modifiers::ALT);
     let angle = h.state.borrow().session.pins()[0].angle.expect("fixed");
     assert!((angle - 120.0).abs() < 1e-9, "{angle}");
 }
@@ -530,7 +553,8 @@ fn alt_drag_turns_an_auto_pin_from_the_meshs_turn() {
             .collect();
     }
     h.fixture.settle();
-    h.drag((200.0, 150.0 + NEAR), (200.0 - NEAR, 150.0), Modifiers::ALT);
+    let near = turn_ring() - RING_MARGIN;
+    h.drag((200.0, 150.0 + near), (200.0 - near, 150.0), Modifiers::ALT);
     let angle = h.state.borrow().session.pins()[0].angle.expect("fixed");
     assert!((angle - 110.0).abs() < 1e-9, "{angle}");
 }

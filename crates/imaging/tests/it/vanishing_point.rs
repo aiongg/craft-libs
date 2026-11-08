@@ -358,7 +358,11 @@ fn delete_removes_the_plane_and_escape_drops_a_half_plane_first() {
     fixture.key(Key::Delete, Modifiers::NONE).settle();
     let after = session(&app);
     assert_eq!(after.planes, planes[1..], "the children keep their place");
-    assert_eq!(after.torn, [None, torn[2].map(|child| TornPlane::new(0, child.edge, child.angle, child.depth))], "the child is drawn, its child follows it");
+    assert_eq!(
+        after.torn,
+        [None, torn[2].map(|child| TornPlane::new(0, child.edge, child.angle, child.depth))],
+        "the child is drawn, its child follows it"
+    );
     assert_eq!(app.borrow().workspace.editor().selected(), None);
 
     // Escape: the half plane first, then the dialog's Cancel.
@@ -380,7 +384,9 @@ fn stamp_alt_click_sets_the_source_and_strokes_report_events() {
     draw_plane(&mut fixture);
     app.borrow_mut().workspace.tool(VanishingTool::Stamp);
     fixture.settle();
-    let off = at(&fixture, Vec2::new(HALF.x * 8.0, HALF.y * 8.0));
+    // The canvas's far corner is off every plane, whatever the room.
+    let canvas = fixture.by_role(Role::CANVAS).into_iter().next().expect("the workspace shows a canvas");
+    let off = canvas.rect.right_bottom() - Vec2::splat(10.0);
     fixture.hold(Modifiers::ALT);
     click(&mut fixture, off);
     fixture.hold(Modifiers::NONE);
@@ -401,7 +407,8 @@ fn stamp_alt_click_sets_the_source_and_strokes_report_events() {
     assert_eq!((seen.first().copied(), seen.last().copied()), (Some("stamp begin"), Some("stamp commit")), "{seen:?}");
     let kept = session(&app);
     let stroke = &kept.strokes[0];
-    assert_eq!((stroke.source, stroke.hardness, stroke.opacity), (kept.source.expect("a source"), 0.5, 1.0));
+    let options = VanishingPointSettings::default().stamp;
+    assert_eq!((stroke.source, stroke.hardness, stroke.opacity), (kept.source.expect("a source"), options.hardness / 100.0, options.opacity / 100.0));
     assert!(stroke.points.len() > 1, "the drag laid dabs");
     // Aligned: the next stroke keeps the offset from its start; without Aligned it restarts at the source.
     drag(&mut fixture, start + Vec2::new(0.0, 10.0), start + Vec2::new(10.0, 10.0));
@@ -543,11 +550,12 @@ fn the_paste_extent_keeps_the_images_metric_aspect() {
     let scene = Flat { verdicts: Vec::new() };
     let mut settings = VanishingPointSettings::default();
     settings.paste = true;
+    let ctx = egui::Context::default();
     let placed = |size: PixelSize| {
         let source = Pasted { layer: Layer, image: Image(size) };
         let mut session = drawn();
         let mut editor = craft_imaging::ui::vanishing_point::VanishingPointEditor::new(LIMITS);
-        let pass = editor.pass(&mut session, &settings, &scene, &source);
+        let pass = editor.pass(&ctx, &mut session, &settings, &scene, &source);
         pass.paste_placement().map(|(_, rect)| (rect.width(), rect.height()))
     };
     // The plane is 200 by 100 pixels: half its width is 100 pixels, and a 40 by 30 image that wide is 75 pixels
@@ -661,7 +669,7 @@ fn four_typed_corners_make_the_plane_the_scene_checks() {
     let scene = Flat { verdicts: Vec::new() };
     let mut editor = craft_imaging::ui::vanishing_point::VanishingPointEditor::new(LIMITS);
     let skewed = [[300.0, 200.0], [300.0, 100.0], [100.0, 100.0], [100.0, 200.0]];
-    assert!(editor.add_plane(&mut session, &scene, skewed, "New Plane"));
+    assert!(editor.add_plane(&egui::Context::default(), &mut session, &scene, skewed, "New Plane"));
     assert_eq!(session.planes[0].corners, [[100.0, 100.0], [300.0, 100.0], [300.0, 200.0], [100.0, 200.0]], "the scene normalises the typed corners");
     assert_eq!(editor.selected(), Some(0));
     assert!(matches!(editor.take_events().as_slice(), [VanishingPointEvent::Planes(EditEvent::Set { .. })]));

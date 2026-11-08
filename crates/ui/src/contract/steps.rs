@@ -1339,9 +1339,10 @@ fn report_sub(core: &CxCore<'_>, input: &ReportIn<'_>, node: &SubNode, face: Opt
     access::report_sub(&core.ctx, &decl);
 }
 
-/// A node of a component whose size failed the guard: the role and the label, nothing else.
+/// A node of a component whose size failed the guard: it shows nothing, so it is an unnamed group. The component's own
+/// role would promise what the role rules require (a slider's range, a tab's position) of a node that has none.
 pub(crate) fn report_inert<C: Component>(cx: &Cx<'_, C>) {
-    let Role::Node(role) = C::ROLE else { return };
+    let (Role::Node(_), Role::Node(role)) = (C::ROLE, Role::GROUP) else { return };
     let core = &cx.core;
     let mut access = Access::default();
     access.position = core.env.facts_of(core.id).map(|facts| facts.position);
@@ -1352,7 +1353,7 @@ pub(crate) fn report_inert<C: Component>(cx: &Cx<'_, C>) {
             component: std::any::type_name::<C>(),
             role,
             rect: core.rect,
-            label: core.resolved.label,
+            label: "",
             names_nothing: false,
             tooltip: None,
             elided: None,

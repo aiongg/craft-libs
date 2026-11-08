@@ -81,10 +81,6 @@ impl Held {
     }
 }
 
-/// The part the focus arrived at, so a move of the focus selects a board.
-#[derive(Clone, Default)]
-struct Arrival(Option<u64>);
-
 /// The boards of a canvas, taken by the pointer and the keyboard.
 ///
 /// - A press in a board selects it; a drag moves it with its contents in whole pixels (the canvas's snapping applies
@@ -278,13 +274,10 @@ impl<'a> ArtboardOverlay<'a> {
     fn keys(&mut self, cx: &mut Cx<'_, Self>, space: &CanvasSpace) {
         let words = cx.words::<ArtboardToolWords>();
         let focused = cx.active_part().filter(|part| part.key == BOARD || part.key == HANDLE);
-        let arrived = {
-            let slot = cx.memory::<Arrival>();
-            let key = focused.map(|part| part.index.unwrap_or(0) + if part.key == HANDLE { 1 << 32 } else { 0 });
-            let changed = slot.0 != key;
-            slot.0 = key;
-            changed
-        };
+        // Focus arriving on a board by a key or a request selects it; a press selects by its own rule.
+        let arrived = cx.focus_arrived().is_some_and(|part| {
+            part.key == BOARD && cx.part_if_declared(part).is_none_or(|result| matches!(result.press.phase, PressPhase::Idle | PressPhase::Hover))
+        });
         let Some(part) = focused else { return };
         if arrived
             && part.key == BOARD

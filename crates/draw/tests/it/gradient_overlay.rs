@@ -6,13 +6,17 @@ use std::rc::Rc;
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::Point;
 use craft_draw::ui::gradient::gradient_line::{GradientLine, LineGradient, at, project, snap45};
-use craft_draw::ui::gradient::stops::{STOP_STEP, STOP_STEP_FAR};
 use craft_draw::ui::gradient::{ColorStop, GradientOverlay, GradientStops, StopRef};
 use craft_theme::Srgba;
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers, Vec2};
+
+/// The share of the gradient line one arrow press moves a stop.
+const ONE_PERCENT: f32 = 0.01;
+/// The share one Shift+arrow press moves it.
+const TEN_PERCENT: f32 = 0.10;
 
 fn black() -> Srgba {
     Srgba { r: 0.0, g: 0.0, b: 0.0, a: 1.0 }
@@ -97,12 +101,9 @@ fn left_and_right_move_a_picked_stop_by_one_percent_and_delete_removes_it() {
     let start = s.value.borrow().stops.color[1].location;
     s.fixture.key(Key::ArrowRight, Modifiers::NONE);
     let right = s.value.borrow().stops.color[1].location;
-    let step = right - start;
-    assert!(step > 0.0, "Right moves the stop later");
+    assert!((right - start - ONE_PERCENT).abs() < 1e-4, "one Right press moves the stop later by a hundredth of the line");
     s.fixture.key(Key::ArrowLeft, Modifiers::SHIFT);
-    assert!((step - STOP_STEP).abs() < 1e-4, "one press is one percent");
-    let far = STOP_STEP_FAR;
-    assert!((s.value.borrow().stops.color[1].location - (right - far)).abs() < 1e-4, "Shift takes the far step");
+    assert!((s.value.borrow().stops.color[1].location - (right - TEN_PERCENT)).abs() < 1e-4, "Shift takes the far step, a tenth of the line");
     s.fixture.key(Key::Delete, Modifiers::NONE);
     assert_eq!(s.value.borrow().stops.color.len(), 2);
 }

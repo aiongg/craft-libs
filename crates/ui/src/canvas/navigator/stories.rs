@@ -4,7 +4,7 @@ use super::preview::WELL;
 use super::{Navigator, NavigatorPaint, NavigatorPreview, NavigatorZoomRow};
 use crate::contract::{Bind, Show as _, Validity};
 use crate::runtime::env::Message;
-use crate::testing::{Drive, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Grip, StoryData, StoryOutput, story};
 use craft_behavior::kurbo::{Point, Size};
 use craft_behavior::{CanvasView, Mixed};
 use egui::{Color32, Pos2, Rect, Ui};
@@ -33,7 +33,7 @@ fn navigator(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     Navigator::new("Navigator", Bind::bound(view), DOCUMENT).show(ui).into()
 }
 
-#[story(Navigator<'static>, covers = [], drive = Drive::Drag(WELL))]
+#[story(Navigator<'static>, covers = [], drive = Drive::Drag(Grip::new(WELL)))]
 fn navigator_drag(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let view = data.value("view", CanvasView::new(CANVAS, Point::new(1000.0, 750.0), 1.0));
     Navigator::new("Navigator", Bind::bound(view), DOCUMENT).show(ui).into()

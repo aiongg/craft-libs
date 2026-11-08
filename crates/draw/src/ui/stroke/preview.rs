@@ -1,7 +1,7 @@
 //! [`StrokePreview`]: a stroke style drawn as a line sample with the content painter.
 
 use craft_ui::primitives::{ContentPainterCx, PaintShape};
-use egui::{Color32, Pos2, Rect, Shape, Stroke};
+use egui::{Pos2, Rect, Shape, Stroke};
 use kurbo::{BezPath, PathEl, Point};
 
 use super::StrokeStyle;
@@ -70,11 +70,6 @@ impl<'a> StrokePreview<'a> {
     pub fn inset(mut self, inset: f32) -> Self {
         self.inset = Some(inset);
         self
-    }
-
-    /// The fill colour of the sample in `ink`: the ink at the style's opacity.
-    pub fn ink(&self, ink: Color32) -> Color32 {
-        ink.gamma_multiply(self.value.opacity)
     }
 
     /// The sample's shapes in `rect` (screen points): every dash as filled convex polygons and
@@ -159,10 +154,12 @@ impl<'a> StrokePreview<'a> {
 
     /// Fills [`shapes`](Self::shapes) for `rect` in the painter's ink at the style's opacity.
     pub fn paint(&self, cx: &ContentPainterCx, rect: Rect) {
-        let fill = self.ink(cx.ink());
+        let ink = cx.ink();
+        let mut faded = cx.painter.clone();
+        faded.multiply_opacity(self.value.opacity);
         for shape in self.shapes(rect) {
             if let PaintShape::Polygon(points) = shape {
-                cx.painter.add(Shape::convex_polygon(points, fill, Stroke::NONE));
+                faded.add(Shape::convex_polygon(points, ink, Stroke::NONE));
             }
         }
     }

@@ -15,34 +15,58 @@ use super::tools::SelectMaskTool;
 #[non_exhaustive]
 pub enum SelectMaskCommands {
     /// Quick Selection.
-    #[command(label = "Quick Selection Tool", icon = "quick_selection", kind = "tool", group = "w", default = "W", default = "Shift+W")]
+    #[command(
+        modal = "in_dialogs",
+        label = "Quick Selection Tool",
+        icon = "quick_selection",
+        kind = "tool",
+        group = "w",
+        default = "W",
+        default = "Shift+W"
+    )]
     Quick,
     /// Object Selection.
-    #[command(label = "Object Selection Tool", icon = "object_select", kind = "tool", group = "w", default = "W", default = "Shift+W")]
+    #[command(
+        modal = "in_dialogs",
+        label = "Object Selection Tool",
+        icon = "object_select",
+        kind = "tool",
+        group = "w",
+        default = "W",
+        default = "Shift+W"
+    )]
     Object,
     /// Refine Edge Brush.
-    #[command(label = "Refine Edge Brush Tool", icon = "brush-cleaning", kind = "tool", default = "R")]
+    #[command(modal = "in_dialogs", label = "Refine Edge Brush Tool", icon = "brush-cleaning", kind = "tool", default = "R")]
     RefineEdge,
     /// Brush.
-    #[command(label = "Brush Tool", icon = "brush", kind = "tool", default = "B")]
+    #[command(modal = "in_dialogs", label = "Brush Tool", icon = "brush", kind = "tool", default = "B")]
     Brush,
     /// Lasso.
-    #[command(label = "Lasso Tool", icon = "lasso", kind = "tool", group = "l", default = "L", default = "Shift+L")]
+    #[command(modal = "in_dialogs", label = "Lasso Tool", icon = "lasso", kind = "tool", group = "l", default = "L", default = "Shift+L")]
     Lasso,
     /// Polygonal Lasso.
-    #[command(label = "Polygonal Lasso Tool", icon = "pentagon", kind = "tool", group = "l", default = "L", default = "Shift+L")]
+    #[command(
+        modal = "in_dialogs",
+        label = "Polygonal Lasso Tool",
+        icon = "pentagon",
+        kind = "tool",
+        group = "l",
+        default = "L",
+        default = "Shift+L"
+    )]
     PolygonalLasso,
     /// Hand.
-    #[command(label = "Hand Tool", icon = "hand", kind = "tool", default = "H")]
+    #[command(modal = "in_dialogs", label = "Hand Tool", icon = "hand", kind = "tool", default = "H")]
     Hand,
     /// Zoom.
-    #[command(label = "Zoom Tool", icon = "zoom_in", kind = "tool", default = "Z")]
+    #[command(modal = "in_dialogs", label = "Zoom Tool", icon = "zoom_in", kind = "tool", default = "Z")]
     Zoom,
     /// Makes the current brush tool's brush smaller.
-    #[command(label = "Smaller Brush", default = "[")]
+    #[command(modal = "in_dialogs", label = "Smaller Brush", default = "[")]
     Smaller,
     /// Makes the current brush tool's brush larger.
-    #[command(label = "Larger Brush", default = "]")]
+    #[command(modal = "in_dialogs", label = "Larger Brush", default = "]")]
     Larger,
 }
 

@@ -182,7 +182,7 @@ name = "Thumb"
 old = "craft_ui::controls::thumb_row::Thumb"
 new = "craft_ui::value_drag::Thumb"
 status = "moved"
-note = "Built with `Thumb::new(label)` and `.face(DataColor)`; passed through `ThumbRow::thumbs`."
+note = "Built with `Thumb::new(label)` and `.face(DataColor)`; passed through `ThumbRow::thumbs`. New: `.alt_reports()`: Alt on this thumb is reported in `ThumbRowOutput::held` and is not the fine scale (a levels black or white point, where Alt shows clipping)."
 
 [[type]]
 name = "Order"
@@ -544,9 +544,3 @@ type = "RangeSlider"
 old = "track_face(TrackFace)"
 new = "track_face(TrackFace)"
 note = "New on the range slider."
-
-[[setter]]
-type = "Thumb"
-old = ""
-new = "alt_reports()"
-note = "Alt on this thumb is reported in `ThumbRowOutput::held` and is not the fine scale (a levels black or white point, where Alt shows clipping)."

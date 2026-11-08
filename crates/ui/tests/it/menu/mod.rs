@@ -9,6 +9,8 @@ mod native;
 
 mod openers;
 
+mod pick_focus;
+
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, Entry, Role, Show as _, ShowContainer as _, Trigger};
 use craft_ui::menu::{GroupItem, Menu, MenuItem, PanelMenu, PanelRow};

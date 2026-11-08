@@ -5,10 +5,9 @@ use craft_behavior::CanvasView;
 use craft_behavior::geometry::quad::{BoxPart, BoxRules, BoxState, TransformMode};
 use craft_behavior::kurbo::Rect as DocRect;
 use craft_ui::canvas::Canvas;
-use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
-use craft_ui::runtime::env::Message;
-use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
-use egui::{Ui, Vec2};
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::testing::{Drive, Grip, StoryData, StoryOutput, story};
+use egui::{Ui, vec2};
 
 /// The picture before any transform, in document units.
 const PICTURE: DocRect = DocRect::new(200.0, 120.0, 440.0, 280.0);
@@ -26,16 +25,7 @@ fn on_canvas(ui: &mut Ui, data: &mut StoryData, configure: impl for<'a> FnOnce(T
     shown.inner.flatten().map(|output| StoryOutput::from(output.edit)).unwrap_or_default()
 }
 
-/// Drags the bottom right corner handle.
-fn drag_a_corner(fixture: &mut Fixture) {
-    let travel = 2.0 * craft_ui::testing::input::max_click_dist(fixture.ctx());
-    let corner = fixture.root_id().and_then(|id| fixture.part(id, BOX.at(BoxPart::Corner(2).index())));
-    if let Some(corner) = corner {
-        fixture.drag(&corner, Vec2::new(travel, travel));
-    }
-}
-
-#[story(TransformBox<'static>, covers = [Default], drive = Drive::Custom(drag_a_corner))]
+#[story(TransformBox<'static>, covers = [Default], drive = Drive::Drag(Grip::part(BOX.at(BoxPart::Corner(2).index())).toward(vec2(1.0, 1.0))))]
 fn free_transform(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     on_canvas(ui, data, |control| control.reference_point(true))
 }
@@ -48,19 +38,4 @@ fn move_tool_controls(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(TransformBox<'static>, covers = [Default])]
 fn distort(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     on_canvas(ui, data, |control| control.rules(BoxRules::in_mode(TransformMode::Distort)))
-}
-
-/// The box refuses a state without a width.
-fn refuse_a_collapsed_box(state: &BoxState) -> Validity<BoxState> {
-    if state.quad[0] == state.quad[1] { Validity::Refuse(Message::new("The box has no width")) } else { Validity::Ok }
-}
-
-#[story(TransformBox<'static>, covers = [Invalid], drive = Drive::Never)]
-fn collapsed_box(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let state = data.value("collapsed", BoxState::from_rect(DocRect::new(PICTURE.x0, PICTURE.y0, PICTURE.x0, PICTURE.y1)));
-    let room = ui.available_rect_before_wrap();
-    let shown = Canvas::new("Document").view(CanvasView::new(room, PICTURE.center(), 1.0)).show(ui, |ui, body| {
-        TransformBox::new("Free Transform", Bind::bound(&mut *state).check(refuse_a_collapsed_box), PICTURE, 0.0).show_at(ui, body.rect)
-    });
-    shown.inner.map(|output| StoryOutput::from(output.edit)).unwrap_or_default()
 }

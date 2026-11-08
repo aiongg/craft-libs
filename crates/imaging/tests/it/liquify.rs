@@ -14,6 +14,7 @@ use craft_ui::canvas::{PixelRect, RasterSource};
 use craft_ui::primitives::Revision;
 use craft_ui::runtime::access::Role;
 use craft_ui::sections::DialogRole;
+use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Color32, ColorImage, Event, Key, Modifiers, Pos2, Vec2};
 
@@ -536,6 +537,23 @@ fn liquify_brackets_scale_the_brush_and_command_h_toggles_the_mask() {
     assert!(app.borrow().workspace.settings().show_mask);
     fixture.key(Key::H, Modifiers::COMMAND);
     assert!(!app.borrow().workspace.settings().show_mask);
+}
+
+// The workspace's keys belong to the dialog: with focus on a footer button a tool letter still picks its tool and a
+// zoom chord still zooms.
+#[trial]
+fn liquify_keys_work_with_focus_on_the_footer_button() {
+    let (mut fixture, app) = open();
+    let ok = fixture.by_label("OK").expect("the footer has OK");
+    fixture.access(AccessActionKind::Focus, &ok);
+    fixture.idle(1);
+    let zoom = |fixture: &Fixture| fixture.texts().iter().map(|run| run.text.clone()).find(|text| text.contains('%'));
+    let before = zoom(&fixture);
+    fixture.key(Key::R, Modifiers::NONE);
+    assert_eq!(app.borrow().workspace.settings().tool, LiquifyTool::Reconstruct);
+    fixture.key(Key::Equals, Modifiers::COMMAND);
+    fixture.idle(2);
+    assert!(before.is_some() && zoom(&fixture) != before, "the zoom chord zooms: {before:?} then {:?}", zoom(&fixture));
 }
 
 // The settings round-trip through serde; a partial record fills the defaults; `clamped` puts out-of-range numbers back

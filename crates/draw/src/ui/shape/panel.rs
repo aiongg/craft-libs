@@ -11,7 +11,7 @@ use craft_theme::Srgba;
 use craft_ui::contract::{Bind, GlyphLabel, LabelKind, Props as _, Show as _, ShowContainer as _, SideLabel};
 use craft_ui::form::{Field, FieldGroup};
 use craft_ui::layout_components::Row;
-use craft_ui::runtime::env::{Env, Label, UnitKind, Units, with_env};
+use craft_ui::runtime::env::{Env, Label, LengthUnits, UnitKind, Units, with_env};
 use craft_ui::sections::Section;
 use craft_ui::text::NumberField;
 use egui::Ui;
@@ -72,6 +72,7 @@ pub struct ShapePanel<'a> {
     fallbacks: (Srgba, Srgba),
     sections: (bool, bool),
     sampled: Option<(ShapePaint, Srgba)>,
+    pixels_per_inch: f64,
 }
 
 impl<'a> ShapePanel<'a> {
@@ -86,6 +87,7 @@ impl<'a> ShapePanel<'a> {
             fallbacks: (Srgba::BLACK, Srgba::WHITE),
             sections: (true, true),
             sampled: None,
+            pixels_per_inch: DEFAULT_PIXELS_PER_INCH,
         }
     }
 
@@ -125,12 +127,19 @@ impl<'a> ShapePanel<'a> {
         self
     }
 
+    /// The document's pixels per inch, which sizes a length typed in inches or points. 72 by default.
+    #[must_use]
+    pub fn pixels_per_inch(mut self, pixels_per_inch: f64) -> Self {
+        self.pixels_per_inch = pixels_per_inch;
+        self
+    }
+
     /// Adds the sections to `ui` and reports the changed fields.
     pub fn show(self, ui: &mut Ui) -> ShapePanelOutput {
-        let ShapePanel { label, shape, appearance, stroke_open, chips, fallbacks, sections, sampled } = self;
+        let ShapePanel { label, shape, appearance, stroke_open, chips, fallbacks, sections, sampled, pixels_per_inch } = self;
         let env = Env::of(ui);
         let (words, units) = (env.words::<ShapeWords>(), env.units());
-        let mut pass = Cells::new(&words, &units, appearance, fallbacks, sampled, chips, stroke_open);
+        let mut pass = Cells::new(&words, &units, pixels_per_inch, appearance, fallbacks, sampled, chips, stroke_open);
         let mut body = |ui: &mut Ui| {
             FieldGroup::new(label.clone()).show(ui, |ui, _| {
                 pass.begin();
@@ -156,39 +165,72 @@ impl<'a> ShapePanel<'a> {
     }
 }
 
-/// One number cell: the field's key, caption, value, range and what reads its text.
+/// One number cell: the field's key, caption, value, range, the lengths it converts between and what reads its text.
 pub(super) struct NumberCell {
     pub key: &'static str,
     pub caption: Label,
     pub value: f64,
     pub range: RangeInclusive<f64>,
-    pub codec: NumberCodec,
+    lengths: Option<LengthUnits>,
+    codec: NumberCodec,
 }
 
 impl NumberCell {
-    /// A length in pixels with up to two decimals.
-    pub fn pixels(units: &Units, key: &'static str, caption: &Label, value: f64, range: RangeInclusive<f64>) -> Self {
-        NumberCell { key, caption: caption.clone(), value, range, codec: NumberCodec::new(units.reader(Some(UnitKind::Pixels)), PIXEL_DECIMALS) }
+    /// A length in pixels with up to two decimals, in a document of `pixels_per_inch`.
+    pub fn pixels(units: &Units, pixels_per_inch: f64, key: &'static str, caption: &Label, value: f64, range: RangeInclusive<f64>) -> Self {
+        Self::length(units, pixels_per_inch, PIXEL_DECIMALS, key, caption, value, range)
     }
 
-    /// A length in whole pixels.
-    pub fn whole_pixels(units: &Units, key: &'static str, caption: &Label, value: f64, range: RangeInclusive<f64>) -> Self {
-        NumberCell { key, caption: caption.clone(), value, range, codec: NumberCodec::new(units.reader(Some(UnitKind::Pixels)), 0) }
+    /// A length in whole pixels, in a document of `pixels_per_inch`.
+    pub fn whole_pixels(units: &Units, pixels_per_inch: f64, key: &'static str, caption: &Label, value: f64, range: RangeInclusive<f64>) -> Self {
+        Self::length(units, pixels_per_inch, 0, key, caption, value, range)
+    }
+
+    fn length(
+        units: &Units,
+        pixels_per_inch: f64,
+        decimals: usize,
+        key: &'static str,
+        caption: &Label,
+        value: f64,
+        range: RangeInclusive<f64>,
+    ) -> Self {
+        let lengths = LengthUnits::new(UnitKind::Pixels, UnitKind::Pixels, pixels_per_inch);
+        NumberCell {
+            key,
+            caption: caption.clone(),
+            value,
+            range,
+            lengths: Some(lengths),
+            codec: NumberCodec::new(units.length_reader(lengths), decimals),
+        }
     }
 
     /// A plain whole number.
     pub fn count(units: &Units, key: &'static str, caption: &Label, value: f64, range: RangeInclusive<f64>) -> Self {
-        NumberCell { key, caption: caption.clone(), value, range, codec: NumberCodec::new(units.reader(None), 0) }
+        NumberCell { key, caption: caption.clone(), value, range, lengths: None, codec: NumberCodec::new(units.reader(None), 0) }
     }
 
     /// A percentage with up to one decimal.
     pub fn percent(units: &Units, key: &'static str, caption: &Label, value: f64, range: RangeInclusive<f64>) -> Self {
-        NumberCell { key, caption: caption.clone(), value, range, codec: NumberCodec::new(units.reader(Some(UnitKind::Percent)), PERCENT_DECIMALS) }
+        NumberCell {
+            key,
+            caption: caption.clone(),
+            value,
+            range,
+            lengths: None,
+            codec: NumberCodec::new(units.reader(Some(UnitKind::Percent)), PERCENT_DECIMALS),
+        }
     }
 
     /// The field over the cell's value.
     pub fn field(&self) -> NumberField<'static> {
-        NumberField::new(self.caption.clone(), Bind::given(Some(self.value))).range(self.range.clone()).codec(self.codec.clone())
+        let value = Bind::given(Some(self.value));
+        let field = match self.lengths {
+            Some(lengths) => NumberField::length(self.caption.clone(), value, lengths),
+            None => NumberField::new(self.caption.clone(), value),
+        };
+        field.range(self.range.clone()).codec(self.codec.clone())
     }
 
     /// The edit of the field shown in `ui`; an emptied field keeps the value.
@@ -198,6 +240,8 @@ impl NumberCell {
     }
 }
 
+/// The pixels per inch of a document that names none (the web default).
+pub(super) const DEFAULT_PIXELS_PER_INCH: f64 = 72.0;
 /// The most decimals a length in pixels shows.
 const PIXEL_DECIMALS: usize = 2;
 /// The most decimals a percentage shows.
@@ -207,6 +251,8 @@ const PERCENT_DECIMALS: usize = 1;
 pub(super) struct Cells<'p, 'a> {
     words: &'p ShapeWords,
     units: &'p Units,
+    /// Pixels per inch of the document, for lengths typed in other units.
+    pixels_per_inch: f64,
     appearance: &'p ShapeAppearance,
     fallbacks: (Srgba, Srgba),
     sampled: Option<(ShapePaint, Srgba)>,
@@ -220,13 +266,14 @@ impl<'p, 'a> Cells<'p, 'a> {
     pub fn new(
         words: &'p ShapeWords,
         units: &'p Units,
+        pixels_per_inch: f64,
         appearance: &'p ShapeAppearance,
         fallbacks: (Srgba, Srgba),
         sampled: Option<(ShapePaint, Srgba)>,
         chips: Option<ChipSetup<'a>>,
         open: Option<Bind<'a, bool>>,
     ) -> Self {
-        Cells { words, units, appearance, fallbacks, sampled, chips, open, events: Vec::new(), screen_pick: None }
+        Cells { words, units, pixels_per_inch, appearance, fallbacks, sampled, chips, open, events: Vec::new(), screen_pick: None }
     }
 
     /// Starts a run of the body: it may run more than once in a pass, and each run starts clean.
@@ -289,7 +336,14 @@ impl<'p, 'a> Cells<'p, 'a> {
 
     /// The stroke width cell: 0 to 288 px.
     pub fn width_cell(&self) -> NumberCell {
-        NumberCell::pixels(self.units, "stroke-width", &self.words.stroke_width, self.appearance.stroke_width, 0.0..=STROKE_WIDTH_MAX)
+        NumberCell::pixels(
+            self.units,
+            self.pixels_per_inch,
+            "stroke-width",
+            &self.words.stroke_width,
+            self.appearance.stroke_width,
+            0.0..=STROKE_WIDTH_MAX,
+        )
     }
 
     /// Takes the stroke width field's event. An arrow step that stays at 0 changes nothing, so it adds no stroke.
@@ -335,10 +389,10 @@ impl<'p, 'a> Cells<'p, 'a> {
 
     /// The W and H row of a rect, ellipse or polygon: whole pixels, 1 to 300,000.
     fn size_row(&mut self, ui: &mut Ui, (width, height): (f64, f64)) {
-        let (units, words) = (self.units, self.words);
+        let (units, ppi, words) = (self.units, self.pixels_per_inch, self.words);
         let cells = [
-            NumberCell::whole_pixels(units, "width", &words.width_name, width, SIZE_RANGE),
-            NumberCell::whole_pixels(units, "height", &words.height_name, height, SIZE_RANGE),
+            NumberCell::whole_pixels(units, ppi, "width", &words.width_name, width, SIZE_RANGE),
+            NumberCell::whole_pixels(units, ppi, "height", &words.height_name, height, SIZE_RANGE),
         ];
         let glyphs = [&words.width, &words.height];
         let mut edits = [None, None];
@@ -355,12 +409,12 @@ impl<'p, 'a> Cells<'p, 'a> {
 
     /// The Shape section's rows for `shape`.
     fn shape_rows(&mut self, ui: &mut Ui, shape: &LiveShape) {
-        let (units, words) = (self.units, self.words);
+        let (units, ppi, words) = (self.units, self.pixels_per_inch, self.words);
         match shape {
             LiveShape::Rect { width, height, radii } => {
                 self.size_row(ui, (*width, *height));
                 let radii = *radii;
-                let cell = NumberCell::pixels(units, "corner-radius", &words.corner_radius, radii[0], RADIUS_RANGE);
+                let cell = NumberCell::pixels(units, ppi, "corner-radius", &words.corner_radius, radii[0], RADIUS_RANGE);
                 self.number_row(ui, cell, |r| ShapeChange::Radii([r; 4]));
                 // PhotoCraft's row order; the radii order is top-left, top-right, bottom-right, bottom-left.
                 let corners = [
@@ -370,7 +424,7 @@ impl<'p, 'a> Cells<'p, 'a> {
                     ("corner-bottom-right", &words.bottom_right, 2),
                 ];
                 for (key, caption, index) in corners {
-                    let cell = NumberCell::pixels(units, key, caption, radii[index], RADIUS_RANGE);
+                    let cell = NumberCell::pixels(units, ppi, key, caption, radii[index], RADIUS_RANGE);
                     self.number_row(ui, cell, |r| {
                         let mut next = radii;
                         next[index] = r;
@@ -381,7 +435,7 @@ impl<'p, 'a> Cells<'p, 'a> {
             LiveShape::Ellipse { width, height } => self.size_row(ui, (*width, *height)),
             LiveShape::Polygon { width, height, corner_radius, sides, star_ratio } => {
                 self.size_row(ui, (*width, *height));
-                let radius = NumberCell::pixels(units, "corner-radius", &words.corner_radius, *corner_radius, RADIUS_RANGE);
+                let radius = NumberCell::pixels(units, ppi, "corner-radius", &words.corner_radius, *corner_radius, RADIUS_RANGE);
                 self.number_row(ui, radius, ShapeChange::CornerRadius);
                 let count = NumberCell::count(units, "sides", &words.sides, f64::from(*sides), SIDES_RANGE);
                 self.number_row(ui, count, sides_change);
@@ -389,7 +443,7 @@ impl<'p, 'a> Cells<'p, 'a> {
                 self.number_row(ui, ratio, |percent| ShapeChange::StarRatio(percent / 100.0));
             }
             LiveShape::Line { weight } => {
-                let cell = NumberCell::pixels(units, "weight", &words.weight, *weight, 1.0..=10_000.0);
+                let cell = NumberCell::pixels(units, ppi, "weight", &words.weight, *weight, 1.0..=10_000.0);
                 self.number_row(ui, cell, ShapeChange::Weight);
             }
         }

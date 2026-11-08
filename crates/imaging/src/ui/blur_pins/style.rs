@@ -5,8 +5,6 @@ use craft_ui::style::{ComponentStyle, FocusLook, HandleLook, StyleColor, StyleCx
 
 use super::grab::PinReach;
 
-/// How far from the ring's radius a press still grabs the ring, in screen points.
-const RING_BAND_WIDTH: f32 = 5.0;
 /// How far a feather handle sits beyond a plain handle's radius, in screen points.
 const FEATHER_EXTRA: f32 = 1.0;
 /// How far a turn handle sits beyond a plain handle's radius, in screen points.
@@ -51,8 +49,8 @@ impl BlurPinsStyle {
         BlurPinsStyle {
             metrics: Metrics::new(),
             handle: cx.handle(),
-            reach: PinReach::new(size.hit.target, size.control.sm, RING_BAND_WIDTH, size.hit.target),
-            dash: stroke.dash_gap,
+            reach: PinReach::new(size.hit.target, size.handle.ring, size.hit.target, size.hit.target),
+            dash: stroke.dash,
             dash_gap: stroke.dash_gap,
             feather_extra: FEATHER_EXTRA,
             turn_extra: TURN_EXTRA,

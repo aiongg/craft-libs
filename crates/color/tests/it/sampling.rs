@@ -157,17 +157,18 @@ fn alt_click_removes_and_renumbers() {
     assert!(tool.take_error().is_none());
 }
 
+/// A press on empty canvas places a point and the drag carries it: the point ends where the pointer is released.
+#[trial]
+fn a_press_on_empty_canvas_places_a_point_that_the_drag_carries() {
+    let mut tool = sampler_tool(&[]);
+    click_drag(&mut tool, at(40.0, 40.0), at(90.6, 70.2));
+    assert_eq!(tool.samplers().points(), [[90.0, 70.0]], "one point, at the release");
+}
+
 #[trial]
 fn the_sampler_tool_meets_the_tool_rules() {
-    // A press on empty canvas only places a point, so the drags of `check` need points under them: one at the
-    // middle and one a quarter of the way in, placed the way a user does.
     let view = |rect: Rect| CanvasView::new(rect, Point::new(f64::from(SIZE[0]) / 2.0, f64::from(SIZE[1]) / 2.0), 1.0);
     let mut tool = ToolFixture::with_view("Color Sampler", sampler_tool(&[]), view, |_, _| {});
-    let canvas = tool.canvas().rect;
-    for at in [canvas.center(), canvas.min + canvas.size() * 0.25] {
-        tool.press_at(at).release_at(at);
-    }
-    assert_eq!(tool.tool().samplers().points().len(), 2, "the presses placed the points");
     tool.check();
 }
 

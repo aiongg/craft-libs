@@ -203,7 +203,9 @@ impl Outcome for LevelsEditorOutput {
 /// (black, gamma and white triangles); the three input fields (black at the start, gamma centred,
 /// white at the end); the "Output Levels" caption; a black-to-channel bar with the output row (two
 /// triangles) on it; the two output fields. The plot, the two thumb rows and the fields keep this
-/// geometry left to right under a right-to-left interface; the captions follow the reading order.
+/// geometry left to right under a right-to-left interface; the captions follow the reading order. The access order is
+/// the caption, the input thumb row, the histogram, the input fields, then the output rows: the plot spans the input
+/// row's travel, so the row is declared first.
 ///
 /// - The gamma thumb sits at `black + (white − black) · 0.5^gamma` and follows the black and white
 ///   thumbs; a gamma drag sets `ln t / ln 0.5` of where it is between them, in steps of 0.01 within

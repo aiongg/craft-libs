@@ -110,17 +110,26 @@ impl Outcome for ColorReadoutOutput {
 pub struct ColorReadout<'a> {
     label: Label,
     value: Bind<'a, Rgba>,
+    shared: [Mixed<u8>; 3],
 }
 
 impl<'a> ColorReadout<'a> {
     /// A readout of `value` named `label`.
     pub fn new(label: impl Into<Label>, value: Bind<'a, Rgba>) -> Self {
-        ColorReadout { label: label.into(), value }
+        ColorReadout { label: label.into(), value, shared: [Mixed::Mixed; 3] }
+    }
+
+    /// The channels (red, green, blue, in [`Rgba`] order) that are the same in every item while the value is mixed,
+    /// computed by the host: a channel field shows its shared number and the others show Mixed, as Photoshop's Info
+    /// and Color panels do. Ignored while the value is the same for every item.
+    pub fn shared_channels(mut self, shared: [Mixed<u8>; 3]) -> Self {
+        self.shared = shared;
+        self
     }
 
     /// Shows the readout.
     pub fn show(self, ui: &mut Ui) -> ColorReadoutOutput {
-        let ColorReadout { label, mut value } = self;
+        let ColorReadout { label, mut value, shared } = self;
         let words = Env::of(ui).words::<ColorReadoutWords>();
         let shown = Stack::new().label(label).show(ui, |ui, body| {
             let held: Mixed<Rgba> = value.reborrow().read(&mut *body).unwrap_or(Mixed::Mixed);
@@ -134,7 +143,10 @@ impl<'a> ColorReadout<'a> {
                         name.as_str().to_owned(),
                         Bind::given(match held {
                             Mixed::Same(color) => Mixed::Same(Some(f64::from(color.0[i]))),
-                            Mixed::Mixed => Mixed::Mixed,
+                            Mixed::Mixed => match shared[i] {
+                                Mixed::Same(byte) => Mixed::Same(Some(f64::from(byte))),
+                                Mixed::Mixed => Mixed::Mixed,
+                            },
                         }),
                     )
                     .range(0.0..=255.0)

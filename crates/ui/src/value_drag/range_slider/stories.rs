@@ -4,7 +4,7 @@ use super::{LOWER, RangeSlider};
 use crate::contract::{Bind, Props as _, Show as _, Validity};
 use crate::display::Progress;
 use crate::runtime::env::Message;
-use crate::testing::{Drive, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Grip, StoryData, StoryOutput, story};
 use crate::value_drag::TrackFace;
 use craft_behavior::Mixed;
 use egui::Ui;
@@ -13,7 +13,7 @@ const RANGE: std::ops::RangeInclusive<f64> = 0.0..=100.0;
 const CAP: f64 = 80.0;
 const LEVEL: (Mixed<f64>, Mixed<f64>) = (Mixed::Same(20.0), Mixed::Same(60.0));
 
-#[story(RangeSlider<'static>, covers = [Default], drive = Drive::Drag(LOWER))]
+#[story(RangeSlider<'static>, covers = [Default], drive = Drive::Drag(Grip::new(LOWER)))]
 fn range_slider(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     RangeSlider::new(Bind::bound(data.value("range", LEVEL)), RANGE).label("Level").show(ui).into()
 }

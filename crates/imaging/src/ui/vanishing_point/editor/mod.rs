@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use craft_behavior::geometry::quad::Homography;
 use craft_behavior::kurbo::Rect;
 use craft_behavior::{CancelReason, EditEvent, GestureId};
+use craft_ui::runtime::edit::next_gesture_id;
 
 use super::planes::{TornPlane, VanishingPlane, VanishingScene};
 use super::{VanishingPointEvent, VanishingPointSource};
@@ -233,8 +234,6 @@ pub struct VanishingPointEditor {
     pub(super) limits: StampLimits,
     /// The message of the last refused Stamp press, for the app's status line.
     pub(super) status: Option<String>,
-    /// The id of the last gesture or step the editor reported.
-    pub(super) gesture: GestureId,
 }
 
 impl VanishingPointEditor {
@@ -250,7 +249,6 @@ impl VanishingPointEditor {
             events: Vec::new(),
             limits,
             status: None,
-            gesture: GestureId::default(),
         }
     }
 
@@ -301,7 +299,13 @@ impl VanishingPointEditor {
     /// Delete or Backspace: removes the selected plane from `session`; planes torn off it keep their place as drawn
     /// planes, later parents' indices shift down. Returns the edit, which is also reported (a `Planes` `Set`).
     /// Nothing while a drag runs: the gesture ends first.
-    pub fn delete_selected(&mut self, session: &mut VanishingPointSession, scene: &dyn VanishingScene, step: &str) -> Option<PlaneEdit> {
+    pub fn delete_selected(
+        &mut self,
+        ctx: &egui::Context,
+        session: &mut VanishingPointSession,
+        scene: &dyn VanishingScene,
+        step: &str,
+    ) -> Option<PlaneEdit> {
         // pc: crates/ui-egui/src/dialogs/vp_ui.rs:398 `delete_selected`.
         if self.drag.is_some() {
             return None;
@@ -322,7 +326,7 @@ impl VanishingPointEditor {
             session.planes = scene.resolve(&session.planes, &session.torn);
         }
         let edit = PlaneEdit::new(session.planes.clone(), session.torn.clone());
-        let id = self.next_gesture();
+        let id = next_gesture_id(ctx);
         self.events.push(VanishingPointEvent::Planes(EditEvent::set(id, craft_behavior::Mixed::Same(before), edit.clone(), step.into(), None)));
         Some(edit)
     }
@@ -330,11 +334,18 @@ impl VanishingPointEditor {
     /// Adds the plane whose corners are `corners` (the New Plane form's four points) as Create Plane's fourth click
     /// does: the scene normalises it, it is selected and Edit Plane takes over. Returns whether a plane was added
     /// (not past [`MAX_PLANES`](super::MAX_PLANES)). Reported as a `Planes` `Set`.
-    pub fn add_plane(&mut self, session: &mut VanishingPointSession, scene: &dyn VanishingScene, corners: [[f64; 2]; 4], step: &str) -> bool {
+    pub fn add_plane(
+        &mut self,
+        ctx: &egui::Context,
+        session: &mut VanishingPointSession,
+        scene: &dyn VanishingScene,
+        corners: [[f64; 2]; 4],
+        step: &str,
+    ) -> bool {
         if self.drag.is_some() {
             return false;
         }
-        work::close_plane(self, session, scene, corners, step)
+        work::close_plane(self, session, scene, corners, step, next_gesture_id(ctx))
     }
 
     /// After undo or redo: no pending corners, the selection clamped. A drag in progress ended before the step
@@ -376,12 +387,13 @@ impl VanishingPointEditor {
     /// One pass of the editor over `session`: the canvas's tool and control.
     pub fn pass<'a>(
         &'a mut self,
+        ctx: &'a egui::Context,
         session: &'a mut VanishingPointSession,
         settings: &'a VanishingPointSettings,
         scene: &'a dyn VanishingScene,
         source: &'a dyn VanishingPointSource,
     ) -> VanishingPointPass<'a> {
-        VanishingPointPass { editor: RefCell::new(self), session: RefCell::new(session), settings, scene, source }
+        VanishingPointPass { ctx, editor: RefCell::new(self), session: RefCell::new(session), settings, scene, source }
     }
 
     /// Takes the events collected since the last call.
@@ -392,11 +404,6 @@ impl VanishingPointEditor {
     /// A drag or a stroke runs: the history waits.
     pub fn busy(&self) -> bool {
         self.drag.is_some()
-    }
-
-    pub(super) fn next_gesture(&mut self) -> GestureId {
-        self.gesture = self.gesture.next();
-        self.gesture
     }
 }
 
@@ -410,13 +417,14 @@ pub(super) trait Shared {
 /// One pass of the editor over a session, which the app shows on its own canvas.
 ///
 /// ```ignore
-/// let pass = editor.pass(&mut session, &settings, &scene, &source);
+/// let pass = editor.pass(ui.ctx(), &mut session, &settings, &scene, &source);
 /// FullWindowCanvas::new(bind, image)
 ///     .controls(|ui, rect| { pass.planes().show_at(ui, rect); })
 ///     .tool(&mut pass.tool())
 ///     .show(ui);
 /// ```
 pub struct VanishingPointPass<'a> {
+    ctx: &'a egui::Context,
     editor: RefCell<&'a mut VanishingPointEditor>,
     session: RefCell<&'a mut VanishingPointSession>,
     settings: &'a VanishingPointSettings,
@@ -428,7 +436,15 @@ impl Shared for VanishingPointPass<'_> {
     fn with(&self, f: &mut dyn FnMut(&mut Work<'_>)) {
         let mut editor = self.editor.borrow_mut();
         let mut session = self.session.borrow_mut();
-        let mut work = Work { editor: &mut **editor, session: &mut **session, scene: self.scene, settings: self.settings, source: self.source };
+        let mut work = Work {
+            ctx: self.ctx,
+            gesture: None,
+            editor: &mut **editor,
+            session: &mut **session,
+            scene: self.scene,
+            settings: self.settings,
+            source: self.source,
+        };
         f(&mut work);
     }
 }

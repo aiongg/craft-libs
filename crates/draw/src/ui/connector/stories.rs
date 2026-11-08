@@ -6,8 +6,8 @@ use craft_ui::bars::{Bar, BarKind};
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
 use craft_ui::runtime::env::Message;
-use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
-use egui::{Ui, Vec2};
+use craft_ui::testing::{Drive, Grip, StoryData, StoryOutput, story};
+use egui::{Ui, vec2};
 
 use super::{ConnectionTarget, ConnectorBar, ConnectorEnd, ConnectorHandles, ConnectorItem, ConnectorLine};
 use crate::geometry::connector::{ConnectionSide, Routing};
@@ -33,15 +33,7 @@ fn on_canvas(ui: &mut Ui, handles: ConnectorHandles<'_>) -> StoryOutput {
     shown.inner.flatten().map(StoryOutput::from).unwrap_or_default()
 }
 
-/// Drags the start end by twice the drag threshold.
-fn drag_start(fixture: &mut Fixture) {
-    let Some(id) = fixture.root_id() else { return };
-    let Some(grip) = fixture.part(id, super::handles::END.at(0)) else { return };
-    let travel = 2.0 * craft_ui::testing::input::max_click_dist(fixture.ctx());
-    fixture.drag(&grip, Vec2::new(0.0, travel));
-}
-
-#[story(ConnectorHandles<'static>, covers = [Default], drive = Drive::Custom(drag_start))]
+#[story(ConnectorHandles<'static>, covers = [Default], drive = Drive::Drag(Grip::part(super::handles::END.at(0)).toward(vec2(0.0, 1.0))))]
 fn connector_glued_at_both_ends(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let targets = targets();
     let item = data.value(

@@ -7,12 +7,12 @@
 #[non_exhaustive]
 pub enum WideAngleCommands {
     /// Draw constraints.
-    #[command(label = "Constraint Tool", icon = "slash", kind = "tool", group = "wideAngleTools", default = "A")]
+    #[command(modal = "in_dialogs", label = "Constraint Tool", icon = "slash", kind = "tool", group = "wideAngleTools", default = "A")]
     Constraint,
     /// Pan the view.
-    #[command(label = "Hand Tool", icon = "hand", kind = "tool", group = "wideAngleTools", default = "H")]
+    #[command(modal = "in_dialogs", label = "Hand Tool", icon = "hand", kind = "tool", group = "wideAngleTools", default = "H")]
     Hand,
     /// Zoom the view.
-    #[command(label = "Zoom Tool", icon = "zoom-in", kind = "tool", group = "wideAngleTools", default = "Z")]
+    #[command(modal = "in_dialogs", label = "Zoom Tool", icon = "zoom-in", kind = "tool", group = "wideAngleTools", default = "Z")]
     Zoom,
 }

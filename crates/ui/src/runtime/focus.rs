@@ -116,8 +116,8 @@ pub(crate) struct State {
     pub(crate) visible: bool,
     pub(crate) record: FocusedRecord,
     pub(super) menu_bar: bool,
-    /// The stop a menu bar took focus from, for the bar to give back.
-    pub(super) bar_return: Option<StopKey>,
+    /// The menu bar that took focus and the stop it took focus from, for the bar or a menu pick to give back.
+    pub(super) bar_return: Option<(Id, StopKey)>,
     pub(crate) press: press::PressState,
     /// The frame whose begin hook ran last; a move in the end hook belongs to the next frame.
     pub(super) frame: u64,
@@ -268,7 +268,7 @@ pub(crate) fn take_for_bar(ctx: &Context, bar: Id, target: FocusTarget) {
     let held = focused_stop(ctx).filter(|(id, _)| *id != bar);
     with(ctx, |state| {
         if held.is_some() || state.bar_return.is_none() {
-            state.bar_return = held;
+            state.bar_return = held.map(|held| (bar, held));
         }
     });
     request(ctx, target);
@@ -276,7 +276,7 @@ pub(crate) fn take_for_bar(ctx: &Context, bar: Id, target: FocusTarget) {
 
 /// Returns focus to the stop a menu bar took it from, in this pass. `false` when there is none.
 pub(crate) fn give_back_bar(ctx: &Context) -> bool {
-    let Some((id, part)) = with(ctx, |state| state.bar_return.take()) else { return false };
+    let Some((_, (id, part))) = with(ctx, |state| state.bar_return.take()) else { return false };
     request(ctx, part.map_or(FocusTarget::Id(id), |part| FocusTarget::Part(id, part)));
     true
 }
@@ -285,6 +285,19 @@ pub(crate) fn give_back_bar(ctx: &Context) -> bool {
 /// to return to.
 pub(crate) fn forget_bar_return(ctx: &Context) {
     with(ctx, |state| state.bar_return = None);
+}
+
+/// A menu row runs, or another activation closes the menus: in this pass, before a row's command fires, focus
+/// returns from the chain of menus that closes to the stop that held it before the outermost menu opened, or before
+/// a menu bar took it. The command then
+/// reaches that stop, as an Edit command picked from a menu reaches the text field it edits. Focus in no menu stays.
+pub(crate) fn return_from_menus(ctx: &Context) {
+    let focused = egui_focus::focused(ctx);
+    let acts = with(ctx, |state| {
+        state.focus_now = focused;
+        state.picked_focus().map(|rec| state.focus_stop(rec)).unwrap_or_default()
+    });
+    apply(ctx, acts);
 }
 
 /// Registers the component that `FocusTarget::Doc(key)` focuses.
