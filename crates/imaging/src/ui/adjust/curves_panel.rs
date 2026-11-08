@@ -1,30 +1,31 @@
-//! [`CurvesPanel`]: the Curves adjustment around the kernel's [`CurveEditor`]: the Channel select,
-//! the mode icons (points, pencil), Smooth, the point pickers, the other channels overlaid on the
-//! composite and the hint line; and the ⌘/Ctrl-click-on-the-image helper
+//! [`CurvesPanel`]: the Curves adjustment around the [`CurveEditor`]: the Channel select, the mode
+//! icons (points, pencil), Smooth, the point pickers, the other channels overlaid on the composite
+//! and the hint line; and the ⌘/Ctrl-click-on-the-image helper
 //! ([`CurvesPanel::add_point_from_sample`]).
-//!
-//! [`CurveEditor`]: craft_ui::composites::CurveEditor
 
-use craft_theme::{ButtonVariant, ControlSize, Srgba, TypeRole};
-use egui::accesskit::Role;
-use egui::{AsIdSalt, Context, Id, IdSalt, Key, KeyboardShortcut, Modifiers, Ui, UiBuilder};
+#[cfg(feature = "screen-testing")]
+mod stories;
 
-use craft_ui::composites::{ChannelColor, Curve, CurveChannel, CurveEditor, CurveLabels, CurveRules, HistogramData, Sampler};
-use craft_ui::controls::{Button, IconButton, Kbd, Select, TooltipExt as _};
-use craft_ui::direction;
-use craft_ui::edit::{EditEvent, EditPolicy, EditResponse};
-use craft_ui::icons::Icon;
-use craft_ui::localized::{Labels as _, LocaleNumbers, Words};
-use craft_ui::primitives::{Content, Gap, Stack, Text};
+use std::sync::Arc;
 
-use super::{AdjustContext, AdjustLabels, ToneChannel, ToneChannels, TonePicker, TonePickerRow};
+use craft_behavior::{EditEvent, GestureId, IconId, Mixed};
+use craft_keymap::{Chord, Key, Mods};
+use craft_theme::Srgba;
+use craft_ui::buttons::{Button, ToggleButton};
+use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Pattern, Props, Remember as _, Sampler as _, Show as _, ShowContainer as _, clicked};
+use craft_ui::display::{Shade, Text};
+use craft_ui::layout_components::{Row, Stack};
+use craft_ui::pickers::Select;
+use craft_ui::runtime::env::{Env, Label};
+use craft_ui::style::TypeRole;
+use egui::{Id, Response, Ui};
 
-/// The key of the shown channel in egui memory, under the panel's id.
-const CHANNEL: &str = "channel";
-/// The key of the inner editor's id in egui memory, under the panel's id.
-const EDITOR: &str = "editor";
+use super::{AdjustContext, AdjustWords, ToneChannel, ToneChannels, TonePicker, TonePickerRow};
+use crate::ui::curve::{Curve, CurveChannel, CurveEditor, CurveRules};
+use crate::ui::histogram::{ChannelColor, HistogramData};
+
 /// The levels of a Curves value (8-bit tones) and the most points Photoshop allows.
-const RULES: CurveRules = CurveRules { levels: 255.0, max_points: 16 };
+const RULES: CurveRules = CurveRules::new(255.0, 16);
 /// Smooth's moving-average radius (PhotoCraft's `smooth_curve_map`).
 const SMOOTH_RADIUS: usize = 3;
 
@@ -49,20 +50,20 @@ pub(super) fn overlays_for<'a>(channels: &ToneChannels, shown: usize, curves: &'
     if channels.is_composite(shown) && !channels.is_isolated() { curves } else { &[] }
 }
 
-/// The modifier words of `modifiers` in the platform's notation (`⌘`, `Ctrl`, `Shift`).
-fn modifier_words(ui: &Ui, modifiers: Modifiers) -> String {
-    let mut parts = Kbd::parts_in(&KeyboardShortcut::new(modifiers, Key::A), ui.ctx().os(), &Words::of(ui));
-    parts.pop();
-    parts.concat()
+/// The modifier words of `mods` in the platform's notation (`⌘`, `Ctrl`, `Shift`).
+fn modifier_words(os: craft_host::target::Os, mods: Mods) -> String {
+    let with = Chord::new(mods, Key::A).display(os);
+    let base = Chord::plain(Key::A).display(os);
+    with.strip_suffix(base.as_str()).map_or(with.clone(), str::to_owned)
 }
 
 /// How the shown curve is edited: Photoshop's two buttons above the graph.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum CurvesMode {
-    /// Edit points to modify the curve (`Icon::Spline`); every channel is a [`Curve::Points`].
+    /// Edit points to modify the curve; every channel is a [`Curve::Points`].
     #[default]
     Points,
-    /// Draw to modify the curve (`Icon::Pencil`); every channel is a [`Curve::Map`].
+    /// Draw to modify the curve; every channel is a [`Curve::Map`].
     Pencil,
 }
 
@@ -87,105 +88,111 @@ impl ToneCurves {
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct CurvesPanelOutput {
-    /// The shown channel's curve edit: the editor's gestures, and Smooth as one `Set` of the
-    /// smoothed map. The response is the panel's group.
-    pub edit: EditResponse<Curve>,
-    /// The channel the edit is for, and the one shown (an index into the panel's
-    /// [`ToneChannels`]); the panel keeps it between passes.
+    /// The panel's response.
+    pub response: Response,
+    /// The edit of this pass on the curves: the editor's gestures for the shown channel, and Smooth as one `Set` of
+    /// the smoothed map. A binding that writes through has it applied already.
+    pub edit: Option<EditEvent<ToneCurves>>,
+    /// The channel the edit is for, and the one shown (an index into the panel's [`ToneChannels`]); the panel keeps
+    /// it between passes.
     pub channel: usize,
-    /// The user clicked the other mode's icon. The host converts every channel with its engine
-    /// (draws the point curves into maps, or fits points to the drawn maps, PhotoCraft
-    /// `set_pencil`) and passes the new value back; the panel changes nothing itself.
+    /// The user clicked the other mode's icon. The host converts every channel with its engine (draws the point
+    /// curves into maps, or fits points to the drawn maps, PhotoCraft `set_pencil`) and passes the new value back;
+    /// the panel changes nothing itself.
     pub mode: Option<CurvesMode>,
     /// The point picker the user armed (`Some(Some(p))`) or disarmed (`Some(None)`) this pass.
     pub picker: Option<Option<TonePicker>>,
+    /// The selected point of the shown curve after the pass.
+    pub selected: Option<usize>,
+}
+
+impl Outcome for CurvesPanelOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// The panel's own state: the selected point of the shown channel and the channel it belongs to.
+#[derive(Clone, Debug, Default)]
+struct Shown {
+    channel: usize,
+    selected: Option<usize>,
 }
 
 /// The Curves adjustment: Image › Adjustments › Curves and a Curves layer's Properties panel.
 ///
 /// Top to bottom:
-/// 1. The Channel select ([`ToneChannels`]); an [isolated](ToneChannels::isolated) channel is
-///    the only entry, its name shown exactly as the host gave it.
-/// 2. The mode row: two icon buttons (`Icon::Spline` "Edit points to modify the curve",
-///    `Icon::Pencil` "Draw to modify the curve", 24 pt, the current one selected) and Smooth
-///    (a secondary button, enabled in pencil mode only, tooltip "Smooth the curve values").
-/// 3. The [`CurveEditor`](craft_ui::composites::CurveEditor) for the shown channel: in its
-///    colour, over its histogram, `.pencil(true)` in pencil mode, and, on a composite only, the
-///    other channels' curves as overlays (Photoshop; none for an isolated channel).
-/// 4. The hint line (`type.caption`, `text.faint`): points mode "Click to add a point · drag off
-///    or {⌘}-click or Delete to remove", pencil mode "Drag to draw the curve · {Shift}-click
-///    draws a straight line", the key names from the platform's shortcut words.
+/// 1. The Channel select ([`ToneChannels`]); an isolated channel is the only entry, its name shown exactly as the
+///    host gave it.
+/// 2. The mode row: two icon-only toggle buttons ("Edit points to modify the curve", "Draw to modify the curve", the
+///    current one pressed) and Smooth (enabled in pencil mode only).
+/// 3. The [`CurveEditor`] for the shown channel: in its colour, over its histogram, in pencil mode for a drawn curve,
+///    and, on a composite only, the other channels' curves as overlays (Photoshop; none for an isolated channel).
+/// 4. The hint line, with the key names from the platform's shortcut words.
 /// 5. With [`pickers`](Self::pickers), the point picker row.
 ///
-/// - **Smooth** replaces the shown map with its moving average over 7 levels (radius 3, shrunk
-///   at the ends so the first and last levels keep their values: PhotoCraft's
-///   `smooth_curve_map`), as one `Set`.
+/// - **Smooth** replaces the shown map with its moving average over 7 levels (radius 3, shrunk at the ends so the
+///   first and last levels keep their values: PhotoCraft's `smooth_curve_map`), as one `Set`.
 /// - **Mode icons** report [`CurvesPanelOutput::mode`]; the current mode's icon reports nothing.
-/// - **Keyboard**: Tab visits the Channel select, the two mode icons, Smooth, the editor and the
-///   pickers. The editor's own keys (Insert, ⌘/Ctrl+Enter, arrows) are unchanged.
-/// - **AccessKit**: a `Group` named "Curves"; the mode icons are toggle `Button`s.
+/// - **Selection**: the selected point is the panel's own state ([`CurvesPanelOutput::selected`]); the host sets
+///   it with [`select`](Self::select), after [`add_point_from_sample`](Self::add_point_from_sample).
+/// - **Sampling under the dialog**: with a [`canvas`](Self::canvas) the panel arms the canvas's sampler in every
+///   pass, so a ⌘/Ctrl-click on the image reaches the host's tool, which calls `add_point_from_sample`.
 #[must_use = "show the panel with `show`"]
+#[derive(Pattern, Props)]
 pub struct CurvesPanel<'a> {
-    id_salt: IdSalt,
-    curves: &'a ToneCurves,
+    label: Label,
+    curves: Bind<'a, ToneCurves>,
     channels: ToneChannels,
-    numbers: &'a LocaleNumbers,
+    /// The host's histograms, one per channel (same index), 256 bins each.
+    #[prop]
     histograms: &'a [[u32; 256]],
-    sampler: Option<&'a Sampler>,
-    picker: Option<TonePicker>,
-    pickers: bool,
+    sampler: Option<Box<dyn Fn(&[[f32; 2]]) -> Vec<f32> + 'a>>,
+    /// The armed point picker; the picker row shows when it is given.
+    #[prop]
+    pickers: Option<Bind<'a, Option<TonePicker>>>,
+    /// The document canvas the sampler is armed for.
+    #[prop]
+    canvas: Option<Id>,
     picker_enabled: [bool; 3],
-    unavailable: bool,
+    /// The document's mode has no point pickers: all disabled, with the note.
+    #[prop(flag)]
+    pickers_unavailable: bool,
+    /// Dialog or Properties panel.
+    #[prop]
     context: AdjustContext,
-    policy: EditPolicy,
-    labels: Option<AdjustLabels>,
-    curve_labels: Option<CurveLabels>,
+    /// Selects point `index` of the shown curve in this pass, as a click on it would.
+    #[prop]
+    select: Option<usize>,
+    /// Whether the whole panel takes input.
+    #[prop]
     enabled: bool,
 }
 
 impl<'a> CurvesPanel<'a> {
-    /// The panel over `curves`, one curve per channel of `channels`.
-    pub fn new(id_salt: impl AsIdSalt, curves: &'a ToneCurves, channels: ToneChannels, numbers: &'a LocaleNumbers) -> Self {
+    /// The panel named `label` over `curves`, one curve per channel of `channels`.
+    pub fn new(label: impl Into<Label>, curves: Bind<'a, ToneCurves>, channels: ToneChannels) -> Self {
         Self {
-            id_salt: IdSalt::new(id_salt),
+            label: label.into(),
             curves,
             channels,
-            numbers,
             histograms: &[],
             sampler: None,
-            picker: None,
-            pickers: true,
+            pickers: None,
+            canvas: None,
             picker_enabled: [true; 3],
-            unavailable: false,
+            pickers_unavailable: false,
             context: AdjustContext::dialog(true),
-            policy: EditPolicy::default(),
-            labels: None,
-            curve_labels: None,
+            select: None,
             enabled: true,
         }
     }
 
-    /// The host's histograms, one per channel (same index), 256 bins each.
-    pub fn histograms(mut self, histograms: &'a [[u32; 256]]) -> Self {
-        self.histograms = histograms;
-        self
-    }
-
-    /// The host's interpolation of point curves ([`CurveEditor::sampler`](craft_ui::composites::CurveEditor::sampler)).
-    pub fn sampler(mut self, sampler: &'a Sampler) -> Self {
-        self.sampler = Some(sampler);
-        self
-    }
-
-    /// The armed point picker, shown selected.
-    pub fn picker(mut self, armed: Option<TonePicker>) -> Self {
-        self.picker = armed;
-        self
-    }
-
-    /// Whether the point picker row shows; on by default.
-    pub fn pickers(mut self, on: bool) -> Self {
-        self.pickers = on;
+    /// The host's interpolation of point curves ([`CurveEditor::sampler`]).
+    pub fn sampler(mut self, sampler: impl Fn(&[[f32; 2]]) -> Vec<f32> + 'a) -> Self {
+        self.sampler = Some(Box::new(sampler));
         self
     }
 
@@ -195,77 +202,18 @@ impl<'a> CurvesPanel<'a> {
         self
     }
 
-    /// The document's mode has no point pickers: all disabled, with the note.
-    pub fn pickers_unavailable(mut self, unavailable: bool) -> Self {
-        self.unavailable = unavailable;
-        self
-    }
-
-    /// Dialog or Properties panel; a dialog by default.
-    pub fn context(mut self, context: AdjustContext) -> Self {
-        self.context = context;
-        self
-    }
-
-    /// The editor's edit policy.
-    pub fn policy(mut self, policy: EditPolicy) -> Self {
-        self.policy = policy;
-        self
-    }
-
-    /// The panel's words; the installed ones by default.
-    pub fn labels(mut self, labels: AdjustLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    /// The curve editor's own words.
-    pub fn curve_labels(mut self, labels: CurveLabels) -> Self {
-        self.curve_labels = Some(labels);
-        self
-    }
-
-    /// Enables or disables the whole panel.
-    pub fn enabled(mut self, enabled: bool) -> Self {
-        self.enabled = enabled;
-        self
-    }
-
-    /// The panel's id in `ui`, for [`shown_channel`](Self::shown_channel) and
-    /// [`select_point`](Self::select_point).
-    pub fn id_in(ui: &Ui, id_salt: impl AsIdSalt) -> Id {
-        ui.make_persistent_id(IdSalt::new(id_salt))
-    }
-
-    /// The channel the panel with `id` shows (0 before it was first drawn).
-    pub fn shown_channel(ctx: &Context, id: Id) -> usize {
-        // pc: crates/ui-egui/src/dialogs/adjust_editors/curves.rs:50-55 (the choice in egui memory).
-        ctx.data(|d| d.get_temp::<usize>(id.with(CHANNEL))).unwrap_or(0)
-    }
-
-    /// Selects point `index` of the shown curve in the panel with `id`, as a click on it would
-    /// (after [`add_point_from_sample`](Self::add_point_from_sample)); through
-    /// [`CurveEditor::select`](craft_ui::composites::CurveEditor::select) with the inner editor's id.
-    pub fn select_point(ctx: &Context, id: Id, index: usize) {
-        // pc: crates/ui-egui/src/dialogs/adjust_dialog.rs:153-161 (the new point selected).
-        // The editor wrote its id while drawing; before the first pass there is nothing to select in.
-        if let Some(editor) = ctx.data(|d| d.get_temp::<Id>(id.with(EDITOR))) {
-            CurveEditor::select(ctx, editor, Some(index));
-        }
-    }
-
     /// ⌘/Ctrl-click on the image while Curves is open: adds a point to the shown channel's curve
     /// at the sampled tone, on the curve (its output there), and returns its index for
-    /// [`select_point`](Self::select_point). With `every_channel` (Shift) it adds one to each of
+    /// [`select`](Self::select). With `every_channel` (Shift) it adds one to each of
     /// Red, Green and Blue instead, at that channel's value, and returns the shown channel's
     /// point if the shown channel is one of them.
     ///
     /// - The tone, 0..=255 rounded to a whole level: Red, Green, Blue read their channel; the
     ///   composite reads Rec. 709 luma (0.2126 R + 0.7152 G + 0.0722 B); a grey document the mean
     ///   of R, G, B.
-    /// - The output is the curve's at that input (through `sampler`, the host's interpolation, run by run between corner points),
-    ///   rounded; the point goes in through [`CurveRules::insert`](craft_ui::composites::CurveRules::insert),
-    ///   so a point already at that input is reused and the 16-point limit holds.
+    /// - The output is the curve's at that input (through `sampler`, the host's interpolation, run by run between
+    ///   corner points), rounded; the point goes in through [`CurveRules::insert`], so a point already at that input
+    ///   is reused and the 16-point limit holds.
     /// - Does nothing and returns `None` in pencil mode, for Lab and CMYK channels, for an
     ///   isolated mask or saved channel ([`ToneChannel::Named`]: it holds its own grey levels;
     ///   an isolated Red, Green or Blue channel takes the point) and when `sample` is off the image
@@ -276,10 +224,8 @@ impl<'a> CurvesPanel<'a> {
         shown: usize,
         sample: Srgba,
         every_channel: bool,
-        sampler: &Sampler,
+        sampler: &dyn Fn(&[[f32; 2]]) -> Vec<f32>,
     ) -> Option<usize> {
-        // pc: crates/ui-egui/src/dialogs/adjust_dialog.rs:95-175 `add_point_at` (pencil, mode, isolated
-        // checks; the tone per channel; the output from the curve's table, rounded; insert).
         if curves.mode == CurvesMode::Pencil {
             return None;
         }
@@ -323,125 +269,131 @@ impl<'a> CurvesPanel<'a> {
 
     /// Draws the panel and reports the shown channel's edit.
     pub fn show(self, ui: &mut Ui) -> CurvesPanelOutput {
-        // pc: crates/ui-egui/src/dialogs/adjust_editors/curves.rs:225-249 `curves_mode_row` (icons 24,
-        // Smooth enabled in pencil mode), :251-272 (Channel select, isolated channel), :343-350
-        // (overlays on the composite only), :397-402 (hint, 11 pt `text_faint`); the smoothing is
-        // engine `adjust_params.rs:548-560` `smooth_curve_map` (radius 3).
-        // lib: `CurveEditor::new(..).channels(..).channel(..).pencil(..).overlays(..).histogram(..)`.
-        let labels = self.labels.clone().unwrap_or_else(|| AdjustLabels::of(ui));
-        let id = ui.make_persistent_id(self.id_salt);
-        let enabled = self.enabled && ui.is_enabled();
-        let count = self.channels.len();
-        let channel = Self::shown_channel(ui.ctx(), id).min(count.saturating_sub(1));
-        let pencil = self.curves.mode == CurvesMode::Pencil;
-        let fallback = Curve::identity(255.0);
-        let curve = self.curves.curves.get(channel).unwrap_or(&fallback);
-        let tone = self.channels.as_slice().get(channel);
-        let color = tone.map_or(ChannelColor::Neutral, ToneChannel::color);
-        let shown_name = tone.map(|c| c.label(&labels).to_owned()).unwrap_or_default();
-        let data = self.histograms.get(channel).map(|counts| HistogramData::tone(counts, color));
-        let curve_channels: Vec<CurveChannel> = self.channels.as_slice().iter().map(|c| CurveChannel::new(c.label(&labels), c.color())).collect();
-        // Photoshop overlays the other channels on the composite only.
-        let overlays = overlays_for(&self.channels, channel, &self.curves.curves);
-        let hint = if pencil {
-            labels.pencil_hint.replace("{key}", &modifier_words(ui, Modifiers::SHIFT))
-        } else {
-            labels.points_hint.replace("{key}", &modifier_words(ui, Modifiers::COMMAND))
-        };
-        let editor_salt = (self.id_salt, "curve");
+        let Self {
+            label,
+            mut curves,
+            channels,
+            histograms,
+            sampler,
+            mut pickers,
+            canvas,
+            picker_enabled,
+            pickers_unavailable,
+            context,
+            select,
+            enabled,
+        } = self;
+        let env = Env::of(ui);
+        let words = env.words::<AdjustWords>();
+        let view = env.view();
+        let os = view.shell().os;
+        let entries: Vec<Entry<usize>> = channels.as_slice().iter().enumerate().map(|(at, channel)| Entry::new(at, channel.label(&words))).collect();
+        let curve_channels: Vec<CurveChannel> = channels.as_slice().iter().map(|c| CurveChannel::new(c.label(&words), c.color())).collect();
+        let (mut edit, mut mode, mut picker) = (None, None, None);
+        let mut selected = None;
+        let mut shown_channel = 0;
+        let group = Stack::new().label(label).enabled(enabled).show(ui, |ui, cx| {
+            let value = match curves.reborrow().read(cx) {
+                Some(Mixed::Same(value)) => value,
+                _ => ToneCurves::identity(&channels),
+            };
+            let state = cx.keep::<Shown>().clone();
+            let channel = state.channel.min(channels.len().saturating_sub(1));
+            let pencil = value.mode == CurvesMode::Pencil;
+            let fallback = Curve::identity(255.0);
+            let curve = value.curves.get(channel).unwrap_or(&fallback);
+            let tone = channels.as_slice().get(channel);
+            let color = tone.map_or(ChannelColor::Neutral, ToneChannel::color);
+            let name = tone.map_or(Label::Empty, |c| c.label(&words));
+            let data = histograms.get(channel).map(|counts| HistogramData::tone(counts, color));
+            let overlays = overlays_for(&channels, channel, &value.curves);
+            let key = modifier_words(os, if pencil { Mods::SHIFT } else { Mods::CMD });
+            let hint = view.resolve(if pencil { &words.pencil_hint } else { &words.points_hint }).as_str().replace("{key}", &key);
+            // A Curves panel in a dialog keeps the image under the dialog usable for the ⌘/Ctrl-click point.
+            if let Some(canvas) = canvas {
+                cx.arm_sampler(canvas);
+            }
 
-        let mut builder = UiBuilder::new().scope_id(id).accessibility_role(Role::Group).accessibility_label(labels.curves.as_str());
-        if !enabled {
-            builder = builder.disabled();
-        }
-        let group = ui.scope_builder(builder, |ui| {
-            Stack::new(Gap::Stack)
-                .show(ui, |ui| {
-                    let mut picked = channel;
-                    direction::horizontal(ui, |ui| {
-                        ui.add(Text::new(labels.channel.as_str()).role(TypeRole::Label).content(Content::Muted));
-                        let mut select = Select::new((self.id_salt, "channel"), labels.channel.as_str(), &mut picked);
-                        for (i, entry) in self.channels.as_slice().iter().enumerate() {
-                            select = select.option(i, entry.label(&labels));
-                        }
-                        let _ = select.enabled(enabled).show(ui);
-                    });
-                    let mut mode = None;
-                    let mut smooth = false;
-                    direction::horizontal(ui, |ui| {
-                        for (target, icon, name) in
-                            [(CurvesMode::Points, Icon::Spline, &labels.edit_points), (CurvesMode::Pencil, Icon::Pencil, &labels.draw_curve)]
-                        {
-                            let current = self.curves.mode == target;
-                            let button = IconButton::new(icon, name.as_str()).size(ControlSize::Sm).selected(current).enabled(enabled).id_salt((
-                                self.id_salt,
-                                "mode",
-                                target as u8,
-                            ));
-                            if ui.add(button).clicked() && !current {
-                                mode = Some(target);
-                            }
-                        }
-                        let can_smooth = enabled && pencil && matches!(curve, Curve::Map(_));
-                        let button = Button::new(labels.smooth.as_str())
-                            .variant(ButtonVariant::Secondary)
-                            .enabled(can_smooth)
-                            .id_salt((self.id_salt, "smooth"));
-                        smooth = ui.add(button).tooltip(labels.smooth_tip.as_str()).clicked();
-                    });
-                    let mut editor = CurveEditor::new(editor_salt, shown_name.as_str(), curve, self.numbers)
-                        .channels(&curve_channels)
-                        .channel(channel)
-                        .pencil(pencil)
-                        .overlays(overlays)
-                        .hint(hint.as_str())
-                        .policy(self.policy)
-                        .enabled(enabled);
-                    if let Some(data) = &data {
-                        editor = editor.histogram(data);
+            let mut picked = channel;
+            Row::new().show(ui, |ui, _| {
+                Text::new(words.channel.clone()).shade(Shade::Muted).role(TypeRole::Label).show(ui);
+                if let Some(&at) = Select::new(words.channel.clone(), Bind::given(channel), &entries).show(ui).value() {
+                    picked = at;
+                }
+            });
+            let mut smooth = false;
+            Row::new().show(ui, |ui, _| {
+                for (target, icon, name) in
+                    [(CurvesMode::Points, "spline", words.edit_points.clone()), (CurvesMode::Pencil, "pencil", words.draw_curve.clone())]
+                {
+                    let current = value.mode == target;
+                    let toggle = ToggleButton::new(name, Bind::given(current)).icon(IconId::new(icon)).icon_only().id_salt(target as u8).show(ui);
+                    if toggle.value() == Some(&true) && !current {
+                        mode = Some(target);
                     }
-                    if let Some(sampler) = self.sampler {
-                        editor = editor.sampler(sampler);
-                    }
-                    if let Some(curve_labels) = &self.curve_labels {
-                        editor = editor.labels(curve_labels.clone());
-                    }
-                    let edit = editor.show(ui);
-                    // The editor's id as drawn: it sits in this group's scope, not the caller's.
-                    ui.data_mut(|d| d.insert_temp(id.with(EDITOR), edit.response.id));
-                    let mut change = None;
-                    if self.pickers {
-                        let mut row = TonePickerRow::new((self.id_salt, "pickers"), self.picker).unavailable(self.unavailable).labels(labels.clone());
-                        for picker in TonePicker::ALL {
-                            let usable = self.picker_enabled[picker as usize]
-                                && !(picker == TonePicker::Gray && (self.channels.is_gray() || self.context.is_gray()));
-                            row = row.enabled(picker, usable);
-                        }
-                        change = row.show(ui).change;
-                    }
-                    let smoothed = match curve {
-                        Curve::Map(map) if smooth => Some(EditEvent::set(Curve::Map(smoothed(map)), Modifiers::NONE)),
-                        _ => None,
-                    };
-                    (edit, smoothed, picked, mode, change)
-                })
-                .inner
+                }
+                let can_smooth = pencil && matches!(curve, Curve::Map(_));
+                smooth = clicked(&Button::new(words.smooth.clone()).enabled(can_smooth).tooltip(words.smooth_tip.clone()).show(ui));
+            });
+
+            let selection = if picked == channel { select.or(state.selected) } else { None };
+            let sample = sampler.as_deref();
+            let mut editor = CurveEditor::new(name, Bind::given(curve.clone()))
+                .channels(&curve_channels)
+                .channel(channel)
+                .overlays(overlays)
+                .hint(hint)
+                .levels(255)
+                .max_points(RULES.max_points)
+                .selection(selection);
+            if pencil {
+                editor = editor.pencil();
+            }
+            if let Some(data) = &data {
+                editor = editor.histogram(data);
+            }
+            if let Some(sample) = sample {
+                editor = editor.sampler(|points: &[[f32; 2]]| sample(points));
+            }
+            let shown = editor.show(ui);
+            selected = shown.selected;
+            let mapped = |one: Curve| {
+                let mut next = value.clone();
+                if let Some(slot) = next.curves.get_mut(channel) {
+                    *slot = one;
+                }
+                next
+            };
+            let mut event = shown.edit.event.clone().map(|event| event.map(&mapped));
+            if let (true, Curve::Map(map)) = (smooth, curve) {
+                event = Some(EditEvent::set(
+                    GestureId::default(),
+                    Mixed::Same(value.clone()),
+                    mapped(Curve::Map(smoothed(map))),
+                    Arc::from("Smooth"),
+                    None,
+                ));
+            }
+            if let Some(event) = &event {
+                curves.reborrow().write(cx, event);
+            }
+            edit = event;
+
+            if let Some(armed) = pickers.as_mut() {
+                let mut row = TonePickerRow::new(armed.reborrowed()).unavailable(pickers_unavailable);
+                if let Some(canvas) = canvas {
+                    row = row.canvas(canvas);
+                }
+                for each in TonePicker::ALL {
+                    let usable = picker_enabled[each as usize] && !(each == TonePicker::Gray && (channels.is_gray() || context.is_gray()));
+                    row = row.enabled_picker(each, usable);
+                }
+                picker = row.show(ui).change;
+            }
+            // An edit belongs to the channel it was drawn for; a switch shows from the next pass, with no selection.
+            shown_channel = if picked == channel || edit.is_some() { channel } else { picked };
+            *cx.keep::<Shown>() = Shown { channel: shown_channel, selected: if shown_channel == channel { selected } else { None } };
         });
-        let rect = group.response.rect;
-        // A `Ui`'s node gets no bounds of its own from egui.
-        let bounds = egui::accesskit::Rect { x0: rect.min.x.into(), y0: rect.min.y.into(), x1: rect.max.x.into(), y1: rect.max.y.into() };
-        ui.ctx().accesskit_node_builder(id, |node| node.set_bounds(bounds));
-        let (edit, smoothed, picked, mode, picker) = group.inner;
-        let (submitted, escaped) = (edit.submitted, edit.escaped);
-        let event = smoothed.or(edit.event);
-        // An edit belongs to the channel it was drawn for; a switch shows from the next pass.
-        let shown = if picked == channel || event.is_some() { channel } else { picked };
-        if picked != channel {
-            ui.data_mut(|d| d.insert_temp(id.with(CHANNEL), picked));
-        }
-        let mut edit = EditResponse::new(group.response, event);
-        edit.submitted = submitted;
-        edit.escaped = escaped;
-        CurvesPanelOutput { edit, channel: shown, mode, picker }
+        CurvesPanelOutput { response: group.output, edit, channel: shown_channel, mode, picker, selected }
     }
 }
