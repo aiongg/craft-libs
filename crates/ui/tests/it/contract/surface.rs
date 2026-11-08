@@ -43,12 +43,17 @@ impl Component for Surfaced {
 impl Container for Surfaced {}
 
 /// What one frame of the scene saw: the container's rect, the button's rect, a surface press and a button click.
-#[derive(Default)]
 struct Seen {
     rect: Cell<Rect>,
     button: Cell<Rect>,
     surface: Cell<bool>,
     clicked: Cell<bool>,
+}
+
+impl Seen {
+    fn new() -> Self {
+        Seen { rect: Cell::new(Rect::NOTHING), button: Cell::new(Rect::NOTHING), surface: Cell::new(false), clicked: Cell::new(false) }
+    }
 }
 
 fn scene(seen: &Seen) -> impl FnMut(&mut Ui) + '_ {
@@ -66,7 +71,7 @@ fn scene(seen: &Seen) -> impl FnMut(&mut Ui) + '_ {
 
 /// A primary click at `at`: whether the container saw a press on its surface, and whether the button was clicked.
 fn click_at(at: impl Fn(&Seen) -> Pos2) -> (bool, bool) {
-    let seen = Seen::default();
+    let seen = Seen::new();
     let mut frames = Frames::new();
     frames.idle(3, scene(&seen));
     let at = at(&seen);
