@@ -116,8 +116,6 @@ pub mod story {
         let mut all = craft_ui::story::registry();
         #[cfg(feature = "automation")]
         all.extend(craft_automation::ui::stories());
-        #[cfg(feature = "browse")]
-        all.extend(craft_browse::ui::stories());
         #[cfg(feature = "color")]
         all.extend(craft_color::ui::stories());
         #[cfg(feature = "draw")]
@@ -157,8 +155,6 @@ pub mod words {
         let mut all: Vec<&'static [Word]> = craft_ui::localized::words::tables().to_vec();
         #[cfg(feature = "automation")]
         all.extend(craft_automation::ui::WORDS);
-        #[cfg(feature = "browse")]
-        all.extend(craft_browse::ui::WORDS);
         #[cfg(feature = "color")]
         all.extend(craft_color::ui::WORDS);
         #[cfg(feature = "draw")]
@@ -207,8 +203,6 @@ pub mod words {
         let mut all: Vec<&'static [Counted]> = vec![craft_ui::localized::words::COUNTS];
         #[cfg(feature = "automation")]
         all.push(craft_automation::ui::COUNTS);
-        #[cfg(feature = "browse")]
-        all.push(craft_browse::ui::COUNTS);
         #[cfg(feature = "color")]
         all.push(craft_color::ui::COUNTS);
         #[cfg(feature = "draw")]
