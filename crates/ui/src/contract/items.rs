@@ -1014,7 +1014,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     }
                     let activates = match props.activate {
                         ActivateOn::DoubleClick => start.clicks == 2,
-                        ActivateOn::Click => primary && start.clicks == 1,
+                        ActivateOn::Click => primary,
                     };
                     let names = primary
                         && start.clicks == 2

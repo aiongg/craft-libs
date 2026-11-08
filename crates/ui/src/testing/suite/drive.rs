@@ -24,7 +24,8 @@ pub(super) enum Plan {
     Step,
     Drag(PartRef),
     DragChild(PartRef),
-    Type(&'static str),
+    /// Types `text` into the subject; `story` names the story in the failure when focus never reaches it.
+    Type(&'static str, &'static str),
     Pick(usize),
     Custom(fn(&mut Fixture)),
     Never,
@@ -32,10 +33,10 @@ pub(super) enum Plan {
 
 /// The drive a story names, or the library's choice from the type's facts and the settled fixture's shape record
 /// (22.4 drivers).
-pub(super) fn plan(drive: Drive, probe: &Probe, fixture: &Fixture) -> Plan {
-    match drive {
+pub(super) fn plan(story: &Story, probe: &Probe, fixture: &Fixture) -> Plan {
+    match story.drive {
         Drive::Auto if probe.carries_value() && !probe.takes_input() => Plan::Never,
-        Drive::Auto if matches!(probe.input, Input::Text | Input::Editor) => Plan::Type("sample"),
+        Drive::Auto if matches!(probe.input, Input::Text | Input::Editor) => Plan::Type("sample", story.name),
         Drive::Auto if probe.overlay => Plan::Pick(1),
         Drive::Auto if probe.carries_value() => match fixture.drag_part() {
             Some(part) => Plan::Drag(part),
@@ -46,7 +47,7 @@ pub(super) fn plan(drive: Drive, probe: &Probe, fixture: &Fixture) -> Plan {
         Drive::Step => Plan::Step,
         Drive::Drag(key) => Plan::Drag(key.into()),
         Drive::DragChild(part) => Plan::DragChild(part),
-        Drive::Type(text) => Plan::Type(text),
+        Drive::Type(text) => Plan::Type(text, story.name),
         Drive::Pick { row } => Plan::Pick(row),
         Drive::Custom(custom) => Plan::Custom(custom),
         _ => Plan::Never,
@@ -69,7 +70,7 @@ pub(super) fn variants(plan: Plan, probe: &Probe) -> Vec<usize> {
             runs
         }
         Plan::Step | Plan::Drag(_) | Plan::DragChild(_) | Plan::Pick(_) => vec![0, 1],
-        Plan::Type(_) | Plan::Custom(_) => vec![0],
+        Plan::Type(..) | Plan::Custom(_) => vec![0],
         Plan::Never => Vec::new(),
     }
 }
@@ -91,7 +92,7 @@ pub(super) fn variant_name(plan: Plan, variant: usize) -> &'static str {
         (Plan::Drag(_) | Plan::DragChild(_), _) => "drag with Escape",
         (Plan::Pick(_), 0) => "pick by keys",
         (Plan::Pick(_), _) => "pick by click",
-        (Plan::Type(_), _) => "typed text",
+        (Plan::Type(..), _) => "typed text",
         (Plan::Custom(_), _) => "custom drive",
         (Plan::Never, _) => "no drive",
     }
@@ -185,6 +186,28 @@ fn pick(fixture: &mut Fixture, row: usize, by_click: bool) {
     fixture.idle(2);
 }
 
+/// Presses Tab until the focus is inside the subject (its root or a descendant), for at most one cycle of the stops.
+/// A story whose first stops belong to something else (an editor inside a canvas) still gets its text. `false` when
+/// the cycle ends without the subject: a subject Tab cannot reach still fails.
+pub(super) fn focus_subject(fixture: &mut Fixture) -> bool {
+    let Some(root) = super::nodes::root(fixture) else {
+        fixture.key(Key::Tab, Modifiers::NONE);
+        return fixture.focused().is_some();
+    };
+    let mut seen = Vec::new();
+    loop {
+        if super::nodes::focus_within(fixture, root.node) {
+            return true;
+        }
+        let at = fixture.tree().focused_key();
+        if seen.contains(&at) {
+            return false;
+        }
+        seen.push(at);
+        fixture.key(Key::Tab, Modifiers::NONE);
+    }
+}
+
 /// Runs the `variant`th way of `plan` on a settled fixture.
 pub(super) fn run(fixture: &mut Fixture, plan: Plan, variant: usize) {
     let target = root_target(fixture);
@@ -201,8 +224,10 @@ pub(super) fn run(fixture: &mut Fixture, plan: Plan, variant: usize) {
                 crate::runtime::pointer::child_part_bounds(fixture.ctx(), owner, part, Sense::DRAG).map_or(target.center(), |rect| rect.center());
             drag(fixture, grip, variant == 1);
         }
-        Plan::Type(text) => {
-            fixture.key(Key::Tab, Modifiers::NONE);
+        Plan::Type(text, story) => {
+            if !focus_subject(fixture) {
+                panic!("{story}: Tab never moved focus into the component, so the typed text has nowhere to go");
+            }
             fixture.type_text(text);
             fixture.key(Key::Enter, Modifiers::NONE);
             fixture.idle(2);
@@ -217,7 +242,7 @@ pub(super) fn run(fixture: &mut Fixture, plan: Plan, variant: usize) {
 pub(super) fn settled(story: &Story, probe: &Probe) -> (Fixture, Plan) {
     let mut fixture = Fixture::story(story);
     fixture.settle();
-    let plan = plan(story.drive, probe, &fixture);
+    let plan = plan(story, probe, &fixture);
     (fixture, plan)
 }
 

@@ -1,6 +1,6 @@
 //! Text cases: paste, IME composition and the editor's lines in the AccessKit tree.
 
-use super::drive::{Plan, settled};
+use super::drive::{Plan, focus_subject, settled};
 use super::{ANY, Case, Subject};
 use crate::testing::fixture::Fixture;
 use crate::testing::story::EditKind;
@@ -41,11 +41,10 @@ fn typing_fixtures(subject: &Subject) -> Vec<(String, Fixture)> {
     let mut found = Vec::new();
     for story in &subject.stories {
         let (mut fixture, plan) = settled(story, subject.probe);
-        if !matches!(plan, Plan::Type(_)) {
+        if !matches!(plan, Plan::Type(..)) {
             continue;
         }
-        fixture.key(Key::Tab, Modifiers::NONE);
-        let editable = fixture.focused().is_some()
+        let editable = focus_subject(&mut fixture)
             && fixture
                 .tree()
                 .keys()

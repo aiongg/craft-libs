@@ -255,7 +255,8 @@ pub enum ActivateOn {
     /// A double click.
     #[default]
     DoubleClick,
-    /// A single click: pickers and popup lists.
+    /// Every primary click, whatever its count: pickers, popup lists and disclosure rows. A second quick click
+    /// activates again; a double click that starts a rename renames and does not activate.
     Click,
 }
 
