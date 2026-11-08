@@ -7,6 +7,7 @@ mod histogram;
 mod scopes;
 mod selection;
 mod transform_preview;
+mod warp;
 
 use craft_ui::testing::{TRIALS, suite};
 use libtest_mimic::{Arguments, Trial};

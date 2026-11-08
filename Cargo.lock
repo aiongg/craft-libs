@@ -1391,7 +1391,6 @@ dependencies = [
  "craft-theme",
  "craft-ui",
  "egui",
- "egui_kittest",
  "kurbo 0.13.1",
  "libtest-mimic",
  "serde",
