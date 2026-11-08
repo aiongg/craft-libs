@@ -401,8 +401,13 @@ pub struct FooterButton {
 
 impl FooterButton {
     /// The meaning of the button.
-    pub(crate) fn role(&self) -> DialogRole {
+    pub const fn role(&self) -> DialogRole {
         self.role
+    }
+
+    /// The button's label, resolved by the environment that shows it.
+    pub const fn label(&self) -> &Label {
+        &self.label
     }
 
     /// A button named `label` with the meaning `role`.

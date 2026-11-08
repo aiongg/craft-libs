@@ -44,6 +44,13 @@ pub enum ToggleFace {
     Check,
 }
 
+impl ToggleFace {
+    /// The icon pair: `on` while on (and mixed), `off` while off.
+    pub const fn icons(on: IconId, off: IconId) -> Self {
+        ToggleFace::Icons { on, off }
+    }
+}
+
 /// One toggle cell of a row, in the column `column`.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
