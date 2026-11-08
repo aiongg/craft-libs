@@ -90,7 +90,7 @@ impl<P> Outcome for GradientEditorOutput<P> {
 /// "Midpoint" in the rules' range. The number fields are percent, and their labels scrub them. A Location run that
 /// passes a neighbour keeps the selection on its stop.
 ///
-/// The selection is the host's `selected` binding when given (the canvas gradient line shares it), else the editor's
+/// The selection is the host's `shared_selection` binding when given (the canvas gradient line shares it), else the editor's
 /// own: the first colour stop until set.
 #[must_use = "show the editor with `show`"]
 #[derive(Pattern)]
@@ -106,7 +106,7 @@ pub struct GradientEditor<'a, P: Clone + Send + Sync + 'static = ()> {
     fields: bool,
     color_popover: bool,
     picker: Option<PickerSetup<'a>>,
-    selected: Option<Bind<'a, Option<StopRef>>>,
+    shared_selection: Option<Bind<'a, Option<StopRef>>>,
     sampled: Option<Srgba>,
     drop_target: bool,
     enabled: bool,
@@ -127,7 +127,7 @@ impl<'a> GradientEditor<'a> {
             fields: true,
             color_popover: false,
             picker: None,
-            selected: None,
+            shared_selection: None,
             sampled: None,
             drop_target: false,
             enabled: true,
@@ -199,8 +199,8 @@ impl<'a, P: Clone + Send + Sync + 'static> GradientEditor<'a, P> {
 
     /// The host's selection, shared with the canvas gradient line.
     #[must_use]
-    pub fn selected(mut self, selected: Bind<'a, Option<StopRef>>) -> Self {
-        self.selected = Some(selected);
+    pub fn shared_selection(mut self, selection: Bind<'a, Option<StopRef>>) -> Self {
+        self.shared_selection = Some(selection);
         self
     }
 
@@ -233,7 +233,7 @@ impl<'a, P: Clone + Send + Sync + 'static> GradientEditor<'a, P> {
             fields,
             color_popover,
             picker,
-            selected,
+            shared_selection,
             sampled,
             enabled,
             ..
@@ -249,7 +249,7 @@ impl<'a, P: Clone + Send + Sync + 'static> GradientEditor<'a, P> {
             fields,
             color_popover,
             picker,
-            selected,
+            shared_selection,
             sampled,
             drop_target: true,
             enabled,
@@ -270,7 +270,7 @@ impl<'a, P: Clone + Send + Sync + 'static> GradientEditor<'a, P> {
             fields,
             color_popover,
             mut picker,
-            mut selected,
+            shared_selection: mut selected,
             sampled,
             drop_target,
             enabled,
@@ -290,7 +290,7 @@ impl<'a, P: Clone + Send + Sync + 'static> GradientEditor<'a, P> {
                 .location_decimals(location_decimals)
                 .enabled(enabled);
             if let Some(held) = held {
-                bar = bar.selected(held);
+                bar = bar.marker(held);
             }
             if let Some(sampler) = sampler {
                 bar = bar.sampler(sampler);

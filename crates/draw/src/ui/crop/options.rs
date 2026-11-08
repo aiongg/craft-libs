@@ -30,6 +30,7 @@ pub enum CropRatio {
     /// The document's own proportions ("Original Ratio"); the fields show its size.
     Original,
     /// Width to height as typed or picked, both sides positive and at most [`RATIO_MAX`].
+    #[non_exhaustive]
     Sides {
         /// The width part of the ratio.
         width: f64,
@@ -39,6 +40,13 @@ pub enum CropRatio {
     /// W × H × Resolution: the frame holds W : H while it is drawn, and the commit resamples to
     /// [`CropSettings::target`].
     Size,
+}
+
+impl CropRatio {
+    /// Width to height `width` : `height`.
+    pub fn sides(width: f64, height: f64) -> Self {
+        CropRatio::Sides { width, height }
+    }
 }
 
 /// The resolution field's unit.

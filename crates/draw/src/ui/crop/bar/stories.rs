@@ -11,7 +11,7 @@ use egui::Ui;
 use kurbo::Size;
 
 fn document() -> CropDocument {
-    CropDocument::new(CropDocKey(1), Size::new(2400.0, 1500.0)).resolution(72.0)
+    CropDocument::new(CropDocKey::new(1), Size::new(2400.0, 1500.0)).resolution(72.0)
 }
 
 #[story(CropBar<'static>, covers = [], drive = Drive::Never)]

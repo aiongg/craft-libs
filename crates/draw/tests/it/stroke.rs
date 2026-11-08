@@ -15,6 +15,11 @@ use std::rc::Rc;
 /// A sample rect for the line geometry.
 const SAMPLE: Rect = Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(200.0, 40.0));
 
+/// The dash offset a trial types into its field.
+const TYPED_OFFSET: f64 = 3.0;
+/// The ink of a sample: any colour that is not opaque white or black.
+const INK: Color32 = Color32::from_rgb(200, 120, 40);
+
 fn dashed() -> StrokeStyle {
     StrokeStyle::default().with_line_style(LineStyle::Dashed)
 }
@@ -86,18 +91,19 @@ fn stroke_editor_dash_pairs_add_remove_and_offset() {
     let add = fixture.by_label("Add pair").expect("Add pair is shown");
     fixture.click(&add);
     fixture.idle(3);
-    assert_eq!(value.borrow().dashes, [4.0, 2.0, 4.0, 2.0]);
+    let pair = dashed().dashes;
+    assert_eq!(value.borrow().dashes, [pair.clone(), pair.clone()].concat());
     let remove = fixture.by_label("Remove pair").expect("Remove pair is shown");
     fixture.click(&remove);
     fixture.idle(3);
-    assert_eq!(value.borrow().dashes, [4.0, 2.0]);
+    assert_eq!(value.borrow().dashes, pair);
     let offset = fixture.by_label("Dash offset").expect("the Dash offset field is shown");
     fixture.click(&offset);
     fixture.key(Key::A, Modifiers::COMMAND);
-    fixture.type_text("3");
+    fixture.type_text(&TYPED_OFFSET.to_string());
     fixture.key(Key::Enter, Modifiers::NONE);
     fixture.idle(3);
-    assert_eq!(value.borrow().dash_offset, 3.0);
+    assert_eq!(value.borrow().dash_offset, TYPED_OFFSET);
 }
 
 /// A pattern that fails validation is shown with the error, and a click on a control that would keep it invalid reports
@@ -223,5 +229,5 @@ fn stroke_preview_skips_invalid_styles_and_applies_opacity() {
     let half = StrokeStyle { opacity: 0.5, ..StrokeStyle::default() };
     let preview = StrokePreview::new(&half, 4.0);
     assert!(!preview.shapes(SAMPLE).is_empty());
-    assert_eq!(preview.ink(Color32::WHITE).a(), Color32::WHITE.gamma_multiply(0.5).a());
+    assert_eq!(preview.ink(INK).a(), INK.gamma_multiply(half.opacity).a());
 }

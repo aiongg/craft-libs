@@ -25,7 +25,7 @@ fn units() -> Units {
 }
 
 fn document(key: u64) -> CropDocument {
-    CropDocument::new(CropDocKey(key), SIZE)
+    CropDocument::new(CropDocKey::new(key), SIZE)
 }
 
 fn upright(x0: f64, y0: f64, x1: f64, y1: f64) -> CropBox {
@@ -161,7 +161,7 @@ fn o_h_p_i_act_only_with_a_frame() {
     assert_eq!(fill, Some((CropRatio::Size, "400 px".to_owned())), "I fills the size fields from the document");
 
     let mut empty = Run::new(CropSettings::default());
-    empty.document = CropDocument::new(CropDocKey(1), Size::ZERO);
+    empty.document = CropDocument::new(CropDocKey::new(1), Size::ZERO);
     empty.settle();
     assert_eq!(empty.frame(), None);
     for letter in [Key::O, Key::H, Key::P] {
@@ -224,7 +224,7 @@ fn editing_a_ratio_refits_from_the_frame_the_edit_began_with() {
     let document = run.document;
     let mut settings = run.settings.clone();
     let mut refit = |tool: &mut CropTool, width: f64, height: f64, editing: bool| {
-        settings.ratio = CropRatio::Sides { width, height };
+        settings.ratio = CropRatio::sides(width, height);
         let Some(CropEvent::Frame(event)) = tool.refit(&settings, &document, &units(), editing) else { return None };
         event.value().copied()
     };
@@ -245,7 +245,7 @@ fn a_second_document_discards_a_drawn_frame() {
     let mut run = Run::new(classic());
     run.settle();
     run.tool.crop_to(upright(100.0, 80.0, 300.0, 220.0));
-    run.document = CropDocument::new(CropDocKey(2), Size::new(200.0, 100.0));
+    run.document = CropDocument::new(CropDocKey::new(2), Size::new(200.0, 100.0));
     let (_, events) = run.pass(0.0, Mods::NONE, |_, _| ());
     assert!(events.contains(&CropEvent::Discard), "{events:?}");
     assert_eq!(run.frame(), Some(upright(0.0, 0.0, 200.0, 100.0)), "the new document gets its own default frame");
@@ -312,7 +312,7 @@ fn rect_of(session: &CropSession) -> Option<Rect> {
 }
 
 fn sized(key: u64, width: f64, height: f64) -> CropDocument {
-    CropDocument::new(CropDocKey(key), Size::new(width, height))
+    CropDocument::new(CropDocKey::new(key), Size::new(width, height))
 }
 
 #[trial]
@@ -348,14 +348,14 @@ fn another_document_or_size_gets_its_own_default_frame() {
     assert!(session.ensure_frame(&sized(2, 300.0, 100.0), false));
     assert!(session.is_default());
 
-    assert!(!session.for_document(CropDocKey(2)));
+    assert!(!session.for_document(CropDocKey::new(2)));
     assert!(session.frame().is_some());
     session.set(upright(10.0, 10.0, 50.0, 50.0), false, "Crop");
-    assert!(session.for_document(CropDocKey(3)), "a drawn frame was dropped");
+    assert!(session.for_document(CropDocKey::new(3)), "a drawn frame was dropped");
     assert!(session.frame().is_none() && !session.can_undo());
 
     session.ensure_frame(&sized(3, 10.0, 10.0), false);
-    assert!(!session.for_document(CropDocKey(4)), "an untouched default frame is no discard");
+    assert!(!session.for_document(CropDocKey::new(4)), "an untouched default frame is no discard");
     assert!(session.frame().is_none());
 }
 

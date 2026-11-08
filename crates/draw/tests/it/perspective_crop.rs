@@ -6,7 +6,7 @@ use craft_behavior::{CanvasView, EditEvent};
 use craft_draw::ui::crop::{
     PerspectiveCropEvent, PerspectiveCropQuad, PerspectiveCropTool, PerspectiveQuad, grid_lines, grid_steps, is_valid, ordered,
 };
-use craft_ui::canvas::{Canvas, CanvasTool as _, ToolContext, ToolHost, ToolKey};
+use craft_ui::canvas::{Canvas, CanvasTool as _, NUDGE, NUDGE_FAR, ToolContext, ToolHost, ToolKey};
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::runtime::access::Role;
 use craft_ui::testing::{Fixture, pointer, trial};
@@ -261,7 +261,7 @@ fn arrows_move_the_picked_corner_by_1_or_10_and_the_whole_quad_when_it_is_picked
     rig.fixture.key(Key::ArrowRight, Modifiers::NONE);
     rig.fixture.key(Key::ArrowDown, Modifiers::SHIFT);
     let quad = rig.quad().expect("the quad stays");
-    assert_eq!((quad[2].x, quad[2].y), (PAGE[2].x + 1.0, PAGE[2].y + 10.0));
+    assert_eq!((quad[2].x, quad[2].y), (PAGE[2].x + NUDGE, PAGE[2].y + NUDGE_FAR));
     assert_eq!((quad[0], quad[1], quad[3]), (PAGE[0], PAGE[1], PAGE[3]));
     assert_eq!(rig.host.borrow().picked, Some(2));
 
@@ -270,8 +270,8 @@ fn arrows_move_the_picked_corner_by_1_or_10_and_the_whole_quad_when_it_is_picked
     rig.fixture.click(&whole);
     rig.fixture.key(Key::ArrowLeft, Modifiers::NONE);
     let moved = rig.quad().expect("the quad stays");
-    assert_eq!(moved[0].x, PAGE[0].x - 1.0);
-    assert_eq!(moved[3].x, PAGE[3].x - 1.0);
+    assert_eq!(moved[0].x, PAGE[0].x - NUDGE);
+    assert_eq!(moved[3].x, PAGE[3].x - NUDGE);
 }
 
 #[trial]

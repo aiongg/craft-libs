@@ -38,7 +38,9 @@ fn on_canvas(ui: &mut Ui, overlay: impl FnOnce(&mut Ui, egui::Rect) -> craft_ui:
 #[story(GradientOverlay<'static>, covers = [Default])]
 fn gradient_overlay(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let (value, selected) = state(data, StopRef::Color(1));
-    on_canvas(ui, |ui, at| GradientOverlay::new("Gradient", Bind::bound(&mut *value)).selected(Bind::bound(&mut *selected)).show_at(ui, at).edit)
+    on_canvas(ui, |ui, at| {
+        GradientOverlay::new("Gradient", Bind::bound(&mut *value)).shared_selection(Bind::bound(&mut *selected)).show_at(ui, at).edit
+    })
 }
 
 #[story(GradientOverlay<'static>, covers = [Default])]
@@ -57,9 +59,11 @@ fn gradient_overlay_mirror(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn gradient_overlay_shared(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let (value, selected) = state(data, StopRef::Color(0));
     let mut stops = value.stops.clone();
-    GradientEditor::new("Stops", Bind::bound(&mut stops)).selected(Bind::bound(&mut *selected)).show(ui);
+    GradientEditor::new("Stops", Bind::bound(&mut stops)).shared_selection(Bind::bound(&mut *selected)).show(ui);
     value.stops = stops;
-    on_canvas(ui, |ui, at| GradientOverlay::new("Gradient", Bind::bound(&mut *value)).selected(Bind::bound(&mut *selected)).show_at(ui, at).edit)
+    on_canvas(ui, |ui, at| {
+        GradientOverlay::new("Gradient", Bind::bound(&mut *value)).shared_selection(Bind::bound(&mut *selected)).show_at(ui, at).edit
+    })
 }
 
 #[story(GradientOverlay<'static>, covers = [Invalid], drive = Drive::Never)]

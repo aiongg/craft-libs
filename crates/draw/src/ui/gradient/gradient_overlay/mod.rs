@@ -113,7 +113,7 @@ const TEAR_OFF: f32 = 36.0;
 ///   or the line by 1 document unit, 10 with Shift. Delete and Backspace remove a stop, Insert and Cmd/Ctrl+Enter add one
 ///   halfway after the picked stop. Enter and Space on a colour stop or an end set `color_requested`. Each change is one
 ///   Set.
-/// - With [`selected`](Self::selected) the overlay and a [`GradientEditor`](super::GradientEditor) share one selected stop.
+/// - With [`shared_selection`](Self::shared_selection) the overlay and a [`GradientEditor`](super::GradientEditor) share one selected stop.
 #[derive(Component, Props)]
 #[component(canvas_control)]
 pub struct GradientOverlay<'a> {
@@ -146,7 +146,7 @@ pub struct GradientOverlay<'a> {
     location_decimals: u8,
     /// The selected stop or midpoint, shared with the host's gradient editor. Without it the overlay keeps its own.
     #[prop]
-    selected: Option<Bind<'a, Option<StopRef>>>,
+    shared_selection: Option<Bind<'a, Option<StopRef>>>,
     /// The group's accessible value; "{n} stops" by default.
     #[prop(into)]
     value_text: Option<Label>,
@@ -179,7 +179,7 @@ impl<'a> GradientOverlay<'a> {
             alt_copies: false,
             angle_base: 0.0,
             location_decimals: 0,
-            selected: None,
+            shared_selection: None,
             value_text: None,
             report: Report::default(),
         }
@@ -189,7 +189,7 @@ impl<'a> GradientOverlay<'a> {
 
     /// The selected stop or midpoint: the shared binding's, or the overlay's own.
     fn selection(&mut self, cx: &mut Cx<'_, Self>) -> Option<StopRef> {
-        match self.selected.as_mut() {
+        match self.shared_selection.as_mut() {
             Some(bind) => match bind.reborrow().read(cx) {
                 Some(Mixed::Same(selected)) => selected,
                 _ => None,
@@ -204,7 +204,7 @@ impl<'a> GradientOverlay<'a> {
         if before == next {
             return;
         }
-        match self.selected.as_mut() {
+        match self.shared_selection.as_mut() {
             Some(bind) => {
                 let label: Arc<str> = Arc::from(cx.words::<GradientLineWords>().group.as_str());
                 let event = EditEvent::set(GestureId::new(0), Mixed::Same(before), next, label, None);

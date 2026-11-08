@@ -10,7 +10,8 @@ mod stories;
 use craft_behavior::{EditEvent, GestureId, Mixed};
 use craft_ui::buttons::Button;
 use craft_ui::choice::Checkbox;
-use craft_ui::contract::{Bind, Pattern, Props as _, Show as _};
+use craft_ui::contract::{Bind, Pattern, Props as _, Show as _, ShowContainer as _, clicked};
+use craft_ui::layout_components::Stack;
 use craft_ui::patterns::presets::{PresetPicker, PresetRow};
 use craft_ui::runtime::env::{Env, Label};
 use egui::{Response, Ui};
@@ -23,6 +24,7 @@ const MIN_STOPS: usize = 2;
 
 /// The Gradient Map adjustment's value: the gradient the image's luminance maps through, and its two options.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct GradientMap {
     /// The gradient: colour stops only.
     pub stops: GradientStops,
@@ -30,6 +32,13 @@ pub struct GradientMap {
     pub reverse: bool,
     /// Whether the mapped colours are dithered.
     pub dither: bool,
+}
+
+impl GradientMap {
+    /// The map through `stops`, with the two options.
+    pub fn new(stops: GradientStops, reverse: bool, dither: bool) -> Self {
+        Self { stops, reverse, dither }
+    }
 }
 
 craft_ui::words! {
@@ -118,7 +127,7 @@ impl<'a> GradientMapEditor<'a> {
         let (preset_label, custom, import_label, stops_label) =
             (words.preset.clone(), words.custom.clone(), words.import_presets.clone(), words.stops.clone());
         let (reverse_label, dither_label) = (words.reverse.clone(), words.dither.clone());
-        let shown = ui.scope(|ui| {
+        let shown = Stack::new().label(self.label.clone()).show(ui, |ui, _| {
             let rows: Vec<PresetRow<GradientRef>> = self
                 .presets
                 .iter()
@@ -134,7 +143,7 @@ impl<'a> GradientMapEditor<'a> {
             if let Some(stops) = picker.picked.and_then(|key| self.preset_stops(key)) {
                 event = Some(set(GradientMap { stops, ..base.clone() }));
             }
-            if Button::new(import_label).show(ui).clicked() {
+            if clicked(&Button::new(import_label).show(ui)) {
                 import = true;
             }
             let rules = StopRules { rows: StopRows::ColorOnly, min: MIN_STOPS, max: MAX_STOPS, ..StopRules::default() };
@@ -156,6 +165,6 @@ impl<'a> GradientMapEditor<'a> {
                 event = Some(set(GradientMap { dither, ..base.clone() }));
             }
         });
-        GradientMapOutput { response: shown.response, event, color_requested, import }
+        GradientMapOutput { response: shown.output, event, color_requested, import }
     }
 }

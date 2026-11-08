@@ -128,6 +128,7 @@ name = "PictureMode"
 old = "craft_draw::ui::PictureMode"
 new = "craft_draw::ui::picture_fill::PictureMode"
 status = "moved"
+note = "The `Stretch` and `Tile` variants are `#[non_exhaustive]`: build them with `PictureMode::stretch(offsets)` and `PictureMode::tile(offset, scale, alignment, mirror)`; their patterns take `..`."
 
 [[type]]
 name = "PictureFillEvent"

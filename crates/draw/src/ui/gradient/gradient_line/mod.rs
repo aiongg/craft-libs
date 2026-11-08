@@ -17,6 +17,7 @@ pub const MIN_MIDPOINT_GAP: f32 = 0.001;
 
 /// A gradient's line between its start and end handles, in document units.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct GradientLine {
     /// The start handle.
     pub start: Point,
@@ -24,8 +25,16 @@ pub struct GradientLine {
     pub end: Point,
 }
 
+impl GradientLine {
+    /// The line from `start` to `end`.
+    pub fn new(start: Point, end: Point) -> Self {
+        Self { start, end }
+    }
+}
+
 /// What [`GradientOverlay`](crate::ui::gradient::GradientOverlay) edits: the line and the stops on it.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct LineGradient {
     /// The line between the handles.
     pub line: GradientLine,
@@ -34,6 +43,11 @@ pub struct LineGradient {
 }
 
 impl LineGradient {
+    /// The gradient with `line` and `stops`.
+    pub fn new(line: GradientLine, stops: GradientStops) -> Self {
+        Self { line, stops }
+    }
+
     /// The host's tag of the colour stop `stop` names; a midpoint has the tag of the stop before
     /// it. `None` for opacity stops and indices past the row.
     pub fn tag_of(&self, stop: StopRef) -> Option<u64> {
@@ -57,6 +71,7 @@ impl LineGradient {
 
 /// The shape a gradient's style adds round the line.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum GradientExtent {
     /// Only the line (linear).
     #[default]
@@ -71,6 +86,7 @@ pub enum GradientExtent {
 
 /// A part of the line a pointer or key takes. Indices are into the colour row's stops.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum LinePart {
     /// The line between the handles.
     #[default]

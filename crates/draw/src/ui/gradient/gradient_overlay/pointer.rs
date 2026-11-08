@@ -80,7 +80,7 @@ impl GradientOverlay<'_> {
                         cx.begin();
                     }
                     let Some(held) = cx.press_slot::<Held>().clone() else { continue };
-                    let dragged = self.dragged(view, snap, &held, start.origin, pos, mods, cx.style.tear_off);
+                    let dragged = self.drag_to(view, snap, &held, start.origin, pos, mods, cx.style.tear_off);
                     self.report.torn = dragged.torn;
                     cx.propose(if dragged.torn { held.base.clone() } else { dragged.value });
                     self.follow(cx, dragged.selected);
@@ -92,7 +92,7 @@ impl GradientOverlay<'_> {
                             self.add_at(cx, view, &held.base, pos);
                         }
                     } else {
-                        let dragged = self.dragged(view, snap, &held, start.origin, pos, mods, cx.style.tear_off);
+                        let dragged = self.drag_to(view, snap, &held, start.origin, pos, mods, cx.style.tear_off);
                         cx.propose(dragged.value);
                         cx.commit();
                         self.follow(cx, dragged.selected);
@@ -134,7 +134,7 @@ impl GradientOverlay<'_> {
 
     /// The held press's gradient with its part at screen point `pointer`: the whole edit of the gradient at the press.
     #[allow(clippy::too_many_arguments)]
-    fn dragged(&self, view: &CanvasView, snap: Option<&Snap>, held: &Held, origin: Pos2, pointer: Pos2, mods: Mods, tear_off: f32) -> Dragged {
+    fn drag_to(&self, view: &CanvasView, snap: Option<&Snap>, held: &Held, origin: Pos2, pointer: Pos2, mods: Mods, tear_off: f32) -> Dragged {
         let base = &held.base;
         let mut out = Dragged { value: base.clone(), selected: None, torn: false };
         match held.part {

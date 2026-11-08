@@ -25,18 +25,18 @@ fn a_click_is_one_pick_of_the_preset_clicked_also_when_it_is_selected() {
     let groups = groups();
     let mut state = PresetState::new();
     let mut fixture = Fixture::new(move |ui| {
-        let out = GradientPalette::new("Gradients", &groups, Bind::bound(&mut state)).selected(GradientRef::Item { group: 0, item: 1 }).show(ui);
+        let out = GradientPalette::new("Gradients", &groups, Bind::bound(&mut state)).selected(GradientRef::item(0, 1)).show(ui);
         seen.borrow_mut().extend(out.picked);
     });
     fixture.settle();
     let light = fixture.by_label("Light").expect("the palette shows the preset");
     fixture.click(&light);
-    assert_eq!(*picks.borrow(), vec![GradientRef::Item { group: 0, item: 1 }]);
+    assert_eq!(*picks.borrow(), vec![GradientRef::item(0, 1)]);
 }
 
 #[trial]
 fn the_map_editor_shows_its_options_and_reverse_is_one_edit() {
-    let map = Rc::new(RefCell::new(GradientMap { stops: pair(0.0, 1.0), reverse: false, dither: false }));
+    let map = Rc::new(RefCell::new(GradientMap::new(pair(0.0, 1.0), false, false)));
     let held = Rc::clone(&map);
     let mut fixture = Fixture::new(move |ui| {
         let out = GradientMapEditor::new("Gradient Map", &held.borrow().clone()).show(ui);

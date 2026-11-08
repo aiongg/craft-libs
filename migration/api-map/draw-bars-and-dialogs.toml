@@ -530,25 +530,28 @@ name = "GradientGroup"
 old = "craft_draw::ui::GradientGroup"
 new = "craft_draw::ui::gradient::GradientGroup"
 status = "moved"
+note = "`#[non_exhaustive]`; `GradientGroup::new(name, items)`."
 
 [[type]]
 name = "GradientItem"
 old = "craft_draw::ui::GradientItem"
 new = "craft_draw::ui::gradient::GradientItem"
 status = "moved"
+note = "`#[non_exhaustive]`; `GradientItem::new(name, stops)`."
 
 [[type]]
 name = "GradientRef"
 old = "craft_draw::ui::GradientRef"
 new = "craft_draw::ui::gradient::GradientRef"
 status = "moved"
-note = "The browser's key."
+note = "The browser's key. `#[non_exhaustive]`; `GradientRef::item(group, item)` builds the `Item` variant, whose pattern takes `..`."
 
 [[type]]
 name = "GradientMap"
 old = "craft_draw::ui::GradientMap"
 new = "craft_draw::ui::gradient::GradientMap"
 status = "moved"
+note = "`#[non_exhaustive]`; `GradientMap::new(stops, reverse, dither)`."
 
 [[type]]
 name = "GradientMapEditor"
@@ -682,6 +685,7 @@ name = "CropDocKey"
 old = "craft_draw::ui::crop::CropDocKey"
 new = "craft_draw::ui::crop::CropDocKey"
 status = "same"
+note = "`#[non_exhaustive]`; `CropDocKey::new(id)`."
 
 [[type]]
 name = "CropKept"
@@ -944,6 +948,7 @@ name = "CropRatio"
 old = "craft_draw::ui::crop::CropRatio"
 new = "craft_draw::ui::crop::CropRatio"
 status = "same"
+note = "The `Sides` variant is `#[non_exhaustive]`: build it with `CropRatio::sides(width, height)`; its pattern takes `..`."
 
 [[type]]
 name = "CropFill"
@@ -1958,3 +1963,9 @@ old = "BrushStrokeStrip::new(id_salt, revision).show(ui, make)"
 new = "BrushStrokeStrip::new(label, revision, StripImage).show(ui)"
 note = "`StripImage::new(Fn([usize; 2]) -> ColorImage)`."
 
+
+[[setter]]
+type = "GradientEditor"
+old = "selected(Bind<Option<StopRef>>)"
+new = "shared_selection(Bind<Option<StopRef>>)"
+note = "Renamed with the overlay's: the host's selection shared with the canvas gradient line."

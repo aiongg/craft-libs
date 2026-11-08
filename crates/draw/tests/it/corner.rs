@@ -3,12 +3,24 @@
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::Point;
 use craft_draw::ui::corner::{CornerKind, CornerPoint, CornerRef, CornerTarget, CornerWidgets};
-use craft_ui::canvas::Canvas;
+use craft_ui::canvas::{Canvas, NUDGE, NUDGE_FAR};
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, Target, trial};
 use egui::{Key, Modifiers, vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
+
+/// The rectangle most trials draw: its origin, size and the radius that puts a widget at the arc's centre.
+const BOX: (f64, f64, f64, f64) = (50.0, 50.0, 100.0, 60.0);
+const BOX_WIDTH: f64 = BOX.2;
+const BOX_HEIGHT: f64 = BOX.3;
+const ARC: f64 = 20.0;
+/// The tightest radius of the rectangle: half its short side.
+const FILLET_CAP: f64 = BOX_HEIGHT / 2.0;
+/// The pull of a drag and the radius it sets.
+const PULL: f64 = 10.0;
+/// Slack for rounding to screen points.
+const SLACK: f32 = 1.0;
 
 /// What the host of the widgets keeps and what they reported.
 struct Host {
@@ -73,15 +85,19 @@ fn pair() -> Vec<CornerTarget> {
 /// at radius 20 are 60 and 20 apart. A radius of 0 puts the widget inside the corner along its diagonal.
 #[trial]
 fn a_widget_sits_at_the_arc_centre_and_inside_a_sharp_corner() {
-    let (fixture, _) = show(host(vec![rect(1, (50.0, 50.0, 100.0, 60.0), 20.0, true)]));
+    let (fixture, _) = show(host(vec![rect(1, BOX, ARC, true)]));
     let (first, third) = (widget(&fixture, 1, 4).expect("corner 1"), widget(&fixture, 3, 4).expect("corner 3"));
     let apart = third.center() - first.center();
-    assert!((apart - vec2(60.0, 20.0)).length() < 1.0, "{apart:?}");
+    let between_centres = vec2((BOX_WIDTH - ARC - ARC) as f32, (BOX_HEIGHT - ARC - ARC) as f32);
+    assert!((apart - between_centres).length() < SLACK, "{apart:?}");
 
-    let (fixture, _) = show(host(vec![rect(1, (50.0, 50.0, 100.0, 60.0), 0.0, true)]));
+    let (fixture, _) = show(host(vec![rect(1, BOX, 0.0, true)]));
     let (first, third) = (widget(&fixture, 1, 4).expect("corner 1"), widget(&fixture, 3, 4).expect("corner 3"));
     let (inward_first, inward_third) = (first.center(), third.center());
-    assert!(inward_third.x - inward_first.x < 100.0 && inward_third.y - inward_first.y < 60.0, "both widgets sit inside their corners");
+    assert!(
+        inward_third.x - inward_first.x < BOX_WIDTH as f32 && inward_third.y - inward_first.y < BOX_HEIGHT as f32,
+        "both widgets sit inside their corners"
+    );
 }
 
 /// A side under the least length hides the corner's widget and zooming in shows it; an inner angle over the limit
@@ -108,12 +124,12 @@ fn widgets_hide_on_short_sides_and_wide_angles() {
 #[trial]
 fn a_drag_caps_the_radius_at_the_fillet_limit() {
     let triangle = polygon(2, &[(260.0, 200.0), (360.0, 200.0), (310.0, 210.0)], 0.0, false);
-    let (mut fixture, state) = show(host(vec![rect(1, (50.0, 50.0, 100.0, 60.0), 0.0, true), triangle]));
+    let (mut fixture, state) = show(host(vec![rect(1, BOX, 0.0, true), triangle]));
     let grabbed = widget(&fixture, 1, 7).expect("the rectangle's first widget");
     fixture.drag(&grabbed, vec2(400.0, 400.0));
-    assert!(radii(&state, 0).iter().all(|radius| (radius - 30.0).abs() < 1e-6), "{:?}", radii(&state, 0));
+    assert!(radii(&state, 0).iter().all(|radius| (radius - FILLET_CAP).abs() < 1e-6), "{:?}", radii(&state, 0));
     let tight = radii(&state, 1);
-    assert!(tight[0] > 0.0 && tight[0] < 30.0 && tight.iter().all(|radius| *radius == tight[0]), "{tight:?}");
+    assert!(tight[0] > 0.0 && tight[0] < FILLET_CAP && tight.iter().all(|radius| *radius == tight[0]), "{tight:?}");
 }
 
 /// A drag sets the radius of every target; Alt sets one corner of a rectangle and every corner of a polygon.
@@ -121,16 +137,16 @@ fn a_drag_caps_the_radius_at_the_fillet_limit() {
 fn a_drag_sets_every_target_and_alt_sets_one_corner() {
     let (mut fixture, state) = show(host(pair()));
     let grabbed = widget(&fixture, 1, 8).expect("the rectangle's first widget");
-    fixture.drag(&grabbed, vec2(10.0, 10.0));
-    assert_eq!(radii(&state, 0), vec![10.0; 4]);
-    assert_eq!(radii(&state, 1), vec![10.0; 4]);
+    fixture.drag(&grabbed, vec2(PULL as f32, PULL as f32));
+    assert_eq!(radii(&state, 0), vec![PULL; 4]);
+    assert_eq!(radii(&state, 1), vec![PULL; 4]);
 
     let (mut fixture, state) = show(host(pair()));
     let grabbed = widget(&fixture, 1, 8).expect("the rectangle's first widget");
     fixture.hold(Modifiers::ALT);
-    fixture.drag(&grabbed, vec2(10.0, 10.0));
-    assert_eq!(radii(&state, 0), vec![10.0, 0.0, 0.0, 0.0], "one corner of the rectangle");
-    assert_eq!(radii(&state, 1), vec![10.0; 4], "a polygon shares one radius");
+    fixture.drag(&grabbed, vec2(PULL as f32, PULL as f32));
+    assert_eq!(radii(&state, 0), vec![PULL, 0.0, 0.0, 0.0], "one corner of the rectangle");
+    assert_eq!(radii(&state, 1), vec![PULL; 4], "a polygon shares one radius");
 }
 
 /// A drag back toward the corner never goes below 0.
@@ -187,16 +203,17 @@ fn the_keyboard_steps_the_radius() {
     let first = widget(&fixture, 1, 8).expect("corner 1");
     fixture.click(&first);
     fixture.key(Key::ArrowRight, Modifiers::NONE);
-    assert_eq!(radii(&state, 0), vec![1.0; 4]);
+    assert_eq!(radii(&state, 0), vec![NUDGE; 4]);
     fixture.key(Key::ArrowUp, Modifiers::SHIFT);
-    assert_eq!(radii(&state, 0), vec![11.0; 4]);
+    let (stepped, far) = (NUDGE + NUDGE_FAR, NUDGE_FAR);
+    assert_eq!(radii(&state, 0), vec![stepped; 4]);
     fixture.key(Key::ArrowDown, Modifiers::NONE);
-    assert_eq!(radii(&state, 0), vec![10.0; 4]);
+    assert_eq!(radii(&state, 0), vec![far; 4]);
     fixture.key(Key::ArrowRight, Modifiers::ALT);
-    assert_eq!(radii(&state, 0), vec![11.0, 10.0, 10.0, 10.0], "one corner");
+    assert_eq!(radii(&state, 0), vec![stepped, far, far, far], "one corner");
     fixture.key(Key::PageDown, Modifiers::NONE);
     fixture.key(Key::ArrowRight, Modifiers::ALT);
-    assert_eq!(radii(&state, 0), vec![11.0, 11.0, 10.0, 10.0], "the next widget");
+    assert_eq!(radii(&state, 0), vec![stepped, stepped, far, far], "the next widget");
     fixture.key(Key::Enter, Modifiers::NONE);
     assert_eq!(state.borrow().activated.last(), Some(&CornerRef::new(1, 1)));
 }

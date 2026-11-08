@@ -61,12 +61,14 @@ pub enum TileMirror {
 pub enum PictureMode {
     /// Stretched to the shape, inset by `offsets` (left, top, right, bottom) in percent of the
     /// shape (negative grows past the edge).
+    #[non_exhaustive]
     Stretch {
         /// Inset from the left, top, right and bottom edges, in percent of the shape.
         offsets: [f64; 4],
     },
     /// Tiled: `offset` (x, y) in points, `scale` (x, y) in percent, the first tile's alignment and
     /// the mirror between tiles.
+    #[non_exhaustive]
     Tile {
         /// Offset of the tiling, x and y in points.
         offset: [f64; 2],
@@ -80,6 +82,16 @@ pub enum PictureMode {
 }
 
 impl PictureMode {
+    /// Stretched to the shape, inset by `offsets` (left, top, right, bottom) in percent.
+    pub fn stretch(offsets: [f64; 4]) -> Self {
+        PictureMode::Stretch { offsets }
+    }
+
+    /// Tiled with `offset`, `scale`, first-tile `alignment` and `mirror`.
+    pub fn tile(offset: [f64; 2], scale: [f64; 2], alignment: TileAlignment, mirror: TileMirror) -> Self {
+        PictureMode::Tile { offset, scale, alignment, mirror }
+    }
+
     /// The smallest tile scale in percent: DeckCraft's smallest step (its picture-fill fields show
     /// one decimal), so a scale is never zero or negative. There is no upper limit.
     pub const SCALE: std::ops::RangeInclusive<f64> = 0.1..=f64::INFINITY;

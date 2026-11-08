@@ -8,9 +8,13 @@ use egui::{Key, Modifiers};
 use std::cell::RefCell;
 use std::rc::Rc;
 
+/// The offset typed into the tile's X field and into the stretch's left inset.
+const TILE_OFFSET: f64 = 12.0;
+const LEFT_INSET: f64 = 5.0;
+
 fn tiled() -> PictureFill {
     let mut fill = PictureFill::new("sunrise.png");
-    fill.mode = PictureMode::Tile { offset: [0.0, 0.0], scale: [100.0, 100.0], alignment: TileAlignment::TopLeft, mirror: TileMirror::None };
+    fill.mode = PictureMode::tile([0.0, 0.0], [100.0, 100.0], TileAlignment::TopLeft, TileMirror::None);
     fill
 }
 
@@ -42,25 +46,25 @@ fn type_into(fixture: &mut Fixture, name: &str, text: &str) {
 #[trial]
 fn picture_editor_tile_fields_and_stretch_offsets() {
     let (mut fixture, value, _) = rig(tiled());
-    type_into(&mut fixture, "Offset X", "12");
+    type_into(&mut fixture, "Offset X", &TILE_OFFSET.to_string());
     match value.borrow().mode {
-        PictureMode::Tile { offset, .. } => assert_eq!(offset[0], 12.0),
+        PictureMode::Tile { offset, .. } => assert_eq!(offset[0], TILE_OFFSET),
         other => panic!("still a tile, got {other:?}"),
     }
     let tile = fixture.by_label("Tile picture as texture").expect("the tile check is shown");
     fixture.click(&tile);
     fixture.idle(3);
     assert!(matches!(value.borrow().mode, PictureMode::Stretch { .. }));
-    type_into(&mut fixture, "Offset left", "5");
+    type_into(&mut fixture, "Offset left", &LEFT_INSET.to_string());
     match value.borrow().mode {
-        PictureMode::Stretch { offsets } => assert_eq!(offsets[0], 5.0),
+        PictureMode::Stretch { offsets } => assert_eq!(offsets[0], LEFT_INSET),
         other => panic!("stretched, got {other:?}"),
     }
     let tile = fixture.by_label("Tile picture as texture").expect("the tile check is shown");
     fixture.click(&tile);
     fixture.idle(3);
     match value.borrow().mode {
-        PictureMode::Tile { offset, .. } => assert_eq!(offset[0], 12.0, "the tile values come back"),
+        PictureMode::Tile { offset, .. } => assert_eq!(offset[0], TILE_OFFSET, "the tile values come back"),
         other => panic!("tiled again, got {other:?}"),
     }
 }

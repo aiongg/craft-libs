@@ -13,7 +13,15 @@ use craft_behavior::{CanvasView, EditEvent, GestureId, Mixed};
 /// The app's identity of a document (its id, never reused while the app runs). A frame belongs
 /// to the document it was made for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct CropDocKey(pub u64);
+
+impl CropDocKey {
+    /// The key of document `id`.
+    pub const fn new(id: u64) -> Self {
+        Self(id)
+    }
+}
 
 /// What the Crop tool needs to know of the active document each pass.
 #[derive(Clone, Copy, Debug, PartialEq)]

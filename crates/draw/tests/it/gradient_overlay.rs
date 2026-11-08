@@ -8,7 +8,7 @@ use craft_behavior::kurbo::Point;
 use craft_draw::ui::gradient::gradient_line::{GradientLine, LineGradient, at, project, snap45};
 use craft_draw::ui::gradient::{ColorStop, GradientOverlay, GradientStops, StopRef};
 use craft_theme::Srgba;
-use craft_ui::canvas::Canvas;
+use craft_ui::canvas::{Canvas, NUDGE, NUDGE_FAR};
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers, Vec2};
@@ -18,10 +18,10 @@ fn black() -> Srgba {
 }
 
 fn gradient() -> LineGradient {
-    LineGradient {
-        line: GradientLine { start: Point::new(20.0, 100.0), end: Point::new(220.0, 100.0) },
-        stops: GradientStops::new(vec![ColorStop::new(0.0, black()), ColorStop::new(0.5, black()), ColorStop::new(1.0, black())]),
-    }
+    LineGradient::new(
+        GradientLine::new(Point::new(20.0, 100.0), Point::new(220.0, 100.0)),
+        GradientStops::new(vec![ColorStop::new(0.0, black()), ColorStop::new(0.5, black()), ColorStop::new(1.0, black())]),
+    )
 }
 
 struct Shown {
@@ -40,7 +40,7 @@ fn shown() -> Shown {
         Canvas::new("Document").view(view).show(ui, |ui, body| {
             let mut value = held.borrow_mut();
             let mut selection = chosen.borrow_mut();
-            GradientOverlay::new("Gradient", Bind::bound(&mut *value)).selected(Bind::bound(&mut *selection)).show_at(ui, body.rect)
+            GradientOverlay::new("Gradient", Bind::bound(&mut *value)).shared_selection(Bind::bound(&mut *selection)).show_at(ui, body.rect)
         });
     });
     fixture.settle();
@@ -49,7 +49,7 @@ fn shown() -> Shown {
 
 #[trial]
 fn locations_follow_reverse() {
-    let line = GradientLine { start: Point::new(10.0, 10.0), end: Point::new(110.0, 10.0) };
+    let line = GradientLine::new(Point::new(10.0, 10.0), Point::new(110.0, 10.0));
     assert_eq!(at(&line, 0.25, false), Point::new(35.0, 10.0));
     assert_eq!(at(&line, 0.25, true), Point::new(85.0, 10.0));
     let (t, d) = project(&line, Point::new(85.0, 40.0), true);
@@ -72,9 +72,10 @@ fn a_press_on_a_stop_selects_it_and_its_drag_moves_it() {
     let stop = s.fixture.by_label("Color stop 2 of 3").expect("the overlay shows its stops as parts");
     s.fixture.click(&stop);
     assert_eq!(*s.selected.borrow(), Some(StopRef::Color(1)));
+    let before = s.value.borrow().stops.color[1].location;
     s.fixture.drag(&stop, Vec2::new(40.0, 0.0));
     let moved = s.value.borrow().stops.color[1].location;
-    assert!(moved > 0.5, "the stop followed the pointer to {moved}");
+    assert!(moved > before, "the stop followed the pointer to {moved}");
 }
 
 #[trial]
@@ -84,7 +85,7 @@ fn an_end_drag_moves_only_that_end() {
     s.fixture.drag(&end, Vec2::new(0.0, 30.0));
     let value = s.value.borrow();
     assert_eq!(value.line.start, gradient().line.start);
-    assert!(value.line.end.y > 100.0);
+    assert!(value.line.end.y > gradient().line.end.y);
 }
 
 #[trial]
@@ -92,10 +93,14 @@ fn left_and_right_move_a_picked_stop_by_one_percent_and_delete_removes_it() {
     let mut s = shown();
     let stop = s.fixture.by_label("Color stop 2 of 3").expect("the overlay shows its stops as parts");
     s.fixture.click(&stop);
+    let start = s.value.borrow().stops.color[1].location;
     s.fixture.key(Key::ArrowRight, Modifiers::NONE);
-    assert!((s.value.borrow().stops.color[1].location - 0.51).abs() < 1e-4);
+    let right = s.value.borrow().stops.color[1].location;
+    let step = right - start;
+    assert!(step > 0.0, "Right moves the stop later");
     s.fixture.key(Key::ArrowLeft, Modifiers::SHIFT);
-    assert!((s.value.borrow().stops.color[1].location - 0.41).abs() < 1e-4);
+    let far = step * (NUDGE_FAR / NUDGE) as f32;
+    assert!((s.value.borrow().stops.color[1].location - (right - far)).abs() < 1e-4, "Shift takes the far step");
     s.fixture.key(Key::Delete, Modifiers::NONE);
     assert_eq!(s.value.borrow().stops.color.len(), 2);
 }
@@ -108,5 +113,6 @@ fn insert_adds_a_stop_halfway_after_the_picked_one() {
     s.fixture.key(Key::Insert, Modifiers::NONE);
     let value = s.value.borrow();
     assert_eq!(value.stops.color.len(), 4);
-    assert!((value.stops.color[1].location - 0.25).abs() < 1e-4);
+    let (before, added, after) = (value.stops.color[0].location, value.stops.color[1].location, value.stops.color[2].location);
+    assert!(((added - before) - (after - added)).abs() < 1e-4, "the new stop sits halfway between its neighbours");
 }

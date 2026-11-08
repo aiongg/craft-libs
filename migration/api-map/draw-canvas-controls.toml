@@ -476,24 +476,28 @@ name = "GradientLine"
 old = "craft_draw::ui::GradientLine"
 new = "craft_draw::ui::gradient::GradientLine"
 status = "moved"
+note = "`#[non_exhaustive]`; `GradientLine::new(start, end)`."
 
 [[type]]
 name = "LineGradient"
 old = "craft_draw::ui::LineGradient"
 new = "craft_draw::ui::gradient::LineGradient"
 status = "moved"
+note = "`#[non_exhaustive]`; `LineGradient::new(line, stops)`."
 
 [[type]]
 name = "LinePart"
 old = "craft_draw::ui::LinePart"
 new = "craft_draw::ui::gradient::LinePart"
 status = "moved"
+note = "`#[non_exhaustive]`: match with a wildcard arm."
 
 [[type]]
 name = "GradientExtent"
 old = "craft_draw::ui::GradientExtent"
 new = "craft_draw::ui::gradient::GradientExtent"
 status = "moved"
+note = "`#[non_exhaustive]`: match with a wildcard arm."
 
 [[setter]]
 type = "GradientOverlay"
@@ -1357,3 +1361,9 @@ old = "ArtboardTool::style(tokens)"
 new = ""
 note = "The look is the overlay style hook."
 
+
+[[setter]]
+type = "GradientOverlay"
+old = "selected(Bind<Option<StopRef>>)"
+new = "shared_selection(Bind<Option<StopRef>>)"
+note = "Renamed: `selected` is the `Props` setter of the selected state."

@@ -16,6 +16,7 @@ use super::value::{GradientStops, StopRows};
 
 /// A named group of gradient presets.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct GradientGroup {
     /// The group's heading.
     pub name: String,
@@ -32,6 +33,7 @@ impl GradientGroup {
 
 /// A named gradient preset.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct GradientItem {
     /// The preset's name.
     pub name: String,
@@ -49,16 +51,25 @@ impl GradientItem {
 /// The preset a pick names: a recent gradient by its place in the list the host passed, or an
 /// item of a group.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum GradientRef {
     /// Place in the Recent list.
     Recent(usize),
     /// An item of a group.
+    #[non_exhaustive]
     Item {
         /// Index of the group.
         group: usize,
         /// Index of the item within the group.
         item: usize,
     },
+}
+
+impl GradientRef {
+    /// Item `item` of group `group`.
+    pub fn item(group: usize, item: usize) -> Self {
+        GradientRef::Item { group, item }
+    }
 }
 
 /// A palette of gradient presets in groups, with an optional Recent group first:

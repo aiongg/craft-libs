@@ -113,7 +113,7 @@ impl<'a> CropInput<'a> {
 /// The Crop tool, kept by the app while the tool is picked and between picks.
 ///
 /// ```ignore
-/// let document = CropDocument::new(CropDocKey(1), Size::new(1200.0, 800.0)).resolution(300.0);
+/// let document = CropDocument::new(CropDocKey::new(1), Size::new(1200.0, 800.0)).resolution(300.0);
 /// let mut pass = crop.pass(CropInput::new(&settings, &document));
 /// let shown = Canvas::new("Document", pass.command_form()).show(ui, |ui, body| pass.show_frame(ui, body.rect));
 /// let host = ToolHost::new().run(ui, &shown.output, &mut pass);

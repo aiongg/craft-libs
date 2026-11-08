@@ -16,7 +16,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 fn document() -> CropDocument {
-    CropDocument::new(CropDocKey(1), Size::new(2400.0, 1500.0)).resolution(72.0)
+    CropDocument::new(CropDocKey::new(1), Size::new(2400.0, 1500.0)).resolution(72.0)
 }
 
 /// Runs `check` with the units of the default scope.
@@ -40,7 +40,7 @@ fn size_mode(width: &str, height: &str, resolution: &str) -> CropSettings {
 
 fn sides(width: f64, height: f64) -> CropSettings {
     let mut settings = CropSettings::default();
-    settings.ratio = CropRatio::Sides { width, height };
+    settings.ratio = CropRatio::sides(width, height);
     settings.ratio_fields = [width, height];
     settings
 }
@@ -56,7 +56,7 @@ fn ratio_presets_and_size_presets_fill_the_fields() {
             settings.choose(CropPresetChoice::Free, &doc, &[], units);
             settings.choose(CropPresetChoice::Ratio(i), &doc, &[], units);
             assert_eq!(settings.ratio, *ratio);
-            if let CropRatio::Sides { width, height } = ratio {
+            if let CropRatio::Sides { width, height, .. } = ratio {
                 assert_eq!(settings.ratio_fields, [*width, *height]);
             }
             assert_eq!(settings.choice(&[]), CropPresetChoice::Ratio(i));
@@ -75,7 +75,7 @@ fn ratio_presets_and_size_presets_fill_the_fields() {
         assert!(settings.choose(CropPresetChoice::Free, &doc, &[], units));
         assert_eq!(settings.choice(&[]), CropPresetChoice::Free);
 
-        let user = [CropUserPreset::new("Cinema", CropRatio::Sides { width: 21.0, height: 9.0 }, CropSizeFields::default())];
+        let user = [CropUserPreset::new("Cinema", CropRatio::sides(21.0, 9.0), CropSizeFields::default())];
         assert!(settings.choose(CropPresetChoice::User(0), &doc, &user, units));
         assert_eq!(settings.ratio_fields, [21.0, 9.0]);
         assert_eq!(settings.choice(&user), CropPresetChoice::User(0));
@@ -135,7 +135,7 @@ fn empty_w_or_h_is_a_free_crop() {
         assert_eq!((settings.ratio, settings.ratio_fields, settings.ratio_value(&doc, units)), (CropRatio::Free, [3.0, 0.0], None));
         assert_eq!(settings.shown_ratio_fields(&doc), [3.0, 0.0]);
         settings.set_ratio_field(1, 1.41437);
-        assert_eq!(settings.ratio, CropRatio::Sides { width: 3.0, height: 1.414 });
+        assert_eq!(settings.ratio, CropRatio::sides(3.0, 1.414));
         settings.set_ratio_field(0, 0.0);
         assert_eq!((settings.ratio, settings.ratio_fields), (CropRatio::Free, [0.0, 1.414]));
     });
@@ -153,11 +153,11 @@ fn swap_and_front_image() {
 
         let mut ratio = sides(16.0, 9.0);
         assert!(ratio.swap(&doc));
-        assert_eq!(ratio.ratio, CropRatio::Sides { width: 9.0, height: 16.0 });
+        assert_eq!(ratio.ratio, CropRatio::sides(9.0, 16.0));
         let mut original = CropSettings::default();
         original.ratio = CropRatio::Original;
         assert!(original.swap(&doc));
-        assert_eq!(original.ratio, CropRatio::Sides { width: 1500.0, height: 2400.0 });
+        assert_eq!(original.ratio, CropRatio::sides(1500.0, 2400.0));
         assert!(!CropSettings::default().swap(&doc));
 
         let mut front = CropSettings::default();
@@ -197,7 +197,7 @@ fn older_settings_load_with_defaults() {
     assert!(empty.delete_pixels);
     assert_eq!((empty.guide, empty.guide_show), (CropGuide::Thirds, GuideShow::Auto));
     let partial: CropSettings = serde_json::from_str(r#"{"fill":"contentAware","ratio":{"sides":{"width":4.0,"height":5.0}}}"#).unwrap();
-    assert_eq!((partial.fill, partial.ratio), (CropFill::ContentAware, CropRatio::Sides { width: 4.0, height: 5.0 }));
+    assert_eq!((partial.fill, partial.ratio), (CropFill::ContentAware, CropRatio::sides(4.0, 5.0)));
     assert!(partial.delete_pixels);
     let round_trip: CropSettings = serde_json::from_str(&serde_json::to_string(&partial).unwrap()).unwrap();
     assert_eq!(round_trip, partial);
@@ -268,7 +268,7 @@ impl Rig {
 /// settings and give `ratio`; the swap button exchanges the sides.
 #[trial]
 fn the_bar_reports_new_and_delete_and_edits_options() {
-    let user = CropUserPreset::new("Poster", CropRatio::Sides { width: 3.0, height: 7.0 }, CropSizeFields::default());
+    let user = CropUserPreset::new("Poster", CropRatio::sides(3.0, 7.0), CropSizeFields::default());
     let mut rig = bar(sides(2.0, 3.0), vec![user]);
     rig.pick("New Crop Preset…");
     rig.pick("Delete Crop Preset…");
@@ -277,7 +277,8 @@ fn the_bar_reports_new_and_delete_and_edits_options() {
 
     rig.seen.borrow_mut().clear();
     rig.pick("5 : 7");
-    assert_eq!(rig.settings.borrow().ratio, CropRatio::Sides { width: 5.0, height: 7.0 });
+    let preset = CROP_RATIOS[3];
+    assert_eq!(rig.settings.borrow().ratio, preset);
     assert!(rig.seen.borrow().iter().any(|s| s.ratio.is_some() && s.changed), "a preset pick edits the settings");
 
     // An arrow key steps the focused width field.
@@ -286,11 +287,16 @@ fn the_bar_reports_new_and_delete_and_edits_options() {
     fields.sort_by(|a, b| a.rect.min.x.total_cmp(&b.rect.min.x));
     rig.fixture.click(&fields[0]);
     rig.fixture.key(Key::ArrowUp, Modifiers::NONE).settle();
-    assert_eq!(rig.settings.borrow().ratio, CropRatio::Sides { width: 6.0, height: 7.0 });
+    let stepped = rig.settings.borrow().ratio;
+    assert!(
+        matches!((preset, stepped), (CropRatio::Sides { width: before, height, .. }, CropRatio::Sides { width: after, height: kept, .. }) if after > before && kept == height),
+        "the arrow grows the width and keeps the height: {stepped:?}"
+    );
     assert!(rig.seen.borrow().iter().any(|s| s.ratio.is_some()));
 
     rig.click("Swaps height and width");
-    assert_eq!(rig.settings.borrow().ratio, CropRatio::Sides { width: 7.0, height: 6.0 });
+    let CropRatio::Sides { width, height, .. } = stepped else { panic!("a stepped ratio has sides") };
+    assert_eq!(rig.settings.borrow().ratio, CropRatio::sides(height, width));
 }
 
 /// The gear menu's Custom… reports a colour request for the shield colour through the bar.
@@ -342,7 +348,7 @@ fn new_and_delete_are_disabled_with_nothing_to_save_or_delete() {
     rig.click("Crop ratio");
     assert!(rig.disabled("New Crop Preset…") && rig.disabled("Delete Crop Preset…"));
 
-    let user = CropUserPreset::new("Poster", CropRatio::Sides { width: 3.0, height: 7.0 }, CropSizeFields::default());
+    let user = CropUserPreset::new("Poster", CropRatio::sides(3.0, 7.0), CropSizeFields::default());
     let mut rig = bar(CropSettings::default(), vec![user]);
     rig.click("Crop ratio");
     assert!(rig.disabled("New Crop Preset…") && !rig.disabled("Delete Crop Preset…"));
