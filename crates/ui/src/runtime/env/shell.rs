@@ -4,7 +4,7 @@
 use super::{AppValues, EnvValue};
 use egui::Rect;
 use std::fmt;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 /// The stable key of a slot.
 pub type SlotKey = &'static str;
@@ -119,8 +119,21 @@ struct Inner {
     /// The edge reveal flags, indexed by `RevealEdge::index`.
     edges: [bool; 3],
     tabs: bool,
+    panels_hidden: bool,
     regions: ShellRegions,
     float_bounds: Rect,
+    revealed_rects: RevealedRects,
+}
+
+/// The rects that body content registered this pass for the edge it was revealed from. The registry is shared by the
+/// clones of one `ShellCx`.
+#[derive(Clone, Debug, Default)]
+struct RevealedRects(Arc<Mutex<Vec<(RevealEdge, Rect)>>>);
+
+impl PartialEq for RevealedRects {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
 }
 
 impl ShellCx {
@@ -128,7 +141,17 @@ impl ShellCx {
     /// mode allows and floating frames may go over the body.
     pub fn new(window: WindowKey, mode: BodyMode, regions: ShellRegions) -> Self {
         let float_bounds = regions.body;
-        let inner = Inner { window, mode, tab_reveal: false, edges: [false; 3], tabs: true, regions, float_bounds };
+        let inner = Inner {
+            window,
+            mode,
+            tab_reveal: false,
+            edges: [false; 3],
+            tabs: true,
+            panels_hidden: false,
+            regions,
+            float_bounds,
+            revealed_rects: RevealedRects::default(),
+        };
         ShellCx { inner: Arc::new(inner) }
     }
 
@@ -140,6 +163,12 @@ impl ShellCx {
     /// Whether the host shows the document tabs; they show only in [`BodyMode::Normal`].
     pub fn with_tabs(mut self, tabs: bool) -> Self {
         Arc::make_mut(&mut self.inner).tabs = tabs;
+        self
+    }
+
+    /// The panels are hidden while the tools and bars stay (Shift+Tab), or shown.
+    pub fn with_panels_hidden(mut self, hidden: bool) -> Self {
+        Arc::make_mut(&mut self.inner).panels_hidden = hidden;
         self
     }
 
@@ -182,14 +211,34 @@ impl ShellCx {
         self.inner.regions.slots.iter().any(|(shown, _)| *shown == key)
     }
 
-    /// Whether the dock shows: in normal mode, during the Tab reveal and during the end-edge reveal.
-    pub fn dock_visible(&self) -> bool {
-        self.inner.mode == BodyMode::Normal || self.inner.tab_reveal || self.edge_revealed(RevealEdge::End)
+    /// Whether the panels are hidden while the tools and bars stay (Shift+Tab in normal mode).
+    pub fn panels_hidden(&self) -> bool {
+        self.inner.panels_hidden
     }
 
-    /// Whether floating frames show: always in normal mode; in body-only mode only during the Tab reveal.
+    /// Whether the dock shows: in normal mode, during the Tab reveal and during the end-edge reveal, unless the panels
+    /// are hidden.
+    pub fn dock_visible(&self) -> bool {
+        !self.inner.panels_hidden && (self.inner.mode == BodyMode::Normal || self.inner.tab_reveal || self.edge_revealed(RevealEdge::End))
+    }
+
+    /// Whether floating frames show: in normal mode; in body-only mode only during the Tab reveal; never while the
+    /// panels are hidden.
     pub fn floating_visible(&self) -> bool {
-        self.inner.mode == BodyMode::Normal || self.inner.tab_reveal
+        !self.inner.panels_hidden && (self.inner.mode == BodyMode::Normal || self.inner.tab_reveal)
+    }
+
+    /// Registers `rect`, a revealed panel the body drew on this pass, as part of the revealed `edge`: the edge reveal
+    /// lasts while the pointer is over it, as it does over a revealed slot. Call it in the pass that draws the panel.
+    pub fn reveal_rect(&self, edge: RevealEdge, rect: Rect) {
+        if let Ok(mut rects) = self.inner.revealed_rects.0.lock() {
+            rects.push((edge, rect));
+        }
+    }
+
+    /// The rects registered with [`reveal_rect`](Self::reveal_rect) on this pass, in registration order.
+    pub fn revealed_rects(&self) -> Vec<(RevealEdge, Rect)> {
+        self.inner.revealed_rects.0.lock().map(|rects| rects.clone()).unwrap_or_default()
     }
 
     /// Whether the document tabs show: the host's flag in normal mode, never in body-only mode.

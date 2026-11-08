@@ -1,23 +1,24 @@
 //! The app shell's own rules: the screen-mode cycle, the full-screen steps, the reveal rules and the slot order.
 
 use craft_host::target::WindowState;
-use craft_ui::contract::{Bind, PaneEdge, Show as _};
+use craft_ui::canvas::{Canvas, ToolPath};
+use craft_ui::contract::{Bind, PaneEdge, Show as _, ShowContainer as _};
 use craft_ui::display::Text;
-use craft_ui::runtime::env::{RevealEdge, WindowKey};
+use craft_ui::runtime::env::{RevealEdge, RootEnv, WindowKey};
 use craft_ui::runtime::frame::ChromeToggle;
 use craft_ui::runtime::windows::WindowAction;
-use craft_ui::shell::{Aim, AppShell, FullScreenPlan, Reveal, ScreenMode, ScreenModeCommand, Slot, Tracking};
+use craft_ui::shell::{Aim, AppShell, AppShellOutput, FullScreenPlan, Reveal, ScreenMode, ScreenModeCommand, Slot, SlotSize, Tracking};
+use craft_ui::testing::input::key_press;
+use craft_ui::testing::pointer::{click, moved, settle};
 use craft_ui::testing::{Frames, trial};
-use egui::{Pos2, Rect, ViewportId, pos2};
+use egui::{Key, Modifiers, Pos2, Rect, Ui, UiBuilder, pos2};
 use std::cell::RefCell;
 
-const ZONE: f32 = 4.0;
 const WINDOW: Rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(800.0, 600.0));
 const BAR: Rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(800.0, 32.0));
-const FRAME: u64 = 7;
 
 fn aim(pointer: Pos2, frozen: bool, rtl: bool) -> Aim {
-    Aim::new(Some(pointer), frozen, WINDOW, ZONE, rtl)
+    Aim::new(Some(pointer), frozen, WINDOW, rtl)
 }
 
 fn body_only() -> Tracking {
@@ -144,36 +145,29 @@ fn a_reveal_shows_the_revealing_slots_and_never_the_status_bar() {
     assert!(!reveal.shows(&options, PaneEdge::Start, true, true), "only the revealed edge's slots show");
     assert!(!reveal.shows(&options, PaneEdge::Top, true, false), "a presentation ignores the reveal");
 
-    reveal.apply(&[(ViewportId::ROOT, ChromeToggle::Panels)], ViewportId::ROOT, FRAME, true, true);
+    reveal.apply(&[ChromeToggle::Panels], true, true);
     assert!(reveal.tab());
     assert!(reveal.shows(&options, PaneEdge::Start, true, true), "the Tab reveal shows every revealing slot");
     assert!(!reveal.shows(&status, PaneEdge::Bottom, true, true));
 }
 
 #[trial]
-fn a_toggle_changes_only_its_own_window_and_once_per_frame() {
-    let other = ViewportId::from_hash_of("other");
-    let toggles = [(other, ChromeToggle::Panels)];
+fn tab_toggles_the_chrome_and_tab_again_shows_it() {
     let mut reveal = Reveal::default();
-    reveal.apply(&toggles, ViewportId::ROOT, FRAME, false, true);
-    assert!(!reveal.only(false), "another window's toggle leaves this one alone");
-
-    let toggles = [(ViewportId::ROOT, ChromeToggle::Panels)];
-    reveal.apply(&toggles, ViewportId::ROOT, FRAME + 1, false, true);
-    reveal.apply(&toggles, ViewportId::ROOT, FRAME + 1, false, true);
-    assert!(reveal.only(false), "a discard pass of the same frame does not toggle again");
-    reveal.apply(&toggles, ViewportId::ROOT, FRAME + 2, false, true);
+    reveal.apply(&[ChromeToggle::Panels], false, true);
+    assert!(reveal.only(false), "Tab hides the chrome");
+    reveal.apply(&[ChromeToggle::Panels], false, true);
     assert!(!reveal.only(false), "Tab again shows the chrome");
 }
 
 #[trial]
 fn shift_tab_hides_the_panels_and_keeps_the_tools_in_normal_mode_only() {
-    let toggles = [(ViewportId::ROOT, ChromeToggle::PanelsKeepTools)];
+    let toggles = [ChromeToggle::PanelsKeepTools];
     let mut reveal = Reveal::default();
-    reveal.apply(&toggles, ViewportId::ROOT, FRAME, false, true);
+    reveal.apply(&toggles, false, true);
     assert!(reveal.panels_hidden() && !reveal.only(false));
     let mut body_only_window = Reveal::default();
-    body_only_window.apply(&toggles, ViewportId::ROOT, FRAME, true, true);
+    body_only_window.apply(&toggles, true, true);
     assert!(!body_only_window.panels_hidden());
 }
 
@@ -181,16 +175,20 @@ fn shift_tab_hides_the_panels_and_keeps_the_tools_in_normal_mode_only() {
 fn a_screen_mode_change_ends_a_reveal() {
     let mut reveal = Reveal::default();
     reveal.track(body_only(), aim(pos2(400.0, 1.0), false, false));
-    reveal.apply(&[(ViewportId::ROOT, ChromeToggle::Panels)], ViewportId::ROOT, FRAME, true, true);
+    reveal.apply(&[ChromeToggle::Panels], true, true);
     reveal.clear();
     assert!(!reveal.tab() && edges(&reveal) == [false; 3]);
 }
 
+fn rect_of(out: &AppShellOutput, key: &str) -> Rect {
+    out.regions.slots.iter().find(|(shown, _)| *shown == key).map(|(_, rect)| *rect).expect("the slot showed")
+}
+
 #[trial]
-fn slots_lay_out_around_the_body_in_every_mode_but_full_screen() {
+fn slots_lay_out_around_the_body_on_the_first_pass() {
     let seen = RefCell::new(None);
     let mut frames = Frames::new();
-    let mut show = |ui: &mut egui::Ui| {
+    let mut show = |ui: &mut Ui| {
         let out = AppShell::new(WindowKey::main())
             .title_bar(|ui, _| {
                 Text::new("Title").show(ui);
@@ -207,18 +205,21 @@ fn slots_lay_out_around_the_body_in_every_mode_but_full_screen() {
             .show(ui);
         *seen.borrow_mut() = Some(out);
     };
-    frames.idle(3, &mut show);
+    frames.frame(Vec::new(), &mut show);
     let out = seen.borrow_mut().take().expect("the shell showed");
-    let rect = |key: &str| out.regions.slots.iter().find(|(shown, _)| *shown == key).map(|(_, rect)| *rect).expect("the slot showed");
     let body = out.regions.body;
-    assert!(rect("title").max.y <= body.min.y, "the title is above the body");
-    assert!(rect("status").min.y >= body.max.y, "the status bar is below the body");
-    assert!(rect("tools").max.x <= body.min.x, "the tools are at the start of the body");
+    assert!(rect_of(&out, "title").max.y <= body.min.y, "the title is above the body");
+    assert!(rect_of(&out, "status").min.y >= body.max.y, "the status bar is below the body");
+    assert!(rect_of(&out, "tools").max.x <= body.min.x, "the tools are at the start of the body");
     let keys: Vec<_> = out.regions.slots.iter().map(|(key, _)| *key).collect();
     assert_eq!(keys, ["title", "status", "tools"], "slots claim space in the order title, bottom, start");
+}
 
+#[trial]
+fn full_screen_shows_the_body_only() {
+    let seen = RefCell::new(None);
     let mut frames = Frames::new();
-    let mut show = |ui: &mut egui::Ui| {
+    let mut show = |ui: &mut Ui| {
         let mut mode = ScreenMode::FullScreen;
         let out = AppShell::new(WindowKey::main())
             .screen_mode(Bind::bound(&mut mode))
@@ -231,8 +232,137 @@ fn slots_lay_out_around_the_body_in_every_mode_but_full_screen() {
             .show(ui);
         *seen.borrow_mut() = Some(out);
     };
-    frames.idle(3, &mut show);
+    frames.frame(Vec::new(), &mut show);
     let out = seen.borrow_mut().take().expect("the shell showed");
     assert!(out.regions.slots.is_empty() && !out.revealed, "full screen shows the body only");
     assert_eq!(out.screen_mode, ScreenMode::FullScreen);
+}
+
+#[trial]
+fn a_slot_is_as_high_as_its_size_says_whatever_its_content() {
+    let seen = RefCell::new(None);
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        let out = AppShell::new(WindowKey::main())
+            .top(Slot::new("short").size(SlotSize::OptionsBar), |ui, _| {
+                Text::new("Short").show(ui);
+            })
+            .top(Slot::new("tall").size(SlotSize::OptionsBar), |ui, _| {
+                ui.allocate_space(egui::vec2(10.0, 300.0));
+            })
+            .top(Slot::new("narrow").size(SlotSize::OptionsBarNarrow), |ui, _| {
+                Text::new("Narrow").show(ui);
+            })
+            .show(ui);
+        *seen.borrow_mut() = Some(out);
+    };
+    frames.frame(Vec::new(), &mut show);
+    let out = seen.borrow_mut().take().expect("the shell showed");
+    let height = |key| rect_of(&out, key).height();
+    assert_eq!(height("short"), height("tall"), "the size, not the content, sets the extent");
+    assert!(height("narrow") <= height("short"), "the narrow options bar is not taller than the options bar");
+    assert!(height("tall") < 100.0, "a tall content is clipped to the slot");
+}
+
+#[trial]
+fn revealing_the_top_bar_in_body_only_mode_leaves_the_body_rect_alone() {
+    let seen = RefCell::new(None);
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        let mut mode = ScreenMode::FullScreen;
+        let out = AppShell::new(WindowKey::main())
+            .screen_mode(Bind::bound(&mut mode))
+            .title(Slot::new("title").reveal(), |ui, _| {
+                Text::new("Title").show(ui);
+            })
+            .body(|ui, _| {
+                Text::new("Document").show(ui);
+            })
+            .show(ui);
+        *seen.borrow_mut() = Some(out);
+    };
+    frames.frame(vec![moved(pos2(400.0, 300.0))], &mut show);
+    let hidden = seen.borrow_mut().take().expect("the shell showed");
+    assert!(hidden.regions.slots.is_empty());
+    frames.frame(vec![moved(pos2(400.0, 1.0))], &mut show);
+    let revealed = seen.borrow_mut().take().expect("the shell showed");
+    assert!(revealed.revealed, "the pointer at the top edge reveals the title in the same pass");
+    assert_eq!(revealed.regions.body, hidden.regions.body, "a revealed bar covers the body");
+    assert!(rect_of(&revealed, "title").max.y > revealed.regions.body.min.y);
+}
+
+#[trial]
+fn a_body_that_registers_a_revealed_rect_keeps_the_reveal_while_the_pointer_is_inside_it() {
+    fn run(register: bool) -> bool {
+        let kept = RefCell::new(false);
+        let mut frames = Frames::new();
+        let mut show = |ui: &mut Ui| {
+            let mut mode = ScreenMode::FullScreen;
+            AppShell::new(WindowKey::main())
+                .screen_mode(Bind::bound(&mut mode))
+                .body(|_, cx| {
+                    let shell = cx.shell().expect("the body is in a shell");
+                    if register && shell.edge_revealed(RevealEdge::Start) {
+                        shell.reveal_rect(RevealEdge::Start, Rect::from_min_max(pos2(0.0, 40.0), pos2(120.0, 560.0)));
+                    }
+                    *kept.borrow_mut() = shell.edge_revealed(RevealEdge::Start);
+                })
+                .show(ui);
+        };
+        frames.frame(vec![moved(pos2(300.0, 300.0))], &mut show);
+        frames.frame(vec![moved(pos2(1.0, 300.0))], &mut show);
+        frames.frame(vec![moved(pos2(1.0, 300.0))], &mut show);
+        assert!(*kept.borrow(), "the pointer at the start edge reveals it");
+        frames.frame(vec![moved(pos2(60.0, 300.0))], &mut show);
+        let kept_inside = *kept.borrow();
+        kept_inside
+    }
+    assert!(run(true), "inside the registered rect the reveal stays");
+    assert!(!run(false), "without the rect the reveal ends when the pointer leaves the strip");
+}
+
+fn tab_hides(shells: &[&'static str]) -> Vec<(&'static str, bool)> {
+    let seen = RefCell::new(Vec::new());
+    let window = RefCell::new(Rect::NOTHING);
+    let mut frames = Frames::new();
+    let mut root = RootEnv::default();
+    root.tab_toggles_chrome = true;
+    frames.root(root);
+    let mut show = |ui: &mut Ui| {
+        seen.borrow_mut().clear();
+        let room = ui.max_rect();
+        *window.borrow_mut() = room;
+        for (at, key) in shells.iter().enumerate() {
+            let width = room.width() / shells.len() as f32;
+            let rect = Rect::from_min_size(room.min + egui::vec2(width * at as f32, 0.0), egui::vec2(width, room.height()));
+            ui.scope_builder(UiBuilder::new().id_salt(*key).max_rect(rect), |ui| {
+                let out = AppShell::new(WindowKey::new(*key))
+                    .title_bar(|ui, _| {
+                        Text::new("Title").show(ui);
+                    })
+                    .body(|ui, _| {
+                        Canvas::new("Document", ToolPath::Freehand).show(ui, |_, _| ());
+                    })
+                    .show(ui);
+                seen.borrow_mut().push((*key, !out.regions.slots.is_empty()));
+            });
+        }
+    };
+    settle(&mut frames, &mut show);
+    let room = *window.borrow();
+    click(&mut frames, pos2(room.max.x - room.width() / (2.0 * shells.len() as f32), room.center().y), &mut show);
+    settle(&mut frames, &mut show);
+    frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], &mut show);
+    let result = seen.borrow().clone();
+    result
+}
+
+#[trial]
+fn tab_with_a_canvas_focused_hides_that_windows_panels_in_the_same_pass() {
+    assert_eq!(tab_hides(&["main"]), [("main", false)]);
+}
+
+#[trial]
+fn two_shells_in_one_viewport_toggle_apart() {
+    assert_eq!(tab_hides(&["first", "second"]), [("first", true), ("second", false)], "Tab goes to the window that holds focus");
 }

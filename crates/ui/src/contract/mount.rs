@@ -103,6 +103,11 @@ struct PaneHost(ShellPane);
 
 impl Host for PaneHost {
     fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut HostPass<'_>) {
+        // A pane the caller laid out shows in its rect and leaves the room of its siblings alone.
+        if let Some(rect) = self.0.at {
+            pass(parent, Some(ShowAt::Rect(rect)), None);
+            return;
+        }
         let rtl = env.direction.is_rtl();
         let (edge, along_x) = match self.0.edge {
             PaneEdge::Start => (if rtl { Edge::Right } else { Edge::Left }, true),
@@ -112,10 +117,10 @@ impl Host for PaneHost {
             _ => (Edge::Center, false),
         };
         let ctx = parent.ctx().clone();
-        // The pane's extent is its own memory, seeded from the size the pane first took and kept until the user
-        // resizes it: the body's size does not carry it, since a filling body takes what the pane gives.
+        // Without a fixed extent the pane's extent is its own memory, seeded from the size the pane first took and kept
+        // until the user resizes it: the body's size does not carry it, since a filling body takes what the pane gives.
         let extent = sub(id, "pane_extent");
-        let last = layout_memory::read(&ctx, extent).map(|size| if along_x { size.x } else { size.y });
+        let last = self.0.extent.or_else(|| layout_memory::read(&ctx, extent).map(|size| if along_x { size.x } else { size.y }));
         let outer = panels::show_pane(parent, edge, sub(id, ("pane", self.0.name)), last, |ui| {
             let installed = Env::install_for(ui, env.clone());
             pass(ui, None, None);

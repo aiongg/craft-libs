@@ -17,9 +17,9 @@ note = "A pattern: slots and the body are closures taking `(&mut Ui, &mut BodyCx
 [[type]]
 name = "CanvasShell"
 old = "craft_ui::shell::CanvasShell"
-new = "craft_ui::shell::CanvasShell"
-status = "same"
-note = "The body is set with `body(f)` and `show(ui)` returns `AppShellOutput`; the slot keys are `craft_ui::shell::slots`."
+new = "craft_ui::shell::AppShell"
+status = "replaced"
+note = "An `AppShell` with the canvas slot setters `title_bar_if(visible, f)`, `options_bar(visible, f)`, `tools(visible, f)` and `status(visible, f)`; the other setters are `AppShell`'s own. The slot keys are `craft_ui::shell::slots`."
 
 [[type]]
 name = "StartScreen"
@@ -265,14 +265,14 @@ name = "take_tab_toggle"
 old = "craft_ui::shell::take_tab_toggle"
 new = ""
 status = "removed"
-note = "No raw-input hook: the key stage writes `FrameOutput.chrome_toggles`; pass `craft_ui::shell::chrome_toggles(ctx, &output)` to `AppShell::chrome_toggles`."
+note = "No raw-input hook and no app plumbing: the key stage records the toggle and the window's `AppShell` takes it in the same pass."
 
 [[type]]
 name = "chrome_toggles"
 old = ""
-new = "craft_ui::shell::chrome_toggles"
-status = "replaced"
-note = "Replaces `take_tab_toggle`: the toggles of a frame, with menu and palette fires of the chrome commands mapped to the focused window."
+new = ""
+status = "removed"
+note = "The shell takes its window's toggles from the frame state; menu and palette fires of the chrome commands reach the focused window's shell in the next pass."
 
 [[setter]]
 type = "AppShell"
@@ -301,17 +301,17 @@ note = "The body closure is set with `body`; the shell data is `BodyCx::shell()`
 [[setter]]
 type = "AppShell"
 old = "toggle_reveal(ctx, window)"
-new = "chrome_toggles(&[(ViewportId, ChromeToggle)])"
-note = "The reveal toggles follow `FrameOutput.chrome_toggles`; `clear_reveal` and `reveal_active` are gone (a screen-mode change ends a reveal)."
+new = ""
+note = "The shell takes its window's Tab toggles itself; `clear_reveal` and `reveal_active` are gone (a screen-mode change ends a reveal)."
 
 [[setter]]
-type = "CanvasShell"
+type = "AppShell"
 old = "labels(CanvasLabels)"
 new = ""
 note = "The regions are named by `AppShellWords`."
 
 [[setter]]
-type = "CanvasShell"
+type = "AppShell"
 old = "options(bool, f)"
 new = "options_bar(bool, f)"
 note = "Renamed: a method named `options` trips the egui-behaviour lint."

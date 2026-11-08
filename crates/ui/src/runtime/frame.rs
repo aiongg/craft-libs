@@ -1,16 +1,16 @@
 //! The frame plugin: the per-pass and per-frame steps, with the inputs the app sets and the outputs it drains.
 
-use crate::runtime::commands::{self, CommandInput, Fired};
+use crate::runtime::commands::{self, CommandInput, CommandSet as _, Fired};
 use crate::runtime::egui::input::{self as raw_input, HeldInput, RawInput};
 use crate::runtime::egui::memory::{self as store, Service};
 use crate::runtime::egui::{pass, scale, style};
-use crate::runtime::env::{Env, RootEnv};
+use crate::runtime::env::{Env, RootEnv, WindowKey};
 use crate::runtime::{access, cursor, drag, focus, ime, keys, layout_memory, memory, motion, overlay, pointer, toast, wheel, windows};
 use craft_behavior::GestureId;
 use craft_host::Host;
 use craft_host::target::Os;
 use craft_theme::{AppSizes, Appearance, Contrast, HitSizes, Mode, SUITE_DEFAULT, Size, TextSize, ThemeDef, builtins, resolve_sized};
-use egui::{Context, Ui, ViewportId};
+use egui::{Context, Id, Ui, ViewportId};
 use std::any::TypeId;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -74,8 +74,9 @@ pub struct FrameOutput {
     pub fired: Vec<Fired>,
     /// Text for the live announcement region.
     pub announcements: Vec<String>,
-    /// The chrome toggles the windows asked for since the last call, in order: each names its window and whether the
-    /// tools stay.
+    /// The chrome toggles the windows asked for since the last call, in order: each names its viewport and whether the
+    /// tools stay. The shells take their own toggles in the pass that records them; the host reads this list only to
+    /// know that a toggle happened.
     pub chrome_toggles: Vec<(ViewportId, ChromeToggle)>,
     /// The gestures whose component was evicted while they ran. Every `GestureHost` reads the list with
     /// `handle_output` and ends the gestures it owns as a cancel with `CancelReason::Removed`.
@@ -90,6 +91,10 @@ struct FrameState {
     /// the input hook writes the slop before any `Env` exists, and the press lifecycle reads the hit target.
     hit: Option<(Arc<AppSizes>, HitSizes)>,
     output: FrameOutput,
+    /// The shells the viewports' last passes showed, for aiming a chrome toggle at the window that holds focus.
+    shells: Vec<ShellRecord>,
+    /// The chrome toggles no shell has taken yet.
+    toggles: Vec<PendingToggle>,
     /// Passes between their begin and end hooks: nested viewport passes count.
     passes_open: u32,
     /// How many root-viewport passes the begin hook has run for: egui counts a pass when it ends.
@@ -98,6 +103,27 @@ struct FrameState {
     sweeps: HashMap<TypeId, fn(&Context)>,
     frame_layers: Option<fn(&Context)>,
 }
+
+/// A window shell as its latest pass left it.
+struct ShellRecord {
+    viewport: ViewportId,
+    window: WindowKey,
+    /// The shell's root container, an instance of its window command scope.
+    root: Id,
+    pass: u64,
+}
+
+/// A chrome toggle waiting for its window's shell.
+struct PendingToggle {
+    viewport: ViewportId,
+    /// The window that held focus when the toggle was asked for; none when no shell of the viewport did.
+    window: Option<WindowKey>,
+    toggle: ChromeToggle,
+    pass: u64,
+}
+
+/// How many passes a shell has to take its toggle before the toggle is dropped.
+const TOGGLE_PASSES: u64 = 2;
 
 /// Records of one runtime service, one per viewport. A viewport egui stops reporting has its record dropped
 /// at once, by the frame loop's end hook.
@@ -249,6 +275,17 @@ pub(crate) fn in_pass(ctx: &Context) -> bool {
 pub fn take_output(ctx: &Context) -> FrameOutput {
     let mut output = store::with::<FrameState, _>(ctx, |state| std::mem::take(&mut state.output));
     output.fired = commands::take_fired(ctx);
+    // The menu, palette and automation fires of the chrome commands reach the app as ordinary fires with no window: the
+    // focused window's shell takes them in the next pass. A key fire already wrote its toggle in the key stage.
+    let focused = crate::runtime::egui::viewports::reported(ctx).into_iter().find(|(_, facts)| facts.focused).map(|(viewport, _)| viewport);
+    for fired in &output.fired {
+        if fired.source == commands::FireSource::Key {
+            continue;
+        }
+        if let (Some(command), Some(viewport)) = (commands::ChromeCommand::from_ref(&fired.command), focused) {
+            queue_toggle(ctx, viewport, command.toggle());
+        }
+    }
     output
 }
 
@@ -283,9 +320,49 @@ pub fn request_repaint_after(ctx: &Context, seconds: f64) {
     crate::runtime::egui::repaint::request_after(ctx, crate::runtime::egui::pass::current_viewport(ctx), seconds);
 }
 
-/// Adds a chrome toggle of `viewport`'s window to the next `FrameOutput`.
+/// Records the shell of window `window` in `viewport`, whose root container is `root`, so a chrome toggle finds the
+/// window that holds focus.
+pub(crate) fn note_shell(ctx: &Context, viewport: ViewportId, window: &WindowKey, root: Id) {
+    let pass = pass::pass_nr(ctx, viewport);
+    store::with::<FrameState, _>(ctx, |state| {
+        state.shells.retain(|shell| shell.viewport != viewport || (shell.window != *window && shell.pass + TOGGLE_PASSES > pass));
+        state.shells.push(ShellRecord { viewport, window: window.clone(), root, pass });
+    });
+}
+
+/// Adds a chrome toggle of `viewport` to the next `FrameOutput` and aims it at the window of the viewport that holds
+/// focus, or at the first shell that asks when none does.
 pub(crate) fn request_chrome_toggle(ctx: &Context, viewport: ViewportId, toggle: ChromeToggle) {
+    queue_toggle(ctx, viewport, toggle);
     store::with::<FrameState, _>(ctx, |state| state.output.chrome_toggles.push((viewport, toggle)));
+}
+
+fn queue_toggle(ctx: &Context, viewport: ViewportId, toggle: ChromeToggle) {
+    let pass = pass::pass_nr(ctx, viewport);
+    let candidates: Vec<(WindowKey, Id)> = store::with::<FrameState, _>(ctx, |state| {
+        state.shells.iter().filter(|shell| shell.viewport == viewport).map(|s| (s.window.clone(), s.root)).collect()
+    });
+    let window = candidates.into_iter().find(|(_, root)| commands::focus_within(ctx, *root)).map(|(window, _)| window);
+    store::with::<FrameState, _>(ctx, |state| {
+        state.toggles.retain(|pending| pending.viewport != viewport || pending.pass + TOGGLE_PASSES > pass);
+        state.toggles.push(PendingToggle { viewport, window, toggle, pass });
+    });
+}
+
+/// Takes the chrome toggles of the window `window` in `viewport`: the ones aimed at it, and the ones no window held
+/// focus for. A shell calls it once in each pass, so its window toggles in the pass the key went down.
+pub(crate) fn take_chrome_toggles(ctx: &Context, viewport: ViewportId, window: &WindowKey) -> Vec<ChromeToggle> {
+    store::with::<FrameState, _>(ctx, |state| {
+        let mut mine = Vec::new();
+        state.toggles.retain(|pending| {
+            let wanted = pending.viewport == viewport && pending.window.as_ref().is_none_or(|aimed| aimed == window);
+            if wanted {
+                mine.push(pending.toggle);
+            }
+            !wanted
+        });
+        mine
+    })
 }
 
 /// The held input, the runtime's request to end the viewport's egui drag and the clock of its running pass.
