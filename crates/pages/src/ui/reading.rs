@@ -20,7 +20,7 @@ use egui::{Pos2, Rect, Response, Ui, Vec2, pos2, vec2};
 use super::view::PageSource;
 use crate::layout::SCREEN_POINTS_PER_POINT;
 
-#[cfg(feature = "testing")]
+#[cfg(feature = "screen-testing")]
 mod stories;
 
 /// The swipe along the columns: the whole view is the part.
@@ -80,6 +80,11 @@ pub struct ReadingMetrics {
 }
 
 impl ReadingMetrics {
+    /// Metrics with these gaps and bar height and the standard column target and least width.
+    pub const fn new(column_gap: f32, nav_bar: f32) -> Self {
+        ReadingMetrics { column_gap, nav_bar, column_target: COLUMN_TARGET, column_min: COLUMN_MIN }
+    }
+
     /// The metrics under `tokens`.
     pub fn of(tokens: &UiTokens) -> Self {
         ReadingMetrics {
@@ -154,6 +159,7 @@ pub fn swipe_turn(start: Pos2, end: Pos2, column: f32, forward: f32) -> i32 {
 
 /// The reading view's state, kept by the app.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct ReadingState {
     /// The column at the leading edge.
     pub column: usize,
@@ -225,7 +231,7 @@ pub struct ReadingView<'a> {
     source: &'a dyn PageSource,
     state: &'a mut ReadingState,
     /// The page zoom; 1.0 is the default size.
-    #[prop]
+    #[prop(quantity = "zoom factor")]
     zoom: f32,
     resizing: bool,
 }

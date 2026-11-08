@@ -13,6 +13,8 @@ workspace = true
 [features]
 default = []
 # The page widgets (`craft_pages::ui`), on craft-ui.
+# The widgets' stories and the integration tests (`tests/it`).
+screen-testing = ["ui", "craft-ui/testing"]
 ui = ["dep:craft-behavior", "dep:craft-ui", "dep:craft-theme", "dep:egui", "dep:craft-host"]
 
 [dependencies]

@@ -115,21 +115,17 @@ fn on_page(ui: &mut Ui, marks: &[TextMark], selection: Option<TextSelection>) ->
 
 #[story(TextMarks<'static>, covers = [Default])]
 fn find_marks(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let marks = [
-        TextMark { page: 0, glyphs: 4..9, current: false },
-        TextMark { page: 0, glyphs: 38..42, current: true },
-        TextMark { page: 0, glyphs: 60..63, current: false },
-    ];
+    let marks = [TextMark::new(0, 4..9, false), TextMark::new(0, 38..42, true), TextMark::new(0, 60..63, false)];
     on_page(ui, &marks, None)
 }
 
 #[story(TextMarks<'static>, covers = [Default])]
 fn run_selected(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    on_page(ui, &[], Some(TextSelection { page: 0, span: TextSpan::Run { anchor: 4, head: 26 } }))
+    on_page(ui, &[], Some(TextSelection::new(0, TextSpan::run(4, 26))))
 }
 
 #[story(TextMarks<'static>, covers = [Default])]
 fn column_selected(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let (from, to) = (Point::new(15.0, 2.0), Point::new(65.0, 40.0));
-    on_page(ui, &[], Some(TextSelection { page: 0, span: TextSpan::Column { from, to } }))
+    on_page(ui, &[], Some(TextSelection::new(0, TextSpan::column(from, to))))
 }

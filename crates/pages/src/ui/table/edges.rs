@@ -37,6 +37,7 @@ craft_ui::words! {
 
 /// One of the six edges, in the picker's order (DesignCraft's `EDGE_NAMES`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum EdgeKey {
     /// The top edge.
     Top,
@@ -71,7 +72,7 @@ impl EdgeKey {
 
 /// Which edges are chosen.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub struct BorderEdges(pub [bool; 6]);
+pub struct BorderEdges([bool; 6]);
 
 impl BorderEdges {
     /// Every edge chosen.
@@ -90,6 +91,7 @@ impl BorderEdges {
 
 /// Word's border presets.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum BorderPreset {
     /// Every edge.
     All,
@@ -306,7 +308,7 @@ impl Component for EdgePicker<'_> {
         let edge = Stateful::new(cx.color(colors.line.control_edge));
         EdgePickerStyle {
             metrics: Metrics::new(),
-            surface: SurfaceLook::new(Stateful::new(StyleColor(sunken.fill)))
+            surface: SurfaceLook::new(Stateful::new(cx.color(colors.surface.sunken)))
                 .kind(SurfaceKind::Sunken)
                 .radius(sunken.radius)
                 .border(edge, cx.tokens.stroke.thin),

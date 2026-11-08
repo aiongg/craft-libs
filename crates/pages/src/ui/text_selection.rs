@@ -17,7 +17,7 @@ use egui::{CornerRadius, Pos2, Response, Vec2, pos2};
 
 use super::view::PlacedPage;
 
-#[cfg(feature = "testing")]
+#[cfg(feature = "screen-testing")]
 mod stories;
 
 /// A page's text as the selection reads it, glyph by glyph in reading order. Rectangles are page points (origin
@@ -46,8 +46,10 @@ pub trait PageTextSource {
 
 /// What is selected on one page.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum TextSpan {
     /// Reading order, between two glyphs (inclusive), anchor where the drag started.
+    #[non_exhaustive]
     Run {
         /// Index of the glyph where the drag started.
         anchor: usize,
@@ -55,6 +57,7 @@ pub enum TextSpan {
         head: usize,
     },
     /// The glyphs inside a rectangle (page points), drawn from the corner the drag started at.
+    #[non_exhaustive]
     Column {
         /// Corner of the rectangle where the drag started, in page points.
         from: Point,
@@ -63,8 +66,21 @@ pub enum TextSpan {
     },
 }
 
+impl TextSpan {
+    /// A run from the glyph `anchor` to the glyph `head`.
+    pub fn run(anchor: usize, head: usize) -> Self {
+        TextSpan::Run { anchor, head }
+    }
+
+    /// The column from the page point `from` to the page point `to`.
+    pub fn column(from: Point, to: Point) -> Self {
+        TextSpan::Column { from, to }
+    }
+}
+
 /// A text selection on one page.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct TextSelection {
     /// Page index, 0-based.
     pub page: usize,
@@ -73,6 +89,11 @@ pub struct TextSelection {
 }
 
 impl TextSelection {
+    /// The selection `span` on page `page`.
+    pub fn new(page: usize, span: TextSpan) -> Self {
+        TextSelection { page, span }
+    }
+
     /// The selection as rectangles, one per line piece (for highlighting and markup quads).
     // pdfcraft: crates/ui-egui/src/canvas/selection.rs:29 `Selection::rects`.
     pub fn rects(&self, text: &dyn PageTextSource) -> Vec<Rect> {
@@ -125,6 +146,7 @@ pub fn click_unit(text: &dyn PageTextSource, clicks: u32, glyph: usize) -> Optio
 
 /// A highlight drawn with the selection: find matches, the current one stronger.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct TextMark {
     /// Page index, 0-based.
     pub page: usize,
@@ -132,6 +154,13 @@ pub struct TextMark {
     pub glyphs: Range<usize>,
     /// Whether this is the current find match, drawn stronger.
     pub current: bool,
+}
+
+impl TextMark {
+    /// The match of `glyphs` on page `page`, the current match when `current`.
+    pub fn new(page: usize, glyphs: Range<usize>, current: bool) -> Self {
+        TextMark { page, glyphs, current }
+    }
 }
 
 /// The text of the document's pages, for the tool: the pages whose text the app has (PdfCraft extracts it in the
@@ -144,6 +173,7 @@ pub trait PageTexts {
 /// The tool's state, kept by the app per document view: the selection (view state, applied in place) and the gesture
 /// in progress.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct TextSelectState {
     /// The selection, if any.
     pub selection: Option<TextSelection>,

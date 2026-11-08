@@ -39,7 +39,7 @@ fn edge_picker_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(EdgePicker<'static>, covers = [], drive = Drive::Never)]
 fn edge_picker_paragraph(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    EdgePicker::new("Paragraph borders", Bind::bound(data.value("paragraph", mixed_edges()))).paragraph(true).show(ui).into()
+    EdgePicker::new("Paragraph borders", Bind::bound(data.value("paragraph", mixed_edges()))).paragraph().show(ui).into()
 }
 
 #[story(TableSizePicker, covers = [Default], drive = Drive::Never)]
@@ -76,10 +76,7 @@ fn table_properties(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 #[story(CellSelectionOverlay<'static>, covers = [Default], drive = Drive::Never)]
 fn cell_selection_overlay(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let origin = ui.available_rect_before_wrap().min;
-    let geometry = TableGeometry {
-        row_edges: (0..4).map(|i| origin.y + 24.0 * i as f32).collect(),
-        column_edges: (0..4).map(|i| origin.x + 60.0 * i as f32).collect(),
-    };
+    let geometry = TableGeometry::new((0..4).map(|i| origin.y + 24.0 * i as f32).collect(), (0..4).map(|i| origin.x + 60.0 * i as f32).collect());
     let ranges = vec![CellRange::cells(CellAt::new(0, 0), CellAt::new(0, 2)), CellRange::cells(CellAt::new(1, 0), CellAt::new(1, 1))];
     let selection = CellSelection::from_ranges(ranges, CellAt::new(1, 1)).unwrap_or_default();
     let mut overlay = Some(CellSelectionOverlay::new(&geometry, &selection));

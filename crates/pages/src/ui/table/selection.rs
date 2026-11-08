@@ -23,6 +23,7 @@ use egui::{CornerRadius, Pos2, Rect, Response, Vec2, pos2};
 /// Where the table's rows and columns are on screen: the edges, top to bottom and left to right (n + 1 values for n
 /// rows).
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct TableGeometry {
     /// Screen y of each row boundary.
     pub row_edges: Vec<f32>,
@@ -31,6 +32,11 @@ pub struct TableGeometry {
 }
 
 impl TableGeometry {
+    /// A table whose rows and columns lie between these edges.
+    pub fn new(row_edges: Vec<f32>, column_edges: Vec<f32>) -> Self {
+        TableGeometry { row_edges, column_edges }
+    }
+
     /// The cell under a screen point, if any (a merged cell answers with the cell the point is in; the model's
     /// `CellSpace::merge_at` maps it to the merge).
     pub fn cell_at(&self, p: Pos2) -> Option<CellAt<u32>> {
@@ -109,7 +115,7 @@ impl Component for CellSelectionOverlay<'_> {
     type Style = CellSelectionStyle;
     type Output = Response;
 
-    fn style(cx: &StyleCx<'_>, _: CellSelectionStyleKey) -> CellSelectionStyle {
+    fn style(cx: &StyleCx<'_>, _: CellSelectionOverlayStyleKey) -> CellSelectionStyle {
         let colors = &cx.tokens.color;
         CellSelectionStyle { metrics: Metrics::new(), fill: cx.color(colors.state.selected), outline: cx.color(colors.accent.solid) }
     }

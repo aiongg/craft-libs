@@ -109,7 +109,9 @@ fn the_size_picker_keys_stop_at_the_edges() {
 
 #[trial]
 fn the_properties_panel_reports_the_change_made() {
-    let values = Rc::new(RefCell::new(TableValues { rows: 3, columns: 4, row_height_mode: Some(RowHeight::AtLeast), ..TableValues::default() }));
+    let mut start = TableValues::default();
+    (start.rows, start.columns, start.row_height_mode) = (3, 4, Some(RowHeight::AtLeast));
+    let values = Rc::new(RefCell::new(start));
     let changes: Rc<RefCell<Vec<TableChange>>> = Rc::default();
     let (shown, seen) = (Rc::clone(&values), Rc::clone(&changes));
     let mut fixture = Fixture::new(move |ui| {
@@ -136,7 +138,7 @@ fn the_properties_panel_reports_the_change_made() {
 
 #[trial]
 fn table_geometry_finds_cells_and_clamps_past_the_last_edge() {
-    let geometry = TableGeometry { row_edges: vec![0.0, 20.0, 50.0], column_edges: vec![0.0, 40.0, 80.0, 120.0] };
+    let geometry = TableGeometry::new(vec![0.0, 20.0, 50.0], vec![0.0, 40.0, 80.0, 120.0]);
     assert_eq!(geometry.cell_at(pos2(40.0, 19.9)), Some(CellAt::new(0, 1)), "a band owns its leading edge");
     assert_eq!(geometry.cell_at(pos2(39.9, 20.0)), Some(CellAt::new(1, 0)));
     assert_eq!(geometry.cell_at(pos2(120.0, 10.0)), None, "the last edge is outside");
@@ -281,7 +283,7 @@ impl Rig {
 }
 
 fn run(anchor: usize, head: usize) -> Option<TextSelection> {
-    Some(TextSelection { page: 0, span: TextSpan::Run { anchor, head } })
+    Some(TextSelection::new(0, TextSpan::run(anchor, head)))
 }
 
 #[trial]
@@ -380,7 +382,7 @@ impl AccessDescriber for Fake {
                 }
                 for (i, text) in ["first", "second"].into_iter().enumerate() {
                     let marker = format!("{}.", i + 1);
-                    if let Some(item) = out.block(None, BlockRole::ListItem { level: 0, marker }) {
+                    if let Some(item) = out.block(None, BlockRole::list_item(0, marker)) {
                         line(out, item, text, 20.0 + 14.0 * i as f32);
                     }
                 }
@@ -463,14 +465,14 @@ fn only_the_pages_in_view_and_one_either_side_are_described() {
 // Reading view
 
 fn metrics() -> ReadingMetrics {
-    ReadingMetrics { column_gap: 20.0, nav_bar: 40.0, column_target: 295.0, column_min: 192.0 }
+    ReadingMetrics::new(20.0, 40.0)
 }
 
 #[trial]
 fn the_reading_size_fits_whole_columns() {
     let metrics = metrics();
     let (width, height) = reading_size(vec2(1200.0, 900.0), 1.0, &metrics, None);
-    assert!(width >= metrics.column_min, "{width}");
+    assert!(width >= 192.0, "no column is narrower than the least width: {width}");
     assert!((4.0 * width + 5.0 * metrics.column_gap - 1200.0).abs() < 1e-3, "four columns fill the width: {width}");
     assert_eq!(height, 900.0 - metrics.column_gap - metrics.nav_bar);
     let (requested, _) = reading_size(vec2(500.0, 900.0), 1.0, &metrics, Some(612.0));

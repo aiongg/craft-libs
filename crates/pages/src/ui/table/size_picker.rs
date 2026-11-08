@@ -159,7 +159,7 @@ impl Component for TableSizePicker {
             cell: cx.tokens.size.icon.md,
             gap: cx.tokens.space.gap.tight,
             radius: sunken.radius,
-            off: Stateful::new(StyleColor(sunken.fill)),
+            off: Stateful::new(cx.color(colors.surface.sunken)),
             on: Stateful::new(cx.color(colors.state.selected)),
         }
     }

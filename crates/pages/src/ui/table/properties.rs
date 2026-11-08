@@ -59,6 +59,7 @@ craft_ui::words! {
 
 /// How a row's height is set.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum RowHeight {
     /// The row is at least this tall.
     #[default]
@@ -69,6 +70,7 @@ pub enum RowHeight {
 
 /// Cell text's vertical justification.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum CellAlign {
     /// At the top.
     #[default]
@@ -83,6 +85,7 @@ pub enum CellAlign {
 
 /// Which way a cell's text runs.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum TextDirection {
     /// Left to right.
     #[default]
@@ -94,6 +97,7 @@ pub enum TextDirection {
 /// The values at the cell selection; `None` where the selected cells differ (the field shows
 /// mixed).
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct TableValues {
     /// Number of rows in the table.
     pub rows: usize,
@@ -127,6 +131,7 @@ pub struct TableValues {
 
 /// One change the user made.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum TableChange {
     /// Set the number of rows.
     Rows(usize),

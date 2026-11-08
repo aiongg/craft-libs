@@ -31,12 +31,14 @@ const BLOCK: PartKey = PartKey::new("block");
 
 /// What a block node is.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum BlockRole {
     /// A paragraph of text.
     Paragraph,
     /// A heading at outline level 1 to 9.
     Heading(u8),
     /// A list item at list level 0 to 8, with its marker text ("1.", "•").
+    #[non_exhaustive]
     ListItem {
         /// List level, 0 to 8.
         level: u8,
@@ -61,11 +63,26 @@ pub struct AccessNode(u32);
 
 /// A text position the app names: (node of the text run, char offset in it).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct AccessPosition {
     /// The node of the text run.
     pub run: AccessNode,
     /// Character offset into the run's text.
     pub offset: usize,
+}
+
+impl BlockRole {
+    /// A list item at list level `level` (0 to 8) with its marker text.
+    pub fn list_item(level: u8, marker: impl Into<String>) -> Self {
+        BlockRole::ListItem { level, marker: marker.into() }
+    }
+}
+
+impl AccessPosition {
+    /// The position at character `offset` of the text run `run`.
+    pub fn new(run: AccessNode, offset: usize) -> Self {
+        AccessPosition { run, offset }
+    }
 }
 
 /// What a built node is.
