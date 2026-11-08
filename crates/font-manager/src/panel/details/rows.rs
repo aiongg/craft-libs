@@ -93,7 +93,7 @@ impl StyleList {
         StyleList {
             common: Common::new(),
             props: ContainerProps::new().sizing(Sizing::Content),
-            items: CollectionProps::new().select(SelectMode::Single),
+            items: CollectionProps::new().select(SelectMode::Single).natural_height(true),
         }
         .label(label)
     }

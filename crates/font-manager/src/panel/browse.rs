@@ -727,6 +727,7 @@ impl FontsPanel {
                 .allow_empty(false)
                 .header(false)
                 .sizing(Sizing::Content)
+                .natural_height(true)
                 .selection(Bind::given(current))
                 .show_items(ui, &CardKeys::new(&rows, |_| None), &mut |key, _| {
                     ListRow::new(if *key == 0 { any.clone() } else { Label::from(label(*key - 1)) })
