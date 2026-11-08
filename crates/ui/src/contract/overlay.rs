@@ -977,6 +977,14 @@ impl PopupHandle {
         queue(&cx.core.ctx, self.id, OpenOp::Close);
     }
 
+    /// Whether a toggle, `open` or `close` queued in this pass leaves the popup's open state different from the
+    /// state the pass began with. Valid from step 9.
+    pub fn changed<C: Component>(self, cx: &mut Cx<'_, C>) -> bool {
+        self.registered(cx);
+        let began = cx.core.memory.shown::<OpenSlot>(self.id).0;
+        open_now(cx.core.memory, self.id) != began
+    }
+
     /// Whether the popup is open in this pass: valid from step 8, with the changes queued so far applied.
     pub fn is_open<C: Component>(self, cx: &mut Cx<'_, C>) -> bool {
         debug_assert!(C::OVERLAYS, "`{}` hosts a popup but sets `OVERLAYS = false`", std::any::type_name::<C>());
