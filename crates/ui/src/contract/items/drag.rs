@@ -10,7 +10,7 @@ use crate::runtime::env::Env;
 use crate::runtime::env::Label;
 use craft_behavior::{
     Axis, CancelReason, ColumnKey, DropOperation, EditEvent, Flow, GestureId, ItemLayout, Mixed, NavShape, Outline, PointerButton, PressCancel,
-    PressPhase, ScrollPos, SelectionModel,
+    PressPhase, ScrollPos,
 };
 use egui::{Pos2, Rect, Vec2};
 

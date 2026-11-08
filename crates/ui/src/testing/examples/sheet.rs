@@ -22,7 +22,7 @@ use crate::runtime::focus::{KeepKeys, KeyUse};
 use crate::style::{ComponentStyle, Flags, Stateful, StyleColor, StyleCx, SurfaceLook};
 use craft_behavior::{
     CellSelection, ColumnKey, DisplayOrder, EditorInput, Flow, Granularity, Insets, ItemSource, Metrics, Mixed, MoveMods, NavMove, PartKey,
-    SelectionModel as _, SheetLayout,
+    SheetLayout,
 };
 use craft_keymap::{Chord, Key};
 use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
