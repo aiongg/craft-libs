@@ -5,6 +5,7 @@ mod editor;
 mod model;
 mod panels;
 mod stories;
+mod tools;
 
 pub use editor::EditorMock;
-pub use model::{Document, Layer, MockState, Panel, Tool};
+pub use model::{Document, Layer, MockState, Panel, Request, Tool};

@@ -1,10 +1,11 @@
 //! What the mock editor reads and edits: a tool, a layer list, a canvas view, a document title and a dirty flag.
 
-use craft_behavior::Axis;
 use craft_behavior::CanvasView;
 use craft_behavior::dock::{Column, DockEdge, Group, Layout, Node, SplitSize, Workspace};
 use craft_behavior::kurbo::{Point, Size};
+use craft_behavior::{Axis, PixelSize};
 use craft_ui::contract::CommandSet;
+use craft_ui::patterns::form_dialogs::ImageSizeValues;
 use craft_ui::rails::{LastUsed, RailTool, SlotId, ToolSlot};
 use egui::Rect;
 
@@ -40,6 +41,12 @@ pub enum Tool {
     /// Clone Stamp.
     #[command(label = "Clone Stamp", icon = "stamp")]
     Stamp,
+    /// Hand.
+    #[command(label = "Hand", icon = "hand")]
+    Hand,
+    /// Zoom.
+    #[command(label = "Zoom", icon = "zoom_in")]
+    Zoom,
 }
 
 impl Tool {
@@ -51,6 +58,8 @@ impl Tool {
             Tool::Pencil => "Pencil",
             Tool::Eraser => "Eraser",
             Tool::Stamp => "Clone Stamp",
+            Tool::Hand => "Hand",
+            Tool::Zoom => "Zoom",
         }
     }
 
@@ -62,6 +71,8 @@ impl Tool {
             ToolSlot::new(1, vec![tool(Tool::Brush), tool(Tool::Pencil)]),
             ToolSlot::new(2, vec![tool(Tool::Eraser)]),
             ToolSlot::new(3, vec![tool(Tool::Stamp)]),
+            ToolSlot::new(4, vec![tool(Tool::Hand)]),
+            ToolSlot::new(5, vec![tool(Tool::Zoom)]),
         ]
     }
 
@@ -72,6 +83,8 @@ impl Tool {
             Tool::Brush | Tool::Pencil => 1,
             Tool::Eraser => 2,
             Tool::Stamp => 3,
+            Tool::Hand => 4,
+            Tool::Zoom => 5,
         }
     }
 }
@@ -103,6 +116,18 @@ impl Layer {
     pub fn new(name: impl Into<String>) -> Self {
         Layer { name: name.into(), visible: true }
     }
+}
+
+/// A dialog the menus ask for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Request {
+    /// The Gaussian Blur parameter dialog.
+    GaussianBlur,
+    /// The Image Size dialog.
+    ImageSize,
+    /// The Delete Layer question.
+    DeleteLayer,
 }
 
 /// The open document.
@@ -174,8 +199,12 @@ pub struct MockState {
     pub tool: Tool,
     /// The tool each rail slot showed last.
     pub last_used: LastUsed<Tool>,
-    /// The Delete Layer question is open.
-    pub confirm_delete: bool,
+    /// The dialog a menu asked for, until the window opens it.
+    pub request: Option<Request>,
+    /// The values the Image Size dialog edits.
+    pub image_size: ImageSizeValues,
+    /// The Image Size dialog is open.
+    pub image_size_open: bool,
 }
 
 impl Default for MockState {
@@ -187,7 +216,9 @@ impl Default for MockState {
             document: Document::default(),
             tool: Tool::Move,
             last_used: LastUsed::default(),
-            confirm_delete: false,
+            request: None,
+            image_size: ImageSizeValues::new(PixelSize::new(1200, 800)),
+            image_size_open: false,
         }
     }
 }
