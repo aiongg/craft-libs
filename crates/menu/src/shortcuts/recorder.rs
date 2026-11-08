@@ -3,8 +3,8 @@
 //!
 //! A component's key use is fixed, so the recorder is two components over one look: the idle field with the plain
 //! widget keys (Tab leaves, Enter and Space start recording) and the recording field with `KeyUse::RECORDER`
-//! (every key is a chord; bare Tab stays a chord because the field keeps Tab, and bare Escape is the dialog's
-//! cancel, which ends the recording). The recording field claims key focus until it holds it.
+//! (every key is a chord; bare Tab stays a chord because the field keeps Tab). The recording field claims key focus
+//! until it holds it.
 
 use craft_behavior::{Metrics, Sense};
 use craft_keymap::Chord;

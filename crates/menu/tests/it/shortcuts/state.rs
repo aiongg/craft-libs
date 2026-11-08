@@ -17,8 +17,10 @@ fn rig_with(options: craft_menu::shortcuts::Options) -> Rig {
 #[trial]
 fn recording_takes_tab_and_shift_escape_and_escape_cancels_only_the_recording() {
     let mut rig = Rig::mac();
-    for (key, modifiers) in [(Key::Tab, Modifiers::NONE), (Key::Escape, Modifiers::SHIFT)] {
-        rig.click("Bring to Front");
+    for (target, key, modifiers) in
+        [("Bring to Front: None", Key::Tab, Modifiers::NONE), ("Add a shortcut to Bring to Front", Key::Escape, Modifiers::SHIFT)]
+    {
+        rig.click(target);
         rig.press(modifiers, key);
     }
     assert_eq!(rig.bindings("object.front"), ["Tab", "Shift+Escape"]);
@@ -35,7 +37,7 @@ fn recording_takes_tab_and_shift_escape_and_escape_cancels_only_the_recording() 
 #[trial]
 fn double_press_records_k_k_within_the_window() {
     let mut rig = rig_with(options().with(|o| o.double_press = true));
-    rig.click("Bring to Front");
+    rig.click("Bring to Front: None");
     rig.press(Modifiers::NONE, Key::K);
     assert!(rig.shared.borrow().state.is_recording(), "a single waits for a second press: {:?}", rig.bindings("object.front"));
     rig.fixture.advance(0.3);
@@ -72,7 +74,7 @@ fn deleting_the_last_set_without_builtins_loads_no_overrides() {
     let mut rig = Rig::with_builtins(km, options(), Some((profiles, Vec::new())));
     rig.click("Delete");
     assert!(rig.has("Delete the set “Mine”?"));
-    rig.click("Delete");
+    rig.answer("Delete");
     let shared = rig.shared.borrow();
     assert!(shared.sets.as_ref().is_some_and(|(p, _)| p.sets().is_empty()) && shared.km.overrides().is_empty());
     drop(shared);
@@ -97,9 +99,9 @@ fn dont_save_before_import_drops_the_edits() {
     let mut profiles = Profiles::default();
     profiles.save_as("Mine", Overrides::new(), &super::fixture::builtins()).unwrap_or_else(|e| panic!("{e:?}"));
     let mut rig = Rig::mac_with_sets(profiles);
-    rig.click("Bring to Front");
+    rig.click("Bring to Front: None");
     rig.press(Modifiers::NONE, Key::F2);
-    rig.click("Import…");
+    rig.action("Import…");
     rig.click("Don't Save");
     assert!(rig.has_outcome(|o| matches!(o, Outcome::Import { .. })));
     assert!(rig.shared.borrow().km.overrides().is_empty());

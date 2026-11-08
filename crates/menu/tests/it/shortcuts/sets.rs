@@ -32,7 +32,7 @@ fn new_set_refuses_a_taken_name_and_keeps_the_set() {
     for name in ["Mine", " mine ", "fixture defaults"] {
         new_set(&mut rig, name);
         assert!(rig.has("A set with this name exists"), "{name:?}");
-        assert_eq!(rig.active_set().as_deref(), Some("Fixture Defaults"));
+        assert_eq!(rig.active_set().as_deref(), Some("Mine"), "the refused name leaves the active set");
         assert_eq!(rig.shared.borrow().sets.as_ref().map(|(p, _)| p.sets().len()), Some(1));
         rig.click("Cancel");
     }
@@ -50,6 +50,7 @@ fn cancel_restores_the_keymap_and_the_sets() {
     assert_eq!(rig.bindings("file.save"), ["F2"], "based on the current shortcuts");
     rig.click("Delete");
     assert!(rig.has("Delete the set “Other”?"));
+    rig.click("Cancel");
     rig.click("Cancel");
     assert!(rig.has_outcome(|o| matches!(o, Outcome::Cancel)));
     let shared = rig.shared.borrow();
@@ -117,7 +118,7 @@ fn save_prompt_before_import_reports_changed_after_import() {
         let mut rig = Rig::mac_with_sets(profiles_with(&["Mine"]));
         rig.click("Save: ⌘S");
         rig.press(Modifiers::NONE, Key::F2);
-        rig.click("Import…");
+        rig.action("Import…");
         rig.click(answer);
         let outcomes = rig.outcomes();
         let import = outcomes.iter().position(|o| matches!(o, Outcome::Import { .. }));
@@ -130,7 +131,7 @@ fn save_prompt_before_import_reports_changed_after_import() {
 #[trial]
 fn import_request_and_reset_all() {
     let mut rig = Rig::mac_with_sets(Profiles::default());
-    rig.click("Import…");
+    rig.action("Import…");
     assert!(rig.has_outcome(|o| matches!(o, Outcome::Import { formats, .. } if formats == &["craft-keymap"])));
     rig.click("Save: ⌘S");
     rig.press(Modifiers::NONE, Key::F2);
@@ -174,12 +175,13 @@ fn set_export_import_round_trip() {
     assert!(plain.shared.borrow().km.overrides().is_empty());
 }
 
-/// On a narrow dialog the set actions that do not fit move into the overflow menu, and a pick there runs the action.
+/// When the set row has more actions than fit (a modified set adds its label and enables Save and Revert Set), the
+/// last ones move into the overflow menu, and a pick there runs the action.
 #[trial]
-fn narrow_set_row_moves_actions_into_more() {
+fn full_set_row_moves_actions_into_more() {
     let mut rig = Rig::mac_with_sets(Profiles::default());
-    rig.fixture.room(egui::vec2(560.0, 600.0));
-    rig.fixture.settle();
+    rig.click("Save: ⌘S");
+    rig.press(Modifiers::NONE, Key::F2);
     assert!(!rig.has("Summarize…"), "Summarize… is in More: {:?}", rig.names_with(Role::BUTTON, "…"));
     rig.click("More");
     rig.click("Summarize…");

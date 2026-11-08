@@ -137,6 +137,28 @@ impl Rig {
         self.fixture.idle(3);
     }
 
+    /// Runs a set row action: its item when the row shows it, else its entry in More.
+    pub(crate) fn action(&mut self, label: &str) {
+        if !self.has(label) {
+            self.click("More");
+        }
+        self.click(label);
+    }
+
+    /// Answers the open question with its action `label`: the enabled button or link of that name (the set row can carry a
+    /// disabled one of the same name).
+    pub(crate) fn answer(&mut self, label: &str) {
+        let tree = self.fixture.tree();
+        let button = [Role::BUTTON, Role::LINK]
+            .into_iter()
+            .flat_map(|role| self.fixture.by_role(role))
+            .filter(|node| tree.name_of(node.node) == Some(label) && !tree.is_disabled_key(node.node))
+            .last()
+            .unwrap_or_else(|| panic!("no enabled answer named {label:?}"));
+        self.fixture.click(&button);
+        self.fixture.idle(3);
+    }
+
     pub(crate) fn press(&mut self, modifiers: Modifiers, key: Key) {
         self.fixture.key(key, modifiers);
         self.fixture.idle(3);
