@@ -10,6 +10,7 @@ use craft_ui::list::{List, ListRow};
 use craft_ui::popover::Popover;
 use craft_ui::runtime::commands::CommandScope;
 use craft_ui::runtime::focus::Initial;
+use craft_ui::sections::Section;
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::text::TextField;
 use egui::{Key, Modifiers};
@@ -84,7 +85,7 @@ fn delete_in_a_deletable_list_deletes_the_row_and_not_the_command() {
     let deleted = Rc::new(RefCell::new(Vec::new()));
     let (seen, sink) = (ran.clone(), deleted.clone());
     let mut fixture = Fixture::new(move |ui| {
-        Popover::new("Card", Bind::given(true)).initial_focus(Initial::First).command_scope(SCOPE).show(ui, |ui, cx| {
+        Section::fixed("Items").command_scope(SCOPE).show(ui, |ui, cx| {
             count!(cx, seen);
             let out = List::new("Items")
                 .select(SelectMode::Single)
@@ -98,6 +99,8 @@ fn delete_in_a_deletable_list_deletes_the_row_and_not_the_command() {
         });
     });
     fixture.settle();
+    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.idle(2);
     fixture.key(Key::ArrowDown, Modifiers::NONE);
     fixture.settle();
     fixture.key(Key::Delete, Modifiers::NONE);
@@ -140,7 +143,7 @@ fn a_collection_that_leaves_its_arrows_to_the_owner_lets_the_owner_command_run()
         let leads = Rc::new(RefCell::new(Vec::new()));
         let (seen, sink) = (ran.clone(), leads.clone());
         let mut fixture = Fixture::new(move |ui| {
-            Popover::new("Card", Bind::given(true)).initial_focus(Initial::First).command_scope(SCOPE).show(ui, |ui, cx| {
+            Section::fixed("Items").command_scope(SCOPE).show(ui, |ui, cx| {
                 count!(cx, seen);
                 let out = List::new("Items")
                     .select(SelectMode::Single)
@@ -154,6 +157,8 @@ fn a_collection_that_leaves_its_arrows_to_the_owner_lets_the_owner_command_run()
             });
         });
         fixture.settle();
+        fixture.key(Key::Tab, Modifiers::NONE);
+        fixture.idle(2);
         fixture.key(Key::ArrowDown, Modifiers::NONE);
         fixture.settle();
         let moved = leads.borrow().len();
