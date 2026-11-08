@@ -508,12 +508,12 @@ impl<'a> Run<'_, 'a> {
         match &mut event {
             EditEvent::Begin { id, before: Mixed::Same(start), .. } => body.memory::<Memo>().gesture = Some((*id, *start)),
             EditEvent::Commit { id, before, .. } => {
-                if let Some((_, start)) = body.memory::<Memo>().gesture.take().filter(|(running, _)| running == id) {
+                if let Some((_, start)) = body.memory::<Memo>().gesture.take().filter(|(running, _)| *running == *id) {
                     *before = Mixed::Same(start);
                 }
             }
             EditEvent::Cancel { id, before, .. } => {
-                if let Some((_, start)) = body.memory::<Memo>().gesture.take().filter(|(running, _)| running == id) {
+                if let Some((_, start)) = body.memory::<Memo>().gesture.take().filter(|(running, _)| *running == *id) {
                     *before = Some(Mixed::Same(start));
                 }
             }
