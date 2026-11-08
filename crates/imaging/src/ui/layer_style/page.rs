@@ -214,15 +214,14 @@ fn field_row(ui: &mut Ui, input: &PageInput<'_>, field: &EffectField, shown: &St
         }
         FieldKind::Angle => {
             let value = shown.number(key).unwrap_or(0.0);
-            let reader = input.units.reader(Some(UnitKind::Degrees));
             let edits = Field::new(label.clone())
                 .id_salt(key)
                 .show(ui, |ui, _| {
                     Row::new()
                         .show(ui, |ui, _| {
-                            let dial = AngleDial::new(Bind::given(value)).label(label.clone()).range(ANGLE_RANGE).id_salt("dial").show(ui);
+                            let dial = AngleDial::new(Bind::given(value)).label(label.clone()).id_salt("dial").show(ui);
                             let number = NumberField::new(label.clone(), Bind::given(Some(value)))
-                                .codec(NumberCodec::new(reader.clone(), WHOLE))
+                                .codec(NumberCodec::new(input.units.reader(Some(UnitKind::Degrees)), WHOLE))
                                 .range(ANGLE_RANGE)
                                 .id_salt("field")
                                 .show(ui)

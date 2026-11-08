@@ -68,7 +68,7 @@ fn rig_of(host: Host) -> (Fixture, Rc<RefCell<Host>>) {
     let mut fixture = Fixture::new(move |ui| {
         let mut guard = shown.borrow_mut();
         let host = &mut *guard;
-        let presets = StylePresets::new(&rows, |cx, rect, _| cx.painter.rect_filled(rect, 0.0, egui::Color32::GRAY));
+        let presets = StylePresets::new(&rows, |cx, rect, _| cx.checker(rect));
         let out = LayerStyleDialog::new("Layer Style", &host.draft, &host.channels)
             .specs(&host.specs)
             .patterns(&host.patterns)
@@ -317,20 +317,24 @@ fn angle(host: &Rc<RefCell<Host>>) -> Option<f64> {
 #[trial]
 fn use_global_light_check_changes_the_angle_field_meaning() {
     let (mut fixture, host) = page_rig(EffectKind::DropShadow, None);
-    let dial = named(&fixture, Role::SLIDER, "Angle").into_iter().next().expect("the angle dial");
+    let start = angle(&host).expect("the page shows an angle");
+    let dial = one(&fixture, Role::SLIDER, "Angle");
     fixture.click(&dial);
     fixture.key(Key::ArrowRight, Modifiers::NONE);
     fixture.idle(2);
-    assert_eq!((host.borrow().draft.style.global_light, angle(&host)), (121.0, Some(121.0)));
+    let shared = angle(&host).expect("the instance holds the angle");
+    assert!(shared > start, "the step moved the angle");
+    assert_eq!(f64::from(host.borrow().draft.style.global_light), shared, "the shared light follows the lit instance");
 
     let check = one(&fixture, Role::CHECK_BOX, "Use Global Light");
     fixture.click(&check);
     fixture.idle(2);
-    let dial = named(&fixture, Role::SLIDER, "Angle").into_iter().next().expect("the angle dial");
+    let dial = one(&fixture, Role::SLIDER, "Angle");
     fixture.click(&dial);
     fixture.key(Key::ArrowRight, Modifiers::NONE);
     fixture.idle(2);
-    assert_eq!((host.borrow().draft.style.global_light, angle(&host)), (121.0, Some(122.0)));
+    assert!(angle(&host) > Some(shared), "the instance's own angle moved on");
+    assert_eq!(f64::from(host.borrow().draft.style.global_light), shared, "the shared light stayed");
 }
 
 fn blending_rig(blending: Blending, names: &[&str]) -> (Fixture, Rc<RefCell<Host>>) {

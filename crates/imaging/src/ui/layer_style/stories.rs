@@ -7,7 +7,7 @@ use craft_ui::contract::Entry;
 use craft_ui::patterns::presets::PresetRow;
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
-use egui::{Color32, Ui};
+use egui::Ui;
 
 use super::{LayerStyleDialog, StylePresets};
 use crate::layer_style::{BlendIf, Blending, EffectId, EffectInstance, EffectKind, EffectSpec, LayerStyle, LayerStyleDraft, LayerStylePage};
@@ -85,7 +85,7 @@ fn host(ui: &mut Ui, data: &mut StoryData, start: impl FnOnce() -> LayerStyleDra
     let draft = data.value("draft", start());
     let names: Vec<String> = channels.iter().map(|name| name.as_str().to_owned()).collect();
     let (modes, patterns, rows) = (blend_modes(&words), patterns(&words), style_rows(&words));
-    let presets = StylePresets::new(&rows, |cx, rect, _| cx.painter.rect_filled(rect, 0.0, Color32::GRAY));
+    let presets = StylePresets::new(&rows, |cx, rect, _| cx.checker(rect));
     let out = LayerStyleDialog::new("Layer Style", draft, &names).blend_modes(&modes).patterns(&patterns).style_presets(presets).show(ui);
     out.apply_view(draft);
     if let Some(value) = out.edit.as_ref().and_then(|event| event.value()) {

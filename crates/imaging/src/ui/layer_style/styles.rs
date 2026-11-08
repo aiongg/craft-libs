@@ -2,7 +2,7 @@
 
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, Props as _, Show as _, clicked};
-use craft_ui::patterns::presets::{PresetBrowser, PresetEvent, PresetRow, PresetState, ThumbInfo, ThumbPainter};
+use craft_ui::patterns::presets::{PresetBrowser, PresetEvent, PresetRow, PresetState, ThumbInfo};
 use craft_ui::primitives::ContentPainterCx;
 use egui::{Rect, Ui};
 
@@ -14,13 +14,15 @@ use super::labels::LayerStyleWords;
 /// browser's view state itself.
 pub struct StylePresets<'a> {
     pub(super) rows: &'a [PresetRow<String>],
-    pub(super) thumb: ThumbPainter<'a, String>,
+    pub(super) thumb: Thumb<'a>,
 }
+
+type Thumb<'a> = Box<dyn Fn(&ContentPainterCx, Rect, ThumbInfo<'_, String>) + 'a>;
 
 impl<'a> StylePresets<'a> {
     /// The presets `rows`, each thumbnail painted by `thumb`.
     pub fn new(rows: &'a [PresetRow<String>], thumb: impl Fn(&ContentPainterCx, Rect, ThumbInfo<'_, String>) + 'a) -> Self {
-        StylePresets { rows, thumb: ThumbPainter::new(thumb) }
+        StylePresets { rows, thumb: Box::new(thumb) }
     }
 }
 
@@ -44,7 +46,9 @@ pub(super) fn styles_page(ui: &mut Ui, presets: Option<StylePresets<'_>>, words:
     });
     let mut out = StylesOutput { apply_style: None, new_style };
     if let Some(StylePresets { rows, thumb }) = presets {
-        let browser = PresetBrowser::new(words.styles.clone(), Bind::<PresetState<String>>::kept(), rows).thumb(thumb).row_menu(false);
+        let browser = PresetBrowser::new(words.styles.clone(), Bind::<PresetState<String>>::kept(), rows)
+            .thumb(move |cx, rect, info| thumb(cx, rect, info))
+            .row_menu(false);
         for event in browser.show(ui).events {
             if let PresetEvent::Select { key, .. } | PresetEvent::Activate { key, .. } = event {
                 out.apply_style = Some(key);
