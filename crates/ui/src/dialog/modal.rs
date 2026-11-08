@@ -254,12 +254,18 @@ fn on_top(ctx: &Context, id: Id) -> bool {
 }
 
 /// The strips of `viewport`'s window that stay draggable under a modal whose dialog lies at `dialog`: each drag area
-/// of the window's last complete pass that an in-app hit covers whole (the modal's cover), less the caption buttons
-/// and the dialog, so a dialog moved into the title bar stays in front. A drag area that lies inside another adds no
-/// strip. The strips themselves are drag areas no hit covers, so they never count.
+/// of the window's last complete pass that one of its own covers hides whole (the modal's cover), less the caption
+/// buttons and the dialog, so a dialog moved into the title bar stays in front. A drag area that lies inside another
+/// adds no strip. The strips themselves are drag areas no hit covers, so they never count.
 fn covered_strips(ctx: &Context, viewport: ViewportId, dialog: Rect) -> Vec<Rect> {
     let Some(regions) = WindowHost::of(ctx).caption_regions(viewport) else { return Vec::new() };
-    let covered: Vec<Rect> = regions.moves.iter().copied().filter(|area| regions.covers.iter().any(|cover| cover.contains_rect(*area))).collect();
+    let covered: Vec<Rect> = regions
+        .moves
+        .iter()
+        .zip(&regions.covers)
+        .filter(|(area, covers)| covers.iter().any(|cover| cover.contains_rect(**area)))
+        .map(|(area, _)| *area)
+        .collect();
     let inside_another = |at: usize, area: Rect| {
         covered.iter().enumerate().any(|(other, wider)| other != at && wider.contains_rect(area) && (!area.contains_rect(*wider) || other < at))
     };
