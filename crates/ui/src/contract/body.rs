@@ -827,16 +827,15 @@ impl<'b> BodyHooks<'b> {
         let end = if in_end { Vec2::new(end.x.max(footer.x), end.y + footer.y) } else { end };
         let across = if in_end { Vec2::ZERO } else { footer };
         let gap = |width: f32| if width > 0.0 { width + self.region_gap } else { 0.0 };
+        let inline = props.header.is_some_and(|header| header.inline);
+        // The line: the body with an inline header before it.
+        let line = if inline { Vec2::new(body.x + gap(header.x), body.y.max(header.y)) } else { body };
         let (width, height) = if end_full_height(props) {
-            (body.x.max(across.x) + gap(end.x), (body.y + across.y).max(end.y))
+            (line.x.max(across.x) + gap(end.x), (line.y + across.y).max(end.y))
         } else {
-            ((body.x + gap(end.x)).max(across.x), body.y.max(end.y) + across.y)
+            ((line.x + gap(end.x)).max(across.x), line.y.max(end.y) + across.y)
         };
-        if props.header.is_some_and(|header| header.inline) {
-            Vec2::new(width + gap(header.x), height.max(header.y))
-        } else {
-            Vec2::new(width.max(header.x), height + header.y)
-        }
+        if inline { Vec2::new(width, height) } else { Vec2::new(width.max(header.x), height + header.y) }
     }
 
     /// The width the regions ask for in a content-sized container: what they took together last pass.
