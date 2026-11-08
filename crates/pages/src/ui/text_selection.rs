@@ -1,38 +1,40 @@
-//! [`TextSelectTool`] (N3.14): selecting text on a rendered page (Acrobat's Select tool, a
-//! craft-ui canvas tool):
-//! drag across glyphs in reading order, Alt-drag (or the app's Column Select tool) for the glyphs
-//! inside a rectangle, double-click a word, triple-click a line, four clicks the page; the
-//! selection highlighted (find matches are painted by [`paint_text_marks`], not by the tool).
+//! `TextSelectTool`: selecting text on a rendered page (Acrobat's Select tool, a craft-ui canvas tool): drag across
+//! glyphs in reading order, Alt-drag (or the app's Column Select tool) for the glyphs inside a rectangle,
+//! double-click a word, triple-click a line, four clicks the page; the selection highlighted. Find matches are painted
+//! by [`TextMarks`], a canvas control the app shows in the page body under any tool.
 //!
-//! The page's text comes from the app ([`PageTextSource`]: PdfCraft's extracted text layer); the
-//! layer keeps no text.
+//! The page's text comes from the app ([`PageTextSource`]: PdfCraft's extracted text layer); the layer keeps no text.
 
 use std::ops::Range;
 
-use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolCursor, ToolKey, ToolPointer};
-use craft_ui::edit::CancelReason;
-use craft_ui::theme::{UiTokens, corner_radius};
-use egui::{CursorIcon, Key, Painter, Pos2, StrokeKind};
-use kurbo::{Point, Rect};
+use craft_behavior::kurbo::{Point, Rect};
+use craft_behavior::{CancelReason, Cursor, CursorIcon, Metrics, Sense};
+use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPath, ToolPointer};
+use craft_ui::contract::{Common, Component, Cx, MeasureCx, PaintUi, Role};
+use craft_ui::primitives::{Draw, PaintShape, StrokeWidth};
+use craft_ui::style::{ComponentStyle, StyleColor, StyleCx};
+use egui::{CornerRadius, Pos2, Response, Vec2, pos2};
 
-use super::style::TextSelectStyle;
 use super::view::PlacedPage;
 
-/// A page's text as the selection reads it, glyph by glyph in reading order. Rectangles are page
-/// points (origin top-left).
+#[cfg(feature = "testing")]
+mod stories;
+
+/// A page's text as the selection reads it, glyph by glyph in reading order. Rectangles are page points (origin
+/// top-left).
 pub trait PageTextSource {
     /// The number of glyphs on the page.
     fn glyph_count(&self) -> usize;
     /// The glyph nearest `p` within a line's height, if any: where a press or drag lands.
-    fn glyph_at(&self, p: kurbo::Point) -> Option<usize>;
-    /// The glyph whose box holds `p`, if any (exactly, no tolerance): where the pointer is over
-    /// text and shows the I-beam.
-    fn glyph_box_at(&self, p: kurbo::Point) -> Option<usize>;
+    fn glyph_at(&self, p: Point) -> Option<usize>;
+    /// The glyph whose box holds `p`, if any (exactly, no tolerance): where the pointer is over text and shows the
+    /// I-beam.
+    fn glyph_box_at(&self, p: Point) -> Option<usize>;
     /// One rectangle per line piece of `glyphs`.
     fn line_rects(&self, glyphs: Range<usize>) -> Vec<Rect>;
     /// The glyphs whose boxes `rect` holds, in reading order.
     fn glyphs_in(&self, rect: Rect) -> Vec<usize>;
-    /// The word and the line around a glyph, as glyph ranges.
+    /// The word around a glyph, as a glyph range.
     fn word_at(&self, glyph: usize) -> Option<Range<usize>>;
     /// The line around a glyph, as a glyph range.
     fn line_at(&self, glyph: usize) -> Option<Range<usize>>;
@@ -55,9 +57,9 @@ pub enum TextSpan {
     /// The glyphs inside a rectangle (page points), drawn from the corner the drag started at.
     Column {
         /// Corner of the rectangle where the drag started, in page points.
-        from: kurbo::Point,
+        from: Point,
         /// Corner of the rectangle where the drag has reached, in page points.
-        to: kurbo::Point,
+        to: Point,
     },
 }
 
@@ -110,8 +112,7 @@ fn runs(glyphs: &[usize]) -> Vec<Range<usize>> {
     runs
 }
 
-/// The glyphs `clicks` quick clicks select around `glyph`: 2 the word, 3 the line, 4 or more the
-/// page.
+/// The glyphs `clicks` quick clicks select around `glyph`: 2 the word, 3 the line, 4 or more the page.
 // pdfcraft: crates/ui-egui/src/canvas/selection.rs:47 `click_unit`.
 pub fn click_unit(text: &dyn PageTextSource, clicks: u32, glyph: usize) -> Option<Range<usize>> {
     match clicks {
@@ -133,15 +134,15 @@ pub struct TextMark {
     pub current: bool,
 }
 
-/// The text of the document's pages, for the tool: the pages whose text the app has (PdfCraft
-/// extracts it in the background; a page without it yet selects nothing).
+/// The text of the document's pages, for the tool: the pages whose text the app has (PdfCraft extracts it in the
+/// background; a page without it yet selects nothing).
 pub trait PageTexts {
     /// The text of page `page`, if it has been extracted yet.
     fn page(&self, page: usize) -> Option<&dyn PageTextSource>;
 }
 
-/// The tool's state, kept by the app per document view: the selection (view state, applied in
-/// place, as craft-ui's `List` applies its selection) and the gesture in progress.
+/// The tool's state, kept by the app per document view: the selection (view state, applied in place) and the gesture
+/// in progress.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct TextSelectState {
     /// The selection, if any.
@@ -153,69 +154,86 @@ pub struct TextSelectState {
     before: Option<TextSelection>,
 }
 
-/// Paint the selection and find marks of one placed page: the selection fill, the match fills,
-/// the current match grown and rounded as the style says. This is the one painter of find marks:
-/// the page view's overlays call it for every page whatever tool is active (find marks show
-/// under the Hand tool too). [`TextSelectTool::paint`](craft_ui::canvas::CanvasTool::paint)
-/// paints the selection only, so an app that also calls this paints no mark twice.
-// pdfcraft: crates/ui-egui/src/canvas.rs:1485 `paint_text_marks`.
-pub fn paint_text_marks(
-    painter: &Painter,
-    placed: &PlacedPage,
-    text: &dyn PageTextSource,
-    selection: Option<&TextSelection>,
-    marks: &[TextMark],
-    style: &TextSelectStyle,
-) {
-    let (top, bottom) = placed.band;
-    let band =
-        egui::Rect::from_min_max(egui::pos2(placed.rect.min.x, placed.rect.min.y + top), egui::pos2(placed.rect.max.x, placed.rect.min.y + bottom));
-    let painter = painter.with_clip_rect(band.intersect(painter.clip_rect()));
-    let screen = |r: Rect| egui::Rect::from_two_pos(placed.to_screen(Point::new(r.x0, r.y0)), placed.to_screen(Point::new(r.x1, r.y1)));
-    for mark in marks.iter().filter(|mark| mark.page == placed.page) {
-        let (fill, radius, grow) =
-            if mark.current { (style.current, style.current_radius, style.current_grow) } else { (style.found, style.radius, 0.0) };
-        for rect in text.line_rects(mark.glyphs.clone()) {
-            painter.rect_filled(screen(rect).expand(grow), corner_radius(radius), fill);
-        }
-    }
-    if let Some(selection) = selection.filter(|selection| selection.page == placed.page) {
-        for rect in selection.rects(text) {
-            painter.rect_filled(screen(rect), corner_radius(style.radius), style.selection);
+/// The colours and radii of the selection and the find marks.
+#[derive(Clone, Debug, PartialEq)]
+struct MarkLook {
+    selection: StyleColor,
+    found: StyleColor,
+    current: StyleColor,
+    radius: CornerRadius,
+    /// How far the current match grows past its glyphs.
+    current_grow: f32,
+    column_outline: StyleColor,
+}
+
+impl MarkLook {
+    fn of(cx: &StyleCx<'_>) -> Self {
+        let colors = &cx.tokens.color;
+        MarkLook {
+            selection: cx.color(colors.state.text_selection),
+            found: cx.color(colors.state.r#match),
+            current: cx.color(colors.state.match_current),
+            radius: cx.field().radius,
+            current_grow: cx.tokens.stroke.thin,
+            column_outline: cx.color(colors.accent.solid),
         }
     }
 }
 
-/// Acrobat's Select tool on the page view, a craft-ui [`CanvasTool`] the app runs in its
-/// `ToolHost` over [`PageViewResponse::canvas`](super::PageViewResponse::canvas); built per pass
-/// over the pass's placed pages and the app's [`TextSelectState`].
+/// Paints the selection and find marks of one placed page: the selection fill, the match fills, the current match
+/// grown. The one painter of both: [`TextMarks`] paints the matches and the tool the selection through it.
+fn paint_marks(
+    draw: &Draw<'_>,
+    look: &MarkLook,
+    placed: &PlacedPage,
+    text: &dyn PageTextSource,
+    selection: Option<&TextSelection>,
+    marks: &[TextMark],
+) {
+    let (top, bottom) = placed.band;
+    let band = egui::Rect::from_min_max(pos2(placed.rect.min.x, placed.rect.min.y + top), pos2(placed.rect.max.x, placed.rect.min.y + bottom));
+    let screen = |r: Rect| egui::Rect::from_two_pos(placed.to_screen(Point::new(r.x0, r.y0)), placed.to_screen(Point::new(r.x1, r.y1)));
+    draw.clipped(band, |draw| {
+        for mark in marks.iter().filter(|mark| mark.page == placed.page) {
+            let (fill, grow) = if mark.current { (look.current, look.current_grow) } else { (look.found, 0.0) };
+            for rect in text.line_rects(mark.glyphs.clone()) {
+                draw.fill(&PaintShape::Rect(screen(rect).expand(grow), look.radius), fill);
+            }
+        }
+        if let Some(selection) = selection.filter(|selection| selection.page == placed.page) {
+            for rect in selection.rects(text) {
+                draw.fill(&PaintShape::Rect(screen(rect), look.radius), look.selection);
+            }
+        }
+    });
+}
+
+/// Acrobat's Select tool on the page view, a craft-ui [`CanvasTool`] the app runs in its `ToolHost` over the page
+/// view's canvas; built per pass over the pass's placed pages and the app's [`TextSelectState`].
 ///
-/// - Press and drag with the primary button selects ([`TextSpan::Run`], anchored at the press's
-///   glyph); with Alt held (or [`column`](Self::column) on: the Column Select tool) it selects
-///   a column, its rectangle outlined while dragging. The press's click count is
-///   [`ToolPointer::clicks`](craft_ui::canvas::ToolPointer::clicks) (the app-wide double-click
-///   time): 2 the word, 3 the line, 4 the page ([`click_unit`]). The cursor is the I-beam over
-///   glyphs, the arrow elsewhere ([`CanvasTool::cursor`]). A press off any glyph clears the
+/// - Press and drag with the primary button selects ([`TextSpan::Run`], anchored at the press's glyph); with Alt held
+///   (or [`column`](Self::column) on: the Column Select tool) it selects a column, its rectangle outlined while
+///   dragging. The press's click count is [`ToolPointer::clicks`]: 2 the word, 3 the line, 4 the page
+///   ([`click_unit`]). The cursor is the I-beam over glyphs, the arrow elsewhere. A press off any glyph clears the
 ///   selection.
-/// - The selection is painted through [`paint_text_marks`] with [`TextSelectStyle`]; the tool
-///   paints no find marks.
-/// - Keys while the canvas has the keyboard ([`CanvasTool::key`], taken only when used):
-///   ⇧-arrows extend a run by a glyph (⇧⌥ by a word; ⇧← and ⇧→ swap in a right-to-left
-///   interface, as [`ToolContext::direction`] says), Esc clears. Select All and Copy are the
-///   app's commands (they read [`TextSelection::text`]).
-/// - The selection is reported to AccessKit through the bridge ([`super::access`]).
+/// - Keys while the canvas has the keyboard: Shift with the arrows extends a run by a glyph (Shift and Alt by a word;
+///   left and right swap in a right-to-left interface, [`right_to_left`](Self::right_to_left)), Escape clears. Select
+///   All and Copy are the app's commands (they read [`TextSelection::text`]).
+/// - Its command form is the app's Select All command: the tool selects, so it is not freehand.
+/// - The selection is reported to assistive technology through the page view's accessibility bridge.
 pub struct TextSelectTool<'a> {
     pages: &'a [PlacedPage],
     texts: &'a dyn PageTexts,
     state: &'a mut TextSelectState,
     column: bool,
+    rtl: bool,
     changed: bool,
 }
 
 impl<'a> TextSelectTool<'a> {
     /// A tool over the placed `pages`, reading text from `texts` and keeping its gesture in `state`.
     pub fn new(pages: &'a [PlacedPage], texts: &'a dyn PageTexts, state: &'a mut TextSelectState) -> Self {
-        TextSelectTool { pages, texts, state, column: false, changed: false }
+        TextSelectTool { pages, texts, state, column: false, rtl: false, changed: false }
     }
 
     /// The Column Select tool is active.
@@ -224,31 +242,20 @@ impl<'a> TextSelectTool<'a> {
         self
     }
 
-    /// Whether the selection changed this pass (read after `ToolHost::show`).
+    /// The interface runs right to left: Shift and the left arrow extend forward in reading order.
+    pub fn right_to_left(mut self, on: bool) -> Self {
+        self.rtl = on;
+        self
+    }
+
+    /// Whether the selection changed this pass.
     pub fn changed(&self) -> bool {
         self.changed
     }
 
-    /// The tool's colours and sizes, from the tokens.
-    pub fn style(tokens: &UiTokens) -> TextSelectStyle {
-        use craft_ui::theme::ToEgui as _;
-        let state = &tokens.color.state;
-        TextSelectStyle {
-            selection: state.text_selection.to_egui(),
-            found: state.r#match.to_egui(),
-            current: state.match_current.to_egui(),
-            radius: tokens.shape.radius.sm,
-            current_radius: tokens.shape.radius.sm,
-            current_grow: tokens.stroke.thin,
-            column_outline: egui::Stroke::new(tokens.stroke.thin, tokens.color.accent.solid.to_egui()),
-        }
-    }
-}
-
-impl TextSelectTool<'_> {
     /// The shown part of the page under `at`.
-    fn page_at(&self, at: Pos2) -> Option<&'_ PlacedPage> {
-        let pages: &[PlacedPage] = self.pages;
+    fn page_at(&self, at: Pos2) -> Option<&'a PlacedPage> {
+        let pages: &'a [PlacedPage] = self.pages;
         pages.iter().find(|placed| {
             let (top, bottom) = placed.band;
             placed.rect.contains(at) && at.y >= placed.rect.min.y + top && at.y <= placed.rect.min.y + bottom
@@ -271,21 +278,21 @@ impl TextSelectTool<'_> {
 
 // pdfcraft: crates/ui-egui/src/canvas.rs:1470 `text_layer`, :1547 `text_pointer_input`.
 impl CanvasTool for TextSelectTool<'_> {
-    fn cursor(&self, cx: &ToolContext<'_>) -> ToolCursor {
-        let Some(pointer) = cx.pointer else { return ToolCursor::System(CursorIcon::Default) };
-        if self.column || cx.modifiers.alt {
-            return ToolCursor::System(CursorIcon::Crosshair);
+    fn cursor(&self, cx: &ToolContext<'_>) -> Cursor {
+        let Some(pointer) = cx.pointer else { return Cursor::System(CursorIcon::Default) };
+        if self.column || cx.mods.alt {
+            return Cursor::System(CursorIcon::Crosshair);
         }
         let over_glyph = self
-            .page_at(pointer.screen)
-            .and_then(|placed| self.texts.page(placed.page).map(|text| text.glyph_box_at(placed.to_page(pointer.screen))))
+            .page_at(pointer.pos)
+            .and_then(|placed| self.texts.page(placed.page).map(|text| text.glyph_box_at(placed.to_page(pointer.pos))))
             .is_some_and(|glyph| glyph.is_some());
-        ToolCursor::System(if over_glyph { CursorIcon::Text } else { CursorIcon::Default })
+        Cursor::System(if over_glyph { CursorIcon::Text } else { CursorIcon::Default })
     }
 
     fn press(&mut self, pointer: &ToolPointer, _cx: &mut ToolContext<'_>) -> ToolAction {
         let texts = self.texts;
-        let Some(placed) = self.page_at(pointer.screen).cloned() else {
+        let Some(placed) = self.page_at(pointer.pos) else {
             self.set(None);
             return ToolAction::Done;
         };
@@ -293,9 +300,9 @@ impl CanvasTool for TextSelectTool<'_> {
             self.set(None);
             return ToolAction::Done;
         };
-        let at = placed.to_page(pointer.screen);
+        let at = placed.to_page(pointer.pos);
         let before = self.state.selection;
-        if self.column || pointer.modifiers.alt {
+        if self.column || pointer.mods.alt {
             self.state.gesture = Some((placed.page, TextSpan::Column { from: at, to: at }));
             self.state.clicks = 1;
             self.state.before = before;
@@ -307,7 +314,7 @@ impl CanvasTool for TextSelectTool<'_> {
             return ToolAction::Done;
         };
         let clicks = pointer.clicks.max(1);
-        let extended = before.filter(|selection| pointer.modifiers.shift && clicks < 2 && selection.page == placed.page);
+        let extended = before.filter(|selection| pointer.mods.shift && clicks < 2 && selection.page == placed.page);
         let (span, start) = match (clicks, extended) {
             (2.., _) => match click_unit(text, clicks, glyph).filter(|unit| !unit.is_empty()) {
                 Some(unit) => (TextSpan::Run { anchor: unit.start, head: unit.end - 1 }, TextSpan::Run { anchor: glyph, head: glyph }),
@@ -333,7 +340,7 @@ impl CanvasTool for TextSelectTool<'_> {
         let Some((page, start)) = self.state.gesture else { return };
         let Some(selection) = self.state.selection.filter(|selection| selection.page == page) else { return };
         let (Some(placed), Some(text)) = (pages.iter().find(|placed| placed.page == page), texts.page(page)) else { return };
-        let at = placed.to_page(pointer.screen);
+        let at = placed.to_page(pointer.pos);
         let span = match (selection.span, start) {
             (TextSpan::Column { from, .. }, _) => TextSpan::Column { from, to: at },
             (TextSpan::Run { anchor, .. }, TextSpan::Run { anchor: origin, .. }) => {
@@ -375,38 +382,41 @@ impl CanvasTool for TextSelectTool<'_> {
         self.end_gesture();
     }
 
-    fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
-        let Some(selection) = self.state.selection.filter(|_| key.pressed) else { return false };
-        if key.key == Key::Escape && !key.modifiers.any() {
-            self.set(None);
-            return true;
+    fn key(&mut self, key: &ToolKey, _cx: &mut ToolContext<'_>) -> bool {
+        let Some(selection) = self.state.selection else { return false };
+        match key {
+            ToolKey::Cancel => {
+                self.set(None);
+                true
+            }
+            ToolKey::Nudge { direction, mods, .. } if mods.shift => {
+                let TextSpan::Run { anchor, head } = selection.span else { return false };
+                let Some(text) = self.texts.page(selection.page) else { return false };
+                let count = text.glyph_count();
+                let vertical = direction.y != 0.0;
+                let forward = if vertical { direction.y > 0.0 } else { (direction.x > 0.0) != self.rtl };
+                let moved = if vertical {
+                    line_step(text, head, forward)
+                } else if mods.alt {
+                    word_step(text, head, forward, count)
+                } else if forward {
+                    head + 1
+                } else {
+                    head.saturating_sub(1)
+                };
+                self.set(Some(TextSelection { page: selection.page, span: TextSpan::Run { anchor, head: moved.min(count.saturating_sub(1)) } }));
+                true
+            }
+            _ => false,
         }
-        let (TextSpan::Run { anchor, head }, true) = (selection.span, key.modifiers.shift) else { return false };
-        let Some(text) = self.texts.page(selection.page) else { return false };
-        let count = text.glyph_count();
-        let rtl = cx.direction == craft_ui::direction::Direction::Rtl;
-        let forward = match key.key {
-            Key::ArrowDown => true,
-            Key::ArrowUp => false,
-            Key::ArrowRight => !rtl,
-            Key::ArrowLeft => rtl,
-            _ => return false,
-        };
-        let moved = match key.key {
-            Key::ArrowUp | Key::ArrowDown => line_step(text, head, forward),
-            _ if key.modifiers.alt => word_step(text, head, forward, count),
-            _ if forward => head + 1,
-            _ => head.saturating_sub(1),
-        };
-        self.set(Some(TextSelection { page: selection.page, span: TextSpan::Run { anchor, head: moved.min(count.saturating_sub(1)) } }));
-        true
     }
 
-    fn paint(&self, painter: &Painter, cx: &ToolContext<'_>) {
-        let style = Self::style(cx.tokens);
+    fn paint(&self, draw: &Draw<'_>, cx: &ToolContext<'_>) {
+        let Some(style) = cx.style() else { return };
+        let look = MarkLook::of(style);
         for placed in self.pages {
             let Some(text) = self.texts.page(placed.page) else { continue };
-            paint_text_marks(painter, placed, text, self.state.selection.as_ref(), &[], &style);
+            paint_marks(draw, &look, placed, text, self.state.selection.as_ref(), &[]);
         }
         if let (Some((page, _)), Some(TextSelection { page: selected, span: TextSpan::Column { from, to } })) =
             (self.state.gesture, self.state.selection)
@@ -414,8 +424,12 @@ impl CanvasTool for TextSelectTool<'_> {
             && let Some(placed) = self.pages.iter().find(|placed| placed.page == page)
         {
             let rect = egui::Rect::from_two_pos(placed.to_screen(from), placed.to_screen(to));
-            painter.rect_stroke(rect, 0.0, style.column_outline, StrokeKind::Middle);
+            draw.stroke(&PaintShape::Rect(rect, CornerRadius::ZERO), StrokeWidth::Thin, look.column_outline);
         }
+    }
+
+    fn command_form(&self) -> ToolPath {
+        ToolPath::Command("the Select All command")
     }
 }
 
@@ -437,4 +451,73 @@ fn line_step(text: &dyn PageTextSource, head: usize, forward: bool) -> usize {
         line.start.checked_sub(1).and_then(|before| text.line_at(before))
     };
     other.filter(|other| !other.is_empty()).map_or(head, |other| (other.start + (head - line.start)).min(other.end - 1))
+}
+
+/// The style of the find marks.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+#[non_exhaustive]
+pub struct TextMarksStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+    look: MarkLook,
+}
+
+/// The find marks of the document's pages, one fill per match and a stronger one for the current match, painted over
+/// the page view's body under any tool (find marks show under the Hand tool too). Paint only, and not in the
+/// accessibility tree: the find panel reports the matches.
+///
+/// With [`selection`](Self::selection) it also paints a text selection, for a tool other than the Select tool.
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
+#[component(canvas_control)]
+pub struct TextMarks<'a> {
+    #[common]
+    common: Common,
+    pages: &'a [PlacedPage],
+    texts: &'a dyn PageTexts,
+    marks: &'a [TextMark],
+    /// The text selection to paint with the marks.
+    #[prop]
+    selection: Option<TextSelection>,
+}
+
+impl<'a> TextMarks<'a> {
+    /// The `marks` over the placed `pages`, whose text `texts` gives.
+    pub fn new(pages: &'a [PlacedPage], texts: &'a dyn PageTexts, marks: &'a [TextMark]) -> Self {
+        TextMarks { common: Common::new(), pages, texts, marks, selection: None }
+    }
+}
+
+impl Component for TextMarks<'_> {
+    const ROLE: Role = Role::None;
+    const OVERLAYS: bool = false;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
+    const INPUT: craft_behavior::Input = craft_behavior::Input::Display;
+    const SHOWS_LABEL: bool = false;
+    type Style = TextMarksStyle;
+    type Output = Response;
+
+    fn style(cx: &StyleCx<'_>, _: TextMarksStyleKey) -> TextMarksStyle {
+        TextMarksStyle { metrics: Metrics::new(), look: MarkLook::of(cx) }
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::ZERO
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::empty()
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let draw = ui.draw();
+        for placed in self.pages {
+            let Some(text) = self.texts.page(placed.page) else { continue };
+            paint_marks(&draw, &cx.style.look, placed, text, self.selection.as_ref(), self.marks);
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
 }
