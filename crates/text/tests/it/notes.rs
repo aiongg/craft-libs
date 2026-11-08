@@ -39,7 +39,7 @@ fn typed_replaces_the_span_between_the_common_prefix_and_suffix() {
 /// Selecting all of a text that wraps over several rows paints one band per row, each inside the editor.
 #[trial]
 fn a_selection_over_wrapped_rows_is_one_band_per_row() {
-    let notes = Rc::new(RefCell::new(NotesText::from_plain(&"Speaker notes that wrap across the pane. ".repeat(4))));
+    let notes = Rc::new(RefCell::new(NotesText::new(vec![paragraph(vec![run(&"Speaker notes that wrap across the pane. ".repeat(4), false)])])));
     let shown = Rc::clone(&notes);
     let mut fixture = Fixture::new(move |ui| {
         let _ = NotesEditor::new("Notes", &mut shown.borrow_mut()).show(ui);
