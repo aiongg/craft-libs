@@ -10,7 +10,7 @@ use crate::runtime::egui::memory;
 use crate::runtime::env::WindowKey;
 use egui::{Context, Ui};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError, TryLockError};
 
 /// The hosts of the context's windows.
 #[derive(Default)]
@@ -20,8 +20,8 @@ struct Hosts(HashMap<WindowKey, WindowDialogs>);
 /// in each pass, so a dialog opened in any pass shows over the window from that pass on and its answer waits for
 /// `take` until the app reads it.
 ///
-/// A dialog that is being run does not reach the host through this handle: it opens children with the host methods of
-/// its own (`DialogHost::open_child`).
+/// While the host runs its dialogs, or inside a `with` closure, [`BodyCx::dialogs`] returns `None`: a dialog being run
+/// opens children with the host methods of its own (`DialogHost::open_child`).
 #[derive(Clone, Default)]
 pub struct WindowDialogs(Arc<Mutex<DialogHost>>);
 
@@ -48,11 +48,15 @@ impl WindowDialogs {
 }
 
 impl BodyCx<'_> {
-    /// The dialog host of the window this body is in; `None` where no shell scope is set. Only an `AppShell` runs the
-    /// host. Two windows (two [`WindowKey`]s) have two hosts. A dialog opened here shows over the window after the body in
-    /// the same pass.
+    /// The dialog host of the window this body is in; `None` where no shell scope is set, and while the host is locked:
+    /// a dialog the host is running, or a `with` closure, reaches the host through its own `DialogHost` value
+    /// (`open_child`), and this call would wait on a lock its own thread holds. Only an `AppShell` runs the host. Two
+    /// windows ([`WindowKey`]s) have two hosts. A dialog opened here shows over the window after the body in the same
+    /// pass.
     pub fn dialogs(&self) -> Option<WindowDialogs> {
         let window = self.shell()?;
-        Some(WindowDialogs::of(self.memory.ctx(), window.window()))
+        let dialogs = WindowDialogs::of(self.memory.ctx(), window.window());
+        let free = !matches!(dialogs.0.try_lock(), Err(TryLockError::WouldBlock));
+        free.then_some(dialogs)
     }
 }

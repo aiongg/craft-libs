@@ -350,12 +350,13 @@ fn the_slots_and_the_body_edit_one_state_in_turn() {
 
 const OPEN_FRAMES: usize = 30;
 
-#[trial]
-fn a_body_opens_a_prompt_through_the_window_host_and_takes_the_answer_in_a_later_pass() {
+/// A body that opens a delete prompt once through the window host and takes its answer; `answer` runs once the prompt
+/// shows, and the prompt must be closed with its answer after it.
+fn prompt_through_the_window_host(answer: impl FnOnce(&mut Fixture)) {
     let asked = Rc::new(Cell::new(false));
     let open = Rc::new(Cell::new(false));
-    let answer = Rc::new(Cell::new(None));
-    let (asked_in, open_in, answer_in) = (asked.clone(), open.clone(), answer.clone());
+    let choice = Rc::new(Cell::new(None));
+    let (asked_in, open_in, choice_in) = (asked.clone(), open.clone(), choice.clone());
     let mut fixture = Fixture::new(move |ui| {
         AppShell::new(WindowKey::main())
             .body(|_, cx, _| {
@@ -366,17 +367,51 @@ fn a_body_opens_a_prompt_through_the_window_host_and_takes_the_answer_in_a_later
                     }
                     open_in.set(host.is_open::<StandardPrompt>());
                     if let Some(answered) = host.take::<StandardPrompt>().and_then(DialogResult::ok) {
-                        answer_in.set(Some(answered.choice));
+                        choice_in.set(Some(answered.choice));
                     }
                 });
             })
             .show(ui, &mut ());
     });
     fixture.idle(OPEN_FRAMES);
-    assert!(open.get() && answer.get().is_none(), "the prompt shows over the window");
-    fixture.key(Key::Enter, Modifiers::NONE).idle(2);
-    assert_eq!(answer.get(), Some(PromptChoice::Proceed), "the body takes the answer in the next pass");
+    assert!(open.get() && choice.get().is_none(), "the prompt shows over the window");
+    answer(&mut fixture);
+    fixture.idle(2);
+    assert_eq!(choice.get(), Some(PromptChoice::Proceed), "the body takes the answer in the next pass");
     assert!(!open.get(), "the default button closed the prompt");
+}
+
+#[trial]
+fn a_click_on_the_default_button_of_a_window_prompt_answers_the_body() {
+    prompt_through_the_window_host(|fixture| {
+        // The button's accessible name carries its accelerator: "(D)elete".
+        let button = fixture.control("(D)elete").expect("the default button of the prompt");
+        fixture.click(&button);
+    });
+}
+
+#[trial]
+fn enter_on_a_window_prompt_answers_its_default_button() {
+    prompt_through_the_window_host(|fixture| {
+        fixture.key(Key::Enter, Modifiers::NONE);
+    });
+}
+
+#[trial]
+fn a_body_cannot_reach_the_host_while_it_is_locked() {
+    let seen = RefCell::new(None);
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        AppShell::new(WindowKey::main())
+            .body(|_, cx, _| {
+                let dialogs = cx.dialogs().expect("the body is in a shell");
+                let inside = dialogs.with(|_| cx.dialogs().is_none());
+                *seen.borrow_mut() = Some((inside, cx.dialogs().is_some()));
+            })
+            .show(ui, &mut ());
+    };
+    frames.frame(Vec::new(), &mut show);
+    assert_eq!(*seen.borrow(), Some((true, true)), "no handle while the host is locked, a handle again after");
 }
 
 #[trial]
@@ -406,25 +441,4 @@ fn two_windows_keep_separate_dialog_hosts() {
     frames.frame(Vec::new(), &mut show);
     frames.frame(Vec::new(), &mut show);
     assert_eq!(*open.borrow(), [("first", true), ("second", false)]);
-}
-
-#[trial]
-fn zz_diag_prompt_tree() {
-    let asked = Rc::new(Cell::new(false));
-    let a = asked.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        AppShell::new(WindowKey::main())
-            .body(|_, cx, _| {
-                cx.dialogs().expect("shell").with(|host| {
-                    if !a.replace(true) {
-                        host.open(StandardPrompt::confirm_delete(["Layer"], 1));
-                    }
-                });
-            })
-            .show(ui, &mut ());
-    });
-    fixture.idle(OPEN_FRAMES);
-    let tree = fixture.tree();
-    let rows: Vec<String> = tree.keys().into_iter().map(|k| format!("{:?}|{:?}|hidden={}", tree.role_of(k), tree.name_of(k), tree.is_hidden(k))).collect();
-    panic!("TREE\n{}", rows.join("\n"));
 }
