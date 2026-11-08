@@ -79,7 +79,7 @@ struct Shown {
 }
 
 fn selected(ids: &[u64]) -> Selection<KeyframeId> {
-    let keys: Vec<KeyframeId> = ids.iter().map(|id| KeyframeId(*id)).collect();
+    let keys: Vec<KeyframeId> = ids.iter().map(|id| KeyframeId::new(*id)).collect();
     Selection::new(keys.clone(), keys.first().copied(), keys.first().copied())
 }
 
