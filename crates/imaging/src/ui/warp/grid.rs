@@ -273,19 +273,20 @@ impl<'a> WarpGrid<'a> {
                 None => cx.part_if_declared(SURFACE),
             };
             let Some(result) = found else { continue };
+            let (hover_at, press) = (result.hover_pos, result.press);
             if hover.is_none()
-                && let Some(at) = result.hover_pos
+                && let Some(at) = hover_at
             {
-                hover = Some((at, result.press.mods.alt || result.press.mods.cmd));
+                hover = Some((at, press.mods.alt || press.mods.cmd));
             }
             if point.is_none()
                 && self.split.is_none()
-                && let Some(at) = result.hover_pos
+                && let Some(at) = hover_at
                 && self.surface_params(mesh, space.view.to_doc(at)).is_some()
             {
                 cx.cursor(CursorIcon::Grab, CursorPriority::Part);
             }
-            results.push((point, result.press));
+            results.push((point, press));
         }
         for (point, press) in results {
             self.run_press(cx, space, mesh, point, press);

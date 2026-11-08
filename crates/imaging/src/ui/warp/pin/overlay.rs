@@ -9,7 +9,7 @@ use craft_behavior::{
 use craft_ui::canvas::{CanvasSpace, NUDGE, NUDGE_FAR, canvas_space};
 use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Name, Numeric, Outcome, PaintUi, PartsCx,
-    Pointer as _, Props as _, Role, WordSetCx as _,
+    Pointer as _, Props as _, Remember as _, Role, WordSetCx as _,
 };
 use craft_ui::primitives::{PaintShape, StrokeWidth};
 use craft_ui::runtime::env::{Label, Units, WordTemplate};
