@@ -13,8 +13,8 @@ use crate::clips::ClipEdit;
 use crate::model::{ClipId, TrackId, TrackInfo, TrackKind};
 use crate::time::Tick;
 use craft_behavior::{
-    ColumnKey, ColumnWidth, CursorIcon, DisplayOrder, EditEvent, GestureId, HitLevel, HitPriority, ItemSource, Metrics, Mixed, PartKey, PressPhase,
-    Selection, SelectionChange, Sense, SizeHint, SpanLayout,
+    ColumnKey, ColumnWidth, CursorIcon, DisplayOrder, EditEvent, GestureId, HitLevel, HitPriority, IconId, ItemSource, Metrics, Mixed, PartKey,
+    PressPhase, Selection, SelectionChange, Sense, SizeHint, SpanLayout,
 };
 use craft_theme::UiTokens;
 use craft_ui::contract::{
@@ -22,7 +22,7 @@ use craft_ui::contract::{
     EditResponse, ItemKeys, ItemOutput, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props, Role, Scroll, ScrollAnchor,
     SelectMode, Sizing, ToggleColumn, WordSetCx as _,
 };
-use craft_ui::primitives::{IconId, IconSpec, PaintShape, StrokeWidth};
+use craft_ui::primitives::{IconSpec, PaintShape, StrokeWidth};
 use craft_ui::runtime::env::Label;
 use craft_ui::style::{ComponentStyle, DataColor, IconLook, StyleColor, StyleCx, SurfaceLook, TextLook, TypeRole};
 use egui::{CornerRadius, Pos2, Rect, Response, Vec2};

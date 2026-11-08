@@ -13,7 +13,7 @@ use crate::clock::FollowMode;
 use crate::markers::{Marker, MarkerColor};
 use crate::model::{ClipId, ClipInfo, TimelineModel, TrackId, TrackInfo, TrackKind};
 use crate::time::{Tick, TimeRange};
-use craft_behavior::{ColumnEvent, ColumnWidth, EditEvent, Metrics, PressPhase, SelectionChange, Sense};
+use craft_behavior::{ColumnEvent, ColumnWidth, EditEvent, IconId, Metrics, PressPhase, SelectionChange, Sense};
 use craft_ui::buttons::{IconButton, ToggleButton};
 use craft_ui::contract::{
     Bind, BindMut, BodyLayout, CollectionEvent, CollectionResponse, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse,
@@ -22,7 +22,7 @@ use craft_ui::contract::{
 use craft_ui::display::Text;
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::menu::{Menu, MenuItem};
-use craft_ui::primitives::{IconId, IconSpec};
+use craft_ui::primitives::IconSpec;
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::style::{ComponentStyle, StyleCx};
 use egui::{Pos2, Rect, Response, Ui, Vec2};
@@ -172,6 +172,7 @@ pub struct TimelineToolbar {
 /// `Splitter`.
 #[must_use = "show the panel with `show`"]
 #[derive(Pattern, Props)]
+#[pattern(probe(Timeline<'static, EmptySequence>))]
 pub struct Timeline<'a, M: TimelineModel> {
     label: Label,
     model: &'a mut M,
@@ -616,3 +617,36 @@ pub struct DividerStyle {
 
 #[cfg(feature = "screen-testing")]
 mod stories;
+
+/// The model of the pattern's registration probe: no tracks.
+struct EmptySequence(crate::time::TimeView);
+
+impl TimelineModel for EmptySequence {
+    fn duration(&self) -> Tick {
+        Tick::ZERO
+    }
+
+    fn format(&self) -> crate::timecode::TimeFormat {
+        crate::timecode::TimeFormat::timecode(crate::rates::FrameRate::NTSC_30)
+    }
+
+    fn playhead(&self) -> Tick {
+        Tick::ZERO
+    }
+
+    fn view(&mut self) -> &mut crate::time::TimeView {
+        &mut self.0
+    }
+
+    fn tracks(&self) -> Vec<TrackInfo<'_>> {
+        Vec::new()
+    }
+
+    fn clips(&self, _: TrackId, _: TimeRange) -> Vec<ClipInfo<'_>> {
+        Vec::new()
+    }
+
+    fn selection(&self) -> &[ClipId] {
+        &[]
+    }
+}
