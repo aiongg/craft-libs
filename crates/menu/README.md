@@ -97,6 +97,37 @@ checked from the app's state. `checked: Some(..)` makes a plain item a check ite
 clears a radio item; `None` leaves the kind as it is. The built-in items and the open documents
 are left alone. Both run on the app's bar, before the layout.
 
+## Keyboard Shortcuts dialog
+
+`craft_menu::shortcuts` holds the Keyboard Shortcuts dialog: a table of the command catalog with
+recording, conflicts, undo, named sets, import review and a summary, over a `craft_keymap::Keymap`
+and optionally `Profiles`. It edits the keymap in place, so the menus show new keys at once, and
+Cancel restores the keymap as it was when the dialog opened.
+
+```rust,ignore
+use craft_menu::shortcuts::{DialogState, Outcome, ShortcutsDialog};
+
+// "Keyboard Shortcuts…" opens it.
+self.shortcuts = Some(DialogState::new());
+
+// Every pass while it is open:
+if let Some(state) = &mut self.shortcuts {
+    let dialog = ShortcutsDialog::new(&mut self.keymap).options(&self.shortcut_options);
+    match dialog.show(ui, state).outcome {
+        Some(Outcome::Ok) => self.save_settings(),
+        Some(Outcome::Changed) => self.rebuild_menus(),
+        _ => {}
+    }
+    if !state.is_open() {
+        self.shortcuts = None;
+    }
+}
+```
+
+The module documentation lists every `Outcome`, `Options` and the words (`ShortcutWords`) the
+app translates. The dialog never opens a file dialog or touches the file system. Enable
+`screen-testing` for the stories and the `it` trials.
+
 ## Windows, Linux and web: the in-window bar
 
 `MenuBarUi` draws a laid-out bar in a top panel and returns the titles' rect (`MenuBarOutput`).
