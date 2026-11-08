@@ -108,8 +108,8 @@ fn a_rename_request_names_the_browser_by_its_own_id() {
     let mut fixture = Fixture::new(move |ui| {
         let rows = vec![PresetRow::item(AMBER, "Amber", 0), PresetRow::item(CORAL, "Coral", 0)];
         let mut view = state.borrow_mut();
-        ui.scope(|ui| {
-            let out = PresetBrowser::new("Swatches", Bind::bound(&mut *view), &rows).id(browser).show(ui);
+        ui.vertical(|ui| {
+            let out = PresetBrowser::new("Swatches", Bind::bound(&mut *view), &rows).browser_id(browser).show(ui);
             reported.borrow_mut().extend(out.events);
         });
     });

@@ -96,8 +96,10 @@ impl<'a, K> ThumbPainter<'a, K> {
 #[pattern(probe(PresetBrowser<'static, u32>))]
 pub struct PresetBrowser<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     label: Label,
-    /// The browser's own id; the scope it is shown in when none is given.
-    id: Option<Id>,
+    /// The browser's own id, which `PresetBrowser::request_rename` names; the scope id of the `Ui` it is shown in
+    /// when none is given.
+    #[prop]
+    browser_id: Option<Id>,
     state: Bind<'a, PresetState<K>>,
     rows: &'a [PresetRow<K>],
     /// The selected preset, which the host keeps.
@@ -150,7 +152,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'a, K> {
     pub fn new(label: impl Into<Label>, state: Bind<'a, PresetState<K>>, rows: &'a [PresetRow<K>]) -> Self {
         PresetBrowser {
             label: label.into(),
-            id: None,
+            browser_id: None,
             state,
             rows,
             selected: None,
@@ -168,14 +170,6 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'a, K> {
             extra_items: Vec::new(),
             footer: None,
         }
-    }
-
-    /// Gives the browser the id `id`, which `PresetBrowser::request_rename` names; without one the browser's id is the
-    /// scope id of the `Ui` it is shown in.
-    #[must_use]
-    pub fn id(mut self, id: Id) -> Self {
-        self.id = Some(id);
-        self
     }
 
     /// Rows added to the context menu after the standard ones; running one reports `PresetEvent::Menu` with the
@@ -398,7 +392,7 @@ fn commit<K: Clone + Eq + Hash + Send + Sync + 'static>(cx: &mut BodyCx<'_>, sta
 }
 
 impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
-    /// Asks the browser with the id `browser` (the one given to [`PresetBrowser::id`], or the `scope_id` of the `Ui`
+    /// Asks the browser with the id `browser` (the one given to `browser_id`, or the `scope_id` of the `Ui`
     /// it is shown in) to start renaming the row `key` at its next pass, as the row menu's Rename does. A key the
     /// browser lacks or may not rename is ignored; the request is taken once.
     pub fn request_rename(ctx: &egui::Context, browser: Id, key: &K) {
@@ -409,7 +403,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
     pub fn show(self, ui: &mut Ui) -> PresetOutput<K> {
         let PresetBrowser {
             label,
-            id,
+            browser_id,
             state,
             rows,
             selected,
@@ -429,7 +423,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
         } = self;
         let env = Env::of(ui);
         let words = env.words::<PresetWords>();
-        let list_id = rows_id(id.unwrap_or_else(|| ui.scope_id()));
+        let list_id = rows_id(browser_id.unwrap_or_else(|| ui.scope_id()));
         let name = label.as_str().to_owned();
         let has_footer = footer.is_some();
         let state = RefCell::new(state);
