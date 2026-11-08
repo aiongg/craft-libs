@@ -91,7 +91,7 @@ craft_ui::words! {
         wildcard_unclosed_bracket: "find.wildcardUnclosedBracket" = "An opening bracket needs a closing bracket";
         wildcard_back_reference: "find.wildcardBackReference" = "Back-references (\\1) work in Replace with, not in Find what";
         wildcard_bad_count: template "find.wildcardBadCount" = "{count} is not a valid count";
-        wildcard_count_too_large: "find.wildcardCountTooLarge" = "Counts go up to {max}";
+        wildcard_count_too_large: template "find.wildcardCountTooLarge" = "Counts go up to {max}";
         wildcard_empty_class: "find.wildcardEmptyClass" = "[ ] needs at least one character";
         wildcard_reversed_range: template "find.wildcardReversedRange" = "[{from}-{to}] is not in ascending order";
         wildcard_refused: "find.wildcardRefused" = "This wildcard pattern can't be searched for";
@@ -281,7 +281,7 @@ fn count_text(words: &FindLabels, empty_query: bool, matches: &FindMatches, prog
     if matches.is_empty() {
         return match reading {
             Some((searched, pages)) => words.searching.fill(&[("s", &searched.to_string()), ("p", &pages.to_string())]),
-            None => words.no_matches.to_string(),
+            None => words.no_matches.as_str().to_owned(),
         };
     }
     let current = matches.current().map_or(0, |c| c + 1);
@@ -299,30 +299,30 @@ impl FindLabels {
         match error {
             FindError::TooLong => self.error_too_long.fill(&[("max", &MAX_PATTERN.to_string())]),
             FindError::Wildcards(kind) => match kind {
-                WildcardError::UnclosedBrace => self.wildcard_unclosed_brace.to_string(),
-                WildcardError::UnclosedBracket => self.wildcard_unclosed_bracket.to_string(),
-                WildcardError::BackReference => self.wildcard_back_reference.to_string(),
+                WildcardError::UnclosedBrace => self.wildcard_unclosed_brace.as_str().to_owned(),
+                WildcardError::UnclosedBracket => self.wildcard_unclosed_bracket.as_str().to_owned(),
+                WildcardError::BackReference => self.wildcard_back_reference.as_str().to_owned(),
                 WildcardError::BadCount(body) => self.wildcard_bad_count.fill(&[("count", &["{", body, "}"].concat())]),
                 WildcardError::CountTooLarge => self.wildcard_count_too_large.fill(&[("max", &MAX_COUNT.to_string())]),
-                WildcardError::EmptyClass => self.wildcard_empty_class.to_string(),
+                WildcardError::EmptyClass => self.wildcard_empty_class.as_str().to_owned(),
                 WildcardError::ReversedRange { from, to } => {
                     self.wildcard_reversed_range.fill(&[("from", &from.to_string()), ("to", &to.to_string())])
                 }
-                _ => self.wildcard_refused.to_string(),
+                _ => self.wildcard_refused.as_str().to_owned(),
             },
             FindError::Regex(kind) => match kind {
-                RegexError::UnclosedGroup => self.regex_unclosed_group.to_string(),
-                RegexError::UnopenedGroup => self.regex_unopened_group.to_string(),
-                RegexError::UnclosedClass => self.regex_unclosed_class.to_string(),
-                RegexError::NothingToRepeat => self.regex_nothing_to_repeat.to_string(),
-                RegexError::BadRepetition => self.regex_bad_repetition.to_string(),
-                RegexError::ReversedRange => self.regex_reversed_range.to_string(),
-                RegexError::BadEscape => self.regex_bad_escape.to_string(),
-                RegexError::BadGroupName => self.regex_bad_group_name.to_string(),
-                RegexError::Unsupported => self.regex_unsupported.to_string(),
-                RegexError::BadFlag => self.regex_bad_flag.to_string(),
-                RegexError::TooBig => self.regex_too_big.to_string(),
-                _ => self.regex_invalid.to_string(),
+                RegexError::UnclosedGroup => self.regex_unclosed_group.as_str().to_owned(),
+                RegexError::UnopenedGroup => self.regex_unopened_group.as_str().to_owned(),
+                RegexError::UnclosedClass => self.regex_unclosed_class.as_str().to_owned(),
+                RegexError::NothingToRepeat => self.regex_nothing_to_repeat.as_str().to_owned(),
+                RegexError::BadRepetition => self.regex_bad_repetition.as_str().to_owned(),
+                RegexError::ReversedRange => self.regex_reversed_range.as_str().to_owned(),
+                RegexError::BadEscape => self.regex_bad_escape.as_str().to_owned(),
+                RegexError::BadGroupName => self.regex_bad_group_name.as_str().to_owned(),
+                RegexError::Unsupported => self.regex_unsupported.as_str().to_owned(),
+                RegexError::BadFlag => self.regex_bad_flag.as_str().to_owned(),
+                RegexError::TooBig => self.regex_too_big.as_str().to_owned(),
+                _ => self.regex_invalid.as_str().to_owned(),
             },
         }
     }
@@ -529,9 +529,9 @@ impl StackDialog for FindReplaceDialog {
             Stack::new().show(ui, |ui, _| {
                 if word {
                     let tabs = [
-                        (FindTab::Find, words.find_tab.to_string()),
-                        (FindTab::Replace, words.replace_tab.to_string()),
-                        (FindTab::GoTo, words.go_to_tab.to_string()),
+                        (FindTab::Find, words.find_tab.as_str().to_owned()),
+                        (FindTab::Replace, words.replace_tab.as_str().to_owned()),
+                        (FindTab::GoTo, words.go_to_tab.as_str().to_owned()),
                     ];
                     let source = keyed(&tabs[..], |tab: &(FindTab, String)| tab.0).with_text(|tab| Cow::Borrowed(tab.1.as_str()));
                     let strip = TabStrip::new(words.title.clone()).kind(TabKind::Text).shown(tab);
@@ -662,33 +662,33 @@ impl StackDialog for FindReplaceDialog {
 /// The Special menu: the `^` codes of Find what, or of Replace with.
 fn special_entries(words: &FindLabels, replacing: bool) -> Vec<Entry<&'static str>> {
     let find: [(&str, &'static str); 14] = [
-        (&words.paragraph_mark, "^p"),
-        (&words.tab_character, "^t"),
-        (&words.any_character, "^?"),
-        (&words.any_digit, "^#"),
-        (&words.any_letter, "^$"),
-        (&words.caret_character, "^^"),
-        (&words.em_dash, "^+"),
-        (&words.en_dash, "^="),
-        (&words.nonbreaking_hyphen, "^~"),
-        (&words.nonbreaking_space, "^s"),
-        (&words.optional_hyphen, "^-"),
-        (&words.white_space, "^w"),
-        (&words.section_break, "^b"),
-        (&words.line_break, "^l"),
+        (words.paragraph_mark.as_str(), "^p"),
+        (words.tab_character.as_str(), "^t"),
+        (words.any_character.as_str(), "^?"),
+        (words.any_digit.as_str(), "^#"),
+        (words.any_letter.as_str(), "^$"),
+        (words.caret_character.as_str(), "^^"),
+        (words.em_dash.as_str(), "^+"),
+        (words.en_dash.as_str(), "^="),
+        (words.nonbreaking_hyphen.as_str(), "^~"),
+        (words.nonbreaking_space.as_str(), "^s"),
+        (words.optional_hyphen.as_str(), "^-"),
+        (words.white_space.as_str(), "^w"),
+        (words.section_break.as_str(), "^b"),
+        (words.line_break.as_str(), "^l"),
     ];
     let replace: [(&str, &'static str); 11] = [
-        (&words.paragraph_mark, "^p"),
-        (&words.tab_character, "^t"),
-        (&words.caret_character, "^^"),
-        (&words.em_dash, "^+"),
-        (&words.en_dash, "^="),
-        (&words.nonbreaking_hyphen, "^~"),
-        (&words.nonbreaking_space, "^s"),
-        (&words.optional_hyphen, "^-"),
-        (&words.line_break, "^l"),
-        (&words.found_text, "^&"),
-        (&words.clipboard_contents, "^c"),
+        (words.paragraph_mark.as_str(), "^p"),
+        (words.tab_character.as_str(), "^t"),
+        (words.caret_character.as_str(), "^^"),
+        (words.em_dash.as_str(), "^+"),
+        (words.en_dash.as_str(), "^="),
+        (words.nonbreaking_hyphen.as_str(), "^~"),
+        (words.nonbreaking_space.as_str(), "^s"),
+        (words.optional_hyphen.as_str(), "^-"),
+        (words.line_break.as_str(), "^l"),
+        (words.found_text.as_str(), "^&"),
+        (words.clipboard_contents.as_str(), "^c"),
     ];
     let items: &[(&str, &'static str)] = if replacing { &replace } else { &find };
     items.iter().map(|(label, code)| Entry::new(*code, words.special_item.fill(&[("name", *label), ("code", *code)]))).collect()

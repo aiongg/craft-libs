@@ -348,7 +348,7 @@ impl NotesEditor<'_> {
                 cursor.caret = chars;
                 false
             }
-            EditorInput::Delete { forward, by } => {
+            EditorInput::Delete { forward, by, .. } => {
                 let range = if !selected.is_empty() {
                     selected
                 } else {
@@ -372,7 +372,7 @@ impl NotesEditor<'_> {
                 cursor.anchor = range.start;
                 true
             }
-            EditorInput::DeleteSurrounding { before, after } => {
+            EditorInput::DeleteSurrounding { before, after, .. } => {
                 let (from, to) = (selected.start.saturating_sub(before), (selected.end + after).min(chars));
                 if from == selected.start && to == selected.end {
                     return false;
@@ -429,7 +429,7 @@ impl NotesEditor<'_> {
                 }
                 false
             }
-            EditorInput::Select { anchor, focus } => {
+            EditorInput::Select { anchor, focus, .. } => {
                 let at = |pos: TextPos| {
                     let range = paragraph_range(plain, pos.line);
                     let line: String = plain.chars().skip(range.start).take(range.len()).collect();

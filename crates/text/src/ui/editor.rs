@@ -474,7 +474,7 @@ impl Component for TextEditor<'_> {
                 edits.drop_marked(range);
             }
             match input {
-                EditorInput::Preedit { text, cursor } => {
+                EditorInput::Preedit { text, cursor, .. } => {
                     let active = cursor.map(|bytes| byte_range_to_chars(&text, bytes));
                     ending = edits.preedit(&text, active);
                 }
@@ -483,9 +483,9 @@ impl Component for TextEditor<'_> {
                 EditorInput::Newline => edits.done.changed |= edits.insert_text("\n", EditKind::Typed),
                 EditorInput::Tab => edits.done.changed |= edits.insert_text("\t", EditKind::Typed),
                 EditorInput::Move(step, mods) => edits.motion(step, mods),
-                EditorInput::Delete { forward, by } => edits.done.changed |= edits.delete(forward, by),
-                EditorInput::DeleteSurrounding { before, after } => edits.done.changed |= edits.delete_around(before, after),
-                EditorInput::Select { anchor, focus } => {
+                EditorInput::Delete { forward, by, .. } => edits.done.changed |= edits.delete(forward, by),
+                EditorInput::DeleteSurrounding { before, after, .. } => edits.done.changed |= edits.delete_around(before, after),
+                EditorInput::Select { anchor, focus, .. } => {
                     let lines = lines_of(&mut *edits.host, fallback);
                     edits.end_composition();
                     edits.selection = TextSelection { anchor: char_at(&lines, anchor), caret: char_at(&lines, focus) };
