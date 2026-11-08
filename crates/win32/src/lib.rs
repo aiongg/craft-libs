@@ -9,7 +9,7 @@
 use std::collections::HashMap;
 use std::ffi::c_void;
 use std::sync::{LazyLock, Mutex, PoisonError};
-use winsafe::{self as w, co, msg, prelude::*};
+use winsafe::{self as w, co, msg};
 
 /// Tells this crate's subclass from another one on the same window.
 const SUBCLASS_ID: usize = 0x4352_5733;
