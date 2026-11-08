@@ -3,6 +3,8 @@
 
 use crate::windows_kit::Windows;
 use craft_host::target::DoubleClick;
+use craft_ui::contract::Show as _;
+use craft_ui::display::Text;
 use craft_ui::runtime::InstallSpec;
 use craft_ui::runtime::windows::{WindowAction, WindowHit, WindowHost};
 use craft_ui::shell::{Caption, CaptionFamily, Captions, Frame, MacInset, Title, TitleBar, double_click_action};
@@ -123,13 +125,13 @@ fn a_bar_in_a_column_leaves_the_room_below_it_to_the_next_child() {
         room.set(ui.max_rect());
         ui.vertical(|ui| {
             bar.set(TitleBar::new().show_titled(ui, Title::new("Landscape.psd"), |_, _| {}, |_, _| {}).response.rect);
-            below.set(ui.allocate_space(egui::vec2(10.0, 10.0)).1);
+            below.set(Text::new("Below").show(ui).rect);
         });
     };
     for _ in 0..4 {
         frames.frame(vec![], &mut show);
     }
-    assert!(bar.get().height() < room.get().height() / 2.0, "the bar does not take the room");
+    assert!(room.get().contains_rect(below.get()), "the next child has room under the bar");
     assert!(below.get().top() >= bar.get().bottom(), "the next child lies under the bar");
     assert_eq!(bar.get().width(), room.get().width(), "the bar fills the width");
 }
