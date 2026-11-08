@@ -330,7 +330,7 @@ impl NotesEditor<'_> {
         cursor.caret = cursor.caret.min(chars);
         cursor.anchor = cursor.anchor.min(chars);
         let selected = cursor.caret.min(cursor.anchor)..cursor.caret.max(cursor.anchor);
-        let mut insert = |plain: &mut String, cursor: &mut Cursor, text: &str| {
+        let insert = |plain: &mut String, cursor: &mut Cursor, text: &str| {
             let text = text.replace("\r\n", "\n").replace('\r', "\n");
             splice(plain, selected.clone(), &text);
             cursor.caret = selected.start + text.chars().count();
