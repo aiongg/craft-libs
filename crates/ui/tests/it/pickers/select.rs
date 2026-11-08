@@ -236,8 +236,8 @@ fn entries_with_swatches_pick_by_keys() {
     assert_eq!(value.get(), 1);
 }
 
-/// A click on a select in a field opens its list, and a click on a row picks that row and closes the list. The field's
-/// label and group carry the select's name too, so the click goes to the control.
+/// A select in a field is found by the field's label and is the combo box; a click on it opens its list, and a click
+/// on a row picks that row and closes the list.
 #[trial]
 fn a_click_opens_a_select_and_a_click_on_a_row_picks_it() {
     let value = Rc::new(Cell::new(0u8));
@@ -251,7 +251,8 @@ fn a_click_opens_a_select_and_a_click_on_a_row_picks_it() {
         });
     });
     fixture.settle();
-    let select = fixture.control("Color").expect("the select is the control named Color");
+    let select = fixture.by_label("Color").expect("the select is the control named Color");
+    assert_eq!(fixture.tree().role_of(select.node), Some(Role::COMBO_BOX), "the label finds the control, not the label or the group");
     fixture.click(&select);
     assert!(!fixture.by_role(Role::LIST_BOX).is_empty(), "a click opens the list");
     let red = fixture.by_label("Red").expect("the open list shows its rows");

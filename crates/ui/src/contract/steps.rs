@@ -1235,6 +1235,7 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         return;
     }
     scope::finish(ctx, id, None);
+    let carried = scope::carried_name(ctx, id);
     let Role::Node(role) = role else { return };
     if !input.node {
         return;
@@ -1246,6 +1247,7 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         role,
         rect: core.rect,
         label: resolved.label,
+        names_nothing: carried.as_deref() == Some(resolved.label),
         tooltip,
         elided: paint.elided.as_deref(),
         description: resolved.description,
@@ -1336,6 +1338,7 @@ pub(crate) fn report_inert<C: Component>(cx: &Cx<'_, C>) {
             role,
             rect: core.rect,
             label: core.resolved.label,
+            names_nothing: false,
             tooltip: None,
             elided: None,
             description: None,

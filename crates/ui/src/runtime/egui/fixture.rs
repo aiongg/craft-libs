@@ -74,12 +74,29 @@ impl egui::DroppedFile for DroppedPath {
     }
 }
 
+/// The viewport facts a frame reports: a window-focus event also sets the root viewport's focus fact, as a host
+/// reports both, and the fact stays until the next such event. Before any event the focus is unknown.
+fn window_focus_facts(ctx: &Context, events: &[Event]) -> egui::ViewportIdMap<egui::ViewportInfo> {
+    let key = egui::Id::new("fixture window focus");
+    let last = events.iter().rev().find_map(|event| if let Event::WindowFocused(focused) = event { Some(*focused) } else { None });
+    if let Some(focused) = last {
+        ctx.data_mut(|data| data.insert_temp(key, focused));
+    }
+    let focused = ctx.data(|data| data.get_temp::<bool>(key));
+    let mut facts = egui::ViewportIdMap::default();
+    if focused.is_some() {
+        facts.insert(egui::ViewportId::ROOT, egui::ViewportInfo { focused, ..egui::ViewportInfo::default() });
+    }
+    facts
+}
+
 /// Runs one frame at `time` seconds with `events` and `files`, and drops its texture changes.
 pub(crate) fn run_frame(ctx: &Context, time: f64, events: Vec<Event>, files: OsFiles, ui: impl FnMut(&mut Ui)) -> FrameResult {
     let screen = Rect::from_min_max(Pos2::ZERO, Pos2::new(800.0, 600.0));
     let hovered_files = files.hovered.iter().map(|(name, mime)| egui::HoveredFile { path: Some(name.into()), mime: mime.clone() }).collect();
     let dropped_files = files.dropped.iter().map(|name| Arc::new(DroppedPath(name.into())) as egui::DroppedFileHandle).collect();
-    let input = RawInput { screen_rect: Some(screen), time: Some(time), events, hovered_files, dropped_files, ..RawInput::default() };
+    let viewports = window_focus_facts(ctx, &events);
+    let input = RawInput { screen_rect: Some(screen), time: Some(time), events, hovered_files, dropped_files, viewports, ..RawInput::default() };
     let mut output = ctx.run_ui(input, ui);
     output.textures_delta.clear();
     let mut flat = Vec::new();

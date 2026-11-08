@@ -51,8 +51,9 @@ fn the_name_rule_follows_labelled_by() {
     let mut frames = Frames::new();
     let (_, ids, tree) = field(&mut frames, 1, false);
     let control = NodeKey::of(ids[0]);
-    assert_eq!(tree.name(ids[0]), None, "the label replaces the control's own name");
-    assert_eq!(name(&tree, control), Some("Name"), "a control named only through labelled_by has a name for the checker");
+    assert_eq!(tree.name(ids[0]), Some("Name"), "the control carries the label's text as its name");
+    assert_eq!(tree.labelled_by(ids[0]), [NodeKey::of(field_label().id)], "and keeps the label that names it");
+    assert_eq!(name(&tree, control), Some("Name"));
 }
 
 #[trial]

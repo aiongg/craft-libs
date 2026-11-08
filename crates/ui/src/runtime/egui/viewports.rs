@@ -30,12 +30,17 @@ pub(crate) struct Spec<'a> {
     pub resizable: bool,
     /// Whether the window has a taskbar or Dock entry.
     pub taskbar: bool,
+    /// Whether the window opens hidden; [`show`] reveals it.
+    pub hidden: bool,
 }
 
 /// Opens (or keeps) the OS viewport `id` and runs `body` once for each pass the viewport gets in this call.
 pub(crate) fn show_immediate<T>(ctx: &Context, id: ViewportId, spec: &Spec<'_>, mut body: impl FnMut(&mut Ui) -> T) -> T {
     let mut builder =
         ViewportBuilder::default().with_title(spec.title).with_resizable(spec.resizable).with_taskbar(spec.taskbar).with_window_level(spec.level);
+    if spec.hidden {
+        builder = builder.with_visible(false);
+    }
     builder = match spec.chrome {
         WindowChrome::Integrated => builder.with_decorations(false),
         WindowChrome::Inset => builder.with_decorations(true).with_fullsize_content_view(true).with_title_shown(false).with_titlebar_shown(false),
@@ -57,6 +62,11 @@ pub(crate) fn show_immediate<T>(ctx: &Context, id: ViewportId, spec: &Spec<'_>, 
         builder = builder.with_position(pos);
     }
     ctx.show_viewport_immediate(id, builder, |ui, _| body(ui))
+}
+
+/// Makes the hidden viewport `id` visible.
+pub(crate) fn show(ctx: &Context, id: ViewportId) {
+    ctx.send_viewport_cmd_to(id, egui::ViewportCommand::Visible(true));
 }
 
 /// The viewport id of the container `id`.

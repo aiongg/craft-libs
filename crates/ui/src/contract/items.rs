@@ -49,8 +49,10 @@ const SECTION: craft_behavior::PartKey = craft_behavior::PartKey::new("section")
 
 /// The part of a collection that stands for the section row `key` (`ItemSource::section_stop`): the item step builds
 /// no row for it, so the access node that AccessKit focus goes to while the section holds the lead, and the pointer
-/// part over it, are this part of the collection.
-pub(crate) fn section_part<K: std::hash::Hash>(key: &K) -> craft_behavior::PartRef {
+/// part over it, are this part of the collection. It is the collection contract's one section mechanism: a component
+/// that draws its own section headers lays them out as this part, so the lead, the pointer and the access tree treat
+/// them as the collection's section rows.
+pub fn section_part<K: std::hash::Hash>(key: &K) -> craft_behavior::PartRef {
     SECTION.at(key_hash(key))
 }
 
@@ -921,9 +923,12 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                         _ => false,
                     };
                     let hold = primary && !mods.shift && !mods.cmd && holds && self.holds(at);
+                    // A secondary press on a row of the selection leaves the selection whole: its menu acts on all of it.
+                    let keep = !primary && matches!(Self::select_mode(comp), SelectMode::Multi) && self.holds(at);
                     match column {
                         Some(column) => self.cell_press(comp, layout, at, column, mods.shift, mods.cmd),
                         None if hold => self.drags.collapse = Some(key.clone()),
+                        None if keep => {}
                         None => self.pick(comp, at, mods.shift, mods.cmd),
                     }
                     self.move_lead(at, LeadSource::Pointer);
