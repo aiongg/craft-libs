@@ -32,6 +32,22 @@ fn layer_fixture(story: &Story) -> Option<Fixture> {
     on_layer(&fixture).then_some(fixture)
 }
 
+/// Whether `container` is a field container: it holds exactly one interactive control, and that control is labelled by
+/// a node inside the container. The label names the control, so the group needs no name.
+fn is_field_of_one_control(tree: &crate::testing::access::AccessTree, container: crate::testing::access::NodeKey) -> bool {
+    let mut inside = Vec::new();
+    let mut pending = vec![container];
+    while let Some(key) = pending.pop() {
+        inside.push(key);
+        pending.extend(tree.children_of(key));
+    }
+    let controls: Vec<_> = inside.iter().filter(|key| crate::testing::access::is_interactive(tree, **key)).collect();
+    matches!(controls.as_slice(), [only] if {
+        let labels = tree.labelled_by_key(**only);
+        !labels.is_empty() && labels.iter().all(|label| inside.contains(label))
+    })
+}
+
 /// A container that is a dialog or a group has a role that needs a name: the title names it. A field container's label
 /// names its one control instead, which then carries the name and the `labelled_by` link, and the group has none.
 pub(super) fn title_names_the_container(subject: &Subject) -> Result<(), String> {
@@ -44,11 +60,9 @@ pub(super) fn title_names_the_container(subject: &Subject) -> Result<(), String>
         let Some(container) = root(&fixture) else { continue };
         let role = fixture.tree().role_of(container.node);
         let tree = fixture.tree();
-        let names_its_control =
-            || tree.keys().into_iter().any(|key| crate::testing::access::is_interactive(tree, key) && !tree.labelled_by_key(key).is_empty());
         if (role == Some(Role::DIALOG) || role == Some(Role::GROUP))
             && crate::testing::access::name(tree, container.node).is_none()
-            && !names_its_control()
+            && !(role == Some(Role::GROUP) && is_field_of_one_control(tree, container.node))
         {
             return Err(format!("{}: the container's node has the role {role:?} and no name", story.name));
         }
