@@ -180,7 +180,8 @@ fn float_in_window_floats_the_active_document_and_match_commands_ask_the_views()
     arrange(&mut windows, ArrangeCommand::FloatInWindow, &arrange_space(1));
     assert_eq!(windows.floating.len(), 1);
     assert_eq!(windows.floating[0].0.documents, vec![1]);
-    assert_eq!(arrange(&mut windows, ArrangeCommand::MatchAll, &arrange_space(1)), Arranged::Views { zoom: true, location: true, rotation: true });
+    let matched = arrange(&mut windows, ArrangeCommand::MatchAll, &arrange_space(1));
+    assert!(matches!(matched, Arranged::Views { zoom: true, location: true, rotation: true, .. }));
 }
 
 #[trial]
