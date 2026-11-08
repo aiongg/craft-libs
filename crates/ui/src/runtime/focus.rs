@@ -80,6 +80,7 @@ pub(crate) struct BeginIn {
     pub(crate) press: Option<press::PressAt>,
     pub(crate) nav: crate::runtime::keys::NavKeys,
     pub(crate) tab_all_controls: bool,
+    pub(crate) frame: u64,
 }
 
 /// The row groups of one collection's visible rows in a pass: every one is a flat roving group of the same owner
@@ -118,6 +119,10 @@ pub(crate) struct State {
     /// The stop a menu bar took focus from, for the bar to give back.
     pub(super) bar_return: Option<StopKey>,
     pub(crate) press: press::PressState,
+    /// The frame whose begin hook ran last; a move in the end hook belongs to the next frame.
+    pub(super) frame: u64,
+    /// The stop focus moved onto and the frame whose passes see it.
+    pub(super) arrived: Option<(u64, StopKey)>,
 }
 
 fn viewport(ctx: &Context) -> ViewportId {
@@ -362,6 +367,8 @@ pub(crate) struct Facts {
     pub(crate) visible: bool,
     /// `active_part`.
     pub(crate) part: Option<PartRef>,
+    /// The part focus moved onto in this frame, when the component holds focus on it.
+    pub(crate) arrived: Option<PartRef>,
     /// The count of focus writes when the facts were read; see `writes`.
     pub(crate) at: u64,
 }
@@ -370,7 +377,13 @@ pub(crate) struct Facts {
 pub(crate) fn facts(ctx: &Context, id: Id) -> Facts {
     let at = writes();
     match focused_stop(ctx) {
-        Some((focused, part)) if focused == id => Facts { focused: true, visible: with(ctx, |state| state.visible), part, at },
+        Some((focused, part)) if focused == id => {
+            let (visible, arrived) = with(ctx, |state| {
+                let arrived = state.arrived.filter(|(frame, key)| *frame == state.frame && key.0 == id).and_then(|(_, key)| key.1);
+                (state.visible, arrived)
+            });
+            Facts { focused: true, visible, part, arrived, at }
+        }
         _ => Facts { at, ..Facts::default() },
     }
 }
@@ -408,8 +421,13 @@ pub(crate) fn take_reveal(ctx: &Context) -> Option<StopKey> {
 
 /// The begin hook: applies a pending request and this pass's Tab and F6 moves, then classifies the press.
 pub(crate) fn begin(ctx: &Context, tab_all_controls: bool) {
-    let input =
-        BeginIn { focused: egui_focus::focused(ctx), press: press::press_at(ctx), nav: crate::runtime::keys::take_nav(ctx), tab_all_controls };
+    let input = BeginIn {
+        focused: egui_focus::focused(ctx),
+        press: press::press_at(ctx),
+        nav: crate::runtime::keys::take_nav(ctx),
+        tab_all_controls,
+        frame: crate::runtime::egui::pass::frame_nr(ctx, viewport(ctx)),
+    };
     egui_focus::clear_directional_focus(ctx);
     let (acts, announcements) = with(ctx, |state| nav::begin(state, input));
     apply(ctx, acts);
@@ -422,7 +440,8 @@ pub(crate) fn begin(ctx: &Context, tab_all_controls: bool) {
 /// moves it off a stop that was not registered, and records what the next input hook reads.
 pub(crate) fn end(ctx: &Context) {
     let focused = egui_focus::focused(ctx);
-    let acts = with(ctx, |state| nav::end(state, focused));
+    let frame = crate::runtime::egui::pass::frame_nr(ctx, viewport(ctx));
+    let acts = with(ctx, |state| nav::end(state, focused, frame));
     apply(ctx, acts);
 }
 

@@ -43,6 +43,29 @@ pub struct Activation {
     pub mods: craft_keymap::Mods,
 }
 
+/// The text part's result of a pass as the core holds it: `Cx::text` reads the typed outcome, the response reads
+/// the rest without the value type.
+pub(crate) trait TextResult {
+    /// The modifiers of the Enter that submitted the part this pass; none when it did not submit.
+    fn submit_mods(&self) -> craft_keymap::Mods;
+    fn as_any(&self) -> &dyn Any;
+}
+
+pub(crate) struct RecordedText<V> {
+    pub(crate) outcome: crate::primitives::TextOutcome<V>,
+    pub(crate) submit_mods: craft_keymap::Mods,
+}
+
+impl<V: 'static> TextResult for RecordedText<V> {
+    fn submit_mods(&self) -> craft_keymap::Mods {
+        self.submit_mods
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
 /// The non-generic part of every `Cx`; the step functions take this. It is a read-only output: component code
 /// changes nothing here except through a chapter trait.
 #[non_exhaustive]
@@ -123,7 +146,7 @@ pub struct CxCore<'a> {
     /// What the collection's props allow, for `collection_response`.
     pub(crate) gestures: super::collection::Gestures,
     /// The text part's result of this pass, from step 8b.
-    pub(crate) texts: Option<(PartKey, Box<dyn std::any::Any>)>,
+    pub(crate) texts: Option<(PartKey, Box<dyn TextResult>)>,
     /// Where the text part reserved the surface in the painter, so the field's surface paints beneath its text.
     pub(crate) surface_slot: Option<egui::layers::ShapeIdx>,
     /// The editor part as step 8b set it up.
@@ -676,6 +699,10 @@ pub trait Focus {
     fn take_claimed(&mut self, chord: Chord) -> bool;
     /// The focused part while the component holds focus.
     fn active_part(&self) -> Option<PartRef>;
+    /// The part focus moved onto in this frame (Tab or an arrow into a roving group, a focus request, a click), for
+    /// every pass of the frame; `None` when focus stayed on its part, left the component, or sits on the component
+    /// itself.
+    fn focus_arrived(&self) -> Option<PartRef>;
     /// The component holds key focus.
     fn is_focused(&self) -> bool;
     /// The component holds focus and shows it.
@@ -703,6 +730,11 @@ impl Focus for CxCore<'_> {
 
     fn active_part(&self) -> Option<PartRef> {
         self.active_now()
+    }
+
+    fn focus_arrived(&self) -> Option<PartRef> {
+        let facts = if focus::writes() == self.focus.at { self.focus } else { focus::facts(&self.ctx, self.id) };
+        facts.arrived.filter(|part| self.results.contains_key(&(part.key, part.index)))
     }
 
     fn is_focused(&self) -> bool {
@@ -741,6 +773,10 @@ impl<C: Component> Focus for Cx<'_, C> {
 
     fn active_part(&self) -> Option<PartRef> {
         self.core.active_part()
+    }
+
+    fn focus_arrived(&self) -> Option<PartRef> {
+        self.core.focus_arrived()
     }
 
     fn is_focused(&self) -> bool {
@@ -951,6 +987,7 @@ impl<C: Component> Edit for Cx<'_, C> {
         let mut response = EditResponse::new(self.core.response.clone(), event, self.validity.clone());
         response.escaped = self.core.escaped || matches!(self.events.last(), Some(EditEvent::Cancel { reason: CancelReason::Escape, .. }));
         response.submitted = self.core.submitted;
+        response.submit_mods = self.core.texts.as_ref().map_or(craft_keymap::Mods::NONE, |(_, text)| text.submit_mods());
         response.unparsed = self.core.text_invalid;
         response.shown = match (&self.shown, self.mixed) {
             (_, true) => Some(Mixed::Mixed),
@@ -1330,6 +1367,15 @@ impl<'a> BodyCx<'a> {
     /// state.
     pub fn gap(&self) -> Option<f32> {
         self.owner.map(|owner| owner.gap)
+    }
+}
+
+impl BodyCx<'_> {
+    /// Takes the Escape of this pass that no component took: a field that clears on Escape passes it on once it
+    /// is empty. `true` once per Escape; the enclosing scope (a dialog, a popover) then does not act on it.
+    /// Components shown earlier in the body have run by the time the body asks.
+    pub fn take_cancel(&mut self) -> bool {
+        crate::runtime::keys::scope_escape(self.memory.ctx(), craft_behavior::CancelRule::Ignore, false, false).is_some()
     }
 }
 

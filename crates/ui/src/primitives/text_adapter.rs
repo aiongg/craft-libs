@@ -10,6 +10,7 @@ use crate::runtime::focus::{KeepKeys, KeyUse};
 use crate::runtime::keys::{self, Intents};
 use crate::runtime::{commands, ime};
 use craft_behavior::{EditCommand, EditorInput, Intent, PartKey, TextPos};
+use craft_keymap::Mods;
 use egui::{Context, Id, Pos2, Rect, Ui};
 use std::any::Any;
 use std::sync::Arc;
@@ -17,7 +18,7 @@ use std::sync::Arc;
 /// How a typing run ended, as the adapter saw it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum End {
-    /// Enter.
+    /// Enter, or Cmd/Ctrl+Enter in a multi-line field that submits.
     Submit,
     /// A commit-on character was typed.
     Separator,
@@ -46,6 +47,8 @@ pub(crate) struct TextState {
     /// The draft changed since the typing run last read it.
     pub dirty: bool,
     pub end: Option<End>,
+    /// The modifiers of the Enter that ended the run with `End::Submit`.
+    pub submit_mods: Mods,
     pub invalid: bool,
     /// The text a commit left, shown for the pass after it.
     pub normalised: Option<String>,
@@ -255,6 +258,18 @@ pub(crate) fn select(ctx: &Context, id: Id, anchor: usize, caret: usize) {
     text_edit::select(ctx, id, anchor, caret);
 }
 
+/// The modifiers of the Enter press this pass.
+fn entered_mods(ctx: &Context) -> Mods {
+    let os = crate::runtime::windows::os_of(ctx);
+    ctx.input(|input| {
+        input.events.iter().rev().find_map(|event| match event {
+            egui::Event::Key { key: egui::Key::Enter, pressed: true, modifiers, .. } => Some(Mods::from_egui(modifiers, os)),
+            _ => None,
+        })
+    })
+    .unwrap_or(Mods::NONE)
+}
+
 /// Runs the text widget for one pass.
 pub(crate) fn run(state: &mut TextState, mut input: AdapterIn<'_>) -> AdapterOut {
     let (ctx, widget) = (input.ctx, text_id(input.id, input.key));
@@ -325,8 +340,14 @@ pub(crate) fn run(state: &mut TextState, mut input: AdapterIn<'_>) -> AdapterOut
     let typing = shown.focused && state.preedit.is_none() && !input.read_only;
     let at = state.draft.as_deref().filter(|_| typing).map(|text| (text, caret.unwrap_or_else(|| text.chars().count())));
     state.completions.refresh(input.options.complete.as_deref(), at);
-    if shown.entered && shown.focused && !input.options.multiline() {
+    let submitted =
+        (shown.entered && shown.focused).then(|| entered_mods(ctx)).filter(|mods| !input.options.multiline() || (input.options.submits && mods.cmd));
+    if let Some(mods) = submitted {
         state.end = Some(End::Submit);
+        state.submit_mods = mods;
+        if input.options.multiline() {
+            input.intents.take(Intent::SubmitForce);
+        }
     } else if separated {
         state.end = Some(End::Separator);
     } else if shown.lost_focus && state.draft.is_some() && state.end.is_none() {

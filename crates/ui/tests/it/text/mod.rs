@@ -2,6 +2,7 @@ mod access;
 mod alt_text;
 mod chips;
 mod editor;
+mod field_keys;
 mod fields;
 mod ime;
 mod kit;
