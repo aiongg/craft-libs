@@ -63,6 +63,7 @@ mod table;
 mod tabs;
 mod text;
 mod tile_grid;
+mod tool_fixture;
 mod value_drag;
 mod values;
 mod windows_kit;

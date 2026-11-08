@@ -20,6 +20,10 @@ pub const FREEHAND_RULE: &str = "probe/exempt/freehand-tool";
 /// space.
 pub const DOCUMENT: Size = Size::new(1200.0, 900.0);
 
+/// Where the Escape drag of [`ToolFixture::check`] starts, as a fraction of the canvas from its top left corner: away
+/// from the path of the first drag, which a tool may leave a hit part on.
+const ESCAPE_DRAG_START: Vec2 = Vec2::new(0.25, 0.25);
+
 /// A tool shown on a canvas that fills the fixture's room, with the gesture phases the host reported.
 #[non_exhaustive]
 pub struct ToolFixture<T: CanvasTool + 'static> {
@@ -136,6 +140,18 @@ impl<T: CanvasTool + 'static> ToolFixture<T> {
         self
     }
 
+    /// Hover at `at`, then press and release twice there in successive frames: the runtime's click count reads the
+    /// second press as 2, and the tool sees it as a press with `clicks` 2.
+    pub fn double_press_at(&mut self, at: Pos2) -> &mut Self {
+        self.fixture.frame(vec![pointer::moved(at)]);
+        for _ in 0..2 {
+            self.fixture.frame(vec![pointer::press(at)]);
+            self.fixture.frame(vec![pointer::release(at)]);
+        }
+        self.fixture.frame(Vec::new());
+        self
+    }
+
     /// Moves to `to` in one frame.
     pub fn move_to(&mut self, to: Pos2) -> &mut Self {
         self.fixture.frame(vec![pointer::moved(to)]);
@@ -197,7 +213,7 @@ impl<T: CanvasTool + 'static> ToolFixture<T> {
         self
     }
 
-    /// The checks every tool owes the canvas, on a drag from the middle of the canvas:
+    /// The checks every tool owes the canvas, on a drag from the middle of the canvas and an Escape drag from a quarter of the way in:
     ///
     /// - the tool has a command form: `ToolPath::Command` with a text, or `ToolPath::Freehand` with its named
     ///   exception entry (checked when the lint configuration is readable);
@@ -214,7 +230,8 @@ impl<T: CanvasTool + 'static> ToolFixture<T> {
         assert_eq!(seen.first(), Some(&GesturePhase::Begin), "a drag begins first: {seen:?}");
         assert_eq!(seen.last(), Some(&GesturePhase::Commit), "a drag commits last: {seen:?}");
 
-        let from = self.canvas().center();
+        let canvas = self.canvas();
+        let from = canvas.rect.min + canvas.rect.size() * ESCAPE_DRAG_START;
         self.forget().drag_and_escape_from(from, by);
         let seen = self.gestures();
         assert_eq!(self.count(GesturePhase::Begin), 1, "the drag began once: {seen:?}");
