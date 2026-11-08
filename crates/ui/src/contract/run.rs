@@ -5,6 +5,7 @@ use super::cx::PartsCx;
 use super::steps::{self, MeasureIn, PartsStep, ShapeKind, Step, StopsIn, Trace};
 use super::{
     Activation, BodyCx, Collection, Common, Component, Container, Cx, CxCore, Internal, Meta, OverlayUi, PaintUi, Resolved, Show, TipFn, Validity,
+    ValueOf,
 };
 use super::{Inner, ItemFn};
 use super::{overlay, tooltip};
@@ -65,6 +66,20 @@ impl Host for Inline {
     fn run(&mut self, _: Id, parent: &mut Ui, _: &Env, pass: &mut HostPass<'_>) {
         pass(parent, None, None);
     }
+}
+
+/// Where a measuring run measures: this pass's inputs only, never what an earlier pass recorded.
+pub(crate) struct Measuring<'a, 's> {
+    /// The parent `Ui`: the measuring run lays out in an invisible sizing pass of its own over this `Ui`'s layer.
+    pub ui: &'a Ui,
+    /// Where the room comes from, as at step 5.
+    pub at: ShowAt,
+    /// The width a `Proposal::Width` sets: the room is that wide and unbounded in height.
+    pub width: Option<f32>,
+    pub env: &'a Env,
+    pub scx: &'a StyleCx<'s>,
+    pub resolved: &'a Resolved<'s>,
+    pub command: Option<Arc<crate::runtime::commands::ResolvedCommand>>,
 }
 
 /// What differs by shape. The item step grows through the defaulted hooks at steps 4, 7, 8, 9, 11 and 17 (F6), and
@@ -150,6 +165,13 @@ pub(crate) trait ShapeHooks<C: Component> {
     /// What the shape adds to the content size at step 5, before padding and `min_size`.
     fn extent(&mut self, _comp: &C, _ui: &Ui, _at: ShowAt, _id: Id, _scx: &StyleCx<'_>) -> Vec2 {
         Vec2::ZERO
+    }
+
+    /// What the shape adds to the content size in a measuring run (a sizing pass, or `measure_in`), from this pass's
+    /// inputs only: a body runs its regions in an invisible sizing pass and measures what they took. The default is
+    /// `extent`.
+    fn measured_extent(&mut self, comp: &mut C, at: &Measuring<'_, '_>, cx: &mut Cx<'_, C>) -> Vec2 {
+        self.extent(comp, at.ui, at.at, cx.core.id, at.scx)
     }
 
     /// The width by which the shape's content wants to be wider than the size it measured to, because the room cut
@@ -797,7 +819,13 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
         ShowAt::Rect(rect) => Some(rect.width()),
         ShowAt::Flow => Some(crate::layout::flow_room(ui).x).filter(|width| width.is_finite()),
     };
-    let extent = hooks.extent(&comp, ui, at, id, &scx);
+    // A sizing pass measures the shape from this pass's content; a real pass places by what layout memory holds.
+    let (extent, shown) = if sizing {
+        let measuring = Measuring { ui: &*ui, at, width: None, env, scx: &scx, resolved: &resolved, command: step1.command.clone() };
+        measured_extent(&mut comp, &mut *hooks, &measuring, &mut stage, &style, shown)
+    } else {
+        (hooks.extent(&comp, ui, at, id, &scx), shown)
+    };
     let size = {
         let input = MeasureIn { ui: &*ui, env, proposal: Proposal::Ideal, room };
         steps::measure(&mut comp, &input, &style, &resolved, shown.as_deref(), extent)
@@ -934,6 +962,48 @@ pub(crate) fn show_items<'r, C: Collection>(comp: C, ui: &mut Ui, source: &dyn I
 /// reads memory through a peek, registers no id and applies nothing. `under` is the composite's resolved
 /// `(enabled, size)` when it measures a child it shows with `PaintUi::child`.
 pub(crate) fn measure_under<C: Component>(comp: &mut C, ui: &Ui, id: Option<Id>, proposal: Proposal, under: Option<(bool, ControlSize)>) -> Vec2 {
+    measure_shape(comp, ui, id, proposal, under, &mut LeafHooks { scope: None })
+}
+
+/// Measures a container with `body` as `show` will show it: steps 1 to 5, with the body, header, footer and end
+/// regions run once in an invisible sizing pass under the container's layout.
+pub(crate) fn measure_container<C: Container, R>(
+    comp: &mut C,
+    ui: &Ui,
+    proposal: Proposal,
+    mut body: impl FnMut(&mut Ui, &mut BodyCx<'_>) -> R,
+) -> Vec2 {
+    let mut call = |ui: &mut Ui, cx: &mut BodyCx<'_>| {
+        body(ui, cx);
+    };
+    measure_shape(comp, ui, None, proposal, None, &mut super::body::BodyHooks::new(&mut call))
+}
+
+/// A measuring run's extent: the shape's `measured_extent` under a `Cx` that senses nothing and writes only to the
+/// peek `stage`. Returns the shown value back with it.
+fn measured_extent<C: Component>(
+    comp: &mut C,
+    hooks: &mut dyn ShapeHooks<C>,
+    at: &Measuring<'_, '_>,
+    stage: &mut MemoryStage,
+    style: &C::Style,
+    shown: Option<Arc<ValueOf<C>>>,
+) -> (Vec2, Option<Arc<ValueOf<C>>>) {
+    let response = steps::inert_response(at.ui, at.resolved.id);
+    let core = blank_core(at.env.view(), at.resolved, stage, at.ui.ctx().clone(), at.env.ink, response, at.command.clone());
+    let mut cx = Cx::<C> { core, style, shown, mixed: false, events: Vec::new(), applied: 0, validity: Validity::Ok };
+    let extent = hooks.measured_extent(comp, at, &mut cx);
+    (extent, cx.shown.take())
+}
+
+fn measure_shape<C: Component>(
+    comp: &mut C,
+    ui: &Ui,
+    id: Option<Id>,
+    proposal: Proposal,
+    under: Option<(bool, ControlSize)>,
+    hooks: &mut dyn ShapeHooks<C>,
+) -> Vec2 {
     let env = match under {
         Some((enabled, size)) => super::cx::child_env(&Env::of(ui), enabled, size),
         None => Env::of(ui),
@@ -945,8 +1015,20 @@ pub(crate) fn measure_under<C: Component>(comp: &mut C, ui: &Ui, id: Option<Id>,
     let scx = steps::style_cx(ui.ctx(), &env, &step1);
     let style = steps::style::<C>(ui.ctx(), &scx, comp.style_key());
     let resolved = steps::resolved(id, &step1, &common);
+    let width = match proposal {
+        Proposal::Width(width) => Some(width),
+        Proposal::Ideal | Proposal::Min => None,
+    };
+    // A leaf adds nothing to its own measure, so it opens no stage.
+    let (extent, shown) = if hooks.shape() == ShapeKind::Leaf {
+        (Vec2::ZERO, shown)
+    } else {
+        let mut stage = MemoryStage::open_peek(ui.ctx(), id);
+        let measuring = Measuring { ui, at: ShowAt::Flow, width, env: &env, scx: &scx, resolved: &resolved, command: step1.command.clone() };
+        measured_extent(comp, hooks, &measuring, &mut stage, &style, shown)
+    };
     let input = MeasureIn { ui, env: &env, proposal, room: None };
-    steps::measure(comp, &input, &style, &resolved, shown.as_deref(), Vec2::ZERO)
+    steps::measure(comp, &input, &style, &resolved, shown.as_deref(), extent)
 }
 
 /// The flags a host passes to its faces: the validity of its value. The rest (focus, selection, open) belong to the

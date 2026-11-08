@@ -5,6 +5,7 @@ mod direction;
 mod inactive;
 mod fixes;
 mod hit_order;
+mod measure;
 mod openers;
 mod os_window;
 mod surface;
