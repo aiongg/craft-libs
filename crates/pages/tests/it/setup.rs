@@ -336,6 +336,9 @@ fn a_screen_reader_steps_a_margin() {
     assert!(edges.borrow().margins.left > before, "Increment moves the edge toward the text: {:?}", edges.borrow());
 }
 
+/// The room the page range options are shown in.
+const RANGE_ROOM: Vec2 = Vec2::new(400.0, 200.0);
+
 /// A page range over twelve pages, and the range the options last reported.
 fn range_rig(start: PageRange) -> (Fixture, Rc<RefCell<PageRange>>) {
     let range = Rc::new(RefCell::new(start));
@@ -346,6 +349,7 @@ fn range_rig(start: PageRange) -> (Fixture, Rc<RefCell<PageRange>>) {
             *seen.borrow_mut() = next;
         }
     });
+    fixture.room(RANGE_ROOM);
     fixture.settle();
     (fixture, range)
 }
@@ -431,15 +435,34 @@ fn text_the_field_rejects_refuses_ok() {
     assert_eq!(*answered.borrow(), None, "a Top that is not a length keeps the dialog open");
 }
 
+/// The lines of wheel that scroll the paper list once, and the most steps the trial takes to reach its end.
+const WHEEL_STEP: f32 = 3.0;
+const MOST_WHEEL_STEPS: usize = 20;
+
 #[trial]
 fn custom_size_stays_chosen_while_the_numbers_match_a_paper() {
     let (mut fixture, _, _) = dialog(PageSetup::default());
     let paper = fixture.by_label("Paper size").expect("the paper list");
     fixture.click(&paper);
     fixture.idle(2);
-    // The list shows the papers that fit its height, so the last entry, Custom size, is reached with End.
-    fixture.key(Key::End, Modifiers::NONE);
-    fixture.key(Key::Enter, Modifiers::NONE);
+    // The list shows the papers that fit its height; the wheel brings the last entry, Custom size, into view.
+    let list = fixture.by_role(craft_ui::contract::Role::LIST_BOX).into_iter().next().expect("the open list").rect.center();
+    for _ in 0..MOST_WHEEL_STEPS {
+        if fixture.by_label("Custom size").is_some() {
+            break;
+        }
+        fixture.frame(vec![egui::Event::PointerMoved(list)]);
+        fixture.frame(vec![egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Line,
+            delta: vec2(0.0, -WHEEL_STEP),
+            modifiers: Modifiers::NONE,
+            phase: egui::TouchPhase::Move,
+            source: egui::MouseWheelSource::Unknown,
+        }]);
+        fixture.idle(1);
+    }
+    let custom = fixture.by_label("Custom size").expect("the Custom size row");
+    fixture.click(&custom);
     fixture.idle(2);
     let paper = fixture.by_label("Paper size").expect("the paper list");
     assert_eq!(fixture.tree().value_of(paper.node), Some("Custom size"), "the size is still Letter's");
@@ -460,8 +483,10 @@ fn escape_in_a_width_field_puts_back_the_size_and_the_orientation() {
     fixture.click(&width);
     fixture.key(Key::A, Modifiers::COMMAND);
     fixture.type_text("12");
+    fixture.idle(2);
     assert!(radio_on(&fixture, "Landscape"), "a width past the height turns the page as it is typed");
     fixture.key(Key::Escape, Modifiers::NONE);
+    fixture.idle(2);
     let width = fixture.by_label("Width").expect("the Width field");
     assert_eq!(fixture.tree().value_of(width.node).map(str::to_owned), before, "Escape puts the width back");
     assert!(radio_on(&fixture, "Portrait"), "and the orientation with it");
@@ -472,90 +497,4 @@ fn an_empty_section_names_what_a_click_adds() {
     let (fixture, _) = zones_rig_editing(None);
     assert!(fixture.by_label("Add header").is_some(), "the hint for a header section");
     assert!(fixture.by_label("Add footer").is_some(), "the hint for a footer section");
-}
-
-// TEMPORARY DIAGNOSTICS (removed before the last commit)
-
-fn spin_values(fixture: &mut Fixture) -> Vec<Option<String>> {
-    let fields = fixture.by_role(craft_ui::contract::Role::SPIN_BUTTON);
-    fields.iter().map(|field| fixture.tree().value_of(field.node).map(str::to_owned)).collect()
-}
-
-fn painted(fixture: &Fixture) -> Vec<String> {
-    fixture.texts().iter().map(|text| text.text.clone()).filter(|text| text.chars().any(|c| c.is_ascii_digit())).collect()
-}
-
-#[trial]
-fn zz_diag_range() {
-    let start = PageRange { all: false, from: 3, to: Some(9), subset: Subset::All };
-    let (mut fixture, range) = range_rig(start);
-    let mut log = String::new();
-    let fields = fixture.by_role(craft_ui::contract::Role::SPIN_BUTTON);
-    let to = fields.last().expect("to field");
-    fixture.click(to);
-    log += &format!("click: {:?} {:?} focus {:?} {:?}\n", spin_values(&mut fixture), range.borrow(), fixture.focused_stop(), painted(&fixture));
-    fixture.key(Key::A, Modifiers::COMMAND);
-    log += &format!("select all: {:?} {:?}\n", painted(&fixture), range.borrow());
-    fixture.type_text("99");
-    log += &format!("typed 99: {:?} {:?} {:?}\n", spin_values(&mut fixture), range.borrow(), painted(&fixture));
-    fixture.idle(2);
-    log += &format!("idle: {:?} {:?} {:?}\n", spin_values(&mut fixture), range.borrow(), painted(&fixture));
-    fixture.key(Key::Enter, Modifiers::NONE);
-    fixture.idle(2);
-    log += &format!("enter: {:?} {:?} {:?}\n", spin_values(&mut fixture), range.borrow(), painted(&fixture));
-    let (mut fixture, range) = range_rig(start);
-    let fields = fixture.by_role(craft_ui::contract::Role::SPIN_BUTTON);
-    fixture.click(fields.last().expect("to field"));
-    fixture.key(Key::A, Modifiers::COMMAND);
-    fixture.type_text("1");
-    fixture.idle(1);
-    log += &format!("B typed 1: {:?} {:?}\n", range.borrow(), painted(&fixture));
-    fixture.type_text("1");
-    fixture.idle(2);
-    log += &format!("B typed 11: {:?} {:?}\n", range.borrow(), painted(&fixture));
-    panic!("DIAG range\n{log}");
-}
-
-#[trial]
-fn zz_diag_custom() {
-    let (mut fixture, edited, _) = dialog(PageSetup::default());
-    let mut log = String::new();
-    let paper = fixture.by_label("Paper size").expect("the paper list");
-    log += &format!("start role {:?}\n", fixture.tree().role_of(paper.node));
-    fixture.click(&paper);
-    fixture.idle(2);
-    log += &format!("open: list boxes {} focus {:?}\n", fixture.by_role(craft_ui::contract::Role::LIST_BOX).len(), fixture.focused_stop());
-    fixture.type_text("Custom");
-    fixture.idle(2);
-    log += &format!("typed: focus {:?} {:?}\n", fixture.focused_stop(), painted(&fixture));
-    fixture.key(Key::Enter, Modifiers::NONE);
-    fixture.idle(2);
-    let paper = fixture.by_label("Paper size").expect("the paper list");
-    log += &format!("enter: {:?} {}x{}\n", fixture.tree().value_of(paper.node), edited.borrow().width, edited.borrow().height);
-    panic!("DIAG custom\n{log}");
-}
-
-#[trial]
-fn zz_diag_escape() {
-    let (mut fixture, edited, _) = dialog(PageSetup::default());
-    let mut log = String::new();
-    let width = fixture.by_label("Width").expect("the Width field");
-    fixture.click(&width);
-    log += &format!("click: focus {:?} {:?}\n", fixture.focused_stop(), painted(&fixture));
-    fixture.key(Key::A, Modifiers::COMMAND);
-    fixture.type_text("12");
-    log += &format!("typed 12: {:?} {}x{} {:?}\n", painted(&fixture), edited.borrow().width, edited.borrow().height, edited.borrow().orientation);
-    fixture.idle(2);
-    log += &format!("idle: {:?} {}x{} {:?}\n", painted(&fixture), edited.borrow().width, edited.borrow().height, edited.borrow().orientation);
-    let (mut fixture, edited, _) = dialog(PageSetup::default());
-    let width = fixture.by_label("Width").expect("the Width field");
-    fixture.click(&width);
-    fixture.key(Key::A, Modifiers::COMMAND);
-    fixture.type_text("1");
-    fixture.idle(2);
-    log += &format!("B typed 1: {:?} {}x{}\n", painted(&fixture), edited.borrow().width, edited.borrow().height);
-    fixture.type_text("2");
-    fixture.idle(2);
-    log += &format!("B typed 12: {:?} {}x{}\n", painted(&fixture), edited.borrow().width, edited.borrow().height);
-    panic!("DIAG escape\n{log}");
 }
