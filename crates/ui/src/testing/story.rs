@@ -2,7 +2,7 @@
 
 use super::Fixture;
 use crate::contract::{CollectionEvent, Inner, Outcome, TooltipSpec};
-use craft_behavior::{EditEvent, PartKey, Value};
+use craft_behavior::{EditEvent, PartKey, PartRef, Value};
 use egui::{Id, Response, Ui};
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
@@ -42,6 +42,9 @@ pub enum Drive {
     Step,
     /// A drag of the part by twice the slop along the value axis.
     Drag(PartKey),
+    /// A drag of the part `PartRef` of a component the subject shows inside itself (a colour area's point picker),
+    /// by twice the slop along the value axis.
+    DragChild(PartRef),
     /// Typed text.
     Type(&'static str),
     /// Open, then Down and Enter on the row; a second run clicks the row.

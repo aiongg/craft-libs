@@ -1,6 +1,7 @@
 //! The integration binary of craft-ui: every test is a registered trial.
 
 mod access;
+mod access_selected;
 mod api_map;
 mod bars;
 pub(crate) mod body;
@@ -67,6 +68,7 @@ mod table;
 mod tabs;
 mod text;
 mod tile_grid;
+mod tool_fixture;
 mod value_drag;
 mod values;
 mod windows_kit;

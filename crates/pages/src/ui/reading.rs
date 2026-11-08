@@ -255,7 +255,7 @@ impl<'a> ReadingView<'a> {
 }
 
 impl Component for ReadingView<'_> {
-    const ROLE: Role = Role::GROUP;
+    const ROLE: Role = Role::DOCUMENT;
     const OVERLAYS: bool = false;
     const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_keep(KeepKeys::InlineArrows).with_activate(ActivateKeys::Space).with_moves();
     type Style = ReadingViewStyle;

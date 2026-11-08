@@ -13,6 +13,11 @@ const ICON_UNITS: f32 = 24.0;
 const BADGE_BESIDE: [f32; 2] = [12.0, 12.0];
 /// Half the side of a badge glyph.
 const BADGE_HALF: f32 = 3.5;
+/// The scissors badge: how far its blades' ends sit from the axis, and the radius of its handle rings, as fractions of
+/// `BADGE_HALF`; and the radius of the close badge's circle.
+const SCISSORS_SPREAD: f32 = 0.5;
+const SCISSORS_HANDLE: f32 = 0.35;
+const CLOSE_RADIUS: f32 = 0.8;
 /// The rotate pointer: radius of its arc, half its sweep in radians, and its segment count.
 const TURN_RADIUS: f32 = 12.0;
 const HALF_SWEEP: f32 = 0.75;
@@ -238,6 +243,16 @@ pub(super) fn badge(pen: &Pen<'_>, center: Vec2, badge: CursorBadge) {
             let d = h * std::f32::consts::FRAC_1_SQRT_2;
             vec![Mark::Circle(center, h), Mark::Line(at(-d, d), at(d, -d))]
         }
+        CursorBadge::Scissors => {
+            let (spread, handle) = (h * SCISSORS_SPREAD, h * SCISSORS_HANDLE);
+            vec![
+                Mark::Line(at(h, -spread), at(-h, spread)),
+                Mark::Line(at(h, spread), at(-h, -spread)),
+                Mark::Circle(at(-h, spread), handle),
+                Mark::Circle(at(-h, -spread), handle),
+            ]
+        }
+        CursorBadge::Close => vec![Mark::Circle(center, h * CLOSE_RADIUS)],
         _ => Vec::new(),
     };
     pen.marks(&marks);

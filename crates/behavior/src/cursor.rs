@@ -81,6 +81,10 @@ pub enum CursorBadge {
     Copy,
     /// A not-allowed mark.
     NotAllowed,
+    /// A pair of scissors: the pen's point that cuts a path.
+    Scissors,
+    /// A circle: the pen's point that closes a path.
+    Close,
 }
 
 /// A cursor the overlay host paints. Geometry is in screen points around the pointer (a tool scales its brush

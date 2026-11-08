@@ -92,6 +92,9 @@ pub enum UnitKind {
 }
 
 impl UnitKind {
+    /// The kinds that measure a length, which [`per_inch`](Self::per_inch) answers for: what a length field offers.
+    pub const LENGTHS: [UnitKind; 5] = [UnitKind::Inches, UnitKind::Centimetres, UnitKind::Millimetres, UnitKind::Points, UnitKind::Picas];
+
     const ALL: [UnitKind; 12] = [
         UnitKind::Pixels,
         UnitKind::Percent,

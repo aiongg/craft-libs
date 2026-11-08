@@ -3,18 +3,13 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use craft_behavior::{CancelReason, CanvasView, EditEvent, PointerButton, SelectionChange};
+use craft_behavior::{CancelReason, CanvasView, EditEvent, SelectionChange};
 use craft_review::annotate::{Annotation, AnnotationEdit, AnnotationId, AnnotationKind, AnnotationTool};
 use craft_review::ui::{AnnotateTool, AnnotationToolbar, PALETTE};
-use craft_ui::canvas::{CanvasSpace, CanvasTool as _, ToolContext, ToolPointer};
 use craft_ui::testing::{Fixture, ToolFixture, trial};
-use egui::{Key, Modifiers, Pos2, Rect as ScreenRect, Vec2, pos2, vec2};
+use egui::{Key, Modifiers, Pos2, Rect as ScreenRect, Vec2, vec2};
 use kurbo::{Point, Rect, Vec2 as PageVec};
 
-/// The room the direct drive shows its page in.
-fn room() -> ScreenRect {
-    ScreenRect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 300.0))
-}
 /// How close two page coordinates are when they went through the view and back.
 const SAME: f64 = 1e-3;
 
@@ -164,15 +159,10 @@ fn eraser_reports_one_erase_per_annotation_crossing_a_b_a() {
 fn double_click_on_a_note_opens_it() {
     let mut tool = AnnotateTool::new(AnnotationTool::Select, 0);
     tool.annotations = vec![annotation(9, AnnotationKind::Note, Rect::new(100.0, 100.0, 100.0, 100.0))];
-    let view = view(room());
-    let pos = view.to_screen(Point::new(104.0, 104.0));
-    let context = || ToolContext::new(room(), Some(CanvasSpace::new(view, 1.0)));
-    for clicks in [1, 2] {
-        let pointer = ToolPointer::new(pos, PointerButton::Primary, 0.0).clicks(clicks);
-        tool.press(&pointer, &mut context());
-        tool.release(&pointer, &mut context());
-    }
-    let edits: Vec<AnnotationEdit> = tool.take_edits().iter().filter_map(|edit| edit.value().cloned()).collect();
+    let mut rig = rig(tool);
+    let pos = on_screen(&rig, Point::new(104.0, 104.0));
+    rig.double_press_at(pos);
+    let edits = values(&rig);
     assert!(matches!(&edits[0], AnnotationEdit::Selection(SelectionChange::Set(ids)) if ids == &[AnnotationId(9)]), "{edits:?}");
     assert_eq!(edits[1..], [AnnotationEdit::Open(AnnotationId(9))], "{edits:?}");
 }

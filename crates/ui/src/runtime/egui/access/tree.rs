@@ -379,6 +379,11 @@ impl AccessTree {
         self.lookup(NodeId(key.0)).map(|node| Role::Node(node.role()))
     }
 
+    /// Whether a node by key is reported as selected: `None` for a node that reports no selected state.
+    pub fn selected_of(&self, key: NodeKey) -> Option<bool> {
+        self.lookup(NodeId(key.0))?.is_selected()
+    }
+
     /// The bounds of a node by key, in points.
     pub fn bounds_of(&self, key: NodeKey) -> Option<egui::Rect> {
         let bounds = self.lookup(NodeId(key.0))?.bounds()?;

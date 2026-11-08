@@ -98,6 +98,12 @@ impl<T: Value> EditHistory<T> {
         true
     }
 
+    /// Drops the newest undo step without applying it, for a step that turned out to change nothing (a fill over an
+    /// empty area). The value stays as it is and the redo steps are untouched. False when there is no step.
+    pub fn drop_last(&mut self) -> bool {
+        self.undo.pop().is_some()
+    }
+
     /// The name of the step an undo would take back ("Opacity" for "Undo Opacity").
     pub fn undo_name(&self) -> Option<&str> {
         self.undo.last().map(|entry| &*entry.name)
