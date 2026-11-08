@@ -265,7 +265,7 @@ impl SwatchLibrary {
     /// Applies a reorder of the browser: swatches go into a group at a place, or groups to a place among the
     /// groups. `to` counts in the flat rows (a header, then its swatches) that remain once the moved ones are
     /// taken out. Anything else leaves the library as it is.
-    fn apply_reorder(&mut self, mv: &ReorderMove<SwatchKey>) -> bool {
+    pub fn apply_reorder(&mut self, mv: &ReorderMove<SwatchKey>) -> bool {
         if mv.copy {
             return false;
         }
