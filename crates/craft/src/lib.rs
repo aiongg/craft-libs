@@ -134,8 +134,6 @@ pub mod story {
         all.extend(craft_review::ui::stories());
         #[cfg(feature = "text")]
         all.extend(craft_text::ui::stories());
-        #[cfg(feature = "timeline")]
-        all.extend(craft_timeline::ui::stories());
         all
     }
 }
@@ -169,8 +167,6 @@ pub mod words {
         all.extend(craft_review::ui::WORDS);
         #[cfg(feature = "text")]
         all.extend(craft_text::ui::WORDS);
-        #[cfg(feature = "timeline")]
-        all.extend(craft_timeline::ui::WORDS);
         #[cfg(any(feature = "platform", feature = "dialogs"))]
         all.push(service_messages());
         all
@@ -213,8 +209,6 @@ pub mod words {
         all.push(craft_review::ui::COUNTS);
         #[cfg(feature = "text")]
         all.push(craft_text::ui::COUNTS);
-        #[cfg(feature = "timeline")]
-        all.push(craft_timeline::ui::COUNTS);
         all
     }
 }
