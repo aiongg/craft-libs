@@ -145,7 +145,7 @@ name = "RulerNames"
 old = "craft_ui::canvas::rulers::RulerNames"
 new = ""
 status = "removed"
-note = "The accessible names are words (`canvas.rulerHorizontal`, `canvas.rulerVertical`, `canvas.rulerOrigin`); a host translates them with its word sets."
+note = "The accessible names are words (`rulers.horizontal`, `rulers.vertical`, `rulers.origin`); a host translates them with its word sets."
 
 [[type]]
 name = "RulerTick"
@@ -227,7 +227,7 @@ name = "ScrollbarNames"
 old = "craft_ui::canvas::scrollbars::ScrollbarNames"
 new = ""
 status = "removed"
-note = "The accessible names are words (`canvas.scrollHorizontal`, `canvas.scrollVertical`)."
+note = "The accessible names are words (`canvasScrollbars.horizontal`, `canvasScrollbars.vertical`)."
 
 [[type]]
 name = "ScrollbarsResponse"
@@ -599,7 +599,7 @@ name = "SplitLabels"
 old = "craft_ui::canvas::split::SplitLabels"
 new = ""
 status = "removed"
-note = "Words: `SplitWords` (`canvas.splitView`, `canvas.splitResize`)."
+note = "Words: `SplitWords` (`splitViews.view`, `splitViews.resize`)."
 
 [[type]]
 name = "ToolPill"
@@ -996,7 +996,7 @@ name = "NavigationLabels"
 old = "craft_ui::canvas::navigate::NavigationLabels"
 new = ""
 status = "removed"
-note = "Words: `CanvasWords::rotate_compass` (`canvas.rotateCompass`). Go Back and Go Forward belong to the navigator."
+note = "Words: `CanvasWords::rotate_compass` (`rotateView.compass`). Go Back and Go Forward belong to the navigator."
 
 [[type]]
 name = "MomentaryKeys"

@@ -1,15 +1,15 @@
 //! Built-in words of the rails family.
 
 craft_ui::words! {
-    /// The words of the rails family; each id is prefixed by its module.
+    /// The words of the rails family; each id is `<type>.<name>`.
     pub struct RailWords {
-        tools: "rails.tools" = "Tools";
-        panels: "rails.panels" = "Panels";
-        drawer_title: "rails.drawerTitle" = "Edit Toolbar";
-        drawer_tools: "rails.drawerTools" = "All Tools";
-        drawer_hint: "rails.drawerHint" = "Drag tools to or from the toolbar.";
-        drawer_close: "rails.drawerClose" = "Close";
-        drawer_restore: "rails.drawerRestore" = "Restore Defaults";
-        in_toolbar: "rails.inToolbar" = "In toolbar";
+        tools: "toolRail.name" = "Tools";
+        panels: "panelRail.name" = "Panels";
+        drawer_title: "toolbarDrawer.title" = "Edit Toolbar";
+        drawer_tools: "toolbarDrawer.allTools" = "All Tools";
+        drawer_hint: "toolbarDrawer.hint" = "Drag tools to or from the toolbar.";
+        drawer_close: "toolbarDrawer.close" = "Close";
+        drawer_restore: "toolbarDrawer.restore" = "Restore Defaults";
+        in_toolbar: "toolbarDrawer.inToolbar" = "In toolbar";
     }
 }
