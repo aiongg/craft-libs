@@ -4,7 +4,7 @@
 use super::divider::{self, Divider, Drag};
 use super::{DockSizes, DockWords, Splitter};
 use crate::contract::{
-    Access, Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, Pad, PaintUi, PartsCx, Props as _, Role, Sizing, WordSetCx as _,
+    Access, Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, Pad, PaintUi, PartsCx, Role, Sizing, WordSetCx as _,
 };
 use crate::runtime::focus::KeyUse;
 use crate::style::{ComponentStyle, StyleCx};
