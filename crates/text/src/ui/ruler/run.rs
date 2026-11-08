@@ -100,7 +100,6 @@ impl TextRuler<'_> {
     pub(super) fn run(&mut self, cx: &mut Cx<'_, Self>) {
         let values = cx.value().cloned().unwrap_or_default();
         let layout = self.layout(cx.rect, cx.style, cx.flow.is_rtl());
-        let g = layout.g;
         let numbers = cx.env.units();
         let text = ruler_text(self.unit, numbers.points_per_inch());
         let step = snap_step(&text, self.unit);
