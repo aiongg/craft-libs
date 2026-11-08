@@ -46,10 +46,10 @@ fn diag_rename() {
     f.take_outputs();
     f.key(Key::F2, Modifiers::NONE);
     f.idle(2);
-    out.push_str(&format!("F2 events {:?}\nfocus role {:?}\n", f.take_outputs().into_iter().flat_map(|o| o.collection).collect::<Vec<_>>(), f.tree().role_of(f.tree().focused_key())));
+    out.push_str(&format!("F2 events {:?}\nfocus role {:?}\n", f.take_outputs().into_iter().flat_map(|o| o.collection).collect::<Vec<_>>(), f.tree().role_of(craft_ui::testing::access::focused_key(f.tree()))));
     dump(&f, root.node, 0, &mut out);
     f.key(Key::Enter, Modifiers::NONE);
     f.idle(2);
-    out.push_str(&format!("Enter events {:?}\nfocus role {:?}\n", f.take_outputs().into_iter().flat_map(|o| o.collection).collect::<Vec<_>>(), f.tree().role_of(f.tree().focused_key())));
+    out.push_str(&format!("Enter events {:?}\nfocus role {:?}\n", f.take_outputs().into_iter().flat_map(|o| o.collection).collect::<Vec<_>>(), f.tree().role_of(craft_ui::testing::access::focused_key(f.tree()))));
     panic!("DIAG\n{out}");
 }
