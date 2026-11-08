@@ -12,7 +12,7 @@ name = "AppShell"
 old = "craft_ui::shell::AppShell"
 new = "craft_ui::shell::AppShell"
 status = "same"
-note = "A pattern, `AppShell<'a, S>`: slots and the body are closures taking `(&mut Ui, &mut BodyCx, &mut S)`, each slot is a container on `Mount::Pane`, and `show(ui, &mut S)` returns `AppShellOutput`; `S = ()` for an app with no shared state."
+note = "A pattern, `AppShell<'a, S>`: slots and the body are closures taking `(&mut Ui, &mut BodyCx, &mut S)`, each slot is a container on `Mount::Pane`, and `show(ui, &mut S)` returns `AppShellOutput`; `S = ()` for an app with no shared state. `AppShell::embedded(WindowKey)` shows a shell inside a region of another window: its screen modes act in its region and never on the OS window."
 
 [[type]]
 name = "CanvasShell"
@@ -750,11 +750,6 @@ new = ""
 note = "replaced: a modal `Dialog` keeps the bar draggable itself; see ModalRects."
 
 # Stage-3 cleanup, fshell.
-[[setter]]
-type = "AppShell"
-old = ""
-new = "embedded(WindowKey)"
-note = "A shell shown inside a region of another window: its screen modes act in its region and never on the OS window; its state is keyed by its own `WindowKey`."
 
 [[type]]
 name = "WindowDialogs"
