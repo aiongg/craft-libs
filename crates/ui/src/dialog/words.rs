@@ -43,5 +43,18 @@ craft_ui::words! {
         recovery_message: template "recovery.message" = "“{name}” has unsaved changes from an earlier run, autosaved {age}.";
         recovery_recover: "recovery.recover" = "Recover";
         recovery_discard: "recovery.discard" = "Discard";
+        // full-window parts
+        full_window_title_zoom: template "fullWindowTitle.zoomed" = "{name} ({subject}, {zoom})";
+        full_window_title_subject: template "fullWindowTitle.subject" = "{name} ({subject})";
+        full_window_title_zoom_only: template "fullWindowTitle.zoomOnly" = "{name} ({zoom})";
+        full_window_canvas: "fullWindowCanvas.name" = "Image";
+        full_window_zoom_out: "fullWindowZoomBar.zoomOut" = "Zoom Out";
+        full_window_zoom_in: "fullWindowZoomBar.zoomIn" = "Zoom In";
+        full_window_zoom: "fullWindowZoomBar.zoom" = "Zoom";
+        full_window_fit_in_view: "fullWindowZoomBar.fitInView" = "Fit in View";
+        full_window_updating: "fullWindowStatus.updating" = "Updating preview";
+        full_window_failed: template "fullWindowStatus.failed" = "Preview failed: {error}";
+        full_window_lost: "fullWindowStatus.lost" = "Preview unavailable";
+        // end of full-window parts
     }
 }

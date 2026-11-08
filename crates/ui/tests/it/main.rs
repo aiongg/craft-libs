@@ -24,6 +24,9 @@ mod examples;
 mod focus;
 mod form;
 mod form_dialogs;
+// full-window parts
+mod full_window_parts;
+// end of full-window parts
 mod glossary;
 mod internals;
 mod label;
