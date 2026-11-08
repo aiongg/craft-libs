@@ -14,7 +14,7 @@ use craft_ui::contract::{
     Access, Bind, BindMut, CommandSet, Commands as _, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, Focus as _, Name,
     Outcome, PaintUi, PartsCx, Pointer as _, Props, Remember as _, Role, Sizing, Styled as _, WordSetCx as _,
 };
-use craft_ui::primitives::PaintShape;
+use craft_ui::primitives::{PaintShape, StrokeWidth};
 use craft_ui::runtime::access::Numeric;
 use craft_ui::runtime::commands::CommandState;
 use craft_ui::runtime::env::{AppValues, EnvValue, EnvView, Label};
@@ -22,6 +22,7 @@ use craft_ui::runtime::focus::KeyUse;
 use craft_ui::runtime::motion::{Animate as _, spec};
 use craft_ui::style::{ComponentStyle, RuleKind, ScrollBarLook, StyleColor, StyleCx, SurfaceKind};
 use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
+use std::cell::Cell;
 use std::ops::Deref;
 use std::sync::Arc;
 
@@ -197,6 +198,48 @@ pub struct TimelineViewStyle {
     track: StyleColor,
     /// The sizes of the headers left of the time area.
     sizes: TrackSizes,
+    /// The playhead's line over the panes.
+    playhead: StyleColor,
+    /// The line at the time a drag snapped to.
+    snap: StyleColor,
+    /// The fill and the edge of a marquee.
+    marquee_fill: StyleColor,
+    marquee_edge: StyleColor,
+}
+
+impl TimelineViewStyle {
+    /// The sizes of the tracks and their headers.
+    pub(super) fn sizes(&self) -> TrackSizes {
+        self.sizes
+    }
+}
+
+/// What the panel works out from its panes in a pass and the view draws over them in the same pass, after the body.
+#[derive(Debug, Default)]
+pub(super) struct Overlay {
+    /// The rect the panes fill and the left edge of their lanes.
+    panes: Cell<Option<(Rect, f32)>>,
+    /// The time a drag snapped to.
+    snap: Cell<Option<Tick>>,
+    /// The rectangle of a marquee under way.
+    marquee: Cell<Option<Rect>>,
+}
+
+impl Overlay {
+    /// The panes fill `rect`, their lanes beginning at `lane_left`.
+    pub(super) fn panes(&self, rect: Rect, lane_left: f32) {
+        self.panes.set(Some((rect, lane_left)));
+    }
+
+    /// A drag snapped to `at`.
+    pub(super) fn snapped(&self, at: Option<Tick>) {
+        self.snap.set(at);
+    }
+
+    /// A marquee under way covers `rect`.
+    pub(super) fn marquee(&self, rect: Option<Rect>) {
+        self.marquee.set(rect);
+    }
 }
 
 /// The container around every pane of a timeline. It binds the [`TimeView`] (a proposal of the view is never an undo
@@ -230,6 +273,8 @@ pub struct TimelineView<'a> {
     playhead_edit: Option<EditEvent<Tick>>,
     context_menu: bool,
     anim: Anim,
+    /// What the body reports for the view to draw over it.
+    overlay: Option<&'a Overlay>,
 }
 
 impl<'a> TimelineView<'a> {
@@ -251,8 +296,17 @@ impl<'a> TimelineView<'a> {
             playhead_edit: None,
             context_menu: false,
             anim: Anim::default(),
+            overlay: None,
         }
         .label(label)
+    }
+
+    /// The view draws the playhead's line, the snap line and the marquee the body reports in `overlay` over its body,
+    /// in the pass the body reports them.
+    #[must_use]
+    pub(super) fn overlay(mut self, overlay: &'a Overlay) -> Self {
+        self.overlay = Some(overlay);
+        self
     }
 
     /// How the view follows the playhead at `playhead` while `playing`.
@@ -402,6 +456,10 @@ impl Component for TimelineView<'_> {
             inset: cx.tokens.space.gap.tight,
             track: cx.color(cx.tokens.color.surface.chrome),
             sizes: TrackSizes::of(cx.tokens),
+            playhead: cx.color(cx.tokens.color.accent.solid),
+            snap: cx.color(cx.tokens.color.overlay.line),
+            marquee_fill: cx.color(cx.tokens.color.accent.soft),
+            marquee_edge: cx.color(cx.tokens.color.accent.border),
         }
     }
 
@@ -494,6 +552,27 @@ impl Component for TimelineView<'_> {
         .shrink(style.inset);
         let radius = (thumb.width().min(thumb.height()) / 2.0).clamp(0.0, f32::from(u8::MAX)) as u8;
         draw.fill(&PaintShape::Rect(thumb, CornerRadius::same(radius)), cx.resolve_part(BAR.at(0), &style.look.thumb));
+    }
+
+    /// The lines and the marquee over the panes, after the body has reported them.
+    fn paint_over(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let Some(overlay) = self.overlay else { return };
+        let Some((panes, left)) = overlay.panes.get() else { return };
+        let axis = TimeAxis { view: self.shown(cx), format: self.format, end: self.end };
+        let style = cx.style;
+        let draw = ui.draw();
+        for (at, color) in [(overlay.snap.get(), style.snap), (Some(self.playhead), style.playhead)] {
+            let Some(at) = at else { continue };
+            let x = axis.x_of(at, left);
+            if x >= left && x <= panes.right() {
+                draw.stroke(&PaintShape::Path(vec![Pos2::new(x, panes.top()), Pos2::new(x, panes.bottom())]), StrokeWidth::Thin, color);
+            }
+        }
+        if let Some(swept) = overlay.marquee.get().map(|swept| swept.intersect(panes)).filter(|swept| swept.is_positive()) {
+            let area = PaintShape::Rect(swept, CornerRadius::ZERO);
+            draw.fill(&area, style.marquee_fill);
+            draw.stroke(&area, StrokeWidth::Thin, style.marquee_edge);
+        }
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {

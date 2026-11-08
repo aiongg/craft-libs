@@ -17,9 +17,9 @@ use craft_behavior::{
     PartKey, PressPhase, Selection, SelectionChange, Sense, SizeHint, SpanLayout,
 };
 use craft_ui::contract::{
-    Access, Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, ColumnEvent, ColumnKind, ColumnSpec, Common, Component,
-    ContainerProps, Cx, Edit as _, ItemKeys, ItemOutput, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pointer as _, Props, Remember as _, Role,
-    Scroll, ScrollAnchor, SelectMode, Sizing, Styled as _, ToggleColumn, WordSetCx as _,
+    Access, Bind, BindMut, Collection, CollectionProps, CollectionResponse, ColumnKind, ColumnSpec, Common, Component, ContainerProps, Cx, Edit as _,
+    ItemKeys, ItemOutput, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pointer as _, Props, Remember as _, Role, Scroll, ScrollAnchor, SelectMode,
+    Sizing, Styled as _, ToggleColumn, WordSetCx as _,
 };
 use craft_ui::primitives::{IconSpec, PaintShape, StrokeWidth};
 use craft_ui::runtime::env::Label;
@@ -61,8 +61,6 @@ const SWITCHES: [(ColumnKey, &str, &str); 6] = [
     (SOLO, "solo", "solo"),
 ];
 
-/// The colour strip is this many control heights wide.
-const STRIP_IN_CONTROLS: f32 = 0.25;
 /// How strongly a track's colour label tints its header: a share of the label colour (FilmCraft `TRACK_HEADER_TINT`).
 const HEADER_LABEL_TINT: f32 = 0.18;
 
@@ -82,39 +80,23 @@ pub struct TrackSizes {
     pub most: f32,
     /// One control height: the width of a switch column.
     pub unit: f32,
-    /// The name column's default width.
-    pub name: f32,
-    /// The least the name column can be dragged to.
-    pub name_least: f32,
-    /// The most the name column can be dragged to.
-    pub name_most: f32,
 }
 
 /// A track grows to at most this many heights of a large thumbnail.
 const MOST_IN_THUMBS: f32 = 4.0;
-/// The name column is this many control heights wide by default.
-const NAME_IN_CONTROLS: f32 = 6.0;
 /// The name column's width until the user drags it.
-pub(crate) const NAME_DEFAULT: ColumnWidth = ColumnWidth::Controls(NAME_IN_CONTROLS);
-const NAME_LEAST_IN_CONTROLS: f32 = 3.0;
-const NAME_MOST_IN_CONTROLS: f32 = 12.0;
+pub(crate) const NAME_DEFAULT: ColumnWidth = ColumnWidth::Controls(6.0);
+/// A switch column is one control wide.
+const SWITCH_WIDTH: ColumnWidth = ColumnWidth::Controls(1.0);
+/// The colour strip is a quarter of a control wide.
+const STRIP_WIDTH: ColumnWidth = ColumnWidth::Controls(0.25);
 
 impl TrackSizes {
     /// The sizes the tokens give.
     pub fn of(tokens: &UiTokens) -> TrackSizes {
         let unit = tokens.size.control.md;
         let tall = tokens.size.thumb.lg;
-        TrackSizes {
-            video: tall,
-            audio: tokens.size.thumb.md,
-            caption: unit,
-            least: unit,
-            most: tall * MOST_IN_THUMBS,
-            unit,
-            name: unit * NAME_IN_CONTROLS,
-            name_least: unit * NAME_LEAST_IN_CONTROLS,
-            name_most: unit * NAME_MOST_IN_CONTROLS,
-        }
+        TrackSizes { video: tall, audio: tokens.size.thumb.md, caption: unit, least: unit, most: tall * MOST_IN_THUMBS, unit }
     }
 
     /// The height of a track of `kind` whose own height is `own`: that, or the default of its kind, within the least
@@ -141,19 +123,16 @@ impl TrackSizes {
     }
 
     /// The width of the headers (colour strip, name and the switches) for a name column `name` wide: where the lane
-    /// begins.
+    /// begins. The view reads it before its body has laid the stacks out, so it sums the same column widths the stacks
+    /// declare.
     pub fn header_extent(&self, name: Option<ColumnWidth>) -> f32 {
-        self.unit * (STRIP_IN_CONTROLS + SWITCHES.len() as f32) + self.name_width(name)
-    }
-
-    /// The width of the name column: `name`, else the default, within the least and the most.
-    pub fn name_width(&self, name: Option<ColumnWidth>) -> f32 {
-        let wanted = match name {
-            Some(ColumnWidth::Fixed(width)) => width,
-            Some(ColumnWidth::Controls(count)) => count * self.unit,
-            _ => self.name,
+        let fixed = |width: ColumnWidth| match width.in_unit(self.unit) {
+            ColumnWidth::Fixed(width) => Some(width),
+            _ => None,
         };
-        wanted.clamp(self.name_least, self.name_most)
+        let name = name.and_then(fixed).or_else(|| fixed(NAME_DEFAULT)).unwrap_or(0.0);
+        let switches = SWITCHES.iter().filter_map(|_| fixed(SWITCH_WIDTH));
+        fixed(STRIP_WIDTH).into_iter().chain(Some(name)).chain(switches).sum()
     }
 }
 
@@ -260,8 +239,6 @@ pub struct MovePointer {
     pub y: f32,
     /// The row's rect.
     pub row: Rect,
-    /// The sizes the rows' heights come from.
-    pub sizes: TrackSizes,
 }
 
 impl TrackEvent {
@@ -278,17 +255,12 @@ impl TrackEvent {
     }
 }
 
-/// The style of the stack: the playhead line and the snap line over the rows.
+/// The stack has no look of its own: its rows and the view's overlay draw everything.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 pub struct TrackStackStyle {
     #[style(metrics)]
     metrics: Metrics,
-    playhead: StyleColor,
-    snap: StyleColor,
-    marquee_fill: StyleColor,
-    marquee_edge: StyleColor,
-    sizes: TrackSizes,
 }
 
 /// The tracks of one pane. The video pane keeps its last track nearest the divider by anchoring its scroll at the end.
@@ -300,16 +272,6 @@ pub struct TrackStack {
     #[container]
     props: ContainerProps,
     items: CollectionProps,
-    /// The time the playhead's line is drawn at.
-    #[prop]
-    playhead: Tick,
-    /// The time a gesture snapped to, where the snap line is drawn.
-    #[prop(into)]
-    snapped_at: Option<Tick>,
-    /// The rectangle of a marquee under way, in screen coordinates: the part over this stack is drawn.
-    #[prop(into)]
-    marquee: Option<Rect>,
-    name: Option<ColumnWidth>,
     /// The kind and own height of each track, in order.
     heights: Vec<(TrackKind, Option<f32>)>,
 }
@@ -326,22 +288,18 @@ impl TrackStack {
             _ => words.solo.clone(),
         };
         let mut columns = vec![
-            ColumnSpec::new(STRIP, words.track_color.clone(), ColumnWidth::Controls(STRIP_IN_CONTROLS)),
+            ColumnSpec::new(STRIP, words.track_color.clone(), STRIP_WIDTH),
             ColumnSpec::new(NAME, "", name.unwrap_or(NAME_DEFAULT)).resizable().frozen(),
         ];
         for (key, _, _) in SWITCHES {
             let header = switch_name(&key);
-            columns.push(ColumnSpec::new(key, header, ColumnWidth::Controls(1.0)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())));
+            columns.push(ColumnSpec::new(key, header, SWITCH_WIDTH).kind(ColumnKind::Toggle(ToggleColumn::sweepable())));
         }
         columns.push(ColumnSpec::new(LANE, "", ColumnWidth::fill(1.0)));
         TrackStack {
             common: Common::new(),
             props: ContainerProps::new().sizing(Sizing::Fill).scroll(Scroll::vertical()),
             items: CollectionProps::new().select(SelectMode::None).columns(columns).header(false).item_keys(ItemKeys::Owner),
-            playhead: Tick::ZERO,
-            snapped_at: None,
-            marquee: None,
-            name,
             heights: Vec::new(),
         }
         .label(label)
@@ -371,63 +329,14 @@ impl Component for TrackStack {
     type Style = TrackStackStyle;
     type Output = CollectionResponse<TrackId, TrackEvent>;
 
-    fn style(cx: &StyleCx<'_>, _: TrackStackStyleKey) -> TrackStackStyle {
-        let color = &cx.tokens.color;
-        TrackStackStyle {
-            metrics: Metrics::new(),
-            playhead: cx.color(color.accent.solid),
-            snap: cx.color(color.overlay.line),
-            marquee_fill: cx.color(color.accent.soft),
-            marquee_edge: cx.color(color.accent.border),
-            sizes: TrackSizes::of(cx.tokens),
-        }
+    fn style(_: &StyleCx<'_>, _: TrackStackStyleKey) -> TrackStackStyle {
+        TrackStackStyle { metrics: Metrics::new() }
     }
 
-    /// The playhead's hairline over the rows and the lanes' clips: a part above the items, painted in `paint_over`.
-    fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
-        let Some(axis) = time_axis(&cx.env) else { return };
-        let left = rect.left() + cx.style.sizes.header_extent(self.name);
-        let x = axis.x_of(self.playhead, left);
-        let reach = cx.style.sizes.unit / 2.0;
-        let line = Rect::from_min_max(Pos2::new(x - reach, rect.top()), Pos2::new(x + reach, rect.bottom())).intersect(rect);
-        cx.part(PLAYHEAD, line).over().priority(HitPriority::new(HitLevel::Handle, 0));
-    }
-
-    fn paint_over(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let Some(axis) = time_axis(&cx.env) else { return };
-        let rect = cx.rect;
-        let left = rect.left() + cx.style.sizes.header_extent(self.name);
-        let draw = ui.draw();
-        for (at, color) in [(self.snapped_at, cx.style.snap), (Some(self.playhead), cx.style.playhead)] {
-            let Some(at) = at else { continue };
-            let x = axis.x_of(at, left);
-            if x >= left && x <= rect.right() {
-                draw.stroke(&PaintShape::Path(vec![Pos2::new(x, rect.top()), Pos2::new(x, rect.bottom())]), StrokeWidth::Thin, color);
-            }
-        }
-        if let Some(swept) = self.marquee.map(|swept| swept.intersect(rect)).filter(|swept| swept.is_positive()) {
-            let area = PaintShape::Rect(swept, CornerRadius::ZERO);
-            draw.fill(&area, cx.style.marquee_fill);
-            draw.stroke(&area, StrokeWidth::Thin, cx.style.marquee_edge);
-        }
-    }
-
-    /// The name column's width the user dragged to stays within the least and the most.
-    fn finish(self, mut cx: Cx<'_, Self>) -> Self::Output {
-        let sizes = cx.style.sizes;
-        let mut out = cx.collection_response();
-        for event in &mut out.events {
-            if let CollectionEvent::Column(ColumnEvent::Resized { key, width, .. }) = event
-                && *key == NAME
-            {
-                *width = sizes.name_width(Some(ColumnWidth::Fixed(*width)));
-            }
-        }
-        out
+    fn finish(self, cx: Cx<'_, Self>) -> Self::Output {
+        cx.collection_response()
     }
 }
-
-const PLAYHEAD: PartKey = PartKey::new("playhead");
 
 /// The tracks' source with the heights the tokens resolve.
 struct Heights<'s> {
@@ -529,6 +438,7 @@ impl<'r> TrackRow<'r> {
             top_edge,
             event: TrackEvent::default(),
         }
+        .label(track.name.to_owned())
     }
 
     fn cell(&self, column: &ColumnKey) -> Option<Rect> {
@@ -663,7 +573,7 @@ impl Component for TrackRow<'_> {
             self.event.snapped_at = events.snapped_at;
             self.event.marquee = events.marquee;
             self.event.marquee_ended = events.marquee_ended;
-            self.event.pointer = events.pointer_y.map(|y| MovePointer { y, row: self.row(), sizes });
+            self.event.pointer = events.pointer_y.map(|y| MovePointer { y, row: self.row() });
         }
     }
 
