@@ -10,22 +10,22 @@ use craft_behavior::EditCommand;
 #[non_exhaustive]
 pub enum EditCommands {
     /// Cut the selection.
-    #[command(label = "Cut", modal = "declared", icon = "scissors", default = "Cmd+X")]
+    #[command(label = "Cut", modal = "declared", edit = "cut", icon = "scissors", default = "Cmd+X")]
     Cut,
     /// Copy the selection.
-    #[command(label = "Copy", modal = "declared", icon = "copy", default = "Cmd+C")]
+    #[command(label = "Copy", modal = "declared", edit = "copy", icon = "copy", default = "Cmd+C")]
     Copy,
     /// Paste the clipboard.
-    #[command(label = "Paste", modal = "declared", icon = "clipboard", default = "Cmd+V")]
+    #[command(label = "Paste", modal = "declared", edit = "paste", icon = "clipboard", default = "Cmd+V")]
     Paste,
     /// Select everything.
-    #[command(label = "Select All", modal = "declared", default = "Cmd+A")]
+    #[command(label = "Select All", modal = "declared", edit = "select_all", default = "Cmd+A")]
     SelectAll,
     /// Undo the last edit.
-    #[command(label = "Undo", modal = "declared", icon = "undo", default = "Cmd+Z")]
+    #[command(label = "Undo", modal = "declared", edit = "undo", icon = "undo", default = "Cmd+Z")]
     Undo,
     /// Redo the last undone edit.
-    #[command(label = "Redo", modal = "declared", icon = "redo", default = "Cmd+Shift+Z")]
+    #[command(label = "Redo", modal = "declared", edit = "redo", icon = "redo", default = "Cmd+Shift+Z")]
     Redo,
     /// Delete the selection. Delete and Backspace both bind it (the key labelled Delete on macOS reports Backspace).
     /// It carries no text-edit intent: a text part's own Delete key stays its deletion.

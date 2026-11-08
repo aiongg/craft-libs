@@ -6,6 +6,7 @@ mod library;
 mod registry;
 
 pub use clipboard::{ClipContent, ClipError, ClipItem, ClipboardHandle};
+pub use craft_behavior::EditCommand;
 pub use craft_keymap::{Binding, CommandDef, CommandKind, CommandRef, CommandScope, ModalRule, Platform};
 pub use library::ChromeCommand;
 pub use library::{EditCommands, WindowCommand};
@@ -15,8 +16,8 @@ pub use registry::{COMMAND_SETS, SetEntry};
 
 pub(crate) use board::publish as publish_for;
 pub(crate) use board::{begin, edit_chords, end, install, note_focus, platform, register_instance, set_input, take_fired};
+pub(crate) use board::{declare_child, focus_within, take as take_for_instance, take_around};
 pub(crate) use board::{fire_bound, fire_resolved, resolve_bound, resolve_scoped};
-pub(crate) use board::{focus_within, take as take_for_instance, take_around};
 
 use craft_behavior::CommandFlags;
 use craft_keymap::{Chord, Overrides};
@@ -41,6 +42,11 @@ pub trait CommandSet: Copy + Send + Sync + 'static {
     /// The commands that have no default binding on a platform, as `(id, platform)`.
     #[doc(hidden)]
     fn no_default_on() -> Vec<(&'static str, Platform)>;
+
+    /// The commands a focused component takes as an `Intent::Edit`, as `(id, edit)`: the `edit` option of the
+    /// command's attribute.
+    #[doc(hidden)]
+    fn edits() -> Vec<(&'static str, EditCommand)>;
 
     /// The defaults of one platform, as `(id, platform, binding)`: on that platform they replace the command's other
     /// defaults.
@@ -263,6 +269,11 @@ impl CommandChain {
         self.0.last().map(|(_, id)| *id)
     }
 
+    /// The innermost instance whose scope name `is`.
+    pub(crate) fn innermost_where(&self, mut is: impl FnMut(&str) -> bool) -> Option<Id> {
+        self.0.iter().rev().find(|(s, _)| is(s.name())).map(|(_, id)| *id)
+    }
+
     pub(crate) fn ids(&self) -> impl Iterator<Item = Id> + '_ {
         self.0.iter().map(|(_, id)| *id)
     }
@@ -297,10 +308,16 @@ pub trait Commands: CommandAccess {
     /// not repeat it.
     fn take_command<S: CommandSet>(&mut self) -> Option<(S, Fired)> {
         let chain = self.command_chain();
-        // An app-scope command is declared by the innermost instance around the caller, which a modal layer's
-        // content may be without an app-scope instance of its own.
-        let at = chain.innermost(S::SCOPE.name()).or_else(|| if S::SCOPE == CommandScope::APP { chain.innermost_any() } else { None });
-        board::take(self.command_ctx(), at, S::SCOPE == CommandScope::APP, S::from_ref)
+        let ctx = self.command_ctx();
+        if S::SCOPE != CommandScope::APP {
+            return board::take(ctx, board::innermost(ctx, chain, S::SCOPE.name()), false, S::from_ref);
+        }
+        // An app-scope command an instance declares (`ModalRule::Declared`) is delivered to that instance, the
+        // innermost one around the context that published it. The rest go to the app instance.
+        chain
+            .innermost_any()
+            .and_then(|declaring| board::take(ctx, Some(declaring), false, S::from_ref))
+            .or_else(|| board::take(ctx, board::innermost(ctx, chain, S::SCOPE.name()), true, S::from_ref))
     }
 
     /// `command` as this context shows it: the label, icon and chord with the scoped bindings of the scopes above

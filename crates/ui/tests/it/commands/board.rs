@@ -1,4 +1,4 @@
-use super::kit::{AppCommand, Dock, DockCommand, Field, Opens, PANE, PaneCommand, Tap};
+use super::kit::{AppCommand, Dock, DockCommand, Field, Opens, PANE, PaneCommand, Tap, WORKSPACE, WorkspaceCommand};
 use craft_keymap::Overrides;
 use craft_ui::contract::{CommandSet as _, Props as _, Show as _, ShowContainer as _};
 use craft_ui::runtime::commands::{
@@ -596,4 +596,94 @@ fn undo_in_a_full_window_dialog_follows_what_the_dialog_declares() {
     frames.idle(2, &mut show);
     assert_eq!(undone.get(), 1, "the full-window dialog took the undo");
     assert!(take_output(&frames.ctx).fired.is_empty(), "the application's undo stays blocked");
+}
+
+/// 11.4: a declared edit command is delivered to the instance that declares it. A dialog under the top one, whatever
+/// it takes, does not see the top dialog's undo.
+#[trial]
+fn undo_in_stacked_dialogs_reaches_only_the_dialog_that_declares_it() {
+    use craft_ui::contract::Bind;
+    use craft_ui::dialog::Dialog;
+    use craft_ui::runtime::focus::Initial;
+    use craft_ui::sections::{DialogRole, FooterButton};
+
+    let (lower, top) = (Cell::new(0), Cell::new(0));
+    let mut show = |ui: &mut Ui| {
+        let mut open = true;
+        Dialog::new("Preferences")
+            .opened(Bind::bound(&mut open))
+            .buttons([FooterButton::new("Done", DialogRole::Accept)])
+            .show(ui, |_, cx| lower.set(lower.get() + usize::from(cx.take_command::<EditCommands>().is_some())));
+        let mut open = true;
+        Dialog::new("Shortcuts")
+            .opened(Bind::bound(&mut open))
+            .initial_focus(Initial::First)
+            .buttons([FooterButton::new("Done", DialogRole::Accept)])
+            .show(ui, |_, cx| {
+                cx.publish(EditCommands::Undo, CommandState::new());
+                top.set(top.get() + usize::from(matches!(cx.take_command::<EditCommands>(), Some((EditCommands::Undo, _)))));
+            });
+    };
+    let mut frames = Frames::new();
+    frames.idle(4, &mut show);
+    frames.frame(vec![key_press(Key::Z, Modifiers::COMMAND)], &mut show);
+    frames.idle(2, &mut show);
+    assert_eq!((top.get(), lower.get()), (1, 0), "only the declaring dialog took the undo");
+    assert!(take_output(&frames.ctx).fired.is_empty(), "the application's undo stays blocked");
+}
+
+/// 11.3: a focused component that lists the edit takes it from its own history, whatever the application says about
+/// the command.
+#[trial]
+fn a_focused_field_in_a_dialog_takes_undo_whatever_the_application_says() {
+    use craft_ui::contract::Bind;
+    use craft_ui::dialog::Dialog;
+    use craft_ui::sections::{DialogRole, FooterButton};
+
+    let log = RefCell::new(Vec::<String>::new());
+    let field = Cell::new(None);
+    let mut show = |ui: &mut Ui| {
+        let mut open = true;
+        Dialog::new("Rename").opened(Bind::bound(&mut open)).buttons([FooterButton::new("OK", DialogRole::Accept)]).show(ui, |ui, _| {
+            field.set(Some(Field::new(&log).id_salt("f").show(ui).id));
+        });
+    };
+    let mut frames = Frames::new();
+    frames.commands(CommandInput::new().state(EditCommands::Undo, CommandState::new().enabled(false)));
+    frames.idle(4, &mut show);
+    focus_on(&mut frames, field.get().unwrap(), &mut show);
+    frames.frame(vec![key_press(Key::Z, Modifiers::COMMAND)], &mut show);
+    frames.idle(2, &mut show);
+    assert_eq!(*log.borrow(), ["Undo"], "the field took the undo");
+    assert!(take_output(&frames.ctx).fired.is_empty(), "the application did not");
+}
+
+/// 16.5: a full-window dialog with its own scope receives that scope's chords and the view commands, with the focus
+/// on no control of the body.
+#[trial]
+fn a_full_window_dialog_scope_chains_under_the_view_scope() {
+    use craft_ui::canvas::ViewCommands;
+    use craft_ui::contract::Bind;
+    use craft_ui::dialog::FullWindowDialog;
+
+    let (zoomed, brushed) = (Cell::new(0), Cell::new(0));
+    let mut show = |ui: &mut Ui| {
+        let mut open = true;
+        FullWindowDialog::new("Workspace").opened(Bind::bound(&mut open)).command_scope(WORKSPACE).show(ui, |_, cx| {
+            while let Some((command, _)) = cx.take_command::<ViewCommands>() {
+                zoomed.set(zoomed.get() + usize::from(command == ViewCommands::ZoomIn));
+            }
+            while cx.take_command::<WorkspaceCommand>().is_some() {
+                brushed.set(brushed.get() + 1);
+            }
+        });
+    };
+    let mut frames = Frames::new();
+    frames.idle(4, &mut show);
+    frames.frame(vec![key_press(Key::Equals, Modifiers::COMMAND)], &mut show);
+    frames.idle(2, &mut show);
+    assert_eq!(zoomed.get(), 1, "the zoom chord reaches the dialog");
+    frames.frame(vec![key_press(Key::B, Modifiers::COMMAND | Modifiers::ALT)], &mut show);
+    frames.idle(2, &mut show);
+    assert_eq!(brushed.get(), 1, "the workspace chord reaches it too");
 }

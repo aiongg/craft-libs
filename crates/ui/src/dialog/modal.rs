@@ -9,7 +9,6 @@ use crate::contract::{
 };
 use crate::edit::outer::{self, OuterEnd};
 use crate::runtime::access::Access;
-use crate::runtime::commands::{Commands as _, EditCommands};
 use crate::runtime::env::Label;
 use crate::runtime::focus::Initial;
 use crate::runtime::memory::sub;
@@ -427,8 +426,6 @@ impl Container for Dialog<'_> {
     }
 
     fn footer(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
-        // The edit commands the body left untaken end here: a modal layer keeps them from the document behind it.
-        while cx.take_command::<EditCommands>().is_some() {}
         frame::footer(
             ui,
             cx,

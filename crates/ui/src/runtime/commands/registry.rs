@@ -1,5 +1,6 @@
 //! The registry of command definitions: the sets `#[derive(CommandSet)]` registers, loaded at install.
 
+use craft_behavior::EditCommand;
 use craft_keymap::{Binding, BindingError, CommandDef, Platform};
 use std::collections::{HashMap, HashSet};
 
@@ -14,6 +15,8 @@ pub struct SetEntry {
     pub defs: fn() -> Result<Vec<CommandDef>, CommandDefError>,
     /// The commands of the set without a default binding on a platform.
     pub no_default_on: fn() -> Vec<(&'static str, Platform)>,
+    /// The commands of the set a focused component takes as an edit.
+    pub edits: fn() -> Vec<(&'static str, EditCommand)>,
     /// The defaults of one platform, which replace the command's other defaults there.
     pub platform_defaults: fn() -> Result<Vec<(&'static str, Platform, Binding)>, CommandDefError>,
 }
@@ -24,9 +27,10 @@ impl SetEntry {
         name: fn() -> &'static str,
         defs: fn() -> Result<Vec<CommandDef>, CommandDefError>,
         no_default_on: fn() -> Vec<(&'static str, Platform)>,
+        edits: fn() -> Vec<(&'static str, EditCommand)>,
         platform_defaults: fn() -> Result<Vec<(&'static str, Platform, Binding)>, CommandDefError>,
     ) -> Self {
-        SetEntry { name, defs, no_default_on, platform_defaults }
+        SetEntry { name, defs, no_default_on, edits, platform_defaults }
     }
 }
 
@@ -47,6 +51,7 @@ macro_rules! __register_command_set {
                 ::std::any::type_name::<$ty>,
                 <$ty as $crate::runtime::commands::CommandSet>::defs,
                 <$ty as $crate::runtime::commands::CommandSet>::no_default_on,
+                <$ty as $crate::runtime::commands::CommandSet>::edits,
                 <$ty as $crate::runtime::commands::CommandSet>::platform_defaults,
             );
         };
@@ -110,6 +115,8 @@ pub(crate) struct Registry {
     index: HashMap<String, usize>,
     /// Commands whose default bindings do not apply on a platform.
     no_default: HashSet<(String, Platform)>,
+    /// The commands a focused component takes as an edit, by id.
+    edits: HashMap<String, EditCommand>,
     /// Defaults that one platform has instead of the command's others.
     platform_defaults: Vec<(String, Platform, Binding)>,
 }
@@ -123,6 +130,7 @@ impl Registry {
                 registry.add(def)?;
             }
             registry.no_default.extend((entry.no_default_on)().into_iter().map(|(id, platform)| (id.to_owned(), platform)));
+            registry.edits.extend((entry.edits)().into_iter().map(|(id, edit)| (id.to_owned(), edit)));
             registry
                 .platform_defaults
                 .extend((entry.platform_defaults)()?.into_iter().map(|(id, platform, binding)| (id.to_owned(), platform, binding)));
@@ -141,6 +149,11 @@ impl Registry {
 
     pub(crate) fn get(&self, id: &str) -> Option<&CommandDef> {
         self.index.get(id).map(|&i| &self.defs[i])
+    }
+
+    /// The edit a focused component takes the command `id` as; `None` for a command with no `EditCommand` link.
+    pub(crate) fn edit_of(&self, id: &str) -> Option<EditCommand> {
+        self.edits.get(id).copied()
     }
 
     pub(crate) fn defs(&self) -> &[CommandDef] {
