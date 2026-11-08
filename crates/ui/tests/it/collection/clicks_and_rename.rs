@@ -1,7 +1,7 @@
 //! Which clicks activate a row.
 
 use super::kit::{Dismissed, List, ROW_H, Row, Words};
-use craft_ui::contract::{CollectionEvent, SelectMode, ShowCollection as _};
+use craft_ui::contract::{CollectionEvent, Props as _, SelectMode, ShowCollection as _};
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::{Frames, pointer, trial};
 use egui::{Pos2, Rect, Ui, Vec2};
