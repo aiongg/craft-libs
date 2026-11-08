@@ -138,8 +138,6 @@ pub mod story {
         all.extend(craft_table::ui::stories());
         #[cfg(feature = "text")]
         all.extend(craft_text::ui::stories());
-        #[cfg(feature = "theme-store")]
-        all.extend(craft_theme_store::ui::stories());
         #[cfg(feature = "timeline")]
         all.extend(craft_timeline::ui::stories());
         all
@@ -181,8 +179,6 @@ pub mod words {
         all.extend(craft_table::ui::WORDS);
         #[cfg(feature = "text")]
         all.extend(craft_text::ui::WORDS);
-        #[cfg(feature = "theme-store")]
-        all.extend(craft_theme_store::ui::WORDS);
         #[cfg(feature = "timeline")]
         all.extend(craft_timeline::ui::WORDS);
         #[cfg(any(feature = "platform", feature = "dialogs"))]
