@@ -4,6 +4,7 @@
 
 use super::FooterBar;
 use super::title_row::{HeaderAction, HeaderStrength, MenuRows, TitleRow};
+use super::words::SectionWords;
 use crate::contract::overlay::Popup;
 use crate::contract::{
     Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, FooterRegion, HeaderRegion, NoValue, Outcome, Pad, Props as _, Role,
@@ -176,7 +177,7 @@ impl Container for Panel<'_> {
         }
         self.taken = shown.action.or(self.taken);
         if let Some(rows) = self.menu.as_mut() {
-            self.menu_opener = rows.hang(ui, cx, &shown);
+            self.menu_opener = rows.hang(ui, &shown, cx.words::<SectionWords>().menu.clone());
         }
     }
 

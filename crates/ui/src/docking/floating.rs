@@ -2,23 +2,23 @@
 //!
 //! The group is a movable, resizable container on a layer (or in an OS window) whose rect the caller owns: the
 //! caller places it with the rect the dock model keeps and takes the rect the output reports after each step of
-//! a gesture. The title row carries the active panel's title and the Menu, Float and Close actions; the body step
-//! supplies the move band, the edge grips and the keyboard Move and Size modes.
+//! a gesture. The title row carries the active panel's title and the Menu, Float and Close actions; the Menu action
+//! opens the `menu` rows. The body step supplies the move band, the edge grips and the keyboard Move and Size modes.
 
 use super::drop::{DragUnit, start_group_drag};
-use super::{PanelKey, PanelLimits};
+use super::{DockWords, PanelKey, PanelLimits, native};
 use crate::contract::BodyCx;
-use crate::contract::overlay::{PlacementChange, PlacementKind};
+use crate::contract::overlay::{PlacementChange, PlacementKind, Popup};
 use crate::contract::{
     Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, Inner, Mount, NoValue, Outcome, Overlay, Pad, Props as _, Role,
     Show as _, ShowContainer as _, Sizing, WordSetCx as _,
 };
 use crate::runtime::env::{Env, Label};
 use crate::runtime::windows::WindowSpec;
-use crate::sections::{HeaderAction, HeaderStrength, TitleRow};
+use crate::sections::{HeaderAction, HeaderStrength, MenuRows, TitleRow};
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{GesturePhase, Metrics, Sense};
-use egui::{Rect, Response, Ui, Vec2};
+use egui::{Id, Rect, Response, Ui, Vec2};
 use std::hash::Hash;
 
 #[cfg(feature = "testing")]
@@ -44,11 +44,9 @@ pub struct FloatingGroupOutput {
     /// The last step of a move or resize this pass, with the rect the caller keeps: while the group is minimized
     /// the rect has the height the group has when restored.
     pub placed: Option<PlacementChange>,
-    /// The title row's action part taken this pass. Float, Close and Menu are the host's: the dock model re-docks or
-    /// closes the group, and the host shows the panel menu.
+    /// The title row's action part taken this pass. Float and Close are the host's: the dock model docks or closes
+    /// the group. Menu opens the `menu` rows.
     pub action: Option<HeaderAction>,
-    /// The rect of the Menu action part, for a menu hung under it.
-    pub menu_rect: Option<Rect>,
     /// Whether a double click on the title band asks to minimize the group, or restore it when it is minimized.
     pub minimized_toggled: bool,
 }
@@ -74,12 +72,13 @@ impl Outcome for FloatingGroupOutput {
 /// - Docking: with [`window_of`](FloatingGroup::window_of) set, a move by the title starts a window-unit drag
 ///   (`GroupDrag`) for the dock's `DockDropTarget`, which shows the drop mark and docks the window on release.
 /// - Window: with `native` set the group opens in an OS window of that kind, with the layer as the fallback where
-///   the platform has no windows.
+///   the platform has no windows. The window comes to the front when the user begins to move or resize it.
+/// - Menu: the Menu action and a context request on the title row open the `menu` rows, under the action's part.
 /// - Show it with [`show_group`](FloatingGroup::show_group): the closure fills the body, and is not called while
 ///   the group is minimized.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container)]
-pub struct FloatingGroup {
+pub struct FloatingGroup<'a> {
     #[common]
     common: Common,
     #[container]
@@ -103,20 +102,27 @@ pub struct FloatingGroup {
     /// Opens the group in an OS window of this kind.
     #[prop]
     native: Option<WindowSpec>,
+    /// The rows of the menu the Menu action opens.
+    #[prop(func = "FnMut(&mut Ui, &mut BodyCx<'_>)")]
+    menu: Option<MenuRows<'a>>,
     actions: Vec<HeaderAction>,
     taken: Option<HeaderAction>,
-    menu_rect: Option<Rect>,
+    menu_opener: Option<Id>,
     toggled: bool,
     placed: Option<PlacementChange>,
     /// Starts the window-unit drag; set by `window_of`.
-    start_drag: Option<StartDrag>,
+    start_drag: Option<StartDrag<'a>>,
+    /// Takes the drops released on the group, on the group's own layer.
+    take_drop: Option<TakeDrop<'a>>,
     /// A move by the title began this pass.
     moving: bool,
 }
 
-type StartDrag = Box<dyn for<'a, 'b> FnOnce(&'a mut Cx<'b, FloatingGroup>)>;
+type StartDrag<'a> = Box<dyn for<'b, 'c> FnOnce(&'b mut Cx<'c, FloatingGroup<'a>>) + 'a>;
 
-impl FloatingGroup {
+type TakeDrop<'a> = Box<dyn for<'b, 'c> FnMut(&'b mut Cx<'c, FloatingGroup<'a>>) + 'a>;
+
+impl<'a> FloatingGroup<'a> {
     /// A floating group titled `title` at `rect`, with the Menu, Float and Close actions.
     pub fn new(title: impl Into<Label>, rect: Rect) -> Self {
         let props = ContainerProps::new()
@@ -134,12 +140,14 @@ impl FloatingGroup {
             minimized: false,
             sized: Sizing::Content,
             native: None,
+            menu: None,
             actions: ACTIONS.to_vec(),
             taken: None,
-            menu_rect: None,
+            menu_opener: None,
             toggled: false,
             placed: None,
             start_drag: None,
+            take_drop: None,
             moving: false,
         }
         .label(title)
@@ -151,6 +159,14 @@ impl FloatingGroup {
     pub fn window_of<P: Clone + Hash + Send + Sync + 'static>(mut self, anchor: P) -> Self {
         let active = PanelKey::of(&anchor);
         self.start_drag = Some(Box::new(move |cx| start_group_drag(cx, DragUnit::Window(anchor), active, None)));
+        self
+    }
+
+    /// Runs `take` in the group's update, where a drop target registered through its context takes the drops released
+    /// over the group: the dock's target of the spots the group's panels register, above what lies under the window.
+    #[must_use]
+    pub(crate) fn take_drops(mut self, take: impl for<'b, 'c> FnMut(&'b mut Cx<'c, FloatingGroup<'a>>) + 'a) -> Self {
+        self.take_drop = Some(Box::new(take));
         self
     }
 
@@ -198,7 +214,7 @@ impl FloatingGroup {
     }
 }
 
-impl Component for FloatingGroup {
+impl Component for FloatingGroup<'_> {
     const ROLE: Role = Role::GROUP;
     const PARTS: bool = false;
     const STOPS: bool = false;
@@ -213,27 +229,35 @@ impl Component for FloatingGroup {
         Sense::empty()
     }
 
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        if let Some(mut take) = self.take_drop.take() {
+            take(cx);
+            self.take_drop = Some(take);
+        }
+    }
+
     fn finish(mut self, mut cx: Cx<'_, Self>) -> FloatingGroupOutput {
         if self.moving
             && let Some(start) = self.start_drag.take()
         {
             start(&mut cx);
         }
-        FloatingGroupOutput {
-            response: cx.response.clone(),
-            placed: self.placed,
-            action: self.taken,
-            menu_rect: self.menu_rect,
-            minimized_toggled: self.toggled,
+        if let Some(opener) = self.menu_opener {
+            Popup::toggle(opener, &mut cx);
         }
+        let output = FloatingGroupOutput { response: cx.response.clone(), placed: self.placed, action: self.taken, minimized_toggled: self.toggled };
+        native::raise(&cx.core.ctx, &output);
+        output
     }
 }
 
-impl Container for FloatingGroup {
+impl Container for FloatingGroup<'_> {
     fn header(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         let shown = TitleRow::new(cx.label()).strength(HeaderStrength::Strong).actions(self.actions.iter().copied()).show(ui);
         self.taken = shown.action.or(self.taken);
-        self.menu_rect = shown.menu_rect.or(self.menu_rect);
+        if let Some(rows) = self.menu.as_mut() {
+            self.menu_opener = rows.hang(ui, &shown, cx.words::<DockWords>().panel_menu.clone());
+        }
         self.toggled |= cx.band_double_pressed();
     }
 

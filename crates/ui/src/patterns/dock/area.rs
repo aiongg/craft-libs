@@ -3,6 +3,7 @@
 
 use super::hide::{self, Shown};
 use super::style::DockAreaStyle;
+use crate::contract::overlay::PlacementChange;
 use crate::contract::{
     Bind, BodyCx, Common, Component, Container, ContainerProps, Cx, Entry, NoValue, Outcome, Pad, Pointer as _, Props as _, Role, ShowContainer as _,
     Sizing, WordSetCx as _,
@@ -10,23 +11,26 @@ use crate::contract::{
 use crate::docking::stack::{StackSection, section_heights};
 use crate::docking::tree::{self, FrameRules};
 use crate::docking::{
-    DockColumn, DockConfig, DockDropTarget, DockDropped, DockEvent, DockGroup, DockPanels, DockSizes, DockSpot, DockTargets,
-    DockWords, DragUnit, FloatSpace, FloatingGroup, GroupDrag, HidePanels, IconicColumn, PanelDrag, PanelKey, PanelSpec, PanelTitle, SplitArea,
-    cancel_on_replacement, fit_widths, frame, start_group_drag,
+    DockColumn, DockConfig, DockDropTarget, DockDropped, DockEvent, DockGroup, DockPanels, DockSizes, DockSpot, DockTargets, DockWords, DragUnit,
+    FloatSpace, FloatingGroup, GroupDrag, HidePanels, IconicColumn, PanelDrag, PanelKey, PanelSpec, PanelTitle, SplitArea, cancel_on_replacement,
+    fit_widths, frame, start_group_drag,
 };
+use crate::docking::{DockScene, DockTo, cross_window, desktop, float_drop, move_actions, native};
 use crate::layout_components::Stack;
 use crate::menu::{GroupItem, MenuWords, PanelMenu, PanelRow};
 use crate::runtime::env::{Env, Label, RevealEdge, ShellCx};
 use crate::runtime::memory::{Remember as _, sub};
+use crate::runtime::windows::WindowHost;
 use crate::sections::HeaderAction;
 use crate::style::StyleCx;
 use craft_behavior::dock::{Action, Column, DockEdge, DockError, Group, Layout, Node, Permissions, Placement, Target, Workspace, node_at};
-use craft_behavior::{DockSide, EditEvent, Flow, GesturePhase, Metrics, Mixed, Sense};
+use craft_behavior::{CancelReason, DockSide, EditEvent, Flow, GestureId, GesturePhase, Metrics, Mixed, Sense};
 use egui::{Context, Id, Pos2, Rect, Response, Ui, Vec2};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::sync::Arc;
 
 #[cfg(feature = "testing")]
 mod stories;
@@ -127,17 +131,32 @@ struct AreaMemory<P> {
     previous: Layout<P>,
     /// Where each column's first panel was placed, for `ColumnPlaced`.
     columns: Vec<(P, Rect)>,
+    /// The running move or resize of a floating window.
+    moving: Option<Moving<P>>,
+}
+
+/// A floating window's move or resize as one workspace edit: its gesture and the workspace when it began.
+#[derive(Clone)]
+struct Moving<P> {
+    id: GestureId,
+    before: Workspace<P>,
 }
 
 impl<P> Default for AreaMemory<P> {
     fn default() -> Self {
-        AreaMemory { open: None, reported: None, previous: Layout::default(), columns: Vec::new() }
+        AreaMemory { open: None, reported: None, previous: Layout::default(), columns: Vec::new(), moving: None }
     }
 }
 
 impl<P: Clone> Clone for AreaMemory<P> {
     fn clone(&self) -> Self {
-        AreaMemory { open: self.open.clone(), reported: self.reported.clone(), previous: self.previous.clone(), columns: self.columns.clone() }
+        AreaMemory {
+            open: self.open.clone(),
+            reported: self.reported.clone(),
+            previous: self.previous.clone(),
+            columns: self.columns.clone(),
+            moving: self.moving.clone(),
+        }
     }
 }
 
@@ -258,13 +277,6 @@ impl<P: Clone + Eq + Hash> Scene<'_, P> {
     fn float_rect(&self, panel: &P) -> Rect {
         self.space.place(self.float_size(panel))
     }
-
-    /// The rect of a window torn off at `pointer`: its title row under the pointer, inside the float bounds.
-    fn torn_rect(&self, panel: &P, pointer: Pos2) -> Rect {
-        let size = self.float_size(panel);
-        let min = (pointer - Vec2::new(size.x * 0.5, self.space.title_row * 0.5)).min(self.bounds.max - size).max(self.bounds.min);
-        Rect::from_min_size(min, size)
-    }
 }
 
 /// What the area reports from one pass.
@@ -304,6 +316,9 @@ struct Pass<'s, P> {
     scene: &'s Scene<'s, P>,
     panels: &'s mut dyn DockPanels<P>,
     report: Report<P>,
+    /// The dock whose registry the groups shown now register their drop spots in: the area's, or a floating window's
+    /// own, which takes the drops over that window on the window's layer.
+    dock: Id,
 }
 
 impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
@@ -354,6 +369,7 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
         let Passed { mut actions, events, focused, edit, space } =
             passed.unwrap_or_else(|| Passed { actions: Vec::new(), events: Vec::new(), focused: None, edit: None, space: None });
         if let Some(dropped) = shown.output.dropped {
+            cross_window::accept_cross_window(&ctx);
             actions.push(dropped.action);
         }
         DockAreaOutput { actions, events, focused, error, edit, float_space: space, response: shown.output.response }
@@ -411,13 +427,13 @@ fn show_area<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
             space = space.with_panel_size(panel.clone(), size);
         }
     }
-    let scene =
-        Scene { dock: id, sizes, config, layout, specs: &specs, permissions: rights, keys: &keys, space: &space, bounds, auto_collapse, rtl };
+    let scene = Scene { dock: id, sizes, config, layout, specs: &specs, permissions: rights, keys: &keys, space: &space, bounds, auto_collapse, rtl };
     let open = open_of(&mut flyout, body, &memory);
     let mut pass = Pass {
         scene: &scene,
         panels,
         report: Report { actions: Vec::new(), events: Vec::new(), focused: None, flyout: Vec::new(), placed: Vec::new() },
+        dock: id,
     };
 
     let spec_of = |panel: &P| scene.spec(panel);
@@ -449,10 +465,10 @@ fn show_area<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
         })
     });
     register_bands(&scene, ctx, body.rect);
-    if floating {
-        pass.windows(ui);
-    }
+    let moved = if floating { pass.windows(ui, body) } else { None };
     let mut report = pass.report;
+    let label: Arc<str> = Arc::from(body.words::<DockWords>().move_window.as_str());
+    let edit = edit.or_else(|| moved.and_then(|(anchor, change)| window_edit(ctx, current, rights, &mut memory.moving, &anchor, &change, label)));
 
     for event in report.flyout.drain(..) {
         match flyout.as_mut() {
@@ -603,7 +619,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
         let shown = &members[active];
         let menu = self.menu_rows(body, shown);
         let mut group = DockGroup::new(anchor.clone(), &titles, PanelKey::of(shown))
-            .dock(scene.dock)
+            .dock(self.dock)
             .zones(scene.config.zone_rule())
             .movable(scene.permissions(shown).movable)
             .menu(menu);
@@ -634,7 +650,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
         if let Some(torn) = output.torn_off
             && let Some(panel) = scene.panel(torn.grabbed)
         {
-            self.report.actions.push(Action::float(panel.clone(), scene.torn_rect(panel, torn.pointer)));
+            self.report.actions.push(float_drop(&DragUnit::Panel(panel.clone()), scene.space, torn.pointer).action);
         }
     }
 
@@ -701,17 +717,64 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
         }
     }
 
-    /// The floating windows of the pruned layout, each a `FloatingGroup` holding its tree's groups.
-    fn windows(&mut self, ui: &mut Ui) {
+    /// The floating windows of the pruned layout, each a `FloatingGroup` holding its tree's groups, in an OS window
+    /// where the config, the platform and its panels allow one. A window takes the drops over it on its own layer,
+    /// from the spots its groups register in its own registry. Returns the move or resize of a window in the app window
+    /// this pass, which the area reports as a workspace edit.
+    fn windows(&mut self, ui: &mut Ui, body: &BodyCx<'_>) -> Option<(P, PlacementChange)> {
         let scene = self.scene;
+        let ctx = ui.ctx().clone();
+        let policy = |panel: &P| scene.permissions(panel);
+        let mut moved = None;
         for window in &scene.layout.floating {
             let Some(anchor) = window.panels().next().cloned() else { continue };
-            let spec = scene.spec(&anchor);
-            let group = FloatingGroup::new(spec.label, window.rect)
-                .bounds(scene.bounds)
-                .limits(spec.limits)
+            let active = match &window.root {
+                Node::Tabs { panels, active, .. } => panels.get(*active).cloned().unwrap_or_else(|| anchor.clone()),
+                _ => anchor.clone(),
+            };
+            let specs: Vec<PanelSpec> = window.panels().map(|panel| scene.spec(panel)).collect();
+            let rights: Vec<Permissions> = window.panels().map(|panel| scene.permissions(panel)).collect();
+            let opening = native::opening(&ctx, scene.config, window, &specs, scene.space.title_row);
+            let mut actions = vec![HeaderAction::Menu];
+            if rights.iter().all(|rights| rights.movable) {
+                actions.push(HeaderAction::Float);
+            }
+            if scene.config.close_button && rights.iter().all(|rights| rights.closable) {
+                actions.push(HeaderAction::Close);
+            }
+            let rows = self.menu_rows(body, &active);
+            let picked = Cell::new(None);
+            let dropped = RefCell::new(None);
+            let dock = scene.dock.with(("floating", window.id));
+            let mut target = DockDropTarget::new(&ctx, dock, scene.layout, &policy);
+            target.rtl = scene.rtl;
+            let spec = scene.spec(&active);
+            let mut group = FloatingGroup::new(spec.label, opening.rect)
+                .limits(scene.spec(&anchor).limits)
+                .sized(Sizing::Fill)
                 .minimized(window.minimized)
-                .window_of(anchor.clone());
+                .actions(actions)
+                .window_of(anchor.clone())
+                .take_drops(|cx| {
+                    let taken = cx.drop_target::<GroupDrag<P>, _>(&target).or_else(|| cx.drop_target::<PanelDrag, _>(&target));
+                    if taken.is_some() {
+                        *dropped.borrow_mut() = taken;
+                    }
+                })
+                .id_salt(("floating", window.id));
+            group = match opening.spec.clone() {
+                Some(window_spec) => group.native(window_spec),
+                None => group.bounds(scene.bounds),
+            };
+            if !rows.is_empty() {
+                let picked = &picked;
+                group = group.menu(move |ui, _| {
+                    if let Some(item) = PanelMenu::new(Vec::new(), rows.clone()).show(ui).picked {
+                        picked.set(Some(item));
+                    }
+                });
+            }
+            let area_dock = std::mem::replace(&mut self.dock, dock);
             let shown = group.show_group(ui, |ui, body| {
                 let limits = |panel: &P| scene.spec(panel).limits;
                 let rules = FrameRules::new(&limits);
@@ -720,21 +783,77 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
                     self.leaf(ui, body, frame.node, frame.rect);
                 }
             });
+            self.dock = area_dock;
             let output = shown.output;
-            if let Some(change) = output.placed {
-                self.report.actions.push(Action::move_floating(anchor.clone(), change.rect));
+            if let Some(dropped) = dropped.into_inner() {
+                cross_window::accept_cross_window(&ctx);
+                self.report.actions.push(dropped.action);
+            }
+            if opening.spec.is_some() {
+                let host = WindowHost::of(&ctx);
+                if let Some(facts) = host.viewport_of(output.response.id).and_then(|viewport| host.facts(viewport)) {
+                    let monitors = desktop::monitors(&ctx);
+                    self.report.actions.extend(native::reported(window, facts.outer.unwrap_or(facts.inner), &monitors));
+                }
+            } else if let Some(change) = output.placed {
                 if change.phase == GesturePhase::Commit {
                     self.report.events.push(DockEvent::FloatPlaced { panel: anchor.clone(), rect: change.rect });
                 }
+                moved = Some((anchor.clone(), change));
             }
             match output.action {
                 Some(HeaderAction::Close) => self.report.actions.push(Action::close_window(anchor.clone())),
-                Some(HeaderAction::Float) => self.report.events.push(DockEvent::PanelCommand { panel: anchor.clone(), command: GroupItem::Float }),
+                Some(HeaderAction::Float) => {
+                    let commands = DockScene::new(scene.layout, scene.space, false, &policy);
+                    if let Ok(docked) = move_actions(&commands, &DragUnit::Window(anchor.clone()), DockTo::Docked) {
+                        self.report.actions.extend(docked);
+                    }
+                }
                 _ => {}
+            }
+            if let Some(item) = picked.get() {
+                self.choose(&active, item);
             }
             if output.minimized_toggled {
                 self.report.actions.push(Action::set_minimized(anchor.clone(), !window.minimized));
             }
         }
+        moved
+    }
+}
+
+/// The workspace edit of a floating window's move or resize: the gesture runs from the window's `Begin` to its
+/// `Commit`, so one drag is one undo step. `moving` holds the gesture and the workspace it began on; `rights` are the
+/// panels' permissions with the lock applied, which refuse the move of a locked workspace.
+fn window_edit<P: Clone + Eq + Hash>(
+    ctx: &Context,
+    current: &Workspace<P>,
+    rights: &HashMap<P, Permissions>,
+    moving: &mut Option<Moving<P>>,
+    anchor: &P,
+    change: &PlacementChange,
+    label: Arc<str>,
+) -> Option<EditEvent<Workspace<P>>> {
+    let moved = || {
+        let mut next = current.clone();
+        let policy = |panel: &P| rights.get(panel).copied().unwrap_or(Permissions::ALL);
+        next.apply(Action::move_floating(anchor.clone(), change.rect), false, policy).ok().map(|_| next)
+    };
+    let begin = |moving: &mut Option<Moving<P>>| {
+        let id = crate::runtime::edit::next_gesture_id(ctx);
+        *moving = Some(Moving { id, before: current.clone() });
+        EditEvent::begin(id, Mixed::Same(current.clone()), Arc::clone(&label), None)
+    };
+    match change.phase {
+        GesturePhase::Begin => Some(begin(moving)),
+        GesturePhase::Update => match moving.as_ref() {
+            Some(held) => Some(EditEvent::update(held.id, moved()?)),
+            None => Some(begin(moving)),
+        },
+        GesturePhase::Commit => match moving.take() {
+            Some(held) => Some(EditEvent::commit(held.id, Mixed::Same(held.before), moved()?)),
+            None => Some(EditEvent::set(crate::runtime::edit::next_gesture_id(ctx), Mixed::Same(current.clone()), moved()?, label, None)),
+        },
+        _ => moving.take().map(|held| EditEvent::cancel(held.id, CancelReason::Dismissed, Some(Mixed::Same(held.before)))),
     }
 }

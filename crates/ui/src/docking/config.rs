@@ -90,6 +90,10 @@ pub struct DockConfig {
     pub wheel_selects_tabs: bool,
     /// A middle click on a tab closes its panel when the panel is closable.
     pub middle_click_closes_tabs: bool,
+    /// A floating window the dock model keeps native opens in an OS window of its own where the platform opens
+    /// windows and its panels allow it (`PanelSpec::allow_native`). Off: every floating window shows in the app
+    /// window.
+    pub native_windows: bool,
 }
 
 impl Default for DockConfig {
@@ -110,6 +114,7 @@ impl Default for DockConfig {
             tab_close_buttons: false,
             wheel_selects_tabs: false,
             middle_click_closes_tabs: false,
+            native_windows: false,
         }
     }
 }
@@ -217,6 +222,13 @@ impl DockConfig {
     #[must_use]
     pub fn middle_click_closes_tabs(mut self, on: bool) -> Self {
         self.middle_click_closes_tabs = on;
+        self
+    }
+
+    /// Native floating windows on or off.
+    #[must_use]
+    pub fn native_windows(mut self, on: bool) -> Self {
+        self.native_windows = on;
         self
     }
 

@@ -1,14 +1,17 @@
-//! Native dock windows: where a saved window opens on the connected monitors, what the model records when the OS
+//! Native dock windows: where a saved window opens on the connected monitors, what the dock records when the OS
 //! moves it, which window a palette's level and a drop follow.
 
 use crate::windows_kit::Windows;
 use craft_behavior::Monitor;
-use craft_behavior::dock::{Action, Floating, NativeSpace};
-use craft_ui::docking::native::{reported, restore};
-use craft_ui::docking::{FloatingGroup, native};
+use craft_behavior::dock::{Action, Floating, Layout, NativeSpace, Permissions, Workspace};
+use craft_ui::contract::{Bind, BodyCx};
+use craft_ui::docking::native::restore;
+use craft_ui::docking::{DockConfig, DockPanels, FloatingGroup, PanelSpec, native};
+use craft_ui::patterns::dock::DockArea;
 use craft_ui::runtime::windows::{WindowHost, WindowSpec};
+use craft_ui::testing::memory::global;
 use craft_ui::testing::trial;
-use egui::{Pos2, Rect, Vec2, ViewportBuilder, ViewportId, ViewportInfo};
+use egui::{Pos2, Rect, Ui, Vec2, ViewportBuilder, ViewportId, ViewportInfo};
 
 const BAR: f32 = 24.0;
 const PRIMARY: Rect = Rect { min: Pos2::new(0.0, 0.0), max: Pos2::new(1920.0, 1080.0) };
@@ -44,17 +47,50 @@ fn a_window_saved_on_a_missing_monitor_opens_on_a_connected_one() {
     assert_eq!(restore(&inside, NativeSpace::new(&monitors, BAR)), None, "a window in the app window has no desktop rect");
 }
 
-/// The model records a move the OS made, with the monitor it ended on, and nothing while the OS reports what the
-/// model holds.
+struct Palettes;
+
+impl DockPanels<u32> for Palettes {
+    fn spec(&self, _: &u32) -> PanelSpec {
+        PanelSpec::new(PALETTE_TITLE)
+    }
+
+    fn permissions(&self, _: &u32) -> Permissions {
+        Permissions::ALL
+    }
+
+    fn body(&mut self, _: &u32, _: &mut Ui, _: &mut BodyCx<'_>) {}
+}
+
+/// The dock records a move the OS made to its native window, and nothing while the OS reports what the model holds.
 #[trial]
-fn the_model_records_where_the_os_put_the_window() {
-    let monitors = [monitor("A", PRIMARY), monitor("B", GONE)];
-    let window = native_window();
-    assert!(reported(&window, SAVED, &monitors).iter().all(|action| !matches!(action, Action::SetNative { .. })), "at rest");
-    let moved = SAVED.translate(Vec2::new(-1500.0, 0.0));
-    let actions = reported(&window, moved, &monitors);
-    assert!(actions.contains(&Action::set_native(1, Some(moved))), "{actions:?}");
-    assert!(actions.contains(&Action::set_monitor(1, Some(monitor("A", PRIMARY)), None)), "{actions:?}");
+fn the_dock_records_where_the_os_put_its_native_window() {
+    let windows = Windows::new();
+    windows.root_info(info(true, ROOT_AT));
+    let mut window = Floating::single(vec![1], 0, Rect::from_min_size(Pos2::new(40.0, 40.0), Vec2::new(300.0, 200.0)));
+    window.native = Some(PALETTE_AT);
+    let mut workspace = Workspace::new(Layout::new(None, vec![window]));
+    let mut run = |workspace: &mut Workspace<u32>| {
+        let mut actions = Vec::new();
+        windows.frame(vec![], vec![], |ui| {
+            let config = DockConfig::default().native_windows(true);
+            let shown = DockArea::new(global("native dock", "trial"), Bind::bound(workspace), &mut Palettes, config).show(ui);
+            actions.extend(shown.actions);
+        });
+        for action in &actions {
+            workspace.apply(action.clone(), false, |_| Permissions::ALL).expect("the model takes what the dock reports");
+        }
+        actions
+    };
+    windows.child_info(info(true, PALETTE_AT));
+    for _ in 0..3 {
+        run(&mut workspace);
+    }
+    let rest = run(&mut workspace);
+    assert!(rest.iter().all(|action| !matches!(action, Action::SetNative { .. })), "at rest: {rest:?}");
+    let moved = PALETTE_AT.translate(Vec2::new(-120.0, 40.0));
+    windows.child_info(info(true, moved));
+    let after = run(&mut workspace);
+    assert!(after.contains(&Action::set_native(1, Some(moved))), "the OS move is recorded: {after:?}");
 }
 
 /// A group holding a document panel opens a document window; a tool panel, a palette without a taskbar entry.
