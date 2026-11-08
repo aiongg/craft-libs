@@ -7,9 +7,9 @@ use craft_ui::canvas::canvas_space;
 use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Input, MeasureCx, PaintUi, Props as _, Role, Styled as _,
 };
-use craft_ui::primitives::{DataColor, PaintShape, Revision, StrokeWidth, TextureStore, TextureStoreOptions};
+use craft_ui::primitives::{PaintShape, Revision, StrokeWidth, TextureStore, TextureStoreOptions};
 use craft_ui::runtime::env::Label;
-use craft_ui::style::{ComponentStyle, FocusLook, StyleColor, StyleCx};
+use craft_ui::style::{ComponentStyle, DataColor, FocusLook, StyleColor, StyleCx};
 use egui::epaint::Vertex;
 use egui::{Color32, ColorImage, Mesh, Response, Shape, TextureOptions, Vec2, pos2};
 

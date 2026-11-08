@@ -5,9 +5,9 @@ use craft_behavior::{Axis, Metrics, Sense};
 use craft_theme::Rgba;
 use craft_ui::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role, WordSetCx as _};
 use craft_ui::fonts::FontRef;
-use craft_ui::primitives::{DataColor, DocRun, DocText, PaintShape, StrokeWidth};
+use craft_ui::primitives::{DocRun, DocText, PaintShape, StrokeWidth};
 use craft_ui::runtime::env::Label;
-use craft_ui::style::{ComponentStyle, StyleColor, StyleCx, SurfaceKind};
+use craft_ui::style::{ComponentStyle, DataColor, StyleColor, StyleCx, SurfaceKind};
 use egui::{Align, Color32, CornerRadius, Mesh, Pos2, Rect, Response, Shape, Vec2, vec2};
 
 /// The rings' alpha on `text.faint`.
