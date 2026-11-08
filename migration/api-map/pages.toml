@@ -227,22 +227,40 @@ note = "`craft_ui::words!`."
 [[type]]
 name = "DEFAULT_PAPER"
 old = "craft_pages::ui::style::DEFAULT_PAPER"
-new = "craft_pages::ui::view::DEFAULT_PAPER"
-status = "moved"
-note = "A `DataColor`."
+new = ""
+status = "removed"
+note = "The paper is document data: `PageView::new`, `HeaderFooterZones::new` and `TextFrameMarks::new` take it as a `DataColor`."
 
 [[type]]
 name = "DEFAULT_INK"
 old = "craft_pages::ui::style::DEFAULT_INK"
-new = "craft_pages::ui::view::DEFAULT_INK"
-status = "moved"
-note = "A `DataColor`."
+new = ""
+status = "removed"
+note = "The ink is document data: `HeaderFooterZones::new` takes it as a `DataColor`."
 
 [[setter]]
 type = "PageView"
 old = "name"
 new = "PageView::new(label, ..)"
 note = "The label names the canvas."
+
+[[setter]]
+type = "PageView"
+old = "paper"
+new = "PageView::new(label, source, state, paper)"
+note = "The paper colour of the pages is a `DataColor` the caller gives."
+
+[[setter]]
+type = "HeaderFooterZones"
+old = "paper"
+new = "HeaderFooterZones::new(label, placed, bands, paper, ink)"
+note = "Paper and ink are `DataColor`s the caller gives; no theme default."
+
+[[setter]]
+type = "TextFrameMarks"
+old = "paper"
+new = "TextFrameMarks::new(label, view, frames, color, paper)"
+note = "The port fill is a `DataColor` the caller gives; no theme default."
 
 [[setter]]
 type = "PageView"
