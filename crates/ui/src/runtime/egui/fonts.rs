@@ -25,9 +25,6 @@ pub(crate) fn lay_out_unhinted(ctx: &Context) {
     ctx.all_styles_mut(|style| style.visuals.text_options.font_hinting = false);
 }
 
-/// The size glyph presence is probed at: a glyph is in a face or not at every size.
-const PROBE_SIZE: f32 = 12.0;
-
 /// The context's font providers, in the order egui asks them.
 #[derive(Default)]
 struct Providers(Vec<Arc<dyn FontProvider>>);
@@ -74,7 +71,8 @@ pub(crate) fn has_face(ctx: &Context, name: &str) -> bool {
 
 /// The first of `chars` that the proportional family has no glyph for.
 pub(crate) fn first_without_glyph(ctx: &Context, chars: impl IntoIterator<Item = char>) -> Option<char> {
-    let font = FontId::new(PROBE_SIZE, FontFamily::Proportional);
+    // Whether a face has a glyph does not depend on the size.
+    let font = FontId::default();
     ctx.fonts_mut(|fonts| chars.into_iter().find(|c| !fonts.has_glyph(&font, *c)))
 }
 
@@ -136,7 +134,7 @@ impl GlyphProbe {
 
     /// Whether the faces of `family` have a glyph for `c`.
     pub(crate) fn has(&mut self, family: &FontRef, c: char) -> bool {
-        self.0.has_glyph(&FontId::new(PROBE_SIZE, family.family()), c)
+        self.0.has_glyph(&FontId { family: family.family(), ..FontId::default() }, c)
     }
 
     /// The height of a row of `family` text at `size` points.
