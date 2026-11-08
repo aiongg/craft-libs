@@ -235,9 +235,9 @@ impl<'a> StyleCx<'a> {
     /// The width of `text` set in the face of `role`: the sizes that follow the text (a row header's digit) read it
     /// here instead of borrowing an icon or control size.
     pub fn text_width(&self, role: craft_theme::TypeRole, text: &str) -> f32 {
-        let env =
-            crate::primitives::TextEnv { tokens: self.tokens, direction: self.direction, ink: Color32::PLACEHOLDER, fonts: stack_facts(self.ctx) };
-        crate::primitives::TextRun::new(text).role(role).layout(self.ctx, &env, f32::INFINITY).size().x
+        let font_id = self.tokens.font(stack_facts(self.ctx), role, false);
+        let job = egui::text::LayoutJob::simple_singleline(text.to_owned(), font_id, Color32::PLACEHOLDER);
+        self.ctx.fonts_mut(|fonts| fonts.layout_job(job)).size().x
     }
 
     /// What a surface of `kind` draws.

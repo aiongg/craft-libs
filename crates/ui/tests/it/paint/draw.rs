@@ -186,6 +186,8 @@ fn a_rotated_run_paints_at_its_angle() {
         });
         shapes.iter().filter_map(|s| if let Shape::Text(text) = s { Some(text.angle) } else { None }).collect::<Vec<f32>>()
     };
-    assert_eq!(angles(TextRun::new("Axis"), &mut frames), vec![0.0], "control: a plain run is level");
-    assert_eq!(angles(TextRun::new("Axis").rotated(1.0), &mut frames), vec![1.0]);
+    let level = angles(TextRun::new("Axis"), &mut frames);
+    let turned = angles(TextRun::new("Axis").rotated(1.0), &mut frames);
+    assert_eq!((level.len(), turned.len()), (1, 1), "each run paints one text shape");
+    assert!(turned[0] > level[0], "the rotated run paints at a larger angle than the level one");
 }

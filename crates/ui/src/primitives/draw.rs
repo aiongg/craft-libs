@@ -42,6 +42,7 @@ pub enum StrokeWidth {
 
 /// The lengths of a dashed stroke, in points along the path.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct Dashes {
     /// The length of one dash.
     pub dash: f32,
