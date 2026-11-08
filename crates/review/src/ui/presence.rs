@@ -7,8 +7,8 @@ use craft_theme::variant::Variant;
 use craft_ui::buttons::IconButton;
 use craft_ui::canvas::canvas_space;
 use craft_ui::contract::{
-    Animate as _, Commands as _, Common, Component, Cx, Entry, MeasureCx, NoValue, Outcome, PaintUi, Pattern, Props, Remember as _, Role, Show as _,
-    ShowContainer as _, Trigger, spec,
+    Animate as _, CommandSet as _, Commands as _, Common, Component, Cx, Entry, MeasureCx, NoValue, Outcome, PaintUi, Pattern, Props, Remember as _,
+    Role, Show as _, ShowContainer as _, Trigger, spec,
 };
 use craft_ui::display::Badge;
 use craft_ui::layout_components::{Row, Stack};
@@ -313,7 +313,7 @@ impl Component for RemoteCursor<'_> {
         } else if self.reduced {
             cx.wake_at(at + CHAT_HOLD_S + CHAT_FADE_S);
         } else if age < CHAT_HOLD_S + CHAT_FADE_S {
-            cx.request_repaint();
+            cx.wake_at(now);
         }
     }
 

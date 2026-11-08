@@ -85,7 +85,9 @@ pub fn paint_chat_bubble(ui: &PaintUi<'_>, look: &BubbleLook, tip: Pos2, name: O
         draw.data_fill(&PaintShape::Rect(rect, CornerRadius { nw: 0, ne: round, sw: round, se: round }), DataColor::new(background));
         let mut at = rect.min + look.pad;
         if let Some(title) = &title {
-            draw.faded(NAME_INK, |draw| draw.text(Rect::from_min_size(at, Vec2::new(width, look.caption.1)), title));
+            draw.faded(NAME_INK, |draw| {
+                draw.text(Rect::from_min_size(at, Vec2::new(width, look.caption.1)), title);
+            });
             at.y += head_height;
         }
         draw.text(Rect::from_min_size(at, Vec2::new(width, measured.y)), &body);

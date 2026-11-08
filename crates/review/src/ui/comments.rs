@@ -1415,6 +1415,8 @@ impl CommentsPanel<'_> {
                 }
             });
             let list = out.response.clone();
+            let buttons: Vec<(usize, Response)> =
+                openers.into_iter().filter_map(|(index, opener)| Some((index, out.opener(opener)?.clone()))).collect();
             let group_page = |at: usize| match source.entries.iter().find(|(key, _)| *key == CardKey::Group(at)) {
                 Some((_, RowEntry::Group { page, .. })) => *page,
                 _ => None,
@@ -1452,10 +1454,9 @@ impl CommentsPanel<'_> {
             }
             if let Some(thread) = state.selected.and_then(|selected| threads.iter().find(|thread| thread.id == selected)) {
                 let editable = !read_only && !thread.locked;
-                for (index, opener) in openers {
-                    let Some(button) = out.opener(opener) else { continue };
-                    if let Some(action) = card_menu(ui, &words, button, index, thread, editable) {
-                        apply_menu(action, thread, index, state, &mut edits);
+                for (index, button) in &buttons {
+                    if let Some(action) = card_menu(ui, &words, button, *index, thread, editable) {
+                        apply_menu(action, thread, *index, state, &mut edits);
                     }
                 }
             }
