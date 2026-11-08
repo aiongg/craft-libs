@@ -136,6 +136,7 @@ pub struct SwatchCellStyle {
 
 /// One cell of a [`SwatchTable`]: a touching, square swatch named by its entry and valued by its hex colour.
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
+#[component(sample = SwatchCell::sample)]
 pub struct SwatchCell {
     #[common]
     common: Common,
@@ -146,6 +147,12 @@ impl SwatchCell {
     /// A cell of `color` named `name`.
     pub fn new(name: impl Into<Label>, color: Srgba) -> Self {
         SwatchCell { common: Common::new(), color }.label(name)
+    }
+
+    /// A cell of one colour, for the registry's style measurements.
+    #[cfg(feature = "screen-testing")]
+    fn sample() -> Self {
+        SwatchCell::new("Swatch", Srgba::rgb(0.2, 0.4, 0.8))
     }
 }
 

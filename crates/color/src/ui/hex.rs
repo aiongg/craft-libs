@@ -2,9 +2,6 @@
 //!
 //! The colour's own hex field is `craft_ui::text::HexField`.
 
-#[cfg(feature = "screen-testing")]
-mod stories;
-
 use craft_behavior::{Caret, Codec, NotAValue};
 use craft_ui::contract::Bind;
 use craft_ui::runtime::env::Label;
