@@ -1,6 +1,5 @@
 //! The mock editor: its document logic, and the window's keys and menus.
 
-use craft_behavior::CanvasView;
 use craft_ui::runtime::access::Role;
 use craft_ui::runtime::env::RootEnv;
 use craft_ui::shell::ScreenMode;
@@ -218,8 +217,7 @@ fn canvas(fixture: &Fixture) -> Target {
 fn zoomed_window() -> (Fixture, Rc<RefCell<MockState>>) {
     let (mut fixture, state) = window(MockState::default());
     {
-        let view = &mut state.borrow_mut().document.view;
-        *view = CanvasView { zoom: view.zoom * 4.0, ..*view };
+        state.borrow_mut().document.view.zoom *= 4.0;
     }
     fixture.settle();
     (fixture, state)
