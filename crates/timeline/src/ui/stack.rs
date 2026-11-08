@@ -8,7 +8,7 @@
 
 use super::clips::{ClipLane, ClipLaneEvents, ClipLook};
 use super::view::{TimelineWords, time_axis};
-use super::{LabelPalette, label_palette};
+use super::{DragEvent, LabelPalette, label_palette};
 use crate::clips::ClipEdit;
 use crate::model::{ClipId, TrackId, TrackInfo, TrackKind};
 use crate::time::Tick;
@@ -19,8 +19,8 @@ use craft_behavior::{
 use craft_theme::UiTokens;
 use craft_ui::contract::{
     Access, Bind, BindMut, Collection, CollectionProps, CollectionResponse, ColumnKind, ColumnSpec, Common, Component, ContainerProps, Cx, Edit as _,
-    EditResponse, ItemKeys, ItemOutput, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props, Role, Scroll, ScrollAnchor,
-    SelectMode, Sizing, ToggleColumn, WordSetCx as _,
+    EditResponse, ItemKeys, ItemOutput, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pointer as _, Props, Role, Scroll, ScrollAnchor, SelectMode,
+    Sizing, ToggleColumn, WordSetCx as _,
 };
 use craft_ui::primitives::{IconSpec, PaintShape, StrokeWidth};
 use craft_ui::runtime::env::Label;
@@ -234,7 +234,7 @@ pub struct TrackEvent {
     /// The colour strip was clicked: the app shows the label menu.
     pub label_menu: bool,
     /// A drag of the row's edge, or a double click on the header.
-    pub height: Option<EditEvent<f32>>,
+    pub height: Option<DragEvent<f32>>,
 }
 
 impl TrackEvent {
@@ -421,12 +421,15 @@ pub struct TrackRowStyle {
 
 /// One track: its header in the header cells, its clips as parts of the lane cell.
 #[derive(Component)]
+#[component(content_painter)]
 pub struct TrackRow<'r> {
     #[common]
     common: Common,
     track: &'r TrackInfo<'r>,
     cells: Vec<(ColumnKey, Rect)>,
-    height: Bind<'r, f32>,
+    height: f32,
+    /// The lane's clip gesture: the row's value is a [`ClipEdit`], and the idle value is an edit of no clips.
+    edit: Bind<'r, ClipEdit>,
     lane: ClipLane<'r>,
     above_divider: bool,
     top_edge: bool,
@@ -439,12 +442,22 @@ impl<'r> TrackRow<'r> {
     pub(crate) fn new(
         track: &'r TrackInfo<'r>,
         cells: Vec<(ColumnKey, Rect)>,
-        height: Bind<'r, f32>,
+        height: f32,
         lane: ClipLane<'r>,
         above_divider: bool,
         top_edge: bool,
     ) -> Self {
-        TrackRow { common: Common::new(), track, cells, height, lane, above_divider, top_edge, event: TrackEvent::default() }
+        TrackRow {
+            common: Common::new(),
+            track,
+            cells,
+            height,
+            edit: Bind::given(ClipEdit::Select { clips: Vec::new(), add: false }),
+            lane,
+            above_divider,
+            top_edge,
+            event: TrackEvent::default(),
+        }
     }
 
     fn cell(&self, column: &ColumnKey) -> Option<Rect> {
@@ -493,8 +506,8 @@ impl Component for TrackRow<'_> {
         self.row().size().max(Vec2::ZERO)
     }
 
-    fn bind(&mut self) -> Option<BindMut<'_, f32>> {
-        Some(self.height.reborrow())
+    fn bind(&mut self) -> Option<BindMut<'_, ClipEdit>> {
+        Some(self.edit.reborrow())
     }
 
     fn parts(&mut self, _: Rect, cx: &mut PartsCx<'_, Self>) {
@@ -519,7 +532,8 @@ impl Component for TrackRow<'_> {
             drag(EDGE_TOP, row.top(), cx);
         }
         if let (Some(lane), Some(axis)) = (self.cell(&LANE), time_axis(&cx.env)) {
-            self.lane.parts(lane, &axis, cx);
+            let look = cx.style.clip.clone();
+            self.lane.parts(lane, &axis, &look, cx);
         }
     }
 
@@ -534,21 +548,35 @@ impl Component for TrackRow<'_> {
         }
         let node = access.node(LABEL, Role::BUTTON);
         node.name = Name::Text(words.track_color.as_str().to_owned());
+        if let (Some(lane), Some(axis)) = (self.cell(&LANE), time_axis(&cx.env)) {
+            self.lane.access(access, lane, &axis, &cx.style.clip);
+        }
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        let Some(height) = cx.value().copied() else { return };
         let sizes = cx.style.sizes;
         let sign = if self.above_divider { -1.0 } else { 1.0 };
         for part in [EDGE_BOTTOM, EDGE_TOP] {
             let Some(result) = cx.part_if_declared(part) else { continue };
             let phase = result.press.phase;
+            let height_at = |held: f32, start_y: f32, y: f32| (held + sign * (y - start_y)).clamp(sizes.least, sizes.most);
             match phase {
-                PressPhase::DragStart { .. } => cx.begin(),
-                PressPhase::Drag { start, pos, .. } => {
-                    cx.propose((height + sign * (pos.y - start.origin.y)).clamp(sizes.least, sizes.most));
+                PressPhase::DragStart { .. } => {
+                    *cx.press_slot::<f32>() = Some(self.height);
+                    self.event.height = Some(DragEvent::Begin(self.height));
                 }
-                PressPhase::Release { click: false, .. } => cx.commit(),
+                PressPhase::Drag { start, pos, .. } => {
+                    let held = cx.press_slot::<f32>().unwrap_or(self.height);
+                    self.event.height = Some(DragEvent::Update(height_at(held, start.origin.y, pos.y)));
+                }
+                PressPhase::Release { start, pos, click: false } => {
+                    let held = cx.press_slot::<f32>().take().unwrap_or(self.height);
+                    self.event.height = Some(DragEvent::Commit(height_at(held, start.origin.y, pos.y)));
+                }
+                PressPhase::Cancel { .. } => {
+                    *cx.press_slot::<f32>() = None;
+                    self.event.height = Some(DragEvent::Cancel);
+                }
                 _ => {}
             }
         }
@@ -557,11 +585,11 @@ impl Component for TrackRow<'_> {
         }
         // A double click on the header toggles the height between the two named heights.
         if matches!(cx.part(HEADER).press.phase, PressPhase::Release { start, click: true, .. } if start.clicks == 2) {
-            cx.set(sizes.toggled(height));
+            self.event.height = Some(DragEvent::Set(sizes.toggled(self.height)));
         }
         if let (Some(lane), Some(axis)) = (self.cell(&LANE), time_axis(&cx.env)) {
-            let events: ClipLaneEvents = self.lane.update(lane, &axis, cx);
-            self.event.clip = events.edit;
+            let look = cx.style.clip.clone();
+            let events: ClipLaneEvents = self.lane.update(lane, &axis, &look, cx);
             self.event.select = events.select;
             self.event.unlinked = events.unlinked;
             self.event.open = events.open;
@@ -606,9 +634,8 @@ impl Component for TrackRow<'_> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> TrackOut {
-        let height = cx.edit_response();
         let mut event = self.event;
-        event.height = height.event;
+        event.clip = cx.edit_response().event;
         TrackOut { response: cx.response.clone(), event: (!event.is_empty()).then_some(event) }
     }
 }
@@ -643,7 +670,7 @@ pub struct TrackOut {
 }
 
 impl Outcome for TrackOut {
-    type Value = NoValue;
+    type Value = ClipEdit;
 
     fn response(&self) -> &Response {
         &self.response

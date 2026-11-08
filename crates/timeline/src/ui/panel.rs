@@ -2,12 +2,12 @@
 //! caption, video and audio panes as three [`TrackStack`]s in one [`TimelineView`], over the app's [`TimelineModel`].
 //! Every change the user makes comes out as a [`TimelineEdit`].
 
-use super::TimecodeField;
 use super::clips::{ClipContent, ClipLane, TimelineTool};
-use super::markers::{MarkerEdit, MarkerStrip};
+use super::markers::{MarkerEdit, MarkerSpan, MarkerStrip};
 use super::ruler::TimelineRuler;
 use super::stack::{LOCK, MUTE, NAME, OUTPUT, SOLO, SYNC_LOCK, Side, TARGET, TrackEvent, TrackRow, TrackSizes, TrackStack, Tracks, set_event};
 use super::view::{TimelineView, TimelineWords};
+use super::{DragEvent, TimecodeField};
 use crate::clips::{ClipEdit, SnapTargets};
 use crate::clock::FollowMode;
 use crate::markers::{Marker, MarkerColor};
@@ -54,8 +54,10 @@ pub enum TimelineEdit {
     Clip(EditEvent<ClipEdit>),
     /// A playhead drag or click, as a new time.
     Playhead(EditEvent<Tick>),
-    /// A drag of the work area's range; `None` clears it.
-    WorkArea(EditEvent<Option<TimeRange>>),
+    /// A drag of the work area's range, or the span a double click sets.
+    WorkArea(DragEvent<TimeRange>),
+    /// A marker was dragged: where it is, as the strip's gesture.
+    MarkerSpan(EditEvent<MarkerSpan>),
     /// A marker gesture.
     Marker(MarkerEdit),
     /// A header switch was clicked; `value` is the new state. Alt-click on Solo or Mute (exclusive) arrives with
@@ -83,7 +85,7 @@ pub enum TimelineEdit {
         /// The track that is resized.
         track: TrackId,
         /// The new height, in points.
-        height: EditEvent<f32>,
+        height: DragEvent<f32>,
     },
     /// The name column dragged: its new width in points. A view setting the app keeps beside the `TimeView`, never in
     /// undo.
@@ -265,16 +267,19 @@ impl Panes<'_, '_> {
         stack.show_items(ui, &source, &mut |key, icx| {
             let at = pane.iter().position(|track| track.id == *key).unwrap_or(0);
             let track = &pane[at];
-            let lane = ClipLane::new(track.id, &self.clips[indices[at]])
+            let lane = ClipLane::new(&self.clips[indices[at]])
                 .tool(self.tool)
                 .no_modifier_trims(self.no_modifier_trims)
                 .snap(self.targets)
                 .locked(track.locked.unwrap_or(false))
                 .selection(self.selection)
-                .track_label(track.label)
-                .content(self.content);
+                .track_label(track.label);
+            let lane = match self.content {
+                Some(content) => lane.content(content.clone()),
+                None => lane,
+            };
             let height = self.sizes.height_of(track);
-            TrackRow::new(track, icx.cells().to_vec(), Bind::given(height), lane, side == Side::Upper, side == Side::Upper && at == 0)
+            TrackRow::new(track, icx.cells().to_vec(), height, lane, side == Side::Upper, side == Side::Upper && at == 0)
         })
     }
 }
@@ -425,17 +430,25 @@ impl<M: TimelineModel> Timeline<'_, M> {
                 .show(ui, |ui, cx| {
                     TopStrip::new(extent).show(ui, |ui, _| {
                         Stack::new().show(ui, |ui, _| {
-                            let field = TimecodeField::new(words.panel.clone(), Bind::given(playhead), format).large().show(ui);
+                            let field = TimecodeField::new(words.panel.clone(), Bind::given(playhead), format).show(ui);
                             timecode_edit = field.edit.event;
                             toolbar = toolbar_row(ui, &words, snap, linked_selection, markers, playhead);
                         });
                         Stack::new().show(ui, |ui, _| {
-                            let strip = MarkerStrip::new(words.overview.clone(), markers).snap(snap).show(ui);
+                            let strip = MarkerStrip::new(words.overview.clone(), markers);
+                            let strip = match shared.targets {
+                                Some(targets) => strip.snap(targets),
+                                None => strip,
+                            };
+                            let strip = strip.show(ui);
+                            ruler_edits.extend(strip.span.event.clone().map(TimelineEdit::MarkerSpan));
                             ruler_edits.extend(strip.edits.into_iter().map(TimelineEdit::Marker));
-                            let ruler = TimelineRuler::new(words.overview.clone(), Bind::given(playhead))
-                                .in_out((mark_in, mark_out))
-                                .work_area(Bind::given(work_area))
-                                .show(ui);
+                            let ruler = TimelineRuler::new(words.overview.clone(), Bind::given(playhead)).in_out((mark_in, mark_out));
+                            let ruler = match work_area {
+                                Some(range) => ruler.work_area(range),
+                                None => ruler,
+                            };
+                            let ruler = ruler.show(ui);
                             ruler_edits.extend(ruler.playhead.event.map(TimelineEdit::Playhead));
                             ruler_edits.extend(ruler.work_area.event.map(TimelineEdit::WorkArea));
                         });

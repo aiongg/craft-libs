@@ -7,8 +7,7 @@ use std::cmp::Ordering;
 use crate::model::{ClipId, TrackId};
 use crate::time::{Tick, TimeRange, TimeView};
 
-/// The hit sizes of clip edges, in points: the widgets pass the `timeline.edge_zone` and
-/// `timeline.roll_zone` tokens (`TimelineStyle` in `craft_timeline::ui`).
+/// The hit sizes of clip edges, in points: the widgets pass the edge and roll zones of their look.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct EdgeZones {
     /// The widest an edge zone gets on each side of a clip edge; at most a third of the clip's

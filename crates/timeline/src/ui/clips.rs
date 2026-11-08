@@ -344,7 +344,7 @@ impl<'a> ClipLane<'a> {
     }
 
     /// One AccessKit button per visible clip.
-    pub fn access<C: Component>(&self, access: &mut Access, lane: Rect, axis: &TimeAxis, look: &ClipLook) {
+    pub fn access(&self, access: &mut Access, lane: Rect, axis: &TimeAxis, look: &ClipLook) {
         let geometry = self.geometry(axis, lane, look);
         for clip in self.clips.iter().filter(|clip| geometry.body(clip).is_some()) {
             let node = access.node(CLIP.at(clip.id.0), craft_ui::contract::Role::BUTTON);

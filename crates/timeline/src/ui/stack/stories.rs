@@ -2,7 +2,7 @@
 
 use super::{TrackRow, TrackSizes, TrackStack, Tracks};
 use crate::model::{TrackId, TrackInfo, TrackKind};
-use craft_ui::contract::{Bind, ShowCollection as _};
+use craft_ui::contract::ShowCollection as _;
 use craft_ui::runtime::env::Env;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
@@ -33,8 +33,8 @@ fn stack(ui: &mut Ui, names: &[&str]) -> StoryOutput {
     TrackStack::new("Tracks", sizes.name_width(None), &words)
         .show_items(ui, &source, &mut |key, icx| {
             let at = tracks.iter().position(|t| t.id == *key).unwrap_or(0);
-            let lane = crate::ui::clips::ClipLane::new(*key, &none);
-            TrackRow::new(&tracks[at], icx.cells().to_vec(), Bind::given(sizes.height_of(&tracks[at])), lane, false, false)
+            let lane = crate::ui::clips::ClipLane::new(&none);
+            TrackRow::new(&tracks[at], icx.cells().to_vec(), sizes.height_of(&tracks[at]), lane, false, false)
         })
         .into()
 }
