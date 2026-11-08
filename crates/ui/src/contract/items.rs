@@ -1024,9 +1024,8 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     let request = self.menu_request(layout, Placement { rect, offset, rtl }, row, local(pos));
                     self.events.push(CollectionEvent::ContextMenu(request));
                 }
-                // The press stayed within slop of where it started, whether or not the root senses a click.
                 if let Some(key) = self.drags.rename.take()
-                    && pos.distance(start.origin) <= crate::runtime::pointer::frame(&ctx).slop
+                    && click
                     && let Some(at) = self.index_of(&key)
                 {
                     self.begin_rename(cx, at);

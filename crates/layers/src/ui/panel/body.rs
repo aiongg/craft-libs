@@ -358,6 +358,7 @@ fn map_events<T: LayerTree>(
         })
         .collect();
 
+    let mut toggle_label: Arc<str> = Arc::from("");
     for event in list {
         match event {
             CollectionEvent::Selection(change) => {
@@ -420,7 +421,7 @@ fn map_events<T: LayerTree>(
                 }
             }
             CollectionEvent::Reorder(edit) => events.extend(drop_event(edit, order, parent_of, filtered)),
-            CollectionEvent::Toggle(edit) => toggle_events(edit, &mut session.sweep, events),
+            CollectionEvent::Toggle(edit) => toggle_events(edit, &mut session.sweep, &mut toggle_label, events),
             CollectionEvent::Rename(edit) => {
                 if let EditEvent::Commit { after, .. } | EditEvent::Set { after, .. } = edit
                     && let LayerRowKey::Layer(id) = &after.key
@@ -485,33 +486,60 @@ fn column_of(column: &ColumnKey) -> LayerColumn {
     if *column == EYE { LayerColumn::Visibility } else { LayerColumn::Lock }
 }
 
-/// One flipped cell of an eye or lock sweep as an event. The list reports each cell a sweep crosses as its own edit; the
-/// cells of one sweep share the gesture of its first, and the cells of one pass share one event, in the order crossed.
-/// Alt on the first press of an eye sweep shows only that layer and drops the rest of the sweep.
+/// The cells of an eye or lock sweep as events. The list reports each cell a sweep crosses as a gesture of its own,
+/// opened by a `Begin` (which names the gesture in `label`), given its value by an `Update` and ended by a `Commit` on
+/// release or a `Cancel` on Escape. The cells of one sweep share the gesture of its first, and the cells of one pass
+/// share one event, in the order crossed; an Escape reports each cell with the state it had before. Alt on the first
+/// press of an eye sweep shows only that layer and drops the rest of the sweep.
 fn toggle_events<Id: Clone + PartialEq>(
     edit: EditEvent<craft_ui::contract::ToggleEdit<LayerRowKey<Id>>>,
     sweep: &mut Option<ToggleSweep>,
+    label: &mut Arc<str>,
     events: &mut Vec<LayersEvent<Id>>,
 ) {
-    let EditEvent::Set { id, after, label, .. } = edit else { return };
-    let column = column_of(&after.column);
-    if sweep.as_ref().is_none_or(|running| running.column != column) {
-        let show_only = after.mods.alt && column == LayerColumn::Visibility;
-        *sweep = Some(ToggleSweep { gesture: id, column, show_only });
-        if show_only {
-            events.push(LayersEvent::ShowOnly(after.key));
-            return;
+    match edit {
+        EditEvent::Begin { label: named, .. } => *label = named,
+        EditEvent::Update { id, value, .. } => {
+            let column = column_of(&value.column);
+            if sweep.as_ref().is_none_or(|running| running.column != column) {
+                let show_only = value.mods.alt && column == LayerColumn::Visibility;
+                *sweep = Some(ToggleSweep { gesture: id, column, show_only });
+                if show_only {
+                    events.push(LayersEvent::ShowOnly(value.key));
+                    return;
+                }
+            }
+            let Some(running) = sweep.as_ref().filter(|running| !running.show_only) else { return };
+            let edit = EditEvent::set(running.gesture, Mixed::Same(!value.on), value.on, label.clone(), None);
+            push_cell(events, running.gesture, value.key, column, edit);
         }
+        EditEvent::Cancel { reason, before: Some(Mixed::Same(before)), .. } => {
+            let column = column_of(&before.column);
+            let Some(running) = sweep.as_ref().filter(|running| !running.show_only && running.column == column) else { return };
+            let edit = EditEvent::cancel(running.gesture, reason, Some(Mixed::Same(before.on)));
+            push_cell(events, running.gesture, before.key, column, edit);
+        }
+        _ => {}
     }
-    let Some(running) = sweep.as_ref().filter(|running| !running.show_only) else { return };
+}
+
+/// Adds `key` to the last toggle event when it belongs to the gesture `gesture` and has the same kind, and starts a
+/// new event otherwise.
+fn push_cell<Id: Clone + PartialEq>(
+    events: &mut Vec<LayersEvent<Id>>,
+    gesture: GestureId,
+    key: LayerRowKey<Id>,
+    column: LayerColumn,
+    edit: EditEvent<bool>,
+) {
     if let Some(LayersEvent::Toggle(last)) = events.last_mut()
-        && last.edit.id() == running.gesture
+        && last.edit.id() == gesture
+        && std::mem::discriminant(&last.edit) == std::mem::discriminant(&edit)
     {
-        last.rows.push(after.key);
+        last.rows.push(key);
         return;
     }
-    let edit = EditEvent::set(running.gesture, Mixed::Same(!after.on), after.on, label, None);
-    events.push(LayersEvent::Toggle(LayerToggle::new(vec![after.key], column, edit)));
+    events.push(LayersEvent::Toggle(LayerToggle::new(vec![key], column, edit)));
 }
 
 /// Opens the rename field of `layer`'s row in the list `list`.

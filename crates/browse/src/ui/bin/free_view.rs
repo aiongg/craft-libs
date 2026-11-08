@@ -71,9 +71,10 @@ where
             CollectionEvent::Activate(key) => events.push(open_event(model, key, mods.cmd, mods.shift || mods.alt)),
             CollectionEvent::ContextMenu(request) => events.push(BinEvent::ContextMenu(request)),
             CollectionEvent::Delete(keys) => events.push(BinEvent::Remove(keys)),
-            CollectionEvent::Dropped { key: Some(key), keys, .. } => {
-                if let Some(items) = drop_items(model, Some(&key), &keys) {
-                    events.push(BinEvent::Drop { items, into: Some(key) });
+            CollectionEvent::Dropped { key, keys, .. } => {
+                let into = key.or_else(|| state.shown.clone());
+                if let Some(items) = drop_items(model, into.as_ref(), &keys) {
+                    events.push(BinEvent::Drop { items, into });
                 }
             }
             CollectionEvent::Rename(edit) => {
