@@ -238,15 +238,6 @@ pub(super) struct BarRecord {
 #[derive(Default)]
 pub(super) struct Record {
     pub(super) bar: BarRecord,
-    pub(super) laid: Option<Laid>,
-}
-
-/// Where the bar and the groups sit, decided in the parts step and used by the body.
-#[derive(Clone, Debug)]
-pub(super) struct Laid {
-    pub(super) bar: Rect,
-    /// Whether the bar is wide enough for its menu button.
-    pub(super) menu_button: bool,
 }
 
 pub(super) type Shared = Arc<Mutex<Record>>;
