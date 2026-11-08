@@ -1,6 +1,6 @@
 //! Frame rates, sample rates and pixel aspect ratios.
 
-use crate::rates::{FrameRate, PixelAspect};
+use crate::rates::FrameRate;
 use crate::time::{TICKS_PER_SECOND, Tick};
 
 #[test]
