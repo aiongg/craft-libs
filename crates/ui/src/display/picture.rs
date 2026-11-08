@@ -7,7 +7,7 @@ use crate::primitives::{Revision, TextureStore, TextureStoreOptions, fit_rect};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Metrics, Sense};
-use egui::{ColorImage, Pos2, Rect, Response, Vec2};
+use egui::{ColorImage, Id, Pos2, Rect, Response, Vec2};
 
 #[cfg(feature = "testing")]
 mod stories;
@@ -42,7 +42,7 @@ pub struct PictureStyle {
 pub struct Picture<'a> {
     #[common]
     common: Common,
-    /// What the picture is called in the texture store; one key, one picture.
+    /// What the picture is called in the texture store among the pictures of its component; one key, one picture.
     key: u64,
     /// The version of the key's picture: a new revision makes `image` run again.
     #[prop]
@@ -104,8 +104,8 @@ impl Component for Picture<'_> {
         if cx.style.height <= 0.0 {
             return;
         }
-        let store = TextureStore::<u64>::in_context(&cx.ctx, "picture", TextureStoreOptions::thumbnails());
-        let texture = store.get_or_put(&cx.ctx, self.key, self.revision, self.image);
+        let store = TextureStore::<(Id, u64)>::in_context(&cx.ctx, "picture", TextureStoreOptions::thumbnails());
+        let texture = store.get_or_put(&cx.ctx, (cx.resolved.id, self.key), self.revision, self.image);
         let target = fit_rect(cx.content_rect, texture.size_vec2());
         let whole = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
         ui.content_painter(cx).picture(texture.id, target, whole);

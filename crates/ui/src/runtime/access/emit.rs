@@ -297,6 +297,7 @@ pub(crate) fn report_sub(ctx: &Context, decl: &SubDecl<'_>) {
     spec.labelled_by = name.labelled_by.clone();
     spec.description = node.description.clone();
     spec.numeric = numeric.cloned();
+    spec.value = node.value.clone();
     spec.expanded = expanded;
     spec.access_key = node.access_key;
     spec.has_popup = node.has_popup;

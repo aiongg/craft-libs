@@ -371,6 +371,11 @@ impl Fixture {
         self.frame(vec![fixture::access_request_node(kind, target.node)])
     }
 
+    /// The stop that holds focus: the id of its component and the part when focus is on a part.
+    pub fn focused_stop(&self) -> Option<(Id, Option<PartRef>)> {
+        crate::runtime::focus::focused_stop(&self.frames.ctx)
+    }
+
     /// The id of the widget egui has focused.
     pub fn focused(&self) -> Option<Id> {
         fixture::focused(&self.frames.ctx)

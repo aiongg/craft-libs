@@ -428,6 +428,8 @@ pub struct SubNode {
     pub description: Option<String>,
     /// A numeric value.
     pub numeric: Option<Numeric>,
+    /// A plain text value, for a sub-node that has one and no number.
+    pub(crate) value: Option<String>,
     /// Whether the node's popup or region is open; the node is expandable when this or its face says.
     pub expanded: Option<bool>,
     /// The place in a closed set.
@@ -455,6 +457,7 @@ impl SubNode {
             name: Name::FromLabel,
             description: None,
             numeric: None,
+            value: None,
             expanded: None,
             position: None,
             grid: GridPlace::default(),
@@ -475,6 +478,12 @@ impl SubNode {
     /// The heading level or tree depth.
     pub fn level(&mut self, level: usize) -> &mut Self {
         self.level = Some(level);
+        self
+    }
+
+    /// A plain text value, for a sub-node that shows text as its value and has no number.
+    pub fn value(&mut self, text: impl Into<String>) -> &mut Self {
+        self.value = Some(text.into());
         self
     }
 

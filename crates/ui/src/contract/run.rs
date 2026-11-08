@@ -428,6 +428,7 @@ fn stops_step<C: Component>(at: StopsStep<'_>, hooks: &dyn ShapeHooks<C>, comp: 
         group: steps::member_group(ctx, env.roving, id),
         body_roving,
         row: env.row,
+        item: env.item == Some(id),
         default_stop: resolved.default_stop,
     });
 }
@@ -443,13 +444,15 @@ fn activation_of(ctx: &Context, ui: &Ui, rect: Rect, resolved: &Resolved<'_>, ke
     if !steps::takes_activation(resolved) {
         return None;
     }
-    let mods = crate::runtime::pointer::frame(ctx).mods;
     if keyed {
-        return Some(Activation { by_key: true, mods });
+        return Some(Activation { by_key: true, mods: craft_keymap::Mods::NONE });
     }
     let released = root_sense.contains(Sense::CLICK)
         && crate::runtime::overlay::released_inside(ctx, crate::runtime::egui::areas::layer_to_screen(ctx, ui.layer_id()) * rect);
-    (clicked || released).then_some(Activation { by_key: false, mods })
+    (clicked || released).then(|| Activation {
+        by_key: false,
+        mods: crate::runtime::pointer::with_frame(ctx, |frame, _| frame.map_or(craft_keymap::Mods::NONE, |frame| frame.mods)),
+    })
 }
 
 /// Steps 6 to 16 of the pass, run in the `Ui` the host gives.
