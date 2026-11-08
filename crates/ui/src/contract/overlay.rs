@@ -359,6 +359,9 @@ pub struct Overlay {
     /// Whether a container mounted as this layer scrolls its body vertically. Off for a layer whose body fills it and
     /// manages its own scrolling (a dock tree); a body that is one collection uses `collection_body` instead.
     pub body_scroll: bool,
+    /// Whether the layer's move band moves the OS window the layer is shown in, in place of the layer: the chrome a
+    /// modal puts over the part of a title bar it covers. The layer stays where it is placed.
+    pub moves_window: bool,
 }
 
 /// The share of the viewport a dropdown list may take. Half the width leaves room for the list to hang from the end
@@ -392,6 +395,7 @@ impl Overlay {
             bounds: None,
             opacity: 1.0,
             body_scroll: true,
+            moves_window: false,
         }
     }
 
@@ -458,6 +462,18 @@ impl Overlay {
         let mut overlay = Overlay::dialog();
         overlay.movable = false;
         overlay.resize = Resize::NONE;
+        overlay
+    }
+
+    /// The chrome of a modal over a part of the window the modal covers, placed at `rect`: above the modal, with no
+    /// focus scope and no dismissal of its own. Its move band moves the window the layer is shown in.
+    pub fn modal_chrome(rect: Rect) -> Overlay {
+        let mut overlay =
+            Overlay::base(Rank::ModalChrome, Place::Float(FloatPlace::centred()), OverlayFit::Content, OwnerClass::Widget, FocusPolicy::NONE);
+        overlay.dismiss = Dismiss::new().outside(Outside::Keep);
+        overlay.placed = Some(rect);
+        overlay.body_scroll = false;
+        overlay.moves_window = true;
         overlay
     }
 
@@ -573,6 +589,12 @@ impl Overlay {
     /// Sets whether the user may move it.
     pub fn movable(mut self, on: bool) -> Overlay {
         self.movable = on;
+        self
+    }
+
+    /// Sets whether the move band moves the OS window the layer is shown in, in place of the layer.
+    pub fn moves_window(mut self, on: bool) -> Overlay {
+        self.moves_window = on;
         self
     }
 

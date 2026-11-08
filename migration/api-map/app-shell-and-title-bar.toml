@@ -654,8 +654,8 @@ note = "The 24-field `from_tokens` style is the component style: the bar's heigh
 name = "ModalRects"
 old = "craft_ui::title_bar::ModalRects"
 new = ""
-status = "removed"
-note = "Not ported: a layer over an open modal cannot move the OS window with today's contract (see the track report)."
+status = "replaced"
+note = "No app step: a modal `Dialog` keeps the window draggable by the drag areas it covers. While it is the top layer it puts a `ModalDragStrip` (crate-private) on an `Overlay::modal_chrome(rect)` layer over each drag area of the window's last pass that its cover hides, less the caption buttons and the dialog itself; the layer's move band moves the window (`Overlay::moves_window`)."
 
 [[type]]
 name = "WindowState"
@@ -747,4 +747,4 @@ new = "show_titled(ui, Title, leading, trailing)"
 type = "TitleBar"
 old = "modal_drag_overlay(ctx, rects)"
 new = ""
-note = "removed: see ModalRects."
+note = "replaced: a modal `Dialog` keeps the bar draggable itself; see ModalRects."

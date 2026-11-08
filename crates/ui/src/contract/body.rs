@@ -605,6 +605,12 @@ impl BodyHooks<'_> {
     /// limits, and each step is reported. Escape, which cancels the press, restores the placement from before.
     fn window_drag<C: Container>(&mut self, props: &ContainerProps, cx: &mut Cx<'_, C>) {
         let Some(overlay) = overlay_of(props) else { return };
+        // A band that moves the window below starts the OS move of the window the layer is shown in.
+        if overlay.moves_window {
+            let viewport = pass::current_viewport(&cx.core.ctx);
+            self.window_os(viewport, cx);
+            return;
+        }
         let id = cx.core.id;
         let limits = Limits::new(overlay, window_min(props, cx.style.metrics().min_size));
         let rect = cx.core.rect;
@@ -696,6 +702,11 @@ impl BodyHooks<'_> {
         let exclusive = |hit: WindowHit| os.is_some().then_some(hit);
         // A layer moves when its overlay says so; other mounts follow the header's band.
         let movable = match &props.mount {
+            // A band that moves the window below follows the rule of the window the layer is shown in.
+            Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } if overlay.moves_window => {
+                let viewport = pass::current_viewport(&ctx);
+                WindowParts::of(&ctx, viewport).grips && !answered_by_platform(&ctx, viewport)
+            }
             Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } => overlay.movable && stands.band,
             _ => props.header.is_some_and(|header| header.band == super::DragBand::Move) && stands.band,
         };

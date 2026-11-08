@@ -1,5 +1,7 @@
 //! Dialog bodies and footer buttons.
 
+mod drag_strip;
+
 use craft_behavior::{DisplayOrder, ItemSource};
 use craft_ui::contract::{Bind, Entry, Role, SelectMode, Show as _, ShowCollection as _, ShowContainer as _};
 use craft_ui::dialog::Dialog;
