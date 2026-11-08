@@ -69,6 +69,14 @@ pub enum ParamKind {
         /// The id selected when nothing is remembered; `None` selects the first option.
         default: Option<String>,
     },
+    /// A group of radio buttons over `(id, label)` options; the field holds the id.
+    #[non_exhaustive]
+    Radio {
+        /// The `(id, label)` pairs in list order.
+        options: Vec<(String, Label)>,
+        /// The id selected when nothing is remembered; `None` selects the first option.
+        default: Option<String>,
+    },
     /// An angle dial with its field, in degrees.
     #[non_exhaustive]
     Angle {
@@ -158,6 +166,11 @@ impl ParamKind {
         ParamKind::Choice { options, default }
     }
 
+    /// A group of radio buttons over `(id, label)` options.
+    pub fn radio(options: Vec<(String, Label)>, default: Option<String>) -> Self {
+        ParamKind::Radio { options, default }
+    }
+
     /// An angle dial with its field.
     pub fn angle(default: f64) -> Self {
         ParamKind::Angle { default }
@@ -205,7 +218,7 @@ impl ParamKind {
             ParamKind::Int { default, .. } => FieldValue::Int(*default),
             ParamKind::Number { default, .. } => FieldValue::Number(*default),
             ParamKind::Bool { default } => FieldValue::Bool(*default),
-            ParamKind::Choice { options, default } => {
+            ParamKind::Choice { options, default } | ParamKind::Radio { options, default } => {
                 let initial = default.as_deref().or_else(|| options.first().map(|(id, _)| id.as_str()));
                 FieldValue::Text(initial.unwrap_or_default().to_owned())
             }
@@ -243,7 +256,9 @@ impl ParamKind {
                 number(v).is_some_and(|n| n.is_finite() && min.is_none_or(|m| n >= m) && max.is_none_or(|m| n <= m))
             }
             (ParamKind::Bool { .. }, FieldValue::Bool(_)) => true,
-            (ParamKind::Choice { options, .. }, FieldValue::Text(id)) => options.iter().any(|(option, _)| option == id),
+            (ParamKind::Choice { options, .. } | ParamKind::Radio { options, .. }, FieldValue::Text(id)) => {
+                options.iter().any(|(option, _)| option == id)
+            }
             (ParamKind::Color { .. }, FieldValue::Color(c)) => c.iter().all(|v| v.is_finite()),
             (ParamKind::Grid { cells: count, .. }, FieldValue::Grid(cells)) => cells.len() == *count,
             (ParamKind::Point { .. }, FieldValue::Point(p)) => p.iter().all(|v| v.is_finite()),

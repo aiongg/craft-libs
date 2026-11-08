@@ -68,12 +68,16 @@ pub struct Button<'a> {
     /// Working: a spinner, no activation, AccessKit busy.
     #[prop]
     loading: bool,
+    /// The text the face paints in place of the label, which stays the accessible name: the label with its access
+    /// letter marked.
+    #[prop(into)]
+    painted: Option<Label>,
 }
 
 impl<'a> Button<'a> {
     /// A button showing `label`, which is also its accessible name.
     pub fn new(label: impl Into<Label>) -> Self {
-        Button { common: Common::new(), icon: None, trailing_icon: None, loading: false }.label(label)
+        Button { common: Common::new(), icon: None, trailing_icon: None, loading: false, painted: None }.label(label)
     }
 
     /// A button bound to `command`: its label, enabled state and activation follow the command.
@@ -82,6 +86,7 @@ impl<'a> Button<'a> {
     }
 
     fn spec<'s>(&'s self, label: &'s str) -> FaceSpec<'s> {
+        let label = self.painted.as_ref().map_or(label, Label::as_str);
         FaceSpec { label, role: None, lead: self.icon.as_ref(), trail: self.trailing_icon.as_ref(), loading: self.loading }
     }
 }

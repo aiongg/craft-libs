@@ -8,7 +8,8 @@ mod words;
 mod stories;
 
 use self::sections::{ArtboardChoice, PasswordSwitches, Sections};
-pub use self::summary::{RangeError, check_range, differences};
+pub use self::summary::RangeError;
+pub(crate) use self::summary::{check_range, differences};
 pub use self::words::PdfExportWords;
 use super::form::FormDialog;
 use crate::contract::{
@@ -117,7 +118,7 @@ impl PdfSection {
 
 /// A standard sets the version it allows (unless the chosen one is allowed) and turns off what its files can't have:
 /// editing data, passwords and, for PDF/X-1a and PDF/X-3, PDF layers.
-pub fn apply_standard(settings: &mut PdfSettings) {
+pub(crate) fn apply_standard(settings: &mut PdfSettings) {
     let standard = settings.standard;
     if !standard.allows(settings.compatibility) {
         settings.compatibility = standard.version();

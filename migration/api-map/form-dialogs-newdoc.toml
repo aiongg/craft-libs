@@ -66,15 +66,16 @@ note = "`Orientation::of(PixelSize)` takes the new pixel size."
 [[type]]
 name = "size_line"
 old = "craft_ui::dialog::new_document::size_line"
-new = "craft_ui::patterns::form_dialogs::size_line"
-status = "moved"
-note = "`size_line(&DocumentOptions, &NewDocumentWords, &Units) -> String`; the resolution is written by `Units` (`300 ppi`)."
+new = ""
+status = "removed"
+note = "Crate-private: the dialog applies the rule itself; no app calls it."
 
 [[type]]
 name = "push_recent"
 old = "craft_ui::dialog::new_document::push_recent"
-new = "craft_ui::patterns::form_dialogs::push_recent"
-status = "moved"
+new = ""
+status = "removed"
+note = "Crate-private: the dialog applies the rule itself; no app calls it."
 
 [[type]]
 name = "BACKGROUND_COLOR_KEY"

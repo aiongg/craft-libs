@@ -85,6 +85,8 @@ pub struct Contributor {
     pub display_name: Option<Cow<'static, str>>,
     /// The real name the contributor consented to show.
     pub real_name: Option<Cow<'static, str>>,
+    /// The URL of the contributor's profile, which activating the row reports as the link.
+    pub profile: Option<Cow<'static, str>>,
     /// Merged pull requests.
     pub prs: u64,
     /// Commits.
@@ -110,6 +112,7 @@ impl Contributor {
             login: login.into(),
             display_name: None,
             real_name: None,
+            profile: None,
             prs: 0,
             commits: 0,
             lines_added: 0,
@@ -132,6 +135,13 @@ impl Contributor {
     #[must_use]
     pub fn real_name(mut self, name: impl Into<Cow<'static, str>>) -> Self {
         self.real_name = Some(name.into());
+        self
+    }
+
+    /// The URL of the contributor's profile.
+    #[must_use]
+    pub fn profile(mut self, url: impl Into<Cow<'static, str>>) -> Self {
+        self.profile = Some(url.into());
         self
     }
 

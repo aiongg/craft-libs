@@ -368,7 +368,7 @@ impl ColorProfiles {
 
 /// The recent list after creating `settings`: equal settings move to the front instead of repeating, and the list
 /// keeps at most `max` entries (20 in the dialog).
-pub fn push_recent(recent: &mut Vec<DocumentOptions>, settings: DocumentOptions, max: usize) {
+pub(crate) fn push_recent(recent: &mut Vec<DocumentOptions>, settings: DocumentOptions, max: usize) {
     recent.retain(|held| !held.same_document(&settings));
     recent.insert(0, settings);
     recent.truncate(max);
@@ -376,7 +376,7 @@ pub fn push_recent(recent: &mut Vec<DocumentOptions>, settings: DocumentOptions,
 
 /// The size line of a card or a saved preset: "1800 x 1200 px @ 300 ppi", or inches for a print preset
 /// ("6 x 4 in @ 300 ppi"), numbers in the user's format with at most two decimals.
-pub fn size_line(options: &DocumentOptions, words: &NewDocumentWords, units: &Units) -> String {
+pub(crate) fn size_line(options: &DocumentOptions, words: &NewDocumentWords, units: &Units) -> String {
     let unit = if SIZE_UNITS.contains(&options.unit) { options.unit } else { UnitKind::Pixels };
     let mut linked = options.linked(units.points_per_inch());
     linked.set_unit(unit);

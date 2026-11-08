@@ -4,7 +4,8 @@ use crate::contract::{Access, Animate as _, Common, Component, Cx, MeasureCx, Nu
 use crate::primitives::PaintShape;
 use crate::style::{ComponentStyle, Flags, StyleColor, StyleCx, TrackLook};
 use craft_behavior::{Flow, Metrics, Sense};
-use craft_theme::Stateful;
+use craft_theme::variant::{Emphasis, Tone};
+use craft_theme::{Stateful, Variant};
 use egui::{CornerRadius, Rect, Response, Vec2};
 
 #[cfg(feature = "testing")]
@@ -22,13 +23,14 @@ const DASH_GAP: f32 = 1.0;
 
 /// The style of a progress bar.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
+#[style(variants = [Variant::PRIMARY, Variant::look(Emphasis::Solid, Tone::Good), Variant::look(Emphasis::Solid, Tone::Warn), Variant::DANGER])]
 #[non_exhaustive]
 pub struct ProgressStyle {
     #[style(metrics)]
     metrics: Metrics,
     /// The groove and its thickness, as every value track has them.
     track: TrackLook,
-    /// The filled part.
+    /// The filled part: the solid fill of the variant's tone.
     fill: Stateful<StyleColor>,
     radius: CornerRadius,
     length: f32,
@@ -41,7 +43,7 @@ enum Amount {
     Unknown,
 }
 
-/// A progress bar. The fill grows from the reading start, so it mirrors under right-to-left, and is never shorter
+/// A progress bar. The variant picks the fill's tone: accent by default, or a good, warning or danger fill. The fill grows from the reading start, so it mirrors under right-to-left, and is never shorter
 /// than the bar is thick unless it is empty. While the extent is unknown a segment moves along the track; where
 /// motion is off the segment stands still and is drawn as dashes, so it cannot be mistaken for a fill. AccessKit
 /// reports a progress indicator with the fraction as its value, none while the extent is unknown.
@@ -102,7 +104,7 @@ impl Component for Progress {
         ProgressStyle {
             metrics: Metrics::new(),
             track: cx.track(),
-            fill: cx.accent_fill(),
+            fill: cx.variant_look().fill,
             radius: crate::style::UiTokens::corner(cx.tokens.shape.radius.pill),
             length: cx.tokens.size.length.track,
         }

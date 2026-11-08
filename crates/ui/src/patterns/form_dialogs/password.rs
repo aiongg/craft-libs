@@ -13,7 +13,8 @@ use crate::runtime::words::CommonWords;
 use crate::sections::{DialogRole, FooterButton};
 use crate::text::TextField;
 use craft_behavior::IconId;
-use craft_theme::variant::Tone;
+use craft_theme::Variant;
+use craft_theme::variant::{Emphasis, Tone};
 use egui::{Response, Ui};
 use std::any::Any;
 use std::cell::{Cell, RefCell};
@@ -103,7 +104,7 @@ pub enum PasswordStrength {
 
 /// Strong: at least 12 characters and three of the four classes (lower case, upper case, ASCII digits, anything not
 /// alphanumeric); Medium: at least 8 and two classes; else Weak.
-pub fn password_strength(password: &str) -> PasswordStrength {
+pub(crate) fn password_strength(password: &str) -> PasswordStrength {
     let classes = [
         password.chars().any(char::is_lowercase),
         password.chars().any(char::is_uppercase),
@@ -331,12 +332,12 @@ impl<'a> PasswordDialog<'a> {
                     }
                 });
                 if let Some(strength) = strength {
-                    let filled = match strength {
-                        PasswordStrength::Weak => 1.0 / 3.0,
-                        PasswordStrength::Medium => 2.0 / 3.0,
-                        PasswordStrength::Strong => 1.0,
+                    let (filled, variant) = match strength {
+                        PasswordStrength::Weak => (1.0 / 3.0, Variant::DANGER),
+                        PasswordStrength::Medium => (2.0 / 3.0, Variant::look(Emphasis::Solid, Tone::Warn)),
+                        PasswordStrength::Strong => (1.0, Variant::look(Emphasis::Solid, Tone::Good)),
                     };
-                    Progress::new(filled).label(words.strength_meter.clone()).show(ui);
+                    Progress::new(filled).variant(variant).label(words.strength_meter.clone()).show(ui);
                 }
             });
             valid.set(entries.valid(setting));

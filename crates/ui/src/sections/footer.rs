@@ -400,6 +400,7 @@ pub struct FooterButton {
     letter: Option<char>,
     enabled: bool,
     disabled_reason: Option<Label>,
+    tooltip: Option<Label>,
     stays_open: bool,
 }
 
@@ -411,7 +412,7 @@ impl FooterButton {
 
     /// A button named `label` with the meaning `role`.
     pub fn new(label: impl Into<Label>, role: DialogRole) -> Self {
-        FooterButton { label: label.into(), role, letter: None, enabled: true, disabled_reason: None, stays_open: false }
+        FooterButton { label: label.into(), role, letter: None, enabled: true, disabled_reason: None, tooltip: None, stays_open: false }
     }
 
     /// The letter that activates the button while its dialog holds focus and no text part owns the keys. The
@@ -429,7 +430,14 @@ impl FooterButton {
         self
     }
 
-    /// Why the button is disabled: the tooltip it shows while it is.
+    /// What the button tells while it is enabled: its tooltip. While it is disabled, its reason shows instead.
+    #[must_use]
+    pub fn tooltip(mut self, tooltip: impl Into<Label>) -> Self {
+        self.tooltip = Some(tooltip.into());
+        self
+    }
+
+    /// Why the button is disabled: the tooltip it shows while it is, over `tooltip`.
     #[must_use]
     pub fn disabled_reason(mut self, reason: impl Into<Label>) -> Self {
         self.disabled_reason = Some(reason.into());
@@ -560,9 +568,10 @@ impl FooterBar {
                         DialogRole::Destructive => Variant::DANGER,
                         DialogRole::Cancel | DialogRole::Other => Variant::SECONDARY,
                     };
-                    let mut widget = Button::new(labels[at].clone()).variant(variant).enabled(button.enabled);
-                    if let Some(reason) = button.disabled_reason.clone().filter(|_| !button.enabled) {
-                        widget = widget.tooltip(TooltipSpec::new(reason.clone()).disabled_text(reason));
+                    let mut widget = Button::new(button.label.clone()).painted(labels[at].clone()).variant(variant).enabled(button.enabled);
+                    let tip = if button.enabled { button.tooltip.clone() } else { button.disabled_reason.clone().or_else(|| button.tooltip.clone()) };
+                    if let Some(tip) = tip {
+                        widget = widget.tooltip(TooltipSpec::new(tip.clone()).disabled_text(tip));
                     }
                     if let Some(letter) = button.letter {
                         widget = widget.access_key(letter.to_ascii_uppercase());

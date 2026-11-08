@@ -146,7 +146,7 @@ impl JpegPreset {
 }
 
 /// The preset a quality of 0 to 12 falls in: Low 0 to 4, Medium 5 to 7, High 8 and 9, Maximum 10 to 12.
-pub fn jpeg_quality_preset(quality: u8) -> JpegPreset {
+pub(crate) fn jpeg_quality_preset(quality: u8) -> JpegPreset {
     match quality {
         0..=4 => JpegPreset::Low,
         5..=7 => JpegPreset::Medium,
@@ -362,7 +362,7 @@ fn params(words: &FormatOptionsWords, start: FormatOptions) -> Vec<Param> {
             Param::new(
                 BITS,
                 words.resolution.clone(),
-                ParamKind::choice(
+                ParamKind::radio(
                     vec![(TARGA_BITS.to_string(), words.bits_24.clone()), (TARGA_ALPHA_BITS.to_string(), words.bits_32.clone())],
                     Some(options.bits.to_string()),
                 ),
@@ -372,7 +372,7 @@ fn params(words: &FormatOptionsWords, start: FormatOptions) -> Vec<Param> {
             Param::new(
                 COMPRESSION,
                 words.compression.clone(),
-                ParamKind::choice(
+                ParamKind::radio(
                     DdsCompression::ALL
                         .into_iter()
                         .map(|compression| {
