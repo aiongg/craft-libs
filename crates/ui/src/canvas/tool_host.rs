@@ -380,7 +380,7 @@ fn paint_tool(ui: &Ui, env: &Env, tool: &dyn CanvasTool, cx: ToolContext<'_>) {
     let record = RefCell::new(PaintRecord::default());
     let draw = Draw::new(&painter, &record, DrawEnv { tokens: &env.tokens, direction: env.direction, ink: Ink::default() });
     let content = ContentPainterCx::new(painter.clone(), &env.tokens, env.direction);
-    let march = March { policy: env.motion(), dash: env.tokens.stroke.dash };
+    let march = March { policy: env.motion, dash: env.tokens.stroke.dash };
     tool.paint(&draw, &cx.painter(&content, march));
 }
 

@@ -1,6 +1,6 @@
 //! Stories of `Guides`.
 
-use super::{GUIDE, Guides, GuidesOutput};
+use super::{GUIDE, Guides};
 use crate::canvas::{Guide, GuideDrag, GuideKey, GuideLine};
 use crate::contract::{Bind, Show as _, Validity};
 use crate::runtime::env::Message;
