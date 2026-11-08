@@ -79,3 +79,128 @@ fn the_title_drops_the_ellipsis_and_names_what_it_has() {
     fixture.settle();
     assert_eq!(*texts.borrow(), ["Liquify (Layer 1, 67%)", "Liquify (67%)", "Wide Angle (Layer 1)", "Filter Gallery"]);
 }
+
+/// The canvas's navigation: the wheel, the middle button and the Hand tool it falls back to.
+mod canvas_navigation {
+    use craft_behavior::PixelSize;
+    use craft_behavior::kurbo::Point;
+    use craft_ui::canvas::{NavigationOptions, PixelRect, RasterSource, ToolPath};
+    use craft_ui::contract::Bind;
+    use craft_ui::dialog::{FullWindowCanvas, FullWindowView};
+    use craft_ui::primitives::Revision;
+    use craft_ui::testing::{Fixture, pointer, trial};
+    use egui::{Color32, ColorImage, Pos2, Vec2};
+    use std::cell::{Cell, RefCell};
+    use std::rc::Rc;
+
+    /// Where the pointer rests: inside the canvas, off its centre.
+    const OVER: Pos2 = Pos2::new(260.0, 170.0);
+
+    /// How far a drag moves the pointer, in points.
+    const DRAG: Vec2 = Vec2::new(30.0, 20.0);
+
+    /// How far a document point may move under the pointer in a wheel zoom, in image pixels.
+    const STILL: f64 = 0.5;
+
+    /// An image larger than the canvas.
+    struct Grey;
+
+    impl RasterSource for Grey {
+        fn size(&self) -> PixelSize {
+            PixelSize::new(1600, 1200)
+        }
+
+        fn revision(&self) -> Revision {
+            Revision::new(1)
+        }
+
+        fn damage(&self, _: Revision) -> Option<PixelRect> {
+            Some(PixelRect::default())
+        }
+
+        fn read(&self, _: PixelRect, _: u32, out: &mut ColorImage) {
+            out.pixels.fill(Color32::GRAY);
+        }
+    }
+
+    /// A canvas with no tool, the view the app owns and the image point under the pointer.
+    struct Rig {
+        fixture: Fixture,
+        view: Rc<RefCell<FullWindowView>>,
+        hover: Rc<Cell<Option<Point>>>,
+    }
+
+    fn rig(navigation: NavigationOptions) -> Rig {
+        let view = Rc::new(RefCell::new(FullWindowView::new()));
+        let hover = Rc::new(Cell::new(None));
+        let (shown, seen) = (view.clone(), hover.clone());
+        let mut fixture = Fixture::new(move |ui| {
+            let mut view = shown.borrow_mut();
+            seen.set(FullWindowCanvas::new(ToolPath::Freehand, Bind::bound(&mut *view), &Grey).navigation(navigation).show(ui).hover);
+        });
+        fixture.settle();
+        Rig { fixture, view, hover }
+    }
+
+    impl Rig {
+        fn zoom(&self) -> f64 {
+            self.view.borrow().device_zoom()
+        }
+
+        fn centre(&self) -> Point {
+            self.view.borrow().view().center
+        }
+
+        fn drag(&mut self, down: impl Fn(Pos2, bool) -> egui::Event, from: Pos2, by: Vec2) {
+            self.fixture.frame(vec![pointer::moved(from)]);
+            self.fixture.frame(vec![down(from, true)]);
+            for step in 1..=4 {
+                self.fixture.frame(vec![pointer::moved(from + by * (step as f32 / 4.0))]);
+            }
+            self.fixture.frame(vec![down(from + by, false)]);
+            self.fixture.idle(1);
+        }
+    }
+
+    fn primary(at: Pos2, pressed: bool) -> egui::Event {
+        if pressed { pointer::press(at) } else { pointer::release(at) }
+    }
+
+    #[trial]
+    fn the_wheel_zooms_about_the_pointer_by_the_navigation_options() {
+        let mut plain = rig(NavigationOptions::default());
+        let fitted = plain.zoom();
+        plain.fixture.frame(vec![pointer::moved(OVER)]);
+        plain.fixture.frame(vec![pointer::wheel_lines(1.0)]);
+        assert_eq!(plain.zoom(), fitted, "the plain wheel does not zoom by default");
+
+        let mut navigation = NavigationOptions::default();
+        navigation.zoom_with_wheel = true;
+        navigation.animated_zoom = false;
+        let mut zooming = rig(navigation);
+        let fitted = zooming.zoom();
+        zooming.fixture.frame(vec![pointer::moved(OVER)]);
+        let under = zooming.hover.get().expect("the pointer is over the image");
+        zooming.fixture.frame(vec![pointer::wheel_lines(1.0)]);
+        assert!(zooming.zoom() > fitted, "the wheel zooms in with Zoom with Scroll Wheel");
+        assert!(!zooming.view.borrow().is_fit(), "a wheel zoom ends the fit");
+        let still = zooming.hover.get().expect("the pointer is still over the image");
+        assert!((still.x - under.x).abs() < STILL && (still.y - under.y).abs() < STILL, "the point under the pointer stays: {under:?} {still:?}");
+    }
+
+    #[trial]
+    fn the_middle_button_pans_and_so_does_the_hand_tool_a_canvas_without_a_tool_falls_back_to() {
+        let mut middle = rig(NavigationOptions::default());
+        let start = middle.centre();
+        middle.drag(pointer::middle, OVER, DRAG);
+        let panned = middle.centre();
+        assert!(panned.x < start.x - 1.0 && panned.y < start.y - 1.0, "the image follows the pointer: {start:?} {panned:?}");
+        assert!(!middle.view.borrow().is_fit(), "a pan ends the fit");
+
+        let mut hand = rig(NavigationOptions::default());
+        let start = hand.centre();
+        hand.drag(primary, OVER, DRAG);
+        let panned = hand.centre();
+        assert!(panned.x < start.x - 1.0 && panned.y < start.y - 1.0, "a plain drag without a tool pans: {start:?} {panned:?}");
+    }
+}
