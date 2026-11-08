@@ -44,7 +44,7 @@ pub struct FullWindowDialogStyle {
 pub struct FullWindowDialog<'a> {
     #[common]
     common: Common,
-    #[container]
+    #[container(sizing, surface, live, end, position, collection_body)]
     props: ContainerProps,
     /// Binds the open state to `open`.
     #[prop(name = "opened")]
