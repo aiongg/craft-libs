@@ -106,7 +106,7 @@ impl<'a> Inspector<'a> {
             panel = panel.id_salt(salt);
         }
         if let Some(rows) = menu {
-            panel = panel.menu_rows(rows);
+            panel.set_menu_rows(rows);
         }
         let message = empty.unwrap_or_else(|| Env::of(ui).words::<PanelWords>().inspector_empty.clone());
         panel

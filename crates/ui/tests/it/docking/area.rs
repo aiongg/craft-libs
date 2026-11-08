@@ -12,6 +12,7 @@ use craft_ui::patterns::dock::{DockArea, DockAreaOutput};
 use craft_ui::style::Variant;
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::pointer::{moved, press, release};
+use craft_ui::testing::relations::equals_token;
 use craft_ui::testing::style::{tokens, with_cx};
 use craft_ui::testing::{Fixture, Target, trial};
 use egui::{Modifiers, Pos2, Rect, Ui, Vec2};
@@ -280,7 +281,7 @@ fn a_column_without_a_width_lays_out_at_the_themes_column_width() {
     fixture.room(AREA).settle();
     let column_width = with_cx(fixture.ctx(), &tokens(Mode::Dark, Contrast::Standard), Variant::SECONDARY, ControlSize::Md, DockSizes::style).column;
     let group = fixture.by_role(Role::TAB_PANEL).into_iter().next().expect("the column shows its group");
-    assert!((group.rect.width() - column_width).abs() < 1.0, "the group is {} wide, the theme's column is {column_width}", group.rect.width());
+    assert!(equals_token(group.rect.width(), column_width), "the group is {} wide, the theme's column is {column_width}", group.rect.width());
 }
 
 #[trial]
