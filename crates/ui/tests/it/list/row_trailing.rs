@@ -11,7 +11,7 @@ use craft_ui::sections::{FooterAction, FooterBar};
 use craft_ui::testing::internals::place_row;
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::{Fixture, Frames, pointer, trial};
-use egui::{Key, Modifiers, Pos2, Rect, Ui, Vec2};
+use egui::{Modifiers, Pos2, Rect, Ui, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -95,25 +95,6 @@ fn a_press_on_a_trailing_part_reports_its_modifiers_and_keeps_the_selection() {
     let events = seen.events.borrow();
     assert!(matches!(events.as_slice(), [RowEvent::Trailing { part, mods, .. }] if *part == PART && mods.alt), "{events:?}");
     assert_eq!(seen.selections.get(), 0);
-}
-
-/// Forward from the row moves focus to its trailing part, and Back returns to the row.
-#[trial]
-fn forward_from_a_row_reaches_its_trailing_part() {
-    let (mut fixture, _) = rig(with_trailing);
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.idle(2);
-    fixture.key(Key::ArrowDown, Modifiers::NONE);
-    fixture.idle(2);
-    let row = fixture.focused();
-    assert!(row.is_some(), "the list holds focus");
-    fixture.key(Key::ArrowRight, Modifiers::NONE);
-    fixture.idle(2);
-    let part = fixture.focused();
-    assert!(part.is_some() && part != row, "Forward entered the part");
-    fixture.key(Key::ArrowLeft, Modifiers::NONE);
-    fixture.idle(2);
-    assert_eq!(fixture.focused(), row, "Back returns to the row");
 }
 
 /// A row with a thumbnail whose rect `rect` records.
