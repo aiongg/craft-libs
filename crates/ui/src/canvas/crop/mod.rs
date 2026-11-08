@@ -459,7 +459,8 @@ impl Component for CropOverlay<'_> {
             cx.part(STRAIGHTEN, HitShape::Rect(rect))
                 .sense(Sense::DRAG)
                 .priority(HitPriority::new(HitLevel::Handle, u8::MAX))
-                .cursor(CursorIcon::Crosshair);
+                .cursor(CursorIcon::Crosshair)
+                .pointer_only("the options bar's angle field sets the straightened angle");
         }
         let q = screen_corners(&view, &frame);
         if !frame.is_finite() || degenerate(&q) {
@@ -502,7 +503,10 @@ impl Component for CropOverlay<'_> {
             }
             let _ = declared;
         }
-        cx.part(TURN, HitShape::Rect(rect)).sense(Sense::DRAG).priority(HitPriority::new(HitLevel::Background, u8::MAX));
+        cx.part(TURN, HitShape::Rect(rect))
+            .sense(Sense::DRAG)
+            .priority(HitPriority::new(HitLevel::Background, u8::MAX))
+            .pointer_only("the options bar's angle field sets the frame's angle");
         cx.roving(Roving::new(NavShape::Flat).page(Some(1)));
     }
 
@@ -541,8 +545,18 @@ impl Component for CropOverlay<'_> {
                         live.drag = Some(drag);
                     }
                 }
-                PressPhase::Release { pos, click: false, .. } => {
-                    if let Some(drag) = live.drag.take() {
+                PressPhase::Release { start, pos, click: false, .. } => {
+                    // A press that moved and ended before a pass saw it start still drags from where it was pressed.
+                    let drag = match live.drag.take() {
+                        Some(drag) => Some(drag),
+                        None if start.button == PointerButton::Primary => {
+                            let mut drag = self.begin(cx, &space, &frame, grab, start.origin);
+                            self.step(cx, &space, &mut drag, pos, mods);
+                            Some(drag)
+                        }
+                        None => None,
+                    };
+                    if let Some(drag) = drag {
                         self.finish(cx, &space, drag, pos);
                     }
                 }
