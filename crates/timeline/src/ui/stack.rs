@@ -484,6 +484,12 @@ impl Component for TrackRow<'_> {
         }
     }
 
+    /// The row's own shape takes the presses on empty lane space: a click clears the clip selection and a drag sweeps a
+    /// marquee, both in [`ClipLane`].
+    fn sense(&self) -> Sense {
+        Sense::CLICK | Sense::DRAG | Sense::FOCUS
+    }
+
     fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
         self.row().size().max(Vec2::ZERO)
     }

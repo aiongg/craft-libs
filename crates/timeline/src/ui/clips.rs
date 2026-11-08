@@ -30,12 +30,9 @@ const ROLL_SHARE: f32 = 0.5;
 
 /// The clip body of `CLIP.at(id)`; its start and end edges are `CLIP_START.at(id)` and `CLIP_END.at(id)`, which rank
 /// above the body.
-/// The empty space of the lane: it takes the drags that sweep a marquee and the click that clears the clip selection
-/// (Premiere; Shift or Cmd/Ctrl keeps it).
-const BACKDROP: PartKey = PartKey::new("laneBackdrop");
-/// A clip's body wins over the backdrop behind it, and the backdrop wins over the row's own root shape.
+/// A clip's body wins over the row's own shape, which takes the presses on empty lane space: the drag that sweeps a
+/// marquee and the click that clears the clip selection (Premiere; Shift or Cmd/Ctrl keeps it).
 const CLIP_PRIORITY: HitPriority = HitPriority::new(HitLevel::Body, 2);
-const BACKDROP_PRIORITY: HitPriority = HitPriority::new(HitLevel::Body, 1);
 pub const CLIP: PartKey = PartKey::new("clip");
 /// The start edge of the clip.
 pub const CLIP_START: PartKey = PartKey::new("clipStart");
@@ -247,8 +244,9 @@ impl Default for Pressed {
 /// - A press acts on what it pressed, worked out on the press pass, not when the drag threshold passes (FilmCraft
 ///   `Pressed`, #259).
 /// - A click picks a clip: a click replaces, Shift toggles, Cmd/Ctrl toggles without linked partners (Premiere's),
-///   reported as a [`SelectionChange`]; a double-click and a secondary click are reported. A click on empty space is the
-///   track collection's.
+///   reported as a [`SelectionChange`]; a double-click and a secondary click are reported. A click on empty space
+///   clears the selection (Shift or Cmd/Ctrl keeps it); a drag from it sweeps a marquee. Both are the hosting row's own
+///   press.
 /// - A locked track draws stripes over its clips and starts no gesture.
 /// - Each clip is a focusable part: Enter and Space pick it. AccessKit: a button per clip, named by its name, valued by
 ///   its start and duration.
@@ -339,12 +337,6 @@ impl<'a> ClipLane<'a> {
     pub fn parts<C: Component>(&self, lane: Rect, axis: &TimeAxis, look: &ClipLook, cx: &mut PartsCx<'_, C>) {
         let geometry = self.geometry(axis, lane, look);
         let sense = if self.locked { Sense::HOVER } else { Sense::CLICK | Sense::DRAG | Sense::CONTEXT_CLICK | Sense::TAKE_FOCUS };
-        if !self.locked {
-            cx.part(BACKDROP, lane)
-                .sense(Sense::CLICK | Sense::DRAG | Sense::TAKE_FOCUS)
-                .priority(BACKDROP_PRIORITY)
-                .pointer_only("the clips' own keys and the selection commands pick without the pointer");
-        }
         let trims = matches!(self.tool, TimelineTool::Selection | TimelineTool::Ripple | TimelineTool::Rolling | TimelineTool::RateStretch);
         for clip in self.clips {
             let Some(body) = geometry.body(clip) else { continue };
@@ -492,28 +484,30 @@ impl<'a> ClipLane<'a> {
     /// A drag from empty lane space sweeps a marquee (Shift adds, Cmd/Ctrl toggles, Alt subtracts); Esc restores the
     /// selection it started from.
     fn run_marquee<C: Component>(&self, cx: &mut Cx<'_, C>, geometry: &Lane<'_>, events: &mut ClipLaneEvents) {
-        let press = cx.part_if_declared(BACKDROP).map(|result| result.press);
-        match press.map(|press| press.phase) {
-            Some(PressPhase::DragStart { start, pos, .. })
-                if start.button == PointerButton::Primary && self.tool != TimelineTool::Razor && geometry.clip_at(start.origin.x).is_none() =>
+        let press = *cx.press();
+        match press.phase {
+            PressPhase::DragStart { start, pos, .. }
+                if start.button == PointerButton::Primary
+                    && geometry.lane.x_range().contains(start.origin.x)
+                    && self.tool != TimelineTool::Razor
+                    && geometry.clip_at(start.origin.x).is_none() =>
             {
-                let mods = press.map_or(craft_keymap::Mods::NONE, |press| press.mods);
-                let mut marquee = MarqueeSelect::begin(start.origin, mods, self.selection.to_vec());
+                let mut marquee = MarqueeSelect::begin(start.origin, press.mods, self.selection.to_vec());
                 marquee.update(pos);
                 *cx.press_slot::<Sweep>() = Some(Sweep(marquee));
             }
-            Some(PressPhase::Drag { pos, .. }) => {
+            PressPhase::Drag { pos, .. } => {
                 if let Some(sweep) = cx.press_slot::<Sweep>().as_mut() {
                     sweep.0.update(pos);
                 }
             }
-            Some(PressPhase::Release { pos, click: false, .. }) => {
+            PressPhase::Release { pos, click: false, .. } => {
                 if let Some(sweep) = cx.press_slot::<Sweep>().as_mut() {
                     sweep.0.update(pos);
                     events.marquee_ended = true;
                 }
             }
-            Some(PressPhase::Cancel { .. }) => {
+            PressPhase::Cancel { .. } => {
                 if let Some(Sweep(marquee)) = cx.press_slot::<Sweep>().take() {
                     let base = marquee.cancel();
                     events.select = Some(if base.is_empty() { SelectionChange::Clear } else { SelectionChange::Set(base) });
@@ -533,9 +527,9 @@ impl<'a> ClipLane<'a> {
             return;
         }
         // A click on the empty space clears the selection, unless the press held Shift or Cmd/Ctrl (they extend it).
-        if let Some(press) = cx.part_if_declared(BACKDROP).map(|result| result.press)
-            && press.phase.is_click()
-            && press.phase.start().is_some_and(|start| start.button == PointerButton::Primary)
+        let press = *cx.press();
+        if press.phase.is_click()
+            && press.phase.start().is_some_and(|start| start.button == PointerButton::Primary && geometry.lane.x_range().contains(start.origin.x))
             && !press.mods.shift
             && !press.mods.cmd
             && !self.selection.is_empty()
