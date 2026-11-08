@@ -260,7 +260,7 @@ name = "TabWords"
 old = ""
 new = "craft_ui::tabs::TabWords"
 status = "replaced"
-note = "Replaces `TabStripText`: `tabs.tabClose` and `tabs.tabModified`."
+note = "Replaces `TabStripText`: `tab.close` and `tab.modified`."
 
 [[type]]
 name = "TabKind"

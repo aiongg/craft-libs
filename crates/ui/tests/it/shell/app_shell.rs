@@ -6,7 +6,7 @@ use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::dialog::{DialogResult, PromptChoice, StandardPrompt};
 use craft_ui::display::Text;
 use craft_ui::runtime::env::{RevealEdge, RootEnv, WindowKey};
-use craft_ui::shell::{AppShell, AppShellOutput, ScreenMode, ScreenModeCommand, Slot, SlotSize};
+use craft_ui::shell::{AppShell, AppShellOutput, ScreenMode, ScreenModeCommands, Slot, SlotSize};
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::{click, moved, press, release, settle};
 use craft_ui::testing::{Fixture, Frames, trial};
@@ -23,9 +23,9 @@ fn the_f_key_cycles_the_modes_and_shift_f_goes_back() {
     }
     for mode in [ScreenMode::Standard, ScreenMode::FullScreenWithMenuBar, ScreenMode::FullScreen] {
         assert_eq!(mode.next().previous(), mode);
-        assert_eq!(ScreenModeCommand::Cycle.apply(mode), mode.next());
-        assert_eq!(ScreenModeCommand::CycleBack.apply(mode), mode.previous());
-        assert_eq!(ScreenModeCommand::of(mode).apply(ScreenMode::Standard), mode);
+        assert_eq!(ScreenModeCommands::Cycle.apply(mode), mode.next());
+        assert_eq!(ScreenModeCommands::CycleBack.apply(mode), mode.previous());
+        assert_eq!(ScreenModeCommands::of(mode).apply(ScreenMode::Standard), mode);
     }
 }
 

@@ -1,7 +1,7 @@
 //! Momentary tools, as in Photoshop: tools in effect only while a key is held.
 //!
 //! Space is the Hand while held, Cmd+Space (Ctrl+Space off the Mac) Zoom In, Alt+Space Zoom Out; Alt added to a held
-//! Zoom In zooms out. The keys are the [`MomentaryCommand`] set (`Kind::Momentary`): the board fires a press when the
+//! Zoom In zooms out. The keys are the [`MomentaryCommands`] set (`Kind::Momentary`): the board fires a press when the
 //! key goes down and a release when it comes up. The set is scoped to the canvas (`canvasView`), so the commands go
 //! to the canvas that holds the key focus or surrounds it, else the one that held it last.
 //! [`ToolHost::run`](super::ToolHost::run) takes them for its canvas and folds them into [`Momentary`], which picks
@@ -15,13 +15,13 @@ use super::tools::{HandTool, ZoomTool};
 use crate::runtime::commands::FirePhase;
 use craft_keymap::Mods;
 
-/// The commands that put a tool in effect while their key is held. They are scoped like [`ViewCommand`](super::ViewCommand): a canvas is
+/// The commands that put a tool in effect while their key is held. They are scoped like [`ViewCommands`](super::ViewCommands): a canvas is
 /// an instance of the one `canvasView` scope, and a full-window dialog's canvas leaves it to the dialog. They fire
 /// inside a dialog, so Space pans a full-window dialog's canvas.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui_macros::CommandSet)]
 #[command(prefix = "canvasMomentary", scope = "canvasView")]
 #[non_exhaustive]
-pub enum MomentaryCommand {
+pub enum MomentaryCommands {
     /// The Hand tool while the key is held.
     #[command(label = "Hand (Hold)", kind = "momentary", modal = "in_dialogs", default = "Space")]
     Hand,
@@ -52,23 +52,23 @@ impl MomentaryTool {
     }
 }
 
-impl From<MomentaryCommand> for MomentaryTool {
-    fn from(command: MomentaryCommand) -> Self {
+impl From<MomentaryCommands> for MomentaryTool {
+    fn from(command: MomentaryCommands) -> Self {
         match command {
-            MomentaryCommand::Hand => MomentaryTool::Hand,
-            MomentaryCommand::ZoomIn => MomentaryTool::ZoomIn,
-            MomentaryCommand::ZoomOut => MomentaryTool::ZoomOut,
+            MomentaryCommands::Hand => MomentaryTool::Hand,
+            MomentaryCommands::ZoomIn => MomentaryTool::ZoomIn,
+            MomentaryCommands::ZoomOut => MomentaryTool::ZoomOut,
         }
     }
 }
 
 /// The momentary tools and the one in effect, kept by the app across passes. The app hands it to
-/// [`ToolHost::momentary`](super::ToolHost::momentary), which feeds it the fired [`MomentaryCommand`]s and runs its
+/// [`ToolHost::momentary`](super::ToolHost::momentary), which feeds it the fired [`MomentaryCommands`]s and runs its
 /// Hand or Zoom tool in place of the selected tool while a key is held.
 #[derive(Clone, Debug)]
 pub struct Momentary {
     /// The command whose key is down.
-    held: Option<MomentaryCommand>,
+    held: Option<MomentaryCommands>,
     /// The tool the last pass without a gesture chose: the one a drag keeps.
     latched: Option<MomentaryTool>,
     hand: HandTool,
@@ -93,7 +93,7 @@ impl Momentary {
     }
 
     /// Takes a fired momentary command: a press puts its tool in effect, a release ends it.
-    pub fn fired(&mut self, command: MomentaryCommand, phase: FirePhase) {
+    pub fn fired(&mut self, command: MomentaryCommands, phase: FirePhase) {
         match phase {
             FirePhase::Press | FirePhase::Repeat => self.held = Some(command),
             FirePhase::Release => self.held = None,

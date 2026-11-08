@@ -36,7 +36,7 @@ name = "FullWindowZoomBar"
 old = "craft_ui::dialog::full_window::FullWindowZoomBar"
 new = "craft_ui::dialog::FullWindowZoomBar"
 status = "replaced"
-note = "A pattern: `FullWindowZoomBar::new(Bind<FullWindowView>).progress(..).note(..).show(ui)` writes the next view through the binding. Its Zoom In and Zoom Out buttons are the `ViewCommand` zoom commands, taken from the dialog's command scope."
+note = "A pattern: `FullWindowZoomBar::new(Bind<FullWindowView>).progress(..).note(..).show(ui)` writes the next view through the binding. Its Zoom In and Zoom Out buttons are the `ViewCommands` zoom commands, taken from the dialog's command scope."
 
 [[type]]
 name = "FullWindowZoomBarResponse"
@@ -57,14 +57,14 @@ name = "FullWindowView"
 old = "craft_ui::dialog::full_window::FullWindowView"
 new = "craft_ui::dialog::FullWindowView"
 status = "replaced"
-note = "Plain `Copy` data over `CanvasView`: `new()`, `settled(rect, size, ppp)`, `took(view)`, `apply(ViewCommand)`, `set_device_zoom(f64)`, `can_step(dir)`, `zoom_percent()`. The zoom maths are `craft_behavior::canvas::zoom`."
+note = "Plain `Copy` data over `CanvasView`: `new()`, `settled(rect, size, ppp)`, `took(view)`, `apply(ViewCommands)`, `set_device_zoom(f64)`, `can_step(dir)`, `zoom_percent()`. The zoom maths are `craft_behavior::canvas::zoom`."
 
 [[type]]
 name = "FullWindowZoom"
 old = "craft_ui::dialog::full_window::FullWindowZoom"
 new = ""
 status = "removed"
-note = "Replaced by the zoom variants of `craft_ui::canvas::ViewCommand` (`ZoomIn`, `ZoomOut`, `FitOnScreen`, `ActualPixels`)."
+note = "Replaced by the zoom variants of `craft_ui::canvas::ViewCommands` (`ZoomIn`, `ZoomOut`, `FitOnScreen`, `ActualPixels`)."
 
 [[type]]
 name = "FullWindowCanvas"
@@ -106,7 +106,7 @@ name = "FullWindowLabels"
 old = "craft_ui::dialog::full_window::FullWindowLabels"
 new = ""
 status = "removed"
-note = "Replaced by the `DialogWords` rows `fullWindowTitle.*`, `fullWindowCanvas.name`, `fullWindowZoomBar.*` (the Zoom In and Zoom Out labels come from `ViewCommand`) and `fullWindowStatus.*`."
+note = "Replaced by the `DialogWords` rows `fullWindowTitle.*`, `fullWindowCanvas.name`, `fullWindowZoomBar.*` (the Zoom In and Zoom Out labels come from `ViewCommands`) and `fullWindowStatus.*`."
 
 [[type]]
 name = "FullWindowStyle"
@@ -221,12 +221,12 @@ new = "took(view)"
 [[setter]]
 type = "FullWindowView"
 old = "step(dir)"
-new = "apply(ViewCommand::ZoomIn)"
+new = "apply(ViewCommands::ZoomIn)"
 
 [[setter]]
 type = "FullWindowView"
 old = "reset_fit()"
-new = "apply(ViewCommand::FitOnScreen)"
+new = "apply(ViewCommands::FitOnScreen)"
 
 [[setter]]
 type = "FullWindowView"
@@ -249,7 +249,7 @@ note = "Marks are canvas controls shown with `show_at` inside the canvas."
 type = "FullWindowCanvas"
 old = "zoom_keys(keys)"
 new = ""
-note = "`FullWindowDialog` is an instance of the `ViewCommand` scope and the zoom bar applies the fired command to its bound view."
+note = "`FullWindowDialog` is an instance of the `ViewCommands` scope and the zoom bar applies the fired command to its bound view."
 
 [[setter]]
 type = "FullWindowCanvas"

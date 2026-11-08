@@ -231,7 +231,7 @@ fn layers(ui: &mut Ui, document: &mut Document) {
             .show_items(ui, &source, &mut |id, icx| {
                 let layer = layers.iter().find(|layer| layer.id == *id);
                 let name = layer.map(|layer| layer.name.clone()).unwrap_or_default();
-                ListRow::new(name).cells(icx.cells()).toggle(ToggleCell::eye(VISIBLE, layer.is_some_and(|layer| layer.visible), "Visibility {row}"))
+                ListRow::new(name).cells(icx.cells()).toggle(ToggleCell::eye(VISIBLE, layer.is_some_and(|layer| layer.visible)))
             })
             .events
     };

@@ -23,7 +23,7 @@ mod screen_mode;
 
 pub use app_shell::{AppShell, AppShellOutput, ShellRegion, ShellRegionOutput, WindowDialogs};
 pub use canvas_shell::{CanvasPanel, CanvasPanelOutput, slots};
-pub use screen_mode::{ScreenMode, ScreenModeCommand};
+pub use screen_mode::{ScreenMode, ScreenModeCommands};
 pub use words::ShellWords;
 
 // Start screen and app windows.

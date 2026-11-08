@@ -3,13 +3,15 @@
 craft_ui::words! {
     /// The words of the list family's built-in states and parts.
     pub struct ListWords {
-        no_findings: "list.noFindings" = "No findings";
-        clipped: "list.clipped" = "Clipped to the layer below";
-        thumb_none: "list.thumbNone" = "None";
-        thumb_small: "list.thumbSmall" = "Small";
-        thumb_medium: "list.thumbMedium" = "Medium";
-        thumb_large: "list.thumbLarge" = "Large";
-        expand: "preset.expand" = "Expand {row}";
-        collapse: "preset.collapse" = "Collapse {row}";
+        no_findings: "findingsList.noFindings" = "No findings";
+        clipped: "listRow.clipped" = "Clipped to the layer below";
+        thumb_none: "thumbSize.none" = "None";
+        thumb_small: "thumbSize.small" = "Small";
+        thumb_medium: "thumbSize.medium" = "Medium";
+        thumb_large: "thumbSize.large" = "Large";
+        toggle_visibility: "toggleCell.visibility" = "Visibility {row}";
+        toggle_lock: "toggleCell.lock" = "Lock {row}";
+        expand: "listRow.expand" = "Expand {row}";
+        collapse: "listRow.collapse" = "Collapse {row}";
     }
 }

@@ -2,7 +2,7 @@
 
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Size};
-use craft_ui::canvas::{Canvas, NavigationOptions, ViewCommand};
+use craft_ui::canvas::{Canvas, NavigationOptions, ViewCommands};
 use craft_ui::contract::ShowContainer as _;
 use craft_ui::runtime::commands;
 use craft_ui::testing::{Fixture, trial};
@@ -44,7 +44,7 @@ fn cmd_equals_zooms_a_focused_canvas_and_cmd_0_fits_it() {
 
     fixture.key(Key::Num0, Modifiers::COMMAND).settle();
     let mut fitted = before;
-    ViewCommand::FitOnScreen.apply(&mut fitted, DOC, fixture.ctx().pixels_per_point());
+    ViewCommands::FitOnScreen.apply(&mut fitted, DOC, fixture.ctx().pixels_per_point());
     assert!((view.borrow().zoom - fitted.zoom).abs() < SAME_ZOOM, "Cmd+0 fits the document: {:?}", view.borrow());
 }
 
@@ -52,5 +52,5 @@ fn cmd_equals_zooms_a_focused_canvas_and_cmd_0_fits_it() {
 fn the_view_menu_zoom_in_is_enabled_while_a_canvas_is_shown() {
     let (mut fixture, _) = canvas();
     fixture.settle();
-    assert!(commands::resolve(fixture.ctx(), ViewCommand::ZoomIn).enabled, "the canvas takes Zoom In");
+    assert!(commands::resolve(fixture.ctx(), ViewCommands::ZoomIn).enabled, "the canvas takes Zoom In");
 }

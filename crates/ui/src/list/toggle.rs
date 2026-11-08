@@ -4,6 +4,7 @@
 //! the cells a drag crosses and reports `CollectionEvent::Toggle`. The row only shows the state, so a cell carries
 //! the state the source reports for it (`ItemSource::toggled`) and how to draw it.
 
+use super::words::ListWords;
 use crate::runtime::env::Label;
 use crate::style::DataColor;
 use craft_behavior::{ColumnKey, IconId};
@@ -44,6 +45,17 @@ pub enum ToggleFace {
     Check,
 }
 
+/// Where a cell's accessible name comes from.
+#[derive(Clone, Debug)]
+enum CellName {
+    /// The name the cell's caller gave.
+    Given(Label),
+    /// The list words' visibility name.
+    Visibility,
+    /// The list words' lock name.
+    Lock,
+}
+
 /// One toggle cell of a row, in the column `column`.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -54,8 +66,7 @@ pub struct ToggleCell {
     pub face: ToggleFace,
     /// The state it shows.
     pub state: ToggleState,
-    /// The cell's name for a screen reader, a whole pattern with `{row}` for the row's label ("Visibility {row}").
-    pub name: Label,
+    name: CellName,
     /// The tooltip, the same in every row.
     pub tooltip: Option<Label>,
     /// A fill under the icon (a layer's label colour).
@@ -68,19 +79,24 @@ pub struct ToggleCell {
 }
 
 impl ToggleCell {
-    /// A cell of `column` showing `state` with `face`, named `name`.
+    /// A cell of `column` showing `state` with `face`, named `name`: a whole pattern with `{row}` for the row's label
+    /// ("Keep {row}").
     pub fn new(column: ColumnKey, face: ToggleFace, state: ToggleState, name: impl Into<Label>) -> Self {
-        ToggleCell { column, face, state, name: name.into(), tooltip: None, fill: None, always_visible: false, check_box: false }
+        ToggleCell { column, face, state, name: CellName::Given(name.into()), tooltip: None, fill: None, always_visible: false, check_box: false }
     }
 
-    /// An eye cell.
-    pub fn eye(column: ColumnKey, on: bool, name: impl Into<Label>) -> Self {
-        Self::new(column, ToggleFace::Icons { on: IconId::new("eye"), off: IconId::new("eye_off") }, ToggleState::of(on), name)
+    /// An eye cell, named "Visibility {row}" unless [`name`](Self::name) says otherwise.
+    pub fn eye(column: ColumnKey, on: bool) -> Self {
+        let mut cell = Self::new(column, ToggleFace::Icons { on: IconId::new("eye"), off: IconId::new("eye_off") }, ToggleState::of(on), "");
+        cell.name = CellName::Visibility;
+        cell
     }
 
-    /// A lock cell.
-    pub fn lock(column: ColumnKey, on: bool, name: impl Into<Label>) -> Self {
-        Self::new(column, ToggleFace::Icons { on: IconId::new("lock"), off: IconId::new("lock_open") }, ToggleState::of(on), name)
+    /// A lock cell, named "Lock {row}" unless [`name`](Self::name) says otherwise.
+    pub fn lock(column: ColumnKey, on: bool) -> Self {
+        let mut cell = Self::new(column, ToggleFace::Icons { on: IconId::new("lock"), off: IconId::new("lock_open") }, ToggleState::of(on), "");
+        cell.name = CellName::Lock;
+        cell
     }
 
     /// A check box cell, announced as a check box.
@@ -88,6 +104,22 @@ impl ToggleCell {
         let mut cell = Self::new(column, ToggleFace::Check, state, name);
         cell.check_box = true;
         cell
+    }
+
+    /// The cell's name for a screen reader in place of its default: a whole pattern with `{row}` for the row's label.
+    #[must_use]
+    pub fn name(mut self, name: impl Into<Label>) -> Self {
+        self.name = CellName::Given(name.into());
+        self
+    }
+
+    /// The name pattern the cell announces: the one given, else the list words' for its kind.
+    pub(super) fn name_pattern<'a>(&'a self, words: &'a ListWords) -> &'a Label {
+        match &self.name {
+            CellName::Given(name) => name,
+            CellName::Visibility => &words.toggle_visibility,
+            CellName::Lock => &words.toggle_lock,
+        }
     }
 
     /// The tooltip of the cell.
