@@ -17,11 +17,11 @@ use crate::docking::{
 use crate::layout_components::Stack;
 use crate::menu::{GroupItem, MenuWords, PanelRow};
 use crate::runtime::commands::{CommandRef, focus_within};
-use crate::runtime::env::{Env, Label, RevealEdge, ShellCx};
+use crate::runtime::env::{Env, Label, RevealEdge, ShellCx, ShellEntry};
 use crate::runtime::memory::{Remember as _, sub};
 use crate::sections::HeaderAction;
 use crate::style::StyleCx;
-use craft_behavior::dock::{Action, Column, DockEdge, DockError, Group, Layout, Node, Permissions, Workspace, node_at};
+use craft_behavior::dock::{Action, Column, DockEdge, DockError, Group, Layout, Node, PanelPlace, Permissions, Workspace, node_at};
 use craft_behavior::{DockSide, EditEvent, Flow, GesturePhase, Metrics, Mixed, Sense};
 use egui::{Context, Id, Pos2, Rect, Response, Ui, Vec2};
 use std::cell::RefCell;
@@ -81,7 +81,8 @@ impl<P> Outcome for DockAreaOutput<P> {
 ///   [`Action`] in the output, for the host to apply to its workspace set.
 /// - Hiding: [`hide`](DockArea::hide), the shell's panel visibility and [`maximized`](DockArea::maximized) prune
 ///   what shows; a pruned panel keeps its place for restore.
-/// - Drops: the area is the drop target of tab and group drags. Holding Ctrl or Cmd floats the drop.
+/// - Drops: the area is the drop target of tab and group drags. Ctrl or Cmd held at the release floats the drop, and
+///   so does a release no spot takes, with `DockConfig::float_on_empty_drop`.
 /// - State: the open flyout (unless the host binds it with [`flyout`](DockArea::flyout)) and the previous layout
 ///   live in the area's root container.
 #[derive(crate::contract::Pattern, crate::contract::Props)]
@@ -114,9 +115,10 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
         DockArea { id, workspace, panels, config, hide: HidePanels::None, maximized: None, auto_collapse: false, locked: false, flyout: None }
     }
 
-    /// A dock area over a layout that is only shown: a given workspace without hidden panels.
+    /// A dock area over a layout that is only shown: a given workspace without hidden panels, locked, so nothing
+    /// moves, floats or closes.
     pub fn read_only(id: Id, layout: &Layout<P>, panels: &'a mut dyn DockPanels<P>, config: DockConfig) -> Self {
-        Self::new(id, Bind::given(Workspace::new(layout.clone())), panels, config)
+        DockArea { locked: true, ..Self::new(id, Bind::given(Workspace::new(layout.clone())), panels, config) }
     }
 }
 
@@ -173,6 +175,17 @@ impl<P> Outcome for SurfaceOutput<P> {
     }
 }
 
+/// What the root container's drop target reads: the dock, the layout it shows, the rights and where a floating drop
+/// lands.
+struct Drops<'a, P> {
+    dock: Id,
+    layout: &'a Layout<P>,
+    permissions: &'a dyn Fn(&P) -> Permissions,
+    config: &'a DockConfig,
+    specs: &'a HashMap<P, PanelSpec>,
+    rtl: bool,
+}
+
 /// The root container of a dock area: it resolves the dock's sizes, takes the drops and starts the drags the parts
 /// report.
 #[derive(crate::contract::Component)]
@@ -182,7 +195,7 @@ struct Surface<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> {
     common: Common,
     #[container]
     props: ContainerProps,
-    target: DockDropTarget<'a, P>,
+    drops: Drops<'a, P>,
     starts: &'a Starts<P>,
     dropped: Option<DockDropped<P>>,
 }
@@ -202,7 +215,15 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Component for Surface
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         cx.core.memory.shown::<PassSizes>(sub(sub(cx.core.id, "body"), SIZES)).0 = Some(cx.style.sizes);
-        self.dropped = cx.drop_target::<GroupDrag<P>, _>(&self.target).or_else(|| cx.drop_target::<PanelDrag, _>(&self.target));
+        let (ctx, drops) = (cx.core.ctx.clone(), &self.drops);
+        let bounds = cx.env.get::<ShellEntry>().0.as_ref().map_or(cx.rect, ShellCx::float_bounds);
+        let space = float_space(bounds, &cx.style.sizes, drops.config, drops.specs);
+        let mut target = DockDropTarget::new(&ctx, drops.dock, drops.layout, drops.permissions);
+        target.rtl = drops.rtl;
+        target.space = Some(&space);
+        target.float_on_empty = drops.config.float_on_empty_drop;
+        target.title_bar_docks = drops.config.title_bar_docks;
+        self.dropped = cx.drop_target::<GroupDrag<P>, _>(&target).or_else(|| cx.drop_target::<PanelDrag, _>(&target));
     }
 
     fn finish(self, mut cx: Cx<'_, Self>) -> SurfaceOutput<P> {
@@ -330,13 +351,13 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
             })
             .collect();
         let policy = |panel: &P| rights.get(panel).copied().unwrap_or(Permissions::ALL);
-        let mut target = DockDropTarget::new(&ctx, id, &current.layout, &policy);
-        target.rtl = rtl;
+        let specs: HashMap<P, PanelSpec> = current.layout.panels().into_iter().map(|panel| (panel.clone(), panels.spec(panel))).collect();
+        let drops = Drops { dock: id, layout: &current.layout, permissions: &policy, config: &config, specs: &specs, rtl };
         let starts: Starts<P> = RefCell::new(Vec::new());
         let surface = Surface {
             common: Common::new(),
             props: ContainerProps::new().sizing(Sizing::Fill).pad(Pad::None),
-            target,
+            drops,
             starts: &starts,
             dropped: None,
         }
@@ -344,7 +365,18 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
         let mut passed = None;
         let shown = surface.show(ui, |ui, body| {
             let Some(sizes) = body.memory.recall::<PassSizes>(sub(body.id, SIZES)).0 else { return };
-            let input = Input { id, ctx: &ctx, current: &current, config: &config, hide, maximized: maximized.as_ref(), auto_collapse, sizes, rtl };
+            let input = Input {
+                id,
+                ctx: &ctx,
+                current: &current,
+                config: &config,
+                specs: &specs,
+                hide,
+                maximized: maximized.as_ref(),
+                auto_collapse,
+                sizes,
+                rtl,
+            };
             let result = show_area(ui, body, &input, &rights, &mut *panels, flyout.as_mut());
             if let Some(edit) = result.edit.as_ref() {
                 workspace.reborrow().write(body, edit);
@@ -366,6 +398,7 @@ struct Input<'i, P> {
     ctx: &'i Context,
     current: &'i Workspace<P>,
     config: &'i DockConfig,
+    specs: &'i HashMap<P, PanelSpec>,
     hide: HidePanels<'i, P>,
     maximized: Option<&'i P>,
     auto_collapse: bool,
@@ -395,23 +428,17 @@ fn show_area<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
     panels: &mut dyn DockPanels<P>,
     mut flyout: Option<&mut Bind<'_, Option<P>>>,
 ) -> Passed<P> {
-    let Input { id, ctx, current, config, hide, maximized, auto_collapse, sizes, rtl } = *input;
+    let Input { id, ctx, current, config, specs, hide, maximized, auto_collapse, sizes, rtl } = *input;
     let shell = body.shell();
     let mut memory = body.memory::<AreaMemory<P>>().clone();
     cancel_on_replacement(ctx, &memory.previous, &current.layout);
-    let specs: HashMap<P, PanelSpec> = current.layout.panels().into_iter().map(|panel| (panel.clone(), panels.spec(panel))).collect();
     let keys: HashMap<PanelKey, P> = current.layout.panels().into_iter().map(|panel| (PanelKey::of(panel), panel.clone())).collect();
     let protected = |panel: &P| rights.get(panel).is_some_and(|rights| rights.is_protected());
     let Shown { view, floating } = hide::shown(&current.layout, maximized, hide, shell.as_ref(), &protected);
     let layout: &Layout<P> = &view.layout;
     let bounds = shell.as_ref().map_or(body.rect, ShellCx::float_bounds);
-    let mut space = FloatSpace::new(bounds, &sizes).with_side_edge_zones(config.side_edge_zones);
-    for (panel, spec) in &specs {
-        if let Some(size) = spec.float_size {
-            space = space.with_panel_size(panel.clone(), size);
-        }
-    }
-    let scene = Scene { dock: id, sizes, config, layout, specs: &specs, permissions: rights, keys: &keys, space: &space, bounds, auto_collapse, rtl };
+    let space = float_space(bounds, &sizes, config, specs);
+    let scene = Scene { dock: id, sizes, config, layout, specs, permissions: rights, keys: &keys, space: &space, bounds, auto_collapse, rtl };
     let open = open_of(&mut flyout, body, &memory);
     let mut pass = Pass {
         scene: &scene,
@@ -425,15 +452,21 @@ fn show_area<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
     let stripless = |panel: &P| scene.spec(panel).canvas;
     let rules = FrameRules::new(&limits).dock_width(&dock_width).stripless(&stripless);
     let label = Label::from(body.words::<DockWords>().panels.as_str().to_owned());
+    let mut leaves: Vec<(Vec<bool>, Rect)> = Vec::new();
     let area = SplitArea::new(label, Bind::given(layout.clone()), rules).show(ui, |ui, split| {
         for (anchor, rect) in split.group_frames::<P>() {
-            let Some(node) = scene.layout.place(&anchor).and_then(|place| scene.layout.node_of(&place)) else { continue };
+            let Some(place) = scene.layout.place(&anchor) else { continue };
+            let Some(node) = scene.layout.node_of(&place) else { continue };
+            if let PanelPlace::Node(path) = &place {
+                leaves.push((path.clone(), rect));
+            }
             pass.leaf(ui, split, node, rect);
         }
         let flow = Flow::new(split.rect, rtl);
         for (edge, rect) in split.dock_frames() {
             let Some(path) = scene.layout.dock_path(edge) else { continue };
             let Some(Node::Dock { columns, .. }) = scene.layout.root.as_ref().and_then(|root| node_at(root, &path)) else { continue };
+            leaves.push((path.clone(), rect));
             if let Some(shell) = shell.as_ref().filter(|shell| shell.revealed()) {
                 shell.reveal_rect(if edge == DockEdge::Start { RevealEdge::Start } else { RevealEdge::End }, rect);
             }
@@ -447,7 +480,7 @@ fn show_area<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
             next
         })
     });
-    register_bands(&scene, ctx, body.rect);
+    register_bands(&scene, ctx, body.rect, &leaves);
     if floating {
         pass.windows(ui);
     }
@@ -481,24 +514,39 @@ fn show_area<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
     Passed { actions: report.actions, events: report.events, focused: report.focused, picked: report.picked, edit, space: Some(space) }
 }
 
-/// Registers the outer-edge bands and the new-dock bands as the dock's drop spots for the next pass.
-fn register_bands<P: Clone + Eq + Hash + Send + 'static>(scene: &Scene<'_, P>, ctx: &Context, area: Rect) {
-    let Some(root) = scene.layout.root.as_ref() else { return };
-    let limits = |panel: &P| scene.spec(panel).limits;
-    let rules = FrameRules::new(&limits);
-    let frames = tree::frames(root, area, &scene.sizes, &rules, scene.rtl);
+/// Registers the outer-edge bands and the new-dock bands as the dock's drop spots for the next pass, from the leaves
+/// the split area placed this pass (each as its tree path and rect). A new-dock band runs along a start or end edge
+/// that holds no dock.
+fn register_bands<P: Clone + Eq + Hash + Send + 'static>(scene: &Scene<'_, P>, ctx: &Context, area: Rect, leaves: &[(Vec<bool>, Rect)]) {
+    if scene.layout.root.is_none() {
+        return;
+    }
     let canvas = |panel: &P| scene.spec(panel).canvas;
-    let bands = frame::edge_bands(scene.layout, &frames, &canvas, scene.config, &scene.sizes, scene.rtl);
+    let bands = frame::edge_bands(scene.layout, leaves, &canvas, scene.config, &scene.sizes, scene.rtl);
     frame::register_edge_bands::<P>(ctx, scene.dock, &bands);
     if scene.config.new_dock_zones {
         let flow = Flow::new(area, scene.rtl);
-        let band = scene.sizes.new_dock_band.min(area.width() / 4.0);
+        let band = scene.sizes.new_dock_band;
         let start = Rect::from_min_size(area.min, Vec2::new(band, area.height()));
         let end = Rect::from_min_max(Pos2::new(area.right() - band, area.top()), area.max);
-        for (side, rect) in [(DockSide::Start, start), (DockSide::End, end)] {
-            DockTargets::<P>::register(ctx, scene.dock, DockSpot::NewDock(side), flow.to_physical(rect));
+        for (side, edge, rect) in [(DockSide::Start, DockEdge::Start, start), (DockSide::End, DockEdge::End, end)] {
+            if scene.layout.dock_path(edge).is_none() {
+                DockTargets::<P>::register(ctx, scene.dock, DockSpot::NewDock(side), flow.to_physical(rect));
+            }
         }
     }
+}
+
+/// Where floats land in an area whose float bounds are `bounds`: each panel at its spec's float size, else the
+/// default float size of `sizes`.
+fn float_space<P: Clone + PartialEq>(bounds: Rect, sizes: &DockSizes, config: &DockConfig, specs: &HashMap<P, PanelSpec>) -> FloatSpace<P> {
+    let mut space = FloatSpace::new(bounds, sizes).with_side_edge_zones(config.side_edge_zones);
+    for (panel, spec) in specs {
+        if let Some(size) = spec.float_size {
+            space = space.with_panel_size(panel.clone(), size);
+        }
+    }
+    space
 }
 
 /// A region of `ui` at `rect` that holds one container.
@@ -650,8 +698,12 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
                 None => Action::set_minimized(shown.clone(), !look.minimized),
             });
         }
+        // A tear-off inside the window is a release no spot took: it floats only with `float_on_empty_drop`.
         if let Some(torn) = output.torn_off
             && let Some(panel) = scene.panel(torn.grabbed)
+            && scene.permissions(panel).movable
+            && scene.permissions(panel).floatable
+            && (scene.config.float_on_empty_drop || !ui.ctx().content_rect().contains(torn.pointer))
         {
             self.report.actions.push(Action::float(panel.clone(), scene.torn_rect(panel, torn.pointer)));
         }
