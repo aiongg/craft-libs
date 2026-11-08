@@ -2,8 +2,9 @@
 //! Increment, Decrement and SetValue requests aimed at it.
 
 use crate::contract::kit::PlainStyle;
-use craft_behavior::{PartKey, Sense};
+use craft_behavior::{Input, PartKey, Sense};
 use craft_ui::contract::{Access, Common, Component, Cx, Focus as _, MeasureCx, Numeric, PartsCx, Props as _, Role, Show as _};
+use craft_ui::runtime::focus::KeyUse;
 use craft_ui::style::StyleCx;
 use craft_ui::testing::access::Declared;
 use craft_ui::testing::focus::AccessActionKind;
@@ -38,6 +39,10 @@ impl Component for Pair {
     const ROLE: Role = Role::GROUP;
     type Style = PlainStyle;
     type Output = egui::Response;
+
+    fn keys(&self) -> KeyUse {
+        KeyUse::of(Input::Pointer).with_moves()
+    }
 
     fn style(_: &StyleCx<'_>, _: PairStyleKey) -> PlainStyle {
         PlainStyle::default()
