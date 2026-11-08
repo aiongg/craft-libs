@@ -215,6 +215,8 @@ pub struct OverlayColors {
     pub checker_light: Rgba,
     /// The dark cells of the transparency checkerboard.
     pub checker_dark: Rgba,
+    /// The brush stroke being drawn on a selection mask, before it is committed: `accent.solid` at 43 %.
+    pub trail: Rgba,
 }
 
 /// Chart and histogram colours.
@@ -238,6 +240,10 @@ pub struct DataColors {
     pub yellow: Rgba,
     /// The plot behind an RGB histogram: dark in every theme.
     pub scope: Rgba,
+    /// The tone backdrop behind a curve graph's curve: `text.muted` at 50 %.
+    pub backdrop: Rgba,
+    /// The selected range's band on a histogram: `accent.solid` at 35 %.
+    pub selection: Rgba,
 }
 
 /// Custom window caption (title bar) colours.
@@ -333,8 +339,21 @@ impl ColorTokens {
                 grid: c,
                 checker_light: c,
                 checker_dark: c,
+                trail: c,
             },
-            data: DataColors { series: [c; 8], red: c, green: c, blue: c, luma: c, cyan: c, magenta: c, yellow: c, scope: c },
+            data: DataColors {
+                series: [c; 8],
+                red: c,
+                green: c,
+                blue: c,
+                luma: c,
+                cyan: c,
+                magenta: c,
+                yellow: c,
+                scope: c,
+                backdrop: c,
+                selection: c,
+            },
             caption: CaptionColors { close_hover: c, close_pressed: c, close_text: c, disc: c, inactive: c, pressed: c },
             edge: EdgeColors { light: c, dark: c },
         }
@@ -531,6 +550,8 @@ color_tokens! {
     OverlayCheckerLight = "overlay.checker_light" => overlay.checker_light;
     /// `overlay.checker_dark`
     OverlayCheckerDark = "overlay.checker_dark" => overlay.checker_dark;
+    /// `overlay.trail`
+    OverlayTrail = "overlay.trail" => overlay.trail;
     /// `data.series.0`
     DataSeries0 = "data.series.0" => data.series[0];
     /// `data.series.1`
@@ -563,6 +584,10 @@ color_tokens! {
     DataYellow = "data.yellow" => data.yellow;
     /// `data.scope`
     DataScope = "data.scope" => data.scope;
+    /// `data.backdrop`
+    DataBackdrop = "data.backdrop" => data.backdrop;
+    /// `data.selection`
+    DataSelection = "data.selection" => data.selection;
     /// `caption.close_hover`
     CaptionCloseHover = "caption.close_hover" => caption.close_hover;
     /// `caption.close_pressed`
@@ -927,6 +952,16 @@ pub struct HandleSizes {
     pub sm: f32,
     /// Standard handle: side or diameter.
     pub md: f32,
+    /// The radius of the ring a pin's fixed rotation is set on.
+    pub ring: f32,
+    /// The hit radius of a transform box's handle.
+    pub hit: f32,
+    /// How far from a transform box's corner the rotate pointer shows outside the box.
+    pub rotate_reach: f32,
+    /// Where the rotate band outside a transform box's corner begins, from the corner.
+    pub band_inner: f32,
+    /// Where the rotate band outside a transform box's corner ends, from the corner.
+    pub band_outer: f32,
 }
 
 /// Pointer tolerances, in logical pixels.
@@ -938,6 +973,8 @@ pub struct HitSizes {
     pub target: f32,
     /// How far from the centre of a rotary control a press sets no value.
     pub dead_zone: f32,
+    /// How far from the pointer the handles of an on-canvas object show.
+    pub reveal: f32,
 }
 
 /// Line widths, dash lengths and gaps, in points.

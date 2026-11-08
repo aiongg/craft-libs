@@ -40,11 +40,17 @@
       },
       "groove": 2.0,
       "handle": {
+        "band_inner": 5.0,
+        "band_outer": 18.0,
+        "hit": 12.0,
         "md": 8.0,
+        "ring": 18.0,
+        "rotate_reach": 36.0,
         "sm": 6.0
       },
       "hit": {
         "dead_zone": 2.4,
+        "reveal": 56.0,
         "slop": 3.0,
         "target": 8.0
       },
