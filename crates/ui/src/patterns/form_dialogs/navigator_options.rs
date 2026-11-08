@@ -3,7 +3,7 @@
 use super::color_choice::{ColorChoice, ColorRowTexts, apply_color_answers, color_row};
 use super::{FormDialog, HostAnswer, HostRequests};
 use crate::canvas::{NavigatorOptions, ProxyColor};
-use crate::contract::{Bind, NoValue, Outcome, Show as _, ShowContainer as _};
+use crate::contract::{Bind, NoValue, Outcome, ShowContainer as _};
 use crate::form::FieldGroup;
 use crate::runtime::env::{Env, Label};
 use crate::runtime::overlay::CloseReason;

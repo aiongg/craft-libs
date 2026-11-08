@@ -10,7 +10,7 @@ use egui::Ui;
 
 /// A colour a dialog picks from a named list or sets with Custom…: a small enum whose custom variant carries its colour,
 /// so the value alone says which colour is chosen.
-pub(super) trait ColorChoice: Copy + PartialEq + 'static {
+pub(super) trait ColorChoice: Copy + PartialEq + Send + Sync + 'static {
     /// The named colours in the order the list shows them.
     const NAMED: &'static [Self];
     /// Whether Custom… leads the list; otherwise it follows the named colours.
