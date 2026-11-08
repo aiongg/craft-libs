@@ -326,7 +326,7 @@ impl<'a> FieldListPane<'a> {
         let FieldListPane { fields, areas, values_row } = self;
         let words = Env::of(ui).words::<FieldListWords>();
         let edits = RefCell::new(Vec::new());
-        let ids = FieldArea::ALL.map(|area| ui.id().with(("fields-area", area)));
+        let ids = FieldArea::ALL.map(|area| ui.scope_id().with(("fields-area", area)));
         let model = Model { fields, areas, values_row, words: &words };
         let shown = Panel::new(words.title.clone()).footer(|ui, _| model.footer(ui, &edits)).show(ui, |ui, _| {
             model.checklist(ui, &edits);

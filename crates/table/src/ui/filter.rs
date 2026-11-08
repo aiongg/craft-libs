@@ -54,6 +54,7 @@ impl Outcome for FilterButtonOutput {
 /// The style of the filter button: the raised control surface, the glyph at the control's icon side and the inset
 /// between the glyphs and the edge.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
+#[style(variants = [Variant::SECONDARY])]
 #[non_exhaustive]
 pub struct FilterButtonStyle {
     #[style(surface)]
@@ -108,7 +109,7 @@ impl Component for FilterButton {
     type Output = FilterButtonOutput;
 
     fn style(cx: &StyleCx<'_>, _: FilterButtonStyleKey) -> FilterButtonStyle {
-        let parts = cx.with_variant(Variant::SECONDARY).variant_look();
+        let parts = cx.variant_look();
         let mut surface = SurfaceLook::new(parts.fill.clone()).radius(parts.radius).kind(SurfaceKind::Raised).kind_down(SurfaceKind::Pressed);
         if let Some(edge) = &parts.edge {
             surface = surface.border(edge.clone(), cx.tokens.stroke.thin);

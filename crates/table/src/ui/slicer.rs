@@ -342,7 +342,7 @@ impl Component for SlicerTile {
         let (hover, solid): (StyleColor, StyleColor) = (cx.color(colors.state.hover), cx.color(colors.accent.solid));
         let (muted, on_accent): (StyleColor, StyleColor) = (cx.color(colors.text.muted), cx.color(colors.text.on_accent));
         SlicerTileStyle {
-            surface: SurfaceLook::new(Stateful::new(hover).when(Flags::CHECKED, solid)).radius(cx.tokens.shape.radius.control),
+            surface: SurfaceLook::new(Stateful::new(hover).when(Flags::CHECKED, solid)).radius(cx.variant_look().radius),
             metrics: Metrics::new().min_size(Vec2::new(0.0, cx.control().height)),
             focus: cx.focus_look(),
             text: TextLook::new(TypeRole::Body, Stateful::new(muted).when(Flags::CHECKED, on_accent)),
