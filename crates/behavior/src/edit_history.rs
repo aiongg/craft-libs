@@ -104,6 +104,16 @@ impl<T: Value> EditHistory<T> {
         self.undo.pop().is_some()
     }
 
+    /// Takes back the newest undo step without a redo entry, for an edit that was refused: `settled` returns to the
+    /// value before the step, which is returned for the caller to apply, and the redo steps stay as they were. `None`
+    /// when there is no step.
+    pub fn take_back(&mut self) -> Option<T> {
+        self.open = None;
+        let entry = self.undo.pop()?;
+        self.settled = entry.value.clone();
+        Some(entry.value)
+    }
+
     /// The name of the step an undo would take back ("Opacity" for "Undo Opacity").
     pub fn undo_name(&self) -> Option<&str> {
         self.undo.last().map(|entry| &*entry.name)
@@ -122,5 +132,44 @@ impl<T: Value> EditHistory<T> {
     /// A redo would change something.
     pub fn can_redo(&self) -> bool {
         !self.redo.is_empty()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::value::Mixed;
+
+    fn set(n: u64, before: i32, after: i32) -> EditEvent<i32> {
+        EditEvent::set(GestureId::new(n), Mixed::Same(before), after, "Fill".into(), None)
+    }
+
+    #[test]
+    fn a_take_back_returns_the_earlier_value_keeps_redo_and_settles() {
+        let mut history = EditHistory::new(&0);
+        history.record(&set(1, 0, 1));
+        history.record(&set(2, 1, 2));
+        history.record(&set(3, 2, 5));
+        let mut now = 5;
+        assert!(history.step(&mut now, Step::Undo));
+        assert_eq!(now, 2);
+        assert!(history.can_redo());
+
+        assert_eq!(history.take_back(), Some(1), "the value before the newest step");
+        assert!(history.can_redo(), "redo is as it was");
+        assert_eq!(history.redo_name(), Some("Fill"));
+        let mut now = 1;
+        assert!(history.step(&mut now, Step::Undo));
+        assert_eq!(now, 0, "the undo takes the step before the one taken back");
+    }
+
+    #[test]
+    fn a_commit_equal_to_the_restored_value_adds_no_step() {
+        let mut history = EditHistory::new(&0);
+        history.record(&set(1, 0, 1));
+        assert_eq!(history.take_back(), Some(0));
+        history.record(&set(2, 0, 0));
+        assert!(!history.can_undo());
+        assert_eq!(history.take_back(), None);
     }
 }

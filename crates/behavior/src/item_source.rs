@@ -3,7 +3,8 @@
 use crate::columns::ColumnKey;
 use crate::item_layout::ItemLayout;
 use crate::nav::NavOutline;
-use emath::Vec2;
+use crate::scroll::ScrollPos;
+use emath::{Rect, Vec2};
 use std::borrow::Cow;
 
 /// How tall (or what shape) an item wants to be.
@@ -171,6 +172,12 @@ impl<K> NavOutline for Outline<'_, K> {
     fn columns(&self) -> usize {
         self.columns
     }
+
+    /// The layout's rect of the item in content space (scroll offset zero), so a scrolled outline moves the same way.
+    fn rect(&self, at: usize) -> Option<Rect> {
+        let rect = self.layout?.rect(at, ScrollPos::default());
+        rect.is_finite().then_some(rect)
+    }
 }
 
 type KeyFn<'a, T, K> = Box<dyn Fn(&T) -> K + 'a>;
@@ -249,5 +256,25 @@ mod tests {
         assert!(!source.toggled(1, &visible));
         assert!(!source.toggled(0, &ColumnKey::new("lock")));
         assert!(!keyed(&rows, |row| row.0).toggled(0, &visible), "a source without the closure has every cell off");
+    }
+
+    #[test]
+    fn an_outline_over_a_free_layout_moves_down_to_the_item_below() {
+        use crate::intent::{MoveMods, NavMove};
+        use crate::item_layout::FreeLayout;
+        use crate::nav::{NavShape, NavState, step};
+        use emath::{Pos2, Vec2};
+        let rows = [(0_u32, ""), (1, "")];
+        let source = keyed(&rows, |row| row.0);
+        let layout = FreeLayout::new(vec![
+            Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::splat(40.0)),
+            Rect::from_min_size(Pos2::new(10.0, 100.0), Vec2::splat(40.0)),
+        ]);
+        let outline = Outline::new(&source).layout(&layout);
+        assert_eq!(outline.rect(1), Some(Rect::from_min_size(Pos2::new(10.0, 100.0), Vec2::splat(40.0))));
+        assert_eq!(outline.rect(2), None, "a position past the layout has no rect");
+        let mut state = NavState::at(0);
+        let moved = step(NavShape::Spatial, &outline, &mut state, NavMove::Down, MoveMods::PLAIN);
+        assert_eq!(state.lead, Some(1), "{moved:?}");
     }
 }
