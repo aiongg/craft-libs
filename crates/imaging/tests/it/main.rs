@@ -1,5 +1,6 @@
 //! The integration binary of craft-imaging: every test is a registered trial.
 
+mod adjust_editors;
 mod blend_keys;
 mod blur_pins;
 mod curve;

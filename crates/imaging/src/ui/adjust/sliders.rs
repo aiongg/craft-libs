@@ -1,33 +1,37 @@
-//! [`AdjustSliders`]: a table of slider rows for the adjustments that are only sliders (Exposure,
-//! Vibrance, Posterize, VectorCraft's colour effects), with Photoshop's double-click to default
-//! and PhotoCraft's rounding.
+//! [`AdjustSliders`]: a table of slider rows for the adjustments that are only sliders (Exposure, Vibrance,
+//! Posterize, VectorCraft's colour effects), and the row machinery every adjustment editor shares.
+//!
+//! An editor's value is one binding. Each row is a `Field` over a `SliderField` in the editor's `FieldGroup`; the
+//! rows' edits are lifted onto the editor's value ([`Run`]), so one slider drag, one typed number or one reset is one
+//! gesture of the whole value.
+
+#[cfg(feature = "screen-testing")]
+mod stories;
 
 use std::ops::RangeInclusive;
-
-use craft_theme::Srgba;
 use std::sync::Arc;
 
-use egui::{AsIdSalt, Id, IdSalt, Response, Ui};
+use craft_behavior::{EditEvent, GestureId, Mixed, Value, decimals_for_step};
+use craft_ui::contract::{Bind, BodyCx, EditResponse, Pattern, Props as _, Remember as _, Show as _, ShowContainer as _};
+use craft_ui::form::{Field, FieldGroup, SliderField};
+use craft_ui::runtime::env::{Env, Label, UnitKind};
+use craft_ui::style::DataColor;
+use craft_ui::value_drag::TrackFace;
+use egui::{Response, Ui};
 
-use craft_ui::composites::SliderRow;
-use craft_ui::edit::parts::{self, Pushed};
-use craft_ui::edit::{self, EditEvent, EditPolicy, EditResponse, Gesture};
-use craft_ui::localized::{LocaleNumbers, Unit, UnitKind, Units};
-
-use super::{AdjustContext, AdjustLabels};
-
-/// The most decimal places a field keeps.
-const MAX_DECIMALS: usize = 6;
+use super::{AdjustContext, AdjustWords};
+use crate::ui::curve::ToneRamp;
 
 /// A slider row's track.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub enum AdjustTrack {
     /// The slider's own track.
     #[default]
     Plain,
-    /// A colour track through these stops, start to end (an image tone, not chrome), drawn only
-    /// while [`AdjustContext::dynamic_color_sliders`] is on; the plain track otherwise.
-    Colors(Vec<Srgba>),
+    /// A colour track through these stops, start to end (an image tone, not chrome), drawn only while
+    /// [`AdjustContext::dynamic_color_sliders`] is on; the plain track otherwise.
+    Colors(Vec<DataColor>),
 }
 
 /// One row of an [`AdjustSliders`] table.
@@ -36,316 +40,282 @@ pub enum AdjustTrack {
 pub struct AdjustField {
     /// The host's key for the value (the engine parameter's name); the library never reads it.
     pub key: &'static str,
-    /// The row's caption, translated.
-    pub label: String,
+    /// The row's caption.
+    pub label: Label,
     /// The slider's value range, in the field's unit.
     pub range: RangeInclusive<f64>,
-    /// The value a double-click on the slider sets.
+    /// The value a reset of the row restores.
     pub default: f64,
-    /// The field's unit ("{n} %", "{n}°"), none by default.
-    pub unit: Option<Unit>,
-    /// Decimal places kept; `None` rounds as [`round`](Self::round) says.
-    pub decimals: Option<usize>,
+    /// What the number counts, none by default.
+    pub unit_kind: Option<UnitKind>,
+    /// The change of one arrow press and the grid typed values snap to; hundredths on a range 10 wide or less and
+    /// whole numbers above.
+    pub step: Option<f64>,
     /// The track behind the slider.
     pub track: AdjustTrack,
 }
 
 impl AdjustField {
-    /// A row with a plain track, no unit and the range's own rounding.
-    pub fn new(key: &'static str, label: impl Into<String>, range: RangeInclusive<f64>, default: f64) -> Self {
-        Self { key, label: label.into(), range, default, unit: None, decimals: None, track: AdjustTrack::Plain }
+    /// A row with a plain track, no unit and the range's own step.
+    pub fn new(key: &'static str, label: impl Into<Label>, range: RangeInclusive<f64>, default: f64) -> Self {
+        Self { key, label: label.into(), range, default, unit_kind: None, step: None, track: AdjustTrack::Plain }
     }
 
-    /// The field's unit.
-    pub fn unit(mut self, unit: Unit) -> Self {
-        self.unit = Some(unit);
+    /// What the number counts.
+    #[must_use]
+    pub fn unit_kind(mut self, kind: UnitKind) -> Self {
+        self.unit_kind = Some(kind);
         self
     }
 
-    /// Decimal places the value keeps.
-    pub fn decimals(mut self, decimals: usize) -> Self {
-        self.decimals = Some(decimals);
+    /// The step of the row; a value the row reports is on it.
+    #[must_use]
+    pub fn step(mut self, step: f64) -> Self {
+        self.step = Some(step);
         self
     }
 
     /// The row's track.
+    #[must_use]
     pub fn track(mut self, track: AdjustTrack) -> Self {
         self.track = track;
         self
     }
 
-    /// The value the row stores for `x` (PhotoCraft's `row_value`): rounded to
-    /// `decimals` places when set (at most 6), else to 0.01 for a range 10 wide or less, else to
-    /// a whole number.
+    /// The value the row stores for `x`: rounded to the places of its step.
     pub fn round(&self, x: f64) -> f64 {
-        // pc: crates/ui-egui/src/dialogs/adjust_editors/basic.rs:12-22 `row_value`.
-        match self.decimals {
-            Some(places) => {
-                let scale = 10f64.powi(places.min(MAX_DECIMALS) as i32);
-                (x * scale).round() / scale
-            }
-            None if self.range.end() - self.range.start() <= 10.0 => (x * 100.0).round() / 100.0,
-            None => x.round(),
-        }
+        let scale = 10f64.powi(decimals_for_step(self.stride()) as i32);
+        (x * scale).round() / scale
     }
 
-    /// The row's step: the smallest decimal step of its places, else 0.01 for a range 10 wide or
-    /// less and 1 above. Every value the row reports is on it, so [`round`](Self::round) leaves
-    /// a reported value as it is.
-    fn step(&self) -> f64 {
-        match self.decimals {
-            Some(places) => 10f64.powi(-(places.min(MAX_DECIMALS) as i32)),
+    /// The row's step: the one set, else 0.01 for a range 10 wide or less and 1 above.
+    fn stride(&self) -> f64 {
+        match self.step {
+            Some(step) => step,
             None if self.range.end() - self.range.start() <= 10.0 => 0.01,
             None => 1.0,
         }
     }
 
-    /// How far one wheel notch moves the slider: the row's step, but not finer than 0.01 (a
-    /// notch of 0.0001 across Offset's range would not move the thumb).
-    fn wheel_step(&self) -> f64 {
-        self.step().max(0.01)
-    }
-
     /// `x` held in the row's range.
-    pub(super) fn clamp(&self, x: f64) -> f64 {
+    fn clamp(&self, x: f64) -> f64 {
         x.max(*self.range.start()).min(*self.range.end())
     }
 
-    /// Exposure's rows: Exposure −20..20 (2 places), Offset −0.5..0.5 (4 places), Gamma Correction
-    /// 0.01..9.99 (default 1); keys `exposure`, `offset`, `gamma`. Exposure's wheel step is 0.01.
-    pub fn exposure(labels: &AdjustLabels) -> Vec<AdjustField> {
-        // pc: crates/ui-egui/src/dialogs/adjust_editors.rs:146-154 (the Exposure table).
+    /// The row's slider over `value`, with its colour track while `context` shows tracks.
+    fn slider(&self, value: f64, context: AdjustContext) -> SliderField<'_> {
+        let mut slider = SliderField::new(self.label.clone(), Bind::given(value).reset(self.default), self.range.clone()).step(self.stride());
+        if let Some(kind) = self.unit_kind {
+            slider = slider.unit_kind(kind);
+        }
+        match &self.track {
+            AdjustTrack::Colors(stops) if context.dynamic_color_sliders() => slider.track_face(TrackFace::new(ToneRamp::new(stops))),
+            _ => slider,
+        }
+    }
+
+    /// Exposure's rows: Exposure −20..20 (2 places), Offset −0.5..0.5 (4 places), Gamma Correction 0.01..9.99
+    /// (default 1); keys `exposure`, `offset`, `gamma`.
+    pub fn exposure(words: &AdjustWords) -> Vec<AdjustField> {
         vec![
-            AdjustField::new("exposure", labels.exposure.as_str(), -20.0..=20.0, 0.0).decimals(2),
-            AdjustField::new("offset", labels.offset.as_str(), -0.5..=0.5, 0.0).decimals(4),
-            AdjustField::new("gamma", labels.gamma_correction.as_str(), 0.01..=9.99, 1.0),
+            AdjustField::new("exposure", words.exposure.clone(), -20.0..=20.0, 0.0).step(0.01),
+            AdjustField::new("offset", words.offset.clone(), -0.5..=0.5, 0.0).step(0.0001),
+            AdjustField::new("gamma", words.gamma_correction.clone(), 0.01..=9.99, 1.0),
         ]
     }
 
-    /// Vibrance's rows: Vibrance and Saturation, −100..100 %, default 0; keys `vibrance`,
-    /// `saturation`.
-    pub fn vibrance(labels: &AdjustLabels, units: &Units) -> Vec<AdjustField> {
-        // pc: crates/ui-egui/src/dialogs/adjust_editors.rs:155.
+    /// Vibrance's rows: Vibrance and Saturation, −100..100 %, default 0; keys `vibrance`, `saturation`.
+    pub fn vibrance(words: &AdjustWords) -> Vec<AdjustField> {
         vec![
-            AdjustField::new("vibrance", labels.vibrance.as_str(), -100.0..=100.0, 0.0).unit(units.unit(UnitKind::Percent)),
-            AdjustField::new("saturation", labels.saturation.as_str(), -100.0..=100.0, 0.0).unit(units.unit(UnitKind::Percent)),
+            AdjustField::new("vibrance", words.vibrance.clone(), -100.0..=100.0, 0.0).unit_kind(UnitKind::Percent),
+            AdjustField::new("saturation", words.saturation.clone(), -100.0..=100.0, 0.0).unit_kind(UnitKind::Percent),
         ]
     }
 
     /// Posterize's row: Levels 2..255, default 4; key `levels`.
-    pub fn posterize(labels: &AdjustLabels) -> Vec<AdjustField> {
-        // pc: crates/ui-egui/src/dialogs/adjust_editors.rs:161.
-        vec![AdjustField::new("levels", labels.levels.as_str(), 2.0..=255.0, 4.0)]
+    pub fn posterize(words: &AdjustWords) -> Vec<AdjustField> {
+        vec![AdjustField::new("levels", words.levels.clone(), 2.0..=255.0, 4.0)]
     }
 }
 
-/// A table of [`SliderRow`](craft_ui::composites::SliderRow)s over the host's values, one per
-/// [`AdjustField`] (same index).
+/// What an editor keeps between passes: the value its running gesture began with.
+#[derive(Clone, Debug, Default)]
+struct Memory {
+    began: Option<Vec<f64>>,
+}
+
+/// A table of slider rows over the host's values, one per [`AdjustField`] (same index).
 ///
-/// - Each row: caption, slider and number field; the colour track when the field has one and the
-///   context's dynamic tracks are on.
-/// - Double-click on a slider: the field's default, one `Set` (Photoshop).
-/// - Mouse wheel over a slider: steps it in a dialog ([`AdjustContext::wheel`]), by 1 or the
-///   field's smallest decimal step (Exposure 0.01); nothing in the Properties panel.
-/// - Every value the table reports is rounded with [`AdjustField::round`].
-/// - Each row's field and slider are parts of one edit of the table (`craft_ui::edit::parts`):
-///   an event of a row that comes while another row's gesture runs, or in the pass it ends, waits
-///   for its turn and goes out after it; no event is dropped. The editors of the family draw
-///   their tables, check boxes and selects as parts of their own edit the same way.
-/// - Keyboard and AccessKit: each row's field and slider as [`SliderRow`](craft_ui::composites::SliderRow)
-///   has them (labelled by the caption, arrows, Shift ×10, Page Up and Down).
+/// - Each row: caption, slider and number field; the colour track when the field has one and the context's dynamic
+///   tracks are on.
+/// - A reset of a row (double-click on the slider, the caption's reset) sets the field's default, one `Set`.
+/// - Every value the table reports is rounded with [`AdjustField::round`], and the edit carries every value of the
+///   table, so the host stores it as it is.
+/// - Keyboard and AccessKit: each row as `SliderField` has them.
 #[must_use = "show the table with `show`"]
+#[derive(Pattern)]
 pub struct AdjustSliders<'a> {
-    id_salt: IdSalt,
+    label: Label,
     fields: &'a [AdjustField],
-    values: &'a [f64],
-    numbers: &'a LocaleNumbers,
+    values: Bind<'a, Vec<f64>>,
     context: AdjustContext,
-    policy: EditPolicy,
-    enabled: bool,
 }
 
 impl<'a> AdjustSliders<'a> {
-    /// The table of `fields` over `values` (same length).
-    pub fn new(id_salt: impl AsIdSalt, fields: &'a [AdjustField], values: &'a [f64], numbers: &'a LocaleNumbers) -> Self {
-        Self {
-            id_salt: IdSalt::new(id_salt),
-            fields,
-            values,
-            numbers,
-            context: AdjustContext::dialog(true),
-            policy: EditPolicy::default(),
-            enabled: true,
-        }
+    /// The table named `label` of `fields` over `values` (same length).
+    pub fn new(label: impl Into<Label>, fields: &'a [AdjustField], values: Bind<'a, Vec<f64>>) -> Self {
+        Self { label: label.into(), fields, values, context: AdjustContext::dialog(true) }
     }
 
     /// Dialog or Properties panel; a dialog by default.
+    #[must_use]
     pub fn context(mut self, context: AdjustContext) -> Self {
         self.context = context;
         self
     }
 
-    /// The rows' edit policy.
-    pub fn policy(mut self, policy: EditPolicy) -> Self {
-        self.policy = policy;
-        self
-    }
-
-    /// Enables or disables every row.
-    pub fn enabled(mut self, enabled: bool) -> Self {
-        self.enabled = enabled;
-        self
-    }
-
-    /// Draws the rows as one edit of the table: each row's field and slider are parts of it
-    /// (`edit_parts`), so no row's event is lost to another's in the same pass. The edit
-    /// carries every value of the table (the changed one rounded), so the host stores it as is.
+    /// Shows the rows and returns this pass's edit of the table.
     pub fn show(self, ui: &mut Ui) -> EditResponse<Vec<f64>> {
-        let id = ui.make_persistent_id(self.id_salt);
-        let enabled = self.enabled && ui.is_enabled();
-        let fields = self.fields;
-        let start: Vec<f64> = fields.iter().enumerate().map(|(i, f)| f.clamp(self.values.get(i).copied().unwrap_or(f.default))).collect();
-        let (rows, event) = edit_parts(ui, id, &start, self.policy, enabled, |ui, edits, inner| {
-            let now = edits.value().clone();
-            AdjustSliders { values: &now, policy: inner, ..self }.parts(ui, edits, |table: &Vec<f64>, i, x| {
-                let mut table = table.clone();
-                table[i] = x;
-                table
-            })
-        });
-        let mut response = rows.response;
-        if event.as_ref().is_some_and(|event| event.value().is_some()) {
-            response.mark_changed();
-        }
-        EditResponse::new(response, event).submitted(rows.submitted).escaped(rows.escaped)
-    }
-
-    /// Draws the rows as parts of an editor's `edits` (the table's [`policy`](Self::policy) is
-    /// then the parts' policy that [`edit_parts`] gives). `set` puts row `i`'s value, rounded
-    /// with [`AdjustField::round`], onto the editor's value.
-    pub(super) fn parts<V: Clone + PartialEq + Send + Sync + 'static>(
-        self,
-        ui: &mut Ui,
-        edits: &mut PartEdits<V>,
-        set: impl Fn(&V, usize, f64) -> V + Clone + Send + Sync + 'static,
-    ) -> RowsShown {
-        // pc: crates/ui-egui/src/dialogs/adjust_editors/basic.rs:24-37 `sliders` (`RowGestures::reset`
-        // to the default, `row_value`), :46-50 `track_stops`.
-        // lib: `SliderRow::new(..).default_value(..).wheel(context.wheel()).track_colors(..)`.
-        let enabled = self.enabled && ui.is_enabled();
-        let (mut submitted, mut escaped) = (false, false);
-        let group = ui.scope(|ui| {
-            for (i, field) in self.fields.iter().enumerate() {
-                let value = field.clamp(self.values.get(i).copied().unwrap_or(field.default));
-                let mut row = SliderRow::new((self.id_salt, field.key), field.label.as_str(), value, field.range.clone(), self.numbers)
-                    .default_value(field.default)
-                    .step(field.step())
-                    .wheel(self.context.wheel())
-                    .wheel_step(field.wheel_step())
-                    .policy(self.policy)
-                    .enabled(enabled);
-                if let Some(unit) = &field.unit {
-                    row = row.unit(unit.clone());
-                }
-                if let Some(places) = field.decimals {
-                    row = row.decimals(places);
-                }
-                if let AdjustTrack::Colors(stops) = &field.track
-                    && let Some(stops) = self.context.track(stops)
-                {
-                    row = row.track_colors(stops.iter().copied());
-                }
-                let shown = row.show(ui);
-                submitted |= shown.field.submitted || shown.slider.submitted;
-                escaped |= shown.field.escaped || shown.slider.escaped;
-                let (round, set) = (field.clone(), set.clone());
-                let map = move |x: f64, now: &V| set(now, i, round.round(x));
-                push_part(edits, &shown.field, true, map.clone());
-                push_part(edits, &shown.slider, false, map);
+        let AdjustSliders { label, fields, mut values, context } = self;
+        let mut edit = None;
+        let shown = FieldGroup::new(label).show(ui, |ui, cx| {
+            let held = read(&mut values, cx).unwrap_or_default();
+            let now: Vec<f64> = fields.iter().enumerate().map(|(i, f)| f.clamp(held.get(i).copied().unwrap_or(f.default))).collect();
+            let mut run = Run::start(&mut values, context, now.clone(), cx.memory::<Memory>().began.clone());
+            for (i, field) in fields.iter().enumerate() {
+                run.slider_row(ui, cx, field, now[i], move |table: &Vec<f64>, x| {
+                    let mut table = table.clone();
+                    table[i] = x;
+                    table
+                });
             }
+            cx.memory::<Memory>().began = run.began();
+            edit = Some(run.finish());
         });
-        RowsShown { response: group.response, submitted, escaped }
+        lifted(edit, shown.output)
     }
 }
 
-/// What [`AdjustSliders::parts`] drew: the table's response, and whether a row's field was
-/// submitted or passed on an Esc press.
-pub(super) struct RowsShown {
-    pub response: Response,
-    pub submitted: bool,
-    pub escaped: bool,
-}
-
-/// What a part of an adjustment editor did, as the operation a held event replays: the part's
-/// value put onto the editor's value of that turn. A part's value is absolute (a row's number, a
-/// check box's state, a preset), so is the operation, as the Layer Style dialog's
-/// `StyleOp::Param`.
-#[derive(Clone)]
-pub(super) struct PartSet<V>(Arc<dyn Fn(&V) -> V + Send + Sync>);
-
-impl<V> PartSet<V> {
-    pub(super) fn new(apply: impl Fn(&V) -> V + Send + Sync + 'static) -> Self {
-        Self(Arc::new(apply))
+/// The value of `bind` a body starts its pass from; `None` while it is mixed.
+pub(super) fn read<V: Value>(bind: &mut Bind<'_, V>, cx: &mut BodyCx<'_>) -> Option<V> {
+    match bind.reborrow().read(cx) {
+        Some(Mixed::Same(value)) => Some(value),
+        _ => None,
     }
 }
 
-/// An adjustment editor's parts' edits: their values set onto the editor's value, and the
-/// editor's own inputs (a Default button) made the same way.
-pub(super) type PartEdits<V> = parts::Edits<V, PartSet<V>, PartSet<V>>;
-
-/// `op` applied to `now`; `None` when it changes nothing.
-fn apply_set<V: PartialEq>(op: &PartSet<V>, now: &V) -> Option<V> {
-    let next = (op.0)(now);
-    (next != *now).then_some(next)
+/// The edit a body collected, answered with the container's response.
+pub(super) fn lifted<V>(edit: Option<EditResponse<V>>, response: Response) -> EditResponse<V> {
+    let mut edit = edit.expect("an editor shows its body");
+    edit.response = response;
+    edit
 }
 
-/// Pushes a part's `edit` into `edits`: `map` puts the part's value onto the editor's. `typing`
-/// for a number field, whose focus is a typing run's.
-pub(super) fn push_part<V, T>(
-    edits: &mut PartEdits<V>,
-    edit: &EditResponse<T>,
-    typing: bool,
-    map: impl Fn(T, &V) -> V + Clone + Send + Sync + 'static,
-) -> Pushed
-where
-    V: Clone + PartialEq + Send + Sync + 'static,
-    T: Clone + Send + Sync + 'static,
-{
-    let op = edit.event.as_ref().and_then(EditEvent::value).cloned().map(|value| {
-        let map = map.clone();
-        PartSet::new(move |now: &V| map(value.clone(), now))
-    });
-    if typing { edits.typing(edit, op, apply_set, map) } else { edits.push(edit, op, apply_set, map) }
+/// One pass over an editor's parts: the value they edit, and their edits lifted onto it and written to the editor's
+/// binding.
+pub(super) struct Run<'b, 'a, V: Value> {
+    bind: &'b mut Bind<'a, V>,
+    context: AdjustContext,
+    now: V,
+    began: Option<V>,
+    event: Option<EditEvent<V>>,
+    scaffold: Option<EditResponse<V>>,
+    submitted: bool,
+    escaped: bool,
+    unparsed: bool,
 }
 
-/// Draws an adjustment editor's parts as one edit of `value`, through the kernel's
-/// [`Edits`](parts::Edits) queue: every part's event goes out in drawing order or waits for its
-/// turn, none is dropped. Replays what waited, runs `body` with the collector and the parts'
-/// policy (Esc is the parts': each cancels its own gesture, which cancels this one), runs the
-/// editor's inputs ([`Edits::input`](parts::Edits::input)) and returns the pass's event.
-pub(super) fn edit_parts<V, R>(
-    ui: &mut Ui,
-    id: Id,
-    value: &V,
-    policy: EditPolicy,
-    enabled: bool,
-    body: impl FnOnce(&mut Ui, &mut PartEdits<V>, EditPolicy) -> R,
-) -> (R, Option<EditEvent<V>>)
-where
-    V: Clone + PartialEq + Send + Sync + 'static,
-{
-    let state_id = id.with("parts-state");
-    let mut state: parts::State<PartSet<V>, PartSet<V>> = ui.data(|d| d.get_temp(state_id)).unwrap_or_default();
-    let outer = Gesture::load(ui, id.with("parts-edit"), value, policy.cancellable(false)).enabled(enabled);
-    let inner = EditPolicy::default().cancellable(policy.cancellable).cost(policy.cost);
-    let mut edits = PartEdits::new(id, &state, &outer, edit::in_scope(ui));
-    edits.replay(ui.ctx(), apply_set);
-    let result = body(ui, &mut edits, inner);
-    for input in edits.inputs(ui.ctx(), &mut state) {
-        let next = (input.0)(edits.value());
-        edits.set(next);
+impl<'b, 'a, V: Value> Run<'b, 'a, V> {
+    /// A pass over `now`, with the value a running gesture began with.
+    pub(super) fn start(bind: &'b mut Bind<'a, V>, context: AdjustContext, now: V, began: Option<V>) -> Self {
+        Run { bind, context, now, began, event: None, scaffold: None, submitted: false, escaped: false, unparsed: false }
     }
-    let event = edits.feed(outer, &mut state).finish();
-    ui.data_mut(|d| d.insert_temp(state_id, state));
-    (result, event)
+
+    /// The value a gesture that runs on began with, for the editor's memory.
+    pub(super) fn began(&self) -> Option<V> {
+        self.began.clone()
+    }
+
+    /// Lifts a part's `edit` onto the editor's value: the same gesture, with the value `make` builds of the value the
+    /// gesture began with and the part's value.
+    pub(super) fn push<T: Value>(&mut self, cx: &mut BodyCx<'_>, edit: EditResponse<T>, make: impl Fn(&V, &T) -> V) {
+        self.submitted |= edit.submitted;
+        self.escaped |= edit.escaped;
+        self.unparsed |= edit.unparsed;
+        if let Some(event) = edit.event.as_ref().and_then(|event| self.lift(event, &make)) {
+            let _ = self.bind.reborrow().write(cx, &event);
+            self.event = Some(event);
+        }
+        if self.scaffold.is_none() {
+            let now = self.now.clone();
+            self.scaffold = Some(edit.map(move |_| now.clone()));
+        }
+    }
+
+    /// A one-step change the editor makes itself (a Default button): `after` as one `Set` named `label`.
+    pub(super) fn set(&mut self, cx: &mut BodyCx<'_>, label: &Label, after: V) {
+        if after == self.now {
+            return;
+        }
+        let event = EditEvent::set(GestureId::default(), Mixed::Same(self.now.clone()), after, Arc::from(label.as_str()), None);
+        let _ = self.bind.reborrow().write(cx, &event);
+        self.event = Some(event);
+    }
+
+    fn lift<T>(&mut self, event: &EditEvent<T>, make: &impl Fn(&V, &T) -> V) -> Option<EditEvent<V>> {
+        match event {
+            EditEvent::Begin { id, label, doc_key, .. } => {
+                self.began = Some(self.now.clone());
+                Some(EditEvent::begin(*id, Mixed::Same(self.now.clone()), label.clone(), *doc_key))
+            }
+            EditEvent::Update { id, value } => {
+                let base = self.began.as_ref().unwrap_or(&self.now);
+                Some(EditEvent::update(*id, make(base, value)))
+            }
+            EditEvent::Commit { id, after, .. } => {
+                let base = self.began.take().unwrap_or_else(|| self.now.clone());
+                let after = make(&base, after);
+                Some(EditEvent::commit(*id, Mixed::Same(base), after))
+            }
+            EditEvent::Cancel { id, reason, .. } => Some(EditEvent::cancel(*id, *reason, self.began.take().map(Mixed::Same))),
+            EditEvent::Set { id, after, label, doc_key, .. } => {
+                Some(EditEvent::set(*id, Mixed::Same(self.now.clone()), make(&self.now, after), label.clone(), *doc_key))
+            }
+            _ => None,
+        }
+    }
+
+    /// One row: a `Field` over `field`'s slider showing `value`, its edit lifted onto the editor's value by `set` with
+    /// the number rounded to the field's step.
+    pub(super) fn slider_row(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>, field: &AdjustField, value: f64, set: impl Fn(&V, f64) -> V) {
+        let context = self.context;
+        let mut edit = None;
+        Field::new(field.label.clone()).id_salt(field.key).show(ui, |ui, _| {
+            edit = Some(field.slider(field.clamp(value), context).show(ui));
+        });
+        if let Some(edit) = edit {
+            self.push(cx, edit, |now, x| set(now, field.round(*x)));
+        }
+    }
+
+    /// The pass's edit of the value. The response is the first part's until the caller puts the container's in
+    /// (`lifted`).
+    pub(super) fn finish(self) -> EditResponse<V> {
+        let mut edit = self.scaffold.expect("an editor shows at least one part");
+        let shown = match self.event.as_ref().and_then(EditEvent::value) {
+            Some(value) => value.clone(),
+            None => self.now,
+        };
+        edit.shown = Some(Mixed::Same(Arc::new(shown)));
+        edit.event = self.event;
+        edit.submitted = self.submitted;
+        edit.escaped = self.escaped;
+        edit.unparsed = self.unparsed;
+        edit
+    }
+}
+
+/// The words of the installed language.
+pub(super) fn words(ui: &Ui) -> Arc<AdjustWords> {
+    Env::of(ui).words::<AdjustWords>()
 }
