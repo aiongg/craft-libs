@@ -274,7 +274,7 @@ impl TextRun<'_> {
         let text = &env.tokens.color.text;
         let to_color = |c: craft_theme::Rgba| Color32::from_rgba_unmultiplied(c.0[0], c.0[1], c.0[2], c.0[3]);
         for (span, text_part) in parts {
-            let mut font_id: FontId = env.tokens.font(env.fonts, self.role, span.mono);
+            let font_id: FontId = env.tokens.font(env.fonts, self.role, span.mono);
             let color = if span.muted {
                 to_color(text.muted)
             } else if span.shortcut {

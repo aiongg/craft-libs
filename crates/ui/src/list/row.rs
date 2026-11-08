@@ -1073,7 +1073,7 @@ impl Component for ListRow<'_> {
         if key.layer {
             surface = surface.border(Stateful::new(c(clear)).when(Flags::SELECTED, c(colors.accent.solid)), tokens.stroke.thin);
         }
-        let ink = |base: Rgba| row_ink(cx, base);
+        let ink = |base: Rgba| cx.row_ink(base);
         let base = match key.ink {
             RowInk::Normal => text.normal,
             RowInk::Muted => text.muted,
