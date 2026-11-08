@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use super::injected;
 pub(crate) use super::injected::{key_press, key_release, key_repeat, modifiers_changed, pointer_moved, text_event};
+use super::memory::Service;
 
 /// What a frame sent out that trials read.
 pub(crate) struct FrameResult {
@@ -77,18 +78,21 @@ impl egui::DroppedFile for DroppedPath {
 /// The viewport facts a frame reports: a window-focus event also sets the root viewport's focus fact, as a host
 /// reports both, and the fact stays until the next such event. Before any event the focus is unknown.
 fn window_focus_facts(ctx: &Context, events: &[Event]) -> egui::ViewportIdMap<egui::ViewportInfo> {
-    let key = egui::Id::new("fixture window focus");
     let last = events.iter().rev().find_map(|event| if let Event::WindowFocused(focused) = event { Some(*focused) } else { None });
-    if let Some(focused) = last {
-        ctx.data_mut(|data| data.insert_temp(key, focused));
-    }
-    let focused = ctx.data(|data| data.get_temp::<bool>(key));
+    let focused = Service::<WindowFocus>::run(ctx, |state| {
+        state.0 = last.or(state.0);
+        state.0
+    });
     let mut facts = egui::ViewportIdMap::default();
     if focused.is_some() {
         facts.insert(egui::ViewportId::ROOT, egui::ViewportInfo { focused, ..egui::ViewportInfo::default() });
     }
     facts
 }
+
+/// The focus the fixture's window last reported; unset before any focus event.
+#[derive(Default)]
+struct WindowFocus(Option<bool>);
 
 /// Runs one frame at `time` seconds with `events` and `files`, and drops its texture changes.
 pub(crate) fn run_frame(ctx: &Context, time: f64, events: Vec<Event>, files: OsFiles, ui: impl FnMut(&mut Ui)) -> FrameResult {
