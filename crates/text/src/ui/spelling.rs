@@ -81,6 +81,7 @@ enum Press {
 /// [`UserWords::from_words`](crate::spell::UserWords::from_words).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
+#[non_exhaustive]
 pub struct SpellingSettings {
     /// The words the user added.
     pub user_words: Vec<String>,

@@ -6,7 +6,7 @@
 use craft_behavior::{IconId, Selection, SelectionChange, keyed};
 use craft_ui::contract::{
     ActivateOn, Bind, CollectionEvent, CommandSet, Commands as _, ListDrag, NoValue, Outcome, Props as _, Remember as _, RowAlign, SelectMode,
-    Show as _, ShowCollection as _, ShowContainer as _,
+    ShowCollection as _, ShowContainer as _,
 };
 use craft_ui::layout_components::Row;
 use craft_ui::list::{List, ListRow, RowInk};
@@ -26,8 +26,6 @@ pub use picker::{NamedStyleRow, StylePreview, style_rows};
 craft_ui::words! {
     /// The panels' words, English by default.
     pub struct TextStylesWords {
-        character_styles: "textStyles.characterStyles" = "Character Styles";
-        paragraph_styles: "textStyles.paragraphStyles" = "Paragraph Styles";
         no_character_style: "textStyles.noCharacterStyle" = "No character style";
         row_tip: template "textStyles.rowTip" = "Click to apply, {key}-click to clear overrides, double-click for Style Options";
         alt_key: "textStyles.altKey" = "Alt";
@@ -300,7 +298,6 @@ impl<'a> TextStylesPanel<'a> {
         let paragraph = kind == TextStyleKind::Paragraph;
         let action = Cell::new(None::<TextStyleAction>);
         let hint = Cell::new(false);
-        let list_label = Label::from(if paragraph { words.paragraph_styles.as_str() } else { words.character_styles.as_str() }.to_owned());
         let tip = words.row_tip.fill(&[("key", words.alt_key.as_str())]);
 
         let footer = |ui: &mut Ui, cx: &mut craft_ui::contract::BodyCx<'_>| {
@@ -350,7 +347,7 @@ impl<'a> TextStylesPanel<'a> {
         };
 
         let shown =
-            Panel::new(list_label.clone()).headerless().collection_body().command_scope(TextStyleCommand::SCOPE).footer(footer).show(ui, |ui, cx| {
+            Panel::new(label.clone()).headerless().collection_body().command_scope(TextStyleCommand::SCOPE).footer(footer).show(ui, |ui, cx| {
                 let before = cx.memory::<Facts>().clone();
                 while let Some((command, _)) = cx.take_command::<TextStyleCommand>() {
                     if let Some(found) = before.action(command) {
@@ -374,7 +371,7 @@ impl<'a> TextStylesPanel<'a> {
 
                 let source = keyed(rows, |row: &TextStyleRow| row.id);
                 let mode = if highlighting { SelectMode::Multi } else { SelectMode::Single };
-                let events = List::new(list_label.clone())
+                let events = List::new(label.clone())
                     .id(cx.id.with("styles"))
                     .select(mode)
                     .activate(ActivateOn::DoubleClick)

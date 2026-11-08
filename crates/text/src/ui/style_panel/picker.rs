@@ -13,6 +13,7 @@ pub enum StylePreview {
     /// A swatch (colour and fill styles).
     Color(Rgba),
     /// A short sample drawn in the style's type role.
+    #[non_exhaustive]
     Sample {
         /// The sample text ("Ag").
         text: String,
@@ -35,6 +36,13 @@ pub struct NamedStyleRow {
     pub meta: String,
     /// What the row shows before its name.
     pub preview: StylePreview,
+}
+
+impl StylePreview {
+    /// A sample `text` drawn in `role`.
+    pub fn sample(text: impl Into<String>, role: TypeRole) -> Self {
+        StylePreview::Sample { text: text.into(), role }
+    }
 }
 
 impl NamedStyleRow {

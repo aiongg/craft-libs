@@ -354,7 +354,7 @@ impl HyperlinkDialog {
             body(ui, given_ref, form, &words);
             valid.set(given_ref.answer(form).is_some());
         });
-        let DialogOutput { response, closed, picked } = shown.output;
+        let DialogOutput { response, closed, picked, .. } = shown.output;
         let answer = match (closed, picked) {
             (Some(CloseReason::Activated | CloseReason::Enter), Some(REMOVE)) if editing => Some(HyperlinkAnswer::Remove),
             (Some(CloseReason::Activated | CloseReason::Enter), Some(OK)) => given.answer(form),
