@@ -163,7 +163,9 @@ pub fn rtl_case(story: &Story) -> Result<(), String> {
     if (own.0.width() - own.1.width()).abs() > 0.5 {
         return Err(format!("{}: the component's width differs between directions", story.name));
     }
-    let within = if ltr.shown().is_positive() { ltr.shown() } else { own.0 };
+    // Each node is reflected within the component's own rect, then carried to the component's rect in the other
+    // direction: `mirrored` reflects across the middle of this span.
+    let within = egui::Rect::from_min_max(own.0.min, egui::pos2(own.1.max.x, own.0.max.y));
     let tree = ltr.tree();
     for key in tree.keys().into_iter().filter(|key| is_interactive(tree, *key) && !in_document_space(tree, *key)) {
         let (Some(a), Some(b)) = (tree.bounds_of(key), rtl.tree().bounds_of(key)) else { continue };

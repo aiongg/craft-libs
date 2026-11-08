@@ -86,7 +86,9 @@ fn radio_group_click_selects_one_tab_stop_arrows_move() {
     tap(&mut frames, Key::ArrowLeft, &mut value, &mut shown);
     tap(&mut frames, Key::ArrowLeft, &mut value, &mut shown);
     tap(&mut frames, Key::Enter, &mut value, &mut shown);
-    assert_eq!(value, 1, "two ArrowLeft presses move focus to the first radio; Enter selects it");
+    assert_eq!(value, 3, "two ArrowLeft presses move focus to the first radio; Enter is the dialog default's and selects nothing");
+    tap(&mut frames, Key::Space, &mut value, &mut shown);
+    assert_eq!(value, 1, "Space selects the focused first radio");
 }
 
 /// Members shown in nested layouts (a non-arena container, a horizontal `Ui`) with an ordinary control between them

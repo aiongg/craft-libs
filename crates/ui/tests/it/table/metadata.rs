@@ -1,6 +1,6 @@
 //! The metadata table: its filter, its check column and its rows.
 
-use craft_ui::contract::{Bind, CollectionEvent, Role};
+use craft_ui::contract::{Bind, CollectionEvent};
 use craft_ui::list::RowEvent;
 use craft_ui::table::{FieldKey, MetadataGroup, MetadataRow, MetadataTable};
 use craft_ui::testing::{Fixture, trial};
@@ -76,7 +76,7 @@ fn a_wrapping_value_makes_its_row_taller() {
 fn arrow_down_from_the_filter_leads_into_the_rows() {
     let seen = Rc::new(Seen::default());
     let mut fixture = table(camera(), &seen, true, false);
-    let filter = fixture.by_role(Role::TEXT_INPUT).into_iter().next().expect("the filter field");
+    let filter = fixture.control("Filter fields").expect("the filter field");
     fixture.click(&filter);
     fixture.key(Key::ArrowDown, Modifiers::NONE);
     fixture.idle(2);

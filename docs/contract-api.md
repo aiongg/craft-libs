@@ -3145,7 +3145,7 @@ The toast queue: one per viewport, filled from any code with a `Context`.
 
 `WindowHost`: the one multi-window driver. It owns `ShellInfo`, refreshes each viewport's `WindowInfo`, releases
 
-- `craft_ui::runtime::windows::CaptionRegions`: `pub struct CaptionRegions { pub buttons: Vec<(Button, Rect)>, pub edges: Vec<(ResizeEdge, Rect)>, pub moves: Vec<Rect>, pub covers: Vec<Rect> }`. Where the exclusive parts of one window lie, in points of its viewport: the window procedure answers a Windows
+- `craft_ui::runtime::windows::CaptionRegions`: `pub struct CaptionRegions { pub buttons: Vec<(Button, Rect)>, pub edges: Vec<(ResizeEdge, Rect)>, pub moves: Vec<Rect>, pub covers: Vec<Vec<Rect>> }`. Where the exclusive parts of one window lie, in points of its viewport: the window procedure answers a Windows
   - `pub fn hit(&self, point: Pos2) -> Option<WindowHit>`. What lies at `point`: a button wins over an edge, and an edge over a drag area. A drag area answers only where
 - `craft_ui::runtime::windows::HitSink`: `pub struct HitSink`. The Windows hit test of one window: the window procedure asks [`HitSink::answer`] where the OS asks for a hit
   - `pub fn answer(&self, pixel: Pos2) -> Option<WindowHit>`. What lies at `pixel`, in physical pixels from the top left of the window's client area: the hit test's screen
@@ -3486,7 +3486,7 @@ Text dumps for tests: ordered `key = value` lines compared exactly with a file, 
 - `craft_ui::testing::examples::tracks::TrackEvent`: `pub enum TrackEvent { Selected(u64) }`. What a track row reports.
 - `craft_ui::testing::examples::tracks::TrackOut`: `pub struct TrackOut { pub response: Response, pub event: Option<TrackEvent> }`. What a track row returns.
 - `craft_ui::testing::examples::tracks::TrackRow`: `pub struct TrackRow<'r>`. One track: its name and toggles in their cells, its clips as parts of the lane cell.
-  - `pub fn new(track: &'r Track, cells: Vec<(ColumnKey, Rect)>, visible: f32) -> Self`. A row of `track` in `cells`, the rects the item context lists, with a lane showing `visible` seconds.
+  - `pub fn new(track: &'r Track, cells: Vec<(ColumnKey, Rect)>, visible: f32) -> Self`. A row of `track` in `cells`, the rects the item context lists, with a lane showing `visible` seconds. The row is
 - `craft_ui::testing::examples::tracks::TrackRowStyle`: `pub struct TrackRowStyle`. The style of a track row: the colours of name, toggles and clips.
 - `craft_ui::testing::examples::tracks::TrackStack`: `pub struct TrackStack`. A list of tracks over four columns: name, mute, lock and lane.
   - `pub fn new(label: impl Into<crate::runtime::env::Label>) -> Self`. A track stack named `label`.
