@@ -18,8 +18,8 @@ use crate::style::{ComponentStyle, FocusLook, StyleCx, UiTokens};
 use craft_behavior::canvas::zoom;
 use craft_behavior::kurbo::{Point, Size};
 use craft_behavior::{
-    AccessAction, AccessData, CancelReason, CanvasView, CursorIcon, CursorPriority, HitLevel, HitPriority, HitShape, Metrics, NavMove, PartKey,
-    PressCancel, PressPhase, Sense,
+    AccessAction, AccessData, CancelReason, CanvasView, CursorIcon, CursorPriority, EditEvent, HitLevel, HitPriority, HitShape, Metrics, Mixed,
+    NavMove, PartKey, PressCancel, PressPhase, Sense,
 };
 use craft_keymap::{Chord, Key, Mods};
 use egui::{Color32, CornerRadius, Pos2, Rect, Response, Vec2, pos2};
@@ -30,6 +30,8 @@ const PROXY: PartKey = PartKey::new("proxy");
 /// The accessible scroll bars: sub-nodes with no part of their own.
 const HORIZONTAL: PartKey = PartKey::new("horizontal");
 const VERTICAL: PartKey = PartKey::new("vertical");
+/// The document's picture: an image node with no part of its own.
+const PICTURE: PartKey = PartKey::new("picture");
 
 /// The keyboard path of the well and the proxy.
 const POINTER_ONLY: &str = "the arrow and page keys move the view and + and - step the zoom; the zoom rectangle has no numeric form";
@@ -99,7 +101,8 @@ pub struct NavigatorStyle {
 /// - Focused, the arrow keys move the view by a tenth of its span (Shift: half); Page Up, Page Down, Home and End
 ///   scroll as on the canvas ([`PageKey`]); `+` and `-` step the zoom ladder, and a step past a limit changes nothing.
 /// - With Animated Zoom on, a zoom (the wheel, `+` and `-`, the zoom rectangle) is not written into the bound view:
-///   the output's [`ease`](NavigatorOutput::ease) carries the target for the app's `ZoomAnimation`.
+///   the output's view change carries the target and its [`ease`](NavigatorOutput::ease) says how the app's
+///   `ZoomAnimation` eases to it.
 /// - While a press is held, the wheel, the keys and AccessKit requests change nothing.
 /// - The box pans for AccessKit (the scroll actions move the view as the arrows do) and has two scroll-bar nodes, the
 ///   view centre in percent of the document, whose Increment and Decrement move the view by the arrow step and whose
@@ -122,7 +125,8 @@ pub struct Navigator<'a> {
     #[prop]
     proxy: ProxyColor,
     zoom_rect: Option<Rect>,
-    ease: Option<(CanvasView, ViewEase)>,
+    /// A zoom that eases: the change to its target, which the bound view does not take, and how it eases.
+    eased: Option<(EditEvent<CanvasView>, ViewEase)>,
 }
 
 impl<'a> Navigator<'a> {
@@ -136,7 +140,7 @@ impl<'a> Navigator<'a> {
             navigation: NavigationOptions::default(),
             proxy: ProxyColor::Default,
             zoom_rect: None,
-            ease: None,
+            eased: None,
         }
         .label(label)
     }
@@ -417,7 +421,9 @@ impl Component for Navigator<'_> {
         if zoomed && self.navigation.animated_zoom {
             // A zoom that keeps the centre eases about it; the zoom rectangle moves the centre, so it eases freely.
             let anchor = (next.center == view.center).then_some((view.center, view.rect.center()));
-            self.ease = Some((next, ViewEase { anchor }));
+            let id = crate::runtime::edit::next_gesture_id(&cx.core.ctx);
+            let change = EditEvent::set(id, Mixed::Same(view), next, cx.core.label_arc(), cx.core.resolved.doc_key);
+            self.eased = Some((change, ViewEase { anchor }));
         } else {
             cx.set(next);
         }
@@ -458,6 +464,7 @@ impl Component for Navigator<'_> {
         let Some(view) = cx.value().copied() else { return };
         access.pans(true, true);
         let words = cx.words::<CanvasWords>();
+        access.node(PICTURE, Role::IMAGE).name = Name::Text(words.navigator_preview.as_str().to_owned());
         let visible = view.visible();
         let percent = |length: f64, extent: f64| length / extent.max(1.0) * 100.0;
         for (key, name, center, extent, span) in [
@@ -472,7 +479,12 @@ impl Component for Navigator<'_> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> NavigatorOutput {
-        NavigatorOutput { view: cx.edit_response(), ease: self.ease }
+        let mut view = cx.edit_response();
+        let ease = self.eased.map(|(change, ease)| {
+            view.event = EditEvent::fold(view.event.take(), change);
+            ease
+        });
+        NavigatorOutput { view, ease }
     }
 }
 
@@ -480,12 +492,13 @@ impl Component for Navigator<'_> {
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct NavigatorOutput {
-    /// The view: a drag's gesture, a key, an AccessKit request, or a zoom with Animated Zoom off, as one change.
+    /// The view: a drag's gesture, a key, an AccessKit request or a zoom, as one change. A zoom with Animated Zoom on
+    /// is the change to its target, and the bound view has not taken it (see [`ease`](Self::ease)).
     pub view: EditResponse<CanvasView>,
-    /// A zoom with Animated Zoom on: the view it eases to and how. The bound view is unchanged; the app begins its
-    /// `ZoomAnimation` from the bound view with the ease's anchor and copies the target into it, as it does with
-    /// `ToolHostResponse::view` and `ToolHostResponse::ease`.
-    pub ease: Option<(CanvasView, ViewEase)>,
+    /// How the change in [`view`](Self::view) eases to its target, for a zoom with Animated Zoom on. The bound view is
+    /// unchanged; the app begins its `ZoomAnimation` from the bound view with the ease's anchor and copies the target
+    /// into it, as it does with `ToolHostResponse::view` and `ToolHostResponse::ease`.
+    pub ease: Option<ViewEase>,
 }
 
 impl Deref for NavigatorOutput {

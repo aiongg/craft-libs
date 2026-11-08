@@ -248,14 +248,14 @@ name = "Navigator"
 old = "craft_ui::canvas::navigator::preview::Navigator"
 new = "craft_ui::canvas::Navigator"
 status = "moved"
-note = "A component: `Navigator::new(label, Bind::bound(&mut view), document).preview(..).navigation(..).proxy(..).show(ui)`; the zoom row is the separate `NavigatorZoomRow`."
+note = "The legacy widget showed the preview box over the zoom row: that is the pattern `craft_ui::patterns::canvas::NavigatorPanel::new(label, Bind::bound(&mut view), document).preview(..).navigation(..).proxy(..).enabled(..).show(ui)`, one bound view, one Tab sequence and one output (`NavigatorPanelOutput { response, view: Option<EditEvent<CanvasView>>, ease: Option<ViewEase> }`). The box alone is the component `Navigator::new(label, Bind::bound(&mut view), document)`; the row alone is `NavigatorZoomRow`."
 
 [[type]]
 name = "NavigatorOutput"
 old = "craft_ui::canvas::navigator::preview::NavigatorOutput"
 new = "craft_ui::canvas::NavigatorOutput"
 status = "moved"
-note = "`view` (the `EditResponse<CanvasView>`) and `ease: Option<(CanvasView, ViewEase)>`: a zoom under Animated Zoom is not written into the bound view; the app begins its `ZoomAnimation` and copies the target in, as with `ToolHostResponse`."
+note = "`view` (the `EditResponse<CanvasView>`) and `ease: Option<ViewEase>`: a zoom under Animated Zoom is the view's change to its target, not written into the bound view; the app begins its `ZoomAnimation` and copies the target in, as with `ToolHostResponse { view, ease }`."
 
 [[type]]
 name = "NavigatorPreview"
@@ -1246,5 +1246,5 @@ new = "navigation(NavigationOptions)"
 type = "Navigator"
 old = "show(ui, &mut view)"
 new = "show(ui)"
-note = "Returns `NavigatorOutput`: the view's `EditResponse` and, under Animated Zoom, `ease` with the target view the app eases to."
+note = "Returns `NavigatorOutput`: the view's `EditResponse` and, under Animated Zoom, `ease`, how the change to the target eases. The legacy widget with its zoom row is `NavigatorPanel::show(ui)`, which returns `NavigatorPanelOutput`."
 # End of l4e-navprev.

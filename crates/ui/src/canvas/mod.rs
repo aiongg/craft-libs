@@ -3,7 +3,8 @@
 //! `Canvas` is an arena root: the leaf components its body shows with `show_at(canvas_rect)` (canvas controls,
 //! such as `CropOverlay`) join its arena, and a press away from all of their parts reaches the active tool through
 //! the canvas's background part. A canvas given a view ([`Canvas::view`]) publishes a [`CanvasSpace`] to its body
-//! and reports the wheel and a middle-button pan.
+//! and reports the wheel and a middle-button pan. A canvas is an instance of the view commands ([`ViewCommand`]):
+//! given a view and its document, it applies the ones routed to it and reports the view they ask for.
 
 mod crop;
 mod guide;
@@ -78,14 +79,27 @@ pub use navigator::NavigatorStyle;
 // End of l4e-navprev.
 
 use crate::contract::{Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, Sizing};
+use crate::runtime::commands::{CommandSet as _, CommandState, Commands as _};
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
-use craft_behavior::kurbo::Point;
+use craft_behavior::kurbo::{Point, Size};
 use craft_behavior::{CanvasTransform, CanvasView, HitLevel, HitPriority, Metrics, PartKey, PointerButton, PressPhase, PressState, Sense, Wheel};
 use egui::{Pos2, Rect, Response, Vec2};
 
 const BACKGROUND: PartKey = PartKey::new("background");
+
+/// The view commands a canvas publishes the state of.
+const VIEW_COMMANDS: [ViewCommand; 8] = [
+    ViewCommand::ZoomIn,
+    ViewCommand::ZoomOut,
+    ViewCommand::FitOnScreen,
+    ViewCommand::FillScreen,
+    ViewCommand::ActualPixels,
+    ViewCommand::RotateClockwise,
+    ViewCommand::RotateCounterclockwise,
+    ViewCommand::ResetRotation,
+];
 
 /// How the active tool is reached without a pointer (8.3, owner question 15).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -131,16 +145,65 @@ pub struct Canvas {
     /// square view only.
     #[prop]
     view: Option<CanvasView>,
+    /// The document the view shows, in document units. With a view and a document, the canvas applies the view
+    /// commands routed to it ([`ViewCommand`]) and reports the view they ask for in [`CanvasOutput::view`]; without
+    /// either, the view commands are disabled for it.
+    #[prop(quantity = "document units")]
+    document: Option<Size>,
+    /// The app's navigation options: with Animated Zoom on, a zoom command eases.
+    #[prop]
+    navigation: NavigationOptions,
     /// The rulers' units and zero point, published to the body in its [`CanvasSpace`].
     rulers: Option<CanvasRulers>,
     wheel: Option<Wheel>,
+    /// The view the view commands of this pass ask for, and how it eases.
+    commanded: Option<(CanvasView, Option<ViewEase>)>,
 }
 
 impl Canvas {
     /// A canvas named `label` whose active tool is reached through `path`.
     pub fn new(label: impl Into<Label>, path: ToolPath) -> Self {
-        let props = ContainerProps::new().surface(SurfaceKind::Canvas).arena(true).sizing(Sizing::Fill);
-        Canvas { common: Common::new(), props, path, view: None, rulers: None, wheel: None }.label(label)
+        let props = ContainerProps::new().surface(SurfaceKind::Canvas).arena(true).sizing(Sizing::Fill).command_scope(ViewCommand::SCOPE);
+        Canvas {
+            common: Common::new(),
+            props,
+            path,
+            view: None,
+            document: None,
+            navigation: NavigationOptions::default(),
+            rulers: None,
+            wheel: None,
+            commanded: None,
+        }
+        .label(label)
+    }
+
+    /// Publishes the view commands' state for this canvas and applies the ones routed to it, in order, to its view:
+    /// the view they ask for, eased under Animated Zoom when the commands zoom.
+    fn view_commands(&self, cx: &mut Cx<'_, Self>) -> Option<(CanvasView, Option<ViewEase>)> {
+        let pixels_per_point = cx.env.scale().0;
+        let target = self.view.zip(self.document);
+        for command in VIEW_COMMANDS {
+            // Zoom In and Zoom Out are disabled at the ends of the zoom range.
+            let enabled = target.is_some_and(|(mut view, document)| match command {
+                ViewCommand::ZoomIn | ViewCommand::ZoomOut => command.apply(&mut view, document, pixels_per_point),
+                _ => true,
+            });
+            cx.publish(command, CommandState::new().enabled(enabled));
+        }
+        let (view, document) = target?;
+        let (mut next, mut zoomed) = (view, false);
+        while let Some((command, _)) = cx.take_command::<ViewCommand>() {
+            command.apply(&mut next, document, pixels_per_point);
+            zoomed |= !matches!(command, ViewCommand::RotateClockwise | ViewCommand::RotateCounterclockwise | ViewCommand::ResetRotation);
+        }
+        if next == view {
+            return None;
+        }
+        // A zoom that keeps the centre eases about it; one that moves the centre (Fit on Screen) eases freely.
+        let ease = (zoomed && self.navigation.animated_zoom)
+            .then(|| ViewEase { anchor: (next.center == view.center).then_some((view.center, view.rect.center())) });
+        Some((next, ease))
     }
 
     /// Measures the document's axes in `x` and `y`, counted from `zero` (document units). The rulers, the guides and
@@ -193,6 +256,11 @@ pub struct CanvasOutput {
     pub pan: Option<Vec2>,
     /// The canvas's view and interface scale, for a canvas given a view. [`ToolHost::run`] hands it to the tool.
     pub space: Option<CanvasSpace>,
+    /// The view the view commands routed to the canvas asked for this pass: the app copies it into its view, through
+    /// a [`ZoomAnimation`] when [`ease`](Self::ease) is set, as it does with [`ToolHostResponse::view`].
+    pub view: Option<CanvasView>,
+    /// How [`view`](Self::view) eases to its target: a zoom command under Animated Zoom.
+    pub ease: Option<ViewEase>,
 }
 
 impl CanvasOutput {
@@ -228,9 +296,10 @@ impl Component for Canvas {
         Sense::FOCUS | Sense::TAKE_FOCUS | Sense::WHEEL
     }
 
-    /// The wheel share of this pass, kept for `finish`.
+    /// The wheel share and the view commands of this pass, kept for `finish`.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         self.wheel = cx.take_wheel();
+        self.commanded = self.view_commands(cx);
     }
 
     /// The canvas's [`CanvasSpace`] for its body; a canvas without a view hides an outer canvas's.
@@ -250,7 +319,8 @@ impl Component for Canvas {
     fn finish(self, cx: Cx<'_, Self>) -> CanvasOutput {
         let (press, pan) = Self::background_press(&cx);
         let space = self.space(cx.env.scale().0, BackgroundPress::of(&press));
-        CanvasOutput { response: cx.response.clone(), press, wheel: self.wheel, pan, space }
+        let (view, ease) = self.commanded.map_or((None, None), |(view, ease)| (Some(view), ease));
+        CanvasOutput { response: cx.response.clone(), press, wheel: self.wheel, pan, space, view, ease }
     }
 }
 
