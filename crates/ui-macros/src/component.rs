@@ -173,6 +173,32 @@ pub(crate) fn purpose_of(attrs: &[Attribute]) -> String {
     sentence.trim_end_matches('.').to_owned()
 }
 
+/// The attributes on a registration block, from the crate being compiled. See `gate_for`.
+fn registration_gate() -> TokenStream {
+    let manifest = std::env::var_os("CARGO_MANIFEST_DIR").and_then(|dir| std::fs::read_to_string(std::path::Path::new(&dir).join("Cargo.toml")).ok());
+    gate_for(crate::util::in_craft_ui(), manifest.as_deref().unwrap_or_default())
+}
+
+/// The attributes on a registration block. Inside craft-ui the `link_section` statics meet the crate's
+/// `deny(unsafe_code)`, so the block carries an `allow` (written only there: an `allow` in an app crate that forbids it
+/// is an error). Elsewhere the registration's types can exist only under the defining package's `screen-testing`
+/// feature, which may be off while craft-ui's `testing` is on, so the block is gated on it (the cfg is evaluated in
+/// the defining crate) when the package's `manifest` declares that feature, and is not gated otherwise.
+pub(crate) fn gate_for(in_craft_ui: bool, manifest: &str) -> TokenStream {
+    if in_craft_ui {
+        return quote!(#[allow(unsafe_code)]);
+    }
+    let mut in_features = false;
+    let declares = manifest.lines().map(str::trim).any(|line| {
+        if line.starts_with('[') {
+            in_features = line.trim_end_matches(|c: char| c.is_whitespace()) == "[features]";
+            return false;
+        }
+        in_features && line.strip_prefix("screen-testing").is_some_and(|rest| rest.trim_start().starts_with('='))
+    });
+    if declares { quote!(#[cfg(feature = "screen-testing")]) } else { quote!() }
+}
+
 fn registrations(types: &[Type], declared: &Declared, shape: Shape) -> syn::Result<TokenStream> {
     if let Some(sample) = &declared.sample {
         if shape != Shape::Leaf {
@@ -192,11 +218,9 @@ fn registrations(types: &[Type], declared: &Declared, shape: Shape) -> syn::Resu
     };
     let purpose = &declared.purpose;
     let each = types.iter().map(|ty| quote!(::craft_ui::__register_contract!(#ty, #shape, #overlay, [#(#exempt),*], [#(#sample)*], #purpose);));
-    // Inside craft-ui the registration's `link_section` statics meet the crate's `deny(unsafe_code)`; the allow is
-    // scoped to this block and written only there, because an `allow` in an app crate that forbids it is an error.
-    let allow = crate::util::in_craft_ui().then(|| quote!(#[allow(unsafe_code)]));
+    let gate = registration_gate();
     Ok(quote! {
-        #allow
+        #gate
         const _: () = {
             #(#each)*
         };
@@ -206,9 +230,9 @@ fn registrations(types: &[Type], declared: &Declared, shape: Shape) -> syn::Resu
 /// The registration of each pattern type in `types`, with the `purpose` line of its doc comment.
 pub(crate) fn pattern_registrations(types: &[Type], purpose: &str) -> TokenStream {
     let each = types.iter().map(|ty| quote!(::craft_ui::__register_pattern!(#ty, #purpose);));
-    let allow = crate::util::in_craft_ui().then(|| quote!(#[allow(unsafe_code)]));
+    let gate = registration_gate();
     quote! {
-        #allow
+        #gate
         const _: () = {
             #(#each)*
         };
