@@ -1398,10 +1398,6 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             self.offset.x += f64::from(if rtl { -dx } else { dx });
             self.moved = true;
         }
-        if let Some(to) = super::steps::take_scroll_to(&ctx, id) {
-            self.offset = to;
-            self.moved = true;
-        }
         for mv in super::steps::take_scroll_moves(&ctx, id) {
             let (visible, extent, offset, vertical) = if scroll.vertical_on() {
                 (view.y, self.last.extent.1, self.offset.y, true)

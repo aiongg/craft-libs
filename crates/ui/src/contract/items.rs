@@ -356,7 +356,13 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         }
         self.renaming = stage.session::<Renaming<C::Key>>(sub(id, "rename")).clone();
         self.last = stage.recall::<View>(sub(id, "view"));
-        let scrolled = stage.session::<Scrolled>(sub(id, "scroll")).clone();
+        let scrolled = match comp.scroll() {
+            Some(bind) => match bind.get() {
+                Some(Mixed::Same(pos)) => Scrolled { y: pos.y, x: pos.x },
+                _ => Scrolled::default(),
+            },
+            None => stage.session::<Scrolled>(sub(id, "scroll")).clone(),
+        };
         (self.offset, self.offset_x) = if self.scrolls { (scrolled.y, scrolled.x) } else { (0.0, 0.0) };
         self.offset_at_read = self.offset;
         self.offset_x_at_read = self.offset_x;
@@ -377,9 +383,6 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 } else if rect.max.y > bounds[3] {
                     self.offset += f64::from(rect.max.y - bounds[3]);
                 }
-            }
-            if let Some(to) = super::take_scroll_to(&ctx, id) {
-                (self.offset, self.offset_x) = (to.y, to.x);
             }
             self.offset = self.offset.clamp(0.0, f64::from((self.last.extent - view).max(0.0)));
         }
@@ -812,8 +815,17 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
     fn settle(&mut self, comp: &mut C, cx: &mut Cx<'_, C>) {
         let id = cx.core.id;
         if self.scrolls && (self.offset != self.offset_at_read || self.offset_x != self.offset_x_at_read) {
-            let scrolled = cx.core.memory.session::<Scrolled>(sub(id, "scroll"));
-            (scrolled.y, scrolled.x) = (self.offset, self.offset_x);
+            match comp.scroll() {
+                Some(mut bind) => {
+                    let (label, doc_key) = (cx.core.label_arc(), cx.core.resolved.doc_key);
+                    let (before, after) = (ScrollPos { x: self.offset_x_at_read, y: self.offset_at_read }, ScrollPos { x: self.offset_x, y: self.offset });
+                    bind.apply(&EditEvent::set(GestureId::default(), Mixed::Same(before), after, label, doc_key));
+                }
+                None => {
+                    let scrolled = cx.core.memory.session::<Scrolled>(sub(id, "scroll"));
+                    (scrolled.y, scrolled.x) = (self.offset, self.offset_x);
+                }
+            }
         }
         *cx.core.memory.session::<Lead<C::Key>>(sub(id, "lead")) = self.lead.clone();
         cx.core.memory.session::<LastLayout<C::ItemLayout>>(sub(id, "item_layout")).0 = self.layout.clone();
