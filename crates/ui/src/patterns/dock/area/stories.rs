@@ -8,7 +8,7 @@ use crate::runtime::memory::unique;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::Axis;
 use craft_behavior::dock::{Column, DockEdge, Floating, Group, Layout, Node, Permissions, SplitSize, Workspace};
-use egui::{Pos2, Rect, Ui, Vec2};
+use egui::{Pos2, Rect, Ui};
 
 const LAYERS: usize = 0;
 const CHANNELS: usize = 1;
@@ -17,6 +17,7 @@ const HISTORY: usize = 3;
 const CANVAS: usize = 4;
 const SWATCHES: usize = 5;
 const SIDE: f32 = 220.0;
+const WINDOW: Rect = Rect { min: Pos2::new(320.0, 80.0), max: Pos2::new(520.0, 220.0) };
 
 /// Panels that show their own name.
 struct Demo {
@@ -37,7 +38,7 @@ fn name(panel: usize) -> &'static str {
 
 impl DockPanels<usize> for Demo {
     fn spec(&self, panel: &usize) -> PanelSpec {
-        let spec = PanelSpec::new(name(*panel)).limits(PanelLimits::at_least(Vec2::new(120.0, 60.0)));
+        let spec = PanelSpec::new(name(*panel)).limits(PanelLimits::default());
         if *panel == CANVAS { spec.canvas() } else { spec }
     }
 
@@ -65,7 +66,7 @@ fn workspace() -> Workspace<usize> {
     icons.iconic = true;
     let centre = Node::split(Axis::X, SplitSize::Ratio(0.8), Node::tabs(vec![CANVAS], 0), Node::dock(DockEdge::End, vec![icons]));
     let root = Node::split(Axis::X, SplitSize::FixedFirst(SIDE), Node::dock(DockEdge::Start, vec![side]), centre);
-    let window = Floating::single(vec![HISTORY], 0, Rect::from_min_size(Pos2::new(320.0, 80.0), Vec2::new(200.0, 140.0))).with_id(1);
+    let window = Floating::single(vec![HISTORY], 0, WINDOW).with_id(1);
     Workspace::new(Layout::new(Some(root), vec![window]))
 }
 

@@ -624,9 +624,6 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
         }
         let panels = &mut *self.panels;
         let output = group.show_at(ui, rect, |ui, body| panels.body(shown, ui, body)).output;
-        if output.response.clicked() {
-            self.report.focused = Some(shown.clone());
-        }
         if let Some(panel) = output.picked.and_then(|key| scene.panel(key)) {
             self.report.actions.push(Action::activate(panel.clone()));
             self.report.focused = Some(panel.clone());
