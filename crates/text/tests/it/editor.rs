@@ -16,6 +16,7 @@ use egui::{Key, Modifiers, Rect, pos2, vec2};
 struct Host {
     text: String,
     revision: u64,
+    vertical: bool,
 }
 
 impl TextEditorHost for Host {
@@ -25,6 +26,10 @@ impl TextEditorHost for Host {
 
     fn revision(&self) -> u64 {
         self.revision
+    }
+
+    fn vertical(&self) -> bool {
+        self.vertical
     }
 
     fn replace(&mut self, range: Range<usize>, text: &str, _: EditKind) -> bool {
@@ -78,7 +83,7 @@ struct Session {
 }
 
 fn session(text: &str, quotes: Option<QuoteStyle>) -> Session {
-    let host = Rc::new(RefCell::new(Host { text: text.to_owned(), revision: 0 }));
+    let host = Rc::new(RefCell::new(Host { text: text.to_owned(), ..Host::default() }));
     let selection = Rc::new(RefCell::new(TextSelection::caret_at(text.chars().count())));
     let commit = Rc::new(Cell::new(false));
     let (shown_host, shown_selection, shown_commit) = (Rc::clone(&host), Rc::clone(&selection), Rc::clone(&commit));
@@ -145,6 +150,34 @@ fn shift_arrows_extend_and_arrows_collapse() {
     editor.fixture.key(Key::ArrowRight, Modifiers::SHIFT).settle();
     assert_eq!(*editor.selection.borrow(), TextSelection::new(0, 1));
     editor.fixture.key(Key::ArrowRight, Modifiers::NONE).settle();
+    assert_eq!(*editor.selection.borrow(), TextSelection::caret_at(1));
+}
+
+/// In vertical text the arrows turn with the flow: Down is the next char and Up the previous one, and Left and
+/// Right go by line, which this host does not have.
+#[trial]
+fn in_vertical_text_up_and_down_move_by_char() {
+    let mut editor = session("abc", None);
+    editor.host.borrow_mut().vertical = true;
+    editor.focus();
+    *editor.selection.borrow_mut() = TextSelection::caret_at(1);
+    editor.fixture.key(Key::ArrowDown, Modifiers::NONE).settle();
+    assert_eq!(*editor.selection.borrow(), TextSelection::caret_at(2));
+    editor.fixture.key(Key::ArrowUp, Modifiers::NONE).settle();
+    assert_eq!(*editor.selection.borrow(), TextSelection::caret_at(1));
+    editor.fixture.key(Key::ArrowRight, Modifiers::NONE).settle();
+    assert_eq!(*editor.selection.borrow(), TextSelection::caret_at(1), "Right goes to the next column");
+}
+
+/// Text the app changes under the editor leaves the selection in the new text: the next move starts from the end.
+#[trial]
+fn a_change_from_outside_keeps_the_selection_in_the_text() {
+    let mut editor = session("hello", None);
+    editor.focus();
+    *editor.selection.borrow_mut() = TextSelection::caret_at(5);
+    editor.host.borrow_mut().replace(0..5, "hi", EditKind::Typed);
+    editor.fixture.settle();
+    editor.fixture.key(Key::ArrowLeft, Modifiers::NONE).settle();
     assert_eq!(*editor.selection.borrow(), TextSelection::caret_at(1));
 }
 
