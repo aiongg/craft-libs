@@ -167,7 +167,7 @@ impl Component for ColorStrip<'_> {
     }
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
-        cx.part(STRIP, rect).sense(Sense::CLICK | Sense::DRAG).value_part().pointer_only("the arrow keys step the value");
+        cx.part(STRIP, rect).sense(Sense::CLICK | Sense::DRAG | Sense::TAKE_FOCUS).value_part().pointer_only("the arrow keys step the value");
     }
 
     fn bind(&mut self) -> Option<BindMut<'_, ModelValues>> {
