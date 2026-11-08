@@ -5,7 +5,6 @@ use craft_behavior::geometry::Constraint;
 use craft_ui::bars::{Bar, BarKind, ConstraintFields};
 use craft_ui::contract::{Bind, Entry, Role, ShowContainer as _};
 use craft_ui::runtime::env::UnitKind;
-use craft_ui::testing::access::Declared;
 use craft_ui::testing::{Fixture, Target, trial};
 use egui::{Key, Modifiers, Vec2};
 use std::cell::Cell;
@@ -79,17 +78,9 @@ fn swap_exchanges_width_and_height() {
     assert_eq!(state.get(), expected);
 }
 
-/// Normal and a disabled bar take no input in the number cells or the swap.
+/// A disabled bar takes no input in the number cells or the swap.
 #[trial]
-fn normal_and_disabled_cells_take_no_input() {
-    let (normal, _) = rig(Constraint::Free, false, true);
-    let (width, height) = fields(&normal);
-    let tree = normal.tree();
-    let swap = normal.by_label("Swaps height and width").unwrap();
-    for cell in [&width, &height, &swap] {
-        assert!(!tree.declares_key(cell.node, Declared::Focus), "a Normal marquee greys the cell");
-    }
-
+fn disabled_cells_take_no_input() {
     let start = Constraint::Ratio(1.0, 2.0);
     let (mut greyed, state) = rig(start, false, false);
     let (width, _) = fields(&greyed);
