@@ -512,7 +512,7 @@ fn register_bands<P: Clone + Eq + Hash + Send + 'static>(scene: &Scene<'_, P>, c
 }
 
 /// A region of `ui` at `rect` that holds one container.
-fn region<R>(ui: &mut Ui, rect: Rect, mut content: impl FnMut(&mut Ui) -> R) -> R {
+fn region<R>(ui: &mut Ui, rect: Rect, mut content: impl FnMut(&mut Ui) -> R) -> Option<R> {
     Stack::new().fill().pad(Pad::None).show_at(ui, rect, |ui, _| content(ui)).inner
 }
 
@@ -612,7 +612,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
         let shown = &members[active];
         let menu = self.menu_rows(body, shown);
         let mut group = DockGroup::new(anchor.clone(), &titles, PanelKey::of(shown))
-            .dock(Some(scene.dock))
+            .dock(scene.dock)
             .zones(scene.config.zone_rule())
             .movable(scene.permissions(shown).movable)
             .menu(menu);
@@ -672,23 +672,27 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
             self.report.placed.push((first.clone(), cell));
             if column.iconic {
                 let open = plan.open.clone();
-                let output = region(ui, cell, |ui| {
+                let Some(output) = region(ui, cell, |ui| {
                     IconicColumn::new(name.clone(), scene.dock, column, Bind::given(open.clone()), &spec)
                         .edge(plan.edge)
                         .auto_collapse(scene.auto_collapse)
                         .show_flyouts(ui, |group, rect, ui, body| self.group_of(ui, body, group, rect))
-                });
+                }) else {
+                    continue;
+                };
                 if let Some(event) = output.edit.event {
                     self.report.flyout.push(event);
                 }
                 let work = ColumnWork { iconic: output.iconic, picked: output.picked, resized: Vec::new(), gesture: output.gesture };
                 self.column_work(column, work, cell);
             } else {
-                let output = region(ui, cell, |ui| {
+                let Some(output) = region(ui, cell, |ui| {
                     DockColumn::new(name.clone(), scene.dock, column, &spec)
                         .auto_collapse(scene.auto_collapse)
                         .show_groups(ui, |group, rect, ui, body| self.group_of(ui, body, group, rect))
-                });
+                }) else {
+                    continue;
+                };
                 let work = ColumnWork { iconic: output.iconic, picked: output.picked, resized: output.resized, gesture: output.gesture };
                 self.column_work(column, work, cell);
             }
@@ -708,9 +712,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
             self.report.actions.push(Action::resize_group(anchor, Some(height)));
         }
         match work.gesture {
-            Some(ColumnGesture::Column { anchor }) => self.scene.start(DragUnit::Column(anchor), cell),
-            Some(ColumnGesture::Group { anchor }) => self.scene.start(DragUnit::Group(anchor), cell),
-            Some(ColumnGesture::Panel { panel }) => self.scene.start(DragUnit::Panel(panel), cell),
+            Some(ColumnGesture::Column { anchor, .. }) => self.scene.start(DragUnit::Column(anchor), cell),
+            Some(ColumnGesture::Group { anchor, .. }) => self.scene.start(DragUnit::Group(anchor), cell),
+            Some(ColumnGesture::Panel { panel, .. }) => self.scene.start(DragUnit::Panel(panel), cell),
             _ => {}
         }
     }
@@ -722,7 +726,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
             let Some(anchor) = window.panels().next().cloned() else { continue };
             let spec = scene.spec(&anchor);
             let group = FloatingGroup::new(spec.label, window.rect)
-                .bounds(Some(scene.bounds))
+                .bounds(scene.bounds)
                 .limits(spec.limits)
                 .minimized(window.minimized)
                 .window_of(anchor.clone());
