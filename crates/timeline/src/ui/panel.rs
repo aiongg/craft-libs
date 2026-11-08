@@ -9,21 +9,22 @@ use super::stack::{
     LOCK, MUTE, MovePointer, MoveTarget, NAME, NAME_DEFAULT, OUTPUT, RowGeom, RowPlace, SOLO, SYNC_LOCK, Side, TARGET, TrackEvent, TrackRow,
     TrackStack, Tracks, resolve_move, set_event,
 };
-use super::view::{Overlay, TimelineView, TimelineViewStyle, TimelineWords, time_axis};
+use super::view::{Overlay, TimelineView, TimelineWords, time_axis};
 use super::{DragEvent, LabelPalette, TimecodeField, label_palette};
 use crate::clips::{ClipEdit, SnapTargets};
 use crate::clock::FollowMode;
 use crate::markers::{Marker, MarkerColor};
 use crate::model::{ClipId, ClipInfo, TimelineModel, TrackId, TrackInfo, TrackKind};
 use crate::time::{Tick, TimeRange};
-use craft_behavior::{ColumnWidth, EditEvent, IconId, MarqueeSelect, Metrics, PressPhase, SelectionChange, Sense};
+use craft_behavior::{Axis, ColumnWidth, EditEvent, IconId, MarqueeSelect, Metrics, SelectionChange};
 use craft_ui::buttons::{IconButton, ToggleButton};
 use craft_ui::contract::{
-    Bind, BindMut, BodyLayout, CollectionEvent, CollectionResponse, ColumnEvent, Common, Component, Container, ContainerProps, Cx, Edit as _,
-    EditResponse, MeasureCx, NoValue, Outcome, Pattern, Pointer as _, Props, Remember as _, Role, Show as _, ShowCollection as _, ShowContainer as _,
-    Sizing,
+    Bind, BodyLayout, CollectionEvent, CollectionResponse, ColumnEvent, Common, Component, Container, ContainerProps, Cx, EditResponse, NoValue,
+    Outcome, Pattern, Props, Remember as _, Role, Show as _, ShowCollection as _, ShowContainer as _, SizeLimits, Sizing,
 };
 use craft_ui::display::Text;
+use craft_ui::docking::SplitArea;
+use craft_ui::docking::tree::FrameRules;
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::menu::{Menu, MenuItem};
 use craft_ui::primitives::IconSpec;
@@ -108,9 +109,9 @@ pub enum TimelineEdit {
         /// Cmd or Ctrl was held: leave linked partners out.
         unlinked: bool,
     },
-    /// The divider between the video and audio tracks dragged: the video side's new share of the room below the
-    /// captions, from 0.1 to 0.9, as one gesture. A view setting the app keeps and hands back through
-    /// [`Timeline::divider`], never in undo.
+    /// The divider between the video and audio tracks dragged or moved by its keys: the video side's new share of the
+    /// room below the captions (of what the divider leaves), as one gesture. A view setting the app keeps and hands
+    /// back through [`Timeline::divider`], never in undo.
     Divider(EditEvent<f32>),
     /// A secondary click, or the Menu key or Shift+F10 with the time area focused: the app opens its menu. `anchor` is
     /// the clicked clip's or track's rect, `pointer` the click position, `None` for a key.
@@ -129,9 +130,6 @@ pub enum TimelineEdit {
     OpenClip(ClipId),
 }
 
-/// The least and most of the video side's share of the room below the captions (FilmCraft `timeline.rs:385`).
-const DIVIDER_SHARE_MIN: f32 = 0.1;
-const DIVIDER_SHARE_MAX: f32 = 0.9;
 /// The share the video side gets when the app keeps none.
 const DIVIDER_SHARE_DEFAULT: f32 = 0.5;
 
@@ -266,8 +264,8 @@ struct PlacedRow {
     /// The track's position in the model's tracks.
     track: usize,
     geom: RowGeom,
-    /// The left edge of the row's lane; none for a row the collection did not build.
-    lane_left: Option<f32>,
+    /// Where the collection laid the row out; none for a row it did not build.
+    place: Option<RowPlace>,
 }
 
 /// What the panes share in a pass.
@@ -291,8 +289,11 @@ impl Panes<'_, '_> {
             Side::Lower => "Audio",
         };
         let mut stack = TrackStack::new(label, self.name, self.words).tracks(pane);
-        if side == Side::Upper {
-            stack = stack.anchored_at_end();
+        match side {
+            Side::Upper => stack = stack.anchored_at_end(),
+            // The caption tracks take the height their rows need, so the video and audio panes keep the rest.
+            Side::Caption => stack = stack.sized_to_rows(),
+            Side::Lower => {}
         }
         let source = Tracks::new(pane);
         stack.show_items(ui, &source, &mut |key, icx| {
@@ -355,9 +356,9 @@ impl Mapping<'_> {
                         edits.push(TimelineEdit::Select { change, unlinked: row.unlinked });
                     }
                     edits.extend(row.open.map(TimelineEdit::OpenClip));
-                    if let Some((clip, anchor)) = row.context {
+                    if let Some((clip, anchor, pointer)) = row.context {
                         with_clip.push(*track);
-                        edits.push(TimelineEdit::ContextMenu { track: Some(*track), clip: Some(clip), anchor, pointer: None });
+                        edits.push(TimelineEdit::ContextMenu { track: Some(*track), clip: Some(clip), anchor, pointer });
                     }
                     edits.extend(row.height.clone().map(|height| TimelineEdit::TrackHeight { track: *track, height }));
                     if row.label_menu {
@@ -401,7 +402,7 @@ impl Mapping<'_> {
 
 /// The menu of a track's colour label, open while `open`: the label chosen (`Some(None)` for no label) and whether the
 /// menu closed in this pass.
-pub(super) fn label_menu(
+fn label_menu(
     ui: &mut Ui,
     words: &TimelineWords,
     palette: &LabelPalette,
@@ -520,44 +521,33 @@ impl<M: TimelineModel> Timeline<'_, M> {
                 let mut reports = Reports { snapped: ruler_snapped, ..Reports::default() };
                 let mut pane_rects: Vec<Rect> = Vec::new();
                 let both = !panes[1].1.is_empty() && !panes[2].1.is_empty();
-                let sizes = cx.style::<TimelineView<'_>>().map(TimelineViewStyle::sizes);
-                let share = divider.unwrap_or(DIVIDER_SHARE_DEFAULT).clamp(DIVIDER_SHARE_MIN, DIVIDER_SHARE_MAX);
-                for (side, indices) in &panes {
-                    if indices.is_empty() {
-                        continue;
-                    }
+                let share = divider.unwrap_or(DIVIDER_SHARE_DEFAULT);
+                let mut show_pane = |ui: &mut Ui, side: Side, indices: &[usize]| {
                     let pane: Vec<TrackInfo<'_>> = indices.iter().map(|&i| tracks[i].clone()).collect();
-                    // Both sides of the divider: the video side takes its share of the room, the audio side the rest.
-                    let room = ui.available_height();
-                    let out = if let (Side::Caption, Some(sizes)) = (*side, sizes) {
-                        // The caption tracks take their own height, so the video and audio panes keep the rest.
-                        let area = ui.available_rect_before_wrap();
-                        let height = pane.iter().map(|track| sizes.height_of(track)).sum::<f32>().min(room);
-                        let own = Rect::from_min_size(area.min, Vec2::new(area.width(), height));
-                        Stack::new().show_at_taking_room(ui, own, |ui, _| shared.show(ui, *side, &pane, indices)).inner
-                    } else if *side == Side::Upper && both {
-                        let area = ui.available_rect_before_wrap();
-                        let own = Rect::from_min_size(area.min, Vec2::new(area.width(), room * share));
-                        Stack::new().show_at_taking_room(ui, own, |ui, _| shared.show(ui, *side, &pane, indices)).inner
-                    } else {
-                        Some(shared.show(ui, *side, &pane, indices))
-                    };
-                    let Some(out) = out else { continue };
+                    let out = shared.show(ui, side, &pane, indices);
                     pane_rects.push(out.response.rect);
                     let mapping = Mapping { pane: &pane, words: &words, name: header_width, palette: &palette };
                     mapping.collect(&out, &mut edits, &mut memory, &mut reports);
-                    let lane_left = pane_lane_left(&out);
-                    if !selection.is_empty()
-                        && clicked_lane_space(&out, lane_left)
-                        && !ui.input(|input| input.modifiers.shift || input.modifiers.command)
-                    {
-                        edits.push(TimelineEdit::Select { change: SelectionChange::Clear, unlinked: false });
-                    }
                     mapping.label_menu(ui, &out.response, &mut memory, &mut edits);
-                    if *side == Side::Upper && both {
-                        let divided = Divider::new(words.divider.clone(), Bind::given(share), room).show(ui);
-                        edits.extend(divided.event.map(TimelineEdit::Divider));
+                };
+                // The video and audio panes are the two bodies of one split area: its divider shares the room.
+                let limits = |_: &Side| SizeLimits::default();
+                let stripless = |_: &Side| true;
+                let rules = FrameRules::new(&limits).stripless(&stripless);
+                for (side, indices) in &panes {
+                    if indices.is_empty() || (both && matches!(side, Side::Upper | Side::Lower)) {
+                        continue;
                     }
+                    show_pane(ui, *side, indices);
+                }
+                if both {
+                    let split = SplitArea::pair(words.divider.clone(), Axis::Y, (Side::Upper, Side::Lower), share, rules).show(ui, |ui, body| {
+                        for (side, rect) in body.group_frames::<Side>() {
+                            let Some((_, indices)) = panes.iter().find(|(pane, _)| *pane == side) else { continue };
+                            Stack::new().show_at(ui, rect, |ui, _| show_pane(ui, side, indices));
+                        }
+                    });
+                    edits.extend(split.output.share().map(TimelineEdit::Divider));
                 }
                 let placed = placed_rows(&panes, &tracks, &reports.places);
                 if let Some((dragged, pointer)) = reports.drag {
@@ -598,10 +588,10 @@ impl<M: TimelineModel> Timeline<'_, M> {
                     let inner = Env::of(ui);
                     if let Some(axis) = time_axis(&inner.view()) {
                         let axis = &axis;
-                        let items = placed.iter().filter_map(|row| Some((row, row.lane_left?))).flat_map(|(row, left)| {
+                        let items = placed.iter().filter_map(|row| Some((row, row.place?))).flat_map(|(row, place)| {
                             clips[row.track].iter().map(move |clip| {
-                                let (x0, x1) = (axis.x_of(clip.range.start, left), axis.x_of(clip.range.end(), left));
-                                (clip.id, Rect::from_min_max(Pos2::new(x0, row.geom.top), Pos2::new(x1, row.geom.bottom)))
+                                let (x0, x1) = (axis.x_of(clip.range.start, place.lane_left), axis.x_of(clip.range.end(), place.lane_left));
+                                (clip.id, Rect::from_min_max(Pos2::new(x0, place.row.top()), Pos2::new(x1, place.row.bottom())))
                             })
                         });
                         let keys = marquee.selection(items);
@@ -614,10 +604,10 @@ impl<M: TimelineModel> Timeline<'_, M> {
                 }
                 if let (Some(last), Some(axis)) = (selection.last(), time_axis(&Env::of(ui).view())) {
                     selected_clip = placed.iter().find_map(|row| {
-                        let left = row.lane_left?;
+                        let place = row.place?;
                         let clip = clips[row.track].iter().find(|clip| clip.id == *last)?;
-                        let (x0, x1) = (axis.x_of(clip.range.start, left), axis.x_of(clip.range.end(), left));
-                        Some((tracks[row.track].id, Rect::from_min_max(Pos2::new(x0, row.geom.top), Pos2::new(x1, row.geom.bottom))))
+                        let (x0, x1) = (axis.x_of(clip.range.start, place.lane_left), axis.x_of(clip.range.end(), place.lane_left));
+                        Some((tracks[row.track].id, Rect::from_min_max(Pos2::new(x0, place.row.top()), Pos2::new(x1, place.row.bottom()))))
                     });
                 }
                 overlay.snapped(reports.snapped);
@@ -658,21 +648,6 @@ impl<M: TimelineModel> Timeline<'_, M> {
     }
 }
 
-/// Whether the pane's collection took a primary click on the space of a lane: no clip, edge or header part took the
-/// press, so it is a click on empty track space (Premiere clears the clip selection there).
-fn clicked_lane_space(out: &CollectionResponse<TrackId, TrackEvent>, lane_left: Option<f32>) -> bool {
-    let (Some(lane_left), Some(at)) = (lane_left, out.response.interact_pointer_pos()) else { return false };
-    out.response.clicked_by(egui::PointerButton::Primary) && at.x >= lane_left
-}
-
-/// The left edge of the lanes in a pane, from the rows the collection built.
-fn pane_lane_left(out: &CollectionResponse<TrackId, TrackEvent>) -> Option<f32> {
-    out.events.iter().find_map(|event| match event {
-        CollectionEvent::Item(_, row) => row.place.map(|place| place.lane_left),
-        _ => None,
-    })
-}
-
 /// Where each pane's rows are, as the collections laid them out. A row the collection did not build (scrolled out of
 /// the pane) has no rect: it still ranks and may be locked, but no pointer is over it.
 fn placed_rows(panes: &[(Side, Vec<usize>); 3], tracks: &[TrackInfo<'_>], places: &[(TrackId, RowPlace)]) -> Vec<PlacedRow> {
@@ -684,12 +659,14 @@ fn placed_rows(panes: &[(Side, Vec<usize>); 3], tracks: &[TrackInfo<'_>], places
             // Ranks count away from the divider: the video side is stacked upward from it.
             let rank = if *side == Side::Upper { (at + 1..indices.len()).filter(same).count() } else { (0..at).filter(same).count() };
             let place = places.iter().find(|(id, _)| *id == tracks[track].id).map(|(_, place)| *place);
-            let (top, bottom) = place.map_or((f32::NAN, f32::NAN), |place| (place.row.top(), place.row.bottom()));
-            let mut geom = RowGeom::new(kind, *side, rank as i32, top, bottom);
+            let mut geom = match place {
+                Some(place) => RowGeom::new(kind, *side, rank as i32, place.row.top(), place.row.bottom()),
+                None => RowGeom::unbuilt(kind, *side, rank as i32),
+            };
             if tracks[track].locked == Some(true) {
                 geom = geom.locked();
             }
-            placed.push(PlacedRow { track, geom, lane_left: place.map(|place| place.lane_left) });
+            placed.push(PlacedRow { track, geom, place });
         }
     }
     placed
@@ -779,76 +756,6 @@ impl Container for TopStrip {}
 pub struct TopStripStyle {
     #[style(metrics)]
     metrics: Metrics,
-}
-
-/// The line between the video and audio panes: dragging it changes the video side's share of the room.
-#[derive(Component)]
-struct Divider<'a> {
-    #[common]
-    common: Common,
-    share: Bind<'a, f32>,
-    /// The room the share is of: the dragged distance over it is the change of the share.
-    room: f32,
-}
-
-impl<'a> Divider<'a> {
-    fn new(label: impl Into<Label>, share: Bind<'a, f32>, room: f32) -> Self {
-        Divider { common: Common::new(), share, room }.label(label)
-    }
-}
-
-impl Component for Divider<'_> {
-    const ROLE: Role = Role::SPLITTER;
-    const PARTS: bool = false;
-    const OVERLAYS: bool = false;
-    type Style = DividerStyle;
-    type Output = EditResponse<f32>;
-
-    fn style(cx: &StyleCx<'_>, _: DividerStyleKey) -> DividerStyle {
-        DividerStyle { metrics: Metrics::new(), grip: cx.tokens.size.hit.target }
-    }
-
-    /// As tall as the pointer's grab distance, across the width the panes have.
-    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        Vec2::new(0.0, cx.style.grip)
-    }
-
-    fn fills(&self) -> Option<craft_behavior::Axis> {
-        Some(craft_behavior::Axis::X)
-    }
-
-    fn sense(&self) -> Sense {
-        Sense::CLICK | Sense::DRAG
-    }
-
-    fn bind(&mut self) -> Option<BindMut<'_, f32>> {
-        Some(self.share.reborrow())
-    }
-
-    fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        let Some(share) = cx.value().copied() else { return };
-        let room = self.room.max(f32::EPSILON);
-        match cx.press().phase {
-            PressPhase::DragStart { .. } => cx.begin(),
-            PressPhase::Drag { start, pos, .. } => cx.propose((share + (pos.y - start.origin.y) / room).clamp(DIVIDER_SHARE_MIN, DIVIDER_SHARE_MAX)),
-            PressPhase::Release { click: false, .. } => cx.commit(),
-            _ => {}
-        }
-    }
-
-    fn finish(self, cx: Cx<'_, Self>) -> EditResponse<f32> {
-        cx.edit_response()
-    }
-}
-
-/// The divider is as tall as the pointer's grab distance.
-#[derive(Clone, Debug, PartialEq, ComponentStyle)]
-#[non_exhaustive]
-pub struct DividerStyle {
-    #[style(metrics)]
-    metrics: Metrics,
-    /// The divider's height.
-    grip: f32,
 }
 
 #[cfg(feature = "screen-testing")]

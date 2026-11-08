@@ -8,10 +8,10 @@ use std::rc::Rc;
 
 use craft_behavior::{CursorIcon, HitLevel, HitPriority, Intent, MarqueeSelect, PartKey, PartRef, PointerButton, PressPhase, SelectionChange, Sense};
 use craft_ui::contract::{
-    Access, Component, ContentPainter, Cx, Edit as _, Focus as _, Name, Outcome, PaintUi, PartsCx, Pointer as _, Remember as _,
+    Access, Component, ContentPainter, Cx, Edit as _, Focus as _, Name, Outcome, PaintUi, PartsCx, Pointer as _, Remember as _, Styled as _,
 };
 use craft_ui::primitives::{ContentPainterCx, PaintShape, StrokeWidth, TextRun};
-use craft_ui::style::{DataColor, Flags, Resolve as _, State, StateMix, Stateful, States, StyleColor, StyleCx, TypeRole};
+use craft_ui::style::{DataColor, Stateful, States, StyleColor, StyleCx, TypeRole};
 use egui::{CornerRadius, Pos2, Rect, Vec2, pos2};
 
 use super::{TimeAxis, label_palette};
@@ -30,8 +30,8 @@ const ROLL_SHARE: f32 = 0.5;
 
 /// The clip body of `CLIP.at(id)`; its start and end edges are `CLIP_START.at(id)` and `CLIP_END.at(id)`, which rank
 /// above the body.
-/// The empty space of the lane: it takes the drags that sweep a marquee. A click on it belongs to the track collection:
-/// it makes the track the lead and the panel clears the clip selection.
+/// The empty space of the lane: it takes the drags that sweep a marquee and the click that clears the clip selection
+/// (Premiere; Shift or Cmd/Ctrl keeps it).
 const BACKDROP: PartKey = PartKey::new("laneBackdrop");
 /// A clip's body wins over the backdrop behind it, and the backdrop wins over the row's own root shape.
 const CLIP_PRIORITY: HitPriority = HitPriority::new(HitLevel::Body, 2);
@@ -179,8 +179,9 @@ pub struct ClipLaneEvents {
     pub unlinked: bool,
     /// The clip that was double-clicked.
     pub open: Option<ClipId>,
-    /// The clip that asked for its menu, and a rect at the place to open it.
-    pub context: Option<(ClipId, Rect)>,
+    /// The clip that asked for its menu, a rect at the place to open it, and the pointer's position when the menu came
+    /// from a secondary click (none for a key).
+    pub context: Option<(ClipId, Rect, Option<Pos2>)>,
     /// Where a drag snapped this pass.
     pub snapped_at: Option<Tick>,
     /// The pointer's y while a move drag runs: the panel that holds the rows works out the track change from it.
@@ -246,8 +247,8 @@ impl Default for Pressed {
 /// - A press acts on what it pressed, worked out on the press pass, not when the drag threshold passes (FilmCraft
 ///   `Pressed`, #259).
 /// - A click picks a clip: a click replaces, Shift toggles, Cmd/Ctrl toggles without linked partners (Premiere's),
-///   reported as a [`SelectionChange`]; a double-click and a secondary click are reported. A click on empty space is the
-///   track collection's.
+///   reported as a [`SelectionChange`]; a double-click and a secondary click are reported. A click on empty space
+///   clears the selection (Shift or Cmd/Ctrl keeps it); a drag from it sweeps a marquee.
 /// - A locked track draws stripes over its clips and starts no gesture.
 /// - Each clip is a focusable part: Enter and Space pick it. AccessKit: a button per clip, named by its name, valued by
 ///   its start and duration.
@@ -340,7 +341,7 @@ impl<'a> ClipLane<'a> {
         let sense = if self.locked { Sense::HOVER } else { Sense::CLICK | Sense::DRAG | Sense::CONTEXT_CLICK | Sense::TAKE_FOCUS };
         if !self.locked {
             cx.part(BACKDROP, lane)
-                .sense(Sense::DRAG | Sense::TAKE_FOCUS)
+                .sense(Sense::CLICK | Sense::DRAG | Sense::TAKE_FOCUS)
                 .priority(BACKDROP_PRIORITY)
                 .pointer_only("the clips' own keys and the selection commands pick without the pointer");
         }
@@ -369,7 +370,8 @@ impl<'a> ClipLane<'a> {
                     cx.part(key.at(clip.id.0), area)
                         .sense(Sense::CLICK | Sense::DRAG | Sense::CONTEXT_CLICK)
                         .priority(HitPriority::new(HitLevel::Edge, 0))
-                        .cursor(CursorIcon::ResizeHorizontal);
+                        .cursor(CursorIcon::ResizeHorizontal)
+                        .pointer_only("the host's trim-to-playhead commands trim an edge without the pointer");
                 }
             }
         }
@@ -417,8 +419,8 @@ impl<'a> ClipLane<'a> {
         self.run_picks(cx, &geometry, &mut events);
         self.run_marquee(cx, &geometry, &mut events);
         for clip in self.clips {
-            if let Some(at) = context_menu(cx, CLIP.at(clip.id.0)) {
-                events.context = Some((clip.id, Rect::from_min_size(at, Vec2::ZERO)));
+            if let Some((at, by_pointer)) = context_menu(cx, CLIP.at(clip.id.0)) {
+                events.context = Some((clip.id, Rect::from_min_size(at, Vec2::ZERO), by_pointer.then_some(at)));
             }
         }
         events
@@ -530,6 +532,17 @@ impl<'a> ClipLane<'a> {
         if events.select.is_some() {
             return;
         }
+        // A click on the empty space clears the selection, unless the press held Shift or Cmd/Ctrl (they extend it).
+        if let Some(press) = cx.part_if_declared(BACKDROP).map(|result| result.press)
+            && press.phase.is_click()
+            && press.phase.start().is_some_and(|start| start.button == PointerButton::Primary)
+            && !press.mods.shift
+            && !press.mods.cmd
+            && !self.selection.is_empty()
+        {
+            events.select = Some(SelectionChange::Clear);
+            return;
+        }
         for clip in self.clips {
             let mods = [CLIP, CLIP_START, CLIP_END]
                 .into_iter()
@@ -575,8 +588,7 @@ impl<'a> ClipLane<'a> {
         let draw = ui.draw();
         for clip in self.clips {
             let Some(body) = geometry.body(clip) else { continue };
-            let state = if clip.enabled { State::Rest } else { State::Disabled };
-            let name_color = look.name.resolve(state, Flags::empty(), StateMix::REST);
+            let name_color = cx.resolve_part(CLIP.at(clip.id.0), &look.name);
             let room = Rect::from_min_max(pos2(body.left() + look.pad, body.top() + look.pad), pos2(body.right() - look.pad, body.bottom()));
             if room.width() > 0.0 {
                 draw.text(room, &TextRun::new(clip.name).role(TypeRole::Caption).color(name_color).elide());
@@ -616,17 +628,18 @@ fn stripes(draw: &craft_ui::primitives::Draw<'_>, body: Rect, look: &ClipLook) {
 
 /// Where `part` of the component was asked for its context menu in this pass: a secondary click on it, or the Menu key
 /// or Shift+F10 while it holds the focus (then its bottom start corner). The intent is taken, so the component's
-/// generic context request is not recorded.
-pub(crate) fn context_menu<C: Component>(cx: &mut Cx<'_, C>, part: impl Into<PartRef>) -> Option<Pos2> {
+/// generic context request is not recorded. The flag is true when a secondary click asked, and the position is then the
+/// pointer's.
+pub(crate) fn context_menu<C: Component>(cx: &mut Cx<'_, C>, part: impl Into<PartRef>) -> Option<(Pos2, bool)> {
     let part = part.into();
     let result = cx.part_if_declared(part)?;
     let (press, rect) = (result.press, result.rect);
     if let PressPhase::Release { start, pos, .. } = press.phase
         && start.button == PointerButton::Secondary
     {
-        return Some(pos);
+        return Some((pos, true));
     }
-    (cx.active_part() == Some(part) && cx.intents().take(Intent::ContextMenu)).then(|| rect.left_bottom())
+    (cx.active_part() == Some(part) && cx.intents().take(Intent::ContextMenu)).then(|| (rect.left_bottom(), false))
 }
 
 /// The lane's clips and the numbers its rules read.

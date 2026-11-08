@@ -3,7 +3,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use craft_behavior::EditEvent;
+use craft_behavior::{EditEvent, SelectionChange};
 use craft_timeline::ui::stack::{MoveTarget, RowGeom, Side, resolve_move};
 use craft_timeline::ui::view::TimelineView;
 use craft_timeline::ui::{Timeline, TimelineEdit, TrackSwitch};
@@ -372,6 +372,18 @@ impl Panel {
             .unwrap_or_else(|| panic!("no node named {name} in {row:?}"))
     }
 
+    /// The node named exactly `name` that lies inside `row`: the narrowest, since the row itself carries its track's name.
+    fn name_in_row(&self, name: &str, row: Rect) -> Target {
+        let tree = self.fixture.tree();
+        tree.keys()
+            .into_iter()
+            .filter(|key| tree.name_of(*key) == Some(name))
+            .filter_map(|key| self.fixture.target(key))
+            .filter(|target| row.contains(target.center()))
+            .min_by(|a, b| a.rect.width().total_cmp(&b.rect.width()))
+            .unwrap_or_else(|| panic!("no node named {name} in {row:?}"))
+    }
+
     fn edits(&self) -> Vec<TimelineEdit> {
         self.sequence.borrow().edits.clone()
     }
@@ -384,17 +396,6 @@ impl Panel {
                 _ => None,
             })
             .collect()
-    }
-
-    /// Presses at `from` and drags by `by` in four steps.
-    fn drag_by(&mut self, from: egui::Pos2, by: Vec2) {
-        self.fixture.frame(vec![pointer::moved(from)]);
-        self.fixture.frame(vec![pointer::press(from)]);
-        for step in 1..=4 {
-            self.fixture.frame(vec![pointer::moved(from + by * (step as f32 / 4.0))]);
-        }
-        self.fixture.frame(vec![pointer::release(from + by)]);
-        self.fixture.idle(2);
     }
 }
 
@@ -436,7 +437,7 @@ fn rows_resize_from_their_height_and_video_rows_grow_upward() {
     let mut panel = panel();
     let a1 = panel.row("A1");
     let edge = panel.in_row("Drag to change the height of A1", a1);
-    panel.drag_by(edge.center(), Vec2::new(0.0, RESIZE_TRAVEL));
+    panel.fixture.drag(&edge, Vec2::new(0.0, RESIZE_TRAVEL));
     let got = panel.heights();
     assert_eq!(got.last().map(|(track, _)| *track), Some(A1), "{got:?}");
     assert!((got.last().map_or(0.0, |(_, height)| *height) - (a1.height() + RESIZE_TRAVEL)).abs() < SLACK, "{got:?} from {}", a1.height());
@@ -444,14 +445,14 @@ fn rows_resize_from_their_height_and_video_rows_grow_upward() {
     let mut panel = self::panel();
     let v1 = panel.row("V1");
     let edge = panel.in_row("Drag to change the height of V1", v1);
-    panel.drag_by(edge.center(), Vec2::new(0.0, -RESIZE_TRAVEL));
+    panel.fixture.drag(&edge, Vec2::new(0.0, -RESIZE_TRAVEL));
     let got = panel.heights();
     assert!((got.last().map_or(0.0, |(_, height)| *height) - (v1.height() + RESIZE_TRAVEL)).abs() < SLACK, "{got:?} from {}", v1.height());
 
     let mut panel = self::panel();
     let v2 = panel.row("V2");
     let top = panel.in_row("Drag the top edge to change the height of V2", v2);
-    panel.drag_by(top.center(), Vec2::new(0.0, -RESIZE_TRAVEL));
+    panel.fixture.drag(&top, Vec2::new(0.0, -RESIZE_TRAVEL));
     let got = panel.heights();
     assert_eq!(got.last().map(|(track, _)| *track), Some(V2), "{got:?}");
     assert!((got.last().map_or(0.0, |(_, height)| *height) - (v2.height() + RESIZE_TRAVEL)).abs() < SLACK, "{got:?} from {}", v2.height());
@@ -466,10 +467,9 @@ fn double_clicking_a_header_toggles_its_height() {
     let mut panel = panel();
     let a1 = panel.row("A1");
     let before = a1.height();
-    let at = a1.left_center() + Vec2::new(HEADER_NAME_INSET, 0.0);
-    panel.fixture.frame(vec![pointer::moved(at)]);
-    panel.fixture.click_at(at);
-    panel.fixture.click_at(at);
+    let name = panel.name_in_row("A1", a1);
+    panel.fixture.click(&name);
+    panel.fixture.click(&name);
     let got = panel.heights();
     assert_eq!(got.len(), 1, "one height from the double click: {got:?}");
     assert_eq!(got[0].0, A1);
@@ -478,9 +478,6 @@ fn double_clicking_a_header_toggles_its_height() {
 
 /// The rounding slack of a measured point.
 const SLACK: f32 = 0.5;
-
-/// How far into the row the name column's text lies, clear of the colour strip and the switches.
-const HEADER_NAME_INSET: f32 = 60.0;
 
 /// Captions sit above the video rows; a model with a master volume shows the Mix row below the audio rows.
 #[trial]
@@ -509,8 +506,20 @@ fn the_wheel_scrolls_the_side_under_the_pointer() {
 /// The points one wheel turn moves.
 const WHEEL_POINTS: f32 = 30.0;
 
+/// The context menus a pass reported, as (track, clip, anchor, pointer).
+fn reported_menus(panel: &Panel) -> Vec<(Option<TrackId>, Option<ClipId>, Rect, Option<egui::Pos2>)> {
+    panel
+        .edits()
+        .into_iter()
+        .filter_map(|edit| match edit {
+            TimelineEdit::ContextMenu { track, clip, anchor, pointer, .. } => Some((track, clip, anchor, pointer)),
+            _ => None,
+        })
+        .collect()
+}
+
 /// The Menu key and Shift+F10 on a clicked clip report a context menu anchored on that clip; a secondary click on it
-/// reports its position.
+/// reports its position and anchors the menu there.
 #[trial]
 fn the_menu_keys_report_a_context_menu_anchored_on_the_focused_clip() {
     let mut panel = panel();
@@ -519,14 +528,7 @@ fn the_menu_keys_report_a_context_menu_anchored_on_the_focused_clip() {
     panel.fixture.click(&clip);
     panel.fixture.key(Key::Menu, Modifiers::NONE);
     panel.fixture.key(Key::F10, Modifiers::SHIFT);
-    let menus: Vec<_> = panel
-        .edits()
-        .into_iter()
-        .filter_map(|edit| match edit {
-            TimelineEdit::ContextMenu { track, clip, anchor, pointer, .. } => Some((track, clip, anchor, pointer)),
-            _ => None,
-        })
-        .collect();
+    let menus = reported_menus(&panel);
     assert_eq!(menus.len(), 2, "{menus:?}");
     for (track, found, anchor, pointer) in &menus {
         assert_eq!((*track, *found, *pointer), (Some(V1), Some(ClipId(1)), None));
@@ -538,15 +540,57 @@ fn the_menu_keys_report_a_context_menu_anchored_on_the_focused_clip() {
     }
 
     panel.sequence.borrow_mut().edits.clear();
-    let at = clip.center();
+    // Off the clip's centre, so the pointer and the clip's own anchor differ.
+    let at = clip.rect.min + clip.rect.size() * 0.25;
     panel.fixture.frame(vec![pointer::moved(at)]);
     panel.fixture.frame(vec![pointer::secondary(at, true)]);
     panel.fixture.frame(vec![pointer::secondary(at, false)]);
-    let click = panel.edits().into_iter().find_map(|edit| match edit {
-        TimelineEdit::ContextMenu { clip, anchor, .. } => Some((clip, anchor)),
-        _ => None,
-    });
-    assert!(matches!(click, Some((Some(ClipId(1)), anchor)) if (anchor.center() - at).length() < 1.0), "{click:?}");
+    let menus = reported_menus(&panel);
+    assert_eq!(menus.len(), 1, "{menus:?}");
+    let (track, found, anchor, pointer) = menus[0];
+    assert_eq!((track, found), (Some(V1), Some(ClipId(1))));
+    assert!(pointer.is_some_and(|pointer| (pointer - at).length() < SLACK), "the pointer is the click position: {pointer:?} for {at:?}");
+    assert!((anchor.center() - at).length() < SLACK, "the menu anchors at the click: {anchor:?} for {at:?}");
+}
+
+/// The Tab stop of the time area comes first: one Tab reaches it, and Menu and Shift+F10 then report a context menu
+/// anchored on the selection's last clip.
+#[trial]
+fn the_menu_keys_report_a_context_menu_for_the_clip_reached_by_tab() {
+    let mut panel = panel();
+    panel.sequence.borrow_mut().selection = vec![ClipId(1)];
+    panel.fixture.idle(2);
+    let v1 = panel.row("V1");
+    let clip = panel.in_row("Clip", v1);
+    panel.fixture.key(Key::Tab, Modifiers::NONE);
+    let focused = panel.fixture.focused().and_then(|id| panel.fixture.tree().name(id).map(str::to_owned));
+    assert_eq!(focused.as_deref(), Some("Timeline"), "one Tab reaches the time area");
+    panel.fixture.key(Key::Menu, Modifiers::NONE);
+    panel.fixture.key(Key::F10, Modifiers::SHIFT);
+    let menus = reported_menus(&panel);
+    assert_eq!(menus.len(), 2, "{menus:?}");
+    for (track, found, anchor, pointer) in &menus {
+        assert_eq!((*track, *found, *pointer), (Some(V1), Some(ClipId(1)), None));
+        assert!(clip.rect.expand(SLACK).contains(anchor.center()), "{anchor:?} lies on the clip {:?}", clip.rect);
+    }
+}
+
+/// A click on empty lane space clears the clip selection; Shift+click there keeps it.
+#[trial]
+fn a_click_on_empty_lane_space_clears_the_clip_selection() {
+    let mut panel = panel();
+    panel.sequence.borrow_mut().selection = vec![ClipId(1)];
+    panel.fixture.idle(2);
+    let clip = panel.in_row("Clip", panel.row("V1"));
+    // V2 has no clips: the point under the clip's centre, one row up, is empty lane.
+    let empty = egui::pos2(clip.center().x, panel.row("V2").center().y);
+    let clears = |panel: &Panel| panel.edits().iter().any(|edit| matches!(edit, TimelineEdit::Select { change: SelectionChange::Clear, .. }));
+    panel.fixture.hold(Modifiers::SHIFT);
+    panel.fixture.click_at(empty);
+    panel.fixture.hold(Modifiers::NONE);
+    assert!(!clears(&panel), "Shift+click keeps the selection: {:?}", panel.edits());
+    panel.fixture.click_at(empty);
+    assert!(clears(&panel), "a click clears the selection: {:?}", panel.edits());
 }
 
 /// The rects of the panel that are filled with a clip colour or the disabled fill, as one frame paints them.
@@ -593,5 +637,21 @@ fn a_disabled_clip_paints_with_the_disabled_fill() {
     assert_eq!(kept.len(), 1, "the enabled neighbour keeps its hue: {kept:?}");
     let gone = all_on.iter().find(|rect| !kept.contains(rect)).expect("one clip left its hue");
     let disabled = fills.iter().find(|(rect, _)| rect == gone).map(|(_, fill)| *fill);
-    assert!(disabled.is_some_and(|fill| fill != hue), "the disabled clip's body is filled with another colour: {disabled:?}");
+    let [r, g, b, a] = craft_ui::testing::style::tokens(craft_theme::Mode::Light, craft_theme::Contrast::Standard).color.state.disabled_fill.0;
+    let theme = egui::Color32::from_rgba_unmultiplied(r, g, b, a);
+    assert_eq!(disabled, Some(theme), "the switched-off clip's body takes the theme's disabled fill");
+}
+
+/// A switched-off clip is inactive, not disabled: its node stays enabled and a click on it still selects it (Premiere).
+#[trial]
+fn an_inactive_clip_stays_selectable() {
+    let mut panel = panel();
+    panel.sequence.borrow_mut().disabled = vec![ClipId(1)];
+    panel.fixture.idle(2);
+    let clip = panel.in_row("Clip", panel.row("V1"));
+    assert!(!panel.fixture.tree().is_disabled_key(clip.node), "the clip's node is enabled");
+    panel.fixture.click(&clip);
+    let picked =
+        panel.edits().iter().any(|edit| matches!(edit, TimelineEdit::Select { change: SelectionChange::Set(clips), .. } if clips == &[ClipId(1)]));
+    assert!(picked, "a click selects the inactive clip: {:?}", panel.edits());
 }
