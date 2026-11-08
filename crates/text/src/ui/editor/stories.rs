@@ -139,11 +139,12 @@ const SAMPLE: &str = "Hello craft\nSecond line";
 /// on a canvas.
 fn over_canvas(ui: &mut Ui, host: String, bind: Bind<'_, TextSelection>) -> StoryOutput {
     let mut host = MonoHost { text: host, revision: 0 };
+    let mut bind = Some(bind);
     let shown = Canvas::new("Document").show(ui, |ui, body| {
         let bounds = Rect::from_min_size(body.rect.min, body.rect.size() * EDITOR_SHARE);
-        TextEditor::new("Text", &mut host, bind).show_at(ui, bounds)
+        bind.take().map(|bind| TextEditor::new("Text", &mut host, bind).show_at(ui, bounds))
     });
-    shown.inner.map(StoryOutput::from).unwrap_or_default()
+    shown.inner.flatten().map(StoryOutput::from).unwrap_or_default()
 }
 
 /// The editor over `text` with `selection`, and `marked` chars of marked text when given, on a canvas.
