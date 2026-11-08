@@ -1,78 +1,104 @@
-//! The blend mode keys, as in Photoshop: ⇧+ and ⇧− step through the target's modes, ⇧⌥ plus a
+//! The blend mode keys, as in Photoshop: Shift+ and Shift- step through the target's modes, Shift+Alt plus a
 //! letter picks one ([`BlendKeys`]).
 //!
-//! The app lists the modes its target accepts ([`BlendKeyEntry`]: a painting tool's own Mode menu,
-//! or the layer modes) with its own key type; the library reads the keys and returns the entry to
-//! set. Which target a tool has, the engine command and its undo step stay the app's.
+//! The app lists the modes its target accepts ([`BlendKeyEntry`]: a painting tool's own Mode menu, or the layer modes)
+//! with its own key type. The keys are the [`BlendShortcut`] and [`BlendStep`] command sets; the app routes the fired
+//! commands here before the single-letter tool keys and gets back the entry to set. Which target a tool has, the
+//! engine command and its undo step stay the app's.
 //!
 //! ```ignore
-//! // Before the single-letter tool keys.
 //! let entries = [BlendKeyEntry::new(Mode::Normal, BlendShortcut::Normal), BlendKeyEntry::new(Mode::Multiply, BlendShortcut::Multiply)];
-//! if let Some(pick) = BlendKeys::new(&entries).current(&layer.blend).consume(ctx) {
+//! if let Some(pick) = BlendKeys::new(&entries).current(&layer.blend).fired(&fired) {
 //!     app.set_blend(pick.into_key()); // one undo step
 //! }
 //! ```
 
-use egui::{Context, Key};
+use craft_ui::contract::CommandSet;
+use craft_ui::runtime::commands::{CommandRef, FirePhase, Fired};
 
-use craft_ui::focus::key_owner::{KeyOwner, OwnerGate, owner};
-
-/// Photoshop's ⇧⌥ letter positions: the 26 lettered blend modes. Darker Color, Lighter Color,
-/// Subtract and Divide have no letter; list them with [`BlendKeyEntry::unlettered`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+/// Photoshop's Shift+Alt letter positions: the 26 lettered blend modes. Darker Color, Lighter Color, Subtract and
+/// Divide have no letter; list them with [`BlendKeyEntry::unlettered`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, CommandSet)]
+#[command(prefix = "blendMode")]
 #[non_exhaustive]
 pub enum BlendShortcut {
-    /// ⇧⌥N.
+    /// Shift+Alt+N.
+    #[command(label = "Normal", default = "Shift+Alt+N")]
     Normal,
-    /// ⇧⌥I.
+    /// Shift+Alt+I.
+    #[command(label = "Dissolve", default = "Shift+Alt+I")]
     Dissolve,
-    /// ⇧⌥Q: painting tools only.
+    /// Shift+Alt+Q: painting tools only.
+    #[command(label = "Behind", default = "Shift+Alt+Q")]
     Behind,
-    /// ⇧⌥R: painting tools only (paints transparency).
+    /// Shift+Alt+R: painting tools only (paints transparency).
+    #[command(label = "Clear", default = "Shift+Alt+R")]
     Clear,
-    /// ⇧⌥P: groups only.
+    /// Shift+Alt+P: groups only.
+    #[command(label = "Pass Through", default = "Shift+Alt+P")]
     PassThrough,
-    /// ⇧⌥K.
+    /// Shift+Alt+K.
+    #[command(label = "Darken", default = "Shift+Alt+K")]
     Darken,
-    /// ⇧⌥M.
+    /// Shift+Alt+M.
+    #[command(label = "Multiply", default = "Shift+Alt+M")]
     Multiply,
-    /// ⇧⌥B.
+    /// Shift+Alt+B.
+    #[command(label = "Color Burn", default = "Shift+Alt+B")]
     ColorBurn,
-    /// ⇧⌥A.
+    /// Shift+Alt+A.
+    #[command(label = "Linear Burn", default = "Shift+Alt+A")]
     LinearBurn,
-    /// ⇧⌥G.
+    /// Shift+Alt+G.
+    #[command(label = "Lighten", default = "Shift+Alt+G")]
     Lighten,
-    /// ⇧⌥S.
+    /// Shift+Alt+S.
+    #[command(label = "Screen", default = "Shift+Alt+S")]
     Screen,
-    /// ⇧⌥D.
+    /// Shift+Alt+D.
+    #[command(label = "Color Dodge", default = "Shift+Alt+D")]
     ColorDodge,
-    /// ⇧⌥W.
+    /// Shift+Alt+W.
+    #[command(label = "Linear Dodge", default = "Shift+Alt+W")]
     LinearDodge,
-    /// ⇧⌥O.
+    /// Shift+Alt+O.
+    #[command(label = "Overlay", default = "Shift+Alt+O")]
     Overlay,
-    /// ⇧⌥F.
+    /// Shift+Alt+F.
+    #[command(label = "Soft Light", default = "Shift+Alt+F")]
     SoftLight,
-    /// ⇧⌥H.
+    /// Shift+Alt+H.
+    #[command(label = "Hard Light", default = "Shift+Alt+H")]
     HardLight,
-    /// ⇧⌥V.
+    /// Shift+Alt+V.
+    #[command(label = "Vivid Light", default = "Shift+Alt+V")]
     VividLight,
-    /// ⇧⌥J.
+    /// Shift+Alt+J.
+    #[command(label = "Linear Light", default = "Shift+Alt+J")]
     LinearLight,
-    /// ⇧⌥Z.
+    /// Shift+Alt+Z.
+    #[command(label = "Pin Light", default = "Shift+Alt+Z")]
     PinLight,
-    /// ⇧⌥L.
+    /// Shift+Alt+L.
+    #[command(label = "Hard Mix", default = "Shift+Alt+L")]
     HardMix,
-    /// ⇧⌥E.
+    /// Shift+Alt+E.
+    #[command(label = "Difference", default = "Shift+Alt+E")]
     Difference,
-    /// ⇧⌥X.
+    /// Shift+Alt+X.
+    #[command(label = "Exclusion", default = "Shift+Alt+X")]
     Exclusion,
-    /// ⇧⌥U.
+    /// Shift+Alt+U.
+    #[command(label = "Hue", default = "Shift+Alt+U")]
     Hue,
-    /// ⇧⌥T.
+    /// Shift+Alt+T.
+    #[command(label = "Saturation", default = "Shift+Alt+T")]
     Saturation,
-    /// ⇧⌥C.
+    /// Shift+Alt+C.
+    #[command(label = "Color", default = "Shift+Alt+C")]
     Color,
-    /// ⇧⌥Y.
+    /// Shift+Alt+Y.
+    #[command(label = "Luminosity", default = "Shift+Alt+Y")]
     Luminosity,
 }
 
@@ -106,82 +132,29 @@ impl BlendShortcut {
         BlendShortcut::Color,
         BlendShortcut::Luminosity,
     ];
-
-    /// The position's letter key, as each variant's doc says.
-    pub fn letter(self) -> Key {
-        // pc: crates/ui-egui/src/input/blend_keys.rs:41-72 `letter_pick` (the table).
-        match self {
-            BlendShortcut::Normal => Key::N,
-            BlendShortcut::Dissolve => Key::I,
-            BlendShortcut::Behind => Key::Q,
-            BlendShortcut::Clear => Key::R,
-            BlendShortcut::PassThrough => Key::P,
-            BlendShortcut::Darken => Key::K,
-            BlendShortcut::Multiply => Key::M,
-            BlendShortcut::ColorBurn => Key::B,
-            BlendShortcut::LinearBurn => Key::A,
-            BlendShortcut::Lighten => Key::G,
-            BlendShortcut::Screen => Key::S,
-            BlendShortcut::ColorDodge => Key::D,
-            BlendShortcut::LinearDodge => Key::W,
-            BlendShortcut::Overlay => Key::O,
-            BlendShortcut::SoftLight => Key::F,
-            BlendShortcut::HardLight => Key::H,
-            BlendShortcut::VividLight => Key::V,
-            BlendShortcut::LinearLight => Key::J,
-            BlendShortcut::PinLight => Key::Z,
-            BlendShortcut::HardMix => Key::L,
-            BlendShortcut::Difference => Key::E,
-            BlendShortcut::Exclusion => Key::X,
-            BlendShortcut::Hue => Key::U,
-            BlendShortcut::Saturation => Key::T,
-            BlendShortcut::Color => Key::C,
-            BlendShortcut::Luminosity => Key::Y,
-        }
-    }
-
-    /// The position whose letter is `key`, or `None` for any other key.
-    pub fn from_key(key: Key) -> Option<BlendShortcut> {
-        // pc: crates/ui-egui/src/input/blend_keys.rs:41-72 `letter_pick`.
-        Some(match key {
-            Key::N => BlendShortcut::Normal,
-            Key::I => BlendShortcut::Dissolve,
-            Key::Q => BlendShortcut::Behind,
-            Key::R => BlendShortcut::Clear,
-            Key::P => BlendShortcut::PassThrough,
-            Key::K => BlendShortcut::Darken,
-            Key::M => BlendShortcut::Multiply,
-            Key::B => BlendShortcut::ColorBurn,
-            Key::A => BlendShortcut::LinearBurn,
-            Key::G => BlendShortcut::Lighten,
-            Key::S => BlendShortcut::Screen,
-            Key::D => BlendShortcut::ColorDodge,
-            Key::W => BlendShortcut::LinearDodge,
-            Key::O => BlendShortcut::Overlay,
-            Key::F => BlendShortcut::SoftLight,
-            Key::H => BlendShortcut::HardLight,
-            Key::V => BlendShortcut::VividLight,
-            Key::J => BlendShortcut::LinearLight,
-            Key::Z => BlendShortcut::PinLight,
-            Key::L => BlendShortcut::HardMix,
-            Key::E => BlendShortcut::Difference,
-            Key::X => BlendShortcut::Exclusion,
-            Key::U => BlendShortcut::Hue,
-            Key::T => BlendShortcut::Saturation,
-            Key::C => BlendShortcut::Color,
-            Key::Y => BlendShortcut::Luminosity,
-            _ => return None,
-        })
-    }
 }
 
-/// One mode the target accepts, in the order of its menu: the app's key of the mode and its ⇧⌥
+/// Shift+= and Shift+-: the next and the previous mode of the target's list.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, CommandSet)]
+#[command(prefix = "blendMode")]
+#[non_exhaustive]
+pub enum BlendStep {
+    /// Shift+=: the next mode, wrapping at the end.
+    #[command(label = "Next Blend Mode", default = "Shift+=")]
+    Next,
+    /// Shift+-: the previous mode, wrapping at the start.
+    #[command(label = "Previous Blend Mode", default = "Shift+-")]
+    Previous,
+}
+
+/// One mode the target accepts, in the order of its menu: the app's key of the mode and its Shift+Alt+
 /// letter position, if it has one.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct BlendKeyEntry<K> {
     /// The app's key of the blend mode.
     pub key: K,
-    /// The mode's ⇧⌥ letter position, if it has one.
+    /// The mode's Shift+Alt+ letter position, if it has one.
     pub shortcut: Option<BlendShortcut>,
 }
 
@@ -191,20 +164,20 @@ impl<K> BlendKeyEntry<K> {
         Self { key, shortcut: Some(shortcut) }
     }
 
-    /// A mode without a letter (Darker Color, Lighter Color, Subtract, Divide): ⇧+ and ⇧− reach
+    /// A mode without a letter (Darker Color, Lighter Color, Subtract, Divide): Shift+= and Shift+- reach
     /// it, no letter does.
     pub fn unlettered(key: K) -> Self {
         Self { key, shortcut: None }
     }
 
-    /// Behind (⇧⌥Q), for a painting tool that offers it. Without such an entry ⇧⌥Q is consumed
+    /// Behind (Shift+Alt+Q), for a painting tool that offers it. Without such an entry Shift+Alt+Q is consumed
     /// and does nothing.
     pub fn behind(key: K) -> Self {
         Self::new(key, BlendShortcut::Behind)
     }
 
-    /// Clear (⇧⌥R), for a painting tool that offers it (PhotoCraft's Brush, Pencil and Paint
-    /// Bucket list it after Dissolve). Without such an entry ⇧⌥R is consumed and does nothing.
+    /// Clear (Shift+Alt+R), for a painting tool that offers it (PhotoCraft's Brush, Pencil and Paint
+    /// Bucket list it after Dissolve). Without such an entry Shift+Alt+R is consumed and does nothing.
     pub fn clear(key: K) -> Self {
         Self::new(key, BlendShortcut::Clear)
     }
@@ -212,10 +185,11 @@ impl<K> BlendKeyEntry<K> {
 
 /// What a blend mode key picked: the entry's key, and how.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum BlendKeyPick<K> {
-    /// ⇧+ or ⇧− stepped to this entry.
+    /// Shift+= or Shift+- stepped to this entry.
     Stepped(K),
-    /// A ⇧⌥ letter picked this entry.
+    /// A Shift+Alt+ letter picked this entry.
     Lettered(K),
 }
 
@@ -237,110 +211,53 @@ impl<K> BlendKeyPick<K> {
 
 /// The blend mode keys over the app's list of `entries`.
 ///
-/// - ⇧+ and ⇧− (⇧= is + on a US layout; a layout that types + and − with Shift arrives as
-///   [`Key::Plus`] and [`Key::Minus`]) step to the next or previous entry, wrapping at either end;
-///   a [`current`](Self::current) that isn't listed (or none) steps from the top (+) or the bottom
-///   (−).
-/// - ⇧⌥ plus a letter picks the entry whose [`BlendShortcut`] has that letter: the layout's letter
-///   first ([`Key`] of the event; ⇧⌥Z on a German keyboard is Pin Light), then the physical key
-///   (on a Mac ⌥ turns the letter into another character, ⇧⌥M types Â). A letter of the table
-///   whose mode isn't listed (Clear or Behind for layers, Pass Through for a painting tool,
-///   Overlay for the Healing Brush) is consumed and picks nothing. Any other letter is left alone.
-/// - Neither ⌘ nor Ctrl may be held. Presses are read and removed from egui's input only while
-///   the app owns the keyboard ([`KeyOwner::App`]:
-///   no text field, menu, open list or dialog has it), so an open Blend Mode list keeps its arrows
-///   and letters. Call it before the single-letter tool keys, which would take ⇧⌥M as M.
-/// - Several presses in one pass combine: steps count from the previous press's entry, and the
-///   last press's entry is the pick, so the app makes one undo step.
-/// - No AccessKit node: the app's blend control announces the new mode. Keys are not directional,
-///   so nothing mirrors in a right-to-left interface.
-#[must_use = "read the keys with `consume`"]
+/// - [`BlendStep`] steps to the next or previous entry, wrapping at either end; a [`current`](Self::current) that
+///   isn't listed (or none) steps from the top (next) or the bottom (previous).
+/// - A [`BlendShortcut`] picks the entry whose position it is. A position whose mode isn't listed (Clear or Behind for
+///   layers, Pass Through for a painting tool, Overlay for the Healing Brush) picks nothing: the command is taken, so
+///   the letter does not reach the single-letter tool keys.
+/// - A key release picks nothing; holding a step key repeats the step.
+/// - No AccessKit node: the app's blend control announces the new mode. Keys are not directional, so nothing mirrors
+///   in a right-to-left interface.
+#[must_use = "read the fired command with `fired`"]
 pub struct BlendKeys<'a, K> {
     entries: &'a [BlendKeyEntry<K>],
     current: Option<&'a K>,
-    gate: OwnerGate,
 }
 
 impl<'a, K: Clone + PartialEq> BlendKeys<'a, K> {
     /// The keys over `entries`, in menu order.
     pub fn new(entries: &'a [BlendKeyEntry<K>]) -> Self {
-        Self { entries, current: None, gate: OwnerGate::default() }
+        Self { entries, current: None }
     }
 
-    /// The target's mode now, where ⇧+ and ⇧− step from.
+    /// The target's mode now, where the steps start from.
     pub fn current(mut self, current: &'a K) -> Self {
         self.current = Some(current);
         self
     }
 
-    /// The app's own modal state for [`key_owner::owner`](craft_ui::focus::key_owner::owner) (a
-    /// full-window workspace, a dialog drawn without an egui modal layer); none by default.
-    pub fn gate(mut self, gate: OwnerGate) -> Self {
-        self.gate = gate;
-        self
+    /// The entry a fired [`BlendStep`] or [`BlendShortcut`] picks; `None` for any other command, a release, or a
+    /// position the list lacks.
+    pub fn fired(self, fired: &Fired) -> Option<BlendKeyPick<K>> {
+        self.command(&fired.command, fired.phase)
     }
 
-    /// Reads and removes this pass's blend mode key presses (the type's rules) and returns the
-    /// entry they pick, or `None`.
-    pub fn consume(self, ctx: &Context) -> Option<BlendKeyPick<K>> {
-        // pc: crates/ui-egui/src/input/blend_keys.rs:83 `handle` (:86-106), :18 `stepped`, :264
-        // `pick_mode`; crates/ui-egui/src/input/shortcuts.rs:859-861. new: `KeyOwner::App` gate.
-        if owner(ctx, &self.gate) != KeyOwner::App {
+    /// [`fired`](Self::fired) for a command and the phase it fired in.
+    pub fn command(self, command: &CommandRef, phase: FirePhase) -> Option<BlendKeyPick<K>> {
+        if phase == FirePhase::Release {
             return None;
         }
-        let presses: Vec<Press> = ctx.input_mut(|i| {
-            let mut out = Vec::new();
-            i.events.retain(|e| {
-                let egui::Event::Key { key, physical_key, pressed: true, modifiers, .. } = e else {
-                    return true;
-                };
-                if !modifiers.shift || modifiers.command || modifiers.ctrl {
-                    return true;
-                }
-                if modifiers.alt {
-                    // The layout's letter first; on a Mac the Option key turns the letter into
-                    // another character that may arrive as some other key.
-                    match BlendShortcut::from_key(*key).or_else(|| physical_key.and_then(BlendShortcut::from_key)) {
-                        Some(shortcut) => out.push(Press::Letter(shortcut)),
-                        None => return true,
-                    }
-                } else {
-                    match key {
-                        Key::Plus | Key::Equals => out.push(Press::Step(1)),
-                        Key::Minus => out.push(Press::Step(-1)),
-                        _ => return true,
-                    }
-                }
-                false
-            });
-            out
-        });
-        let mut current = self.current;
-        let mut pick = None;
-        for press in presses {
-            match press {
-                Press::Step(step) => {
-                    if let Some(entry) = stepped(self.entries, current, step) {
-                        current = Some(&entry.key);
-                        pick = Some(BlendKeyPick::Stepped(entry.key.clone()));
-                    }
-                }
-                Press::Letter(shortcut) => {
-                    if let Some(entry) = self.entries.iter().find(|e| e.shortcut == Some(shortcut)) {
-                        current = Some(&entry.key);
-                        pick = Some(BlendKeyPick::Lettered(entry.key.clone()));
-                    }
-                }
-            }
+        if let Some(step) = BlendStep::from_ref(command) {
+            let step = match step {
+                BlendStep::Next => 1,
+                BlendStep::Previous => -1,
+            };
+            return stepped(self.entries, self.current, step).map(|entry| BlendKeyPick::Stepped(entry.key.clone()));
         }
-        pick
+        let shortcut = BlendShortcut::from_ref(command)?;
+        self.entries.iter().find(|entry| entry.shortcut == Some(shortcut)).map(|entry| BlendKeyPick::Lettered(entry.key.clone()))
     }
-}
-
-/// One consumed key press.
-enum Press {
-    Step(i32),
-    Letter(BlendShortcut),
 }
 
 /// The entry `step` places after (or before, when negative) `current` in `entries`, wrapping; an

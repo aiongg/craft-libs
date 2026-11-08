@@ -1,119 +1,21 @@
-//! Stories of the scope panel.
+//! Stories of the scope panel and its parts.
 //!
-//! Every story uses fakes: histograms generated from a seed (RGB and CMYK modes), a vectorscope
-//! counted from generated pixels, a generated preview image for the clipping overlay, and story
-//! words (the gallery's pseudo-locale test). Nothing runs in the background: every count is made
-//! in the frame that shows it.
-//!
-//! | Story id | Shows |
-//! |---|---|
-//! | `patterns/scope-panel/compact` | Compact View; arg: RGB or CMYK mode |
-//! | `patterns/scope-panel/expanded` | Expanded View with the Channel and Source rows and statistics; arg: mode |
-//! | `patterns/scope-panel/all-channels` | All Channels View; arg: mode |
-//! | `patterns/scope-panel/colors-overlay` | the Colors channel, light and ink |
-//! | `patterns/scope-panel/adjusted-over-original` | the outlined original and the stale mark |
-//! | `patterns/scope-panel/tone-zones` | five zones, the hover band, a drag |
-//! | `patterns/scope-panel/vectorscope` | the cloud, the hover target; args: red position, skin line |
-//! | `patterns/scope-panel/clipping` | the warnings on and off, the overlay over a generated image |
-
-use craft_ui::canvas::textures::{Revision, TextureCache, TextureCacheOptions};
-use craft_ui::composites::ChannelColor;
-use craft_ui::controls::slider::with_values;
-use craft_ui::edit::EditEvent;
-use craft_ui::localized::Labels as _;
-use craft_ui::story::{Level, NoArgs, Story, StoryArgs, StoryChoice};
-use craft_ui::typed_story;
-use egui::{Color32, ColorImage, Rect, Sense, TextureOptions, Ui, pos2, vec2};
+//! Every story uses fakes: histograms generated from a seed (RGB and CMYK modes), a vectorscope counted from generated
+//! pixels and a generated picture for the clipping overlay. Nothing runs in the background: every count is made in the
+//! frame that shows it.
 
 use super::{
-    COLORS_CHANNEL, ChannelOverlay, ClippingFrame, ClippingOverlay, HistogramSet, ScopeChannel, ScopeFrame, ScopePanel, ScopePanelLabels,
-    ScopePanelState, ScopeSettings, ScopeSource, ScopeView, ToneZone, VectorscopeFrame, ZoneChange,
+    COLORS_CHANNEL, ChannelOverlay, ClipWarning, ClippingFrame, ClippingMode, ClippingOverlay, ClippingWarnings, HistogramSet, ScopeChannel,
+    ScopeFrame, ScopePanel, ScopePanelState, ScopeSettings, ScopeSource, ScopeView, ToneZone, ToneZones, VectorscopeFrame, VectorscopePlot,
 };
-use crate::scopes::{ClippingMask, HUES, SATURATIONS, Vectorscope, hue_saturation};
-use crate::ui::ChannelsLabels;
-
-craft_ui::words! {
-    /// The channel and source names the scope stories show (the host's words, not the panel's); the
-    /// colour channels' names are [`ChannelsLabels`]'.
-    #[non_exhaustive]
-    pub struct ScopeStoryLabels {
-        rgb: "scopesStory.rgb" = "RGB";
-        cmyk: "scopesStory.cmyk" = "CMYK";
-        black: "scopesStory.black" = "Black";
-        luminosity: "scopesStory.luminosity" = "Luminosity";
-        selected_layer: "scopesStory.selectedLayer" = "Selected Layer";
-    }
-}
-
-/// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["ScopePanel"];
-
-/// The eight stories above.
-pub(crate) fn stories() -> Vec<Story> {
-    vec![
-        typed_story!("patterns/scope-panel/compact", Level::Patterns, "ScopePanel", "Compact", ModeArgs::default(), show_compact),
-        typed_story!("patterns/scope-panel/expanded", Level::Patterns, "ScopePanel", "Expanded", ModeArgs::default(), show_expanded),
-        typed_story!("patterns/scope-panel/all-channels", Level::Patterns, "ScopePanel", "All channels", ModeArgs::default(), show_all_channels),
-        typed_story!("patterns/scope-panel/colors-overlay", Level::Patterns, "ScopePanel", "Colors overlay", NoArgs {}, show_colors_overlay),
-        typed_story!(
-            "patterns/scope-panel/adjusted-over-original",
-            Level::Patterns,
-            "ScopePanel",
-            "Adjusted over original",
-            ModeArgs::default(),
-            show_adjusted
-        ),
-        typed_story!("patterns/scope-panel/tone-zones", Level::Patterns, "ScopePanel", "Tone zones", NoArgs {}, show_tone_zones),
-        typed_story!("patterns/scope-panel/vectorscope", Level::Patterns, "ScopePanel", "Vectorscope", VectorscopeArgs::default(), show_vectorscope),
-        typed_story!("patterns/scope-panel/clipping", Level::Patterns, "ScopePanel", "Clipping", ClippingArgs::default(), show_clipping),
-    ]
-}
-
-#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
-enum ModeArg {
-    #[choice(name = "RGB")]
-    Rgb,
-    #[choice(name = "CMYK")]
-    Cmyk,
-}
-
-#[derive(StoryArgs, Debug, PartialEq)]
-struct ModeArgs {
-    mode: ModeArg,
-}
-
-impl Default for ModeArgs {
-    fn default() -> Self {
-        Self { mode: ModeArg::Rgb }
-    }
-}
-
-#[derive(StoryArgs, Debug, PartialEq)]
-struct VectorscopeArgs {
-    /// Red at 3 o'clock instead of at -100 degrees.
-    #[arg(name = "red right")]
-    red_right: bool,
-    #[arg(name = "skin line")]
-    skin_line: bool,
-}
-
-impl Default for VectorscopeArgs {
-    fn default() -> Self {
-        Self { red_right: false, skin_line: true }
-    }
-}
-
-#[derive(StoryArgs, Debug, PartialEq)]
-struct ClippingArgs {
-    shadows: bool,
-    highlights: bool,
-}
-
-impl Default for ClippingArgs {
-    fn default() -> Self {
-        Self { shadows: true, highlights: true }
-    }
-}
+use crate::scopes::{ChannelMask, ClippingMask, HUES, SATURATIONS, Vectorscope, hue_saturation};
+use crate::ui::histogram::ChannelColor;
+use crate::ui::mock_image::{MockImage, StoryView, story_canvas};
+use craft_ui::contract::{Bind, Show as _};
+use craft_ui::primitives::Revision;
+use craft_ui::runtime::env::Label;
+use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
+use egui::Ui;
 
 /// A generator of repeatable noise in 0..1 (a linear congruential step).
 fn noise(state: &mut u32) -> f32 {
@@ -134,29 +36,34 @@ fn hill(seed: u32, centre: f32, width: f32) -> Vec<u32> {
         .collect()
 }
 
+/// The colour mode of a story.
+#[derive(Clone, Copy, PartialEq)]
+enum Mode {
+    Rgb,
+    Cmyk,
+}
+
 /// One generated channel, owned.
 struct Curve {
     key: &'static str,
-    label: String,
+    label: &'static str,
     ink: ChannelColor,
     bins: Vec<u32>,
     color_channel: bool,
 }
 
-/// The mode's channels in list order, the composite first and Luminosity last. `shift` moves
-/// every hill, which is how the adjusted histogram differs from the original.
-fn curves(mode: ModeArg, words: &ScopeStoryLabels, names: &ChannelsLabels, shift: f32) -> Vec<Curve> {
-    let colours: Vec<(&'static str, &String, ChannelColor, f32)> = match mode {
-        ModeArg::Rgb => vec![
-            ("red", &names.red, ChannelColor::Red, 150.0),
-            ("green", &names.green, ChannelColor::Green, 110.0),
-            ("blue", &names.blue, ChannelColor::Blue, 70.0),
-        ],
-        ModeArg::Cmyk => vec![
-            ("cyan", &names.cyan, ChannelColor::Cyan, 70.0),
-            ("magenta", &names.magenta, ChannelColor::Magenta, 100.0),
-            ("yellow", &names.yellow, ChannelColor::Yellow, 130.0),
-            ("black", &words.black, ChannelColor::Neutral, 40.0),
+/// The mode's channels in list order, the composite first and Luminosity last. `shift` moves every hill, which is how
+/// the adjusted histogram differs from the original.
+fn curves(mode: Mode, shift: f32) -> Vec<Curve> {
+    let colours: Vec<(&'static str, &'static str, ChannelColor, f32)> = match mode {
+        Mode::Rgb => {
+            vec![("red", "Red", ChannelColor::Red, 150.0), ("green", "Green", ChannelColor::Green, 110.0), ("blue", "Blue", ChannelColor::Blue, 70.0)]
+        }
+        Mode::Cmyk => vec![
+            ("cyan", "Cyan", ChannelColor::Cyan, 70.0),
+            ("magenta", "Magenta", ChannelColor::Magenta, 100.0),
+            ("yellow", "Yellow", ChannelColor::Yellow, 130.0),
+            ("black", "Black", ChannelColor::Neutral, 40.0),
         ],
     };
     let mut channels: Vec<Curve> = colours
@@ -164,7 +71,7 @@ fn curves(mode: ModeArg, words: &ScopeStoryLabels, names: &ChannelsLabels, shift
         .zip(1u32..)
         .map(|((key, label, ink, centre), seed)| Curve {
             key,
-            label: (*label).clone(),
+            label,
             ink: *ink,
             bins: hill(seed, (centre + shift).clamp(0.0, 255.0), 34.0),
             color_channel: true,
@@ -172,30 +79,26 @@ fn curves(mode: ModeArg, words: &ScopeStoryLabels, names: &ChannelsLabels, shift
         .collect();
     let count = channels.len() as u32;
     let composite: Vec<u32> = (0..256).map(|level| channels.iter().map(|c| c.bins[level]).sum::<u32>() / count).collect();
-    let (key, label) = match mode {
-        ModeArg::Rgb => ("rgb", words.rgb.clone()),
-        ModeArg::Cmyk => ("cmyk", words.cmyk.clone()),
-    };
+    let (key, label) = if mode == Mode::Rgb { ("rgb", "RGB") } else { ("cmyk", "CMYK") };
     channels.insert(0, Curve { key, label, ink: ChannelColor::Neutral, bins: composite, color_channel: false });
-    let luminosity = Curve {
+    channels.push(Curve {
         key: "luminosity",
-        label: words.luminosity.clone(),
+        label: "Luminosity",
         ink: ChannelColor::Neutral,
         bins: hill(9, (105.0 + shift).clamp(0.0, 255.0), 46.0),
         color_channel: false,
-    };
-    channels.push(luminosity);
+    });
     channels
 }
 
 fn scope_channels(curves: &[Curve]) -> Vec<ScopeChannel<'_>> {
-    curves.iter().map(|c| ScopeChannel { key: c.key, label: &c.label, ink: c.ink, bins: &c.bins, color_channel: c.color_channel }).collect()
+    curves.iter().map(|c| ScopeChannel { key: c.key, label: c.label, ink: c.ink, bins: &c.bins, color_channel: c.color_channel }).collect()
 }
 
-fn overlay_of(mode: ModeArg) -> ChannelOverlay {
+fn overlay_of(mode: Mode) -> ChannelOverlay {
     match mode {
-        ModeArg::Rgb => ChannelOverlay::Light,
-        ModeArg::Cmyk => ChannelOverlay::Ink,
+        Mode::Rgb => ChannelOverlay::Light,
+        Mode::Cmyk => ChannelOverlay::Ink,
     }
 }
 
@@ -208,65 +111,61 @@ struct Look {
     sources: bool,
 }
 
-/// A histogram panel over generated counts. Its state lives in egui memory under `key`.
-fn histogram(ui: &mut Ui, key: &str, mode: ModeArg, settings: ScopeSettings, look: Look) {
-    with_values(ui, key, [ScopePanelState { settings, range: None }], |ui, state| {
-        let words = ScopeStoryLabels::of(ui);
-        let names = ChannelsLabels::of(ui);
-        let entire_image = ScopePanelLabels::of(ui).entire_image;
-        let adjusted = curves(mode, &words, &names, if look.original { 25.0 } else { 0.0 });
-        let before = curves(mode, &words, &names, 0.0);
-        let channels = scope_channels(&adjusted);
-        let originals = scope_channels(&before);
-        let mut set = HistogramSet::new(&channels).stale(look.stale);
-        if look.original {
-            set = set.original(Some(&originals));
-        }
-        if look.colors {
-            set = set.colors(overlay_of(mode));
-        }
-        let sources = [ScopeSource { key: "image", label: &entire_image }, ScopeSource { key: "layer", label: &words.selected_layer }];
-        let sources: &[ScopeSource<'_>] = if look.sources { &sources } else { &[] };
-        let frame = ScopeFrame::histogram(set);
-        ScopePanel::new(key, &mut state[0]).frame(&frame).sources(sources).show(ui);
-    });
-}
-
 fn view(view: ScopeView) -> ScopeSettings {
     ScopeSettings { view, ..ScopeSettings::default() }
 }
 
-fn show_compact(ui: &mut Ui, args: &mut ModeArgs) {
-    histogram(ui, "scopes-compact", args.mode, view(ScopeView::Compact), Look::default());
+/// A histogram panel over generated counts; its state lives in the story's data under `name`.
+fn histogram(ui: &mut Ui, data: &mut StoryData, name: &'static str, mode: Mode, settings: ScopeSettings, look: Look) -> StoryOutput {
+    let state = data.value(name, ScopePanelState { settings, ..ScopePanelState::default() });
+    let adjusted = curves(mode, if look.original { 25.0 } else { 0.0 });
+    let before = curves(mode, 0.0);
+    let channels = scope_channels(&adjusted);
+    let originals = scope_channels(&before);
+    let mut set = HistogramSet::new(&channels).stale(look.stale);
+    if look.original {
+        set = set.original(Some(&originals));
+    }
+    if look.colors {
+        set = set.colors(overlay_of(mode));
+    }
+    let sources = [ScopeSource { key: "image", label: "Entire Image" }, ScopeSource { key: "layer", label: "Selected Layer" }];
+    let sources: &[ScopeSource<'_>] = if look.sources { &sources } else { &[] };
+    let frame = ScopeFrame::histogram(set);
+    ScopePanel::new(state).frame(&frame).sources(sources).show(ui).into()
 }
 
-fn show_expanded(ui: &mut Ui, args: &mut ModeArgs) {
-    histogram(ui, "scopes-expanded", args.mode, view(ScopeView::Expanded), Look { sources: true, ..Look::default() });
+#[story(ScopePanel<'static>, covers = [Default], drive = Drive::Never)]
+fn compact(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    histogram(ui, data, "compact", Mode::Rgb, view(ScopeView::Compact), Look::default())
 }
 
-fn show_all_channels(ui: &mut Ui, args: &mut ModeArgs) {
-    histogram(ui, "scopes-all-channels", args.mode, view(ScopeView::AllChannels), Look::default());
+#[story(ScopePanel<'static>, covers = [Default], drive = Drive::Never)]
+fn expanded_with_statistics(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    histogram(ui, data, "expanded", Mode::Rgb, view(ScopeView::Expanded), Look { sources: true, ..Look::default() })
 }
 
-fn show_colors_overlay(ui: &mut Ui, _args: &mut NoArgs) {
+#[story(ScopePanel<'static>, covers = [Default], drive = Drive::Never)]
+fn all_channels(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    histogram(ui, data, "all-channels", Mode::Cmyk, view(ScopeView::AllChannels), Look::default())
+}
+
+#[story(ScopePanel<'static>, covers = [Default], drive = Drive::Never)]
+fn colors_light(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let colors = ScopeSettings { channel: COLORS_CHANNEL.to_owned(), ..view(ScopeView::Expanded) };
-    histogram(ui, "scopes-colors-light", ModeArg::Rgb, colors.clone(), Look { colors: true, ..Look::default() });
-    ui.separator();
-    histogram(ui, "scopes-colors-ink", ModeArg::Cmyk, colors, Look { colors: true, ..Look::default() });
+    histogram(ui, data, "colors-light", Mode::Rgb, colors, Look { colors: true, ..Look::default() })
 }
 
-fn show_adjusted(ui: &mut Ui, args: &mut ModeArgs) {
+#[story(ScopePanel<'static>, covers = [Default], drive = Drive::Never)]
+fn colors_ink(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let colors = ScopeSettings { channel: COLORS_CHANNEL.to_owned(), ..view(ScopeView::Expanded) };
+    histogram(ui, data, "colors-ink", Mode::Cmyk, colors, Look { colors: true, ..Look::default() })
+}
+
+#[story(ScopePanel<'static>, covers = [Default], drive = Drive::Never)]
+fn stale_with_refresh(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let settings = ScopeSettings { show_channels_in_color: true, ..view(ScopeView::Expanded) };
-    histogram(ui, "scopes-adjusted", args.mode, settings, Look { original: true, stale: true, ..Look::default() });
-}
-
-/// The zone controls the host maps edits to, in the order of [`ToneZone::CAMERA_RAW`].
-#[derive(Clone)]
-struct ZoneHost {
-    state: ScopePanelState,
-    values: [f32; 5],
-    /// The control's value at the start of a drag, which a cancel restores.
-    before: Option<f32>,
+    histogram(ui, data, "stale", Mode::Rgb, settings, Look { original: true, stale: true, ..Look::default() })
 }
 
 /// The range of a zone's control: Exposure is in stops, the others in percent.
@@ -278,44 +177,16 @@ fn zone_text(key: &str, value: f32) -> String {
     if key == "exposure" { format!("{value:+.2}") } else { format!("{value:+.0}") }
 }
 
-fn show_tone_zones(ui: &mut Ui, _args: &mut NoArgs) {
-    let start = ZoneHost { state: ScopePanelState { settings: view(ScopeView::Expanded), range: None }, values: [0.0; 5], before: None };
-    with_values(ui, "scopes-tone-zones", [start], |ui, hosts| {
-        let host = &mut hosts[0];
-        let words = ScopeStoryLabels::of(ui);
-        let names = ChannelsLabels::of(ui);
-        let curves = curves(ModeArg::Rgb, &words, &names, 0.0);
-        let channels = scope_channels(&curves);
-        let frame = ScopeFrame::histogram(HistogramSet::new(&channels));
-        let zones = ToneZone::CAMERA_RAW;
-        let texts: Vec<String> = zones.iter().zip(host.values).map(|(zone, value)| zone_text(zone.key, value)).collect();
-        let out = ScopePanel::new("scopes-tone-zones", &mut host.state).frame(&frame).zones(&zones, &texts).show(ui);
-        let Some(edit) = out.zone else { return };
-        let max = limit(edit.key);
-        let value = &mut host.values[edit.zone];
-        match edit.change {
-            ZoneChange::Drag(EditEvent::Begin { .. }) => host.before = Some(*value),
-            ZoneChange::Drag(EditEvent::Update { value: share, .. }) => {
-                if let Some(before) = host.before {
-                    *value = (before + share * max * 2.0).clamp(-max, max);
-                }
-            }
-            ZoneChange::Drag(EditEvent::Commit { value: share, .. }) => {
-                if let Some(before) = host.before.take() {
-                    *value = (before + share * max * 2.0).clamp(-max, max);
-                }
-            }
-            ZoneChange::Drag(EditEvent::Cancel { .. }) => {
-                if let Some(before) = host.before.take() {
-                    *value = before;
-                }
-            }
-            ZoneChange::Drag(_) => {}
-            ZoneChange::Step(steps) => *value = (*value + steps as f32 * max / 100.0).clamp(-max, max),
-            ZoneChange::Reset => *value = 0.0,
-            ZoneChange::SetValue(set) => *value = (set as f32).clamp(-max, max),
-        }
-    });
+#[story(ScopePanel<'static>, covers = [Default], drive = Drive::Never)]
+fn tone_zones(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let values = *data.value("zone-values", [0.0f32; 5]);
+    let state = data.value("zones", ScopePanelState { settings: view(ScopeView::Expanded), ..ScopePanelState::default() });
+    let curves = curves(Mode::Rgb, 0.0);
+    let channels = scope_channels(&curves);
+    let frame = ScopeFrame::histogram(HistogramSet::new(&channels));
+    let zones = ToneZone::CAMERA_RAW;
+    let texts: Vec<Label> = zones.iter().zip(values).map(|(zone, value)| Label::from(zone_text(zone.key, value))).collect();
+    ScopePanel::new(state).frame(&frame).zones(&zones, &texts).show(ui).into()
 }
 
 /// Generated pixels in a skin cluster, a sky and some foliage, with a few saturated ones.
@@ -341,53 +212,38 @@ fn scope_pixels() -> Vec<[f32; 4]> {
     pixels
 }
 
-/// What a story with two args and a panel keeps: the state, and the args last copied into it, so
-/// a change on either side wins once.
-#[derive(Clone)]
-struct Toggles {
-    state: ScopePanelState,
-    applied: Option<(bool, bool)>,
+#[story(ScopePanel<'static>, covers = [Default], drive = Drive::Never)]
+fn vectorscope_with_skin_tone(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let settings = ScopeSettings { vectorscope: true, skin_tone: true, ..view(ScopeView::Compact) };
+    let state = data.value("vectorscope", ScopePanelState { settings, ..ScopePanelState::default() });
+    let curves = curves(Mode::Rgb, 0.0);
+    let channels = scope_channels(&curves);
+    let counts = Vectorscope::from_rgba(&scope_pixels());
+    let (hue, saturation) = hue_saturation([0.88, 0.66, 0.54]);
+    let scope = VectorscopeFrame { counts: &counts.counts, hues: HUES, saturations: SATURATIONS, hover: Some([hue, saturation]) };
+    let frame = ScopeFrame::histogram(HistogramSet::new(&channels)).vectorscope(scope);
+    ScopePanel::new(state).frame(&frame).show(ui).into()
 }
 
-fn show_vectorscope(ui: &mut Ui, args: &mut VectorscopeArgs) {
-    let settings = ScopeSettings { vectorscope: true, ..view(ScopeView::Compact) };
-    let start = Toggles { state: ScopePanelState { settings, range: None }, applied: None };
-    with_values(ui, "scopes-vectorscope", [start], |ui, hosts| {
-        let host = &mut hosts[0];
-        let now = (args.red_right, args.skin_line);
-        if host.applied == Some(now) {
-            args.red_right = host.state.settings.red_right;
-            args.skin_line = host.state.settings.skin_tone;
-        } else {
-            host.state.settings.red_right = args.red_right;
-            host.state.settings.skin_tone = args.skin_line;
-        }
-        host.applied = Some((args.red_right, args.skin_line));
-
-        let words = ScopeStoryLabels::of(ui);
-        let names = ChannelsLabels::of(ui);
-        let curves = curves(ModeArg::Rgb, &words, &names, 0.0);
-        let channels = scope_channels(&curves);
-        let counts = Vectorscope::from_rgba(&scope_pixels());
-        let (hue, saturation) = hue_saturation([0.88, 0.66, 0.54]);
-        let scope = VectorscopeFrame { counts: &counts.counts, hues: HUES, saturations: SATURATIONS, hover: Some([hue, saturation]) };
-        let frame = ScopeFrame::histogram(HistogramSet::new(&channels)).vectorscope(scope);
-        ScopePanel::new("scopes-vectorscope", &mut host.state).frame(&frame).show(ui);
-    });
+#[story(VectorscopePlot<'static>, covers = [Default], drive = Drive::Never)]
+fn vectorscope_alone(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    let counts = Vectorscope::from_rgba(&scope_pixels());
+    let scope = VectorscopeFrame { counts: &counts.counts, hues: HUES, saturations: SATURATIONS, hover: None };
+    VectorscopePlot::new("Vectorscope", &scope).red_right(true).show(ui).into()
 }
 
 const IMAGE_SIZE: [usize; 2] = [96, 64];
 
-/// A generated picture in straight RGBA: a ramp whose red clips at both ends, a green ramp that
-/// does not, and a blue that fades to black, so shadows clip in blue and highlights in red.
-fn image_pixels() -> Vec<[f32; 4]> {
+/// A generated picture in straight RGBA whose contrast is stretched until both ends clip: shadows in blue, highlights
+/// in red.
+fn clipped_pixels(image: &MockImage) -> Vec<[f32; 4]> {
     let [width, height] = IMAGE_SIZE;
     (0..width * height)
         .map(|i| {
-            let (x, y) = ((i % width) as f32 / (width - 1) as f32, (i / width) as f32 / (height - 1) as f32);
-            [x * 1.5 - 0.25, 0.1 + 0.8 * y, (1.0 - x) * 1.5 - 0.25 + 0.2 * y, 1.0]
+            let [r, g, b, a] = image.pixel((i % width) as f64 + 0.5, (i / width) as f64 + 0.5);
+            let stretch = |c: u8| ((f32::from(c) / 255.0 - 0.5) * 2.4 + 0.5).clamp(0.0, 1.0);
+            [stretch(r), stretch(g), stretch(b), f32::from(a) / 255.0]
         })
-        .map(|[r, g, b, a]: [f32; 4]| [r.clamp(0.0, 1.0), g.clamp(0.0, 1.0), b.clamp(0.0, 1.0), a])
         .collect()
 }
 
@@ -400,59 +256,57 @@ fn counted(pixels: &[[f32; 4]], channel: usize) -> Vec<u32> {
     bins
 }
 
-fn show_clipping(ui: &mut Ui, args: &mut ClippingArgs) {
-    let start = Toggles { state: ScopePanelState { settings: view(ScopeView::Compact), range: None }, applied: None };
-    with_values(ui, "scopes-clipping", [start], |ui, hosts| {
-        let host = &mut hosts[0];
-        let now = (args.shadows, args.highlights);
-        if host.applied == Some(now) {
-            args.shadows = host.state.settings.shadow_warning;
-            args.highlights = host.state.settings.highlight_warning;
+#[story(ScopePanel<'static>, covers = [Default], drive = Drive::Never)]
+fn clipping_warnings_on(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let settings = ScopeSettings { shadow_warning: true, highlight_warning: true, ..view(ScopeView::Compact) };
+    let state = data.value("clipping", ScopePanelState { settings, ..ScopePanelState::default() });
+    let pixels = clipped_pixels(&MockImage::new([IMAGE_SIZE[0] as u32, IMAGE_SIZE[1] as u32]));
+    let Some(mask) = ClippingMask::from_rgba(IMAGE_SIZE, &pixels) else { return StoryOutput::default() };
+    let curves: Vec<Curve> = [
+        ("rgb", "RGB", ChannelColor::Neutral),
+        ("red", "Red", ChannelColor::Red),
+        ("green", "Green", ChannelColor::Green),
+        ("blue", "Blue", ChannelColor::Blue),
+    ]
+    .into_iter()
+    .enumerate()
+    .map(|(channel, (key, label, ink))| {
+        let bins = if channel == 0 {
+            let parts: Vec<Vec<u32>> = (0..3).map(|c| counted(&pixels, c)).collect();
+            (0..256).map(|level| parts.iter().map(|p| p[level]).sum::<u32>() / 3).collect()
         } else {
-            host.state.settings.shadow_warning = args.shadows;
-            host.state.settings.highlight_warning = args.highlights;
-        }
-        host.applied = Some((args.shadows, args.highlights));
+            counted(&pixels, channel - 1)
+        };
+        Curve { key, label, ink, bins, color_channel: channel > 0 }
+    })
+    .collect();
+    let channels = scope_channels(&curves);
+    let any = mask.any();
+    let frame = ScopeFrame::histogram(HistogramSet::new(&channels)).clipping(ClippingFrame { shadows: any.shadows, highlights: any.highlights });
+    ScopePanel::new(state).frame(&frame).show(ui).into()
+}
 
-        let pixels = image_pixels();
-        let Some(mask) = ClippingMask::from_rgba(IMAGE_SIZE, &pixels) else { return };
-        let words = ScopeStoryLabels::of(ui);
-        let names = ChannelsLabels::of(ui);
-        let curves: Vec<Curve> = [
-            ("rgb", &words.rgb, ChannelColor::Neutral),
-            ("red", &names.red, ChannelColor::Red),
-            ("green", &names.green, ChannelColor::Green),
-            ("blue", &names.blue, ChannelColor::Blue),
-        ]
-        .into_iter()
-        .enumerate()
-        .map(|(channel, (key, label, ink))| {
-            let bins = if channel == 0 {
-                let parts: Vec<Vec<u32>> = (0..3).map(|c| counted(&pixels, c)).collect();
-                (0..256).map(|level| parts.iter().map(|p| p[level]).sum::<u32>() / 3).collect()
-            } else {
-                counted(&pixels, channel - 1)
-            };
-            Curve { key, label: label.clone(), ink, bins, color_channel: channel > 0 }
-        })
-        .collect();
-        let channels = scope_channels(&curves);
-        let any = mask.any();
-        let frame = ScopeFrame::histogram(HistogramSet::new(&channels)).clipping(ClippingFrame { shadows: any.shadows, highlights: any.highlights });
-        ScopePanel::new("scopes-clipping", &mut host.state).frame(&frame).show(ui);
+#[story(ClipWarning<'static>, covers = [Default], drive = Drive::Never)]
+fn clip_warning(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let on = data.value("on", true);
+    ClipWarning::new("Highlight Clipping Warning (O)", Bind::bound(on), ChannelMask::R).show(ui).into()
+}
 
-        let [width, height] = IMAGE_SIZE;
-        let size = vec2(ui.available_width(), ui.available_width() * height as f32 / width as f32);
-        let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
-        let picture = ColorImage::new(
-            IMAGE_SIZE,
-            pixels.iter().map(|p| Color32::from_rgb((p[0] * 255.0) as u8, (p[1] * 255.0) as u8, (p[2] * 255.0) as u8)).collect(),
-        );
-        let ctx = ui.ctx().clone();
-        let cache = TextureCache::<()>::in_context(&ctx, "scopes-clipping-picture", TextureCacheOptions::frames().filter(TextureOptions::NEAREST));
-        let texture = cache.get_or_put(&ctx, (), Revision::of(&0u8), || picture);
-        let painter = ui.painter();
-        painter.image(texture.id, rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE); // design: allow(identity tint)
-        ClippingOverlay::new("scopes-clipping-overlay").show(&ctx, painter, rect, &mask, 0, host.state.settings.clipping_mode(None));
-    });
+#[story(ToneZones<'static>, covers = [Default], drive = Drive::Never)]
+fn zones_over_a_plot(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    let zones = ToneZone::CAMERA_RAW;
+    let texts: Vec<Label> = zones.iter().map(|zone| Label::from(zone_text(zone.key, 0.0))).collect();
+    let rect = ui.available_rect_before_wrap();
+    ToneZones::new("Tone zones", &zones, &texts).show_at(ui, rect).into()
+}
+
+#[story(ClippingOverlay<'static>, covers = [Default], drive = Drive::Never)]
+fn clipping_overlay(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    let image = MockImage::new([IMAGE_SIZE[0] as u32, IMAGE_SIZE[1] as u32]);
+    let pixels = clipped_pixels(&image);
+    let Some(mask) = ClippingMask::from_rgba(IMAGE_SIZE, &pixels) else { return StoryOutput::default() };
+    let mode = ClippingMode::Warnings(ClippingWarnings { shadows: true, highlights: true });
+    story_canvas(ui, Some(&image), StoryView::Fit, |ui, rect| {
+        ClippingOverlay::new("Clipping", &mask, Revision::new(1), mode).show_at(ui, rect).into()
+    })
 }

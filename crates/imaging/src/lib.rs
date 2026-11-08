@@ -8,3 +8,9 @@ pub mod selection;
 pub mod trace;
 #[cfg(feature = "ui")]
 pub mod ui;
+
+/// The registered stories and suite cases of the widgets, for `tests/it`.
+#[cfg(feature = "screen-testing")]
+pub mod testing {
+    craft_ui::testing_registered!();
+}
