@@ -33,11 +33,6 @@ fn keys() -> Vec<KeyframeMark> {
 /// The farthest the invalid story lets the keys move, in seconds.
 const FARTHEST_SECONDS: f64 = 2.0;
 
-/// The view a story starts from.
-fn start_view() -> TimeView {
-    TimeView::new(Tick::ZERO, POINTS_PER_SECOND)
-}
-
 /// Shows the lane `lane` makes inside a timeline view over `view`, which publishes the time axis the lane reads.
 fn in_view<'a>(ui: &mut Ui, view: &mut TimeView, lane: impl FnOnce() -> KeyframeLane<'a>) -> StoryOutput {
     let mut lane = Some(lane);
@@ -57,24 +52,20 @@ fn selected() -> Selection<KeyframeId> {
 #[story(KeyframeLane<'static>, covers = [Default])]
 fn linear_hold_and_bezier_keys(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let (keys, selection) = (keys(), selected());
-    let mut view = *data.value("view", start_view());
+    let mut view = *data.value("view", TimeView::new(Tick::ZERO, POINTS_PER_SECOND));
     let delta = data.value("delta", Tick::ZERO);
-    let shown = in_view(ui, &mut view, || KeyframeLane::new("Keyframes", &keys, &selection).playhead(seconds(4.0)).delta(Bind::bound(delta)));
-    *data.value("view", start_view()) = view;
-    shown
+    in_view(ui, &mut view, || KeyframeLane::new("Keyframes", &keys, &selection).playhead(seconds(4.0)).delta(Bind::bound(delta)))
 }
 
 #[story(KeyframeLane<'static>, covers = [Invalid], drive = Drive::Never)]
 fn keys_moved_past_the_limit(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let (keys, selection) = (keys(), selected());
-    let mut view = *data.value("view", start_view());
+    let mut view = *data.value("view", TimeView::new(Tick::ZERO, POINTS_PER_SECOND));
     let delta = data.value("far", seconds(FARTHEST_SECONDS + 1.0));
     let not_too_far = |delta: &Tick| {
         if *delta > seconds(FARTHEST_SECONDS) { Validity::Refuse(Message::new("The keys cannot move that far")) } else { Validity::Ok }
     };
-    let shown = in_view(ui, &mut view, || KeyframeLane::new("Keyframes", &keys, &selection).delta(Bind::bound(delta).check(not_too_far)));
-    *data.value("view", start_view()) = view;
-    shown
+    in_view(ui, &mut view, || KeyframeLane::new("Keyframes", &keys, &selection).delta(Bind::bound(delta).check(not_too_far)))
 }
 
 #[story(KeyframeNavigator, covers = [Default], drive = Drive::Never)]
