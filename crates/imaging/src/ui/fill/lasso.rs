@@ -2,42 +2,49 @@
 
 use serde::{Deserialize, Serialize};
 
-use craft_ui::canvas::SelectionOperation;
+use craft_behavior::geometry::selection_op::SelectionOperation;
 
 /// One edit of the fill area, in order: a Lasso polygon with its operation, or Expand and
 /// Contract by 1..=100 pixels. Serialised as PhotoCraft's `fillEdits` entries
 /// (`{"op": "add", "points": […]}`, `{"op": "expand", "by": 4}`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum FillAreaEdit {
     /// Replaces the fill area with the polygon `points`.
+    #[non_exhaustive]
     New {
-        #[allow(missing_docs)]
+        /// Points.
         points: Vec<[f64; 2]>,
     },
     /// Adds the polygon `points` to the fill area.
+    #[non_exhaustive]
     Add {
-        #[allow(missing_docs)]
+        /// Points.
         points: Vec<[f64; 2]>,
     },
     /// Subtracts the polygon `points` from the fill area.
+    #[non_exhaustive]
     Subtract {
-        #[allow(missing_docs)]
+        /// Points.
         points: Vec<[f64; 2]>,
     },
     /// Intersects the fill area with the polygon `points`.
+    #[non_exhaustive]
     Intersect {
-        #[allow(missing_docs)]
+        /// Points.
         points: Vec<[f64; 2]>,
     },
     /// Grows the fill area by `by` pixels.
+    #[non_exhaustive]
     Expand {
-        #[allow(missing_docs)]
+        /// By.
         by: f64,
     },
     /// Shrinks the fill area by `by` pixels.
+    #[non_exhaustive]
     Contract {
-        #[allow(missing_docs)]
+        /// By.
         by: f64,
     },
 }
@@ -56,10 +63,11 @@ impl FillAreaEdit {
             return None;
         }
         Some(match operation {
-            SelectionOperation::New => FillAreaEdit::New { points },
             SelectionOperation::Add => FillAreaEdit::Add { points },
             SelectionOperation::Subtract => FillAreaEdit::Subtract { points },
             SelectionOperation::Intersect => FillAreaEdit::Intersect { points },
+            // An operation the library adds later replaces the fill area, as the bar's New does.
+            _ => FillAreaEdit::New { points },
         })
     }
 

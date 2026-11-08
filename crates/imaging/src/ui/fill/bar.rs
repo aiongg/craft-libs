@@ -1,17 +1,22 @@
 //! [`FillBar`]: Content-Aware Fill's options bar.
 
-use egui::{AsIdSalt, IdSalt, ModifierNames, Modifiers, Response, Ui};
+use egui::{Response, Ui};
 
-use craft_ui::canvas::SelectionOperation;
-use craft_ui::controls::{IconButton, NumberField};
-use craft_ui::dialog::DialogLabels;
-use craft_ui::icons::Icon;
-use craft_ui::localized::{Labels as _, LocaleNumbers, UnitKind, Units};
-use craft_ui::patterns::{CellWidth, OptionsBar};
+use craft_behavior::IconId;
+use craft_behavior::geometry::selection_op::SelectionOperation;
+use craft_ui::bars::{Bar, BarKind};
+use craft_ui::buttons::{Button, IconButton};
+use craft_ui::choice::Segmented;
+use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Pattern, Props as _, Show as _, ShowContainer as _, clicked};
+use craft_ui::display::Divider;
+use craft_ui::patterns::form_dialogs::ParamDialogWords;
+use craft_ui::primitives::IconSpec;
+use craft_ui::runtime::env::{Env, UnitKind};
+use craft_ui::text::NumberField;
 
-use super::FillLabels;
 use super::lasso::FillAreaEdit;
 use super::tool::{FillTool, FillToolOptions};
+use super::words::FillWords;
 
 /// What [`FillBar::show`] reports.
 #[derive(Clone, Debug)]
@@ -19,129 +24,98 @@ use super::tool::{FillTool, FillToolOptions};
 pub struct FillBarOutput {
     /// The bar's response.
     pub response: Response,
-    /// Expand or Contract pressed.
+    /// Expand or Contract pressed: the edit by the bar's amount.
     pub edit: Option<FillAreaEdit>,
-    /// The Lasso's Reset pressed (`FillReset::FillArea`).
+    /// The Lasso's Reset pressed: the fill-area edits go.
     pub reset_fill_area: bool,
 }
 
-/// The options bar, full width under the title (lead call 4; PhotoCraft's started beside the
-/// strip): the tool's icon, then
+impl Outcome for FillBarOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// The options bar across the top, per tool:
 ///
-/// - Sampling Brush: + and − (Add, Subtract), Size (1..=5000 px);
-/// - Lasso: the four operations (New, Add with the Shift hint, Subtract with Alt, Intersect with
-///   Shift+Alt, the hints in the platform's key names), Expand, Contract, the amount (1..=100 px)
-///   and Reset (an icon button).
+/// - **Sampling Brush**: Add and Subtract (a segmented choice of icons) and Size (px, 1..=5000).
+/// - **Lasso**: the four selection operations (New, Add, Subtract, Intersect), Expand and Contract with
+///   their amount (px, 1..=100) and a Reset icon button for the fill area.
+/// - **Hand**, **Zoom**: no options.
+#[derive(Pattern)]
 pub struct FillBar<'a> {
-    id_salt: IdSalt,
     tool: FillTool,
     options: &'a mut FillToolOptions,
-    labels: Option<FillLabels>,
 }
 
 impl<'a> FillBar<'a> {
-    /// Starts the bar for `tool`, editing `options` in place; `id_salt` keeps its state apart from other bars.
-    pub fn new(id_salt: impl AsIdSalt, tool: FillTool, options: &'a mut FillToolOptions) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), tool, options, labels: None }
+    /// The bar of `tool` over `options`, which it edits in place.
+    pub fn new(tool: FillTool, options: &'a mut FillToolOptions) -> Self {
+        Self { tool, options }
     }
 
-    /// The bar's words; [`FillLabels::of`] when not set.
-    pub fn labels(mut self, labels: FillLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    /// Draws the bar and returns its response and the edits it made.
+    /// Draws the bar and returns what the user asked for.
     pub fn show(self, ui: &mut Ui) -> FillBarOutput {
-        // pc: crates/ui-egui/src/dialogs/caf_ui/view.rs:33 `caf_options_bar`.
-        let Self { id_salt, tool, options, labels } = self;
-        let labels = labels.unwrap_or_else(|| FillLabels::of(ui));
-        let labels = &labels;
-        let reset_label = DialogLabels::of(ui).reset;
-        let mac = ui.ctx().os().is_mac();
+        // pc: crates/ui-egui/src/dialogs/caf_ui/view.rs:62-69 (the buttons and the field), controls.rs:72-75.
+        let Self { tool, options } = self;
+        let env = Env::of(ui);
+        let words = env.words::<FillWords>();
+        let reset = env.words::<ParamDialogWords>().reset.clone();
         let mut edit = None;
         let mut reset_fill_area = false;
-        let (edit_ref, reset_ref) = (&mut edit, &mut reset_fill_area);
-        let response = OptionsBar::new(id_salt).show(ui, move |bar| {
-            bar.leading(move |ui| {
-                let (icon, label) = match tool {
-                    FillTool::SamplingBrush => (Icon::Brush, &labels.sampling_brush),
-                    FillTool::Lasso => (Icon::Lasso, &labels.lasso),
-                    FillTool::Hand => (Icon::Hand, &labels.hand),
-                    FillTool::Zoom => (Icon::ZoomIn, &labels.zoom),
-                };
-                OptionsBar::tool_icon(ui, icon, label.as_str());
-            });
-            bar.body(move |ui| {
-                let sm = OptionsBar::CONTROL_SIZE;
-                let numbers = LocaleNumbers::of(ui);
-                let pixels = Units::of(ui).unit(UnitKind::Pixels);
-                match tool {
-                    FillTool::SamplingBrush => {
-                        for (add, icon, name, salt) in [(true, Icon::Plus, &labels.add, "add"), (false, Icon::Minus, &labels.subtract, "subtract")] {
-                            let button = IconButton::new(icon, name.as_str()).size(sm).selected(options.brush_add == add).id_salt(salt);
-                            if ui.add(button).clicked() {
-                                options.brush_add = add;
-                            }
-                        }
-                        OptionsBar::divider(ui);
-                        let field = NumberField::new("size", labels.size.as_str(), options.brush_size, &numbers)
-                            .range(1.0..=FillToolOptions::SIZE_MAX)
-                            .decimals(0..=0)
-                            .unit(pixels);
-                        if let Some(value) =
-                            OptionsBar::number_cell(ui, &labels.size, CellWidth::Md, field).event.as_ref().and_then(|e| e.value()).copied()
-                        {
-                            options.brush_size = value.clamp(1.0, FillToolOptions::SIZE_MAX);
-                        }
-                    }
-                    FillTool::Lasso => {
-                        let hints = [
-                            (SelectionOperation::New, Icon::Square, labels.new_selection.clone(), "new"),
-                            (SelectionOperation::Add, Icon::Plus, hinted(&labels.add_to_selection, Modifiers::SHIFT, mac), "add"),
-                            (SelectionOperation::Subtract, Icon::Minus, hinted(&labels.subtract_from_selection, Modifiers::ALT, mac), "subtract"),
-                            (
-                                SelectionOperation::Intersect,
-                                Icon::SquaresSubtract,
-                                hinted(&labels.intersect_with_selection, Modifiers::SHIFT | Modifiers::ALT, mac),
-                                "intersect",
-                            ),
-                        ];
-                        for (operation, icon, name, salt) in hints {
-                            let button = IconButton::new(icon, name).size(sm).selected(options.lasso == operation).id_salt(salt);
-                            if ui.add(button).clicked() {
-                                options.lasso = operation;
-                            }
-                        }
-                        OptionsBar::divider(ui);
-                        let by = options.grow_by;
-                        let (min, max) = FillAreaEdit::GROW_RANGE;
-                        for (expand, name, salt) in [(true, &labels.expand, "expand"), (false, &labels.contract, "contract")] {
-                            if ui.add(craft_ui::controls::Button::new(name.as_str()).size(sm).id_salt(salt)).clicked() {
-                                *edit_ref = Some(FillAreaEdit::grow(expand, by));
-                            }
-                        }
-                        let field = NumberField::new("grow-by", labels.grow_by.as_str(), by, &numbers).range(min..=max).decimals(0..=0).unit(pixels);
-                        if let Some(value) =
-                            OptionsBar::number_cell(ui, &labels.grow_by, CellWidth::Md, field).event.as_ref().and_then(|e| e.value()).copied()
-                        {
-                            options.grow_by = value.clamp(min, max);
-                        }
-                        let button = IconButton::new(Icon::Undo, reset_label.as_str()).size(sm).id_salt("reset");
-                        if ui.add(button).clicked() {
-                            *reset_ref = true;
-                        }
-                    }
-                    FillTool::Hand | FillTool::Zoom => {}
+        let shown = Bar::new(words.options.clone(), BarKind::Options).show(ui, |ui, _| match tool {
+            FillTool::SamplingBrush => {
+                let modes = [
+                    Entry::new(true, words.add.clone()).icon(IconSpec::svg(IconId::new("plus"))),
+                    Entry::new(false, words.subtract.clone()).icon(IconSpec::svg(IconId::new("minus"))),
+                ];
+                if let Some(add) =
+                    Segmented::new(words.add.clone(), Bind::given(options.brush_add), &modes).show(ui).event.and_then(|e| e.value().copied())
+                {
+                    options.brush_add = add;
                 }
-            });
+                Divider::vertical().show(ui);
+                if let Some(size) = number(ui, &words.size, options.brush_size, 1.0..=FillToolOptions::SIZE_MAX) {
+                    options.brush_size = size;
+                }
+            }
+            FillTool::Lasso => {
+                let icon = |name: &'static str| IconSpec::svg(IconId::new(name));
+                let operations = [
+                    Entry::new(SelectionOperation::New, words.new_selection.clone()).icon(icon("square")),
+                    Entry::new(SelectionOperation::Add, words.add_to_selection.clone()).icon(icon("plus")),
+                    Entry::new(SelectionOperation::Subtract, words.subtract_from_selection.clone()).icon(icon("squares-subtract")),
+                    Entry::new(SelectionOperation::Intersect, words.intersect_with_selection.clone()).icon(icon("squares-intersect")),
+                ];
+                let picked = Segmented::new(words.options.clone(), Bind::given(options.lasso), &operations).show(ui).event;
+                if let Some(operation) = picked.and_then(|e| e.value().copied()) {
+                    options.lasso = operation;
+                }
+                Divider::vertical().show(ui);
+                for (expand, name) in [(true, &words.expand), (false, &words.contract)] {
+                    if clicked(&Button::new(name.clone()).id_salt(if expand { "expand" } else { "contract" }).show(ui)) {
+                        edit = Some(FillAreaEdit::grow(expand, options.grow_by));
+                    }
+                }
+                let (min, max) = FillAreaEdit::GROW_RANGE;
+                if let Some(by) = number(ui, &words.grow_by, options.grow_by, min..=max) {
+                    options.grow_by = by;
+                }
+                if clicked(&IconButton::new(icon("undo-2")).label(reset.clone()).id_salt("reset").show(ui)) {
+                    reset_fill_area = true;
+                }
+            }
+            FillTool::Hand | FillTool::Zoom => {}
         });
-        FillBarOutput { response, edit, reset_fill_area }
+        FillBarOutput { response: shown.output.response, edit, reset_fill_area }
     }
 }
 
-/// `template` with `{key}` filled by `modifiers` in the platform's notation.
-fn hinted(template: &str, modifiers: Modifiers, mac: bool) -> String {
-    let names = if mac { ModifierNames::SYMBOLS } else { ModifierNames::NAMES };
-    craft_i18n::fmt(template, &[("key", &names.format(&modifiers, mac))])
+/// A whole-pixel number field over `value`; the value the user committed this pass, kept inside `range`.
+fn number(ui: &mut Ui, label: &craft_ui::runtime::env::Label, value: f64, range: std::ops::RangeInclusive<f64>) -> Option<f64> {
+    let (min, max) = (*range.start(), *range.end());
+    let field = NumberField::new(label.clone(), Bind::given(Some(value))).range(range).unit_kind(UnitKind::Pixels).commit_decimals(0).show(ui);
+    field.edit.event.and_then(|event| event.value().copied().flatten()).map(|typed| typed.clamp(min, max))
 }

@@ -13,6 +13,7 @@ new_module = ""
 # old = ""
 # new = ""
 
+<<<<<<< HEAD
 # img-select-mask
 
 [[type]]
@@ -109,10 +110,180 @@ status = "same"
 name = "SelectMaskCanvas"
 old = "craft_imaging::ui::select_mask::SelectMaskCanvas"
 new = "craft_imaging::ui::select_mask::SelectMaskCanvas"
+=======
+# img-fill
+[[type]]
+name = "ContentAwareFillWorkspace"
+old = "craft_imaging::ui::fill::ContentAwareFillWorkspace"
+new = "craft_imaging::ui::fill::ContentAwareFillWorkspace"
+status = "same"
+
+[[type]]
+name = "FillBar"
+old = "craft_imaging::ui::fill::FillBar"
+new = "craft_imaging::ui::fill::FillBar"
+status = "same"
+
+[[type]]
+name = "FillBarOutput"
+old = "craft_imaging::ui::fill::FillBarOutput"
+new = "craft_imaging::ui::fill::FillBarOutput"
+status = "same"
+
+[[type]]
+name = "FillPanel"
+old = "craft_imaging::ui::fill::FillPanel"
+new = "craft_imaging::ui::fill::FillPanel"
+status = "same"
+
+[[type]]
+name = "FillPanelOutput"
+old = "craft_imaging::ui::fill::FillPanelOutput"
+new = "craft_imaging::ui::fill::FillPanelOutput"
+status = "same"
+
+[[type]]
+name = "FillPreviewPane"
+old = "craft_imaging::ui::fill::FillPreviewPane"
+new = "craft_imaging::ui::fill::FillPreviewPane"
+status = "same"
+
+[[type]]
+name = "FillOverlay"
+old = "craft_imaging::ui::fill::FillOverlay"
+new = "craft_imaging::ui::fill::FillOverlay"
+status = "same"
+
+[[type]]
+name = "SamplingPlane"
+old = "craft_imaging::ui::fill::SamplingPlane"
+new = "craft_imaging::ui::fill::SamplingPlane"
+status = "same"
+
+[[type]]
+name = "FillAreaEdit"
+old = "craft_imaging::ui::fill::FillAreaEdit"
+new = "craft_imaging::ui::fill::FillAreaEdit"
+status = "same"
+
+[[type]]
+name = "FillCanvas"
+old = "craft_imaging::ui::fill::FillCanvas"
+new = "craft_imaging::ui::fill::FillCanvas"
+status = "same"
+
+[[type]]
+name = "FillCanvasTool"
+old = "craft_imaging::ui::fill::FillCanvasTool"
+new = "craft_imaging::ui::fill::FillCanvasTool"
+status = "same"
+
+[[type]]
+name = "FillTool"
+old = "craft_imaging::ui::fill::FillTool"
+new = "craft_imaging::ui::fill::FillTool"
+status = "same"
+
+[[type]]
+name = "FillToolOptions"
+old = "craft_imaging::ui::fill::FillToolOptions"
+new = "craft_imaging::ui::fill::FillToolOptions"
+status = "same"
+
+[[type]]
+name = "FillSession"
+old = "craft_imaging::ui::fill::FillSession"
+new = "craft_imaging::ui::fill::FillSession"
+status = "same"
+
+[[type]]
+name = "FillSettings"
+old = "craft_imaging::ui::fill::FillSettings"
+new = "craft_imaging::ui::fill::FillSettings"
+status = "same"
+
+[[type]]
+name = "FillCommand"
+old = "craft_imaging::ui::fill::FillCommand"
+new = "craft_imaging::ui::fill::FillCommand"
+status = "same"
+
+[[type]]
+name = "FillLimits"
+old = "craft_imaging::ui::fill::FillLimits"
+new = "craft_imaging::ui::fill::FillLimits"
+status = "same"
+
+[[type]]
+name = "FillLimit"
+old = "craft_imaging::ui::fill::FillLimit"
+new = "craft_imaging::ui::fill::FillLimit"
+status = "same"
+
+[[type]]
+name = "FillReset"
+old = "craft_imaging::ui::fill::FillReset"
+new = "craft_imaging::ui::fill::FillReset"
+status = "same"
+
+[[type]]
+name = "SamplingMode"
+old = "craft_imaging::ui::fill::SamplingMode"
+new = "craft_imaging::ui::fill::SamplingMode"
+status = "same"
+
+[[type]]
+name = "SamplingStroke"
+old = "craft_imaging::ui::fill::SamplingStroke"
+new = "craft_imaging::ui::fill::SamplingStroke"
+status = "same"
+
+[[type]]
+name = "ColorAdaptation"
+old = "craft_imaging::ui::fill::ColorAdaptation"
+new = "craft_imaging::ui::fill::ColorAdaptation"
+status = "same"
+
+[[type]]
+name = "RotationAdaptation"
+old = "craft_imaging::ui::fill::RotationAdaptation"
+new = "craft_imaging::ui::fill::RotationAdaptation"
+status = "same"
+
+[[type]]
+name = "FillOutputTo"
+old = "craft_imaging::ui::fill::FillOutputTo"
+new = "craft_imaging::ui::fill::FillOutputTo"
+status = "same"
+
+[[type]]
+name = "FillSource"
+old = "craft_imaging::ui::fill::FillSource"
+new = "craft_imaging::ui::fill::FillSource"
+status = "same"
+
+[[type]]
+name = "FillOpen"
+old = "craft_imaging::ui::fill::FillOpen"
+new = "craft_imaging::ui::fill::FillOpen"
+status = "same"
+
+[[type]]
+name = "FillEvent"
+old = "craft_imaging::ui::fill::FillEvent"
+new = "craft_imaging::ui::fill::FillEvent"
+status = "same"
+
+[[type]]
+name = "FillOutput"
+old = "craft_imaging::ui::fill::FillOutput"
+new = "craft_imaging::ui::fill::FillOutput"
+>>>>>>> mig/d-img-fill
 status = "same"
 
 [[type]]
 name = "OVERLAY_COLOR_KEY"
+<<<<<<< HEAD
 old = "craft_imaging::ui::select_mask::OVERLAY_COLOR_KEY"
 new = "craft_imaging::ui::select_mask::OVERLAY_COLOR_KEY"
 status = "same"
@@ -246,3 +417,115 @@ new = ""
 type = "SelectMaskWorkspace"
 old = "preview_failed(PreviewTicket, String)"
 new = ""
+=======
+old = "craft_imaging::ui::fill::OVERLAY_COLOR_KEY"
+new = "craft_imaging::ui::fill::OVERLAY_COLOR_KEY"
+status = "same"
+
+[[type]]
+name = "FillLabels"
+old = "craft_imaging::ui::fill::FillLabels"
+new = ""
+status = "removed"
+
+[[type]]
+name = "FillWords"
+old = ""
+new = "craft_imaging::ui::fill::FillWords"
+status = "replaced"
+note = "The words of the workspace; replaces FillLabels."
+
+[[type]]
+name = "FillCommands"
+old = ""
+new = "craft_imaging::ui::fill::FillCommands"
+status = "replaced"
+note = "The keys of the workspace (tool letters, brush size, tint), one command scope."
+
+[[type]]
+name = "FillStrokeEvent"
+old = ""
+new = "craft_imaging::ui::fill::FillStrokeEvent"
+status = "replaced"
+note = "The Sampling Brush stroke events; replaces EditEvent<SamplingStroke> in FillEvent::Stroke."
+
+[[type]]
+name = "FillPreviewRequest"
+old = ""
+new = "craft_imaging::ui::fill::FillPreviewRequest"
+status = "replaced"
+note = "What FillSource::preview_job fills with."
+
+[[type]]
+name = "PreviewFraming"
+old = ""
+new = "craft_imaging::ui::fill::PreviewFraming"
+status = "replaced"
+note = "The preview pane view framing state."
+
+[[setter]]
+type = "ContentAwareFillWorkspace"
+old = "show(ctx, source)"
+new = "show(ui, source)"
+note = "Shown in a Ui; the output has closed: Option<DialogRole> and apply: bool in place of outcome."
+
+[[setter]]
+type = "ContentAwareFillWorkspace"
+old = "navigation(options)"
+new = "navigation(options)"
+note = "Unchanged name; NavigationOptions is craft_ui::canvas::NavigationOptions."
+
+[[setter]]
+type = "ContentAwareFillWorkspace"
+old = "checkerboard(checkerboard)"
+new = "checkerboard(checker)"
+note = "Checker replaces Checkerboard."
+
+[[setter]]
+type = "ContentAwareFillWorkspace"
+old = "cursor_options(options)"
+new = "cursor_options(options)"
+note = "BrushCursorOptions replaces CursorOptions."
+
+[[setter]]
+type = "ContentAwareFillWorkspace"
+old = "preview_ready(ticket)"
+new = ""
+note = "Removed: the preview job is a Pending the workspace polls; the source gives FillSource::preview_job."
+
+[[setter]]
+type = "ContentAwareFillWorkspace"
+old = "preview_failed(ticket, message)"
+new = ""
+note = "Removed: a failed job shows through FullWindowStatus."
+
+[[setter]]
+type = "FillOutput"
+old = "preview_wanted"
+new = ""
+note = "Replaced by FillSource::preview_job."
+
+[[setter]]
+type = "FillOutput"
+old = "outcome"
+new = "closed, apply"
+note = "closed: Option<DialogRole> (Accept, Cancel) and apply: bool."
+
+[[setter]]
+type = "FillCanvas"
+old = "cursor_options(options)"
+new = ""
+note = "Removed: the workspace passes the cursor options to the tool."
+
+[[setter]]
+type = "ContentAwareFillWorkspace"
+old = "step(step)"
+new = "step(step)"
+note = "Step is craft_behavior::edit_history::Step; with a stroke open the step waits for the next pass."
+
+[[setter]]
+type = "ContentAwareFillWorkspace"
+old = "zoom(keys)"
+new = ""
+note = "Removed: the zoom chords are the ViewCommand scope of the dialog."
+>>>>>>> mig/d-img-fill
