@@ -13,7 +13,7 @@ use crate::store::{Downloaded, Installer, Progress, RemoveRequest, StoreError};
 type Task = Box<dyn FnOnce() + Send>;
 
 /// Runs `task` as a job of `host`, or of the Host builder's default jobs without one.
-fn spawn(host: Option<&Arc<Host>>, name: &str, task: Task) {
+pub fn spawn(host: Option<&Arc<Host>>, name: &str, task: Task) {
     match host {
         Some(host) => host.jobs().spawn(name, task),
         None => craft_host::Jobs::spawn(&*craft_host::default_jobs(), name, task),
