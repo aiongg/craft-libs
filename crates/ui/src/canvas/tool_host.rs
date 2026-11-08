@@ -17,10 +17,11 @@
 //! with [`ToolContext::set_view`]; the host reports the last one in [`ToolHostResponse::view`] and moves no view
 //! itself. `run` also paints the tool's readout; [`ToolHostResponse::readout`] repeats it as data.
 //!
-//! Space and the app's momentary Hand: while a gesture runs the host withholds Space from the app's shortcuts for
-//! the tool, so a Space pressed mid-drag never starts a momentary Hand; the tool reads it with
-//! [`ToolContext::held`]. A press of Space away from a gesture reaches the app as usual. [`ToolHost::momentary`]
-//! takes the app's [`Momentary`] set: while a momentary key is held the host runs the set's Hand or Zoom tool in
+//! Space and the momentary Hand: while a gesture runs the host withholds Space from the shortcuts for the tool, so a
+//! Space pressed mid-drag never starts a momentary Hand; the tool reads it with [`ToolContext::held`]. Away from a
+//! gesture, Space is the [`MomentaryCommand`](super::MomentaryCommand) Hand, routed to the canvas like the view
+//! commands. [`ToolHost::momentary`] takes the app's [`Momentary`] set and `run` feeds it the commands fired for the
+//! canvas, so the app plumbs nothing: while a momentary key is held the host runs the set's Hand or Zoom tool in
 //! place of the selected tool, and a gesture keeps the tool it began with. An app that switches tools itself from
 //! other input asks [`ToolHost::in_gesture`] first and keeps the tool it started the gesture with.
 //!
@@ -34,12 +35,13 @@
 //! # }
 //! ```
 
-use super::momentary::Momentary;
+use super::momentary::{Momentary, MomentaryCommand};
 use super::readout::paint_readout;
 use super::tool::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPointer, ToolRequests, ViewEase};
 use super::tools::HandTool;
 use super::{CanvasOutput, CanvasSpace};
 use crate::primitives::{ContentPainterCx, Draw, DrawEnv, PaintRecord};
+use crate::runtime::commands;
 use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::{global, with_session};
 use crate::runtime::pointer::{self, PointerFrame};
@@ -216,7 +218,9 @@ impl<'m> ToolHost<'m> {
 
     /// Runs the momentary tools of `momentary` in place of the selected tool while their keys are held (Space: Hand;
     /// with Cmd or Alt: Zoom). A gesture keeps the tool it began with, and a flick released with the momentary Hand
-    /// keeps gliding after the key comes up. The app feeds the set the fired [`MomentaryCommand`](super::MomentaryCommand)s.
+    /// keeps gliding after the key comes up. `run` feeds the set the [`MomentaryCommand`](super::MomentaryCommand)s fired
+    /// for the canvas (the canvas, or the instance of the `canvasView` scope around it, such as a full-window
+    /// dialog); the app passes the set and nothing else. Without a set, `run` still takes and drops those commands.
     #[must_use]
     pub fn momentary(mut self, momentary: &'m mut Momentary) -> Self {
         self.momentary = Some(momentary);
@@ -242,13 +246,20 @@ impl<'m> ToolHost<'m> {
         let rect = canvas.response.rect;
         let input = pointer::frame(&ctx);
         let mut glide = None;
+        let fired = std::iter::from_fn(|| commands::take_around::<MomentaryCommand>(&ctx, canvas.response.id, env.view().command_chain()));
         let tool: &mut dyn CanvasTool = match momentary {
             Some(momentary) => {
+                for (command, event) in fired {
+                    momentary.fired(command, event.phase);
+                }
                 let (tool, hand) = momentary.substitute(tool, input.mods, state.gesture.is_some());
                 glide = hand;
                 tool
             }
-            None => tool,
+            None => {
+                fired.for_each(drop);
+                tool
+            }
         };
         let mut run = Run {
             tool: &mut *tool,
@@ -516,7 +527,8 @@ impl<'a> Run<'a> {
                     self.hover(pointer);
                 }
             }
-            PressPhase::Down { start, .. } => {
+            // `Down` repeats in every pass the button stays down within slop: only the pass it went down in begins.
+            PressPhase::Down { start, .. } if press.went_down => {
                 self.state.spent = false;
                 self.begin(press_pointer(start, start.origin, start.time, press), false);
             }

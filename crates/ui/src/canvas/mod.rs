@@ -24,7 +24,7 @@ pub use readout::readout;
 pub use space::{CanvasSpace, RulerText, canvas_space};
 pub use words::CanvasWords;
 
-pub use tool::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPointer, ViewEase};
+pub use tool::{CanvasTool, NoTool, ToolAction, ToolContext, ToolKey, ToolPointer, ViewEase};
 pub use tool_groups::{PickStep, tool_pick};
 pub use tool_host::{ToolHost, ToolHostResponse, ToolInput, ToolReadout};
 
@@ -101,7 +101,11 @@ const VIEW_COMMANDS: [ViewCommand; 8] = [
     ViewCommand::ResetRotation,
 ];
 
-/// How the active tool is reached without a pointer (8.3, owner question 15).
+/// Why the background part is pointer-only: the keyboard path of the running tool is its command form
+/// ([`CanvasTool::command_form`]), the one owner of that fact.
+const TOOL_PATH: &str = "the running tool's command form";
+
+/// How a tool is reached without a pointer (8.3, owner question 15).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ToolPath {
@@ -110,15 +114,6 @@ pub enum ToolPath {
     Command(&'static str),
     /// The tool is freehand (brush, pencil, eraser, smudge, clone): pointer only, a named exception.
     Freehand,
-}
-
-impl ToolPath {
-    const fn reason(self) -> &'static str {
-        match self {
-            ToolPath::Command(reason) => reason,
-            ToolPath::Freehand => "freehand input",
-        }
-    }
 }
 
 /// The style of a canvas: its surface comes from `ContainerProps`.
@@ -137,7 +132,6 @@ pub struct Canvas {
     common: Common,
     #[container]
     props: ContainerProps,
-    path: ToolPath,
     /// The view the canvas shows its document through. The body reads it as a [`CanvasSpace`] with
     /// [`canvas_space`]; its controls register parts in the canvas root's screen space through
     /// `CanvasView::to_screen`. The view sets no body transform: a body of components that keep canvas-space geometry
@@ -161,13 +155,13 @@ pub struct Canvas {
 }
 
 impl Canvas {
-    /// A canvas named `label` whose active tool is reached through `path`.
-    pub fn new(label: impl Into<Label>, path: ToolPath) -> Self {
+    /// A canvas named `label`. The keyboard path of its tool is the tool's own
+    /// ([`CanvasTool::command_form`](CanvasTool::command_form)).
+    pub fn new(label: impl Into<Label>) -> Self {
         let props = ContainerProps::new().surface(SurfaceKind::Canvas).arena(true).sizing(Sizing::Fill).command_scope(ViewCommand::SCOPE);
         Canvas {
             common: Common::new(),
             props,
-            path,
             view: None,
             document: None,
             navigation: NavigationOptions::default(),
@@ -225,7 +219,8 @@ impl Canvas {
     }
 
     fn space(&self, pixels_per_point: f32, background: BackgroundPress) -> Option<CanvasSpace> {
-        self.view.map(|view| CanvasSpace::new(view, pixels_per_point).with_rulers(self.rulers).with_background(background))
+        self.view
+            .map(|view| CanvasSpace::new(view, pixels_per_point).with_document(self.document).with_rulers(self.rulers).with_background(background))
     }
 
     /// The press on the background part as the canvas reports it, and the pan of a middle-button drag: a middle press
@@ -323,7 +318,7 @@ impl Component for Canvas {
         cx.part(BACKGROUND, rect)
             .priority(HitPriority::new(HitLevel::Background, 0))
             .sense(Sense::CLICK | Sense::DRAG | Sense::TAKE_FOCUS)
-            .pointer_only(self.path.reason());
+            .pointer_only(TOOL_PATH);
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> CanvasOutput {

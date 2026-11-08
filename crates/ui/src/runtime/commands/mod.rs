@@ -16,7 +16,7 @@ pub use registry::{COMMAND_SETS, SetEntry};
 pub(crate) use board::publish as publish_for;
 pub(crate) use board::{begin, edit_chords, end, install, note_focus, platform, register_instance, set_input, take_fired};
 pub(crate) use board::{fire_bound, fire_resolved, resolve_bound, resolve_scoped};
-pub(crate) use board::{focus_within, take as take_for_instance};
+pub(crate) use board::{focus_within, take as take_for_instance, take_around};
 
 use craft_behavior::CommandFlags;
 use craft_keymap::{Chord, Overrides};

@@ -2,7 +2,7 @@
 
 use craft_behavior::kurbo::Point;
 use craft_behavior::{Axis, CanvasView, GesturePhase, RulerUnits, Ticks};
-use craft_ui::canvas::{Canvas, GuideDrag, INCH_EIGHTHS, RulerPart, RulerText, Rulers, TickRule, ToolPath};
+use craft_ui::canvas::{Canvas, GuideDrag, INCH_EIGHTHS, RulerPart, RulerText, Rulers, TickRule};
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::runtime::env::UnitKind;
 use craft_ui::testing::{Fixture, pointer, trial};
@@ -79,7 +79,7 @@ fn shown(locked: bool) -> Shown {
     let mut fixture = Fixture::new(move |ui| {
         let text = pixels();
         let view = CanvasView::new(VIEW, Point::new(180.0, 130.0), 1.0);
-        Canvas::new("Document", ToolPath::Command("the New Guide... command")).view(view).rulers(text, text, Point::ZERO).show(ui, |ui, body| {
+        Canvas::new("Document").view(view).rulers(text, text, Point::ZERO).show(ui, |ui, body| {
             let out = Rulers::new("Rulers", Bind::bound(&mut *edited.borrow_mut())).origin_locked(locked).units(&MENU_UNITS).show_at(ui, body.rect);
             seen.borrow_mut().extend(out.guide);
             asked.borrow_mut().extend(out.context);
@@ -133,6 +133,21 @@ fn dragging_the_corner_moves_the_zero_point_unless_it_is_locked() {
     let corner = locked.fixture.by_label("Ruler origin").expect("the corner has a node");
     locked.fixture.drag(&corner, FROM_CORNER);
     assert_eq!(*locked.zero.borrow(), Point::ZERO, "a locked zero point stays");
+}
+
+#[trial]
+fn a_double_click_on_the_corner_puts_the_bound_zero_back_at_the_origin() {
+    let mut shown = shown(false);
+    let corner = shown.fixture.by_label("Ruler origin").expect("the corner has a node");
+    shown.fixture.drag(&corner, FROM_CORNER);
+    assert_ne!(*shown.zero.borrow(), Point::ZERO, "the zero point followed the drag");
+    let at = corner.center();
+    for events in
+        [vec![pointer::moved(at)], vec![pointer::press(at)], vec![pointer::release(at)], vec![pointer::press(at)], vec![pointer::release(at)]]
+    {
+        shown.fixture.frame(events);
+    }
+    assert_eq!(*shown.zero.borrow(), Point::ZERO, "the double click wrote the origin through the bind");
 }
 
 #[trial]

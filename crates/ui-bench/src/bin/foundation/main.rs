@@ -12,7 +12,7 @@ use craft_behavior::kurbo::Point;
 use craft_behavior::{Axis, CanvasView, ColumnKey, ColumnWidth, DisplayOrder, ItemSource, PixelSize, RulerUnits, Selection};
 use craft_host::target::ShellInfo;
 use craft_ui::canvas::{
-    Canvas, Guide, GuideKey, HandTool, NavigationOptions, PixelRect, RasterDisplay, RasterSource, RulerText, Rulers, ToolHost, ToolPath, pan,
+    Canvas, Guide, GuideKey, HandTool, NavigationOptions, PixelRect, RasterDisplay, RasterSource, RulerText, Rulers, ToolHost, pan,
 };
 use craft_ui::canvas_controls::Guides;
 use craft_ui::contract::ColumnSpec;
@@ -473,7 +473,7 @@ impl Scene for CanvasViewScene {
         view.rect = content;
         pan(view, vec2(3.0, 2.0));
         let text = RulerText::new(RulerUnits::pixels(), UnitKind::Pixels);
-        let shown = Canvas::new("Document", ToolPath::Freehand).view(*view).rulers(text, text, *zero).show(ui, |ui, body| {
+        let shown = Canvas::new("Document").view(*view).rulers(text, text, *zero).show(ui, |ui, body| {
             let _ = RasterDisplay::new("Picture", &SOURCE).show_at(ui, body.rect);
             let _ = Guides::new("Guides", Bind::bound(&mut *guides)).show_at(ui, body.rect);
             let _ = Rulers::new("Rulers", Bind::bound(&mut *zero)).show_at(ui, body.rect);

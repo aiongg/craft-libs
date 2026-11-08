@@ -8,7 +8,7 @@
 use crate::contract::{Component, Cx, Focus as _, Pointer as _};
 use crate::runtime::env::{AppValues, EnvValue, EnvView, UnitKind, Units};
 use craft_behavior::canvas::zoom;
-use craft_behavior::kurbo::Point;
+use craft_behavior::kurbo::{Point, Size};
 use craft_behavior::{Axis, CanvasView, Intent, PartRef, PointerButton, PressPhase, PressState, RulerUnits, Ticks};
 use egui::Pos2;
 use std::ops::RangeInclusive;
@@ -22,6 +22,7 @@ pub struct CanvasSpace {
     pub view: CanvasView,
     /// Device pixels per point.
     pub pixels_per_point: f32,
+    document: Option<Size>,
     rulers: Option<CanvasRulers>,
     background: BackgroundPress,
 }
@@ -30,7 +31,15 @@ impl CanvasSpace {
     /// The space of `view` at `pixels_per_point` device pixels per point, with no rulers published and no press on
     /// the background.
     pub fn new(view: CanvasView, pixels_per_point: f32) -> Self {
-        Self { view, pixels_per_point, rulers: None, background: BackgroundPress::default() }
+        Self { view, pixels_per_point, document: None, rulers: None, background: BackgroundPress::default() }
+    }
+
+    /// This space with the size of the document the canvas shows, in document units: the one size the zoom ladder's
+    /// lower limit and the zoom tools read.
+    #[must_use]
+    pub fn with_document(mut self, document: Option<Size>) -> Self {
+        self.document = document;
+        self
     }
 
     /// This space with the rulers `rulers` published.
@@ -45,6 +54,11 @@ impl CanvasSpace {
     pub fn with_background(mut self, background: BackgroundPress) -> Self {
         self.background = background;
         self
+    }
+
+    /// The size of the document, in document units, as given to [`Canvas::document`](super::Canvas::document).
+    pub fn document(&self) -> Option<Size> {
+        self.document
     }
 
     /// The units and the zero point the canvas measures its document in: what [`Canvas::rulers`](super::Canvas::rulers)

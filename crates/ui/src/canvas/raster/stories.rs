@@ -1,7 +1,7 @@
 //! Stories of the raster display.
 
 use super::RasterDisplay;
-use crate::canvas::{Canvas, PixelRect, RasterSource, ToolPath};
+use crate::canvas::{Canvas, PixelRect, RasterSource};
 use crate::contract::{Show as _, ShowContainer as _};
 use crate::primitives::{Checker, Revision};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
@@ -56,7 +56,7 @@ impl RasterSource for Gradient {
 fn on_canvas(ui: &mut Ui, view: impl FnOnce(CanvasView) -> CanvasView) -> StoryOutput {
     static SOURCE: Gradient = Gradient;
     let level = view(CanvasView::new(ui.max_rect(), CENTER, 1.0));
-    let shown = Canvas::new("Document", ToolPath::Freehand)
+    let shown = Canvas::new("Document")
         .view(level)
         .show(ui, |ui, body| RasterDisplay::new("Picture", &SOURCE).checkerboard(Checker::new()).show_at(ui, body.rect));
     shown.inner.map(StoryOutput::from).unwrap_or_default()

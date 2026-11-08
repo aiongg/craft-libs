@@ -19,7 +19,7 @@ fn view() -> CanvasView {
 const SLOP: f32 = 6.0;
 
 fn context<'a>(view: CanvasView, time: f64) -> ToolContext<'a> {
-    ToolContext::new(Rect::from_min_size(Pos2::ZERO, CANVAS), Some(CanvasSpace::new(view, 1.0))).time(time).slop(SLOP)
+    ToolContext::new(Rect::from_min_size(Pos2::ZERO, CANVAS), Some(CanvasSpace::new(view, 1.0).with_document(Some(DOCUMENT)))).time(time).slop(SLOP)
 }
 
 fn at(pos: Pos2, time: f64) -> ToolPointer {
@@ -49,7 +49,7 @@ fn the_hand_drag_moves_the_document_with_the_pointer_and_escape_puts_the_view_ba
 fn a_zoom_click_steps_the_ladder_about_the_point_and_alt_steps_out() {
     let start = view();
     let click = Pos2::new(200.0, 100.0);
-    let mut zoom = ZoomTool::new(DOCUMENT, NavigationOptions::default());
+    let mut zoom = ZoomTool::new(NavigationOptions::default());
     zoom.press(&at(click, 0.0), &mut context(start, 0.0));
     let mut released = context(start, 0.05);
     zoom.release(&at(click, 0.05), &mut released);
@@ -67,10 +67,33 @@ fn a_zoom_click_steps_the_ladder_about_the_point_and_alt_steps_out() {
 }
 
 #[trial]
+fn the_zoom_click_stays_within_the_ladder_of_the_document_the_canvas_was_given() {
+    let start = view();
+    let click = Pos2::new(200.0, 100.0);
+    let out = |document: Option<Size>| {
+        let mut zoom = ZoomTool::new(NavigationOptions::default());
+        zoom.out = true;
+        let space = |time| {
+            let space = CanvasSpace::new(start, 1.0).with_document(document);
+            ToolContext::new(Rect::from_min_size(Pos2::ZERO, CANVAS), Some(space)).time(time).slop(SLOP)
+        };
+        zoom.press(&at(click, 0.0), &mut space(0.0));
+        let mut released = space(0.05);
+        zoom.release(&at(click, 0.05), &mut released);
+        released.requested_view()
+    };
+    let large = out(Some(DOCUMENT)).expect("a click zooms");
+    assert!(large.zoom < start.zoom, "a large document zooms out from 100 %");
+    let tiny = out(Some(Size::new(2.0, 2.0))).expect("a click at the limit puts the view back");
+    assert_eq!(tiny, start, "a document of 2 units has 100 % as its lowest rung");
+    assert_eq!(out(None), None, "a canvas given no document gives the Zoom tool no ladder");
+}
+
+#[trial]
 fn a_zoom_press_held_still_zooms_instead_of_stepping() {
     let start = view();
     let click = Pos2::new(200.0, 100.0);
-    let mut zoom = ZoomTool::new(DOCUMENT, NavigationOptions::default());
+    let mut zoom = ZoomTool::new(NavigationOptions::default());
     zoom.press(&at(click, 0.0), &mut context(start, 0.0));
     let mut pass = context(start, 0.7);
     zoom.each_pass(&mut pass);
@@ -88,7 +111,7 @@ fn a_zoom_press_that_dragged_never_steps_whatever_the_rectangle() {
     let mut options = NavigationOptions::default();
     options.scrubby_zoom = false;
     options.animated_zoom = false;
-    let mut zoom = ZoomTool::new(DOCUMENT, options);
+    let mut zoom = ZoomTool::new(options);
     // Past the arena's slop in one direction only: a sliver, too small to zoom to.
     let sliver = from + Vec2::new(SLOP + 1.0, 1.0);
     zoom.press(&at(from, 0.0), &mut context(start, 0.0));
@@ -139,6 +162,6 @@ fn the_view_commands_zoom_fit_and_turn_the_view() {
 #[trial]
 fn each_view_tool_owes_the_canvas_its_checks() {
     ToolFixture::new("Hand", HandTool::new(NavigationOptions::default())).check();
-    ToolFixture::new("Zoom", ZoomTool::new(DOCUMENT, NavigationOptions::default())).check();
+    ToolFixture::new("Zoom", ZoomTool::new(NavigationOptions::default())).check();
     ToolFixture::new("Rotate View", RotateViewTool::default()).check();
 }

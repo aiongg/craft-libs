@@ -71,7 +71,7 @@ name = "FullWindowCanvas"
 old = "craft_ui::dialog::full_window::FullWindowCanvas"
 new = "craft_ui::dialog::FullWindowCanvas"
 status = "replaced"
-note = "A pattern over `Canvas`, `RasterDisplay` and `ToolHost`: `FullWindowCanvas::new(path, &view, &source).checkerboard(..).overlay(..).tool(&mut tool).momentary(&mut momentary).controls(..).show(ui)`. The output reports the next view in `view` and the settled one in `shown`."
+note = "A pattern over `Canvas`, `RasterDisplay` and `ToolHost`: `FullWindowCanvas::new(&view, &source).checkerboard(..).overlay(..).tool(&mut tool).momentary(&mut momentary).controls(..).show(ui)`. The output reports the next view in `view` and the settled one in `shown`."
 
 [[type]]
 name = "FullWindowCanvasOutput"
@@ -236,8 +236,8 @@ new = "set_device_zoom(zoom)"
 [[setter]]
 type = "FullWindowCanvas"
 old = "FullWindowCanvas::new(id_salt, &mut view)"
-new = "FullWindowCanvas::new(path, &view, &source)"
-note = "The source is a constructor argument; `source(..)` is gone. `path` is the tool's keyboard path."
+new = "FullWindowCanvas::new(&view, &source)"
+note = "The source is a constructor argument; `source(..)` is gone. The tool's keyboard path is the tool's `command_form`."
 
 [[setter]]
 type = "FullWindowCanvas"

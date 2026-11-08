@@ -1,6 +1,6 @@
 //! The app shell's own rules: the screen-mode cycle, the full-screen steps, the reveal rules and the slot order.
 
-use craft_ui::canvas::{Canvas, ToolPath};
+use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, PaneEdge, Show as _, ShowContainer as _};
 use craft_ui::dialog::{DialogResult, PromptChoice, StandardPrompt};
 use craft_ui::display::Text;
@@ -305,7 +305,7 @@ fn tab_hides(shells: &[&'static str]) -> Vec<(&'static str, bool)> {
                         Text::new("Title").show(ui);
                     })
                     .body(|ui, _, _| {
-                        Canvas::new("Document", ToolPath::Freehand).show(ui, |_, _| ());
+                        Canvas::new("Document").show(ui, |_, _| ());
                     })
                     .show(ui, &mut ());
                 seen.borrow_mut().push((*key, !out.regions.slots.is_empty()));

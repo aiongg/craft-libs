@@ -5,7 +5,7 @@ use super::tools::{Freehand, Tools};
 use craft_behavior::dock::Permissions;
 use craft_behavior::kurbo::Rect as DocRect;
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, ItemSource, RulerUnits, Selection, SelectionModel as _};
-use craft_ui::canvas::{Canvas, PageFrame, Pasteboard, RulerText, Rulers, ToolHost, ToolPath};
+use craft_ui::canvas::{Canvas, PageFrame, Pasteboard, RulerText, Rulers, ToolHost};
 use craft_ui::contract::{
     Bind, BodyCx, CollectionEvent, ColumnKind, ColumnSpec, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, ToggleColumn,
 };
@@ -91,7 +91,7 @@ fn canvas(ui: &mut Ui, document: &mut Document, tool: Tool, tools: &mut Tools) {
     let pages = [PageFrame::new(page)];
     let (view, zero) = (document.view, document.zero);
     let mut moved_zero = zero;
-    let shown = Canvas::new("Document", ToolPath::Freehand).view(view).document(document.size).rulers(units, units, zero).show(ui, |ui, body| {
+    let shown = Canvas::new("Document").view(view).document(document.size).rulers(units, units, zero).show(ui, |ui, body| {
         let _ = Pasteboard::new("Pasteboard", &pages).show_at(ui, body.rect);
         Rulers::new("Rulers", Bind::bound(&mut moved_zero)).show_at(ui, body.rect)
     });

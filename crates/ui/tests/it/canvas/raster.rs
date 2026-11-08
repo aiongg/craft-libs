@@ -2,7 +2,7 @@
 
 use craft_behavior::kurbo::Point;
 use craft_behavior::{CanvasView, PixelSize};
-use craft_ui::canvas::{Canvas, CanvasSpace, DetailPlan, PixelRect, RasterDisplay, RasterSource, ToolPath, snap_to_texels};
+use craft_ui::canvas::{Canvas, CanvasSpace, DetailPlan, PixelRect, RasterDisplay, RasterSource, snap_to_texels};
 use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::primitives::textures::{FakeThumbSource, ThumbRender, ThumbRequest, ThumbSource, ThumbnailOptions, Thumbnails, fit_rect, thumb_image};
 use craft_ui::primitives::{Checker, Priority, Revision, TextureState, texture_factor, texture_side};
@@ -83,7 +83,7 @@ fn rig(document: Rc<Document>, zoom: f64) -> Rig {
     let space = Rc::new(RefCell::new(None));
     let (shown_document, shown_now, shown_reported, shown_space) = (Rc::clone(&document), Rc::clone(&shown), Rc::clone(&reported), Rc::clone(&space));
     let mut fixture = Fixture::new(move |ui| {
-        let canvas = Canvas::new("Document", ToolPath::Freehand).view(view).show(ui, |ui, body| {
+        let canvas = Canvas::new("Document").view(view).show(ui, |ui, body| {
             if shown_now.get() {
                 let output = RasterDisplay::new("Picture", &*shown_document).checkerboard(Checker::new()).show_at(ui, body.rect);
                 *shown_reported.borrow_mut() = Some((output.read, output.detail));

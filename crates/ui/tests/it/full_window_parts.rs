@@ -175,7 +175,7 @@ fn view_chords_zoom_the_dialogs_view_while_its_canvas_has_the_focus() {
         let mut open = true;
         FullWindowDialog::new("Liquify").opened(Bind::bound(&mut open)).show(ui, |ui, _| {
             FullWindowZoomBar::new(Bind::bound(&mut shared.borrow_mut())).show(ui);
-            craft_ui::dialog::FullWindowCanvas::new(craft_ui::canvas::ToolPath::Freehand, Bind::bound(&mut shared.borrow_mut()), &Grey).show(ui);
+            craft_ui::dialog::FullWindowCanvas::new(Bind::bound(&mut shared.borrow_mut()), &Grey).show(ui);
         });
     });
     fixture.settle();
@@ -207,7 +207,7 @@ fn fit_on_screen_refits_in_the_same_pass_and_magnifies_a_small_image() {
 mod canvas_navigation {
     use craft_behavior::PixelSize;
     use craft_behavior::kurbo::Point;
-    use craft_ui::canvas::{NavigationOptions, PixelRect, RasterSource, ToolPath};
+    use craft_ui::canvas::{NavigationOptions, PixelRect, RasterSource};
     use craft_ui::contract::Bind;
     use craft_ui::dialog::{FullWindowCanvas, FullWindowView};
     use craft_ui::primitives::Revision;
@@ -259,7 +259,7 @@ mod canvas_navigation {
         let (shown, seen) = (view.clone(), hover.clone());
         let mut fixture = Fixture::new(move |ui| {
             let mut view = shown.borrow_mut();
-            seen.set(FullWindowCanvas::new(ToolPath::Freehand, Bind::bound(&mut *view), &Grey).navigation(navigation).show(ui).hover);
+            seen.set(FullWindowCanvas::new(Bind::bound(&mut *view), &Grey).navigation(navigation).show(ui).hover);
         });
         fixture.settle();
         Rig { fixture, view, hover }
@@ -333,7 +333,7 @@ mod canvas_navigation {
         let seen = rects.clone();
         let mut view = FullWindowView::new();
         let mut fixture = Fixture::new(move |ui| {
-            let canvas = FullWindowCanvas::new(ToolPath::Freehand, Bind::bound(&mut view), &Grey).show(ui).response.rect;
+            let canvas = FullWindowCanvas::new(Bind::bound(&mut view), &Grey).show(ui).response.rect;
             seen.set(Some((canvas, ui.available_rect_before_wrap())));
         });
         fixture.settle();
