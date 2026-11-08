@@ -3,7 +3,7 @@
 use super::Fixture;
 use crate::contract::{CollectionEvent, Inner, Outcome, TooltipSpec};
 use craft_behavior::{EditEvent, PartKey, PartRef, Value};
-use egui::{Id, Response, Ui};
+use egui::{Id, Response, Ui, Vec2};
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::ops::Range;
@@ -40,11 +40,11 @@ pub enum Drive {
     Activate,
     /// AccessKit Increment, then the forward key.
     Step,
-    /// A drag of the part by twice the slop along the value axis.
-    Drag(PartKey),
-    /// A drag of the part `PartRef` of a component the subject shows inside itself (a colour area's point picker),
-    /// by twice the slop along the value axis.
-    DragChild(PartRef),
+    /// A drag of the grip's part by twice the slop along its direction, and a second run cancelled by Escape.
+    Drag(Grip),
+    /// A drag of the grip's part on a component the subject shows inside itself (a colour area's point picker), as
+    /// [`Drive::Drag`] drags a part of the subject.
+    DragChild(Grip),
     /// Typed text.
     Type(&'static str),
     /// Open, then Down and Enter on the row; a second run clicks the row.
@@ -57,6 +57,35 @@ pub enum Drive {
     Custom(fn(&mut Fixture)),
     /// The story shows a state and changes nothing.
     Never,
+}
+
+/// The part a [`Drive::Drag`] or [`Drive::DragChild`] presses and the way the drag moves it.
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Grip {
+    /// The pressed part.
+    pub part: PartRef,
+    /// The drag's direction, in units of the travel (twice the slop): `vec2(1.0, 0.0)` moves the travel along x,
+    /// `vec2(1.0, 1.0)` the travel along each axis.
+    pub toward: Vec2,
+}
+
+impl Grip {
+    /// The part `key`, a part that occurs once, dragged along x.
+    pub const fn new(key: PartKey) -> Self {
+        Grip::part(PartRef { key, index: None })
+    }
+
+    /// The part `part`, one of a repeated part (`HANDLE.at(i)`), dragged along x.
+    pub const fn part(part: PartRef) -> Self {
+        Grip { part, toward: Vec2::X }
+    }
+
+    /// The grip dragged along `toward`.
+    pub const fn toward(mut self, toward: Vec2) -> Self {
+        self.toward = toward;
+        self
+    }
 }
 
 /// A named way to show one registered type.

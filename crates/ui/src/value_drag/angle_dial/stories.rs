@@ -3,7 +3,7 @@
 use super::{AngleDial, FACE};
 use crate::contract::{Bind, Props as _, Show as _, Validity};
 use crate::runtime::env::Message;
-use crate::testing::{Drive, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Grip, StoryData, StoryOutput, story};
 use craft_behavior::Mixed;
 use egui::Ui;
 
@@ -15,7 +15,7 @@ fn angle_dial(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     AngleDial::new(Bind::bound(data.value("angle", ANGLE))).label("Angle").show(ui).into()
 }
 
-#[story(AngleDial<'static>, covers = [], drive = Drive::Drag(FACE))]
+#[story(AngleDial<'static>, covers = [], drive = Drive::Drag(Grip::new(FACE)))]
 fn angle_dial_drag(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     AngleDial::new(Bind::bound(data.value("angle", ANGLE))).label("Angle").show(ui).into()
 }

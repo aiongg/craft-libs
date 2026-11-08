@@ -3,7 +3,7 @@
 use super::{PreviewPane, PreviewState, PreviewView, PreviewZoom, WELL};
 use crate::contract::Show as _;
 use crate::primitives::TextureCache;
-use crate::testing::{Drive, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Grip, StoryData, StoryOutput, story};
 use egui::load::SizedTexture;
 use egui::{Color32, ColorImage, Ui, Vec2};
 
@@ -15,7 +15,7 @@ fn picture(ui: &Ui) -> SizedTexture {
     SizedTexture::new(id, Vec2::new(PICTURE[0] as f32, PICTURE[1] as f32))
 }
 
-#[story(PreviewPane<'static>, covers = [Default], drive = Drive::Drag(WELL))]
+#[story(PreviewPane<'static>, covers = [Default], drive = Drive::Drag(Grip::new(WELL)))]
 fn preview_pane(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let view = data.value("view", PreviewView::default());
     let shown = PreviewPane::new("Preview", picture(ui), view).show(ui);
@@ -53,7 +53,7 @@ fn preview_pane_failed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     PreviewPane::state("Preview", PreviewState::Failed("The preview could not be rendered.".into()), view).show(ui).into()
 }
 
-#[story(PreviewPane<'static>, covers = [], drive = Drive::Drag(WELL))]
+#[story(PreviewPane<'static>, covers = [], drive = Drive::Drag(Grip::new(WELL)))]
 fn preview_pane_fit(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let view = data.value("view", PreviewView::fitting().zoom_range(0.01..=32.0));
     let shown = PreviewPane::state("Preview", PreviewState::Ready(picture(ui)), view).show(ui);

@@ -1,12 +1,12 @@
 //! Stories of `ThumbRow`: a levels row with split black and white thumbs, a wrapping hue row, and a hue range bar
 //! ordered round from its first thumb.
 
-use super::{Anchor, Order, THUMB, Thumb, ThumbRow};
+use super::{Anchor, Order, Thumb, ThumbRow};
 use crate::contract::{Bind, Props as _, Show as _, Validity};
 use crate::display::Progress;
 use crate::runtime::env::Message;
 use crate::style::DataColor;
-use crate::testing::{Drive, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Grip, StoryData, StoryOutput, story};
 use crate::value_drag::TrackFace;
 use craft_behavior::Mixed;
 use egui::{Color32, Ui};
@@ -36,12 +36,12 @@ fn thumb_row(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     levels(Bind::bound(data.value("levels", Mixed::each([30.0, 60.0, 190.0, 220.0])))).label("Levels").show(ui).into()
 }
 
-#[story(ThumbRow<'static, 4>, covers = [], drive = Drive::Drag(super::ROW))]
+#[story(ThumbRow<'static, 4>, covers = [], drive = Drive::Drag(Grip::new(super::ROW)))]
 fn thumb_row_drag(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     levels(Bind::bound(data.value("levels", Mixed::each([30.0, 60.0, 190.0, 220.0])))).label("Levels").show(ui).into()
 }
 
-#[story(ThumbRow<'static, 4>, covers = [], drive = Drive::Drag(THUMB))]
+#[story(ThumbRow<'static, 4>, covers = [], drive = Drive::Drag(Grip::new(Thumb::PART)))]
 fn thumb_row_wrapping(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let thumbs = [
         Thumb::new("Hue from").face(DataColor::new(Color32::from_rgb(220, 60, 60))),

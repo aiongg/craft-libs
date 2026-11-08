@@ -34,13 +34,17 @@ pub(super) fn exemption_is_known(case: &str) -> bool {
 }
 
 /// The states a registered type must show, from the facts of its probe, less the states it is exempt from.
-fn required(probe: &Probe) -> Vec<Required> {
+///
+/// The invalid state applies to a value a host can refuse: a value the type carries and takes input for, shown with
+/// the refused look. A canvas control (`#[component(canvas_control)]`) edits geometry on the canvas and has no
+/// refused look, so it has no invalid state.
+pub fn required_states(probe: &Probe) -> Vec<Required> {
     let mut states = vec![Required::Default];
     if probe.carries_value() {
         if !probe.single_value {
             states.push(Required::Mixed);
         }
-        if probe.takes_input() {
+        if probe.takes_input() && !probe.canvas_control {
             states.push(Required::Invalid);
         }
     }
@@ -73,7 +77,7 @@ fn every_required_state_has_a_story(subject: &Subject) -> Result<(), String> {
         return Err("no story shows the type; a type shown only inside another declares `#[component(sample = ..)]`, or `face-only` when it has no constructor".to_owned());
     }
     let missing: Vec<_> =
-        required(subject.probe).into_iter().filter(|state| !subject.stories.iter().any(|story| story.covers.contains(state))).collect();
+        required_states(subject.probe).into_iter().filter(|state| !subject.stories.iter().any(|story| story.covers.contains(state))).collect();
     if missing.is_empty() { Ok(()) } else { Err(format!("no story covers {missing:?}")) }
 }
 

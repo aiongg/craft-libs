@@ -22,8 +22,6 @@ use std::ops::RangeInclusive;
 #[cfg(feature = "testing")]
 mod stories;
 
-/// The well: a press on it moves the point there.
-const WELL: PartKey = PartKey::new("well");
 /// The point: a drag on it follows the pointer.
 const THUMB: PartKey = PartKey::new("thumb");
 
@@ -107,6 +105,9 @@ pub struct PointPicker<'a> {
 }
 
 impl<'a> PointPicker<'a> {
+    /// The well: a press on it moves the point there, and a drag from it follows the pointer.
+    pub const WELL: PartKey = PartKey::new("well");
+
     /// A picker of `value` over `x` and `y`. A range written from its larger bound to its smaller (`100..=0`) puts the
     /// larger bound at the left or top edge: `0..=100` over `100..=0` is a plot with y up.
     pub fn new(value: Bind<'a, [Mixed<f64>; 2]>, x: RangeInclusive<f64>, y: RangeInclusive<f64>) -> Self {
@@ -283,7 +284,7 @@ impl Component for PointPicker<'_> {
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let placed = self.placed(cx.value().unwrap_or(&ALL_MIXED));
         let thumb = Rect::from_center_size(self.position(placed, self.plot(rect)), Vec2::splat(cx.style.hit));
-        cx.part(WELL, rect).sense(Sense::CLICK | Sense::DRAG | Sense::TAKE_FOCUS).value_part().pointer_only("the arrow keys move the point");
+        cx.part(Self::WELL, rect).sense(Sense::CLICK | Sense::DRAG | Sense::TAKE_FOCUS).value_part().pointer_only("the arrow keys move the point");
         cx.part(THUMB, thumb)
             .sense(Sense::DRAG | Sense::TAKE_FOCUS)
             .priority(HitPriority::new(HitLevel::Handle, 0))
@@ -301,7 +302,7 @@ impl Component for PointPicker<'_> {
             ValueDrag::absolute(plot.left()..plot.right(), self.along(0)),
             ValueDrag::absolute(plot.top()..plot.bottom(), self.along(1)).axis(Axis::Y),
         ];
-        for key in [THUMB, WELL] {
+        for key in [THUMB, Self::WELL] {
             let press = cx.part(key).press;
             let start = cx.memory::<DragStart>().0;
             match press.phase {
