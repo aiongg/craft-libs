@@ -2,7 +2,7 @@
 //! bar, and a choice comes back as a fired command. The bar's own behaviour is craft-ui's.
 
 use craft_behavior::Mixed;
-use craft_host::target::Os;
+use craft_host::target::{Os, WindowChrome};
 use craft_menu::{
     Builtin, Chord, Document, Item, LayoutOptions, Menu, MenuBar, MenuBarUi, MenuRole, Node, Standard, Target,
     bar::{is_focused, is_open},
@@ -202,6 +202,7 @@ fn the_web_shows_the_browsers_system_names_and_the_mac_its_glyphs() {
     for (target, os, mnemonic) in [(Target::Web, Os::Linux, true), (Target::Web, Os::Mac, false), (Target::Windows, Os::Linux, true)] {
         let mut fixture = rig(sample(), Setup { target, ..LINUX });
         fixture.os(os);
+        fixture.chrome(WindowChrome::Integrated);
         fixture.settle();
         click(&mut fixture, "File");
         let new = fixture.by_label("New").expect("the New row");
@@ -214,6 +215,7 @@ fn the_web_shows_the_browsers_system_names_and_the_mac_its_glyphs() {
 fn in_a_browser_on_a_mac_f10_reaches_the_bar_and_alt_does_not() {
     let mut fixture = rig(sample(), Setup { target: Target::Web, ..LINUX });
     fixture.os(Os::Mac);
+    fixture.chrome(WindowChrome::Integrated);
     fixture.settle();
     key(&mut fixture, Key::AltLeft, Modifiers::ALT);
     assert!(!is_focused(fixture.ctx()), "Alt leaves the bar alone");

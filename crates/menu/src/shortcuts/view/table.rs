@@ -6,7 +6,7 @@ use std::borrow::Cow;
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, Flow, Insets, ItemSource, Metrics, Proposal, Selection, SelectionChange, SpanLayout};
 use craft_keymap::chord::Chord;
 use craft_keymap::keymap::{Binding, MAX_BINDINGS};
-use craft_ui::buttons::{Button, IconButton};
+use craft_ui::buttons::{Button, IconButton, Link};
 use craft_ui::contract::{
     Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, ColumnSpec, Common, Component, ContainerProps, Cx, ItemOutput,
     MeasureCx, Outcome, PaintUi, Props as _, Role, SelectMode, ShowCollection as _, Sizing, Styled as _, clicked,
@@ -41,6 +41,8 @@ pub(crate) enum RowAct {
     Stopped,
     /// The recording cell holds key focus.
     Started,
+    /// A group header was pressed: the group opens or closes.
+    Toggle,
 }
 
 /// The lines as the table's source, keyed by position.
@@ -65,14 +67,6 @@ impl DisplayOrder<usize> for Lines<'_> {
 
     fn open(&self, at: usize) -> bool {
         matches!(&self.0[at], Line::Header { collapsed: false, .. })
-    }
-
-    fn is_section(&self, at: usize) -> bool {
-        matches!(self.0[at], Line::Header { .. })
-    }
-
-    fn section_stop(&self, at: usize) -> bool {
-        self.is_section(at)
     }
 
     fn text(&self, at: usize) -> Option<Cow<'_, str>> {
@@ -328,7 +322,7 @@ impl Component for CommandRow<'_> {
                 self.paint_shortcuts(ui, cx, rtl, line);
             }
             Line::Fixed(fixed) => self.paint_fixed(ui, cx, rtl, command, fixed),
-            Line::Header { .. } => {}
+            Line::Header { name, .. } => self.paint_header(ui, cx, name),
         }
     }
 
@@ -366,6 +360,16 @@ impl CommandRow<'_> {
         }
         let run = TextRun::spans(spans).role(cx.style.label.role).color(cx.resolve(&cx.style.label.color)).elide();
         ui.draw().text(area, &run);
+    }
+
+    /// A group header: its name, over the whole row, opens and closes the group.
+    fn paint_header(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>, name: &str) {
+        let rtl = cx.env.direction().is_rtl();
+        let row = self.cell(COMMAND).union(self.cell(SHORTCUT));
+        let area = Flow::new(row, rtl).inset(Insets::horizontal(cx.style.pad));
+        if clicked(&ui.child("header", area, Link::new(name.to_owned()))) {
+            self.act = Some(RowAct::Toggle);
+        }
     }
 
     fn paint_fixed(&self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>, rtl: bool, area: Rect, fixed: &FixedLine) {
@@ -552,6 +556,11 @@ fn apply(env: &mut Env<'_>, state: &mut DialogState, now: f64, lines: &[Line], o
                     }
                 }
             }
+            CollectionEvent::Item(key, RowAct::Toggle) => {
+                if let Some(Line::Header { name, .. }) = lines.get(key) {
+                    state.toggle_group(name);
+                }
+            }
             CollectionEvent::Item(key, act) => {
                 let Some(Line::Row(row)) = lines.get(key) else { continue };
                 match act {
@@ -572,6 +581,7 @@ fn apply(env: &mut Env<'_>, state: &mut DialogState, now: f64, lines: &[Line], o
                             recording.started = true;
                         }
                     }
+                    RowAct::Toggle => {}
                 }
             }
             _ => {}
