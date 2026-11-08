@@ -760,7 +760,9 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                         if matches!(editor.event, Some(EditEvent::Commit { .. } | EditEvent::Cancel { .. })) {
                             self.refocus = focus::is_focused(&ctx, editor.response.id);
                         }
-                        // An Escape the editor left untaken (it holds no draft yet) cancels the rename.
+                        // The editor claims Escape for the whole rename, as a text part with a draft does: Escape does not leave the
+                        // row. One the editor leaves untaken (it holds no draft yet) cancels the rename.
+                        keys::hold_escape(&ctx, editor.response.id);
                         let escaped = editor.event.is_none() && focus::is_focused(&ctx, editor.response.id) && {
                             let mut intents = keys::intents_of(&ctx, Some(editor.response.id), rtl);
                             let left = intents.take(Intent::Cancel);
