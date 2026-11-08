@@ -768,7 +768,13 @@ impl CanvasTool for SelectMaskCanvasTool<'_> {
     fn command_form(&self) -> ToolPath {
         match self.tool {
             SelectMaskTool::Object => ToolPath::Command("the Select Subject command"),
-            _ => ToolPath::Freehand("none; a brush or lasso stroke follows the pointer"),
+            SelectMaskTool::Quick => ToolPath::Freehand("none; a quick selection stroke follows the pointer"),
+            SelectMaskTool::RefineEdge => ToolPath::Freehand("none; a refine edge stroke follows the pointer"),
+            SelectMaskTool::Brush => ToolPath::Freehand("none; a brush stroke follows the pointer"),
+            SelectMaskTool::Lasso => ToolPath::Freehand("none; a lasso stroke follows the pointer"),
+            SelectMaskTool::PolygonalLasso => ToolPath::Command("the Select Area... command"),
+            SelectMaskTool::Hand => ToolPath::Command("the scroll keys and the scroll bars"),
+            SelectMaskTool::Zoom => ToolPath::Command("the Zoom In, Zoom Out and Fit commands"),
         }
     }
 }

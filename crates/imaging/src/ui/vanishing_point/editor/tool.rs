@@ -53,6 +53,7 @@ impl<'a> VanishingPointTool<'a> {
 impl CanvasTool for VanishingPointTool<'_> {
     fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
         // pc: crates/ui-egui/src/dialogs/vp_ui.rs:658 `press`.
+        eprintln!("DIAG tool press {:?} {:?}", pointer.pos, pointer.mods);
         let (Some(p), words) = (Self::doc(cx, pointer), cx.words::<VanishingPointWords>()) else { return ToolAction::Ignored };
         match self.run(|work| work.background_down(p, pointer.mods, &words)) {
             Some(Pressed::Claimed) => ToolAction::Claimed,

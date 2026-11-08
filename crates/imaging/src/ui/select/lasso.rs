@@ -2,6 +2,7 @@
 
 use craft_behavior::geometry::{ConstrainStyle, DraftEvent, DraftKind, DraftPoint, DraftReach, OutlineDraft, SelectionOperation};
 use craft_behavior::{CancelReason, Cursor, PaintedCursor};
+use craft_keymap::{Key, Mods};
 use craft_ui::canvas::{CanvasTool, ToolAccess, ToolAction, ToolContext, ToolKey, ToolPath, ToolPointer};
 use craft_ui::primitives::{Draw, PaintShape, StrokeWidth, ToolIcon};
 use egui::{Pos2, Vec2};
@@ -121,8 +122,38 @@ pub(super) fn sample(pointer: &ToolPointer, place: &Place) -> DraftPoint {
     DraftPoint::new(place.doc(pointer.pos), pointer.mods, place.zoom())
 }
 
+/// What a key does to an open outline.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum DraftKey {
+    /// Enter.
+    Close,
+    /// Escape.
+    Cancel,
+    /// Backspace or Delete.
+    Retract,
+}
+
+/// The outline command a key is, with the modifiers it carries. The host sends the editing keys as `Submit`, `Cancel`
+/// and `Delete` while the tool has not kept the keyboard, and as the chord itself while it has (`keep_keys`). Chords
+/// with Cmd or Ctrl are the app's.
+pub(super) fn draft_command(key: &ToolKey, cx: &ToolContext<'_>) -> Option<(DraftKey, Mods)> {
+    let (command, mods) = match key {
+        ToolKey::Submit => (DraftKey::Close, cx.mods),
+        ToolKey::Cancel => (DraftKey::Cancel, cx.mods),
+        ToolKey::Delete { .. } => (DraftKey::Retract, cx.mods),
+        ToolKey::Kept(chord) => match chord.key {
+            Key::Enter => (DraftKey::Close, chord.mods),
+            Key::Escape => (DraftKey::Cancel, chord.mods),
+            Key::Backspace | Key::Delete => (DraftKey::Retract, chord.mods),
+            _ => return None,
+        },
+        _ => return None,
+    };
+    (!mods.cmd && !mods.ctrl).then_some((command, mods))
+}
+
 /// Enter closes, Escape cancels, Backspace and Delete retract, while the draft takes them. `true` when the key was
-/// taken.
+/// taken. Alt may be held: the Lasso retracts only between Alt clicks.
 pub(super) fn draft_key(
     draft: &mut OutlineDraft,
     key: &ToolKey,
@@ -135,18 +166,18 @@ pub(super) fn draft_key(
     if !draft.takes_retract() {
         return false;
     }
-    match key {
-        ToolKey::Submit if cx.mods.is_none() => {
+    let Some((command, _)) = draft_command(key, cx) else { return false };
+    match command {
+        DraftKey::Close => {
             let event = draft.close();
             apply(event, bar, has_selection, operation, report);
         }
-        ToolKey::Cancel => {
+        DraftKey::Cancel => {
             draft.cancel();
         }
-        ToolKey::Delete { .. } if cx.mods.is_none() => {
+        DraftKey::Retract => {
             draft.retract();
         }
-        _ => return false,
     }
     true
 }
