@@ -37,7 +37,10 @@ pub(super) fn exemption_is_known(case: &str) -> bool {
 fn required(probe: &Probe) -> Vec<Required> {
     let mut states = vec![Required::Default];
     if probe.carries_value() {
-        states.extend([Required::Mixed, Required::Invalid]);
+        states.push(Required::Mixed);
+        if probe.takes_input() {
+            states.push(Required::Invalid);
+        }
     }
     if matches!(probe.input, Input::Text | Input::Editor) {
         states.push(Required::LongText);

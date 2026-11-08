@@ -33,6 +33,7 @@ pub(super) enum Plan {
 /// (22.4 drivers).
 pub(super) fn plan(drive: Drive, probe: &Probe, fixture: &Fixture) -> Plan {
     match drive {
+        Drive::Auto if probe.carries_value() && !probe.takes_input() => Plan::Never,
         Drive::Auto if matches!(probe.input, Input::Text | Input::Editor) => Plan::Type("sample"),
         Drive::Auto if probe.overlay => Plan::Pick(1),
         Drive::Auto if probe.carries_value() => match fixture.drag_part() {
