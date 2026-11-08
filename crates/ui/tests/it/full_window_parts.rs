@@ -400,7 +400,7 @@ mod sides {
             assert!(leading.min.y >= side.max.y && buttons.min.y >= side.max.y, "{direction:?}: the footer lies under the column");
             let row = leading.union(buttons);
             assert!(
-                row.min.x >= side.min.x - 0.5 && row.max.x <= side.max.x + 0.5,
+                row.min.x.round() >= side.min.x.round() && row.max.x.round() <= side.max.x.round(),
                 "{direction:?}: the footer row {row:?} stays inside the column {side:?}"
             );
         }

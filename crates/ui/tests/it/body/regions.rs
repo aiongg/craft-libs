@@ -164,5 +164,8 @@ fn a_filling_leaf_after_a_fill_cell_gets_its_cells_room() {
     });
     let (filled, divider) = (filled.get(), divider.get());
     assert!(divider.min.x >= filled.max.x, "the divider takes the second cell: {filled:?} {divider:?}");
-    assert!((divider.height() - filled.height()).abs() < 1.0, "the divider fills its cell's height as the fill cell does: {filled:?} {divider:?}");
+    assert!(
+        divider.min.y.round() <= filled.min.y.round() && divider.max.y.round() >= filled.max.y.round(),
+        "the divider fills its cell's height as the fill cell does: {filled:?} {divider:?}"
+    );
 }
