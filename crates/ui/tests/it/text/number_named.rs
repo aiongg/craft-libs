@@ -36,7 +36,7 @@ fn rig() -> (Fixture, Rc<RefCell<NamedOr<Kerning>>>) {
     ];
     let mut fixture = Fixture::new(move |ui| {
         let mut guard = shown.borrow_mut();
-        NumberField::new("Kerning", Bind::bound(&mut *guard)).id_salt("kerning").presets(&presets).show(ui);
+        NumberField::named("Kerning", Bind::bound(&mut *guard)).id_salt("kerning").presets(&presets).show(ui);
     });
     fixture.settle();
     (fixture, value)

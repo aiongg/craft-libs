@@ -415,9 +415,20 @@ pub struct NumberField<'a, V: NumberValue + 'static = Option<f64>> {
     unit_size: Vec2,
 }
 
+impl<'a> NumberField<'a, Option<f64>> {
+    /// A number field named `label`; empty text is `None`.
+    pub fn new(label: impl Into<Label>, value: Bind<'a, Option<f64>>) -> Self {
+        Self::of(label, value)
+    }
+}
+
 impl<'a, V: NumberValue + 'static> NumberField<'a, V> {
-    /// A number field named `label`.
-    pub fn new(label: impl Into<Label>, value: Bind<'a, V>) -> Self {
+    /// A number field named `label` over a value of another type, such as [`NamedOr`].
+    pub fn named(label: impl Into<Label>, value: Bind<'a, V>) -> Self {
+        Self::of(label, value)
+    }
+
+    fn of(label: impl Into<Label>, value: Bind<'a, V>) -> Self {
         NumberField {
             common: Common::new(),
             value,
