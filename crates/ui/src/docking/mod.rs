@@ -5,7 +5,7 @@
 //! tab carries a `PanelDrag`; `SplitArea` is the drop target that says which group and side it lands on.
 
 mod config;
-pub(crate) mod divider;
+pub mod divider;
 mod drop;
 mod event;
 pub mod frame;
@@ -169,7 +169,7 @@ impl<P: Clone + PartialEq + Send + Sync + 'static> Outcome for SplitAreaOutput<P
 
 /// The docked tree of a layout, with a handle between neighbouring groups. Its body shows the groups, each at its
 /// frame (`tree::frames` with the same rules).
-#[derive(crate::contract::Component)]
+#[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container, probe(SplitArea<'static, usize>))]
 pub struct SplitArea<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> {
     #[common]
@@ -178,13 +178,17 @@ pub struct SplitArea<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> {
     props: ContainerProps,
     layout: Bind<'a, Layout<P>>,
     rules: FrameRules<'a, P>,
+    /// The accessibility name of the area's dividers, for a split whose dividers are not "Resize panels": "Resize
+    /// preview", "Resize timeline".
+    #[prop(into)]
+    divider_label: Option<Label>,
 }
 
 impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> SplitArea<'a, P> {
     /// A split area named `label` over `layout`, sized by `rules`. A mixed layout shows no handles.
     pub fn new(label: impl Into<Label>, layout: Bind<'a, Layout<P>>, rules: FrameRules<'a, P>) -> Self {
         let props = ContainerProps::new().arena(true).sizing(Sizing::Fill).pad(Pad::None);
-        SplitArea { common: Common::new(), props, layout, rules }.label(label)
+        SplitArea { common: Common::new(), props, layout, rules, divider_label: None }.label(label)
     }
 
     /// A two-body area: `bodies.0` first along `axis` and `bodies.1` after it, with one divider between them. The first
@@ -358,7 +362,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Component for SplitAr
         let Some(layout) = cx.value() else { return };
         let (rect, rtl, sizes) = (cx.rect, cx.flow.is_rtl(), cx.style.sizes);
         let words = cx.words::<DockWords>();
-        let name = words.resize.as_str();
+        let given = self.divider_label.as_ref().map(|label| cx.env.resolve(label));
+        let name = given.as_ref().map_or_else(|| words.resize.as_str(), Label::as_str);
         for (at, handle) in handles(layout, rect, &sizes, &self.rules, rtl).iter().enumerate() {
             let divider = divider_of(layout, handle, rect, &sizes, &self.rules, rtl, true);
             divider::describe(access, HANDLE, at as u64, &divider, name, sizes.step);
