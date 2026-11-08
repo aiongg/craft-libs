@@ -44,7 +44,7 @@ name = "CharacterValues"
 old = "craft_text::ui::character::CharacterValues"
 new = "craft_text::ui::character::CharacterValues"
 status = "same"
-note = "`color` is `Option<craft_theme::Rgba>`, not `Option<egui::Color32>`."
+note = "`color` is `Option<craft_theme::Rgba>`, not `Option<egui::Color32>`. The struct is `#[non_exhaustive]`: build it from `CharacterValues::default()` and set its fields (`let mut v = CharacterValues::default(); v.field = ..`)."
 
 [[type]]
 name = "CharacterChange"
@@ -135,6 +135,7 @@ name = "ParagraphFormat"
 old = "craft_text::ui::character::ParagraphFormat"
 new = "craft_text::ui::character::ParagraphFormat"
 status = "same"
+note = "The struct is `#[non_exhaustive]`: build it from `ParagraphFormat::default()` and set its fields (`let mut v = ParagraphFormat::default(); v.field = ..`)."
 
 [[type]]
 name = "ParagraphPreview"
@@ -196,3 +197,10 @@ type = "ParagraphDialog"
 old = "labels(ParagraphDialogLabels)"
 new = ""
 note = "Words come from the scope."
+
+[[type]]
+name = "ParagraphValues"
+old = "craft_text::ui::character::ParagraphValues"
+new = "craft_text::ui::character::ParagraphValues"
+status = "same"
+note = "The struct is `#[non_exhaustive]`: build it from `ParagraphValues::default()` and set its fields (`let mut v = ParagraphValues::default(); v.field = ..`)."

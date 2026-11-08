@@ -118,13 +118,13 @@ impl Rig {
 
     /// Presses the control named `name`.
     fn click(&mut self, name: &str) {
-        let target = self.fx.control(name).unwrap_or_else(|| panic!("no control `{name}` on screen"));
+        let target = self.fx.by_label(name).unwrap_or_else(|| panic!("no control `{name}` on screen"));
         self.fx.click(&target);
         self.fx.settle();
     }
 
     fn type_into(&mut self, name: &str, text: &str) {
-        let target = self.fx.control(name).unwrap_or_else(|| panic!("no field `{name}` on screen"));
+        let target = self.fx.by_label(name).unwrap_or_else(|| panic!("no field `{name}` on screen"));
         self.fx.click(&target);
         self.fx.type_text(text);
         self.fx.settle();
@@ -260,9 +260,9 @@ fn system_fonts_cannot_be_removed() {
     rig.installed_tab();
     let system = rig.panel.borrow().installed().first().cloned().expect("the system font is listed");
     assert_eq!(system.source, Source::System);
-    assert!(rig.fx.control("Remove").is_none(), "a system family has no Remove on its card");
+    assert!(rig.fx.by_label("Remove").is_none(), "a system family has no Remove on its card");
     rig.open(&system.name);
-    let remove = rig.fx.control("Remove all").expect("the sheet offers Remove all");
+    let remove = rig.fx.by_label("Remove all").expect("the sheet offers Remove all");
     assert!(rig.fx.tree().is_disabled_key(remove.node));
     rig.fx.click(&remove);
     rig.fx.settle();
@@ -395,7 +395,7 @@ fn an_added_source_is_not_curated_and_can_be_removed() {
     rig.wait(|panel| !panel.fetching_sources());
     assert!(rig.present("Changed since added"));
 
-    let remove = rig.fx.control("Remove").expect("the source offers Remove");
+    let remove = rig.fx.by_label("Remove").expect("the source offers Remove");
     rig.fx.click(&remove);
     rig.fx.settle();
     assert_eq!(rig.results().len(), 4);

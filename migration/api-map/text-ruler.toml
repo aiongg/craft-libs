@@ -30,12 +30,14 @@ name = "RulerValues"
 old = "craft_text::ui::ruler::RulerValues"
 new = "craft_text::ui::ruler::RulerValues"
 status = "same"
+note = "The struct is `#[non_exhaustive]`: build it from `RulerValues::default()` and set its fields (`let mut v = RulerValues::default(); v.field = ..`)."
 
 [[type]]
 name = "TabStop"
 old = "craft_text::ui::ruler::TabStop"
 new = "craft_text::ui::ruler::TabStop"
 status = "same"
+note = "The struct is `#[non_exhaustive]`: build it with `TabStop::new(position, align, leader)`."
 
 [[type]]
 name = "TabAlign"
@@ -54,6 +56,7 @@ name = "ColumnBorder"
 old = "craft_text::ui::ruler::ColumnBorder"
 new = "craft_text::ui::ruler::ColumnBorder"
 status = "same"
+note = "The struct is `#[non_exhaustive]`: build it with `ColumnBorder::new(index, position)`."
 
 [[type]]
 name = "TabStopsDialog"
@@ -73,6 +76,7 @@ name = "TabStopsResult"
 old = "craft_text::ui::tabs_dialog::TabStopsResult"
 new = "craft_text::ui::tabs_dialog::TabStopsResult"
 status = "same"
+note = "The struct is `#[non_exhaustive]`: build it from `TabStopsResult::default()` and set its fields (`let mut v = TabStopsResult::default(); v.field = ..`)."
 
 [[type]]
 name = "TextColumnsDialog"
@@ -92,6 +96,7 @@ name = "TextColumns"
 old = "craft_text::ui::columns::TextColumns"
 new = "craft_text::ui::columns::TextColumns"
 status = "same"
+note = "The struct is `#[non_exhaustive]`: build it from `TextColumns::default()` and set its fields (`let mut v = TextColumns::default(); v.field = ..`)."
 
 [[type]]
 name = "ColumnsApply"
@@ -146,3 +151,10 @@ type = "TextColumnsDialog"
 old = "labels(TextColumnsLabels)"
 new = ""
 note = "Words come from the scope."
+
+[[type]]
+name = "PreviewPlan"
+old = "craft_text::ui::columns::PreviewPlan"
+new = "craft_text::ui::columns::PreviewPlan"
+status = "same"
+note = "The struct is `#[non_exhaustive]`: `preview_plan` builds it; read its fields."
