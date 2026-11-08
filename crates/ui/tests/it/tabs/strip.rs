@@ -141,3 +141,32 @@ fn ctrl_tab_switches_the_tabs_of_a_focused_strip() {
     fixture.settle();
     assert_eq!(shown.get(), TITLES.len() - 1, "Ctrl+Shift+Tab goes back");
 }
+
+/// A strip scrolls along its tabs only, so it sits in a dialog body that scrolls vertically and Ctrl+Tab still
+/// switches its tabs.
+#[trial]
+fn a_strip_in_a_dialog_body_switches_pages() {
+    use craft_ui::contract::Bind;
+    use craft_ui::dialog::Dialog;
+    use craft_ui::runtime::focus::Initial;
+    use egui::{Key, Modifiers};
+
+    let shown = Rc::new(std::cell::Cell::new(0));
+    let seen = shown.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let mut open = true;
+        Dialog::new("Pages").opened(Bind::bound(&mut open)).initial_focus(Initial::First).show(ui, |ui, _| {
+            let out = TabStrip::new("Documents").shown(seen.get()).show_items(ui, &Titles, &mut |key, _| Tab::new(TITLES[*key]));
+            for event in out.response.events {
+                if let CollectionEvent::Selection(SelectionChange::Set(keys)) = event {
+                    seen.set(keys[0]);
+                }
+            }
+        });
+    });
+    fixture.room(WIDE);
+    fixture.settle();
+    fixture.key(Key::Tab, Modifiers::CTRL);
+    fixture.settle();
+    assert_eq!(shown.get(), 1, "Ctrl+Tab selects the next tab");
+}

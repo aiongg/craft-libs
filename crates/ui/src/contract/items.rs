@@ -132,6 +132,8 @@ pub(super) struct ItemsHooks<'s, 'r, C: Collection> {
     content: Vec2,
     room: Vec2,
     scrolls: bool,
+    /// The axis the rows overflow along.
+    overflow: Axis,
     selection: C::Selection,
     selection_at_read: C::Selection,
     events: Vec<CollectionEvent<C::Key, C::ItemEvent>>,
@@ -173,6 +175,7 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
             content: Vec2::ZERO,
             room: Vec2::ZERO,
             scrolls: true,
+            overflow: Axis::Y,
             selection: C::Selection::default(),
             selection_at_read: C::Selection::default(),
             events: Vec::new(),
@@ -320,11 +323,16 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
     fn read(&mut self, comp: &mut C, stage: &mut MemoryStage, id: Id, env: &Env) {
         let ctx = stage.ctx().clone();
         let natural = comp.items().natural_height;
+        // The scroll along the rows' overflow axis belongs to the collection: a body that scrolls along it too is a
+        // second owner.
+        let overflow = comp.items().overflow;
+        let shared = env.scroll_owner.is_some() && if overflow == Axis::X { env.unbounded.0 } else { env.unbounded.1 };
         debug_assert!(
-            natural || env.scroll_owner.is_none(),
-            "a collection owns its scroll: show it outside a scrolling body, or give it the natural height (16.3)"
+            !shared || natural,
+            "a collection owns its scroll: show it outside a body that scrolls along its rows, or give it the natural height (16.3)"
         );
-        self.scrolls = !natural && env.scroll_owner.is_none();
+        self.scrolls = !natural && !shared;
+        self.overflow = overflow;
         self.selection = match comp.selection() {
             Some(bind) => match bind.get() {
                 Some(Mixed::Same(held)) => held,
@@ -482,7 +490,11 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         pcx.scroll(SCROLL, track, Axis::Y, span);
         wheel::register(
             &ctx,
-            WheelTaker::new(pcx.id, view).vertical(true).horizontal(self.content.x > view.width()).scrolls(true).zoom(comp.zooms()),
+            WheelTaker::new(pcx.id, view)
+                .vertical(self.overflow == Axis::Y)
+                .horizontal(self.content.x > view.width())
+                .scrolls(true)
+                .zoom(comp.zooms()),
         );
     }
 

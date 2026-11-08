@@ -2,7 +2,7 @@
 
 use crate::runtime::drag::OsFile;
 use crate::runtime::env::Label;
-use craft_behavior::{ColumnKey, ColumnWidth, DropOperation, EditEvent, SelectionChange};
+use craft_behavior::{Axis, ColumnKey, ColumnWidth, DropOperation, EditEvent, SelectionChange};
 use egui::{Id, Pos2, Response, Vec2};
 use std::any::Any;
 use std::ops::Range;
@@ -348,6 +348,9 @@ pub struct CollectionProps {
     /// the lead scrolls the page to keep the row in view. For short collections only; a long one keeps its own
     /// scroll and is shown outside a scrolling body (16.3).
     pub natural_height: bool,
+    /// The axis the rows overflow along. A collection owns the scroll along it, so it sits only in a scrolling body
+    /// that does not scroll along it too: a strip of tabs (`Axis::X`) sits in a page that scrolls vertically.
+    pub overflow: Axis,
     /// The collection's items are pages: Ctrl+Tab and Ctrl+Shift+Tab (and the platform's other page-switch keys) move
     /// the lead and the selection to the next and previous item, wrapping at the ends.
     pub pages: bool,
@@ -419,6 +422,7 @@ impl CollectionProps {
             deletable: false,
             drag_payload: None,
             natural_height: false,
+            overflow: Axis::Y,
             pages: false,
             current: None,
         }
@@ -584,6 +588,13 @@ impl CollectionProps {
     #[must_use]
     pub const fn natural_height(mut self, on: bool) -> Self {
         self.natural_height = on;
+        self
+    }
+
+    /// The axis the rows overflow along (see [`CollectionProps::overflow`]).
+    #[must_use]
+    pub const fn overflow(mut self, axis: Axis) -> Self {
+        self.overflow = axis;
         self
     }
 
