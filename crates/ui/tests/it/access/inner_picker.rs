@@ -3,7 +3,7 @@
 
 use crate::contract::kit::PlainStyle;
 use craft_behavior::{Mixed, Sense};
-use craft_ui::contract::{Bind, Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role, Show as _};
+use craft_ui::contract::{Bind, Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role, Show as _, WordSetCx as _};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::access::{NodeKey, focused_key, name};
 use craft_ui::testing::{Fixture, trial};
