@@ -174,7 +174,7 @@ fn a_row_can_return_to_the_sequence_display() {
 #[trial]
 fn panel_rows_can_be_added_and_removed() {
     let mut rig = panel(vec![TimecodeRow::default()]);
-    let add = rig.fixture.control("Add a timecode row").expect("the add button");
+    let add = rig.fixture.by_label("Add a timecode row").expect("the add button");
     rig.fixture.click(&add);
     assert_eq!(rig.settings.borrow().rows.len(), 2);
     assert_eq!(rig.changed.get(), 1);
@@ -216,7 +216,7 @@ fn buttons_report_presses_and_show_pause_while_playing() {
     assert_eq!(TransportButton::PlayStop.icon(true), IconId::new("pause"));
     let mut rig = bar();
     for label in ["Play-Stop Toggle (Space)", "Mark In (I)"] {
-        let button = rig.fixture.control(label).expect("the button");
+        let button = rig.fixture.by_label(label).expect("the button");
         rig.fixture.click(&button);
     }
     assert_eq!(*rig.pressed.borrow(), [TransportButton::PlayStop, TransportButton::MarkIn]);
@@ -228,10 +228,10 @@ fn hidden_buttons_are_left_out_and_the_editor_changes_them() {
     let mut rig = bar();
     rig.settings.borrow_mut().hidden.push(TransportButton::Loop);
     rig.fixture.settle();
-    assert!(rig.fixture.control("Loop").is_none());
-    assert!(rig.fixture.control("Mark In (I)").is_some());
+    assert!(rig.fixture.by_label("Loop").is_none());
+    assert!(rig.fixture.by_label("Mark In (I)").is_some());
 
-    let editor = rig.fixture.control("Button Editor").expect("the editor button");
+    let editor = rig.fixture.by_label("Button Editor").expect("the editor button");
     rig.fixture.click(&editor);
     rig.fixture.idle(2);
     let check = rig.fixture.by_role(Role::CHECK_BOX).into_iter().find(|t| rig.fixture.tree().name_of(t.node) == Some("Mark In (I)")).unwrap();
@@ -239,7 +239,7 @@ fn hidden_buttons_are_left_out_and_the_editor_changes_them() {
     assert_eq!(rig.settings.borrow().hidden, [TransportButton::Loop, TransportButton::MarkIn]);
     assert_eq!(rig.changed.get(), 1);
 
-    let reset = rig.fixture.control("Reset").expect("Reset");
+    let reset = rig.fixture.by_label("Reset").expect("Reset");
     rig.fixture.click(&reset);
     assert!(rig.settings.borrow().hidden.is_empty());
     assert_eq!(rig.changed.get(), 2);
@@ -260,7 +260,7 @@ fn media_controls_toggle_nudge_and_seek() {
     });
     fixture.settle();
     for label in ["Play or pause media", "Back 0.25 seconds", "Forward 0.25 seconds"] {
-        let button = fixture.control(label).expect("the button");
+        let button = fixture.by_label(label).expect("the button");
         fixture.click(&button);
     }
     assert_eq!(toggles.get(), 1);

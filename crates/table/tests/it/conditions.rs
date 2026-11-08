@@ -70,7 +70,7 @@ fn build(group: ConditionGroup) -> (Fixture, Rc<RefCell<ConditionGroup>>) {
 #[trial]
 fn changing_the_field_resets_operator_and_value() {
     let (mut fixture, state) = build(one_rule());
-    let field = fixture.control("Field").expect("the field menu");
+    let field = fixture.by_label("Field").expect("the field menu");
     fixture.click(&field);
     fixture.idle(2);
     let choice = fixture.by_label("File name").expect("the field's entry");
@@ -84,12 +84,12 @@ fn changing_the_field_resets_operator_and_value() {
 #[trial]
 fn plus_adds_a_rule_and_alt_plus_a_group() {
     let (mut fixture, state) = build(one_rule());
-    let plus = fixture.control(ADD).expect("a + button");
+    let plus = fixture.by_label(ADD).expect("a + button");
     fixture.click(&plus);
     fixture.idle(2);
     assert_eq!(state.borrow().items.len(), 2);
     assert!(matches!(state.borrow().items[1], ConditionItem::Rule(_)));
-    let plus = fixture.control(ADD).expect("a + button");
+    let plus = fixture.by_label(ADD).expect("a + button");
     fixture.hold(Modifiers::ALT);
     fixture.click(&plus);
     fixture.hold(Modifiers::NONE);
@@ -103,11 +103,11 @@ fn minus_removes_rules_and_groups() {
     let inner = ConditionGroup::new(Match::Any, vec![rule("name", "is", ConditionValue::Text("a".into()))]);
     let group = ConditionGroup::new(Match::All, vec![rule("rating", "gte", ConditionValue::Number(1.0)), ConditionItem::Group(inner)]);
     let (mut fixture, state) = build(group);
-    let minus = fixture.control("Remove this group").expect("a group's −");
+    let minus = fixture.by_label("Remove this group").expect("a group's −");
     fixture.click(&minus);
     fixture.idle(2);
     assert_eq!(state.borrow().items.len(), 1);
-    let minus = fixture.control("Remove this rule").expect("a rule's −");
+    let minus = fixture.by_label("Remove this rule").expect("a rule's −");
     fixture.click(&minus);
     fixture.idle(2);
     assert!(state.borrow().items.is_empty());
