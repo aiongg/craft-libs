@@ -4,6 +4,7 @@ craft-browse ui
 craft-dialogs ui
 craft-layers
 craft-menu
+craft-pages ui
 craft-print ui
 craft-table ui
 craft-theme-store ui
