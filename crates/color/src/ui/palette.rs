@@ -76,7 +76,7 @@ impl<'a> SwatchPalette<'a> {
             let before = held.read(cx)?;
             let selected = swatches.iter().position(|(_, c)| c.to_rgba() == before.to_rgba());
             let current = selected.map_or_else(Selection::default, Selection::single);
-            let table = SwatchTable::new(label.clone(), swatches).named_tooltips(true).selection(Bind::given(current)).show_all(ui);
+            let table = SwatchTable::new(label.clone(), swatches).tips(true).selection(Bind::given(current)).show_all(ui);
             let picked = table.selected.or(table.open)?;
             let after = swatches.get(picked)?.1;
             if after.to_rgba() == before.to_rgba() {
@@ -233,6 +233,7 @@ pub struct SwatchTable<'a> {
     #[prop]
     per_row: Option<usize>,
     /// Whether each cell's name is its tooltip.
+    #[prop]
     tips: bool,
 }
 
@@ -255,13 +256,6 @@ impl<'a> SwatchTable<'a> {
     #[must_use]
     pub fn multiple(mut self, on: bool) -> Self {
         self.items = self.items.select(if on { SelectMode::Multi } else { SelectMode::Single });
-        self
-    }
-
-    /// Whether each cell's name is its tooltip.
-    #[must_use]
-    pub(crate) fn named_tooltips(mut self, on: bool) -> Self {
-        self.tips = on;
         self
     }
 
