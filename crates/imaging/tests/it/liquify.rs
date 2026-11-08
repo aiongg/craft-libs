@@ -248,7 +248,8 @@ fn liquify_brush_outline_follows_the_pointer_except_while_resizing() {
     let on = canvas_point(&fixture, Vec2::ZERO);
     fixture.frame(vec![pointer::moved(on)]);
     assert!(outline(&app), "the outline is the pointer over the canvas");
-    fixture.frame(vec![pointer::moved(Pos2::new(990.0, 10.0))]);
+    let canvas = fixture.by_role(Role::CANVAS).into_iter().next().expect("the workspace shows a canvas");
+    fixture.frame(vec![pointer::moved(canvas.rect.min - by(1.0, 1.0))]);
     assert!(!outline(&app), "no outline off the canvas");
 
     let anchor = on + by(20.0, 20.0);

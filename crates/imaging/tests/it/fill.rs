@@ -101,6 +101,7 @@ impl Rig {
         let work = Rc::new(RefCell::new(ContentAwareFillWorkspace::new(open)));
         let outputs = Rc::new(RefCell::new(Vec::new()));
         let (shown, kept) = (Rc::clone(&work), Rc::clone(&outputs));
+        std::panic::set_hook(Box::new(|info| eprintln!("DIAG {info}\n{}", std::backtrace::Backtrace::force_capture())));
         let mut fixture = Fixture::new(move |ui| {
             let output = shown.borrow_mut().show(ui, &Source);
             kept.borrow_mut().push(output);
