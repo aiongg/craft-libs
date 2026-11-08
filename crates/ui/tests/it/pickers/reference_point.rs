@@ -4,7 +4,7 @@
 use craft_behavior::{Anchor9, Mixed, PartKey};
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::choice::Checkbox;
-use craft_ui::contract::{Bind, Props as _, Role, Show as _};
+use craft_ui::contract::{Bind, Props as _, Role, Show as _, ShowContainer as _};
 use craft_ui::pickers::ReferencePoint;
 use craft_ui::testing::focus::active_part;
 use craft_ui::testing::{Fixture, trial};
