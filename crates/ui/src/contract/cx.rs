@@ -602,7 +602,7 @@ impl Styled for CxCore<'_> {
         self.assert_stated();
         let hovered = self.response.hovered() && !self.results.values().any(|result| result.hovered);
         let pressed = self.press.phase.is_press();
-        let state = if !self.resolved.enabled || result.inactive {
+        let state = if !self.resolved.enabled {
             craft_theme::State::Disabled
         } else if pressed {
             craft_theme::State::Pressed
