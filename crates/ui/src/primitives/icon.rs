@@ -44,6 +44,9 @@ pub enum IconSource<'a> {
     Glyph(&'a dyn Glyph),
     /// A colour from data, painted as a swatch (a guide colour, a matte colour).
     Swatch(Srgba),
+    /// A filled circle as wide as the icon's square, in the spec's colour or ink (`IconSpec::data_color` for a colour
+    /// from data).
+    Disc,
 }
 
 impl std::fmt::Debug for IconSource<'_> {
@@ -52,6 +55,7 @@ impl std::fmt::Debug for IconSource<'_> {
             IconSource::Svg(id) => f.debug_tuple("Svg").field(id).finish(),
             IconSource::Glyph(_) => f.write_str("Glyph(..)"),
             IconSource::Swatch(color) => f.debug_tuple("Swatch").field(color).finish(),
+            IconSource::Disc => f.write_str("Disc"),
         }
     }
 }
@@ -63,6 +67,7 @@ impl PartialEq for IconSource<'_> {
             (IconSource::Svg(a), IconSource::Svg(b)) => a == b,
             (IconSource::Glyph(a), IconSource::Glyph(b)) => std::ptr::addr_eq(*a, *b),
             (IconSource::Swatch(a), IconSource::Swatch(b)) => a == b,
+            (IconSource::Disc, IconSource::Disc) => true,
             _ => false,
         }
     }
@@ -98,6 +103,12 @@ impl<'a> IconSpec<'a> {
     /// A swatch of `color`, painted by [`Draw::data_fill`](super::Draw::data_fill).
     pub fn swatch(color: Srgba) -> Self {
         IconSpec { source: IconSource::Swatch(color), ink: Ink::OnPanel, color: None, mirror: Mirror::Never, set: IconSet::default() }
+    }
+
+    /// A filled circle in the panel ink, or in the colour [`color`](Self::color) or [`data_color`](Self::data_color)
+    /// sets (a status dot, a person's dot).
+    pub fn disc() -> Self {
+        IconSpec { source: IconSource::Disc, ink: Ink::OnPanel, color: None, mirror: Mirror::Never, set: IconSet::default() }
     }
 
     /// Sets the ink.
@@ -158,6 +169,9 @@ pub(crate) fn paint(painter: &Painter, tokens: &UiTokens, direction: Direction, 
     match &spec.source {
         // `Draw::icon` paints swatches with the data-colour fill.
         IconSource::Swatch(_) => {}
+        IconSource::Disc => {
+            painter.circle_filled(square.center(), side / 2.0, color);
+        }
         IconSource::Glyph(glyph) => glyph.paint(painter, square, color, rtl && glyph.directional() && spec.mirror == Mirror::Auto),
         IconSource::Svg(id) => {
             let Some(index) = svg_set::find(id.name()) else {

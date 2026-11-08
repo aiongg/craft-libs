@@ -59,3 +59,12 @@ fn list_row_trailing_items_narrow(ui: &mut Ui, _: &mut StoryData) -> StoryOutput
     ui.set_max_width(ui.available_width() * 0.3);
     show_as_only_item(ui, trailing_row()).into()
 }
+
+#[story(ListRow<'static>, covers = [], drive = Drive::Never)]
+fn list_row_clamped_description_with_rail(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    let text = "Retouched the sky, then rebuilt the horizon from the second exposure and matched its grain and tone to the foreground";
+    let row = ListRow::new("Version 3").lines(text).line_limit(3).lead_painter(|cx, rect| {
+        cx.painter.circle_filled(rect.center(), rect.width() / 4.0, cx.ink());
+    });
+    show_as_only_item(ui, row).into()
+}

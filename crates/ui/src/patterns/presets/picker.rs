@@ -14,22 +14,23 @@ use super::footer::PresetFooterOptions;
 use super::model::{CellShape, PresetRow, ThumbInfo};
 use super::state::{DefaultOpen, PresetState, PresetView};
 use super::words::PresetWords;
-use crate::buttons::Button;
 use crate::contract::{
     Access, Bind, BindMut, BodyCx, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi,
     PartsCx, Pointer as _, Props as _, Role, Show as _, ShowContainer as _, WordSetCx as _, clicked,
 };
 use crate::display::Divider;
 use crate::layout_components::Stack;
-use crate::list::RowTest;
+use crate::list::{ListRow, RowTest};
 use crate::pickers::{SelectFace, toggle_on_key};
 use crate::primitives::ContentPainterCx;
 use crate::runtime::env::{EnvView, Label};
 use crate::runtime::memory::StageAccess;
 use crate::style::{ComponentStyle, FocusLook, StyleCx, SurfaceLook};
 use crate::tile_grid::TileZoom;
-use craft_behavior::{CancelReason, GesturePhase, HitLevel, HitPriority, Metrics, PartKey, PressPhase, Sense, Value};
-use craft_theme::Variant;
+use craft_behavior::{
+    CancelReason, DisplayOrder, GesturePhase, HitLevel, HitPriority, ItemSource, Metrics, PartKey, PressPhase, Selection, SelectionChange, Sense,
+    Value,
+};
 use egui::{Rect, Response, Ui, Vec2};
 use std::hash::Hash;
 
@@ -395,10 +396,10 @@ impl<K: Value + Eq + Hash + 'static> Component for PresetPicker<'_, K> {
             let actions = |ui: &mut Ui, _: &mut BodyCx<'_>| {
                 Divider::horizontal().show(ui);
                 if let Some(label) = create_row {
-                    chosen.0 = clicked(&Button::new(label.clone()).id_salt("create").variant(Variant::GHOST).show(ui));
+                    chosen.0 = clicked(&ListRow::new(label.clone()).id_salt("create").show(ui).response);
                 }
                 if let Some(label) = detach_row {
-                    chosen.1 = clicked(&Button::new(label.clone()).id_salt("detach").variant(Variant::GHOST).show(ui));
+                    chosen.1 = clicked(&ListRow::new(label.clone()).id_salt("detach").show(ui).response);
                 }
             };
             let mut stack = Stack::new();
