@@ -63,7 +63,9 @@ fn icon_flyout_control(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 fn flyout_of(ui: &mut Ui, open: Bind<'_, Option<u8>>) -> StoryOutput {
     let column = Column::new(vec![Group::new(vec![0, 1], 0)], 240.0);
     IconicColumn::new("Panels", global("iconic column", "value story"), &column, open, &spec)
-        .show_flyouts(ui, |_, rect, ui, _| Panel::new("Panel").show_at(ui, rect, |_, _| ()))
+        .show_flyouts(ui, |_, rect, ui, _| {
+            Panel::new("Panel").show_at(ui, rect, |_, _| ());
+        })
         .into()
 }
 
