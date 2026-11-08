@@ -51,6 +51,80 @@ jobs:
         run: |
           set -o pipefail
           cargo run -q -p craft-design-lint -- structure --config design-lint.toml 2>&1 | tee -a check.log
+      - name: "Domain crates: cargo check"
+        if: ${{ !cancelled() && hashFiles('migration/check-crates.txt') != '' }}
+        run: |
+          set -o pipefail
+          mapfile -t lines < <(grep -vE '^[[:space:]]*(#|$)' migration/check-crates.txt || true)
+          if [ "${#lines[@]}" -eq 0 ]; then
+            echo "no domain crates listed" | tee -a check.log
+            exit 0
+          fi
+          meta="$RUNNER_TEMP/metadata.json"
+          cargo metadata --no-deps --format-version 1 --locked > "$meta"
+          pkgs=()
+          feats=()
+          for line in "${lines[@]}"; do
+            read -r pkg fl <<< "$line"
+            if ! jq -e --arg p "$pkg" '.packages[] | select(.name == $p)' "$meta" > /dev/null; then
+              echo "error: check-crates.txt: no workspace package $pkg" | tee -a check.log
+              exit 1
+            fi
+            [ "$pkg" = craft-ui ] || pkgs+=(-p "$pkg")
+            IFS=, read -ra fs <<< "$fl"
+            for f in "${fs[@]}"; do
+              [ -n "$f" ] && [ "$f" != screen-testing ] && feats+=("$pkg/$f")
+            done
+            if jq -e --arg p "$pkg" '.packages[] | select(.name == $p) | .features | has("screen-testing")' "$meta" > /dev/null; then
+              feats+=("$pkg/screen-testing")
+            fi
+          done
+          feats+=(craft-ui/testing)
+          list=$(IFS=,; echo "${feats[*]}")
+          echo "cargo check -p craft-ui ${pkgs[*]} --features $list" | tee -a check.log
+          cargo check -p craft-ui "${pkgs[@]}" --all-targets --features "$list" --locked --message-format short 2>&1 | tee -a check.log
+      - name: "Domain crates: structure lint"
+        if: ${{ !cancelled() && hashFiles('migration/check-crates.txt') != '' }}
+        run: |
+          set -o pipefail
+          mapfile -t lines < <(grep -vE '^[[:space:]]*(#|$)' migration/check-crates.txt || true)
+          if [ "${#lines[@]}" -eq 0 ]; then
+            echo "no domain crates listed" | tee -a check.log
+            exit 0
+          fi
+          adds=""
+          for line in "${lines[@]}"; do
+            read -r pkg _ <<< "$line"
+            if [ -d "design/layers/$pkg" ]; then
+              echo "layer map of $pkg is merged" | tee -a check.log
+              continue
+            fi
+            pending="migration/domain-lint/$pkg"
+            if [ ! -f "$pending/crate.toml" ]; then
+              echo "error: no layer map for $pkg" | tee -a check.log
+              exit 1
+            fi
+            mkdir -p "design/layers/$pkg"
+            cp "$pending"/*.toml "design/layers/$pkg/"
+            echo "layer map of $pkg copied from $pending" | tee -a check.log
+            if [ -f "$pending/paths.txt" ]; then
+              while IFS= read -r path; do
+                [ -n "$path" ] || continue
+                if [ -e "$path" ]; then
+                  adds="$adds\"$path\", "
+                else
+                  echo "lint path $path does not exist yet" | tee -a check.log
+                fi
+              done < "$pending/paths.txt"
+            fi
+          done
+          if [ "$(grep -cE '^paths = \[' design-lint.toml)" -ne 1 ]; then
+            echo "error: design-lint.toml: expected one single-line paths entry" | tee -a check.log
+            exit 1
+          fi
+          sed -E "s|^paths = \[|paths = [$adds|" design-lint.toml > design-lint.domain.toml
+          { echo "generated design-lint.domain.toml:"; grep -E '^paths = ' design-lint.domain.toml; } | tee -a check.log
+          cargo run -q -p craft-design-lint --locked -- structure --config design-lint.domain.toml 2>&1 | tee -a check.log
       - name: Summary
         if: always()
         run: bash .github/ci/check-summary.sh check.log >> "$GITHUB_STEP_SUMMARY"
