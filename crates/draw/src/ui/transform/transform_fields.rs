@@ -319,8 +319,8 @@ pub(crate) fn size_unit_of(unit: UnitKind, ruler: RulerText, points: f64) -> Siz
         return SizeUnit::default();
     }
     let per_doc = unit.from_pixels(1.0, NO_SIDE, pixels_per_inch(ruler, points), points).unwrap_or(1.0);
-    let axis = RulerText::new(RulerUnits::new(per_doc, craft_behavior::Ticks::Decimal { whole: unit == UnitKind::Pixels }), unit);
-    SizeUnit::Length { x: axis, y: axis }
+    let axis = RulerText::new(RulerUnits::new(per_doc, craft_behavior::Ticks::decimal(unit == UnitKind::Pixels)), unit);
+    SizeUnit::length(axis, axis)
 }
 
 fn nonzero(v: f64) -> f64 {
@@ -576,7 +576,7 @@ impl Cells<'_> {
         let mut picked = None;
         Field::new(name.clone()).id_salt(field.key()).enabled(self.enabled).side(side).sizing(Sizing::Content).show(ui, |ui, _| {
             let mut number =
-                NumberField::new(name.clone(), Bind::given(Some(current))).range(-bound..=bound).codec(codec).unit(unit).scrub_by_label();
+                NumberField::new(name.clone(), Bind::given(Some(current))).range(-bound..=bound).codec(codec.clone()).unit(unit.clone()).scrub_by_label();
             if percent {
                 number = number.commit_decimals(decimals);
             }

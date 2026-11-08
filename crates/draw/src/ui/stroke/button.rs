@@ -3,7 +3,7 @@
 use craft_behavior::{EditEvent, GestureId, HitLevel, HitPriority, Mixed, PartKey, Sense};
 use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx,
-    Props as _, Role, Show as _, WordSetCx as _,
+    Pointer as _, Props as _, Role, Show as _, WordSetCx as _,
 };
 use craft_ui::display::Text;
 use craft_ui::list::ThumbAspect;

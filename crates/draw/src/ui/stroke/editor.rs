@@ -211,7 +211,7 @@ fn checked(event: EditEvent<StrokeStyle>) -> Option<EditEvent<StrokeStyle>> {
     match event {
         EditEvent::Update { ref value, .. } if !valid(value) => None,
         EditEvent::Set { ref after, .. } if !valid(after) => None,
-        EditEvent::Commit { id, before, ref after } if !valid(after) => Some(EditEvent::cancel(id, CancelReason::Refused, Some(before))),
+        EditEvent::Commit { id, before, ref after, .. } if !valid(after) => Some(EditEvent::cancel(id, CancelReason::Refused, Some(before))),
         event => Some(event),
     }
 }
@@ -384,7 +384,7 @@ impl Body<'_> {
             Field::new(row.label.clone()).id_salt(("row", row.id.as_str())).show(ui, |ui, _| {
                 let mut select = Select::new(row.label.clone(), Bind::given(current.clone()), &entries);
                 if let Some(painter) = &row.paint {
-                    select = select.decorate(|id, entry| match row.choices.iter().find(|choice| &choice.id == id) {
+                    select = select.decorate(move |id: &String, entry| match row.choices.iter().find(|choice| &choice.id == id) {
                         Some(choice) => entry.thumb(ThumbSize::Small, move |cx, rect| painter.paint(cx, rect, choice)),
                         None => entry,
                     });

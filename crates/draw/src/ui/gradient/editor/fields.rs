@@ -157,7 +157,7 @@ fn number(
         .show(ui, |ui, _| {
             let field = NumberField::new(label(name), Bind::given(Some(value)))
                 .unit_kind(UnitKind::Percent)
-                .range(range)
+                .range(range.clone())
                 .step(1.0)
                 .commit_decimals(decimals)
                 .scrub_by_label()

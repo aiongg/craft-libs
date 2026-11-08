@@ -49,7 +49,6 @@ fn gradient_editor_color_only(ui: &mut Ui, data: &mut StoryData) -> StoryOutput 
 /// The colour popover on, a colour stop selected.
 #[story(GradientEditor<'static, u8>, covers = [], drive = Drive::Never)]
 fn gradient_editor_popover(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let stops = data.value("stops", split());
-    let selected = data.value("selected", Some(StopRef::Color(0)));
+    let (stops, selected) = data.value("state", (split(), Some(StopRef::Color(0))));
     GradientEditor::new("Gradient", Bind::bound(stops)).color_popover(true).selected(Bind::bound(selected)).show(ui).into()
 }

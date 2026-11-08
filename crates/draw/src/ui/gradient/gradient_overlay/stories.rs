@@ -19,17 +19,23 @@ fn gradient() -> LineGradient {
     }
 }
 
+/// The story's gradient and the stop it has selected.
+fn state(data: &mut StoryData, selected: StopRef) -> (&mut LineGradient, &mut Option<StopRef>) {
+    let state = data.value("state", (gradient(), Some(selected)));
+    (&mut state.0, &mut state.1)
+}
+
 /// Shows `overlay` as the only canvas control of a canvas whose view is the room it is given.
 fn on_canvas(ui: &mut Ui, overlay: impl FnOnce(&mut Ui, egui::Rect) -> craft_ui::contract::EditResponse<LineGradient>) {
     let room = ui.available_rect_before_wrap();
     let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
-    Canvas::new("Document").view(view).show(ui, |ui, body| overlay(ui, body.rect));
+    let mut overlay = Some(overlay);
+    let _ = Canvas::new("Document").view(view).show(ui, |ui, body| overlay.take().map(|overlay| overlay(ui, body.rect)));
 }
 
 #[story(GradientOverlay<'static>, covers = [Default])]
 fn gradient_overlay(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let value = data.value("gradient", gradient());
-    let selected = data.value("selected", Some(StopRef::Color(1)));
+    let (value, selected) = state(data, StopRef::Color(1));
     on_canvas(ui, |ui, at| GradientOverlay::new("Gradient", Bind::bound(&mut *value)).selected(Bind::bound(&mut *selected)).show_at(ui, at).edit);
     StoryOutput::default()
 }
@@ -50,8 +56,7 @@ fn gradient_overlay_mirror(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(GradientOverlay<'static>, covers = [Default])]
 fn gradient_overlay_shared(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let value = data.value("gradient", gradient());
-    let selected = data.value("selected", Some(StopRef::Color(0)));
+    let (value, selected) = state(data, StopRef::Color(0));
     let mut stops = value.stops.clone();
     GradientEditor::new("Stops", Bind::bound(&mut stops)).selected(Bind::bound(&mut *selected)).show(ui);
     value.stops = stops;

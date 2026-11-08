@@ -184,7 +184,7 @@ impl<W: TransformWarp> CanvasTool for TransformTool<'_, W> {
 
     fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
         match key {
-            ToolKey::Nudge { direction, mods } => {
+            ToolKey::Nudge { direction, mods, .. } => {
                 let Some(space) = cx.space().filter(|_| self.session.phase() == TransformPhase::Box) else { return false };
                 let doc = space.view.unmap_vec(*direction);
                 let length = doc.hypot();

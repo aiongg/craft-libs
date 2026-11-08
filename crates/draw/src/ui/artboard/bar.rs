@@ -87,7 +87,7 @@ impl<'a> ArtboardBar<'a> {
                 .enabled(on)
                 .show(ui, |ui, _| {
                     let field = NumberField::new(name.clone(), Bind::given(Some(value))).range(SIDE).unit_kind(UnitKind::Pixels).enabled(on).show(ui);
-                    field.event.map(|event| {
+                    field.edit.event.map(|event| {
                         event.map(|v| {
                             if width { Size::new(v.unwrap_or(shown.width), shown.height) } else { Size::new(shown.width, v.unwrap_or(shown.height)) }
                         })

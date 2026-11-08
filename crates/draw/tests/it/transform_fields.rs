@@ -41,7 +41,7 @@ struct Harness {
 }
 
 fn inches() -> RulerText {
-    RulerText::new(RulerUnits::new(1.0 / PIXELS_PER_INCH, Ticks::Decimal { whole: false }), UnitKind::Inches)
+    RulerText::new(RulerUnits::new(1.0 / PIXELS_PER_INCH, Ticks::decimal(false)), UnitKind::Inches)
 }
 
 fn plain() -> Config {

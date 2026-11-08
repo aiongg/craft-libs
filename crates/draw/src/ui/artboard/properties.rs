@@ -114,7 +114,7 @@ impl<'a> ArtboardProperties<'a> {
                                  range: &RangeInclusive<f64>| {
                     Field::new(caption.clone())
                         .show(ui, |ui, _| {
-                            NumberField::new(name.clone(), Bind::given(Some(value))).range(range.clone()).unit_kind(UnitKind::Pixels).show(ui).event
+                            NumberField::new(name.clone(), Bind::given(Some(value))).range(range.clone()).unit_kind(UnitKind::Pixels).show(ui).edit.event
                         })
                         .inner
                         .flatten()
@@ -152,6 +152,6 @@ impl<'a> ArtboardProperties<'a> {
                 });
             });
         });
-        ArtboardPropertiesOutput { response: section.response, rect: rect_event, background: picked, pick_color }
+        ArtboardPropertiesOutput { response: section.response.clone(), rect: rect_event, background: picked, pick_color }
     }
 }

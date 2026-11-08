@@ -34,7 +34,8 @@ fn slices() -> Vec<SliceItem> {
 
 fn on_canvas(ui: &mut Ui, configure: impl for<'a> FnOnce(SliceOverlay<'a>) -> SliceOverlay<'a>) -> StoryOutput {
     let items = slices();
-    Canvas::new("Document").show(ui, |ui, body| configure(SliceOverlay::new("Slices", &items)).show_at(ui, body.rect));
+    let mut configure = Some(configure);
+    let _ = Canvas::new("Document").show(ui, |ui, body| configure.take().map(|configure| configure(SliceOverlay::new("Slices", &items)).show_at(ui, body.rect)));
     StoryOutput::default()
 }
 
@@ -80,8 +81,9 @@ fn slice_bar_select_mode(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// Shows `dialog` on a host kept in the story's data, opening it once.
-fn dialog<D: StackDialog>(ui: &mut Ui, data: &mut StoryData, make: impl FnOnce() -> D) -> StoryOutput {
-    let host = Arc::clone(data.value("host", Arc::new(Mutex::new(DialogHost::new()))));
+fn dialog<D: StackDialog>(ui: &mut Ui, make: impl FnOnce() -> D) -> StoryOutput {
+    let key = ui.scope_id().with("draw-slice-story-host");
+    let host = ui.data_mut(|d| Arc::clone(d.get_temp_mut_or_insert_with(key, || Arc::new(Mutex::new(DialogHost::new())))));
     if let Ok(mut host) = host.lock() {
         if !host.is_open::<D>() {
             host.open(make());
@@ -92,8 +94,8 @@ fn dialog<D: StackDialog>(ui: &mut Ui, data: &mut StoryData, make: impl FnOnce()
 }
 
 #[story(SliceOptionsDialog, covers = [], drive = Drive::Never)]
-fn slice_options_image(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    dialog(ui, data, || {
+fn slice_options_image(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    dialog(ui, || {
         let mut options = SliceOptions::default();
         options.name = "Header".to_owned();
         options.url = "https://example.com".to_owned();
@@ -103,8 +105,8 @@ fn slice_options_image(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 #[story(SliceOptionsDialog, covers = [], drive = Drive::Never)]
-fn slice_options_no_image_with_background(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    dialog(ui, data, || {
+fn slice_options_no_image_with_background(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    dialog(ui, || {
         let mut options = SliceOptions::default();
         options.kind = SliceKind::NoImage;
         options.cell_text = "Welcome".to_owned();
@@ -115,6 +117,6 @@ fn slice_options_no_image_with_background(ui: &mut Ui, data: &mut StoryData) -> 
 }
 
 #[story(DivideSlicesDialog, covers = [], drive = Drive::Never)]
-fn divide_slices(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    dialog(ui, data, || DivideSlicesDialog::new(DivideSlices::default()))
+fn divide_slices(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    dialog(ui, || DivideSlicesDialog::new(DivideSlices::default()))
 }

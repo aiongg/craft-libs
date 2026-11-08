@@ -30,7 +30,7 @@ fn sample() -> (TransformRow, bool) {
 }
 
 fn inches() -> RulerText {
-    RulerText::new(RulerUnits::new(1.0 / PIXELS_PER_INCH, Ticks::Decimal { whole: false }), UnitKind::Inches)
+    RulerText::new(RulerUnits::new(1.0 / PIXELS_PER_INCH, Ticks::decimal(false)), UnitKind::Inches)
 }
 
 #[story(TransformFields<'static>, covers = [], drive = Drive::Never)]

@@ -130,7 +130,7 @@ impl StackDialog for SliceOptionsDialog {
         let answers = self.requests.take_answers();
         let shown = FormDialog::new(words.options_title.clone(), Bind::bound(&mut self.options)).answers(answers).show(ui, |ui, form, options| {
             for answer in form.take_answers() {
-                if let HostAnswer::Color { key, color } = answer
+                if let HostAnswer::Color { key, color, .. } = answer
                     && key == Self::BACKGROUND_KEY
                 {
                     options.background = Some(color);

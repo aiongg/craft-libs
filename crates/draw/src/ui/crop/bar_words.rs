@@ -71,12 +71,12 @@ impl CropBarWords {
     /// The name of built-in ratio preset `index` of `CROP_RATIOS`.
     pub(super) fn ratio_name(&self, index: usize) -> &str {
         match index {
-            0 => &self.ratio_original,
-            1 => &self.ratio_square,
-            2 => &self.ratio_4_5,
-            3 => &self.ratio_5_7,
-            4 => &self.ratio_2_3,
-            _ => &self.ratio_16_9,
+            0 => self.ratio_original.as_str(),
+            1 => self.ratio_square.as_str(),
+            2 => self.ratio_4_5.as_str(),
+            3 => self.ratio_5_7.as_str(),
+            4 => self.ratio_2_3.as_str(),
+            _ => self.ratio_16_9.as_str(),
         }
     }
 }

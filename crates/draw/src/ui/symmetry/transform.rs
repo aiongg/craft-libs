@@ -106,7 +106,7 @@ impl CanvasTool for SymmetryTool<'_> {
             return false;
         }
         match key {
-            ToolKey::Nudge { direction, mods } => {
+            ToolKey::Nudge { direction, mods, .. } => {
                 let Some(space) = cx.space() else { return false };
                 let doc = space.view.unmap_vec(*direction);
                 let length = doc.hypot();

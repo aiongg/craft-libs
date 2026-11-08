@@ -5,7 +5,7 @@ use super::model::Symmetry;
 use craft_behavior::kurbo::Size;
 use craft_behavior::{Input, Metrics};
 use craft_ui::canvas::canvas_space;
-use craft_ui::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role};
+use craft_ui::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role, Styled as _};
 use craft_ui::primitives::{PaintShape, StrokeWidth};
 use craft_ui::runtime::env::Label;
 use craft_ui::style::{ComponentStyle, HandleLook, StyleColor, StyleCx};

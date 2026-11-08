@@ -322,6 +322,17 @@ fn size_field(
     }
 }
 
+/// The units a shape's size is entered in.
+const LENGTH_UNITS: [UnitKind; 7] = [
+    UnitKind::Pixels,
+    UnitKind::Percent,
+    UnitKind::Points,
+    UnitKind::Inches,
+    UnitKind::Centimetres,
+    UnitKind::Millimetres,
+    UnitKind::Picas,
+];
+
 /// `value` in `unit` as a length the document converts.
 fn length(value: f64, unit: UnitKind) -> craft_ui::patterns::form_dialogs::GuideLength {
     craft_ui::patterns::form_dialogs::GuideLength::new(value, unit)
@@ -337,7 +348,7 @@ fn body(
     latest: &RefCell<Option<Memory>>,
 ) -> bool {
     let document = values.units.unwrap_or_else(pixels_only);
-    let entries: Vec<Entry<UnitKind>> = UnitKind::ALL
+    let entries: Vec<Entry<UnitKind>> = LENGTH_UNITS
         .iter()
         .filter(|kind| values.units.is_some() || **kind != UnitKind::Percent)
         .map(|&kind| Entry::new(kind, Label::from(numbers.symbol(kind))))

@@ -547,8 +547,8 @@ impl CropSettings {
                 };
                 if let Some(resolution) = parse_number(&self.size.resolution) {
                     let unit = match self.size.resolution_unit {
-                        ResolutionUnit::PixelsPerInch => &words.ppi,
-                        ResolutionUnit::PixelsPerCentimetre => &words.pixels_per_centimetre,
+                        ResolutionUnit::PixelsPerInch => words.ppi.as_str(),
+                        ResolutionUnit::PixelsPerCentimetre => words.pixels_per_centimetre.as_str(),
                     };
                     name = format!("{name} {} {unit}", trim_number(resolution, 2));
                 }

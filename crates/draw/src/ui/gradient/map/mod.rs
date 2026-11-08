@@ -127,8 +127,8 @@ impl<'a> GradientMapEditor<'a> {
                     std::iter::once(header).chain(items)
                 })
                 .collect();
-            let picker = PresetPicker::new(words.preset.as_str(), Bind::given(None::<GradientRef>), &rows, Bind::kept())
-                .placeholder(words.custom.as_str())
+            let picker = PresetPicker::new(words.preset.clone(), Bind::given(None::<GradientRef>), &rows, Bind::kept())
+                .placeholder(words.custom.clone())
                 .show(ui);
             if let Some(stops) = picker.picked.and_then(|key| self.preset_stops(key)) {
                 event = Some(set(GradientMap { stops, ..base.clone() }));

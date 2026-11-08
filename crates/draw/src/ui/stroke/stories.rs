@@ -148,14 +148,16 @@ fn stroke_editor_choice_rows(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
             .paint(ChoicePainter::new(|cx, rect, choice| paint_profile(cx, rect, &choice.id))),
     ];
     let out = StrokeEditor::new("Stroke", Bind::bound(&mut picks.style)).rows(&rows).show(ui);
-    if let Some((row, choice)) = out.choice.clone() {
+    let picked = out.choice.clone();
+    let story: StoryOutput = out.into();
+    if let Some((row, choice)) = picked {
         match row.as_str() {
             START => picks.start = choice,
             END => picks.end = choice,
             _ => picks.profile = choice,
         }
     }
-    out.into()
+    story
 }
 
 #[story(StrokeButton<'static>, covers = [Default], drive = Drive::Never)]

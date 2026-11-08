@@ -25,23 +25,23 @@ use egui::{Response, Ui};
 /// The overlay's name in `words`.
 fn guide_name(words: &CropBarWords, guide: CropGuide) -> &str {
     match guide {
-        CropGuide::Thirds => &words.thirds,
-        CropGuide::Grid => &words.grid,
-        CropGuide::Diagonal => &words.diagonal,
-        CropGuide::Triangle => &words.triangle,
-        CropGuide::GoldenRatio => &words.golden_ratio,
-        CropGuide::GoldenSpiral => &words.golden_spiral,
-        _ => &words.thirds,
+        CropGuide::Thirds => words.thirds.as_str(),
+        CropGuide::Grid => words.grid.as_str(),
+        CropGuide::Diagonal => words.diagonal.as_str(),
+        CropGuide::Triangle => words.triangle.as_str(),
+        CropGuide::GoldenRatio => words.golden_ratio.as_str(),
+        CropGuide::GoldenSpiral => words.golden_spiral.as_str(),
+        _ => words.thirds.as_str(),
     }
 }
 
 /// The show rule's name in `words`.
 fn show_name(words: &CropBarWords, show: GuideShow) -> &str {
     match show {
-        GuideShow::Auto => &words.show_auto,
-        GuideShow::Always => &words.show_always,
-        GuideShow::Never => &words.show_never,
-        _ => &words.show_auto,
+        GuideShow::Auto => words.show_auto.as_str(),
+        GuideShow::Always => words.show_always.as_str(),
+        GuideShow::Never => words.show_never.as_str(),
+        _ => words.show_auto.as_str(),
     }
 }
 

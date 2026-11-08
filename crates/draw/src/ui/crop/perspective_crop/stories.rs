@@ -23,8 +23,9 @@ fn drag_corner(fixture: &mut Fixture) {
 }
 
 fn on_canvas(ui: &mut Ui, bind: Bind<'_, PerspectiveQuad>) -> StoryOutput {
-    let shown = Canvas::new("Document").show(ui, |ui, body| PerspectiveCropQuad::new("Perspective crop", bind).show_at(ui, body.rect));
-    shown.inner.map(|out| StoryOutput::from(out.edit)).unwrap_or_default()
+    let mut bind = Some(bind);
+    let shown = Canvas::new("Document").show(ui, |ui, body| bind.take().map(|bind| PerspectiveCropQuad::new("Perspective crop", bind).show_at(ui, body.rect)));
+    shown.inner.flatten().map(|out| StoryOutput::from(out.edit)).unwrap_or_default()
 }
 
 #[story(PerspectiveCropQuad<'static>, covers = [Default], drive = Drive::Custom(drag_corner))]
