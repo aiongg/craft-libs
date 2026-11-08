@@ -6,12 +6,12 @@ use super::wheel::{hue_at, hue_direction, vertex};
 use craft_behavior::{CancelReason, HitShape, Metrics, NavMove, PartKey, PressPhase, Sense};
 use craft_theme::{ColorModel, Flags, HsbModel, ModelValues, Resolve as _, Srgba, State, StateMix, Stateful};
 use craft_ui::contract::{
-    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Name, Outcome, PaintUi, PartsCx, Pointer as _, Props as _,
-    Remember as _, Role, WordSetCx as _,
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, Name, Outcome, PaintUi, PartsCx, Pointer as _,
+    Props as _, Remember as _, Role, WordSetCx as _,
 };
 use craft_ui::primitives::{PaintShape, StrokeWidth};
 use craft_ui::runtime::env::Label;
-use craft_ui::runtime::focus::FocusShape;
+use craft_ui::runtime::focus::{ActivateKeys, FocusShape, KeepKeys, KeyUse};
 use craft_ui::style::{ComponentStyle, DataColor, FocusLook, StyleColor, StyleCx};
 use egui::{Color32, Mesh, Pos2, Response, Vec2};
 
@@ -187,6 +187,7 @@ impl<'a> ColorDisc<'a> {
 }
 
 impl Component for ColorDisc<'_> {
+    const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_keep(KeepKeys::BlockArrows).with_activate(ActivateKeys::Neither);
     const ROLE: Role = Role::GROUP;
     const OVERLAYS: bool = false;
     type Style = ColorDiscStyle;

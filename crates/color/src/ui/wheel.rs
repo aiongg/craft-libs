@@ -5,12 +5,12 @@ use super::channels::{channel_step, finite, primary, settled, spoken};
 use craft_behavior::{HitLevel, HitPriority, HitShape, Metrics, NavMove, PartKey, PressPhase, Sense};
 use craft_theme::{ColorModel, HsbModel, ModelValues};
 use craft_ui::contract::{
-    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Name, Numeric, PaintUi, PartsCx, Pointer as _, Props as _,
-    Remember as _, Role, WordSetCx as _,
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, Name, Numeric, PaintUi, PartsCx, Pointer as _,
+    Props as _, Remember as _, Role, WordSetCx as _,
 };
 use craft_ui::primitives::{PaintShape, StrokeWidth};
 use craft_ui::runtime::env::Label;
-use craft_ui::runtime::focus::FocusShape;
+use craft_ui::runtime::focus::{ActivateKeys, FocusShape, KeepKeys, KeyUse};
 use craft_ui::style::{ComponentStyle, FocusLook, StyleColor, StyleCx};
 use egui::{Mesh, Pos2, Rect, Vec2, vec2};
 use std::f32::consts::TAU;
@@ -284,6 +284,7 @@ fn keyed(values: &ModelValues, part: WheelPart, mv: NavMove, far: bool, rtl: boo
 
 impl Component for ColorWheel<'_> {
     const ROLE: Role = Role::GROUP;
+    const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_keep(KeepKeys::BlockArrows).with_activate(ActivateKeys::Neither);
     const OVERLAYS: bool = false;
     type Style = ColorWheelStyle;
     type Output = EditResponse<ModelValues>;

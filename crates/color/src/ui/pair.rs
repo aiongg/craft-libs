@@ -303,6 +303,8 @@ impl Component for SwatchPair<'_> {
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        // Asking registers the popup for this pass, which the overlay hook needs even while it stays closed.
+        let _ = cx.popup("picker").is_open(cx);
         let active = cx.value().copied().unwrap_or_default();
         for i in 0..2u64 {
             let well = Well::of(i);

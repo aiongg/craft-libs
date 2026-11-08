@@ -383,8 +383,9 @@ impl Component for PaintChip<'_> {
         }
         let popup = cx.popup("picker");
         let activated = cx.activation().filter(|_: &Activation| cx.resolved.enabled).is_some();
+        let open = popup.is_open(cx);
         if activated {
-            if popup.is_open(cx) {
+            if open {
                 popup.close(cx);
             } else {
                 popup.open(cx);
