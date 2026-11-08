@@ -398,7 +398,7 @@ fn history(
     let pending = state.confirm;
     let outcome = Cell::new(None);
     let find = |id: VersionId| versions.iter().find(|version| version.id == id);
-    let list_id = egui::Id::new("craft-review.versions.history");
+    let list_id = egui::Id::unique("craft-review.versions.history");
     let list = List::new(words.title.clone())
         .id(list_id)
         .tree(true)
