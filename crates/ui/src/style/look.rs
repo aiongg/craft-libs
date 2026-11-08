@@ -11,8 +11,9 @@ use egui::{Color32, CornerRadius, Stroke};
 pub struct StyleColor(pub(crate) Color32);
 
 impl StyleColor {
-    /// The colour as egui paints it.
-    pub(crate) fn egui(self) -> Color32 {
+    /// The colour as egui paints it: a domain painter wraps it in `DataColor::new` for a document run, so it never holds
+    /// a raw channel array.
+    pub fn egui(self) -> Color32 {
         self.0
     }
 }
