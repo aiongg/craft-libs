@@ -97,10 +97,10 @@ fn injected_cmd_is_mac_cmd_on_macos_and_ctrl_elsewhere() {
         let ctx = Context::default();
         ctx.set_os(os);
         WindowHost::of(&ctx).inject_key(ViewportId::ROOT, Key::A, Mods::CMD);
-        match hook_without_pass(&ctx, ViewportId::ROOT)[..] {
-            [Event::Key { modifiers, .. }, ..] => modifiers,
-            ref other => panic!("no key event: {other:?}"),
-        }
+        hook_without_pass(&ctx, ViewportId::ROOT)
+            .into_iter()
+            .find_map(|event| if let Event::ModifiersChanged(held) = event { Some(held) } else { None })
+            .expect("the key's modifiers are announced")
     };
     let mac = modifiers(egui::os::OperatingSystem::Mac);
     assert!(mac.mac_cmd && mac.command && !mac.ctrl, "{mac:?}");

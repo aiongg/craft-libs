@@ -108,7 +108,7 @@ fn ramp_vertices(shapes: &[Shape]) -> Vec<(Pos2, Color32)> {
 
 #[trial]
 fn a_ramp_holds_its_end_colours_out_to_the_edges_and_clamps_stops() {
-    let (red, blue) = (Color32::RED, Color32::BLUE);
+    let (red, blue) = (Color32::from_gray(40), Color32::from_gray(220));
     let rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(100.0, 10.0));
     let stops = [(-1.0, DataColor::new(red)), (0.25, DataColor::new(red)), (0.75, DataColor::new(blue))];
     let found = ramp_vertices(&ramp(rect, &stops, Axis::X));
