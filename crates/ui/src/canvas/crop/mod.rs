@@ -290,7 +290,7 @@ impl CropOverlay<'_> {
         let to = drag.press_view.as_ref().unwrap_or(&view).to_doc(pos);
         let (to, lines) = rules.snapped(drag, &view, to, mods, held_space);
         self.report.snapped = lines;
-        if let Some(next) = rules.dragged(drag, to, mods, held_space) {
+        if let Some(next) = rules.proposal(drag, to, mods, held_space) {
             drag.last = next;
             cx.propose(next);
             if let Some(moved) = gesture::followed(drag, self.auto_center, &next) {

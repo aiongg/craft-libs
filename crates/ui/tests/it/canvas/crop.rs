@@ -5,7 +5,7 @@ use craft_behavior::kurbo::{Point, Rect, Vec2 as DocVec};
 use craft_behavior::{Axis, CanvasView, EditEvent};
 use craft_ui::canvas::{Canvas, CropOverlay, CropShield, ShieldColor, ToolPath};
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
-use craft_ui::testing::{Fixture, Frames, layout, pointer, trial};
+use craft_ui::testing::{Fixture, Frames, focus, input, layout, pointer, trial};
 use egui::{Color32, Event, Key, Modifiers, Pos2, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -51,12 +51,13 @@ fn a_corner_drag_resizes_and_keeps_the_opposite_corner() {
 
 #[trial]
 fn a_held_ratio_is_kept_by_a_corner_drag() {
-    let mut s = shown(|c| c.ratio(2.0));
+    let ratio = 2.0;
+    let mut s = shown(move |c| c.ratio(ratio));
     let corner = s.fixture.by_label("Crop corner, bottom right").expect("corner");
     let by = travel(&s.fixture);
     s.fixture.drag(&corner, Vec2::new(by, 0.0));
     let rect = s.crop.borrow().rect;
-    assert!((rect.width() / rect.height() - 2.0).abs() < 1e-6, "{rect:?}");
+    assert!((rect.width() / rect.height() - ratio).abs() < 1e-6, "{rect:?}");
 }
 
 #[trial]
@@ -364,7 +365,7 @@ impl Rig {
 }
 
 fn key_event(key: Key, pressed: bool, modifiers: Modifiers) -> Event {
-    Event::Key { key, physical_key: Some(key), pressed, repeat: false, modifiers }
+    if pressed { input::key_press(key, modifiers) } else { focus::key_release(key, modifiers) }
 }
 
 fn near(a: &CropBox, b: &CropBox) -> bool {

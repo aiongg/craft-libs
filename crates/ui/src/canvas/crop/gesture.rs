@@ -53,7 +53,7 @@ pub(super) struct Rules<'a> {
 impl Rules<'_> {
     /// The frame a drag gives with the pointer at document point `to`, kept inside the bounds; `None` when the frame is
     /// as it was (a draw not yet sized) or cannot be kept inside.
-    pub fn dragged(&self, drag: &mut Drag, to: Point, mods: Mods, space: bool) -> Option<CropBox> {
+    pub fn proposal(&self, drag: &mut Drag, to: Point, mods: Mods, space: bool) -> Option<CropBox> {
         let at = drag.at_press;
         let (next, resizing, held) = match &mut drag.kind {
             Kind::Draw { anchor, cur, last } => {
@@ -114,7 +114,7 @@ impl Rules<'_> {
         let Some(targets) = self.snap else { return (to, Vec::new()) };
         let tolerance = drag.press_view.as_ref().unwrap_or(view).doc_len(SNAP_PX as f32);
         let mut probe = drag.clone();
-        let Some(candidate) = self.dragged(&mut probe, to, mods, space) else { return (to, Vec::new()) };
+        let Some(candidate) = self.proposal(&mut probe, to, mods, space) else { return (to, Vec::new()) };
         let (by, lines, travel_per_unit) = match probe.kind {
             Kind::Draw { cur, .. } => {
                 let (snapped, lines) = targets.snap_point(cur, tolerance);
