@@ -61,13 +61,19 @@ fn a_double_click_acts_by_the_frame() {
 
 /// What a pass of the bar showed: the bar, its leading and trailing buttons, whether the OS may move the window from
 /// the pointer, and whether Close was asked for.
-#[derive(Default)]
 struct Shown {
     bar: Cell<Rect>,
     leading: Cell<Rect>,
     trailing: Cell<Rect>,
     movable: Cell<bool>,
     closed: Cell<bool>,
+}
+
+impl Default for Shown {
+    fn default() -> Self {
+        let none = || Cell::new(Rect::NOTHING);
+        Shown { bar: none(), leading: none(), trailing: none(), movable: Cell::new(true), closed: Cell::new(false) }
+    }
 }
 
 /// Shows the bar at the top of `ui`, where it takes the width and the caption strip's height (the title slot's), with a
