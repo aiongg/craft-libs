@@ -581,6 +581,12 @@ impl CanvasTool for Mover {
         ToolAction::Ignored
     }
 
+    fn drag(&mut self, _: &ToolPointer, _: &mut ToolContext<'_>) {}
+
+    fn release(&mut self, _: &ToolPointer, _: &mut ToolContext<'_>) {}
+
+    fn cancel(&mut self, _: CancelReason, _: &mut ToolContext<'_>) {}
+
     fn key(&mut self, key: &ToolKey, _: &mut ToolContext<'_>) -> bool {
         match key {
             ToolKey::Nudge { direction, mods, .. } => {
