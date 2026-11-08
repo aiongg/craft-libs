@@ -375,7 +375,11 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.offset_x_at_read = self.offset_x;
         let view = self.last.view.map_or(0.0, |view| view[3] - view[1]);
         if self.scrolls {
-            if let Some(share) = wheel::take(&ctx, id) {
+            let taken = wheel::take(&ctx, id);
+            if self.content.x > 800.0 && self.content.x < 900.0 {
+                eprintln!("PROBE8 read take={:?} off=({}, {}) content={:?}", taken.as_ref().map(|s| s.scroll), self.offset, self.offset_x, self.content);
+            }
+            if let Some(share) = taken {
                 self.offset -= f64::from(share.scroll.y);
                 self.offset_x -= f64::from(share.scroll.x);
                 if share.zoom != 1.0
@@ -488,6 +492,9 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.offset = self.offset.clamp(0.0, self.max_offset(view.height()));
         let span = ScrollSpan::new(0.0..content, self.offset..self.offset + f64::from(view.height()));
         pcx.scroll(SCROLL, track, Axis::Y, span);
+        if self.content.x > 800.0 && self.content.x < 900.0 {
+            eprintln!("PROBE8 parts view={:?} content={:?} overflow={:?} offx={}", view, self.content, self.overflow, self.offset_x);
+        }
         wheel::register(
             &ctx,
             WheelTaker::new(pcx.id, view)
@@ -513,6 +520,9 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         }
         self.offset = self.offset.clamp(0.0, self.max_offset(view));
         let header_held = self.header_step(cx);
+        if self.content.x > 800.0 && self.content.x < 900.0 {
+            eprintln!("PROBE8 updated rect={:?} content={:?} offx_before_clamp={}", rect, self.content, self.offset_x);
+        }
         self.offset_x = self.offset_x.clamp(0.0, f64::from((self.content.x - rect.width()).max(0.0)));
         self.open_lead(comp);
         self.follow_lead_source(comp);
@@ -773,6 +783,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let size = layout.content_size();
         self.content = Vec2::new(size.x as f32, size.y as f32);
         if self.ended_rename {
+            eprintln!("PROBE11 ended_rename");
             self.renaming = Renaming::default();
             if self.refocus {
                 focus::request_now(&ctx, focus::FocusTarget::Id(id));
@@ -1308,6 +1319,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
 
     /// Opens the rename field of the item at `at`.
     fn begin_rename(&mut self, cx: &mut Cx<'_, C>, at: usize) {
+        eprintln!("PROBE11 begin_rename at={at} pass={}", crate::runtime::pointer::pass_of(&cx.core.ctx));
         let key = self.source.key(at);
         let draft = self.source.text(at).map(|text| text.into_owned()).unwrap_or_default();
         let gesture = crate::runtime::edit::next_gesture_id(&cx.core.ctx);

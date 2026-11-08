@@ -236,7 +236,7 @@ fn a_release_past_the_last_row_in_user_order_reorders() {
     let room = bin.empty_room();
     bin.drag_to("Clip.mov", room);
     let events = bin.events.borrow();
-    assert!(events.iter().any(|event| matches!(event, BinEvent::Reorder(_))), "{events:?}");
+    assert!(events.iter().any(|event| matches!(event, BinEvent::Reorder(_))), "PROBE10 {events:?} room={room:?} shown={:?} list={:?}", bin.fixture.shown(), bin.fixture.by_role(craft_ui::contract::Role::TABLE).iter().map(|t| t.rect).collect::<Vec<_>>());
     assert!(!events.iter().any(|event| matches!(event, BinEvent::Drop { .. })));
 }
 
@@ -299,7 +299,9 @@ fn the_selection_count_leaves_out_keys_that_are_not_shown() {
     let mut bin = setup(false, |state| state.shown = Some(1));
     *bin.selection.borrow_mut() = Selection::single(20);
     bin.fixture.settle();
-    assert!(bin.fixture.by_label("2 items").is_some());
+    let names: Vec<String> = bin.fixture.tree().keys().into_iter().filter_map(|key| bin.fixture.tree().name_of(key).map(|n| format!("{n:?}/{:?}", bin.fixture.tree().role_of(key)))).collect();
+    let texts: Vec<String> = bin.fixture.texts().iter().map(|t| t.text.clone()).collect();
+    assert!(bin.fixture.by_label("2 items").is_some(), "PROBE12 names={names:?} texts={texts:?}");
     *bin.selection.borrow_mut() = Selection::single(10);
     bin.fixture.settle();
     assert!(bin.fixture.by_label("1 of 2 items selected").is_some());
@@ -309,7 +311,8 @@ fn the_selection_count_leaves_out_keys_that_are_not_shown() {
 #[trial]
 fn a_drop_on_a_footer_action_reports_it() {
     let mut bin = setup(false, |_| {});
-    let action = bin.rect("New Item").center();
+    let action_rect = bin.rect("New Item");
+    let action = action_rect.center();
     bin.drag_to("Beach.mov", action);
     let drops: Vec<_> = bin
         .events
@@ -317,7 +320,7 @@ fn a_drop_on_a_footer_action_reports_it() {
         .iter()
         .filter_map(|event| if let BinEvent::FooterDrop { action, keys, .. } = event { Some((*action, keys.clone())) } else { None })
         .collect();
-    assert_eq!(drops, [(0, vec![10])]);
+    assert_eq!(drops, [(0, vec![10])], "PROBE13 events={:?} action={:?}", bin.events.borrow(), action_rect);
     assert!(bin.drops().is_empty());
 }
 

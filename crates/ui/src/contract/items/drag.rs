@@ -394,7 +394,10 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     self.drags.over = Some(self.source.key(spot.over));
                 }
                 let copy_ok = !own || props.reorder.is_some_and(|rule| rule.copy_with_alt);
-                if let Some(landed) = cx.drop_target::<ListDrag<C::Key>, _>(&RowDrop { spot, copy_ok }) {
+                eprintln!("PROBE10 drag at={:?} rect={:?} spot={} own={} reorder={}", layer(at), rect, spot.is_some(), own, props.reorder.is_some());
+                let taken = cx.drop_target::<ListDrag<C::Key>, _>(&RowDrop { spot, copy_ok });
+                eprintln!("PROBE10 landed={}", taken.is_some());
+                if let Some(landed) = taken {
                     self.land(cx, &payload, landed, groups);
                 }
             }
