@@ -296,6 +296,8 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             .digits(props.digit_keys)
             .space(true)
             .moves(true)
+            .deletes(props.deletable)
+            .owner_arrows(props.item_keys == super::collection::ItemKeys::Owner)
     }
 
     fn instance_scope(&self, comp: &C) -> Option<crate::runtime::commands::CommandScope> {

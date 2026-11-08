@@ -32,6 +32,12 @@ pub struct KeyRole {
     pub text: bool,
     /// The component acts on the arrow moves routed to it: they are not shortcut candidates.
     pub moves: bool,
+    /// The component acts on Delete and Backspace (text edits, deleting a selection): they reach it as
+    /// `Intent::Delete`. Any other role leaves them to the command scope chain.
+    pub deletes: bool,
+    /// A collection that leaves its arrow keys to the component around it (`ItemKeys::Owner`): they are no moves
+    /// of this role.
+    pub owner_arrows: bool,
 }
 
 impl KeyRole {
@@ -49,6 +55,8 @@ impl KeyRole {
             value: false,
             text: false,
             moves: false,
+            deletes: false,
+            owner_arrows: false,
         }
     }
 
@@ -112,6 +120,18 @@ impl KeyRole {
         self
     }
 
+    /// Delete and Backspace are the component's own.
+    pub const fn deletes(mut self, on: bool) -> Self {
+        self.deletes = on;
+        self
+    }
+
+    /// The arrow keys are the enclosing component's, not this role's moves.
+    pub const fn owner_arrows(mut self, on: bool) -> Self {
+        self.owner_arrows = on;
+        self
+    }
+
     /// The stop is a text part.
     pub const fn text(mut self, on: bool) -> Self {
         self.text = on;
@@ -160,6 +180,10 @@ pub fn intent(os: Os, key: Key, mods: Mods, role: KeyRole) -> Option<Intent> {
     let plain = mods.is_none();
     let only = |m: Mods| mods == m;
     let shifted = |m: Mods| mods == Mods { shift: true, ..m };
+    // Arrows are nudges for the content, with every modifier: Alt+arrow is no Open or Close.
+    if role.nudge && is_arrow(key) {
+        return None;
+    }
     if !role.reorderable
         && let Some(fine) = fine_move(key, mods, role)
     {
@@ -193,10 +217,10 @@ pub fn intent(os: Os, key: Key, mods: Mods, role: KeyRole) -> Option<Intent> {
         }
         _ => {}
     }
-    if role.nudge && is_arrow(key) {
+    if role.owner_arrows && is_arrow(key) {
         return None;
     }
-    movement(mac, key, mods)
+    movement(mac, key, mods, role)
 }
 
 /// Alt with an arrow on a value role: a fine move, the same on every OS. A text role keeps Left and Right for word
@@ -216,7 +240,7 @@ fn fine_move(key: Key, mods: Mods, role: KeyRole) -> Option<Intent> {
 }
 
 /// The move rows: arrows, Home, End and the page keys, and the deletes.
-fn movement(mac: bool, key: Key, mods: Mods) -> Option<Intent> {
+fn movement(mac: bool, key: Key, mods: Mods, role: KeyRole) -> Option<Intent> {
     let by_word = if mac { mods.alt } else { mods.cmd };
     let lead = mods.cmd;
     let moved = |mv: NavMove, by: Granularity| Some(Intent::Move(mv, MoveMods::new(mods.shift, lead, by)));
@@ -241,7 +265,7 @@ fn movement(mac: bool, key: Key, mods: Mods) -> Option<Intent> {
         }
         Key::PageUp if !mods.alt && !mods.cmd && !mods.ctrl => moved(NavMove::PageUp, Granularity::Unit),
         Key::PageDown if !mods.alt && !mods.cmd && !mods.ctrl => moved(NavMove::PageDown, Granularity::Unit),
-        Key::Delete | Key::Backspace if !mods.alt || mac => {
+        Key::Delete | Key::Backspace if role.deletes && (!mods.alt || mac) => {
             let by = if by_word { Granularity::Word } else { Granularity::Unit };
             Some(Intent::delete(key == Key::Delete, by))
         }
@@ -267,6 +291,7 @@ mod tests {
         let pages = KeyRole::new().pages(true);
         let nudge = KeyRole::new().nudge(true);
         let reset = KeyRole::new().resettable(true);
+        let deleter = KeyRole::new().deletes(true);
         let alt_mods = Mods::ALT;
         let word = |extend, lead| MoveMods::new(extend, lead, Granularity::Word);
         for os in [Os::Linux, Os::Windows] {
@@ -288,8 +313,12 @@ mod tests {
             check(os, Key::End, NONE, any, Some(Intent::Move(NavMove::End, MoveMods::new(false, false, Granularity::Line))));
             check(os, Key::Home, Mods::CMD, any, Some(Intent::Move(NavMove::Start, MoveMods::new(false, true, Granularity::Document))));
             check(os, Key::Delete, NONE, reset, Some(Intent::Reset));
-            check(os, Key::Delete, NONE, any, Some(Intent::delete(true, Granularity::Unit)));
-            check(os, Key::Backspace, Mods::CMD, any, Some(Intent::delete(false, Granularity::Word)));
+            check(os, Key::Delete, NONE, any, None);
+            check(os, Key::Backspace, NONE, any, None);
+            check(os, Key::Delete, NONE, deleter, Some(Intent::delete(true, Granularity::Unit)));
+            check(os, Key::Backspace, Mods::CMD, deleter, Some(Intent::delete(false, Granularity::Word)));
+            check(os, Key::Down, Mods::ALT, nudge, None);
+            check(os, Key::Left, NONE, KeyRole::new().owner_arrows(true), None);
         }
         check(Os::Mac, Key::PageDown, Mods::CTRL, any, None);
         check(Os::Mac, Key::PageDown, Mods::CMD, any, None);
