@@ -4,7 +4,7 @@
 
 use crate::contract::kit::PlainStyle;
 use craft_ui::buttons::Button;
-use craft_ui::contract::{Bind, Common, Component, Cx, PartsCx, Props as _, Role, Show as _};
+use craft_ui::contract::{Bind, Common, Component, Cx, PartsCx, Role, Show as _};
 use craft_ui::runtime::env::{Direction, Env};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::story::{Story, StoryData, StoryOutput};

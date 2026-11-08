@@ -291,7 +291,7 @@ impl<'a> List<'a> {
     }
 
     /// The collection's own empty-state text.
-    pub fn empty_text(mut self, text: &str) -> Self {
+    pub fn empty_text(mut self, text: &'static str) -> Self {
         self.items = self.items.empty(text);
         self
     }
