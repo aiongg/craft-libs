@@ -583,7 +583,7 @@ impl FooterBar {
                         shown.picked = Some(at);
                     }
                     let chord = button.letter.and_then(Key::from_char).map(Chord::plain);
-                    if let Some(chord) = chord.filter(|_| lettered && button.enabled) {
+                    if let Some(chord) = chord.filter(|_| lettered && button.enabled && !ui.is_sizing_pass()) {
                         keys::capture(&ctx, owner, chord);
                         if keys::take_claimed(&ctx, owner, chord) {
                             shown.picked = Some(at);

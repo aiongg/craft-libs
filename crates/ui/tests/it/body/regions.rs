@@ -1,26 +1,28 @@
 //! The regions of a body: an inline header that measures nothing, a full-height end region with the footer in it, a
-//! spread row and the room of a Grid cell.
+//! spread row, the room of a Grid cell, and a filling body placed from this pass's header and footer.
 
 use crate::contract::kit::PlainStyle;
 use craft_behavior::{ColumnWidth, Sense};
+use craft_ui::buttons::Button;
 use craft_ui::contract::{
     BodyCx, Common, Component, Container, ContainerProps, Cx, EndRegion, FooterPlace, FooterRegion, HeaderRegion, Role, Show as _,
     ShowContainer as _, Sizing,
 };
 use craft_ui::display::Divider;
 use craft_ui::layout::{BodyLayout, RowAlign};
-use craft_ui::layout_components::{Grid, Stack};
+use craft_ui::layout_components::{Grid, Row, Stack};
 use craft_ui::runtime::env::{Direction, with_env};
 use craft_ui::style::StyleCx;
+use craft_ui::testing::access::NodeKey;
 use craft_ui::testing::layout::{allocate, body};
-use craft_ui::testing::{Frames, trial};
-use egui::{Pos2, Rect, Response, Ui, Vec2};
+use craft_ui::testing::{Fixture, Frames, trial};
+use egui::{Key, Modifiers, Pos2, Rect, Response, Ui, Vec2};
 use std::cell::{Cell, RefCell};
 
 const AREA: Rect = Rect { min: Pos2::new(10.0, 10.0), max: Pos2::new(410.0, 210.0) };
 
 /// The rects the regions of a `Regioned` took.
-#[derive(Default)]
+#[derive(Clone, Copy, Default)]
 struct Took {
     header: Option<Rect>,
     body: Option<Rect>,
@@ -85,6 +87,22 @@ fn regioned(props: ContainerProps, header: Option<Vec2>) -> Took {
         took.borrow_mut().body = shown.inner;
     });
     took.into_inner()
+}
+
+/// Shows a filling `Regioned` at `AREA` with `props` for one frame and returns what its regions took in the frame's
+/// first pass, before any discard pass: no region has a size from an earlier pass then.
+fn first_pass(props: ContainerProps, header: Option<Vec2>) -> Took {
+    let took = RefCell::new(Took::default());
+    let passes = RefCell::new(Vec::new());
+    let mut frames = Frames::new();
+    frames.frame(Vec::new(), |ui| {
+        let shown =
+            Regioned { common: Common::new(), props: props.clone(), header, end: Vec2::new(80.0, 40.0), footer: Vec2::new(70.0, 16.0), took: &took }
+                .show_at(ui, AREA, |_, cx| cx.rect);
+        took.borrow_mut().body = shown.inner;
+        passes.borrow_mut().push(*took.borrow());
+    });
+    passes.into_inner().first().copied().expect("the frame ran a pass")
 }
 
 #[trial]
@@ -168,4 +186,56 @@ fn a_filling_leaf_after_a_fill_cell_gets_its_cells_room() {
         divider.min.y.round() <= filled.min.y.round() && divider.max.y.round() >= filled.max.y.round(),
         "the divider fills its cell's height as the fill cell does: {filled:?} {divider:?}"
     );
+}
+
+// Edges snap to whole pixels, so a rectangle may overhang its neighbour by half a point.
+const EDGE_SLACK: f32 = 0.5;
+
+#[trial]
+fn a_filling_body_lies_between_its_header_and_its_footer_in_the_first_pass() {
+    let props = ContainerProps::new().sizing(Sizing::Fill).header(HeaderRegion::new()).footer(FooterRegion::new());
+    let took = first_pass(props, Some(Vec2::new(100.0, 20.0)));
+    let (header, body, footer) = (took.header.unwrap(), took.body.unwrap(), took.footer.unwrap());
+    assert!(body.min.y >= header.max.y - EDGE_SLACK, "the body starts under the header: {header:?} {body:?}");
+    assert!(body.max.y <= footer.min.y + EDGE_SLACK, "the body ends at the footer's top: {body:?} {footer:?}");
+    assert!(footer.max.y <= AREA.max.y + EDGE_SLACK, "the footer lies inside the container, at its foot: {footer:?}");
+}
+
+#[trial]
+fn a_filling_body_ends_at_a_footer_beside_a_full_height_end_region_in_the_first_pass() {
+    // Beside a full-height end region the footer lies under the body only.
+    let props = ContainerProps::new().sizing(Sizing::Fill).end(EndRegion::new().full_height(true)).footer(FooterRegion::new());
+    let took = first_pass(props, None);
+    let (body, footer) = (took.body.unwrap(), took.footer.unwrap());
+    assert!(body.max.y <= footer.min.y + EDGE_SLACK, "the body ends at the footer's top: {body:?} {footer:?}");
+    assert!(footer.max.y <= AREA.max.y + EDGE_SLACK, "the footer lies inside the container: {footer:?}");
+}
+
+#[trial]
+fn tab_walks_a_filling_stack_through_header_body_and_footer() {
+    let mut fixture = Fixture::new(|ui| {
+        Stack::new()
+            .fill()
+            .header(|ui, _| {
+                let _ = Button::new("Head").show(ui);
+            })
+            .footer(|ui, _| {
+                Row::new().show(ui, |ui, _| {
+                    let _ = Button::new("Foot").show(ui);
+                });
+            })
+            .show(ui, |ui, _| {
+                let _ = Button::new("Body").show(ui);
+            });
+    });
+    fixture.room(Vec2::new(320.0, 200.0)).settle();
+    let mut walked = Vec::new();
+    for _ in 0..3 {
+        fixture.key(Key::Tab, Modifiers::NONE);
+        fixture.settle();
+        let focused = fixture.focused().expect("Tab focuses a button");
+        walked.push(fixture.tree().name_of(NodeKey::of(focused)).map(str::to_owned));
+    }
+    let expected = ["Head", "Body", "Foot"].map(|name| Some(name.to_owned()));
+    assert_eq!(walked, expected, "Tab follows the visual order");
 }
