@@ -14,12 +14,13 @@
 //! sensing read it, and the scrim leaves the canvas clear and unabsorbed.
 
 use crate::runtime::egui::areas::{self, Layer};
-use crate::runtime::egui::input::RawInput;
+use crate::runtime::egui::input::{self as raw_input, KeyEvent, RawInput};
 use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::pass;
 use crate::runtime::frame::PerViewport;
 use crate::runtime::{overlay, pointer};
-use egui::{Context, Event, Id, Key, PointerButton, Pos2, Rect, ViewportId};
+use craft_keymap::KeyInput;
+use egui::{Context, Event, Id, PointerButton, Pos2, Rect, ViewportId};
 
 /// What a modal leaves of the canvas below it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -208,6 +209,9 @@ pub(crate) fn hook(ctx: &Context, input: &mut RawInput) -> (Option<Hole>, bool) 
     let barred = here && overlay::top_modal_in(ctx, hole.viewport).is_some();
     let (mut space, mut over) = Service::<Registry>::run(ctx, |registry| (registry.space, registry.over));
     let before = input.events.len();
+    let os = crate::runtime::windows::os_of(ctx);
+    let latin = input.latin_layout_chars.clone();
+    let is_space = |key: &KeyInput| key.physical.or(key.typed) == Some(egui::Key::Space);
     input.events.retain(|event| {
         match event {
             Event::PointerMoved(pos) if here => over = hole.answers(*pos),
@@ -215,14 +219,18 @@ pub(crate) fn hook(ctx: &Context, input: &mut RawInput) -> (Option<Hole>, bool) 
             Event::PointerButton { pos, .. } if here => over = hole.answers(*pos),
             _ => {}
         }
-        match event {
-            Event::Key { key: Key::Space, pressed, .. } if space || (*pressed && over) => {
-                space = *pressed;
-                hole.space = space;
+        match raw_input::key_event(event, os, &latin) {
+            KeyEvent::Press { input: key, .. } if is_space(&key) && (space || over) => {
+                space = true;
+                hole.space = true;
                 false
             }
-            Event::PointerButton { pos, pressed: true, .. } if barred => !hole.answers(*pos) || hole.admits(event, None),
-            _ => true,
+            KeyEvent::Release { input: key } if is_space(&key) && space => {
+                space = false;
+                hole.space = false;
+                false
+            }
+            _ => !matches!(event, Event::PointerButton { pos, pressed: true, .. } if barred && hole.answers(*pos) && !hole.admits(event, None)),
         }
     });
     hole.space = space;

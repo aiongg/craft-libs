@@ -11,7 +11,7 @@ use craft_ui::contract::{
     ShowContainer as _, Sizing, Trigger,
 };
 use craft_ui::style::StyleCx;
-use craft_ui::testing::focus::is_focused;
+use craft_ui::testing::focus::{is_focused, key_release};
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::{middle, moved, press, release, secondary, wheel};
 use craft_ui::testing::wheel::{focus, register, take};
@@ -214,7 +214,7 @@ impl Scene {
 }
 
 fn space(pressed: bool) -> Event {
-    Event::Key { key: Key::Space, physical_key: Some(Key::Space), pressed, repeat: false, modifiers: Modifiers::NONE }
+    if pressed { key_press(Key::Space, Modifiers::NONE) } else { key_release(Key::Space, Modifiers::NONE) }
 }
 
 /// With a sampler armed, a press and a drag on the canvas under the dialog reach it, the dialog keeps key focus and
