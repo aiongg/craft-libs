@@ -753,6 +753,11 @@ impl<'a> EnvView<'a> {
         self.scoped.roving
     }
 
+    /// The tokens of the scope, for a component that builds its shapes in `update` and keeps them in memory.
+    pub(crate) fn tokens(&self) -> &'a UiTokens {
+        &self.scoped.tokens
+    }
+
     /// The layout direction.
     pub fn direction(&self) -> Direction {
         self.scoped.direction

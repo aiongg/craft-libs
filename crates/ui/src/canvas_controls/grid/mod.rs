@@ -7,12 +7,14 @@ pub(super) mod stories;
 
 use crate::canvas::{CanvasSpace, GuideLine, canvas_space};
 use crate::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role};
-use crate::primitives::{ContentPainterCx, GridInk, GridStroke};
+use crate::primitives::{GridInk, GridStroke, grid_lines};
 use crate::runtime::env::Label;
-use crate::style::{ComponentStyle, DataColor, StyleColor, StyleCx};
+use crate::runtime::memory::Remember as _;
+use crate::style::{ComponentStyle, DataColor, StyleColor, StyleCx, UiTokens};
 use craft_behavior::kurbo::{Point, Rect, Vec2};
-use craft_behavior::{Input, Metrics};
-use egui::{Color32, Response};
+use craft_behavior::{CanvasView, Input, Metrics};
+use egui::{Color32, Response, Shape};
+use std::sync::Arc;
 
 pub use crate::primitives::{GridAxis, GridLines, MAX_LINES};
 
@@ -57,6 +59,30 @@ pub struct GridStyle {
     color: StyleColor,
     /// The side of a crossing square.
     crossing: f32,
+}
+
+/// What the shapes of a grid are built from: when none of it changed, the shapes of the last build are the shapes to
+/// paint.
+#[derive(Clone, PartialEq)]
+struct GridKey {
+    view: CanvasView,
+    spacing: Vec2,
+    subdivisions: u32,
+    origin: Point,
+    bounds: Option<Rect>,
+    min_zoom: Option<f64>,
+    line: GridLine,
+    color: Color32,
+    crossing: f32,
+    tokens: u64,
+    pixels_per_point: f32,
+}
+
+/// The shapes of a grid under the key they were built for, kept in the control's memory.
+#[derive(Clone, Default)]
+struct GridShapes {
+    key: Option<GridKey>,
+    shapes: Arc<Vec<Shape>>,
 }
 
 /// Major and minor grid lines over a document, counted from `origin`. A major step under six screen points draws
@@ -130,6 +156,23 @@ impl CanvasGrid {
     }
 }
 
+impl CanvasGrid {
+    /// The shapes of the lines in `space` as `key` draws them.
+    fn shapes(&self, space: &CanvasSpace, tokens: &UiTokens, key: &GridKey) -> Vec<Shape> {
+        let lines = self.lines(space);
+        if lines.extent.is_none() {
+            return Vec::new();
+        }
+        let stroke = match self.line {
+            GridLine::Solid => GridStroke::Solid,
+            GridLine::Dashed => GridStroke::Dashed,
+            GridLine::Dots => GridStroke::Dots,
+            GridLine::Crossings => return if lines.crossings { crossings(space, &lines, key.color, key.crossing) } else { Vec::new() },
+        };
+        grid_lines(tokens, &lines, &GridInk::new().major(key.color).stroke(stroke), key.pixels_per_point)
+    }
+}
+
 impl Component for CanvasGrid {
     const ROLE: Role = Role::GRAPHICS_OBJECT;
     const ALT_ROLES: &'static [Role] = &[Role::None];
@@ -149,27 +192,38 @@ impl Component for CanvasGrid {
         egui::Vec2::ZERO
     }
 
-    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+    /// Builds the shapes when the view, the grid's settings, the colour, the tokens or the device scale differ from
+    /// those of the shapes in memory.
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let Some(space) = canvas_space(&cx.env) else { return };
-        let lines = self.lines(&space);
-        if lines.extent.is_none() {
+        let (tokens, style) = (cx.env.tokens(), cx.style);
+        let color = self.color.map_or(style.color.egui(), |color| color.0);
+        let key = GridKey {
+            view: space.view,
+            spacing: self.spacing,
+            subdivisions: self.subdivisions,
+            origin: self.origin,
+            bounds: self.bounds,
+            min_zoom: self.min_zoom,
+            line: self.line,
+            color,
+            crossing: style.crossing,
+            tokens: tokens.key(),
+            pixels_per_point: cx.ctx.pixels_per_point(),
+        };
+        if cx.memory::<GridShapes>().key.as_ref() == Some(&key) {
             return;
         }
-        let style = &cx.style;
-        let painter = ui.content_painter(cx);
-        let base = self.color.map_or(style.color.egui(), |color| color.0);
-        let stroke = match self.line {
-            GridLine::Solid => GridStroke::Solid,
-            GridLine::Dashed => GridStroke::Dashed,
-            GridLine::Dots => GridStroke::Dots,
-            GridLine::Crossings => {
-                if lines.crossings {
-                    paint_crossings(&painter, &space, &lines, base, style);
-                }
-                return;
-            }
-        };
-        painter.grid_lines(&lines, &GridInk::new().major(base).stroke(stroke));
+        let shapes = Arc::new(self.shapes(&space, tokens, &key));
+        *cx.memory::<GridShapes>() = GridShapes { key: Some(key), shapes };
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        if canvas_space(&cx.env).is_none() {
+            return;
+        }
+        let shapes = cx.recall::<GridShapes>().shapes;
+        ui.content_painter(cx).painter.extend(shapes.iter().cloned());
     }
 
     fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
@@ -182,13 +236,12 @@ impl Component for CanvasGrid {
 }
 
 /// A square at each crossing where either line is major.
-fn paint_crossings(painter: &ContentPainterCx<'_>, space: &CanvasSpace, lines: &GridLines, color: Color32, style: &GridStyle) {
-    let mut count = 0;
+fn crossings(space: &CanvasSpace, lines: &GridLines, color: Color32, side: f32) -> Vec<Shape> {
+    let mut squares = Vec::new();
     let mut square = |x: f64, y: f64| {
-        if count < MAX_CROSSINGS {
-            count += 1;
+        if squares.len() < MAX_CROSSINGS {
             let at = space.view.to_screen(Point::new(x, y));
-            painter.painter.rect_filled(egui::Rect::from_center_size(at, egui::Vec2::splat(style.crossing)), 0.0, color);
+            squares.push(Shape::rect_filled(egui::Rect::from_center_size(at, egui::Vec2::splat(side)), 0.0, color));
         }
     };
     for &x in &lines.x.major {
@@ -201,4 +254,5 @@ fn paint_crossings(painter: &ContentPainterCx<'_>, space: &CanvasSpace, lines: &
             square(x, y);
         }
     }
+    squares
 }
