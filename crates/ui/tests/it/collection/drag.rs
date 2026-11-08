@@ -33,7 +33,9 @@ impl Scene {
             .iter()
             .filter_map(|event| {
                 if let CollectionEvent::Toggle(edit) = event {
-                    edit.value().filter(|_| matches!(edit, craft_behavior::EditEvent::Set { .. } | craft_behavior::EditEvent::Commit { .. })).map(|toggle| (toggle.key, toggle.on))
+                    edit.value()
+                        .filter(|_| matches!(edit, craft_behavior::EditEvent::Set { .. } | craft_behavior::EditEvent::Commit { .. }))
+                        .map(|toggle| (toggle.key, toggle.on))
                 } else {
                     None
                 }

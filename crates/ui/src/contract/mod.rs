@@ -68,8 +68,8 @@ pub use registry::{CollectionEntry, ContainerEntry, Exemption, LeafEntry, Patter
 pub use sampler::Sampler;
 pub use values::{Bind, BindMut, EditResponse, ItemOutput, NoValue, Outcome, Validity, ValueOf, clicked};
 
-use crate::runtime::overlay::CloseReason;
 use crate::runtime::memory::sub;
+use crate::runtime::overlay::CloseReason;
 use crate::style::{ComponentStyle, Flags, StyleCx, StyleKey};
 pub use craft_behavior::Input;
 use craft_behavior::{CellSpace, ItemLayout, ItemSource, Proposal, ScrollPos, SelectionModel, Sense};
