@@ -1647,7 +1647,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `fn begin(&mut self)`. Opens a gesture.
   - `fn commit(&mut self)`. Commits the proposed value.
   - `fn cancel(&mut self, reason: CancelReason)`. Cancels the running gesture.
-- `craft_ui::contract::EditResponse`: `pub struct EditResponse<T> { pub response: Response, pub event: Option<EditEvent<T>>, pub submitted: bool, pub escaped: bool, pub validity: Validity<T>, pub shown: Option<Mixed<Arc<T>>> }`. The output of a component that edits a value. Only `cx.edit_response()` builds it.
+- `craft_ui::contract::EditResponse`: `pub struct EditResponse<T> { pub response: Response, pub event: Option<EditEvent<T>>, pub submitted: bool, pub escaped: bool, pub unparsed: bool, pub validity: Validity<T>, pub shown: Option<Mixed<Arc<T>>> }`. The output of a component that edits a value. Only `cx.edit_response()` builds it.
   - `pub fn value(&self) -> Option<&T>`. The value the pass's event carries: a proposal, a commit or a set; `None` when nothing was edited or the event
 - `craft_ui::contract::EndRegion`: `pub struct EndRegion`. An end region, filled by `Container::end`: controls in reading order at the line's end edge, beside the body and
   - `pub const fn new() -> Self`. An end region.
@@ -1705,6 +1705,10 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub const fn rule(mut self, on: bool) -> Self`. Whether a rule separates the header from the body.
   - `pub const fn inline(mut self, on: bool) -> Self`. Whether the header shares a line with the body.
   - `pub const fn trailing(mut self, on: bool) -> Self`. Whether the header has a trailing region for the container's controls.
+- `craft_ui::contract::Held`: `pub struct Held<'a, T>`. The caller's binding of a value a pattern edits in its body: the body reads the value at the start of its pass and
+  - `pub fn new(bind: Bind<'a, T>) -> Self`. Holds `bind`.
+  - `pub fn read(&mut self, cx: &mut BodyCx<'_>) -> Option<T>`. The bound value; `None` while a mixed or kept binding holds none.
+  - `pub fn write(&mut self, cx: &mut BodyCx<'_>, before: &T, after: T, name: &str)`. Replaces `before` with `after`, the edit named `name`.
 - `craft_ui::contract::Input`: re-export of `craft_behavior::input::Input`.
 - `craft_ui::contract::Interpolate`: re-export of `craft_ui::runtime::motion::Interpolate`.
 - `craft_ui::contract::ItemCx`: `pub struct ItemCx<'a, 'r, K> { pub key: &'a K, pub at: usize, pub rect: Rect, pub row: super::RowState, pub depth: usize, pub set: crate::runtime::access::SetPosition, pub row_index: usize, pub row_count: usize, pub column_count: usize, pub env: EnvView<'a> }`. What the item closure reads for one item: a view over the pipeline's memory stage keyed by the item.
@@ -2005,11 +2009,11 @@ The shapes of component: which show trait applies.
 
 ## `craft_ui::contract::toast`
 
-The toast host (15.5): one layer per viewport that lays out the queued toasts and tracks their holds and ends. A
+The toast host (15.5): one layer per window root (its id derives from the scope of the root's body) that lays out
 
 - `craft_ui::contract::toast::CardOutcome`: `pub struct CardOutcome { pub hovered: bool, pub end: Option<ToastEnd> }`. What a drawn card reports back to the host.
   - `pub fn new(hovered: bool, end: Option<ToastEnd>) -> Self`. A card the pointer rests on when `hovered`, which the user ended as `end`.
-- `craft_ui::contract::toast::ToastHost`: `pub struct ToastHost`. The layer that shows the toast queue of a viewport. The window root calls `show` once per pass.
+- `craft_ui::contract::toast::ToastHost`: `pub struct ToastHost`. The layer that shows the toast queue of a viewport. The window root calls `show` once per pass, from its own
   - `pub fn show(ui: &Ui, card: &mut dyn FnMut(&mut Ui, &Toast, IdSalt) -> CardOutcome)`. Lays out every queued toast of the running viewport, oldest at the top, in the viewport's end corner, and
 
 ## `craft_ui::contract::tooltip`
