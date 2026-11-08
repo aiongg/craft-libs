@@ -112,11 +112,7 @@ fn node(fixture: &Fixture, label: &str) -> Target {
 
 /// The list row named `name`.
 fn row(fixture: &Fixture, name: &str) -> Target {
-    fixture
-        .by_role(Role::TREE_ITEM)
-        .into_iter()
-        .find(|target| fixture.tree().name_of(target.node) == Some(name))
-        .unwrap_or_else(|| panic!("no row named {name:?}"))
+    node(fixture, name)
 }
 
 /// The middle of the painted name of a row.
