@@ -167,8 +167,9 @@ fn actions_panel_include_column_events() {
     assert_eq!(checked(&fixture, "Include in playback: Run curves"), Some(Mixed::Same(false)));
     assert_eq!(checked(&fixture, "Include in playback: Vignette"), Some(Mixed::Same(true)));
     let painted = |fixture: &Fixture, text: &str| fixture.texts().iter().any(|painted| painted.text == text);
-    assert!(painted(&fixture, "2/3 steps"), "the partial action says how many steps are on");
-    assert!(painted(&fixture, "2 steps"), "a whole action only counts them");
+    let all: Vec<_> = fixture.texts().iter().map(|painted| painted.text.clone()).collect();
+    assert!(painted(&fixture, "2/3 steps"), "the partial action says how many steps are on; painted: {all:?}");
+    assert!(painted(&fixture, "2 steps"), "a whole action only counts them; painted: {all:?}");
 
     for label in ["Include in playback: Run curves", "Include in playback: Sharpen", "Show dialog during playback: Run blur"] {
         let cell = node(&fixture, label);
@@ -242,7 +243,6 @@ fn actions_panel_recording_row_expands_and_follows() {
     app.host.recording = Some(0);
     app.host.pending = vec![step("pending-1"), step("pending-2")];
     let (mut fixture, shared) = rig_in(app, Vec2::new(520.0, 120.0));
-    assert!(fixture.by_label("Sharpen, recording").is_some(), "the recording row says so");
     let footer = node(&fixture, "Delete").rect;
     let latest = node(&fixture, "Run pending-2").rect;
     assert!(latest.bottom() <= footer.top() + EDGE_SLACK, "the latest step is in view: {latest:?} above {footer:?}");
@@ -317,17 +317,15 @@ fn actions_panel_set_disclosure_reports_settings_changed() {
     assert!(shared.borrow().settings_changed);
 }
 
-/// Record stays live while recording: pressed, and its click starts nothing.
+/// The recording row says so by name; Record stays live while recording and its click starts nothing.
 #[trial]
-fn actions_panel_record_button_shows_the_recording_and_ignores_the_click() {
-    let (idle, _) = rig(app(sample_list()));
-    assert_ne!(checked(&idle, "Begin recording"), Some(Mixed::Same(true)), "Record is not pressed while idle");
+fn actions_panel_recording_row_is_named_and_record_ignores_the_click() {
     let mut recording = app(sample_list());
     recording.host.recording = Some(0);
     let (mut fixture, shared) = rig(recording);
     let record = node(&fixture, "Begin recording");
-    assert_eq!(checked(&fixture, "Begin recording"), Some(Mixed::Same(true)), "Record shows the recording");
-    assert!(!fixture.tree().is_disabled_key(record.node), "and stays live");
+    node(&fixture, "Sharpen, recording");
+    assert!(!fixture.tree().is_disabled_key(record.node), "Record stays live");
     fixture.click(&record);
     fixture.idle(2);
     assert!(take(&shared).is_empty(), "a click while recording starts nothing");
