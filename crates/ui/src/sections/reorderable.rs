@@ -1,19 +1,18 @@
 //! `ReorderableSections` (24.4): a sidebar of sections the user folds, hides, pins and drags, over a `SectionLayout`.
 
 use super::layout::{SectionEvent, SectionKey, SectionLayout};
+use super::title_row::HeaderAction;
 use super::words::ReorderableWords;
 use super::{Section, SectionStack};
-use crate::buttons::IconButton;
-use crate::contract::{
-    Bind, BodyCx, Entry, NoValue, Outcome, Pattern, Politeness, PopupKind, Props as _, Show as _, ShowContainer as _, Trigger, announce,
-};
+use crate::contract::{Bind, BodyCx, Entry, NoValue, Outcome, Pattern, Politeness, Props as _, Show as _, ShowContainer as _, announce};
 use crate::display::Divider;
 use crate::layout_components::Stack;
-use crate::menu::{Menu, MenuItem, entry_rows};
+use crate::menu::{MenuItem, entry_rows};
 use crate::runtime::commands::{CommandSet as _, CommandState, Commands as _};
 use crate::runtime::env::{Env, Label};
-use craft_behavior::{EditEvent, IconId, Mixed};
+use craft_behavior::{EditEvent, Mixed};
 use egui::{Response, Ui};
+use std::cell::RefCell;
 use std::sync::Arc;
 
 #[cfg(feature = "testing")]
@@ -118,7 +117,7 @@ impl<'a> ReorderableSections<'a> {
             let stored = bind.reborrow().read(root).and_then(|held| held.same().cloned());
             let mut held = stored.clone().unwrap_or_default();
             held.reconcile(&keys);
-            let mut local: Vec<SectionEvent> = Vec::new();
+            let local: RefCell<Vec<SectionEvent>> = RefCell::new(Vec::new());
             let order: Vec<SectionKey> = held.shown().cloned().collect();
             let stack = SectionStack::new(&order);
             let rows = stack.rows();
@@ -134,17 +133,20 @@ impl<'a> ReorderableSections<'a> {
                             .open(Bind::bound(&mut open))
                             .in_stack(slot)
                             .command_scope(SectionCommand::SCOPE)
-                            .controls(|ui, cx| header_controls(ui, cx, key, &held, sections, &words, &mut local))
+                            .controls(|_, cx| section_commands(cx, key, &held, &mut local.borrow_mut()))
+                            .menu(|ui, _| section_menu(ui, key, &held, sections, &mut local.borrow_mut()))
+                            .actions([HeaderAction::Menu])
                             .show(ui, |ui, cx| body(ui, key, cx))
                             .output;
                         if open == held.is_folded(key) {
-                            local.push(SectionEvent::Folded { key: key.clone(), folded: !open });
+                            local.borrow_mut().push(SectionEvent::Folded { key: key.clone(), folded: !open });
                         }
                         out
                     });
                 })
                 .output
                 .moves;
+            let mut local = local.into_inner();
             for edit in &moves {
                 if let Some(moved) = edit.value()
                     && let Some(event) = held.moved_to(&moved.key, moved.to)
@@ -153,52 +155,49 @@ impl<'a> ReorderableSections<'a> {
                 }
             }
             let mut next = held.clone();
+            let mut changed = false;
             for event in &local {
-                if next.apply(event) && matches!(event, SectionEvent::Moved { .. }) {
-                    announce_place(ui, &words, sections, &next, event);
+                if next.apply(event) {
+                    changed = true;
+                    if matches!(event, SectionEvent::Moved { .. }) {
+                        announce_place(ui, &words, sections, &next, event);
+                    }
                 }
             }
-            if stored.as_ref() != Some(&next) {
+            if changed {
                 let gesture = crate::runtime::edit::next_gesture_id(ui.ctx());
                 bind.reborrow().write(root, &EditEvent::set(gesture, Mixed::Same(stored.unwrap_or_default()), next, Arc::clone(&name), None));
             }
             events.extend(local);
         });
-        let mut unique: Vec<SectionEvent> = Vec::with_capacity(events.len());
-        for event in events {
-            if !unique.contains(&event) {
-                unique.push(event);
-            }
-        }
-        ReorderableSectionsOutput { response: shown.output, events: unique }
+        ReorderableSectionsOutput { response: shown.output, events }
     }
 }
 
-/// The trailing region of a section's header: runs the commands routed to the section, publishes their states and
-/// shows the button that opens the section menu.
-fn header_controls(
-    ui: &mut Ui,
-    cx: &mut BodyCx<'_>,
-    key: &SectionKey,
-    held: &SectionLayout,
-    sections: &[SectionSpec],
-    words: &ReorderableWords,
-    events: &mut Vec<SectionEvent>,
-) {
+/// The commands routed to the section: runs them and publishes their states.
+fn section_commands(cx: &mut BodyCx<'_>, key: &SectionKey, held: &SectionLayout, events: &mut Vec<SectionEvent>) {
     while let Some((command, _)) = cx.take_command::<SectionCommand>() {
         events.extend(command_event(command, key, held));
     }
+    for (command, enabled) in command_rows(key, held) {
+        cx.publish(command, CommandState::new().enabled(enabled));
+    }
+}
+
+/// The commands of a section's menu with whether each applies now.
+fn command_rows(key: &SectionKey, held: &SectionLayout) -> [(SectionCommand, bool); 5] {
     let (folded, pinned) = (held.is_folded(key), held.is_pinned(key));
-    let rows = [
+    [
         (SectionCommand::Hide, true),
         (if folded { SectionCommand::Unfold } else { SectionCommand::Fold }, true),
         (if pinned { SectionCommand::Unpin } else { SectionCommand::Pin }, true),
         (SectionCommand::MoveUp, held.can_move(key, true)),
         (SectionCommand::MoveDown, held.can_move(key, false)),
-    ];
-    for (command, enabled) in rows {
-        cx.publish(command, CommandState::new().enabled(enabled));
-    }
+    ]
+}
+
+/// The rows of a section's menu: its commands, then a check item per registered section that shows or hides it.
+fn section_menu(ui: &mut Ui, key: &SectionKey, held: &SectionLayout, sections: &[SectionSpec], events: &mut Vec<SectionEvent>) {
     let entries: Vec<Entry<SectionEvent>> = sections
         .iter()
         .map(|spec| {
@@ -207,16 +206,13 @@ fn header_controls(
             Entry::new(event, spec.title.clone()).checked(!hidden)
         })
         .collect();
-    let button = IconButton::new(IconId::new("more")).label(words.menu.clone()).popup(PopupKind::Menu).show(ui);
-    Menu::new(words.menu.clone()).opened_by(&button, Trigger::Click).show(ui, |ui, _| {
-        for (command, _) in rows {
-            let _ = MenuItem::command(command).show(ui);
-        }
-        Divider::horizontal().show(ui);
-        if let Some(event) = entry_rows(ui, &entries).and_then(|at| entries.get(at)).and_then(Entry::value) {
-            events.push(event.clone());
-        }
-    });
+    for (command, _) in command_rows(key, held) {
+        let _ = MenuItem::command(command).show(ui);
+    }
+    Divider::horizontal().show(ui);
+    if let Some(event) = entry_rows(ui, &entries).and_then(|at| entries.get(at)).and_then(Entry::value) {
+        events.push(event.clone());
+    }
 }
 
 /// The event a command of a section stands for, or `None` when it would change nothing.

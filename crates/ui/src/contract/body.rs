@@ -1301,6 +1301,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             if props.header.is_some_and(|header| header.band == DragBand::Reorder) {
                 scoped.commands = scoped.commands.pushed(REORDER_SCOPE, id);
             }
+            if let Some(scope) = props.command_scope {
+                scoped.commands = scoped.commands.pushed(scope, id);
+            }
             if let Some(theme) = &props.theme {
                 scoped.tokens = theme.tokens().clone();
             }
@@ -1358,9 +1361,6 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 }
                 if props.roving.is_some() {
                     scoped.roving = Some(super::steps::body_group(id));
-                }
-                if let Some(scope) = props.command_scope {
-                    scoped.commands = scoped.commands.pushed(scope, id);
                 }
             });
             // A held fill-width container is part of the content column it sits in: its own stack is one too.

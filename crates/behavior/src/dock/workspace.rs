@@ -1,5 +1,5 @@
-//! A saved arrangement: the current layout, where hidden panels go back, the user's saved
-//! arrangement for Reset, and Lock Workspace.
+//! A saved arrangement: the current layout and where hidden panels go back. Lock Workspace and
+//! Reset belong to the [`WorkspaceSet`](super::WorkspaceSet).
 //!
 //! Storage, file names and size caps stay with the application. A file that does not parse or
 //! validate, or comes from a newer version, should be kept on disk and not overwritten.
@@ -14,7 +14,7 @@ use super::{
     policy::{DockError, Permissions},
 };
 
-/// A saved arrangement of panels: the [`Layout`], the closed panels' former places, and a lock.
+/// A saved arrangement of panels: the [`Layout`] and the closed panels' former places.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, bound(deserialize = "P: serde::Deserialize<'de>"))]
 #[non_exhaustive]
@@ -28,14 +28,6 @@ pub struct Workspace<P> {
     /// Closed panels, and panels the application does not register now, with where each one
     /// goes back.
     pub hidden: Vec<(P, Location<P>)>,
-    /// A user workspace's saved arrangement; Reset returns to it. Built-in workspaces use the
-    /// application's default instead.
-    pub saved: Option<Layout<P>>,
-    /// Lock Workspace, saved with this workspace: [`Self::apply`] uses
-    /// [`Permissions::locked`], so moving, floating and closing are rejected while activating,
-    /// opening, minimizing, resizing and recording native windows still work. An application
-    /// with a global lock preference instead passes locked permissions itself.
-    pub locked: bool,
 }
 
 fn first_version() -> u32 {
@@ -54,25 +46,22 @@ impl<P> Default for Workspace<P> {
 
 impl<P> Workspace<P> {
     /// The format version written to files.
-    pub const VERSION: u32 = 2;
+    pub const VERSION: u32 = 3;
 
-    /// A workspace of `layout`, with no hidden panels, unlocked.
+    /// A workspace of `layout`, with no hidden panels.
     pub fn new(layout: Layout<P>) -> Self {
-        Self { version: Self::VERSION, layout, hidden: Vec::new(), saved: None, locked: false }
+        Self { version: Self::VERSION, layout, hidden: Vec::new() }
     }
 }
 
 impl<P: Clone + Eq + Hash> Workspace<P> {
-    /// Check the version, both layouts and that every hidden panel is hidden once and absent
-    /// from the current layout.
+    /// Check the version, the layout and that every hidden panel is hidden once and absent
+    /// from the layout.
     pub fn validate(&self) -> Result<(), DockError> {
         if self.version > Self::VERSION {
             return Err(DockError::UnsupportedVersion);
         }
         self.layout.validate()?;
-        if let Some(saved) = &self.saved {
-            saved.validate()?;
-        }
         if self.hidden.len() > MAX_PANELS {
             return Err(DockError::LimitExceeded);
         }
@@ -87,16 +76,24 @@ impl<P: Clone + Eq + Hash> Workspace<P> {
     }
 
     /// Apply one action. Closed panels record where they go back, so each one can be reopened
-    /// with [`Self::set_visible`]. Honors [`Self::locked`]. Returns the panels the action
-    /// closed, in group order, so the application can release their state.
-    pub fn apply(&mut self, action: Action<P>, permissions: impl Fn(&P) -> Permissions) -> Result<Vec<P>, DockError> {
-        self.apply_all([action], permissions)
+    /// with [`Self::set_visible`]. `locked` is [`WorkspaceSet::locked`](super::WorkspaceSet::locked):
+    /// the actions run with [`Permissions::locked`], so moving, floating and closing are
+    /// rejected while activating, opening, minimizing, resizing and recording native windows
+    /// still work. Returns the panels the action closed, in group order, so the application
+    /// can release their state.
+    pub fn apply(&mut self, action: Action<P>, locked: bool, permissions: impl Fn(&P) -> Permissions) -> Result<Vec<P>, DockError> {
+        self.apply_all([action], locked, permissions)
     }
 
-    /// Apply every action in order, or none. Returns the panels the actions closed, in order.
-    pub fn apply_all(&mut self, actions: impl IntoIterator<Item = Action<P>>, permissions: impl Fn(&P) -> Permissions) -> Result<Vec<P>, DockError> {
+    /// Apply every action in order, or none, as [`Self::apply`] does. Returns the panels the
+    /// actions closed, in order.
+    pub fn apply_all(
+        &mut self,
+        actions: impl IntoIterator<Item = Action<P>>,
+        locked: bool,
+        permissions: impl Fn(&P) -> Permissions,
+    ) -> Result<Vec<P>, DockError> {
         self.validate()?;
-        let locked = self.locked;
         let policy = |panel: &P| if locked { permissions(panel).locked() } else { permissions(panel) };
         let mut proposed = self.clone();
         let mut all_closed = Vec::new();
@@ -104,7 +101,7 @@ impl<P: Clone + Eq + Hash> Workspace<P> {
             let closed = proposed.layout.closed_by(&action)?;
             let locations = close_locations(&proposed.layout, &closed);
             // SetNative records where the window system has a floating window, so a lock
-            // takes it too.
+            // does not refuse it.
             if matches!(action, Action::SetNative { .. }) {
                 proposed.layout.apply_with_permissions(action, &permissions)?;
             } else {
@@ -131,17 +128,24 @@ impl<P: Clone + Eq + Hash> Workspace<P> {
     /// panels on that chain reopen beside it later, so a group or window closed one panel at a
     /// time comes back as one.
     /// A shown panel becomes the active tab of its group. Hiding follows `permissions` and
-    /// [`Self::locked`], as [`Self::apply`] does, so a protected canvas stays shown.
-    pub fn set_visible(&mut self, panel: P, visible: bool, fallback: Option<P>, permissions: impl Fn(&P) -> Permissions) -> Result<(), DockError> {
+    /// `locked`, as [`Self::apply`] does, so a protected canvas stays shown.
+    pub fn set_visible(
+        &mut self,
+        panel: P,
+        visible: bool,
+        fallback: Option<P>,
+        locked: bool,
+        permissions: impl Fn(&P) -> Permissions,
+    ) -> Result<(), DockError> {
         self.validate()?;
         if !visible {
             if !self.layout.contains(&panel) {
                 return Ok(());
             }
-            return self.apply(Action::Close { panel }, permissions).map(drop);
+            return self.apply(Action::Close { panel }, locked, permissions).map(drop);
         }
         if self.layout.contains(&panel) {
-            return self.apply(Action::Activate { panel }, |_| Permissions::default()).map(drop);
+            return self.apply(Action::Activate { panel }, false, |_| Permissions::default()).map(drop);
         }
         let mut layout = self.layout.clone();
         if self.restore_from_hidden(&mut layout, &panel).is_err() {
@@ -194,16 +198,15 @@ impl<P: Clone + Eq + Hash> Workspace<P> {
 
     /// Fit a loaded workspace to the panels the application registers now. An invalid
     /// workspace is replaced by `default`. Panels not registered now (plug-ins, on-demand or
-    /// numbered panels) move to `hidden` with their location, so they come back once registered;
-    /// the saved arrangement drops them. Registered panels in `default` that are neither shown
-    /// nor hidden go to their default place, or to `hidden` when that place cannot be rebuilt.
+    /// numbered panels) move to `hidden` with their location, so they come back once registered.
+    /// Registered panels in `default` that are neither shown nor hidden go to their default place, or to `hidden` when that place cannot be rebuilt.
     /// A registered panel that `permissions` says cannot close, such as a protected canvas, is
     /// always shown: at its recorded or default place, else at the outer edge of the docked
     /// area. Pass the panels' own permissions, not [`Permissions::locked`] ones.
     /// `hidden` keeps at most [`MAX_PANELS`] entries, dropping the oldest unregistered ones first.
     pub fn reconcile(&mut self, registered: impl Fn(&P) -> bool, permissions: impl Fn(&P) -> Permissions, default: &Workspace<P>) {
         if self.validate().is_err() {
-            *self = Workspace { locked: self.locked, ..default.clone() };
+            *self = default.clone();
         }
         let unknown: Vec<P> = self.layout.panels().into_iter().filter(|p| !registered(p)).cloned().collect();
         let locations = close_locations(&self.layout, &unknown);
@@ -211,15 +214,6 @@ impl<P: Clone + Eq + Hash> Workspace<P> {
             self.layout.take(panel);
         }
         self.hidden.extend(locations);
-        if let Some(saved) = self.saved.as_mut() {
-            let unknown: Vec<P> = saved.panels().into_iter().filter(|p| !registered(p)).cloned().collect();
-            for panel in unknown {
-                saved.take(&panel);
-            }
-            if saved.validate().is_err() {
-                self.saved = None;
-            }
-        }
         let known: HashSet<P> = self.layout.panels().into_iter().chain(self.hidden.iter().map(|(p, _)| p)).cloned().collect();
         let mut missing: Vec<(P, Location<P>)> = Vec::new();
         for panel in default.layout.panels() {
@@ -262,23 +256,6 @@ impl<P: Clone + Eq + Hash> Workspace<P> {
             !drop
         });
         self.hidden.truncate(MAX_PANELS);
-    }
-
-    /// Reset: return to the saved arrangement, or `default` when there is none. Panels the
-    /// reset layout does not show stay hidden with their last location.
-    pub fn reset(&mut self, default: &Layout<P>) {
-        let layout = self.saved.clone().unwrap_or_else(|| default.clone());
-        let shown: HashSet<P> = layout.panels().into_iter().cloned().collect();
-        for panel in self.layout.panels() {
-            if !shown.contains(panel)
-                && !self.hidden.iter().any(|(p, _)| p == panel)
-                && let Ok(location) = self.layout.location(panel)
-            {
-                self.hidden.push((panel.clone(), location));
-            }
-        }
-        self.hidden.retain(|(p, _)| !shown.contains(p));
-        self.layout = layout;
     }
 }
 

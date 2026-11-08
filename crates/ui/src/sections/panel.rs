@@ -3,14 +3,12 @@
 //! the body. The panel is one pane for F6.
 
 use super::FooterBar;
-use super::title_row::{HeaderAction, HeaderStrength, TitleRow};
-use super::words::SectionWords;
-use crate::contract::overlay::{Anchor, Popup, Trigger};
+use super::title_row::{HeaderAction, HeaderStrength, MenuRows, TitleRow};
+use crate::contract::overlay::Popup;
 use crate::contract::{
     Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, FooterRegion, HeaderRegion, NoValue, Outcome, Pad, Props as _, Role,
     Scroll, Show as _, ShowContainer as _, Sizing, WordSetCx as _,
 };
-use crate::menu::Menu;
 use crate::primitives::IconSpec;
 use crate::runtime::env::Label;
 use crate::runtime::focus::FocusPolicy;
@@ -47,15 +45,6 @@ impl Outcome for PanelOutput {
 
     fn response(&self) -> &Response {
         &self.response
-    }
-}
-
-/// The closure that fills the rows of the panel menu.
-struct MenuRows<'a>(Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>);
-
-impl<'a> MenuRows<'a> {
-    fn new(rows: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
-        MenuRows(Box::new(rows))
     }
 }
 
@@ -182,22 +171,12 @@ impl Container for Panel<'_> {
             row = row.icon(icon);
         }
         let shown = row.show(ui);
-        let opener = shown.edit.response.id;
-        match shown.action {
-            Some(HeaderAction::Close) => cx.request_close(),
-            Some(HeaderAction::Menu) if self.menu.is_some() => self.menu_opener = Some(opener),
-            _ => {}
+        if shown.action == Some(HeaderAction::Close) {
+            cx.request_close();
         }
         self.taken = shown.action.or(self.taken);
         if let Some(rows) = self.menu.as_mut() {
-            let name = cx.words::<SectionWords>().menu.clone();
-            // Two openers on the header's response: the menu button (Manual, hung under the button) and the context
-            // request (right click, Menu key, Shift+F10).
-            let mut menu = Menu::new(name).opened_by(&shown.edit.response, Trigger::Manual);
-            if let Some(button) = shown.menu_rect {
-                menu = menu.anchor(Anchor::Rect(button));
-            }
-            menu.opened_by(&shown.edit.response, Trigger::Context).show(ui, |ui, menu| (rows.0)(ui, menu));
+            self.menu_opener = rows.hang(ui, cx, &shown);
         }
     }
 

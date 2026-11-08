@@ -3,7 +3,8 @@
 
 use super::group_box::SECTION_LEVEL;
 use super::stack::StackSlot;
-use super::title_row::{HeaderAction, HeaderStrength, TitleRow};
+use super::title_row::{HeaderAction, HeaderStrength, MenuRows, TitleRow};
+use crate::contract::overlay::Popup;
 use crate::contract::{
     Bind, BindMut, BodyCx, Collapse, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, NoValue, Outcome, Pointer as _,
     Props as _, REORDER_BAND, Role, SaveKey, Show as _, Sizing, WordSetCx as _, reorder,
@@ -11,7 +12,7 @@ use crate::contract::{
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Metrics, PointerButton, PressPhase, Sense};
-use egui::{Response, Ui};
+use egui::{Id, Response, Ui};
 
 #[cfg(feature = "testing")]
 mod stories;
@@ -67,9 +68,13 @@ pub struct Section<'a> {
     /// The header's weight: `Section` by default, `Caption` for a quiet heading.
     #[prop]
     strength: HeaderStrength,
+    /// The rows of the menu the header's Menu action, a right click, the Menu key and Shift+F10 open.
+    #[prop(func = "FnMut(&mut Ui, &mut BodyCx<'_>)")]
+    menu: Option<MenuRows<'a>>,
     actions: Vec<HeaderAction>,
     controls: Option<Controls<'a>>,
     taken: Option<HeaderAction>,
+    menu_opener: Option<Id>,
     nudged: Option<bool>,
 }
 
@@ -92,9 +97,11 @@ impl<'a> Section<'a> {
             open: None,
             collapsible,
             strength: HeaderStrength::Section,
+            menu: None,
             actions: Vec::new(),
             controls: None,
             taken: None,
+            menu_opener: None,
             nudged: None,
         }
         .label(title)
@@ -175,7 +182,10 @@ impl Component for Section<'_> {
         }
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> SectionOutput {
+    fn finish(self, mut cx: Cx<'_, Self>) -> SectionOutput {
+        if let Some(opener) = self.menu_opener {
+            Popup::toggle(opener, &mut cx);
+        }
         let grabbed = cx
             .core
             .part_if_declared(REORDER_BAND)
@@ -198,8 +208,12 @@ impl Container for Section<'_> {
     fn header(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         let row = TitleRow::new(cx.label()).strength(self.strength).level(SECTION_LEVEL).actions(self.actions.iter().copied());
         let row = if self.collapsible { row.disclosure(Bind::bound(cx.open())) } else { row };
-        if let Some(action) = row.show(ui).action {
+        let shown = row.show(ui);
+        if let Some(action) = shown.action {
             self.taken = Some(action);
+        }
+        if let Some(rows) = self.menu.as_mut() {
+            self.menu_opener = rows.hang(ui, cx, &shown);
         }
     }
 }

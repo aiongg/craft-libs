@@ -1,13 +1,13 @@
-//! Named workspaces (Window › Workspace). A workspace is a saved [`Workspace`] layout plus which bars and the panel set
-//! show; the set holds the app's built-in workspaces, the user's saved ones, the current one and
-//! Lock Workspace.
+//! Named workspaces (Window › Workspace). A workspace is a saved [`Workspace`] layout plus which bars show;
+//! the set holds the app's built-in workspaces, the user's saved ones, the current one,
+//! Lock Workspace and Reset.
 
 use std::{collections::BTreeMap, hash::Hash};
 
-use super::workspace::Workspace;
+use super::{layout::Layout, workspace::Workspace};
 
-/// Chrome a workspace remembers beside the dock layout: which bars show and the panel set.
-#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+/// Chrome a workspace remembers beside the dock layout: which bars show. The default shows every bar.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub struct WorkspaceChrome {
     /// The menu bar shows.
@@ -18,6 +18,12 @@ pub struct WorkspaceChrome {
     pub options_bar: bool,
     /// The status bar shows.
     pub status_bar: bool,
+}
+
+impl Default for WorkspaceChrome {
+    fn default() -> Self {
+        Self { menu_bar: true, tool_rail: true, options_bar: true, status_bar: true }
+    }
 }
 
 /// One named workspace.
@@ -41,18 +47,23 @@ pub struct NamedWorkspace<P> {
 
 /// The app's workspaces: built-ins first, saved ones after, one current. It is a settings
 /// section (serialized as [`Workspace`] is); the layouts of built-ins are
-/// code, and only their user edits ([`edited`](Self::edited)) are stored.
+/// code, and only their user edits ([`edited`](Self::edited)) are stored. Files of an older
+/// [`Workspace::VERSION`] load too.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(default, bound(deserialize = "P: serde::Deserialize<'de> + Eq + Hash + Clone"))]
+#[serde(from = "StoredSet<P>", bound(deserialize = "P: serde::Deserialize<'de>"))]
 #[non_exhaustive]
 pub struct WorkspaceSet<P> {
-    /// Workspaces the app defines in code.
+    /// Workspaces the app defines in code; the app supplies them again on every start, so they
+    /// are not stored.
+    #[serde(skip)]
     pub builtin: Vec<NamedWorkspace<P>>,
     /// Workspaces the user saved.
     pub saved: Vec<NamedWorkspace<P>>,
     /// Id of the current workspace.
     pub current: String,
-    /// Lock Workspace: panels can't be moved, closed or resized; the dock is shown locked.
+    /// Lock Workspace: pass it to [`Workspace::apply`] and [`Workspace::set_visible`]. Moves,
+    /// floating and closes are refused; activating, opening, minimizing, resizing and
+    /// recording native windows still work.
     pub locked: bool,
     /// The live layout each workspace was left with, by id, until Reset or Delete. Photoshop
     /// remembers the state of each workspace this way.
@@ -82,7 +93,7 @@ pub enum WorkspaceCommand {
 }
 
 impl<P> NamedWorkspace<P> {
-    /// A workspace named `name` with the stable id `id`, showing no bars and keeping no shortcuts or menus.
+    /// A workspace named `name` with the stable id `id`, showing every bar and keeping no shortcuts or menus.
     pub fn new(id: impl Into<String>, name: impl Into<String>, layout: Workspace<P>) -> Self {
         Self { id: id.into(), name: name.into(), layout, chrome: WorkspaceChrome::default(), keeps_shortcuts: false, keeps_menus: false }
     }
@@ -132,22 +143,23 @@ impl<P: Clone + Eq + Hash> WorkspaceSet<P> {
         Ok(())
     }
 
-    /// Save `live` under `name` and make it current; a name a built-in has is refused.
+    /// Save `live` under `name` and make it current; a name a built-in has is refused. A saved
+    /// workspace of the same name, in any case, is replaced.
     pub fn save(&mut self, name: &str, live: Workspace<P>, chrome: WorkspaceChrome) -> Result<String, WorkspaceError> {
         let name = name.trim();
         if name.is_empty() {
             return Err(WorkspaceError::EmptyName);
         }
-        if self.builtin.iter().any(|w| w.name.to_lowercase() == name.to_lowercase() || w.id.to_lowercase() == name.to_lowercase()) {
+        let same = |other: &str| other.to_lowercase() == name.to_lowercase();
+        if self.builtin.iter().any(|w| same(&w.name) || same(&w.id)) {
             return Err(WorkspaceError::NameTaken);
         }
-        let existing = self.saved.iter().position(|w| w.name == name);
+        let existing = self.saved.iter().position(|w| same(&w.name));
         let id = match existing {
             Some(i) => self.saved[i].id.clone(),
             None => self.free_id(&slug(name)),
         };
-        let mut layout = live;
-        layout.saved = None;
+        let layout = live;
         let (keeps_shortcuts, keeps_menus) = existing.map_or((false, false), |i| (self.saved[i].keeps_shortcuts, self.saved[i].keeps_menus));
         let workspace = NamedWorkspace { id: id.clone(), name: name.to_string(), layout, chrome, keeps_shortcuts, keeps_menus };
         match existing {
@@ -172,7 +184,8 @@ impl<P: Clone + Eq + Hash> WorkspaceSet<P> {
         Ok(())
     }
 
-    /// Reset the current workspace to its stored layout (the built-in's code layout).
+    /// Reset the current workspace: drop what it was left with and return its stored layout (a
+    /// built-in's code layout, or the layout it was saved with).
     pub fn reset(&mut self) -> Option<&Workspace<P>> {
         self.edited.remove(&self.current);
         self.current().map(|w| &w.layout)
@@ -197,4 +210,84 @@ pub enum WorkspaceError {
     EmptyName,
     /// The current workspace cannot be deleted.
     CurrentCannotBeDeleted,
+}
+
+/// The file shape of a [`WorkspaceSet`], which also reads the files of format versions 1 and 2.
+/// Those carried a `locked` and a `saved` layout on every [`Workspace`]; the set owns both now.
+#[derive(serde::Deserialize)]
+#[serde(bound(deserialize = "P: serde::Deserialize<'de>"))]
+struct StoredSet<P> {
+    #[serde(default = "Vec::new")]
+    saved: Vec<StoredNamed<P>>,
+    #[serde(default)]
+    current: String,
+    #[serde(default)]
+    locked: bool,
+    #[serde(default = "BTreeMap::new")]
+    edited: BTreeMap<String, StoredWorkspace<P>>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(bound(deserialize = "P: serde::Deserialize<'de>"))]
+struct StoredNamed<P> {
+    id: String,
+    name: String,
+    layout: StoredWorkspace<P>,
+    chrome: WorkspaceChrome,
+    keeps_shortcuts: bool,
+    keeps_menus: bool,
+}
+
+/// A [`Workspace`] with the fields of format version 2 it no longer has.
+#[derive(serde::Deserialize)]
+#[serde(bound(deserialize = "P: serde::Deserialize<'de>"))]
+struct StoredWorkspace<P> {
+    #[serde(flatten)]
+    workspace: Workspace<P>,
+    #[serde(default)]
+    locked: bool,
+    #[serde(default = "no_layout")]
+    saved: Option<Layout<P>>,
+}
+
+fn no_layout<P>() -> Option<Layout<P>> {
+    None
+}
+
+impl<P> From<StoredSet<P>> for WorkspaceSet<P> {
+    /// A lock on any stored workspace locks the set. A saved arrangement becomes the stored
+    /// layout Reset returns to; one on a built-in is dropped, since the code supplies it.
+    fn from(stored: StoredSet<P>) -> Self {
+        let mut locked = stored.locked;
+        let mut saved: Vec<NamedWorkspace<P>> = stored
+            .saved
+            .into_iter()
+            .map(|named| {
+                let StoredWorkspace { mut workspace, locked: lock, saved } = named.layout;
+                locked |= lock;
+                if let Some(layout) = saved {
+                    workspace.layout = layout;
+                }
+                NamedWorkspace {
+                    id: named.id,
+                    name: named.name,
+                    layout: workspace,
+                    chrome: named.chrome,
+                    keeps_shortcuts: named.keeps_shortcuts,
+                    keeps_menus: named.keeps_menus,
+                }
+            })
+            .collect();
+        let mut edited = BTreeMap::new();
+        for (id, stored) in stored.edited {
+            locked |= stored.locked;
+            if let Some(layout) = stored.saved
+                && let Some(named) = saved.iter_mut().find(|w| w.id == id)
+            {
+                named.layout.layout = layout;
+            }
+            edited.insert(id, stored.workspace);
+        }
+        Self { builtin: Vec::new(), saved, current: stored.current, locked, edited }
+    }
 }
