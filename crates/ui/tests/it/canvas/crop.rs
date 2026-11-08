@@ -67,7 +67,7 @@ fn a_drag_inside_moves_the_frame_and_a_drag_inside_the_default_frame_draws() {
     let moved = s.crop.borrow().rect;
     assert!(moved.x0 > FRAME.x0 && (moved.width() - FRAME.width()).abs() < 1e-9, "{moved:?}");
 
-    let mut s = shown(|c| c.default_frame(true));
+    let mut s = shown(|c| c.default_frame());
     let body = s.fixture.by_label("Whole frame").expect("whole frame");
     s.fixture.drag(&body, Vec2::new(by, by));
     let drawn = s.crop.borrow().rect;

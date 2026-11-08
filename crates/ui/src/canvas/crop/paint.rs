@@ -3,7 +3,7 @@
 use super::gesture::{Drag, Kind};
 use super::{BAR_SHARE, CropOverlay, GRID_MAX, STRAIGHTEN_MIN, screen_corners};
 use crate::canvas::CanvasSpace;
-use crate::contract::{Cx, Edit as _, PaintUi};
+use crate::contract::{Cx, PaintUi};
 use crate::primitives::{PaintShape, StrokeWidth};
 use crate::style::DataColor;
 use craft_behavior::geometry::{BoxPart, CropBox};

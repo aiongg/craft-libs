@@ -132,7 +132,11 @@ impl Rules<'_> {
 /// never feeds back into the drag. `None` outside image mode.
 pub(super) fn followed(drag: &Drag, auto_center: bool, next: &CropBox) -> Option<CanvasView> {
     let press = drag.press_view?;
-    let slid = || CanvasView { center: press.center + (next.center() - drag.at_press.center()), ..press };
+    let slid = || {
+        let mut view = press;
+        view.center = press.center + (next.center() - drag.at_press.center());
+        view
+    };
     Some(match drag.kind {
         Kind::Move => slid(),
         Kind::Resize(_) if auto_center => slid(),

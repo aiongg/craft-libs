@@ -78,11 +78,11 @@ fn guide_shown(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(CropOverlay<'static>, covers = [Default])]
 fn straighten_armed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let rect = data.value("crop", crop());
-    on_canvas(ui, |ui, at| CropOverlay::new("Crop", Bind::bound(&mut *rect)).straighten(true).show_at(ui, at))
+    on_canvas(ui, |ui, at| CropOverlay::new("Crop", Bind::bound(&mut *rect)).straighten().show_at(ui, at))
 }
 
 #[story(CropOverlay<'static>, covers = [Default])]
 fn image_mode(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let rect = data.value("crop", crop());
-    on_canvas(ui, |ui, at| CropOverlay::new("Crop", Bind::bound(&mut *rect)).image_mode(true).auto_center(true).show_at(ui, at))
+    on_canvas(ui, |ui, at| CropOverlay::new("Crop", Bind::bound(&mut *rect)).image_mode().auto_center().show_at(ui, at))
 }

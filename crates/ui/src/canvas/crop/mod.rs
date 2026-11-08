@@ -12,7 +12,7 @@ use super::words::CanvasWords;
 use super::{CanvasSpace, NUDGE, NUDGE_FAR, canvas_space, readout};
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pointer as _,
-    Props as _, Remember as _, Role, Styled as _, WordSetCx as _,
+    Props as _, Remember as _, Role, WordSetCx as _,
 };
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
@@ -280,7 +280,7 @@ impl CropOverlay<'_> {
             self.report.dragging = true;
             return;
         }
-        let held_space = crate::runtime::keys::down(&cx.ctx).contains(&egui::Key::Space);
+        let held_space = crate::runtime::keys::down(&cx.ctx).contains(&Key::Space);
         let to = drag.press_view.as_ref().unwrap_or(&view).to_doc(pos);
         let (to, lines) = rules.snapped(drag, &view, to, mods, held_space);
         self.report.snapped = lines;
@@ -517,12 +517,12 @@ impl Component for CropOverlay<'_> {
             let (press, hover) = (result.press, result.hover_pos);
             let mods = press.mods;
             match press.phase {
-                PressPhase::Down { start } if start.button == PointerButton::Primary => {
+                PressPhase::Down { start, .. } if start.button == PointerButton::Primary => {
                     if grab == Grab::Part(BoxPart::Inside) && press.double_pressed() && !self.default_frame {
                         self.report.apply = true;
                     }
                 }
-                PressPhase::DragStart { start, pos } if start.button == PointerButton::Primary => {
+                PressPhase::DragStart { start, pos, .. } if start.button == PointerButton::Primary => {
                     let mut drag = self.begin(cx, &space, &frame, grab, start.origin);
                     self.step(cx, &space, &mut drag, pos, mods);
                     live.drag = Some(drag);
