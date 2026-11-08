@@ -481,6 +481,10 @@ fn spin_values(fixture: &mut Fixture) -> Vec<Option<String>> {
     fields.iter().map(|field| fixture.tree().value_of(field.node).map(str::to_owned)).collect()
 }
 
+fn painted(fixture: &Fixture) -> Vec<String> {
+    fixture.texts().iter().map(|text| text.text.clone()).filter(|text| text.chars().any(|c| c.is_ascii_digit())).collect()
+}
+
 #[trial]
 fn zz_diag_range() {
     let start = PageRange { all: false, from: 3, to: Some(9), subset: Subset::All };
@@ -489,15 +493,26 @@ fn zz_diag_range() {
     let fields = fixture.by_role(craft_ui::contract::Role::SPIN_BUTTON);
     let to = fields.last().expect("to field");
     fixture.click(to);
-    log += &format!("click: {:?} {:?}\n", spin_values(&mut fixture), range.borrow());
+    log += &format!("click: {:?} {:?} focus {:?} {:?}\n", spin_values(&mut fixture), range.borrow(), fixture.focused_stop(), painted(&fixture));
     fixture.key(Key::A, Modifiers::COMMAND);
-    log += &format!("select all: {:?} {:?}\n", spin_values(&mut fixture), range.borrow());
-    fixture.type_text("9");
-    log += &format!("typed 9: {:?} {:?}\n", spin_values(&mut fixture), range.borrow());
-    fixture.type_text("9");
-    log += &format!("typed 99: {:?} {:?}\n", spin_values(&mut fixture), range.borrow());
+    log += &format!("select all: {:?} {:?}\n", painted(&fixture), range.borrow());
+    fixture.type_text("99");
+    log += &format!("typed 99: {:?} {:?} {:?}\n", spin_values(&mut fixture), range.borrow(), painted(&fixture));
+    fixture.idle(2);
+    log += &format!("idle: {:?} {:?} {:?}\n", spin_values(&mut fixture), range.borrow(), painted(&fixture));
     fixture.key(Key::Enter, Modifiers::NONE);
-    log += &format!("enter: {:?} {:?}\n", spin_values(&mut fixture), range.borrow());
+    fixture.idle(2);
+    log += &format!("enter: {:?} {:?} {:?}\n", spin_values(&mut fixture), range.borrow(), painted(&fixture));
+    let (mut fixture, range) = range_rig(start);
+    let fields = fixture.by_role(craft_ui::contract::Role::SPIN_BUTTON);
+    fixture.click(fields.last().expect("to field"));
+    fixture.key(Key::A, Modifiers::COMMAND);
+    fixture.type_text("1");
+    fixture.idle(1);
+    log += &format!("B typed 1: {:?} {:?}\n", range.borrow(), painted(&fixture));
+    fixture.type_text("1");
+    fixture.idle(2);
+    log += &format!("B typed 11: {:?} {:?}\n", range.borrow(), painted(&fixture));
     panic!("DIAG range\n{log}");
 }
 
@@ -506,17 +521,17 @@ fn zz_diag_custom() {
     let (mut fixture, edited, _) = dialog(PageSetup::default());
     let mut log = String::new();
     let paper = fixture.by_label("Paper size").expect("the paper list");
+    log += &format!("start role {:?}\n", fixture.tree().role_of(paper.node));
     fixture.click(&paper);
     fixture.idle(2);
-    log += &format!("open: {:?} {}x{}\n", fixture.tree().value_of(fixture.by_label("Paper size").unwrap().node), edited.borrow().width, edited.borrow().height);
-    for _ in 0..25 {
-        fixture.key(Key::ArrowDown, Modifiers::NONE);
-    }
+    log += &format!("open: list boxes {} focus {:?}\n", fixture.by_role(craft_ui::contract::Role::LIST_BOX).len(), fixture.focused_stop());
+    fixture.type_text("Custom");
     fixture.idle(2);
-    log += &format!("down x25: {:?} {}x{}\n", fixture.tree().value_of(fixture.by_label("Paper size").unwrap().node), edited.borrow().width, edited.borrow().height);
+    log += &format!("typed: focus {:?} {:?}\n", fixture.focused_stop(), painted(&fixture));
     fixture.key(Key::Enter, Modifiers::NONE);
     fixture.idle(2);
-    log += &format!("enter: {:?} {}x{}\n", fixture.tree().value_of(fixture.by_label("Paper size").unwrap().node), edited.borrow().width, edited.borrow().height);
+    let paper = fixture.by_label("Paper size").expect("the paper list");
+    log += &format!("enter: {:?} {}x{}\n", fixture.tree().value_of(paper.node), edited.borrow().width, edited.borrow().height);
     panic!("DIAG custom\n{log}");
 }
 
@@ -525,17 +540,22 @@ fn zz_diag_escape() {
     let (mut fixture, edited, _) = dialog(PageSetup::default());
     let mut log = String::new();
     let width = fixture.by_label("Width").expect("the Width field");
-    log += &format!("start: width {:?} {}x{} {:?}\n", fixture.tree().value_of(width.node), edited.borrow().width, edited.borrow().height, edited.borrow().orientation);
+    fixture.click(&width);
+    log += &format!("click: focus {:?} {:?}\n", fixture.focused_stop(), painted(&fixture));
+    fixture.key(Key::A, Modifiers::COMMAND);
+    fixture.type_text("12");
+    log += &format!("typed 12: {:?} {}x{} {:?}\n", painted(&fixture), edited.borrow().width, edited.borrow().height, edited.borrow().orientation);
+    fixture.idle(2);
+    log += &format!("idle: {:?} {}x{} {:?}\n", painted(&fixture), edited.borrow().width, edited.borrow().height, edited.borrow().orientation);
+    let (mut fixture, edited, _) = dialog(PageSetup::default());
+    let width = fixture.by_label("Width").expect("the Width field");
     fixture.click(&width);
     fixture.key(Key::A, Modifiers::COMMAND);
     fixture.type_text("1");
-    log += &format!("typed 1: {}x{} {:?}\n", edited.borrow().width, edited.borrow().height, edited.borrow().orientation);
-    fixture.type_text("2");
-    log += &format!("typed 12: {}x{} {:?} landscape radio {}\n", edited.borrow().width, edited.borrow().height, edited.borrow().orientation, radio_on(&fixture, "Landscape"));
     fixture.idle(2);
-    log += &format!("idle: {}x{} {:?} landscape radio {}\n", edited.borrow().width, edited.borrow().height, edited.borrow().orientation, radio_on(&fixture, "Landscape"));
-    fixture.key(Key::Escape, Modifiers::NONE);
-    let width = fixture.by_label("Width").expect("the Width field");
-    log += &format!("escape: width {:?} {}x{} {:?}\n", fixture.tree().value_of(width.node), edited.borrow().width, edited.borrow().height, edited.borrow().orientation);
+    log += &format!("B typed 1: {:?} {}x{}\n", painted(&fixture), edited.borrow().width, edited.borrow().height);
+    fixture.type_text("2");
+    fixture.idle(2);
+    log += &format!("B typed 12: {:?} {}x{}\n", painted(&fixture), edited.borrow().width, edited.borrow().height);
     panic!("DIAG escape\n{log}");
 }

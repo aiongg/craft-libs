@@ -248,6 +248,13 @@ status = "same"
 [[type]]
 name = "PageListLabels"
 old = "craft_pages::ui::list::PageListLabels"
+new = ""
+status = "removed"
+note = "Replaced by `PageListWords`."
+
+[[type]]
+name = "PageListWords"
+old = ""
 new = "craft_pages::ui::list::PageListWords"
 status = "replaced"
 note = "`craft_ui::words!`."
