@@ -1,7 +1,7 @@
 //! Where windows go on the desktop: which monitor a window is on, and where the next window of a cascade opens.
 //! Rects are in desktop logical points.
 
-use emath::{Rect, Vec2, pos2, vec2};
+use emath::{Rect, Vec2, pos2};
 
 use crate::monitor::Monitor;
 

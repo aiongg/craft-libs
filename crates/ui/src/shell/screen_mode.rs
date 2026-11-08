@@ -1,7 +1,7 @@
 //! Screen modes (the F key) and the window actions that enter and leave full screen.
 
 use crate::contract::{BindMut, BodyCx};
-use crate::runtime::commands::{CommandSet as _, Commands as _};
+use crate::runtime::commands::Commands as _;
 use crate::runtime::egui::pass;
 use crate::runtime::windows::{WindowAction, WindowHost, os_of};
 use craft_behavior::{EditEvent, GestureId, Mixed};

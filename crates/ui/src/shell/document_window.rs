@@ -88,7 +88,7 @@ pub struct DocumentWindow<'a> {
     closed: Option<CloseReason>,
 }
 
-impl DocumentWindow<'_> {
+impl<'a> DocumentWindow<'a> {
     /// A window titled `title`, resizable, with the installed decision's frame.
     pub fn new(title: impl Into<Label>) -> Self {
         let fallback = Overlay::floating().resizable(true).fit(OverlayFit::Resizable);
