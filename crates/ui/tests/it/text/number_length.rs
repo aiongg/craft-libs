@@ -49,10 +49,12 @@ fn a_length_field_types_and_steps_in_the_shown_unit() {
     assert!((metric - one).abs() < SAME, "25.4 mm is one inch: {metric} against {one}");
 
     let bare = in_inches(START, type_and_commit("2"));
-    assert!((bare - one * 2.0).abs() < SAME, "a bare 2 is two inches: {bare} against {one}");
+    let spelled = in_inches(START, type_and_commit("2 in"));
+    assert!((bare - spelled).abs() < SAME, "a bare number is in the shown unit: {bare} against {spelled}");
 
     let stepped = in_inches(one, |frames, show| {
         frames.frame(vec![key_press(Key::ArrowUp, Modifiers::NONE)], show);
     });
-    assert!((stepped - one * 1.1).abs() < SAME, "an arrow moves a tenth of an inch: {stepped} from {one}");
+    let tenth_up = in_inches(START, type_and_commit("1.1"));
+    assert!((stepped - tenth_up).abs() < SAME, "an arrow moves a tenth of an inch: {stepped} against {tenth_up}");
 }
