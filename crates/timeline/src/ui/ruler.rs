@@ -76,8 +76,8 @@ pub struct TimeTick {
     pub at: Tick,
     /// The label of a major tick ("00:00:10:00"); minor ticks have none.
     pub label: Option<String>,
-    /// Whether the tick is a major one (longer, and it may carry a label).
-    pub major: bool,
+    /// The tick's rank: a major tick is the longest and may carry a label.
+    pub rank: TickRank,
 }
 
 /// The step ladder of a ruler whose labels are `line` points high, over `base` frames to the timecode second.
@@ -100,7 +100,7 @@ pub fn ruler_ticks(axis: &TimeAxis, width: f32, ladder: StepLadder) -> Vec<TimeT
         .filter(|tick| tick.value >= 0.0)
         .map(|tick| {
             let at = rate.tick_of(tick.value as i64);
-            TimeTick { at, label: tick.major.then(|| format_time(at, &axis.format)), major: tick.major }
+            TimeTick { at, label: matches!(tick.rank, TickRank::Major).then(|| format_time(at, &axis.format)), rank: tick.rank }
         })
         .collect()
 }
@@ -602,10 +602,7 @@ impl Component for TimelineRuler<'_> {
         }
 
         let ticks = ruler_ticks(&axis, rect.width(), ruler_ladder(rate.timecode_base(), style.line));
-        let marks: Vec<TickMark> = ticks
-            .iter()
-            .map(|tick| TickMark::new(axis.x_of(tick.at, left) - left, if tick.major { TickRank::Major } else { TickRank::Minor }))
-            .collect();
+        let marks: Vec<TickMark> = ticks.iter().map(|tick| TickMark::new(axis.x_of(tick.at, left) - left, tick.rank)).collect();
         ui.content_painter(cx).ticks(body, TickEdge::Bottom, &marks);
         let color = cx.resolve(&style.label.color);
         for (tick, text) in ticks.iter().filter_map(|tick| tick.label.as_ref().map(|text| (tick, text))) {

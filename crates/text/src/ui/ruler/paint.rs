@@ -100,16 +100,11 @@ impl TextRuler<'_> {
         let (lo, hi) = g.span();
         let ticks: Vec<RulerTick> =
             Rulers::ticks(&text.units, rule(self.unit), f64::from(g.scale), (f64::from(lo) * per_doc)..=(f64::from(hi) * per_doc));
-        let rank = |tick: &RulerTick| match (tick.major, tick.mid) {
-            (true, _) => TickRank::Major,
-            (false, true) => TickRank::Mid,
-            (false, false) => TickRank::Minor,
-        };
-        let marks: Vec<Tick> = ticks.iter().map(|tick| Tick::new(g.x((tick.value / per_doc) as f32) - g.strip.min.x, rank(tick))).collect();
+        let marks: Vec<Tick> = ticks.iter().map(|tick| Tick::new(g.x((tick.value / per_doc) as f32) - g.strip.min.x, tick.rank)).collect();
         ui.content_painter(cx).ticks(g.strip, TickEdge::Bottom, &marks);
         let draw = ui.draw();
         let color: StyleColor = cx.resolve(&style.label.color);
-        for tick in ticks.iter().filter(|tick| tick.major) {
+        for tick in ticks.iter().filter(|tick| matches!(tick.rank, TickRank::Major)) {
             let x = g.x((tick.value / per_doc) as f32);
             let label = text.tick_label(&numbers, tick.value, tick.step);
             let run = TextRun::new(label).role(style.label.role).color(color);

@@ -432,7 +432,7 @@ impl Component for MarginHandles<'_> {
         MarginHandlesStyle {
             metrics: Metrics::new(),
             grab: cx.tokens.size.hit.target,
-            strip: Rulers::content_rect(cx.tokens, Rect::ZERO).min.x,
+            strip: Rulers::content_rect(cx, Rect::ZERO).min.x,
             active: cx.color(cx.tokens.color.accent.solid),
         }
     }

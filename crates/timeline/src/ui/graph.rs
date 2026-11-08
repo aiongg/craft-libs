@@ -16,7 +16,7 @@ use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pointer as _,
     Props, Role, Styled as _, WordSetCx as _,
 };
-use craft_ui::primitives::{Dashes, GridInk, GridLines, IconSpec, PaintShape, RuleKind, StrokeWidth, TextRun};
+use craft_ui::primitives::{Dashes, GridInk, GridLines, IconSpec, PaintShape, RuleKind, StrokeWidth, TextRun, TickRank};
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::focus::KeyUse;
 use craft_ui::style::{ComponentStyle, Flags, FocusLook, Resolve as _, State, StateMix, Stateful, States, StyleColor, StyleCx, TextLook, TypeRole};
@@ -907,7 +907,11 @@ impl Component for GraphEditor<'_> {
         let mut grid = GridLines::default();
         grid.extent = Some(kurbo::Rect::new(f64::from(plot.left()), f64::from(plot.top()), f64::from(plot.right()), f64::from(plot.bottom())));
         let ladder = ruler_ladder(axis.format.rate.timecode_base(), style.button);
-        grid.x.major = ruler_ticks(&axis, plot.width(), ladder).iter().filter(|tick| tick.major).map(|tick| f64::from(x_of(tick.at))).collect();
+        grid.x.major = ruler_ticks(&axis, plot.width(), ladder)
+            .iter()
+            .filter(|tick| matches!(tick.rank, TickRank::Major))
+            .map(|tick| f64::from(x_of(tick.at)))
+            .collect();
         let numbers = cx.env.units();
         let decimals = if step >= 1.0 { 0 } else { (-step.log10()).ceil() as usize };
         let color = cx.resolve(&style.label.color);
