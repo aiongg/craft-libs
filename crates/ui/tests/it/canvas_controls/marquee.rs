@@ -145,11 +145,16 @@ fn a_shown_selection_asks_for_its_next_repaint_a_march_step_ahead() {
         });
     };
     frames.idle(3, &mut show);
-    for _ in 0..8 {
-        frames.frame(Vec::new(), &mut show);
-        let wait = frames.repaint_delay().expect("the ants march, so a repaint is due");
-        assert!(wait > Duration::ZERO && wait <= MARCH_TICK, "the next repaint is the next step, not the next frame: {wait:?}");
-    }
+    // Two march steps of frames. A wake less than a frame ahead is a repaint now, so a step costs at most one.
+    let waits: Vec<Option<Duration>> = (0..12)
+        .map(|_| {
+            frames.frame(Vec::new(), &mut show);
+            frames.repaint_delay()
+        })
+        .collect();
+    let immediate = waits.iter().filter(|wait| **wait == Some(Duration::ZERO)).count();
+    assert!(waits.iter().all(|wait| wait.is_some_and(|wait| wait <= MARCH_TICK)), "the ants ask for a repaint within a step: {waits:?}");
+    assert!(immediate <= 3, "a repaint is not asked for every frame: {waits:?}");
 }
 
 #[trial]
