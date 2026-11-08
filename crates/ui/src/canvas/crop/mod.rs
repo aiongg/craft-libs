@@ -292,9 +292,13 @@ impl CropOverlay<'_> {
         self.report.snapped = lines;
         if let Some(next) = rules.proposal(drag, to, mods, held_space) {
             drag.last = next;
-            cx.propose(next);
-            if let Some(moved) = gesture::followed(drag, self.auto_center, &next) {
-                self.report.view = Some(moved);
+            // A frame with no extent on screen declares no parts, which would end the press with the edit still open: it
+            // is remembered (the release cancels the edit) but not proposed.
+            if !degenerate(&screen_corners(&view, &next)) {
+                cx.propose(next);
+                if let Some(moved) = gesture::followed(drag, self.auto_center, &next) {
+                    self.report.view = Some(moved);
+                }
             }
         }
         self.report.dragging = true;

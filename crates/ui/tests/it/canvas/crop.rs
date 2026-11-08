@@ -534,7 +534,8 @@ fn a_quick_drag_in_one_frame_starts_at_the_press() {
     let mut rig = Rig::upright();
     let from = rig.at(300.0, 220.0);
     let to = from + Vec2::new(40.0, 10.0);
-    rig.frame(vec![pointer::moved(from), pointer::press(from), pointer::moved(from + Vec2::new(20.0, 5.0)), pointer::moved(to)]);
+    rig.frame(vec![pointer::moved(from)]);
+    rig.frame(vec![pointer::press(from), pointer::moved(from + Vec2::new(20.0, 5.0)), pointer::moved(to)]);
     rig.frame(vec![pointer::release(to)]);
     rig.frame(Vec::new());
     assert_eq!(rig.rect(), Rect::new(100.0, 80.0, 340.0, 230.0));
@@ -545,9 +546,12 @@ fn a_quick_drag_in_one_frame_starts_at_the_press() {
 #[trial]
 fn double_click_inside_applies_but_not_on_a_handle_or_the_default_frame() {
     let double = |rig: &mut Rig, at: Pos2| {
-        // A click per frame: frames are a quarter second apart, and the double-click window is 0.3 s.
-        rig.frame(vec![pointer::moved(at), pointer::press(at), pointer::release(at)]);
-        rig.frame(vec![pointer::press(at), pointer::release(at)]);
+        // Two clicks a few frames apart, inside the double-click window.
+        rig.frame(vec![pointer::moved(at)]);
+        rig.frame(vec![pointer::press(at)]);
+        rig.frame(vec![pointer::release(at)]);
+        rig.frame(vec![pointer::press(at)]);
+        rig.frame(vec![pointer::release(at)]);
         rig.frame(Vec::new());
     };
     let mut rig = Rig::upright();
@@ -849,8 +853,8 @@ fn image_mode_a_move_snaps_and_stays_snapped_while_the_pointer_is_still() {
         });
         let from = rig.at(200.0, 150.0);
         rig.press(from);
-        // Raw, the frame's left edge would be at x = -3; the image follows the frame.
-        let at = from + Vec2::new(-103.0, 20.0);
+        // The frame moves against the pointer: raw, its left edge would be at x = -3; the image follows the frame.
+        let at = from + Vec2::new(103.0, 20.0);
         for pass in 0..4 {
             rig.move_to(at);
             let r = rig.rect();
