@@ -54,6 +54,9 @@ pub(crate) struct Hole {
     pub reach: Reach,
     /// Space is held over the canvas.
     pub space: bool,
+    /// A Space press that the hook read this pass belongs to the canvas: the key stage takes it as the canvas's
+    /// momentary command instead of the dialog's key.
+    pub space_pressed: bool,
     /// The screen rects of the layers over the canvas's layer, as of the last pass that took the snapshot.
     covers: Vec<Rect>,
 }
@@ -90,7 +93,7 @@ impl Hole {
 #[derive(Default)]
 struct Registry {
     made: Option<(u64, Armed)>,
-    /// Space was pressed over the canvas and not released: the dialog never sees it.
+    /// Space was pressed over the canvas and not released: the canvas has it.
     space: bool,
     /// The pointer stands where the canvas answers.
     over: bool,
@@ -126,7 +129,12 @@ fn open_hole(ctx: &Context) -> Option<Hole> {
         && overlay::top_modal_in(ctx, viewport).is_none_or(|top| top.id == modal)
         && !overlay::popup_over_modal(ctx);
     let space = Service::<Registry>::run(ctx, |registry| registry.space);
-    held.then_some(Hole { viewport, canvas: armed.canvas, layer, rect, reach: armed.reach, space, covers: Vec::new() })
+    held.then_some(Hole { viewport, canvas: armed.canvas, layer, rect, reach: armed.reach, space, space_pressed: false, covers: Vec::new() })
+}
+
+/// The canvas a modal layer keeps open in this pass, while the registration holds.
+pub(crate) fn held_canvas(ctx: &Context) -> Option<Id> {
+    open_hole(ctx).map(|hole| hole.canvas)
 }
 
 /// The snapshot of the last pass of a viewport.
@@ -192,7 +200,7 @@ pub(crate) fn through(ctx: &Context, viewport: ViewportId, modal: Id) -> Option<
 }
 
 /// The input hook's step for the canvas a modal keeps open, on the events of any viewport. It follows where the
-/// pointer stands, withholds Space from the modal while the pointer is over the canvas and keeps it as held state
+/// pointer stands, keeps Space as held state while the pointer is over the canvas (the key stage hands the press to the canvas's momentary command)
 /// (the primary press then pans), and, when the modal is in the canvas's own viewport, removes the presses on the
 /// canvas that the reach does not admit: egui's modal gate leaves such a canvas with no press target, which would let
 /// any press through that the scrim's clear rect uncovers. Returns the hole as the hook sees it and whether it
@@ -223,12 +231,13 @@ pub(crate) fn hook(ctx: &Context, input: &mut RawInput) -> (Option<Hole>, bool) 
             KeyEvent::Press { input: key, .. } if is_space(&key) && (space || over) => {
                 space = true;
                 hole.space = true;
-                false
+                hole.space_pressed = true;
+                true
             }
             KeyEvent::Release { input: key } if is_space(&key) && space => {
                 space = false;
                 hole.space = false;
-                false
+                true
             }
             _ => !matches!(event, Event::PointerButton { pos, pressed: true, .. } if barred && hole.answers(*pos) && !hole.admits(event, None)),
         }

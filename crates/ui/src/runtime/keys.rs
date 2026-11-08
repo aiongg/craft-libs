@@ -205,6 +205,8 @@ struct Strip<'a> {
     /// The chords bound to the edit commands.
     edit_chords: &'a [(EditCommand, Chord)],
     menu_bar: bool,
+    /// A dialog keeps a canvas open and Space belongs to it: the press is the canvas's momentary command chord.
+    canvas_space: bool,
 }
 
 impl Strip<'_> {
@@ -314,6 +316,13 @@ impl Strip<'_> {
         } else if let Some((command, _)) = edit {
             batch.clips.push(*command);
             false
+        } else if key == Key::Space && self.canvas_space {
+            // The canvas has Space (`runtime::sampler`): only the shortcut dispatcher reads it, so the dialog's
+            // focused control does not activate.
+            if !repeat {
+                batch.shortcuts.push(Shortcut { input: *input, phase: FirePhase::Press, typed: false, press: None, moved: false });
+            }
+            false
         } else if bare_tab && !self.keeps_tab {
             batch.tabs.push(TabPress { input: *input, repeat });
             false
@@ -422,6 +431,7 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
             edits: &edits,
             edit_chords: &edit_chords,
             menu_bar,
+            canvas_space: hole.as_ref().is_some_and(|hole| hole.space || hole.space_pressed),
         };
         let mut batch = Batch::default();
         let mut visible = None;
