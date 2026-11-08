@@ -7,7 +7,6 @@ mod tool;
 mod navigate;
 mod tools;
 
-
 use craft_ui::canvas::{Canvas, CropOverlay, ToolPath};
 use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, trial};
@@ -28,6 +27,11 @@ mod scrollbars;
 // canvas-navigator-a
 mod navigator;
 // End of canvas-navigator-a.
+
+// l4e-navpanel
+mod navigator_panel;
+mod view_commands;
+// End of l4e-navpanel.
 
 fn crop() -> Rect {
     Rect::from_min_max(Pos2::new(20.0, 20.0), Pos2::new(100.0, 80.0))
