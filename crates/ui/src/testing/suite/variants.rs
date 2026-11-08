@@ -153,7 +153,6 @@ fn rtl_mirrors(subject: &Subject) -> Result<(), String> {
             fixture
         };
         let (ltr, rtl) = (show(Direction::Ltr), show(Direction::Rtl));
-        eprintln!("DIAG {} ltr {:?} rtl {:?}", story.name, ltr.shown(), rtl.shown());
         let flowless = !ltr.shown().is_positive();
         let within = if flowless { root_target(&ltr).rect } else { ltr.shown() };
         if !flowless && (ltr.shown().width() - rtl.shown().width()).abs() > 0.5 {

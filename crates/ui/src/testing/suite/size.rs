@@ -72,7 +72,6 @@ fn stories_grow_with_text_density_and_scale(subject: &Subject) -> Result<(), Str
                     // A run the component painted elided is shortened by design and keeps its full text in the access name
                     // (the elision rule checks that), so it is not cut; it must still stay inside its part.
                     if !inside(same.rect, grown.shown) {
-                        eprintln!("DIAG {} {name} `{}` base {:?} in {:?}; grown {:?} in {:?}", story.name, run.text, run.rect, base.shown, same.rect, grown.shown);
                         return Err(format!("{}: under {name} the text `{}` leaves its part", story.name, run.text));
                     }
                 }
