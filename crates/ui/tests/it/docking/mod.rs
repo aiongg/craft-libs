@@ -24,6 +24,7 @@ mod columns;
 
 mod area;
 mod commands;
+mod flyout_host;
 mod native;
 mod resize;
 

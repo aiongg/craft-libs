@@ -4,12 +4,12 @@ use super::DockArea;
 use crate::contract::SizeLimits;
 use crate::contract::{Bind, BodyCx, Show as _};
 use crate::display::Text;
-use crate::docking::{DockConfig, DockPanels, PanelSpec};
+use crate::docking::{DockConfig, DockPanels, GroupAt, PanelSpec};
 use crate::menu::PanelRow;
 use crate::patterns::presets::{PresetPanelMenu, PresetView};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
-use craft_behavior::Axis;
 use craft_behavior::dock::{Column, DockEdge, Floating, Group, Layout, Node, Permissions, SplitSize, Workspace};
+use craft_behavior::{Axis, Proposal};
 use egui::{Pos2, Rect, Ui};
 
 const LAYERS: usize = 0;
@@ -58,12 +58,18 @@ impl DockPanels<usize> for Demo {
         if self.host_rows && *panel == SWATCHES { PresetPanelMenu::<usize>::new(PresetView::Grid).new_group(true).rows() } else { Vec::new() }
     }
 
-    fn group_view(&mut self, panels: &[usize], _: usize, ui: &mut Ui, _: Rect, _: &mut BodyCx<'_>) -> bool {
-        let shown = self.canvas_view && panels.contains(&CANVAS);
-        if shown {
-            Text::new("Document").show(ui);
+    fn group_view(&mut self, panels: &[usize], _: usize, ui: &mut Ui, at: GroupAt, _: &mut BodyCx<'_>) -> Option<f32> {
+        if !(self.canvas_view && panels.contains(&CANVAS)) {
+            return None;
         }
-        shown
+        let mut document = Text::new("Document");
+        Some(match at {
+            GroupAt::Measure(width) => document.measure_in(ui, Proposal::Width(width)).y,
+            GroupAt::Show(rect) => {
+                document.show(ui);
+                rect.height()
+            }
+        })
     }
 }
 
