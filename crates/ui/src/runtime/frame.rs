@@ -275,12 +275,22 @@ pub fn set_input(ctx: &Context, input: FrameInput) {
     scale::set_interface_scale(ctx, scale.0);
 }
 
-/// The tolerances the app's `sizes` give the default density: the built-in sets and the overrides apply in
+/// The tokens the app's `sizes` give the default density: the built-in sets and the overrides apply in
 /// `craft_theme`'s resolve, whichever theme carries them.
-pub(crate) fn resolved_hit(sizes: &AppSizes) -> HitSizes {
+fn resolved_default(sizes: &AppSizes) -> craft_theme::Tokens {
     let appearance =
         Appearance { mode: Mode::Light, contrast: Contrast::Standard, size: Size::default(), text_size: TextSize::default(), reduced_motion: false };
-    resolve_sized(suite_default_theme(), appearance, None, sizes).tokens.size.hit
+    resolve_sized(suite_default_theme(), appearance, None, sizes).tokens
+}
+
+/// The tolerances the app's `sizes` give the default density.
+pub(crate) fn resolved_hit(sizes: &AppSizes) -> HitSizes {
+    resolved_default(sizes).size.hit
+}
+
+/// The standard icon size the default density gives (`size.icon.md`), for a context built without an env.
+pub(crate) fn resolved_icon_side(sizes: &AppSizes) -> f32 {
+    resolved_default(sizes).size.icon.md
 }
 
 /// The built-in theme the tolerances resolve under.

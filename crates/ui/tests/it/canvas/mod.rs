@@ -8,8 +8,9 @@ mod tool;
 mod navigate;
 mod tools;
 
+use craft_behavior::CanvasView;
 use craft_behavior::geometry::CropBox;
-use craft_behavior::kurbo::Rect;
+use craft_behavior::kurbo::{Point, Rect, Size};
 use craft_ui::canvas::{Canvas, CropOverlay};
 use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, trial};
@@ -49,8 +50,12 @@ fn a_press_on_a_crop_corner_stays_with_the_crop_and_one_elsewhere_reaches_the_to
     let clicked = Rc::new(RefCell::new(None));
     let (shared_crop, shared_click) = (Rc::clone(&shared), Rc::clone(&clicked));
     let mut fixture = Fixture::new(move |ui| {
-        let canvas =
-            Canvas::new("Document").show(ui, |ui, body| CropOverlay::new("Crop", Bind::bound(&mut *shared_crop.borrow_mut())).show_at(ui, body.rect));
+        // The overlay takes the canvas's top left only: its whole-frame and turn parts cover nothing past it, where the
+        // tool owns the press.
+        let canvas = Canvas::new("Document").show(ui, |ui, body| {
+            let room = egui::Rect::from_min_size(body.rect.min, egui::vec2(160.0, 120.0));
+            CropOverlay::new("Crop", Bind::bound(&mut *shared_crop.borrow_mut())).show_at(ui, room)
+        });
         if let Some(at) = canvas.output.click_at() {
             *shared_click.borrow_mut() = Some(at);
         }
@@ -82,4 +87,33 @@ fn an_arrow_on_a_focused_crop_corner_nudges_it() {
     fixture.key(egui::Key::ArrowRight, egui::Modifiers::NONE);
     let after = *shared.borrow();
     assert!(after.rect.x0 > before.rect.x0 && after.rect.y0 == before.rect.y0, "the focused corner moved right: {before:?} -> {after:?}");
+}
+
+#[trial]
+fn page_down_and_home_scroll_a_focused_canvas_and_the_arrows_stay_the_tools() {
+    const SHOWN: egui::Rect = egui::Rect::from_min_max(egui::Pos2::new(0.0, 0.0), egui::Pos2::new(800.0, 600.0));
+    let view = Rc::new(RefCell::new(CanvasView::new(SHOWN, Point::new(400.0, 300.0), 1.0)));
+    let held = Rc::clone(&view);
+    let mut fixture = Fixture::new(move |ui| {
+        let shown = *held.borrow();
+        let canvas = Canvas::new("Document").view(shown).document(Size::new(2000.0, 1500.0)).show_at(ui, SHOWN, |_, _| {});
+        if let Some(next) = canvas.output.view {
+            *held.borrow_mut() = next;
+        }
+    });
+    fixture.settle();
+    fixture.click_at(SHOWN.center()).settle();
+    let start = *view.borrow();
+
+    fixture.key(egui::Key::PageDown, egui::Modifiers::NONE).settle();
+    let paged = *view.borrow();
+    assert!(paged.center.y > start.center.y && paged.center.x == start.center.x, "Page Down shows what is below: {start:?} -> {paged:?}");
+
+    fixture.key(egui::Key::ArrowDown, egui::Modifiers::NONE).settle();
+    assert_eq!(*view.borrow(), paged, "an arrow is the tool's nudge, not a scroll");
+
+    fixture.key(egui::Key::Home, egui::Modifiers::NONE).settle();
+    let home = *view.borrow();
+    let corner = home.to_screen(Point::ORIGIN);
+    assert!((corner.x - SHOWN.left()).abs() < 1e-3 && (corner.y - SHOWN.top()).abs() < 1e-3, "Home shows the document's top left: {home:?}");
 }

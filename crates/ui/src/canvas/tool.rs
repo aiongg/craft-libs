@@ -6,11 +6,11 @@
 
 use super::{CanvasSpace, MARCH_SECONDS, MARCH_TICK, Snap, ToolPath, march_shift};
 use crate::primitives::{ContentPainterCx, Draw};
-use crate::runtime::env::{Env, Label, MotionPolicy, PointSize, UnitWords, Units, WordSet, Words};
+use crate::runtime::env::{Direction, Env, Label, MotionPolicy, PointSize, UnitWords, Units, WordSet, Words};
 use crate::runtime::motion::loop_phase;
 use crate::style::StyleCx;
 use craft_behavior::kurbo::Point;
-use craft_behavior::{Axis, CancelReason, CanvasView, Cursor, CursorIcon, PointerButton, PointerSample};
+use craft_behavior::{Axis, CancelReason, CanvasView, Cursor, CursorIcon, GestureId, PointerButton, PointerSample};
 use craft_i18n::{Digits, Format, Region};
 use craft_keymap::{Chord, Key, Mods};
 use egui::{Pos2, Rect, Vec2};
@@ -102,6 +102,19 @@ pub enum ToolKey {
     /// A key press the tool kept with [`ToolContext::keep_keys`]: every key without Ctrl or Cmd, so the app's chords
     /// still run. It carries no release; [`ToolContext::held`] says whether the key is still down.
     Kept(Chord),
+}
+
+impl ToolKey {
+    /// An arrow key: a unit direction on screen and the modifiers held; what the host passes for an arrow, built by
+    /// a test of a tool.
+    pub fn nudge(direction: Vec2, mods: Mods) -> Self {
+        ToolKey::Nudge { direction, mods }
+    }
+
+    /// Delete (`forward`) or Backspace.
+    pub fn delete(forward: bool) -> Self {
+        ToolKey::Delete { forward }
+    }
 }
 
 /// How a view change eases to its target instead of jumping, as a zoom click does under Animated Zoom.
@@ -221,6 +234,7 @@ pub struct ToolContext<'a> {
     /// pass, not a count of key presses.
     pub caps_lock: bool,
     space: Option<CanvasSpace>,
+    gesture: Option<GestureId>,
     down: &'a [Key],
     painter: Option<&'a ContentPainterCx<'a>>,
     style: Option<StyleCx<'a>>,
@@ -248,6 +262,7 @@ impl<'a> ToolContext<'a> {
             time: 0.0,
             slop: 0.0,
             space,
+            gesture: None,
             down: &[],
             caps_lock: false,
             painter: None,
@@ -277,6 +292,13 @@ impl<'a> ToolContext<'a> {
     #[must_use]
     pub fn time(mut self, time: f64) -> Self {
         self.time = time;
+        self
+    }
+
+    /// The id of the gesture the host runs, which [`gesture_id`](Self::gesture_id) reads; the host sets it.
+    #[must_use]
+    pub(crate) fn gesture(mut self, gesture: Option<GestureId>) -> Self {
+        self.gesture = gesture;
         self
     }
 
@@ -416,6 +438,28 @@ impl<'a> ToolContext<'a> {
             Some(env) => env.tokens.size.hit.target,
             None => crate::runtime::frame::resolved_hit(&craft_theme::AppSizes::default()).target,
         }
+    }
+
+    /// The icon size a tool draws its on-canvas icons at, in screen points: the theme's `size.icon.md` for the pass;
+    /// the default theme's for a context built without an env.
+    pub fn icon_side(&self) -> f32 {
+        match self.env {
+            Some(env) => env.tokens.size.icon.md,
+            None => crate::runtime::frame::resolved_icon_side(&craft_theme::AppSizes::default()),
+        }
+    }
+
+    /// The interface's reading direction this pass: a tool mirrors what sits at a reading end (a handle on the end
+    /// side, an arrow key's step along the text) by it. Left to right for a context built without an env.
+    pub fn direction(&self) -> Direction {
+        self.env.map_or(Direction::Ltr, |env| env.direction)
+    }
+
+    /// The id of the gesture the host runs, from the press the tool claimed through its release or cancel, for
+    /// an edit the tool opens under the same id as the host's gesture report. `None` outside a gesture and in a
+    /// context built by hand.
+    pub fn gesture_id(&self) -> Option<GestureId> {
+        self.gesture
     }
 
     /// The style context of a paint call, to pick the theme colours the tool draws its draft in

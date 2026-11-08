@@ -50,6 +50,7 @@ use super::{CanvasOutput, CanvasSpace, Snap};
 use crate::primitives::{ContentPainterCx, Draw, DrawEnv, PaintRecord};
 use crate::runtime::access::{self, Name, Role, SubDecl, SubNode};
 use crate::runtime::commands;
+use crate::runtime::edit::next_gesture_id;
 use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::{global, with_session};
 use crate::runtime::pointer::{self, PointerFrame};
@@ -57,8 +58,8 @@ use crate::runtime::{cursor, frame, keys, lock_keys};
 use crate::style::StyleCx;
 use craft_behavior::kurbo;
 use craft_behavior::{
-    CancelReason, CanvasView, Cursor, CursorPriority, GesturePhase, Granularity, Intent, PartKey, PartRef, PointerButton, PointerSample, PressCancel,
-    PressPhase, PressStart, PressState,
+    CancelReason, CanvasView, Cursor, CursorPriority, GestureId, GesturePhase, Granularity, Intent, PartKey, PartRef, PointerButton, PointerSample,
+    PressCancel, PressPhase, PressStart, PressState,
 };
 use craft_keymap::{Chord, Key, Mods};
 use craft_theme::Variant;
@@ -176,6 +177,8 @@ pub struct ToolHostResponse {
 
 #[derive(Clone, Copy, Debug)]
 struct Active {
+    /// The gesture's id, from `runtime::edit::next_gesture_id` when the tool claimed the press.
+    id: GestureId,
     button: PointerButton,
     last: ToolPointer,
     /// Started by [`ToolHost::inject`]: the pointer neither moves nor ends it.
@@ -280,12 +283,14 @@ impl<'m> ToolHost<'m> {
             rect,
             mods: input.mods,
             time: input.time,
+            ctx: &ctx,
             env: &env,
             snap: canvas.snap.as_ref(),
             state: &mut state,
             response: ToolHostResponse::default(),
             requests: ToolRequests::default(),
             cancelled: false,
+            ending: None,
         };
         run.call(None, |tool, cx| tool.each_pass(cx));
         if let Some(hand) = glide {
@@ -330,6 +335,7 @@ impl<'m> ToolHost<'m> {
                 .slop(input.slop)
                 .down(&down)
                 .caps_lock(caps)
+                .gesture(state.gesture.map(|active| active.id))
                 .env(&env);
             match canvas.snap.as_ref() {
                 Some(snap) => cx.snapping(snap),
@@ -382,11 +388,19 @@ impl<'m> ToolHost<'m> {
     /// documents, a modal opened). `tool` is the tool that holds the gesture, so call it before the app replaces
     /// it; it runs against the canvas of the last pass. Returns whether a gesture was cancelled.
     pub fn cancel(ctx: &Context, canvas: Id, tool: &mut dyn CanvasTool, reason: CancelReason) -> bool {
-        let taken = with_session(ctx, state_id(canvas), |slot: &mut HostState| slot.gesture.take().map(|active| (active, slot.rect, slot.space)));
+        // The press is still held: its later moves and release are not the next gesture's.
+        let taken = with_session(ctx, state_id(canvas), |slot: &mut HostState| {
+            let taken = slot.gesture.take().map(|active| (active, slot.rect, slot.space));
+            slot.spent |= taken.is_some();
+            taken
+        });
         let Some((active, rect, space)) = taken else { return false };
         let down = keys::down(ctx);
-        let mut cx =
-            ToolContext::new(rect.unwrap_or(Rect::NOTHING), space).pointer(Some(active.last)).down(&down).caps_lock(lock_keys::caps_lock(ctx));
+        let mut cx = ToolContext::new(rect.unwrap_or(Rect::NOTHING), space)
+            .pointer(Some(active.last))
+            .gesture(Some(active.id))
+            .down(&down)
+            .caps_lock(lock_keys::caps_lock(ctx));
         tool.cancel(reason, &mut cx);
         if let Some(view) = cx.take_requests().view {
             with_session(ctx, state_id(canvas), |state: &mut HostState| state.cancelled_view = Some(view));
@@ -507,6 +521,7 @@ struct Run<'a> {
     rect: Rect,
     mods: Mods,
     time: f64,
+    ctx: &'a Context,
     env: &'a Env,
     snap: Option<&'a Snap>,
     state: &'a mut HostState,
@@ -514,6 +529,9 @@ struct Run<'a> {
     requests: ToolRequests,
     /// A gesture was cancelled in this pass: its Escape is not a key for the tool.
     cancelled: bool,
+    /// The gesture whose press, release or cancel is being delivered: the gesture is already out of the state, or not
+    /// yet in it.
+    ending: Option<GestureId>,
 }
 
 impl<'a> Run<'a> {
@@ -524,7 +542,8 @@ impl<'a> Run<'a> {
             .time(self.time)
             .slop(self.slop)
             .down(self.down)
-            .caps_lock(self.caps);
+            .caps_lock(self.caps)
+            .gesture(self.state.gesture.map(|active| active.id).or(self.ending));
         let cx = cx.env(self.env);
         match self.snap {
             Some(snap) => cx.snapping(snap),
@@ -574,9 +593,13 @@ impl<'a> Run<'a> {
             self.state.spent = true;
             return;
         }
-        match self.call(Some(pointer), |tool, cx| tool.press(&pointer, cx)) {
+        let id = next_gesture_id(self.ctx);
+        self.ending = Some(id);
+        let action = self.call(Some(pointer), |tool, cx| tool.press(&pointer, cx));
+        self.ending = None;
+        match action {
             ToolAction::Claimed => {
-                self.state.gesture = Some(Active { button: pointer.button, last: pointer, injected, dragged: false });
+                self.state.gesture = Some(Active { id, button: pointer.button, last: pointer, injected, dragged: false });
                 self.report(GesturePhase::Begin);
             }
             ToolAction::Done => {
@@ -605,15 +628,19 @@ impl<'a> Run<'a> {
     }
 
     fn end(&mut self, pointer: ToolPointer) {
-        if self.state.gesture.take().is_some() {
+        if let Some(active) = self.state.gesture.take() {
+            self.ending = Some(active.id);
             self.call(Some(pointer), |tool, cx| tool.release(&pointer, cx));
+            self.ending = None;
             self.report(GesturePhase::Commit);
         }
     }
 
     fn cancel(&mut self, reason: CancelReason) {
         if let Some(active) = self.state.gesture.take() {
+            self.ending = Some(active.id);
             self.call(Some(active.last), |tool, cx| tool.cancel(reason, cx));
+            self.ending = None;
             self.report(GesturePhase::Cancel);
             self.cancelled = true;
         }

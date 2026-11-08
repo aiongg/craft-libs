@@ -2,7 +2,8 @@
 //! on a canvas control never reaches the tool, and a group's letter picks and cycles its tools.
 
 use craft_behavior::kurbo::{Point, Rect as DocRect};
-use craft_behavior::{Axis, CancelReason, CanvasView, GesturePhase, PointerButton};
+use craft_behavior::{Axis, CancelReason, CanvasView, GestureId, GesturePhase, PointerButton};
+use craft_i18n::Direction;
 use craft_keymap::{Chord, Key, Mods};
 use craft_ui::canvas::{
     Canvas, CanvasTool, CropOverlay, PickStep, Snap, ToolAccess, ToolAction, ToolAnchor, ToolContext, ToolHost, ToolInput, ToolKey, ToolPath,
@@ -42,6 +43,10 @@ struct Recorder {
     /// Keeps the plain keys. The tool takes every key it is offered either way.
     keep: bool,
     got: Vec<ToolKey>,
+    /// The gesture id each call read from its context, in the order of `calls`.
+    ids: Vec<Option<GestureId>>,
+    /// What every pass's context said about the interface: the gesture id, the reading direction and the icon side.
+    passes: Vec<(Option<GestureId>, Direction, f32)>,
 }
 
 impl Recorder {
@@ -52,19 +57,22 @@ impl Recorder {
 
 impl CanvasTool for Recorder {
     fn each_pass(&mut self, cx: &mut ToolContext<'_>) {
+        self.passes.push((cx.gesture_id(), cx.direction(), cx.icon_side()));
         if self.keep {
             cx.keep_keys();
         }
     }
 
-    fn press(&mut self, pointer: &ToolPointer, _: &mut ToolContext<'_>) -> ToolAction {
+    fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
         self.calls.push(Call::Press);
+        self.ids.push(cx.gesture_id());
         self.press_time = Some(pointer.time);
         ToolAction::Claimed
     }
 
     fn drag(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
         self.calls.push(Call::Drag);
+        self.ids.push(cx.gesture_id());
         self.drag_times.push(pointer.time);
         self.space.push(cx.held(Key::Space));
         if self.readout {
@@ -72,12 +80,14 @@ impl CanvasTool for Recorder {
         }
     }
 
-    fn release(&mut self, _: &ToolPointer, _: &mut ToolContext<'_>) {
+    fn release(&mut self, _: &ToolPointer, cx: &mut ToolContext<'_>) {
         self.calls.push(Call::Release);
+        self.ids.push(cx.gesture_id());
     }
 
-    fn cancel(&mut self, reason: CancelReason, _: &mut ToolContext<'_>) {
+    fn cancel(&mut self, reason: CancelReason, cx: &mut ToolContext<'_>) {
         self.calls.push(Call::Cancel(reason));
+        self.ids.push(cx.gesture_id());
     }
 
     fn key(&mut self, key: &ToolKey, _: &mut ToolContext<'_>) -> bool {
@@ -138,7 +148,10 @@ fn a_press_on_a_canvas_control_never_reaches_the_tool_and_one_away_from_it_does(
     let crop = Rc::new(RefCell::new(craft_behavior::geometry::CropBox::upright(craft_behavior::kurbo::Rect::new(20.0, 20.0, 100.0, 80.0))));
     let shown = Rc::clone(&crop);
     let mut fixture = ToolFixture::with_body("Document", Recorder::default(), move |ui, body| {
-        let _ = CropOverlay::new("Crop", Bind::bound(&mut *shown.borrow_mut())).show_at(ui, body.rect);
+        // The overlay takes the canvas's top left only: its whole-frame and turn parts cover nothing past it, where the
+        // tool owns the press.
+        let room = Rect::from_min_size(body.rect.min, Vec2::new(160.0, 120.0));
+        let _ = CropOverlay::new("Crop", Bind::bound(&mut *shown.borrow_mut())).show_at(ui, room);
     });
     let corner = fixture.fixture().by_label("Crop corner, top left").expect("the crop shows its corners");
     fixture.fixture().click(&corner);
@@ -518,3 +531,107 @@ fn a_tools_marching_ants_step_with_the_clock_and_ask_for_the_next_repaint() {
 
 /// Seconds of one march step.
 const MARCH_STEP: f64 = 0.1;
+
+#[trial]
+fn a_gesture_reads_one_id_from_press_to_release_and_the_next_gesture_a_later_one() {
+    let mut fixture = ToolFixture::new("Document", Recorder::default());
+    fixture.drag(BY);
+    fixture.drag(BY);
+    let tool = fixture.tool();
+    assert_eq!(tool.passes.first().map(|pass| pass.0), Some(None), "no gesture runs before the first press");
+    let ids: Vec<GestureId> = tool.ids.iter().map(|id| id.expect("every gesture call reads the id")).collect();
+    let (first, second) = ids.split_at(ids.len() / 2);
+    assert!(first.len() >= 3 && first.len() == second.len(), "two drags of the same calls: {:?}", tool.calls);
+    assert!(first.iter().all(|id| *id == first[0]), "press, drags and release share one id: {first:?}");
+    assert!(second.iter().all(|id| *id == second[0]), "and so does the next gesture: {second:?}");
+    assert!(second[0] > first[0], "ids grow in the order gestures begin: {first:?} then {second:?}");
+}
+
+#[trial]
+fn a_cancelled_gesture_reads_its_id_in_the_cancel() {
+    let mut fixture = ToolFixture::new("Document", Recorder::default());
+    let from = fixture.canvas().center();
+    fixture.drag_and_escape_from(from, BY);
+    let tool = fixture.tool();
+    let press = tool.ids.first().copied().flatten();
+    assert!(press.is_some(), "the press reads an id");
+    assert_eq!(tool.ids.last().copied().flatten(), press, "the cancel reads the id of the gesture it ends: {:?}", tool.ids);
+}
+
+#[trial]
+fn the_tool_reads_the_reading_direction_and_a_theme_icon_side_of_the_pass() {
+    let mut fixture = ToolFixture::new("Document", Recorder::default());
+    let (direction, compact) = fixture.tool().passes.last().map(|pass| (pass.1, pass.2)).expect("the tool ran a pass");
+    assert_eq!(direction, Direction::Ltr, "an interface reads left to right unless told otherwise");
+    assert!(compact > 0.0, "the icon side is the theme's");
+
+    fixture.fixture().direction(Direction::Rtl).density(craft_theme::Size::Comfortable).settle();
+    let (direction, comfortable) = fixture.tool().passes.last().map(|pass| (pass.1, pass.2)).expect("the tool ran a pass");
+    assert_eq!(direction, Direction::Rtl, "the tool reads the interface's direction");
+    assert!(comfortable > compact, "the icon side follows the theme's density: {compact} then {comfortable}");
+}
+
+/// A tool that moves a point with the keys it is offered.
+struct Mover {
+    at: Vec2,
+}
+
+impl CanvasTool for Mover {
+    fn press(&mut self, _: &ToolPointer, _: &mut ToolContext<'_>) -> ToolAction {
+        ToolAction::Ignored
+    }
+
+    fn drag(&mut self, _: &ToolPointer, _: &mut ToolContext<'_>) {}
+
+    fn release(&mut self, _: &ToolPointer, _: &mut ToolContext<'_>) {}
+
+    fn cancel(&mut self, _: CancelReason, _: &mut ToolContext<'_>) {}
+
+    fn key(&mut self, key: &ToolKey, _: &mut ToolContext<'_>) -> bool {
+        match key {
+            ToolKey::Nudge { direction, mods, .. } => {
+                self.at += *direction * if mods.shift { 10.0 } else { 1.0 };
+                true
+            }
+            ToolKey::Delete { forward, .. } => {
+                self.at = if *forward { Vec2::ZERO } else { Vec2::splat(-1.0) };
+                true
+            }
+            _ => false,
+        }
+    }
+
+    fn paint(&self, _: &Draw<'_>, _: &ToolContext<'_>) {}
+
+    fn command_form(&self) -> ToolPath {
+        ToolPath::Command("the Move command")
+    }
+}
+
+#[trial]
+fn a_tool_test_builds_the_nudge_and_delete_keys_it_drives() {
+    let mut tool = Mover { at: Vec2::ZERO };
+    let mut cx = ToolContext::new(Rect::from_min_size(Pos2::ZERO, Vec2::splat(100.0)), None);
+    assert!(tool.key(&ToolKey::nudge(Vec2::X, Mods::NONE), &mut cx));
+    assert!(tool.key(&ToolKey::nudge(Vec2::Y, Mods::SHIFT), &mut cx));
+    assert_eq!(tool.at, Vec2::new(1.0, 10.0), "the nudges carry their direction and modifiers");
+    assert!(tool.key(&ToolKey::delete(false), &mut cx));
+    assert_eq!(tool.at, Vec2::splat(-1.0), "Backspace is a backward delete");
+    assert!(tool.key(&ToolKey::delete(true), &mut cx));
+    assert_eq!(tool.at, Vec2::ZERO, "Delete is a forward delete");
+}
+
+#[trial]
+fn a_gesture_cancelled_by_the_app_starts_no_new_one_while_the_button_stays_down() {
+    let mut fixture = ToolFixture::new("Document", Recorder::default());
+    let from = fixture.canvas().center();
+    fixture.press_at(from);
+    let (ctx, id) = (fixture.fixture().ctx().clone(), fixture.canvas_id());
+    assert!(ToolHost::cancel(&ctx, id, &mut *fixture.tool_mut(), CancelReason::Dismissed), "a gesture was running");
+
+    fixture.move_to(from + BY).move_to(from + BY * 2.0).release_at(from + BY * 2.0);
+    assert_eq!(fixture.tool().calls, [Call::Press, Call::Cancel(CancelReason::Dismissed)], "the held button is not the tool's any more");
+
+    fixture.press_at(from).release_at(from);
+    assert_eq!(fixture.tool().count(Call::Press), 2, "the next press starts a gesture again: {:?}", fixture.tool().calls);
+}

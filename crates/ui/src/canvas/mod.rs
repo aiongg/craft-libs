@@ -84,7 +84,9 @@ pub use navigator::{
 pub use navigator::NavigatorStyle;
 // End of l4e-navprev.
 
-use crate::contract::{Bind, Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, Sizing};
+use crate::contract::{
+    Bind, Common, Component, Container, ContainerProps, Cx, Focus as _, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, Sizing,
+};
 use crate::runtime::commands::{CommandSet as _, CommandState, Commands as _};
 use crate::runtime::edit::next_gesture_id;
 use crate::runtime::env::Label;
@@ -283,6 +285,12 @@ impl<'a> Canvas<'a> {
             pan(&mut view, delta);
             jumped = true;
         }
+        // Page Up and Down, Home and End scroll the view as in Photoshop; the arrows are the tool's nudges.
+        while let Some((step, mods)) = cx.intents().take_move() {
+            if let (Some(document), Some(key)) = (self.document, PageKey::of(step, mods, area.size())) {
+                jumped |= key.apply(&mut view, document);
+            }
+        }
         // A pan or a scroll takes over from an ease, here or in a tool.
         let mut steer = motion.steer.take();
         if jumped {
@@ -397,7 +405,7 @@ impl Outcome for CanvasOutput {
 
 impl Component for Canvas<'_> {
     const ROLE: Role = Role::CANVAS;
-    const KEYS: KeyUse = KeyUse::CANVAS.with_deletes();
+    const KEYS: KeyUse = KeyUse::CANVAS.with_moves().with_deletes();
     type Style = CanvasStyle;
     type Output = CanvasOutput;
 
