@@ -120,6 +120,7 @@ pub struct PreviewMesh {
     pub points: Vec<Point>,
     /// Where each vertex sits with no transform (the displacement order reads it).
     pub rest: Vec<Point>,
+    /// The texture coordinate of each vertex.
     pub uv: Vec<[f32; 2]>,
     /// Triangles, three indices each, in drawing order.
     pub indices: Vec<u32>,

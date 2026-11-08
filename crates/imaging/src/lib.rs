@@ -9,6 +9,7 @@ pub mod trace;
 #[cfg(feature = "ui")]
 pub mod ui;
 
+/// The registrations of the trials and stories this crate links, for its `it` binary.
 #[cfg(feature = "screen-testing")]
 pub mod testing {
     craft_ui::testing_registered!();
