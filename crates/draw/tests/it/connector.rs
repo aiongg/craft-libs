@@ -47,6 +47,11 @@ fn view() -> CanvasView {
     CanvasView::new(egui::Rect::from_min_size(Pos2::ZERO, CANVAS), Point::new(200.0, 150.0), 1.0)
 }
 
+/// The view of a canvas filling `room`, with its middle at the document's middle.
+fn room_view(room: egui::Rect) -> CanvasView {
+    CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0)
+}
+
 fn cx<'a>() -> ToolContext<'a> {
     ToolContext::new(egui::Rect::from_min_size(Pos2::ZERO, CANVAS), Some(CanvasSpace::new(view(), 1.0))).slop(SLOP)
 }
@@ -144,7 +149,7 @@ fn a_release_the_geometry_refuses_cancels_as_refused() {
 
 #[trial]
 fn the_connector_tool_owes_the_canvas_what_every_tool_owes() {
-    ToolFixture::new("Connector", tool(boxes())).check();
+    ToolFixture::with_view("Connector", tool(boxes()), room_view, |_, _| {}).check();
 }
 
 /// What the app holds for the handles: the connector and the last operation reported.

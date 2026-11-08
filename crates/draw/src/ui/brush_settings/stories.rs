@@ -75,7 +75,7 @@ fn section_list(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     BrushSectionList::new("Brush settings sections", &sections, Bind::given(shown)).link_row().show(ui).into()
 }
 
-#[story(TipEllipse<'static>, covers = [Default], drive = Drive::Never)]
+#[story(TipEllipse<'static>, covers = [Default], drive = Drive::Drag(super::ellipse::ARROW))]
 fn tip_ellipse(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     TipEllipse::new("Tip angle and roundness", Bind::bound(data.value("angle", ANGLE))).show(ui).into()
 }

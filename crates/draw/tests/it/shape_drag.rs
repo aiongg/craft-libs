@@ -22,6 +22,11 @@ fn view(zoom: f64) -> CanvasView {
     CanvasView::new(egui::Rect::from_min_size(Pos2::ZERO, CANVAS), Point::new(200.0, 150.0), zoom)
 }
 
+/// The view of a canvas filling `room`, with its middle at the document's middle.
+fn room_view(room: egui::Rect) -> CanvasView {
+    CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0)
+}
+
 fn cx<'a>(zoom: f64, down: &'a [KeymapKey]) -> ToolContext<'a> {
     ToolContext::new(egui::Rect::from_min_size(Pos2::ZERO, CANVAS), Some(CanvasSpace::new(view(zoom), 1.0))).slop(SLOP).down(down)
 }
@@ -124,7 +129,7 @@ fn enter_opens_the_dialog_at_the_view_centre() {
 
 #[trial]
 fn the_shape_tool_owes_the_canvas_what_every_tool_owes() {
-    ToolFixture::new("Shape", tool(ShapeKind::Rectangle)).check();
+    ToolFixture::with_view("Shape", tool(ShapeKind::Rectangle), room_view, |_, _| {}).check();
 }
 
 fn opened(options: CreateShapeOptions) -> (Fixture, Rc<RefCell<DialogHost>>) {

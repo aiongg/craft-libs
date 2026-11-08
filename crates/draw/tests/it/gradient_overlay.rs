@@ -69,7 +69,7 @@ fn snap_steps_start_at_the_base_angle() {
 #[trial]
 fn a_press_on_a_stop_selects_it_and_its_drag_moves_it() {
     let mut s = shown();
-    let stop = s.fixture.by_label("Stop 2 of 3").expect("the overlay shows its stops as parts");
+    let stop = s.fixture.by_label("Color stop 2 of 3").expect("the overlay shows its stops as parts");
     s.fixture.click(&stop);
     assert_eq!(*s.selected.borrow(), Some(StopRef::Color(1)));
     s.fixture.drag(&stop, Vec2::new(40.0, 0.0));
@@ -90,7 +90,7 @@ fn an_end_drag_moves_only_that_end() {
 #[trial]
 fn left_and_right_move_a_picked_stop_by_one_percent_and_delete_removes_it() {
     let mut s = shown();
-    let stop = s.fixture.by_label("Stop 2 of 3").expect("the overlay shows its stops as parts");
+    let stop = s.fixture.by_label("Color stop 2 of 3").expect("the overlay shows its stops as parts");
     s.fixture.click(&stop);
     s.fixture.key(Key::ArrowRight, Modifiers::NONE);
     assert!((s.value.borrow().stops.color[1].location - 0.51).abs() < 1e-4);
@@ -103,7 +103,7 @@ fn left_and_right_move_a_picked_stop_by_one_percent_and_delete_removes_it() {
 #[trial]
 fn insert_adds_a_stop_halfway_after_the_picked_one() {
     let mut s = shown();
-    let stop = s.fixture.by_label("Stop 1 of 3").expect("the overlay shows its stops as parts");
+    let stop = s.fixture.by_label("Color stop 1 of 3").expect("the overlay shows its stops as parts");
     s.fixture.click(&stop);
     s.fixture.key(Key::Insert, Modifiers::NONE);
     let value = s.value.borrow();

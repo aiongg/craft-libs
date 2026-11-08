@@ -280,6 +280,7 @@ impl Outcome for GradientOverlayOutput {
 impl Component for GradientOverlay<'_> {
     const ROLE: Role = Role::GROUP;
     const KEYS: KeyUse = KeyUse::CANVAS.with_deletes().with_chrome_key(false).with_claims(CLAIMS);
+    const SINGLE_VALUE: bool = true;
     type Style = GradientOverlayStyle;
     type Output = GradientOverlayOutput;
 
@@ -407,8 +408,10 @@ impl GradientOverlay<'_> {
                     let diamond = PaintShape::Polygon(vec![at + vec2(r, 0.0), at + vec2(0.0, r), at - vec2(r, 0.0), at - vec2(0.0, r)]);
                     let fill = if selected == Some(StopRef::Midpoint(StopRow::Color, i)) {
                         style.selected
-                    } else {
+                    } else if cx.part_if_declared(MIDPOINT.at(i as u64)).is_some() {
                         cx.resolve_part(MIDPOINT.at(i as u64), &style.handle.fill)
+                    } else {
+                        cx.resolve(&style.handle.fill)
                     };
                     draw.fill(&diamond, fill);
                     draw.stroke(&diamond, StrokeWidth::Thin, style.halo);

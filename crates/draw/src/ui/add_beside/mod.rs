@@ -13,8 +13,9 @@ use craft_ui::contract::{
     Access, Common, Component, Cx, Focus as _, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role, WordSetCx as _,
 };
 use craft_ui::primitives::{FocusKind, FocusRing, PaintShape, StrokeWidth};
+use craft_ui::runtime::commands::FireSource;
 use craft_ui::runtime::env::Label;
-use craft_ui::runtime::focus::KeyUse;
+use craft_ui::runtime::focus::{ActivateKeys, KeyUse};
 use craft_ui::style::{ComponentStyle, FocusLook, StyleColor, StyleCx};
 use egui::{Pos2, Rect, Response, Vec2};
 
@@ -22,6 +23,9 @@ pub use words::AddBesideWords;
 
 /// The button on one side: `BUTTON.at(i)` with `i` the side's place in [`AddSide::ALL`].
 const BUTTON: PartKey = PartKey::new("button");
+
+/// The least cosine between an arrow's direction and the way to a button for the arrow to reach it.
+const ARROW_ALIGNMENT: f32 = 0.5;
 
 /// The plus's arm as a share of the button's radius.
 const PLUS_ARM_SHARE: f32 = 0.5;
@@ -181,7 +185,7 @@ impl<'a> AddBesideHandles<'a> {
 
 impl Component for AddBesideHandles<'_> {
     const ROLE: Role = Role::GROUP;
-    const KEYS: KeyUse = KeyUse::CANVAS.with_moves().with_chrome_key(false);
+    const KEYS: KeyUse = KeyUse::CANVAS.with_activate(ActivateKeys::Both).with_moves().with_chrome_key(false);
     const OVERLAYS: bool = false;
     type Style = AddBesideStyle;
     type Output = AddBesideOutput;
@@ -214,7 +218,8 @@ impl Component for AddBesideHandles<'_> {
                 .sense(Sense::CLICK | Sense::TAKE_FOCUS)
                 .priority(HitPriority::new(HitLevel::Handle, 0))
                 .cursor(CursorIcon::PointingHand)
-                .focusable();
+                .focusable()
+                .nudges();
         }
         if !buttons.is_empty() {
             cx.roving(Roving::new(NavShape::Spatial));
@@ -233,16 +238,33 @@ impl Component for AddBesideHandles<'_> {
             {
                 self.report.added = Some(side);
                 self.report.copy = result.press.mods.alt;
+            } else if self.report.added.is_none() && matches!(cx.part_activated(BUTTON.at(side.index())), Some(FireSource::Key | FireSource::Access))
+            {
+                self.report.added = Some(side);
             }
         }
         if self.report.hovered.is_none() {
             self.report.hovered = focused;
         }
-        if let Some(side) = focused
-            && self.report.added.is_none()
-            && cx.activation().is_some_and(|activation| activation.by_key)
+        // The arrows move the focus to the button that lies in their screen direction.
+        if let Some(current) = focused
+            && let Some(space) = canvas_space(&cx.env)
+            && let Some((direction, _)) = cx.intents().take_nudge()
         {
-            self.report.added = Some(side);
+            let places = self.visible(&space.view, &cx.style, cx.rect);
+            let ahead = direction.normalized();
+            let from = places.iter().find(|(side, _)| *side == current).map(|&(_, at)| at);
+            let next = from.and_then(|from| {
+                places
+                    .iter()
+                    .filter(|(side, _)| *side != current)
+                    .map(|&(side, at)| (side, (at - from).normalized().dot(ahead)))
+                    .filter(|&(_, alignment)| alignment > ARROW_ALIGNMENT)
+                    .max_by(|a, b| a.1.total_cmp(&b.1))
+            });
+            if let Some((side, _)) = next {
+                cx.focus_part(BUTTON.at(side.index()));
+            }
         }
     }
 

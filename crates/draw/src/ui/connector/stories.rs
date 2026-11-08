@@ -4,7 +4,8 @@ use craft_behavior::kurbo::{Point, Rect};
 use craft_behavior::{CanvasView, Mixed};
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::canvas::Canvas;
-use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
+use craft_ui::runtime::env::Message;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
@@ -32,7 +33,7 @@ fn on_canvas(ui: &mut Ui, handles: ConnectorHandles<'_>) -> StoryOutput {
     shown.inner.flatten().map(StoryOutput::from).unwrap_or_default()
 }
 
-#[story(ConnectorHandles<'static>, covers = [Default], drive = Drive::Never)]
+#[story(ConnectorHandles<'static>, covers = [Default], drive = Drive::Drag(super::handles::END))]
 fn connector_glued_at_both_ends(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let targets = targets();
     let item = data.value(
@@ -42,7 +43,7 @@ fn connector_glued_at_both_ends(ui: &mut Ui, data: &mut StoryData) -> StoryOutpu
     on_canvas(ui, ConnectorHandles::new("Connector", Bind::bound(&mut *item), &targets))
 }
 
-#[story(ConnectorHandles<'static>, covers = [], drive = Drive::Never)]
+#[story(ConnectorHandles<'static>, covers = [Invalid], drive = Drive::Never)]
 fn connector_with_one_free_end(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let targets = targets();
     let item = data.value(
@@ -55,7 +56,10 @@ fn connector_with_one_free_end(ui: &mut Ui, data: &mut StoryData) -> StoryOutput
             path: None,
         },
     );
-    on_canvas(ui, ConnectorHandles::new("Connector", Bind::bound(&mut *item), &targets))
+    let refuse_free = |item: &ConnectorItem| {
+        if matches!(item.to, ConnectorEnd::Free(_)) { Validity::Refuse(Message::new("Attach the end to an object")) } else { Validity::Ok }
+    };
+    on_canvas(ui, ConnectorHandles::new("Connector", Bind::bound(&mut *item).check(refuse_free), &targets))
 }
 
 fn caps() -> Vec<StrokeChoice> {

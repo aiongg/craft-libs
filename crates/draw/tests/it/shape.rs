@@ -6,7 +6,7 @@ use craft_draw::ui::{LiveShape, ShapeAppearance, ShapeBar, ShapeChange, ShapeKin
 use craft_theme::Srgba;
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::contract::{Bind, Role, ShowContainer as _};
-use craft_ui::testing::{Fixture, Target, trial};
+use craft_ui::testing::{Fixture, Target, pointer, trial};
 use egui::{Key, Modifiers, Vec2, vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -124,8 +124,14 @@ fn type_into(fixture: &mut Fixture, name: &str, text: &str) {
 fn scrubbing_a_size_is_one_gesture() {
     let layer = Layer::new(look(0.0));
     let mut fixture = panel(&layer);
-    let width = field(&fixture, "Width");
-    fixture.drag(&width, vec2(30.0, 0.0));
+    // The caption left of the field scrubs it.
+    let rect = field(&fixture, "Width").rect;
+    let caption = egui::Pos2::new(rect.min.x - 10.0, rect.center().y);
+    fixture.frame(vec![pointer::moved(caption)]);
+    fixture.frame(vec![pointer::press(caption)]);
+    fixture.frame(vec![pointer::moved(caption + vec2(15.0, 0.0))]);
+    fixture.frame(vec![pointer::moved(caption + vec2(30.0, 0.0))]);
+    fixture.frame(vec![pointer::release(caption + vec2(30.0, 0.0))]);
     fixture.settle();
     let layer = layer.borrow();
     let begins = layer.events.iter().filter(|event| matches!(event, EditEvent::Begin { .. })).count();

@@ -6,8 +6,9 @@ use super::{
     StrokeStyle,
 };
 use craft_behavior::Mixed;
-use craft_ui::contract::{Bind, Show as _};
+use craft_ui::contract::{Bind, Show as _, Validity};
 use craft_ui::primitives::ContentPainterCx;
+use craft_ui::runtime::env::Message;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::{Pos2, Rect, Shape, Stroke, Ui};
 
@@ -164,5 +165,24 @@ fn stroke_editor_choice_rows(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(StrokeButton<'static>, covers = [Default], drive = Drive::Never)]
 fn stroke_button(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let (style, open) = data.value("button", (StrokeStyle::default(), false));
+    StrokeButton::new("Stroke Options", Bind::bound(style), Bind::bound(open)).show(ui).into()
+}
+
+#[story(StrokeButton<'static>, covers = [Mixed], drive = Drive::Never)]
+fn stroke_button_mixed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let (style, open) = data.value("button mixed", (Mixed::<StrokeStyle>::Mixed, false));
+    StrokeButton::new("Stroke Options", Bind::bound_mixed(style), Bind::bound(open)).show(ui).into()
+}
+
+#[story(StrokeButton<'static>, covers = [Invalid], drive = Drive::Never)]
+fn stroke_button_refused(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let (style, open) = data.value("button refused", (StrokeStyle::default().with_line_style(super::LineStyle::Dashed), false));
+    let refuse_dashes = |style: &StrokeStyle| if style.dashes.is_empty() { Validity::Ok } else { Validity::Refuse(Message::new("Solid lines only")) };
+    StrokeButton::new("Stroke Options", Bind::bound(style).check(refuse_dashes), Bind::bound(open)).show(ui).into()
+}
+
+#[story(StrokeButton<'static>, covers = [Open], drive = Drive::Never)]
+fn stroke_button_open(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let (style, open) = data.value("button open", (StrokeStyle::default(), true));
     StrokeButton::new("Stroke Options", Bind::bound(style), Bind::bound(open)).show(ui).into()
 }
