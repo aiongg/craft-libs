@@ -2,13 +2,14 @@
 //! and the move and the size stay inside the bounds and the panel limits.
 
 use craft_behavior::GesturePhase;
-use craft_ui::contract::Sizing;
 use craft_ui::contract::overlay::PlacementKind;
+use craft_ui::contract::{Common, Component, Cx, DropMark, DropOperation, DropTarget, MeasureCx, Props as _, Role, Show as _, Sizing};
 use craft_ui::docking::{DragUnit, FloatingGroup, FloatingGroupOutput, GroupDrag, PanelLimits};
 use craft_ui::runtime::drag;
+use craft_ui::style::{ComponentStyle, StyleCx};
 use craft_ui::testing::layout::allocate;
 use craft_ui::testing::{Frames, pointer, trial};
-use egui::{Pos2, Rect, Ui, Vec2};
+use egui::{Pos2, Rect, Response, Ui, Vec2};
 use std::cell::{Cell, RefCell};
 
 const SLACK: f32 = 1.5;
@@ -118,6 +119,79 @@ fn a_move_by_the_title_of_a_window_group_runs_a_window_unit_drag_until_the_relea
     frames.frame(vec![pointer::release(from + MOVE)], &mut show);
     frames.idle(2, &mut show);
     assert!(drag::active::<GroupDrag<&'static str>>(&frames.ctx).is_none(), "the release ended it");
+}
+
+#[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
+#[non_exhaustive]
+struct PadStyle {
+    #[style(metrics)]
+    metrics: craft_behavior::Metrics,
+}
+
+/// The rect of the pad, under the window group's start rect and the pointer of the window drag.
+const PAD: Rect = Rect { min: Pos2::new(40.0, 60.0), max: Pos2::new(200.0, 200.0) };
+
+struct TakesGroups;
+
+impl DropTarget<GroupDrag<&'static str>> for TakesGroups {
+    type Drop = ();
+
+    fn accept(&self, _: &GroupDrag<&'static str>, _: Pos2, _: DropOperation) -> Option<()> {
+        Some(())
+    }
+
+    fn mark(&self, _: &()) -> DropMark {
+        DropMark::Into(PAD)
+    }
+}
+
+/// A target for dragged groups that lies under the floating group.
+#[derive(Component)]
+struct Pad {
+    #[common]
+    common: Common,
+}
+
+impl Component for Pad {
+    const ROLE: Role = Role::GROUP;
+    type Style = PadStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: PadStyleKey) -> PadStyle {
+        PadStyle::default()
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+        PAD.size()
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        cx.drop_target(&TakesGroups);
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+#[trial]
+fn a_window_unit_drag_sees_the_target_under_its_own_group() {
+    let (caller, mut frames) = (Caller::new(), Frames::new());
+    caller.anchor.set(Some("Layers"));
+    let mut group = caller.show();
+    let mut show = |ui: &mut Ui| {
+        Pad { common: Common::new() }.id_salt("pad").show_at(ui, PAD);
+        group(ui);
+    };
+    frames.idle(4, &mut show);
+    let from = title_of(START);
+    for events in [vec![pointer::moved(from)], vec![pointer::press(from)], vec![pointer::moved(from + MOVE / 2.0)], vec![pointer::moved(from + MOVE)]]
+    {
+        frames.frame(events, &mut show);
+    }
+    frames.idle(2, &mut show);
+    assert!(drag::active::<GroupDrag<&'static str>>(&frames.ctx).is_some(), "the move started a window drag");
+    assert!(drag::mark(&frames.ctx).is_some(), "the target under the moving group takes the drop");
 }
 
 #[trial]

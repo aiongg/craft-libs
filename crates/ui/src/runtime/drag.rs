@@ -3,7 +3,7 @@
 //! next pass, like the press arena's shapes. The ghost layer paints from this data (`contract::ghost`).
 
 use crate::runtime::egui::areas::{self, Layer};
-use crate::runtime::egui::{files, memory::Service, pass};
+use crate::runtime::egui::{files, memory::Service, pass, viewports};
 use crate::runtime::env::Label;
 use crate::runtime::frame::PerViewport;
 use crate::runtime::overlay::{self, LayerKeys};
@@ -128,8 +128,19 @@ pub trait WindowDropTarget<P> {
     fn mark(&self, drop: &Self::Drop) -> DropMark;
 }
 
+/// What a drag moves along with the pointer when its source is a container: the container's layer, and its window
+/// where it opens one. Targets never see the pointer through the layer or inside the window, so the targets under
+/// the moving unit take the drop.
+#[derive(Clone, Copy)]
+struct Moving {
+    layer: Option<Layer>,
+    viewport: ViewportId,
+}
+
 struct Session {
     source: Id,
+    /// The unit the source moves.
+    moving: Moving,
     /// The viewport whose pass started the session and the button whose press it follows: only that viewport's end
     /// hook reads the button, so another window repainting mid-drag does not end the session. Its release ends the
     /// session, and its window loss cancels it.
@@ -203,6 +214,7 @@ pub(crate) fn start(ctx: &Context, source: Id, payload: Arc<dyn Any + Send + Syn
                 .unwrap_or(PointerButton::Primary);
             board.session = Some(Session {
                 source,
+                moving: Moving { layer: overlay::entry(ctx, source).map(|entry| entry.layer), viewport: viewports::viewport_id(source) },
                 viewport: pass::current_viewport(ctx),
                 button,
                 payload,
@@ -338,6 +350,18 @@ pub(crate) fn cross_window_pointer(ctx: &Context, viewport: ViewportId) -> Optio
 pub(crate) fn dragging<P: Send + Sync + 'static>(ctx: &Context) -> Option<(Arc<P>, Pos2)> {
     let payload = active::<P>(ctx)?;
     Some((payload, pointer::frame(ctx).pos?))
+}
+
+/// The layer the running session's source moves with the pointer, which hit tests for drop targets look through.
+pub(crate) fn moving_layer(ctx: &Context) -> Option<Layer> {
+    board(ctx, |board| board.session.as_ref().and_then(|session| session.moving.layer))
+}
+
+/// Whether the running session's source is the window of the running viewport: its targets take no drop of the
+/// window's own move.
+pub(crate) fn moves_viewport(ctx: &Context) -> bool {
+    let viewport = pass::current_viewport(ctx);
+    board(ctx, |board| board.session.as_ref().is_some_and(|session| session.moving.viewport == viewport))
 }
 
 /// Records that `owner`'s `ordinal`th target on `layer` accepts at the pointer, with its mark in layer space. A

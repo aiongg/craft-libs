@@ -121,8 +121,8 @@ impl BackgroundPress {
 }
 
 /// Where `press` is the release of a secondary press: the one reading of a context press from a part's press. The press
-/// machine captures a secondary press only for a part that senses a drag and never reports it as a click, so the
-/// release is the request whether or not the pointer moved.
+/// machine captures a secondary press only for a part that senses a drag or a `CONTEXT_CLICK`, so the release is the
+/// request whether or not the pointer moved.
 pub fn context_click(press: &PressState) -> Option<Pos2> {
     match press.phase {
         PressPhase::Release { start, pos, .. } if start.button == PointerButton::Secondary => Some(pos),

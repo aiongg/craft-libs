@@ -504,7 +504,8 @@ impl<T: Copy> PressMachine<T> {
                     pos = at;
                     // A middle or secondary press captures for a drag (a canvas pan, a drag with the secondary button) and
                     // never clicks or starts over an open press; a primary press does not replace one of them. A target
-                    // that senses `MIDDLE_CLICK` also takes a middle press that can click (a tab closes on it).
+                    // that senses `MIDDLE_CLICK` also takes a middle press that can click (a tab closes on it), and one
+                    // that senses `CONTEXT_CLICK` takes a secondary press, which a click-only target would not capture.
                     let capture_only = button != PointerButton::Primary;
                     let over_other = self.open.is_some_and(|open| capture_only || open.start.button != button);
                     if !matches!(button, PointerButton::Primary | PointerButton::Middle | PointerButton::Secondary) || over_other {
@@ -512,10 +513,14 @@ impl<T: Copy> PressMachine<T> {
                     }
                     self.open = pick(at)
                         .map(|(target, sense)| {
-                            let middle_click = button == PointerButton::Middle && sense.contains(Sense::MIDDLE_CLICK);
-                            (target, if capture_only && !middle_click { sense - Sense::CLICK } else { sense }, middle_click)
+                            let clicks = match button {
+                                PointerButton::Middle => sense.contains(Sense::MIDDLE_CLICK),
+                                PointerButton::Secondary => sense.contains(Sense::CONTEXT_CLICK),
+                                _ => false,
+                            };
+                            (target, if capture_only && !clicks { sense - Sense::CLICK } else { sense }, clicks)
                         })
-                        .filter(|(_, sense, middle_click)| !capture_only || *middle_click || sense.contains(Sense::DRAG))
+                        .filter(|(_, sense, clicks)| !capture_only || *clicks || sense.contains(Sense::DRAG))
                         .map(|(target, sense, _)| (target, sense))
                         .map(|(target, sense)| Open {
                             target,
@@ -684,6 +689,11 @@ mod tests {
         let mut clicked = PressMachine::new();
         pass(&mut clicked, &[secondary(0.0)], Sense::CLICK);
         assert_eq!(clicked.target(), None, "a click-only shape takes no secondary press");
+        let mut context = PressMachine::new();
+        pass(&mut context, &[secondary(0.0)], Sense::CLICK | Sense::CONTEXT_CLICK);
+        let step = pass(&mut context, &[PointerEvent::released_by(PointerButton::Secondary, pos2(0.0, 0.0))], Sense::CLICK | Sense::CONTEXT_CLICK);
+        assert!(matches!(step.phase, Some(PressPhase::Release { start, .. }) if start.button == PointerButton::Secondary), "{step:?}");
+        assert_eq!(step.activated, None, "a context click never activates");
     }
 
     #[test]
