@@ -1,8 +1,8 @@
 //! Drops through the drag session: a dock's `DockDropTarget` takes a tab or a group grip drag, shows the mark
 //! and the released drop applies to the layout.
 
-use craft_behavior::dock::{Action, Layout, Node, Permissions, SplitSize};
-use craft_behavior::{Axis, DockSide};
+use craft_behavior::Axis;
+use craft_behavior::dock::{Layout, Node, Permissions, SplitSize};
 use craft_ui::contract::{Common, Component, Cx, MeasureCx, Pointer as _, Role, Show as _, ShowContainer as _};
 use craft_ui::docking::tree::{self, FrameRules, FrameSizes};
 use craft_ui::docking::{DockDropTarget, DockDropped, DockGroup, GroupDrag, PanelDrag, PanelKey, PanelLimits, PanelTitle};
@@ -90,6 +90,22 @@ fn groups(layout: &Layout<String>) -> Vec<Vec<String>> {
         .collect()
 }
 
+/// The anchor, panels and rect of each group of the layout in an area at `origin`.
+fn placed_groups(layout: &Layout<String>, origin: Pos2) -> Vec<(String, Vec<String>, Rect)> {
+    let limits = |_: &String| PanelLimits::default();
+    let rules = FrameRules::new(SIZES, &limits);
+    let Some(root) = layout.root.as_ref() else { return Vec::new() };
+    let frames = tree::frames(root, Rect::from_min_size(origin, AREA), &rules, false);
+    frames
+        .groups
+        .iter()
+        .filter_map(|group| match (group.anchor(), group.node) {
+            (Some(anchor), Node::Tabs { panels, .. }) => Some((anchor.clone(), panels.clone(), group.rect)),
+            _ => None,
+        })
+        .collect()
+}
+
 /// A dock of the layout with a host that applies the drops it takes.
 fn bed(layout: Layout<String>) -> (Fixture, Rc<RefCell<Layout<String>>>, Rc<RefCell<Vec<DockDropped<String>>>>) {
     let layout = Rc::new(RefCell::new(layout));
@@ -102,16 +118,10 @@ fn bed(layout: Layout<String>) -> (Fixture, Rc<RefCell<Layout<String>>>, Rc<RefC
         let target = DockDropTarget::new(&ctx, dock_id(), &shown, &permissions);
         let origin = ui.max_rect().min;
         Host { common: Common::new(), target: &target, seen: &shared_taken }.show(ui);
-        let limits = |_: &String| PanelLimits::default();
-        let rules = FrameRules::new(SIZES, &limits);
-        if let Some(root) = shown.root.as_ref() {
-            let frames = tree::frames(root, Rect::from_min_size(origin, AREA), &rules, false);
-            for group in frames.groups {
-                let (Some(anchor), Node::Tabs { panels, .. }) = (group.anchor().cloned(), group.node) else { continue };
-                let titles: Vec<PanelTitle> = panels.iter().map(|panel| PanelTitle::new(PanelKey::of(panel), panel.as_str())).collect();
-                let active = titles.first().map_or(PanelKey::new(0), |title| title.key);
-                DockGroup::new(anchor, &titles, active).dock(dock_id()).show_at(ui, group.rect, |_, _| ());
-            }
+        for (anchor, panels, rect) in placed_groups(&shown, origin) {
+            let titles: Vec<PanelTitle> = panels.iter().map(|panel| PanelTitle::new(PanelKey::of(panel), panel.as_str())).collect();
+            let active = titles.first().map_or(PanelKey::new(0), |title| title.key);
+            DockGroup::new(anchor, &titles, active).dock(dock_id()).show_at(ui, rect, |_, _| ());
         }
         for dropped in shared_taken.borrow_mut().drain(..) {
             shared_layout.borrow_mut().apply_with_permissions(dropped.action, permissions).expect("the model takes what the dock accepted");
