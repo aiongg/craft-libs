@@ -59,9 +59,9 @@ impl Default for StopRules {
 }
 
 /// One Left or Right press moves a stop or midpoint by this share of the bar or line.
-pub const STOP_STEP: f32 = 0.01;
+pub(crate) const STOP_STEP: f32 = 0.01;
 /// One Shift press.
-pub const STOP_STEP_FAR: f32 = 0.10;
+pub(crate) const STOP_STEP_FAR: f32 = 0.10;
 
 /// `location` clamped to 0..=1 and rounded to 0.001, as pointer locations are (PhotoCraft's
 /// Gradient Map).

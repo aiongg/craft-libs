@@ -125,8 +125,7 @@ fn scrubbing_a_size_is_one_gesture() {
     let layer = Layer::new(look(0.0));
     let mut fixture = panel(&layer);
     // The caption left of the field scrubs it.
-    let rect = field(&fixture, "Width").rect;
-    let caption = egui::Pos2::new(rect.min.x - 10.0, rect.center().y);
+    let caption = fixture.texts().iter().find(|text| text.text == "W").expect("the Width caption is painted").rect.center();
     fixture.frame(vec![pointer::moved(caption)]);
     fixture.frame(vec![pointer::press(caption)]);
     fixture.frame(vec![pointer::moved(caption + vec2(15.0, 0.0))]);

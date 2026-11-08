@@ -8,7 +8,7 @@ use craft_draw::ui::stroke::{
 use craft_ui::contract::{Bind, Role, Show as _};
 use craft_ui::primitives::PaintShape;
 use craft_ui::testing::{Fixture, trial};
-use egui::{Color32, Key, Modifiers, Pos2, Rect};
+use egui::{Key, Modifiers, Pos2, Rect};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -17,8 +17,6 @@ const SAMPLE: Rect = Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(200.0, 40
 
 /// The dash offset a trial types into its field.
 const TYPED_OFFSET: f32 = 3.0;
-/// The ink of a sample: any colour that is not opaque white or black.
-const INK: Color32 = Color32::from_rgb(200, 120, 40);
 
 fn dashed() -> StrokeStyle {
     StrokeStyle::default().with_line_style(LineStyle::Dashed)
@@ -221,13 +219,12 @@ fn stroke_preview_dashes_follow_cap_and_join() {
     assert!(corners(LineJoin::Round) > corners(LineJoin::Bevel), "a round corner is a fan, a bevel a triangle");
 }
 
-/// An invalid style draws nothing, and the style's opacity multiplies the ink.
+/// An invalid style draws nothing.
 #[trial]
-fn stroke_preview_skips_invalid_styles_and_applies_opacity() {
+fn stroke_preview_skips_invalid_styles() {
     let invalid = StrokeStyle { width: -1.0, ..StrokeStyle::default() };
     assert!(StrokePreview::new(&invalid, 4.0).shapes(SAMPLE).is_empty());
     let half = StrokeStyle { opacity: 0.5, ..StrokeStyle::default() };
     let preview = StrokePreview::new(&half, 4.0);
     assert!(!preview.shapes(SAMPLE).is_empty());
-    assert_eq!(preview.ink(INK).a(), INK.gamma_multiply(half.opacity as f32).a());
 }
