@@ -209,7 +209,9 @@ impl Default for Dismiss {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Trigger {
-    /// A click on the opener toggles.
+    /// A click on the opener toggles. A root opener (`Overlay::opened_by`) toggles on the primary press inside it, as
+    /// pop-up buttons and dropdowns do, so a press held past the click time still opens it; the release that
+    /// completes the click is part of that opening.
     Click,
     /// A press on the opener toggles.
     Press,
@@ -250,6 +252,9 @@ pub struct Opener {
     pub(crate) by_pointer: bool,
     /// The opener is pressed with the primary button, for `Trigger::Hold`.
     pub(crate) pressed: bool,
+    /// A `Trigger::Click` opener's primary click completed in this pass: the release of the press that opened the
+    /// layer, whose activation is that opening and no pick.
+    pub(crate) clicked: bool,
 }
 
 impl Opener {
@@ -257,19 +262,21 @@ impl Opener {
         // The opener's `Response` carries the press path's verdict, for a root with its own egui widget and for an
         // arena member alike: whether the open press is on it and whether a click released on it.
         let pressed_on = response::is_pressed(anchor);
-        let (fired, by_pointer, pressed) = pointer::with_pass_pointer(&anchor.ctx, |pass| {
-            let Some(frame) = pass.frame.as_ref() else { return (false, false, false) };
+        let (fired, by_pointer, pressed, clicked) = pointer::with_pass_pointer(&anchor.ctx, |pass| {
+            let Some(frame) = pass.frame.as_ref() else { return (false, false, false, false) };
             let inside = frame
                 .pos
                 .is_some_and(|pos| anchor.rect.contains(areas::layer_map(&anchor.ctx, anchor.layer_id).map_or(pos, |map| map.to_layer(pos))));
             let by_pointer = inside && frame.release == Some(PointerButton::Secondary);
+            // A root opener opens on the primary press inside it, as a pop-up button does, however long the press is
+            // then held; a `Click` opener's release completes the click that press began.
             let fired = match trigger {
-                Trigger::Click => frame.release == Some(PointerButton::Primary) && response::pointer_clicked(anchor),
-                Trigger::Press => pressed_on && frame.press.is_some_and(|press| press.button == PointerButton::Primary),
+                Trigger::Click | Trigger::Press => pressed_on && frame.press.is_some_and(|press| press.button == PointerButton::Primary),
                 Trigger::Context => by_pointer || keys::context_request(&anchor.ctx, anchor.id).is_some(),
                 Trigger::Hover | Trigger::Hold | Trigger::Manual => false,
             };
-            (fired, fired && by_pointer, pressed_on && pass.primary_down)
+            let clicked = trigger == Trigger::Click && frame.release == Some(PointerButton::Primary) && response::pointer_clicked(anchor);
+            (fired, fired && by_pointer, pressed_on && pass.primary_down, clicked)
         });
         Opener {
             id: anchor.id,
@@ -282,6 +289,7 @@ impl Opener {
             fired,
             by_pointer,
             pressed,
+            clicked,
         }
     }
 
@@ -1566,6 +1574,9 @@ pub(crate) fn opener_open(stage: &mut MemoryStage, first: &Opener) -> bool {
     {
         slot.open = true;
         slot.by = Some((opener.id, opener.trigger, false));
+    }
+    for opener in first.all().filter(|opener| opener.clicked) {
+        overlay::claim_activation(&ctx, opener.id);
     }
     let (open, by) = (slot.open, slot.by);
     with_popups(&ctx, |popups| match by {

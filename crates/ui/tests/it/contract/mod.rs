@@ -2,6 +2,7 @@
 
 mod derives;
 mod fixes;
+mod openers;
 mod os_window;
 pub(crate) mod kit;
 mod pipeline;
