@@ -164,13 +164,13 @@ fn layer_row<'r, T: LayerTree>(cx: &'r PanelContext<'r, T>, id: &T::Id) -> ListR
     let contents = cx.options.thumbnail_contents;
     let active = cx.selection.active.as_ref() == Some(id);
 
-    let mut eye = ToggleCell::eye(EYE, info.visible, named(&words.visibility, &info.name));
+    let mut eye = ToggleCell::eye(EYE, info.visible).name(named(&words.visibility, &info.name));
     if let Some(color) = info.label {
         eye = eye.fill(DataColor::new(paint_color(color.fill())));
     }
     let mut row = ListRow::new(info.name.clone()).layer(true).toggle(eye);
     if cx.lock_column {
-        row = row.toggle(ToggleCell::lock(LOCK, info.locks.any(), named(&words.lock_cell, &info.name)));
+        row = row.toggle(ToggleCell::lock(LOCK, info.locks.any()).name(named(&words.lock_cell, &info.name)));
     }
     row = row.clipped(info.clipped).highlight(cx.tree.hovered().as_ref() == Some(id));
     if info.dimmed {
@@ -252,7 +252,7 @@ fn sub_row<'r, T: LayerTree>(cx: &'r PanelContext<'r, T>, id: &T::Id, group: Sub
         row = row.ink(RowInk::Dimmed);
     }
     if sub.eye_shown {
-        row = row.toggle(ToggleCell::eye(EYE, sub.on, named(&words.visibility, &sub.label)));
+        row = row.toggle(ToggleCell::eye(EYE, sub.on).name(named(&words.visibility, &sub.label)));
     }
     let size = cx.options.thumbnail_size;
     let header_mask = group == SubRowGroup::SmartFilters && index.is_none() && sub.mask && size != ThumbSize::None;

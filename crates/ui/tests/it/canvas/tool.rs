@@ -451,7 +451,7 @@ fn press_reader(snapping: bool) -> (Reader, Arc<UnitWords>) {
         let canvas = Canvas::new("Document");
         let out = if snapping { canvas.snap(guide) } else { canvas }.show(ui, |_, _| {});
         id.set(out.output.response.id);
-        ToolHost::new().run(ui, &out.output, &mut *shown.borrow_mut());
+        let _ = ToolHost::new().run(ui, &out.output, &mut *shown.borrow_mut());
         *seen.borrow_mut() = Some(Env::of(ui).words::<UnitWords>());
         if queue.take() {
             let at = out.output.response.rect.center();
