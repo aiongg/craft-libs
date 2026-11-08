@@ -2,7 +2,7 @@
 //! and what the body keeps; a host's cancel drops a pending request.
 
 use craft_ui::choice::Checkbox;
-use craft_ui::contract::{Bind, Remember as _, Role, Show as _};
+use craft_ui::contract::{Bind, Props as _, Remember as _, Role, Show as _};
 use craft_ui::patterns::form_dialogs::{DialogFields, FormDialog, HostRequests, Param, ParamDialog, ParamKind, ParamRows};
 use craft_ui::runtime::env::Label;
 use craft_ui::testing::{Fixture, trial};

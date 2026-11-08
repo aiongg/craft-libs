@@ -262,21 +262,6 @@ impl<'a> ParamDialog<'a> {
         values
     }
 
-    /// Sets `values` to `target`, key by key (keys the target lacks keep their value), or to the values they
-    /// opened with when there is no target.
-    fn restore(values: &mut DialogFields, target: Option<&DialogFields>) {
-        match target {
-            Some(target) => {
-                for (key, value) in target.iter() {
-                    values.set(key, value.clone());
-                }
-            }
-            None => {
-                values.reset();
-            }
-        }
-    }
-
     /// A form for the command `key`, titled `title`: one row per parameter, OK and Cancel, no preview and no remember
     /// key. Batch, Image Processor, Open EXR Parts and Fit Image are command forms. It has every option of the
     /// dialog.
