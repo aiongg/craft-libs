@@ -68,7 +68,7 @@ pub struct DockDropped<P> {
 }
 
 /// The panels of the group, tab node or window frame that holds `anchor`.
-fn members<P: Clone + Eq + Hash>(layout: &Layout<P>, anchor: &P) -> Vec<P> {
+pub(crate) fn members<P: Clone + Eq + Hash>(layout: &Layout<P>, anchor: &P) -> Vec<P> {
     let Some(place) = layout.place(anchor) else { return vec![anchor.clone()] };
     if let Some(group) = layout.group(&place) {
         return group.panels.clone();
@@ -80,7 +80,7 @@ fn members<P: Clone + Eq + Hash>(layout: &Layout<P>, anchor: &P) -> Vec<P> {
 }
 
 /// The panels the unit moves.
-fn moving_panels<P: Clone + Eq + Hash>(layout: &Layout<P>, unit: &DragUnit<P>) -> Vec<P> {
+pub(crate) fn moving_panels<P: Clone + Eq + Hash>(layout: &Layout<P>, unit: &DragUnit<P>) -> Vec<P> {
     match unit {
         DragUnit::Panel(panel) => vec![panel.clone()],
         DragUnit::Group(anchor) => members(layout, anchor),
@@ -104,7 +104,7 @@ fn outside<P: Clone + Eq + Hash>(layout: &Layout<P>, named: &P, moved: &[P]) -> 
     members(layout, named).into_iter().find(|panel| !moved.contains(panel))
 }
 
-fn beside<P: Clone>(unit: &DragUnit<P>, anchor: P, placement: Placement<P>) -> Action<P> {
+pub(crate) fn beside<P: Clone>(unit: &DragUnit<P>, anchor: P, placement: Placement<P>) -> Action<P> {
     match unit {
         DragUnit::Panel(panel) => Action::move_beside(panel.clone(), anchor, placement),
         DragUnit::Group(lead) => Action::move_group(lead.clone(), Target::at(anchor, placement)),
@@ -113,7 +113,7 @@ fn beside<P: Clone>(unit: &DragUnit<P>, anchor: P, placement: Placement<P>) -> A
     }
 }
 
-fn to_target<P: Clone>(unit: &DragUnit<P>, target: Target<P>) -> Action<P> {
+pub(crate) fn to_target<P: Clone>(unit: &DragUnit<P>, target: Target<P>) -> Action<P> {
     match unit {
         DragUnit::Panel(panel) => Action::move_panel(panel.clone(), target),
         DragUnit::Group(lead) => Action::move_group(lead.clone(), target),

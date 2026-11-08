@@ -6,6 +6,7 @@
 //! `Ui` or egui memory; the host fires `DockCommand`s, calls [`actions`] and applies the result with
 //! `Workspace::apply_all`.
 
+use super::drop::{beside, members, moving_panels, to_target};
 use super::{DockEvent, DragUnit, FloatSpace};
 use crate::runtime::commands::CommandState;
 use craft_behavior::DockSide;
@@ -313,50 +314,6 @@ fn placed<P: Clone + Eq + Hash>(scene: &DockScene<'_, P>, unit: &DragUnit<P>) ->
     let size = remembered.unwrap_or_else(|| Vec2::new(width, space.default_size.y));
     let [x, y, width, height] = space.place(size);
     Rect::from_min_size(egui::pos2(x, y), Vec2::new(width, height))
-}
-
-fn members<P: Clone + Eq + Hash>(layout: &Layout<P>, anchor: &P) -> Vec<P> {
-    let Some(place) = layout.place(anchor) else { return vec![anchor.clone()] };
-    if let Some(group) = layout.group(&place) {
-        return group.panels.clone();
-    }
-    match layout.node_of(&place) {
-        Some(Node::Tabs { panels, .. }) => panels.clone(),
-        _ => vec![anchor.clone()],
-    }
-}
-
-fn moving_panels<P: Clone + Eq + Hash>(layout: &Layout<P>, unit: &DragUnit<P>) -> Vec<P> {
-    match unit {
-        DragUnit::Panel(panel) => vec![panel.clone()],
-        DragUnit::Group(anchor) => members(layout, anchor),
-        DragUnit::Window(anchor) => match layout.floating.iter().find(|window| window.contains(anchor)) {
-            Some(window) => window.panels().cloned().collect(),
-            None => members(layout, anchor),
-        },
-        DragUnit::Column(anchor) => match layout.place(anchor).and_then(|place| layout.column(&place)) {
-            Some(column) => column.groups.iter().flat_map(|group| group.panels.iter().cloned()).collect(),
-            None => members(layout, anchor),
-        },
-    }
-}
-
-fn beside<P: Clone>(unit: &DragUnit<P>, anchor: P, placement: Placement<P>) -> Action<P> {
-    match unit {
-        DragUnit::Panel(panel) => Action::move_beside(panel.clone(), anchor, placement),
-        DragUnit::Group(lead) => Action::move_group(lead.clone(), Target::at(anchor, placement)),
-        DragUnit::Window(lead) => Action::move_window(lead.clone(), Target::at(anchor, placement)),
-        DragUnit::Column(lead) => Action::move_column(lead.clone(), Target::at(anchor, placement)),
-    }
-}
-
-fn to_target<P: Clone>(unit: &DragUnit<P>, target: Target<P>) -> Action<P> {
-    match unit {
-        DragUnit::Panel(panel) => Action::move_panel(panel.clone(), target),
-        DragUnit::Group(lead) => Action::move_group(lead.clone(), target),
-        DragUnit::Window(lead) => Action::move_window(lead.clone(), target),
-        DragUnit::Column(lead) => Action::move_column(lead.clone(), target),
-    }
 }
 
 /// The panels of the last column of the dock on `edge`.
