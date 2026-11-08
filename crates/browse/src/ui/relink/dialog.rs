@@ -391,8 +391,11 @@ impl<K: Clone + PartialEq + Send + Sync + 'static> StackDialog for RelinkDialog<
         actions.push((Action::Link, FooterButton::new(link_label.clone(), DialogRole::Accept).stays_open(open).enabled(link_enabled)));
         let buttons: Vec<FooterButton> = actions.iter().map(|(_, button)| button.clone()).collect();
 
-        let shown =
-            Dialog::new(words.title.clone()).opened(Bind::bound(&mut self.open)).buttons(buttons).show(ui, |ui, cx| model.body(ui, cx, &env, &words));
+        let shown = Dialog::new(words.title.clone())
+            .collection_body()
+            .opened(Bind::bound(&mut self.open))
+            .buttons(buttons)
+            .show(ui, |ui, cx| model.body(ui, cx, &env, &words));
         let output = shown.output;
         if output.closed == Some(CloseReason::Escape) && model.pick.is_some() {
             // Esc while a pick is open closes the pick only.
