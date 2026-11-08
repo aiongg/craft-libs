@@ -20,7 +20,7 @@ use crate::runtime::{inspect, keys, layout_memory, wheel};
 use crate::style::{ComponentStyle, Flags, Ink, StateSet, StyleCx, accepted_variant, resolve_style, surface_style};
 use craft_behavior::{
     CancelReason, Cursor, CursorPriority, DragWarp, EditEvent, Gesture, GesturePhase, Input, Intent, KeyRole, Mixed, NavMove, PaintedCursor, PartKey,
-    PartRef, PressCancel, Proposal, Roving, ScrollPos, Sense, Value, ValueDrag,
+    PartRef, PressCancel, Proposal, Roving, Sense, Value, ValueDrag,
 };
 use craft_theme::{ControlSize, State, StateMix, Variant};
 use egui::{Context, Id, Pos2, Rect, Response, Ui, Vec2};

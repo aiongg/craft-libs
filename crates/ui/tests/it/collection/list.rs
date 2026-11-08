@@ -132,12 +132,13 @@ fn the_app_sets_a_lists_scroll_position_through_its_scroll_binding() {
     };
     frames.idle(3, &mut show);
     assert_eq!(seen.range().start, 0);
-    held.borrow_mut().y = 20.0 * f64::from(ROW_H);
+    let target = (ROWS / 2) as f64 * f64::from(ROW_H);
+    held.borrow_mut().y = target;
     frames.idle(2, &mut show);
-    assert!(seen.range().start >= 19, "the list shows the rows at the offset the app wrote: {:?}", seen.range());
+    assert!(seen.range().start >= ROWS / 2 - 1, "the list shows the rows at the offset the app wrote: {:?}", seen.range());
     frames.frame(vec![pointer::moved(seen.rect.get().center())], &mut show);
     frames.frame(vec![pointer::wheel(-WHEEL)], &mut show);
-    assert!(held.borrow().y > 20.0 * f64::from(ROW_H), "the wheel wrote the offset back: {:?}", held.borrow());
+    assert!(held.borrow().y > target, "the wheel wrote the offset back: {:?}", held.borrow());
 }
 
 /// A body and a list under one wheel rule: the wheel moves the one under the pointer by the wheel's points.
