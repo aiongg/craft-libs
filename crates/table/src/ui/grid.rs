@@ -13,7 +13,7 @@ use craft_ui::contract::{
 };
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::focus::{KeepKeys, KeyUse};
-use craft_ui::style::{ComponentStyle, StyleColor, StyleCx, SurfaceLook};
+use craft_ui::style::{ComponentStyle, Stateful, StyleColor, StyleCx, SurfaceLook};
 use egui::{Pos2, Rect, Response, Vec2};
 
 use super::filter::FilterButtonEvent;
@@ -23,7 +23,7 @@ mod editor;
 mod input;
 mod paint;
 mod row;
-#[cfg(feature = "testing")]
+#[cfg(feature = "screen-testing")]
 mod stories;
 
 pub use row::GridRow;
@@ -171,13 +171,6 @@ impl GridLayout {
     #[must_use]
     pub fn scroll(mut self, scroll: Vec2) -> Self {
         self.scroll = scroll;
-        self
-    }
-
-    /// Whether the headings show.
-    #[must_use]
-    pub fn headings(mut self, on: bool) -> Self {
-        self.headings = on;
         self
     }
 
@@ -497,6 +490,7 @@ impl CellEdit {
 pub enum GridEdit {
     /// A cell was opened for editing: typing replaced its content (`typed`), or F2 or a double click edits in place
     /// (`None`). The app may show the draft in its formula bar from [`GridOutput::draft`].
+    #[non_exhaustive]
     BeginEdit {
         /// Replacement text typed on the grid; `None` edits in place.
         typed: Option<String>,
@@ -508,6 +502,7 @@ pub enum GridEdit {
     /// A column header's end edge dragged: the new width in points at 100 % zoom, as one gesture (Esc cancels). Several
     /// selected columns resize together: the app applies the width to every column of the selection that holds
     /// `column`.
+    #[non_exhaustive]
     ResizeColumn {
         /// The column whose edge was dragged.
         column: u32,
@@ -515,6 +510,7 @@ pub enum GridEdit {
         width: EditEvent<f32>,
     },
     /// A row header's bottom edge dragged, as [`ResizeColumn`](Self::ResizeColumn).
+    #[non_exhaustive]
     ResizeRow {
         /// The row whose edge was dragged.
         row: u32,
@@ -522,21 +518,25 @@ pub enum GridEdit {
         height: EditEvent<f32>,
     },
     /// A double-click on a column header's edge: AutoFit Column Width.
+    #[non_exhaustive]
     AutoFitColumn {
         /// The column whose edge was double-clicked.
         column: u32,
     },
     /// A double-click on a row header's edge: AutoFit Row Height.
+    #[non_exhaustive]
     AutoFitRow {
         /// The row whose edge was double-clicked.
         row: u32,
     },
     /// A double-click on the edge where a hidden column sits: Unhide.
+    #[non_exhaustive]
     UnhideColumn {
         /// The hidden column.
         column: u32,
     },
     /// A double-click on the edge where a hidden row sits.
+    #[non_exhaustive]
     UnhideRow {
         /// The hidden row.
         row: u32,
@@ -544,18 +544,21 @@ pub enum GridEdit {
     /// The fill handle dragged: the range the current selection grows to (the source plus the filled cells), as one
     /// gesture. `Update`s show the preview, `Commit` carries the range, `Cancel` (Esc) drops it. Cmd/Ctrl at the
     /// commit swaps copying and extending a series ([`GridOutput::fill_swapped`]).
+    #[non_exhaustive]
     Fill {
         /// The range the selection grows to.
         range: EditEvent<CellRange<u32>>,
     },
     /// The selection dragged by its border: the cell its top-left corner moves to, as one gesture like
     /// [`Fill`](Self::Fill). The app moves the cells; the grid selects the moved range when the gesture commits.
+    #[non_exhaustive]
     MoveCells {
         /// The cell the selection's top-left corner moves to.
         to: EditEvent<CellAt<u32>>,
     },
     /// The fill handle dragged with the secondary button and released: the range the drag grew the selection to, and
     /// the pointer's screen position. The app opens its fill menu there; nothing is filled or selected until then.
+    #[non_exhaustive]
     FillMenu {
         /// The range the drag grew the selection to.
         range: CellRange<u32>,
@@ -581,6 +584,7 @@ pub enum GridEdit {
     /// sheet moves it (a click outside the selection selects the cell or line first). `anchor` is the clicked cell's or
     /// header's rect (the active cell's for a key), where a menu opened from the keyboard goes; `pointer` is where a
     /// secondary click was, `None` for a key. Both are in screen coordinates.
+    #[non_exhaustive]
     ContextMenu {
         /// The clicked cell's or header's rectangle, in screen points.
         anchor: Rect,
@@ -604,7 +608,7 @@ pub enum GridMenuTarget {
 }
 
 /// A column that shows a filter button at the end corner of its header cell.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ColumnFilter {
     /// The column.
@@ -623,14 +627,14 @@ impl ColumnFilter {
 
     /// Whether the column is filtered.
     #[must_use]
-    pub const fn filtered(mut self, on: bool) -> Self {
+    pub fn filtered(mut self, on: bool) -> Self {
         self.filtered = on;
         self
     }
 
     /// The column's sort.
     #[must_use]
-    pub const fn sort(mut self, sort: Option<craft_ui::contract::ColumnSort>) -> Self {
+    pub fn sort(mut self, sort: Option<craft_ui::contract::ColumnSort>) -> Self {
         self.sort = sort;
         self
     }
@@ -704,7 +708,7 @@ impl Outcome for GridOutput {
         &self.collection.response
     }
 
-    #[cfg(feature = "testing")]
+    #[cfg(feature = "screen-testing")]
     fn story_facts(&self) -> craft_ui::testing::StoryOutput {
         self.collection.story_facts()
     }
@@ -733,11 +737,8 @@ pub struct CellGridStyle {
     pub(crate) sheet: SheetMetrics,
     pub(crate) bands: Vec2,
     pub(crate) background: StyleColor,
-    pub(crate) header: StyleColor,
-    pub(crate) header_text: StyleColor,
-    pub(crate) header_selected: StyleColor,
-    pub(crate) header_selected_text: StyleColor,
-    pub(crate) header_whole: StyleColor,
+    pub(crate) header: Stateful<StyleColor>,
+    pub(crate) header_text: Stateful<StyleColor>,
     pub(crate) gridline: StyleColor,
     pub(crate) header_line: StyleColor,
     pub(crate) accent: StyleColor,
@@ -772,15 +773,16 @@ pub struct CellGridStyle {
 ///   mode (the arrows move the caret), `=` and an operator in point mode (the arrows move a reference cursor).
 ///
 /// The scroll lives in the collection.
-#[derive(craft_ui::contract::Component)]
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
 #[component(collection)]
-pub struct CellGrid<'a, M: GridModel> {
+pub struct CellGrid<'a> {
     #[common]
     common: Common,
     #[container]
     props: ContainerProps,
     items: CollectionProps,
     #[style_key]
+    #[prop]
     headings: bool,
     #[style_key]
     digits: u8,
@@ -788,13 +790,16 @@ pub struct CellGrid<'a, M: GridModel> {
     percent: u16,
     #[style_key]
     levels: (u8, u8),
-    model: &'a M,
+    model: &'a dyn GridModel,
     selection: Bind<'a, CellSelection<u32>>,
     /// The selection as the app held it when the pass began, for the parts that declare before the item step runs.
     snapshot: CellSelection<u32>,
     zoom: f32,
+    #[prop]
     copy_mark: &'a [CellRange<u32>],
+    #[prop]
     filters: &'a [ColumnFilter],
+    #[prop]
     error_tag: Option<CellProblem<'a>>,
     outline: Option<(&'a OutlineAxis, &'a OutlineAxis)>,
     selectable: Box<dyn Fn(CellAt<u32>) -> bool + 'a>,
@@ -802,9 +807,9 @@ pub struct CellGrid<'a, M: GridModel> {
     pass: PassOutput,
 }
 
-impl<'a, M: GridModel> CellGrid<'a, M> {
+impl<'a> CellGrid<'a> {
     /// A grid named `label` over `model` that keeps its selection and zoom in `state`.
-    pub fn new(label: impl Into<Label>, model: &'a M, state: &'a mut GridState) -> Self {
+    pub fn new(label: impl Into<Label>, model: &'a dyn GridModel, state: &'a mut GridState) -> Self {
         let GridState { selection, zoom } = state;
         let zoom = if zoom.is_finite() { zoom.clamp(*SHEET_ZOOM.start(), *SHEET_ZOOM.end()) } else { 1.0 };
         let digits = digits_of(model.last_used().row.saturating_add(ROW_HEADER_LOOKAHEAD as u32)) as u8;
@@ -831,28 +836,6 @@ impl<'a, M: GridModel> CellGrid<'a, M> {
         .label(label)
     }
 
-    /// Copy mode: the copied ranges get marching ants. While any are shown, Esc reports [`GridEdit::ClearCopyMark`] and
-    /// Enter [`GridEdit::PasteAtActive`]. The app owns the mark and passes it every pass.
-    #[must_use]
-    pub fn copy_mark(mut self, ranges: &'a [CellRange<u32>]) -> Self {
-        self.copy_mark = ranges;
-        self
-    }
-
-    /// The columns that show a filter button.
-    #[must_use]
-    pub fn filters(mut self, filters: &'a [ColumnFilter]) -> Self {
-        self.filters = filters;
-        self
-    }
-
-    /// The cell with a problem: an error tag sits beside it.
-    #[must_use]
-    pub fn error_tag(mut self, problem: Option<CellProblem<'a>>) -> Self {
-        self.error_tag = problem;
-        self
-    }
-
     /// Reserves the outline bands for the groups of `rows` and `columns` inside the grid's rect and shows one band over
     /// them. Zero levels reserve nothing.
     #[must_use]
@@ -862,24 +845,17 @@ impl<'a, M: GridModel> CellGrid<'a, M> {
         self
     }
 
-    /// Whether to show the row and column headings; `true` by default.
-    #[must_use]
-    pub fn headings(mut self, on: bool) -> Self {
-        self.headings = on;
-        self
-    }
-
     /// Shows the grid and reports what the user did. The rows are the model's, one item each, drawn by [`GridRow`].
-    pub fn show(self, ui: &mut egui::Ui) -> GridOutput {
+    pub fn show_sheet(self, ui: &mut egui::Ui) -> GridOutput {
         use craft_ui::contract::ShowCollection as _;
-        let model: &'a M = self.model;
+        let model: &'a dyn GridModel = self.model;
         let rows = SheetRows(Positions::new(model.rows().count()));
         let zoom = self.zoom;
         self.show_items(ui, &rows, &mut |key, icx| GridRow::new(model, *key, zoom, icx.cells().to_vec()))
     }
 }
 
-impl<M: GridModel> craft_ui::contract::Component for CellGrid<'_, M> {
+impl craft_ui::contract::Component for CellGrid<'_> {
     const ROLE: Role = Role::GRID;
     const INPUT: craft_ui::contract::Input = craft_ui::contract::Input::Editor;
     const KEYS: KeyUse = KeyUse::of(craft_ui::contract::Input::Editor).with_keep(KeepKeys::None);
@@ -952,7 +928,7 @@ impl<M: GridModel> craft_ui::contract::Component for CellGrid<'_, M> {
     }
 }
 
-impl<M: GridModel> Collection for CellGrid<'_, M> {
+impl Collection for CellGrid<'_> {
     type Key = u32;
     type ItemLayout = SheetLayout;
     type Selection = CellSelection<u32>;

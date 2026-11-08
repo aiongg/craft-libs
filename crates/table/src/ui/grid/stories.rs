@@ -67,17 +67,17 @@ impl GridModel for StorySheet {
 fn sheet(ui: &mut Ui, data: &mut StoryData, selection: CellSelection<u32>, marks: &[CellRange<u32>]) -> StoryOutput {
     let model = StorySheet::new();
     let mut state = data.value("state", GridState { selection, ..GridState::default() }).clone();
-    let out = CellGrid::new("Sheet", &model, &mut state).copy_mark(marks).show(ui);
+    let out = CellGrid::new("Sheet", &model, &mut state).copy_mark(marks).show_sheet(ui);
     *data.value("state", GridState::default()) = state;
     out.into()
 }
 
-#[story(CellGrid<'static, StorySheet>, covers = [Default], drive = Drive::Never)]
+#[story(CellGrid<'static>, covers = [Default], drive = Drive::Never)]
 fn cell_grid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     sheet(ui, data, CellSelection::cell(CellAt::new(0, 0)), &[])
 }
 
-#[story(CellGrid<'static, StorySheet>, covers = [Many], drive = Drive::Never)]
+#[story(CellGrid<'static>, covers = [Many], drive = Drive::Never)]
 fn cell_grid_ranges_and_copy_mark(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let first = CellRange::cells(CellAt::new(4, 0), CellAt::new(6, 2));
     let second = CellRange::cells(CellAt::new(8, 4), CellAt::new(9, 5));
@@ -90,7 +90,7 @@ fn open_edit(fixture: &mut Fixture) {
     fixture.idle(2);
 }
 
-#[story(CellGrid<'static, StorySheet>, covers = [], drive = Drive::Custom(open_edit))]
+#[story(CellGrid<'static>, covers = [], drive = Drive::Custom(open_edit))]
 fn cell_grid_edit(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     sheet(ui, data, CellSelection::cell(CellAt::new(5, 4)), &[])
 }
@@ -100,12 +100,12 @@ fn start_formula(fixture: &mut Fixture) {
     fixture.idle(2);
 }
 
-#[story(CellGrid<'static, StorySheet>, covers = [], drive = Drive::Custom(start_formula))]
+#[story(CellGrid<'static>, covers = [], drive = Drive::Custom(start_formula))]
 fn cell_grid_point_mode(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     sheet(ui, data, CellSelection::cell(CellAt::new(5, 4)), &[])
 }
 
-#[story(CellGrid<'static, StorySheet>, covers = [], drive = Drive::Never)]
+#[story(CellGrid<'static>, covers = [], drive = Drive::Never)]
 fn cell_grid_chrome(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let model = StorySheet::new();
     let mut state = data.value("state", GridState::default()).clone();
@@ -117,7 +117,7 @@ fn cell_grid_chrome(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         .filters(&filters)
         .error_tag(Some(CellProblem::new(CellAt::new(2, 0), "Number stored as text", &fixes)))
         .outline(&rows, &columns)
-        .show(ui);
+        .show_sheet(ui);
     *data.value("state", GridState::default()) = state;
     out.into()
 }

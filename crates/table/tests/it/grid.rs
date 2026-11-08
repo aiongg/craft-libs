@@ -76,7 +76,7 @@ fn rig(hidden_column: Option<u32>, selection: CellSelection<u32>, zoom: f32) -> 
         let model = Sheet::new(hidden_column, shown_zoom.clone());
         let mut state = shown_state.borrow().clone();
         let marks = shown_marks.borrow().clone();
-        let out = CellGrid::new("Sheet", &model, &mut state).copy_mark(&marks).show(ui);
+        let out = CellGrid::new("Sheet", &model, &mut state).copy_mark(&marks).show_sheet(ui);
         *shown_state.borrow_mut() = state;
         shown_edits.borrow_mut().extend(out.edits);
         shown_committed.borrow_mut().extend(out.committed);
@@ -110,14 +110,10 @@ fn a1() -> CellSelection<u32> {
 }
 
 fn geometry(zoom: f32, rtl: bool) -> SheetGeometry {
-    let layout = GridLayout::new(
-        Rect::from_min_size(Pos2::ZERO, Vec2::new(400.0, 300.0)),
-        LineIndex::new(&BTreeMap::new(), ROW, SHEET_ROWS),
-        LineIndex::new(&BTreeMap::new(), COLUMN, SHEET_COLUMNS),
-    )
-    .zoom(zoom)
-    .frozen(1, 1)
-    .right_to_left(rtl);
+    let rows = LineIndex::new(&BTreeMap::new(), ROW, SHEET_ROWS);
+    let columns = LineIndex::new(&BTreeMap::new(), COLUMN, SHEET_COLUMNS);
+    let room = Vec2::new(columns.start(6) as f32, rows.start(15) as f32);
+    let layout = GridLayout::new(Rect::from_min_size(Pos2::ZERO, room), rows, columns).zoom(zoom).frozen(1, 1).right_to_left(rtl);
     SheetGeometry::new(layout, SheetMetrics::new(ROW, 8.0, 4.0))
 }
 
@@ -183,12 +179,12 @@ fn resizes(edits: &[GridEdit]) -> Vec<&EditEvent<f32>> {
 fn header_edges_resize_and_double_click_autofits() {
     let mut rig = rig(None, a1(), 1.0);
     let edge = rig.part(PartKey::new("column_edge"), 1);
-    rig.fixture.drag(&edge, Vec2::new(30.0, 0.0));
+    rig.fixture.drag(&edge, Vec2::X * (ROW + ROW / 2.0));
     let edits = rig.take_edits();
     let events = resizes(&edits);
     assert!(matches!(events.first(), Some(EditEvent::Begin { .. })), "the drag begins one gesture");
     assert!(
-        matches!(events.last(), Some(EditEvent::Commit { after, .. }) if (*after - (COLUMN + 30.0)).abs() < 1.0),
+        matches!(events.last(), Some(EditEvent::Commit { after, .. }) if (*after - (COLUMN + ROW + ROW / 2.0)).abs() < 1.0),
         "and commits the dragged width"
     );
     rig.fixture.click(&edge).click(&edge);
@@ -200,7 +196,7 @@ fn escape_cancels_a_header_resize() {
     let mut rig = rig(None, a1(), 1.0);
     let edge = rig.part(PartKey::new("column_edge"), 1);
     rig.fixture.press(&edge);
-    rig.fixture.frame(vec![craft_ui::testing::pointer::moved(edge.center() + Vec2::new(20.0, 0.0))]);
+    rig.fixture.frame(vec![craft_ui::testing::pointer::moved(edge.center() + Vec2::X * ROW)]);
     rig.press(Key::Escape, Modifiers::NONE);
     let edits = rig.take_edits();
     assert!(resizes(&edits).iter().any(|event| matches!(event, EditEvent::Cancel { .. })), "Esc cancels the resize");
@@ -223,7 +219,7 @@ fn selected_block() -> CellSelection<u32> {
 fn the_fill_handle_drags_a_range() {
     let mut rig = rig(None, selected_block(), 1.0);
     let handle = rig.part(PartKey::new("fill_handle"), 0);
-    rig.fixture.drag(&handle, Vec2::new(0.0, 2.0 * ROW));
+    rig.fixture.drag(&handle, Vec2::Y * (ROW * 2.0));
     let fills: Vec<_> =
         rig.take_edits().into_iter().filter_map(|edit| if let GridEdit::Fill { range } = edit { Some(range) } else { None }).collect();
     assert!(matches!(fills.first(), Some(EditEvent::Begin { .. })));
@@ -237,7 +233,7 @@ fn the_fill_handle_drags_a_range() {
 fn the_selection_border_drags_cells() {
     let mut rig = rig(None, selected_block(), 1.0);
     let border = rig.part(PartKey::new("range_border"), 0);
-    rig.fixture.drag(&border, Vec2::new(COLUMN, 0.0));
+    rig.fixture.drag(&border, Vec2::X * COLUMN);
     let moves: Vec<_> = rig.take_edits().into_iter().filter_map(|edit| if let GridEdit::MoveCells { to } = edit { Some(to) } else { None }).collect();
     assert!(matches!(moves.last(), Some(EditEvent::Commit { after, .. }) if after.column == 2), "the block moves one column right");
 }
@@ -289,8 +285,8 @@ fn outline_levels_reserve_the_bands_inside_the_grid() {
         let mut state = GridState::default();
         let rows = OutlineAxis { levels: 2, groups: vec![OutlineGroup { start: 1, end: 2, level: 1, collapsed: false, summary_before: false }] };
         let columns = OutlineAxis::default();
-        let plain = CellGrid::new("Plain", &model, &mut state).show(ui).geometry;
-        let outlined = CellGrid::new("Outlined", &model, &mut state).outline(&rows, &columns).show(ui).geometry;
+        let plain = CellGrid::new("Plain", &model, &mut state).show_sheet(ui).geometry;
+        let outlined = CellGrid::new("Outlined", &model, &mut state).outline(&rows, &columns).show_sheet(ui).geometry;
         *shown.borrow_mut() = Some((plain.bands(), outlined.bands()));
     });
     fixture.settle();
@@ -307,7 +303,7 @@ fn a_filter_button_over_the_header_takes_the_press() {
         let model = Sheet::new(None, Rc::new(Cell::new(0.0)));
         let mut state = GridState::default();
         let filters = [ColumnFilter::new(1)];
-        let out = CellGrid::new("Sheet", &model, &mut state).filters(&filters).show(ui);
+        let out = CellGrid::new("Sheet", &model, &mut state).filters(&filters).show_sheet(ui);
         if let Some((column, _)) = out.filter {
             shown.borrow_mut().push(column);
         }
@@ -326,7 +322,9 @@ fn an_error_tag_beside_a_cell_takes_the_press() {
         move |ui| {
             let model = Sheet::new(None, Rc::new(Cell::new(0.0)));
             let mut state = GridState::default();
-            CellGrid::new("Sheet", &model, &mut state).error_tag(Some(CellProblem::new(CellAt::new(2, 2), "Number stored as text", &fixes))).show(ui);
+            CellGrid::new("Sheet", &model, &mut state)
+                .error_tag(Some(CellProblem::new(CellAt::new(2, 2), "Number stored as text", &fixes)))
+                .show_sheet(ui);
         }
     });
     fixture.settle();
@@ -344,7 +342,8 @@ fn the_error_tag_sits_left_or_right_of_the_cell() {
     let mut fixture = Fixture::new(move |ui| {
         let model = Sheet::new(None, Rc::new(Cell::new(0.0)));
         let mut state = GridState::default();
-        let out = CellGrid::new("Sheet", &model, &mut state).error_tag(Some(CellProblem::new(CellAt::new(2, 2), "Problem", &shown_fixes))).show(ui);
+        let out =
+            CellGrid::new("Sheet", &model, &mut state).error_tag(Some(CellProblem::new(CellAt::new(2, 2), "Problem", &shown_fixes))).show_sheet(ui);
         shown.borrow_mut().push(out.geometry.mirror_rect(out.geometry.cell_rect(CellAt::new(2, 2))));
     });
     fixture.settle();

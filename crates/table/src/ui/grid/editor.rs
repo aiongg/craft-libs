@@ -119,6 +119,7 @@ impl Draft {
             (true, Granularity::Word) => (self.caret, word_end(&self.text, self.caret)),
             (true, Granularity::Line | Granularity::Paragraph | Granularity::Document) => (self.caret, self.text.len()),
             (true, Granularity::Unit) => (self.caret, next(&self.text, self.caret)),
+            (_, _) => (self.caret, self.caret),
         };
         if from < to {
             self.text.replace_range(from..to, "");

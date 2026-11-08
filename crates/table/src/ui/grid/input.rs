@@ -91,7 +91,7 @@ fn fill_range(source: &CellRange<u32>, target: CellAt<u32>) -> CellRange<u32> {
     }
 }
 
-impl<M: GridModel> CellGrid<'_, M> {
+impl CellGrid<'_> {
     /// The cell space the rules run over: the sheet's size, merged cells, hidden lines and locked cells.
     fn space<'s>(
         &'s self,
@@ -296,7 +296,7 @@ impl<M: GridModel> CellGrid<'_, M> {
             self.pass.committed = committed;
         }
         if !deferred.is_empty()
-            && let Pending::Ready(ClipContent { text: Some(text) }) = cx.clipboard().paste()
+            && let Pending::Ready(ClipContent { text: Some(text), .. }) = cx.clipboard().paste()
         {
             self.pass.edits.push(GridEdit::Paste(text.to_string()));
         }
@@ -494,7 +494,7 @@ impl<M: GridModel> CellGrid<'_, M> {
     ) {
         let range = |a: u32, b: u32| if rows { Some(space.whole_rows(a.min(b), a.max(b))) } else { space.whole_columns(a.min(b), a.max(b)) };
         match press.phase {
-            PressPhase::Down { start } if start.button == PointerButton::Primary => {
+            PressPhase::Down { start, .. } if start.button == PointerButton::Primary => {
                 *grab = Some(Grab::Lines { rows, anchor: line });
                 if let Some(range) = range(line, line) {
                     if press.mods.cmd {

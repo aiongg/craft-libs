@@ -2,11 +2,11 @@
 //! marks, the in-cell editor and the chrome that sits on the sheet.
 
 use craft_behavior::{CursorIcon, HitLevel, HitPriority, Metrics, PartKey, ScrollPos, Sense, TextPos};
-use craft_ui::contract::{Access, Cx, Focus as _, Name, PaintUi, PartsCx, Role, Show as _};
+use craft_ui::contract::{Access, Cx, Focus as _, Name, PaintUi, PartsCx, Remember as _, Role, Styled as _};
 use craft_ui::primitives::{Draw, EditorLine, EditorPurpose, EditorRun, EditorState, HAlign, PaintShape, StrokeWidth, TextRun};
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::motion::Animate as _;
-use craft_ui::style::StyleCx;
+use craft_ui::style::{Flags, Stateful, StyleCx};
 use egui::{CornerRadius, Pos2, Rect, Vec2};
 
 use super::editor::{EditState, Mode};
@@ -51,11 +51,8 @@ pub(super) fn style(cx: &StyleCx<'_>, key: CellGridStyleKey) -> CellGridStyle {
         sheet,
         bands,
         background: cx.color(c.surface.background),
-        header: cx.color(c.surface.chrome),
-        header_text: cx.color(c.text.muted),
-        header_selected: cx.color(c.state.selected),
-        header_selected_text: cx.color(c.text.on_selected),
-        header_whole: cx.color(c.accent.soft),
+        header: Stateful::new(cx.color(c.surface.chrome)).when(Flags::SELECTED, cx.color(c.state.selected)),
+        header_text: Stateful::new(cx.color(c.text.muted)).when(Flags::SELECTED, cx.color(c.text.on_selected)),
         gridline: cx.color(c.line.divider),
         header_line: cx.color(c.line.border),
         accent: cx.color(c.accent.solid),
@@ -103,7 +100,7 @@ impl Marks {
     }
 }
 
-impl<M: GridModel> CellGrid<'_, M> {
+impl CellGrid<'_> {
     /// The geometry at this pass's scroll.
     fn geometry_for(&self, rect: Rect, offset: ScrollPos, rtl: bool, style: &CellGridStyle) -> SheetGeometry {
         let zoom = f64::from(self.zoom);
@@ -170,13 +167,19 @@ impl<M: GridModel> CellGrid<'_, M> {
         let sense = Sense::CLICK | Sense::DRAG | Sense::CONTEXT_CLICK | Sense::TAKE_FOCUS;
         let reach = craft_behavior::hit::LINE_REACH;
         let rtl = geometry.mirror_x(0.0) > 0.0;
+        let marks = Marks::of(&self.snapshot, geometry.rows().count(), geometry.columns().count());
+        let flags = |held: Option<bool>| if held.is_some() { Flags::SELECTED } else { Flags::empty() };
         if self.headings {
             let (cells, header) = (geometry.cells(), geometry.header_size());
             let corner = Rect::from_min_max(Pos2::new(cells.left() - header.x, cells.top() - header.y), cells.min);
             cx.part(CORNER, geometry.mirror_rect(corner)).sense(Sense::CLICK | Sense::TAKE_FOCUS).over().pointer_only("Select all is Cmd+A");
             for &column in &columns {
                 let header = Self::column_header(&geometry, column);
-                cx.part(COLUMN.at(u64::from(column)), header).sense(sense).over().pointer_only("Select the column is Cmd+Space");
+                cx.part(COLUMN.at(u64::from(column)), header)
+                    .sense(sense)
+                    .flags(flags(Marks::of_line(&marks.columns, column)))
+                    .over()
+                    .pointer_only("Select the column is Cmd+Space");
                 let end = if rtl { header.left_center() } else { header.right_center() };
                 let edge = Rect::from_center_size(end, Vec2::new(reach * 2.0, header.height()));
                 cx.part(COLUMN_EDGE.at(u64::from(column)), edge)
@@ -188,12 +191,16 @@ impl<M: GridModel> CellGrid<'_, M> {
             }
             for &row in &rows {
                 let header = Self::row_header(&geometry, row);
-                cx.part(ROW.at(u64::from(row)), header).sense(sense).over().pointer_only("Select the row is Shift+Space");
+                cx.part(ROW.at(u64::from(row)), header)
+                    .sense(sense)
+                    .flags(flags(Marks::of_line(&marks.rows, row)))
+                    .over()
+                    .pointer_only("Select the row is Shift+Space");
                 let edge = Rect::from_center_size(header.center_bottom(), Vec2::new(header.width(), reach * 2.0));
                 cx.part(ROW_EDGE.at(u64::from(row)), edge)
                     .sense(Sense::CLICK | Sense::DRAG)
                     .priority(HitPriority::new(HitLevel::Body, 1))
-                    .cursor(CursorIcon::ResizeRow)
+                    .cursor(CursorIcon::ResizeVertical)
                     .over()
                     .pointer_only("Row height is set from the app's menu");
             }
@@ -246,7 +253,7 @@ impl<M: GridModel> CellGrid<'_, M> {
         }
         for &row in &frame.rows {
             let name = words.row_header.fill(&[("n", &(row + 1).to_string())]);
-            access.node(ROW.at(u64::from(row)), Role::Node(egui::accesskit::Role::RowHeader)).name = Name::Text(name);
+            access.node(ROW.at(u64::from(row)), Role::CELL).name = Name::Text(name);
         }
     }
 
@@ -305,7 +312,7 @@ impl<M: GridModel> CellGrid<'_, M> {
                 );
             }
             if self.headings {
-                self.paint_headers(&draw, &frame, &selection, style);
+                self.paint_headers(&draw, &frame, &selection, cx);
             }
             match editing.cell {
                 Some(cell) if open => self.paint_editor(&draw, cx, &editing, geometry.mirror_rect(geometry.cell_rect(cell))),
@@ -318,7 +325,8 @@ impl<M: GridModel> CellGrid<'_, M> {
         self.place_chrome(ui, &frame, style);
     }
 
-    fn paint_headers(&self, draw: &Draw<'_>, frame: &Frame, selection: &CellSelection<u32>, style: &CellGridStyle) {
+    fn paint_headers(&self, draw: &Draw<'_>, frame: &Frame, selection: &CellSelection<u32>, cx: &Cx<'_, Self>) {
+        let style = cx.style;
         let geometry = &frame.geometry;
         let rect = |shape: Rect| PaintShape::Rect(shape, CornerRadius::ZERO);
         let (cells, header) = (geometry.cells(), geometry.header_size());
@@ -331,15 +339,11 @@ impl<M: GridModel> CellGrid<'_, M> {
         let marks = Marks::of(selection, geometry.rows().count(), geometry.columns().count());
         let rtl = geometry.mirror_x(0.0) > 0.0;
         let line = |from: Pos2, to: Pos2| draw.stroke(&PaintShape::Path(vec![from, to]), StrokeWidth::Hairline, style.header_line);
-        let look = |state: Option<bool>| match state {
-            Some(true) => (style.header_whole, style.header_text),
-            Some(false) => (style.header_selected, style.header_selected_text),
-            None => (style.header, style.header_text),
-        };
+        let look = |part: craft_behavior::PartRef| (cx.resolve_part(part, &style.header), cx.resolve_part(part, &style.header_text));
         for &column in &frame.columns {
             let at = Self::column_header(geometry, column);
             let state = Marks::of_line(&marks.columns, column);
-            let (fill, text) = look(state);
+            let (fill, text) = look(COLUMN.at(u64::from(column)));
             draw.fill(&rect(at), fill);
             draw.text(at, &TextRun::new(self.model.column_label(column)).color(text).align(HAlign::Center).elide());
             if state.is_some() {
@@ -355,7 +359,7 @@ impl<M: GridModel> CellGrid<'_, M> {
         for &row in &frame.rows {
             let at = Self::row_header(geometry, row);
             let state = Marks::of_line(&marks.rows, row);
-            let (fill, text) = look(state);
+            let (fill, text) = look(ROW.at(u64::from(row)));
             draw.fill(&rect(at), fill);
             draw.text(at, &TextRun::new((row + 1).to_string()).color(text).align(HAlign::Center).elide());
             if state.is_some() {
