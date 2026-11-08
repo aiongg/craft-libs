@@ -1,10 +1,12 @@
 //! Dock columns: the size rules of groups and columns, and the flyout of an iconic column.
 
+use craft_behavior::Proposal;
 use craft_behavior::dock::{Column, Group};
 use craft_ui::buttons::Button;
-use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
-use craft_ui::docking::{DockHeights, GroupSize, IconicColumn, PanelSpec, fit_widths, group_heights};
+use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
+use craft_ui::docking::{DockHeights, GroupAt, GroupSize, IconicColumn, PanelSpec, fit_widths, group_heights};
 use craft_ui::sections::Panel;
+use craft_ui::testing::layout::Block;
 use craft_ui::testing::memory::global;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers};
@@ -74,8 +76,10 @@ fn spec(panel: &u8) -> PanelSpec {
 /// Shows the column with `open` as its bound flyout and returns the panel the flyout shows.
 fn run(open: &mut Option<u8>, shown: &Cell<Option<u8>>, ui: &mut egui::Ui) {
     let column = Column::new(vec![Group::new(vec![0, 1], 0)]);
-    IconicColumn::new("Panels", global("dock", "columns test"), &column, Bind::bound(open), &spec)
-        .show_flyouts(ui, |group, _, _, _| shown.set(group.active_panel().copied()));
+    IconicColumn::new("Panels", global("dock", "columns test"), &column, Bind::bound(open), &spec).show_flyouts(ui, |group, _, _, _| {
+        shown.set(group.active_panel().copied());
+        None
+    });
 }
 
 #[trial]
@@ -126,12 +130,14 @@ fn a_button_in_the_flyout_takes_its_click_and_leaves_the_flyout_open() {
             let column = Column::new(vec![Group::new(vec![0, 1], 0)]);
             let counted = Rc::clone(&counted);
             IconicColumn::new("Panels", global("dock", "flyout button test"), &column, Bind::bound(&mut bound.borrow_mut()), &roomy_spec)
-                .show_flyouts(ui, move |_, rect, ui, _| {
+                .show_flyouts(ui, move |_, at, ui, _| {
+                    let GroupAt::Show(rect) = at else { return None };
                     Panel::new("Panel").show_at(ui, rect, |ui, _| {
                         if craft_ui::testing::contract::clicked(&Button::new("Apply").show(ui)) {
                             counted.set(counted.get() + 1);
                         }
                     });
+                    None
                 });
         });
     fixture.settle();
@@ -140,4 +146,41 @@ fn a_button_in_the_flyout_takes_its_click_and_leaves_the_flyout_open() {
     fixture.idle(2);
     assert_eq!(clicks.get(), 1, "the click reached the button");
     assert_eq!(*open.borrow(), Some(0), "a click inside the flyout leaves it open");
+}
+
+/// A panel body taller than the flyout's least height opens a flyout that shows all of it: the view measures the
+/// group at the flyout's width, and the flyout takes that height in a window with room.
+#[trial]
+fn a_flyout_is_as_tall_as_its_group_measures() {
+    const BLOCK: egui::Vec2 = egui::Vec2::new(40.0, 30.0);
+    const BLOCKS: usize = 8;
+    let body = |ui: &mut egui::Ui| {
+        let mut last = egui::Rect::NOTHING;
+        for salt in 0..BLOCKS {
+            last = Block::new(BLOCK).id_salt(salt).show(ui).rect;
+        }
+        last
+    };
+    let seen: Rc<Cell<(egui::Rect, egui::Rect)>> = Rc::new(Cell::new((egui::Rect::NOTHING, egui::Rect::NOTHING)));
+    let shown = Rc::clone(&seen);
+    let mut fixture = Fixture::new(move |ui| {
+        let column = Column::new(vec![Group::new(vec![0, 1], 0)]);
+        let shown = Rc::clone(&shown);
+        IconicColumn::new("Panels", global("dock", "measured flyout test"), &column, Bind::given(Some(0)), &spec).show_flyouts(
+            ui,
+            move |_, at, ui, _| match at {
+                GroupAt::Measure(width) => Some(Panel::new("Panel").measure_in(ui, Proposal::Width(width), |ui, _| body(ui)).y),
+                GroupAt::Show(rect) => {
+                    let mut last = egui::Rect::NOTHING;
+                    let panel = Panel::new("Panel").show_at(ui, rect, |ui, _| last = body(ui)).output.response.rect;
+                    shown.set((panel, last));
+                    None
+                }
+                _ => None,
+            },
+        );
+    });
+    fixture.settle();
+    let (panel, last) = seen.get();
+    assert!(panel.contains_rect(last), "the flyout's panel shows its whole body: {panel:?} {last:?}");
 }

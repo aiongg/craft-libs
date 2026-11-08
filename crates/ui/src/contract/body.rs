@@ -5,7 +5,7 @@ use super::cx::{BodyCx, BodyOwner};
 use super::label::{self, LabelIn};
 use super::mount::{PaneGrip, pane_extent_id, pane_grip_id};
 use super::overlay::{OverlayFit, Place, PlacementChange, PlacementKind};
-use super::run::{ShapeHooks, ShowAt};
+use super::run::{Measuring, ShapeHooks, ShowAt};
 use super::{Container, ContainerProps, Cx, DragBand, FooterPlace, Gap, Internal, Mount, Notch, Pad, PaneEdge, PartsCx, Scroll, SetPosition, Sizing};
 use crate::layout::{self, ColumnGroup};
 use crate::primitives::{Rule, ScrollBar, Surface};
@@ -51,6 +51,18 @@ fn open_slot<'s>(stage: &'s mut MemoryStage, id: Id, save: Option<&SaveKey>) -> 
     match save {
         Some(key) => stage.saved::<OpenState>(key),
         None => stage.session::<OpenState>(sub(id, "open")),
+    }
+}
+
+/// Whether the container is open this pass: its binding, else its opener's state, else its slot.
+fn open_now<C: Container>(comp: &mut C, stage: &mut MemoryStage, id: Id, props: &ContainerProps) -> bool {
+    let initially_open = props.collapse.is_none_or(|collapse| collapse.initially_open);
+    match comp.open() {
+        Some(bind) => matches!(bind.get(), Some(Mixed::Same(true))),
+        None => match opener_of(props) {
+            Some(opener) => super::overlay::opener_open(stage, opener),
+            None => *open_slot(stage, id, props.save.as_ref()).0.get_or_insert(initially_open),
+        },
     }
 }
 
@@ -1239,6 +1251,18 @@ impl<'b> BodyHooks<'b> {
         self.room - (inner.min - rect.min) * 2.0
     }
 
+    /// The room the mount offers: a layer's room, unless the host gives it a rect of its own size, else the rect the
+    /// container is shown at, else the room of the flow.
+    fn mount_room(&self, props: &ContainerProps, ui: &Ui, at: ShowAt) -> Vec2 {
+        match (overlay_of(props), self.fixed) {
+            (Some(overlay), false) => Self::layer_room(ui.ctx(), overlay).size(),
+            _ => match at {
+                ShowAt::Rect(rect) => rect.size(),
+                ShowAt::Flow => crate::layout::flow_room(ui),
+            },
+        }
+    }
+
     /// The room a layer offers its content: the safe rect, or the share of it the overlay caps its content at.
     fn layer_room(ctx: &Context, overlay: &super::Overlay) -> Rect {
         let bounds = areas::safe_rect(ctx);
@@ -1389,7 +1413,6 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let props = &props;
         let (has_header, has_footer, scroll) = (props.header.is_some(), props.footer.is_some(), scroll_of(props));
         let collapse = props.collapse;
-        let initially_open = collapse.is_none_or(|collapse| collapse.initially_open);
         let save = props.save.clone();
         self.save = save.clone();
         // The overlay host decides a layer's Escape; so does a full-window mount's.
@@ -1406,13 +1429,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             self.reason = Some(why);
         }
         self.open_bound = comp.open().is_some();
-        self.open = match comp.open() {
-            Some(bind) => matches!(bind.get(), Some(Mixed::Same(true))),
-            None => match opener_of(props) {
-                Some(opener) => super::overlay::opener_open(stage, opener),
-                None => *open_slot(stage, id, save.as_ref()).0.get_or_insert(initially_open),
-            },
-        };
+        self.open = open_now(comp, stage, id, props);
         self.open_at_read = self.open;
         self.presence = match collapse {
             Some(collapse) if collapse.animated => {
@@ -1500,13 +1517,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
 
     fn extent(&mut self, comp: &C, ui: &Ui, at: ShowAt, _id: Id, scx: &StyleCx<'_>) -> Vec2 {
         let props = comp.props(Internal::new());
-        self.room = match (overlay_of(props), self.fixed) {
-            (Some(overlay), false) => Self::layer_room(ui.ctx(), overlay).size(),
-            _ => match at {
-                ShowAt::Rect(rect) => rect.size(),
-                ShowAt::Flow => crate::layout::flow_room(ui),
-            },
-        };
+        self.room = self.mount_room(props, ui, at);
         let remembered = self.remembered.unwrap_or(Vec2::ZERO);
         let body = if self.presence.visible { Vec2::new(remembered.x, remembered.y * self.presence.t) } else { Vec2::ZERO };
         let room = self.room.x - 2.0 * pad_of(scx.tokens, props.pad);
@@ -1515,6 +1526,56 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let (header, end) = (self.header_last.unwrap_or(Vec2::ZERO), self.end_last.unwrap_or(Vec2::ZERO));
         let height = self.regions_size(props, body, header, self.footer_last, end).y;
         Vec2::new(width, height) + Vec2::splat(2.0 * pad_of(scx.tokens, props.pad))
+    }
+
+    /// The regions run once in an invisible sizing pass over the room, as `content` runs them, and the container takes
+    /// what they took: nothing an earlier pass recorded counts. Along an axis the body scrolls on it takes at most
+    /// the room.
+    fn measured_extent(&mut self, comp: &mut C, at: &Measuring<'_, '_>, cx: &mut Cx<'_, C>) -> Vec2 {
+        let props = comp.props(Internal::new()).clone();
+        // A mount outside the flow takes no room in a parent's sizing pass, so its regions run only when it is
+        // measured itself.
+        if !matches!(props.mount, Mount::Inline) && at.ui.is_sizing_pass() {
+            return self.extent(comp, at.ui, at.at, cx.core.id, at.scx);
+        }
+        let (id, ctx) = (cx.core.id, at.ui.ctx().clone());
+        self.open = open_now(comp, &mut *cx.core.memory, id, &props);
+        self.open_at_read = self.open;
+        self.presence = Presence { t: f32::from(u8::from(self.open)), visible: self.open, exiting: false };
+        self.remembered = None;
+        self.header_last = None;
+        self.footer_last = Vec2::ZERO;
+        self.end_last = None;
+        self.last = BodyView::default();
+        self.offset = ScrollPos::default();
+        self.region_gap = gap_of(&at.env.tokens, Gap::Tight);
+        self.room = match at.width {
+            Some(width) => Vec2::new(width, f32::INFINITY),
+            None => self.mount_room(&props, at.ui, at.at),
+        };
+        let origin = match at.at {
+            ShowAt::Rect(rect) => rect.min,
+            ShowAt::Flow => at.ui.cursor().min,
+        };
+        let rect = Rect::from_min_size(origin, self.room);
+        cx.core.rect = rect;
+        cx.core.flow = craft_behavior::Flow::new(rect, at.env.direction.is_rtl());
+        cx.core.content_rect = cx.core.flow.inset(cx.style.metrics().padding);
+        let builder = UiBuilder::new().layer_id(at.ui.layer_id()).max_rect(rect).sizing_pass().invisible();
+        let mut measure_ui = Ui::new(ctx.clone(), sub(id, "measure"), builder);
+        let installed = Env::install_for(&measure_ui, at.env.clone());
+        let mut values = AppValues::default();
+        comp.content_env(cx, &mut values);
+        self.content(comp, &mut measure_ui, at.env, cx, &values);
+        Env::restore(&ctx, installed);
+        let body = if self.open { self.body_size.unwrap_or(Vec2::ZERO) } else { Vec2::ZERO };
+        let (header, footer, end) =
+            (self.header_size.unwrap_or(Vec2::ZERO), self.footer_size.unwrap_or(Vec2::ZERO), self.end_size.unwrap_or(Vec2::ZERO));
+        let took = self.regions_size(&props, body, header, footer, end) + Vec2::splat(2.0 * pad_of(at.scx.tokens, props.pad));
+        self.overflow = (took.x - self.room.x).max(0.0);
+        // A body wider than the room overflows it, or scrolls along it; either way the container keeps to the room.
+        let vertical = scroll_of(&props).is_some_and(|scroll| scroll.vertical_on());
+        Vec2::new(took.x.min(self.room.x), if vertical { took.y.min(self.room.y) } else { took.y })
     }
 
     fn sized(&self, comp: &C, ui: &Ui, size: Vec2) -> Vec2 {
@@ -1644,10 +1705,15 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let room = self.room_size(rect, inner);
         let regions = self.regions(&props, inner, room, rtl);
         let surface_slot = ui.painter().add(Shape::Noop);
+        // A measuring run lays out and measures: it registers no instance, focus body, scroll region or body layer,
+        // and claims no room in a parent flow.
+        let real = !ui.is_sizing_pass();
         self.gate = cx.shown.as_deref().and_then(|value| (value as &dyn Any).downcast_ref::<bool>()).copied();
         self.gate_at_read = self.gate;
         let window = window_instance(&props, id).filter(|window| *window != id);
-        register_instances(&ctx, &props, id, window);
+        if real {
+            register_instances(&ctx, &props, id, window);
+        }
         let region_env = env.derive(|scoped| {
             // The container's own `enabled(false)` greys everything inside it, as a scope would.
             scoped.enabled &= cx.core.resolved.enabled;
@@ -1689,7 +1755,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             let trailing = props.header.is_some_and(|header| header.trailing);
             close = close.or(self.header_region(comp, ui, &mut bcx, &frame, regions.header, trailing));
         }
-        crate::runtime::focus::begin_body(&ctx);
+        if real {
+            crate::runtime::focus::begin_body(&ctx);
+        }
         // B2 label: the control gets the rect the label leaves; the label column adds to the container's extent.
         let mut body_rect = regions.body;
         if let Some(side) = props.label.as_ref() {
@@ -1800,7 +1868,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                             shared_labels(ui, id, label_column, room.x, |ui| body(ui, bcx))
                         });
                         let extent = region_ui.min_rect().size();
-                        crate::runtime::egui::widgets::note_scroll_region(&ctx, region_ui.clip_rect(), region_ui.min_rect().intersect(max));
+                        if real {
+                            crate::runtime::egui::widgets::note_scroll_region(&ctx, region_ui.clip_rect(), region_ui.min_rect().intersect(max));
+                        }
                         self.extent = Some(extent);
                         // Along an axis it scrolls the body took what the view shows; along the other it took its content.
                         let took = extent + inset;
@@ -1820,7 +1890,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 Env::restore(&ctx, installed);
                 Some(took.unwrap_or_else(|| body_ui.min_rect().size()))
             };
-            self.body_size = match props.transform {
+            self.body_size = match props.transform.filter(|_| real) {
                 Some(transform) => {
                     let parent = ui.layer_id();
                     let layer = areas::body_layer(parent, id);
@@ -1946,7 +2016,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         }
         let rule = rule_look(&env.tokens, RuleKind::Divider);
         let ppp = ctx.pixels_per_point();
-        self.claim_extent(&props, ui, env, rect, pad, rtl);
+        if real {
+            self.claim_extent(&props, ui, env, rect, pad, rtl);
+        }
         let draw_rule = |from: f32, to: f32, y: f32| ui.painter().extend(Rule::shapes(&rule, Pos2::new(from, y), Pos2::new(to, y), ppp));
         if props.header.is_some_and(|header| header.rule && !header.inline) {
             draw_rule(inner.min.x, inner.max.x, regions.header.max.y);

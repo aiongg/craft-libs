@@ -9,9 +9,20 @@ use egui::{Rect, Ui, Vec2};
 #[cfg(feature = "testing")]
 mod stories;
 
+/// Where a group view puts the group it is given: measured at a width, or shown in a rect.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum GroupAt {
+    /// Measure the group at this width; the view returns the height it takes.
+    Measure(f32),
+    /// Show the group in this rect.
+    Show(Rect),
+}
+
 /// A popup beside an iconic column, on the side of the canvas, level with the icon that opened it. Escape and a
-/// press outside close it; with Auto-Collapse Iconic Panels the focus leaving it closes it too. Its body gets the
-/// rect the flyout's `size` takes, to show the group of the icon's panel in.
+/// press outside close it; with Auto-Collapse Iconic Panels the focus leaving it closes it too. Its body is
+/// measured at the flyout's width first: the flyout is as tall as the body measures within the room, and at least
+/// its `size`'s height, and the body then shows in the rect that takes.
 #[derive(crate::contract::Pattern)]
 pub struct Flyout {
     edge: DockEdge,
@@ -20,7 +31,7 @@ pub struct Flyout {
 }
 
 impl Flyout {
-    /// A flyout of `size` for the column on the window edge `edge`, closing when the focus leaves it if
+    /// A flyout at least `size` for the column on the window edge `edge`, closing when the focus leaves it if
     /// `auto_collapse`.
     pub fn new(edge: DockEdge, size: Vec2, auto_collapse: bool) -> Self {
         Flyout { edge, size, auto_collapse }
@@ -39,18 +50,22 @@ impl Flyout {
             .body_scroll(false)
     }
 
-    /// Shows the flyout of `popup` while it is open, hung from `anchor`; `None` while it is closed.
-    pub fn show<R>(
+    /// Shows the flyout of `popup` while it is open, hung from `anchor`, and returns the rect its body showed in;
+    /// `None` while it is closed. `body` returns the height it measures for `GroupAt::Measure`, or `None` to take
+    /// the flyout's own height.
+    pub fn show(
         self,
         ui: &mut OverlayUi<'_>,
         popup: PopupHandle,
         anchor: Anchor,
-        mut body: impl FnMut(&mut Ui, &mut BodyCx<'_>, Rect) -> R,
-    ) -> Option<R> {
+        mut body: impl FnMut(&mut Ui, &mut BodyCx<'_>, GroupAt) -> Option<f32>,
+    ) -> Option<Rect> {
         let size = self.size;
         ui.show(popup, self.overlay(anchor), |ui, cx| {
-            let rect = crate::layout::place_in_flow(ui, size);
-            body(ui, cx, rect)
+            let measured = body(ui, cx, GroupAt::Measure(size.x)).map_or(size.y, |height| height.min(ui.available_height()));
+            let rect = crate::layout::place_in_flow(ui, Vec2::new(size.x, size.y.max(measured)));
+            body(ui, cx, GroupAt::Show(rect));
+            rect
         })
     }
 }

@@ -45,25 +45,23 @@ impl Outcome for NavigatorZoomRowOutput {
 ///   current zoom. It follows the interface direction like every slider, so in right-to-left the value grows toward
 ///   the left, where Zoom In sits.
 /// - Every zoom goes through [`ZoomLadder::clamp`] and keeps the view's centre.
+/// - A disabled container around the row disables its field, buttons and slider.
 #[must_use = "show the zoom row with `show`"]
-#[derive(crate::contract::Pattern, crate::contract::Props)]
+#[derive(crate::contract::Pattern)]
 pub struct NavigatorZoomRow<'a> {
     view: Bind<'a, CanvasView>,
     document: Size,
-    /// Whether the field, the buttons and the slider take input.
-    #[prop]
-    enabled: bool,
 }
 
 impl<'a> NavigatorZoomRow<'a> {
     /// A zoom row that edits `view`, over a document of `document` units.
     pub fn new(view: Bind<'a, CanvasView>, document: Size) -> Self {
-        NavigatorZoomRow { view, document, enabled: true }
+        NavigatorZoomRow { view, document }
     }
 
     /// Shows the row.
     pub fn show(self, ui: &mut Ui) -> NavigatorZoomRowOutput {
-        let NavigatorZoomRow { mut view, document, enabled } = self;
+        let NavigatorZoomRow { mut view, document } = self;
         let env = Env::of(ui);
         let words = env.words::<CanvasWords>();
         let units = env.units();
@@ -83,13 +81,12 @@ impl<'a> NavigatorZoomRow<'a> {
                 .codec(units.zoom_codec())
                 .range(range.clone())
                 .stepper(ladder)
-                .enabled(enabled)
                 .show(ui);
             if let Some(typed) = field.edit.event.clone() {
                 edits.push(typed.map(|percent| percent.map_or(current, |percent| at(percent / 100.0))));
             }
 
-            IconButton::command(IconId::new("minus"), ViewCommands::ZoomOut).enabled(enabled).show(ui);
+            IconButton::command(IconId::new("minus"), ViewCommands::ZoomOut).show(ui);
 
             let low = ZoomLadder::min(document).min(device);
             let high = ZoomLadder::MAX.max(device);
@@ -97,13 +94,12 @@ impl<'a> NavigatorZoomRow<'a> {
                 .scale(SliderScale::Log)
                 .label(zoom_label.clone())
                 .value_text(units.zoom_percent(device * 100.0))
-                .enabled(enabled)
                 .show(ui);
             if let Some(dragged) = slider.event.clone() {
                 edits.push(dragged.map(at));
             }
 
-            IconButton::command(IconId::new("plus"), ViewCommands::ZoomIn).enabled(enabled).show(ui);
+            IconButton::command(IconId::new("plus"), ViewCommands::ZoomIn).show(ui);
 
             for edit in edits {
                 view.reborrow().write(cx, &edit);

@@ -10,8 +10,8 @@ use crate::docking::stack::{StackSection, StackSections, section_heights};
 use crate::docking::tree::FrameRules;
 use crate::docking::{
     DockColumn, DockCommands, DockConfig, DockDropTarget, DockDropped, DockEvent, DockGroup, DockPanels, DockRoot, DockScene, DockSizes, DockSpot,
-    DockTargets, DockTo, DockWords, DragUnit, FloatSpace, FloatingGroup, GroupDrag, HidePanels, IconicColumn, PanelDrag, PanelKey, PanelSpec,
-    PanelTitle, SplitArea, actions, cancel_on_replacement, dock_states, fit_widths, frame, move_actions,
+    DockTargets, DockTo, DockWords, DragUnit, FloatSpace, FloatingGroup, GroupAt, GroupDrag, HidePanels, IconicColumn, PanelDrag, PanelKey,
+    PanelSpec, PanelTitle, SplitArea, actions, cancel_on_replacement, dock_states, fit_widths, frame, move_actions,
 };
 use crate::docking::{cross_window, desktop, float_drop, native};
 use crate::layout_components::Stack;
@@ -22,7 +22,7 @@ use crate::runtime::memory::Remember as _;
 use crate::runtime::windows::WindowHost;
 use crate::sections::HeaderAction;
 use craft_behavior::dock::{Action, Column, DockEdge, DockError, Group, Layout, Node, PanelPlace, Permissions, Workspace, node_at};
-use craft_behavior::{CancelReason, DockSide, EditEvent, Flow, GestureId, GesturePhase, Mixed};
+use craft_behavior::{CancelReason, DockSide, EditEvent, Flow, GestureId, GesturePhase, Mixed, Proposal};
 use egui::{Context, Id, Pos2, Rect, Response, Ui, Vec2};
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -568,7 +568,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
     fn leaf(&mut self, ui: &mut Ui, body: &mut BodyCx<'_>, node: &Node<P>, rect: Rect) {
         let scene = self.scene;
         match node {
-            Node::Tabs { panels: members, active, .. } => self.group(ui, body, members, *active, Look { minimized: false, section: None }, rect),
+            Node::Tabs { panels: members, active, .. } => {
+                self.group(ui, body, members, *active, Look { minimized: false, section: None }, GroupAt::Show(rect));
+            }
             Node::Stack { entries, .. } => {
                 let sections: Vec<StackSection> = entries
                     .iter()
@@ -584,7 +586,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
                         let section = Rect::from_min_size(Pos2::new(rect.left(), top), Vec2::new(rect.width(), *height));
                         top += height;
                         let look = Look { minimized: !entry.open, section: Some(entry.open) };
-                        self.group(ui, inner, std::slice::from_ref(&entry.panel), 0, look, section);
+                        self.group(ui, inner, std::slice::from_ref(&entry.panel), 0, look, GroupAt::Show(section));
                     }
                 });
                 for (at, height) in shown.output.resized {
@@ -664,14 +666,16 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
         }
     }
 
-    /// One group in `rect`: the host's `group_view` when it takes the group, else a `DockGroup` over the host's
-    /// panels.
-    fn group(&mut self, ui: &mut Ui, body: &mut BodyCx<'_>, members: &[P], active: usize, look: Look, rect: Rect) {
+    /// One group: shown in a rect, by the host's `group_view` when it takes the group, else as a `DockGroup` over the
+    /// host's panels; or that `DockGroup` measured at a width, returning its height.
+    fn group(&mut self, ui: &mut Ui, body: &mut BodyCx<'_>, members: &[P], active: usize, look: Look, at: GroupAt) -> Option<f32> {
         let scene = self.scene;
-        let Some(anchor) = members.first() else { return };
+        let anchor = members.first()?;
         let active = active.min(members.len() - 1);
-        if self.panels.group_view(members, active, ui, rect, body) {
-            return;
+        if let GroupAt::Show(rect) = at
+            && self.panels.group_view(members, active, ui, rect, body)
+        {
+            return None;
         }
         let titles: Vec<PanelTitle> = members.iter().map(|panel| PanelTitle::new(PanelKey::of(panel), scene.spec(panel).label)).collect();
         let shown = &members[active];
@@ -692,6 +696,12 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
         if scene.config.tab_close_buttons {
             group = group.closable();
         }
+        let rect = match at {
+            GroupAt::Measure(width) => {
+                return Some(group.measure_in(ui, Proposal::Width(width), |ui, body| panels.borrow_mut().body(shown, ui, body)).y);
+            }
+            GroupAt::Show(rect) => rect,
+        };
         let output = group.show_at(ui, rect, |ui, body| panels.borrow_mut().body(shown, ui, body)).output;
         if let Some(panel) = output.picked.and_then(|key| scene.panel(key)) {
             self.report.actions.push(Action::activate(panel.clone()));
@@ -724,11 +734,12 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
         {
             self.report.actions.push(float_drop(&DragUnit::Panel(panel.clone()), scene.space, torn.pointer).action);
         }
+        None
     }
 
-    fn group_of(&mut self, ui: &mut Ui, body: &mut BodyCx<'_>, group: &Group<P>, rect: Rect) {
+    fn group_of(&mut self, ui: &mut Ui, body: &mut BodyCx<'_>, group: &Group<P>, at: GroupAt) -> Option<f32> {
         let look = Look { minimized: group.minimized, section: None };
-        self.group(ui, body, &group.panels, group.active, look, rect);
+        self.group(ui, body, &group.panels, group.active, look, at)
     }
 
     /// The columns of a dock, from the window edge inwards.
@@ -753,7 +764,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
                         .edge(plan.edge)
                         .within(body.rect)
                         .auto_collapse(scene.auto_collapse)
-                        .show_flyouts(ui, |group, rect, ui, body| self.group_of(ui, body, group, rect))
+                        .show_flyouts(ui, |group, at, ui, body| self.group_of(ui, body, group, at))
                 }) else {
                     continue;
                 };
@@ -768,7 +779,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
                         .edge(plan.edge)
                         .within(body.rect)
                         .auto_collapse(scene.auto_collapse)
-                        .show_groups(ui, |group, rect, ui, body| self.group_of(ui, body, group, rect))
+                        .show_groups(ui, |group, rect, ui, body| {
+                            self.group_of(ui, body, group, GroupAt::Show(rect));
+                        })
                 }) else {
                     continue;
                 };

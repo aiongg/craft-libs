@@ -552,6 +552,13 @@ pub trait ShowContainer: Container + sealed::ShowContainer {
         run::show_container_taking(self, ui, rect, body)
     }
 
+    /// Measures the container with `body` without allocating: steps 1 to 5 under the id `show` would use next, with
+    /// the body, header, footer and end regions run once in an invisible sizing pass, laid out as `show` lays them
+    /// out. The size comes from this pass's content alone; along an axis the body scrolls on it is at most the room.
+    fn measure_in<R>(&mut self, ui: &Ui, proposal: Proposal, body: impl FnMut(&mut Ui, &mut BodyCx<'_>) -> R) -> Vec2 {
+        run::measure_container(self, ui, proposal, body)
+    }
+
     /// Shows the container with rich tooltip content.
     fn show_with_tip<R>(self, ui: &mut Ui, body: impl FnMut(&mut Ui, &mut BodyCx<'_>) -> R, tip: impl FnOnce(&mut Ui)) -> Inner<Self::Output, R> {
         run::show_container(self, ui, ShowAt::Flow, body, Some(Box::new(tip)))
