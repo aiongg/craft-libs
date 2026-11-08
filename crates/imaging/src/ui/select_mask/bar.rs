@@ -1,16 +1,23 @@
 //! [`SelectMaskBar`]: Select and Mask's options bar.
 
-use egui::{AsIdSalt, IdSalt, Modifiers, Response, Ui};
+use egui::{Response, Ui};
 
-use craft_theme::ControlSize;
-use craft_ui::controls::{Button, Checkbox, IconButton, NumberField, TooltipExt as _};
-use craft_ui::edit::EditEvent;
-use craft_ui::icons::Icon;
-use craft_ui::localized::{Labels as _, LocaleNumbers, Unit};
-use craft_ui::patterns::{CellWidth, OptionsBar};
+use std::sync::Arc;
 
-use super::SelectMaskLabels;
+use craft_behavior::{EditEvent, GestureId, IconId, Mixed};
+use craft_ui::bars::{Bar, BarKind};
+use craft_ui::buttons::{Button, IconButton};
+use craft_ui::choice::Checkbox;
+use craft_ui::contract::{Bind, NoValue, Outcome, Pattern, Props as _, Show as _, ShowContainer as _, TooltipSpec, clicked};
+use craft_ui::form::Field;
+use craft_ui::runtime::env::{Env, UnitKind};
+use craft_ui::text::NumberField;
+
 use super::tools::{BrushSizes, SelectMaskTool, SelectMaskToolOptions};
+use super::words::SelectMaskWords;
+
+/// The most a Brush hardness field takes.
+const HARDNESS_MAX: f64 = 100.0;
 
 /// What [`SelectMaskBar::show`] reports.
 #[derive(Clone, Debug)]
@@ -27,97 +34,99 @@ pub struct SelectMaskBarOutput {
     pub select_subject: bool,
 }
 
-/// The options bar, full width under the title (`OptionsBar`): the current tool's icon; for the
-/// editing tools + and − (Add, Subtract); for the brush tools Size (1..=5000 px, a
-/// `NumberField`); for the Brush Hardness (0..=100 %); for Quick Selection, Refine Edge Brush and
-/// Object Selection Sample All Layers; for the editing tools Select Subject and Refine Hair, drawn
-/// disabled with the tooltip "Refine Hair needs hair detection, which isn't available yet" (lead
-/// call 28).
+impl Outcome for SelectMaskBarOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// The options bar, full width under the title (`Bar`): for the editing tools + and − (Add, Subtract); for the brush
+/// tools Size (1..=5000 px, a `NumberField`); for the Brush Hardness (0..=100 %); for Quick Selection, Refine Edge
+/// Brush and Object Selection Sample All Layers; for the editing tools Select Subject and Refine Hair, disabled with
+/// the reason "Refine Hair needs hair detection, which isn't available yet" (lead call 28). The current tool's icon
+/// is the strip's, which marks it.
+#[derive(Pattern)]
 pub struct SelectMaskBar<'a> {
-    id_salt: IdSalt,
     tool: SelectMaskTool,
     options: &'a mut SelectMaskToolOptions,
-    labels: Option<SelectMaskLabels>,
 }
 
 impl<'a> SelectMaskBar<'a> {
-    /// Starts the bar for `tool`, editing `options` in place; `id_salt` keeps its state apart from other bars.
-    pub fn new(id_salt: impl AsIdSalt, tool: SelectMaskTool, options: &'a mut SelectMaskToolOptions) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), tool, options, labels: None }
-    }
-
-    /// The words; the installed ones by default.
-    pub fn labels(mut self, labels: SelectMaskLabels) -> Self {
-        self.labels = Some(labels);
-        self
+    /// The bar for `tool`, editing `options` in place.
+    pub fn new(tool: SelectMaskTool, options: &'a mut SelectMaskToolOptions) -> Self {
+        Self { tool, options }
     }
 
     /// Draws the bar and returns its response and the edits it made.
     pub fn show(self, ui: &mut Ui) -> SelectMaskBarOutput {
         // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:1497 `options_bar`.
-        let Self { id_salt, tool, options, labels } = self;
-        let labels = labels.unwrap_or_else(|| SelectMaskLabels::of(ui));
-        let labels = &labels;
+        let Self { tool, options } = self;
+        let words = Env::of(ui).words::<SelectMaskWords>();
         let mut edit = None;
         let mut sample_all_layers = false;
         let mut select_subject = false;
-        let (edit_ref, sample_ref, subject_ref) = (&mut edit, &mut sample_all_layers, &mut select_subject);
-        let response = OptionsBar::new(id_salt).show(ui, move |bar| {
-            bar.leading(move |ui| {
-                OptionsBar::tool_icon(ui, tool.icon(), tool.label(labels));
-            });
-            bar.body(move |ui| {
-                let sm = ControlSize::Sm;
-                let numbers = LocaleNumbers::of(ui);
-                if tool.edits() {
-                    for (add, icon, name, salt) in [(true, Icon::Plus, &labels.add, "add"), (false, Icon::Minus, &labels.subtract, "subtract")] {
-                        let button = IconButton::new(icon, name.as_str()).size(sm).selected(options.add == add).id_salt(salt);
-                        if ui.add(button).clicked() && options.add != add {
-                            options.add = add;
-                            *edit_ref = Some(EditEvent::set(*options, Modifiers::NONE));
-                        }
-                    }
-                    OptionsBar::divider(ui);
-                }
-                if tool.brushes() {
-                    let size = options.sizes.get(tool);
-                    let field = NumberField::new("size", labels.size.as_str(), size, &numbers)
-                        .range(BrushSizes::RANGE)
-                        .decimals(0..=0)
-                        .unit(Unit::new("{n} px"));
-                    if let Some(event) = OptionsBar::number_cell(ui, &labels.size, CellWidth::Md, field).event {
-                        if let Some(&value) = event.value()
-                            && value != size
-                        {
-                            options.sizes.set(tool, value);
-                        }
-                        *edit_ref = Some(event.map(|_| *options));
+        let shown = Bar::new(words.name.clone(), BarKind::Options).show(ui, |ui, _| {
+            if tool.edits() {
+                for (add, icon, name, salt) in [(true, "plus", &words.add, "add"), (false, "minus", &words.subtract, "subtract")] {
+                    let button = IconButton::new(IconId::new(icon)).label(name.clone()).id_salt(salt).selected(options.add == add).show(ui);
+                    if clicked(&button.response) && options.add != add {
+                        let before = *options;
+                        options.add = add;
+                        let label: Arc<str> = Arc::from(name.as_str());
+                        edit = Some(EditEvent::set(GestureId::default(), Mixed::Same(before), *options, label, None));
                     }
                 }
-                if tool == SelectMaskTool::Brush
-                    && let Some(event) = OptionsBar::percent_cell(ui, "hardness", &labels.hardness, options.hardness, &numbers).event
-                {
-                    if let Some(&value) = event.value() {
-                        options.hardness = value.clamp(0.0, 100.0);
+            }
+            if tool.brushes() {
+                let size = options.sizes.get(tool);
+                let field = Field::new(words.size.clone()).show(ui, |ui, _| {
+                    NumberField::new(words.size.clone(), Bind::given(Some(size))).range(BrushSizes::RANGE).unit_kind(UnitKind::Pixels).show(ui)
+                });
+                if let Some(event) = field.inner.event {
+                    if let Some(Some(value)) = event.value()
+                        && *value != size
+                    {
+                        options.sizes.set(tool, *value);
                     }
-                    *edit_ref = Some(event.map(|_| *options));
+                    edit = Some(event.map(|_| *options));
                 }
-                if matches!(tool, SelectMaskTool::Quick | SelectMaskTool::RefineEdge | SelectMaskTool::Object)
-                    && Checkbox::bool(labels.sample_all_layers.as_str(), &mut options.sample_all_layers).size(sm).show(ui).response.changed()
-                {
-                    *sample_ref = true;
-                    *edit_ref = Some(EditEvent::set(*options, Modifiers::NONE));
-                }
-                if tool.edits() {
-                    OptionsBar::divider(ui);
-                    if ui.add(Button::new(labels.select_subject.as_str()).size(sm)).clicked() {
-                        *subject_ref = true;
+            }
+            if tool == SelectMaskTool::Brush {
+                let field = Field::new(words.hardness.clone()).show(ui, |ui, _| {
+                    NumberField::new(words.hardness.clone(), Bind::given(Some(options.hardness)))
+                        .range(0.0..=HARDNESS_MAX)
+                        .unit_kind(UnitKind::Percent)
+                        .show(ui)
+                });
+                if let Some(event) = field.inner.event {
+                    if let Some(Some(value)) = event.value() {
+                        options.hardness = value.clamp(0.0, HARDNESS_MAX);
                     }
-                    // Hair detection is not available: the button says so.
-                    ui.add_enabled(false, Button::new(labels.refine_hair.as_str()).size(sm)).tooltip(labels.refine_hair_missing.as_str());
+                    edit = Some(event.map(|_| *options));
                 }
-            });
+            }
+            if matches!(tool, SelectMaskTool::Quick | SelectMaskTool::RefineEdge | SelectMaskTool::Object) {
+                let check = Checkbox::new(Bind::given(options.sample_all_layers)).label(words.sample_all_layers.clone()).show(ui);
+                if let Some(event) = check.event {
+                    if let Some(&on) = event.value() {
+                        options.sample_all_layers = on;
+                    }
+                    sample_all_layers = true;
+                    edit = Some(event.map(|_| *options));
+                }
+            }
+            if tool.edits() {
+                select_subject = clicked(&Button::new(words.select_subject.clone()).id_salt("select-subject").show(ui));
+                // Hair detection is not available: the button says so.
+                Button::new(words.refine_hair.clone())
+                    .id_salt("refine-hair")
+                    .enabled(false)
+                    .tooltip(TooltipSpec::new(words.refine_hair.clone()).disabled_text(words.refine_hair_missing.clone()))
+                    .show(ui);
+            }
         });
-        SelectMaskBarOutput { response, edit, sample_all_layers, select_subject }
+        SelectMaskBarOutput { response: shown.output.response, edit, sample_all_layers, select_subject }
     }
 }
