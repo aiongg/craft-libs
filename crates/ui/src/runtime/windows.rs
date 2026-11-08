@@ -129,11 +129,11 @@ fn regions_of(ctx: &Context, parts: &[ExclusivePart]) -> Option<CaptionRegions> 
         return None;
     }
     let mut regions = CaptionRegions::default();
-    for ExclusivePart { owner, hit, rect, .. } in parts {
+    for ExclusivePart { owner, part, hit, rect } in parts {
         match hit {
             WindowHit::Move => {
                 regions.moves.push(*rect);
-                regions.covers.extend(covers_of(ctx, *owner, *rect));
+                regions.covers.extend(covers_of(ctx, *owner, *part, *rect));
             }
             WindowHit::Resize(edge) => regions.edges.push((*edge, *rect)),
             WindowHit::Caption(button) => regions.buttons.push((*button, *rect)),
@@ -142,12 +142,13 @@ fn regions_of(ctx: &Context, parts: &[ExclusivePart]) -> Option<CaptionRegions> 
     Some(regions)
 }
 
-/// The parts of the drag area `band` of the component `owner` where an in-app hit lies over it: each interactive
-/// egui widget of the running pass that egui's hit test puts above the component's widget (on a higher layer, or
-/// later on the same layer) and that is not the component's own, clipped to the band. The component's own widgets
-/// resolve as the component, among its parts (8.3).
-fn covers_of(ctx: &Context, owner: Id, band: Rect) -> Vec<Rect> {
-    let forwarder = memory::sub(owner, "transform");
+/// The parts of the drag area `band`, the part `part` of the component `owner`, where an in-app hit lies over it:
+/// each interactive egui widget of the running pass that egui's hit test puts above the component's widget (on a
+/// higher layer, or later on the same layer), clipped to the band. The component's widgets that resolve as the
+/// component (8.3) are not hits over the band: its transform forwarder and the band's own edge widget, which the
+/// sensing core makes for an edge part reaching outside the root rect, under the ids it gives them there.
+fn covers_of(ctx: &Context, owner: Id, part: PartRef, band: Rect) -> Vec<Rect> {
+    let own = [memory::sub(owner, "transform"), memory::sub(owner, ("edge", part.key, part.index))];
     let (root, above) = ctx.viewport(|viewport| {
         let widgets = &viewport.this_pass.widgets;
         let Some(root) = widgets.get(owner).map(|root| root.layer_id) else { return (None, Vec::new()) };
@@ -155,7 +156,7 @@ fn covers_of(ctx: &Context, owner: Id, band: Rect) -> Vec<Rect> {
         for (layer, rects) in widgets.layers().filter(|(layer, _)| layer.order.allow_interaction()) {
             let after = if *layer == root { rects.iter().position(|rect| rect.id == owner).map_or(rects.len(), |at| at + 1) } else { 0 };
             let hits: Vec<Rect> =
-                rects[after..].iter().filter(|rect| rect.sense.interactive() && rect.id != forwarder).map(|rect| rect.interact_rect).collect();
+                rects[after..].iter().filter(|rect| rect.sense.interactive() && !own.contains(&rect.id)).map(|rect| rect.interact_rect).collect();
             if !hits.is_empty() {
                 above.push((*layer, hits));
             }
