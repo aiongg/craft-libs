@@ -4,8 +4,8 @@ use std::borrow::Cow;
 
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, IconId, ItemSource, Selection};
 use craft_ui::contract::{
-    CollectionEvent, ColumnKind, ColumnSpec, NoValue, Outcome, ReorderMove, ReorderRule, SelectMode, ShowCollection as _, ShowContainer as _,
-    ToggleColumn,
+    CollectionEvent, ColumnKind, ColumnSpec, NoValue, Outcome, Remember as _, ReorderMove, ReorderRule, SelectMode, ShowCollection as _,
+    ShowContainer as _, SweepApply, SweepStep, ToggleColumn,
 };
 use craft_ui::layout_components::Stack;
 use craft_ui::list::{List, ListRow, RowInk, ToggleCell};
@@ -113,7 +113,7 @@ impl<'a> EffectStack<'a> {
         ];
         let mut change = None;
         let mut picked = None;
-        let shown = Stack::new().show(ui, |ui, _| {
+        let shown = Stack::new().show(ui, |ui, cx| {
             let out = List::<usize>::new(words.effect_layers.clone())
                 .select(SelectMode::Single)
                 .allow_empty(false)
@@ -133,7 +133,11 @@ impl<'a> EffectStack<'a> {
             for event in &out.events {
                 match event {
                     CollectionEvent::Toggle(edit) => {
-                        if let Some(toggle) = edit.value()
+                        if let Some(step) = cx.keep::<SweepApply>().feed(edit)
+                            && let SweepStep::Flip(toggle)
+                            | SweepStep::ShowOnly(toggle)
+                            | SweepStep::Restore(toggle)
+                            | SweepStep::UndoShowOnly(toggle) = step
                             && effects.get(toggle.key).is_some_and(|effect| effect.visible != toggle.on)
                         {
                             change = Some(EffectChange::set_visible(toggle.key, toggle.on));
