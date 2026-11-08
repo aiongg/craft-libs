@@ -1,2 +1,0 @@
-crates/review/src/ui
-crates/review/tests/it
