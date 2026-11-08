@@ -66,7 +66,10 @@ fn the_leading_painter_sits_at_the_reading_start_and_mirrors() {
         let seen = slot.clone();
         let mut fixture = Fixture::new(move |ui| {
             let seen = seen.clone();
-            List::new("Items").show_items(ui, &One, &mut |_, _| ListRow::new("Row").lead_painter(move |_, rect| seen.set(rect)));
+            List::new("Items").show_items(ui, &One, &mut |_, _| {
+                let seen = seen.clone();
+                ListRow::new("Row").lead_painter(move |_, rect| seen.set(rect))
+            });
         });
         fixture.direction(direction);
         fixture.settle();
