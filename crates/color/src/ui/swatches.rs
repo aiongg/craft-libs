@@ -104,6 +104,7 @@ impl Default for SwatchesState {
 /// app (a settings section or its presets store).
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
+#[non_exhaustive]
 pub struct SwatchLibrary {
     /// The groups, in display order.
     pub groups: Vec<SwatchGroup>,
@@ -118,6 +119,7 @@ impl Default for SwatchLibrary {
 
 /// Where a swatch is: its group's index and its index in the group.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct SwatchAt {
     /// Index of the group.
     pub group: usize,
@@ -125,7 +127,19 @@ pub struct SwatchAt {
     pub index: usize,
 }
 
+impl SwatchAt {
+    /// The swatch at `index` of group `group`.
+    pub const fn new(group: usize, index: usize) -> Self {
+        SwatchAt { group, index }
+    }
+}
+
 impl SwatchLibrary {
+    /// A library of `groups`.
+    pub fn new(groups: Vec<SwatchGroup>) -> Self {
+        SwatchLibrary { groups }
+    }
+
     /// Every swatch, in order.
     pub fn total(&self) -> usize {
         self.groups.iter().map(|g| g.entries.len()).sum()

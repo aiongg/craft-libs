@@ -21,10 +21,18 @@ use craft_ui::runtime::commands::CommandState;
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::requests::ColorRequest;
 use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers, vec2};
+use egui::{Key, Modifiers, Vec2};
 
 const RED: Srgba = Srgba::rgb(1.0, 0.0, 0.0);
 const BLUE: Srgba = Srgba::rgb(0.0, 0.0, 1.0);
+
+/// The rooms the panels are shown in.
+const COLOR_ROOM: Vec2 = Vec2::new(320.0, 600.0);
+const SWATCHES_ROOM: Vec2 = Vec2::new(320.0, 320.0);
+const GUIDE_ROOM: Vec2 = Vec2::new(480.0, 640.0);
+const PALETTE_WIDE: Vec2 = Vec2::new(600.0, 300.0);
+/// Three swatches to a row.
+const PALETTE_NARROW: Vec2 = Vec2::new(80.0, 300.0);
 
 type Edits = Rc<RefCell<Vec<(PanelTarget, EditEvent<PickedColor>)>>>;
 
@@ -40,7 +48,9 @@ struct PanelRig {
 
 impl PanelRig {
     fn new(mode: ColorPanelMode) -> Self {
-        let state = Rc::new(RefCell::new(ColorPanelState { mode, ..Default::default() }));
+        let mut start = ColorPanelState::default();
+        start.mode = mode;
+        let state = Rc::new(RefCell::new(start));
         let colors = Rc::new(Cell::new([RED, BLUE]));
         let (edits, opened, added): (Edits, Rc<RefCell<Vec<ColorRequest>>>, Rc<RefCell<Vec<PanelTarget>>>) = Default::default();
         let (s, c, e, o, a) = (state.clone(), colors.clone(), edits.clone(), opened.clone(), added.clone());
@@ -52,7 +62,7 @@ impl PanelRig {
             o.borrow_mut().extend(shown.pick_color);
             a.borrow_mut().extend(shown.add_to_swatches);
         });
-        fixture.room(vec2(320.0, 600.0));
+        fixture.room(COLOR_ROOM);
         fixture.settle();
         PanelRig { fixture, state, colors, edits, opened, added }
     }
@@ -69,7 +79,7 @@ fn wells_switch_and_open_the_picker() {
     let mut rig = PanelRig::new(ColorPanelMode::RgbSliders);
     assert!(!rig.state.borrow().background);
     let back = rig.fixture.by_label("Background color").expect("the background well");
-    let at = back.rect.right_bottom() - vec2(3.0, 3.0);
+    let at = back.rect.lerp_inside(Vec2::splat(0.95));
     rig.fixture.click_at(at);
     assert!(rig.state.borrow().background, "a click on the other well makes it the edited one");
     assert!(rig.opened.borrow().is_empty(), "and opens nothing");
@@ -206,9 +216,9 @@ fn dragging_to_the_bottom_right_keeps_the_knob_there() {
     let mut rig = PanelRig::new(ColorPanelMode::HueCube);
     rig.set_colors([Srgba::rgb(0.2, 0.4, 0.6), BLUE]);
     let area = rig.fixture.by_label("Saturation and brightness").expect("the area");
-    rig.fixture.drag(&area, vec2(area.rect.width(), area.rect.height()));
+    rig.fixture.drag(&area, area.rect.size());
     let picked = rig.edits.borrow().iter().rev().find_map(|(_, e)| e.value().map(|v| v.color)).expect("a picked colour");
-    assert!(picked.r < 0.01 && picked.g < 0.01 && picked.b < 0.01, "the corner is black: {picked:?}");
+    assert_eq!(picked.to_rgba(), Srgba::rgb(0.0, 0.0, 0.0).to_rgba(), "the corner is black");
 
     rig.set_colors([picked, BLUE]);
     let area = rig.fixture.by_label("Saturation and brightness").expect("the area");
@@ -256,12 +266,10 @@ fn rgb(name: &str, c: [f32; 3]) -> SwatchEntry {
 
 /// "Basics" with Red and Color Swatch 1, "Pastels" with Pink.
 fn library() -> SwatchLibrary {
-    SwatchLibrary {
-        groups: vec![
-            SwatchGroup { name: "Basics".into(), entries: vec![rgb("Red", [1.0, 0.0, 0.0]), rgb("Color Swatch 1", [0.0, 0.0, 1.0])] },
-            SwatchGroup { name: "Pastels".into(), entries: vec![rgb("Pink", [1.0, 0.8, 0.8])] },
-        ],
-    }
+    SwatchLibrary::new(vec![
+        SwatchGroup { name: "Basics".into(), entries: vec![rgb("Red", [1.0, 0.0, 0.0]), rgb("Color Swatch 1", [0.0, 0.0, 1.0])] },
+        SwatchGroup { name: "Pastels".into(), entries: vec![rgb("Pink", [1.0, 0.8, 0.8])] },
+    ])
 }
 
 /// The Swatches panel on a library the test can read back.
@@ -285,7 +293,7 @@ impl SwatchesRig {
             *s.borrow_mut() = st;
             u.borrow_mut().extend(shown.used);
         });
-        fixture.room(vec2(320.0, 320.0));
+        fixture.room(SWATCHES_ROOM);
         fixture.settle();
         SwatchesRig { fixture, library, used }
     }
@@ -299,7 +307,7 @@ fn click_and_alt_click_use_the_swatch() {
     rig.fixture.click(&red);
     rig.fixture.hold(Modifiers::ALT).click(&red);
     rig.fixture.hold(Modifiers::NONE);
-    let at = SwatchAt { group: 0, index: 0 };
+    let at = SwatchAt::new(0, 0);
     let color = Srgba::rgb(1.0, 0.0, 0.0);
     assert_eq!(*rig.used.borrow(), [(at, color, false), (at, color, true)]);
 }
@@ -360,7 +368,7 @@ fn export_is_disabled_when_empty() {
     };
     let on = Some(CommandState::new().enabled(true));
     let off = Some(CommandState::new().enabled(false));
-    let empty = SwatchLibrary { groups: vec![SwatchGroup { name: "Empty".into(), entries: Vec::new() }] };
+    let empty = SwatchLibrary::new(vec![SwatchGroup { name: "Empty".into(), entries: Vec::new() }]);
     assert_eq!(enabled(&empty), (off.clone(), off, on.clone()));
     assert_eq!(enabled(&library()), (on.clone(), on.clone(), on));
 }
@@ -469,7 +477,7 @@ fn dragging_a_marker_moves_its_colour() {
     });
     fixture.settle();
     let marker = fixture.by_label("#33b366").expect("the marker");
-    fixture.drag(&marker, vec2(-20.0, 0.0));
+    fixture.drag(&marker, Vec2::X * -marker.rect.width());
     assert!(pressed.borrow().contains(&1), "{:?}", pressed.borrow());
     let moved = moved.borrow();
     assert!(!moved.is_empty() && moved.iter().all(|(i, _)| *i == 1), "{moved:?}");
@@ -485,7 +493,9 @@ fn a_grid_click_chooses_its_colour() {
     let options = HarmonyPanelState::default().options;
     let chosen: Rc<RefCell<Vec<Srgba>>> = Rc::default();
     let c = chosen.clone();
-    let state = Rc::new(RefCell::new(HarmonyPanelState { rule: craft_color::harmony::Harmony::Complementary, options }));
+    let mut start = HarmonyPanelState::default();
+    start.rule = craft_color::harmony::Harmony::Complementary;
+    let state = Rc::new(RefCell::new(start));
     let picked = Rc::new(RefCell::new(HarmonyPicked::default()));
     let (s, p) = (state.clone(), picked.clone());
     let mut fixture = Fixture::new(move |ui| {
@@ -495,7 +505,7 @@ fn a_grid_click_chooses_its_colour() {
         *p.borrow_mut() = pk;
         c.borrow_mut().extend(shown.chosen);
     });
-    fixture.room(vec2(480.0, 640.0));
+    fixture.room(GUIDE_ROOM);
     fixture.settle();
     let guide = craft_color::harmony::Guide::new(base, craft_color::harmony::Harmony::Complementary, &options);
     let centre = guide.grid[1][guide.centre()];
@@ -529,7 +539,7 @@ impl TableRig {
         let (s, o) = (selected.clone(), opened.clone());
         let mut fixture = Fixture::new(move |ui| {
             let mut current = s.borrow().clone();
-            let shown = SwatchTable::new("Color Table", &entries).selection(Bind::bound(&mut current)).show(ui);
+            let shown = SwatchTable::new("Color Table", &entries).selection(Bind::bound(&mut current)).show_all(ui);
             *s.borrow_mut() = current;
             o.borrow_mut().extend(shown.open);
         });
@@ -573,7 +583,7 @@ fn enter_on_a_cell_in_a_dialog_opens_the_entry_without_answering_ok() {
     let answers: Rc<RefCell<Vec<craft_ui::runtime::overlay::CloseReason>>> = Rc::default();
     let (o, a) = (opened.clone(), answers.clone());
     let mut fixture = Fixture::new(move |ui| {
-        let shown = Dialog::new("Colors").show(ui, |ui, _| SwatchTable::new("Color Table", &entries).show(ui));
+        let shown = Dialog::new("Colors").show(ui, |ui, _| SwatchTable::new("Color Table", &entries).show_all(ui));
         o.borrow_mut().extend(shown.inner.and_then(|table| table.open));
         a.borrow_mut().extend(shown.output.closed);
     });
@@ -601,7 +611,7 @@ struct PaletteRig {
 }
 
 impl PaletteRig {
-    fn new(start: Srgba, width: f32) -> Self {
+    fn new(start: Srgba, room: Vec2) -> Self {
         let swatches: Vec<(Label, Srgba)> = SWATCHES.iter().map(|(name, [r, g, b])| (Label::from(*name), Srgba::rgb(*r, *g, *b))).collect();
         let color = Rc::new(Cell::new(start));
         let events = Rc::new(Cell::new(0));
@@ -612,7 +622,7 @@ impl PaletteRig {
             c.set(current);
             e.set(e.get() + usize::from(shown.edit.is_some()));
         });
-        fixture.room(vec2(width, 300.0));
+        fixture.room(room);
         fixture.settle();
         PaletteRig { fixture, color, events }
     }
@@ -627,7 +637,7 @@ impl PaletteRig {
 #[trial]
 fn the_palette_is_a_radio_group_that_selects_by_click_and_moves_focus_by_arrows() {
     let green = Srgba::rgb(0.19, 0.64, 0.42);
-    let mut rig = PaletteRig::new(green, 600.0);
+    let mut rig = PaletteRig::new(green, PALETTE_WIDE);
     let radios = rig.fixture.by_role(Role::RADIO_BUTTON);
     assert_eq!(radios.len(), SWATCHES.len());
     let checked: Vec<_> = radios.iter().filter(|r| rig.fixture.tree().toggled_of(r.node) == Some(Mixed::Same(true))).collect();
@@ -664,7 +674,7 @@ fn the_palette_is_a_radio_group_that_selects_by_click_and_moves_focus_by_arrows(
 #[trial]
 fn the_palette_arrows_walk_the_wrapped_grid() {
     // Three to a row: Red Orange Green / Teal Blue Violet.
-    let mut rig = PaletteRig::new(Srgba::rgb(0.19, 0.64, 0.42), 80.0);
+    let mut rig = PaletteRig::new(Srgba::rgb(0.19, 0.64, 0.42), PALETTE_NARROW);
     let (red, teal) = (rig.fixture.by_label("Red").expect("red").rect, rig.fixture.by_label("Teal").expect("teal").rect);
     assert!(teal.min.y > red.min.y, "the palette wrapped");
     rig.fixture.key(Key::Tab, Modifiers::NONE);
@@ -690,7 +700,7 @@ fn the_palette_arrows_walk_the_wrapped_grid() {
 #[trial]
 fn a_screen_readers_focus_on_a_palette_swatch_moves_the_stop_there() {
     use craft_ui::testing::AccessActionKind;
-    let mut rig = PaletteRig::new(Srgba::rgb(0.9, 0.28, 0.3), 600.0);
+    let mut rig = PaletteRig::new(Srgba::rgb(0.9, 0.28, 0.3), PALETTE_WIDE);
     let teal = rig.fixture.by_label("Teal").expect("the swatch");
     rig.fixture.access(AccessActionKind::Focus, &teal);
     assert_eq!(rig.focused().as_deref(), Some("Teal"));

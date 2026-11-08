@@ -36,27 +36,27 @@ craft_ui::words! {
         warm: "harmony.warm" = "Warm";
         muted: "harmony.muted" = "Muted";
         vivid: "harmony.vivid" = "Vivid";
-        complementary: "harmony.rule.complementary" = "Complementary";
-        complementary2: "harmony.rule.complementary2" = "Complementary 2";
-        split_complementary: "harmony.rule.splitComplementary" = "Split Complementary";
-        left_complement: "harmony.rule.leftComplement" = "Left Complement";
-        right_complement: "harmony.rule.rightComplement" = "Right Complement";
-        analogous: "harmony.rule.analogous" = "Analogous";
-        analogous2: "harmony.rule.analogous2" = "Analogous 2";
-        monochromatic: "harmony.rule.monochromatic" = "Monochromatic";
-        shades_rule: "harmony.rule.shades" = "Shades";
-        triad: "harmony.rule.triad" = "Triad";
-        triad2: "harmony.rule.triad2" = "Triad 2";
-        triad3: "harmony.rule.triad3" = "Triad 3";
-        tetrad: "harmony.rule.tetrad" = "Tetrad";
-        tetrad2: "harmony.rule.tetrad2" = "Tetrad 2";
-        tetrad3: "harmony.rule.tetrad3" = "Tetrad 3";
-        compound: "harmony.rule.compound" = "Compound";
-        compound2: "harmony.rule.compound2" = "Compound 2";
-        high_contrast: "harmony.rule.highContrast" = "High Contrast";
-        high_contrast2: "harmony.rule.highContrast2" = "High Contrast 2";
-        high_contrast3: "harmony.rule.highContrast3" = "High Contrast 3";
-        pentagram: "harmony.rule.pentagram" = "Pentagram";
+        complementary: "harmony.ruleComplementary" = "Complementary";
+        complementary2: "harmony.ruleComplementary2" = "Complementary 2";
+        split_complementary: "harmony.ruleSplitComplementary" = "Split Complementary";
+        left_complement: "harmony.ruleLeftComplement" = "Left Complement";
+        right_complement: "harmony.ruleRightComplement" = "Right Complement";
+        analogous: "harmony.ruleAnalogous" = "Analogous";
+        analogous2: "harmony.ruleAnalogous2" = "Analogous 2";
+        monochromatic: "harmony.ruleMonochromatic" = "Monochromatic";
+        shades_rule: "harmony.ruleShades" = "Shades";
+        triad: "harmony.ruleTriad" = "Triad";
+        triad2: "harmony.ruleTriad2" = "Triad 2";
+        triad3: "harmony.ruleTriad3" = "Triad 3";
+        tetrad: "harmony.ruleTetrad" = "Tetrad";
+        tetrad2: "harmony.ruleTetrad2" = "Tetrad 2";
+        tetrad3: "harmony.ruleTetrad3" = "Tetrad 3";
+        compound: "harmony.ruleCompound" = "Compound";
+        compound2: "harmony.ruleCompound2" = "Compound 2";
+        high_contrast: "harmony.ruleHighContrast" = "High Contrast";
+        high_contrast2: "harmony.ruleHighContrast2" = "High Contrast 2";
+        high_contrast3: "harmony.ruleHighContrast3" = "High Contrast 3";
+        pentagram: "harmony.rulePentagram" = "Pentagram";
     }
 }
 
@@ -177,6 +177,7 @@ impl<'a> HarmonyWheel<'a> {
 /// The Color Guide panel's settings, kept across runs.
 #[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct HarmonyPanelState {
     /// The chosen harmony rule.
     pub rule: Harmony,
@@ -186,6 +187,7 @@ pub struct HarmonyPanelState {
 
 /// A Color Guide panel menu entry the app carries out.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum HarmonyMenuAction {
     /// Save Colors as Swatches: the selected cells' colours, in grid order.
     SaveAsSwatches(Vec<Srgba>),
@@ -321,7 +323,7 @@ impl<'a> HarmonyPanel<'a> {
             let strip: Vec<(Label, Srgba)> = guide.colors.iter().map(|c| (Label::from(c.to_hex()), *c)).collect();
             let mut strip_selection = Selection::default();
             let out =
-                SwatchTable::new(words.harmony.clone(), &strip).per_row(strip.len().max(1)).selection(Bind::bound(&mut strip_selection)).show(ui);
+                SwatchTable::new(words.harmony.clone(), &strip).per_row(strip.len().max(1)).selection(Bind::bound(&mut strip_selection)).show_all(ui);
             if let Some(i) = out.selected {
                 chosen = strip.get(i).map(|(_, c)| *c);
             }
@@ -330,7 +332,7 @@ impl<'a> HarmonyPanel<'a> {
             let flat: Vec<(Label, Srgba)> = guide.grid.iter().flatten().map(|c| (Label::from(c.to_hex()), *c)).collect();
             let mut selection = if before_picked.guide == stamp { before_picked.selection.clone() } else { Selection::default() };
             let SwatchTableOutput { selected, chosen: cells, .. } =
-                SwatchTable::new(words.variations.clone(), &flat).multiple(true).per_row(columns).selection(Bind::bound(&mut selection)).show(ui);
+                SwatchTable::new(words.variations.clone(), &flat).multiple(true).per_row(columns).selection(Bind::bound(&mut selection)).show_all(ui);
             if let Some(i) = selected
                 && cells.len() == 1
             {

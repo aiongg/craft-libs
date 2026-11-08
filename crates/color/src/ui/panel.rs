@@ -59,6 +59,7 @@ craft_ui::words! {
 /// the theme never changes it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum ColorPanelMode {
     #[default]
     #[allow(missing_docs)]
@@ -125,6 +126,7 @@ impl ColorPanelMode {
 /// The ramp under the sliders. Shift-click on the ramp cycles them in this order.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum ColorPanelRamp {
     #[default]
     #[allow(missing_docs)]
@@ -174,6 +176,7 @@ impl ColorPanelRamp {
 /// The Color panel's settings, kept across runs (settings section `color_panel`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct ColorPanelState {
     /// The panel edits the background colour (its well was clicked), not the foreground.
     pub background: bool,
@@ -191,6 +194,7 @@ impl craft_host::Section for ColorPanelState {
 
 /// Which colour a [`ColorPanel`] edit is for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum PanelTarget {
     /// The foreground colour.
     Foreground,

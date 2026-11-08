@@ -219,7 +219,7 @@ impl Outcome for SwatchTableOutput {
 /// - AccessKit: a list box named by the label; each cell a list box option named by its entry, with the hex colour as
 ///   its value.
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
-#[component(collection, probe(SwatchTable<'static>))]
+#[component(collection)]
 pub struct SwatchTable<'a> {
     #[common]
     common: Common,
@@ -258,7 +258,7 @@ impl<'a> SwatchTable<'a> {
     }
 
     /// Shows the table.
-    pub fn show(self, ui: &mut Ui) -> SwatchTableOutput {
+    pub fn show_all(self, ui: &mut Ui) -> SwatchTableOutput {
         let swatches = self.swatches;
         self.show_items(ui, &SwatchRows::new(swatches), &mut |key, _| {
             let (name, color) = &swatches[*key];

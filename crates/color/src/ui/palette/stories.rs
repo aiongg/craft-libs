@@ -45,17 +45,21 @@ fn swatch_palette(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(SwatchTable<'static>, covers = [Default], drive = Drive::Never)]
 fn swatch_table(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let entries = table_entries();
-    SwatchTable::new("Color Table", &entries).selection(Bind::bound(data.value("selected", Selection::single(5usize)))).per_row(16).show(ui).into()
+    SwatchTable::new("Color Table", &entries)
+        .selection(Bind::bound(data.value("selected", Selection::single(5usize))))
+        .per_row(16)
+        .show_all(ui)
+        .into()
 }
 
 #[story(SwatchTable<'static>, covers = [], drive = Drive::Never)]
 fn swatch_table_multiple(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let entries = table_entries();
     let start = Selection::new(vec![2usize, 3, 18], Some(18), Some(2));
-    SwatchTable::new("Color Table", &entries).multiple(true).selection(Bind::bound(data.value("selected", start))).per_row(16).show(ui).into()
+    SwatchTable::new("Color Table", &entries).multiple(true).selection(Bind::bound(data.value("selected", start))).per_row(16).show_all(ui).into()
 }
 
 #[story(SwatchTable<'static>, covers = [Empty], drive = Drive::Never)]
 fn swatch_table_empty(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    SwatchTable::new("Color Table", &[]).empty("No colors").show(ui).into()
+    SwatchTable::new("Color Table", &[]).empty("No colors").show_all(ui).into()
 }
