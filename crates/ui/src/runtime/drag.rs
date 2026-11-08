@@ -131,10 +131,10 @@ pub trait WindowDropTarget<P> {
 /// What a drag moves along with the pointer when its source is a container: the container's layer, and its window
 /// where it opens one. Targets never see the pointer through the layer or inside the window, so the targets under
 /// the moving unit take the drop.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 struct Moving {
     layer: Option<Layer>,
-    viewport: ViewportId,
+    viewport: Option<ViewportId>,
 }
 
 struct Session {
@@ -214,7 +214,7 @@ pub(crate) fn start(ctx: &Context, source: Id, payload: Arc<dyn Any + Send + Syn
                 .unwrap_or(PointerButton::Primary);
             board.session = Some(Session {
                 source,
-                moving: Moving { layer: overlay::entry(ctx, source).map(|entry| entry.layer), viewport: viewports::viewport_id(source) },
+                moving: Moving { layer: overlay::entry(ctx, source).map(|entry| entry.layer), viewport: Some(viewports::viewport_id(source)) },
                 viewport: pass::current_viewport(ctx),
                 button,
                 payload,
@@ -292,6 +292,7 @@ fn os_files(ctx: &Context) {
         None if !seen.hovered.is_empty() => {
             board.session = Some(Session {
                 source: Id::NULL.with("craft_ui::os_files"),
+                moving: Moving::default(),
                 viewport,
                 button: PointerButton::Primary,
                 payload: Arc::new(OsFiles { files: seen.hovered }),
@@ -361,7 +362,7 @@ pub(crate) fn moving_layer(ctx: &Context) -> Option<Layer> {
 /// window's own move.
 pub(crate) fn moves_viewport(ctx: &Context) -> bool {
     let viewport = pass::current_viewport(ctx);
-    board(ctx, |board| board.session.as_ref().is_some_and(|session| session.moving.viewport == viewport))
+    board(ctx, |board| board.session.as_ref().is_some_and(|session| session.moving.viewport == Some(viewport)))
 }
 
 /// Records that `owner`'s `ordinal`th target on `layer` accepts at the pointer, with its mark in layer space. A
