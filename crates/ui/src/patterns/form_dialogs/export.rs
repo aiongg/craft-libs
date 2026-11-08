@@ -14,14 +14,13 @@ mod stories;
 use crate::runtime::env::Label;
 use craft_behavior::PixelSize;
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub use as_dialog::{ExportAsDialog, ExportAsOutput};
 pub use options::{
     DdsCompression, DdsOptions, ExportOptionsKind, FormatOptions, FormatOptionsDialog, FormatOptionsOutput, FormatOptionsWords, JpegFormat,
-    JpegOptions, JpegPreset, TargaOptions, TiffOptions,
+    JpegOptions, JpegPreset, TargaOptions, TiffOptions, jpeg_quality_percent,
 };
-pub(crate) use options::{jpeg_quality_percent, jpeg_quality_preset};
 pub use path_row::{OutputPathOutput, OutputPathRow, OutputPathWords};
 
 use super::{MAX_DOCUMENT_SIDE, Resample, SizeError, resize_from_scale, resize_from_side};

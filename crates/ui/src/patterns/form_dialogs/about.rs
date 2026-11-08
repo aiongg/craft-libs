@@ -7,7 +7,6 @@ mod credits;
 mod stories;
 
 pub use contributors::{CommitShare, ContributorSort, NameMode};
-pub(crate) use contributors::{commit_day, commit_share};
 pub use credits::{AboutInfo, AboutLink, Contributor, Credits, ModelCredit};
 
 use crate::buttons::{Button, IconButton, Link};

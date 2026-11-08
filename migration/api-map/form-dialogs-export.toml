@@ -253,8 +253,8 @@ note = "Removed: no dialog or app used it."
 
 [[call]]
 old = "craft_ui::dialog::export::jpeg_quality_percent(quality)"
-new = ""
-note = "Crate-private: the dialog applies the rule itself; no app calls it."
+new = "craft_ui::patterns::form_dialogs::jpeg_quality_percent(quality)"
+note = "Moved unchanged."
 
 [[call]]
 old = "craft_ui::dialog::export::jpeg_quality_label(quality, &labels)"
