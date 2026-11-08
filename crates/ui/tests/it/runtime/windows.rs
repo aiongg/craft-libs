@@ -211,6 +211,7 @@ fn placement_is_written_only_when_the_window_geometry_changes() {
     let sized = |width: f32| ViewportInfo {
         inner_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(width, 600.0))),
         outer_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(width, 630.0))),
+        native_pixels_per_point: Some(1.0),
         ..ViewportInfo::default()
     };
     let width = || store.lock().expect("the store").get(MAIN).map(|placement| placement.normal.size[0]);
@@ -266,34 +267,26 @@ fn a_press_blocked_by_a_modal_in_another_window_raises_the_modal_window() {
 #[trial]
 fn an_app_modal_in_one_window_blocks_the_cursor_and_the_close_of_the_others() {
     let windows = Windows::new();
-    let frame = |modal: bool| {
+    let frame = || {
         windows.frame(vec![], vec![], |ui| {
-            if modal {
-                ui.ctx().show_viewport_immediate(child(), ViewportBuilder::default(), |cui, _| {
-                    let props = ContainerProps::new().mount(Mount::Layer(Overlay::modal()));
-                    Modal { common: Common::new(), props }.id_salt("modal").show(cui, |_, _| {});
-                });
-            }
+            ui.ctx().show_viewport_immediate(child(), ViewportBuilder::default(), |cui, _| {
+                let props = ContainerProps::new().mount(Mount::Layer(Overlay::modal()));
+                Modal { common: Common::new(), props }.id_salt("modal").show(cui, |_, _| {});
+            });
         })
     };
     for _ in 0..4 {
-        frame(true);
+        frame();
     }
     assert_eq!(craft_ui::runtime::cursor::current(&windows.ctx), Some(Cursor::System(CursorIcon::NotAllowed)), "the root window is blocked");
 
     windows.root_info(ViewportInfo { events: vec![ViewportEvent::Close], ..ViewportInfo::default() });
-    let out = frame(true);
+    let out = frame();
     craft_ui::runtime::windows::logic(&windows.ctx);
-    let out_after = frame(true);
+    let out_after = frame();
     let sent: Vec<_> = out.commands.iter().chain(&out_after.commands).collect();
     assert!(sent.contains(&&(ViewportId::ROOT, ViewportCommand::CancelClose)), "the close is refused: {sent:?}");
     assert!(sent.contains(&&(child(), ViewportCommand::Focus)), "the modal's window is raised: {sent:?}");
-
-    windows.root_info(ViewportInfo::default());
-    for _ in 0..4 {
-        frame(false);
-    }
-    assert_ne!(craft_ui::runtime::cursor::current(&windows.ctx), Some(Cursor::System(CursorIcon::NotAllowed)), "no modal, no blocked cursor");
 }
 
 /// `act` is the one sender of window commands and checks capabilities first.

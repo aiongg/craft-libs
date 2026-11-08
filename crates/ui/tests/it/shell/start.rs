@@ -2,6 +2,7 @@
 
 use craft_i18n::Collator;
 use craft_ui::contract::Bind;
+use craft_ui::runtime::access::Role;
 use craft_ui::runtime::commands::{CommandState, EditCommands};
 use craft_ui::runtime::frame::take_output;
 use craft_ui::shell::{RecentFile, RecentSort, RecentView, StartAction, StartScreen, Template, sort_recent};
@@ -110,11 +111,19 @@ fn the_remove_button_of_a_recent_card_shows_on_hover_and_removes_the_file() {
         sink.borrow_mut().extend(out.actions);
     });
     fixture.settle();
-    assert!(fixture.control("Remove from Recent").is_none(), "no remove button before the pointer is over a card");
+    let remove_button = |fixture: &Fixture| {
+        let tree = fixture.tree();
+        fixture.by_role(Role::BUTTON).into_iter().find(|target| tree.name_of(target.node).is_some_and(|name| name.starts_with("Remove from Recent")))
+    };
+    assert!(remove_button(&fixture).is_none(), "no remove button before the pointer is over a card");
     let card = fixture.by_label("first.fig").expect("the card shows");
     fixture.frame(vec![pointer::moved(card.center())]);
     fixture.idle(2);
-    let remove = fixture.control("Remove from Recent").expect("the pointer over the card shows its remove button");
+    let Some(remove) = remove_button(&fixture) else {
+        let tree = fixture.tree();
+        let names: Vec<_> = tree.keys().into_iter().map(|key| (tree.role_of(key), tree.name_of(key).map(str::to_owned))).collect();
+        panic!("the pointer over the card shows its remove button among {names:?}");
+    };
     fixture.click(&remove);
     fixture.idle(2);
     assert_eq!(*seen.borrow(), [StartAction::RemoveRecent("/work/first.fig".into())]);
