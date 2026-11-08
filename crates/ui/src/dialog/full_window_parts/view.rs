@@ -134,7 +134,8 @@ impl FullWindowView {
     pub fn set_device_zoom(&mut self, device: f64) -> bool {
         let device = ZoomLadder::clamp(device, self.size);
         let changed = self.fit || (device / self.device_zoom() - 1.0).abs() > SAME;
-        zoom::about(&mut self.view, self.view.rect.center(), device, false, self.pixels_per_point);
+        let center = self.view.rect.center();
+        zoom::about(&mut self.view, center, device, false, self.pixels_per_point);
         self.fit = false;
         changed
     }
