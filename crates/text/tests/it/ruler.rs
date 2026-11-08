@@ -100,7 +100,7 @@ fn indent_markers_move_as_word_does() {
     let before = shown.values.borrow().clone();
     shown.fixture.drag(&left, Vec2::X * (shown.fixture.shown().width() * ALONG_SHARE));
     let after = shown.values.borrow().clone();
-    assert!(after.left_indent > before.left_indent);
+    assert!(after.left_indent > before.left_indent, "the left indent box moves the left indent: {before:?} then {after:?}");
     assert!((after.first_line_indent - before.first_line_indent).abs() < 1e-3, "the box moves first line and left indent together");
 }
 
