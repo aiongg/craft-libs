@@ -52,6 +52,7 @@ craft_ui::words! {
         track_height_top: template "timeline.trackHeightTop" = "Drag the top edge to change the height of {track}";
         track_expand: template "timeline.trackExpand" = "Toggle the height of {track}";
         header_width: "timeline.headerWidth" = "Drag to change the width of the track headers";
+        tracks: "timeline.tracks" = "Video and audio tracks";
         divider: "timeline.divider" = "Drag to change how the room is shared between video and audio tracks";
         label_violet: "timeline.labelViolet" = "Violet";
         label_iris: "timeline.labelIris" = "Iris";

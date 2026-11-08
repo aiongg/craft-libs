@@ -52,6 +52,13 @@ note = "A leaf: `new(label, keys, &Selection)` with `playhead` and `bounds`; the
 [[type]]
 name = "KeyframeLaneResponse"
 old = "craft_timeline::ui::keyframes::KeyframeLaneResponse"
+new = ""
+status = "removed"
+note = "Renamed `KeyframeLaneOutput`."
+
+[[type]]
+name = "KeyframeLaneOutput"
+old = ""
 new = "craft_timeline::ui::keyframes::KeyframeLaneOutput"
 status = "replaced"
 note = "`KeyframeLaneOutput { delta, select, double_clicked, context, delete }`."
@@ -121,6 +128,13 @@ note = "A leaf: `new(label, markers)` with `snap` and `bin`; the `view` argument
 [[type]]
 name = "MarkerStripResponse"
 old = "craft_timeline::ui::markers::MarkerStripResponse"
+new = ""
+status = "removed"
+note = "Renamed `MarkerStripOutput`."
+
+[[type]]
+name = "MarkerStripOutput"
+old = ""
 new = "craft_timeline::ui::markers::MarkerStripOutput"
 status = "replaced"
 note = "`MarkerStripOutput { span, edits, context }`."

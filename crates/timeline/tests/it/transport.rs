@@ -398,7 +398,7 @@ fn rate_and_aspect_labels_trim_trailing_zeros() {
         let mut all: Vec<String> =
             [FrameRate::FPS_24, FrameRate::FPS_23_976, FrameRate::FPS_29_97, FrameRate::FPS_59_94].map(|rate| rate.label(&units)).into();
         all.push(PixelAspect::SQUARE.ratio_label(&units));
-        all.push(PixelAspect { num: 10, den: 11 }.ratio_label(&units));
+        all.push(PixelAspect::new(10, 11).ratio_label(&units));
         *shown.borrow_mut() = all;
     });
     fixture.settle();
