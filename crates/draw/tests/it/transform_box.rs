@@ -149,8 +149,7 @@ fn harness(state: BoxState, setup: impl FnOnce(&mut Config)) -> Harness {
                     host.events.push(Seen::Set);
                     host.state = *after;
                 }
-                Some(EditEvent::Cancel { reason, .. }) => {
-                    eprintln!("DIAG-C-A cancel {reason:?}");
+                Some(EditEvent::Cancel { .. }) => {
                     host.events.push(Seen::Cancel);
                     host.state = host.before.take().unwrap_or(host.state);
                 }
@@ -600,10 +599,7 @@ fn overlay(shown: bool, setup: impl FnOnce(&mut TransformSession<()>)) -> (Fixtu
                     TransformEdit::Box(EditEvent::Begin { .. }) => "begin",
                     TransformEdit::Box(EditEvent::Update { .. }) => "update",
                     TransformEdit::Box(EditEvent::Commit { .. }) => "commit",
-                    other => {
-                        eprintln!("DIAG-C-A overlay edit {other:?}");
-                        "other"
-                    }
+                    _ => "other",
                 });
                 host.session.apply(edit, 0.0);
             }

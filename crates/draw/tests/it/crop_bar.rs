@@ -406,7 +406,6 @@ fn overlay_menu_sets_the_overlay_and_show_rule() {
     assert_eq!(rig.settings.borrow().guide, CropGuide::Triangle);
 
     rig.click("Set the overlay options for the Crop tool");
-    eprintln!("DIAG-C-A menu items {}", rig.fixture.by_role(Role::MENU_ITEM).len());
     assert!(!rig.disabled("Cycle Orientation"));
     rig.click("Cycle Orientation");
     assert_eq!(rig.settings.borrow().guide_orientation, 1);
@@ -420,9 +419,6 @@ fn gear_menu_greys_two_rows_in_classic_mode() {
     settings.shield.classic_mode = true;
     let mut rig = menu(settings, Menu::Gear);
     rig.click("Set additional Crop options");
-    for t in rig.fixture.by_role(Role::CHECK_BOX) {
-        eprintln!("DIAG-C-A cb name={:?} disabled={}", rig.fixture.tree().name_of(t.node), rig.fixture.tree().is_disabled_key(t.node));
-    }
     assert!(rig.disabled("Show Cropped Area"), "Show Cropped Area");
     assert!(rig.disabled("Auto Center Preview"), "Auto Center Preview");
     assert!(!rig.disabled("Use Classic Mode"));
