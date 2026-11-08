@@ -6,6 +6,7 @@ use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::dialog::Dialog;
 use craft_ui::display::Text;
 use craft_ui::runtime::InstallSpec;
+use craft_ui::runtime::windows::{WindowHit, WindowHost};
 use craft_ui::shell::{Caption, CaptionFamily, Captions, Frame, Title, TitleBar};
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::trial;
@@ -73,8 +74,11 @@ fn a_modal_leaves_the_covered_title_bar_draggable_but_not_the_dialog() {
     assert!(dialog.top() < bar.center().y && dialog.left() > bar.left(), "the bar is free before the dialog's start edge");
 
     let beside = Pos2::new((bar.left() + dialog.left()) / 2.0, bar.center().y);
-    assert!(moves_window(&drag(&windows, beside, at, &seen)), "a drag on the covered bar moves the window");
-
     let on_dialog = Pos2::new(dialog.center().x, bar.center().y);
+    let regions = WindowHost::of(&windows.ctx).caption_regions(ViewportId::ROOT).expect("the bar registered its parts");
+    assert_eq!(regions.hit(beside), Some(WindowHit::Move), "the covered bar beside the dialog is a drag area no hit covers");
+    assert_ne!(regions.hit(on_dialog), Some(WindowHit::Move), "the dialog stays in front of the bar");
+
+    assert!(moves_window(&drag(&windows, beside, at, &seen)), "a drag on the covered bar moves the window");
     assert!(!moves_window(&drag(&windows, on_dialog, at, &seen)), "a drag on the dialog stays the dialog's");
 }

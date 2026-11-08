@@ -308,6 +308,7 @@ pub(crate) struct ModalDragStripStyle {
 /// drag moves the window, and a double click acts as one on the title bar.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container)]
+#[component(exempt(case = "layer-escape", reason = "The strip is the chrome of the modal under it and takes no keys: Escape closes that modal."))]
 pub(crate) struct ModalDragStrip {
     #[common]
     common: Common,
