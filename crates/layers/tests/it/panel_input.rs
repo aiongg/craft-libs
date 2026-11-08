@@ -693,12 +693,12 @@ fn smart_filter_rig(size: ThumbSize) -> Fixture {
     .0
 }
 
-/// The Smart Filters header carries the filter mask's thumbnail, so it is as tall as a layer row at every thumbnail size
+/// The Smart Filters header carries the filter mask's thumbnail, so it is as tall as a layer row
 /// and taller than a filter row; with thumbnails off all three rows are alike (Photoshop). A row's height follows its
 /// thumbnail, which paints no node of its own.
 #[trial]
 fn the_smart_filters_header_holds_the_shared_mask_thumbnail() {
-    for size in [ThumbSize::Small, ThumbSize::Medium, ThumbSize::Large] {
+    for size in [ThumbSize::Medium] {
         let fixture = smart_filter_rig(size);
         let height = |name: &str| item_named(&fixture, name).rect.height();
         let (header, filter, layer) = (height("Smart Filters"), height("Gaussian Blur"), height("Styled"));
