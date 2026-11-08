@@ -2,7 +2,6 @@
 
 use super::words::SectionWords;
 use crate::buttons::{Button, IconButton};
-use crate::contract::StopProps as _;
 use crate::contract::{
     Access, BodyLayout, Common, Component, Container, ContainerProps, Cx, DropMark, DropOperation, DropTarget, NoValue, Outcome, Pad, Pointer as _,
     PopupKind, Props as _, Role, RowAlign, Show as _, ShowContainer as _, Sizing, TooltipSpec, WordSetCx as _,

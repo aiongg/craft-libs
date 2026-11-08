@@ -147,11 +147,14 @@ impl MenuLevel {
 
     /// Starts a pass over the level: the rows that registered last pass get their letters, and the rows of this pass
     /// register again.
-    fn begin(&self, submenu: bool, values: bool, keyboard: bool, pointer: Option<Pos2>) {
+    /// Rows get no mnemonic when `lettered` is false: a Mac menu has no access letters.
+    fn begin(&self, submenu: bool, values: bool, keyboard: bool, lettered: bool, pointer: Option<Pos2>) {
         self.with(|state| {
-            let letters = {
+            let letters = if lettered {
                 let labels: Vec<&str> = state.now.iter().map(|row| row.text.as_str()).collect();
                 mnemonic::assign(&labels)
+            } else {
+                vec![None; state.now.len()]
             };
             state.shown = state.now.iter().zip(letters).map(|(row, mnemonic)| Assigned { id: row.id, mnemonic, enabled: row.enabled }).collect();
             state.marks = state.now.iter().any(|row| row.mark.is_some());
@@ -296,7 +299,8 @@ impl MenuLevel {
 pub(crate) fn level_env<C: Component>(cx: &Cx<'_, C>, values: &mut AppValues, submenu: bool, valued: bool) {
     let level = MenuLevel::of(&cx.recall::<LevelMemory>());
     let pointer = cx.core.ctx.input(|input| input.pointer.latest_pos());
-    level.begin(submenu, valued, crate::runtime::focus::keyboard_in_menu(&cx.core.ctx), pointer);
+    let keyboard = crate::runtime::focus::keyboard_in_menu(&cx.core.ctx);
+    level.begin(submenu, valued, keyboard, !cx.env.shell().os.is_mac(), pointer);
     values.set(level);
 }
 
@@ -705,7 +709,6 @@ impl Component for MenuItem<'_> {
         draw.galley(pos2(x, y), &layout);
         let underlined = level.keyboard() || cx.modifiers().alt;
         if underlined
-            && !cx.env.shell().os.is_mac()
             && let Some((_, at)) = level.mnemonic_of(cx.id)
             && let Some((from, width)) = glyph_span(&layout, at)
         {

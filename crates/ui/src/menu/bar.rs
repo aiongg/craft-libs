@@ -200,11 +200,12 @@ impl<'a> MenuBar<'a> {
         env.shell().menu() == MenuPlacement::InWindow
     }
 
-    /// Each title's text without its marker, and its mnemonic: the letter and its character index in the text.
+    /// Each title's text without its marker, and its mnemonic: the letter and its character index in the text. A Mac
+    /// menu has no access letters.
     fn texts(&self, env: &EnvView<'_>) -> Vec<(String, Option<(char, usize)>)> {
         let labels: Vec<Label> = self.titles.iter().map(|title| env.resolve(&title.label)).collect();
         let refs: Vec<&str> = labels.iter().map(Label::as_str).collect();
-        let marks = mnemonic::assign(&refs);
+        let marks = if env.shell().os.is_mac() { vec![None; refs.len()] } else { mnemonic::assign(&refs) };
         refs.iter().zip(marks).map(|(label, mark)| (mnemonic::marked(label).0, mark)).collect()
     }
 
@@ -529,7 +530,7 @@ impl Component for MenuBar<'_> {
         let found = declared(cx);
         let texts = self.texts(&cx.env);
         let words = cx.env.words::<MenuWords>();
-        let underlined = cx.modifiers().alt && !cx.env.shell().os.is_mac();
+        let underlined = cx.modifiers().alt;
         for slot in Self::slots(found) {
             let part = Self::slot_part(slot);
             let text = match slot {

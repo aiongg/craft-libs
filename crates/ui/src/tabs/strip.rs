@@ -116,10 +116,12 @@ pub struct StripLayout {
 }
 
 impl StripLayout {
-    fn new(count: usize, width: f32, height: f32, selected: usize, mode: FitMode, report: Arc<Mutex<Report>>) -> Self {
+    /// `titled` holds each tab's width from its title, for a strip that takes its width from its tabs; otherwise
+    /// every tab starts with an equal share of `width`.
+    fn new(count: usize, width: f32, height: f32, selected: usize, mode: FitMode, titled: Option<Vec<f32>>, report: Arc<Mutex<Report>>) -> Self {
         let each = if count == 0 { 0.0 } else { width / count as f32 };
         let mut layout = StripLayout {
-            ideal: vec![each; count],
+            ideal: titled.unwrap_or_else(|| vec![each; count]),
             min: vec![0.0; count],
             width,
             height,
@@ -455,7 +457,11 @@ impl<K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Collection 
         let count = source.len();
         *self.texts.borrow_mut() = (0..count).map(|at| (source.key(at), source.text(at).map(|text| text.into_owned()).unwrap_or_default())).collect();
         let selected = self.shown.as_ref().and_then(|key| source.index_of(key)).unwrap_or(usize::MAX);
-        StripLayout::new(count, width, cx.tokens.size.bar.tab, selected, self.kind.fit_mode(), self.report.clone())
+        let titled = (self.props.sizing == Sizing::Content).then(|| {
+            let texts = self.texts.borrow();
+            texts.iter().map(|(_, title)| Tab::title_width(cx, self.kind, self.large, title)).collect()
+        });
+        StripLayout::new(count, width, cx.tokens.size.bar.tab, selected, self.kind.fit_mode(), titled, self.report.clone())
     }
 
     /// Every tab takes the strip's kind and size.

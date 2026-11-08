@@ -58,7 +58,6 @@ pub use label::{CellWidth, FieldLabelRole, FieldLayout, GlyphLabel, LabelAlign, 
 pub use looks::Looks;
 pub use overlay::{Overlay, OverlayUi, Overlays, Popup, PopupHandle, SizeLimits, Trigger};
 pub use paint_ui::PaintUi;
-pub(crate) use props::StopProps;
 pub use props::{Common, Props, Resolved, Tooltip, TooltipAt, TooltipSpec, TooltipWhen};
 #[doc(hidden)]
 #[cfg(feature = "testing")]

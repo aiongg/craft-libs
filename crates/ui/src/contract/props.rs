@@ -156,6 +156,13 @@ pub trait Props: Meta + Sized {
         self
     }
 
+    /// Marks the component's stop as its focus scope's default: a layer opened with `Initial::Default` focuses it,
+    /// so a popover names the field it opens on.
+    fn default_stop(mut self) -> Self {
+        self.common_mut(Internal::new()).default_stop = true;
+        self
+    }
+
     /// The semantic key of the component.
     fn doc_key(mut self, key: DocKey) -> Self {
         self.common_mut(Internal::new()).doc_key = Some(key);
@@ -164,17 +171,6 @@ pub trait Props: Meta + Sized {
 }
 
 impl<T: Meta> Props for T {}
-
-/// Crate-private setters of `Common`.
-pub(crate) trait StopProps: Meta + Sized {
-    /// Marks the component's stop as its focus scope's default (`Initial::Default`).
-    fn default_stop(mut self) -> Self {
-        self.common_mut(Internal::new()).default_stop = true;
-        self
-    }
-}
-
-impl<T: Meta> StopProps for T {}
 
 /// `Common` after step 1; it borrows locals of the pipeline frame, never the component.
 #[derive(Clone, Copy, Debug)]

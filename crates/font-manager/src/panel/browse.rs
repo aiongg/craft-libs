@@ -641,23 +641,25 @@ impl Texts<'_> {
     }
 }
 
-/// The tabs' share of the top bar beside the search field.
-const TABS_SHARE: f32 = 2.0;
-/// The search field's share of the top bar beside the tabs.
+/// The search field's weight: it takes the top bar's room beside the tabs, which take their content width.
 const SEARCH_SHARE: f32 = 1.0;
-static TOP_BAR: [ColumnWidth; 2] = [ColumnWidth::fill(TABS_SHARE), ColumnWidth::fill(SEARCH_SHARE)];
+static TOP_BAR: [ColumnWidth; 2] = [ColumnWidth::Content, ColumnWidth::fill(SEARCH_SHARE)];
 
 impl FontsPanel {
     pub(crate) fn top_bar(&mut self, ui: &mut Ui, browse: &FontsBrowseWords, format: &Format, search: Id) {
         Grid::new(&TOP_BAR).fill_width().show(ui, |ui, _| {
             let counts = [self.catalogue.as_ref().map_or(0, |c| c.index.families().len()), self.installed.len()];
-            let out = TabStrip::new(browse.tabs.clone()).kind(TabKind::Text).shown(self.tab).show_items(ui, &Tabs, &mut |tab, _| {
-                let (label, count) = match tab {
-                    Tab::Catalogue => (&browse.tab_browse, counts[0]),
-                    Tab::Installed => (&browse.tab_installed, counts[1]),
-                };
-                TabItem::new(label.clone()).detail(Label::from(format.integer(count as u64)))
-            });
+            let out = TabStrip::new(browse.tabs.clone()).kind(TabKind::Text).sizing(Sizing::Content).shown(self.tab).show_items(
+                ui,
+                &Tabs,
+                &mut |tab, _| {
+                    let (label, count) = match tab {
+                        Tab::Catalogue => (&browse.tab_browse, counts[0]),
+                        Tab::Installed => (&browse.tab_installed, counts[1]),
+                    };
+                    TabItem::new(label.clone()).detail(Label::from(format.integer(count as u64)))
+                },
+            );
             for event in out.response.events {
                 if let CollectionEvent::Selection(SelectionChange::Set(keys)) = event
                     && let Some(tab) = keys.into_iter().last()

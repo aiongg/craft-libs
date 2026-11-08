@@ -596,7 +596,7 @@ impl ThreadPopover<'_> {
         let mut edits = Vec::new();
         let mut open = true;
         let mut escaped = false;
-        let mut popover = Popover::new(name, Bind::bound(&mut open)).opened_by(opener).initial_focus(Initial::First);
+        let mut popover = Popover::new(name, Bind::bound(&mut open)).opened_by(opener).initial_focus(Initial::Default);
         popover = popover.overlay(|overlay| overlay.min_size(egui::vec2(POPOVER_IN_HEIGHTS * side, 0.0)));
         if let Some(rect) = anchor {
             popover = popover.overlay(|overlay| overlay.opener_anchor(Anchor::Rect(rect)));
@@ -705,6 +705,7 @@ impl ThreadPopover<'_> {
                     .placeholder(words.reply.clone())
                     .complete(MentionCompleter { people: people.to_vec(), me: me.to_owned() })
                     .submits()
+                    .default_stop()
                     .show(ui);
                 escaped |= field.escaped;
                 let text = draft.trim().to_owned();
@@ -760,7 +761,7 @@ impl CommentComposer<'_> {
         let mut cancel = false;
         let shown = Popover::new(words.add_comment.clone(), Bind::bound(&mut open))
             .at_point(anchor)
-            .initial_focus(Initial::First)
+            .initial_focus(Initial::Default)
             .overlay(|overlay| overlay.min_size(egui::vec2(POPOVER_IN_HEIGHTS * side, 0.0)))
             .show(ui, |ui, _| {
                 Stack::new().show(ui, |ui, _| {
@@ -768,6 +769,7 @@ impl CommentComposer<'_> {
                         .lines(COMPOSER_ROWS)
                         .placeholder(words.add_comment.clone())
                         .submits()
+                        .default_stop()
                         .show(ui);
                     cancel |= field.escaped;
                     let text = draft.trim().to_owned();

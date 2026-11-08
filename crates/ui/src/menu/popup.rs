@@ -4,7 +4,7 @@ use super::item::{LevelMemory, MenuItem, MenuItemOutput, MenuLevel, level_env};
 use crate::contract::overlay::{Anchor, Dismiss, Outside, Popup};
 use crate::contract::{
     Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, Entry, Focus as _, Mount, NoValue, Outcome, Overlay, Pad, Props as _,
-    Remember as _, Role, Show as _, ShowContainer as _, StopProps as _, Trigger,
+    Remember as _, Role, Show as _, ShowContainer as _, TooltipSpec, Trigger,
 };
 use crate::display::Divider;
 use crate::runtime::env::{Env, Label};
@@ -95,6 +95,9 @@ pub(crate) fn entry_rows<T>(ui: &mut Ui, entries: &[Entry<T>]) -> Option<usize> 
         let mut row = MenuItem::new(entry.label().clone()).enabled(entry.is_enabled()).entry_checked(entry.is_checked());
         if let Some(icon) = entry.icon_spec() {
             row = row.icon(icon.clone());
+        }
+        if let Some(reason) = entry.why_disabled() {
+            row = row.description(reason.as_str()).tooltip(TooltipSpec::new(reason.clone()).disabled_text(reason.clone()));
         }
         // The lead of a value menu starts on the checked entry.
         if values && entry.is_checked() {
