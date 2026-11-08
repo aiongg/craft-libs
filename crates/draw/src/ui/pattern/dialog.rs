@@ -2,9 +2,10 @@
 
 use super::editor::SwatchPainter;
 use super::{PatternFillEditor, PatternFillOptions, PatternSwatch, PatternWords};
-use craft_ui::contract::{Bind, ContentPainterCx};
+use craft_ui::contract::Bind;
 use craft_ui::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
 use craft_ui::patterns::form_dialogs::FormDialog;
+use craft_ui::primitives::ContentPainterCx;
 use craft_ui::runtime::env::Env;
 use egui::{Rect, Ui};
 

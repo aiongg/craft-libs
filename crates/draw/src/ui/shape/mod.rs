@@ -21,8 +21,10 @@ pub use words::ShapeWords;
 /// The selected shape layer's live shape, as the Shape section shows it: plain data the app
 /// converts to and from its document. Sizes in document pixels.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum LiveShape {
     /// A rectangle: radii top-left, top-right, bottom-right, bottom-left.
+    #[non_exhaustive]
     Rect {
         /// Width in document pixels.
         width: f64,
@@ -32,6 +34,7 @@ pub enum LiveShape {
         radii: [f64; 4],
     },
     /// An ellipse.
+    #[non_exhaustive]
     Ellipse {
         /// Width in document pixels.
         width: f64,
@@ -39,6 +42,7 @@ pub enum LiveShape {
         height: f64,
     },
     /// A polygon or star: one corner radius for every corner.
+    #[non_exhaustive]
     Polygon {
         /// Width in document pixels.
         width: f64,
@@ -52,10 +56,34 @@ pub enum LiveShape {
         star_ratio: f64,
     },
     /// A line.
+    #[non_exhaustive]
     Line {
         /// The line's weight in document pixels.
         weight: f64,
     },
+}
+
+impl LiveShape {
+    /// A rectangle of `width` by `height` with the four corner radii `radii` (top left, top right, bottom right,
+    /// bottom left).
+    pub fn rect(width: f64, height: f64, radii: [f64; 4]) -> Self {
+        LiveShape::Rect { width, height, radii }
+    }
+
+    /// An ellipse of `width` by `height`.
+    pub fn ellipse(width: f64, height: f64) -> Self {
+        LiveShape::Ellipse { width, height }
+    }
+
+    /// A polygon (a star below a `star_ratio` of 1) of `width` by `height`.
+    pub fn polygon(width: f64, height: f64, corner_radius: f64, sides: u32, star_ratio: f64) -> Self {
+        LiveShape::Polygon { width, height, corner_radius, sides, star_ratio }
+    }
+
+    /// A line of `weight`.
+    pub fn line(weight: f64) -> Self {
+        LiveShape::Line { weight }
+    }
 }
 
 /// A shape's fill and stroke as the Appearance section and the bar show them: the selected
@@ -108,6 +136,7 @@ pub enum ShapeChange {
     /// The stroke paint. The app also sets its background colour from a solid stroke. `width` is
     /// `Some(`[`ENABLED_STROKE_WIDTH`](Self::ENABLED_STROKE_WIDTH)`)` when the edit turns the
     /// stroke on from width 0 (the app sets the width with the paint, in one command), else `None`.
+    #[non_exhaustive]
     Stroke {
         /// The new stroke paint.
         paint: Paint,
@@ -118,6 +147,7 @@ pub enum ShapeChange {
     StrokeWidth(f64),
     /// The Stroke style button's edit (its `EditEvent<StrokeStyle>`, mapped); `width` as in
     /// [`Stroke`](Self::Stroke).
+    #[non_exhaustive]
     StrokeStyle {
         /// The new stroke style.
         style: StrokeStyle,
@@ -125,6 +155,7 @@ pub enum ShapeChange {
         width: Option<f64>,
     },
     /// Width and height of a rect, ellipse or polygon.
+    #[non_exhaustive]
     Size {
         /// New width in document pixels.
         width: f64,

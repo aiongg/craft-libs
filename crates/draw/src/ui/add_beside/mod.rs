@@ -10,8 +10,7 @@ use craft_behavior::kurbo::Rect as DocRect;
 use craft_behavior::{CanvasView, CursorIcon, HitLevel, HitPriority, HitShape, Metrics, NavShape, PartKey, PointerButton, PressPhase, Roving, Sense};
 use craft_ui::canvas::canvas_space;
 use craft_ui::contract::{
-    Access, Common, Component, Cx, Focus as _, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role, Styled as _,
-    WordSetCx as _,
+    Access, Common, Component, Cx, Focus as _, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role, WordSetCx as _,
 };
 use craft_ui::primitives::{FocusKind, FocusRing, PaintShape, StrokeWidth};
 use craft_ui::runtime::env::Label;

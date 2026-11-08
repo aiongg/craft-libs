@@ -3,16 +3,14 @@
 
 use super::{PatternColors, PatternFillEditor, PatternFillOptions, PatternSwatch};
 use craft_theme::Srgba;
-use craft_ui::contract::{Bind, ContentPainterCx, ShowContainer as _};
+use craft_ui::contract::{Bind, ShowContainer as _};
 use craft_ui::patterns::form_dialogs::FormDialog;
+use craft_ui::primitives::ContentPainterCx;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::{Rect, Ui};
 
 fn swatches() -> Vec<PatternSwatch> {
-    ["Stripes", "Checks", "Dots", "Grid", "Waves", "Bubbles"]
-        .iter()
-        .map(|name| PatternSwatch { id: name.to_lowercase(), name: (*name).to_owned() })
-        .collect()
+    ["Stripes", "Checks", "Dots", "Grid", "Waves", "Bubbles"].iter().map(|name| PatternSwatch::new(name.to_lowercase(), *name)).collect()
 }
 
 /// A tile: a plain fill over the whole rect, the stand-in for the host's pattern bitmap.
@@ -33,7 +31,7 @@ fn pattern_fill_bitmap(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(PatternFillEditor<'static>, covers = [Default], drive = Drive::Never)]
 fn pattern_fill_preset(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let colors = PatternColors { foreground: Srgba::rgb(0.1, 0.1, 0.1), background: Srgba::rgb(0.95, 0.95, 0.9) };
+    let colors = PatternColors::new(Srgba::rgb(0.1, 0.1, 0.1), Srgba::rgb(0.95, 0.95, 0.9));
     editor(ui, data, PatternFillOptions::preset("checks", colors), &swatches())
 }
 

@@ -18,6 +18,7 @@ pub use words::PatternWords;
 /// or its preset patterns (PowerPoint's "pct25", "dkHorz", …). The app paints each swatch's tile
 /// ([`PatternFillEditor::thumbnails`]).
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct PatternSwatch {
     /// The app's id, which [`PatternFillOptions::pattern`] holds.
     pub id: String,
@@ -25,9 +26,17 @@ pub struct PatternSwatch {
     pub name: String,
 }
 
+impl PatternSwatch {
+    /// A swatch of the app's pattern `id`, named `name`.
+    pub fn new(id: impl Into<String>, name: impl Into<String>) -> Self {
+        PatternSwatch { id: id.into(), name: name.into() }
+    }
+}
+
 /// A preset pattern's two colours (PowerPoint's Foreground and Background): present means the
 /// editor is in preset mode.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct PatternColors {
     /// The pattern's foreground colour.
     pub foreground: Srgba,
@@ -51,6 +60,13 @@ pub struct PatternFillOptions {
     pub phase: [f64; 2],
     /// Preset mode: the two colours. `None` is bitmap mode.
     pub colors: Option<PatternColors>,
+}
+
+impl PatternColors {
+    /// The two colours of a preset pattern.
+    pub fn new(foreground: Srgba, background: Srgba) -> Self {
+        PatternColors { foreground, background }
+    }
 }
 
 impl PatternFillOptions {

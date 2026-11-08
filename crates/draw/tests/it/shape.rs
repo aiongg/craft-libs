@@ -24,7 +24,7 @@ struct Layer {
 }
 
 fn rect() -> LiveShape {
-    LiveShape::Rect { width: 100.0, height: 60.0, radii: [1.0, 2.0, 3.0, 4.0] }
+    LiveShape::rect(100.0, 60.0, [1.0, 2.0, 3.0, 4.0])
 }
 
 fn look(width: f64) -> ShapeAppearance {
@@ -38,9 +38,9 @@ impl Layer {
 
     fn apply(&mut self, change: &ShapeChange) {
         match (change.clone(), &mut self.shape) {
-            (ShapeChange::Size { width: w, height: h }, LiveShape::Rect { width, height, .. }) => (*width, *height) = (w, h),
+            (ShapeChange::Size { width: w, height: h, .. }, LiveShape::Rect { width, height, .. }) => (*width, *height) = (w, h),
             (ShapeChange::Radii(next), LiveShape::Rect { radii, .. }) => *radii = next,
-            (ShapeChange::Stroke { paint, width }, _) => {
+            (ShapeChange::Stroke { paint, width, .. }, _) => {
                 self.look.stroke = paint;
                 self.look.stroke_width = width.unwrap_or(self.look.stroke_width);
             }
@@ -154,7 +154,7 @@ fn stroke_width_zero_adds_no_stroke_and_turning_it_on_gives_three_px() {
     fixture.settle();
     let changes = layer.borrow().changes();
     assert!(
-        matches!(changes.as_slice(), [ShapeChange::Stroke { paint: Paint::Solid(_), width: Some(w) }] if *w == ShapeChange::ENABLED_STROKE_WIDTH),
+        matches!(changes.as_slice(), [ShapeChange::Stroke { paint: Paint::Solid(_), width: Some(w), .. }] if *w == ShapeChange::ENABLED_STROKE_WIDTH),
         "{changes:?}"
     );
 }
@@ -227,7 +227,7 @@ fn the_bar_turning_the_stroke_on_is_one_change() {
     fixture.settle();
     let changes = layer.borrow().changes();
     assert!(
-        matches!(changes.as_slice(), [ShapeChange::Stroke { paint: Paint::Solid(_), width: Some(w) }] if *w == ShapeChange::ENABLED_STROKE_WIDTH),
+        matches!(changes.as_slice(), [ShapeChange::Stroke { paint: Paint::Solid(_), width: Some(w), .. }] if *w == ShapeChange::ENABLED_STROKE_WIDTH),
         "{changes:?}"
     );
 }

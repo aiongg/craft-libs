@@ -16,23 +16,23 @@ fn look() -> ShapeAppearance {
 }
 
 fn rectangle() -> LiveShape {
-    LiveShape::Rect { width: 320.0, height: 180.0, radii: [8.0, 8.0, 8.0, 8.0] }
+    LiveShape::rect(320.0, 180.0, [8.0; 4])
 }
 
 fn polygon() -> LiveShape {
-    LiveShape::Polygon { width: 200.0, height: 200.0, corner_radius: 0.0, sides: 5, star_ratio: 0.5 }
+    LiveShape::polygon(200.0, 200.0, 0.0, 5, 0.5)
 }
 
 /// Applies `change` to the fake layer, as an app turns it into a document command.
 fn apply(change: ShapeChange, shape: &mut LiveShape, look: &mut ShapeAppearance) {
     match (change, shape) {
         (ShapeChange::Fill(paint), _) => look.fill = paint,
-        (ShapeChange::Stroke { paint, width }, _) => {
+        (ShapeChange::Stroke { paint, width, .. }, _) => {
             look.stroke = paint;
             look.stroke_width = width.unwrap_or(look.stroke_width);
         }
         (ShapeChange::StrokeWidth(width), _) => look.stroke_width = width,
-        (ShapeChange::StrokeStyle { style, width }, _) => {
+        (ShapeChange::StrokeStyle { style, width, .. }, _) => {
             look.stroke_style = style;
             look.stroke_width = width.unwrap_or(look.stroke_width);
         }
@@ -46,7 +46,7 @@ fn apply(change: ShapeChange, shape: &mut LiveShape, look: &mut ShapeAppearance)
         (ShapeChange::CornerRadius(next), LiveShape::Polygon { corner_radius, .. }) => *corner_radius = next,
         (ShapeChange::Sides(next), LiveShape::Polygon { sides, .. }) => *sides = next,
         (ShapeChange::StarRatio(next), LiveShape::Polygon { star_ratio, .. }) => *star_ratio = next,
-        (ShapeChange::Weight(next), LiveShape::Line { weight }) => *weight = next,
+        (ShapeChange::Weight(next), LiveShape::Line { weight, .. }) => *weight = next,
         _ => {}
     }
 }
@@ -85,7 +85,7 @@ fn shape_panel_polygon(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(ShapePanel<'static>, covers = [Default], drive = Drive::Never)]
 fn shape_panel_line(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    panel(ui, data, LiveShape::Line { weight: 3.0 })
+    panel(ui, data, LiveShape::line(3.0))
 }
 
 fn bar(ui: &mut Ui, data: &mut StoryData, kind: ShapeKind) -> StoryOutput {

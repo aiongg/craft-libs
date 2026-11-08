@@ -7,13 +7,12 @@ use craft_behavior::{EditEvent, GestureId, Mixed, NumberCodec};
 use craft_color::ui::{ColorPopover, PickedColor};
 use craft_ui::buttons::Button;
 use craft_ui::choice::Checkbox;
-use craft_ui::contract::{
-    Bind, ContentPainterCx, FieldLayout, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _, SideLabel, Sizing, clicked,
-};
+use craft_ui::contract::{Bind, FieldLayout, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _, SideLabel, Sizing, clicked};
 use craft_ui::display::{Shade, Text};
 use craft_ui::form::{Field, FieldGroup};
 use craft_ui::layout_components::Row;
 use craft_ui::patterns::presets::{CellShape, PickerField, PresetBrowser, PresetPicker, PresetRow, PresetState, PresetView, ThumbInfo};
+use craft_ui::primitives::ContentPainterCx;
 use craft_ui::runtime::env::{Env, Label, UnitKind};
 use craft_ui::text::NumberField;
 use craft_ui::value_drag::AngleDial;

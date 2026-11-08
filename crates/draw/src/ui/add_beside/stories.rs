@@ -7,7 +7,7 @@ use craft_behavior::kurbo::{Point, Rect as DocRect};
 use craft_ui::canvas::{Canvas, PageFrame, Pasteboard};
 use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
-use egui::{Rect, Ui, Vec2};
+use egui::{Rect, Ui};
 
 /// The artboard the buttons surround, in document units.
 fn artboard() -> DocRect {
@@ -34,7 +34,10 @@ fn on_canvas<'a>(ui: &mut Ui, handles: impl Fn(Rect) -> AddBesideHandles<'a>) ->
 #[story(AddBesideHandles<'static>, covers = [Default], drive = Drive::Never)]
 fn add_beside(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let view = view(ui);
-    let neighbour = Rect::from_center_size(view.to_screen(Point::new(artboard().x1 + 24.0, 110.0)), Vec2::splat(4.0));
+    let neighbour = Rect::from_two_pos(
+        view.to_screen(Point::new(artboard().x1 + 16.0, artboard().y0)),
+        view.to_screen(Point::new(artboard().x1 + 80.0, artboard().y1)),
+    );
     let clear = [neighbour];
     on_canvas(ui, |_| AddBesideHandles::new("Add beside", artboard()).clear_of(&clear))
 }

@@ -10,8 +10,12 @@ use egui::{Key, Modifiers, vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
+/// A scale typed in the dialog, as text and as the number it gives.
+const TYPED_SCALE_TEXT: &str = "250";
+const TYPED_SCALE: f64 = 250.0;
+
 fn swatches() -> Vec<PatternSwatch> {
-    ["25 %", "50 %", "Bubbles"].iter().map(|name| PatternSwatch { id: name.to_lowercase(), name: (*name).to_owned() }).collect()
+    ["25 %", "50 %", "Bubbles"].iter().map(|name| PatternSwatch::new(name.to_lowercase(), *name)).collect()
 }
 
 /// An editor over options held by the test, and every event it reported.
@@ -53,9 +57,9 @@ fn scale_stays_in_range_and_snap_to_origin_clears_the_phase() {
     let (mut fixture, state) = editor(options);
 
     type_into(&mut fixture, "Scale", "2000");
-    assert_eq!(state.borrow().options.scale, 1000.0);
+    assert_eq!(state.borrow().options.scale, *PatternFillOptions::SCALE.end());
     type_into(&mut fixture, "Scale", "0");
-    assert_eq!(state.borrow().options.scale, 1.0);
+    assert_eq!(state.borrow().options.scale, *PatternFillOptions::SCALE.start());
 
     state.borrow_mut().events.clear();
     let snap = fixture.by_label("Snap to Origin").expect("the button");
@@ -69,7 +73,7 @@ fn scale_stays_in_range_and_snap_to_origin_clears_the_phase() {
 /// sets the pattern and keeps the colours.
 #[trial]
 fn preset_mode_shows_the_colours_and_a_click_picks_a_tile() {
-    let colors = PatternColors { foreground: Srgba::BLACK, background: Srgba::WHITE };
+    let colors = PatternColors::new(Srgba::BLACK, Srgba::WHITE);
     let (mut fixture, state) = editor(PatternFillOptions::preset("25 %".to_lowercase(), colors));
     assert!(fixture.by_label("Foreground").is_some());
     assert!(fixture.by_label("Background").is_some());
@@ -113,8 +117,8 @@ fn dialog(options: PatternFillOptions) -> (Fixture, Rc<RefCell<DialogRig>>) {
 fn the_dialog_reports_live_values_and_cancel_answers_nothing() {
     let (mut fixture, state) = dialog(PatternFillOptions::bitmap("bubbles"));
     assert!(!state.borrow().saw_changed);
-    type_into(&mut fixture, "Scale", "250");
-    assert_eq!(state.borrow().dialog.current().scale, 250.0);
+    type_into(&mut fixture, "Scale", TYPED_SCALE_TEXT);
+    assert_eq!(state.borrow().dialog.current().scale, TYPED_SCALE);
     assert!(state.borrow().saw_changed);
     assert!(!state.borrow().dialog.unchanged());
     assert!(state.borrow().result.is_none(), "the dialog stays open until it is answered");
