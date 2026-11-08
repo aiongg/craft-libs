@@ -7,8 +7,10 @@ use crate::windows_kit::Windows;
 use craft_behavior::CanvasTransform;
 use craft_host::target::{Caps, ShellInfo};
 use craft_ui::choice::Checkbox;
+use craft_ui::contract::overlay::OverlayFit;
 use craft_ui::contract::{Bind, SaveKey};
 use craft_ui::contract::{ContainerProps, DragBand, HeaderRegion, Mount, Overlay, Props as _, Show as _, ShowContainer as _, Sizing};
+use craft_ui::layout_components::Stack;
 use craft_ui::runtime::InstallSpec;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::layout::{Block, in_region};
@@ -335,4 +337,48 @@ fn a_close_request_not_taken_this_frame_does_not_close_the_container_later() {
         frame();
     }
     assert!(ran.get() > before, "the container stayed open: the stale request did not close it");
+}
+
+/// The default size a resizable layer is filled to.
+const FILLED: Vec2 = Vec2::new(260.0, 180.0);
+
+/// The rect a layer on `overlay` with `sizing` props takes, opened from the window's flow or from inside a
+/// content-sized column, whose children in flow are held at their measured width.
+fn layer_rect(overlay: &Overlay, sizing: Sizing, in_column: bool) -> Rect {
+    let rect = Cell::new(Rect::NOTHING);
+    let mut frames = Frames::new();
+    frames.idle(4, |ui| {
+        let layer = |ui: &mut Ui| {
+            let props = ContainerProps::new().mount(Mount::Layer(overlay.clone())).sizing(sizing);
+            let out = Slab::new(props).id_salt("layer").show(ui, |ui, _| {
+                Block::new(BODY).show(ui);
+            });
+            rect.set(out.output.rect);
+        };
+        if in_column {
+            Stack::new().id_salt("column").show(ui, |ui, _| layer(ui));
+        } else {
+            layer(ui);
+        }
+    });
+    rect.get()
+}
+
+/// A layer fills the size its overlay gives it (a default size, as a placed rect does) and otherwise sizes from its
+/// content: `Overlay.fit` sizes a layer, `ContainerProps::sizing` does not. The layer takes the room of its own host,
+/// so a content column around its opener does not hold it.
+#[trial]
+fn a_layer_fills_the_size_its_overlay_gives_and_a_content_column_does_not_hold_it() {
+    let filling = Overlay::floating().fit(OverlayFit::Resizable).size(FILLED);
+    let (in_flow, in_column) = (layer_rect(&filling, Sizing::Content, false), layer_rect(&filling, Sizing::Content, true));
+    assert!(in_flow.width() > BODY.x && in_flow.height() > BODY.y, "the layer fills its default size, past its content: {in_flow:?}");
+    assert_eq!(in_column, in_flow, "a content column around the filling layer's opener does not hold the layer");
+    let content = Overlay::floating();
+    let (from_content, in_column) = (layer_rect(&content, Sizing::Fill, false), layer_rect(&content, Sizing::Fill, true));
+    assert!(from_content.is_positive(), "the layer shows its body: {from_content:?}");
+    assert!(
+        from_content.width() < in_flow.width() && from_content.height() < in_flow.height(),
+        "a layer with no size of its own sizes from its content, whatever its props' sizing: {from_content:?}"
+    );
+    assert_eq!(in_column, from_content, "a content column around the content-sized layer's opener does not hold the layer");
 }

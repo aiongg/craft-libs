@@ -636,10 +636,17 @@ pub(crate) fn takes_focus(resolved: &Resolved<'_>) -> bool {
     resolved.enabled || resolved.tooltip.is_some_and(|tooltip| tooltip.spec().disabled_text.is_some())
 }
 
+/// A key or AccessKit activation in this pass, with the modifiers held in it: the press that routed
+/// `Intent::Activate` carries them, and the pass's pointer frame reads them from the same input a pointer activation's
+/// modifiers come from (Alt+Enter adds the way Alt+click does).
+pub(crate) fn key_activation(ctx: &egui::Context) -> super::Activation {
+    super::Activation { by_key: true, mods: crate::runtime::pointer::frame(ctx).mods }
+}
+
 /// Step 9, update, the part the library writes: the keyboard activation.
 pub(crate) fn update_inputs(core: &mut CxCore<'_>) {
     if core.intents.take(craft_behavior::Intent::Activate) && takes_activation(core.resolved) {
-        core.activation = Some(super::Activation { by_key: true, mods: craft_keymap::Mods::NONE });
+        core.activation = Some(key_activation(&core.ctx));
     }
     // An AccessKit click on a part is a click on the component as a pointer click on the part is: the response
     // reports it, and a toggling part or a part reader takes it as it takes the pointer's.

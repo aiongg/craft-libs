@@ -489,7 +489,7 @@ fn activation_of(ctx: &Context, ui: &Ui, rect: Rect, resolved: &Resolved<'_>, ke
         return None;
     }
     if keyed {
-        return Some(Activation { by_key: true, mods: craft_keymap::Mods::NONE });
+        return Some(steps::key_activation(ctx));
     }
     let released = root_sense.contains(Sense::CLICK)
         && crate::runtime::overlay::released_inside(ctx, crate::runtime::egui::areas::layer_to_screen(ctx, ui.layer_id()) * rect);
