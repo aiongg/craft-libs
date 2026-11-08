@@ -296,7 +296,8 @@ fn an_injected_activation_fires_once_and_keeps_the_key_activations_click() {
 }
 
 /// A pane is a layout room of its own: a container shown in a pane from a grid body's flow lays its body out in the
-/// pane, as a plain stack, not in the grid's cells.
+/// pane, as a plain stack, not in the grid's cells, and the pane takes the same rect from a grid body as from a
+/// content-sized stack, whose content column holds a filling child at its measured width.
 #[trial]
 fn a_grid_childs_pane_lays_out_as_a_plain_body() {
     const COLUMNS: [ColumnWidth; 2] = [ColumnWidth::Content, ColumnWidth::Content];
@@ -322,9 +323,14 @@ fn a_grid_childs_pane_lays_out_as_a_plain_body() {
         });
         rects.into_inner()
     };
+    let (plain, _) = pane_rect(BodyLayout::stack());
     let (in_grid, blocks) = pane_rect(BodyLayout::grid(&COLUMNS));
     assert!(blocks.iter().all(|block| in_grid.contains_rect(*block)), "the pane holds its body: {in_grid:?} {blocks:?}");
     assert!(blocks[1].min.y >= blocks[0].max.y, "the pane's body stacks its children: {blocks:?}");
+    assert!(
+        (in_grid.min - plain.min).length() < 1.0 && (in_grid.size() - plain.size()).length() < 1.0,
+        "the pane takes its own room: {in_grid:?} vs {plain:?}"
+    );
 }
 
 /// A focused part that is not declared the next pass is no longer active.
