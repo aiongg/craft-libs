@@ -156,6 +156,11 @@ impl Header {
         })
     }
 
+    /// The header text of the column `key`.
+    pub(super) fn header_of(&self, key: &ColumnKey) -> Option<&str> {
+        self.specs.iter().find(|spec| spec.key == *key).map(|spec| spec.header.as_str())
+    }
+
     /// The key of the column at position `at`.
     pub(super) fn key_at(&self, at: usize) -> Option<&ColumnKey> {
         self.specs.get(at).map(|spec| &spec.key)
