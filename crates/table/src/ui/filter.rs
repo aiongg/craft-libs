@@ -82,6 +82,8 @@ pub struct FilterButton {
     /// Whether the column is filtered: the button then shows a funnel.
     #[prop]
     filtered: bool,
+    /// The column's sort, if any: the button then shows the sort arrow.
+    #[prop]
     sort: Option<ColumnSort>,
     event: Option<FilterButtonEvent>,
 }
@@ -90,13 +92,6 @@ impl FilterButton {
     /// The filter button of the column whose header reads `column`, for the accessible name.
     pub fn new(column: impl Into<String>) -> Self {
         FilterButton { common: Common::new(), column: column.into(), filtered: false, sort: None, event: None }
-    }
-
-    /// The column's sort, if any.
-    #[must_use]
-    pub fn sort(mut self, sort: Option<ColumnSort>) -> Self {
-        self.sort = sort;
-        self
     }
 }
 

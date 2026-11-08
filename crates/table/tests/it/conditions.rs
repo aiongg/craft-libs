@@ -9,6 +9,10 @@ use craft_ui::pickers::PickedDate;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Modifiers, vec2};
 
+/// The room the builder is shown in: wide enough for a rule on one row.
+const ROOM_WIDTH: f32 = 900.0;
+const ROOM_HEIGHT: f32 = 600.0;
+
 struct Photos;
 
 impl ConditionFields for Photos {
@@ -58,7 +62,7 @@ fn build(group: ConditionGroup) -> (Fixture, Rc<RefCell<ConditionGroup>>) {
     let mut fixture = Fixture::new(move |ui| {
         ConditionBuilder::new("Rules", Bind::bound(&mut shown.borrow_mut()), &Photos).show(ui);
     });
-    fixture.room(vec2(900.0, 600.0));
+    fixture.room(vec2(ROOM_WIDTH, ROOM_HEIGHT));
     fixture.settle();
     (fixture, state)
 }

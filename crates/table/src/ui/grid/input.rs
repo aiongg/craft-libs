@@ -13,8 +13,8 @@ use egui::{Pos2, Rect};
 use super::editor::{EditState, Mode};
 use super::paint::{BORDER, COLUMN, COLUMN_EDGE, CORNER, FILL, ROW, ROW_EDGE};
 use super::{
-    CellAdvance, CellAt, CellDirection, CellEdit, CellGrid, CellGridWords, CellRange, CellSelection, CellSpace, GridEdit, GridMenuTarget, GridModel,
-    Positions, edges,
+    CellAdvance, CellAt, CellDirection, CellEdit, CellGrid, CellGridWords, CellRange, CellSelection, CellSpace, GridEdit, GridMenuTarget, Positions,
+    edges,
 };
 
 /// The arrows with the direction each takes in a left-to-right sheet.

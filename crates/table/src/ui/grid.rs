@@ -188,6 +188,13 @@ impl GridLayout {
         self
     }
 
+    /// Whether the row and column headings show.
+    #[must_use]
+    pub fn headings(mut self, on: bool) -> Self {
+        self.headings = on;
+        self
+    }
+
     /// The digits the row headers hold.
     #[must_use]
     pub fn digits(mut self, digits: u32) -> Self {
@@ -781,6 +788,7 @@ pub struct CellGrid<'a> {
     #[container]
     props: ContainerProps,
     items: CollectionProps,
+    /// Whether the row and column headings show.
     #[style_key]
     #[prop]
     headings: bool,
@@ -795,10 +803,13 @@ pub struct CellGrid<'a> {
     /// The selection as the app held it when the pass began, for the parts that declare before the item step runs.
     snapshot: CellSelection<u32>,
     zoom: f32,
+    /// The ranges the copy marks surround.
     #[prop]
     copy_mark: &'a [CellRange<u32>],
+    /// The columns that show a filter button, with its state.
     #[prop]
     filters: &'a [ColumnFilter],
+    /// The cell whose problem shows an error tag, with its fixes.
     #[prop]
     error_tag: Option<CellProblem<'a>>,
     outline: Option<(&'a OutlineAxis, &'a OutlineAxis)>,

@@ -10,9 +10,7 @@ use craft_ui::style::{Flags, Stateful, StyleCx};
 use egui::{CornerRadius, Pos2, Rect, Vec2};
 
 use super::editor::{EditState, Mode};
-use super::{
-    CellAt, CellGrid, CellGridStyle, CellGridStyleKey, CellGridWords, CellRange, CellSelection, GridLayout, GridModel, SheetGeometry, SheetMetrics,
-};
+use super::{CellAt, CellGrid, CellGridStyle, CellGridStyleKey, CellGridWords, CellRange, CellSelection, GridLayout, SheetGeometry, SheetMetrics};
 use super::{edges, header_insets};
 use crate::ui::error_tag::ErrorTag;
 use crate::ui::filter::FilterButton;
@@ -333,8 +331,9 @@ impl CellGrid<'_> {
         let top = Rect::from_min_max(Pos2::new(cells.left(), cells.top() - header.y), Pos2::new(cells.right(), cells.top()));
         let left = Rect::from_min_max(Pos2::new(cells.left() - header.x, cells.top()), Pos2::new(cells.left(), cells.bottom()));
         let corner = Rect::from_min_max(Pos2::new(cells.left() - header.x, cells.top() - header.y), cells.min);
+        let plain = cx.resolve_part(CORNER.at(0), &style.header);
         for area in [top, left, corner] {
-            draw.fill(&rect(geometry.mirror_rect(area)), style.header);
+            draw.fill(&rect(geometry.mirror_rect(area)), plain);
         }
         let marks = Marks::of(selection, geometry.rows().count(), geometry.columns().count());
         let rtl = geometry.mirror_x(0.0) > 0.0;
@@ -407,7 +406,7 @@ impl CellGrid<'_> {
             }
             let header = Self::column_header(geometry, filter.column);
             let origin = if rtl { header.left_bottom() - Vec2::new(0.0, side) } else { header.right_bottom() - Vec2::new(side, side) };
-            let name: Label = self.model.column_label(filter.column).into();
+            let name = self.model.column_label(filter.column);
             let out = ui.child(
                 ("filter", filter.column),
                 Rect::from_min_size(origin, Vec2::splat(side)),

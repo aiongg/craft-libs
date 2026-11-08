@@ -218,11 +218,13 @@ pub struct FieldMove {
 #[non_exhaustive]
 pub enum FieldListEdit {
     /// Ticked: add it to its default area. A tick sweep reports one `Add` or `Remove` per row it changes.
+    #[non_exhaustive]
     Add {
         /// Name of the source field.
         field: String,
     },
     /// Unticked, or Remove Field from an area's menu or the Delete key.
+    #[non_exhaustive]
     Remove {
         /// Name of the source field.
         field: String,
@@ -231,6 +233,7 @@ pub enum FieldListEdit {
     },
     /// A field's menu (Move to …, Move Up, Move Down), or a drag between or inside the areas. A drag is one gesture:
     /// the app previews the updates and applies the commit.
+    #[non_exhaustive]
     Move {
         /// The area the fields move to.
         to: FieldArea,
@@ -238,11 +241,13 @@ pub enum FieldListEdit {
         change: EditEvent<FieldMove>,
     },
     /// The "Σ Values" row moved to Rows or Columns, by its menu or a drop. The app places it.
+    #[non_exhaustive]
     MoveValues {
         /// The area the Values row moves to.
         to: FieldArea,
     },
     /// A value field's Summarize by and Show as entries.
+    #[non_exhaustive]
     ValueSettings {
         /// Name of the value field.
         field: String,
@@ -250,6 +255,7 @@ pub enum FieldListEdit {
         setting: ValueSetting,
     },
     /// A field's Sort A to Z and Z to A entries.
+    #[non_exhaustive]
     Sort {
         /// Name of the source field.
         field: String,
@@ -257,6 +263,7 @@ pub enum FieldListEdit {
         order: FieldSort,
     },
     /// A field's Group by and Ungroup entries.
+    #[non_exhaustive]
     Group {
         /// Name of the date field.
         field: String,

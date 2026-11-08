@@ -90,6 +90,7 @@ pub enum ConditionValue {
     /// Two dates for "is between": each picker stops at the other, so the two stay in order.
     DateRange(PickedDate, PickedDate),
     /// "in the last N units".
+    #[non_exhaustive]
     Last {
         /// The number of units.
         n: u32,
@@ -100,6 +101,13 @@ pub enum ConditionValue {
     Bool(bool),
     /// One of the field's choices, by id.
     Choice(String),
+}
+
+impl ConditionValue {
+    /// "In the last `n` `unit`s".
+    pub fn last(n: u32, unit: impl Into<String>) -> Self {
+        ConditionValue::Last { n, unit: unit.into() }
+    }
 }
 
 /// One rule.

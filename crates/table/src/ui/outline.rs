@@ -446,7 +446,7 @@ impl<'a> Frame<'a> {
     /// Where `line` is on its axis, clipped to its pane: `None` when hidden or off screen.
     fn extent(&self, rows: bool, line: u32) -> Option<(f32, f32)> {
         let cell = CellAt::new(if rows { line } else { 0 }, if rows { 0 } else { line });
-        let (rect, pane) = (self.geometry.cell_rect(cell), *self.geometry.range_panes(CellRange::cell(cell)).first()?);
+        let (rect, pane) = (self.geometry.cell_rect(cell), *self.geometry.range_panes(&CellRange::cell(cell)).first()?);
         let (a, b, top, bottom) =
             if rows { (rect.top(), rect.bottom(), pane.top(), pane.bottom()) } else { (rect.left(), rect.right(), pane.left(), pane.right()) };
         let (from, to) = (a.max(top), b.min(bottom));

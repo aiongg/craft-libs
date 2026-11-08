@@ -142,6 +142,7 @@ impl Draft {
             },
             (NavMove::Start | NavMove::Up | NavMove::PageUp, _) => 0,
             (NavMove::End | NavMove::Down | NavMove::PageDown, _) => self.text.len(),
+            _ => self.caret,
         };
         if mods.extend {
             self.anchor.get_or_insert(self.caret);

@@ -4,8 +4,9 @@
 use std::collections::BTreeMap;
 
 use craft_behavior::CellSelection;
-use craft_ui::contract::{Label, PaintUi};
+use craft_ui::contract::PaintUi;
 use craft_ui::primitives::TextRun;
+use craft_ui::runtime::env::Label;
 use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use egui::{Key, Modifiers, Rect, Ui};
 

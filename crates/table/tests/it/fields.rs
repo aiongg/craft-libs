@@ -9,6 +9,10 @@ use craft_ui::testing::access::name;
 use craft_ui::testing::{Fixture, Target, trial};
 use egui::{Event, Modifiers, PointerButton, vec2};
 
+/// The room the pane is shown in: wide enough for its areas side by side.
+const ROOM_WIDTH: f32 = 420.0;
+const ROOM_HEIGHT: f32 = 900.0;
+
 struct App {
     fields: Vec<PivotField>,
     areas: Vec<(FieldArea, Vec<String>)>,
@@ -30,14 +34,14 @@ fn rig() -> (Fixture, Rc<RefCell<App>>) {
         for edit in out.edits {
             // The app applies a tick at once.
             match &edit {
-                FieldListEdit::Add { field } => app.areas[1].1.push(field.clone()),
+                FieldListEdit::Add { field, .. } => app.areas[1].1.push(field.clone()),
                 FieldListEdit::Remove { field, .. } => app.areas.iter_mut().for_each(|(_, fields)| fields.retain(|f| f != field)),
                 _ => {}
             }
             app.edits.push(edit);
         }
     });
-    fixture.room(vec2(420.0, 900.0));
+    fixture.room(vec2(ROOM_WIDTH, ROOM_HEIGHT));
     fixture.settle();
     (fixture, app)
 }
@@ -72,7 +76,11 @@ fn ticking_adds_and_unticking_removes() {
     let region = named(&fixture, Role::CHECK_BOX, "Region").pop().expect("a check for Region");
     fixture.click(&region);
     fixture.idle(2);
-    assert_eq!(app.borrow().edits, [FieldListEdit::Add { field: "Sales".into() }, FieldListEdit::Remove { field: "Region".into(), from: None }]);
+    let edits = &app.borrow().edits;
+    let [FieldListEdit::Add { field: added, .. }, FieldListEdit::Remove { field: removed, from, .. }] = &edits[..] else {
+        panic!("an add then a remove: {edits:?}")
+    };
+    assert_eq!((added.as_str(), removed.as_str(), *from), ("Sales", "Region", None));
 }
 
 /// Move to Columns reports one move of the field.
@@ -84,7 +92,7 @@ fn field_menus_move_between_areas() {
     fixture.click(&item);
     fixture.idle(2);
     let app = app.borrow();
-    let [FieldListEdit::Move { to, change }] = &app.edits[..] else { panic!("one move: {:?}", app.edits) };
+    let [FieldListEdit::Move { to, change, .. }] = &app.edits[..] else { panic!("one move: {:?}", app.edits) };
     assert_eq!(*to, FieldArea::Columns);
     let mv = change.value().expect("a one-shot move");
     assert_eq!(mv.fields, ["Region".to_string()]);
@@ -100,7 +108,7 @@ fn dragging_a_field_onto_another_area_moves_it() {
     fixture.idle(2);
     let app = app.borrow();
     let moved = app.edits.iter().find_map(|edit| match edit {
-        FieldListEdit::Move { to: FieldArea::Columns, change } => change.value(),
+        FieldListEdit::Move { to: FieldArea::Columns, change, .. } => change.value(),
         _ => None,
     });
     let mv = moved.expect("a move into Columns");
@@ -115,7 +123,9 @@ fn remove_field_names_its_area() {
     let item = fixture.by_label("Remove Field").expect("the menu removes the field");
     fixture.click(&item);
     fixture.idle(2);
-    assert_eq!(app.borrow().edits, [FieldListEdit::Remove { field: "Region".into(), from: Some(FieldArea::Rows) }]);
+    let edits = &app.borrow().edits;
+    let [FieldListEdit::Remove { field, from, .. }] = &edits[..] else { panic!("one removal: {edits:?}") };
+    assert_eq!((field.as_str(), *from), ("Region", Some(FieldArea::Rows)));
 }
 
 /// The menu of a field outside Values has Sort and Group, and Sort reports the order.
@@ -127,5 +137,7 @@ fn the_field_menu_sorts_and_groups() {
     let item = fixture.by_label("Sort Z to A").expect("Sort is in the menu");
     fixture.click(&item);
     fixture.idle(2);
-    assert_eq!(app.borrow().edits, [FieldListEdit::Sort { field: "Region".into(), order: FieldSort::Descending }]);
+    let edits = &app.borrow().edits;
+    let [FieldListEdit::Sort { field, order, .. }] = &edits[..] else { panic!("one sort: {edits:?}") };
+    assert_eq!((field.as_str(), *order), ("Region", FieldSort::Descending));
 }
