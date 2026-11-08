@@ -4,7 +4,6 @@ use super::commands::AppCommand;
 use super::model::{MockState, Panel, Tool, ToolKey};
 use super::panels::Panels;
 use super::tools::Tools;
-use craft_behavior::PixelSize;
 use craft_behavior::dock::PanelState;
 use craft_ui::bars::{Bar, BarKind, StatusReadout, StatusValues};
 use craft_ui::canvas::{PickStep, ViewCommand};
@@ -237,12 +236,7 @@ fn tool_rail(ui: &mut Ui, state: &mut MockState) {
 fn status_bar(ui: &mut Ui, state: &mut MockState) {
     let MockState { document, tool, status_item, .. } = state;
     let mut values = StatusValues::default();
-    // The marquee's size shows in place of the document's while the selection exists.
-    values.document_dimensions = Some(
-        document
-            .marquee_rect()
-            .map_or_else(|| document.pixel_size(), |rect| PixelSize::new(rect.width().round() as u32, rect.height().round() as u32)),
-    );
+    values.document_dimensions = Some(document.pixel_size());
     values.current_tool = Some(CommandRef::from(*tool));
     values.layer_count = Some(document.layers.len());
     let mut chosen = None;
