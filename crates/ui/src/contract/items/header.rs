@@ -56,6 +56,21 @@ enum Grab {
     Move { key: ColumnKey, from: usize, to: usize },
 }
 
+/// The names the toggle cells of one row gave themselves this pass, by column.
+#[derive(Clone, Default)]
+struct ToggleNames(std::sync::Arc<[(ColumnKey, String)]>);
+
+/// Records the accessible names of the toggle cells of the row `item`, with `{row}` filled, for the collection's cell
+/// nodes of the same pass. A cell that gives no name is left out.
+pub(crate) fn put_toggle_names(ctx: &Context, item: Id, names: Vec<(ColumnKey, String)>) {
+    crate::runtime::egui::memory::put(ctx, sub(item, "toggle_names"), ToggleNames(names.into_iter().filter(|(_, name)| !name.is_empty()).collect()));
+}
+
+fn given_toggle_name(ctx: &Context, item: Id, column: &ColumnKey) -> Option<String> {
+    let ToggleNames(names) = crate::runtime::egui::memory::peek_clone::<ToggleNames>(ctx, sub(item, "toggle_names"))?;
+    names.iter().find(|(held, _)| held == column).map(|(_, name)| name.clone())
+}
+
 /// What the header keeps in session memory under the collection's id.
 #[derive(Clone, Debug, Default)]
 pub(super) struct HeaderMemory {
@@ -156,8 +171,12 @@ impl Header {
         })
     }
 
-    /// The name of the cells of toggle column `key`: its header text, else its icon's name, resolved in `env`.
-    pub(super) fn cell_name(&self, key: &ColumnKey, env: &crate::runtime::env::EnvView<'_>) -> String {
+    /// The name of the cell of toggle column `key` in the row `item`: the name the row's cell gave (`put_toggle_names`),
+    /// else the column's header text, else its icon's name, resolved in `env`.
+    pub(super) fn cell_name(&self, ctx: &Context, item: Id, key: &ColumnKey, env: &crate::runtime::env::EnvView<'_>) -> String {
+        if let Some(name) = given_toggle_name(ctx, item, key) {
+            return name;
+        }
         let Some(spec) = self.specs.iter().find(|spec| spec.key == *key) else { return String::new() };
         let header = env.resolve(&spec.header);
         match (header.as_str(), &spec.icon) {

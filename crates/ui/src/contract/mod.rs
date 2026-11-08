@@ -54,7 +54,7 @@ pub(crate) use cx::{SeenPress, THUMB};
 pub use entry::Entry;
 pub use group::{GroupHandle, GroupKind, GroupState};
 pub use held::Held;
-pub(crate) use items::lead_position;
+pub(crate) use items::{lead_position, put_toggle_names};
 pub use items::{ColumnCommands, request_rename, section_part};
 pub use label::{CellWidth, FieldLabelRole, FieldLayout, GlyphLabel, LabelAlign, LabelKind, Scrub, SideLabel};
 pub use looks::Looks;
