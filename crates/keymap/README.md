@@ -7,7 +7,7 @@ supplies its command catalog, its file-format readers and its UI.
 
 ## Boundaries
 
-- Data and logic, plus a shared Keyboard Shortcuts dialog behind the `ui` feature. The apps keep
+- Data and logic. The Keyboard Shortcuts dialog is `craft_menu::shortcuts`. The apps keep
   the command catalog (ids, labels, menu paths, defaults), the readers for other applications'
   files, file dialogs and running the commands.
 - Never crashes: no panics, no `unsafe`. Loading settings never fails; what cannot be used is
@@ -17,8 +17,8 @@ supplies its command catalog, its file-format readers and its UI.
 - Reserved chords are opt-in. A keymap reserves no chord unless the app passes a list to
   `Keymap::with_reserved`, e.g. `reserved::system(platform)` for the operating system's window
   switching and closing chords. A reserved chord cannot be assigned or bound.
-- Dependencies: `serde` and `serde_json`; `egui`, `craft-ui` and
-  `craft-i18n` with the `ui` feature.
+- Dependencies: `serde`, `serde_json` and `roxmltree`; `craft-i18n` and `craft-host`; `egui` with the
+  `egui` feature.
 
 ## A catalog and dispatch
 
@@ -66,7 +66,7 @@ elsewhere). Other command chords, such as Cmd+S, still fire. Bindings in an acti
 always fire, so `Text: Cmd+B` works while typing, and a `Text: Cmd+Z` binding takes undo from
 the field.
 
-With the `ui` feature, `egui::Dispatcher` does this for a frame's key events (see Features).
+With the `egui` feature, `egui::Dispatcher` does this for a frame's key events (see Features).
 
 ## Chords
 
@@ -348,89 +348,11 @@ session.cancel(&mut keymap);
 
 ## Shortcuts dialog
 
-With the `ui` feature, `ui::ShortcutsDialog` draws the Keyboard Shortcuts dialog over a `Keymap`
-and, optionally, `Profiles`: a table of the catalog grouped by menu, recording, conflicts, undo,
-named sets, import review and a summary. It edits the keymap in place, so menus show new keys at
-once, and Cancel puts everything back as it was when the dialog opened.
-
-Adopt it in three steps:
-
-1. Build the `Keymap` from the catalog and keep the built-in sets (`Builtins`), as above.
-2. While the dialog is open, keep a `DialogState` and call `show` (a window) or `ui` (the body,
-   for the app's own modal or preferences page) every frame.
-3. Act on the `Outcome` it returns, and drop the state when `is_open()` turns false.
-
-Apps that import other applications' sets read each file into a `ForeignSet` built with
-`ForeignSet::new` ([Importing a shortcut set](#importing-a-shortcut-set)).
-
-```rust,ignore
-use craft_keymap::ui::{DialogState, Options, Outcome, ShortcutsDialog};
-
-// "Keyboard Shortcuts…" opens it; "Edit Shortcut…" also calls `state.select(&command)`.
-self.shortcuts = Some(DialogState::new());
-
-// Every frame, before the app's own dispatch:
-if let Some(state) = &mut self.shortcuts {
-    let dialog = ShortcutsDialog::new(&mut self.keymap).options(&self.shortcut_options);
-    let dialog = dialog.sets(&mut self.settings.shortcut_sets, &BUILTINS);
-    match dialog.show(ctx, state) {
-        Some(Outcome::Ok) => self.save_settings(),
-        // After each edit, and after a Cancel that undid edits.
-        Some(Outcome::Changed) => self.rebuild_menus(),
-        Some(Outcome::Import { formats }) => self.pick_import_file(formats),
-        Some(Outcome::Export { name, json }) => self.save_file(&name, json),
-        Some(Outcome::Summary { name, html, .. }) => self.show_summary(&name, html),
-        Some(Outcome::Remembered(answers)) => self.settings.import_answers.extend(answers),
-        _ => {}
-    }
-    if !state.is_open() {
-        self.shortcuts = None;
-    }
-}
-```
-
-Outcomes:
-
-| Outcome | The app |
-|---|---|
-| `Ok` | Saves `Profiles` (with sets) or `keymap.overrides()`. |
-| `Cancel` | Nothing to save: the keymap and the sets are as they were at open. When Cancel undid edits, `Changed` follows. |
-| `Changed` | Updates its menus, or saves at once if it saves live. It comes after each edit and after a Cancel that undid edits. When a frame also has another outcome, `Changed` comes on the next frame; `is_open()` stays true until it has. |
-| `Import { formats }` | Opens a file of one of the formats, then calls `import_json` (craft-keymap JSON, `ui::JSON_FORMAT`) or reads it into a `ForeignSet` and calls `review_import`. |
-| `Export { name, json }`, `ExportAs { format, name, keymap }` | Writes the set where the user chooses (a download on the web). |
-| `Summary { name, html, text }` | Shows, saves or prints the summary. |
-| `Remembered(answers)` | Keeps the user's import answers for the next import (`ImportOptions::remembered`). |
-
-The crate never opens a file dialog or touches the file system. When the app's own step fails
-while the dialog is open (a file it cannot read), `state.show_error(text)` shows the translated
-message under the table until the user dismisses it or the next action replaces it.
-
-Key dispatch while the dialog is open:
-
-- Skip `Dispatcher::dispatch` while `DialogState::is_open()` is true. The dialog takes the
-  frame's key, text and clipboard events itself while it records, so the chord the user presses
-  reaches the recorder and runs nothing.
-- A native macOS menu handles its key equivalents before egui sees them, so Cmd+Q, Cmd+, and
-  the other menu chords never reach the recorder. While `is_recording()` is true, pause them:
-  feed them to egui as key presses, or rebuild the menu without accelerators.
-
-The dialog reads its words from the egui context. Its own strings and counts come from the
-`Words` the app installs (`ui::WORDS` and `ui::COUNTS` list them for the translation catalog),
-key names from the `key` rows of those words, and the direction from the context's
-(`craft_ui::direction::apply`); a right-to-left interface mirrors the layout and moves the text
-around a chord to the other side. Command labels and tooltips come from the Host's `Commands`:
-install a `Host` whose commands are `KeymapCommands::new(i18n, lang)`, or the `Bindable` labels
-show as written. Menu path parts and scope names are looked up in the Host's catalog. Without a
-Host or installed words the dialog is in English. `import_json`, `review_import`, `ok` and
-`cancel` take the context for the same reason.
-`Options` sets the conflict mode, double-press recording, area tabs, the on-screen keyboard,
-read-only rows for keys outside the catalog, the app's import and export formats, an `accept`
-rule for which keys a command may get, and a `visible` rule for which catalog entries the table
-lists (hidden entries keep their keys and still count in conflicts).
+The Keyboard Shortcuts dialog is `craft_menu::shortcuts`.
 
 ## Features
 
-- `ui`: the egui side. Conversions to and from egui keys and modifiers; `KeyInput::from_egui`;
+- `egui`: the egui side. Conversions to and from egui keys and modifiers; `KeyInput::from_egui`;
   `egui::matches`, which accepts the shifted key egui reports for a Shift binding (`Shift+;`
   matches `:`); and `egui::Dispatcher`, which runs a frame's key presses against the keymap,
   reading them by the layout it learns from typing or is given (`with_layout`, `layout()`):
@@ -464,30 +386,3 @@ lists (hidden entries keep their keys and still count in conflicts).
   typing, and stays when that chord has no binding. egui-winit sends no Paste event when the
   clipboard is empty or holds an image, so a binding on a Cmd+V chord cannot run then on the
   desktop.
-
-  It also brings the Shortcuts dialog (see above).
-- `screen-testing` (development; implies `ui`): `tests/ui_snapshot.rs` writes PNGs of the dialog to
-  `CRAFT_KEYMAP_SNAPSHOT_DIR` for review, using the same font input as the dialog tests.
-
-### Fonts for UI tests
-
-Apps own their runtime font setup, including coverage of the Mac key symbols displayed by the
-Shortcuts dialog. The library does not install or replace an app's fonts.
-
-UI tests need an absolute `CRAFT_FONTS_DIR` pointing to a checkout of
-[`craft-fonts`](https://github.com/storytold/craft-fonts) at
-`b076417b5880bd4154bd22f00695b1d28c6bea83`. For example, after preparing that checkout:
-
-```sh
-CRAFT_FONTS_DIR=/absolute/path/to/craft-fonts cargo test -p craft-keymap --features ui --locked
-```
-
-Dialog tests and requested snapshots share a helper that verifies the SHA256 of
-`fonts/noto-sans-symbols/NotoSansSymbols.ttf` and
-`fonts/noto-sans-symbols-2/NotoSansSymbols2-Regular.ttf`, then appends these and egui's bundled
-Hack as fallbacks before the first layout pass. It checks printable ASCII, the full key-symbol
-and dialog-icon repertoire, and the accented pseudolocale in both default font families.
-Missing inputs, changed bytes and missing glyphs fail the tests; no system font probing or tofu
-fallback is used. Linux, macOS and Windows keymap CI supply this exact checkout. The WASM
-compile-only job needs no runtime font files. Optional screenshots still require their output
-directory and a graphics adapter; they are review images, not golden comparisons.

@@ -4,10 +4,11 @@
 
 use std::fmt::Write as _;
 
-use crate::keymap::{Binding, Keymap};
-use crate::scope::Scope;
-use crate::ui::rows::{AreaId, group};
-use crate::ui::text::Say;
+use craft_keymap::{Binding, Keymap, Scope};
+use egui::Ui;
+
+use super::rows::{AreaId, group};
+use super::words::Say;
 
 struct Group {
     rank: u8,
@@ -20,8 +21,8 @@ fn binding_text(km: &Keymap, text: &Say, b: &Binding, home: &Scope) -> String {
     let chord = text.trigger(&b.trigger, km.platform());
     match &b.scope {
         Some(s) if s != home => {
-            let scope = if s.is_app() { text.ui("Application").into_owned() } else { text.segment(s.as_str()).into_owned() };
-            craft_i18n::fmt(&text.ui("{chord} ({scope})"), &[("chord", &chord), ("scope", &scope)])
+            let scope = if s.is_app() { text.words().application.as_str().to_owned() } else { text.segment(s.as_str()).into_owned() };
+            text.words().chord_scope.fill(&[("chord", &chord), ("scope", &scope)])
         }
         _ => chord,
     }
@@ -77,10 +78,10 @@ th{font-weight:normal;text-align:start;width:60%}tr:nth-child(even){background:#
 kbd{font-family:inherit;border:1px solid #bbb;border-radius:3px;padding:0 .3em;margin-inline-end:.3em;white-space:nowrap}\
 @media print{body{margin:0}tr{break-inside:avoid}}";
 
-/// A standalone HTML page titled `title`, in the language and direction of `ctx`. Chords are marked left to right so a right-to-left page
+/// A standalone HTML page titled `title`, in the language and direction of `ui`. Chords are marked left to right so a right-to-left page
 /// keeps them as written.
-pub fn html(km: &Keymap, ctx: &egui::Context, title: &str) -> String {
-    html_in(km, &Say::of_ctx(ctx), title)
+pub fn html(km: &Keymap, ui: &Ui, title: &str) -> String {
+    html_in(km, &Say::of(ui), title)
 }
 
 pub(crate) fn html_in(km: &Keymap, text: &Say, title: &str) -> String {
@@ -103,9 +104,9 @@ pub(crate) fn html_in(km: &Keymap, text: &Say, title: &str) -> String {
     s
 }
 
-/// Plain text titled `title`, in the language of `ctx`: a line per group, then `  label<TAB>shortcuts` per command.
-pub fn text(km: &Keymap, ctx: &egui::Context, title: &str) -> String {
-    text_in(km, &Say::of_ctx(ctx), title)
+/// Plain text titled `title`, in the language of `ui`: a line per group, then `  label<TAB>shortcuts` per command.
+pub fn text(km: &Keymap, ui: &Ui, title: &str) -> String {
+    text_in(km, &Say::of(ui), title)
 }
 
 pub(crate) fn text_in(km: &Keymap, text: &Say, title: &str) -> String {
