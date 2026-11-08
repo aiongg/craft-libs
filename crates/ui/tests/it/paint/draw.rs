@@ -197,7 +197,7 @@ fn a_rotated_run_paints_at_its_angle() {
 fn doc_extent(direction: Direction, align: HAlign) -> (f32, f32) {
     let mut frames = Frames::new();
     let tokens = tokens(Mode::Light, Contrast::Standard);
-    let runs = [DocRun::new("Title", FontRef::proportional(), 14.0, DataColor::new(Color32::BLACK))];
+    let runs = [DocRun::new("Title", FontRef::proportional(), 14.0, DataColor::new(Color32::from_gray(0)))];
     let mut text = DocText::new(&runs);
     text.align = align;
     let (shapes, _) = paint_frame(&mut frames, &tokens, direction, Ink::OnPanel, |draw| {

@@ -460,3 +460,40 @@ impl ChordText {
         format!("\u{2066}{}\u{2069}", self.text)
     }
 }
+
+/// The width of a reading column, from the text it holds: a count of characters of the role's average character
+/// width, as a print measure is counted, so the column follows the text size.
+///
+/// - **Counts.** [`TARGET_CHARACTERS`](Self::TARGET_CHARACTERS) is the measure a reading column aims for and
+///   [`LEAST_CHARACTERS`](Self::LEAST_CHARACTERS) the shortest it allows. Both are Bringhurst's (*The Elements of
+///   Typographic Style*, 2.1.2): 66 characters is the ideal for a single-column page, and 45 to 75 is the range
+///   that reads well.
+/// - **Average character width.** The width of the lowercase Latin alphabet, a to z, set on one line in the role's
+///   face and size, divided by 26. That is the typographer's usual way to count characters per line. It is measured
+///   from the font that draws the text (the same layout `TextRun::layout` does), not a constant.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct ReadingMeasure {
+    /// The width a reading column aims for, in points.
+    pub target: f32,
+    /// The least width a reading column keeps, in points.
+    pub least: f32,
+}
+
+impl ReadingMeasure {
+    /// The characters in the measure a reading column aims for.
+    pub const TARGET_CHARACTERS: f32 = 66.0;
+    /// The characters in the shortest measure a reading column allows.
+    pub const LEAST_CHARACTERS: f32 = 45.0;
+
+    const SAMPLE: &'static str = "abcdefghijklmnopqrstuvwxyz";
+    const SAMPLE_CHARACTERS: f32 = 26.0;
+
+    /// The widths for text of `role`. `layout` lays a run out the way the component lays out its text
+    /// (`|run| cx.layout(run)` in a measure, `|run| draw.layout(run, f32::INFINITY)` in a painter).
+    pub fn of(role: TypeRole, layout: impl FnOnce(&TextRun<'static>) -> TextLayout) -> Self {
+        let sample = TextRun::new(Self::SAMPLE).role(role);
+        let average = layout(&sample).size().x / Self::SAMPLE_CHARACTERS;
+        ReadingMeasure { target: average * Self::TARGET_CHARACTERS, least: average * Self::LEAST_CHARACTERS }
+    }
+}

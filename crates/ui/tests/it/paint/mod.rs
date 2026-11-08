@@ -1,9 +1,12 @@
 mod content;
 mod data_paint;
 mod draw;
+mod fade;
 mod host_ink;
 mod kit;
+mod measure;
 mod painters;
 mod surface;
 mod text;
 mod texture_store;
+mod thumb_paper;
