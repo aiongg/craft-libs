@@ -22,7 +22,7 @@ use egui::{Response, Ui};
 
 use self::rows::{Action, Lines, StyleLine, StyleList, StyleRow};
 use crate::index::{Family, FontFile, Index, script_name, source_label};
-use crate::panel::app::{Detail, FontsPanel, Pending, category_label, family_key, regular, source_name, style_count, style_name};
+use crate::panel::app::{Detail, FontsPanel, FontsPanelWords, Pending, category_label, family_key, regular, source_name, style_count, style_name};
 use crate::panel::faces::Owner;
 use crate::panel::jobs::Kind;
 use crate::panel::specimen::{FontSample, SampleFace};
@@ -284,7 +284,8 @@ impl Sheet {
         let previewed = panel.previewed.get(&key).cloned();
         let job = panel.jobs.of(&family.source, &family.family).map(|j| (j.kind, j.file.clone(), j.fraction()));
         let (source, curated) = source_label(&index, &family);
-        let eyebrow = [source.to_owned(), category_label(&family)].join(" · ");
+        let names = env.words::<FontsPanelWords>();
+        let eyebrow = [source.to_owned(), category_label(&names, &family)].join(" · ");
         let byline = (!family.designer.is_empty()).then(|| words.designed_by.fill(&[("designer", &family.designer)]));
         let hero = regular(&installed).cloned().map(|f| (Owner::Installed, f));
         let hero = hero.or_else(|| previewed.as_deref().and_then(regular).cloned().map(|f| (Owner::Preview, f)));
@@ -299,7 +300,7 @@ impl Sheet {
         let unseen = installed.is_empty() && previewed.is_none();
         let uncurated = (!curated).then(|| index.source_of(&family).and_then(|f| f.user_url.clone()).unwrap_or_default());
         let failure = panel.failed.get(&key).map(|f| Failed { what: f.kind, error: f.error.clone(), retry: f.retry.clone() });
-        let lines = family_lines(&family, &installed, &store, on_system, previewed.as_deref(), &job);
+        let lines = family_lines(&names, &family, &installed, &store, on_system, previewed.as_deref(), &job);
         let mut facts = family_facts(env, words, &index, &family, &size);
         let not_curated = env.view().resolve(&words.not_curated);
         let source_fact = if curated { source.to_owned() } else { format!("{source} · {}", not_curated.as_str()) };
@@ -333,6 +334,7 @@ impl Sheet {
 
     fn installed(panel: &FontsPanel, env: &Env, words: &DetailsWords, name: &str, source: Source) -> Option<Sheet> {
         let family = panel.installed.iter().find(|f| f.name == name && f.source == source).cloned()?;
+        let names = env.words::<FontsPanelWords>();
         let hero = regular(&family.faces).cloned().map(|f| (Owner::Installed, f));
         let job = panel.jobs.of("", &family.name).map(|j| (j.kind, j.file.clone(), j.fraction()));
         let run = match &job {
@@ -343,7 +345,7 @@ impl Sheet {
             .faces
             .iter()
             .map(|face| StyleLine {
-                label: style_name(face).to_owned(),
+                label: style_name(&names, face).to_owned(),
                 face: Some((Owner::Installed, face.clone())),
                 action: if face.source == Source::Store { Action::Remove(Box::new(face.clone())) } else { Action::None },
             })
@@ -353,13 +355,13 @@ impl Sheet {
         files.dedup();
         let format = env.format();
         let facts = vec![
-            (words.source.clone(), source_name(source).to_owned()),
+            (words.source.clone(), source_name(&names, source).as_str().to_owned()),
             (words.styles_fact.clone(), format.integer(family.faces.len() as u64)),
             (words.files_fact.clone(), format.integer(files.len() as u64)),
         ];
         let scripts = panel.index().and_then(|index| index.family(&family.name).map(|f| f.scripts.clone())).unwrap_or_default();
         Some(Sheet {
-            eyebrow: source_name(source).to_owned(),
+            eyebrow: source_name(&names, source).as_str().to_owned(),
             title: family.name.clone(),
             byline: None,
             hero,
@@ -542,6 +544,7 @@ fn progress(ui: &mut Ui, env: &Env, words: &DetailsWords, what: &Label, fraction
 /// The rows of the family sheet: the installed faces, then the index files not installed, as the previewed faces when
 /// the preview has them.
 fn family_lines(
+    names: &FontsPanelWords,
     family: &Family,
     installed: &[FaceInfo],
     store: &[FaceInfo],
@@ -560,7 +563,7 @@ fn family_lines(
             _ if face.source == Source::Store => Action::Remove(Box::new(face.clone())),
             _ => Action::None,
         };
-        lines.push(StyleLine { label: style_name(face).to_owned(), face: Some((Owner::Installed, face.clone())), action });
+        lines.push(StyleLine { label: style_name(names, face).to_owned(), face: Some((Owner::Installed, face.clone())), action });
     }
     if on_system {
         return lines;
@@ -581,7 +584,7 @@ fn family_lines(
             for (n, face) in preview_faces.iter().enumerate() {
                 // A variable file's instances install together: the file's action on its first.
                 let action = if n == 0 { action.clone() } else { Action::None };
-                lines.push(StyleLine { label: style_name(face).to_owned(), face: Some((Owner::Preview, (*face).clone())), action });
+                lines.push(StyleLine { label: style_name(names, face).to_owned(), face: Some((Owner::Preview, (*face).clone())), action });
             }
         }
     }

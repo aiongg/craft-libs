@@ -8,7 +8,7 @@ use craft_behavior::{DisplayOrder, Flow, Insets, ItemSource, Proposal, Selection
 use craft_ui::buttons::Button;
 use craft_ui::contract::{
     Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, ItemOutput, MeasureCx, NoValue, Outcome, PaintUi,
-    Props as _, Role, SelectMode, Sizing, clicked,
+    Props as _, Role, SelectMode, Sizing, Styled as _, clicked,
 };
 use craft_ui::display::Progress;
 use craft_ui::primitives::TextRun;

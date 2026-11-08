@@ -19,9 +19,7 @@ use craft_ui::runtime::env::Label;
 use egui::Rect;
 
 use super::rank::{Language, Listing, list};
-use super::{
-    FamilyRow, FontClass, FontFilters, FontPicker, FontPickerSettings, FontPickerWords, POPUP, STAR, Typing, infos, read, ui_language, write,
-};
+use super::{FamilyRow, FontClass, FontFilters, FontPicker, FontPickerWords, POPUP, STAR, Typing, infos, read, ui_language, write};
 use crate::panel::faces::{Owner, Shown, paint_sample, shown};
 use craft_ui::style::DataColor;
 

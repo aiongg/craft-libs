@@ -35,9 +35,9 @@ use crate::index::{Category, Index, source_label};
 use crate::panel::app::{
     Detail, FontsPanel, FontsPanelWords, Origin, Pending, Preset, Show, Tab, category_label, family_key, regular, source_name, style_count,
 };
-use crate::panel::faces::{Owner, Shown, shown};
+use crate::panel::faces::Owner;
 use crate::panel::jobs::Kind;
-use crate::panel::specimen::FontSample;
+use crate::panel::specimen::{FontSample, SampleFace};
 use crate::{Catalog, FaceInfo, Source};
 
 /// The language filter lists this many matches under its search field.
@@ -393,16 +393,16 @@ impl FamilyCard {
         ends
     }
 
-    /// The sample's state: the face, loading it when it is new, or the interface face when there is none.
-    fn shown(&self, at: &impl craft_ui::contract::FacesCx) -> Shown {
+    /// The face the sample is drawn in: the card's own, or the interface face when there is none.
+    fn face(&self) -> SampleFace<'_> {
         match &self.data.face {
-            Some((owner, face, catalog)) => shown(at, catalog, *owner, face),
-            None => Shown::Unavailable,
+            Some((owner, face, catalog)) => SampleFace::Face { catalog, owner: *owner, face },
+            None => SampleFace::Interface,
         }
     }
 
-    fn sample<'a>(&'a self, words: &FontsBrowseWords, shown: Shown) -> FontSample<'a> {
-        FontSample::new(words.card_sample.clone(), self.data.sample.as_str(), shown, self.data.points)
+    fn sample<'a>(&'a self, words: &FontsBrowseWords) -> FontSample<'a> {
+        FontSample::new(words.card_sample.clone(), self.data.sample.as_str(), self.face(), self.data.points)
     }
 
     /// The sizes of the parts at `width`.
@@ -417,7 +417,7 @@ impl FamilyCard {
             .collect();
         let header = end.iter().map(|(_, size)| size.y).fold(name.y.max(style.line), f32::max);
         let inner = (width - 2.0 * style.pad).max(0.0);
-        let mut sample = self.sample(&words, self.shown(cx));
+        let mut sample = self.sample(&words);
         let sample = cx.child("sample", &mut sample, Proposal::Width(inner));
         Plan { name, end, header, sample }
     }
@@ -502,7 +502,7 @@ impl Component for FamilyCard {
                 self.event = piece.event();
             }
         }
-        let sample = self.sample(&words, self.shown(cx));
+        let sample = self.sample(&words);
         ui.child("sample", placed.sample, sample);
     }
 

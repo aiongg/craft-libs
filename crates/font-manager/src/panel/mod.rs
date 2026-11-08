@@ -8,7 +8,7 @@ mod browse;
 mod details;
 pub(crate) mod faces;
 #[cfg(feature = "screen-testing")]
-mod fixtures;
+pub(crate) mod fixtures;
 pub mod jobs;
 pub mod samples;
 mod sources;

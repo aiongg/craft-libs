@@ -375,7 +375,7 @@ impl FontsPanel {
         self.sources_job = Some(rx);
         let wake = self.jobs.waker();
         jobs::spawn(
-            host.map(|host| &**host),
+            host,
             "font-sources",
             Box::new(move || {
                 let _ = tx.send(installer.fetch_indexes());
