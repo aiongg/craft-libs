@@ -19,6 +19,7 @@ mod props;
 mod registry;
 pub(crate) mod reorder;
 mod run;
+mod sampler;
 mod shell;
 mod steps;
 pub(crate) mod text;

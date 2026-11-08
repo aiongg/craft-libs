@@ -314,3 +314,23 @@ pub(crate) fn press_winner(ctx: &Context, at: Pos2, targets: PressTargets) -> Op
     let at = areas::layer_map(ctx, layer).map_or(at, |map| map.to_layer(at));
     candidates.into_iter().find_map(|(root, shapes)| resolve(&shapes, at, ResolveFor::Press).map(|winner| (winner, root)))
 }
+
+/// The screen bounds of the root `root` from its shape record, with the viewport and layer they were recorded in: the
+/// running pass's shapes when the root has registered in it, else the previous pass's. Searched over the live
+/// viewports, so the input hook reads it before the pass begins.
+pub(crate) fn root_bounds(ctx: &Context, root: Id) -> Option<(ViewportId, Layer, egui::Rect)> {
+    pass::live_viewports(ctx).into_iter().find_map(|viewport| {
+        let (layer, bounds) = PerViewport::<Shapes>::with(ctx, viewport, |record| {
+            [&record.this, &record.last].into_iter().find_map(|layers| {
+                layers.iter().find_map(|(layer, roots)| {
+                    let shapes = &roots.get(&root)?.shapes;
+                    let bounds = shapes.iter().fold(egui::Rect::NOTHING, |bounds, shape| bounds.union(shape.shape.bounds()));
+                    bounds.is_positive().then_some((*layer, bounds))
+                })
+            })
+        })?;
+        let screen =
+            areas::layer_map(ctx, layer).map_or(bounds, |map| egui::Rect::from_two_pos(map.to_screen(bounds.min), map.to_screen(bounds.max)));
+        Some((viewport, layer, screen))
+    })
+}
