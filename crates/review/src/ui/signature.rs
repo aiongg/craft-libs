@@ -4,14 +4,14 @@ use std::io::Cursor;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
 
-use craft_behavior::{Input, Metrics, PartKey, PressPhase, Sense};
+use craft_behavior::{Metrics, PartKey, PressPhase, Sense};
 use craft_host::{Host, PickId, PickRequest, Picked};
 use craft_theme::variant::Tone;
 use craft_ui::buttons::Button;
 use craft_ui::choice::Segmented;
 use craft_ui::contract::{
-    Access, Bind, BindMut, Common, Component, Cx, Edit as _, Entry, MeasureCx, PaintUi, PartsCx, Props as _, Role, Show as _, ShowContainer as _,
-    clicked,
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, Entry, MeasureCx, PaintUi, PartsCx, Pointer as _, Props as _, Role, Show as _,
+    ShowContainer as _, clicked,
 };
 use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
 use craft_ui::display::{Picture, PictureSize, Text};

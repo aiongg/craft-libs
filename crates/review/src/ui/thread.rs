@@ -257,7 +257,7 @@ impl Component for PinBubble {
     type Style = PinStyle;
     type Output = PinOut;
 
-    fn style(cx: &StyleCx<'_>, _: PinStyleKey) -> PinStyle {
+    fn style(cx: &StyleCx<'_>, _: PinBubbleStyleKey) -> PinStyle {
         let color = &cx.tokens.color;
         PinStyle {
             metrics: Metrics::new(),
