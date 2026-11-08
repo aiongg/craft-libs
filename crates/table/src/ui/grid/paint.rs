@@ -1,549 +1,478 @@
-//! Painting and AccessKit nodes of the cell grid.
+//! The grid's style, its own parts, and the paint over the rows: headers, the range outline, the fill handle, the copy
+//! marks, the in-cell editor and the chrome that sits on the sheet.
 
-use craft_ui::theme::scale::Stroke as Line;
-use craft_ui::theme::{StrokeExt as _, ToEgui as _, UiTokens};
-use egui::accesskit::Role;
-use egui::{Align2, Color32, FontId, Id, Painter, Pos2, Rect, Sense, Shape, Stroke, Ui, UiBuilder, Vec2, WidgetInfo};
+use craft_behavior::{CursorIcon, HitLevel, HitPriority, Metrics, PartKey, ScrollPos, Sense, TextPos};
+use craft_ui::contract::{Access, Cx, Focus as _, Name, PaintUi, PartsCx, Remember as _, Role, Styled as _};
+use craft_ui::primitives::{Draw, EditorLine, EditorPurpose, EditorRun, EditorState, HAlign, PaintShape, StrokeWidth, TextRun};
+use craft_ui::runtime::env::Label;
+use craft_ui::runtime::motion::Animate as _;
+use craft_ui::style::{Flags, Stateful, StyleCx};
+use egui::{CornerRadius, Pos2, Rect, Vec2};
 
-use super::super::style::SheetStyle;
-use super::input::Preview;
-use super::{CellRange, CellRef, CellSelection, GridModel, GridState, HEADER_MIN_ZOOM, Pass, SheetGeometry, column_letters};
+use super::editor::{EditState, Mode};
+use super::{
+    CellAt, CellGrid, CellGridStyle, CellGridStyleKey, CellGridWords, CellRange, CellSelection, GridLayout, GridModel, SheetGeometry, SheetMetrics,
+};
+use super::{edges, header_insets};
+use crate::ui::error_tag::ErrorTag;
+use crate::ui::filter::FilterButton;
+use crate::ui::outline::{self, OutlineBand};
 
-/// The marching ants' dashes and gaps in points, which also make the pattern's period
-/// (GridCraft `grid/selection.rs:176`).
-const ANT_DASH: f32 = 4.0;
-const ANT_GAP: f32 = 4.0;
+pub(super) const EDITOR: PartKey = PartKey::new("editor");
+pub(super) const COLUMN: PartKey = PartKey::new("column_header");
+pub(super) const ROW: PartKey = PartKey::new("row_header");
+pub(super) const CORNER: PartKey = PartKey::new("corner");
+pub(super) const COLUMN_EDGE: PartKey = PartKey::new("column_edge");
+pub(super) const ROW_EDGE: PartKey = PartKey::new("row_edge");
+pub(super) const FILL: PartKey = PartKey::new("fill_handle");
+pub(super) const BORDER: PartKey = PartKey::new("range_border");
 
-/// Seconds the ants take to advance one point (GridCraft `selection_glide.rs:140` `ants_phase`),
-/// and how often they repaint.
-const ANT_STEP_SECS: f64 = 0.12;
-const ANT_REPAINT: std::time::Duration = std::time::Duration::from_millis(60);
+/// Seconds the marching ants take for one cycle, and how often they step.
+const ANT_CYCLE: f64 = 1.0;
+const ANT_STEP: f64 = 0.12;
 
-/// A fill preview's dash and gap in points (GridCraft `grid/selection.rs:145`).
-const PREVIEW_DASH: f32 = 4.0;
-const PREVIEW_GAP: f32 = 3.0;
-
-/// How much of the header text's colour a hidden line's double divider keeps (GridCraft
-/// `grid/show.rs:548` `gamma_multiply(0.6)`).
-const HIDDEN_MARK_STRENGTH: f32 = 0.6;
-
-/// The select-all triangle's offsets in points from the corner's right, top, bottom and left
-/// edges (GridCraft `grid/show.rs:624-628`): the right angle sits `RIGHT` in from the right edge
-/// and `BOTTOM` up from the bottom, the other two points `TOP` down from the top and `LEFT` in
-/// from the left.
-const TRIANGLE_RIGHT: f32 = 3.0;
-const TRIANGLE_TOP: f32 = 5.0;
-const TRIANGLE_BOTTOM: f32 = 3.0;
-const TRIANGLE_LEFT: f32 = 7.0;
-
-/// The colours and strokes the grid paints with, from the theme.
-struct Look {
-    background: Color32,
-    header: Color32,
-    header_text: Color32,
-    header_selected: Color32,
-    header_selected_text: Color32,
-    header_whole: Color32,
-    header_whole_text: Color32,
-    gridline: Stroke,
-    header_line: Stroke,
-    hidden_mark: Stroke,
-    accent: Stroke,
-    /// A drag's preview outline.
-    preview: Stroke,
-    fill: Color32,
-    handle_fill: Color32,
-    handle_stroke: Stroke,
-    handle: f32,
-    accent_bar: f32,
-    hidden_offset: f32,
-    separator_inset: f32,
-    font: FontId,
+/// What `parts` worked out for the pass: the geometry at the scroll the item step uses, and the lines it shows.
+#[derive(Clone)]
+pub(super) struct Frame {
+    pub(super) geometry: SheetGeometry,
+    pub(super) columns: Vec<u32>,
+    pub(super) rows: Vec<u32>,
 }
 
-impl Look {
-    fn of(ui: &Ui, tokens: &UiTokens, style: &SheetStyle, zoom: f32) -> Self {
-        let c = &tokens.color;
-        let ctx = ui.ctx();
-        let base = tokens.font(style.header_text);
-        Self {
-            background: c.surface.background.to_egui(),
-            header: c.surface.chrome.to_egui(),
-            header_text: c.text.muted.to_egui(),
-            header_selected: c.state.selected.to_egui(),
-            header_selected_text: c.text.on_selected.to_egui(),
-            header_whole: c.accent.soft.to_egui(),
-            header_whole_text: c.text.normal.to_egui(),
-            gridline: Line::Hairline.egui(ctx, c.line.divider.to_egui()),
-            header_line: Line::Hairline.egui(ctx, c.line.border.to_egui()),
-            hidden_mark: Line::Hairline.egui(ctx, c.text.muted.to_egui().gamma_multiply(HIDDEN_MARK_STRENGTH)),
-            accent: Line::W2.egui(ctx, c.accent.solid.to_egui()),
-            preview: Line::W2.egui(ctx, c.text.muted.to_egui()),
-            fill: style.selection_fill,
-            handle_fill: style.fill_handle_fill,
-            handle_stroke: Line::W1.egui(ctx, style.fill_handle_ring),
-            handle: style.fill_handle,
-            accent_bar: style.header_accent_bar,
-            hidden_offset: style.hidden_mark_offset,
-            separator_inset: style.header_separator_inset,
-            font: FontId::new(base.size * zoom.max(HEADER_MIN_ZOOM), base.family),
+pub(super) fn style(cx: &StyleCx<'_>, key: CellGridStyleKey) -> CellGridStyle {
+    let control = cx.control();
+    let sheet = SheetMetrics::new(control.height, control.icon, control.pad_x);
+    let zoom = f32::from(key.percent) / 100.0;
+    let bands = outline::bands(key.levels, key.headings, zoom, control.icon);
+    let c = &cx.tokens.color;
+    CellGridStyle {
+        surface: cx.text_well(),
+        metrics: Metrics::new().padding(header_insets(sheet, key.headings, zoom, u32::from(key.digits), bands)),
+        sheet,
+        bands,
+        background: cx.color(c.surface.background),
+        header: Stateful::new(cx.color(c.surface.chrome)).when(Flags::SELECTED, cx.color(c.state.selected)),
+        header_text: Stateful::new(cx.color(c.text.muted)).when(Flags::SELECTED, cx.color(c.text.on_selected)),
+        gridline: cx.color(c.line.divider),
+        header_line: cx.color(c.line.border),
+        accent: cx.color(c.accent.solid),
+        preview: cx.color(c.text.muted),
+        selection: cx.color(c.state.text_selection),
+        handle_fill: cx.color(c.accent.solid),
+        handle_ring: cx.color(c.surface.background),
+        edit_fill: cx.color(c.surface.raised),
+        edit_edge: cx.color(c.line.focus),
+        handle: control.pad_x,
+        mark: control.gap,
+        pad: control.pad_x,
+        border_reach: cx.tokens.size.hit.slop,
+        side: control.icon,
+        gap: control.gap,
+    }
+}
+
+/// The lines `first..=last` that show, hidden ones left out.
+fn shown(lines: &craft_behavior::LineIndex, first: u32, last: u32) -> impl Iterator<Item = u32> + '_ {
+    (first..=last.min(lines.count().saturating_sub(1))).filter(|&line| lines.shown(line))
+}
+
+/// Which lines the ranges of a selection mark, and which they mark whole.
+#[derive(Default)]
+struct Marks {
+    columns: Vec<(u32, u32, bool)>,
+    rows: Vec<(u32, u32, bool)>,
+}
+
+impl Marks {
+    fn of(selection: &CellSelection<u32>, rows: u32, columns: u32) -> Marks {
+        let mut marks = Marks::default();
+        for range in selection.ranges() {
+            let (top, bottom, left, right) = edges(range);
+            marks.columns.push((left, right, top == 0 && bottom + 1 >= rows));
+            marks.rows.push((top, bottom, left == 0 && right + 1 >= columns));
         }
+        marks
+    }
+
+    /// `None` for an unmarked line, `Some(true)` for one inside a range that selects every line across.
+    fn of_line(marks: &[(u32, u32, bool)], line: u32) -> Option<bool> {
+        marks.iter().filter(|&&(first, last, _)| (first..=last).contains(&line)).map(|&(.., whole)| whole).reduce(|a, b| a || b)
     }
 }
 
-/// Lines `first..=last` shown over `from..to` on their axis.
-#[derive(Clone, Copy)]
-struct Span {
-    first: u32,
-    last: u32,
-    from: f32,
-    to: f32,
-}
-
-/// A frozen or scrolling block of cells: the part of the cells area a span of rows and of
-/// columns share.
-struct Pane {
-    clip: Rect,
-    rows: Span,
-    columns: Span,
-}
-
-/// The frozen and scrolling spans of the rows and of the columns.
-fn spans(geo: &SheetGeometry) -> (Vec<Span>, Vec<Span>) {
-    let (frozen_rows, frozen_columns) = geo.layout.frozen;
-    let (rows, columns) = geo.visible();
-    let (cells, split) = (geo.cells(), geo.cells().min + geo.frozen_size);
-    let row_spans = [
-        (frozen_rows > 0).then(|| Span { first: 0, last: frozen_rows - 1, from: cells.top(), to: split.y }),
-        (split.y < cells.bottom()).then_some(Span { first: rows.0, last: rows.1, from: split.y, to: cells.bottom() }),
-    ];
-    let column_spans = [
-        (frozen_columns > 0).then(|| Span { first: 0, last: frozen_columns - 1, from: cells.left(), to: split.x }),
-        (split.x < cells.right()).then_some(Span { first: columns.0, last: columns.1, from: split.x, to: cells.right() }),
-    ];
-    (row_spans.into_iter().flatten().collect(), column_spans.into_iter().flatten().collect())
-}
-
-fn panes(rows: &[Span], columns: &[Span]) -> Vec<Pane> {
-    let mut panes = Vec::new();
-    for &row in rows {
-        for &column in columns {
-            let clip = Rect::from_min_max(Pos2::new(column.from, row.from), Pos2::new(column.to, row.to));
-            panes.push(Pane { clip, rows: row, columns: column });
-        }
+impl CellGrid<'_> {
+    /// The geometry at this pass's scroll.
+    fn geometry_for(&self, rect: Rect, offset: ScrollPos, rtl: bool, style: &CellGridStyle) -> SheetGeometry {
+        let zoom = f64::from(self.zoom);
+        let scroll = Vec2::new((offset.x / zoom) as f32, (offset.y / zoom) as f32);
+        let (rows, columns) = self.model.frozen();
+        let layout = GridLayout::new(rect, self.model.rows().clone(), self.model.columns().clone())
+            .zoom(self.zoom)
+            .frozen(rows, columns)
+            .scroll(scroll)
+            .headings(self.headings)
+            .bands(style.bands)
+            .right_to_left(rtl)
+            .digits(u32::from(self.digits));
+        SheetGeometry::new(layout, style.sheet)
     }
-    panes
-}
 
-/// Paints the grid: cells, gridlines, headers and selection; mirrored for a right-to-left sheet.
-pub(super) fn paint<M: GridModel>(pass: &Pass<'_, M>, ui: &Ui, tokens: &UiTokens, state: &GridState, geo: &SheetGeometry, preview: Option<Preview>) {
-    let look = Look::of(ui, tokens, &pass.style, geo.layout.zoom);
-    let painter = ui.painter().with_clip_rect(pass.rect.intersect(ui.clip_rect()));
-    let first = painter.add(Shape::Noop);
-    painter.rect_filled(geo.cells(), 0.0, look.background);
-    let (rows, columns) = spans(geo);
-    let panes = panes(&rows, &columns);
-    for pane in &panes {
-        let clipped = painter.with_clip_rect(pane.clip.intersect(painter.clip_rect()));
-        if pass.model.show_gridlines() {
-            paint_gridlines(&clipped, geo, pane, &look);
-        }
-        paint_cells(pass, &clipped, geo, pane, &look);
+    /// The column header cell of `column` in screen coordinates, kept to the columns' side of the frozen split.
+    pub(super) fn column_header(geometry: &SheetGeometry, column: u32) -> Rect {
+        let cells = geometry.cells();
+        let x = geometry.x(column);
+        let width = geometry.columns().size(column) as f32 * geometry.zoom();
+        let floor = if column < geometry.frozen().1 { cells.left() } else { geometry.split().x };
+        let left = x.max(floor);
+        let right = (x + width).min(cells.right()).max(left);
+        let strip = Rect::from_min_max(Pos2::new(left, cells.top() - geometry.header_size().y), Pos2::new(right, cells.top()));
+        geometry.mirror_rect(strip)
     }
-    paint_selection(pass, &painter, geo, &state.selection, &look, state.editing);
-    paint_marks(pass, ui, &painter, geo, &look, preview);
-    paint_headers(pass, &painter, geo, &state.selection, &look, (&rows, &columns));
-    let last = painter.add(Shape::Noop);
-    if pass.right_to_left {
-        mirror(ui, &painter, first.0 + 1..last.0, geo);
-    }
-}
 
-fn paint_gridlines(p: &Painter, geo: &SheetGeometry, pane: &Pane, look: &Look) {
-    let clip = pane.clip;
-    for row in pane.rows.first..=pane.rows.last {
-        if geo.layout.rows.size(row) > 0.0 {
-            let y = geo.y(row) + geo.layout.rows.size(row) as f32 * geo.layout.zoom;
-            p.hline(clip.x_range(), y, look.gridline);
-        }
+    /// The row header cell of `row` in screen coordinates, kept to the rows' side of the frozen split.
+    pub(super) fn row_header(geometry: &SheetGeometry, row: u32) -> Rect {
+        let cells = geometry.cells();
+        let y = geometry.y(row);
+        let height = geometry.rows().size(row) as f32 * geometry.zoom();
+        let floor = if row < geometry.frozen().0 { cells.top() } else { geometry.split().y };
+        let top = y.max(floor);
+        let bottom = (y + height).min(cells.bottom()).max(top);
+        let strip = Rect::from_min_max(Pos2::new(cells.left() - geometry.header_size().x, top), Pos2::new(cells.left(), bottom));
+        geometry.mirror_rect(strip)
     }
-    for column in pane.columns.first..=pane.columns.last {
-        if geo.layout.columns.size(column) > 0.0 {
-            let x = geo.x(column) + geo.layout.columns.size(column) as f32 * geo.layout.zoom;
-            p.vline(x, clip.y_range(), look.gridline);
-        }
-    }
-}
 
-/// The app paints every shown cell of the pane; a merged cell once, over its whole rect, which
-/// first covers the gridlines under it (GridCraft `grid/quadrant.rs:185-210`).
-fn paint_cells<M: GridModel>(pass: &Pass<'_, M>, p: &Painter, geo: &SheetGeometry, pane: &Pane, look: &Look) {
-    let zoom = geo.layout.zoom;
-    let area = CellRange::new(CellRef::new(pane.rows.first, pane.columns.first), CellRef::new(pane.rows.last, pane.columns.last));
-    let merges: Vec<CellRange> = pass.model.merges().iter().copied().filter(|m| m.intersects(&area)).collect();
-    for merge in &merges {
-        let rect = geo.range_rect(*merge);
-        p.rect_filled(rect.shrink(pass.hairline / 2.0), 0.0, look.background);
-        pass.model.paint_cell(p, rect, merge.start, zoom);
+    /// The columns and rows the geometry shows, hidden lines left out.
+    fn visible_lines(geometry: &SheetGeometry) -> (Vec<u32>, Vec<u32>) {
+        let (frozen_rows, frozen_columns) = geometry.frozen();
+        let ((first_row, last_row), (first_column, last_column)) = geometry.visible();
+        let frozen =
+            |lines: &craft_behavior::LineIndex, count: u32| shown(lines, 0, count.saturating_sub(1)).filter(move |_| count > 0).collect::<Vec<_>>();
+        let mut columns = frozen(geometry.columns(), frozen_columns);
+        columns.extend(shown(geometry.columns(), first_column, last_column));
+        let mut rows = frozen(geometry.rows(), frozen_rows);
+        rows.extend(shown(geometry.rows(), first_row, last_row));
+        (columns, rows)
     }
-    for row in pane.rows.first..=pane.rows.last {
-        for column in pane.columns.first..=pane.columns.last {
-            let cell = CellRef::new(row, column);
-            let rect = geo.cell_rect(cell);
-            if rect.width() > 0.0 && rect.height() > 0.0 && !merges.iter().any(|m| m.contains(cell)) {
-                pass.model.paint_cell(p, rect, cell, zoom);
+
+    /// The fill handle's rect at the end-bottom corner of `outline` (screen coordinates).
+    pub(super) fn handle_rect(geometry: &SheetGeometry, outline: Rect, size: f32) -> Rect {
+        let corner = if geometry.mirror_x(0.0) > 0.0 { outline.left_bottom() } else { outline.right_bottom() };
+        Rect::from_center_size(corner, Vec2::splat(size))
+    }
+
+    /// Declares the grid's own parts: header cells, edges, corner, fill handle, range border and the editor.
+    pub(super) fn declare_parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
+        let geometry = self.geometry_for(rect, cx.offset(), cx.flow.is_rtl(), cx.style);
+        let (columns, rows) = Self::visible_lines(&geometry);
+        let sense = Sense::CLICK | Sense::DRAG | Sense::CONTEXT_CLICK | Sense::TAKE_FOCUS;
+        let reach = craft_behavior::hit::LINE_REACH;
+        let rtl = geometry.mirror_x(0.0) > 0.0;
+        let marks = Marks::of(&self.snapshot, geometry.rows().count(), geometry.columns().count());
+        let flags = |held: Option<bool>| if held.is_some() { Flags::SELECTED } else { Flags::empty() };
+        if self.headings {
+            let (cells, header) = (geometry.cells(), geometry.header_size());
+            let corner = Rect::from_min_max(Pos2::new(cells.left() - header.x, cells.top() - header.y), cells.min);
+            cx.part(CORNER, geometry.mirror_rect(corner)).sense(Sense::CLICK | Sense::TAKE_FOCUS).over().pointer_only("Select all is Cmd+A");
+            for &column in &columns {
+                let header = Self::column_header(&geometry, column);
+                cx.part(COLUMN.at(u64::from(column)), header)
+                    .sense(sense)
+                    .flags(flags(Marks::of_line(&marks.columns, column)))
+                    .over()
+                    .pointer_only("Select the column is Cmd+Space");
+                let end = if rtl { header.left_center() } else { header.right_center() };
+                let edge = Rect::from_center_size(end, Vec2::new(reach * 2.0, header.height()));
+                cx.part(COLUMN_EDGE.at(u64::from(column)), edge)
+                    .sense(Sense::CLICK | Sense::DRAG)
+                    .priority(HitPriority::new(HitLevel::Body, 1))
+                    .cursor(CursorIcon::ResizeColumn)
+                    .over()
+                    .pointer_only("Column width is set from the app's menu");
+            }
+            for &row in &rows {
+                let header = Self::row_header(&geometry, row);
+                cx.part(ROW.at(u64::from(row)), header)
+                    .sense(sense)
+                    .flags(flags(Marks::of_line(&marks.rows, row)))
+                    .over()
+                    .pointer_only("Select the row is Shift+Space");
+                let edge = Rect::from_center_size(header.center_bottom(), Vec2::new(header.width(), reach * 2.0));
+                cx.part(ROW_EDGE.at(u64::from(row)), edge)
+                    .sense(Sense::CLICK | Sense::DRAG)
+                    .priority(HitPriority::new(HitLevel::Body, 1))
+                    .cursor(CursorIcon::ResizeVertical)
+                    .over()
+                    .pointer_only("Row height is set from the app's menu");
             }
         }
+        let selection = self.snapshot.clone();
+        if let Some(range) = selection.current() {
+            let outline = geometry.mirror_rect(geometry.range_rect(range));
+            let handle = Self::handle_rect(&geometry, outline, cx.style.handle);
+            if geometry.mirror_rect(geometry.cells()).contains_rect(handle) {
+                cx.part(FILL, handle)
+                    .sense(Sense::DRAG)
+                    .priority(HitPriority::new(HitLevel::Body, 2))
+                    .cursor(CursorIcon::Crosshair)
+                    .over()
+                    .pointer_only("Fill is Cmd+D and Cmd+R in the app's menu");
+            }
+            let slop = cx.style.border_reach;
+            let sides = [
+                Rect::from_min_max(Pos2::new(outline.left(), outline.top() - slop), Pos2::new(outline.right(), outline.top() + slop)),
+                Rect::from_min_max(Pos2::new(outline.left(), outline.bottom() - slop), Pos2::new(outline.right(), outline.bottom() + slop)),
+                Rect::from_min_max(Pos2::new(outline.left() - slop, outline.top()), Pos2::new(outline.left() + slop, outline.bottom())),
+                Rect::from_min_max(Pos2::new(outline.right() - slop, outline.top()), Pos2::new(outline.right() + slop, outline.bottom())),
+            ];
+            for (at, side) in sides.into_iter().enumerate() {
+                cx.part(BORDER.at(at as u64), side)
+                    .sense(Sense::CLICK | Sense::DRAG)
+                    .priority(HitPriority::new(HitLevel::Body, 1))
+                    .cursor(CursorIcon::Move)
+                    .over()
+                    .pointer_only("Moving cells is Cut and Paste");
+            }
+        }
+        let lead = selection.active().copied().unwrap_or(CellAt::new(0, 0));
+        let mut at = geometry.mirror_rect(geometry.cell_rect(lead));
+        if let Some(row) = cx.rect_of(&lead.row) {
+            at = Rect::from_x_y_ranges(at.x_range(), row.y_range());
+        }
+        cx.editor(EDITOR, at, EditorPurpose::Text);
+        self.frame = Some(Frame { geometry, columns, rows });
     }
-}
 
-/// `area` without `hole`: the strips above and below the hole, then what is left beside it, so a
-/// translucent fill leaves the hole clear and the pieces never overlap.
-fn rect_around(area: Rect, hole: Rect) -> Vec<Rect> {
-    let hole = if hole.is_finite() { area.intersect(hole) } else { Rect::NOTHING };
-    let parts = if hole.is_positive() {
-        [
-            Rect::from_min_max(area.min, Pos2::new(area.max.x, hole.min.y)),
-            Rect::from_min_max(Pos2::new(area.min.x, hole.max.y), area.max),
-            Rect::from_min_max(Pos2::new(area.min.x, hole.min.y), Pos2::new(hole.min.x, hole.max.y)),
-            Rect::from_min_max(Pos2::new(hole.max.x, hole.min.y), Pos2::new(area.max.x, hole.max.y)),
-        ]
-    } else {
-        [area, Rect::NOTHING, Rect::NOTHING, Rect::NOTHING]
-    };
-    parts.into_iter().filter(|r| r.is_positive() && r.is_finite()).collect()
-}
-
-/// The sides of `rect` that lie inside `clip`, as a stroke centred on the cell borders.
-fn paint_outline(p: &Painter, rect: Rect, stroke: Stroke) {
-    let clip = p.clip_rect();
-    let (x, y) = (clip.x_range(), clip.y_range());
-    let across = |from: f32, to: f32| (from.max(y.min), to.min(y.max));
-    let along = |from: f32, to: f32| (from.max(x.min), to.min(x.max));
-    let (top, bottom) = across(rect.top(), rect.bottom());
-    let (left, right) = along(rect.left(), rect.right());
-    for edge in [rect.left(), rect.right()] {
-        if x.contains(edge) {
-            p.vline(edge, top..=bottom, stroke);
+    /// The facts AccessKit gets: the sheet's full size and the headers as sub-nodes.
+    pub(super) fn describe(&self, access: &mut Access, cx: &Cx<'_, Self>) {
+        let Some(frame) = &self.frame else { return };
+        let words = cx.env.words::<CellGridWords>();
+        access.grid(craft_ui::contract::GridPlace::grid(self.model.rows().count() as usize, self.model.columns().count() as usize));
+        for &column in &frame.columns {
+            let name = words.column_header.fill(&[("name", &self.model.column_label(column))]);
+            access.node(COLUMN.at(u64::from(column)), Role::COLUMN_HEADER).name = Name::Text(name);
+        }
+        for &row in &frame.rows {
+            let name = words.row_header.fill(&[("n", &(row + 1).to_string())]);
+            access.node(ROW.at(u64::from(row)), Role::CELL).name = Name::Text(name);
         }
     }
-    for edge in [rect.top(), rect.bottom()] {
-        if y.contains(edge) {
-            p.hline(left..=right, edge, stroke);
-        }
-    }
-}
 
-/// The selection over the cells: the ranges tinted with the active cell left clear, the current
-/// range's outline and fill handle, the active cell's outline among several ranges.
-fn paint_selection<M: GridModel>(pass: &Pass<'_, M>, p: &Painter, geo: &SheetGeometry, selection: &CellSelection, look: &Look, editing: bool) {
-    let active = pass.space.merge_at(selection.active()).unwrap_or(CellRange::cell(selection.active()));
-    let active_rect = geo.range_rect(active);
-    let single = selection.ranges().len() == 1 && selection.is_single_cell(&pass.space);
-    for &range in selection.ranges() {
-        let rect = geo.range_rect(range);
-        for clip in geo.range_panes(range) {
-            let pane = p.with_clip_rect(clip.intersect(p.clip_rect()));
-            if !single {
-                for piece in rect_around(rect, active_rect) {
-                    pane.rect_filled(piece.intersect(pane.clip_rect()), 0.0, look.fill);
+    /// Paints headers, the range outline and handle, the copy marks and the open cell, and shows the chrome.
+    pub(super) fn paint_sheet(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let Some(frame) = self.frame.clone() else { return };
+        let geometry = &frame.geometry;
+        let style = cx.style;
+        let selection = cx.collection_selection().cloned().unwrap_or_else(|| self.snapshot.clone());
+        let editing = cx.recall::<EditState>();
+        let open = editing.mode != Mode::Ready;
+        let preview = cx.recall::<super::input::Preview>();
+        {
+            let draw = ui.draw();
+            let rect = |shape: Rect| PaintShape::Rect(shape, CornerRadius::ZERO);
+            let outline = |range: &CellRange<u32>| geometry.mirror_rect(geometry.range_rect(range));
+            if let Some(current) = selection.current() {
+                draw.stroke(&rect(outline(current)), StrokeWidth::Medium, style.accent);
+                if selection.ranges().len() > 1
+                    && let Some(active) = selection.active()
+                {
+                    draw.stroke(&rect(outline(&CellRange::cell(*active))), StrokeWidth::Thin, style.accent);
+                }
+                if !open {
+                    let handle = Self::handle_rect(geometry, outline(current), style.handle);
+                    draw.fill(&rect(handle), style.handle_fill);
+                    draw.stroke(&rect(handle), StrokeWidth::Hairline, style.handle_ring);
                 }
             }
-            if range == selection.current() {
-                paint_outline(&pane, rect, look.accent);
-                if !editing {
-                    let handle = Rect::from_center_size(rect.right_bottom(), Vec2::splat(look.handle));
-                    pane.rect_filled(handle, 0.0, look.handle_fill);
-                    pane.rect_stroke(handle, 0.0, look.handle_stroke, egui::StrokeKind::Inside);
+            for range in self.copy_mark {
+                match cx.phase(ANT_CYCLE, Some(ANT_STEP)) {
+                    Some(phase) => {
+                        for dash in dashes(&corners(outline(range)), style.mark, phase) {
+                            draw.stroke(&PaintShape::Path(dash), StrokeWidth::Medium, style.accent);
+                        }
+                    }
+                    None => draw.stroke(&rect(outline(range)), StrokeWidth::Thin, style.accent),
+                }
+            }
+            if let Some(range) = preview.range() {
+                for dash in dashes(&corners(outline(&range)), style.mark, 0.0) {
+                    draw.stroke(&PaintShape::Path(dash), StrokeWidth::Medium, style.preview);
+                }
+            }
+            let (frozen_rows, frozen_columns) = geometry.frozen();
+            let (cells, split) = (geometry.cells(), geometry.split());
+            if frozen_columns > 0 {
+                let x = geometry.mirror_x(split.x);
+                draw.stroke(&PaintShape::Path(vec![Pos2::new(x, cells.top()), Pos2::new(x, cells.bottom())]), StrokeWidth::Medium, style.header_line);
+            }
+            if frozen_rows > 0 {
+                draw.stroke(
+                    &PaintShape::Path(vec![Pos2::new(cells.left(), split.y), Pos2::new(cells.right(), split.y)]),
+                    StrokeWidth::Medium,
+                    style.header_line,
+                );
+            }
+            if self.headings {
+                self.paint_headers(&draw, &frame, &selection, cx);
+            }
+            match editing.cell {
+                Some(cell) if open => self.paint_editor(&draw, cx, &editing, geometry.mirror_rect(geometry.cell_rect(cell))),
+                _ => {
+                    let lead = selection.active().map_or(Rect::NOTHING, |cell| geometry.mirror_rect(geometry.cell_rect(*cell)));
+                    cx.editor_state(EditorState::new(Rect::from_min_size(lead.min, Vec2::new(0.0, lead.height())), &[], TextPos::new(0, 0), 0));
                 }
             }
         }
+        self.place_chrome(ui, &frame, style);
     }
-    if selection.ranges().len() > 1 {
-        for clip in geo.range_panes(active) {
-            paint_outline(&p.with_clip_rect(clip.intersect(p.clip_rect())), active_rect, Stroke::new(look.accent.width / 2.0, look.accent.color));
+
+    fn paint_headers(&self, draw: &Draw<'_>, frame: &Frame, selection: &CellSelection<u32>, cx: &Cx<'_, Self>) {
+        let style = cx.style;
+        let geometry = &frame.geometry;
+        let rect = |shape: Rect| PaintShape::Rect(shape, CornerRadius::ZERO);
+        let (cells, header) = (geometry.cells(), geometry.header_size());
+        let top = Rect::from_min_max(Pos2::new(cells.left(), cells.top() - header.y), Pos2::new(cells.right(), cells.top()));
+        let left = Rect::from_min_max(Pos2::new(cells.left() - header.x, cells.top()), Pos2::new(cells.left(), cells.bottom()));
+        let corner = Rect::from_min_max(Pos2::new(cells.left() - header.x, cells.top() - header.y), cells.min);
+        for area in [top, left, corner] {
+            draw.fill(&rect(geometry.mirror_rect(area)), style.header);
+        }
+        let marks = Marks::of(selection, geometry.rows().count(), geometry.columns().count());
+        let rtl = geometry.mirror_x(0.0) > 0.0;
+        let line = |from: Pos2, to: Pos2| draw.stroke(&PaintShape::Path(vec![from, to]), StrokeWidth::Hairline, style.header_line);
+        let look = |part: craft_behavior::PartRef| (cx.resolve_part(part, &style.header), cx.resolve_part(part, &style.header_text));
+        for &column in &frame.columns {
+            let at = Self::column_header(geometry, column);
+            let state = Marks::of_line(&marks.columns, column);
+            let (fill, text) = look(COLUMN.at(u64::from(column)));
+            draw.fill(&rect(at), fill);
+            draw.text(at, &TextRun::new(self.model.column_label(column)).color(text).align(HAlign::Center).elide());
+            if state.is_some() {
+                draw.stroke(&PaintShape::Path(vec![at.left_bottom(), at.right_bottom()]), StrokeWidth::Thick, style.accent);
+            }
+            let end = if rtl { at.left() } else { at.right() };
+            line(Pos2::new(end, at.top()), Pos2::new(end, at.bottom()));
+            if column + 1 < geometry.columns().count() && !geometry.columns().shown(column + 1) {
+                let mark = if rtl { end - style.gap } else { end + style.gap };
+                line(Pos2::new(mark, at.top()), Pos2::new(mark, at.bottom()));
+            }
+        }
+        for &row in &frame.rows {
+            let at = Self::row_header(geometry, row);
+            let state = Marks::of_line(&marks.rows, row);
+            let (fill, text) = look(ROW.at(u64::from(row)));
+            draw.fill(&rect(at), fill);
+            draw.text(at, &TextRun::new((row + 1).to_string()).color(text).align(HAlign::Center).elide());
+            if state.is_some() {
+                let (from, to) = if rtl { (at.left_top(), at.left_bottom()) } else { (at.right_top(), at.right_bottom()) };
+                draw.stroke(&PaintShape::Path(vec![from, to]), StrokeWidth::Thick, style.accent);
+            }
+            line(at.left_bottom(), at.right_bottom());
+            if row + 1 < geometry.rows().count() && !geometry.rows().shown(row + 1) {
+                line(Pos2::new(at.left(), at.bottom() + style.gap), Pos2::new(at.right(), at.bottom() + style.gap));
+            }
+        }
+    }
+
+    /// The open cell: its fill, edge, draft text and caret, and the editor part's report.
+    fn paint_editor(&self, draw: &Draw<'_>, cx: &Cx<'_, Self>, editing: &EditState, cell: Rect) {
+        let style = cx.style;
+        let shape = PaintShape::Rect(cell, CornerRadius::ZERO);
+        draw.fill(&shape, style.edit_fill);
+        draw.stroke(&shape, StrokeWidth::Medium, style.edit_edge);
+        let inner = craft_behavior::Flow::new(cell, cx.env.direction().is_rtl()).inset(craft_behavior::Insets::horizontal(style.pad));
+        let text = editing.draft.shown();
+        let layout = draw.layout(&TextRun::new(text.clone()), inner.width());
+        let line = Rect::from_min_size(inner.min, Vec2::new(inner.width(), layout.size().y));
+        draw.galley(line.min, &layout);
+        let runs = layout.editor_runs();
+        let at = TextPos::new(0, editing.draft.caret_shown());
+        let top = line.min + Vec2::new(caret_x(&runs, &text, at.byte), 0.0);
+        if cx.is_focused() {
+            draw.stroke(&PaintShape::Path(vec![top, top + Vec2::new(0.0, line.height())]), StrokeWidth::Medium, style.edit_edge);
+        }
+        let lines = [EditorLine::new(&text, line, line.top() + layout.first_baseline, &runs)];
+        let mut state = EditorState::new(Rect::from_min_size(top, Vec2::new(0.0, line.height())), &lines, at, editing.draft.revision());
+        state.selection = editing.draft.selection();
+        cx.editor_state(state);
+    }
+
+    /// Shows the filter buttons, the error tag and the outline band over the sheet.
+    fn place_chrome(&mut self, ui: &mut PaintUi<'_>, frame: &Frame, style: &CellGridStyle) {
+        let geometry = &frame.geometry;
+        let (side, gap) = (style.side, style.gap);
+        let rtl = geometry.mirror_x(0.0) > 0.0;
+        for filter in self.filters {
+            if !frame.columns.contains(&filter.column) {
+                continue;
+            }
+            let header = Self::column_header(geometry, filter.column);
+            let origin = if rtl { header.left_bottom() - Vec2::new(0.0, side) } else { header.right_bottom() - Vec2::new(side, side) };
+            let name: Label = self.model.column_label(filter.column).into();
+            let out = ui.child(
+                ("filter", filter.column),
+                Rect::from_min_size(origin, Vec2::splat(side)),
+                FilterButton::new(name).filtered(filter.filtered).sort(filter.sort),
+            );
+            if let Some(event) = out.event {
+                self.pass.filter = Some((filter.column, event));
+            }
+        }
+        if let Some(problem) = &self.error_tag {
+            let cell = geometry.cell_rect(problem.cell);
+            let before = cell.left() - side - gap;
+            let left = if before >= geometry.cells().left() { before } else { cell.right() + gap };
+            let tag = geometry.mirror_rect(Rect::from_min_size(Pos2::new(left, cell.top()), Vec2::splat(side)));
+            if geometry.mirror_rect(geometry.cells()).intersects(tag) {
+                let out = ui.child("error_tag", tag, ErrorTag::new(problem.problem.clone(), problem.fixes));
+                self.pass.fix = out.fix.or(self.pass.fix);
+            }
+        }
+        if let Some((rows, columns)) = self.outline
+            && self.levels != (0, 0)
+        {
+            let out = ui.child("outline", geometry.rect(), OutlineBand::new("Outline", rows, columns, geometry));
+            self.pass.outline.extend(out.actions);
         }
     }
 }
 
 /// The closed outline of `rect`, as a path that starts and ends at its top-left corner.
-fn outline_path(rect: Rect) -> [Pos2; 5] {
+fn corners(rect: Rect) -> [Pos2; 5] {
     [rect.left_top(), rect.right_top(), rect.right_bottom(), rect.left_bottom(), rect.left_top()]
 }
 
-/// The marching ants round the copied ranges and the outline of a drag's preview.
-fn paint_marks<M: GridModel>(pass: &Pass<'_, M>, ui: &Ui, p: &Painter, geo: &SheetGeometry, look: &Look, preview: Option<Preview>) {
-    let clipped = |range: CellRange, paint: &dyn Fn(&Painter)| {
-        for clip in geo.range_panes(range) {
-            paint(&p.with_clip_rect(clip.intersect(p.clip_rect())));
+/// The dashes of `dash` points with gaps of `dash` points along `path`, advanced by `phase` of one period.
+fn dashes(path: &[Pos2], dash: f32, phase: f32) -> Vec<Vec<Pos2>> {
+    let period = dash * 2.0;
+    let mut travelled = -(phase * period);
+    let mut out = Vec::new();
+    for pair in path.windows(2) {
+        let (from, to) = (pair[0], pair[1]);
+        let length = from.distance(to);
+        if length <= 0.0 {
+            continue;
         }
-    };
-    match preview {
-        Some(Preview::Fill(range)) => {
-            let rect = geo.range_rect(range);
-            clipped(range, &|pane| {
-                pane.extend(Shape::dashed_line(&outline_path(rect), look.preview, PREVIEW_DASH, PREVIEW_GAP));
-            });
+        let direction = (to - from) / length;
+        let mut start = travelled.rem_euclid(period) - period;
+        while start < length {
+            let (a, b) = (start.max(0.0), (start + dash).min(length));
+            if b > a {
+                out.push(vec![from + direction * a, from + direction * b]);
+            }
+            start += period;
         }
-        Some(Preview::Move(range)) => {
-            let rect = geo.range_rect(range);
-            clipped(range, &|pane| {
-                pane.rect_stroke(rect, 0.0, look.preview, egui::StrokeKind::Middle);
-            });
-        }
-        None => {}
+        travelled += length;
     }
-    if pass.copy_mark.is_empty() {
-        return;
-    }
-    let phase = (ui.input(|i| i.time) / ANT_STEP_SECS).rem_euclid(f64::from(ANT_DASH + ANT_GAP)) as f32;
-    ui.ctx().request_repaint_after(ANT_REPAINT);
-    for &range in pass.copy_mark {
-        let rect = geo.range_rect(range).expand(0.5);
-        clipped(range, &|pane| {
-            pane.extend(Shape::dashed_line_with_offset(&outline_path(rect), look.accent, &[ANT_DASH], &[ANT_GAP], phase));
-        });
-    }
+    out
 }
 
-/// Column and row headers, with the selected lines marked, and the select-all corner.
-fn paint_headers<M: GridModel>(
-    pass: &Pass<'_, M>,
-    p: &Painter,
-    geo: &SheetGeometry,
-    selection: &CellSelection,
-    look: &Look,
-    (rows, columns): (&[Span], &[Span]),
-) {
-    let (cells, header) = (geo.cells(), geo.header_size());
-    if header == Vec2::ZERO {
-        return;
-    }
-    let top = Rect::from_min_max(Pos2::new(cells.left(), cells.top() - header.y), Pos2::new(cells.right(), cells.top()));
-    let left = Rect::from_min_max(Pos2::new(cells.left() - header.x, cells.top()), Pos2::new(cells.left(), cells.bottom()));
-    let corner = Rect::from_min_max(Pos2::new(cells.left() - header.x, cells.top() - header.y), cells.min);
-    for area in [top, left, corner] {
-        p.rect_filled(area, 0.0, look.header);
-    }
-    let (row_count, column_count) = (pass.space.row_count(), pass.space.column_count());
-    for span in columns {
-        let clip = p.with_clip_rect(Rect::from_x_y_ranges(span.from..=span.to, top.y_range()).intersect(p.clip_rect()));
-        for column in span.first..=span.last {
-            let rect = Rect::from_min_size(Pos2::new(geo.x(column), top.top()), Vec2::new(geo.cell_rect(CellRef::new(0, column)).width(), header.y));
-            if rect.width() <= 0.0 {
-                continue;
-            }
-            let shown = selection.ranges().iter().any(|r| r.columns().contains(&column));
-            let whole = selection.ranges().iter().any(|r| r.start.row == 0 && r.end.row + 1 == row_count && r.columns().contains(&column));
-            let label = pass.model.column_label(column);
-            paint_header(&clip, rect, &label, (shown, whole), look);
-            if shown {
-                let bar = look.accent_bar;
-                clip.rect_filled(Rect::from_x_y_ranges(rect.x_range(), rect.bottom() - bar..=rect.bottom()), 0.0, look.accent.color);
-            }
-            clip.vline(rect.right(), rect.top() + look.separator_inset..=rect.bottom(), look.header_line);
-            let (before, after) = hidden_around(column, |i| pass.model.columns().size(i));
-            for x in [before.then_some(rect.left()), after.then_some(rect.right())].into_iter().flatten() {
-                for dx in [-look.hidden_offset, look.hidden_offset] {
-                    clip.vline(x + dx, rect.top() + look.separator_inset..=rect.bottom(), look.hidden_mark);
-                }
-            }
+/// The x offset of byte `at` of `text` in the laid-out runs.
+fn caret_x(runs: &[EditorRun<'_>], text: &str, at: usize) -> f32 {
+    for run in runs {
+        if run.bytes.contains(&at) || run.bytes.end == at {
+            let index = text[run.bytes.start..at.min(text.len())].chars().count();
+            return run.positions.get(index).copied().unwrap_or_else(|| run.positions.last().zip(run.widths.last()).map_or(0.0, |(p, w)| p + w));
         }
     }
-    for span in rows {
-        let clip = p.with_clip_rect(Rect::from_x_y_ranges(left.x_range(), span.from..=span.to).intersect(p.clip_rect()));
-        for row in span.first..=span.last {
-            let rect = Rect::from_min_size(Pos2::new(left.left(), geo.y(row)), Vec2::new(header.x, geo.cell_rect(CellRef::new(row, 0)).height()));
-            if rect.height() <= 0.0 {
-                continue;
-            }
-            let shown = selection.ranges().iter().any(|r| r.rows().contains(&row));
-            let whole = selection.ranges().iter().any(|r| r.start.column == 0 && r.end.column + 1 == column_count && r.rows().contains(&row));
-            paint_header(&clip, rect, &(row + 1).to_string(), (shown, whole), look);
-            if shown {
-                let bar = look.accent_bar;
-                clip.rect_filled(Rect::from_x_y_ranges(rect.right() - bar..=rect.right(), rect.y_range()), 0.0, look.accent.color);
-            }
-            clip.hline(rect.left() + look.separator_inset..=rect.right(), rect.bottom(), look.header_line);
-            let (before, after) = hidden_around(row, |i| pass.model.rows().size(i));
-            for y in [before.then_some(rect.top()), after.then_some(rect.bottom())].into_iter().flatten() {
-                for dy in [-look.hidden_offset, look.hidden_offset] {
-                    clip.hline(rect.left() + look.separator_inset..=rect.right(), y + dy, look.hidden_mark);
-                }
-            }
-        }
-    }
-    p.hline(corner.left()..=top.right(), cells.top(), look.header_line);
-    p.vline(cells.left(), corner.top()..=left.bottom(), look.header_line);
-    let triangle = vec![
-        Pos2::new(corner.right() - TRIANGLE_RIGHT, corner.top() + TRIANGLE_TOP),
-        Pos2::new(corner.right() - TRIANGLE_RIGHT, corner.bottom() - TRIANGLE_BOTTOM),
-        Pos2::new(corner.left() + TRIANGLE_LEFT, corner.bottom() - TRIANGLE_BOTTOM),
-    ];
-    p.add(Shape::convex_polygon(triangle, look.header_text, Stroke::NONE));
-}
-
-/// Whether the line before and the line after `line` are hidden (size 0), so its header edges get
-/// the double divider (GridCraft `grid/show.rs` `hidden_around`). Line 0 has nothing before it.
-fn hidden_around(line: u32, size: impl Fn(u32) -> f64) -> (bool, bool) {
-    (line > 0 && size(line - 1) <= 0.0, line < u32::MAX && size(line + 1) <= 0.0)
-}
-
-fn paint_header(p: &Painter, rect: Rect, text: &str, (shown, whole): (bool, bool), look: &Look) {
-    if rect.width() <= 0.0 || rect.height() <= 0.0 {
-        return;
-    }
-    let (fill, color) = match (shown, whole) {
-        (_, true) => (Some(look.header_whole), look.header_whole_text),
-        (true, false) => (Some(look.header_selected), look.header_selected_text),
-        (false, false) => (None, look.header_text),
-    };
-    if let Some(fill) = fill {
-        p.rect_filled(rect, 0.0, fill);
-    }
-    p.text(rect.center(), Align2::CENTER_CENTER, text, look.font.clone(), color);
-}
-
-/// Reflects the shapes `range` of the painter's layer across the grid's centre line.
-fn mirror(ui: &Ui, painter: &Painter, range: std::ops::Range<usize>, geo: &SheetGeometry) {
-    let axis = geo.layout.rect.left() + geo.layout.rect.right();
-    ui.ctx().graphics_mut(|graphics| {
-        let list = graphics.entry(painter.layer_id());
-        for index in range {
-            list.mutate_shape(egui::layers::ShapeIdx(index), |clipped| {
-                clipped.clip_rect = geo.mirror_rect(clipped.clip_rect);
-                mirror_shape(&mut clipped.shape, axis);
-            });
-        }
-    });
-}
-
-/// Reflects one shape across the vertical line `x = axis / 2`; text and images keep their
-/// orientation and move.
-fn mirror_shape(shape: &mut Shape, axis: f32) {
-    let flip = |p: &mut Pos2| p.x = axis - p.x;
-    match shape {
-        Shape::Noop | Shape::Callback(_) => {}
-        Shape::Vec(shapes) => shapes.iter_mut().for_each(|s| mirror_shape(s, axis)),
-        Shape::Circle(c) => flip(&mut c.center),
-        Shape::Ellipse(e) => flip(&mut e.center),
-        Shape::LineSegment { points, .. } => points.iter_mut().for_each(flip),
-        Shape::Path(path) => {
-            path.points.iter_mut().for_each(flip);
-            path.points.reverse();
-        }
-        Shape::Rect(r) => {
-            r.rect = Rect::from_min_max(Pos2::new(axis - r.rect.right(), r.rect.top()), Pos2::new(axis - r.rect.left(), r.rect.bottom()));
-            let c = r.corner_radius;
-            r.corner_radius = egui::CornerRadius { nw: c.ne, ne: c.nw, sw: c.se, se: c.sw };
-        }
-        Shape::QuadraticBezier(b) => b.points.iter_mut().for_each(flip),
-        Shape::CubicBezier(b) => b.points.iter_mut().for_each(flip),
-        _ => {
-            let bounds = shape.visual_bounding_rect();
-            if bounds.is_finite() {
-                shape.translate(Vec2::new(axis - bounds.right() - bounds.left(), 0.0));
-            }
-        }
-    }
-}
-
-/// The AccessKit nodes of what is shown: the headers and rows of cells, described from the
-/// pass's final geometry. They only name themselves (hover sense), so the grid's own widget
-/// under them keeps the pointer and the focus. The caller runs this only while AccessKit is on.
-pub(super) fn describe_cells<M: GridModel>(pass: &Pass<'_, M>, ui: &mut Ui, grid: Id, geo: &SheetGeometry) {
-    let enabled = ui.is_enabled();
-    let (rows, columns) = spans(geo);
-    let header = geo.header_size();
-    if header.y > 0.0 {
-        let strip = Rect::from_min_size(Pos2::new(geo.cells().left(), geo.cells().top() - header.y), Vec2::new(geo.cells().width(), header.y));
-        let row = row_ui(ui, grid, ("column headers", 0), strip);
-        for span in &columns {
-            for column in span.first..=span.last {
-                let width = geo.cell_rect(CellRef::new(0, column)).width();
-                let rect = Rect::from_min_size(Pos2::new(geo.x(column), strip.top()), Vec2::new(width, header.y));
-                node(
-                    &row,
-                    geo.mirror_rect(rect),
-                    grid.with(("column header", column)),
-                    Role::ColumnHeader,
-                    &pass.model.column_label(column),
-                    enabled,
-                );
-            }
-        }
-    }
-    for span in &rows {
-        for r in span.first..=span.last {
-            let height = geo.cell_rect(CellRef::new(r, 0)).height();
-            if height <= 0.0 {
-                continue;
-            }
-            let top = geo.y(r);
-            let strip = Rect::from_min_size(Pos2::new(geo.cells().left() - header.x, top), Vec2::new(geo.cells().width() + header.x, height));
-            let row = row_ui(ui, grid, ("row", r), strip);
-            if header.x > 0.0 {
-                let rect = Rect::from_min_size(strip.min, Vec2::new(header.x, height));
-                node(&row, geo.mirror_rect(rect), grid.with(("row header", r)), Role::RowHeader, &(r + 1).to_string(), enabled);
-            }
-            for column_span in &columns {
-                for c in column_span.first..=column_span.last {
-                    describe_cell(
-                        pass,
-                        &row,
-                        grid,
-                        geo,
-                        CellRef::new(r, c),
-                        Rect::from_x_y_ranges(column_span.from..=column_span.to, span.from..=span.to),
-                    );
-                }
-            }
-        }
-    }
-}
-
-fn describe_cell<M: GridModel>(pass: &Pass<'_, M>, row: &Ui, grid: Id, geo: &SheetGeometry, cell: CellRef, pane: Rect) {
-    let rect = geo.cell_rect(cell);
-    if rect.width() <= 0.0 {
-        return;
-    }
-    let id = cell_id(grid, cell);
-    let label = format!("{}{}", column_letters(cell.column), cell.row + 1);
-    node(row, geo.mirror_rect(rect.intersect(pane)), id, Role::GridCell, &label, row.is_enabled());
-    row.ctx().accesskit_node_builder(id, |n| {
-        n.set_row_index(cell.row as usize);
-        n.set_column_index(cell.column as usize);
-        n.set_value(pass.model.cell_text(cell));
-    });
-}
-
-/// The grid's own node: its size, and the active cell as the focused descendant when that cell
-/// is shown in `geo`, the geometry [`describe_cells`] ran on.
-pub(super) fn describe_grid<M: GridModel>(pass: &Pass<'_, M>, ui: &Ui, grid: Id, state: &GridState, geo: &SheetGeometry) {
-    let active = state.selection.active();
-    let (rows, columns) = spans(geo);
-    let shown = rows.iter().any(|r| (r.first..=r.last).contains(&active.row)) && columns.iter().any(|c| (c.first..=c.last).contains(&active.column));
-    let visible = shown && geo.cell_rect(active).width() > 0.0 && geo.cell_rect(active).height() > 0.0;
-    ui.ctx().accesskit_node_builder(grid, |n| {
-        n.set_row_count(pass.space.row_count() as usize);
-        n.set_column_count(pass.space.column_count() as usize);
-        if visible {
-            n.set_active_descendant(cell_id(grid, active).accesskit_id());
-        }
-    });
-}
-
-fn cell_id(grid: Id, cell: CellRef) -> Id {
-    grid.with(("cell", cell.row, cell.column))
-}
-
-/// A child ui for an AccessKit row of the grid; it allocates nothing.
-fn row_ui(ui: &mut Ui, grid: Id, salt: (&'static str, u32), rect: Rect) -> Ui {
-    ui.new_child(UiBuilder::new().id_salt(salt).accessibility_parent(grid).accessibility_role(Role::Row).max_rect(rect))
-}
-
-/// A widget in `ui` that only names itself to AccessKit.
-fn node(ui: &Ui, rect: Rect, id: Id, role: Role, label: &str, enabled: bool) {
-    let response = ui.interact(rect, id, Sense::hover());
-    response.widget_info(|| WidgetInfo::labeled(role, enabled, label));
+    0.0
 }
