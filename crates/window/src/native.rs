@@ -43,7 +43,7 @@ pub enum Zone {
 
 /// What the pointer does at a caption button the operating system owns the pointer over (the maximize button, whose
 /// hit test answers `HTMAXBUTTON`: the pointer lies in the non-client area, so the app gets no client pointer there).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum CaptionEvent {
     /// The pointer is over the button.
