@@ -6,6 +6,7 @@ craft-layers
 craft-menu
 craft-print ui
 craft-table ui
+craft-text font-picker,find,screen-testing
 craft-theme-store ui
 craft-timeline ui,screen-testing
 craft-ui color_fonts,system_fonts

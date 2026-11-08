@@ -21,7 +21,8 @@ unicode-bidi = { version = "0.3.18", optional = true }
 unicode-bidi-mirroring = { version = "0.4.0", optional = true }
 # `ui`: the canvas text editor, style and character panels and the spelling dialog, on craft-ui.
 egui = { workspace = true, optional = true }
-craft-ui = { package = "craft-ui-legacy", path = "../ui-legacy", optional = true }
+craft-ui = { workspace = true, optional = true }
+craft-behavior = { workspace = true, optional = true }
 craft-theme = { workspace = true, optional = true }
 craft-host = { workspace = true, features = ["ui"], optional = true }
 serde = { workspace = true }
@@ -34,7 +35,14 @@ craft-font-manager = { workspace = true, optional = true }
 
 [dev-dependencies]
 egui_kittest = "0.37"
+libtest-mimic = "0.8"
 unicode-segmentation = "1.13"
+
+[[test]]
+name = "it"
+path = "tests/it/main.rs"
+harness = false
+required-features = ["screen-testing"]
 
 [[example]]
 name = "hyphgen"
@@ -56,11 +64,13 @@ find = ["dep:regex", "dep:regex-syntax"]
 spell = ["dep:miniz_oxide"]
 # The egui parts: `ui::editor` (canvas text editor on craft-ui's IME composer), `ui::style_panel`,
 # `ui::character` and `ui::spelling`.
-ui = ["dep:egui", "dep:craft-ui", "dep:craft-theme", "dep:craft-host", "spell"]
+ui = ["dep:egui", "dep:craft-ui", "dep:craft-behavior", "dep:craft-theme", "dep:craft-host", "spell"]
 # `ui::character` shows craft-font-manager's font picker (stars, recents, previews, filters)
 # instead of a plain family list. Pulls the bundled font indexes; apps that only want the panels
 # leave it off.
 font-picker = ["ui", "dep:craft-font-manager", "craft-font-manager/ui"]
+# Stories and the screen tests over craft-ui's test suite.
+screen-testing = ["ui", "craft-ui/testing"]
 # The dictionary writer (`hyphen::dict`) and pattern trainer (`hyphen::patgen`) used by
 # examples/hyphgen.rs.
 generator = ["hyphen"]
