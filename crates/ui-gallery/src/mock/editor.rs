@@ -3,6 +3,7 @@
 use super::model::{Document, MockState, Panel, Request, Tool};
 use super::panels::Panels;
 use super::tools::{Dialogs, Tools};
+use craft_behavior::PixelSize;
 use craft_behavior::dock::Workspace;
 use craft_ui::bars::{Bar, BarKind, StatusItem, StatusReadout, StatusValues};
 use craft_ui::contract::{Bind, Remember as _, Show as _, ShowContainer as _};
@@ -12,13 +13,11 @@ use craft_ui::menu::{EditMenu, MenuBar, MenuItem, MenuTitle};
 use craft_ui::patterns::dock::DockArea;
 use craft_ui::patterns::form_dialogs::{DialogFields, HostedParamDialog, ImageSize, ImageSizeValues, Param, ParamDialog, ParamResult};
 use craft_ui::rails::{LastUsed, ToolRail};
+use craft_ui::runtime::commands::CommandRef;
 use craft_ui::runtime::env::{Label, WindowKey};
 use craft_ui::shell::{AppShell, AppShellOutput, Title, TitleBar};
 use egui::Ui;
 use std::cell::{Cell, RefCell};
-
-/// The percent a zoom of 1 shows.
-const PERCENT: f64 = 100.0;
 
 /// The parameters of Gaussian Blur.
 const BLUR: &str = r#"{"radius":0.1..1000=1}"#;
@@ -188,11 +187,10 @@ fn tool_rail(ui: &mut Ui, parts: &mut Parts<'_>) {
 fn status_bar(ui: &mut Ui, parts: &Parts<'_>) {
     let document = &*parts.document;
     let mut values = StatusValues::default();
-    values.document_dimensions = Some(format!("{} x {} px", document.size.width, document.size.height));
-    values.current_tool = Some(parts.tool.name().to_owned());
+    values.document_dimensions = Some(PixelSize::new(document.size.width as u32, document.size.height as u32));
+    values.current_tool = Some(CommandRef::from(*parts.tool));
     values.layer_count = Some(document.layers.len());
-    let zoom = Some(document.view.zoom * PERCENT);
     let _ = Bar::new("Status", BarKind::Status).show(ui, |ui, _| {
-        StatusReadout::new(Bind::given(zoom), StatusItem::DocumentDimensions, &values).show(ui);
+        StatusReadout::new(Bind::given(document.view), document.size, StatusItem::DocumentDimensions, &values).show(ui);
     });
 }

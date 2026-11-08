@@ -1,15 +1,19 @@
 //! `Bar`: the end region, scroll, status liveness and the bar items that share its roving group.
 
+use craft_behavior::CanvasView;
+use craft_behavior::canvas::zoom;
+use craft_behavior::kurbo::{Point, Size};
 use craft_ui::bars::{AlignBar, Bar, BarItem, BarItems, BarKind, DistributeButtons, StatusItem, StatusReadout, StatusValues};
 use craft_ui::buttons::{Button, IconButton};
 use craft_ui::contract::{Bind, Entry, Politeness, Props as _, Role, Show as _, ShowContainer as _};
 use craft_ui::pickers::Select;
 use craft_ui::runtime::commands::EditCommands;
+use craft_ui::runtime::env::Scale;
 use craft_ui::runtime::frame::take_output;
 use craft_ui::testing::access::NodeKey;
 use craft_ui::testing::{Fixture, trial};
-use egui::{Id, Key, Modifiers, Vec2};
-use std::cell::Cell;
+use egui::{Id, Key, Modifiers, Pos2, Rect, Vec2};
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 fn options_bar() -> Fixture {
@@ -98,16 +102,55 @@ fn the_status_bar_is_live_and_the_zoom_readout_is_not() {
     let (shown_bar, shown_zoom) = (bar.clone(), zoom.clone());
     let mut fixture = Fixture::new(move |ui| {
         let values = StatusValues::default();
-        let mut percent = Some(100.0);
+        let mut view = status_view(0.5);
         let shown = Bar::new("Status", BarKind::Status)
-            .show(ui, |ui, _| StatusReadout::new(Bind::bound(&mut percent), StatusItem::DocumentSizes, &values).show(ui));
+            .show(ui, |ui, _| StatusReadout::new(Bind::bound(&mut view), STATUS_DOCUMENT, StatusItem::DocumentSizes, &values).show(ui));
         shown_bar.set(Some(shown.output.response.id));
-        shown_zoom.set(shown.inner.and_then(|readout| readout.zoom).map(|zoom| zoom.response.id));
+        shown_zoom.set(shown.inner.and_then(|readout| readout.zoom).map(|zoom| zoom.id));
     });
     fixture.settle();
     let tree = fixture.tree();
     assert_eq!(tree.live(bar.get().unwrap()), Some(Politeness::Polite));
     assert_eq!(tree.live(zoom.get().unwrap()), None);
+}
+
+/// The interface scale of the status trial.
+const STATUS_SCALE: f32 = 2.0;
+
+/// The typed 200 % against the shown 100 %.
+const TYPED_FACTOR: f64 = 2.0;
+
+const STATUS_DOCUMENT: Size = Size::new(2000.0, 1500.0);
+
+fn status_view(zoom: f64) -> CanvasView {
+    CanvasView::new(Rect::from_min_max(Pos2::ZERO, Pos2::new(800.0, 600.0)), Point::new(1000.0, 750.0), zoom)
+}
+
+/// The zoom field shows the device percent, as the Navigator's zoom row does, and a typed zoom is written into the
+/// bound view about its centre and reported.
+#[trial]
+fn the_status_zoom_is_the_device_percent_and_a_typed_zoom_is_written_into_the_view() {
+    let view = Rc::new(RefCell::new(status_view(0.5)));
+    let reported = Rc::new(Cell::new(false));
+    let (held, seen) = (view.clone(), reported.clone());
+    let mut fixture = Fixture::new(move |ui| {
+        let values = StatusValues::default();
+        let shown = StatusReadout::new(Bind::bound(&mut *held.borrow_mut()), STATUS_DOCUMENT, StatusItem::DocumentSizes, &values).show(ui);
+        seen.set(seen.get() || shown.view.is_some());
+    });
+    fixture.scale(Scale::new(STATUS_SCALE));
+    fixture.settle();
+    assert!(fixture.texts().iter().any(|run| run.text.contains("100")), "zoom 0.5 at 2 pixels per point is 100 %");
+    let centre = view.borrow().center;
+    let before = zoom::device(&view.borrow(), STATUS_SCALE);
+    tab(&mut fixture);
+    fixture.type_text("200");
+    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.idle(2);
+    let doubled = before * TYPED_FACTOR;
+    assert_eq!(zoom::device(&view.borrow(), STATUS_SCALE), doubled, "the typed 200 % doubles the shown 100 %");
+    assert_eq!(view.borrow().center, centre, "the zoom keeps the view's centre");
+    assert!(reported.get(), "the output carries the view edit");
 }
 
 fn fired(fixture: &Fixture) -> Vec<String> {

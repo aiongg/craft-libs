@@ -23,7 +23,7 @@ mod image;
 mod stories;
 
 pub use canvas::{CanvasSize, CanvasSizeOutput, CanvasSizeResult, CanvasSizeValues};
-pub use image::{ImageSize, ImageSizeOutput, ImageSizeResult, ImageSizeValues};
+pub use image::{HostedImageSize, ImageSize, ImageSizeOutput, ImageSizeResult, ImageSizeValues};
 
 craft_ui::words! {
     /// The words of the size dialogs beside the common OK and Cancel.

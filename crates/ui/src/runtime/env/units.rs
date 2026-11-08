@@ -2,6 +2,7 @@
 //! unit spellings of a number's kind in the user's language, and the file sizes and durations written with them.
 
 use super::EnvValue;
+use craft_behavior::NumberCodec;
 use craft_behavior::quantity::{Reader, is_unit_spelling};
 use craft_i18n::{FileSize, Format, WordSet as _, Words};
 use serde::{Deserialize, Serialize};
@@ -163,6 +164,17 @@ pub struct Units {
     /// The scope's point size: what `reader` and `points_per_inch` use for Points and Picas.
     point_size: PointSize,
 }
+
+impl Units {
+    /// The codec of a zoom field in percent: the percent reader, up to two decimals (the zoom ladder has rungs such as
+    /// 66.67 %).
+    pub fn zoom_codec(&self) -> NumberCodec {
+        NumberCodec::new(self.reader(Some(UnitKind::Percent)), ZOOM_DECIMALS)
+    }
+}
+
+/// The most decimals a zoom field shows.
+const ZOOM_DECIMALS: usize = 2;
 
 impl Units {
     pub(crate) fn new(format: Arc<Format>, words: Arc<UnitWords>, scope_words: Arc<Words>, point_size: PointSize) -> Units {
