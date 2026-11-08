@@ -15,7 +15,7 @@ use craft_ui::choice::{Checkbox, Radio, RadioGroup};
 use craft_ui::contract::{
     ActivateOn, Bind, BodyCx, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Entry,
     FieldLayout, ItemOutput, MeasureCx, NoValue, Outcome, PartsCx, Props as _, Role, Scroll, SelectMode, Show as _, ShowCollection as _,
-    ShowContainer as _, SideLabel, Sizing, clicked,
+    ShowContainer as _, SideLabel, Sizing, Styled as _, clicked,
 };
 use craft_ui::display::{Badge, Progress, Shade, Spinner, Text};
 use craft_ui::form::SliderField;
@@ -527,7 +527,6 @@ pub struct FamilyCards {
     common: Common,
     #[container]
     props: ContainerProps,
-    #[collection]
     items: CollectionProps,
 }
 
