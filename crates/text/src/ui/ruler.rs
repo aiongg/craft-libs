@@ -275,6 +275,12 @@ pub struct TextRulerStyle {
     stem: f32,
     /// The length of a stop's foot.
     foot: f32,
+    /// The radius of a decimal stop's dot.
+    dot: f32,
+    /// The gap between the grip lines of a table column marker.
+    grip_gap: f32,
+    /// How far a grip line reaches above and below the marker's middle.
+    grip_reach: f32,
     /// The length a ruler asks for along its axis.
     length: f32,
 }
@@ -422,13 +428,16 @@ impl Component for TextRuler<'_> {
             marker_off: cx.color(colors.text.faint),
             marker: Stateful::new(cx.color(colors.text.normal)).when(Flags::SELECTED, cx.color(colors.accent.strong)),
             label: TextLook::new(TypeRole::Caption, Stateful::new(cx.color(colors.text.muted))),
-            thickness: tokens.size.icon.sm.max(tokens.typography.get(TypeRole::Caption).line_height),
+            thickness: tokens.typography.get(TypeRole::Caption).line_height,
             pad: tokens.space.gap.tight,
             marker_width: tokens.size.handle.md,
             column_width: tokens.size.handle.md,
             marker_height: tokens.size.handle.sm,
             stem: tokens.size.handle.sm,
             foot: tokens.size.handle.sm,
+            dot: tokens.stroke.thick,
+            grip_gap: tokens.space.gap.tight,
+            grip_reach: tokens.size.handle.sm,
             length: tokens.size.length.track,
         }
     }
@@ -491,7 +500,7 @@ impl Component for TextRuler<'_> {
         let ppi = cx.env.units().points_per_inch();
         let text = run::ruler_text(self.unit, ppi);
         let numbers = cx.env.units();
-        let step = f64::from(run::snap_step(&text, self.unit, self.layout(cx.rect, cx.style, cx.flow.is_rtl()).g.scale));
+        let step = f64::from(run::snap_step(&text, self.unit));
         let range = 0.0..=f64::from(self.width);
         for item in Item::all(&values) {
             let at = f64::from(item.position(&values, self.width));
