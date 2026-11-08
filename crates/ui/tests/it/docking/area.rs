@@ -1,17 +1,19 @@
-//! The dock area: an invalid layout is an error value and draws nothing, hidden panels are not shown, and a panel
-//! dropped on empty space floats with its title row under the pointer.
+//! The dock area: an invalid layout is an error value and draws nothing, hidden panels are not shown, a tab released
+//! over empty space or with the command key held floats with its title row under the pointer, and a read-only area
+//! takes no drag.
 
 use craft_behavior::Axis;
-use craft_behavior::dock::{Column, DockEdge, Group, Layout, Node, Permissions, SplitSize, Workspace};
+use craft_behavior::dock::{Action, Column, DockEdge, Group, Layout, Node, Permissions, SplitSize, Workspace};
 use craft_theme::{Contrast, ControlSize, Mode};
-use craft_ui::contract::{Bind, BodyCx};
-use craft_ui::docking::{DockConfig, DockPanels, DockSizes, DragUnit, FloatSpace, HidePanels, PanelSpec, float_drop};
+use craft_ui::contract::{Bind, BodyCx, Role};
+use craft_ui::docking::{DockConfig, DockPanels, DockSizes, HidePanels, PanelSpec};
 use craft_ui::patterns::dock::{DockArea, DockAreaOutput};
 use craft_ui::style::Variant;
 use craft_ui::testing::memory::global;
+use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::style::{tokens, with_cx};
-use craft_ui::testing::{Fixture, Frames, trial};
-use egui::{Pos2, Rect, Ui, Vec2};
+use craft_ui::testing::{Fixture, Target, trial};
+use egui::{Modifiers, Pos2, Rect, Ui, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -20,7 +22,6 @@ const OTHER: usize = 2;
 const CANVAS: usize = 3;
 const COLUMN_WIDTH: f32 = 200.0;
 const AREA: Vec2 = Vec2::new(800.0, 600.0);
-const POINTER: Pos2 = Pos2::new(400.0, 300.0);
 
 /// Records the panels whose bodies the area showed.
 struct Recorder {
@@ -83,14 +84,95 @@ fn hidden_panels_are_not_drawn_and_a_protected_canvas_stays() {
     assert!(!panels.contains(&SIDE) && !panels.contains(&OTHER), "hidden panels are left out: {panels:?}");
 }
 
+// dflags: drops through the area.
+
+/// A point over the canvas, which takes no drop, clear of the outer edge bands.
+const EMPTY: Pos2 = Pos2::new(500.0, 150.0);
+
+/// A fixture that shows the docked workspace in an area of `AREA`, read-only or bound, and keeps every action the area
+/// reports.
+fn drag_bed(read_only: bool) -> (Fixture, Rc<RefCell<Vec<Action<usize>>>>) {
+    let actions = Rc::new(RefCell::new(Vec::new()));
+    let kept = Rc::clone(&actions);
+    let mut workspace = docked();
+    let layout = workspace.layout.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let mut panels = Recorder { shown: Rc::default() };
+        let id = global("dock area", "drags");
+        let area = if read_only {
+            DockArea::read_only(id, &layout, &mut panels, DockConfig::default())
+        } else {
+            DockArea::new(id, Bind::bound(&mut workspace), &mut panels, DockConfig::default())
+        };
+        kept.borrow_mut().extend(area.show(ui).actions);
+    });
+    fixture.room(AREA).settle();
+    (fixture, actions)
+}
+
+/// The tabs of the dock column, top to bottom: `SIDE`'s, then `OTHER`'s.
+fn column_tabs(fixture: &Fixture) -> Vec<Target> {
+    let mut tabs: Vec<Target> = fixture.by_role(Role::TAB).into_iter().filter(|tab| tab.rect.max.x <= COLUMN_WIDTH).collect();
+    tabs.sort_by(|a, b| a.rect.min.y.total_cmp(&b.rect.min.y));
+    tabs
+}
+
+/// Presses `from`, moves to `to` in steps and releases there. With `command` the platform command key is held from
+/// the last move on, so it is down when the drag is released.
+fn drag_tab(fixture: &mut Fixture, from: Pos2, to: Pos2, command: bool) {
+    fixture.frame(vec![moved(from)]);
+    fixture.frame(vec![press(from)]);
+    for step in 1..=4 {
+        fixture.frame(vec![moved(from + (to - from) * (step as f32 / 4.0))]);
+    }
+    if command {
+        fixture.hold(Modifiers::COMMAND);
+    }
+    fixture.frame(vec![moved(to)]);
+    fixture.frame(vec![release(to)]);
+    fixture.hold(Modifiers::NONE);
+}
+
+fn floated(actions: &[Action<usize>]) -> Option<Rect> {
+    actions.iter().find_map(|action| match action {
+        Action::Float { panel, rect, .. } if *panel == SIDE => Some(*rect),
+        _ => None,
+    })
+}
+
+fn title_row(fixture: &Fixture) -> f32 {
+    with_cx(fixture.ctx(), &tokens(Mode::Dark, Contrast::Standard), Variant::SECONDARY, ControlSize::Md, DockSizes::style).bar
+}
+
 #[trial]
-fn a_panel_dropped_on_empty_space_floats_with_its_title_row_under_the_pointer() {
-    let frames = Frames::new();
-    let sizes = with_cx(&frames.ctx, &tokens(Mode::Dark, Contrast::Standard), Variant::SECONDARY, ControlSize::Md, DockSizes::style);
-    let area = Rect::from_min_size(Pos2::ZERO, AREA);
-    let space = FloatSpace::<usize>::new(area, &sizes);
-    let dropped = float_drop(&DragUnit::Panel(SIDE), &space, POINTER);
-    let craft_behavior::dock::Action::Float { rect, .. } = dropped.action else { panic!("a panel floats alone") };
-    assert!(rect.contains(POINTER), "the pointer is on the window: {rect:?}");
-    assert!(POINTER.y - rect.top() <= space.title_row, "the pointer is inside the title row: {rect:?}");
+fn a_tab_released_over_empty_space_floats_with_its_title_row_under_the_pointer() {
+    let (mut fixture, actions) = drag_bed(false);
+    let side = column_tabs(&fixture)[0];
+    drag_tab(&mut fixture, side.center(), EMPTY, false);
+    let rect = floated(&actions.borrow()).expect("a release over a canvas that takes no drop floats the panel");
+    assert!(rect.contains(EMPTY), "the pointer is on the window: {rect:?}");
+    assert!(EMPTY.y - rect.top() <= title_row(&fixture), "the pointer is inside the title row: {rect:?}");
+}
+
+#[trial]
+fn command_held_at_the_release_floats_a_tab_over_a_dock_spot() {
+    let (mut fixture, actions) = drag_bed(false);
+    let tabs = column_tabs(&fixture);
+    let (side, other) = (tabs[0], tabs[1]);
+    drag_tab(&mut fixture, side.center(), other.center(), true);
+    let actions = actions.borrow();
+    let rect = floated(&actions).expect("the command key floats the drop");
+    assert!(rect.contains(other.center()), "the window floats under the pointer: {rect:?}");
+    assert!(!actions.iter().any(|action| matches!(action, Action::Move { .. })), "the tab does not join the group: {actions:?}");
+}
+
+#[trial]
+fn a_drag_in_a_read_only_area_moves_and_floats_nothing() {
+    let (mut fixture, actions) = drag_bed(true);
+    let tabs = column_tabs(&fixture);
+    let (side, other) = (tabs[0], tabs[1]);
+    drag_tab(&mut fixture, side.center(), EMPTY, false);
+    drag_tab(&mut fixture, side.center(), other.center(), false);
+    let actions = actions.borrow();
+    assert!(actions.iter().all(|action| matches!(action, Action::Activate { .. })), "only tab picks are reported: {actions:?}");
 }

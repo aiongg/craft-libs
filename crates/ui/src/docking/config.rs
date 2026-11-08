@@ -64,13 +64,9 @@ pub struct DockConfig {
     pub close_others_item: bool,
     /// Group menu item Maximize Frame / Restore Frame Size, for groups of the split tree.
     pub maximize_item: bool,
-    /// Shows `DockWords::float_hint` under the pointer while a drag offers a docking target.
-    pub float_hint: bool,
-    /// Ctrl/Cmd held when a tab drag of a split-tree group starts makes its drop float, even when the key is let go
-    /// during the drag. Off: only the key held at the drop counts.
-    pub command_press_floats: bool,
-    /// A drag released over no drop target inside the window floats what it carries. Off: that release cancels the
-    /// drag; only Ctrl/Cmd or a release outside the window floats.
+    /// A drag released over no drop target inside the window floats what it carries, such as a panel dropped on a
+    /// protected canvas; a release over the dragged unit's own group leaves it where it is. Off: that release cancels
+    /// the drag; only Ctrl/Cmd held at the release or a release outside the window floats.
     pub float_on_empty_drop: bool,
     /// Dragging a floating window's title bar onto a drop target docks the whole window there. Off: the title bar
     /// only moves the window; tabs and drag bars dock.
@@ -78,18 +74,12 @@ pub struct DockConfig {
     /// Shows the built-in Close items in tab and group menus for closable panels. A host that draws its own Close
     /// items turns this off.
     pub close_menu_items: bool,
-    /// Ends every group's tab strip with a button that opens the selected panel's menu. The host's group header
-    /// sits before it.
-    pub panel_menu_button: bool,
     /// Shows a close action on the title bar of a floating window whose panels are all closable.
     pub close_button: bool,
-    /// Shows a close button on the tabs of closable panels in docked and floating groups, for tabs that act as
-    /// documents. Off: panels close from their menu. Accordion headers and iconic columns never show it.
+    /// Shows a close button on the tabs of closable panels in docked and floating groups, where a middle click also
+    /// closes them, for tabs that act as documents. Off: panels close from their menu. Accordion headers and iconic
+    /// columns never show it.
     pub tab_close_buttons: bool,
-    /// The mouse wheel over a tab strip selects the next or previous tab, one per notch.
-    pub wheel_selects_tabs: bool,
-    /// A middle click on a tab closes its panel when the panel is closable.
-    pub middle_click_closes_tabs: bool,
 }
 
 impl Default for DockConfig {
@@ -100,16 +90,11 @@ impl Default for DockConfig {
             new_dock_zones: true,
             close_others_item: false,
             maximize_item: false,
-            float_hint: false,
-            command_press_floats: false,
             float_on_empty_drop: true,
             title_bar_docks: true,
             close_menu_items: true,
-            panel_menu_button: false,
             close_button: true,
             tab_close_buttons: false,
-            wheel_selects_tabs: false,
-            middle_click_closes_tabs: false,
         }
     }
 }
@@ -150,20 +135,6 @@ impl DockConfig {
         self
     }
 
-    /// The float hint under the pointer on or off.
-    #[must_use]
-    pub fn float_hint(mut self, on: bool) -> Self {
-        self.float_hint = on;
-        self
-    }
-
-    /// Whether Ctrl/Cmd held at the start of a drag floats its drop.
-    #[must_use]
-    pub fn command_press_floats(mut self, on: bool) -> Self {
-        self.command_press_floats = on;
-        self
-    }
-
     /// Whether a release over no target floats.
     #[must_use]
     pub fn float_on_empty_drop(mut self, on: bool) -> Self {
@@ -185,13 +156,6 @@ impl DockConfig {
         self
     }
 
-    /// The panel-menu button at the end of each strip on or off.
-    #[must_use]
-    pub fn panel_menu_button(mut self, on: bool) -> Self {
-        self.panel_menu_button = on;
-        self
-    }
-
     /// The close action on floating windows on or off.
     #[must_use]
     pub fn close_button(mut self, on: bool) -> Self {
@@ -203,20 +167,6 @@ impl DockConfig {
     #[must_use]
     pub fn tab_close_buttons(mut self, on: bool) -> Self {
         self.tab_close_buttons = on;
-        self
-    }
-
-    /// The wheel selecting tabs on or off.
-    #[must_use]
-    pub fn wheel_selects_tabs(mut self, on: bool) -> Self {
-        self.wheel_selects_tabs = on;
-        self
-    }
-
-    /// Middle click closing tabs on or off.
-    #[must_use]
-    pub fn middle_click_closes_tabs(mut self, on: bool) -> Self {
-        self.middle_click_closes_tabs = on;
         self
     }
 

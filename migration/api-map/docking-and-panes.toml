@@ -1280,3 +1280,35 @@ old = ""
 new = "craft_ui::patterns::dock::PaneCommand"
 status = "replaced"
 note = "The pane menu's Move to Start, Move to End, Move to Bottom, Float and Close as commands."
+
+# l4e-dflags: DockConfig fields with no behaviour behind them.
+
+[[setter]]
+type = "DockConfig"
+old = "float_hint"
+new = ""
+note = "No drag hint: Ctrl/Cmd held at the release floats the drop, as in Photoshop, which shows no hint."
+
+[[setter]]
+type = "DockConfig"
+old = "command_press_floats"
+new = ""
+note = "Only Ctrl/Cmd held at the release floats the drop, as in Photoshop."
+
+[[setter]]
+type = "DockConfig"
+old = "panel_menu_button"
+new = ""
+note = "Every group that has menu rows ends its header with the panel menu button, as in Photoshop and PhotoCraft."
+
+[[setter]]
+type = "DockConfig"
+old = "wheel_selects_tabs"
+new = ""
+note = "The wheel does not switch tabs, as in Photoshop."
+
+[[setter]]
+type = "DockConfig"
+old = "middle_click_closes_tabs"
+new = ""
+note = "The tab kind decides: with `tab_close_buttons` a group's tabs are document tabs, which close on a middle click; panel tabs do not."

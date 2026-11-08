@@ -3,7 +3,7 @@
 use super::config::DockConfig;
 use super::event::HidePanels;
 use super::targets::{DockSizes, DockSpot, DockTargets};
-use super::tree::{self, Frames};
+use super::tree;
 use craft_behavior::DockSide;
 use craft_behavior::dock::{Column, Floating, Group, Layout, Node, PanelPlace, SplitSize, node_at};
 use egui::{Context, Id, Pos2, Rect, Vec2};
@@ -218,12 +218,12 @@ pub struct EdgeBand {
     pub narrowed: bool,
 }
 
-/// The bands of the outer edges `config.drop_edges` allows, for the frames of a layout. An edge area is the node
-/// `Layout::edge_path` names, with `canvas` marking the panels it narrows to. Without side zones the band is the
+/// The bands of the outer edges `config.drop_edges` allows, for the leaves of a layout as drawn, each as its tree path
+/// and rect. An edge area is the node `Layout::edge_path` names, with `canvas` marking the panels it narrows to. Without side zones the band is the
 /// edge band, with them the side edge band; either is at most a quarter of the area.
 pub fn edge_bands<P: Clone + Eq + Hash>(
     layout: &Layout<P>,
-    frames: &Frames<'_, P>,
+    leaves: &[(Vec<bool>, Rect)],
     canvas: &dyn Fn(&P) -> bool,
     config: &DockConfig,
     sizes: &DockSizes,
@@ -236,8 +236,7 @@ pub fn edge_bands<P: Clone + Eq + Hash>(
         .filter_map(|side| {
             let path = layout.edge_path(side, canvas);
             node_at(root, &path)?;
-            let area =
-                frames.groups.iter().filter(|group| group.path.starts_with(&path)).map(|group| group.rect).reduce(|all, rect| all.union(rect))?;
+            let area = leaves.iter().filter(|(leaf, _)| leaf.starts_with(&path)).map(|(_, rect)| *rect).reduce(|all, rect| all.union(rect))?;
             let depth = if config.side_edge_zones { sizes.side_edge_band } else { sizes.edge_band };
             let depth = depth.min(area.width() / 4.0).min(area.height() / 4.0);
             let left = matches!((side, rtl), (DockSide::Start, false) | (DockSide::End, true));
