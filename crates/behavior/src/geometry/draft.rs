@@ -8,6 +8,8 @@
 use craft_keymap::Mods;
 use kurbo::Point;
 
+use super::lock::{Directions, round_to_direction};
+
 /// Which tool's rules an [`OutlineDraft`] follows.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
@@ -427,6 +429,6 @@ pub fn turn_to_45(from: Point, point: Point) -> Point {
     if !length.is_finite() || length == 0.0 {
         return point;
     }
-    let angle = (delta.y.atan2(delta.x) / std::f64::consts::FRAC_PI_4).round() * std::f64::consts::FRAC_PI_4;
+    let angle = round_to_direction(delta.y.atan2(delta.x), Directions::Eight);
     Point::new(from.x + length * angle.cos(), from.y + length * angle.sin())
 }

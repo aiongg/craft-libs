@@ -1,4 +1,4 @@
-//! Direction locking for ⇧ drags: [`Directions`] and [`lock_direction`].
+//! Direction locking for ⇧ drags: [`Directions`], [`lock_direction`] and [`round_to_direction`].
 
 use kurbo::Vec2;
 
@@ -28,6 +28,14 @@ impl Directions {
     }
 }
 
+/// `angle` (radians, 0 = right, document y down) rounded to the nearest of `directions` evenly
+/// spaced directions: the one angle-rounding rule behind [`lock_direction`] (projection) and
+/// [`turn_to_45`](super::draft::turn_to_45) (rotation).
+pub fn round_to_direction(angle: f64, directions: Directions) -> f64 {
+    let step = std::f64::consts::TAU / f64::from(directions.count());
+    (angle / step).round() * step
+}
+
 /// `d` locked to the nearest of `directions` evenly spaced directions (0° = right, document y
 /// down). `previous` is the offset this returned last in the same drag: its direction is kept
 /// until `d` is more than half a step plus [`LOCK_HYSTERESIS_DEGREES`] away from it. The length
@@ -41,16 +49,16 @@ pub fn lock_direction(d: Vec2, previous: Option<Vec2>, directions: Directions) -
     }
     let step = std::f64::consts::TAU / f64::from(directions.count());
     let a = d.atan2();
-    let mut k = (a / step).round();
+    let mut locked = round_to_direction(a, directions);
     if let Some(p) = previous.filter(|p| p.hypot() > 0.0) {
-        let kp = (p.atan2() / step).round();
-        let off = (a - kp * step).rem_euclid(std::f64::consts::TAU);
+        let kept = round_to_direction(p.atan2(), directions);
+        let off = (a - kept).rem_euclid(std::f64::consts::TAU);
         let off = off.min(std::f64::consts::TAU - off);
         if off < step / 2.0 + LOCK_HYSTERESIS_DEGREES.to_radians() {
-            k = kp;
+            locked = kept;
         }
     }
-    let (s, c) = (k * step).sin_cos();
+    let (s, c) = locked.sin_cos();
     let t = (d.x * c + d.y * s).max(0.0);
     let clean = |v: f64| if v.abs() < 1e-9 { 0.0 } else { v };
     Vec2::new(clean(t * c), clean(t * s))

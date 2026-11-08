@@ -1326,6 +1326,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let window = window_instance(&props, id).filter(|window| *window != id);
         register_instances(&ctx, &props, id, window);
         let region_env = env.derive(|scoped| {
+            // The container's own `enabled(false)` greys everything inside it, as a scope would.
+            scoped.enabled &= cx.core.resolved.enabled;
             if let Some(window) = window {
                 scoped.commands = scoped.commands.pushed(WindowCommand::SCOPE, window);
             }

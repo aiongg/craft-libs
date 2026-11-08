@@ -1,6 +1,6 @@
 //! The move gesture, the stroke lock and ray snapping.
 
-use craft_behavior::geometry::{ConstrainStyle, Directions, MoveGesture, StrokeLock, lock_direction, snap_ray};
+use craft_behavior::geometry::{ConstrainStyle, Directions, MoveGesture, StrokeLock, lock_direction};
 use craft_keymap::Mods;
 use kurbo::{Point, Vec2};
 
@@ -89,14 +89,16 @@ fn stroke_lock_waits_then_locks_to_45_degrees() {
     assert!(!lock.locked());
 }
 
+// The Gradient tool's ⇧ projects on the nearest 45° ray; the Polygon tool's turns about the
+// anchor. Both pick the same ray.
 #[test]
-fn snap_ray_projects_onto_the_nearest_ray() {
-    let step = std::f64::consts::FRAC_PI_4;
-    let o = Point::new(1.0, 1.0);
-    let p = snap_ray(o, Point::new(11.0, 3.0), step);
-    assert!((p.y - 1.0).abs() < 1e-9 && (p.x - 11.0).abs() < 1e-9);
-    let p = snap_ray(o, Point::new(6.0, 5.0), step);
-    assert!((p.x - p.y).abs() < 1e-9);
-    assert_eq!(snap_ray(o, o, step), o);
-    assert_eq!(snap_ray(o, Point::new(5.0, 5.0), 0.0), Point::new(5.0, 5.0));
+fn projection_and_rotation_share_the_nearest_45_degree_ray() {
+    use craft_behavior::geometry::draft::turn_to_45;
+    let origin = Point::new(1.0, 1.0);
+    for p in [Point::new(11.0, 3.0), Point::new(6.0, 5.0), Point::new(-4.0, 9.0), Point::new(2.0, -7.0)] {
+        let projected = origin + lock_direction(p - origin, None, Directions::Eight);
+        let turned = turn_to_45(origin, p);
+        let (a, b) = (projected - origin, turned - origin);
+        assert!((a.x * b.y - a.y * b.x).abs() < 1e-9 && a.dot(b) > 0.0, "{p:?}");
+    }
 }

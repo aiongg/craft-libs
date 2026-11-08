@@ -82,8 +82,9 @@ impl<'a> Draw<'a> {
         layout
     }
 
-    /// Lays `run` out in `max_width` without painting it.
-    pub(crate) fn layout(&self, run: &TextRun<'_>, max_width: f32) -> TextLayout {
+    /// Lays `run` out in `max_width` without painting it: the one text layout path for painters that measure before
+    /// they paint (the same layout `text` paints with).
+    pub fn layout(&self, run: &TextRun<'_>, max_width: f32) -> TextLayout {
         run.layout(self.painter.ctx(), &self.text_env(), max_width)
     }
 

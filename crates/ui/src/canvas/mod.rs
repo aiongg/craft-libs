@@ -42,7 +42,8 @@ pub use raster::{DetailPlan, RasterDisplay, RasterDisplayOutput, RasterStyle, sn
 // l4d-space
 mod snap;
 pub use guide::GuideColor;
-pub(crate) use rulers::{LABEL_STEP_MIN, NUDGE, NUDGE_FAR};
+pub(crate) use rulers::LABEL_STEP_MIN;
+pub use rulers::{NUDGE, NUDGE_FAR};
 pub use snap::Snap;
 pub(crate) use space::context_menu;
 pub use space::{BackgroundPress, CanvasRulers, context_click};

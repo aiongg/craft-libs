@@ -32,6 +32,7 @@ pub enum CursorIcon {
     ResizeNeSw,
     ResizeNwSe,
     ResizeVertical,
+    ResizeColumn,
     ResizeEast,
     ResizeSouthEast,
     ResizeSouth,

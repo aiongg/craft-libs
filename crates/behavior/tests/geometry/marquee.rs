@@ -48,3 +48,12 @@ fn the_gesture_begins_once() {
     assert!(gesture.has_begun());
     assert!(!gesture.begin());
 }
+
+// Saved tool settings from the legacy crate keep loading: camelCase variant names.
+#[test]
+fn constraint_loads_the_legacy_settings_json() {
+    let legacy = r#"[ "free", {"ratio": [1, 1]}, {"size": [64, 48]} ]"#;
+    let loaded: Vec<Constraint> = serde_json::from_str(legacy).unwrap();
+    assert_eq!(loaded, [Constraint::Free, Constraint::Ratio(1.0, 1.0), Constraint::Size(64.0, 48.0)]);
+    assert_eq!(serde_json::to_string(&loaded).unwrap(), r#"["free",{"ratio":[1.0,1.0]},{"size":[64.0,48.0]}]"#);
+}

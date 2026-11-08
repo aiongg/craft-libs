@@ -38,8 +38,9 @@ const CORNER: PartKey = PartKey::new("corner");
 
 /// The distance an arrow key moves the zero point of a focused corner or a selected guide, in document units; Shift
 /// moves it by `NUDGE_FAR`.
-pub(crate) const NUDGE: f64 = 1.0;
-pub(crate) const NUDGE_FAR: f64 = 10.0;
+pub const NUDGE: f64 = 1.0;
+/// The distance Shift moves a nudge by, in document units.
+pub const NUDGE_FAR: f64 = 10.0;
 
 /// The zero point is written to this many decimal places' worth of document units.
 const ZERO_ROUND: f64 = 1000.0;

@@ -245,5 +245,5 @@ note = "Removed: content paint draws the line through `Draw::rule`, which snaps 
 name = "Picture"
 old = ""
 new = "craft_ui::display::Picture"
-status = "pending"
+status = "replaced"
 note = "A display leaf over `TextureStore`: `Picture::new(label, key, &|| ColorImage)` with `.revision(Revision)`, `.aspect(ThumbAspect)` and `.extent(PictureSize::Icon | PictureSize::Thumb(ThumbSize))`. Legacy `icon_texture`-style decoders that turned bytes into a texture and drew it with `ui.image` build the `ColorImage` in the closure and show a `Picture`; the image is made once per key and revision."

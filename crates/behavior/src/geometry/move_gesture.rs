@@ -7,8 +7,6 @@
 //!   move are one undo step from the tool's mark at the press.
 //! - [`StrokeLock`]: ⇧ during a painting stroke keeps it on a 0°, 45° or 90° line from the
 //!   stroke's last point.
-//! - [`snap_ray`] and [`snap_direction`]: the Gradient tool's ⇧, a point moved onto the nearest
-//!   ray from the press.
 //!
 //! There is no library Move tool: picking what moves and changing the document are the app's.
 //! A tool passes `ToolContext::slop` for both distances of the [`ConstrainStyle`]: a stroke
@@ -161,7 +159,7 @@ impl StrokeLock {
     /// `zoom` screen points per document unit. Without `shift` the point passes through and the
     /// lock is dropped. With it: the lock begins at `last` if none runs; within `reach / zoom` of
     /// the origin the origin comes back; the first point past it fixes the direction (nearest
-    /// multiple of 45°, as [`snap_ray`]); every later point is projected on that line.
+    /// multiple of 45°, as [`lock_direction`] with [`Directions::Eight`]); every later point is projected on that line.
     pub fn constrain(&mut self, last: Point, p: Point, shift: bool, zoom: f64) -> Point {
         if !shift {
             self.reset();
@@ -172,7 +170,9 @@ impl StrokeLock {
             if (p - origin).hypot() < self.reach / zoom.max(1e-3) {
                 return origin;
             }
-            self.direction = snap_direction(origin, p, std::f64::consts::FRAC_PI_4);
+            let locked = lock_direction(p - origin, None, Directions::Eight);
+            let len = locked.hypot();
+            self.direction = (len.is_finite() && len > 0.0).then(|| locked / len);
         }
         match self.direction {
             Some(dir) => origin + dir * (p - origin).dot(dir),
@@ -190,27 +190,4 @@ impl StrokeLock {
         self.origin = None;
         self.direction = None;
     }
-}
-
-/// `p` moved onto the nearest ray from `origin` whose angle is a multiple of `step` radians
-/// (projected, so the distance along the ray follows the pointer): the Gradient tool's ⇧ with
-/// `step` π/4, applied from the press point on every move. `p` comes back unchanged when it is
-/// within 1e-9 of `origin`, a coordinate is not finite or `step` is not positive.
-pub fn snap_ray(origin: Point, p: Point, step: f64) -> Point {
-    match snap_direction(origin, p, step) {
-        Some(dir) => origin + dir * (p - origin).dot(dir),
-        None => p,
-    }
-}
-
-/// The unit direction from `origin` towards `p` snapped to the nearest multiple of `step` (π/4
-/// for 45° rays); `None` when the points coincide, a coordinate is not finite or `step` is not
-/// positive.
-pub fn snap_direction(origin: Point, p: Point, step: f64) -> Option<Vec2> {
-    let d = p - origin;
-    if !(d.x.is_finite() && d.y.is_finite()) || d.hypot() < 1e-9 || step.is_nan() || step <= 0.0 {
-        return None;
-    }
-    let a = (d.atan2() / step).round() * step;
-    Some(Vec2::new(a.cos(), a.sin()))
 }
