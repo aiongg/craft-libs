@@ -258,16 +258,10 @@ pub(crate) fn select(ctx: &Context, id: Id, anchor: usize, caret: usize) {
     text_edit::select(ctx, id, anchor, caret);
 }
 
-/// The modifiers of the Enter press this pass.
-fn entered_mods(ctx: &Context) -> Mods {
+/// The modifiers held in this pass, which are the Enter press's.
+fn held_mods(ctx: &Context) -> Mods {
     let os = crate::runtime::windows::os_of(ctx);
-    ctx.input(|input| {
-        input.events.iter().rev().find_map(|event| match event {
-            egui::Event::Key { key: egui::Key::Enter, pressed: true, modifiers, .. } => Some(Mods::from_egui(modifiers, os)),
-            _ => None,
-        })
-    })
-    .unwrap_or(Mods::NONE)
+    ctx.input(|input| Mods::from_egui(&input.modifiers, os))
 }
 
 /// Runs the text widget for one pass.
@@ -341,7 +335,7 @@ pub(crate) fn run(state: &mut TextState, mut input: AdapterIn<'_>) -> AdapterOut
     let at = state.draft.as_deref().filter(|_| typing).map(|text| (text, caret.unwrap_or_else(|| text.chars().count())));
     state.completions.refresh(input.options.complete.as_deref(), at);
     let submitted =
-        (shown.entered && shown.focused).then(|| entered_mods(ctx)).filter(|mods| !input.options.multiline() || (input.options.submits && mods.cmd));
+        (shown.entered && shown.focused).then(|| held_mods(ctx)).filter(|mods| !input.options.multiline() || (input.options.submits && mods.cmd));
     if let Some(mods) = submitted {
         state.end = Some(End::Submit);
         state.submit_mods = mods;
