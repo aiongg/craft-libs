@@ -3,15 +3,17 @@
 
 use craft_behavior::Codec as _;
 use craft_behavior::kurbo::Point;
-use craft_pages::range::PageRangeError;
+use craft_pages::range::{PageRange, PageRangeError, Subset};
 use craft_pages::setup::{Margins, PageSetup};
+use craft_pages::ui::fixtures::{INK, PAPER, demo_placed};
 use craft_pages::ui::{
-    ColumnBar, HeaderFooterPage, HiddenMark, MarginEdge, MarginHandles, MarginRules, PageEdges, PageRangeCodec, PageSetupDialog, Zone, ZoneBands,
-    clamp_margin, dragged_margin, margin_range,
+    ColumnBar, HeaderFooterPage, HeaderFooterZones, HiddenMark, MarginEdge, MarginHandles, MarginRules, PageEdges, PageRangeCodec, PageRangeOptions,
+    PageSetupDialog, Zone, ZoneAt, ZoneBands, clamp_margin, dragged_margin, margin_range,
 };
 use craft_ui::contract::{Bind, Show as _};
+use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers, Vec2};
+use egui::{Key, Modifiers, Pos2, Vec2, pos2, vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -208,4 +210,139 @@ fn characters_map_to_their_hidden_marks() {
     let marks: Vec<_> = [' ', '\t', '\u{2028}', '\u{A0}'].into_iter().map(|c| HiddenMark::of(c).map(HiddenMark::glyph)).collect();
     assert_eq!(marks, [Some("·"), Some("»"), Some("¬"), Some("°")]);
     assert_eq!(HiddenMark::of('a'), None);
+}
+
+/// A column bar over four equal columns, and the widths it keeps.
+fn column_rig() -> (Fixture, Rc<RefCell<Vec<f64>>>) {
+    let widths = Rc::new(RefCell::new(vec![EQUAL; COLUMNS]));
+    let seen = Rc::clone(&widths);
+    let mut fixture = Fixture::new(move |ui| {
+        let mut current = seen.borrow().clone();
+        ColumnBar::new("Columns", Bind::bound(&mut current)).show(ui);
+        *seen.borrow_mut() = current;
+    });
+    fixture.settle();
+    (fixture, widths)
+}
+
+#[trial]
+fn a_screen_reader_sets_a_divider_by_percent() {
+    let (mut fixture, widths) = column_rig();
+    let divider = fixture.by_label("Column 1 width").expect("the first divider");
+    fixture.access(AccessActionKind::SetValue(40.0), &divider);
+    let widths = widths.borrow();
+    let total: f64 = widths.iter().sum();
+    assert!(close(widths[0] / total, 0.4), "the first column holds 40 percent: {widths:?}");
+    assert!(close(total, EQUAL * COLUMNS as f64), "the total stays: {widths:?}");
+}
+
+#[trial]
+fn a_screen_reader_steps_a_divider() {
+    let (mut fixture, widths) = column_rig();
+    let divider = fixture.by_label("Column 1 width").expect("the first divider");
+    fixture.access(AccessActionKind::Increment, &divider);
+    assert!(widths.borrow()[0] > EQUAL, "Increment widens the column before the divider: {:?}", widths.borrow());
+    fixture.access(AccessActionKind::Decrement, &divider);
+    fixture.access(AccessActionKind::Decrement, &divider);
+    assert!(widths.borrow()[0] < EQUAL, "Decrement narrows it: {:?}", widths.borrow());
+}
+
+/// The margin handles of one Letter page at the start of a room, and the edges they edit.
+fn margin_rig() -> (Fixture, Rc<RefCell<PageEdges>>) {
+    let edges = Rc::new(RefCell::new(PageEdges::new(Margins::uniform(72.0))));
+    let seen = Rc::clone(&edges);
+    let mut fixture = Fixture::new(move |ui| {
+        let page = demo_placed(1, pos2(40.0, 40.0)).remove(0);
+        let mut current = *seen.borrow();
+        let room = ui.available_rect_before_wrap();
+        MarginHandles::new("Margins", &page, Bind::bound(&mut current)).show_at(ui, room);
+        *seen.borrow_mut() = current;
+    });
+    fixture.room(vec2(800.0, 900.0));
+    fixture.settle();
+    (fixture, edges)
+}
+
+#[trial]
+fn a_screen_reader_sets_a_margin_inside_its_range() {
+    let (mut fixture, edges) = margin_rig();
+    let left = fixture.by_label("Left Margin").expect("the left edge");
+    fixture.access(AccessActionKind::SetValue(100.0), &left);
+    assert!(close(edges.borrow().margins.left, 100.0), "{:?}", edges.borrow());
+    fixture.access(AccessActionKind::SetValue(1.0e6), &left);
+    assert_eq!(edges.borrow().margins.left, 468.0, "the text keeps its least width: {:?}", edges.borrow());
+}
+
+#[trial]
+fn a_screen_reader_steps_a_margin() {
+    let (mut fixture, edges) = margin_rig();
+    let left = fixture.by_label("Left Margin").expect("the left edge");
+    fixture.access(AccessActionKind::Increment, &left);
+    assert!(edges.borrow().margins.left > 72.0, "Increment moves the edge toward the text: {:?}", edges.borrow());
+}
+
+/// A page range over twelve pages, and the range the options last reported.
+fn range_rig(start: PageRange) -> (Fixture, Rc<RefCell<PageRange>>) {
+    let range = Rc::new(RefCell::new(start));
+    let seen = Rc::clone(&range);
+    let mut fixture = Fixture::new(move |ui| {
+        let current = *seen.borrow();
+        if let Some(next) = PageRangeOptions::new("Page range", current, 12).show(ui).changed {
+            *seen.borrow_mut() = next;
+        }
+    });
+    fixture.settle();
+    (fixture, range)
+}
+
+/// Types `text` into the number field `label`, and leaves it.
+fn type_number(fixture: &mut Fixture, nth: usize, text: &str) {
+    let fields = fixture.by_role(craft_ui::contract::Role::SPIN_BUTTON);
+    fixture.click(&fields[nth]);
+    fixture.key(Key::A, Modifiers::COMMAND);
+    fixture.type_text(text);
+    fixture.key(Key::Enter, Modifiers::NONE);
+}
+
+#[trial]
+fn from_and_to_stay_inside_the_document_and_in_order() {
+    let start = PageRange { all: false, from: 3, to: Some(9), subset: Subset::All };
+    let (mut fixture, range) = range_rig(start);
+    type_number(&mut fixture, 1, "99");
+    assert_eq!(range.borrow().to, Some(12), "a page past the end is the last page: {:?}", range.borrow());
+    let (mut fixture, range) = range_rig(start);
+    type_number(&mut fixture, 0, "11");
+    assert_eq!((range.borrow().from, range.borrow().to), (11, Some(11)), "the end follows a start past it");
+    let (mut fixture, range) = range_rig(start);
+    type_number(&mut fixture, 1, "2");
+    assert_eq!((range.borrow().from, range.borrow().to), (2, Some(2)), "the start follows an end before it");
+}
+
+/// The header and footer zones of one page, the zone being edited, and what the zones last reported.
+fn zones_rig() -> (Fixture, Rc<RefCell<(Option<ZoneAt>, bool)>>) {
+    let reported = Rc::new(RefCell::new((None, false)));
+    let seen = Rc::clone(&reported);
+    let mut fixture = Fixture::new(move |ui| {
+        let placed = demo_placed(1, pos2(20.0, 20.0));
+        let bands = |_: usize| ZoneBands::new(72.0, 72.0, [50.0, 50.0]);
+        let room = ui.available_rect_before_wrap();
+        let out = HeaderFooterZones::new("Zones", &placed, &bands, PAPER, INK).editing(ZoneAt::new(0, Zone::new(true, 2))).show_at(ui, room);
+        let mut seen = seen.borrow_mut();
+        seen.0 = out.begin.or(seen.0);
+        seen.1 |= out.end;
+    });
+    fixture.room(vec2(700.0, 900.0));
+    fixture.settle();
+    (fixture, reported)
+}
+
+#[trial]
+fn a_click_on_a_section_starts_editing_it_and_escape_ends_the_editing() {
+    let (mut fixture, reported) = zones_rig();
+    let first_header: Pos2 = pos2(20.0 + 50.0 + 20.0, 20.0 + 36.0);
+    fixture.click_at(first_header);
+    assert_eq!(reported.borrow().0, Some(ZoneAt::new(0, Zone::new(false, 0))), "{:?}", reported.borrow());
+    assert!(!reported.borrow().1, "no end yet");
+    fixture.key(Key::Escape, Modifiers::NONE);
+    assert!(reported.borrow().1, "Escape on a focused section ends the editing that was under way");
 }
