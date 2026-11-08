@@ -8,9 +8,8 @@ use craft_ui::runtime::env::Message;
 use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use egui::{Ui, Vec2};
 
-use super::{
-    CORNER_PART, PerspectiveBar, PerspectiveEdit, PerspectiveSession, PerspectiveWarp, PerspectiveWarpOutput, Plane, PlaneCorner, PlaneMode,
-};
+use super::overlay::CORNER;
+use super::{PerspectiveBar, PerspectiveEdit, PerspectiveSession, PerspectiveWarp, PerspectiveWarpOutput, Plane, PlaneCorner, PlaneMode};
 
 const ADD_PLANE: ToolPath = ToolPath::Command("the Add Plane command");
 

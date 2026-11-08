@@ -14,6 +14,8 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
 
+/// A room wide enough for the whole bar.
+const WIDE_BAR: Vec2 = Vec2::new(1200.0, 80.0);
 const TOOL: ToolPath = ToolPath::Command("the Add Plane command");
 
 fn quad(x0: f64, y0: f64, x1: f64, y1: f64) -> [Point; 4] {
@@ -315,8 +317,8 @@ fn replacing_the_planes_in_the_middle_of_a_corner_drag_ends_the_drag() {
     let from = h.at(100.0, 100.0);
     h.fixture.frame(vec![pointer::moved(from)]);
     h.fixture.frame(vec![pointer::press(from)]);
-    h.fixture.frame(vec![pointer::moved(from + Vec2::new(10.0, 10.0))]);
-    h.fixture.frame(vec![pointer::moved(from + Vec2::new(20.0, 20.0))]);
+    h.fixture.frame(vec![pointer::moved(h.at(110.0, 110.0))]);
+    h.fixture.frame(vec![pointer::moved(h.at(120.0, 120.0))]);
     h.fixture.settle();
     assert!(h.state.borrow().session.dragging());
     assert_eq!(h.planes()[0].source[0], Point::new(120.0, 120.0));
@@ -327,8 +329,9 @@ fn replacing_the_planes_in_the_middle_of_a_corner_drag_ends_the_drag() {
     assert!(h.state.borrow().seen.contains(&Seen::Cancel), "the drag ends with a cancel");
 
     let before = h.state.borrow().seen.len();
-    h.fixture.frame(vec![pointer::moved(from + Vec2::new(40.0, 40.0))]);
-    h.fixture.frame(vec![pointer::release(from + Vec2::new(40.0, 40.0))]);
+    let away = h.at(140.0, 140.0);
+    h.fixture.frame(vec![pointer::moved(away)]);
+    h.fixture.frame(vec![pointer::release(away)]);
     h.fixture.settle();
     assert_eq!(h.state.borrow().seen.len(), before, "nothing after the replacement");
     assert!(h.planes().is_empty());
@@ -387,7 +390,7 @@ fn bar(count: usize, mode: PlaneMode) -> (Fixture, Rc<RefCell<BarState>>) {
         held.discard |= output.discard;
         held.edits.extend(output.edits);
     });
-    fixture.room(Vec2::new(1200.0, 80.0));
+    fixture.room(WIDE_BAR);
     fixture.settle();
     (fixture, state)
 }

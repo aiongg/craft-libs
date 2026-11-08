@@ -3,7 +3,7 @@
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::buttons::Button;
 use craft_ui::choice::Segmented;
-use craft_ui::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _, clicked};
 use craft_ui::display::{Divider, Text};
 use craft_ui::runtime::env::Env;
 use egui::Ui;
@@ -84,7 +84,7 @@ fn body(ui: &mut Ui, session: &PerspectiveSession, words: &PerspectiveBarWords, 
                 (&words.level, &words.level_tip, Straighten::Horizontal),
                 (&words.both, &words.both_tip, Straighten::Both),
             ] {
-                if Button::new(label.clone()).tooltip(tip.clone()).show(ui).clicked() {
+                if clicked(&Button::new(label.clone()).tooltip(tip.clone()).show(ui)) {
                     edits.push(PerspectiveEdit::Straighten(how));
                 }
             }
@@ -93,7 +93,7 @@ fn body(ui: &mut Ui, session: &PerspectiveSession, words: &PerspectiveBarWords, 
             let count = words.planes.text(planes as u64, &env.format().integer(planes as u64));
             Text::new(count).show(ui);
             let remove = Button::new(words.remove_planes.clone()).enabled(planes > 0).show(ui);
-            if remove.clicked() {
+            if clicked(&remove) {
                 edits.push(PerspectiveEdit::replace(session.planes(), Vec::new(), words.remove_planes.as_str()));
             }
         }

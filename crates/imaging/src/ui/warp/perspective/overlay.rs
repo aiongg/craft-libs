@@ -295,7 +295,7 @@ impl PerspectiveWarp<'_> {
                 self.report.hovered = Some(corner_of(index));
             }
             match press.phase {
-                PressPhase::Down { start } if start.button == PointerButton::Primary && press.went_down => {
+                PressPhase::Down { start, .. } if start.button == PointerButton::Primary && press.went_down => {
                     self.press_corner(cx, space, planes, corner_of(index), start.origin);
                 }
                 phase => self.track(cx, space, phase),
@@ -304,7 +304,7 @@ impl PerspectiveWarp<'_> {
         let Some(result) = cx.part_if_declared(PICTURE) else { return };
         let press = result.press;
         match press.phase {
-            PressPhase::Down { start } if start.button == PointerButton::Primary && press.went_down => {
+            PressPhase::Down { start, .. } if start.button == PointerButton::Primary && press.went_down => {
                 self.press_picture(cx, space, planes, start.origin);
             }
             phase => self.track(cx, space, phase),
@@ -384,7 +384,7 @@ impl Outcome for PerspectiveWarpOutput {
 impl Component for PerspectiveWarp<'_> {
     const ROLE: Role = Role::GROUP;
     const OVERLAYS: bool = false;
-    const KEYS: KeyUse = KeyUse { chrome_key: false, ..KeyUse::CANVAS.with_moves() };
+    const KEYS: KeyUse = KeyUse::CANVAS.with_moves();
     type Style = PerspectiveWarpStyle;
     type Output = PerspectiveWarpOutput;
 

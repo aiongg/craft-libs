@@ -106,7 +106,7 @@ impl PinSolver for IdwSolver {
 }
 
 /// Four pins on `layer`: one held where it attached, two pulled and one that anchors.
-pub(crate) fn sample_pins(layer: Rect) -> Vec<Pin> {
+pub(crate) fn sample_pins(layer: DocRect) -> Vec<Pin> {
     let at = |fx: f64, fy: f64| Point::new(layer.x0 + layer.width() * fx, layer.y0 + layer.height() * fy);
     let pin = |rest: (f64, f64), held: (f64, f64)| Pin::new(at(rest.0, rest.1), at(held.0, held.1));
     vec![pin((0.2, 0.25), (0.2, 0.25)), pin((0.8, 0.25), (0.9, 0.1)), pin((0.5, 0.75), (0.45, 0.85)), pin((0.15, 0.8), (0.15, 0.8))]

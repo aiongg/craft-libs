@@ -13,6 +13,11 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
 
+/// A room wide enough for the whole bar.
+const WIDE_BAR: Vec2 = Vec2::new(1700.0, 80.0);
+/// The expansion and the rotation the bar tests type.
+const TYPED_EXPANSION: f64 = 12.0;
+const TYPED_ROTATION: f64 = 45.0;
 const TOOL: ToolPath = ToolPath::Command("the Add Pin command");
 
 #[derive(Debug, PartialEq)]
@@ -437,15 +442,15 @@ fn alt_click_deletes_a_pin_and_esc_cancels_a_drag_or_discards() {
     let from = h.at(200.0, 100.0);
     h.fixture.frame(vec![pointer::moved(from)]);
     h.fixture.frame(vec![pointer::press(from)]);
-    h.fixture.frame(vec![pointer::moved(from + Vec2::new(20.0, 0.0))]);
-    h.fixture.frame(vec![pointer::moved(from + Vec2::new(40.0, 0.0))]);
+    h.fixture.frame(vec![pointer::moved(h.at(220.0, 100.0))]);
+    h.fixture.frame(vec![pointer::moved(h.at(240.0, 100.0))]);
     h.fixture.settle();
     assert_eq!(h.places(), vec![Point::new(240.0, 100.0)]);
     h.key(Key::Escape, Modifiers::NONE);
     assert_eq!(h.places(), vec![Point::new(200.0, 100.0)], "cancelled");
     assert!(h.seen().contains(&Seen::Cancel));
     assert!(!h.state.borrow().discard, "the Esc ended the drag");
-    h.fixture.frame(vec![pointer::release(from + Vec2::new(40.0, 0.0))]);
+    h.fixture.frame(vec![pointer::release(h.at(240.0, 100.0))]);
     h.fixture.settle();
     h.key(Key::Escape, Modifiers::NONE);
     assert!(h.state.borrow().discard, "Esc with no drag discards the session");
@@ -576,7 +581,7 @@ fn bar(selected: bool, notice: Option<&str>) -> (Fixture, Rc<RefCell<BarState>>)
         held.discard |= output.discard;
         held.edits.extend(output.edits);
     });
-    fixture.room(Vec2::new(1700.0, 80.0));
+    fixture.room(WIDE_BAR);
     fixture.settle();
     (fixture, state)
 }
@@ -617,14 +622,14 @@ fn the_options_report_edits_and_a_refused_remesh_shows_its_notice() {
     let field = fixture.by_role(Role::SPIN_BUTTON).into_iter().next().expect("the expansion field");
     fixture.click(&field);
     fixture.key(Key::A, Modifiers::COMMAND);
-    fixture.type_text("12");
+    fixture.type_text(&TYPED_EXPANSION.to_string());
     fixture.key(Key::Enter, Modifiers::NONE);
     let mesh = fixture.by_label("Show Mesh").expect("shown");
     fixture.click(&mesh);
     let edits = state.borrow().edits.clone();
     assert!(matches!(&edits[0], PinEdit::Options(o) if o.mode == PinMode::Rigid), "{edits:?}");
     assert!(matches!(&edits[1], PinEdit::Options(o) if o.density == PinDensity::More), "{edits:?}");
-    assert!(matches!(&edits[2], PinEdit::Options(o) if o.expansion == 12.0), "{edits:?}");
+    assert!(matches!(&edits[2], PinEdit::Options(o) if o.expansion == TYPED_EXPANSION), "{edits:?}");
     assert_eq!(edits.len(), 4, "{edits:?}");
     assert_eq!(edits[3], PinEdit::ShowMesh(false));
 }
@@ -652,10 +657,10 @@ fn rotation_and_remove_all_report_pin_lists() {
     let degrees = fixture.by_role(Role::SPIN_BUTTON).into_iter().last().expect("the rotation field");
     fixture.click(&degrees);
     fixture.key(Key::A, Modifiers::COMMAND);
-    fixture.type_text("45");
+    fixture.type_text(&TYPED_ROTATION.to_string());
     fixture.key(Key::Enter, Modifiers::NONE);
     let committed = state.borrow().edits.iter().rev().find_map(angle);
-    assert_eq!(committed, Some(45.0), "{:?}", state.borrow().edits);
+    assert_eq!(committed, Some(TYPED_ROTATION), "{:?}", state.borrow().edits);
 
     state.borrow_mut().edits.clear();
     let remove = fixture.by_label("Remove All Pins").expect("shown");

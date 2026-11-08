@@ -238,7 +238,7 @@ fn nearest_selected(view: &CanvasView, pins: &[Pin], selected: &[usize], p: Pos2
 }
 
 /// A document point written in the canvas's units with `template` ("{x}, {y}").
-pub(super) fn point_text(space: &CanvasSpace, units: &Units, template: &WordTemplate, at: Point) -> String {
+pub(in crate::ui::warp) fn point_text(space: &CanvasSpace, units: &Units, template: &WordTemplate, at: Point) -> String {
     let (x, zero_x) = space.rulers().across(Axis::Y);
     let (y, zero_y) = space.rulers().across(Axis::X);
     template.fill(&[("x", &x.format_value(units, at.x, zero_x)), ("y", &y.format_value(units, at.y, zero_y))])
@@ -336,7 +336,7 @@ impl PinWarp<'_> {
                 self.report.pointer = hover_pos.map(|at| space.view.to_doc(at));
             }
             match press.phase {
-                PressPhase::Down { start } if start.button == PointerButton::Primary && press.went_down => {
+                PressPhase::Down { start, .. } if start.button == PointerButton::Primary && press.went_down => {
                     self.press_pin(cx, space, pins, i, (press.mods.alt, press.mods.shift), start.origin);
                 }
                 phase => self.track(cx, space, phase),
@@ -348,7 +348,7 @@ impl PinWarp<'_> {
             self.report.pointer = hover_pos.map(|at| space.view.to_doc(at));
         }
         match press.phase {
-            PressPhase::Down { start } if start.button == PointerButton::Primary && press.went_down => {
+            PressPhase::Down { start, .. } if start.button == PointerButton::Primary && press.went_down => {
                 self.press_mesh(cx, space, pins, press.mods.alt, start.origin);
             }
             phase => self.track(cx, space, phase),
@@ -434,7 +434,7 @@ impl Outcome for PinWarpOutput {
 impl Component for PinWarp<'_> {
     const ROLE: Role = Role::GROUP;
     const OVERLAYS: bool = false;
-    const KEYS: KeyUse = KeyUse { chrome_key: false, edits: EditSet::NONE.with(EditCommand::SelectAll), ..KeyUse::CANVAS.with_moves() };
+    const KEYS: KeyUse = KeyUse::CANVAS.with_moves().with_edits(EditSet::NONE.with(EditCommand::SelectAll));
     type Style = PinWarpStyle;
     type Output = PinWarpOutput;
 

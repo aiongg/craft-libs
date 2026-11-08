@@ -5,7 +5,7 @@ use craft_theme::variant::Tone;
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::buttons::{Button, IconButton};
 use craft_ui::choice::Checkbox;
-use craft_ui::contract::{Bind, Entry, FieldLayout, Props as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Entry, FieldLayout, Props as _, Show as _, ShowContainer as _, clicked};
 use craft_ui::display::{Divider, Text};
 use craft_ui::form::Field;
 use craft_ui::pickers::Select;
@@ -136,10 +136,10 @@ fn body(ui: &mut Ui, session: &PinWarpSession, words: &PinWarpBarWords, notice: 
             .show(ui);
         // A remesh per update would rebuild the mesh while the value is still being typed or scrubbed: only the
         // value that ends the edit goes out.
-        if let Some(EditEvent::Commit { after: Some(expansion), .. } | EditEvent::Set { after: Some(expansion), .. }) = field.event
-            && expansion != options.expansion
+        if let Some(EditEvent::Commit { after: Some(expansion), .. } | EditEvent::Set { after: Some(expansion), .. }) = field.event.as_ref()
+            && *expansion != options.expansion
         {
-            edits.push(PinEdit::Options(PinWarpOptions { expansion, ..options }));
+            edits.push(PinEdit::Options(PinWarpOptions { expansion: *expansion, ..options }));
         }
     });
     let shown = Checkbox::new(Bind::given(session.show_mesh())).label(words.show_mesh.clone()).show(ui);
@@ -154,7 +154,7 @@ fn body(ui: &mut Ui, session: &PinWarpSession, words: &PinWarpBarWords, notice: 
         let pin = pins[i];
         captioned(ui, &words.pin_depth, |ui| {
             for (icon, name, by, salt) in [("plus", &words.forward, 1, "forward"), ("minus", &words.backward, -1, "backward")] {
-                if IconButton::new(IconId::new(icon)).id_salt(salt).label(name.clone()).show(ui).clicked() {
+                if clicked(&IconButton::new(IconId::new(icon)).id_salt(salt).label(name.clone()).show(ui)) {
                     edits.push(PinEdit::replace(pins, with_pin(pins, i, Pin { depth: pin.depth + by, ..pin }), words.pin_depth.as_str()));
                 }
             }
@@ -178,7 +178,7 @@ fn body(ui: &mut Ui, session: &PinWarpSession, words: &PinWarpBarWords, notice: 
         }
         Divider::vertical().show(ui);
     }
-    if Button::new(words.remove_all.clone()).show(ui).clicked() {
+    if clicked(&Button::new(words.remove_all.clone()).show(ui)) {
         edits.push(PinEdit::replace(pins, Vec::new(), words.remove_all.as_str()));
     }
 }

@@ -9,6 +9,6 @@ mod session;
 pub(crate) mod stories;
 
 pub use bar::{PinWarpBar, PinWarpBarOutput, PinWarpBarWords};
-pub(super) use overlay::point_text;
+pub(in crate::ui::warp) use overlay::point_text;
 pub use overlay::{PinWarp, PinWarpCommands, PinWarpOutput, PinWarpStyle, PinWarpWords};
 pub use session::{Pin, PinDensity, PinEdit, PinMeshView, PinMode, PinSolver, PinWarpOptions, PinWarpSession, PinWarpSettings};
