@@ -6,7 +6,7 @@ use super::collection::{
     ActivateOn, CollectionEvent, CollectionProps, CollectionResponse, ContextMenuRequest, Gestures, LeadOnOpen, LeadSource, OpenChange, Rename,
     RowState, SelectMode, ShownRow, SpaceAction,
 };
-use super::cx::BodyCx;
+use super::cx::{BodyCx, Pointer as _};
 use super::run::{ShapeHooks, ShowAt};
 use super::steps::ShapeKind;
 use super::{Bind, Collection, Cx, Internal, ItemCx, ItemFn, ItemOpener, ItemOutput as _, PartsCx, Props, Show as _, Sizing};
@@ -630,7 +630,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         // A section row the component lays out as its own `section_part` reports its own node; any other is the
         // collection's: a heading named by the row's text.
         for &at in order.iter().filter(|&&at| self.source.section_stop(at) && layout.shown(at)) {
-            if cx.core.part_if_declared(section_part(&self.source.key(at))).is_none() {
+            if cx.part_if_declared(section_part(&self.source.key(at))).is_none() {
                 let row = self.screen(&layout, rect, at, offset, rtl);
                 self.report_section_node(&ctx, id, at, row, cx.core.resolved.enabled);
             }
@@ -1369,7 +1369,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let (_, built) = self.built(layout, place.rect, place.offset);
         let rows: Vec<(u64, usize)> = built
             .into_iter()
-            .filter(|&at| !self.source.section_stop(at) || cx.core.part_if_declared(section_part(&self.source.key(at))).is_none())
+            .filter(|&at| !self.source.section_stop(at) || cx.part_if_declared(section_part(&self.source.key(at))).is_none())
             .map(|at| (key_hash(&self.source.key(at)), at))
             .collect();
         let wanted = |request: &craft_behavior::AccessRequest| {
