@@ -4,7 +4,7 @@ use std::borrow::Cow;
 
 use craft_behavior::{DisplayOrder, ItemSource, Selection};
 use craft_ui::contract::{
-    ActivateOn, Bind, CollectionEvent, NoValue, Outcome, Props as _, SaveKey, SelectMode, Show as _, ShowCollection as _, ShowContainer as _,
+    ActivateOn, Bind, CollectionEvent, NoValue, Outcome, Props as _, SaveKey, SelectMode, ShowCollection as _, ShowContainer as _,
 };
 use craft_ui::layout_components::Stack;
 use craft_ui::list::ThumbAspect;

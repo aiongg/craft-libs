@@ -4,8 +4,8 @@ use std::borrow::Cow;
 
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, IconId, ItemSource, Selection};
 use craft_ui::contract::{
-    CollectionEvent, ColumnKind, ColumnSpec, NoValue, Outcome, ReorderMove, ReorderRule, SelectMode, Show as _, ShowCollection as _,
-    ShowContainer as _, ToggleColumn,
+    CollectionEvent, ColumnKind, ColumnSpec, NoValue, Outcome, ReorderMove, ReorderRule, SelectMode, ShowCollection as _, ShowContainer as _,
+    ToggleColumn,
 };
 use craft_ui::layout_components::Stack;
 use craft_ui::list::{List, ListRow, RowInk, ToggleCell};
@@ -141,7 +141,7 @@ impl<'a> EffectStack<'a> {
                         }
                     }
                     CollectionEvent::Reorder(edit) => {
-                        if let Some(mv) = finished(edit)
+                        if let Some(mv) = finished(&edit)
                             && let Some((from, to)) = effect_move(count, mv)
                         {
                             change = Some(EffectChange::Move { from, to });
@@ -157,17 +157,19 @@ impl<'a> EffectStack<'a> {
                 FooterAction::new(IconId::new("trash"), words.delete_layer.clone()).enabled(count > 1),
             ];
             let footer = FooterBar::actions(actions).show_footer(ui);
-            change = match footer.picked {
+            let pressed = match footer.picked {
                 Some(0) => Some(EffectChange::Move { from: current, to: current + 1 }),
                 Some(1) => Some(EffectChange::Move { from: current, to: current.saturating_sub(1) }),
                 Some(2) => Some(EffectChange::Add),
                 Some(3) => Some(EffectChange::Delete),
-                _ => change,
+                _ => None,
             };
+            if pressed.is_some() {
+                change = pressed;
+            }
             picked = selection.lead.filter(|&lead| lead != selected && lead < count);
-            out.response
         });
-        EffectStackOutput { response: shown.inner, selected: picked, change }
+        EffectStackOutput { response: shown.output, selected: picked, change }
     }
 }
 

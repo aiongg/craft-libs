@@ -5,7 +5,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 
-use craft_behavior::{EditEvent, EditHistory, GestureId, Mixed, PixelSize, Step};
+use craft_behavior::edit_history::Step;
+use craft_behavior::{EditEvent, EditHistory, GestureId, Mixed, PixelSize};
 use craft_imaging::ui::filter_gallery::{
     EffectChange, EffectLayer, FilterCatalog, FilterCategory, FilterGalleryEvent, FilterGalleryOpen, FilterGalleryOutput, FilterGallerySession,
     FilterGallerySource, FilterGalleryWorkspace, GalleryFilter, GalleryThumb,
@@ -18,6 +19,7 @@ use craft_ui::patterns::form_dialogs::{DialogFields, FieldValue, Param, ParamKin
 use craft_ui::primitives::Revision;
 use craft_ui::primitives::textures::{FakeThumbSource, ThumbnailOptions, Thumbnails};
 use craft_ui::testing::{Fixture, trial};
+use craft_ui::value_drag::SliderScale;
 use egui::{Color32, ColorImage, Key, Modifiers, Vec2};
 
 const WINDOW: Vec2 = Vec2::new(1100.0, 640.0);
@@ -35,9 +37,9 @@ impl Catalog {
             filter(
                 "neon",
                 vec![
-                    Param::new("glowSize", "Glow Size", ParamKind::Range { min: -24.0, max: 24.0, default: 5.0, scale: Default::default() }),
-                    Param::new("glowColor", "Glow Color", ParamKind::Color { default: Some([1.0, 0.0, 0.5]) }),
-                    Param::new("note", "Note", ParamKind::Text { default: "x".to_owned() }),
+                    Param::new("glowSize", "Glow Size", ParamKind::range(-24.0, 24.0, 5.0, SliderScale::default())),
+                    Param::new("glowColor", "Glow Color", ParamKind::color(Some([1.0, 0.0, 0.5]))),
+                    Param::new("note", "Note", ParamKind::text("x")),
                 ],
                 false,
             ),

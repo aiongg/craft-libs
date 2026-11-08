@@ -38,8 +38,9 @@ pub use words::FilterGalleryWords;
 use std::cell::RefCell;
 use std::sync::Arc;
 
+use craft_behavior::edit_history::Step;
 use craft_behavior::kurbo::Rect;
-use craft_behavior::{CanvasView, EditEvent, EditHistory, GestureId, Mixed, PixelSize, Step};
+use craft_behavior::{CanvasView, EditEvent, EditHistory, GestureId, Mixed, PixelSize};
 use craft_theme::Srgba;
 use craft_ui::canvas::{NavigationOptions, PixelRect, ToolPath, ViewCommand};
 use craft_ui::contract::{Bind, Pending, Remember as _, ShowContainer as _};
@@ -223,7 +224,7 @@ impl FilterGalleryWorkspace {
         let events = std::mem::take(&mut self.queued);
         self.selected = self.selected.min(self.session.effects.len().saturating_sub(1));
         let name = self.session.effects.get(self.selected).map_or_else(|| Label::from(words.name.clone()), |effect| index.label(&effect.filter));
-        let title = FullWindowTitle::new(name).subject(self.subject.as_str()).zoom(self.percent).label(&env);
+        let title = FullWindowTitle::new(name).subject(self.subject.clone()).zoom(self.percent).label(&env);
         let buttons = [FooterButton::new(common.ok.clone(), DialogRole::Accept), FooterButton::new(common.cancel.clone(), DialogRole::Cancel)];
         let history_name: Arc<str> = Label::from(words.name.clone()).as_str().into();
         let navigation = self.navigation;

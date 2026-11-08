@@ -8,10 +8,11 @@ use std::time::Duration;
 
 use craft_theme::Srgba;
 use craft_ui::canvas::{PixelRect, RasterSource};
-use craft_ui::contract::{Job, Show as _};
+use craft_ui::contract::Job;
 use craft_ui::patterns::form_dialogs::{Param, ParamKind};
 use craft_ui::primitives::textures::{FakeThumbSource, ThumbnailOptions, Thumbnails};
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
+use craft_ui::value_drag::SliderScale;
 use egui::Ui;
 
 use super::{
@@ -38,7 +39,7 @@ impl MockGallery {
     const SKETCH: [&'static str; 3] = ["chalk", "photocopy", "paper"];
 
     fn range(key: &str, label: &'static str, min: f64, max: f64, default: f64) -> Param {
-        Param::new(key, label, ParamKind::Range { min, max, default, scale: Default::default() })
+        Param::new(key, label, ParamKind::range(min, max, default, SliderScale::default()))
     }
 }
 
@@ -52,7 +53,7 @@ impl FilterCatalog for MockGallery {
         let (label, category, params, uses_colors) = match key {
             "cutout" => {
                 let options = vec![("1".to_owned(), "Low".into()), ("2".to_owned(), "Medium".into()), ("3".to_owned(), "High".into())];
-                let fidelity = Param::new("fidelity", "Edge Fidelity", ParamKind::Choice { options, default: Some("2".to_owned()) });
+                let fidelity = Param::new("fidelity", "Edge Fidelity", ParamKind::choice(options, Some("2".to_owned())));
                 (
                     "Cutout",
                     "artistic",
@@ -65,7 +66,7 @@ impl FilterCatalog for MockGallery {
                 )
             }
             "sponge" => {
-                let smooth = Param::new("smooth", "Smooth edges", ParamKind::Bool { default: true });
+                let smooth = Param::new("smooth", "Smooth edges", ParamKind::bool(true));
                 (
                     "Sponge",
                     "artistic",
@@ -74,7 +75,7 @@ impl FilterCatalog for MockGallery {
                 )
             }
             "neon" => {
-                let glow = Param::new("glow", "Glow Color", ParamKind::Color { default: Some([0.9, 0.3, 0.6]) });
+                let glow = Param::new("glow", "Glow Color", ParamKind::color(Some([0.9, 0.3, 0.6])));
                 ("Neon Glow", "artistic", vec![Self::range("size", "Glow Size", -24.0, 24.0, 5.0), glow], true)
             }
             "chalk" => (
