@@ -425,7 +425,7 @@ impl Component for MenuBar<'_> {
 
     /// The open title's menu below it: the caller's body, with the help search above it in the Help menu. The
     /// overflow menu lists each hidden title as a submenu. Running a row returns focus to the component that held
-    /// it when F10 or Alt took it for the bar.
+    /// it when F10 or Alt took it for the bar (`MenuItem` does, before its command fires).
     fn overlay(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
         let found = declared(cx);
         let slots = Self::slots(found);
@@ -438,7 +438,7 @@ impl Component for MenuBar<'_> {
             .filter(|help| opened == Some(Open::Title(help.menu)))
             .map(|help| Self::help_texts(help.entries, &cx.env, cx.env.words::<CommonWords>().path_separator.as_str()));
         let mut query = cx.memory::<Query>().clone();
-        let (mut stepped, mut ran) = (None, false);
+        let mut stepped = None;
         for slot in &slots {
             let popup = Self::popup(cx, *slot, found);
             let layer = super::layer(false).anchor(ui.anchor_part(Self::slot_part(*slot)));
@@ -493,13 +493,9 @@ impl Component for MenuBar<'_> {
             if let Some(Some(step)) = step {
                 stepped = Some((*slot, step));
             }
-            ran |= crate::runtime::overlay::activated_inside(&cx.core.ctx, popup.id());
         }
         if let Some((from, step)) = stepped {
             Self::step_menu(cx, &slots, found, from, step);
-        }
-        if ran {
-            focus::give_back_bar(&cx.core.ctx);
         }
         *cx.memory::<Query>() = query;
     }

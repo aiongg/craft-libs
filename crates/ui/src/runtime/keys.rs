@@ -741,11 +741,11 @@ pub(crate) fn take_shortcuts(ctx: &Context) -> Shortcuts {
 
 /// Asks the focused component of the running viewport to take `command` as `Intent::Edit` in the next pass.
 /// `false` when it does not list the command. A paste asks the platform for the clipboard text, which arrives as
-/// the paste event that becomes the intent.
+/// the paste event that becomes the intent. Focus is read as it is now: a menu pick returns focus in its pass
+/// before its command fires, and the command goes where focus returned.
 pub(crate) fn queue_edit(ctx: &Context, command: EditCommand) -> bool {
     let viewport = crate::runtime::egui::pass::current_viewport(ctx);
-    let record = focus::record(ctx, viewport);
-    if record.focused.is_none() || !record.keys.is_some_and(|keys| keys.edits.contains(command)) {
+    if !focus::focused_rec(ctx).is_some_and(|rec| rec.stop.keys.edits.contains(command)) {
         return false;
     }
     if command == EditCommand::Paste {

@@ -302,15 +302,44 @@ impl State {
         let root = focused?;
         let key = *self.focused.get(&root).unwrap_or(&(root, None));
         let inside = self.last_stops.iter().find(|rec| rec.stop.key() == key)?;
-        let mut at = inside.scope;
+        let opener = self.opener_back(inside.scope, |id| self.scopes.get(&id).is_none_or(|now| now.closing))?;
+        self.stops.iter().find(|rec| rec.stop.key() == opener).cloned()
+    }
+
+    /// Where a menu pick returns focus before its command runs: the pick closes the chain of menus around the focused
+    /// stop, so focus goes to the opener of the outermost one, or to the stop a menu bar took focus from when that
+    /// opener is the bar. `None` when focus is in no menu.
+    pub(super) fn picked_focus(&mut self) -> Option<StopRec> {
+        let inside = self.stop_of_focus()?;
+        let menu = |id: Id| self.scopes.get(&id).or_else(|| self.last_scopes.get(&id)).is_some_and(|scope| scope.policy.kind == ScopeKind::Menu);
+        let mut opener = self.opener_back(inside.scope, menu)?;
+        if let Some((bar, held)) = self.bar_return
+            && opener.0 == bar
+        {
+            self.bar_return = None;
+            opener = held;
+        }
+        self.find_stop(opener)
+    }
+
+    /// Walking out from `from`, the opener focus returns to when the scopes `closes` names go away: the opener of the
+    /// outermost restoring scope in the first run of closing scopes, so a closed chain of submenus returns focus to
+    /// where its outermost menu was opened from.
+    fn opener_back(&self, from: Option<Id>, closes: impl Fn(Id) -> bool) -> Option<StopKey> {
+        let mut at = from;
+        let mut back = None;
         while let Some(id) = at {
-            let scope = self.last_scopes.get(&id)?;
-            if self.scopes.get(&id).is_none_or(|now| now.closing) && scope.policy.restore {
-                return scope.opener.and_then(|opener| self.stops.iter().find(|rec| rec.stop.key() == opener).cloned());
+            let scope = self.scopes.get(&id).or_else(|| self.last_scopes.get(&id))?;
+            if closes(id) {
+                if scope.policy.restore {
+                    back = scope.opener;
+                }
+            } else if back.is_some() {
+                break;
             }
             at = scope.parent;
         }
-        None
+        back
     }
 }
 
