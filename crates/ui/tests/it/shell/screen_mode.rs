@@ -10,7 +10,7 @@ use craft_ui::shell::{AppShell, ScreenMode};
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::trial;
 use craft_ui::testing::windows::{FakeSystem, NoWindows};
-use egui::{Pos2, Rect, Vec2, ViewportCommand, ViewportId, ViewportInfo};
+use egui::{Pos2, Rect, ViewportCommand, ViewportId, ViewportInfo};
 use std::sync::Arc;
 
 const WINDOW: Rect = Rect { min: Pos2::ZERO, max: Pos2::new(800.0, 600.0) };
