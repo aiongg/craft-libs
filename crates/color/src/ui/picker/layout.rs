@@ -145,7 +145,7 @@ pub(super) struct FullPlan {
 }
 
 /// What the Full layout shows.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub(super) struct FullInput<'a> {
     pub models: &'a [&'a dyn ColorModel],
     pub web: bool,

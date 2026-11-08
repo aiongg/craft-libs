@@ -1165,6 +1165,7 @@ dependencies = [
 name = "craft-color"
 version = "0.1.0"
 dependencies = [
+ "craft-behavior",
  "craft-cms",
  "craft-host",
  "craft-i18n",

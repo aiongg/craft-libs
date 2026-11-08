@@ -5,7 +5,7 @@
 mod stories;
 
 use craft_theme::Srgba;
-use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Show as _};
+use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Props as _, Show as _};
 use craft_ui::pickers::Select;
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::runtime::requests::ColorRequest;

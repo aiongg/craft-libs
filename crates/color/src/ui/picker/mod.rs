@@ -11,7 +11,7 @@ mod value;
 
 use std::sync::{Arc, Mutex};
 
-use craft_behavior::{EditEvent, Flow, GestureId, Metrics, Mixed, Sense, Value};
+use craft_behavior::{EditEvent, Flow, GestureId, Metrics, Mixed, Sense};
 use craft_theme::{ColorModel, ModelValues, Srgba, builtin_models};
 use craft_ui::choice::RadioKind;
 use craft_ui::contract::{
@@ -21,7 +21,7 @@ use craft_ui::contract::{
 use craft_ui::runtime::env::AppValues;
 use craft_ui::runtime::focus::{self, FocusTarget};
 use craft_ui::style::{ComponentStyle, StyleCx};
-use egui::{Pos2, Rect, Response, Vec2};
+use egui::{Pos2, Response, Vec2};
 
 use super::{AreaMode, channels};
 pub(crate) use channel::{ChannelRow, ChannelRule, ChannelUnit, channel_name};

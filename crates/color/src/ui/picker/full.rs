@@ -236,9 +236,9 @@ impl ColorPicker<'_> {
         let words = &pass.words;
         let caption = |text: &str| Text::new(text.to_owned()).role(TypeRole::Caption).shade(Shade::Muted);
         let _ = ui.child("new-caption", pass.at(captions[0]), caption(words.new_caption.as_str()));
-        let _ = ui.child("new", pass.at(halves[0]), Swatch::new(words.new_color.as_str().to_owned(), pass.shown.color).fill(true));
+        let _ = ui.child("new", pass.at(halves[0]), Swatch::new(words.new_color.as_str().to_owned(), pass.shown.color).fill());
         let restore = words.restore.as_str().to_owned();
-        let swatch = Swatch::new(restore.clone(), current).tooltip(restore).fill(true);
+        let swatch = Swatch::new(restore.clone(), current).tooltip(restore).fill();
         if ui.child("current", pass.at(halves[1]), swatch).clicked {
             self.events.clicks.push(current);
         }

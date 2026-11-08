@@ -5,7 +5,7 @@ use std::ops::RangeInclusive;
 
 use craft_behavior::Axis;
 use craft_theme::{Channel, ColorModel, Srgba};
-use craft_ui::contract::{Bind, Common, Component, Cx, EditResponse, Props as _, Role, Show as _, ShowContainer as _, SideLabel};
+use craft_ui::contract::{Bind, Common, Component, Cx, EditResponse, Role, Show as _, ShowContainer as _, SideLabel};
 use craft_ui::form::{Field, SliderField};
 use craft_ui::primitives::{PaintShape, StrokeWidth};
 use craft_ui::runtime::env::{Label, UnitKind};
