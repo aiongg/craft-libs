@@ -32,20 +32,27 @@ fn layer_fixture(story: &Story) -> Option<Fixture> {
     on_layer(&fixture).then_some(fixture)
 }
 
-/// Whether `container` is a field container: it holds exactly one interactive control, and that control is labelled by
-/// a node inside the container. The label names the control, so the group needs no name.
-fn is_field_of_one_control(tree: &crate::testing::access::AccessTree, container: crate::testing::access::NodeKey) -> bool {
-    let mut inside = Vec::new();
-    let mut pending = vec![container];
+/// The nodes at and below `root`.
+fn subtree(tree: &crate::testing::access::AccessTree, root: crate::testing::access::NodeKey) -> Vec<crate::testing::access::NodeKey> {
+    let mut found = Vec::new();
+    let mut pending = vec![root];
     while let Some(key) = pending.pop() {
-        inside.push(key);
+        found.push(key);
         pending.extend(tree.children_of(key));
     }
-    let controls: Vec<_> = inside.iter().filter(|key| crate::testing::access::is_interactive(tree, **key)).collect();
-    matches!(controls.as_slice(), [only] if {
-        let labels = tree.labelled_by_key(**only);
-        !labels.is_empty() && labels.iter().all(|label| inside.contains(label))
-    })
+    found
+}
+
+/// Whether `container` is a field container: exactly one control inside it is labelled, by nodes inside the container,
+/// and every other interactive node inside is a part of that control. The label names the control, so the group needs
+/// no name.
+fn is_field_of_one_control(tree: &crate::testing::access::AccessTree, container: crate::testing::access::NodeKey) -> bool {
+    let inside = subtree(tree, container);
+    let interactive: Vec<_> = inside.iter().copied().filter(|key| crate::testing::access::is_interactive(tree, *key)).collect();
+    let labelled: Vec<_> = interactive.iter().copied().filter(|key| !tree.labelled_by_key(*key).is_empty()).collect();
+    let [control] = labelled.as_slice() else { return false };
+    let parts = subtree(tree, *control);
+    tree.labelled_by_key(*control).iter().all(|label| inside.contains(label)) && interactive.iter().all(|key| parts.contains(key))
 }
 
 /// A container that is a dialog or a group has a role that needs a name: the title names it. A field container's label
