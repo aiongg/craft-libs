@@ -14,6 +14,7 @@ const MAX_FILE_BYTES: u64 = 48 << 20;
 
 /// Whose catalog a face belongs to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Owner {
     /// The installed fonts.
     Installed,

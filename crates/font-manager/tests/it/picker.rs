@@ -93,14 +93,16 @@ fn arrows_preview_and_escape_restores() {
 #[trial]
 fn stars_and_recents_are_remembered_in_the_settings_section() {
     assert_eq!(FontPickerSettings::KEY, "font_picker");
-    let mut settings = FontPickerSettings { recent_limit: 2, ..FontPickerSettings::default() };
+    let mut settings = FontPickerSettings::default();
+    settings.recent_limit = 2;
     for family in ["Hack", "Ubuntu", "Hack", "Other"] {
         settings.note_recent(family);
     }
     assert_eq!(settings.recent, ["Other", "Hack"], "newest first, no duplicate, within the limit");
 
     let catalog = catalog();
-    let listed = FontPickerSettings { recent: vec!["Ubuntu".into(), "Hack".into()], ..FontPickerSettings::default() };
+    let mut listed = FontPickerSettings::default();
+    listed.recent = vec!["Ubuntu".into(), "Hack".into()];
     let rows = family_rows(&catalog, "", Some(&listed), &FontFilters::default(), "Hack", "en");
     let order: Vec<(&str, bool)> = rows.iter().map(|r| (r.family.as_str(), r.recent)).collect();
     assert_eq!(order, [("Ubuntu", true), ("Hack", true), ("Hack", false), ("Ubuntu", false)]);
@@ -118,7 +120,8 @@ fn stars_and_recents_are_remembered_in_the_settings_section() {
 fn class_filter_and_clear_all() {
     let catalog = catalog();
     assert_eq!(FontClass::of(&catalog, "Hack"), Some(FontClass::Monospace));
-    let filters = FontFilters { class: Some(FontClass::Monospace), ..FontFilters::default() };
+    let mut filters = FontFilters::default();
+    filters.class = Some(FontClass::Monospace);
     let rows = family_rows(&catalog, "", None, &filters, "Ubuntu", "en");
     assert_eq!(rows.iter().map(|r| r.family.as_str()).collect::<Vec<_>>(), ["Hack"]);
 

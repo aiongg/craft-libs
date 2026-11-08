@@ -3,7 +3,9 @@
 
 /// The English pangram, the sample for Latin.
 pub const PANGRAM: &str = "The quick brown fox jumps over the lazy dog";
+/// The Latin alphabet, both cases.
 pub const ALPHABET: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz";
+/// Digits and common symbols.
 pub const NUMERALS: &str = "0123456789 & ? ! @ # % ( ) [ ] { } $ € £ ¥";
 
 /// Sentences by language code (gflanguages' code before the script).

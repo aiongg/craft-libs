@@ -9,6 +9,9 @@ use craft_ui::contract::{Bind, Role};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers};
 
+/// The weight one arrow press above the default, on an axis wide enough to step by whole units.
+const ONE_UNIT_UP: f32 = 401.0;
+
 const WGHT: [u8; 4] = *b"wght";
 const WDTH: [u8; 4] = *b"wdth";
 const GRAD: [u8; 4] = *b"GRAD";
@@ -122,7 +125,7 @@ fn rig(values: AxisValues, drawn: Option<(f32, bool)>) -> (Fixture, Rc<RefCell<S
         let State { axes, instances, values, edits, picked } = &mut *state;
         let mut sliders = AxisSliders::new("Axes", axes, Bind::bound(values)).instances(instances);
         if let Some((weight, italic)) = drawn {
-            sliders = sliders.drawn(weight, italic);
+            sliders = sliders.weight(weight).italic(italic);
         }
         let out = sliders.show(ui);
         edits.extend(out.edit);
@@ -144,8 +147,8 @@ fn slider_drag_is_one_edit_and_instance_sets_all_axes() {
     fixture.key(Key::ArrowRight, Modifiers::NONE);
     fixture.idle(3);
     let weight = state.borrow().values.iter().find(|(t, _)| *t == WGHT).map(|v| v.1);
-    assert_eq!(weight, Some(401.0), "whole units on a wide axis");
-    assert!(state.borrow().edits.iter().any(|e| e.value().is_some_and(|v| v.contains(&(WGHT, 401.0)))));
+    assert_eq!(weight, Some(ONE_UNIT_UP), "whole units on a wide axis");
+    assert!(state.borrow().edits.iter().any(|e| e.value().is_some_and(|v| v.contains(&(WGHT, ONE_UNIT_UP)))));
 
     let select = fixture.by_label("Style").expect("the instance list");
     fixture.click(&select);

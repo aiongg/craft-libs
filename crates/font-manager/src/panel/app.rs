@@ -6,7 +6,6 @@ mod stories;
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
 use crate::craft_font_catalog::{FontEnv, Limits, Os};
 use crate::filter::{Query, Search};
@@ -43,10 +42,6 @@ pub fn install_interface_fonts(ctx: &Context, language: &str, craft_faces: &[Emb
 
 /// Preview downloads: at most this much per file, and this many faces in a session.
 const PREVIEW_LIMITS: Limits = Limits { max_file_bytes: 64 << 20, max_faces_per_file: 512, max_added_faces: 20_000 };
-
-/// How often the download consent is read again from the store's settings file, which another Craft app can
-/// change.
-const CONSENT_RECHECK: Duration = Duration::from_secs(3);
 
 craft_ui::words! {
     /// The words of the Fonts panel: the names it shows for categories, sources and styles, the download consent and
@@ -87,6 +82,7 @@ impl FontsPanelWords {
 
 /// What a sample shows when the user hasn't typed one.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[non_exhaustive]
 pub enum Preset {
     /// A sentence in the language filtered by, or in the family's own script.
     #[default]
@@ -101,6 +97,7 @@ pub enum Preset {
 /// [`Host`](craft_host::Host).
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
+#[non_exhaustive]
 pub struct FontsPanelSettings {
     /// The sample text; empty for the preset.
     pub sample: String,
@@ -124,6 +121,7 @@ impl Default for FontsPanelSettings {
 
 /// A tab of the panel.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Tab {
     /// Families installed on this machine.
     Installed,
@@ -153,6 +151,7 @@ pub(crate) enum Origin {
 type InstalledFilter = (String, Origin, Option<u64>);
 
 /// What the app is built from; tests pass their own catalog, store and index.
+#[non_exhaustive]
 pub struct Options {
     /// The installed fonts the panel lists.
     pub catalog: Arc<Catalog>,
@@ -160,6 +159,13 @@ pub struct Options {
     pub installer: Arc<dyn Installer>,
     /// The Google Fonts index, or why it couldn't be read.
     pub index: Result<Index, String>,
+}
+
+impl Options {
+    /// Options over `catalog`, `installer` and `index`.
+    pub fn new(catalog: Arc<Catalog>, installer: Arc<dyn Installer>, index: Result<Index, String>) -> Self {
+        Options { catalog, installer, index }
+    }
 }
 
 /// A download, waiting for the user's consent or to be tried again.
@@ -252,8 +258,8 @@ pub struct FontsPanel {
     pub(crate) notice: Option<String>,
     /// The window had OS focus on the last pass.
     window_active: bool,
-    /// The download consent as last read, and when.
-    consent: Option<(bool, Instant)>,
+    /// The download consent as last read.
+    consent: Option<bool>,
 }
 
 /// A family's key in the panel's state: families of the same name can come from two sources.
@@ -462,21 +468,15 @@ impl FontsPanel {
         result
     }
 
-    /// The consent, read from the store at most every few seconds.
+    /// The consent, read from the store's settings file (which another Craft app can change) when the window regains
+    /// focus and after the panel changes it itself.
     pub(crate) fn allowed(&mut self) -> bool {
-        match self.consent {
-            Some((allowed, at)) if at.elapsed() < CONSENT_RECHECK => allowed,
-            _ => {
-                let allowed = self.installer.downloads_allowed();
-                self.consent = Some((allowed, Instant::now()));
-                allowed
-            }
-        }
+        *self.consent.get_or_insert_with(|| self.installer.downloads_allowed())
     }
 
     /// Everything a pass reads before it draws: the settings from the Host (once), finished jobs, the installed fonts
     /// (read again when the window regains focus) and the results of the search.
-    fn begin_pass(&mut self, host: Option<&Arc<Host>>, window_active: bool) {
+    fn prepare(&mut self, host: Option<&Arc<Host>>, window_active: bool) {
         self.load_settings(host);
         self.poll_jobs();
         if window_active && !self.window_active {
@@ -776,7 +776,7 @@ impl<'a> FontsPanelView<'a> {
         let browse = env.words::<FontsBrowseWords>();
         let texts = Texts { panel: &words, browse: &browse, format: view.format() };
         let host = view.host().cloned();
-        panel.begin_pass(host.as_ref(), view.shell().window.active);
+        panel.prepare(host.as_ref(), view.shell().window.active);
         let search = ui.scope_id().with("search");
         let folder = env.folder();
         let shown = Stack::new().fill().label(words.panel.clone()).command_scope(FontsCommand::SCOPE).show(ui, |ui, root| {

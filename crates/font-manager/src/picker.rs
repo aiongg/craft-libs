@@ -68,6 +68,7 @@ craft_ui::words! {
 /// Photoshop's font classes, in its filter menu order (the class glyph at the row's right).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum FontClass {
     /// Serif faces.
     Serif,
@@ -111,6 +112,7 @@ impl FontClass {
 /// or none.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum FontPreviewSize {
     /// No sample in the rows.
     None,
@@ -142,6 +144,7 @@ impl FontPreviewSize {
 
 /// What narrows the list. Every filter off shows every installed family.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct FontFilters {
     /// Only families of this class (`None`: All Classes).
     pub class: Option<FontClass>,
@@ -172,6 +175,7 @@ pub const SIMILAR_COUNT: usize = 30;
 /// section shared by every picker of the app (`[font_picker]`).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
+#[non_exhaustive]
 pub struct FontPickerSettings {
     /// Starred families, in star order.
     pub favorites: Vec<String>,
@@ -223,6 +227,7 @@ impl FontPickerSettings {
 
 /// One row of the list, for apps that draw their own list from the picker's filtering ([`family_rows`]).
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct FamilyRow {
     /// The family as the catalog names it.
     pub family: String,

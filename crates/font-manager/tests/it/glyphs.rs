@@ -8,6 +8,9 @@ use craft_ui::contract::Bind;
 use craft_ui::testing::{Fixture, trial};
 use egui::{ColorImage, Key, Modifiers};
 
+/// The room the panel is shown in.
+const ROOM: egui::Vec2 = egui::vec2(360.0, 560.0);
+
 /// Latin capitals, the euro sign and an arrow, with white square glyphs.
 struct Fake;
 
@@ -17,7 +20,7 @@ impl GlyphSource for Fake {
     }
 
     fn glyph(&self, _family: &str, _style: &str, _c: char, px: u32) -> Option<ColorImage> {
-        Some(ColorImage::filled([px as usize, px as usize], egui::Color32::WHITE))
+        Some(ColorImage::filled([px as usize, px as usize], egui::Color32::default()))
     }
 
     fn in_category(&self, c: char, category: &str) -> bool {
@@ -51,7 +54,7 @@ fn rig(editing: bool) -> (Fixture, Rc<RefCell<State>>) {
         let out = GlyphsPanel::new("Glyphs", &Fake, Bind::bound(family), Bind::bound(style), Bind::bound(settings)).editing(editing).show(ui);
         inserted.extend(out.insert);
     });
-    fixture.room(egui::vec2(360.0, 560.0));
+    fixture.room(ROOM);
     fixture.settle();
     (fixture, state)
 }

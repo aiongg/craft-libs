@@ -33,6 +33,7 @@ craft_ui::words! {
 
 /// One variation axis of a face.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct FontAxis {
     /// The OpenType tag (`wght`, `wdth`, `slnt`, `ital`, `opsz`, or a custom one).
     pub tag: [u8; 4],
@@ -50,6 +51,7 @@ pub struct FontAxis {
 
 /// A named instance of a variable face (`Bold Condensed`): its coordinates per axis.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct NamedInstance {
     /// The instance's name from the font's name table.
     pub name: String,
@@ -183,7 +185,7 @@ struct Drawn {
 /// One slider field per visible axis (label, slider, number field with the axis's range), plus a `Select` of named
 /// instances above them when the face has any. Hidden axes, `opsz` (the text layout sets the optical size from the
 /// font size) and axes with an empty or non-finite range are left out. Values are the current coordinates; an axis
-/// without one shows what the layout draws ([`AxisSliders::drawn`]; else its default). Axes whose range is 10 wide
+/// without one shows what the layout draws (its style's weight and italic; else its default). Axes whose range is 10 wide
 /// or more step by whole units, the others by hundredths. A drag is one edit; an instance sets every axis in one
 /// edit.
 #[must_use = "show the sliders with `show`"]
@@ -195,25 +197,24 @@ pub struct AxisSliders<'a> {
     /// The named instances of the face, listed above the sliders.
     #[prop]
     instances: &'a [NamedInstance],
-    drawn: Drawn,
+    /// The style's weight, which an unset `wght` axis shows (an unset axis shows its default without it).
+    #[prop(quantity = "font weight, the `wght` coordinate")]
+    weight: Option<f32>,
+    /// Whether the style is italic: an unset `ital` axis then shows its maximum, once a weight is given.
+    #[prop]
+    italic: bool,
 }
 
 impl<'a> AxisSliders<'a> {
     /// Sliders named `label` over the `axes` of a face, editing the coordinates `values`.
     pub fn new(label: impl Into<Label>, axes: &'a [FontAxis], values: Bind<'a, AxisValues>) -> Self {
-        AxisSliders { label: label.into(), axes, values, instances: &[], drawn: Drawn::default() }
-    }
-
-    /// What the layout draws for an axis `values` has no coordinate for: the style's `weight` on `wght` and the axis
-    /// maximum on `ital` for an italic style. Without it an unset axis shows its default.
-    pub fn drawn(mut self, weight: f32, italic: bool) -> Self {
-        self.drawn = Drawn { weight: Some(weight), italic };
-        self
+        AxisSliders { label: label.into(), axes, values, instances: &[], weight: None, italic: false }
     }
 
     /// Draws the sliders (and the instance list, if any) and reports the edit made this pass.
     pub fn show(self, ui: &mut Ui) -> AxisSlidersOutput {
-        let AxisSliders { label, axes, mut values, instances, drawn } = self;
+        let AxisSliders { label, axes, mut values, instances, weight, italic } = self;
+        let drawn = Drawn { weight, italic };
         let env = Env::of(ui);
         let words = env.words::<AxisSlidersWords>();
         let mut edit: Option<EditEvent<AxisValues>> = None;

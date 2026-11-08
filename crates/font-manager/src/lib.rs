@@ -37,6 +37,7 @@ pub use panel::{
     FontsPanelWords, Options, Preset, Tab, install_interface_fonts,
 };
 
+/// The registered stories and trials of this crate.
 #[cfg(feature = "screen-testing")]
 pub mod testing {
     craft_ui::testing_registered!();

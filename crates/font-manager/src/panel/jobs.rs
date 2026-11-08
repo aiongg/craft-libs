@@ -28,21 +28,29 @@ struct Queue {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// What a job does.
 #[non_exhaustive]
 pub enum Kind {
+    /// Installs a family or one of its files.
     Install,
+    /// Removes installed files.
     Remove,
+    /// Downloads a family for preview only.
     Preview,
 }
 
+/// A job that has not ended.
 #[non_exhaustive]
 pub struct Running {
     /// The family's source; empty for a removal, which goes by the installed files.
     pub source: String,
+    /// The family's name.
     pub family: String,
+    /// What the job does.
     pub kind: Kind,
     /// One file's index path or store path, when the job is for one style.
     pub file: Option<String>,
+    /// The latest report of the installer.
     pub progress: Progress,
 }
 
@@ -53,10 +61,14 @@ impl Running {
     }
 }
 
+/// How a job ended well.
 #[non_exhaustive]
 pub enum Finished {
+    /// The family or file is installed.
     Installed,
+    /// The files are removed.
     Removed,
+    /// The preview faces were downloaded.
     Previewed(Vec<Downloaded>),
 }
 
@@ -65,17 +77,20 @@ enum Msg {
     Done(u64, Result<Finished, StoreError>),
 }
 
+/// What to start.
 #[non_exhaustive]
 pub enum Request {
     /// A family of the index, by position.
     Install(Arc<Index>, usize),
     /// One file of a family of the index, by its path in the index.
     InstallFile(Arc<Index>, usize, String),
+    /// Installed files to remove.
     Remove(RemoveRequest),
     /// A family of the index, by position.
     Preview(Arc<Index>, usize),
 }
 
+/// The panel's install, removal and preview jobs.
 pub struct Jobs {
     /// Jobs run one at a time in request order: an install and a removal of one family, and the
     /// catalog rescans after them, never overlap.
@@ -89,6 +104,7 @@ pub struct Jobs {
 }
 
 impl Jobs {
+    /// An empty queue.
     pub fn new() -> Jobs {
         let (tx, rx) = channel();
         Jobs { queue: Arc::default(), tx, rx, next: 0, running: BTreeMap::new(), wake: None }

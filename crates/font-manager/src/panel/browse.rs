@@ -146,6 +146,7 @@ pub enum CardState {
     /// A system family.
     System,
     /// Not installed: Install, and Preview until a preview is downloaded.
+    #[non_exhaustive]
     Offer {
         /// Whether Preview is offered.
         preview: bool,

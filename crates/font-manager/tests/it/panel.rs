@@ -16,6 +16,10 @@ use craft_ui::layout_components::Row;
 use craft_ui::testing::{Fixture, Target, trial};
 use egui::{Key, Modifiers, Pos2, Vec2};
 
+/// The room the panel is shown in, and a wider one where the details sheet and the sources need more.
+const ROOM: Vec2 = Vec2::new(1120.0, 678.0);
+const WIDE_ROOM: Vec2 = Vec2::new(1400.0, 760.0);
+
 const HACK: &str = "ofl/hack/Hack-Regular.ttf";
 const UBUNTU: &str = "ufl/ubuntu/Ubuntu-Light.ttf";
 const APP: AppInfo = AppInfo { id: "fonts-test", name: "Fonts test", version: "1.0" };
@@ -84,12 +88,12 @@ fn setup_with(name: &str, sections: Arc<MemorySections>) -> Rig {
         (UBUNTU.to_owned(), epaint_default_fonts::UBUNTU_LIGHT.to_vec()),
     ]);
     let store = Arc::new(FakeStore::new(store_dir, files));
-    let panel = Rc::new(RefCell::new(FontsPanel::new(Options { catalog, installer: store.clone(), index: Ok(index()) })));
+    let panel = Rc::new(RefCell::new(FontsPanel::new(Options::new(catalog, store.clone(), Ok(index())))));
     let shown = Rc::clone(&panel);
     let mut fx = Fixture::new(move |ui| {
         FontsPanelView::new(&mut shown.borrow_mut()).show(ui);
     });
-    fx.room(Vec2::new(1120.0, 678.0)).host(host(sections));
+    fx.room(ROOM).host(host(sections));
     fx.settle();
     Rig { fx, panel, store }
 }
@@ -337,7 +341,7 @@ fn sources_setup(name: &str) -> Rig {
     catalog.rescan();
     let store = Arc::new(FakeStore::new(store_dir, HashMap::new()).with_index(index()).serving_index(USER_INDEX, user_index()));
     store.allow_downloads(true).unwrap();
-    let options = Options { catalog, installer: store.clone(), index: store.indexes().map_err(|e| e.0) };
+    let options = Options::new(catalog, store.clone(), store.indexes().map_err(|e| e.0));
     let panel = Rc::new(RefCell::new(FontsPanel::new(options)));
     let shown = Rc::clone(&panel);
     let mut fx = Fixture::new(move |ui| {
@@ -347,7 +351,7 @@ fn sources_setup(name: &str) -> Rig {
             FontsPanelView::new(&mut panel).show(ui);
         });
     });
-    fx.room(Vec2::new(1400.0, 760.0)).host(host(Arc::new(MemorySections::default())));
+    fx.room(WIDE_ROOM).host(host(Arc::new(MemorySections::default())));
     fx.settle();
     Rig { fx, panel, store }
 }

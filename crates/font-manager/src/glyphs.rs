@@ -120,6 +120,7 @@ pub trait GlyphSource: Send + Sync {
 /// The panel's remembered state (`[glyphs_panel]`): category, zoom and the recent glyphs.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
+#[non_exhaustive]
 pub struct GlyphsPanelSettings {
     /// The chosen category, one of [`CATEGORIES`].
     pub category: String,
@@ -284,14 +285,14 @@ impl<'a> GlyphsPanel<'a> {
 
     /// Shows the panel.
     pub fn show(self, ui: &mut Ui) -> GlyphsPanelOutput {
-        let GlyphsPanel { label: _, source, mut family, mut style, mut settings, families, styles, editing } = self;
+        let GlyphsPanel { label, source, mut family, mut style, mut settings, families, styles, editing } = self;
         let env = Env::of(ui);
         let words = env.words::<GlyphsWords>();
         let thumbs = Thumbnails::<GlyphKey>::in_context(ui.ctx(), "craft-font-manager-glyphs", ThumbnailOptions::new());
         let pictures = GlyphPictures(source);
         let mut insert: Option<String> = None;
         let mut font_changed = false;
-        let shown = Stack::new().show(ui, |ui, cx| {
+        let shown = Stack::new().label(label).show(ui, |ui, cx| {
             let mut state = read_bind(&mut settings, cx).unwrap_or_default();
             if state.category.is_empty() {
                 state.category = CATEGORIES[0].to_owned();

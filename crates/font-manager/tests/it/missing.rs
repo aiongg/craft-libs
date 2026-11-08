@@ -12,6 +12,9 @@ use craft_font_manager::{Catalog, FontEnv, Source};
 use craft_ui::dialog::{DialogResult, DialogStack, StackDialog as _};
 use craft_ui::testing::{Fixture, trial};
 
+/// The room the dialog is shown in.
+const ROOM: egui::Vec2 = egui::vec2(760.0, 640.0);
+
 /// Hack, the face egui ships.
 fn catalog() -> Arc<Catalog> {
     let catalog = Arc::new(Catalog::new(FontEnv { os: Os::None, ..FontEnv::default() }).with_font_service(false));
@@ -20,7 +23,7 @@ fn catalog() -> Arc<Catalog> {
 }
 
 fn font(family: &str, style: &str, postscript_name: Option<&str>) -> DocumentFont {
-    DocumentFont { family: family.to_owned(), style: style.to_owned(), postscript_name: postscript_name.map(str::to_owned) }
+    DocumentFont::new(family, style, postscript_name)
 }
 
 /// A PostScript name that resolves counts as Installed even when the family name differs.
@@ -67,7 +70,7 @@ fn replace_returns_a_replacement_per_missing_row() {
             results.push(result);
         }
     });
-    fixture.room(egui::vec2(760.0, 640.0));
+    fixture.room(ROOM);
     fixture.settle();
     assert!(fixture.by_label("Replace Fonts").is_some());
     assert!(fixture.texts().iter().any(|painted| painted.text == "2 fonts used in this document are not installed."));

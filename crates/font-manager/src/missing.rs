@@ -53,6 +53,7 @@ craft_ui::words! {
 
 /// A font a document names: family and style as stored in the document.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct DocumentFont {
     /// The family name as the document stores it.
     pub family: String,
@@ -62,8 +63,16 @@ pub struct DocumentFont {
     pub postscript_name: Option<String>,
 }
 
+impl DocumentFont {
+    /// A font named `family` in `style`, with the PostScript name when the document stores one.
+    pub fn new(family: &str, style: &str, postscript_name: Option<&str>) -> Self {
+        DocumentFont { family: family.to_owned(), style: style.to_owned(), postscript_name: postscript_name.map(str::to_owned) }
+    }
+}
+
 /// Whether a document font resolves on this machine.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum FontStatus {
     /// Installed as named.
     Installed,
@@ -75,6 +84,7 @@ pub enum FontStatus {
 
 /// A document font with its status.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct DocumentFontRow {
     /// The font the document names.
     pub font: DocumentFont,
@@ -123,6 +133,7 @@ pub fn missing_font_warnings(rows: &[DocumentFontRow], words: &MissingFontsWords
 
 /// What the user chose for the missing fonts.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct MissingFontsResult {
     /// (missing font, replacement family) for every row the user set; the default font where unset.
     pub replacements: Vec<(DocumentFont, String)>,
