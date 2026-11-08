@@ -1,16 +1,19 @@
 //! Which key roles take Delete: a command scope gets Delete from a focused button, while a deletable list and a text
 //! field keep it, and a collection that leaves its arrows to its owner lets the owner's arrow command run.
 
-use craft_behavior::{DisplayOrder, Granularity, Input, Intent, ItemSource};
+use crate::contract::kit::PlainStyle;
+use craft_behavior::{DisplayOrder, Granularity, Input, Intent, ItemSource, Sense};
 use craft_ui::buttons::Button;
 use craft_ui::contract::{
-    Bind, CollectionEvent, CommandSet, Commands as _, ItemKeys, SelectMode, Show as _, ShowCollection as _, ShowContainer as _,
+    Bind, CollectionEvent, CommandSet, Commands as _, Common, Component, Cx, ItemKeys, MeasureCx, Role, SelectMode, Show as _, ShowCollection as _,
+    ShowContainer as _,
 };
 use craft_ui::list::{List, ListRow};
 use craft_ui::popover::Popover;
 use craft_ui::runtime::commands::CommandScope;
-use craft_ui::runtime::focus::{FocusTarget, Initial, KeyUse, request};
+use craft_ui::runtime::focus::{Initial, KeyUse};
 use craft_ui::sections::Section;
+use craft_ui::style::StyleCx;
 use craft_ui::testing::focus::{AccessActionKind, Stop, access_request, intents_of, register_node, register_stop, widget};
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::{Fixture, Frames, trial};
@@ -179,24 +182,59 @@ fn stop(ui: &mut egui::Ui, keys: KeyUse) {
     register_stop(ui.ctx(), Stop::new(named("target"), keys));
 }
 
+/// A control that acts on Delete and records which delete intents it takes.
+#[derive(craft_ui::contract::Component)]
+struct Deleter<'a> {
+    #[common]
+    common: Common,
+    seen: &'a Cell<(bool, bool)>,
+}
+
+impl Component for Deleter<'_> {
+    const ROLE: Role = Role::BUTTON;
+    type Style = PlainStyle;
+    type Output = egui::Response;
+
+    fn keys(&self) -> KeyUse {
+        KeyUse::of(Input::Pointer).with_deletes()
+    }
+
+    fn style(_: &StyleCx<'_>, _: DeleterStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> egui::Vec2 {
+        egui::Vec2::new(40.0, 20.0)
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::CLICK | Sense::FOCUS
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        let plain = cx.intents().take_exact(&Intent::delete(true, Granularity::Unit));
+        let shifted = cx.intents().take_exact(&Intent::shift_delete(true, Granularity::Unit));
+        self.seen.set((self.seen.get().0 || plain, self.seen.get().1 || shifted));
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> egui::Response {
+        cx.response.clone()
+    }
+}
+
 /// A component takes Shift+Delete apart from Delete: a plain-delete reader leaves it, and the Shift reader sees it.
 #[trial]
 fn shift_delete_reaches_a_deleting_component_as_its_own_intent() {
-    let mut frames = Frames::new();
-    let seen = Cell::new((false, false));
-    let mut show = |ui: &mut egui::Ui| {
-        stop(ui, KeyUse::of(Input::Pointer).with_deletes());
-        let mut intents = intents_of(ui.ctx(), Some(named("target")), false);
-        let plain = intents.take_exact(&Intent::delete(true, Granularity::Unit));
-        let shifted = intents.take_exact(&Intent::shift_delete(true, Granularity::Unit));
-        seen.set((seen.get().0 || plain, seen.get().1 || shifted));
-    };
-    frames.idle(2, &mut show);
-    request(&frames.ctx, FocusTarget::Id(named("target")));
-    frames.frame(Vec::new(), &mut show);
-    frames.frame(vec![key_press(Key::Delete, Modifiers::SHIFT)], &mut show);
+    let seen = Rc::new(Cell::new((false, false)));
+    let shown = seen.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        Deleter { common: Common::new(), seen: &shown }.label("Layer").show(ui);
+    });
+    fixture.settle();
+    fixture.key(Key::Tab, Modifiers::NONE).settle();
+    fixture.key(Key::Delete, Modifiers::SHIFT).settle();
     assert_eq!(seen.get(), (false, true), "Shift+Delete is the shifted intent only");
-    frames.frame(vec![key_press(Key::Delete, Modifiers::NONE)], &mut show);
+    fixture.key(Key::Delete, Modifiers::NONE).settle();
     assert_eq!(seen.get(), (true, true), "Delete alone is the plain intent");
 }
 
