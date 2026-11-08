@@ -97,6 +97,13 @@ pub(crate) fn place_in_flow(ui: &mut Ui, size: Vec2) -> Rect {
     }
 }
 
+/// The room a child shown in flow in `ui` measures and sizes in: the room of the next cell of the `Grid` body that
+/// encloses `ui` directly, else the rest of `ui`'s layout.
+pub(crate) fn flow_room(ui: &Ui) -> Vec2 {
+    let cell = Env::of(ui).grid.and_then(|grid| Service::<Cursors>::of(ui.ctx()).with(|cursors| cursors.0.get(&grid).map(GridCursor::room)));
+    cell.unwrap_or_else(|| ui.available_size_before_wrap())
+}
+
 /// The cell `place_in_flow` placed last in the `Grid` body that encloses `ui` directly measured `size` after all: a
 /// block placed without a size entry learns its real size once its regions have run.
 pub(crate) fn widen_cell(ui: &Ui, size: Vec2) {
