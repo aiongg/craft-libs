@@ -26,3 +26,12 @@ fn the_keyboard_names_holders_and_assigns_to_the_selected_command() {
     assert_eq!(rig.bindings("file.save"), ["Cmd+S", "L"]);
     assert!(rig.has("L: Save, Loop (Timeline)"));
 }
+
+#[trial]
+fn zz_dump_keyboard() {
+    let mut rig = Rig::tuned(Platform::Mac, |options| options.keyboard = true);
+    let a = super::fixture::dump(&rig);
+    rig.click("⌘ Command");
+    let b = super::fixture::dump(&rig);
+    panic!("K1\n{a}\nK2 after click toggle\n{b}\nEND");
+}
