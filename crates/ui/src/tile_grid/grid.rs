@@ -305,6 +305,14 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
         self
     }
 
+    /// A tile drag carries `map` of it, for the drop targets of type `P`; a tile the map gives `None` for does not drag
+    /// unless a reorder rule is set. The drag stays one session with one ghost.
+    #[must_use]
+    pub fn drag_payload<P: Send + Sync + 'static>(mut self, map: impl Fn(&ListDrag<K>) -> Option<P> + Send + Sync + 'static) -> Self {
+        self.items = self.items.drag_payload(map);
+        self
+    }
+
     /// The selected tiles, or the lead when none is selected: what a rating key rates. The caller's binding when it
     /// holds one, else the selection the item step keeps.
     fn rated(&mut self, cx: &Cx<'_, Self>) -> Vec<K> {

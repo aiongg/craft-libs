@@ -26,10 +26,7 @@ use crate::runtime::env::{EnvView, Label};
 use crate::runtime::memory::StageAccess;
 use crate::style::{ComponentStyle, FocusLook, StyleCx, SurfaceLook};
 use crate::tile_grid::TileZoom;
-use craft_behavior::{
-    CancelReason, DisplayOrder, GesturePhase, HitLevel, HitPriority, ItemSource, Metrics, PartKey, PressPhase, Selection, SelectionChange, Sense,
-    Value,
-};
+use craft_behavior::{CancelReason, GesturePhase, HitLevel, HitPriority, Metrics, PartKey, PressPhase, Sense, Value};
 use egui::{Rect, Response, Ui, Vec2};
 use std::hash::Hash;
 

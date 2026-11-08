@@ -623,7 +623,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
                 let open: Vec<bool> = shown.iter().map(|&at| open_flags[at]).collect();
                 let source = Shown { rows, at: shown.clone(), open, tree: true, actions: actions.len() };
                 let thumb_size = list_thumb(zoom);
-                let mut list = List::<K>::new(label.clone())
+                let mut list = List::<BrowserKey<K>>::new(label.clone())
                     .id(list_id)
                     .tree(true)
                     .select(SelectMode::Single)
