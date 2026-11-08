@@ -93,8 +93,8 @@ Pure UI behaviours (layer 1): press lifecycle, `ValueDrag`, navigation, item lay
 - `craft_behavior::LabelColumn`: re-export of `craft_behavior::label_column::LabelColumn`.
 - `craft_behavior::LabelPlacement`: re-export of `craft_behavior::label_column::LabelPlacement`.
 - `craft_behavior::Letters`: re-export of `craft_behavior::nav::Letters`.
-- `craft_behavior::MarqueeMode`: re-export of `craft_behavior::marquee::MarqueeMode`.
-- `craft_behavior::MarqueeSelect`: re-export of `craft_behavior::marquee::MarqueeSelect`.
+- `craft_behavior::MarqueeMode`: re-export of `craft_behavior::item_marquee::MarqueeMode`.
+- `craft_behavior::MarqueeSelect`: re-export of `craft_behavior::item_marquee::MarqueeSelect`.
 - `craft_behavior::Metrics`: re-export of `craft_behavior::sizing::Metrics`.
 - `craft_behavior::Mixed`: re-export of `craft_behavior::value::Mixed`.
 - `craft_behavior::Monitor`: re-export of `craft_behavior::monitor::Monitor`.
@@ -377,13 +377,13 @@ The dock model: the tree of splits over panel frames, the side of a group a drop
 - `craft_behavior::dock::DockSide`: `pub enum DockSide { Start, End, Top, Bottom, Center }`. The side of a group a dropped panel docks on, in reading order: `Start` is the left half in a left-to-right
   - `pub const fn axis(self) -> Option<Axis>`. The axis the side splits along; `None` for `Center`.
   - `pub fn area(self, group: Rect) -> Rect`. The part of `group` a panel docked on this side takes: the half on that side, or the whole group.
-- `craft_behavior::dock::Action`: `pub enum Action<P> { Move { panel: P, anchor: P, placement: Placement<P> }, Float { panel: P, rect: Rect }, Close { panel: P }, Activate { panel: P }, Open { panel: P, anchor: Option<P> }, OpenAt { panel: P, anchor: P, placement: Placement<P> }, MoveFloating { panel: P, rect: Rect }, ResizeSplit { path: Vec<bool>, size: SplitSize }, ResizeWindowSplit { panel: P, path: Vec<bool>, size: SplitSize }, SetStackOpen { panel: P, open: bool }, ResizeStack { panel: P, height: Option<f32> }, MoveGroup { panel: P, to: Target<P> }, StepGroup { panel: P, up: bool }, MoveColumn { panel: P, to: Target<P> }, MoveWindow { panel: P, to: Target<P> }, CloseGroup { panel: P }, CloseWindow { panel: P }, CloseOthers { panel: P }, SetMinimized { panel: P, minimized: bool }, SetIconic { panel: P, iconic: bool }, ResizeColumn { panel: P, width: f32 }, ResizeGroup { panel: P, height: Option<f32> }, ResizeIconic { panel: P, width: Option<f32> }, SetNative { panel: P, rect: Option<Rect> }, SetMonitor { panel: P, monitor: Option<Monitor>, monitor_size: Option<[f32; 2]> }, MovePanel { panel: P, to: Target<P> } }`. Groups, columns and floating windows are named by a panel they contain.
-  - `pub fn move_beside(panel: P, anchor: P, placement: Placement<P>) -> Self`. Builds [`Action::Move`].
+- `craft_behavior::dock::Action`: `pub enum Action<P> { Move { panel: P, anchor: P, placement: DockPlacement<P> }, Float { panel: P, rect: Rect }, Close { panel: P }, Activate { panel: P }, Open { panel: P, anchor: Option<P> }, OpenAt { panel: P, anchor: P, placement: DockPlacement<P> }, MoveFloating { panel: P, rect: Rect }, ResizeSplit { path: Vec<bool>, size: SplitSize }, ResizeWindowSplit { panel: P, path: Vec<bool>, size: SplitSize }, SetStackOpen { panel: P, open: bool }, ResizeStack { panel: P, height: Option<f32> }, MoveGroup { panel: P, to: Target<P> }, StepGroup { panel: P, up: bool }, MoveColumn { panel: P, to: Target<P> }, MoveWindow { panel: P, to: Target<P> }, CloseGroup { panel: P }, CloseWindow { panel: P }, CloseOthers { panel: P }, SetMinimized { panel: P, minimized: bool }, SetIconic { panel: P, iconic: bool }, ResizeColumn { panel: P, width: f32 }, ResizeGroup { panel: P, height: Option<f32> }, ResizeIconic { panel: P, width: Option<f32> }, SetNative { panel: P, rect: Option<Rect> }, SetMonitor { panel: P, monitor: Option<Monitor>, monitor_size: Option<[f32; 2]> }, MovePanel { panel: P, to: Target<P> } }`. Groups, columns and floating windows are named by a panel they contain.
+  - `pub fn move_beside(panel: P, anchor: P, placement: DockPlacement<P>) -> Self`. Builds [`Action::Move`].
   - `pub fn float(panel: P, rect: Rect) -> Self`. Builds [`Action::Float`].
   - `pub fn close(panel: P) -> Self`. Builds [`Action::Close`].
   - `pub fn activate(panel: P) -> Self`. Builds [`Action::Activate`].
   - `pub fn open(panel: P, anchor: Option<P>) -> Self`. Builds [`Action::Open`].
-  - `pub fn open_at(panel: P, anchor: P, placement: Placement<P>) -> Self`. Builds [`Action::OpenAt`].
+  - `pub fn open_at(panel: P, anchor: P, placement: DockPlacement<P>) -> Self`. Builds [`Action::OpenAt`].
   - `pub fn move_floating(panel: P, rect: Rect) -> Self`. Builds [`Action::MoveFloating`].
   - `pub fn resize_split(path: Vec<bool>, size: SplitSize) -> Self`. Builds [`Action::ResizeSplit`].
   - `pub fn resize_window_split(panel: P, path: Vec<bool>, size: SplitSize) -> Self`. Builds [`Action::ResizeWindowSplit`].
@@ -413,6 +413,12 @@ The dock model: the tree of splits over panel frames, the side of a group a drop
   - `pub const fn new(side: DockEdge, width: f32, iconic: bool, iconic_width: Option<f32>) -> Self`. A column location on `side`, `width` points wide when expanded.
 - `craft_behavior::dock::DockEdge`: `pub enum DockEdge { Start, End }`. The window edge a [`Node::Dock`] sits on, in reading order so right-to-left interfaces
 - `craft_behavior::dock::DockError`: `pub enum DockError { LimitExceeded, DuplicatePanel, MissingPanel, MissingTarget, InvalidSelection, InvalidGeometry, InvalidPlacement, NotAllowed, UnsupportedVersion }`. Why a layout edit or load was refused. The layout is unchanged when an edit fails.
+- `craft_behavior::dock::DockPlacement`: `pub enum DockPlacement<P> { Tab { before: Option<P> }, Split(DockSide), SplitSized { zone: DockSide, size: SplitSize, outer: SplitSize }, Group { below: bool, height: Option<f32> }, Column { after: bool }, Edge(DockSide) }`. Where a moved panel goes relative to an anchor panel.
+  - `pub fn tab(before: Option<P>) -> Self`. Builds [`DockPlacement::Tab`].
+  - `pub fn split_sized(zone: DockSide, size: SplitSize, outer: SplitSize) -> Self`. Builds [`DockPlacement::SplitSized`].
+  - `pub fn group(below: bool, height: Option<f32>) -> Self`. Builds [`DockPlacement::Group`].
+  - `pub fn column(after: bool) -> Self`. Builds [`DockPlacement::Column`].
+  - `pub fn allowed_by(&self, anchor: Permissions, floating: bool) -> bool`. Whether the anchor's permissions take this placement: tabs need `accepts_tabs`, side
 - `craft_behavior::dock::DocumentGroup`: `pub struct DocumentGroup<D> { pub id: u64, pub documents: Vec<D>, pub shown: Option<D> }`. A document group: the documents in one tab strip, one of them shown.
   - `pub fn new(id: u64, documents: Vec<D>) -> Self`. A group with id `id` holding `documents`, none shown.
 - `craft_behavior::dock::DocumentWindows`: `pub struct DocumentWindows<D> { pub docked: Vec<DocumentGroup<D>>, pub floating: Vec<(DocumentGroup<D>, Rect)> }`. The document windows of the app: the tabbed groups in the canvas area and the floating ones.
@@ -445,8 +451,8 @@ The dock model: the tree of splits over panel frames, the side of a group a drop
   - `pub fn panel_state(&self, panel: &P) -> PanelState`. Hidden, open behind another tab or in a collapsed container, or showing.
   - `pub fn restore(&mut self, panel: P, location: &Location<P>) -> Result<(), DockError>`. Restore an absent panel at a captured location. Missing anchors are reported without
   - `pub fn open_at_edge(&mut self, panel: P) -> Result<(), DockError>`. Open an absent panel as a frame at the outer edge of the docked area, taking most of it:
-- `craft_behavior::dock::Location`: `pub struct Location<P> { pub floating: Option<Rect>, pub anchor: Option<P>, pub placement: Placement<P>, pub size: Option<SplitSize>, pub stack: Option<(bool, Option<f32>)>, pub sibling: Vec<P>, pub group: Option<GroupLocation> }`. A closed panel's former placement. Applications may retain this beside visibility flags.
-  - `pub fn new(anchor: Option<P>, placement: Placement<P>) -> Self`. A location relative to `anchor` by `placement`, with no recorded sizes or siblings.
+- `craft_behavior::dock::Location`: `pub struct Location<P> { pub floating: Option<Rect>, pub anchor: Option<P>, pub placement: DockPlacement<P>, pub size: Option<SplitSize>, pub stack: Option<(bool, Option<f32>)>, pub sibling: Vec<P>, pub group: Option<GroupLocation> }`. A closed panel's former placement. Applications may retain this beside visibility flags.
+  - `pub fn new(anchor: Option<P>, placement: DockPlacement<P>) -> Self`. A location relative to `anchor` by `placement`, with no recorded sizes or siblings.
 - `craft_behavior::dock::MAX_DEPTH`: `pub const MAX_DEPTH: usize`. Limits are checked before cloning or recursively modifying an application layout.
 - `craft_behavior::dock::MAX_PANELS`: `pub const MAX_PANELS: usize`. Most panels a layout may hold. Larger layouts fail with [`DockError::LimitExceeded`](super::DockError::LimitExceeded).
 - `craft_behavior::dock::NamedWorkspace`: `pub struct NamedWorkspace<P> { pub id: String, pub name: String, pub layout: Workspace<P>, pub chrome: WorkspaceChrome, pub keeps_shortcuts: bool, pub keeps_menus: bool }`. One named workspace.
@@ -471,19 +477,13 @@ The dock model: the tree of splits over panel frames, the side of a group a drop
   - `pub const fn accepts_splits(mut self, accepts_splits: bool) -> Self`. These permissions with [`Self::accepts_splits`] set to `accepts_splits`.
   - `pub fn is_protected(self) -> bool`. A canvas: it can neither move, close nor take tabs. `accepts_splits` and `floatable`
   - `pub fn locked(self) -> Self`. Lock Workspace: nothing moves, floats or closes; tab and split drops keep their policy.
-- `craft_behavior::dock::Placement`: `pub enum Placement<P> { Tab { before: Option<P> }, Split(DockSide), SplitSized { zone: DockSide, size: SplitSize, outer: SplitSize }, Group { below: bool, height: Option<f32> }, Column { after: bool }, Edge(DockSide) }`. Where a moved panel goes relative to an anchor panel.
-  - `pub fn tab(before: Option<P>) -> Self`. Builds [`Placement::Tab`].
-  - `pub fn split_sized(zone: DockSide, size: SplitSize, outer: SplitSize) -> Self`. Builds [`Placement::SplitSized`].
-  - `pub fn group(below: bool, height: Option<f32>) -> Self`. Builds [`Placement::Group`].
-  - `pub fn column(after: bool) -> Self`. Builds [`Placement::Column`].
-  - `pub fn allowed_by(&self, anchor: Permissions, floating: bool) -> bool`. Whether the anchor's permissions take this placement: tabs need `accepts_tabs`, side
 - `craft_behavior::dock::SIDE_ZONE_DEPTH_SHARE`: `pub const SIDE_ZONE_DEPTH_SHARE: f32`. The most of a body's smaller side that a [`ZoneSize::Depth`] zone reaches, so a body always keeps a middle.
 - `craft_behavior::dock::SIDE_ZONE_FRACTION`: `pub const SIDE_ZONE_FRACTION: f32`. Share of a body, from each edge, that means "beside" under [`ZoneSize::Fraction`]: of its width from the start
 - `craft_behavior::dock::SplitSize`: `pub enum SplitSize { Ratio(f32), FixedFirst(f32), FixedSecond(f32) }`. A transient sizing request. Applications may adapt their own persisted sizing enum.
 - `craft_behavior::dock::StackEntry`: `pub struct StackEntry<P> { pub panel: P, pub open: bool, pub height: Option<f32> }`. One panel of a [`Node::Stack`] accordion.
   - `pub fn new(panel: P) -> Self`. An open accordion section for `panel` with no preferred height.
-- `craft_behavior::dock::Target`: `pub enum Target<P> { At { anchor: P, placement: Placement<P> }, NewDock { side: DockEdge }, Float { rect: Rect } }`. Where a group, column or floating window goes.
-  - `pub fn at(anchor: P, placement: Placement<P>) -> Self`. Builds [`Target::At`].
+- `craft_behavior::dock::Target`: `pub enum Target<P> { At { anchor: P, placement: DockPlacement<P> }, NewDock { side: DockEdge }, Float { rect: Rect } }`. Where a group, column or floating window goes.
+  - `pub fn at(anchor: P, placement: DockPlacement<P>) -> Self`. Builds [`Target::At`].
   - `pub fn new_dock(side: DockEdge) -> Self`. Builds [`Target::NewDock`].
   - `pub fn float(rect: Rect) -> Self`. Builds [`Target::Float`].
 - `craft_behavior::dock::Workspace`: `pub struct Workspace<P> { pub version: u32, pub layout: Layout<P>, pub hidden: Vec<(P, Location<P>)> }`. A saved arrangement of panels: the [`Layout`] and the closed panels' former places.
@@ -921,6 +921,20 @@ Item geometry: where each item of a collection sits for a scroll offset and view
   - `pub fn new<K>(source: &dyn DisplayOrder<K>, width: f32, tile: Vec2, gap: f32) -> Self`. One tile of `tile` per entry of `source`, `gap` apart, wrapping at `width`.
   - `pub fn columns(&self) -> usize`. Tiles per row: at least one.
 
+## `craft_behavior::item_marquee`
+
+`MarqueeSelect`: the rectangle a drag over list items sweeps and the selection it makes (8.7).
+
+- `craft_behavior::item_marquee::MarqueeMode`: `pub enum MarqueeMode { Replace, Add, Toggle, Subtract }`. How the swept items combine with the selection the drag started from. Items follow the list rule (Cmd or Ctrl
+  - `pub const fn of(mods: Mods) -> MarqueeMode`. The mode a press with `mods` starts: Shift adds, Cmd or Ctrl toggles, Alt subtracts, none replaces.
+- `craft_behavior::item_marquee::MarqueeSelect`: `pub struct MarqueeSelect<K>`. A marquee drag in progress. It holds the selection the drag started from, so a cancel restores it.
+  - `pub fn begin(origin: Pos2, mods: Mods, base: Vec<K>) -> Self`. A marquee that began at `origin` over `base`, in the mode `mods` pick.
+  - `pub fn mode(&self) -> MarqueeMode`. The mode the drag runs in.
+  - `pub fn update(&mut self, pos: Pos2)`. Moves the free corner to `pos`.
+  - `pub fn rect(&self) -> Rect`. The swept rectangle.
+  - `pub fn selection(&self, items: impl IntoIterator<Item =(K, Rect)>) -> Vec<K>`. The selection while the marquee is live, from the items `items` (key and rect) it sweeps.
+  - `pub fn cancel(self) -> Vec<K>`. Ends the drag with Escape: the selection it started from.
+
 ## `craft_behavior::item_source`
 
 Where a collection's items come from: the data traits and the one way to show a slice.
@@ -995,20 +1009,6 @@ The tolerance rule of layout memory: when a measured size asks for a discard pas
   - `pub fn is_done(&self, now: f64) -> bool`. Whether the tween has reached its end at `now`.
 - `craft_behavior::layout_memory::measure_tolerance`: `pub fn measure_tolerance(pixels_per_point: f32) -> f32`. The tolerance in points under which a measured size equals the one placement used: half a physical pixel.
 - `craft_behavior::layout_memory::measured_change_asks_for_discard`: `pub fn measured_change_asks_for_discard(recorded: Option<Vec2>, real: Vec2, changed_last_frame: bool, tolerance: f32) -> bool`. Whether a measured size asks for a discard pass. `recorded` is the size placement used this frame
-
-## `craft_behavior::marquee`
-
-`MarqueeSelect`: the rectangle a drag on empty space sweeps and the selection it makes (8.7).
-
-- `craft_behavior::marquee::MarqueeMode`: `pub enum MarqueeMode { Replace, Add, Toggle, Subtract }`. How the swept items combine with the selection the drag started from.
-  - `pub const fn of(mods: Mods) -> MarqueeMode`. The mode a press with `mods` starts: Shift adds, Cmd or Ctrl toggles, Alt subtracts, none replaces.
-- `craft_behavior::marquee::MarqueeSelect`: `pub struct MarqueeSelect<K>`. A marquee drag in progress. It holds the selection the drag started from, so a cancel restores it.
-  - `pub fn begin(origin: Pos2, mods: Mods, base: Vec<K>) -> Self`. A marquee that began at `origin` over `base`, in the mode `mods` pick.
-  - `pub fn mode(&self) -> MarqueeMode`. The mode the drag runs in.
-  - `pub fn update(&mut self, pos: Pos2)`. Moves the free corner to `pos`.
-  - `pub fn rect(&self) -> Rect`. The swept rectangle.
-  - `pub fn selection(&self, items: impl IntoIterator<Item =(K, Rect)>) -> Vec<K>`. The selection while the marquee is live, from the items `items` (key and rect) it sweeps.
-  - `pub fn cancel(self) -> Vec<K>`. Ends the drag with Escape: the selection it started from.
 
 ## `craft_behavior::monitor`
 
@@ -1868,6 +1868,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub const fn scrub(mut self, on: bool) -> Self`. Lets a drag on the label scrub the control's value.
   - `pub fn icon(mut self, icon: impl Into<IconSpec<'static>>) -> Self`. Shows `icon` before the text.
   - `pub fn detail(mut self, detail: impl Into<Label>) -> Self`. Shows `detail` after the text, in the muted text colour, and adds it to the control's description.
+- `craft_ui::contract::SizeLimits`: re-export of `craft_ui::contract::overlay::SizeLimits`.
 - `craft_ui::contract::Sizing`: `pub enum Sizing { Fill, FillWidth, Content }`. How a container's size follows its content.
 - `craft_ui::contract::Slot`: re-export of `craft_ui::runtime::memory::Slot`.
 - `craft_ui::contract::SpaceAction`: `pub enum SpaceAction { Activate, ToggleCell, None }`. What Space does in a collection (Enter always activates the lead).
@@ -1931,7 +1932,7 @@ Chapter 15: the `Overlay` data, its presets, popup handles, `OverlayUi` and the 
 - `craft_ui::contract::overlay::HOLD`: `pub const HOLD: f64`. The seconds a press must be held for `Trigger::Hold`.
 - `craft_ui::contract::overlay::Opener`: `pub struct Opener { pub id: Id, pub rect: Rect, pub layer: areas::Layer, pub trigger: Trigger, pub enabled: bool, pub anchor: Option<Anchor>, pub others: Vec<Opener> }`. A component that opens a free-standing popup, and how. A layer with several openers keeps the first as its
 - `craft_ui::contract::overlay::Outside`: `pub enum Outside { Close, Keep, Absorb }`. What a press outside the layer and its anchor does.
-- `craft_ui::contract::overlay::Overlay`: `pub struct Overlay { pub place: Place, pub fit: OverlayFit, pub min_width: MinWidth, pub movable: bool, pub resize: Resize, pub rank: Rank, pub keys: OwnerClass, pub focus: FocusPolicy, pub dismiss: Dismiss, pub motion: MotionSpec, pub opener: Option<Opener>, pub popup: PopupKind, pub size: Option<Vec2>, pub min_size: Option<Vec2>, pub max_size: Option<Vec2>, pub placed: Option<Rect>, pub placed_at: Option<Pos2>, pub bounds: Option<Rect>, pub opacity: f32, pub body_scroll: bool, pub moves_window: bool }`. Data describing an egui layer. Presets fill focus and dismissal; builders change single fields.
+- `craft_ui::contract::overlay::Overlay`: `pub struct Overlay { pub place: Place, pub fit: OverlayFit, pub min_width: MinWidth, pub movable: bool, pub resize: Resize, pub rank: Rank, pub keys: OwnerClass, pub focus: FocusPolicy, pub dismiss: Dismiss, pub motion: MotionSpec, pub opener: Option<Opener>, pub popup: PopupKind, pub size: Option<Vec2>, pub size_limits: SizeLimits, pub placed: Option<Rect>, pub placed_at: Option<Pos2>, pub bounds: Option<Rect>, pub opacity: f32, pub body_scroll: bool, pub moves_window: bool }`. Data describing an egui layer. Presets fill focus and dismissal; builders change single fields.
   - `pub fn popover() -> Overlay`. A popover: a popup anchored below, taking focus in. It closes when the focus moves out of it.
   - `pub fn dropdown() -> Overlay`. A dropdown list: from its content, at least as wide as its anchor and capped, focus stays on the anchor. It
   - `pub fn menu() -> Overlay`. A menu: a popup the arrow keys move through. A press outside closes it and goes no further.
@@ -1949,7 +1950,7 @@ Chapter 15: the `Overlay` data, its presets, popup handles, `OverlayUi` and the 
   - `pub fn anchor(mut self, anchor: Anchor) -> Overlay`. Hangs the layer from `anchor` on the side and alignment its preset gave. Without an opener, a point is in the
   - `pub fn size(mut self, size: Vec2) -> Overlay`. Sets the size a resizable layer has before the user resizes it.
   - `pub fn min_size(mut self, min_size: Vec2) -> Overlay`. Sets the least a resizable layer may be resized to.
-  - `pub fn size_limits(mut self, min: Vec2, max: Vec2) -> Overlay`. Sets the least and the most a resizable layer may be resized to.
+  - `pub fn size_limits(mut self, limits: SizeLimits) -> Overlay`. Sets the least and the most a resizable layer may be resized to.
   - `pub fn placed(mut self, rect: Rect) -> Overlay`. Places the layer at `rect` in its parent's space. The container reports the moves and resizes the user makes
   - `pub fn placed_at(mut self, pos: Pos2) -> Overlay`. Places the layer's top left at `pos` in its parent's space and sizes it from its content and size limits, so a
   - `pub fn bounds(mut self, bounds: Rect) -> Overlay`. Sets the rect a move or resize keeps the layer inside.
@@ -1971,7 +1972,7 @@ Chapter 15: the `Overlay` data, its presets, popup handles, `OverlayUi` and the 
   - `fn popup(&mut self, name: &'static str) -> PopupHandle`. Registers the popup `name` of this component for this pass and returns its handle. A component registers every
 - `craft_ui::contract::overlay::Place`: `pub enum Place { Anchored { anchor: Anchor, side: Side, align: Align }, Float(FloatPlace) }`. Where an egui layer sits.
   - `pub const fn anchored(anchor: Anchor, side: Side, align: Align) -> Self`. An anchored place.
-- `craft_ui::contract::overlay::PlacementChange`: `pub struct PlacementChange { pub rect: Rect, pub phase: GesturePhase, pub pointer: Option<Pos2>, pub kind: PlacementKind }`. A move or resize of a layer the user made, reported to `Container::placement_changed`.
+- `craft_ui::contract::overlay::PlacementChange`: `pub struct PlacementChange { pub rect: Rect, pub phase: GesturePhase, pub pointer: Option<Pos2>, pub kind: PlacementKind }`. A move or resize of a layer the user made, or of the OS window a viewport mount shows in, reported to
 - `craft_ui::contract::overlay::PlacementKind`: `pub enum PlacementKind { Move, Size(ResizeEdge), Keyboard }`. What kind of gesture a `PlacementChange` reports.
 - `craft_ui::contract::overlay::Popup`: `pub struct Popup`. The open state of a container's layer that has an opener and no binding, driven from the opener's side.
   - `pub fn open<C: Component>(opener: impl Into<Id>, cx: &mut Cx<'_, C>)`. Opens the container hung from `opener` (a [`PopupHandle`] or the id of the opener's response).
@@ -1990,6 +1991,13 @@ Chapter 15: the `Overlay` data, its presets, popup handles, `OverlayUi` and the 
 - `craft_ui::contract::overlay::Resize`: `pub struct Resize { pub grips: bool }`. How the user may resize a layer.
   - `pub const NONE: Resize`. The layer keeps its size.
   - `pub const GRIPS: Resize`. Grips on every edge and corner.
+- `craft_ui::contract::overlay::SizeLimits`: `pub struct SizeLimits { pub min: Vec2, pub max: Option<Vec2> }`. Size limits, in points: the smallest size and, where there is one, the largest. A layer's (`Overlay::size_limits`)
+  - `pub const BOUND: f32`. The largest value a limit or a height may have: a value above it is invalid.
+  - `pub const fn new(min: Vec2, max: Vec2) -> Self`. Limits between `min` and `max`.
+  - `pub const fn at_least(min: Vec2) -> Self`. No smaller than `min`, with no maximum.
+  - `pub const fn at_most(max: Vec2) -> Self`. No larger than `max`, with no minimum.
+  - `pub fn around(self, extra: Vec2) -> Self`. The limits of a frame that holds a size with these limits and `extra` around it: both ends grow by `extra`.
+  - `pub fn valid(self) -> bool`. Whether every value is finite and non-negative, the maximum is no less than the minimum and no value is
 - `craft_ui::contract::overlay::Trigger`: `pub enum Trigger { Click, Press, Context, Hover, Hold, Manual }`. How a free-standing popup's trigger fires.
 - `craft_ui::contract::overlay::ViewportShare`: `pub struct ViewportShare { pub x: f32, pub y: f32 }`. A fraction of the viewport per axis.
   - `pub const fn new(x: f32, y: f32) -> Self`. A share of `x` of the width and `y` of the height.
@@ -2983,12 +2991,9 @@ The toast queue: one per viewport, filled from any code with a `Context`.
   - `pub fn hit(&self, point: Pos2) -> Option<WindowHit>`. What lies at `point`: a button wins over an edge, and an edge over a drag area. A drag area answers only where
 - `craft_ui::runtime::windows::HitSink`: `pub struct HitSink`. The Windows hit test of one window: the window procedure asks [`HitSink::answer`] where the OS asks for a hit
   - `pub fn answer(&self, pixel: Pos2) -> Option<WindowHit>`. What lies at `pixel`, in physical pixels from the top left of the window's client area: the hit test's screen
-- `craft_ui::runtime::windows::MonitorInfo`: `pub struct MonitorInfo { pub name: String, pub pixels: Rect, pub scale: f32 }`. A connected monitor, in physical pixels of the desktop.
-  - `pub fn points_at(&self, window_scale: f32) -> Rect`. The monitor's area in points of a window whose scale is `window_scale` ([`WindowFacts::scale`]). Monitors
-  - `pub fn placed_at(&self, window_scale: f32) -> craft_behavior::Monitor`. The monitor as the placement owner's type, in the points of a window whose scale is `window_scale`.
 - `craft_ui::runtime::windows::ResizeEdge`: `pub enum ResizeEdge { Top, Bottom, Left, Right, TopLeft, TopRight, BottomLeft, BottomRight }`. An edge or corner a window resize starts from.
 - `craft_ui::runtime::windows::WindowAction`: `pub enum WindowAction { Close, Minimize, ToggleMaximize, ToggleFullscreen, SetFullscreen(bool), SetMaximized(bool), Focus, StartMove, StartResize(ResizeEdge), SetOuterPosition(Pos2), SetInnerSize(Vec2), SetLevel(WindowLevel), SetTitle(String) }`. A window command `act` sends.
-- `craft_ui::runtime::windows::WindowFacts`: `pub struct WindowFacts { pub inner: Rect, pub outer: Option<Rect>, pub scale: f32, pub state: WindowState, pub focused: bool }`. What the OS tells about a window, in desktop points.
+- `craft_ui::runtime::windows::WindowFacts`: `pub struct WindowFacts { pub inner: Rect, pub outer: Option<Rect>, pub scale: Option<f32>, pub state: WindowState, pub focused: bool }`. What the OS tells about a window, in desktop points.
 - `craft_ui::runtime::windows::WindowHit`: `pub enum WindowHit { Move, Resize(ResizeEdge), Caption(Button) }`. What a part of the window does for the operating system: a press on it moves the window, resizes it from an edge,
 - `craft_ui::runtime::windows::WindowHost`: `pub struct WindowHost`. The multi-window driver of one context.
   - `pub fn of(ctx: &Context) -> Self`. The window host of `ctx`.
@@ -3001,8 +3006,7 @@ The toast queue: one per viewport, filled from any code with a `Context`.
   - `pub fn desktop_pointer(&self) -> Option<Pos2>`. The system pointer in desktop points, as the platform tells it or, failing that, as the window a drag
   - `pub fn warp_pointer(&self, to: Pos2) -> bool`. Moves the system pointer to `to` in desktop points; false where the platform cannot.
   - `pub fn facts(&self, viewport: ViewportId) -> Option<WindowFacts>`. `viewport`'s window facts, once it has reported its inner rect.
-  - `pub fn monitors(&self) -> Vec<MonitorInfo>`. The connected monitors in physical pixels; none where the platform does not list them.
-  - `pub fn monitors_at(&self, window_scale: f32) -> Vec<craft_behavior::Monitor>`. The connected monitors as the placement owner's type, in the points of a window whose scale is
+  - `pub fn monitors(&self, window_scale: f32) -> Vec<craft_behavior::Monitor>`. The connected monitors in the points of a window whose scale is `window_scale` ([`WindowFacts::scale`]), as
   - `pub fn set_outer(&self, viewport: ViewportId, outer: Rect) -> bool`. Places `viewport`'s outer rect at `outer`: its position, and the inner size that leaves the window's
   - `pub fn viewport_of(&self, id: Id) -> Option<ViewportId>`. The viewport of the container `id` while its window is open.
   - `pub fn viewport_at(&self, at: Pos2) -> Option<ViewportId>`. The window under the desktop point `at`: where windows overlap, the focused one, else the one focused last,
