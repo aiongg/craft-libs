@@ -2,7 +2,7 @@
 
 use crate::contract::{
     BodyCx, Common, Component, Container, ContainerProps, Cx, FooterRegion, HeaderRegion, NoValue, Outcome, Pad, Props as _, Role, RowAlign, Scroll,
-    Show as _, ShowContainer as _, Sizing,
+    Show as _, ShowContainer as _, Sizing, WordSetCx as _,
 };
 use crate::layout_components::Row;
 use crate::runtime::focus::FocusPolicy;
