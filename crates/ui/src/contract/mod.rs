@@ -80,8 +80,8 @@ use std::ops::Deref;
 pub use crate::runtime::drag::{DragPreview, DropMark, DropTarget, OsFile, OsFiles, WindowDropTarget};
 #[cfg(feature = "testing")]
 pub(crate) use body::MOVE_BAND;
-pub use craft_behavior::DropOperation;
 pub use craft_behavior::ColumnKey;
+pub use craft_behavior::DropOperation;
 pub(crate) use run::measure_under;
 pub(crate) use steps::take_reveal;
 

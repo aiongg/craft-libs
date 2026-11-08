@@ -818,7 +818,8 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             match comp.scroll() {
                 Some(mut bind) => {
                     let (label, doc_key) = (cx.core.label_arc(), cx.core.resolved.doc_key);
-                    let (before, after) = (ScrollPos { x: self.offset_x_at_read, y: self.offset_at_read }, ScrollPos { x: self.offset_x, y: self.offset });
+                    let (before, after) =
+                        (ScrollPos { x: self.offset_x_at_read, y: self.offset_at_read }, ScrollPos { x: self.offset_x, y: self.offset });
                     bind.apply(&EditEvent::set(GestureId::default(), Mixed::Same(before), after, label, doc_key));
                 }
                 None => {

@@ -114,6 +114,32 @@ fn wheel_and_thumb_scroll_show_new_rows_in_the_same_frame() {
     assert!(after_thumb > after_wheel + 5, "a thumb drag of 60 points moved the rows: {after_wheel} -> {after_thumb}");
 }
 
+/// The app sets a list's scroll position by writing the offset it owns: the next pass shows those rows, and the wheel
+/// writes the new offset back.
+#[trial]
+fn the_app_sets_a_lists_scroll_position_through_its_scroll_binding() {
+    use craft_behavior::ScrollPos;
+    let words = Count(ROWS);
+    let seen = Seen::default();
+    let held = RefCell::new(ScrollPos::default());
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            let mut offset = *held.borrow();
+            seen.take(List::new(SelectMode::None).scroll(Bind::bound(&mut offset)).id_salt("list").show_items(ui, &words, &mut |_, _| Row::new()));
+            *held.borrow_mut() = offset;
+        });
+    };
+    frames.idle(3, &mut show);
+    assert_eq!(seen.range().start, 0);
+    held.borrow_mut().y = 20.0 * f64::from(ROW_H);
+    frames.idle(2, &mut show);
+    assert!(seen.range().start >= 19, "the list shows the rows at the offset the app wrote: {:?}", seen.range());
+    frames.frame(vec![pointer::moved(seen.rect.get().center())], &mut show);
+    frames.frame(vec![pointer::wheel(-WHEEL)], &mut show);
+    assert!(held.borrow().y > 20.0 * f64::from(ROW_H), "the wheel wrote the offset back: {:?}", held.borrow());
+}
+
 /// A body and a list under one wheel rule: the wheel moves the one under the pointer by the wheel's points.
 #[trial]
 fn panel_body_and_list_share_the_wheel_rule() {
