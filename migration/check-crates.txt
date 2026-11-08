@@ -2,6 +2,7 @@
 # features comma-separated (may be empty), lines sorted. Each crate's branch adds its own line.
 craft-browse ui
 craft-dialogs ui
+craft-imaging ui
 craft-layers
 craft-menu
 craft-print ui

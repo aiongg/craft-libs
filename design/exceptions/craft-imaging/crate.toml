@@ -1,1 +1,23 @@
 config_version = 1
+
+# img-select
+[[exception]]
+name = "Lasso"
+kind = "probe"
+rule = "probe/exempt/freehand-tool"
+path = "crates/imaging/src/ui/select/lasso.rs"
+reason = "The Lasso draws by dragging the pointer; the Select Area... command takes the same outline as points."
+
+[[exception]]
+name = "Polygonal Lasso"
+kind = "probe"
+rule = "probe/exempt/freehand-tool"
+path = "crates/imaging/src/ui/select/polygon.rs"
+reason = "The Polygonal Lasso places vertices with the pointer; the Select Area... command takes the same outline as points."
+
+[[exception]]
+name = "Magnetic Lasso"
+kind = "probe"
+rule = "probe/exempt/freehand-tool"
+path = "crates/imaging/src/ui/select/magnetic.rs"
+reason = "The Magnetic Lasso follows the pointer along image edges; the Select Area... command takes the same outline as points."
