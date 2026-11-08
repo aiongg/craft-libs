@@ -14,14 +14,13 @@ use super::footer::PresetFooterOptions;
 use super::model::{CellShape, PresetRow, ThumbInfo};
 use super::state::{DefaultOpen, PresetState, PresetView};
 use super::words::PresetWords;
-use crate::contract::CollectionEvent;
 use crate::contract::{
     Access, Bind, BindMut, BodyCx, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi,
-    PartsCx, Pointer as _, Props as _, Role, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, WordSetCx as _,
+    PartsCx, Pointer as _, Props as _, Role, Show as _, ShowContainer as _, WordSetCx as _, clicked,
 };
 use crate::display::Divider;
 use crate::layout_components::Stack;
-use crate::list::{List, ListRow, RowTest};
+use crate::list::{ListRow, RowTest};
 use crate::pickers::{SelectFace, toggle_on_key};
 use crate::primitives::ContentPainterCx;
 use crate::runtime::env::{EnvView, Label};
@@ -396,30 +395,11 @@ impl<K: Value + Eq + Hash + 'static> Component for PresetPicker<'_, K> {
             let mut chosen = (false, false);
             let actions = |ui: &mut Ui, _: &mut BodyCx<'_>| {
                 Divider::horizontal().show(ui);
-                let labels: Vec<(u8, &Label)> = create_row.map(|label| (0, label)).into_iter().chain(detach_row.map(|label| (1, label))).collect();
-                let source = ActionRows(labels.iter().map(|(key, _)| *key).collect());
-                let out = List::<u8>::new(name.clone())
-                    .id(ui.id().with("actions"))
-                    .select(SelectMode::Single)
-                    .selection(Bind::given(Selection::new(Vec::new(), None, None)))
-                    .show_items(ui, &source, &mut |key, _| {
-                        let label = labels.iter().find(|(held, _)| held == key).map(|(_, label)| (*label).clone()).unwrap_or(Label::Empty);
-                        ListRow::new(label)
-                    });
-                for event in out.events {
-                    let key = match event {
-                        CollectionEvent::Activate(key) => key,
-                        CollectionEvent::Selection(SelectionChange::Set(keys)) => match keys.last() {
-                            Some(key) => *key,
-                            None => continue,
-                        },
-                        _ => continue,
-                    };
-                    if key == 0 {
-                        chosen.0 = true;
-                    } else {
-                        chosen.1 = true;
-                    }
+                if let Some(label) = create_row {
+                    chosen.0 = clicked(&ListRow::new(label.clone()).id_salt("create").show(ui).response);
+                }
+                if let Some(label) = detach_row {
+                    chosen.1 = clicked(&ListRow::new(label.clone()).id_salt("detach").show(ui).response);
                 }
             };
             let mut stack = Stack::new();
@@ -487,18 +467,3 @@ impl<K: Value + Eq + Hash + 'static> Component for PresetPicker<'_, K> {
         }
     }
 }
-
-/// The keys of the action rows under the presets: 0 creates a preset, 1 detaches the value.
-struct ActionRows(Vec<u8>);
-
-impl DisplayOrder<u8> for ActionRows {
-    fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    fn key(&self, at: usize) -> u8 {
-        self.0[at]
-    }
-}
-
-impl ItemSource<u8> for ActionRows {}
