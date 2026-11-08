@@ -22,6 +22,7 @@ use craft_ui::runtime::env::Label;
 use craft_ui::runtime::focus::KeyUse;
 use craft_ui::runtime::pending::Pending;
 use craft_ui::style::{ComponentStyle, DataColor, StyleColor, StyleCx, TypeRole};
+use egui::epaint::text::CharIndex;
 use egui::{Color32, Pos2, Rect, Response, Vec2};
 
 use super::editor::word_boundary;
@@ -737,11 +738,11 @@ fn selection_bands(galley: &egui::Galley, from: usize, to: usize) -> Vec<Rect> {
         let length = row.char_count_excluding_newline().0;
         let (a, b) = (from.max(start), to.min(start + length));
         if a < b {
-            let (x0, x1) = (placed.pos.x + row.x_offset(a - start), placed.pos.x + row.x_offset(b - start));
+            let (x0, x1) = (placed.pos.x + row.x_offset(CharIndex(a - start)), placed.pos.x + row.x_offset(CharIndex(b - start)));
             let rect = placed.rect();
             bands.push(Rect::from_x_y_ranges(x0.min(x1)..=x0.max(x1), rect.y_range()));
         }
-        start += row.char_count_including_newline().0;
+        start += placed.char_count_including_newline().0;
     }
     bands
 }

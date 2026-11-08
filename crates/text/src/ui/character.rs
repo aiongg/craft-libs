@@ -23,7 +23,7 @@ use craft_ui::layout_components::{Grid, Row, Stack};
 use craft_ui::patterns::form_dialogs::HostRequests;
 use craft_ui::pickers::Select;
 use craft_ui::runtime::env::{Env, Label, UnitKind, Units};
-use craft_ui::text::{NamedOr, NumberField, NumberName, NumberPick};
+use craft_ui::text::{NamedOr, NumberField, NumberName, NumberPick, NumberValue as _};
 use egui::{Response, Ui};
 
 mod paragraph_dialog;
@@ -196,6 +196,22 @@ impl NumberName for KerningName {
             _ => None,
         }
     }
+}
+
+impl KerningName {
+    fn kerning(self) -> Kerning {
+        match self {
+            KerningName::Metrics => Kerning::Metrics,
+            KerningName::Optical => Kerning::Optical,
+        }
+    }
+}
+
+/// The kerning a kerning field's value stands for; a value that is neither a number nor one of the names is the
+/// default, Metrics.
+fn kerning_of(value: NamedOr<KerningName>) -> Kerning {
+    let named = || value.named().and_then(KerningName::from_id).map(KerningName::kerning);
+    value.number().map(|number| Kerning::Manual(number as f32)).or_else(named).unwrap_or(Kerning::Metrics)
 }
 
 /// How letters are capitalized.
@@ -508,13 +524,7 @@ impl<'a> CharacterControls<'a> {
             });
             Grid::new(&TWO_COLUMNS).fill().show(ui, |ui, _| {
                 let event = lengths.kerning(ui, words.kerning.clone(), GlyphLabel::icon(IconId::new("text_cursor")), kerning_shown, &kerning_presets);
-                edits.extend(event.map(|event| {
-                    event.map(|value| match value {
-                        NamedOr::Number(number) => CharacterChange::Kerning(Kerning::Manual(number as f32)),
-                        NamedOr::Named(KerningName::Metrics) => CharacterChange::Kerning(Kerning::Metrics),
-                        NamedOr::Named(KerningName::Optical) => CharacterChange::Kerning(Kerning::Optical),
-                    })
-                }));
+                edits.extend(event.map(|event| event.map(|value| CharacterChange::Kerning(kerning_of(value)))));
                 let tracking = PlainRow {
                     label: words.tracking.clone(),
                     glyph: GlyphLabel::text("VA"),

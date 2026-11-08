@@ -223,55 +223,57 @@ impl<'a> FindBar<'a> {
         let opened = state.is_some_and(|state| std::mem::take(&mut state.opened));
         let mut out = FindBarOutput { search: false, stepped: false, closed: false, response: ui.response() };
         let mut step: Option<bool> = None;
-        let row = Row::new().command_scope(FindStep::SCOPE).show(ui, |ui, cx: &mut BodyCx<'_>| {
-            while let Some((command, _)) = cx.take_command::<FindStep>() {
-                match command {
-                    FindStep::Close => out.closed = true,
-                    command => step = Some(command == FindStep::Previous),
+        let row = Stack::new().command_scope(FindStep::SCOPE).show(ui, |ui, _| {
+            Row::new().show(ui, |ui, cx: &mut BodyCx<'_>| {
+                while let Some((command, _)) = cx.take_command::<FindStep>() {
+                    match command {
+                        FindStep::Close => out.closed = true,
+                        command => step = Some(command == FindStep::Previous),
+                    }
                 }
-            }
-            let edit = TextField::search(words.find_text.clone(), Bind::given(query.clone())).placeholder(words.find_text.clone()).show(ui);
-            if opened {
-                focus::request(ui.ctx(), FocusTarget::Id(edit.response.id));
-            }
-            // The field takes the Esc that clears it; the one that reaches the bar through `FindStep::Close` closes it.
-            if let Some(value) = edit.event.as_ref().and_then(|event| event.value()) {
-                query.clone_from(value);
-                out.search = true;
-            }
-            if edit.submitted {
-                step.get_or_insert(false);
-            }
-            let text = count_text(&words, query.trim().is_empty(), matches, progress);
-            if !text.is_empty() {
-                Text::new(text).show(ui);
-            }
-            if clicked(&IconButton::command(IconId::new("chevron_up"), FindStep::Previous).show(ui)) {
-                step = Some(true);
-            }
-            if clicked(&IconButton::command(IconId::new("chevron_down"), FindStep::Next).show(ui)) {
-                step = Some(false);
-            }
-            let active = options.match_case || options.whole_word;
-            let button = IconButton::new(IconId::new("settings")).label(words.options.clone()).popup(PopupKind::Menu).selected(active).show(ui);
-            let entries = [
-                Entry::new(BarOption::WholeWords, words.whole_words_only.clone()).checked(options.whole_word),
-                Entry::new(BarOption::MatchCase, words.case_sensitive.clone()).checked(options.match_case),
-            ];
-            match Menu::new(words.options.clone()).opened_by(&button, Trigger::Press).pick(ui, &entries).picked {
-                Some(BarOption::WholeWords) => {
-                    options.whole_word = !options.whole_word;
+                let edit = TextField::search(words.find_text.clone(), Bind::given(query.clone())).placeholder(words.find_text.clone()).show(ui);
+                if opened {
+                    focus::request(ui.ctx(), FocusTarget::Id(edit.response.id));
+                }
+                // The field takes the Esc that clears it; the one that reaches the bar through `FindStep::Close` closes it.
+                if let Some(value) = edit.event.as_ref().and_then(|event| event.value()) {
+                    query.clone_from(value);
                     out.search = true;
                 }
-                Some(BarOption::MatchCase) => {
-                    options.match_case = !options.match_case;
-                    out.search = true;
+                if edit.submitted {
+                    step.get_or_insert(false);
                 }
-                None => {}
-            }
-            if clicked(&IconButton::new(IconId::new("close")).label(words.close.clone()).show(ui)) {
-                out.closed = true;
-            }
+                let text = count_text(&words, query.trim().is_empty(), matches, progress);
+                if !text.is_empty() {
+                    Text::new(text).show(ui);
+                }
+                if clicked(&IconButton::command(IconId::new("chevron_up"), FindStep::Previous).show(ui)) {
+                    step = Some(true);
+                }
+                if clicked(&IconButton::command(IconId::new("chevron_down"), FindStep::Next).show(ui)) {
+                    step = Some(false);
+                }
+                let active = options.match_case || options.whole_word;
+                let button = IconButton::new(IconId::new("settings")).label(words.options.clone()).popup(PopupKind::Menu).selected(active).show(ui);
+                let entries = [
+                    Entry::new(BarOption::WholeWords, words.whole_words_only.clone()).checked(options.whole_word),
+                    Entry::new(BarOption::MatchCase, words.case_sensitive.clone()).checked(options.match_case),
+                ];
+                match Menu::new(words.options.clone()).opened_by(&button, Trigger::Press).pick(ui, &entries).picked {
+                    Some(BarOption::WholeWords) => {
+                        options.whole_word = !options.whole_word;
+                        out.search = true;
+                    }
+                    Some(BarOption::MatchCase) => {
+                        options.match_case = !options.match_case;
+                        out.search = true;
+                    }
+                    None => {}
+                }
+                if clicked(&IconButton::new(IconId::new("close")).label(words.close.clone()).show(ui)) {
+                    out.closed = true;
+                }
+            })
         });
         out.response = row.output.response().clone();
         if let Some(back) = step {
