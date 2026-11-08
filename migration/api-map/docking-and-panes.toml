@@ -919,3 +919,91 @@ old = ""
 new = "craft_ui::docking::SplitAreaOutput"
 status = "replaced"
 note = "The output of `SplitArea`: the layout's resize edits and the panel dropped on a group."
+
+# dock-commands-a: command sets over the dock model, the workspace switcher, the words.
+[[type]]
+name = "DockCommand"
+old = "craft_ui::docking::DockCommand"
+new = "craft_ui::docking::DockCommand"
+status = "replaced"
+note = "The serde command protocol is gone. `DockCommand` is a fieldless `CommandSet` (prefix `dock`) and the panel comes from the caller; `actions` and `move_actions` turn a command into `Action`s, and `Fixture` replaces the JSON control driver."
+
+[[type]]
+name = "UiDock"
+old = "craft_ui::docking::UiDock"
+new = ""
+status = "removed"
+note = "Part of the JSON protocol. `ui.dock` actions are `Workspace::apply_all` calls."
+
+[[type]]
+name = "DockOperation"
+old = "craft_ui::docking::DockOperation"
+new = ""
+status = "removed"
+note = "Part of the JSON protocol; use the `Action` constructors of `craft_behavior::dock::Action`."
+
+[[type]]
+name = "ZoneName"
+old = "craft_ui::docking::ZoneName"
+new = ""
+status = "removed"
+note = "Zones are `craft_behavior::DockSide`; a command destination is `craft_ui::docking::DockTo`."
+
+[[type]]
+name = "ArrangeCommand"
+old = ""
+new = "craft_ui::docking::ArrangeCommand"
+status = "replaced"
+note = "The Window > Arrange commands (prefix `arrange`), one per `Arrangement`; `arrange` runs one on `DocumentWindows`."
+
+[[type]]
+name = "WorkspaceCommands"
+old = ""
+new = "craft_ui::docking::WorkspaceCommands"
+status = "replaced"
+note = "The Window > Workspace commands Reset, New, Delete and Lock (prefix `workspace`); the data enum `craft_behavior::dock::WorkspaceCommand` names them in the switcher's output."
+
+[[type]]
+name = "WorkspaceSwitcher"
+old = "craft_ui::docking::workspaces::WorkspaceSwitcher"
+new = "craft_ui::patterns::dock::WorkspaceSwitcher"
+status = "moved"
+note = "Built from `WorkspaceSwitcher::new(&set)`; `id_salt` and `labels` are gone (the words are `DockWords`)."
+
+[[type]]
+name = "WorkspaceSwitcherResponse"
+old = "craft_ui::docking::workspaces::WorkspaceSwitcherResponse"
+new = ""
+status = "removed"
+note = "Replaced by `craft_ui::patterns::dock::WorkspaceSwitcherOutput { response, switched, command }`."
+
+[[type]]
+name = "WorkspaceSwitcherOutput"
+old = ""
+new = "craft_ui::patterns::dock::WorkspaceSwitcherOutput"
+status = "replaced"
+note = "`switched` is the picked workspace id; `command` is the data `WorkspaceCommand` of the row that ran."
+
+[[type]]
+name = "ArrangeLabels"
+old = "craft_ui::docking::arrange::ArrangeLabels"
+new = ""
+status = "removed"
+note = "The labels are the labels of `ArrangeCommand`."
+
+[[type]]
+name = "WorkspaceLabels"
+old = "craft_ui::docking::workspaces::WorkspaceLabels"
+new = ""
+status = "removed"
+note = "The labels are the labels of `WorkspaceCommands`; the select's name and the menu's name are `DockWords::{choose_workspace, workspace_menu}`."
+
+[[setter]]
+type = "WorkspaceSwitcher"
+old = "WorkspaceSwitcher::new(id_salt, set)"
+new = "WorkspaceSwitcher::new(set)"
+
+[[setter]]
+type = "WorkspaceSwitcher"
+old = "labels(labels)"
+new = ""

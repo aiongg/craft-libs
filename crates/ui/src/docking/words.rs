@@ -21,5 +21,10 @@ craft_ui::words! {
         float_hint: template "docking.floatHint" = "Hold {key} to undock";
         /// The tooltip and accessible name of the panel-menu button.
         panel_menu: "docking.panelMenu" = "Panel Menu";
+
+        /// The name of the workspace switcher's select.
+        choose_workspace: "workspaceSwitcher.choose" = "Choose a workspace";
+        /// The name of the switcher's command menu.
+        workspace_menu: "workspaceSwitcher.menu" = "Workspace";
     }
 }
