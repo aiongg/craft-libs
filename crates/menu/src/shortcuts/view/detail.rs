@@ -165,8 +165,7 @@ fn new_shortcut(ui: &mut Ui, now: f64, env: &mut Env<'_>, state: &mut DialogStat
             }
         }
         if let Some(error) = state.type_error.clone() {
-            let warned = format!("\u{26a0} {error}");
-            Text::new(warned).tone(craft_theme::variant::Tone::Warn).show(ui);
+            Text::new(error).tone(craft_theme::variant::Tone::Warn).show(ui);
         }
         return;
     }
@@ -236,7 +235,7 @@ fn holders(ui: &mut Ui, env: &Env<'_>, state: &mut DialogState) {
             Some(scope) if Some(scope) != home.as_ref() => words.label_scope.fill(&[("label", &label), ("scope", &scope_name(env, scope))]),
             _ => label,
         };
-        if clicked(&Link::new(format!("\u{26a0} {text}")).id_salt(("holder", n)).show(ui)) {
+        if super::warn_link(ui, text, "holder", n) {
             go = Some(holder.command.clone());
         }
     }

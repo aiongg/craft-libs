@@ -5,8 +5,8 @@
 
 use crate::runtime::cursor;
 use crate::runtime::egui::input::{self as raw_input, RawInput};
-use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::input_filter::{self, KeyEquivalent};
+use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::{injected, pass, scale, screenshot, viewports, widgets};
 use crate::runtime::frame::{PassStep, PerViewport, Stamped};
 use crate::runtime::{overlay, pointer};
@@ -1009,6 +1009,17 @@ impl WindowHost {
     /// reaches the application as the key press the user made.
     pub fn key_equivalent(&self, viewport: ViewportId, equivalent: KeyEquivalent) {
         input_filter::add_key_equivalent(&self.ctx, viewport, equivalent);
+    }
+
+    /// Records whether the platform's menu of `viewport` is open. While it is, the window's next press or Escape is
+    /// taken from the input once (it closes the menu); see [`take_menu_close`](Self::take_menu_close).
+    pub fn menu_open(&self, viewport: ViewportId, open: bool) {
+        input_filter::set_menu_open(&self.ctx, viewport, open);
+    }
+
+    /// True once after a press or Escape reached `viewport`'s input: the platform's menu is to close.
+    pub fn take_menu_close(&self, viewport: ViewportId) -> bool {
+        input_filter::take_menu_close(&self.ctx, viewport)
     }
 
     /// Queues `text` as typed text.

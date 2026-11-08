@@ -32,6 +32,7 @@ craft_ui::words! {
         no_matching_commands: "keyboardShortcuts.noMatchingCommands" = "No matching commands";
         cycles: "keyboardShortcuts.cycles" = "(cycles)";
         label_cycles: template "keyboardShortcuts.labelCycles" = "{label} (cycles)";
+        shares_a_shortcut: "keyboardShortcuts.sharesAShortcut" = "Shares a shortcut with another command";
         label_changed: template "keyboardShortcuts.labelChanged" = "{label} (Changed)";
         // Table and detail pane.
         command: "keyboardShortcuts.command" = "Command";
@@ -95,7 +96,7 @@ craft_ui::words! {
         select_a_command_first: "keyboardShortcuts.selectACommandFirst" = "Select a command first";
         nothing_uses_this_key: "keyboardShortcuts.nothingUsesThisKey" = "Nothing uses this key";
         // Messages and conflicts.
-        chord_is_used_by_label: template "keyboardShortcuts.chordIsUsedByLabel" = "⚠ {chord} is used by {label}";
+        chord_is_used_by_label: template "keyboardShortcuts.chordIsUsedByLabel" = "{chord} is used by {label}";
         chord_was_removed_from_label: template "keyboardShortcuts.chordWasRemovedFromLabel" = "{chord} was removed from {label}";
         also_used_by_label: template "keyboardShortcuts.alsoUsedByLabel" = "Also used by {label}";
         chord_is_reserved_by_the_system: template "keyboardShortcuts.chordIsReservedByTheSystem" = "{chord} is reserved by the system";
@@ -107,7 +108,7 @@ craft_ui::words! {
         accept_and_go_to_conflict: "keyboardShortcuts.acceptAndGoToConflict" = "Accept and Go to Conflict";
         keep_both: "keyboardShortcuts.keepBoth" = "Keep Both";
         go_to_conflict: "keyboardShortcuts.goToConflict" = "Go to Conflict";
-        cancel_the_new_shortcut: "keyboardShortcuts.cancelTheNewShortcut" = "Cancel the new shortcut";
+        undo_changes: "keyboardShortcuts.undoChanges" = "Undo Changes";
         dismiss: "keyboardShortcuts.dismiss" = "Dismiss";
         // Saved shortcuts that could not be used.
         key_no_command_has_this_name: template "keyboardShortcuts.keyNoCommandHasThisName" = "{key}: no command has this name";
@@ -210,8 +211,8 @@ use std::sync::Arc;
 
 use craft_host::Host;
 use craft_keymap::import::kys::KysError;
-use craft_keymap::{Bindable, Chord, Key, Platform, ReturnGlyph, Trigger};
-use craft_ui::display::DisplayWords;
+use craft_keymap::{Bindable, Key, Platform, Trigger};
+use craft_ui::display::{ChordWrite, DisplayWords, Kbd};
 use craft_ui::runtime::env::Env;
 
 /// What the dialog says in one pass: its words, the Host's command labels and the interface direction.
@@ -261,12 +262,9 @@ impl Say {
         trigger_text(&self.keys, trigger, platform)
     }
 
-    /// A key's spoken name: its Windows and Linux name in this language, on every platform.
-    pub(crate) fn key_word(&self, k: Key) -> String {
-        match self.keys.key_name(k, Platform::Windows) {
-            Some(name) => name.to_owned(),
-            None => Chord::plain(k).display(Platform::Windows),
-        }
+    /// A key's name for `platform`, in this language.
+    pub(crate) fn key_word(&self, k: Key, platform: Platform) -> String {
+        Kbd::key_name(k, platform, &self.keys)
     }
 
     /// Whether the interface is drawn right to left.
@@ -278,20 +276,7 @@ impl Say {
 /// A trigger as `platform` shows it, with key names from `words`. Modifiers come in the order of
 /// `Chord::display`; a double press is written twice.
 pub fn trigger_text(words: &DisplayWords, trigger: &Trigger, platform: Platform) -> String {
-    let key = trigger.chord.key;
-    let glyph = ReturnGlyph::default();
-    let one = trigger.chord.display_with_return(platform, glyph);
-    let one = match words.key_name(key, platform) {
-        Some(name) => {
-            let base = Chord::plain(key).display_with_return(platform, glyph);
-            match one.strip_suffix(base.as_str()) {
-                Some(mods) => format!("{mods}{name}"),
-                None => one,
-            }
-        }
-        None => one,
-    };
-    if trigger.double { format!("{one} {one}") } else { one }
+    Kbd::text(trigger, platform, words, ChordWrite::default())
 }
 
 /// `s` with `chord`, text inside it, left as it is. Right to left, the parts before and after the chord

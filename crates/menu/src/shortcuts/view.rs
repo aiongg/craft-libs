@@ -13,10 +13,14 @@ mod table;
 
 use std::borrow::Cow;
 
+use craft_behavior::IconId;
 use craft_behavior::{ColumnWidth, DisplayOrder, ItemSource, SelectionChange};
 use craft_keymap::chord::Platform;
-use craft_ui::contract::{BodyCx, CollectionEvent, Props as _, Scroll, ShowCollection as _, ShowContainer as _};
-use craft_ui::layout_components::{Grid, Stack};
+use craft_ui::buttons::Link;
+use craft_ui::contract::{BodyCx, CollectionEvent, Props as _, Scroll, Show as _, ShowCollection as _, ShowContainer as _, clicked};
+use craft_ui::display::Icon;
+use craft_ui::layout_components::{Grid, Row, Stack};
+use craft_ui::primitives::IconSpec;
 use craft_ui::runtime::motion::Animate as _;
 use craft_ui::tabs::{Tab, TabKind, TabStrip};
 use egui::Ui;
@@ -158,4 +162,14 @@ pub(super) fn recording_text(env: &Env<'_>, state: &DialogState) -> String {
         }
         None => words.press_keys.as_str().to_owned(),
     }
+}
+
+/// A link led by the warning icon: a problem the user can follow to its cause. The words carry no glyph.
+pub(super) fn warn_link(ui: &mut Ui, text: String, salt: &'static str, n: usize) -> bool {
+    let mut followed = false;
+    Row::new().show(ui, |ui, _| {
+        Icon::new(IconSpec::svg(IconId::new("warning"))).show(ui);
+        followed = clicked(&Link::new(text.clone()).id_salt((salt, n)).show(ui));
+    });
+    followed
 }

@@ -261,6 +261,28 @@ fn a_sweep_down_the_eyes_is_one_gesture() {
     assert!(ids.windows(2).all(|pair| pair[0] == pair[1]), "one gesture: {ids:?}");
 }
 
+/// Escape during a sweep down the eyes reports the rows it crossed as cancelled, each with the state it had before.
+#[trial]
+fn escape_during_an_eye_sweep_restores_the_rows_crossed() {
+    let (mut fixture, app) = rig(FakeLayers::sample());
+    let (start, end) = (node(&fixture, "Visibility Title").center(), node(&fixture, "Visibility Smart Object").center());
+    fixture.frame(vec![pointer::moved(start)]);
+    fixture.frame(vec![pointer::press(start)]);
+    fixture.frame(vec![pointer::moved(end)]);
+    take(&app);
+    fixture.key(Key::Escape, Modifiers::NONE);
+    fixture.idle(2);
+    let events = take(&app);
+    let restored = toggles(&events);
+    let crossed = [LayerRowKey::Layer(4), LayerRowKey::Layer(5), LayerRowKey::Layer(6)];
+    let rows: Vec<_> = restored.iter().flat_map(|toggle| toggle.rows.clone()).collect();
+    assert_eq!(rows, crossed, "every row crossed is restored: {events:?}");
+    assert!(
+        restored.iter().all(|toggle| matches!(toggle.edit, EditEvent::Cancel { before: Some(Mixed::Same(true)), .. })),
+        "each with the state it had before: {events:?}"
+    );
+}
+
 /// A pick in the eye's colour menu colours every selected layer, and a row outside the selection alone.
 #[trial]
 fn the_eye_colour_menu_colours_every_selected_layer() {

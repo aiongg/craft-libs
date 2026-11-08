@@ -642,7 +642,8 @@ impl Component for MenuItem<'_> {
             frame::request_repaint(&ctx);
         }
         // Every activation of a menu row reaches its command as `FireSource::Menu`, whether it was typed, clicked or keyed.
-        if asked && cx.command.is_some() {
+        // A typed letter also runs a row that has no command: the injected activation closes the menu.
+        if typed || (asked && cx.command.is_some()) {
             cx.activate(FireSource::Menu);
         }
         if asked && self.keep_open {

@@ -7,11 +7,14 @@ use craft_browse::ui::compare::{ArrangeSpace, CompareCaption, CompareImage, Comp
 use craft_ui::contract::Bind;
 use craft_ui::patterns::form_dialogs::PreviewView;
 use craft_ui::primitives::textures::Revision;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{ColorImage, Rect, Vec2, pos2};
 
 const PICTURE: [u32; 2] = [480, 320];
 const PICTURE_GRAY: u8 = 128;
+/// Where the pan drag starts, right of the pane's centre, and how far it goes.
+const PAN_START: f32 = 40.0;
+const PAN_BY: f32 = 24.0;
 const SPACE: ArrangeSpace = ArrangeSpace::new(8.0, 4.0);
 
 /// A displacement or extent of the trial's room, named so a trial's geometry reads as inputs.
@@ -63,17 +66,29 @@ fn ready() -> RenderState {
     RenderState::Ready
 }
 
-/// Two panes over one view stay in step: a zoom through the first is the view the second draws.
+/// Two panes over one view stay in step: a drag through the first pans the view the second draws, once a zoom
+/// leaves the picture larger than the pane.
 #[trial]
 fn compare_tiles_share_zoom_and_pan() {
     let (mut fixture, seen) = pair(640.0, ready);
-    let fitted = seen.borrow().view.clone();
-    assert!(fitted.fit, "the pair starts fitted");
+    assert!(seen.borrow().view.fit, "the pair starts fitted");
     let select = fixture.by_label("Select").expect("the Select pane is shown");
-    fixture.drag(&select, offset(24.0, 0.0));
+    fixture.click(&select);
+    fixture.click(&select);
     fixture.settle();
-    let moved = seen.borrow().view.clone();
-    assert!(!moved.fit, "a drag leaves fit");
+    let zoomed = seen.borrow().view.clone();
+    assert!(!zoomed.fit, "a double click shows 1:1");
+    // The drag starts away from the double click, so it is a first press and not a third.
+    let from = select.center() + offset(PAN_START, 0.0);
+    fixture.frame(vec![pointer::moved(from)]);
+    fixture.frame(vec![pointer::press(from)]);
+    for step in 1..=4 {
+        fixture.frame(vec![pointer::moved(from + offset(PAN_BY * step as f32 / 4.0, 0.0))]);
+    }
+    fixture.frame(vec![pointer::release(from + offset(PAN_BY, 0.0))]);
+    fixture.settle();
+    let panned = seen.borrow().view.clone();
+    assert_ne!(panned.transform.offset, zoomed.transform.offset, "a drag pans the shared view");
     assert_eq!(fixture.by_label("Candidate").map(|pane| pane.rect.size()), fixture.by_label("Select").map(|pane| pane.rect.size()));
 }
 

@@ -16,7 +16,7 @@ mod words;
 pub use badge::{Badge, BadgeStyle};
 pub use divider::{Divider, DividerStyle};
 pub use icon::{Icon, IconStyle};
-pub use kbd::{Kbd, KbdStyle};
+pub use kbd::{ChordWrite, Kbd, KbdStyle};
 pub use picture::{Picture, PictureSize, PictureStyle};
 pub use progress::{Progress, ProgressStyle};
 pub use spinner::{Spinner, SpinnerStyle};

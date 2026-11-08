@@ -262,7 +262,7 @@ pub enum LeadOnOpen {
 }
 
 /// The column the rows are sorted by and the direction: the app's value, which it changes on `ColumnEvent::Sort`.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub struct ColumnSort {
     /// The sorted column.
