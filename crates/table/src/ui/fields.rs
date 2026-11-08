@@ -31,6 +31,7 @@ craft_ui::words! {
         choose: "fieldList.choose" = "Choose fields to add to report:";
         areas_hint: "fieldList.areasHint" = "Use a field's menu to move it between areas:";
         filters: "fieldList.filters" = "Filters";
+        drop_here: "fieldList.dropHere" = "Drag fields here";
         columns: "fieldList.columns" = "Columns";
         rows: "fieldList.rows" = "Rows";
         values: "fieldList.values" = "Values";
@@ -523,6 +524,7 @@ impl Model<'_> {
             let out = List::<Slot>::new(name.clone())
                 .id(ids[at])
                 .natural_height(true)
+                .empty(self.words.drop_here.clone())
                 .reorder(ReorderRule::new())
                 .deletable(true)
                 .accept_from(move |from| others.contains(&from))

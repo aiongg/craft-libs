@@ -26,5 +26,5 @@ fn rows_and_columns(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let none = BTreeMap::new();
     let layout = GridLayout::new(room, LineIndex::new(&none, 20.0, 1000), LineIndex::new(&none, 64.0, 100)).bands(layout_bands).right_to_left(rtl);
     let geometry = SheetGeometry::new(layout, SheetMetrics::new(20.0, 8.0, 6.0));
-    OutlineBand::new("Outline", &rows, &columns, &geometry).show_at(ui, OutlineBand::area(&geometry)).into()
+    OutlineBand::new("Outline", &rows, &columns, &geometry).show(ui).into()
 }

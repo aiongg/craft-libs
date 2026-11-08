@@ -159,7 +159,6 @@ fn dragging_a_field_into_an_empty_area_moves_it_there() {
     let area = named(&fixture, Role::LIST, "Filters").pop().expect("the empty Filters list");
     fixture.drag(&from, area.center() - from.center());
     fixture.idle(2);
-    eprintln!("PROBE area {:?} from {:?} edits {:?}", area.rect, from.rect, app.borrow().edits);
     assert_eq!(moves_into(&app, FieldArea::Filters), Some((vec!["Product".to_string()], 0)));
 }
 
