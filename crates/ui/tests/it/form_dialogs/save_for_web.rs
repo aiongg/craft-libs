@@ -159,33 +159,3 @@ fn save_files_the_picker_and_the_path_makes_the_answer() {
     assert_eq!((answered.width, answered.height), (DOCUMENT.width, DOCUMENT.height));
     assert_eq!(*rig.closed.borrow(), Some(CloseReason::Activated), "the path answer closes the dialog");
 }
-
-#[trial]
-fn zz_diag_save_button_per_frame() {
-    let mut fixture = Fixture::new(move |ui| {
-        let mut open = true;
-        SaveForWebDialog::new("poster.psd", DOCUMENT, WebPictures::new(), Bind::kept()).opened(Bind::bound(&mut open)).show(ui);
-    });
-    let mut frames: Vec<Vec<(craft_ui::testing::access::NodeKey, String, egui::Rect)>> = Vec::new();
-    for _ in 0..7 {
-        fixture.idle(1);
-        let tree = fixture.tree();
-        frames.push(
-            tree.keys()
-                .into_iter()
-                .filter_map(|key| Some((key, format!("{:?} {:?}", tree.role_of(key)?, tree.name_of(key).unwrap_or("")), tree.bounds_of(key)?)))
-                .collect(),
-        );
-    }
-    let mut out = Vec::new();
-    for at in 2..6 {
-        out.push(format!("--- frame {} to {}", at + 1, at + 2));
-        for (key, name, rect) in &frames[at + 1] {
-            let old = frames[at].iter().find(|(other, _, _)| other == key).map(|(_, _, rect)| *rect);
-            if old != Some(*rect) {
-                out.push(format!("{name}: {old:?} -> {rect:?}"));
-            }
-        }
-    }
-    panic!("DIAG\n{}", out.join("\n"));
-}
