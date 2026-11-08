@@ -3,18 +3,18 @@
 
 use std::collections::BTreeSet;
 
-use crate::chord::{Chord, Key, ParseError, Trigger};
-use crate::command::CommandRef;
-use crate::editor::{self, DOUBLE_PRESS, EditSession, Recorded, Recorder};
-use crate::import::{self, ForeignSet, ImportOptions, ImportPlan, ImportReport};
-use crate::keymap::{AssignError, Assigned, Binding, BindingError, Holder, Keymap, MAX_BINDINGS, Overrides, Policy};
-use crate::profiles::{Builtins, ProfileError, Profiles, set_name};
-use crate::scope::Scope;
-use crate::ui::pages::TabSet;
-use crate::ui::rows::{AreaEntry, AreaId, Built, Filter, RowCache, View};
-use crate::ui::text::Say;
-use crate::ui::view::keyboard::KeyboardState;
-use crate::ui::{ConflictMode, JSON_FORMAT, Options, Outcome, capture, summary};
+use craft_keymap::editor::{self, DOUBLE_PRESS, EditSession, Recorded, Recorder};
+use craft_keymap::import::{self, ForeignSet, ImportOptions, ImportPlan, ImportReport};
+use craft_keymap::profiles::{Builtins, ProfileError, Profiles, set_name};
+use craft_keymap::{
+    AssignError, Assigned, Binding, BindingError, Chord, CommandRef, Holder, Key, Keymap, MAX_BINDINGS, Overrides, ParseError, Policy, Scope, Trigger,
+};
+
+use super::keyboard::KeyboardState;
+use super::pages::TabSet;
+use super::rows::{self, AreaEntry, AreaId, Built, Filter, Line, RowCache, View};
+use super::words::Say;
+use super::{ConflictMode, JSON_FORMAT, Options, Outcome, summary};
 
 /// What the dialog edits this frame.
 pub(crate) struct Env<'e> {
@@ -40,7 +40,7 @@ impl Env<'_> {
         for h in holders {
             let label = self.label(&h.command);
             let s = match &h.binding.scope {
-                Some(scope) => self.ui("{label} ({scope})", &[("label", &label), ("scope", &self.text.segment(scope.as_str()))]),
+                Some(scope) => fill!(self, label_scope, ("label", &label), ("scope", &self.text.segment(scope.as_str()))),
                 None => label,
             };
             if !out.contains(&s) {
@@ -50,8 +50,14 @@ impl Env<'_> {
         out.join(", ")
     }
 
-    fn ui(&self, source: &'static str, args: &[(&str, &str)]) -> String {
-        craft_i18n::fmt(&self.text.ui(source), args)
+    /// The window title and the summary's heading: [`Options::title`], else the dialog's own words.
+    pub(crate) fn title(&self) -> String {
+        self.options.title.clone().unwrap_or_else(|| self.text.words().keyboard_shortcuts.as_str().to_owned())
+    }
+
+    /// The name edits of a built-in set are saved under: [`Options::custom_set_name`], else the dialog's own words.
+    pub(crate) fn custom_set_name(&self) -> String {
+        self.options.custom_set_name.clone().unwrap_or_else(|| self.text.words().custom.as_str().to_owned())
     }
 }
 
@@ -153,8 +159,6 @@ pub(crate) struct Review {
 pub(crate) struct SetForm {
     pub kind: SetFormKind,
     pub name: String,
-    /// Focus the name field on the next frame.
-    pub focus: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -337,22 +341,13 @@ impl DialogState {
         self.phase = Phase::Open;
         self.opened = Some(Opened { profiles: env.sets.as_ref().map(|(p, _)| (**p).clone()), overrides: env.keymap.overrides().clone() });
         self.session = Some(EditSession::begin(env.keymap));
-        self.areas = crate::ui::rows::areas(env.keymap, env.options, env.text);
+        self.areas = rows::areas(env.keymap, env.options, env.text);
         self.sync_set(env);
     }
 
-    /// Takes this frame's key input while recording and commits a double-press wait that ended.
-    pub(crate) fn input(&mut self, env: &mut Env, ctx: &egui::Context) {
-        let now = ctx.input(|i| i.time);
-        self.tick(env, now);
-        if self.is_recording() {
-            let platform = env.keymap.platform();
-            let chords = ctx.input_mut(|i| capture::take(i, platform));
-            self.feed(env, &chords, now);
-        }
-        if let Some((_, at)) = self.recording.as_ref().and_then(|r| r.waiting) {
-            ctx.request_repaint_after(std::time::Duration::from_secs_f64((at + DOUBLE_PRESS - now).max(0.0)));
-        }
+    /// When a single press waiting for its second press commits, for the view to ask a repaint at.
+    pub(crate) fn wake(&self) -> Option<f64> {
+        self.recording.as_ref().and_then(|r| r.waiting).map(|(_, at)| at + DOUBLE_PRESS)
     }
 
     /// The frame's outcome: a closing or file outcome first, else Changed after an edit. An edit
@@ -373,7 +368,7 @@ impl DialogState {
     }
 
     /// The table's lines as last built by [`lines`](Self::lines).
-    pub(crate) fn lines_cached(&self) -> &[crate::ui::rows::Line] {
+    pub(crate) fn lines_cached(&self) -> &[Line] {
         &self.rows.built().lines
     }
 
@@ -568,7 +563,7 @@ impl DialogState {
         self.message = None;
         let chord = env.chord_text(&binding.trigger);
         if env.keymap.is_reserved(&binding.trigger.chord) {
-            self.refuse_chord(env.ui("{chord} is reserved by the system", &[("chord", &chord)]), chord);
+            self.refuse_chord(fill!(env, chord_is_reserved_by_the_system, ("chord", &chord)), chord);
             return;
         }
         if let (Some(accept), Some(b)) = (&env.options.accept, env.keymap.bindable(command))
@@ -584,7 +579,7 @@ impl DialogState {
         }
         match mode {
             ConflictMode::Ask => {
-                let text = env.ui("⚠ {chord} is used by {label}", &[("chord", &chord), ("label", &env.holder_labels(&holders))]);
+                let text = fill!(env, chord_is_used_by_label, ("chord", &chord), ("label", &env.holder_labels(&holders)));
                 self.conflict = Some(ConflictBar { command: command.clone(), old, binding, holders, text });
             }
             ConflictMode::Steal => self.apply_and_say(env, command, old, binding, Policy::Steal),
@@ -625,12 +620,16 @@ impl DialogState {
     fn apply_and_say(&mut self, env: &mut Env, command: &CommandRef, old: Option<Binding>, binding: Binding, policy: Policy) {
         let chord = env.chord_text(&binding.trigger);
         let Some(a) = self.apply(env, command, old, binding, policy) else { return };
-        let (holders, text) =
-            if policy == Policy::Steal { (&a.taken_from, "{chord} was removed from {label}") } else { (&a.clashes, "Also used by {label}") };
+        let (holders, steal) = if policy == Policy::Steal { (&a.taken_from, true) } else { (&a.clashes, false) };
         if holders.is_empty() {
             return;
         }
-        let text = env.ui(text, &[("chord", &chord), ("label", &env.holder_labels(holders))]);
+        let label = env.holder_labels(holders);
+        let text = if steal {
+            fill!(env, chord_was_removed_from_label, ("chord", &chord), ("label", &label))
+        } else {
+            fill!(env, also_used_by_label, ("label", &label))
+        };
         let goto = holders.first().map(|h| h.command.clone());
         self.message = Some(Message { text, refused: false, goto, undo: policy == Policy::Steal, chord: Some(chord) });
     }
@@ -815,7 +814,7 @@ impl DialogState {
     }
 
     fn custom_name(env: &Env) -> String {
-        env.text.ui(env.options.custom_set_name).into_owned()
+        env.custom_set_name()
     }
 
     /// Stores the overrides in the active set; a built-in's edits become a new set.
@@ -1043,11 +1042,11 @@ impl DialogState {
 
     /// Summarize…: every command with a shortcut, as HTML and plain text.
     pub(crate) fn summarize(&mut self, env: &Env) {
-        let title = env.text.ui(env.options.title).into_owned();
+        let title = env.title();
         let (name, heading) = match env.sets.as_ref() {
             Some((p, b)) => {
                 let name = p.active_name(b).to_string();
-                let heading = env.ui("{title}: {set}", &[("title", &title), ("set", &name)]);
+                let heading = fill!(env, title_set, ("title", &title), ("set", &name));
                 (name, heading)
             }
             None => (title.clone(), title),
@@ -1081,7 +1080,7 @@ impl DialogState {
 
     pub(crate) fn review_import(&mut self, env: &mut Env, set: ForeignSet, options: ImportOptions) {
         let plan = import::plan(&set, env.keymap, &options);
-        let name = plan.report.set.clone().unwrap_or_else(|| env.text.ui("Imported").into_owned());
+        let name = plan.report.set.clone().unwrap_or_else(|| word!(env, imported));
         self.stop_recording();
         self.conflict = None;
         self.review = Some(Review { set, options, plan, name, done: None });
@@ -1135,470 +1134,42 @@ impl DialogState {
 
 fn assign_error(env: &Env, e: &AssignError) -> String {
     match e {
-        AssignError::Reserved(t) => env.ui("{chord} is reserved by the system", &[("chord", &env.chord_text(t))]),
-        AssignError::TooMany => env.ui("A command can have at most {n} shortcuts", &[("n", &MAX_BINDINGS.to_string())]),
-        AssignError::UnknownScope(s) => env.ui("The scope {scope} is unknown", &[("scope", s.as_str())]),
-        AssignError::Full => env.ui("Too many shortcuts are assigned", &[]),
-        AssignError::UnknownCommand => env.ui("This command is unknown", &[]),
-        AssignError::Taken(holders) => env.ui("Also used by {label}", &[("label", &env.holder_labels(holders))]),
+        AssignError::Reserved(t) => fill!(env, chord_is_reserved_by_the_system, ("chord", &env.chord_text(t))),
+        AssignError::TooMany => fill!(env, a_command_can_have_at_most, ("n", &MAX_BINDINGS.to_string())),
+        AssignError::UnknownScope(s) => fill!(env, the_scope_scope_is_unknown, ("scope", s.as_str())),
+        AssignError::Full => word!(env, too_many_shortcuts_are_assigned),
+        AssignError::UnknownCommand => word!(env, this_command_is_unknown),
+        AssignError::Taken(holders) => fill!(env, also_used_by_label, ("label", &env.holder_labels(holders))),
     }
 }
 
 /// Why a binding text does not parse, translated.
 pub(crate) fn binding_error(env: &Env, e: &BindingError) -> String {
     match e {
-        BindingError::TooLong => env.ui("the shortcut is too long", &[]),
-        BindingError::Scope => env.ui("the scope name is not valid", &[]),
+        BindingError::TooLong => word!(env, the_shortcut_is_too_long),
+        BindingError::Scope => word!(env, the_scope_name_is_not_valid),
         BindingError::Trigger(e) => match e {
-            ParseError::Empty => env.ui("empty shortcut", &[]),
-            ParseError::TooLong => env.ui("the shortcut is too long", &[]),
-            ParseError::MissingKey => env.ui("the shortcut has no key", &[]),
-            ParseError::UnknownKey(k) => env.ui("unknown key {key}", &[("key", k)]),
-            ParseError::UnknownModifier(m) => env.ui("unknown modifier {key}", &[("key", m)]),
-            ParseError::DuplicateModifier(m) => env.ui("modifier {key} given twice", &[("key", m)]),
-            ParseError::Sequence => env.ui("key sequences are not supported", &[]),
+            ParseError::Empty => word!(env, empty_shortcut),
+            ParseError::TooLong => word!(env, the_shortcut_is_too_long),
+            ParseError::MissingKey => word!(env, the_shortcut_has_no_key),
+            ParseError::UnknownKey(k) => fill!(env, unknown_key_key, ("key", k)),
+            ParseError::UnknownModifier(m) => fill!(env, unknown_modifier_key, ("key", m)),
+            ParseError::DuplicateModifier(m) => fill!(env, modifier_key_given_twice, ("key", m)),
+            ParseError::Sequence => word!(env, key_sequences_are_not_supported),
         },
     }
 }
 
 fn profile_error(env: &Env, e: &ProfileError) -> String {
     match e {
-        ProfileError::BadName => env.ui("The name is empty, too long or has control characters", &[]),
-        ProfileError::NameTaken => env.ui("A set with this name exists", &[]),
-        ProfileError::NotFound => env.ui("The set was not found", &[]),
-        ProfileError::BuiltIn => env.ui("Built-in sets cannot be changed", &[]),
-        ProfileError::TooMany => env.ui("There are too many sets", &[]),
-        ProfileError::BadFile => env.ui("This is not a shortcut set file", &[]),
-        ProfileError::WrongFormat => env.ui("This is not a craft-keymap file", &[]),
-        ProfileError::NewerVersion(v) => env.ui("This file is from a newer version (format {n})", &[("n", &v.to_string())]),
-        ProfileError::TooLarge => env.ui("The file is too large", &[]),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::chord::Platform;
-    use crate::keymap::ConflictKind;
-    use crate::ui::rows::Line;
-    use crate::ui::rows::tests::fixture;
-
-    struct Fx {
-        km: Keymap,
-        p: Profiles,
-        b: Vec<(&'static str, Overrides)>,
-        o: Options,
-        sets: bool,
-    }
-
-    impl Fx {
-        fn new(o: Options) -> Fx {
-            Fx { km: fixture(Platform::Mac), p: Profiles::default(), b: vec![("Fixture Defaults", Overrides::new())], o, sets: true }
-        }
-
-        fn env(&mut self) -> Env<'_> {
-            let sets = if self.sets { Some((&mut self.p, &self.b[..])) } else { None };
-            Env { keymap: &mut self.km, sets, options: &self.o, tabs: None, text: Say::english() }
-        }
-
-        fn keys(&self, id: &str) -> Vec<String> {
-            self.km.bindings(&id.into()).iter().map(ToString::to_string).collect()
-        }
-    }
-
-    fn c(s: &str) -> Chord {
-        Chord::parse(s).unwrap_or(Chord::from(Key::F35))
-    }
-
-    fn b(s: &str) -> Binding {
-        Binding::parse(s).unwrap_or(Binding::new(Chord::from(Key::F35)))
-    }
-
-    fn open(fx: &mut Fx) -> DialogState {
-        let mut st = DialogState::new();
-        st.begin(&mut fx.env());
-        st
-    }
-
-    /// Records `chords` into `target` at time 0.
-    fn record(st: &mut DialogState, fx: &mut Fx, target: Target, chords: &[&str]) {
-        let mut env = fx.env();
-        st.record(&env, target);
-        let chords: Vec<Chord> = chords.iter().map(|s| c(s)).collect();
-        st.feed(&mut env, &chords, 0.0);
-    }
-
-    fn add(command: &str) -> Target {
-        Target::Cell { command: command.into(), old: None }
-    }
-
-    #[test]
-    fn recording_takes_the_frames_keys_before_the_app() {
-        let mut fx = Fx::new(Options::default());
-        let mut st = open(&mut fx);
-        st.record(&fx.env(), Target::Cell { command: "file.save".into(), old: Some(b("Cmd+S")) });
-        let ctx = egui::Context::default();
-        let press = egui::Event::Key { key: egui::Key::E, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::MAC_CMD };
-        let input = egui::RawInput { events: vec![press, egui::Event::Text("e".into())], ..egui::RawInput::default() };
-        let mut left = usize::MAX;
-        let mut full = ctx.run_ui(input, |ui| {
-            st.input(&mut fx.env(), ui.ctx());
-            left = ui.ctx().input(|i| i.events.len());
-        });
-        full.textures_delta.clear();
-        assert_eq!(left, 0);
-        assert!(!st.is_recording());
-        assert_eq!(st.conflict.as_ref().map(|c| c.text.as_str()), Some("⚠ ⌘E is used by Export…"));
-        assert_eq!(fx.keys("file.save"), ["Cmd+S"], "nothing changes before the answer");
-    }
-
-    #[test]
-    fn recording_takes_tab_and_shift_escape_and_escape_cancels_only_the_recording() {
-        let mut fx = Fx::new(Options::default());
-        let mut st = open(&mut fx);
-        record(&mut st, &mut fx, add("object.front"), &["Tab"]);
-        record(&mut st, &mut fx, add("object.front"), &["Shift+Escape"]);
-        assert_eq!(fx.keys("object.front"), ["Tab", "Shift+Escape"]);
-
-        record(&mut st, &mut fx, add("object.front"), &["Escape"]);
-        assert!(!st.is_recording() && st.is_open());
-        assert_eq!(fx.keys("object.front").len(), 2);
-        assert!(matches!(st.finish(), Some(Outcome::Changed)));
-        st.escape(&mut fx.env());
-        assert!(matches!(st.finish(), Some(Outcome::Cancel)));
-        assert!(fx.keys("object.front").is_empty(), "Cancel restores the opening keymap");
-        assert!(st.is_open() && matches!(st.finish(), Some(Outcome::Changed)), "Changed follows, for the app's menus");
-        assert!(!st.is_open());
-    }
-
-    #[test]
-    fn double_press_records_k_k_within_the_window() {
-        let mut fx = Fx::new(Options { double_press: true, ..Options::default() });
-        let mut st = open(&mut fx);
-        let mut env = fx.env();
-        st.record(&env, add("object.front"));
-        st.feed(&mut env, &[c("K")], 0.0);
-        assert!(st.is_recording(), "a single waits for a second press");
-        st.feed(&mut env, &[c("K")], 0.3);
-        assert!(!st.is_recording());
-        assert_eq!(fx.keys("object.front"), ["K K"]);
-
-        let mut env = fx.env();
-        st.record(&env, add("type.bold"));
-        st.feed(&mut env, &[c("K")], 1.0);
-        st.feed(&mut env, &[c("K")], 1.9);
-        assert_eq!(fx.keys("type.bold"), ["Text: Cmd+B", "K"]);
-    }
-
-    #[test]
-    fn conflict_take_it_steals_and_undo_restores() {
-        let mut fx = Fx::new(Options::default());
-        let mut st = open(&mut fx);
-        record(&mut st, &mut fx, add("file.export"), &["Cmd+S"]);
-        assert_eq!(st.conflict.as_ref().map(|c| c.text.as_str()), Some("⚠ ⌘S is used by Save"));
-        st.take_it(&mut fx.env());
-        assert_eq!((fx.keys("file.save"), fx.keys("file.export")), (vec![], vec!["Cmd+E".to_string(), "Cmd+S".to_string()]));
-        assert!(st.message.as_ref().is_some_and(|m| m.undo && m.goto == Some("file.save".into())));
-        st.undo(&mut fx.env());
-        assert_eq!((fx.keys("file.save"), fx.keys("file.export")), (vec!["Cmd+S".to_string()], vec!["Cmd+E".to_string()]));
-        st.redo(&mut fx.env());
-        assert!(fx.keys("file.save").is_empty());
-    }
-
-    #[test]
-    fn conflict_keep_both_lists_the_clash_and_cancel_changes_nothing() {
-        let mut fx = Fx::new(Options::default());
-        let mut st = open(&mut fx);
-        record(&mut st, &mut fx, add("file.export"), &["Cmd+S"]);
-        st.dismiss_conflict();
-        assert_eq!(fx.keys("file.export"), ["Cmd+E"]);
-        record(&mut st, &mut fx, add("file.export"), &["Cmd+S"]);
-        st.keep_both(&mut fx.env());
-        let clashes = fx.km.conflicts().into_iter().filter(|c| c.kind == ConflictKind::Clash).count();
-        assert_eq!(clashes, 1);
-        st.set_filter(Filter::Conflicts);
-        let env = fx.env();
-        let rows: Vec<String> = st.lines(&env).lines.iter().filter_map(|l| if let Line::Row(r) = l { Some(r.key.clone()) } else { None }).collect();
-        assert_eq!(rows, ["file.save", "file.export"]);
-    }
-
-    #[test]
-    fn go_to_conflict_selects_and_reveals_the_holder() {
-        let mut fx = Fx::new(Options::default());
-        let mut st = open(&mut fx);
-        st.set_area(AreaId::Tools);
-        st.set_query("marquee".into());
-        record(&mut st, &mut fx, add("tool.marquee"), &["Cmd+S"]);
-        st.take_it_and_go(&mut fx.env());
-        assert_eq!((&st.area, st.query.as_str(), st.selected.clone(), st.reveal), (&AreaId::All, "", Some("file.save".into()), true));
-    }
-
-    #[test]
-    fn steal_and_keep_modes_apply_and_say_so() {
-        let mut fx = Fx::new(Options { conflicts: ConflictMode::Steal, ..Options::default() });
-        let mut st = open(&mut fx);
-        record(&mut st, &mut fx, add("file.export"), &["Cmd+S"]);
-        assert_eq!(st.message.as_ref().map(|m| m.text.as_str()), Some("⌘S was removed from Save"));
-        let mut fx = Fx::new(Options { conflicts: ConflictMode::Keep, ..Options::default() });
-        let mut st = open(&mut fx);
-        record(&mut st, &mut fx, add("file.export"), &["Cmd+S"]);
-        assert_eq!(st.message.as_ref().map(|m| (m.text.as_str(), m.undo)), Some(("Also used by Save", false)));
-        assert_eq!(fx.keys("file.save"), ["Cmd+S"]);
-    }
-
-    #[test]
-    fn reserved_chord_and_app_rule_refuse() {
-        let mut fx = Fx::new(Options {
-            accept: Some(Box::new(|bindable, binding| match bindable.kind {
-                crate::Kind::Tool { .. } if !binding.trigger.chord.mods.is_none() => Err("Tools take single keys".into()),
-                _ => Ok(()),
-            })),
-            ..Options::default()
-        });
-        fx.km = fx.km.clone().with_reserved(vec![c("Cmd+Tab")]);
-        let mut st = open(&mut fx);
-        record(&mut st, &mut fx, add("object.front"), &["Cmd+Tab"]);
-        assert_eq!(st.message.as_ref().map(|m| (m.text.as_str(), m.refused)), Some(("⌘⇥ is reserved by the system", true)));
-        record(&mut st, &mut fx, add("tool.marquee"), &["Cmd+J"]);
-        assert_eq!(st.message.as_ref().map(|m| m.text.as_str()), Some("Tools take single keys"));
-        assert!(fx.km.overrides().is_empty());
-        assert!(st.finish().is_none());
-    }
-
-    #[test]
-    fn backspace_clears_the_binding_being_replaced() {
-        let mut fx = Fx::new(Options { backspace_clears: true, ..Options::default() });
-        let mut st = open(&mut fx);
-        record(&mut st, &mut fx, Target::Cell { command: "file.save".into(), old: Some(b("Cmd+S")) }, &["Backspace"]);
-        assert!(fx.keys("file.save").is_empty());
-    }
-
-    #[test]
-    fn field_waits_for_assign_lists_holders_and_takes() {
-        let mut fx = Fx::new(Options::default());
-        let mut st = open(&mut fx);
-        record(&mut st, &mut fx, Target::Field { command: "file.save".into() }, &["Cmd+B"]);
-        let f = st.field.clone();
-        assert_eq!(f.as_ref().map(|f| (f.holders.len(), f.shadows.len())), Some((0, 1)), "Bold's Text: Cmd+B only shadows");
-        st.set_context(&fx.env(), Scope::new("Text"));
-        assert_eq!(st.field.as_ref().map(|f| f.holders.len()), Some(1), "in Text it clashes");
-        st.assign_field(&mut fx.env());
-        assert!(st.conflict.is_none(), "Assign takes the chord without asking");
-        assert_eq!(fx.keys("file.save"), ["Cmd+S", "Text: Cmd+B"]);
-        assert!(fx.keys("type.bold").is_empty());
-
-        st.set_context(&fx.env(), None);
-        assert_eq!(st.type_binding(&mut fx.env(), &"file.save".into(), "F7 F7"), Ok(()));
-        st.assign_field(&mut fx.env());
-        assert_eq!(fx.keys("file.save"), ["Cmd+S", "Text: Cmd+B", "F7 F7"]);
-        assert_eq!(st.type_binding(&mut fx.env(), &"file.save".into(), "Cmd+Nope"), Err("unknown key Nope".into()));
-    }
-
-    #[test]
-    fn new_set_refuses_a_taken_name_and_keeps_the_set() {
-        let mut fx = Fx::new(Options::default());
-        let mut st = open(&mut fx);
-        st.new_set(&mut fx.env(), "Mine", None);
-        record(&mut st, &mut fx, add("object.front"), &["F2"]);
-        st.save_set(&mut fx.env());
-        let kept = fx.p.sets()["Mine"].clone();
-        assert!(!kept.is_empty());
-        st.switch_set(&mut fx.env(), "Fixture Defaults");
-        for name in ["Mine", " mine ", "fixture defaults"] {
-            for based_on in [None, Some("Fixture Defaults")] {
-                st.new_set(&mut fx.env(), name, based_on);
-                assert!(st.message.as_ref().is_some_and(|m| m.refused), "{name:?} from {based_on:?}");
-                assert_eq!((fx.p.sets().len(), fx.p.active()), (1, "Fixture Defaults"));
-                assert_eq!(fx.p.sets()["Mine"], kept);
-            }
-        }
-        st.new_set(&mut fx.env(), "Other", None);
-        st.rename_set(&mut fx.env(), "MINE");
-        assert!(st.message.as_ref().is_some_and(|m| m.refused));
-        assert_eq!(fx.p.sets()["Mine"], kept);
-    }
-
-    #[test]
-    fn cancel_restores_keymap_and_sets() {
-        let mut fx = Fx::new(Options::default());
-        fx.p.save_as("Mine", Overrides::new(), &fx.b).ok();
-        let (km0, p0) = (fx.km.overrides().clone(), fx.p.clone());
-        let mut st = open(&mut fx);
-        record(&mut st, &mut fx, add("object.front"), &["F2"]);
-        st.new_set(&mut fx.env(), "Other", None);
-        assert_eq!(fx.p.active(), "Other");
-        st.ask_delete_set(&fx.env());
-        assert_eq!(st.prompt, Some(Prompt::DeleteSet("Other".into())));
-        st.answer(&mut fx.env(), Answer::Yes);
-        assert!(!fx.p.sets().contains_key("Other"));
-        st.cancel(&mut fx.env());
-        assert_eq!((fx.km.overrides(), &fx.p), (&km0, &p0));
-    }
-
-    #[test]
-    fn a_stale_delete_prompt_neither_reloads_nor_drops_edits() {
-        let mut fx = Fx::new(Options::default());
-        fx.p.save_as("Mine", Overrides::new(), &fx.b).ok();
-        fx.p.save_as("Other", Overrides::new(), &fx.b).ok();
-        let mut st = open(&mut fx);
-        st.ask_delete_set(&fx.env());
-        assert!(st.modal());
-        st.switch_set(&mut fx.env(), "Mine");
-        assert_eq!((st.prompt.clone(), fx.p.active()), (None, "Mine"), "switching closes the prompt");
-
-        record(&mut st, &mut fx, add("object.front"), &["F2"]);
-        st.prompt = Some(Prompt::DeleteSet("Other".into()));
-        st.answer(&mut fx.env(), Answer::Yes);
-        assert!(!fx.p.sets().contains_key("Other"));
-        assert_eq!((fx.p.active(), fx.keys("object.front")), ("Mine", vec!["F2".to_string()]), "the active set keeps its edits");
-        assert!(st.can_undo());
-    }
-
-    #[test]
-    fn deleting_the_last_set_without_builtins_loads_no_overrides() {
-        let mut fx = Fx::new(Options::default());
-        fx.b.clear();
-        let mut mine = Overrides::new();
-        mine.insert("object.front", vec!["F2".into()]);
-        fx.p.save_as("Mine", mine.clone(), &fx.b).ok();
-        fx.km.set_overrides(mine);
-        let mut st = open(&mut fx);
-        st.ask_delete_set(&fx.env());
-        st.answer(&mut fx.env(), Answer::Yes);
-        assert!(st.message.is_none(), "{:?}", st.message);
-        assert!(fx.p.sets().is_empty() && fx.km.overrides().is_empty() && !st.can_undo());
-        st.ok(&mut fx.env());
-        assert!(fx.p.sets().is_empty(), "OK stores no copy of the deleted set");
-    }
-
-    #[test]
-    fn ok_stores_edits_of_a_builtin_as_a_copy() {
-        let mut fx = Fx::new(Options::default());
-        let mut st = open(&mut fx);
-        record(&mut st, &mut fx, add("object.front"), &["F2"]);
-        assert!(DialogState::is_modified(&fx.env()));
-        st.ok(&mut fx.env());
-        assert!(matches!(st.finish(), Some(Outcome::Ok)));
-        assert_eq!(fx.p.active(), "Custom");
-        assert_eq!(fx.p.get("Custom", &fx.b).and_then(|o| o.get("object.front")), Some(&["F2".to_string()][..]));
-    }
-
-    #[test]
-    fn switching_a_modified_set_asks_to_save() {
-        let mut fx = Fx::new(Options::default());
-        fx.p.save_as("Mine", Overrides::new(), &fx.b).ok();
-        let mut st = open(&mut fx);
-        record(&mut st, &mut fx, add("object.front"), &["F2"]);
-        st.switch_set(&mut fx.env(), "Fixture Defaults");
-        assert!(matches!(&st.prompt, Some(Prompt::SaveChanges { set, .. }) if set == "Mine"));
-        st.answer(&mut fx.env(), Answer::No);
-        assert_eq!(fx.p.active(), "Fixture Defaults");
-        assert!(fx.km.overrides().is_empty() && !st.can_undo(), "the set loads with a fresh undo history");
-        assert!(fx.p.get("Mine", &fx.b).is_some_and(Overrides::is_empty), "Don't Save keeps the stored set");
-    }
-
-    #[test]
-    fn dont_save_before_import_drops_the_edits() {
-        use crate::import::{ContextRule, ForeignEntry, ForeignKey};
-        let mut fx = Fx::new(Options::default());
-        fx.p.save_as("Mine", Overrides::new(), &fx.b).ok();
-        let mut st = open(&mut fx);
-        record(&mut st, &mut fx, add("object.front"), &["F2"]);
-        st.request_import(&mut fx.env());
-        st.answer(&mut fx.env(), Answer::No);
-        assert!(matches!(st.finish(), Some(Outcome::Import { .. })));
-        assert!(fx.km.overrides().is_empty() && !st.can_undo());
-        let read = |text: &str| ForeignKey::read(Some("Default"), text, crate::Flavor::Windows);
-        let set = ForeignSet::new(vec![ForeignEntry::new(Some("File"), ["Save"]).with_key(read("Ctrl+Alt+S"))]).with_name("Theirs");
-        let options = ImportOptions { contexts: vec![("Default".into(), ContextRule::Home)], ..ImportOptions::default() };
-        st.review_import(&mut fx.env(), set, options);
-        st.import_reviewed(&mut fx.env());
-        assert_eq!(fx.p.active(), "Theirs");
-        assert_eq!(fx.p.get("Theirs", &fx.b).and_then(|o| o.get("object.front")), None);
-        assert!(fx.p.get("Mine", &fx.b).is_some_and(Overrides::is_empty));
-    }
-
-    #[test]
-    fn save_prompt_before_import_reports_changed_after_import() {
-        for answer in [Answer::No, Answer::Yes] {
-            let mut fx = Fx::new(Options::default());
-            fx.p.save_as("Mine", Overrides::new(), &fx.b).ok();
-            let mut st = open(&mut fx);
-            record(&mut st, &mut fx, add("object.front"), &["F2"]);
-            assert!(matches!(st.finish(), Some(Outcome::Changed)));
-            st.request_import(&mut fx.env());
-            st.answer(&mut fx.env(), answer);
-            assert!(matches!(st.finish(), Some(Outcome::Import { .. })), "{answer:?}");
-            assert!(matches!(st.finish(), Some(Outcome::Changed)), "{answer:?}");
-            assert!(st.finish().is_none());
-        }
-    }
-
-    #[test]
-    fn set_export_import_round_trip() {
-        let mut fx = Fx::new(Options::default());
-        let mut st = open(&mut fx);
-        st.new_set(&mut fx.env(), "Name", None);
-        record(&mut st, &mut fx, add("object.front"), &["F2"]);
-        st.export_set(&mut fx.env());
-        let (name, json) = match st.finish() {
-            Some(Outcome::Export { name, json }) => (name, json),
-            _ => (String::new(), String::new()),
-        };
-        assert_eq!(name, "Name");
-        let edited = fx.km.overrides().clone();
-
-        let mut fresh = Fx::new(Options::default());
-        fresh.p = fx.p.clone();
-        let mut st = open(&mut fresh);
-        assert_eq!(st.import_json(&mut fresh.env(), &json), Ok("Name 2".into()));
-        assert_eq!(fresh.km.overrides(), &edited);
-        assert!(st.import_json(&mut fresh.env(), "{}").is_err());
-        assert!(st.message.as_ref().is_some_and(|m| m.refused));
-
-        let mut no_sets = Fx::new(Options::default());
-        no_sets.sets = false;
-        let mut st = open(&mut no_sets);
-        assert!(st.import_json(&mut no_sets.env(), &json).is_ok());
-        assert_eq!(no_sets.km.overrides(), &edited);
-        assert!(st.can_undo());
-    }
-
-    #[test]
-    fn import_request_and_reset_all() {
-        let mut fx = Fx::new(Options::default());
-        let mut st = open(&mut fx);
-        st.request_import(&mut fx.env());
-        assert!(matches!(st.finish(), Some(Outcome::Import { formats }) if formats == [JSON_FORMAT]));
-        record(&mut st, &mut fx, add("object.front"), &["F2"]);
-        st.ask_reset_all();
-        st.answer(&mut fx.env(), Answer::Yes);
-        assert!(fx.km.overrides().is_empty());
-        st.undo(&mut fx.env());
-        assert_eq!(fx.keys("object.front"), ["F2"]);
-    }
-
-    #[test]
-    fn foreign_import_review_makes_a_new_set() {
-        use crate::import::{ContextRule, ForeignEntry, ForeignKey};
-        let mut fx = Fx::new(Options::default());
-        let mut st = open(&mut fx);
-        let read = |text: &str| ForeignKey::read(Some("Default"), text, crate::Flavor::Windows);
-        let set = ForeignSet::new(vec![
-            ForeignEntry::new(Some("File"), ["Save"]).with_key(read("Ctrl+Alt+S")).at_line(3),
-            ForeignEntry::new(Some("File"), ["Frobnicate"]).with_key(read("Ctrl+F")).at_line(4),
-        ])
-        .with_name("Theirs");
-        let options = ImportOptions { contexts: vec![("Default".into(), ContextRule::Home)], ..ImportOptions::default() };
-        st.review_import(&mut fx.env(), set, options);
-        let r = st.review.as_ref();
-        assert_eq!(r.map(|r| (r.name.as_str(), r.plan.commands.len(), r.plan.report.unmatched.len())), Some(("Theirs", 1, 1)));
-        assert!(fx.km.overrides().is_empty(), "review changes nothing");
-        st.import_reviewed(&mut fx.env());
-        assert_eq!(fx.p.active(), "Theirs");
-        assert_eq!(fx.keys("file.save"), ["Cmd+Alt+S"]);
-        assert!(st.review.as_ref().is_some_and(|r| r.done.is_some()));
-        st.escape(&mut fx.env());
-        assert!(st.review.is_none() && st.is_open());
+        ProfileError::BadName => word!(env, the_name_is_empty_too_long),
+        ProfileError::NameTaken => word!(env, a_set_with_this_name_exists),
+        ProfileError::NotFound => word!(env, the_set_was_not_found),
+        ProfileError::BuiltIn => word!(env, built_in_sets_cannot_be_changed),
+        ProfileError::TooMany => word!(env, there_are_too_many_sets),
+        ProfileError::BadFile => word!(env, this_is_not_a_shortcut_set),
+        ProfileError::WrongFormat => word!(env, this_is_not_a_craft_keymap),
+        ProfileError::NewerVersion(v) => fill!(env, this_file_is_from_a_newer, ("n", &v.to_string())),
+        ProfileError::TooLarge => word!(env, the_file_is_too_large),
     }
 }

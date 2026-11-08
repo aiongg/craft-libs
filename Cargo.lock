@@ -1406,14 +1406,10 @@ dependencies = [
  "craft-host",
  "craft-i18n",
  "craft-settings",
- "craft-ui-legacy",
  "egui",
- "egui_kittest",
- "image",
  "roxmltree 0.21.2",
  "serde",
  "serde_json",
- "sha2",
  "tempfile",
 ]
 

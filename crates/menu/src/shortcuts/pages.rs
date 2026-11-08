@@ -1,18 +1,18 @@
-//! What the Keyboard Shortcuts dialog adds for Photoshop's "Keyboard Shortcuts and Menus" (gap
-//! 81): the Shortcuts For areas, the app's own tabs beside the shortcuts (PhotoCraft's Menus and
-//! Toolbar), and the dialog's state as automation reads it.
+//! What the Keyboard Shortcuts dialog adds for Photoshop's "Keyboard Shortcuts and Menus": the
+//! Shortcuts For areas, the app's own tabs beside the shortcuts, and the dialog's state as
+//! automation reads it.
 //!
 //! Undo, Accept and Go to Conflict, the Set row and Summarize… are the dialog's already; the Set
 //! row's `.kys` export is an [`super::Options::export_formats`] entry the app writes with
-//! [`crate::import::kys::write`].
+//! [`craft_keymap::import::kys::write`].
 
 use serde::Serialize;
+
+use craft_keymap::{Bindable, CommandRef, Keymap, Kind};
 
 use super::state::Target;
 use super::view::area_key;
 use super::{Area, DialogState, ShortcutsDialog};
-use crate::command::CommandRef;
-use crate::keymap::{Bindable, Kind};
 
 fn is_tool(b: &Bindable) -> bool {
     matches!(b.kind, Kind::Tool { .. })
@@ -29,31 +29,37 @@ fn panel_menus(b: &Bindable) -> bool {
 impl Area {
     /// Photoshop's Shortcuts For entries over the catalog: Application Menus (commands with a
     /// menu path in a top menu), Panel Menus (commands whose home scope is a panel) and Tools
-    /// ([`crate::Kind::Tool`]). With [`super::Options::area_tabs`] off they are the Show
+    /// ([`craft_keymap::Kind::Tool`]). With [`super::Options::area_tabs`] off they are the Show
     /// dropdown's entries, as Photoshop's dropdown.
-    // pc: crates/ui-egui/src/prefs/prefs_ui/shortcuts.rs:182 (its tabs); Photoshop's "Shortcuts
-    // For: Application Menus / Panel Menus / Tools".
     pub fn photoshop() -> Vec<Area> {
         vec![
-            Area { id: "photoshop.menus", label: "Application Menus", rows: application_menus },
-            Area { id: "photoshop.panels", label: "Panel Menus", rows: panel_menus },
-            Area { id: "photoshop.tools", label: "Tools", rows: is_tool },
+            Area::new("photoshop.menus", "Application Menus", application_menus),
+            Area::new("photoshop.panels", "Panel Menus", panel_menus),
+            Area::new("photoshop.tools", "Tools", is_tool),
         ]
     }
 }
 
-/// A tab of the app's own beside Keyboard Shortcuts (PhotoCraft's Menus tab, which hides and
-/// colours menu items, and its Toolbar tab). The dialog draws a tab strip when there is one;
+/// A tab of the app's own beside Keyboard Shortcuts (a Menus tab that hides and colours menu
+/// items, say). The dialog draws a tab strip when there is one;
 /// OK and Cancel apply to every tab, so the body edits the app's own draft and the app commits
 /// it on [`super::Outcome::Ok`].
+#[non_exhaustive]
 pub struct DialogTab<'a> {
     /// The automation id (`menus`, `toolbar`).
     pub id: &'static str,
     /// The tab's label, translated by the app.
     pub label: String,
-    /// Draws the tab's body in the dialog's body rect; returns true when it changed something
+    /// Draws the tab's body in the dialog's body; returns true when it changed something
     /// (the dialog then reports [`super::Outcome::Changed`]).
     pub body: Box<dyn FnMut(&mut egui::Ui) -> bool + 'a>,
+}
+
+impl<'a> DialogTab<'a> {
+    /// A tab with the automation id `id`, the translated `label` and the body `body`.
+    pub fn new(id: &'static str, label: impl Into<String>, body: impl FnMut(&mut egui::Ui) -> bool + 'a) -> Self {
+        DialogTab { id, label: label.into(), body: Box::new(body) }
+    }
 }
 
 /// The dialog's view of [`DialogTab`]s, whose lifetime parameter is invariant behind `&mut`.
@@ -90,7 +96,6 @@ impl<'a> ShortcutsDialog<'a> {
     /// The app's tabs after Keyboard Shortcuts, in this order. The selected tab is kept in the
     /// [`DialogState`]; Ctrl+Tab and Ctrl+Shift+Tab move between tabs (Ctrl+Page Down/Up on
     /// Windows and Linux too).
-    // pc: crates/ui-egui/src/prefs/prefs_ui/shortcuts.rs:182 (Keyboard Shortcuts, Menus, Toolbar).
     pub fn tabs(mut self, tabs: &'a mut [DialogTab<'_>]) -> Self {
         self.tabs = if tabs.is_empty() { None } else { Some(Box::new(Tabs(tabs))) };
         self
@@ -125,9 +130,7 @@ pub struct DialogSnapshot {
 
 impl DialogState {
     /// The state as [`DialogSnapshot`]; `None` before the dialog's first frame.
-    // pc: crates/ui-egui/src/prefs/prefs_ui/shortcuts.rs:53 `conflict_state` (overrides,
-    // alternates, selection and set, hashed for its tests).
-    pub fn snapshot(&self, keymap: &crate::Keymap) -> Option<DialogSnapshot> {
+    pub fn snapshot(&self, keymap: &Keymap) -> Option<DialogSnapshot> {
         if !self.begun() {
             return None;
         }
