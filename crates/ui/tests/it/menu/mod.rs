@@ -3,6 +3,8 @@
 
 mod bar;
 
+mod item_access;
+
 mod native;
 
 mod openers;

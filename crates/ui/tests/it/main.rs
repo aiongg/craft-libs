@@ -36,6 +36,7 @@ mod full_window_parts;
 mod glossary;
 mod internals;
 mod keys;
+mod keys_consumed;
 mod label;
 mod layer;
 mod layout;
