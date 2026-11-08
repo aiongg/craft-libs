@@ -3,6 +3,8 @@
 use crate::runtime::access::Role;
 
 impl Role {
+    /// A colour well.
+    pub const COLOR_WELL: Role = Role::Node(accesskit::Role::ColorWell);
     /// A button.
     pub const BUTTON: Role = Role::Node(accesskit::Role::Button);
     /// A check box.

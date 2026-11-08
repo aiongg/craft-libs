@@ -2,8 +2,9 @@
 //! stop at its edges; Space and Enter pick; AccessKit reports nine radios in one group with the pick checked.
 
 use craft_behavior::{Anchor9, Mixed, PartKey};
+use craft_ui::bars::{Bar, BarKind};
 use craft_ui::choice::Checkbox;
-use craft_ui::contract::{Bind, Props as _, Role, Show as _};
+use craft_ui::contract::{Bind, Props as _, Role, Show as _, ShowContainer as _};
 use craft_ui::pickers::ReferencePoint;
 use craft_ui::testing::focus::active_part;
 use craft_ui::testing::{Fixture, trial};
@@ -137,4 +138,20 @@ fn growth_arrows_follow_the_sign_of_the_change() {
     assert_eq!(ReferencePoint::arrow(TopLeft, Centre, (-10.0, 10.0)), Some((-1, 1)));
     assert_eq!(ReferencePoint::arrow(Centre, TopLeft, (-10.0, -10.0)), Some((1, 1)));
     assert_eq!(ReferencePoint::arrow(Centre, Centre, (10.0, 10.0)), None);
+}
+
+/// The compact picker is an icon-sized grid that fits inside an options bar.
+#[trial]
+fn a_compact_picker_fits_inside_an_options_bar() {
+    let mut fixture = Fixture::new(|ui| {
+        Bar::new("Options", BarKind::Options).show(ui, |ui, _| {
+            let mut point = Anchor9::Centre;
+            ReferencePoint::new("Reference point", Bind::bound(&mut point)).compact().show(ui);
+        });
+    });
+    fixture.settle();
+    let picker = fixture.by_role(Role::RADIO_GROUP);
+    let bar = fixture.by_role(Role::GROUP);
+    let (picker, bar) = (picker.first().expect("the picker is shown"), bar.first().expect("the bar is shown"));
+    assert!(bar.rect.contains_rect(picker.rect), "the compact picker sits inside the bar");
 }

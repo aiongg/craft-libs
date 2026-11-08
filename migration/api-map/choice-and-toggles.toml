@@ -98,6 +98,20 @@ new = ""
 status = "removed"
 note = "Stars drawn on thumbnails and captions (the browse family) are a `Rating` shown as a face of a part, or `Draw::icon` with the `star` and `star_filled` icons; no function replaces it."
 
+[[type]]
+name = "Swatch"
+old = "craft_ui::controls::swatch::Swatch"
+new = "craft_ui::choice::Swatch"
+status = "moved"
+note = "A leaf colour well: `Swatch::new(label, color)` (a `Srgba` or `Mixed<Srgba>`; the id salt is the call order or `Props::id_salt`) with output `SwatchOutput { response, clicked }`. A click is `clicked`; the caller opens its picker, or files `ColorRequest::new(key, color).title(label)` with its `HostRequests`."
+
+[[type]]
+name = "SwatchStyle"
+old = "craft_ui::controls::swatch::SwatchStyle"
+new = "craft_ui::choice::SwatchStyle"
+status = "moved"
+note = "The sizes are `SwatchMetrics::of(tokens, size)` (`side`, `cell`, `radius`); a composition that lays out wells reads them. `SwatchStyle::inner_edge(Option<Srgba>) -> DataColor` is the contrast ring. The checker and edge colours are the swatch's own style; a composition paints its fills with `Draw::data_fill` and `kit::checker`."
+
 # One entry per renamed, removed or reshaped setter or constructor.
 [[setter]]
 type = "Checkbox"
@@ -179,3 +193,74 @@ type = "Rating"
 old = "labels(RatingLabels)"
 new = ""
 note = "The star names are the built-in `ChoiceWords` (`choice.rating.stars`), translated through the host's words."
+
+[[setter]]
+type = "Swatch"
+old = "radio(bool)"
+new = "member(value)"
+note = "The swatch is a member of the enclosing `RadioGroup<U>` standing for `value`; the group owns the pick, the keys and the Tab stop."
+
+[[setter]]
+type = "Swatch"
+old = "position_in_set(usize)"
+new = ""
+note = "The group reports the place in the set."
+
+[[setter]]
+type = "Swatch"
+old = "tab_stop(bool)"
+new = ""
+note = "The group is one Tab stop; its roving moves the focus."
+
+[[setter]]
+type = "Swatch"
+old = "table_cell(f32)"
+new = "cell()"
+note = "A cell of a table of touching swatches: `SwatchMetrics::cell` square, square corners, a list box option."
+
+[[setter]]
+type = "Swatch"
+old = "dimensions(f32, f32)"
+new = "fill()"
+note = "A well the layout sizes is a `PaintUi::face` of a `Swatch` in the part's rect; a wide well at the control height is `fill()`."
+
+[[setter]]
+type = "Swatch"
+old = "mixed(bool)"
+new = "new(label, Mixed::Mixed)"
+note = "The colour is a `Mixed<Srgba>`."
+
+[[setter]]
+type = "Swatch"
+old = "size(ControlSize)"
+new = "size(ControlSize)"
+
+[[setter]]
+type = "Swatch"
+old = "id_in(&Ui, impl AsIdSalt)"
+new = ""
+note = "Ids come from the pipeline; `Fixture::node_of` and the AccessKit tree find a node."
+
+[[setter]]
+type = "Swatch"
+old = "shapes(&SwatchStyle, Rect, Option<Rgba>, bool, bool, f32)"
+new = ""
+note = "A composition faces a `Swatch` for the well; one that paints its own fill paints it with `Draw::data_fill` over `kit::checker`."
+
+[[setter]]
+type = "Swatch"
+old = "outline(&SwatchStyle, Rect, bool, bool, f32)"
+new = ""
+note = "The edge and selected ring are painted by the `Swatch` itself."
+
+[[setter]]
+type = "Swatch"
+old = "hex(Rgba)"
+new = "Srgba::to_hex"
+note = "The colour as `#rrggbb`, or `#rrggbbaa` when translucent."
+
+[[setter]]
+type = "Swatch"
+old = "checkerboard(Rect, CornerRadius, [Color32; 2], f32)"
+new = "kit::checker"
+note = "`primitives::kit::checker` and `Checker` are the one checkerboard."
