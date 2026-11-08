@@ -362,3 +362,19 @@ fn a_forwarding_attribute_needs_its_props_type() {
     let message = error(crate::props::derive(quote! { struct Grid { #[collection] props: ContainerProps } }));
     assert!(message.contains("CollectionProps"), "{message}");
 }
+
+#[test]
+fn registration_outside_craft_ui_is_gated_on_the_crates_testing_feature() {
+    // The test crate is not craft-ui, so this is the expansion an app or domain crate gets.
+    let compact = |tokens: TokenStream| tokens.to_string().split_whitespace().collect::<String>();
+    let gate = "#[cfg(feature=\"screen-testing\")]const_:()=";
+    let pattern = compact(crate::component::pattern_registrations(&[syn::parse_quote!(Panel<Fake>)], "A panel"));
+    assert!(pattern.starts_with(gate), "{pattern}");
+    assert!(!pattern.contains("allow(unsafe_code)"), "{pattern}");
+    let component = crate::component::derive(quote! {
+        struct Field<'a> { #[common] common: Common, text: &'a str }
+    })
+    .map(compact)
+    .unwrap_or_default();
+    assert!(component.contains(gate), "{component}");
+}

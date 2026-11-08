@@ -173,6 +173,15 @@ pub(crate) fn purpose_of(attrs: &[Attribute]) -> String {
     sentence.trim_end_matches('.').to_owned()
 }
 
+/// The attributes on a registration block. Inside craft-ui the `link_section` statics meet the crate's
+/// `deny(unsafe_code)`, so the block carries an `allow` (written only there: an `allow` in an app crate that forbids it
+/// is an error). Elsewhere the registration's types can exist only under the defining crate's `screen-testing`
+/// feature, which may be off while craft-ui's `testing` is on, so the block is gated on it; the cfg is evaluated in
+/// the defining crate.
+fn registration_gate() -> TokenStream {
+    if crate::util::in_craft_ui() { quote!(#[allow(unsafe_code)]) } else { quote!(#[cfg(feature = "screen-testing")]) }
+}
+
 fn registrations(types: &[Type], declared: &Declared, shape: Shape) -> syn::Result<TokenStream> {
     if let Some(sample) = &declared.sample {
         if shape != Shape::Leaf {
@@ -192,11 +201,9 @@ fn registrations(types: &[Type], declared: &Declared, shape: Shape) -> syn::Resu
     };
     let purpose = &declared.purpose;
     let each = types.iter().map(|ty| quote!(::craft_ui::__register_contract!(#ty, #shape, #overlay, [#(#exempt),*], [#(#sample)*], #purpose);));
-    // Inside craft-ui the registration's `link_section` statics meet the crate's `deny(unsafe_code)`; the allow is
-    // scoped to this block and written only there, because an `allow` in an app crate that forbids it is an error.
-    let allow = crate::util::in_craft_ui().then(|| quote!(#[allow(unsafe_code)]));
+    let gate = registration_gate();
     Ok(quote! {
-        #allow
+        #gate
         const _: () = {
             #(#each)*
         };
@@ -206,9 +213,9 @@ fn registrations(types: &[Type], declared: &Declared, shape: Shape) -> syn::Resu
 /// The registration of each pattern type in `types`, with the `purpose` line of its doc comment.
 pub(crate) fn pattern_registrations(types: &[Type], purpose: &str) -> TokenStream {
     let each = types.iter().map(|ty| quote!(::craft_ui::__register_pattern!(#ty, #purpose);));
-    let allow = crate::util::in_craft_ui().then(|| quote!(#[allow(unsafe_code)]));
+    let gate = registration_gate();
     quote! {
-        #allow
+        #gate
         const _: () = {
             #(#each)*
         };
