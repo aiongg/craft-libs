@@ -2,7 +2,9 @@
 
 use crate::primitives::TextLayout;
 use crate::runtime::env::Label;
+use crate::style::Ink;
 use craft_behavior::{PartKey, TextPos};
+use craft_theme::TypeRole;
 use egui::Rect;
 use std::marker::PhantomData;
 use std::ops::Range;
@@ -50,6 +52,10 @@ pub struct TextOptions {
     pub clear_on_escape: bool,
     /// Monospace text.
     pub mono: bool,
+    /// The type role the text is set in; a monospace text takes the mono role's face and size instead.
+    pub role: TypeRole,
+    /// The text colour; `None` takes the surface's ink. A disabled part shows the disabled text colour whatever this is.
+    pub ink: Option<Ink>,
     /// Tab inserts a tab instead of moving focus.
     pub tab_inserts: bool,
     /// Candidates for the text before the caret.
@@ -81,6 +87,8 @@ impl Default for TextOptions {
             live: false,
             clear_on_escape: false,
             mono: false,
+            role: TypeRole::Body,
+            ink: None,
             tab_inserts: false,
             complete: None,
             replace_selection: None,

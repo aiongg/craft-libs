@@ -310,6 +310,7 @@ pub(crate) fn run<C: Component>(
     let enabled = cx.core.resolved.enabled && decl.options.enabled;
     let focusable = super::steps::takes_focus(cx.core.resolved) && decl.options.enabled;
     let read_only = cx.core.resolved.read_only || !enabled;
+    let ink = decl.options.ink.map_or(ink, |own| crate::style::ink_color(&crate::runtime::env::Env::of(ui).tokens, own));
     let ink = if enabled { ink } else { crate::style::rgba_color(crate::runtime::env::Env::of(ui).tokens.color.text.disabled) };
     serve_access(cx, &mut state, widget, &decl.shown, read_only);
     cx.core.surface_slot = Some(ui.painter().add(egui::Shape::Noop));

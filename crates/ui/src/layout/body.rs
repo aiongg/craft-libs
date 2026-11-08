@@ -108,6 +108,17 @@ impl Cursor {
         }
     }
 
+    fn fill_room(&self) -> Vec2 {
+        match self {
+            Cursor::Grid(grid) => grid.fill_room(),
+            Cursor::Spread(row) => row.room(),
+        }
+    }
+
+    fn in_content_column(&self) -> bool {
+        matches!(self, Cursor::Grid(grid) if grid.in_content_column())
+    }
+
     fn widen(&mut self, size: Vec2) {
         match self {
             Cursor::Grid(grid) => grid.widen(size),
@@ -187,7 +198,28 @@ pub(crate) fn place_in_flow(ui: &mut Ui, size: Vec2) -> Rect {
 /// `Row` body that encloses `ui` directly, else the rest of `ui`'s layout.
 pub(crate) fn flow_room(ui: &Ui) -> Vec2 {
     let cell = Env::of(ui).grid.and_then(|body| Service::<Cursors>::of(ui.ctx()).with(|cursors| cursors.0.get(&body).map(Cursor::room)));
-    cell.unwrap_or_else(|| ui.available_size_before_wrap())
+    cell.unwrap_or_else(|| open_room(ui))
+}
+
+/// The rest of `ui`'s layout; unbounded along the axes of the scrolling body that encloses it, whose region is only
+/// as large as egui can make it.
+fn open_room(ui: &Ui) -> Vec2 {
+    let (x, y) = Env::of(ui).unbounded;
+    let room = ui.available_size_before_wrap();
+    Vec2::new(if x { f32::INFINITY } else { room.x }, if y { f32::INFINITY } else { room.y })
+}
+
+/// The room a child that fills its width fills in `ui`: `flow_room`, except that in a `Content` column of a `Grid` it
+/// is the column's width, so the child never measures as the room and pushes the next column out of it.
+pub(crate) fn flow_fill_room(ui: &Ui) -> Vec2 {
+    let cell = Env::of(ui).grid.and_then(|body| Service::<Cursors>::of(ui.ctx()).with(|cursors| cursors.0.get(&body).map(Cursor::fill_room)));
+    cell.unwrap_or_else(|| open_room(ui))
+}
+
+/// Whether the next child shown in flow in `ui` goes in a `Content` column of the `Grid` body that encloses `ui`
+/// directly: like a content-sized column, a child that fills its width is placed at its measured width there.
+pub(crate) fn in_grid_content_column(ui: &Ui) -> bool {
+    Env::of(ui).grid.is_some_and(|body| Service::<Cursors>::of(ui.ctx()).with(|cursors| cursors.0.get(&body).is_some_and(Cursor::in_content_column)))
 }
 
 /// The cell `place_in_flow` placed last in the `Grid` or spread `Row` body that encloses `ui` directly measured `size`

@@ -113,6 +113,22 @@ impl GridCursor {
         Vec2::new(width, (self.flow.rect().height() - top).max(0.0))
     }
 
+    /// The room the next child fills when it fills its width: its column's width, which for a `Content` column is the
+    /// width its cells have measured, not the room the cell measures in. A column no pass has measured yet offers 0,
+    /// so a filling child there takes its content width.
+    pub fn fill_room(&self) -> Vec2 {
+        let mut room = self.room();
+        if self.in_content_column() {
+            room.x = self.widths.get(self.next % self.columns.len().max(1)).copied().unwrap_or(0.0);
+        }
+        room
+    }
+
+    /// Whether the next child goes in a `Content` column.
+    pub fn in_content_column(&self) -> bool {
+        matches!(self.columns.get(self.next % self.columns.len().max(1)), Some(ColumnWidth::Content))
+    }
+
     /// The cell last placed measured `size` after all: its column and row record that, and a `Content` column offers
     /// the cells after it in this pass the wider width.
     pub fn widen(&mut self, size: Vec2) {

@@ -3,7 +3,7 @@
 use craft_behavior::CanvasView;
 use craft_behavior::canvas::zoom;
 use craft_behavior::kurbo::{Point, Size};
-use craft_ui::bars::{AlignBar, Bar, BarItem, BarItems, BarKind, DistributeButtons, StatusItem, StatusReadout, StatusValues};
+use craft_ui::bars::{AlignBar, Bar, BarItem, BarItems, BarKind, BreadcrumbBar, DistributeButtons, StatusItem, StatusReadout, StatusValues};
 use craft_ui::buttons::{Button, IconButton};
 use craft_ui::contract::{Bind, Entry, Politeness, Props as _, Role, Show as _, ShowContainer as _};
 use craft_ui::pickers::Select;
@@ -225,4 +225,20 @@ fn a_bar_leaves_the_room_under_it_to_what_follows() {
     let (bar, after) = (fixture.by_role(Role::GROUP).into_iter().next().expect("the bar is shown"), fixture.by_label("After").expect("shown"));
     assert!(after.rect.top() >= bar.rect.bottom(), "the control after the bar sits below it");
     assert!(after.rect.top() - bar.rect.bottom() < bar.rect.height(), "nothing but the column's gap separates them");
+}
+
+/// A child that fills its width in the bar's horizontally scrolling body takes its content width: the body's room is
+/// unbounded, not the largest extent egui can make.
+#[trial]
+fn a_filling_child_of_the_scrolling_body_measures_its_content() {
+    let crumbs: Vec<Entry<u8>> = ["photos", "2026", "trip"].iter().zip(0u8..).map(|(name, at)| Entry::new(at, (*name).to_owned())).collect();
+    let mut fixture = Fixture::new(move |ui| {
+        Bar::new("Options", BarKind::Options).show(ui, |ui, _| {
+            BreadcrumbBar::new("Path", &crumbs).show(ui);
+        });
+    });
+    fixture.room(Vec2::new(900.0, 80.0)).settle();
+    let path = fixture.by_label("Path").expect("the breadcrumb has a node");
+    let bar = fixture.by_role(Role::GROUP).into_iter().next().expect("the bar is shown");
+    assert!(path.rect.width() < bar.rect.width(), "the breadcrumb is as wide as its crumbs: {:?} in {:?}", path.rect, bar.rect);
 }

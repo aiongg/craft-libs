@@ -185,16 +185,18 @@ impl SideLabel {
     }
 }
 
-/// How a drag on the side label changes a control's value: the drag maths over the control's number.
+/// How a drag on the side label (or on the control itself) changes a control's value: the drag maths over the
+/// control's number.
 pub struct Scrub<V> {
     pub(crate) drag: ValueDrag,
+    pub(crate) on_field: bool,
     pub(crate) read: Arc<dyn Fn(&V) -> f64 + Send + Sync>,
     pub(crate) write: Arc<dyn Fn(f64) -> V + Send + Sync>,
 }
 
 impl<V> Clone for Scrub<V> {
     fn clone(&self) -> Self {
-        Scrub { drag: self.drag.clone(), read: Arc::clone(&self.read), write: Arc::clone(&self.write) }
+        Scrub { drag: self.drag.clone(), on_field: self.on_field, read: Arc::clone(&self.read), write: Arc::clone(&self.write) }
     }
 }
 
@@ -202,7 +204,15 @@ impl<V> Scrub<V> {
     /// A scrub by `drag`, reading the number a value holds with `read` and making a value of a number with `write`.
     /// Both may capture the control's decimals and step, so a scrubbed value is rounded the way the control rounds.
     pub fn new(drag: ValueDrag, read: impl Fn(&V) -> f64 + Send + Sync + 'static, write: impl Fn(f64) -> V + Send + Sync + 'static) -> Self {
-        Scrub { drag, read: Arc::new(read), write: Arc::new(write) }
+        Scrub { drag, on_field: false, read: Arc::new(read), write: Arc::new(write) }
+    }
+
+    /// The drag starts on the control itself instead of its side label, for a readout with no label. The control
+    /// must sense a drag.
+    #[must_use]
+    pub fn on_field(mut self) -> Self {
+        self.on_field = true;
+        self
     }
 }
 

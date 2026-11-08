@@ -100,6 +100,12 @@ pub(crate) trait ShapeHooks<C: Component> {
         comp.fills() == Some(craft_behavior::Axis::X)
     }
 
+    /// Whether the root fills the width alone: a root that fills both axes takes the room of a `Content` grid column
+    /// and sets its width.
+    fn fills_width_only(&self, comp: &C) -> bool {
+        comp.fills() == Some(craft_behavior::Axis::X)
+    }
+
     /// The root's sense, from the component's own `own`.
     fn sense(&self, _comp: &C, own: Sense) -> Sense {
         own
@@ -218,7 +224,7 @@ impl<C: Component> ShapeHooks<C> for LeafHooks {
     }
 
     fn sized(&self, comp: &C, ui: &Ui, size: Vec2) -> Vec2 {
-        let room = crate::layout::flow_room(ui);
+        let room = crate::layout::flow_fill_room(ui);
         let fill = |measured: f32, offered: f32| if offered.is_finite() { measured.max(offered) } else { measured };
         match comp.fills() {
             Some(craft_behavior::Axis::X) => Vec2::new(fill(size.x, room.x), size.y),
@@ -484,7 +490,10 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     let size = if ui.scope_id() == p.parent { p.size } else { p.hooks.sized(&*p.comp, ui, p.measured) };
     // In a content-sized column a fill-width child takes its measured width in the flow and shows across the width
     // the column settles on, so it never sets that width.
-    let held = !inert && matches!(at, ShowAt::Flow) && p.env.content_column && p.hooks.fills_width(&*p.comp);
+    let held = !inert
+        && matches!(at, ShowAt::Flow)
+        && ((p.env.content_column && p.hooks.fills_width(&*p.comp))
+            || (crate::layout::in_grid_content_column(ui) && p.hooks.fills_width_only(&*p.comp)));
     let rect = if held {
         let flowed = steps::place(ui, at, Vec2::new(p.measured.x.min(size.x), size.y));
         let across = Vec2::new(size.x.max(flowed.width()), flowed.height());
@@ -1021,5 +1030,5 @@ pub(crate) fn paint_face<C: Show>(ui: &mut Ui, source: &FaceSource<'_>, part: Pa
     // The face's own `access` adds its facts; the composite's step 16 fills the part's sub-node from the record.
     let mut access = super::Access::default();
     face.access(&mut access, &cx);
-    FaceRecord { part, name, flags, role: C::ROLE, numeric: access.numeric.take(), expanded: access.expanded }
+    FaceRecord { part, name, flags, role: C::ROLE, numeric: access.numeric.take(), expanded: access.expanded, enabled: step1.enabled }
 }

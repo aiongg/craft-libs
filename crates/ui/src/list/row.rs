@@ -16,6 +16,7 @@ use crate::contract::{
     Pointer as _, Props as _, Role, RowState, Show, Styled as _, WordSetCx as _,
 };
 use crate::controls::disclosure::Disclosure;
+use crate::display::Progress;
 use crate::primitives::{ContentPainterCx, Draw, HAlign, IconSpec, PaintShape, RuleKind, Span, StrokeWidth, TextRun, Wrap};
 use crate::runtime::commands::FireSource;
 use crate::runtime::env::{Label, WordTemplate};
@@ -252,7 +253,7 @@ pub(super) enum TrailingItem<'a> {
     /// An icon of the row's icon size, named for the screen reader and the tooltip.
     Icon { icon: IconSpec<'static>, name: Label },
     /// A pressable face of the row's icon size.
-    Part { part: TrailingPart, face: TrailingFace, name: Label },
+    Part { part: TrailingPart, face: TrailingFace, name: Label, enabled: bool },
     /// A component of its own, shown in a short field's width; its stop joins the row's group and it takes its own keys.
     Hosted(Option<HostedShow<'a>>),
 }
@@ -308,6 +309,11 @@ pub struct ListRow<'a> {
     #[style_key]
     #[prop]
     pub(super) striped: bool,
+    /// The type role of the label and the text cells; the weight of `strong` and `heading` when unset. A role taller
+    /// than a control makes the row as tall as its line.
+    #[style_key]
+    #[prop]
+    pub(super) role: Option<TypeRole>,
     /// The label in italics.
     #[prop]
     pub(super) italic: bool,
@@ -335,6 +341,11 @@ pub struct ListRow<'a> {
     /// wrapped lines.
     #[prop(into)]
     pub(super) lines: Option<Label>,
+    /// A progress bar under the label, `fraction` full (clamped to 0..=1), in a line of its own below the detail. The
+    /// row is one caption line taller than its detail makes it, so a list with fixed row heights adds one
+    /// (`ListRow::row_height` counts the detail only). A screen reader reads the percentage in the row's description.
+    #[prop(quantity = "fraction")]
+    pub(super) progress: Option<f32>,
     /// What a screen reader reads as the row's name when it differs from the drawn text.
     #[prop(into)]
     pub(super) accessible_name: Option<String>,
@@ -385,6 +396,7 @@ impl<'a> ListRow<'a> {
             tone: Tone::Neutral,
             layer: false,
             striped: false,
+            role: None,
             italic: false,
             highlight: false,
             clipped: false,
@@ -394,6 +406,7 @@ impl<'a> ListRow<'a> {
             leading_first: false,
             detail: None,
             lines: None,
+            progress: None,
             accessible_name: None,
             spacer: false,
             cells: Vec::new(),
@@ -551,7 +564,22 @@ impl<'a> ListRow<'a> {
             !self.trailing.iter().any(|held| matches!(&held.item, TrailingItem::Part { part: have, .. } if *have == part)),
             "trailing part {part:?} is already in the row"
         );
-        self.trailing.push(Trailing { item: TrailingItem::Part { part, face, name: name.into() }, optional: false });
+        self.trailing.push(Trailing { item: TrailingItem::Part { part, face, name: name.into(), enabled: true }, optional: false });
+        self
+    }
+
+    /// Sets whether the trailing part `part` acts. A disabled part is drawn disabled, takes no press and no focus, and
+    /// is exposed as disabled to a screen reader; it keeps its place in the row.
+    #[must_use]
+    pub fn trailing_enabled(mut self, part: TrailingPart, enabled: bool) -> Self {
+        let held = self.trailing.iter_mut().find_map(|trailing| match &mut trailing.item {
+            TrailingItem::Part { part: have, enabled, .. } if *have == part => Some(enabled),
+            _ => None,
+        });
+        debug_assert!(held.is_some(), "trailing part {part:?} is not in the row");
+        if let Some(held) = held {
+            *held = enabled;
+        }
         self
     }
 
@@ -583,6 +611,7 @@ const TOGGLE_CELL: PartKey = PartKey::new("toggle-cell");
 const LABEL_CELL: PartKey = PartKey::new("label-cell");
 const DISCLOSURE: PartKey = PartKey::new("disclosure");
 const LINK: PartKey = PartKey::new("link");
+const PROGRESS: PartKey = PartKey::new("progress");
 const TRAILING: PartKey = PartKey::new("trailing");
 const TRAILING_ICON: PartKey = PartKey::new("trailing-icon");
 const TRAILING_FIELD: PartKey = PartKey::new("trailing-field");
@@ -618,10 +647,9 @@ struct Sizes {
 }
 
 impl Sizes {
-    fn of(cx: &StyleCx<'_>, strong: bool) -> Sizes {
+    fn of(cx: &StyleCx<'_>, role: TypeRole) -> Sizes {
         let (control, tokens) = (cx.control(), cx.tokens);
         let thumbs = &tokens.size.thumb;
-        let role = if strong { TypeRole::BodyStrong } else { TypeRole::Body };
         Sizes {
             row: control.height,
             icon: control.icon,
@@ -754,14 +782,17 @@ fn flag_rules() -> [FlagRule; 3] {
     ]
 }
 
-/// The fill of a row of a list or a menu: the one surface, the active (lead) row included.
-pub(crate) fn row_surface(cx: &StyleCx<'_>) -> Stateful<StyleColor> {
-    fill_of(cx, FillKey { striped: false, layer: false, heading: false })
-}
+impl StyleCx<'_> {
+    /// The fill of a row of a list, a menu or any collection item: the one surface, the active (lead) row included.
+    pub fn row_surface(&self) -> Stateful<StyleColor> {
+        fill_of(self, FillKey { striped: false, layer: false, heading: false })
+    }
 
-/// The ink of a row's text or icon: `base`, and the theme's paired `text.on_selected` on the selection fills.
-pub(crate) fn row_ink(cx: &StyleCx<'_>, base: Rgba) -> Stateful<StyleColor> {
-    row_ink_of(cx, cx.color(base))
+    /// The ink of a collection item's text or icon: `base`, and the theme's paired `text.on_selected` on the
+    /// selection fills.
+    pub fn row_ink(&self, base: Rgba) -> Stateful<StyleColor> {
+        row_ink_of(self, self.color(base))
+    }
 }
 
 /// `row_ink` for a base that is already a style colour (a tone).
@@ -790,7 +821,7 @@ impl ListRow<'_> {
     /// The height of a row with a thumbnail of `thumb` and, if `detail`, a detail line, for the item layout of a
     /// list of such rows.
     pub fn row_height(cx: &StyleCx<'_>, thumb: ThumbSize, detail: bool) -> f32 {
-        Sizes::of(cx, false).height(thumb, detail)
+        Sizes::of(cx, TypeRole::Body).height(thumb, detail)
     }
 }
 
@@ -848,6 +879,16 @@ impl ListRow<'_> {
     fn thumb_size(&self, sizes: &Sizes) -> Vec2 {
         let side = sizes.side(self.thumb);
         Vec2::new(self.thumb_aspect.of(side), side)
+    }
+
+    /// The height of the progress line, a caption line at the bottom of the label band; 0 without progress.
+    fn progress_line(&self, sizes: &Sizes) -> f32 {
+        if self.progress.is_some() { sizes.detail_line } else { 0.0 }
+    }
+
+    /// The part of the label band the progress bar takes: its bottom line.
+    fn progress_band(&self, label: Rect, sizes: &Sizes) -> Rect {
+        Rect::from_x_y_ranges(label.x_range(), (label.bottom() - self.progress_line(sizes))..=label.bottom())
     }
 
     /// The levels of indent: a leaf inside a group indents one more level, past its parent's disclosure column.
@@ -1032,16 +1073,16 @@ impl Component for ListRow<'_> {
         if key.layer {
             surface = surface.border(Stateful::new(c(clear)).when(Flags::SELECTED, c(colors.accent.solid)), tokens.stroke.thin);
         }
-        let ink = |base: Rgba| row_ink(cx, base);
+        let ink = |base: Rgba| cx.row_ink(base);
         let base = match key.ink {
             RowInk::Normal => text.normal,
             RowInk::Muted => text.muted,
             RowInk::Dimmed => text.faint,
         };
         let weight = key.strong || key.heading;
-        let sizes = Sizes::of(cx, weight);
+        let role = key.role.unwrap_or(if weight { TypeRole::BodyStrong } else { TypeRole::Body });
+        let sizes = Sizes::of(cx, role);
         let muted = if key.ink == RowInk::Dimmed { text.faint } else { text.muted };
-        let role = if weight { TypeRole::BodyStrong } else { TypeRole::Body };
         ListRowStyle {
             surface,
             metrics: Metrics::new().min_size(Vec2::new(0.0, sizes.row)).gap(sizes.gap),
@@ -1082,8 +1123,8 @@ impl Component for ListRow<'_> {
             sizes.gap + cx.layout_at(&run, band).size().y
         });
         let detail = if self.detail_line() { sizes.detail_line } else { 0.0 };
-        let text = sizes.label_line + detail + wrapped;
-        let height = if self.lines.is_some() { height.max(text + sizes.gap) } else { height };
+        let text = sizes.label_line + detail + self.progress_line(sizes) + wrapped;
+        let height = if self.lines.is_some() || self.progress.is_some() { height.max(text + sizes.gap) } else { height.max(sizes.label_line) };
         let height = self
             .texts
             .iter()
@@ -1129,6 +1170,9 @@ impl Component for ListRow<'_> {
         if let Some(disclosure) = placed.disclosure {
             cx.part(DISCLOSURE, disclosure).sense(Sense::CLICK).pointer_only("Left and Right open and close the row");
         }
+        if self.progress.is_some() {
+            cx.part(PROGRESS, self.progress_band(placed.label, &cx.style.sizes));
+        }
         let mut focusable = false;
         for (at, (_, link)) in placed.extras.iter().enumerate() {
             if let Some(link) = link {
@@ -1149,9 +1193,12 @@ impl Component for ListRow<'_> {
                 TrailingItem::Icon { name, .. } => {
                     cx.part(TRAILING_ICON.at(at as u64), shape).tooltip(name.clone());
                 }
-                TrailingItem::Part { part, name, .. } => {
+                TrailingItem::Part { part, name, enabled: true, .. } => {
                     cx.part(TRAILING.at(u64::from(part.0)), shape).sense(Sense::CLICK | Sense::FOCUS).focusable().tooltip(name.clone());
                     focusable = true;
+                }
+                TrailingItem::Part { part, name, enabled: false, .. } => {
+                    cx.part(TRAILING.at(u64::from(part.0)), shape).tooltip(name.clone());
                 }
             }
         }
@@ -1229,8 +1276,15 @@ impl Component for ListRow<'_> {
             TrailingItem::Icon { name, .. } => Some(name.as_str().to_owned()),
             _ => None,
         });
-        let described: Vec<String> =
-            self.clipped.then(|| words.clipped.as_str().to_owned()).into_iter().chain(self.common.description.clone()).chain(icons).collect();
+        let percent = self.progress.map(|fraction| cx.format().percent(f64::from(Progress::clamped(fraction)), 0));
+        let described: Vec<String> = self
+            .clipped
+            .then(|| words.clipped.as_str().to_owned())
+            .into_iter()
+            .chain(self.common.description.clone())
+            .chain(percent)
+            .chain(icons)
+            .collect();
         if !described.is_empty() {
             access.description(described.join(", "));
         }
@@ -1282,7 +1336,7 @@ impl Component for ListRow<'_> {
                 TrailingItem::Icon { name, .. } => {
                     access.node(TRAILING_ICON.at(at as u64), Role::IMAGE).name = Name::Text(name.as_str().to_owned());
                 }
-                TrailingItem::Part { part, face, name } => {
+                TrailingItem::Part { part, face, name, .. } => {
                     let node = access.node(TRAILING.at(u64::from(part.0)), Role::BUTTON);
                     node.name = Name::Text(name.as_str().to_owned());
                     if let TrailingFace::Disclosure { open } = face {
@@ -1336,6 +1390,9 @@ impl Component for ListRow<'_> {
         }
         self.paint_thumbs(ui, cx, &placed, ink);
         self.paint_text(&ui.draw(), cx, placed.label);
+        if let Some(fraction) = self.progress {
+            ui.face(PROGRESS, Progress::new(fraction));
+        }
         self.paint_cells(&ui.draw(), cx, &placed);
         self.paint_trailing(ui, cx, &placed);
     }
@@ -1365,11 +1422,11 @@ impl ListRow<'_> {
                         show(ui, at, Rect::from_center_size(slot.center(), Vec2::new(slot.width(), cx.style.sizes.row)));
                     }
                 }
-                TrailingItem::Part { part, face, .. } => {
+                TrailingItem::Part { part, face, enabled, .. } => {
                     let key = TRAILING.at(u64::from(part.0));
                     match face {
-                        TrailingFace::Icon(icon) => ui.face(key, IconButton::new(icon.clone()).focusable(false)),
-                        TrailingFace::Disclosure { open } => ui.face(key, Disclosure::new(Bind::given(*open)).node(false)),
+                        TrailingFace::Icon(icon) => ui.face(key, IconButton::new(icon.clone()).focusable(false).enabled(*enabled)),
+                        TrailingFace::Disclosure { open } => ui.face(key, Disclosure::new(Bind::given(*open)).node(false).enabled(*enabled)),
                     }
                 }
             }
@@ -1443,6 +1500,7 @@ impl ListRow<'_> {
         let style = cx.style;
         let sizes = &style.sizes;
         let rtl = cx.env.direction().is_rtl();
+        let label = Rect::from_x_y_ranges(label.x_range(), label.top()..=label.bottom() - self.progress_line(sizes));
         let wrapped = self.lines.as_ref().map(|text| {
             let run = TextRun::new(text.as_str()).role(style.detail.role).color(cx.resolve(&style.detail.color)).wrap(Wrap::Wrap);
             draw.layout(&run, label.width())

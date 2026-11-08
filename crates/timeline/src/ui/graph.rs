@@ -16,7 +16,7 @@ use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pointer as _,
     Props, Role, Styled as _, WordSetCx as _,
 };
-use craft_ui::primitives::{GridInk, GridLines, IconSpec, PaintShape, RuleKind, StrokeWidth, TextRun};
+use craft_ui::primitives::{Dashes, GridInk, GridLines, IconSpec, PaintShape, RuleKind, StrokeWidth, TextRun};
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::focus::KeyUse;
 use craft_ui::style::{ComponentStyle, Flags, FocusLook, Resolve as _, State, StateMix, Stateful, States, StyleColor, StyleCx, TextLook, TypeRole};
@@ -937,7 +937,7 @@ impl Component for GraphEditor<'_> {
                     .iter()
                     .map(|&(time, value)| Pos2::new(x_of(time), plot.bottom() - ((value - low) / span) as f32 * (plot.height() - 2.0 * free) - free))
                     .collect();
-                painter.dashed(&points, style.line, style.dash, style.dash_gap, 0.0, ink);
+                painter.dashed(&points, style.line, Dashes::new(style.dash, style.dash_gap), ink);
             }
         }
 

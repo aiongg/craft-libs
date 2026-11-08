@@ -224,6 +224,7 @@ impl<'a> StyleCx<'a> {
         self.color(match ink {
             Ink::OnPanel => c.normal,
             Ink::OnDark => c.on_strong,
+            Ink::Accent => self.tokens.color.accent.text,
         })
     }
 

@@ -288,6 +288,7 @@ pub(crate) fn run(state: &mut TextState, mut input: AdapterIn<'_>) -> AdapterOut
         password: input.options.mask,
         hint: input.placeholder,
         mono: input.options.mono,
+        role: input.options.role,
         ink: input.ink,
         filter,
         char_limit: input.options.limit,

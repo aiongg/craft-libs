@@ -21,6 +21,7 @@ pub(crate) struct Edit<'a> {
     pub password: bool,
     pub hint: Option<&'a str>,
     pub mono: bool,
+    pub role: TypeRole,
     pub ink: Color32,
     pub filter: EventFilter,
     pub char_limit: Option<usize>,
@@ -57,6 +58,7 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
         password,
         hint,
         mono,
+        role,
         ink,
         filter,
         char_limit,
@@ -65,12 +67,12 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
         caret_visible,
         underline,
     } = edit;
-    // The same font and optical size as a label of the body role: one text path.
+    // The same font and optical size as a label of the same role: one text path.
     let env = crate::runtime::env::Env::of(ui);
     let tokens = &env.tokens;
     let facts = crate::fonts::stack_facts(ui.ctx());
-    let font_id = tokens.font(facts, TypeRole::Body, mono);
-    let optical_size = tokens.optical_size(facts, TypeRole::Body, mono);
+    let font_id = tokens.font(facts, role, mono);
+    let optical_size = tokens.optical_size(facts, role, mono);
     let had_focus = ui.memory(|memory| memory.has_focus(id));
     let entered = had_focus && ui.input(|input| input.key_pressed(egui::Key::Enter));
     let mut layouter = |ui: &Ui, text: &dyn egui::TextBuffer, wrap_width: f32| {

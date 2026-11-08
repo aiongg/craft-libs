@@ -107,6 +107,30 @@ fn a_press_on_a_trailing_part_reports_its_modifiers_and_keeps_the_selection() {
     assert_eq!(seen.selections.get(), 0);
 }
 
+/// A disabled trailing part is a disabled node: a press on it reports nothing, and Forward from the row does not
+/// enter it.
+#[trial]
+fn a_disabled_trailing_part_takes_no_press_and_no_focus() {
+    let (mut fixture, seen) = rig(|key| with_trailing(key).trailing_enabled(PART, false));
+    let part = fixture.by_label("Effects").expect("the part has a node");
+    assert!(fixture.tree().is_disabled_key(part.node), "the node is disabled");
+    fixture.click(&part);
+    assert!(seen.events.borrow().is_empty(), "{:?}", seen.events.borrow());
+    let row = on_a_row(&mut fixture);
+    fixture.key(Key::ArrowRight, Modifiers::NONE);
+    fixture.idle(2);
+    assert_eq!(fixture.focused_stop(), Some(row), "Forward finds no part to enter");
+}
+
+/// A progress row describes its percentage for a screen reader and keeps its label's room.
+#[trial]
+fn a_progress_row_describes_its_percentage() {
+    let (fixture, _) = rig(|key| ListRow::new(format!("Row {key}")).progress(0.42));
+    let row = fixture.by_label("Row 0").expect("the row has a node");
+    let described = fixture.tree().description_of(row.node).unwrap_or_default();
+    assert!(described.contains("42"), "{described:?}");
+}
+
 /// Tab into the list and down to its second row: the stop focus is on.
 fn on_a_row(fixture: &mut Fixture) -> (egui::Id, Option<craft_behavior::PartRef>) {
     fixture.key(Key::Tab, Modifiers::NONE);
