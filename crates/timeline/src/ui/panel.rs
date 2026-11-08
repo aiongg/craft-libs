@@ -244,6 +244,8 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
 struct Memory {
     /// The track whose label menu is open.
     label_menu: Option<TrackId>,
+    /// Whether that menu shows.
+    label_open: bool,
     /// Where the last pass's drag snapped, for the snap line over every pane.
     snapped: Option<Tick>,
     /// The rectangle of the marquee under way, for every pane to draw its part.
@@ -386,6 +388,7 @@ impl Mapping<'_> {
                     edits.extend(row.height.clone().map(|height| TimelineEdit::TrackHeight { track: *track, height }));
                     if row.label_menu {
                         memory.label_menu = Some(*track);
+                        memory.label_open = true;
                     }
                     if let Some(pointer) = row.pointer {
                         reports.drag = Some((*track, pointer));
@@ -412,7 +415,8 @@ impl Mapping<'_> {
         let Some(track) = memory.label_menu.and_then(|id| self.pane.iter().find(|track| track.id == id)) else { return };
         let current = track.label;
         let words = self.words;
-        let menu = Menu::context(words.track_color.clone(), anchor).show(ui, |ui, _| {
+        let mut open = memory.label_open;
+        let menu = Menu::context(words.track_color.clone(), anchor).open(Bind::bound(&mut open)).show(ui, |ui, _| {
             let mut chosen = None;
             if MenuItem::new(words.no_label.clone()).check(current.is_none()).show(ui).ran {
                 chosen = Some(None);
@@ -429,8 +433,10 @@ impl Mapping<'_> {
         if let Some(Some(label)) = menu.inner {
             edits.push(TimelineEdit::Label { track: track.id, label });
         }
+        memory.label_open = open;
         if menu.output.closed.is_some() {
             memory.label_menu = None;
+            memory.label_open = false;
         }
     }
 }
@@ -787,7 +793,7 @@ impl Component for Divider<'_> {
     }
 
     fn sense(&self) -> Sense {
-        Sense::DRAG
+        Sense::CLICK | Sense::DRAG
     }
 
     fn bind(&mut self) -> Option<BindMut<'_, f32>> {

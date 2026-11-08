@@ -30,6 +30,8 @@ const ROLL_SHARE: f32 = 0.5;
 
 /// The clip body of `CLIP.at(id)`; its start and end edges are `CLIP_START.at(id)` and `CLIP_END.at(id)`, which rank
 /// above the body.
+/// The empty space of the lane: it takes the clicks that clear the selection and the drags that sweep a marquee.
+const BACKDROP: PartKey = PartKey::new("laneBackdrop");
 pub const CLIP: PartKey = PartKey::new("clip");
 /// The start edge of the clip.
 pub const CLIP_START: PartKey = PartKey::new("clipStart");
@@ -331,6 +333,12 @@ impl<'a> ClipLane<'a> {
     pub fn parts<C: Component>(&self, lane: Rect, axis: &TimeAxis, look: &ClipLook, cx: &mut PartsCx<'_, C>) {
         let geometry = self.geometry(axis, lane, look);
         let sense = if self.locked { Sense::HOVER } else { Sense::CLICK | Sense::DRAG | Sense::CONTEXT_CLICK };
+        if !self.locked {
+            cx.part(BACKDROP, lane)
+                .sense(Sense::CLICK | Sense::DRAG)
+                .priority(HitPriority::new(HitLevel::Background, 0))
+                .pointer_only("the clips' own keys and the selection commands pick without the pointer");
+        }
         let trims = matches!(self.tool, TimelineTool::Selection | TimelineTool::Ripple | TimelineTool::Rolling | TimelineTool::RateStretch);
         for clip in self.clips {
             let Some(body) = geometry.body(clip) else { continue };
@@ -477,30 +485,28 @@ impl<'a> ClipLane<'a> {
     /// A drag from empty lane space sweeps a marquee (Shift adds, Cmd/Ctrl toggles, Alt subtracts); Esc restores the
     /// selection it started from.
     fn run_marquee<C: Component>(&self, cx: &mut Cx<'_, C>, geometry: &Lane<'_>, events: &mut ClipLaneEvents) {
-        let press = cx.press();
-        match press.phase {
-            PressPhase::DragStart { start, pos, .. }
-                if start.button == PointerButton::Primary
-                    && self.tool != TimelineTool::Razor
-                    && geometry.lane.contains(start.origin)
-                    && geometry.clip_at(start.origin.x).is_none() =>
+        let press = cx.part_if_declared(BACKDROP).map(|result| result.press);
+        match press.map(|press| press.phase) {
+            Some(PressPhase::DragStart { start, pos, .. })
+                if start.button == PointerButton::Primary && self.tool != TimelineTool::Razor && geometry.clip_at(start.origin.x).is_none() =>
             {
-                let mut marquee = MarqueeSelect::begin(start.origin, press.mods, self.selection.to_vec());
+                let mods = press.map_or(craft_keymap::Mods::NONE, |press| press.mods);
+                let mut marquee = MarqueeSelect::begin(start.origin, mods, self.selection.to_vec());
                 marquee.update(pos);
                 *cx.press_slot::<Sweep>() = Some(Sweep(marquee));
             }
-            PressPhase::Drag { pos, .. } => {
+            Some(PressPhase::Drag { pos, .. }) => {
                 if let Some(sweep) = cx.press_slot::<Sweep>().as_mut() {
                     sweep.0.update(pos);
                 }
             }
-            PressPhase::Release { pos, click: false, .. } => {
+            Some(PressPhase::Release { pos, click: false, .. }) => {
                 if let Some(sweep) = cx.press_slot::<Sweep>().as_mut() {
                     sweep.0.update(pos);
                     events.marquee_ended = true;
                 }
             }
-            PressPhase::Cancel { .. } => {
+            Some(PressPhase::Cancel { .. }) => {
                 if let Some(Sweep(marquee)) = cx.press_slot::<Sweep>().take() {
                     let base = marquee.cancel();
                     events.select = Some(if base.is_empty() { SelectionChange::Clear } else { SelectionChange::Set(base) });
@@ -538,10 +544,10 @@ impl<'a> ClipLane<'a> {
             events.unlinked = unlinked;
             return;
         }
-        let press = cx.press();
-        if let PressPhase::Release { pos, click: true, start, .. } = press.phase
+        let press = cx.part_if_declared(BACKDROP).map(|result| result.press);
+        if let Some(press) = press
+            && let PressPhase::Release { pos, click: true, start, .. } = press.phase
             && start.button == PointerButton::Primary
-            && geometry.lane.contains(pos)
             && geometry.clip_at(pos.x).is_none()
         {
             events.select = geometry.pick(self.selection, None, press.mods).0;

@@ -128,7 +128,7 @@ fn panel(locked: Vec<TrackId>, selection: Vec<ClipId>) -> (Fixture, Rc<RefCell<M
         }
         seen.edits.extend(out.edits);
     });
-    fixture.room(vec2(900.0, 560.0));
+    fixture.room(vec2(900.0, 700.0));
     fixture.settle();
     (fixture, model, seen)
 }
@@ -198,8 +198,9 @@ fn a_clip_dragged_to_another_track_of_its_kind_moves_there() {
     assert_eq!(committed(&seen.borrow()), Some((0, false)), "a video clip over an audio row stays");
 
     seen.borrow_mut().edits.clear();
-    drag_between(&mut fixture, alpha.center(), to(rows[0].top() - 6.0), |_| {});
-    assert_eq!(committed(&seen.borrow()), Some((0, true)), "above the top video track a drop adds one");
+    let beta = clip_rect(&fixture, "beta");
+    drag_between(&mut fixture, beta.center(), beta.center() + vec2(0.0, rows[2].bottom() + 6.0 - beta.center().y), |_| {});
+    assert_eq!(committed(&seen.borrow()), Some((0, true)), "below the last audio track a drop adds one");
 }
 
 /// A move onto a locked track is refused and stays on its track.

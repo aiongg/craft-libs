@@ -571,11 +571,6 @@ impl Component for TrackRow<'_> {
         self.row().size().max(Vec2::ZERO)
     }
 
-    /// The row's own presses: clicks and drags on the empty lane (the marquee) and the focus of the row.
-    fn sense(&self) -> Sense {
-        Sense::CLICK | Sense::DRAG | Sense::FOCUS
-    }
-
     fn bind(&mut self) -> Option<BindMut<'_, ClipEdit>> {
         Some(self.edit.reborrow())
     }
