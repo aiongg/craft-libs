@@ -252,18 +252,34 @@ impl LineIndex {
     /// The lines that intersect `from..to`, ascending. A hidden line inside the range is in the range and has no
     /// extent of its own; one at either end is not. Empty for an empty or reversed range and past the last line.
     pub fn span(&self, from: f64, to: f64) -> Range<u32> {
+        if from.is_nan() || to.is_nan() || to <= from {
+            return 0..0;
+        }
         let from = from.max(0.0);
-        if from.is_nan() || to.is_nan() || to <= from || from >= self.total() {
+        if from >= self.total() {
             return 0..0;
         }
         let first = self.at(from);
-        let last = if to >= self.total() {
-            self.count
-        } else {
-            let line = self.at(to);
-            if self.start(line) < to { line + 1 } else { line }
-        };
+        let last = self.starting_before(to);
         first..last.max(first)
+    }
+
+    /// The number of lines that start before `pos`.
+    fn starting_before(&self, pos: f64) -> u32 {
+        let after = self.lines.partition_point(|entry| entry.1 < pos);
+        let (first, first_start) = match after.checked_sub(1).and_then(|k| self.lines.get(k)) {
+            Some(&(line, start, size)) => (line + 1, start + size),
+            None => (0, 0.0),
+        };
+        if first_start >= pos {
+            return first;
+        }
+        let next = self.lines.get(after).map_or(self.count, |entry| entry.0);
+        if self.default <= 0.0 {
+            return next;
+        }
+        let between = ((pos - first_start) / self.default).ceil();
+        (f64::from(first) + between).min(f64::from(next)) as u32
     }
 
     /// The number of lines.
