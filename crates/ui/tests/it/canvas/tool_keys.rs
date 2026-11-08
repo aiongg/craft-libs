@@ -87,7 +87,7 @@ fn a_focused_field_beside_the_canvas_keeps_its_enter() {
         Stack::new().fill().show(ui, |ui, _| {
             TextField::new("Name", Bind::bound(&mut name)).show(ui);
             let canvas = Canvas::new("Document").show(ui, |_, _| {});
-            ToolHost::new().run(ui, &canvas.output, &mut *held.borrow_mut());
+            let _ = ToolHost::new().run(ui, &canvas.output, &mut *held.borrow_mut());
         });
     });
     fixture.settle();
