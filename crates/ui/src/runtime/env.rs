@@ -370,6 +370,9 @@ pub struct Scoped {
     /// The innermost scrolling body that encloses the scope: a collection under it owns no scroll of its own, and
     /// page and end moves a component leaves untaken go to it.
     pub(crate) scroll_owner: Option<Id>,
+    /// The axes (horizontal, vertical) the innermost scrolling body scrolls on: the room along them is unbounded, so
+    /// a child that fills there takes its content size.
+    pub(crate) unbounded: (bool, bool),
     /// The id of the collection item the scope shows: its root is not a Tab stop (17.3).
     pub(crate) item: Option<Id>,
     /// The roving group of the collection row the scope shows: the stops of its components and parts join it, so
@@ -505,6 +508,7 @@ impl Env {
                 grid: None,
                 content_column: false,
                 scroll_owner: None,
+                unbounded: (false, false),
                 item: None,
                 row: None,
                 item_facts: None,
@@ -561,6 +565,7 @@ impl Env {
             s.grid = None;
             s.content_column = false;
             s.scroll_owner = None;
+            s.unbounded = (false, false);
             s.item = None;
             s.row = None;
             s.item_facts = None;

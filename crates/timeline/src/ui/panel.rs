@@ -435,7 +435,7 @@ impl<M: TimelineModel> Timeline<'_, M> {
             let shown = area.show(ui, |ui, cx| {
                 TopStrip::new().show(ui, |ui, _| {
                     Stack::new().show(ui, |ui, _| {
-                        let field = TimecodeField::new(words.panel.clone(), Bind::given(playhead), format).show(ui);
+                        let field = TimecodeField::new(words.panel.clone(), Bind::given(playhead), format).large().show(ui);
                         timecode_edit = field.edit.event;
                         toolbar = toolbar_row(ui, &words, snap, linked_selection, markers, playhead);
                     });

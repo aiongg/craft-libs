@@ -730,8 +730,9 @@ fn scrub_warp<C: Component>(cx: &mut Cx<'_, C>, drag: &ValueDrag, pos: Pos2) -> 
     shift
 }
 
-/// Step 9, before the component: a drag on the side label scrubs the value of a component that opts in with
-/// `Component::scrub`. The control registers with its label scope so the label senses the drag from the next pass on.
+/// Step 9, before the component: a drag on the side label (or on the component itself, for a scrub that
+/// `Scrub::on_field` declares) scrubs the value of a component that opts in with `Component::scrub`. A label scrub
+/// registers the control with its label scope so the label senses the drag from the next pass on.
 pub(crate) fn scrub_by_label<C: Component>(comp: &C, cx: &mut Cx<'_, C>) {
     use super::cx::Edit as _;
     use craft_behavior::PressPhase;
@@ -739,11 +740,16 @@ pub(crate) fn scrub_by_label<C: Component>(comp: &C, cx: &mut Cx<'_, C>) {
         return;
     }
     let Some(scrub) = comp.scrub() else { return };
-    let Some(label) = scope::field_label(&cx.core.ctx) else { return };
-    scope::register_scrub(&cx.core.ctx);
+    let press = if scrub.on_field {
+        cx.core.press
+    } else {
+        let Some(label) = scope::field_label(&cx.core.ctx) else { return };
+        scope::register_scrub(&cx.core.ctx);
+        label.press
+    };
     let start_id = sub(cx.core.id, "scrub_start");
     let rtl = cx.core.env.direction().is_rtl();
-    match label.press.phase {
+    match press.phase {
         PressPhase::DragStart { .. } => {
             cx.core.memory.shown::<ScrubStart>(start_id).0 = cx.value().map_or(0.0, |value| (scrub.read)(value));
             *cx.core.memory.shown::<ScrubWarp>(sub(cx.core.id, "scrub_warp")) = ScrubWarp::default();
@@ -754,7 +760,7 @@ pub(crate) fn scrub_by_label<C: Component>(comp: &C, cx: &mut Cx<'_, C>) {
             hide_scrub_cursor(cx, &scrub.drag);
             let start = cx.core.memory.shown::<ScrubStart>(start_id).0;
             let shift = scrub_warp(cx, &scrub.drag, pos);
-            if let Some(next) = scrub.drag.value_shifted(start, &label.press, rtl, shift) {
+            if let Some(next) = scrub.drag.value_shifted(start, &press, rtl, shift) {
                 cx.propose((scrub.write)(next));
             }
         }
@@ -1334,7 +1340,7 @@ fn report_sub(core: &CxCore<'_>, input: &ReportIn<'_>, node: &SubNode, face: Opt
         component: "",
         node: &node,
         rect: result.map_or(core.rect, |result| result.rect),
-        enabled: core.resolved.enabled,
+        enabled: core.resolved.enabled && face.is_none_or(|face| face.enabled),
         focusable: takes_focus(core.resolved) && declared.is_some_and(|(_, extras)| extras.focusable),
         clickable: core.resolved.enabled && declared.is_some_and(|(decl, _)| decl.sense.contains(Sense::CLICK)),
         active: core.active == Some(node.part),

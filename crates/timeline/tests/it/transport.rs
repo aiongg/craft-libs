@@ -94,6 +94,22 @@ fn dragging_the_field_scrubs_a_frame_per_point() {
     assert!(rig.time.get() >= Tick::ZERO, "never before the sequence start");
 }
 
+/// The large readout has no side label: a drag on the field itself moves the time a frame per point.
+#[trial]
+fn dragging_the_large_readout_scrubs_a_frame_per_point() {
+    let time = Rc::new(Cell::new(secs(10.0)));
+    let shown = time.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let mut value = shown.get();
+        TimecodeField::new("Time", Bind::bound(&mut value), TimeFormat::timecode(rate())).large().show(ui);
+        shown.set(value);
+    });
+    fixture.settle();
+    let input = fixture.by_role(Role::SPIN_BUTTON).first().cloned().expect("the readout is a spin button");
+    fixture.drag(&input, vec2(10.0, 0.0));
+    assert_eq!(time.get(), rate().tick_of(250));
+}
+
 /// Typing +15 commits fifteen frames later and 00:00:20:00 commits twenty seconds; Escape commits nothing.
 #[trial]
 fn typing_commits_relative_and_absolute_times() {

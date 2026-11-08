@@ -1459,7 +1459,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 Vec2::new(if room.x.is_finite() { room.x } else { size.x }, if room.y.is_finite() { room.y } else { size.y })
             }
             Sizing::FillWidth => {
-                let room = crate::layout::flow_room(ui).x;
+                let room = crate::layout::flow_fill_room(ui).x;
                 Vec2::new(if room.is_finite() { size.x.max(room) } else { size.x }, size.y)
             }
             Sizing::Content => size,
@@ -1660,8 +1660,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 }
                 scoped.transform = props.transform;
                 scoped.content_column = content_column;
-                if scroll.is_some() {
+                if let Some(scroll) = scroll {
                     scoped.scroll_owner = Some(id);
+                    scoped.unbounded = (scroll.horizontal_on(), scroll.vertical_on());
                 }
             });
             let mut bcx = BodyCx::new(body_id, body_env.view(), resolved, body_rect, &mut *cx.core.memory, &mut open, gate.as_mut())
