@@ -314,11 +314,11 @@ status = "replaced"
 note = "The legacy zoom row (`navigator::zoom_row`): percent `NumberField`, `IconButton`s and a logarithmic `Slider` as children of a `Row`. `NavigatorZoomRow::new(Bind::bound(&mut view), document).navigation(options).show(ui)`."
 
 [[type]]
-name = "NavigatorZoomOutput"
+name = "NavigatorZoomRowOutput"
 old = ""
-new = "craft_ui::canvas::NavigatorZoomOutput"
+new = "craft_ui::canvas::NavigatorZoomRowOutput"
 status = "replaced"
-note = "`response`, `view` (the pass's `EditEvent<CanvasView>`) and `animate_zoom`."
+note = "`response`, `view` (the pass's `EditEvent<CanvasView>`) and `ease` (an `Option<ViewEase>`: a Zoom In or Zoom Out step with Animated Zoom on, not written to the bound view)."
 
 [[type]]
 name = "NavigatorCommands"

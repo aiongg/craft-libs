@@ -20,11 +20,9 @@ craft_ui::words! {
         scroll_vertical: "canvas.scrollVertical" = "Vertical scroll bar";
 
         // canvas-navigator-a
-        navigator_horizontal: "navigator.horizontal" = "Visible area horizontal position";
-        navigator_vertical: "navigator.vertical" = "Visible area vertical position";
-        navigator_zoom: "navigatorZoomRow.zoom" = "Zoom";
-        navigator_zoom_out: "navigatorZoomRow.zoomOut" = "Zoom Out";
-        navigator_zoom_in: "navigatorZoomRow.zoomIn" = "Zoom In";
+        navigator_horizontal: "canvas.navigatorHorizontal" = "Visible area horizontal position";
+        navigator_vertical: "canvas.navigatorVertical" = "Visible area vertical position";
+        navigator_zoom: "canvas.navigatorZoom" = "Zoom";
         navigator_options_title: "navigatorOptionsDialog.title" = "Navigator Panel Options";
         navigator_proxy_color: "navigatorOptionsDialog.proxyColor" = "Color";
         navigator_picker_title: "navigatorOptionsDialog.pickerTitle" = "Color Picker (Proxy Color)";
