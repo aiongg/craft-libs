@@ -7,11 +7,14 @@ use craft_browse::ui::compare::{ArrangeSpace, CompareCaption, CompareImage, Comp
 use craft_ui::contract::Bind;
 use craft_ui::patterns::form_dialogs::PreviewView;
 use craft_ui::primitives::textures::Revision;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{ColorImage, Rect, Vec2, pos2};
 
 const PICTURE: [u32; 2] = [480, 320];
 const PICTURE_GRAY: u8 = 128;
+/// Where the pan drag starts, right of the pane's centre, and how far it goes.
+const PAN_START: f32 = 40.0;
+const PAN_BY: f32 = 24.0;
 const SPACE: ArrangeSpace = ArrangeSpace::new(8.0, 4.0);
 
 /// A displacement or extent of the trial's room, named so a trial's geometry reads as inputs.
@@ -75,7 +78,14 @@ fn compare_tiles_share_zoom_and_pan() {
     fixture.settle();
     let zoomed = seen.borrow().view.clone();
     assert!(!zoomed.fit, "a double click shows 1:1");
-    fixture.drag(&select, offset(24.0, 0.0));
+    // The drag starts away from the double click, so it is a first press and not a third.
+    let from = select.center() + offset(PAN_START, 0.0);
+    fixture.frame(vec![pointer::moved(from)]);
+    fixture.frame(vec![pointer::press(from)]);
+    for step in 1..=4 {
+        fixture.frame(vec![pointer::moved(from + offset(PAN_BY * step as f32 / 4.0, 0.0))]);
+    }
+    fixture.frame(vec![pointer::release(from + offset(PAN_BY, 0.0))]);
     fixture.settle();
     let panned = seen.borrow().view.clone();
     assert_ne!(panned.transform.offset, zoomed.transform.offset, "a drag pans the shared view");

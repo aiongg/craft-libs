@@ -399,17 +399,3 @@ fn the_sorts_and_column_widths_are_saved() {
     let loaded: BinSettings = serde_json::from_str(&text).expect("the settings load");
     assert_eq!(loaded, settings);
 }
-
-#[trial]
-fn zz_probe() {
-    let mut bin = setup(false, |_| {});
-    let from = bin.rect("Beach.mov").center();
-    let to = bin.rect("Archive").center();
-    bin.fixture.frame(vec![pointer::moved(from)]);
-    bin.fixture.frame(vec![pointer::press(from)]);
-    for step in 1..=4 {
-        bin.fixture.frame(vec![pointer::moved(from + (to - from) * (step as f32 / 4.0))]);
-    }
-    bin.fixture.frame(vec![pointer::release(to)]);
-    panic!("probe");
-}
