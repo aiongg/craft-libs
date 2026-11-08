@@ -26,6 +26,7 @@ mod tool;
 
 pub use content::{ContentPainterCx, DocRun, DocText};
 pub use draw::{Draw, PaintShape, StrokeWidth};
+pub use faces::FacesCx;
 pub use focus_ring::{FocusKind, FocusRing};
 pub use handle::{Handle, HandleShape};
 pub use icon::{Glyph, IconSet, IconSource, IconSpec, Mirror, has_icon, icon_names};

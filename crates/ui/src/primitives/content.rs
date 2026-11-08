@@ -89,4 +89,3 @@ impl<'a> DocRun<'a> {
         DocRun { text, font, size, weight: 400, italic: false, color }
     }
 }
-
