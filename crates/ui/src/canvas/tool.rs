@@ -408,6 +408,16 @@ impl<'a> ToolContext<'a> {
         }
     }
 
+    /// The one reach source for tool handles and hit tests: how far from a handle, point or edge a press still takes
+    /// it, in screen points. The theme's `size.hit.target` for the pass; the default theme's for a context built
+    /// without an env.
+    pub fn reach(&self) -> f32 {
+        match self.env {
+            Some(env) => env.tokens.size.hit.target,
+            None => crate::runtime::frame::resolved_hit(&craft_theme::AppSizes::default()).target,
+        }
+    }
+
     /// The style context of a paint call, to pick the theme colours the tool draws its draft in
     /// ([`StyleCx::color`]) for [`Draw::fill`] and [`Draw::stroke`]; `None` in any other call.
     pub fn style(&self) -> Option<&StyleCx<'a>> {

@@ -277,7 +277,7 @@ pub fn set_input(ctx: &Context, input: FrameInput) {
 
 /// The tolerances the app's `sizes` give the default density: the built-in sets and the overrides apply in
 /// `craft_theme`'s resolve, whichever theme carries them.
-fn resolved_hit(sizes: &AppSizes) -> HitSizes {
+pub(crate) fn resolved_hit(sizes: &AppSizes) -> HitSizes {
     let appearance =
         Appearance { mode: Mode::Light, contrast: Contrast::Standard, size: Size::default(), text_size: TextSize::default(), reduced_motion: false };
     resolve_sized(suite_default_theme(), appearance, None, sizes).tokens.size.hit
