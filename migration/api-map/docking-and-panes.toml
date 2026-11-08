@@ -1029,7 +1029,7 @@ name = "DockAreaOutput"
 old = ""
 new = "craft_ui::patterns::dock::DockAreaOutput"
 status = "replaced"
-note = "Replaces the legacy `DockOutput`: `actions`, `events`, `focused` (the shown panel of the group that holds key focus), `picked` (the panel of the group clicked or picked this pass), `error`, `edit` (a divider's size edit as an edit of the workspace), `float_space` and `response`; forwarded input and files are the runtime's."
+note = "Replaces the legacy `DockOutput`: `actions`, `events`, `focused` (the shown panel of the group that holds key focus), `picked` (the panel whose tab was clicked or picked this pass), `error`, `edit` (a divider's size edit as an edit of the workspace), `float_space` and `response`; forwarded input and files are the runtime's."
 
 [[type]]
 name = "DockOutput"

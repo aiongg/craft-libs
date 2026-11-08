@@ -154,8 +154,6 @@ pub struct DockGroupOutput {
     pub item: Option<GroupItem>,
     /// The panel commands that reached the group's scope this pass, from a menu row, a key or the palette.
     pub commands: Vec<DockCommands>,
-    /// A press went down on the group's own surface (its header or body, not a control in it).
-    pub pressed: bool,
     /// The collapse arrow or a double click on the grip asked to minimize or expand the group.
     pub toggle_minimized: bool,
     /// A tab was dragged out of the dock's windows.
@@ -189,7 +187,6 @@ struct Reported {
     menu: Option<ContextMenuRequest<PanelKey>>,
     item: Option<GroupItem>,
     commands: Vec<DockCommands>,
-    pressed: bool,
     toggle_minimized: bool,
     torn_off: Option<TornOff<PanelKey>>,
     drag_started: bool,
@@ -281,13 +278,8 @@ impl<P: Clone + Hash + Send + Sync + 'static> Component for DockGroup<'_, P> {
         DockGroupStyle { metrics: Metrics::new(), header: sizes.strip, sizes }
     }
 
-    fn sense(&self) -> Sense {
-        Sense::CLICK
-    }
-
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         self.size = cx.rect.size();
-        self.reported.pressed = cx.press().went_down;
         let Some(dock) = self.dock else { return };
         let (rect, rtl, header) = (cx.rect, cx.flow.is_rtl(), cx.style.header);
         let strip = Rect::from_min_size(rect.min, Vec2::new(rect.width(), header));
@@ -302,8 +294,8 @@ impl<P: Clone + Hash + Send + Sync + 'static> Component for DockGroup<'_, P> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> DockGroupOutput {
-        let Reported { picked, closed, menu, item, commands, pressed, toggle_minimized, torn_off, drag_started } = self.reported;
-        DockGroupOutput { response: cx.response.clone(), picked, closed, menu, item, commands, pressed, toggle_minimized, torn_off, drag_started }
+        let Reported { picked, closed, menu, item, commands, toggle_minimized, torn_off, drag_started } = self.reported;
+        DockGroupOutput { response: cx.response.clone(), picked, closed, menu, item, commands, toggle_minimized, torn_off, drag_started }
     }
 }
 

@@ -51,7 +51,7 @@ pub struct DockAreaOutput<P> {
     pub events: Vec<DockEvent<P>>,
     /// The shown panel of the group that holds key focus: focus is on the group or on a control inside it.
     pub focused: Option<P>,
-    /// The panel of the group the user clicked or picked this pass: a tab pick, or a press on the group.
+    /// The panel whose tab the user clicked or picked this pass.
     pub picked: Option<P>,
     /// Why nothing was drawn, when the workspace is invalid.
     pub error: Option<InvalidGeometry>,
@@ -631,8 +631,6 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
         if let Some(panel) = output.picked.and_then(|key| scene.panel(key)) {
             self.report.actions.push(Action::activate(panel.clone()));
             self.report.picked = Some(panel.clone());
-        } else if output.pressed {
-            self.report.picked = Some(shown.clone());
         }
         if focus_within(ui.ctx(), output.response.id) {
             self.report.focused = Some(shown.clone());

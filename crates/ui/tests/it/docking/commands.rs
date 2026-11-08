@@ -14,6 +14,7 @@ use craft_ui::docking::{
 use craft_ui::patterns::dock::WorkspaceSwitcher;
 use craft_ui::runtime::commands::{CommandSet as _, CommandState};
 use craft_ui::runtime::frame::take_output;
+use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers, Pos2, Rect, Vec2};
 use std::cell::RefCell;
@@ -269,10 +270,10 @@ fn lock_picked_once_in_the_switcher_locks_the_set_of_a_host_that_binds_the_comma
     fixture.click(&select);
     fixture.idle(FADE_FRAMES);
     let more = fixture.by_label("More options").expect("the list has a header menu");
-    fixture.click(&more);
+    fixture.access(AccessActionKind::Click, &more);
     fixture.idle(FADE_FRAMES);
     let lock = fixture.by_label("Lock Workspace").expect("the header menu lists Lock Workspace");
-    fixture.click(&lock);
+    fixture.access(AccessActionKind::Click, &lock);
     fixture.idle(FADE_FRAMES);
     run_fired(&fixture, &set, &mut live);
     assert!(set.borrow().locked, "one pick of Lock runs the command once");
