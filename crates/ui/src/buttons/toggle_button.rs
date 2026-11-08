@@ -7,8 +7,11 @@ use crate::runtime::commands::CommandRef;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, FocusLook, IconLook, StyleCx, SurfaceLook, TextLook, TypeRole};
 use craft_behavior::{Metrics, Sense};
-use craft_theme::Variant;
+use craft_theme::{Flags, Mix as _, Variant};
 use egui::Vec2;
+
+/// How far between the off fill and the on fill a mixed value sits.
+const MIXED_SHARE: f32 = 0.5;
 
 /// The style of a toggle button.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
@@ -92,11 +95,13 @@ impl Component for ToggleButton<'_> {
         let control = cx.control();
         let (off, on) = (cx.variant_look(), face::on_parts(cx));
         let mut surface = face::surface(cx, &off);
-        surface.fill = off.fill.clone().on(on.fill.off);
+        // A mixed value sits between off and on: the fill halfway, the ink of the off look.
+        let mixed_fill = off.fill.off.rest.mix(on.fill.off.rest, MIXED_SHARE);
+        surface.fill = off.fill.clone().on(on.fill.off).when(Flags::MIXED, mixed_fill);
         surface.border = off.edge.clone().map(|edge| edge.on(on.edge.as_ref().map_or(on.fill.off, |edge| edge.off)));
         let (mut text, mut icon) = face::ink(cx);
-        text.color = text.color.on(on.text.off);
-        icon.color = icon.color.on(on.text.off);
+        text.color = text.color.on(on.text.off).when(Flags::MIXED, off.text.off.rest);
+        icon.color = icon.color.on(on.text.off).when(Flags::MIXED, off.text.off.rest);
         let metrics = if key.icon_only { Metrics::new().min_size(Vec2::splat(control.height)) } else { control.metrics() };
         ToggleButtonStyle { surface, metrics, focus: face::focus(cx), text, icon, face: FaceLook::of(cx) }
     }

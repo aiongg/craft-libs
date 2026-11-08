@@ -120,3 +120,44 @@ fn the_row_menu_cannot_delete_a_preset_can_delete_refuses() {
     let events = events_after_menu_delete("Coral");
     assert!(!events.iter().any(|event| matches!(event, PresetEvent::Delete(_))), "no delete was reported: {events:?}");
 }
+
+const NEW_PRESET: &str = "New preset…";
+const DETACH: &str = "Detach from preset";
+
+/// A picker with the two action rows; what the last pass reported.
+fn acting_picker() -> (Fixture, Rc<Cell<(bool, bool)>>) {
+    let reported = Rc::new(Cell::new((false, false)));
+    let seen = reported.clone();
+    let state = Rc::new(RefCell::new(PresetState::<u32>::new()));
+    let mut fixture = Fixture::new(move |ui| {
+        let mut held = Some(AMBER);
+        let rows = rows();
+        let mut view = state.borrow_mut();
+        let out =
+            PresetPicker::new("Swatch", Bind::bound(&mut held), &rows, Bind::bound(&mut *view)).create_row(NEW_PRESET).detach_row(DETACH).show(ui);
+        if out.create || out.detach {
+            seen.set((out.create, out.detach));
+        }
+    });
+    fixture.settle();
+    (fixture, reported)
+}
+
+/// The popover lists the presets, then the two action rows; a row reports once and closes the popover.
+#[trial]
+fn the_create_and_detach_rows_follow_the_presets_and_report() {
+    let (mut fixture, reported) = acting_picker();
+    open(&mut fixture);
+    let (coral, create, detach) = (fixture.by_label("Coral"), fixture.by_label(NEW_PRESET), fixture.by_label(DETACH));
+    let (coral, create, detach) = (coral.expect("a preset"), create.expect("the create row"), detach.expect("the detach row"));
+    assert!(coral.rect.max.y <= create.rect.min.y && create.rect.max.y <= detach.rect.min.y, "the presets, then create, then detach");
+    fixture.click(&create);
+    fixture.idle(3);
+    assert_eq!(reported.get(), (true, false), "the create row is reported alone");
+    assert!(fixture.by_label("Coral").is_none(), "the popover closed");
+    open(&mut fixture);
+    let detach = fixture.by_label(DETACH).expect("the detach row");
+    fixture.click(&detach);
+    fixture.idle(3);
+    assert_eq!(reported.get(), (false, true), "the detach row is reported alone");
+}

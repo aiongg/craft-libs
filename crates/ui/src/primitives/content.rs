@@ -1,5 +1,6 @@
 //! Content painters and document text.
 
+use super::draw::StrokeWidth;
 use super::text::{HAlign, TextLayout, aligned_rows};
 use crate::fonts::{FontRef, SEMIBOLD, stack_facts};
 use crate::runtime::egui::text_layout;
@@ -37,6 +38,12 @@ impl<'a> ContentPainterCx<'a> {
     /// text with.
     pub fn ink(&self) -> Color32 {
         ink_color(self.tokens, self.ink)
+    }
+
+    /// The width in points of a named stroke width on this display, as `Draw::stroke` strokes it: a content painter
+    /// that strokes with the raw painter takes its widths here, so a hairline stays one physical pixel.
+    pub fn stroke_width(&self, width: StrokeWidth) -> f32 {
+        width.points(self.tokens, self.painter.ctx().pixels_per_point())
     }
 
     /// The one sanctioned text layout for content painters: document runs with their own font, size and colour,

@@ -8,20 +8,24 @@ mod stories;
 
 use super::browser::PresetBrowser;
 use super::event::PresetEvent;
-use super::model::{CellShape, PresetRow};
+use super::model::{CellShape, PresetRow, ThumbInfo};
 use super::state::{DefaultOpen, PresetState, PresetView};
 use super::words::PresetWords;
+use crate::buttons::Button;
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx,
-    Props as _, Role, WordSetCx as _,
+    Props as _, Role, Show as _, WordSetCx as _, clicked,
 };
+use crate::display::Divider;
 use crate::list::RowTest;
 use crate::pickers::{SelectFace, toggle_on_key};
+use crate::primitives::ContentPainterCx;
 use crate::runtime::env::{EnvView, Label};
 use crate::runtime::memory::StageAccess;
 use crate::style::{ComponentStyle, FocusLook, StyleCx, SurfaceLook};
 use craft_behavior::{CancelReason, GesturePhase, HitLevel, HitPriority, Metrics, PartKey, Sense, Value};
-use egui::{Response, Vec2};
+use craft_theme::Variant;
+use egui::{Rect, Response, Vec2};
 use std::hash::Hash;
 
 /// The face under the whole field.
@@ -66,6 +70,10 @@ pub struct PresetPickerOutput<K> {
     /// What the browser in the popover reported besides the pick and the open groups: renames, deletes, the
     /// context menu's rows and the footer's buttons.
     pub events: Vec<PresetEvent<K>>,
+    /// The row `PresetPicker::create_row` added was chosen in this pass; the popover has closed.
+    pub create: bool,
+    /// The row `PresetPicker::detach_row` added was chosen in this pass; the popover has closed.
+    pub detach: bool,
 }
 
 impl<K: Value> Outcome for PresetPickerOutput<K> {
@@ -134,9 +142,22 @@ pub struct PresetPicker<'a, K: Value + Eq + Hash + 'static> {
     /// Shown instead of the current preset's name.
     #[prop(into)]
     display_name: Option<Label>,
+    /// The label of the row below the presets that creates a preset.
+    #[prop(into)]
+    create_row: Option<Label>,
+    /// The label of the row below the presets that detaches the value from its preset.
+    #[prop(into)]
+    detach_row: Option<Label>,
+    /// Paints the browser's thumbnails, over each row's own `preview`.
+    thumb: Option<ThumbFn<'a, K>>,
     picked: Option<K>,
+    create: bool,
+    detach: bool,
     events: Vec<PresetEvent<K>>,
 }
+
+/// Paints a preset's thumbnail in the popover: the content painter, the rect and what the browser knows of the preset.
+type ThumbFn<'a, K> = Box<dyn Fn(&ContentPainterCx, Rect, ThumbInfo<'_, K>) + 'a>;
 
 impl<'a, K: Value + Eq + Hash + 'static> PresetPicker<'a, K> {
     /// A picker named `label` over `value`, choosing among the presets of `rows`.
@@ -157,10 +178,23 @@ impl<'a, K: Value + Eq + Hash + 'static> PresetPicker<'a, K> {
             row_menu: true,
             placeholder: None,
             display_name: None,
+            create_row: None,
+            detach_row: None,
+            thumb: None,
             picked: None,
+            create: false,
+            detach: false,
             events: Vec::new(),
         }
         .label(label)
+    }
+
+    /// Paints the thumbnails of the popover's browser with `paint` (a swatch, a gradient ramp, a brush tip), in place
+    /// of each row's own `preview`.
+    #[must_use]
+    pub fn preview(mut self, paint: impl Fn(&ContentPainterCx, Rect, ThumbInfo<'_, K>) + 'a) -> Self {
+        self.thumb = Some(Box::new(paint));
+        self
     }
 
     /// The rows the picker chooses among.
@@ -273,6 +307,7 @@ impl<K: Value + Eq + Hash + 'static> Component for PresetPicker<'_, K> {
         let (can_rename, can_delete, can_move, row_menu) =
             (self.can_rename.as_ref(), self.can_delete.as_ref(), self.can_move.as_ref(), self.row_menu);
         let state = &mut self.state;
+        let (create_row, detach_row, thumb) = (self.create_row.as_ref(), self.detach_row.as_ref(), self.thumb.as_deref());
         let out = ui.show(popup, Overlay::popover(), |ui, _| {
             let mut browser = PresetBrowser::new(name.clone(), state.reborrowed(), rows)
                 .cell_shape(shape)
@@ -292,9 +327,29 @@ impl<K: Value + Eq + Hash + 'static> Component for PresetPicker<'_, K> {
             if let Some(test) = can_move {
                 browser = browser.can_move(|key| test.passes(key));
             }
-            browser.show(ui)
+            if let Some(paint) = thumb {
+                browser = browser.thumb(|cx, rect, info| paint(cx, rect, info));
+            }
+            let out = browser.show(ui);
+            // The actions follow the presets, set off by a separator, as the preset menu lists them.
+            let mut chosen = (false, false);
+            if create_row.is_some() || detach_row.is_some() {
+                Divider::horizontal().show(ui);
+            }
+            if let Some(label) = create_row {
+                chosen.0 = clicked(&Button::new(label.clone()).id_salt("create").variant(Variant::GHOST).show(ui));
+            }
+            if let Some(label) = detach_row {
+                chosen.1 = clicked(&Button::new(label.clone()).id_salt("detach").variant(Variant::GHOST).show(ui));
+            }
+            (out, chosen)
         });
-        let Some(out) = out else { return };
+        let Some((out, (create, detach))) = out else { return };
+        if create || detach {
+            self.create |= create;
+            self.detach |= detach;
+            popup.close(cx);
+        }
         let mut pick = None;
         for event in out.events {
             match event {
@@ -329,6 +384,6 @@ impl<K: Value + Eq + Hash + 'static> Component for PresetPicker<'_, K> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> PresetPickerOutput<K> {
-        PresetPickerOutput { edit: cx.edit_response(), picked: self.picked, events: self.events }
+        PresetPickerOutput { edit: cx.edit_response(), picked: self.picked, events: self.events, create: self.create, detach: self.detach }
     }
 }
