@@ -361,6 +361,11 @@ impl CanvasTool for FillCanvasTool<'_> {
     fn paint(&self, _: &Draw<'_>, _: &ToolContext<'_>) {}
 
     fn command_form(&self) -> ToolPath {
-        ToolPath::Freehand("none; a brush or lasso stroke follows the pointer")
+        match self.tool {
+            FillTool::SamplingBrush => ToolPath::Freehand("none; a sampling brush stroke follows the pointer"),
+            FillTool::Lasso => ToolPath::Freehand("none; a lasso stroke follows the pointer"),
+            FillTool::Hand => ToolPath::Command("the scroll keys and the scroll bars"),
+            FillTool::Zoom => ToolPath::Command("the Zoom In, Zoom Out and Fit commands"),
+        }
     }
 }

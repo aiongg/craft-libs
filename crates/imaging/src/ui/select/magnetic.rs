@@ -9,7 +9,7 @@ use egui::{CornerRadius, Pos2, Rect as ScreenRect, Vec2};
 use kurbo::Point;
 use serde::{Deserialize, Serialize};
 
-use super::lasso::{outline_access, reach};
+use super::lasso::{DraftKey, draft_command, outline_access, reach};
 use super::{Place, Report, SelectEvent, SelectPhase, SelectToolPass, SelectionProbe, SelectionShape};
 
 /// Where the magnetic lasso cursor's icon touches the document: the icon's own origin.
@@ -436,7 +436,8 @@ impl<T: EdgeTracer> CanvasTool for SelectToolPass<'_, MagneticLassoTool<T>> {
                 o.trail = o.path.last().copied().into_iter().collect();
             }
         }
-        if tool.outline.is_some() {
+        // Between presses only: a kept Escape would reach the tool as a chord instead of cancelling the press.
+        if tool.outline.as_ref().is_some_and(|o| !o.down) {
             cx.keep_keys();
         }
     }
@@ -519,8 +520,12 @@ impl<T: EdgeTracer> CanvasTool for SelectToolPass<'_, MagneticLassoTool<T>> {
     }
 
     /// Ends an Alt drag: where it stopped fastens.
-    fn release(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {
+    fn release(&mut self, _pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
         self.tool.end_gesture();
+        // The keyboard is kept from the pass the button came up in, not the one after it.
+        if self.tool.outline.is_some() {
+            cx.keep_keys();
+        }
     }
 
     /// Button-up moves follow the edges too.
@@ -547,18 +552,19 @@ impl<T: EdgeTracer> CanvasTool for SelectToolPass<'_, MagneticLassoTool<T>> {
     /// (the tool keeps them only while an outline is open).
     fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
         let tool = &mut *self.tool;
-        let none = cx.mods.is_none();
-        if tool.outline.is_some() {
-            match key {
-                ToolKey::Submit if none || cx.mods == Mods::ALT => {
-                    tool.close(cx.mods.alt);
+        if tool.outline.is_some()
+            && let Some((command, mods)) = draft_command(key, cx)
+        {
+            match command {
+                DraftKey::Close if mods.is_none() || mods == Mods::ALT => {
+                    tool.close(mods.alt);
                     return true;
                 }
-                ToolKey::Cancel => {
+                DraftKey::Cancel => {
                     tool.outline = None;
                     return true;
                 }
-                ToolKey::Delete { .. } if none => {
+                DraftKey::Retract if mods.is_none() => {
                     tool.remove_last_point();
                     return true;
                 }

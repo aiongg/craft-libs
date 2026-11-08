@@ -206,21 +206,21 @@ note = "The reach sizes are named constants of the tool and the trail colour is 
 name = "SelectMaskCommands"
 old = ""
 new = "craft_imaging::ui::select_mask::SelectMaskCommands"
-status = "moved"
+status = "replaced"
 note = "New command set (prefix `selectMask`, scope `selectMask`): the tool letters and the brush size keys, taken in the dialog's scope."
 
 [[type]]
 name = "EditPhase"
 old = ""
 new = "craft_imaging::ui::select_mask::EditPhase"
-status = "moved"
+status = "replaced"
 note = "New: the lifecycle of a tool edit or stroke in `SelectMaskEvent`."
 
 [[type]]
 name = "SelectMaskPreviewRequest"
 old = ""
 new = "craft_imaging::ui::select_mask::SelectMaskPreviewRequest"
-status = "moved"
+status = "replaced"
 note = "New: what `SelectMaskSource::preview_job` is asked for."
 
 [[type]]

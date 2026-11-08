@@ -248,7 +248,8 @@ fn liquify_brush_outline_follows_the_pointer_except_while_resizing() {
     let on = canvas_point(&fixture, Vec2::ZERO);
     fixture.frame(vec![pointer::moved(on)]);
     assert!(outline(&app), "the outline is the pointer over the canvas");
-    fixture.frame(vec![pointer::moved(Pos2::new(990.0, 10.0))]);
+    let canvas = fixture.by_role(Role::CANVAS).into_iter().next().expect("the workspace shows a canvas");
+    fixture.frame(vec![pointer::moved(canvas.rect.min - by(1.0, 1.0))]);
     assert!(!outline(&app), "no outline off the canvas");
 
     let anchor = on + by(20.0, 20.0);
@@ -331,7 +332,8 @@ fn liquify_undo_mid_stroke_cancels_the_stroke_then_steps() {
     let left = canvas_point(&fixture, by(-40.0, 0.0));
     drag(&mut fixture, primary, left, left + by(80.0, 10.0));
     assert_eq!(app.borrow().workspace.session().len(), 1);
-    open_stroke(&mut fixture, canvas_point(&fixture, by(0.0, 40.0)));
+    let below = canvas_point(&fixture, by(0.0, 40.0));
+    open_stroke(&mut fixture, below);
     app.borrow_mut().events.clear();
 
     assert!(app.borrow_mut().workspace.step(Step::Undo), "the step waits for the next pass");

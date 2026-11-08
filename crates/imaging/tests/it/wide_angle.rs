@@ -5,14 +5,15 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 
+use craft_behavior::PixelSize;
+use craft_behavior::edit_history::Step;
 use craft_behavior::kurbo::Point;
-use craft_behavior::{PixelSize, Step};
 use craft_imaging::ui::wide_angle::{
     ConstraintOrientation, PreviewDone, WideAngleConstraint, WideAngleGeometry, WideAngleOpen, WideAngleSession, WideAngleSource, WideAngleWorkspace,
 };
 use craft_ui::canvas::{PixelRect, RasterSource};
 use craft_ui::primitives::Revision;
-use craft_ui::runtime::Job;
+use craft_ui::runtime::pending::Job;
 use craft_ui::testing::relations::equals_token;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Color32, ColorImage, Event, Key, Modifiers, PointerButton, Pos2, Vec2};
@@ -182,7 +183,8 @@ fn the_context_menu_changes_a_constraints_orientation_or_deletes_it() {
     fixture.idle(2);
     assert_eq!(constraints(&app).iter().map(|c| c.orientation).collect::<Vec<_>>(), [ConstraintOrientation::Horizontal]);
 
-    right_click(&mut fixture, screen(&fixture, &app, [200.0, 40.0]));
+    let away = screen(&fixture, &app, [200.0, 40.0]);
+    right_click(&mut fixture, away);
     assert!(fixture.by_label("Horizontal").is_none(), "no menu away from a constraint");
 
     right_click(&mut fixture, on_line);

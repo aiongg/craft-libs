@@ -513,15 +513,11 @@ fn lasso_takes_retract_and_enter_only_while_an_outline_is_open() {
         click(&mut rig, point, Mods::ALT);
     }
     assert_eq!(rig.tool().phase(), SelectPhase::outline(3));
-    // Alt stays held through the key: a key press with Alt would announce it and release it again, closing the outline.
-    press_key(&mut rig, Key::Backspace, Modifiers::NONE);
-    assert_eq!(rig.tool().phase(), SelectPhase::outline(3), "Backspace with Alt is not a retract");
-    hold(&mut rig, Modifiers::NONE);
+    // Between Alt clicks the outline is open with the button up, so Alt is held through the retract.
     press_key(&mut rig, Key::Backspace, Modifiers::NONE);
     assert_eq!(rig.tool().phase(), SelectPhase::outline(2));
-    hold(&mut rig, Modifiers::ALT);
     click(&mut rig, (100.0, 150.0), Mods::ALT);
-    hold(&mut rig, Modifiers::NONE);
+    assert_eq!(rig.tool().phase(), SelectPhase::outline(3));
     press_key(&mut rig, Key::Enter, Modifiers::NONE);
     assert_eq!(rig.tool_mut().events(), [SelectEvent::commit(polygon(&[(50.0, 50.0), (150.0, 50.0), (100.0, 150.0)]), SelectionOperation::New)]);
 }
@@ -543,11 +539,7 @@ fn lasso_alt_release_and_double_click_close() {
     for point in [(50.0, 50.0), (150.0, 50.0), (150.0, 150.0)] {
         click(&mut rig, point, Mods::ALT);
     }
-    // Two presses with no clock time between them are a double click, which closes the outline.
-    for _ in 0..2 {
-        rig.press_at(at((100.0, 150.0)));
-        rig.release_at(at((100.0, 150.0)));
-    }
+    rig.double_press_at(at((100.0, 150.0)));
     let events = rig.tool_mut().events();
     assert_eq!(events.len(), 1, "{events:?}");
     assert!(matches!(&events[0], SelectEvent::Commit { shape: SelectionShape::Polygon(points), .. } if points.len() >= 3), "{events:?}");
