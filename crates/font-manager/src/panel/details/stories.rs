@@ -57,7 +57,7 @@ fn list(ui: &mut Ui, count: usize) -> StoryOutput {
     let catalog = story_catalog();
     let words = Env::of(ui).words::<DetailsWords>();
     let source = Lines(&lines);
-    StyleList::new("Styles")
+    StyleList::new("Styles", words.no_styles.clone())
         .show_items(ui, &source, &mut |key, _| {
             let line = &lines[*key];
             let face = match &line.face {

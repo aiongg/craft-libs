@@ -4,6 +4,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use craft_behavior::EditPolicy;
 use craft_font_catalog::{Limits, Os};
 use craft_font_manager::picker::{FontClass, FontFilters, FontPicker, FontPickerSettings, family_rows};
 use craft_font_manager::{Catalog, FontEnv, Source};
@@ -37,7 +38,10 @@ fn rig(family: &str, settings: FontPickerSettings, filters: FontFilters) -> (Fix
     let mut fixture = Fixture::new(move |ui| {
         let mut state = shown.borrow_mut();
         let State { catalog, family, settings, filters, picked, preview } = &mut *state;
-        let out = FontPicker::new("Font family", Bind::bound(family), catalog).settings(Bind::bound(settings)).filters(Bind::bound(filters)).show(ui);
+        let out = FontPicker::new("Font family", Bind::bound(family).policy(EditPolicy::OnCommit), catalog)
+            .settings(Bind::bound(settings))
+            .filters(Bind::bound(filters))
+            .show(ui);
         picked.extend(out.picked);
         *preview = out.preview;
     });
@@ -139,6 +143,8 @@ fn class_filter_and_clear_all() {
 #[trial]
 fn wheel_on_the_closed_field_steps_families() {
     let (mut fixture, state) = rig("Hack", FontPickerSettings::default(), FontFilters::default());
+    let field = fixture.by_role(Role::COMBO_BOX).first().copied().expect("the field");
+    fixture.frame(vec![pointer::moved(field.center())]);
     fixture.frame(vec![pointer::wheel_lines(-1.0)]);
     fixture.idle(3);
     assert_eq!(state.borrow().family, "Ubuntu");

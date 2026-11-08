@@ -6,6 +6,7 @@ use std::rc::Rc;
 use craft_behavior::EditEvent;
 use craft_font_manager::axes::{AxisSliders, AxisValues, FontAxis, NamedInstance, axis_label, matching_instance, read_axes, read_named_instances};
 use craft_ui::contract::{Bind, Role};
+use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers};
 
@@ -143,7 +144,7 @@ fn slider_drag_is_one_edit_and_instance_sets_all_axes() {
     let sliders = fixture.by_role(Role::SLIDER);
     assert_eq!(sliders.len(), 2, "the hidden axis has no row");
 
-    fixture.click(&sliders[0]);
+    fixture.access(AccessActionKind::Focus, &sliders[0]);
     fixture.key(Key::ArrowRight, Modifiers::NONE);
     fixture.idle(3);
     let weight = state.borrow().values.iter().find(|(t, _)| *t == WGHT).map(|v| v.1);

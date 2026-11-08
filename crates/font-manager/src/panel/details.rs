@@ -83,6 +83,8 @@ craft_ui::words! {
         scripts: "fontDetails.scripts" = "Scripts";
         /// `{n}` styles, all installed.
         styles_installed: count "fontDetails.stylesInstalled" = "{n} style installed" | "{n} styles installed";
+        /// The empty list of styles.
+        no_styles: "fontDetails.noStyles" = "No styles";
         /// `{n}` styles.
         styles: count "fontDetails.styles" = "{n} style" | "{n} styles";
         /// `{n}` languages.
@@ -477,7 +479,7 @@ impl Sheet {
         let heading = if installed == self.lines.len() { words.styles_installed.text(total, &count) } else { words.styles.text(total, &count) };
         Text::new(heading).shade(Shade::Faint).show(ui);
         let source = Lines(&self.lines);
-        let out = StyleList::new(self.title.clone()).show_items(ui, &source, &mut |key, _| {
+        let out = StyleList::new(self.title.clone(), words.no_styles.clone()).show_items(ui, &source, &mut |key, _| {
             let line = &self.lines[*key];
             let face = match &line.face {
                 Some((owner, face)) => {

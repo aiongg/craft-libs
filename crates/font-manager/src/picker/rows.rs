@@ -7,6 +7,7 @@ use std::hash::{Hash, Hasher};
 use craft_behavior::{DisplayOrder, IconId, ItemSource, Selection};
 use craft_ui::buttons::{Button, ToggleButton};
 use craft_ui::choice::{Radio, RadioGroup};
+use craft_ui::contract::overlay::Dismiss;
 use craft_ui::contract::{
     Bind, CollectionEvent, Cx, Edit as _, Overlay, OverlayUi, Overlays as _, Props as _, Remember as _, Show as _, ShowCollection as _,
     ShowContainer as _, WordSetCx as _, clicked,
@@ -182,7 +183,7 @@ pub(super) fn popup<'a>(picker: &mut FontPicker<'a>, ui: &mut OverlayUi<'_>, cx:
     }
     let name = words.list.clone();
     let mut stars: Vec<(String, bool)> = Vec::new();
-    let events = ui.show(popup, Overlay::dropdown(), |ui, _| {
+    let events = ui.show(popup, Overlay::dropdown().dismiss(Dismiss::new()), |ui, _| {
         let mut events = Vec::new();
         Stack::new().show(ui, |ui, _| {
             if let Some(filters) = filters.as_mut() {
@@ -215,7 +216,8 @@ pub(super) fn popup<'a>(picker: &mut FontPicker<'a>, ui: &mut OverlayUi<'_>, cx:
                         &mut |key, _| match &slots[*key] {
                             Slot::Gap => ListRow::spacer(),
                             Slot::Family(row) => {
-                                let (icon, name) = if row.starred { ("star_filled", words.unstar.clone()) } else { ("star", words.star.clone()) };
+                                let icon = if row.starred { "star_filled" } else { "star" };
+                                let name = Label::from(words.favorite.fill(&[("row", row.shown.as_str())]));
                                 let star = TrailingFace::Icon(IconSpec::svg(IconId::new(icon)));
                                 let line = ListRow::new(row.shown.clone()).option().trailing_part(STAR, star, name);
                                 let line = match row.class {

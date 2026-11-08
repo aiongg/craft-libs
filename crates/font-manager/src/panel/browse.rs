@@ -13,8 +13,8 @@ use craft_theme::variant::{Emphasis, Tone};
 use craft_ui::buttons::{Button, Link};
 use craft_ui::choice::{Checkbox, Radio, RadioGroup};
 use craft_ui::contract::{
-    ActivateOn, Bind, BodyCx, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Entry,
-    FieldLayout, ItemOutput, MeasureCx, NoValue, Outcome, PartsCx, Props as _, Role, Scroll, SelectMode, Show as _, ShowCollection as _,
+    Access, ActivateOn, Bind, BodyCx, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Entry,
+    FieldLayout, ItemOutput, MeasureCx, Name, NoValue, Outcome, PartsCx, Props as _, Role, Scroll, SelectMode, Show as _, ShowCollection as _,
     ShowContainer as _, SideLabel, Sizing, Styled as _, clicked,
 };
 use craft_ui::display::{Badge, Progress, Shade, Spinner, Text};
@@ -438,6 +438,11 @@ impl Component for FamilyCard {
             gap: cx.tokens.space.gap.inline,
             line: cx.control().height,
         }
+    }
+
+    /// The card is named by its family and its meta line, which the layout may elide.
+    fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
+        access.name(Name::Text(format!("{}, {}", self.data.name, self.data.meta)));
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
