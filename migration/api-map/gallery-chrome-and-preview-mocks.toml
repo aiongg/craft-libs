@@ -182,8 +182,15 @@ status = "removed"
 note = "The panel pages Layers, Properties, Swatches, Channels, History and Adjustments are deleted as pages. The dock shows the layer list (a `Table` with a name and a visibility column) and the Navigator panel; each other panel is a story of its family component."
 
 [[type]]
-name = "Document"
+name = "Doc"
 old = "craft_ui_gallery_legacy::preview::model::Doc"
+new = ""
+status = "removed"
+note = "Replaced by the mock's `Document`."
+
+[[type]]
+name = "Document"
+old = ""
 new = "craft_ui_gallery::mock::Document"
 status = "replaced"
 note = "The open document of the mock: title, dirty flag, size, layers (top first), the layer selection whose lead is the current layer, the canvas view (a never-shown view opens fitted; the canvas sets its rect), ruler zero and unit, guides, the Marquee selection and drag, and the rulers flag, which the canvas's `show_rulers` follows. `resize(PixelSize)` applies the Image Size answer."
@@ -238,8 +245,15 @@ status = "replaced"
 note = "The app commands of the menus (File, Image, Layer, Filter, View > Rulers, Window): rows are `MenuItem::command` and the window body takes them with `take_command`."
 
 [[type]]
-name = "ColorPair"
+name = "Colors"
 old = "craft_ui_gallery_legacy::preview::model::Colors"
+new = ""
+status = "removed"
+note = "Replaced by the mock's `ColorPair`."
+
+[[type]]
+name = "ColorPair"
+old = ""
 new = "craft_ui_gallery::mock::ColorPair"
 status = "replaced"
 note = "The foreground and background colours, as 24-bit values; `swap` and `reset`."
