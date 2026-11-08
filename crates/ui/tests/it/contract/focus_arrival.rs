@@ -1,6 +1,6 @@
 //! `Focus::focus_arrived`: the part focus moved onto in this frame.
 
-use super::kit::FixedStyle;
+use super::kit::PlainStyle;
 use craft_behavior::{Input, NavShape, PartKey, PartRef, Roving, Sense};
 use craft_ui::contract::{Common, Component, Cx, Focus as _, MeasureCx, PartsCx, Props as _, Role, Show as _};
 use craft_ui::runtime::focus::KeyUse;
@@ -23,11 +23,11 @@ struct Pair<'a> {
 impl Component for Pair<'_> {
     const ROLE: Role = Role::RADIO_GROUP;
     const KEYS: KeyUse = KeyUse::of(Input::Pointer);
-    type Style = FixedStyle;
+    type Style = PlainStyle;
     type Output = Response;
 
-    fn style(_: &craft_ui::style::StyleCx<'_>, _: PairStyleKey) -> FixedStyle {
-        FixedStyle::default()
+    fn style(_: &craft_ui::style::StyleCx<'_>, _: PairStyleKey) -> PlainStyle {
+        PlainStyle::default()
     }
 
     fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {

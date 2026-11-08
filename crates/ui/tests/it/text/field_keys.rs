@@ -14,7 +14,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 /// A field with `build`'s options, focused, holding "hi": the text it shows and the modifiers of the last submit.
-fn focused_field(os: Os, build: fn(TextField<'_>) -> TextField<'_>) -> (Fixture, Rc<RefCell<String>>, Rc<Cell<Option<Mods>>>) {
+fn focused_field(os: Os, build: impl for<'a> Fn(TextField<'a>) -> TextField<'a> + 'static) -> (Fixture, Rc<RefCell<String>>, Rc<Cell<Option<Mods>>>) {
     let text = Rc::new(RefCell::new("hi".to_owned()));
     let submitted = Rc::new(Cell::new(None));
     let (shown, seen) = (text.clone(), submitted.clone());
@@ -32,7 +32,7 @@ fn focused_field(os: Os, build: fn(TextField<'_>) -> TextField<'_>) -> (Fixture,
 /// Enter and Shift+Enter submit a single-line field and report the modifiers of the Enter; the text stays.
 #[trial]
 fn shift_enter_submits_a_single_line_field_and_reports_its_modifiers() {
-    let (mut fixture, text, submitted) = focused_field(Os::Linux, TextField::submits);
+    let (mut fixture, text, submitted) = focused_field(Os::Linux, |field| field.submits());
     fixture.key(Key::Enter, Modifiers::SHIFT).idle(3);
     assert_eq!(submitted.get().map(|mods| mods.shift), Some(true), "Shift+Enter submits and reports Shift");
     submitted.set(None);
