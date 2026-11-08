@@ -150,7 +150,7 @@ fn a_tinted_button_reports_clicks_and_its_label_reads_on_the_tint() {
     let clicks = Rc::new(Cell::new(0));
     let seen = clicks.clone();
     let mut show = move |ui: &mut egui::Ui| {
-        if Button::new("Play").tint(tint).show(ui).clicked() {
+        if craft_ui::testing::contract::clicked(&Button::new("Play").tint(tint).show(ui)) {
             seen.set(seen.get() + 1);
         }
     };
