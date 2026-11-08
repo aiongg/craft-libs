@@ -9,6 +9,7 @@ use crate::runtime::env::Env;
 use crate::runtime::focus::{self, KeyUse, StopRec};
 use crate::runtime::frame::{ChromeToggle, PerViewport, request_chrome_toggle};
 use crate::runtime::overlay;
+use crate::runtime::sampler;
 use craft_behavior::focus::key_owner;
 use craft_behavior::focus::{EscapeFacts, EscapeStep, escape_step};
 use craft_behavior::keys;
@@ -375,9 +376,12 @@ mod trials;
 /// whether it removed an event, so the hook asks for a repaint.
 pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
     let viewport = input.viewport_id;
+    // A modal layer in this viewport leaves the canvas it keeps open its view, not its presses (`runtime::sampler`).
+    sampler::bar_presses(ctx, input);
     // A modal layer in another viewport blocks this one (app-modal, 15.5): nothing below reaches the key stage.
     if overlay::modal_elsewhere(ctx, viewport) {
-        let (removed, press) = raw_input::drop_under_modal(input);
+        let pointer = ctx.input(|state| state.pointer.latest_pos());
+        let (removed, press) = raw_input::drop_under_modal(input, sampler::hole(ctx, viewport), pointer);
         if press {
             overlay::note_dropped_press(ctx, viewport);
         }
