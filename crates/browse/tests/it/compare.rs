@@ -3,7 +3,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use craft_browse::ui::compare::{ArrangeSpace, CompareCaption, CompareImage, ComparePair, CompareTile, RenderState, survey_columns};
+use craft_browse::ui::compare::{ArrangeSpace, CompareCaption, CompareImage, ComparePair, CompareTile, RenderState, survey_cell, survey_columns};
 use craft_ui::contract::Bind;
 use craft_ui::patterns::form_dialogs::PreviewView;
 use craft_ui::primitives::textures::Revision;
@@ -143,6 +143,27 @@ fn survey_columns_maximise_the_tile() {
     assert_eq!(survey_columns(1, wide, ASPECT), 1);
     assert!(survey_columns(6, wide, ASPECT) > survey_columns(6, tall, ASPECT), "a wide area takes more columns than a tall one");
     assert_eq!(survey_columns(0, wide, ASPECT), 1, "no tiles still gives one column");
+}
+
+/// A two-row survey puts tile 0 at the top left, and at the top right in a right-to-left interface.
+#[trial]
+fn survey_cells_mirror_in_a_right_to_left_interface() {
+    const ASPECT: f32 = 1.5;
+    let area = Rect::from_min_size(pos2(10.0, 20.0), offset(400.0, 600.0));
+    assert_eq!(survey_columns(2, area, ASPECT), 1, "a tall area stacks two tiles in two rows");
+    let (first, second) = (survey_cell(2, 0, area, ASPECT, false), survey_cell(2, 1, area, ASPECT, false));
+    assert_eq!((first.min, second.min.y > first.min.y), (area.min, true), "tile 0 is at the top, tile 1 below it");
+    let mirrored = survey_cell(2, 0, area, ASPECT, true);
+    assert_eq!(mirrored.max.x, area.max.x, "tile 0 sits at the right edge when reading right to left");
+    assert_eq!(mirrored.min.y, area.min.y);
+    let wide = Rect::from_min_size(pos2(0.0, 0.0), offset(900.0, 300.0));
+    let columns = survey_columns(4, wide, ASPECT);
+    assert!(columns > 1);
+    assert_eq!(survey_cell(4, 0, wide, ASPECT, true).max.x, wide.max.x);
+    assert!(
+        survey_cell(4, 1, wide, ASPECT, true).max.x < survey_cell(4, 0, wide, ASPECT, true).min.x + 0.01,
+        "tile 1 follows tile 0 toward the left"
+    );
 }
 
 /// The two panes are equal and mirror in a right-to-left interface.

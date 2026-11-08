@@ -14,6 +14,7 @@ use craft_docpath::links::{FakeLinkFiles, Link, LinkStatus, identity_of};
 use craft_host::{AppInfo, FileError, Files, Host, Jobs, ManualJobs, PickId, PickKind, PickRequest, Picked};
 use craft_ui::contract::Bind;
 use craft_ui::dialog::{DialogResult, DialogStack, StackDialog as _};
+use craft_ui::display::Text;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers};
 
@@ -400,4 +401,25 @@ fn a_rows_status_is_in_its_name() {
     for name in ["a.png, Page 2, Missing", "b.png, Modified", "c.png", "e.png, Embedded"] {
         assert!(fx.by_label(name).is_some(), "no row named `{name}`");
     }
+}
+
+/// The Link Info section shows the host's info rows: the footer runs in a sizing pass first and must leave them for the
+/// shown pass.
+#[trial]
+fn the_link_info_section_shows_its_rows() {
+    let links = vec![link(0, "a.png", None, false)];
+    let statuses = HashMap::from([(0, LinkStatus::Ok)]);
+    let mut state = LinkListState::default();
+    state.settings.info_open = true;
+    let state = RefCell::new(state);
+    let mut fx = Fixture::new(move |ui| {
+        let mut state = state.borrow_mut();
+        LinkList::new("Links", &links, &statuses, Bind::bound(&mut *state))
+            .info(|ui| {
+                Text::new("/shoot/cover.psd").show(ui);
+            })
+            .show(ui);
+    });
+    fx.room(room_of(360.0, 320.0)).settle();
+    assert!(fx.texts().iter().any(|text| text.text == "/shoot/cover.psd"), "the info rows are painted");
 }

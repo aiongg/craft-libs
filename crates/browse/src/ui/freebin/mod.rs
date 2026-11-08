@@ -193,7 +193,12 @@ impl<'a, K: TextureKey> FreeBin<'a, K> {
         let stored: HashMap<&K, &FreeformCard<K>> =
             if self.flow_all { HashMap::new() } else { self.cards.iter().map(|card| (&card.key, card)).collect() };
         let rtl = cx.direction.is_rtl();
-        let mut unplaced = 0usize;
+        // A card without a place takes the next cell of the flow that no placed card covers (Finder).
+        let occupied: Vec<Rect> = stored.values().map(|card| Rect::from_min_size(pos2(card.pos.x, card.pos.y), cell)).collect();
+        let flow_cell = |place: usize| {
+            vec2(style.gap + (place % columns) as f32 * (cell.x + style.gap), style.gap + (place / columns) as f32 * (cell.y + style.gap))
+        };
+        let mut next_cell = 0usize;
         let mut slots = Vec::with_capacity(source.len());
         let mut rects = Vec::with_capacity(source.len());
         for at in 0..source.len() {
@@ -201,11 +206,13 @@ impl<'a, K: TextureKey> FreeBin<'a, K> {
             let card = stored.get(&key).copied();
             let pos = match card {
                 Some(card) => card.pos,
-                None => {
-                    let place = unplaced;
-                    unplaced += 1;
-                    vec2(style.gap + (place % columns) as f32 * (cell.x + style.gap), style.gap + (place / columns) as f32 * (cell.y + style.gap))
-                }
+                None => loop {
+                    let at = flow_cell(next_cell);
+                    next_cell += 1;
+                    if !occupied.iter().any(|taken| taken.intersects(Rect::from_min_size(pos2(at.x, at.y), cell))) {
+                        break at;
+                    }
+                },
             };
             let shown = match &self.moving {
                 Some(live) if live.keys.contains(&key) => pos + live.by,

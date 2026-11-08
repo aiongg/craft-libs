@@ -12,7 +12,7 @@ use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use craft_ui::tile_grid::TileFlag;
 use egui::{ColorImage, Rect, Ui, Vec2, pos2, vec2};
 
-use super::{ArrangeSpace, CompareCaption, CompareImage, ComparePair, CompareTile, RenderState, survey_columns};
+use super::{ArrangeSpace, CompareCaption, CompareImage, ComparePair, CompareTile, RenderState, survey_cell};
 
 /// The share of the room's width the narrow tile takes: too little for the caption's file name.
 const NARROW_SHARE: f32 = 0.4;
@@ -121,14 +121,9 @@ fn compare_survey(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let rtl = Env::of(ui).view().direction().is_rtl();
     filling(ui, |ui, area| {
         let view = data.value("view", PreviewView::fitting());
-        let columns = survey_columns(COUNT, area, ASPECT);
-        let rows = COUNT.div_ceil(columns);
-        let cell = vec2(area.width() / columns as f32, area.height() / rows as f32);
         let mut outs = Vec::new();
         for at in 0..COUNT {
-            let column = (at % columns) as f32;
-            let x = if rtl { area.max.x - cell.x * (column + 1.0) } else { area.min.x + cell.x * column };
-            let rect = Rect::from_min_size(pos2(x, area.min.y + cell.y * (at / columns) as f32), cell);
+            let rect = survey_cell(COUNT, at, area, ASPECT, rtl);
             let hue = at as f32 / COUNT as f32;
             let name = format!("IMG_{at:04}.jpg");
             let out = CompareTile::new(name.clone(), Bind::bound(view), image(at as u64, hue))

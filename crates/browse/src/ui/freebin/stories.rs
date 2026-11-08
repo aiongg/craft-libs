@@ -39,13 +39,12 @@ fn bin(ui: &mut Ui, bin: FreeBin<'_, usize>, count: usize) -> StoryOutput {
 fn free_bin(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let room = ui.max_rect().size();
     let at = |x: f32, y: f32| room * vec2(x, y);
-    // Every card has its own place, so none is stacked over another by the flow; the second row lies below the first.
+    // Four cards have a place; the fifth has none and takes the first free cell of the flow, the second row lies below the first.
     let cards = [
         FreeformCard::new(0, at(0.06, 0.08)).in_stack(1),
         FreeformCard::new(1, at(0.12, 0.13)).in_stack(1),
         FreeformCard::new(2, at(0.55, 0.08)),
         FreeformCard::new(3, at(0.06, 0.55)),
-        FreeformCard::new(4, at(0.55, 0.55)),
     ];
     bin(ui, FreeBin::new("Footage", &cards), 5)
 }
