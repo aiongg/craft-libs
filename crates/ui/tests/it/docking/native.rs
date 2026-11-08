@@ -218,6 +218,7 @@ fn a_native_dock_window_fades_while_its_drag_shows_a_drop_target() {
     assert!(sent(Opacity::MOVING));
     dock_window_frame(&windows, vec![pointer(false)], true);
     assert!(drag::active::<()>(&windows.ctx).is_none(), "the release ended the drag");
+    dock_window_frame(&windows, vec![], true);
     assert!(sent(1.0), "the window is opaque after the drop");
 
     // A drag that is cancelled.

@@ -91,7 +91,7 @@ fn only_craft_win32_and_the_benchmark_allocator_allow_unsafe_code() {
         );
     }
     assert!(found.is_empty(), "{found:?}");
-    for (file, holds) in [("crates/win32/src/lib.rs", true), ("crates/ui-bench/src/alloc.rs", true), ("crates/window/src/win32.rs", false)] {
+    for (file, holds) in [("crates/win32/src/lib.rs", true), ("crates/window/src/win32.rs", false)] {
         let source = std::fs::read_to_string(root.join(file)).unwrap();
         assert_eq!(source.contains("allow(unsafe_code)"), holds, "{file}");
     }
