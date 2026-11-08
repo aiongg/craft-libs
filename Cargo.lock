@@ -1258,7 +1258,7 @@ dependencies = [
  "craft-i18n",
  "craft-settings",
  "craft-theme",
- "craft-ui-legacy",
+ "craft-ui",
  "egui",
  "egui_kittest",
  "kurbo 0.13.1",

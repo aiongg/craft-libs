@@ -1,0 +1,60 @@
+//! Stories of the gradient overlay.
+
+use craft_behavior::CanvasView;
+use craft_behavior::kurbo::Point;
+use craft_theme::Srgba;
+use craft_ui::canvas::Canvas;
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::testing::{StoryData, StoryOutput, story};
+use egui::Ui;
+
+use super::GradientOverlay;
+use crate::ui::gradient::{ColorStop, GradientEditor, GradientExtent, GradientLine, GradientStops, LineGradient, StopRef};
+
+fn gradient() -> LineGradient {
+    let stop = |location, r, g, b| ColorStop::new(location, Srgba { r, g, b, a: 1.0 });
+    LineGradient {
+        line: GradientLine { start: Point::new(60.0, 120.0), end: Point::new(260.0, 120.0) },
+        stops: GradientStops::new(vec![stop(0.0, 0.1, 0.1, 0.9), stop(0.5, 0.9, 0.9, 0.2), stop(1.0, 0.9, 0.1, 0.1)]),
+    }
+}
+
+/// Shows `overlay` as the only canvas control of a canvas whose view is the room it is given.
+fn on_canvas(ui: &mut Ui, overlay: impl FnOnce(&mut Ui, egui::Rect) -> craft_ui::contract::EditResponse<LineGradient>) {
+    let room = ui.available_rect_before_wrap();
+    let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
+    Canvas::new("Document").view(view).show(ui, |ui, body| overlay(ui, body.rect));
+}
+
+#[story(GradientOverlay<'static>, covers = [Default])]
+fn gradient_overlay(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let value = data.value("gradient", gradient());
+    let selected = data.value("selected", Some(StopRef::Color(1)));
+    on_canvas(ui, |ui, at| GradientOverlay::new("Gradient", Bind::bound(&mut *value)).selected(Bind::bound(&mut *selected)).show_at(ui, at).edit);
+    StoryOutput::default()
+}
+
+#[story(GradientOverlay<'static>, covers = [Default])]
+fn gradient_overlay_extent(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let value = data.value("gradient", gradient());
+    on_canvas(ui, |ui, at| GradientOverlay::new("Gradient", Bind::bound(&mut *value)).extent(GradientExtent::Circle).reverse().show_at(ui, at).edit);
+    StoryOutput::default()
+}
+
+#[story(GradientOverlay<'static>, covers = [Default])]
+fn gradient_overlay_mirror(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let value = data.value("gradient", gradient());
+    on_canvas(ui, |ui, at| GradientOverlay::new("Gradient", Bind::bound(&mut *value)).extent(GradientExtent::Mirror).show_at(ui, at).edit);
+    StoryOutput::default()
+}
+
+#[story(GradientOverlay<'static>, covers = [Default])]
+fn gradient_overlay_shared(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let value = data.value("gradient", gradient());
+    let selected = data.value("selected", Some(StopRef::Color(0)));
+    let mut stops = value.stops.clone();
+    GradientEditor::new("Stops", Bind::bound(&mut stops)).selected(Bind::bound(&mut *selected)).show(ui);
+    value.stops = stops;
+    on_canvas(ui, |ui, at| GradientOverlay::new("Gradient", Bind::bound(&mut *value)).selected(Bind::bound(&mut *selected)).show_at(ui, at).edit);
+    StoryOutput::default()
+}

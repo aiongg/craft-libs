@@ -1,38 +1,37 @@
-//! [`GradientOverlay`]: a gradient drawn on the canvas as PhotoCraft's live Gradient tool draws
-//! it, a line between a start and an end handle with the colour stops and midpoint diamonds on it.
+//! [`GradientOverlay`]: a gradient drawn on the canvas as the live Gradient tool draws it, a line between a start and an
+//! end handle with the colour stops and midpoint diamonds on it. A canvas control (20.6): every part is in the canvas's
+//! arena, so a press on a part stays with the overlay and one elsewhere reaches the canvas's tool.
 
 mod keys;
-#[cfg(test)]
-mod order_tests;
 mod parts;
 mod pointer;
-pub use pointer::{ColorRequest, LinePress, LineRelease, LineTrack, TaggedStop};
-#[cfg(test)]
-mod share_tests;
-pub(crate) mod story;
-#[cfg(test)]
-mod tests;
+#[cfg(feature = "screen-testing")]
+mod stories;
 
-use std::f32::consts::FRAC_PI_2;
+use std::sync::Arc;
 
-use egui::{AsIdSalt, Color32, Context, CursorIcon, Id, IdSalt, Key, Modifiers, Painter, Pos2, Response, Shape, Stroke, Ui, vec2};
-use kurbo::Point;
+use craft_behavior::kurbo::Point;
+use craft_behavior::{EditEvent, GestureId, Metrics, Mixed};
+use craft_keymap::{Chord, Key, Mods};
+use craft_ui::canvas::{canvas_snap, canvas_space};
+use craft_ui::contract::{
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pointer as _,
+    Props as _, Remember as _, Role, Styled as _, WordSetCx as _,
+};
+use craft_ui::primitives::{Dashes, PaintShape, StrokeWidth};
+use craft_ui::runtime::env::Label;
+use craft_ui::runtime::focus::KeyUse;
+use craft_ui::style::{ComponentStyle, DataColor, HandleLook, StyleColor, StyleCx};
+use egui::{Color32, Pos2, Rect, Response, Vec2, vec2};
 
 use super::gradient_line::{at_screen, midpoint_location};
-use super::{GradientExtent, GradientLine, LineGradient, LinePart};
-use crate::ui::gradient::{GradientEditor, GradientLabels, GradientStops, Sampler, StopRef, StopRow, StopRows, StopRules, default_sampler};
-use craft_ui::behavior::{ClaimedKey, KeyClaim};
-use craft_ui::canvas::{CanvasView, Claim, PartFocus, RulerUnits};
-use craft_ui::edit::{EditEvent, EditPolicy, Gesture};
-use craft_ui::localized::{Labels, LocaleNumbers};
-use craft_ui::primitives::FocusRing;
-use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use super::marker_texts;
+use super::{GradientExtent, GradientStops, GradientWords, LineGradient, LinePart, Sampler, StopColor, StopRef, StopRow, StopRows, StopRules};
+use parts::{END, LINE, MIDPOINT, START, STOP, line_part};
 
 craft_ui::words! {
-    /// The names a screen reader reads for the overlay's group and parts. `Default` is English; a
-    /// host passes its own translated text, or `GradientLineNames::of(ui)` for the words installed
-    /// in the context.
-    pub struct GradientLineNames {
+    /// The names a screen reader reads for the overlay's group and parts.
+    pub struct GradientLineWords {
         /// The group.
         group: "gradient.group" = "Gradient";
         /// The line between the handles.
@@ -41,639 +40,401 @@ craft_ui::words! {
         start: "gradient.start" = "Start point";
         /// The end handle.
         end: "gradient.end" = "End point";
+        /// An end handle's value. `{x}` and `{y}` stand for its coordinates in the canvas's units.
+        point_value: template "gradient.pointValue" = "{x}, {y}";
+        /// The group's value when the host gives none. `{n}` stands for the number of colour stops.
+        stops: count "gradient.lineStops" = "{n} stop" | "{n} stops";
     }
 }
 
-/// A gradient line's look and reach, from [`GradientOverlay::style`].
-#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) const ENTER: Chord = Chord::plain(Key::Enter);
+pub(super) const SPACE: Chord = Chord::plain(Key::Space);
+pub(super) const INSERT: Chord = Chord::plain(Key::Insert);
+pub(super) const CMD_ENTER: Chord = Chord::new(Mods::CMD, Key::Enter);
+
+/// Keys the focused overlay keeps from the app's shortcuts: Insert and Cmd/Ctrl+Enter add a stop.
+const CLAIMS: &[Chord] = &[INSERT, CMD_ENTER];
+
+/// The style of the gradient overlay.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
-pub struct GradientLineStyle {
-    /// The line and the circle and square extents: `line` of `overlay.handle_fill`.
-    pub line: Stroke,
-    /// The outline each side of those: `halo` of `overlay.halo`.
-    pub halo: Stroke,
-    /// Dash and gap of the mirrored extent.
-    pub dash: (f32, f32),
+pub struct GradientOverlayStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+    /// The end handles' look.
+    handle: HandleLook,
+    /// The line, the extent and the rings.
+    line: StyleColor,
+    /// The outline beside the line and under the rings.
+    halo: StyleColor,
+    /// The selected stop's ring, the selected diamond's fill and a picked end's ring.
+    selected: StyleColor,
+    /// The fill under a stop's colour where the colour has opacity.
+    backing: StyleColor,
+    /// Length of a dash of the mirrored extent.
+    dash: f32,
+    /// Length of the gap between dashes of the mirrored extent.
+    gap: f32,
     /// Radius of an end handle's ring.
-    pub end_ring: f32,
-    /// An end handle's ring: `end_width` of `overlay.handle_fill`.
-    pub end: Stroke,
-    /// The outline each side of the ring: `end_halo` of `overlay.halo`.
-    pub end_halo: Stroke,
+    end_radius: f32,
     /// Radius of a colour stop's disc.
-    pub stop: f32,
-    /// The ring just outside the disc: `stop_ring` of `overlay.handle_fill`.
-    pub stop_ring: Stroke,
-    /// The 1 pt ring outside that: `stroke.thin` of `overlay.halo`.
-    pub stop_halo: Stroke,
+    stop_radius: f32,
     /// Radius of a midpoint's diamond.
-    pub diamond: f32,
-    /// A diamond's fill: `overlay.handle_fill`.
-    pub diamond_fill: Color32,
-    /// A diamond's outline: `stroke.thin` of `overlay.halo`.
-    pub diamond_halo: Stroke,
-    /// The selected stop's ring and the selected diamond's fill: `overlay.handle_stroke`.
-    pub selected: Color32,
-    /// The fill under a stop's colour where the colour has opacity: `overlay.handle_fill`.
-    pub backing: Color32,
-    /// Distance from a part within which the pointer takes it.
-    pub hit: f32,
-    /// Farthest a press may move and still be a click.
-    pub click_slop: f32,
+    diamond_radius: f32,
     /// Distance from the line past which a dragged stop is torn off.
-    pub tear_off: f32,
-    /// The lines beside the picked line and the ring round a picked part: the focus ring's stroke.
-    pub focus: Stroke,
-    /// Under each focus line, so it reads on any image: `overlay.halo`, `stroke.thin` wider than
-    /// the line on each side.
-    pub focus_halo: Stroke,
-    /// From the line's edge to the focus lines: the focus ring's offset.
-    pub focus_offset: f32,
+    tear_off: f32,
 }
 
-/// What the pointer is over or doing, for the host's cursor ([`GradientOverlay::cursor`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum LineCursor {
-    /// Over a part a press would take.
-    Hover(LinePart),
-    /// Dragging a part (an Alt copy: the stop it copies).
-    Drag(LinePart),
-    /// Dragging a stop torn off the line: the release removes it.
-    TornOff,
-}
+/// Distance in points from the line at which a dragged stop is torn off.
+const TEAR_OFF: f32 = 36.0;
 
-/// The host's snapping of a dragged end or of the line's start ([`GradientOverlay::snap`]).
-type Snap<'a> = Box<dyn Fn(LinePart, Point, Modifiers) -> Point + 'a>;
-
-/// The host's cursors ([`GradientOverlay::cursor`]).
-type Cursor<'a> = Box<dyn Fn(LineCursor) -> CursorIcon + 'a>;
-
-/// A gradient's line over a canvas: the line between its handles, the circle, square or mirrored
-/// half its style adds, and the colour stops and midpoint diamonds on it, as PhotoCraft's Gradient
-/// tool draws them. The host holds the gradient and passes the line and stops each frame.
+/// A gradient's line over a canvas: the line between its handles, the circle, square or mirrored half its style adds,
+/// and the colour stops and midpoint diamonds on it, as the live Gradient tool draws them. The host holds the
+/// gradient and passes the line and stops as the value.
 ///
-/// ```
-/// use craft_draw::ui::{GradientLine, GradientLineNames, GradientOverlay};
-/// use craft_ui::canvas::{CanvasView, kurbo::Point};
-/// use craft_draw::ui::{ColorStop, GradientStops};
-/// use craft_theme::Srgba;
-/// # egui::__run_test_ui(|ui| {
-/// let (rect, canvas) = ui.allocate_exact_size(egui::vec2(400.0, 300.0), egui::Sense::click_and_drag());
-/// let view = CanvasView::new(rect, Point::new(200.0, 150.0), 1.0);
-/// let line = GradientLine { start: Point::new(120.0, 150.0), end: Point::new(280.0, 150.0) };
-/// let stops = GradientStops {
-///     color: vec![ColorStop::new(0.0, Srgba::BLACK), ColorStop::new(1.0, Srgba::WHITE)],
-///     opacity: vec![],
-/// };
-/// let names = GradientLineNames { group: "Gradient".into(), line: "Gradient line".into(), start: "Start point".into(), end: "End point".into() };
-/// GradientOverlay::new("gradient", &line, &stops, names).show(ui, &canvas, &view);
-/// # });
-/// ```
-///
-/// - Look: a 1.5 pt `overlay.handle_fill` line over an `overlay.halo` outline, the extent in the
-///   line's style (the mirrored half dashed, no outline), rings at the ends, a disc in each stop's
-///   colour with a ring round it, and a diamond between stops. Drawn in that order, so a stop at
-///   an end sits inside its ring. Points go through the view, so a rotated, flipped or stretched
-///   view draws the line where the document has it.
-/// - Under [`StopRows::Split`] and [`StopRows::ColorOnly`] a stop's disc is opaque; under [`StopRows::Combined`] its colour
-///   shows its opacity over a white backing.
-/// - With [`reverse`](Self::reverse) location `t` is drawn at `1 − t` from the start.
-/// - The selected stop or midpoint ([`select`](Self::select)) is drawn with its ring or fill in
-///   `overlay.handle_stroke`, whether or not the overlay has focus.
-/// - Nothing mirrors in a right-to-left interface: the line is the document's.
-///
-/// Pointer (PhotoCraft's live Gradient tool, VectorCraft where PhotoCraft has none):
-///
-/// - The overlay senses through the host's canvas response and takes a press on one of its parts
-///   with [`Claim`], before the host's guides and tool. A press off every part, or
-///   with ⌘ (Ctrl) held, is the host's.
-/// - Parts within `hit` of the pointer, in this order: the end handle, the start
-///   handle, the nearest stop, the nearest midpoint, the line.
-/// - A drag begins past `click_slop`. An end follows the pointer (⇧: 45° steps from
-///   [`angle_base`](Self::angle_base) about the other end); the line moves both ends; a stop moves
-///   to the location under the pointer and is torn off (removed while its row is above
-///   `rules.min`) more than `tear_off` from the line; a midpoint moves within its
-///   segment. Alt drags a copy of a stop with [`alt_copies`](Self::alt_copies). Every update is
-///   the whole edit of the gradient at the press, so a stop torn off and brought back is as it
-///   was.
-/// - A press on a stop or midpoint selects it; the selection follows a dragged stop. A click on the
-///   line adds a colour stop there and selects it. A double-click on a stop, or on an end handle
-///   for the stop at that end, asks for its colour ([`color_requested`](GradientOverlayResponse::color_requested)).
-///   A secondary click reports the part as [`context`](GradientOverlayResponse::context).
-/// - Esc during a drag cancels it; the rest of the press does nothing.
-/// - A press while another control's typing run has the focus (the panel's Location field) waits
-///   for the run's Commit and begins from the value it left. When the host ends the overlay's drag
-///   for another control's change, the drag goes on in the same pass from the host's value, its stop at the pointer, in a
-///   gesture of its own.
-///
-/// Keys (one Tab stop through [`PartFocus`]; the release of a press on a part gives the group
-/// focus too):
-///
-/// - Page Down and Page Up pick the next and previous part, Home and End the first and last: the
-///   line, the start, the stops and midpoints in location order, the end. Picking a stop or
-///   midpoint selects it; a handle or the line keeps the selection. The picked end is drawn
-///   selected.
-/// - Left and Right move a picked stop or midpoint by 1 %, 10 % with Shift, Left always lowering
-///   the location; Up and Down are the host's. The arrows move a picked end, or the line (with
-///   nothing picked too), by 1 document unit, 10 with Shift. Delete and Backspace remove a stop,
-///   Insert and Cmd/Ctrl+Enter add one halfway after the picked stop, and the stop that takes
-///   the picked index or the new stop is picked and selected. Enter and Space on a colour stop
-///   or an end set [`color_requested`](GradientOverlayResponse::color_requested). Esc cancels a
-///   drag and is otherwise the host's. Every key needs exactly its modifiers. Each change is one
+/// - Look: the line over its halo, the extent in the line's style (the mirrored half dashed, no halo), rings at the ends,
+///   a disc in each stop's colour with a ring round it, and a diamond between stops. Points go through the canvas's
+///   view, so a rotated, flipped or stretched view draws the line where the document has it. Under
+///   [`StopRows::Split`] and [`StopRows::ColorOnly`] a stop's disc is opaque; under [`StopRows::Combined`] its colour
+///   shows its opacity over a backing. Nothing mirrors in a right-to-left interface.
+/// - Pointer: the end, start, nearest stop, nearest midpoint and the line are parts in that priority. A drag begins past
+///   the click slop. An end follows the pointer (Shift: 45 degree steps from [`angle_base`](Self::angle_base) about the
+///   other end), the line moves both ends, a stop moves to the location under the pointer and is torn off, removed when
+///   the drag ends there, more than the style's tear-off distance from the line while its row is above `rules.min`, a
+///   midpoint moves within its segment. Alt drags a copy of a stop with [`alt_copies`](Self::alt_copies). Every update is
+///   the whole edit of the gradient at the press. Ends and the line snap through the canvas's `Snap`.
+/// - A press on a stop or midpoint selects it and the selection follows a dragged stop. A click on the line adds a colour
+///   stop there and selects it. A double-click on a stop, or on an end for the stop there, sets
+///   [`color_requested`](GradientOverlayOutput::color_requested). A secondary click sets
+///   [`context`](GradientOverlayOutput::context).
+/// - Keys (one Tab stop): Page Down and Page Up pick the next and previous part, Home and End the first and last: the
+///   line, the start, the stops and midpoints in location order, the end. Picking a stop or midpoint selects it. The
+///   arrows move a picked stop or midpoint by 1 %, 10 % with Shift, Left always lowering the location, and a picked end
+///   or the line by 1 document unit, 10 with Shift. Delete and Backspace remove a stop, Insert and Cmd/Ctrl+Enter add one
+///   halfway after the picked stop. Enter and Space on a colour stop or an end set `color_requested`. Each change is one
 ///   Set.
-/// - After keyboard input a focus ring shows round the picked handle, stop or diamond, and two
-///   focus lines beside the picked line.
-/// - The group's AccessKit children are the parts, named and valued as the bar's markers are
-///   ([`labels`](Self::labels), [`numbers`](Self::numbers)), the end handles valued through
-///   [`units`](Self::units).
-///
-/// A host that reads the pointer itself (PhotoCraft's tool events) drives the overlay with
-/// [`hit`](Self::hit), [`press`](Self::press), [`track`](Self::track), [`release`](Self::release)
-/// and [`double_click`](Self::double_click), and draws it with [`paint`](Self::paint) and
-/// [`paint_focus`](Self::paint_focus). `show` runs the same functions; the selection, the keys and
-/// the focus stay the host's.
-///
-/// With [`selection_of`](Self::selection_of) the overlay and a gradient editor share one selected
-/// stop. A selection another control makes becomes the picked part, and a stop moved past its
-/// neighbour on the canvas moves the shared selection with it.
+/// - With [`selected`](Self::selected) the overlay and a [`GradientEditor`](super::GradientEditor) share one selected stop.
+#[derive(crate::contract::Component, crate::contract::Props)]
+#[component(canvas_control)]
 pub struct GradientOverlay<'a> {
-    id_salt: IdSalt,
-    line: &'a GradientLine,
-    stops: &'a GradientStops,
-    names: GradientLineNames,
+    #[common]
+    common: Common,
+    value: Bind<'a, LineGradient>,
+    /// The row layout and the fewest and most stops and the midpoint range the host gives its gradient editor.
+    #[prop]
     rules: StopRules,
+    /// Colours a stop added on the line; the default sampler of the rules' rows by default.
+    #[prop]
     sampler: Option<&'a Sampler>,
+    /// Whether midpoint diamonds show.
+    #[prop]
     midpoints: bool,
+    /// Whether the gradient runs from the end to the start.
+    #[prop(flag)]
     reverse: bool,
+    /// The shape the gradient's style adds round the line; decoration only.
+    #[prop]
     extent: GradientExtent,
-    editable: bool,
+    /// Whether an Alt-drag on a stop drags a copy of it; off, Alt is the tool's.
+    #[prop(flag)]
     alt_copies: bool,
+    /// The angle in degrees, along the document's axes, that Shift's 45 degree steps of a dragged end start from.
+    #[prop(quantity = "degrees")]
     angle_base: f64,
-    snap: Option<Snap<'a>>,
-    cursor: Option<Cursor<'a>>,
-    policy: EditPolicy,
-    labels: GradientLabels,
-    labels_set: bool,
-    numbers: Option<&'a LocaleNumbers>,
-    location_decimals: usize,
-    units: Option<(&'a RulerUnits, &'a RulerUnits)>,
-    shared: Option<Id>,
-    value: Option<String>,
+    /// Decimals of a stop's location in its accessible value.
+    #[prop(quantity = "decimals")]
+    location_decimals: u8,
+    /// The selected stop or midpoint, shared with the host's gradient editor. Without it the overlay keeps its own.
+    #[prop]
+    selected: Option<Bind<'a, Option<StopRef>>>,
+    /// The group's accessible value; "{n} stops" by default.
+    #[prop(into)]
+    value_text: Option<Label>,
+    report: Report,
+}
+
+/// What the overlay reports beyond the edit.
+#[derive(Debug, Default)]
+struct Report {
+    color_requested: Option<StopColor>,
+    picked: Option<LinePart>,
+    hovered: Option<LinePart>,
+    context: Option<LinePart>,
+    selected: Option<StopRef>,
+    /// The dragged stop is torn off the line: the drag's release removes it.
+    torn: bool,
 }
 
 impl<'a> GradientOverlay<'a> {
-    /// The host's gradient `line` and `stops`, named `names` in the AccessKit tree.
-    pub fn new(id_salt: impl AsIdSalt, line: &'a GradientLine, stops: &'a GradientStops, names: GradientLineNames) -> Self {
-        Self {
-            id_salt: IdSalt::new(id_salt),
-            line,
-            stops,
-            names,
+    /// An overlay named `label` over `value`, the line and stops in document units.
+    pub fn new(label: impl Into<Label>, value: Bind<'a, LineGradient>) -> Self {
+        GradientOverlay {
+            common: Common::new(),
+            value,
             rules: StopRules::default(),
             sampler: None,
             midpoints: true,
             reverse: false,
             extent: GradientExtent::None,
-            editable: true,
             alt_copies: false,
             angle_base: 0.0,
-            snap: None,
-            cursor: None,
-            policy: EditPolicy::default(),
-            labels: GradientLabels::default(),
-            labels_set: false,
-            numbers: None,
             location_decimals: 0,
-            units: None,
-            shared: None,
-            value: None,
+            selected: None,
+            value_text: None,
+            report: Report::default(),
+        }
+        .label(label)
+        .ltr_axis()
+    }
+
+    /// The selected stop or midpoint: the shared binding's, or the overlay's own.
+    fn selection(&mut self, cx: &mut Cx<'_, Self>) -> Option<StopRef> {
+        match self.selected.as_mut() {
+            Some(bind) => match bind.reborrow().read(cx) {
+                Some(Mixed::Same(selected)) => selected,
+                _ => None,
+            },
+            None => cx.keep::<OwnSelection>().0,
         }
     }
 
-    /// The rules the host gives its gradient editor: the row layout, the fewest and most stops and
-    /// the midpoint range.
-    pub fn rules(mut self, rules: StopRules) -> Self {
-        self.rules = rules;
-        self
-    }
-
-    /// Colours a stop added on the line; [`default_sampler`] of the rules' rows by default.
-    pub fn sampler(mut self, sampler: &'a Sampler) -> Self {
-        self.sampler = Some(sampler);
-        self
-    }
-
-    /// Whether an Alt-drag on a stop drags a copy of it (VectorCraft); off by default, where Alt is
-    /// the host's (PhotoCraft's eyedropper).
-    pub fn alt_copies(mut self, copies: bool) -> Self {
-        self.alt_copies = copies;
-        self
-    }
-
-    /// The angle in degrees, along the document's axes, that ⇧'s 45° steps of a dragged end start
-    /// from (VectorCraft's Constrain Angle); 0 by default.
-    pub fn angle_base(mut self, degrees: f64) -> Self {
-        self.angle_base = degrees;
-        self
-    }
-
-    /// The host's snapping of a dragged point (anchors, smart guides): an end handle's new place,
-    /// or for [`LinePart::Line`] the start's new place in a line drag. Given after ⇧'s 45° step.
-    pub fn snap(mut self, snap: impl Fn(LinePart, Point, Modifiers) -> Point + 'a) -> Self {
-        self.snap = Some(Box::new(snap));
-        self
-    }
-
-    /// The host's pointer over and during a drag of each part; none by default (PhotoCraft).
-    pub fn cursor(mut self, cursor: impl Fn(LineCursor) -> CursorIcon + 'a) -> Self {
-        self.cursor = Some(Box::new(cursor));
-        self
-    }
-
-    /// The drag's update rate and cost; [`EditPolicy::default`] by default.
-    pub fn policy(mut self, policy: EditPolicy) -> Self {
-        self.policy = policy;
-        self
-    }
-
-    /// The words of the stops' and midpoints' accessible names and values, the host's
-    /// [`GradientLabels`] for its gradient editor, so a stop reads the same in the panel and on the
-    /// canvas.
-    pub fn labels(mut self, labels: GradientLabels) -> Self {
-        self.labels = labels;
-        self.labels_set = true;
-        self
-    }
-
-    /// The numbers' format of the stops' accessible values; English by default. Give the editor's.
-    pub fn numbers(mut self, numbers: &'a LocaleNumbers) -> Self {
-        self.numbers = Some(numbers);
-        self
-    }
-
-    /// Decimals of a stop's location in its accessible value; 0 by default, as the editor's.
-    pub fn location_decimals(mut self, decimals: usize) -> Self {
-        self.location_decimals = decimals;
-        self
-    }
-
-    /// The ruler units of the document's x and y axes: the end handles' accessible values. They
-    /// have none without.
-    pub fn units(mut self, x: &'a RulerUnits, y: &'a RulerUnits) -> Self {
-        self.units = Some((x, y));
-        self
-    }
-
-    /// Shares the selected stop with the [`GradientEditor`] whose id is `editor`
-    /// ([`GradientEditor::id_in`]): the overlay reads and writes the editor's selection, so a stop
-    /// picked on the canvas is the one under the panel's bar and the other way round. Without it
-    /// the overlay keeps a selection of its own ([`selected`](Self::selected)).
-    pub fn selection_of(mut self, editor: Id) -> Self {
-        self.shared = Some(editor);
-        self
-    }
-
-    /// The group's and the line's accessible value; "{n} stops" ([`GradientLabels::bar_stops`])
-    /// by default.
-    pub fn value(mut self, value: impl Into<String>) -> Self {
-        self.value = Some(value.into());
-        self
-    }
-
-    /// Whether midpoint diamonds show; true by default.
-    pub fn midpoints(mut self, midpoints: bool) -> Self {
-        self.midpoints = midpoints;
-        self
-    }
-
-    /// Whether the gradient runs from the end to the start.
-    pub fn reverse(mut self, reverse: bool) -> Self {
-        self.reverse = reverse;
-        self
-    }
-
-    /// The shape the gradient's style adds round the line; decoration only.
-    pub fn extent(mut self, extent: GradientExtent) -> Self {
-        self.extent = extent;
-        self
-    }
-
-    /// Whether the overlay takes presses and shows the selection; true by default. False draws the
-    /// line and its parts only (the line a tool is drawing, a dialog over the gradient).
-    pub fn editable(mut self, editable: bool) -> Self {
-        self.editable = editable;
-        self
-    }
-
-    /// The overlay `id`'s selected stop or midpoint, when it keeps its own selection (no
-    /// [`selection_of`](Self::selection_of)).
-    pub fn selected(ctx: &Context, id: Id) -> Option<StopRef> {
-        ctx.data(|d| d.get_temp(id.with(SELECTED)))
-    }
-
-    /// Selects a stop or midpoint of the overlay `id`, when it keeps its own selection.
-    pub fn select(ctx: &Context, id: Id, selected: Option<StopRef>) {
-        ctx.data_mut(|d| match selected {
-            Some(s) => {
-                d.insert_temp(id.with(SELECTED), s);
+    /// Selects `next` (a stop or midpoint, or nothing) in the shared binding or the overlay's own slot.
+    fn select(&mut self, cx: &mut Cx<'_, Self>, next: Option<StopRef>) {
+        let before = self.selection(cx);
+        if before == next {
+            return;
+        }
+        match self.selected.as_mut() {
+            Some(bind) => {
+                let label: Arc<str> = Arc::from(cx.words::<GradientLineWords>().group.as_str());
+                let event = EditEvent::set(GestureId::new(0), Mixed::Same(before), next, label, None);
+                bind.reborrow().write(cx, &event);
             }
-            None => {
-                d.remove::<StopRef>(id.with(SELECTED));
+            None => cx.keep::<OwnSelection>().0 = next,
+        }
+    }
+
+    /// The colour a part asks for: a colour stop's, or the one at an end handle (stop 0 or the last, swapped under
+    /// `reverse`).
+    fn color_request(&self, value: &LineGradient, part: LinePart) -> Option<StopColor> {
+        let len = value.stops.color.len();
+        let index = match part {
+            LinePart::Stop(i) => i,
+            LinePart::Start | LinePart::End if len > 0 => {
+                if (part == LinePart::Start) != self.reverse {
+                    0
+                } else {
+                    len - 1
+                }
             }
-        });
-    }
-
-    /// The overlay's look in `tokens`.
-    pub fn style(tokens: &UiTokens) -> GradientLineStyle {
-        let (o, stroke, size) = (&tokens.color.overlay, &tokens.stroke, &tokens.size);
-        let (fill, halo) = (o.handle_fill.to_egui(), o.halo.to_egui());
-        let ring = FocusRing::style(tokens);
-        GradientLineStyle {
-            line: Stroke::new(stroke.medium, fill),
-            halo: Stroke::new(stroke.thin, halo),
-            dash: (stroke.dash, stroke.dash_gap),
-            end_ring: size.handle.md,
-            end: Stroke::new(stroke.thick, fill),
-            end_halo: Stroke::new(stroke.thin, halo),
-            stop: size.handle.sm,
-            stop_ring: Stroke::new(stroke.medium, fill),
-            stop_halo: Stroke::new(stroke.thin, halo),
-            diamond: size.handle.sm,
-            diamond_fill: fill,
-            diamond_halo: Stroke::new(stroke.thin, halo),
-            selected: o.handle_stroke.to_egui(),
-            backing: fill,
-            hit: size.hit.target,
-            click_slop: size.hit.slop,
-            tear_off: TEAR_OFF,
-            focus: ring.stroke,
-            focus_halo: Stroke::new(ring.stroke.width + 2.0 * stroke.thin, halo),
-            focus_offset: ring.offset,
-        }
-    }
-
-    /// The selected stop or midpoint: the shared editor's, or the overlay's own.
-    fn selection(&self, ctx: &Context, id: Id) -> Option<StopRef> {
-        match self.shared {
-            Some(editor) => GradientEditor::selected(ctx, editor),
-            None => Self::selected(ctx, id),
-        }
-    }
-
-    fn store_selection(&self, ctx: &Context, id: Id, selected: Option<StopRef>) {
-        match self.shared {
-            Some(editor) => GradientEditor::select(ctx, editor, selected),
-            None => Self::select(ctx, id, selected),
-        }
-    }
-
-    /// Draws the gradient over `view` and senses through the host's `canvas` response.
-    pub fn show(mut self, ui: &mut Ui, canvas: &Response, view: &CanvasView) -> GradientOverlayResponse {
-        if !self.labels_set {
-            self.labels = GradientLabels::of(ui);
-        }
-        let ctx = ui.ctx().clone();
-        let id = ui.make_persistent_id(self.id_salt);
-        let style = GradientOverlay::style(&Tokens::of(ui));
-        let editable = self.editable && ui.is_enabled();
-        let default = default_sampler(self.rules.rows);
-        let sampler: &Sampler = self.sampler.unwrap_or(&default);
-        let pass = pointer::Pass { ctx: &ctx, id, canvas, view, style: &style, sampler };
-        let mut out = GradientOverlayResponse { id, event: None, color_requested: None, picked: None, hovered: None, context: None, claimed: false };
-        let at_load = pointer::Selection { selected: self.selection(&ctx, id), picked: ctx.data(|d| d.get_temp(pointer::pick_key(id))) };
-        let mut sel = at_load;
-        let value = LineGradient { line: *self.line, stops: self.stops.clone() };
-        // A selection another control made (the panel's bar) is the one the keys act on.
-        let seen = ctx.data(|d| d.get_temp::<Option<StopRef>>(pointer::seen_key(id))).unwrap_or(at_load.selected);
-        if editable
-            && at_load.selected != seen
-            && let Some(part) = self.part_selected(&value, at_load.selected)
-        {
-            sel.picked = Some(part);
-        }
-
-        let press_held = ctx.data(|d| d.get_temp::<pointer::Drag>(pointer::drag_key(id))).is_some();
-        let drag = self.press_of(&pass, &value, editable, &mut sel);
-        let reported = Gesture::<LineGradient>::reported(ui, id).map(|(_, value)| value);
-        // The drag's own last report stands for the host's value while the host shows it or still
-        // shows the value at the press, so applying updates live is no outside change.
-        let host = match (&drag, &reported) {
-            (Some(d), Some(r)) if d.core.began && !d.cancelled && (value == d.core.base || value == *r) => r.clone(),
-            _ => value,
+            _ => return None,
         };
-        let mut gesture = Gesture::load(ui, id, &host, self.policy).focus_owners(&[]).enabled(editable);
-        let drag = drag.and_then(|d| self.track_drag(&pass, d, &mut gesture, reported.as_ref(), &mut sel));
-        if editable && drag.is_none() {
-            self.clicks(&pass, gesture.shown(), &mut sel, &mut out);
-        }
-        let dragging = drag.as_ref().filter(|d| d.core.began && !d.cancelled).map(|d| d.core.part);
-        if editable && drag.is_none() {
-            out.hovered = self.hover(&pass, gesture.shown());
-        }
-        // The release of a press the overlay held gives the group the keyboard, so the keys act on
-        // what the pointer took, even where a drag has moved the part from under the press.
-        if editable && press_held && drag.is_none() {
-            ctx.memory_mut(|m| m.request_focus(id));
-        }
+        let stop = value.stops.color.get(index)?;
+        let request = craft_ui::runtime::requests::ColorRequest::new("gradient.stop", stop.color);
+        Some(StopColor { index, tag: stop.tag, request })
+    }
 
-        let english;
-        let numbers = match self.numbers {
-            Some(numbers) => numbers,
+    /// The group's accessible value.
+    fn group_value(&self, cx: &Cx<'_, Self>, value: &LineGradient) -> String {
+        match &self.value_text {
+            Some(text) => cx.env.resolve(text).to_string(),
             None => {
-                english = LocaleNumbers::from_tag("en");
-                &english
-            }
-        };
-        let parts = self.parts(&pass, gesture.shown(), numbers, sel.selected.filter(|_| editable));
-        let mut focus = PartFocus::new(id, &self.names.group).parts(&parts.list).picked(sel.picked.map(parts::part_key)).focusable(editable);
-        focus = focus.value(self.group_value(gesture.shown(), ui.ctx()));
-        let focus = focus.show(ui, canvas);
-        match focus.pick {
-            Some(Some(key)) => {
-                sel.picked = parts::key_part(key);
-                if let Some(selected) = sel.picked.and_then(pointer::selection_of) {
-                    sel.selected = Some(selected);
-                }
-            }
-            Some(None) => sel.picked = None,
-            None => {}
-        }
-        if focus.focused {
-            KeyClaim::claim(&ctx, id, &CLAIMED);
-            if editable && drag.is_none() {
-                self.keys(ui, &pass, &mut gesture, &mut sel, &mut out);
+                let n = value.stops.color.len() as u64;
+                cx.words::<GradientLineWords>().stops.text(n, &cx.format().integer(n))
             }
         }
-
-        let shown = gesture.shown().clone();
-        out.event = gesture.finish();
-        out.claimed = Claim::is_owner(&ctx, canvas.id, id);
-        out.picked = sel.picked;
-        ctx.data_mut(|d| {
-            match &drag {
-                Some(drag) => {
-                    d.insert_temp(pointer::drag_key(id), drag.clone());
-                }
-                None => d.remove::<pointer::Drag>(pointer::drag_key(id)),
-            }
-            match sel.picked {
-                Some(part) => {
-                    d.insert_temp(pointer::pick_key(id), part);
-                }
-                None => d.remove::<LinePart>(pointer::pick_key(id)),
-            }
-            d.insert_temp(pointer::seen_key(id), sel.selected);
-        });
-        if sel.selected != at_load.selected {
-            self.store_selection(&ctx, id, sel.selected);
-        }
-
-        let selected = if editable { sel.selected } else { None };
-        let marked = dragging.or(sel.picked.filter(|p| editable && matches!(p, LinePart::Start | LinePart::End)));
-        let painter = ui.painter_at(view.rect);
-        self.paint(&painter, &style, view, &shown, selected, marked);
-        // With no part picked the keys act on the line, so it carries the focus marks.
-        if focus.keyboard {
-            self.paint_focus(&painter, &style, view, &shown, sel.picked.unwrap_or(LinePart::Line));
-        }
-        out
-    }
-
-    /// Draws `value` through `painter` (clipped to the canvas): `selected` is the selected stop or
-    /// midpoint, `marked` the end a drag holds or the keys picked, drawn selected. [`show`](Self::show)
-    /// draws through this.
-    pub fn paint(
-        &self,
-        painter: &Painter,
-        style: &GradientLineStyle,
-        view: &CanvasView,
-        value: &LineGradient,
-        selected: Option<StopRef>,
-        marked: Option<LinePart>,
-    ) {
-        let (start, end) = (view.to_screen(value.line.start), view.to_screen(value.line.end));
-        let stops = &value.stops;
-        self.paint_extent(painter, style, start, end);
-        painter.extend(line_shapes(style, start, end));
-        if self.midpoints {
-            for i in 0..stops.color.len() {
-                if let Some(t) = midpoint_location(stops, i) {
-                    let on = selected == Some(StopRef::Midpoint(StopRow::Color, i));
-                    painter.add(diamond(style, at_screen(start, end, t, self.reverse), on));
-                }
-            }
-        }
-        for (p, part) in [(start, LinePart::Start), (end, LinePart::End)] {
-            let ring = if marked == Some(part) { Stroke::new(style.end.width, style.selected) } else { style.end };
-            // The ring is centred on `end_ring`; a circle strokes outside its radius.
-            let inner = style.end_ring - style.end.width / 2.0;
-            painter.add(Shape::circle_stroke(p, inner - style.end_halo.width, style.end_halo_stroke()));
-            painter.add(Shape::circle_stroke(p, inner, ring));
-        }
-        for (i, stop) in stops.color.iter().enumerate() {
-            let at = at_screen(start, end, stop.location, self.reverse);
-            let on = selected == Some(StopRef::Color(i));
-            painter.extend(self.stop_shapes(style, at, Color32::from(stop.color), on));
-        }
-    }
-
-    fn paint_extent(&self, painter: &Painter, style: &GradientLineStyle, start: Pos2, end: Pos2) {
-        let d = end - start;
-        match self.extent {
-            GradientExtent::None => {}
-            GradientExtent::Circle => {
-                // A circle strokes outside its radius: the line's centre is the extent's edge.
-                let radius = d.length() - style.line.width / 2.0;
-                let halo = Stroke::new(style.line.width + 2.0 * style.halo.width, style.halo.color);
-                painter.add(Shape::circle_stroke(start, radius - style.halo.width, halo));
-                painter.add(Shape::circle_stroke(start, radius, style.line));
-            }
-            GradientExtent::Square => {
-                let turned = vec2(-d.y, d.x);
-                let corners = vec![start + d, start + turned, start - d, start - turned];
-                painter.extend(outlined(style, |stroke| vec![Shape::closed_line(corners.clone(), stroke)]));
-            }
-            GradientExtent::Mirror => {
-                let far = start - d;
-                painter.extend(Shape::dashed_line(&[start, far], style.line, style.dash.0, style.dash.1));
-            }
-        }
-    }
-
-    /// A colour stop: the disc, the ring just outside it, the halo ring outside that.
-    fn stop_shapes(&self, style: &GradientLineStyle, at: Pos2, color: Color32, selected: bool) -> Vec<Shape> {
-        let mut out = Vec::with_capacity(4);
-        let (r, ring) = (style.stop, style.stop_ring.width);
-        out.push(Shape::circle_stroke(at, r + ring, style.stop_halo));
-        match self.rules.rows {
-            StopRows::Split | StopRows::ColorOnly => out.push(Shape::circle_filled(at, r, Color32::from_rgb(color.r(), color.g(), color.b()))),
-            StopRows::Combined => {
-                out.push(Shape::circle_filled(at, r, style.backing));
-                out.push(Shape::circle_filled(at, r, color));
-            }
-        }
-        let ring_color = if selected { style.selected } else { style.stop_ring.color };
-        out.push(Shape::circle_stroke(at, r, Stroke::new(ring, ring_color)));
-        out
     }
 }
 
-/// What [`GradientOverlay::show`] reports.
-#[derive(Clone, Debug, PartialEq)]
-pub struct GradientOverlayResponse {
-    /// The overlay's id, also its AccessKit group's.
-    pub id: Id,
-    /// A drag (Begin past the click slop, Update, Commit on release; Esc cancels it) or a stop
-    /// added by a click on the line (Set).
-    pub event: Option<EditEvent<LineGradient>>,
-    /// A double-click, Enter or Space asked for the colour of a colour stop (its index and tag);
-    /// the rect is its marker on screen, for a picker opened beside it.
-    pub color_requested: Option<ColorRequest>,
-    /// The part the keys act on, picked by the last press.
+/// The selection the overlay keeps when the host binds none.
+#[derive(Clone, Copy, Default)]
+struct OwnSelection(Option<StopRef>);
+
+/// What the overlay reports.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct GradientOverlayOutput {
+    /// The edit of the line and stops: a drag is one `Begin` to `Commit`; a key, or a click on the line that adds a
+    /// stop, is a `Set`.
+    pub edit: EditResponse<LineGradient>,
+    /// A double-click, Enter or Space asked for the colour of a colour stop.
+    pub color_requested: Option<StopColor>,
+    /// The part the keys act on.
     pub picked: Option<LinePart>,
-    /// The part a press at the pointer would take; `None` where it is the host's.
+    /// The part under the pointer.
     pub hovered: Option<LinePart>,
     /// A secondary click on a part, for the host's context menu.
     pub context: Option<LinePart>,
-    /// Whether the overlay owns the current press: the host skips its guides and tool input.
-    pub claimed: bool,
+    /// The selected stop or midpoint after this pass.
+    pub selected: Option<StopRef>,
 }
 
-impl GradientLineStyle {
-    /// The halo ring under an end handle's ring: wide enough to show `end_halo` each side of it.
-    fn end_halo_stroke(&self) -> Stroke {
-        Stroke::new(self.end.width + 2.0 * self.end_halo.width, self.end_halo.color)
+impl Outcome for GradientOverlayOutput {
+    type Value = LineGradient;
+
+    fn response(&self) -> &Response {
+        &self.edit.response
     }
 }
 
-/// The keys a focused overlay keeps from the app's shortcuts.
-const CLAIMED: [ClaimedKey; 4] = [
-    ClaimedKey::exact(Modifiers::NONE, Key::Delete),
-    ClaimedKey::exact(Modifiers::NONE, Key::Backspace),
-    ClaimedKey::exact(Modifiers::NONE, Key::Insert),
-    ClaimedKey::exact(Modifiers::COMMAND, Key::Enter),
-];
+impl Component for GradientOverlay<'_> {
+    const ROLE: Role = Role::GROUP;
+    const KEYS: KeyUse = KeyUse::CANVAS.with_deletes().with_chrome_key(false).with_claims(CLAIMS);
+    type Style = GradientOverlayStyle;
+    type Output = GradientOverlayOutput;
 
-/// Distance in screen points at which a drag tears a stop off the line.
-const TEAR_OFF: f32 = 36.0;
-const SELECTED: &str = "craft_ui::canvas::GradientOverlay::selected";
+    fn style(cx: &StyleCx<'_>, _: GradientOverlayStyleKey) -> GradientOverlayStyle {
+        let (overlay, size, stroke) = (&cx.tokens.color.overlay, &cx.tokens.size, &cx.tokens.stroke);
+        GradientOverlayStyle {
+            metrics: Metrics::new().min_size(Vec2::splat(size.handle.md)),
+            handle: cx.handle(),
+            line: cx.color(overlay.handle_fill),
+            halo: cx.color(overlay.halo),
+            selected: cx.color(overlay.handle_stroke),
+            backing: cx.color(overlay.handle_fill),
+            dash: stroke.dash,
+            gap: stroke.dash_gap,
+            end_radius: size.handle.md,
+            stop_radius: size.handle.sm,
+            diamond_radius: size.handle.sm,
+            tear_off: TEAR_OFF,
+        }
+    }
 
-/// Strokes in the line's style: the halo under, then the line.
-fn outlined(style: &GradientLineStyle, shape: impl Fn(Stroke) -> Vec<Shape>) -> Vec<Shape> {
-    let halo = Stroke::new(style.line.width + 2.0 * style.halo.width, style.halo.color);
-    let mut out = shape(halo);
-    out.extend(shape(style.line));
-    out
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::splat(cx.style.handle.side)
+    }
+
+    fn bind(&mut self) -> Option<BindMut<'_, LineGradient>> {
+        Some(self.value.reborrow())
+    }
+
+    fn parts(&mut self, _rect: Rect, cx: &mut PartsCx<'_, Self>) {
+        self.declare_parts(cx);
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        let (Some(space), Some(value)) = (canvas_space(&cx.env), cx.value().cloned()) else { return };
+        let snap = canvas_snap(&cx.env);
+        self.run_pointer(cx, &space, snap.as_ref(), &value);
+        self.run_keys(cx, &value);
+        self.report.selected = self.selection(cx);
+        self.report.picked = cx.active_part().and_then(line_part);
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let (Some(space), Some(value)) = (canvas_space(&cx.env), cx.value()) else { return };
+        self.paint_gradient(ui, cx, &space.view, value);
+    }
+
+    fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
+        let (Some(space), Some(value)) = (canvas_space(&cx.env), cx.value()) else { return };
+        let words = cx.words::<GradientLineWords>();
+        let group = self.group_value(cx, value);
+        access.value(group.clone());
+        let line = access.node(LINE, Role::BUTTON);
+        line.name = Name::Text(words.line.as_str().to_owned());
+        line.value(group);
+        let units = cx.env.units();
+        let rulers = space.rulers();
+        let end_value = |p: Point| {
+            let (x, y) = (rulers.x.format_value(&units, p.x, rulers.zero.x), rulers.y.format_value(&units, p.y, rulers.zero.y));
+            words.point_value.fill(&[("x", x.as_str()), ("y", y.as_str())])
+        };
+        for (key, name, point) in [(START, &words.start, value.line.start), (END, &words.end, value.line.end)] {
+            let node = access.node(key, Role::BUTTON);
+            node.name = Name::Text(name.as_str().to_owned());
+            node.value(end_value(point));
+        }
+        let gradient_words = cx.words::<GradientWords>();
+        let text = |marker: StopRef| marker_texts(&gradient_words, &value.stops, self.rules.rows, marker, self.location_decimals);
+        for i in 0..value.stops.color.len() {
+            let (name, shown) = text(StopRef::Color(i));
+            let node = access.node(STOP.at(i as u64), Role::BUTTON);
+            node.name = Name::Text(name);
+            node.value(shown);
+            if self.midpoints && midpoint_location(&value.stops, i).is_some() {
+                let (name, shown) = text(StopRef::Midpoint(StopRow::Color, i));
+                let node = access.node(MIDPOINT.at(i as u64), Role::BUTTON);
+                node.name = Name::Text(name);
+                node.value(shown);
+            }
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> GradientOverlayOutput {
+        let Report { color_requested, picked, hovered, context, selected, .. } = self.report;
+        GradientOverlayOutput { edit: cx.edit_response(), color_requested, picked, hovered, context, selected }
+    }
 }
 
-fn line_shapes(style: &GradientLineStyle, start: Pos2, end: Pos2) -> Vec<Shape> {
-    outlined(style, |stroke| vec![Shape::line_segment([start, end], stroke)])
+/// A screen point as the line has it.
+pub(super) fn screen_line(view: &craft_behavior::CanvasView, value: &LineGradient) -> (Pos2, Pos2) {
+    (view.to_screen(value.line.start), view.to_screen(value.line.end))
 }
 
-/// A midpoint diamond centred on `at`.
-fn diamond(style: &GradientLineStyle, at: Pos2, selected: bool) -> Shape {
-    let r = style.diamond;
-    let points = (0..4).map(|k| at + vec2((k as f32 * FRAC_PI_2).cos(), (k as f32 * FRAC_PI_2).sin()) * r).collect();
-    let fill = if selected { style.selected } else { style.diamond_fill };
-    Shape::convex_polygon(points, fill, style.diamond_halo)
+impl GradientOverlay<'_> {
+    fn paint_gradient(&self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>, view: &craft_behavior::CanvasView, value: &LineGradient) {
+        let style = &cx.style;
+        let (start, end) = screen_line(view, value);
+        let marked =
+            |key, part: LinePart| cx.part(key).press.phase.is_drag() || (cx.is_focused() && cx.active_part().and_then(line_part) == Some(part));
+        let selected = self.report.selected;
+        let draw = ui.draw();
+        draw.clipped(cx.rect, |draw| {
+            let outlined = |shape: &PaintShape| {
+                draw.stroke(shape, StrokeWidth::Thick, style.halo);
+                draw.stroke(shape, StrokeWidth::Medium, style.line);
+            };
+            let d = end - start;
+            match self.extent {
+                GradientExtent::None => {}
+                GradientExtent::Circle => outlined(&PaintShape::Circle(start, d.length())),
+                GradientExtent::Square => {
+                    let turned = vec2(-d.y, d.x);
+                    outlined(&PaintShape::Polygon(vec![start + d, start + turned, start - d, start - turned]));
+                }
+                GradientExtent::Mirror => draw.dashed(&[start, start - d], Dashes::new(style.dash, style.gap), StrokeWidth::Medium, style.line),
+            }
+            outlined(&PaintShape::Path(vec![start, end]));
+            if self.midpoints {
+                for i in 0..value.stops.color.len() {
+                    let Some(t) = midpoint_location(&value.stops, i) else { continue };
+                    let at = at_screen(start, end, t, self.reverse);
+                    let r = style.diamond_radius;
+                    let diamond = PaintShape::Polygon(vec![at + vec2(r, 0.0), at + vec2(0.0, r), at - vec2(r, 0.0), at - vec2(0.0, r)]);
+                    let fill = if selected == Some(StopRef::Midpoint(StopRow::Color, i)) {
+                        style.selected
+                    } else {
+                        cx.resolve_part(MIDPOINT.at(i as u64), &style.handle.fill)
+                    };
+                    draw.fill(&diamond, fill);
+                    draw.stroke(&diamond, StrokeWidth::Thin, style.halo);
+                }
+            }
+            for (at, key, part) in [(start, START, LinePart::Start), (end, END, LinePart::End)] {
+                let ring = PaintShape::Circle(at, style.end_radius);
+                draw.stroke(&ring, StrokeWidth::Thick, style.halo);
+                draw.stroke(&ring, StrokeWidth::Medium, if marked(key, part) { style.selected } else { style.line });
+            }
+            for (i, stop) in value.stops.color.iter().enumerate() {
+                if self.report.torn && cx.part(STOP.at(i as u64)).press.phase.is_drag() {
+                    continue;
+                }
+                let at = at_screen(start, end, stop.location, self.reverse);
+                let color = Color32::from(stop.color);
+                let disc = PaintShape::Circle(at, style.stop_radius);
+                draw.stroke(&PaintShape::Circle(at, style.stop_radius), StrokeWidth::Thick, style.halo);
+                match self.rules.rows {
+                    StopRows::Combined => {
+                        draw.fill(&disc, style.backing);
+                        draw.data_fill(&disc, DataColor::new(color));
+                    }
+                    _ => draw.data_fill(&disc, DataColor::new(Color32::from_rgb(color.r(), color.g(), color.b()))),
+                }
+                let ring = if selected == Some(StopRef::Color(i)) { style.selected } else { style.line };
+                draw.stroke(&disc, StrokeWidth::Medium, ring);
+            }
+        });
+    }
 }

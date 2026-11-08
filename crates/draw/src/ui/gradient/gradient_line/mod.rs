@@ -1,11 +1,12 @@
 //! The geometry of a gradient line on a canvas: where a colour stop sits on it, the location under
-//! a point, the part under the pointer and the 45° snap of an end. Pure functions, so an app's own
+//! a point and the 45° snap of an end. Pure functions, so an app's own
 //! canvas code and [`GradientOverlay`](crate::ui::gradient::GradientOverlay) agree on where things are.
 //!
 //! A stop's location `t` (0..=1) is the stop's own. With `reverse` it is drawn at `1 − t` from the
 //! start (PhotoCraft's `u_of`), and every location read back from a point is turned back the same
 //! way.
 
+use craft_behavior::geometry::draft::turn_to_45;
 use egui::Pos2;
 use kurbo::{Point, Vec2};
 
@@ -15,7 +16,7 @@ use crate::ui::gradient::{GradientStops, StopRef, StopRow};
 pub const MIN_MIDPOINT_GAP: f32 = 0.001;
 
 /// A gradient's line between its start and end handles, in document units.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct GradientLine {
     /// The start handle.
     pub start: Point,
@@ -24,7 +25,7 @@ pub struct GradientLine {
 }
 
 /// What [`GradientOverlay`](crate::ui::gradient::GradientOverlay) edits: the line and the stops on it.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct LineGradient {
     /// The line between the handles.
     pub line: GradientLine,
@@ -43,7 +44,7 @@ impl LineGradient {
     }
 
     /// The tag of the colour stop `part` is, as [`tag_of`](Self::tag_of); `None` for the ends and
-    /// the line. For the parts [`GradientOverlayResponse`](crate::ui::gradient::GradientOverlayResponse)
+    /// the line. For the parts [`GradientOverlayOutput`](crate::ui::gradient::GradientOverlayOutput)
     /// reports (`picked`, `hovered`, `context`), read from the gradient the overlay showed.
     pub fn part_tag(&self, part: LinePart) -> Option<u64> {
         match part {
@@ -69,9 +70,10 @@ pub enum GradientExtent {
 }
 
 /// A part of the line a pointer or key takes. Indices are into the colour row's stops.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum LinePart {
     /// The line between the handles.
+    #[default]
     Line,
     /// The start handle.
     Start,
@@ -106,15 +108,11 @@ pub fn project(line: &GradientLine, p: Point, reverse: bool) -> (f32, f64) {
 /// `moved` turned about `fixed` onto the nearest multiple of 45° counted from `base_deg`, keeping
 /// its distance from `fixed`. Angles are those of the document's axes (y down).
 pub fn snap45(fixed: Point, moved: Point, base_deg: f64) -> Point {
-    let d = moved - fixed;
-    let len = d.hypot();
-    if len == 0.0 {
-        return moved;
-    }
-    let base = base_deg.to_radians();
-    let step = std::f64::consts::FRAC_PI_4;
-    let angle = base + ((d.atan2() - base) / step).round() * step;
-    fixed + Vec2::from_angle(angle) * len
+    let base = Vec2::from_angle(base_deg.to_radians());
+    let turn = |v: Vec2, by: Vec2| Vec2::new(v.x * by.x - v.y * by.y, v.x * by.y + v.y * by.x);
+    let local = turn(moved - fixed, Vec2::new(base.x, -base.y));
+    let snapped = turn(turn_to_45(Point::ORIGIN, local.to_point()).to_vec2(), base);
+    fixed + snapped
 }
 
 /// The location of the midpoint diamond after colour stop `i`: its stop's location plus the
@@ -129,41 +127,3 @@ pub fn midpoint_location(stops: &GradientStops, i: usize) -> Option<f32> {
 pub fn at_screen(start: Pos2, end: Pos2, t: f32, reverse: bool) -> Pos2 {
     start + (end - start) * along(t, reverse)
 }
-
-/// The part of the screen line `start` to `end` under `pointer`, within `tolerance` points: an end
-/// handle, the start handle, the nearest colour stop, the nearest midpoint, then the line. An end
-/// handle takes a press over a stop under it. Of equal distances the part drawn last wins, the
-/// later stop. Midpoints count only with `midpoints`.
-pub fn hit(start: Pos2, end: Pos2, stops: &GradientStops, reverse: bool, midpoints: bool, pointer: Pos2, tolerance: f32) -> Option<LinePart> {
-    let near = |p: Pos2| pointer.distance(p) <= tolerance;
-    if near(end) {
-        return Some(LinePart::End);
-    }
-    if near(start) {
-        return Some(LinePart::Start);
-    }
-    // `min_by` keeps the first of equal items, so the later part is tried first.
-    let nearest = |points: Vec<(usize, Pos2)>| {
-        points
-            .into_iter()
-            .rev()
-            .map(|(i, p)| (i, pointer.distance(p)))
-            .filter(|&(_, d)| d <= tolerance)
-            .min_by(|a, b| a.1.total_cmp(&b.1))
-            .map(|(i, _)| i)
-    };
-    let stop_points = stops.color.iter().enumerate().map(|(i, s)| (i, at_screen(start, end, s.location, reverse))).collect();
-    if let Some(i) = nearest(stop_points) {
-        return Some(LinePart::Stop(i));
-    }
-    if midpoints {
-        let points = (0..stops.color.len()).filter_map(|i| midpoint_location(stops, i).map(|t| (i, at_screen(start, end, t, reverse)))).collect();
-        if let Some(i) = nearest(points) {
-            return Some(LinePart::Midpoint(i));
-        }
-    }
-    (craft_ui::canvas::hit::segment(pointer, start, end) <= tolerance).then_some(LinePart::Line)
-}
-
-#[cfg(test)]
-mod tests;
