@@ -52,7 +52,7 @@ impl Cells {
             for (at, state) in states.iter_mut().enumerate() {
                 let rect = Rect::from_min_size(room.min + vec2(width * at as f32, 0.0), vec2(width, room.height()));
                 in_region(ui, rect, |ui| {
-                    let out = EditorMock::new("Editor", state).show(ui);
+                    let out = EditorMock::new(format!("Editor {at}"), state).show(ui);
                     seen[at] = Seen { mode: out.screen_mode, slots: out.regions.slots.len(), body: out.regions.body };
                 });
             }
@@ -189,8 +189,9 @@ fn the_delete_layer_row_does_nothing_with_one_layer_left() {
     let (mut fixture, state) = window(only);
     choose_delete_layer(&mut fixture);
     fixture.idle(DIALOG_OPEN);
-    fixture.key(Key::Enter, Modifiers::NONE);
-    fixture.idle(2);
+    fixture.key(Key::Escape, Modifiers::NONE).settle();
+    fixture.key(Key::Escape, Modifiers::NONE).settle();
+    fixture.key(Key::Enter, Modifiers::NONE).settle();
     assert_eq!(state.borrow().document.layers.len(), 1, "no question was asked, so Enter deleted nothing");
 }
 

@@ -54,7 +54,7 @@ impl<'a> EditorMock<'a> {
     /// Shows the window in the room offered. Each instance keeps its screen mode, Tab toggle and dialogs apart.
     pub fn show(self, ui: &mut Ui) -> AppShellOutput {
         let EditorMock { label, state } = self;
-        let window = WindowKey::new(format!("mock-{:x}", ui.scope_id().value()));
+        let window = WindowKey::new(format!("mock-{:x}-{}", ui.scope_id().value(), label.as_str()));
         AppShell::embedded(window)
             .title_bar_if(true, |ui, _, state: &mut MockState| title_bar(ui, state))
             .options_bar(true, |ui, _, state: &mut MockState| options_bar(ui, state))
