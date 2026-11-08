@@ -25,8 +25,8 @@ use crate::style::ComponentStyle as _;
 use crate::style::{Corners, RuleKind, StyleCx, UiTokens, rule_look, scroll_bar_look, surface_style};
 use craft_behavior::layout_memory::measure_tolerance;
 use craft_behavior::{
-    Axis, CancelRule, CursorIcon, EditEvent, GestureId, GesturePhase, HitLevel, HitPriority, Intent, KeyRole, Mixed, PartKey, PressPhase, Roving,
-    ScrollPos, ScrollSpan, WheelNotch, WheelTaker,
+    Axis, CancelRule, Cursor, CursorIcon, CursorPriority, EditEvent, GestureId, GesturePhase, HitLevel, HitPriority, Intent, KeyRole, Mixed, PartKey,
+    PressPhase, Roving, ScrollPos, ScrollSpan, WheelNotch, WheelTaker,
 };
 use craft_host::target::{Caps, WindowChrome, WindowState};
 use craft_i18n::Direction;
@@ -328,6 +328,16 @@ impl BodyCx<'_> {
     /// no focus by itself.
     pub fn surface_pressed(&self) -> bool {
         self.memory.recall::<SurfacePress>(sub(self.id, "surface_press")).0
+    }
+
+    /// Requests `cursor` at `priority` for this pass, in the cursor service the parts' and components' requests go
+    /// to: the highest priority of the pass wins, the later request on a tie. A body that learns something only after
+    /// its children ran (a drag its panes report as refused) sets the cursor in the same pass. A measuring run
+    /// requests nothing.
+    pub fn cursor(&mut self, cursor: impl Into<Cursor>, priority: CursorPriority) {
+        if !self.memory.is_peek() {
+            crate::runtime::cursor::request(self.memory.ctx(), cursor.into(), priority);
+        }
     }
 }
 

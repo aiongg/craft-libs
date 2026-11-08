@@ -876,14 +876,10 @@ fn route_press(
             _ => push(routed, id, Intent::Close, false),
         },
         Some(intent) => push(routed, id, intent, false),
-        None if press.key == Key::Enter && plain => {
-            if stop.keys.activate.enter() {
-                route_activate(ctx, rec, routed, activated);
-            } else {
-                push(routed, id, Intent::Submit, false);
-            }
-        }
-        None if press.key == Key::Enter && stop.role.space && stop.keys.activate.enter() => route_activate(ctx, rec, routed, activated),
+        // Enter the key table leaves unbound activates a stop that takes Enter with any modifier held; the component
+        // reads the modifiers (Alt+Enter adds the way Alt+click does). Plain Enter elsewhere submits.
+        None if press.key == Key::Enter && stop.keys.activate.enter() => route_activate(ctx, rec, routed, activated),
+        None if press.key == Key::Enter && plain => push(routed, id, Intent::Submit, false),
         None if press.key == Key::Space && plain && stop.keys.activate.space() => route_activate(ctx, rec, routed, activated),
         None if press.key == Key::Tab && plain && stop.keys.keep == focus::KeepKeys::Tab => push(routed, id, Intent::Tab, false),
         None if stop.role.nudge => {
