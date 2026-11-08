@@ -14,7 +14,7 @@ pub mod relink;
 
 pub use bin::{BinEvent, BinState, BinWords, MediaBin};
 pub use compare::{CompareTile, CompareWords};
-pub use freebin::{FreeBin, FreeformCard};
+pub use freebin::{FreeBin, FreeBinMove, FreeBinOutput, FreeformCard};
 pub use places::{PlacesEvent, PlacesTree, PlacesWords};
 pub use relink::{LinkList, LinkListWords, RelinkDialog, RelinkWords, StatusBadge};
 

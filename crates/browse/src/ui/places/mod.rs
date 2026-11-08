@@ -147,7 +147,7 @@ impl<'a> RowMenu<'a> {
 /// - **Children.** A row's children come from `FolderCache::subfolders` when it opens, to 8 levels. `Loading` shows
 ///   one `loading` row; `Failed` shows nothing and the disclosure goes. The open state is the tree's own and lives in
 ///   its container's slot. When the window regains focus the tree calls `FolderCache::refresh`; opening a row calls
-///   `refresh_folder`. At the end of the pass `FolderCache::end_pass`.
+///   `refresh_folder`. At the end of the pass `FolderCache::finish_pass`.
 /// - **Click.** A click or Enter on a folder reports `Open(path)`; the tree keys of the collection contract open and
 ///   close rows.
 /// - **Reveal.** When `current` changes, the rows on the way down to it in the owner root (`Places::owner`, folders
@@ -438,7 +438,7 @@ impl PlacesTree<'_> {
             *cx.keep::<Memory>() = memory;
             out.response
         });
-        cache.end_pass();
+        cache.finish_pass();
         let response = shown.inner.unwrap_or(shown.output);
         PlacesOutput { response, events }
     }

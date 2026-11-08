@@ -28,7 +28,7 @@ where
     K: TextureKey,
     M: BinModel<K> + ?Sized,
 {
-    let ViewIn { id, model, state, selection, thumbnails, words, collator, rename, hover_scrub, scrub, .. } = input;
+    let ViewIn { id, model, state, selection, thumbnails, words, collator, rename, hover_scrub, scrub, moving, .. } = input;
     let (entries, _) = entries_of(model, state, collator);
     let searching = !state.search.trim().is_empty();
     let shown = Cards::new(model, entries);
@@ -45,13 +45,14 @@ where
         .selection(selection)
         .zoom(state.settings.zoom)
         .aspect(ASPECT)
-        .snap(snap)
         .flow_all(searching)
         .drop_into(&drop_into)
         .rename(true)
         .deletable(true)
         .rows_stamp(stamp_of(state.shown.as_ref(), &state.search, state.settings.icon_sort.as_ref()))
         .empty(empty);
+    let bin = snap.map_or(bin, |step| bin.snap(step));
+    let bin = moving.map_or(bin, |live| bin.moving(live));
     let out = bin.show_items(ui, &shown, &mut |key, _| {
         let tile = tile_of(&facts, key);
         match stack_led_by(cards, key) {
@@ -84,6 +85,7 @@ where
             _ => {}
         }
     }
+    let moving = out.moving;
     if !out.moved.is_empty() {
         let (keys, to): (Vec<K>, Vec<egui::Vec2>) = out.moved.into_iter().unzip();
         events.push(BinEvent::FreeformMoved { keys, to });
@@ -93,5 +95,5 @@ where
     {
         events.push(BinEvent::Drop { items, into: None });
     }
-    ViewOut { response: out.response.response, events }
+    ViewOut { response: out.response.response, events, moving }
 }

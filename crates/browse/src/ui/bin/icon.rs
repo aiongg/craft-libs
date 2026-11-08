@@ -206,5 +206,5 @@ where
     if let Some(forward) = stack.filter(|_| user_order) {
         events.extend(stack_event(&cards.keys, &held.items, forward, None));
     }
-    ViewOut { response: out.response.response, events }
+    ViewOut { response: out.response.response, events, moving: None }
 }

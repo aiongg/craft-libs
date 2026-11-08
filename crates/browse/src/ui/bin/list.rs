@@ -197,7 +197,7 @@ where
         let parent = first.and_then(|key| model.parent(key)).filter(|parent| Some(parent) != state.shown.as_ref());
         events.extend(stack_event(&order, &held.items, forward, parent));
     }
-    ViewOut { response: out.response, events }
+    ViewOut { response: out.response, events, moving: None }
 }
 
 /// The bin event a reorder of the table or the grid means. A move into another bin, or out to the shown bin, is

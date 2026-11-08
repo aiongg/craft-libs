@@ -49,7 +49,7 @@ use craft_ui::text::TextField;
 use craft_ui::tile_grid::{TileBadge, TileStatus, TileZoom, ZoomStep};
 use egui::{Id, Response, Ui, Vec2};
 
-use super::freebin::FreeformCard;
+use super::freebin::{FreeBinMove, FreeformCard};
 
 /// The default zoom: the medium thumbnail.
 const ZOOM_DEFAULT: f64 = 1.0;
@@ -402,12 +402,16 @@ pub(super) struct ViewIn<'a, K: TextureKey, M: ?Sized> {
     pub scrub: Option<(K, f32)>,
     /// The step of the stacking keys pressed this pass: `true` moves later.
     pub stack: Option<bool>,
+    /// The Freeform view's drag in progress, as its last pass reported it.
+    pub moving: Option<FreeBinMove<K>>,
 }
 
 /// What a view reported.
 pub(super) struct ViewOut<K> {
     pub response: Response,
     pub events: Vec<BinEvent<K>>,
+    /// The Freeform view's drag in progress, handed back next pass.
+    pub moving: Option<FreeBinMove<K>>,
 }
 
 /// What the bin keeps in its container's memory between passes.
@@ -417,11 +421,12 @@ struct BinMemory<K: Eq + Hash> {
     local: BinState<K>,
     selection: Selection<K>,
     scrub: Option<(K, f32)>,
+    moving: Option<FreeBinMove<K>>,
 }
 
 impl<K: Eq + Hash + Clone> Default for BinMemory<K> {
     fn default() -> Self {
-        BinMemory { before: BinState::default(), local: BinState::default(), selection: Selection::default(), scrub: None }
+        BinMemory { before: BinState::default(), local: BinState::default(), selection: Selection::default(), scrub: None, moving: None }
     }
 }
 
@@ -637,11 +642,11 @@ where
                 _ => BinState::default(),
             };
             let mut local = before.clone();
-            let (mut own, scrub) = {
+            let (mut own, scrub, moving) = {
                 let memory = cx.keep::<BinMemory<K>>();
                 memory.before = before;
                 memory.local = local.clone();
-                (memory.selection.clone(), memory.scrub.clone())
+                (memory.selection.clone(), memory.scrub.clone(), memory.moving.clone())
             };
             let mut events: Vec<BinEvent<K>> = Vec::new();
             let view = local.settings.view;
@@ -696,7 +701,7 @@ where
             }
 
             // The view, inside a slot that takes the drops the view leaves.
-            let (response, mut view_events, background) = {
+            let (response, mut view_events, background, moving_now) = {
                 let mut hosted = selection.borrow_mut();
                 let bind = match hosted.as_mut() {
                     Some(bind) => bind.reborrowed(),
@@ -716,6 +721,7 @@ where
                     hover_scrub,
                     scrub: scrub.clone(),
                     stack: None,
+                    moving: moving.clone(),
                 };
                 let mut input = Some(input);
                 let shown_view =
@@ -737,8 +743,9 @@ where
                         }
                     });
                 let background = shown_view.output.dropped.clone();
-                let out = shown_view.inner.unwrap_or_else(|| ViewOut { response: shown_view.output.response.clone(), events: Vec::new() });
-                (out.response, out.events, background)
+                let out =
+                    shown_view.inner.unwrap_or_else(|| ViewOut { response: shown_view.output.response.clone(), events: Vec::new(), moving: None });
+                (out.response, out.events, background, out.moving)
             };
             let mut zoom_now = local.settings.zoom;
             for step in commanded {
@@ -770,6 +777,7 @@ where
             memory.local = local;
             memory.selection = own;
             memory.scrub = last_scrub;
+            memory.moving = moving_now;
             (response, events)
         };
 
