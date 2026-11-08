@@ -16,7 +16,7 @@ use craft_keymap::{Chord, Key, Mods};
 use craft_ui::canvas::{canvas_snap, canvas_space};
 use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pointer as _,
-    Props as _, Remember as _, Role, Styled as _, WordSetCx as _,
+    Props, Remember as _, Role, Styled as _, WordSetCx as _,
 };
 use craft_ui::primitives::{Dashes, PaintShape, StrokeWidth};
 use craft_ui::runtime::env::Label;
@@ -114,7 +114,7 @@ const TEAR_OFF: f32 = 36.0;
 ///   halfway after the picked stop. Enter and Space on a colour stop or an end set `color_requested`. Each change is one
 ///   Set.
 /// - With [`selected`](Self::selected) the overlay and a [`GradientEditor`](super::GradientEditor) share one selected stop.
-#[derive(crate::contract::Component, crate::contract::Props)]
+#[derive(Component, Props)]
 #[component(canvas_control)]
 pub struct GradientOverlay<'a> {
     #[common]
@@ -237,7 +237,7 @@ impl<'a> GradientOverlay<'a> {
     /// The group's accessible value.
     fn group_value(&self, cx: &Cx<'_, Self>, value: &LineGradient) -> String {
         match &self.value_text {
-            Some(text) => cx.env.resolve(text).to_string(),
+            Some(text) => cx.env.resolve(text).as_str().to_owned(),
             None => {
                 let n = value.stops.color.len() as u64;
                 cx.words::<GradientLineWords>().stops.text(n, &cx.format().integer(n))
@@ -347,7 +347,8 @@ impl Component for GradientOverlay<'_> {
             node.value(end_value(point));
         }
         let gradient_words = cx.words::<GradientWords>();
-        let text = |marker: StopRef| marker_texts(&gradient_words, &value.stops, self.rules.rows, marker, self.location_decimals);
+        let units = cx.env.units();
+        let text = |marker: StopRef| marker_texts(&gradient_words, &units, self.rules.rows, &value.stops, marker, usize::from(self.location_decimals));
         for i in 0..value.stops.color.len() {
             let (name, shown) = text(StopRef::Color(i));
             let node = access.node(STOP.at(i as u64), Role::BUTTON);

@@ -541,7 +541,7 @@ struct SampleStyle {
 
 /// The tall line sample under the rows: a [`StrokePreview`] on a sunken well, a rectangle when closed, a line
 /// otherwise. It is the stroke document art the editor shows, so it paints with the content painter.
-#[derive(craft_ui::contract::Component)]
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
 #[component(content_painter, unregistered)]
 struct Sample<'a> {
     #[common]

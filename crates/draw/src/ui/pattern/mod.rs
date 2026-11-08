@@ -84,3 +84,10 @@ impl PatternFillOptions {
         PatternFillOptions { colors: Some(colors), ..PatternFillOptions::bitmap(pattern) }
     }
 }
+
+impl Default for PatternFillOptions {
+    /// A bitmap pattern with no pattern picked, for a form that starts from nothing.
+    fn default() -> Self {
+        PatternFillOptions::bitmap("")
+    }
+}

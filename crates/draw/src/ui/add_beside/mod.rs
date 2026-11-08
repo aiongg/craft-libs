@@ -132,7 +132,7 @@ impl Outcome for AddBesideOutput {
 ///   direction, Enter or Space adds; each button is a `Button` node ("Add above", ...).
 #[must_use = "show the buttons with `show_at`"]
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
-#[component(canvas_control)]
+#[component(canvas_control, content_painter)]
 pub struct AddBesideHandles<'a> {
     #[common]
     common: Common,

@@ -108,7 +108,7 @@ impl<'a> RulerBar<'a> {
                 readout(ui, salt, name.clone().into(), value);
             }
             Divider::vertical().show(ui);
-            Checkbox::new(use_scale.reborrow()).label(words.use_scale.clone()).show(ui);
+            Checkbox::new(use_scale.reborrowed()).label(words.use_scale.clone()).show(ui);
             let enabled = line.is_some();
             straighten_layer = clicked(&Button::new(words.straighten_layer.clone()).enabled(enabled).show(ui));
             clear = clicked(&Button::new(words.clear.clone()).enabled(enabled).show(ui));

@@ -1,6 +1,7 @@
 //! Stories of the Crop tool on a canvas.
 
-use super::{CropDocKey, CropDocument, CropInput, CropSettings, CropTool};
+use super::{CropDocument, CropInput, CropSettings, CropTool};
+use crate::ui::crop::CropDocKey;
 use craft_behavior::geometry::CropBox;
 use craft_behavior::kurbo::{Rect, Size};
 use craft_ui::canvas::{Canvas, CanvasTool as _, ToolHost};

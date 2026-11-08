@@ -9,7 +9,7 @@ use craft_behavior::{Granularity, HitLevel, HitPriority, HitShape, Intent, Metri
 use craft_ui::canvas::{NUDGE, NUDGE_FAR, canvas_space};
 use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Name, PaintUi, PartsCx, Pointer as _, Props as _,
-    Remember as _, Role, WordSetCx as _,
+    Remember as _, Role, Styled as _, WordSetCx as _,
 };
 use craft_ui::primitives::{PaintShape, StrokeWidth};
 use craft_ui::runtime::env::Label;
@@ -47,7 +47,7 @@ struct Grab(Option<RulerPart>);
 ///   ([`RulerPass::show_line`](super::RulerPass::show_line)).
 /// - **AccessKit:** the group's value reads "Length L, angle A°" in the ruler's units; each point is named and valued
 ///   "x, y" in the ruler's units.
-#[derive(Component)]
+#[derive(Component, craft_ui::contract::Props)]
 #[component(canvas_control)]
 pub struct RulerOverlay<'a> {
     #[common]

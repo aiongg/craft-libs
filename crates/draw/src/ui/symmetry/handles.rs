@@ -99,7 +99,7 @@ impl<'a> SymmetryHandles<'a> {
                 cx.cursor(Cursor::System(icon), CursorPriority::Part);
             }
             match press.phase {
-                PressPhase::Down { start } if start.button == PointerButton::Primary => {
+                PressPhase::Down { start, .. } if start.button == PointerButton::Primary => {
                     held = if index == CENTRE {
                         Grip::Move { from: space.view.to_doc(start.origin), centre: shown.center }
                     } else {

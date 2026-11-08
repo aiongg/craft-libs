@@ -79,7 +79,7 @@ impl Outcome for ConnectorHandlesOutput {
 /// - Keys: the handles are one Tab stop. Page Down and Up pick the next part; arrows move a picked
 ///   bend by the nudge step (⇧ by the far step) or move a picked end to the next (previous) target
 ///   in the targets' order, skipping the other end's object.
-#[derive(craft_ui::contract::Component)]
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
 #[component(canvas_control)]
 pub struct ConnectorHandles<'a> {
     #[common]

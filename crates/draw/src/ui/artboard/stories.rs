@@ -4,12 +4,11 @@ use super::{ArtboardBackground, ArtboardBar, ArtboardItem, ArtboardOverlay, Artb
 use craft_behavior::kurbo::{Rect, Size};
 use craft_theme::Srgba;
 use craft_ui::bars::{Bar, BarKind};
-use craft_ui::canvas::{Canvas, ToolPath};
+use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
-const PATH: ToolPath = ToolPath::Command("the Width and Height fields of the options bar and Add New Artboard");
 
 fn presets() -> Vec<ArtboardPreset> {
     vec![ArtboardPreset::new("Letter", Size::new(612.0, 792.0)), ArtboardPreset::new("Phone", Size::new(390.0, 844.0))]
@@ -22,7 +21,7 @@ fn boards() -> Vec<ArtboardItem> {
 #[story(ArtboardOverlay<'static>, covers = [Default])]
 fn two_artboards(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let (items, selected) = (boards(), [0_usize]);
-    Canvas::new("Document", PATH).show(ui, |ui, body| ArtboardOverlay::new("Artboards", &items, &selected).show_at(ui, body.rect));
+    Canvas::new("Document").show(ui, |ui, body| ArtboardOverlay::new("Artboards", &items, &selected).show_at(ui, body.rect));
     StoryOutput::default()
 }
 

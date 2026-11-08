@@ -330,7 +330,7 @@ impl<'a> TransformBox<'a> {
                 cx.cursor(cursor, CursorPriority::Part);
             }
             match press.phase {
-                PressPhase::Down { start } if start.button == PointerButton::Primary => {
+                PressPhase::Down { start, .. } if start.button == PointerButton::Primary => {
                     let from = space.view.to_doc(start.origin);
                     let moves_pivot = mods.alt && self.reference_point && matches!(part, BoxPart::Inside | BoxPart::Outside);
                     let (part, begin) = if moves_pivot { (BoxPart::Pivot, BoxState::new(shown.quad, from)) } else { (part, *shown) };

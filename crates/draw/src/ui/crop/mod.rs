@@ -7,16 +7,17 @@
 //! [`CropCommit`] it carries.
 
 mod bar;
+mod bar_words;
 mod menus;
 mod options;
 mod perspective_crop;
 mod perspective_tool;
 mod session;
-#[cfg(feature = "screen-testing")]
 mod tool;
 mod words;
 
-pub use bar::{CropBar, CropBarOutput, CropBarWords, CropRatioChange};
+pub use bar::{CropBar, CropBarOutput, CropRatioChange};
+pub use bar_words::CropBarWords;
 pub use menus::{CropOptionsMenu, CropOptionsMenuOutput, CropOverlayMenu};
 pub use options::{
     CROP_RATIOS, CROP_SIZES, CropFill, CropPresetChoice, CropRatio, CropSettings, CropSizeFields, CropSizePreset, CropTarget, CropUserPreset,

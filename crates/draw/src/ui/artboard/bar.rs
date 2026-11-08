@@ -5,7 +5,7 @@ use craft_behavior::kurbo::Size;
 use craft_behavior::{EditEvent, Mixed};
 use craft_ui::bars::{BarItem, BarItems, ItemDisplay};
 use craft_ui::buttons::Button;
-use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Props as _, Show as _, clicked};
+use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, clicked};
 use craft_ui::display::Divider;
 use craft_ui::form::Field;
 use craft_ui::pickers::Select;

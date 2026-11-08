@@ -119,7 +119,7 @@ fn target_uses_the_typed_resolution_else_the_documents() {
         assert!((t.width - 254.0).abs() < 1e-9 && (t.height - 254.0).abs() < 1e-9 && t.resolution == Some(254.0));
         let points = size_mode("72 pt", "1", "").target(&doc.points_per_inch(72.27), units).unwrap();
         assert!((points.width - 100.0 * 72.0 / 72.27).abs() < 1e-9);
-        assert!((size_mode("4 in", "6 in", "").ratio_value(&doc).unwrap() - 4.0 / 6.0).abs() < 1e-12);
+        assert!((size_mode("4 in", "6 in", "").ratio_value(&doc, units).unwrap() - 4.0 / 6.0).abs() < 1e-12);
     });
 }
 
@@ -129,10 +129,10 @@ fn empty_w_or_h_is_a_free_crop() {
     with_units(|units| {
         let doc = document();
         let half = size_mode("4 in", "", "300");
-        assert_eq!((half.target(&doc, units), half.ratio_value(&doc)), (None, None));
+        assert_eq!((half.target(&doc, units), half.ratio_value(&doc, units)), (None, None));
         let mut settings = CropSettings::default();
         settings.set_ratio_field(0, 3.0);
-        assert_eq!((settings.ratio, settings.ratio_fields, settings.ratio_value(&doc)), (CropRatio::Free, [3.0, 0.0], None));
+        assert_eq!((settings.ratio, settings.ratio_fields, settings.ratio_value(&doc, units)), (CropRatio::Free, [3.0, 0.0], None));
         assert_eq!(settings.shown_ratio_fields(&doc), [3.0, 0.0]);
         settings.set_ratio_field(1, 1.41437);
         assert_eq!(settings.ratio, CropRatio::Sides { width: 3.0, height: 1.414 });

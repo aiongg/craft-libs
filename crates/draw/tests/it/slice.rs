@@ -7,7 +7,7 @@ use craft_draw::ui::slice::{
     DivideBy, DivideSlices, DivideSlicesDialog, SliceCommand, SliceEvent, SliceItem, SliceKind, SliceMode, SliceOptions, SliceOptionsDialog,
     SliceOrigin, SliceOverlay, SliceRefusal, SliceRules, SliceTool, SliceToolSettings,
 };
-use craft_ui::canvas::{Canvas, ToolHost, ToolPath};
+use craft_ui::canvas::{Canvas, ToolHost};
 use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::dialog::{DialogHost, StackDialog as _};
 use craft_ui::testing::{Fixture, pointer, trial};
@@ -15,7 +15,6 @@ use egui::{Key, Modifiers, Pos2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-const PATH: ToolPath = ToolPath::Command("the Divide Slice and Slice Options commands");
 const SLICE: PartKey = PartKey::new("slice");
 
 /// What the app keeps of the slices and what the passes reported.
@@ -80,7 +79,7 @@ fn harness(mode: SliceMode, setup: impl FnOnce(&mut App)) -> Harness {
         tool.mode(app.mode).items(&app.items).selected(app.selected).locked(app.locked).settings(settings).rules(app.rules);
         let (items, selected, rules) = (app.items.clone(), app.selected, app.rules);
         let (pick, locked, hide_auto) = (app.mode == SliceMode::Select, app.locked, app.hide_auto);
-        let shown = Canvas::new("Document", PATH).view(view).show(ui, |ui, body| {
+        let shown = Canvas::new("Document").view(view).show(ui, |ui, body| {
             let mut overlay = SliceOverlay::new("Slices", &items).pick(pick).locked(locked).hide_auto(hide_auto).rules(rules);
             if let Some(number) = selected {
                 overlay = overlay.selected_slice(number);

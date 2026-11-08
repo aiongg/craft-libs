@@ -298,14 +298,14 @@ impl CropSettings {
     /// [`CropRatio::Original`], the sides' for [`CropRatio::Sides`], W : H of the
     /// [`target`](Self::target) for [`CropRatio::Size`]; `None` for a free ratio and for any
     /// ratio that is not a positive finite number.
-    pub fn ratio_value(&self, document: &CropDocument) -> Option<f64> {
+    pub fn ratio_value(&self, document: &CropDocument, units: &Units) -> Option<f64> {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:217 `preset_ratio`; crop_size.rs:146 `ratio`.
         let (width, height) = match self.ratio {
             CropRatio::Free => return None,
             CropRatio::Original => (document.size.width, document.size.height),
             CropRatio::Sides { width, height } => (width, height),
             CropRatio::Size => {
-                let target = self.target(document)?;
+                let target = self.target(document, units)?;
                 (target.width, target.height)
             }
         };

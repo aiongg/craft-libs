@@ -167,6 +167,7 @@ fn number(
                 None => field,
             }
             .show(ui)
+            .edit
         })
         .inner
         .expect("a field shows its control")

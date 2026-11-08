@@ -11,7 +11,7 @@ use craft_keymap::{Chord, Key, Mods};
 use craft_theme::{Rgba, Srgba, Stateful, States};
 use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, DropMark, DropOperation, DropTarget, Edit as _, EditResponse, Focus as _, MeasureCx, Name, Outcome,
-    PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role, WordSetCx as _,
+    PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role, Styled as _, WordSetCx as _,
 };
 use craft_ui::primitives::{PaintShape, StrokeWidth};
 use craft_ui::runtime::env::Units;
@@ -765,7 +765,7 @@ impl<P: Clone + Send + Sync + 'static> Component for GradientBar<'_, P> {
                 self.pointer(cx, &geo, &stops, marker);
             }
             let ramp = cx.part(RAMP).press;
-            if let PressPhase::Release { pos, start, click: true } = ramp.phase
+            if let PressPhase::Release { pos, start, click: true, .. } = ramp.phase
                 && start.button == PointerButton::Primary
                 && cx.memory::<Held>().drag.is_none()
             {

@@ -30,7 +30,7 @@ pub struct BezierStyle {
 }
 
 impl BezierStyle {
-    pub(super) fn of(cx: &StyleCx<'_>) -> Self {
+    pub(in crate::ui::pen) fn of(cx: &StyleCx<'_>) -> Self {
         let tokens = cx.tokens;
         let overlay = &tokens.color.overlay;
         let mut anchor = cx.handle();

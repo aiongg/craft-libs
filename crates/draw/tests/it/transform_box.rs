@@ -20,7 +20,6 @@ use std::rc::Rc;
 /// The box before any drag, in document units.
 const RECT: Rect = Rect::new(100.0, 80.0, 300.0, 220.0);
 
-const PATH: ToolPath = ToolPath::Command("the Transform fields of the options bar");
 
 /// The part key the tests address the box's parts by.
 const BOX: PartKey = PartKey::new("box");
@@ -110,7 +109,7 @@ fn harness(state: BoxState, setup: impl FnOnce(&mut Config)) -> Harness {
             host.view = view;
             host.state
         };
-        let canvas = Canvas::new("Document", PATH).view(view).show(ui, |ui, body| {
+        let canvas = Canvas::new("Document").view(view).show(ui, |ui, body| {
             let mut guide_edits = 0;
             if config.guides {
                 let output = Guides::new("Guides", Bind::bound(&mut guides)).interactive(true).show_at(ui, body.rect);
@@ -600,7 +599,7 @@ fn overlay(shown: bool, setup: impl FnOnce(&mut TransformSession<()>)) -> (Fixtu
         let output = {
             let host = shown_host.borrow();
             let session = &host.session;
-            Canvas::new("Document", PATH)
+            Canvas::new("Document")
                 .view(view)
                 .show(ui, |ui, body| TransformOverlay::new("Free Transform", session, &settings).show_at(ui, body.rect))
                 .inner

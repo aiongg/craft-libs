@@ -9,7 +9,7 @@
 //! use craft_ui::canvas::{Canvas, ToolHost, ToolPath};
 //! use craft_ui::contract::{Show as _, ShowContainer as _};
 //! # fn demo(ui: &mut egui::Ui, tool: &mut SliceTool, slices: &[SliceItem], selected: Option<usize>, locked: bool) {
-//! let shown = Canvas::new("Document", ToolPath::Command("Slice Options")).show(ui, |ui, body| {
+//! let shown = Canvas::new("Document").show(ui, |ui, body| {
 //!     SliceOverlay::new("Slices", slices).selected(selected).pick(true).locked(locked).show_at(ui, body.rect)
 //! });
 //! let _ = ToolHost::new().run(ui, &shown.output, tool);

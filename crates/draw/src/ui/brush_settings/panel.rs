@@ -71,7 +71,7 @@ impl<K, R> Outcome for BrushSettingsPanelOutput<K, R> {
 #[must_use = "show the panel with `show`"]
 #[derive(craft_ui::contract::Pattern, craft_ui::contract::Props)]
 #[pattern(probe(BrushSettingsPanel<'static, u8>))]
-pub struct BrushSettingsPanel<'a, K: Value + Eq + Hash> {
+pub struct BrushSettingsPanel<'a, K: Value + Eq + Hash + std::fmt::Debug> {
     label: Label,
     sections: &'a [BrushSection<K>],
     shown: Bind<'a, K>,
@@ -86,7 +86,7 @@ pub struct BrushSettingsPanel<'a, K: Value + Eq + Hash> {
     strip: Option<BrushStrokeStrip<'a>>,
 }
 
-impl<'a, K: Value + Eq + Hash> BrushSettingsPanel<'a, K> {
+impl<'a, K: Value + Eq + Hash + std::fmt::Debug> BrushSettingsPanel<'a, K> {
     /// A panel named `label` over `sections`, showing the pane of the section in `shown` (the first pane section
     /// when it holds none).
     pub fn new(label: impl Into<Label>, sections: &'a [BrushSection<K>], shown: Bind<'a, K>) -> Self {

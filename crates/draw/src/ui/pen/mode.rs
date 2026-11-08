@@ -88,11 +88,11 @@ impl PathMode {
         }
         let takes = |bezier, mode| PathMode { bezier, draft: Some(mode), draft_senses: true };
         match tool {
-            PathTool::Pen if drawing => takes(BezierTool::Show, PenMode::Pen),
+            PathTool::Pen if drawing => takes(BezierTool::Anchors, PenMode::Pen),
             PathTool::Pen if mods.alt => takes(BezierTool::Convert, PenMode::Pen),
             PathTool::Pen if auto_add_delete && !mods.shift => takes(BezierTool::AutoAddDelete, PenMode::Pen),
-            PathTool::Pen => takes(BezierTool::Show, PenMode::Pen),
-            PathTool::Curvature if drawing => takes(BezierTool::Show, PenMode::Curvature),
+            PathTool::Pen => takes(BezierTool::Anchors, PenMode::Pen),
+            PathTool::Curvature if drawing => takes(BezierTool::Anchors, PenMode::Curvature),
             PathTool::Curvature => takes(BezierTool::Curvature, PenMode::Curvature),
             PathTool::AddAnchor => overlay(BezierTool::AddAnchor),
             PathTool::DeleteAnchor => overlay(BezierTool::DeleteAnchor),

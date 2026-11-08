@@ -192,7 +192,7 @@ impl<'a> SliceOverlay<'a> {
             let press = result.press;
             let Some(item) = self.item(number).cloned() else { continue };
             match press.phase {
-                PressPhase::Down { start } if start.button == PointerButton::Primary => {
+                PressPhase::Down { start, .. } if start.button == PointerButton::Primary => {
                     let add = self.rules.multi_select && press.mods.shift;
                     self.events.push(SliceEvent::Select { number: Some(number), add, mods: press.mods });
                     if press.double_pressed() {
@@ -243,7 +243,7 @@ impl<'a> SliceOverlay<'a> {
                 let Some(result) = cx.part_if_declared(HANDLE.at(index as u64)) else { continue };
                 let press = result.press;
                 match press.phase {
-                    PressPhase::Down { start } if start.button == PointerButton::Primary => {
+                    PressPhase::Down { start, .. } if start.button == PointerButton::Primary => {
                         held = Some(Held::Resize {
                             number: user.number,
                             rect: user.rect,

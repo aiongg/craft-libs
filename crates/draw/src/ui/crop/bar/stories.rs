@@ -19,7 +19,7 @@ fn crop_bar_ratio(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let document = document();
     let settings = data.value("settings", CropSettings::default());
     let mut output = None;
-    Bar::new("Options", BarKind::Options).show(ui, |ui, _| output = Some(CropBar::new(settings, &document).angle(Some(0.0)).show(ui)));
+    Bar::new("Options", BarKind::Options).show(ui, |ui, _| output = Some(CropBar::new(settings, &document).angle(0.0).show(ui)));
     output.map(StoryOutput::from).unwrap_or_default()
 }
 

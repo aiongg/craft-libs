@@ -136,7 +136,7 @@ impl<'a> ConnectorBar<'a> {
                     if let Some(paint) = &row.paint {
                         let choices = row.choices;
                         select = select.decorate(move |id: &String, list_row| match choices.iter().find(|c| &c.id == id) {
-                            Some(choice) => list_row.thumb(ThumbSize::Small, move |cx, rect| paint(cx, rect, choice)),
+                            Some(choice) => list_row.thumb(ThumbSize::Small, move |cx, rect| paint.paint(cx, rect, choice)),
                             None => list_row,
                         });
                     }

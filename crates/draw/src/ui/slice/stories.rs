@@ -9,7 +9,7 @@ use craft_behavior::geometry::Constraint;
 use craft_behavior::kurbo::Rect;
 use craft_theme::Srgba;
 use craft_ui::bars::{Bar, BarKind};
-use craft_ui::canvas::{Canvas, ToolPath};
+use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Entry, Show as _, ShowContainer as _};
 use craft_ui::dialog::{DialogHost, StackDialog};
 use craft_ui::runtime::env::UnitKind;
@@ -17,7 +17,6 @@ use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 use std::sync::{Arc, Mutex};
 
-const PATH: ToolPath = ToolPath::Command("the Divide Slice and Slice Options commands");
 
 /// A document of 240 by 160 pixels at 72 pixels per inch.
 const DOCUMENT: PixelSize = PixelSize::new(240, 160);
@@ -35,7 +34,7 @@ fn slices() -> Vec<SliceItem> {
 
 fn on_canvas(ui: &mut Ui, configure: impl for<'a> FnOnce(SliceOverlay<'a>) -> SliceOverlay<'a>) -> StoryOutput {
     let items = slices();
-    Canvas::new("Document", PATH).show(ui, |ui, body| configure(SliceOverlay::new("Slices", &items)).show_at(ui, body.rect));
+    Canvas::new("Document").show(ui, |ui, body| configure(SliceOverlay::new("Slices", &items)).show_at(ui, body.rect));
     StoryOutput::default()
 }
 

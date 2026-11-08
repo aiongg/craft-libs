@@ -135,7 +135,7 @@ impl<'a> ArtboardOverlay<'a> {
             let press = result.press;
             let item = &self.items[index];
             match press.phase {
-                PressPhase::Down { start } if start.button == PointerButton::Primary => {
+                PressPhase::Down { start, .. } if start.button == PointerButton::Primary => {
                     let at = space.view.to_doc(start.origin);
                     let mods = press.mods;
                     live = true;
@@ -241,7 +241,7 @@ impl<'a> ArtboardOverlay<'a> {
                 let Some(result) = cx.part_if_declared(HANDLE.at(h as u64)) else { continue };
                 let press = result.press;
                 match press.phase {
-                    PressPhase::Down { start } if start.button == PointerButton::Primary => {
+                    PressPhase::Down { start, .. } if start.button == PointerButton::Primary => {
                         let run = Run::new(mint(cx), label(&words.resize_board), rect);
                         held = Held::Resize { index: active, rect, handle, run };
                         live = true;

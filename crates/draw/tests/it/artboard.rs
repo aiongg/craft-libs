@@ -7,14 +7,13 @@ use craft_draw::ui::artboard::{
     ArtboardBackground, ArtboardBar, ArtboardEvent, ArtboardItem, ArtboardOverlay, ArtboardPreset, ArtboardProperties, ArtboardRules, ArtboardTool,
 };
 use craft_ui::bars::{Bar, BarKind};
-use craft_ui::canvas::{Canvas, ToolHost, ToolPath};
+use craft_ui::canvas::{Canvas, ToolHost};
 use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Key, Modifiers, Pos2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-const PATH: ToolPath = ToolPath::Command("the Width and Height fields of the options bar and Add New Artboard");
 
 struct App {
     items: Vec<ArtboardItem>,
@@ -53,7 +52,7 @@ fn harness(rules: ArtboardRules, selected: &[usize]) -> Harness {
         let mut tool = shown_tool.borrow_mut();
         tool.items(&app.items).selected(&app.selected).rules(app.rules);
         let (items, selected, rules) = (app.items.clone(), app.selected.clone(), app.rules);
-        let shown = Canvas::new("Document", PATH)
+        let shown = Canvas::new("Document")
             .view(view)
             .show(ui, |ui, body| ArtboardOverlay::new("Artboards", &items, &selected).rules(rules).show_at(ui, body.rect));
         ToolHost::new().run(ui, &shown.output, &mut *tool);

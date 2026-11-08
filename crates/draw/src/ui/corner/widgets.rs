@@ -119,7 +119,7 @@ impl CornerWidgets<'_> {
             let Some(result) = cx.part_if_declared(WIDGET.at(at as u64)) else { continue };
             let press = result.press;
             match press.phase {
-                PressPhase::Down { start } if start.button == PointerButton::Primary && !press.mods.cmd => {
+                PressPhase::Down { start, .. } if start.button == PointerButton::Primary && !press.mods.cmd => {
                     let targets = cx.value().cloned().unwrap_or_default();
                     let step = targets
                         .iter()

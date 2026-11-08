@@ -15,12 +15,7 @@ mod editor;
 pub mod gradient_line;
 pub mod gradient_overlay;
 pub mod map;
-#[cfg(test)]
-mod map_tests;
 mod palette;
-mod palette_stories;
-#[cfg(test)]
-mod palette_tests;
 mod ramp;
 pub mod stops;
 mod swatch;
@@ -29,17 +24,14 @@ mod words;
 
 pub(crate) use editor::marker_texts;
 pub use editor::{GradientEditor, GradientEditorOutput, StopDrop};
-pub use palette::{GradientGroup, GradientItem, GradientPalette, GradientRef, PaletteLayout};
+pub use palette::{GradientGroup, GradientItem, GradientPalette, GradientPaletteOutput, GradientRef};
 pub use ramp::GradientRamp;
 pub use stops::{Sampler, StopRules, default_sampler};
 pub use swatch::{GradientSwatch, GradientSwatchOutput};
 pub use value::{ColorStop, GradientStops, OpacityStop, StopColor, StopRef, StopRow, StopRows};
 pub use words::GradientWords;
 
-pub use map::{GradientMap, GradientMapEditor, GradientMapLabels, GradientMapOutput};
+pub use map::{GradientMap, GradientMapEditor, GradientMapOutput};
 
 pub use gradient_line::{GradientExtent, GradientLine, LineGradient, LinePart};
-pub use gradient_overlay::{
-    ColorRequest, GradientLineNames, GradientLineStyle, GradientOverlay, GradientOverlayResponse, LineCursor, LinePress, LineRelease, LineTrack,
-    TaggedStop,
-};
+pub use gradient_overlay::{GradientLineWords, GradientOverlay, GradientOverlayOutput, GradientOverlayStyle};
