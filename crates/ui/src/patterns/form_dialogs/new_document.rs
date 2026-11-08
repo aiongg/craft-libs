@@ -494,7 +494,10 @@ impl<'a> NewDocumentDialog<'a> {
             answers,
         } = self;
         let recent: Vec<DocumentOptions> = remember_recent.as_ref().map_or_else(Vec::new, |key| {
-            MemoryStage::open(ui.ctx(), unique(("craft_ui::new_document_recent", key.as_str()))).saved::<Vec<DocumentOptions>>(key).clone()
+            let mut stage = MemoryStage::open(ui.ctx(), unique(("craft_ui::new_document_recent", key.as_str())));
+            let held = stage.saved::<Vec<DocumentOptions>>(key).clone();
+            stage.write_back();
+            held
         });
         let env = Env::of(ui);
         let words = env.words::<NewDocumentWords>();
