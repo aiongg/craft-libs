@@ -79,7 +79,7 @@ fn a_search_finds_a_nested_command_by_a_word_of_its_path() {
 
 #[trial]
 fn a_translated_command_is_found_by_its_english_name() {
-    let bar = MenuBar { menus: vec![Menu::new("Datei", vec![Item::new("file.save", "Speichern").into()])], documents: Vec::new() };
+    let bar = MenuBar::new(vec![Menu::new("Datei", vec![Item::new("file.save", "Speichern").into()])]);
     let english = |labeled: Labeled<'_>| match labeled {
         Labeled::Command(c) if c.id == "file.save" => Some("Save".to_owned()),
         Labeled::Title("Datei") => Some("File".to_owned()),

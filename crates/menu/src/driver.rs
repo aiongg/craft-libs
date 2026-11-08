@@ -5,7 +5,6 @@ use std::collections::HashSet;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use craft_keymap::{Chord, CommandRef, Key, Mods};
-use craft_ui::runtime::egui::input::RawInput;
 use craft_ui::runtime::windows::{WindowAction, WindowHost};
 
 use crate::layout::{Clash, Layout};
@@ -296,7 +295,7 @@ impl NativeMenu {
     /// already queued. Adding a made-up release as well sends two key-ups; in PhotoCraft, which
     /// reads a ⌘V release without a press as an image paste, that made ⌘V paste three times.
     /// ⌘C, ⌘X and ⌘V follow [`ClipboardKeys`].
-    pub fn raw_input(&mut self, raw: &mut RawInput) {
+    pub fn raw_input(&mut self, raw: &mut egui::RawInput) {
         // The window's own input, before key equivalents are added to it.
         if let Some(kept) = dismiss_input(raw, || self.armed && self.backend.tracking()) {
             if kept {
@@ -321,7 +320,7 @@ impl NativeMenu {
     }
 
     /// `tap`: a press and its release, for a click that stands for the key (no key-up follows).
-    fn add_key(&mut self, raw: &mut RawInput, chord: &Chord, tap: bool) {
+    fn add_key(&mut self, raw: &mut egui::RawInput, chord: &Chord, tap: bool) {
         let pressed_key = chord.key.to_egui();
         let clipboard = self.clipboard == ClipboardKeys::Egui && chord.mods == Mods::CMD && !self.gate.recording_shortcut;
         let event = match chord.key {
@@ -453,7 +452,7 @@ impl NativeMenu {
 
 /// `Some` when `raw` has a press or Escape that closes an open menu: `Some(true)` when, with
 /// `tracking` (a menu is open), those events were removed, since they belong to the menu.
-pub(crate) fn dismiss_input(raw: &mut RawInput, tracking: impl FnOnce() -> bool) -> Option<bool> {
+pub(crate) fn dismiss_input(raw: &mut egui::RawInput, tracking: impl FnOnce() -> bool) -> Option<bool> {
     if !raw
         .events
         .iter()
