@@ -18,7 +18,7 @@ fn slicer(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 
 fn card(ui: &mut Ui, filtered: bool) -> StoryOutput {
     let room = ui.available_rect_before_wrap();
-    ui.allocate_rect(room, egui::Sense::hover());
+    craft_ui::testing::contract::allocate(ui, room.size());
     SlicerCard::new("Colour".into(), filtered).show_at(ui, room, |_, _| {}).into()
 }
 
