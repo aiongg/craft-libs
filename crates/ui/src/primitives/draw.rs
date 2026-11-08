@@ -283,6 +283,12 @@ impl<'a> Draw<'a> {
         self.paint(shape, None, Some(self.line(width.into(), color.into())));
     }
 
+    /// [`Self::stroke`] with a data colour: the name the domain crates call until they switch to `stroke`, which
+    /// takes the same arguments; removed with the last such call.
+    pub fn data_stroke(&self, shape: &PaintShape, width: impl Into<DataStrokeWidth>, color: DataColor) {
+        self.stroke(shape, width, color);
+    }
+
     /// Fills `shape` with a colour from data (a swatch well, a layer label dot, an avatar). A `Draw` for an inactive
     /// part (`PaintUi::draw_part`) fills with the theme's disabled fill instead.
     pub fn data_fill(&self, shape: &PaintShape, color: DataColor) {
