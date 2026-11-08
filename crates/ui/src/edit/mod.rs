@@ -171,7 +171,6 @@ impl<U: UndoMarks> GestureHost<U> {
                         self.undo_outer(doc, outer);
                     }
                 }
-                _ => {}
             }
         }
         for id in &output.removed_gestures {
