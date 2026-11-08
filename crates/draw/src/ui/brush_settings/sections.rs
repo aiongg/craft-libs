@@ -1,9 +1,9 @@
 //! The Brush Settings section list ([`BrushSectionList`]).
 
-use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, IconId, ItemSource, Mixed, Selection, SelectionChange, Value};
+use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, IconId, ItemSource, Mixed, Selection, SelectionChange, Value};
 use craft_ui::contract::{
     ActivateOn, Bind, CollectionEvent, ColumnKind, ColumnSpec, Outcome, SelectMode, ShowCollection as _, ShowContainer as _, Sizing, SpaceAction,
-    ToggleColumn,
+    SweepApply, SweepStep, ToggleColumn, ToggleEdit,
 };
 use craft_ui::layout_components::Stack;
 use craft_ui::list::{ListRow, ToggleCell, ToggleState};
@@ -332,14 +332,14 @@ impl<'a, K: Value + Eq + Hash> BrushSectionList<'a, K> {
         let toggled: Vec<Slot<K>> = list_events
             .iter()
             .filter_map(|event| match event {
-                CollectionEvent::Toggle(edit) => edit.value().map(|toggle| toggle.key.clone()),
+                CollectionEvent::Toggle(edit) => applied(edit).map(|toggle| toggle.key),
                 _ => None,
             })
             .collect();
         for event in list_events {
             match event {
                 CollectionEvent::Toggle(edit) => {
-                    let Some(toggle) = edit.value() else { continue };
+                    let Some(toggle) = applied(&edit) else { continue };
                     let Slot::Section(key) = &toggle.key else { continue };
                     let Some(section) = rows.section(key) else { continue };
                     let key = key.clone();
@@ -386,5 +386,12 @@ impl<'a, K: Value + Eq + Hash> BrushSectionList<'a, K> {
             }
         }
         events
+    }
+}
+
+/// The cell a toggle edit sets, from a fresh sweep reader: this column does not sweep, so each edit is one press.
+fn applied<K: Clone>(edit: &EditEvent<ToggleEdit<K>>) -> Option<ToggleEdit<K>> {
+    match SweepApply::default().feed(edit)? {
+        SweepStep::Flip(cell) | SweepStep::ShowOnly(cell) | SweepStep::Restore(cell) | SweepStep::UndoShowOnly(cell) => Some(cell),
     }
 }
