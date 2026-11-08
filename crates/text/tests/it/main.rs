@@ -1,8 +1,11 @@
 //! The integration binary of craft-text: every test is a registered trial.
 
+mod columns;
 mod editor;
 mod find;
 mod notes;
+mod ruler;
+mod tabs_dialog;
 
 use craft_ui::testing::{TRIALS, suite};
 use libtest_mimic::{Arguments, Trial};
