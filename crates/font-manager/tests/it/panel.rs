@@ -99,15 +99,6 @@ fn setup_with(name: &str, sections: Arc<MemorySections>) -> Rig {
 }
 
 impl Rig {
-    fn dump(&self) -> String {
-        let tree = self.fx.tree();
-        tree.keys()
-            .into_iter()
-            .map(|k| format!("{:?} {:?} {:?} {:?}", tree.role_of(k), tree.name_of(k), craft_ui::testing::access::name(tree, k), tree.bounds_of(k)))
-            .collect::<Vec<_>>()
-            .join("\n")
-    }
-
     fn named(&self, role: Role, name: &str) -> Target {
         self.fx
             .by_role(role)
@@ -116,7 +107,7 @@ impl Rig {
                 craft_ui::testing::access::name(self.fx.tree(), target.node)
                     .is_some_and(|found| found == name || found.starts_with(&format!("{name},")))
             })
-            .unwrap_or_else(|| panic!("no {role:?} named `{name}` on screen:\n{}", self.dump()))
+            .unwrap_or_else(|| panic!("no {role:?} named `{name}` on screen"))
     }
 
     fn click_role(&mut self, role: Role, name: &str) {
@@ -137,7 +128,6 @@ impl Rig {
         self.fx.click(&target);
         self.fx.type_text(text);
         self.fx.settle();
-        eprintln!("DIAG type_into {name}: target {:?} focused {:?}\n{}", target.rect, self.fx.focused_stop(), self.dump());
     }
 
     fn key(&mut self, key: Key) {
@@ -171,9 +161,7 @@ impl Rig {
     fn open(&mut self, family: &str) {
         let card = self.named(Role::LIST_ITEM, family);
         self.fx.click_at(Pos2::new(card.rect.left() + 4.0, card.rect.top() + 4.0));
-        eprintln!("DIAG open {family}: card {:?} focused {:?}", card.rect, self.fx.focused_stop());
         self.key(Key::Enter);
-        eprintln!("DIAG open after Enter: focused {:?}\n{}", self.fx.focused_stop(), self.dump());
         assert_eq!(self.panel.borrow().details_family().as_deref(), Some(family));
     }
 }
