@@ -131,3 +131,45 @@ old = "craft_ui_gallery_legacy::layout::VariantAxis"
 new = ""
 status = "removed"
 note = "The Variants axes theme, mode and contrast are the options bar's choices; a per-cell override of them needs `Overrides` to carry mode and contrast."
+
+[[type]]
+name = "AppPreview"
+old = "craft_ui_gallery_legacy::preview::AppPreview"
+new = ""
+status = "removed"
+note = "Replaced by `EditorMock`: the shell composition by hand is `AppShell` with the canvas slot setters, `TitleBar`, `ToolRail`, `DockArea` and `CanvasPanel`."
+
+[[type]]
+name = "ShellView"
+old = "craft_ui_gallery_legacy::preview::ShellView"
+new = ""
+status = "removed"
+note = "The slot flags and the screen mode are the shell's own: the screen-mode commands (F) reach every mode, so the story needs no slot arguments."
+
+[[type]]
+name = "stories"
+old = "craft_ui_gallery_legacy::preview::stories"
+new = ""
+status = "removed"
+note = "One story of `EditorMock` (`editor_window`) replaces the editor story and the four Canvas shell stories; right to left is the viewer's direction axis."
+
+[[type]]
+name = "EditorMock"
+old = ""
+new = "craft_ui_gallery::mock::EditorMock"
+status = "replaced"
+note = "A pattern over a `&mut MockState`: the mock editor window. `show(ui)` returns the `AppShellOutput`."
+
+[[type]]
+name = "MockState"
+old = "craft_ui_gallery_legacy::preview::model::Mock"
+new = "craft_ui_gallery::mock::MockState"
+status = "moved"
+note = "Shrunk to the dock workspace, the document (title, dirty flag, layers, view, ruler zero), the current tool, the last-used tools and the Delete Layer question."
+
+[[type]]
+name = "Layers"
+old = "craft_ui_gallery_legacy::preview::panels::layers"
+new = ""
+status = "removed"
+note = "The panel pages Layers, Properties, Swatches, Channels, History and Adjustments are deleted as pages. The dock shows a visibility check box and a select button per layer and the Navigator panel; each other panel is a story of its family component."
