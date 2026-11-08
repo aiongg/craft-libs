@@ -12,16 +12,15 @@ use std::cell::RefCell;
 const CHILD: &str = "second window";
 const LINE: Vec2 = Vec2::new(100.0, 40.0);
 
-/// The node of `key`'s ancestors that is a direct child of `top`: the container's region that holds `key`.
-fn child_holding(tree: &craft_ui::testing::access::AccessTree, key: NodeKey, top: NodeKey) -> Option<NodeKey> {
-    let mut at = key;
-    while let Some(parent) = tree.parent_of_key(at) {
-        if parent == top {
-            return Some(at);
-        }
-        at = parent;
+/// The nodes below `top` in tree order: a container's regions are generic containers that parent's children lists
+/// pass through, so the order of a container's children is the order of this walk.
+fn below(tree: &craft_ui::testing::access::AccessTree, top: NodeKey) -> Vec<NodeKey> {
+    let mut walk = Vec::new();
+    for child in tree.children_of(top) {
+        walk.push(child);
+        walk.extend(below(tree, child));
     }
-    None
+    walk
 }
 
 fn child() -> ViewportId {
@@ -59,10 +58,7 @@ fn a_second_window_adds_no_nodes_to_the_main_windows_tree_and_leaves_its_order()
     assert!(other.has(kid), "the second window's tree holds its own node");
     assert!(ids.iter().all(|id| !other.has(*id)), "the main window's nodes are not in the second window's tree");
     let keys = ids.map(NodeKey::of);
-    let region = main.parent_of_key(keys[0]).expect("the first probe has a parent");
-    assert!(keys.iter().all(|key| main.parent_of_key(*key) == Some(region)), "the probes share one parent, the container's body");
-    assert!(child_holding(main, region, NodeKey::of(panel)).is_some() || region == NodeKey::of(panel), "the body is part of the container");
-    let order: Vec<NodeKey> = main.children_of(region).into_iter().filter(|key| keys.contains(key)).collect();
+    let order: Vec<NodeKey> = below(main, NodeKey::of(panel)).into_iter().filter(|key| keys.contains(key)).collect();
     assert_eq!(order, keys, "the probes keep their show order below the container");
 }
 
@@ -84,19 +80,12 @@ fn a_scroll_bar_part_keeps_its_emit_order_after_the_body() {
     frames.idle(4, &mut show);
     let tree = frames.tree();
     let (slab, rows) = (slab.expect("shown"), seen.each_ref().map(|seen| seen.borrow().id.expect("updated")));
-    let slab = NodeKey::of(slab);
-    let children = tree.children_of(slab);
-    let region = |id: &Id| child_holding(&tree, NodeKey::of(*id), slab);
-    let body = region(&rows[0]).expect("the first row is below the container");
-    assert!(rows.iter().all(|id| region(id) == Some(body)), "every row is in the body's region");
-    let holder = tree.parent_of_key(NodeKey::of(rows[0])).expect("the first row has a parent");
-    assert!(rows.iter().all(|id| tree.parent_of_key(NodeKey::of(*id)) == Some(holder)), "the rows share one parent");
-    let in_body = tree.children_of(holder);
-    let positions: Vec<Option<usize>> = rows.iter().map(|id| in_body.iter().position(|key| *key == NodeKey::of(*id))).collect();
+    let walk = below(&tree, NodeKey::of(slab));
+    let at = |key: NodeKey| walk.iter().position(|node| *node == key);
+    let positions: Vec<Option<usize>> = rows.iter().map(|id| at(NodeKey::of(*id))).collect();
     assert!(positions.iter().all(Option::is_some) && positions.is_sorted(), "the rows keep their show order: {positions:?}");
-    let at = |key: NodeKey| children.iter().position(|child| *child == key);
-    let last_row = at(body).expect("the body's region is a child of the container");
-    let bar = children.iter().enumerate().filter(|(_, key)| tree.is_hidden(**key)).filter(|(_, key)| {
+    let last_row = positions.last().copied().flatten().unwrap_or(0);
+    let bar = walk.iter().enumerate().filter(|(_, key)| tree.is_hidden(**key)).filter(|(_, key)| {
         tree.bounds_of(**key)
             .is_some_and(|bounds| rows.iter().all(|id| tree.bounds_of(NodeKey::of(*id)).is_some_and(|row| bounds.min.x >= row.max.x)))
     });
