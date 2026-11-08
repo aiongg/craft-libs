@@ -340,7 +340,7 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
     if let Some(policy) = scope {
         focus::push_scope(&ctx, id, policy, None);
     }
-    steps_6_to_16(p, ui, host_at, host_env);
+    run_in_host(p, ui, host_at, host_env);
     if scope.is_some() {
         focus::pop_scope(&ctx);
     }
@@ -451,7 +451,8 @@ fn activation_of(ctx: &Context, ui: &Ui, rect: Rect, resolved: &Resolved<'_>, ke
     (clicked || released).then_some(Activation { by_key: false })
 }
 
-fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<ShowAt>, host_env: Option<&Env>) {
+/// Steps 6 to 16 of the pass, run in the `Ui` the host gives.
+fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<ShowAt>, host_env: Option<&Env>) {
     let ctx = p.cx.core.ctx.clone();
     let (id, rtl) = (p.resolved.id, p.env.direction.is_rtl());
     let (env, resolved, inert) = (host_env.unwrap_or(p.env), p.resolved, p.inert);
