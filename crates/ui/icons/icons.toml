@@ -396,19 +396,19 @@ carbon = "eyedropper"
 tabler = "color-picker"
 
 [[icon]]
-name = "eyedropper-black"
+name = "eyedropper_black"
 directional = false
 lucide = "eyedropper-black"
 phosphor = "eyedropper-black"
 
 [[icon]]
-name = "eyedropper-gray"
+name = "eyedropper_gray"
 directional = false
 lucide = "eyedropper-gray"
 phosphor = "eyedropper-gray"
 
 [[icon]]
-name = "eyedropper-white"
+name = "eyedropper_white"
 directional = false
 lucide = "eyedropper-white"
 phosphor = "eyedropper-white"

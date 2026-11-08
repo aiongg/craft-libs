@@ -66,9 +66,9 @@ impl TonePicker {
     /// The picker's pipette: Photoshop's black, grey or white one.
     fn icon(self) -> IconId {
         IconId::new(match self {
-            TonePicker::Black => "eyedropper-black",
-            TonePicker::Gray => "eyedropper-gray",
-            TonePicker::White => "eyedropper-white",
+            TonePicker::Black => "eyedropper_black",
+            TonePicker::Gray => "eyedropper_gray",
+            TonePicker::White => "eyedropper_white",
         })
     }
 }
