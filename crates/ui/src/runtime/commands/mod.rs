@@ -258,6 +258,11 @@ impl CommandChain {
         self.0.iter().rev().find(|(s, _)| s.name() == scope).map(|(_, id)| *id)
     }
 
+    /// The innermost instance of any scope.
+    pub(crate) fn innermost_any(&self) -> Option<Id> {
+        self.0.last().map(|(_, id)| *id)
+    }
+
     pub(crate) fn ids(&self) -> impl Iterator<Item = Id> + '_ {
         self.0.iter().map(|(_, id)| *id)
     }
@@ -291,7 +296,11 @@ pub trait Commands: CommandAccess {
     /// The next command of set `S` routed to this instance this pass; each is taken once, so a discard pass does
     /// not repeat it.
     fn take_command<S: CommandSet>(&mut self) -> Option<(S, Fired)> {
-        board::take(self.command_ctx(), self.command_chain().innermost(S::SCOPE.name()), S::from_ref)
+        let chain = self.command_chain();
+        // An app-scope command is declared by the innermost instance around the caller, which a modal layer's
+        // content may be without an app-scope instance of its own.
+        let at = chain.innermost(S::SCOPE.name()).or_else(|| if S::SCOPE == CommandScope::APP { chain.innermost_any() } else { None });
+        board::take(self.command_ctx(), at, S::SCOPE == CommandScope::APP, S::from_ref)
     }
 
     /// `command` as this context shows it: the label, icon and chord with the scoped bindings of the scopes above

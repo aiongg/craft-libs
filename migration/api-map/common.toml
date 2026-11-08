@@ -67,3 +67,34 @@ status = "moved"
 old = "DatePicker::new(id, label, value).today(date)"
 new = "RootEnv::today(date)"
 note = "Read back with `Env::today()`. The host gives today's `CalendarDate` in its time zone; the runtime reads no wall clock."
+
+[[setter]]
+type = "PartBuilder"
+old = "PartBuilder::disabled(disabled)"
+new = "PartBuilder::inactive(inactive)"
+note = "The flag is renamed. An inactive part paints with the Disabled state (through `Cx::part_state`, and `PaintUi::draw_part` draws its data fill and stroke with the theme's disabled fill) but keeps sensing, and its access node stays enabled."
+
+[[call]]
+old = "part.disabled"
+new = "part.inactive"
+note = "`PartResult.disabled` is `PartResult.inactive` (`PartResult` is `#[non_exhaustive]`; read the field, do not build one)."
+
+[[call]]
+old = "cx.part_state(part)"
+new = "cx.part_state(part)"
+note = "New and public: `Cx::part_state(&self, part: PartRef) -> StateSet` is the state a part paints with, so a component reads it for the text it draws over the part (a hand-built `State::Disabled` for an inactive part goes)."
+
+[[call]]
+old = "ModalRule::Declared"
+new = "ModalRule::Declared"
+note = "`craft_keymap::ModalRule::Declared` is new (the enum is `#[non_exhaustive]`): a variant for a command that reaches only an instance inside the top modal that declares it (`cx.publish(command, state)` in the dialog's body); `#[command_set(modal = \"declared\")]`. The edit commands use it, so Undo resolves disabled in a dialog that publishes none. Apps do not pick it for a command that a modal should block outright (`Blocked`)."
+
+[[call]]
+old = "env.direction()"
+new = "env.text_direction()"
+note = "`EnvView::text_direction()` is the paragraph direction of text (the interface's, unchanged inside an `ltr_axis` container); `direction()` stays the flow direction of layout, arrows and roving. Text and its alignment read `text_direction`."
+
+[[call]]
+old = "commands::take_for_instance(ctx, instance, from_ref)"
+new = "commands::take_for_instance(ctx, instance, app, from_ref)"
+note = "Crate-internal: the signature is `take_for_instance(ctx: &Context, instance: Option<Id>, app: bool, from_ref: fn(&CommandRef) -> Option<S>)`; `app` is true for an app-scope command set, which takes from the frame's output."

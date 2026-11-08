@@ -19,10 +19,20 @@ struct Pending {
     by_viewport: HashMap<ViewportId, Vec<KeyEquivalent>>,
 }
 
-/// Queues `equivalent` for the next input of `viewport` and asks for a pass of it.
+/// Queues `equivalent` for the next input of `viewport` and asks for a pass of it. When a pass of `viewport` is
+/// running already, its input is taken: the pass is discarded, and the repeat reads the equivalent in its input.
 pub(crate) fn add_key_equivalent(ctx: &Context, viewport: ViewportId, equivalent: KeyEquivalent) {
     Service::<Pending>::run(ctx, |pending| pending.by_viewport.entry(viewport).or_default().push(equivalent));
     repaint::request_of(ctx, viewport);
+    repeat_running_pass(ctx, viewport, "craft_ui: a key equivalent reached a pass after its input was taken");
+}
+
+/// Discards the pass that is running for `viewport`, so the input hook runs again for it with what the filter holds
+/// now. Nothing happens outside a pass of `viewport`, where the next input hook reads it.
+fn repeat_running_pass(ctx: &Context, viewport: ViewportId, reason: &'static str) {
+    if crate::runtime::frame::running(ctx).is_some() && super::pass::current_viewport(ctx) == viewport {
+        super::sizing::request_discard(ctx, reason);
+    }
 }
 
 /// The input hook's filter step: adds the queued key equivalents of `input.viewport_id` to `input.events`.
@@ -75,11 +85,17 @@ struct Menus {
 /// Records whether the platform's menu of `viewport` is open. A report of "closed" re-arms the filter: a menu that
 /// keeps reporting itself open costs the window one press, not every press.
 pub(crate) fn set_menu_open(ctx: &Context, viewport: ViewportId, open: bool) {
-    Service::<Menus>::run(ctx, |menus| {
+    let opened = Service::<Menus>::run(ctx, |menus| {
         let state = menus.by_viewport.entry(viewport).or_default();
+        let opened = open && !state.open;
         state.open = open;
         state.armed |= !open;
+        opened
     });
+    // A menu that opens after the pass took its input: the repeat drops the click that belongs to the menu.
+    if opened {
+        repeat_running_pass(ctx, viewport, "craft_ui: the platform's menu opened after the pass took its input");
+    }
 }
 
 /// Whether the filter saw a press or Escape since the last call: the platform's menu is to close.

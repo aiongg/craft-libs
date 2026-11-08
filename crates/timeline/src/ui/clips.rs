@@ -347,7 +347,7 @@ impl<'a> ClipLane<'a> {
         let trims = matches!(self.tool, TimelineTool::Selection | TimelineTool::Ripple | TimelineTool::Rolling | TimelineTool::RateStretch);
         for clip in self.clips {
             let Some(body) = geometry.body(clip) else { continue };
-            let part = cx.part(CLIP.at(clip.id.0), body).sense(sense).priority(CLIP_PRIORITY).nudges().disabled(!clip.enabled);
+            let part = cx.part(CLIP.at(clip.id.0), body).sense(sense).priority(CLIP_PRIORITY).nudges().inactive(!clip.enabled);
             let part = if self.locked { part } else { part.focusable() };
             let part = match self.tool {
                 TimelineTool::Razor => part.cursor(CursorIcon::Crosshair),

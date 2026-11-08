@@ -3,6 +3,8 @@
 
 mod bar;
 
+mod native;
+
 mod openers;
 
 use craft_ui::buttons::Button;

@@ -16,6 +16,15 @@ use std::sync::Arc;
 
 type StateKey = (u32, Option<Id>);
 
+/// How a command with `ModalRule::Declared` reaches into the top modal layer.
+#[derive(Clone, Copy)]
+enum Declaration {
+    /// An instance publishes the command's state.
+    Instance(Id),
+    /// The focused component takes the command as an edit.
+    Focused,
+}
+
 /// A container instance that receives scoped commands.
 struct Instance {
     id: Id,
@@ -69,6 +78,9 @@ struct Board {
     /// The instances around the focus from the innermost out to the root of the modal layer the focus is in: the
     /// instances `ModalRule::Blocked` does not block. Empty while the focus is outside every modal layer.
     inside_modal: Vec<Id>,
+    /// The states published this pass, and the pass before, by an instance inside the top modal layer.
+    modal_published: HashSet<StateKey>,
+    modal_published_last: HashSet<StateKey>,
     /// The canvas a modal layer keeps open (`runtime::sampler`): its scope's commands reach it while the focus is in
     /// the dialog.
     held_open: Option<Id>,
@@ -130,6 +142,19 @@ impl Board {
         (app, if app { None } else { self.pick(ctx, scope) })
     }
 
+    /// The declaration of `command` inside the top modal layer: an instance there that published its state, else the
+    /// focused component when it takes the command as an edit.
+    fn declaring(&self, ctx: &Context, command: &CommandRef) -> Option<Declaration> {
+        let number = *self.numbers.get(command.id.as_str())?;
+        let published = self.modal_published.iter().chain(&self.modal_published_last).find(|(published, _)| *published == number);
+        if let Some(id) = published.and_then(|(_, id)| *id) {
+            return Some(Declaration::Instance(id));
+        }
+        let edit = EditCommands::from_ref(command)?.edit()?;
+        let record = focus::record(ctx, pass::current_viewport(ctx));
+        (!self.inside_modal.is_empty() && record.keys.is_some_and(|keys| keys.edits.contains(edit))).then_some(Declaration::Focused)
+    }
+
     /// `command` as seen by `instance`, or by the app for an app-scope command, before the gate. Also whether this is
     /// the first time a command no set registers was asked for.
     fn resolve(&mut self, ctx: &Context, command: &CommandRef, instance: Option<Id>) -> (ResolvedCommand, bool) {
@@ -137,21 +162,21 @@ impl Board {
         let first_unknown = def.is_none() && self.unknown.insert(command.id.clone());
         let app = is_app(self.scope_of(command));
         let instance = if app { None } else { instance };
-        let key = self.state_key(command, instance);
+        let dialog_open = self.modal_open || self.dialog_keys;
+        // A command no set registers is never blocked.
+        let rule = def.map(|def| def.modal);
+        // The instance inside the top modal that declares the command, which then answers for it.
+        let declaring = (dialog_open && rule == Some(ModalRule::Declared)).then(|| self.declaring(ctx, command)).flatten();
+        let key = match declaring {
+            Some(Declaration::Instance(id)) => self.numbers.get(command.id.as_str()).map(|&number| (number, Some(id))),
+            _ => self.state_key(command, instance),
+        };
         let this = key.and_then(|key| self.this.get(&key));
         let last = key.and_then(|key| self.last.get(&key));
         let state = this.or(last);
         let flags = resolve_flags(this.map(CommandState::flags), last.map(CommandState::flags));
-        let dialog_open = self.modal_open || self.dialog_keys;
-        // An application instance inside the modal layer (a dialog) takes the edit commands and nothing else of the
-        // application's.
-        let reached = if app {
-            EditCommands::from_ref(command).is_some()
-                && self.inside_modal.iter().any(|id| self.instances.iter().any(|i| i.id == *id && is_app(i.scope.name())))
-        } else {
-            instance.is_some_and(|id| self.inside_modal.contains(&id))
-        };
-        let modal = !(dialog_open && !reached && def.is_some_and(|def| def.modal == ModalRule::Blocked));
+        let reached = declaring.is_some() || (!app && instance.is_some_and(|id| self.inside_modal.contains(&id)));
+        let modal = !(dialog_open && !reached && matches!(rule, Some(ModalRule::Blocked | ModalRule::Declared)));
         let live = app || instance.is_some_and(|id| self.is_live(ctx, id));
         let chord =
             self.keymap.as_ref().and_then(|cache| cache.keymap.bindings(command).into_iter().find(|b| !b.trigger.double).map(|b| b.trigger.chord));
@@ -193,6 +218,7 @@ pub(crate) fn set_input(ctx: &Context, input: &CommandInput) {
     let platform = platform(ctx);
     with(ctx, |board| {
         board.last = std::mem::take(&mut board.this);
+        board.modal_published_last = std::mem::take(&mut board.modal_published);
         for (command, state) in &input.states {
             let number = board.number(&command.id);
             board.this.insert((number, None), state.clone());
@@ -384,9 +410,21 @@ pub(crate) fn fire_from(ctx: &Context, command: &CommandRef, source: FireSource)
 pub(crate) fn publish(ctx: &Context, chain: &CommandChain, command: &CommandRef, state: CommandState) {
     with(ctx, |board| {
         let scope = board.scope_of(command);
-        debug_assert!(!is_app(scope), "{command} is an app-scope command: its state comes from `FrameInput.commands`");
-        if let Some(instance) = chain.innermost(scope) {
+        let declared = board.registry.get(&command.id).is_some_and(|def| def.modal == ModalRule::Declared);
+        debug_assert!(
+            !is_app(scope) || declared,
+            "{command} is an app-scope command: its state comes from `FrameInput.commands`, unless the command is declared by an instance"
+        );
+        // A declared app-scope command is published by the innermost instance around the caller, inside whichever
+        // modal layer it sits in.
+        let instance = if is_app(scope) { chain.innermost_any() } else { chain.innermost(scope) };
+        if let Some(instance) = instance {
             let number = board.number(&command.id);
+            // The pass that publishes is the one that knows the layers around the caller.
+            let in_modal = chain.ids().any(|id| board.modal_roots.iter().any(|(_, root)| *root == id));
+            if in_modal {
+                board.modal_published.insert((number, Some(instance)));
+            }
             board.this.insert((number, Some(instance)), state);
         }
     });
@@ -394,10 +432,10 @@ pub(crate) fn publish(ctx: &Context, chain: &CommandChain, command: &CommandRef,
 
 /// The next command `from_ref` reads that is routed to `instance`. The instance of the app scope (an `AppShell`'s
 /// region) takes the app commands of the frame that no earlier reader took; the rest stay for `FrameOutput.fired`.
-pub(crate) fn take<S>(ctx: &Context, instance: Option<Id>, from_ref: fn(&CommandRef) -> Option<S>) -> Option<(S, Fired)> {
+pub(crate) fn take<S>(ctx: &Context, instance: Option<Id>, app: bool, from_ref: fn(&CommandRef) -> Option<S>) -> Option<(S, Fired)> {
     let instance = instance?;
     with(ctx, |board| {
-        if board.instances.iter().any(|i| i.id == instance && is_app(i.scope.name())) {
+        if app {
             let at = board.out.iter().position(|fired| from_ref(&fired.command).is_some())?;
             let fired = board.out.remove(at);
             return Some((from_ref(&fired.command)?, fired));
@@ -413,7 +451,7 @@ pub(crate) fn take<S>(ctx: &Context, instance: Option<Id>, from_ref: fn(&Command
 pub(crate) fn take_around<S: CommandSet>(ctx: &Context, at: Id, around: &CommandChain) -> Option<(S, Fired)> {
     let scope = S::SCOPE.name();
     let own = with(ctx, |board| board.instances.iter().any(|i| i.id == at && i.scope.name() == scope));
-    take(ctx, if own { Some(at) } else { around.innermost(scope) }, S::from_ref)
+    take(ctx, if own { Some(at) } else { around.innermost(scope) }, is_app(scope), S::from_ref)
 }
 
 /// H7: the key stage's shortcut events, matched against the keymap in the scopes around the focused component,

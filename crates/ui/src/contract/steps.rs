@@ -612,7 +612,7 @@ pub(crate) fn part_state(result: &crate::primitives::PartResult, enabled: bool, 
         }
     }
     let pressed = result.press.phase.is_press();
-    let state = if !enabled {
+    let state = if !enabled || result.inactive {
         State::Disabled
     } else if pressed {
         State::Pressed

@@ -7,6 +7,7 @@ use craft_ui::runtime::InstallSpec;
 use craft_ui::runtime::env::RootEnv;
 use craft_ui::runtime::frame::{FrameInput, set_input};
 use craft_ui::testing::Frames;
+use craft_ui::testing::access::{AccessTree, tree_of};
 use craft_ui::testing::windows::FakeSystem;
 use craft_ui::testing::windows::{FullOutput, RawInput};
 use egui::{Context, Event, Pos2, Rect, Ui, Vec2, ViewportBuilder, ViewportCommand, ViewportId, ViewportInfo};
@@ -27,6 +28,8 @@ thread_local! {
     static CHILDREN: RefCell<Vec<ViewportId>> = const { RefCell::new(Vec::new()) };
     /// The window commands every pass's output carried since the last frame.
     static COMMANDS: RefCell<Vec<(ViewportId, ViewportCommand)>> = const { RefCell::new(Vec::new()) };
+    /// The AccessKit tree each viewport's last pass produced, in pass order.
+    static TREES: RefCell<Vec<(ViewportId, AccessTree)>> = const { RefCell::new(Vec::new()) };
     /// The time every pass of the frame runs at.
     static NOW: Cell<f64> = const { Cell::new(0.0) };
 }
@@ -96,6 +99,12 @@ fn render_child(ctx: &Context, viewport: egui::ImmediateViewport<'_>) {
     let mut output = ctx.run_ui(input, |ui| callback(ui));
     output.textures_delta.clear();
     keep_commands(&output);
+    keep_tree(&mut output, viewport.ids.this);
+}
+
+fn keep_tree(output: &mut FullOutput, viewport: ViewportId) {
+    let tree = tree_of(output);
+    TREES.with(|kept| kept.borrow_mut().push((viewport, tree)));
 }
 
 /// What a frame sent out.
@@ -107,6 +116,9 @@ pub struct Out {
     pub commands: Vec<(ViewportId, ViewportCommand)>,
     /// How each viewport asked to open or change its window.
     pub builders: Vec<(ViewportId, ViewportBuilder)>,
+    /// The AccessKit tree each viewport's pass produced, in pass order: the children's first, as they run inside the
+    /// root's pass.
+    pub trees: Vec<(ViewportId, AccessTree)>,
 }
 
 /// A context with the runtime installed whose child viewports are OS windows.
@@ -155,6 +167,7 @@ impl Windows {
     /// titles and the window commands of the frame.
     pub fn frame(&self, root: Vec<Event>, child: Vec<Event>, ui: impl FnMut(&mut Ui)) -> Out {
         CHILD_EVENTS.with(|events| *events.borrow_mut() = child);
+        TREES.with(|kept| kept.borrow_mut().clear());
         set_input(&self.ctx, FrameInput::new(RootEnv::default()));
         let mut input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, ROOT_SIZE)), events: root, ..RawInput::default() };
         input.time = Some(NOW.with(|now| {
@@ -166,8 +179,14 @@ impl Windows {
         let mut output = self.ctx.run_ui(input, ui);
         output.textures_delta.clear();
         keep_commands(&output);
+        keep_tree(&mut output, ViewportId::ROOT);
         let titles = output.viewport_output.iter().map(|(id, viewport)| (*id, viewport.builder.title.clone().unwrap_or_default())).collect();
         let builders = output.viewport_output.iter().map(|(id, viewport)| (*id, viewport.builder.clone())).collect();
-        Out { titles, commands: COMMANDS.with(|kept| std::mem::take(&mut *kept.borrow_mut())), builders }
+        Out {
+            titles,
+            commands: COMMANDS.with(|kept| std::mem::take(&mut *kept.borrow_mut())),
+            builders,
+            trees: TREES.with(|kept| std::mem::take(&mut *kept.borrow_mut())),
+        }
     }
 }

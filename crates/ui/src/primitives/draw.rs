@@ -96,25 +96,34 @@ pub struct Draw<'a> {
     painter: &'a Painter,
     record: &'a RefCell<PaintRecord>,
     env: DrawEnv<'a>,
-    /// Painting for a disabled part: data fills take the theme's disabled fill.
-    disabled: bool,
+    /// Painting for an inactive part: data fills and strokes take the theme's disabled fill.
+    inactive: bool,
+    /// The paragraph direction of text: the env's direction unless the caller sets the interface's.
+    text_direction: Direction,
 }
 
 impl<'a> Draw<'a> {
     pub(crate) fn new(painter: &'a Painter, record: &'a RefCell<PaintRecord>, env: DrawEnv<'a>) -> Self {
-        Draw { painter, record, env, disabled: false }
+        Draw { painter, record, env, inactive: false, text_direction: env.direction }
     }
 
-    /// The same painter for a part that is `disabled`.
-    pub(crate) fn for_part(mut self, disabled: bool) -> Self {
-        self.disabled = disabled;
+    /// The same painter with `direction` as the paragraph direction of its text, while `env.direction` stays the
+    /// flow that icons and surfaces mirror with.
+    pub(crate) fn text_direction(mut self, direction: Direction) -> Self {
+        self.text_direction = direction;
+        self
+    }
+
+    /// The same painter for a part that is `inactive`.
+    pub(crate) fn for_part(mut self, inactive: bool) -> Self {
+        self.inactive = inactive;
         self
     }
 
     fn text_env(&self) -> TextEnv<'a> {
         TextEnv {
             tokens: self.env.tokens,
-            direction: self.env.direction,
+            direction: self.text_direction,
             ink: ink_color(self.env.tokens, self.env.ink),
             fonts: stack_facts(self.painter.ctx()),
         }
@@ -128,7 +137,7 @@ impl<'a> Draw<'a> {
     /// elision and the first baseline.
     pub fn text(&self, rect: Rect, run: &TextRun<'_>) -> TextLayout {
         let layout = run.layout(self.painter.ctx(), &self.text_env(), rect.width());
-        let at_end = self.env.direction == Direction::Rtl && !run.ltr;
+        let at_end = self.text_direction == Direction::Rtl && !run.ltr;
         let x = if at_end { rect.right() - layout.size().x } else { rect.left() };
         self.galley(Pos2::new(x, rect.top()), &layout);
         layout
@@ -138,9 +147,9 @@ impl<'a> Draw<'a> {
     /// a run. Each run keeps its own font, size and colour.
     pub fn doc(&self, rect: Rect, text: &DocText<'_>) -> TextLayout {
         let text = DocText { wrap: Some(rect.width()), ..*text };
-        let layout = text.layout(self.painter.ctx(), self.env.tokens, self.env.direction);
+        let layout = text.layout(self.painter.ctx(), self.env.tokens, self.text_direction);
         let layout = TextLayout { galley: super::text::anchored_at_start(layout.galley.clone()), ..layout };
-        let x = if self.env.direction == Direction::Rtl { rect.right() - layout.size().x } else { rect.left() };
+        let x = if self.text_direction == Direction::Rtl { rect.right() - layout.size().x } else { rect.left() };
         self.galley(Pos2::new(x, rect.top()), &layout);
         layout
     }
@@ -215,16 +224,21 @@ impl<'a> Draw<'a> {
         self.paint(shape, None, Some(Stroke::new(self.width(width), color.egui())));
     }
 
-    /// Fills `shape` with a colour from data (a swatch well, a layer label dot, an avatar). A `Draw` for a disabled
+    /// Fills `shape` with a colour from data (a swatch well, a layer label dot, an avatar). A `Draw` for an inactive
     /// part (`PaintUi::draw_part`) fills with the theme's disabled fill instead.
     pub fn data_fill(&self, shape: &PaintShape, color: DataColor) {
-        let fill = if self.disabled { crate::style::rgba_color(self.env.tokens.color.state.disabled_fill) } else { color.0 };
+        let fill = self.data_color(color);
         self.paint(shape, Some(fill), None);
     }
 
-    /// Strokes `shape` with a colour from data (a chart series, a curve).
+    /// Strokes `shape` with a colour from data (a chart series, a curve). A `Draw` for an inactive part strokes with
+    /// the theme's disabled fill instead.
     pub fn data_stroke(&self, shape: &PaintShape, width: StrokeWidth, color: DataColor) {
-        self.paint(shape, None, Some(Stroke::new(self.width(width), color.0)));
+        self.paint(shape, None, Some(Stroke::new(self.width(width), self.data_color(color))));
+    }
+
+    fn data_color(&self, color: DataColor) -> Color32 {
+        if self.inactive { crate::style::rgba_color(self.env.tokens.color.state.disabled_fill) } else { color.0 }
     }
 
     /// Strokes the open path `path` as dashes (copy marks, drag previews, reference lines). [`kit::dashed`] is the one
@@ -237,7 +251,7 @@ impl<'a> Draw<'a> {
     /// under a frozen band, a bracket cut at a lane's edge.
     pub fn clipped(&self, rect: Rect, paint: impl FnOnce(&Draw<'_>)) {
         let painter = self.painter.with_clip_rect(rect);
-        paint(&Draw { painter: &painter, record: self.record, env: self.env, disabled: self.disabled });
+        paint(&Draw { painter: &painter, record: self.record, env: self.env, inactive: self.inactive, text_direction: self.text_direction });
     }
 
     fn paint(&self, shape: &PaintShape, fill: Option<Color32>, stroke: Option<Stroke>) {

@@ -577,7 +577,7 @@ impl BodyHooks<'_> {
         let mut slot = PlacementSlot::new(&mut *cx.core.memory, id, self.save.as_ref(), overlay);
         let current = slot.read();
         let step = |rect: Rect, phase: GesturePhase| PlacementChange { rect, phase, pointer: None, kind: PlacementKind::Keyboard };
-        let started = commands::take_for_instance(&ctx, Some(window), WindowCommand::from_ref).map(|(command, _)| command);
+        let started = commands::take_for_instance(&ctx, Some(window), false, WindowCommand::from_ref).map(|(command, _)| command);
         let mut mode = self.mode.clone();
         if let Some(command) = started {
             let kind = match command {

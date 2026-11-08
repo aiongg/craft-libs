@@ -347,8 +347,12 @@ pub struct Scoped {
     pub enabled: bool,
     /// OR of every scope above.
     pub read_only: bool,
-    /// The layout direction.
+    /// The flow direction: layout order, arrow keys and roving. A container whose axis keeps its order
+    /// (`Props::ltr_axis`) sets it to left to right for what is inside.
     pub direction: Direction,
+    /// The paragraph direction of text: the interface's, which a container that keeps its axis order leaves alone.
+    /// The bidi order inside a label follows its script.
+    pub text_direction: Direction,
     /// The motion mode in effect.
     pub motion: MotionPolicy,
     /// False inside the body of a component with an `Auto` id.
@@ -533,6 +537,7 @@ impl Env {
                 enabled: true,
                 read_only: false,
                 direction: root.direction,
+                text_direction: root.direction,
                 motion,
                 ids_stable: true,
                 scale,
@@ -810,9 +815,14 @@ impl<'a> EnvView<'a> {
         self.scoped.roving
     }
 
-    /// The layout direction.
+    /// The flow direction: layout order, arrow keys and roving.
     pub fn direction(&self) -> Direction {
         self.scoped.direction
+    }
+
+    /// The paragraph direction of text, which only a scope that sets the interface's direction changes.
+    pub fn text_direction(&self) -> Direction {
+        self.scoped.text_direction
     }
 
     /// The light or dark mode the scope's tokens are resolved in: the app's, or the one a scope with its own tokens
@@ -939,6 +949,7 @@ impl Overrides {
         }
         if let Some(direction) = self.direction {
             scoped.direction = direction;
+            scoped.text_direction = direction;
         }
         match self.words {
             Some(WordsOverride::Replace(words)) => scoped.words = words,

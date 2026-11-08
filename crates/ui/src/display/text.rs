@@ -130,7 +130,7 @@ impl Component for Text {
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         if !self.spans.is_empty() {
             let doc = DocText { wrap: Some(cx.room.unwrap_or(f32::INFINITY)), ..self.doc() };
-            let layout = doc.layout(cx.ui.ctx(), cx.tokens, cx.env.direction());
+            let layout = doc.layout(cx.ui.ctx(), cx.tokens, cx.env.text_direction());
             return match cx.room {
                 Some(room) if layout.elided => Vec2::new(room, layout.size().y),
                 _ => layout.size(),
