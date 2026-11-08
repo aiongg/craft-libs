@@ -5,7 +5,7 @@ use super::{
 };
 use crate::buttons::Button;
 use crate::choice::Segmented;
-use crate::contract::{Bind, EditResponse, Entry, Props as _, Show as _, ShowContainer as _, clicked};
+use crate::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _, clicked};
 use crate::display::{Shade, Text};
 use crate::layout_components::{Row, Stack};
 use crate::patterns::form_dialogs::{PreviewPane, PreviewState, PreviewView, PreviewZoom};
@@ -32,6 +32,7 @@ pub(super) struct Panes<'p> {
     pub(super) size: PixelSize,
     pub(super) pictures: &'p WebPictures,
     pub(super) animation: Option<Animation>,
+    pub(super) hint: &'p Label,
 }
 
 /// What the panes of one pass report.
@@ -40,11 +41,6 @@ struct Reported {
     moved: Option<PreviewView>,
     shown: Option<PreviewView>,
     clicked: Option<WebPane>,
-}
-
-/// The value a control's event carries.
-fn edited<T: Clone>(response: &EditResponse<T>) -> Option<T> {
-    response.event.as_ref().and_then(|event| event.value().cloned())
 }
 
 /// The view tabs, the play and zoom rows and the panes.
@@ -56,11 +52,11 @@ pub(super) fn show(ui: &mut Ui, panes: &Panes<'_>, live: &mut Live) {
         Entry::new(WebView::TwoUp, words.two_up.clone()),
         Entry::new(WebView::FourUp, words.four_up.clone()),
     ];
-    if let Some(view) = edited(&Segmented::new(words.view.clone(), Bind::given(live.view), &tabs).show(ui)) {
+    if let Some(view) = Segmented::new(words.view.clone(), Bind::given(live.view), &tabs).show(ui).value().cloned() {
         live.view = view;
     }
     play_row(ui, panes, live);
-    zoom_row(ui, words, live);
+    zoom_row(ui, words, panes.hint, live);
     pane_grid(ui, panes, live);
 }
 
@@ -79,7 +75,7 @@ fn play_row(ui: &mut Ui, panes: &Panes<'_>, live: &mut Live) {
 }
 
 /// Fit, the zoom steps, 100% and the hint, over the one view the panes share.
-fn zoom_row(ui: &mut Ui, words: &SaveForWebWords, live: &mut Live) {
+fn zoom_row(ui: &mut Ui, words: &SaveForWebWords, hint: &Label, live: &mut Live) {
     Row::new().id_salt("zoom").show(ui, |ui, _| {
         if clicked(&Button::new(words.fit.clone()).id_salt("fit").show(ui)) {
             live.shared = PreviewView::fitting().zoom_range(ZOOM_RANGE);
@@ -90,7 +86,7 @@ fn zoom_row(ui: &mut Ui, words: &SaveForWebWords, live: &mut Live) {
         if clicked(&Button::new(words.actual.clone()).id_salt("actual").show(ui)) {
             live.shared = PreviewView::new(CanvasTransform::new(1.0, Vec2::ZERO)).zoom_range(ZOOM_RANGE);
         }
-        Text::new(words.pan_hint.clone()).role(TypeRole::Caption).shade(Shade::Faint).show(ui);
+        Text::new(hint.clone()).role(TypeRole::Caption).shade(Shade::Faint).show(ui);
     });
 }
 
@@ -144,7 +140,7 @@ fn pane_title(words: &SaveForWebWords, pane: WebPane) -> String {
     match pane {
         WebPane::Original => words.original.as_str().to_owned(),
         WebPane::Encoded(0) => words.optimized.as_str().to_owned(),
-        WebPane::Encoded(index) => format!("{} {}", words.optimized.as_str(), index + 1),
+        WebPane::Encoded(index) => words.optimized_variant.fill(&[("name", words.optimized.as_str()), ("number", (index + 1).to_string().as_str())]),
     }
 }
 

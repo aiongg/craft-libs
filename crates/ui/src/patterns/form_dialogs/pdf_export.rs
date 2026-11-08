@@ -10,12 +10,11 @@ mod stories;
 use self::sections::{ArtboardChoice, PasswordSwitches, Sections};
 pub use self::summary::{RangeError, check_range, differences};
 pub use self::words::PdfExportWords;
-use super::{ResetFooter, ResetPick};
+use super::form::FormDialog;
 use crate::contract::{
     ActivateOn, Bind, CollectionEvent, Entry, NoValue, Outcome, Props as _, Remember as _, Scroll, SelectMode, Show as _, ShowCollection as _,
     ShowContainer as _, Sizing,
 };
-use crate::dialog::{Dialog, DialogOutput};
 use crate::form::{Field, FieldGroup};
 use crate::layout_components::{Row, Stack};
 use crate::list::{List, ListRow};
@@ -24,13 +23,11 @@ use crate::patterns::presets::{NamedPresetEvent, NamedPresetRow, PickerField, Pr
 use crate::pickers::Select;
 use crate::runtime::env::{Env, Label, UnitKind};
 use crate::runtime::overlay::CloseReason;
-use crate::sections::{DialogRole, FooterButton};
-use craft_behavior::{DisplayOrder, EditEvent, GestureId, ItemSource, Mixed, Selection, SelectionChange};
+use craft_behavior::{DisplayOrder, ItemSource, Selection, SelectionChange};
 use craft_pdf::settings::{ColorMode, Compatibility, PdfPreset, PdfSettings, ProfileCatalog, Standard, builtin_presets, default_preset_name};
 use craft_theme::variant::Tone;
 use egui::{Response, Ui};
 use std::borrow::Cow;
-use std::sync::Arc;
 
 /// Which artboards to write.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -148,8 +145,6 @@ pub struct PdfExportOutput {
     pub settings: Option<PdfSettings>,
     /// What the user did to the app's presets, in order.
     pub presets: Vec<PdfPresetEvent>,
-    /// The section the page shows.
-    pub section: PdfSection,
 }
 
 impl Outcome for PdfExportOutput {
@@ -160,7 +155,7 @@ impl Outcome for PdfExportOutput {
     }
 }
 
-/// What the dialog keeps while it is open.
+/// What the dialog keeps while it is open besides the settings.
 #[derive(Clone, Default)]
 struct Live {
     section: PdfSection,
@@ -169,16 +164,19 @@ struct Live {
     /// The preset the settings started from or were last filled from.
     preset: Option<String>,
     picker: PresetState<String>,
-    /// The settings when the dialog opened, which Reset restores; `None` before the first pass.
-    opening: Option<PdfSettings>,
+    /// The artboard choice and preset when the dialog opened, which Reset restores; `None` before the first pass.
+    start: Option<(ArtboardChoice, Option<String>)>,
 }
 
-/// What the footer needs of the body's pass: whether Save PDF is refused, and whether the settings differ from the
-/// opening ones.
-#[derive(Clone, Copy, Default)]
-struct Verdict {
-    blocked: bool,
-    changed: bool,
+impl Live {
+    /// Puts back what the dialog opened with: the artboard choice, the preset and the password switches.
+    fn restore(&mut self) {
+        if let Some((artboards, preset)) = self.start.clone() {
+            self.artboards = artboards;
+            self.preset = preset;
+        }
+        self.switches = PasswordSwitches::default();
+    }
 }
 
 /// The section list's rows.
@@ -279,7 +277,7 @@ impl<'a> PdfExportDialog<'a> {
     pub fn show(self, ui: &mut Ui) -> PdfExportOutput {
         let PdfExportDialog {
             app,
-            settings: mut bound,
+            settings: bound,
             open,
             preset,
             saved_presets,
@@ -299,52 +297,32 @@ impl<'a> PdfExportDialog<'a> {
         let mut presets = builtin_presets(&app);
         let built_in: Vec<String> = presets.iter().map(|preset| preset.name.clone()).collect();
         presets.extend(saved_presets.iter().cloned());
-        let name: Arc<str> = words.title.as_str().into();
 
-        let reset = ResetFooter::new(ui, None, true);
-        let accept = FooterButton::new(words.save.clone(), DialogRole::Accept);
-        let mut dialog = Dialog::new(words.title.clone())
-            .collection_body()
-            .resizable(true)
-            .close_on_enter(true)
+        let mut form = FormDialog::new(words.title.clone(), bound)
+            .ok_label(words.save.clone())
+            .collection_body(true)
             .outer_gesture(true)
-            .buttons(reset.buttons(accept, false))
-            .settle_buttons({
-                let reset = reset.clone();
-                move |cx, buttons| {
-                    let verdict = *cx.memory::<Verdict>();
-                    reset.settle(buttons, verdict.changed);
-                    if let Some(first) = buttons.first_mut() {
-                        first.set_enabled(!verdict.blocked);
-                    }
-                }
-            })
-            .close_guard(|at, cx| at != 0 || !cx.memory::<Verdict>().blocked);
+            .on_reset(|cx| cx.memory::<Live>().restore())
+            .shaped(|dialog| dialog.resizable(true));
         if let Some(open) = open {
-            dialog = dialog.opened(open);
+            form = form.opened(open);
         }
 
         let mut events: Vec<PdfPresetEvent> = Vec::new();
-        let mut before = PdfSettings::default();
-        let mut written = PdfSettings::default();
-        let mut live = Live::default();
-        let mut blocked = false;
-        let shown = dialog.show(ui, |ui, cx| {
+        let mut chosen = PdfArtboards::All;
+        let shown = form.show(ui, |ui, cx, work| {
             events.clear();
-            before = match bound.reborrow().read(cx) {
-                Some(Mixed::Same(held)) => held,
-                _ => PdfSettings::default(),
-            };
-            live = cx.memory::<Live>().clone();
-            if live.opening.is_none() {
-                live.opening = Some(before.clone());
-                live.preset = Some(preset.clone().unwrap_or_else(|| default_preset_name(&app)));
-                live.artboards = match &artboards {
-                    PdfArtboards::All => ArtboardChoice::default(),
-                    PdfArtboards::Range(range) => ArtboardChoice { range_only: true, range: range.clone() },
-                };
+            let mut live = cx.memory::<Live>().clone();
+            if cx.first() {
+                live.start = Some((
+                    match &artboards {
+                        PdfArtboards::All => ArtboardChoice::default(),
+                        PdfArtboards::Range(range) => ArtboardChoice { range_only: true, range: range.clone() },
+                    },
+                    Some(preset.clone().unwrap_or_else(|| default_preset_name(&app))),
+                ));
+                live.restore();
             }
-            let mut work = before.clone();
 
             // The preset row.
             let rows: Vec<PresetRow<String>> = presets
@@ -376,7 +354,7 @@ impl<'a> PdfExportDialog<'a> {
                 match event {
                     NamedPresetEvent::Apply(key) => {
                         if let Some(preset) = presets.iter().find(|preset| preset.name == key) {
-                            work = preset.settings.clone();
+                            *work = preset.settings.clone();
                             live.switches = PasswordSwitches::default();
                             live.preset = Some(key);
                         }
@@ -480,7 +458,7 @@ impl<'a> PdfExportDialog<'a> {
                         profiles,
                         flatteners: flattener_presets,
                         document_bleed,
-                        work: &mut work,
+                        work: &mut *work,
                         artboards: &mut choice,
                         switches: &mut switches,
                         range_error: range_text.as_deref(),
@@ -496,42 +474,20 @@ impl<'a> PdfExportDialog<'a> {
             live.switches = switches;
 
             // The failing check, under the sections.
-            let error = settings_error(&work);
+            let error = settings_error(work);
             if let Some(error) = &error {
                 Notice::new(Tone::Bad, Label::from(words.error_text(error))).layout(NoticeLayout::Inline).show(ui);
             }
-            blocked = error.is_some() || range_error(&live.artboards).is_some();
-            let opening = live.opening.clone().unwrap_or_default();
-            *cx.memory::<Live>() = live.clone();
-            *cx.memory::<Verdict>() = Verdict { blocked, changed: work != opening };
-            if work != before {
-                let event = EditEvent::set(GestureId::default(), Mixed::Same(before.clone()), work.clone(), name.clone(), None);
-                let _ = bound.reborrow().write(cx, &event);
-            }
-            written = work;
+            let blocked = error.is_some() || range_error(&live.artboards).is_some();
+            chosen = {
+                let range = live.artboards.range.trim();
+                if live.artboards.range_only && !range.is_empty() { PdfArtboards::Range(range.to_owned()) } else { PdfArtboards::All }
+            };
+            *cx.memory::<Live>() = live;
+            !blocked
         });
 
-        let DialogOutput { response, closed, picked } = shown.output;
-        let mut after = written.clone();
-        if reset.pick(picked) == Some(ResetPick::Reset)
-            && let Some(opening) = live.opening.clone()
-        {
-            after = opening;
-            crate::runtime::frame::request_repaint(ui.ctx());
-        }
-        if after != written {
-            let _ = bound.reborrow().apply(&EditEvent::set(GestureId::default(), Mixed::Same(written), after.clone(), name, None));
-        }
-        let result = match closed {
-            Some(CloseReason::Enter | CloseReason::Activated) if !blocked => {
-                let range = live.artboards.range.trim();
-                let artboards =
-                    if live.artboards.range_only && !range.is_empty() { PdfArtboards::Range(range.to_owned()) } else { PdfArtboards::All };
-                Some(PdfExportResult { options: after.clone(), artboards })
-            }
-            _ => None,
-        };
-        let settings = (after != before).then_some(after);
-        PdfExportOutput { response, closed, result, settings, presets: events, section: live.section }
+        let result = shown.accepted.map(|options| PdfExportResult { options, artboards: chosen });
+        PdfExportOutput { response: shown.response, closed: shown.closed, result, settings: shown.value, presets: events }
     }
 }

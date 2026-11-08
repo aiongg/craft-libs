@@ -8,21 +8,21 @@ name = "SaveForWebDialog"
 old = "craft_ui::dialog::export::web::SaveForWebDialog"
 new = "craft_ui::patterns::form_dialogs::SaveForWebDialog"
 status = "moved"
-note = "A pattern on `Dialog` that keeps its state in its root container's slot: `SaveForWebDialog::new(name, size: PixelSize, WebPictures)` with `.options`, `.presets(Vec<WebPreset>)`, `.animation(Animation)`, `.remember(SaveKey)`, `.matte([u8; 3])`, `.saving(bool)`, `.saved_to(PathBuf)` and `.opened(Bind<bool>)`; `show(ui) -> SaveForWebOutput`. The owned form is `HostedSaveForWeb`, a `StackDialog` with `wanted_variants`, `set_variant`, `set_original`, `frame`, `pick_color`, `set_color`, `pick_save`, `set_path`. The old `presets`, `animation`, `wanted_variants`, `set_variant`, `set_original`, `frame`, `pick_color` and `set_color` keep their names on `HostedSaveForWeb`; `queue_save` and the picker ticket are `pick_save` and `set_path`."
+note = "A pattern on `Dialog` that keeps its state in its root container's slot: a `FormDialog<SaveForWebOptions>`: `SaveForWebDialog::new(name, size: PixelSize, WebPictures, Bind<SaveForWebOptions>)` with `.presets(Vec<WebPreset>)`, `.animation(Animation)`, `.remember(SaveKey)`, `.saving(bool)`, `.answers(Vec<HostAnswer>)` and `.opened(Bind<bool>)`; `show(ui) -> SaveForWebOutput`. The settings the dialog opens with are the bound value; the old `.options` setter is the bind. The old `.matte([u8; 3])` and `.saved_to(PathBuf)` are `HostAnswer::Color` (key `MATTE_COLOR_KEY`) and `HostAnswer::Path` (key `SAVE_PATH_KEY`) in `.answers`. The owned form is `HostedSaveForWeb`, a `StackDialog` with `wanted_variants`, `set_variant`, `set_original`, `frame`, `pick_color`, `pick_path`, `answer_color`, `answer_path`, `cancel_requests`. The old `presets`, `animation`, `wanted_variants`, `set_variant`, `set_original` and `frame` keep their names on `HostedSaveForWeb`; `pick_color` keeps its name; `queue_save` and the picker ticket are `pick_path` and `answer_path`; `set_color` is `answer_color`."
 
 [[type]]
 name = "HostedSaveForWeb"
 old = ""
 new = "craft_ui::patterns::form_dialogs::HostedSaveForWeb"
 status = "replaced"
-note = "The `StackDialog` form of `SaveForWebDialog`: `HostedSaveForWeb::new(name, size, original: SizedTexture)`; it drops stale variants, files the colour and save requests and finishes with `SaveForWebResult` when `set_path(Some(path))` answers."
+note = "The `StackDialog` form of `SaveForWebDialog`: `HostedSaveForWeb::new(name, size, original: SizedTexture)`; it keeps the settings, drops stale variants, keeps the colour and path requests until taken and finishes with `SaveForWebResult` when `answer_path(key, path)` answers; `cancel_requests()` drops a pending request."
 
 [[type]]
 name = "SaveForWebOutput"
 old = ""
 new = "craft_ui::patterns::form_dialogs::SaveForWebOutput"
 status = "replaced"
-note = "`SaveForWebOutput { response, closed, result, wanted_variants, pick_color, save_as, options, size, frame, selected }`."
+note = "`SaveForWebOutput { response, closed, result, wanted_variants, requests: HostRequests, options, size, frame, selected }`; the matte colour request and the Save… path request are in `requests`."
 
 [[type]]
 name = "SaveForWebOptions"
@@ -134,7 +134,7 @@ name = "WatermarkEditor"
 old = "craft_ui::dialog::export::watermark::WatermarkEditor"
 new = ""
 status = "removed"
-note = "`Watermark::new(label, Bind<WatermarkSettings>)` in `craft_ui::patterns::form_dialogs`, a pattern over `FieldGroup`: `show(ui) -> WatermarkOutput { response, value, choose_image }`; Position is `ReferencePoint`, size, opacity and insets are `SliderField`s, and the image picker is the `PathRequest` in `choose_image`."
+note = "`Watermark::new(label, Bind<WatermarkSettings>)` in `craft_ui::patterns::form_dialogs`, a pattern over `FieldGroup`: `show(ui) -> WatermarkOutput { response, value, requests: HostRequests }`; Position is `ReferencePoint`, size, opacity and insets are `SliderField`s, and the image picker is the `PathRequest` keyed `WATERMARK_IMAGE_KEY` in `requests`."
 
 [[type]]
 name = "Watermark"

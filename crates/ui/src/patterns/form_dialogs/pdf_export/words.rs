@@ -152,6 +152,10 @@ craft_ui::words! {
         check_passwords_equal: "pdfExportDialog.checkPasswordsEqual" = "The open and permissions passwords must differ";
         /// `{version}`.
         check_low_printing: template "pdfExportDialog.checkLowPrinting" = "{version} can't limit printing to low resolution: choose PDF 1.4 or later, or allow high-resolution printing";
+        /// The separator between a section, a group and a setting in a Summary line.
+        path_separator: "pdfExportDialog.pathSeparator" = " › ";
+        /// `{setting}` and `{value}`: a Summary line for a setting that differs from the preset.
+        difference: template "pdfExportDialog.difference" = "{setting}: {value}";
         /// `{field}`: the setting; `{range}`: the allowed values with their unit; `{value}`: the value given.
         check_range: template "pdfExportDialog.checkRange" = "{field} must be {range} (got {value})";
         /// `{name}`: a colour profile.

@@ -2,25 +2,26 @@
 //! `DialogHost`. The app encodes: the dialog asks for the panes it shows with a revision, and the app answers each
 //! with a [`WebVariant`].
 
-use super::dialog::ResetFooter;
-use super::host_requests::HostRequests;
-use super::param::ColorRequest;
+use super::form::FormDialog;
+use super::host_requests::{HostAnswer, HostRequests, PreviewRequest};
+use super::param::{ColorRequest, PathFilter, PathRequest};
 use super::preview::PreviewView;
 use super::size_model::LinkedSize;
-use crate::contract::{Bind, NoValue, Outcome, Props as _, ShowContainer as _};
-use crate::dialog::{Dialog, DialogId, DialogOutput, DialogResult, DialogStack, StackDialog, dialog_id};
+use super::sizing::{Resample, SizingWords};
+use crate::contract::{Bind, NoValue, Outcome, Props as _};
+use crate::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
 use crate::layout_components::{Row, Stack};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::{MemoryStage, Remember as _, SaveKey, unique};
 use crate::runtime::motion::Animate;
 use crate::runtime::overlay::CloseReason;
-use crate::sections::{DialogRole, FooterButton};
 use craft_behavior::PixelSize;
+use craft_keymap::{Chord, Key, Mods};
 use craft_theme::{Rgba, Srgba};
 use egui::load::SizedTexture;
 use egui::{Response, Ui};
 use serde::{Deserialize, Serialize};
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 
 mod options;
@@ -33,6 +34,13 @@ pub use panes::WebPane;
 
 /// The key of the matte colour request the dialog files.
 pub const MATTE_COLOR_KEY: &str = "web.matte";
+
+/// The key of the path request Save… files.
+pub const SAVE_PATH_KEY: &str = "web.save";
+
+/// The resample methods the size row lists: Photoshop's Save for Web offers these five.
+const RESAMPLE_METHODS: [Resample; 5] =
+    [Resample::NearestNeighbor, Resample::Bilinear, Resample::Bicubic, Resample::BicubicSmoother, Resample::BicubicSharper];
 
 /// The download speed of the time estimate in the captions, in kilobits per second.
 const MODEM_KBPS: f64 = 56.6;
@@ -100,7 +108,8 @@ craft_ui::words! {
         percent: "saveForWeb.percent" = "Percent";
         fit: "saveForWeb.fit" = "Fit";
         actual: "saveForWeb.actual" = "100%";
-        pan_hint: "saveForWeb.panHint" = "Drag to pan · Ctrl+scroll to zoom · Double-click to fit";
+        /// `{modifier}`: the key held with the wheel to zoom (Ctrl, or Cmd on macOS).
+        pan_hint: template "saveForWeb.panHint" = "Drag to pan · {modifier}+scroll to zoom · Double-click to fit";
         play: "saveForWeb.play" = "Play";
         pause: "saveForWeb.pause" = "Pause";
         /// `{frame}` of `{total}` animation frames.
@@ -115,6 +124,8 @@ craft_ui::words! {
         color_count: template "saveForWeb.colorCount" = "  ·  {count} colors";
         /// Appended to the first line when the pane shows a reduced proxy.
         proxy: "saveForWeb.proxy" = "  ·  Proxy preview";
+        /// `{name}` and `{number}`: the name of the 4-Up variant panes after the first.
+        optimized_variant: template "saveForWeb.optimizedVariant" = "{name} {number}";
         /// `{pane}`, `{first}` and `{second}`: the accessible name of a pane.
         pane_name: template "saveForWeb.paneName" = "{pane}: {first}, {second}";
         /// The pane waits for the app's encode.
@@ -286,6 +297,8 @@ pub struct SaveForWebOptions {
     pub metadata: WebMetadata,
     /// The output size in percent of the document, 1 to 1000 with two decimals.
     pub percent: f64,
+    /// How the pixels are made when the size differs from the document's.
+    pub resample: Resample,
 }
 
 impl Default for SaveForWebOptions {
@@ -310,6 +323,7 @@ impl Default for SaveForWebOptions {
             convert_srgb: true,
             metadata: WebMetadata::Copyright,
             percent: 100.0,
+            resample: Resample::Bicubic,
         }
     }
 }
@@ -403,22 +417,8 @@ impl WebVariant {
 pub struct WantedVariant {
     /// Which pane: 0 is the current settings, 1 and 2 the 4-Up variants.
     pub index: usize,
-    /// The revision to answer with.
-    pub revision: u64,
-    /// The options to encode with.
-    pub options: SaveForWebOptions,
-}
-
-/// The save picker the host opens after Save…: the file name to offer and the format's extension.
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct SaveRequest {
-    /// The file name to offer: the document's name with the format's extension.
-    pub file_name: String,
-    /// The extension of the format, without the dot.
-    pub extension: &'static str,
-    /// The format's name for the picker's filter.
-    pub format: &'static str,
+    /// The options to encode with and the revision to answer with.
+    pub request: PreviewRequest<SaveForWebOptions>,
 }
 
 /// What Save for Web returns.
@@ -473,13 +473,10 @@ struct Last {
     options: SaveForWebOptions,
 }
 
-/// What the dialog keeps in its root container's slot.
+/// What the dialog keeps in its root container's slot besides the settings.
 #[derive(Clone)]
 struct Live {
-    started: bool,
-    options: SaveForWebOptions,
     link: LinkedSize,
-    initial: (SaveForWebOptions, PixelSize),
     view: WebView,
     shared: PreviewView,
     selected: WebPane,
@@ -493,10 +490,7 @@ struct Live {
 impl Default for Live {
     fn default() -> Self {
         Live {
-            started: false,
-            options: SaveForWebOptions::default(),
             link: LinkedSize::new(PixelSize::new(1, 1)),
-            initial: (SaveForWebOptions::default(), PixelSize::new(1, 1)),
             view: WebView::default(),
             shared: PreviewView::fitting().zoom_range(ZOOM_RANGE),
             selected: WebPane::Encoded(0),
@@ -510,24 +504,13 @@ impl Default for Live {
 }
 
 impl Live {
-    /// The state of a dialog that opens now: the document `size`, the opening `options` and, when saved, the last
-    /// view and settings.
-    fn open(size: PixelSize, options: SaveForWebOptions, saved: Option<&Last>) -> Self {
-        let (view, options) = match saved {
-            Some(last) => (last.view, SaveForWebOptions { percent: 100.0, ..last.options.clone() }),
-            None => (WebView::default(), options),
-        };
-        Live { started: true, options: options.clone(), link: LinkedSize::new(size), initial: (options, size), view, ..Live::default() }
+    /// The state of a dialog that opens now: the document `size` and, when saved, the last view.
+    fn open(size: PixelSize, saved: Option<&Last>) -> Self {
+        Live { link: LinkedSize::new(size), view: saved.map_or_else(WebView::default, |last| last.view), ..Live::default() }
     }
 
-    /// Whether anything but the view differs from when the dialog opened.
-    fn changed(&self) -> bool {
-        self.options != self.initial.0 || self.link.pixels() != self.initial.1
-    }
-
-    /// Puts back the settings and the size from when the dialog opened.
+    /// Puts back the size from when the dialog opened and asks for new encodes.
     fn reset(&mut self) {
-        self.options = self.initial.0.clone();
         self.link = LinkedSize::new(self.link.original());
         self.revision += 1;
     }
@@ -555,19 +538,19 @@ impl Live {
 pub struct SaveForWebOutput {
     /// The dialog's response.
     pub response: Response,
-    /// How the dialog closed in this pass; `None` while it stays open.
+    /// How the dialog closed in this pass; `None` while it stays open. A path answer closes the dialog as
+    /// `CloseReason::Activated`.
     pub closed: Option<CloseReason>,
-    /// The answer, in the pass the dialog was given the path of the file to write. The dialog does not close itself
-    /// then: the caller closes it (a hosted dialog finishes).
+    /// The answer, in the pass the host answered the save request with a path.
     pub result: Option<SaveForWebResult>,
     /// The panes to encode, when the settings, the size, the view or the frame changed: every pane the view shows,
     /// with the revision to answer with.
     pub wanted_variants: Vec<WantedVariant>,
-    /// The Matte button was pressed: the colour to ask the app's picker for, keyed [`MATTE_COLOR_KEY`].
-    pub pick_color: Option<ColorRequest>,
-    /// Save… was pressed: the host opens its save picker and gives the path back with
-    /// [`SaveForWebDialog::saved_to`].
-    pub save_as: Option<SaveRequest>,
+    /// What the dialog asks of the host: the colour picker for the matte (keyed [`MATTE_COLOR_KEY`]) and, after
+    /// Save…, the file dialog (keyed [`SAVE_PATH_KEY`]). The host answers with
+    /// [`HostRequests::answer_color`] and [`HostRequests::answer_path`] and gives the answers back through
+    /// [`SaveForWebDialog::answers`].
+    pub requests: HostRequests,
     /// The settings after the pass.
     pub options: SaveForWebOptions,
     /// The output size after the pass.
@@ -618,170 +601,168 @@ impl WebPictures {
 }
 
 /// The Save for Web dialog: the view tabs over a row of preview panes that share one view, the zoom row, the
-/// animation row, and the settings column.
+/// animation row, and the settings column. It is a [`FormDialog`] over [`SaveForWebOptions`].
 ///
 /// - Keys: Tab walks the controls, Enter is Save… unless a field owns it, Escape cancels. Holding Alt turns Cancel
 ///   into Reset, which restores the settings and the size from when the dialog opened. Ctrl+Z steps the dialog's own
 ///   settings.
 /// - Panes: a drag pans every pane, Ctrl with the wheel zooms about the pointer, a double click fits, a click selects
-///   the pane. The zoom row steps by 25 percent and has Fit and 100%.
+///   the pane. The zoom row steps through the preview's zoom levels and has Fit and 100%.
 /// - Encoding is the app's: [`SaveForWebOutput::wanted_variants`] lists the panes to encode; the app answers with
 ///   [`WebVariant`]s in `pictures`, and the dialog drops none: the owner of the pictures drops stale ones
 ///   ([`HostedSaveForWeb::set_variant`]).
-/// - Save… files a [`SaveRequest`]; the host opens its save picker and gives the path to `saved_to`, which makes
-///   `result` the answer. While the picker is open `saving` disables Save….
+/// - Save… files a path request in [`SaveForWebOutput::requests`] (keyed [`SAVE_PATH_KEY`]); the dialog stays open
+///   while the host's file dialog is up (`saving` disables Save…). The host's path answer, given through `answers`,
+///   closes the dialog as `CloseReason::Activated` and makes `result` the answer.
 #[must_use = "show the dialog with `show`"]
 #[derive(crate::contract::Pattern, crate::contract::Props)]
 pub struct SaveForWebDialog<'a> {
     name: String,
     size: PixelSize,
     pictures: WebPictures,
+    options: Bind<'a, SaveForWebOptions>,
     /// Binds the open state to `open`.
     #[prop(name = "opened")]
     open: Option<Bind<'a, bool>>,
-    /// The settings the dialog opens with, unless a remembered set is found.
-    #[prop]
-    options: SaveForWebOptions,
     /// The Preset list.
     #[prop]
     presets: Vec<WebPreset>,
     /// The document is an animation: the play row shows and the frame advances while playing.
     #[prop]
     animation: Option<Animation>,
-    /// Remembers the last view and, through [`SaveForWebResult::remember`], the last settings under `key`.
+    /// Remembers the last view and, through [`SaveForWebResult::remember`], the last settings under `key`. A
+    /// remembered set replaces the bound settings when the dialog opens.
     #[prop]
     remember: Option<SaveKey>,
-    /// The colour the app's picker returned for the matte, applied in each pass it is given.
-    #[prop]
-    matte: Option<[u8; 3]>,
-    /// Whether the save picker is open: Save… waits.
+    /// Whether the host's file dialog is open: Save… waits.
     #[prop]
     saving: bool,
-    /// The path the save picker returned: the pass it is given, `result` is the answer.
+    /// The host's answers to earlier requests: the matte colour and the path of the file to write.
     #[prop]
-    saved_to: Option<PathBuf>,
+    answers: Vec<HostAnswer>,
 }
 
 impl<'a> SaveForWebDialog<'a> {
-    /// A dialog for the document `name` of `size` pixels with the app's `pictures`.
-    pub fn new(name: impl Into<String>, size: PixelSize, pictures: WebPictures) -> Self {
+    /// A dialog for the document `name` of `size` pixels with the app's `pictures`, editing the settings in `options`.
+    pub fn new(name: impl Into<String>, size: PixelSize, pictures: WebPictures, options: Bind<'a, SaveForWebOptions>) -> Self {
         SaveForWebDialog {
             name: name.into(),
             size,
             pictures,
+            options,
             open: None,
-            options: SaveForWebOptions::default(),
             presets: Vec::new(),
             animation: None,
             remember: None,
-            matte: None,
             saving: false,
-            saved_to: None,
+            answers: Vec::new(),
         }
     }
 
     /// Shows the dialog.
     pub fn show(self, ui: &mut Ui) -> SaveForWebOutput {
-        let SaveForWebDialog { name, size, pictures, open, options, presets, animation, remember, matte, saving, saved_to } = self;
+        let SaveForWebDialog { name, size, pictures, options, open, presets, animation, remember, saving, answers } = self;
         let env = Env::of(ui);
         let words = env.words::<SaveForWebWords>();
+        let sizing = env.words::<SizingWords>();
         let units = env.units();
+        let hint = zoom_hint(&env, &words);
 
-        let reset = ResetFooter::new(ui, None, true);
-        let resetting = reset.resetting();
-        let accept = FooterButton::new(words.save.clone(), DialogRole::Accept).enabled(!saving);
-        let save_pressed = Cell::new(false);
-        let mut dialog = Dialog::new(words.title.clone())
-            .close_on_enter(!saving)
+        let mut form = FormDialog::new(words.title.clone(), options)
+            .ok_label(words.save.clone())
+            .ok_enabled(!saving)
             .outer_gesture(true)
-            .buttons(reset.buttons(accept, false))
-            .close_guard({
-                let save_pressed = &save_pressed;
-                move |at, cx| match (at, resetting) {
-                    (0, _) => {
-                        save_pressed.set(true);
-                        false
-                    }
-                    (_, true) => {
-                        cx.memory::<Live>().reset();
-                        false
-                    }
-                    _ => true,
-                }
-            })
-            .settle_buttons({
-                let reset = reset.clone();
-                move |cx, buttons| reset.settle(buttons, cx.memory::<Live>().changed())
-            });
+            .answers(answers)
+            .on_reset(|cx| cx.memory::<Live>().reset())
+            .shaped(|dialog| dialog.close_guard(|at, _| at != 0));
         if let Some(open) = open {
-            dialog = dialog.opened(open);
+            form = form.opened(open);
         }
 
-        let ask = RefCell::new(None);
-        let after = RefCell::new(Live::default());
-        let wanted = RefCell::new(Vec::new());
-        let shown = dialog.show(ui, |ui, cx| {
+        let mut after = Live::default();
+        let mut wanted = Vec::new();
+        let mut chosen = None;
+        let mut finished = SaveForWebOptions::default();
+        let shown = form.show(ui, |ui, cx, options| {
             let mut live = cx.memory::<Live>().clone();
-            if !live.started {
+            if cx.first() {
                 let saved = remember.as_ref().and_then(|key| cx.saved::<Option<Last>>(key).clone());
-                live = Live::open(size, options.clone(), saved.as_ref());
+                live = Live::open(size, saved.as_ref());
+                if let Some(last) = &saved {
+                    *options = SaveForWebOptions { percent: 100.0, ..last.options.clone() };
+                }
             }
-            if let Some(matte) = matte
-                && live.options.matte != matte
-            {
-                live.options.matte = matte;
+            for answer in cx.take_answers() {
+                match answer {
+                    HostAnswer::Color { key, color } if key == MATTE_COLOR_KEY => {
+                        let Rgba([r, g, b, _]) = color.to_rgba();
+                        options.matte = [r, g, b];
+                    }
+                    HostAnswer::Path { key, path } if key == SAVE_PATH_KEY => {
+                        chosen = Some(path);
+                        cx.request_close_as(CloseReason::Activated);
+                    }
+                    _ => {}
+                }
             }
-            live.advance(&*cx, animation);
-            let before = (live.options.clone(), live.link.pixels(), live.view, live.frame);
+            live.advance(&**cx, animation);
+            let before = (options.clone(), live.link.pixels(), live.view, live.frame);
             let view_before = live.view;
 
+            let mut ask = None;
             Row::new().show(ui, |ui, _| {
-                Stack::new().id_salt("preview").show(ui, |ui, _| {
-                    panes::show(ui, &panes::Panes { words: &words, units: &units, name: &name, size, pictures: &pictures, animation }, &mut live)
+                let reads = panes::Panes { words: &words, units: &units, name: &name, size, pictures: &pictures, animation, hint: &hint };
+                Stack::new().id_salt("preview").show(ui, |ui, _| panes::show(ui, &reads, &mut live));
+                Stack::new().id_salt("settings").show(ui, |ui, _| {
+                    let kit = options::Kit { words: &words, sizing: &sizing, units: &units, presets: &presets };
+                    options::show(ui, &kit, options, &mut live.link, &mut ask)
                 });
-                Stack::new().id_salt("settings").show(ui, |ui, _| options::show(ui, &words, &units, &presets, &mut live, &mut ask.borrow_mut()));
             });
 
             if live.link.pixels() != before.1 {
-                live.options.percent = percent_of(live.link.pixels(), live.link.original());
+                options.percent = percent_of(live.link.pixels(), live.link.original());
             }
-            if (live.options.clone(), live.link.pixels(), live.view, live.frame) != before {
+            if (options.clone(), live.link.pixels(), live.view, live.frame) != before {
                 live.revision += 1;
             }
             if let Some(key) = &remember
                 && live.view != view_before
             {
                 let saved = cx.saved::<Option<Last>>(key);
-                let options = saved.as_ref().map_or_else(|| live.options.clone(), |last| last.options.clone());
-                *saved = Some(Last { view: live.view, options });
+                let kept = saved.as_ref().map_or_else(|| options.clone(), |last| last.options.clone());
+                *saved = Some(Last { view: live.view, options: kept });
             }
-            *wanted.borrow_mut() = Self::wanted(&live);
+            if let Some(request) = ask {
+                cx.requests().request_color(request);
+            }
+            wanted = Self::wanted(&live, options);
             live.reported = live.revision;
             *cx.memory::<Live>() = live.clone();
-            *after.borrow_mut() = live;
+            after = live;
+            finished = options.clone();
+            true
         });
 
-        let DialogOutput { response, closed, .. } = shown.output;
-        let live = after.into_inner();
-        let wanted = wanted.into_inner();
+        let live = after;
         let pixels = live.link.pixels();
-        let save_as = save_pressed.get().then(|| save_request(&name, live.options.format));
-        let result = saved_to.map(|path| SaveForWebResult {
-            options: live.options.clone(),
+        let mut requests = shown.requests;
+        if shown.picked == Some(0) {
+            requests.request_path(save_request(&name, finished.format));
+        }
+        let result = shown.accepted.zip(chosen).map(|(accepted, path)| SaveForWebResult {
+            options: accepted.clone(),
             path,
             width: pixels.width,
             height: pixels.height,
-            remember: remember.map(|key| (key, Last { view: live.view, options: live.options.clone() })),
+            remember: remember.map(|key| (key, Last { view: live.view, options: accepted })),
         });
-        let ask = ask.into_inner();
         SaveForWebOutput {
-            response,
-            closed,
+            response: shown.response,
+            closed: shown.closed,
             result,
             wanted_variants: wanted,
-            pick_color: ask,
-            save_as,
-            options: live.options,
+            requests,
+            options: finished,
             size: pixels,
             frame: live.frame,
             selected: live.selected,
@@ -794,10 +775,18 @@ fn percent_of(size: PixelSize, original: PixelSize) -> f64 {
     (f64::from(size.width) / f64::from(original.width.max(1)) * 10_000.0).round() / 100.0
 }
 
-/// The save picker for `name` in `format`: the document's name without its extension, with the format's.
-fn save_request(name: &str, format: WebFormat) -> SaveRequest {
+/// The file dialog request for `name` in `format`: the document's name without its extension, with the format's.
+fn save_request(name: &str, format: WebFormat) -> PathRequest {
     let stem = Path::new(name).file_stem().map_or_else(|| name.to_owned(), |stem| stem.to_string_lossy().into_owned());
-    SaveRequest { file_name: format!("{stem}.{}", format.extension()), extension: format.extension(), format: format.name() }
+    let extension = format.extension();
+    PathRequest::save(SAVE_PATH_KEY, format!("{stem}.{extension}"), [PathFilter::new(format.name(), &[extension])])
+}
+
+/// The pan and zoom hint, naming the key the wheel zooms with on this platform.
+fn zoom_hint(env: &Env, words: &SaveForWebWords) -> Label {
+    let mut keys = Chord::new(Mods::CMD, Key::Plus).parts_for(env.shell().os, env.keyboard_layout());
+    keys.pop();
+    Label::from(words.pan_hint.fill(&[("modifier", keys.join("+").as_str())]))
 }
 
 /// The frame rate to use: `fps`, or the default for one that is not a positive number.
@@ -857,32 +846,32 @@ pub fn download_seconds(bytes: u64, kbps: f64) -> u64 {
 
 impl SaveForWebDialog<'_> {
     /// The panes to encode when the revision changed since the last report.
-    fn wanted(live: &Live) -> Vec<WantedVariant> {
+    fn wanted(live: &Live, options: &SaveForWebOptions) -> Vec<WantedVariant> {
         if live.revision == live.reported {
             return Vec::new();
         }
         let revision = live.revision;
         let mut wanted = Vec::new();
         if live.view != WebView::Original {
-            wanted.push(WantedVariant { index: 0, revision, options: live.options.clone() });
+            wanted.push(WantedVariant { index: 0, request: PreviewRequest::new(revision, options.clone()) });
         }
         if live.view == WebView::FourUp {
-            let [half, quarter] = four_up_variants(&live.options);
-            wanted.push(WantedVariant { index: 1, revision, options: half });
-            wanted.push(WantedVariant { index: 2, revision, options: quarter });
+            let [half, quarter] = four_up_variants(options);
+            wanted.push(WantedVariant { index: 1, request: PreviewRequest::new(revision, half) });
+            wanted.push(WantedVariant { index: 2, request: PreviewRequest::new(revision, quarter) });
         }
         wanted
     }
 }
 
-/// A [`SaveForWebDialog`] the [`DialogHost`](crate::dialog::DialogHost) owns. It keeps what the app answers (the
-/// pictures), drops stale answers, files the colour and save requests, and finishes with the result when the save
-/// picker answers.
+/// A [`SaveForWebDialog`] the [`DialogHost`](crate::dialog::DialogHost) owns. It keeps the settings and what the app
+/// answers (the pictures), drops stale answers, keeps the colour and path requests until the app takes them, and
+/// finishes with the result when the file dialog's path comes back.
 ///
 /// ```ignore
 /// let mut web = HostedSaveForWeb::new("poster.psd", PixelSize::new(1200, 800), original).animation(Animation::new(12, 24.0));
 /// // each pass: for want in web.wanted_variants() { encode(want) -> web.set_variant(variant) }
-/// // pick_color() -> picker -> set_color(MATTE_COLOR_KEY, color); pick_save() -> picker -> set_path(path)
+/// // pick_color() -> picker -> answer_color(MATTE_COLOR_KEY, color); pick_path() -> file dialog -> answer_path(key, path)
 /// ```
 pub struct HostedSaveForWeb {
     id: DialogId,
@@ -897,10 +886,7 @@ pub struct HostedSaveForWeb {
     wanted: Vec<WantedVariant>,
     frame: u32,
     requests: HostRequests,
-    matte: Option<[u8; 3]>,
-    save: Option<SaveRequest>,
     saving: bool,
-    saved_to: Option<PathBuf>,
 }
 
 impl HostedSaveForWeb {
@@ -919,10 +905,7 @@ impl HostedSaveForWeb {
             wanted: Vec::new(),
             frame: 0,
             requests: HostRequests::new(),
-            matte: None,
-            save: None,
             saving: false,
-            saved_to: None,
         }
     }
 
@@ -964,7 +947,7 @@ impl HostedSaveForWeb {
         self.pictures.original = Some(original);
     }
 
-    /// The panes to encode, `(index, revision, options)`, when they changed since the last call.
+    /// The panes to encode when they changed since the last call.
     pub fn wanted_variants(&mut self) -> Vec<WantedVariant> {
         std::mem::take(&mut self.wanted)
     }
@@ -982,24 +965,27 @@ impl HostedSaveForWeb {
         self.requests.take_color()
     }
 
-    /// The colour the app's picker returned for `key`: the matte, without alpha. Other keys are ignored.
-    pub fn set_color(&mut self, key: &str, color: Srgba) {
-        if key == MATTE_COLOR_KEY {
-            let Rgba([r, g, b, _]) = color.to_rgba();
-            self.matte = Some([r, g, b]);
-        }
+    /// Save… was pressed in the pass since the last call: the file dialog to open, keyed [`SAVE_PATH_KEY`].
+    /// Returned once; answer with [`answer_path`](Self::answer_path).
+    pub fn pick_path(&mut self) -> Option<PathRequest> {
+        self.requests.take_path()
     }
 
-    /// Save… was pressed in the pass since the last call: the save picker to open. Returned once; answer with
-    /// [`set_path`](Self::set_path).
-    pub fn pick_save(&mut self) -> Option<SaveRequest> {
-        self.save.take()
+    /// Answers the colour request `key`: the matte, without alpha. Other keys are ignored.
+    pub fn answer_color(&mut self, key: impl Into<String>, color: Srgba) {
+        self.requests.answer_color(key, color);
     }
 
-    /// The save picker's answer: a path finishes the dialog; `None` (the picker was cancelled) keeps it open.
-    pub fn set_path(&mut self, path: Option<PathBuf>) {
+    /// Answers the file dialog request `key` with the chosen path, which finishes the dialog.
+    pub fn answer_path(&mut self, key: impl Into<String>, path: PathBuf) {
         self.saving = false;
-        self.saved_to = path;
+        self.requests.answer_path(key, path);
+    }
+
+    /// The host cancelled its picker or file dialog: the requests not taken yet are dropped and Save… works again.
+    pub fn cancel_requests(&mut self) {
+        self.saving = false;
+        self.requests.cancel();
     }
 }
 
@@ -1011,34 +997,28 @@ impl StackDialog for HostedSaveForWeb {
     }
 
     fn show(&mut self, ui: &mut Ui, _: &DialogStack) -> Option<DialogResult<SaveForWebResult>> {
-        let dialog = SaveForWebDialog::new(self.name.clone(), self.size, self.pictures.clone())
-            .options(self.options.clone())
+        let dialog = SaveForWebDialog::new(self.name.clone(), self.size, self.pictures.clone(), Bind::bound(&mut self.options))
             .presets(self.presets.clone())
-            .saving(self.saving);
-        let dialog = SaveForWebDialog {
-            animation: self.animation,
-            remember: self.remember.clone(),
-            matte: self.matte.take(),
-            saved_to: self.saved_to.take(),
-            ..dialog
-        };
-        let shown = dialog.show(ui);
+            .saving(self.saving)
+            .answers(self.requests.take_answers());
+        let dialog = SaveForWebDialog { animation: self.animation, remember: self.remember.clone(), ..dialog };
+        let mut shown = dialog.show(ui);
         self.frame = shown.frame;
         if let Some(last) = shown.wanted_variants.first() {
-            self.taken = last.revision;
+            self.taken = last.request.revision;
             self.wanted = shown.wanted_variants;
         }
-        if let Some(request) = shown.pick_color {
+        if let Some(request) = shown.requests.take_color() {
             self.requests.request_color(request);
         }
-        if let Some(request) = shown.save_as {
-            self.save = Some(request);
+        if let Some(request) = shown.requests.take_path() {
+            self.requests.request_path(request);
             self.saving = true;
         }
         match (shown.result, shown.closed) {
             (Some(result), _) => Some(DialogResult::Ok(result)),
             (None, Some(_)) => {
-                self.requests.cancel();
+                self.cancel_requests();
                 Some(DialogResult::Cancel)
             }
             (None, None) => None,
@@ -1050,8 +1030,6 @@ impl StackDialog for HostedSaveForWeb {
     }
 
     fn cancelled(&mut self, _: &egui::Context) {
-        self.requests.cancel();
-        self.save = None;
-        self.saving = false;
+        self.cancel_requests();
     }
 }

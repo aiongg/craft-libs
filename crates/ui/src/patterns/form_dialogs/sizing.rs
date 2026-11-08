@@ -17,6 +17,7 @@ use crate::text::{LinkMode, LinkedWords, link_toggle};
 use craft_behavior::PixelSize;
 use craft_theme::variant::Tone;
 use egui::{Response, Ui};
+use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::sync::Arc;
 
@@ -78,7 +79,8 @@ craft_ui::words! {
 }
 
 /// How the pixels are made when the size changes: Photoshop's Resample list.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum Resample {
     /// The method suited to the change.
