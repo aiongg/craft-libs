@@ -1,5 +1,5 @@
 //! `DockArea`: the docking pattern. It shows a workspace's docked tree, dock columns, flyouts and floating groups from
-//! the parts of `docking`, takes the drops of tab and group drags, and reports what the host applies.
+//! the parts of `docking`, takes the drops of tab and group drags, and applies their actions to the workspace.
 
 use super::hide::{self, Shown};
 use crate::contract::overlay::PlacementChange;
