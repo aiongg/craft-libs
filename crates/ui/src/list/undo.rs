@@ -9,7 +9,7 @@ use crate::contract::{
 };
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx};
-use craft_behavior::{DisplayOrder, ItemSource, Metrics, SelectionChange, SelectionModel, SpanLayout};
+use craft_behavior::{DisplayOrder, ItemSource, Metrics, RowAt, SelectionChange, SelectionModel, SpanLayout};
 use craft_i18n::Format;
 use std::borrow::Cow;
 
@@ -35,8 +35,8 @@ impl UndoMark {
 }
 
 impl SelectionModel<usize> for UndoMark {
-    fn contains(&self, key: &usize) -> bool {
-        self.marked.is_some_and(|marked| *key <= marked)
+    fn contains(&self, row: RowAt<'_, usize>) -> bool {
+        self.marked.is_some_and(|marked| *row.key <= marked)
     }
 
     fn lead(&self) -> Option<&usize> {
@@ -52,7 +52,7 @@ impl SelectionModel<usize> for UndoMark {
             SelectionChange::Set(keys) => keys.last().copied(),
             SelectionChange::Toggle(key) => Some(key),
             SelectionChange::Clear => None,
-            SelectionChange::Cells(range) => range.rows.last().copied(),
+            SelectionChange::Cells(range) => Some(range.last),
             _ => self.marked,
         };
     }

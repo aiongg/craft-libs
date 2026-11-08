@@ -1,6 +1,6 @@
 //! The pure logic of the list family.
 
-use craft_behavior::{ColumnKey, DisplayOrder as _, SelectionChange, SelectionModel as _};
+use craft_behavior::{ColumnKey, DisplayOrder as _, RowAt, SelectionChange, SelectionModel as _};
 use craft_i18n::Format;
 use craft_ui::contract::{CollectionEvent, Show as _};
 use craft_ui::list::{
@@ -8,6 +8,7 @@ use craft_ui::list::{
     footer_text, summary_text, undo_count,
 };
 use craft_ui::runtime::env::WordSet as _;
+use craft_ui::testing::examples::sheet::Rows;
 use craft_ui::testing::internals::place_row as place;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Pos2, Rect, Vec2};
@@ -80,9 +81,11 @@ fn apply_opens_one_group_or_every_group() {
 #[trial]
 fn a_mark_covers_the_row_and_every_newer_one() {
     let mut mark = UndoMark::default();
-    assert!(!mark.contains(&0));
+    let order = Rows::new(4);
+    let covers = |mark: &UndoMark, key: usize| mark.contains(RowAt::new(&key, key, &order));
+    assert!(!covers(&mark, 0));
     mark.apply(SelectionChange::Set(vec![2]));
-    assert_eq!((mark.contains(&0), mark.contains(&2), mark.contains(&3)), (true, true, false));
+    assert_eq!((covers(&mark, 0), covers(&mark, 2), covers(&mark, 3)), (true, true, false));
     assert_eq!(mark.actions(), 3);
     mark.apply(SelectionChange::Clear);
     assert_eq!(mark.actions(), 0);

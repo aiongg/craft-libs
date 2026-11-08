@@ -100,7 +100,9 @@ pub use press::{
 pub use quantity::Reader;
 pub use role_rule::{GridFacts, RoleRule, is_checkable, is_selectable, role_violations};
 pub use scroll::{ScrollPos, ScrollSpan};
-pub use selection::{CellAt, CellRange, CellSelection, Selection, SelectionChange, SelectionModel};
+pub use selection::{
+    CellAdvance, CellAt, CellDirection, CellRange, CellSelection, CellSpace, Positions, RowAt, Selection, SelectionChange, SelectionModel,
+};
 pub use sense::Sense;
 pub use sizing::{ControlMetrics, Metrics, Proposal};
 pub use typing::{EditRun, Ended, EscapeRule, Escaped, Typed, TypingRun};

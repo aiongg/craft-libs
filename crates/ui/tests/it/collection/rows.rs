@@ -3,7 +3,9 @@
 
 use super::kit::{Count, Dismissed, List, ROW_H, RowOut};
 use crate::contract::kit::PlainStyle;
-use craft_behavior::{CellSelection, ColumnKey, ItemSource, PartKey, Selection, SelectionModel as _, Sense, SheetLayout, SpanLayout, keyed};
+use craft_behavior::{
+    CellAt, CellRange, CellSelection, ColumnKey, ItemSource, PartKey, Selection, SelectionModel as _, Sense, SheetLayout, SpanLayout, keyed,
+};
 use craft_ui::contract::{
     Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, CommandSet, Commands as _, Common, Component, ContainerProps,
     Cx, Focus as _, MeasureCx, PartsCx, Props as _, Role, SelectMode, ShowCollection as _,
@@ -332,7 +334,7 @@ fn forward_enters_a_rows_children_and_arrows_and_escape_leave_them() {
 }
 
 /// 17.7: the arrows move the lead cell, Shift extends the range from the anchor cell, and the selection reports
-/// the rows, the columns and the lead column.
+/// the rows and the columns, with the active cell at the anchor.
 #[trial]
 fn shift_arrows_extend_a_cell_selection_in_a_sheet() {
     let (log, source) = (Log::new(), Count(5));
@@ -352,14 +354,13 @@ fn shift_arrows_extend_a_cell_selection_in_a_sheet() {
     press(&mut frames, Key::ArrowRight, Modifiers::SHIFT, &mut show);
     press(&mut frames, Key::ArrowDown, Modifiers::SHIFT, &mut show);
     let held = selection.borrow().clone();
-    assert_eq!(held.rows.items, vec![0, 1], "the rows between the anchor row and the lead row");
-    assert_eq!(held.ranges, vec![(0, 1, 0..3)], "the columns between the anchor cell and the lead cell");
-    assert_eq!(held.lead_column(), Some(&ColumnKey::new("c")));
+    assert_eq!(held.ranges(), [CellRange::cells(CellAt::new(0, 0), CellAt::new(1, 2))], "the rows and columns between the anchor cell and the head");
+    assert_eq!((held.lead(), held.lead_column()), (Some(&0), Some(0)), "the active cell stays at the anchor");
     press(&mut frames, Key::ArrowLeft, Modifiers::NONE, &mut show);
     let held = selection.borrow().clone();
     assert_eq!(
-        (held.ranges.clone(), held.lead_column().cloned()),
-        (vec![(1, 1, 1..2)], Some(ColumnKey::new("b"))),
+        (held.ranges(), held.lead(), held.lead_column()),
+        ([CellRange::cells(CellAt::new(1, 1), CellAt::new(1, 1))].as_slice(), Some(&1), Some(1)),
         "a plain arrow selects the one cell it moves to"
     );
 }
