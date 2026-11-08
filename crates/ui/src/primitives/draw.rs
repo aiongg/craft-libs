@@ -53,6 +53,11 @@ pub struct Dashes {
 }
 
 impl Dashes {
+    /// Dashes of `dash` with gaps of `gap`, starting at the pattern's beginning.
+    pub fn new(dash: f32, gap: f32) -> Self {
+        Dashes { dash, gap, phase: 0.0 }
+    }
+
     /// Dashes of `length` with gaps of the same length, starting at the pattern's beginning.
     pub fn even(length: f32) -> Self {
         Dashes { dash: length, gap: length, phase: 0.0 }
@@ -205,10 +210,10 @@ impl<'a> Draw<'a> {
         self.paint(shape, None, Some(Stroke::new(self.width(width), color.0)));
     }
 
-    /// Strokes the open path `path` as dashes: the one dashed primitive (copy marks, drag previews, reference lines).
+    /// Strokes the open path `path` as dashes (copy marks, drag previews, reference lines). [`kit::dashed`] is the one
+    /// implementation; the kit painter's `dashed` calls it too.
     pub fn dashed(&self, path: &[Pos2], pattern: Dashes, width: StrokeWidth, color: StyleColor) {
-        let stroke = Stroke::new(self.width(width), color.egui());
-        self.painter.extend(Shape::dashed_line_with_offset(path, stroke, &[pattern.dash], &[pattern.gap], pattern.phase));
+        self.painter.extend(super::kit::dashed(path, self.width(width), pattern, color.egui()));
     }
 
     /// Runs `paint` with a `Draw` whose painting is cut to `rect` (inside the clip already in force): scrolled content
