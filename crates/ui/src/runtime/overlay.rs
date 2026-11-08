@@ -350,14 +350,23 @@ pub(crate) fn drawing_parent(ctx: &Context) -> Option<Id> {
     with_pass(ctx, |pass| pass.drawing.last().copied())
 }
 
+/// Whether the layer `id`, open in this pass, faded out in the last one: it opens anew.
+fn reopened(ctx: &Context, id: Id, exiting: bool) -> bool {
+    !exiting && with_pass(ctx, |pass| pass.last.iter().any(|entry| entry.id == id && entry.exiting))
+}
+
+/// Whether the layer `id` appears in this pass, read before its `begin_layer`: it was hidden in the last pass, or it
+/// faded out and is open again. What the layer remembers starts fresh then; a discard pass that repeats the frame
+/// keeps what the first pass of the frame recorded.
+pub(crate) fn appears(ctx: &Context, id: Id, exiting: bool) -> bool {
+    reopened(ctx, id, exiting) || with_persist(ctx, pass::current_viewport(ctx), |persist| !persist.appeared.contains_key(&id))
+}
+
 /// Marks the layer `id`'s body as running, so layers opened from inside it become its children. A layer shown
 /// again while it fades out opens anew: it appears in this frame and pass.
 pub(crate) fn begin_layer(ctx: &Context, id: Id, exiting: bool) {
-    let faded = with_pass(ctx, |pass| {
-        pass.drawing.push(id);
-        pass.last.iter().any(|entry| entry.id == id && entry.exiting)
-    });
-    let reopened = faded && !exiting;
+    let reopened = reopened(ctx, id, exiting);
+    with_pass(ctx, |pass| pass.drawing.push(id));
     let viewport = pass::current_viewport(ctx);
     let first = (pass::root_frame_nr(ctx), pass::pass_nr(ctx, viewport));
     let (down, released) = pointer::with_pass_pointer(ctx, |read| {

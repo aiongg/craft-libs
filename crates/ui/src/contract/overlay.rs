@@ -1233,7 +1233,8 @@ pub(crate) struct LayerOut {
     pub dismissed: Option<CloseReason>,
 }
 
-/// What a layer remembers while it is shown, in its owner's memory stage: gone when the layer hides.
+/// What a layer remembers while it is shown, in its owner's memory stage: gone when the layer hides, and fresh in the
+/// pass a layer appears (`overlay::appears`). Saved size and position live in the layer's save key, not here.
 #[derive(Clone, Copy, Default)]
 struct LayerMemory {
     /// The pointer position when the layer first appeared, for `Anchor::Pointer`.
@@ -1380,7 +1381,9 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
     let layer = &Layer { overlay: opened.as_ref().unwrap_or(layer.overlay), ..*layer };
     let overlay = layer.overlay;
     let bounds = areas::safe_rect(ctx);
-    let mut memory = recall(layer, ctx);
+    // A layer that appears starts with nothing it remembered while shown before, also when it opens again during its
+    // exit fade or its host never saw it hide: the focus that was inside it does not close it as `focus_left`.
+    let mut memory = if overlay::appears(ctx, layer.id, layer.exiting) { LayerMemory::default() } else { recall(layer, ctx) };
     let anchor = anchor_rect(ctx, layer, bounds, &mut memory);
     let area = area_id(layer.id);
     // A container's layer is placed by the size its container measured for this pass, any other by the size it took last
