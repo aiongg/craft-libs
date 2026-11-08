@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use craft_browse::thumbs::{DecodeRequest, DecodedThumb, FileStat, FileThumbKey, FileThumbSource, StoreKey, ThumbDecoder, ThumbError, ThumbStore};
 use craft_host::ManualJobs;
 use craft_host::queue::Cancel;
-use craft_ui::primitives::textures::{Priority, TextureState, ThumbRequest, ThumbnailOptions, Thumbnails};
+use craft_ui::primitives::textures::{LoadFailure, Priority, TextureState, ThumbRequest, ThumbnailOptions, Thumbnails};
 use craft_ui::testing::trial;
 use egui::Context;
 
@@ -168,7 +168,7 @@ fn file_source_reloads_after_invalidate() {
     let decoder = Decoder::new(None);
     let source = FileThumbSource::new(decoder.clone(), None);
     let key = setup.file("a.png");
-    assert!(matches!(setup.show(&source, &key), TextureState::Loading { stand_in: None }));
+    assert!(matches!(setup.show(&source, &key), TextureState::Loading { stand_in: None, .. }));
     setup.jobs.run_all();
     let state = setup.show(&source, &key);
     assert_eq!(side(&state), Some(4));
@@ -177,7 +177,8 @@ fn file_source_reloads_after_invalidate() {
     decoder.full_side.store(6, Ordering::Relaxed);
     source.invalidate(&key.path);
     let state = setup.show(&source, &key);
-    assert_eq!(state, TextureState::Loading { stand_in: Some(first) });
+    let TextureState::Loading { stand_in, .. } = &state else { panic!("expected a reload in progress, got {state:?}") };
+    assert_eq!(stand_in.as_ref(), Some(&first));
     setup.jobs.run_all();
     let state = setup.show(&source, &key);
     assert!(matches!(state, TextureState::Ready(_)));
@@ -196,7 +197,9 @@ fn file_source_fails_once_per_stamp() {
     setup.show(&source, &key);
     setup.jobs.run_all();
     for _ in 0..3 {
-        assert_eq!(setup.show(&source, &key), TextureState::Failed { message: "boom".to_owned() });
+        let state = setup.show(&source, &key);
+        let TextureState::Failed { failure, .. } = &state else { panic!("expected a failure, got {state:?}") };
+        assert_eq!(*failure, LoadFailure::Message("boom".to_owned()));
     }
     assert_eq!(setup.jobs.waiting(), 0);
     assert_eq!(decoder.decodes(), 1);
@@ -221,8 +224,8 @@ fn file_source_shows_the_quick_preview_first() {
     assert_eq!(decoder.decodes(), 0);
 
     let state = setup.show(&source, &key);
-    let TextureState::Loading { stand_in: Some(quick) } = state else { panic!("expected the quick picture as stand-in, got {state:?}") };
-    assert_eq!(quick.size[0], 2);
+    let TextureState::Loading { stand_in: Some(quick), .. } = state else { panic!("expected the quick picture as stand-in, got {state:?}") };
+    assert_eq!(quick.size.width, 2);
     setup.jobs.run_all();
     let state = setup.show(&source, &key);
     assert!(matches!(state, TextureState::Ready(_)));
