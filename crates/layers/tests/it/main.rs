@@ -2,6 +2,7 @@
 
 mod panel;
 mod panel_order;
+mod panel_input;
 mod parts;
 
 use craft_ui::testing::{TRIALS, suite};
