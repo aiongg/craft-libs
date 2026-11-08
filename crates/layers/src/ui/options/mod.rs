@@ -201,7 +201,7 @@ impl StackDialog for LayersOptionsDialog {
                                     Radio::new(size).label(size.label(&list)).show(ui);
                                     if size != ThumbSize::None {
                                         Picture::new(Label::from(words.sample.clone()), SAMPLE_KEY, &sample_image)
-                                            .size(PictureSize::Thumb(size))
+                                            .extent(PictureSize::Thumb(size))
                                             .show(ui);
                                     }
                                 });

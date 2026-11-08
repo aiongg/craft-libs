@@ -222,7 +222,7 @@ fn layer_row<'r, T: LayerTree>(cx: &'r PanelContext<'r, T>, id: &T::Id) -> ListR
         let open = cx.tree.effects_open(id);
         let pattern = if open { &words.collapse_effects } else { &words.expand_effects };
         let name = craft_i18n::fmt(pattern.as_str(), &[("layer", info.name.as_str())]);
-        row = row.trailing_part(TrailingPart::new(FX_PART), TrailingFace::Disclosure { open }, name);
+        row = row.trailing_part(TrailingPart::new(FX_PART), TrailingFace::disclosure(open), name);
     }
     if info.locks.any() {
         let name = named(&words.unlock, &info.name);
