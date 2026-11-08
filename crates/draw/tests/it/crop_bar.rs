@@ -256,7 +256,10 @@ impl Rig {
     }
 
     fn disabled(&self, label: &str) -> bool {
-        let target = self.fixture.by_label(label).unwrap_or_else(|| panic!("{label}"));
+        let target = self.fixture.by_label(label).unwrap_or_else(|| {
+            let texts: Vec<_> = self.fixture.texts().iter().map(|text| text.text.clone()).collect();
+            panic!("{label} is not shown; the texts are {texts:?}")
+        });
         self.fixture.tree().is_disabled_key(target.node)
     }
 }
