@@ -546,6 +546,7 @@ impl Component for CropOverlay<'_> {
             let Some(result) = cx.part_if_declared(part) else { continue };
             let (press, hover) = (result.press, result.hover_pos);
             let mods = press.mods;
+            if !matches!(press.phase, PressPhase::Idle | PressPhase::Hover) { eprintln!("DIAG pass {:?} {:?} live={}", grab, press.phase, live.drag.is_some()); }
             match press.phase {
                 PressPhase::Down { start, .. } if start.button == PointerButton::Primary => {
                     if grab == Grab::Part(BoxPart::Inside) && press.double_pressed() && !self.default_frame {
