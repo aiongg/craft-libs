@@ -34,6 +34,14 @@ enum Number {
     Midpoint,
 }
 
+/// A number field of one stop: which field, in which row, of which stop.
+#[derive(Clone, Copy)]
+struct At {
+    field: Number,
+    row: StopRow,
+    i: usize,
+}
+
 /// The Location field's run under way: the stops as it began and the stop's index in them. Every value of the run
 /// moves that stop from there, as a drag edits the stops at its press, so a run that passes a neighbour and comes
 /// back leaves the stops as they were.
@@ -219,17 +227,17 @@ impl Row<'_, '_> {
                     }
                 }
                 if rows == StopRows::Combined {
-                    self.number(ui, cx, now, Number::Opacity, StopRow::Color, i, report);
+                    self.number(ui, cx, now, At { field: Number::Opacity, row: StopRow::Color, i }, report);
                 }
-                self.number(ui, cx, now, Number::Location, StopRow::Color, i, report);
+                self.number(ui, cx, now, At { field: Number::Location, row: StopRow::Color, i }, report);
                 self.delete(ui, now, StopRow::Color, i, report);
             }
             StopRef::Opacity(i) => {
-                self.number(ui, cx, now, Number::Opacity, StopRow::Opacity, i, report);
-                self.number(ui, cx, now, Number::Location, StopRow::Opacity, i, report);
+                self.number(ui, cx, now, At { field: Number::Opacity, row: StopRow::Opacity, i }, report);
+                self.number(ui, cx, now, At { field: Number::Location, row: StopRow::Opacity, i }, report);
                 self.delete(ui, now, StopRow::Opacity, i, report);
             }
-            StopRef::Midpoint(row, i) => self.number(ui, cx, now, Number::Midpoint, row, i, report),
+            StopRef::Midpoint(row, i) => self.number(ui, cx, now, At { field: Number::Midpoint, row, i }, report),
         }
     }
 
@@ -243,8 +251,8 @@ impl Row<'_, '_> {
     }
 
     /// The number field `field` of stop `i` of `row`, and its edit mapped onto the stops.
-    #[allow(clippy::too_many_arguments)]
-    fn number(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>, now: &GradientStops, field: Number, row: StopRow, i: usize, report: &mut Report) {
+    fn number(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>, now: &GradientStops, at: At, report: &mut Report) {
+        let At { field, row, i } = at;
         let name = match field {
             Number::Opacity => self.words.opacity.as_str(),
             Number::Location => self.words.location.as_str(),

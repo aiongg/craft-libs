@@ -2,8 +2,7 @@
 
 use craft_behavior::Axis;
 use craft_theme::Srgba;
-use craft_ui::contract::ContentPainterCx;
-use craft_ui::primitives::Checker;
+use craft_ui::primitives::{Checker, ContentPainterCx};
 use craft_ui::style::DataColor;
 use egui::{Color32, Rect};
 

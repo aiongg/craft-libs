@@ -166,7 +166,7 @@ impl<P> Outcome for GradientBarOutput<P> {
 
 /// The stop bar: opacity markers, ramp and colour markers, edited by pointer and keys.
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
-#[component(content_painter, unregistered, probe(GradientBar<'static, u8>))]
+#[component(content_painter, unregistered)]
 pub struct GradientBar<'a, P: Clone + Send + Sync + 'static = ()> {
     #[common]
     common: Common,
@@ -189,6 +189,8 @@ pub struct GradientBar<'a, P: Clone + Send + Sync + 'static = ()> {
     /// Registers the bar as a drop target for `P` payloads.
     #[prop(flag)]
     drop_target: bool,
+    /// The selected marker.
+    #[prop]
     selected: Option<StopRef>,
     select: Option<Option<StopRef>>,
     color_requested: Option<usize>,
@@ -217,13 +219,6 @@ impl<'a, P: Clone + Send + Sync + 'static> GradientBar<'a, P> {
             payload: PhantomData,
         }
         .label(label)
-    }
-
-    /// The selected marker.
-    #[must_use]
-    pub fn selected(mut self, selected: Option<StopRef>) -> Self {
-        self.selected = selected;
-        self
     }
 
     fn rows(&self) -> StopRows {
@@ -728,7 +723,7 @@ impl<P: Clone + Send + Sync + 'static> Component for GradientBar<'_, P> {
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let Some(stops) = cx.value().cloned() else { return };
         let geo = self.geometry(rect, cx.style);
-        cx.part(RAMP, rect).sense(Sense::CLICK | Sense::TAKE_FOCUS);
+        cx.part(RAMP, rect).sense(Sense::CLICK | Sense::TAKE_FOCUS).pointer_only("Insert adds a stop after the selected marker");
         let markers = geo.markers(&stops);
         for marker in &markers {
             let priority = HitPriority::new(HitLevel::Handle, u8::from(marker.is_stop()));

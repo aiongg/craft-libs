@@ -14,7 +14,7 @@ use craft_ui::runtime::requests::ColorRequest;
 use egui::{Response, Ui};
 
 use super::stops::{Sampler, StopRules};
-use super::value::{GradientStops, StopColor, StopRef, StopRows};
+use super::value::{GradientStops, StopColor, StopRef};
 
 mod bar;
 mod fields;
@@ -288,8 +288,10 @@ impl<'a, P: Clone + Send + Sync + 'static> GradientEditor<'a, P> {
                 .midpoints(midpoints)
                 .opacity_midpoints(opacity_midpoints)
                 .location_decimals(location_decimals)
-                .selected(held)
                 .enabled(enabled);
+            if let Some(held) = held {
+                bar = bar.selected(held);
+            }
             if let Some(sampler) = sampler {
                 bar = bar.sampler(sampler);
             }
