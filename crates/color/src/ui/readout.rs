@@ -14,6 +14,10 @@ use egui::{Response, Ui};
 /// The hex field and the three channel fields share the room equally, so the row fits a narrow panel.
 const FIELDS: &[ColumnWidth] = &[ColumnWidth::fill(1.0); 4];
 
+/// The colour a hex text typed into a mixed field starts from: a hex field edits only while it has a value, and the
+/// typed digits replace its colour (a three or six digit text keeps this alpha).
+const MIXED_HEX_START: Rgba = Rgba([0, 0, 0, 255]);
+
 /// The channels the fields edit, in field order.
 const CHANNELS: [ReadoutChannel; 3] = [ReadoutChannel::Red, ReadoutChannel::Green, ReadoutChannel::Blue];
 
@@ -136,7 +140,7 @@ impl<'a> ColorReadout<'a> {
             let mut events: Vec<EditEvent<Rgba>> = Vec::new();
             let mut channel_edit = None;
             Grid::new(FIELDS).show(ui, |ui, _| {
-                events.extend(TextField::hex(words.hex.as_str().to_owned(), Bind::given(held)).show(ui).event);
+                events.extend(TextField::hex(words.hex.as_str().to_owned(), Bind::given(held)).empty(MIXED_HEX_START).show(ui).event);
                 let names = [&words.red, &words.green, &words.blue];
                 for (i, name) in names.into_iter().enumerate() {
                     let field = NumberField::new(
