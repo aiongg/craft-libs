@@ -12,8 +12,8 @@ use std::ops::Range;
 
 use craft_behavior::{EditCommand, EditorInput, Granularity, Metrics, NavMove, PointerButton, PressPhase, Sense, TextPos};
 use craft_ui::contract::{
-    Animate as _, Commands as _, Common, Component, Cx, Focus as _, MeasureCx, NoValue, Outcome, PaintUi, PartsCx, Props as _, Remember as _, Role,
-    WordSetCx as _,
+    Animate as _, Commands as _, Common, Component, Cx, Focus as _, MeasureCx, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _,
+    Remember as _, Role, WordSetCx as _,
 };
 use craft_ui::fonts::FontRef;
 use craft_ui::primitives::{DocRun, DocText, EditorLine, EditorPurpose, EditorRun, EditorState, PaintShape, StrokeWidth, TextRun};
@@ -447,7 +447,7 @@ impl NotesEditor<'_> {
             let layout = cx.layout_doc(&text);
             let length: usize = paragraph.runs.iter().map(|run| run.text.chars().count()).sum();
             if index == 0 || pos.y >= y {
-                hit = at + layout.galley.cursor_from_pos(pos - Pos2::new(origin, y).to_vec2()).index.0.min(length);
+                hit = at + layout.galley.cursor_from_pos(pos - Pos2::new(origin, y)).index.0.min(length);
             }
             y += layout.size().y.max(size);
             at += length + 1;
@@ -626,7 +626,7 @@ impl Component for NotesEditor<'_> {
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let inputs: Vec<EditorInput> = cx.editor_input().collect();
-        let press = *cx.press();
+        let press = cx.part(EDITOR).press;
         let pointed = match press.phase {
             PressPhase::Down { start, .. } if press.went_down && start.button == PointerButton::Primary => {
                 Some((self.char_at(cx, start.origin), Some((start.clicks, press.mods.shift))))

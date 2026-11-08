@@ -410,7 +410,6 @@ impl TextColumnsDialog {
     fn length_row(
         &self,
         ui: &mut Ui,
-        units: &Units,
         caption: &str,
         points: Option<f32>,
         enabled: bool,
@@ -439,7 +438,7 @@ impl TextColumnsDialog {
             }
             if self.word.is_none() {
                 let edit = Field::new(words.spacing.clone())
-                    .show(ui, |ui, _| self.length_row(ui, units, words.spacing.as_str(), self.edited.spacing, true, 0.0..=MAX_SPACING))
+                    .show(ui, |ui, _| self.length_row(ui, words.spacing.as_str(), self.edited.spacing, true, 0.0..=MAX_SPACING))
                     .inner
                     .flatten();
                 self.edit(edit, |me, v: Option<f32>| {
@@ -538,8 +537,8 @@ impl TextColumnsDialog {
             let label = words.column.fill(&[("n", &number)]);
             let last = i + 1 == rows.len();
             Field::new(label).show(ui, |ui, _| {
-                let w = self.length_row(ui, units, width_name, Some(*width), !equal || i == 0, 0.0..=MAX_SPACING);
-                let s = self.length_row(ui, units, spacing_name, (!last).then_some(*spacing), !last, 0.0..=MAX_SPACING);
+                let w = self.length_row(ui, width_name, Some(*width), !equal || i == 0, 0.0..=MAX_SPACING);
+                let s = self.length_row(ui, spacing_name, (!last).then_some(*spacing), !last, 0.0..=MAX_SPACING);
                 // A row without an event leaves an earlier row's event alone.
                 width_edit = w.map(|e| (i, e)).or(width_edit.take());
                 spacing_edit = s.map(|e| (i, e)).or(spacing_edit.take());

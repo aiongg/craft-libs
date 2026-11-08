@@ -257,9 +257,9 @@ enum CellEdit {
 impl TabStopsDialog {
     fn body(&mut self, ui: &mut Ui, words: &TabStopsWords, units: &Units) {
         Stack::new().show(ui, |ui, _| {
-            self.default_row(ui, words, units);
+            self.default_row(ui, words);
             self.table(ui, words, units);
-            self.fields(ui, words, units);
+            self.fields(ui, words);
             self.buttons(ui, words);
             if !self.cleared.is_empty() {
                 let positions: Vec<String> = self.cleared.iter().map(|gone| self.text(units, *gone)).collect();
@@ -273,7 +273,7 @@ impl TabStopsDialog {
         units.show(self.unit.kind, shown(units, self.unit, f64::from(points)))
     }
 
-    fn default_row(&mut self, ui: &mut Ui, words: &TabStopsWords, units: &Units) {
+    fn default_row(&mut self, ui: &mut Ui, words: &TabStopsWords) {
         let unit = self.unit;
         let points = Mixed::Same(Some(f64::from(self.default_interval)));
         let range = f64::from(SAME_POSITION)..=f64::from(MAX_POSITION);
@@ -324,7 +324,7 @@ impl TabStopsDialog {
     }
 
     /// The selected stop's position, alignment and leader.
-    fn fields(&mut self, ui: &mut Ui, words: &TabStopsWords, units: &Units) {
+    fn fields(&mut self, ui: &mut Ui, words: &TabStopsWords) {
         let Some((at, stop)) = self.selected.and_then(|at| self.stops.get(at).map(|stop| (at, *stop))) else { return };
         let unit = self.unit;
         let aligns: Vec<Entry<TabAlign>> = TabAlign::ALL.into_iter().map(|align| Entry::new(align, align_text(words, align))).collect();

@@ -5,7 +5,7 @@ use super::items::Item;
 use super::run::{Held, rule, ruler_text};
 use super::{TextRuler, TextRulerStyle};
 use craft_ui::canvas::{RulerTick, Rulers};
-use craft_ui::contract::{Cx, Edit as _, PaintUi, Pointer as _, Remember as _, Styled as _};
+use craft_ui::contract::{Cx, Edit as _, PaintUi, Remember as _, Styled as _};
 use craft_ui::primitives::{PaintShape, StrokeWidth, TextRun, Tick, TickEdge, TickRank};
 use craft_ui::style::StyleColor;
 use egui::{CornerRadius, Pos2, Rect, pos2, vec2};
