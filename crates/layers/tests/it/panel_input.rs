@@ -361,7 +361,7 @@ fn a_click_on_a_mask_chain_reports_the_link_change() {
     assert!(mask_links(&take(&app)).contains(&(3, LayerPart::LayerMask, true)));
 }
 
-/// The number of text inputs shown: the panel's number fields, plus the rename field while a row is renamed.
+/// The number of text inputs shown: the rename field while a row is renamed (number fields are spin buttons).
 fn text_inputs(fixture: &Fixture) -> usize {
     fixture.by_role(Role::TEXT_INPUT).len()
 }
