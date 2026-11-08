@@ -1,2 +1,0 @@
-crates/imaging/src/ui
-crates/imaging/tests/it
