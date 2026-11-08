@@ -223,10 +223,6 @@ pub struct GuideLayoutResult {
 /// What New Guide Layout reports.
 #[derive(Debug)]
 #[non_exhaustive]
-
-/// What New Guide Layout reports.
-#[derive(Debug)]
-#[non_exhaustive]
 pub struct GuideLayoutOutput {
     /// The dialog's response.
     pub response: Response,
