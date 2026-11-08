@@ -1,12 +1,11 @@
 //! `Swatch`: a colour well. It shows a colour from data, a mixed look for several colours, and reports a click. It
-//! edits nothing: the host opens its picker on the click, or takes the `ColorRequest` the swatch files.
+//! edits nothing: the host opens its picker on the click.
 
 use super::radio::RadioKind;
 use super::words::ChoiceWords;
 use crate::contract::{
     Access, Common, Component, Cx, GroupHandle, MeasureCx, Outcome, PaintUi, Pointer as _, Props as _, Role, Styled as _, WordSetCx as _,
 };
-use crate::patterns::form_dialogs::ColorRequest;
 use crate::primitives::{Checker, PaintShape, StrokeWidth};
 use crate::style::{ComponentStyle, DataColor, Flags, FocusLook, StyleColor, StyleCx, UiTokens, control_metrics};
 use craft_behavior::{CursorIcon, CursorPriority, Metrics, Mixed, Sense, Value};
@@ -80,7 +79,8 @@ impl SwatchStyle {
         let shown = self.checker.map(|behind| over(color, behind));
         let ring = |base: Rgba| base.with_alpha(INNER_EDGE_ALPHA);
         let least = |base: Rgba| shown.iter().map(|&s| craft_theme::contrast_ratio(over(ring(base), s), s)).fold(f64::INFINITY, f64::min);
-        let base = if least(Rgba::BLACK) >= least(Rgba::WHITE) { Rgba::BLACK } else { Rgba::WHITE };
+        let (black, white) = (Srgba::BLACK.to_rgba(), Srgba::WHITE.to_rgba());
+        let base = if least(black) >= least(white) { black } else { white };
         let [r, g, b, a] = ring(base).0;
         DataColor::new(Color32::from_rgba_unmultiplied(r, g, b, a))
     }
@@ -106,8 +106,6 @@ pub struct SwatchOutput {
     pub response: Response,
     /// A primary click, Space, Enter or an AccessKit click reached the enabled swatch.
     pub clicked: bool,
-    /// With `picker`, the colour request the click files; the caller hands it to its host.
-    pub pick_color: Option<ColorRequest>,
 }
 
 impl Outcome for SwatchOutput {
@@ -121,12 +119,12 @@ impl Outcome for SwatchOutput {
 /// A colour well that shows a colour from data and reports a click; it edits nothing.
 ///
 /// The colour fills the well over a checkerboard where it has alpha, inside a thin ring that separates it from the
-/// panel. A `Mixed` colour shows a neutral well with a dash and has no colour value. A click reports `clicked`; with
-/// `picker` it also files a `ColorRequest` for the host's colour picker.
+/// panel. A `Mixed` colour shows a neutral well with a dash and has no colour value. A click reports `clicked`; the
+/// host opens its colour picker.
 ///
 /// AccessKit reports a colour well named by the label, whose value is the colour as `#rrggbb` (`#rrggbbaa` when
 /// translucent) and whose colour value is the colour; a mixed well has the value "Mixed" and no colour value.
-/// `radio` makes the swatch a member of the enclosing `RadioGroup`: a radio button, checked when the group holds its
+/// `member` makes the swatch a member of the enclosing `RadioGroup`: a radio button, checked when the group holds its
 /// value, whose keys and focus are the group's. `cell` makes it a cell of a table of touching swatches, a list box
 /// option. The selected ring is `selected` or a checked radio.
 #[derive(crate::contract::Component, crate::contract::Props)]
@@ -137,9 +135,6 @@ pub struct Swatch<T: Value + 'static = ()> {
     color: Mixed<Srgba>,
     /// The value this swatch stands for in its `RadioGroup`.
     member: Option<T>,
-    /// The key of the `ColorRequest` a click files.
-    #[prop(into)]
-    picker: Option<String>,
     /// A cell of a table of touching swatches: `size.icon.md` square with square corners.
     #[style_key]
     #[prop(flag)]
@@ -149,41 +144,19 @@ pub struct Swatch<T: Value + 'static = ()> {
     fill: bool,
     checked: bool,
     clicked: bool,
-    request: Option<ColorRequest>,
 }
 
 impl Swatch<()> {
     /// A swatch of `color` named `label`.
     pub fn new(label: impl Into<crate::runtime::env::Label>, color: impl Into<Mixed<Srgba>>) -> Self {
-        Swatch {
-            common: Common::new(),
-            color: color.into(),
-            member: None,
-            picker: None,
-            cell: false,
-            fill: false,
-            checked: false,
-            clicked: false,
-            request: None,
-        }
-        .label(label)
+        Swatch { common: Common::new(), color: color.into(), member: None, cell: false, fill: false, checked: false, clicked: false }.label(label)
     }
 }
 
 impl<T: Value + 'static> Swatch<T> {
     /// Makes the swatch the member standing for `value` of the enclosing `RadioGroup<U>`.
-    pub fn radio<U: Value + 'static>(self, value: U) -> Swatch<U> {
-        Swatch {
-            common: self.common,
-            color: self.color,
-            member: Some(value),
-            picker: self.picker,
-            cell: self.cell,
-            fill: self.fill,
-            checked: false,
-            clicked: false,
-            request: None,
-        }
+    pub fn member<U: Value + 'static>(self, value: U) -> Swatch<U> {
+        Swatch { common: self.common, color: self.color, member: Some(value), cell: self.cell, fill: self.fill, checked: false, clicked: false }
     }
 }
 
@@ -229,7 +202,7 @@ impl<T: Value + 'static> Component for Swatch<T> {
         Sense::CLICK | Sense::FOCUS
     }
 
-    /// Registers with the enclosing group when it is a radio; reports the click and files the colour request.
+    /// Registers with the enclosing group when it is a member; reports the click.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         if let Some(value) = &self.member {
             let group = cx.env.get::<GroupHandle<RadioKind<T>>>();
@@ -238,12 +211,6 @@ impl<T: Value + 'static> Component for Swatch<T> {
             self.checked = group.is(value);
         }
         self.clicked = cx.resolved.enabled && cx.activation().is_some();
-        if self.clicked
-            && let Some(key) = &self.picker
-        {
-            let opens_at = self.color.same().copied().unwrap_or(Srgba::BLACK);
-            self.request = Some(ColorRequest::new(key.clone(), opens_at).title(cx.resolved.label_value.clone()));
-        }
         if cx.resolved.enabled && cx.hit() {
             cx.cursor(CursorIcon::PointingHand, CursorPriority::Part);
         }
@@ -301,7 +268,7 @@ impl<T: Value + 'static> Component for Swatch<T> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> SwatchOutput {
-        SwatchOutput { response: cx.response.clone(), clicked: self.clicked, pick_color: self.request }
+        SwatchOutput { response: cx.response.clone(), clicked: self.clicked }
     }
 }
 

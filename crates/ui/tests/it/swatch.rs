@@ -1,11 +1,10 @@
-//! `Swatch`: a colour well named by its label whose value is the colour's hex; a click reports and, with `picker`,
-//! files a colour request; swatches of a `RadioGroup` are one Tab stop of radio buttons; a cell is a list box option.
+//! `Swatch`: a colour well named by its label whose value is the colour's hex; a click reports `clicked`; swatches
+//! of a `RadioGroup` are one Tab stop of radio buttons; a cell is a list box option.
 
 use craft_behavior::Mixed;
 use craft_theme::Srgba;
 use craft_ui::choice::{RadioGroup, Swatch, SwatchOutput};
 use craft_ui::contract::{Bind, Props as _, Role, Show as _, ShowContainer as _};
-use craft_ui::patterns::form_dialogs::ColorRequest;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Id, Key, Modifiers};
 use std::cell::{Cell, RefCell};
@@ -35,46 +34,36 @@ fn a_swatch_is_a_colour_well_named_by_its_label_with_the_hex_as_value() {
     }
 }
 
-struct Clicks {
-    clicked: Cell<usize>,
-    requests: RefCell<Vec<ColorRequest>>,
-}
-
-fn click_rig(enabled: bool) -> (Fixture, Rc<Clicks>) {
-    let clicks = Rc::new(Clicks { clicked: Cell::new(0), requests: RefCell::new(Vec::new()) });
+fn click_rig(enabled: bool) -> (Fixture, Rc<Cell<usize>>) {
+    let clicks = Rc::new(Cell::new(0));
     let seen = clicks.clone();
     let mut fixture = Fixture::new(move |ui| {
-        let SwatchOutput { clicked, pick_color, .. } = Swatch::new("Fill", BLUE).picker("fill").enabled(enabled).show(ui);
-        seen.clicked.set(seen.clicked.get() + usize::from(clicked));
-        seen.requests.borrow_mut().extend(pick_color);
+        let SwatchOutput { clicked, .. } = Swatch::new("Fill", BLUE).enabled(enabled).show(ui);
+        seen.set(seen.get() + usize::from(clicked));
     });
     fixture.settle();
     (fixture, clicks)
 }
 
 #[trial]
-fn a_click_files_one_colour_request_with_the_key_and_the_colour() {
+fn a_click_and_space_report_clicked() {
     let (mut fixture, clicks) = click_rig(true);
     let well = fixture.by_label("Fill").expect("shown");
     fixture.click(&well);
-    assert_eq!(clicks.clicked.get(), 1);
-    let requests = clicks.requests.borrow();
-    assert_eq!(requests.len(), 1);
-    assert_eq!((requests[0].key.as_str(), requests[0].color), ("fill", BLUE));
-    drop(requests);
+    assert_eq!(clicks.get(), 1);
     fixture.key(Key::Tab, Modifiers::NONE);
     fixture.idle(2);
     fixture.key(Key::Space, Modifiers::NONE);
     fixture.idle(2);
-    assert_eq!(clicks.requests.borrow().len(), 2, "Space on the focused well files a request too");
+    assert_eq!(clicks.get(), 2, "Space on the focused well reports a click too");
 }
 
 #[trial]
-fn a_disabled_swatch_reports_no_click_and_files_no_request() {
+fn a_disabled_swatch_reports_no_click() {
     let (mut fixture, clicks) = click_rig(false);
     let well = fixture.by_label("Fill").expect("shown");
     fixture.click(&well);
-    assert_eq!((clicks.clicked.get(), clicks.requests.borrow().len()), (0, 0));
+    assert_eq!(clicks.get(), 0);
 }
 
 fn group(value: Rc<Cell<u8>>, count: u8) -> Fixture {
@@ -82,7 +71,7 @@ fn group(value: Rc<Cell<u8>>, count: u8) -> Fixture {
         let mut picked = value.get();
         RadioGroup::new("Colour", Bind::bound(&mut picked)).show(ui, |ui, _| {
             for n in 0..count {
-                Swatch::new(format!("Colour {n}"), Srgba::rgb(f32::from(n) / 4.0, 0.0, 0.0)).radio(n).show(ui);
+                Swatch::new(format!("Colour {n}"), Srgba::rgb(f32::from(n) / 4.0, 0.0, 0.0)).member(n).show(ui);
             }
         });
         value.set(picked);

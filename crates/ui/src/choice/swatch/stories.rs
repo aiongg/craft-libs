@@ -53,7 +53,7 @@ fn swatch_palette(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         .show(ui, |ui, _| {
             Row::new().show(ui, |ui, _| {
                 for (n, color) in (0u8..).zip(PALETTE) {
-                    Swatch::new(format!("Colour {}", n + 1), color).radio(n).show(ui);
+                    Swatch::new(format!("Colour {}", n + 1), color).member(n).show(ui);
                 }
             });
         })
@@ -71,15 +71,15 @@ fn swatch_table_cells(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     StoryOutput::default()
 }
 
-/// A well with `picker` and a line that counts the colour requests it filed.
+/// A well and a line that counts its clicks.
 #[story(Swatch<u8>, covers = [], drive = Drive::Never)]
-fn swatch_picker(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let requests = data.value("requests", 0u32);
+fn swatch_clicks(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let clicks = data.value("clicks", 0u32);
     Stack::new().show(ui, |ui, _| {
-        if Swatch::new("Fill", BLUE).picker("fill").show(ui).pick_color.is_some() {
-            *requests += 1;
+        if Swatch::new("Fill", BLUE).show(ui).clicked {
+            *clicks += 1;
         }
-        Text::new(format!("{requests} colour requests")).show(ui);
+        Text::new(format!("{clicks} clicks")).show(ui);
     });
     StoryOutput::default()
 }

@@ -103,7 +103,7 @@ name = "Swatch"
 old = "craft_ui::controls::swatch::Swatch"
 new = "craft_ui::choice::Swatch"
 status = "moved"
-note = "A leaf colour well: `Swatch::new(label, color)` (a `Srgba` or `Mixed<Srgba>`; the id salt is the call order or `Props::id_salt`) with output `SwatchOutput { response, clicked, pick_color }`. A click is `clicked`; with `picker(key)` it also fills `pick_color` with a `ColorRequest`, which the caller files with its `HostRequests`."
+note = "A leaf colour well: `Swatch::new(label, color)` (a `Srgba` or `Mixed<Srgba>`; the id salt is the call order or `Props::id_salt`) with output `SwatchOutput { response, clicked }`. A click is `clicked`; the caller opens its picker, or files `ColorRequest::new(key, color).title(label)` with its `HostRequests`."
 
 [[type]]
 name = "SwatchStyle"
@@ -197,7 +197,7 @@ note = "The star names are the built-in `ChoiceWords` (`choice.rating.stars`), t
 [[setter]]
 type = "Swatch"
 old = "radio(bool)"
-new = "radio(value)"
+new = "member(value)"
 note = "The swatch is a member of the enclosing `RadioGroup<U>` standing for `value`; the group owns the pick, the keys and the Tab stop."
 
 [[setter]]
