@@ -380,8 +380,8 @@ impl<K: TextureKey> Collection for FreeBin<'_, K> {
         tile.caption(CaptionPlace::Below).renaming(row.renaming)
     }
 
-    fn accepts(&self, _: &ListDrag<K>, over: &K, _: usize) -> bool {
-        self.drop_into.as_ref().is_some_and(|test| test.passes(over))
+    fn accepts(&self, _: &ListDrag<K>, over: Option<&K>, _: usize) -> bool {
+        over.is_none_or(|over| self.drop_into.as_ref().is_some_and(|test| test.passes(over)))
     }
 
     fn rename_editor(&mut self, ui: &mut Ui, draft: Bind<'_, String>, label: Rect, name: &str) -> Option<EditResponse<String>> {

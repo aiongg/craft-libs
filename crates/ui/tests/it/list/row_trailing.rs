@@ -5,7 +5,8 @@ use crate::collection::table::Table;
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, IconId, ItemSource};
 use craft_keymap::Mods;
 use craft_ui::contract::{
-    Bind, CollectionEvent, CollectionProps, ColumnKind, ColumnSpec, Props as _, ReorderRule, Role, SelectMode, ShowCollection as _, ToggleColumn,
+    Bind, CollectionEvent, CollectionProps, ColumnKind, ColumnSpec, Props as _, ReorderRule, Role, SelectMode, Show as _, ShowCollection as _,
+    ToggleColumn,
 };
 use craft_ui::list::{List, ListRow, RowEvent, ThumbSize, ThumbTarget, TrailingFace, TrailingPart};
 use craft_ui::runtime::drag;
