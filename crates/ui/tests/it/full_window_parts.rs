@@ -3,11 +3,10 @@
 use craft_behavior::PixelSize;
 use craft_behavior::kurbo::Size;
 use craft_ui::canvas::ViewCommand;
-use craft_ui::contract::{Bind, Props as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Role, ShowContainer as _};
 use craft_ui::dialog::{FullWindowDialog, FullWindowTitle, FullWindowView, FullWindowZoomBar};
 use craft_ui::runtime::env::Env;
 use craft_ui::testing::{Fixture, trial};
-use egui::accesskit::Role;
 use egui::{Key, Modifiers, Pos2, Rect, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -122,10 +121,10 @@ fn the_zoom_bar_steps_the_ladder_and_lists_an_off_menu_zoom() {
     // 300 % is not on the menu: the select lists it as itself, between 200 % and 400 %, after Fit in View.
     view.borrow_mut().set_device_zoom(3.0);
     fixture.settle();
-    let select = fixture.by_role(Role::ComboBox).into_iter().next().expect("the zoom select is shown");
+    let select = fixture.by_role(Role::COMBO_BOX).into_iter().next().expect("the zoom select is shown");
     fixture.click(&select).settle();
     let options: Vec<String> =
-        fixture.by_role(Role::ListBoxOption).iter().filter_map(|option| fixture.tree().name_of(option.node).map(str::to_owned)).collect();
+        fixture.by_role(Role::LIST_BOX_OPTION).iter().filter_map(|option| fixture.tree().name_of(option.node).map(str::to_owned)).collect();
     let at = |text: &str| options.iter().position(|option| option == text).unwrap_or_else(|| panic!("{text} in {options:?}"));
     assert!(at("200%") < at("300%") && at("300%") < at("400%"), "{options:?}");
     assert_eq!(options[0], "Fit in View");
