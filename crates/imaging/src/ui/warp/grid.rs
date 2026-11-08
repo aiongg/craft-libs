@@ -28,12 +28,6 @@ pub const POINT: PartKey = PartKey::new("point");
 /// The surface of the mesh, inside its outer boundary.
 pub const SURFACE: PartKey = PartKey::new("surface");
 
-/// How far from an anchor or a handle end, in screen points, a press takes it.
-const HIT_REACH: f32 = 12.0;
-
-/// How far outside the mesh, in screen points, a press still takes the surface.
-const SURFACE_REACH: f32 = 16.0;
-
 /// How far from the pointer, in screen points, a handle and its arm show; measured to the handle or
 /// to its anchor.
 const REVEAL: f32 = 56.0;
@@ -84,26 +78,8 @@ pub struct WarpGridStyle {
     halo: StyleColor,
     anchor: HandleLook,
     end: HandleLook,
-}
-
-/// `ring` pushed outward by `by` along the normal at each corner, so a press that close outside the mesh still
-/// reaches the surface (a split off the surface cuts at its nearest point).
-fn grown(ring: &[Pos2], by: f32) -> Vec<Pos2> {
-    let mut corners: Vec<Pos2> = ring.to_vec();
-    if corners.len() > 1 && corners.first() == corners.last() {
-        corners.pop();
-    }
-    let n = corners.len();
-    let centre = corners.iter().fold(Vec2::ZERO, |sum, p| sum + p.to_vec2()) / n.max(1) as f32;
-    (0..n)
-        .map(|i| {
-            let (before, after) = (corners[(i + n - 1) % n], corners[(i + 1) % n]);
-            let tangent = after - before;
-            let normal = Vec2::new(tangent.y, -tangent.x).normalized();
-            let outward = if normal.dot(corners[i].to_vec2() - centre) < 0.0 { -normal } else { normal };
-            corners[i] + if outward.is_finite() { outward * by } else { Vec2::ZERO }
-        })
-        .collect()
+    /// How far from an anchor or a handle end a press takes it.
+    reach: f32,
 }
 
 /// What a press drags.
@@ -398,6 +374,7 @@ impl Component for WarpGrid<'_> {
             halo: cx.color(overlay.halo),
             anchor: cx.handle(),
             end,
+            reach: cx.tokens.size.hit.target,
         }
     }
 
@@ -420,7 +397,7 @@ impl Component for WarpGrid<'_> {
         for index in Self::points(mesh) {
             let at = space.view.to_screen(mesh.points[index]);
             let part = cx
-                .part(POINT.at(index as u64), HitShape::circle(at, HIT_REACH))
+                .part(POINT.at(index as u64), HitShape::circle(at, cx.style.reach))
                 .sense(sense)
                 .priority(HitPriority::new(HitLevel::Handle, 0))
                 .focusable();
@@ -428,10 +405,17 @@ impl Component for WarpGrid<'_> {
                 part.cursor(CursorIcon::Crosshair);
             }
         }
-        let ring = path_runs(&space.view, &mesh.outline()).into_iter().next().map(|(points, _)| points).unwrap_or_default();
-        if ring.len() > 2 {
+        // A split tool takes a press anywhere on the canvas and cuts at the nearest point of the mesh; otherwise the
+        // surface is the mesh itself.
+        let shape = if armed {
+            Some(HitShape::Rect(cx.content_rect))
+        } else {
+            let ring = path_runs(&space.view, &mesh.outline()).into_iter().next().map(|(points, _)| points).unwrap_or_default();
+            (ring.len() > 2).then(|| HitShape::Polygon(ring))
+        };
+        if let Some(shape) = shape {
             let part = cx
-                .part(SURFACE, HitShape::Polygon(grown(&ring, SURFACE_REACH)))
+                .part(SURFACE, shape)
                 .sense(Sense::DRAG | Sense::CLICK | Sense::TAKE_FOCUS)
                 .priority(HitPriority::new(HitLevel::Body, 0))
                 .keyboard_via(POINT);

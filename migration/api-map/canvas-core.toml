@@ -40,7 +40,7 @@ name = "ToolContext"
 old = "craft_ui::canvas::tool_host::ToolContext"
 new = "craft_ui::canvas::ToolContext"
 status = "moved"
-note = "`pointer`, `mods` (was `modifiers`), `rect` and `time`; `space() -> Option<CanvasSpace>` is the canvas's view; `held(Key) -> bool` says whether a key is down; `caps_lock() -> bool` is the platform's Caps Lock toggle (`craft_window::caps_lock`, read once per pass); `readout(rows)`, `request_repaint()` and `keep_keys()` stay; `marching_ants(points, closed)` paints ants that march on the pass clock (the phase argument is gone). `canvas_id`, `view`, `canvas`, `snap`, `snap_tolerance`, `tokens`, `numbers`, `direction`, `parts_focused`, `set_view` and `set_cursor` are gone."
+note = "`pointer`, `mods` (was `modifiers`), `rect` and `time`; `space() -> Option<CanvasSpace>` is the canvas's view; `held(Key) -> bool` says whether a key is down; `caps_lock() -> bool` is the platform's Caps Lock toggle (`craft_window::caps_lock`, read once per pass); `reach() -> f32` is the one reach source for tool handles and hit tests (the theme's `size.hit.target`); `readout(rows)`, `request_repaint()` and `keep_keys()` stay; `marching_ants(points, closed)` paints ants that march on the pass clock (the phase argument is gone). `canvas_id`, `view`, `canvas`, `snap`, `snap_tolerance`, `tokens`, `numbers`, `direction`, `parts_focused`, `set_view` and `set_cursor` are gone."
 
 [[type]]
 name = "ToolAction"

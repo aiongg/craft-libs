@@ -464,7 +464,7 @@ impl LiquifyWorkspace {
                                 LiquifyTool::Hand => canvas.tool(&mut tools.hand).show(ui),
                                 LiquifyTool::Zoom => canvas.tool(&mut tools.zoom).show(ui),
                                 _ => {
-                                    let mut tool = tools.tool(&mut work.settings, &work.cursor_options).env(Env::of(ui));
+                                    let mut tool = tools.tool(&mut work.settings, &work.cursor_options);
                                     canvas.tool(&mut tool).show(ui)
                                 }
                             }

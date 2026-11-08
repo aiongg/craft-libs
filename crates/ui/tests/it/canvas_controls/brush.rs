@@ -5,15 +5,13 @@ use craft_behavior::kurbo::{Point, Rect as DocRect};
 use craft_behavior::{CanvasView, Cursor, GesturePhase, PaintedCursor, PointerButton};
 use craft_keymap::Mods;
 use craft_theme::Rgba;
+use craft_ui::canvas::ToolContext;
 use craft_ui::canvas_controls::brush::{
     BrushCursor, BrushCursorOptions, BrushDimensions, BrushResize, BrushResizeOptions, BrushTip, BrushTipOutline, CursorBitmap, CursorBitmapSpec,
     PaintingCursor, TipFalloff, TipPose,
 };
-use craft_ui::runtime::env::Env;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::trial;
 use egui::{Pos2, Rect, pos2, vec2};
-use std::cell::RefCell;
-use std::rc::Rc;
 
 /// Screen points per document unit.
 const ZOOM: f64 = 2.0;
@@ -34,17 +32,9 @@ fn view() -> CanvasView {
     view_at(ZOOM)
 }
 
-/// The env of a window: the crosshair that replaces a small outline takes its reach from its tokens.
-fn env() -> Env {
-    thread_local! {
-        static ENV: Env = {
-            let env = Rc::new(RefCell::new(None));
-            let seen = env.clone();
-            Fixture::new(move |ui| *seen.borrow_mut() = Some(Env::of(ui))).settle();
-            env.take().expect("the fixture shows a frame")
-        };
-    }
-    ENV.with(Env::clone)
+/// A tool context with Caps Lock `caps_lock`; the crosshair that replaces a small outline takes its reach from the context.
+fn cx(caps_lock: bool) -> ToolContext<'static> {
+    ToolContext::new(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0)), None).caps_lock(caps_lock)
 }
 
 fn options(painting: PaintingCursor) -> BrushCursorOptions {
@@ -77,7 +67,7 @@ fn the_painting_cursor_follows_the_preferences() {
     let tip = BrushTip::round(DIAMETER, NORMAL);
     let brush = BrushCursor::new(&tip);
     let view = view();
-    let pick = |cursor: &BrushCursor<'_>, options: &BrushCursorOptions, caps: bool| painted(cursor.cursor(&env(), options, &view, caps));
+    let pick = |cursor: &BrushCursor<'_>, options: &BrushCursorOptions, caps: bool| painted(cursor.cursor(&cx(caps), options, &view));
 
     assert!(matches!(pick(&brush, &options(PaintingCursor::Standard), false), PaintedCursor::Tool { .. }));
     assert_eq!(pick(&brush, &options(PaintingCursor::Precise), false), PaintedCursor::Crosshair);
@@ -85,7 +75,7 @@ fn the_painting_cursor_follows_the_preferences() {
     let full = radius(&pick(&brush, &options(PaintingCursor::FullSizeBrushTip), false));
     // The two outlines are in the proportion of the tip's radii, and zooming in scales them.
     assert!((full / normal - (DIAMETER / 2.0 / NORMAL) as f32).abs() < SLACK);
-    let zoomed = BrushCursor::new(&tip).cursor(&env(), &options(PaintingCursor::NormalBrushTip), &view_at(2.0 * ZOOM), false);
+    let zoomed = BrushCursor::new(&tip).cursor(&cx(false), &options(PaintingCursor::NormalBrushTip), &view_at(2.0 * ZOOM));
     assert!((radius(&painted(zoomed)) / normal - 2.0).abs() < SLACK);
 
     // Caps Lock gives the crosshair over every preference, unless the preference turns it off.
@@ -106,18 +96,18 @@ fn an_outline_shows_the_pose_the_view_and_the_inner_ring() {
     let normal = options(PaintingCursor::NormalBrushTip);
     // A view with a pixel aspect and a skewed pose make the circle an ellipse.
     let wide = view().aspect(2.0);
-    assert_eq!(rings(&painted(BrushCursor::new(&tip).cursor(&env(), &normal, &wide, false))), 1);
+    assert_eq!(rings(&painted(BrushCursor::new(&tip).cursor(&cx(false), &normal, &wide))), 1);
     let turned = TipPose::pen(30.0, Some([40.0, 0.0]));
-    assert_eq!(rings(&painted(BrushCursor::new(&tip).pose(turned).cursor(&env(), &normal, &view(), false))), 1);
+    assert_eq!(rings(&painted(BrushCursor::new(&tip).pose(turned).cursor(&cx(false), &normal, &view()))), 1);
     // An inner ring is a second outline.
-    let two = BrushCursor::new(&tip).inner_ring(NORMAL / 2.0).cursor(&env(), &normal, &view(), false);
+    let two = BrushCursor::new(&tip).inner_ring(NORMAL / 2.0).cursor(&cx(false), &normal, &view());
     assert_eq!(rings(&painted(two)), 2);
     // A tip too small to read on screen gives the crosshair.
     let small = BrushTip::round(1.0, 0.25);
-    assert_eq!(painted(BrushCursor::new(&small).cursor(&env(), &normal, &view(), false)), PaintedCursor::Crosshair);
+    assert_eq!(painted(BrushCursor::new(&small).cursor(&cx(false), &normal, &view())), PaintedCursor::Crosshair);
     // A tip that is not a finite size never gives a non-finite ring.
     let broken = BrushTip::round(f64::NAN, f64::INFINITY);
-    assert_eq!(painted(BrushCursor::new(&broken).cursor(&env(), &normal, &view(), false)), PaintedCursor::Crosshair);
+    assert_eq!(painted(BrushCursor::new(&broken).cursor(&cx(false), &normal, &view())), PaintedCursor::Crosshair);
 }
 
 fn cell_tip(cell: DocRect, round: bool) -> BrushTip {
@@ -128,10 +118,10 @@ fn cell_tip(cell: DocRect, round: bool) -> BrushTip {
 fn an_aliased_tip_hides_the_pointer_unless_it_is_too_small_or_asks_for_the_crosshair() {
     let normal = options(PaintingCursor::NormalBrushTip);
     let big = cell_tip(DocRect::new(10.0, 10.0, 15.0, 15.0), false);
-    assert_eq!(painted(BrushCursor::new(&big).cursor(&env(), &normal, &view(), false)), PaintedCursor::Hidden);
-    assert_eq!(painted(BrushCursor::new(&big).centre(true).cursor(&env(), &normal, &view(), false)), PaintedCursor::Crosshair);
+    assert_eq!(painted(BrushCursor::new(&big).cursor(&cx(false), &normal, &view())), PaintedCursor::Hidden);
+    assert_eq!(painted(BrushCursor::new(&big).centre(true).cursor(&cx(false), &normal, &view())), PaintedCursor::Crosshair);
     let single = cell_tip(DocRect::new(10.0, 10.0, 11.0, 11.0), false);
-    assert_eq!(painted(BrushCursor::new(&single).cursor(&env(), &normal, &view(), false)), PaintedCursor::Crosshair);
+    assert_eq!(painted(BrushCursor::new(&single).cursor(&cx(false), &normal, &view())), PaintedCursor::Crosshair);
 }
 
 #[trial]

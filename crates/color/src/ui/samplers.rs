@@ -46,9 +46,6 @@ craft_ui::words! {
 /// The most points a document holds.
 pub const MAX_SAMPLERS: usize = 10;
 
-/// How far from a point, in points, a press still picks it.
-const HIT_REACH: f32 = 7.0;
-
 /// A sampler command that did not apply.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -296,7 +293,7 @@ impl<'a> ColorSamplerTool<'a> {
 impl CanvasTool for ColorSamplerTool<'_> {
     fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
         let (Some(at), Some(space)) = (Self::doc_at(cx, pointer.pos), cx.space()) else { return ToolAction::Ignored };
-        let tolerance = space.view.doc_len(HIT_REACH);
+        let tolerance = space.view.doc_len(cx.reach());
         self.moving = None;
         match self.samplers.hit(at, tolerance) {
             Some(index) if pointer.mods.alt => {

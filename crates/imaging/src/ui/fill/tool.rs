@@ -10,7 +10,6 @@ use craft_ui::canvas_controls::CanvasControlWords;
 use craft_ui::canvas_controls::brush::{BrushCursor, BrushCursorOptions, BrushDimensions, BrushResize, BrushResizeOptions, BrushTip, PaintingCursor};
 use craft_ui::primitives::Draw;
 use craft_ui::rails::{RailTool, ToolSlot};
-use craft_ui::runtime::env::Env;
 
 use super::FillEvent;
 use super::commands::FillCommands;
@@ -124,7 +123,7 @@ impl FillCanvas {
         limits: &'a FillLimits,
         cursor: &'a BrushCursorOptions,
     ) -> FillCanvasTool<'a> {
-        FillCanvasTool { canvas: self, tool, options, session, limits, cursor, env: None }
+        FillCanvasTool { canvas: self, tool, options, session, limits, cursor }
     }
 
     /// Takes the events collected since the last call.
@@ -183,17 +182,8 @@ pub struct FillCanvasTool<'a> {
     session: &'a FillSession,
     limits: &'a FillLimits,
     cursor: &'a BrushCursorOptions,
-    env: Option<Env>,
 }
 
-impl FillCanvasTool<'_> {
-    /// The env the brush cursor reads its reach from (`size.hit.target`). Without one the brush shows the system arrow.
-    #[must_use]
-    pub fn env(mut self, env: Env) -> Self {
-        self.env = Some(env);
-        self
-    }
-}
 
 impl FillCanvasTool<'_> {
     /// Adds `at` to the stroke in progress and reports it. A point equal to the last is skipped;
@@ -246,11 +236,11 @@ impl CanvasTool for FillCanvasTool<'_> {
                 if self.canvas.resize.active() {
                     return Cursor::Painted(PaintedCursor::Hidden);
                 }
-                let (Some(space), Some(env)) = (cx.space(), self.env.as_ref()) else { return Cursor::System(CursorIcon::Default) };
+                let Some(space) = cx.space() else { return Cursor::System(CursorIcon::Default) };
                 // A hard round brush: the 50 % contour is the edge.
                 let size = self.options.brush_size;
                 let tip = BrushTip::round(size, size / 2.0);
-                BrushCursor::new(&tip).painting(self.canvas.stroke.is_some()).cursor(env, self.cursor, &space.view, cx.caps_lock)
+                BrushCursor::new(&tip).painting(self.canvas.stroke.is_some()).cursor(cx, self.cursor, &space.view)
             }
             FillTool::Lasso => Cursor::Painted(PaintedCursor::Crosshair),
             FillTool::Hand | FillTool::Zoom => Cursor::System(CursorIcon::Default),

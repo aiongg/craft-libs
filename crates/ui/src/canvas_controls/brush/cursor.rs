@@ -2,10 +2,10 @@
 //! the bitmap a window shows for the painted outline.
 
 use super::{BrushTip, BrushTipOutline, TipPose};
+use crate::canvas::ToolContext;
 use crate::canvas::canvas_space;
 use crate::contract::{Access, Common, Component, Cx, PaintUi, Role};
 use crate::primitives::{PaintShape, ellipse};
-use crate::runtime::env::Env;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::kurbo::Rect as DocRect;
 use craft_behavior::{CanvasView, Cursor, CursorBadge, CursorIcon, IconId, Input, Metrics, PaintedCursor};
@@ -152,9 +152,9 @@ impl<'a> BrushCursor<'a> {
         self
     }
 
-    /// The pointer for this pass, by the rules above. `caps_lock` is the state of the Caps Lock toggle: a tool passes `ToolContext::caps_lock`.
-    pub fn cursor(&self, env: &Env, options: &BrushCursorOptions, view: &CanvasView, caps_lock: bool) -> Cursor {
-        Cursor::Painted(self.painted(env.tokens.size.hit.target, options, view, caps_lock))
+    /// The pointer for this pass, by the rules above. The reach is [`ToolContext::reach`] and Caps Lock is the pass's toggle state.
+    pub fn cursor(&self, cx: &ToolContext<'_>, options: &BrushCursorOptions, view: &CanvasView) -> Cursor {
+        Cursor::Painted(self.painted(cx.reach(), options, view, cx.caps_lock))
     }
 
     fn crosshair(&self) -> PaintedCursor {

@@ -17,7 +17,7 @@ use egui::{Pos2, Rect, Response, Vec2};
 use kurbo::Point;
 
 use super::overlay::{ConnectorLook, paint_handles, paint_route, paint_sites};
-use super::place::{ATTACH_REACH, Placed, end_at, geometry, glued, stepped_end, visible_bends};
+use super::place::{Placed, end_at, geometry, glued, stepped_end, visible_bends};
 use super::words::ConnectorWords;
 use super::{ConnectionTarget, ConnectorEnd, ConnectorEndKind, ConnectorEvent, ConnectorItem};
 use crate::geometry::connector::{RouteEnd, reshaped};
@@ -35,6 +35,8 @@ pub struct ConnectorHandlesStyle {
     #[style(metrics)]
     metrics: Metrics,
     look: ConnectorLook,
+    /// How far from a site or a side of a target an end still glues to it.
+    reach: f32,
 }
 
 /// What a drag started from: the connector as it was when the press went down.
@@ -96,7 +98,7 @@ impl<'a> ConnectorHandles<'a> {
     /// The end under the pointer for a drag of the end that began at `fixed`: a free end snaps with the
     /// canvas, and ⇧ turns it from `fixed` to 45° steps.
     fn place(cx: &Cx<'_, Self>, space: &CanvasSpace, targets: &[ConnectionTarget], pos: Pos2, mods: Mods, fixed: Point) -> Placed {
-        let placed = end_at(targets, space.view.to_doc(pos), &space.view, ATTACH_REACH, mods);
+        let placed = end_at(targets, space.view.to_doc(pos), &space.view, cx.style.reach, mods);
         let ConnectorEnd::Free(raw) = placed.end else { return placed };
         let mut at = match canvas_snap(&cx.env) {
             Some(snap) => Point::new(snap.apply(Axis::Y, raw.x, mods), snap.apply(Axis::X, raw.y, mods)),
@@ -129,7 +131,7 @@ impl Component for ConnectorHandles<'_> {
     type Output = ConnectorHandlesOutput;
 
     fn style(cx: &StyleCx<'_>, _: ConnectorHandlesStyleKey) -> ConnectorHandlesStyle {
-        ConnectorHandlesStyle { metrics: Metrics::new(), look: ConnectorLook::of(cx) }
+        ConnectorHandlesStyle { metrics: Metrics::new(), look: ConnectorLook::of(cx), reach: cx.tokens.size.hit.target }
     }
 
     fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
