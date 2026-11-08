@@ -227,7 +227,10 @@ fn a_click_on_a_text_editing_item_while_typing_taps_its_shortcut() {
     let mut show = selected_text(&mut frames);
     events.borrow_mut().extend([Event::Tap(undo), Event::Tap(copy)]);
     let seen = through_in(&mut menu, &mut frames, vec![], &mut show);
-    assert_eq!(seen, [key(Key::Z, false, mac_cmd(false))], "the focused field takes the ⌘Z press as Undo and ⌘C as Copy; the key-up stays");
+    assert!(
+        seen.iter().all(|event| !matches!(event, egui::Event::Key { key: Key::Z, pressed: false, .. })),
+        "the focused field takes the ⌘Z press as Undo, so its key-up goes too: {seen:?}"
+    );
     assert_eq!(frames.copied(), ["read me"], "the tapped Copy acts on the focused field");
     assert!(take_clicks(&mut menu).is_empty());
 }

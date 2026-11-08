@@ -22,13 +22,15 @@ fn the_keyboard_names_holders_and_assigns_to_the_selected_command() {
     rig.click("L: Loop (Timeline)");
     assert!(rig.has("Key: L"));
     rig.click("Save");
+    let (row, assign) = (rig.find("Save").rect, rig.find("Assign to Selected").rect);
     rig.click("Assign to Selected");
     assert_eq!(
         rig.bindings("file.save"),
         ["Cmd+S", "L"],
-        "buttons {:?}, rows {:?}",
-        rig.names_with(craft_ui::contract::Role::BUTTON, ""),
-        rig.names_with(craft_ui::contract::Role::ROW, "")
+        "save row {row:?}, assign button {assign:?}, dialog {:?}, conflict bar {}, message {}",
+        rig.fixture.shown(),
+        rig.has("Accept"),
+        rig.has("Dismiss"),
     );
     assert!(rig.has("L: Save, Loop (Timeline)"));
 }

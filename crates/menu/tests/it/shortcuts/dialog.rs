@@ -54,13 +54,15 @@ fn conflict_keep_both_lists_the_clash_and_cancel_changes_nothing() {
     let clashes = rig.shared.borrow().km.conflicts().into_iter().filter(|c| c.kind == ConflictKind::Clash).count();
     assert_eq!(clashes, 1);
     assert!(rig.has("Also used by Save"));
+    let link = rig.find("1 shortcut is assigned more than once").rect;
     rig.click("1 shortcut is assigned more than once");
     assert!(rig.has("Save: ⌘S") && rig.has("Export…: ⌘S"));
     assert!(
         !rig.has("Save As…: ⇧⌘S"),
-        "the Conflicts filter shows only the clash: rows {:?}, buttons {:?}",
-        rig.names_with(Role::ROW, ""),
-        rig.names_with(Role::BUTTON, "")
+        "the Conflicts filter shows only the clash: link {link:?}, link still there {}, filter named Conflicts {}, rows {:?}",
+        rig.has("1 shortcut is assigned more than once"),
+        rig.has("Conflicts"),
+        rig.names_with(Role::ROW, "")
     );
 }
 
