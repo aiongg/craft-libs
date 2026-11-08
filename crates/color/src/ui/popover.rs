@@ -1,242 +1,141 @@
-//! [`ColorPopover`]: a swatch that opens a Compact colour picker in a popup.
+//! `ColorPopover`: a colour well that opens a Compact colour picker in a popover.
 
-use craft_theme::{ControlSize, Srgba};
-use egui::accesskit::{HasPopup, Role};
-use egui::{AsIdSalt, Id, IdSalt, Key, LayerId, Modifiers, Order, PopupCloseBehavior, Response, Ui};
+use craft_theme::Srgba;
+use craft_ui::choice::Swatch;
+use craft_ui::contract::{Bind, EditResponse, Outcome, Pattern, Remember as _, Show as _, ShowContainer as _};
+use craft_ui::layout_components::Stack;
+use craft_ui::popover::Popover;
+use craft_ui::runtime::env::Label;
+use egui::{Response, Ui};
 
-use super::hex::hex_id;
-use super::{ColorArea, ColorPicker, ColorPickerLayout, ColorPickerResponse, PickedColor};
-use craft_ui::controls::Swatch;
-use craft_ui::edit::{EditEvent, EditResponse};
-use craft_ui::localized::LocaleNumbers;
-use craft_ui::popup_list::PopupList;
-use craft_ui::primitives::{Gap, Interactive, Surface, SurfaceKind};
-use craft_ui::theme::{Tokens, TokensOf};
+use super::{ColorPicker, ColorPickerLayout, ColorPickerOutput, PickedColor, ScreenPickGesture};
 
-/// A [`ColorPicker`] (Compact) in a popup under a [`Swatch`], as PhotoCraft's colour button:
-///
-/// ```
-/// use craft_theme::Srgba;
-/// use craft_color::ui::ColorPopover;
-/// use craft_ui::localized::LocaleNumbers;
-/// # egui::__run_test_ui(|ui| { let mut color = Srgba::rgb(0.2, 0.5, 0.8);
-/// let numbers = LocaleNumbers::from_tag("en");
-/// let popover = ColorPopover::new("fill", "Fill colour", color, &numbers).show(ui);
-/// if let Some(p) = popover.edit.event.as_ref().and_then(|e| e.value()) {
-///     color = p.color;
-/// }
-/// # });
-/// ```
-///
-/// - Opens on a click, Enter or Space on the swatch; the hex field takes the focus with its text
-///   selected. The popup opens below the swatch, or above it when there is no room, and keeps
-///   that side while it is open; it is as wide as the picker's area and strip.
-/// - Closes on a click outside it, on a click on the swatch, and on Esc while no gesture is
-///   under way (an Esc that cancels a gesture is the picker's). The colour stays as edited. The
-///   focus goes back to the swatch unless it moved to another control.
-/// - Edits are the picker's: one step per gesture, so the popup edits live as PhotoCraft's does. A
-///   host that wants the popup as one step wraps it in [`edit::scope`](craft_ui::edit::scope).
-/// - AccessKit: the swatch is a `ColorWell` named `label` with the colour as value, expanded
-///   while the popup shows, and the popup is a `Dialog` holding the picker.
-/// - While open the popup is registered with the other popups, so Tab and Esc readers outside it
-///   leave their keys alone.
-#[must_use = "show the popover with `show`"]
-pub struct ColorPopover<'a> {
-    id_salt: IdSalt,
-    label: String,
-    color: Srgba,
-    numbers: &'a LocaleNumbers,
-    size: ControlSize,
-    dimensions: Option<(f32, f32)>,
-    enabled: bool,
-    picker: Option<Box<dyn FnOnce(ColorPicker<'a>) -> ColorPicker<'a> + 'a>>,
+#[cfg(feature = "screen-testing")]
+mod stories;
+
+/// The setup closure of the picker in the popover.
+type Setup<'a> = Box<dyn for<'b> FnOnce(ColorPicker<'b>) -> ColorPicker<'b> + 'a>;
+
+/// The popover's own state while its well is shown.
+#[derive(Clone, Default)]
+struct Session {
+    open: bool,
 }
 
-/// What [`ColorPopover::show`] returns.
+/// A [`ColorPicker`] (Compact) in a popover under a colour well, as PhotoCraft's colour button.
+///
+/// - The well is a `Swatch` named `label`; a click, Enter or Space opens the popover and the hex field takes the
+///   focus with its text selected.
+/// - The popover hangs below the well, or above it when there is no room, and keeps that side while it is open. It is
+///   as wide as the picker.
+/// - It closes on a press outside, a click on the well and Escape while no gesture runs (an Escape that cancels a
+///   gesture is the picker's). The colour stays as edited, and the focus returns to the well unless it moved to
+///   another control.
+/// - Edits are the picker's: one step per gesture, so the popover edits live.
+/// - A caller that draws its own opener (a gradient stop) hands it over with [`anchor`](ColorPopover::anchor); the
+///   caller closes the popover by writing `false` to the binding it gave.
+#[must_use = "show the popover with `show`"]
+#[derive(Pattern)]
+pub struct ColorPopover<'a> {
+    label: Label,
+    value: Bind<'a, PickedColor>,
+    setup: Option<Setup<'a>>,
+    anchor: Option<(Response, Bind<'a, bool>)>,
+}
+
+/// What [`ColorPopover::show`] reports.
 #[derive(Debug)]
 #[non_exhaustive]
-#[must_use = "the host applies the edit event"]
-pub struct ColorPopoverResponse {
-    /// The edit of the picker in the popup; the response is the swatch's. Without an event while
-    /// the popup is closed.
-    pub edit: EditResponse<PickedColor>,
-    /// The picker's eyedropper button was pressed ([`ColorPickerResponse`]).
-    /// The result goes to [`ColorPicker::sampled`] with [`picker_id`](Self::picker_id).
-    pub eyedropper_requested: bool,
-    /// The id of the picker in the popup, once it has been shown.
-    pub picker_id: Option<Id>,
-    /// Whether the popup is open after this frame.
+#[must_use = "the host applies the edit"]
+pub struct ColorPopoverOutput {
+    /// The well's response, or the anchor's.
+    pub response: Response,
+    /// The edit of the picker in the popover; `None` while the popover is closed.
+    pub edit: Option<EditResponse<PickedColor>>,
+    /// The picker's screen-pick button was pressed; the app drives its `ScreenPick`.
+    pub screen_pick: Option<ScreenPickGesture>,
+    /// Whether the popover is open after this pass.
     pub open: bool,
 }
 
+impl Outcome for ColorPopoverOutput {
+    type Value = PickedColor;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+
+    #[cfg(feature = "screen-testing")]
+    fn story_facts(&self) -> craft_ui::testing::StoryOutput {
+        craft_ui::testing::StoryOutput::from_response(&self.response)
+    }
+}
+
 impl<'a> ColorPopover<'a> {
-    /// A swatch named `label` (the swatch's accessible name, translated: "Fill colour") of the
-    /// host's `color`, opening a picker that writes and reads its fields with `numbers`.
-    pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, color: Srgba, numbers: &'a LocaleNumbers) -> Self {
-        Self {
-            id_salt: IdSalt::new(id_salt),
-            label: label.into(),
-            color,
-            numbers,
-            size: ControlSize::Md,
-            dimensions: None,
-            enabled: true,
-            picker: None,
-        }
+    /// A well named `label` (its accessible name, translated: "Fill colour") over `value`, opening a picker.
+    pub fn new(label: impl Into<Label>, value: Bind<'a, PickedColor>) -> Self {
+        ColorPopover { label: label.into(), value, setup: None, anchor: None }
     }
 
-    /// Sets the control size.
-    pub fn size(mut self, size: ControlSize) -> Self {
-        self.size = size;
+    /// Sets up the picker in the popover (alpha, eyedropper, constraint, models): `setup` gets the Compact picker the
+    /// popover made.
+    #[must_use]
+    pub fn picker(mut self, setup: impl for<'b> FnOnce(ColorPicker<'b>) -> ColorPicker<'b> + 'a) -> Self {
+        self.setup = Some(Box::new(setup));
         self
     }
 
-    /// A well `width` wide and `height` high in place of the square of [`size`](ColorPopover::size)
-    /// ([`Swatch::dimensions`]).
-    pub fn dimensions(mut self, width: f32, height: f32) -> Self {
-        self.dimensions = Some((width, height));
+    /// Hangs the popover from `opener`, which the caller drew, and opens it while `open` is true. The caller opens it
+    /// on the opener's click and closes it by writing `false`.
+    #[must_use]
+    pub fn anchor(mut self, opener: &Response, open: Bind<'a, bool>) -> Self {
+        self.anchor = Some((opener.clone(), open));
         self
     }
 
-    /// Whether the swatch takes input; a disabled one never opens.
-    pub fn enabled(mut self, enabled: bool) -> Self {
-        self.enabled = enabled;
-        self
-    }
-
-    /// Sets up the picker in the popup (alpha, eyedropper, constraint, texts, models): `setup`
-    /// gets the Compact picker the popover made.
-    pub fn picker(mut self, setup: impl FnOnce(ColorPicker<'a>) -> ColorPicker<'a> + 'a) -> Self {
-        self.picker = Some(Box::new(setup));
-        self
-    }
-
-    /// Draws the swatch and, while open, its popover; returns the response.
-    pub fn show(self, ui: &mut Ui) -> ColorPopoverResponse {
-        let Self { id_salt, label, color, numbers, size, dimensions, enabled, picker: setup } = self;
-        let enabled = enabled && ui.is_enabled();
-        let mut well = Swatch::new(id_salt, label.as_str(), color.to_rgba()).size(size).enabled(enabled);
-        if let Some((width, height)) = dimensions {
-            well = well.dimensions(width, height);
+    /// Shows the well and, while open, the popover.
+    pub fn show(self, ui: &mut Ui) -> ColorPopoverOutput {
+        let ColorPopover { label, mut value, mut setup, anchor } = self;
+        if let Some((opener, mut open)) = anchor {
+            let (edit, screen_pick, shown) = popover(ui, &label, &mut value, &mut setup, &opener, open.reborrowed());
+            return ColorPopoverOutput { response: opener, edit, screen_pick, open: shown };
         }
-        let swatch = ui.add(well);
-        let toggled = swatch.clicked();
-        popup(ui, swatch, toggled, &label, color, numbers, enabled, setup)
-    }
-}
-
-const STATE: &str = "craft_ui::color_popover";
-
-/// The popup of a colour popover under `anchor`, which the caller has drawn: `toggled` opens it
-/// when closed and closes it when open (the anchor's click, or another gesture of the caller's).
-/// The response's edit carries `anchor`.
-#[allow(clippy::too_many_arguments)]
-pub fn popup<'a, 'b>(
-    ui: &mut Ui,
-    swatch: Response,
-    toggled: bool,
-    label: &str,
-    color: Srgba,
-    numbers: &'a LocaleNumbers,
-    enabled: bool,
-    setup: Option<Box<dyn FnOnce(ColorPicker<'a>) -> ColorPicker<'a> + 'b>>,
-) -> ColorPopoverResponse {
-    let ctx = ui.ctx().clone();
-    let state_id = swatch.id.with(STATE);
-    let stored = ctx.data(|d| d.get_temp::<Open>(state_id)).filter(|_| enabled).unwrap_or_default();
-    let was_open = stored.open;
-    let mut open = was_open;
-    let mut fresh = stored.fresh;
-    // A frame may run in two passes (the popup's first is measured, then discarded); the
-    // click shows in both.
-    let frame = ctx.cumulative_frame_nr();
-    if toggled && enabled {
-        if stored.clicked != Some(frame) {
-            open = !open;
-            fresh = open;
-        }
-        if open {
-            // The key that opened the popup is not the hex field's, which takes the focus at once.
-            ui.input_mut(|i| {
-                i.consume_key(Modifiers::NONE, Key::Enter);
-                i.consume_key(Modifiers::NONE, Key::Space);
-            });
-        }
-    }
-    let clicked = if toggled { Some(frame) } else { stored.clicked };
-
-    let popup = egui::Popup::menu(&swatch);
-    let popup_id = popup.get_id();
-    let tokens = Tokens::of(ui);
-    let parts = ColorArea::style(&tokens);
-    let width = parts.area + Gap::Inline.points(&tokens) + parts.strip;
-
-    let mut shown = None;
-    PopupList::with_popup(popup, ui, &swatch)
-        .open(&mut open)
-        .focus_owners(&[swatch.id])
-        .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
-        .height(f32::INFINITY)
-        .surface(Surface::style(&tokens, SurfaceKind::Popup))
-        .show_ui(|ui| {
-            ui.set_width(width);
-            let picker_id = Interactive::id_in(ui, "picker");
-            let hex = hex_id(picker_id);
-            if fresh {
-                ColorPicker::focus_hex(ui.ctx(), picker_id);
+        let shown = Stack::new().show(ui, |ui, cx| {
+            let color = value.reborrow().read(cx).and_then(|held| held.same().map(|picked| picked.color)).unwrap_or(Srgba::rgb(0.0, 0.0, 0.0));
+            let well = Swatch::new(label.clone(), color).show(ui);
+            let state = cx.memory::<Session>();
+            if well.clicked {
+                state.open = !state.open;
             }
-            let mut picker = ColorPicker::new("picker", label, color, numbers).layout(ColorPickerLayout::Compact).enabled(enabled);
-            if let Some(setup) = setup {
-                picker = setup(picker);
-            }
-            let response = picker.show(ui);
-            // A gesture the picker cancelled with Esc is not a request to close.
-            if matches!(response.edit.event, Some(EditEvent::Cancel { .. })) {
-                ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape));
-            }
-            // The request waits for the pass that is shown; ask until the field has the focus.
-            fresh &= !ui.memory(|m| m.has_focus(hex));
-            shown = Some(response);
+            let (edit, screen_pick, open) = popover(ui, &label, &mut value, &mut setup, &well.response, Bind::bound(&mut state.open));
+            ColorPopoverOutput { response: well.response, edit, screen_pick, open }
         });
-    ctx.data_mut(|d| d.insert_temp(state_id, Open { open, fresh: fresh && open, clicked }));
-    if was_open && !open && focus_free_or_inside(&ctx, popup_id) {
-        ctx.memory_mut(|m| m.request_focus(swatch.id));
-    }
-    ctx.accesskit_node_builder(swatch.id, |node| {
-        node.set_has_popup(HasPopup::Dialog);
-        node.set_expanded(open);
-    });
-    if open {
-        ctx.accesskit_node_builder(popup_id, |node| node.set_role(Role::Dialog));
-    }
-    match shown {
-        Some(ColorPickerResponse { edit, eyedropper_requested, .. }) => {
-            let picker_id = Some(edit.response.id);
-            ColorPopoverResponse { edit: EditResponse::new(swatch, edit.event), eyedropper_requested, picker_id, open }
+        match shown.inner {
+            Some(output) => output,
+            None => ColorPopoverOutput { response: shown.output.response, edit: None, screen_pick: None, open: false },
         }
-        None => ColorPopoverResponse { edit: EditResponse::new(swatch, None), eyedropper_requested: false, picker_id: None, open },
     }
 }
 
-/// Closes the popup of the popover anchored on `anchor`, for a caller that stops drawing the
-/// anchor while the popup is open.
-pub fn close(ctx: &egui::Context, anchor: Id) {
-    ctx.data_mut(|d| d.remove::<Open>(anchor.with(STATE)));
-}
-
-/// The popover's state between frames.
-#[derive(Clone, Copy, Default)]
-struct Open {
-    open: bool,
-    /// The popup opened and its hex field has not yet taken the focus.
-    fresh: bool,
-    /// The frame of the last click on the swatch.
-    clicked: Option<u64>,
-}
-
-/// Whether no control has the focus, or the focused one is in the popup `popup`: a close that
-/// leaves the focus there gives it back to the swatch.
-fn focus_free_or_inside(ctx: &egui::Context, popup: Id) -> bool {
-    let Some(focused) = ctx.memory(|m| m.focused()) else { return true };
-    ctx.read_response(focused).is_none_or(|r| r.layer_id == LayerId::new(Order::Foreground, popup))
+/// The popover under `opener` while `open` is true: its picker's edit and screen pick, and whether it stays open.
+fn popover(
+    ui: &mut Ui,
+    label: &Label,
+    value: &mut Bind<'_, PickedColor>,
+    setup: &mut Option<Setup<'_>>,
+    opener: &Response,
+    open: Bind<'_, bool>,
+) -> (Option<EditResponse<PickedColor>>, Option<ScreenPickGesture>, bool) {
+    let shown = Popover::new(label.clone(), open).opened_by(opener).show(ui, |ui, _| {
+        let mut picker = ColorPicker::new(label.clone(), value.reborrowed()).layout(ColorPickerLayout::Compact).focus_on_open(true);
+        if let Some(setup) = setup.take() {
+            picker = setup(picker);
+        }
+        picker.show(ui)
+    });
+    let open = shown.inner.is_some() && shown.output.closed.is_none();
+    match shown.inner {
+        Some(ColorPickerOutput { edit, screen_pick, .. }) => (Some(edit), screen_pick, open),
+        None => (None, None, open),
+    }
 }
