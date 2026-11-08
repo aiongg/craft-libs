@@ -300,27 +300,6 @@ impl<K: Value + Eq + Hash + 'static> Component for PresetPicker<'_, K> {
         let state = &mut self.state;
         let (create_row, detach_row, preview) = (self.create_row.as_ref(), self.detach_row.as_ref(), self.preview.as_ref());
         let out = ui.show(popup, Overlay::popover(), |ui, _| {
-            let mut browser = PresetBrowser::new(name.clone(), state.reborrowed(), rows)
-                .cell_shape(shape)
-                .view_lock(view)
-                .default_open(default_open)
-                .toolbar(toolbar)
-                .row_menu(row_menu);
-            if let Some(key) = current.clone() {
-                browser = browser.selected(key);
-            }
-            if let Some(test) = can_rename {
-                browser = browser.can_rename(|key| test.passes(key));
-            }
-            if let Some(test) = can_delete {
-                browser = browser.can_delete(|key| test.passes(key));
-            }
-            if let Some(test) = can_move {
-                browser = browser.can_move(|key| test.passes(key));
-            }
-            if let Some(painter) = preview {
-                browser = browser.thumb(|cx, rect, info| painter.paint(cx, rect, info));
-            }
             // The actions follow the presets in a footer, set off by a separator, as the preset menu lists them.
             let mut chosen = (false, false);
             let actions = |ui: &mut Ui, _: &mut BodyCx<'_>| {
@@ -334,7 +313,32 @@ impl<K: Value + Eq + Hash + 'static> Component for PresetPicker<'_, K> {
             };
             let stack = Stack::new();
             let stack = if create_row.is_some() || detach_row.is_some() { stack.footer(actions) } else { stack };
-            let shown = stack.show(ui, |ui, _| browser.show(ui)).inner;
+            let shown = stack
+                .show(ui, |ui, _| {
+                    let mut browser = PresetBrowser::new(name.clone(), state.reborrowed(), rows)
+                        .cell_shape(shape)
+                        .view_lock(view)
+                        .default_open(default_open)
+                        .toolbar(toolbar)
+                        .row_menu(row_menu);
+                    if let Some(key) = current.clone() {
+                        browser = browser.selected(key);
+                    }
+                    if let Some(test) = can_rename {
+                        browser = browser.can_rename(|key| test.passes(key));
+                    }
+                    if let Some(test) = can_delete {
+                        browser = browser.can_delete(|key| test.passes(key));
+                    }
+                    if let Some(test) = can_move {
+                        browser = browser.can_move(|key| test.passes(key));
+                    }
+                    if let Some(painter) = preview {
+                        browser = browser.thumb(|cx, rect, info| painter.paint(cx, rect, info));
+                    }
+                    browser.show(ui)
+                })
+                .inner;
             shown.map(|out| (out, chosen))
         });
         let Some((out, (create, detach))) = out.flatten() else { return };
