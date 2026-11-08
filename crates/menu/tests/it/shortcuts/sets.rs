@@ -34,7 +34,11 @@ fn new_set_refuses_a_taken_name_and_keeps_the_set() {
         assert!(rig.has("A set with this name exists"), "{name:?}");
         assert_eq!(rig.active_set().as_deref(), Some("Mine"), "the refused name leaves the active set");
         assert_eq!(rig.shared.borrow().sets.as_ref().map(|(p, _)| p.sets().len()), Some(1));
-        rig.click("Cancel");
+        // Escape in the name field cancels the form; the dialog's own Cancel shares the label.
+        let field = rig.named("Name:", Role::TEXT_INPUT);
+        rig.fixture.click(&field);
+        rig.press(Modifiers::NONE, Key::Escape);
+        assert!(rig.is_open() && !rig.has("Create"), "the form closed, the dialog stayed");
     }
 }
 

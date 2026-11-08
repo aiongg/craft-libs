@@ -257,16 +257,14 @@ fn documents_and_placeholders_from_the_layout_are_rows_of_the_bar() {
     assert!(fixture.by_label("No Recent Files").is_none(), "a list holding only the disabled placeholder does not open");
 }
 
-/// The Help menu opens with the search field, which finds an item by its label and fires its command.
+/// The Help menu opens with the search field, which finds an item by its label and fires its command. The search
+/// field holds focus, so an edit command such as Redo would act on the field's text instead.
 #[trial]
 fn the_help_search_finds_items_and_fires_their_commands() {
     let mut fixture = rig(sample(), Setup { help_search: true, ..LINUX });
-    // A search result is a command row: it shows the command's own label.
-    fixture.command_state("edit.redo", CommandState::new().title("Redo"));
     click(&mut fixture, "Help");
-    fixture.type_text("redo");
+    fixture.type_text("open");
     fixture.settle();
-    let found = fixture.by_label("Redo").map(|target| fixture.tree().role_of(target.node));
-    click(&mut fixture, "Redo");
-    assert_eq!(fired(&fixture), [("edit.redo".to_owned(), FireSource::Menu)], "the node clicked: {found:?}");
+    click(&mut fixture, "Open…");
+    assert_eq!(fired(&fixture), [("file.open".to_owned(), FireSource::Menu)]);
 }

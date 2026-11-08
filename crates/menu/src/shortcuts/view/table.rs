@@ -7,7 +7,7 @@ use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, Flow, Insets, ItemSou
 use craft_keymap::Key;
 use craft_keymap::chord::Chord;
 use craft_keymap::keymap::{Binding, MAX_BINDINGS};
-use craft_ui::buttons::{Button, IconButton, Link};
+use craft_ui::buttons::{Button, IconButton};
 use craft_ui::contract::{
     Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, ColumnSpec, Common, Component, ContainerProps, Cx, ItemOutput,
     MeasureCx, Outcome, PaintUi, Props as _, Role, SelectMode, ShowCollection as _, Sizing, Styled as _, clicked,
@@ -43,8 +43,6 @@ pub(crate) enum RowAct {
     Stopped,
     /// The recording cell holds key focus.
     Started,
-    /// A group header was pressed: the group opens or closes.
-    Toggle,
 }
 
 /// The lines as the table's source, keyed by position.
@@ -69,6 +67,14 @@ impl DisplayOrder<usize> for Lines<'_> {
 
     fn open(&self, at: usize) -> bool {
         matches!(&self.0[at], Line::Header { collapsed: false, .. })
+    }
+
+    fn is_section(&self, at: usize) -> bool {
+        matches!(self.0[at], Line::Header { .. })
+    }
+
+    fn section_stop(&self, at: usize) -> bool {
+        self.is_section(at)
     }
 
     fn text(&self, at: usize) -> Option<Cow<'_, str>> {
@@ -324,7 +330,7 @@ impl Component for CommandRow<'_> {
                 self.paint_shortcuts(ui, cx, rtl, line);
             }
             Line::Fixed(fixed) => self.paint_fixed(ui, cx, rtl, command, fixed),
-            Line::Header { name, .. } => self.paint_header(ui, cx, name),
+            Line::Header { .. } => {}
         }
     }
 
@@ -362,16 +368,6 @@ impl CommandRow<'_> {
         }
         let run = TextRun::spans(spans).role(cx.style.label.role).color(cx.resolve(&cx.style.label.color)).elide();
         ui.draw().text(area, &run);
-    }
-
-    /// A group header: its name, over the whole row, opens and closes the group.
-    fn paint_header(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>, name: &str) {
-        let rtl = cx.env.direction().is_rtl();
-        let row = self.cell(COMMAND).union(self.cell(SHORTCUT));
-        let area = Flow::new(row, rtl).inset(Insets::horizontal(cx.style.pad));
-        if clicked(&ui.child("header", area, Link::new(name.to_owned()))) {
-            self.act = Some(RowAct::Toggle);
-        }
     }
 
     fn paint_fixed(&self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>, rtl: bool, area: Rect, fixed: &FixedLine) {
@@ -531,8 +527,6 @@ fn apply(
     out: CollectionResponse<usize, RowAct>,
     table: (egui::Context, egui::Id),
 ) {
-    // A header's key activation reaches the table as the lead's Activate and as the header link's click: one toggle.
-    let mut toggled = Vec::new();
     for event in out.events {
         match event {
             CollectionEvent::Selection(SelectionChange::Set(keys)) => {
@@ -541,12 +535,7 @@ fn apply(
                 }
             }
             CollectionEvent::Activate(key) => match lines.get(key) {
-                Some(Line::Header { name, .. }) => {
-                    if !toggled.contains(&key) {
-                        toggled.push(key);
-                        state.toggle_group(name);
-                    }
-                }
+                Some(Line::Header { name, .. }) => state.toggle_group(name),
                 Some(Line::Row(row)) if env.options.editable => {
                     state.select_row(&row.command);
                     let chip = state.chip.min(row.chips.len().saturating_sub(1));
@@ -573,14 +562,6 @@ fn apply(
                     }
                 }
             }
-            CollectionEvent::Item(key, RowAct::Toggle) => {
-                if let Some(Line::Header { name, .. }) = lines.get(key)
-                    && !toggled.contains(&key)
-                {
-                    toggled.push(key);
-                    state.toggle_group(name);
-                }
-            }
             CollectionEvent::Item(key, act) => {
                 let Some(Line::Row(row)) = lines.get(key) else { continue };
                 match act {
@@ -596,8 +577,9 @@ fn apply(
                     }
                     RowAct::Chords(chords) => {
                         state.feed(env, &chords, now);
-                        // A bare Escape ended the recording and nothing else: focus goes to the table, so the next
-                        // Escape reaches the dialog instead of a chip of the row.
+                        // The recording cell leaves the tree, and the runtime moves focus from a removed stop to its
+                        // neighbour, a chip of the row; a chip is a row child, so the next Escape would only return
+                        // focus to the row. Focus goes to the table, where Escape reaches the dialog.
                         if chords.contains(&Chord::plain(Key::Escape)) && !state.is_recording() {
                             focus::request(&table.0, FocusTarget::Id(table.1));
                         }
@@ -608,7 +590,6 @@ fn apply(
                             recording.started = true;
                         }
                     }
-                    RowAct::Toggle => {}
                 }
             }
             _ => {}
