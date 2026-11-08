@@ -96,11 +96,16 @@ impl Component for Placed<'_> {
     }
 }
 
+/// How close two aspect ratios are.
+const SAME: f32 = 1e-3;
+
 /// A placed image signature paints its picture as a texture inside the box it is placed in, keeping the picture's
 /// shape.
 #[trial]
 fn a_placed_image_paints_a_texture_in_its_rect() {
-    let image = SignatureImage::new(4, 2, vec![255; 4 * 2 * 4]);
+    let (width, height) = (4, 2);
+    let image = SignatureImage::new(width, height, vec![u8::MAX; width as usize * height as usize * 4]);
+    let shape = width as f32 / height as f32;
     let signature = SavedSignature::Image(image);
     let rect = std::cell::Cell::new(egui::Rect::NOTHING);
     let mut frames = Frames::new();
@@ -114,6 +119,7 @@ fn a_placed_image_paints_a_texture_in_its_rect() {
         })
         .collect();
     assert_eq!(pictures.len(), 1, "one picture: {shapes:?}");
-    assert!(rect.expand(0.5).contains_rect(pictures[0]), "{:?} inside {rect:?}", pictures[0]);
-    assert!((pictures[0].aspect_ratio() - 2.0).abs() < 1e-3, "the picture keeps its shape: {:?}", pictures[0]);
+    let picture = pictures[0];
+    assert!(rect.contains_rect(picture), "{picture:?} inside {rect:?}");
+    assert!((picture.aspect_ratio() - shape).abs() < SAME, "the picture keeps its shape: {picture:?}");
 }
