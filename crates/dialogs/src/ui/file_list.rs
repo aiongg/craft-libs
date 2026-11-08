@@ -230,27 +230,22 @@ impl<'a> FileListPicker<'a> {
                 }
                 let paths: &[PathBuf] = if folder { folder_files } else { &now.files };
                 let source = Rows::new(paths);
-                let mut selection = now.selected.map_or_else(Selection::default, Selection::single);
+                let mut selection = now.selected.and_then(|at| paths.get(at)).map_or_else(Selection::default, |path| Selection::single(path.clone()));
                 let list = List::new(words.files.clone()).id_salt("files");
                 let list = if folder {
                     list.select(SelectMode::None)
                 } else {
                     list.select(SelectMode::Single).deletable(true).reorder(ReorderRule::new()).selection(Bind::bound(&mut selection))
                 };
-                let events = list.show_items(ui, &source, &mut |at, _| file_row(paths.get(*at).map_or(Path::new(""), PathBuf::as_path), info)).events;
+                let events = list.show_items(ui, &source, &mut |path, _| file_row(path, info)).events;
                 if folder {
                     return;
                 }
-                now.selected = selection.items.first().copied();
+                now.selected = selection.items.first().and_then(|key| paths.iter().position(|path| path == key));
                 for event in events {
                     match event {
-                        CollectionEvent::Delete(mut keys) => {
-                            keys.sort_unstable_by(|a, b| b.cmp(a));
-                            keys.dedup();
-                            let count = now.files.len();
-                            for at in keys.into_iter().filter(|&at| at < count) {
-                                now.files.remove(at);
-                            }
+                        CollectionEvent::Delete(keys) => {
+                            now.files.retain(|path| !keys.contains(path));
                             now.selected = None;
                         }
                         CollectionEvent::Reorder(EditEvent::Set { after, .. } | EditEvent::Commit { after, .. }) => {
@@ -318,7 +313,8 @@ fn take_answer(cx: &mut BodyCx<'_>, now: &mut FileList) {
     }
 }
 
-/// The files as the list's item source: the position in the files is the key.
+/// The files as the list's item source: a file's path is its key (the paths in a list are distinct), so the lead and the
+/// selection follow a file when the list reorders.
 struct Rows<'a> {
     paths: &'a [PathBuf],
     names: Vec<String>,
@@ -330,13 +326,13 @@ impl<'a> Rows<'a> {
     }
 }
 
-impl DisplayOrder<usize> for Rows<'_> {
+impl DisplayOrder<PathBuf> for Rows<'_> {
     fn len(&self) -> usize {
         self.paths.len()
     }
 
-    fn key(&self, at: usize) -> usize {
-        at
+    fn key(&self, at: usize) -> PathBuf {
+        self.paths[at].clone()
     }
 
     fn text(&self, at: usize) -> Option<Cow<'_, str>> {
@@ -344,7 +340,7 @@ impl DisplayOrder<usize> for Rows<'_> {
     }
 }
 
-impl ItemSource<usize> for Rows<'_> {}
+impl ItemSource<PathBuf> for Rows<'_> {}
 
 /// One file's row: its name, the path for a screen reader, the app's info line under the name.
 fn file_row<'a>(path: &Path, info: Option<InfoLine<'_>>) -> ListRow<'a> {
@@ -368,8 +364,8 @@ fn file_name(path: &Path) -> String {
 
 /// Moves the files at `keys` (display order) together, so the first of them lands at `to` in the order that remains
 /// once all of them are taken out.
-fn move_files(files: &mut Vec<PathBuf>, keys: &[usize], to: usize) {
-    let mut places: Vec<usize> = keys.iter().copied().filter(|&at| at < files.len()).collect();
+fn move_files(files: &mut Vec<PathBuf>, keys: &[PathBuf], to: usize) {
+    let mut places: Vec<usize> = keys.iter().filter_map(|key| files.iter().position(|path| path == key)).collect();
     places.sort_unstable();
     places.dedup();
     let moved: Vec<PathBuf> = places.iter().map(|&at| files[at].clone()).collect();
