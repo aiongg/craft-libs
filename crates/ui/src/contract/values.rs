@@ -361,6 +361,9 @@ pub struct EditResponse<T> {
     pub event: Option<EditEvent<T>>,
     /// The value was submitted (Enter in a text part).
     pub submitted: bool,
+    /// The modifiers of the Enter that submitted the value (Shift+Enter, Cmd+Enter); none unless `submitted` came
+    /// from a key.
+    pub submit_mods: craft_keymap::Mods,
     /// The edit was abandoned with Escape.
     pub escaped: bool,
     /// A text part holds text that does not parse: the value is the last one that did, and a form that commits the
@@ -376,7 +379,16 @@ pub struct EditResponse<T> {
 
 impl<T> EditResponse<T> {
     pub(crate) fn new(response: Response, event: Option<EditEvent<T>>, validity: Validity<T>) -> Self {
-        EditResponse { response, event, submitted: false, escaped: false, unparsed: false, validity, shown: None }
+        EditResponse {
+            response,
+            event,
+            submitted: false,
+            submit_mods: craft_keymap::Mods::NONE,
+            escaped: false,
+            unparsed: false,
+            validity,
+            shown: None,
+        }
     }
 
     /// The response of a composite that edits one value through several child components: `event` is the edit of the
@@ -384,7 +396,16 @@ impl<T> EditResponse<T> {
     /// `response` its own. The flags are clear and the validity is `Ok`; the composite sets the flags it reads from
     /// its children.
     pub fn lifted(response: Response, event: Option<EditEvent<T>>, shown: Option<Mixed<Arc<T>>>) -> Self {
-        EditResponse { response, event, submitted: false, escaped: false, unparsed: false, validity: Validity::Ok, shown }
+        EditResponse {
+            response,
+            event,
+            submitted: false,
+            submit_mods: craft_keymap::Mods::NONE,
+            escaped: false,
+            unparsed: false,
+            validity: Validity::Ok,
+            shown,
+        }
     }
 
     /// The value the pass's event carries: a proposal, a commit or a set; `None` when nothing was edited or the event
@@ -413,6 +434,7 @@ impl<T: Clone> EditResponse<T> {
             response: self.response,
             event: self.event.map(|event| event.map(&f)),
             submitted: self.submitted,
+            submit_mods: self.submit_mods,
             escaped: self.escaped,
             unparsed: self.unparsed,
             validity,

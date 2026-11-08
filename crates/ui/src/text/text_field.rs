@@ -149,7 +149,9 @@ impl<'a, C: Codec + Clone + 'static> TextField<'a, C> {
     }
 
     /// Enter acts in the field itself (it saves the value or runs a search): the field takes it, and an enclosing
-    /// dialog's default button does not. A field without this leaves Enter to that button.
+    /// dialog's default button does not. A field without this leaves Enter to that button. In a multi-line field
+    /// Enter still adds a line, and Cmd+Enter (Ctrl+Enter off macOS) submits. `EditResponse::submit_mods` holds the
+    /// modifiers of the submitting Enter.
     #[must_use]
     pub fn submits(mut self) -> Self {
         self.options.submits = true;

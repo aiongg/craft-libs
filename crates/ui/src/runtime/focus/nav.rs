@@ -104,6 +104,10 @@ impl State {
             roving || keys.keep == super::KeepKeys::BlockArrows,
             escape,
         );
+        let moved = self.focus_now != Some(stop.root) || self.focused.get(&stop.root) != Some(&stop.key());
+        if moved {
+            self.arrived = Some((self.frame, stop.key()));
+        }
         self.focused.insert(stop.root, stop.key());
         self.focus_now = Some(stop.root);
         self.revealed = Some(stop.key());
@@ -358,6 +362,7 @@ pub(super) fn initial_focus(state: &mut State, frame: u64) -> Vec<Act> {
 /// The begin hook's focus moves: a pending request, Tab and F6, then the press classification.
 pub(super) fn begin(state: &mut State, input: BeginIn) -> (Vec<Act>, Vec<String>) {
     state.rotate();
+    state.frame = input.frame;
     state.focus_now = input.focused;
     state.press.rotate(input.focused);
     let mut acts = Vec::new();
@@ -380,7 +385,9 @@ pub(super) fn begin(state: &mut State, input: BeginIn) -> (Vec<Act>, Vec<String>
 }
 
 /// The end hook's focus moves, and the record the next input hook reads.
-pub(super) fn end(state: &mut State, focused: Option<Id>) -> Vec<Act> {
+pub(super) fn end(state: &mut State, focused: Option<Id>, frame: u64) -> Vec<Act> {
+    // The moves below belong to the next frame's passes.
+    state.frame = frame + 1;
     let mut acts = state.apply_press(focused);
     if acts.is_empty() {
         let next = state.restored_focus(focused).or_else(|| state.removed_focus(focused));

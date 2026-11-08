@@ -1,7 +1,7 @@
 //! The text part of the pipeline (18.2): `PartsCx::text` registers the part with its typing run, and step 8b runs the
 //! text adapter, then the typing run over what the adapter recorded, and applies the run's events through `Cx`.
 
-use super::cx::{Cx, PartsCx, gesture_key};
+use super::cx::{Cx, PartsCx, RecordedText, gesture_key};
 use super::{Component, Edit as _, Focus as _, Overlays as _, ValueOf};
 use crate::primitives::text_adapter::{self as adapter, End, TextState};
 use crate::primitives::{TextKey, TextOptions, TextOutcome};
@@ -10,6 +10,7 @@ use crate::runtime::keys;
 use crate::runtime::memory::sub;
 use crate::runtime::motion::Animate as _;
 use craft_behavior::{CancelReason, Caret, Codec, EditRun, Ended, EscapeRule, Escaped, Gesture, NotAValue, PartKey, Typed, TypingRun};
+use craft_keymap::Mods;
 use egui::{Rect, Ui};
 use std::any::Any;
 use std::sync::Arc;
@@ -91,6 +92,8 @@ struct Resolved<V> {
     events: Vec<TextEvent<V>>,
     outcome: TextOutcome<V>,
     submitted: bool,
+    /// The modifiers of the submitting Enter; none unless `submitted`.
+    submit_mods: Mods,
     escaped: bool,
 }
 
@@ -129,6 +132,7 @@ fn resolver<K: Codec + Clone + 'static>(codec: K, options: &TextOptions, rect: R
         }
         let draft_text = run.draft.clone().unwrap_or_default();
         let (mut submitted, mut escaped) = (false, false);
+        let submit_mods = std::mem::take(&mut state.submit_mods);
         let end = match state.end.take() {
             None if commit_now && run.is_open() => Some(End::Blur),
             end => end,
@@ -178,7 +182,7 @@ fn resolver<K: Codec + Clone + 'static>(codec: K, options: &TextOptions, rect: R
         let mut outcome = TextOutcome::new(rect);
         outcome.draft = run.draft.clone();
         outcome.invalid = state.invalid;
-        Resolved { events, outcome, submitted, escaped }
+        Resolved { events, outcome, submitted, submit_mods: if submitted { submit_mods } else { Mods::NONE }, escaped }
     })
 }
 
@@ -404,7 +408,7 @@ pub(crate) fn run<C: Component>(
     outcome.caret_visible = caret_visible;
     outcome.composing = crate::runtime::ime::composing(&ctx, widget);
     outcome.completions = completions;
-    cx.core.texts = Some((decl.key, Box::new(outcome)));
+    cx.core.texts = Some((decl.key, Box::new(RecordedText { outcome, submit_mods: resolved.submit_mods })));
     let committed = apply_events(cx, resolved.events);
     cx.core.memory.shown::<TextState>(state_id).seen = shown_copy(cx);
     // `parts` ran for the value before the commit; the pass runs again so a part the new value adds is never missing.
@@ -430,7 +434,8 @@ impl<C: Component> Cx<'_, C> {
     /// registered, which is a debug assertion.
     pub fn text<V: 'static>(&self, key: &TextKey<V>) -> Option<&TextOutcome<V>> {
         let outcome =
-            self.core.texts.as_ref().filter(|(part, _)| *part == key.key()).and_then(|(_, outcome)| outcome.downcast_ref::<TextOutcome<V>>());
+            self.core.texts.as_ref().filter(|(part, _)| *part == key.key()).and_then(|(_, text)| text.as_any().downcast_ref::<RecordedText<V>>());
+        let outcome = outcome.map(|recorded| &recorded.outcome);
         debug_assert!(outcome.is_some() || self.core.texts.is_none(), "the text part {:?} was never registered by `parts`", key.key());
         outcome
     }

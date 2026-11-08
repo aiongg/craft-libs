@@ -4,6 +4,7 @@ mod derives;
 mod direction;
 mod inactive;
 mod fixes;
+mod focus_arrival;
 mod hit_order;
 mod measure;
 mod openers;
