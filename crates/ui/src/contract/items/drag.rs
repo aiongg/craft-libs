@@ -6,7 +6,6 @@ use super::marquee::MarqueeDrag;
 use crate::contract::collection::{CollectionEvent, CollectionProps, ColumnKind, ListDrag, ReorderMove, ToggleColumn, ToggleEdit};
 use crate::contract::reorder;
 use crate::contract::{Collection, Cx, DragPreview, DropMark, DropTarget, OsFiles, Pointer as _};
-use crate::runtime::env::Env;
 use crate::runtime::env::Label;
 use craft_behavior::{
     Axis, CancelReason, ColumnKey, DropOperation, EditEvent, Flow, GestureId, ItemLayout, Mixed, NavShape, Outline, PointerButton, PressCancel,
@@ -351,12 +350,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             if (own && props.reorder.is_some()) || (!own && comp.accept_from(payload.list)) {
                 let groups = props.reorder.is_some_and(|rule| rule.into_groups) && matches!(layout.nav(), NavShape::Tree);
                 let step = groups.then(|| {
-                    crate::style::control_metrics(
-                        &Env::of_root(&cx.core.ctx).tokens,
-                        cx.core.resolved.size,
-                        crate::fonts::stack_facts(&cx.core.ctx).line_ratio,
-                    )
-                    .icon
+                    cx.env.control(cx.core.resolved.size).icon
                 });
                 let spot = self
                     .spot(layout, rect, offset, rtl, step, layer(at))
