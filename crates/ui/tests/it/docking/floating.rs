@@ -3,7 +3,7 @@
 
 use craft_behavior::GesturePhase;
 use craft_ui::contract::overlay::PlacementKind;
-use craft_ui::contract::{Common, Component, Cx, DropMark, DropOperation, DropTarget, MeasureCx, Props as _, Role, Show as _, Sizing};
+use craft_ui::contract::{Common, Component, Cx, DropMark, DropOperation, DropTarget, MeasureCx, Pointer as _, Props as _, Role, Show as _, Sizing};
 use craft_ui::docking::{DragUnit, FloatingGroup, FloatingGroupOutput, GroupDrag, PanelLimits};
 use craft_ui::runtime::drag;
 use craft_ui::style::{ComponentStyle, StyleCx};
