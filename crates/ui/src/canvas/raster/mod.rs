@@ -17,6 +17,7 @@ pub use detail::{DetailPlan, snap_to_texels};
 
 use super::{PixelRect, RasterSource, canvas_space};
 use crate::contract::{Access, Common, Component, Cx, NoValue, Outcome, PaintUi, Props as _, Role};
+use crate::primitives::textures::UNTINTED;
 use crate::primitives::{CachedTexture, Checker, Revision, TextureState, TextureStore, TextureStoreOptions, texture_factor, texture_side};
 use crate::runtime::env::Label;
 use crate::runtime::memory::Remember as _;
@@ -305,7 +306,7 @@ fn textured_quad(view: &CanvasView, texture: CachedTexture, factor: u32, region:
     let corners = view.quad(Rect64::new(f64::from(region.x0), f64::from(region.y0), f64::from(region.x1), f64::from(region.y1)));
     let uv = [pos2(0.0, 0.0), pos2(u, 0.0), pos2(u, v), pos2(0.0, v)];
     let mut mesh = Mesh::with_texture(texture.id);
-    mesh.vertices.extend(corners.iter().zip(uv).map(|(pos, uv)| Vertex { pos: *pos, uv, color: Color32::from_gray(u8::MAX) }));
+    mesh.vertices.extend(corners.iter().zip(uv).map(|(pos, uv)| Vertex { pos: *pos, uv, color: UNTINTED }));
     mesh.indices.extend([0, 1, 2, 0, 2, 3]);
     Shape::mesh(mesh)
 }
@@ -326,7 +327,7 @@ fn mapped_mesh(view: &CanvasView, texture: CachedTexture, factor: u32, size: Pix
         for i in 0..=n {
             let (s, t) = (f64::from(i) / f64::from(n), f64::from(j) / f64::from(n));
             let uv = pos2(s as f32 * u, t as f32 * v);
-            mesh.vertices.push(Vertex { pos: at(s, t), uv, color: Color32::from_gray(u8::MAX) });
+            mesh.vertices.push(Vertex { pos: at(s, t), uv, color: UNTINTED });
         }
     }
     let row = n + 1;

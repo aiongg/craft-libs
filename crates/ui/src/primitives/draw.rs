@@ -282,7 +282,7 @@ impl<'a> Draw<'a> {
         if self.inactive {
             self.data_fill(&PaintShape::Rect(rect, CornerRadius::ZERO), DataColor::new(Color32::TRANSPARENT));
         } else {
-            self.painter.image(texture, rect, uv, Color32::from_gray(u8::MAX));
+            self.painter.image(texture, rect, uv, super::textures::UNTINTED);
         }
     }
 

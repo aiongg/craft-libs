@@ -594,7 +594,7 @@ impl ContentPainterCx<'_> {
 
     /// Paints the part `uv` of `texture` into `rect`, untinted.
     pub fn picture(&self, texture: egui::TextureId, rect: Rect, uv: Rect) {
-        crate::runtime::egui::textures::paint(&self.painter, texture, rect, uv, Color32::from_gray(u8::MAX));
+        crate::runtime::egui::textures::paint(&self.painter, texture, rect, uv, super::textures::UNTINTED);
     }
 
     /// Paints the transparency checkerboard over `rect`.
