@@ -403,7 +403,7 @@ impl Component for Canvas<'_> {
 
     fn style(cx: &StyleCx<'_>, _: CanvasStyleKey) -> CanvasStyle {
         // The rulers' own layout says where the view lies inside them.
-        CanvasStyle { rulers: Rulers::content_rect(cx.tokens, Rect::ZERO).min.to_vec2(), ..CanvasStyle::default() }
+        CanvasStyle { rulers: Rulers::content_rect(cx, Rect::ZERO).min.to_vec2(), ..CanvasStyle::default() }
     }
 
     fn sense(&self) -> Sense {

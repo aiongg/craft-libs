@@ -589,6 +589,12 @@ mod mapped_overlay {
             .collect()
     }
 
+    /// The corners of the flat overlay's quad: its four vertices, clockwise from the top left.
+    fn quad_corners(mesh: &Mesh) -> [Pos2; 4] {
+        [0, 1, 2, 3].map(|i| mesh.vertices[i].pos)
+    }
+
+    /// The corners of a mapped mesh of `cells` squared cells (vertices in rows), clockwise from the top left.
     fn corners(mesh: &Mesh, cells: u32) -> [Pos2; 4] {
         let row = (cells + 1) as usize;
         let v = |i: usize| mesh.vertices[i].pos;
@@ -602,7 +608,7 @@ mod mapped_overlay {
         let mapped = meshes(|| RasterOverlay::new(&Flat).mapped(frame, CELLS));
         let flat = flat.last().expect("the flat overlay's quad");
         let mapped = mapped.iter().find(|mesh| mesh.vertices.len() == ((CELLS + 1) * (CELLS + 1)) as usize).expect("the mapped mesh");
-        for (a, b) in corners(flat, 1).iter().zip(corners(mapped, CELLS)) {
+        for (a, b) in quad_corners(flat).iter().zip(corners(mapped, CELLS)) {
             assert!(a.distance(b) < NEAR, "the mesh corner {b:?} is the flat quad's corner {a:?}");
         }
         let half = meshes(|| RasterOverlay::new(&Flat).mapped(frame, CELLS).placed(Rect::new(0.0, 0.0, 0.5, 0.5)));
