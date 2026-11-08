@@ -81,7 +81,7 @@ use std::collections::BTreeMap;
 use craft_keymap::{Bindable, Binding, Builtins, CommandRef, ForeignSet, ImportOptions, Keymap, ProfileError, Profiles, Trigger};
 use craft_ui::contract::{Animate as _, Bind, NoValue, Pattern, SaveKey, ShowContainer as _};
 use craft_ui::dialog::{Dialog, DialogOutput};
-use craft_ui::runtime::commands::{CommandSet as _, Commands as _, EditCommands};
+use craft_ui::runtime::commands::{Commands as _, EditCommands};
 use craft_ui::runtime::overlay::CloseReason;
 use craft_ui::sections::{DialogRole, FooterButton};
 use egui::{Response, Ui};
@@ -504,7 +504,6 @@ fn frame(ui: &mut Ui, env: &mut Env<'_>, state: &mut DialogState) -> ShortcutsOu
         .remember(SaveKey::new("craft_menu.shortcuts"))
         .outer_gesture(true)
         .collection_body()
-        .command_scope(sets::SetCommand::SCOPE)
         .close_on_enter(enter)
         .buttons(buttons)
         .settle_buttons(|_, buttons| {

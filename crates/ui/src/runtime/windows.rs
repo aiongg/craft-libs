@@ -5,7 +5,7 @@
 
 use crate::runtime::cursor;
 use crate::runtime::egui::input::{self as raw_input, RawInput};
-use crate::runtime::egui::input_filter::{self, KeyEquivalent};
+use crate::runtime::egui::input_filter;
 use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::{injected, pass, scale, screenshot, viewports, widgets};
 use crate::runtime::frame::{PassStep, PerViewport, Stamped};
@@ -14,7 +14,7 @@ use craft_behavior::{Cursor, CursorIcon, CursorPriority, PartRef, PointerButton}
 #[cfg(feature = "testing")]
 use craft_host::target::Runtime;
 use craft_host::target::{Caps, DoubleClick, EdgeInsets, Os, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
-use craft_keymap::{Key, Mods};
+use craft_keymap::{Chord, Key, Mods};
 use craft_window::Button;
 use craft_window::policy::{CaptionFamily, Captions, Decision, Frame, LayoutWatch, MacInset};
 use craft_window::restore::{Placement, Store};
@@ -936,6 +936,20 @@ fn follow_layout(ctx: &Context, focused: bool) {
             captions.layout = layouts.layout().clone();
         }
     });
+}
+
+/// A key equivalent the platform's menu took from the window.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum KeyEquivalent {
+    /// The press of `chord`. The platform delivers the key-up itself.
+    Press(Chord),
+    /// A press and its release of `chord`: a click that stands for the key, so no key-up follows.
+    Tap(Chord),
+    /// The platform's copy command: egui's copy event.
+    Copy,
+    /// The platform's cut command: egui's cut event.
+    Cut,
 }
 
 /// The multi-window driver of one context.

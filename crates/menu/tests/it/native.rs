@@ -10,7 +10,12 @@ use craft_menu::{
     Backend, Builtin, ClipboardKeys, CommandRef, Dispatch, Event, Gate, ItemKind, ItemState, LayoutOptions, Menu, MenuBar, MenuRole, NativeMenu,
     Node, apply_state, mac_layout, structure_key,
 };
+use craft_ui::contract::{Props as _, Show as _};
+use craft_ui::testing::focus::key_release;
+use craft_ui::testing::input::key_press;
+use craft_ui::testing::pointer::click;
 use craft_ui::testing::{Frames, trial};
+use craft_ui::text::SelectableText;
 use egui::{Key, Modifiers};
 
 use crate::sample::{chord, cmd, held, sample, typing};
@@ -76,15 +81,35 @@ fn take_clicks(menu: &mut NativeMenu) -> Vec<CommandRef> {
 }
 
 /// What egui sees of `events` in a frame of `frames` after the menu has been polled: the window host's input
-/// filter has dropped the closing click and added the key equivalents. The menu is polled again after the frame,
-/// as in an app, so that a close the filter asked for reaches the backend.
+/// filter has dropped the closing click and added the key equivalents, and the runtime has taken the keys it owns.
+/// The menu is polled again after the frame, as in an app, so that a close the filter asked for reaches the backend.
 fn through(menu: &mut NativeMenu, frames: &mut Frames, events: Vec<egui::Event>) -> Vec<egui::Event> {
+    through_in(menu, frames, events, |_| {})
+}
+
+/// [`through`] with `show` run in the frame.
+fn through_in(menu: &mut NativeMenu, frames: &mut Frames, events: Vec<egui::Event>, mut show: impl FnMut(&mut egui::Ui)) -> Vec<egui::Event> {
     frames.ctx.set_os(egui::os::OperatingSystem::Mac);
     menu.poll(&frames.ctx);
     let mut seen = Vec::new();
-    frames.frame(events, |ui| seen = ui.ctx().input(|input| input.events.clone()));
+    frames.frame(events, |ui| {
+        seen = ui.ctx().input(|input| input.events.clone());
+        show(ui);
+    });
     menu.poll(&frames.ctx);
     seen
+}
+
+/// Selectable text that holds key focus with all of it selected: a clipboard key equivalent copies it.
+fn selected_text(frames: &mut Frames) -> impl FnMut(&mut egui::Ui) + use<> {
+    let rect = Rc::new(Cell::new(egui::Rect::NOTHING));
+    let shown = rect.clone();
+    let mut show = move |ui: &mut egui::Ui| shown.set(SelectableText::new("Note", "read me").id_salt("note").show(ui).response.rect);
+    frames.idle(3, &mut show);
+    click(frames, rect.get().center(), &mut show);
+    frames.frame(vec![key_press(Key::A, Modifiers::COMMAND)], &mut show);
+    frames.frame(vec![], &mut show);
+    show
 }
 
 /// ⌘ on a Mac keyboard, with ⇧ when `shift`: the modifiers egui reports for a key equivalent.
@@ -93,7 +118,7 @@ fn mac_cmd(shift: bool) -> Modifiers {
 }
 
 fn key(key: Key, pressed: bool, modifiers: Modifiers) -> egui::Event {
-    egui::Event::Key { key, physical_key: Some(key), pressed, repeat: false, modifiers }
+    if pressed { key_press(key, modifiers) } else { key_release(key, modifiers) }
 }
 
 fn press() -> egui::Event {
@@ -198,9 +223,14 @@ fn a_click_on_a_text_editing_item_while_typing_taps_its_shortcut() {
     assert_eq!(dispatch.chosen(&cmd("edit.undo"), Some(&undo), false, None), Event::Click(cmd("edit.undo")));
 
     menu.set_gate(typing(true));
-    events.borrow_mut().extend([Event::Tap(undo), Event::Tap(copy)]);
+    events.borrow_mut().push(Event::Tap(undo));
     let seen = through(&mut menu, &mut frames, vec![]);
-    assert_eq!(seen, [key(Key::Z, true, mac_cmd(false)), key(Key::Z, false, mac_cmd(false)), egui::Event::Copy]);
+    assert_eq!(seen, [key(Key::Z, true, mac_cmd(false)), key(Key::Z, false, mac_cmd(false))]);
+
+    let mut show = selected_text(&mut frames);
+    events.borrow_mut().push(Event::Tap(copy));
+    through_in(&mut menu, &mut frames, vec![], &mut show);
+    assert_eq!(frames.copied(), ["read me"], "the tapped Copy acts on the focused field");
     assert!(take_clicks(&mut menu).is_empty());
 }
 
@@ -429,7 +459,7 @@ fn a_stuck_open_menu_keeps_only_one_click() {
         assert_eq!(seen, [press()], "later clicks reach egui");
     }
     tracking.set(false);
-    menu.poll(&egui::Context::default());
+    menu.poll(&frames.ctx);
     tracking.set(true);
     let seen = through(&mut menu, &mut frames, vec![press()]);
     assert!(seen.is_empty());
@@ -443,14 +473,14 @@ fn clipboard_key_equivalents_reach_text_fields() {
     let events = Rc::new(RefCell::new(Vec::new()));
     let mut menu = NativeMenu::new(Box::new(Fake { events: events.clone(), ..Default::default() }));
     let equivalent = |s: &str| Event::Key(chord(s));
-    events.borrow_mut().extend([equivalent("Cmd+C"), equivalent("Cmd+X"), equivalent("Cmd+Shift+V")]);
-    let release = key(Key::C, false, Modifiers::COMMAND);
-    let seen = through(&mut menu, &mut frames, vec![release.clone()]);
-    let shift_v = key(Key::V, true, mac_cmd(true));
-    assert_eq!(seen, [egui::Event::Copy, release, egui::Event::Cut, shift_v], "⌘⇧V is an app shortcut");
+    let mut show = selected_text(&mut frames);
+    events.borrow_mut().extend([equivalent("Cmd+C"), equivalent("Cmd+Shift+V")]);
+    let seen = through_in(&mut menu, &mut frames, vec![], &mut show);
+    assert_eq!(frames.copied(), ["read me"], "⌘C copies the focused field's selection");
+    assert!(seen.contains(&key(Key::V, true, mac_cmd(true))), "⌘⇧V is an app shortcut");
 
     events.borrow_mut().push(equivalent("Cmd+V"));
-    let seen = through(&mut menu, &mut frames, vec![]);
+    let seen = through_in(&mut menu, &mut frames, vec![], &mut show);
     assert!(seen.is_empty(), "the paste comes from eframe, with the clipboard's text");
     let ctx = egui::Context::default();
     let mut out = ctx.run_ui(Default::default(), |ui| {
@@ -462,6 +492,7 @@ fn clipboard_key_equivalents_reach_text_fields() {
 
     let mut menu = NativeMenu::new(Box::new(Fake { events: events.clone(), ..Default::default() })).clipboard_keys(ClipboardKeys::Raw);
     events.borrow_mut().extend([equivalent("Cmd+C"), equivalent("Cmd+V")]);
+    let mut frames = Frames::new();
     let seen = through(&mut menu, &mut frames, vec![]);
     assert_eq!(seen, [key(Key::C, true, mac_cmd(false)), key(Key::V, true, mac_cmd(false))]);
 }

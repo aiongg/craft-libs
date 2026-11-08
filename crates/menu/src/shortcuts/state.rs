@@ -77,8 +77,8 @@ pub(crate) struct Recording {
     pub target: Target,
     /// With [`Options::double_press`]: a single press waiting [`DOUBLE_PRESS`] for its second press.
     pub waiting: Option<(Trigger, f64)>,
-    /// The recorder field has held key focus since the recording began.
-    pub focused: bool,
+    /// The recorder field has been shown since the recording began, so it took key focus.
+    pub started: bool,
 }
 
 /// The New Shortcut field's chord, waiting for Assign.
@@ -438,7 +438,7 @@ impl DialogState {
         if let Target::Cell { command, .. } | Target::Field { command } = &target {
             self.select_row(command);
         }
-        self.recording = Some(Recording { target, waiting: None, focused: false });
+        self.recording = Some(Recording { target, waiting: None, started: false });
     }
 
     pub(crate) fn stop_recording(&mut self) {

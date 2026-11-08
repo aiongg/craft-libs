@@ -5,8 +5,7 @@ use std::collections::HashSet;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use craft_keymap::{Chord, CommandRef, Key, Mods};
-use craft_ui::runtime::egui::input_filter::KeyEquivalent;
-use craft_ui::runtime::windows::{WindowAction, WindowHost};
+use craft_ui::runtime::windows::{KeyEquivalent, WindowAction, WindowHost};
 
 use crate::layout::{Clash, Layout};
 use crate::modal::ModalRules;
@@ -281,8 +280,10 @@ impl NativeMenu {
     /// clicks wait for [`NativeMenu::take_clicks`].
     ///
     /// The window host's input filter owns the edits to egui's input (`ctx`'s [`WindowHost`], the root
-    /// viewport): this hands it the key equivalents, which reach the next frame's input, and whether a native
-    /// menu is open. A click or Escape in the window closes an open native menu. AppKit can deliver it to the
+    /// viewport): this hands it the key equivalents and whether a native menu is open. The filter reads them when
+    /// the next frame's input is taken, so an app calls `poll` before that (eframe's `App::raw_input_hook`) for
+    /// the equivalents to reach the frame that follows the menu event; called inside the frame they reach the
+    /// frame after it. A click or Escape in the window closes an open native menu. AppKit can deliver it to the
     /// window while the menu is still open (asynchronous menu presentation), so while the backend reports one
     /// open, the filter takes the click or Escape out of the input: it closes the menu without starting a canvas
     /// gesture or reaching the active tool. Pointer moves stay. Only one such click is kept from egui until the

@@ -16,6 +16,7 @@ use std::borrow::Cow;
 use craft_behavior::IconId;
 use craft_behavior::{ColumnWidth, DisplayOrder, ItemSource, SelectionChange};
 use craft_keymap::chord::Platform;
+use craft_theme::variant::Tone;
 use craft_ui::buttons::Link;
 use craft_ui::contract::{BodyCx, CollectionEvent, Props as _, Scroll, Show as _, ShowCollection as _, ShowContainer as _, clicked};
 use craft_ui::display::Icon;
@@ -55,7 +56,7 @@ pub(crate) fn body(ui: &mut Ui, cx: &mut BodyCx<'_>, env: &mut Env<'_>, state: &
         }
         return;
     }
-    sets::show(ui, cx, env, state);
+    sets::show(ui, env, state);
     let browsing = state.review.is_none();
     Stack::new().enabled(browsing).show(ui, |ui, cx| header::show(ui, cx, now, env, state));
     if !browsing {
@@ -168,8 +169,8 @@ pub(super) fn recording_text(env: &Env<'_>, state: &DialogState) -> String {
 pub(super) fn warn_link(ui: &mut Ui, text: String, salt: &'static str, n: usize) -> bool {
     let mut followed = false;
     Row::new().show(ui, |ui, _| {
-        Icon::new(IconSpec::svg(IconId::new("warning"))).show(ui);
-        followed = clicked(&Link::new(text.clone()).id_salt((salt, n)).show(ui));
+        Icon::new(IconSpec::svg(IconId::new("warning"))).tone(Tone::Warn).show(ui);
+        followed = clicked(&Link::new(text.clone()).tone(Tone::Warn).id_salt((salt, n)).show(ui));
     });
     followed
 }
