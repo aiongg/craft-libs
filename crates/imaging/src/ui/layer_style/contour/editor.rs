@@ -4,7 +4,7 @@ use std::cell::Cell;
 
 use craft_behavior::EditEvent;
 use craft_ui::buttons::Button;
-use craft_ui::contract::{Bind, BodyCx, Entry, Props as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, BodyCx, Entry, Show as _, ShowContainer as _, clicked};
 use craft_ui::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
 use craft_ui::form::{Field, FieldGroup};
 use craft_ui::layout_components::Row;
@@ -126,7 +126,7 @@ impl StackDialog for ContourEditorDialog {
             .outer_gesture(true)
             .footer_extra(|ui| {
                 for (which, label) in [(Extra::Load, &words.load), (Extra::Save, &words.save), (Extra::New, &words.new)] {
-                    if Button::new(label.clone()).show(ui).clicked() {
+                    if clicked(&Button::new(label.clone()).show(ui)) {
                         extra.set(Some(which));
                     }
                 }
@@ -134,8 +134,10 @@ impl StackDialog for ContourEditorDialog {
             .show(ui, |ui, _, draft| {
                 FieldGroup::new(words.preset.clone()).show(ui, |ui, _| {
                     Field::new(words.preset.clone()).show(ui, |ui, _| {
-                        let entries: Vec<Entry<String>> =
-                            Contour::presets().into_iter().map(|preset| Entry::new(preset.name.clone(), words.contour_name(&preset.name).to_owned())).collect();
+                        let entries: Vec<Entry<String>> = Contour::presets()
+                            .into_iter()
+                            .map(|preset| Entry::new(preset.name.clone(), words.contour_name(&preset.name).to_owned()))
+                            .collect();
                         let mut name = draft.contour.name.clone();
                         let picked = Select::new(words.preset.clone(), Bind::bound(&mut name), &entries)
                             .placeholder(words.contour_name(&draft.contour.name).to_owned())
@@ -161,7 +163,7 @@ impl StackDialog for ContourEditorDialog {
                             }
                             named.set(named.get() || field.submitted);
                         });
-                        if Button::new(words.new.clone()).show(ui).clicked() {
+                        if clicked(&Button::new(words.new.clone()).show(ui)) {
                             named.set(true);
                         }
                     });

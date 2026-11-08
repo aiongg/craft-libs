@@ -5,7 +5,7 @@ use craft_behavior::geometry::selection_op::SelectionOperation;
 use craft_behavior::{EditEvent, GestureId, Mixed};
 use craft_keymap::Mods;
 use craft_theme::Srgba;
-use craft_ui::contract::{CommandSet, ReorderMove};
+use craft_ui::contract::{CommandSet, Props as _, ReorderMove};
 use craft_ui::menu::{Menu, MenuItem, PanelRow};
 use craft_ui::primitives::IconSpec;
 use craft_ui::runtime::commands::CommandRef;
@@ -205,15 +205,15 @@ impl ChannelsCommands {
         let Some(kind) = kind else { return any };
         match self {
             C::Duplicate | C::LoadSelection => true,
-            C::Delete => !matches!(kind, ChannelKind::Composite | ChannelKind::Color | ChannelKind::QuickMask { .. }),
+            C::Delete => !matches!(kind, ChannelKind::Composite | ChannelKind::Color | ChannelKind::QuickMask(_)),
             C::RenameChannel | C::MoveUp | C::MoveDown => kind.moves(),
             C::ChannelOptions => kind.has_options(),
-            C::MergeSpot | C::ConvertToAlpha => matches!(kind, ChannelKind::Spot { .. }),
-            C::ExitQuickMask => matches!(kind, ChannelKind::QuickMask { .. }),
-            C::ToggleLayerMask | C::DeleteLayerMask => matches!(kind, ChannelKind::LayerMask { .. }),
-            C::ColorIndicatesMasked | C::ColorIndicatesSelected => matches!(kind, ChannelKind::Alpha { .. } | ChannelKind::QuickMask { .. }),
+            C::MergeSpot | C::ConvertToAlpha => matches!(kind, ChannelKind::Spot(_)),
+            C::ExitQuickMask => matches!(kind, ChannelKind::QuickMask(_)),
+            C::ToggleLayerMask | C::DeleteLayerMask => matches!(kind, ChannelKind::LayerMask(_)),
+            C::ColorIndicatesMasked | C::ColorIndicatesSelected => matches!(kind, ChannelKind::Alpha(_) | ChannelKind::QuickMask(_)),
             c if c.overlay_color().is_some() || c.overlay_opacity().is_some() => {
-                matches!(kind, ChannelKind::Alpha { .. } | ChannelKind::QuickMask { .. })
+                matches!(kind, ChannelKind::Alpha(_) | ChannelKind::QuickMask(_))
             }
             _ => true,
         }
@@ -230,9 +230,9 @@ impl ChannelsCommands {
             ChannelsCommands::MoveUp | ChannelsCommands::MoveDown => move_event(rows, target, self == ChannelsCommands::MoveUp),
             ChannelsCommands::ChannelOptions => target.kind.has_options().then(|| ChannelsEvent::Options(target.key.clone())),
             ChannelsCommands::RenameChannel => None,
-            command => self
-                .applies_to(Some(target.kind))
-                .then(|| ChannelsEvent::Command { command, key: command_key(command).then(|| target.key.clone()) }),
+            command => {
+                self.applies_to(Some(target.kind)).then(|| ChannelsEvent::Command { command, key: command_key(command).then(|| target.key.clone()) })
+            }
         }
     }
 }
@@ -248,7 +248,7 @@ fn command_key(command: ChannelsCommands) -> bool {
 /// Whether alpha and spot rows may land between the places `to - 1` and `to` of `remaining` (the rows left once the
 /// moved ones are out): after another alpha or spot row, before one, or before Quick Mask.
 pub(super) fn lands(remaining: &[ChannelKind], to: usize) -> bool {
-    let before = remaining.get(to).is_some_and(|kind| kind.moves() || matches!(kind, ChannelKind::QuickMask { .. }));
+    let before = remaining.get(to).is_some_and(|kind| kind.moves() || matches!(kind, ChannelKind::QuickMask(_)));
     let after = to.checked_sub(1).and_then(|at| remaining.get(at)).is_some_and(|kind| kind.moves());
     before || after
 }
@@ -265,7 +265,13 @@ fn move_event<K: Clone + PartialEq>(rows: &[ChannelRow<K>], lead: &ChannelRow<K>
         return None;
     }
     let mv = ReorderMove::new(lead.key.clone(), vec![lead.key.clone()], to, false);
-    Some(ChannelsEvent::Reorder(EditEvent::set(GestureId::default(), Mixed::Mixed, mv, Arc::from(if up { "Move Channel Up" } else { "Move Channel Down" }), None)))
+    Some(ChannelsEvent::Reorder(EditEvent::set(
+        GestureId::default(),
+        Mixed::Mixed,
+        mv,
+        Arc::from(if up { "Move Channel Up" } else { "Move Channel Down" }),
+        None,
+    )))
 }
 
 /// A line of a row's menu.
@@ -278,12 +284,7 @@ enum Plan {
 }
 
 fn overlay_plan() -> [Plan; 4] {
-    [
-        Plan::Command(ChannelsCommands::ColorIndicatesMasked),
-        Plan::Command(ChannelsCommands::ColorIndicatesSelected),
-        Plan::Colors,
-        Plan::Opacities,
-    ]
+    [Plan::Command(ChannelsCommands::ColorIndicatesMasked), Plan::Command(ChannelsCommands::ColorIndicatesSelected), Plan::Colors, Plan::Opacities]
 }
 
 fn document_plan() -> [Plan; 5] {
@@ -302,21 +303,21 @@ fn plan(kind: Option<ChannelKind>) -> Vec<Plan> {
     let mut lines: Vec<Plan> = Vec::new();
     let mut add = |commands: &[C]| lines.extend(commands.iter().map(|c| Plan::Command(*c)));
     match kind {
-        Some(ChannelKind::Alpha { .. }) => {
+        Some(ChannelKind::Alpha(_)) => {
             add(&[C::Duplicate, C::Delete, C::RenameChannel, C::ChannelOptions]);
             lines.push(Plan::Separator);
             lines.extend(overlay_plan());
         }
-        Some(ChannelKind::Spot { .. }) => {
+        Some(ChannelKind::Spot(_)) => {
             add(&[C::Duplicate, C::Delete, C::RenameChannel, C::ChannelOptions]);
             lines.push(Plan::Separator);
             add(&[C::MergeSpot, C::ConvertToAlpha]);
         }
-        Some(ChannelKind::QuickMask { .. }) => {
+        Some(ChannelKind::QuickMask(_)) => {
             add(&[C::ExitQuickMask, C::ChannelOptions]);
             lines.extend(overlay_plan());
         }
-        Some(ChannelKind::LayerMask { .. }) => add(&[C::ToggleLayerMask, C::DeleteLayerMask, C::ChannelOptions]),
+        Some(ChannelKind::LayerMask(_)) => add(&[C::ToggleLayerMask, C::DeleteLayerMask, C::ChannelOptions]),
         Some(ChannelKind::Composite | ChannelKind::Color) => add(&[C::Duplicate]),
         None => {}
     }
@@ -358,8 +359,8 @@ fn label_of(command: ChannelsCommands, kind: Option<ChannelKind>, words: &Channe
         C::Delete => &words.delete_channel,
         C::RenameChannel => &words.rename_channel,
         C::ChannelOptions => match kind {
-            Some(ChannelKind::QuickMask { .. }) => &words.quick_mask_options,
-            Some(ChannelKind::LayerMask { .. }) => &words.mask_display_options,
+            Some(ChannelKind::QuickMask(_)) => &words.quick_mask_options,
+            Some(ChannelKind::LayerMask(_)) => &words.mask_display_options,
             _ => &words.channel_options,
         },
         C::MergeSpot => &words.merge_spot,
@@ -368,7 +369,7 @@ fn label_of(command: ChannelsCommands, kind: Option<ChannelKind>, words: &Channe
         C::ColorIndicatesMasked => &words.indicates_masked,
         C::ColorIndicatesSelected => &words.indicates_selected,
         C::ToggleLayerMask => match kind {
-            Some(ChannelKind::LayerMask { enabled: true }) => &words.disable_layer_mask,
+            Some(ChannelKind::LayerMask(true)) => &words.disable_layer_mask,
             _ => &words.enable_layer_mask,
         },
         C::DeleteLayerMask => &words.delete_layer_mask,
@@ -390,7 +391,7 @@ fn label_of(command: ChannelsCommands, kind: Option<ChannelKind>, words: &Channe
 /// The command a row menu run picked, from its entries.
 fn checked(command: ChannelsCommands, kind: Option<ChannelKind>) -> Option<bool> {
     let indicates = match kind {
-        Some(ChannelKind::Alpha { indicates } | ChannelKind::QuickMask { indicates }) => Some(indicates),
+        Some(ChannelKind::Alpha(indicates) | ChannelKind::QuickMask(indicates)) => Some(indicates),
         _ => None,
     };
     match command {
@@ -427,7 +428,8 @@ pub(super) fn show_row_menu<K>(ui: &mut Ui, opener: &Response, row: &ChannelRow<
                         for preset in OverlayPreset::ALL {
                             let [r, g, b] = preset.rgb();
                             let command = ChannelsCommands::of_preset(preset);
-                            let item = MenuItem::new(label_of(command, kind, words)).icon(IconSpec::swatch(Srgba::from(craft_theme::Rgba::rgb(r, g, b))));
+                            let item =
+                                MenuItem::new(label_of(command, kind, words)).icon(IconSpec::swatch(Srgba::from(craft_theme::Rgba::rgb(r, g, b))));
                             if item.show(ui).ran {
                                 ran = Some(command);
                             }

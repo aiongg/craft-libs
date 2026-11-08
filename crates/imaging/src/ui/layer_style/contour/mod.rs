@@ -10,7 +10,7 @@ use std::sync::Arc;
 use craft_behavior::{EditEvent, Mixed};
 use craft_ui::buttons::Button;
 use craft_ui::choice::Checkbox;
-use craft_ui::contract::{Bind, EditResponse, NoValue, Outcome, Pattern, Props as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, EditResponse, NoValue, Outcome, Pattern, Props as _, Show as _, ShowContainer as _, clicked};
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::list::ThumbAspect;
 use craft_ui::patterns::presets::{PickerField, PresetEvent, PresetFooterEvent, PresetPicker, PresetRow, PresetState};
@@ -192,11 +192,8 @@ pub fn to_curve(contour: &Contour) -> Curve {
 /// The contour a curve describes, named `name`; `None` for a drawn curve or too few or many points.
 pub fn from_curve(curve: &Curve, name: &str) -> Option<Contour> {
     let points = curve.points()?;
-    let points = points
-        .iter()
-        .enumerate()
-        .map(|(i, p)| ContourPoint { input: p[0] / LEVELS, output: p[1] / LEVELS, corner: curve.is_corner(i) })
-        .collect();
+    let points =
+        points.iter().enumerate().map(|(i, p)| ContourPoint { input: p[0] / LEVELS, output: p[1] / LEVELS, corner: curve.is_corner(i) }).collect();
     Contour::from_points(name, points)
 }
 
@@ -273,7 +270,7 @@ impl<'a> ContourField<'a> {
                     }
                 }
                 picked = Some(picker.edit);
-                if Button::new(words.edit.clone()).show(ui).clicked() {
+                if clicked(&Button::new(words.edit.clone()).show(ui)) {
                     edit_contour = Some(ContourRequest { key: label.as_str().to_owned(), contour: held.clone() });
                 }
                 if let Some(bind) = anti_alias.as_mut()

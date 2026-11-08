@@ -4,7 +4,7 @@
 mod stories;
 
 use craft_behavior::Mixed;
-use craft_ui::contract::{Bind, EditResponse, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, EditResponse, Props as _, Show as _, ShowContainer as _};
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout::RowAlign;
 use craft_ui::layout_components::{Row, Stack};
@@ -101,10 +101,8 @@ impl<'a> BlendIfBar<'a> {
                         false => craft_i18n::fmt(words.split_levels.as_str(), &[("low", &text(low)), ("high", &text(high))]),
                     }
                 };
-                let readout = craft_i18n::fmt(
-                    words.readout.as_str(),
-                    &[("black", &side(range.0[0], range.0[1])), ("white", &side(range.0[2], range.0[3]))],
-                );
+                let readout =
+                    craft_i18n::fmt(words.readout.as_str(), &[("black", &side(range.0[0], range.0[1])), ("white", &side(range.0[2], range.0[3]))]);
                 Row::new().align(RowAlign::End).show(ui, |ui, _| {
                     Text::new(readout.clone()).role(TypeRole::Caption).shade(Shade::Muted).show(ui);
                 });

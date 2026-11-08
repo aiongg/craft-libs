@@ -13,39 +13,28 @@ use super::menu::ChannelsCommands;
 
 /// What a channel row is.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum ChannelKind {
     /// The composite (RGB, CMYK, Lab): targeting it targets every colour channel.
     Composite,
     /// One colour channel (Red, Cyan, …); listed only when there is more than one and the
     /// document isn't Multichannel (the app's rule).
     Color,
-    /// An alpha channel; `indicates` is its Color Indicates setting.
-    Alpha {
-        /// Masked or selected areas.
-        indicates: ColorIndicates,
-    },
-    /// A spot channel: italic, with a swatch of its ink at the thumbnail's corner.
-    Spot {
-        /// The ink, encoded sRGB.
-        ink: Srgba,
-    },
-    /// Quick Mask, while it is on: italic, last.
-    QuickMask {
-        /// Masked or selected areas.
-        indicates: ColorIndicates,
-    },
+    /// An alpha channel with its Color Indicates setting.
+    Alpha(ColorIndicates),
+    /// A spot channel with its ink (encoded sRGB): italic, with a swatch of the ink at the thumbnail's corner.
+    Spot(Srgba),
+    /// Quick Mask, while it is on, with its Color Indicates setting: italic, last.
+    QuickMask(ColorIndicates),
     /// The selected layer's mask, a temporary channel listed while the layer is selected: italic,
-    /// named "{layer} Mask" by the app.
-    LayerMask {
-        /// The mask is enabled (its menu offers Disable, else Enable).
-        enabled: bool,
-    },
+    /// named "{layer} Mask" by the app; the flag says the mask is enabled (its menu offers Disable, else Enable).
+    LayerMask(bool),
 }
 
 impl ChannelKind {
     /// Alpha and spot channels rename in place (F2, a double click on the name).
     pub fn renames(self) -> bool {
-        matches!(self, ChannelKind::Alpha { .. } | ChannelKind::Spot { .. })
+        matches!(self, ChannelKind::Alpha(_) | ChannelKind::Spot(_))
     }
 
     /// Alpha and spot channels reorder (drag, Cmd/Ctrl+] and [).
@@ -62,7 +51,7 @@ impl ChannelKind {
     /// Spot, Quick Mask and layer-mask rows draw their name italic (temporary or special
     /// channels, PhotoCraft).
     pub fn italic(self) -> bool {
-        matches!(self, ChannelKind::Spot { .. } | ChannelKind::QuickMask { .. } | ChannelKind::LayerMask { .. })
+        matches!(self, ChannelKind::Spot(_) | ChannelKind::QuickMask(_) | ChannelKind::LayerMask(_))
     }
 }
 
@@ -72,6 +61,7 @@ pub use crate::selection::ColorIndicates;
 
 /// One of the six overlay colours of the context menu's Overlay Color.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum OverlayPreset {
     /// `#ff0000`.
     Red,
@@ -111,6 +101,7 @@ pub const OVERLAY_OPACITIES: [u8; 4] = [25, 50, 75, 100];
 /// One row of the Channels panel, built by the app once per pass in display order: Composite,
 /// the colour channels, the layer mask, the alpha and spot channels, Quick Mask (PhotoCraft's).
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct ChannelRow<K> {
     /// The app's key of the channel: the key of the row, its thumbnail and its events.
     pub key: K,
@@ -155,6 +146,7 @@ pub enum ChannelsEvent<K> {
     Visibility(EditEvent<ToggleEdit<K>>),
     /// Cmd/Ctrl-click on a row, or Cmd/Ctrl+Enter on the lead: load the channel as a selection
     /// with the operation of Shift and Alt.
+    #[non_exhaustive]
     LoadSelection {
         /// The channel.
         key: K,
@@ -162,6 +154,7 @@ pub enum ChannelsEvent<K> {
         operation: SelectionOperation,
     },
     /// A rename committed (alpha and spot rows): never empty after trimming, never unchanged.
+    #[non_exhaustive]
     Rename {
         /// The channel.
         key: K,
@@ -176,6 +169,7 @@ pub enum ChannelsEvent<K> {
     Reorder(EditEvent<ReorderMove<K>>),
     /// A click on a footer button; `rows` holds [`targeted_row`]'s key (empty without rows). `mods` are the
     /// modifiers held at the click: Alt on New asks for the channel's options first.
+    #[non_exhaustive]
     Footer {
         /// The button.
         button: ChannelsFooterButton,
@@ -186,6 +180,7 @@ pub enum ChannelsEvent<K> {
     },
     /// A row dropped on a footer button: New duplicates it, Delete deletes it (the app asks first
     /// for a layer mask), Load Channel as Selection loads it. Refused drops report nothing.
+    #[non_exhaustive]
     FooterDrop {
         /// The button.
         button: ChannelsFooterButton,
@@ -193,6 +188,7 @@ pub enum ChannelsEvent<K> {
         rows: Vec<K>,
     },
     /// A command of the set ran: a pick in the row's context menu, a key, or a panel-menu row routed to the panel.
+    #[non_exhaustive]
     Command {
         /// The command.
         command: ChannelsCommands,

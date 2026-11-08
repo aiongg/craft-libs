@@ -38,7 +38,7 @@ pub(super) struct ChannelDrag<K> {
 /// New and Load take every row; Save takes none.
 pub(super) fn accepts_footer_drop(button: ChannelsFooterButton, kind: ChannelKind) -> bool {
     match button {
-        ChannelsFooterButton::Delete => !matches!(kind, ChannelKind::Composite | ChannelKind::Color | ChannelKind::QuickMask { .. }),
+        ChannelsFooterButton::Delete => !matches!(kind, ChannelKind::Composite | ChannelKind::Color | ChannelKind::QuickMask(_)),
         ChannelsFooterButton::New | ChannelsFooterButton::LoadSelection => true,
         ChannelsFooterButton::SaveSelection => false,
     }

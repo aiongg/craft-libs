@@ -34,10 +34,10 @@ fn sample_rows() -> Vec<ChannelRow<u32>> {
         ChannelRow::new(1, ChannelKind::Color, "Red"),
         ChannelRow::new(2, ChannelKind::Color, "Green"),
         ChannelRow::new(3, ChannelKind::Color, "Blue"),
-        ChannelRow::new(ALPHA_1, ChannelKind::Alpha { indicates }, "Alpha 1"),
-        ChannelRow::new(ALPHA_2, ChannelKind::Alpha { indicates }, "Alpha 2"),
-        ChannelRow::new(6, ChannelKind::Spot { ink: Srgba::rgb(0.8, 0.0, 0.2) }, "Spot 1"),
-        ChannelRow::new(QUICK_MASK, ChannelKind::QuickMask { indicates }, "Quick Mask"),
+        ChannelRow::new(ALPHA_1, ChannelKind::Alpha(indicates), "Alpha 1"),
+        ChannelRow::new(ALPHA_2, ChannelKind::Alpha(indicates), "Alpha 2"),
+        ChannelRow::new(6, ChannelKind::Spot(Srgba::rgb(0.8, 0.0, 0.2)), "Spot 1"),
+        ChannelRow::new(QUICK_MASK, ChannelKind::QuickMask(indicates), "Quick Mask"),
     ];
     target(&mut rows, COMPOSITE);
     rows
@@ -112,8 +112,22 @@ fn editing(fixture: &Fixture) -> bool {
     !fixture.by_role(Role::TEXT_INPUT).is_empty()
 }
 
-fn drops(events: Vec<ChannelsEvent<u32>>) -> Vec<ChannelsEvent<u32>> {
-    events.into_iter().filter(|event| matches!(event, ChannelsEvent::FooterDrop { .. })).collect()
+fn drops(events: Vec<ChannelsEvent<u32>>) -> Vec<(ChannelsFooterButton, Vec<u32>)> {
+    events
+        .into_iter()
+        .filter_map(|event| if let ChannelsEvent::FooterDrop { button, rows, .. } = event { Some((button, rows)) } else { None })
+        .collect()
+}
+
+fn loads(events: Vec<ChannelsEvent<u32>>) -> Vec<(u32, SelectionOperation)> {
+    events
+        .into_iter()
+        .filter_map(|event| if let ChannelsEvent::LoadSelection { key, operation, .. } = event { Some((key, operation)) } else { None })
+        .collect()
+}
+
+fn renames(events: Vec<ChannelsEvent<u32>>) -> Vec<(u32, String)> {
+    events.into_iter().filter_map(|event| if let ChannelsEvent::Rename { key, text, .. } = event { Some((key, text)) } else { None }).collect()
 }
 
 /// A click targets the row; Shift-click reports the clicked row as the new target.
@@ -142,8 +156,7 @@ fn a_command_click_on_the_thumbnail_loads_a_selection() {
         fixture.hold(mods);
         let at = thumb(&fixture, "Alpha 1");
         fixture.click_at(at);
-        let loads: Vec<_> = take(&app).into_iter().filter(|event| matches!(event, ChannelsEvent::LoadSelection { .. })).collect();
-        assert_eq!(loads, [ChannelsEvent::LoadSelection { key: ALPHA_1, operation }], "{mods:?}");
+        assert_eq!(loads(take(&app)), [(ALPHA_1, operation)], "{mods:?}");
     }
 }
 
@@ -177,7 +190,7 @@ fn a_double_click_on_the_name_renames_an_alpha_channel_only() {
     fixture.key(Key::A, Modifiers::COMMAND);
     fixture.type_text("Sketch");
     fixture.key(Key::Enter, Modifiers::NONE);
-    assert!(take(&app).contains(&ChannelsEvent::Rename { key: ALPHA_1, text: String::from("Sketch") }));
+    assert_eq!(renames(take(&app)), [(ALPHA_1, String::from("Sketch"))]);
 }
 
 /// An alpha row dragged below another or above Quick Mask reports a move; over colour rows nothing is reported.
@@ -220,7 +233,7 @@ fn a_drop_on_the_footer_reports_the_button_and_the_key() {
     ] {
         let (from, to) = (row(&fixture, "Alpha 1").center(), row(&fixture, label).center());
         drag(&mut fixture, from, to);
-        assert_eq!(drops(take(&app)), [ChannelsEvent::FooterDrop { button, rows: vec![ALPHA_1] }], "{label}");
+        assert_eq!(drops(take(&app)), [(button, vec![ALPHA_1])], "{label}");
     }
     let (from, to) = (row(&fixture, "Alpha 1").center(), row(&fixture, "Save selection as channel").center());
     drag(&mut fixture, from, to);
@@ -236,7 +249,7 @@ fn a_footer_drop_acts_on_the_grabbed_row_while_the_composite_is_targeted() {
     let (mut fixture, app) = rig(sample_rows());
     let (from, to) = (row(&fixture, "Green").center(), row(&fixture, "Create new channel").center());
     drag(&mut fixture, from, to);
-    assert_eq!(drops(take(&app)), [ChannelsEvent::FooterDrop { button: ChannelsFooterButton::New, rows: vec![2] }]);
+    assert_eq!(drops(take(&app)), [(ChannelsFooterButton::New, vec![2])]);
 }
 
 /// Rename Channel… in a row's context menu opens that row's rename field.
@@ -282,9 +295,9 @@ fn the_keyboard_loads_a_selection() {
     fixture.click(&row(&fixture, "Alpha 2"));
     take(&app);
     fixture.key(Key::Enter, Modifiers::COMMAND);
-    assert!(take(&app).contains(&ChannelsEvent::LoadSelection { key: ALPHA_2, operation: SelectionOperation::New }));
+    assert_eq!(loads(take(&app)), [(ALPHA_2, SelectionOperation::New)]);
     fixture.key(Key::Enter, Modifiers::COMMAND | Modifiers::SHIFT);
-    assert!(take(&app).contains(&ChannelsEvent::LoadSelection { key: ALPHA_2, operation: SelectionOperation::Add }));
+    assert_eq!(loads(take(&app)), [(ALPHA_2, SelectionOperation::Add)]);
 }
 
 /// The footer acts on the targeted row: a composite target has nothing to delete.

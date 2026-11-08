@@ -8,14 +8,15 @@ use std::hash::Hash;
 use craft_behavior::geometry::selection_op::SelectionOperation;
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, ItemSource, Selection, SelectionChange};
 use craft_ui::contract::{
-    Bind, CollectionEvent, ColumnKind, ColumnSpec, ListDrag, Props as _, ReorderRule, ShowCollection as _, ShowContainer as _,
-    ToggleColumn, request_rename,
+    Bind, CollectionEvent, ColumnKind, ColumnSpec, ListDrag, Props as _, ReorderRule, ShowCollection as _, ShowContainer as _, ToggleColumn,
+    request_rename,
 };
 use craft_ui::layout_components::Stack;
 use craft_ui::list::{List, RowEvent, ThumbSize, ThumbTarget};
 use craft_ui::primitives::textures::{ThumbSource, Thumbnails};
 use craft_ui::runtime::commands::CommandState;
 use craft_ui::runtime::env::{Env, Label};
+use craft_ui::runtime::memory::Remember as _;
 use egui::Ui;
 
 use super::footer::{ChannelDrag, show_footer};

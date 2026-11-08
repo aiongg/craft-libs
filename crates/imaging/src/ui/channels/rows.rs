@@ -59,7 +59,7 @@ fn named(pattern: &Label, row: &str) -> Label {
 pub(super) fn channel_row<'r, K: Clone + Eq + Hash + Debug + Send + Sync + 'static>(cx: &'r RowContext<'r, K>, at: usize) -> ListRow<'r> {
     let row = &cx.rows[at];
     let words = cx.words;
-    let tooltip = if matches!(row.kind, ChannelKind::LayerMask { .. }) { &words.mask_overlay } else { &words.toggle_visibility };
+    let tooltip = if matches!(row.kind, ChannelKind::LayerMask(_)) { &words.mask_overlay } else { &words.toggle_visibility };
     let eye = ToggleCell::eye(EYE, row.visible, named(&Label::from(words.visibility.clone()), &row.name)).tooltip(tooltip.clone());
     let mut list_row = ListRow::new(row.name.clone()).layer(true).toggle(eye).italic(row.kind.italic());
     if !row.visible {
@@ -68,7 +68,7 @@ pub(super) fn channel_row<'r, K: Clone + Eq + Hash + Debug + Send + Sync + 'stat
     if cx.size != ThumbSize::None {
         let (host, key) = (cx.thumbs, row.key.clone());
         let ink = match row.kind {
-            ChannelKind::Spot { ink } => Some(ink),
+            ChannelKind::Spot(ink) => Some(ink),
             _ => None,
         };
         list_row = list_row.thumb(cx.size, move |painter, rect| {
