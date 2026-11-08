@@ -149,6 +149,11 @@ impl Frames {
         self.modifiers = modifiers;
     }
 
+    /// The modifiers [`Frames::hold`] keeps.
+    pub(crate) fn held(&self) -> egui::Modifiers {
+        self.modifiers
+    }
+
     /// Files named `names` are dragged over the window from the OS, in this frame and every following one until they
     /// drop or leave.
     pub fn hover_files(&mut self, names: &[&str]) {

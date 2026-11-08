@@ -495,9 +495,13 @@ fn hover_pointer(frame: &PointerFrame, press: PressState) -> Option<ToolPointer>
 }
 
 /// Every key without Ctrl or Cmd, with and without Shift: the keys a tool that kept the keyboard types with. The
-/// app's chords (Cmd+Z, Cmd+S) still run.
+/// app's chords (Cmd+Z, Cmd+S) still run. Enter, Escape, Delete and Backspace are left out: they reach the tool as
+/// the intents `Run::keys` offers (`Submit`, `Cancel`, `Delete`) whether it keeps the keyboard or not.
 fn kept_chords() -> impl Iterator<Item = Chord> {
-    Key::ALL.iter().flat_map(|key| [Mods::NONE, Mods::SHIFT].map(|mods| Chord::new(mods, *key)))
+    Key::ALL
+        .iter()
+        .filter(|key| !matches!(key, Key::Enter | Key::Escape | Key::Delete | Key::Backspace))
+        .flat_map(|key| [Mods::NONE, Mods::SHIFT].map(|mods| Chord::new(mods, *key)))
 }
 
 /// The sample of a press at `pos` taken at `time`: the button the press runs with, and its sample.

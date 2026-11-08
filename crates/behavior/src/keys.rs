@@ -28,7 +28,9 @@ pub struct KeyRole {
     pub digits: bool,
     /// A value control: Alt with an arrow is a fine move.
     pub value: bool,
-    /// The stop is a text part: Alt+Left and Alt+Right keep their word-move rows.
+    /// The stop is a text part: Alt+Left and Alt+Right keep their word-move rows, and Alt with Delete or Backspace
+    /// is the platform's word delete. Any other role that deletes takes them whatever Alt is held, and Alt never makes
+    /// them a word delete.
     pub text: bool,
     /// The component acts on the arrow moves routed to it: they are not shortcut candidates.
     pub moves: bool,
@@ -265,8 +267,11 @@ fn movement(mac: bool, key: Key, mods: Mods, role: KeyRole) -> Option<Intent> {
         }
         Key::PageUp if !mods.alt && !mods.cmd && !mods.ctrl => moved(NavMove::PageUp, Granularity::Unit),
         Key::PageDown if !mods.alt && !mods.cmd && !mods.ctrl => moved(NavMove::PageDown, Granularity::Unit),
-        Key::Delete | Key::Backspace if role.deletes && (!mods.alt || mac) => {
-            let by = if by_word { Granularity::Word } else { Granularity::Unit };
+        // Alt is a word only in text. A canvas tool or a collection reads it as its own modifier: Photoshop's
+        // polygonal lasso removes its last point on Backspace while Alt holds the freehand switch.
+        Key::Delete | Key::Backspace if role.deletes && (!mods.alt || mac || !role.text) => {
+            let word = if mac { mods.alt && role.text } else { mods.cmd };
+            let by = if word { Granularity::Word } else { Granularity::Unit };
             Some(Intent::Delete { forward: key == Key::Delete, by, shift: mods.shift })
         }
         _ => None,
@@ -359,6 +364,22 @@ mod tests {
         check(Os::Mac, Key::Left, Mods::ALT, text, Some(Intent::Move(NavMove::Back, word)));
         check(Os::Mac, Key::Left, Mods::ALT, number, Some(Intent::Move(NavMove::Back, word)));
         check(Os::Linux, Key::Right, Mods::ALT, number, None);
+    }
+
+    #[test]
+    fn alt_deletes_a_word_in_text_and_a_unit_elsewhere() {
+        let tool = KeyRole::new().nudge(true).deletes(true);
+        let text = KeyRole::new().text(true).deletes(true);
+        let alt_shift = Mods { shift: true, ..Mods::ALT };
+        for os in [Os::Linux, Os::Windows, Os::Mac] {
+            check(os, Key::Backspace, Mods::ALT, tool, Some(Intent::delete(false, Granularity::Unit)));
+            check(os, Key::Delete, Mods::ALT, tool, Some(Intent::delete(true, Granularity::Unit)));
+            check(os, Key::Backspace, alt_shift, tool, Some(Intent::shift_delete(false, Granularity::Unit)));
+            check(os, Key::Backspace, NONE, text, Some(Intent::delete(false, Granularity::Unit)));
+        }
+        check(Os::Mac, Key::Backspace, Mods::ALT, text, Some(Intent::delete(false, Granularity::Word)));
+        check(Os::Linux, Key::Backspace, Mods::ALT, text, None);
+        check(Os::Windows, Key::Backspace, Mods::CMD, text, Some(Intent::delete(false, Granularity::Word)));
     }
 
     #[test]
