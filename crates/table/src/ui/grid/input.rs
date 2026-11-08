@@ -38,6 +38,7 @@ const ESCAPE: Chord = Chord::plain(Key::Escape);
 const F2: Chord = Chord::plain(Key::F2);
 const HOME: Chord = Chord::plain(Key::Home);
 const CMD_HOME: Chord = Chord::new(Mods::CMD, Key::Home);
+const END: Chord = Chord::plain(Key::End);
 const CMD_END: Chord = Chord::new(Mods::CMD, Key::End);
 const NEXT_SHEET: Chord = Chord::new(Mods::CMD, Key::PageDown);
 const PREVIOUS_SHEET: Chord = Chord::new(Mods::CMD, Key::PageUp);
@@ -147,18 +148,15 @@ impl CellGrid<'_> {
         let home = cx.take_claimed(HOME);
         let cmd_home = cx.take_claimed(CMD_HOME);
         let cmd_end = cx.take_claimed(CMD_END);
+        let end = cx.take_claimed(END);
         let next_sheet = cx.take_claimed(NEXT_SHEET);
         let previous_sheet = cx.take_claimed(PREVIOUS_SHEET);
         let column_key = cx.take_claimed(COLUMN_KEY);
         let row_key = cx.take_claimed(ROW_KEY);
         let inputs: Vec<EditorInput> = cx.editor_input().collect();
-        // End mode (Excel): a bare End toggles it in Ready mode. The key stage routes the bare End to a grid that
-        // declares `EndKey::EndMode`; in an edit it moves the caret like any editor input.
-        let is_end = |input: &EditorInput| {
-            matches!(input, EditorInput::Move(craft_behavior::NavMove::End, mods)
-                if !mods.extend && !mods.lead && mods.by == craft_behavior::Granularity::Line)
-        };
-        let end = state.mode == Mode::Ready && inputs.iter().any(is_end);
+        // End mode (Excel): a bare End toggles it in Ready mode. The key stage hands the bare End to a grid that
+        // declares `EndKey::EndMode` as a claimed chord; in an edit it moves the caret.
+        let end_mode_key = end && state.mode == Mode::Ready;
         // Any key other than an arrow or End, and any press, ends the mode.
         let other_key = escape
             || advance.is_some()
@@ -170,9 +168,9 @@ impl CellGrid<'_> {
             || previous_sheet
             || column_key
             || row_key
-            || inputs.iter().any(|input| !is_end(input));
+            || !inputs.is_empty();
         let armed = state.mode == Mode::Ready && state.end_mode;
-        state.end_mode = if end { !armed } else { armed && arrows.is_empty() && !other_key && !cx.response.is_pointer_button_down_on() };
+        state.end_mode = if end_mode_key { !armed } else { armed && arrows.is_empty() && !other_key && !cx.response.is_pointer_button_down_on() };
 
         let mut deferred = Vec::new();
         let mut edits = Vec::new();
@@ -244,6 +242,12 @@ impl CellGrid<'_> {
                         selection.select(to, &space);
                     }
                 }
+            }
+            if state.mode != Mode::Ready && end && !state.pointing() {
+                state.draft.apply(EditorInput::Move(
+                    craft_behavior::NavMove::End,
+                    craft_behavior::MoveMods::new(false, false, craft_behavior::Granularity::Line),
+                ));
             }
             if state.mode == Mode::Edit && home {
                 state.draft.apply(EditorInput::Move(craft_behavior::NavMove::Start, craft_behavior::MoveMods::PLAIN));

@@ -13,7 +13,7 @@ use crate::runtime::sampler;
 use craft_behavior::focus::key_owner;
 use craft_behavior::focus::{EscapeFacts, EscapeStep, escape_step};
 use craft_behavior::keys;
-use craft_behavior::{AccessRequest, CancelRule, EditCommand, EditorInput, Granularity, Intent, KeyOwner, MoveMods, NavMove, OwnerClass, PartRef};
+use craft_behavior::{AccessRequest, CancelRule, EditCommand, EditorInput, Intent, KeyOwner, MoveMods, NavMove, OwnerClass, PartRef};
 use craft_host::target::Os;
 use craft_keymap::{Chord, Key, KeyInput, Layout, Mods};
 use egui::{Context, Id, Vec2, ViewportId};
@@ -419,6 +419,11 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
         let mut claims = record.claims.clone();
         claims.extend(stage.claims.iter().filter(|(owner, _)| Some(*owner) == record.focused).map(|(_, chord)| *chord));
         claims.extend(stage.captures.iter().map(|(_, chord)| *chord));
+        // A bare End belongs to a stop that declares `EndKey::EndMode`: it reads the key as a claimed chord and toggles
+        // its mode, so no collection navigation or scroll owner takes it as a move to the end.
+        if keys.is_some_and(|keys| keys.end == EndKey::EndMode) {
+            claims.push(Chord::plain(Key::End));
+        }
         let edits = |command| keys.is_some_and(|keys| keys.edits.contains(command));
         stage.layout.set_latin(input.keyboard_layout_is_latin);
         let strip = Strip {
@@ -840,12 +845,6 @@ fn route_press(
         if !press.repeat {
             routed.entry(id).or_default().chords.push(Chord { mods: press.mods, key: press.key });
         }
-        return Taken::Yes;
-    }
-    // A bare End goes to a stop that declares `EndKey::EndMode` as itself (its mode toggle), not to a row's collection, a
-    // roving group or the scroll owner around it.
-    if stop.keys.end == EndKey::EndMode && press.key == Key::End && plain {
-        push(routed, id, Intent::Move(NavMove::End, MoveMods::new(false, false, Granularity::Line)), false);
         return Taken::Yes;
     }
     let mut taken = Taken::Yes;

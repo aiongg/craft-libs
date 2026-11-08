@@ -12,7 +12,6 @@ use craft_automation::ui::actions::{
 use craft_behavior::{EditEvent, Mixed};
 use craft_keymap::Platform;
 use craft_ui::contract::Role;
-use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, Target, pointer, trial};
 use egui::{Key, Modifiers, Pos2, Ui, Vec2};
 
@@ -391,9 +390,10 @@ fn actions_panel_context_menu_reopens_from_the_hosts_shortcut() {
             let row = node(&fixture, "Sharpen");
             context_click(&mut fixture, &row);
         } else {
-            // A secondary click moves no key focus: the row takes it, then Shift+F10 asks for the lead's menu.
+            // A secondary click moves no key focus: a primary click puts it on the row, then Shift+F10 asks for the
+            // menu of the lead.
             let row = node(&fixture, "Sharpen");
-            fixture.access(AccessActionKind::Focus, &row);
+            fixture.click(&row);
             fixture.key(Key::F10, Modifiers::SHIFT);
             fixture.idle(3);
         }
