@@ -10,8 +10,8 @@
 use super::track::{self, Pick, Press, Scale, SliderScale, TrackFace, Travel};
 use super::words::ValueDragWords;
 use crate::contract::{
-    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Numeric, PaintUi, PartsCx, Pointer as _,
-    Remember as _, Role, WordSetCx as _,
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Numeric, Outcome, PaintUi, PartsCx,
+    Pointer as _, Remember as _, Role, WordSetCx as _,
 };
 use crate::primitives::{PaintShape, StrokeWidth};
 use crate::runtime::access::Name;
@@ -21,6 +21,7 @@ use crate::style::{ComponentStyle, DataColor, FocusLook, StyleColor, StyleCx, Tr
 use craft_behavior::nav::{LARGE_STEPS, StepResult, ValueAxes, ValueSteps, step_value};
 use craft_behavior::part::PartRef;
 use craft_behavior::{HitLevel, HitPriority, Metrics, Mixed, MoveMods, NavMove, PartKey, PressPhase, PressState, Sense, Wheel, wheel_step};
+use craft_keymap::Mods;
 use craft_theme::{Rgba, Stateful, States};
 use egui::{Pos2, Rect, Vec2, pos2};
 use std::ops::RangeInclusive;
@@ -116,6 +117,7 @@ pub struct Thumb {
     reset: Option<f64>,
     falling: bool,
     split: bool,
+    alt_reports: bool,
 }
 
 impl Thumb {
@@ -132,6 +134,7 @@ impl Thumb {
             reset: None,
             falling: false,
             split: false,
+            alt_reports: false,
         }
     }
 
@@ -182,6 +185,14 @@ impl Thumb {
     #[must_use]
     pub fn split(mut self) -> Self {
         self.split = true;
+        self
+    }
+
+    /// Alt held on a drag of this thumb is reported in [`ThumbRowOutput::held`] and is not the fine scale: the thumb
+    /// moves at full rate (a levels black or white point, where Alt shows the clipped pixels).
+    #[must_use]
+    pub fn alt_reports(mut self) -> Self {
+        self.alt_reports = true;
         self
     }
 
@@ -496,7 +507,7 @@ impl<'r, const N: usize> Layout<'r, N> {
         let travel = Travel { track: self.left..self.right, units: rules.scale.min..=rules.scale.max, rtl: self.rtl };
         let half = rules.partner(i).filter(|_| !self.alone);
         // Alt moves one half of a split thumb alone: that drag is not scaled finer.
-        let fine = !click && !(self.alone && rules.partner(i).is_some());
+        let fine = !click && !rules.thumbs[i].alt_reports && !(self.alone && rules.partner(i).is_some());
         let Some(at) = travel.value(press, placed_at, state, fine) else { return out };
         let value = rules.thumbs[i].follow.map_or(at, |f| (f.value_at)(&from, at));
         // A jump in a wrapping row goes the short way round, in an anchored row forward from the first thumb.
@@ -571,6 +582,43 @@ struct Held {
     anchor: Vec<Mixed<f64>>,
     press: Option<Press>,
     alone: bool,
+    /// The thumb the pointer moves now, and the modifiers held in the latest pass of the drag.
+    thumb: Option<usize>,
+    mods: Mods,
+}
+
+/// The thumb a running drag moves and the modifiers held on it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct ThumbHold {
+    /// The thumb's index in the row.
+    pub thumb: usize,
+    /// The modifiers held in this pass.
+    pub mods: Mods,
+}
+
+/// What a [`ThumbRow`] reports: the edit, and the thumb being dragged.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct ThumbRowOutput<const N: usize> {
+    /// The row's edit.
+    pub edit: EditResponse<[Mixed<f64>; N]>,
+    /// The drag in progress: its thumb and the modifiers held, so an editor can show what Alt means on a thumb that
+    /// asked for [`Thumb::alt_reports`]. `None` when no drag runs.
+    pub held: Option<ThumbHold>,
+}
+
+impl<const N: usize> Outcome for ThumbRowOutput<N> {
+    type Value = [Mixed<f64>; N];
+
+    fn response(&self) -> &egui::Response {
+        &self.edit.response
+    }
+
+    #[cfg(feature = "testing")]
+    fn story_facts(&self) -> crate::testing::StoryOutput {
+        self.edit.story_facts()
+    }
 }
 
 /// The direction of the thumb when the value falls toward the end of the row.
@@ -671,7 +719,7 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
     const OVERLAYS: bool = false;
     const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_keep(KeepKeys::BlockArrows).with_activate(ActivateKeys::Neither);
     type Style = ThumbRowStyle;
-    type Output = EditResponse<[Mixed<f64>; N]>;
+    type Output = ThumbRowOutput<N>;
 
     fn style(cx: &StyleCx<'_>, _: ThumbRowStyleKey<N>) -> ThumbRowStyle {
         let control = cx.control();
@@ -759,16 +807,22 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
                 PressPhase::DragStart { start, pos, .. } => {
                     let layout = Layout::new(rules, rect, size, rtl, reach, press.mods.alt);
                     if let Some(picked) = layout.press(&rules.placed(&row), start.origin.x) {
-                        *cx.memory::<Held>() = Held { anchor: row.to_vec(), press: Some(picked), alone: press.mods.alt };
-                        if let Some(thumb) = picked.thumb(start.origin.x, pos.x) {
+                        let thumb = picked.thumb(start.origin.x, pos.x);
+                        *cx.memory::<Held>() = Held { anchor: row.to_vec(), press: Some(picked), alone: press.mods.alt, thumb, mods: press.mods };
+                        if let Some(thumb) = thumb {
                             cx.focus_part(THUMB.at(thumb as u64));
                         }
                         cx.begin();
                         cx.propose(layout.moved(&row, picked, &press, false));
                     }
                 }
-                PressPhase::Drag { .. } => {
+                PressPhase::Drag { start, pos, .. } => {
                     let held = cx.memory::<Held>().clone();
+                    if let Some(picked) = held.press {
+                        let now = cx.memory::<Held>();
+                        now.thumb = picked.thumb(start.origin.x, pos.x);
+                        now.mods = press.mods;
+                    }
                     if let (Some(picked), Ok(anchor)) = (held.press, <[Mixed<f64>; N]>::try_from(held.anchor)) {
                         let layout = Layout::new(rules, rect, size, rtl, reach, held.alone);
                         cx.propose(layout.moved(&anchor, picked, &press, false));
@@ -895,7 +949,9 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
         }
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> EditResponse<[Mixed<f64>; N]> {
-        cx.edit_response()
+    fn finish(self, mut cx: Cx<'_, Self>) -> ThumbRowOutput<N> {
+        let running = cx.gesture().is_some();
+        let held = running.then(|| cx.memory::<Held>().clone()).and_then(|held| held.thumb.map(|thumb| ThumbHold { thumb, mods: held.mods }));
+        ThumbRowOutput { edit: cx.edit_response(), held }
     }
 }
