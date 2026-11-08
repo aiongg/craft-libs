@@ -347,6 +347,23 @@ impl AccessTree {
         self.lookup(NodeId(key.0))
     }
 
+    /// Whether the node lies inside a component whose horizontal axis keeps its left-to-right order
+    /// (`Component::LTR_AXIS`): an ancestor declares left-to-right text direction on a node that is not a text run,
+    /// which only that declaration does.
+    pub fn in_ltr_axis(&self, key: NodeKey) -> bool {
+        let mut at = self.parent_of_key(key);
+        while let Some(node) = at {
+            if self
+                .data_of(node)
+                .is_some_and(|data| data.role() != accesskit::Role::TextRun && data.text_direction() == Some(accesskit::TextDirection::LeftToRight))
+            {
+                return true;
+            }
+            at = self.parent_of_key(node);
+        }
+        false
+    }
+
     /// Every node that assistive technology reports.
     pub fn keys(&self) -> Vec<NodeKey> {
         self.update.nodes.iter().filter(|(key, node)| !node.is_hidden() && !self.below_hidden.contains(key)).map(|(key, _)| NodeKey(key.0)).collect()
