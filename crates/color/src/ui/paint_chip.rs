@@ -848,14 +848,14 @@ impl<'a> PaintList<'a> {
                     item = item.trailing_part(
                         SELECT_USERS,
                         TrailingFace::Icon(IconSpec::svg(IconId::new("layers"))),
-                        words.select_users.fill(&[("name", name.as_str())]).into(),
+                        Label::from(words.select_users.fill(&[("name", name.as_str())])),
                     );
                 }
                 if options.remove {
                     item = item.trailing_part(
                         REMOVE,
                         TrailingFace::Icon(IconSpec::svg(IconId::new("minus"))),
-                        words.remove.fill(&[("name", name.as_str())]).into(),
+                        Label::from(words.remove.fill(&[("name", name.as_str())])),
                     );
                 }
                 item
