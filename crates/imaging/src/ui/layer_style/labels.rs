@@ -1,6 +1,7 @@
-//! The words of the Layer Style dialog, the Blend If bar and the contour field.
+//! The words of the Layer Style dialog: pages, effects, fields, choices and the Blending Options page.
 
 use crate::layer_style::EffectKind;
+use craft_ui::runtime::env::Label;
 
 craft_ui::words! {
     /// Every word of the Layer Style dialog, English by default: pages, effect names, field
@@ -9,7 +10,7 @@ craft_ui::words! {
     /// it ([`field`](Self::field), [`choice`](Self::choice), [`effect`](Self::effect)); an
     /// app's own specs show their own labels.
     #[non_exhaustive]
-    pub struct LayerStyleLabels {
+    pub struct LayerStyleWords {
         /// The effect list's accessible name.
         effects: "layerStyle.effects" = "Effects";
         styles: "layerStyle.styles" = "Styles";
@@ -25,11 +26,11 @@ craft_ui::words! {
         outer_glow: "layerStyle.effect.outerGlow" = "Outer Glow";
         drop_shadow: "layerStyle.effect.dropShadow" = "Drop Shadow";
         /// The `+` button's accessible name; `{effect}` is the effect's name.
-        add_instance: "layerStyle.addInstance" = "Add another {effect}";
+        add_instance: template "layerStyle.addInstance" = "Add another {effect}";
         /// The `−` button's accessible name.
-        remove_instance: "layerStyle.removeInstance" = "Remove this {effect}";
+        remove_instance: template "layerStyle.removeInstance" = "Remove this {effect}";
         /// The name of the instance `{number}` of an effect that has several: "Drop Shadow 2".
-        instance_name: "layerStyle.instanceName" = "{effect} {number}";
+        instance_name: template "layerStyle.instanceName" = "{effect} {number}";
         preview: "layerStyle.preview" = "Preview";
         new_style: "layerStyle.newStyle" = "New Style…";
         make_default: "layerStyle.makeDefault" = "Make Default";
@@ -37,7 +38,7 @@ craft_ui::words! {
         /// The colour picker's title for an effect colour.
         color_picker_title: "layerStyle.colorPickerTitle" = "Color Picker (Layer Style Color)";
         /// One line over a page whose host values have the wrong type; `{field}` names the first.
-        invalid_value: "layerStyle.invalidValue" = "{field} has a value this page can't show. It is kept as it is.";
+        invalid_value: template "layerStyle.invalidValue" = "{field} has a value this page can't show. It is kept as it is.";
         blend_mode: "layerStyle.field.blend" = "Blend Mode";
         color: "layerStyle.field.color" = "Color";
         opacity: "layerStyle.field.opacity" = "Opacity";
@@ -119,10 +120,9 @@ craft_ui::words! {
     }
 }
 
-impl LayerStyleLabels {
+impl LayerStyleWords {
     /// The name of `kind` ("Drop Shadow").
-    pub fn effect(&self, kind: EffectKind) -> &str {
-        // pc: crates/ui-egui/src/dialogs/layer_style.rs:53-64 `KINDS` (the second column).
+    pub fn effect(&self, kind: EffectKind) -> &Label {
         match kind {
             EffectKind::BevelEmboss => &self.bevel_emboss,
             EffectKind::Stroke => &self.stroke,
@@ -141,8 +141,7 @@ impl LayerStyleLabels {
     /// built-in tables don't have, so the page shows the spec's own label. Bevel & Emboss's
     /// `contour` check is "Contour", its `contourName` row has no label, `contourRange` is
     /// "Range".
-    pub fn field(&self, key: &str) -> Option<&str> {
-        // pc: crates/ui-egui/src/dialogs/layer_style.rs:90-216 `spec` (keys and labels).
+    pub fn field(&self, key: &str) -> Option<&Label> {
         let label = match key {
             "blend" => &self.blend_mode,
             "color" => &self.color,
@@ -189,8 +188,7 @@ impl LayerStyleLabels {
 
     /// The label of a built-in choice value (`"chiselHard"` → "Chisel Hard"; Gradient Overlay's
     /// `"angle"` style → "Angle"); `None` for another value.
-    pub fn choice(&self, value: &str) -> Option<&str> {
-        // pc: crates/ui-egui/src/dialogs/layer_style.rs:91-97 (choice tables), :1084-1094 (methods).
+    pub fn choice(&self, value: &str) -> Option<&Label> {
         let label = match value {
             "softer" => &self.softer,
             "precise" => &self.precise,
@@ -218,67 +216,5 @@ impl LayerStyleLabels {
             _ => return None,
         };
         Some(label)
-    }
-}
-
-craft_ui::words! {
-    /// The accessible names of a [`BlendIfBar`](super::BlendIfBar)'s handles, English by default.
-    #[non_exhaustive]
-    pub struct BlendIfBarLabels {
-        black_low: "blendIf.blackLow" = "Black low";
-        black_high: "blendIf.blackHigh" = "Black high";
-        white_low: "blendIf.whiteLow" = "White low";
-        white_high: "blendIf.whiteHigh" = "White high";
-        /// A handle's name: `{handle}` is one of the four above, `{layer}` the bar's name ("This
-        /// Layer").
-        handle: "blendIf.handle" = "{handle}, {layer}";
-        /// A split side's levels in the readout: `{low}` and `{high}`.
-        split_levels: "blendIf.splitLevels" = "{low} / {high}";
-        /// The readout over the bar: `{black}` is the black handles' side, `{white}` the white
-        /// handles'.
-        readout: "blendIf.readout" = "{black}    {white}";
-    }
-}
-
-craft_ui::words! {
-    /// The words of a [`ContourField`](super::ContourField), its preset picker and the Contour
-    /// Editor, English by default.
-    #[non_exhaustive]
-    pub struct ContourFieldLabels {
-        /// The thumbnail's accessible name and tooltip: it opens the editor.
-        editor: "contourField.editor" = "Contour Editor";
-        /// The picker arrow's accessible name.
-        presets: "contourField.presets" = "Contour presets";
-        anti_aliased: "contourField.antiAliased" = "Anti-aliased";
-        load_contours: "contourField.loadContours" = "Load Contours…";
-        replace_contours: "contourField.replaceContours" = "Replace Contours…";
-        save_contours: "contourField.saveContours" = "Save Contours…";
-        delete_contour: "contourField.deleteContour" = "Delete Contour";
-        preset: "contourField.preset" = "Preset";
-        input: "contourField.input" = "Input:";
-        output: "contourField.output" = "Output:";
-        corner: "contourField.corner" = "Corner";
-        new: "contourField.new" = "New…";
-        load: "contourField.load" = "Load…";
-        save: "contourField.save" = "Save…";
-        name: "contourField.name" = "Name";
-        /// The name New… suggests for the edited curve.
-        suggested_name: "contourField.suggestedName" = "Contour";
-        /// The built-in presets' names (Photoshop's), and the name of an edited preset.
-        preset_linear: "contourField.presetLinear" = "Linear";
-        preset_cone: "contourField.presetCone" = "Cone";
-        preset_cone_inverted: "contourField.presetConeInverted" = "Cone - Inverted";
-        preset_cove_deep: "contourField.presetCoveDeep" = "Cove - Deep";
-        preset_cove_shallow: "contourField.presetCoveShallow" = "Cove - Shallow";
-        preset_gaussian: "contourField.presetGaussian" = "Gaussian";
-        preset_half_round: "contourField.presetHalfRound" = "Half Round";
-        preset_ring: "contourField.presetRing" = "Ring";
-        preset_ring_double: "contourField.presetRingDouble" = "Ring - Double";
-        preset_rolling_slope: "contourField.presetRollingSlope" = "Rolling Slope - Descending";
-        preset_rounded_steps: "contourField.presetRoundedSteps" = "Rounded Steps";
-        preset_sawtooth: "contourField.presetSawtooth" = "Sawtooth 1";
-        preset_custom: "contourField.presetCustom" = "Custom";
-        ok: "" = "OK";
-        cancel: "" = "Cancel";
     }
 }

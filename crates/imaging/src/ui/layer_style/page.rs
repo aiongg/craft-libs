@@ -1,56 +1,50 @@
-//! The effect page: one row per field of the effect's [`EffectSpec`], drawn by kind.
+//! The effect page: one field per entry of the effect's [`EffectSpec`], drawn by kind.
 
-use egui::{AsIdSalt, Id, Modifiers, Ui, UiBuilder};
+use std::rc::Rc;
 
+use craft_behavior::{EditEvent, GestureId, Mixed, NumberCodec};
+use craft_theme::variant::Tone;
 use craft_theme::{Srgba, TypeRole};
-use craft_ui::composites::{Sampler, SliderRow};
-use craft_ui::controls::{AngleDial, BlendChoice, Button, Checkbox, Select, Swatch};
-use craft_ui::dialog::ColorRequest;
-use craft_ui::direction;
-use craft_ui::edit::parts::{self, Edits};
-use craft_ui::edit::{self, EditEvent, EditPolicy, EditResponse, Gesture};
-use craft_ui::localized::{LocaleNumbers, Unit};
-use craft_ui::primitives::{Content, Gap, Row, Stack, Text};
-use craft_ui::theme::{Tokens, TokensOf as _, role_format};
+use craft_ui::buttons::Button;
+use craft_ui::choice::{Checkbox, Swatch};
+use craft_ui::contract::{Bind, EditResponse, Entry, Props as _, Show as _, ShowContainer as _, clicked};
+use craft_ui::display::Text;
+use craft_ui::form::{Field, FieldGroup, SliderField};
+use craft_ui::layout::RowAlign;
+use craft_ui::layout_components::Row;
+use craft_ui::patterns::presets::{PresetPicker, PresetRow, PresetState};
+use craft_ui::pickers::Select;
+use craft_ui::runtime::env::{Label, UnitKind, Units};
+use craft_ui::runtime::requests::ColorRequest;
+use craft_ui::text::NumberField;
+use craft_ui::value_drag::AngleDial;
+use egui::Ui;
 
-use super::LayerStyleDialog;
 use super::blending::BlendingOp;
-use super::contour::{ContourAction, ContourField, ContourRequest};
-use super::labels::{ContourFieldLabels, LayerStyleLabels};
-use super::list::ListOp;
+use super::contour::{ContourAction, ContourField, ContourKey, ContourRequest, ContourWords, contour_rows};
+use super::labels::LayerStyleWords;
 use crate::layer_style::{
-    Contour, EffectField, EffectId, EffectInstance, EffectSpec, FieldKind, FieldUnit, LayerStyle, LayerStyleDraft, StyleParams, StyleValue,
+    Contour, EffectField, EffectId, EffectInstance, EffectKind, EffectSpec, FieldKind, FieldUnit, LayerStyle, LayerStyleDraft, StyleParams, StyleValue,
 };
+use crate::ui::curve::CurveSampler;
 
-/// A pattern the host offers for Pattern Overlay: its key (stored in the `pattern` parameter)
-/// and its name.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PatternChoice {
-    /// The pattern's key, stored in the `pattern` parameter.
-    pub key: String,
-    /// The pattern's name.
-    pub label: String,
-}
+/// The angle field shows whole degrees.
+const WHOLE: usize = 0;
+/// The angle dial's range, in degrees.
+const ANGLE_RANGE: std::ops::RangeInclusive<f64> = -180.0..=180.0;
 
-/// What an effect page reads besides the instance.
-pub(super) struct PageInput<'a> {
-    pub spec: &'a EffectSpec,
-    pub instance: &'a EffectInstance,
-    pub blend_modes: &'a [BlendChoice],
-    pub patterns: &'a [PatternChoice],
-    pub user_contours: &'a [Contour],
-    pub sampler: Option<&'a Sampler>,
-    pub labels: &'a LayerStyleLabels,
-    pub contour_labels: &'a ContourFieldLabels,
-    pub numbers: &'a LocaleNumbers,
-    pub enabled: bool,
-}
+/// A host's interpolation of a contour's points, shared by the page's contour fields.
+pub(super) type SharedSampler<'a> = Rc<dyn Fn(&[[f32; 2]]) -> Vec<f32> + 'a>;
 
-/// What a part of the dialog did to the style: the operation a held event replays.
+/// What a part of the dialog did to the style: the operation an event replays on the style it started from.
 #[derive(Clone, Debug)]
 pub(super) enum StyleOp {
-    /// An effect list action that changes the style.
-    List(ListOp),
+    /// [`LayerStyleDraft::toggle`].
+    Toggle(EffectId),
+    /// [`LayerStyleDraft::add_instance`] from `defaults`.
+    Add { kind: EffectKind, defaults: StyleParams },
+    /// [`LayerStyleDraft::remove_instance`].
+    Remove(EffectId),
     /// A page field: [`LayerStyleDraft::set_param`] of `key` of instance `id`.
     Param { id: EffectId, key: String, value: StyleValue },
     /// A Blending Options control.
@@ -61,210 +55,129 @@ pub(super) enum StyleOp {
 pub(super) fn apply_op(op: &StyleOp, style: &LayerStyle) -> Option<LayerStyle> {
     let mut draft = LayerStyleDraft::new(style.clone());
     match op {
-        StyleOp::List(ListOp::Toggle(id)) => draft.toggle(*id),
-        StyleOp::List(ListOp::Add { kind, defaults }) => {
+        StyleOp::Toggle(id) => draft.toggle(*id),
+        StyleOp::Add { kind, defaults } => {
             draft.add_instance(*kind, defaults);
         }
-        StyleOp::List(ListOp::Remove(id)) => draft.remove_instance(*id),
+        StyleOp::Remove(id) => draft.remove_instance(*id),
         StyleOp::Param { id, key, value } => draft.set_param(*id, key, value.clone()),
         StyleOp::Blending(op) => op.apply(&mut draft.style.blending),
     }
     (draft.style != *style).then_some(draft.style)
 }
 
-/// `style` with parameter `key` of instance `id` set to `value`.
-fn with_param(style: &LayerStyle, id: EffectId, key: &str, value: StyleValue) -> LayerStyle {
-    let mut draft = LayerStyleDraft::new(style.clone());
-    draft.set_param(id, key, value);
-    draft.style
+/// The style edit of a child's edit: its event with every value replaced by `style` after `op` of that value, so a
+/// slider drag stays one gesture of the whole style.
+pub(super) fn style_edit<T: Clone>(edit: &EditResponse<T>, style: &LayerStyle, op: impl Fn(&T) -> StyleOp) -> Option<EditEvent<LayerStyle>> {
+    let event = edit.event.clone()?;
+    Some(event.map(|value| apply_op(&op(&value), style).unwrap_or_else(|| style.clone())))
 }
 
-/// Draws the dialog's parts as one edit of `style`: replays what waited for its turn, runs
-/// `body` with the parts' collector (every part draws from [`Edits::value`] and pushes its edit)
-/// and returns the pass's event of the whole style. Esc is the parts': each cancels its own
-/// gesture, which cancels this one.
-pub(super) fn edit_style<R>(
-    ui: &mut Ui,
-    id: Id,
-    style: &LayerStyle,
-    policy: EditPolicy,
-    enabled: bool,
-    body: impl FnOnce(&mut Ui, &mut Edits<LayerStyle, StyleOp>) -> R,
-) -> (R, Option<EditEvent<LayerStyle>>) {
-    let parts_id = id.with("parts");
-    let mut state: parts::State<StyleOp> = ui.data(|d| d.get_temp(parts_id)).unwrap_or_default();
-    let outer = Gesture::load(ui, id.with("edit"), style, policy.cancellable(false)).enabled(enabled);
-    let mut edits = Edits::<LayerStyle, StyleOp>::new(id, &state, &outer, edit::in_scope(ui));
-    edits.replay(ui.ctx(), apply_op);
-    let result = body(ui, &mut edits);
-    let event = edits.feed(outer, &mut state).finish();
-    ui.data_mut(|d| d.insert_temp(parts_id, state));
-    (result, event)
+/// A one-step edit of the style by `op`, labelled `label`.
+pub(super) fn set_edit(style: &LayerStyle, op: &StyleOp, label: &str) -> Option<EditEvent<LayerStyle>> {
+    let after = apply_op(op, style)?;
+    Some(EditEvent::set(GestureId::default(), Mixed::Same(style.clone()), after, label.into(), None))
 }
 
-/// Pushes `edit` of field `key` of instance `id` as part `part`; `value` makes the field's value
-/// of the control's. `typing` for a number field whose focus is a typing run's.
-pub(super) fn push_param<T: Clone + Send + Sync + 'static>(
-    edits: &mut Edits<LayerStyle, StyleOp>,
-    edit: &EditResponse<T>,
-    part: Id,
-    (id, key): (EffectId, &str),
-    typing: bool,
-    value: impl Fn(&T) -> StyleValue,
-) {
-    let op = edit.event.as_ref().and_then(EditEvent::value).map(|v| StyleOp::Param { id, key: key.to_owned(), value: value(v) });
-    let map = |v: T, base: &LayerStyle| with_param(base, id, key, value(&v));
-    if typing {
-        edits.typing(edit, op, apply_op, map);
-    } else {
-        edits.push_part(part, edit, op, apply_op, map);
+/// Adds `next` to the pass's edit: a gesture's `Begin` and `Commit` fold into a `Set`, otherwise the later event wins.
+pub(super) fn push_edit(edit: &mut Option<EditEvent<LayerStyle>>, next: Option<EditEvent<LayerStyle>>) {
+    if let Some(next) = next {
+        *edit = EditEvent::fold(edit.take(), next);
     }
+}
+
+/// What an effect page reads besides the instance.
+pub(super) struct PageInput<'a> {
+    pub spec: &'a EffectSpec,
+    pub instance: &'a EffectInstance,
+    pub style: &'a LayerStyle,
+    pub blend_modes: &'a [Entry<String>],
+    pub patterns: &'a [PresetRow<String>],
+    pub user_contours: &'a [Contour],
+    pub sampler: Option<&'a SharedSampler<'a>>,
+    pub words: &'a LayerStyleWords,
+    pub contour_words: &'a ContourWords,
+    pub units: &'a Units,
 }
 
 /// What an effect page reports in one pass.
 #[derive(Default)]
 pub(super) struct PageOutput {
-    /// A colour swatch was clicked: key `"{instance id}/{parameter key}"` (`"fx2/color"`),
-    /// titled [`LayerStyleLabels::color_picker_title`].
+    /// The pass's style edit.
+    pub edit: Option<EditEvent<LayerStyle>>,
+    /// A colour swatch was clicked: key `"{instance id}/{parameter key}"` (`"fx2/color"`), titled
+    /// [`LayerStyleWords::color_picker_title`].
     pub pick_color: Option<ColorRequest>,
     /// A library request from a contour field.
     pub contour_action: Option<ContourAction>,
-    /// A click on a contour field's thumbnail: the key `"{instance id}/{parameter key}"` and the
-    /// contour, for a [`ContourEditorDialog`](super::ContourEditorDialog).
+    /// A click on a contour field's thumbnail: the key `"{instance id}/{parameter key}"` and the contour.
     pub edit_contour: Option<ContourRequest>,
     /// Make Default: the page's shown values (the defaults under the instance's).
     pub make_default: Option<StyleParams>,
     /// Reset to Default was pressed.
     pub reset_to_default: bool,
-    /// A value the page shows from a default the instance lacks (a Pattern page with an empty
-    /// value shows the first pattern): the parameter's key and the value. It is not an edit: the
-    /// host writes it into its draft without an undo step.
+    /// A value the page shows from a default the instance lacks (a Pattern page with an empty value shows the first
+    /// pattern): the parameter's key and the value. It is not an edit.
     pub fill_default: Option<(String, StyleValue)>,
 }
 
-/// Draws the page body under the title: each field of `input.spec` in order, showing the spec's
-/// defaults under the instance's values ([`StyleParams::over`]), so only real edits reach the
-/// instance. By [`FieldKind`](crate::layer_style::FieldKind):
+/// Draws the page body: each field of `input.spec` in order, showing the spec's defaults under the instance's values
+/// ([`StyleParams::over`]), so only real edits reach the instance. By [`FieldKind`]:
 ///
-/// - `Slider`: a `SliderRow` over the range with the unit; values rounded to whole numbers;
-///   a drag is a gesture, a field entry or arrow a `Set`.
-/// - `Angle`: an `AngleDial` row, −180..=180; with the instance's `useGlobalLight` on its edits
-///   go to the shared light angle (the dialog applies them through
-///   [`LayerStyleDraft::set_param`](crate::layer_style::LayerStyleDraft::set_param)).
-/// - `Color`: a `Swatch` with the label before it; a click or Space reports `pick_color`.
-/// - `Blend`: a `Select` over `blend_modes` (one id per field, so Bevel & Emboss's two lists stay
-///   apart, #9368); a value missing from the list shows as its key.
+/// - `Slider`: a `SliderField` over the range with the unit, whole numbers; a drag is a gesture, a typed value or an
+///   arrow a `Set`.
+/// - `Angle`: an `AngleDial` beside a number field, −180..=180; with the instance's `useGlobalLight` on its edits go to
+///   the shared light angle.
+/// - `Color`: a `Swatch`; a click or Space reports `pick_color`.
+/// - `Blend`: a `Select` over `blend_modes`; a value missing from the list shows as its key.
 /// - `Choice`: a `Select` over the options; a missing value shows the first.
-/// - `GradientMethod`: Smooth, Perceptual, Linear, Classic, with Custom first while the value names
-///   none of them; the host fills From and To when a method is first picked from Custom.
-/// - `Pattern`: a `Select` over `patterns`; an empty value shows the first pattern and reports it as
+/// - `GradientMethod`: Smooth, Perceptual, Linear, Classic, with Custom first while the value names none of them.
+/// - `Pattern`: a `PresetPicker` over `patterns`; an empty value shows the first pattern and reports it as
 ///   `fill_default`, not as an edit.
-/// - `Contour`: a [`ContourField`](super::ContourField) with the Anti-aliased check of the
-///   field's `anti_alias` key.
+/// - `Contour`: a [`ContourField`] with the Anti-aliased check of the field's `anti_alias` key.
 /// - `Check`: a `Checkbox`.
 ///
-/// Under the fields, Make Default and Reset to Default at the trailing end, wrapping when the
-/// translated labels are wide.
-///
-/// A value of the wrong type for its field (only reachable when the host builds a bad draft)
-/// shows one line, [`LayerStyleLabels::invalid_value`] naming the first such field
-/// ([`first_invalid`]), in `status.bad.fg` instead of the fields, and the value stays as it is.
-///
-/// The dialog names the page's AccessKit group. Every field's edit goes to `edits` in drawing
-/// order, as an operation on the style.
-pub(super) fn effect_page(ui: &mut Ui, input: &PageInput<'_>, edits: &mut Edits<LayerStyle, StyleOp>) -> PageOutput {
-    // pc: crates/ui-egui/src/dialogs/layer_style.rs:1008-1153 (defaults under the values, one arm
-    // per field kind), :1155-1171 (Make Default, Reset to Default), :996-1000 (the invalid line).
+/// Under the fields, Make Default and Reset to Default at the trailing end. A value of the wrong type for its field
+/// (only reachable when the host builds a bad draft) shows one line, [`LayerStyleWords::invalid_value`] naming the
+/// first such field, instead of the fields, and the value stays as it is.
+pub(super) fn effect_page(ui: &mut Ui, input: &PageInput<'_>) -> PageOutput {
     let mut out = PageOutput::default();
-    let id = ui.make_persistent_id(("effectPage", input.instance.id.0));
-    let mut builder = UiBuilder::new().scope_id(id);
-    if !input.enabled {
-        builder = builder.disabled();
-    }
-    ui.scope_builder(builder, |ui| {
-        Stack::new(Gap::Stack).show(ui, |ui| {
-            if let Some(field) = first_invalid(input.spec, &input.instance.params) {
-                let name = field_label(input, field);
-                let name = if name.is_empty() { field.key.to_string() } else { name };
-                let tokens = Tokens::of(ui);
-                let color = LayerStyleDialog::style(&tokens).invalid_color;
-                let job = egui::text::LayoutJob::single_section(
-                    craft_i18n::fmt(&input.labels.invalid_value, &[("field", name.as_str())]),
-                    role_format(&tokens, TypeRole::Body, color),
-                );
-                ui.add(egui::Label::new(job).selectable(false));
-                return;
+    let title = input.words.effect(input.instance.kind).clone();
+    FieldGroup::new(title).id_salt(("effectPage", input.instance.id.0)).show(ui, |ui, _| {
+        if let Some(field) = first_invalid(input.spec, &input.instance.params) {
+            let name = field_label(input, field);
+            let name = if name.as_str().is_empty() { Label::from(field.key.to_string()) } else { name };
+            let line = Label::from(input.words.invalid_value.fill(&[("field", name.as_str())]));
+            Text::new(line).role(TypeRole::Body).tone(Tone::Bad).show(ui);
+            return;
+        }
+        let shown = input.instance.params.over(&input.spec.defaults);
+        for field in &input.spec.fields {
+            field_row(ui, input, field, &shown, &mut out);
+        }
+        Row::new().fill_width().align(RowAlign::End).wrap(true).show(ui, |ui, _| {
+            if clicked(&Button::new(input.words.reset_to_default.clone()).id_salt("reset").show(ui)) {
+                out.reset_to_default = true;
             }
-            let shown = input.instance.params.over(&input.spec.defaults);
-            for field in &input.spec.fields {
-                field_row(ui, input, field, &shown, edits, &mut out);
+            if clicked(&Button::new(input.words.make_default.clone()).id_salt("make").show(ui)) {
+                out.make_default = Some(shown.clone());
             }
-            ui.with_layout(direction::trailing(ui).with_main_wrap(true), |ui| {
-                let labels = input.labels;
-                let reset = Button::new(labels.reset_to_default.as_str()).id_salt((id, "reset")).enabled(input.enabled);
-                if ui.add(reset).clicked() {
-                    out.reset_to_default = true;
-                }
-                let make = Button::new(labels.make_default.as_str()).id_salt((id, "make")).enabled(input.enabled);
-                if ui.add(make).clicked() {
-                    out.make_default = Some(shown.clone());
-                }
-            });
         });
     });
     out
 }
 
 /// The label of `field`: the installed word for a built-in key, else the spec's own.
-fn field_label(input: &PageInput<'_>, field: &EffectField) -> String {
-    input.labels.field(&field.key).map_or_else(|| field.label.to_string(), str::to_owned)
+fn field_label(input: &PageInput<'_>, field: &EffectField) -> Label {
+    input.words.field(&field.key).cloned().unwrap_or_else(|| Label::from(field.label.to_string()))
 }
 
-fn unit_template(unit: FieldUnit) -> &'static str {
+fn unit_kind(unit: FieldUnit) -> UnitKind {
     match unit {
-        FieldUnit::Percent => "{n} %",
-        FieldUnit::Pixels => "{n} px",
-        FieldUnit::Degrees => "{n}°",
+        FieldUnit::Percent => UnitKind::Percent,
+        FieldUnit::Pixels => UnitKind::Pixels,
+        FieldUnit::Degrees => UnitKind::Degrees,
     }
-}
-
-/// A caption in `text.muted` at the reading start and the control after it.
-pub(super) fn caption_row<R>(ui: &mut Ui, label: &str, add: impl FnOnce(&mut Ui) -> R) -> R {
-    Row::new(Gap::Inline)
-        .show(ui, |ui| {
-            ui.add(Text::new(label).role(TypeRole::Label).content(Content::Muted));
-            add(ui)
-        })
-        .inner
-}
-
-/// One `Select` over `options` (value, text, separator before); its response.
-pub(super) fn pick<T: Clone + PartialEq + Send + Sync + 'static>(
-    ui: &mut Ui,
-    id_salt: impl AsIdSalt,
-    label: &str,
-    current: T,
-    options: Vec<(T, String, bool)>,
-    enabled: bool,
-) -> EditResponse<T> {
-    let mut value = current;
-    let mut select = Select::new(id_salt, label, &mut value);
-    for (option, text, separator) in options {
-        if separator {
-            select = select.separator();
-        }
-        select = select.option(option, text);
-    }
-    select.enabled(enabled).show(ui)
-}
-
-/// `modes` as select options; a `current` key the list lacks is added at the end as its own text.
-pub(super) fn blend_options(modes: &[BlendChoice], current: &str) -> Vec<(String, String, bool)> {
-    let mut options: Vec<_> = modes.iter().map(|m| (m.key.clone(), m.label.clone(), m.separator_before)).collect();
-    if !options.iter().any(|(key, ..)| key == current) {
-        options.push((current.to_owned(), current.to_owned(), false));
-    }
-    options
 }
 
 fn text_of(value: Option<&StyleValue>) -> Option<&str> {
@@ -274,138 +187,166 @@ fn text_of(value: Option<&StyleValue>) -> Option<&str> {
     }
 }
 
-fn field_row(
-    ui: &mut Ui,
-    input: &PageInput<'_>,
-    field: &EffectField,
-    shown: &StyleParams,
-    edits: &mut Edits<LayerStyle, StyleOp>,
-    out: &mut PageOutput,
-) {
-    let (labels, enabled, key) = (input.labels, input.enabled, field.key.as_ref());
+/// A `Select` over `entries` inside a field named `label`; its edit.
+fn pick(ui: &mut Ui, salt: &str, label: &Label, current: &str, entries: &[Entry<String>]) -> Option<EditResponse<String>> {
+    Field::new(label.clone()).id_salt(salt).show(ui, |ui, _| Select::new(label.clone(), Bind::given(current.to_owned()), entries).show(ui)).inner
+}
+
+fn field_row(ui: &mut Ui, input: &PageInput<'_>, field: &EffectField, shown: &StyleParams, out: &mut PageOutput) {
+    let (words, key) = (input.words, field.key.as_ref());
     let label = field_label(input, field);
-    let salt = (input.instance.id.0, key);
-    let target = (input.instance.id, key);
-    let as_number = |v: &f64| StyleValue::Number(*v);
-    let as_text = |v: &String| StyleValue::Text(v.clone());
+    let id = input.instance.id;
+    let param = |value: StyleValue| StyleOp::Param { id, key: key.to_owned(), value };
     match &field.kind {
         FieldKind::Slider { min, max, unit } => {
-            let value = shown.number(key).unwrap_or(*min);
-            let mut row = SliderRow::new(salt, label.as_str(), value, *min..=*max, input.numbers)
-                .unit(Unit::new(unit_template(*unit)))
-                .decimals(0)
-                .step(1.0)
-                .enabled(enabled);
+            let mut bind = Bind::given(shown.number(key).unwrap_or(*min));
             if let Some(default) = input.spec.defaults.number(key) {
-                row = row.default_value(default);
+                bind = bind.reset(default);
             }
-            let row = row.show(ui);
-            let whole = |v: &f64| StyleValue::Number(v.round());
-            push_param(edits, &row.field, row.field.response.id, target, true, whole);
-            push_param(edits, &row.slider, row.slider.response.id, target, false, whole);
+            let slider = Field::new(label.clone())
+                .id_salt(key)
+                .show(ui, |ui, _| SliderField::new(label.clone(), bind.reborrowed(), *min..=*max).unit_kind(unit_kind(*unit)).step(1.0).show(ui))
+                .inner;
+            if let Some(slider) = slider {
+                push_edit(&mut out.edit, style_edit(&slider, input.style, |v| param(StyleValue::Number(v.round()))));
+            }
         }
         FieldKind::Angle => {
             let value = shown.number(key).unwrap_or(0.0);
-            let dial = AngleDial::new(salt, label.as_str(), value, input.numbers).range(-180.0..=180.0).enabled(enabled).show(ui);
-            push_param(edits, &dial, dial.response.id, target, false, as_number);
+            let reader = input.units.reader(Some(UnitKind::Degrees));
+            let edits = Field::new(label.clone())
+                .id_salt(key)
+                .show(ui, |ui, _| {
+                    Row::new()
+                        .show(ui, |ui, _| {
+                            let dial = AngleDial::new(Bind::given(value)).label(label.clone()).range(ANGLE_RANGE).id_salt("dial").show(ui);
+                            let number = NumberField::new(label.clone(), Bind::given(Some(value)))
+                                .codec(NumberCodec::new(reader.clone(), WHOLE))
+                                .range(ANGLE_RANGE)
+                                .id_salt("field")
+                                .show(ui)
+                                .edit;
+                            (dial, number)
+                        })
+                        .inner
+                })
+                .inner
+                .flatten();
+            if let Some((dial, number)) = edits {
+                push_edit(&mut out.edit, style_edit(&dial, input.style, |v| param(StyleValue::Number(*v))));
+                push_edit(&mut out.edit, style_edit(&number.map(|v| v.unwrap_or(value)), input.style, |v| param(StyleValue::Number(*v))));
+            }
         }
         FieldKind::Color => {
             let color = match shown.get(key) {
                 Some(StyleValue::Color(color)) => *color,
                 _ => Srgba::BLACK,
             };
-            let clicked = caption_row(ui, &label, |ui| ui.add(Swatch::new(salt, label.as_str(), color).enabled(enabled)).clicked());
-            if clicked {
-                let request = ColorRequest::new(format!("{}/{key}", input.instance.id.key()), color);
-                out.pick_color = Some(request.title(labels.color_picker_title.as_str()));
+            let request = format!("{}/{key}", id.key());
+            let swatch = Field::new(label.clone()).id_salt(key).show(ui, |ui, _| Swatch::new(label.clone(), color).picker(request.clone()).show(ui)).inner;
+            if let Some(request) = swatch.and_then(|swatch| swatch.pick_color) {
+                out.pick_color = Some(request.title(words.color_picker_title.clone()));
             }
         }
         FieldKind::Blend => {
             let current = text_of(shown.get(key)).unwrap_or("Normal");
-            let options = blend_options(input.blend_modes, current);
-            let response = caption_row(ui, &label, |ui| pick(ui, salt, &label, current.to_owned(), options, enabled));
-            push_param(edits, &response, response.response.id, target, false, as_text);
+            let mut entries = input.blend_modes.to_vec();
+            if !entries.iter().any(|entry| entry.value().is_some_and(|value| value == current)) {
+                entries.push(Entry::new(current.to_owned(), current.to_owned()));
+            }
+            if let Some(response) = pick(ui, key, &label, current, &entries) {
+                push_edit(&mut out.edit, style_edit(&response, input.style, |v| param(StyleValue::Text(v.clone()))));
+            }
         }
         FieldKind::Choice(choices) => {
             let Some(first) = choices.first() else { return };
             let current = text_of(shown.get(key)).unwrap_or(&first.value);
-            let options = choices
+            let entries: Vec<Entry<String>> = choices
                 .iter()
-                .map(|c| (c.value.to_string(), labels.choice(&c.value).map_or_else(|| c.label.to_string(), str::to_owned), false))
+                .map(|c| Entry::new(c.value.to_string(), words.choice(&c.value).cloned().unwrap_or_else(|| Label::from(c.label.to_string()))))
                 .collect();
-            let response = caption_row(ui, &label, |ui| pick(ui, salt, &label, current.to_owned(), options, enabled));
-            push_param(edits, &response, response.response.id, target, false, as_text);
+            if let Some(response) = pick(ui, key, &label, current, &entries) {
+                push_edit(&mut out.edit, style_edit(&response, input.style, |v| param(StyleValue::Text(v.clone()))));
+            }
         }
         FieldKind::GradientMethod => {
             const METHODS: [&str; 4] = ["smooth", "perceptual", "linear", "classic"];
             let stored = text_of(shown.get(key)).unwrap_or("custom");
             let current = if METHODS.contains(&stored) { stored } else { "custom" };
-            let mut options = Vec::new();
+            let mut entries = Vec::new();
             if current == "custom" {
-                options.push(("custom".to_owned(), labels.custom.clone(), false));
+                entries.push(Entry::new("custom".to_owned(), words.custom.clone()));
             }
-            for (value, text) in METHODS.into_iter().zip([&labels.smooth, &labels.perceptual, &labels.linear, &labels.classic]) {
-                options.push((value.to_owned(), text.clone(), false));
+            for (value, text) in METHODS.into_iter().zip([&words.smooth, &words.perceptual, &words.linear, &words.classic]) {
+                entries.push(Entry::new(value.to_owned(), text.clone()));
             }
-            let response = caption_row(ui, &label, |ui| pick(ui, salt, &label, current.to_owned(), options, enabled));
-            push_param(edits, &response, response.response.id, target, false, as_text);
+            if let Some(response) = pick(ui, key, &label, current, &entries) {
+                push_edit(&mut out.edit, style_edit(&response, input.style, |v| param(StyleValue::Text(v.clone()))));
+            }
         }
         FieldKind::Pattern => {
             let stored = text_of(shown.get(key)).filter(|t| !t.is_empty());
-            let first = input.patterns.first();
-            let current = stored.or(first.map(|p| p.key.as_str())).unwrap_or_default();
-            let options = input.patterns.iter().map(|p| (p.key.clone(), p.label.clone(), false)).collect();
-            let response = caption_row(ui, &label, |ui| pick(ui, salt, &label, current.to_owned(), options, enabled));
-            if response.event.is_none() && stored.is_none() && enabled && first.is_some() {
-                out.fill_default = Some((key.to_owned(), StyleValue::Text(current.to_owned())));
+            let first = input.patterns.iter().find(|row| !row.is_group()).map(|row| row.key.clone());
+            let current = stored.map(str::to_owned).or(first.clone());
+            let picker = Field::new(label.clone())
+                .id_salt(key)
+                .show(ui, |ui, _| PresetPicker::new(label.clone(), Bind::given(current.clone()), input.patterns, Bind::kept()).show(ui))
+                .inner;
+            if let Some(picker) = picker {
+                if picker.edit.event.is_none() && stored.is_none() && first.is_some() {
+                    out.fill_default = current.map(|text| (key.to_owned(), StyleValue::Text(text)));
+                }
+                let edit = picker.edit.map(Option::unwrap_or_default);
+                push_edit(&mut out.edit, style_edit(&edit, input.style, |v| param(StyleValue::Text(v.clone()))));
             }
-            push_param(edits, &response, response.response.id, target, false, as_text);
         }
         FieldKind::Contour { anti_alias } => {
             let contour = match shown.get(key) {
                 Some(StyleValue::Contour(contour)) => contour.clone(),
                 _ => Contour::linear(),
             };
-            let aa = anti_alias.as_deref().map(|k| shown.bool(k).unwrap_or(false));
-            let mut field = ContourField::new(salt, label.as_str(), &contour)
-                .anti_alias(aa)
-                .user_contours(input.user_contours)
-                .labels(input.contour_labels.clone())
-                .enabled(enabled);
-            if let Some(sampler) = input.sampler {
-                field = field.sampler(sampler);
-            }
-            let response = field.show(ui);
-            let edit = EditResponse::new(response.response.clone(), response.edit);
-            push_param(edits, &edit, edit.response.id, target, false, |v: &Contour| StyleValue::Contour(v.clone()));
-            if let Some(aa_key) = anti_alias.as_deref() {
-                let set = response.anti_alias.map(|on| EditEvent::set(on, Modifiers::NONE));
-                let edit = EditResponse::new(response.response.clone(), set);
-                push_param(edits, &edit, edit.response.id.with("antiAlias"), (input.instance.id, aa_key), false, |v: &bool| StyleValue::Bool(*v));
-            }
-            match response.action {
-                Some(ContourAction::Edit(contour)) => {
-                    out.edit_contour = Some(ContourRequest { key: format!("{}/{key}", input.instance.id.key()), contour });
+            let before = anti_alias.as_deref().map(|k| shown.bool(k).unwrap_or(false));
+            let mut checked = before;
+            let presets = Contour::presets();
+            let rows = contour_rows(&presets, input.user_contours, input.contour_words);
+            let shown_field = Field::new(label.clone())
+                .id_salt(key)
+                .show(ui, |ui, _| {
+                    let mut field = ContourField::new(label.clone(), Bind::given(contour.clone()), &rows, Bind::<PresetState<ContourKey>>::kept());
+                    if anti_alias.is_some() {
+                        field = field.anti_alias(Bind::bound(&mut checked));
+                    }
+                    if let Some(sampler) = input.sampler {
+                        let sampler = Rc::clone(sampler);
+                        field = field.sampler(CurveSampler::new(move |points| sampler(points)));
+                    }
+                    field.show(ui)
+                })
+                .inner;
+            if let Some(field) = shown_field {
+                push_edit(&mut out.edit, style_edit(&field.edit, input.style, |v| param(StyleValue::Contour(v.clone()))));
+                if let (Some(aa_key), Some(on)) = (anti_alias.as_deref(), checked.filter(|_| checked != before)) {
+                    let op = StyleOp::Param { id, key: aa_key.to_owned(), value: StyleValue::Bool(on) };
+                    push_edit(&mut out.edit, set_edit(input.style, &op, label.as_str()));
                 }
-                Some(action) => out.contour_action = Some(action),
-                None => {}
+                out.edit_contour = field.edit_contour.map(|mut asked| {
+                    asked.key = format!("{}/{key}", id.key());
+                    asked
+                });
+                out.contour_action = field.action;
             }
         }
         FieldKind::Check => {
-            let mut on = shown.bool(key).unwrap_or(false);
-            let response = Checkbox::bool(label.as_str(), &mut on).id_salt(salt).enabled(enabled).show(ui);
-            push_param(edits, &response, response.response.id, target, false, |v: &bool| StyleValue::Bool(*v));
+            let check = Checkbox::new(Bind::given(shown.bool(key).unwrap_or(false))).label(label.clone()).id_salt(key).show(ui);
+            push_edit(&mut out.edit, style_edit(&check, input.style, |v| param(StyleValue::Bool(*v))));
         }
     }
 }
 
-/// The first field of `spec` whose value in `params` has the wrong type: a slider or angle not a
-/// number, a check not a bool, a colour not a colour, a contour not a contour, a choice, blend or
-/// pattern not text. Missing keys are fine (the defaults show). A contour's Anti-aliased key is
-/// held to a bool as well.
-pub(super) fn first_invalid<'s>(spec: &'s EffectSpec, params: &StyleParams) -> Option<&'s EffectField> {
-    // pc: crates/ui-egui/src/dialogs/layer_style.rs:624-646 `validate_params` (the JSON shape
-    // check, here per field type).
+/// The first field of `spec` whose value in `params` has the wrong type: a slider or angle not a number, a check not a
+/// bool, a colour not a colour, a contour not a contour, a choice, blend or pattern not text. Missing keys are fine
+/// (the defaults show). A contour's Anti-aliased key is held to a bool as well.
+fn first_invalid<'s>(spec: &'s EffectSpec, params: &StyleParams) -> Option<&'s EffectField> {
     let wrong = |key: &str, ok: fn(&StyleValue) -> bool| params.get(key).is_some_and(|v| !ok(v));
     spec.fields.iter().find(|field| match &field.kind {
         FieldKind::Slider { .. } | FieldKind::Angle => wrong(&field.key, |v| matches!(v, StyleValue::Number(_))),
