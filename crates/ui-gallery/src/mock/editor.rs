@@ -73,7 +73,7 @@ impl<'a> EditorMock<'a> {
             .body(|ui, _| {
                 let mut parts = parts.borrow_mut();
                 let mut panels = Panels { document: &mut *parts.document };
-                let id = egui::Id::unique("mock editor dock");
+                let id = ui.scope_id();
                 let output = DockArea::new(id, Bind::bound(&mut *workspace), &mut panels, DockConfig::default()).show(ui);
                 for action in output.actions {
                     // A refused action leaves the workspace as it was.

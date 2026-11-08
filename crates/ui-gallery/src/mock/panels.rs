@@ -7,7 +7,7 @@ use craft_behavior::kurbo::Rect as DocRect;
 use craft_ui::buttons::Button;
 use craft_ui::canvas::{Canvas, PageFrame, Pasteboard, RulerText, Rulers, ToolPath};
 use craft_ui::choice::Checkbox;
-use craft_ui::contract::{Bind, BodyCx, Props as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, BodyCx, Props as _, Show as _, ShowContainer as _, clicked};
 use craft_ui::docking::{DockPanels, PanelLimits, PanelSpec};
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::patterns::canvas::NavigatorPanel;
@@ -106,7 +106,7 @@ fn layers(ui: &mut Ui, document: &mut Document) {
                 if visible != layer.visible {
                     set_visible = Some((at, visible));
                 }
-                if Button::new(layer.name.clone()).show(ui).clicked() {
+                if clicked(&Button::new(layer.name.clone()).show(ui)) {
                     pick = Some(at);
                 }
             });
