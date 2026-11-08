@@ -29,6 +29,7 @@ pub(crate) mod blend_keys_stories;
 mod blend_keys_tests;
 pub mod blur_pins;
 pub mod channels;
+pub mod curve;
 pub mod fill;
 pub mod filter_gallery;
 pub mod layer_style;

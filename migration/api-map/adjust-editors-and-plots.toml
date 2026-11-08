@@ -10,8 +10,93 @@ new_module = ""
 [[type]]
 name = "CurveEditor"
 old = "craft_ui::composites::curve_editor::CurveEditor"
+new = "craft_imaging::ui::curve::CurveEditor"
+status = "moved"
+note = "A pattern over a `Bind<Curve>`: the graph, the host's rows (`between(CurveRows)`), the Input and Output fields, the Corner check box and the hint. `show(ui)` returns `CurveEditorOutput { edit: EditResponse<Curve>, selected }`. The selection comes back in the output; a host that keeps it passes `selected(Option<usize>)`. The editor clears it when `channel` changes."
+
+[[type]]
+name = "CurvePreview"
+old = "craft_ui::composites::curve_editor::CurvePreview"
+new = "craft_imaging::ui::curve::CurvePreview"
+status = "moved"
+note = "A read-only leaf: `CurvePreview::new(label, &curve)` with `levels`, `color` and `sampler`; the size comes from the theme, not from a `Vec2`."
+
+[[type]]
+name = "Curve"
+old = "craft_ui::composites::curve::Curve"
+new = "craft_imaging::ui::curve::Curve"
+status = "moved"
+note = "The value, unchanged."
+
+[[type]]
+name = "CurveRules"
+old = "craft_ui::composites::curve::CurveRules"
+new = "craft_imaging::ui::curve::CurveRules"
+status = "moved"
+note = "The point rules, unchanged."
+
+[[type]]
+name = "CurveChannel"
+old = "craft_ui::composites::curve_editor::CurveChannel"
+new = "craft_imaging::ui::curve::CurveChannel"
+status = "moved"
+note = "`CurveChannel::new(label, ChannelColor)`; the label is a `Label`."
+
+[[type]]
+name = "CurveEditorState"
+old = "craft_ui::composites::curve_editor::CurveEditorState"
 new = ""
-status = "pending"
+status = "removed"
+note = "The geometry is the graph's; tests read the point nodes of the AccessKit tree."
+
+[[type]]
+name = "CurveStyle"
+old = "craft_ui::composites::curve_editor::CurveStyle"
+new = ""
+status = "removed"
+note = "`CurveGraphStyle` is built from the theme."
+
+[[type]]
+name = "CurveLabels"
+old = "craft_ui::composites::curve_editor::CurveLabels"
+new = "craft_imaging::ui::curve::CurveWords"
+status = "replaced"
+note = "A `words!` set; the `{channel}`, `{i}`, `{n}`, `{x}` and `{y}` templates are `fill` calls."
+
+[[type]]
+name = "Sampler"
+old = "craft_ui::composites::curve_editor::Sampler"
+new = "craft_imaging::ui::curve::CurveSampler"
+status = "replaced"
+note = "A named closure prop: `sampler(|points| ..)` or `CurveSampler::monotone(levels)`."
+
+[[type]]
+name = "curve_editor::gradient"
+old = "craft_ui::composites::curve_editor::gradient"
+new = "craft_imaging::ui::curve::ToneRamp"
+status = "replaced"
+note = "`ToneRamp::new(&stops)` (`.vertical()`) paints through the content painter's ramp painter."
+
+[[type]]
+name = "curve_editor::fill"
+old = "craft_ui::composites::curve_editor::fill"
+new = ""
+status = "removed"
+note = "`words!` templates fill their own placeholders."
+
+[[type]]
+name = "curve_editor::take_exact"
+old = "craft_ui::composites::curve_editor::take_exact"
+new = ""
+status = "removed"
+note = "`Cx::take_claimed(chord)`, with the chords claimed by the component."
+
+[[type]]
+name = "curve_editor::COMPONENTS"
+old = "craft_ui::composites::curve_editor::COMPONENTS"
+new = ""
+status = "removed"
+note = "Types register themselves."
 
 [[type]]
 name = "Histogram"
@@ -24,3 +109,33 @@ status = "pending"
 # type = ""
 # old = ""
 # new = ""
+
+[[setter]]
+type = "CurveEditor"
+old = "new(id_salt, label, &curve, numbers)"
+new = "new(label, Bind<Curve>)"
+note = "The id comes from the call site; the numbers come from the env."
+
+[[setter]]
+type = "CurveEditor"
+old = "selected(ctx, id) / select(ctx, id, index)"
+new = "selected(Option<usize>) and CurveEditorOutput::selected"
+note = "View state of the host, passed in and read back."
+
+[[setter]]
+type = "CurveEditor"
+old = "side, outer_width, labels, policy, enabled, id_in, state, style"
+new = ""
+note = "Removed: the size comes from the control size, the words from the env, the policy from the binding, enabled from the common props."
+
+[[setter]]
+type = "CurveEditor"
+old = "between(impl FnOnce(&mut Ui))"
+new = "between(CurveRows)"
+note = "`CurveRows::new(|ui, cx| ..)` runs inside the editor's body."
+
+[[setter]]
+type = "CurvePreview"
+old = "new(&curve, size, label)"
+new = "new(label, &curve)"
+note = "The size comes from the theme."
