@@ -12,3 +12,199 @@ new_module = ""
 # type = ""
 # old = ""
 # new = ""
+
+# Blocks of color-e: paint chip and list, swatch pair, LUT picker, profile prompts.
+
+[[type]]
+name = "Paint"
+old = "craft_color::ui::Paint"
+new = "craft_color::ui::Paint"
+status = "same"
+note = "`ImagePreview.texture` is `Option<CachedTexture>`; the `size` field is the texture's. `GradientPreview` and `ImagePreview` have constructors (`new`)."
+
+[[type]]
+name = "GradientPreview"
+old = "craft_color::ui::GradientPreview"
+new = "craft_color::ui::GradientPreview"
+status = "same"
+note = "`#[non_exhaustive]`; `GradientPreview::new(stops)`."
+
+[[type]]
+name = "ImagePreview"
+old = "craft_color::ui::ImagePreview"
+new = "craft_color::ui::ImagePreview"
+status = "same"
+note = "`#[non_exhaustive]`; `ImagePreview::new(name, texture)`; the `size` field is gone (`texture.size`)."
+
+[[type]]
+name = "FillKind"
+old = "craft_color::ui::FillKind"
+new = "craft_color::ui::FillKind"
+status = "same"
+note = ""
+
+[[type]]
+name = "PaintChip"
+old = "craft_color::ui::PaintChip"
+new = "craft_color::ui::PaintChip"
+status = "moved"
+note = "A `Component`: `PaintChip::new(label, Bind::bound(&mut paint), fallback).show(ui)` replaces `PaintChip::new(salt, label, &paint, fallback, numbers).show(ui)`. No Color is offered with `none_allowed()` (a flag, off by default). The output is `PaintChipOutput { edit, screen_pick }`; the host answers a screen pick through `sampled`."
+
+[[type]]
+name = "PaintList"
+old = "craft_color::ui::PaintList"
+new = "craft_color::ui::PaintList"
+status = "moved"
+note = "A `Pattern`: `PaintList::new(label, &paints, Bind::bound(&mut selected))`; the output is `PaintListOutput { response, selected, events }`, a rename is `PaintListEvent::Rename`. The row chip edit, hex and opacity fields wait for a row slot that holds field controls."
+
+[[type]]
+name = "PaintListResponse"
+old = "craft_color::ui::PaintListResponse"
+new = "craft_color::ui::PaintListOutput"
+status = "replaced"
+note = "`selected` is the row selected in the pass; `renamed` is folded into `events`."
+
+[[type]]
+name = "PaintLabels"
+old = "craft_color::ui::PaintLabels"
+new = "craft_color::ui::PaintWords"
+status = "replaced"
+note = "One word set holds the labels of the chip, its kinds and the list."
+
+[[type]]
+name = "PaintKindLabels"
+old = "craft_color::ui::PaintKindLabels"
+new = "craft_color::ui::PaintWords"
+status = "replaced"
+note = ""
+
+[[type]]
+name = "PaintListLabels"
+old = "craft_color::ui::PaintListLabels"
+new = "craft_color::ui::PaintWords"
+status = "replaced"
+note = ""
+
+[[type]]
+name = "PaintLink"
+old = "craft_color::ui::PaintLink"
+new = "craft_color::ui::PaintLink"
+status = "same"
+note = "`#[non_exhaustive]`; `PaintLink::new(name, kind)`."
+
+[[type]]
+name = "SwatchPair"
+old = "craft_color::ui::SwatchPair"
+new = "craft_color::ui::SwatchPair"
+status = "moved"
+note = "A `Component` with parts `WELL.at(0|1)`: `SwatchPair::new(label, wells, Bind::bound(&mut active))`. The popup is the pair's own overlay holding the Compact picker."
+
+[[type]]
+name = "SwatchPairResponse"
+old = "craft_color::ui::SwatchPairResponse"
+new = "craft_color::ui::SwatchPairOutput"
+status = "replaced"
+note = "`edit` is `Option<EditResponse<PickedColor>>`; `eyedropper_requested` and `picker_id` are `screen_pick`."
+
+[[type]]
+name = "SwatchPairStyle"
+old = "craft_color::ui::SwatchPairStyle"
+new = ""
+status = "replaced"
+note = "A `ComponentStyle`; sizes come from the theme."
+
+[[type]]
+name = "PairWell"
+old = "craft_color::ui::PairWell"
+new = "craft_color::ui::PairWell"
+status = "same"
+note = "`PairWell::new(label, color)` takes a `Label`."
+
+[[type]]
+name = "LutPicker"
+old = "craft_color::ui::LutPicker"
+new = "craft_color::ui::LutPicker"
+status = "moved"
+note = "A `Component` over `Bind<LutChoice>`; `folder(PathBuf)` sets the folder."
+
+[[type]]
+name = "LutPickerResponse"
+old = "craft_color::ui::LutPickerResponse"
+new = "craft_color::ui::LutPickerOutput"
+status = "replaced"
+note = ""
+
+[[type]]
+name = "LutPickerLabels"
+old = "craft_color::ui::LutPickerLabels"
+new = "craft_color::ui::LutWords"
+status = "replaced"
+note = "`LUT_WORDS` is folded into `LutWords`."
+
+[[type]]
+name = "ProfileMismatchDialog"
+old = "craft_color::ui::ProfileMismatchDialog"
+new = "craft_color::ui::ProfileMismatchDialog"
+status = "moved"
+note = "A `StackDialog` on `Prompt`."
+
+[[type]]
+name = "ProfileLabels"
+old = "craft_color::ui::ProfileLabels"
+new = "craft_color::ui::ProfileWords"
+status = "replaced"
+note = ""
+
+[[setter]]
+type = "PaintChip"
+old = "enabled"
+new = ""
+note = "removed: disabled is the pipeline's"
+
+[[setter]]
+type = "PaintChip"
+old = "numbers"
+new = ""
+note = "removed: numbers come from the scope"
+
+[[setter]]
+type = "PaintChip"
+old = "id_salt"
+new = ""
+note = "removed: ids come from the pipeline"
+
+[[setter]]
+type = "SwatchPair"
+old = "backdrop"
+new = ""
+note = "removed: the gap uses the panel's surface colour"
+
+[[setter]]
+type = "SwatchPair"
+old = "enabled"
+new = ""
+note = "removed"
+
+[[setter]]
+type = "SwatchPair"
+old = "numbers"
+new = ""
+note = "removed"
+
+[[setter]]
+type = "SwatchPair"
+old = "active"
+new = "new(.., active)"
+note = "the active well is the constructor's binding"
+
+[[setter]]
+type = "LutPicker"
+old = "enabled"
+new = ""
+note = "removed"
+
+[[setter]]
+type = "LutPicker"
+old = "id_salt"
+new = ""
+note = "removed"
