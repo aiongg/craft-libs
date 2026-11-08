@@ -60,65 +60,55 @@ fn series(r: u8, g: u8, b: u8) -> DataColor {
 }
 
 fn column(x: f32, height: f32, fill: DataColor) -> ChartPrimitive {
-    ChartPrimitive::Rect { x, y: 110.0 - height, width: 24.0, height, fill: Some(fill), stroke: None, radius: 2.0 }
+    ChartPrimitive::rect(x, 110.0 - height, 24.0, height).filled(fill).rounded(2.0)
 }
 
-fn label(x: f32, y: f32, text: &str, bold: bool, align: HAlign, valign: VAlign) -> ChartPrimitive {
-    ChartPrimitive::Text { x, y, text: text.to_owned(), color: None, bold, align, valign, rotation: 0.0 }
+fn label(x: f32, y: f32, text: &str, h: HAlign, v: VAlign) -> ChartPrimitive {
+    ChartPrimitive::text(x, y, text).anchored(h, v)
 }
 
 fn columns() -> Vec<ChartPrimitive> {
     let (blue, orange) = (series(66, 133, 244), series(244, 160, 0));
     vec![
-        label(110.0, 6.0, "Sales", true, HAlign::Center, VAlign::Top),
+        label(110.0, 6.0, "Sales", HAlign::Center, VAlign::Top).bold(),
         column(20.0, 40.0, blue),
         column(52.0, 70.0, orange),
         column(84.0, 55.0, blue),
         column(116.0, 85.0, orange),
-        label(32.0, 116.0, "Q1", false, HAlign::Center, VAlign::Top),
-        label(128.0, 116.0, "Q4", false, HAlign::Center, VAlign::Top),
-        ChartPrimitive::Polygon {
-            points: vec![[160.0, 100.0], [180.0, 70.0], [200.0, 90.0], [220.0, 50.0], [220.0, 110.0], [160.0, 110.0]],
-            fill: series(52, 168, 83),
-            stroke: None,
-        },
-        ChartPrimitive::Circle { center_x: 190.0, center_y: 30.0, radius: 6.0, fill: Some(series(219, 68, 55)), stroke: None },
+        label(32.0, 116.0, "Q1", HAlign::Center, VAlign::Top),
+        label(128.0, 116.0, "Q4", HAlign::Center, VAlign::Top),
+        ChartPrimitive::polygon(
+            vec![[160.0, 100.0], [180.0, 70.0], [200.0, 90.0], [220.0, 50.0], [220.0, 110.0], [160.0, 110.0]],
+            series(52, 168, 83),
+        ),
+        ChartPrimitive::circle([190.0, 30.0], 6.0).filled(series(219, 68, 55)),
     ]
 }
 
 fn doughnut() -> Vec<ChartPrimitive> {
-    let tau = std::f32::consts::TAU;
     let shares = [(0.45, series(66, 133, 244)), (0.30, series(244, 160, 0)), (0.25, series(52, 168, 83))];
     let mut start = 0.0;
     let mut out = Vec::new();
     for (share, fill) in shares {
-        let end = start + share * tau;
-        out.push(ChartPrimitive::Wedge {
-            center_x: 70.0,
-            center_y: 70.0,
-            outer_radius: 60.0,
-            inner_radius: 30.0,
-            start_angle: start,
-            end_angle: end,
-            fill,
-            stroke: None,
-        });
+        let end = start + share * std::f32::consts::TAU;
+        out.push(ChartPrimitive::wedge([70.0, 70.0], (30.0, 60.0), (start, end), fill));
         start = end;
     }
-    out.push(label(70.0, 70.0, "Share", true, HAlign::Center, VAlign::Center));
+    out.push(label(70.0, 70.0, "Share", HAlign::Center, VAlign::Center).bold());
     out
 }
 
-fn shown(ui: &mut Ui, primitives: &[ChartPrimitive], size: Vec2) -> StoryOutput {
+fn shown(ui: &mut Ui, primitives: &[ChartPrimitive]) -> StoryOutput {
+    let size = ui.available_size();
     ChartSheet { common: Common::new(), primitives, size, zoom: 1.0 }.label("Chart").show(ui).into()
 }
 
 #[story(ChartSheet<'static>, covers = [Default], drive = Drive::Never)]
 fn column_chart(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    shown(ui, &columns(), Vec2::new(240.0, 130.0))
+    shown(ui, &columns())
 }
 
 #[story(ChartSheet<'static>, covers = [], drive = Drive::Never)]
 fn doughnut_chart(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    shown(ui, &doughnut(), Vec2::new(140.0, 140.0))
+    shown(ui, &doughnut())
 }

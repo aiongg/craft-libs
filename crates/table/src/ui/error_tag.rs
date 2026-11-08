@@ -28,6 +28,7 @@ craft_ui::words! {
 
 /// The style of the error tag.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
+#[style(variants = [Variant::SECONDARY])]
 #[non_exhaustive]
 pub struct ErrorTagStyle {
     #[style(surface)]
@@ -67,6 +68,7 @@ impl Outcome for ErrorTagOutput {
 /// [`ErrorTagOutput::fix`]. The tag measures itself at a named icon size and does not follow the sheet's zoom; where
 /// it sits beside the cell is the grid's.
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
+#[component(overlay)]
 pub struct ErrorTag<'a> {
     #[common]
     common: Common,
@@ -91,7 +93,7 @@ impl Component for ErrorTag<'_> {
     type Output = ErrorTagOutput;
 
     fn style(cx: &StyleCx<'_>, _: ErrorTagStyleKey) -> ErrorTagStyle {
-        let parts = cx.with_variant(Variant::SECONDARY).variant_look();
+        let parts = cx.variant_look();
         let mut surface = SurfaceLook::new(parts.fill.clone()).radius(parts.radius).kind(SurfaceKind::Raised).kind_down(SurfaceKind::Pressed);
         if let Some(edge) = parts.edge {
             surface = surface.border(edge, cx.tokens.stroke.thin);

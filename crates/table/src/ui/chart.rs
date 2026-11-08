@@ -17,6 +17,7 @@ const COLLINEAR: f32 = 1e-3;
 
 /// Horizontal text anchor.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum HAlign {
     /// The text starts at the anchor.
     #[default]
@@ -29,6 +30,7 @@ pub enum HAlign {
 
 /// Vertical text anchor.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum VAlign {
     /// The text hangs from the anchor.
     #[default]
@@ -49,6 +51,7 @@ pub enum VAlign {
 #[non_exhaustive]
 pub enum ChartPrimitive {
     /// A rectangle.
+    #[non_exhaustive]
     Rect {
         /// Left edge.
         x: f32,
@@ -66,6 +69,7 @@ pub enum ChartPrimitive {
         radius: f32,
     },
     /// A polyline.
+    #[non_exhaustive]
     Line {
         /// The vertices, in order.
         points: Vec<[f32; 2]>,
@@ -77,6 +81,7 @@ pub enum ChartPrimitive {
         dash: bool,
     },
     /// A filled polygon.
+    #[non_exhaustive]
     Polygon {
         /// The vertices, in order.
         points: Vec<[f32; 2]>,
@@ -86,6 +91,7 @@ pub enum ChartPrimitive {
         stroke: Option<(DataColor, f32)>,
     },
     /// A pie or doughnut sector: centre, radii, angles in radians (0 at 12 o'clock, clockwise).
+    #[non_exhaustive]
     Wedge {
         /// Centre x.
         center_x: f32,
@@ -105,6 +111,7 @@ pub enum ChartPrimitive {
         stroke: Option<(DataColor, f32)>,
     },
     /// A circle.
+    #[non_exhaustive]
     Circle {
         /// Centre x.
         center_x: f32,
@@ -118,6 +125,7 @@ pub enum ChartPrimitive {
         stroke: Option<(DataColor, f32)>,
     },
     /// Text anchored at `(x, y)` by `align` / `valign`, rotated by `rotation` radians about the anchor.
+    #[non_exhaustive]
     Text {
         /// Anchor x.
         x: f32,
@@ -136,6 +144,116 @@ pub enum ChartPrimitive {
         /// Rotation in radians about the anchor.
         rotation: f32,
     },
+}
+
+impl ChartPrimitive {
+    /// A rectangle at `(x, y)`, `width` by `height`, with no fill, no stroke and square corners.
+    pub fn rect(x: f32, y: f32, width: f32, height: f32) -> Self {
+        ChartPrimitive::Rect { x, y, width, height, fill: None, stroke: None, radius: 0.0 }
+    }
+
+    /// A solid polyline through `points`.
+    pub fn line(points: Vec<[f32; 2]>, color: DataColor, width: f32) -> Self {
+        ChartPrimitive::Line { points, color, width, dash: false }
+    }
+
+    /// A polygon through `points` filled with `fill`.
+    pub fn polygon(points: Vec<[f32; 2]>, fill: DataColor) -> Self {
+        ChartPrimitive::Polygon { points, fill, stroke: None }
+    }
+
+    /// A sector around `center` between the `(inner, outer)` radii and the `(start, end)` angles, filled with `fill`.
+    pub fn wedge(center: [f32; 2], (inner_radius, outer_radius): (f32, f32), (start_angle, end_angle): (f32, f32), fill: DataColor) -> Self {
+        ChartPrimitive::Wedge { center_x: center[0], center_y: center[1], outer_radius, inner_radius, start_angle, end_angle, fill, stroke: None }
+    }
+
+    /// A circle around `center` with no fill and no stroke.
+    pub fn circle(center: [f32; 2], radius: f32) -> Self {
+        ChartPrimitive::Circle { center_x: center[0], center_y: center[1], radius, fill: None, stroke: None }
+    }
+
+    /// Text anchored at `(x, y)` by its top left corner, in the surface's ink, not bold.
+    pub fn text(x: f32, y: f32, text: impl Into<String>) -> Self {
+        ChartPrimitive::Text { x, y, text: text.into(), color: None, bold: false, align: HAlign::Left, valign: VAlign::Top, rotation: 0.0 }
+    }
+
+    /// Fills a rect or circle, or replaces the fill of a polygon or wedge.
+    #[must_use]
+    pub fn filled(mut self, color: DataColor) -> Self {
+        match &mut self {
+            ChartPrimitive::Rect { fill, .. } | ChartPrimitive::Circle { fill, .. } => *fill = Some(color),
+            ChartPrimitive::Polygon { fill, .. } | ChartPrimitive::Wedge { fill, .. } => *fill = color,
+            ChartPrimitive::Line { .. } | ChartPrimitive::Text { .. } => {}
+        }
+        self
+    }
+
+    /// Outlines a rect, polygon, wedge or circle.
+    #[must_use]
+    pub fn stroked(mut self, color: DataColor, width: f32) -> Self {
+        match &mut self {
+            ChartPrimitive::Rect { stroke, .. }
+            | ChartPrimitive::Polygon { stroke, .. }
+            | ChartPrimitive::Wedge { stroke, .. }
+            | ChartPrimitive::Circle { stroke, .. } => *stroke = Some((color, width)),
+            ChartPrimitive::Line { .. } | ChartPrimitive::Text { .. } => {}
+        }
+        self
+    }
+
+    /// Rounds the corners of a rect.
+    #[must_use]
+    pub fn rounded(mut self, corner: f32) -> Self {
+        if let ChartPrimitive::Rect { radius, .. } = &mut self {
+            *radius = corner;
+        }
+        self
+    }
+
+    /// Draws a line dashed.
+    #[must_use]
+    pub fn dashed(mut self) -> Self {
+        if let ChartPrimitive::Line { dash, .. } = &mut self {
+            *dash = true;
+        }
+        self
+    }
+
+    /// Draws text bold.
+    #[must_use]
+    pub fn bold(mut self) -> Self {
+        if let ChartPrimitive::Text { bold, .. } = &mut self {
+            *bold = true;
+        }
+        self
+    }
+
+    /// Anchors text by `align` and `valign`.
+    #[must_use]
+    pub fn anchored(mut self, h: HAlign, v: VAlign) -> Self {
+        if let ChartPrimitive::Text { align, valign, .. } = &mut self {
+            (*align, *valign) = (h, v);
+        }
+        self
+    }
+
+    /// Colours text.
+    #[must_use]
+    pub fn inked(mut self, ink: StyleColor) -> Self {
+        if let ChartPrimitive::Text { color, .. } = &mut self {
+            *color = Some(ink);
+        }
+        self
+    }
+
+    /// Rotates text by `radians` about its anchor.
+    #[must_use]
+    pub fn rotated(mut self, radians: f32) -> Self {
+        if let ChartPrimitive::Text { rotation, .. } = &mut self {
+            *rotation = radians;
+        }
+        self
+    }
 }
 
 /// Paints `primitives` with their origin at `origin`, scaled by `zoom`: rects, polygons (a convex one whole, else

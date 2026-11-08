@@ -47,6 +47,7 @@ const COPY_REASON: &str = "Copy copies the selection; the statistics are values 
 
 /// A selection's statistics, worked out by the app over its cells.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct SelectionStats {
     /// Non-empty cells.
     pub count: u64,
@@ -61,6 +62,11 @@ pub struct SelectionStats {
 }
 
 impl SelectionStats {
+    /// The statistics of `count` non-empty cells, `numeric` of them numbers with the given sum, smallest and largest.
+    pub fn new(count: u64, numeric: u64, sum: f64, min: f64, max: f64) -> Self {
+        SelectionStats { count, numeric, sum, min, max }
+    }
+
     /// `None` without numbers.
     pub fn average(&self) -> Option<f64> {
         (self.numeric > 0).then(|| self.sum / self.numeric as f64)
@@ -69,6 +75,7 @@ impl SelectionStats {
 
 /// Which statistics show; one settings section (Excel's status bar menu is app-wide).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct StatsShown {
     /// Show the average.
     pub average: bool,
@@ -84,6 +91,20 @@ pub struct StatsShown {
     pub sum: bool,
 }
 
+impl StatsShown {
+    /// Every statistic shown.
+    pub fn all() -> Self {
+        StatsShown { average: true, count: true, numerical_count: true, minimum: true, maximum: true, sum: true }
+    }
+}
+
+impl StatPart {
+    /// A statistic of `text` ("Average: 3.5") whose value alone is `value` ("3.5").
+    pub fn new(text: impl Into<String>, value: impl Into<String>) -> Self {
+        StatPart { text: text.into(), value: value.into() }
+    }
+}
+
 impl Default for StatsShown {
     /// Excel's: Average, Count and Sum.
     fn default() -> Self {
@@ -93,6 +114,7 @@ impl Default for StatsShown {
 
 /// One statistic of the status bar: the label with its value, and the value alone, which a click copies.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct StatPart {
     /// "Average: 3.5".
     pub text: String,
@@ -170,7 +192,7 @@ impl Statistic {
 /// The style of the statistics readout.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
-pub struct SelectionStatsStyle {
+pub struct SelectionStatsReadoutStyle {
     #[style(metrics)]
     metrics: Metrics,
     #[style(focus)]
@@ -205,6 +227,7 @@ impl Outcome for SelectionStatsOutput {
 /// statistic), which changes the bound [`StatsShown`]. The readout takes the room it is given, so the menu opens
 /// with no statistic shown. The readout is one Tab stop.
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
+#[component(overlay)]
 pub struct SelectionStatsReadout<'a> {
     #[common]
     common: Common,
@@ -220,18 +243,18 @@ impl<'a> SelectionStatsReadout<'a> {
         SelectionStatsReadout { common: Common::new(), parts, shown, rects: Vec::new(), copied: None }.label(label)
     }
 
-    fn run<'t>(text: &'t str, style: &SelectionStatsStyle) -> TextRun<'t> {
+    fn run<'t>(text: &'t str, style: &SelectionStatsReadoutStyle) -> TextRun<'t> {
         TextRun::new(text).role(style.text.role)
     }
 }
 
 impl Component for SelectionStatsReadout<'_> {
     const ROLE: Role = Role::GROUP;
-    type Style = SelectionStatsStyle;
+    type Style = SelectionStatsReadoutStyle;
     type Output = SelectionStatsOutput;
 
-    fn style(cx: &StyleCx<'_>, _: SelectionStatsStyleKey) -> SelectionStatsStyle {
-        SelectionStatsStyle {
+    fn style(cx: &StyleCx<'_>, _: SelectionStatsReadoutStyleKey) -> SelectionStatsReadoutStyle {
+        SelectionStatsReadoutStyle {
             metrics: Metrics::new(),
             focus: cx.focus_look(),
             text: TextLook::new(TypeRole::Label, Stateful::new(cx.color(cx.tokens.color.text.muted))),

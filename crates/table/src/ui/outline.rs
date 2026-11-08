@@ -39,6 +39,7 @@ pub const LANE_MIN_ZOOM: f32 = 0.75;
 /// A group of lines `start..=end` at `level` (1 = outermost), with its summary line after it
 /// (below or right; before it when `summary_before`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct OutlineGroup {
     /// The group's first line.
     pub start: u32,
@@ -54,6 +55,7 @@ pub struct OutlineGroup {
 
 /// One direction's outline: its deepest level and its groups.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct OutlineAxis {
     /// The deepest level.
     pub levels: u8,
@@ -66,6 +68,7 @@ pub struct OutlineAxis {
 #[non_exhaustive]
 pub enum OutlineAction {
     /// Show levels 1…`level` (the corner buttons 1…n+1).
+    #[non_exhaustive]
     Level {
         /// True for the row outline, false for the column outline.
         rows: bool,
@@ -73,12 +76,53 @@ pub enum OutlineAction {
         level: u8,
     },
     /// Collapse or expand a group (its − / + button).
+    #[non_exhaustive]
     Toggle {
         /// True for the row outline, false for the column outline.
         rows: bool,
         /// The group to collapse or expand.
         group: OutlineGroup,
     },
+}
+
+impl OutlineGroup {
+    /// An expanded group of lines `start..=end` at `level` with its summary line after it.
+    pub fn new(start: u32, end: u32, level: u8) -> Self {
+        OutlineGroup { start, end, level, collapsed: false, summary_before: false }
+    }
+
+    /// Sets whether the group is collapsed.
+    #[must_use]
+    pub fn collapsed(mut self, collapsed: bool) -> Self {
+        self.collapsed = collapsed;
+        self
+    }
+
+    /// Puts the summary line before the group.
+    #[must_use]
+    pub fn summary_before(mut self, before: bool) -> Self {
+        self.summary_before = before;
+        self
+    }
+}
+
+impl OutlineAxis {
+    /// An outline `levels` deep with `groups`.
+    pub fn new(levels: u8, groups: Vec<OutlineGroup>) -> Self {
+        OutlineAxis { levels, groups }
+    }
+}
+
+impl OutlineAction {
+    /// The corner button that shows levels 1…`level`.
+    pub fn level(rows: bool, level: u8) -> Self {
+        OutlineAction::Level { rows, level }
+    }
+
+    /// The button that collapses or expands `group`.
+    pub fn toggle(rows: bool, group: OutlineGroup) -> Self {
+        OutlineAction::Toggle { rows, group }
+    }
 }
 
 /// A lane's width at `zoom` (sheet zoom, 1.0 = 100 %): `lane × max(zoom, LANE_MIN_ZOOM)`, rounded. `lane` is the
@@ -97,8 +141,8 @@ fn thickness(levels: u8, zoom: f32, lane_size: f32, slack: f32) -> f32 {
 
 /// The bands a grid reserves for outlines `(rows, columns)` levels deep: the row band's width and the column band's
 /// height. Without headings the level buttons still need a corner: the band on the other axis is then at least a
-/// lane and the slack thick. `lane_size` is the lane size of the caller's style and `slack` the room after the last
-/// lane.
+/// lane and the slack thick. `lane_size` is the lane size of the caller's style (`size.icon.sm`) and `slack` the room
+/// after the last lane (`space.gap.tight`).
 pub fn bands((rows, columns): (u8, u8), headings: bool, zoom: f32, lane_size: f32, slack: f32) -> Vec2 {
     let corner = lane(lane_size, zoom) + slack;
     let mut band = Vec2::new(thickness(rows, zoom, lane_size, slack), thickness(columns, zoom, lane_size, slack));
@@ -134,8 +178,6 @@ pub struct OutlineBandStyle {
     inset: f32,
     /// How far a button's hit area reaches past its square.
     hit: f32,
-    /// The room after the last lane.
-    slack: f32,
     radius: CornerRadius,
     background: StyleColor,
     edge: StyleColor,
@@ -230,7 +272,6 @@ impl Component for OutlineBand<'_> {
             min_side: size.handle.sm,
             inset: space.gap.tight,
             hit: size.hit.slop,
-            slack: space.gap.tight,
             radius: CornerRadius::same(tokens.shape.radius.sm.round() as u8),
             background: cx.color(colors.surface.background),
             edge: cx.color(colors.line.border),
