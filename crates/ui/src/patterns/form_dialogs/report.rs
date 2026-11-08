@@ -28,6 +28,7 @@ craft_ui::words! {
         error: "formDialogs.reportError" = "Error";
         success: "formDialogs.reportSuccess" = "Success";
         note: "formDialogs.reportNote" = "Note";
+        line: template "formDialogs.reportLine" = "{tone}: {text}";
     }
 }
 
@@ -101,7 +102,7 @@ impl<'a> ReportDialog<'a> {
                     Tone::Good => &words.success,
                     _ => &words.note,
                 };
-                format!("{}: {}", view.resolve(word).as_str(), view.resolve(&note.text).as_str())
+                words.line.fill(&[("tone", view.resolve(word).as_str()), ("text", view.resolve(&note.text).as_str())])
             })
             .collect::<Vec<_>>()
             .join("\n")

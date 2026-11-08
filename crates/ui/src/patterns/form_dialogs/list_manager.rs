@@ -8,7 +8,6 @@ use crate::display::{Shade, Text};
 use crate::form::Field;
 use crate::layout_components::Stack;
 use crate::list::{List, ListRow};
-use crate::runtime::commands::{CommandSet as _, Commands as _};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::overlay::CloseReason;
 use crate::runtime::words::CommonWords;
@@ -36,18 +35,7 @@ craft_ui::words! {
     }
 }
 
-/// The keys of a list manager that belong to the dialog holding the focus: Delete removes the selected entry (the
-/// action with the id `delete`). Up and Down are the list's own keys, which the name box forwards to it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui_macros::CommandSet)]
-#[command(prefix = "listManager", scope = "listManager")]
-#[non_exhaustive]
-pub enum ListManagerCommands {
-    /// Runs the `delete` action on the selected entry.
-    #[command(label = "Delete", default = "Delete", modal = "always")]
-    Delete,
-}
-
-/// The id of the standard delete action, which the Delete key runs.
+/// The id of the standard delete action, which Delete in the list runs.
 const DELETE: &str = "delete";
 
 /// One row.
@@ -263,7 +251,7 @@ fn is_enabled(action: &ListManagerAction, entries: &[ListManagerEntry], folder: 
 /// - Name box: typing selects the entry with that name; picking a row puts its name in the box. With `searchable` the
 ///   box also filters the rows to the names that match it.
 /// - Keys: Up and Down in the box or the list move the selection, Enter and a double click run the first action when
-///   it is enabled, Delete runs the `delete` action (a command of the dialog's scope), Escape cancels.
+///   it is enabled, Delete in the list runs the `delete` action, Escape cancels.
 /// - Actions are the footer's buttons, in the given order, with Cancel last. The app replaces `entries` between
 ///   passes; the name box keeps its text.
 #[must_use = "show the dialog with `show`"]
@@ -334,18 +322,13 @@ impl<'a> ListManager<'a> {
             })
             .collect();
         buttons.push(FooterButton::new(common.cancel.clone(), DialogRole::Cancel));
-        let mut dialog = Dialog::new(title.clone())
-            .collection_body()
-            .command_scope(ListManagerCommands::SCOPE)
-            .close_on_enter(false)
-            .buttons(buttons)
-            .settle_buttons(move |cx, buttons| {
-                let folder = cx.env.folder();
-                let typed = cx.memory::<Session>().name.clone();
-                for (button, action) in buttons.iter_mut().zip(actions) {
-                    button.set_enabled(is_enabled(action, entries, &folder, &typed));
-                }
-            });
+        let mut dialog = Dialog::new(title.clone()).collection_body().close_on_enter(false).buttons(buttons).settle_buttons(move |cx, buttons| {
+            let folder = cx.env.folder();
+            let typed = cx.memory::<Session>().name.clone();
+            for (button, action) in buttons.iter_mut().zip(actions) {
+                button.set_enabled(is_enabled(action, entries, &folder, &typed));
+            }
+        });
         if let Some(open) = open {
             dialog = dialog.opened(open);
         }
@@ -361,14 +344,6 @@ impl<'a> ListManager<'a> {
                 session.name.clone_from(name);
             }
             let session = RefCell::new(session);
-            while let Some((command, _)) = cx.take_command::<ListManagerCommands>() {
-                match command {
-                    ListManagerCommands::Delete => {
-                        let delete = actions.iter().position(|action| action.id == DELETE);
-                        activated.set(delete.filter(|at| is_enabled(&actions[*at], entries, &folder, &session.borrow().name)));
-                    }
-                }
-            }
             Stack::new()
                 .header(|ui, _| {
                     let mut session = session.borrow_mut();
@@ -391,8 +366,12 @@ impl<'a> ListManager<'a> {
                     let current = entries.iter().position(|entry| is_named(entry, &folder, &session.name));
                     let mut selection = current.map_or_else(Selection::default, Selection::single);
                     let source = Rows(entries);
-                    let mut list =
-                        List::new(title.clone()).id(list_id).select(SelectMode::Single).allow_empty(true).selection(Bind::bound(&mut selection));
+                    let mut list = List::new(title.clone())
+                        .id(list_id)
+                        .select(SelectMode::Single)
+                        .allow_empty(true)
+                        .deletable(true)
+                        .selection(Bind::bound(&mut selection));
                     if let Some(empty) = &empty {
                         list = list.empty(empty.clone());
                     }
@@ -416,10 +395,20 @@ impl<'a> ListManager<'a> {
                         session.name.clone_from(&entries[at].name);
                     }
                     for event in events {
-                        if let CollectionEvent::Activate(at) = event {
-                            session.name.clone_from(&entries[at].name);
-                            let first = actions.first().filter(|action| is_enabled(action, entries, &folder, &session.name));
-                            activated.set(first.map(|_| 0));
+                        match event {
+                            CollectionEvent::Activate(at) => {
+                                session.name.clone_from(&entries[at].name);
+                                let first = actions.first().filter(|action| is_enabled(action, entries, &folder, &session.name));
+                                activated.set(first.map(|_| 0));
+                            }
+                            CollectionEvent::Delete(rows) => {
+                                if let Some(at) = rows.first() {
+                                    session.name.clone_from(&entries[*at].name);
+                                }
+                                let delete = actions.iter().position(|action| action.id == DELETE);
+                                activated.set(delete.filter(|at| is_enabled(&actions[*at], entries, &folder, &session.name)));
+                            }
+                            _ => {}
                         }
                     }
                 });

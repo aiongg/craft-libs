@@ -1,7 +1,10 @@
 //! The nine points of a box, shared by the transform box rules and the reference point picker.
 
+use serde::{Deserialize, Serialize};
+
 /// The nine points of a box: its corners, edge midpoints and centre, row by row from the top left.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum Anchor9 {
     /// The top left corner.

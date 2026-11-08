@@ -1,6 +1,7 @@
 //! `Select`: opens from the keyboard, picks through the listbox, closes on Escape without a change and reports its
 //! popup to assistive technology.
 
+use craft_theme::Srgba;
 use craft_ui::contract::{Bind, Entry, Props as _, Role, Show as _};
 use craft_ui::pickers::{Select, SelectFace};
 use craft_ui::testing::{Fixture, trial};
@@ -205,4 +206,31 @@ fn a_hosted_placeholder_face_paints_in_the_muted_ink() {
         let [text, placeholder] = &style.looks.texts[..] else { panic!("a face has a text and a placeholder look") };
         assert_ne!(text.color, placeholder.color, "the placeholder keeps its muted ink in the host's field");
     }
+}
+
+/// Entries that carry a swatch pick by their keys like any others.
+#[trial]
+fn entries_with_swatches_pick_by_keys() {
+    let value = Rc::new(Cell::new(0u8));
+    let shown = value.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let entries = [
+            Entry::new(0u8, "Cyan").swatch(Srgba::rgb(0.0, 1.0, 1.0)),
+            Entry::new(1, "Magenta").swatch(Srgba::rgb(1.0, 0.0, 1.0)),
+            Entry::new(2, "Black").swatch(Srgba::rgb(0.0, 0.0, 0.0)),
+        ];
+        let mut guide = shown.get();
+        Select::new("Colour", Bind::bound(&mut guide), &entries).id_salt("colour").show(ui);
+        shown.set(guide);
+    });
+    fixture.settle();
+    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.idle(2);
+    fixture.key(Key::ArrowDown, Modifiers::ALT);
+    fixture.idle(2);
+    fixture.key(Key::ArrowDown, Modifiers::NONE);
+    fixture.idle(FADE_FRAMES);
+    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.idle(FADE_FRAMES);
+    assert_eq!(value.get(), 1);
 }

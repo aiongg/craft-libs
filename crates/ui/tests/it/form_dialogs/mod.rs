@@ -32,3 +32,7 @@ mod pdf_export;
 mod save_for_web;
 
 mod watermark;
+
+mod list_manager;
+
+mod report;

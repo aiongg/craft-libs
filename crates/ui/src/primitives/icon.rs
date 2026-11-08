@@ -5,6 +5,7 @@ use super::textures::TextureCache;
 use crate::style::{Ink, StyleColor, UiTokens, ink_color};
 use craft_behavior::IconId;
 use craft_i18n::Direction;
+use craft_theme::Srgba;
 use egui::emath::GuiRounding as _;
 use egui::{Color32, Painter, Rect, pos2, vec2};
 
@@ -41,6 +42,8 @@ pub enum IconSource<'a> {
     Svg(IconId),
     /// A value glyph.
     Glyph(&'a dyn Glyph),
+    /// A colour from data, painted as a swatch (a guide colour, a matte colour).
+    Swatch(Srgba),
 }
 
 impl std::fmt::Debug for IconSource<'_> {
@@ -48,16 +51,18 @@ impl std::fmt::Debug for IconSource<'_> {
         match self {
             IconSource::Svg(id) => f.debug_tuple("Svg").field(id).finish(),
             IconSource::Glyph(_) => f.write_str("Glyph(..)"),
+            IconSource::Swatch(color) => f.debug_tuple("Swatch").field(color).finish(),
         }
     }
 }
 
-/// Two sources are equal when they name the same SVG icon or hold the same glyph object.
+/// Two sources are equal when they name the same SVG icon, hold the same glyph object or the same swatch colour.
 impl PartialEq for IconSource<'_> {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (IconSource::Svg(a), IconSource::Svg(b)) => a == b,
             (IconSource::Glyph(a), IconSource::Glyph(b)) => std::ptr::addr_eq(*a, *b),
+            (IconSource::Swatch(a), IconSource::Swatch(b)) => a == b,
             _ => false,
         }
     }
@@ -88,6 +93,11 @@ impl<'a> IconSpec<'a> {
     /// An icon of `glyph` in the panel ink.
     pub fn glyph(glyph: &'a dyn Glyph) -> Self {
         IconSpec { source: IconSource::Glyph(glyph), ink: Ink::OnPanel, color: None, mirror: Mirror::Auto, set: IconSet::default() }
+    }
+
+    /// A swatch of `color`, painted by [`Draw::data_fill`](super::Draw::data_fill).
+    pub fn swatch(color: Srgba) -> Self {
+        IconSpec { source: IconSource::Swatch(color), ink: Ink::OnPanel, color: None, mirror: Mirror::Never, set: IconSet::default() }
     }
 
     /// Sets the ink.
@@ -138,6 +148,8 @@ pub(crate) fn paint(painter: &Painter, tokens: &UiTokens, direction: Direction, 
     let side = rect.width().min(rect.height());
     let square = Rect::from_center_size(rect.center(), vec2(side, side));
     match &spec.source {
+        // `Draw::icon` paints swatches with the data-colour fill.
+        IconSource::Swatch(_) => {}
         IconSource::Glyph(glyph) => glyph.paint(painter, square, color, rtl && glyph.directional() && spec.mirror == Mirror::Auto),
         IconSource::Svg(id) => {
             let Some(index) = svg_set::find(id.name()) else {

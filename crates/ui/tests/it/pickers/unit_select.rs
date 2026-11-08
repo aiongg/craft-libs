@@ -33,3 +33,33 @@ fn tab_focuses_the_number_field_first() {
     fixture.idle(4);
     assert_eq!(width.get(), TYPED.parse().ok());
 }
+
+/// With the number disabled the unit select still picks a unit, and typing reaches nothing.
+#[trial]
+fn a_disabled_number_leaves_the_unit_select_working() {
+    let width = Rc::new(Cell::new(Some(210.0)));
+    let unit = Rc::new(Cell::new(UnitKind::Millimetres));
+    let (shown_width, shown_unit) = (width.clone(), unit.clone());
+    let mut fixture = Fixture::new(move |ui| {
+        let units = [Entry::new(UnitKind::Millimetres, "mm"), Entry::new(UnitKind::Inches, "in")];
+        let (mut value, mut kind) = (shown_width.get(), shown_unit.get());
+        UnitSelect::new("Width", Bind::bound(&mut value), Bind::bound(&mut kind), &units).number_enabled(false).show(ui);
+        shown_width.set(value);
+        shown_unit.set(kind);
+    });
+    fixture.settle();
+    let before = width.get();
+    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.idle(2);
+    fixture.type_text(TYPED);
+    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.idle(4);
+    assert_eq!(width.get(), before, "typing reaches no number");
+    fixture.key(Key::ArrowDown, Modifiers::ALT);
+    fixture.idle(2);
+    fixture.key(Key::ArrowDown, Modifiers::NONE);
+    fixture.idle(10);
+    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.idle(10);
+    assert_eq!(unit.get(), UnitKind::Inches, "the unit still changes");
+}
