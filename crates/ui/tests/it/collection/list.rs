@@ -1,16 +1,18 @@
 //! The list trials: wheel and thumb, keys and selection, rename, the empty state, trees and large sources.
 
-use super::kit::{Count, Dismissed, List, ROW_H, Row, Words};
+use super::kit::{Count, DISMISS, Dismissed, List, ROW_H, Row, Words};
 use craft_behavior::PartKey;
 use craft_behavior::{CancelReason, EditEvent, Selection, SelectionChange};
 use craft_ui::contract::{Bind, CollectionEvent, CollectionResponse, Props as _, SelectMode, Show as _, ShowCollection as _};
+use craft_ui::menu::MenuItem;
 use craft_ui::runtime::focus::{FocusTarget, request};
 use craft_ui::testing::focus::egui_focused;
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::text::widget_id;
-use craft_ui::testing::{Frames, input, pointer, trial};
+use craft_ui::testing::{Fixture, Frames, input, pointer, trial};
 use egui::{Event, Id, Key, Modifiers, Pos2, Rect, Ui, Vec2};
 use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 
 const VIEW: Vec2 = Vec2::new(300.0, 200.0);
 const ORIGIN: Pos2 = Pos2::new(10.0, 10.0);
@@ -865,4 +867,35 @@ fn a_secondary_press_on_an_unselected_row_selects_leads_and_focuses() {
     assert_eq!(seen.leads(), [1]);
     assert_eq!(egui_focused(&frames.ctx), Some(seen.id()), "the list holds focus");
     assert!(!seen.events.borrow().iter().any(|event| matches!(event, CollectionEvent::ContextMenu(_))), "nothing opens on the press");
+}
+
+/// A menu an item stores opens from a click on the item's part, hangs under that part, and a pick runs its row.
+#[trial]
+fn an_item_menu_opens_under_its_part_and_a_pick_runs() {
+    let picked = Rc::new(Cell::new(0));
+    let shown = picked.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let words = Words::flat(&["a", "b"]);
+        let picked = shown.clone();
+        List::new(SelectMode::Single).id_salt("list").show_items(ui, &words, &mut |_, icx| {
+            let picked = picked.clone();
+            icx.menu("Row actions", DISMISS, move |ui, _| {
+                if MenuItem::new("Duplicate").show(ui).ran {
+                    picked.set(picked.get() + 1);
+                }
+            });
+            Row::new().dismissable()
+        });
+    });
+    fixture.settle();
+    let row = fixture.by_role(craft_ui::contract::Role::LIST_ITEM).into_iter().nth(1).expect("the second row has a node");
+    let part = Rect::from_min_size(row.rect.min, Vec2::splat(ROW_H));
+    fixture.click_at(part.center());
+    fixture.settle();
+    let menu = fixture.by_role(craft_ui::contract::Role::MENU).into_iter().next().expect("the click opens the item's menu");
+    assert!(menu.rect.top() >= part.bottom() - 1.0, "the menu hangs under the part: {:?} under {:?}", menu.rect, part);
+    let duplicate = fixture.by_label("Duplicate").expect("the menu shows its row");
+    fixture.click(&duplicate);
+    fixture.settle();
+    assert_eq!(picked.get(), 1, "the pick ran");
 }

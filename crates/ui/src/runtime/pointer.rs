@@ -313,7 +313,6 @@ pub(crate) fn sensing_parts(ctx: &Context, root: Id, sense: craft_behavior::Sens
 
 /// The bounds of the part `part` of `owner` (the arena root or a member) in last pass's shape record: pointer-only
 /// parts have no access node, so this record is where their place is read.
-#[cfg(feature = "testing")]
 pub(crate) fn part_bounds(ctx: &Context, owner: Id, part: craft_behavior::PartRef) -> Option<egui::Rect> {
     let viewport = pass::current_viewport(ctx);
     PerViewport::<Shapes>::with(ctx, viewport, |record| {

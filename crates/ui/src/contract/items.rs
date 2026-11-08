@@ -9,7 +9,7 @@ use super::collection::{
 use super::cx::BodyCx;
 use super::run::{ShapeHooks, ShowAt};
 use super::steps::ShapeKind;
-use super::{Bind, Collection, Cx, Internal, ItemCx, ItemFn, ItemOutput as _, PartsCx, Props, Show as _, Sizing};
+use super::{Bind, Collection, Cx, Internal, ItemCx, ItemFn, ItemOutput as _, PartsCx, Props, Show as _, ShowContainer as _, Sizing};
 use crate::primitives::ScrollBar;
 use crate::runtime::access::{self, Role, SetPosition};
 use crate::runtime::egui::{alloc, areas, child, response};
@@ -688,12 +688,14 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     cells,
                     grid: grid.as_ref(),
                     tip: None,
+                    menus: Vec::new(),
                     memory: &mut *cx.core.memory,
                 };
                 icx.memory.claim(icx.id);
                 let item = (self.item)(&key, &mut icx);
                 let mut item = comp.dress(item, &state);
                 let tip = icx.tip.take();
+                let menus = std::mem::take(&mut icx.menus);
                 drop(icx);
                 let builder = UiBuilder::new().max_rect(row).layout(child::column_layout(rtl)).scope_id(sub(item_id, "row"));
                 let builder = if node { access::with_parent(builder, id) } else { builder };
@@ -735,6 +737,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     None => item.show_at(&mut row_ui, row),
                 };
                 let label = out.label_rect().unwrap_or(row);
+                self.show_item_menus(&mut row_ui, &ctx, (id, item_id), cx.core.resolved.enabled, menus);
                 if let Some(event) = out.into_event() {
                     self.events.push(CollectionEvent::Item(key.clone(), event));
                 }
@@ -1248,6 +1251,32 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             && let Some(row) = lead_at
         {
             self.events.push(CollectionEvent::Activate(self.source.key(row)));
+        }
+    }
+
+    /// The menus the item at `item` stored: each opens on a click of its anchor part and hangs under that part. The
+    /// opener is the part's own response, since the item's response reports only presses on the item itself.
+    fn show_item_menus(&self, ui: &mut Ui, ctx: &Context, (id, item): (Id, Id), enabled: bool, menus: Vec<super::cx::ItemMenu<'_>>) {
+        if menus.is_empty() {
+            return;
+        }
+        let outcome = crate::primitives::sensing::read_outcome(ctx, ArenaId::new(id));
+        for (n, mut menu) in menus.into_iter().enumerate() {
+            let Some(rect) = crate::runtime::pointer::part_bounds(ctx, item, menu.anchor) else { continue };
+            let anchor = menu.anchor;
+            let on_part = |hit: Option<crate::primitives::sensing::Hit>| hit.is_some_and(|hit| hit.owner == item && hit.part == Some(anchor));
+            let view = response::MemberView {
+                hovered: on_part(outcome.hover),
+                pressed: on_part(outcome.target) && outcome.phase.is_some(),
+                clicked: on_part(outcome.activated),
+                pointer: ctx.pointer_latest_pos(),
+                ..response::MemberView::default()
+            };
+            let opener = response::member(ui, sub(item, ("menu", n)), rect, enabled, view);
+            crate::menu::Menu::new(menu.label)
+                .opened_by(&opener, super::Trigger::Click)
+                .anchor(super::overlay::Anchor::Rect(rect))
+                .show(ui, |ui, cx| (menu.rows)(ui, cx));
         }
     }
 

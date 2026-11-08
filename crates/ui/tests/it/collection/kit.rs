@@ -128,7 +128,7 @@ impl ItemOutput<Dismissed> for RowOut {
     }
 }
 
-const DISMISS: craft_behavior::PartKey = craft_behavior::PartKey::new("dismiss");
+pub const DISMISS: craft_behavior::PartKey = craft_behavior::PartKey::new("dismiss");
 
 /// A row: it records its rect and, when it has a dismiss part, reports a click on it.
 #[derive(craft_ui::contract::Component)]
