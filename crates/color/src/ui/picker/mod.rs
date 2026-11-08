@@ -24,7 +24,7 @@ use craft_ui::style::{ComponentStyle, StyleCx};
 use egui::{Pos2, Response, Vec2};
 
 use super::{AreaMode, channels};
-pub(crate) use channel::{ChannelRow, ChannelRule, ChannelUnit, channel_name};
+pub(crate) use channel::{ChannelRow, ChannelRule, channel_name};
 pub use full::{ColorWarning, ColorWarningChip, ColorWarningChipOutput};
 use layout::Sizes;
 pub use value::ColorConstraint;

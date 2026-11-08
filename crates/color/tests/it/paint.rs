@@ -260,7 +260,7 @@ fn lut_rig(value: LutChoice) -> (Fixture, Rc<RefCell<LutChoice>>) {
 
 #[trial]
 fn the_lut_rows_follow_photocraft() {
-    let (mut fixture, _) = lut_rig(LutChoice::Loaded { name: "Film".to_owned(), size: 33 });
+    let (mut fixture, _) = lut_rig(LutChoice::loaded("Film", 33));
     let select = fixture.by_role(Role::COMBO_BOX).into_iter().next().expect("the select is shown");
     fixture.click(&select);
     fixture.idle(2);

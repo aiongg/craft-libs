@@ -14,8 +14,8 @@ use craft_ui::buttons::Button;
 use craft_ui::choice::Segmented;
 use craft_ui::contract::ShowContainer as _;
 use craft_ui::contract::{
-    Access, Activation, Bind, Common, Component, ContentPainter as _, Cx, Edit as _, EditResponse, Entry, Outcome, Overlay, OverlayUi, Overlays as _,
-    PaintUi, Pointer as _, PopupKind, Props as _, Remember as _, Role, Show as _, ShowCollection as _, WordSetCx as _,
+    Access, Activation, Bind, Common, Component, Cx, Edit as _, EditResponse, Entry, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi,
+    Pointer as _, PopupKind, Props as _, Remember as _, Role, Show as _, ShowCollection as _, WordSetCx as _,
 };
 use craft_ui::contract::{CollectionEvent, NoValue, Rename};
 use craft_ui::layout_components::Stack;
@@ -755,7 +755,7 @@ impl<'a> PaintList<'a> {
                 Some(Mixed::Same(Some(row))) if row < paints.len() => Selection::single(row),
                 _ => Selection::default(),
             };
-            let list = List::<usize>::new(label).selection(Bind::given(held)).can_rename(|_| true);
+            let list = List::<usize>::new(label.clone()).selection(Bind::given(held)).can_rename(|_| true);
             output = Some(list.show_items(ui, &Paints(paints), &mut |row, _| {
                 let (name, paint) = &paints[*row];
                 let mut item =

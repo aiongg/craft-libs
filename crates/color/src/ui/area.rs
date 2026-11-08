@@ -10,7 +10,7 @@ use craft_ui::contract::{
 use craft_ui::primitives::ContentPainterCx;
 use craft_ui::runtime::env::Label;
 use craft_ui::style::{ComponentStyle, StyleCx};
-use craft_ui::value_drag::{Backdrop, PointPicker};
+use craft_ui::value_drag::PointPicker;
 use egui::{Mesh, Rect, Vec2, pos2};
 
 #[cfg(feature = "screen-testing")]

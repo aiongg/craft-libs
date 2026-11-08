@@ -3,9 +3,7 @@
 use craft_behavior::{IconId, Metrics, Sense};
 use craft_theme::{ColorModel, Srgba};
 use craft_ui::choice::{Checkbox, Radio, Swatch};
-use craft_ui::contract::{
-    Bind, Common, Component, Cx, Edit as _, FieldLayout, MeasureCx, Outcome, PaintUi, Props as _, Role, SideLabel, WordSetCx as _,
-};
+use craft_ui::contract::{Bind, Common, Component, Cx, Edit as _, FieldLayout, MeasureCx, Outcome, PaintUi, Props as _, Role, SideLabel};
 use craft_ui::display::{Icon, Shade, Text};
 use craft_ui::primitives::IconSpec;
 use craft_ui::runtime::env::Label;

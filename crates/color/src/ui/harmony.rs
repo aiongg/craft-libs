@@ -152,7 +152,11 @@ impl<'a> HarmonyWheel<'a> {
         let mut pressed = None;
         let mut edits = Vec::new();
         let shown = Stack::new().show(ui, |ui, _| {
-            let disc = ColorDisc::new(label.clone(), colors, Bind::kept()).chosen(selected).brightness(brightness).names(names.clone()).show(ui);
+            let mut disc = ColorDisc::new(label.clone(), colors, Bind::kept());
+            if let Some(selected) = selected {
+                disc = disc.chosen(selected);
+            }
+            let disc = disc.brightness(brightness).names(names.clone()).show(ui);
             pressed = disc.pressed;
             if let Some(event) = disc.edit.event {
                 let marker = event.value().map(|m| m.marker).or(selected);

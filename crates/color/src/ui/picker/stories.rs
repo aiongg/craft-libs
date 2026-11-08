@@ -2,7 +2,7 @@
 //! compare swatch and a warning, and Full with the host's CMYK model and OKLCH.
 
 use craft_theme::{Channel, ColorModel, DefaultOn, HsbModel, LabModel, MAX_CHANNELS, ModelValues, OklchModel, RgbModel, Srgba};
-use craft_ui::contract::Bind;
+use craft_ui::contract::{Bind, Show as _};
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 

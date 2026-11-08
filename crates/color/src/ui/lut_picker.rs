@@ -45,6 +45,7 @@ craft_ui::words! {
 
 /// The chosen LUT.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum LutChoice {
     /// No LUT.
     None,
@@ -53,12 +54,20 @@ pub enum LutChoice {
     /// A file of the LUT folder; the app reads and embeds it.
     Folder(PathBuf),
     /// The LUT the layer holds, loaded before: its title and grid size.
+    #[non_exhaustive]
     Loaded {
         /// The LUT's title.
         name: String,
         /// The grid size: points per side.
         size: usize,
     },
+}
+
+impl LutChoice {
+    /// The LUT the layer holds, called `name`, with `size` points per side.
+    pub fn loaded(name: impl Into<String>, size: usize) -> Self {
+        LutChoice::Loaded { name: name.into(), size }
+    }
 }
 
 type FolderFiles = Vec<(String, PathBuf)>;
