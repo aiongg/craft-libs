@@ -330,7 +330,7 @@ impl<'a> ChannelMixerEditor<'a> {
                 .iter()
                 .enumerate()
                 .map(|(i, (key, name))| {
-                    AdjustField::new(key, (*name).clone(), -200.0..=200.0, identity[i])
+                    AdjustField::new(*key, (*name).clone(), -200.0..=200.0, identity[i])
                         .unit_kind(UnitKind::Percent)
                         .track(AdjustTrack::Colors(vec![tones::BLACK, mix::SOURCES[i]]))
                 })

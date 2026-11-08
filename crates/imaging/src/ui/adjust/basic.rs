@@ -164,7 +164,7 @@ impl<'a> ThresholdEditor<'a> {
         let mut edit = None;
         let shown = FieldGroup::new(label).show(ui, |ui, cx| {
             let now = read(&mut level, cx).unwrap_or(THRESHOLD_DEFAULT).clamp(THRESHOLD_MIN, THRESHOLD_MAX);
-            let empty = HistogramData::tone(&[0u32; THRESHOLD_BINS], ChannelColor::Neutral);
+            let empty = HistogramData::tone(&[0u32; THRESHOLD_BINS][..], ChannelColor::Neutral);
             let data = histogram.unwrap_or(&empty);
             let _ = Histogram::new(words.histogram.clone(), data).bordered().marker(now as f32).show(ui);
             let row = AdjustField::new("level", words.threshold_level.clone(), THRESHOLD_MIN..=THRESHOLD_MAX, THRESHOLD_DEFAULT);
