@@ -1,7 +1,8 @@
 //! The divider that `SplitArea`, `DockColumn` and `SplitViews` share: its hit part, its pointer drag, its keys and
 //! its accessibility node. A container describes each divider as a [`Divider`] in reading order and applies the
 //! coordinate the drag or the keys ask for; this module owns everything that is the same for all of them, including
-//! the mirroring for right-to-left.
+//! the mirroring for right-to-left. A component that draws its own dividers (a column bar, a margin handle) calls
+//! [`declare`] in its parts, [`pointer`] and [`keys`] in its update, and [`describe`] in its access.
 
 use crate::contract::{Access, Component, Cx, Focus as _, Name, Numeric, PartsCx, Pointer as _, Role};
 use craft_behavior::dock::DockEdge;
@@ -11,7 +12,8 @@ use egui::{Pos2, Rect};
 
 /// A divider as its container lays it out, in reading order.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct Divider {
+#[non_exhaustive]
+pub struct Divider {
     /// The axis the panes it separates follow: `X` for panes side by side, so the divider is vertical.
     pub axis: Axis,
     /// The strip across the boundary that takes the pointer.
@@ -26,7 +28,7 @@ pub(crate) struct Divider {
 
 impl Divider {
     /// A divider at `at` along `axis` across `span`, with a bar `reach` thick, that moves between `lo` and `hi`.
-    pub(crate) fn new(axis: Axis, at: f32, span: Rect, (lo, hi): (f32, f32), reach: f32) -> Self {
+    pub fn new(axis: Axis, at: f32, span: Rect, (lo, hi): (f32, f32), reach: f32) -> Self {
         let half = reach / 2.0;
         let bar = match axis {
             Axis::X => Rect::from_min_max(Pos2::new(at - half, span.top()), Pos2::new(at + half, span.bottom())),
@@ -63,7 +65,8 @@ impl Divider {
 
 /// What the pointer did to a divider this pass.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum Drag {
+#[non_exhaustive]
+pub enum Drag {
     /// The drag started.
     Start,
     /// The pointer is at this coordinate along the divider's axis, in reading order.
@@ -92,7 +95,7 @@ fn along_y(mv: NavMove) -> NavMove {
 
 /// Declares the part `key.at(index)` for `divider`: an edge part above the panes that takes drags and is its own Tab
 /// stop. `rect` is the container's rect, which the bar is mirrored across for right-to-left.
-pub(crate) fn declare<C: Component>(cx: &mut PartsCx<'_, C>, rect: Rect, key: PartKey, index: u64, divider: &Divider) {
+pub fn declare<C: Component>(cx: &mut PartsCx<'_, C>, rect: Rect, key: PartKey, index: u64, divider: &Divider) {
     let bar = Flow::new(rect, cx.flow.is_rtl()).to_physical(divider.bar);
     cx.part(key.at(index), bar)
         .sense(Sense::DRAG | Sense::TAKE_FOCUS)
@@ -103,7 +106,7 @@ pub(crate) fn declare<C: Component>(cx: &mut PartsCx<'_, C>, rect: Rect, key: Pa
 }
 
 /// What the pointer did to the divider `key.at(index)` this pass.
-pub(crate) fn pointer<C: Component>(cx: &Cx<'_, C>, key: PartKey, index: u64, divider: &Divider) -> Option<Drag> {
+pub fn pointer<C: Component>(cx: &Cx<'_, C>, key: PartKey, index: u64, divider: &Divider) -> Option<Drag> {
     let (rect, rtl) = (cx.rect, cx.flow.is_rtl());
     match cx.part(key.at(index)).press.phase {
         PressPhase::DragStart { .. } => Some(Drag::Start),
@@ -116,7 +119,7 @@ pub(crate) fn pointer<C: Component>(cx: &Cx<'_, C>, key: PartKey, index: u64, di
 /// The coordinate the keys or assistive technology ask the focused divider of `key` to take, with its index: an arrow
 /// press steps by `step`, Shift or Page by `jump`, and a set value is taken as it is. Takes the intent only when one
 /// of `dividers` (each with its index) is focused.
-pub(crate) fn keys<C: Component>(cx: &mut Cx<'_, C>, key: PartKey, dividers: &[(u64, Divider)], step: f32, jump: f32) -> Option<(u64, f32)> {
+pub fn keys<C: Component>(cx: &mut Cx<'_, C>, key: PartKey, dividers: &[(u64, Divider)], step: f32, jump: f32) -> Option<(u64, f32)> {
     let focused = cx.active_part().filter(|part| part.key == key).and_then(|part| part.index)?;
     let (_, divider) = dividers.iter().find(|(index, _)| *index == focused)?;
     let value = if let Some(set) = cx.intents().take_set_value() {
@@ -138,7 +141,7 @@ pub(crate) fn keys<C: Component>(cx: &mut Cx<'_, C>, key: PartKey, dividers: &[(
 }
 
 /// The accessibility node of the divider `key.at(index)`: a splitter named `name` whose value is its coordinate.
-pub(crate) fn describe(access: &mut Access, key: PartKey, index: u64, divider: &Divider, name: &str, step: f32) {
+pub fn describe(access: &mut Access, key: PartKey, index: u64, divider: &Divider, name: &str, step: f32) {
     let node = access.node(key.at(index), Role::SPLITTER);
     node.name = Name::Text(name.to_owned());
     node.numeric = Some(Numeric::new(f64::from(divider.at), f64::from(divider.lo)..=f64::from(divider.hi)).step(f64::from(step)));

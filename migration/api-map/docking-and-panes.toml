@@ -533,6 +533,21 @@ type = "WorkspaceSet"
 old = "WorkspaceSet::menu_entries(&WorkspaceLabels)"
 new = "the `builtin`, `saved` and `current` fields and `WorkspaceCommands`; the dock commands build the rows"
 
+# fw-asks-h (dock): the divider functions are public.
+[[type]]
+name = "Divider"
+old = ""
+new = "craft_ui::docking::divider::Divider"
+status = "replaced"
+note = "A divider as its container lays it out: `Divider::new(axis, at, span, (lo, hi), reach)`. A component with dividers of its own (`ColumnBar`, `MarginHandles`) builds one per divider and passes it to `divider::{declare, pointer, keys, describe}`."
+
+[[type]]
+name = "Drag"
+old = ""
+new = "craft_ui::docking::divider::Drag"
+status = "replaced"
+note = "What the pointer did to a divider this pass (`divider::pointer`): `Start`, `To(coordinate in reading order)`, `Release`."
+
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
 # type = ""
@@ -1398,3 +1413,10 @@ old = ""
 new = "craft_ui::docking::stack::StackSectionsStyle"
 status = "replaced"
 note = "The style of `StackSections`."
+
+# fw-asks-h (dock): the theme scope takes a mode only.
+[[setter]]
+type = "ThemeScope"
+old = "new(tokens)"
+new = ""
+note = "Removed: it left the token inputs of the outer scope in place, so a nested `ThemeScope::mode` resolved from the wrong inputs. No caller existed. `ThemeScope::mode(mode)` is the scope constructor."

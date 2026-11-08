@@ -7,6 +7,7 @@ use craft_ui::testing::style::{tokens, with_cx};
 mod render;
 
 mod pair;
+mod split_divider;
 mod split;
 
 mod drop;

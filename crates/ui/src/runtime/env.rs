@@ -419,53 +419,31 @@ impl Scoped {
     }
 }
 
-/// Token-changing values for a container's body: the body and everything under it resolve their styles from
-/// these tokens.
+/// Token-changing values for a container's body: the body and everything under it resolve their styles from the
+/// inherited theme in another mode.
 #[derive(Clone)]
 pub struct ThemeScope {
-    change: ScopeChange,
-}
-
-/// What a theme scope changes in the tokens its body resolves from.
-#[derive(Clone)]
-enum ScopeChange {
-    /// These tokens.
-    Tokens(Arc<UiTokens>),
-    /// The inherited theme, contrast, density and text size in this mode.
-    Mode(Mode),
+    mode: Mode,
 }
 
 impl ThemeScope {
-    /// A scope whose body resolves from `tokens`.
-    pub fn new(tokens: UiTokens) -> Self {
-        ThemeScope { change: ScopeChange::Tokens(Arc::new(tokens)) }
-    }
-
-    /// A scope whose body resolves the inherited theme in `mode`: a plot that is dark in every theme, a preview of the
-    /// other mode.
+    /// A scope whose body resolves the inherited theme, contrast, density and text size in `mode`: a plot that is dark
+    /// in every theme, a preview of the other mode.
     pub fn mode(mode: Mode) -> Self {
-        ThemeScope { change: ScopeChange::Mode(mode) }
+        ThemeScope { mode }
     }
 
     /// Puts the scope's tokens into `scoped`.
     pub(crate) fn apply(&self, ctx: &Context, scoped: &mut Scoped) {
-        match &self.change {
-            ScopeChange::Tokens(tokens) => scoped.tokens = tokens.clone(),
-            ScopeChange::Mode(mode) => {
-                let inputs = TokenInputs { mode: *mode, ..(*scoped.token_inputs).clone() };
-                scoped.tokens = tokens_for(ctx, &inputs);
-                scoped.token_inputs = Arc::new(inputs);
-            }
-        }
+        let inputs = TokenInputs { mode: self.mode, ..(*scoped.token_inputs).clone() };
+        scoped.tokens = tokens_for(ctx, &inputs);
+        scoped.token_inputs = Arc::new(inputs);
     }
 }
 
 impl std::fmt::Debug for ThemeScope {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self.change {
-            ScopeChange::Tokens(tokens) => f.debug_struct("ThemeScope").field("key", &tokens.key()).finish(),
-            ScopeChange::Mode(mode) => f.debug_struct("ThemeScope").field("mode", mode).finish(),
-        }
+        f.debug_struct("ThemeScope").field("mode", &self.mode).finish()
     }
 }
 
