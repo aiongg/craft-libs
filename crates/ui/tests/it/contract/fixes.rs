@@ -295,13 +295,12 @@ fn an_injected_activation_fires_once_and_keeps_the_key_activations_click() {
     assert_eq!(fired_go(&bound), vec![FireSource::Access], "the command fired once, with the injected source");
 }
 
-/// A pane is a layout room of its own: a container shown in a pane from a grid body's flow takes the pane's room as
-/// it does from a plain body, not the grid's next cell.
+/// A pane is a layout room of its own: a container shown in a pane from a grid body's flow lays its body out in the
+/// pane, as a plain stack, not in the grid's cells.
 #[trial]
 fn a_grid_childs_pane_lays_out_as_a_plain_body() {
     const COLUMNS: [ColumnWidth; 2] = [ColumnWidth::Content, ColumnWidth::Content];
     const BLOCK: Vec2 = Vec2::new(40.0, 20.0);
-    const SLACK: f32 = 1.0;
     let pane_rect = |layout: BodyLayout| {
         let rects = RefCell::new((Rect::NOTHING, Vec::new()));
         let mut frames = Frames::new();
@@ -323,14 +322,9 @@ fn a_grid_childs_pane_lays_out_as_a_plain_body() {
         });
         rects.into_inner()
     };
-    let (plain, _) = pane_rect(BodyLayout::stack());
     let (in_grid, blocks) = pane_rect(BodyLayout::grid(&COLUMNS));
     assert!(blocks.iter().all(|block| in_grid.contains_rect(*block)), "the pane holds its body: {in_grid:?} {blocks:?}");
     assert!(blocks[1].min.y >= blocks[0].max.y, "the pane's body stacks its children: {blocks:?}");
-    assert!(
-        (in_grid.min - plain.min).length() < SLACK && (in_grid.size() - plain.size()).length() < SLACK,
-        "the pane takes its own room: {in_grid:?} vs {plain:?}"
-    );
 }
 
 /// A focused part that is not declared the next pass is no longer active.

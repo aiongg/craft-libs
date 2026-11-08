@@ -296,6 +296,9 @@ impl LabelLeaf {
 impl Component for LabelLeaf {
     const ROLE: super::Role = super::Role::LABEL;
     const OVERLAYS: bool = false;
+    // The label is no key target: Enter and Space go to its control, which a click on the label focuses.
+    const KEYS: crate::runtime::focus::KeyUse =
+        crate::runtime::focus::KeyUse::of(Self::INPUT).with_activate(crate::runtime::focus::ActivateKeys::Neither);
     type Style = LabelStyle;
     type Output = LabelOutput;
 
