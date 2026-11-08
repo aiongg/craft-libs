@@ -6,7 +6,6 @@ use std::ops::Range;
 
 use craft_behavior::kurbo::Point;
 use craft_behavior::{Granularity, MoveMods, NavMove};
-use craft_ui::contract::Slot;
 
 use super::{EditKind, TextEditorHost, TextSelection};
 use crate::quotes::{QuoteStyle, smart_quotes};
@@ -34,8 +33,6 @@ pub(super) struct Session {
     /// The selection the last pass left, to tell the app's own selection changes.
     pub last_selection: Option<TextSelection>,
 }
-
-impl Slot for Session {}
 
 /// What a pass of inputs did.
 #[derive(Clone, Copy, Debug, Default)]

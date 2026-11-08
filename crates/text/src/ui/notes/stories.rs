@@ -1,6 +1,6 @@
 //! Stories of the notes editor.
 
-use craft_ui::contract::Props as _;
+use craft_ui::contract::{Props as _, Show as _};
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 

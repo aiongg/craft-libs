@@ -12,8 +12,8 @@ use std::ops::Range;
 
 use craft_behavior::{EditCommand, EditorInput, Granularity, Metrics, NavMove, Sense, TextPos};
 use craft_ui::contract::{
-    Animate as _, Commands as _, Common, Component, ContentPainter, Cx, Edit as _, Focus as _, MeasureCx, NoValue, Outcome, PaintUi, PartsCx,
-    Props as _, Remember as _, Role, WordSetCx as _,
+    Animate as _, Commands as _, Common, Component, Cx, Focus as _, MeasureCx, NoValue, Outcome, PaintUi, PartsCx, Props as _, Remember as _, Role,
+    WordSetCx as _,
 };
 use craft_ui::fonts::FontRef;
 use craft_ui::primitives::{DocRun, DocText, EditorLine, EditorPurpose, EditorRun, EditorState};
@@ -21,7 +21,7 @@ use craft_ui::runtime::commands::ClipItem;
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::focus::KeyUse;
 use craft_ui::runtime::pending::Pending;
-use craft_ui::style::{ComponentStyle, DataColor, StyleColor, StyleCx};
+use craft_ui::style::{ComponentStyle, DataColor, StyleCx};
 use egui::{Color32, Pos2, Rect, Response, Stroke, Vec2};
 
 use super::editor::word_boundary;
@@ -226,8 +226,10 @@ impl Outcome for NotesEditorOutput {
 pub struct NotesEditorStyle {
     #[style(metrics)]
     metrics: Metrics,
-    ink: StyleColor,
-    selection: StyleColor,
+    /// The text colour, RGBA (no `StyleColor` reader outside craft-ui paints raw document text).
+    ink: [u8; 4],
+    /// The selection fill, RGBA.
+    selection: [u8; 4],
     /// The size of the body text, points.
     body_size: f32,
     /// The size of the notes' default text in document points: indents scale as `body_size / points`.
@@ -239,15 +241,13 @@ pub struct NotesEditorStyle {
 }
 
 /// The position of the caret and the selection anchor in chars of [`NotesText::plain`].
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 struct Cursor {
     caret: usize,
     anchor: usize,
     /// The pass time of the last edit or move: the blink restarts from it.
     blink_start: f64,
 }
-
-impl craft_ui::contract::Slot for Cursor {}
 
 /// The editor, built per pass over the app's notes.
 ///
@@ -280,8 +280,6 @@ impl<'a> NotesEditor<'a> {
         self
     }
 }
-
-impl ContentPainter for NotesEditor<'_> {}
 
 fn markers_of(notes: &NotesText) -> Vec<Option<String>> {
     let list: Vec<ListParagraph> = notes
@@ -456,8 +454,8 @@ impl Component for NotesEditor<'_> {
     fn style(cx: &StyleCx<'_>, _: NotesEditorStyleKey) -> NotesEditorStyle {
         NotesEditorStyle {
             metrics: Metrics::new(),
-            ink: cx.ink(craft_ui::style::Ink::OnPanel),
-            selection: cx.color(cx.tokens.color.state.text_selection),
+            ink: cx.tokens.color.text.normal.0,
+            selection: cx.tokens.color.state.text_selection.0,
             body_size: cx.tokens.typography.body.size,
             points: cx.tokens.typography.caption.size,
             max_indent: MAX_INDENT,
@@ -520,7 +518,9 @@ impl Component for NotesEditor<'_> {
         let area = cx.content_rect;
         let size = style.body_size * self.zoom;
         let scale = size / style.points;
-        let ink = DataColor::new(style.ink.egui());
+        let to_egui = |[r, g, b, a]: [u8; 4]| Color32::from_rgba_unmultiplied(r, g, b, a);
+        let ink_color = to_egui(style.ink);
+        let ink = DataColor::new(ink_color);
         let indent = |points: f64| if points.is_finite() { points.clamp(0.0, f64::from(style.max_indent)) as f32 * scale } else { 0.0 };
         let cursor = cx.recall::<Cursor>();
         let plain = self.notes.plain();
@@ -562,9 +562,9 @@ impl Component for NotesEditor<'_> {
                 let a = layout.galley.pos_from_cursor(egui::text::CCursor::new(from));
                 let b = layout.galley.pos_from_cursor(egui::text::CCursor::new(to));
                 let band = Rect::from_min_max(top_left + a.min.to_vec2(), top_left + b.max.to_vec2());
-                painter.painter.rect_filled(band, 0.0, style.selection.egui());
+                painter.painter.rect_filled(band, 0.0, to_egui(style.selection));
             }
-            painter.painter.galley(top_left, layout.galley.clone(), style.ink.egui());
+            painter.painter.galley(top_left, layout.galley.clone(), ink_color);
             for (run_at, run) in paragraph.runs.iter().scan(0usize, |start, run| {
                 let at = *start;
                 *start += run.text.chars().count();
@@ -573,7 +573,7 @@ impl Component for NotesEditor<'_> {
                 if run.text.is_empty() || !(run.underline || run.strikethrough) {
                     continue;
                 }
-                let color = run.color.unwrap_or_else(|| style.ink.egui());
+                let color = run.color.unwrap_or(ink_color);
                 let from = layout.galley.pos_from_cursor(egui::text::CCursor::new(run_at));
                 let to = layout.galley.pos_from_cursor(egui::text::CCursor::new(run_at + run.text.chars().count()));
                 if (from.min.y - to.min.y).abs() < f32::EPSILON {
@@ -595,7 +595,7 @@ impl Component for NotesEditor<'_> {
             if let Some(marker) = marker {
                 let marker_run = [DocRun::new(marker, font.clone(), size, ink)];
                 let laid = painter.layout(&DocText::new(&marker_run));
-                painter.painter.galley(Pos2::new(area.left() + first.min(margin), y), laid.galley, style.ink.egui());
+                painter.painter.galley(Pos2::new(area.left() + first.min(margin), y), laid.galley, ink_color);
             }
             if (range.start..=range.end).contains(&cursor.caret.min(chars)) {
                 let cursor_pos = layout.galley.pos_from_cursor(egui::text::CCursor::new(cursor.caret.min(chars) - range.start));
@@ -612,12 +612,12 @@ impl Component for NotesEditor<'_> {
         }
         if self.notes.paragraphs.iter().all(|p| p.runs.iter().all(|r| r.text.is_empty())) && !cx.is_focused() {
             let words = cx.words::<NotesLabels>();
-            let hint = [DocRun::new(words.placeholder.as_str(), font.clone(), size, DataColor::new(style.ink.egui().gamma_multiply(0.55)))];
+            let hint = [DocRun::new(words.placeholder.as_str(), font.clone(), size, DataColor::new(ink_color.gamma_multiply(0.55)))];
             let laid = painter.layout(&DocText::new(&hint));
-            painter.painter.galley(area.min, laid.galley, style.ink.egui());
+            painter.painter.galley(area.min, laid.galley, ink_color);
         }
         if cx.is_focused() && selected.is_empty() && cx.blink(cursor.blink_start) {
-            painter.painter.line_segment([caret_rect.center_top(), caret_rect.center_bottom()], Stroke::new(line_width, style.ink.egui()));
+            painter.painter.line_segment([caret_rect.center_top(), caret_rect.center_bottom()], Stroke::new(line_width, ink_color));
         }
         let runs: Vec<[EditorRun<'_>; 1]> = editor_lines.iter().map(|(text, _, _)| [EditorRun::new(0..text.len(), false, &[], &[])]).collect();
         let lines: Vec<EditorLine<'_>> =

@@ -1647,6 +1647,7 @@ dependencies = [
 name = "craft-text"
 version = "0.1.0"
 dependencies = [
+ "craft-behavior",
  "craft-font-manager",
  "craft-host",
  "craft-theme",

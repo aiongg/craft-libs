@@ -4,7 +4,7 @@ use std::ops::Range;
 
 use craft_behavior::kurbo::Point;
 use craft_ui::canvas::{Canvas, ToolPath};
-use craft_ui::contract::{Bind, ShowContainer as _};
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::{Rect, Ui};
 
@@ -128,8 +128,7 @@ impl TextEditorHost for MonoHost {
 
 /// The editor over `text` with `selection`, and `marked` chars of marked text when given, on a canvas.
 fn on_canvas(ui: &mut Ui, data: &mut StoryData, text: &str, selection: TextSelection, marked: Option<Range<usize>>) -> StoryOutput {
-    let host = data.value("host", MonoHost { text: text.to_owned(), revision: 0 }).text.clone();
-    let mut host = MonoHost { text: host, revision: 0 };
+    let mut host = MonoHost { text: data.value("text", text.to_owned()).clone(), revision: 0 };
     let selection = data.value("selection", selection);
     let _ = marked;
     let shown = Canvas::new("Document", TYPE_TOOL).show(ui, |ui, body| {

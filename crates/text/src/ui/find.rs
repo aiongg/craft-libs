@@ -87,8 +87,8 @@ craft_ui::words! {
         clipboard_contents: "find.clipboardContents" = "Clipboard Contents";
         special_item: template "find.specialItem" = "{name}  {code}";
         error_too_long: template "find.errorTooLong" = "The Find what text is longer than {max} characters";
-        wildcard_unclosed_brace: "find.wildcardUnclosedBrace" = "A { needs a closing }";
-        wildcard_unclosed_bracket: "find.wildcardUnclosedBracket" = "A [ needs a closing ]";
+        wildcard_unclosed_brace: "find.wildcardUnclosedBrace" = "An opening brace needs a closing brace";
+        wildcard_unclosed_bracket: "find.wildcardUnclosedBracket" = "An opening bracket needs a closing bracket";
         wildcard_back_reference: "find.wildcardBackReference" = "Back-references (\\1) work in Replace with, not in Find what";
         wildcard_bad_count: template "find.wildcardBadCount" = "{count} is not a valid count";
         wildcard_count_too_large: "find.wildcardCountTooLarge" = "Counts go up to {max}";
@@ -99,7 +99,7 @@ craft_ui::words! {
         regex_unopened_group: "find.regexUnopenedGroup" = "A ) has no ( before it";
         regex_unclosed_class: "find.regexUnclosedClass" = "A [ needs a closing ]";
         regex_nothing_to_repeat: "find.regexNothingToRepeat" = "Nothing before the repeat (*, +, ? or a count)";
-        regex_bad_repetition: "find.regexBadRepetition" = "A repeat count must be {n}, {n,} or {n,m} with n up to m";
+        regex_bad_repetition: "find.regexBadRepetition" = "A repeat count is a number, a number and a comma, or two numbers with the first not above the second";
         regex_reversed_range: "find.regexReversedRange" = "A range of a [ ] class must go up, as in [a-z]";
         regex_bad_escape: "find.regexBadEscape" = "A \\ must be followed by a character it can escape";
         regex_bad_group_name: "find.regexBadGroupName" = "A group name must be a word, used once";
@@ -243,7 +243,7 @@ impl<'a> FindBar<'a> {
                 step = Some(false);
             }
             let active = options.match_case || options.whole_word;
-            let button = IconButton::new(IconId::new("settings")).label(words.options.clone()).popup(PopupKind::Menu).pressed(active).show(ui);
+            let button = IconButton::new(IconId::new("settings")).label(words.options.clone()).popup(PopupKind::Menu).selected(active).show(ui);
             let entries = [
                 Entry::new(BarOption::WholeWords, words.whole_words_only.clone()).checked(options.whole_word),
                 Entry::new(BarOption::MatchCase, words.case_sensitive.clone()).checked(options.match_case),
@@ -286,7 +286,10 @@ fn count_text(words: &FindLabels, empty_query: bool, matches: &FindMatches, prog
     }
     let current = matches.current().map_or(0, |c| c + 1);
     let more = if reading.is_some() || matches.limit_reached() { "+" } else { "" };
-    words.count.fill(&[("c", &current.to_string()), ("n", &matches.len().to_string()), ("more", more)])
+    {
+        let (current, total) = (current.to_string(), matches.len().to_string());
+        words.count.fill(&[("c", current.as_str()), ("n", total.as_str()), ("more", more)])
+    }
 }
 
 impl FindLabels {
@@ -688,5 +691,5 @@ fn special_entries(words: &FindLabels, replacing: bool) -> Vec<Entry<&'static st
         (&words.clipboard_contents, "^c"),
     ];
     let items: &[(&str, &'static str)] = if replacing { &replace } else { &find };
-    items.iter().map(|(label, code)| Entry::new(*code, words.special_item.fill(&[("name", label), ("code", code)]))).collect()
+    items.iter().map(|(label, code)| Entry::new(*code, words.special_item.fill(&[("name", *label), ("code", *code)]))).collect()
 }
