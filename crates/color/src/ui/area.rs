@@ -3,8 +3,8 @@
 use super::channels::{QUANTIZE_CELLS, channel_range, channel_step, quantized, settled, snapped, spoken};
 use crate::AreaMode;
 use craft_behavior::{Metrics, Mixed, Proposal, Sense};
-use craft_theme::{ColorModel, ModelValues};
-use craft_ui::contract::{Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Props as _, Role, Show as _};
+use craft_theme::ModelValues;
+use craft_ui::contract::{Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Props as _, Role};
 use craft_ui::primitives::ContentPainterCx;
 use craft_ui::runtime::env::Label;
 use craft_ui::style::{ComponentStyle, StyleCx};
