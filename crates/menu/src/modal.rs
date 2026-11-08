@@ -32,7 +32,7 @@ pub type PendingRule = Arc<dyn Fn(&CommandRef) -> bool + Send + Sync>;
 /// let rules = ModalRules::default()
 ///     .in_dialogs(NAVIGATION_COMMANDS)
 ///     .pending(Some(std::sync::Arc::new(|c: &craft_menu::CommandRef| c.id.starts_with("view."))));
-/// let gate = Gate { modal: true, ..Gate::default() };
+/// let gate = Gate::default().modal(true);
 /// assert!(gate.allows_under(&rules, &"view.zoomIn".into()));
 /// assert!(!gate.allows_under(&rules, &"image.crop".into()));
 /// ```

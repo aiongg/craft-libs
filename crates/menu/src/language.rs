@@ -16,6 +16,7 @@ pub const LANGUAGE_COMMAND: &str = "app.language";
 
 /// What a Language row chose.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum LanguageChoice {
     /// Follow the system's language ([`I18n::system_lang`]).
     Automatic,
@@ -39,11 +40,19 @@ impl LanguageChoice {
 
 /// One language row: its code and its name in itself ("Français").
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct LanguageRow {
     /// The language code the app stores.
     pub code: String,
     /// The language's name in itself.
     pub name: String,
+}
+
+impl LanguageRow {
+    /// A row for the language `code`, named `name` in itself.
+    pub fn new(code: impl Into<String>, name: impl Into<String>) -> LanguageRow {
+        LanguageRow { code: code.into(), name: name.into() }
+    }
 }
 
 /// The Language submenu.

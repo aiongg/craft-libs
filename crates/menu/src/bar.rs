@@ -27,6 +27,7 @@ pub use craft_ui::menu::bar::{is_focused, is_open};
 
 /// A row or title, as the bar names it to the app's mnemonic hooks ([`MenuBarUi::english`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum Labeled<'s> {
     /// An item, by its command.
     Command(&'s CommandRef),

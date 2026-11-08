@@ -14,6 +14,7 @@ use crate::model::{Builtin, Item, ItemKind, MenuBar, Node};
 
 /// What the native menu reports.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum Event {
     /// An item was chosen with the mouse (or the keyboard inside an open menu), or by a key
     /// equivalent the app's key handling doesn't know ([`crate::Item::layout_shortcut`]): the
@@ -32,6 +33,7 @@ pub enum Event {
 /// How ⌘C, ⌘X and ⌘V reach egui when the native menu takes them as key equivalents (an Edit
 /// menu with Copy, Cut and Paste items).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ClipboardKeys {
     /// As egui-winit makes them without a native menu: ⌘C is [`egui::Event::Copy`], ⌘X
     /// [`egui::Event::Cut`], and ⌘V a [`egui::ViewportCommand::RequestPaste`], which eframe answers
@@ -46,6 +48,7 @@ pub enum ClipboardKeys {
 
 /// What may run from the menus this frame, set by the app.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Gate {
     /// A modal dialog is open.
     pub modal: bool,
@@ -56,6 +59,24 @@ pub struct Gate {
 }
 
 impl Gate {
+    /// A modal dialog is open.
+    pub fn modal(mut self, on: bool) -> Gate {
+        self.modal = on;
+        self
+    }
+
+    /// The shortcut editor is recording a chord.
+    pub fn recording_shortcut(mut self, on: bool) -> Gate {
+        self.recording_shortcut = on;
+        self
+    }
+
+    /// A text field has the keys.
+    pub fn text_editing(mut self, on: bool) -> Gate {
+        self.text_editing = on;
+        self
+    }
+
     /// Whether `item` may run now: while a modal dialog is open or a shortcut is being recorded,
     /// only the built-in items (Hide, Hide Others, Minimize, Quit) do. The built-in Quit stays
     /// because it asks the window to close, and the app's close guard knows about its dialogs; an

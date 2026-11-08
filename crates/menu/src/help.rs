@@ -63,6 +63,7 @@ impl HelpCommand {
 
 /// An app's own Help link: a row that opens `url` in the browser.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct HelpLink {
     /// The command id the row runs (`help.discord`).
     pub id: String,
@@ -72,6 +73,13 @@ pub struct HelpLink {
     pub url: String,
 }
 
+impl HelpLink {
+    /// A link row running `id`, labelled `label`, that opens `url`.
+    pub fn new(id: impl Into<String>, label: impl Into<String>, url: impl Into<String>) -> HelpLink {
+        HelpLink { id: id.into(), label: label.into(), url: url.into() }
+    }
+}
+
 /// The Help menu of one app.
 ///
 /// ```no_run
@@ -79,7 +87,7 @@ pub struct HelpLink {
 /// # let mut bar = MenuBar::default();
 /// let help = HelpMenu::new("PhotoCraft")
 ///     .help_center("https://getartcraft.com/apps/photocraft/help")
-///     .link(HelpLink { id: "help.discord".into(), label: "Join the ArtCraft Discord…".into(), url: "https://discord.gg/artcraft".into() })
+///     .link(HelpLink::new("help.discord", "Join the ArtCraft Discord…", "https://discord.gg/artcraft"))
 ///     .report_issue("https://github.com/storytold/photocraft/issues")
 ///     .check_for_updates(true);
 /// bar.menus.push(help.menu(&HelpLabels::default()));

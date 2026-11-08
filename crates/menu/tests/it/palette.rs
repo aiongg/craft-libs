@@ -9,23 +9,20 @@ use craft_ui::testing::trial;
 
 fn bar() -> MenuBar {
     let item = |id: &str, label: &str| Item::new(id, label);
-    MenuBar {
-        menus: vec![
-            Menu::new(
-                "File",
-                vec![
-                    item("file.save", "Save").into(),
-                    Node::Separator,
-                    Node::submenu("Export", vec![item("file.export.png", "PNG…").into(), item("file.export.pdf", "PDF…").enabled(false).into()]),
-                    item("file.quit", "Quit").role(ItemRole::Quit).into(),
-                ],
-            )
-            .role(MenuRole::File),
-            Menu::new("Image", vec![Node::submenu("Adjustments", vec![Node::submenu("Levels", vec![item("image.curves", "Curves…").into()])])]),
-            Menu::new("View", vec![item("view.grid", "Grid").check(true).into()]).role(MenuRole::View),
-        ],
-        documents: Vec::new(),
-    }
+    MenuBar::new(vec![
+        Menu::new(
+            "File",
+            vec![
+                item("file.save", "Save").into(),
+                Node::Separator,
+                Node::submenu("Export", vec![item("file.export.png", "PNG…").into(), item("file.export.pdf", "PDF…").enabled(false).into()]),
+                item("file.quit", "Quit").role(ItemRole::Quit).into(),
+            ],
+        )
+        .role(MenuRole::File),
+        Menu::new("Image", vec![Node::submenu("Adjustments", vec![Node::submenu("Levels", vec![item("image.curves", "Curves…").into()])])]),
+        Menu::new("View", vec![item("view.grid", "Grid").check(true).into()]).role(MenuRole::View),
+    ])
 }
 
 fn entries(target: Target) -> Vec<HelpEntry> {

@@ -30,8 +30,8 @@
 //!         Some(Outcome::Ok) => self.save_settings(),
 //!         // After each edit, and after a Cancel that undid edits.
 //!         Some(Outcome::Changed) => self.rebuild_menus(),
-//!         Some(Outcome::Import { formats }) => self.pick_import_file(formats),
-//!         Some(Outcome::Export { name, json }) => self.save_file(&name, json),
+//!         Some(Outcome::Import { formats, .. }) => self.pick_import_file(formats),
+//!         Some(Outcome::Export { name, json, .. }) => self.save_file(&name, json),
 //!         Some(Outcome::Summary { name, html, .. }) => self.show_summary(&name, html),
 //!         Some(Outcome::Remembered(answers)) => self.settings.import_answers.extend(answers),
 //!         _ => {}
@@ -138,11 +138,13 @@ pub enum Outcome {
     Changed,
     /// The user asked to import: the app opens a file of one of these formats and calls
     /// [`ShortcutsDialog::import_json`] or [`ShortcutsDialog::review_import`].
+    #[non_exhaustive]
     Import {
         /// Ids of the formats the user may pick from.
         formats: Vec<&'static str>,
     },
     /// A set as craft-keymap JSON, for the app to write.
+    #[non_exhaustive]
     Export {
         /// The set's name.
         name: String,
@@ -150,6 +152,7 @@ pub enum Outcome {
         json: String,
     },
     /// A set in one of [`Options::export_formats`], for the app to write.
+    #[non_exhaustive]
     ExportAs {
         /// The [`Format::id`] to write.
         format: &'static str,
@@ -159,6 +162,7 @@ pub enum Outcome {
         keymap: Box<Keymap>,
     },
     /// The shortcut summary, for the app to show, save or print.
+    #[non_exhaustive]
     Summary {
         /// The set's name.
         name: String,

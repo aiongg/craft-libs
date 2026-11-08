@@ -19,40 +19,37 @@ fn item(id: &str, label: &str) -> Item {
 
 /// A small app's menus, as a desktop layout leaves them.
 fn sample() -> MenuBar {
-    MenuBar {
-        menus: vec![
-            Menu::new(
-                "File",
-                vec![
-                    item("file.new", "New").shortcut(Chord::parse("Cmd+N").unwrap()).into(),
-                    item("file.open", "Open…").into(),
-                    Node::Separator,
-                    Node::submenu("Open Recent", vec![item("file.recent.a", "a.txt").into()]),
-                    Node::submenu("Nothing Here", vec![item("file.gone", "Gone").enabled(false).into()]),
-                    Node::Separator,
-                    item("file.locked", "Locked").into(),
-                    Node::Standard { kind: Standard::Zoom, label: "Zoom".to_owned() },
-                    Item::new(Builtin::Minimize.command(), "Minimize").into(),
-                    Item::new(Builtin::Quit.command(), "Quit").into(),
-                ],
-            )
-            .role(MenuRole::File),
-            Menu::new("Edit", vec![item("edit.undo", "Undo").into(), item("edit.redo", "Redo").into()]).role(MenuRole::Edit),
-            Menu::new(
-                "View",
-                vec![
-                    item("view.grid", "Grid").check(true).into(),
-                    item("view.rulers", "Rulers").check(false).into(),
-                    Node::Separator,
-                    item("view.light", "Light").radio(true).into(),
-                    item("view.dark", "Dark").radio(false).into(),
-                ],
-            )
-            .role(MenuRole::View),
-            Menu::new("Help", vec![item("help.about", "About").into()]).role(MenuRole::Help),
-        ],
-        documents: Vec::new(),
-    }
+    MenuBar::new(vec![
+        Menu::new(
+            "File",
+            vec![
+                item("file.new", "New").shortcut(Chord::parse("Cmd+N").unwrap()).into(),
+                item("file.open", "Open…").into(),
+                Node::Separator,
+                Node::submenu("Open Recent", vec![item("file.recent.a", "a.txt").into()]),
+                Node::submenu("Nothing Here", vec![item("file.gone", "Gone").enabled(false).into()]),
+                Node::Separator,
+                item("file.locked", "Locked").into(),
+                Node::standard(Standard::Zoom, "Zoom"),
+                Item::new(Builtin::Minimize.command(), "Minimize").into(),
+                Item::new(Builtin::Quit.command(), "Quit").into(),
+            ],
+        )
+        .role(MenuRole::File),
+        Menu::new("Edit", vec![item("edit.undo", "Undo").into(), item("edit.redo", "Redo").into()]).role(MenuRole::Edit),
+        Menu::new(
+            "View",
+            vec![
+                item("view.grid", "Grid").check(true).into(),
+                item("view.rulers", "Rulers").check(false).into(),
+                Node::Separator,
+                item("view.light", "Light").radio(true).into(),
+                item("view.dark", "Dark").radio(false).into(),
+            ],
+        )
+        .role(MenuRole::View),
+        Menu::new("Help", vec![item("help.about", "About").into()]).role(MenuRole::Help),
+    ])
 }
 
 /// How the bar is set up in a rig.
@@ -239,18 +236,12 @@ fn a_mac_target_has_no_mnemonics_and_leaves_alt_and_f10_alone() {
 /// for a dynamic list with nothing in it.
 #[trial]
 fn documents_and_placeholders_from_the_layout_are_rows_of_the_bar() {
-    let bar = MenuBar {
-        menus: vec![
-            Menu::new("File", vec![Node::submenu("Open Recent", vec![item("file.no_recent", "No Recent Files").enabled(false).into()])])
-                .role(MenuRole::File),
-            Menu::new("Window", Vec::new()).role(MenuRole::Window),
-        ],
-        documents: vec![
-            Document::new("doc.0", "One"),
-            Document::new("doc.1", "Two").active(true),
-            Document { hidden: true, ..Document::new("doc.2", "Hidden") },
-        ],
-    };
+    let bar = MenuBar::new(vec![
+        Menu::new("File", vec![Node::submenu("Open Recent", vec![item("file.no_recent", "No Recent Files").enabled(false).into()])])
+            .role(MenuRole::File),
+        Menu::new("Window", Vec::new()).role(MenuRole::Window),
+    ])
+    .documents(vec![Document::new("doc.0", "One"), Document::new("doc.1", "Two").active(true), Document::new("doc.2", "Hidden").hidden(true)]);
     let laid_out = layout(&bar, Target::Linux, &LayoutOptions::new("Sample")).bar;
     let mut fixture = rig(laid_out, LINUX);
     click(&mut fixture, "Window");

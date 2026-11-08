@@ -9,6 +9,7 @@ use craft_theme::Srgba;
 
 /// The app's menus, in order, and its open documents.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct MenuBar {
     /// The top-level menus, left to right.
     pub menus: Vec<Menu>,
@@ -18,6 +19,7 @@ pub struct MenuBar {
 
 /// An open document, listed in the Window menu.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct Document {
     /// What choosing it runs (bring the document to the front).
     pub command: CommandRef,
@@ -35,6 +37,12 @@ impl Document {
         Document { command: command.into(), label: label.into(), active: false, hidden: false }
     }
 
+    /// Keep the document open but not listed.
+    pub fn hidden(mut self, hidden: bool) -> Document {
+        self.hidden = hidden;
+        self
+    }
+
     /// Mark the document as the one in front.
     pub fn active(mut self, active: bool) -> Document {
         self.active = active;
@@ -44,6 +52,7 @@ impl Document {
 
 /// A top-level menu.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct Menu {
     /// The title in the bar.
     pub title: String,
@@ -56,6 +65,7 @@ pub struct Menu {
 /// What a top-level menu is for, set by the app. macOS treats the app, Window and Help menus
 /// specially; File is where the system Close Window item goes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum MenuRole {
     /// Any menu without a fixed place.
     #[default]
@@ -123,12 +133,14 @@ impl BitOr for Platforms {
 
 /// One entry of a menu.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum Node {
     /// An item the user can choose.
     Item(Item),
     /// A dividing line.
     Separator,
     /// A nested menu.
+    #[non_exhaustive]
     Submenu {
         /// The submenu's title.
         label: String,
@@ -140,6 +152,7 @@ pub enum Node {
         platforms: Platforms,
     },
     /// An item AppKit provides and runs itself (Services, Zoom, …), with the label to show.
+    #[non_exhaustive]
     Standard {
         /// Which AppKit item.
         kind: Standard,
@@ -183,6 +196,7 @@ pub struct Item {
 
 /// A plain item, or one with a checked state.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ItemKind {
     /// An ordinary item.
     #[default]
@@ -207,6 +221,7 @@ impl ItemKind {
 /// Items the layouts put in fixed places. The app tags its own About, Settings, Quit, Appearance
 /// and Language items; the Mac layout adds Hide and Minimize.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ItemRole {
     /// The About item.
     About,
@@ -227,6 +242,7 @@ pub enum ItemRole {
 
 /// The items AppKit provides.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Standard {
     #[allow(missing_docs)]
     Services,
@@ -266,6 +282,7 @@ pub(crate) fn label_or_system(label: &str, english: &str, system: impl FnOnce(&s
 /// The commands of the items the crate adds itself. The crate runs them; an app sees them only
 /// in a layout's result.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Builtin {
     /// Hide the app: a custom item, because AppKit's own always takes ⌘H, which apps often bind.
     Hide,
@@ -377,6 +394,11 @@ impl From<Item> for Node {
 }
 
 impl Node {
+    /// An item AppKit provides and runs itself, with the label to show.
+    pub fn standard(kind: Standard, label: impl Into<String>) -> Node {
+        Node::Standard { kind, label: label.into() }
+    }
+
     /// A submenu shown on every platform.
     pub fn submenu(label: impl Into<String>, children: Vec<Node>) -> Node {
         Node::Submenu { label: label.into(), children, role: None, platforms: Platforms::ALL }
@@ -417,6 +439,17 @@ impl Menu {
 }
 
 impl MenuBar {
+    /// A bar of `menus` with no open documents.
+    pub fn new(menus: Vec<Menu>) -> MenuBar {
+        MenuBar { menus, documents: Vec::new() }
+    }
+
+    /// Set the open documents, for the Window menu.
+    pub fn documents(mut self, documents: Vec<Document>) -> MenuBar {
+        self.documents = documents;
+        self
+    }
+
     /// Every item, depth first.
     pub fn items(&self) -> Vec<&Item> {
         fn walk<'a>(nodes: &'a [Node], out: &mut Vec<&'a Item>) {
@@ -505,6 +538,7 @@ impl MenuBar {
 /// One row of a flat menu list: the menu path (`["File", "Open Recent"]`) and the item in it.
 /// A row labelled `---` is a separator.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct Row {
     /// The menu path to the item's menu; `["File", "Open Recent"]`.
     pub path: Vec<String>,

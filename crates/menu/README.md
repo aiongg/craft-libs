@@ -79,7 +79,7 @@ it resolved:
   app lists them: `LayoutOptions::new("PhotoCraft").extra_shortcuts(&[(chord, command), ..])`.
 
 The labels the layouts write (`About {app}`, `Preferences…`, `Exit`, `Window`, `Minimize`, …)
-are English. To translate them, pass `LayoutOptions { label, ..LayoutOptions::new(app_name) }`,
+are English. To translate them, pass `LayoutOptions::new(app_name).label(label)`,
 where `label` maps an English label such as `"Quit {app}"` to the app's translation; the crate
 substitutes `{app}`.
 
@@ -254,11 +254,12 @@ if let Some(menu) = &mut self.native_menu {
 
 // In the frame:
 if let Some(menu) = &mut self.native_menu {
-    menu.set_gate(Gate {
-        modal: self.dialog.is_some(),
-        recording_shortcut: self.shortcut_editor.is_recording(),
-        text_editing: ctx.wants_keyboard_input(),
-    });
+    menu.set_gate(
+        Gate::default()
+            .modal(self.dialog.is_some())
+            .recording_shortcut(self.shortcut_editor.is_recording())
+            .text_editing(ctx.wants_keyboard_input()),
+    );
     for command in menu.take_clicks(ctx) {
         self.run_command(ctx, &command);
     }

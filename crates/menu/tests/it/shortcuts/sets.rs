@@ -129,7 +129,7 @@ fn save_prompt_before_import_reports_changed_after_import() {
 fn import_request_and_reset_all() {
     let mut rig = Rig::mac_with_sets(Profiles::default());
     rig.click("Import…");
-    assert!(rig.has_outcome(|o| matches!(o, Outcome::Import { formats } if formats == &["craft-keymap"])));
+    assert!(rig.has_outcome(|o| matches!(o, Outcome::Import { formats, .. } if formats == &["craft-keymap"])));
     rig.click("Save: ⌘S");
     rig.press(Modifiers::NONE, Key::F2);
     rig.click("Reset All…");
@@ -152,7 +152,7 @@ fn set_export_import_round_trip() {
     let (name, json) = rig
         .outcomes()
         .into_iter()
-        .find_map(|o| if let Outcome::Export { name, json } = o { Some((name, json)) } else { None })
+        .find_map(|o| if let Outcome::Export { name, json, .. } = o { Some((name, json)) } else { None })
         .unwrap_or_else(|| panic!("Outcome::Export"));
     assert_eq!(name, "Name");
     let edited = rig.shared.borrow().km.overrides().clone();

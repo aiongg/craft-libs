@@ -6,7 +6,7 @@ fn full() -> HelpMenu {
     HelpMenu::new("PhotoCraft")
         .help_center("https://example.com/help")
         .keyboard_shortcuts(true)
-        .link(HelpLink { id: "help.discord".into(), label: "Join the Discord…".into(), url: "https://discord.gg/x".into() })
+        .link(HelpLink::new("help.discord", "Join the Discord…", "https://discord.gg/x"))
         .report_issue("https://example.com/issues")
         .check_for_updates(true)
 }
