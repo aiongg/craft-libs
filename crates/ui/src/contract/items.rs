@@ -146,6 +146,8 @@ pub(super) struct ItemsHooks<'s, 'r, C: Collection> {
     xf: Option<areas::LayerMap>,
     header: Header,
     drags: Drags<C::Key>,
+    /// The row a key move brought to the lead in a collection without its own scroll: the page's scroll owner shows it.
+    page_reveal: Option<usize>,
 }
 
 /// Where the rows sit in the collection's pass: the rows rect, the scroll offset and the reading direction.
@@ -182,6 +184,7 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
             xf: None,
             header: Header::default(),
             drags: Drags::default(),
+            page_reveal: None,
         }
     }
 
@@ -296,6 +299,8 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             .digits(props.digit_keys)
             .space(true)
             .moves(true)
+            .deletes(props.deletable)
+            .owner_arrows(props.item_keys == super::collection::ItemKeys::Owner)
     }
 
     fn instance_scope(&self, comp: &C) -> Option<crate::runtime::commands::CommandScope> {
@@ -304,8 +309,12 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
 
     fn read(&mut self, comp: &mut C, stage: &mut MemoryStage, id: Id, env: &Env) {
         let ctx = stage.ctx().clone();
-        debug_assert!(env.scroll_owner.is_none(), "a collection owns its scroll: show it outside a scrolling body (16.3)");
-        self.scrolls = env.scroll_owner.is_none();
+        let natural = comp.items().natural_height;
+        debug_assert!(
+            natural || env.scroll_owner.is_none(),
+            "a collection owns its scroll: show it outside a scrolling body, or give it the natural height (16.3)"
+        );
+        self.scrolls = !natural && env.scroll_owner.is_none();
         self.selection = match comp.selection() {
             Some(bind) => match bind.get() {
                 Some(Mixed::Same(held)) => held,
@@ -360,7 +369,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
     fn extent(&mut self, comp: &C, ui: &Ui, at: ShowAt, id: Id, scx: &StyleCx<'_>) -> Vec2 {
         let room = match at {
             ShowAt::Rect(rect) => rect.size(),
-            ShowAt::Flow => ui.available_size_before_wrap(),
+            ShowAt::Flow => crate::layout::flow_room(ui),
         };
         self.room = room;
         self.header.measure(scx);
@@ -485,6 +494,9 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.requested_rename(comp, cx, &props, &layout, view);
         self.type_ahead(comp, cx, &layout, view, lead_at);
         request::record_lead(&cx.core.ctx, cx.core.id, self.lead.key.as_ref().and_then(|key| self.index_of(key)));
+        if let Some(at) = self.page_reveal.take().filter(|&at| layout.shown(at)) {
+            cx.core.reveal = Some(self.screen(&layout, rect, at, ScrollPos::default(), rtl));
+        }
         self.layout = Some(layout);
     }
 
@@ -536,6 +548,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let lead = self.lead.key.clone();
         let mut lead_child = None;
         let striped = comp.items().striped;
+        let current: Option<C::Key> = comp.items().current.as_deref().and_then(|key| key.downcast_ref::<C::Key>()).cloned();
         let mut stripe: Option<(usize, usize)> = None;
         let transform = comp.props(Internal::new()).transform;
         let (parent, clip) = (ui.layer_id(), rect.intersect(ui.clip_rect()));
@@ -565,6 +578,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     },
                     dragging: self.drags.grabbed.as_ref() == Some(&key),
                     drop_target: self.drags.over.as_ref() == Some(&key),
+                    current: current.as_ref() == Some(&key),
                     open: self.source.has_children(at) && self.source.open(at),
                     ..RowState::default()
                 };
@@ -576,6 +590,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 flags.set(crate::style::Flags::EXPANDED, state.open);
                 flags.set(crate::style::Flags::DRAGGING, state.dragging);
                 flags.set(crate::style::Flags::DROP_TARGET, state.drop_target);
+                flags.set(crate::style::Flags::CURRENT, state.current);
                 let mut position = SetPosition::new(at - self.source.section_stops_before(at))
                     .of(len - self.source.section_stops_before(len))
                     .columns(columns.len());
@@ -1195,8 +1210,14 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         }
     }
 
+    /// Brings row `at` into view: the collection's own scroll moves, or, without one, the page's scroll owner is asked
+    /// at the end of the item step (`page_reveal`).
     fn reveal_with(&mut self, layout: &C::ItemLayout, at: usize, view: f32) {
         if !layout.shown(at) {
+            return;
+        }
+        if !self.scrolls {
+            self.page_reveal = Some(at);
             return;
         }
         let rect = layout.rect(at, ScrollPos { x: 0.0, y: self.offset });

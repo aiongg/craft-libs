@@ -62,18 +62,17 @@ pub struct TitleOutput {
 }
 
 /// The rows of the menu a container hangs from its header row.
-pub(super) struct MenuRows<'a>(Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>);
+pub(crate) struct MenuRows<'a>(Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>);
 
 impl<'a> MenuRows<'a> {
-    pub(super) fn new(rows: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
+    pub(crate) fn new(rows: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
         MenuRows(Box::new(rows))
     }
 
-    /// Hangs the menu from the header row `shown`. It opens from the row's Menu action, under that action's part, and
-    /// from the context request (right click, Menu key, Shift+F10). Returns the row's id when the Menu action was
-    /// taken this pass: the container toggles the popup of that opener in its `finish`.
-    pub(super) fn hang(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>, shown: &TitleOutput) -> Option<Id> {
-        let name = cx.words::<SectionWords>().menu.clone();
+    /// Hangs the menu `name` from the header row `shown`. It opens from the row's Menu action, under that action's
+    /// part, and from the context request (right click, Menu key, Shift+F10). Returns the row's id when the Menu action
+    /// was taken this pass: the container toggles the popup of that opener in its `finish`.
+    pub(crate) fn hang(&mut self, ui: &mut Ui, shown: &TitleOutput, name: impl Into<Label>) -> Option<Id> {
         let mut menu = Menu::new(name).opened_by(&shown.edit.response, Trigger::Manual);
         if let Some(button) = shown.menu_rect {
             menu = menu.anchor(Anchor::Rect(button));

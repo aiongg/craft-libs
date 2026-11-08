@@ -6,9 +6,9 @@
 use crate::runtime::cursor;
 use crate::runtime::egui::input::{self as raw_input, RawInput};
 use crate::runtime::egui::memory::Service;
-use crate::runtime::egui::{pass, viewports};
+use crate::runtime::egui::{areas, pass, scale, viewports};
 use crate::runtime::frame::{PassStep, PerViewport, Stamped};
-use crate::runtime::overlay;
+use crate::runtime::{memory, overlay};
 use craft_behavior::{Cursor, CursorIcon, CursorPriority, PartRef};
 use craft_host::target::{Caps, EdgeInsets, Os, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
 #[cfg(feature = "testing")]
@@ -71,62 +71,123 @@ pub struct CaptionRegions {
     pub edges: Vec<(ResizeEdge, Rect)>,
     /// The areas that drag the window.
     pub moves: Vec<Rect>,
+    /// The parts of the drag areas where an in-app hit lies over the area's band: an interactive widget shown above
+    /// the band's component, such as a bar's button or menu. A press there goes to that widget under the
+    /// press-target rule (8.3), so the window does not move from it.
+    pub covers: Vec<Rect>,
 }
 
 impl CaptionRegions {
-    /// What lies at `point`: a button wins over an edge, and an edge over a drag area.
+    /// What lies at `point`: a button wins over an edge, and an edge over a drag area. A drag area answers only where
+    /// no cover lies over it, so the band is the top in-app hit there.
     pub fn hit(&self, point: Pos2) -> Option<WindowHit> {
+        let moves = || self.moves.iter().any(|rect| rect.contains(point)) && !self.covers.iter().any(|rect| rect.contains(point));
         self.buttons
             .iter()
             .find(|(_, rect)| rect.contains(point))
             .map(|(button, _)| WindowHit::Caption(*button))
             .or_else(|| self.edges.iter().find(|(_, rect)| rect.contains(point)).map(|(edge, _)| WindowHit::Resize(*edge)))
-            .or_else(|| self.moves.iter().any(|rect| rect.contains(point)).then_some(WindowHit::Move))
+            .or_else(|| moves().then_some(WindowHit::Move))
     }
+}
+
+/// What a window's last complete pass published for its hit test: the regions and the scale they are in.
+#[derive(Clone, Debug)]
+struct Published {
+    regions: CaptionRegions,
+    /// Physical pixels per point of the viewport, interface zoom included.
+    pixels_per_point: f32,
 }
 
 /// The Windows hit test of one window: the window procedure asks [`HitSink::answer`] where the OS asks for a hit
 /// test, and the answer comes from the exclusive parts the window's last pass declared, so the caption buttons,
-/// edges and drag areas the app draws are the ones the OS acts on (snap layouts, native move and resize).
+/// edges and drag areas the app draws are the ones the OS acts on (snap layouts, native move and resize). The sink
+/// holds the scale with the regions, so the window procedure needs nothing from egui.
 /// [`WindowHost::install_hit_sink`] makes the sink; the platform layer that owns the window procedure holds it.
 #[derive(Clone, Debug, Default)]
 pub struct HitSink {
-    regions: Arc<Mutex<Option<CaptionRegions>>>,
+    published: Arc<Mutex<Option<Published>>>,
 }
 
 impl HitSink {
-    /// What lies at `point`, in points of the window's viewport. `None` where no exclusive part lies there: the
-    /// window procedure leaves the hit test to the window's content.
-    pub fn answer(&self, point: Pos2) -> Option<WindowHit> {
-        self.regions.lock().unwrap_or_else(std::sync::PoisonError::into_inner).as_ref().and_then(|regions| regions.hit(point))
+    /// What lies at `pixel`, in physical pixels from the top left of the window's client area: the hit test's screen
+    /// point after `ScreenToClient`. `None` where no exclusive part lies there: the window procedure leaves the hit
+    /// test to the window's content.
+    pub fn answer(&self, pixel: Pos2) -> Option<WindowHit> {
+        let published = self.published.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let Published { regions, pixels_per_point } = published.as_ref()?;
+        regions.hit((pixel.to_vec2() / *pixels_per_point).to_pos2())
     }
 
-    fn publish(&self, regions: Option<CaptionRegions>) {
-        *self.regions.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = regions;
+    fn publish(&self, published: Option<Published>) {
+        *self.published.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = published;
     }
 }
 
-/// The regions the parts `parts` declare; `None` for none.
-fn regions_of(parts: Vec<ExclusivePart>) -> Option<CaptionRegions> {
+/// The regions the parts `parts` of the running pass declare; `None` for none. A drag area's covers are read from
+/// the pass's widgets, so this runs at the end of the pass.
+fn regions_of(ctx: &Context, parts: &[ExclusivePart]) -> Option<CaptionRegions> {
     if parts.is_empty() {
         return None;
     }
     let mut regions = CaptionRegions::default();
-    for ExclusivePart { hit, rect, .. } in parts {
+    for ExclusivePart { owner, part, hit, rect } in parts {
         match hit {
-            WindowHit::Move => regions.moves.push(rect),
-            WindowHit::Resize(edge) => regions.edges.push((edge, rect)),
-            WindowHit::Caption(button) => regions.buttons.push((button, rect)),
+            WindowHit::Move => {
+                regions.moves.push(*rect);
+                regions.covers.extend(covers_of(ctx, *owner, *part, *rect));
+            }
+            WindowHit::Resize(edge) => regions.edges.push((*edge, *rect)),
+            WindowHit::Caption(button) => regions.buttons.push((*button, *rect)),
         }
     }
     Some(regions)
 }
 
-/// Gives the viewport's hit-test sink the exclusive parts its pass declared.
-fn publish_sink(ctx: &Context, viewport: ViewportId) {
-    let Some(sink) = PerViewport::<Record>::with(ctx, viewport, |record| record.sink.clone()) else { return };
+/// The parts of the drag area `band`, the part `part` of the component `owner`, where an in-app hit lies over it:
+/// each interactive egui widget of the running pass that egui's hit test puts above the component's widget (on a
+/// higher layer, or later on the same layer), clipped to the band. The component's widgets that resolve as the
+/// component (8.3) are not hits over the band: its transform forwarder and the band's own edge widget, which the
+/// sensing core makes for an edge part reaching outside the root rect, under the ids it gives them there.
+fn covers_of(ctx: &Context, owner: Id, part: PartRef, band: Rect) -> Vec<Rect> {
+    let own = [memory::sub(owner, "transform"), memory::sub(owner, ("edge", part.key, part.index))];
+    let (root, above) = ctx.viewport(|viewport| {
+        let widgets = &viewport.this_pass.widgets;
+        let Some(root) = widgets.get(owner).map(|root| root.layer_id) else { return (None, Vec::new()) };
+        let mut above = Vec::new();
+        for (layer, rects) in widgets.layers().filter(|(layer, _)| layer.order.allow_interaction()) {
+            let after = if *layer == root { rects.iter().position(|rect| rect.id == owner).map_or(rects.len(), |at| at + 1) } else { 0 };
+            let hits: Vec<Rect> =
+                rects[after..].iter().filter(|rect| rect.sense.interactive() && !own.contains(&rect.id)).map(|rect| rect.interact_rect).collect();
+            if !hits.is_empty() {
+                above.push((*layer, hits));
+            }
+        }
+        (Some(root), above)
+    });
+    let Some(root) = root else { return Vec::new() };
+    let height = areas::layer_position(ctx, root);
+    let mut covers = Vec::new();
+    for (layer, hits) in above {
+        if layer != root && areas::layer_position(ctx, layer) <= height {
+            continue;
+        }
+        let to_screen = areas::layer_to_screen(ctx, layer);
+        covers.extend(hits.into_iter().map(|rect| (to_screen * rect).intersect(band)).filter(|cover| cover.is_positive()));
+    }
+    covers
+}
+
+/// Keeps the regions of the running pass's exclusive parts for [`WindowHost::caption_regions`] and gives them to
+/// the viewport's hit-test sink.
+fn publish_regions(ctx: &Context, viewport: ViewportId) {
     let parts = with_exclusive(ctx, viewport, |exclusive| exclusive.current.clone());
-    sink.publish(regions_of(parts));
+    let regions = regions_of(ctx, &parts);
+    with_exclusive(ctx, viewport, |exclusive| exclusive.done = regions.clone());
+    if let Some(sink) = PerViewport::<Record>::with(ctx, viewport, |record| record.sink.clone()) {
+        let pixels_per_point = scale::pixels_per_point(ctx);
+        sink.publish(regions.map(|regions| Published { regions, pixels_per_point }));
+    }
 }
 
 /// Whether the platform answers the hit test of `viewport`'s window from the app's exclusive parts.
@@ -143,11 +204,11 @@ struct ExclusivePart {
     rect: Rect,
 }
 
-/// A viewport's exclusive parts: the pass being declared and the one before, which is complete.
+/// A viewport's exclusive parts: those the running pass declared so far, and the regions of its last complete pass.
 #[derive(Default)]
 struct Exclusive {
     current: Vec<ExclusivePart>,
-    last: Vec<ExclusivePart>,
+    done: Option<CaptionRegions>,
 }
 
 fn with_exclusive<R>(ctx: &Context, viewport: ViewportId, f: impl FnOnce(&mut Exclusive) -> R) -> R {
@@ -156,9 +217,9 @@ fn with_exclusive<R>(ctx: &Context, viewport: ViewportId, f: impl FnOnce(&mut Ex
         viewport,
         pass::pass_nr(ctx, viewport),
         |exclusive, step| {
-            exclusive.last = std::mem::take(&mut exclusive.current);
+            exclusive.current.clear();
             if matches!(step, PassStep::Skipped) {
-                exclusive.last.clear();
+                exclusive.done = None;
             }
         },
         f,
@@ -191,11 +252,6 @@ pub enum WindowLevel {
     /// Above every other window.
     AlwaysOnTop,
 }
-
-/// How many consecutive root passes none of the app's windows has focus before the app counts as inactive. Focus
-/// moving between the app's own windows leaves one pass with no focused window while the new window reports; it
-/// must not drop a palette.
-const AWAY_PASSES: u8 = 2;
 
 impl WindowLevel {
     /// The level egui is given while the app is `active` or not, on `os`. An inactive app's palette goes behind
@@ -440,9 +496,7 @@ struct Shared {
     layouts: Option<LayoutWatch>,
     /// Whether the root window had focus in the last root pass.
     root_focused: bool,
-    /// The root passes in a row that saw no window of the app focused, up to [`AWAY_PASSES`].
-    unfocused_passes: u8,
-    /// Whether no window of the app has had focus for [`AWAY_PASSES`] root passes.
+    /// Whether no window of the app had focus when the last frame's windows had all reported.
     away: bool,
     /// The app's windows from the one focused longest ago to the one focused last: the stacking order of
     /// overlapping windows.
@@ -678,7 +732,7 @@ fn reshow_cursor(ctx: &Context, viewport: ViewportId) {
 /// The end hook: keeps the root window's placement, writes a changed placement store once a second, and drops the
 /// close requests the viewport mounts did not take in this frame.
 pub(crate) fn end(ctx: &Context) {
-    publish_sink(ctx, pass::current_viewport(ctx));
+    publish_regions(ctx, pass::current_viewport(ctx));
     if pass::current_viewport(ctx) != ViewportId::ROOT {
         return;
     }
@@ -809,19 +863,24 @@ fn hand_off(ctx: &Context, viewport: ViewportId) {
 
 /// Keeps the app's activity and the stacking order of its windows current from the windows' focus. A palette's
 /// window level follows the activity: the mounts build their viewports with the level of the moment, and a change
-/// asks for the next frame. The app is inactive after [`AWAY_PASSES`] root passes in a row with no focused window.
-/// Runs in the root pass, which every frame of the app runs.
+/// asks for the next frame. Runs at the end of the root pass, inside which every child window's pass of the frame
+/// has run, so each window's focus is the one its own pass reported after its input batch. The root input's list of
+/// windows holds each child as of its previous pass, so it is not read for focus. The app is inactive when no
+/// window reports focus: the batch that took focus from one window gave it to no other.
 fn follow_activity(ctx: &Context) {
     let windows = viewports::reported(ctx);
-    let focused: Vec<ViewportId> = windows.iter().filter(|(_, facts)| facts.focused).map(|(viewport, _)| *viewport).collect();
-    let (changed, waiting) = shared(ctx, |shared| {
+    let focused: Vec<ViewportId> = windows
+        .iter()
+        .map(|(viewport, _)| *viewport)
+        .filter(|viewport| PerViewport::<Record>::with(ctx, *viewport, |record| record.facts.is_some_and(|facts| facts.focused)))
+        .collect();
+    let changed = shared(ctx, |shared| {
         shared.stacking.retain(|viewport| windows.iter().any(|(open, _)| open == viewport) && !focused.contains(viewport));
         shared.stacking.extend(&focused);
-        shared.unfocused_passes = if focused.is_empty() { (shared.unfocused_passes + 1).min(AWAY_PASSES) } else { 0 };
-        let away = shared.unfocused_passes >= AWAY_PASSES;
-        (std::mem::replace(&mut shared.away, away) != away, focused.is_empty() && !away)
+        let away = focused.is_empty();
+        std::mem::replace(&mut shared.away, away) != away
     });
-    if changed || waiting {
+    if changed {
         ctx.request_repaint();
     }
 }
@@ -983,7 +1042,7 @@ impl WindowHost {
     /// Where the exclusive parts of `viewport`'s window lay in its last complete pass: the caption buttons, the edge
     /// zones and the drag areas. `None` while the window declared none.
     pub fn caption_regions(&self, viewport: ViewportId) -> Option<CaptionRegions> {
-        regions_of(with_exclusive(&self.ctx, viewport, |exclusive| exclusive.last.clone()))
+        with_exclusive(&self.ctx, viewport, |exclusive| exclusive.done.clone())
     }
 
     /// The hit-test sink of `viewport`'s window, made on the first call. The platform layer calls it once it has put

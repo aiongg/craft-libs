@@ -233,6 +233,9 @@ pub struct KeyUse {
     /// The arrows are nudges for the component's content (a canvas tool or control), not moves: they arrive as
     /// `Intents::take_nudge`.
     pub nudge: bool,
+    /// The component acts on Delete and Backspace (`Intent::Delete`: text edits, deleting a selection or a tool's
+    /// object). A component that does not leaves them to the commands around the focus.
+    pub deletes: bool,
 }
 
 impl KeyUse {
@@ -251,6 +254,7 @@ impl KeyUse {
         moves: false,
         chrome_key: true,
         nudge: true,
+        deletes: false,
     };
     /// A divider between panes: it takes the arrows as moves of its value, but it is no document and no canvas tool, so
     /// it marks no window as showing a document and takes no nudges.
@@ -272,7 +276,8 @@ impl KeyUse {
             OwnerClass::Text => EditSet::ALL,
             _ => EditSet::NONE,
         };
-        KeyUse { keep, activate, claims: &[], edits, owner, value: false, moves: false, chrome_key: false, nudge: false }
+        let owner_text = matches!(owner, OwnerClass::Text);
+        KeyUse { keep, activate, claims: &[], edits, owner, value: false, moves: false, chrome_key: false, nudge: false, deletes: owner_text }
     }
 
     /// The same use claiming `claims`.
@@ -302,6 +307,12 @@ impl KeyUse {
     /// The same use declaring that the component acts on the moves routed to it.
     pub const fn with_moves(mut self) -> Self {
         self.moves = true;
+        self
+    }
+
+    /// The same use declaring that the component acts on Delete and Backspace.
+    pub const fn with_deletes(mut self) -> Self {
+        self.deletes = true;
         self
     }
 

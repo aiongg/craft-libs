@@ -1,8 +1,8 @@
 //! Stories of the full-window parts.
 
 use super::{FullWindowCanvas, FullWindowSide, FullWindowStatus, FullWindowTitle, FullWindowView, FullWindowZoomBar, RasterOverlay, SideFooter};
-use crate::canvas::{HandTool, NavigationOptions, PixelRect, RasterSource, ToolPath};
-use crate::contract::{Show as _, ShowContainer as _};
+use crate::canvas::{PixelRect, RasterSource, ToolPath};
+use crate::contract::{Bind, Show as _, ShowContainer as _};
 use crate::display::Text;
 use crate::primitives::{Checker, Revision};
 use crate::runtime::pending::Pending;
@@ -72,17 +72,13 @@ fn side_with_top_footer(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 #[story(FullWindowZoomBar, covers = [], drive = Drive::Never)]
 fn zoom_bar(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let view = data.value("view", FullWindowView::new());
-    let shown = FullWindowZoomBar::new(view).note("Preview 120 ms").show(ui);
-    if let Some(next) = shown.view {
-        *view = next;
-    }
-    shown.into()
+    FullWindowZoomBar::new(Bind::bound(view)).note("Preview 120 ms").show(ui).into()
 }
 
 #[story(FullWindowZoomBar, covers = [], drive = Drive::Never)]
 fn zoom_bar_with_progress(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let view = data.value("view", FullWindowView::new());
-    FullWindowZoomBar::new(view).progress(Some(Some(0.4))).show(ui).into()
+    FullWindowZoomBar::new(Bind::bound(view)).progress(Some(Some(0.4))).show(ui).into()
 }
 
 #[story(FullWindowTitle, covers = [], drive = Drive::Never)]
@@ -107,12 +103,9 @@ fn canvas(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     static IMAGE_SOURCE: Flat = Flat { colour: Color32::from_rgb(0x4a, 0x7f, 0xc1), half: true };
     static MASK: Flat = Flat { colour: Color32::from_rgba_premultiplied(0x40, 0x00, 0x00, 0x40), half: false };
     let view = data.value("view", FullWindowView::new());
-    let mut hand = HandTool::new(NavigationOptions::default());
-    let shown = FullWindowCanvas::new(ToolPath::Freehand, view, &IMAGE_SOURCE)
+    FullWindowCanvas::new(ToolPath::Freehand, Bind::bound(view), &IMAGE_SOURCE)
         .checkerboard(Checker::new())
         .overlay(RasterOverlay::new(&MASK).tint(Color32::from_rgb(0xc0, 0x40, 0x40)))
-        .tool(&mut hand)
-        .show(ui);
-    *view = shown.view.unwrap_or(shown.shown);
-    shown.into()
+        .show(ui)
+        .into()
 }

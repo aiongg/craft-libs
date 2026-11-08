@@ -256,6 +256,12 @@ impl Units {
         self.show(UnitKind::Percent, n)
     }
 
+    /// A zoom of `n` percent: `100%`, `12.5%`, `66.67%`. The fewest digits that show it to two decimals, so the
+    /// ladder's thirds read as Photoshop shows them.
+    pub fn zoom_percent(&self, n: f64) -> String {
+        self.text(UnitKind::Percent, n, 0..=2)
+    }
+
     /// `n` degrees: `12°`.
     pub fn degrees(&self, n: f64) -> String {
         self.show(UnitKind::Degrees, n)

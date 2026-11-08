@@ -66,7 +66,10 @@ fn edit_menu(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn panel_menu(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let panel = || {
         let host = vec![PanelRow::Command(EditCommands::Undo.into()), PanelRow::Separator];
-        let group = vec![PanelRow::Item(Entry::new(GroupItem::Float, "Float")), PanelRow::Item(Entry::new(GroupItem::Close, "Close"))];
+        let group = vec![
+            PanelRow::Item(Entry::new(GroupItem::CollapseToIcons, "Collapse to Icons")),
+            PanelRow::Item(Entry::new(GroupItem::AutoCollapse, "Auto-Collapse Iconic Panels")),
+        ];
         PanelMenu::new(host, group)
     };
     StoryOutput::from(Menu::new("Panel menu").open(Bind::bound(data.value("open", true))).show(ui, |ui, _| panel().show(ui)).output)

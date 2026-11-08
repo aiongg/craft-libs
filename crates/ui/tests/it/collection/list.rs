@@ -174,6 +174,79 @@ fn panel_body_and_list_share_the_wheel_rule() {
     assert!((last_row.get().bottom() - list.bottom()).abs() < SAME, "the list stopped at its end, not past it: {:?} in {list:?}", last_row.get());
 }
 
+/// A natural-height list in a scrolling page: the page and the list under one wheel, and the keys.
+struct Page {
+    seen: Seen,
+    panel: Cell<Rect>,
+    first_top: Cell<f32>,
+    last_row: Cell<Rect>,
+}
+
+impl Page {
+    fn new() -> Self {
+        Page { seen: Seen::default(), panel: Cell::new(Rect::NOTHING), first_top: Cell::new(0.0), last_row: Cell::new(Rect::NOTHING) }
+    }
+
+    fn show(&self, ui: &mut Ui, words: &Count) {
+        use crate::body::kit::Slab;
+        use craft_ui::contract::{ContainerProps, Scroll, ShowContainer as _};
+        use craft_ui::testing::layout::Block;
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            let out = Slab::new(ContainerProps::new().scroll(Scroll::vertical())).id_salt("page").show(ui, |ui, _| {
+                self.first_top.set(ui.next_widget_position().y);
+                Block::new(Vec2::new(100.0, ROW_H)).show(ui);
+                let list = List::new(SelectMode::Single).natural_height().id_salt("list").show_items(ui, words, &mut |key, cx| {
+                    if *key == ROWS - 1 {
+                        self.last_row.set(cx.rect);
+                    }
+                    Row::new()
+                });
+                self.seen.take(list);
+            });
+            self.panel.set(out.output.rect);
+        });
+    }
+}
+
+/// Every row of a natural-height list is built, though the page shows a part of the list.
+#[trial]
+fn a_natural_height_list_builds_every_row() {
+    let (words, page) = (Count(ROWS), Page::new());
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| page.show(ui, &words);
+    frames.idle(3, &mut show);
+    assert_eq!(page.seen.range(), 0..ROWS, "every row is built");
+    assert!(page.last_row.get().min.y > page.panel.get().max.y, "the last row lies below the page that shows the list");
+}
+
+/// The wheel over a natural-height list scrolls the page; the list has no scroll of its own.
+#[trial]
+fn the_wheel_over_a_natural_height_list_scrolls_the_page() {
+    let (words, page) = (Count(ROWS), Page::new());
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| page.show(ui, &words);
+    frames.idle(3, &mut show);
+    let top0 = page.first_top.get();
+    frames.frame(vec![pointer::moved(page.panel.get().center())], &mut show);
+    frames.frame(vec![pointer::wheel(-WHEEL)], &mut show);
+    assert!((top0 - page.first_top.get() - WHEEL).abs() < SAME, "the page moved by the wheel's points: {top0} -> {}", page.first_top.get());
+}
+
+/// Moving the lead to the last row scrolls the page until the row shows.
+#[trial]
+fn keys_in_a_natural_height_list_scroll_the_page_to_the_lead() {
+    let (words, page) = (Count(ROWS), Page::new());
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| page.show(ui, &words);
+    frames.idle(2, &mut show);
+    focus_list(&mut frames, &page.seen, &mut show);
+    assert!(page.last_row.get().min.y > page.panel.get().max.y, "the last row starts below the page");
+    press(&mut frames, Key::End, Modifiers::NONE, &mut show);
+    frames.idle(3, &mut show);
+    let (row, panel) = (page.last_row.get(), page.panel.get());
+    assert!(row.min.y >= panel.min.y - SAME && row.max.y <= panel.max.y + SAME, "the last row is inside the page: {row:?} in {panel:?}");
+}
+
 /// Shift+F10 asks for the focused row's context menu once, below that row; nothing opens without a lead.
 #[trial]
 fn shift_f10_opens_the_focused_rows_context_menu() {

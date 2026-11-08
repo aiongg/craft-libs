@@ -391,8 +391,8 @@ note = "Removed: the reader always takes expressions on commit."
 [[setter]]
 type = "NumberField"
 old = "steps_with(Fn)"
-new = ""
-note = "Removed: a step is a multiple of `step`."
+new = "stepper(Fn(f64, i32) -> f64)"
+note = "The function takes the value and the direction (1 up, -1 down) and returns the next value; arrows, Page keys and the wheel use it (`NumberStepper`)."
 
 [[setter]]
 type = "NumberField"

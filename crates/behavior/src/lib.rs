@@ -71,7 +71,7 @@ pub use columns::{ColumnKey, ColumnWidth, GridSection, GridView};
 pub use command::{CommandFlags, pick_instance, resolve_flags};
 pub use cursor::{Cursor, CursorBadge, CursorIcon, CursorPriority, IconId, PaintedCursor};
 pub use doc_key::DocKey;
-pub use dock::{DockHandle, DockSide, DockTree, GroupId};
+pub use dock::DockSide;
 pub use edit_history::EditHistory;
 pub use editor::EditorInput;
 pub use flow::{Axis, Flow, Insets};

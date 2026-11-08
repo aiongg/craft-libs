@@ -255,7 +255,7 @@ name = "NavigatorOutput"
 old = "craft_ui::canvas::navigator::preview::NavigatorOutput"
 new = "craft_ui::canvas::NavigatorOutput"
 status = "moved"
-note = "`view` (the `EditResponse<CanvasView>`) and `animate_zoom`."
+note = "`view` (the `EditResponse<CanvasView>`) and `ease: Option<(CanvasView, ViewEase)>`: a zoom under Animated Zoom is not written into the bound view; the app begins its `ZoomAnimation` and copies the target in, as with `ToolHostResponse`."
 
 [[type]]
 name = "NavigatorPreview"
@@ -290,7 +290,7 @@ name = "ProxyColor"
 old = "craft_ui::canvas::navigator::options::ProxyColor"
 new = "craft_ui::canvas::ProxyColor"
 status = "moved"
-note = "`label(&CanvasWords)` replaces `label(&NavigatorLabels)`; `color()` takes no tokens and gives an `Srgba`; `ProxyColor::custom(Srgba)` makes the Custom colour of a picker's answer."
+note = "the colour names are the words of `NavigatorOptionsDialog` (`NavigatorOptionsWords`), so `label` is gone; `color()` takes no tokens and gives an `Srgba`; `ProxyColor::custom(Srgba)` makes the Custom colour of a picker's answer."
 
 [[type]]
 name = "NavigatorOptionsDialog"
@@ -307,6 +307,13 @@ status = "replaced"
 note = "`response`, `closed`, `accepted` (the options the pass the dialog closed as OK), `value` and `requests`."
 
 [[type]]
+name = "NavigatorOptionsWords"
+old = ""
+new = "craft_ui::patterns::form_dialogs::NavigatorOptionsWords"
+status = "replaced"
+note = "The dialog's own words (`navigatorOptionsDialog.*`, the colour names included); they were rows of `CanvasWords`. The Custom… request key `NAVIGATOR_PROXY_COLOR_KEY` is exported from `patterns::form_dialogs` beside the dialog, no longer from `canvas`."
+
+[[type]]
 name = "NavigatorZoomRow"
 old = ""
 new = "craft_ui::canvas::NavigatorZoomRow"
@@ -314,11 +321,11 @@ status = "replaced"
 note = "The legacy zoom row (`navigator::zoom_row`): percent `NumberField`, `IconButton`s and a logarithmic `Slider` as children of a `Row`. `NavigatorZoomRow::new(Bind::bound(&mut view), document).navigation(options).show(ui)`."
 
 [[type]]
-name = "NavigatorZoomOutput"
+name = "NavigatorZoomRowOutput"
 old = ""
-new = "craft_ui::canvas::NavigatorZoomOutput"
+new = "craft_ui::canvas::NavigatorZoomRowOutput"
 status = "replaced"
-note = "`response`, `view` (the pass's `EditEvent<CanvasView>`) and `animate_zoom`."
+note = "`response`, `view` (the pass's `EditEvent<CanvasView>`) and `ease` (an `Option<ViewEase>`: a Zoom In or Zoom Out step with Animated Zoom on, not written to the bound view)."
 
 [[type]]
 name = "NavigatorCommands"
@@ -351,9 +358,9 @@ note = "The words are rows of `CanvasWords`."
 [[type]]
 name = "NavigatorStyle"
 old = "craft_ui::canvas::navigator::style::NavigatorStyle"
-new = ""
-status = "removed"
-note = "The look comes from the tokens through the component styles of the children."
+new = "craft_ui::canvas::NavigatorStyle"
+status = "moved"
+note = "The Navigator's component style, read from the tokens: the inset round the document and the proxy's corners. The proxy line and halo are the content kit's outline (`ContentPainterCx::outline_in`)."
 
 [[type]]
 name = "preview_rect"
@@ -982,7 +989,7 @@ name = "ViewCommand"
 old = ""
 new = "craft_ui::canvas::ViewCommand"
 status = "replaced"
-note = "The `canvasView.*` commands (Zoom In, Zoom Out, Fit on Screen, Fill Screen, Rotate View clockwise and counterclockwise, Reset Rotation) with `apply(view, size, pixels_per_point)`."
+note = "The `canvasView.*` commands, scoped to `canvasView` (Zoom In Cmd+= or Cmd++, Zoom Out Cmd+-, Fit on Screen Cmd+0, Fill Screen, 100% Cmd+1, Rotate View clockwise and counterclockwise, Reset Rotation) with `apply(view, size, pixels_per_point)`."
 
 [[type]]
 name = "NavigationLabels"
@@ -1200,3 +1207,44 @@ new = "answers(requests.take_answers()) after requests.answer_color(key, color)"
 type = "NavigatorOptionsDialog"
 old = "cancel_color()"
 new = "requests.cancel_color()"
+
+# l4e-navprev: the legacy Navigator's setters.
+[[setter]]
+type = "Navigator"
+old = "new(id_salt, size, numbers)"
+new = "new(label, Bind::bound(&mut view), size)"
+note = "The label names the AccessKit group; the view is bound here, not passed to `show`. Numbers come from the env's locale."
+
+[[setter]]
+type = "Navigator"
+old = "settings(&mut settings)"
+new = "proxy(settings.options.proxy_color)"
+note = "The Navigator reads only the proxy colour. Panel Options is the app command `NavigatorCommands::Options`, which opens `NavigatorOptionsDialog` and writes the settings."
+
+[[setter]]
+type = "Navigator"
+old = "labels(NavigatorLabels)"
+new = ""
+note = "Removed: the scroll-bar names are `CanvasWords` (`navigator_horizontal`, `navigator_vertical`), translated by the catalog; the group's name is the label of `new`."
+
+[[setter]]
+type = "Navigator"
+old = "size(ControlSize)"
+new = "size(ControlSize)"
+
+[[setter]]
+type = "Navigator"
+old = "enabled(bool)"
+new = "enabled(bool)"
+
+[[setter]]
+type = "Navigator"
+old = "navigation(&NavigationOptions)"
+new = "navigation(NavigationOptions)"
+
+[[setter]]
+type = "Navigator"
+old = "show(ui, &mut view)"
+new = "show(ui)"
+note = "Returns `NavigatorOutput`: the view's `EditResponse` and, under Animated Zoom, `ease` with the target view the app eases to."
+# End of l4e-navprev.

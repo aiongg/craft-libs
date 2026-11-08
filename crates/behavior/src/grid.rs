@@ -92,6 +92,27 @@ impl GridCursor {
         Rect::from_min_size(Pos2::new(span.min.x, self.flow.rect().top() + top), Vec2::new(width, height))
     }
 
+    /// The room the next child measures in: as wide as its column, or for a `Content` column as wide as the columns
+    /// that do not fill leave, and as tall as the grid below its row's top. The cells placed before it do not shorten
+    /// it, as they would shorten the rest of a top-down flow.
+    pub fn room(&self) -> Vec2 {
+        let count = self.columns.len().max(1);
+        let (column, row) = (self.next % count, self.next / count);
+        let width = match self.columns.get(column) {
+            Some(ColumnWidth::Content) => {
+                let kept: f32 = (self.columns.iter().zip(&self.widths).enumerate())
+                    .filter(|(at, (kind, _))| *at != column && !matches!(kind, ColumnWidth::Fill { .. }))
+                    .map(|(_, (_, width))| *width)
+                    .sum();
+                let gaps = self.gap.x * count.saturating_sub(1) as f32;
+                (self.flow.rect().width() - kept - gaps).max(0.0)
+            }
+            _ => self.widths.get(column).copied().unwrap_or(0.0),
+        };
+        let top: f32 = self.last_rows.iter().take(row).map(|height| height + self.gap.y).sum();
+        Vec2::new(width, (self.flow.rect().height() - top).max(0.0))
+    }
+
     /// The cell last placed measured `size` after all: its column and row record that, and a `Content` column offers
     /// the cells after it in this pass the wider width.
     pub fn widen(&mut self, size: Vec2) {
@@ -154,5 +175,15 @@ mod tests {
         let second = rtl.cell(Vec2::new(10.0, 10.0));
         assert_eq!((first.max.x, second.max.x), (300.0, 200.0), "the first column is on the right");
         assert_eq!(ltr.measured().rows, vec![10.0, 10.0]);
+    }
+
+    #[test]
+    fn a_content_cell_after_a_fill_cell_measures_in_the_whole_height_and_the_width_fixed_columns_leave() {
+        let columns = [ColumnWidth::fill(1.0), ColumnWidth::Content, ColumnWidth::Fixed(100.0)];
+        let last = GridMeasure { columns: vec![0.0, 50.0, 0.0], rows: vec![100.0] };
+        let mut cursor = GridCursor::new(flow(false), &columns, Vec2::ZERO, &last);
+        assert_eq!(cursor.room(), Vec2::new(150.0, 100.0), "the fill cell measures in its own column");
+        cursor.cell(Vec2::new(150.0, 100.0));
+        assert_eq!(cursor.room(), Vec2::new(200.0, 100.0), "the content cell may take what the fill column holds");
     }
 }

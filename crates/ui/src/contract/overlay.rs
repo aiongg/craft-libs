@@ -356,6 +356,9 @@ pub struct Overlay {
     pub bounds: Option<Rect>,
     /// The layer's own opacity, below the open and close motion's.
     pub opacity: f32,
+    /// Whether a container mounted as this layer scrolls its body vertically. Off for a layer whose body fills it and
+    /// manages its own scrolling (a dock tree); a body that is one collection uses `collection_body` instead.
+    pub body_scroll: bool,
 }
 
 /// The share of the viewport a dropdown list may take. Half the width leaves room for the list to hang from the end
@@ -388,6 +391,7 @@ impl Overlay {
             placed_at: None,
             bounds: None,
             opacity: 1.0,
+            body_scroll: true,
         }
     }
 
@@ -545,6 +549,12 @@ impl Overlay {
     /// Sets the rect a move or resize keeps the layer inside.
     pub fn bounds(mut self, bounds: Rect) -> Overlay {
         self.bounds = Some(bounds);
+        self
+    }
+
+    /// Whether a container mounted as this layer scrolls its body vertically (default on).
+    pub fn body_scroll(mut self, on: bool) -> Overlay {
+        self.body_scroll = on;
         self
     }
 

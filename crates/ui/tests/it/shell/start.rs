@@ -4,10 +4,11 @@ use craft_i18n::Collator;
 use craft_ui::contract::Bind;
 use craft_ui::runtime::commands::{CommandState, EditCommands};
 use craft_ui::runtime::frame::take_output;
-use craft_ui::shell::{RecentFile, RecentSort, RecentView, StartAction, StartScreen, sort_recent};
-use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers};
+use craft_ui::shell::{RecentFile, RecentSort, RecentView, StartAction, StartScreen, Template, sort_recent};
+use craft_ui::testing::{Fixture, pointer, trial};
+use egui::{Key, Modifiers, Pos2, Vec2};
 use std::cell::RefCell;
+use std::path::PathBuf;
 use std::rc::Rc;
 
 fn file(name: &str, opened: Option<i64>, created: Option<i64>) -> RecentFile {
@@ -94,4 +95,40 @@ fn delete_on_a_recent_file_removes_it_and_leaves_the_edit_command() {
         fired.len()
     );
     assert!(fired.is_empty(), "the application's Delete command did not fire");
+}
+
+const SCREEN: Vec2 = Vec2::new(600.0, 400.0);
+
+fn heading_top(fixture: &Fixture, text: &str) -> f32 {
+    fixture.texts().iter().find(|painted| painted.text == text).map_or_else(|| panic!("the page shows {text:?}"), |painted| painted.rect.min.y)
+}
+
+/// Many recent files and templates: the three sections follow each other down one page, and the wheel scrolls that page
+/// in both views of the recent files.
+#[trial]
+fn many_files_and_templates_share_one_scrolling_page() {
+    for show in [RecentView::Grid, RecentView::List] {
+        let files: Vec<RecentFile> = (0..200).map(|at| file(&format!("file {at:02}"), Some(at), None)).collect();
+        let pinned = vec![PathBuf::from("/work/a"), PathBuf::from("/work/b")];
+        let templates: Vec<Template> = (0..100).map(|at| Template::new(format!("t{at}"), format!("Template {at}"), "")).collect();
+        let mut fixture = Fixture::new(move |ui| {
+            let (mut view, mut sort) = (show, RecentSort::default());
+            let _ = StartScreen::new(Bind::bound(&mut view), Bind::bound(&mut sort), &files)
+                .pinned(&pinned)
+                .templates(&templates)
+                .max_recent(200)
+                .show(ui);
+        });
+        fixture.room(SCREEN);
+        fixture.settle();
+        let (recent, pinned, templates) =
+            (heading_top(&fixture, "Recent"), heading_top(&fixture, "Pinned Folders"), heading_top(&fixture, "Templates"));
+        assert!(recent < pinned && pinned < templates, "{show:?}: the sections follow each other: {recent} {pinned} {templates}");
+        assert!(templates > SCREEN.y, "{show:?}: the templates start below the screen: {templates}");
+        fixture.frame(vec![pointer::moved(Pos2::new(300.0, 200.0))]);
+        fixture.frame(vec![pointer::wheel(-1000.0)]);
+        fixture.idle(2);
+        let after = heading_top(&fixture, "Templates");
+        assert!(after < templates, "{show:?}: the wheel scrolled the page: {templates} -> {after}");
+    }
 }

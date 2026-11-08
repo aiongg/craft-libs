@@ -87,6 +87,21 @@ impl Outcome for NumberOutput {
     }
 }
 
+/// The value one step from a value in a direction: the up arrow, the wheel and the Page keys of a field whose values
+/// lie on a ladder instead of a grid (`NumberField::stepper`). The direction is `1` up and `-1` down.
+pub struct NumberStepper<'a>(Box<dyn Fn(f64, i32) -> f64 + 'a>);
+
+impl<'a> NumberStepper<'a> {
+    /// The stepper that runs `next`.
+    pub fn new(next: impl Fn(f64, i32) -> f64 + 'a) -> Self {
+        NumberStepper(Box::new(next))
+    }
+
+    fn next(&self, from: f64, direction: i32) -> f64 {
+        (self.0)(from, direction)
+    }
+}
+
 /// The range and step values are held to.
 #[derive(Clone, Debug, PartialEq)]
 struct Rule {
@@ -253,6 +268,10 @@ pub struct NumberField<'a> {
     /// What one arrow press, one wheel notch and one point of label scrub change; the default is 1.
     #[prop(quantity = "step")]
     step: Option<f64>,
+    /// Where an arrow press, a Page key and a wheel notch go from the current value, for values on a ladder (the zoom
+    /// ladder); the step is ignored for them. The range still holds the result.
+    #[prop(func = "Fn(f64, i32) -> f64")]
+    stepper: Option<NumberStepper<'a>>,
     /// A unit shown after the number.
     #[prop(into)]
     unit: Option<Label>,
@@ -284,6 +303,7 @@ impl<'a> NumberField<'a> {
             unit_kind: None,
             range: None,
             step: None,
+            stepper: None,
             unit: None,
             presets: None,
             popup_slider: None,
@@ -532,13 +552,21 @@ impl Component for NumberField<'_> {
                 _ => continue,
             };
             let from = cx.value().and_then(|value| *value).unwrap_or_else(|| rule.blank());
-            cx.set(Some(rule.stepped(from, notches, scale)));
+            let next = match &self.stepper {
+                Some(stepper) => rule.settle(stepper.next(from, notches)),
+                None => rule.stepped(from, notches, scale),
+            };
+            cx.set(Some(next));
         }
         if let Some(wheel) = cx.take_wheel() {
             let from = cx.value().and_then(|value| *value).unwrap_or_else(|| rule.blank());
             let steps = ValueSteps::new(from, rule.low, rule.high, rule.step, rule.step * LARGE_STEPS).fine(rule.step / LARGE_STEPS);
             if let StepResult::Set(next) = wheel_step(&steps, ValueAxes::Both, &wheel, cx.env.direction().is_rtl()) {
-                cx.set(Some(rule.settle(round_to(next, decimals_for_step(rule.step / LARGE_STEPS)))));
+                let next = match &self.stepper {
+                    Some(stepper) if next != from => stepper.next(from, if next > from { 1 } else { -1 }),
+                    _ => round_to(next, decimals_for_step(rule.step / LARGE_STEPS)),
+                };
+                cx.set(Some(rule.settle(next)));
             }
         }
         if let Some(next) = cx.intents().take_set_value() {

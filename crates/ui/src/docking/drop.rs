@@ -10,6 +10,7 @@ use super::{DockSpot, DockTargets, FloatSpace, GroupDrag, PanelDrag, PanelKey};
 use crate::contract::{DropMark, DropOperation, DropTarget, Pointer};
 use crate::runtime::drag::{self, DragPreview};
 use crate::runtime::env::Label;
+use crate::runtime::pointer;
 use craft_behavior::dock::{Action, DockEdge, Layout, Node, PanelPlace, Permissions, Placement, Target};
 use craft_behavior::{CancelReason, DockSide};
 use egui::{Context, Id, Pos2, Rect, Vec2};
@@ -238,7 +239,10 @@ where
 
 /// The drop target of one dock over one layout, for a tab drag ([`PanelDrag`]) and a group drag ([`GroupDrag`]).
 ///
-/// It accepts a move only. Fields are assigned by the dock after [`Self::new`].
+/// It accepts a move only. A release over a spot docks the unit there. Ctrl or Cmd held at the release floats it
+/// instead (Photoshop: the key prevents docking), and with `float_on_empty` a release that no spot takes floats it;
+/// both float it into `space` under the pointer. A floating window dragged by its title bar moves itself and never
+/// floats into another window. Fields are assigned by the dock after [`Self::new`].
 #[non_exhaustive]
 pub struct DockDropTarget<'a, P> {
     ctx: &'a Context,
@@ -248,14 +252,18 @@ pub struct DockDropTarget<'a, P> {
     permissions: &'a dyn Fn(&P) -> Permissions,
     /// The layout direction, which mirrors side marks.
     pub rtl: bool,
-    /// Set while Ctrl or Cmd is held: every drop floats the unit in this area instead of docking it.
-    pub floating: Option<&'a FloatSpace<P>>,
+    /// Where a floating drop lands. Without it the target only docks.
+    pub space: Option<&'a FloatSpace<P>>,
+    /// A release that no spot takes floats the unit, except over the unit's own group (`DockConfig::float_on_empty_drop`).
+    pub float_on_empty: bool,
+    /// A floating window dragged by its title bar docks on a spot (`DockConfig::title_bar_docks`). Off: it only moves.
+    pub title_bar_docks: bool,
 }
 
 impl<'a, P> DockDropTarget<'a, P> {
-    /// The target of `dock` over `layout`.
+    /// The target of `dock` over `layout`: it docks on spots and floats nothing until `space` is set.
     pub fn new(ctx: &'a Context, dock: Id, layout: &'a Layout<P>, permissions: &'a dyn Fn(&P) -> Permissions) -> Self {
-        DockDropTarget { ctx, dock, layout, permissions, rtl: false, floating: None }
+        DockDropTarget { ctx, dock, layout, permissions, rtl: false, space: None, float_on_empty: false, title_bar_docks: true }
     }
 }
 
@@ -265,14 +273,44 @@ impl<P: Clone + Eq + Hash + Send + 'static> DockDropTarget<'_, P> {
             return None;
         }
         let unit = drag.unit(self.layout)?;
-        if let Some(space) = self.floating {
-            let floated = float_drop(&unit, space, at);
-            return ((self.permissions)(unit.lead()).floatable && takes(self.layout, &floated.action, self.permissions)).then_some(floated);
+        let window = matches!(unit, DragUnit::Window(_));
+        if pointer::frame(self.ctx).mods.cmd {
+            return if window { None } else { self.float(&unit, at) };
         }
-        let (spot, applies) = DockTargets::<P>::resolve(self.ctx, self.dock, at)?;
-        let action = action_for(self.layout, &spot, &unit, self.permissions)?;
-        let mark = spot.mark(applies, self.rtl)?;
-        Some(DockDropped { action, mark })
+        if window && !self.title_bar_docks {
+            return None;
+        }
+        if let Some((spot, applies)) = DockTargets::<P>::resolve(self.ctx, self.dock, at) {
+            if let Some(action) = action_for(self.layout, &spot, &unit, self.permissions) {
+                let mark = spot.mark(applies, self.rtl)?;
+                return Some(DockDropped { action, mark });
+            }
+            if on_unit(self.layout, &spot, &unit) {
+                return None;
+            }
+        }
+        if window || !self.float_on_empty {
+            return None;
+        }
+        self.float(&unit, at)
+    }
+
+    /// The unit floated under `at`, when it may float and the model takes it.
+    fn float(&self, unit: &DragUnit<P>, at: Pos2) -> Option<DockDropped<P>> {
+        let floated = float_drop(unit, self.space?, at);
+        ((self.permissions)(unit.lead()).floatable && takes(self.layout, &floated.action, self.permissions)).then_some(floated)
+    }
+}
+
+/// Whether `spot` lies on a group that `unit` moves panels out of: a release there that docks nowhere leaves the unit
+/// where it is.
+fn on_unit<P: Clone + Eq + Hash>(layout: &Layout<P>, spot: &DockSpot<P>, unit: &DragUnit<P>) -> bool {
+    let moved = moving_panels(layout, unit);
+    let touches = |anchor: &P| members(layout, anchor).iter().any(|panel| moved.contains(panel));
+    match spot {
+        DockSpot::Tab { anchor, .. } | DockSpot::Group { anchor, .. } | DockSpot::Column { anchor, .. } => touches(anchor),
+        DockSpot::Seam { before, after } => touches(before) || touches(after),
+        _ => false,
     }
 }
 

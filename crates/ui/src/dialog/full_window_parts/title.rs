@@ -3,7 +3,7 @@
 use super::super::words::DialogWords;
 use crate::contract::{NoValue, Outcome, Show as _};
 use crate::display::{Elide, Text};
-use crate::runtime::env::{Env, Label, UnitKind};
+use crate::runtime::env::{Env, Label};
 use egui::{Response, Ui};
 
 /// What the title strip reports.
@@ -23,11 +23,11 @@ impl Outcome for FullWindowTitleOutput {
 }
 
 /// The title strip's text: the workspace's name, then in brackets what it works on and the zoom on screen,
-/// "Liquify (Layer 1, 66%)". Without a subject "Liquify (66%)"; without a zoom "Adaptive Wide Angle (Layer 1)"; with
+/// "Liquify (Layer 1, 66.67%)". Without a subject "Liquify (66.67%)"; without a zoom "Adaptive Wide Angle (Layer 1)"; with
 /// neither just the name.
 ///
 /// - A trailing ellipsis of the name is dropped, so a menu item's name ("Liquify…") can be passed as it is.
-/// - The zoom is rounded to a whole percent in the user's language and digits.
+/// - The zoom shows up to two decimals (`Units::zoom_percent`), in the user's language and digits.
 /// - [`label`](Self::label) is the text for a dialog's title row; [`show`](Self::show) draws it as one line that
 ///   elides at the end and shows whole in a tooltip.
 #[derive(crate::contract::Pattern)]
@@ -61,7 +61,7 @@ impl FullWindowTitle {
         let words = env.words::<DialogWords>();
         let name = env.view().resolve(&self.name);
         let name = name.as_str().trim_end_matches('…').trim_end_matches("...").trim_end();
-        let zoom = self.zoom.map(|percent| env.units().text(UnitKind::Percent, percent.round(), 0..=0));
+        let zoom = self.zoom.map(|percent| env.units().zoom_percent(percent));
         let subject = self.subject.as_ref().map(|subject| env.view().resolve(subject));
         let text = match (subject.as_ref().map(Label::as_str), zoom.as_deref()) {
             (Some(subject), Some(zoom)) => words.full_window_title_zoom.fill(&[("name", name), ("subject", subject), ("zoom", zoom)]),

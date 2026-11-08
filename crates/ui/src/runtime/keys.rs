@@ -125,6 +125,8 @@ struct Item {
 struct Routed {
     items: Vec<Item>,
     nudge: Option<(Vec2, Mods)>,
+    /// The chords a recorder stop's presses spell this pass.
+    chords: Vec<Chord>,
     set_value: Option<(Option<PartRef>, f64)>,
     /// A `Reset` the label step routed: it resets the whole binding, whatever part holds focus.
     whole_reset: bool,
@@ -817,6 +819,13 @@ fn route_press(
         push(routed, Some(driven.list), intent, false);
         return Taken::Yes;
     }
+    if matches!(stop.keys.owner, OwnerClass::Recorder) {
+        // A recorder reads every press as a chord, repeats excluded; no intent of the key table applies to it.
+        if !press.repeat {
+            routed.entry(id).or_default().chords.push(Chord { mods: press.mods, key: press.key });
+        }
+        return Taken::Yes;
+    }
     let mut taken = Taken::Yes;
     match keys::intent(os, press.key, press.mods, stop.role) {
         Some(Intent::Move(mv, mods)) => {
@@ -933,6 +942,7 @@ pub struct Intents {
     items: Vec<(Intent, bool)>,
     took_arrows: Vec<NavMove>,
     nudge: Option<(Vec2, Mods)>,
+    chords: Vec<Chord>,
     set_value: Option<(Option<PartRef>, f64)>,
     whole_reset: bool,
 }
@@ -1077,6 +1087,12 @@ impl Intents {
         self.nudge.take()
     }
 
+    /// Takes the chords this pass's presses spell, for a component whose key use is `KeyUse::RECORDER`; empty for any
+    /// other component. A recorder gets no other key intents, and no command runs on its presses.
+    pub fn take_chords(&mut self) -> Vec<Chord> {
+        std::mem::take(&mut self.chords)
+    }
+
     /// Takes the AccessKit `SetValue` request aimed at the component's own node.
     pub fn take_set_value(&mut self) -> Option<f64> {
         self.take_set_value_of(None)
@@ -1168,7 +1184,14 @@ pub(crate) fn intents_of(ctx: &Context, id: Option<Id>, rtl: bool) -> Intents {
             intent => (intent, false),
         })
         .collect();
-    Intents { items, took_arrows: Vec::new(), nudge: routed.nudge, set_value: routed.set_value, whole_reset: routed.whole_reset }
+    Intents {
+        items,
+        took_arrows: Vec::new(),
+        nudge: routed.nudge,
+        chords: routed.chords,
+        set_value: routed.set_value,
+        whole_reset: routed.whole_reset,
+    }
 }
 
 /// Writes back what a component left untaken, so a scope's `Submit` and `Cancel` rules see it.
@@ -1179,6 +1202,9 @@ pub(crate) fn settle(ctx: &Context, id: Option<Id>, intents: &Intents) {
         routed.items.retain(|_| !taken.next().unwrap_or(false));
         if intents.nudge.is_none() {
             routed.nudge = None;
+        }
+        if intents.chords.is_empty() {
+            routed.chords.clear();
         }
         if intents.set_value.is_none() {
             routed.set_value = None;

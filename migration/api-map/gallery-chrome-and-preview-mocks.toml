@@ -102,7 +102,7 @@ name = "PanelId"
 old = "craft_ui_gallery_legacy::layout::PanelId"
 new = ""
 status = "removed"
-note = "The viewer has four panels, one `GroupId` each: `viewer::{COMPONENTS, STORIES, FACTS, RECORD}`."
+note = "The viewer has four panels in the dock layout, named by `viewer::GalleryPanel::{Components, Stories, Facts, Record}`."
 
 [[type]]
 name = "GalleryWorkspace"

@@ -13,7 +13,7 @@ pub use appearance::{
 };
 pub use catalog::{Catalog, ComponentInfo, Declared, Entry, short_type};
 pub use commands::GalleryCommands;
-pub use layout::{COMPONENTS, DETAIL, FACTS, OVERRIDES, PROBLEMS, PanelShares, RECORD, STORIES, TOKENS, theme_layout};
+pub use layout::{GalleryPanel, PanelShares, theme_layout};
 pub use settings::GallerySettings;
 pub use state::{Browser, Cells, Viewer, Workspace};
 pub use tree::{TreeKey, TreeRow, TreeRows, groups, module_of, rows};

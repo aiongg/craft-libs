@@ -30,6 +30,7 @@ mod full_window_parts;
 // end of full-window parts
 mod glossary;
 mod internals;
+mod keys;
 mod label;
 mod layout;
 mod list;

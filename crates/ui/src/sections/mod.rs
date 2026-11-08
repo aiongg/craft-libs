@@ -16,6 +16,7 @@ pub use footer::{DialogRole, DropAction, DropActionOutput, DropActionStyle, Foot
 pub use group_box::{GroupBox, GroupBoxStyle};
 pub use section::{Section, SectionOutput, SectionStyle};
 pub use stack::{SectionStack, SectionStackOutput, SectionStackStyle, StackRows, StackSlot};
+pub(crate) use title_row::MenuRows;
 pub use title_row::{HeaderAction, HeaderStrength, TitleOutput, TitleRow, TitleRowStyle};
 pub use words::SectionWords;
 

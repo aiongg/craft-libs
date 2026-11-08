@@ -1,13 +1,8 @@
 //! Panel Options as data: `NavigatorSettings`, `NavigatorOptions` and `ProxyColor`. The dialog that edits them is
 //! `patterns::form_dialogs::NavigatorOptionsDialog`.
 
-use crate::canvas::CanvasWords;
-use crate::runtime::env::Label;
 use craft_theme::Srgba;
 use egui::Color32;
-
-/// The `ColorRequest::key` of Panel Options' Custom… colour.
-pub const NAVIGATOR_PROXY_COLOR_KEY: &str = "navigatorOptionsDialog.proxyColor";
 
 /// The proxy rectangle's colour (Panel Options, Color).
 ///
@@ -50,25 +45,6 @@ impl ProxyColor {
         ProxyColor::Violet,
         ProxyColor::Gray,
     ];
-
-    /// The colour Custom… opens its picker at before a custom colour was chosen: the default proxy colour.
-    pub const DEFAULT_CUSTOM: [u8; 3] = [255, 84, 84];
-
-    /// The colour's name in the dialog; `Custom` is the word for Custom….
-    pub fn label(self, words: &CanvasWords) -> Label {
-        let word = match self {
-            ProxyColor::Default => words.proxy_default.clone(),
-            ProxyColor::Red => words.proxy_red.clone(),
-            ProxyColor::Orange => words.proxy_orange.clone(),
-            ProxyColor::Yellow => words.proxy_yellow.clone(),
-            ProxyColor::Green => words.proxy_green.clone(),
-            ProxyColor::Blue => words.proxy_blue.clone(),
-            ProxyColor::Violet => words.proxy_violet.clone(),
-            ProxyColor::Gray => words.proxy_gray.clone(),
-            ProxyColor::Custom(_) => words.proxy_custom.clone(),
-        };
-        word.into()
-    }
 
     /// The colour as 8-bit sRGB: `Default` is the default proxy colour (255, 84, 84); red is 255, 84, 84; orange 255,
     /// 160, 60; yellow 255, 214, 64; green 92, 214, 110; blue 84, 160, 255; violet 176, 124, 255; gray 200, 200, 200;

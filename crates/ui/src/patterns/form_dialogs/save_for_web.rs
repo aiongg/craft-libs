@@ -675,7 +675,7 @@ impl<'a> SaveForWebDialog<'a> {
             .outer_gesture(true)
             .answers(answers)
             .on_reset(|cx| cx.memory::<Live>().reset())
-            .shaped(|dialog| dialog.close_guard(|at, _| at != 0));
+            .accept_stays_open(true);
         if let Some(open) = open {
             form = form.opened(open);
         }

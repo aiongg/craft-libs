@@ -1,7 +1,6 @@
 //! `DockEvent`, `FloatSpace` and `HidePanels`: what a dock reports to the host and the host tells a dock.
 
-use super::DockSizes;
-use crate::menu::GroupItem;
+use super::{DockCommands, DockSizes};
 use egui::{Rect, Vec2};
 
 /// A request for host state outside the layout, or a report of where something ended up.
@@ -24,13 +23,14 @@ pub enum DockEvent<P> {
         /// The panel now in the flyout; `None` when it closed.
         panel: Option<P>,
     },
-    /// A dock row of `panel`'s menu was chosen. The host's own rows are commands and run by themselves.
+    /// A panel command that only the host can carry out reached `panel`'s group: Move Panel To and Move Group To ask
+    /// for a destination ([`DockCommands::moves`]), which the host passes to `move_actions`.
     #[non_exhaustive]
     PanelCommand {
-        /// The panel whose menu the row belongs to.
+        /// The shown panel of the group the command reached.
         panel: P,
-        /// The chosen row.
-        command: GroupItem,
+        /// The command.
+        command: DockCommands,
     },
     /// A dock column was placed: the column that holds `anchor` first took `rect` this pass. Hosts that anchor
     /// their own surfaces to a column read it.
