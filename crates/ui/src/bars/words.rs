@@ -10,6 +10,13 @@ craft_ui::words! {
         items_more: "bars.itemsMore" = "More";
         align_bar: "bars.alignBar" = "Align and distribute";
         breadcrumb_hidden: "bars.breadcrumbHidden" = "Show the whole path";
+        constraint_style: "bars.constraintStyle" = "Style";
+        constraint_normal: "bars.constraintNormal" = "Normal";
+        constraint_fixed_ratio: "bars.constraintFixedRatio" = "Fixed Ratio";
+        constraint_fixed_size: "bars.constraintFixedSize" = "Fixed Size";
+        constraint_width: "bars.constraintWidth" = "Width";
+        constraint_height: "bars.constraintHeight" = "Height";
+        constraint_swap: "bars.constraintSwap" = "Swaps height and width";
         readout_zoom: "bars.statusReadoutZoom" = "Zoom";
         readout_menu: "bars.statusReadoutMenu" = "Show";
         readout_document_sizes: "bars.statusReadoutDocumentSizes" = "Document Sizes";

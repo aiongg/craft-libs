@@ -176,3 +176,64 @@ new = "follow(screen, mods)"
 type = "Constraint"
 old = "serde Serialize and Deserialize"
 new = "none yet in craft-behavior"
+
+[[type]]
+name = "ConstrainStyle"
+old = "craft_ui::behavior::move_gesture::ConstrainStyle"
+new = "craft_behavior::geometry::ConstrainStyle"
+status = "moved"
+
+[[type]]
+name = "MoveValue"
+old = "craft_ui::behavior::move_gesture::MoveValue"
+new = "craft_behavior::geometry::MoveValue"
+status = "moved"
+
+[[type]]
+name = "MoveGesture"
+old = "craft_ui::behavior::move_gesture::MoveGesture"
+new = "craft_behavior::geometry::MoveGesture"
+status = "moved"
+
+[[type]]
+name = "StrokeLock"
+old = "craft_ui::behavior::move_gesture::StrokeLock"
+new = "craft_behavior::geometry::StrokeLock"
+status = "moved"
+
+[[type]]
+name = "snap_ray"
+old = "craft_ui::behavior::move_gesture::snap_ray"
+new = "craft_behavior::geometry::snap_ray"
+status = "moved"
+
+[[type]]
+name = "snap_direction"
+old = "craft_ui::behavior::move_gesture::snap_direction"
+new = "craft_behavior::geometry::snap_direction"
+status = "moved"
+
+[[setter]]
+type = "MoveGesture"
+old = "begin(style, start, modifiers, directions)"
+new = "press(style, start, mods, directions), returning the gesture only: the tool makes its own begin event"
+
+[[setter]]
+type = "MoveGesture"
+old = "drag(at, modifiers, zoom)"
+new = "follow(at, mods, zoom), returning Option<MoveValue>: the tool makes its own update event"
+
+[[setter]]
+type = "MoveGesture"
+old = "end(at, modifiers, zoom)"
+new = "release(at, mods, zoom), returning MoveValue: the tool makes its own commit event with changed = value.changed()"
+
+[[setter]]
+type = "MoveGesture"
+old = "cancel()"
+new = "removed: CanvasTool::cancel owns the cancel and restores the tool's mark; the gesture is dropped"
+
+[[setter]]
+type = "ConstrainStyle"
+old = "of(&tokens)"
+new = "new(copy_reach, stroke_lock), a tool passes ToolContext.slop for both"

@@ -638,6 +638,7 @@ Pure canvas geometry in document units: the transform box ([`quad`]), snapping (
 - `craft_behavior::geometry::BoxState`: re-export of `craft_behavior::geometry::quad::BoxState`.
 - `craft_behavior::geometry::Constraint`: re-export of `craft_behavior::geometry::marquee::Constraint`.
 - `craft_behavior::geometry::Directions`: re-export of `craft_behavior::geometry::lock::Directions`.
+- `craft_behavior::geometry::ConstrainStyle`: re-export of `craft_behavior::geometry::move_gesture::ConstrainStyle`.
 - `craft_behavior::geometry::DraftEvent`: re-export of `craft_behavior::geometry::draft::DraftEvent`.
 - `craft_behavior::geometry::DraftKind`: re-export of `craft_behavior::geometry::draft::DraftKind`.
 - `craft_behavior::geometry::DraftPoint`: re-export of `craft_behavior::geometry::draft::DraftPoint`.
@@ -646,6 +647,8 @@ Pure canvas geometry in document units: the transform box ([`quad`]), snapping (
 - `craft_behavior::geometry::LOCK_HYSTERESIS_DEGREES`: re-export of `craft_behavior::geometry::lock::LOCK_HYSTERESIS_DEGREES`.
 - `craft_behavior::geometry::MarqueeGesture`: re-export of `craft_behavior::geometry::marquee::MarqueeGesture`.
 - `craft_behavior::geometry::MarqueeRect`: re-export of `craft_behavior::geometry::marquee::MarqueeRect`.
+- `craft_behavior::geometry::MoveGesture`: re-export of `craft_behavior::geometry::move_gesture::MoveGesture`.
+- `craft_behavior::geometry::MoveValue`: re-export of `craft_behavior::geometry::move_gesture::MoveValue`.
 - `craft_behavior::geometry::OutlineDraft`: re-export of `craft_behavior::geometry::draft::OutlineDraft`.
 - `craft_behavior::geometry::Parts`: re-export of `craft_behavior::geometry::quad::Parts`.
 - `craft_behavior::geometry::SKEW_LIMIT`: re-export of `craft_behavior::geometry::quad::SKEW_LIMIT`.
@@ -658,6 +661,7 @@ Pure canvas geometry in document units: the transform box ([`quad`]), snapping (
 - `craft_behavior::geometry::SnapOptions`: re-export of `craft_behavior::geometry::snap::SnapOptions`.
 - `craft_behavior::geometry::SnapTarget`: re-export of `craft_behavior::geometry::snap::SnapTarget`.
 - `craft_behavior::geometry::SnapTargets`: re-export of `craft_behavior::geometry::snap::SnapTargets`.
+- `craft_behavior::geometry::StrokeLock`: re-export of `craft_behavior::geometry::move_gesture::StrokeLock`.
 - `craft_behavior::geometry::TransformMode`: re-export of `craft_behavior::geometry::quad::TransformMode`.
 - `craft_behavior::geometry::across_axis`: re-export of `craft_behavior::geometry::snap::across_axis`.
 - `craft_behavior::geometry::coordinate_across`: re-export of `craft_behavior::geometry::snap::coordinate_across`.
@@ -666,6 +670,8 @@ Pure canvas geometry in document units: the transform box ([`quad`]), snapping (
 - `craft_behavior::geometry::lock_direction`: re-export of `craft_behavior::geometry::lock::lock_direction`.
 - `craft_behavior::geometry::marquee_pixels`: re-export of `craft_behavior::geometry::marquee::marquee_pixels`.
 - `craft_behavior::geometry::motion_across`: re-export of `craft_behavior::geometry::snap::motion_across`.
+- `craft_behavior::geometry::snap_direction`: re-export of `craft_behavior::geometry::move_gesture::snap_direction`.
+- `craft_behavior::geometry::snap_ray`: re-export of `craft_behavior::geometry::move_gesture::snap_ray`.
 - `craft_behavior::geometry::square_pixels`: re-export of `craft_behavior::geometry::marquee::square_pixels`.
 
 ## `craft_behavior::geometry::draft`
@@ -740,6 +746,27 @@ The Ui-free rules of a marquee drag: [`MarqueeGesture`], the options bar's [`Con
 - `craft_behavior::geometry::marquee::fixed_size_pixels`: `pub fn fixed_size_pixels(a: Point, b: Point, size:(f64, f64)) -> Rect`. The pixel rectangle of a fixed-size marquee between the corners `a` and `b`: exactly `size`
 - `craft_behavior::geometry::marquee::marquee_pixels`: `pub fn marquee_pixels(a: Point, b: Point) -> Rect`. The pixel rectangle a marquee between two corners selects: both edges snapped outwards to
 - `craft_behavior::geometry::marquee::square_pixels`: `pub fn square_pixels(r: Rect, start: Point, end: Point) -> Rect`. A square marquee's pixel rectangle `r`, as [`marquee_pixels`] returns it, with equal sides.
+
+## `craft_behavior::geometry::move_gesture`
+
+A move by drag: direction lock, stroke lock and snapping along a ray. The gestures report values; the tool owns the gesture id, the label, the value before and the cancel.
+
+- `craft_behavior::geometry::move_gesture::ConstrainStyle`: `pub struct ConstrainStyle { pub copy_reach: f64, pub stroke_lock: f64 }`. The distances of the move and stroke rules in screen points.
+  - `pub const fn new(copy_reach: f64, stroke_lock: f64) -> Self`. A tool passes `ToolContext::slop` for both.
+- `craft_behavior::geometry::move_gesture::MoveValue`: `pub struct MoveValue { pub delta: Vec2, pub copy: bool }`. The value of a move drag: the offset after the lock and whether ⌥ at the press made it a copy.
+  - `pub fn changed(&self) -> bool`. An offset or a copy.
+- `craft_behavior::geometry::move_gesture::MoveGesture`: `pub struct MoveGesture`. A Move-tool drag in progress.
+  - `pub fn press(style: &ConstrainStyle, start: Point, mods: Mods, directions: Directions) -> MoveGesture`. Starts a drag with the keys held at the press.
+  - `pub fn follow(&mut self, at: Point, mods: Mods, zoom: f64) -> Option<MoveValue>`. The pointer moved; the value when it changed.
+  - `pub fn release(self, at: Point, mods: Mods, zoom: f64) -> MoveValue`. The release, with the same lock as `follow`.
+  - `pub fn value(&self) -> MoveValue`. The value of the last `follow`.
+- `craft_behavior::geometry::move_gesture::StrokeLock`: `pub struct StrokeLock`. ⇧ during a painting stroke keeps it on a 0°, 45° or 90° line.
+  - `pub fn new(style: &ConstrainStyle) -> Self`. No lock yet.
+  - `pub fn constrain(&mut self, last: Point, p: Point, shift: bool, zoom: f64) -> Point`. The stroke point for the pointer at `p`.
+  - `pub fn locked(&self) -> bool`. Whether a direction is locked.
+  - `pub fn reset(&mut self)`. Forgets the lock.
+- `craft_behavior::geometry::move_gesture::snap_direction`: `pub fn snap_direction(origin: Point, p: Point, step: f64) -> Option<Vec2>`. The unit direction from `origin` towards `p` snapped to the nearest multiple of `step`.
+- `craft_behavior::geometry::move_gesture::snap_ray`: `pub fn snap_ray(origin: Point, p: Point, step: f64) -> Point`. `p` moved onto the nearest ray from `origin`.
 
 ## `craft_behavior::geometry::quad`
 
