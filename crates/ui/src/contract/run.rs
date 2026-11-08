@@ -522,8 +522,10 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     steps::check_parts(&ctx, std::any::type_name::<C>(), &parts);
     let (holder_widget, text_keys) = text_holder::<C>(id, &parts);
     let own = own_sense(&*p.hooks, comp, resolved, inert);
-    // An item never senses the whole row: the collection's root takes the click and the focus (17.2).
-    let own = if env.item == Some(id) { own.difference(Sense::CLICK | Sense::FOCUS) } else { own };
+    // An item never senses the whole row for a press: the collection's root takes the click and the focus (17.2). It
+    // does sense the pointer over it, so `PartsCx::hovered` and the state step read the row's hover from the same
+    // arena outcome whether the item stands alone or in a collection.
+    let own = if env.item == Some(id) { own.difference(Sense::CLICK | Sense::FOCUS) | Sense::HOVER } else { own };
     let arena = p.hooks.arena(comp);
     let member = if arena || matches!(C::INPUT, Input::Text | Input::Editor) { None } else { env.arena };
     stops_step::<C>(StopsStep { ctx: &ctx, id, rtl, env, resolved, inert, holder_widget, member, own, text_keys }, &*p.hooks, comp, &parts);

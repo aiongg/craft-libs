@@ -1123,7 +1123,7 @@ note = "A dock's floating windows open native where `DockConfig::native_windows`
 type = "DockArea"
 old = "monitors(Vec<Monitor>)"
 new = ""
-note = "Monitors come from `WindowHost::monitors`."
+note = "Monitors come from `WindowHost::monitors(window_scale)`, in desktop points as `craft_behavior::Monitor`."
 
 [[setter]]
 type = "DockArea"

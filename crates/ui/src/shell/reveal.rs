@@ -7,7 +7,7 @@ use crate::shell::Slot;
 use egui::{Pos2, Rect, pos2};
 
 /// The width of the strip along a window edge where the pointer reveals the edge's hidden slots.
-pub const EDGE_REVEAL_STRIP: f32 = 8.0;
+pub(crate) const EDGE_REVEAL_STRIP: f32 = 8.0;
 
 /// The reveal state of one window.
 ///
@@ -17,8 +17,7 @@ pub const EDGE_REVEAL_STRIP: f32 = 8.0;
 /// - `tab`: in body-only mode, Tab shows the slots built to reveal until the next Tab.
 /// - `edges`: in body-only mode the pointer at the top, start or end edge shows the slots of that edge.
 #[derive(Clone, Debug, Default, PartialEq)]
-#[non_exhaustive]
-pub struct Reveal {
+pub(crate) struct Reveal {
     hidden: bool,
     panels_hidden: bool,
     tab: bool,
@@ -28,28 +27,26 @@ pub struct Reveal {
 
 /// What the reveal depends on in this pass.
 #[derive(Clone, Copy, Debug)]
-#[non_exhaustive]
-pub struct Tracking {
+pub(crate) struct Tracking {
     /// The window shows the body only.
-    pub only: bool,
+    pub(crate) only: bool,
     /// The reveal works at all; off for a presentation.
-    pub allow_reveal: bool,
+    pub(crate) allow_reveal: bool,
     /// The pointer at an edge reveals (the Auto-Show Hidden Panels preference).
-    pub edge_reveal: bool,
+    pub(crate) edge_reveal: bool,
 }
 
 /// Where the pointer is; the strips it reveals from are [`EDGE_REVEAL_STRIP`] wide.
 #[derive(Clone, Copy, Debug)]
-#[non_exhaustive]
-pub struct Aim {
+pub(crate) struct Aim {
     /// The pointer position in the window.
-    pub pointer: Option<Pos2>,
+    pub(crate) pointer: Option<Pos2>,
     /// A button is held or a popup is open.
-    pub frozen: bool,
+    pub(crate) frozen: bool,
     /// The shell's rect.
-    pub window: Rect,
+    pub(crate) window: Rect,
     /// Start and end are mirrored.
-    pub rtl: bool,
+    pub(crate) rtl: bool,
 }
 
 const fn at(edge: RevealEdge) -> usize {
@@ -62,14 +59,14 @@ const fn at(edge: RevealEdge) -> usize {
 
 impl Tracking {
     /// The reveal's inputs for one pass.
-    pub const fn new(only: bool, allow_reveal: bool, edge_reveal: bool) -> Self {
+    pub(crate) const fn new(only: bool, allow_reveal: bool, edge_reveal: bool) -> Self {
         Tracking { only, allow_reveal, edge_reveal }
     }
 }
 
 impl Aim {
     /// The pointer and the strips for one pass.
-    pub const fn new(pointer: Option<Pos2>, frozen: bool, window: Rect, rtl: bool) -> Self {
+    pub(crate) const fn new(pointer: Option<Pos2>, frozen: bool, window: Rect, rtl: bool) -> Self {
         Aim { pointer, frozen, window, rtl }
     }
 }
@@ -79,7 +76,7 @@ const EDGES: [RevealEdge; 3] = [RevealEdge::Top, RevealEdge::Start, RevealEdge::
 impl Reveal {
     /// Applies the toggles the window's shell took from the frame state in this pass. `host_only` says the screen mode
     /// shows the body only; `allow_reveal` is off for a presentation.
-    pub fn apply(&mut self, toggles: &[ChromeToggle], host_only: bool, allow_reveal: bool) {
+    pub(crate) fn apply(&mut self, toggles: &[ChromeToggle], host_only: bool, allow_reveal: bool) {
         for toggle in toggles {
             self.toggle(*toggle, host_only, allow_reveal);
         }
@@ -106,7 +103,7 @@ impl Reveal {
     }
 
     /// Ends the Tab and edge reveal and the user's hiding: every screen-mode change does.
-    pub fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         self.hidden = false;
         self.panels_hidden = false;
         self.end_reveal();
@@ -118,28 +115,28 @@ impl Reveal {
     }
 
     /// Whether the window shows the body only: the screen mode says so or the user hid the chrome.
-    pub fn only(&self, host_only: bool) -> bool {
+    pub(crate) fn only(&self, host_only: bool) -> bool {
         host_only || self.hidden
     }
 
     /// Whether the panels are hidden and the tools stay.
-    pub fn panels_hidden(&self) -> bool {
+    pub(crate) fn panels_hidden(&self) -> bool {
         self.panels_hidden && !self.hidden
     }
 
     /// Whether the Tab reveal is on.
-    pub fn tab(&self) -> bool {
+    pub(crate) fn tab(&self) -> bool {
         self.tab
     }
 
     /// Whether the edge reveal of `edge` is on.
-    pub fn edge(&self, edge: RevealEdge) -> bool {
+    pub(crate) fn edge(&self, edge: RevealEdge) -> bool {
         self.edges[at(edge)]
     }
 
     /// Updates the reveal at the start of a pass. A held button or an open popup freezes the edge reveal: it neither
     /// starts nor ends.
-    pub fn track(&mut self, mode: Tracking, aim: Aim) {
+    pub(crate) fn track(&mut self, mode: Tracking, aim: Aim) {
         if !mode.only || !mode.allow_reveal {
             self.end_reveal();
             return;
@@ -162,7 +159,7 @@ impl Reveal {
 
     /// Whether `slot` on `edge` shows: its `visible` flag in normal mode; in body-only mode, if it reveals and a Tab
     /// or edge reveal shows it.
-    pub fn shows(&self, slot: &Slot, edge: PaneEdge, only: bool, allow_reveal: bool) -> bool {
+    pub(crate) fn shows(&self, slot: &Slot, edge: PaneEdge, only: bool, allow_reveal: bool) -> bool {
         if !only {
             return slot.is_visible();
         }
@@ -171,7 +168,7 @@ impl Reveal {
 
     /// Records the rects of the shown slots and the revealed panels the body registered, by the edge they sit on, for
     /// the next pass's hit test.
-    pub fn record(&mut self, shown: Vec<(RevealEdge, Rect)>) {
+    pub(crate) fn record(&mut self, shown: Vec<(RevealEdge, Rect)>) {
         self.shown = shown;
     }
 }

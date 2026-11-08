@@ -1,7 +1,7 @@
 //! The theme under inspection, what the user picked in the panels, and the caches of the two sweeps.
 
 use craft_theme::report::{ContrastReport, contrast_report};
-use craft_theme::{AppId, AppSizes, Appearance, Explained, ThemeDef, TokenRef, explain_sized};
+use craft_theme::{AppId, AppSizes, Appearance, Explained, ThemeDef, ThemeId, TokenRef, explain_sized};
 use std::sync::Arc;
 
 /// The theme and appearance the panels explain, and the app whose pins apply.
@@ -37,20 +37,22 @@ pub enum Pick {
     Size(String),
 }
 
-/// The inputs of the last explanation and the explanation.
-type Explanation = (ThemeDef, Appearance, Option<AppId>, AppSizes, Arc<Explained>);
+/// The inputs of the last explanation, as the theme's id, the appearance, the app and the revision of the app layer,
+/// and the explanation.
+type Explanation = (ThemeId, Appearance, Option<AppId>, u64, Arc<Explained>);
 
 /// What the theme panels share: the app layer, the picked row, and the explanation and contrast report of the
-/// subject, computed again only when the subject or the app layer changes.
+/// subject, computed again only when the subject's theme, appearance or app changes or the app layer is edited.
 #[derive(Default)]
 #[non_exhaustive]
 pub struct ThemeWorkspace {
     explanation: Option<Explanation>,
-    report: Option<(ThemeDef, Arc<ContrastReport>)>,
+    report: Option<(ThemeId, Arc<ContrastReport>)>,
     /// The row picked in the browser, the Problems view or the detail.
     pub pick: Option<Pick>,
-    /// The app's size overrides: the sizes the gallery resolves with.
-    pub sizes: AppSizes,
+    sizes: AppSizes,
+    /// Counts the edits of `sizes`: the explanation is current while it has not moved.
+    sizes_revision: u64,
 }
 
 impl ThemeWorkspace {
@@ -59,17 +61,35 @@ impl ThemeWorkspace {
         Self::default()
     }
 
+    /// The app's size overrides: the sizes the gallery resolves with.
+    pub fn sizes(&self) -> &AppSizes {
+        &self.sizes
+    }
+
+    /// Counts the edits of the app's size overrides.
+    pub fn sizes_revision(&self) -> u64 {
+        self.sizes_revision
+    }
+
+    /// Runs `edit` over the app's size overrides. It returns whether it changed them; a change makes the next
+    /// `refresh` explain the subject again.
+    pub fn edit_sizes(&mut self, edit: impl FnOnce(&mut AppSizes) -> bool) {
+        if edit(&mut self.sizes) {
+            self.sizes_revision += 1;
+        }
+    }
+
     /// Brings the explanation and the contrast report up to date with `subject` and the app layer.
     pub fn refresh(&mut self, subject: &ThemeSubject<'_>) {
-        let current = self.explanation.as_ref().is_some_and(|(theme, appearance, app, layer, _)| {
-            theme == subject.theme && *appearance == subject.appearance && app.as_ref() == subject.app && *layer == self.sizes
+        let current = self.explanation.as_ref().is_some_and(|(theme, appearance, app, revision, _)| {
+            *theme == subject.theme.id && *appearance == subject.appearance && app.as_ref() == subject.app && *revision == self.sizes_revision
         });
         if !current {
             let explained = Arc::new(explain_sized(subject.theme, subject.appearance, subject.app, &self.sizes));
-            self.explanation = Some((subject.theme.clone(), subject.appearance, subject.app.cloned(), self.sizes.clone(), explained));
+            self.explanation = Some((subject.theme.id.clone(), subject.appearance, subject.app.cloned(), self.sizes_revision, explained));
         }
-        if self.report.as_ref().is_none_or(|(theme, _)| theme != subject.theme) {
-            self.report = Some((subject.theme.clone(), Arc::new(contrast_report(subject.theme))));
+        if self.report.as_ref().is_none_or(|(theme, _)| *theme != subject.theme.id) {
+            self.report = Some((subject.theme.id.clone(), Arc::new(contrast_report(subject.theme))));
         }
     }
 

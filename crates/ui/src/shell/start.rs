@@ -21,7 +21,7 @@ use crate::primitives::{CachedTexture, ContentPainterCx, IconSpec, Revision, Tex
 use crate::runtime::commands::{CommandSet as _, Commands as _};
 use crate::runtime::env::{AgeStyle, Env, Label};
 use crate::sections::Section;
-use crate::tile_grid::{CaptionPlace, Tile, TileGrid, TileStatus};
+use crate::tile_grid::{CaptionPlace, Tile, TileGrid, TilePartEvent, TileStatus};
 use craft_behavior::{IconId, SelectionChange, keyed};
 use craft_theme::Variant;
 use craft_theme::variant::Tone;
@@ -368,8 +368,20 @@ fn recent_section(
                 let out = page.grid::<PathBuf>(words.recent.clone(), true).show_items(ui, &source, &mut |path, _| {
                     let Some(file) = file_of(path) else { return Tile::new(Label::Empty) };
                     page.tile(&file.name, page.age(file.opened), page.picture(ThumbKey::Recent(file.path.clone()), file.thumbnail))
+                        .corner_action(IconId::new("close"), StartRecentCommands::Remove)
                 });
-                (out.response.response, read_events(out.response.events, &mut lead))
+                let corner: Vec<PathBuf> = out
+                    .response
+                    .events
+                    .iter()
+                    .filter_map(|event| match event {
+                        CollectionEvent::Item(key, TilePartEvent::CornerAction) => Some(key.clone()),
+                        _ => None,
+                    })
+                    .collect();
+                let (opened, mut removed) = read_events(out.response.events, &mut lead);
+                removed.extend(corner);
+                (out.response.response, (opened, removed))
             } else {
                 let out = List::<PathBuf>::new(words.recent.clone())
                     .select(SelectMode::Single)

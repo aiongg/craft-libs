@@ -3,7 +3,7 @@
 
 use crate::contract::kit::PlainStyle;
 use crate::windows_kit::Windows;
-use craft_behavior::{PartKey, PressCancel, Sense};
+use craft_behavior::{Cursor, CursorIcon, PartKey, PressCancel, Sense};
 use craft_host::target::{Caps, Os, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
 use craft_ui::buttons::Button;
 use craft_ui::contract::{
@@ -22,7 +22,7 @@ use craft_ui::testing::{Fixture, trial};
 use craft_ui::text::TextField;
 use craft_window::policy::{CaptionFamily, Captions, Decision, Desktop, DesktopKind, Frame};
 use craft_window::restore::{MAIN, Monitor, MonitorKey, Placement, Store};
-use egui::{Event, Key, Modifiers, Pos2, Rect, Response, Vec2, ViewportBuilder, ViewportCommand, ViewportId, ViewportInfo};
+use egui::{Event, Key, Modifiers, Pos2, Rect, Response, Vec2, ViewportBuilder, ViewportCommand, ViewportEvent, ViewportId, ViewportInfo};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
@@ -211,6 +211,7 @@ fn placement_is_written_only_when_the_window_geometry_changes() {
     let sized = |width: f32| ViewportInfo {
         inner_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(width, 600.0))),
         outer_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(width, 630.0))),
+        native_pixels_per_point: Some(1.0),
         ..ViewportInfo::default()
     };
     let width = || store.lock().expect("the store").get(MAIN).map(|placement| placement.normal.size[0]);
@@ -259,6 +260,33 @@ fn a_press_blocked_by_a_modal_in_another_window_raises_the_modal_window() {
     frame(vec![moved(Pos2::new(30.0, 30.0))]);
     let out = frame(vec![press(Pos2::new(30.0, 30.0))]);
     assert!(out.commands.contains(&(child(), ViewportCommand::Focus)), "the press raised the modal's window: {:?}", out.commands);
+}
+
+/// A modal in one window blocks the others: the pointer over them shows the blocked cursor, and a close request on
+/// them is refused and raises the modal's window.
+#[trial]
+fn an_app_modal_in_one_window_blocks_the_cursor_and_the_close_of_the_others() {
+    let windows = Windows::new();
+    let frame = || {
+        windows.frame(vec![], vec![], |ui| {
+            ui.ctx().show_viewport_immediate(child(), ViewportBuilder::default(), |cui, _| {
+                let props = ContainerProps::new().mount(Mount::Layer(Overlay::modal()));
+                Modal { common: Common::new(), props }.id_salt("modal").show(cui, |_, _| {});
+            });
+        })
+    };
+    for _ in 0..4 {
+        frame();
+    }
+    assert_eq!(craft_ui::runtime::cursor::current(&windows.ctx), Some(Cursor::System(CursorIcon::NotAllowed)), "the root window is blocked");
+
+    windows.root_info(ViewportInfo { events: vec![ViewportEvent::Close], ..ViewportInfo::default() });
+    let out = frame();
+    craft_ui::runtime::windows::logic(&windows.ctx);
+    let out_after = frame();
+    let sent: Vec<_> = out.commands.iter().chain(&out_after.commands).collect();
+    assert!(sent.contains(&&(ViewportId::ROOT, ViewportCommand::CancelClose)), "the close is refused: {sent:?}");
+    assert!(sent.contains(&&(child(), ViewportCommand::Focus)), "the modal's window is raised: {sent:?}");
 }
 
 /// `act` is the one sender of window commands and checks capabilities first.
@@ -525,8 +553,9 @@ fn window_actions_and_queries_follow_the_window_system() {
     assert_eq!(host.facts(viewport).map(|facts| facts.inner), Some(PLACED));
     assert_eq!(host.viewport_at(IN_PLACED), Some(viewport));
     assert_eq!(host.viewport_at(NOWHERE), None, "nothing is there");
-    let monitors: Vec<_> = host.monitors().into_iter().map(|monitor| (monitor.name, monitor.pixels, monitor.scale)).collect();
-    assert_eq!(monitors, [("DP-1".to_owned(), MONITOR_PIXELS, MONITOR_SCALE)], "monitors in pixels");
+    let monitors: Vec<_> = host.monitors(MONITOR_SCALE).into_iter().map(|monitor| (monitor.name, monitor.rect, monitor.scale)).collect();
+    let points = Rect::from_min_max(MONITOR_PIXELS.min / MONITOR_SCALE, MONITOR_PIXELS.max / MONITOR_SCALE);
+    assert_eq!(monitors, [(Some("DP-1".to_owned()), points, MONITOR_SCALE)], "monitors in the window's points");
     assert!(act(&windows.ctx, viewport, WindowAction::SetOuterPosition(MOVE_TO)));
     assert!(act(&windows.ctx, viewport, WindowAction::SetInnerSize(SIZE_TO)));
     frame();
@@ -556,12 +585,35 @@ fn monitors_of_different_scales_touch_in_one_window_scale() {
         Monitor::new(MonitorKey::new("DP-2", [1920, 1080]), [3840, 0], [1920, 1080], 1.0),
     ]);
     let windows = Windows::with(InstallSpec::new(ShellInfo::default(), system));
-    let monitors = WindowHost::of(&windows.ctx).monitors();
     for scale in [1.0, 1.5, 2.0] {
-        let [left, right] = [&monitors[0], &monitors[1]].map(|monitor| monitor.points_at(scale));
+        let monitors = WindowHost::of(&windows.ctx).monitors(scale);
+        let [left, right] = [monitors[0].rect, monitors[1].rect];
         assert_eq!(left.max.x, right.min.x, "the monitors touch at scale {scale}");
         assert_eq!((left.min.y, right.min.y), (0.0, 0.0));
     }
+}
+
+/// A window whose platform reports no scale has the scale of the monitor it lies on; on no known monitor it has
+/// none.
+#[trial]
+fn a_window_without_a_platform_scale_has_its_monitors_scale() {
+    let system = Arc::new(FakeSystem::new());
+    system.set_monitors(vec![
+        Monitor::new(MonitorKey::new("DP-1", [3840, 2160]), [0, 0], [3840, 2160], 2.0),
+        Monitor::new(MonitorKey::new("DP-2", [1920, 1080]), [3840, 0], [1920, 1080], 1.0),
+    ]);
+    let windows = Windows::with(InstallSpec::new(ShellInfo::default(), system));
+    let scale_of = |rect: Rect| {
+        windows.root_info(ViewportInfo { inner_rect: Some(rect), outer_rect: Some(rect), ..ViewportInfo::default() });
+        windows.frame(vec![], vec![], |_| {});
+        WindowHost::of(&windows.ctx).facts(ViewportId::ROOT).expect("the root reported").scale
+    };
+    let on_left = Rect::from_min_size(Pos2::new(100.0, 100.0), Vec2::new(400.0, 300.0));
+    let on_right = Rect::from_min_size(Pos2::new(3900.0, 100.0), Vec2::new(400.0, 300.0));
+    let nowhere = Rect::from_min_size(Pos2::new(-9000.0, -9000.0), Vec2::new(400.0, 300.0));
+    assert_eq!(scale_of(on_left), Some(2.0), "the left monitor's scale");
+    assert_eq!(scale_of(on_right), Some(1.0), "the right monitor's scale");
+    assert_eq!(scale_of(nowhere), None, "a window on no monitor has no scale");
 }
 
 /// `SetLevel` on a window the runtime did not open (the root) sends the level command.

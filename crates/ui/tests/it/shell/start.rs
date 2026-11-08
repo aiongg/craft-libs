@@ -2,6 +2,7 @@
 
 use craft_i18n::Collator;
 use craft_ui::contract::Bind;
+use craft_ui::runtime::access::Role;
 use craft_ui::runtime::commands::{CommandState, EditCommands};
 use craft_ui::runtime::frame::take_output;
 use craft_ui::shell::{RecentFile, RecentSort, RecentView, StartAction, StartScreen, Template, sort_recent};
@@ -95,6 +96,37 @@ fn delete_on_a_recent_file_removes_it_and_leaves_the_edit_command() {
         fired.len()
     );
     assert!(fired.is_empty(), "the application's Delete command did not fire");
+}
+
+/// A recent file's card shows a remove button while the pointer is over it, and its press reports the same remove
+/// the menu fires.
+#[trial]
+fn the_remove_button_of_a_recent_card_shows_on_hover_and_removes_the_file() {
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let sink = Rc::clone(&seen);
+    let files = [file("first.fig", Some(20), None), file("second.fig", Some(10), None)];
+    let mut fixture = Fixture::new(move |ui| {
+        let (mut view, mut sort) = (RecentView::Grid, RecentSort::default());
+        let out = StartScreen::new(Bind::bound(&mut view), Bind::bound(&mut sort), &files).show(ui);
+        sink.borrow_mut().extend(out.actions);
+    });
+    fixture.settle();
+    let remove_button = |fixture: &Fixture| {
+        let tree = fixture.tree();
+        fixture.by_role(Role::BUTTON).into_iter().find(|target| tree.name_of(target.node).is_some_and(|name| name.starts_with("Remove from Recent")))
+    };
+    assert!(remove_button(&fixture).is_none(), "no remove button before the pointer is over a card");
+    let card = fixture.by_label("first.fig").expect("the card shows");
+    fixture.frame(vec![pointer::moved(card.center())]);
+    fixture.idle(2);
+    let Some(remove) = remove_button(&fixture) else {
+        let tree = fixture.tree();
+        let names: Vec<_> = tree.keys().into_iter().map(|key| (tree.role_of(key), tree.name_of(key).map(str::to_owned))).collect();
+        panic!("the pointer over the card shows its remove button among {names:?}");
+    };
+    fixture.click(&remove);
+    fixture.idle(2);
+    assert_eq!(*seen.borrow(), [StartAction::RemoveRecent("/work/first.fig".into())]);
 }
 
 const SCREEN: Vec2 = Vec2::new(600.0, 400.0);

@@ -68,6 +68,8 @@ pub struct Viewer {
     pub themes: ThemeWorkspace,
     /// The layout of the theme panels.
     pub theme_dock: Layout<GalleryPanel>,
+    /// The revision of the theme workspace's app layer that `env.sizes` holds; none before the first sync.
+    sizes_synced: Option<u64>,
 }
 
 impl Viewer {
@@ -90,6 +92,7 @@ impl Viewer {
             browser,
             themes: ThemeWorkspace::new(),
             theme_dock: theme_layout(),
+            sizes_synced: None,
         };
         viewer.restore(settings);
         viewer
@@ -115,10 +118,12 @@ impl Viewer {
         browser.dock = PanelShares::load(&settings.layout).tree();
     }
 
-    /// Makes the root's app sizes the theme workspace's app layer, when they differ.
+    /// Makes the root's app sizes the theme workspace's app layer, when the layer was edited since the last sync.
     pub fn sync_sizes(&mut self) {
-        if *self.env.sizes != self.themes.sizes {
-            self.env.sizes = Arc::new(self.themes.sizes.clone());
+        let revision = self.themes.sizes_revision();
+        if self.sizes_synced != Some(revision) {
+            self.env.sizes = Arc::new(self.themes.sizes().clone());
+            self.sizes_synced = Some(revision);
         }
     }
 

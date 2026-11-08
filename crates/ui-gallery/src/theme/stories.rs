@@ -36,17 +36,28 @@ fn token_detail(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     StoryOutput::default()
 }
 
-// It reports a pick through its output and binds no value, so there is no value for a drive to change.
-#[story(Problems<'static>, covers = [], drive = Drive::Never)]
-fn problems(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+// A click on a pair reports its token; the story keeps the pick, as the host does.
+#[story(Problems<'static>, covers = [], drive = Drive::Activate)]
+fn problems(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let (explained, report) = explained();
-    Problems::new(report, explained, &ThemeSubject::new(&builtins()[0], appearance())).show(ui);
+    if let Some(pick) = Problems::new(report, explained, &ThemeSubject::new(&builtins()[0], appearance())).show(ui).picked {
+        *data.value("pick", None::<Pick>) = Some(pick);
+    }
     StoryOutput::default()
 }
 
-// Its rows only appear for a pick made in the browser, and none is made here.
-#[story(AppLayerEditor<'static>, covers = [], drive = Drive::Never)]
+/// The size the host has picked in the browser: its override editor shows only for a picked size.
+fn picked_size() -> &'static Pick {
+    static PICK: LazyLock<Pick> = LazyLock::new(|| {
+        let first = explained().0.sizes.first().expect("a built-in theme has sizes");
+        Pick::Size(first.path.clone())
+    });
+    &PICK
+}
+
+// The first size is picked, so the override editor and its controls show.
+#[story(AppLayerEditor<'static>, covers = [], drive = Drive::Activate)]
 fn app_layer_editor(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    AppLayerEditor::new(Bind::bound(data.value("sizes", AppSizes::default())), explained().0).show(ui);
+    AppLayerEditor::new(Bind::bound(data.value("sizes", AppSizes::default())), explained().0).pick(picked_size()).show(ui);
     StoryOutput::default()
 }

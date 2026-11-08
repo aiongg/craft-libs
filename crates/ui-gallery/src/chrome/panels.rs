@@ -1,8 +1,9 @@
 //! The panels of the viewer: the component tree, the shown stories, the component's facts and its decision record,
 //! and the theme workspace's tokens, problems, detail and app sizes.
 
+use super::describe;
 use crate::theme::{AppLayerEditor, Problems, ThemeSubject, ThemeWorkspace, TokenBrowser, TokenDetail};
-use crate::viewer::{self, Catalog, CellFilter, Cells, ComponentInfo, GalleryCommands, GalleryPanel, TreeKey, TreeRows};
+use crate::viewer::{self, Catalog, CellFilter, Cells, ComponentInfo, GalleryCommands, GalleryPanel, SIZES, TreeKey, TreeRow, TreeRows};
 use craft_behavior::Selection;
 use craft_i18n::Direction;
 use craft_theme::ControlSize;
@@ -20,6 +21,7 @@ use craft_ui::sections::Panel;
 use craft_ui::style::TypeRole;
 use craft_ui::text::TextField;
 use egui::{Rect, Ui};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 /// What the panels read and edit in one pass.
@@ -89,6 +91,7 @@ impl Panels<'_> {
     fn components(&mut self, ui: &mut Ui, rect: Rect) {
         let shown = viewer::rows(&self.catalog.components, self.filter.as_str(), &*self.open);
         let groups = viewer::groups(&shown);
+        let by_key: HashMap<&TreeKey, &TreeRow> = shown.iter().map(|row| (&row.key, row)).collect();
         let (filter, selection, open) = (&mut *self.filter, &mut *self.selection, &mut *self.open);
         Panel::new("Components").collection_body().menu(|ui, _| panel_menu(ui)).show_at(ui, rect, |ui, _| {
             TextField::search("Filter components", Bind::bound(&mut *filter)).show(ui);
@@ -98,7 +101,7 @@ impl Panels<'_> {
                 .selection(Bind::bound(&mut *selection))
                 .empty("No component matches the filter")
                 .show_items(ui, &TreeRows::new(&shown), &mut |key, _| {
-                    let Some(row) = shown.iter().find(|row| row.key == *key) else { return ListRow::spacer() };
+                    let Some(row) = by_key.get(key) else { return ListRow::spacer() };
                     let item = ListRow::new(row.label.clone()).depth(row.depth);
                     if row.group { item.group(row.open) } else { item }
                 });
@@ -130,7 +133,7 @@ impl Panels<'_> {
                             // Each cell is its own id scope: a story's `id_salt` and auto ids must not meet in another cell.
                             Stack::new().id_salt((index, direction.is_rtl(), *size, generation)).show(ui, |ui, _| {
                                 let name = if direction.is_rtl() { "RTL" } else { "LTR" };
-                                Text::new(format!("{name}, {size:?}")).role(TypeRole::Caption).shade(Shade::Muted).show(ui);
+                                Text::new(format!("{name}, {}", SIZES.label(Some(*size)))).role(TypeRole::Caption).shade(Shade::Muted).show(ui);
                                 with_env(
                                     ui,
                                     |env| {
@@ -178,10 +181,10 @@ impl Panels<'_> {
                 Notice::new(Tone::Info, "A pattern has no record of its own: its parts are the records.").show(ui);
                 return;
             };
-            fact(ui, "Shape", format!("{:?}", probe.shape));
-            fact(ui, "Role", format!("{:?}", probe.role));
-            fact(ui, "Input", format!("{:?}", probe.input));
-            fact(ui, "Keys it keeps", format!("{:?}", probe.keys));
+            fact(ui, "Shape", describe::shape(probe.shape));
+            fact(ui, "Role", describe::role(probe.role));
+            fact(ui, "Input", describe::input(probe.input));
+            fact(ui, "Keys it keeps", describe::keys(&probe.keys));
             fact(ui, "Opens a popup", probe.overlay.to_string());
             fact(ui, "Shows its label", probe.shows_label.to_string());
             for exemption in probe.exempt {
@@ -235,11 +238,13 @@ impl Panels<'_> {
     fn overrides(&mut self, ui: &mut Ui, rect: Rect) {
         self.theme_panel(ui, rect, "App sizes", |panels, ui, explained, _| {
             let pick = panels.themes.pick.clone();
-            let mut editor = AppLayerEditor::new(Bind::bound(&mut panels.themes.sizes), explained);
-            if let Some(pick) = &pick {
-                editor = editor.pick(pick);
-            }
-            editor.show(ui);
+            panels.themes.edit_sizes(|sizes| {
+                let mut editor = AppLayerEditor::new(Bind::bound(sizes), explained);
+                if let Some(pick) = &pick {
+                    editor = editor.pick(pick);
+                }
+                editor.show(ui)
+            });
         });
     }
 }

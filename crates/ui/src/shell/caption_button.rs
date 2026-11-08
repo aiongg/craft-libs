@@ -22,7 +22,7 @@ mod stories;
 const BUTTON: PartKey = PartKey::new("button");
 
 /// The width of one Windows caption button, as the native ones.
-pub const WINDOWS_BUTTON_WIDTH: f32 = 46.0;
+const WINDOWS_BUTTON_WIDTH: f32 = 46.0;
 
 /// libadwaita: 24 pt buttons 13 pt apart (6.5 pt of gap on each side, so the hit areas touch), 10 pt from the
 /// window's edge.
@@ -70,19 +70,18 @@ pub enum CaptionEnd {
 
 /// The sizes one family lays its buttons out with, in points.
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct CaptionMetrics {
+struct CaptionMetrics {
     /// The button's face: the disc's diameter, or the width of a Windows button.
-    pub side: f32,
+    side: f32,
     /// The gap on each side of a button's face, split between neighbours so the hit areas touch.
-    pub gap: f32,
+    gap: f32,
     /// The gap between the outermost button's face and the window's edge, part of that button's hit area.
-    pub edge: f32,
+    edge: f32,
 }
 
 impl CaptionMetrics {
     /// The metrics of `family`.
-    pub fn of(family: CaptionFamily) -> Self {
+    fn of(family: CaptionFamily) -> Self {
         match Face::of(family) {
             Face::Windows => WINDOWS,
             Face::Adwaita | Face::Generic => ADWAITA,

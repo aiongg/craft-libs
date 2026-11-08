@@ -82,13 +82,14 @@ impl<'a> AppLayerEditor<'a> {
         AppLayerEditor { sizes: Held::new(sizes), explained, pick: None }
     }
 
-    /// Shows the editor across the room offered, scrolling.
-    pub fn show(self, ui: &mut Ui) {
+    /// Shows the editor across the room offered, scrolling. True when an edit wrote the layer this pass.
+    pub fn show(self, ui: &mut Ui) -> bool {
         let AppLayerEditor { mut sizes, explained, pick } = self;
         let size = match pick {
             Some(Pick::Size(path)) => explained.sizes.iter().find(|origin| origin.path == *path),
             _ => None,
         };
+        let mut edited = false;
         Stack::new().fill().scroll(Scroll::vertical()).gap(Gap::Section).show(ui, |ui, cx| {
             let Some(before) = sizes.read(cx) else { return };
             let mut layer = before.clone();
@@ -100,8 +101,10 @@ impl<'a> AppLayerEditor<'a> {
             *cx.memory::<Session>() = session;
             if layer != before {
                 sizes.write(cx, &before, layer, "Edit app sizes");
+                edited = true;
             }
         });
+        edited
     }
 }
 

@@ -32,6 +32,11 @@ impl<T: Copy + PartialEq + 'static> Choices<T> {
         self.0.iter().find(|choice| choice.value == value).map_or("", |choice| choice.name)
     }
 
+    /// The text the options bar shows for `value`.
+    pub fn label(&self, value: T) -> &'static str {
+        self.0.iter().find(|choice| choice.value == value).map_or("", |choice| choice.label)
+    }
+
     /// The entries of a select or a segmented row over the options.
     pub fn entries(&self) -> Vec<Entry<T>> {
         self.0.iter().map(|choice| Entry::new(choice.value, choice.label)).collect()
