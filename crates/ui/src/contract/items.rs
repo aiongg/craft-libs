@@ -1286,7 +1286,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     /// An AccessKit click on a toggle cell's sub-node flips that cell, as a click on it does.
     fn toggle_by_access(&mut self, cx: &mut Cx<'_, C>) {
         let wanted = |request: &craft_behavior::AccessRequest| {
-            request.action == accesskit::Action::Click && request.target.is_some_and(|part| part.key == TOGGLE_CELL)
+            request.action == craft_behavior::AccessAction::Click && request.target.is_some_and(|part| part.key == TOGGLE_CELL)
         };
         while let Some(request) = cx.core.intents.take_access_where(wanted) {
             let Some(part) = request.target else { continue };
