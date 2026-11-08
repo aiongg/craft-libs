@@ -3,10 +3,11 @@
 
 use serde::{Deserialize, Serialize};
 
-use craft_ui::localized::Words;
+use craft_behavior::CancelReason;
+use craft_ui::runtime::env::Env;
 
-use super::labels::{LASSO_EDIT_LIMIT, POINT_LIMIT, STROKE_LIMIT};
 use super::lasso::FillAreaEdit;
+use super::words::FillWords;
 use crate::ui::select_mask::EditMode;
 
 /// Sampling Area Options: how the sampling area starts before the brush strokes. Auto and
@@ -15,11 +16,11 @@ use crate::ui::select_mask::EditMode;
 #[serde(rename_all = "camelCase")]
 pub enum SamplingMode {
     #[default]
-    #[allow(missing_docs)]
+    /// Auto.
     Auto,
-    #[allow(missing_docs)]
+    /// Rectangular.
     Rectangular,
-    #[allow(missing_docs)]
+    /// Custom.
     Custom,
 }
 
@@ -37,14 +38,14 @@ impl SamplingMode {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ColorAdaptation {
-    #[allow(missing_docs)]
+    /// None.
     None,
     #[default]
-    #[allow(missing_docs)]
+    /// Default.
     Default,
-    #[allow(missing_docs)]
+    /// High.
     High,
-    #[allow(missing_docs)]
+    /// Very high.
     VeryHigh,
 }
 
@@ -53,15 +54,15 @@ pub enum ColorAdaptation {
 #[serde(rename_all = "camelCase")]
 pub enum RotationAdaptation {
     #[default]
-    #[allow(missing_docs)]
+    /// None.
     None,
-    #[allow(missing_docs)]
+    /// Low.
     Low,
-    #[allow(missing_docs)]
+    /// Medium.
     Medium,
-    #[allow(missing_docs)]
+    /// High.
     High,
-    #[allow(missing_docs)]
+    /// Full.
     Full,
 }
 
@@ -70,14 +71,14 @@ pub enum RotationAdaptation {
 #[serde(rename_all = "camelCase")]
 pub enum FillOutputTo {
     #[serde(rename = "current")]
-    #[allow(missing_docs)]
+    /// Current layer.
     CurrentLayer,
     #[default]
     #[serde(rename = "new")]
-    #[allow(missing_docs)]
+    /// New layer.
     NewLayer,
     #[serde(rename = "duplicate")]
-    #[allow(missing_docs)]
+    /// Duplicate layer.
     DuplicateLayer,
 }
 
@@ -125,17 +126,32 @@ pub enum FillLimit {
 impl FillLimit {
     /// The limit as a sentence in the installed language ("at most 2 sampling strokes: undo some,
     /// or reset the sampling area"), the count in the locale's digits and plural form.
-    pub fn message(&self, ctx: &egui::Context) -> String {
+    pub fn message(&self, env: &Env) -> String {
         // pc: crates/ui-egui/src/dialogs/caf_ui/preview.rs:84 `points_limit`, caf_ui.rs:353
         // `begin_stroke`, caf_ui/lifecycle.rs:196 `fill_edit` (the texts).
+        let words = env.words::<FillWords>();
         let (counted, n) = match *self {
-            FillLimit::Strokes(n) => (STROKE_LIMIT, n),
-            FillLimit::LassoEdits(n) => (LASSO_EDIT_LIMIT, n),
-            FillLimit::Points(n) => (POINT_LIMIT, n),
+            FillLimit::Strokes(n) => (&words.stroke_limit, n),
+            FillLimit::LassoEdits(n) => (&words.lasso_edit_limit, n),
+            FillLimit::Points(n) => (&words.point_limit, n),
         };
-        let words = Words::of_ctx(ctx);
-        words.counted(ctx, counted, &words.get(counted.word), n as u64)
+        counted.text(n as u64, &env.format().integer(n as u64))
     }
+}
+
+/// What the Sampling Brush reports about a stroke. `Update` carries only the points added since the last event, so
+/// the cost of a stroke stays linear.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum FillStrokeEvent {
+    /// The press: the stroke with its first point.
+    Begin(SamplingStroke),
+    /// New points: the stroke's mode and size with the points added since the last event.
+    Update(SamplingStroke),
+    /// The release: the whole stroke, now recorded in the session.
+    Commit(SamplingStroke),
+    /// The stroke was dropped (Esc, a lost pointer, a tool switch, an undo): the app takes back what it painted.
+    Cancel(CancelReason),
 }
 
 /// What a Reset button resets.
@@ -275,17 +291,17 @@ pub struct FillSettings {
     pub excluded: bool,
     /// How the sampling area starts.
     pub sampling: SamplingMode,
-    #[allow(missing_docs)]
+    /// Sample all layers.
     pub sample_all_layers: bool,
-    #[allow(missing_docs)]
+    /// Color adaptation.
     pub color_adaptation: ColorAdaptation,
-    #[allow(missing_docs)]
+    /// Rotation.
     pub rotation: RotationAdaptation,
-    #[allow(missing_docs)]
+    /// Scale.
     pub scale: bool,
-    #[allow(missing_docs)]
+    /// Mirror.
     pub mirror: bool,
-    #[allow(missing_docs)]
+    /// Output.
     pub output: FillOutputTo,
 }
 
@@ -308,6 +324,13 @@ impl Default for FillSettings {
     }
 }
 
+impl FillSettings {
+    /// The settings that change the fill: a change asks for a new preview.
+    pub(crate) fn fill_params(&self) -> (bool, ColorAdaptation, RotationAdaptation, bool, bool) {
+        (self.sample_all_layers, self.color_adaptation, self.rotation, self.scale, self.mirror)
+    }
+}
+
 /// `edit.contentAwareFill`'s parameters, serialised as PhotoCraft's `plan_params` without the
 /// layer (the app adds `"layer"`): `sampling`, `sampleAllLayers`, `colorAdaptation`,
 /// `rotationAdaptation`, `scale`, `mirror`, `output`, `fillEdits`, and `samplingStrokes` when
@@ -317,17 +340,17 @@ impl Default for FillSettings {
 pub struct FillCommand {
     /// How the sampling area starts.
     pub sampling: SamplingMode,
-    #[allow(missing_docs)]
+    /// Sample all layers.
     pub sample_all_layers: bool,
-    #[allow(missing_docs)]
+    /// Color adaptation.
     pub color_adaptation: ColorAdaptation,
-    #[allow(missing_docs)]
+    /// Rotation adaptation.
     pub rotation_adaptation: RotationAdaptation,
-    #[allow(missing_docs)]
+    /// Scale.
     pub scale: bool,
-    #[allow(missing_docs)]
+    /// Mirror.
     pub mirror: bool,
-    #[allow(missing_docs)]
+    /// Output.
     pub output: FillOutputTo,
     /// The fill-area edits, in order.
     pub fill_edits: Vec<FillAreaEdit>,
@@ -351,5 +374,31 @@ impl FillCommand {
             fill_edits: session.fill_edits.clone(),
             strokes: session.strokes.clone(),
         }
+    }
+}
+
+/// What a preview job fills with: the session and the settings as they stood when the pass asked for it.
+/// [`FillSource::preview_job`](super::FillSource::preview_job) turns it into the job.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct FillPreviewRequest {
+    /// The sampling option, the strokes and the fill-area edits.
+    pub session: FillSession,
+    /// The settings, of which the fill parameters count.
+    pub settings: FillSettings,
+    /// Document pixels per texel of the sampling and fill-area planes.
+    pub texel: u32,
+}
+
+impl FillPreviewRequest {
+    /// The request for `session` and `settings` over planes of `texel`.
+    pub fn new(session: &FillSession, settings: &FillSettings, texel: u32) -> Self {
+        Self { session: session.clone(), settings: settings.clone(), texel }
+    }
+
+    /// Whether a fill with `session`, `settings` and `texel` differs from this request: the session, the texel or a
+    /// fill parameter differs. The overlay's colour, opacity and Indicates change nothing of the fill.
+    pub(crate) fn differs_from(&self, session: &FillSession, settings: &FillSettings, texel: u32) -> bool {
+        self.session != *session || self.texel != texel || self.settings.fill_params() != settings.fill_params()
     }
 }

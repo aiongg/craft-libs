@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use craft_ui::canvas::SelectionOperation;
+use craft_behavior::geometry::selection_op::SelectionOperation;
 
 /// One edit of the fill area, in order: a Lasso polygon with its operation, or Expand and
 /// Contract by 1..=100 pixels. Serialised as PhotoCraft's `fillEdits` entries
@@ -12,32 +12,32 @@ use craft_ui::canvas::SelectionOperation;
 pub enum FillAreaEdit {
     /// Replaces the fill area with the polygon `points`.
     New {
-        #[allow(missing_docs)]
+        /// Points.
         points: Vec<[f64; 2]>,
     },
     /// Adds the polygon `points` to the fill area.
     Add {
-        #[allow(missing_docs)]
+        /// Points.
         points: Vec<[f64; 2]>,
     },
     /// Subtracts the polygon `points` from the fill area.
     Subtract {
-        #[allow(missing_docs)]
+        /// Points.
         points: Vec<[f64; 2]>,
     },
     /// Intersects the fill area with the polygon `points`.
     Intersect {
-        #[allow(missing_docs)]
+        /// Points.
         points: Vec<[f64; 2]>,
     },
     /// Grows the fill area by `by` pixels.
     Expand {
-        #[allow(missing_docs)]
+        /// By.
         by: f64,
     },
     /// Shrinks the fill area by `by` pixels.
     Contract {
-        #[allow(missing_docs)]
+        /// By.
         by: f64,
     },
 }

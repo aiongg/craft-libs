@@ -1,1 +1,16 @@
 config_version = 1
+
+# img-fill
+[[exception]]
+name = "fill-sampling-brush"
+kind = "probe"
+rule = "probe/exempt/freehand-tool"
+path = "crates/imaging/src/ui/fill/tool.rs"
+reason = "freehand input; Auto, Rectangular and Custom in the panel set the area by keyboard"
+
+[[exception]]
+name = "fill-lasso"
+kind = "probe"
+rule = "probe/exempt/freehand-tool"
+path = "crates/imaging/src/ui/fill/tool.rs"
+reason = "freehand input; Expand, Contract and Reset in the options bar change the fill area by keyboard"
