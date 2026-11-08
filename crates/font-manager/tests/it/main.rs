@@ -3,6 +3,7 @@
 mod axes;
 mod glyphs;
 mod missing;
+mod panel;
 mod picker;
 
 use craft_font_manager::testing::registered;

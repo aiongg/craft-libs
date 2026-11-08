@@ -1296,6 +1296,7 @@ dependencies = [
  "craft-font-store",
  "craft-host",
  "craft-i18n",
+ "craft-theme",
  "craft-ui",
  "egui",
  "epaint_default_fonts",
