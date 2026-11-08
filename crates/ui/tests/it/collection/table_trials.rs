@@ -390,3 +390,42 @@ fn a_free_layout_item_moves_by_drag() {
     assert!((offset - by).length() < CLOSE, "the commit is the pointer's offset: {offset:?}");
     assert_eq!(moves.iter().filter(|edit| edit.phase() == Some(GesturePhase::Commit)).count(), 1);
 }
+
+/// Shift turns the vertical wheel sideways over a collection that overflows in width, as it does over any scroll region.
+#[trial]
+fn shift_wheel_over_a_collection_scrolls_it_sideways() {
+    let source = Count(2);
+    let rects =
+        vec![Rect::from_min_size(Pos2::new(20.0, 20.0), Vec2::new(80.0, 40.0)), Rect::from_min_size(Pos2::new(800.0, 20.0), Vec2::new(80.0, 40.0))];
+    let first = std::cell::Cell::new(Rect::NOTHING);
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            Free::new(rects.clone()).id_salt("free").show_items(ui, &source, &mut |key, cx| {
+                if *key == 0 {
+                    first.set(cx.rect);
+                }
+                Row::new()
+            });
+        });
+    };
+    frames.idle(3, &mut show);
+    let before = first.get();
+    frames.frame(vec![pointer::moved(ORIGIN + VIEW / 2.0)], &mut show);
+    frames.frame(vec![shift_wheel(-60.0)], &mut show);
+    frames.idle(2, &mut show);
+    let after = first.get();
+    assert!(after.min.x < before.min.x, "the wheel moved the items left: {before:?} -> {after:?}");
+    assert_eq!(after.min.y, before.min.y, "and not up");
+}
+
+/// A vertical wheel event of `dy` points with Shift held.
+fn shift_wheel(dy: f32) -> egui::Event {
+    egui::Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Point,
+        delta: Vec2::new(0.0, dy),
+        phase: egui::TouchPhase::Move,
+        modifiers: egui::Modifiers::SHIFT,
+        source: egui::MouseWheelSource::Wheel,
+    }
+}
