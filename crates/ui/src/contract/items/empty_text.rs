@@ -38,7 +38,7 @@ impl EmptyText {
 pub(in crate::contract) fn height(ui: &Ui, text: &Label, width: f32) -> f32 {
     let env = Env::of(ui);
     let text = env.view().resolve(text);
-    let layout_env = TextEnv { tokens: &env.tokens, direction: env.direction, ink: ink_color(&env.tokens, env.ink), fonts: stack_facts(ui.ctx()) };
+    let layout_env = TextEnv { tokens: &env.tokens, direction: env.text_direction, ink: ink_color(&env.tokens, env.ink), fonts: stack_facts(ui.ctx()) };
     EmptyText::run(text.as_str()).layout(ui.ctx(), &layout_env, width).size().y
 }
 
