@@ -47,6 +47,7 @@ pub struct Http {
     no_redirect: ureq::Agent,
     download: ureq::Agent,
     direct: ureq::Agent,
+    direct_no_redirect: ureq::Agent,
     direct_download: ureq::Agent,
     token: Option<String>,
 }
@@ -75,15 +76,14 @@ impl Http {
     /// `user_agent` names the product and its version (`PhotoCraft/0.9.0`) and nothing about the
     /// person using it.
     pub fn new(user_agent: &str) -> Result<Self, String> {
-        // Debug builds (and so tests) serve a local mirror over plain HTTP on loopback, which
-        // `get_api` and `redirect_target` reach through the remote agents. Release builds are HTTPS-only.
-        Self::build(user_agent, !cfg!(debug_assertions))
+        Self::build(user_agent)
     }
 
-    /// `https_only` keeps the agents for remote hosts, and every redirect they follow, on HTTPS:
+    /// The agents for remote hosts, and every redirect they follow, stay on HTTPS in every build:
     /// a release download that GitHub's file host redirected to `http://` is refused, not read in
-    /// plain text. The `direct` agents only ever fetch `is_loopback` links, which are plain HTTP.
-    fn build(user_agent: &str, https_only: bool) -> Result<Self, String> {
+    /// plain text. The `direct` agents only ever fetch `is_loopback` links (a local mirror), which
+    /// are plain HTTP.
+    fn build(user_agent: &str) -> Result<Self, String> {
         // The OS checks each certificate chain itself: Windows fetches roots it hasn't stored yet
         // and trusts what antivirus HTTPS scanning installs. Reading the store ourselves missed
         // both ("invalid peer certificate: UnknownIssuer").
@@ -93,7 +93,7 @@ impl Http {
         let small = ureq::Agent::config_builder()
             .tls_config(tls())
             .proxy(proxy.clone())
-            .https_only(https_only)
+            .https_only(true)
             .timeout_global(Some(Duration::from_secs(20)))
             .http_status_as_error(false)
             .user_agent(user_agent)
@@ -102,7 +102,7 @@ impl Http {
         let feed = ureq::Agent::config_builder()
             .tls_config(tls())
             .proxy(proxy.clone())
-            .https_only(https_only)
+            .https_only(true)
             .timeout_connect(Some(Duration::from_secs(5)))
             .timeout_global(Some(Duration::from_secs(10)))
             .http_status_as_error(false)
@@ -112,7 +112,7 @@ impl Http {
         let no_redirect = ureq::Agent::config_builder()
             .tls_config(tls())
             .proxy(proxy.clone())
-            .https_only(https_only)
+            .https_only(true)
             .timeout_global(Some(Duration::from_secs(20)))
             .http_status_as_error(false)
             .max_redirects(0)
@@ -123,7 +123,7 @@ impl Http {
         let download = ureq::Agent::config_builder()
             .tls_config(tls())
             .proxy(proxy.clone())
-            .https_only(https_only)
+            .https_only(true)
             .timeout_connect(Some(Duration::from_secs(20)))
             .timeout_recv_response(Some(Duration::from_secs(60)))
             // ureq has no idle timeout: cap each attempt instead, and resume where it stopped.
@@ -141,6 +141,16 @@ impl Http {
             .user_agent(user_agent)
             .build()
             .new_agent();
+        let direct_no_redirect = ureq::Agent::config_builder()
+            .proxy(None)
+            .tls_config(tls())
+            .timeout_global(Some(Duration::from_secs(20)))
+            .http_status_as_error(false)
+            .max_redirects(0)
+            .max_redirects_will_error(false)
+            .user_agent(user_agent)
+            .build()
+            .new_agent();
         let direct_download = ureq::Agent::config_builder()
             .proxy(None)
             .tls_config(tls())
@@ -151,7 +161,7 @@ impl Http {
             .user_agent(user_agent)
             .build()
             .new_agent();
-        Ok(Self { small, feed, no_redirect, download, direct, direct_download, token: None })
+        Ok(Self { small, feed, no_redirect, download, direct, direct_no_redirect, direct_download, token: None })
     }
 
     /// An optional token raises GitHub's limit from 60 to 5000 requests an hour. Only ever sent
@@ -169,7 +179,8 @@ impl Http {
 
     /// GET a GitHub API resource, revalidating with `etag` when given.
     pub fn get_api(&self, url: &str, etag: Option<&str>) -> Result<Fetched, String> {
-        let mut req = self.small.get(url).header("Accept", "application/vnd.github+json").header("X-GitHub-Api-Version", "2022-11-28");
+        let agent = if is_loopback(url) { &self.direct } else { &self.small };
+        let mut req = agent.get(url).header("Accept", "application/vnd.github+json").header("X-GitHub-Api-Version", "2022-11-28");
         if let Some(tag) = etag {
             req = req.header("If-None-Match", tag);
         }
@@ -254,7 +265,8 @@ impl Http {
 
     /// Where `url` redirects to, without following it.
     pub fn redirect_target(&self, url: &str) -> Result<Option<String>, String> {
-        let resp = self.no_redirect.head(url).call().map_err(|e| format!("couldn't reach {} ({})", host(url), call_failed(&e)))?;
+        let agent = if is_loopback(url) { &self.direct_no_redirect } else { &self.no_redirect };
+        let resp = agent.head(url).call().map_err(|e| format!("couldn't reach {} ({})", host(url), call_failed(&e)))?;
         match resp.status().as_u16() {
             300..=399 => Ok(resp.headers().get("location").and_then(|v| v.to_str().ok()).map(str::to_string)),
             404 => Ok(None),
@@ -1177,7 +1189,7 @@ pub(crate) mod tests {
     fn the_remote_agents_refuse_plain_http_before_connecting() {
         // ureq checks every hop, redirects included, before it connects; `.invalid` never
         // resolves, so an agent that tried would fail on DNS instead.
-        let http = Http::build(crate::TEST_AGENT, true).unwrap();
+        let http = Http::build(crate::TEST_AGENT).unwrap();
         let refused = |r: Result<_, String>| r.is_err_and(|e| e.contains("refused plain HTTP to example.invalid") && !e.contains("secret"));
         assert!(refused(http.get_api("http://example.invalid/repos/x/y/releases?secret", None).map(|_| ())));
         assert!(refused(http.get_text("http://example.invalid/SHA256SUMS.txt?secret").map(|_| ())));
@@ -1197,7 +1209,7 @@ pub(crate) mod tests {
     fn https_only_still_reaches_a_loopback_link() {
         let (body, _) = body();
         let (url, _) = serve(body.clone(), vec![Reply::Full]);
-        let http = Http::build(crate::TEST_AGENT, true).unwrap();
+        let http = Http::build(crate::TEST_AGENT).unwrap();
         assert_eq!(http.get_bytes(&url, body.len()).unwrap(), Some(body));
     }
 

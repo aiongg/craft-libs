@@ -51,12 +51,13 @@ pub enum FileListMode {
 pub struct FileList {
     /// Whether files or a folder are picked.
     pub mode: FileListMode,
-    /// The chosen files in Files mode, in the user's order, each once.
+    /// The chosen files in Files mode, in the user's order. The paths are distinct: they are the list's row keys, so
+    /// add files through [`FileList::add`].
     pub files: Vec<PathBuf>,
     /// The folder in Folder mode.
     pub folder: Option<PathBuf>,
-    /// The selected row in Files mode.
-    pub selected: Option<usize>,
+    /// The selected file in Files mode, one of `files`.
+    pub selected: Option<PathBuf>,
 }
 
 impl FileList {
@@ -201,9 +202,8 @@ impl<'a> FileListPicker<'a> {
                     add_open = button(ui, &words.add_open_files, "add-open", !folder && !open_files.is_empty());
                     sort = button(ui, &words.sort_by_name, "sort", !folder && now.files.len() > 1);
                 });
-                if remove && let Some(at) = now.selected.filter(|&at| at < now.files.len()) {
-                    now.files.remove(at);
-                    now.selected = None;
+                if remove && let Some(path) = now.selected.take() {
+                    now.files.retain(|file| *file != path);
                 }
                 if add_open {
                     now.add(open_files.iter().cloned());
@@ -230,7 +230,8 @@ impl<'a> FileListPicker<'a> {
                 }
                 let paths: &[PathBuf] = if folder { folder_files } else { &now.files };
                 let source = Rows::new(paths);
-                let mut selection = now.selected.and_then(|at| paths.get(at)).map_or_else(Selection::default, |path| Selection::single(path.clone()));
+                let mut selection =
+                    now.selected.as_ref().filter(|path| paths.contains(path)).map_or_else(Selection::default, |path| Selection::single(path.clone()));
                 let list = List::new(words.files.clone()).id_salt("files");
                 let list = if folder {
                     list.select(SelectMode::None)
@@ -241,7 +242,7 @@ impl<'a> FileListPicker<'a> {
                 if folder {
                     return;
                 }
-                now.selected = selection.items.first().and_then(|key| paths.iter().position(|path| path == key));
+                now.selected = selection.items.first().cloned();
                 for event in events {
                     match event {
                         CollectionEvent::Delete(keys) => {
@@ -249,9 +250,8 @@ impl<'a> FileListPicker<'a> {
                             now.selected = None;
                         }
                         CollectionEvent::Reorder(EditEvent::Set { after, .. } | EditEvent::Commit { after, .. }) => {
-                            let first = after.keys.iter().position(|key| *key == after.key).unwrap_or(0);
                             move_files(&mut now.files, &after.keys, after.to);
-                            now.selected = Some(after.to + first);
+                            now.selected = Some(after.key.clone());
                         }
                         _ => {}
                     }
@@ -279,7 +279,7 @@ impl Pass<'_> {
             let before = held.read(cx).unwrap_or_default();
             let mut now = before.clone();
             take_answer(cx, &mut now);
-            if now.selected.is_some_and(|at| at >= now.files.len()) {
+            if now.selected.as_ref().is_some_and(|path| !now.files.contains(path)) {
                 now.selected = None;
             }
             (before, now)

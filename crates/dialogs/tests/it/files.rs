@@ -146,11 +146,11 @@ fn browse_adds_and_keys_remove_and_move() {
     let first = fixture.by_label("a.png").expect("the first row");
     fixture.click(&first);
     fixture.settle();
-    assert_eq!(list.borrow().selected, Some(0));
+    assert_eq!(list.borrow().selected, paths(&["a.png"]).into_iter().next());
     fixture.key(Key::ArrowDown, Modifiers::ALT);
     fixture.settle();
     assert_eq!(names(&list.borrow()), ["b.png", "a.png", "c.png"]);
-    assert_eq!(list.borrow().selected, Some(1), "the selection follows the moved file");
+    assert_eq!(list.borrow().selected, paths(&["a.png"]).into_iter().next(), "the selection follows the moved file");
     fixture.key(Key::Delete, Modifiers::NONE);
     fixture.settle();
     assert_eq!(names(&list.borrow()), ["b.png", "c.png"]);
