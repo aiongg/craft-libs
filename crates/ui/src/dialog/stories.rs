@@ -127,3 +127,10 @@ fn blocking_overlay(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     *data.value("checks", [true, false]) = checks;
     shown
 }
+
+#[story(ModalDragStrip, covers = [Default], drive = Drive::Never)]
+fn modal_drag_strip(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    let room = ui.max_rect();
+    let height = crate::shell::SlotSize::TitleBar.resolve(&crate::runtime::env::Env::of(ui).tokens);
+    super::modal::ModalDragStrip::new(egui::Rect::from_min_size(room.min, egui::vec2(room.width(), height))).show(ui, |_, _| {}).into()
+}

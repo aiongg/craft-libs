@@ -4,16 +4,22 @@
 use super::frame::{self, DialogOutput, FOOTER, FooterCx, FooterFn};
 use crate::contract::overlay::{FloatPlace, OverlayFit, Place};
 use crate::contract::{
-    Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, Mount, Overlay, Props as _, Role, SaveKey,
+    Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, Mount, Overlay, Pad, Props as _, Role, SaveKey,
+    ShowContainer as _,
 };
 use crate::runtime::access::Access;
+use crate::runtime::egui::{alloc, pass, viewports};
 use crate::runtime::env::Label;
 use crate::runtime::focus::Initial;
-use crate::runtime::overlay::{Backdrop, CloseReason, Rank};
+use crate::runtime::memory::sub;
+use crate::runtime::overlay::{self, Backdrop, CloseReason, Rank};
+use crate::runtime::windows::{self, WindowHost};
 use crate::sections::{DialogRole, FooterButton};
+use crate::shell::double_click_action;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Metrics, Sense};
-use egui::{Pos2, Ui};
+use craft_host::target::WindowState;
+use egui::{Context, Id, Pos2, Rangef, Rect, Response, Ui, ViewportId};
 
 /// The style of a dialog: the surface and padding come from the container.
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
@@ -227,6 +233,136 @@ impl<'a> Dialog<'a> {
     }
 }
 
+impl Dialog<'_> {
+    /// Keeps the window draggable under a modal dialog: while the dialog is the top layer, each drag area of its
+    /// window that the modal covers, less the caption buttons and the dialog itself, gets a [`ModalDragStrip`].
+    fn keep_window_draggable(&self, ui: &mut Ui, cx: &BodyCx<'_>) {
+        let ctx = ui.ctx().clone();
+        let covers_window = match &self.props.mount {
+            Mount::Layer(overlay) => overlay.rank.is_modal(),
+            Mount::Viewport { fallback, .. } => fallback.rank.is_modal() && !viewports::available(&ctx),
+            _ => false,
+        };
+        if !covers_window || !on_top(&ctx, cx.id) {
+            return;
+        }
+        for (at, strip) in covered_strips(&ctx, pass::current_viewport(&ctx), cx.rect).into_iter().enumerate() {
+            ModalDragStrip::new(strip).id(sub(cx.id, ("drag_strip", at))).show(ui, |_, _| {});
+        }
+    }
+}
+
+/// Whether the dialog `id`, or its chrome, is the layer that takes the keys: no popup of the dialog and no other modal
+/// is open above it.
+fn on_top(ctx: &Context, id: Id) -> bool {
+    overlay::top(ctx)
+        .is_some_and(|top| top == id || overlay::entry(ctx, top).is_some_and(|entry| entry.parent == Some(id) && entry.rank == Rank::ModalChrome))
+}
+
+/// The strips of `viewport`'s window that stay draggable under a modal whose dialog lies at `dialog`: each drag area
+/// of the window's last complete pass that an in-app hit covers whole (the modal's cover), less the caption buttons
+/// and the dialog, so a dialog moved into the title bar stays in front. A drag area that lies inside another adds no
+/// strip. The strips themselves are drag areas no hit covers, so they never count.
+fn covered_strips(ctx: &Context, viewport: ViewportId, dialog: Rect) -> Vec<Rect> {
+    let Some(regions) = WindowHost::of(ctx).caption_regions(viewport) else { return Vec::new() };
+    let covered: Vec<Rect> = regions.moves.iter().copied().filter(|area| regions.covers.iter().any(|cover| cover.contains_rect(*area))).collect();
+    let inside_another = |at: usize, area: Rect| {
+        covered.iter().enumerate().any(|(other, wider)| other != at && wider.contains_rect(area) && (!area.contains_rect(*wider) || other < at))
+    };
+    let kept: Vec<Rect> = regions.buttons.iter().map(|(_, rect)| *rect).chain([dialog]).collect();
+    covered.iter().enumerate().filter(|(at, area)| !inside_another(*at, **area)).flat_map(|(_, area)| free_spans(*area, &kept)).collect()
+}
+
+/// The parts of the horizontal strip `area` that lie beside every rect of `kept` that meets it.
+fn free_spans(area: Rect, kept: &[Rect]) -> Vec<Rect> {
+    let mut cuts: Vec<Rangef> = kept
+        .iter()
+        .filter(|rect| rect.intersects(area))
+        .map(|rect| Rangef::new(rect.left().max(area.left()), rect.right().min(area.right())))
+        .collect();
+    cuts.sort_by(|a, b| a.min.total_cmp(&b.min));
+    let mut spans = Vec::new();
+    let mut from = area.left();
+    for cut in cuts {
+        if cut.min > from {
+            spans.push(Rect::from_x_y_ranges(Rangef::new(from, cut.min), area.y_range()));
+        }
+        from = from.max(cut.max);
+    }
+    if area.right() > from {
+        spans.push(Rect::from_x_y_ranges(Rangef::new(from, area.right()), area.y_range()));
+    }
+    spans
+}
+
+/// The style of a modal drag strip: it paints nothing.
+#[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
+#[non_exhaustive]
+pub(crate) struct ModalDragStripStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+}
+
+/// The chrome a modal dialog puts over a drag area of the window it covers, so that the window still moves by it.
+/// It sits at the strip on the modal-chrome layer (`Overlay::modal_chrome`), paints nothing and is no Tab stop: a
+/// drag moves the window, and a double click acts as one on the title bar.
+#[derive(crate::contract::Component, crate::contract::Props)]
+#[component(container)]
+pub(crate) struct ModalDragStrip {
+    #[common]
+    common: Common,
+    #[container]
+    props: ContainerProps,
+}
+
+impl ModalDragStrip {
+    /// A strip over `rect`, in the coordinates of the window's layers.
+    pub(crate) fn new(rect: Rect) -> Self {
+        let props =
+            ContainerProps::new().pad(Pad::None).mount(Mount::Layer(Overlay::modal_chrome(rect))).header(HeaderRegion::new().band(DragBand::Move));
+        ModalDragStrip { common: Common::new(), props }
+    }
+}
+
+impl Component for ModalDragStrip {
+    const ROLE: Role = Role::None;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
+    const OVERLAYS: bool = false;
+    type Style = ModalDragStripStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: ModalDragStripStyleKey) -> ModalDragStripStyle {
+        ModalDragStripStyle::default()
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::empty()
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+impl Container for ModalDragStrip {
+    /// The header is the strip, so the move band covers it. A double click on the band asks of the window what one
+    /// on its title bar does.
+    fn header(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
+        alloc::space(ui, cx.rect.size());
+        if !cx.band_double_pressed() {
+            return;
+        }
+        let ctx = cx.memory.ctx().clone();
+        let viewport = pass::current_viewport(&ctx);
+        let shell = windows::shell_of(&ctx, viewport);
+        let host = WindowHost::of(&ctx);
+        if let Some(action) = double_click_action(&host.frame(), shell.double_click, shell.window.state == WindowState::Maximized) {
+            host.act(viewport, action);
+        }
+    }
+}
+
 impl Component for Dialog<'_> {
     const ROLE: Role = Role::DIALOG;
     const PARTS: bool = false;
@@ -261,6 +397,7 @@ impl Container for Dialog<'_> {
 
     fn header(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         frame::header(ui, cx, frame::close_action(self.closable));
+        self.keep_window_draggable(ui, cx);
     }
 
     fn footer(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
