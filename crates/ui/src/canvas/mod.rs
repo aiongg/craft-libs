@@ -69,8 +69,8 @@ pub use scrollbars::{CanvasScrollbars, CanvasScrollbarsOutput};
 // canvas-navigator-a
 mod navigator;
 pub use navigator::{
-    NAVIGATOR_PROXY_COLOR_KEY, Navigator, NavigatorCommands, NavigatorOptions, NavigatorOutput, NavigatorPaint, NavigatorPreview, NavigatorSettings,
-    NavigatorZoomRow, NavigatorZoomRowOutput, ProxyColor, preview_rect, proxy_quad, view_center_for, zoom_to_document_rect,
+    Navigator, NavigatorCommands, NavigatorOptions, NavigatorOutput, NavigatorPaint, NavigatorPreview, NavigatorSettings, NavigatorZoomRow,
+    NavigatorZoomRowOutput, ProxyColor, preview_rect, proxy_quad, view_center_for, zoom_to_document_rect,
 };
 // End of canvas-navigator-a.
 // l4e-navprev

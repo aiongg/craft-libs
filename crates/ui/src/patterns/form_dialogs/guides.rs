@@ -16,7 +16,8 @@ mod stories;
 pub use layout::{GuideGroup, GuideLayoutError, GuideLayoutOptions, GuideLayoutPreset, GuideLength, GuideRect, GuideTarget, GuideUnits, MAX_COUNT};
 pub use new_guide::{HostedNewGuideDialog, NewGuideDialog, NewGuideOutput, NewGuideValues};
 
-use super::{ColorRequest, FormDialog, HostAnswer, HostRequests, ParamDialogWords};
+use super::color_choice::{self, ColorChoice, ColorRowTexts, apply_color_answers};
+use super::{FormDialog, HostAnswer, HostRequests, ParamDialogWords};
 use crate::canvas::{Guide, GuideColor};
 use crate::choice::Checkbox;
 use crate::contract::{Bind, EditResponse, Entry, NoValue, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _};
@@ -35,9 +36,9 @@ use craft_theme::{Rgba, Srgba};
 use egui::{Response, Ui};
 use std::cell::{Cell, RefCell};
 
-/// The [`ColorRequest::key`] of New Guide's Custom colour.
+/// The [`ColorRequest::key`](super::ColorRequest::key) of New Guide's Custom colour.
 pub const NEW_GUIDE_COLOR_KEY: &str = "guides.newGuide.color";
-/// The [`ColorRequest::key`] of New Guide Layout's Custom colour.
+/// The [`ColorRequest::key`](super::ColorRequest::key) of New Guide Layout's Custom colour.
 pub const GUIDE_LAYOUT_COLOR_KEY: &str = "guides.layout.color";
 
 /// How far from the origin a guide may be, in pixels.
@@ -114,31 +115,27 @@ fn color_label(color: GuideColor, words: &GuideDialogWords) -> Label {
     }
 }
 
-/// The colour row: Custom first, then Photoshop's nine, each with a swatch. Picking a named colour sets it. Picking
-/// Custom files a colour request under `key` and leaves the colour as it is: the host's answer sets it, and a
-/// cancelled pick changes nothing.
-fn color_row(ui: &mut Ui, words: &GuideDialogWords, color: &mut GuideColor, key: &str, requests: &mut HostRequests) {
-    let custom = GuideColor::Custom(color.rgba());
-    let entry = |value: GuideColor| Entry::new(value, color_label(value, words)).swatch(Srgba::from(value.rgba()));
-    let entries: Vec<Entry<GuideColor>> = std::iter::once(entry(custom)).chain(GuideColor::NAMED.into_iter().map(entry)).collect();
-    let label = words.color.clone();
-    let current = *color;
-    Field::new(label.clone()).show(ui, |ui, _| match Select::new(label.clone(), Bind::given(current), &entries).show(ui).value().copied() {
-        Some(GuideColor::Custom(_)) => requests.request_color(ColorRequest::new(key, Srgba::from(current.rgba())).title(words.picker_title.clone())),
-        Some(named) => *color = named,
-        None => {}
-    });
+impl ColorChoice for GuideColor {
+    const NAMED: &'static [Self] = &GuideColor::NAMED;
+    const CUSTOM_FIRST: bool = true;
+
+    fn from_picked(color: Srgba) -> Self {
+        GuideColor::Custom(color.to_rgba())
+    }
+
+    fn is_custom(self) -> bool {
+        matches!(self, GuideColor::Custom(_))
+    }
+
+    fn srgba(self) -> Srgba {
+        Srgba::from(self.rgba())
+    }
 }
 
-/// Sets `color` from the host's answers to the colour request `key`.
-fn apply_color_answers(answers: Vec<HostAnswer>, key: &str, color: &mut GuideColor) {
-    for answer in answers {
-        if let HostAnswer::Color { key: answered, color: picked } = answer
-            && answered == key
-        {
-            *color = GuideColor::Custom(picked.to_rgba());
-        }
-    }
+/// The guide colour row: Custom first, then Photoshop's nine.
+fn color_row(ui: &mut Ui, words: &GuideDialogWords, color: &mut GuideColor, key: &str, requests: &mut HostRequests) {
+    let texts = ColorRowTexts { label: words.color.clone(), picker_title: words.picker_title.clone() };
+    color_choice::color_row(ui, &texts, color, key, requests, |value| color_label(value, words));
 }
 
 /// `value` rounded to `places` decimals, for telling a typed value from the one the field already showed.

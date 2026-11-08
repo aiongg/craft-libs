@@ -290,7 +290,7 @@ name = "ProxyColor"
 old = "craft_ui::canvas::navigator::options::ProxyColor"
 new = "craft_ui::canvas::ProxyColor"
 status = "moved"
-note = "`label(&CanvasWords)` replaces `label(&NavigatorLabels)`; `color()` takes no tokens and gives an `Srgba`; `ProxyColor::custom(Srgba)` makes the Custom colour of a picker's answer."
+note = "the colour names are the words of `NavigatorOptionsDialog` (`NavigatorOptionsWords`), so `label` is gone; `color()` takes no tokens and gives an `Srgba`; `ProxyColor::custom(Srgba)` makes the Custom colour of a picker's answer."
 
 [[type]]
 name = "NavigatorOptionsDialog"
@@ -305,6 +305,13 @@ old = ""
 new = "craft_ui::patterns::form_dialogs::NavigatorOptionsDialogOutput"
 status = "replaced"
 note = "`response`, `closed`, `accepted` (the options the pass the dialog closed as OK), `value` and `requests`."
+
+[[type]]
+name = "NavigatorOptionsWords"
+old = ""
+new = "craft_ui::patterns::form_dialogs::NavigatorOptionsWords"
+status = "replaced"
+note = "The dialog's own words (`navigatorOptionsDialog.*`, the colour names included); they were rows of `CanvasWords`. The Custom… request key `NAVIGATOR_PROXY_COLOR_KEY` is exported from `patterns::form_dialogs` beside the dialog, no longer from `canvas`."
 
 [[type]]
 name = "NavigatorZoomRow"
