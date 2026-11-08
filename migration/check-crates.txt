@@ -3,6 +3,7 @@
 craft-browse ui
 craft-dialogs ui
 craft-imaging ui
+craft-imaging ui,screen-testing
 craft-layers
 craft-menu
 craft-print ui

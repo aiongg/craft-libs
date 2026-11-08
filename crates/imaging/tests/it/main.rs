@@ -17,10 +17,12 @@ mod select;
 mod select_mask;
 mod selection;
 mod transform_preview;
+mod vanishing_point;
 mod warp;
 
 mod fill;
 use craft_imaging::testing::registered;
+mod vanishing_point;
 use craft_ui::testing::{TRIALS, suite};
 use libtest_mimic::{Arguments, Trial};
 

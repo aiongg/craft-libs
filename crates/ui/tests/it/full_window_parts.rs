@@ -497,3 +497,104 @@ mod sides {
         }
     }
 }
+
+/// An overlay drawn through a frame.
+mod mapped_overlay {
+    use craft_behavior::PixelSize;
+    use craft_behavior::geometry::quad::Homography;
+    use craft_behavior::kurbo::{Point, Rect};
+    use craft_ui::canvas::{PixelRect, RasterSource};
+    use craft_ui::contract::Bind;
+    use craft_ui::dialog::{FullWindowCanvas, FullWindowView, RasterOverlay};
+    use craft_ui::primitives::Revision;
+    use craft_ui::testing::{Frames, trial};
+    use egui::epaint::Mesh;
+    use egui::{Color32, ColorImage, Pos2, Shape};
+
+    /// The overlay's and the document's size.
+    const IMAGE: PixelSize = PixelSize::new(40, 40);
+
+    /// The mesh's cells a side.
+    const CELLS: u32 = 4;
+
+    /// How far a mesh corner may lie from the corner it should reach, in points.
+    const NEAR: f32 = 0.01;
+
+    /// An image of one colour.
+    struct Flat;
+
+    impl RasterSource for Flat {
+        fn size(&self) -> PixelSize {
+            IMAGE
+        }
+
+        fn revision(&self) -> Revision {
+            Revision::new(1)
+        }
+
+        fn damage(&self, _: Revision) -> Option<PixelRect> {
+            None
+        }
+
+        fn read(&self, _: PixelRect, _: u32, out: &mut ColorImage) {
+            out.pixels.fill(Color32::WHITE);
+        }
+    }
+
+    /// The document's corners, clockwise from the top left.
+    fn document() -> [Point; 4] {
+        let (w, h) = (f64::from(IMAGE.width), f64::from(IMAGE.height));
+        [Point::new(0.0, 0.0), Point::new(w, 0.0), Point::new(w, h), Point::new(0.0, h)]
+    }
+
+    /// The meshes a settled pass paints with the overlay `make` gives over `Flat`.
+    fn meshes(make: impl Fn() -> RasterOverlay<'static>) -> Vec<Mesh> {
+        let mut view = FullWindowView::new();
+        let mut frames = Frames::new();
+        let mut shapes = Vec::new();
+        for _ in 0..2 {
+            shapes = frames.frame_shapes(|ui| {
+                FullWindowCanvas::new(Bind::bound(&mut view), &Flat).overlay(make()).show(ui);
+            });
+        }
+        shapes
+            .into_iter()
+            .filter_map(|shape| match shape {
+                Shape::Mesh(mesh) => Some(std::sync::Arc::unwrap_or_clone(mesh)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn corners(mesh: &Mesh, cells: u32) -> [Pos2; 4] {
+        let row = (cells + 1) as usize;
+        let v = |i: usize| mesh.vertices[i].pos;
+        [v(0), v(cells as usize), v(row * row - 1), v(row * cells as usize)]
+    }
+
+    #[trial]
+    fn a_mapped_overlay_lands_its_corners_on_the_frames_corners_as_the_flat_one_does() {
+        let frame = Homography::unit_to_quad(document()).expect("a box");
+        let flat = meshes(|| RasterOverlay::new(&Flat));
+        let mapped = meshes(|| RasterOverlay::new(&Flat).mapped(frame, CELLS));
+        let flat = flat.last().expect("the flat overlay's quad");
+        let mapped = mapped.iter().find(|mesh| mesh.vertices.len() == ((CELLS + 1) * (CELLS + 1)) as usize).expect("the mapped mesh");
+        for (a, b) in corners(flat, 1).iter().zip(corners(mapped, CELLS)) {
+            assert!(a.distance(b) < NEAR, "the mesh corner {b:?} is the flat quad's corner {a:?}");
+        }
+        let half = meshes(|| RasterOverlay::new(&Flat).mapped(frame, CELLS).placed(Rect::new(0.0, 0.0, 0.5, 0.5)));
+        let half = half.iter().find(|mesh| mesh.vertices.len() == ((CELLS + 1) * (CELLS + 1)) as usize).expect("the placed mesh");
+        let (whole, part) = (corners(mapped, CELLS), corners(half, CELLS));
+        assert!(part[0].distance(whole[0]) < NEAR && (part[2] - whole[0]).length() < (whole[2] - whole[0]).length() * 0.51);
+    }
+
+    #[trial]
+    fn cells_whose_centre_lies_outside_the_frame_are_left_out() {
+        let frame = Homography::unit_to_quad(document()).expect("a box");
+        let overlay = || RasterOverlay::new(&Flat).mapped(frame, CELLS).placed(Rect::new(0.5, 0.5, 1.5, 1.5));
+        let shown = meshes(overlay);
+        let mesh = shown.iter().find(|mesh| mesh.vertices.len() == ((CELLS + 1) * (CELLS + 1)) as usize).expect("the mapped mesh");
+        let cells = u64::from(CELLS * CELLS);
+        assert_eq!(mesh.indices.len() as u64, cells / 4 * 6, "only the cells over the frame (a quarter) have triangles");
+    }
+}

@@ -21,7 +21,8 @@ use crate::primitives::{CachedTexture, Checker, Revision, TextureState, TextureS
 use crate::runtime::env::Label;
 use crate::runtime::memory::Remember as _;
 use crate::style::{ComponentStyle, StyleCx};
-use craft_behavior::kurbo::Rect as Rect64;
+use craft_behavior::geometry::quad::Homography;
+use craft_behavior::kurbo::{Point as Point64, Rect as Rect64};
 use craft_behavior::{CanvasView, Metrics, PixelSize};
 use detail::{texel_extent, texel_origin};
 use egui::epaint::{Mesh, Vertex};
@@ -102,13 +103,44 @@ pub struct RasterDisplay<'a> {
     checkerboard: Option<Checker>,
     read: PixelRect,
     shown: Option<Shown>,
+    mapping: Option<Mapping>,
+}
+
+/// A display drawn through a homography on a mesh of cells instead of as a flat quad.
+#[derive(Clone, Copy, Debug)]
+struct Mapping {
+    frame: Homography,
+    cells: u32,
+    /// Where the image lies in the frame's unit square.
+    placed: Rect64,
 }
 
 impl<'a> RasterDisplay<'a> {
     /// A display named `label` of the document `source` gives. An empty label makes a display that only paints, with
     /// no AccessKit node: a further image over a named one.
     pub fn new(label: impl Into<Label>, source: &'a dyn RasterSource) -> Self {
-        RasterDisplay { common: Common::new(), source, checkerboard: None, read: PixelRect::default(), shown: None }.label(label)
+        RasterDisplay { common: Common::new(), source, checkerboard: None, read: PixelRect::default(), shown: None, mapping: None }.label(label)
+    }
+
+    /// Draws the image through `frame` (the unit square onto the document) on a `cells` by `cells` mesh, so a
+    /// perspective frame shows the image foreshortened. The image fills the unit square unless
+    /// [`placed`](Self::placed) says otherwise; a cell whose centre lies outside the unit square is left out. A
+    /// mapped display draws its whole-document texture alone: the detail texture of a flat display has no place on
+    /// a mesh.
+    #[must_use]
+    pub fn mapped(mut self, frame: Homography, cells: u32) -> Self {
+        let placed = self.mapping.map_or(Rect64::new(0.0, 0.0, 1.0, 1.0), |mapping| mapping.placed);
+        self.mapping = Some(Mapping { frame, cells: cells.max(1), placed });
+        self
+    }
+
+    /// Where the image lies in the mapped frame's unit square (default: all of it). A mapped display only.
+    #[must_use]
+    pub fn placed(mut self, placed: Rect64) -> Self {
+        if let Some(mapping) = self.mapping.as_mut() {
+            mapping.placed = placed;
+        }
+        self
     }
 
     /// The store that holds this display's textures of one sampling. A texture is sharp (nearest) from 100 percent
@@ -221,7 +253,7 @@ impl Component for RasterDisplay<'_> {
         let side = texture_side(&ctx);
         let factor = texture_factor(size, side);
         let (base, base_read) = self.bring_up_to_date(&ctx, id, &mut held, Level::Base, bounds, factor);
-        let plan = DetailPlan::in_view(&space.view, size, side, space.pixels_per_point);
+        let plan = DetailPlan::in_view(&space.view, size, side, space.pixels_per_point).filter(|_| self.mapping.is_none());
         let detail = plan.map(|plan| {
             let (texture, read) = self.bring_up_to_date(&ctx, id, &mut held, Level::Detail(plan), plan.region, plan.factor);
             self.read = self.read.union(&read);
@@ -248,6 +280,10 @@ impl Component for RasterDisplay<'_> {
             }
         }
         let (texture, factor) = shown.base;
+        if let Some(mapping) = &self.mapping {
+            painter.painter.add(mapped_mesh(&shown.view, texture, factor, shown.size, mapping));
+            return;
+        }
         let whole = PixelRect::of_size(shown.size);
         painter.painter.add(textured_quad(&shown.view, texture, factor, whole));
         if let Some((texture, plan)) = shown.detail {
@@ -271,6 +307,41 @@ fn textured_quad(view: &CanvasView, texture: CachedTexture, factor: u32, region:
     let mut mesh = Mesh::with_texture(texture.id);
     mesh.vertices.extend(corners.iter().zip(uv).map(|(pos, uv)| Vertex { pos: *pos, uv, color: Color32::from_gray(u8::MAX) }));
     mesh.indices.extend([0, 1, 2, 0, 2, 3]);
+    Shape::mesh(mesh)
+}
+
+/// `texture`, which holds the whole document at one texel per `factor` pixels, as a mesh of `mapping.cells` squared
+/// cells through the mapping's frame. A cell whose centre lies outside the frame's unit square is left out.
+fn mapped_mesh(view: &CanvasView, texture: CachedTexture, factor: u32, size: PixelSize, mapping: &Mapping) -> Shape {
+    let n = mapping.cells;
+    let (texels_x, texels_y) = (texture.size.width as f32 * factor as f32, texture.size.height as f32 * factor as f32);
+    let (u, v) = (size.width as f32 / texels_x, size.height as f32 / texels_y);
+    let placed = mapping.placed;
+    let at = |s: f64, t: f64| {
+        let p = mapping.frame.apply(Point64::new(placed.x0 + s * placed.width(), placed.y0 + t * placed.height()));
+        view.to_screen(p)
+    };
+    let mut mesh = Mesh::with_texture(texture.id);
+    for j in 0..=n {
+        for i in 0..=n {
+            let (s, t) = (f64::from(i) / f64::from(n), f64::from(j) / f64::from(n));
+            let uv = pos2(s as f32 * u, t as f32 * v);
+            mesh.vertices.push(Vertex { pos: at(s, t), uv, color: Color32::from_gray(u8::MAX) });
+        }
+    }
+    let row = n + 1;
+    for j in 0..n {
+        for i in 0..n {
+            let x = placed.x0 + (f64::from(i) + 0.5) / f64::from(n) * placed.width();
+            let y = placed.y0 + (f64::from(j) + 0.5) / f64::from(n) * placed.height();
+            if !(0.0..=1.0).contains(&x) || !(0.0..=1.0).contains(&y) {
+                continue;
+            }
+            let a = j * row + i;
+            mesh.add_triangle(a, a + 1, a + row + 1);
+            mesh.add_triangle(a, a + row + 1, a + row);
+        }
+    }
     Shape::mesh(mesh)
 }
 
