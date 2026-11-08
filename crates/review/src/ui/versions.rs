@@ -9,8 +9,8 @@ use craft_theme::variant::Variant;
 use craft_ui::buttons::{Button, ButtonOutput, IconButton, Link};
 use craft_ui::contract::overlay::Anchor;
 use craft_ui::contract::{
-    ActivateOn, Bind, CollectionEvent, Entry, NoValue, Outcome, Pattern, Props, Remember as _, SelectMode, Show as _, ShowCollection as _,
-    ShowContainer as _, Trigger, clicked,
+    ActivateOn, Bind, CollectionEvent, Entry, NoValue, OpenChange, Outcome, Pattern, Props, Remember as _, SelectMode, Show as _,
+    ShowCollection as _, ShowContainer as _, Trigger, clicked,
 };
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::{Row, Stack};
@@ -127,7 +127,6 @@ enum RowKey {
 /// What the panel keeps between passes.
 #[derive(Clone, Default)]
 struct PanelState {
-    selection: Selection<RowKey>,
     /// Autosave groups the user opened, by their newest version.
     open: HashSet<VersionId>,
     /// The Save version form: title and description.
@@ -381,6 +380,16 @@ fn display_order(env: &Env, words: &VersionsWords, versions: &[Version], preview
     Order(rows)
 }
 
+/// Opens or closes the autosave group headed by `head`: to `open` when given, else the other way.
+fn fold(state: &mut PanelState, head: VersionId, open: Option<bool>) {
+    let open = open.unwrap_or(!state.open.contains(&head));
+    if open {
+        state.open.insert(head);
+    } else {
+        state.open.remove(&head);
+    }
+}
+
 fn history(
     ui: &mut Ui,
     env: &Env,
@@ -392,7 +401,6 @@ fn history(
     let view = env.view();
     let order = display_order(env, words, versions, previewing, now, state);
     let current = previewing.map_or(RowKey::Current, RowKey::Version);
-    state.selection = Selection::single(current);
     let pending = state.confirm;
     let outcome = Cell::new(None);
     let find = |id: VersionId| versions.iter().find(|version| version.id == id);
@@ -403,7 +411,7 @@ fn history(
         .select(SelectMode::Single)
         .rename(true)
         .activate(ActivateOn::Click)
-        .selection(Bind::bound(&mut state.selection))
+        .selection(Bind::given(Selection::single(current)))
         .can_rename(|key| matches!(key, RowKey::Version(id) if find(*id).is_some_and(|version| !version.autosave)));
     let out = list.show_items(ui, &order, &mut |key, icx| {
         let dot = IconSpec::from(IconId::new("circle"));
@@ -456,20 +464,8 @@ fn history(
         match event {
             CollectionEvent::Activate(RowKey::Version(id)) => actions.push(VersionAction::Preview(id)),
             CollectionEvent::Activate(RowKey::Current) if previewing.is_some() => actions.push(VersionAction::Current),
-            CollectionEvent::Activate(RowKey::Group(head)) => {
-                if !state.open.remove(&head) {
-                    state.open.insert(head);
-                }
-            }
-            CollectionEvent::Open(change) => {
-                if let RowKey::Group(head) = change.key {
-                    if change.open {
-                        state.open.insert(head);
-                    } else {
-                        state.open.remove(&head);
-                    }
-                }
-            }
+            CollectionEvent::Activate(RowKey::Group(head)) => fold(state, head, None),
+            CollectionEvent::Open(OpenChange { key: RowKey::Group(head), open, .. }) => fold(state, head, Some(open)),
             CollectionEvent::Rename(edit) => {
                 if let Some(rename) = edit.value()
                     && let RowKey::Version(id) = rename.key

@@ -4,13 +4,13 @@ use std::io::Cursor;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
 
-use craft_behavior::{Metrics, PartKey, PressPhase, Sense};
+use craft_behavior::{EditCommand, Input, Metrics, PartKey, PressPhase, Sense};
 use craft_host::{Host, PickId, PickRequest, Picked};
 use craft_theme::variant::Tone;
 use craft_ui::buttons::Button;
 use craft_ui::choice::Segmented;
 use craft_ui::contract::{
-    Bind, BindMut, Common, Component, Cx, Edit as _, Entry, MeasureCx, PaintUi, PartsCx, Pointer as _, Props as _, Role, Show as _,
+    Bind, BindMut, Common, Component, Cx, Edit as _, Entry, Focus as _, MeasureCx, PaintUi, PartsCx, Pointer as _, Props as _, Role, Show as _,
     ShowContainer as _, clicked,
 };
 use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
@@ -21,6 +21,7 @@ use craft_ui::list::ThumbSize;
 use craft_ui::notices::{Notice, NoticeLayout};
 use craft_ui::primitives::{DocRun, DocText, Draw, PaintShape, StrokeWidth};
 use craft_ui::runtime::env::Env;
+use craft_ui::runtime::focus::{ActivateKeys, EditSet, KeyUse};
 use craft_ui::sections::{DialogRole, FooterButton};
 use craft_ui::style::{ComponentStyle, DataColor, FocusLook, StyleColor, StyleCx, SurfaceKind};
 use craft_ui::text::TextField;
@@ -33,8 +34,6 @@ mod stories;
 
 /// The pad's width over its height.
 const PAD_ASPECT: f32 = 460.0 / 150.0;
-/// The pad is this many control heights wide.
-const PAD_IN_HEIGHTS: f32 = 18.0;
 /// Pad points closer than this (in pad units, both axes together) to the last one are dropped.
 const MIN_STEP: f32 = 0.002;
 /// The share of a box's height that strokes fill.
@@ -89,15 +88,21 @@ impl craft_host::Section for SignatureSettings {
 /// `Picture`, which a painter cannot place.
 pub fn paint_signature(draw: &Draw<'_>, rect: Rect, signature: &SavedSignature, color: DataColor) {
     match signature {
-        SavedSignature::Drawn(strokes) => paint_strokes(draw, rect, strokes, StrokeWidth::Medium, color, true),
+        SavedSignature::Drawn(strokes) => paint_strokes(
+            rect,
+            strokes,
+            true,
+            |dot| draw.data_fill(&PaintShape::Circle(dot, 1.0), color),
+            |line| draw.data_stroke(&PaintShape::Path(line), StrokeWidth::Medium, color),
+        ),
         SavedSignature::Typed(label) => paint_typed(draw, rect, label, color),
         SavedSignature::Image(_) => {}
     }
 }
 
 /// Strokes in pad units: with `fit`, scaled to fill `rect` keeping the pad's shape; else laid over `rect` as the pad's
-/// own box.
-fn paint_strokes(draw: &Draw<'_>, rect: Rect, strokes: &[Vec<[f32; 2]>], width: StrokeWidth, color: DataColor, fit: bool) {
+/// own box. A one-point stroke goes to `dot`, a longer one to `line`.
+fn paint_strokes(rect: Rect, strokes: &[Vec<[f32; 2]>], fit: bool, dot: impl Fn(Pos2), line: impl Fn(Vec<Pos2>)) {
     let points = || strokes.iter().flatten().filter(|p| p.iter().all(|v| v.is_finite()));
     let (mut min, mut max) = (Vec2::splat(f32::MAX), Vec2::splat(f32::MIN));
     for p in points() {
@@ -118,12 +123,12 @@ fn paint_strokes(draw: &Draw<'_>, rect: Rect, strokes: &[Vec<[f32; 2]>], width: 
             rect.min + Vec2::new(p[0] * rect.width(), p[1] * rect.height())
         }
     };
-    for line in strokes {
-        let shown: Vec<Pos2> = line.iter().filter(|p| p.iter().all(|v| v.is_finite())).map(place).collect();
+    for stroke in strokes {
+        let shown: Vec<Pos2> = stroke.iter().filter(|p| p.iter().all(|v| v.is_finite())).map(place).collect();
         match shown.as_slice() {
             [] => {}
-            [dot] => draw.data_fill(&PaintShape::Circle(*dot, 1.0), color),
-            _ => draw.data_stroke(&PaintShape::Path(shown), width, color),
+            [point] => dot(*point),
+            _ => line(shown),
         }
     }
 }
@@ -194,7 +199,6 @@ pub struct DrawPadStyle {
     #[style(focus)]
     focus: FocusLook,
     ink: StyleColor,
-    width: f32,
 }
 
 const PAD: PartKey = PartKey::new("pad");
@@ -218,22 +222,25 @@ impl<'a> DrawPad<'a> {
 impl Component for DrawPad<'_> {
     const ROLE: Role = Role::IMAGE;
     const OVERLAYS: bool = false;
+    const SINGLE_VALUE: bool = true;
+    /// The pad is drawn with the pointer: it takes no activation key, and Undo removes the last stroke.
+    const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_activate(ActivateKeys::Neither).with_edits(EditSet::NONE.with(EditCommand::Undo));
     type Style = DrawPadStyle;
     type Output = craft_ui::contract::EditResponse<Vec<Vec<[f32; 2]>>>;
 
     fn style(cx: &StyleCx<'_>, _: DrawPadStyleKey) -> DrawPadStyle {
-        let control = cx.control();
-        let width = PAD_IN_HEIGHTS * control.height;
+        let width = cx.tokens.size.plot.width;
         DrawPadStyle {
             metrics: Metrics::new().min_size(Vec2::new(width, width / PAD_ASPECT)),
             focus: cx.focus_look(),
             ink: cx.color(cx.tokens.color.text.normal),
-            width,
         }
     }
 
+    /// The pad fills the width offered, at least the plot width.
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        Vec2::new(cx.style.width, cx.style.width / PAD_ASPECT)
+        let width = cx.room.unwrap_or(0.0).max(cx.style.metrics.min_size.x);
+        Vec2::new(width, width / PAD_ASPECT)
     }
 
     fn sense(&self) -> Sense {
@@ -255,6 +262,11 @@ impl Component for DrawPad<'_> {
             [(p.x - rect.left()) / rect.width(), (p.y - rect.top()) / rect.height()]
         };
         let mut strokes = cx.value().cloned().unwrap_or_default();
+        while let Some(command) = cx.intents().take_edit() {
+            if command == EditCommand::Undo && pop_stroke(&mut strokes) {
+                cx.set(strokes.clone());
+            }
+        }
         let press = cx.press();
         match press.phase {
             PressPhase::DragStart { pos, .. } => {
@@ -278,12 +290,29 @@ impl Component for DrawPad<'_> {
         let draw = ui.draw();
         draw.surface(cx.rect, SurfaceKind::Well, craft_ui::style::Corners::All);
         let strokes = cx.value().cloned().unwrap_or_default();
-        paint_strokes(&draw, cx.rect, &strokes, StrokeWidth::Medium, DataColor::new(cx.style.ink.egui()), false);
+        let ink = cx.style.ink;
+        paint_strokes(
+            cx.rect,
+            &strokes,
+            false,
+            |dot| draw.fill(&PaintShape::Circle(dot, 1.0), ink),
+            |line| draw.stroke(&PaintShape::Path(line), StrokeWidth::Medium, ink),
+        );
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Self::Output {
         cx.edit_response()
     }
+}
+
+/// Removes the last visible stroke (one of two points or more) with any bare dots after it; `true` when one went.
+fn pop_stroke(strokes: &mut Vec<Vec<[f32; 2]>>) -> bool {
+    while let Some(stroke) = strokes.pop() {
+        if stroke.len() > 1 {
+            return true;
+        }
+    }
+    false
 }
 
 /// The Scan tab's content, the app's.
@@ -294,6 +323,7 @@ pub type ScanTab = Box<dyn FnMut(&mut egui::Ui, &mut SignatureDraft) + Send>;
 /// Scan (shown when the app gives a scan hook); Clear; Apply (enabled when [`SignatureDraft::ready`]) and Cancel.
 /// Browse… reads and decodes the file on `host.jobs()`; a pick that fails or is too large shows an error under the
 /// button.
+#[derive(craft_ui::contract::Pattern)]
 pub struct SignaturePadDialog {
     draft: SignatureDraft,
     scan: Option<ScanTab>,
