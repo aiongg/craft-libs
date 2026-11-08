@@ -96,6 +96,10 @@ impl<'a, K> ThumbPainter<'a, K> {
 #[pattern(probe(PresetBrowser<'static, u32>))]
 pub struct PresetBrowser<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     label: Label,
+    /// The browser's own id, which `PresetBrowser::request_rename` names; the scope id of the `Ui` it is shown in
+    /// when none is given.
+    #[prop]
+    browser_id: Option<Id>,
     state: Bind<'a, PresetState<K>>,
     rows: &'a [PresetRow<K>],
     /// The selected preset, which the host keeps.
@@ -148,6 +152,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'a, K> {
     pub fn new(label: impl Into<Label>, state: Bind<'a, PresetState<K>>, rows: &'a [PresetRow<K>]) -> Self {
         PresetBrowser {
             label: label.into(),
+            browser_id: None,
             state,
             rows,
             selected: None,
@@ -387,17 +392,18 @@ fn commit<K: Clone + Eq + Hash + Send + Sync + 'static>(cx: &mut BodyCx<'_>, sta
 }
 
 impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
-    /// Asks the browser shown in the scope `scope` (the `scope_id` of the `Ui` it is shown in) to start renaming the
-    /// row `key` at its next pass, as the row menu's Rename does. A key the browser lacks or may not rename is
-    /// ignored; the request is taken once.
-    pub fn request_rename(ctx: &egui::Context, scope: Id, key: &K) {
-        request_rename(ctx, rows_id(scope), key);
+    /// Asks the browser with the id `browser` (the one given to `browser_id`, or the `scope_id` of the `Ui`
+    /// it is shown in) to start renaming the row `key` at its next pass, as the row menu's Rename does. A key the
+    /// browser lacks or may not rename is ignored; the request is taken once.
+    pub fn request_rename(ctx: &egui::Context, browser: Id, key: &K) {
+        request_rename(ctx, rows_id(browser), key);
     }
 
     /// Shows the browser across the available width and reports what the user did, in order.
     pub fn show(self, ui: &mut Ui) -> PresetOutput<K> {
         let PresetBrowser {
             label,
+            browser_id,
             state,
             rows,
             selected,
@@ -417,7 +423,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
         } = self;
         let env = Env::of(ui);
         let words = env.words::<PresetWords>();
-        let list_id = rows_id(ui.scope_id());
+        let list_id = rows_id(browser_id.unwrap_or_else(|| ui.scope_id()));
         let name = label.as_str().to_owned();
         let has_footer = footer.is_some();
         let state = RefCell::new(state);
@@ -472,7 +478,8 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
                     .find(|row| row.key == *key)
                     .is_some_and(|row| !row.is_group() || reorder.as_ref().is_some_and(PresetReorder::moves_groups))
             };
-            let accepts = |drag: &ListDrag<K>, over: &K, insert: usize| reorder.as_ref().is_some_and(|rules| rules.allows(rows, drag, over, insert));
+            let accepts =
+                |drag: &ListDrag<K>, over: Option<&K>, insert: usize| reorder.as_ref().is_some_and(|rules| rules.allows(rows, drag, over, insert));
             let rename_ok = |key: &K| can_rename.as_ref().is_none_or(|test| test.passes(key));
             let painter = thumb.as_ref();
             let paint = |row: &PresetRow<K>, selected: bool| {
@@ -736,7 +743,7 @@ fn grid_group_row<'s, K>(shown: &'s [usize], rows: &[PresetRow<K>], group: usize
     shown.iter().filter(|&&at| rows[at].is_group()).nth(group)
 }
 
-/// The id of the browser's list, derived from the scope the browser is shown in.
+/// The id of the browser's list, derived from the browser's id.
 fn rows_id(scope: Id) -> Id {
     scope.with("browser-rows")
 }

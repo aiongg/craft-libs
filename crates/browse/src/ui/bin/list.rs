@@ -108,11 +108,12 @@ where
         request_rename(ui.ctx(), id, &key);
     }
 
-    let accepts = |drag: &ListDrag<K>, over: &K, _insert: usize| {
+    let accepts = |drag: &ListDrag<K>, over: Option<&K>, _insert: usize| {
         if drag.list == id && user_order {
             return true;
         }
-        model.is_bin(over) && !inside_any(model, over, &drag.keys)
+        // Over an empty bin the drop goes into the bin shown.
+        over.is_none_or(|over| model.is_bin(over) && !inside_any(model, over, &drag.keys))
     };
     let stamp = stamp_of(state.shown.as_ref(), &state.search, sort.as_ref());
     let empty = if searching { words.no_matches.clone() } else { words.empty.clone() };

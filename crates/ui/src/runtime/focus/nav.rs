@@ -163,7 +163,11 @@ impl State {
     }
 
     pub(super) fn tab(&mut self, forward: bool, all_controls: bool) -> Vec<Act> {
-        let current = self.stop_of_focus();
+        // A child of a collection row tabs on from its collection: the row groups are no Tab entries.
+        let current = self.stop_of_focus().map(|rec| {
+            let owner = rec.stop.group.and_then(|group| self.group(group)).filter(|group| group.row).and_then(|group| self.row_owner(&group));
+            owner.unwrap_or(rec)
+        });
         let entries = self.entries(self.trap_of(current.as_ref()), all_controls);
         let Some(next) = cycle(&entries, current.as_ref(), forward) else { return Vec::new() };
         let arrival = entries[next].arrival().clone();

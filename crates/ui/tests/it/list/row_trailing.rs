@@ -5,7 +5,8 @@ use crate::collection::table::Table;
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, IconId, ItemSource};
 use craft_keymap::Mods;
 use craft_ui::contract::{
-    Bind, CollectionEvent, CollectionProps, ColumnKind, ColumnSpec, Props as _, ReorderRule, Role, SelectMode, ShowCollection as _, ToggleColumn,
+    Bind, CollectionEvent, CollectionProps, ColumnKind, ColumnSpec, Props as _, ReorderRule, Role, SelectMode, Show as _, ShowCollection as _,
+    ToggleColumn,
 };
 use craft_ui::list::{List, ListRow, RowEvent, ThumbSize, ThumbTarget, TrailingFace, TrailingPart};
 use craft_ui::runtime::drag;
@@ -278,7 +279,9 @@ fn a_toggle_click_reports_its_modifiers() {
         .iter()
         .filter_map(|event| {
             if let CollectionEvent::Toggle(edit) = event {
-                edit.value().filter(|_| !matches!(edit, craft_behavior::EditEvent::Commit { .. })).map(|toggle| toggle.mods)
+                edit.value()
+                    .filter(|_| matches!(edit, craft_behavior::EditEvent::Set { .. } | craft_behavior::EditEvent::Commit { .. }))
+                    .map(|toggle| toggle.mods)
             } else {
                 None
             }
@@ -327,7 +330,7 @@ fn a_footer_pick_reports_its_modifiers() {
 }
 
 /// A field hosted in a row takes the typing aimed at it, leaves the row's selection and focus model alone, and Tab
-/// leaves it for the next stop.
+/// leaves the collection for the next stop after it.
 #[trial]
 fn a_hosted_field_takes_typing_and_tab_leaves_it() {
     let committed = Rc::new(Cell::new(None));
@@ -347,6 +350,7 @@ fn a_hosted_field_takes_typing_and_tab_leaves_it() {
                 row
             }
         });
+        let _ = craft_ui::buttons::Button::new("After the list").show(ui);
     });
     fixture.settle();
     let field = fixture.by_role(Role::TEXT_INPUT).into_iter().next().expect("the row hosts a field");
@@ -358,6 +362,39 @@ fn a_hosted_field_takes_typing_and_tab_leaves_it() {
     assert_eq!(committed.get(), Some(craft_theme::Rgba::rgb(255, 0, 0)), "the typing reached the field");
     fixture.key(Key::Tab, Modifiers::NONE);
     fixture.idle(2);
-    let focused = fixture.focused().expect("Tab lands on a stop");
-    assert!(craft_ui::testing::access::NodeKey::of(focused) != field.node, "Tab leaves the field");
+    let after = fixture.by_label("After the list").expect("the control after the list has a node");
+    let focused = craft_ui::testing::access::NodeKey::of(fixture.focused().expect("Tab lands on a stop"));
+    let tree = fixture.tree();
+    assert_eq!(
+        focused,
+        after.node,
+        "Tab leaves the collection for the next control; it landed on {:?} {:?}",
+        tree.role_of(focused),
+        tree.name_of(focused)
+    );
+}
+
+/// Forward from a row reaches the field hosted in it.
+#[trial]
+fn forward_from_a_row_enters_its_hosted_field() {
+    let mut fixture = Fixture::new(move |ui| {
+        let _ = List::new("Items").select(SelectMode::Single).show_items(ui, &Two, &mut |key, _| {
+            let row = ListRow::new(format!("Row {key}"));
+            if *key == 0 { row.trailing_field(HexField::hex("Hex", Bind::given(craft_theme::Rgba::rgb(0, 0, 0))), |_| {}) } else { row }
+        });
+    });
+    fixture.settle();
+    let field = fixture.by_role(Role::TEXT_INPUT).into_iter().next().expect("the row hosts a field");
+    let row = fixture.by_label("Row 0").expect("the row has a node");
+    fixture.click(&row);
+    fixture.idle(2);
+    fixture.key(Key::ArrowRight, Modifiers::NONE);
+    fixture.idle(2);
+    let focused = craft_ui::testing::access::NodeKey::of(fixture.focused().expect("Forward lands on a stop"));
+    let tree = fixture.tree();
+    assert_eq!(
+        (tree.role_of(focused), tree.name_of(focused)),
+        (tree.role_of(field.node), tree.name_of(field.node)),
+        "Forward from the row reaches the field"
+    );
 }

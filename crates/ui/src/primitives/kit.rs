@@ -6,7 +6,7 @@ use super::content::ContentPainterCx;
 use super::draw::{Dashes, PaintShape};
 use super::rule::{Rule, RuleKind};
 use super::surface::Surface;
-use crate::style::{Corners, DataColor, RuleLook, SurfaceKind, UiTokens, rgba_color, rule_look, surface_style};
+use crate::style::{Corners, DataColor, RuleLook, SurfaceKind, UiTokens, ink_color, rgba_color, rule_look, surface_style};
 use craft_behavior::{Axis, CanvasView, kurbo};
 use egui::{Color32, Mesh, Pos2, Rect, Shape, Stroke, Vec2, pos2, vec2};
 use std::f32::consts::TAU;
@@ -575,6 +575,17 @@ impl ContentPainterCx<'_> {
         let style = surface_style(self.tokens, SurfaceKind::Well);
         self.painter.extend(Surface::shapes(&style, None, rect, Corners::None, self.direction, self.ppp()));
         rect.shrink(self.tokens.stroke.thin)
+    }
+
+    /// Paints a surface of `kind` over `rect`; [`Self::ink_on`] is the ink text and glyphs read on it.
+    pub fn surface(&self, rect: Rect, kind: SurfaceKind, corners: Corners) {
+        let style = surface_style(self.tokens, kind);
+        self.painter.extend(Surface::shapes(&style, None, rect, corners, self.direction, self.ppp()));
+    }
+
+    /// The ink text and glyphs read on a surface of `kind`.
+    pub fn ink_on(&self, kind: SurfaceKind) -> Color32 {
+        ink_color(self.tokens, kind.ink())
     }
 
     /// Paints the lines of `grid` in `ink`; see [`grid_lines`].

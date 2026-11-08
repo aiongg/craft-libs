@@ -36,10 +36,10 @@ fn drag(key: u32) -> ListDrag<u32> {
 fn presets_land_next_to_presets() {
     let rows = rows();
     let rules = PresetReorder::<u32>::items();
-    assert!(rules.allows(&rows, &drag(A_ONE), &B_ONE, 5));
-    assert!(rules.allows(&rows, &drag(A_ONE), &INNER_ONE, 3));
-    assert!(rules.allows(&rows, &drag(A_ONE), &B, 4));
-    assert!(!rules.allows(&rows, &drag(B), &A, 0));
+    assert!(rules.allows(&rows, &drag(A_ONE), Some(&B_ONE), 5));
+    assert!(rules.allows(&rows, &drag(A_ONE), Some(&INNER_ONE), 3));
+    assert!(rules.allows(&rows, &drag(A_ONE), Some(&B), 4));
+    assert!(!rules.allows(&rows, &drag(B), Some(&A), 0));
 }
 
 /// A group lands next to a group at a depth `nest` allows, and never inside its own subtree.
@@ -47,23 +47,23 @@ fn presets_land_next_to_presets() {
 fn groups_land_next_to_groups_within_the_nesting_limit() {
     let rows = rows();
     let flat = PresetReorder::<u32>::items_and_groups();
-    assert!(flat.allows(&rows, &drag(B), &A, 0));
-    assert!(!flat.allows(&rows, &drag(B), &A_ONE, 1));
-    assert!(!flat.allows(&rows, &drag(B), &INNER, 2));
-    assert!(!flat.allows(&rows, &drag(A), &INNER, 2));
+    assert!(flat.allows(&rows, &drag(B), Some(&A), 0));
+    assert!(!flat.allows(&rows, &drag(B), Some(&A_ONE), 1));
+    assert!(!flat.allows(&rows, &drag(B), Some(&INNER), 2));
+    assert!(!flat.allows(&rows, &drag(A), Some(&INNER), 2));
 
     let nested = PresetReorder::<u32>::items_and_groups().nest(1);
-    assert!(nested.allows(&rows, &drag(B), &INNER, 2));
-    assert!(nested.allows(&rows, &drag(A), &B, 4));
+    assert!(nested.allows(&rows, &drag(B), Some(&INNER), 2));
+    assert!(nested.allows(&rows, &drag(A), Some(&B), 4));
 }
 
 /// The host's test refuses a landing the rules would allow.
 #[trial]
 fn the_hosts_test_refuses_a_landing() {
     let rows = rows();
-    let rules = PresetReorder::<u32>::items().accepts(|drag, over, _| drag.grabbed != A_ONE || *over != B_ONE);
-    assert!(!rules.allows(&rows, &drag(A_ONE), &B_ONE, 5));
-    assert!(rules.allows(&rows, &drag(A_ONE), &INNER_ONE, 3));
+    let rules = PresetReorder::<u32>::items().accepts(|drag, over, _| drag.grabbed != A_ONE || over != Some(&B_ONE));
+    assert!(!rules.allows(&rows, &drag(A_ONE), Some(&B_ONE), 5));
+    assert!(rules.allows(&rows, &drag(A_ONE), Some(&INNER_ONE), 3));
 }
 
 const AMBER: u32 = 101;
@@ -90,6 +90,31 @@ fn the_row_menu_of_an_unselected_preset_acts_on_that_preset() {
     fixture.settle();
     let rename = fixture.by_label("Rename…").expect("a secondary click on a preset opens the row menu");
     fixture.click(&rename);
+    fixture.idle(3);
+    fixture.type_text("Plum");
+    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.idle(3);
+    let renamed = seen.borrow().iter().any(|event| matches!(event, PresetEvent::Rename { key: CORAL, text, .. } if text == "CoralPlum"));
+    assert!(renamed, "events: {:?}", seen.borrow());
+}
+
+/// A rename requested by the id the browser was given reaches it from outside the scope it is shown in.
+#[trial]
+fn a_rename_request_names_the_browser_by_its_own_id() {
+    let state = Rc::new(RefCell::new(PresetState::<u32>::new()));
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let reported = seen.clone();
+    let browser = Id::new("swatch-browser");
+    let mut fixture = Fixture::new(move |ui| {
+        let rows = vec![PresetRow::item(AMBER, "Amber", 0), PresetRow::item(CORAL, "Coral", 0)];
+        let mut view = state.borrow_mut();
+        ui.vertical(|ui| {
+            let out = PresetBrowser::new("Swatches", Bind::bound(&mut *view), &rows).browser_id(browser).show(ui);
+            reported.borrow_mut().extend(out.events);
+        });
+    });
+    fixture.settle();
+    PresetBrowser::<u32>::request_rename(fixture.ctx(), browser, &CORAL);
     fixture.idle(3);
     fixture.type_text("Plum");
     fixture.key(Key::Enter, Modifiers::NONE);

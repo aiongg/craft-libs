@@ -58,7 +58,7 @@ pub struct Table<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     accept_from: Option<SourceTest<'a>>,
     /// Where a drag may land: the test gets the drag, the row under the pointer and the position before which the
     /// dragged rows would go. A refused spot shows no drop mark.
-    #[prop(func = "Fn(&ListDrag<K>, &K, usize) -> bool")]
+    #[prop(func = "Fn(&ListDrag<K>, Option<&K>, usize) -> bool")]
     accepts: Option<DropTest<'a, K>>,
     /// Files dragged in from the OS may drop on the table; a drop reports `CollectionEvent::FilesDropped`.
     #[prop]
@@ -137,7 +137,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for Table<'_, K> {
         self.accept_from.as_ref().is_none_or(|test| test.passes(from))
     }
 
-    fn accepts(&self, drag: &ListDrag<K>, over: &K, insert: usize) -> bool {
+    fn accepts(&self, drag: &ListDrag<K>, over: Option<&K>, insert: usize) -> bool {
         self.accepts.as_ref().is_none_or(|test| test.passes(drag, over, insert))
     }
 

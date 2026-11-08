@@ -378,7 +378,7 @@ impl Collection for List<'_> {
         }
     }
 
-    fn empty_height(&self, _: f32, _: &StyleCx<'_>) -> f32 {
+    fn empty_height(&self, _: f32, _: &Ui, _: &StyleCx<'_>) -> f32 {
         ROW_H
     }
 }

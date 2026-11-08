@@ -27,7 +27,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 mod drag;
-mod empty_text;
+pub(super) mod empty_text;
 mod header;
 mod marquee;
 mod request;
@@ -37,7 +37,6 @@ pub(crate) use request::lead_position;
 pub use request::request_rename;
 
 use drag::Drags;
-use empty_text::EmptyText;
 use header::{Header, HeaderMemory};
 
 /// The rows the item step builds in a pass and where it puts them: what `PartsCx::rect_of` and `offset` read.
@@ -424,14 +423,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.content = Vec2::new(content.x as f32, content.y as f32);
         self.columns = layout.column_count() as u32;
         self.layout = Some(Arc::new(layout));
-        let empty = if !self.source.is_empty() {
-            0.0
-        } else if comp.items().empty.is_some() {
-            // The collection's own empty text is one line of control height.
-            scx.control().height
-        } else {
-            comp.empty_height(width, scx)
-        };
+        let empty = if self.source.is_empty() { comp.empty_height(width, ui, scx) } else { 0.0 };
         let height = self.content.y.max(empty) + self.header.height;
         if !(self.scrolls && room.y.is_finite()) {
             return Vec2::new(self.content.x, height);
@@ -526,6 +518,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.delete_key(cx, &props, lead_at);
         self.reorder_and_rename(comp, cx, &props, lead_at);
         self.requested_rename(comp, cx, &props, &layout, view);
+        self.requested_reveal(comp, &layout, view);
         self.type_ahead(comp, cx, &layout, view, lead_at);
         request::record_lead(&cx.core.ctx, cx.core.id, self.lead.key.as_ref().and_then(|key| self.index_of(key)));
         if let Some(at) = self.page_reveal.take().filter(|&at| layout.shown(at)) {
@@ -786,12 +779,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             let installed = Env::install_for(&empty_ui, env.derive(|scoped| scoped.values.extend(values)));
             let (resolved, view) = (cx.core.resolved, cx.core.env);
             let mut bcx = BodyCx::new(sub(id, "body"), view, resolved, rect, &mut *cx.core.memory, &mut open, None);
-            match comp.items().empty.clone() {
-                Some(text) => {
-                    EmptyText::new(text).id(sub(id, "empty_text")).show_at(&mut empty_ui, rect);
-                }
-                None => comp.empty(&mut empty_ui, &mut bcx),
-            }
+            comp.empty(&mut empty_ui, &mut bcx);
             Env::restore(&ctx, installed);
         }
         if self.scrolls {
@@ -949,10 +937,13 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         {
             let primary = start.button == craft_behavior::PointerButton::Primary;
             if let Some(at) = layout.hit(local(start.origin), offset).filter(|&at| self.source.enabled(at) && layout.shown(at)) {
-                let toggle = self.toggle_cell(props, layout, at, offset, local(start.origin)).filter(|_| primary);
+                let on_toggle = self.toggle_cell(props, layout, at, offset, local(start.origin));
+                // A secondary press on a toggle cell asks for the cell's menu and neither toggles nor picks.
+                let secondary_on_toggle = !primary && on_toggle.is_some();
+                let toggle = on_toggle.filter(|_| primary);
                 if let Some((column, toggle)) = toggle {
                     self.begin_toggle(cx, at, column, toggle);
-                } else {
+                } else if !secondary_on_toggle {
                     let mods = crate::runtime::pointer::frame(&ctx).mods;
                     let key = self.source.key(at);
                     let column = if Self::selects_cells(comp) { layout.column_at(local(start.origin), offset) } else { None };
@@ -1060,7 +1051,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             && let Some(at) = layout.hit(local(pos), offset)
             && self.source.enabled(at)
         {
-            if !self.holds(at) {
+            if !self.holds(at) && self.toggle_cell(props, layout, at, offset, local(pos)).is_none() {
                 let column = if Self::selects_cells(comp) { layout.column_at(local(pos), offset) } else { None };
                 match column {
                     Some(column) => self.cell_press(comp, layout, at, column, false, false),
@@ -1318,6 +1309,15 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             self.move_lead(at, LeadSource::Keys);
             self.reveal_with(layout, at, view);
             self.begin_rename(cx, at);
+        }
+    }
+
+    /// The item the collection was asked to reveal (`Collection::reveal`, a one-shot request of the pass): the lead
+    /// moves to it and it scrolls into view.
+    fn requested_reveal(&mut self, comp: &C, layout: &C::ItemLayout, view: f32) {
+        if let Some(at) = comp.reveal().and_then(|key| self.index_of(key)).filter(|&at| !self.source.section_stop(at)) {
+            self.move_lead(at, LeadSource::Keys);
+            self.reveal_with(layout, at, view);
         }
     }
 

@@ -41,17 +41,17 @@ impl SourceTest<'_> {
 /// `List::accepts`.
 pub struct DropTest<'a, K>(Box<DropFn<'a, K>>);
 
-type DropFn<'a, K> = dyn Fn(&ListDrag<K>, &K, usize) -> bool + 'a;
+type DropFn<'a, K> = dyn Fn(&ListDrag<K>, Option<&K>, usize) -> bool + 'a;
 
 impl<'a, K> DropTest<'a, K> {
     /// The test that runs `test`.
-    pub fn new(test: impl Fn(&ListDrag<K>, &K, usize) -> bool + 'a) -> Self {
+    pub fn new(test: impl Fn(&ListDrag<K>, Option<&K>, usize) -> bool + 'a) -> Self {
         DropTest(Box::new(test))
     }
 }
 
 impl<K> DropTest<'_, K> {
-    pub(crate) fn passes(&self, drag: &ListDrag<K>, over: &K, insert: usize) -> bool {
+    pub(crate) fn passes(&self, drag: &ListDrag<K>, over: Option<&K>, insert: usize) -> bool {
         (self.0)(drag, over, insert)
     }
 }

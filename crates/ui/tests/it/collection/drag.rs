@@ -5,8 +5,8 @@ use super::table::Table;
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, ItemSource, Selection, SelectionModel};
 use craft_ui::contract::{CollectionEvent, CollectionProps, ColumnKind, ColumnSpec, Props as _, SelectMode, ShowCollection as _, ToggleColumn};
 use craft_ui::testing::layout::in_region;
-use craft_ui::testing::{Frames, pointer, trial};
-use egui::{Modifiers, Pos2, Rect, Ui, Vec2};
+use craft_ui::testing::{Frames, input, pointer, trial};
+use egui::{Key, Modifiers, Pos2, Rect, Ui, Vec2};
 use std::cell::RefCell;
 
 const ORIGIN: Pos2 = Pos2::new(10.0, 10.0);
@@ -33,7 +33,9 @@ impl Scene {
             .iter()
             .filter_map(|event| {
                 if let CollectionEvent::Toggle(edit) = event {
-                    edit.value().filter(|_| !matches!(edit, craft_behavior::EditEvent::Commit { .. })).map(|toggle| (toggle.key, toggle.on))
+                    edit.value()
+                        .filter(|_| matches!(edit, craft_behavior::EditEvent::Set { .. } | craft_behavior::EditEvent::Commit { .. }))
+                        .map(|toggle| (toggle.key, toggle.on))
                 } else {
                     None
                 }
@@ -151,6 +153,12 @@ fn toggle_drag(source: &Switches, from: usize, to: usize) -> Vec<(usize, bool)> 
     frames.idle(3, &mut show);
     let cell = |key: usize| Pos2::new(ORIGIN.x + COL * 1.5, scene.row(key).center().y);
     pointer::drag(&mut frames, cell(from), cell(to) - cell(from), &mut show);
+    let events = scene.events.borrow();
+    let phase = |wanted: craft_behavior::GesturePhase| {
+        events.iter().filter(|event| matches!(event, CollectionEvent::Toggle(edit) if edit.phase() == Some(wanted))).count()
+    };
+    assert_eq!(phase(craft_behavior::GesturePhase::Commit), phase(craft_behavior::GesturePhase::Begin), "every flip commits once, on release");
+    drop(events);
     scene.toggles()
 }
 
@@ -174,21 +182,14 @@ fn escape_during_a_tick_sweep_cancels_the_flips_and_restores_the_values() {
         ])
     };
     let mut frames = Frames::new();
-    let escape = std::cell::Cell::new(false);
-    let mut show = |ui: &mut Ui| {
-        if escape.take() {
-            pointer::cancel_captured_presses(ui.ctx());
-        }
-        show_table(ui, props(), &source, &scene);
-    };
+    let mut show = |ui: &mut Ui| show_table(ui, props(), &source, &scene);
     frames.idle(3, &mut show);
     let cell = |key: usize| Pos2::new(ORIGIN.x + COL * 1.5, scene.row(key).center().y);
     frames.frame(vec![pointer::moved(cell(0))], &mut show);
     frames.frame(vec![pointer::press(cell(0))], &mut show);
     frames.frame(vec![pointer::moved(cell(1))], &mut show);
     frames.frame(vec![pointer::moved(cell(3))], &mut show);
-    escape.set(true);
-    frames.frame(vec![], &mut show);
+    frames.frame(vec![input::key_press(Key::Escape, Modifiers::NONE)], &mut show);
     frames.idle(2, &mut show);
     let events = scene.events.borrow();
     let opened = events

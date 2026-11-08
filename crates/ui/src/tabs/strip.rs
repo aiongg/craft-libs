@@ -273,7 +273,7 @@ pub struct TabStrip<'a, K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + '
     accept_from: Option<SourceTest<'a>>,
     /// Where a drag may land: the test gets the drag, the tab under the pointer and the position before which the
     /// dragged tabs would go.
-    #[prop(func = "Fn(&ListDrag<K>, &K, usize) -> bool")]
+    #[prop(func = "Fn(&ListDrag<K>, Option<&K>, usize) -> bool")]
     accepts: Option<DropTest<'a, K>>,
     held: Bind<'a, Selection<K>>,
     report: Arc<Mutex<Report>>,
@@ -472,7 +472,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Collection 
         self.accept_from.as_ref().is_none_or(|test| test.passes(from))
     }
 
-    fn accepts(&self, drag: &ListDrag<K>, over: &K, insert: usize) -> bool {
+    fn accepts(&self, drag: &ListDrag<K>, over: Option<&K>, insert: usize) -> bool {
         self.accepts.as_ref().is_none_or(|test| test.passes(drag, over, insert))
     }
 }
