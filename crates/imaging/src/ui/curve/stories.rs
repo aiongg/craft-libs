@@ -1,7 +1,7 @@
 //! Stories of the curve editor, the preview and the tone ramp.
 
 use super::graph::PLOT;
-use super::{Curve, CurveChannel, CurveEditor, CurvePreview, CurveRows, ToneRamp};
+use super::{Curve, CurveChannel, CurveEditor, CurvePreview, ToneRamp};
 use crate::ui::histogram::{ChannelColor, HistogramData};
 use craft_ui::contract::{Bind, Show as _};
 use craft_ui::display::Text;
@@ -66,9 +66,9 @@ fn curve_editor_corners(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         .corners()
         .percent()
         .bars(false)
-        .between(CurveRows::new(|ui, _| {
+        .between(|ui, _| {
             Text::new("Name").show(ui);
-        }))
+        })
         .show(ui)
         .into()
 }

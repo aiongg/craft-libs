@@ -7,7 +7,7 @@ use super::words::CurveWords;
 use crate::ui::histogram::HistogramData;
 use craft_behavior::{EditEvent, Mixed};
 use craft_ui::choice::Checkbox;
-use craft_ui::contract::{Bind, BodyCx, EditResponse, Outcome, Pattern, Props, Remember as _, Show as _, ShowContainer as _, WordSetCx as _};
+use craft_ui::contract::{Bind, BodyCx, EditResponse, Outcome, Pattern, Props, Remember as _, Show as _, ShowContainer as _};
 use craft_ui::display::{Shade, Text};
 use craft_ui::form::Field;
 use craft_ui::layout_components::{Row, Stack};

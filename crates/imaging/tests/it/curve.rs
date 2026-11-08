@@ -2,7 +2,7 @@
 //! nodes, driven through the editor as a host would show it.
 
 use craft_behavior::EditEvent;
-use craft_imaging::ui::curve::{Curve, CurveChannel, CurveEditor, CurveRows};
+use craft_imaging::ui::curve::{Curve, CurveChannel, CurveEditor};
 use craft_imaging::ui::{ChannelColor, HistogramData};
 use craft_ui::contract::{Bind, Role, Show as _};
 use craft_ui::display::Text;
@@ -74,9 +74,9 @@ fn rig_with(curve: Curve, config: Config) -> Rig {
             editor = editor.histogram(&histogram);
         }
         if config.between {
-            editor = editor.between(CurveRows::new(|ui, _| {
+            editor = editor.between(|ui, _| {
                 Text::new("Between").show(ui);
-            }));
+            });
         }
         let out = editor.show(ui);
         if let Some(event) = &out.edit.event {
@@ -85,7 +85,7 @@ fn rig_with(curve: Curve, config: Config) -> Rig {
         s.set(out.selected);
         *c.borrow_mut() = value;
     });
-    fixture.room(ROOM);
+    fixture.room(Vec2::new(ROOM_WIDTH, ROOM_HEIGHT));
     fixture.settle();
     let mut rig = Rig { fixture, curve: shared, selected, channel, kinds, origin: Pos2::ZERO, scale: Vec2::ZERO };
     rig.calibrate(&curve);
@@ -151,7 +151,13 @@ impl Rig {
 }
 
 /// Room for the editor at its greatest size.
-const ROOM: Vec2 = Vec2::new(700.0, 900.0);
+const ROOM_WIDTH: f32 = 700.0;
+const ROOM_HEIGHT: f32 = 900.0;
+/// A point in whole levels.
+fn level(x: u16, y: u16) -> [f32; 2] {
+    [f32::from(x), f32::from(y)]
+}
+
 const IDENTITY: [[f32; 2]; 2] = [[0.0, 0.0], [255.0, 255.0]];
 const THREE: [[f32; 2]; 3] = [[0.0, 0.0], [100.0, 100.0], [255.0, 255.0]];
 
@@ -355,7 +361,7 @@ fn the_input_field_moves_the_selected_point_between_its_neighbours() {
     rig.fixture.type_text("300");
     rig.fixture.key(Key::Enter, Modifiers::NONE);
     rig.fixture.idle(2);
-    assert_eq!(rig.points()[1], [254.0, 100.0], "strictly before the next input");
+    assert_eq!(rig.points()[1], level(254, 100), "strictly before the next input");
 }
 
 /// Percent fields take whole percents of the levels.
@@ -369,7 +375,7 @@ fn percent_fields_take_whole_percents_of_the_levels() {
     rig.fixture.type_text("50");
     rig.fixture.key(Key::Enter, Modifiers::NONE);
     rig.fixture.idle(2);
-    assert_eq!(rig.points()[1], [100.0, 128.0], "50 percent of 255 levels");
+    assert_eq!(rig.points()[1], level(100, 128), "50 percent of 255 levels");
 }
 
 /// The graph and its points are in the AccessKit tree, named and valued.

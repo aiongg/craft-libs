@@ -568,7 +568,7 @@ impl Component for CurveGraph<'_> {
             held.drag = None;
         }
         match press.phase {
-            PressPhase::Down { start } if press.went_down => {
+            PressPhase::Down { start, .. } if press.went_down => {
                 let origin = start.origin;
                 let secondary = start.button != PointerButton::Primary;
                 let command = press.mods.cmd || press.mods.ctrl;
@@ -651,7 +651,7 @@ impl Component for CurveGraph<'_> {
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let words = cx.words::<CurveWords>();
         let curve = cx.value();
-        let channel = self.channels.get(self.channel).map(|c| cx.env.resolve(&c.label).as_str().to_owned());
+        let channel = self.channels.get(self.channel).map(|c| c.label.as_str().to_owned());
         let drawn = self.pencil || curve.is_some_and(|curve| curve.points().is_none());
         let n = curve.and_then(Curve::points).map_or(0, <[_]>::len);
         let value = match (channel, drawn) {
@@ -825,7 +825,7 @@ impl CurveGraph<'_> {
             }
         };
         match press.phase {
-            PressPhase::Down { start } if press.went_down && start.button == PointerButton::Primary => {
+            PressPhase::Down { start, .. } if press.went_down && start.button == PointerButton::Primary => {
                 let at = frame.map.value_at(start.origin);
                 let from = if press.mods.shift { held.end.as_ref().map_or(at, |(end, _)| *end) } else { at };
                 held.outputs = Curve::drawn(curve, |points, corners| self.samples(points, corners), self.levels);
