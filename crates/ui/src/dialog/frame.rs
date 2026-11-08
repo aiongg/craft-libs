@@ -76,17 +76,17 @@ impl<'b> FooterCx<'_, 'b> {
 /// The footer closure of a dialog shell.
 pub(super) type FooterFn<'a> = Box<dyn FnMut(&mut Ui, &mut FooterCx<'_, '_>) + 'a>;
 
-/// The host's answer to a picked button: given the button's index and the dialog's body context, whether the dialog
-/// may close.
-pub(super) type CloseGuard<'a> = Box<dyn FnMut(usize, &mut BodyCx<'_>) -> bool + 'a>;
+/// The host's answer to a picked button: given the button and the dialog's body context, whether the dialog may
+/// close.
+pub(super) type CloseGuard<'a> = Box<dyn FnMut(&FooterButton, &mut BodyCx<'_>) -> bool + 'a>;
 
 /// The host's rule for the enabled state of the buttons: given the dialog's body context and the buttons, it runs
 /// when the footer is shown, after the body, so it reads what the body wrote in the same pass.
 pub(super) type ButtonState<'a> = Box<dyn FnMut(&mut BodyCx<'_>, &mut [FooterButton]) + 'a>;
 
-/// What the host of a dialog shell does when a footer button is picked, given the button's index and the dialog's
-/// body context. It acts on the pick (a Reset restores the values) and never decides the close.
-pub(super) type PickHook<'a> = Box<dyn FnMut(usize, &mut BodyCx<'_>) + 'a>;
+/// What the host of a dialog shell does when a footer button is picked, given the button and the dialog's body
+/// context. It acts on the pick (a Reset restores the values) and never decides the close.
+pub(super) type PickHook<'a> = Box<dyn FnMut(&FooterButton, &mut BodyCx<'_>) + 'a>;
 
 /// What the host of a dialog shell decides about its footer buttons, and where the pick goes.
 pub(super) struct FooterHost<'s, 'a> {
@@ -135,12 +135,12 @@ pub(super) fn footer(
         *picked = FooterBar::buttons(buttons.iter().cloned()).enter_activates(enter).show_footer(ui).picked;
         if let Some(at) = *picked {
             if let Some(act) = on_pick.as_mut() {
-                act(at, cx);
+                act(&buttons[at], cx);
             }
             if buttons[at].role() == DialogRole::Cancel {
                 close.get_or_insert(CloseReason::Requested);
             } else {
-                let allowed = guard.as_mut().is_none_or(|allows| allows(at, cx));
+                let allowed = guard.as_mut().is_none_or(|allows| allows(&buttons[at], cx));
                 if buttons[at].closes() && allowed {
                     close.get_or_insert(CloseReason::Activated);
                 }

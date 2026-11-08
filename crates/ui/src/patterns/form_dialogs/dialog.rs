@@ -482,8 +482,8 @@ impl ResetFooter {
                     accept.set_enabled(ok);
                 }
             })
-            .on_pick(move |at, cx| {
-                if pick.pick(Some(at)) == Some(ResetPick::Reset) {
+            .on_pick(move |button, cx| {
+                if pick.resetting() && button.role() == DialogRole::Other {
                     restore(cx);
                     crate::runtime::frame::request_repaint(cx.memory.ctx());
                 }
