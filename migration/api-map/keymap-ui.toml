@@ -123,12 +123,6 @@ status = "removed"
 note = "The runtime's key owner (`OwnerClass::Recorder` for a recording component)."
 
 [[type]]
-name = "NAVIGATION_COMMANDS"
-old = "craft_keymap::ui::NAVIGATION_COMMANDS"
-new = "craft_menu::NAVIGATION_COMMANDS"
-status = "moved"
-
-[[type]]
 name = "stories"
 old = "craft_keymap::ui::stories"
 new = ""

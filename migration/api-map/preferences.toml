@@ -141,13 +141,6 @@ status = "replaced"
 note = "Replaces `PreferencesTexts`: ids `preferences.*` in place of `pref.*`; no `ok` and `cancel` fields (`CommonWords`)."
 
 [[type]]
-name = "ColorRequest"
-old = ""
-new = "craft_ui::runtime::requests::ColorRequest"
-status = "moved"
-note = "The one colour request: `PreferencesOutput::pick_color` carries it (its `title` is a `Label`)."
-
-[[type]]
 name = "PreferencesModel"
 old = "craft_ui::preferences::model_trait::PreferencesModel"
 new = "craft_ui::patterns::preferences::PreferencesModel"

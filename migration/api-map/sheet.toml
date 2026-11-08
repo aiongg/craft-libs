@@ -112,46 +112,6 @@ status = "removed"
 note = "Replaced by `craft_behavior::CellAt<u32>`: `row` and `column` are public fields; `CellAt::new(row, column)`."
 
 [[type]]
-name = "CellAt"
-old = ""
-new = "craft_behavior::CellAt"
-status = "replaced"
-note = "New name of `CellRef`, re-exported by `craft_table::ui`."
-
-[[type]]
-name = "CellRange"
-old = "craft_table::ui::CellRange"
-new = "craft_behavior::CellRange"
-status = "moved"
-note = "`CellRange<u32>` is a rectangle by first and last row and a column range; it is not `Copy`. `CellRange::cell(c)` and `CellRange::cells(from, to)` build one; the legacy `start` and `end` fields are `first`, `last` and `columns`."
-
-[[type]]
-name = "CellSelection"
-old = "craft_table::ui::CellSelection"
-new = "craft_behavior::CellSelection"
-status = "moved"
-note = "`CellSelection<u32>`: `select`, `select_range`, `extend_to`, `extend`, `add`, `toggle`, `step`, `advance` take a `&CellSpace<'_, u32>`."
-
-[[type]]
-name = "CellSpace"
-old = "craft_table::ui::CellSpace"
-new = "craft_behavior::CellSpace"
-status = "moved"
-note = "`CellSpace::new(&Positions::new(rows), columns)` then `.merges(..)`, `.hidden_rows(..)`, `.hidden_columns(..)`, `.selectable(..)`."
-
-[[type]]
-name = "CellDirection"
-old = "craft_table::ui::CellDirection"
-new = "craft_behavior::CellDirection"
-status = "moved"
-
-[[type]]
-name = "CellAdvance"
-old = "craft_table::ui::CellAdvance"
-new = "craft_behavior::CellAdvance"
-status = "moved"
-
-[[type]]
 name = "absolute_reference"
 old = "craft_table::ui::absolute_reference"
 new = "craft_table::ui::absolute_reference"
