@@ -9,6 +9,7 @@ mod paint;
 mod replacements;
 mod state;
 mod surface;
+pub(crate) mod text_measure;
 mod tokens;
 
 pub use cache::{Accepted, accepted_variant};
@@ -17,8 +18,8 @@ pub use craft_behavior::{ControlMetrics, Insets, Metrics};
 pub use craft_theme::GroupValues;
 pub use craft_theme::{FlagMask, Flags, Mix, Resolve, State, StateMix, Stateful, States, TokenGroup, Tokens, TypeRole, Variant};
 pub use craft_ui_macros::{ComponentStyle, TokenGroup};
-pub use cx::{StyleCx, VariantParts};
 pub(crate) use cx::control_metrics;
+pub use cx::{StyleCx, VariantParts};
 pub use key::{EnvKey, Ink, StyleKey};
 pub use look::{ComponentStyle, Corners, DataColor, FocusLook, IconLook, StyleColor, SurfaceKind, SurfaceLook, TextLook, TrackLook};
 pub(crate) use paint::scroll_bar_look;

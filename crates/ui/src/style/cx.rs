@@ -6,7 +6,6 @@ use super::paint::{HandleLook, ResetMarkLook, RuleKind, RuleLook, ScrollBarLook,
 use super::surface::{SurfaceStyle, surface_style};
 use super::tokens::UiTokens;
 use crate::fonts::stack_facts;
-use crate::primitives::{TextEnv, TextRun, Wrap};
 use crate::runtime::egui::memory::Service;
 use crate::runtime::env::{AppValues, Scale, StyleValue};
 use craft_behavior::ControlMetrics;
@@ -240,8 +239,7 @@ impl<'a> StyleCx<'a> {
     /// The width of `text` set in the face of `role`: the sizes that follow the text (a row header's digit) read it
     /// here instead of borrowing an icon or control size.
     pub fn text_width(&self, role: craft_theme::TypeRole, text: &str) -> f32 {
-        let env = TextEnv { tokens: self.tokens, direction: self.direction, ink: Color32::PLACEHOLDER, fonts: stack_facts(self.ctx) };
-        TextRun::new(text).role(role).wrap(Wrap::Line).layout(self.ctx, &env, f32::INFINITY).size().x
+        super::text_measure::line_width(self.ctx, self.tokens, stack_facts(self.ctx), self.direction, role, text)
     }
 
     /// What a surface of `kind` draws.
