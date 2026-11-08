@@ -119,7 +119,7 @@ mod canvas_navigation {
         }
 
         fn read(&self, _: PixelRect, _: u32, out: &mut ColorImage) {
-            out.pixels.fill(Color32::GRAY);
+            out.pixels.fill(Color32::from_rgb(0x80, 0x80, 0x80));
         }
     }
 

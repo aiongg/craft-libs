@@ -287,7 +287,7 @@ mod trials {
         let region = PixelRect::of_size(source.size());
         Tinted { source: &source, tint: Color32::from_rgb(255, 0, 128) }.read(region, 1, &mut out);
         assert_eq!(out.pixels[0], Color32::from_rgb(200, 0, 25), "texels are multiplied by the tint");
-        Tinted { source: &source, tint: Color32::WHITE }.read(region, 1, &mut out);
+        Tinted { source: &source, tint: Color32::from_rgb(255, 255, 255) }.read(region, 1, &mut out);
         assert_eq!(out.pixels[0], source.0, "white leaves them as they are");
     }
 }
