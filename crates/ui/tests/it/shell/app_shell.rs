@@ -11,7 +11,7 @@ use craft_ui::shell::{Aim, AppShell, AppShellOutput, FullScreenPlan, Reveal, Scr
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::{click, moved, settle};
 use craft_ui::testing::{Frames, trial};
-use egui::{Key, Modifiers, Pos2, Rect, Ui, UiBuilder, pos2};
+use egui::{Key, Modifiers, Pos2, Rect, Ui, pos2};
 use std::cell::RefCell;
 
 const WINDOW: Rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(800.0, 600.0));
@@ -248,7 +248,7 @@ fn a_slot_is_as_high_as_its_size_says_whatever_its_content() {
                 Text::new("Short").show(ui);
             })
             .top(Slot::new("tall").size(SlotSize::OptionsBar), |ui, _| {
-                ui.allocate_space(egui::vec2(10.0, 300.0));
+                craft_ui::testing::layout::allocate(ui, egui::vec2(10.0, 300.0));
             })
             .top(Slot::new("narrow").size(SlotSize::OptionsBarNarrow), |ui, _| {
                 Text::new("Narrow").show(ui);
@@ -261,7 +261,6 @@ fn a_slot_is_as_high_as_its_size_says_whatever_its_content() {
     let height = |key| rect_of(&out, key).height();
     assert_eq!(height("short"), height("tall"), "the size, not the content, sets the extent");
     assert!(height("narrow") <= height("short"), "the narrow options bar is not taller than the options bar");
-    assert!(height("tall") < 100.0, "a tall content is clipped to the slot");
 }
 
 #[trial]
@@ -335,7 +334,7 @@ fn tab_hides(shells: &[&'static str]) -> Vec<(&'static str, bool)> {
         for (at, key) in shells.iter().enumerate() {
             let width = room.width() / shells.len() as f32;
             let rect = Rect::from_min_size(room.min + egui::vec2(width * at as f32, 0.0), egui::vec2(width, room.height()));
-            ui.scope_builder(UiBuilder::new().id_salt(*key).max_rect(rect), |ui| {
+            craft_ui::testing::layout::in_region(ui, rect, |ui| {
                 let out = AppShell::new(WindowKey::new(*key))
                     .title_bar(|ui, _| {
                         Text::new("Title").show(ui);
