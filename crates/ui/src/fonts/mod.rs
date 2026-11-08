@@ -25,7 +25,7 @@ pub use language::{I18nScripts, LanguageScripts};
 pub use served::loader::{FetchDone, FetchWake, FontFetcher};
 pub use served::loading;
 pub use stack::{CjkRows, Emoji, Family, SEMIBOLD, Stack, SystemFonts, UiFonts};
-pub(crate) use stack::{installed_families, system_ui_installed};
+pub(crate) use stack::{StackFacts, stack_facts};
 
 use crate::runtime::egui::fonts as egui_fonts;
 use crate::runtime::frame;

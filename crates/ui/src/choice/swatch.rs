@@ -7,9 +7,9 @@ use crate::contract::{
     Access, Common, Component, Cx, GroupHandle, MeasureCx, Outcome, PaintUi, Pointer as _, Props as _, Role, Styled as _, WordSetCx as _,
 };
 use crate::primitives::{Checker, PaintShape, StrokeWidth};
-use crate::style::{ComponentStyle, DataColor, Flags, FocusLook, StyleColor, StyleCx, UiTokens, control_metrics};
+use crate::style::{ComponentStyle, DataColor, Flags, FocusLook, StyleColor, StyleCx};
 use craft_behavior::{CursorIcon, CursorPriority, Metrics, Mixed, Sense, Value};
-use craft_theme::{ControlSize, Opacity, Rgba, Srgba, Stateful, States};
+use craft_theme::{Opacity, Rgba, Srgba, Stateful, States};
 use egui::{Color32, CornerRadius, Rect, Response, Shape, Vec2, pos2};
 
 #[cfg(feature = "testing")]
@@ -35,10 +35,11 @@ pub struct SwatchMetrics {
 }
 
 impl SwatchMetrics {
-    /// The metrics at `size` from `tokens`.
-    pub fn of(tokens: &UiTokens, size: ControlSize) -> SwatchMetrics {
+    /// The metrics at the control size of `cx`.
+    pub fn of(cx: &StyleCx<'_>) -> SwatchMetrics {
+        let tokens = cx.tokens;
         SwatchMetrics {
-            side: control_metrics(tokens, size).height,
+            side: cx.control().height,
             cell: tokens.size.icon.md,
             radius: CornerRadius::same(tokens.shape.radius.control.min(RADIUS_MAX).round() as u8),
         }
@@ -170,7 +171,7 @@ impl<T: Value + 'static> Component for Swatch<T> {
 
     fn style(cx: &StyleCx<'_>, key: SwatchStyleKey<T>) -> SwatchStyle {
         let colors = &cx.tokens.color;
-        let metrics = SwatchMetrics::of(cx.tokens, cx.size);
+        let metrics = SwatchMetrics::of(cx);
         let clear = cx.color(Rgba::TRANSPARENT);
         let rest = cx.color(colors.line.control_edge);
         let accent = cx.color(colors.accent.solid);

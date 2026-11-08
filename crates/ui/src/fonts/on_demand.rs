@@ -16,6 +16,7 @@ use skrifa::raw::{FileRef, TableProvider as _};
 
 use super::faces::{baseline_fallback, set_weight};
 use super::script::{EMOJI, MATH, SYMBOLS, script_of};
+use super::stack::is_cjk;
 use crate::runtime::egui::fonts as egui_fonts;
 use crate::runtime::egui::memory;
 
@@ -321,10 +322,6 @@ fn face_script(c: char) -> Option<&'static str> {
         "Latn" | "Cyrl" | "Grek" | "Syrc" | "Thaa" | "Mong" | EMOJI | SYMBOLS | MATH => None,
         script => Some(script),
     }
-}
-
-fn is_cjk(script: &str) -> bool {
-    matches!(script, "Hani" | "Kana" | "Hang" | "Bopo")
 }
 
 /// A font file's bytes, or `None` for a missing, empty, oversized or unreadable file.

@@ -1730,7 +1730,6 @@ dependencies = [
  "epaint_default_fonts",
  "flate2",
  "fontique",
- "js-sys",
  "libtest-mimic",
  "linkme",
  "log",
@@ -1742,10 +1741,6 @@ dependencies = [
  "syn 2.0.119",
  "toml",
  "toml_edit",
- "unicode-script",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
 ]
 
 [[package]]
