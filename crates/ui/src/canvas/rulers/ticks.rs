@@ -9,7 +9,7 @@ pub const INCH_SIXTEENTHS: [u32; 4] = [16, 8, 4, 2];
 pub const INCH_EIGHTHS: [u32; 3] = [8, 4, 2];
 
 /// The least distance between labelled ticks, in points.
-pub(super) const LABEL_STEP_MIN: f32 = 60.0;
+pub(crate) const LABEL_STEP_MIN: f32 = 60.0;
 
 /// The metric rule's subdivisions of a labelled step.
 const METRIC_SUBDIVISIONS: f32 = 10.0;

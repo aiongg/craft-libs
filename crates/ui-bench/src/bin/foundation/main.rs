@@ -469,10 +469,10 @@ impl Scene for CanvasViewScene {
         view.rect = content;
         pan(view, vec2(3.0, 2.0));
         let text = RulerText::new(RulerUnits::pixels(), UnitKind::Pixels);
-        let shown = Canvas::new("Document", ToolPath::Freehand).view(*view).show(ui, |ui, body| {
+        let shown = Canvas::new("Document", ToolPath::Freehand).view(*view).rulers(text, text, *zero).show(ui, |ui, body| {
             let _ = RasterDisplay::new("Picture", &SOURCE).show_at(ui, body.rect);
             let _ = Guides::new("Guides", Bind::bound(&mut *guides)).show_at(ui, body.rect);
-            let _ = Rulers::new("Rulers", &text, &text, Bind::bound(&mut *zero)).show_at(ui, body.rect);
+            let _ = Rulers::new("Rulers", Bind::bound(&mut *zero)).show_at(ui, body.rect);
         });
         if let Some(next) = ToolHost::new().run(ui, &shown.output, hand).view {
             *view = next;

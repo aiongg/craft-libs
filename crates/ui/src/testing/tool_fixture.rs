@@ -5,8 +5,8 @@ use super::{Fixture, Target, pointer};
 use crate::canvas::{Canvas, CanvasTool, ToolHost, ToolPath};
 use crate::contract::{BodyCx, ShowContainer as _};
 use crate::runtime::access::Role;
-use craft_behavior::GesturePhase;
-use egui::{Event, Id, Key, Modifiers, Pos2, Ui, Vec2};
+use craft_behavior::{CanvasView, GesturePhase};
+use egui::{Event, Id, Key, Modifiers, Pos2, Rect, Ui, Vec2};
 use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -34,7 +34,27 @@ impl<T: CanvasTool + 'static> ToolFixture<T> {
 
     /// A canvas named `label` whose body `body` fills: canvas controls shown at the body's rect join the canvas's
     /// arena, and a press on one of their parts never reaches the tool.
-    pub fn with_body(label: &'static str, tool: T, mut body: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'static) -> Self {
+    pub fn with_body(label: &'static str, tool: T, body: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'static) -> Self {
+        Self::shown(label, tool, None, body)
+    }
+
+    /// [`ToolFixture::with_body`] over a canvas given the view `view` makes of the canvas's room, so the body's
+    /// controls and the tool see document coordinates (the view's document point at the room's centre, for one).
+    pub fn with_view(
+        label: &'static str,
+        tool: T,
+        view: impl Fn(Rect) -> CanvasView + 'static,
+        body: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'static,
+    ) -> Self {
+        Self::shown(label, tool, Some(Box::new(view)), body)
+    }
+
+    fn shown(
+        label: &'static str,
+        tool: T,
+        view: Option<Box<dyn Fn(Rect) -> CanvasView>>,
+        mut body: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'static,
+    ) -> Self {
         let tool = Rc::new(RefCell::new(tool));
         let gestures = Rc::new(RefCell::new(Vec::new()));
         let canvas = Rc::new(Cell::new(Id::NULL));
@@ -42,7 +62,11 @@ impl<T: CanvasTool + 'static> ToolFixture<T> {
         let (shown, seen, id, on) = (Rc::clone(&tool), Rc::clone(&gestures), Rc::clone(&canvas), Rc::clone(&enabled));
         let mut fixture = Fixture::new(move |ui| {
             let path = shown.borrow().command_form();
-            let canvas = Canvas::new(label, path).show(ui, &mut body);
+            let mut shown_canvas = Canvas::new(label, path);
+            if let Some(view) = &view {
+                shown_canvas = shown_canvas.view(view(ui.available_rect_before_wrap()));
+            }
+            let canvas = shown_canvas.show(ui, &mut body);
             id.set(canvas.output.response.id);
             let reply = ToolHost::new().enabled(on.get()).run(ui, &canvas.output, &mut *shown.borrow_mut());
             if let Some(phase) = reply.gesture {

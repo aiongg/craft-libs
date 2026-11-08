@@ -2,11 +2,11 @@
 
 use craft_behavior::kurbo::Point;
 use craft_behavior::{Axis, CanvasView, GesturePhase, RulerUnits, Ticks};
-use craft_ui::canvas::{Canvas, GuideDrag, INCH_EIGHTHS, RulerText, Rulers, TickRule, ToolPath};
+use craft_ui::canvas::{Canvas, GuideDrag, INCH_EIGHTHS, RulerPart, RulerText, Rulers, TickRule, ToolPath};
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::runtime::env::UnitKind;
-use craft_ui::testing::{Fixture, trial};
-use egui::{Modifiers, Pos2, Rect, Vec2};
+use craft_ui::testing::{Fixture, pointer, trial};
+use egui::{Key, Modifiers, Pos2, Rect, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -21,6 +21,12 @@ const ALONG_STRIP: Vec2 = Vec2::new(40.0, 0.0);
 
 /// The corner's drag: out of the corner and onto the document.
 const FROM_CORNER: Vec2 = Vec2::new(90.0, 90.0);
+
+/// The units the menu offers.
+const MENU_UNITS: [UnitKind; 2] = [UnitKind::Pixels, UnitKind::Points];
+
+/// The menu's last row, which is there only while the units menu is open.
+const MENU_ROW: &str = "Reset Zero Point";
 
 /// The minor tick spacing of the pixel ruler at 100 percent, in document pixels.
 const PIXEL_MINOR: f64 = 10.0;
@@ -62,22 +68,25 @@ struct Shown {
     fixture: Fixture,
     guides: Rc<RefCell<Vec<GuideDrag>>>,
     zero: Rc<RefCell<Point>>,
+    contexts: Rc<RefCell<Vec<RulerPart>>>,
 }
 
 fn shown(locked: bool) -> Shown {
     let guides: Rc<RefCell<Vec<GuideDrag>>> = Rc::default();
     let zero = Rc::new(RefCell::new(Point::ZERO));
-    let (seen, edited) = (Rc::clone(&guides), Rc::clone(&zero));
+    let contexts: Rc<RefCell<Vec<RulerPart>>> = Rc::default();
+    let (seen, edited, asked) = (Rc::clone(&guides), Rc::clone(&zero), Rc::clone(&contexts));
     let mut fixture = Fixture::new(move |ui| {
         let text = pixels();
         let view = CanvasView::new(VIEW, Point::new(180.0, 130.0), 1.0);
-        Canvas::new("Document", ToolPath::Command("the New Guide... command")).view(view).show(ui, |ui, body| {
-            let out = Rulers::new("Rulers", &text, &text, Bind::bound(&mut *edited.borrow_mut())).origin_locked(locked).show_at(ui, body.rect);
+        Canvas::new("Document", ToolPath::Command("the New Guide... command")).view(view).rulers(text, text, Point::ZERO).show(ui, |ui, body| {
+            let out = Rulers::new("Rulers", Bind::bound(&mut *edited.borrow_mut())).origin_locked(locked).units(&MENU_UNITS).show_at(ui, body.rect);
             seen.borrow_mut().extend(out.guide);
+            asked.borrow_mut().extend(out.context);
         });
     });
     fixture.settle();
-    Shown { fixture, guides, zero }
+    Shown { fixture, guides, zero, contexts }
 }
 
 #[trial]
@@ -124,4 +133,29 @@ fn dragging_the_corner_moves_the_zero_point_unless_it_is_locked() {
     let corner = locked.fixture.by_label("Ruler origin").expect("the corner has a node");
     locked.fixture.drag(&corner, FROM_CORNER);
     assert_eq!(*locked.zero.borrow(), Point::ZERO, "a locked zero point stays");
+}
+
+#[trial]
+fn shift_f10_on_the_focused_corner_opens_the_units_menu() {
+    let mut shown = shown(false);
+    let corner = shown.fixture.by_label("Ruler origin").expect("the corner has a node");
+    shown.fixture.click(&corner);
+    assert!(shown.fixture.by_label(MENU_ROW).is_none(), "the menu is closed until it is asked for");
+    shown.fixture.key(Key::F10, Modifiers::SHIFT);
+    shown.fixture.settle();
+    assert_eq!(shown.contexts.borrow().last(), Some(&RulerPart::Corner), "the focused corner reports the request");
+    assert!(shown.fixture.by_label(MENU_ROW).is_some(), "the units menu is open");
+}
+
+#[trial]
+fn a_secondary_click_on_a_strip_opens_the_units_menu() {
+    let mut shown = shown(false);
+    let strip = shown.fixture.by_label("Horizontal ruler").expect("the top ruler has a node");
+    let at = strip.center();
+    shown.fixture.frame(vec![pointer::moved(at)]);
+    shown.fixture.frame(vec![pointer::secondary(at, true)]);
+    shown.fixture.frame(vec![pointer::secondary(at, false)]);
+    shown.fixture.settle();
+    assert_eq!(shown.contexts.borrow().last(), Some(&RulerPart::Horizontal));
+    assert!(shown.fixture.by_label(MENU_ROW).is_some(), "the units menu is open");
 }

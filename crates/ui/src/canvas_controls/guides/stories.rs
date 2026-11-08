@@ -73,7 +73,7 @@ fn guides_that_only_draw(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn guide_dragged_out_of_a_ruler(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let guides = data.value("guides", guides());
     let drag = GuideDrag::new_guide(Axis::Y, GesturePhase::Update, Some(60.0), Mods::NONE);
-    on_canvas(ui, Guides::new("Guides", Bind::bound(&mut *guides)).interactive(true).pending(Some(drag)))
+    on_canvas(ui, Guides::new("Guides", Bind::bound(&mut *guides)).interactive(true).pending(drag))
 }
 
 #[story(Guides<'static>, covers = [Default], drive = Drive::Custom(drag_first))]

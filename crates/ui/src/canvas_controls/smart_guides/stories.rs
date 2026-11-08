@@ -32,6 +32,6 @@ fn alignment_lines(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 #[story(SmartGuides<'static>, covers = [Default])]
 fn distances_and_bounds(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let lines = lines();
-    let measures = [Measure::new(Point::new(60.0, 60.0), Point::new(140.0, 60.0), "80 px")];
+    let measures = [Measure::new(Point::new(60.0, 60.0), Point::new(140.0, 60.0))];
     on_canvas(ui, SmartGuides::new(&lines, &measures).bounds(DocRect::new(60.0, 10.0, 140.0, 110.0)))
 }

@@ -39,6 +39,70 @@ pub enum GuideLine {
     Dots,
 }
 
+/// A guide colour: Photoshop's list (Cyan by default) or a custom colour.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum GuideColor {
+    /// `#3366ff`.
+    LightBlue,
+    /// `#ff3333`.
+    LightRed,
+    /// `#33ff33`.
+    Green,
+    /// `#3333ff`.
+    MediumBlue,
+    /// `#ffcc00`.
+    Yellow,
+    /// `#ff00ff`.
+    Magenta,
+    /// `#4affff`.
+    #[default]
+    Cyan,
+    /// `#e7e7e7`.
+    LightGray,
+    /// `#000000`.
+    Black,
+    /// A colour the user chose in the app's colour picker.
+    Custom(Rgba),
+}
+
+impl GuideColor {
+    /// The named colours in Photoshop's menu order.
+    pub const NAMED: [GuideColor; 9] = [
+        GuideColor::LightBlue,
+        GuideColor::LightRed,
+        GuideColor::Green,
+        GuideColor::MediumBlue,
+        GuideColor::Yellow,
+        GuideColor::Magenta,
+        GuideColor::Cyan,
+        GuideColor::LightGray,
+        GuideColor::Black,
+    ];
+
+    /// The colour.
+    pub const fn rgba(self) -> Rgba {
+        match self {
+            GuideColor::LightBlue => Rgba::rgb(0x33, 0x66, 0xff),
+            GuideColor::LightRed => Rgba::rgb(0xff, 0x33, 0x33),
+            GuideColor::Green => Rgba::rgb(0x33, 0xff, 0x33),
+            GuideColor::MediumBlue => Rgba::rgb(0x33, 0x33, 0xff),
+            GuideColor::Yellow => Rgba::rgb(0xff, 0xcc, 0x00),
+            GuideColor::Magenta => Rgba::rgb(0xff, 0x00, 0xff),
+            GuideColor::Cyan => Rgba::rgb(0x4a, 0xff, 0xff),
+            GuideColor::LightGray => Rgba::rgb(0xe7, 0xe7, 0xe7),
+            GuideColor::Black => Rgba::rgb(0x00, 0x00, 0x00),
+            GuideColor::Custom(rgba) => rgba,
+        }
+    }
+
+    /// The named colour with these values, else [`GuideColor::Custom`] (an edited guide's own colour shows as its
+    /// name when it is one).
+    pub fn from_rgba(rgba: Rgba) -> GuideColor {
+        GuideColor::NAMED.into_iter().find(|named| named.rgba() == rgba).unwrap_or(GuideColor::Custom(rgba))
+    }
+}
+
 /// A guide of the host's document.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -53,7 +117,7 @@ pub struct Guide {
     /// (PhotoCraft).
     pub span: Option<(f64, f64)>,
     /// The host's colour for this guide, in place of the theme's guide colour (PhotoCraft's New Guide colour and
-    /// preferences). The selected guide takes the selection colour whatever it is.
+    /// preferences; a [`GuideColor`] gives it with `rgba`). The selected guide takes the selection colour whatever it is.
     pub color: Option<Rgba>,
     /// How the line is drawn.
     pub line: GuideLine,

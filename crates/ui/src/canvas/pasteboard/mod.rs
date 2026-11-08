@@ -6,20 +6,17 @@
 mod stories;
 
 use super::space::canvas_space;
-use crate::contract::{Access, Common, Component, Cx, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role};
+use crate::contract::{Access, Common, Component, Cx, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Props as _, Role};
 use crate::primitives::{PaintShape, Rule, StrokeWidth, TextRun};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, DataColor, RuleLook, StyleColor, StyleCx, TypeRole};
 use craft_behavior::kurbo::{Point, Rect as DocRect};
-use craft_behavior::{CanvasView, HitLevel, HitPriority, Metrics, PartKey, PointerButton, Sense};
+use craft_behavior::{CanvasView, HitLevel, HitPriority, Metrics, PartKey, Sense};
 use craft_theme::Rgba;
 use egui::{Color32, Pos2, Rect, Response, Vec2};
 
 /// A page name: `NAME.at(i)` for page `i`, in the order of the frames given.
 const NAME: PartKey = PartKey::new("name");
-
-/// The edge of an artboard that is not the active one.
-const INACTIVE_ARTBOARD_EDGE: Rgba = Rgba([0, 0, 0, 90]);
 
 /// The pasteboard's colour.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -122,11 +119,10 @@ pub struct PasteboardStyle {
     /// A page's drop shadow, and how far it lies from the page.
     shadow: StyleColor,
     shadow_offset: Vec2,
-    /// A page's outline.
+    /// A page's outline, and the edge of an artboard that is not the active one.
     outline: StyleColor,
-    /// The edge of the active artboard and of the others.
+    /// The edge of the active artboard.
     active_edge: StyleColor,
-    inactive_edge: StyleColor,
     /// The width of a page or artboard edge.
     edge: f32,
     /// A page name in the muted ink, and in the normal ink for the active artboard.
@@ -144,8 +140,8 @@ pub struct PasteboardOutput {
     pub response: Response,
     /// A page name was clicked: the index of its frame. The app selects the artboard or page.
     pub name_clicked: Option<usize>,
-    /// The secondary button was released on the pasteboard outside every page and name, at this document point:
-    /// the app opens its pasteboard menu there.
+    /// The secondary button was released on the canvas background outside every page and name (a press no canvas
+    /// control claimed), at this document point: the app opens its pasteboard menu there.
     pub context_at: Option<Point>,
 }
 
@@ -274,7 +270,6 @@ impl Component for Pasteboard<'_> {
             shadow_offset: Vec2::new(shadow.offset[0], shadow.offset[1]),
             outline: cx.color(color.line.border),
             active_edge: cx.color(color.accent.solid),
-            inactive_edge: cx.color(INACTIVE_ARTBOARD_EDGE),
             edge: tokens.stroke.thin,
             name: cx.color(color.text.muted),
             name_active: cx.color(color.text.normal),
@@ -316,11 +311,9 @@ impl Component for Pasteboard<'_> {
                 self.name_clicked = Some(at);
             }
         }
-        let frame = crate::runtime::pointer::frame(&cx.core.ctx);
-        if let Some(pos) = frame.pos.filter(|pos| frame.release == Some(PointerButton::Secondary) && cx.rect.contains(*pos)) {
-            let on_name = (0..self.pages.len()).any(|at| cx.part_if_declared(NAME.at(at as u64)).is_some_and(|name| name.rect.contains(pos)));
+        if let Some(pos) = space.background().context {
             let doc = space.view.to_doc(pos);
-            if !on_name && Self::page_at(self.pages, doc).is_none() {
+            if Self::page_at(self.pages, doc).is_none() {
                 self.context_at = Some(doc);
             }
         }
@@ -367,7 +360,7 @@ impl Component for Pasteboard<'_> {
                 edge(&quad, style.outline);
             }
             if let Some(active) = page.active {
-                edge(&quad, if active { style.active_edge } else { style.inactive_edge });
+                edge(&quad, if active { style.active_edge } else { style.outline });
             }
             if let Some(name) = &page.name {
                 let run = name_run(name, name_color(style, page.active));
