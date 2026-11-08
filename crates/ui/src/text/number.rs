@@ -20,6 +20,7 @@ use crate::primitives::{IconSpec, TextOptions, TextRun};
 use crate::runtime::env::{Label, UnitKind, Units};
 use crate::style::{ComponentStyle, Ink, StyleCx, SurfaceLook, TextLook, TypeRole};
 use crate::value_drag::Slider;
+use craft_behavior::Value;
 use craft_behavior::nav::{LARGE_STEPS, StepResult, ValueAxes, ValueSteps};
 use craft_behavior::{
     Codec, DisplayOrder, Flow, HitLevel, HitPriority, IconId, ItemSource, Metrics, MoveMods, NavMove, NotAValue, NumberCodec, PartKey, Selection,
@@ -28,6 +29,7 @@ use craft_behavior::{
 use craft_theme::Stateful;
 use egui::{Pos2, Rect, Response, Vec2};
 use std::borrow::Cow;
+use std::marker::PhantomData;
 use std::ops::{Deref, RangeInclusive};
 
 /// The step of an arrow press, the wheel and the label scrub when the field sets none.
@@ -57,25 +59,108 @@ pub enum NumberPick {
     Choice(u32),
 }
 
+/// A value a number field holds: a number, or a number that may also be a name from the presets list.
+/// `Option<f64>` is the plain value (empty text is `None`); [`NamedOr`] adds named entries.
+pub trait NumberValue: Value {
+    /// The number the value holds; `None` for a blank value or a name.
+    fn number(&self) -> Option<f64>;
+    /// The value that holds `number`.
+    fn of_number(number: f64) -> Self;
+    /// The value empty text stands for; `None` when a blank is not a value of this type.
+    fn blank() -> Option<Self>;
+    /// The id of the `NumberPick::Choice` row the value is, `None` for a number.
+    fn named(&self) -> Option<u32>;
+    /// The value that is the name behind a `NumberPick::Choice` row; `None` when this type holds no names.
+    fn from_name(id: u32) -> Option<Self>;
+}
+
+impl NumberValue for Option<f64> {
+    fn number(&self) -> Option<f64> {
+        *self
+    }
+
+    fn of_number(number: f64) -> Self {
+        Some(number)
+    }
+
+    fn blank() -> Option<Self> {
+        Some(None)
+    }
+
+    fn named(&self) -> Option<u32> {
+        None
+    }
+
+    fn from_name(_: u32) -> Option<Self> {
+        None
+    }
+}
+
+/// A name a [`NamedOr`] value holds, tied to a `NumberPick::Choice` id of the field's presets.
+pub trait NumberName: Value + Copy {
+    /// The id of the `NumberPick::Choice` row that names it.
+    fn id(self) -> u32;
+    /// The name behind a row id, `None` for an id that names nothing.
+    fn from_id(id: u32) -> Option<Self>;
+}
+
+/// A number or a name from the presets list (kerning: Metrics, Optical or a number). Empty text is not a value.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum NamedOr<K> {
+    /// A name; the presets row `NumberPick::Choice(name.id())` shows its label.
+    Named(K),
+    /// A number.
+    Number(f64),
+}
+
+impl<K: NumberName> NumberValue for NamedOr<K> {
+    fn number(&self) -> Option<f64> {
+        match self {
+            NamedOr::Number(number) => Some(*number),
+            NamedOr::Named(_) => None,
+        }
+    }
+
+    fn of_number(number: f64) -> Self {
+        NamedOr::Number(number)
+    }
+
+    fn blank() -> Option<Self> {
+        None
+    }
+
+    fn named(&self) -> Option<u32> {
+        match self {
+            NamedOr::Named(name) => Some(name.id()),
+            NamedOr::Number(_) => None,
+        }
+    }
+
+    fn from_name(id: u32) -> Option<Self> {
+        K::from_id(id).map(NamedOr::Named)
+    }
+}
+
 /// What a number field reports: the edit and the preset row picked this pass.
 #[non_exhaustive]
-pub struct NumberOutput {
+pub struct NumberOutput<V: NumberValue = Option<f64>> {
     /// The edit response of the value.
-    pub edit: EditResponse<Option<f64>>,
+    pub edit: EditResponse<V>,
     /// The presets row the user picked this pass.
     pub preset: Option<NumberPick>,
 }
 
-impl Deref for NumberOutput {
-    type Target = EditResponse<Option<f64>>;
+impl<V: NumberValue> Deref for NumberOutput<V> {
+    type Target = EditResponse<V>;
 
     fn deref(&self) -> &Self::Target {
         &self.edit
     }
 }
 
-impl Outcome for NumberOutput {
-    type Value = Option<f64>;
+impl<V: NumberValue> Outcome for NumberOutput<V> {
+    type Value = V;
 
     fn response(&self) -> &Response {
         &self.edit.response
@@ -180,35 +265,66 @@ fn is_plain(text: &str) -> bool {
 /// the decimals a committed value is rounded to. A plain number applies as it is typed unless typed values snap,
 /// which apply on commit only. While the field shows no value (a mixed binding) typed numbers apply on commit only,
 /// and empty text is not a value: it would clear every target, so the draft stays open until Escape or a focus
-/// loss restores the mixed display.
-#[derive(Clone)]
-struct Ruled {
+/// loss restores the mixed display. Text that spells a name of the presets (case ignored) is that name.
+struct Ruled<V> {
     inner: NumberCodec,
     rule: Rule,
     snap: bool,
     decimals: Option<usize>,
     mixed: bool,
+    names: Vec<(u32, String)>,
+    value: PhantomData<fn() -> V>,
 }
 
-impl Ruled {
+impl<V> Clone for Ruled<V> {
+    fn clone(&self) -> Self {
+        Ruled {
+            inner: self.inner.clone(),
+            rule: self.rule.clone(),
+            snap: self.snap,
+            decimals: self.decimals,
+            mixed: self.mixed,
+            names: self.names.clone(),
+            value: PhantomData,
+        }
+    }
+}
+
+impl<V: NumberValue> Ruled<V> {
     fn held(&self, number: f64) -> f64 {
         let snapped = if self.snap { self.rule.snap(number) } else { number };
         self.rule.settle(self.decimals.map_or(snapped, |decimals| round_to(snapped, decimals)))
     }
+
+    /// The name `text` spells, as a value of the field's type.
+    fn name_of(&self, text: &str) -> Option<V> {
+        let text = text.trim();
+        self.names.iter().find(|(_, name)| name.eq_ignore_ascii_case(text)).and_then(|(id, _)| V::from_name(*id))
+    }
 }
 
-impl Codec for Ruled {
-    type Value = Option<f64>;
+impl<V: NumberValue> Codec for Ruled<V> {
+    type Value = V;
 
-    fn format(&self, v: &Option<f64>) -> String {
-        self.inner.format(v)
+    fn format(&self, v: &V) -> String {
+        match v.named().and_then(|id| self.names.iter().find(|(name, _)| *name == id)) {
+            Some((_, label)) => label.clone(),
+            None => self.inner.format(&v.number()),
+        }
     }
 
-    fn parse(&self, text: &str, start: &Option<f64>) -> Result<Option<f64>, NotAValue> {
-        if self.mixed && text.trim().is_empty() {
+    fn parse(&self, text: &str, start: &V) -> Result<V, NotAValue> {
+        if let Some(name) = self.name_of(text) {
+            return Ok(name);
+        }
+        if text.trim().is_empty() && (self.mixed || V::blank().is_none()) {
             return Err(NotAValue);
         }
-        self.inner.parse(text, start).map(|read| read.map(|number| self.held(number)))
+        let read = self.inner.parse(text, &start.number())?;
+        match read {
+            Some(number) => Ok(V::of_number(self.held(number))),
+            None => V::blank().ok_or(NotAValue),
+        }
     }
 
     fn applies_as_typed(&self, text: &str) -> bool {
@@ -216,19 +332,25 @@ impl Codec for Ruled {
     }
 
     fn filter(&self, c: char) -> bool {
-        self.inner.filter(c)
+        self.inner.filter(c) || (!self.names.is_empty() && c.is_alphabetic())
     }
 
-    fn normalise(&self, text: &str, v: &Option<f64>) -> String {
-        self.inner.normalise(text, v)
+    fn normalise(&self, text: &str, v: &V) -> String {
+        match v.named() {
+            Some(_) => self.format(v),
+            None => self.inner.normalise(text, &v.number()),
+        }
     }
 
     fn caret_on_focus(&self, text: &str) -> craft_behavior::Caret {
         self.inner.caret_on_focus(text)
     }
 
-    fn sample(&self, current: &Option<f64>) -> Cow<'_, str> {
-        self.inner.sample(current)
+    fn sample(&self, current: &V) -> Cow<'_, str> {
+        match current.named() {
+            Some(_) => Cow::Owned(self.format(current)),
+            None => self.inner.sample(&current.number()),
+        }
     }
 }
 
@@ -249,11 +371,11 @@ pub struct NumberStyle {
 
 /// A number field: a text part over [`NumberCodec`]; empty text is `None`.
 #[derive(crate::contract::Component, crate::contract::Props)]
-#[component(overlay)]
-pub struct NumberField<'a> {
+#[component(overlay, probe(NumberField<'static, Option<f64>>))]
+pub struct NumberField<'a, V: NumberValue + 'static = Option<f64>> {
     #[common]
     common: Common,
-    value: Bind<'a, Option<f64>>,
+    value: Bind<'a, V>,
     /// The codec, to read another locale's separators or units, or to read words such as "Auto" (`or_parse`).
     /// Without one the field reads and writes with the env's locale and the spellings of `unit_kind`.
     #[prop]
@@ -293,9 +415,20 @@ pub struct NumberField<'a> {
     unit_size: Vec2,
 }
 
-impl<'a> NumberField<'a> {
-    /// A number field named `label`.
+impl<'a> NumberField<'a, Option<f64>> {
+    /// A number field named `label`; empty text is `None`.
     pub fn new(label: impl Into<Label>, value: Bind<'a, Option<f64>>) -> Self {
+        Self::of(label, value)
+    }
+}
+
+impl<'a, V: NumberValue + 'static> NumberField<'a, V> {
+    /// A number field named `label` over a value of another type, such as [`NamedOr`].
+    pub fn named(label: impl Into<Label>, value: Bind<'a, V>) -> Self {
+        Self::of(label, value)
+    }
+
+    fn of(label: impl Into<Label>, value: Bind<'a, V>) -> Self {
         NumberField {
             common: Common::new(),
             value,
@@ -338,8 +471,27 @@ impl<'a> NumberField<'a> {
         self.codec.as_ref().map_or_else(|| self.unit_kind.map_or(DEFAULT_DECIMALS, |kind| *kind.decimals().end()), NumberCodec::decimals)
     }
 
-    fn ruled(&self, units: &Units, mixed: bool) -> Ruled {
-        Ruled { inner: self.number_codec(units), rule: self.rule(), snap: self.snap_typed, decimals: self.commit_decimals, mixed }
+    /// The names the presets list holds that a value of this type can be: the labels of its `Choice` rows.
+    fn names(&self, label: impl Fn(&Entry<NumberPick>) -> Label) -> Vec<(u32, String)> {
+        let rows = self.presets.unwrap_or_default();
+        rows.iter()
+            .filter_map(|row| match row.value() {
+                Some(NumberPick::Choice(id)) if V::from_name(*id).is_some() => Some((*id, label(row).as_str().to_owned())),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn ruled(&self, units: &Units, mixed: bool, names: Vec<(u32, String)>) -> Ruled<V> {
+        Ruled {
+            inner: self.number_codec(units),
+            rule: self.rule(),
+            snap: self.snap_typed,
+            decimals: self.commit_decimals,
+            mixed,
+            names,
+            value: PhantomData,
+        }
     }
 
     /// The unit's size, the room it takes and the gap before it.
@@ -381,10 +533,11 @@ impl<'a> NumberField<'a> {
         let popup = cx.popup("presets");
         let labels: Vec<Label> =
             rows.iter().map(|row| if row.is_separator() { Label::Empty } else { cx.env.resolve(&row.label().clone()) }).collect();
-        let current = cx.value().and_then(|value| *value);
+        let current = cx.value().and_then(NumberValue::number);
+        let named = cx.value().and_then(NumberValue::named);
         let held = |at: usize| match rows[at].value() {
             Some(NumberPick::Number(value)) => current.is_some_and(|current| (current - value).abs() <= 1e-4 * current.abs().max(1.0)),
-            Some(NumberPick::Choice(_)) => rows[at].is_checked(),
+            Some(NumberPick::Choice(id)) => rows[at].is_checked() || named == Some(*id),
             None => false,
         };
         let marked = (0..rows.len()).find(|at| held(*at));
@@ -408,8 +561,13 @@ impl<'a> NumberField<'a> {
             _ => None,
         });
         if let Some(pick) = picked {
-            if let NumberPick::Number(value) = pick {
-                cx.set(Some(self.rule().settle(value)));
+            match pick {
+                NumberPick::Number(value) => cx.set(V::of_number(self.rule().settle(value))),
+                NumberPick::Choice(id) => {
+                    if let Some(name) = V::from_name(id) {
+                        cx.set(name);
+                    }
+                }
             }
             self.picked = Some(pick);
         }
@@ -418,7 +576,7 @@ impl<'a> NumberField<'a> {
     fn show_slider(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>, range: &RangeInclusive<f64>) {
         let popup = cx.popup("slider");
         let rule = self.rule();
-        let start = cx.value().and_then(|value| *value).unwrap_or_else(|| rule.settle((range.start() + range.end()) / 2.0));
+        let start = cx.value().and_then(NumberValue::number).unwrap_or_else(|| rule.settle((range.start() + range.end()) / 2.0));
         let mut shown = start;
         let name = cx.label();
         let step = self.step;
@@ -430,7 +588,7 @@ impl<'a> NumberField<'a> {
             }
         });
         if let Some(edit) = edit {
-            cx.adopt(&edit, &Some(start), |value, mine| *mine = Some(rule.settle(*value)));
+            cx.adopt(&edit, &V::of_number(start), |value, mine| *mine = V::of_number(rule.settle(*value)));
         }
     }
 }
@@ -465,14 +623,14 @@ impl DisplayOrder<usize> for Presets<'_> {
 
 impl ItemSource<usize> for Presets<'_> {}
 
-impl Component for NumberField<'_> {
+impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
     const ROLE: Role = Role::SPIN_BUTTON;
     const INPUT: Input = Input::Text;
     const KEYS: crate::runtime::focus::KeyUse = crate::runtime::focus::KeyUse::of(crate::contract::Input::Text).with_moves();
     type Style = NumberStyle;
-    type Output = NumberOutput;
+    type Output = NumberOutput<V>;
 
-    fn style(cx: &StyleCx<'_>, _: NumberFieldStyleKey) -> NumberStyle {
+    fn style(cx: &StyleCx<'_>, _: NumberFieldStyleKey<V>) -> NumberStyle {
         let field = FieldStyle::at(cx);
         NumberStyle {
             surface: field.surface.clone(),
@@ -487,7 +645,7 @@ impl Component for NumberField<'_> {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let codec = self.number_codec(&cx.env.units());
+        let codec = self.ruled(&cx.env.units(), false, self.names(|row| cx.env.resolve(&row.label().clone())));
         let sample = cx.value().map_or(Cow::Borrowed(""), |value| codec.sample(value));
         let text = cx.layout(&TextRun::new(sample.as_ref())).size();
         self.unit_size = self.unit_extent(cx);
@@ -509,7 +667,9 @@ impl Component for NumberField<'_> {
         let (text, _) = self.text_and_unit(placed.text, rtl, cx.gap());
         self.options.steps_value = self.presets.is_none() && self.popup_slider.is_none();
         let shown = cx.value();
-        cx.text(text_part::<Option<f64>>(), text, &self.ruled(&cx.env.units(), shown.is_none()), shown.unwrap_or(&None), &self.options);
+        let names = self.names(|row| cx.env.resolve(&row.label().clone()));
+        let blank = V::blank().unwrap_or_else(|| V::of_number(self.rule().blank()));
+        cx.text(text_part::<V>(), text, &self.ruled(&cx.env.units(), shown.is_none(), names), shown.unwrap_or(&blank), &self.options);
         let slider_reason =
             if self.presets.is_some() { "Alt+Down opens the presets list; the slider opens by pointer" } else { "Alt+Down opens the slider" };
         for ((key, _), at) in chevrons.iter().zip(&placed.trailing) {
@@ -523,17 +683,17 @@ impl Component for NumberField<'_> {
         }
     }
 
-    fn bind(&mut self) -> Option<BindMut<'_, Option<f64>>> {
+    fn bind(&mut self) -> Option<BindMut<'_, V>> {
         Some(self.value.reborrow())
     }
 
-    fn scrub(&self) -> Option<Scrub<Option<f64>>> {
+    fn scrub(&self) -> Option<Scrub<V>> {
         let rule = self.rule();
         let drag = ValueDrag::relative(rule.step, rule.bounds()).warp(true).hide_cursor(true).coarse(LARGE_STEPS).fine(1.0 / LARGE_STEPS);
         // Rounded to the field's decimals, so a scrubbed value carries no float noise. The step is not a grid
         // here: an Alt drag moves by a share of it.
         let decimals = self.decimals();
-        self.scrub.then(|| Scrub::new(drag, |value: &Option<f64>| value.unwrap_or(0.0), move |number| Some(round_to(number, decimals))))
+        self.scrub.then(|| Scrub::new(drag, |value: &V| value.number().unwrap_or(0.0), move |number| V::of_number(round_to(number, decimals))))
     }
 
     /// Arrows, Page keys and the wheel step the value, AccessKit sets it, and the chevrons open the popups. Up and
@@ -551,26 +711,26 @@ impl Component for NumberField<'_> {
                 NavMove::PageDown => (-1, LARGE_STEPS),
                 _ => continue,
             };
-            let from = cx.value().and_then(|value| *value).unwrap_or_else(|| rule.blank());
+            let from = cx.value().and_then(NumberValue::number).unwrap_or_else(|| rule.blank());
             let next = match &self.stepper {
                 Some(stepper) => rule.settle(stepper.next(from, notches)),
                 None => rule.stepped(from, notches, scale),
             };
-            cx.set(Some(next));
+            cx.set(V::of_number(next));
         }
         if let Some(wheel) = cx.take_wheel() {
-            let from = cx.value().and_then(|value| *value).unwrap_or_else(|| rule.blank());
+            let from = cx.value().and_then(NumberValue::number).unwrap_or_else(|| rule.blank());
             let steps = ValueSteps::new(from, rule.low, rule.high, rule.step, rule.step * LARGE_STEPS).fine(rule.step / LARGE_STEPS);
             if let StepResult::Set(next) = wheel_step(&steps, ValueAxes::Both, &wheel, cx.env.direction().is_rtl()) {
                 let next = match &self.stepper {
                     Some(stepper) if next != from => stepper.next(from, if next > from { 1 } else { -1 }),
                     _ => round_to(next, decimals_for_step(rule.step / LARGE_STEPS)),
                 };
-                cx.set(Some(rule.settle(next)));
+                cx.set(V::of_number(rule.settle(next)));
             }
         }
         if let Some(next) = cx.intents().take_set_value() {
-            cx.set(Some(rule.settle(next)));
+            cx.set(V::of_number(rule.settle(next)));
         }
     }
 
@@ -587,9 +747,9 @@ impl Component for NumberField<'_> {
     /// The numeric value, and a button node per chevron named by its word (the painted face).
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let rule = self.rule();
-        let numeric = match cx.value() {
-            Some(Some(value)) => Numeric::new(*value, rule.bounds()),
-            _ => Numeric::empty(rule.bounds()),
+        let numeric = match cx.value().and_then(NumberValue::number) {
+            Some(value) => Numeric::new(value, rule.bounds()),
+            None => Numeric::empty(rule.bounds()),
         };
         access.numeric(numeric.step(rule.step));
         for (key, shown) in [(PRESETS, self.presets.is_some()), (SLIDER, self.popup_slider.is_some())] {
@@ -616,7 +776,7 @@ impl Component for NumberField<'_> {
         }
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> NumberOutput {
+    fn finish(self, cx: Cx<'_, Self>) -> NumberOutput<V> {
         NumberOutput { edit: cx.edit_response(), preset: self.picked }
     }
 }

@@ -10,7 +10,7 @@ mod stories;
 pub mod toggle_button;
 mod words;
 
-pub use button::{Button, ButtonStyle};
+pub use button::{Button, ButtonOutput, ButtonStyle};
 pub use icon_button::{IconButton, IconButtonStyle};
 pub use link::{Link, LinkStyle};
 pub use split_button::{SplitButton, SplitButtonStyle, SplitOutput};
