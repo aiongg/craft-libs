@@ -104,7 +104,8 @@ fn modal_tokens(modal: &LitStr) -> syn::Result<TokenStream> {
         "blocked" => quote!(::craft_ui::runtime::commands::ModalRule::Blocked),
         "in_dialogs" => quote!(::craft_ui::runtime::commands::ModalRule::InDialogs),
         "always" => quote!(::craft_ui::runtime::commands::ModalRule::Always),
-        _ => return Err(syn::Error::new(modal.span(), "`modal` is `\"blocked\"`, `\"in_dialogs\"` or `\"always\"`")),
+        "declared" => quote!(::craft_ui::runtime::commands::ModalRule::Declared),
+        _ => return Err(syn::Error::new(modal.span(), "`modal` is `\"blocked\"`, `\"in_dialogs\"`, `\"always\"` or `\"declared\"`")),
     })
 }
 

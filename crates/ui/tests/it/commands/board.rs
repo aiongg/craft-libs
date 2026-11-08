@@ -500,8 +500,8 @@ fn window_move_and_size_have_no_default_chord_on_macos() {
     );
 }
 
-/// 11.4: a modal layer blocks the application's `ModalRule::Blocked` commands, but a dialog is an instance of the
-/// application scope, so Cmd+Z with focus in the dialog reaches the dialog and not the application.
+/// 11.4: a modal layer blocks the application's `ModalRule::Declared` edit commands, except for an instance inside it
+/// that declares them: a dialog that publishes the undo state takes it, and the command resolves enabled there.
 #[trial]
 fn undo_in_a_dialog_reaches_the_dialog_and_not_the_application() {
     use craft_ui::contract::Bind;
@@ -517,6 +517,7 @@ fn undo_in_a_dialog_reaches_the_dialog_and_not_the_application() {
             .initial_focus(Initial::First)
             .buttons([FooterButton::new("OK", DialogRole::Accept)])
             .show(ui, |_, cx| {
+                cx.publish(EditCommands::Undo, CommandState::new());
                 while let Some((command, _)) = cx.take_command::<EditCommands>() {
                     if command == EditCommands::Undo {
                         undone.set(undone.get() + 1);
@@ -526,13 +527,16 @@ fn undo_in_a_dialog_reaches_the_dialog_and_not_the_application() {
     };
     let mut frames = Frames::new();
     frames.idle(4, &mut show);
+    assert!(resolve(&frames.ctx, EditCommands::Undo).enabled, "the declared undo is enabled in the dialog");
+    assert!(!resolve(&frames.ctx, EditCommands::Redo).enabled, "the redo the dialog does not declare is not");
     frames.frame(vec![key_press(Key::Z, Modifiers::COMMAND)], &mut show);
     frames.idle(2, &mut show);
     assert_eq!(undone.get(), 1, "the dialog took the undo");
     assert!(take_output(&frames.ctx).fired.is_empty(), "the application's undo stays blocked");
 }
 
-/// 11.4: a dialog that takes no edit commands still keeps Cmd+Z from the document behind it.
+/// 11.4: a dialog that takes no edit commands still keeps Cmd+Z from the document behind it, and the native Edit
+/// menu shows Undo disabled there.
 #[trial]
 fn undo_in_a_dialog_that_takes_no_edit_commands_fires_nothing() {
     use craft_ui::contract::Bind;
@@ -550,7 +554,46 @@ fn undo_in_a_dialog_that_takes_no_edit_commands_fires_nothing() {
     };
     let mut frames = Frames::new();
     frames.idle(4, &mut show);
+    assert!(!resolve(&frames.ctx, EditCommands::Undo).enabled, "undo resolves disabled in a dialog that declares none");
     frames.frame(vec![key_press(Key::Z, Modifiers::COMMAND)], &mut show);
     frames.idle(2, &mut show);
     assert!(take_output(&frames.ctx).fired.is_empty(), "no command reaches the application");
+}
+
+/// The same pair for a full-window dialog, which is an instance of the view scope.
+#[trial]
+fn undo_in_a_full_window_dialog_follows_what_the_dialog_declares() {
+    use craft_ui::contract::Bind;
+    use craft_ui::dialog::FullWindowDialog;
+
+    let undone = Cell::new(0);
+    let declares = Cell::new(false);
+    let mut show = |ui: &mut Ui| {
+        let mut open = true;
+        FullWindowDialog::new("Liquify").opened(Bind::bound(&mut open)).show(ui, |_, cx| {
+            if declares.get() {
+                cx.publish(EditCommands::Undo, CommandState::new());
+                while let Some((command, _)) = cx.take_command::<EditCommands>() {
+                    if command == EditCommands::Undo {
+                        undone.set(undone.get() + 1);
+                    }
+                }
+            }
+        });
+    };
+    let mut frames = Frames::new();
+    frames.idle(4, &mut show);
+    assert!(!resolve(&frames.ctx, EditCommands::Undo).enabled, "undo is disabled in a full-window dialog that declares none");
+    frames.frame(vec![key_press(Key::Z, Modifiers::COMMAND)], &mut show);
+    frames.idle(2, &mut show);
+    assert_eq!(undone.get(), 0);
+    assert!(take_output(&frames.ctx).fired.is_empty(), "no command reaches the application");
+
+    declares.set(true);
+    frames.idle(4, &mut show);
+    assert!(resolve(&frames.ctx, EditCommands::Undo).enabled, "undo is enabled once the dialog declares it");
+    frames.frame(vec![key_press(Key::Z, Modifiers::COMMAND)], &mut show);
+    frames.idle(2, &mut show);
+    assert_eq!(undone.get(), 1, "the full-window dialog took the undo");
+    assert!(take_output(&frames.ctx).fired.is_empty(), "the application's undo stays blocked");
 }

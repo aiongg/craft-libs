@@ -63,6 +63,9 @@ pub enum ModalRule {
     InDialogs,
     /// Fires whatever is open.
     Always,
+    /// Does not fire while a dialog is open, except to an instance inside the top modal layer that declares the
+    /// command (it publishes the command's state, or its focused component takes the command as an edit).
+    Declared,
 }
 
 /// A trigger in a scope. `scope: None` is the command's home scope.
