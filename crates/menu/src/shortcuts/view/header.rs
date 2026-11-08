@@ -96,14 +96,15 @@ fn search(ui: &mut Ui, now: f64, env: &mut Env<'_>, state: &mut DialogState) {
     }
     if matches!(state.recording.as_ref().map(|recording| &recording.target), Some(Target::Search)) {
         let shown = recording_text(env, state);
-        let claim = state.recording.as_ref().is_some_and(|recording| !recording.focused);
-        let out = ChordRecorder::new(name, true, shown).claim(claim).id_salt("searchRecorder").show(ui);
+        let start = state.recording.as_ref().is_some_and(|recording| !recording.started);
+        let out = ChordRecorder::new(name, true, shown).start(start).id_salt("searchRecorder").show(ui);
+        if let Some(recording) = state.recording.as_mut() {
+            recording.started = true;
+        }
         if !out.chords.is_empty() {
             state.feed(env, &out.chords, now);
         } else if out.response.lost_focus() {
             state.stop_recording();
-        } else if let (true, Some(recording)) = (out.focused, state.recording.as_mut()) {
-            recording.focused = true;
         }
     }
 }

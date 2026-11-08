@@ -178,18 +178,19 @@ fn new_shortcut(ui: &mut Ui, now: f64, env: &mut Env<'_>, state: &mut DialogStat
     let value = if shown.is_empty() { words.none.as_str().to_owned() } else { shown.clone() };
     let name = words.new_shortcut_chord.fill(&[("chord", &value)]);
     Row::new().show(ui, |ui, _| {
-        let claim = recording && state.recording.as_ref().is_some_and(|recording| !recording.focused);
-        let out = ChordRecorder::new(name.clone(), recording, shown.clone()).claim(claim).id_salt("new").show(ui);
+        let start = recording && state.recording.as_ref().is_some_and(|recording| !recording.started);
+        let out = ChordRecorder::new(name.clone(), recording, shown.clone()).start(start).id_salt("new").show(ui);
         if out.started && !recording {
             state.record(env, Target::Field { command: command.clone() });
         }
         if recording {
+            if let Some(recording) = state.recording.as_mut() {
+                recording.started = true;
+            }
             if !out.chords.is_empty() {
                 state.feed(env, &out.chords, now);
             } else if out.response.lost_focus() {
                 state.stop_recording();
-            } else if let (true, Some(recording)) = (out.focused, state.recording.as_mut()) {
-                recording.focused = true;
             }
         }
         if clicked(&Link::new(words.type_more.clone()).id_salt("typeMore").show(ui)) {

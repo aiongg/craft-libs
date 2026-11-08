@@ -4,7 +4,6 @@ use craft_ui::contract::{CommandSet as _, Props as _, Show as _, ShowContainer a
 use craft_ui::runtime::commands::{
     CommandGate, CommandInput, CommandKind, CommandRef, CommandState, Commands as _, EditCommands, FirePhase, FireSource, Fired, fire, resolve,
 };
-use craft_ui::runtime::egui::input_filter::KeyEquivalent;
 use craft_ui::runtime::focus::{FocusTarget, request};
 use craft_ui::runtime::frame::take_output;
 use craft_ui::testing::input::key_press;
@@ -101,7 +100,8 @@ fn a_registered_key_equivalent_fires_its_command() {
     };
     frames.idle(2, &mut show);
     let chord = craft_keymap::Chord::new(craft_keymap::Mods::CMD, craft_keymap::Key::K);
-    craft_ui::runtime::windows::WindowHost::of(&frames.ctx).key_equivalent(egui::ViewportId::ROOT, KeyEquivalent::Press(chord));
+    craft_ui::runtime::windows::WindowHost::of(&frames.ctx)
+        .key_equivalent(egui::ViewportId::ROOT, craft_ui::runtime::windows::KeyEquivalent::Press(chord));
     frames.frame(vec![], &mut show);
     let fired = take_output(&frames.ctx).fired;
     assert_eq!(ids(&fired), ["trial.save"]);

@@ -12,20 +12,7 @@ use egui::{Context, Event, ViewportId};
 use super::injected::{egui_modifiers, key_press, key_release};
 use super::memory::Service;
 use super::repaint;
-
-/// A key equivalent the platform's menu took from the window.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum KeyEquivalent {
-    /// The press of `chord`. The platform delivers the key-up itself.
-    Press(Chord),
-    /// A press and its release of `chord`: a click that stands for the key, so no key-up follows.
-    Tap(Chord),
-    /// The platform's copy command: egui's copy event.
-    Copy,
-    /// The platform's cut command: egui's cut event.
-    Cut,
-}
+use crate::runtime::windows::KeyEquivalent;
 
 #[derive(Default)]
 struct Pending {

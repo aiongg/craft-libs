@@ -7,7 +7,7 @@ use craft_ui::bars::{BarItem, BarItems, ItemDisplay};
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, BodyCx, CommandSet, Entry, Props as _, Show as _, ShowContainer as _, Trigger, clicked};
 use craft_ui::display::Text;
-use craft_ui::layout_components::Row;
+use craft_ui::layout_components::{Row, Stack};
 use craft_ui::menu::Menu;
 use craft_ui::pickers::Select;
 use craft_ui::runtime::commands::{CommandState, Commands as _};
@@ -49,10 +49,15 @@ pub(crate) enum SetCommand {
 }
 
 /// Drawn above the header when the app passes sets and the dialog is editable.
-pub(crate) fn show(ui: &mut Ui, cx: &mut BodyCx<'_>, env: &mut Env<'_>, state: &mut DialogState) {
-    if !env.options.editable {
+pub(crate) fn show(ui: &mut Ui, env: &mut Env<'_>, state: &mut DialogState) {
+    if !env.options.editable || env.sets.is_none() {
         return;
     }
+    // The row and its form are the instance of the set scope: the dialog itself keeps the scope of the edit commands.
+    Stack::new().command_scope(SetCommand::SCOPE).show(ui, |ui, cx| contents(ui, cx, env, state));
+}
+
+fn contents(ui: &mut Ui, cx: &mut BodyCx<'_>, env: &mut Env<'_>, state: &mut DialogState) {
     let Some((p, b)) = env.sets.as_ref() else { return };
     let names = p.names(b);
     let active = p.active_name(b).to_string();
