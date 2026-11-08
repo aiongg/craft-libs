@@ -258,7 +258,7 @@ fn is_forward(mv: NavMove, mods: MoveMods) -> bool {
 
 /// The direction of an arrow: a move of one unit toward a side. Columns are logical, so `Back` is toward the first
 /// column whichever way the sheet reads; any other move is a jump.
-fn cell_direction(mv: NavMove, mods: MoveMods) -> Option<CellDirection> {
+pub(super) fn cell_direction(mv: NavMove, mods: MoveMods) -> Option<CellDirection> {
     if mods.by != Granularity::Unit {
         return None;
     }

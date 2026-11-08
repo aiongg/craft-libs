@@ -1041,6 +1041,12 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                         self.reveal_with(layout, reveal, view);
                     }
                 }
+                // An arrow at the edge of the grid still runs the rules: it collapses the selection to the active cell.
+                NavStep::Stay if cells && !mods.lead && rows::cell_direction(mv, mods).is_some() => {
+                    if let Some((at, column)) = start {
+                        self.cell_move(comp, layout, mv, at, column, mods);
+                    }
+                }
                 NavStep::Column(column) => self.lead.column = column,
                 NavStep::Moved(to) => {
                     self.move_lead(to, LeadSource::Keys);
