@@ -15,7 +15,6 @@ craft_ui::words! {
 craft_ui::words! {
     /// The words of the reorderable sections; each id is prefixed by its type.
     pub struct ReorderableWords {
-        menu: "sections.reorderableMenu" = "Section options";
         moved: template "sections.reorderableMoved" = "{title} moved to position {position} of {count}";
     }
 }

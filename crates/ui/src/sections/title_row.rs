@@ -4,17 +4,19 @@
 use super::words::SectionWords;
 use crate::buttons::IconButton;
 use crate::choice::Checkbox;
+use crate::contract::overlay::{Anchor, Trigger};
 use crate::contract::{
-    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role,
-    Styled as _, WordSetCx as _,
+    Access, Bind, BindMut, BodyCx, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, Outcome, PaintUi, PartsCx, Pointer as _, Props as _,
+    Role, Styled as _, WordSetCx as _,
 };
 use crate::controls::disclosure::Disclosure;
+use crate::menu::Menu;
 use crate::primitives::{IconSpec, Span, TextRun};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, IconLook, Ink, StyleCx, TextLook, TypeRole};
 use craft_behavior::{CursorIcon, Flow, IconId, Metrics, NavShape, PartKey, Roving, Sense};
 use craft_theme::{Stateful, States};
-use egui::{Rect, Response, Vec2};
+use egui::{Id, Rect, Response, Ui, Vec2};
 use std::borrow::Cow;
 
 #[cfg(feature = "testing")]
@@ -57,6 +59,28 @@ pub struct TitleOutput {
     /// The rect of the `HeaderAction::Menu` action part, in the row's layer space, for a container that hangs its
     /// menu under the button. `None` when the row has no menu action.
     pub menu_rect: Option<Rect>,
+}
+
+/// The rows of the menu a container hangs from its header row.
+pub(super) struct MenuRows<'a>(Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>);
+
+impl<'a> MenuRows<'a> {
+    pub(super) fn new(rows: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
+        MenuRows(Box::new(rows))
+    }
+
+    /// Hangs the menu from the header row `shown`. It opens from the row's Menu action, under that action's part, and
+    /// from the context request (right click, Menu key, Shift+F10). Returns the row's id when the Menu action was
+    /// taken this pass: the container toggles the popup of that opener in its `finish`.
+    pub(super) fn hang(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>, shown: &TitleOutput) -> Option<Id> {
+        let name = cx.words::<SectionWords>().menu.clone();
+        let mut menu = Menu::new(name).opened_by(&shown.edit.response, Trigger::Manual);
+        if let Some(button) = shown.menu_rect {
+            menu = menu.anchor(Anchor::Rect(button));
+        }
+        menu.opened_by(&shown.edit.response, Trigger::Context).show(ui, |ui, menu| (self.0)(ui, menu));
+        (shown.action == Some(HeaderAction::Menu)).then_some(shown.edit.response.id)
+    }
 }
 
 impl Outcome for TitleOutput {

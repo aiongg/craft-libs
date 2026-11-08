@@ -3,6 +3,7 @@
 mod footer;
 mod header;
 mod panel;
+mod reorderable;
 mod section;
 mod stack;
 

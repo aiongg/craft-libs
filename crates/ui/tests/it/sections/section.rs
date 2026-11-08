@@ -2,9 +2,10 @@
 //! `TitleRow` too narrow for both texts drops the subtitle.
 
 use craft_ui::choice::Checkbox;
-use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Props as _, Role, Show as _, ShowContainer as _};
+use craft_ui::menu::MenuItem;
 use craft_ui::runtime::focus::{FocusTarget, request};
-use craft_ui::sections::{Section, TitleRow};
+use craft_ui::sections::{HeaderAction, Section, TitleRow};
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::click;
 use craft_ui::testing::{Fixture, Frames, trial};
@@ -94,4 +95,23 @@ fn escape_in_a_section_body_leaves_it_expanded() {
     frames.frame(vec![key_press(Key::Escape, Modifiers::NONE)], |ui| show(ui, &mut open));
     frames.idle(2, |ui| show(ui, &mut open));
     assert!(open && ran.get(), "Escape leaves the section expanded and its body shown");
+}
+
+/// The section menu opens from the menu key like any other container menu, not only from a button.
+#[trial]
+fn shift_f10_on_a_focused_section_opens_its_menu() {
+    let mut fixture = Fixture::new(|ui| {
+        Section::new("Options")
+            .actions([HeaderAction::Menu])
+            .menu(|ui, _| {
+                MenuItem::new("Rename").show(ui);
+            })
+            .show(ui, |_, _| {});
+    });
+    fixture.settle();
+    assert!(fixture.by_role(Role::MENU).is_empty(), "the menu starts closed");
+    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.key(Key::F10, Modifiers::SHIFT);
+    fixture.settle();
+    assert!(!fixture.by_role(Role::MENU).is_empty(), "Shift+F10 on the focused section opens its menu");
 }

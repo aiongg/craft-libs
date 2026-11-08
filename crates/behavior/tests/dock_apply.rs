@@ -108,42 +108,44 @@ fn apply_all_changes_everything_or_nothing_and_reports_the_closed_panels() {
 #[test]
 fn close_group_and_close_window_record_a_restorable_location_per_member() {
     let mut workspace = Workspace::new(docked());
-    assert_eq!(workspace.apply(Action::close_group(3), allow).unwrap(), [2, 3]);
+    assert_eq!(workspace.apply(Action::close_group(3), false, allow).unwrap(), [2, 3]);
     assert_eq!(workspace.hidden.iter().map(|(p, _)| *p).collect::<Vec<_>>(), [2, 3]);
     assert_eq!(members_of(&end_dock(&workspace.layout)[0].groups), [vec![4]]);
-    workspace.set_visible(2, true, None, allow).unwrap();
-    workspace.set_visible(3, true, None, allow).unwrap();
+    workspace.set_visible(2, true, None, false, allow).unwrap();
+    workspace.set_visible(3, true, None, false, allow).unwrap();
     assert_eq!(members_of(&end_dock(&workspace.layout)[0].groups), [vec![2, 3], vec![4]]);
 
     assert_eq!(workspace.layout.closed_by(&Action::close_window(7)).unwrap(), [6, 7, 8]);
-    assert_eq!(workspace.apply(Action::close_window(7), allow).unwrap(), [6, 7, 8]);
+    assert_eq!(workspace.apply(Action::close_window(7), false, allow).unwrap(), [6, 7, 8]);
     assert!(workspace.layout.floating.is_empty());
     assert_eq!(workspace.hidden.len(), 3);
     for panel in [6, 7, 8] {
-        workspace.set_visible(panel, true, None, allow).unwrap();
+        workspace.set_visible(panel, true, None, false, allow).unwrap();
     }
     assert_eq!(workspace.layout.floating.len(), 1);
     assert_eq!(members_of(&workspace.layout.floating[0].groups()), [vec![6, 7], vec![8]]);
     assert_eq!(workspace.layout.floating[0].rect, window());
 
-    workspace.apply(Action::close_others(12), allow).unwrap();
+    workspace.apply(Action::close_others(12), false, allow).unwrap();
     assert_eq!(group_members(&workspace.layout, 12), [12]);
-    workspace.set_visible(11, true, None, allow).unwrap();
+    workspace.set_visible(11, true, None, false, allow).unwrap();
     assert_eq!(group_members(&workspace.layout, 12), [11, 12]);
     assert!(workspace.hidden.is_empty());
     assert_eq!(sorted(&workspace.layout), ALL);
 
     let keep = |p: &u32| if *p == 4 { Permissions::ALL.closable(false) } else { Permissions::ALL };
     let before = workspace.clone();
-    assert_eq!(workspace.apply(Action::close_group(4), keep), Err(DockError::NotAllowed));
+    assert_eq!(workspace.apply(Action::close_group(4), false, keep), Err(DockError::NotAllowed));
     assert_eq!(workspace, before);
 }
 
 #[test]
-fn a_locked_workspace_rejects_structure_but_allows_activate_open_minimize_resize_and_native_windows() {
+fn a_locked_set_rejects_structure_but_allows_activate_open_minimize_resize_and_native_windows() {
     let mut workspace = Workspace::new(docked());
-    workspace.apply(Action::close(12), allow).unwrap();
-    workspace.locked = true;
+    workspace.apply(Action::close(12), false, allow).unwrap();
+    let mut set = WorkspaceSet::<u32>::default();
+    set.locked = true;
+    let locked = set.locked;
     let before = workspace.clone();
     let spot = rect(0.0, 0.0, 100.0, 100.0);
     let refused = [
@@ -158,10 +160,10 @@ fn a_locked_workspace_rejects_structure_but_allows_activate_open_minimize_resize
         Action::close_window(6),
     ];
     for action in refused {
-        assert_eq!(workspace.apply(action.clone(), allow), Err(DockError::NotAllowed), "{action:?}");
+        assert_eq!(workspace.apply(action.clone(), locked, allow), Err(DockError::NotAllowed), "{action:?}");
         assert_eq!(workspace, before);
     }
-    assert_eq!(workspace.set_visible(4, false, None, allow), Err(DockError::NotAllowed));
+    assert_eq!(workspace.set_visible(4, locked, None, locked, allow), Err(DockError::NotAllowed));
     let allowed = [
         Action::activate(2),
         Action::open(12, Some(11)),
@@ -172,18 +174,18 @@ fn a_locked_workspace_rejects_structure_but_allows_activate_open_minimize_resize
         Action::resize_iconic(5, Some(60.0)),
         Action::resize_split(Vec::new(), SplitSize::FixedSecond(320.0)),
     ];
-    workspace.apply_all(allowed, allow).unwrap();
+    workspace.apply_all(allowed, locked, allow).unwrap();
     assert!(workspace.hidden.is_empty());
     assert_eq!(workspace.layout.panel_state(&12), PanelState::Front);
     assert_eq!(workspace.layout.panel_state(&4), PanelState::Open);
     assert_eq!(workspace.layout.panel_state(&2), PanelState::Front);
     // Opening at a chosen place works too; moving a shown panel there does not.
-    workspace.apply(Action::open_at(13, 11, Placement::Split(DockSide::Bottom)), allow).unwrap();
+    workspace.apply(Action::open_at(13, 11, Placement::Split(DockSide::Bottom)), locked, allow).unwrap();
     assert!(workspace.layout.contains(&13));
-    assert_eq!(workspace.apply(Action::open_at(2, 11, Placement::Split(DockSide::Bottom)), allow), Err(DockError::NotAllowed));
+    assert_eq!(workspace.apply(Action::open_at(2, 11, Placement::Split(DockSide::Bottom)), locked, allow), Err(DockError::NotAllowed));
 
     for native in [rect(0.0, 0.0, 300.0, 400.0), rect(40.0, 30.0, 300.0, 400.0)] {
-        workspace.apply(Action::set_native(6, Some(native)), allow).unwrap();
+        workspace.apply(Action::set_native(6, Some(native)), locked, allow).unwrap();
         assert_eq!(workspace.layout.floating[0].native, Some(native));
     }
 }
@@ -192,9 +194,9 @@ fn a_locked_workspace_rejects_structure_but_allows_activate_open_minimize_resize
 fn hiding_a_panel_that_may_not_close_is_refused() {
     let mut workspace = Workspace::new(docked());
     let canvas = |p: &u32| if *p == 1 { Permissions::PROTECTED.accepts_splits(true) } else { Permissions::ALL };
-    assert_eq!(workspace.set_visible(1, false, None, canvas), Err(DockError::NotAllowed));
+    assert_eq!(workspace.set_visible(1, false, None, false, canvas), Err(DockError::NotAllowed));
     assert!(workspace.layout.contains(&1) && workspace.hidden.is_empty());
-    workspace.set_visible(2, false, None, canvas).unwrap();
+    workspace.set_visible(2, false, None, false, canvas).unwrap();
     assert!(!workspace.layout.contains(&2));
 }
 
@@ -213,7 +215,7 @@ fn reconcile_drops_unknown_panels_and_places_missing_registered_ones() {
     // Unregistered panels wait in `hidden` and come back once registered.
     assert_eq!(workspace.hidden.iter().map(|(p, _)| *p).collect::<Vec<_>>(), [98, 99]);
     assert_eq!(sorted(&workspace.layout), ALL);
-    workspace.set_visible(99, true, None, allow).unwrap();
+    workspace.set_visible(99, true, None, false, allow).unwrap();
     assert_eq!(group_members(&workspace.layout, 2), [2, 3, 99]);
     assert_eq!(end_dock(&workspace.layout).len(), 2);
     assert_eq!(group_members(&workspace.layout, 11), [11, 12]);
@@ -222,24 +224,6 @@ fn reconcile_drops_unknown_panels_and_places_missing_registered_ones() {
     broken.layout.floating[0].rect = Rect::from_min_size(pos2(100.0, 100.0), vec2(-1.0, 400.0));
     broken.reconcile(registered, allow, &default);
     assert_eq!(broken.layout, default.layout);
-}
-
-#[test]
-fn reset_returns_to_saved_or_default() {
-    let default = docked();
-    let mut workspace = Workspace::new(default.clone());
-    workspace.apply(Action::move_group(6, Target::new_dock(DockEdge::Start)), allow).unwrap();
-    workspace.reset(&default);
-    assert_eq!(workspace.layout, default);
-
-    let mut saved = default.clone();
-    saved.apply(Action::close(8)).unwrap();
-    saved.apply(Action::move_group(11, Target::float(window()))).unwrap();
-    workspace.saved = Some(saved.clone());
-    workspace.reset(&default);
-    assert_eq!(workspace.layout, saved);
-    assert_eq!(workspace.hidden.iter().map(|(p, _)| *p).collect::<Vec<_>>(), [8]);
-    workspace.validate().unwrap();
 }
 
 fn named(id: &str, name: &str) -> NamedWorkspace<&'static str> {
@@ -292,8 +276,51 @@ fn a_workspace_set_with_a_floating_group_round_trips_through_json() {
     let mut set = WorkspaceSet::new(vec![NamedWorkspace::new("essentials", "Essentials", Workspace::default())]);
     set.save("Mine", Workspace::new(layout), WorkspaceChrome::default()).unwrap();
     let saved = serde_json::to_string(&set).unwrap();
-    let loaded: WorkspaceSet<u32> = serde_json::from_str(&saved).unwrap();
+    let mut loaded: WorkspaceSet<u32> = serde_json::from_str(&saved).unwrap();
+    assert!(loaded.builtin.is_empty(), "built-ins are code, not stored");
+    loaded.builtin = set.builtin.clone();
     assert_eq!(loaded, set);
+}
+
+#[test]
+fn a_set_file_of_format_version_2_loads_with_its_lock_and_saved_layout_in_the_set() {
+    let kept = Layout::new(Some(Node::tabs(vec![1u32], 0)), Vec::new());
+    let v2 = |saved: Option<&Layout<u32>>, locked: bool| {
+        let mut file = serde_json::to_value(Workspace::<u32>::default()).unwrap();
+        file["version"] = 2.into();
+        file["saved"] = serde_json::to_value(saved).unwrap();
+        file["locked"] = locked.into();
+        file
+    };
+    let old = serde_json::json!({
+        "saved": [{
+            "id": "mine",
+            "name": "Mine",
+            "layout": v2(Some(&kept), true),
+            "chrome": WorkspaceChrome::default(),
+            "keeps_shortcuts": false,
+            "keeps_menus": false
+        }],
+        "current": "mine",
+        "locked": false,
+        "edited": { "mine": v2(None, false) }
+    });
+    let loaded: WorkspaceSet<u32> = serde_json::from_value(old).unwrap();
+    assert!(loaded.locked, "a lock on a stored workspace locks the set");
+    assert_eq!(loaded.current, "mine");
+    assert_eq!(loaded.saved[0].layout.layout, kept, "the saved arrangement is the stored layout Reset returns to");
+    loaded.saved[0].layout.validate().unwrap();
+}
+
+#[test]
+fn saved_names_ignore_case_and_new_workspaces_show_every_bar() {
+    let mut set = set();
+    assert_eq!(set.save("PAINTING", Workspace::default(), WorkspaceChrome::default()), Err(WorkspaceError::NameTaken));
+    let id = set.save("My Layout", edited(), WorkspaceChrome::default()).unwrap();
+    assert_eq!(set.save("my layout", Workspace::default(), WorkspaceChrome::default()), Ok(id));
+    assert_eq!(set.saved.len(), 1, "the same name in another case replaces the saved workspace");
+    let chrome = &named("a", "A").chrome;
+    assert!(chrome.menu_bar && chrome.tool_rail && chrome.options_bar && chrome.status_bar);
 }
 
 #[test]
