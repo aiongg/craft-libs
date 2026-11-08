@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use craft_behavior::geometry::quad::Homography;
 use craft_behavior::kurbo::Rect;
-use craft_behavior::{CancelReason, EditEvent};
+use craft_behavior::{CancelReason, EditEvent, GestureId};
 use craft_ui::runtime::edit::next_gesture_id;
 
 use super::planes::{TornPlane, VanishingPlane, VanishingScene};
