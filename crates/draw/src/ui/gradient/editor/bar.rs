@@ -14,6 +14,7 @@ use craft_ui::contract::{
     PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role, Styled as _, WordSetCx as _,
 };
 use craft_ui::primitives::{PaintShape, StrokeWidth};
+use craft_ui::runtime::commands::FireSource;
 use craft_ui::runtime::env::Units;
 use craft_ui::runtime::focus::{ActivateKeys, FocusShape, KeyUse};
 use craft_ui::style::{ComponentStyle, DataColor, Flags, FocusLook, StyleColor, StyleCx};
@@ -118,8 +119,6 @@ pub struct GradientBarStyle {
 #[derive(Clone, Debug, Default)]
 struct Held {
     drag: Option<Drag>,
-    /// The marker that had the focus last pass: the selection follows when it changes.
-    arrival: Option<StopRef>,
 }
 
 /// The marker a press captured.
@@ -626,7 +625,9 @@ impl<P: Clone + Send + Sync + 'static> GradientBar<'_, P> {
                 cx.focus_part(part_of(StopRef::stop(row, j)));
             }
         }
-        if cx.intents().take(Intent::Activate) {
+        // Enter on a focused marker activates that part (Intent::Activate is not delivered while a part is active).
+        let activated = self.selected_marker.is_some_and(|m| matches!(cx.part_activated(part_of(m)), Some(FireSource::Key | FireSource::Access)));
+        if activated {
             match self.selected_marker {
                 Some(StopRef::Color(i)) => self.color_requested = Some(i),
                 Some(_) => self.field_requested = true,
@@ -750,13 +751,11 @@ impl<P: Clone + Send + Sync + 'static> Component for GradientBar<'_, P> {
         self.selected_marker = self.selected_marker.filter(|m| geo.valid(&stops, *m));
         if enabled {
             let focused = cx.active_part().and_then(marker_of).filter(|m| geo.valid(&stops, *m));
-            let arrived = {
-                let held = cx.memory::<Held>();
-                let changed = held.arrival != focused;
-                held.arrival = focused;
-                changed
-            };
-            if arrived && let Some(m) = focused {
+            // Focus arriving at a marker selects it, unless a press holds it (the press selects by its own rule).
+            if let Some(part) = cx.focus_arrived()
+                && let Some(m) = marker_of(part).filter(|m| geo.valid(&stops, *m))
+                && cx.part_if_declared(part).is_some_and(|result| matches!(result.press.phase, PressPhase::Idle | PressPhase::Hover))
+            {
                 self.choose(Some(m));
             }
             for marker in geo.markers(&stops) {
