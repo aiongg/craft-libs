@@ -188,7 +188,9 @@ impl<'a> SelectMaskPanel<'a> {
                     s.decontaminate = v;
                     s.follow_decontaminate();
                 });
-                rows.slider(ui, Track::new(&words.amount, base.amount, 0.0..=100.0).unit(UnitKind::Percent).enabled(base.decontaminate), |s, v| s.amount = v);
+                rows.slider(ui, Track::new(&words.amount, base.amount, 0.0..=100.0).unit(UnitKind::Percent).enabled(base.decontaminate), |s, v| {
+                    s.amount = v
+                });
                 let decontaminate = rows.base.decontaminate;
                 let targets: Vec<(OutputTo, &Label)> = OutputTo::ALL
                     .into_iter()
