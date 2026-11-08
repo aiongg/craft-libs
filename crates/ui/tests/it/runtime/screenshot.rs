@@ -7,8 +7,8 @@ use craft_ui::runtime::windows::ScreenshotSlot as ReexportedSlot;
 use craft_ui::testing::trial;
 use egui::{Color32, ColorImage, Context, ScreenshotCallback, ViewportCommand, ViewportId};
 
-fn image(size: [usize; 2], color: Color32) -> Arc<ColorImage> {
-    Arc::new(ColorImage::filled(size, color))
+fn image(size: [usize; 2]) -> Arc<ColorImage> {
+    Arc::new(ColorImage::filled(size, Color32::default()))
 }
 
 /// The viewports the context was asked to repaint.
@@ -32,8 +32,8 @@ fn callback_clones_share_one_completion_and_take_is_single_use() {
     let ctx = Context::default();
     let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 1024);
     let duplicate = callback.clone();
-    let first_image = image([1, 1], Color32::RED);
-    let second_image = image([1, 1], Color32::BLUE);
+    let first_image = image([1, 1]);
+    let second_image = image([1, 1]);
     let weak_loser = Arc::downgrade(&second_image);
 
     callback.complete(first_image.clone());
@@ -50,7 +50,7 @@ fn take_before_completion_is_empty_and_keeps_the_request_open() {
     let ctx = Context::default();
     let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 1024);
     assert!(slot.take().is_none());
-    let expected = image([1, 1], Color32::RED);
+    let expected = image([1, 1]);
     callback.complete(expected.clone());
     assert!(Arc::ptr_eq(&slot.take().unwrap().unwrap(), &expected));
 }
@@ -62,7 +62,7 @@ fn cancel_releases_late_images_without_waking() {
     let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::from_hash_of("cancelled-window"), 1024);
     slot.cancel();
 
-    let late_image = image([2, 2], Color32::RED);
+    let late_image = image([2, 2]);
     let weak_image = Arc::downgrade(&late_image);
     callback.complete(late_image.clone());
     drop(late_image);
@@ -76,7 +76,7 @@ fn cancel_releases_late_images_without_waking() {
 fn dropping_the_slot_releases_a_completed_image() {
     let ctx = Context::default();
     let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 1024);
-    let completed = image([2, 2], Color32::RED);
+    let completed = image([2, 2]);
     callback.complete(completed.clone());
     let weak_image = Arc::downgrade(&completed);
     drop(completed);
@@ -93,7 +93,7 @@ fn late_completion_after_drop_is_inert() {
     let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 1024);
     drop(slot);
 
-    let late_image = image([1, 1], Color32::RED);
+    let late_image = image([1, 1]);
     let weak_image = Arc::downgrade(&late_image);
     callback.complete(late_image.clone());
     drop(late_image);
@@ -107,30 +107,30 @@ fn rejects_oversized_malformed_and_overflowing_images() {
     let ctx = Context::default();
 
     let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 16);
-    callback.complete(image([3, 3], Color32::RED));
-    assert!(matches!(slot.take(), Some(Err(ScreenshotError::ImageTooLarge { bytes: 36, max_bytes: 16 }))));
+    callback.complete(image([3, 3]));
+    assert!(matches!(slot.take(), Some(Err(ScreenshotError::ImageTooLarge { bytes: 36, max_bytes: 16, .. }))));
     assert!(slot.take().is_none(), "a completion error is reported once");
 
     let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 1024);
-    callback.complete(Arc::new(ColorImage { size: [2, 2], source_size: egui::Vec2::ZERO, pixels: vec![Color32::RED; 3] }));
-    assert!(matches!(slot.take(), Some(Err(ScreenshotError::MalformedImage { width: 2, height: 2, pixels: 3 }))));
+    callback.complete(Arc::new(ColorImage { size: [2, 2], source_size: egui::Vec2::ZERO, pixels: vec![Color32::default(); 3] }));
+    assert!(matches!(slot.take(), Some(Err(ScreenshotError::MalformedImage { width: 2, height: 2, pixels: 3, .. }))));
 
     let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 1024);
     callback.complete(Arc::new(ColorImage { size: [usize::MAX, 2], source_size: egui::Vec2::ZERO, pixels: Vec::new() }));
-    assert!(matches!(slot.take(), Some(Err(ScreenshotError::DimensionsOverflow { width, height })) if width == usize::MAX && height == 2));
+    assert!(matches!(slot.take(), Some(Err(ScreenshotError::DimensionsOverflow { width, height, .. })) if width == usize::MAX && height == 2));
 
     // The pixel count fits but the byte count does not.
     let wide = usize::MAX / 2;
     let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 1024);
     callback.complete(Arc::new(ColorImage { size: [wide, 1], source_size: egui::Vec2::ZERO, pixels: Vec::new() }));
-    assert!(matches!(slot.take(), Some(Err(ScreenshotError::DimensionsOverflow { width, height })) if width == wide && height == 1));
+    assert!(matches!(slot.take(), Some(Err(ScreenshotError::DimensionsOverflow { width, height, .. })) if width == wide && height == 1));
 }
 
 #[trial]
 fn accepts_an_image_exactly_at_the_byte_bound() {
     let ctx = Context::default();
     let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 16);
-    let exact = image([2, 2], Color32::GREEN);
+    let exact = image([2, 2]);
     callback.complete(exact.clone());
     assert!(Arc::ptr_eq(&slot.take().unwrap().unwrap(), &exact));
 }
@@ -141,7 +141,7 @@ fn another_thread_completes_and_wakes_only_the_owning_viewport() {
     let requests = observe_repaints(&ctx);
     let viewport = ViewportId::from_hash_of("child-window");
     let (slot, callback) = ScreenshotSlot::detached(&ctx, viewport, 1024);
-    let expected = image([1, 1], Color32::RED);
+    let expected = image([1, 1]);
     let sent = expected.clone();
 
     std::thread::spawn(move || callback.complete(sent)).join().unwrap();
@@ -157,7 +157,7 @@ fn another_thread_completes_and_wakes_only_the_owning_viewport() {
 fn concurrent_takers_receive_the_result_exactly_once() {
     let ctx = Context::default();
     let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 4);
-    let expected = image([1, 1], Color32::GREEN);
+    let expected = image([1, 1]);
     callback.complete(expected.clone());
     let barrier = Barrier::new(3);
     let results = std::thread::scope(|scope| {
@@ -200,7 +200,7 @@ fn issue_sends_one_screenshot_command_for_its_viewport() {
         .unwrap_or_default();
     assert_eq!(callbacks.len(), 1, "one command per call");
     assert!(slot.take().is_none());
-    let rendered = image([1, 1], Color32::BLUE);
+    let rendered = image([1, 1]);
     callbacks.remove(0).complete(rendered.clone());
     assert!(Arc::ptr_eq(&slot.take().unwrap().unwrap(), &rendered));
 }

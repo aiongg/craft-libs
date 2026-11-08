@@ -60,7 +60,7 @@ fn a_step_in_flight_is_withdrawn_when_focus_moves_before_its_pass() {
     assert!(matches!(first[..], [Event::Key { pressed: true, .. }]), "the first step is injected: {first:?}");
     assert!(!take_withdrawn(&ctx));
 
-    ctx.memory_mut(|memory| memory.request_focus(Id::new("elsewhere")));
+    move_focus_without_pass(&ctx, Id::unique("elsewhere"));
     assert!(hook_without_pass(&ctx, viewport).is_empty(), "the withdrawn step injects nothing");
     assert!(take_withdrawn(&ctx), "the withdrawal is reported");
     assert!(!take_withdrawn(&ctx), "and once");

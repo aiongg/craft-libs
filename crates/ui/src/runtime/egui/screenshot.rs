@@ -36,6 +36,7 @@ use super::viewports;
 pub enum ScreenshotError {
     /// The checked `width * height` pixel count, or its `width * height * size_of::<Color32>()` byte count,
     /// overflowed `usize`.
+    #[non_exhaustive]
     DimensionsOverflow {
         /// Reported width in pixels.
         width: usize,
@@ -43,6 +44,7 @@ pub enum ScreenshotError {
         height: usize,
     },
     /// The pixel buffer does not match the reported image dimensions, or the image has zero width or height.
+    #[non_exhaustive]
     MalformedImage {
         /// Reported width in pixels.
         width: usize,
@@ -52,6 +54,7 @@ pub enum ScreenshotError {
         pixels: usize,
     },
     /// The checked image size exceeds the slot's per-image byte bound.
+    #[non_exhaustive]
     ImageTooLarge {
         /// Size of the image in bytes.
         bytes: usize,

@@ -260,3 +260,9 @@ pub fn hook_without_pass(ctx: &Context, viewport: ViewportId) -> Vec<Event> {
     input_hook(ctx, &mut input);
     input.events
 }
+
+/// Moves egui's key focus to `id` with no pass, as the application does between handing input over and its pass.
+#[cfg(feature = "testing")]
+pub fn move_focus_without_pass(ctx: &Context, id: Id) {
+    ctx.memory_mut(|memory| memory.request_focus(id));
+}
