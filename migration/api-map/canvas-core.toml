@@ -420,12 +420,12 @@ name = "SplitResponse"
 old = "craft_ui::canvas::split::SplitResponse"
 new = ""
 status = "removed"
-note = "Replaced by `SplitOutput { edit, activated }`."
+note = "Replaced by `SplitViewsOutput { edit, activated }`."
 
 [[type]]
-name = "SplitOutput"
+name = "SplitViewsOutput"
 old = ""
-new = "craft_ui::canvas::SplitOutput"
+new = "craft_ui::canvas::SplitViewsOutput"
 status = "replaced"
 note = "Replaces `SplitResponse`; `edit` carries the divider edits and the response."
 

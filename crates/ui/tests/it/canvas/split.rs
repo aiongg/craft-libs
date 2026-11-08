@@ -71,3 +71,20 @@ fn a_click_on_an_inactive_view_activates_it_and_its_canvas_gets_no_press() {
     fixture.click(&left);
     assert_eq!(*seen.borrow(), (Some(1), false));
 }
+
+#[trial]
+fn split_views_in_right_to_left_mirror_their_dividers() {
+    let divider_x = |direction| {
+        let mut fixture = Fixture::new(|ui| {
+            let mut at = SplitAt::new(0.25, 0.5);
+            SplitViews::new("Views", SplitLayout::Two, Bind::bound(&mut at)).show(ui, |_, _| ());
+        });
+        fixture.direction(direction);
+        fixture.settle();
+        let divider = fixture.by_role(craft_ui::contract::Role::SPLITTER).into_iter().next().expect("two views have a divider");
+        (divider.center().x, fixture.shown().center().x)
+    };
+    let (left_to_right, middle) = divider_x(craft_i18n::Direction::Ltr);
+    let (right_to_left, _) = divider_x(craft_i18n::Direction::Rtl);
+    assert!(left_to_right < middle && middle < right_to_left, "the divider a quarter in from the start edge is on the right under right-to-left");
+}

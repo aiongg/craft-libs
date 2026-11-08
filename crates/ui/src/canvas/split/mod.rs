@@ -10,16 +10,16 @@ mod stories;
 
 use super::words::SplitWords;
 use crate::contract::{
-    Access, Bind, BindMut, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, Focus as _, Name, Numeric, Outcome, Pad,
-    PaintUi, PartsCx, Pointer as _, Props as _, Role, Sizing, WordSetCx as _,
+    Access, Bind, BindMut, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, Name, Outcome, Pad, PaintUi, PartsCx,
+    Pointer as _, Props as _, Role, Sizing, WordSetCx as _,
 };
-use crate::docking::Splitter;
+use crate::docking::divider::{self, Divider, Drag};
+use crate::docking::{DockSizes, Splitter};
 use crate::primitives::{PaintShape, StrokeWidth};
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
 use crate::style::{ComponentStyle, StyleColor, StyleCx};
-use craft_behavior::nav::{StepResult, ValueAxes, ValueSteps, step_value};
-use craft_behavior::{Axis, CanvasView, CursorIcon, Flow, HitLevel, HitPriority, Metrics, NavMove, PartKey, PressPhase, Sense};
+use craft_behavior::{Axis, CanvasView, Flow, HitLevel, HitPriority, Metrics, PartKey, Sense};
 use egui::{CornerRadius, Pos2, Rect, Response};
 
 const DIVIDER: PartKey = PartKey::new("divider");
@@ -134,41 +134,13 @@ impl SplitPane {
     }
 }
 
-/// A divider: the axis the panes it separates follow, its thickness-wide bar, its coordinate across the bar and the
-/// span the coordinate moves in.
-struct Divider {
-    axis: Axis,
-    bar: Rect,
-    at: f32,
-    lo: f32,
-    hi: f32,
-}
-
 /// The dividers of `layout` in `rect` at `at`: the vertical one first, then the horizontal one of four views. Each
 /// can move until a pane is `least` points across.
-fn dividers(layout: SplitLayout, at: SplitAt, rect: Rect, reach: f32, least: f32) -> Vec<Divider> {
+fn dividers(layout: SplitLayout, at: SplitAt, rect: Rect, sizes: &DockSizes) -> Vec<Divider> {
     let (x, y) = (rect.left() + rect.width() * at.x, rect.top() + rect.height() * at.y);
-    let span = |from: f32, to: f32| (from + least, (to - least).max(from + least));
-    let vertical = || {
-        let (lo, hi) = span(rect.left(), rect.right());
-        Divider {
-            axis: Axis::X,
-            bar: Rect::from_min_max(Pos2::new(x - reach / 2.0, rect.top()), Pos2::new(x + reach / 2.0, rect.bottom())),
-            at: x,
-            lo,
-            hi,
-        }
-    };
-    let horizontal = || {
-        let (lo, hi) = span(rect.top(), rect.bottom());
-        Divider {
-            axis: Axis::Y,
-            bar: Rect::from_min_max(Pos2::new(rect.left(), y - reach / 2.0), Pos2::new(rect.right(), y + reach / 2.0)),
-            at: y,
-            lo,
-            hi,
-        }
-    };
+    let span = |from: f32, to: f32| (from + sizes.least_pane, (to - sizes.least_pane).max(from + sizes.least_pane));
+    let vertical = || Divider::new(Axis::X, x, rect, span(rect.left(), rect.right()), sizes.reach);
+    let horizontal = || Divider::new(Axis::Y, y, rect, span(rect.top(), rect.bottom()), sizes.reach);
     match layout {
         SplitLayout::One => Vec::new(),
         SplitLayout::Two => vec![vertical()],
@@ -185,33 +157,14 @@ fn moved(at: SplitAt, divider: &Divider, coord: f32, rect: Rect) -> SplitAt {
     }
 }
 
-/// A vertical move read as the move of a value that grows downwards.
-fn along_y(mv: NavMove) -> NavMove {
-    match mv {
-        NavMove::Up => NavMove::Down,
-        NavMove::Down => NavMove::Up,
-        NavMove::PageUp => NavMove::PageDown,
-        NavMove::PageDown => NavMove::PageUp,
-        NavMove::Forward => NavMove::Up,
-        NavMove::Back => NavMove::Down,
-        other => other,
-    }
-}
-
 /// The style of split views: the sizes the dividers and their keys read, and the edge of the active view.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 pub struct SplitStyle {
     #[style(metrics)]
     metrics: Metrics,
-    /// How thick a divider is across its boundary.
-    reach: f32,
-    /// The least extent of a pane along a divider's axis.
-    least: f32,
-    /// One arrow press.
-    step: f32,
-    /// One Shift-arrow or Page press.
-    jump: f32,
+    /// The docking sizes: the dividers' reach and key steps, and the least extent of a pane along a divider's axis.
+    sizes: DockSizes,
     /// The edge of the active pane.
     active_edge: StyleColor,
     /// The width of that edge.
@@ -221,7 +174,7 @@ pub struct SplitStyle {
 /// What split views report: the dividers' edits and the pane the user chose.
 #[derive(Debug)]
 #[non_exhaustive]
-pub struct SplitOutput {
+pub struct SplitViewsOutput {
     /// The divider edits and the area's response.
     pub edit: EditResponse<SplitAt>,
     /// The pane pressed, or activated by key or assistive technology, this pass that was not the active one: the app
@@ -229,7 +182,7 @@ pub struct SplitOutput {
     pub activated: Option<usize>,
 }
 
-impl Outcome for SplitOutput {
+impl Outcome for SplitViewsOutput {
     type Value = SplitAt;
 
     fn response(&self) -> &Response {
@@ -243,7 +196,7 @@ impl Outcome for SplitOutput {
 }
 
 /// One canvas area divided into 1, 2 or 4 panes. The active pane is the app's: it routes tools and keys there. An
-/// inactive pane is a Tab stop over its view: a press, Enter or Space on it reports it in [`SplitOutput::activated`]
+/// inactive pane is a Tab stop over its view: a press, Enter or Space on it reports it in [`SplitViewsOutput::activated`]
 /// and its view gets no press.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container)]
@@ -281,65 +234,40 @@ impl<'a> SplitViews<'a> {
     }
 }
 
-/// Dragging a divider moves its boundary: one gesture from the drag's start to its release.
-fn resize_by_pointer(cx: &mut Cx<'_, SplitViews<'_>>, at: SplitAt, dividers: &[Divider]) {
+/// Dragging a divider moves its boundary (one gesture from the drag's start to its release), the arrow keys move the
+/// focused divider by a step, Shift or Page by a jump, and assistive technology sets it to a value.
+fn resize(cx: &mut Cx<'_, SplitViews<'_>>, at: SplitAt, dividers: &[Divider]) {
     let rect = cx.rect;
-    let flow = Flow::new(rect, cx.flow.is_rtl());
     for (index, divider) in dividers.iter().enumerate() {
-        match cx.part(DIVIDER.at(index as u64)).press.phase {
-            PressPhase::DragStart { .. } => cx.begin(),
-            PressPhase::Drag { pos, .. } => {
-                let pos = flow.to_physical(Rect::from_min_max(pos, pos)).min;
-                let coord = if divider.axis == Axis::X { pos.x } else { pos.y };
-                cx.propose(moved(at, divider, coord, rect));
-            }
-            PressPhase::Release { .. } => cx.commit(),
-            _ => {}
+        match divider::pointer(cx, DIVIDER, index as u64, divider) {
+            Some(Drag::Start) => cx.begin(),
+            Some(Drag::To(coord)) => cx.propose(moved(at, divider, coord, rect)),
+            Some(Drag::Release) => cx.commit(),
+            None => {}
         }
     }
-}
-
-/// The arrow keys move the focused divider by a step, Shift or Page by a jump; assistive technology sets it to a value.
-fn resize_by_keys(cx: &mut Cx<'_, SplitViews<'_>>, at: SplitAt, dividers: &[Divider]) {
-    let style = cx.style;
-    let Some(index) = cx.active_part().filter(|part| part.key == DIVIDER).and_then(|part| part.index) else { return };
-    let Some(divider) = dividers.get(index as usize) else { return };
-    let coord = if let Some(set) = cx.intents().take_set_value() {
-        set.clamp(f64::from(divider.lo), f64::from(divider.hi))
-    } else if let Some((mv, mods)) = cx.intents().take_move() {
-        let (axes, mv) = match divider.axis {
-            Axis::X => (ValueAxes::Horizontal, mv),
-            _ => (ValueAxes::Vertical, along_y(mv)),
-        };
-        let steps =
-            ValueSteps::new(f64::from(divider.at), f64::from(divider.lo), f64::from(divider.hi), f64::from(style.step), f64::from(style.jump));
-        match step_value(&steps, axes, mv, mods) {
-            StepResult::Set(value) => value,
-            _ => return,
+    let sizes = cx.style.sizes;
+    let keyed: Vec<(u64, Divider)> = dividers.iter().enumerate().map(|(index, divider)| (index as u64, *divider)).collect();
+    if let Some((index, coord)) = divider::keys(cx, DIVIDER, &keyed, sizes.step, sizes.jump)
+        && let Some(divider) = dividers.get(index as usize)
+    {
+        let next = moved(at, divider, coord, rect);
+        if next != at {
+            cx.set(next);
         }
-    } else {
-        return;
-    };
-    let next = moved(at, divider, coord as f32, cx.rect);
-    if next != at {
-        cx.set(next);
     }
 }
 
 impl Component for SplitViews<'_> {
     const ROLE: Role = Role::GROUP;
-    const KEYS: KeyUse = KeyUse::CANVAS;
+    const KEYS: KeyUse = KeyUse::SPLITTER;
     type Style = SplitStyle;
-    type Output = SplitOutput;
+    type Output = SplitViewsOutput;
 
     fn style(cx: &StyleCx<'_>, _: SplitViewsStyleKey) -> SplitStyle {
-        let control = cx.control();
         SplitStyle {
             metrics: Metrics::new(),
-            reach: cx.tokens.size.hit.target,
-            least: cx.tokens.size.panel_header,
-            step: control.gap,
-            jump: control.height,
+            sizes: DockSizes::style(cx),
             active_edge: cx.color(cx.tokens.color.line.focus),
             edge: cx.tokens.stroke.thin,
         }
@@ -374,22 +302,17 @@ impl Component for SplitViews<'_> {
         if cx.value().is_none() {
             return;
         }
-        for (index, divider) in dividers(self.layout, at, rect, cx.style.reach, cx.style.least).iter().enumerate() {
-            let cursor = if divider.axis == Axis::X { CursorIcon::ResizeHorizontal } else { CursorIcon::ResizeVertical };
-            cx.part(DIVIDER.at(index as u64), flow.to_physical(divider.bar))
-                .sense(Sense::DRAG | Sense::TAKE_FOCUS)
-                .priority(HitPriority::new(HitLevel::Edge, 0))
-                .cursor(cursor)
-                .focusable()
-                .over();
+        let sizes = cx.style.sizes;
+        for (index, divider) in dividers(self.layout, at, rect, &sizes).iter().enumerate() {
+            divider::declare(cx, rect, DIVIDER, index as u64, divider);
         }
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         if let Some(at) = cx.value().copied() {
-            let dividers = dividers(self.layout, at, cx.rect, cx.style.reach, cx.style.least);
-            resize_by_pointer(cx, at, &dividers);
-            resize_by_keys(cx, at, &dividers);
+            let sizes = cx.style.sizes;
+            let dividers = dividers(self.layout, at, cx.rect, &sizes);
+            resize(cx, at, &dividers);
         }
         let active = self.active_pane();
         // A press chooses the pane, as in Photoshop; Enter, Space and assistive technology activate it too.
@@ -403,7 +326,7 @@ impl Component for SplitViews<'_> {
     fn paint_over(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let at = cx.value().copied().unwrap_or_default();
         if cx.value().is_some() {
-            for (index, divider) in dividers(self.layout, at, cx.rect, cx.style.reach, cx.style.least).iter().enumerate() {
+            for (index, divider) in dividers(self.layout, at, cx.rect, &cx.style.sizes).iter().enumerate() {
                 ui.face(DIVIDER.at(index as u64), Splitter::new(divider.axis));
             }
         }
@@ -417,21 +340,19 @@ impl Component for SplitViews<'_> {
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let words = cx.words::<SplitWords>();
         for (number, pane) in self.layout.reading_order().into_iter().enumerate() {
-            let number = (number + 1).to_string();
+            let number = cx.format().number((number + 1) as f64, 0);
             let name = words.view.fill(&[("n", number.as_str())]);
             access.node(PANE.at(pane as u64), Role::GROUP).name = Name::Text(name);
         }
         let at = cx.value().copied().unwrap_or_default();
-        let shown = if cx.value().is_some() { dividers(self.layout, at, cx.rect, cx.style.reach, cx.style.least) } else { Vec::new() };
+        let shown = if cx.value().is_some() { dividers(self.layout, at, cx.rect, &cx.style.sizes) } else { Vec::new() };
         for (index, divider) in shown.iter().enumerate() {
-            let node = access.node(DIVIDER.at(index as u64), Role::SPLITTER);
-            node.name = Name::Text(words.resize.as_str().to_owned());
-            node.numeric = Some(Numeric::new(f64::from(divider.at), f64::from(divider.lo)..=f64::from(divider.hi)).step(f64::from(cx.style.step)));
+            divider::describe(access, DIVIDER, index as u64, divider, words.resize.as_str(), cx.style.sizes.step);
         }
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> SplitOutput {
-        SplitOutput { edit: cx.edit_response(), activated: self.activated }
+    fn finish(self, cx: Cx<'_, Self>) -> SplitViewsOutput {
+        SplitViewsOutput { edit: cx.edit_response(), activated: self.activated }
     }
 }
 

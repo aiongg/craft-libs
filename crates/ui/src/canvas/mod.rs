@@ -33,7 +33,7 @@ pub use raster_source::{PixelRect, RasterSource};
 mod pasteboard;
 mod split;
 pub use pasteboard::{PageBorder, PageFrame, Pasteboard, PasteboardColor, PasteboardOutput, PasteboardStyle};
-pub use split::{SplitAt, SplitLayout, SplitOutput, SplitPane, SplitStyle, SplitViews};
+pub use split::{SplitAt, SplitLayout, SplitPane, SplitStyle, SplitViews, SplitViewsOutput};
 pub use words::SplitWords;
 
 mod raster;

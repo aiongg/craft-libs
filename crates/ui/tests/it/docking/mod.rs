@@ -2,9 +2,11 @@
 
 use craft_behavior::dock::{Layout, Node, SplitSize};
 use craft_behavior::{Axis, DockSide};
+use craft_theme::{Contrast, ControlSize, Mode, Variant};
 use craft_ui::contract::{Bind, Role, ShowContainer as _};
-use craft_ui::docking::tree::{self, FrameRules, FrameSizes};
-use craft_ui::docking::{DockDrop, DockGroup, PanelKey, PanelLimits, PanelTitle, SplitArea};
+use craft_ui::docking::tree::FrameRules;
+use craft_ui::docking::{DockDrop, DockGroup, DockSizes, PanelKey, PanelLimits, PanelTitle, SplitArea};
+use craft_ui::testing::style::{tokens, with_cx};
 use craft_ui::testing::{Fixture, trial};
 use egui::Pos2;
 use std::cell::RefCell;
@@ -12,18 +14,30 @@ use std::rc::Rc;
 
 mod render;
 
+mod split;
+
 mod drop;
 
 mod floating;
 mod spec;
 mod targets;
 
-const SIZES: FrameSizes = FrameSizes::new(1.0, 1.0, 40.0, 24.0);
 const LAYERS: usize = 0;
 const CHANNELS: usize = 1;
 const PROPERTIES: usize = 10;
 
 mod columns;
+
+/// The docking sizes of the default theme with the given divider gap, least pane and strip height.
+fn sizes(gap: f32, least_pane: f32, strip: f32) -> DockSizes {
+    with_cx(&egui::Context::default(), &tokens(Mode::Light, Contrast::Standard), Variant::SECONDARY, ControlSize::Md, |cx| {
+        let mut sizes = DockSizes::style(cx);
+        sizes.gap = gap;
+        sizes.least_pane = least_pane;
+        sizes.strip = strip;
+        sizes
+    })
+}
 
 fn two_columns() -> Layout<usize> {
     let root = Node::split(Axis::X, SplitSize::Ratio(0.33), Node::tabs(vec![LAYERS, CHANNELS], 0), Node::tabs(vec![PROPERTIES], 0));
@@ -50,14 +64,13 @@ fn dock() -> (Fixture, Dropped) {
         let mut layout = layout.borrow_mut();
         let shown = layout.clone();
         let limits = |_: &usize| PanelLimits::default();
-        let rules = FrameRules::new(SIZES, &limits);
+        let rules = FrameRules::new(&limits);
         let area = SplitArea::new("Panels", Bind::bound(&mut *layout), rules).show(ui, |ui, body| {
-            let Some(root) = shown.root.as_ref() else { return };
-            for group in tree::frames(root, body.rect, &rules, body.env.direction().is_rtl()).groups {
-                let (Some(anchor), Node::Tabs { panels, .. }) = (group.anchor().copied(), group.node) else { continue };
+            for (anchor, rect) in body.group_frames::<usize>() {
+                let Some(Node::Tabs { panels, .. }) = shown.place(&anchor).and_then(|place| shown.node_of(&place)) else { continue };
                 let panels = titles(panels);
                 let active = panels.first().map_or(PanelKey::new(0), |panel| panel.key);
-                DockGroup::new(anchor, &panels, active).show_at(ui, group.rect, |_, _| ());
+                DockGroup::new(anchor, &panels, active).show_at(ui, rect, |_, _| ());
             }
         });
         if let Some(DockDrop { group, side, .. }) = area.output.dropped {

@@ -511,7 +511,7 @@ name = "SplitArea"
 old = ""
 new = "craft_ui::docking::SplitArea"
 status = "replaced"
-note = "Legacy renders the split tree inside `DockArea` (private `render` types). `SplitArea` shows a `Layout`'s docked tree; `tree::frames(root, rect, &FrameRules, rtl)` gives the group rects its body places groups at, and a divider drag writes the sizes `tree::drag_sizes` returns, in each split's own mode."
+note = "Legacy renders the split tree inside `DockArea` (private `render` types). `SplitArea` shows a `Layout`'s docked tree; its body reads this pass's group rects with `BodyCx::group_frames::<P>()` (anchor and rect), and a divider drag writes the sizes `tree::drag_sizes` returns, in each split's own mode. Its sizes come from `DockSizes::style`; `FrameRules::new(limits)` takes none."
 
 [[type]]
 name = "DockGroup"
@@ -883,3 +883,11 @@ new = "Folded { key, folded }"
 type = "SectionInfo"
 old = "SectionInfo::new(section, title)"
 new = "SectionSpec::new(key, title)"
+
+# split (wave-1 cleanup): one divider, one docking size set.
+[[type]]
+name = "SplitAreaOutput"
+old = ""
+new = "craft_ui::docking::SplitAreaOutput"
+status = "replaced"
+note = "The output of `SplitArea`: the layout's resize edits and the panel dropped on a group."

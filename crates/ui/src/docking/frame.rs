@@ -3,9 +3,9 @@
 use super::config::DockConfig;
 use super::event::HidePanels;
 use super::targets::{DockSizes, DockSpot, DockTargets};
-use super::tree::Frames;
+use super::tree::{self, Frames};
 use craft_behavior::DockSide;
-use craft_behavior::dock::{Column, Floating, Group, Layout, Node, PanelPlace, node_at};
+use craft_behavior::dock::{Column, Floating, Group, Layout, Node, PanelPlace, SplitSize, node_at};
 use egui::{Context, Id, Pos2, Rect, Vec2};
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -25,6 +25,45 @@ pub struct FrameView<'a, P: Clone> {
     pub paths: Option<HashMap<Vec<bool>, Vec<bool>>>,
     /// The layout index of each floating window of the view, in order.
     pub windows: Vec<usize>,
+    /// For each floating window of the view, the path in the window's layout tree of each split of its pruned tree.
+    window_paths: Vec<HashMap<Vec<bool>, Vec<bool>>>,
+}
+
+impl<P: Clone> FrameView<'_, P> {
+    /// Writes the split sizes of `edited`, an edit of the view's layout, into `layout`, the layout the view was made
+    /// from. Panels the view left out keep their place; only sizes change.
+    pub fn write_back(&self, edited: &Layout<P>, layout: &mut Layout<P>) {
+        let Some(paths) = &self.paths else {
+            layout.clone_from(edited);
+            return;
+        };
+        if let (Some(shown), Some(root)) = (edited.root.as_ref(), layout.root.as_mut()) {
+            tree::apply_sizes(root, &split_sizes(shown, paths));
+        }
+        for ((shown, at), paths) in edited.floating.iter().zip(&self.windows).zip(&self.window_paths) {
+            if let Some(window) = layout.floating.get_mut(*at) {
+                tree::apply_sizes(&mut window.root, &split_sizes(&shown.root, paths));
+            }
+        }
+    }
+}
+
+/// The size of every split of the view's tree `node`, with the path in the full tree that `paths` maps its own to.
+fn split_sizes<P>(node: &Node<P>, paths: &HashMap<Vec<bool>, Vec<bool>>) -> Vec<(Vec<bool>, SplitSize)> {
+    fn walk<P>(node: &Node<P>, at: &mut Vec<bool>, paths: &HashMap<Vec<bool>, Vec<bool>>, out: &mut Vec<(Vec<bool>, SplitSize)>) {
+        let Node::Split { size, first, second, .. } = node else { return };
+        if let Some(path) = paths.get(at.as_slice()) {
+            out.push((path.clone(), *size));
+        }
+        for (side, child) in [(false, first), (true, second)] {
+            at.push(side);
+            walk(child, at, paths, out);
+            at.pop();
+        }
+    }
+    let mut out = Vec::new();
+    walk(node, &mut Vec::new(), paths, &mut out);
+    out
 }
 
 /// The layout as shown: the frame of `maximized` alone when it is docked, and `hide`'s panels left out. Protected
@@ -60,18 +99,22 @@ pub fn maximize<'a, P: Clone + Eq + Hash>(
             hidden: Vec::new(),
             paths: None,
             windows: (0..layout.floating.len()).collect(),
+            window_paths: Vec::new(),
         };
     }
     let left_out = layout.panels().into_iter().filter(|panel| hidden(panel)).cloned().collect();
     let mut paths = HashMap::new();
     let mut windows = Vec::new();
+    let mut window_paths = Vec::new();
     let (shown, kept) = match frame {
         Some((panel, path, node)) => (Layout::new(prune(&node, path, Vec::new(), &hidden, &mut paths), Vec::new()), Some(panel)),
         None => {
             let root = layout.root.as_ref().and_then(|root| prune(root, Vec::new(), Vec::new(), &hidden, &mut paths));
             let mut floating = Vec::new();
             for (at, window) in layout.floating.iter().enumerate() {
-                let Some(root) = prune(&window.root, Vec::new(), Vec::new(), &hidden, &mut HashMap::new()) else { continue };
+                let mut window_map = HashMap::new();
+                let Some(root) = prune(&window.root, Vec::new(), Vec::new(), &hidden, &mut window_map) else { continue };
+                window_paths.push(window_map);
                 let mut shown: Floating<P> = window.clone();
                 shown.root = root;
                 floating.push(shown);
@@ -80,7 +123,7 @@ pub fn maximize<'a, P: Clone + Eq + Hash>(
             (Layout::new(root, floating), None)
         }
     };
-    FrameView { layout: Cow::Owned(shown), maximized: kept, hidden: left_out, paths: Some(paths), windows }
+    FrameView { layout: Cow::Owned(shown), maximized: kept, hidden: left_out, paths: Some(paths), windows, window_paths }
 }
 
 fn path_of(place: &PanelPlace) -> Vec<bool> {

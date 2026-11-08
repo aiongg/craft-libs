@@ -252,6 +252,9 @@ impl KeyUse {
         chrome_key: true,
         nudge: true,
     };
+    /// A divider between panes: it takes the arrows as moves of its value, but it is no document and no canvas tool, so
+    /// it marks no window as showing a document and takes no nudges.
+    pub const SPLITTER: KeyUse = KeyUse { chrome_key: false, nudge: false, ..KeyUse::CANVAS.with_moves() };
     /// A shortcut recorder: it takes the arrows of a canvas, but it is no document, so it marks no window and a Tab in
     /// it never toggles panels.
     pub const RECORDER: KeyUse = KeyUse { owner: OwnerClass::Recorder, chrome_key: false, nudge: false, ..KeyUse::CANVAS };

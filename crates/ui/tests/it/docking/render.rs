@@ -4,9 +4,9 @@
 use craft_behavior::Axis;
 use craft_behavior::dock::{Layout, Node, SplitSize};
 use craft_ui::docking::frame::maximize;
-use craft_ui::docking::stack::{RowItem, StackSection, row_drag, section_heights};
-use craft_ui::docking::tree::{self, FrameRules, FrameSizes};
-use craft_ui::docking::{HidePanels, PanelLimits};
+use craft_ui::docking::stack::{StackSection, section_heights};
+use craft_ui::docking::tree::{self, FrameRules};
+use craft_ui::docking::{DockSizes, HidePanels, PanelLimits};
 use craft_ui::testing::trial;
 use egui::{Pos2, Rect, Vec2};
 
@@ -14,12 +14,15 @@ const WIDTH: f32 = 400.0;
 const HEIGHT: f32 = 300.0;
 const LEAST_WIDTH: f32 = 60.0;
 const HEADER: f32 = 20.0;
-const SIZES: FrameSizes = FrameSizes::new(0.0, 0.0, 0.0, HEADER);
 const EPS: f32 = 0.01;
 
 const A: usize = 0;
 const B: usize = 1;
 const C: usize = 2;
+
+fn sizes() -> DockSizes {
+    super::sizes(0.0, 0.0, HEADER)
+}
 
 fn area(width: f32) -> Rect {
     Rect::from_min_size(Pos2::ZERO, Vec2::new(width, HEIGHT))
@@ -30,7 +33,7 @@ fn limits(_: &usize) -> PanelLimits {
 }
 
 fn widths(root: &Node<usize>, rect: Rect, rules: &FrameRules<'_, usize>) -> Vec<f32> {
-    tree::frames(root, rect, rules, false).groups.iter().map(|group| group.rect.width()).collect()
+    tree::frames(root, rect, &sizes(), rules, false).groups.iter().map(|group| group.rect.width()).collect()
 }
 
 /// `A | (B | C)`: three groups side by side, the first divider ahead of a nested split.
@@ -42,11 +45,14 @@ fn three_columns() -> Node<usize> {
 #[trial]
 fn a_divider_shrinks_the_groups_beyond_it_in_turn_down_to_their_minimum() {
     let rect = area(WIDTH);
-    let rules = FrameRules::new(SIZES, &limits);
+    let rules = FrameRules::new(&limits);
     let mut root = three_columns();
-    let first_divider =
-        tree::frames(&root, rect, &rules, false).handles.into_iter().find(|handle| handle.path.is_empty()).expect("the root split has a handle");
-    let sizes = tree::drag_sizes(&root, rect, &rules, &first_divider.path, WIDTH);
+    let first_divider = tree::frames(&root, rect, &sizes(), &rules, false)
+        .handles
+        .into_iter()
+        .find(|handle| handle.path.is_empty())
+        .expect("the root split has a handle");
+    let sizes = tree::drag_sizes(&root, rect, &sizes(), &rules, &first_divider.path, WIDTH);
     tree::apply_sizes(&mut root, &sizes);
 
     let after = widths(&root, rect, &rules);
@@ -60,13 +66,13 @@ fn a_divider_shrinks_the_groups_beyond_it_in_turn_down_to_their_minimum() {
 #[trial]
 fn a_divider_cannot_travel_past_the_minimum_of_every_group_beyond_it() {
     let rect = area(WIDTH);
-    let rules = FrameRules::new(SIZES, &limits);
+    let rules = FrameRules::new(&limits);
     let root = three_columns();
-    let (lo, hi) = tree::drag_range(&root, rect, &rules, &[]);
+    let (lo, hi) = tree::drag_range(&root, rect, &sizes(), &rules, &[]);
     let room_beyond = 2.0 * (WIDTH / 4.0 - LEAST_WIDTH);
     assert!(lo <= 0.0, "the divider can stay");
     assert!((hi - room_beyond).abs() < EPS, "the divider travels as far as the groups beyond it can shrink: {hi}");
-    let sizes = tree::drag_sizes(&root, rect, &rules, &[], 10.0 * WIDTH);
+    let sizes = tree::drag_sizes(&root, rect, &sizes(), &rules, &[], 10.0 * WIDTH);
     let mut moved = root.clone();
     tree::apply_sizes(&mut moved, &sizes);
     let after = widths(&moved, rect, &rules);
@@ -75,7 +81,7 @@ fn a_divider_cannot_travel_past_the_minimum_of_every_group_beyond_it() {
 
 #[trial]
 fn a_fixed_split_keeps_its_size_when_the_area_resizes() {
-    let rules = FrameRules::new(SIZES, &limits);
+    let rules = FrameRules::new(&limits);
     let fixed = 120.0;
     let root = Node::split(Axis::X, SplitSize::FixedFirst(fixed), Node::tabs(vec![A], 0), Node::tabs(vec![B], 0));
     let narrow = widths(&root, area(WIDTH), &rules);
@@ -87,11 +93,11 @@ fn a_fixed_split_keeps_its_size_when_the_area_resizes() {
 #[trial]
 fn a_dragged_ratio_split_stays_a_ratio_and_a_fixed_one_stays_fixed() {
     let rect = area(WIDTH);
-    let rules = FrameRules::new(SIZES, &limits);
+    let rules = FrameRules::new(&limits);
     let mut ratio = Node::split(Axis::X, SplitSize::Ratio(0.5), Node::tabs(vec![A], 0), Node::tabs(vec![B], 0));
     let mut fixed = Node::split(Axis::X, SplitSize::FixedSecond(150.0), Node::tabs(vec![A], 0), Node::tabs(vec![B], 0));
     for root in [&mut ratio, &mut fixed] {
-        let sizes = tree::drag_sizes(root, rect, &rules, &[], 20.0);
+        let sizes = tree::drag_sizes(root, rect, &sizes(), &rules, &[], 20.0);
         tree::apply_sizes(root, &sizes);
     }
     assert!(matches!(ratio, Node::Split { size: SplitSize::Ratio(_), .. }), "a ratio split keeps its mode");
@@ -116,19 +122,6 @@ fn a_preferred_section_height_is_kept_and_the_last_sections_give_way_when_it_doe
     assert!((roomy[0] - (preferred + HEADER)).abs() < EPS, "the preferred height is kept: {roomy:?}");
     let tight = section_heights(&sections, 2.0 * HEADER + preferred + 10.0, HEADER);
     assert!((tight[0] - (preferred + HEADER)).abs() < EPS && tight[1] < roomy[1], "the last section gives way first: {tight:?}");
-}
-
-#[trial]
-fn a_row_divider_shrinks_the_items_beyond_it_one_after_another() {
-    const ITEM: f32 = 100.0;
-    const LEAST: f32 = 40.0;
-    let row = [RowItem::new(ITEM, LEAST, 500.0), RowItem::new(ITEM, LEAST, 500.0), RowItem::new(ITEM, LEAST, 500.0)];
-    let drag = ITEM;
-    let sizes = row_drag(&row, 0, drag);
-    assert!((sizes[1] - LEAST).abs() < EPS, "the item at the divider gives way first, to its minimum: {sizes:?}");
-    assert!((sizes[2] - (ITEM - (drag - (ITEM - LEAST)))).abs() < EPS, "the next item gives the rest: {sizes:?}");
-    let all = row_drag(&row, 0, 10.0 * ITEM);
-    assert!((all[1] - LEAST).abs() < EPS && (all[2] - LEAST).abs() < EPS, "no item goes below its minimum: {all:?}");
 }
 
 #[trial]
