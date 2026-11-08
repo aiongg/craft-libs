@@ -1,43 +1,42 @@
-//! [`FileListPicker`]: a list of chosen files (or one folder) with Browse, Remove and the other
-//! list buttons, inside a dialog that loads several files.
+//! [`FileListPicker`]: a list of chosen files (or one folder) with Browse, Remove and the other list buttons, inside a
+//! dialog that loads several files.
 
+use craft_behavior::{DisplayOrder, EditEvent, ItemSource, Selection};
+use craft_host::{PickId, PickKind, PickRequest};
+use craft_ui::buttons::Button;
+use craft_ui::contract::{
+    Bind, BodyCx, CollectionEvent, Entry, Held, NoValue, Outcome, Props as _, Remember as _, ReorderRule, SelectMode, Show as _, ShowCollection as _,
+    ShowContainer as _, clicked,
+};
+use craft_ui::display::{Shade, Text};
+use craft_ui::form::Field;
+use craft_ui::layout_components::{Row, Stack};
+use craft_ui::list::{List, ListRow};
+use craft_ui::pickers::Select;
+use craft_ui::runtime::env::{Env, Label};
+use egui::{Response, Ui};
+use std::borrow::Cow;
+use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 
-use craft_host::{Host, PickId, PickKind, PickRequest};
-use craft_ui::behavior::{RowInfo, Selection, SelectionMode};
-use craft_ui::controls::{Button, Select};
-use craft_ui::list::{List, ListEvent, ListRow};
-use craft_ui::localized::Labels;
-use craft_ui::primitives::{Content, Gap, Surface, SurfaceKind, Text};
-use craft_ui::theme::{Tokens, TokensOf};
-use egui::accesskit::Role;
-use egui::{AsIdSalt, IdSalt, Key, Modifiers, ScrollArea, Ui, UiBuilder};
-
-/// The list box's width.
-const LIST_WIDTH: f32 = 300.0;
-/// The list box shows this many rows of `size.control.md`.
-const LIST_ROWS: f32 = 6.0;
-/// The least width of the buttons beside the list.
-const BUTTON_MIN_WIDTH: f32 = 120.0;
-
 craft_ui::words! {
-    /// The picker's words, English by default.
-    #[non_exhaustive]
-    pub struct FileListLabels {
-        use_label: "fileList.use" = "Use:";
-        files: "fileList.files" = "Files";
-        folder: "fileList.folder" = "Folder";
-        browse: "fileList.browse" = "Browse…";
-        remove: "fileList.remove" = "Remove";
-        add_open_files: "fileList.addOpenFiles" = "Add Open Files";
-        sort_by_name: "fileList.sortByName" = "Sort By Name";
-        add_files: "fileList.addFiles" = "Add the files to load";
-        choose_folder: "fileList.chooseFolder" = "Choose a folder to load";
+    /// The words of the file list picker.
+    pub struct FileListWords {
+        use_label: "fileListPicker.use" = "Use:";
+        files: "fileListPicker.files" = "Files";
+        folder: "fileListPicker.folder" = "Folder";
+        browse: "fileListPicker.browse" = "Browse…";
+        remove: "fileListPicker.remove" = "Remove";
+        add_open_files: "fileListPicker.addOpenFiles" = "Add Open Files";
+        sort_by_name: "fileListPicker.sortByName" = "Sort By Name";
+        add_files: "fileListPicker.addFiles" = "Add the files to load";
+        choose_folder: "fileListPicker.chooseFolder" = "Choose a folder to load";
     }
 }
 
 /// Files picked one by one, or one folder whose files the app lists.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum FileListMode {
     /// Individual files, listed in the user's order.
     #[default]
@@ -48,6 +47,7 @@ pub enum FileListMode {
 
 /// The picker's value; the dialog keeps it.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct FileList {
     /// Whether files or a folder are picked.
     pub mode: FileListMode,
@@ -61,7 +61,6 @@ pub struct FileList {
 
 impl FileList {
     /// Adds paths not in the list yet, in order (Browse, Add Open Files, a drop).
-    // pc: crates/ui-egui/src/dialogs/stack_dialog.rs:66 add
     pub fn add(&mut self, paths: impl IntoIterator<Item = PathBuf>) {
         for path in paths {
             if !self.files.contains(&path) {
@@ -71,7 +70,6 @@ impl FileList {
     }
 
     /// Whether OK may run: Files mode needs a file, Folder mode a folder.
-    // pc: crates/ui-egui/src/dialogs/stack_dialog.rs:86 can_confirm
     pub fn is_valid(&self) -> bool {
         match self.mode {
             FileListMode::Files => !self.files.is_empty(),
@@ -79,16 +77,15 @@ impl FileList {
         }
     }
 
-    /// Why OK can't run, for the dialog's message: "Add the files to load" or "Choose a folder
-    /// to load"; `None` when [`is_valid`](Self::is_valid).
-    // pc: crates/ui-egui/src/dialogs/stack_dialog.rs:213 confirm
-    pub fn problem<'l>(&self, labels: &'l FileListLabels) -> Option<&'l str> {
+    /// Why OK can't run, for the dialog's message: "Add the files to load" or "Choose a folder to load"; `None` when
+    /// [`is_valid`](Self::is_valid).
+    pub fn problem<'l>(&self, words: &'l FileListWords) -> Option<&'l str> {
         if self.is_valid() {
             return None;
         }
         Some(match self.mode {
-            FileListMode::Files => labels.add_files.as_str(),
-            FileListMode::Folder => labels.choose_folder.as_str(),
+            FileListMode::Files => words.add_files.as_str(),
+            FileListMode::Folder => words.choose_folder.as_str(),
         })
     }
 }
@@ -96,49 +93,69 @@ impl FileList {
 /// The second line of a file's row.
 type InfoLine<'a> = &'a dyn Fn(&Path) -> Option<String>;
 
-/// What the picker reported this pass.
-#[derive(Debug, Default)]
-pub struct FileListPickerResponse {
-    /// The list, mode or folder changed.
+/// The pick the picker is waiting for and what it asked for, kept in the picker's container while it is shown.
+#[derive(Clone, Copy, Default)]
+struct Ticket(Option<(PickId, PickKind)>);
+
+/// What the picker reports.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct FileListPickerOutput {
+    /// The picker's response.
+    pub response: Response,
+    /// The list, mode or folder changed in this pass.
     pub changed: bool,
     /// Browse queued a picker; the answer fills the list on a later pass.
     pub browsing: Option<PickId>,
 }
 
+impl Outcome for FileListPickerOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
 /// Photoshop's Load Files into Stack file list, after PhotoCraft's port of it.
 ///
-/// The user sees "Use:" with Files and Folder (when [`folder_mode`](Self::folder_mode) is on), the
-/// list box (one row per file showing its name, the full path as tooltip, and the
-/// app's info line under the name when given, VectorCraft's Place list), and the buttons beside
-/// it: Browse… (an open-many picker in Files mode, a folder picker in Folder mode, both through
-/// `host.files()`), Remove (with a row selected), Add Open Files (when the app passed open
-/// documents with a path) and Sort By Name (more than one file; sorts by name ignoring case).
-/// In Folder mode the list shows the folder's files the app passes and has no selection.
+/// The user sees "Use:" with Files and Folder (when [`folder_mode`](Self::folder_mode) is on), the list (one row per
+/// file showing its name, the full path as tooltip, and the app's info line under the name when given) and the buttons
+/// under it: Browse… (an open-many picker in Files mode, a folder picker in Folder mode, both through `host.files()`),
+/// Remove (with a row selected), Add Open Files (when the app passed open documents with a path) and Sort By Name (more
+/// than one file; sorts by name ignoring case). In Folder mode the list shows the folder's files the app passes and has
+/// no selection.
 ///
-/// Keys: the list is one Tab stop; arrows move the selection; Delete and Backspace remove the
-/// selected file (PdfCraft's Combine list); Alt+↑ and Alt+↓ move it. Dropped files are added by
-/// the dialog with [`FileList::add`].
-///
-/// ```ignore
-/// let r = FileListPicker::new("stack-files", &mut self.list).folder_mode(true).open_files(&open_paths).show(ui);
-/// ok_enabled = self.list.is_valid();
-/// ```
+/// Keys: the list is one Tab stop; arrows move the selection; Delete and Backspace remove the selected file; Alt+Up and
+/// Alt+Down move it. Dropped files are added by the dialog with [`FileList::add`].
+#[must_use = "show the picker with `show`"]
+#[derive(craft_ui::contract::Pattern, craft_ui::contract::Props)]
 pub struct FileListPicker<'a> {
-    id_salt: IdSalt,
-    list: &'a mut FileList,
+    label: Label,
+    list: Bind<'a, FileList>,
+    /// Browse's picker in Files mode (purpose, filters); Folder mode asks for a folder with the same purpose.
+    #[prop]
     request: PickRequest,
+    /// Offers Folder mode.
+    #[prop]
     folder_mode: bool,
+    /// The open documents' paths, for Add Open Files.
+    #[prop]
     open_files: &'a [PathBuf],
+    /// The files the app found in the chosen folder, shown in Folder mode.
+    #[prop]
     folder_files: &'a [PathBuf],
+    /// A second line per file ("1200 × 800 px, 300 ppi, RGB"); none for no line.
+    #[prop]
     info: Option<InfoLine<'a>>,
 }
 
 impl<'a> FileListPicker<'a> {
-    /// The picker over `list`; Browse asks with `PickRequest::open_many("stack")` until
+    /// The picker named `label` over `list`; Browse asks with `PickRequest::open_many("stack")` until
     /// [`request`](Self::request) replaces it.
-    pub fn new(id_salt: impl AsIdSalt, list: &'a mut FileList) -> Self {
-        Self {
-            id_salt: IdSalt::new(id_salt),
+    pub fn new(label: impl Into<Label>, list: Bind<'a, FileList>) -> Self {
+        FileListPicker {
+            label: label.into(),
             list,
             request: PickRequest::open_many("stack"),
             folder_mode: false,
@@ -148,230 +165,216 @@ impl<'a> FileListPicker<'a> {
         }
     }
 
-    /// Browse's picker in Files mode (purpose, filters); Folder mode asks for a folder with the
-    /// same purpose.
-    pub fn request(mut self, request: PickRequest) -> Self {
-        self.request = request;
-        self
-    }
-
-    /// Offers Folder mode.
-    pub fn folder_mode(mut self, on: bool) -> Self {
-        self.folder_mode = on;
-        self
-    }
-
-    /// The open documents' paths, for Add Open Files.
-    pub fn open_files(mut self, paths: &'a [PathBuf]) -> Self {
-        self.open_files = paths;
-        self
-    }
-
-    /// The files the app found in the chosen folder, shown in Folder mode.
-    pub fn folder_files(mut self, paths: &'a [PathBuf]) -> Self {
-        self.folder_files = paths;
-        self
-    }
-
-    /// A second line per file ("1200 × 800 px, 300 ppi, RGB"); `None` for no line.
-    pub fn info(mut self, info: InfoLine<'a>) -> Self {
-        self.info = Some(info);
-        self
-    }
-
-    /// Takes its own pick answers from `Host::of(ui).files()` by ticket.
-    // pc: crates/ui-egui/src/dialogs/stack_dialog.rs:114 body, :92 browse, :81 open_files;
-    // vectorcraft: crates/ui-egui/src/dialogs/place.rs (info lines); pdfcraft: crates/ui-egui/src/workflows/combine_ui/view.rs:470 keyboard
-    pub fn show(self, ui: &mut Ui) -> FileListPickerResponse {
-        let Self { id_salt, list, request, folder_mode, open_files, folder_files, info } = self;
-        let host = Host::of(ui);
-        let labels = FileListLabels::of(ui);
-        let tokens = Tokens::of(ui);
-        let ticket_key = ui.scope_id().with((id_salt, "ticket"));
-        let enabled = ui.is_enabled();
-        let mut response = FileListPickerResponse::default();
-
-        // The answer of this picker's Browse fills the list before it is drawn.
-        if let Some(ticket) = ui.data(|d| d.get_temp::<PickId>(ticket_key))
-            && let Some(picked) = host.files().take_answer(ticket)
-        {
-            ui.data_mut(|d| d.remove::<PickId>(ticket_key));
-            let paths = picked.paths();
-            if request.kind == PickKind::Folder {
-                if let Some(folder) = paths.into_iter().next() {
-                    list.folder = Some(folder);
-                    response.changed = true;
-                }
-            } else if !paths.is_empty() {
-                let before = list.files.len();
-                list.add(paths);
-                response.changed |= list.files.len() != before;
-            }
-        }
-        if list.selected.is_some_and(|at| at >= list.files.len()) {
-            list.selected = None;
-        }
-        let folder = list.mode == FileListMode::Folder;
-
+    /// Shows the picker. Takes the answer of its own Browse ticket from the host's file service.
+    pub fn show(self, ui: &mut Ui) -> FileListPickerOutput {
+        let FileListPicker { label, list, request, folder_mode, open_files, folder_files, info } = self;
+        let words = Env::of(ui).words::<FileListWords>();
+        let pass = RefCell::new(Pass { held: Held::new(list), seen: None, browsing: None });
+        let mut stack = Stack::new().fill();
         if folder_mode {
-            ui.horizontal(|ui| {
-                ui.add(Text::new(labels.use_label.as_str()));
-                let mut mode = list.mode;
-                let _ = Select::new((id_salt, "use"), labels.use_label.as_str(), &mut mode)
-                    .option(FileListMode::Files, labels.files.as_str())
-                    .option(FileListMode::Folder, labels.folder.as_str())
-                    .show(ui);
-                if mode != list.mode {
-                    list.mode = mode;
-                    list.selected = None;
-                    response.changed = true;
-                }
-            });
-        }
-
-        let mut browse = false;
-        let mut remove = false;
-        let mut add_open = false;
-        let mut sort = false;
-        let gap = Gap::Stack.points(&tokens);
-        let list_size = egui::vec2(LIST_WIDTH, LIST_ROWS * tokens.size.control.md);
-        let button_min = BUTTON_MIN_WIDTH;
-        ui.horizontal_top(|ui| {
-            ui.spacing_mut().item_spacing.x = gap;
-            Surface::new(SurfaceKind::Sunken).show(ui, |ui| {
-                ui.allocate_ui(list_size, |ui| {
-                    ui.set_min_size(list_size);
-                    ui.set_max_width(list_size.x);
-                    if folder {
-                        folder_rows(ui, &labels, list.folder.as_deref(), folder_files, info, list_size.y);
-                    } else {
-                        let moved = file_rows(ui, id_salt, &labels, list, info, list_size.y);
-                        remove = moved.remove;
-                        response.changed |= moved.changed;
+            stack = stack.header(|ui, cx| {
+                let mut pass = pass.borrow_mut();
+                let now = pass.load(cx);
+                let modes = [Entry::new(FileListMode::Files, words.files.clone()), Entry::new(FileListMode::Folder, words.folder.clone())];
+                Field::new(words.use_label.clone()).id_salt("use").show(ui, |ui, _| {
+                    if let Some(mode) = Select::new(words.use_label.clone(), Bind::given(now.mode), &modes).id_salt("mode").show(ui).value().copied()
+                    {
+                        now.mode = mode;
+                        now.selected = None;
                     }
                 });
             });
-
-            let can_remove = !folder && list.selected.is_some();
-            let can_sort = !folder && list.files.len() > 1;
-            let can_add_open = !folder && !open_files.is_empty();
-            ui.vertical(|ui| {
-                ui.spacing_mut().item_spacing.y = Gap::Row.points(&tokens);
-                let button = |ui: &mut Ui, label: &str, on: bool| {
-                    ui.add(Button::new(label).id_salt((id_salt, label)).min_width(button_min).enabled(on && enabled)).clicked()
+        }
+        let shown = stack
+            .footer(|ui, cx| {
+                let mut pass = pass.borrow_mut();
+                let host = cx.env.host().cloned();
+                let now = pass.load(cx);
+                let folder = now.mode == FileListMode::Folder;
+                let (mut browse, mut remove, mut add_open, mut sort) = (false, false, false, false);
+                Row::new().show(ui, |ui, _| {
+                    let button = |ui: &mut Ui, label: &Label, key: &'static str, enabled: bool| {
+                        clicked(&Button::new(label.clone()).enabled(enabled).id_salt(key).show(ui))
+                    };
+                    browse = button(ui, &words.browse, "browse", true);
+                    remove = button(ui, &words.remove, "remove", !folder && now.selected.is_some());
+                    add_open = button(ui, &words.add_open_files, "add-open", !folder && !open_files.is_empty());
+                    sort = button(ui, &words.sort_by_name, "sort", !folder && now.files.len() > 1);
+                });
+                if remove && let Some(at) = now.selected.filter(|&at| at < now.files.len()) {
+                    now.files.remove(at);
+                    now.selected = None;
+                }
+                if add_open {
+                    now.add(open_files.iter().cloned());
+                }
+                if sort {
+                    now.files.sort_by_key(|path| file_name(path).to_lowercase());
+                    now.selected = None;
+                }
+                if browse && let Some(host) = &host {
+                    let asked = if folder { PickRequest::folder(request.purpose.clone()) } else { request.clone() };
+                    let kind = asked.kind;
+                    let id = host.files().pick(asked);
+                    cx.memory::<Ticket>().0 = Some((id, kind));
+                    pass.browsing = Some(id);
+                }
+                pass.finish(cx, label.as_str());
+            })
+            .show(ui, |ui, cx| {
+                let mut pass = pass.borrow_mut();
+                let now = pass.load(cx);
+                let folder = now.mode == FileListMode::Folder;
+                if folder && let Some(path) = &now.folder {
+                    Text::new(path.to_string_lossy().into_owned()).shade(Shade::Muted).show(ui);
+                }
+                let paths: &[PathBuf] = if folder { folder_files } else { &now.files };
+                let source = Rows::new(paths);
+                let mut selection = now.selected.map_or_else(Selection::default, Selection::single);
+                let list = List::new(words.files.clone()).id_salt("files");
+                let list = if folder {
+                    list.select(SelectMode::None)
+                } else {
+                    list.select(SelectMode::Single).deletable(true).reorder(ReorderRule::new()).selection(Bind::bound(&mut selection))
                 };
-                browse = button(ui, &labels.browse, true);
-                remove |= button(ui, &labels.remove, can_remove);
-                add_open = button(ui, &labels.add_open_files, can_add_open);
-                sort = button(ui, &labels.sort_by_name, can_sort);
+                let events = list.show_items(ui, &source, &mut |at, _| file_row(paths.get(*at).map_or(Path::new(""), PathBuf::as_path), info)).events;
+                if folder {
+                    return;
+                }
+                now.selected = selection.items.first().copied();
+                for event in events {
+                    match event {
+                        CollectionEvent::Delete(mut keys) => {
+                            keys.sort_unstable_by(|a, b| b.cmp(a));
+                            keys.dedup();
+                            for at in keys.into_iter().filter(|&at| at < now.files.len()) {
+                                now.files.remove(at);
+                            }
+                            now.selected = None;
+                        }
+                        CollectionEvent::Reorder(EditEvent::Set { after, .. } | EditEvent::Commit { after, .. }) => {
+                            let first = after.keys.iter().position(|key| *key == after.key).unwrap_or(0);
+                            move_files(&mut now.files, &after.keys, after.to);
+                            now.selected = Some(after.to + first);
+                        }
+                        _ => {}
+                    }
+                }
             });
+        let pass = pass.into_inner();
+        let changed = pass.seen.as_ref().is_some_and(|(before, now)| before != now);
+        FileListPickerOutput { response: shown.output, changed, browsing: pass.browsing }
+    }
+}
+
+/// What the regions of one pass share: the bound value, its working copy and the ticket this pass issued.
+struct Pass<'h> {
+    held: Held<'h, FileList>,
+    /// The value at the start of the pass and its working copy.
+    seen: Option<(FileList, FileList)>,
+    browsing: Option<PickId>,
+}
+
+impl Pass<'_> {
+    /// The working copy, read and given the pick answer on the region that runs first.
+    fn load(&mut self, cx: &mut BodyCx<'_>) -> &mut FileList {
+        let held = &mut self.held;
+        let (_, now) = self.seen.get_or_insert_with(|| {
+            let before = held.read(cx).unwrap_or_default();
+            let mut now = before.clone();
+            take_answer(cx, &mut now);
+            if now.selected.is_some_and(|at| at >= now.files.len()) {
+                now.selected = None;
+            }
+            (before, now)
         });
+        now
+    }
 
-        if remove && let Some(at) = list.selected.filter(|&at| at < list.files.len()) {
-            list.files.remove(at);
-            list.selected = None;
-            response.changed = true;
+    /// Writes the working copy to the binding when the pass changed it.
+    fn finish(&mut self, cx: &mut BodyCx<'_>, name: &str) {
+        if let Some((before, now)) = &self.seen
+            && before != now
+        {
+            let (before, now) = (before.clone(), now.clone());
+            self.held.write(cx, &before, now, name);
         }
-        if add_open {
-            let before = list.files.len();
-            list.add(open_files.iter().cloned());
-            response.changed |= list.files.len() != before;
-        }
-        if sort {
-            list.files.sort_by_key(|path| file_name(path).to_lowercase());
-            list.selected = None;
-            response.changed = true;
-        }
-        if browse {
-            let request = if folder { PickRequest::folder(request.purpose.clone()) } else { request };
-            let id = host.files().pick(request);
-            ui.data_mut(|d| d.insert_temp(ticket_key, id));
-            response.browsing = Some(id);
-        }
-        response
     }
 }
 
-/// What the Files list reported besides its selection.
-struct RowEdits {
-    remove: bool,
-    changed: bool,
+/// Puts the answer of the ticket this picker kept into `now`.
+fn take_answer(cx: &mut BodyCx<'_>, now: &mut FileList) {
+    let Some(host) = cx.env.host().cloned() else { return };
+    let Some((ticket, kind)) = cx.memory::<Ticket>().0 else { return };
+    let Some(picked) = host.files().take_answer(ticket) else { return };
+    cx.memory::<Ticket>().0 = None;
+    if kind == PickKind::Folder {
+        if let Some(folder) = picked.paths().into_iter().next() {
+            now.folder = Some(folder);
+        }
+    } else {
+        now.add(picked.paths());
+    }
 }
 
-/// The Files list: one Tab stop, arrows select, Delete and Backspace remove the selected file,
-/// Alt+↑ and Alt+↓ move it.
-fn file_rows(ui: &mut Ui, id_salt: IdSalt, labels: &FileListLabels, list: &mut FileList, info: Option<InfoLine<'_>>, height: f32) -> RowEdits {
-    let mut edits = RowEdits { remove: false, changed: false };
-    let rows: Vec<RowInfo<usize>> = (0..list.files.len()).map(RowInfo::leaf).collect();
-    let mut selection = list.selected.map_or_else(Selection::new, Selection::only);
-    let files = &list.files;
-    let output = List::new((id_salt, "files"), labels.files.as_str(), rows.as_slice())
-        .selection(&mut selection)
-        .mode(SelectionMode::Single)
-        .detail_lines(info.is_some())
-        .max_height(height)
-        .show(ui, |_, &at| file_row(at, &files[at], info));
-    for event in &output.events {
-        if let ListEvent::Selection(change) = event {
-            list.selected = change.selection.items.first().copied();
-        }
-    }
-    if output.response.has_focus()
-        && ui.is_enabled()
-        && let Some(at) = list.selected
-    {
-        let (delete, up, down) = ui.input_mut(|i| {
-            (
-                i.consume_key(Modifiers::NONE, Key::Delete) || i.consume_key(Modifiers::NONE, Key::Backspace),
-                i.consume_key(Modifiers::ALT, Key::ArrowUp),
-                i.consume_key(Modifiers::ALT, Key::ArrowDown),
-            )
-        });
-        if delete {
-            edits.remove = true;
-        } else if up && at > 0 {
-            list.files.swap(at, at - 1);
-            list.selected = Some(at - 1);
-            edits.changed = true;
-        } else if down && at + 1 < list.files.len() {
-            list.files.swap(at, at + 1);
-            list.selected = Some(at + 1);
-            edits.changed = true;
-        }
-    }
-    edits
+/// The files as the list's item source: the position in the files is the key.
+struct Rows<'a> {
+    paths: &'a [PathBuf],
+    names: Vec<String>,
 }
+
+impl<'a> Rows<'a> {
+    fn new(paths: &'a [PathBuf]) -> Self {
+        Rows { paths, names: paths.iter().map(|path| file_name(path)).collect() }
+    }
+}
+
+impl DisplayOrder<usize> for Rows<'_> {
+    fn len(&self) -> usize {
+        self.paths.len()
+    }
+
+    fn key(&self, at: usize) -> usize {
+        at
+    }
+
+    fn text(&self, at: usize) -> Option<Cow<'_, str>> {
+        self.names.get(at).map(|name| Cow::Borrowed(name.as_str()))
+    }
+}
+
+impl ItemSource<usize> for Rows<'_> {}
 
 /// One file's row: its name, the path for a screen reader, the app's info line under the name.
-fn file_row<'a>(at: usize, path: &Path, info: Option<InfoLine<'_>>) -> ListRow<'a, usize> {
+fn file_row<'a>(path: &Path, info: Option<InfoLine<'_>>) -> ListRow<'a> {
     let name = file_name(path);
     let line = info.and_then(|info| info(path));
     let accessible = match &line {
         Some(line) => format!("{name}, {line}"),
         None => name.clone(),
     };
-    let row = ListRow::new(at, name).accessible_name(accessible).description(path.to_string_lossy()).tooltip(path.to_string_lossy());
+    let full = path.to_string_lossy().into_owned();
+    let row = ListRow::new(name).accessible_name(accessible).description(full.clone()).tooltip(full);
     match line {
         Some(line) => row.detail(line),
         None => row,
     }
 }
 
-/// The Folder list: the folder's path, then the files the app found there. No selection.
-fn folder_rows(ui: &mut Ui, labels: &FileListLabels, folder: Option<&Path>, files: &[PathBuf], info: Option<InfoLine<'_>>, height: f32) {
-    let builder = UiBuilder::new().accessibility_role(Role::List).accessibility_label(labels.files.clone());
-    ui.scope_builder(builder, |ui| {
-        ScrollArea::vertical().id_salt("folder-files").max_height(height).auto_shrink([false, false]).show(ui, |ui| {
-            if let Some(folder) = folder {
-                ui.add(Text::new(folder.to_string_lossy()).content(Content::Muted).truncate());
-            }
-            for (at, path) in files.iter().enumerate() {
-                let _ = file_row(at, path, info).role(Role::ListItem).show(ui);
-            }
-        });
-    });
-}
-
 fn file_name(path: &Path) -> String {
     path.file_name().map_or_else(|| path.to_string_lossy(), |name| name.to_string_lossy()).into_owned()
+}
+
+/// Moves the files at `keys` (display order) together, so the first of them lands at `to` in the order that remains
+/// once all of them are taken out.
+fn move_files(files: &mut Vec<PathBuf>, keys: &[usize], to: usize) {
+    let mut places: Vec<usize> = keys.iter().copied().filter(|&at| at < files.len()).collect();
+    places.sort_unstable();
+    places.dedup();
+    let moved: Vec<PathBuf> = places.iter().map(|&at| files[at].clone()).collect();
+    for &at in places.iter().rev() {
+        files.remove(at);
+    }
+    let to = to.min(files.len());
+    files.splice(to..to, moved);
 }

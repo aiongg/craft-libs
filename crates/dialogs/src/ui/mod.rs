@@ -1,74 +1,48 @@
-//! The file service's egui parts: [`PathField`] and [`FileListPicker`].
+//! The file service's UI parts: [`PathField`] and [`FileListPicker`], and the words of the service's native boxes.
 
 mod file_list;
-#[cfg(test)]
-mod file_list_tests;
 mod path_field;
-#[cfg(test)]
-mod path_field_tests;
-mod story;
+#[cfg(feature = "screen-testing")]
+mod stories;
 
-craft_ui::story::register! {
-    story,
-}
-
-/// The stories of the file list picker and the path field.
-pub fn stories() -> Vec<craft_ui::story::Story> {
-    registry()
-}
+pub use file_list::{FileList, FileListMode, FileListPicker, FileListPickerOutput, FileListWords};
+pub use path_field::{PathField, PathFieldOutput, PathFieldWords};
 
 craft_ui::words! {
-    /// The Replace question of a Save the file panel did not ask about. The service shows it as a
-    /// native message box, so the app hands these words to the panels with
-    /// [`ReplaceLabels::words`] at startup and when the language changes.
-    #[non_exhaustive]
-    pub struct ReplaceLabels {
+    /// The Replace question of a Save the file panel did not ask about. The service shows it as a native message
+    /// box, so the app hands these words to the panels with [`ReplacePromptWords::words`] at startup and when the
+    /// language changes. `{name}` stands for the file name.
+    pub struct ReplacePromptWords {
         title: "fileService.replaceTitle" = "Replace";
-        question: "fileService.replaceQuestion" = "“{name}” already exists. Replace it?";
+        question: template "fileService.replaceQuestion" = "“{name}” already exists. Replace it?";
         replace: "fileService.replace" = "Replace";
         cancel: "fileService.replaceCancel" = "Cancel";
     }
 }
 
 craft_ui::words! {
-    /// What a feature tells the user when `Picked::Unavailable` says no file dialog can open.
-    /// `{cause}` is the technical cause the answer carries.
-    #[non_exhaustive]
-    pub struct UnavailableLabels {
-        message: "fileService.unavailable" = "No file dialog can open: {cause}. Install xdg-desktop-portal with a backend (xdg-desktop-portal-gtk, -kde or -gnome) and libdbus, or zenity. Meanwhile, drop a file onto the window or paste a copied image.";
+    /// What a feature tells the user when `Picked::Unavailable` says no file dialog can open. `{cause}` stands for the
+    /// technical cause the answer carries.
+    pub struct UnavailableWords {
+        message: template "fileService.unavailable" = "No file dialog can open: {cause}. Install xdg-desktop-portal with a backend (xdg-desktop-portal-gtk, -kde or -gnome) and libdbus, or zenity. Meanwhile, drop a file onto the window or paste a copied image.";
     }
 }
 
-impl UnavailableLabels {
+impl UnavailableWords {
     /// The sentence for `cause`, the text of a `Picked::Unavailable`.
-    // pc: apps/photocraft/src/file_dialog_probe.rs:36 problem (wording)
-    pub fn message(&self, cause: &str) -> String {
-        craft_i18n::fmt(&self.message, &[("cause", cause)])
+    pub fn sentence(&self, cause: &str) -> String {
+        self.message.fill(&[("cause", cause)])
     }
 }
 
-impl ReplaceLabels {
+impl ReplacePromptWords {
     /// The words for [`FilePanels::replace_words`](crate::service::FilePanels::replace_words).
     pub fn words(&self) -> crate::service::ReplaceWords {
         crate::service::ReplaceWords {
-            title: self.title.clone(),
-            question: self.question.clone(),
-            replace: self.replace.clone(),
-            cancel: self.cancel.clone(),
+            title: self.title.as_str().to_owned(),
+            question: self.question.as_str().to_owned(),
+            replace: self.replace.as_str().to_owned(),
+            cancel: self.cancel.as_str().to_owned(),
         }
     }
 }
-
-pub use file_list::{FileList, FileListLabels, FileListMode, FileListPicker, FileListPickerResponse};
-pub use path_field::{PathField, PathFieldLabels, PathFieldResponse};
-
-/// The count words of the file service's egui parts (none yet), for the words registry.
-pub const COUNTS: &[craft_ui::localized::words::Counted] = &[];
-
-/// The labels tables of the file service's egui parts, for the words registry.
-pub const WORDS: &[&[craft_ui::localized::Word]] = &[
-    <FileListLabels as craft_ui::localized::Labels>::WORDS,
-    <PathFieldLabels as craft_ui::localized::Labels>::WORDS,
-    <ReplaceLabels as craft_ui::localized::Labels>::WORDS,
-    <UnavailableLabels as craft_ui::localized::Labels>::WORDS,
-];
