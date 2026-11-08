@@ -23,7 +23,7 @@ use craft_ui::layout_components::{Grid, Row, Stack};
 use craft_ui::patterns::form_dialogs::HostRequests;
 use craft_ui::pickers::Select;
 use craft_ui::runtime::env::{Env, Label, UnitKind, Units};
-use craft_ui::text::{NumberField, NumberPick};
+use craft_ui::text::{NamedOr, NumberField, NumberName, NumberPick, NumberValue as _};
 use egui::{Response, Ui};
 
 mod paragraph_dialog;
@@ -89,6 +89,7 @@ craft_ui::words! {
         justify_center: "paragraph.justifyCenter" = "Justify last centered";
         justify_right: "paragraph.justifyRight" = "Justify last right";
         justify_all: "paragraph.justifyAll" = "Justify all";
+        justify_needs_box: "paragraph.justifyNeedsBox" = "Justification needs a text box; point text has none";
         direction_auto: "paragraph.directionAuto" = "Automatic paragraph direction";
         direction_ltr: "paragraph.directionLtr" = "Left-to-right paragraph direction";
         direction_rtl: "paragraph.directionRtl" = "Right-to-left paragraph direction";
@@ -156,8 +157,8 @@ static TWO_COLUMNS: [ColumnWidth; 2] = [ColumnWidth::fill(1.0), ColumnWidth::fil
 pub enum Leading {
     /// Auto.
     Auto,
-    /// The leading as set, in points.
-    Set(f32),
+    /// The leading in document points, the representation of `CharacterValues::size`.
+    Fixed(f32),
 }
 
 /// Kerning: from the font's pairs, from the glyph shapes, or a value in thousandths of an em
@@ -171,6 +172,46 @@ pub enum Kerning {
     Optical,
     /// A value in thousandths of an em; 0 is none.
     Manual(f32),
+}
+
+/// The names a kerning field holds besides a number.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum KerningName {
+    Metrics,
+    Optical,
+}
+
+impl NumberName for KerningName {
+    fn id(self) -> u32 {
+        match self {
+            KerningName::Metrics => METRICS_ROW,
+            KerningName::Optical => OPTICAL_ROW,
+        }
+    }
+
+    fn from_id(id: u32) -> Option<Self> {
+        match id {
+            METRICS_ROW => Some(KerningName::Metrics),
+            OPTICAL_ROW => Some(KerningName::Optical),
+            _ => None,
+        }
+    }
+}
+
+impl KerningName {
+    fn kerning(self) -> Kerning {
+        match self {
+            KerningName::Metrics => Kerning::Metrics,
+            KerningName::Optical => Kerning::Optical,
+        }
+    }
+}
+
+/// The kerning a kerning field's value stands for; a value that is neither a number nor one of the names is the
+/// default, Metrics.
+fn kerning_of(value: NamedOr<KerningName>) -> Kerning {
+    let named = || value.named().and_then(KerningName::from_id).map(KerningName::kerning);
+    value.number().map(|number| Kerning::Manual(number as f32)).or_else(named).unwrap_or(Kerning::Metrics)
 }
 
 /// How letters are capitalized.
@@ -416,15 +457,15 @@ impl<'a> CharacterControls<'a> {
         let style_entries = string_entries(styles.iter().map(|name| (name.clone(), name.clone())));
         let language_entries = languages.map(|languages| string_entries(languages.iter().cloned()));
         let leading_value = match values.leading {
-            Some(Leading::Set(points)) => Some(points),
+            Some(Leading::Fixed(points)) => Some(points),
             Some(Leading::Auto) => values.size.map(|size| size * AUTO_LEADING),
             None => None,
         };
-        let kerning_shown = match values.kerning {
-            None => Mixed::Mixed,
-            Some(Kerning::Manual(value)) => Mixed::Same(Some(f64::from(value))),
-            Some(Kerning::Metrics | Kerning::Optical) => Mixed::Same(None),
-        };
+        let kerning_shown = values.kerning.map(|kerning| match kerning {
+            Kerning::Manual(value) => NamedOr::Number(f64::from(value)),
+            Kerning::Metrics => NamedOr::Named(KerningName::Metrics),
+            Kerning::Optical => NamedOr::Named(KerningName::Optical),
+        });
 
         let mut edits: Vec<EditEvent<CharacterChange>> = Vec::new();
         let mut preview_family = None;
@@ -476,31 +517,14 @@ impl<'a> CharacterControls<'a> {
                     presets: &leading_presets,
                 };
                 let (event, picked) = lengths.row(ui, leading);
-                edits.extend(number_change(event, |points| CharacterChange::Leading(Leading::Set(points))));
+                edits.extend(number_change(event, |points| CharacterChange::Leading(Leading::Fixed(points))));
                 if picked == Some(NumberPick::Choice(AUTO_ROW)) {
                     edits.push(picked_event(CharacterChange::Leading(Leading::Auto), words.leading.as_str()));
                 }
             });
             Grid::new(&TWO_COLUMNS).fill().show(ui, |ui, _| {
-                let kerning = PlainRow {
-                    label: words.kerning.clone(),
-                    glyph: GlyphLabel::icon(IconId::new("text_cursor")),
-                    value: kerning_shown,
-                    range: TRACKING_RANGE,
-                    percent: false,
-                    presets: &kerning_presets,
-                };
-                let (event, picked) = lengths.plain(ui, kerning);
-                edits.extend(number_change(event, |value| CharacterChange::Kerning(Kerning::Manual(value))));
-                match picked {
-                    Some(NumberPick::Choice(METRICS_ROW)) => {
-                        edits.push(picked_event(CharacterChange::Kerning(Kerning::Metrics), words.kerning.as_str()));
-                    }
-                    Some(NumberPick::Choice(OPTICAL_ROW)) => {
-                        edits.push(picked_event(CharacterChange::Kerning(Kerning::Optical), words.kerning.as_str()));
-                    }
-                    _ => {}
-                }
+                let event = lengths.kerning(ui, words.kerning.clone(), GlyphLabel::icon(IconId::new("text_cursor")), kerning_shown, &kerning_presets);
+                edits.extend(event.map(|event| event.map(|value| CharacterChange::Kerning(kerning_of(value)))));
                 let tracking = PlainRow {
                     label: words.tracking.clone(),
                     glyph: GlyphLabel::text("VA"),
@@ -765,7 +789,10 @@ impl<'a> ParagraphControls<'a> {
             (TextAlign::JustifyAll, "align_justify", &words.justify_all),
         ]
         .into_iter()
-        .map(|(align, icon, name)| Entry::new(align, name.clone()).icon(IconId::new(icon)).enabled(!(point_text && align.needs_box())))
+        .map(|(align, icon, name)| {
+            let entry = Entry::new(align, name.clone()).icon(IconId::new(icon));
+            if point_text && align.needs_box() { entry.disabled_reason(words.justify_needs_box.clone()) } else { entry }
+        })
         .collect();
         let directions: Vec<Entry<ParagraphDirection>> = [
             (ParagraphDirection::Automatic, "pilcrow", &words.direction_auto),
@@ -877,6 +904,23 @@ impl Lengths<'_> {
             Some((event, picked)) => (event.map(|event| length_edit(self.units, self.unit, event)), picked),
             None => (None, None),
         }
+    }
+
+    /// The kerning field: a number or the name of a presets row (Metrics, Optical).
+    fn kerning(
+        &self,
+        ui: &mut Ui,
+        label: Label,
+        glyph: GlyphLabel,
+        value: Option<NamedOr<KerningName>>,
+        presets: &[Entry<NumberPick>],
+    ) -> Option<EditEvent<NamedOr<KerningName>>> {
+        let units = self.units;
+        let shown = Field::new(label.clone()).side(mark(glyph)).show(ui, |ui, _| {
+            let field = NumberField::named(label.clone(), Bind::given(mixed(value))).range(TRACKING_RANGE).presets(presets).scrub_by_label();
+            field.codec(NumberCodec::new(units.reader(None), 0)).show(ui).edit.event
+        });
+        shown.inner.flatten()
     }
 
     /// A field over a number that is not a length: its event and the preset row picked.

@@ -36,7 +36,8 @@ craft_ui::words! {
         duplicate: "textStyles.duplicate" = "Duplicate style";
         new_style: "textStyles.new" = "Create new style (from the selected type)";
         delete: "textStyles.delete" = "Delete style";
-        overridden: "textStyles.overridden" = "overridden";
+        overridden_name: template "textStyles.overriddenName" = "{name}+";
+        overridden_spoken: template "textStyles.overriddenSpoken" = "{name}, overridden";
     }
 }
 
@@ -299,10 +300,11 @@ impl<'a> TextStylesPanel<'a> {
         let action = Cell::new(None::<TextStyleAction>);
         let hint = Cell::new(false);
         let tip = words.row_tip.fill(&[("key", words.alt_key.as_str())]);
+        // The footer bar is a container of its own, so the list's id comes from here, not from either body.
+        let list_id = ui.scope_id().with(("styles", kind, label.as_str()));
 
         let footer = |ui: &mut Ui, cx: &mut craft_ui::contract::BodyCx<'_>| {
             let facts = cx.memory::<Facts>().clone();
-            let list_id = cx.id.with("styles");
             let actions = FOOTER.map(|command| {
                 let (icon, text) = match command {
                     TextStyleCommand::ClearOverride => ("ban", &words.clear_override),
@@ -372,7 +374,7 @@ impl<'a> TextStylesPanel<'a> {
                 let source = keyed(rows, |row: &TextStyleRow| row.id);
                 let mode = if highlighting { SelectMode::Multi } else { SelectMode::Single };
                 let events = List::new(label.clone())
-                    .id(cx.id.with("styles"))
+                    .id(list_id)
                     .select(mode)
                     .activate(ActivateOn::DoubleClick)
                     .allow_empty(true)
@@ -385,8 +387,8 @@ impl<'a> TextStylesPanel<'a> {
                         let is_current = target && current == Some(*id);
                         let marked = is_current && overridden;
                         let none = *id == 0 && !paragraph;
-                        let name = if marked { format!("{}+", row.name) } else { row.name.clone() };
-                        let spoken = if marked { format!("{}, {}", row.name, words.overridden.as_str()) } else { row.name.clone() };
+                        let name = if marked { words.overridden_name.fill(&[("name", row.name.as_str())]) } else { row.name.clone() };
+                        let spoken = if marked { words.overridden_spoken.fill(&[("name", row.name.as_str())]) } else { row.name.clone() };
                         let description = if none { words.no_character_style.as_str().to_owned() } else { tip.clone() };
                         let styled = ListRow::new(name).accessible_name(spoken).description(description).highlight(is_current);
                         if none { styled.ink(RowInk::Dimmed) } else { styled }

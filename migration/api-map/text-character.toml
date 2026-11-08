@@ -58,14 +58,14 @@ name = "Leading"
 old = "craft_text::ui::character::Leading"
 new = "craft_text::ui::character::Leading"
 status = "same"
-note = "Non-exhaustive. The variant `Points(f32)` is `Set(f32)`."
+note = "Non-exhaustive. The variant `Points(f32)` is `Fixed(f32)`, the leading in document points (the representation of `CharacterValues::size`)."
 
 [[type]]
 name = "Kerning"
 old = "craft_text::ui::character::Kerning"
 new = "craft_text::ui::character::Kerning"
 status = "same"
-note = "Non-exhaustive. The field shows the number only; Metrics and Optical are rows of its presets menu, checked while they hold, and typing their words is not read."
+note = "Non-exhaustive. The field is a `NumberField::named` over `NamedOr` of the names Metrics and Optical: it shows the name or the number, the menu checks the name it holds, and typing a name's word picks it."
 
 [[type]]
 name = "ParagraphControls"

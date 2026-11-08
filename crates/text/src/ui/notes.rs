@@ -16,24 +16,27 @@ use craft_ui::contract::{
     WordSetCx as _,
 };
 use craft_ui::fonts::FontRef;
-use craft_ui::primitives::{DocRun, DocText, EditorLine, EditorPurpose, EditorRun, EditorState};
+use craft_ui::primitives::{DocRun, DocText, EditorLine, EditorPurpose, EditorRun, EditorState, PaintShape, StrokeWidth, TextRun};
 use craft_ui::runtime::commands::ClipItem;
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::focus::KeyUse;
 use craft_ui::runtime::pending::Pending;
-use craft_ui::style::{ComponentStyle, DataColor, StyleColor, StyleCx};
-use egui::{Color32, Pos2, Rect, Response, Stroke, Vec2};
+use craft_ui::style::{ComponentStyle, DataColor, StyleColor, StyleCx, TypeRole};
+use egui::epaint::text::CharIndex;
+use egui::{Color32, Pos2, Rect, Response, Vec2};
 
 use super::editor::word_boundary;
 use crate::lists::{ListMarker, ListParagraph, line_starts, markers};
 
 /// The largest indent, points.
 const MAX_INDENT: f32 = 400.0;
-/// The columns and lines the editor measures when nothing else sizes it.
-const MIN_COLUMNS: f32 = 24.0;
+/// The notes' default text size in document points: indents are in document points and scale by the shown text
+/// size over this size.
+const DOCUMENT_SIZE: f32 = 12.0;
+/// The width the editor measures at its zoom of 1 when its parent gives no room, document points.
+const DEFAULT_WIDTH: f32 = 168.0;
+/// The lines of the body role the editor measures at least.
 const MIN_LINES: f32 = 4.0;
-/// A text row's height as a share of the text size.
-const LINE_HEIGHT_SHARE: f32 = 1.3;
 
 craft_ui::words! {
     /// The notes pane's words (PowerPoint's).
@@ -303,16 +306,16 @@ pub struct NotesEditorStyle {
     metrics: Metrics,
     /// The text colour.
     ink: StyleColor,
+    /// The placeholder's colour: the muted text role.
+    muted: StyleColor,
     /// The selection fill.
     selection: StyleColor,
     /// The size of the body text, points.
     body_size: f32,
-    /// The size of the notes' default text in document points: indents scale as `body_size / points`.
-    points: f32,
+    /// The body role's line height, points.
+    line_height: f32,
     /// The largest indent, points.
     max_indent: f32,
-    /// The caret's width, as a share of the text size.
-    caret_share: f32,
 }
 
 /// The position of the caret and the selection anchor in chars of [`NotesText::plain`].
@@ -525,11 +528,11 @@ impl Component for NotesEditor<'_> {
         NotesEditorStyle {
             metrics: Metrics::new(),
             ink: cx.color(cx.tokens.color.text.normal),
+            muted: cx.color(cx.tokens.color.text.muted),
             selection: cx.color(cx.tokens.color.state.text_selection),
             body_size: cx.tokens.typography.body.size,
-            points: cx.tokens.typography.caption.size,
+            line_height: cx.tokens.typography.body.line_height,
             max_indent: MAX_INDENT,
-            caret_share: CARET_SHARE,
         }
     }
 
@@ -540,9 +543,8 @@ impl Component for NotesEditor<'_> {
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let style = cx.style;
         let size = style.body_size * self.zoom;
-        let width = size * MIN_COLUMNS / 2.0;
-        let room = cx.room.unwrap_or(width);
-        let scale = size / style.points;
+        let width = cx.room.unwrap_or(DEFAULT_WIDTH * self.zoom);
+        let scale = size / DOCUMENT_SIZE;
         let font = FontRef::proportional();
         let ink = DataColor::new(style.ink.egui());
         let height: f32 = self
@@ -553,11 +555,11 @@ impl Component for NotesEditor<'_> {
                 let (_, margin) = line_starts(paragraph.level, paragraph.margin, paragraph.indent);
                 let runs = paragraph_runs(paragraph, &font, size, ink);
                 let mut text = DocText::new(&runs);
-                text.wrap = Some((room - indent(style, margin, scale)).max(0.0));
+                text.wrap = Some((width - indent(style, margin, scale)).max(0.0));
                 cx.layout_doc(&text).size().y.max(size)
             })
             .sum();
-        Vec2::new(width, height.max(size * MIN_LINES * LINE_HEIGHT_SHARE))
+        Vec2::new(width, height.max(style.line_height * self.zoom * MIN_LINES))
     }
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
@@ -602,10 +604,11 @@ impl Component for NotesEditor<'_> {
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let painter = ui.content_painter(cx);
+        let draw = ui.draw();
         let style = &cx.style;
         let area = cx.content_rect;
         let size = style.body_size * self.zoom;
-        let scale = size / style.points;
+        let scale = size / DOCUMENT_SIZE;
         let ink_color = style.ink.egui();
         let ink = DataColor::new(ink_color);
         let cursor = cx.recall::<Cursor>();
@@ -614,7 +617,6 @@ impl Component for NotesEditor<'_> {
         let selected = cursor.caret.min(cursor.anchor).min(chars)..cursor.caret.max(cursor.anchor).min(chars);
         let marks = markers_of(self.notes);
         let font = FontRef::proportional();
-        let caret_width = (size * style.caret_share).max(1.0);
 
         let mut y = area.top();
         let mut at = 0usize;
@@ -634,10 +636,13 @@ impl Component for NotesEditor<'_> {
             // Selection bands under the text, one per row the selection touches.
             if !selected.is_empty() && selected.start <= range.end && selected.end >= range.start {
                 let (from, to) = (selected.start.max(range.start) - range.start, selected.end.min(range.end) - range.start);
-                let a = layout.galley.pos_from_cursor(egui::text::CCursor::new(from));
-                let b = layout.galley.pos_from_cursor(egui::text::CCursor::new(to));
-                let band = Rect::from_min_max(top_left + a.min.to_vec2(), top_left + b.max.to_vec2());
-                painter.painter.rect_filled(band, 0.0, style.selection.egui());
+                for band in selection_bands(&layout.galley, from, to) {
+                    let band = band.translate(top_left.to_vec2());
+                    draw.fill(
+                        &PaintShape::Polygon(vec![band.left_top(), band.right_top(), band.right_bottom(), band.left_bottom()]),
+                        style.selection,
+                    );
+                }
             }
             painter.painter.galley(top_left, layout.galley.clone(), ink_color);
             if let Some(marker) = marker {
@@ -660,12 +665,10 @@ impl Component for NotesEditor<'_> {
         }
         if self.notes.paragraphs.iter().all(|p| p.runs.iter().all(|r| r.text.is_empty())) && !cx.is_focused() {
             let words = cx.words::<NotesLabels>();
-            let hint = [DocRun::new(words.placeholder.as_str(), font.clone(), size, DataColor::new(ink_color.gamma_multiply(0.55)))];
-            let laid = painter.layout(&DocText::new(&hint));
-            painter.painter.galley(area.min, laid.galley, ink_color);
+            draw.text(area, &TextRun::new(words.placeholder.as_str()).role(TypeRole::Body).color(style.muted));
         }
         if cx.is_focused() && selected.is_empty() && cx.blink(cursor.blink_start) {
-            painter.painter.line_segment([caret_rect.center_top(), caret_rect.center_bottom()], Stroke::new(caret_width, ink_color));
+            draw.stroke(&PaintShape::Path(vec![caret_rect.center_top(), caret_rect.center_bottom()]), StrokeWidth::Thin, style.ink);
         }
         let runs: Vec<[EditorRun<'_>; 1]> = editor_lines.iter().map(|(text, _, _)| [EditorRun::new(0..text.len(), false, &[], &[])]).collect();
         let lines: Vec<EditorLine<'_>> =
@@ -725,7 +728,24 @@ fn revision(plain: &str) -> u64 {
     hasher.finish()
 }
 
-/// The caret's width as a share of the text size.
-const CARET_SHARE: f32 = 0.06;
+/// The selection of the chars `from..to` of a laid-out paragraph as one band per galley row it touches, in the
+/// galley's coordinates.
+fn selection_bands(galley: &egui::Galley, from: usize, to: usize) -> Vec<Rect> {
+    let mut bands = Vec::new();
+    let mut start = 0usize;
+    for placed in &galley.rows {
+        let row = &placed.row;
+        let length = row.char_count_excluding_newline().0;
+        let (a, b) = (from.max(start), to.min(start + length));
+        if a < b {
+            let (x0, x1) = (placed.pos.x + row.x_offset(CharIndex(a - start)), placed.pos.x + row.x_offset(CharIndex(b - start)));
+            let rect = placed.rect();
+            bands.push(Rect::from_x_y_ranges(x0.min(x1)..=x0.max(x1), rect.y_range()));
+        }
+        start += placed.char_count_including_newline().0;
+    }
+    bands
+}
+
 /// The part key of the editor part.
 const EDITOR: craft_behavior::PartKey = craft_behavior::PartKey::new("editor");
