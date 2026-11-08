@@ -2,7 +2,7 @@
 
 use craft_behavior::{CancelReason, ColumnKey, DisplayOrder, EditEvent, GestureId, IconId, ItemSource, Mixed, Selection};
 use craft_browse::ui::bin::{BinEntry, BinEvent, BinItem, BinModel, BinSettings, BinState, BinView, MediaBin, OpenHow, name_matches};
-use craft_ui::contract::{Bind, ColumnSort, ListDrag, Props as _, ReorderRule, ShowCollection as _, ShowContainer as _, Sizing};
+use craft_ui::contract::{Bind, ColumnSort, ListDrag, ReorderRule, ShowCollection as _, ShowContainer as _, Sizing};
 use craft_ui::layout_components::Stack;
 use craft_ui::list::{List, ListRow};
 use craft_ui::sections::FooterAction;
