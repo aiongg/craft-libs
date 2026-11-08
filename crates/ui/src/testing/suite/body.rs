@@ -39,6 +39,15 @@ fn is_field_of_one_control(tree: &crate::testing::access::AccessTree, container:
     let inside = subtree(tree, container);
     let interactive: Vec<_> = inside.iter().copied().filter(|key| crate::testing::access::is_interactive(tree, *key)).collect();
     let labelled: Vec<_> = interactive.iter().copied().filter(|key| !tree.labelled_by_key(*key).is_empty()).collect();
+    eprintln!("DIAG inside={} interactive={} labelled={}", inside.len(), interactive.len(), labelled.len());
+    for key in tree.keys() {
+        if !tree.labelled_by_key(key).is_empty() {
+            eprintln!("DIAG labelled node {:?} role {:?} in={} labels in={:?}", key, tree.role_of(key), inside.contains(&key), tree.labelled_by_key(key).iter().map(|l| inside.contains(l)).collect::<Vec<_>>());
+        }
+    }
+    for key in &interactive {
+        eprintln!("DIAG interactive {:?} role {:?} parent {:?} name {:?}", key, tree.role_of(*key), tree.parent_of_key(*key), tree.name_of(*key));
+    }
     let [control] = labelled.as_slice() else { return false };
     let parts = subtree(tree, *control);
     tree.labelled_by_key(*control).iter().all(|label| inside.contains(label)) && interactive.iter().all(|key| parts.contains(key))
