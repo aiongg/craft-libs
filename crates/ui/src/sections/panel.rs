@@ -7,7 +7,7 @@ use super::title_row::{HeaderAction, HeaderStrength, MenuRows, TitleRow};
 use crate::contract::overlay::Popup;
 use crate::contract::{
     Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, FooterRegion, HeaderRegion, NoValue, Outcome, Pad, Props as _, Role,
-    Scroll, Show as _, ShowContainer as _, Sizing,
+    Scroll, Show as _, ShowContainer as _, Sizing, WordSetCx as _,
 };
 use crate::primitives::IconSpec;
 use crate::runtime::env::Label;
