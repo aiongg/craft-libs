@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use craft_host::queue::Cancel;
-use craft_ui::canvas::textures::{LoadFailure, LoadedPicture, Revision, ThumbRender, ThumbRequest, ThumbSource};
+use craft_ui::primitives::textures::{LoadFailure, LoadedPicture, Revision, ThumbRender, ThumbRequest, ThumbSource};
 use egui::ColorImage;
 
 use super::{DecodeRequest, DecodedThumb, FileThumbKey, StoreKey, ThumbDecoder, ThumbError, ThumbStore};
@@ -22,7 +22,6 @@ pub struct FileThumbOptions {
 
 impl Default for FileThumbOptions {
     fn default() -> Self {
-        // lightcraft: crates/ui-egui/src/panels/grid.rs:693 (`request_thumb`: quick preview, then the bucket render).
         Self { quick_previews: true, save_to_store: true }
     }
 }
@@ -57,7 +56,7 @@ enum Stage {
 ///   stores as `Empty` (the tile shows the host's own icon); `Failed(message)` is the failure
 ///   tooltip (`LoadFailure::Message`); a decoder's own `Cancelled` and a buffer that is not
 ///   `width × height × 4` bytes are `LoadFailure::Unreadable`; a zero-sized picture is `Blank`. A failure is remembered by the cache for its revision, so it is not retried until
-///   the file changes (`invalidate`) (risk 9: the widget asks `Thumbnails::state` before it
+///   the file changes (`invalidate`) (the widget asks `Thumbnails::state` before it
 ///   paints, the source never draws).
 #[derive(Clone)]
 pub struct FileThumbSource {
@@ -72,35 +71,30 @@ pub struct FileThumbSource {
 impl FileThumbSource {
     /// A source over `decoder`, with the app's `store` if it has one.
     pub fn new(decoder: Arc<dyn ThumbDecoder>, store: Option<Arc<dyn ThumbStore>>) -> Self {
-        // lightcraft: crates/ui-egui/src/panels/grid.rs:693 (`request_thumb`).
         Self { decoder, store, options: FileThumbOptions::default(), generations: Arc::default(), stages: Arc::default(), epoch: Arc::default() }
     }
 
     /// Replaces the options.
     #[must_use]
     pub fn options(self, options: FileThumbOptions) -> Self {
-        // new: builder.
         Self { options, ..self }
     }
 
     /// The source seen through the widget's key: `locate` turns a tile key into the file's key
     /// (`None`: no file, the tile shows no picture). Built per pass; borrows `self`.
     pub fn keyed<K, F: Fn(&K) -> Option<FileThumbKey>>(&self, locate: F) -> KeyedFileThumbs<'_, F> {
-        // new: per-pass adapter (thumbs spec, call site 3).
         KeyedFileThumbs { source: self, locate }
     }
 
     /// `path` changed on disk: every variant's revision moves on, so the next pass decodes again
     /// and shows the old picture until the new one lands.
     pub fn invalidate(&self, path: &Path) {
-        // lightcraft: crates/ui-egui/src/panels/grid.rs:759 (`skips_the_real_render`: a fresh render replaces the embedded one).
         *lock(&self.generations).entry(path.to_path_buf()).or_insert(0) += 1;
         lock(&self.stages).retain(|(key, _), _| key.path != path);
     }
 
     /// Another library opened: every revision moves on and the stages are forgotten.
     pub fn clear(&self) {
-        // new: one call for a library switch.
         *lock(&self.epoch) += 1;
         lock(&self.stages).clear();
     }
@@ -201,7 +195,6 @@ impl FileThumbSource {
 /// `Blank` (nothing to show); a buffer that is not `width × height × 4` bytes is
 /// [`LoadFailure::Unreadable`].
 pub(super) fn to_image(thumb: DecodedThumb) -> Result<LoadedPicture, LoadFailure> {
-    // new: `ColorImage::from_rgba_unmultiplied`, which asserts on the length, behind a check.
     let (width, height) = (thumb.width as usize, thumb.height as usize);
     if width == 0 || height == 0 {
         return Ok(LoadedPicture::Blank);
@@ -214,13 +207,11 @@ pub(super) fn to_image(thumb: DecodedThumb) -> Result<LoadedPicture, LoadFailure
 
 impl ThumbSource<FileThumbKey> for FileThumbSource {
     fn revision(&self, key: &FileThumbKey, request: &ThumbRequest) -> Revision {
-        // new: as the type's doc says.
         let (generation, stage) = self.state_of(key, request.side);
         Revision::of(&(generation, u8::from(stage == Stage::NeedsFull)))
     }
 
     fn render(&self, key: &FileThumbKey, request: &ThumbRequest) -> ThumbRender {
-        // lightcraft: crates/ui-egui/src/panels/grid.rs:693 (`request_thumb`, now always a job).
         let (generation, stage) = self.state_of(key, request.side);
         let job = Job {
             decoder: Arc::clone(&self.decoder),
@@ -243,18 +234,16 @@ pub struct KeyedFileThumbs<'a, F> {
 }
 
 impl<K, F: Fn(&K) -> Option<FileThumbKey>> ThumbSource<K> for KeyedFileThumbs<'_, F> {
-    /// The located key's revision; `Revision(0)` when `locate` gives `None`.
+    /// The located key's revision; `Revision::new(0)` when `locate` gives `None`.
     fn revision(&self, key: &K, request: &ThumbRequest) -> Revision {
-        // new: delegates.
         match (self.locate)(key) {
             Some(file) => self.source.revision(&file, request),
-            None => Revision(0),
+            None => Revision::new(0),
         }
     }
 
     /// The located key's render; `ThumbRender::Blank` when `locate` gives `None`.
     fn render(&self, key: &K, request: &ThumbRequest) -> ThumbRender {
-        // new: delegates.
         match (self.locate)(key) {
             Some(file) => self.source.render(&file, request),
             None => ThumbRender::Blank,
