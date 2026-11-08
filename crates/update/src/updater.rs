@@ -440,6 +440,10 @@ impl Updater {
         if self.take_close(can_start) {
             return Action::Close;
         }
+        // Update and Restart leaves the prompt open to show the progress; the pick comes through the dialog.
+        if self.prompt.is_some() && dialogs.get_mut_by_id::<UpdatePromptDialog>(prompt_id()).is_some_and(UpdatePromptDialog::take_update_request) {
+            self.request_install(can_start);
+        }
         let mut result = dialogs.take::<UpdatePromptDialog>();
         if self.stale {
             if let Some(dialog) = dialogs.get_mut_by_id::<UpdatePromptDialog>(prompt_id()) {

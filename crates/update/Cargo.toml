@@ -13,7 +13,6 @@ workspace = true
 [features]
 default = []
 ui = ["dep:egui", "dep:image", "dep:craft-ui", "dep:craft-host", "dep:craft-theme"]
-local-mirror = []
 # The dialog stories, the updater's test seams and the integration binary `tests/it`.
 screen-testing = ["ui", "craft-ui/testing"]
 

@@ -106,7 +106,7 @@ impl Subject {
         Row::new().show(ui, |ui, _| {
             match (image, self.app) {
                 (Some(image), Some(app)) => {
-                    Picture::new("", icon_key(app), &|| image.clone()).size(PictureSize::Icon).show(ui);
+                    Picture::new("", icon_key(app), &|| image.clone()).extent(PictureSize::Icon).show(ui);
                 }
                 _ => {
                     Text::new(self.name.chars().next().map_or_else(|| "A".to_owned(), String::from)).show(ui);
@@ -142,7 +142,8 @@ fn busy(ui: &mut Ui, label: &Label) {
 /// so it never overlaps the GPU warning or recovery, or opened by a manual check that found a release. The user
 /// sees the app's icon and name, the developer, the new and running versions, the release notes link, and Update
 /// and Restart / Download / Later in the platform order; while an install runs the install buttons are disabled
-/// and a status line shows. Enter takes the default, Esc is Later. Later and Esc stay available while the install
+/// and a status line shows. Enter takes the default, Esc is Later. Update and Restart keeps the prompt open to show the install's progress
+/// ([`take_update_request`](UpdatePromptDialog::take_update_request)). Later and Esc stay available while the install
 /// runs. Result: [`UpdateChoice`].
 #[derive(craft_ui::contract::Pattern)]
 pub struct UpdatePromptDialog {
@@ -153,6 +154,8 @@ pub struct UpdatePromptDialog {
     status: Option<String>,
     installing: bool,
     open: bool,
+    /// Update and Restart was picked; the dialog stays open to show the install's progress.
+    requested: bool,
     icon: IconCell,
 }
 
@@ -167,8 +170,15 @@ impl UpdatePromptDialog {
             status: None,
             installing: false,
             open: true,
+            requested: false,
             icon: IconCell::new(),
         }
+    }
+
+    /// Whether Update and Restart was picked since the last call. The dialog stays open on that pick, so the
+    /// updater asks for it through `DialogHost::get_mut_by_id`.
+    pub fn take_update_request(&mut self) -> bool {
+        std::mem::take(&mut self.requested)
     }
 
     /// The install's progress line while [`installing`](UpdatePromptDialog::set_installing); the updater sets it
@@ -205,7 +215,7 @@ impl UpdatePromptDialog {
         let mut buttons = Vec::new();
         if self.self_updating {
             choices.push(UpdateChoice::UpdateAndRestart);
-            buttons.push(FooterButton::new(words.update_and_restart.clone(), DialogRole::Accept).enabled(enabled));
+            buttons.push(FooterButton::new(words.update_and_restart.clone(), DialogRole::Accept).enabled(enabled).stays_open(true));
             choices.push(UpdateChoice::Download);
             buttons.push(FooterButton::new(words.download.clone(), DialogRole::Other).enabled(enabled));
         } else {
@@ -253,7 +263,10 @@ impl StackDialog for UpdatePromptDialog {
 
     fn show(&mut self, ui: &mut Ui, _: &DialogStack) -> Option<DialogResult<UpdateChoice>> {
         let (output, choices) = self.present(ui);
-        output.closed?;
+        if output.closed.is_none() {
+            self.requested |= output.picked.and_then(|at| choices.get(at)) == Some(&UpdateChoice::UpdateAndRestart);
+            return None;
+        }
         Some(DialogResult::Ok(output.picked.and_then(|at| choices.get(at).copied()).unwrap_or(UpdateChoice::Later)))
     }
 }

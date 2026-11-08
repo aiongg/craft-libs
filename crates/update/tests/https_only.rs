@@ -1,5 +1,5 @@
 //! `Http::new` as an app gets it: an integration test builds the library without `cfg(test)`, so
-//! this is the release configuration (or the `local-mirror` one, with that feature on).
+//! this is the release configuration in a release build and the debug one (plain-HTTP local mirrors) otherwise.
 
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpListener;
@@ -30,13 +30,13 @@ fn serve() -> (String, Arc<AtomicUsize>) {
 }
 
 #[test]
-fn the_remote_agents_take_plain_http_only_with_a_local_mirror() {
+fn the_remote_agents_take_plain_http_only_in_debug_builds() {
     let (base, seen) = serve();
     let http = Http::new("craft-update-tests/0").unwrap();
     // `get_api` and `redirect_target` always use the agents for remote hosts.
     let api = http.get_api(&format!("{base}/repos/storytold/x/releases"), None);
     let redirect = http.redirect_target(&format!("{base}/releases/latest"));
-    if cfg!(feature = "local-mirror") {
+    if cfg!(debug_assertions) {
         assert!(matches!(api, Ok(Fetched::Body { .. })), "{api:?}");
         assert!(matches!(redirect, Err(ref e) if e.contains("HTTP 200")), "{redirect:?}");
         assert_eq!(seen.load(Ordering::SeqCst), 2);

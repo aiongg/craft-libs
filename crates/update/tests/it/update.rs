@@ -86,12 +86,16 @@ impl StackDialog for Blocker {
 /// Enter takes Update and Restart when self-updating and Download otherwise; Esc is Later.
 #[trial]
 fn the_default_button_depends_on_self_updating_and_esc_is_later() {
-    for (self_updating, expected) in [(true, UpdateChoice::UpdateAndRestart), (false, UpdateChoice::Download)] {
-        let (mut fixture, dialogs) = opened(prompt(self_updating));
-        assert_eq!(fixture.by_label("Update and Restart").is_some(), self_updating);
-        press(&mut fixture, Key::Enter);
-        assert_eq!(dialogs.borrow_mut().take::<UpdatePromptDialog>(), Some(DialogResult::Ok(expected)));
-    }
+    let (mut fixture, dialogs) = opened(prompt(true));
+    assert!(fixture.by_label("Update and Restart").is_some());
+    press(&mut fixture, Key::Enter);
+    assert!(dialogs.borrow().is_open::<UpdatePromptDialog>(), "Update and Restart keeps the prompt open for the progress");
+    assert!(dialogs.borrow_mut().get_mut::<UpdatePromptDialog>().expect("open").take_update_request());
+
+    let (mut fixture, dialogs) = opened(prompt(false));
+    assert!(fixture.by_label("Update and Restart").is_none());
+    press(&mut fixture, Key::Enter);
+    assert_eq!(dialogs.borrow_mut().take::<UpdatePromptDialog>(), Some(DialogResult::Ok(UpdateChoice::Download)));
     let (mut fixture, dialogs) = opened(prompt(true));
     press(&mut fixture, Key::Escape);
     assert_eq!(dialogs.borrow_mut().take::<UpdatePromptDialog>(), Some(DialogResult::Ok(UpdateChoice::Later)));
