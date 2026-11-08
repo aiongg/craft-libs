@@ -18,9 +18,6 @@ use std::ops::RangeInclusive;
 const RUNG_TOLERANCE_UP: f64 = 1.001;
 const RUNG_TOLERANCE_DOWN: f64 = 0.999;
 
-/// Points kept free on each side of the document by Fit on Screen.
-const FIT_MARGIN: f64 = 20.0;
-
 /// Photoshop's zoom range and the Zoom In / Zoom Out ladder, measured on Photoshop 25.4: up to
 /// 12800 %, down to where the document's shorter side is 2 px on screen (no lower than 0.1 % for
 /// a ladder step). A ladder step goes from any zoom to the next rung (880 %: in to 1200 %, out to
@@ -131,20 +128,20 @@ fn shown_extent(view: &CanvasView, size: Size) -> (f64, f64, f64, f64) {
     (size.width * aspect, size.height, exact(sin), exact(cos))
 }
 
-/// Fit on Screen: centre the document and zoom so all of it shows inside `view.rect` less a
-/// 20-point margin on each side, never past 100 % (one document pixel per device pixel, so a
-/// 150 % display does not open documents magnified). `size` is in document units; the view's
-/// [`aspect`](CanvasView::aspect) and rotation are taken into account.
-pub fn fit(view: &mut CanvasView, size: Size, pixels_per_point: f32) {
-    fit_up_to(view, size, pixels_per_point, 1.0);
+/// Fit on Screen: centre the document and zoom so all of it shows inside `view.rect` less `margin` points on
+/// each side, never past 100 % (one document pixel per device pixel, so a 150 % display does not open
+/// documents magnified). `size` is in document units; the view's [`aspect`](CanvasView::aspect) and rotation
+/// are taken into account.
+pub fn fit(view: &mut CanvasView, size: Size, pixels_per_point: f32, margin: f64) {
+    fit_up_to(view, size, pixels_per_point, 1.0, margin);
 }
 
 /// [`fit`] with the device zoom allowed up to `max_device` (1 = 100 %) instead of 100 %: a small document is
 /// magnified to fill the canvas, as Photoshop's Fit on Screen does.
-pub fn fit_up_to(view: &mut CanvasView, size: Size, pixels_per_point: f32, max_device: f64) {
+pub fn fit_up_to(view: &mut CanvasView, size: Size, pixels_per_point: f32, max_device: f64, margin: f64) {
     let (shown_w, shown_h, sin, cos) = shown_extent(view, size);
     let (bw, bh) = (shown_w * cos + shown_h * sin, shown_w * sin + shown_h * cos);
-    let scale = ((f64::from(view.rect.width()) - 2.0 * FIT_MARGIN) / bw).min((f64::from(view.rect.height()) - 2.0 * FIT_MARGIN) / bh);
+    let scale = ((f64::from(view.rect.width()) - 2.0 * margin) / bw).min((f64::from(view.rect.height()) - 2.0 * margin) / bh);
     let device = ZoomLadder::clamp((scale * f64::from(pixels_per_point)).min(max_device), size);
     view.zoom = CanvasView::points_per_unit(device, pixels_per_point);
     view.center = Point::new(size.width / 2.0, size.height / 2.0);

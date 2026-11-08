@@ -133,9 +133,19 @@ fn shift_snap_lands_on_a_tick_of_the_ruler() {
 fn fit_up_to_magnifies_a_small_document_where_fit_stops_at_one_hundred_percent() {
     let size = Size::new(100.0, 100.0);
     let mut view = CanvasView::new(ScreenRect::from_min_size(pos2(0.0, 0.0), emath::vec2(1000.0, 1000.0)), Point::ZERO, 1.0);
-    zoom::fit(&mut view, size, 1.0);
+    zoom::fit(&mut view, size, 1.0, 0.0);
     assert!(near(zoom::device(&view, 1.0), 1.0), "fit stops at 100 %");
-    zoom::fit_up_to(&mut view, size, 1.0, 4.0);
+    zoom::fit_up_to(&mut view, size, 1.0, 4.0, 0.0);
     assert!(near(zoom::device(&view, 1.0), 4.0), "a 100 px image in a 1000 pt canvas fits at the 400 % bound");
     assert_eq!(view.center, Point::new(50.0, 50.0));
+}
+
+#[test]
+fn fit_leaves_the_margin_the_caller_gives_on_each_side() {
+    let size = Size::new(2000.0, 2000.0);
+    let mut view = CanvasView::new(ScreenRect::from_min_size(pos2(0.0, 0.0), emath::vec2(1000.0, 1000.0)), Point::ZERO, 1.0);
+    zoom::fit(&mut view, size, 1.0, 0.0);
+    assert!(near(zoom::device(&view, 1.0), 0.5), "no margin: the document spans the view");
+    zoom::fit(&mut view, size, 1.0, 100.0);
+    assert!(near(zoom::device(&view, 1.0), 0.4), "a 100 pt margin on each side leaves 800 pt");
 }

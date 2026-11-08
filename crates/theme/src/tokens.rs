@@ -736,6 +736,15 @@ pub struct SpaceTokens {
     pub gap: Gaps,
     /// Padding.
     pub pad: Pads,
+    /// Insets from the edges of the screen.
+    pub inset: Insets,
+}
+
+/// The gaps floating layers keep from the edges of the screen, in logical pixels.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Insets {
+    /// The gap a floating layer (a dialog, a floating window) keeps from the screen edge.
+    pub screen: f32,
 }
 
 /// Control heights, in logical pixels.
@@ -826,6 +835,15 @@ pub struct SizeTokens {
     pub dock: DockColumnSizes,
     /// The rulers of a canvas.
     pub ruler: RulerSizes,
+    /// The controls drawn over a canvas.
+    pub canvas: CanvasSizes,
+}
+
+/// The sizes of the controls drawn over a canvas, in logical pixels.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct CanvasSizes {
+    /// The side of the canvas compass, the control that shows and resets the view rotation.
+    pub compass: f32,
 }
 
 /// The sizes of a canvas ruler, in logical pixels.

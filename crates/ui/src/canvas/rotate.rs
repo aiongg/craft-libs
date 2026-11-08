@@ -92,7 +92,7 @@ impl<'a> RotateView<'a> {
     pub fn compass_rect(ui: &Ui, canvas: Rect) -> Rect {
         let env = Env::of(ui);
         let corner = if env.direction.is_rtl() { Align2::LEFT_TOP } else { Align2::RIGHT_TOP };
-        corner.align_size_within_rect(Vec2::splat(env.tokens.size.thumb.md), canvas.shrink(env.tokens.space.gap.stack))
+        corner.align_size_within_rect(Vec2::splat(env.tokens.size.canvas.compass), canvas.shrink(env.tokens.space.gap.stack))
     }
 }
 
@@ -112,7 +112,7 @@ impl Component for RotateView<'_> {
     type Output = RotateViewOutput;
 
     fn style(cx: &StyleCx<'_>, _: RotateViewStyleKey) -> RotateViewStyle {
-        let (colors, side) = (&cx.tokens.color, cx.tokens.size.thumb.md);
+        let (colors, side) = (&cx.tokens.color, cx.tokens.size.canvas.compass);
         RotateViewStyle {
             metrics: Metrics::new().min_size(Vec2::splat(side)),
             side,

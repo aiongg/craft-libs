@@ -84,7 +84,7 @@ impl FullWindowView {
     /// Fits the view to the rect and image size the value holds, while it is fitted.
     fn refit(&mut self) {
         if self.fit && self.size.width > 0.0 && self.size.height > 0.0 {
-            zoom::fit_up_to(&mut self.view, self.size, self.pixels_per_point, FIT_MAX);
+            zoom::fit_up_to(&mut self.view, self.size, self.pixels_per_point, FIT_MAX, 0.0);
         }
     }
 

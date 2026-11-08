@@ -211,7 +211,7 @@ new = ""
 type = "FullWindowView"
 old = "canvas_view(rect, size, margin, ppp)"
 new = "settled(rect, size, ppp)"
-note = "Returns the settled view; the fit margin is `craft_behavior::canvas::zoom::fit`'s."
+note = "Returns the settled view; the fit margin is the caller's (`craft_behavior::canvas::zoom::fit_up_to` takes it; the view passes 0, so the image fits the well edge to edge)."
 
 [[setter]]
 type = "FullWindowView"

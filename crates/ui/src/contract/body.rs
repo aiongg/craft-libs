@@ -1425,7 +1425,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             Mount::Viewport { .. } if viewports::available(&ctx) => true,
             Mount::Layer(_) | Mount::Viewport { .. } => {
                 let placement = overlay_of(props)
-                    .map_or_else(Placement::default, |overlay| shown_placement(&ctx, id, save.as_ref(), overlay, env.tokens.space.pad.dialog));
+                    .map_or_else(Placement::default, |overlay| shown_placement(&ctx, id, save.as_ref(), overlay, env.tokens.space.inset.screen));
                 placement.pos.is_some() && placement.size.is_some()
             }
             _ => false,
