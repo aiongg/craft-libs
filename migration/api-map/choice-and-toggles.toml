@@ -103,7 +103,7 @@ name = "Swatch"
 old = "craft_ui::controls::swatch::Swatch"
 new = "craft_ui::choice::Swatch"
 status = "moved"
-note = "A leaf colour well: `Swatch::new(label, color)` (a `Srgba` or `Mixed<Srgba>`; the id salt is the call order or `Props::id_salt`) with output `SwatchOutput { response, clicked, activation: Option<Activation>, pick_color: Option<ColorRequest> }`. A click is `clicked`, and `activation` carries the modifiers (Cmd/Ctrl-click, Alt-click). `Swatch::picker(key)` makes a click on a swatch that shows a colour file `ColorRequest::new(key, color).title(label)` as `pick_color`, for `HostRequests::request_color`."
+note = "A leaf colour well: `Swatch::new(label, color)` (a `Srgba` or `Mixed<Srgba>`; the id salt is the call order or `Props::id_salt`) with output `SwatchOutput { response, clicked, activation: Option<Activation>, pick_color: Option<ColorRequest> }`. A click is `clicked`, and `activation` carries the modifiers (Cmd/Ctrl-click, Alt-click). `Swatch::picker(key)` makes a click on the swatch file `ColorRequest::new(key, color).title(label)` as `pick_color` (`color` is `Option<Srgba>`: `None` for a `Mixed` swatch, which opens the host's picker with no colour), for `HostRequests::request_color`."
 
 [[type]]
 name = "SwatchStyle"
@@ -264,3 +264,11 @@ type = "Swatch"
 old = "checkerboard(Rect, CornerRadius, [Color32; 2], f32)"
 new = "kit::checker"
 note = "`primitives::kit::checker` and `Checker` are the one checkerboard."
+
+# fwk-swatches
+[[type]]
+name = "SwatchFace"
+old = ""
+new = "craft_ui::choice::SwatchFace"
+status = "replaced"
+note = "New: the swatch face outside a `Swatch`: `SwatchFace::new(color).selected(bool).paint(&ContentPainterCx, Rect)`, the painter `Swatch` itself paints with, for a `PresetBrowser::thumb` painter."
