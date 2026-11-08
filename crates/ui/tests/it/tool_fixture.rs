@@ -55,11 +55,12 @@ fn check_passes_for_a_tool_that_leaves_a_hit_part_where_it_was_dragged() {
     let seen = Rc::clone(&left);
     let mut fixture = ToolFixture::with_body("Marker", Marker { left, ..Marker::default() }, move |ui, body| {
         if seen.get() {
-            // A crop whose top left corner sits where the first drag began.
-            let start = (body.rect.center() - body.rect.min).to_pos2();
-            let (x, y) = (f64::from(start.x), f64::from(start.y));
-            let mut crop = CropBox::upright(craft_behavior::kurbo::Rect::new(x, y, x + f64::from(BY.x), y + f64::from(BY.y)));
-            let _ = CropOverlay::new("Crop", Bind::bound(&mut crop)).show_at(ui, body.rect);
+            // A crop whose top left corner sits where the first drag began. The overlay's turn part covers the whole
+            // rect it is shown at, so it is shown in a room that starts there and leaves the rest of the canvas to the
+            // tool.
+            let room = egui::Rect::from_min_size(body.rect.center(), BY * 2.0);
+            let mut crop = CropBox::upright(craft_behavior::kurbo::Rect::new(0.0, 0.0, f64::from(BY.x), f64::from(BY.y)));
+            let _ = CropOverlay::new("Crop", Bind::bound(&mut crop)).show_at(ui, room);
         }
     });
     fixture.check();
