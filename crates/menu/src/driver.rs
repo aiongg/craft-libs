@@ -280,10 +280,10 @@ impl NativeMenu {
     /// clicks wait for [`NativeMenu::take_clicks`].
     ///
     /// The window host's input filter owns the edits to egui's input (`ctx`'s [`WindowHost`], the root
-    /// viewport): this hands it the key equivalents and whether a native menu is open. The filter reads them when
-    /// the next frame's input is taken, so an app calls `poll` before that (eframe's `App::raw_input_hook`) for
-    /// the equivalents to reach the frame that follows the menu event; called inside the frame they reach the
-    /// frame after it. A click or Escape in the window closes an open native menu. AppKit can deliver it to the
+    /// viewport): this hands it the key equivalents and whether a native menu is open. They reach the frame that is
+    /// running: called before the frame (eframe's `App::raw_input_hook`), the filter reads them when the frame's
+    /// input is taken; called inside it (`App::update`), the filter repeats the pass with them in its input.
+    /// A click or Escape in the window closes an open native menu. AppKit can deliver it to the
     /// window while the menu is still open (asynchronous menu presentation), so while the backend reports one
     /// open, the filter takes the click or Escape out of the input: it closes the menu without starting a canvas
     /// gesture or reaching the active tool. Pointer moves stay. Only one such click is kept from egui until the
