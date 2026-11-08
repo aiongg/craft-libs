@@ -346,7 +346,7 @@ impl<'a> AppShell<'a> {
         let AppShell { window, bare, mut screen_mode, allow_reveal, edge_reveal, document_tabs, body_label, title, slots, mut body } = self;
         let env = Env::of(ui);
         let words = env.words::<AppShellWords>();
-        let tokens = env.tokens().clone();
+        let tokens = env.tokens.clone();
         let body_label = body_label.unwrap_or_else(|| words.document.clone());
         let mut slots: Vec<Placed<'a>> = title.into_iter().chain(slots).collect();
         slots.sort_by_key(Placed::rank);
