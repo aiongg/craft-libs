@@ -10,7 +10,7 @@ use craft_timeline::time::Tick;
 use craft_timeline::timecode::{TimeDisplay, TimeFormat, TimecodeError};
 use craft_timeline::ui::{
     FrameFit, MediaControls, RenderItemId, RenderQueueEvent, RenderQueueItem, RenderQueueList, RenderStatus, TimecodeField, TimecodePanel,
-    TimecodePanelSettings, TimecodeRow, TimecodeRowKind, TimecodeText, TransportBar, TransportBarSettings, TransportButton, format_eta, frame_rect,
+    TimecodePanelSettings, TimecodeRow, TimecodeText, TransportBar, TransportBarSettings, TransportButton, format_eta, frame_rect,
 };
 use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _, SideLabel};
 use craft_ui::form::Field;

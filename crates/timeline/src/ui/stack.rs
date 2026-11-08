@@ -531,12 +531,6 @@ impl<'r> TrackRow<'r> {
     fn headers(&self) -> Rect {
         self.cells.iter().filter(|(key, _)| *key != LANE).fold(Rect::NOTHING, |all, (_, rect)| all.union(*rect))
     }
-
-    /// The grab rect of an edge of the row, centred on the row's boundary `y`.
-    fn edge(&self, y: f32, reach: f32) -> Rect {
-        let row = self.row();
-        Rect::from_min_max(Pos2::new(row.left(), y - reach), Pos2::new(row.right(), y + reach))
-    }
 }
 
 impl Component for TrackRow<'_> {

@@ -8,8 +8,8 @@ use craft_timeline::ui::stack::{MoveTarget, RowGeom, Side, resolve_move};
 use craft_timeline::ui::view::TimelineView;
 use craft_timeline::{FollowMode, FrameRate, Tick, TimeFormat, TimeView, TrackKind};
 use craft_ui::contract::{Bind, ShowContainer as _};
-use craft_ui::testing::{Fixture, trial};
-use egui::{Event, Key, Modifiers, MouseWheelUnit, Vec2};
+use craft_ui::testing::{Fixture, pointer, trial};
+use egui::{Key, Modifiers, Vec2};
 
 const RATE: FrameRate = FrameRate::FPS_29_97;
 
@@ -110,7 +110,9 @@ fn zoom_keys_zoom_about_the_playhead_and_fit_the_sequence() {
 
 fn wheel(fixture: &mut Fixture, delta: Vec2, modifiers: Modifiers) {
     let at = fixture.shown().center();
-    fixture.frame(vec![Event::PointerMoved(at), Event::MouseWheel { unit: MouseWheelUnit::Point, delta, modifiers }]);
+    fixture.hold(modifiers);
+    fixture.frame(vec![pointer::moved(at), pointer::wheel(delta.y)]);
+    fixture.hold(Modifiers::NONE);
 }
 
 /// Alt+wheel zooms about the pointer by `1 + dy * 0.01`; Cmd or Ctrl and the wheel scroll time sideways.
@@ -171,7 +173,7 @@ fn a_move_gets_its_track_fields_from_the_pointer() {
     let rows = rows();
     let bounds = (0.0, 170.0);
     let up = resolve_move(&rows, &[rows[1]], 20.0, bounds);
-    assert_eq!(up, MoveTarget { track_delta: 1, new_track: false, refused: false }, "V1 to V2 is one row away from the divider");
+    assert_eq!((up.track_delta, up.new_track, up.refused), (1, false, false), "V1 to V2 is one row away from the divider");
     let across = resolve_move(&rows, &[rows[1]], 100.0, bounds);
     assert_eq!(across, MoveTarget::STAY, "a video clip over an audio row stays");
     let past = resolve_move(&rows, &[rows[0]], -5.0, (-10.0, 170.0));

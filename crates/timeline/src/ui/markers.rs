@@ -131,7 +131,6 @@ pub struct MarkerStripStyle {
 /// was grabbed.
 #[derive(Clone, Copy, Debug, Default)]
 struct Grab {
-    id: u64,
     length_drag: bool,
     start: Tick,
     length: Tick,
@@ -337,7 +336,7 @@ impl Component for MarkerStrip<'_> {
             }
             match press.phase {
                 PressPhase::DragStart { .. } => {
-                    let grab = Grab { id: marker.id.0, length_drag: press.mods.alt, start: marker.start, length: marker.duration };
+                    let grab = Grab { length_drag: press.mods.alt, start: marker.start, length: marker.duration };
                     *cx.press_slot::<Grab>() = Some(grab);
                     cx.propose(MarkerSpan::new(marker.id, marker.start, marker.duration));
                 }

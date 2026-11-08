@@ -83,7 +83,6 @@ impl RenderStatus {
 
 /// A queue item's id, the app's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[non_exhaustive]
 pub struct RenderItemId(pub u64);
 
 /// A queue row: "Sequence \u{2192} file.mp4", the preset, the status.

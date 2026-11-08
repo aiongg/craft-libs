@@ -33,7 +33,9 @@ const ROLL_SHARE: f32 = 0.5;
 /// The clip body of `CLIP.at(id)`; its start and end edges are `CLIP_START.at(id)` and `CLIP_END.at(id)`, which rank
 /// above the body.
 pub const CLIP: PartKey = PartKey::new("clip");
+/// The start edge of the clip.
 pub const CLIP_START: PartKey = PartKey::new("clipStart");
+/// The end edge of the clip.
 pub const CLIP_END: PartKey = PartKey::new("clipEnd");
 
 /// The timeline tool that decides what a press on a clip does (Premiere's Tools panel; the app
@@ -143,6 +145,7 @@ pub struct ClipLook {
 }
 
 impl ClipLook {
+    /// The look the tokens give.
     pub fn of(cx: &StyleCx<'_>) -> Self {
         let tokens = cx.tokens;
         let edge = tokens.size.hit.target;
