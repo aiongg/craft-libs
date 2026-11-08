@@ -246,7 +246,7 @@ fn the_shell_follows_the_fixtures_os() {
 fn a_mac_shell_with_an_app_drawn_frame_puts_the_menu_in_the_window() {
     let seen = Rc::new(Cell::new(None));
     let shown = seen.clone();
-    let mut fixture = Fixture::new(move |ui| shown.set(Some(Env::of(ui).view().shell().menu)));
+    let mut fixture = Fixture::new(move |ui| shown.set(Some(Env::of(ui).view().shell().menu())));
     fixture.os(Os::Mac).frame(vec![]);
     assert_eq!(seen.get(), Some(MenuPlacement::ScreenTop));
     fixture.chrome(WindowChrome::Integrated).frame(vec![]);

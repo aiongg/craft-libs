@@ -197,7 +197,7 @@ impl<'a> MenuBar<'a> {
     }
 
     fn in_window(env: &EnvView<'_>) -> bool {
-        env.shell().menu == MenuPlacement::InWindow
+        env.shell().menu() == MenuPlacement::InWindow
     }
 
     /// Each title's text without its marker, and its mnemonic: the letter and its character index in the text.

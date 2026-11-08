@@ -284,8 +284,6 @@ pub struct ShellInfo {
     pub desktop: DesktopKind,
     /// What the host can do.
     pub caps: Caps,
-    /// Where the menu bar lives.
-    pub menu: MenuPlacement,
     /// What a title bar double click does.
     pub double_click: DoubleClick,
     /// The main window's facts.
@@ -293,6 +291,11 @@ pub struct ShellInfo {
 }
 
 impl ShellInfo {
+    /// Where the menu bar lives: it follows the capabilities and the main window's frame.
+    pub fn menu(&self) -> MenuPlacement {
+        MenuPlacement::of(self.caps, self.window.chrome)
+    }
+
     /// The shell of the running build: the OS, runtime and capabilities this binary has.
     pub fn current() -> ShellInfo {
         let os = Os::current();
@@ -307,7 +310,6 @@ impl ShellInfo {
             backend: Backend::default(),
             desktop: DesktopKind::default(),
             caps,
-            menu: MenuPlacement::of(caps, WindowChrome::default()),
             double_click: DoubleClick::default(),
             window: std::sync::Arc::new(WindowInfo::new(WindowKind::Main)),
         }
@@ -316,7 +318,6 @@ impl ShellInfo {
     /// Sets the capabilities, for a native build run as web in tests. The menu placement follows them.
     pub fn caps(mut self, caps: Caps) -> Self {
         self.caps = caps;
-        self.menu = MenuPlacement::of(caps, self.window.chrome);
         self
     }
 
@@ -352,7 +353,6 @@ impl ShellInfo {
 
     /// Sets the main window's facts. The menu placement follows its chrome.
     pub fn window(mut self, window: WindowInfo) -> Self {
-        self.menu = MenuPlacement::of(self.caps, window.chrome);
         self.window = std::sync::Arc::new(window);
         self
     }

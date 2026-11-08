@@ -156,12 +156,12 @@ impl Header {
         })
     }
 
-    /// The columns with their widths for the item layout.
     /// The key of the column at position `at`.
     pub(super) fn key_at(&self, at: usize) -> Option<&ColumnKey> {
         self.specs.get(at).map(|spec| &spec.key)
     }
 
+    /// The columns with their widths for the item layout.
     pub(super) fn columns(&self, room: f32) -> Vec<(ColumnKey, f32)> {
         self.specs.iter().map(|spec| spec.key.clone()).zip(self.widths(room)).collect()
     }

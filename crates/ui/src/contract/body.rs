@@ -1667,9 +1667,13 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 }
                 scoped.transform = props.transform;
                 scoped.content_column = content_column;
-                if let Some(scroll) = scroll {
-                    scoped.scroll_owner = Some(id);
-                    scoped.unbounded = (scroll.horizontal_on(), scroll.vertical_on());
+                match scroll {
+                    Some(scroll) => {
+                        scoped.scroll_owner = Some(id);
+                        scoped.unbounded = (scroll.horizontal_on(), scroll.vertical_on());
+                    }
+                    // A container that sized an axis itself (a rect it was shown at, a fixed layer) bounds the room along it.
+                    None => scoped.unbounded = (scoped.unbounded.0 && !self.room.x.is_finite(), scoped.unbounded.1 && !self.room.y.is_finite()),
                 }
             });
             let mut bcx = BodyCx::new(body_id, body_env.view(), resolved, body_rect, &mut *cx.core.memory, &mut open, gate.as_mut())
