@@ -35,7 +35,9 @@ struct Cells {
 impl Cells {
     fn new(count: usize) -> Self {
         let mut frames = Frames::new();
-        frames.root(RootEnv { tab_toggles_chrome: true, ..RootEnv::default() });
+        let mut root = RootEnv::default();
+        root.tab_toggles_chrome = true;
+        frames.root(root);
         let seen = vec![Seen { mode: ScreenMode::Standard, slots: 0, body: Rect::NOTHING }; count];
         let mut cells = Cells { frames, states: (0..count).map(|_| MockState::default()).collect(), seen };
         cells.settle();
