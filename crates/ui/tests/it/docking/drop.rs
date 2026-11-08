@@ -87,8 +87,8 @@ fn a_tab_dropped_after_its_own_neighbour_reorders_its_group() {
 
 #[trial]
 fn a_group_side_docks_beside_in_the_vocabulary_of_its_container() {
-    let below = drop_of(DragUnit::Panel(LOWER_GROUP), at(100.0, 136.0), open);
-    assert_eq!(below, Some(Action::move_beside(LOWER_GROUP, TOP_GROUP, Placement::group(true, None))), "a dock column stacks groups");
+    let below = drop_of(DragUnit::Panel(TOP_SECOND_TAB), at(100.0, 136.0), open);
+    assert_eq!(below, Some(Action::move_beside(TOP_SECOND_TAB, TOP_GROUP, Placement::group(true, None))), "a dock column stacks groups");
     let start = drop_of(DragUnit::Panel(LOWER_GROUP), at(10.0, 60.0), open);
     assert_eq!(start, Some(Action::move_beside(LOWER_GROUP, TOP_GROUP, Placement::column(false))), "a column edge makes a column");
 }
@@ -105,7 +105,7 @@ fn the_middle_of_a_group_joins_it_but_never_its_own_group() {
 fn permissions_refuse_a_drop_the_destination_or_the_unit_does_not_allow() {
     let no_tabs = |panel: &u32| if *panel == TOP_GROUP { Permissions::ALL.accepts_tabs(false) } else { Permissions::default() };
     assert_eq!(drop_of(DragUnit::Panel(LOWER_GROUP), at(100.0, 60.0), no_tabs), None, "the group takes no tabs");
-    assert!(drop_of(DragUnit::Panel(LOWER_GROUP), at(100.0, 136.0), no_tabs).is_some(), "it still takes a new group beside it");
+    assert!(drop_of(DragUnit::Panel(TOP_SECOND_TAB), at(100.0, 136.0), no_tabs).is_some(), "it still takes a new group beside it");
     let pinned = |panel: &u32| if *panel == LOWER_GROUP { Permissions::ALL.movable(false) } else { Permissions::default() };
     assert_eq!(drop_of(DragUnit::Panel(LOWER_GROUP), at(100.0, 60.0), pinned), None, "a panel that cannot move is not dropped");
 }

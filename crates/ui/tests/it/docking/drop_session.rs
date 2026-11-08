@@ -16,7 +16,6 @@ use std::rc::Rc;
 
 const SIZES: FrameSizes = FrameSizes::new(1.0, 1.0, 40.0, 24.0);
 const AREA: Vec2 = Vec2::new(400.0, 300.0);
-const GRIP: &str = "Move tab group";
 
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
 #[non_exhaustive]
@@ -140,6 +139,13 @@ fn hold_and_move(fixture: &mut Fixture, from: Pos2, to: Pos2) {
     fixture.idle(1);
 }
 
+/// The grip of the left group: the second button of its header, after the collapse arrow.
+fn left_grip(fixture: &Fixture) -> craft_ui::testing::Target {
+    let mut buttons: Vec<_> = fixture.by_role(Role::BUTTON).into_iter().filter(|button| button.rect.min.x < 100.0).collect();
+    buttons.sort_by(|a, b| a.rect.min.x.total_cmp(&b.rect.min.x));
+    buttons[1]
+}
+
 fn tabs_by_x(fixture: &Fixture) -> Vec<craft_ui::testing::Target> {
     let mut tabs = fixture.by_role(Role::TAB);
     tabs.sort_by(|a, b| a.rect.min.x.total_cmp(&b.rect.min.x));
@@ -175,7 +181,9 @@ fn a_panel_dropped_between_two_tabs_lands_between_them() {
     let tabs = tabs_by_x(&fixture);
     let (first, properties) = (&tabs[0], &tabs[2]);
     let between = Pos2::new(first.rect.right() - 2.0, first.center().y);
-    fixture.drag(properties, between - properties.center());
+    hold_and_move(&mut fixture, properties.center(), between);
+    assert!(drag::mark(fixture.ctx()).is_some(), "the strip takes the drop between two tabs");
+    fixture.frame(vec![release(between)]);
     fixture.idle(2);
     assert_eq!(groups(&layout.borrow())[0], panels(&["Layers", "Properties", "Channels"]));
 }
@@ -184,7 +192,7 @@ fn a_panel_dropped_between_two_tabs_lands_between_them() {
 fn a_group_grip_drag_shows_the_drop_mark_over_a_group_side_and_docks_on_release() {
     let (mut fixture, layout, taken) = bed(two_groups());
     fixture.settle();
-    let grip = fixture.by_label(GRIP).expect("the group shows its grip");
+    let grip = left_grip(&fixture);
     hold_and_move(&mut fixture, grip.center(), Pos2::new(395.0, 150.0));
     assert!(drag::active::<GroupDrag<String>>(fixture.ctx()).is_some(), "the grip started a group drag of the dock's panel type");
     assert!(drag::mark(fixture.ctx()).is_some(), "the dock's target accepts the drag over a group side");
@@ -200,7 +208,7 @@ fn escape_cancels_a_group_grip_drag() {
     let (mut fixture, layout, _) = bed(two_groups());
     fixture.settle();
     let before = layout.borrow().clone();
-    let grip = fixture.by_label(GRIP).expect("the group shows its grip");
+    let grip = left_grip(&fixture);
     hold_and_move(&mut fixture, grip.center(), Pos2::new(395.0, 150.0));
     assert!(drag::active::<GroupDrag<String>>(fixture.ctx()).is_some());
     fixture.key(Key::Escape, Modifiers::NONE);
