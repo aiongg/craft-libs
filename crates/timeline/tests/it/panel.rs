@@ -430,6 +430,51 @@ fn header_switches_report_their_new_state() {
     assert_eq!(switches, [(V1, TrackSwitch::Locked, true, false), (A1, TrackSwitch::Solo, true, true)]);
 }
 
+impl Panel {
+    /// Presses the Lock switch of V2 and moves down over the Lock switches of V1 and A1, then returns the switches reported
+    /// so far (the pointer is still down).
+    fn sweep_locks(&mut self) -> Vec<(TrackId, bool)> {
+        let centers: Vec<_> = ["V2", "V1", "A1"].map(|name| self.in_row("Toggle Track Lock", self.row(name)).center()).into();
+        self.fixture.frame(vec![pointer::moved(centers[0])]);
+        self.fixture.frame(vec![pointer::press(centers[0])]);
+        for center in &centers[1..] {
+            self.fixture.frame(vec![pointer::moved(*center)]);
+        }
+        self.locks()
+    }
+
+    fn locks(&self) -> Vec<(TrackId, bool)> {
+        self.edits()
+            .into_iter()
+            .filter_map(|edit| match edit {
+                TimelineEdit::Switch { track, switch: TrackSwitch::Locked, value, .. } => Some((track, value)),
+                _ => None,
+            })
+            .collect()
+    }
+}
+
+/// A sweep across Lock switches flips each one as the pointer crosses it, before the release.
+#[trial]
+fn a_sweep_across_lock_switches_flips_each_before_release() {
+    let mut panel = panel();
+    assert_eq!(panel.sweep_locks(), [(V2, true), (V1, true), (A1, true)]);
+    let end = panel.in_row("Toggle Track Lock", panel.row("A1")).center();
+    panel.fixture.frame(vec![pointer::release(end)]);
+    assert_eq!(panel.locks().len(), 3, "the release repeats nothing");
+}
+
+/// Escape in the middle of a sweep puts every crossed switch back.
+#[trial]
+fn escape_in_a_lock_sweep_restores_every_crossed_switch() {
+    let mut panel = panel();
+    panel.sweep_locks();
+    panel.fixture.key(Key::Escape, Modifiers::NONE);
+    panel.fixture.idle(2);
+    let restored: Vec<_> = panel.locks().into_iter().skip(3).collect();
+    assert_eq!(restored, [(V2, false), (V1, false), (A1, false)]);
+}
+
 /// A row resizes from its own height: video rows grow upward, so an edge dragged up adds height, and the top video row
 /// has a top edge.
 #[trial]

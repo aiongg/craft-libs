@@ -16,7 +16,7 @@ use crate::clock::FollowMode;
 use crate::markers::{Marker, MarkerColor};
 use crate::model::{ClipId, ClipInfo, TimelineModel, TrackId, TrackInfo, TrackKind};
 use crate::time::{Tick, TimeRange};
-use craft_behavior::{Axis, ColumnWidth, CursorIcon, CursorPriority, EditEvent, IconId, MarqueeSelect, Metrics, SelectionChange};
+use craft_behavior::{Axis, ColumnWidth, CursorIcon, CursorPriority, EditEvent, IconId, MarqueeSelect, Metrics, Mixed, SelectionChange};
 use craft_ui::buttons::{IconButton, ToggleButton};
 use craft_ui::contract::{
     Bind, BodyLayout, CollectionEvent, CollectionResponse, ColumnEvent, Common, Component, Container, ContainerProps, Cx, EditResponse, NoValue,
@@ -331,11 +331,14 @@ impl Mapping<'_> {
         for event in &out.events {
             match event {
                 CollectionEvent::Toggle(edit) => {
-                    // A flip of a sweep opens with Begin and Update and ends with Commit: the app is told once, at the end.
-                    if !matches!(edit, EditEvent::Set { .. } | EditEvent::Commit { .. }) {
-                        continue;
-                    }
-                    let Some(toggled) = edit.value() else { continue };
+                    // A swept switch flips as the pointer crosses it (Update) and is restored when the sweep is
+                    // cancelled; its Commit repeats what the Update already applied.
+                    let (toggled, restore) = match edit {
+                        EditEvent::Set { .. } | EditEvent::Update { .. } => (edit.value().cloned(), false),
+                        EditEvent::Cancel { before: Some(Mixed::Same(before)), .. } => (Some(before.clone()), true),
+                        _ => continue,
+                    };
+                    let Some(toggled) = toggled else { continue };
                     let switch = match &toggled.column {
                         column if *column == LOCK => TrackSwitch::Locked,
                         column if *column == TARGET => TrackSwitch::Targeted,
@@ -345,7 +348,7 @@ impl Mapping<'_> {
                         column if *column == SOLO => TrackSwitch::Solo,
                         _ => continue,
                     };
-                    let exclusive = toggled.mods.alt && matches!(switch, TrackSwitch::Muted | TrackSwitch::Solo);
+                    let exclusive = !restore && toggled.mods.alt && matches!(switch, TrackSwitch::Muted | TrackSwitch::Solo);
                     edits.push(TimelineEdit::Switch { track: toggled.key, switch, value: toggled.on, exclusive });
                 }
                 CollectionEvent::Column(ColumnEvent::Resized { key, width, .. }) if *key == NAME => {

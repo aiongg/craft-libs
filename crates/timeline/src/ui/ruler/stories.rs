@@ -110,21 +110,23 @@ fn ruler_at_minute_zoom(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(TimelineRuler<'static>, covers = [Mixed])]
 fn playheads_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let view = data.value("view", TimeView::new(Tick::ZERO, SECOND_ZOOM));
-    let mut view = *view;
+    let mut view = *data.value("view", TimeView::new(Tick::ZERO, SECOND_ZOOM));
     let playhead = data.value("playhead", Mixed::<Tick>::Mixed);
-    in_view(ui, &mut view, || TimelineRuler::new("Time ruler", Bind::bound_mixed(playhead)))
+    let shown = in_view(ui, &mut view, || TimelineRuler::new("Time ruler", Bind::bound_mixed(playhead)));
+    *data.value("view", TimeView::new(Tick::ZERO, SECOND_ZOOM)) = view;
+    shown
 }
 
 #[story(TimelineRuler<'static>, covers = [Invalid])]
 fn playhead_after_the_limit(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let view = data.value("view", TimeView::new(Tick::ZERO, SECOND_ZOOM));
-    let mut view = *view;
+    let mut view = *data.value("view", TimeView::new(Tick::ZERO, SECOND_ZOOM));
     let playhead = data.value("playhead", secs(LATEST_SECONDS + 1.0));
-    in_view(ui, &mut view, || {
+    let shown = in_view(ui, &mut view, || {
         let before_the_limit = |t: &Tick| {
             if *t > secs(LATEST_SECONDS) { Validity::Refuse(Message::new("The playhead is past the limit")) } else { Validity::Ok }
         };
         TimelineRuler::new("Time ruler", Bind::bound(playhead).check(before_the_limit))
-    })
+    });
+    *data.value("view", TimeView::new(Tick::ZERO, SECOND_ZOOM)) = view;
+    shown
 }
