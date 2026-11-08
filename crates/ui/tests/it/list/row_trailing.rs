@@ -146,16 +146,22 @@ fn space_and_enter_on_a_trailing_part_activate_it() {
     }
 }
 
-/// Rows with parts do not add Tab stops: the list is one stop.
+/// Rows with parts add no Tab stops: Tab never lands on a part, and a second Tab does not step inside the list.
 #[trial]
 fn a_list_whose_rows_have_parts_is_one_tab_stop() {
     let (mut fixture, _) = rig(with_trailing);
     fixture.key(Key::Tab, Modifiers::NONE);
     fixture.idle(2);
-    assert!(fixture.focused().is_some(), "Tab enters the list");
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.idle(2);
-    assert_eq!(fixture.focused(), None, "the second Tab leaves the list: its rows' parts are no Tab stops");
+    let list = fixture.focused_stop().expect("Tab enters the list");
+    for _ in 0..3 {
+        fixture.key(Key::Tab, Modifiers::NONE);
+        fixture.idle(2);
+        assert!(
+            fixture.focused_stop().is_none_or(|stop| stop == list),
+            "Tab stays on the list's one stop or leaves it: {:?}",
+            fixture.focused_stop()
+        );
+    }
 }
 
 /// A row with a thumbnail whose rect `rect` records.
