@@ -371,6 +371,9 @@ pub enum Gap {
 
 /// What a container or collection adds to `Common`. A builder added here is added to the forwarder list in
 /// `crates/ui-macros/src/props.rs` too.
+///
+/// A container body runs at most once per pass, and a sizing pass runs none. A pattern around a container never
+/// guards against a second run.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct ContainerProps {
