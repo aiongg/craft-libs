@@ -79,7 +79,7 @@ fn stroke_of(shape: &Shape) -> Option<(f32, Color32)> {
 /// The strokes, the textured meshes and the filled rects the plate painted in its last frame, and its texture.
 fn run(inactive: bool) -> (Vec<(f32, Color32)>, Vec<Shape>, TextureId) {
     let mut frames = Frames::new();
-    let texture = TextureCache::texture(&frames.ctx, "plate", || egui::ColorImage::filled([2, 2], Color32::WHITE));
+    let texture = TextureCache::texture(&frames.ctx, "plate", || egui::ColorImage::filled([2, 2], Default::default()));
     let mut show = |ui: &mut egui::Ui| {
         Plate { common: Common::new(), inactive, texture }.label("Plate").show(ui);
     };

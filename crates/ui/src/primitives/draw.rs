@@ -282,7 +282,7 @@ impl<'a> Draw<'a> {
         if self.inactive {
             self.data_fill(&PaintShape::Rect(rect, CornerRadius::ZERO), DataColor::new(Color32::TRANSPARENT));
         } else {
-            self.painter.image(texture, rect, uv, Color32::WHITE);
+            self.painter.image(texture, rect, uv, Color32::from_gray(u8::MAX));
         }
     }
 
@@ -300,6 +300,16 @@ impl<'a> Draw<'a> {
     /// under a frozen band, a bracket cut at a lane's edge.
     pub fn clipped(&self, rect: Rect, paint: impl FnOnce(&Draw<'_>)) {
         let painter = self.painter.with_clip_rect(rect);
+        paint(&Draw { painter: &painter, record: self.record, env: self.env, inactive: self.inactive, text_direction: self.text_direction });
+    }
+
+    /// Runs `paint` with a `Draw` whose fills, strokes, text runs, icons and pictures are all `share` as opaque as
+    /// they would be (1 paints as `self` does, 0 paints nothing). Fades stack: a faded `Draw` faded again multiplies
+    /// the shares. The share is the app's runtime value, such as an animation's progress; a value outside 0 to 1 is
+    /// clamped and a non-finite one leaves the opacity as it was.
+    pub fn faded(&self, share: f32, paint: impl FnOnce(&Draw<'_>)) {
+        let mut painter = self.painter.clone();
+        painter.multiply_opacity(share);
         paint(&Draw { painter: &painter, record: self.record, env: self.env, inactive: self.inactive, text_direction: self.text_direction });
     }
 

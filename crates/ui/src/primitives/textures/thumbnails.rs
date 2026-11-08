@@ -173,14 +173,18 @@ pub struct ThumbPaint {
     /// How the picture fits its box.
     pub fit: ThumbFit,
     /// The transparency grid behind the picture (default on). Off for opaque pictures such as photos and pages.
+    /// Ignored while `paper` is set.
     pub checker: bool,
+    /// The paper the picture sits on, when the document gives one: a fill under the picture's rect in place of the
+    /// transparency grid (default none). It wins over `checker`; the two never paint together.
+    pub paper: Option<DataColor>,
     /// Multiplies the picture (default untinted): a dimmed row's faint thumbnail.
     pub tint: DataColor,
 }
 
 impl Default for ThumbPaint {
     fn default() -> Self {
-        Self { fit: ThumbFit::Contain, checker: true, tint: DataColor::new(Color32::from_gray(u8::MAX)) }
+        Self { fit: ThumbFit::Contain, checker: true, paper: None, tint: DataColor::new(Color32::from_gray(u8::MAX)) }
     }
 }
 
@@ -196,6 +200,14 @@ impl ThumbPaint {
     #[must_use]
     pub fn checker(mut self, checker: bool) -> Self {
         self.checker = checker;
+        self
+    }
+
+    /// Sets the paper under the picture: a fill in place of the transparency grid, whatever `checker` says (a page
+    /// thumbnail's paper is document data).
+    #[must_use]
+    pub fn paper(mut self, paper: DataColor) -> Self {
+        self.paper = Some(paper);
         self
     }
 
@@ -336,7 +348,7 @@ impl<K: TextureKey> Thumbnails<K> {
 
     /// Paints `state` into `rect` and returns whether it drew anything:
     /// - `Ready`, or `Loading` with a stand-in: the picture fitted by `paint.fit`, over the transparency grid when
-    ///   `paint.checker`, tinted by `paint.tint`.
+    ///   `paint.checker` (or over `paint.paper`, which replaces the grid), tinted by `paint.tint`.
     /// - `Missing`, or `Loading` without a stand-in: the placeholder, a sunken surface over `rect`.
     /// - `Failed`: the placeholder with the warning icon centred. The message is the host's tooltip
     ///   (`ListRow::tooltip`).
@@ -433,7 +445,9 @@ fn paint_picture(cx: &ContentPainterCx<'_>, cell: Rect, texture: egui::TextureId
         ThumbFit::Contain => (fit_rect(cell, size).round_to_pixels(cx.pixels_per_point()), full),
         ThumbFit::Cover => (cell, cover_uv(cell, size)),
     };
-    if paint.checker {
+    if let Some(paper) = paint.paper {
+        cx.painter.rect_filled(target, 0.0, paper.0);
+    } else if paint.checker {
         cx.checker(target);
     }
     textures::paint(&cx.painter, texture, target, uv, paint.tint.0);
