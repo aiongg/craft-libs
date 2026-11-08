@@ -13,11 +13,12 @@ workspace = true
 [features]
 default = []
 # The editing widgets (`craft_imaging::ui`).
-ui = ["dep:craft-ui", "dep:egui", "dep:kurbo"]
+ui = ["dep:craft-behavior", "dep:craft-ui", "dep:egui", "dep:kurbo"]
 # Screenshot and input tests of the widgets with egui_kittest (desktop only).
 screen-testing = ["ui", "craft-ui/screen-testing"]
 
 [dependencies]
+craft-behavior = { workspace = true, optional = true }
 craft-host = { workspace = true }
 craft-i18n = { workspace = true }
 craft-theme = { workspace = true }
