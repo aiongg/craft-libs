@@ -1524,9 +1524,12 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                             if scroll.vertical_on() { took.y.min(at.height()) } else { took.y },
                         ))
                     }
+                    // A row that places its block itself asks for its children's width, not the room it spans.
                     None => {
-                        layout::run_body(&mut body_ui, layout_id, layout, gap, |ui| shared_labels(ui, id, label_column, room.x, |ui| body(ui, bcx)));
-                        None
+                        let (_, natural) = layout::run_body_measured(&mut body_ui, layout_id, layout, gap, |ui| {
+                            shared_labels(ui, id, label_column, room.x, |ui| body(ui, bcx))
+                        });
+                        natural.map(|width| Vec2::new(width, body_ui.min_rect().height()))
                     }
                 };
                 Env::restore(&ctx, installed);
@@ -1603,7 +1606,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             let mut bcx = BodyCx::new(body_id, env_view, resolved, footer_rect, &mut *cx.core.memory, &mut open, gate.as_mut())
                 .with_field_message(field_message);
             let mut footer_ui = alloc::child(ui, frame.region("footer", footer_rect));
-            let installed = Env::install_for(&footer_ui, region_env.clone());
+            // A footer in the end region is part of a column sized from its content: a fill-width child takes its
+            // measured width there and shows across the column, so it never sets the column's width.
+            let footer_env = if footer_in_end(&props) { region_env.derive_local(|scoped| scoped.content_column = true) } else { region_env.clone() };
+            let installed = Env::install_for(&footer_ui, footer_env);
             comp.footer(&mut footer_ui, &mut bcx);
             Env::restore(&ctx, installed);
             close = close.or(bcx.close_requested());

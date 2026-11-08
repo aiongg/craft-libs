@@ -226,10 +226,16 @@ fn last_measure(ctx: &egui::Context, grid: Id, columns: usize) -> GridMeasure {
 /// its children left last pass between them, and `Grid` places its cells from last pass's widest child per column
 /// and tallest per row. A change of those sizes asks for one discard pass under the tolerance rule.
 pub(crate) fn run_body<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap: Vec2, body: impl FnOnce(&mut Ui) -> R) -> R {
+    run_body_measured(ui, id, layout, gap, body).0
+}
+
+/// `run_body`, with the width the children take at the gap alone for a `Row` that places its block itself (`End`,
+/// `Center`, `SpaceBetween`): the width the body asks for, where the room it is placed in spans wider.
+pub(crate) fn run_body_measured<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap: Vec2, body: impl FnOnce(&mut Ui) -> R) -> (R, Option<f32>) {
     let rtl = Env::of(ui).direction.is_rtl();
     let ctx = ui.ctx().clone();
     match layout {
-        BodyLayout::Stack => child::block(ui, None, child::column_layout(rtl), |ui| body(ui)).0,
+        BodyLayout::Stack => (child::block(ui, None, child::column_layout(rtl), |ui| body(ui)).0, None),
         BodyLayout::Row { wrap: false, align: RowAlign::SpaceBetween } => {
             let (inner, _) = child::block(ui, None, child::row_layout(rtl, false), |ui| {
                 let flow = Flow::new(ui.available_rect_before_wrap(), rtl);
@@ -240,10 +246,14 @@ pub(crate) fn run_body<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap: Vec2, b
                 Env::restore(&ctx, installed);
                 inner
             });
-            if let Some(Cursor::Spread(spread)) = Service::<Cursors>::run(&ctx, |cursors| cursors.0.remove(&id)) {
-                layout_memory::record(&ctx, id, spread.measured());
+            let measured = match Service::<Cursors>::run(&ctx, |cursors| cursors.0.remove(&id)) {
+                Some(Cursor::Spread(spread)) => Some(spread.measured()),
+                _ => None,
+            };
+            if let Some(measured) = measured {
+                layout_memory::record(&ctx, id, measured);
             }
-            inner
+            (inner, measured.map(|measured| measured.x))
         }
         BodyLayout::Row { wrap, align } => {
             let room = ui.available_rect_before_wrap();
@@ -262,7 +272,7 @@ pub(crate) fn run_body<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap: Vec2, b
             if *align != RowAlign::Start {
                 layout_memory::record(&ctx, id, took.size());
             }
-            inner
+            (inner, (*align != RowAlign::Start).then(|| took.width()))
         }
         BodyLayout::Grid { columns } => {
             let inner = child::block(ui, None, child::column_layout(rtl), |ui| {
@@ -285,7 +295,7 @@ pub(crate) fn run_body<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap: Vec2, b
                 }
                 layout_memory::record(&ctx, sub(id, "rows"), Vec2::new(measured.rows.len() as f32, 0.0));
             }
-            inner
+            (inner, None)
         }
     }
 }

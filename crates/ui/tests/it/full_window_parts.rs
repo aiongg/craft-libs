@@ -322,12 +322,20 @@ mod sides {
         body: Rect,
         side: Rect,
         leading: Rect,
+        dialog: Rect,
     }
 
     /// Liquify's shape: the canvas in the body, a Properties column at the end edge, and OK and Cancel (Reset while
     /// Alt is held) in the side columns' footer after a leading Restore All button.
     fn liquify(direction: Direction) -> (Fixture, Rc<RefCell<Seen>>) {
-        let seen = Rc::new(RefCell::new(Seen { closed: None, picked: None, body: Rect::NOTHING, side: Rect::NOTHING, leading: Rect::NOTHING }));
+        let seen = Rc::new(RefCell::new(Seen {
+            closed: None,
+            picked: None,
+            body: Rect::NOTHING,
+            side: Rect::NOTHING,
+            leading: Rect::NOTHING,
+            dialog: Rect::NOTHING,
+        }));
         let shared = seen.clone();
         let (mut open, mut mesh) = (true, false);
         let mut fixture = Fixture::new(move |ui| {
@@ -350,6 +358,7 @@ mod sides {
                 .side_footer(SideFooter::bottom().leading(|ui| leading = Button::new("Restore All").show(ui).rect))
                 .show(ui, |_, cx| cx.rect);
             seen.body = shown.inner.unwrap_or(Rect::NOTHING);
+            seen.dialog = shown.output.response.rect;
             (seen.side, seen.leading) = (side, leading);
             seen.closed = seen.closed.or(shown.output.closed);
             seen.picked = seen.picked.or(shown.output.picked);
@@ -399,9 +408,15 @@ mod sides {
             assert!(past_body(side) && past_body(leading.union(buttons)), "{direction:?}: the column and its footer lie past the canvas");
             assert!(leading.min.y >= side.max.y && buttons.min.y >= side.max.y, "{direction:?}: the footer lies under the column");
             let row = leading.union(buttons);
+            let (start, end) = if rtl {
+                (row.max.x.round() <= side.max.x.round(), row.min.x.round() >= seen.dialog.min.x.round())
+            } else {
+                (row.min.x.round() >= side.min.x.round(), row.max.x.round() <= seen.dialog.max.x.round())
+            };
             assert!(
-                row.min.x.round() >= side.min.x.round() && row.max.x.round() <= side.max.x.round(),
-                "{direction:?}: the footer row {row:?} stays inside the column {side:?}"
+                start && end,
+                "{direction:?}: the footer row {row:?} starts with the column {side:?} and stays inside the dialog {:?}",
+                seen.dialog
             );
         }
     }
