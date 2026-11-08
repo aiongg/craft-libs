@@ -247,8 +247,8 @@ fn focus<T: Reports + 'static>(rig: &mut Rig<T>)
 where
     for<'a> SelectToolPass<'a, T>: CanvasTool,
 {
-    let middle = rig.canvas().center();
-    rig.press_at(middle).release_at(middle);
+    let corner = rig.canvas().rect.left_top() + egui::vec2(2.0, 2.0);
+    rig.press_at(corner).release_at(corner);
     let mut tool = rig.tool_mut();
     tool.tool().reset();
     tool.events();

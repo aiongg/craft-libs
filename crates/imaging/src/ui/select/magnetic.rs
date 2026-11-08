@@ -610,7 +610,7 @@ impl<T: EdgeTracer> CanvasTool for SelectToolPass<'_, MagneticLassoTool<T>> {
     }
 
     fn command_form(&self) -> ToolPath {
-        ToolPath::Freehand
+        ToolPath::Command("the Select Area... command")
     }
 }
 
