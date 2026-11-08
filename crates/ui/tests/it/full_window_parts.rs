@@ -215,9 +215,6 @@ mod canvas_navigation {
         });
         fixture.settle();
         let (canvas, rest) = rects.get().expect("the canvas was shown");
-        assert!(
-            rest.min.y >= canvas.max.y - 0.5 || rest.min.x >= canvas.max.x - 0.5,
-            "the room after the canvas starts past it: {canvas:?} {rest:?}"
-        );
+        assert!(rest.min.y >= canvas.max.y || rest.min.x >= canvas.max.x, "the room after the canvas starts past it: {canvas:?} {rest:?}");
     }
 }

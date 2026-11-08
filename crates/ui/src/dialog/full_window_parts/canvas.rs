@@ -6,7 +6,7 @@ use crate::canvas::{
     Canvas, CanvasTool, HandTool, Momentary, NavigationOptions, PixelRect, RasterDisplay, RasterSource, ToolHost, ToolHostResponse, ToolPath,
     WheelNavigation, pan,
 };
-use crate::contract::{Bind, NoValue, Outcome, Props as _, Show as _, ShowContainer as _};
+use crate::contract::{Bind, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, advance_past};
 use crate::primitives::{Checker, Revision};
 use crate::runtime::edit::next_gesture_id;
 use crate::runtime::env::{Env, Label};
@@ -212,7 +212,7 @@ impl<'a> FullWindowCanvas<'a> {
                 controls(ui, body.rect);
             }
         });
-        crate::runtime::egui::alloc::advance_past(ui, rect);
+        advance_past(ui, rect);
         let output = canvas.output;
         let mut next = shown;
         let mut moved: CanvasView = shown.view();

@@ -79,6 +79,8 @@ pub(crate) use body::MOVE_BAND;
 pub use craft_behavior::DropOperation;
 pub(crate) use run::measure_under;
 pub(crate) use steps::take_reveal;
+/// Moves the parent's cursor past the rect a body was shown at (`show_at`), as the hosts do.
+pub(crate) use crate::runtime::egui::alloc::advance_past;
 
 /// Where an element's id comes from.
 #[derive(Clone, Copy, Debug, Default)]
