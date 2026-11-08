@@ -24,3 +24,388 @@ status = "pending"
 # type = ""
 # old = ""
 # new = ""
+
+# craft-imaging adjust editors (track img-adjust-b): the slider-based editors, the slider table and the session.
+
+[[type]]
+name = "BrightnessContrastEditor"
+old = "craft_imaging::ui::adjust::BrightnessContrastEditor"
+new = "craft_imaging::ui::adjust::BrightnessContrastEditor"
+status = "same"
+note = "A pattern over a `Bind<BrightnessContrast>` named by its label; `show(ui)` returns `EditResponse<BrightnessContrast>`. One slider drag, step key, typed number or reset is one gesture of the whole value."
+
+[[type]]
+name = "ThresholdEditor"
+old = "craft_imaging::ui::adjust::ThresholdEditor"
+new = "craft_imaging::ui::adjust::ThresholdEditor"
+status = "same"
+note = "A pattern over a `Bind<f64>` named by its label; `show(ui)` returns `EditResponse<f64>`. One slider drag, step key, typed number or reset is one gesture of the whole value."
+
+[[type]]
+name = "ColorBalanceEditor"
+old = "craft_imaging::ui::adjust::ColorBalanceEditor"
+new = "craft_imaging::ui::adjust::ColorBalanceEditor"
+status = "same"
+note = "A pattern over a `Bind<ColorBalance>` named by its label; `show(ui)` returns `ColorBalanceOutput { edit, tone }`. One slider drag, step key, typed number or reset is one gesture of the whole value."
+
+[[type]]
+name = "PhotoFilterEditor"
+old = "craft_imaging::ui::adjust::PhotoFilterEditor"
+new = "craft_imaging::ui::adjust::PhotoFilterEditor"
+status = "same"
+note = "A pattern over a `Bind<PhotoFilter>` named by its label; `show(ui)` returns `PhotoFilterOutput { edit, pick_color }`. One slider drag, step key, typed number or reset is one gesture of the whole value."
+
+[[type]]
+name = "HueSaturationEditor"
+old = "craft_imaging::ui::adjust::HueSaturationEditor"
+new = "craft_imaging::ui::adjust::HueSaturationEditor"
+status = "same"
+note = "A pattern over a `Bind<HueSaturation>` named by its label; `show(ui)` returns `HueSaturationOutput { edit, shown_range }`. One slider drag, step key, typed number or reset is one gesture of the whole value."
+
+[[type]]
+name = "BlackWhiteEditor"
+old = "craft_imaging::ui::adjust::BlackWhiteEditor"
+new = "craft_imaging::ui::adjust::BlackWhiteEditor"
+status = "same"
+note = "A pattern over a `Bind<BlackWhite>` named by its label; `show(ui)` returns `BlackWhiteOutput { edit, pick_color, auto }`. One slider drag, step key, typed number or reset is one gesture of the whole value."
+
+[[type]]
+name = "ChannelMixerEditor"
+old = "craft_imaging::ui::adjust::ChannelMixerEditor"
+new = "craft_imaging::ui::adjust::ChannelMixerEditor"
+status = "same"
+note = "A pattern over a `Bind<ChannelMixer>` named by its label; `show(ui)` returns `EditResponse<ChannelMixer>`. One slider drag, step key, typed number or reset is one gesture of the whole value."
+
+[[type]]
+name = "SelectiveColorEditor"
+old = "craft_imaging::ui::adjust::SelectiveColorEditor"
+new = "craft_imaging::ui::adjust::SelectiveColorEditor"
+status = "same"
+note = "A pattern over a `Bind<SelectiveColor>` named by its label; `show(ui)` returns `SelectiveColorOutput { edit, shown_range }`. One slider drag, step key, typed number or reset is one gesture of the whole value."
+
+[[type]]
+name = "AdjustSliders"
+old = "craft_imaging::ui::adjust::AdjustSliders"
+new = "craft_imaging::ui::adjust::AdjustSliders"
+status = "same"
+note = "A pattern over a `Bind<Vec<f64>>` named by its label; one `Field` over a `SliderField` per row, in a `FieldGroup`. `show(ui)` returns `EditResponse<Vec<f64>>`."
+
+[[type]]
+name = "AdjustField"
+old = "craft_imaging::ui::adjust::AdjustField"
+new = "craft_imaging::ui::adjust::AdjustField"
+status = "same"
+note = "`unit` is `unit_kind(UnitKind)` and `decimals` is `step(f64)`; `label` is a `Label`; `round` keeps the places of the step. The presets read `AdjustWords`."
+
+[[type]]
+name = "AdjustTrack"
+old = "craft_imaging::ui::adjust::AdjustTrack"
+new = "craft_imaging::ui::adjust::AdjustTrack"
+status = "same"
+note = "`Colors` takes `Vec<DataColor>` (image data), drawn as a `ToneRamp` track face while dynamic color sliders are on."
+
+[[type]]
+name = "AdjustSession"
+old = "craft_imaging::ui::adjust::AdjustSession"
+new = "craft_imaging::ui::adjust::AdjustSession"
+status = "same"
+note = "Pure data, unchanged."
+
+[[type]]
+name = "PhotoFilterOutput"
+old = "craft_imaging::ui::adjust::PhotoFilterOutput"
+new = "craft_imaging::ui::adjust::PhotoFilterOutput"
+status = "same"
+note = "`pick_color` is the `Swatch` output with `.picker(key)`: a `runtime::requests::ColorRequest`."
+
+[[type]]
+name = "BlackWhiteOutput"
+old = "craft_imaging::ui::adjust::BlackWhiteOutput"
+new = "craft_imaging::ui::adjust::BlackWhiteOutput"
+status = "same"
+note = "Gains `auto`: the Auto button was pressed. `pick_color` is the `Swatch` output with `.picker(key)`."
+
+[[type]]
+name = "AdjustLabels"
+old = "craft_imaging::ui::adjust::AdjustLabels"
+new = ""
+status = "removed"
+note = "Replaced by `AdjustWords`, a `words!` set with the same keys and English texts."
+
+[[type]]
+name = "AdjustStyle"
+old = "craft_imaging::ui::adjust::AdjustStyle"
+new = ""
+status = "removed"
+note = "Each editor sizes from its content with named semantic sizes; image tones are data in the crate (`style::tones`)."
+
+[[type]]
+name = "AdjustWords"
+old = ""
+new = ""
+status = "replaced"
+note = "Was `AdjustLabels`."
+
+[[setter]]
+type = "BrightnessContrastEditor"
+old = "new(id_salt, &value, numbers)"
+new = "new(label, Bind<V>)"
+
+[[setter]]
+type = "BrightnessContrastEditor"
+old = "policy(EditPolicy)"
+new = ""
+note = "Removed: the binding's policy decides when a write-through source is written."
+
+[[setter]]
+type = "BrightnessContrastEditor"
+old = "labels(AdjustLabels)"
+new = ""
+note = "Removed: words come from the environment."
+
+[[setter]]
+type = "BrightnessContrastEditor"
+old = "enabled(bool)"
+new = ""
+note = "Removed: disable the enclosing scope."
+
+[[setter]]
+type = "ThresholdEditor"
+old = "new(id_salt, &value, numbers)"
+new = "new(label, Bind<V>)"
+
+[[setter]]
+type = "ThresholdEditor"
+old = "policy(EditPolicy)"
+new = ""
+note = "Removed: the binding's policy decides when a write-through source is written."
+
+[[setter]]
+type = "ThresholdEditor"
+old = "labels(AdjustLabels)"
+new = ""
+note = "Removed: words come from the environment."
+
+[[setter]]
+type = "ThresholdEditor"
+old = "enabled(bool)"
+new = ""
+note = "Removed: disable the enclosing scope."
+
+[[setter]]
+type = "ColorBalanceEditor"
+old = "new(id_salt, &value, numbers)"
+new = "new(label, Bind<V>)"
+
+[[setter]]
+type = "ColorBalanceEditor"
+old = "policy(EditPolicy)"
+new = ""
+note = "Removed: the binding's policy decides when a write-through source is written."
+
+[[setter]]
+type = "ColorBalanceEditor"
+old = "labels(AdjustLabels)"
+new = ""
+note = "Removed: words come from the environment."
+
+[[setter]]
+type = "ColorBalanceEditor"
+old = "enabled(bool)"
+new = ""
+note = "Removed: disable the enclosing scope."
+
+[[setter]]
+type = "PhotoFilterEditor"
+old = "new(id_salt, &value, numbers)"
+new = "new(label, Bind<V>)"
+
+[[setter]]
+type = "PhotoFilterEditor"
+old = "policy(EditPolicy)"
+new = ""
+note = "Removed: the binding's policy decides when a write-through source is written."
+
+[[setter]]
+type = "PhotoFilterEditor"
+old = "labels(AdjustLabels)"
+new = ""
+note = "Removed: words come from the environment."
+
+[[setter]]
+type = "PhotoFilterEditor"
+old = "enabled(bool)"
+new = ""
+note = "Removed: disable the enclosing scope."
+
+[[setter]]
+type = "HueSaturationEditor"
+old = "new(id_salt, &value, numbers)"
+new = "new(label, Bind<V>)"
+
+[[setter]]
+type = "HueSaturationEditor"
+old = "policy(EditPolicy)"
+new = ""
+note = "Removed: the binding's policy decides when a write-through source is written."
+
+[[setter]]
+type = "HueSaturationEditor"
+old = "labels(AdjustLabels)"
+new = ""
+note = "Removed: words come from the environment."
+
+[[setter]]
+type = "HueSaturationEditor"
+old = "enabled(bool)"
+new = ""
+note = "Removed: disable the enclosing scope."
+
+[[setter]]
+type = "BlackWhiteEditor"
+old = "new(id_salt, &value, numbers)"
+new = "new(label, Bind<V>)"
+
+[[setter]]
+type = "BlackWhiteEditor"
+old = "policy(EditPolicy)"
+new = ""
+note = "Removed: the binding's policy decides when a write-through source is written."
+
+[[setter]]
+type = "BlackWhiteEditor"
+old = "labels(AdjustLabels)"
+new = ""
+note = "Removed: words come from the environment."
+
+[[setter]]
+type = "BlackWhiteEditor"
+old = "enabled(bool)"
+new = ""
+note = "Removed: disable the enclosing scope."
+
+[[setter]]
+type = "ChannelMixerEditor"
+old = "new(id_salt, &value, numbers)"
+new = "new(label, Bind<V>)"
+
+[[setter]]
+type = "ChannelMixerEditor"
+old = "policy(EditPolicy)"
+new = ""
+note = "Removed: the binding's policy decides when a write-through source is written."
+
+[[setter]]
+type = "ChannelMixerEditor"
+old = "labels(AdjustLabels)"
+new = ""
+note = "Removed: words come from the environment."
+
+[[setter]]
+type = "ChannelMixerEditor"
+old = "enabled(bool)"
+new = ""
+note = "Removed: disable the enclosing scope."
+
+[[setter]]
+type = "SelectiveColorEditor"
+old = "new(id_salt, &value, numbers)"
+new = "new(label, Bind<V>)"
+
+[[setter]]
+type = "SelectiveColorEditor"
+old = "policy(EditPolicy)"
+new = ""
+note = "Removed: the binding's policy decides when a write-through source is written."
+
+[[setter]]
+type = "SelectiveColorEditor"
+old = "labels(AdjustLabels)"
+new = ""
+note = "Removed: words come from the environment."
+
+[[setter]]
+type = "SelectiveColorEditor"
+old = "enabled(bool)"
+new = ""
+note = "Removed: disable the enclosing scope."
+
+[[setter]]
+type = "AdjustSliders"
+old = "new(id_salt, fields, values, numbers)"
+new = "new(label, fields, Bind<Vec<f64>>)"
+
+[[setter]]
+type = "AdjustSliders"
+old = "policy(EditPolicy)"
+new = ""
+note = "Removed."
+
+[[setter]]
+type = "AdjustSliders"
+old = "enabled(bool)"
+new = ""
+note = "Removed."
+
+[[setter]]
+type = "ThresholdEditor"
+old = "new(id_salt, level, numbers).histogram(&[u32; 256])"
+new = "new(label, Bind<f64>).histogram(&HistogramData)"
+
+[[setter]]
+type = "ColorBalanceEditor"
+old = "id_in(ui, id_salt)"
+new = ""
+note = "Removed: the tone is the editor's memory."
+
+[[setter]]
+type = "ColorBalanceEditor"
+old = "tone(ctx, id)"
+new = "ColorBalanceOutput::tone"
+note = "The tone shown after the pass."
+
+[[setter]]
+type = "ColorBalanceEditor"
+old = "reset_tone(ctx, id)"
+new = "tone(ColorBalanceTone::Midtones)"
+note = "The host that resets shows Midtones again."
+
+[[setter]]
+type = "HueSaturationEditor"
+old = "id_in(ui, id_salt)"
+new = ""
+note = "Removed."
+
+[[setter]]
+type = "HueSaturationEditor"
+old = "shown_range(ctx, id)"
+new = "HueSaturationOutput::shown_range"
+note = "The range shown after the pass; `range(Option<usize>)` is the host-kept form."
+
+[[setter]]
+type = "SelectiveColorEditor"
+old = "id_in(ui, id_salt)"
+new = ""
+note = "Removed."
+
+[[setter]]
+type = "SelectiveColorEditor"
+old = "shown_range(ctx, id)"
+new = "SelectiveColorOutput::shown_range"
+
+[[setter]]
+type = "AdjustField"
+old = "unit(Unit)"
+new = "unit_kind(UnitKind)"
+
+[[setter]]
+type = "AdjustField"
+old = "decimals(usize)"
+new = "step(f64)"
+note = "A field's step gives its places."
+
+[[setter]]
+type = "AdjustField"
+old = "vibrance(labels, units)"
+new = "vibrance(words)"
+

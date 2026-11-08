@@ -1,20 +1,26 @@
-//! Photoshop's four small adjustments: Brightness/Contrast, Threshold, Color Balance and Photo
-//! Filter.
+//! Photoshop's four small adjustments: Brightness/Contrast, Threshold, Color Balance and Photo Filter.
 
-use craft_theme::{Srgba, TypeRole};
-use egui::{AsIdSalt, Context, Id, IdSalt, Stroke, Ui, UiBuilder, pos2, vec2};
+#[cfg(feature = "screen-testing")]
+mod stories;
 
-use craft_ui::composites::{ChannelColor, Histogram, HistogramData};
-use craft_ui::controls::{Checkbox, RadioSet, Select, Swatch};
-use craft_ui::dialog::ColorRequest;
-use craft_ui::direction;
-use craft_ui::edit::{EditPolicy, EditResponse};
-use craft_ui::localized::{Labels as _, LocaleNumbers, UnitKind, Units};
-use craft_ui::primitives::{Content, Gap, Stack, Text};
-use craft_ui::theme::{Tokens, TokensOf as _};
+use craft_theme::Srgba;
+use craft_ui::choice::{Checkbox, Radio, RadioGroup, Swatch};
+use craft_ui::contract::{Bind, EditResponse, Entry, Outcome, Pattern, Props as _, Remember as _, Show as _, ShowContainer as _};
+use craft_ui::form::{Field, FieldGroup};
+use craft_ui::layout_components::Row;
+use craft_ui::pickers::Select;
+use craft_ui::runtime::env::{Label, UnitKind};
+use craft_ui::runtime::requests::ColorRequest;
+use egui::Ui;
 
-use super::sliders::{edit_parts, push_part};
-use super::{AdjustContext, AdjustField, AdjustLabels, AdjustSliders, AdjustStyle, AdjustTrack};
+use super::sliders::{Run, lifted, read, words};
+use super::{AdjustContext, AdjustField, AdjustWords};
+use crate::ui::histogram::{ChannelColor, Histogram, HistogramData};
+
+/// An opaque colour from 8-bit sRGB channels.
+fn srgb8(r: u8, g: u8, b: u8) -> Srgba {
+    Srgba::rgb(f32::from(r) / 255.0, f32::from(g) / 255.0, f32::from(b) / 255.0)
+}
 
 // ---------------------------------------------------------------------------------------------
 // Brightness/Contrast
@@ -34,96 +40,62 @@ pub struct BrightnessContrast {
     pub legacy: bool,
 }
 
+/// What a Brightness/Contrast editor keeps between passes: the value its running gesture began with.
+#[derive(Clone, Default)]
+struct BrightnessMemory {
+    began: Option<BrightnessContrast>,
+}
+
 /// Brightness/Contrast: two slider rows and Use Legacy.
 ///
-/// - Brightness −150..150, Contrast −50..100 (−100..100 with Use Legacy), both default 0 on a
-///   double-click, whole numbers.
+/// - Brightness −150..150, Contrast −50..100 (−100..100 with Use Legacy), both default 0 on a reset, whole numbers.
 /// - Turning Use Legacy off clamps Contrast to at least −50 in the same `Set`.
 /// - Keyboard and AccessKit as [`AdjustSliders`](super::AdjustSliders); the check box is a Tab stop.
 #[must_use = "show the editor with `show`"]
+#[derive(Pattern)]
 pub struct BrightnessContrastEditor<'a> {
-    id_salt: IdSalt,
-    value: &'a BrightnessContrast,
-    numbers: &'a LocaleNumbers,
+    label: Label,
+    value: Bind<'a, BrightnessContrast>,
     context: AdjustContext,
-    policy: EditPolicy,
-    labels: Option<AdjustLabels>,
-    enabled: bool,
 }
 
 impl<'a> BrightnessContrastEditor<'a> {
-    /// Draws the editor and returns this frame's edit of the `BrightnessContrast`.
-    pub fn new(id_salt: impl AsIdSalt, value: &'a BrightnessContrast, numbers: &'a LocaleNumbers) -> Self {
-        Self {
-            id_salt: IdSalt::new(id_salt),
-            value,
-            numbers,
-            context: AdjustContext::dialog(true),
-            policy: EditPolicy::default(),
-            labels: None,
-            enabled: true,
-        }
+    /// The editor named `label` of `value`.
+    pub fn new(label: impl Into<Label>, value: Bind<'a, BrightnessContrast>) -> Self {
+        Self { label: label.into(), value, context: AdjustContext::dialog(true) }
     }
 
     /// Dialog or Properties panel; a dialog by default.
+    #[must_use]
     pub fn context(mut self, context: AdjustContext) -> Self {
         self.context = context;
         self
     }
 
-    /// The sliders' edit policy.
-    pub fn policy(mut self, policy: EditPolicy) -> Self {
-        self.policy = policy;
-        self
-    }
-
-    /// The words; the installed ones by default.
-    pub fn labels(mut self, labels: AdjustLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    /// Turns editing off with `false`. The editor is also off while `ui` is disabled.
-    pub fn enabled(mut self, enabled: bool) -> Self {
-        self.enabled = enabled;
-        self
-    }
-
-    /// Draws the editor and returns this frame's edit of the `BrightnessContrast`.
+    /// Shows the editor and returns this pass's edit of the `BrightnessContrast`.
     pub fn show(self, ui: &mut Ui) -> EditResponse<BrightnessContrast> {
-        // pc: crates/ui-egui/src/dialogs/adjust_editors/basic.rs:53-66 `brightness_contrast`.
-        let labels = self.labels.clone().unwrap_or_else(|| AdjustLabels::of(ui));
-        let enabled = self.enabled && ui.is_enabled();
-        let id = ui.make_persistent_id(self.id_salt);
-        let (group, event) = edit_parts(ui, id, self.value, self.policy, enabled, |ui, edits, inner| {
-            let value = *edits.value();
-            let lowest = if value.legacy { LEGACY_CONTRAST_MIN } else { CONTRAST_MIN };
-            let fields = [
-                AdjustField::new("brightness", labels.brightness.as_str(), -150.0..=150.0, 0.0),
-                AdjustField::new("contrast", labels.contrast.as_str(), lowest..=100.0, 0.0),
-            ];
-            Stack::new(Gap::Stack).show(ui, |ui| {
-                let rows =
-                    AdjustSliders::new((self.id_salt, "rows"), &fields, &[value.brightness, value.contrast], self.numbers)
-                        .context(self.context)
-                        .policy(inner)
-                        .enabled(enabled)
-                        .parts(ui, edits, |now: &BrightnessContrast, i, x| {
-                            if i == 0 { BrightnessContrast { brightness: x, ..*now } } else { BrightnessContrast { contrast: x, ..*now } }
-                        });
-                let mut legacy = value.legacy;
-                let check = Checkbox::bool(labels.use_legacy.as_str(), &mut legacy).id_salt((self.id_salt, "legacy")).enabled(enabled).show(ui);
-                // Turning Use Legacy off puts a Contrast below the plain range back in it in the same `Set`.
-                push_part(edits, &check, false, |legacy, now: &BrightnessContrast| BrightnessContrast {
-                    legacy,
-                    contrast: if legacy { now.contrast } else { now.contrast.max(CONTRAST_MIN) },
-                    ..*now
-                });
-                (rows.submitted, rows.escaped)
-            })
+        let BrightnessContrastEditor { label, mut value, context } = self;
+        let words = words(ui);
+        let mut edit = None;
+        let shown = FieldGroup::new(label).show(ui, |ui, cx| {
+            let now = read(&mut value, cx).unwrap_or_default();
+            let lowest = if now.legacy { LEGACY_CONTRAST_MIN } else { CONTRAST_MIN };
+            let brightness = AdjustField::new("brightness", words.brightness.clone(), -150.0..=150.0, 0.0);
+            let contrast = AdjustField::new("contrast", words.contrast.clone(), lowest..=100.0, 0.0);
+            let mut run = Run::start(&mut value, context, now, cx.memory::<BrightnessMemory>().began);
+            run.slider_row(ui, cx, &brightness, now.brightness, |now, x| BrightnessContrast { brightness: x, ..*now });
+            run.slider_row(ui, cx, &contrast, now.contrast, |now, x| BrightnessContrast { contrast: x, ..*now });
+            let legacy = Checkbox::new(Bind::given(now.legacy)).label(words.use_legacy.clone()).show(ui);
+            // Turning Use Legacy off puts a Contrast below the plain range back in it in the same `Set`.
+            run.push(cx, legacy, |now, legacy| BrightnessContrast {
+                legacy: *legacy,
+                contrast: if *legacy { now.contrast } else { now.contrast.max(CONTRAST_MIN) },
+                ..*now
+            });
+            cx.memory::<BrightnessMemory>().began = run.began();
+            edit = Some(run.finish());
         });
-        let (submitted, escaped) = group.inner;
-        EditResponse::new(group.response, event).submitted(submitted).escaped(escaped)
+        lifted(edit, shown.output)
     }
 }
 
@@ -134,144 +106,86 @@ impl<'a> BrightnessContrastEditor<'a> {
 const THRESHOLD_MIN: f64 = 1.0;
 const THRESHOLD_MAX: f64 = 255.0;
 const THRESHOLD_DEFAULT: f64 = 128.0;
+/// The bins of the plot while the host gives no histogram.
+const THRESHOLD_BINS: usize = 256;
 
-/// The x of the level marker over the histogram `plot`: `level / 255` of its width.
-pub(super) fn marker_x(plot: egui::Rect, level: f64) -> f32 {
-    plot.left() + (level / THRESHOLD_MAX) as f32 * plot.width()
+/// What a Threshold editor keeps between passes: the level its running gesture began with.
+#[derive(Clone, Default)]
+struct ThresholdMemory {
+    began: Option<f64>,
 }
 
-/// Threshold: the image's histogram with a marker at the level, then the Threshold Level row
-/// (1..=255, default 128, whole numbers).
+/// Threshold: the image's histogram with a marker at the level, then the Threshold Level row (1..=255, default 128,
+/// whole numbers).
 ///
-/// - The histogram is the threshold histogram (90) high and at most
-///   the threshold width (300) wide, inset 6 at each side, on `field` with a 1 pt
-///   the border frame; the marker is a 1 pt vertical line at `level / 255` in `accent.strong`.
-/// - The histogram is the kernel's [`Histogram`](craft_ui::composites::Histogram) (the
-///   composite's bins, neutral colour); AccessKit names it "Histogram".
-/// - The row behaves as an [`AdjustSliders`](super::AdjustSliders) row.
+/// The histogram is the bordered plot of [`Histogram`] with its marker at the level; AccessKit names it "Histogram".
+/// The row behaves as an [`AdjustSliders`](super::AdjustSliders) row.
 #[must_use = "show the editor with `show`"]
+#[derive(Pattern)]
 pub struct ThresholdEditor<'a> {
-    id_salt: IdSalt,
-    level: f64,
-    numbers: &'a LocaleNumbers,
-    histogram: Option<&'a [u32; 256]>,
+    label: Label,
+    level: Bind<'a, f64>,
+    histogram: Option<&'a HistogramData>,
     context: AdjustContext,
-    policy: EditPolicy,
-    labels: Option<AdjustLabels>,
-    enabled: bool,
 }
 
 impl<'a> ThresholdEditor<'a> {
-    /// The editor at `level` (1..=255).
-    pub fn new(id_salt: impl AsIdSalt, level: f64, numbers: &'a LocaleNumbers) -> Self {
-        Self {
-            id_salt: IdSalt::new(id_salt),
-            level,
-            numbers,
-            histogram: None,
-            context: AdjustContext::dialog(true),
-            policy: EditPolicy::default(),
-            labels: None,
-            enabled: true,
-        }
+    /// The editor named `label` of `level` (1..=255).
+    pub fn new(label: impl Into<Label>, level: Bind<'a, f64>) -> Self {
+        Self { label: label.into(), level, histogram: None, context: AdjustContext::dialog(true) }
     }
 
-    /// The composite's histogram, 256 bins; an empty plot without it.
-    pub fn histogram(mut self, counts: &'a [u32; 256]) -> Self {
-        self.histogram = Some(counts);
+    /// The image's histogram; an empty plot without it.
+    #[must_use]
+    pub fn histogram(mut self, data: &'a HistogramData) -> Self {
+        self.histogram = Some(data);
         self
     }
 
-    /// Sets where the editor is shown (dialog or Properties panel); a dialog by default.
+    /// Dialog or Properties panel; a dialog by default.
+    #[must_use]
     pub fn context(mut self, context: AdjustContext) -> Self {
         self.context = context;
         self
     }
 
-    /// Sets how the editor reports gestures (live, committed, cancelled).
-    pub fn policy(mut self, policy: EditPolicy) -> Self {
-        self.policy = policy;
-        self
-    }
-
-    /// Sets the words; the installed language by default.
-    pub fn labels(mut self, labels: AdjustLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    /// Turns editing off with `false`. The editor is also off while `ui` is disabled.
-    pub fn enabled(mut self, enabled: bool) -> Self {
-        self.enabled = enabled;
-        self
-    }
-
-    /// Draws the editor; the edit carries the level.
+    /// Shows the editor and returns this pass's edit of the level.
     pub fn show(self, ui: &mut Ui) -> EditResponse<f64> {
-        // pc: crates/ui-egui/src/dialogs/adjust_editors/basic.rs:71-87 `threshold` (300 × 90, inset 6,
-        // marker 1 pt accent, frame 1 pt `field_border`, the row 1..255 default 128).
-        let labels = self.labels.clone().unwrap_or_else(|| AdjustLabels::of(ui));
-        let enabled = self.enabled && ui.is_enabled();
-        let tokens = Tokens::of(ui);
-        let style = AdjustStyle::of(&tokens);
-        let level_range = THRESHOLD_MIN..=THRESHOLD_MAX;
-        let level = self.level.max(*level_range.start()).min(*level_range.end());
-        let fields = [AdjustField::new("level", labels.threshold_level.as_str(), level_range, THRESHOLD_DEFAULT)];
-        let group = Stack::new(Gap::Stack).show(ui, |ui| {
-            // The plot spans the slider's thumb travel, so the marker stands over the thumb.
-            let inset = style.threshold_inset;
-            let width = ui.available_width().min(style.threshold_width);
-            let (_, outer) = ui.allocate_space(vec2(width, style.threshold_histogram));
-            let plot = outer.shrink2(vec2(inset, 0.0));
-            let mut histogram =
-                Histogram::new((self.id_salt, "histogram"), labels.histogram.as_str()).bordered(true).height(style.threshold_histogram);
-            if let Some(counts) = self.histogram {
-                histogram = histogram.data(HistogramData::tone(counts, ChannelColor::Neutral));
-            }
-            let shown = ui.scope_builder(UiBuilder::new().max_rect(plot), |ui| histogram.show(ui)).inner;
-            let x = marker_x(shown.response.rect, level);
-            let marker = Stroke::new(style.threshold_marker_width, style.threshold_marker);
-            ui.painter().line_segment([pos2(x, shown.response.rect.top()), pos2(x, shown.response.rect.bottom())], marker);
-            AdjustSliders::new((self.id_salt, "rows"), &fields, &[level], self.numbers)
-                .context(self.context)
-                .policy(self.policy)
-                .enabled(enabled)
-                .show(ui)
+        let ThresholdEditor { label, mut level, histogram, context } = self;
+        let words = words(ui);
+        let mut edit = None;
+        let shown = FieldGroup::new(label).show(ui, |ui, cx| {
+            let now = read(&mut level, cx).unwrap_or(THRESHOLD_DEFAULT).clamp(THRESHOLD_MIN, THRESHOLD_MAX);
+            let empty = HistogramData::tone(&[0u32; THRESHOLD_BINS], ChannelColor::Neutral);
+            let data = histogram.unwrap_or(&empty);
+            let _ = Histogram::new(words.histogram.clone(), data).bordered().marker(now as f32).show(ui);
+            let row = AdjustField::new("level", words.threshold_level.clone(), THRESHOLD_MIN..=THRESHOLD_MAX, THRESHOLD_DEFAULT);
+            let mut run = Run::start(&mut level, context, now, cx.memory::<ThresholdMemory>().began);
+            run.slider_row(ui, cx, &row, now, |_, x| x);
+            cx.memory::<ThresholdMemory>().began = run.began();
+            edit = Some(run.finish());
         });
-        let rows = group.inner;
-        let (submitted, escaped) = (rows.submitted, rows.escaped);
-        let mut edit = EditResponse::new(group.response, rows.event.map(|e| e.map(|row| row[0])));
-        edit.submitted = submitted;
-        edit.escaped = escaped;
-        edit
+        lifted(edit, shown.output)
     }
 }
 
 // ---------------------------------------------------------------------------------------------
 // Color Balance
 
-/// Where an editor keeps its Tone choice, under its id.
-const TONE: &str = "tone";
-
-/// An opaque colour from 8-bit sRGB channels.
-fn rgb8(r: u8, g: u8, b: u8) -> Srgba {
-    Srgba::rgb(f32::from(r) / 255.0, f32::from(g) / 255.0, f32::from(b) / 255.0)
-}
-
 /// The tone Color Balance shows.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ColorBalanceTone {
-    #[allow(missing_docs)]
+    /// The shadows.
     Shadows,
     /// The default, and where a reset returns.
     #[default]
     Midtones,
-    #[allow(missing_docs)]
+    /// The highlights.
     Highlights,
 }
 
-/// A Color Balance value: per tone the Cyan–Red, Magenta–Green and Yellow–Blue shifts,
-/// −100..=100, whole numbers.
+/// A Color Balance value: per tone the Cyan–Red, Magenta–Green and Yellow–Blue shifts, −100..=100, whole numbers.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ColorBalance {
     /// Shifts for the shadows: Cyan–Red, Magenta–Green, Yellow–Blue.
@@ -291,11 +205,10 @@ impl Default for ColorBalance {
 }
 
 impl ColorBalance {
-    /// Photoshop's reset to defaults (Alt+Cancel; the Properties panel's Reset once the layer is
-    /// as the panel found it): every tone back to 0, Preserve Luminosity kept. The editor's tone
-    /// returns to Midtones through [`ColorBalanceEditor::reset_tone`].
+    /// Photoshop's reset to defaults (Alt+Cancel; the Properties panel's Reset once the layer is as the panel found
+    /// it): every tone back to 0, Preserve Luminosity kept. The editor shows Midtones again when the host gives
+    /// [`ColorBalanceEditor::tone`] `Midtones`.
     pub fn reset(&mut self) {
-        // pc: crates/ui-egui/src/dialogs/adjust_editors/basic.rs:97-105 `reset_color_balance`.
         self.shadows = [0.0; 3];
         self.midtones = [0.0; 3];
         self.highlights = [0.0; 3];
@@ -321,153 +234,133 @@ impl ColorBalance {
     }
 }
 
-/// Color Balance: the Tone radios, three two-colour slider rows for the shown tone, and Preserve
-/// Luminosity.
+/// What a Color Balance editor keeps between passes: the tone it shows and the value its running gesture began with.
+#[derive(Clone, Default)]
+struct BalanceMemory {
+    tone: Option<ColorBalanceTone>,
+    began: Option<ColorBalance>,
+}
+
+/// What a [`ColorBalanceEditor`] reports.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct ColorBalanceOutput {
+    /// The edit of the value.
+    pub edit: EditResponse<ColorBalance>,
+    /// The tone shown after the pass; a host that keeps the tone stores it.
+    pub tone: ColorBalanceTone,
+}
+
+impl Outcome for ColorBalanceOutput {
+    type Value = ColorBalance;
+
+    fn response(&self) -> &egui::Response {
+        &self.edit.response
+    }
+
+    #[cfg(feature = "screen-testing")]
+    fn story_facts(&self) -> craft_ui::testing::StoryOutput {
+        self.edit.story_facts()
+    }
+}
+
+impl std::ops::Deref for ColorBalanceOutput {
+    type Target = EditResponse<ColorBalance>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.edit
+    }
+}
+
+/// Color Balance: the Tone radios, three two-colour slider rows for the shown tone, and Preserve Luminosity.
 ///
-/// - The Tone radios (Shadows, Midtones, Highlights; a `RadioSet`) pick the tone shown; the
-///   choice is the editor's view state under its id, Midtones at first, and survives value
-///   changes. Not an edit.
-/// - Rows "Cyan · Red", "Magenta · Green", "Yellow · Blue" (the two channel words joined with
-///   " · "), −100..100, with two-colour tracks while dynamic tracks are on: cyan (0, 190, 210) to
-///   red (225, 40, 40), magenta (210, 40, 190) to green (40, 190, 60), yellow (230, 210, 30) to
-///   blue (40, 80, 230). A double-click zeroes only that row of the shown tone. The wheel steps
-///   by 1 in a dialog.
+/// - The Tone radios (Shadows, Midtones, Highlights) pick the tone shown. The choice is view state: the editor keeps
+///   it, Midtones at first, and it survives value changes. A host that keeps it sets [`tone`](Self::tone) and stores
+///   the output's.
+/// - Rows "Cyan · Red", "Magenta · Green", "Yellow · Blue", −100..100, with two-colour tracks while dynamic tracks are
+///   on. A reset zeroes only that row of the shown tone.
 /// - Preserve Luminosity is one `Set`.
-/// - AccessKit: the radios a `RadioGroup` named "Tone".
 #[must_use = "show the editor with `show`"]
+#[derive(Pattern)]
 pub struct ColorBalanceEditor<'a> {
-    id_salt: IdSalt,
-    value: &'a ColorBalance,
-    numbers: &'a LocaleNumbers,
+    label: Label,
+    value: Bind<'a, ColorBalance>,
+    tone: Option<ColorBalanceTone>,
     context: AdjustContext,
-    policy: EditPolicy,
-    labels: Option<AdjustLabels>,
-    enabled: bool,
 }
 
 impl<'a> ColorBalanceEditor<'a> {
-    /// Draws the editor and returns this frame's edit of the `ColorBalance`.
-    pub fn new(id_salt: impl AsIdSalt, value: &'a ColorBalance, numbers: &'a LocaleNumbers) -> Self {
-        Self {
-            id_salt: IdSalt::new(id_salt),
-            value,
-            numbers,
-            context: AdjustContext::dialog(true),
-            policy: EditPolicy::default(),
-            labels: None,
-            enabled: true,
-        }
+    /// The editor named `label` of `value`.
+    pub fn new(label: impl Into<Label>, value: Bind<'a, ColorBalance>) -> Self {
+        Self { label: label.into(), value, tone: None, context: AdjustContext::dialog(true) }
     }
 
-    /// Sets where the editor is shown (dialog or Properties panel); a dialog by default.
+    /// The tone shown, kept by the host.
+    #[must_use]
+    pub fn tone(mut self, tone: ColorBalanceTone) -> Self {
+        self.tone = Some(tone);
+        self
+    }
+
+    /// Dialog or Properties panel; a dialog by default.
+    #[must_use]
     pub fn context(mut self, context: AdjustContext) -> Self {
         self.context = context;
         self
     }
 
-    /// Sets how the editor reports gestures (live, committed, cancelled).
-    pub fn policy(mut self, policy: EditPolicy) -> Self {
-        self.policy = policy;
-        self
-    }
-
-    /// Sets the words; the installed language by default.
-    pub fn labels(mut self, labels: AdjustLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    /// Turns editing off with `false`. The editor is also off while `ui` is disabled.
-    pub fn enabled(mut self, enabled: bool) -> Self {
-        self.enabled = enabled;
-        self
-    }
-
-    /// The editor's id in `ui`, for [`tone`](Self::tone) and [`reset_tone`](Self::reset_tone).
-    pub fn id_in(ui: &Ui, id_salt: impl AsIdSalt) -> Id {
-        ui.make_persistent_id(IdSalt::new(id_salt))
-    }
-
-    /// The tone the editor with `id` shows.
-    pub fn tone(ctx: &Context, id: Id) -> ColorBalanceTone {
-        // pc: crates/ui-egui/src/dialogs/adjust_editors/basic.rs:92-94 `color_balance_tone_id`.
-        ctx.data(|d| d.get_temp::<ColorBalanceTone>(id.with(TONE))).unwrap_or_default()
-    }
-
-    /// Shows Midtones again (with [`ColorBalance::reset`]).
-    pub fn reset_tone(ctx: &Context, id: Id) {
-        // pc: crates/ui-egui/src/dialogs/adjust_editors/basic.rs:97-105 `reset_color_balance`.
-        ctx.data_mut(|d| d.insert_temp(id.with(TONE), ColorBalanceTone::Midtones));
-    }
-
-    /// Draws the editor and returns this frame's edit of the `ColorBalance`.
-    pub fn show(self, ui: &mut Ui) -> EditResponse<ColorBalance> {
-        // pc: crates/ui-egui/src/dialogs/adjust_editors/basic.rs:115-153 `color_balance` (tracks
-        // :131-133, reset 0 and wheel step 1 in a dialog :137).
-        let labels = self.labels.clone().unwrap_or_else(|| AdjustLabels::of(ui));
-        let enabled = self.enabled && ui.is_enabled();
-        // `id_in` wraps its salt once; `self.id_salt` is wrapped already.
-        let id = ui.make_persistent_id(self.id_salt);
-        let value = *self.value;
-        let mut tone = Self::tone(ui.ctx(), id);
-        let cyan_red = [rgb8(0, 190, 210), rgb8(225, 40, 40)];
-        let magenta_green = [rgb8(210, 40, 190), rgb8(40, 190, 60)];
-        let yellow_blue = [rgb8(230, 210, 30), rgb8(40, 80, 230)];
-        let rows = [
-            ("cyanRed", labels.cyan_red.clone(), cyan_red),
-            ("magentaGreen", labels.magenta_green.clone(), magenta_green),
-            ("yellowBlue", labels.yellow_blue.clone(), yellow_blue),
-        ];
-        let fields: Vec<AdjustField> = rows
-            .into_iter()
-            .map(|(key, label, stops)| AdjustField::new(key, label, -100.0..=100.0, 0.0).track(AdjustTrack::Colors(stops.to_vec())))
-            .collect();
-        let (group, event) = edit_parts(ui, id, &value, self.policy, enabled, |ui, edits, inner| {
-            Stack::new(Gap::Stack).show(ui, |ui| {
-                direction::horizontal(ui, |ui| {
-                    ui.add(Text::new(labels.tone.as_str()).role(TypeRole::Label).content(Content::Muted));
-                    let mut set = RadioSet::new((self.id_salt, "tone"), labels.tone.as_str(), &mut tone)
-                        .item(ColorBalanceTone::Shadows)
-                        .item(ColorBalanceTone::Midtones)
-                        .item(ColorBalanceTone::Highlights)
-                        .enabled(enabled)
-                        .begin(ui);
-                    set.radio(ui, 0, &labels.shadows);
-                    set.radio(ui, 1, &labels.midtones);
-                    set.radio(ui, 2, &labels.highlights);
-                    // The tone is view state: the set's `Set` is not an edit.
-                    let _ = set.end(ui);
-                });
-                let now = *edits.value();
-                // The rows of the tone drawn: a switch shows from the radio's pass.
-                let shown = tone;
-                let rows = AdjustSliders::new((self.id_salt, "rows", shown), &fields, &now.of_tone(shown), self.numbers)
-                    .context(self.context)
-                    .policy(inner)
-                    .enabled(enabled)
-                    .parts(ui, edits, move |now: &ColorBalance, i, x| {
-                        let mut shifts = now.of_tone(shown);
-                        shifts[i] = x;
-                        now.with_tone(shown, shifts)
+    /// Shows the editor and returns this pass's edit of the `ColorBalance` and the tone shown.
+    pub fn show(self, ui: &mut Ui) -> ColorBalanceOutput {
+        let ColorBalanceEditor { label, mut value, tone: host_tone, context } = self;
+        let words = words(ui);
+        let mut out = None;
+        let shown = FieldGroup::new(label).show(ui, |ui, cx| {
+            let now = read(&mut value, cx).unwrap_or_default();
+            let tone = host_tone.or(cx.memory::<BalanceMemory>().tone).unwrap_or_default();
+            let mut picked = None;
+            Field::new(words.tone.clone()).show(ui, |ui, _| {
+                let group = RadioGroup::new(words.tone.clone(), Bind::given(tone)).show(ui, |ui, _| {
+                    Row::new().show(ui, |ui, _| {
+                        for (member, name) in [
+                            (ColorBalanceTone::Shadows, &words.shadows),
+                            (ColorBalanceTone::Midtones, &words.midtones),
+                            (ColorBalanceTone::Highlights, &words.highlights),
+                        ] {
+                            Radio::new(member).label(name.clone()).show(ui);
+                        }
                     });
-                let mut preserve = now.preserve_luminosity;
-                let check =
-                    Checkbox::bool(labels.preserve_luminosity.as_str(), &mut preserve).id_salt((self.id_salt, "preserve")).enabled(enabled).show(ui);
-                push_part(edits, &check, false, |preserve_luminosity, now: &ColorBalance| ColorBalance { preserve_luminosity, ..*now });
-                (rows.submitted, rows.escaped)
-            })
+                });
+                picked = group.output.value().copied();
+            });
+            let rows = [
+                ("cyanRed", &words.cyan_red, super::style::balance::CYAN_RED),
+                ("magentaGreen", &words.magenta_green, super::style::balance::MAGENTA_GREEN),
+                ("yellowBlue", &words.yellow_blue, super::style::balance::YELLOW_BLUE),
+            ];
+            let mut run = Run::start(&mut value, context, now, cx.memory::<BalanceMemory>().began);
+            let shifts = now.of_tone(tone);
+            for (i, (key, name, stops)) in rows.into_iter().enumerate() {
+                let field = AdjustField::new(key, name.clone(), -100.0..=100.0, 0.0).track(super::AdjustTrack::Colors(stops.to_vec()));
+                run.slider_row(ui, cx, &field, shifts[i], move |now: &ColorBalance, x| {
+                    let mut next = now.of_tone(tone);
+                    next[i] = x;
+                    now.with_tone(tone, next)
+                });
+            }
+            let preserve = Checkbox::new(Bind::given(now.preserve_luminosity)).label(words.preserve_luminosity.clone()).show(ui);
+            run.push(cx, preserve, |now, on| ColorBalance { preserve_luminosity: *on, ..*now });
+            let memory = cx.memory::<BalanceMemory>();
+            memory.began = run.began();
+            memory.tone = Some(picked.unwrap_or(tone));
+            out = Some((run.finish(), picked.unwrap_or(tone)));
         });
-        ui.data_mut(|d| d.insert_temp(id.with(TONE), tone));
-        let (submitted, escaped) = group.inner;
-        EditResponse::new(group.response, event).submitted(submitted).escaped(escaped)
+        let (edit, tone) = out.expect("an editor shows its body");
+        ColorBalanceOutput { edit: lifted(Some(edit), shown.output), tone }
     }
 }
 
 // ---------------------------------------------------------------------------------------------
 // Photo Filter
-
-/// Where Photo Filter keeps its Filter or Color choice, under the editor's id.
-const MODE: &str = "mode";
 
 /// The colour request's key.
 const COLOR_KEY: &str = "photoFilter.color";
@@ -475,8 +368,7 @@ const COLOR_KEY: &str = "photoFilter.color";
 /// Density's default.
 const DENSITY_DEFAULT: f64 = 25.0;
 
-/// Photo Filter's presets, in Photoshop's menu order, with their colours (PhotoCraft's engine
-/// table `PHOTO_FILTERS`).
+/// Photo Filter's presets, in Photoshop's menu order, with their colours.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum PhotoFilterPreset {
@@ -549,7 +441,6 @@ impl PhotoFilterPreset {
 
     /// The preset's colour, as in each variant's doc (8-bit sRGB).
     pub fn color(self) -> Srgba {
-        // pc: crates/engine/src/adjust_params.rs:26-47 `PHOTO_FILTERS`.
         let (r, g, b) = match self {
             PhotoFilterPreset::Warming85 => (236, 138, 0),
             PhotoFilterPreset::WarmingLba => (250, 150, 0),
@@ -572,41 +463,38 @@ impl PhotoFilterPreset {
             PhotoFilterPreset::DeepYellow => (255, 213, 0),
             PhotoFilterPreset::Underwater => (0, 194, 177),
         };
-        rgb8(r, g, b)
+        srgb8(r, g, b)
     }
 
-    /// The preset's menu name from `labels` (the channel words for Red, Yellow, Green, Cyan, Blue
-    /// and Magenta).
-    pub fn label(self, labels: &AdjustLabels) -> &str {
-        // pc: crates/engine/src/adjust_params.rs:26-47 `PHOTO_FILTERS` (labels).
+    /// The preset's menu name from `words` (the channel words for Red, Yellow, Green, Cyan, Blue and Magenta).
+    pub fn label(self, words: &AdjustWords) -> Label {
         match self {
-            PhotoFilterPreset::Warming85 => &labels.warming_85,
-            PhotoFilterPreset::WarmingLba => &labels.warming_lba,
-            PhotoFilterPreset::Warming81 => &labels.warming_81,
-            PhotoFilterPreset::Cooling80 => &labels.cooling_80,
-            PhotoFilterPreset::CoolingLbb => &labels.cooling_lbb,
-            PhotoFilterPreset::Cooling82 => &labels.cooling_82,
-            PhotoFilterPreset::Red => &labels.red,
-            PhotoFilterPreset::Orange => &labels.orange,
-            PhotoFilterPreset::Yellow => &labels.yellow,
-            PhotoFilterPreset::Green => &labels.green,
-            PhotoFilterPreset::Cyan => &labels.cyan,
-            PhotoFilterPreset::Blue => &labels.blue,
-            PhotoFilterPreset::Violet => &labels.violet,
-            PhotoFilterPreset::Magenta => &labels.magenta,
-            PhotoFilterPreset::Sepia => &labels.sepia,
-            PhotoFilterPreset::DeepRed => &labels.deep_red,
-            PhotoFilterPreset::DeepBlue => &labels.deep_blue,
-            PhotoFilterPreset::DeepEmerald => &labels.deep_emerald,
-            PhotoFilterPreset::DeepYellow => &labels.deep_yellow,
-            PhotoFilterPreset::Underwater => &labels.underwater,
+            PhotoFilterPreset::Warming85 => &words.warming_85,
+            PhotoFilterPreset::WarmingLba => &words.warming_lba,
+            PhotoFilterPreset::Warming81 => &words.warming_81,
+            PhotoFilterPreset::Cooling80 => &words.cooling_80,
+            PhotoFilterPreset::CoolingLbb => &words.cooling_lbb,
+            PhotoFilterPreset::Cooling82 => &words.cooling_82,
+            PhotoFilterPreset::Red => &words.red,
+            PhotoFilterPreset::Orange => &words.orange,
+            PhotoFilterPreset::Yellow => &words.yellow,
+            PhotoFilterPreset::Green => &words.green,
+            PhotoFilterPreset::Cyan => &words.cyan,
+            PhotoFilterPreset::Blue => &words.blue,
+            PhotoFilterPreset::Violet => &words.violet,
+            PhotoFilterPreset::Magenta => &words.magenta,
+            PhotoFilterPreset::Sepia => &words.sepia,
+            PhotoFilterPreset::DeepRed => &words.deep_red,
+            PhotoFilterPreset::DeepBlue => &words.deep_blue,
+            PhotoFilterPreset::DeepEmerald => &words.deep_emerald,
+            PhotoFilterPreset::DeepYellow => &words.deep_yellow,
+            PhotoFilterPreset::Underwater => &words.underwater,
         }
+        .clone()
     }
 
-    /// The preset whose colour is `color` in 8-bit sRGB, if any (how the editor tells a preset
-    /// from a custom colour).
+    /// The preset whose colour is `color` in 8-bit sRGB, if any (how the editor tells a preset from a custom colour).
     pub fn of(color: Srgba) -> Option<PhotoFilterPreset> {
-        // pc: crates/ui-egui/src/dialogs/adjust_editors/basic.rs:201 (found by hex).
         PhotoFilterPreset::ALL.into_iter().find(|preset| preset.color().same_rgb8(color))
     }
 }
@@ -622,142 +510,132 @@ pub struct PhotoFilter {
     pub preserve_luminosity: bool,
 }
 
+impl Default for PhotoFilter {
+    fn default() -> Self {
+        Self { color: PhotoFilterPreset::Warming85.color(), density: DENSITY_DEFAULT, preserve_luminosity: true }
+    }
+}
+
+/// What a Photo Filter editor keeps between passes: Filter or Color, and the value its running gesture began with.
+#[derive(Clone, Default)]
+struct FilterMemory {
+    use_color: Option<bool>,
+    began: Option<PhotoFilter>,
+}
+
 /// What [`PhotoFilterEditor::show`] reports.
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct PhotoFilterOutput {
     /// The edit of the value, as every editor reports it.
     pub edit: EditResponse<PhotoFilter>,
-    /// The user clicked the Color swatch: open the colour picker with this request (key
-    /// `"photoFilter.color"`, title "Filter Color") and write the answer into the value's
-    /// `color` (an outside change the editor shows next pass).
+    /// The user clicked the Color swatch: open the colour picker with this request (key `"photoFilter.color"`, title
+    /// "Filter Color") and write the answer into the value's `color`.
     pub pick_color: Option<ColorRequest>,
 }
 
-/// Photo Filter: the Filter radio with the preset select, the Color radio with a swatch, Density
-/// and Preserve Luminosity.
+impl Outcome for PhotoFilterOutput {
+    type Value = PhotoFilter;
+
+    fn response(&self) -> &egui::Response {
+        &self.edit.response
+    }
+
+    #[cfg(feature = "screen-testing")]
+    fn story_facts(&self) -> craft_ui::testing::StoryOutput {
+        self.edit.story_facts()
+    }
+}
+
+impl std::ops::Deref for PhotoFilterOutput {
+    type Target = EditResponse<PhotoFilter>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.edit
+    }
+}
+
+/// Photo Filter: the Filter radio with the preset select, the Color radio with a swatch, Density and Preserve
+/// Luminosity.
 ///
-/// - Filter or Color: the radio is view state (egui memory), Color at first when the value's
-///   colour is no preset ([`PhotoFilterPreset::of`]). The other row's control is disabled.
-/// - The preset select lists [`PhotoFilterPreset::ALL`], with "Custom" first while the colour is
-///   no preset; picking one is a `Set` of its colour.
-/// - The swatch (`Swatch`, a Tab stop) asks for a colour through
-///   [`PhotoFilterOutput::pick_color`].
-/// - Density 0..100 %, default 25 on a double-click; Preserve Luminosity a `Set`.
+/// - Filter or Color is view state of the editor, Color at first when the value's colour is no preset
+///   ([`PhotoFilterPreset::of`]). The other row's control is disabled.
+/// - The preset select lists [`PhotoFilterPreset::ALL`], with "Custom" first while the colour is no preset; picking
+///   one is a `Set` of its colour.
+/// - The swatch asks for a colour through [`PhotoFilterOutput::pick_color`].
+/// - Density 0..100 %, default 25 on a reset; Preserve Luminosity a `Set`.
 #[must_use = "show the editor with `show`"]
+#[derive(Pattern)]
 pub struct PhotoFilterEditor<'a> {
-    id_salt: IdSalt,
-    value: &'a PhotoFilter,
-    numbers: &'a LocaleNumbers,
+    label: Label,
+    value: Bind<'a, PhotoFilter>,
     context: AdjustContext,
-    policy: EditPolicy,
-    labels: Option<AdjustLabels>,
-    enabled: bool,
 }
 
 impl<'a> PhotoFilterEditor<'a> {
-    /// Draws the editor and returns this frame's edit of the `PhotoFilter`.
-    pub fn new(id_salt: impl AsIdSalt, value: &'a PhotoFilter, numbers: &'a LocaleNumbers) -> Self {
-        Self {
-            id_salt: IdSalt::new(id_salt),
-            value,
-            numbers,
-            context: AdjustContext::dialog(true),
-            policy: EditPolicy::default(),
-            labels: None,
-            enabled: true,
-        }
+    /// The editor named `label` of `value`.
+    pub fn new(label: impl Into<Label>, value: Bind<'a, PhotoFilter>) -> Self {
+        Self { label: label.into(), value, context: AdjustContext::dialog(true) }
     }
 
-    /// Sets where the editor is shown (dialog or Properties panel); a dialog by default.
+    /// Dialog or Properties panel; a dialog by default.
+    #[must_use]
     pub fn context(mut self, context: AdjustContext) -> Self {
         self.context = context;
         self
     }
 
-    /// Sets how the editor reports gestures (live, committed, cancelled).
-    pub fn policy(mut self, policy: EditPolicy) -> Self {
-        self.policy = policy;
-        self
-    }
-
-    /// Sets the words; the installed language by default.
-    pub fn labels(mut self, labels: AdjustLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    /// Turns editing off with `false`. The editor is also off while `ui` is disabled.
-    pub fn enabled(mut self, enabled: bool) -> Self {
-        self.enabled = enabled;
-        self
-    }
-
-    /// Draws the editor and returns this frame's edit and any colour-picker request.
+    /// Shows the editor and returns this pass's edit and any colour-picker request.
     pub fn show(self, ui: &mut Ui) -> PhotoFilterOutput {
-        // pc: crates/ui-egui/src/dialogs/adjust_editors/basic.rs:197-238 `photo_filter` (radio state
-        // `pf-mode`, Custom first, density 25, Preserve Luminosity).
-        // new: the colour through `ColorRequest` (PhotoCraft opens egui's picker in place).
-        let labels = self.labels.clone().unwrap_or_else(|| AdjustLabels::of(ui));
-        let enabled = self.enabled && ui.is_enabled();
-        let id = ui.make_persistent_id(self.id_salt);
-        let stored = *self.value;
-        // Filter (false) or Color (true): view state; the colour of no preset starts on Color.
-        let mut use_color = ui.data(|d| d.get_temp::<bool>(id.with(MODE))).unwrap_or(PhotoFilterPreset::of(stored.color).is_none());
-        let units = Units::of(ui);
-        let density = [AdjustField::new("density", labels.density.as_str(), 0.0..=100.0, DENSITY_DEFAULT).unit(units.unit(UnitKind::Percent))];
-        let mut pick_color = None;
-        let (group, event) = edit_parts(ui, id, &stored, self.policy, enabled, |ui, edits, inner| {
-            let value = *edits.value();
-            let preset = PhotoFilterPreset::of(value.color);
-            Stack::new(Gap::Stack).show(ui, |ui| {
-                let mut set =
-                    RadioSet::new((self.id_salt, "mode"), labels.filter.as_str(), &mut use_color).item(false).item(true).enabled(enabled).begin(ui);
-                // The radio's change is already in `use_color` for the rows below.
-                let color_mode = use_color;
-                let mut chosen = preset;
-                let mut picked = None;
-                direction::horizontal(ui, |ui| {
-                    set.radio(ui, 0, &labels.filter);
-                    let mut select = Select::new((self.id_salt, "preset"), labels.filter.as_str(), &mut chosen).fit(true);
-                    if preset.is_none() {
-                        select = select.option(None, labels.custom.as_str());
-                    }
-                    for entry in PhotoFilterPreset::ALL {
-                        select = select.option(Some(entry), entry.label(&labels));
-                    }
-                    picked = Some(select.enabled(enabled && !color_mode).show(ui));
-                });
-                if let Some(picked) = &picked {
-                    push_part(edits, picked, false, |entry: Option<PhotoFilterPreset>, now: &PhotoFilter| PhotoFilter {
-                        color: entry.map_or(now.color, PhotoFilterPreset::color),
-                        ..*now
-                    });
+        let PhotoFilterEditor { label, mut value, context } = self;
+        let words = words(ui);
+        let mut out = None;
+        let shown = FieldGroup::new(label).show(ui, |ui, cx| {
+            let now = read(&mut value, cx).unwrap_or_default();
+            let preset = PhotoFilterPreset::of(now.color);
+            let use_color = cx.memory::<FilterMemory>().use_color.unwrap_or(preset.is_none());
+            let mut preset_edit = None;
+            let mut pick_color = None;
+            let group = RadioGroup::new(words.filter.clone(), Bind::given(use_color)).show(ui, |ui, _| {
+                let mut entries: Vec<Entry<Option<PhotoFilterPreset>>> = Vec::new();
+                if preset.is_none() {
+                    entries.push(Entry::new(None, words.custom.clone()));
                 }
-                direction::horizontal(ui, |ui| {
-                    set.radio(ui, 1, &labels.color);
-                    let swatch =
-                        Swatch::new((self.id_salt, "swatch"), labels.filter_color.as_str(), value.color.to_rgba()).enabled(enabled && color_mode);
-                    if ui.add(swatch).clicked() {
-                        pick_color = Some(ColorRequest::new(COLOR_KEY, value.color).title(labels.filter_color.as_str()));
-                    }
+                entries.extend(PhotoFilterPreset::ALL.into_iter().map(|each| Entry::new(Some(each), each.label(&words))));
+                Field::new(words.filter.clone()).id_salt("filter").show(ui, |ui, _| {
+                    Row::new().show(ui, |ui, _| {
+                        Radio::new(false).label(words.filter.clone()).show(ui);
+                        preset_edit =
+                            Some(Select::new(words.filter.clone(), Bind::given(preset), &entries).enabled(!use_color).id_salt("preset").show(ui));
+                    });
                 });
-                let _ = set.end(ui);
-                let rows = AdjustSliders::new((self.id_salt, "density"), &density, &[value.density], self.numbers)
-                    .context(self.context)
-                    .policy(inner)
-                    .enabled(enabled)
-                    .parts(ui, edits, |now: &PhotoFilter, _, density| PhotoFilter { density, ..*now });
-                let mut preserve = value.preserve_luminosity;
-                let check =
-                    Checkbox::bool(labels.preserve_luminosity.as_str(), &mut preserve).id_salt((self.id_salt, "preserve")).enabled(enabled).show(ui);
-                push_part(edits, &check, false, |preserve_luminosity, now: &PhotoFilter| PhotoFilter { preserve_luminosity, ..*now });
-                (rows.submitted, rows.escaped)
-            })
+                Field::new(words.color.clone()).id_salt("color").show(ui, |ui, _| {
+                    Row::new().show(ui, |ui, _| {
+                        Radio::new(true).label(words.color.clone()).show(ui);
+                        let swatch =
+                            Swatch::new(words.filter_color.clone(), now.color).picker(COLOR_KEY).enabled(use_color).id_salt("swatch").show(ui);
+                        pick_color = swatch.pick_color;
+                    });
+                });
+            });
+            let mode = group.output.value().copied();
+            let mut run = Run::start(&mut value, context, now, cx.memory::<FilterMemory>().began);
+            if let Some(edit) = preset_edit {
+                run.push(cx, edit, |now, entry: &Option<PhotoFilterPreset>| PhotoFilter {
+                    color: entry.map_or(now.color, PhotoFilterPreset::color),
+                    ..*now
+                });
+            }
+            let density = AdjustField::new("density", words.density.clone(), 0.0..=100.0, DENSITY_DEFAULT).unit_kind(UnitKind::Percent);
+            run.slider_row(ui, cx, &density, now.density, |now, density| PhotoFilter { density, ..*now });
+            let preserve = Checkbox::new(Bind::given(now.preserve_luminosity)).label(words.preserve_luminosity.clone()).show(ui);
+            run.push(cx, preserve, |now, on| PhotoFilter { preserve_luminosity: *on, ..*now });
+            let memory = cx.memory::<FilterMemory>();
+            memory.began = run.began();
+            memory.use_color = Some(mode.unwrap_or(use_color));
+            out = Some((run.finish(), pick_color));
         });
-        ui.data_mut(|d| d.insert_temp(id.with(MODE), use_color));
-        let (submitted, escaped) = group.inner;
-        let edit = EditResponse::new(group.response, event).submitted(submitted).escaped(escaped);
-        PhotoFilterOutput { edit, pick_color }
+        let (edit, pick_color) = out.expect("an editor shows its body");
+        PhotoFilterOutput { edit: lifted(Some(edit), shown.output), pick_color }
     }
 }
