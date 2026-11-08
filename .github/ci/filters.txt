@@ -1,0 +1,10 @@
+craft-ui it list
+craft-ui it collection
+craft-ui it suite::craft_ui::list
+craft-ui it access
+craft-ui it popover
+craft-automation it actions
+craft-draw it brush
+craft-imaging it layer_style
+craft-ui it suite::craft_draw
+craft-ui it suite::craft_automation
