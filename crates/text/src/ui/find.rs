@@ -418,7 +418,7 @@ enum Press {
 ///   Replace, Replace All, Close.
 /// - Enter in Find what finds the next match and keeps the keyboard there; the status line shows the app's message
 ///   ("All done. We made 3 replacements.").
-#[derive(Debug)]
+#[derive(Debug, craft_ui::contract::Pattern)]
 pub struct FindReplaceDialog {
     query: String,
     with: String,

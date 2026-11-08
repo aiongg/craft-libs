@@ -406,14 +406,15 @@ fn place_list(ui: &mut Ui, given: &Given, form: &mut Form, words: &HyperlinkWord
     Text::new(words.select_place.clone()).show(ui);
     let spots: Vec<Spot> = std::iter::once(Spot::Top).chain((0..given.places.len()).map(Spot::Place)).collect();
     let source = keyed(&spots, |spot: &Spot| *spot);
-    List::new(words.select_place.clone()).select(SelectMode::Single).sizing(Sizing::Content).selection(Bind::bound(&mut form.place)).show_items(
-        ui,
-        &source,
-        &mut |spot, _| match spot {
+    List::new(words.select_place.clone())
+        .select(SelectMode::Single)
+        .sizing(Sizing::Content)
+        .natural_height(true)
+        .selection(Bind::bound(&mut form.place))
+        .show_items(ui, &source, &mut |spot, _| match spot {
             Spot::Top => ListRow::new(words.top_of_document.clone()),
             Spot::Place(place) => ListRow::new(given.places[*place].clone()),
-        },
-    );
+        });
 }
 
 impl StackDialog for HyperlinkDialog {

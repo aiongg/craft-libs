@@ -248,6 +248,7 @@ impl CheckSpellingDialog {
                     let events = List::new(words.suggestions.clone())
                         .select(SelectMode::Single)
                         .sizing(Sizing::Content)
+                        .natural_height(true)
                         .selection(Bind::bound(&mut selection))
                         .show_items(ui, &source, &mut |at, _| ListRow::new(suggestions[*at].clone()))
                         .events;

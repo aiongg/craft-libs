@@ -14,16 +14,30 @@ note = "A craft-ui component. `TextRuler::new(label, Bind<RulerValues>, width)` 
 [[type]]
 name = "TextRulerResponse"
 old = "craft_text::ui::ruler::TextRulerResponse"
+new = ""
+status = "removed"
+note = "Replaced by `TextRulerOutput`."
+
+[[type]]
+name = "TextRulerOutput"
+old = ""
 new = "craft_text::ui::ruler::TextRulerOutput"
-status = "moved"
-note = "`edit` is `EditResponse<RulerValues>` (Begin, Update, Commit, Cancel, Set); `selected` is `picked`; `column` is a `ColumnDrag` with its gesture phase; `response` is `edit.response`."
+status = "replaced"
+note = "Replaces `TextRulerResponse`. `edit` is `EditResponse<RulerValues>` (Begin, Update, Commit, Cancel, Set); `selected` is `picked`; `column` is a `ColumnDrag` with its gesture phase; `response` is `edit.response`."
 
 [[type]]
 name = "TextRulerLabels"
 old = "craft_text::ui::ruler::TextRulerLabels"
+new = ""
+status = "removed"
+note = "Replaced by `TextRulerWords`."
+
+[[type]]
+name = "TextRulerWords"
+old = ""
 new = "craft_text::ui::ruler::TextRulerWords"
-status = "moved"
-note = "Words of the scope; the drag tooltip is the pointer readout."
+status = "replaced"
+note = "Replaces `TextRulerLabels`. Words of the scope; the drag tooltip is the pointer readout."
 
 [[type]]
 name = "RulerValues"
@@ -68,8 +82,16 @@ note = "A pattern on `Dialog`; the stops are a `Table` with the selected stop's 
 [[type]]
 name = "TabStopsLabels"
 old = "craft_text::ui::tabs_dialog::TabStopsLabels"
+new = ""
+status = "removed"
+note = "Replaced by `TabStopsWords`."
+
+[[type]]
+name = "TabStopsWords"
+old = ""
 new = "craft_text::ui::tabs_dialog::TabStopsWords"
-status = "moved"
+status = "replaced"
+note = "Replaces `TabStopsLabels`."
 
 [[type]]
 name = "TabStopsResult"
@@ -88,8 +110,16 @@ note = "A pattern on `Dialog`. `unit` takes `DocUnit`; `labels(..)` is gone."
 [[type]]
 name = "TextColumnsLabels"
 old = "craft_text::ui::columns::TextColumnsLabels"
+new = ""
+status = "removed"
+note = "Replaced by `TextColumnsWords`."
+
+[[type]]
+name = "TextColumnsWords"
+old = ""
 new = "craft_text::ui::columns::TextColumnsWords"
-status = "moved"
+status = "replaced"
+note = "Replaces `TextColumnsLabels`."
 
 [[type]]
 name = "TextColumns"
@@ -119,9 +149,16 @@ status = "same"
 [[type]]
 name = "LengthUnit"
 old = "craft_ui::localized::units::LengthUnit"
+new = ""
+status = "removed"
+note = "Replaced by `DocUnit`."
+
+[[type]]
+name = "DocUnit"
+old = ""
 new = "craft_text::ui::DocUnit"
 status = "replaced"
-note = "`DocUnit::new(UnitKind, pixels_per_inch)` or `DocUnit::points()`; lengths stay in points."
+note = "Replaces `LengthUnit`. `DocUnit::new(UnitKind, pixels_per_inch)` or `DocUnit::points()`; lengths stay in points."
 
 [[call]]
 old = "columns_menu(current, &labels)"

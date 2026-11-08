@@ -27,9 +27,15 @@ fn bullets() -> NotesText {
     }
 }
 
-#[story(NotesEditor<'static>, covers = [], drive = Drive::Never)]
+#[story(NotesEditor<'static>, covers = [Default], drive = Drive::Never)]
 fn editing_bullets(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let notes = data.value("notes", bullets());
+    NotesEditor::new("Notes", notes).show(ui).response.into()
+}
+
+#[story(NotesEditor<'static>, covers = [LongText], drive = Drive::Never)]
+fn long_text(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let notes = data.value("notes", NotesText::from_plain(&"Speaker notes that wrap across the pane. ".repeat(12)));
     NotesEditor::new("Notes", notes).show(ui).response.into()
 }
 

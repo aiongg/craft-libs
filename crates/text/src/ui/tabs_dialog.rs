@@ -301,18 +301,18 @@ impl TabStopsDialog {
         let texts: Vec<String> = self.stops.iter().map(|stop| self.text(units, stop.position)).collect();
         let selection = self.selected.map_or_else(Selection::default, Selection::single);
         let stops = self.stops.clone();
-        let out = Table::<usize>::new(words.title.clone(), columns.clone()).select(SelectMode::Single).selection(Bind::given(selection)).show_items(
-            ui,
-            &Stops { stops: &stops, texts: &texts },
-            &mut |key, icx| {
+        let out = Table::<usize>::new(words.title.clone(), columns.clone())
+            .select(SelectMode::Single)
+            .natural_height(true)
+            .selection(Bind::given(selection))
+            .show_items(ui, &Stops { stops: &stops, texts: &texts }, &mut |key, icx| {
                 let stop = &stops[*key];
                 ListRow::new(texts[*key].clone())
                     .cells(icx.cells())
                     .columns(&columns)
                     .cell(ALIGNMENT, align_text(words, stop.align))
                     .cell(LEADER, leader_text(words, stop.leader))
-            },
-        );
+            });
         for event in out.events {
             if let CollectionEvent::Selection(change) = event {
                 match change {

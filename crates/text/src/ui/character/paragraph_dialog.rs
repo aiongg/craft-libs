@@ -735,6 +735,7 @@ struct SamplePlan {
 /// and after in the default format, and the edited one between. Fields that differ among the paragraphs (`None`) take
 /// the default.
 fn sample_plan(format: &ParagraphFormat, width: f32, row_height: f32) -> SamplePlan {
+    let width = width.max(0.0);
     let plain = ParagraphFormat::default();
     let mut rows = Vec::new();
     let mut y = 0.0_f32;

@@ -136,9 +136,14 @@ fn on_canvas(ui: &mut Ui, data: &mut StoryData, text: &str, selection: TextSelec
     shown.inner.map(StoryOutput::from).unwrap_or_default()
 }
 
-#[story(TextEditor<'static>, covers = [], drive = Drive::Never)]
+#[story(TextEditor<'static>, covers = [Default], drive = Drive::Never)]
 fn caret(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     on_canvas(ui, data, "Hello craft\nSecond line", TextSelection::caret_at(5), None)
+}
+
+#[story(TextEditor<'static>, covers = [LongText], drive = Drive::Never)]
+fn long_text(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    on_canvas(ui, data, &"A line of text that wraps across the frame. ".repeat(10), TextSelection::caret_at(0), None)
 }
 
 #[story(TextEditor<'static>, covers = [], drive = Drive::Never)]
