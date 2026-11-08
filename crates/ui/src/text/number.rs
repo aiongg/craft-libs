@@ -768,10 +768,10 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         })
     }
 
-    /// Arrows, Page keys and the wheel step the value, AccessKit sets it, and the chevrons open the popups. Up and
-    /// Down step by the step, with Shift by `LARGE_STEPS` steps and, on a field without a dropdown, with Alt by a
-    /// tenth; on a field with presets or a popup slider Alt+Down opens the dropdown instead, and the wheel keeps its
-    /// Alt fine step. A step starts from the applied value, or from 0 kept in the
+    /// Arrows, Page keys, the wheel and AccessKit Increment and Decrement step the value, AccessKit sets it, and the
+    /// chevrons open the popups. Up and Down step by the step, with Shift by `LARGE_STEPS` steps and, on a field
+    /// without a dropdown, with Alt by a tenth; on a field with presets or a popup slider Alt+Down opens the dropdown
+    /// instead, and the wheel keeps its Alt fine step. A step starts from the applied value, or from 0 kept in the
     /// range while the field is blank.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let rule = self.rule();
@@ -781,6 +781,9 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
                 NavMove::Down => (-1, key_scale(mods)),
                 NavMove::PageUp => (1, LARGE_STEPS),
                 NavMove::PageDown => (-1, LARGE_STEPS),
+                // AccessKit Increment and Decrement: the text keeps the horizontal arrows, so only those arrive.
+                NavMove::Forward => (1, 1.0),
+                NavMove::Back => (-1, 1.0),
                 _ => continue,
             };
             let from = self.shown_number(cx.value()).unwrap_or_else(|| rule.blank());
@@ -816,7 +819,8 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         }
     }
 
-    /// The numeric value, and a button node per chevron named by its word (the painted face).
+    /// The numeric value, and a button node per chevron named by its word (the painted face). The text part adds the
+    /// text value, the selection and the text actions to the same node.
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let rule = self.rule();
         let numeric = match self.shown_number(cx.value()) {

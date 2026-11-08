@@ -37,9 +37,9 @@ pub(crate) struct Line {
 /// What a text component tells AccessKit about its text this pass.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct TextFacts {
-    /// The egui widget that holds the text and key focus; its node carries the name.
+    /// The egui widget that holds the text and key focus; its node folds into the owner's.
     pub widget: Id,
-    /// The component's name, which names the widget's node.
+    /// The component's name, which the widget's folded node keeps.
     pub name: String,
     /// The whole text, for the node's value (not exposed while masked).
     pub text: String,
@@ -87,11 +87,13 @@ pub(crate) fn exposed(ctx: &Context, widget: Id) -> bool {
     adapter::enabled(ctx, widget)
 }
 
-/// Adds the text facts to the node of `owner` and fills its run nodes, and names the widget's node, which routes its
-/// requests to `owner`. Call it after the node's common facts.
+/// Adds the text facts to the node of `owner` and fills its run nodes. The owner's node is the one node of the text:
+/// the widget's own node folds into it, so a component whose root edits its value through the text (a text field, a
+/// spin button, an editable combo box) is one node that takes focus and the text actions. Call it after the node's
+/// common facts.
 pub(crate) fn report_text(ctx: &Context, owner: Id, facts: &TextFacts) {
     adapter::set_label(ctx, facts.widget, &facts.name);
-    keys::register_node(ctx, facts.widget, owner, None, true);
+    adapter::fold_widget(ctx, facts.widget, owner);
     let mut entries = Vec::new();
     if !facts.masked {
         for (line_at, line) in facts.lines.iter().enumerate() {
