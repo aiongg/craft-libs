@@ -7,25 +7,23 @@
 
 mod button;
 mod editor;
-mod labels;
 mod preview;
-#[cfg(test)]
-mod preview_tests;
-pub(crate) mod stories;
-mod style;
-#[cfg(test)]
-mod tests;
+#[cfg(feature = "screen-testing")]
+mod stories;
+mod words;
 
 use std::ops::BitOr;
 
-use egui::{Painter, Rect};
+use craft_behavior::Mixed;
+use craft_ui::primitives::ContentPainterCx;
+use craft_ui::runtime::env::Label;
+use egui::Rect;
 
 pub use crate::stroke::{DashUnit, LineCap, LineJoin, LineStyle, StrokeAlign, StrokeError, StrokeStyle};
-pub use button::{StrokeButton, StrokeButtonResponse};
-pub use editor::{StrokeEditor, StrokeEditorResponse};
-pub use labels::StrokeLabels;
+pub use button::StrokeButton;
+pub use editor::{StrokeEditor, StrokeEditorOutput};
 pub use preview::StrokePreview;
-pub use style::StrokeEditorStyle;
+pub use words::StrokeWords;
 
 /// Which parts of the editor show. Combine with `|`.
 ///
@@ -33,6 +31,7 @@ pub use style::StrokeEditorStyle;
 /// rest. [`POPOVER`](Self::POPOVER) is PhotoCraft's popover, [`PANEL`](Self::PANEL) VectorCraft's
 /// docked panel.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct StrokeSections(u8);
 
 impl StrokeSections {
@@ -74,24 +73,25 @@ impl BitOr for StrokeSections {
 }
 
 /// The fields whose values differ across the host's selection: such a field shows the mixed
-/// placeholder (`NumberField::mixed`, a select's "Mixed") and lights no button; the first edit
-/// sets the field for every item. Default: nothing mixed.
+/// placeholder and lights no button; the first edit sets the field for every item. Default:
+/// nothing mixed.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct StrokeMixed {
-    #[allow(missing_docs)]
+    /// The alignment differs.
     pub align: bool,
-    #[allow(missing_docs)]
+    /// The cap differs.
     pub cap: bool,
-    #[allow(missing_docs)]
+    /// The corner join differs.
     pub join: bool,
-    #[allow(missing_docs)]
+    /// The miter limit differs.
     pub miter_limit: bool,
     /// The pattern: no preset row is selected, the "Dashed line" check shows its mixed state and
     /// the pair rows are hidden until the check is set.
     pub dashes: bool,
-    #[allow(missing_docs)]
+    /// The dash offset differs.
     pub dash_offset: bool,
-    #[allow(missing_docs)]
+    /// The opacity differs.
     pub opacity: bool,
 }
 
@@ -99,7 +99,6 @@ impl StrokeMixed {
     /// The first of `styles` and which of its fields differ in the others (VectorCraft's panel
     /// over a multi-selection). `None` for no styles.
     pub fn of<'s>(styles: impl IntoIterator<Item = &'s StrokeStyle>) -> Option<(StrokeStyle, StrokeMixed)> {
-        // vectorcraft: crates/ui-egui/src/panels/stroke.rs:169-172 (mixed values light no button), :225 (mixed dashes).
         let mut styles = styles.into_iter();
         let first = styles.next()?;
         let mut mixed = StrokeMixed::default();
@@ -117,20 +116,21 @@ impl StrokeMixed {
 }
 
 /// The control of the editor an edit came from, so the host can coalesce edits by field
-/// ([`StrokeEditorResponse::field`]).
+/// ([`StrokeEditorOutput::field`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum StrokeField {
     /// A preset row.
     Preset,
-    #[allow(missing_docs)]
+    /// The alignment.
     Align,
-    #[allow(missing_docs)]
+    /// The cap.
     Cap,
-    #[allow(missing_docs)]
+    /// The corner join.
     Join,
-    #[allow(missing_docs)]
+    /// The miter limit.
     MiterLimit,
-    #[allow(missing_docs)]
+    /// The opacity.
     Opacity,
     /// The "Dashed line" check.
     Dashed,
@@ -140,12 +140,13 @@ pub enum StrokeField {
     AddPair,
     /// The remove-pair button.
     RemovePair,
-    #[allow(missing_docs)]
+    /// The dash offset.
     DashOffset,
 }
 
 /// One choice of a [`StrokeChoiceRow`]: the app's id and the name the select shows.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct StrokeChoice {
     /// The app's id for the choice.
     pub id: String,
@@ -160,44 +161,56 @@ impl StrokeChoice {
     }
 }
 
-/// The painter of a choice's preview in a [`StrokeChoiceRow`]: the painter, the preview's rect
-/// and the choice.
-pub(crate) type PaintChoice<'a> = Box<dyn Fn(&Painter, Rect, &StrokeChoice) + 'a>;
+/// The painter of a choice's preview in a [`StrokeChoiceRow`]: it paints the choice into the rect with the content
+/// painter.
+pub struct ChoicePainter<'a>(Box<dyn Fn(&ContentPainterCx, Rect, &StrokeChoice) + 'a>);
+
+impl<'a> ChoicePainter<'a> {
+    /// The painter that runs `paint`.
+    pub fn new(paint: impl Fn(&ContentPainterCx, Rect, &StrokeChoice) + 'a) -> Self {
+        ChoicePainter(Box::new(paint))
+    }
+
+    /// Paints `choice` into `rect`.
+    pub fn paint(&self, cx: &ContentPainterCx, rect: Rect, choice: &StrokeChoice) {
+        (self.0)(cx, rect, choice);
+    }
+}
 
 /// A row the app fills: a label and a `Select` of [`StrokeChoice`]s with painted previews
 /// (arrowheads at the start and end, a width profile, DesignCraft's named stroke types). The
 /// editor owns no arrowhead or profile data (lead call 19); picking reports
-/// [`StrokeEditorResponse::choice`] with the row's and the choice's ids. S7-shapes' connector bar
-/// uses the same rows for its caps.
+/// [`StrokeEditorOutput::choice`] with the row's and the choice's ids. The connector bar uses the
+/// same rows for its caps.
+#[must_use = "pass the row to `StrokeEditor::rows`"]
 pub struct StrokeChoiceRow<'a> {
-    /// The app's id for the row.
-    pub id: String,
-    /// The row's label.
-    pub label: String,
-    /// The choices the select offers.
-    pub choices: &'a [StrokeChoice],
-    /// The picked choice's id, `MixedValue::Mixed` across a selection, `None` for none.
-    pub selected: Option<craft_ui::controls::MixedValue<&'a str>>,
-    /// The preview painter; read by the editor and the connector bar's cap menus.
-    pub(crate) paint: Option<PaintChoice<'a>>,
+    pub(crate) id: String,
+    pub(crate) label: Label,
+    pub(crate) choices: &'a [StrokeChoice],
+    pub(crate) selected: Option<Mixed<&'a str>>,
+    pub(crate) paint: Option<ChoicePainter<'a>>,
 }
 
 impl<'a> StrokeChoiceRow<'a> {
     /// A row `id` labelled `label` offering `choices`, nothing picked, previews as text only.
-    pub fn new(id: impl Into<String>, label: impl Into<String>, choices: &'a [StrokeChoice]) -> Self {
+    pub fn new(id: impl Into<String>, label: impl Into<Label>, choices: &'a [StrokeChoice]) -> Self {
         Self { id: id.into(), label: label.into(), choices, selected: None, paint: None }
     }
 
-    /// The picked choice.
-    pub fn selected(mut self, selected: craft_ui::controls::MixedValue<&'a str>) -> Self {
+    /// The picked choice's id, `Mixed::Mixed` across a selection.
+    pub fn selected(mut self, selected: Mixed<&'a str>) -> Self {
         self.selected = Some(selected);
         self
     }
 
-    /// Paints each choice's preview beside its label, in the select's button and its list
-    /// (`Select::row_content`).
-    pub fn paint(mut self, paint: impl Fn(&Painter, Rect, &StrokeChoice) + 'a) -> Self {
-        self.paint = Some(Box::new(paint));
+    /// Paints each choice's preview beside its name, in the select's list.
+    pub fn paint(mut self, paint: ChoicePainter<'a>) -> Self {
+        self.paint = Some(paint);
         self
+    }
+
+    /// The app's id for the row.
+    pub fn id(&self) -> &str {
+        &self.id
     }
 }
