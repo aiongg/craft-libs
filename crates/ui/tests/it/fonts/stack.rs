@@ -387,7 +387,7 @@ fn egui_faces_join_the_families_the_app_names() {
 
 #[trial]
 fn control_heights_follow_the_leading_face_of_the_stack() {
-    let tokens = tokens(Mode::Light, Contrast::Normal);
+    let tokens = tokens(Mode::Light, Contrast::Standard);
     let heights = |language: &str| {
         let frames = Frames::new();
         test_stack(language).install(&frames.ctx);
