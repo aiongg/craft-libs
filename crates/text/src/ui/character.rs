@@ -1,57 +1,55 @@
 //! [`CharacterControls`] and [`ParagraphControls`]: Photoshop's Character and Paragraph
-//! panels as controls for a panel body, a Properties section or a style options editor. Values
+//! panels as patterns for a panel body, a Properties section or a style options editor. Values
 //! are in points (sizes, leading, baseline shift, indents, spacing) and thousandths of an em
-//! (kerning, tracking); the fields show them in the app's type unit (a [`LengthUnit`] and its
-//! [`UnitContext`]). The controls change nothing themselves: each returns the edit events of the
-//! changes the user made this pass.
-
-#[cfg(feature = "font-picker")]
-use std::sync::Arc;
+//! (kerning, tracking); the length fields show them in the app's type unit ([`DocUnit`]). The
+//! controls change nothing themselves: each returns the edit events of the changes the user made
+//! this pass.
 
 #[cfg(feature = "font-picker")]
 use craft_font_manager::Catalog;
 #[cfg(feature = "font-picker")]
 use craft_font_manager::picker::{FontFilters, FontPicker, FontPickerSettings};
-use craft_ui::controls::expr::{self, ExprUnits};
-use craft_ui::controls::{CheckState, Checkbox, ControlSize, IconButton, Preset, Select, Swatch, TextField};
-use craft_ui::dialog::ColorRequest;
-use craft_ui::direction;
-use craft_ui::edit::{EditEvent, EditPolicy};
-use craft_ui::icons::Icon;
-use craft_ui::localized::units::{Length, LengthUnit, UnitContext};
-use craft_ui::localized::{Labels as _, LocaleNumbers, Units};
-use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
-use craft_ui::patterns::unit_number_field;
-use craft_ui::primitives::{Content, Icon as Mark, Text};
-use craft_ui::theme::{Tokens, TokensOf as _};
-use egui::{AsIdSalt, Color32, IdSalt, Modifiers, Ui, vec2};
+use std::ops::RangeInclusive;
+use std::sync::Arc;
+
+use super::length::{DocUnit, length_edit, length_field};
+use craft_behavior::{ColumnWidth, EditEvent, GestureId, IconId, Mixed, NumberCodec};
+use craft_theme::{Rgba, Srgba};
+use craft_ui::buttons::ToggleButton;
+use craft_ui::choice::{Checkbox, Segmented, Swatch};
+use craft_ui::contract::{Bind, Entry, GlyphLabel, LabelKind, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, SideLabel};
+use craft_ui::form::Field;
+use craft_ui::layout_components::{Grid, Row, Stack};
+use craft_ui::patterns::form_dialogs::HostRequests;
+use craft_ui::pickers::Select;
+use craft_ui::runtime::env::{Env, Label, UnitKind, Units};
+use craft_ui::text::{NumberField, NumberPick};
+use egui::{Response, Ui};
 
 mod paragraph_dialog;
-#[cfg(test)]
-mod paragraph_dialog_tests;
+#[cfg(feature = "screen-testing")]
+mod stories;
 
 pub use paragraph_dialog::{
-    LineSpacing, ParagraphAlign, ParagraphAnswer, ParagraphDialog, ParagraphDialogLabels, ParagraphFormat, SpacingKind, SpecialIndent,
+    LineSpacing, ParagraphAlign, ParagraphAnswer, ParagraphDialog, ParagraphDialogWords, ParagraphFormat, ParagraphPreview, ParagraphPreviewStyle,
+    SpacingKind, SpecialIndent,
 };
 
 craft_ui::words! {
-    /// The Character controls' words, English by default (PhotoCraft's tooltips).
+    /// The Character controls' words, English by default (PhotoCraft's tooltips). A control whose label is an icon or a
+    /// mark shows only that; the word is its accessible name.
     #[non_exhaustive]
-    pub struct CharacterLabels {
+    pub struct CharacterWords {
         character: "character.title" = "Character";
         family: "character.family" = "Font family";
         style: "character.style" = "Style";
         size: "character.size" = "Font size";
-        size_presets: "character.sizePresets" = "Font size presets";
-        leading: "character.leading" = "Leading (set to the font size × auto-leading when Auto)";
-        leading_presets: "character.leadingPresets" = "Leading presets";
+        leading: "character.leading" = "Leading";
         auto: "character.auto" = "Auto";
-        kerning: "character.kerning" = "Kerning: Metrics, Optical or a value in 1/1000 em (Alt+←/→ at the caret)";
-        kerning_presets: "character.kerningPresets" = "Kerning presets";
+        kerning: "character.kerning" = "Kerning";
         metrics: "character.metrics" = "Metrics";
         optical: "character.optical" = "Optical";
-        tracking: "character.tracking" = "Tracking (1/1000 em)";
-        tracking_presets: "character.trackingPresets" = "Tracking presets";
+        tracking: "character.tracking" = "Tracking";
         vertical_scale: "character.verticalScale" = "Vertical scale";
         horizontal_scale: "character.horizontalScale" = "Horizontal scale";
         baseline_shift: "character.baselineShift" = "Baseline shift";
@@ -65,26 +63,25 @@ craft_ui::words! {
         subscript: "character.subscript" = "Subscript";
         underline: "character.underline" = "Underline";
         strikethrough: "character.strikethrough" = "Strikethrough";
-        standard_ligatures: "type.openType.standardLigatures" = "Standard Ligatures";
-        contextual_alternates: "type.openType.contextualAlternates" = "Contextual Alternates";
-        discretionary_ligatures: "type.openType.discretionaryLigatures" = "Discretionary Ligatures";
-        swash: "type.openType.swash" = "Swash";
-        stylistic_alternates: "type.openType.stylisticAlternates" = "Stylistic Alternates";
-        titling_alternates: "type.openType.titlingAlternates" = "Titling Alternates";
-        ordinals: "type.openType.ordinals" = "Ordinals";
-        fractions: "type.openType.fractions" = "Fractions";
+        standard_ligatures: "character.standardLigatures" = "Standard Ligatures";
+        contextual_alternates: "character.contextualAlternates" = "Contextual Alternates";
+        discretionary_ligatures: "character.discretionaryLigatures" = "Discretionary Ligatures";
+        swash: "character.swash" = "Swash";
+        stylistic_alternates: "character.stylisticAlternates" = "Stylistic Alternates";
+        titling_alternates: "character.titlingAlternates" = "Titling Alternates";
+        ordinals: "character.ordinals" = "Ordinals";
+        fractions: "character.fractions" = "Fractions";
         language: "character.language" = "Language";
-        points: "character.unitPoints" = "pt";
-        pixels: "character.unitPixels" = "px";
-        millimeters: "character.unitMillimeters" = "mm";
     }
 }
 
 craft_ui::words! {
     /// The Paragraph controls' words, English by default (PhotoCraft's tooltips).
     #[non_exhaustive]
-    pub struct ParagraphLabels {
+    pub struct ParagraphWords {
         paragraph: "paragraph.title" = "Paragraph";
+        alignment: "paragraph.alignment" = "Alignment";
+        direction: "paragraph.direction" = "Direction";
         left: "paragraph.left" = "Left align text";
         center: "paragraph.center" = "Center text";
         right: "paragraph.right" = "Right align text";
@@ -113,29 +110,49 @@ pub const SIZE_PRESETS: [f32; 17] = [6.0, 8.0, 9.0, 10.0, 11.0, 12.0, 14.0, 16.0
 pub const TRACKING_PRESETS: [&[f32]; 3] = [&[-100.0, -75.0, -50.0, -25.0, -10.0, -5.0], &[0.0], &[5.0, 10.0, 25.0, 50.0, 75.0, 100.0, 200.0]];
 
 /// The OpenType buttons' feature tags in Photoshop's order (PhotoCraft's `OPENTYPE_BUTTONS`);
-/// their names are the matching [`CharacterLabels`] fields.
+/// their names are the matching [`CharacterWords`] fields.
 pub const OPENTYPE_FEATURES: [&str; 8] = ["liga", "calt", "dlig", "swsh", "salt", "titl", "ordn", "frac"];
 
-/// The word for `unit` in `labels`: `points`, `pixels` and `millimeters` are the installed
-/// language's, English "pt", "px", "mm"; another unit shows its own suffix.
-// pc: crates/ui-egui/src/tools/type_tool/defaults.rs:62 `type_unit`.
-fn unit_suffix(unit: LengthUnit, labels: &CharacterLabels) -> &str {
-    match unit {
-        LengthUnit::Points => &labels.points,
-        LengthUnit::Pixels => &labels.pixels,
-        LengthUnit::Millimetres => &labels.millimeters,
-        other => other.suffix(),
-    }
-}
+/// The key of the colour request the swatch makes.
+pub const COLOR_KEY: &str = "character.color";
 
-/// Shown units per point: 1 for points, `ppi / 72` for pixels (`ppi` at least 1), 25.4 / 72 for
-/// millimetres.
-fn per_point(unit: LengthUnit, context: UnitContext) -> f64 {
-    context.convert(Length { value: 1.0, unit: LengthUnit::Points }, unit).unwrap_or(1.0)
-}
+/// Auto leading is the font size × 120 % (Photoshop's default).
+const AUTO_LEADING: f32 = 1.2;
+
+/// The kerning menu's number rows.
+const KERNING_PRESETS: [f32; 14] = [0.0, -100.0, -75.0, -50.0, -25.0, -10.0, -5.0, 5.0, 10.0, 25.0, 50.0, 75.0, 100.0, 200.0];
+
+/// The most decimals the menus' number rows show.
+const PRESET_DECIMALS: usize = 2;
+
+/// The leading menu's Auto row.
+const AUTO_ROW: u32 = 0;
+/// The kerning menu's Metrics row.
+const METRICS_ROW: u32 = 0;
+/// The kerning menu's Optical row.
+const OPTICAL_ROW: u32 = 1;
+
+/// The range of the size field, points.
+const SIZE_RANGE: RangeInclusive<f64> = 0.1..=1296.0;
+/// The range of the leading field, points.
+const LEADING_RANGE: RangeInclusive<f64> = 0.1..=5000.0;
+/// The range of the baseline shift field, points.
+const SHIFT_RANGE: RangeInclusive<f64> = -1296.0..=1296.0;
+/// The range of the tracking and kerning fields, thousandths of an em.
+const TRACKING_RANGE: RangeInclusive<f64> = -1000.0..=10000.0;
+/// The range of the scale fields, percent.
+const SCALE_RANGE: RangeInclusive<f64> = 0.0..=1000.0;
+/// The range of the indent fields, points.
+const INDENT_RANGE: RangeInclusive<f64> = -1296.0..=1296.0;
+/// The range of the space fields, points.
+const SPACE_RANGE: RangeInclusive<f64> = 0.0..=1296.0;
+
+/// Two columns of the same share, for the rows of two fields.
+static TWO_COLUMNS: [ColumnWidth; 2] = [ColumnWidth::fill(1.0), ColumnWidth::fill(1.0)];
 
 /// Leading: automatic (the font size × the paragraph's auto-leading, 120 % by default) or set.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum Leading {
     #[allow(missing_docs)]
     Auto,
@@ -144,10 +161,9 @@ pub enum Leading {
 }
 
 /// Kerning: from the font's pairs, from the glyph shapes, or a value in thousandths of an em
-/// (0 is none). The field shows "Metrics", "Optical" or the rounded number.
-// pc: crates/ui-egui/src/tools/type_tool/options_bar.rs:228 `kerning_label`, :240 `parse_kerning`
-// (Metrics / Optical in any case, or a number in -1000..=10000).
+/// (0 is none). The field shows the number; the menu checks Metrics or Optical.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum Kerning {
     #[allow(missing_docs)]
     Metrics,
@@ -159,6 +175,7 @@ pub enum Kerning {
 
 /// How letters are capitalized.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Caps {
     #[allow(missing_docs)]
     #[default]
@@ -171,6 +188,7 @@ pub enum Caps {
 
 /// Where the text sits relative to the baseline.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum BaselinePosition {
     #[allow(missing_docs)]
     #[default]
@@ -203,8 +221,8 @@ pub struct CharacterValues {
     pub horizontal_scale: Option<f32>,
     /// Baseline shift in points; positive raises the text.
     pub baseline_shift: Option<f32>,
-    /// The swatch's colour, converted by the app for display.
-    pub color: Option<Color32>,
+    /// The swatch's colour.
+    pub color: Option<Rgba>,
     #[allow(missing_docs)]
     pub faux_bold: Option<bool>,
     #[allow(missing_docs)]
@@ -225,6 +243,7 @@ pub struct CharacterValues {
 
 /// One change from the Character controls.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum CharacterChange {
     #[allow(missing_docs)]
     Family(String),
@@ -257,6 +276,7 @@ pub enum CharacterChange {
     #[allow(missing_docs)]
     Strikethrough(bool),
     /// An OpenType feature switched on or off.
+    #[non_exhaustive]
     OpenType {
         /// The feature's four-letter tag, such as "liga".
         tag: &'static str,
@@ -268,365 +288,338 @@ pub enum CharacterChange {
 }
 
 /// What the Character controls did this pass.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct CharacterControlsResponse {
-    /// The edit events of this pass, in the order of the controls (usually one; a preset pick and
-    /// a toggle in the same pass are two). A scrub or a typing run in a field is a gesture
-    /// (`Begin`, `Update`, then `Commit`, or `Cancel` on Esc): the app merges its steps into one
-    /// history step with a `GestureHost`. A preset, toggle or select is a `Set`. The app applies
-    /// them in order.
-    // pc: crates/ui-egui/src/tools/type_tool/defaults.rs:71 (the scrub coalesce key).
+#[non_exhaustive]
+pub struct CharacterControlsOutput {
+    /// The controls' response.
+    pub response: Response,
+    /// The edit events of this pass, in the order of the controls (usually one; a preset pick and a toggle in the
+    /// same pass are two). A scrub or a typing run in a field is a gesture (`Begin`, `Update`, then `Commit`, or
+    /// `Cancel` on Esc): the app merges its steps into one history step. A preset, toggle or select is a `Set`. The
+    /// app applies them in order.
     pub edits: Vec<EditEvent<CharacterChange>>,
-    /// The family under the pointer in the open font list, for a live preview of the selected
-    /// text (`FontPickerResponse::preview`; only with `font-picker`).
+    /// The family under the pointer in the open font list, for a live preview of the selected text (only with
+    /// `font-picker`).
     pub preview_family: Option<String>,
-    /// The colour swatch was clicked: the app opens its colour picker for this request (key
-    /// `"character.color"`) and sets the colour. Set for the one pass of the click.
-    pub pick_color: Option<ColorRequest>,
+    /// The colour swatch was clicked: the app opens its colour picker for this request (key [`COLOR_KEY`]) and sets
+    /// the colour. Set for the one pass of the click.
+    pub requests: HostRequests,
 }
 
-/// The key of the colour request the swatch makes.
-pub const COLOR_KEY: &str = "character.color";
+impl Outcome for CharacterControlsOutput {
+    type Value = NoValue;
 
-/// The Character panel's controls, in Photoshop's rows: family; style; size and leading; kerning
-/// and tracking; vertical and horizontal scale; baseline shift and colour; the style toggles
-/// (Faux Bold, Faux Italic, All Caps, Small Caps, then Superscript and Subscript when
-/// [`superscript`](Self::superscript) is on, Underline, Strikethrough); the OpenType buttons; the
-/// language when [`languages`](Self::languages) is given.
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// The Character panel's controls, in Photoshop's rows: family; style; size and leading; kerning and tracking;
+/// vertical and horizontal scale; baseline shift and colour; the style toggles (Faux Bold, Faux Italic, All Caps,
+/// Small Caps, then Superscript and Subscript when [`superscript`](Self::superscript) is on, Underline,
+/// Strikethrough); the OpenType buttons; the language when [`languages`](Self::languages) is given.
 ///
 /// ```ignore
-/// let r = CharacterControls::new("character", &values, &families, &styles).unit(LengthUnit::Points, UnitContext::default()).show(ui);
-/// for edit in r.edits { gestures.handle(ctx, &mut doc, edit, apply_to_selection) }
+/// let out = CharacterControls::new("Character", &values, &families, &styles).unit(DocUnit::points()).show(ui);
+/// for edit in out.edits { gestures.handle(&mut doc, edit, apply_to_selection) }
 /// ```
 ///
-/// - Fields fill two columns of the available width with an icon label each (PhotoCraft's glyph
-///   labels: "tT", "A↕", "VA", "↕T", "↔T", "Aª"); size, leading and tracking have a preset menu in
-///   the field (presets are shortcuts, not limits: any value in range can be typed). Ranges in
-///   points: size 0.1–1296, leading 0.1–5000, baseline shift −1296–1296; tracking −1000–10000;
-///   scales 0–1000 %. Kerning takes Metrics, Optical or a number. The leading field's menu
-///   starts with an Auto row ([`Leading::Auto`]); while leading is Auto the field shows the font
-///   size × 120 %.
-/// - Family: craft-font-manager's `FontPicker` with `font-picker` and
-///   `font_picker`, else a `Select` of `families`.
+/// - Fields fill two columns of the available width with a mark for a label (PhotoCraft's marks: "tT", "A↕", "VA",
+///   "↕T", "↔T", "Aª"); a drag on the mark scrubs the value. Size, leading, kerning and tracking have a preset menu in
+///   the field (presets are shortcuts, not limits: any value in range can be typed). Ranges in points: size
+///   0.1–1296, leading 0.1–5000, baseline shift −1296–1296; tracking and kerning −1000–10000; scales 0–1000 %. The
+///   leading menu starts with an Auto row ([`Leading::Auto`]); while leading is Auto the field shows the font size
+///   × 120 %. The kerning menu starts with Metrics and Optical; the field is empty while either is the kerning.
+/// - Family: craft-font-manager's `FontPicker` with `font-picker` and [`font_picker`](Self::font_picker), else a
+///   `Select` of `families`.
 /// - Toggles are toggle buttons in one row, pressed while on; Tab reaches each.
-/// - A mixed value shows an empty field or an unpressed toggle; typing or pressing sets it for the
-///   whole selection.
+/// - A mixed value shows an empty field or an unpressed toggle; typing or pressing sets it for the whole selection.
+#[must_use = "show the controls with `show`"]
+#[derive(craft_ui::contract::Pattern, craft_ui::contract::Props)]
 pub struct CharacterControls<'a> {
-    id_salt: IdSalt,
+    label: Label,
     values: &'a CharacterValues,
     families: &'a [String],
     styles: &'a [String],
-    unit: (LengthUnit, UnitContext),
+    /// The unit the length fields show (Preferences › Units & Rulers › Type) and what converts it: the document's
+    /// resolution for pixels. Values stay in points. Default points.
+    #[prop]
+    unit: DocUnit,
+    /// Shows the Superscript and Subscript toggles (Photoshop; off by default, PhotoCraft has no superscript).
+    #[prop]
     superscript: bool,
+    /// Shows the Language select over `(tag, name)` pairs (Photoshop's bottom row).
+    #[prop]
     languages: Option<&'a [(String, String)]>,
     #[cfg(feature = "font-picker")]
-    picker: Option<(&'a Arc<Catalog>, &'a mut FontPickerSettings, &'a mut FontFilters)>,
-    labels: Option<CharacterLabels>,
+    picker: Option<(&'a Arc<Catalog>, Bind<'a, FontPickerSettings>, Bind<'a, FontFilters>)>,
 }
 
 impl<'a> CharacterControls<'a> {
-    /// Controls for `values`, with the installed `families` and the current family's `styles`.
-    pub fn new(id_salt: impl AsIdSalt, values: &'a CharacterValues, families: &'a [String], styles: &'a [String]) -> Self {
+    /// Controls named `label` for `values`, with the installed `families` and the current family's `styles`.
+    pub fn new(label: impl Into<Label>, values: &'a CharacterValues, families: &'a [String], styles: &'a [String]) -> Self {
         CharacterControls {
-            id_salt: IdSalt::new(id_salt),
+            label: label.into(),
             values,
             families,
             styles,
-            unit: (LengthUnit::Points, UnitContext::default()),
+            unit: DocUnit::points(),
             superscript: false,
             languages: None,
             #[cfg(feature = "font-picker")]
             picker: None,
-            labels: None,
         }
     }
 
-    /// The unit the size fields show (Preferences › Units & Rulers › Type) and what converts it:
-    /// the document's resolution for pixels. Values stay in points. Default points.
-    pub fn unit(mut self, unit: LengthUnit, context: UnitContext) -> Self {
-        self.unit = (unit, context);
-        self
-    }
-
-    /// Show the Superscript and Subscript toggles (Photoshop; off by default, PhotoCraft has no
-    /// superscript).
-    pub fn superscript(mut self, on: bool) -> Self {
-        self.superscript = on;
-        self
-    }
-
-    /// Show the Language select over `(tag, name)` pairs (Photoshop's bottom row).
-    pub fn languages(mut self, languages: &'a [(String, String)]) -> Self {
-        self.languages = Some(languages);
-        self
-    }
-
-    /// The family field is craft-font-manager's font picker over `catalog`, with the app's stars,
-    /// recents and filters.
+    /// The family field is craft-font-manager's font picker over `catalog`, with the app's stars, recents and
+    /// filters.
     #[cfg(feature = "font-picker")]
-    pub fn font_picker(mut self, catalog: &'a Arc<Catalog>, settings: &'a mut FontPickerSettings, filters: &'a mut FontFilters) -> Self {
+    #[must_use]
+    pub fn font_picker(mut self, catalog: &'a Arc<Catalog>, settings: Bind<'a, FontPickerSettings>, filters: Bind<'a, FontFilters>) -> Self {
         self.picker = Some((catalog, settings, filters));
         self
     }
 
-    /// Sets the translated labels; the default reads them from the interface locale.
-    pub fn labels(mut self, labels: CharacterLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    // pc: crates/ui-egui/src/tools/type_tool/panel.rs:215 `type_sections` (character half), :149
-    // `metric_field`, :25 `opentype_row`; options_bar.rs:228 `kerning_label`.
-    /// Paints the controls and returns the changes the user made.
-    pub fn show(self, ui: &mut Ui) -> CharacterControlsResponse {
-        let labels = self.labels.unwrap_or_else(|| CharacterLabels::of(ui));
+    /// Shows the controls and returns the changes the user made.
+    pub fn show(self, ui: &mut Ui) -> CharacterControlsOutput {
         let values = self.values;
-        let (length, context) = self.unit;
-        let scale = per_point(length, context);
-        let suffix = unit_suffix(length, &labels).to_owned();
-        let units = Units::of(ui);
-        let size_presets: Vec<(String, f32)> = SIZE_PRESETS.iter().map(|&p| (units.text(length.kind(), f64::from(p) * scale, 0..=2), p)).collect();
-        let auto_row = [labels.auto.clone()];
-        let tracking_presets: Vec<(String, f32)> =
-            TRACKING_PRESETS.iter().flat_map(|group| group.iter()).map(|&p| (units.numbers().format(f64::from(p), 0..=2), p)).collect();
-        let mut pass = Pass::new(ui);
-        let auto_leading = values.size.map(|size| size * AUTO_LEADING);
+        let (families, styles, languages) = (self.families, self.styles, self.languages);
+        let (unit, superscript) = (self.unit, self.superscript);
+        #[cfg(feature = "font-picker")]
+        let mut picker = self.picker;
+        let env = Env::of(ui);
+        let words = env.words::<CharacterWords>();
+        let units = env.units();
+        let lengths = Lengths { units: &units, unit };
+        let ppi = units.points_per_inch();
 
-        ui.push_id(self.id_salt, |ui| {
-            cell(ui, |ui| {
-                #[cfg(feature = "font-picker")]
-                if let Some((catalog, settings, filters)) = self.picker {
-                    let mut family = values.family.clone().unwrap_or_default();
-                    let width = ui.available_width();
-                    let r = FontPicker::new("family", catalog, &mut family).settings(&mut *settings).filters(filters).width(width).show(ui);
-                    if let Some(picked) = r.picked {
-                        settings.note_recent(&picked);
-                        pass.set(CharacterChange::Family(picked));
-                    }
-                    pass.preview = r.preview;
-                    return;
-                }
-                if let Some(family) = choose(
-                    ui,
-                    "family",
-                    &labels.family,
-                    values.family.as_deref(),
-                    self.families.len(),
-                    |i| self.families[i].clone(),
-                    |i| self.families[i].clone(),
-                ) {
-                    pass.set(CharacterChange::Family(family));
-                }
-            });
-            cell(ui, |ui| {
-                if let Some(style) = choose(
-                    ui,
-                    "style",
-                    &labels.style,
-                    values.style.as_deref(),
-                    self.styles.len(),
-                    |i| self.styles[i].clone(),
-                    |i| self.styles[i].clone(),
-                ) {
-                    pass.set(CharacterChange::Style(style));
-                }
-            });
+        let size_presets: Vec<Entry<NumberPick>> = SIZE_PRESETS
+            .iter()
+            .map(|&p| {
+                let shown = unit.shown(f64::from(p), ppi);
+                Entry::new(NumberPick::Number(shown), units.text(unit.kind, shown, 0..=PRESET_DECIMALS))
+            })
+            .collect();
+        let auto_row = Entry::new(NumberPick::Choice(AUTO_ROW), words.auto.clone()).checked(values.leading == Some(Leading::Auto));
+        let leading_presets: Vec<Entry<NumberPick>> = [auto_row, Entry::separator()].into_iter().chain(size_presets.iter().cloned()).collect();
+        let tracking_presets = number_presets(&units, TRACKING_PRESETS.iter().copied());
+        let kerning_presets: Vec<Entry<NumberPick>> = [
+            Entry::new(NumberPick::Choice(METRICS_ROW), words.metrics.clone()).checked(values.kerning == Some(Kerning::Metrics)),
+            Entry::new(NumberPick::Choice(OPTICAL_ROW), words.optical.clone()).checked(values.kerning == Some(Kerning::Optical)),
+            Entry::separator(),
+        ]
+        .into_iter()
+        .chain(KERNING_PRESETS.iter().map(|&p| Entry::new(NumberPick::Number(f64::from(p)), units.number(f64::from(p), 0..=PRESET_DECIMALS))))
+        .collect();
 
-            let metric = |salt, glyph, name: &str, value: Option<f32>, range: (f32, f32)| Metric {
-                salt,
-                glyph,
-                name: name.to_owned(),
-                value,
-                range,
-                scale,
-                unit: Some(length),
-                context,
-                suffix: suffix.clone(),
-                presets: Vec::new(),
-            };
-            let plain = |salt, glyph, name: &str, value: Option<f32>, range: (f32, f32), suffix: &str| Metric {
-                salt,
-                glyph,
-                name: name.to_owned(),
-                value,
-                range,
-                scale: 1.0,
-                unit: None,
-                context,
-                suffix: suffix.to_owned(),
-                presets: Vec::new(),
-            };
+        let family_entries = string_entries(families.iter().map(|name| (name.clone(), name.clone())));
+        let style_entries = string_entries(styles.iter().map(|name| (name.clone(), name.clone())));
+        let language_entries = languages.map(|languages| string_entries(languages.iter().cloned()));
+        let leading_value = match values.leading {
+            Some(Leading::Points(points)) => Some(points),
+            Some(Leading::Auto) => values.size.map(|size| size * AUTO_LEADING),
+            None => None,
+        };
+        let kerning_shown = match values.kerning {
+            None => Mixed::Mixed,
+            Some(Kerning::Manual(value)) => Mixed::Same(Some(f64::from(value))),
+            Some(Kerning::Metrics | Kerning::Optical) => Mixed::Same(None),
+        };
 
-            ui.columns(2, |cols| {
-                let size = Metric { presets: size_presets.clone(), ..metric("size", "tT", &labels.size, values.size, (0.1, 1296.0)) };
-                if let Some(moved) = cell(&mut cols[0], |ui| field(ui, size)) {
-                    pass.moved(moved, CharacterChange::Size);
-                }
-                let leading_value = match values.leading {
-                    Some(Leading::Points(p)) => Some(p),
-                    Some(Leading::Auto) => auto_leading,
-                    None => None,
-                };
-                let leading = Metric { presets: size_presets.clone(), ..metric("leading", "A↕", &labels.leading, leading_value, (0.1, 5000.0)) };
-                let (moved, row) = cell(&mut cols[1], |ui| field_rows(ui, leading, &auto_row));
-                if let Some(moved) = moved {
-                    pass.moved(moved, |p| CharacterChange::Leading(Leading::Points(p)));
-                }
-                if row == Some(0) {
-                    pass.set(CharacterChange::Leading(Leading::Auto));
-                }
-            });
-            ui.columns(2, |cols| {
-                if let Some(kerning) = cell(&mut cols[0], |ui| kerning_field(ui, &labels, values.kerning)) {
-                    pass.set(CharacterChange::Kerning(kerning));
-                }
-                let tracking = Metric {
-                    presets: tracking_presets.clone(),
-                    ..plain("tracking", "VA", &labels.tracking, values.tracking, (-1000.0, 10000.0), "")
-                };
-                if let Some(moved) = cell(&mut cols[1], |ui| field(ui, tracking)) {
-                    pass.moved(moved, CharacterChange::Tracking);
-                }
-            });
-            ui.columns(2, |cols| {
-                let vertical = plain("vertical_scale", "↕T", &labels.vertical_scale, values.vertical_scale, (0.0, 1000.0), "%");
-                if let Some(moved) = cell(&mut cols[0], |ui| field(ui, vertical)) {
-                    pass.moved(moved, CharacterChange::VerticalScale);
-                }
-                let horizontal = plain("horizontal_scale", "↔T", &labels.horizontal_scale, values.horizontal_scale, (0.0, 1000.0), "%");
-                if let Some(moved) = cell(&mut cols[1], |ui| field(ui, horizontal)) {
-                    pass.moved(moved, CharacterChange::HorizontalScale);
-                }
-            });
-            ui.columns(2, |cols| {
-                let shift = metric("baseline_shift", "Aª", &labels.baseline_shift, values.baseline_shift, (-1296.0, 1296.0));
-                if let Some(moved) = cell(&mut cols[0], |ui| field(ui, shift)) {
-                    pass.moved(moved, CharacterChange::BaselineShift);
-                }
-                cell(&mut cols[1], |ui| {
-                    ui.horizontal(|ui| {
-                        ui.add(Text::new(&labels.color).content(Content::Muted));
-                        let color = values.color.unwrap_or(Color32::TRANSPARENT);
-                        let width = ui.available_width();
-                        let swatch = Swatch::new("color", &labels.text_color, color)
-                            .size(ControlSize::Sm)
-                            .dimensions(width, ui.spacing().interact_size.y)
-                            .mixed(values.color.is_none());
-                        if ui.add(swatch).clicked() {
-                            let current = values.color.unwrap_or(Color32::BLACK);
-                            pass.pick_color = Some(ColorRequest::new(COLOR_KEY, current.into()).title(labels.text_color.as_str()));
-                        }
-                    });
+        let mut edits: Vec<EditEvent<CharacterChange>> = Vec::new();
+        let mut preview_family = None;
+        let mut requests = HostRequests::new();
+
+        let shown = Stack::new().fill_width().label(self.label).show(ui, |ui, _| {
+            #[cfg(feature = "font-picker")]
+            let by_picker = if let Some((catalog, settings, filters)) = picker.as_mut() {
+                let family = mixed(values.family.clone());
+                let side = SideLabel::new().kind(LabelKind::Hidden);
+                let shown = Field::new(words.family.clone()).side(side).show(ui, |ui, _| {
+                    let out = FontPicker::new(words.family.clone(), Bind::given(family.clone()), *catalog)
+                        .settings(settings.reborrowed())
+                        .filters(filters.reborrowed())
+                        .show(ui);
+                    (out.preview, out.edit.event)
                 });
+                if let Some((preview, event)) = shown.inner {
+                    preview_family = preview;
+                    let kept = event.filter(|event| matches!(event, EditEvent::Commit { .. } | EditEvent::Set { .. }));
+                    edits.extend(kept.map(|event| event.map(CharacterChange::Family)));
+                }
+                true
+            } else {
+                false
+            };
+            #[cfg(not(feature = "font-picker"))]
+            let by_picker = false;
+            if !by_picker {
+                edits.extend(select_row(ui, &words.family, mixed(values.family.clone()), &family_entries, CharacterChange::Family));
+            }
+            edits.extend(select_row(ui, &words.style, mixed(values.style.clone()), &style_entries, CharacterChange::Style));
+
+            Grid::new(&TWO_COLUMNS).fill().show(ui, |ui, _| {
+                let size = LengthRow {
+                    label: words.size.clone(),
+                    glyph: GlyphLabel::text("tT"),
+                    value: values.size,
+                    range: SIZE_RANGE,
+                    presets: &size_presets,
+                };
+                let (event, _) = lengths.row(ui, size);
+                edits.extend(number_change(event, CharacterChange::Size));
+                let leading = LengthRow {
+                    label: words.leading.clone(),
+                    glyph: GlyphLabel::text("A↕"),
+                    value: leading_value,
+                    range: LEADING_RANGE,
+                    presets: &leading_presets,
+                };
+                let (event, picked) = lengths.row(ui, leading);
+                edits.extend(number_change(event, |points| CharacterChange::Leading(Leading::Points(points))));
+                if picked == Some(NumberPick::Choice(AUTO_ROW)) {
+                    edits.push(picked_event(CharacterChange::Leading(Leading::Auto), words.leading.as_str()));
+                }
+            });
+            Grid::new(&TWO_COLUMNS).fill().show(ui, |ui, _| {
+                let kerning = PlainRow {
+                    label: words.kerning.clone(),
+                    glyph: GlyphLabel::icon(IconId::new("text_cursor")),
+                    value: kerning_shown,
+                    range: TRACKING_RANGE,
+                    percent: false,
+                    presets: &kerning_presets,
+                };
+                let (event, picked) = lengths.plain(ui, kerning);
+                edits.extend(number_change(event, |value| CharacterChange::Kerning(Kerning::Manual(value))));
+                match picked {
+                    Some(NumberPick::Choice(METRICS_ROW)) => {
+                        edits.push(picked_event(CharacterChange::Kerning(Kerning::Metrics), words.kerning.as_str()));
+                    }
+                    Some(NumberPick::Choice(OPTICAL_ROW)) => {
+                        edits.push(picked_event(CharacterChange::Kerning(Kerning::Optical), words.kerning.as_str()));
+                    }
+                    _ => {}
+                }
+                let tracking = PlainRow {
+                    label: words.tracking.clone(),
+                    glyph: GlyphLabel::text("VA"),
+                    value: plain(values.tracking),
+                    range: TRACKING_RANGE,
+                    percent: false,
+                    presets: &tracking_presets,
+                };
+                let (event, _) = lengths.plain(ui, tracking);
+                edits.extend(number_change(event, CharacterChange::Tracking));
+            });
+            Grid::new(&TWO_COLUMNS).fill().show(ui, |ui, _| {
+                let vertical = PlainRow {
+                    label: words.vertical_scale.clone(),
+                    glyph: GlyphLabel::text("↕T"),
+                    value: plain(values.vertical_scale),
+                    range: SCALE_RANGE,
+                    percent: true,
+                    presets: &[],
+                };
+                let (event, _) = lengths.plain(ui, vertical);
+                edits.extend(number_change(event, CharacterChange::VerticalScale));
+                let horizontal = PlainRow {
+                    label: words.horizontal_scale.clone(),
+                    glyph: GlyphLabel::text("↔T"),
+                    value: plain(values.horizontal_scale),
+                    range: SCALE_RANGE,
+                    percent: true,
+                    presets: &[],
+                };
+                let (event, _) = lengths.plain(ui, horizontal);
+                edits.extend(number_change(event, CharacterChange::HorizontalScale));
+            });
+            Grid::new(&TWO_COLUMNS).fill().show(ui, |ui, _| {
+                let shift = LengthRow {
+                    label: words.baseline_shift.clone(),
+                    glyph: GlyphLabel::text("Aª"),
+                    value: values.baseline_shift,
+                    range: SHIFT_RANGE,
+                    presets: &[],
+                };
+                let (event, _) = lengths.row(ui, shift);
+                edits.extend(number_change(event, CharacterChange::BaselineShift));
+                let color = mixed(values.color.map(Srgba::from));
+                let side = SideLabel::new().kind(LabelKind::Glyph(GlyphLabel::text(words.color.clone())));
+                let well = Field::new(words.text_color.clone())
+                    .side(side)
+                    .show(ui, |ui, _| Swatch::new(words.text_color.clone(), color).picker(COLOR_KEY).fill().show(ui).pick_color);
+                if let Some(request) = well.inner.flatten() {
+                    requests.request_color(request);
+                }
             });
 
             let caps = values.caps;
             let position = values.position;
-            let styles: [(&str, Icon, &str, bool, CharacterChange); 4] = [
-                (
-                    "faux_bold",
-                    Icon::TextBold,
-                    &labels.faux_bold,
-                    values.faux_bold == Some(true),
-                    CharacterChange::FauxBold(values.faux_bold != Some(true)),
+            let mut toggles: Vec<Toggle<CharacterChange>> = vec![
+                Toggle::new(&words.faux_bold, "text_bold", values.faux_bold, Box::new(CharacterChange::FauxBold)),
+                Toggle::new(&words.faux_italic, "text_italic", values.faux_italic, Box::new(CharacterChange::FauxItalic)),
+                Toggle::new(
+                    &words.all_caps,
+                    "text_all_caps",
+                    caps.map(|caps| caps == Caps::AllCaps),
+                    Box::new(|on| CharacterChange::Caps(if on { Caps::AllCaps } else { Caps::Normal })),
                 ),
-                (
-                    "faux_italic",
-                    Icon::TextItalic,
-                    &labels.faux_italic,
-                    values.faux_italic == Some(true),
-                    CharacterChange::FauxItalic(values.faux_italic != Some(true)),
-                ),
-                (
-                    "all_caps",
-                    Icon::TextAllCaps,
-                    &labels.all_caps,
-                    caps == Some(Caps::AllCaps),
-                    CharacterChange::Caps(if caps == Some(Caps::AllCaps) { Caps::Normal } else { Caps::AllCaps }),
-                ),
-                (
-                    "small_caps",
-                    Icon::TextSmallCaps,
-                    &labels.small_caps,
-                    caps == Some(Caps::SmallCaps),
-                    CharacterChange::Caps(if caps == Some(Caps::SmallCaps) { Caps::Normal } else { Caps::SmallCaps }),
+                Toggle::new(
+                    &words.small_caps,
+                    "text_small_caps",
+                    caps.map(|caps| caps == Caps::SmallCaps),
+                    Box::new(|on| CharacterChange::Caps(if on { Caps::SmallCaps } else { Caps::Normal })),
                 ),
             ];
-            let decorations: [(&str, Icon, &str, bool, CharacterChange); 2] = [
-                (
-                    "underline",
-                    Icon::TextUnderline,
-                    &labels.underline,
-                    values.underline == Some(true),
-                    CharacterChange::Underline(values.underline != Some(true)),
-                ),
-                (
-                    "strikethrough",
-                    Icon::TextStrikethrough,
-                    &labels.strikethrough,
-                    values.strikethrough == Some(true),
-                    CharacterChange::Strikethrough(values.strikethrough != Some(true)),
-                ),
-            ];
-            let positions: [(&str, Icon, &str, bool, CharacterChange); 2] = [
-                (
-                    "superscript",
-                    Icon::TextSuperscript,
-                    &labels.superscript,
-                    position == Some(BaselinePosition::Superscript),
-                    CharacterChange::Position(if position == Some(BaselinePosition::Superscript) {
-                        BaselinePosition::Normal
-                    } else {
-                        BaselinePosition::Superscript
-                    }),
-                ),
-                (
-                    "subscript",
-                    Icon::TextSubscript,
-                    &labels.subscript,
-                    position == Some(BaselinePosition::Subscript),
-                    CharacterChange::Position(if position == Some(BaselinePosition::Subscript) {
-                        BaselinePosition::Normal
-                    } else {
-                        BaselinePosition::Subscript
-                    }),
-                ),
-            ];
-            let row = styles.into_iter().chain(self.superscript.then_some(positions).into_iter().flatten()).chain(decorations);
-            buttons(ui, row, |_| true, &mut pass);
+            if superscript {
+                toggles.push(Toggle::new(
+                    &words.superscript,
+                    "text_superscript",
+                    position.map(|position| position == BaselinePosition::Superscript),
+                    Box::new(|on| CharacterChange::Position(if on { BaselinePosition::Superscript } else { BaselinePosition::Normal })),
+                ));
+                toggles.push(Toggle::new(
+                    &words.subscript,
+                    "text_subscript",
+                    position.map(|position| position == BaselinePosition::Subscript),
+                    Box::new(|on| CharacterChange::Position(if on { BaselinePosition::Subscript } else { BaselinePosition::Normal })),
+                ));
+            }
+            toggles.push(Toggle::new(&words.underline, "text_underline", values.underline, Box::new(CharacterChange::Underline)));
+            toggles.push(Toggle::new(&words.strikethrough, "text_strikethrough", values.strikethrough, Box::new(CharacterChange::Strikethrough)));
+            edits.extend(toggle_row(ui, toggles));
 
             let names = [
-                &labels.standard_ligatures,
-                &labels.contextual_alternates,
-                &labels.discretionary_ligatures,
-                &labels.swash,
-                &labels.stylistic_alternates,
-                &labels.titling_alternates,
-                &labels.ordinals,
-                &labels.fractions,
+                &words.standard_ligatures,
+                &words.contextual_alternates,
+                &words.discretionary_ligatures,
+                &words.swash,
+                &words.stylistic_alternates,
+                &words.titling_alternates,
+                &words.ordinals,
+                &words.fractions,
             ];
-            let features = OPENTYPE_FEATURES.iter().zip(OPENTYPE_ICONS).zip(names).map(|((&tag, icon), name)| {
-                let on = values.opentype.contains(&tag);
-                (tag, icon, name.as_str(), on, CharacterChange::OpenType { tag, on: !on })
-            });
-            buttons(ui, features, |_| true, &mut pass);
+            let features: Vec<Toggle<CharacterChange>> = OPENTYPE_FEATURES
+                .iter()
+                .zip(OPENTYPE_ICONS)
+                .zip(names)
+                .map(|((&tag, icon), name)| {
+                    Toggle::new(name, icon, Some(values.opentype.contains(&tag)), Box::new(move |on| CharacterChange::OpenType { tag, on }))
+                })
+                .collect();
+            edits.extend(toggle_row(ui, features));
 
-            if let Some(languages) = self.languages {
-                cell(ui, |ui| {
-                    let current = values.language.as_deref();
-                    let tags = |i: usize| languages[i].0.clone();
-                    if let Some(tag) = choose(ui, "language", &labels.language, current, languages.len(), tags, |i| languages[i].1.clone()) {
-                        pass.set(CharacterChange::Language(tag));
-                    }
-                });
+            if let Some(entries) = &language_entries {
+                edits.extend(select_row(ui, &words.language, mixed(values.language.clone()), entries, CharacterChange::Language));
             }
         });
-        CharacterControlsResponse { edits: pass.edits, preview_family: pass.preview, pick_color: pass.pick_color }
+        CharacterControlsOutput { response: shown.output, edits, preview_family, requests }
     }
 }
 
 /// Paragraph alignment, in Photoshop's button order.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum TextAlign {
     #[allow(missing_docs)]
     #[default]
@@ -645,8 +638,16 @@ pub enum TextAlign {
     JustifyAll,
 }
 
+impl TextAlign {
+    /// Whether the alignment needs a text box: justification has a line width to fill.
+    fn needs_box(self) -> bool {
+        matches!(self, TextAlign::JustifyLeft | TextAlign::JustifyCenter | TextAlign::JustifyRight | TextAlign::JustifyAll)
+    }
+}
+
 /// A paragraph's direction.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ParagraphDirection {
     /// From the paragraph's first strong character.
     #[default]
@@ -680,6 +681,7 @@ pub struct ParagraphValues {
 
 /// One change from the Paragraph controls.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum ParagraphChange {
     #[allow(missing_docs)]
     Align(TextAlign),
@@ -700,341 +702,282 @@ pub enum ParagraphChange {
 }
 
 /// What the Paragraph controls did this pass.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct ParagraphControlsResponse {
-    /// As [`CharacterControlsResponse::edits`].
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct ParagraphControlsOutput {
+    /// The controls' response.
+    pub response: Response,
+    /// As [`CharacterControlsOutput::edits`].
     pub edits: Vec<EditEvent<ParagraphChange>>,
 }
 
-/// The Paragraph panel's controls: the seven alignment buttons; the three direction buttons; left
-/// and right indent; first-line indent; space before and after; Hyphenate.
+impl Outcome for ParagraphControlsOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// The Paragraph panel's controls: the seven alignment buttons; the three direction buttons; left and right indent;
+/// first-line indent; space before and after; Hyphenate.
 ///
-/// - The four justify buttons are disabled on point text ([`point_text`](Self::point_text)):
-///   justification needs a paragraph box or area type (Photoshop greys them).
+/// - The four justify buttons are disabled on point text ([`point_text`](Self::point_text)): justification needs a
+///   paragraph box or area type (Photoshop greys them).
 /// - Ranges in points: indents −1296–1296, space before and after 0–1296.
+#[must_use = "show the controls with `show`"]
+#[derive(craft_ui::contract::Pattern, craft_ui::contract::Props)]
 pub struct ParagraphControls<'a> {
-    id_salt: IdSalt,
+    label: Label,
     values: &'a ParagraphValues,
-    unit: (LengthUnit, UnitContext),
+    /// The unit the length fields show. Default points.
+    #[prop]
+    unit: DocUnit,
+    /// Any of the formatted text is point text (no box): the justify buttons are disabled.
+    #[prop]
     point_text: bool,
-    labels: Option<ParagraphLabels>,
 }
 
 impl<'a> ParagraphControls<'a> {
-    /// Controls for the paragraph attributes `values`.
-    pub fn new(id_salt: impl AsIdSalt, values: &'a ParagraphValues) -> Self {
-        ParagraphControls {
-            id_salt: IdSalt::new(id_salt),
-            values,
-            unit: (LengthUnit::Points, UnitContext::default()),
-            point_text: false,
-            labels: None,
+    /// Controls named `label` for the paragraph attributes `values`.
+    pub fn new(label: impl Into<Label>, values: &'a ParagraphValues) -> Self {
+        ParagraphControls { label: label.into(), values, unit: DocUnit::points(), point_text: false }
+    }
+
+    /// Shows the controls and returns the changes the user made.
+    pub fn show(self, ui: &mut Ui) -> ParagraphControlsOutput {
+        let values = self.values;
+        let point_text = self.point_text;
+        let env = Env::of(ui);
+        let words = env.words::<ParagraphWords>();
+        let units = env.units();
+        let lengths = Lengths { units: &units, unit: self.unit };
+
+        let aligns: Vec<Entry<TextAlign>> = [
+            (TextAlign::Left, "align_left", &words.left),
+            (TextAlign::Center, "align_center", &words.center),
+            (TextAlign::Right, "align_right", &words.right),
+            (TextAlign::JustifyLeft, "align_justify", &words.justify_left),
+            (TextAlign::JustifyCenter, "align_justify", &words.justify_center),
+            (TextAlign::JustifyRight, "align_justify", &words.justify_right),
+            (TextAlign::JustifyAll, "align_justify", &words.justify_all),
+        ]
+        .into_iter()
+        .map(|(align, icon, name)| Entry::new(align, name.clone()).icon(IconId::new(icon)).enabled(!(point_text && align.needs_box())))
+        .collect();
+        let directions: Vec<Entry<ParagraphDirection>> = [
+            (ParagraphDirection::Automatic, "pilcrow", &words.direction_auto),
+            (ParagraphDirection::LeftToRight, "pilcrow_right", &words.direction_ltr),
+            (ParagraphDirection::RightToLeft, "pilcrow_left", &words.direction_rtl),
+        ]
+        .into_iter()
+        .map(|(direction, icon, name)| Entry::new(direction, name.clone()).icon(IconId::new(icon)))
+        .collect();
+
+        let mut edits: Vec<EditEvent<ParagraphChange>> = Vec::new();
+        let shown = Stack::new().fill_width().label(self.label).show(ui, |ui, _| {
+            let out = Segmented::new(words.alignment.clone(), Bind::given(mixed(values.align)), &aligns).show(ui);
+            edits.extend(out.event.map(|event| event.map(ParagraphChange::Align)));
+            let out = Segmented::new(words.direction.clone(), Bind::given(mixed(values.direction)), &directions).show(ui);
+            edits.extend(out.event.map(|event| event.map(ParagraphChange::Direction)));
+
+            Grid::new(&TWO_COLUMNS).fill().show(ui, |ui, _| {
+                let start = LengthRow {
+                    label: words.start_indent.clone(),
+                    glyph: GlyphLabel::text("→|"),
+                    value: values.start_indent,
+                    range: INDENT_RANGE,
+                    presets: &[],
+                };
+                let (event, _) = lengths.row(ui, start);
+                edits.extend(number_change(event, ParagraphChange::StartIndent));
+                let end = LengthRow {
+                    label: words.end_indent.clone(),
+                    glyph: GlyphLabel::text("|←"),
+                    value: values.end_indent,
+                    range: INDENT_RANGE,
+                    presets: &[],
+                };
+                let (event, _) = lengths.row(ui, end);
+                edits.extend(number_change(event, ParagraphChange::EndIndent));
+                let first = LengthRow {
+                    label: words.first_line_indent.clone(),
+                    glyph: GlyphLabel::text("¶→"),
+                    value: values.first_line_indent,
+                    range: INDENT_RANGE,
+                    presets: &[],
+                };
+                let (event, _) = lengths.row(ui, first);
+                edits.extend(number_change(event, ParagraphChange::FirstLineIndent));
+            });
+            Grid::new(&TWO_COLUMNS).fill().show(ui, |ui, _| {
+                let before = LengthRow {
+                    label: words.space_before.clone(),
+                    glyph: GlyphLabel::text("↑¶"),
+                    value: values.space_before,
+                    range: SPACE_RANGE,
+                    presets: &[],
+                };
+                let (event, _) = lengths.row(ui, before);
+                edits.extend(number_change(event, ParagraphChange::SpaceBefore));
+                let after = LengthRow {
+                    label: words.space_after.clone(),
+                    glyph: GlyphLabel::text("¶↓"),
+                    value: values.space_after,
+                    range: SPACE_RANGE,
+                    presets: &[],
+                };
+                let (event, _) = lengths.row(ui, after);
+                edits.extend(number_change(event, ParagraphChange::SpaceAfter));
+            });
+            let out = Checkbox::new(Bind::given(mixed(values.hyphenate))).label(words.hyphenate.clone()).show(ui);
+            edits.extend(out.event.map(|event| event.map(ParagraphChange::Hyphenate)));
+        });
+        ParagraphControlsOutput { response: shown.output, edits }
+    }
+}
+
+/// The unit the length fields of a pattern show their numbers in.
+struct Lengths<'u> {
+    units: &'u Units,
+    unit: DocUnit,
+}
+
+/// A length field of a row: its label, mark, value in points and range in points.
+struct LengthRow<'p> {
+    label: Label,
+    glyph: GlyphLabel,
+    value: Option<f32>,
+    range: RangeInclusive<f64>,
+    presets: &'p [Entry<NumberPick>],
+}
+
+/// A plain number field of a row: a count, a percentage, or a value in thousandths.
+struct PlainRow<'p> {
+    label: Label,
+    glyph: GlyphLabel,
+    value: Mixed<Option<f64>>,
+    range: RangeInclusive<f64>,
+    percent: bool,
+    presets: &'p [Entry<NumberPick>],
+}
+
+impl Lengths<'_> {
+    /// A field over a length in points, shown in the unit: its event in points and the preset row picked.
+    fn row(&self, ui: &mut Ui, spec: LengthRow<'_>) -> (Option<EditEvent<Option<f64>>>, Option<NumberPick>) {
+        let LengthRow { label, glyph, value, range, presets } = spec;
+        let points = value.map_or(Mixed::Mixed, |value| Mixed::Same(Some(f64::from(value))));
+        let shown = Field::new(label.clone()).side(mark(glyph)).show(ui, |ui, _| {
+            let out = length_field(self.units, label.clone(), self.unit, points, range.clone()).presets(presets).scrub_by_label().show(ui);
+            (out.edit.event, out.preset)
+        });
+        match shown.inner {
+            Some((event, picked)) => (event.map(|event| length_edit(self.units, self.unit, event)), picked),
+            None => (None, None),
         }
     }
 
-    /// As [`CharacterControls::unit`].
-    pub fn unit(mut self, unit: LengthUnit, context: UnitContext) -> Self {
-        self.unit = (unit, context);
-        self
-    }
-
-    /// Any of the formatted text is point text (no box): the justify buttons are disabled.
-    pub fn point_text(mut self, on: bool) -> Self {
-        self.point_text = on;
-        self
-    }
-
-    /// Sets the translated labels; the default reads them from the interface locale.
-    pub fn labels(mut self, labels: ParagraphLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    // pc: crates/ui-egui/src/tools/type_tool/panel.rs:215 `type_sections` (paragraph half);
-    // options_bar.rs:356 `direction_items`.
-    /// Paints the controls and returns the changes the user made.
-    pub fn show(self, ui: &mut Ui) -> ParagraphControlsResponse {
-        let char_labels = CharacterLabels::of(ui);
-        let labels = self.labels.unwrap_or_else(|| ParagraphLabels::of(ui));
-        let values = self.values;
-        let (length, context) = self.unit;
-        let scale = per_point(length, context);
-        let suffix = unit_suffix(length, &char_labels).to_owned();
-        let mut pass = Pass::new(ui);
-        let metric = |salt, glyph, name: &str, value: Option<f32>, range: (f32, f32)| Metric {
-            salt,
-            glyph,
-            name: name.to_owned(),
-            value,
-            range,
-            scale,
-            unit: Some(length),
-            context,
-            suffix: suffix.clone(),
-            presets: Vec::new(),
-        };
-
-        ui.push_id(self.id_salt, |ui| {
-            use TextAlign::*;
-            let aligns = [
-                ("left", Icon::AlignLeft, &labels.left, Left),
-                ("center", Icon::AlignCenter, &labels.center, Center),
-                ("right", Icon::AlignRight, &labels.right, Right),
-                ("justify_left", Icon::AlignJustify, &labels.justify_left, JustifyLeft),
-                ("justify_center", Icon::AlignJustify, &labels.justify_center, JustifyCenter),
-                ("justify_right", Icon::AlignJustify, &labels.justify_right, JustifyRight),
-                ("justify_all", Icon::AlignJustify, &labels.justify_all, JustifyAll),
-            ];
-            let row = aligns
-                .into_iter()
-                .map(|(salt, svg, name, align)| (salt, svg, name.as_str(), values.align == Some(align), ParagraphChange::Align(align)));
-            buttons(
-                ui,
-                row,
-                |change| !(self.point_text && matches!(change, ParagraphChange::Align(JustifyLeft | JustifyCenter | JustifyRight | JustifyAll))),
-                &mut pass,
-            );
-
-            use ParagraphDirection::*;
-            let directions = [
-                ("direction_auto", Icon::Pilcrow, &labels.direction_auto, Automatic),
-                ("direction_ltr", Icon::PilcrowRight, &labels.direction_ltr, LeftToRight),
-                ("direction_rtl", Icon::PilcrowLeft, &labels.direction_rtl, RightToLeft),
-            ];
-            let row = directions
-                .into_iter()
-                .map(|(salt, svg, name, d)| (salt, svg, name.as_str(), values.direction == Some(d), ParagraphChange::Direction(d)));
-            buttons(ui, row, |_| true, &mut pass);
-
-            ui.columns(2, |cols| {
-                let start = metric("start_indent", "→|", &labels.start_indent, values.start_indent, (-1296.0, 1296.0));
-                if let Some(moved) = cell(&mut cols[0], |ui| field(ui, start)) {
-                    pass.moved(moved, ParagraphChange::StartIndent);
-                }
-                let end = metric("end_indent", "|←", &labels.end_indent, values.end_indent, (-1296.0, 1296.0));
-                if let Some(moved) = cell(&mut cols[1], |ui| field(ui, end)) {
-                    pass.moved(moved, ParagraphChange::EndIndent);
-                }
-            });
-            ui.columns(2, |cols| {
-                let first = metric("first_line_indent", "¶→", &labels.first_line_indent, values.first_line_indent, (-1296.0, 1296.0));
-                if let Some(moved) = cell(&mut cols[0], |ui| field(ui, first)) {
-                    pass.moved(moved, ParagraphChange::FirstLineIndent);
-                }
-            });
-            ui.columns(2, |cols| {
-                let before = metric("space_before", "↑¶", &labels.space_before, values.space_before, (0.0, 1296.0));
-                if let Some(moved) = cell(&mut cols[0], |ui| field(ui, before)) {
-                    pass.moved(moved, ParagraphChange::SpaceBefore);
-                }
-                let after = metric("space_after", "¶↓", &labels.space_after, values.space_after, (0.0, 1296.0));
-                if let Some(moved) = cell(&mut cols[1], |ui| field(ui, after)) {
-                    pass.moved(moved, ParagraphChange::SpaceAfter);
-                }
-            });
-            cell(ui, |ui| {
-                let mut state = values.hyphenate.map_or(CheckState::Mixed, CheckState::from);
-                let edit = Checkbox::new(&labels.hyphenate, &mut state).size(ControlSize::Sm).id_salt("hyphenate").show(ui);
-                if let Some(state) = edit.committed() {
-                    pass.set(ParagraphChange::Hyphenate(*state == CheckState::Checked));
-                }
-            });
+    /// A field over a number that is not a length: its event and the preset row picked.
+    fn plain(&self, ui: &mut Ui, spec: PlainRow<'_>) -> (Option<EditEvent<Option<f64>>>, Option<NumberPick>) {
+        let PlainRow { label, glyph, value, range, percent, presets } = spec;
+        let units = self.units;
+        let shown = Field::new(label.clone()).side(mark(glyph)).show(ui, |ui, _| {
+            let field = NumberField::new(label.clone(), Bind::given(value)).range(range.clone()).presets(presets).scrub_by_label();
+            let field = if percent {
+                field.unit_kind(UnitKind::Percent).unit(units.symbol(UnitKind::Percent)).step(UnitKind::Percent.step())
+            } else {
+                field.codec(NumberCodec::new(units.reader(None), 0))
+            };
+            let out = field.show(ui);
+            (out.edit.event, out.preset)
         });
-        ParagraphControlsResponse { edits: pass.edits }
+        shown.inner.unwrap_or((None, None))
     }
 }
 
-/// Auto leading is the font size × 120 % (Photoshop's default).
-const AUTO_LEADING: f32 = 1.2;
-
-/// What the controls collected this pass.
-struct Pass<C> {
-    edits: Vec<EditEvent<C>>,
-    preview: Option<String>,
-    pick_color: Option<ColorRequest>,
-    modifiers: Modifiers,
+/// A label shown as a mark, whose drag scrubs the field.
+fn mark(glyph: GlyphLabel) -> SideLabel {
+    SideLabel::new().kind(LabelKind::Glyph(glyph)).scrub(true)
 }
 
-impl<C> Pass<C> {
-    fn new(ui: &Ui) -> Self {
-        Pass { edits: Vec::new(), preview: None, pick_color: None, modifiers: ui.input(|i| i.modifiers) }
+/// `value` as a field's value: a missing one is mixed.
+fn mixed<T>(value: Option<T>) -> Mixed<T> {
+    value.map_or(Mixed::Mixed, Mixed::Same)
+}
+
+/// `value` as a plain number field's value: a missing one is mixed.
+fn plain(value: Option<f32>) -> Mixed<Option<f64>> {
+    value.map_or(Mixed::Mixed, |value| Mixed::Same(Some(f64::from(value))))
+}
+
+/// A number field's event as a change; a cleared field is not one.
+fn number_change<C>(event: Option<EditEvent<Option<f64>>>, change: impl Fn(f32) -> C) -> Option<EditEvent<C>> {
+    let event = event?;
+    if matches!(event.value(), Some(None)) {
+        return None;
     }
+    Some(event.map(|value| change(value.unwrap_or_default() as f32)))
+}
 
-    /// A one-shot change: a preset, a toggle, a pick.
-    fn set(&mut self, change: C) {
-        self.edits.push(EditEvent::set(change, self.modifiers));
+/// A menu row that is not a number, as the one-step change it makes.
+fn picked_event<C>(change: C, name: &str) -> EditEvent<C> {
+    EditEvent::set(GestureId::default(), Mixed::Mixed, change, Arc::from(name), None)
+}
+
+/// The rows of a presets menu over groups of numbers, a separator between the groups.
+fn number_presets<'g>(units: &Units, groups: impl Iterator<Item = &'g [f32]>) -> Vec<Entry<NumberPick>> {
+    let mut rows = Vec::new();
+    for (at, group) in groups.enumerate() {
+        if at > 0 {
+            rows.push(Entry::separator());
+        }
+        rows.extend(group.iter().map(|&p| Entry::new(NumberPick::Number(f64::from(p)), units.number(f64::from(p), 0..=PRESET_DECIMALS))));
     }
-
-    /// A field's event, its value turned into a change.
-    fn moved(&mut self, event: EditEvent<f32>, change: impl FnOnce(f32) -> C) {
-        self.edits.push(event.map(change));
-    }
+    rows
 }
 
-/// A number field with a glyph label: `value` and `range` are in the model's unit, shown
-/// multiplied by `scale`.
-struct Metric {
-    salt: &'static str,
-    glyph: &'static str,
-    name: String,
-    value: Option<f32>,
-    range: (f32, f32),
-    scale: f64,
-    unit: Option<LengthUnit>,
-    context: UnitContext,
-    suffix: String,
-    /// `(menu text, model value)`.
-    presets: Vec<(String, f32)>,
+/// Select entries over `(value, text)` pairs.
+fn string_entries(pairs: impl Iterator<Item = (String, String)>) -> Vec<Entry<String>> {
+    pairs.map(|(value, text)| Entry::new(value, text)).collect()
 }
 
-/// One row cell: a justified row of the available width, so a field fills its column.
-fn cell<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
-    let size = vec2(ui.available_width(), ui.spacing().interact_size.y);
-    ui.allocate_ui_with_layout(size, direction::row(ui).with_main_justify(true), add).inner
+/// A row with a select over `entries`; its pick as a change.
+fn select_row<C>(ui: &mut Ui, label: &Label, value: Mixed<String>, entries: &[Entry<String>], change: impl Fn(String) -> C) -> Option<EditEvent<C>> {
+    let side = SideLabel::new().kind(LabelKind::Hidden);
+    let shown = Field::new(label.clone())
+        .side(side)
+        .show(ui, |ui, _| Select::new(label.clone(), Bind::given(value.clone()), entries).placeholder("—").show(ui).event);
+    shown.inner.flatten().map(|event| event.map(&change))
 }
 
-fn field(ui: &mut Ui, m: Metric) -> Option<EditEvent<f32>> {
-    field_rows(ui, m, &[]).0
+/// One toggle button of a row: its name, icon, state (`None` while the selection mixes) and the change it makes.
+struct Toggle<C> {
+    name: Label,
+    icon: &'static str,
+    on: Option<bool>,
+    change: Box<dyn Fn(bool) -> C>,
 }
 
-/// [`field`] with `rows` before the presets in its menu; the second result is the row picked.
-fn field_rows(ui: &mut Ui, m: Metric, rows: &[String]) -> (Option<EditEvent<f32>>, Option<usize>) {
-    let numbers = LocaleNumbers::of(ui);
-    let scale = m.scale;
-    // The menu: the non-numeric rows first (Auto, Metrics), then the numbers, which show a check mark on the current one.
-    let list: Vec<Preset> = rows
-        .iter()
-        .map(|label| Preset::choice(label, false))
-        .chain(m.presets.iter().map(|(text, value)| Preset::value(text, f64::from(*value) * scale)))
-        .collect();
-    let units = ExprUnits { unit: m.unit, suffix: &m.suffix, context: m.context };
-    let (low, high) = (f64::from(m.range.0) * scale, f64::from(m.range.1) * scale);
-    let shown = m.value.map_or(low, |v| f64::from(v) * scale).clamp(low, high);
-    let mut number =
-        unit_number_field(m.salt, &m.name, shown, &numbers, &units).range(low..=high).decimals(0..=2).scrub_label(m.glyph).mixed(m.value.is_none());
-    let mut picked = None;
-    if !list.is_empty() {
-        number = number.preset_list(&list, &mut picked);
-    }
-    // A picked preset is the model's own number: the field's rounded text would give 11.99 for 12 pt in mm.
-    let model =
-        |shown: f64| m.presets.iter().find(|(_, p)| (f64::from(*p) * scale - shown).abs() <= 0.0051).map_or((shown / scale) as f32, |(_, p)| *p);
-    let event = number.show(ui).event.map(|event| event.map(model));
-    (event, picked.filter(|&index| index < rows.len()))
-}
-
-/// A select over `count` choices, `current` selected (empty while the selection mixes values).
-/// Returns the value of the one picked.
-fn choose(
-    ui: &mut Ui,
-    salt: &'static str,
-    name: &str,
-    current: Option<&str>,
-    count: usize,
-    value: impl Fn(usize) -> String,
-    text: impl Fn(usize) -> String,
-) -> Option<String> {
-    let mut selected = match current {
-        Some(current) => (0..count).map(&value).find(|v| v == current).unwrap_or_else(|| current.to_owned()),
-        None => String::new(),
-    };
-    let edit = Select::new(salt, name, &mut selected).rows(count, value, text).placeholder("—").size(ControlSize::Sm).show(ui);
-    edit.committed().cloned()
-}
-
-/// The kerning text: Metrics, Optical or the rounded value.
-fn kerning_text(labels: &CharacterLabels, kerning: Option<Kerning>) -> String {
-    match kerning {
-        None => String::new(),
-        Some(Kerning::Metrics) => labels.metrics.clone(),
-        Some(Kerning::Optical) => labels.optical.clone(),
-        Some(Kerning::Manual(v)) => format!("{}", v.round() as i64),
+impl<C> Toggle<C> {
+    fn new(name: &Label, icon: &'static str, on: Option<bool>, change: Box<dyn Fn(bool) -> C>) -> Self {
+        Toggle { name: name.clone(), icon, on, change }
     }
 }
 
-/// Metrics or Optical in any case (the installed word or the English one), or a number in
-/// -1000..=10000.
-fn parse_kerning(text: &str, labels: &CharacterLabels) -> Option<Kerning> {
-    let text = text.trim();
-    let is = |word: &str, english: &str| {
-        text.eq_ignore_ascii_case(word) || text.eq_ignore_ascii_case(english) || text.to_lowercase() == word.to_lowercase()
-    };
-    if is(&labels.metrics, "metrics") {
-        return Some(Kerning::Metrics);
-    }
-    if is(&labels.optical, "optical") {
-        return Some(Kerning::Optical);
-    }
-    expr::parse(text).filter(|v| v.is_finite() && (-1000.0..=10000.0).contains(v)).map(|v| Kerning::Manual(v.round() as f32))
-}
-
-const KERNING_PRESETS: [f32; 14] = [0.0, -100.0, -75.0, -50.0, -25.0, -10.0, -5.0, 5.0, 10.0, 25.0, 50.0, 75.0, 100.0, 200.0];
-
-/// Photoshop's kerning combo: a text field that takes Metrics, Optical or a number, and a menu of
-/// presets.
-fn kerning_field(ui: &mut Ui, labels: &CharacterLabels, kerning: Option<Kerning>) -> Option<Kerning> {
-    ui.horizontal(|ui| kerning_row(ui, labels, kerning)).inner
-}
-
-fn kerning_row(ui: &mut Ui, labels: &CharacterLabels, kerning: Option<Kerning>) -> Option<Kerning> {
-    let mut chosen = None;
-    ui.add(Mark::new(Icon::TextCursor).content(Content::Muted).label(&labels.kerning));
-    let side = IconButton::style(&Tokens::of(ui), ControlSize::Sm).side;
-    let shown = kerning_text(labels, kerning);
-    let width = (ui.available_width() - side).max(0.0);
-    ui.spacing_mut().item_spacing.x = 0.0;
-    let edit = TextField::new("kerning", &labels.kerning, &shown)
-        .placeholder("—")
-        .size(ControlSize::Sm)
-        .policy(EditPolicy::default().on_release_only(true))
-        .width(width)
-        .show(ui);
-    if let Some(EditEvent::Commit { value, changed: true, .. }) = &edit.event {
-        chosen = parse_kerning(value, labels);
-    }
-    let button = ui.add(IconButton::new(Icon::ChevronDown, &labels.kerning_presets).size(ControlSize::Sm).id_salt("kerning_presets"));
-    let words = [labels.metrics.clone(), labels.optical.clone()];
-    let entries: Vec<MenuEntry<usize>> = words
-        .iter()
-        .cloned()
-        .chain(KERNING_PRESETS.iter().map(|p| format!("{p}")))
-        .enumerate()
-        .map(|(i, text)| MenuItem::new(text, i).into())
-        .collect();
-    let at = button.clicked().then_some(OpenAt::Rect(button.rect));
-    let menu = ContextMenu::new(&entries).size(ControlSize::Sm).own_gestures(false).open_at(at).show(ui, &button);
-    if let Some(i) = menu.chosen {
-        chosen = Some(match i {
-            0 => Kerning::Metrics,
-            1 => Kerning::Optical,
-            _ => Kerning::Manual(KERNING_PRESETS[i - 2]),
-        });
-    }
-    chosen
-}
-
-/// A row of icon toggle buttons: `(id, drawing, name, pressed, change)`. A button for which
-/// `allowed(change)` is false is disabled. The pressed one reports its change when clicked.
-fn buttons<'a, C>(
-    ui: &mut Ui,
-    items: impl IntoIterator<Item = (&'static str, Icon, &'a str, bool, C)>,
-    allowed: impl Fn(&C) -> bool,
-    pass: &mut Pass<C>,
-) {
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 2.0;
-        for (salt, icon, name, on, change) in items {
-            let button = IconButton::new(icon, name).size(ControlSize::Sm).selected(on).enabled(allowed(&change)).id_salt(salt);
-            if ui.add(button).clicked() {
-                pass.set(change);
-            }
+/// A row of icon toggle buttons; the pressed ones report their change when clicked.
+fn toggle_row<C>(ui: &mut Ui, toggles: Vec<Toggle<C>>) -> Vec<EditEvent<C>> {
+    let mut edits = Vec::new();
+    Row::new().wrap(true).show(ui, |ui, _| {
+        for toggle in &toggles {
+            let bind = Bind::given(mixed(toggle.on));
+            let out = ToggleButton::new(toggle.name.clone(), bind).icon(IconId::new(toggle.icon)).icon_only().show(ui);
+            edits.extend(out.event.map(|event| event.map(&toggle.change)));
         }
     });
+    edits
 }
 
-/// The OpenType buttons' icons in [`OPENTYPE_FEATURES`] order. The sets have no OpenType marks:
-/// the three ligature features share the ligature icon, swash and stylistic alternates use the
-/// variable-font and similar-font icons, titling the type icon, ordinals the superscript icon and
-/// fractions the slash.
-const OPENTYPE_ICONS: [Icon; 8] =
-    [Icon::Ligature, Icon::Ligature, Icon::Ligature, Icon::FontVariable, Icon::FontSimilar, Icon::Text, Icon::TextSuperscript, Icon::Slash];
+/// The OpenType buttons' icons in [`OPENTYPE_FEATURES`] order. The sets have no OpenType marks: the three ligature
+/// features share the ligature icon, swash and stylistic alternates use the variable-font and similar-font icons,
+/// titling the type icon, ordinals the superscript icon and fractions the slash.
+const OPENTYPE_ICONS: [&str; 8] = ["ligature", "ligature", "ligature", "font_variable", "font_similar", "text", "text_superscript", "slash"];

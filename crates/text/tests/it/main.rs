@@ -1,10 +1,12 @@
 //! The integration binary of craft-text: every test is a registered trial.
 
+mod character;
 mod columns;
 mod editor;
 mod find;
 mod hyperlink;
 mod notes;
+mod paragraph_dialog;
 mod ruler;
 mod spelling;
 mod style_panel;
