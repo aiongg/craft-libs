@@ -8,6 +8,7 @@ mod hit_order;
 mod measure;
 mod openers;
 mod os_window;
+mod part_reads;
 mod surface;
 pub(crate) mod kit;
 mod pipeline;
