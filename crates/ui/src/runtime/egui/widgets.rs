@@ -1,5 +1,6 @@
-//! The pass's widget rects and AccessKit nodes: the widgets egui's hit test puts above a widget, and, for bypass
-//! detection, what egui made interactive and which ids the runtime made on purpose.
+//! The pass's widget rects and AccessKit nodes: the widgets egui's hit test puts above a widget; for bypass
+//! detection, what egui made interactive and which ids the runtime made on purpose; for the size cases, the scroll
+//! regions the runtime showed.
 
 use egui::{AreaState, Context, Id, Order, Rect};
 
@@ -62,6 +63,30 @@ pub(crate) fn note_node(ctx: &Context, id: Id) {
 #[cfg(not(feature = "testing"))]
 pub(crate) fn note_node(_: &Context, _: Id) {}
 
+/// A scroll region the runtime showed: `view` is the rect that shows it and cuts what lies outside, `content` the rect
+/// of what it holds, which scrolls through the view along the region's axes and lies within the view along the others.
+#[cfg(feature = "testing")]
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ScrollRegion {
+    pub view: Rect,
+    pub content: Rect,
+}
+
+/// Notes a scroll region of the running pass, for the suite's size cases.
+#[cfg(feature = "testing")]
+pub(crate) fn note_scroll_region(ctx: &Context, view: Rect, content: Rect) {
+    noted::with(ctx, |pass| pass.scrolls.push(ScrollRegion { view, content }));
+}
+
+#[cfg(not(feature = "testing"))]
+pub(crate) fn note_scroll_region(_: &Context, _: Rect, _: Rect) {}
+
+/// The scroll regions the runtime noted in the root viewport's latest pass.
+#[cfg(feature = "testing")]
+pub(crate) fn scroll_regions(ctx: &Context) -> Vec<ScrollRegion> {
+    noted::scrolls(ctx)
+}
+
 /// The ids the runtime noted in the root viewport's latest pass.
 #[cfg(feature = "testing")]
 pub(crate) fn noted_ids(ctx: &Context) -> (std::collections::HashSet<Id>, std::collections::HashSet<u64>) {
@@ -100,6 +125,7 @@ mod noted {
     pub(super) struct Pass {
         pub(super) widgets: HashSet<Id>,
         pub(super) nodes: HashSet<u64>,
+        pub(super) scrolls: Vec<super::ScrollRegion>,
     }
 
     #[derive(Default)]
@@ -111,6 +137,11 @@ mod noted {
     /// The root viewport's notes of its latest pass.
     pub(super) fn peek(ctx: &Context) -> (HashSet<Id>, HashSet<u64>) {
         memory::with(ctx, |noted: &mut Noted| (noted.pass.widgets.clone(), noted.pass.nodes.clone()))
+    }
+
+    /// The root viewport's scroll regions of its latest pass.
+    pub(super) fn scrolls(ctx: &Context) -> Vec<super::ScrollRegion> {
+        memory::with(ctx, |noted: &mut Noted| noted.pass.scrolls.clone())
     }
 
     /// Runs `f` on the running pass's notes. Only the root viewport is kept: its pass number stamps the notes, and

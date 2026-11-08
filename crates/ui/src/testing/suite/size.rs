@@ -2,9 +2,11 @@
 //! of one point does not break it; a narrow room elides with the full text as the accessible name.
 
 use super::{ANY, Case, Subject};
+use crate::runtime::egui::widgets::{self, ScrollRegion};
 use crate::runtime::env::Scale;
 use crate::testing::fixture::Fixture;
 use crate::testing::relations::{grows_with, inside};
+use crate::testing::story::Story;
 use craft_theme::{Contrast, Mode, Size, TextSize};
 use egui::{Rect, Vec2};
 
@@ -15,65 +17,86 @@ pub(super) const CASES: &[Case] = &[
     Case::new("elision", ANY, elided_text_keeps_its_full_name),
 ];
 
-/// A settled fixture of the story after `change`: its shown rect and painted text runs.
+/// A settled fixture of the story after `change`: its shown rect, painted text runs and scroll regions.
 struct Shot {
     shown: Rect,
     runs: Vec<crate::runtime::egui::fixture::PaintedText>,
+    scrolls: Vec<ScrollRegion>,
 }
 
-fn shot(story: &crate::testing::story::Story, change: &dyn Fn(&mut Fixture)) -> Shot {
+fn shot(story: &Story, change: &dyn Fn(&mut Fixture)) -> Shot {
     let mut fixture = Fixture::story(story);
     change(&mut fixture);
     fixture.settle();
-    Shot { shown: fixture.shown(), runs: fixture.texts().to_vec() }
+    Shot { shown: fixture.shown(), runs: fixture.texts().to_vec(), scrolls: widgets::scroll_regions(fixture.ctx()) }
+}
+
+impl Shot {
+    /// The text run at `run` stays in its part. A run in a scroll region's content shows through the region's view:
+    /// what the view shows of it stays in the part, and the whole run in the content, which scrolls. Any other run
+    /// stays in the part.
+    fn keeps(&self, run: Rect) -> bool {
+        let region = self.scrolls.iter().filter(|region| region.content.intersects(run)).min_by(|a, b| a.content.area().total_cmp(&b.content.area()));
+        match region {
+            Some(region) => {
+                let seen = run.intersect(region.view);
+                inside(run, region.content) && (!seen.is_positive() || inside(seen, self.shown))
+            }
+            None => inside(run, self.shown),
+        }
+    }
 }
 
 /// Text layout at scale 2 may shave a point off a wrapped measure (68 becomes 67); real growth failures are larger.
 const SCALE_LAYOUT_SLACK: f32 = 1.0;
 
 fn stories_grow_with_text_density_and_scale(subject: &Subject) -> Result<(), String> {
-    for story in &subject.stories {
-        let base = shot(story, &|_| {});
-        let variants: [(&str, Shot); 4] = [
-            (
-                "text size",
-                shot(story, &|f| {
-                    f.text_size(TextSize::Large);
-                }),
-            ),
-            (
-                "compact density",
-                shot(story, &|f| {
-                    f.density(Size::Compact);
-                }),
-            ),
-            (
-                "comfortable density",
-                shot(story, &|f| {
-                    f.density(Size::Comfortable);
-                }),
-            ),
-            (
-                "scale 2",
-                shot(story, &|f| {
-                    f.scale(Scale(2.0));
-                }),
-            ),
-        ];
-        let (before, after) = (base.shown.size(), |shot: &Shot| shot.shown.size());
-        for (name, grown) in &variants {
-            let size = after(grown);
-            let slack = if *name == "scale 2" { SCALE_LAYOUT_SLACK } else { 0.0 };
-            if !(grows_with(before.x - slack, size.x) && grows_with(before.y - slack, size.y)) {
-                return Err(format!("{}: under {name} the size went from {before:?} to {size:?}", story.name));
-            }
-            for run in base.runs.iter().filter(|run| !run.elided && !run.text.trim().is_empty() && inside(run.rect, base.shown)) {
-                for same in grown.runs.iter().filter(|other| other.text == run.text) {
-                    // A run the component painted elided is shortened by design and keeps its full text in the access name
-                    // (the elision rule checks that), so it is not cut; it must still stay inside its part.
-                    if !inside(same.rect, grown.shown) {
-                        return Err(format!("{}: under {name} the text `{}` leaves its part", story.name, run.text));
-                    }
+    subject.stories.iter().try_for_each(text_size_case)
+}
+
+/// The suite's text-size case for one story: under a larger text size, either density and scale 2 the story grows
+/// and no text run that lay in its part leaves it.
+pub fn text_size_case(story: &Story) -> Result<(), String> {
+    let base = shot(story, &|_| {});
+    let variants: [(&str, Shot); 4] = [
+        (
+            "text size",
+            shot(story, &|f| {
+                f.text_size(TextSize::Large);
+            }),
+        ),
+        (
+            "compact density",
+            shot(story, &|f| {
+                f.density(Size::Compact);
+            }),
+        ),
+        (
+            "comfortable density",
+            shot(story, &|f| {
+                f.density(Size::Comfortable);
+            }),
+        ),
+        (
+            "scale 2",
+            shot(story, &|f| {
+                f.scale(Scale(2.0));
+            }),
+        ),
+    ];
+    let (before, after) = (base.shown.size(), |shot: &Shot| shot.shown.size());
+    for (name, grown) in &variants {
+        let size = after(grown);
+        let slack = if *name == "scale 2" { SCALE_LAYOUT_SLACK } else { 0.0 };
+        if !(grows_with(before.x - slack, size.x) && grows_with(before.y - slack, size.y)) {
+            return Err(format!("{}: under {name} the size went from {before:?} to {size:?}", story.name));
+        }
+        for run in base.runs.iter().filter(|run| !run.elided && !run.text.trim().is_empty() && inside(run.rect, base.shown)) {
+            for same in grown.runs.iter().filter(|other| other.text == run.text) {
+                // A run the component painted elided is shortened by design and keeps its full text in the access name
+                // (the elision rule checks that), so it is not cut; it must still stay inside its part.
+                if !grown.keeps(same.rect) {
+                    return Err(format!("{}: under {name} the text `{}` leaves its part", story.name, run.text));
                 }
             }
         }
