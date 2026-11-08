@@ -56,7 +56,7 @@ pub fn double_click_action(frame: &Frame, setting: DoubleClick, maximized: bool)
 
 /// The bar of a window whose frame the app draws.
 ///
-/// The bar fills the title slot, whose height is `SlotSize::TitleBar`. What it shows follows the window's frame
+/// The bar fills the width of its room; its height is its content's, the caption strip's `SlotSize::TitleBar`. What it shows follows the window's frame
 /// (`WindowHost::frame`):
 ///
 /// - **Native.** The OS draws the title bar; the app's strip shows its content and, with
@@ -91,6 +91,7 @@ pub struct TitleBar<'a> {
     /// The content at the end of the bar, before the caption buttons.
     #[prop(func = "FnMut(&mut Ui, &mut crate::contract::BodyCx<'_>)")]
     trailing: Option<RegionBody<'a>>,
+    title: Option<Title>,
     clicked: Option<Caption>,
     close: bool,
 }
@@ -119,7 +120,7 @@ impl<'a> TitleBar<'a> {
         let props = ContainerProps::new()
             .surface(SurfaceKind::Chrome)
             .pad(Pad::None)
-            .sizing(Sizing::Fill)
+            .sizing(Sizing::FillWidth)
             .body_gap(Gap::Row)
             .layout(BodyLayout::row())
             .header(HeaderRegion::new().band(DragBand::Move).inline(true))
@@ -132,6 +133,7 @@ impl<'a> TitleBar<'a> {
             title_when_native: false,
             icons: None,
             trailing: None,
+            title: None,
             clicked: None,
             close: false,
         }
@@ -148,6 +150,7 @@ impl<'a> TitleBar<'a> {
     ) -> TitleBarOutput {
         let native_hidden =
             !self.title_when_native && matches!(self.frame.clone().unwrap_or_else(|| WindowHost::of(ui.ctx()).frame()), Frame::Native);
+        self.title = Some(title.clone());
         self.trailing(trailing)
             .show(ui, |ui, cx| {
                 leading(ui, cx);
@@ -238,8 +241,13 @@ impl Component for TitleBar<'_> {
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
+        let words = cx.words::<ShellWords>();
         if cx.resolved.label.is_empty() {
-            access.name(Name::Text(cx.words::<ShellWords>().title_bar.as_str().to_owned()));
+            let name = self.title.as_ref().map_or_else(|| words.title_bar.as_str().to_owned(), |title| title.shown(&words));
+            access.name(Name::Text(name));
+        }
+        if self.title.as_ref().is_some_and(Title::is_unsaved) {
+            access.description(words.unsaved.as_str());
         }
     }
 
