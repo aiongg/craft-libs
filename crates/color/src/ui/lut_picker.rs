@@ -32,14 +32,14 @@ craft_ui::words! {
         none: "lut.none" = "None";
         /// The loaded LUT's row; `{name}` its title, `{size}` its grid size ("Film (33³)").
         custom: template "lut.custom" = "{name} ({size}³)";
-        warm: "lut.builtin.warm" = "Warm Filter";
-        cool: "lut.builtin.cool" = "Cool Filter";
-        teal_orange: "lut.builtin.tealOrange" = "Teal & Orange";
-        bleach_bypass: "lut.builtin.bleachBypass" = "Bleach Bypass";
-        faded_film: "lut.builtin.fadedFilm" = "Faded Film";
-        day_for_night: "lut.builtin.dayForNight" = "Day for Night";
-        mono_contrast: "lut.builtin.monoContrast" = "Mono High Contrast";
-        cross_process: "lut.builtin.crossProcess" = "Cross Process";
+        warm: "lut.builtinWarm" = "Warm Filter";
+        cool: "lut.builtinCool" = "Cool Filter";
+        teal_orange: "lut.builtinTealOrange" = "Teal & Orange";
+        bleach_bypass: "lut.builtinBleachBypass" = "Bleach Bypass";
+        faded_film: "lut.builtinFadedFilm" = "Faded Film";
+        day_for_night: "lut.builtinDayForNight" = "Day for Night";
+        mono_contrast: "lut.builtinMonoContrast" = "Mono High Contrast";
+        cross_process: "lut.builtinCrossProcess" = "Cross Process";
     }
 }
 

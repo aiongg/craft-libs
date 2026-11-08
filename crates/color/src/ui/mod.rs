@@ -56,8 +56,9 @@ pub use paint_chip::{
 pub use pair::{PairWell, SwatchPair, SwatchPairOutput, Well};
 pub use palette::{SwatchPalette, SwatchTable, SwatchTableOutput};
 pub use panel::{ColorPanel, ColorPanelCommand, ColorPanelMenu, ColorPanelMode, ColorPanelOutput, ColorPanelRamp, ColorPanelState, ColorPanelWords, PanelTarget};
-pub use picker::{ColorPicker, ColorPickerLayout, ColorPickerOutput, ColorPickerWords, PickedColor, ScreenPickGesture};
-pub use picker::full::{ColorWarning, ColorWarningChip};
+pub use picker::{
+    ColorPicker, ColorPickerLayout, ColorPickerOutput, ColorPickerWords, ColorWarning, ColorWarningChip, PickedColor, ScreenPickGesture,
+};
 pub use picker_dialog::{ColorPickerDialog, ColorPickerDialogWords, ColorPickerMemory, ColorPickerResult};
 pub use popover::{ColorPopover, ColorPopoverOutput};
 pub use profile_prompts::{ProfileAction, ProfileAnswer, ProfileMismatchDialog, ProfileMode, ProfileQuestion, ProfileStatus, ProfileWords};
