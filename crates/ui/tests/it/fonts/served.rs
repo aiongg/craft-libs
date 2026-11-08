@@ -122,7 +122,9 @@ fn a_missing_character_downloads_the_face_for_its_script() {
         assert!(stack.downloads_for(&regular, c).is_empty(), "{c}");
     }
     let twemoji = served("Twemoji", "Regular", &[], "fonts/Twemoji.ttf", 0);
-    let stack = web_fonts("en", SERVED).emoji(Emoji { served: Some(twemoji), ..Emoji::default() }).stack();
+    let mut emoji = Emoji::default();
+    emoji.served = Some(twemoji);
+    let stack = web_fonts("en", SERVED).emoji(emoji).stack();
     for c in ['🔍', '⌚', '✅', '⭐'] {
         assert_eq!(names(stack.downloads_for(&regular, c)), ["Twemoji Regular"], "{c}");
     }

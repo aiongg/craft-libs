@@ -192,7 +192,9 @@ fn monospaced_named_families_keep_their_latin_face_first() {
 
 #[trial]
 fn system_fonts_before_craft_moves_other_scripts_after_them() {
-    let emoji = Emoji { color: Some(FontData::from_static(&[])), monochrome: Some(FontData::from_static(&[])), ..Emoji::default() };
+    let mut emoji = Emoji::default();
+    emoji.color = Some(FontData::from_static(&[]));
+    emoji.monochrome = Some(FontData::from_static(&[]));
     let stack = fonts("ja").system_fonts(SystemFonts::BeforeCraft).emoji(emoji).stack();
     let configured = stack.chain(&FontRef::proportional());
     assert!(configured.contains(&"BIZ UDPGothic Regular".to_owned()));
@@ -235,7 +237,9 @@ fn remove_and_replace_reach_the_faces_after_the_system_fonts() {
 
 #[trial]
 fn flat_definitions_end_each_chain_with_the_faces_after_the_system_fonts() {
-    let stack = test_fonts("en").emoji(Emoji { monochrome: Some(FontData::from_static(CJK)), ..Emoji::default() }).stack();
+    let mut emoji = Emoji::default();
+    emoji.monochrome = Some(FontData::from_static(CJK));
+    let stack = test_fonts("en").emoji(emoji).stack();
     let flat = stack.flat_definitions();
     let configured = stack.chain(&FontRef::proportional());
     let chain = &flat.families[&FontFamily::Proportional];

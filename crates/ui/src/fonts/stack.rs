@@ -44,7 +44,7 @@ use craft_fonts_build::{EmbeddedFace, ServedFace};
 use craft_theme::InterfaceFont;
 use egui::{FontData, FontDefinitions, FontFamily, FontProvider};
 
-pub(super) use chain::{EM_SQUARE_SCRIPTS, covers, expand};
+pub(super) use chain::{EM_SQUARE_SCRIPTS, covers};
 pub(crate) use install::{installed_families, system_ui_installed};
 
 use super::FontRef;
