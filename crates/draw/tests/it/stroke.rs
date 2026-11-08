@@ -16,7 +16,7 @@ use std::rc::Rc;
 const SAMPLE: Rect = Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(200.0, 40.0));
 
 /// The dash offset a trial types into its field.
-const TYPED_OFFSET: f64 = 3.0;
+const TYPED_OFFSET: f32 = 3.0;
 /// The ink of a sample: any colour that is not opaque white or black.
 const INK: Color32 = Color32::from_rgb(200, 120, 40);
 
