@@ -226,6 +226,7 @@ impl<'a> ColorRamp<'a> {
             menu_at: None,
         }
         .label(label)
+        .ltr_axis()
     }
 
     fn default_ends() -> [Srgba; 2] {

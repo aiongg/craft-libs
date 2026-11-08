@@ -205,7 +205,7 @@ pub struct ColorWheel<'a> {
 impl<'a> ColorWheel<'a> {
     /// A wheel named `label` ("Color wheel") showing `values`, HSB values.
     pub fn new(label: impl Into<Label>, values: Bind<'a, ModelValues>) -> Self {
-        ColorWheel { common: Common::new(), values }.label(label)
+        ColorWheel { common: Common::new(), values }.label(label).ltr_axis()
     }
 
     /// Where the wheel lies in `area`.
@@ -391,7 +391,7 @@ impl Component for ColorWheel<'_> {
         let model = &HsbModel as &dyn ColorModel;
         let text =
             format!("{}, {}", spoken(words.saturation.as_str(), model, 1, saturation), spoken(words.brightness.as_str(), model, 2, brightness));
-        let triangle = access.node(TRIANGLE, Role::SLIDER);
+        let triangle = access.node(TRIANGLE, Role::GROUP);
         triangle.name = Name::Text(words.triangle.as_str().to_owned());
         triangle.value(text);
     }

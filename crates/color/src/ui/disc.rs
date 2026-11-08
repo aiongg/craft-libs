@@ -6,7 +6,7 @@ use super::wheel::{hue_at, hue_direction, vertex};
 use craft_behavior::{CancelReason, HitShape, Metrics, NavMove, PartKey, PressPhase, Sense};
 use craft_theme::{ColorModel, Flags, HsbModel, ModelValues, Resolve as _, Srgba, State, StateMix, Stateful};
 use craft_ui::contract::{
-    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, Name, Outcome, PaintUi, PartsCx, Pointer as _,
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, Name, Numeric, Outcome, PaintUi, PartsCx, Pointer as _,
     Props as _, Remember as _, Role, WordSetCx as _,
 };
 use craft_ui::primitives::{PaintShape, StrokeWidth};
@@ -127,8 +127,9 @@ struct Grab {
 /// - Keys: one Tab stop, the selected marker (the first without a selection). Left and Right change the hue by 1
 ///   degree, Up and Down the saturation by 1 percent; Shift steps ten; each key is a `Set`. During a drag keys change
 ///   nothing. Esc during a drag cancels it.
-/// - AccessKit: a `Group` named `label` holding a `Slider` per marker, named by [`names`](ColorDisc::names) or
-///   "Color N", with the value text "Hue 120 degrees, saturation 80 %".
+/// - AccessKit: a `Group` named `label` holding a `Slider` per marker (the hue, 0 to 360, step 1, increment, decrement
+///   and set value), named by [`names`](ColorDisc::names) or "Color N", with the value text "Hue 120 degrees,
+///   saturation 80 %".
 /// - Right to left nothing mirrors: red stays at 3 o'clock.
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
 #[component(content_painter)]
@@ -152,7 +153,7 @@ pub struct ColorDisc<'a> {
 impl<'a> ColorDisc<'a> {
     /// A disc named `label` ("Harmony") with a marker at each of `markers`, reporting moves through `drag`.
     pub fn new(label: impl Into<Label>, markers: &'a [Srgba], drag: Bind<'a, DiscMove>) -> Self {
-        ColorDisc { common: Common::new(), markers, drag, chosen: None, brightness: 1.0, names: Vec::new(), pressed: None }.label(label)
+        ColorDisc { common: Common::new(), markers, drag, chosen: None, brightness: 1.0, names: Vec::new(), pressed: None }.label(label).ltr_axis()
     }
 
     /// The disc's centre and radius in the area `rect`, `inset` inside its shorter side.
@@ -219,16 +220,20 @@ impl Component for ColorDisc<'_> {
         cx.part(DISC, HitShape::circle(center, radius + cx.style.grab))
             .sense(Sense::DRAG | Sense::CLICK)
             .pointer_only("the arrow keys move the marker");
-        if !self.markers.is_empty() {
-            let stop = self.stop();
-            let at = match cx.value().filter(|moved| moved.marker == stop) {
+        let stop = self.stop();
+        for index in 0..self.markers.len() {
+            let at = match cx.value().filter(|moved| moved.marker == index) {
                 Some(moved) => *moved,
-                None => self.resting(stop),
+                None => self.resting(index),
             };
-            let radius_of = marker_radius(cx.style, self.chosen == Some(stop));
-            cx.part(MARKER.at(stop as u64), HitShape::circle(Self::marker_pos(center, radius, at.hue, at.saturation), radius_of))
-                .focusable()
-                .focus_shape(FocusShape::Circle);
+            let radius_of = marker_radius(cx.style, self.chosen == Some(index));
+            let part = cx.part(MARKER.at(index as u64), HitShape::circle(Self::marker_pos(center, radius, at.hue, at.saturation), radius_of));
+            // A marker takes no press of its own (the disc grabs the nearest) and only the selected one is a Tab stop.
+            if index == stop {
+                part.focusable().focus_shape(FocusShape::Circle);
+            } else {
+                part.keyboard_via(MARKER);
+            }
         }
     }
 
@@ -323,6 +328,13 @@ impl Component for ColorDisc<'_> {
             now.saturation = (now.saturation * 100.0).round().clamp(0.0, 100.0) / 100.0;
             cx.set(now);
         }
+        for index in 0..self.markers.len() {
+            if let Some(value) = cx.intents().take_set_value_at(MARKER.at(index as u64)).filter(|value| value.is_finite() && !running) {
+                let mut moved = cx.value().filter(|moved| moved.marker == index).copied().unwrap_or_else(|| self.resting(index));
+                moved.hue = value.round().rem_euclid(360.0) as f32;
+                cx.set(moved);
+            }
+        }
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
@@ -337,7 +349,8 @@ impl Component for ColorDisc<'_> {
             let saturation = format!("{:.0}", live.saturation * 100.0);
             let node = access.node(MARKER.at(index as u64), Role::SLIDER);
             node.name = Name::Text(name);
-            node.value(words.value.fill(&[("hue", hue.as_str()), ("saturation", saturation.as_str())]));
+            let text = words.value.fill(&[("hue", hue.as_str()), ("saturation", saturation.as_str())]);
+            node.numeric = Some(Numeric::new(f64::from(live.hue.rem_euclid(360.0)), 0.0..=360.0).step(f64::from(KEY_STEP)).text(text));
         }
     }
 
