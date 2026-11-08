@@ -321,3 +321,51 @@ fn the_children_of_a_node_follow_the_order_it_declared_them_in() {
     let names: Vec<&str> = tree.children_of(owner).into_iter().filter_map(|child| tree.name_of(child)).collect();
     assert_eq!(names, ORDER, "the children are in reading order, not id order");
 }
+
+/// A container that declares one sub-node, which the pipeline emits after its body.
+#[derive(craft_ui::contract::Component)]
+#[component(container)]
+struct Tailed {
+    #[common]
+    common: Common,
+    #[container]
+    props: craft_ui::contract::ContainerProps,
+}
+
+impl Component for Tailed {
+    const ROLE: UiRole = UiRole::GROUP;
+    type Style = MeterLook;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: TailedStyleKey) -> MeterLook {
+        MeterLook { metrics: craft_behavior::Metrics::new() }
+    }
+
+    fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
+        access.node(PartKey::new("tail"), UiRole::LIST_ITEM).name = Name::Text("Tail".into());
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+impl craft_ui::contract::Container for Tailed {}
+
+#[trial]
+fn a_sub_node_emitted_after_a_child_component_stays_after_it() {
+    let mut frames = Frames::new();
+    let seen = RefCell::new(Seen::default());
+    let mut owner = None;
+    for _ in 0..2 {
+        frames.frame(vec![], |ui| {
+            let out = Tailed { common: Common::new(), props: craft_ui::contract::ContainerProps::new() }.label("Owner").show(ui, |ui, _| {
+                Probe::new(&seen).label("Child").show(ui);
+            });
+            owner = Some(out.output.id);
+        });
+    }
+    let tree = frames.tree();
+    let names: Vec<&str> = tree.children_of(NodeKey::of(owner.expect("shown"))).into_iter().filter_map(|child| tree.name_of(child)).collect();
+    assert_eq!(names, ["Child", "Tail"], "emit order, not creation order");
+}
