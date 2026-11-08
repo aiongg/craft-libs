@@ -1,8 +1,9 @@
 //! Tests of the live preview.
 
 use craft_ui::canvas::PixelRect;
+use craft_ui::testing::trial;
 
-use super::{DraftScale, LivePreview, PreviewKey, PreviewLane, PreviewSession, ProxyPlan, settings_hash};
+use craft_imaging::ui::live_preview::{DraftScale, LivePreview, PreviewKey, PreviewLane, PreviewSession, ProxyPlan, settings_hash};
 
 const REGION: PixelRect = PixelRect::new(0, 0, 100, 100);
 const VIEW: PixelRect = PixelRect::new(0, 0, 50, 50);
@@ -19,7 +20,7 @@ fn started(lane: PreviewLane, n: u64) -> LivePreview {
 
 // One session: the same settings hash gives the same key twice; another hash another key; the
 // key carries the lane's tag bit and never equals `PreviewKey::NONE`.
-#[test]
+#[trial]
 fn live_preview_same_settings_give_the_same_key() {
     let mut live = started(PreviewLane::Dialog, 1);
     let a = live.key(settings_hash(&[b"levels", b"1"]), 0.0);
@@ -37,7 +38,7 @@ fn live_preview_same_settings_give_the_same_key() {
 
 // A Dialog and a Properties preview with the same session and settings give different keys, and
 // each treats the other's key as foreign (`owns` false, `switch` None).
-#[test]
+#[trial]
 fn live_preview_keys_of_two_lanes_never_match() {
     let mut dialog = started(PreviewLane::Dialog, 1);
     let mut props = started(PreviewLane::Properties, 1);
@@ -51,7 +52,7 @@ fn live_preview_keys_of_two_lanes_never_match() {
 
 // After a switch to a preview, `begin` with another session: the old key is foreign, `uncovered`
 // returns None, and the new region applies.
-#[test]
+#[trial]
 fn live_preview_a_new_session_forgets_the_covered_area() {
     let mut live = started(PreviewLane::Dialog, 1);
     let key = live.key(9, 0.0);
@@ -65,7 +66,7 @@ fn live_preview_a_new_session_forgets_the_covered_area() {
 }
 
 // NONE to a preview and one preview to another: the region ∩ visible, remembered as covered.
-#[test]
+#[trial]
 fn live_preview_switch_between_previews_returns_the_visible_part_of_the_region() {
     let mut live = started(PreviewLane::Dialog, 1);
     let (a, b) = (live.key(1, 0.0), live.key(2, 0.0));
@@ -76,7 +77,7 @@ fn live_preview_switch_between_previews_returns_the_visible_part_of_the_region()
 }
 
 // A preview back to NONE: the whole region, visible or not; nothing stays covered.
-#[test]
+#[trial]
 fn live_preview_switch_back_to_none_returns_the_whole_region() {
     let mut live = started(PreviewLane::Dialog, 1);
     let key = live.key(1, 0.0);
@@ -87,7 +88,7 @@ fn live_preview_switch_back_to_none_returns_the_whole_region() {
 
 // A key of an earlier session or another lane on either side gives None; so do NONE to NONE and
 // no session.
-#[test]
+#[trial]
 fn live_preview_switch_with_a_foreign_key_returns_none() {
     let mut old = started(PreviewLane::Dialog, 1);
     let stale = old.key(1, 0.0);
@@ -106,7 +107,7 @@ fn live_preview_switch_with_a_foreign_key_returns_none() {
 
 // After a switch, a pan that shows more of the region gives that visible part once; the same
 // view again gives None; a view inside the covered rect gives None; another key gives None.
-#[test]
+#[trial]
 fn live_preview_uncovered_returns_the_newly_visible_part_once() {
     let mut live = started(PreviewLane::Dialog, 1);
     let (key, other) = (live.key(1, 0.0), live.key(2, 0.0));
@@ -121,7 +122,7 @@ fn live_preview_uncovered_returns_the_newly_visible_part_once() {
 
 // A key change at t: settling(t + 0.1, 0.2) is true, settling(t + 0.25, 0.2) false; with the last
 // key NONE it is false at once.
-#[test]
+#[trial]
 fn live_preview_settling_ends_after_the_given_time() {
     let mut live = started(PreviewLane::Dialog, 1);
     live.key(1, 10.0);
@@ -139,7 +140,7 @@ fn live_preview_settling_ends_after_the_given_time() {
 // factor at zoom 1, 0.5, 0.2, 0.01 on a 6000 × 4000 document: 1, 2, 4, 64; 1 for a document of
 // 4,000,000 pixels, with reduced previews off, and for zoom 0 or NaN. `scaled` rounds the far
 // edges out.
-#[test]
+#[trial]
 fn proxy_plan_factor_follows_zoom_and_is_one_for_small_documents() {
     let big = 6000 * 4000;
     let factors = [1.0, 0.5, 0.2, 0.01].map(|zoom| ProxyPlan::factor(zoom, big, true));
@@ -164,7 +165,7 @@ fn drag(d: &mut DraftScale, item: u64, start: f64, end: f64, ms: f64, drafts: u6
 
 // A drag that starts at 1.0 keeps 1.0 on every pass while `gpu` flips and render times stay
 // under 2 × budget; a drag of the CPU starts and stays at 0.6.
-#[test]
+#[trial]
 fn draft_scale_keeps_its_scale_for_the_whole_drag() {
     let mut d = DraftScale::default();
     assert_eq!(d.scale(None, true, None, 0.0), None);
@@ -181,7 +182,7 @@ fn draft_scale_keeps_its_scale_for_the_whole_drag() {
 
 // Full-size drafts with a median after the first above 32 ms (more than 3 samples) drop the
 // running drag to 0.6.
-#[test]
+#[trial]
 fn draft_scale_gives_up_mid_drag_far_over_budget() {
     let mut d = DraftScale::default();
     assert_eq!(d.scale(Some((1, "exposure")), true, Some(0), 0.0), Some(1.0));
@@ -193,7 +194,7 @@ fn draft_scale_gives_up_mid_drag_far_over_budget() {
 
 // Two drags of one pair over 20 ms: the first leaves the next at full size, the second makes the
 // next 0.6 until 30 s later; another item's same control stays full size.
-#[test]
+#[trial]
 fn draft_scale_two_slow_drags_in_a_row_make_the_next_small_until_the_retry_time() {
     let mut d = DraftScale::default();
     assert_eq!(drag(&mut d, 1, 0.0, 10.0, 25.0, 4), Some(1.0));
@@ -206,7 +207,7 @@ fn draft_scale_two_slow_drags_in_a_row_make_the_next_small_until_the_retry_time(
 
 // After the retry time, a full-size drag within budget forgets the verdict (the next drag is full
 // size at once); a slow retry doubles the wait to 60 s, capped at 240 s.
-#[test]
+#[trial]
 fn draft_scale_a_fast_retry_forgets_the_verdict() {
     let slow_twice = |d: &mut DraftScale| {
         drag(d, 1, 0.0, 10.0, 25.0, 4);

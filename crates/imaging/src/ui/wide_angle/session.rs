@@ -2,20 +2,21 @@
 
 use serde::{Deserialize, Serialize};
 
-use craft_ui::canvas::kurbo::Point;
+use craft_behavior::kurbo::Point;
 
 /// Correction: the lens model.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum WideAngleModel {
     #[default]
-    #[allow(missing_docs)]
+    /// The app picks the model from the lens.
     Auto,
-    #[allow(missing_docs)]
+    /// A fisheye lens.
     Fisheye,
-    #[allow(missing_docs)]
+    /// A rectilinear wide-angle lens.
     Perspective,
-    #[allow(missing_docs)]
+    /// A full spherical panorama.
     FullSpherical,
 }
 
@@ -27,13 +28,14 @@ impl WideAngleModel {
 /// A constraint's orientation: Free (a straight line), Horizontal or Vertical.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum ConstraintOrientation {
     #[default]
-    #[allow(missing_docs)]
+    /// A straight line in the scene.
     Free,
-    #[allow(missing_docs)]
+    /// A horizontal line in the scene.
     Horizontal,
-    #[allow(missing_docs)]
+    /// A vertical line in the scene.
     Vertical,
 }
 
@@ -45,6 +47,7 @@ impl ConstraintOrientation {
 /// A constraint: the end points of a line in the scene, in document pixels. Serialised as
 /// PhotoCraft's `Constraint` (`a`, `b`, `orientation`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct WideAngleConstraint {
     /// One end point in document pixels.
     pub a: [f64; 2],
@@ -56,6 +59,11 @@ pub struct WideAngleConstraint {
 }
 
 impl WideAngleConstraint {
+    /// A constraint between `a` and `b` (document pixels) of `orientation`.
+    pub fn new(a: [f64; 2], b: [f64; 2], orientation: ConstraintOrientation) -> Self {
+        Self { a, b, orientation }
+    }
+
     /// A drag from `a` to `b` with Shift held at the release or not: Shift makes it Horizontal or
     /// Vertical by the larger of the two deltas (Horizontal on a tie), else Free.
     pub fn from_drag(a: Point, b: Point, shift: bool) -> WideAngleConstraint {
@@ -76,19 +84,21 @@ pub enum WideAngleConstraintEdit {
     /// Adds a constraint.
     Add(WideAngleConstraint),
     /// Sets the orientation of the constraint at `index`.
+    #[non_exhaustive]
     Orient {
-        #[allow(missing_docs)]
+        /// The constraint's index.
         index: usize,
-        #[allow(missing_docs)]
+        /// The new orientation.
         orientation: ConstraintOrientation,
     },
     /// Deletes the constraint at that index.
     Delete(usize),
     /// Arrow keys moved the focused constraint by `by` document pixels.
+    #[non_exhaustive]
     Move {
-        #[allow(missing_docs)]
+        /// The constraint's index.
         index: usize,
-        #[allow(missing_docs)]
+        /// The move in document pixels.
         by: [f64; 2],
     },
 }
@@ -99,6 +109,7 @@ pub enum WideAngleConstraintEdit {
 /// it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
+#[non_exhaustive]
 pub struct WideAngleSession {
     /// The lens model.
     pub model: WideAngleModel,
@@ -120,6 +131,13 @@ impl Default for WideAngleSession {
 }
 
 impl WideAngleSession {
+    /// The session with `constraints`.
+    #[must_use]
+    pub fn with_constraints(mut self, constraints: Vec<WideAngleConstraint>) -> Self {
+        self.constraints = constraints;
+        self
+    }
+
     /// Applies `edit`; an index out of range changes nothing. Returns whether it changed.
     pub fn apply(&mut self, edit: WideAngleConstraintEdit) -> bool {
         // pc: crates/ui-egui/src/dialogs/wide_angle_ui.rs:232 `constraint_menu`, :402-425.
