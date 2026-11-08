@@ -2,9 +2,9 @@
 
 use craft_theme::{AppSizes, Appearance, ColorToken, Contrast, Mode, Size, SizeValue, TextSize, TokenRef, builtins, explain};
 use craft_ui::contract::Bind;
-use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, trial};
 use craft_ui_gallery::theme::{Pick, ThemeSubject, ThemeWorkspace, TokenBrowser, parse_sizes};
+use egui::{Key, Modifiers};
 use std::cell::Cell;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -70,7 +70,7 @@ fn a_reveal_opens_the_picked_group_each_time_it_is_asked() {
         fixture.settle();
         assert!(fixture.by_label("text.faint").is_some(), "round {round}: the revealed token is listed under its open group");
         let group = fixture.by_label("text").expect("the group heading is listed");
-        fixture.access(AccessActionKind::Collapse, &group).settle();
+        fixture.click(&group).key(Key::ArrowLeft, Modifiers::NONE).settle();
         assert!(fixture.by_label("text.faint").is_none(), "round {round}: the group closes");
     }
 }
