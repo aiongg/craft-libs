@@ -1,6 +1,6 @@
 //! [`ShapeBar`]: the Shape tools' options bar cells.
 
-use super::panel::{Cells, ChipSetup, NumberCell, SIDES_RANGE, sides_change};
+use super::panel::{Cells, ChipSetup, DEFAULT_PIXELS_PER_INCH, NumberCell, SIDES_RANGE, sides_change};
 use super::{ShapeAppearance, ShapeChange, ShapePaint, ShapeToolSettings, ShapeWords};
 use crate::ui::shape_drag::ShapeKind;
 use craft_behavior::EditEvent;
@@ -45,12 +45,22 @@ pub struct ShapeBar<'a> {
     chips: Option<ChipSetup<'a>>,
     fallbacks: (Srgba, Srgba),
     sampled: Option<(ShapePaint, Srgba)>,
+    pixels_per_inch: f64,
 }
 
 impl<'a> ShapeBar<'a> {
     /// The cells for `kind` with the `settings` and `appearance` shown.
     pub fn new(kind: ShapeKind, settings: &'a ShapeToolSettings, appearance: &'a ShapeAppearance) -> Self {
-        ShapeBar { kind, settings, appearance, stroke_open: None, chips: None, fallbacks: (Srgba::BLACK, Srgba::WHITE), sampled: None }
+        ShapeBar {
+            kind,
+            settings,
+            appearance,
+            stroke_open: None,
+            chips: None,
+            fallbacks: (Srgba::BLACK, Srgba::WHITE),
+            sampled: None,
+            pixels_per_inch: DEFAULT_PIXELS_PER_INCH,
+        }
     }
 
     /// The Stroke style popover's open flag; without it the button is not shown.
@@ -81,12 +91,19 @@ impl<'a> ShapeBar<'a> {
         self
     }
 
+    /// The document's pixels per inch, which sizes a length typed in inches or points. 72 by default.
+    #[must_use]
+    pub fn pixels_per_inch(mut self, pixels_per_inch: f64) -> Self {
+        self.pixels_per_inch = pixels_per_inch;
+        self
+    }
+
     /// Adds the cells to the bar's row `ui`.
     pub fn show(self, ui: &mut Ui) -> ShapeBarOutput {
-        let ShapeBar { kind, settings, appearance, stroke_open, chips, fallbacks, sampled } = self;
+        let ShapeBar { kind, settings, appearance, stroke_open, chips, fallbacks, sampled, pixels_per_inch } = self;
         let env = Env::of(ui);
         let (words, units) = (env.words::<ShapeWords>(), env.units());
-        let mut pass = Cells::new(&words, &units, appearance, fallbacks, sampled, chips, stroke_open);
+        let mut pass = Cells::new(&words, &units, pixels_per_inch, appearance, fallbacks, sampled, chips, stroke_open);
         Row::new().enabled(!appearance.locked).show(ui, |ui, _| {
             pass.begin();
             let fill_on = !matches!(appearance.fill, craft_color::ui::Paint::None);
@@ -117,7 +134,7 @@ impl<'a> ShapeBar<'a> {
             pass.style_button(ui, kind != ShapeKind::Ellipse);
             let cell = match kind {
                 ShapeKind::Rectangle | ShapeKind::RoundedRectangle => Some((
-                    NumberCell::pixels(&units, "radius", &words.radius, settings.corner_radius, 0.0..=RADIUS_MAX),
+                    NumberCell::pixels(&units, pixels_per_inch, "radius", &words.radius, settings.corner_radius, 0.0..=RADIUS_MAX),
                     ShapeChange::CornerRadius as fn(f64) -> ShapeChange,
                 )),
                 ShapeKind::Polygon | ShapeKind::Star => Some((
@@ -125,7 +142,7 @@ impl<'a> ShapeBar<'a> {
                     sides_change as fn(f64) -> ShapeChange,
                 )),
                 ShapeKind::Line => Some((
-                    NumberCell::pixels(&units, "weight", &words.weight, settings.line_weight, 1.0..=LINE_WEIGHT_MAX),
+                    NumberCell::pixels(&units, pixels_per_inch, "weight", &words.weight, settings.line_weight, 1.0..=LINE_WEIGHT_MAX),
                     ShapeChange::Weight as fn(f64) -> ShapeChange,
                 )),
                 _ => None,

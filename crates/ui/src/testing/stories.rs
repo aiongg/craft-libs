@@ -1,12 +1,11 @@
 //! Stories of the kit's stand-in `Block`.
 
-use super::{Drive, StoryData, StoryOutput, story};
+use super::{Drive, Grip, StoryData, StoryOutput, story};
 use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use crate::form::Field;
 use crate::sections::FooterBar;
 use crate::testing::layout::Block;
 use crate::value_drag::Slider;
-use craft_behavior::PartKey;
 use egui::{Ui, Vec2};
 
 /// The size of a trial block, in points.
@@ -26,11 +25,8 @@ fn footer_bar(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
         .into()
 }
 
-/// The thumb part of the slider a story shows inside a field.
-const THUMB: PartKey = PartKey::new("thumb");
-
 /// A slider shown in a field: the story's subject is the slider, and its value changes through its own thumb.
-#[story(Slider<'static>, covers = [], drive = Drive::Drag(THUMB))]
+#[story(Slider<'static>, covers = [], drive = Drive::Drag(Grip::new(Slider::THUMB)))]
 fn slider_in_a_field(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let shown = Field::new("Opacity").show(ui, |ui, _| Slider::new(Bind::bound(data.value("value", 40.0)), 0.0..=100.0).label("Opacity").show(ui));
     shown.inner.map(StoryOutput::from).unwrap_or_default()

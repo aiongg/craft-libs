@@ -31,8 +31,6 @@ const COLOR_ROOM: Vec2 = Vec2::new(320.0, 600.0);
 const SWATCHES_ROOM: Vec2 = Vec2::new(320.0, 320.0);
 const GUIDE_ROOM: Vec2 = Vec2::new(480.0, 640.0);
 const PALETTE_WIDE: Vec2 = Vec2::new(600.0, 300.0);
-/// Three swatches to a row.
-const PALETTE_NARROW: Vec2 = Vec2::new(50.0, 300.0);
 
 type Edits = Rc<RefCell<Vec<(PanelTarget, EditEvent<PickedColor>)>>>;
 
@@ -681,8 +679,11 @@ fn the_palette_chooses_by_click_space_or_enter_and_moves_focus_by_arrows() {
 /// Up and Down walk the wrapped rows of the palette to the swatch in the same column.
 #[trial]
 fn the_palette_arrows_walk_the_wrapped_grid() {
-    // Three to a row: Red Orange Green / Teal Blue Violet.
-    let mut rig = PaletteRig::new(Srgba::rgb(0.19, 0.64, 0.42), PALETTE_NARROW);
+    // Three to a row: Red Orange Green / Teal Blue Violet. The room is three cells and the gaps the wide rig lays out.
+    let wide = PaletteRig::new(Srgba::rgb(0.19, 0.64, 0.42), PALETTE_WIDE);
+    let (first, third) = (wide.fixture.by_label("Red").expect("red").rect, wide.fixture.by_label("Green").expect("green").rect);
+    let narrow = Vec2::new(third.max.x + first.min.x, PALETTE_WIDE.y);
+    let mut rig = PaletteRig::new(Srgba::rgb(0.19, 0.64, 0.42), narrow);
     let (red, teal) = (rig.fixture.by_label("Red").expect("red").rect, rig.fixture.by_label("Teal").expect("teal").rect);
     assert!(teal.min.y > red.min.y, "the palette wrapped");
     rig.fixture.key(Key::Tab, Modifiers::NONE);

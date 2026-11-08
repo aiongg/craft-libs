@@ -14,7 +14,7 @@ use crate::scopes::{ChannelMask, ClippingMask, HUES, SATURATIONS, Vectorscope, h
 use crate::ui::histogram::ChannelColor;
 use crate::ui::mock_image::{MockImage, StoryView, story_canvas};
 use craft_behavior::Mixed;
-use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
+use craft_ui::contract::{Bind, Show as _, Validity};
 use craft_ui::primitives::Revision;
 use craft_ui::runtime::env::{Label, Message};
 use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};

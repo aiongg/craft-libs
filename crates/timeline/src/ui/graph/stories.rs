@@ -128,7 +128,9 @@ fn show_the_speed_graph(fixture: &mut Fixture) {
 fn position_curves(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let mut demo = data.value("demo", Demo::new()).clone();
     let range = data.value("range", GraphRange::default());
-    shown(ui, &mut demo, Bind::bound(range))
+    let out = shown(ui, &mut demo, Bind::bound(range));
+    *data.value("demo", Demo::new()) = demo;
+    out
 }
 
 #[story(GraphEditor<'static>, covers = [])]
@@ -137,14 +139,18 @@ fn speed_graph(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let mut start = GraphRange::default();
     start.mode = GraphMode::Speed;
     let range = data.value("range", start);
-    shown(ui, &mut demo, Bind::bound(range))
+    let out = shown(ui, &mut demo, Bind::bound(range));
+    *data.value("demo", Demo::new()) = demo;
+    out
 }
 
 #[story(GraphEditor<'static>, covers = [Mixed])]
 fn ranges_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let mut demo = data.value("demo", Demo::new()).clone();
     let range = data.value("range", Mixed::<GraphRange>::Mixed);
-    shown(ui, &mut demo, Bind::bound_mixed(range))
+    let out = shown(ui, &mut demo, Bind::bound_mixed(range));
+    *data.value("demo", Demo::new()) = demo;
+    out
 }
 
 #[story(GraphEditor<'static>, covers = [Invalid])]
@@ -156,5 +162,7 @@ fn range_wider_than_the_limit(ui: &mut Ui, data: &mut StoryData) -> StoryOutput 
     let narrow = |range: &GraphRange| {
         if range.high - range.low > WIDEST { Validity::Refuse(Message::new("The range is wider than the graph shows")) } else { Validity::Ok }
     };
-    shown(ui, &mut demo, Bind::bound(range).check(narrow))
+    let out = shown(ui, &mut demo, Bind::bound(range).check(narrow));
+    *data.value("demo", Demo::new()) = demo;
+    out
 }

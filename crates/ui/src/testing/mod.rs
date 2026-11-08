@@ -41,7 +41,7 @@ pub use fixture::{Fixture, Room, Target};
 pub use frames::Frames;
 #[doc(hidden)]
 pub use story::{
-    CollectionKind, Drive, EditKind, Required, STORIES, Story, StoryData, StoryOutput, StoryRegistration, StorySnapshot, show_as_only_item,
+    CollectionKind, Drive, EditKind, Grip, Required, STORIES, Story, StoryData, StoryOutput, StoryRegistration, StorySnapshot, show_as_only_item,
 };
 pub use tool_fixture::ToolFixture;
 pub use tool_story::tool_story;

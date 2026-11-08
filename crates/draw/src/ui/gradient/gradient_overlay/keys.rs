@@ -1,10 +1,9 @@
 //! The overlay's keys while its group has focus: the picked part moved, removed, added after or asked for its colour.
 
-use craft_behavior::PartRef;
 use craft_behavior::kurbo::Vec2;
-use craft_behavior::{Granularity, Intent};
+use craft_behavior::{Granularity, Intent, PressPhase};
 use craft_ui::canvas::{NUDGE, NUDGE_FAR};
-use craft_ui::contract::{Cx, Edit as _, Focus as _, Remember as _};
+use craft_ui::contract::{Cx, Edit as _, Focus as _, Pointer as _};
 
 use super::parts::line_part;
 use super::parts::{part_ref, selection_of};
@@ -12,22 +11,16 @@ use super::{CMD_ENTER, ENTER, GradientOverlay, INSERT, SPACE};
 use crate::ui::gradient::stops::{self, STOP_STEP, STOP_STEP_FAR, round_location};
 use crate::ui::gradient::{GradientLine, LineGradient, LinePart, Sampler, StopRow, default_sampler};
 
-/// The part the focus arrived at, so a move of the focus selects.
-#[derive(Clone, Copy, Default)]
-struct Arrival(Option<PartRef>);
-
 impl GradientOverlay<'_> {
     /// Selection follows the focus. While focused: the keys of the picked part (the line when none is picked).
     pub(super) fn run_keys(&mut self, cx: &mut Cx<'_, Self>, shown: &LineGradient) {
         let active = cx.active_part();
-        let arrived = {
-            let slot = cx.memory::<Arrival>();
-            let changed = slot.0 != active;
-            slot.0 = active;
-            changed
-        };
         let picked = active.and_then(line_part);
-        if arrived && let Some(selected) = picked.and_then(selection_of) {
+        // Focus arriving at a part selects it, unless a press holds the part (the press selects by its own rule).
+        if let Some(part) = cx.focus_arrived()
+            && let Some(selected) = line_part(part).and_then(selection_of)
+            && cx.part_if_declared(part).is_some_and(|result| matches!(result.press.phase, PressPhase::Idle | PressPhase::Hover))
+        {
             self.select(cx, Some(selected));
         }
         if !cx.is_focused() {

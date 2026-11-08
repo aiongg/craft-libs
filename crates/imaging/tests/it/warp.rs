@@ -6,7 +6,8 @@ use craft_imaging::ui::warp::{
     POINT, WarpEdit, WarpFieldValues, WarpFields, WarpFieldsEdit, WarpGrid, WarpGridChoice, WarpMesh, WarpSplit, WarpStyleEntry,
 };
 use craft_ui::canvas::Canvas;
-use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
+use craft_ui::testing::access::name;
 use craft_ui::testing::{Fixture, Target, pointer, trial};
 use egui::{Id, Key, Modifiers, Pos2, Vec2};
 use std::cell::{Cell, RefCell};
@@ -223,7 +224,7 @@ fn a_press_on_the_surface_pulls_it_at_its_parameters() {
     assert!((by - doc_shift(20.0, 10.0)).hypot() < 1e-3, "{by:?}");
     assert!(h.mesh().eval(0.5, 0.5).distance(RECT.center() + by) < 1e-6, "the pull follows the pointer");
 
-    // Off the surface and off the points the press is the tool's.
+    // Off the mesh and off the points, with no modifier and no armed split, the press does nothing.
     h.edit.set(None);
     let off = h.screen(Point::new(40.0, 40.0));
     h.drag(off, off + shift(10.0, 0.0));
@@ -353,6 +354,15 @@ fn alt_or_ctrl_with_no_tool_is_a_quick_split_chosen_by_the_pointer() {
         let at = h.at_fraction(u, v);
         h.click(at, modifiers);
         assert!(matches!(h.edit.get(), Some(WarpEdit::Split { split, .. }) if split == want), "{:?}", h.edit.get());
+    }
+
+    // Off the mesh, Alt or Cmd splits at the nearest point of the mesh.
+    for modifiers in [Modifiers::ALT, Modifiers::COMMAND] {
+        let mut h = harness(WarpMesh::identity(RECT, 2, 2));
+        let above = h.screen(Point::new(RECT.x0 + 0.25 * RECT.width(), RECT.y0 - 30.0));
+        h.click(above, modifiers);
+        assert!(matches!(h.edit.get(), Some(WarpEdit::Split { .. })), "{modifiers:?}: {:?}", h.edit.get());
+        assert_eq!(h.size().0, 3, "{modifiers:?}: the line is cut at the nearest point's column");
     }
 
     // A one-patch mesh's thirds lines count as existing lines.
@@ -675,7 +685,13 @@ fn bend_and_distortion_fields_act_only_on_a_preset_style() {
     f.click("Change warp orientation");
     assert_eq!(*f.edits.borrow(), vec![WarpFieldsEdit::orientation(true)]);
 
-    let target = f.fixture.by_label("Horizontal distortion").expect("the H field");
+    // The field's group and its spin button share the name: the spin button takes the typing.
+    let target = f
+        .fixture
+        .by_role(Role::SPIN_BUTTON)
+        .into_iter()
+        .find(|target| name(f.fixture.tree(), target.node) == Some("Horizontal distortion"))
+        .expect("the H field");
     f.fixture.click(&target);
     f.fixture.key(Key::A, Modifiers::COMMAND);
     f.fixture.type_text(&TYPED.to_string());

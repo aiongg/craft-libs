@@ -14,22 +14,22 @@ use super::VanishingTool;
 #[non_exhaustive]
 pub enum VanishingPointCommands {
     /// Edit Plane.
-    #[command(label = "Edit Plane Tool", icon = "pointer", kind = "tool", default = "V")]
+    #[command(modal = "in_dialogs", label = "Edit Plane Tool", icon = "pointer", kind = "tool", default = "V")]
     EditPlane,
     /// Create Plane.
-    #[command(label = "Create Plane Tool", icon = "grid", kind = "tool", default = "C")]
+    #[command(modal = "in_dialogs", label = "Create Plane Tool", icon = "grid", kind = "tool", default = "C")]
     CreatePlane,
     /// Stamp.
-    #[command(label = "Stamp Tool", icon = "stamp", kind = "tool", default = "S")]
+    #[command(modal = "in_dialogs", label = "Stamp Tool", icon = "stamp", kind = "tool", default = "S")]
     Stamp,
     /// Hand.
-    #[command(label = "Hand Tool", icon = "hand", kind = "tool", default = "H")]
+    #[command(modal = "in_dialogs", label = "Hand Tool", icon = "hand", kind = "tool", default = "H")]
     Hand,
     /// Zoom.
-    #[command(label = "Zoom Tool", icon = "zoom-in", kind = "tool", default = "Z")]
+    #[command(modal = "in_dialogs", label = "Zoom Tool", icon = "zoom-in", kind = "tool", default = "Z")]
     Zoom,
     /// Opens the form that adds a plane from its four corners.
-    #[command(label = "New Plane…", icon = "plus")]
+    #[command(modal = "in_dialogs", label = "New Plane…", icon = "plus")]
     NewPlane,
 }
 

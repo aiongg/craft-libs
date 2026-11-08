@@ -302,7 +302,7 @@ fn removal_cancels_a_press(subject: &Subject) -> Result<(), String> {
         let root = root_target(&fixture);
         let part = match plan {
             Plan::Activate if fixture.tree().declares_key(root.node, Declared::Click) => None,
-            Plan::Drag(part) => Some(part),
+            Plan::Drag(grip) => Some(grip.part),
             _ => continue,
         };
         let data = Rc::new(RefCell::new(StoryData::default()));

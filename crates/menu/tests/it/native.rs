@@ -227,10 +227,9 @@ fn a_click_on_a_text_editing_item_while_typing_taps_its_shortcut() {
     let mut show = selected_text(&mut frames);
     events.borrow_mut().extend([Event::Tap(undo), Event::Tap(copy)]);
     let seen = through_in(&mut menu, &mut frames, vec![], &mut show);
-    assert!(
-        seen.iter().all(|event| !matches!(event, egui::Event::Key { key: Key::Z, pressed: false, .. })),
-        "the focused field takes the ⌘Z press as Undo, so its key-up goes too: {seen:?}"
-    );
+    // Copy goes to the field as the clipboard command and the ⌘Z tap as a lone press the field consumes: neither
+    // leaves a key event, so no ⌘Z key-up (or any other event) reaches the frame.
+    assert_eq!(seen, Vec::<egui::Event>::new(), "the taps act on the focused field and add no key events");
     assert_eq!(frames.copied(), ["read me"], "the tapped Copy acts on the focused field");
     assert!(take_clicks(&mut menu).is_empty());
 }

@@ -204,24 +204,15 @@ impl ItemSource<TrackId> for Tracks<'_> {
 }
 
 impl TrackEvent {
-    /// Whether the row reported nothing in the pass: such a row emits no item event.
+    /// Whether the row reported nothing in the pass: such a row emits no item event. A field added later counts
+    /// without a change here.
     fn is_idle(&self) -> bool {
-        self.clip.is_none()
-            && self.select.is_none()
-            && !self.unlinked
-            && self.open.is_none()
-            && self.context.is_none()
-            && !self.label_menu
-            && self.height.is_none()
-            && self.pointer.is_none()
-            && self.snapped_at.is_none()
-            && self.marquee.is_none()
-            && !self.marquee_ended
+        *self == Self::default()
     }
 }
 
 /// What a track row reports beyond the collection's own events, in one pass.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 #[non_exhaustive]
 pub struct TrackEvent {
     /// A clip gesture of the lane.

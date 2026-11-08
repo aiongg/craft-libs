@@ -47,7 +47,7 @@ fn frame_rate_from_f64_snaps_to_common_rates() {
 #[test]
 fn insane_rates_count_as_the_default() {
     let default = FrameRate::default();
-    for bad in [FrameRate { num: 0, den: 1 }, FrameRate { num: 30, den: 0 }, FrameRate { num: -30, den: 1 }] {
+    for bad in [FrameRate::new(0, 1), FrameRate::new(30, 0), FrameRate::new(-30, 1)] {
         assert_eq!(bad.frame_duration(), default.frame_duration());
         assert_eq!(bad.frame_at(Tick(TICKS_PER_SECOND)), default.frame_at(Tick(TICKS_PER_SECOND)));
         assert_eq!(bad.tick_of(7), default.tick_of(7));

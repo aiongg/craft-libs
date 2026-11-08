@@ -102,6 +102,15 @@ fn field(fixture: &Fixture, name: &str) -> Target {
         .unwrap_or_else(|| panic!("{name} is shown"))
 }
 
+/// The paint chip named `name` by its field's caption.
+fn chip(fixture: &Fixture, name: &str) -> Target {
+    fixture
+        .by_role(Role::COLOR_WELL)
+        .into_iter()
+        .find(|target| craft_ui::testing::access::name(fixture.tree(), target.node) == Some(name))
+        .unwrap_or_else(|| panic!("the {name} chip is shown"))
+}
+
 fn field_names(fixture: &Fixture) -> Vec<String> {
     fixture
         .by_role(Role::SPIN_BUTTON)
@@ -125,8 +134,7 @@ fn scrubbing_a_size_is_one_gesture() {
     let layer = Layer::new(look(0.0));
     let mut fixture = panel(&layer);
     // The caption left of the field scrubs it.
-    let rect = field(&fixture, "Width").rect;
-    let caption = egui::Pos2::new(rect.min.x - 10.0, rect.center().y);
+    let caption = fixture.texts().iter().find(|text| text.text == "W").expect("the Width caption is painted").rect.center();
     fixture.frame(vec![pointer::moved(caption)]);
     fixture.frame(vec![pointer::press(caption)]);
     fixture.frame(vec![pointer::moved(caption + vec2(15.0, 0.0))]);
@@ -152,7 +160,7 @@ fn stroke_width_zero_adds_no_stroke_and_turning_it_on_gives_three_px() {
     fixture.settle();
     assert!(layer.borrow().events.is_empty(), "{:?}", layer.borrow().events);
 
-    let chip = fixture.by_label("Stroke color").expect("the stroke chip");
+    let chip = chip(&fixture, "Stroke");
     fixture.click(&chip);
     fixture.settle();
     let solid = fixture.by_label("Solid").expect("the Solid tab");
@@ -225,7 +233,7 @@ fn the_bar_shows_the_field_of_each_kind() {
 fn the_bar_turning_the_stroke_on_is_one_change() {
     let layer = Layer::new(look(0.0));
     let mut fixture = bar(ShapeKind::Rectangle, &layer);
-    let chip = fixture.by_label("Stroke color").expect("the stroke chip");
+    let chip = chip(&fixture, "Stroke");
     fixture.click(&chip);
     fixture.settle();
     let solid = fixture.by_label("Solid").expect("the Solid tab");

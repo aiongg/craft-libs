@@ -25,11 +25,12 @@ use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pointer as _,
     Props as _, Remember as _, Role, Styled as _, WordSetCx as _,
 };
-use craft_ui::primitives::{FocusKind, FocusRing, PaintShape, StrokeWidth};
+use craft_ui::primitives::{DataWidth, FocusKind, FocusRing, PaintShape, StrokeWidth};
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::focus::{EditSet, KeyUse};
+use craft_ui::style::DataColor;
 use craft_ui::style::{Flags, StyleCx};
-use egui::{Color32, Pos2, Rect, Response, Shape, Stroke};
+use egui::{Pos2, Rect, Response};
 use kurbo::ParamCurve as _;
 
 use hit_test::{Shown, nearest_on_screen, shown_handles};
@@ -227,10 +228,6 @@ struct Held {
     /// Past the click slop: the gesture began.
     began: bool,
 }
-
-/// The part the focus was on in the last pass, so a move of the focus to an anchor selects it.
-#[derive(Clone, Default)]
-struct Arrival(Option<PartRef>);
 
 /// Where a press is in a pass: the view and snap it maps through, the press, the pointer and the modifiers held.
 #[derive(Clone, Copy)]
@@ -768,19 +765,15 @@ impl<'a> BezierOverlay<'a> {
         let current: Option<&Item> = active.and_then(|part| keyboard.iter().copied().find(|item| item.part() == part));
         let keyed = self.tool.keyed();
         // Focus arriving at an anchor (Tab) selects it alone, as picking it does. A press holds the pointer's own
-        // selection (Shift on a selected anchor takes it out, and the focus the press took must not put it back).
-        let pressing = cx.press_slot::<Held>().is_some();
-        let arrived = {
-            let slot = cx.memory::<Arrival>();
-            std::mem::replace(&mut slot.0, active) != active
-        };
-        if arrived
-            && keyed
-            && !pressing
+        // selection (Shift on a selected anchor takes it out, and the focus the press took must not put it back),
+        // so an arrival with the anchor pressed selects nothing.
+        if keyed
             && self.report.select.is_none()
-            && let Some(item) = current
+            && let Some(arrived) = cx.focus_arrived()
+            && let Some(item) = keyboard.iter().copied().find(|item| item.part() == arrived)
             && item.kind == Kind::Anchor
             && !self.selection.has_anchor(item.key, item.knot)
+            && cx.part_if_declared(arrived).is_some_and(|result| matches!(result.press.phase, PressPhase::Idle | PressPhase::Hover))
         {
             self.report.select = Some(PathSelection { path: Some(item.key), anchors: vec![item.knot], segment: None });
         }
@@ -1028,22 +1021,31 @@ impl Component for BezierOverlay<'_> {
         let (view, style) = (space.view, &cx.style);
         let scene = self.scene(paths, &view, cx.rect, style.reach);
         let options = self.path_options;
-        let (line_width, segment_width) = match options.and_then(|options| options.thickness) {
-            Some(thickness) => (thickness, style.segment_width + (thickness - style.line_width)),
-            None => (style.line_width, style.segment_width),
-        };
+        let thickness = options.and_then(|options| options.thickness);
         let option_color =
             options.and_then(|options| options.color).map(|[r, g, b]| Srgba::rgb(f32::from(r) / 255.0, f32::from(g) / 255.0, f32::from(b) / 255.0));
         let painter = ui.content_painter(cx);
-        let line = |points: Vec<Pos2>, closed: bool, width: f32, color: Color32| {
-            let pen = Stroke::new(width, color);
-            painter.painter.add(if closed { Shape::closed_line(points, pen) } else { Shape::line(points, pen) });
+        let draw = ui.draw();
+        // The path's thickness is a document width; without one the lines take the theme's widths. A path with a
+        // thickness and no colour of its own keeps that width in the theme's line colour.
+        let line = |points: Vec<Pos2>, closed: bool, segment: bool, color: Option<Srgba>| {
+            let shape = if closed { PaintShape::Polygon(points) } else { PaintShape::Path(points) };
+            let named = if segment { StrokeWidth::Thick } else { StrokeWidth::Medium };
+            match (color, thickness) {
+                (color, Some(thickness)) => {
+                    let width = if segment { thickness + (style.segment_width - style.line_width) } else { thickness };
+                    let ink = color.map_or(DataColor::new(style.line.egui()), |color| DataColor::new(color.into()));
+                    draw.data_stroke(&shape, DataWidth::points(width), ink);
+                }
+                (Some(color), None) => draw.data_stroke(&shape, named, DataColor::new(color.into())),
+                (None, None) => draw.stroke(&shape, named, style.line),
+            }
         };
         for path in paths {
-            let color = path.color.or(option_color).map_or(style.line.egui(), Color32::from);
+            let color = path.color.or(option_color);
             for sub in &path.subpaths {
                 for (points, closed) in path_runs(&view, &sub.bez_path()) {
-                    line(points, closed, line_width, color);
+                    line(points, closed, false, color);
                 }
             }
             if self.segment_mark == SegmentMark::Line
@@ -1051,14 +1053,13 @@ impl Component for BezierOverlay<'_> {
                 && let Some(curve) = path.subpaths.get(s.subpath).and_then(|sub| sub.segment(s.knot))
             {
                 for (points, closed) in path_runs(&view, &segment_path(curve)) {
-                    line(points, closed, segment_width, color);
+                    line(points, closed, true, color);
                 }
             }
         }
         if scene.limited {
             return;
         }
-        let draw = ui.draw();
         for item in &scene.items {
             let path = &paths[item.path];
             match item.kind {

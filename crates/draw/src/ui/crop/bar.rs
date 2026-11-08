@@ -3,8 +3,8 @@
 use super::bar_words::CropBarWords;
 use super::menus::{CropOptionsMenu, CropOverlayMenu};
 use super::options::{
-    CROP_RATIOS, CROP_SIZES, CropPresetChoice, CropRatio, CropSettings, CropSizeFields, CropUserPreset, FIELD_MAX, RATIO_DECIMALS, RATIO_MAX,
-    RATIO_STEP, ResolutionUnit,
+    CROP_RATIOS, CROP_SIZES, CropLength, CropPresetChoice, CropRatio, CropSettings, CropSizeFields, CropUserPreset, FIELD_MAX, RATIO_DECIMALS,
+    RATIO_MAX, RATIO_STEP, ResolutionUnit,
 };
 use super::session::CropDocument;
 use craft_behavior::{EditEvent, IconId, NumberCodec};
@@ -16,9 +16,9 @@ use craft_ui::display::Divider;
 use craft_ui::form::Field;
 use craft_ui::layout_components::Row;
 use craft_ui::pickers::Select;
-use craft_ui::runtime::env::{Env, Label, UnitKind, Units};
+use craft_ui::runtime::env::{Env, Label, LengthUnits, UnitKind, Units};
 use craft_ui::runtime::requests::ColorRequest;
-use craft_ui::text::{NumberField, TextField};
+use craft_ui::text::NumberField;
 use egui::{Response, Ui};
 
 #[cfg(feature = "screen-testing")]
@@ -78,8 +78,7 @@ impl Outcome for CropBarOutput {
 ///   decimals) with the swap button between them, or in W × H × Resolution mode the W, H and Resolution fields with
 ///   the px/in or px/cm select; Clear; the Angle field; the Straighten toggle (pressed while armed); the overlay menu
 ///   ([`CropOverlayMenu`]); the gear popover ([`CropOptionsMenu`]).
-/// - Length fields keep what is typed while they have the focus and normalise it when the typing run ends
-///   ([`CropSizeFields::normalize_length`]).
+/// - W and H keep their lengths with the unit they were entered in ([`CropLength`]); a cleared field is unset.
 /// - A scrub or a step of a ratio field refits live; Escape puts the ratio back.
 /// - Delete Crop Preset… is disabled when no user preset is given; New Crop Preset… when [`CropSettings::preset_name`]
 ///   is `None`; Original Ratio and Front Image without a document.
@@ -120,7 +119,7 @@ impl<'a> CropBar<'a> {
         let shown = Row::new().show(ui, |ui, cx| {
             preset_list(ui, settings, &words, document, has_document, user_presets, &units, &mut report);
             if settings.ratio == CropRatio::Size {
-                size_fields(ui, settings, &words, &units, &mut report);
+                size_fields(ui, settings, &words, document, &units, &mut report);
             } else {
                 ratio_fields(ui, cx, settings, &words, document, has_document, &units, &mut report);
             }
@@ -178,8 +177,8 @@ struct RatioStart(Option<(CropRatio, [f64; 2])>);
 fn size_name(words: &CropBarWords, index: usize, units: &Units) -> String {
     let Some(preset) = CROP_SIZES.get(index) else { return String::new() };
     let mut size = CropSizeFields::default();
-    size.width = preset.width.to_owned();
-    size.height = preset.height.to_owned();
+    size.width = Some(preset.width);
+    size.height = Some(preset.height);
     size.resolution = preset.resolution.to_owned();
     let mut settings = CropSettings::default();
     settings.ratio = CropRatio::Size;
@@ -222,7 +221,7 @@ fn preset_list(
         CropPresetChoice::NewPreset => report.new_preset = true,
         CropPresetChoice::DeletePreset => report.delete_preset = true,
         choice => {
-            if settings.choose(choice, document, user_presets, units) {
+            if settings.choose(choice, document, user_presets) {
                 report.ratio = Some(CropRatioChange { editing: false });
             }
         }
@@ -323,14 +322,15 @@ fn ratio_field(
 }
 
 /// W, swap, H, Resolution and its unit, in W × H × Resolution mode.
-fn size_fields(ui: &mut Ui, settings: &mut CropSettings, words: &CropBarWords, units: &Units, report: &mut Report) {
+fn size_fields(ui: &mut Ui, settings: &mut CropSettings, words: &CropBarWords, document: &CropDocument, units: &Units, report: &mut Report) {
     let mut changed = false;
-    changed |= length_field(ui, "size-width", &words.width, &mut settings.size.width, units);
+    let pixels_per_inch = settings.size.resolution_ppi().unwrap_or(document.resolution);
+    changed |= length_field(ui, "size-width", &words.width, &mut settings.size.width, pixels_per_inch);
     if clicked(&IconButton::new(IconId::new("swap_horizontal")).label(words.swap.clone()).show(ui)) {
         settings.swap_fields();
         changed = true;
     }
-    changed |= length_field(ui, "size-height", &words.height, &mut settings.size.height, units);
+    changed |= length_field(ui, "size-height", &words.height, &mut settings.size.height, pixels_per_inch);
 
     let resolution = settings.size.resolution.trim().replace(',', ".").parse::<f64>().ok().filter(|v| v.is_finite() && *v > 0.0);
     let mut typed = None;
@@ -374,16 +374,18 @@ fn size_fields(ui: &mut Ui, settings: &mut CropSettings, words: &CropBarWords, u
     }
 }
 
-/// A length field: what is typed becomes the normalised length when the typing run ends. Returns whether `value`
-/// changed.
-fn length_field(ui: &mut Ui, salt: &'static str, caption: &Label, value: &mut String, units: &Units) -> bool {
+/// A length field over a length kept in its own unit: a typed number is in that unit (pixels while unset), a typed
+/// unit is converted into it, and a cleared field is unset. Returns whether `value` changed.
+fn length_field(ui: &mut Ui, salt: &'static str, caption: &Label, value: &mut Option<CropLength>, pixels_per_inch: f64) -> bool {
+    let unit = value.map_or(UnitKind::Pixels, |length| length.unit);
     let mut typed = None;
     Field::new(caption.clone()).id_salt(salt).layout(FieldLayout::Caption(CAPTION)).sizing(Sizing::Content).show(ui, |ui, _| {
-        let field = TextField::new(caption.clone(), Bind::given(value.clone())).show(ui);
-        typed = field.value().cloned();
+        let lengths = LengthUnits::new(unit, unit, pixels_per_inch);
+        let field = NumberField::length(caption.clone(), Bind::given(value.map(|length| length.value)), lengths).range(0.0..=FIELD_MAX).show(ui);
+        typed = field.value().copied();
     });
-    let Some(text) = typed else { return false };
-    let next = CropSizeFields::normalize_length(&text, value, units);
+    let Some(next) = typed else { return false };
+    let next = next.filter(|length| *length > 0.0).map(|length| CropLength::new(length, unit));
     let changed = next != *value;
     *value = next;
     changed

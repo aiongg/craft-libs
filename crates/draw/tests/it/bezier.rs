@@ -604,7 +604,7 @@ fn a_quick_drag_in_one_pass_moves_from_the_press() {
     h.fixture.frame(vec![pointer::moved(a2)]);
     h.fixture.frame_through(vec![pointer::press(a2), pointer::moved(a2 + vec2(10.0, 0.0)), pointer::moved(to), pointer::release(to)]);
     h.fixture.frame(Vec::new());
-    assert_eq!(h.seen(), [Seen::Set]);
+    assert_eq!(h.seen(), [Seen::Begin, Seen::Commit], "a drag is one gesture, whatever the passes it spans");
     assert_eq!(moved_by(h.last_change()), Some((vec![kr(1)], Vec2::new(25.0, 5.0))));
 }
 
@@ -672,8 +672,10 @@ fn page_keys_pick_each_anchor_then_its_in_and_out_handles() {
     h.key(Key::PageDown, Modifiers::NONE);
     assert!(h.picked("Anchor 4 of 4"));
     assert_eq!(h.selection(), sel(1, &[(0, 3)]));
+    // Selecting the last anchor hides the handles of the one before it, so Page Up lands on that anchor.
     h.key(Key::PageUp, Modifiers::NONE);
-    assert!(h.picked("Out handle"));
+    assert!(h.picked("Anchor 3 of 4"));
+    assert_eq!(h.selection(), sel(1, &[(0, 2)]));
     h.key(Key::Home, Modifiers::NONE);
     assert!(h.picked("Anchor 1 of 4"));
     h.key(Key::End, Modifiers::NONE);
@@ -703,7 +705,7 @@ fn arrows_move_the_selected_anchors_or_the_picked_handle_and_alt_moves_it_alone(
     assert_eq!(h.seen(), [Seen::Set, Seen::Set]);
     assert_eq!(h.anchor(0, 0), p(61.0, 70.0));
     // Anchor 3's in handle.
-    for _ in 0..4 {
+    for _ in 0..3 {
         h.key(Key::PageDown, Modifiers::NONE);
     }
     assert!(h.picked("In handle"));
@@ -1015,6 +1017,7 @@ fn arrows_and_escape_act_only_under_direct_convert_and_curvature() {
         h.update(|st| st.selection = sel(1, &[(0, 1)]));
         h.key(Key::Tab, Modifiers::NONE);
         h.key(Key::Tab, Modifiers::NONE);
+        assert!(h.fixture.focused_stop().is_some_and(|(_, part)| part.is_some()), "{tool:?}: Tab 2 reaches a part");
         h.key(Key::ArrowRight, Modifiers::NONE);
         assert_eq!(!h.seen().is_empty(), acts, "{tool:?} arrows");
         h.key(Key::Escape, Modifiers::NONE);

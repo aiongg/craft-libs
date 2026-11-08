@@ -54,7 +54,12 @@ impl CanvasTool for VanishingPointTool<'_> {
     fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
         // pc: crates/ui-egui/src/dialogs/vp_ui.rs:658 `press`.
         let (Some(p), words) = (Self::doc(cx, pointer), cx.words::<VanishingPointWords>()) else { return ToolAction::Ignored };
-        match self.run(|work| work.background_down(p, pointer.mods, &words)) {
+        let gesture = cx.gesture_id();
+        let pressed = self.run(|work| {
+            work.gesture = gesture;
+            work.background_down(p, pointer.mods, &words)
+        });
+        match pressed {
             Some(Pressed::Claimed) => ToolAction::Claimed,
             Some(Pressed::Done) => ToolAction::Done,
             None => ToolAction::Ignored,
@@ -92,7 +97,7 @@ impl CanvasTool for VanishingPointTool<'_> {
         let words = cx.words::<VanishingPointWords>();
         match key {
             ToolKey::Delete { .. } => {
-                self.run(|work| work.editor.delete_selected(work.session, work.scene, words.edit_planes_step.as_str()).is_some())
+                self.run(|work| work.editor.delete_selected(work.ctx, work.session, work.scene, words.edit_planes_step.as_str()).is_some())
             }
             ToolKey::Cancel => self.run(|work| work.editor.drop_pending()),
             _ => false,

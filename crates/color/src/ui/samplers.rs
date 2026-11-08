@@ -258,9 +258,9 @@ impl Component for ColorSamplerMarks<'_> {
     }
 }
 
-/// The Color Sampler tool: a press on empty canvas places a point (the eleventh reports [`SamplerError::Full`] as a
-/// toast through [`take_error`](Self::take_error)), a drag on a point moves it, a point dropped off the canvas is
-/// removed, and Alt-click removes a point and renumbers the rest.
+/// The Color Sampler tool: a press on empty canvas places a point and the drag that follows carries it until the
+/// release (the eleventh reports [`SamplerError::Full`] as a toast through [`take_error`](Self::take_error)), a drag
+/// on a point moves it, a point dropped off the canvas is removed, and Alt-click removes a point and renumbers the rest.
 pub struct ColorSamplerTool<'a> {
     samplers: &'a mut ColorSamplers,
     size: [u32; 2],
@@ -305,14 +305,20 @@ impl CanvasTool for ColorSamplerTool<'_> {
                 ToolAction::Claimed
             }
             None if pointer.mods.alt => ToolAction::Done,
-            None => {
-                if self.samplers.add(at, self.size) == Err(SamplerError::Full) {
-                    let words = cx.words::<SamplerWords>();
-                    let text = words.limit.fill(&[("max", &MAX_SAMPLERS.to_string())]);
-                    self.full = Some(Toast::new(Label::from(text)).tone(Tone::Bad));
+            None => match self.samplers.add(at, self.size) {
+                Ok(index) => {
+                    self.moving = Some((index, at));
+                    ToolAction::Claimed
                 }
-                ToolAction::Done
-            }
+                Err(error) => {
+                    if error == SamplerError::Full {
+                        let words = cx.words::<SamplerWords>();
+                        let text = words.limit.fill(&[("max", &MAX_SAMPLERS.to_string())]);
+                        self.full = Some(Toast::new(Label::from(text)).tone(Tone::Bad));
+                    }
+                    ToolAction::Done
+                }
+            },
         }
     }
 

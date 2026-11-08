@@ -89,8 +89,10 @@ fn rig_with(curve: Curve, config: Config) -> Rig {
     fixture.room(room());
     fixture.settle();
     let mut rig = Rig { fixture, curve: shared, selected, channel, kinds, origin: Pos2::ZERO, scale: Vec2::ZERO };
-    // Pencil mode shows no points to calibrate against.
-    if !config.pencil {
+    // Pencil mode shows no points to calibrate against: the graph's own rect maps the levels.
+    if config.pencil {
+        rig.calibrate_graph(LEVELS);
+    } else {
         rig.calibrate(&curve);
     }
     rig
@@ -110,6 +112,18 @@ impl Rig {
         let b = self.fixture.by_label(&format!("Point {n} of {n}")).expect("the last point").center();
         self.scale = vec2((b.x - a.x) / (last[0] - first[0]), (b.y - a.y) / (last[1] - first[1]));
         self.origin = pos2(a.x - first[0] * self.scale.x, a.y - first[1] * self.scale.y);
+    }
+
+    /// Maps `0..=levels` over the graph node's rect, the largest group.
+    fn calibrate_graph(&mut self, levels: f32) {
+        let graph = self
+            .fixture
+            .by_role(Role::GROUP)
+            .into_iter()
+            .max_by(|a, b| (a.rect.width() * a.rect.height()).total_cmp(&(b.rect.width() * b.rect.height())))
+            .expect("the graph");
+        self.scale = vec2(graph.rect.width() / levels, -graph.rect.height() / levels);
+        self.origin = graph.rect.left_bottom();
     }
 
     fn at(&self, q: [f32; 2]) -> Pos2 {
@@ -167,6 +181,8 @@ fn level(x: u16, y: u16) -> [f32; 2] {
     [f32::from(x), f32::from(y)]
 }
 
+/// The editor's levels.
+const LEVELS: f32 = 255.0;
 const IDENTITY: [[f32; 2]; 2] = [[0.0, 0.0], [255.0, 255.0]];
 const THREE: [[f32; 2]; 3] = [[0.0, 0.0], [100.0, 100.0], [255.0, 255.0]];
 
@@ -378,7 +394,7 @@ fn the_input_field_moves_the_selected_point_between_its_neighbours() {
 fn percent_fields_take_whole_percents_of_the_levels() {
     let mut rig = rig_with(Curve::smooth(THREE.to_vec()), Config { percent: true, ..Config::default() });
     rig.click([100.0, 100.0]);
-    let field = rig.fixture.by_label("Output").expect("the Output field");
+    let field = rig.fixture.by_role(Role::SPIN_BUTTON).into_iter().nth(1).expect("the Output field");
     rig.fixture.click(&field);
     rig.fixture.key(Key::A, Modifiers::COMMAND);
     rig.fixture.type_text("50");
@@ -402,20 +418,10 @@ fn a_pencil_stroke_is_one_gesture_and_draws_a_map_without_points() {
     let curve = Curve::smooth(IDENTITY.to_vec());
     let mut rig = rig_with(curve.clone(), Config { pencil: true, ..Config::default() });
     assert!(rig.fixture.by_role(Role::GRAPHICS_OBJECT).is_empty(), "no points in pencil mode");
-    rig.origin = Pos2::ZERO;
-    let graph = rig
-        .fixture
-        .by_role(Role::GROUP)
-        .into_iter()
-        .max_by(|a, b| (a.rect.width() * a.rect.height()).total_cmp(&(b.rect.width() * b.rect.height())))
-        .expect("the graph");
-    let quarter = graph.rect.size() / 4.0;
-    let (from, to) = (graph.rect.left_bottom() + vec2(quarter.x, -quarter.y), graph.rect.left_bottom() + vec2(2.0 * quarter.x, -2.0 * quarter.y));
-    rig.fixture.frame(vec![moved(from)]);
-    rig.fixture.frame(vec![press(from)]);
-    rig.fixture.frame(vec![moved(to)]);
-    rig.fixture.frame(vec![release(to)]);
-    rig.fixture.idle(1);
+    let (from, to) = ([LEVELS / 4.0; 2], [LEVELS / 2.0; 2]);
+    rig.press_at(from);
+    rig.move_to(to);
+    rig.release_at(to);
     assert!(matches!(*rig.curve.borrow(), Curve::Map(_)), "a stroke draws a map");
     let kinds = rig.kinds();
     assert_eq!(kinds.iter().filter(|k| **k == "begin").count(), 1, "{kinds:?}");

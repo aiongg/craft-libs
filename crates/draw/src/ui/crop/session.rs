@@ -9,6 +9,7 @@ use craft_behavior::edit_history::{EditHistory, Step};
 use craft_behavior::geometry::CropBox;
 use craft_behavior::kurbo::{Rect, Size};
 use craft_behavior::{CanvasView, EditEvent, GestureId, Mixed};
+use craft_ui::runtime::edit::next_gesture_id;
 
 /// The app's identity of a document (its id, never reused while the app runs). A frame belongs
 /// to the document it was made for.
@@ -169,8 +170,6 @@ pub struct CropSession {
     settled: CropStep,
     /// The gesture a run of arrow nudges keeps open, until [`settle`](Self::settle).
     nudging: Option<GestureId>,
-    /// The id of the next gesture the session opens itself.
-    next_id: u64,
     straighten: StraightenState,
     /// The frame a ratio-field edit began with.
     ratio_base: Option<CropBox>,
@@ -184,11 +183,6 @@ impl CropSession {
     fn adopt(&mut self, step: CropStep) {
         self.frame = step.frame;
         self.default_frame = step.default_frame;
-    }
-
-    fn fresh_id(&mut self) -> GestureId {
-        self.next_id += 1;
-        GestureId::new(self.next_id)
     }
 
     fn history(&mut self) -> &mut EditHistory<CropStep> {
@@ -317,7 +311,7 @@ impl CropSession {
     /// A key, refit or Straighten set the frame: one box step named `label`, reported as the `Set` the
     /// tool mirrors. The frame is no longer the default unless `keep_default` (a refit of the untouched
     /// default frame to a ratio alone).
-    pub fn set(&mut self, frame: CropBox, keep_default: bool, label: &str) -> EditEvent<CropBox> {
+    pub fn set(&mut self, ctx: &egui::Context, frame: CropBox, keep_default: bool, label: &str) -> EditEvent<CropBox> {
         self.settle();
         let before = self.frame.map_or(Mixed::Mixed, Mixed::Same);
         self.frame = Some(frame);
@@ -325,24 +319,24 @@ impl CropSession {
             self.default_frame = false;
         }
         self.editing |= !self.default_frame;
-        let (id, step) = (self.fresh_id(), self.current());
+        let (id, step) = (next_gesture_id(ctx), self.current());
         self.record(EditEvent::set(id, Mixed::Same(self.settled), step, label.into(), None));
         EditEvent::set(id, before, frame, label.into(), None)
     }
 
     /// An arrow nudge set the frame: it joins the run of nudges, one open box step that
     /// [`settle`](Self::settle) closes. Reported as a `Set`, as [`set`](Self::set).
-    pub fn nudge(&mut self, frame: CropBox, label: &str) -> EditEvent<CropBox> {
+    pub fn nudge(&mut self, ctx: &egui::Context, frame: CropBox, label: &str) -> EditEvent<CropBox> {
         let before = self.frame.map_or(Mixed::Mixed, Mixed::Same);
         self.frame = Some(frame);
         self.default_frame = false;
         self.editing = true;
         if self.nudging.is_none() {
-            let id = self.fresh_id();
+            let id = next_gesture_id(ctx);
             self.nudging = Some(id);
             self.record(EditEvent::begin(id, Mixed::Same(self.settled), label.into(), None));
         }
-        let id = self.fresh_id();
+        let id = next_gesture_id(ctx);
         EditEvent::set(id, before, frame, label.into(), None)
     }
 

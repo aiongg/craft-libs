@@ -2,18 +2,15 @@
 
 use super::ColorArea;
 use crate::AreaMode;
-use craft_behavior::{PartKey, PartRef};
 use craft_theme::{ColorModel, HsbModel, Srgba};
 use craft_ui::contract::{Bind, Show as _, Validity};
 use craft_ui::runtime::env::Message;
-use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
+use craft_ui::testing::{Drive, Grip, StoryData, StoryOutput, story};
+use craft_ui::value_drag::PointPicker;
 use egui::Ui;
 
-/// The well of the point picker the area shows inside itself: the value changes through its drag, so the `values`
-/// case reaches it with `Drive::DragChild`.
-const WELL: PartRef = PartRef { key: PartKey::new("well"), index: None };
-
-#[story(ColorArea<'static>, covers = [Default], drive = Drive::DragChild(WELL))]
+/// The value changes through the drag of the point picker the area shows inside itself.
+#[story(ColorArea<'static>, covers = [Default], drive = Drive::DragChild(Grip::new(PointPicker::WELL)))]
 fn color_area(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let values = data.value("values", HsbModel.from_srgb(Srgba::rgb(0.2, 0.5, 0.8)));
     ColorArea::new("Saturation and brightness", AreaMode::Hue, Bind::bound(values)).show(ui).into()

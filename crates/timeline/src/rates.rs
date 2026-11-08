@@ -8,6 +8,7 @@ use crate::time::{TICKS_PER_SECOND, Tick};
 /// every frame computation goes through [`sane`](Self::sane) and a zero or negative rate counts
 /// as the default (23.976, as FilmCraft).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[non_exhaustive]
 pub struct FrameRate {
     /// The numerator: frames in `den` seconds.
     pub num: i64,
@@ -23,27 +24,27 @@ impl Default for FrameRate {
 
 impl FrameRate {
     /// 23.976 frames a second (24000/1001).
-    pub const FPS_23_976: FrameRate = FrameRate { num: 24000, den: 1001 };
+    pub const FPS_23_976: FrameRate = FrameRate::new(24000, 1001);
     #[allow(missing_docs)]
-    pub const FPS_24: FrameRate = FrameRate { num: 24, den: 1 };
+    pub const FPS_24: FrameRate = FrameRate::new(24, 1);
     #[allow(missing_docs)]
-    pub const FPS_25: FrameRate = FrameRate { num: 25, den: 1 };
+    pub const FPS_25: FrameRate = FrameRate::new(25, 1);
     /// 29.97 frames a second (30000/1001).
-    pub const FPS_29_97: FrameRate = FrameRate { num: 30000, den: 1001 };
+    pub const FPS_29_97: FrameRate = FrameRate::new(30000, 1001);
     #[allow(missing_docs)]
-    pub const FPS_30: FrameRate = FrameRate { num: 30, den: 1 };
+    pub const FPS_30: FrameRate = FrameRate::new(30, 1);
     #[allow(missing_docs)]
-    pub const FPS_48: FrameRate = FrameRate { num: 48, den: 1 };
+    pub const FPS_48: FrameRate = FrameRate::new(48, 1);
     #[allow(missing_docs)]
-    pub const FPS_50: FrameRate = FrameRate { num: 50, den: 1 };
+    pub const FPS_50: FrameRate = FrameRate::new(50, 1);
     /// 59.94 frames a second (60000/1001).
-    pub const FPS_59_94: FrameRate = FrameRate { num: 60000, den: 1001 };
+    pub const FPS_59_94: FrameRate = FrameRate::new(60000, 1001);
     #[allow(missing_docs)]
-    pub const FPS_60: FrameRate = FrameRate { num: 60, den: 1 };
+    pub const FPS_60: FrameRate = FrameRate::new(60, 1);
     /// 119.88 frames a second (120000/1001).
-    pub const FPS_119_88: FrameRate = FrameRate { num: 120000, den: 1001 };
+    pub const FPS_119_88: FrameRate = FrameRate::new(120000, 1001);
     #[allow(missing_docs)]
-    pub const FPS_120: FrameRate = FrameRate { num: 120, den: 1 };
+    pub const FPS_120: FrameRate = FrameRate::new(120, 1);
 
     /// The rates a frame-rate menu offers, in Premiere's order.
     pub const COMMON: [FrameRate; 11] = [
@@ -62,9 +63,12 @@ impl FrameRate {
 
     /// `num / den` reduced by their greatest common divisor.
     // filmcraft: crates/time/src/lib.rs:198 (i128 division by the gcd, at least 1).
-    pub fn new(num: i64, den: i64) -> Self {
-        let g = i128::from(gcd(num.unsigned_abs(), den.unsigned_abs()).max(1));
-        FrameRate { num: (i128::from(num) / g) as i64, den: (i128::from(den) / g) as i64 }
+    pub const fn new(num: i64, den: i64) -> Self {
+        let mut g = gcd(num.unsigned_abs(), den.unsigned_abs()) as i128;
+        if g < 1 {
+            g = 1;
+        }
+        FrameRate { num: (num as i128 / g) as i64, den: (den as i128 / g) as i64 }
     }
 
     /// The [`COMMON`](Self::COMMON) rate within 0.005 fps of `fps` (a container's average rate),
@@ -165,7 +169,7 @@ impl FrameRate {
 /// An audio sample rate in hertz.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(transparent)]
-pub struct SampleRate(pub u32);
+pub struct SampleRate(u32);
 
 impl Default for SampleRate {
     fn default() -> Self {
@@ -174,6 +178,11 @@ impl Default for SampleRate {
 }
 
 impl SampleRate {
+    /// A rate of `hz` samples a second.
+    pub const fn new(hz: u32) -> Self {
+        SampleRate(hz)
+    }
+
     #[allow(missing_docs)]
     pub const HZ_44100: SampleRate = SampleRate(44_100);
     #[allow(missing_docs)]
@@ -213,6 +222,7 @@ impl SampleRate {
 
 /// A pixel aspect ratio, `num / den` (1/1 is square pixels).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[non_exhaustive]
 pub struct PixelAspect {
     /// The numerator of the width-to-height ratio of one pixel.
     pub num: u32,
@@ -227,8 +237,13 @@ impl Default for PixelAspect {
 }
 
 impl PixelAspect {
+    /// The ratio `num / den` of one pixel's width to its height.
+    pub const fn new(num: u32, den: u32) -> Self {
+        PixelAspect { num, den }
+    }
+
     #[allow(missing_docs)]
-    pub const SQUARE: PixelAspect = PixelAspect { num: 1, den: 1 };
+    pub const SQUARE: PixelAspect = PixelAspect::new(1, 1);
 
     /// The ratio, 1.0 for a zero denominator.
     pub fn as_f64(self) -> f64 {
@@ -268,7 +283,7 @@ fn frame_boundary(rate: FrameRate, frame: i128) -> i128 {
     n.div_euclid(d) + i128::from(n.rem_euclid(d) != 0)
 }
 
-fn gcd(mut a: u64, mut b: u64) -> u64 {
+const fn gcd(mut a: u64, mut b: u64) -> u64 {
     while b != 0 {
         (a, b) = (b, a % b);
     }

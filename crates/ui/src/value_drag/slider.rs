@@ -22,8 +22,6 @@ mod stories;
 
 /// The track the thumb rides on.
 pub(crate) const TRACK: PartKey = PartKey::new("track");
-/// The thumb.
-pub(crate) const THUMB: PartKey = PartKey::new("thumb");
 
 /// The style of a slider.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
@@ -107,6 +105,9 @@ pub enum SliderThumb {
 }
 
 impl<'a> Slider<'a> {
+    /// The thumb: a drag on it moves the value.
+    pub const THUMB: PartKey = PartKey::new("thumb");
+
     /// A slider of `value` over `range`.
     pub fn new(value: Bind<'a, f64>, range: RangeInclusive<f64>) -> Self {
         Slider {
@@ -188,7 +189,7 @@ impl Component for Slider<'_> {
             cx.part(track::GROOVE, track::groove_rect(&cx.style.track, area));
         }
         cx.part(TRACK, area).sense(Sense::CLICK | Sense::DRAG | Sense::TAKE_FOCUS).value_part().pointer_only("the arrow keys step the value");
-        cx.part(THUMB, thumb)
+        cx.part(Self::THUMB, thumb)
             .sense(Sense::DRAG | Sense::TAKE_FOCUS)
             .priority(HitPriority::new(HitLevel::Handle, 0))
             .value_part()
@@ -213,7 +214,7 @@ impl Component for Slider<'_> {
         let current = |cx: &Cx<'_, Self>| cx.value().copied().unwrap_or_else(|| scale.middle());
         let flow = cx.flow;
         let press_at = |cx: &Cx<'_, Self>, x: f32| pick.press(&[thumb_rect(&scale, current(cx), area, flow).center().x], x);
-        for key in [THUMB, TRACK] {
+        for key in [Self::THUMB, TRACK] {
             let press = cx.part(key).press;
             match press.phase {
                 PressPhase::DragStart { start, .. } => {
@@ -306,8 +307,8 @@ impl Component for Slider<'_> {
         let ink = MarkInk { marks: cx.resolve(&style.track.mark_color), labels: cx.resolve(&style.mark_text.color), role: style.mark_text.role };
         track::paint_marks(&draw, &style.track, &self.marks, &scale, Along { area, flow }, cx.rect, &ink);
         let (fill, edge) = (
-            if value.is_some() { cx.resolve_part(THUMB, &style.thumb) } else { cx.resolve(&style.track.unfilled) },
-            cx.resolve_part(THUMB, &style.thumb_edge),
+            if value.is_some() { cx.resolve_part(Self::THUMB, &style.thumb) } else { cx.resolve(&style.track.unfilled) },
+            cx.resolve_part(Self::THUMB, &style.thumb_edge),
         );
         let knob = match self.thumb {
             SliderThumb::Round => PaintShape::Circle(thumb.center(), style.diameter / 2.0),

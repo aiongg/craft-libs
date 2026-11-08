@@ -4,10 +4,10 @@ use super::ColorWheel;
 use craft_theme::{ColorModel, HsbModel, Srgba};
 use craft_ui::contract::{Bind, Show as _, Validity};
 use craft_ui::runtime::env::Message;
-use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
+use craft_ui::testing::{Drive, Grip, StoryData, StoryOutput, story};
 use egui::Ui;
 
-#[story(ColorWheel<'static>, covers = [Default], drive = Drive::Drag(super::RING))]
+#[story(ColorWheel<'static>, covers = [Default], drive = Drive::Drag(Grip::new(super::RING)))]
 fn color_wheel(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let values = data.value("values", HsbModel.from_srgb(Srgba::rgb(0.2, 0.5, 0.8)));
     ColorWheel::new("Color wheel", Bind::bound(values)).show(ui).into()

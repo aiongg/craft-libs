@@ -120,6 +120,14 @@ impl Outcome for AddBesideOutput {
     fn response(&self) -> &Response {
         &self.response
     }
+
+    #[cfg(feature = "screen-testing")]
+    fn story_facts(&self) -> craft_ui::testing::StoryOutput {
+        let mut facts = craft_ui::testing::StoryOutput::default();
+        facts.id = Some(self.response.id);
+        facts.clicked = self.added.is_some();
+        facts
+    }
 }
 
 /// The "+" buttons beside the four sides of `object` (document units).

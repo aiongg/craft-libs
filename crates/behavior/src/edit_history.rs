@@ -98,12 +98,6 @@ impl<T: Value> EditHistory<T> {
         true
     }
 
-    /// Drops the newest undo step without applying it, for a step that turned out to change nothing (a fill over an
-    /// empty area). The value stays as it is and the redo steps are untouched. False when there is no step.
-    pub fn drop_last(&mut self) -> bool {
-        self.undo.pop().is_some()
-    }
-
     /// Takes back the newest undo step without a redo entry, for an edit that was refused: `settled` returns to the
     /// value before the step, which is returned for the caller to apply, and the redo steps stay as they were. `None`
     /// when there is no step.

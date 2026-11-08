@@ -31,8 +31,6 @@ mod stories;
 
 /// The row-wide part: a press off the thumbs lands here.
 pub(crate) const ROW: PartKey = PartKey::new("row");
-/// One thumb, `THUMB.at(i)`.
-pub(crate) const THUMB: PartKey = PartKey::new("thumb");
 
 /// The style of a thumb row.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
@@ -121,6 +119,9 @@ pub struct Thumb {
 }
 
 impl Thumb {
+    /// The part key of a row's thumbs: thumb `i` is `Thumb::PART.at(i)`.
+    pub const PART: PartKey = PartKey::new("thumb");
+
     /// A thumb named `label`, free among the others, with the row's range and step. The label is the accessible
     /// name, a whole phrase the app translates; the row's own label comes before it.
     pub fn new(label: impl Into<Label>) -> Self {
@@ -789,7 +790,7 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
             let (left, right) = span(xs[i], size.x, halves[i], cx.flow.is_rtl());
             let thumb = Rect::from_min_size(pos2(left, top), Vec2::new(right - left, size.y));
             let part = cx
-                .part(THUMB.at(i as u64), thumb)
+                .part(Thumb::PART.at(i as u64), thumb)
                 .sense(Sense::DRAG)
                 .priority(HitPriority::new(HitLevel::Handle, 0))
                 .focusable()
@@ -810,7 +811,7 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
         let (rect, rtl, reach) = (cx.rect, cx.flow.is_rtl(), cx.style.hit);
         let size = Vec2::splat(cx.style.thumb);
         let row = cx.value().cloned().unwrap_or_else(all_mixed);
-        let parts: Vec<PartRef> = std::iter::once(PartRef::from(ROW)).chain((0..N).map(|i| THUMB.at(i as u64))).collect();
+        let parts: Vec<PartRef> = std::iter::once(PartRef::from(ROW)).chain((0..N).map(|i| Thumb::PART.at(i as u64))).collect();
         for part in parts {
             let press = cx.part(part).press;
             match press.phase {
@@ -820,7 +821,7 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
                         let thumb = picked.thumb(start.origin.x, pos.x);
                         *cx.memory::<Held>() = Held { anchor: row.to_vec(), press: Some(picked), alone: press.mods.alt, thumb, mods: press.mods };
                         if let Some(thumb) = thumb {
-                            cx.focus_part(THUMB.at(thumb as u64));
+                            cx.focus_part(Thumb::PART.at(thumb as u64));
                         }
                         cx.begin();
                         cx.propose(layout.moved(&row, picked, &press, false));
@@ -854,7 +855,7 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
                             && let Some(&target) = layout.moved(&row, picked, &press, true)[thumb].same()
                         {
                             cx.set(rules.apply(&RowOp::new(thumb, ThumbOp::Set(target)), &row));
-                            cx.focus_part(THUMB.at(thumb as u64));
+                            cx.focus_part(Thumb::PART.at(thumb as u64));
                         }
                     }
                 }
@@ -862,7 +863,7 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
             }
         }
         let current = |cx: &Cx<'_, Self>| cx.value().cloned().unwrap_or_else(all_mixed);
-        if let Some(part) = cx.reset_part().filter(|part| part.key == THUMB)
+        if let Some(part) = cx.reset_part().filter(|part| part.key == Thumb::PART)
             && let Some(thumb) = part.index.map(|i| i as usize).filter(|i| *i < N)
             && let Some(value) = rules.thumbs[thumb].reset
         {
@@ -871,11 +872,11 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
         // A running drag is one edit: keys, the wheel and SetValue wait for it.
         let running = cx.gesture().is_some();
         for thumb in 0..N {
-            if let Some(next) = cx.intents().take_set_value_at(THUMB.at(thumb as u64)).filter(|_| !running) {
+            if let Some(next) = cx.intents().take_set_value_at(Thumb::PART.at(thumb as u64)).filter(|_| !running) {
                 cx.set(rules.apply(&RowOp::new(thumb, ThumbOp::Set(next)), &current(&*cx)));
             }
         }
-        let focused = cx.active_part().filter(|part| part.key == THUMB).and_then(|part| part.index).map(|i| i as usize).filter(|i| *i < N);
+        let focused = cx.active_part().filter(|part| part.key == Thumb::PART).and_then(|part| part.index).map(|i| i as usize).filter(|i| *i < N);
         let Some(thumb) = focused else { return };
         let falling = rules.thumbs[thumb].falling;
         let direction = |mv: NavMove| if falling { against(mv) } else { mv };
@@ -910,7 +911,7 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
                 Some(value) if value.is_finite() => Numeric::new(shown[i], lo..=hi),
                 _ => Numeric::empty(lo..=hi),
             };
-            let node = access.node(THUMB.at(i as u64), Role::SLIDER);
+            let node = access.node(Thumb::PART.at(i as u64), Role::SLIDER);
             node.name = named(cx.resolved.label, name);
             node.numeric = Some(numeric.step(step));
         }
@@ -930,7 +931,7 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
         let xs = layout.xs(&shown);
         // The thumbs a press at the pointer would move take the hover look.
         let lit = std::iter::once(PartRef::from(ROW))
-            .chain((0..N).map(|i| THUMB.at(i as u64)))
+            .chain((0..N).map(|i| Thumb::PART.at(i as u64)))
             .find_map(|part| cx.hover_pos(part))
             .and_then(|at| layout.press(&shown, at.x))
             .map_or_else(Vec::new, |press| match press {
@@ -947,7 +948,7 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
                 continue;
             }
             let points = triangle(pos2(xs[i], top), size, halves[i], cx.flow.is_rtl());
-            let part = THUMB.at(i as u64);
+            let part = Thumb::PART.at(i as u64);
             let state = cx.core.part_state_lit(part, lit.contains(&i));
             draw.fill(&PaintShape::Polygon(grown(&points, style.ring_width)), state.resolve(&style.ring));
             let shape = PaintShape::Polygon(points);

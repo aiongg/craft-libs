@@ -6,7 +6,7 @@ use crate::contract::ShapeKind;
 use crate::runtime::egui::access::Declared;
 use crate::testing::fixture::{Fixture, Target};
 use crate::testing::sensing::{ProbeMember, ProbePart, ProbeRoot, RootReport, show};
-use crate::testing::story::EditKind;
+use crate::testing::story::{EditKind, Grip};
 use crate::testing::{Frames, input, pointer};
 use craft_behavior::{HitLevel, PartKey, Sense};
 use egui::{Pos2, Rect, Ui, Vec2};
@@ -49,7 +49,7 @@ fn slop_separates_click_from_drag(subject: &Subject) -> Result<(), String> {
                     }
                 }
             }
-            Plan::Drag(part) if probe.carries_value() => {
+            Plan::Drag(Grip { part, .. }) if probe.carries_value() => {
                 for (by, begins) in [(0.5 * slop, 0), (2.0 * slop, 1)] {
                     let (mut fixture, _) = settled(story, probe);
                     let Some(grip) = fixture.root_id().and_then(|id| fixture.part(id, part)) else { continue };
@@ -111,7 +111,7 @@ fn parts_take_presses_in_their_hit_areas(subject: &Subject) -> Result<(), String
                 ));
             }
         }
-        if let (Plan::Drag(part), true) = (plan, probe.carries_value()) {
+        if let (Plan::Drag(Grip { part, .. }), true) = (plan, probe.carries_value()) {
             let Some(grip) = fixture.root_id().and_then(|id| fixture.part(id, part)) else { continue };
             let off_middle = Pos2::new(grip.rect.center().x + 0.25 * grip.rect.width(), grip.rect.center().y);
             let mut fixture = fixture;

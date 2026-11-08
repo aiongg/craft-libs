@@ -465,7 +465,6 @@ pub struct LiquifyCanvasTool<'a> {
     cursor: &'a BrushCursorOptions,
 }
 
-
 impl LiquifyCanvasTool<'_> {
     /// Ends the stroke, the lasso and the resize in progress without recording them (the host's `cancel`, and the
     /// workspace when the host has no gesture to cancel). Esc, a lost pointer, a tool switch or an undo end a

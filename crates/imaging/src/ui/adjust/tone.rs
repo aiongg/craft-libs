@@ -162,6 +162,7 @@ impl<'a> TonePickerRow<'a> {
                     .icon_only()
                     .enabled(usable)
                     .id_salt(picker as u8)
+                    .escape_disarms()
                     .show(ui);
                 if let Some(next) = toggle.value().copied() {
                     change = Some(next.then_some(picker));

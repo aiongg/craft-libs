@@ -35,7 +35,6 @@ struct Drag {
 #[derive(Debug, Default)]
 pub struct RulerTool {
     drag: Option<Drag>,
-    gesture: GestureId,
     events: Vec<EditEvent<Option<RulerLine>>>,
 }
 
@@ -50,15 +49,17 @@ impl RulerTool {
         std::mem::take(&mut self.events)
     }
 
-    /// This pass's tool for the host, over `line`: the document's Ruler line, `None` before the first.
-    pub fn pass(&mut self, line: Option<RulerLine>) -> RulerPass<'_> {
-        RulerPass { tool: self, line: line.filter(RulerLine::is_finite) }
+    /// This pass's tool for the host, over `line`: the document's Ruler line, `None` before the first. `ctx` mints
+    /// the ids of key edits, which run outside a gesture.
+    pub fn pass<'a>(&'a mut self, ctx: &'a egui::Context, line: Option<RulerLine>) -> RulerPass<'a> {
+        RulerPass { tool: self, ctx, line: line.filter(RulerLine::is_finite) }
     }
 }
 
 /// The Ruler tool for one pass of the host ([`RulerTool::pass`]).
 pub struct RulerPass<'a> {
     tool: &'a mut RulerTool,
+    ctx: &'a egui::Context,
     /// The line as this pass's events leave it: the input's, then every change the tool reported.
     line: Option<RulerLine>,
 }
@@ -94,11 +95,6 @@ impl RulerPass<'_> {
         self.tool.events.push(event);
     }
 
-    fn next_id(&mut self) -> GestureId {
-        self.tool.gesture = self.tool.gesture.next();
-        self.tool.gesture
-    }
-
     /// Moves the whole line by one key's nudge.
     fn nudge(&mut self, line: RulerLine, direction: egui::Vec2, shift: bool, cx: &ToolContext<'_>) -> bool {
         let Some(space) = cx.space() else { return false };
@@ -113,7 +109,7 @@ impl RulerPass<'_> {
         next.start += by;
         next.end += by;
         next.protractor = line.protractor.map(|arm| arm + by);
-        let id = self.next_id();
+        let id = craft_ui::runtime::edit::next_gesture_id(self.ctx);
         self.report(Some(next), EditEvent::set(id, Mixed::Same(Some(line)), Some(next), Self::label(cx), None));
         true
     }
@@ -128,7 +124,7 @@ impl CanvasTool for RulerPass<'_> {
     fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
         let Some(at) = Self::doc(pointer, cx) else { return ToolAction::Ignored };
         let before = self.line;
-        let id = self.next_id();
+        let Some(id) = cx.gesture_id() else { return ToolAction::Ignored };
         self.tool.drag = Some(Drag { id, before });
         let line = RulerLine::new(at, at);
         self.report(Some(line), EditEvent::begin(id, Mixed::Same(before), Self::label(cx), None));
@@ -171,7 +167,7 @@ impl CanvasTool for RulerPass<'_> {
         match key {
             ToolKey::Nudge { direction, mods, .. } => self.nudge(line, *direction, mods.shift, cx),
             ToolKey::Delete { .. } => {
-                let id = self.next_id();
+                let id = craft_ui::runtime::edit::next_gesture_id(self.ctx);
                 self.report(None, EditEvent::set(id, Mixed::Same(Some(line)), None, Self::label(cx), None));
                 true
             }

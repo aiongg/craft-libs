@@ -7,8 +7,8 @@ use crate::runtime::access::Role;
 use crate::runtime::egui::access::{Declared, NodeKey};
 use crate::runtime::egui::fixture::AccessActionKind;
 use crate::testing::fixture::{Fixture, Target};
-use crate::testing::story::{Drive, EditKind, Required, Story};
-use craft_behavior::{Input, PartRef, Sense};
+use crate::testing::story::{Drive, EditKind, Grip, Required, Story};
+use craft_behavior::{Input, Sense};
 use egui::{Id, Key, Modifiers, Pos2, Vec2};
 
 pub(super) const CASES: &[Case] = &[
@@ -22,8 +22,8 @@ pub(super) const CASES: &[Case] = &[
 pub(super) enum Plan {
     Activate,
     Step,
-    Drag(PartRef),
-    DragChild(PartRef),
+    Drag(Grip),
+    DragChild(Grip),
     /// Types `text` into the subject; `story` names the story in the failure when focus never reaches it.
     Type(&'static str, &'static str),
     Pick(usize),
@@ -39,14 +39,14 @@ pub(super) fn plan(story: &Story, probe: &Probe, fixture: &Fixture) -> Plan {
         Drive::Auto if matches!(probe.input, Input::Text | Input::Editor) => Plan::Type("sample", story.name),
         Drive::Auto if probe.overlay => Plan::Pick(1),
         Drive::Auto if probe.carries_value() => match fixture.drag_part() {
-            Some(part) => Plan::Drag(part),
+            Some(part) => Plan::Drag(Grip::part(part)),
             None if probe.keys.activate != crate::runtime::focus::ActivateKeys::Neither => Plan::Activate,
             None => Plan::Step,
         },
         Drive::Auto | Drive::Activate => Plan::Activate,
         Drive::Step => Plan::Step,
-        Drive::Drag(key) => Plan::Drag(key.into()),
-        Drive::DragChild(part) => Plan::DragChild(part),
+        Drive::Drag(grip) => Plan::Drag(grip),
+        Drive::DragChild(grip) => Plan::DragChild(grip),
         Drive::Type(text) => Plan::Type(text, story.name),
         Drive::Pick { row } => Plan::Pick(row),
         Drive::Custom(custom) => Plan::Custom(custom),
@@ -143,20 +143,20 @@ fn step(fixture: &mut Fixture, variant: usize, target: &Target) {
     }
 }
 
-/// A drag from `from` by twice the slop along x, ended by a release or, with `escape`, by Escape before it.
-fn drag(fixture: &mut Fixture, from: Pos2, escape: bool) {
-    let travel = 2.0 * crate::testing::input::max_click_dist(fixture.ctx());
+/// A drag from `from` by twice the slop along `toward`, ended by a release or, with `escape`, by Escape before it.
+fn drag(fixture: &mut Fixture, from: Pos2, toward: Vec2, escape: bool) {
+    let by = 2.0 * crate::testing::input::max_click_dist(fixture.ctx()) * toward;
     if !escape {
-        fixture.drag_at(from, Vec2::new(travel, 0.0));
+        fixture.drag_at(from, by);
         return;
     }
     fixture.frame(vec![crate::testing::pointer::moved(from)]);
     fixture.frame(vec![crate::testing::pointer::press(from)]);
     for at in 1..=4 {
-        fixture.frame(vec![crate::testing::pointer::moved(from + Vec2::new(travel, 0.0) * (at as f32 / 4.0))]);
+        fixture.frame(vec![crate::testing::pointer::moved(from + by * (at as f32 / 4.0))]);
     }
     fixture.key(Key::Escape, Modifiers::NONE);
-    fixture.frame(vec![crate::testing::pointer::release(from + Vec2::new(travel, 0.0))]);
+    fixture.frame(vec![crate::testing::pointer::release(from + by)]);
     fixture.idle(2);
 }
 
@@ -220,15 +220,15 @@ pub(super) fn run(fixture: &mut Fixture, plan: Plan, variant: usize) {
     match plan {
         Plan::Activate => activate(fixture, variant, &activation_target(fixture)),
         Plan::Step => step(fixture, variant, &target),
-        Plan::Drag(part) => {
-            let grip = fixture.root_id().and_then(|id| fixture.part(id, part)).unwrap_or(target);
-            drag(fixture, grip.center(), variant == 1);
+        Plan::Drag(grip) => {
+            let pressed = fixture.root_id().and_then(|id| fixture.part(id, grip.part)).unwrap_or(target);
+            drag(fixture, pressed.center(), grip.toward, variant == 1);
         }
-        Plan::DragChild(part) => {
+        Plan::DragChild(grip) => {
             let owner = fixture.root_id().unwrap_or(Id::NULL);
-            let grip =
-                crate::runtime::pointer::child_part_bounds(fixture.ctx(), owner, part, Sense::DRAG).map_or(target.center(), |rect| rect.center());
-            drag(fixture, grip, variant == 1);
+            let from = crate::runtime::pointer::child_part_bounds(fixture.ctx(), owner, grip.part, Sense::DRAG)
+                .map_or(target.center(), |rect| rect.center());
+            drag(fixture, from, grip.toward, variant == 1);
         }
         Plan::Type(text, story) => {
             // A disabled subject takes no focus and no text, which the disabled case checks.
@@ -254,6 +254,70 @@ pub(super) fn settled(story: &Story, probe: &Probe) -> (Fixture, Plan) {
     (fixture, plan)
 }
 
+/// What the runs of one story's drive did.
+struct Runs {
+    /// Every run, by name, in order.
+    ran: Vec<&'static str>,
+    /// Some run changed the value.
+    changed: bool,
+    failures: Vec<String>,
+}
+
+/// Runs each way of `story`'s drive in its own fixture: a run that changes the value ends its gesture once, a
+/// cancelled run leaves the value as it was, and the runs that are not cancelled agree on changing it.
+fn runs_of(story: &Story, probe: &Probe) -> Runs {
+    let (_, plan) = settled(story, probe);
+    let mut runs = Runs { ran: Vec::new(), changed: false, failures: Vec::new() };
+    let mut changed_by = Vec::new();
+    let mut unchanged_by = Vec::new();
+    for variant in variants(plan, probe) {
+        let (mut fixture, _) = settled(story, probe);
+        let before = fixture.data().snapshot();
+        fixture.take_outputs();
+        run(&mut fixture, plan, variant);
+        let changed = !fixture.data().changed_since(&before).is_empty();
+        let kinds: Vec<EditKind> = fixture.take_outputs().into_iter().flat_map(|output| output.edits).collect();
+        let name = variant_name(plan, variant);
+        runs.ran.push(name);
+        if cancels(plan, variant) {
+            if changed || kinds.iter().any(|kind| matches!(kind, EditKind::Commit | EditKind::Set)) {
+                runs.failures.push(format!("{}: {name} left a changed value or a commit: {kinds:?}", story.name));
+            }
+            continue;
+        }
+        if !changed {
+            unchanged_by.push(name);
+            continue;
+        }
+        changed_by.push(name);
+        let ends = kinds.iter().filter(|kind| matches!(kind, EditKind::Commit | EditKind::Set)).count();
+        if ends != 1 || kinds.contains(&EditKind::Cancel) {
+            runs.failures.push(format!("{}: {name} gave {kinds:?}", story.name));
+        }
+    }
+    if !changed_by.is_empty() {
+        runs.changed = true;
+        if !unchanged_by.is_empty() {
+            runs.failures.push(format!("{}: {unchanged_by:?} changed nothing while {changed_by:?} did", story.name));
+        }
+    }
+    runs
+}
+
+/// The `values` case over one story of the type `probe` describes: each way of the story's drive runs in its own
+/// fixture. `Ok` names the runs in order (a drag is followed by `"drag with Escape"`); `Err` gives the failures, or
+/// says that no run changed the value.
+pub fn values_case(probe: &Probe, story: &Story) -> Result<Vec<&'static str>, String> {
+    let runs = runs_of(story, probe);
+    if !runs.failures.is_empty() {
+        return Err(runs.failures.join("; "));
+    }
+    if !runs.changed {
+        return Err(format!("{}: no drive changed the value", story.name));
+    }
+    Ok(runs.ran)
+}
+
 fn a_drive_ends_each_gesture_once(subject: &Subject) -> Result<(), String> {
     if !subject.probe.carries_value() {
         return Ok(());
@@ -261,39 +325,9 @@ fn a_drive_ends_each_gesture_once(subject: &Subject) -> Result<(), String> {
     let mut changed_any = false;
     let mut failures = Vec::new();
     for story in &subject.stories {
-        let (_, plan) = settled(story, subject.probe);
-        let mut changed_by = Vec::new();
-        let mut unchanged_by = Vec::new();
-        for variant in variants(plan, subject.probe) {
-            let (mut fixture, _) = settled(story, subject.probe);
-            let before = fixture.data().snapshot();
-            fixture.take_outputs();
-            run(&mut fixture, plan, variant);
-            let changed = !fixture.data().changed_since(&before).is_empty();
-            let kinds: Vec<EditKind> = fixture.take_outputs().into_iter().flat_map(|output| output.edits).collect();
-            let name = variant_name(plan, variant);
-            if cancels(plan, variant) {
-                if changed || kinds.iter().any(|kind| matches!(kind, EditKind::Commit | EditKind::Set)) {
-                    failures.push(format!("{}: {name} left a changed value or a commit: {kinds:?}", story.name));
-                }
-                continue;
-            }
-            if !changed {
-                unchanged_by.push(name);
-                continue;
-            }
-            changed_by.push(name);
-            let ends = kinds.iter().filter(|kind| matches!(kind, EditKind::Commit | EditKind::Set)).count();
-            if ends != 1 || kinds.contains(&EditKind::Cancel) {
-                failures.push(format!("{}: {name} gave {kinds:?}", story.name));
-            }
-        }
-        if !changed_by.is_empty() {
-            changed_any = true;
-            if !unchanged_by.is_empty() {
-                failures.push(format!("{}: {unchanged_by:?} changed nothing while {changed_by:?} did", story.name));
-            }
-        }
+        let runs = runs_of(story, subject.probe);
+        changed_any |= runs.changed;
+        failures.extend(runs.failures);
     }
     if !changed_any {
         failures.push("no drive changed the value".to_owned());
@@ -309,7 +343,7 @@ fn a_double_click_resets_with_one_set(subject: &Subject) -> Result<(), String> {
     }
     for story in &subject.stories {
         let (mut fixture, plan) = settled(story, subject.probe);
-        let Plan::Drag(part) = plan else { continue };
+        let Plan::Drag(Grip { part, .. }) = plan else { continue };
         run(&mut fixture, plan, 0);
         let Some(grip) = fixture.root_id().and_then(|id| fixture.part(id, part)) else { continue };
         let before = fixture.data().snapshot();

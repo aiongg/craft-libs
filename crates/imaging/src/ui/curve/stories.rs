@@ -8,7 +8,7 @@ use craft_ui::contract::{Bind, Show as _, Validity};
 use craft_ui::display::Text;
 use craft_ui::runtime::env::Message;
 use craft_ui::style::DataColor;
-use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
+use craft_ui::testing::{Drive, Grip, StoryData, StoryOutput, story};
 use egui::{Color32, Ui};
 
 /// Sample bins of an image's channel: two hills, the channel's mean shifted by `shift`.
@@ -36,7 +36,7 @@ fn bent() -> Curve {
 }
 
 /// The RGB composite with the other channels' curves behind it and a histogram under it.
-#[story(CurveEditor<'static>, covers = [Default], drive = Drive::Drag(PLOT))]
+#[story(CurveEditor<'static>, covers = [Default], drive = Drive::Drag(Grip::new(PLOT)))]
 fn curve_editor(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let overlays = data
         .value("overlays", vec![bent(), Curve::identity(255.0), Curve::smooth(vec![[0.0, 20.0], [255.0, 235.0]]), Curve::identity(255.0)])
@@ -53,7 +53,7 @@ fn curve_editor(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// Pencil mode: a drag draws one output per input level.
-#[story(CurveEditor<'static>, covers = [], drive = Drive::Drag(PLOT))]
+#[story(CurveEditor<'static>, covers = [], drive = Drive::Drag(Grip::new(PLOT)))]
 fn curve_editor_pencil(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let curve = data.value("drawn", Curve::Map((0..=255).map(|k| k as f32).collect()));
     CurveEditor::new("Curve", Bind::bound(curve)).pencil().show(ui).into()
@@ -86,7 +86,7 @@ fn curve_editor_percent(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// The plot of the curve editor alone.
-#[story(CurveGraph<'static>, covers = [Default], drive = Drive::Drag(PLOT))]
+#[story(CurveGraph<'static>, covers = [Default], drive = Drive::Drag(Grip::new(PLOT)))]
 fn curve_graph(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     CurveGraph::new("Curve", Bind::bound(data.value("curve", bent()))).show(ui).into()
 }

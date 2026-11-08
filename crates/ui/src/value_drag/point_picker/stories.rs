@@ -1,9 +1,9 @@
 //! Stories of `PointPicker`.
 
-use super::{PointPicker, WELL};
+use super::PointPicker;
 use crate::contract::{Bind, Props as _, Show as _, Validity};
 use crate::runtime::env::Message;
-use crate::testing::{Drive, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Grip, StoryData, StoryOutput, story};
 use craft_behavior::Mixed;
 use egui::Ui;
 
@@ -17,7 +17,7 @@ fn point_picker(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     PointPicker::new(Bind::bound(data.value("point", Mixed::each(CENTER))), RANGE, RANGE).label("Blur center").show(ui).into()
 }
 
-#[story(PointPicker<'static>, covers = [], drive = Drive::Drag(WELL))]
+#[story(PointPicker<'static>, covers = [], drive = Drive::Drag(Grip::new(PointPicker::WELL)))]
 fn point_picker_drag(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     PointPicker::new(Bind::bound(data.value("point", Mixed::each(CENTER))), RANGE, RANGE).label("Blur center").show(ui).into()
 }

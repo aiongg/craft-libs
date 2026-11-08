@@ -7,7 +7,7 @@ use crate::ui::length::DocUnit;
 use craft_behavior::Mixed;
 use craft_ui::contract::{Bind, Show as _, Validity};
 use craft_ui::runtime::env::{Message, UnitKind};
-use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
+use craft_ui::testing::{Drive, Grip, StoryData, StoryOutput, story};
 use egui::Ui;
 
 /// The column's width, points: a 6.5 in text width.
@@ -32,7 +32,7 @@ fn inches() -> DocUnit {
     DocUnit::new(UnitKind::Inches, 96.0)
 }
 
-#[story(TextRuler<'static>, covers = [Default], drive = Drive::Drag(FIRST))]
+#[story(TextRuler<'static>, covers = [Default], drive = Drive::Drag(Grip::new(FIRST)))]
 fn with_stops_and_indents(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let values = data.value("values", word());
     TextRuler::new("Ruler", Bind::bound(&mut *values), COLUMN).unit(inches()).show(ui).into()
