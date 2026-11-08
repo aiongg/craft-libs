@@ -1642,10 +1642,11 @@ dependencies = [
 name = "craft-table"
 version = "0.1.0"
 dependencies = [
+ "craft-behavior",
+ "craft-keymap",
  "craft-theme",
- "craft-ui-legacy",
+ "craft-ui",
  "egui",
- "egui_kittest",
 ]
 
 [[package]]

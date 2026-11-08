@@ -1,61 +1,32 @@
-//! Slicers: tiles that filter a table by a column's values (N6.06).
+//! Slicers: tiles that filter a table by a column's values.
 
-use craft_ui::localized::Labels as _;
-use craft_ui::theme::scale::Stroke as Line;
-use craft_ui::theme::{StrokeExt as _, ToEgui as _, Tokens, TokensOf as _};
-use egui::accesskit::Role;
-use egui::{
-    Align2, Color32, CornerRadius, EventFilter, FontId, IdSalt, Key, Modifiers, Rect, Response, Sense, StrokeKind, Ui, UiBuilder, WidgetInfo, pos2,
-    vec2,
+use std::borrow::Cow;
+
+use craft_behavior::{DisplayOrder, IconId, ItemSource, Metrics, Selection, Sense, TileLayout};
+use craft_theme::Variant;
+use craft_theme::variant::{Emphasis, Tone};
+use craft_ui::buttons::IconButton;
+use craft_ui::contract::{
+    ActivateOn, BodyCx, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, Container, ContainerProps, Cx,
+    HeaderRegion, NoValue, Outcome, PaintUi, Pattern, Props, Role, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, Sizing,
+    Styled as _, WordSetCx as _, clicked,
 };
+use craft_ui::display::Text;
+use craft_ui::primitives::{IconSpec, TextRun};
+use craft_ui::runtime::env::{Env, Label};
+use craft_ui::style::{ComponentStyle, Flags, FocusLook, Stateful, StyleColor, StyleCx, SurfaceKind, SurfaceLook, TextLook, TypeRole};
+use egui::{Rect, Response, Ui, Vec2, pos2};
 
-use craft_ui::behavior::{GridKey, GridNav};
-use craft_ui::icons::{Icon, IconSize};
-
-use super::style::SheetStyle;
+#[cfg(feature = "screen-testing")]
+mod stories;
 
 craft_ui::words! {
-    /// The slicer's words, English by default (Excel's).
+    /// The slicer's words, English by default.
     #[non_exhaustive]
-    pub struct SlicerLabels {
+    pub struct SlicerWords {
+        /// The accessible name and tooltip of the funnel button in the header.
         clear: "slicer.clear" = "Clear Filter";
     }
-}
-
-/// A slicer's parts.
-#[derive(Clone, Debug, PartialEq)]
-pub struct SlicerLayout {
-    /// The caption header.
-    pub header: Rect,
-    /// The clear-filter button in the header.
-    pub clear: Rect,
-    /// One rect per value tile, in order.
-    pub tiles: Vec<Rect>,
-}
-
-/// The layout of a slicer in `rect` at `zoom` with `n` values in `columns` columns: the header,
-/// padding, gap, tile height and clear button from `style` (`sheet.slicer_*`, each × zoom),
-/// tiles filling the width.
-// gridcraft: crates/ui-egui/src/chartview.rs:400 `slicer_layout`.
-pub fn slicer_layout(rect: Rect, zoom: f32, n: usize, columns: u32, style: &SheetStyle) -> SlicerLayout {
-    let header_height = style.slicer_header * zoom;
-    let padding = style.slicer_padding * zoom;
-    let gap = style.slicer_gap * zoom;
-    let tile_height = style.slicer_tile * zoom;
-    let header = Rect::from_min_size(rect.min, vec2(rect.width(), header_height));
-    let button = style.slicer_clear * zoom;
-    let clear = Rect::from_min_size(pos2(header.right() - padding - button, header.top() + (header_height - button) / 2.0), vec2(button, button));
-    let columns = columns.max(1) as f32;
-    let inner_width = (rect.width() - 2.0 * padding).max(1.0);
-    let tile_width = ((inner_width - (columns - 1.0) * gap) / columns).max(1.0);
-    let tiles = (0..n)
-        .map(|i| {
-            let (column, row) = ((i as f32) % columns, (i as f32 / columns).floor());
-            let min = pos2(rect.left() + padding + column * (tile_width + gap), header.bottom() + padding + row * (tile_height + gap));
-            Rect::from_min_size(min, vec2(tile_width, tile_height))
-        })
-        .collect();
-    SlicerLayout { header, clear, tiles }
 }
 
 /// What a click on a slicer did.
@@ -68,173 +39,338 @@ pub enum SlicerAction {
     Clear,
 }
 
-/// Excel's slicer (GridCraft): a card with a soft shadow, the caption in the accent-soft header
-/// with the funnel button (tinted while a filter is on), value tiles (on: accent with on-accent
-/// text; off: hover with dim text); tiles that overflow the card are left out. A click on a tile
-/// toggles its value, on the funnel clears; elsewhere it is the app's (select, drag the object).
-/// The card and the funnel button sense click and drag, so a press on them never reaches the grid
-/// under the slicer.
-/// The slicer is one Tab stop whose arrows move between the tiles in reading order
-/// ([`GridNav`] over the tile columns), Space toggles the focused
-/// tile as a click does, and the funnel button is a Tab stop of
-/// its own named by [`SlicerLabels::clear`]. AccessKit: a `ListBox` of `ListBoxOption`s with
-/// `selected`, the focused tile its `active_descendant`. The tiles are the slicer's own (Excel's look); step 5's `Chip` is a removable tag
-/// and `ToggleButton` a pressed button, neither of which is a slicer tile.
+/// What the slicer did this pass.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct SlicerOutput {
+    /// The slicer card's response.
+    pub response: Response,
+    /// What the user did, if anything. The funnel wins over a tile when both report in one pass.
+    pub action: Option<SlicerAction>,
+}
+
+impl Outcome for SlicerOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// Excel's slicer: a raised card whose header holds the caption and the funnel button (tinted while a filter is on),
+/// over value tiles in `columns` columns (on: the accent fill with the on-accent text; off: the hover fill with muted
+/// text). A click, Enter or Space on a tile reports [`SlicerAction::Toggle`] with its value, the funnel reports
+/// [`SlicerAction::Clear`]; elsewhere a press is the app's (select, drag the object).
+///
+/// The tiles are one Tab stop whose arrows move between them in reading order and wrap over the rows; the funnel
+/// button is a Tab stop of its own. A card too small for all the tiles scrolls them. `zoom` is the sheet zoom the
+/// slicer sits at.
+#[derive(Pattern)]
 pub struct Slicer<'a> {
-    id_salt: IdSalt,
-    caption: &'a str,
+    caption: Label,
     items: &'a [(String, bool)],
     columns: u32,
     filtered: bool,
     zoom: f32,
-    labels: Option<SlicerLabels>,
 }
 
 impl<'a> Slicer<'a> {
-    /// `items`: each value and whether it is on.
-    pub fn new(id_salt: impl egui::AsIdSalt, caption: &'a str, items: &'a [(String, bool)]) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), caption, items, columns: 1, filtered: false, zoom: 1.0, labels: None }
-    }
-
-    /// Uses these label texts instead of the ones read from the active locale's catalog.
-    pub fn labels(mut self, labels: SlicerLabels) -> Self {
-        self.labels = Some(labels);
-        self
+    /// A slicer titled `caption` over `items`: each value and whether it is on.
+    pub fn new(caption: impl Into<Label>, items: &'a [(String, bool)]) -> Self {
+        Slicer { caption: caption.into(), items, columns: 1, filtered: false, zoom: 1.0 }
     }
 
     /// The number of tile columns; 1 by default.
+    #[must_use]
     pub fn columns(mut self, columns: u32) -> Self {
-        self.columns = columns;
+        self.columns = columns.max(1);
         self
     }
 
     /// Whether a filter is on; the funnel button is then tinted.
+    #[must_use]
     pub fn filtered(mut self, on: bool) -> Self {
         self.filtered = on;
         self
     }
 
     /// The sheet zoom the slicer sits at.
+    #[must_use]
     pub fn zoom(mut self, zoom: f32) -> Self {
         self.zoom = zoom;
         self
     }
 
-    // gridcraft: crates/ui-egui/src/chartview.rs:424 `paint_slicers`, `:472` `slicer_click`.
-    /// Shows the slicer in `rect` and reports clicks and key presses.
+    /// Shows the slicer in `rect` and reports what the user did.
     pub fn show(self, ui: &mut Ui, rect: Rect) -> SlicerOutput {
-        let Self { id_salt, caption, items, columns, filtered, zoom, labels } = self;
-        let labels = labels.unwrap_or_else(|| SlicerLabels::of(ui));
-        let tokens = Tokens::of(ui);
-        let style = SheetStyle::of(&tokens);
-        let ctx = ui.ctx().clone();
-        let id = ui.make_persistent_id(id_salt);
-        let layout = slicer_layout(rect, zoom, items.len(), columns, &style);
-        // Tiles that overflow the card are left out (GridCraft `chartview.rs:442`).
-        let shown: Vec<usize> = (0..items.len()).filter(|&i| rect.contains(layout.tiles[i].left_top())).collect();
-        let enabled = ui.is_enabled();
-
-        // The AccessKit options are created first so the card, above them, keeps pointer and focus.
-        let options = ui.new_child(UiBuilder::new().id_salt("tiles").accessibility_parent(id).max_rect(rect));
-        for &i in &shown {
-            let option = options.interact(layout.tiles[i], id.with(("tile", i)), Sense::hover());
-            option.widget_info(|| WidgetInfo::selected(Role::ListBoxOption, enabled, items[i].1, &items[i].0));
-        }
-        let card = ui.interact(rect, id, Sense::click_and_drag());
-        card.widget_info(|| WidgetInfo::labeled(Role::ListBox, enabled, caption));
-        let clear = ui.interact(layout.clear, id.with("clear"), Sense::click_and_drag());
-        clear.widget_info(|| WidgetInfo::labeled(Role::Button, enabled, &labels.clear));
-
-        let mut actions = Vec::new();
-        let active_key = id.with("active");
-        let mut active = ctx.data(|d| d.get_temp::<usize>(active_key)).unwrap_or(0);
-        let nav = GridNav::wrapped(shown.len(), columns.max(1) as usize).rtl(craft_ui::direction::is_rtl(ui));
-        if card.has_focus() && !shown.is_empty() {
-            ui.memory_mut(|m| {
-                m.set_focus_lock_filter(id, EventFilter { horizontal_arrows: true, vertical_arrows: true, ..Default::default() });
-            });
-            let key = ui.input_mut(|input| {
-                [Key::ArrowLeft, Key::ArrowRight, Key::ArrowUp, Key::ArrowDown, Key::Home, Key::End]
-                    .into_iter()
-                    .find(|&key| input.consume_key(Modifiers::NONE, key))
-            });
-            if let Some(step) = key.and_then(GridKey::from_key) {
-                active = nav.step(active.min(shown.len() - 1), step, None).index;
-            }
-            if ui.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Space)) {
-                actions.push(SlicerAction::Toggle(items[shown[active.min(shown.len() - 1)]].0.clone()));
-            }
-        }
-        if card.clicked() && !clear.hovered() {
-            let hit = ui.input(|input| input.pointer.interact_pos()).and_then(|p| shown.iter().position(|&i| layout.tiles[i].contains(p)));
-            if let Some(at) = hit {
-                active = at;
-                actions.push(SlicerAction::Toggle(items[shown[at]].0.clone()));
-            }
-        }
-        if clear.clicked() {
-            actions.push(SlicerAction::Clear);
-        }
-        ctx.data_mut(|d| d.insert_temp(active_key, active));
-        let focused = (card.has_focus() && !shown.is_empty()).then(|| id.with(("tile", shown[active.min(shown.len() - 1)])).accesskit_id());
-        ctx.accesskit_node_builder(id, |node| match focused {
-            Some(tile) => node.set_active_descendant(tile),
-            None => node.clear_active_descendant(),
+        let Slicer { caption, items, columns, filtered, zoom } = self;
+        let source = Values(items);
+        let card = SlicerCard::new(caption.clone(), filtered);
+        let shown = card.show_at(ui, rect, |ui, _| {
+            let tiles = SlicerTiles::new(columns, zoom).label(caption.clone());
+            tiles.show_items(ui, &source, &mut |key, _| SlicerTile::new(items[*key].0.clone()).on(items[*key].1))
         });
-
-        let colors = &tokens.color;
-        let radius: CornerRadius = tokens.radius.panel;
-        let line = Line::Hairline.egui(&ctx, colors.line.border.to_egui());
-        let painter = ui.painter();
-        painter.add(tokens.shadow.floating.as_shape(rect, radius));
-        painter.rect_filled(rect, radius, colors.surface.raised.to_egui());
-        painter.rect_stroke(rect, radius, line, StrokeKind::Inside);
-        let header_radius = CornerRadius { sw: 0, se: 0, ..radius };
-        painter.rect_filled(layout.header, header_radius, colors.accent.soft.to_egui());
-        let strong = tokens.font(style.slicer_caption);
-        let caption_font = FontId::new(strong.size * zoom, strong.family);
-        let base = tokens.font(style.slicer_text);
-        let font = FontId::new(base.size * zoom, base.family);
-        let padding = style.slicer_padding * zoom;
-        let caption_at = layout.header.left_center() + vec2(padding, 0.0);
-        painter.with_clip_rect(Rect::from_min_max(layout.header.min, pos2(layout.clear.left(), layout.header.max.y))).text(
-            caption_at,
-            Align2::LEFT_CENTER,
-            caption,
-            caption_font,
-            colors.accent.text.to_egui(),
-        );
-        let funnel = if filtered { colors.accent.solid } else { colors.text.muted }.to_egui();
-        craft_ui::icons::paint(ui, layout.clear, Icon::Funnel, IconSize::Sm, funnel);
-        let painter = ui.painter();
-        for &i in &shown {
-            let (text, on) = &items[i];
-            let tile = layout.tiles[i];
-            let (fill, ink): (Color32, Color32) = if *on {
-                (colors.accent.solid.to_egui(), colors.text.on_accent.to_egui())
-            } else {
-                (colors.state.hover.to_egui(), colors.text.muted.to_egui())
-            };
-            painter.rect_filled(tile, tokens.radius.control, fill);
-            painter.with_clip_rect(tile).text(tile.left_center() + vec2(padding, 0.0), Align2::LEFT_CENTER, text, font.clone(), ink);
-        }
-        if card.has_focus() && !shown.is_empty() {
-            let focus = Line::W2.egui(&ctx, colors.line.focus.to_egui());
-            painter.rect_stroke(layout.tiles[shown[active.min(shown.len() - 1)]], tokens.radius.control, focus, StrokeKind::Outside);
-        }
-        if clear.has_focus() {
-            let focus = Line::W2.egui(&ctx, colors.line.focus.to_egui());
-            painter.rect_stroke(layout.clear, tokens.radius.control, focus, StrokeKind::Outside);
-        }
-        SlicerOutput { response: card, actions }
+        let toggled = shown.inner.and_then(|tiles| toggled(&tiles, items));
+        let SlicerCardOutput { response, cleared } = shown.output;
+        let action = if cleared { Some(SlicerAction::Clear) } else { toggled.map(SlicerAction::Toggle) };
+        SlicerOutput { response, action }
     }
 }
 
-/// What the slicer did this pass.
-#[must_use]
-pub struct SlicerOutput {
-    /// The slicer's response.
-    pub response: Response,
-    /// In order. A click on a tile or the funnel and a key press in one pass report both.
-    pub actions: Vec<SlicerAction>,
+/// The value a tile press or key reported.
+fn toggled(tiles: &CollectionResponse<usize, ()>, items: &[(String, bool)]) -> Option<String> {
+    tiles.events.iter().find_map(|event| match event {
+        CollectionEvent::Activate(key) => items.get(*key).map(|(value, _)| value.clone()),
+        _ => None,
+    })
+}
+
+/// The values keyed by position.
+struct Values<'a>(&'a [(String, bool)]);
+
+impl DisplayOrder<usize> for Values<'_> {
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    fn key(&self, at: usize) -> usize {
+        at
+    }
+
+    fn index_of(&self, key: &usize) -> Option<usize> {
+        (*key < self.0.len()).then_some(*key)
+    }
+
+    fn text(&self, at: usize) -> Option<Cow<'_, str>> {
+        self.0.get(at).map(|(value, _)| Cow::Borrowed(value.as_str()))
+    }
+}
+
+impl ItemSource<usize> for Values<'_> {}
+
+/// What the card reports.
+struct SlicerCardOutput {
+    response: Response,
+    cleared: bool,
+}
+
+impl Outcome for SlicerCardOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// The style of the card: the surface comes from the container.
+#[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
+struct SlicerCardStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+}
+
+/// The raised card: the caption in its header, the funnel button at the header's end and the tiles in its body.
+#[derive(Component, Props)]
+#[component(container)]
+struct SlicerCard {
+    #[common]
+    common: Common,
+    #[container]
+    props: ContainerProps,
+    filtered: bool,
+    cleared: bool,
+}
+
+impl SlicerCard {
+    fn new(caption: Label, filtered: bool) -> Self {
+        let props = ContainerProps::new()
+            .surface(SurfaceKind::Raised)
+            .sizing(Sizing::Fill)
+            .header(HeaderRegion::new().rule(true).trailing(true))
+            .collection_body();
+        SlicerCard { common: Common::new(), props, filtered, cleared: false }.label(caption)
+    }
+}
+
+impl Component for SlicerCard {
+    const ROLE: Role = Role::GROUP;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
+    type Style = SlicerCardStyle;
+    type Output = SlicerCardOutput;
+
+    fn style(_: &StyleCx<'_>, _: SlicerCardStyleKey) -> SlicerCardStyle {
+        SlicerCardStyle::default()
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::CLICK | Sense::DRAG
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> SlicerCardOutput {
+        SlicerCardOutput { response: cx.response.clone(), cleared: self.cleared }
+    }
+}
+
+impl Container for SlicerCard {
+    fn header(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
+        Text::new(cx.label()).role(TypeRole::BodyStrong).show(ui);
+    }
+
+    fn controls(&mut self, ui: &mut Ui, _: &mut BodyCx<'_>) {
+        let clear = Env::of(ui).words::<SlicerWords>().clear.clone();
+        let variant = if self.filtered { Variant::look(Emphasis::Ghost, Tone::Accent) } else { Variant::GHOST };
+        let button =
+            IconButton::new(IconSpec::svg(IconId::new("funnel"))).label(clear.clone()).tooltip(clear.as_str().to_owned()).variant(variant).show(ui);
+        if clicked(&button) {
+            self.cleared = true;
+        }
+    }
+}
+
+/// The style of the tiles collection.
+#[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
+struct SlicerTilesStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+}
+
+/// The tiles: a collection of equal tiles in a fixed number of columns, one Tab stop, no selection of its own. A press
+/// or Space on a tile activates it.
+#[derive(Component, Props)]
+#[component(collection)]
+struct SlicerTiles {
+    #[common]
+    common: Common,
+    #[container]
+    props: ContainerProps,
+    #[collection]
+    items: CollectionProps,
+    columns: u32,
+    zoom: f32,
+}
+
+impl SlicerTiles {
+    fn new(columns: u32, zoom: f32) -> Self {
+        SlicerTiles {
+            common: Common::new(),
+            props: ContainerProps::new().sizing(Sizing::Fill),
+            items: CollectionProps::new().select(SelectMode::None).activate(ActivateOn::Click),
+            columns: columns.max(1),
+            zoom: if zoom.is_finite() && zoom > 0.0 { zoom } else { 1.0 },
+        }
+    }
+}
+
+impl Component for SlicerTiles {
+    const ROLE: Role = Role::LIST_BOX;
+    const PARTS: bool = false;
+    type Style = SlicerTilesStyle;
+    type Output = CollectionResponse<usize, ()>;
+
+    fn style(_: &StyleCx<'_>, _: SlicerTilesStyleKey) -> SlicerTilesStyle {
+        SlicerTilesStyle::default()
+    }
+
+    fn finish(self, mut cx: Cx<'_, Self>) -> Self::Output {
+        cx.collection_response()
+    }
+}
+
+impl Collection for SlicerTiles {
+    type Key = usize;
+    type ItemLayout = TileLayout;
+    type Selection = Selection<usize>;
+    type Item<'r> = SlicerTile;
+    type ItemEvent = ();
+
+    fn items(&self) -> &CollectionProps {
+        &self.items
+    }
+
+    fn item_layout(&self, source: &dyn ItemSource<usize>, width: f32, cx: &StyleCx<'_>) -> TileLayout {
+        let gap = cx.tokens.space.gap.tight;
+        // `TileLayout` counts the columns that fit; a tile one step narrower than the column pitch keeps the count at
+        // `columns` however the division rounds.
+        let pitch = (width + gap) / self.columns as f32;
+        let tile_width = (pitch - gap).max(1.0);
+        let tile = Vec2::new(f32::from_bits(tile_width.to_bits() - 1), cx.control().height * self.zoom);
+        TileLayout::new(source, width, tile, gap)
+    }
+}
+
+/// The style of a tile.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+struct SlicerTileStyle {
+    #[style(surface)]
+    surface: SurfaceLook,
+    #[style(metrics)]
+    metrics: Metrics,
+    #[style(focus)]
+    focus: FocusLook,
+    #[style(text)]
+    text: TextLook,
+    /// The space between the tile's edge and its text.
+    inset: f32,
+}
+
+/// One value tile.
+#[derive(Component, Props)]
+struct SlicerTile {
+    #[common]
+    common: Common,
+    /// Whether the value is on.
+    #[prop]
+    on: bool,
+}
+
+impl SlicerTile {
+    fn new(value: String) -> Self {
+        SlicerTile { common: Common::new(), on: false }.label(value)
+    }
+}
+
+impl Component for SlicerTile {
+    const ROLE: Role = Role::LIST_ITEM;
+    const ALT_ROLES: &'static [Role] = &[Role::LIST_BOX_OPTION];
+    const OVERLAYS: bool = false;
+    type Style = SlicerTileStyle;
+    type Output = Response;
+
+    fn style(cx: &StyleCx<'_>, _: SlicerTileStyleKey) -> SlicerTileStyle {
+        let colors = &cx.tokens.color;
+        let (hover, solid): (StyleColor, StyleColor) = (cx.color(colors.state.hover), cx.color(colors.accent.solid));
+        let (muted, on_accent): (StyleColor, StyleColor) = (cx.color(colors.text.muted), cx.color(colors.text.on_accent));
+        SlicerTileStyle {
+            surface: SurfaceLook::new(Stateful::new(hover).when(Flags::CHECKED, solid)).radius(cx.tokens.shape.radius.control),
+            metrics: Metrics::new().min_size(Vec2::new(0.0, cx.control().height)),
+            focus: cx.focus_look(),
+            text: TextLook::new(TypeRole::Body, Stateful::new(muted).when(Flags::CHECKED, on_accent)),
+            inset: cx.tokens.space.gap.tight,
+        }
+    }
+
+    fn measure(&mut self, cx: &craft_ui::contract::MeasureCx<'_, Self>) -> Vec2 {
+        let text = cx.layout(&TextRun::new(cx.resolved.label).role(cx.style.text.role)).size();
+        Vec2::new(text.x + 2.0 * cx.style.inset, text.y)
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::CLICK | Sense::FOCUS
+    }
+
+    fn flags(&self) -> Flags {
+        if self.on { Flags::CHECKED } else { Flags::empty() }
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let inset = cx.style.inset;
+        let area = Rect::from_min_max(pos2(cx.rect.left() + inset, cx.rect.top()), pos2(cx.rect.right() - inset, cx.rect.bottom()));
+        let run = TextRun::new(cx.resolved.label).role(cx.style.text.role).color(cx.resolve(&cx.style.text.color)).elide();
+        ui.draw().text(area, &run);
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
 }

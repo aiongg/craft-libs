@@ -1,10 +1,11 @@
-//! Reference picking.
+//! `ReferencePicker`: point mode writes absolute references at the caret.
 
-use super::grid::CellRef;
-use super::refpick::ReferencePicker;
+use craft_behavior::CellAt;
+use craft_table::ui::ReferencePicker;
+use craft_ui::testing::trial;
 
-fn cell(row: u32, column: u32) -> CellRef {
-    CellRef { row, column }
+fn cell(row: u32, column: u32) -> CellAt<u32> {
+    CellAt::new(row, column)
 }
 
 /// A reference may follow `=` or an operator.
@@ -17,8 +18,8 @@ fn quote(name: &str) -> String {
     format!("'{name}'")
 }
 
-// an empty box becomes =$B$3.
-#[test]
+/// An empty box becomes `=$B$3`, and after an operand there is no place for a reference.
+#[trial]
 fn a_click_inserts_an_absolute_reference() {
     let mut picker = ReferencePicker::new("Sheet1");
     let mut text = String::new();
@@ -33,8 +34,8 @@ fn a_click_inserts_an_absolute_reference() {
     assert_eq!(operand, "=A1");
 }
 
-// extend makes $B$3:$C$5; the next click replaces it.
-#[test]
+/// Extending makes `$B$3:$C$5`; the next click replaces it.
+#[trial]
 fn a_drag_grows_a_range_and_another_click_replaces_it() {
     let mut picker = ReferencePicker::new("Sheet1");
     let mut text = "=SUM(".to_owned();
@@ -48,8 +49,8 @@ fn a_drag_grows_a_range_and_another_click_replaces_it() {
     assert!(!picker.pick(&mut text, cell(0, 0), "Sheet1", false, can_point, quote), "typing forgets the last reference");
 }
 
-// a pick on another sheet inserts 'My Sheet'!$A$1.
-#[test]
+/// A pick on another sheet inserts `'My Sheet'!$A$1`.
+#[trial]
 fn other_sheets_are_quoted() {
     let mut picker = ReferencePicker::new("Sheet1");
     let mut text = "=".to_owned();
@@ -60,9 +61,8 @@ fn other_sheets_are_quoted() {
     assert_eq!(text, "=$A$1");
 }
 
-// A stored reference that is no longer at the caret doesn't anchor a drag: the range grows from the
-// press's own cell.
-#[test]
+/// A stored reference that is no longer at the caret does not anchor a drag: the range grows from the press's cell.
+#[trial]
 fn a_drag_from_elsewhere_ignores_the_stale_reference() {
     let mut picker = ReferencePicker::new("Sheet1");
     let mut text = "=SUM(".to_owned();
