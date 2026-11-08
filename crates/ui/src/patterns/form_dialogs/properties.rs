@@ -11,7 +11,7 @@ use crate::runtime::words::CommonWords;
 use crate::sections::{DialogRole, FooterButton};
 use crate::tabs::{Tab, TabKind, TabStrip};
 use craft_behavior::{DisplayOrder, ItemSource, SelectionChange};
-use egui::{Response, Sense, Ui, Vec2};
+use egui::{Response, Ui};
 use std::borrow::Cow;
 use std::cell::RefCell;
 
@@ -88,9 +88,7 @@ impl PropertiesTab {
                 }
                 PropertyRow::Field(param) => (**param).clone(),
                 PropertyRow::Heading(label) => Param::section(label.clone()),
-                PropertyRow::Space => {
-                    Param::custom(format!("properties.{at}.{row}"), Label::Empty, |ui, _, _| ui.allocate_response(Vec2::ZERO, Sense::hover()))
-                }
+                PropertyRow::Space => Param::custom(format!("properties.{at}.{row}"), Label::Empty, |ui, _, _| Text::new(Label::Empty).show(ui)),
             })
             .collect()
     }

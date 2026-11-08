@@ -251,7 +251,7 @@ impl<'p> Pass<'p> {
             ParamKind::Int { min, max, .. } => self.int(ui, &line, *min, *max),
             ParamKind::Bool { default } => self.check(ui, &line, *default),
             ParamKind::Choice { options, .. } => self.choice(ui, &line, options),
-            ParamKind::Radio { options, .. } => self.radio(ui, &line, options),
+            ParamKind::Radio { options, .. } => self.radio_options(ui, &line, options),
             ParamKind::Angle { default } => self.angle(ui, &line, *default),
             ParamKind::Color { .. } => self.color(ui, &line),
             ParamKind::Grid { cells, .. } => self.grid(ui, &line, *cells),
@@ -369,7 +369,7 @@ impl<'p> Pass<'p> {
         });
     }
 
-    fn radio(&mut self, ui: &mut Ui, line: &Line<'_>, options: &[(String, Label)]) {
+    fn radio_options(&mut self, ui: &mut Ui, line: &Line<'_>, options: &[(String, Label)]) {
         let value = self.work.text(line.key).map(str::to_owned).or_else(|| line.param.kind.default_value().and_then(text_of)).unwrap_or_default();
         line.show(ui, |ui| {
             let group = RadioGroup::new(line.name.clone(), Bind::given(value.clone())).enabled(line.enabled).show(ui, |ui, _| {
