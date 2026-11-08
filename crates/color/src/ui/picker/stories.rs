@@ -8,7 +8,7 @@ use egui::Ui;
 
 use super::channel::{ChannelRow, ChannelRule, TrackRamp};
 use super::screen_pick::ScreenPickButton;
-use super::{ColorPicker, ColorPickerLayout, ColorWarning, ColorWarningChip, PickedColor, PickerFrame};
+use super::{ColorPicker, ColorPickerLayout, ColorWarning, ColorWarningChip, PickedColor};
 use crate::ui::AreaMode;
 
 /// A naive CMYK in percent, without a working space: a host's model for the stories. A real host converts through its
@@ -98,13 +98,6 @@ fn color_warning_chip(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     static WARNING: std::sync::LazyLock<ColorWarning> =
         std::sync::LazyLock::new(|| ColorWarning::new("Out of gamut for printing", Srgba::rgb(0.9, 0.1, 0.9)));
     ColorWarningChip::new(&WARNING).show(ui).into()
-}
-
-/// The container behind `ColorPicker`, shown through the picker.
-#[story(PickerFrame, covers = [Default], drive = Drive::Never)]
-fn picker_frame(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let color = data.value("color", start());
-    ColorPicker::new("Foreground color", Bind::bound(color)).show(ui).into()
 }
 
 #[story(ScreenPickButton, covers = [Default], drive = Drive::Never)]

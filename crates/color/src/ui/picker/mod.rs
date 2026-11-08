@@ -12,15 +12,11 @@ mod value;
 
 use std::sync::Arc;
 
-use craft_behavior::{EditEvent, GestureId, Metrics, Mixed, Value};
+use craft_behavior::{EditEvent, GestureId, Mixed, Value};
 use craft_theme::{ColorModel, ModelValues, Srgba, builtin_models};
-use craft_ui::contract::{
-    Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, EditResponse, Outcome, Props as _, Remember as _, Role, ShowContainer,
-    Sizing,
-};
-use craft_ui::layout::BodyLayout;
+use craft_ui::contract::{Bind, BindMut, BodyCx, EditResponse, Outcome, Props as _, Remember as _, ShowContainer};
+use craft_ui::layout_components::Stack;
 use craft_ui::runtime::env::Label;
-use craft_ui::style::{ComponentStyle, StyleCx};
 use egui::{Pos2, Response, Ui};
 
 use super::AreaMode;
@@ -155,14 +151,6 @@ craft_ui::words! {
         /// The channel rows' group name.
         channels: "colorPicker.channels" = "Channels";
     }
-}
-
-/// The style of a colour picker: it has no look of its own; its parts carry it.
-#[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
-#[non_exhaustive]
-pub struct ColorPickerStyle {
-    #[style(metrics)]
-    metrics: Metrics,
 }
 
 /// What the picker keeps between passes.
@@ -407,7 +395,7 @@ impl<'a> ColorPicker<'a> {
             latest: PickedColor::rgb(Srgba::BLACK),
             events: Vec::new(),
         };
-        let shown = PickerFrame::new().label(label).show(ui, |ui, body| run.show(ui, body));
+        let shown = Stack::new().label(label).show(ui, |ui, body| run.show(ui, body));
         let (event, screen_pick) = shown.inner.unwrap_or((None, None));
         ColorPickerOutput { response: shown.output, event, screen_pick }
     }
@@ -546,42 +534,3 @@ impl<'a> Run<'_, 'a> {
         }
     }
 }
-
-/// The container behind [`ColorPicker`]: the group the picker's parts sit in.
-#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
-#[component(container)]
-struct PickerFrame {
-    #[common]
-    common: Common,
-    #[container]
-    props: ContainerProps,
-}
-
-impl PickerFrame {
-    fn new() -> Self {
-        PickerFrame { common: Common::new(), props: ContainerProps::new().sizing(Sizing::Content).layout(BodyLayout::stack()) }
-    }
-}
-
-impl Component for PickerFrame {
-    const ROLE: Role = Role::GROUP;
-    const PARTS: bool = false;
-    const STOPS: bool = false;
-    const OVERLAYS: bool = false;
-    type Style = ColorPickerStyle;
-    type Output = Response;
-
-    fn style(_: &StyleCx<'_>, _: PickerFrameStyleKey) -> ColorPickerStyle {
-        ColorPickerStyle::default()
-    }
-
-    fn sense(&self) -> craft_behavior::Sense {
-        craft_behavior::Sense::empty()
-    }
-
-    fn finish(self, cx: Cx<'_, Self>) -> Response {
-        cx.response.clone()
-    }
-}
-
-impl Container for PickerFrame {}

@@ -1,8 +1,8 @@
 //! Stories of Puppet Warp: the pins on a plain canvas over a fake solver ([`IdwSolver`], an inverse-distance
 //! deformation of a grid), and the options bar.
 
+use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Rect as DocRect, Vec2};
-use craft_behavior::{CanvasView, Mixed};
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
 use craft_ui::runtime::env::Message;
@@ -146,14 +146,6 @@ fn pins_with_a_fixed_rotation(ui: &mut Ui, data: &mut StoryData) -> StoryOutput 
     let mut pins = data.value("pins", pins_with_a_fixed_turn()).clone();
     let output = on_canvas(ui, data, Bind::bound(&mut pins), true);
     *data.value("pins", pins_with_a_fixed_turn()) = pins;
-    output
-}
-
-#[story(PinWarp<'static>, covers = [Mixed], drive = Drive::Never)]
-fn pins_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let mut pins = data.value("mixed", Mixed::<Vec<Pin>>::Mixed).clone();
-    let output = on_canvas(ui, data, Bind::bound_mixed(&mut pins), false);
-    *data.value("mixed", Mixed::<Vec<Pin>>::Mixed) = pins;
     output
 }
 

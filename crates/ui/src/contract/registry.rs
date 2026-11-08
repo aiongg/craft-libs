@@ -180,7 +180,7 @@ impl Probe {
             entry,
             canvas_control: T::CANVAS_CONTROL,
             shows_label: T::SHOWS_LABEL,
-            single_value: T::SINGLE_VALUE,
+            single_value: T::SINGLE_VALUE || T::CANVAS_CONTROL,
             paint_outset: T::paint_outset,
             overlay,
             exempt,

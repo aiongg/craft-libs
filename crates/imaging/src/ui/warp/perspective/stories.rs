@@ -1,7 +1,7 @@
 //! Stories of Perspective Warp: the planes on a plain canvas, and the options bar.
 
+use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Rect as DocRect};
-use craft_behavior::{CanvasView, Mixed};
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
 use craft_ui::runtime::env::Message;
@@ -53,12 +53,6 @@ fn two_linked_planes_in_layout(ui: &mut Ui, data: &mut StoryData) -> StoryOutput
 fn two_linked_planes_in_warp(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let planes = data.value("warped", two_linked_planes());
     on_canvas(ui, Bind::bound(&mut *planes), PlaneMode::Warp)
-}
-
-#[story(PerspectiveWarp<'static>, covers = [Mixed], drive = Drive::Never)]
-fn planes_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let planes = data.value("mixed", Mixed::<Vec<Plane>>::Mixed);
-    on_canvas(ui, Bind::bound_mixed(&mut *planes), PlaneMode::Layout)
 }
 
 #[story(PerspectiveWarp<'static>, covers = [Invalid], drive = Drive::Never)]

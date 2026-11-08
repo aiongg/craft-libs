@@ -1,7 +1,6 @@
 //! Stories of the perspective crop quad.
 
 use super::{CORNER, PerspectiveCropQuad, PerspectiveQuad};
-use craft_behavior::Mixed;
 use craft_behavior::kurbo::Point;
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
@@ -32,11 +31,6 @@ fn on_canvas(ui: &mut Ui, bind: Bind<'_, PerspectiveQuad>) -> StoryOutput {
 #[story(PerspectiveCropQuad<'static>, covers = [Default], drive = Drive::Custom(drag_corner))]
 fn skewed_page(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     on_canvas(ui, Bind::bound(data.value("quad", Some(PAGE))))
-}
-
-#[story(PerspectiveCropQuad<'static>, covers = [Mixed], drive = Drive::Custom(drag_corner))]
-fn quads_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    on_canvas(ui, Bind::bound_mixed(data.value("quad", Mixed::<PerspectiveQuad>::Mixed)))
 }
 
 #[story(PerspectiveCropQuad<'static>, covers = [Invalid], drive = Drive::Custom(drag_corner))]

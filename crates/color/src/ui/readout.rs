@@ -3,15 +3,11 @@
 #[cfg(feature = "screen-testing")]
 mod stories;
 
-use craft_behavior::{EditEvent, Metrics, Mixed};
+use craft_behavior::{EditEvent, Mixed};
 use craft_theme::Rgba;
-use craft_ui::contract::{
-    Bind, Common, Component, Container, ContainerProps, Cx, Outcome, Pattern, Props as _, Role, Show as _, ShowContainer as _, Sizing,
-};
-use craft_ui::layout::BodyLayout;
-use craft_ui::layout_components::Row;
+use craft_ui::contract::{Bind, Outcome, Pattern, Props as _, Show as _, ShowContainer as _};
+use craft_ui::layout_components::{Row, Stack};
 use craft_ui::runtime::env::{Env, Label};
-use craft_ui::style::{ComponentStyle, StyleCx};
 use craft_ui::text::{NumberField, TextField};
 use egui::{Response, Ui};
 
@@ -31,14 +27,6 @@ craft_ui::words! {
         /// The blue field's accessible name.
         blue: "colorReadout.blue" = "Blue";
     }
-}
-
-/// The style of the readout: the gap between its fields.
-#[derive(Clone, Debug, PartialEq, ComponentStyle)]
-#[non_exhaustive]
-pub struct ColorReadoutStyle {
-    #[style(metrics)]
-    metrics: Metrics,
 }
 
 /// What a [`ColorReadout`] reports.
@@ -90,7 +78,7 @@ impl<'a> ColorReadout<'a> {
     pub fn show(self, ui: &mut Ui) -> ColorReadoutOutput {
         let ColorReadout { label, mut value } = self;
         let words = Env::of(ui).words::<ColorReadoutWords>();
-        let shown = ReadoutFrame::new().label(label).show(ui, |ui, body| {
+        let shown = Stack::new().label(label).show(ui, |ui, body| {
             let held: Mixed<Rgba> = value.reborrow().read(&mut *body).unwrap_or(Mixed::Mixed);
             let mut events: Vec<EditEvent<Rgba>> = Vec::new();
             Row::new().show(ui, |ui, _| {
@@ -128,42 +116,3 @@ impl<'a> ColorReadout<'a> {
         ColorReadoutOutput { response: shown.output, event: shown.inner.flatten() }
     }
 }
-
-/// The container behind [`ColorReadout`]: the group the fields sit in.
-#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
-#[component(container)]
-struct ReadoutFrame {
-    #[common]
-    common: Common,
-    #[container]
-    props: ContainerProps,
-}
-
-impl ReadoutFrame {
-    fn new() -> Self {
-        ReadoutFrame { common: Common::new(), props: ContainerProps::new().sizing(Sizing::Content).layout(BodyLayout::stack()) }
-    }
-}
-
-impl Component for ReadoutFrame {
-    const ROLE: Role = Role::GROUP;
-    const PARTS: bool = false;
-    const STOPS: bool = false;
-    const OVERLAYS: bool = false;
-    type Style = ColorReadoutStyle;
-    type Output = Response;
-
-    fn style(cx: &StyleCx<'_>, _: ReadoutFrameStyleKey) -> ColorReadoutStyle {
-        ColorReadoutStyle { metrics: Metrics::new().gap(cx.control().gap) }
-    }
-
-    fn sense(&self) -> craft_behavior::Sense {
-        craft_behavior::Sense::empty()
-    }
-
-    fn finish(self, cx: Cx<'_, Self>) -> Response {
-        cx.response.clone()
-    }
-}
-
-impl Container for ReadoutFrame {}

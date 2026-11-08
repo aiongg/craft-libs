@@ -124,7 +124,6 @@ fn kind_of(index: u64) -> ConnectorEndKind {
 impl Component for ConnectorHandles<'_> {
     const ROLE: Role = Role::GROUP;
     const KEYS: KeyUse = KeyUse::CANVAS.with_moves().with_chrome_key(false);
-    const SINGLE_VALUE: bool = true;
     type Style = ConnectorHandlesStyle;
     type Output = ConnectorHandlesOutput;
 
