@@ -13,8 +13,8 @@ workspace = true
 [features]
 default = []
 # The colour widgets (`craft_color::ui`).
-ui = ["dep:craft-behavior", "dep:craft-ui", "dep:egui", "dep:craft-settings", "craft-platform/screen"]
-# The widgets' stories and trials (`tests/it`).
+ui = ["dep:craft-behavior", "dep:craft-keymap", "dep:craft-ui", "dep:egui", "dep:craft-settings", "craft-platform/screen"]
+# Screenshot and input tests of the widgets with egui_kittest (desktop only).
 screen-testing = ["ui", "craft-ui/testing"]
 
 [dependencies]
@@ -22,6 +22,7 @@ craft-behavior = { workspace = true, optional = true }
 craft-cms = { workspace = true }
 craft-host = { workspace = true }
 craft-i18n = { workspace = true }
+craft-keymap = { workspace = true, optional = true }
 craft-platform = { workspace = true }
 craft-settings = { workspace = true, optional = true }
 craft-theme = { workspace = true }
@@ -31,19 +32,15 @@ serde = { workspace = true }
 
 [dev-dependencies]
 craft-color = { path = ".", features = ["screen-testing"] }
-libtest-mimic = "0.8"
 serde_json = { workspace = true }
 egui = { workspace = true, features = ["default_fonts", "serde"] }
+libtest-mimic = "0.8"
 
 [[test]]
 name = "it"
 path = "tests/it/main.rs"
 harness = false
 required-features = ["screen-testing"]
-
-[[test]]
-name = "control_dumps"
-required-features = ["ui"]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 egui_kittest = { version = "0.37", features = ["wgpu"] }
