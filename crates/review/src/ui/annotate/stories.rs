@@ -53,7 +53,7 @@ fn on_canvas(ui: &mut Ui, mut body: impl FnMut(&mut Ui, egui::Rect)) -> egui::Re
 
 #[story(AnnotationToolbar<'static>, covers = [], drive = Drive::Never)]
 fn toolbar(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let mut tool = AnnotateTool::new(AnnotationTool::Select, 0);
+    let mut tool = AnnotateTool::new(ui.ctx(), AnnotationTool::Select, 0);
     AnnotationToolbar::new(&mut tool).show(ui);
     StoryOutput::default()
 }
@@ -61,7 +61,7 @@ fn toolbar(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 /// A group's button shows the tool last used from its flyout.
 #[story(AnnotationToolbar<'static>, covers = [], drive = Drive::Never)]
 fn toolbar_flyout_tool(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let mut tool = AnnotateTool::new(AnnotationTool::Draw(AnnotationKind::Oval), 0);
+    let mut tool = AnnotateTool::new(ui.ctx(), AnnotationTool::Draw(AnnotationKind::Oval), 0);
     AnnotationToolbar::new(&mut tool).show(ui);
     StoryOutput::default()
 }
@@ -69,7 +69,7 @@ fn toolbar_flyout_tool(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 /// Highlight is active: the colour well shows the highlight colour and the width field is off.
 #[story(AnnotationToolbar<'static>, covers = [], drive = Drive::Never)]
 fn toolbar_highlight(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let mut tool = AnnotateTool::new(AnnotationTool::Draw(AnnotationKind::Highlight), 0);
+    let mut tool = AnnotateTool::new(ui.ctx(), AnnotationTool::Draw(AnnotationKind::Highlight), 0);
     AnnotationToolbar::new(&mut tool).show(ui);
     StoryOutput::default()
 }
@@ -111,7 +111,7 @@ fn drag_rectangle(fixture: &mut Fixture) {
 /// The Rectangle tool part way through a drag: its draft outline follows the pointer.
 #[story(AnnotationOverlay<'static>, covers = [], drive = Drive::Custom(drag_rectangle))]
 fn tool_drawing_a_rectangle(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let shared = data.value("tool", Shared(Arc::new(Mutex::new(AnnotateTool::new(AnnotationTool::Draw(AnnotationKind::Rectangle), 0)))));
+    let shared = data.value("tool", Shared(Arc::new(Mutex::new(AnnotateTool::new(ui.ctx(), AnnotationTool::Draw(AnnotationKind::Rectangle), 0)))));
     let annotations = samples();
     let room = ui.available_rect_before_wrap();
     let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);

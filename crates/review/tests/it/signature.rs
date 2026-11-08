@@ -1,10 +1,12 @@
 //! The signature pad's stored and drawn forms.
 
-use craft_review::signature::{SavedSignature, SignatureDraft, SignatureTab};
-use craft_review::ui::signature::DrawPad;
-use craft_ui::contract::{Bind, Show as _};
-use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers, vec2};
+use craft_behavior::Metrics;
+use craft_review::signature::{SavedSignature, SignatureDraft, SignatureImage, SignatureTab};
+use craft_review::ui::signature::{DrawPad, paint_signature};
+use craft_ui::contract::{Bind, Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role, Show as _};
+use craft_ui::style::{ComponentStyle, DataColor, StyleCx};
+use craft_ui::testing::{Fixture, Frames, trial};
+use egui::{Color32, Key, Modifiers, Response, Shape, TextureId, Vec2, vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -41,10 +43,77 @@ fn undo_removes_the_last_stroke() {
         let mut strokes = shown.borrow_mut();
         DrawPad::new("Draw", Bind::bound(&mut strokes)).show(ui);
     });
-    let pad = fixture.by_label("Draw").expect("the pad");
+    let pad = fixture.by_label("Draw").unwrap_or_else(|| {
+        let tree = fixture.tree();
+        let rows: Vec<String> =
+            tree.keys().into_iter().map(|key| format!("{:?} {:?} {:?}", tree.role_of(key), tree.name_of(key), tree.bounds_of(key))).collect();
+        panic!("the pad; the tree: {rows:#?}")
+    });
     fixture.drag(&pad, vec2(40.0, 10.0));
     fixture.drag(&pad, vec2(-30.0, 20.0));
     assert_eq!(strokes.borrow().len(), 2, "two strokes drawn");
     fixture.key(Key::Z, Modifiers::COMMAND);
     assert_eq!(strokes.borrow().len(), 1, "Command+Z removes the last stroke");
+}
+
+#[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
+#[non_exhaustive]
+struct PlacedStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+}
+
+/// A box that paints a saved signature the way an app places it.
+#[derive(Component)]
+struct Placed<'a> {
+    #[common]
+    common: Common,
+    signature: &'a SavedSignature,
+}
+
+impl Component for Placed<'_> {
+    const ROLE: Role = Role::IMAGE;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
+    const OVERLAYS: bool = false;
+    type Style = PlacedStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: PlacedStyleKey) -> PlacedStyle {
+        PlacedStyle::default()
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+        vec2(200.0, 80.0)
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        paint_signature(&cx.response.ctx, &ui.draw(), cx.response.rect, self.signature, DataColor::new(Color32::from_rgb(10, 20, 30)));
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+/// A placed image signature paints its picture as a texture inside the box it is placed in, keeping the picture's
+/// shape.
+#[trial]
+fn a_placed_image_paints_a_texture_in_its_rect() {
+    let image = SignatureImage::new(4, 2, vec![255; 4 * 2 * 4]);
+    let signature = SavedSignature::Image(image);
+    let rect = std::cell::Cell::new(egui::Rect::NOTHING);
+    let mut frames = Frames::new();
+    let shapes = frames.frame_shapes(|ui| rect.set(Placed { common: Common::new(), signature: &signature }.label("Signature").show(ui).rect));
+    let rect = rect.get();
+    let pictures: Vec<egui::Rect> = shapes
+        .iter()
+        .filter_map(|shape| match shape {
+            Shape::Mesh(mesh) if mesh.texture_id != TextureId::default() => Some(mesh.calc_bounds()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(pictures.len(), 1, "one picture: {shapes:?}");
+    assert!(rect.expand(0.5).contains_rect(pictures[0]), "{:?} inside {rect:?}", pictures[0]);
+    assert!((pictures[0].aspect_ratio() - 2.0).abs() < 1e-3, "the picture keeps its shape: {:?}", pictures[0]);
 }

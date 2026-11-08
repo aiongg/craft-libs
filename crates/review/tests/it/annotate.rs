@@ -72,7 +72,7 @@ fn same(a: Rect, b: Rect) -> bool {
 
 #[trial]
 fn drawing_a_rectangle_creates_it() {
-    let mut rig = rig(AnnotateTool::new(AnnotationTool::Draw(AnnotationKind::Rectangle), 3));
+    let mut rig = rig(AnnotateTool::new(&egui::Context::default(), AnnotationTool::Draw(AnnotationKind::Rectangle), 3));
     drag(&mut rig, Point::new(50.0, 50.0), Point::new(150.0, 120.0));
     let edits = values(&rig);
     let [AnnotationEdit::Create(created)] = &edits[..] else { panic!("{edits:?}") };
@@ -89,7 +89,7 @@ fn drawing_a_rectangle_creates_it() {
 
 #[trial]
 fn dragging_a_selected_annotation_moves_it() {
-    let mut tool = AnnotateTool::new(AnnotationTool::Select, 0);
+    let mut tool = AnnotateTool::new(&egui::Context::default(), AnnotationTool::Select, 0);
     tool.annotations = vec![annotation(7, AnnotationKind::Rectangle, Rect::new(100.0, 100.0, 200.0, 180.0))];
     let mut rig = rig(tool);
     drag(&mut rig, Point::new(150.0, 140.0), Point::new(180.0, 150.0));
@@ -110,7 +110,7 @@ fn dragging_a_selected_annotation_moves_it() {
 
 #[trial]
 fn eraser_reports_crossed_strokes() {
-    let mut tool = AnnotateTool::new(AnnotationTool::Eraser, 0);
+    let mut tool = AnnotateTool::new(&egui::Context::default(), AnnotationTool::Eraser, 0);
     let mut crossed = annotation(4, AnnotationKind::Ink, Rect::new(40.0, 0.0, 300.0, 200.0));
     crossed.strokes = vec![vec![Point::new(50.0, 0.0), Point::new(50.0, 100.0)], vec![Point::new(300.0, 0.0), Point::new(300.0, 100.0)]];
     tool.annotations = vec![crossed];
@@ -121,7 +121,7 @@ fn eraser_reports_crossed_strokes() {
 
 #[trial]
 fn delete_and_arrows_edit_the_selection() {
-    let mut tool = AnnotateTool::new(AnnotationTool::Select, 0);
+    let mut tool = AnnotateTool::new(&egui::Context::default(), AnnotationTool::Select, 0);
     tool.annotations = vec![annotation(1, AnnotationKind::Rectangle, Rect::new(10.0, 10.0, 60.0, 60.0))];
     tool.selected = vec![AnnotationId(1)];
     let mut rig = rig(tool);
@@ -144,7 +144,7 @@ fn delete_and_arrows_edit_the_selection() {
 /// between: an app removing strokes by index would otherwise delete the wrong ones.
 #[trial]
 fn eraser_reports_one_erase_per_annotation_crossing_a_b_a() {
-    let mut tool = AnnotateTool::new(AnnotationTool::Eraser, 0);
+    let mut tool = AnnotateTool::new(&egui::Context::default(), AnnotationTool::Eraser, 0);
     tool.annotations = vec![ink(1, &[50.0, 250.0]), ink(2, &[150.0])];
     let mut rig = rig(tool);
     drag(&mut rig, Point::new(10.0, 50.0), Point::new(280.0, 50.0));
@@ -157,7 +157,7 @@ fn eraser_reports_one_erase_per_annotation_crossing_a_b_a() {
 /// A double click on a note reports `Open`, once, after the selection its first click made.
 #[trial]
 fn double_click_on_a_note_opens_it() {
-    let mut tool = AnnotateTool::new(AnnotationTool::Select, 0);
+    let mut tool = AnnotateTool::new(&egui::Context::default(), AnnotationTool::Select, 0);
     tool.annotations = vec![annotation(9, AnnotationKind::Note, Rect::new(100.0, 100.0, 100.0, 100.0))];
     let mut rig = rig(tool);
     let pos = on_screen(&rig, Point::new(104.0, 104.0));
@@ -170,7 +170,7 @@ fn double_click_on_a_note_opens_it() {
 /// A note is created with an icon-sized rect at the click, in the tool's colour and width.
 #[trial]
 fn a_new_note_takes_an_icon_rect_and_the_tools_style() {
-    let mut tool = AnnotateTool::new(AnnotationTool::Draw(AnnotationKind::Note), 0);
+    let mut tool = AnnotateTool::new(&egui::Context::default(), AnnotationTool::Draw(AnnotationKind::Note), 0);
     tool.color = [1, 2, 3];
     tool.width = 5.0;
     let mut rig = rig(tool);
@@ -185,7 +185,7 @@ fn a_new_note_takes_an_icon_rect_and_the_tools_style() {
 
 #[trial]
 fn backspace_deletes_the_selection() {
-    let mut tool = AnnotateTool::new(AnnotationTool::Select, 0);
+    let mut tool = AnnotateTool::new(&egui::Context::default(), AnnotationTool::Select, 0);
     tool.annotations = vec![annotation(1, AnnotationKind::Rectangle, Rect::new(10.0, 10.0, 60.0, 60.0))];
     tool.selected = vec![AnnotationId(1)];
     let mut rig = rig(tool);
@@ -196,7 +196,7 @@ fn backspace_deletes_the_selection() {
 
 /// Picks the Red swatch of the palette in a toolbar over a tool of `kind`, and returns the tool.
 fn pick_red(kind: AnnotationTool) -> AnnotateTool {
-    let tool = Rc::new(RefCell::new(AnnotateTool::new(kind, 0)));
+    let tool = Rc::new(RefCell::new(AnnotateTool::new(&egui::Context::default(), kind, 0)));
     let shown = Rc::clone(&tool);
     let mut fixture = Fixture::new(move |ui| {
         AnnotationToolbar::new(&mut shown.borrow_mut()).show(ui);
@@ -217,7 +217,7 @@ fn pick_red(kind: AnnotationTool) -> AnnotateTool {
 fn picking_a_palette_swatch_sets_the_colour_of_the_tool() {
     let red = PALETTE[2];
     let highlight = pick_red(AnnotationTool::Draw(AnnotationKind::Highlight));
-    let untouched = AnnotateTool::new(AnnotationTool::Select, 0);
+    let untouched = AnnotateTool::new(&egui::Context::default(), AnnotationTool::Select, 0);
     assert_eq!((highlight.highlight_color, highlight.color), (red, untouched.color), "Highlight takes its own colour");
     let rectangle = pick_red(AnnotationTool::Draw(AnnotationKind::Rectangle));
     assert_eq!((rectangle.color, rectangle.highlight_color), (red, untouched.highlight_color), "other tools take the line colour");
