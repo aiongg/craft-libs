@@ -13,7 +13,7 @@ use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Name, Numeric, Outcome, PaintUi, PartsCx,
     Pointer as _, Props as _, Remember as _, Role, WordSetCx as _,
 };
-use crate::primitives::{Dashes, FocusKind, FocusRing, PaintShape, Rule};
+use crate::primitives::{Dashes, FocusKind, FocusRing, PaintShape, Rule, StrokeWidth};
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
 use crate::style::{ComponentStyle, Flags, FocusLook, RuleLook, StyleColor, StyleCx};
@@ -479,8 +479,8 @@ impl Component for Guides<'_> {
             let color = if self.selected == Some(guide.key) { style.selected.egui() } else { guide.color.map_or(style.line.egui(), data_color) };
             match guide.line {
                 GuideLine::Solid => painter.painter.extend(Rule::shapes(&RuleLook { color, width: style.width }, a, b, ppp)),
-                GuideLine::Dashed => painter.dashed(&[a, b], style.width, Dashes::new(style.dash, style.gap), color),
-                GuideLine::Dots => painter.dashed(&[a, b], style.width, Dashes::new(style.width, style.gap), color),
+                GuideLine::Dashed => painter.dashed(&[a, b], Dashes::new(style.dash, style.gap), StrokeWidth::Thin, color),
+                GuideLine::Dots => painter.dashed(&[a, b], Dashes::new(style.width, style.gap), StrokeWidth::Thin, color),
             }
             if focused == Some(guide.key.get()) && (b - a).length() > 0.0 {
                 painter.painter.extend(FocusRing::shapes(&style.focus, FocusKind::Halo, &footprint(&space, a, b, style.width), ppp));

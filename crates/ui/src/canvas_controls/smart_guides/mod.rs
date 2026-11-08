@@ -197,7 +197,7 @@ impl Component for SmartGuides<'_> {
         for smart in self.lines {
             let (a, b) = (view.to_screen(smart.a), view.to_screen(smart.b));
             if smart.extension {
-                painter.dashed(&[a, b], style.width, Dashes::even(style.dash), fill);
+                painter.dashed(&[a, b], Dashes::even(style.dash), StrokeWidth::Thin, fill);
             } else {
                 painter.painter.extend(Rule::shapes(&line, a, b, ppp));
             }

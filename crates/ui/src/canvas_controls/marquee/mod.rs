@@ -8,7 +8,7 @@ pub(super) mod stories;
 use super::words::CanvasControlWords;
 use crate::canvas::canvas_space;
 use crate::contract::{Access, Animate as _, Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role, WordSetCx as _};
-use crate::primitives::{ContentPainterCx, Dashes, ellipse};
+use crate::primitives::{ContentPainterCx, Dashes, StrokeWidth, ellipse};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, DataColor, StyleColor, StyleCx};
 use craft_behavior::kurbo::{Point, Rect, Vec2};
@@ -190,7 +190,7 @@ fn paint_band(painter: &ContentPainterCx<'_>, run: &Run, style: &MarqueeStyle) {
     {
         dashed.push(first);
     }
-    painter.dashed(&dashed, style.band_width, Dashes::even(style.band_dash), dark);
+    painter.dashed(&dashed, Dashes::even(style.band_dash), StrokeWidth::Thin, dark);
 }
 
 /// A thin line over a wider translucent halo.

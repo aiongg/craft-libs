@@ -9,7 +9,7 @@ pub(super) mod stories;
 use crate::canvas::canvas_space;
 use crate::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role};
 use crate::primitives::textures::{Revision, TextureStore, TextureStoreOptions};
-use crate::primitives::{ContentPainterCx, Dashes, PaintShape};
+use crate::primitives::{ContentPainterCx, Dashes, PaintShape, StrokeWidth};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, DataColor, StyleColor, StyleCx};
 use craft_behavior::kurbo::{self, BezPath, PathEl, Rect};
@@ -279,7 +279,7 @@ impl Component for SelectionOutline<'_> {
                             points.extend(points.first().copied());
                         }
                         let color = self.color.map_or(style.line.egui(), |color| color.0);
-                        painter.dashed(&points, style.medium, Dashes::new(style.dash, style.gap), color);
+                        painter.dashed(&points, Dashes::new(style.dash, style.gap), StrokeWidth::Medium, color);
                     }
                 }
             }

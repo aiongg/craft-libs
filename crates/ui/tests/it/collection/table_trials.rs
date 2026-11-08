@@ -2,9 +2,9 @@
 
 use super::kit::{Count, Dismissed, Row};
 use super::table::{Free, Table};
-use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, GesturePhase, ItemSource, keyed};
+use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, GesturePhase, ItemSource, ScrollPos, keyed};
 use craft_ui::contract::{
-    CollectionEvent, CollectionProps, CollectionResponse, ColumnCommands, ColumnEvent, ColumnKind, ColumnSort, ColumnSpec, DropMark, ListDrag,
+    Bind, CollectionEvent, CollectionProps, CollectionResponse, ColumnCommands, ColumnEvent, ColumnKind, ColumnSort, ColumnSpec, DropMark, ListDrag,
     Props as _, ReorderRule, Role, SelectMode, ShowCollection as _, ToggleColumn,
 };
 use craft_ui::runtime::commands::{self, FireSource};
@@ -389,4 +389,39 @@ fn a_free_layout_item_moves_by_drag() {
     let offset = moves.last().and_then(|edit| edit.value().copied()).expect("the commit carries the offset");
     assert!((offset - by).length() < CLOSE, "the commit is the pointer's offset: {offset:?}");
     assert_eq!(moves.iter().filter(|edit| edit.phase() == Some(GesturePhase::Commit)).count(), 1);
+}
+
+/// Shift turns the vertical wheel sideways over a collection that overflows in width, as it does over any scroll region.
+#[trial]
+fn shift_wheel_over_a_collection_scrolls_it_sideways() {
+    let source = Count(2);
+    let rects =
+        vec![Rect::from_min_size(Pos2::new(20.0, 20.0), Vec2::new(80.0, 40.0)), Rect::from_min_size(Pos2::new(800.0, 20.0), Vec2::new(80.0, 40.0))];
+    let held = RefCell::new(ScrollPos::default());
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            let mut offset = *held.borrow();
+            Free::new(rects.clone()).scroll(Bind::bound(&mut offset)).id_salt("free").show_items(ui, &source, &mut |_, _| Row::new());
+            *held.borrow_mut() = offset;
+        });
+    };
+    frames.idle(3, &mut show);
+    frames.frame(vec![pointer::moved(ORIGIN + VIEW / 2.0)], &mut show);
+    frames.frame(vec![shift_wheel(-60.0)], &mut show);
+    frames.idle(2, &mut show);
+    let offset = *held.borrow();
+    assert!(offset.x > 0.0, "the wheel moved the items sideways: {offset:?}");
+    assert_eq!(offset.y, 0.0, "and not down");
+}
+
+/// A vertical wheel event of `dy` points with Shift held.
+fn shift_wheel(dy: f32) -> egui::Event {
+    egui::Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Point,
+        delta: Vec2::new(0.0, dy),
+        phase: egui::TouchPhase::Move,
+        modifiers: egui::Modifiers::SHIFT,
+        source: egui::MouseWheelSource::Wheel,
+    }
 }

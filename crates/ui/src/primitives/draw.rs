@@ -40,6 +40,19 @@ pub enum StrokeWidth {
     Thick,
 }
 
+impl StrokeWidth {
+    /// The width in points on a display of `pixels_per_point`: the one place a named width becomes a number.
+    pub(crate) fn points(self, tokens: &UiTokens, pixels_per_point: f32) -> f32 {
+        let stroke = &tokens.stroke;
+        match self {
+            StrokeWidth::Hairline => 1.0 / pixels_per_point.max(f32::EPSILON),
+            StrokeWidth::Thin => stroke.thin,
+            StrokeWidth::Medium => stroke.medium,
+            StrokeWidth::Thick => stroke.thick,
+        }
+    }
+}
+
 /// The lengths of a dashed stroke, in points along the path.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
@@ -100,13 +113,7 @@ impl<'a> Draw<'a> {
     }
 
     fn width(&self, width: StrokeWidth) -> f32 {
-        let stroke = &self.env.tokens.stroke;
-        match width {
-            StrokeWidth::Hairline => 1.0 / self.painter.pixels_per_point().max(f32::EPSILON),
-            StrokeWidth::Thin => stroke.thin,
-            StrokeWidth::Medium => stroke.medium,
-            StrokeWidth::Thick => stroke.thick,
-        }
+        width.points(self.env.tokens, self.painter.pixels_per_point())
     }
 
     /// Lays `run` out in `rect`'s width and paints it at the reading start of `rect`, top aligned. Records the
@@ -213,7 +220,7 @@ impl<'a> Draw<'a> {
     /// Strokes the open path `path` as dashes (copy marks, drag previews, reference lines). [`kit::dashed`] is the one
     /// implementation; the kit painter's `dashed` calls it too.
     pub fn dashed(&self, path: &[Pos2], pattern: Dashes, width: StrokeWidth, color: StyleColor) {
-        self.painter.extend(super::kit::dashed(path, self.width(width), pattern, color.egui()));
+        self.painter.extend(super::kit::dashed(path, pattern, self.width(width), color.egui()));
     }
 
     /// Runs `paint` with a `Draw` whose painting is cut to `rect` (inside the clip already in force): scrolled content

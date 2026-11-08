@@ -39,7 +39,7 @@ fn dashes(shapes: &[Shape]) -> Vec<Vec<Pos2>> {
 fn a_dashed_line_keeps_its_gap_and_continues_its_pattern_round_a_corner() {
     let path = [pos2(0.0, 0.0), pos2(22.0, 0.0), pos2(22.0, 40.0)];
     let (dash, gap, phase) = (6.0, 4.0, 1.0);
-    let found = dashes(&dashed(&path, 1.0, Dashes::new(dash, gap).phase(phase), Color32::from_gray(200)));
+    let found = dashes(&dashed(&path, Dashes::new(dash, gap).phase(phase), 1.0, Color32::from_gray(200)));
     assert!(found.len() >= 4, "the line is cut into dashes: {}", found.len());
     // A dash that runs round a corner comes as one shape per straight piece.
     let mut spans: Vec<(f32, f32)> = Vec::new();

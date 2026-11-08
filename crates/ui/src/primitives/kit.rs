@@ -3,7 +3,7 @@
 //! `ContentPainterCx` methods add their shapes to its painter.
 
 use super::content::ContentPainterCx;
-use super::draw::{Dashes, PaintShape};
+use super::draw::{Dashes, PaintShape, StrokeWidth};
 use super::rule::{Rule, RuleKind};
 use super::surface::Surface;
 use crate::style::{Corners, DataColor, RuleLook, SurfaceKind, UiTokens, ink_color, rgba_color, rule_look, surface_style};
@@ -316,7 +316,7 @@ pub fn grid_lines(tokens: &UiTokens, grid: &GridLines, ink: &GridInk, pixels_per
         for (a, b) in ends {
             match ink.stroke {
                 GridStroke::Solid => shapes.extend(Rule::shapes(&RuleLook { color, width: look.width }, a, b, pixels_per_point)),
-                GridStroke::Dashed => shapes.extend(dashed(&[a, b], look.width, Dashes::new(tokens.stroke.dash, tokens.stroke.dash_gap), color)),
+                GridStroke::Dashed => shapes.extend(dashed(&[a, b], Dashes::new(tokens.stroke.dash, tokens.stroke.dash_gap), look.width, color)),
                 GridStroke::Dots => shapes.extend(Shape::dotted_line(&[a, b], color, tokens.stroke.dash_gap, DOT_RADIUS)),
             }
         }
@@ -362,7 +362,7 @@ pub fn outline_in(tokens: &UiTokens, shapes: &[PaintShape], line: Color32) -> Ve
 /// A dashed line along `points` in `color`, `width` thick, with the lengths and phase of `pattern`. The pattern
 /// continues across the segments; the corners are not closed. The one dashed-line implementation: `Draw::dashed` and
 /// the painter's `dashed` call it.
-pub fn dashed(points: &[Pos2], width: f32, pattern: Dashes, color: Color32) -> Vec<Shape> {
+pub fn dashed(points: &[Pos2], pattern: Dashes, width: f32, color: Color32) -> Vec<Shape> {
     Shape::dashed_line_with_offset(points, Stroke::new(width, color), &[pattern.dash], &[pattern.gap], pattern.phase)
 }
 
@@ -614,8 +614,8 @@ impl ContentPainterCx<'_> {
     }
 
     /// Paints a dashed line along `points`; see [`dashed`].
-    pub fn dashed(&self, points: &[Pos2], width: f32, pattern: Dashes, color: Color32) {
-        self.painter.extend(dashed(points, width, pattern, color));
+    pub fn dashed(&self, points: &[Pos2], pattern: Dashes, width: StrokeWidth, color: Color32) {
+        self.painter.extend(dashed(points, pattern, width.points(self.tokens, self.ppp()), color));
     }
 
     /// Paints marching ants along `points`, shifted `phase` points; see [`marching_ants`].

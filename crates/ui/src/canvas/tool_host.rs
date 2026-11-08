@@ -323,8 +323,14 @@ impl<'m> ToolHost<'m> {
         let over = phase.is_press() || matches!(phase, PressPhase::Hover) || state.gesture.is_some();
         let current = state.gesture.map(|active| active.last).or_else(|| over.then(|| hover_pointer(&input, canvas.press)).flatten());
         let context = || {
-            let cx =
-                ToolContext::new(rect, space).pointer(current).mods(input.mods).time(input.time).slop(input.slop).down(&down).caps(caps).env(&env);
+            let cx = ToolContext::new(rect, space)
+                .pointer(current)
+                .mods(input.mods)
+                .time(input.time)
+                .slop(input.slop)
+                .down(&down)
+                .caps_lock(caps)
+                .env(&env);
             match canvas.snap.as_ref() {
                 Some(snap) => cx.snapping(snap),
                 None => cx,
@@ -379,7 +385,8 @@ impl<'m> ToolHost<'m> {
         let taken = with_session(ctx, state_id(canvas), |slot: &mut HostState| slot.gesture.take().map(|active| (active, slot.rect, slot.space)));
         let Some((active, rect, space)) = taken else { return false };
         let down = keys::down(ctx);
-        let mut cx = ToolContext::new(rect.unwrap_or(Rect::NOTHING), space).pointer(Some(active.last)).down(&down).caps(lock_keys::caps_lock(ctx));
+        let mut cx =
+            ToolContext::new(rect.unwrap_or(Rect::NOTHING), space).pointer(Some(active.last)).down(&down).caps_lock(lock_keys::caps_lock(ctx));
         tool.cancel(reason, &mut cx);
         if let Some(view) = cx.take_requests().view {
             with_session(ctx, state_id(canvas), |state: &mut HostState| state.cancelled_view = Some(view));
@@ -510,8 +517,13 @@ struct Run<'a> {
 
 impl<'a> Run<'a> {
     fn context(&self, pointer: Option<ToolPointer>) -> ToolContext<'a> {
-        let cx =
-            ToolContext::new(self.rect, self.space).pointer(pointer).mods(self.mods).time(self.time).slop(self.slop).down(self.down).caps(self.caps);
+        let cx = ToolContext::new(self.rect, self.space)
+            .pointer(pointer)
+            .mods(self.mods)
+            .time(self.time)
+            .slop(self.slop)
+            .down(self.down)
+            .caps_lock(self.caps);
         let cx = cx.env(self.env);
         match self.snap {
             Some(snap) => cx.snapping(snap),

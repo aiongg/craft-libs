@@ -317,3 +317,29 @@ fn a_zero_scroll_wheel_changes_nothing_and_a_wheel_notch_is_the_wheel_step() {
     let notch = (wheel(30.0, Some(NOTCH)) - MIDDLE).abs();
     assert!((notch - NOTCH).abs() < 1e-9, "one notch moves the wheel step, not the 0.0001 step: {notch}");
 }
+
+/// Shift with the wheel over a focused slider steps it by the large step, as Shift does with the arrow keys; the
+/// slider is not a scroll region, so the wheel does not turn sideways.
+#[trial]
+fn shift_wheel_over_a_slider_steps_it_with_the_modifier() {
+    let wheel = |modifiers: Modifiers| {
+        let slide = Slide { step: Some(STEP), ..Slide::new(START) };
+        let mut frames = Frames::new();
+        let mut show = |ui: &mut Ui| slide.show(ui);
+        focused(&mut frames, &mut show);
+        frames.frame(vec![pointer::moved(FIELD.center())], &mut show);
+        let event = egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Point,
+            delta: Vec2::new(0.0, 30.0),
+            phase: egui::TouchPhase::Move,
+            modifiers,
+            source: egui::MouseWheelSource::Wheel,
+        };
+        frames.frame(vec![event], &mut show);
+        frames.idle(2, &mut show);
+        slide.value()
+    };
+    let (plain, shifted) = (wheel(Modifiers::NONE) - START, wheel(Modifiers::SHIFT) - START);
+    assert_eq!(plain.abs(), STEP, "a notch is one step");
+    assert!(shifted.signum() == plain.signum() && shifted.abs() > plain.abs(), "Shift steps further the same way: {plain} and {shifted}");
+}
