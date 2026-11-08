@@ -74,7 +74,8 @@ pub(crate) fn keys_of(base: KeyUse, options: &TextOptions) -> KeyUse {
     } else {
         base
     };
-    keys.with_value(base.value || options.steps_value)
+    let keys = keys.with_value(base.value || options.steps_value);
+    if options.submits { keys.with_submits() } else { keys }
 }
 
 pub(crate) struct AdapterIn<'a> {
