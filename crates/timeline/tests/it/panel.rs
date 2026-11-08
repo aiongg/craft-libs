@@ -9,7 +9,7 @@ use craft_timeline::ui::view::TimelineView;
 use craft_timeline::ui::{Timeline, TimelineEdit, TrackSwitch};
 use craft_timeline::{ClipId, ClipInfo, TimeRange, TimelineModel, TrackId, TrackInfo};
 use craft_timeline::{FollowMode, FrameRate, Tick, TimeFormat, TimeView, TrackKind};
-use craft_ui::contract::{Bind, Role, ShowContainer as _};
+use craft_ui::contract::{Bind, ShowContainer as _};
 use craft_ui::testing::access::NodeKey;
 use craft_ui::testing::{Fixture, Target, pointer, trial};
 use egui::{Event, Key, Modifiers, MouseWheelSource, MouseWheelUnit, Rect, TouchPhase, Vec2};
@@ -347,15 +347,16 @@ fn many_audio() -> Panel {
 }
 
 impl Panel {
-    /// The row of the track called `name`.
+    /// The row of the track called `name`: of the nodes with that name, the widest (the row spans the header and the lane).
     fn row(&self, name: &str) -> Rect {
         let tree = self.fixture.tree();
-        self.fixture
-            .by_role(Role::ROW)
+        tree.keys()
             .into_iter()
-            .find(|row| tree.name_of(row.node) == Some(name))
+            .filter(|key| tree.name_of(*key) == Some(name))
+            .filter_map(|key| self.fixture.target(key))
+            .map(|target| target.rect)
+            .max_by(|a, b| a.width().total_cmp(&b.width()))
             .unwrap_or_else(|| panic!("no row named {name}"))
-            .rect
     }
 
     /// The node whose name contains `name` and which lies inside `row`.
