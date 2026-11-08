@@ -42,6 +42,12 @@ fn ink_on(fill: [u8; 3], face: &AvatarFace) -> Color32 {
     Color32::from_rgb(r, g, b)
 }
 
+/// The 8-bit channels of a theme colour, the form `paint_avatar` takes a fill in.
+pub(super) fn rgb8(color: craft_theme::Srgba) -> [u8; 3] {
+    let [r, g, b, _] = Color32::from(color).to_array();
+    [r, g, b]
+}
+
 /// Paints a round face filling `rect`: `fill` with the initials of `name` centred on it.
 pub fn paint_avatar(draw: &Draw<'_>, rect: Rect, name: &str, fill: [u8; 3], face: &AvatarFace) {
     let [r, g, b] = fill;

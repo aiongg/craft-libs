@@ -2,6 +2,7 @@
 //! drawing or editing gesture reports (N5.03). Coordinates are page units (points, y down), as
 //! the canvas tool host gives them.
 
+use craft_behavior::geometry::draft::turn_to_45;
 use kurbo::{Point, Rect, Vec2};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
@@ -307,15 +308,6 @@ pub fn resized(rect: Rect, handle: (i8, i8), delta: Vec2, aspect: Option<f64>) -
     r.abs()
 }
 
-/// `to` held to the nearest 45° step from `anchor`, at the same distance.
-pub fn snapped_to_45(anchor: Point, to: Point) -> Point {
-    let d = to - anchor;
-    let step = std::f64::consts::FRAC_PI_4;
-    let angle = (d.y.atan2(d.x) / step).round() * step;
-    let length = d.hypot();
-    Point::new(anchor.x + length * angle.cos(), anchor.y + length * angle.sin())
-}
-
 /// `points` with point `i` moved to `to`; with `shift` the segment from its neighbour snaps to
 /// 45° steps.
 // pdfcraft: crates/ui-egui/src/tools/comments/geometry.rs:37 `reshaped`.
@@ -323,7 +315,7 @@ pub fn reshaped(points: &[Point], i: usize, to: Point, shift: bool) -> Vec<Point
     let mut out = points.to_vec();
     let anchor = if i == 0 { points.get(1) } else { points.get(i - 1) };
     let to = match anchor {
-        Some(&a) if shift => snapped_to_45(a, to),
+        Some(&a) if shift => turn_to_45(a, to),
         _ => to,
     };
     if let Some(p) = out.get_mut(i) {
@@ -373,7 +365,7 @@ pub enum AnnotationEdit {
         strokes: Vec<usize>,
     },
     /// The selection changed; the tool has applied it to [`AnnotateTool::selected`](crate::ui::AnnotateTool).
-    Selection(craft_ui::behavior::SelectionChange<AnnotationId>),
+    Selection(craft_behavior::SelectionChange<AnnotationId>),
     /// A double-click on a note or text box: the app opens its text for editing.
     Open(AnnotationId),
 }

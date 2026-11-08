@@ -30,7 +30,7 @@ use craft_ui::style::{ComponentStyle, Ink, Stateful, StyleColor, StyleCx, TextLo
 use craft_ui::text::TextField;
 use egui::{CornerRadius, Pos2, Rect, Response, Ui, Vec2};
 
-use super::avatar::{Avatar, paint_avatar};
+use super::avatar::{Avatar, AvatarFace, paint_avatar, rgb8};
 use super::comments::{CommentEdit, age_text};
 use crate::comments::{CommentThread, ThreadId};
 
@@ -217,14 +217,14 @@ impl Outcome for PinOut {
 pub(crate) struct PinStyle {
     #[style(metrics)]
     metrics: Metrics,
-    caption: TextLook,
     fill: StyleColor,
     fill_hot: StyleColor,
     edge: StyleColor,
     dot: StyleColor,
     cluster: StyleColor,
     on_strong: StyleColor,
-    resolved: Srgba,
+    resolved: [u8; 3],
+    avatar_face: AvatarFace,
     side: f32,
     inset: f32,
     dot_side: f32,
@@ -261,14 +261,14 @@ impl Component for PinBubble {
         let color = &cx.tokens.color;
         PinStyle {
             metrics: Metrics::new(),
-            caption: TextLook::new(TypeRole::Caption, Stateful::new(cx.ink(Ink::OnPanel))),
             fill: cx.color(color.surface.raised),
             fill_hot: cx.color(color.accent.soft),
             edge: cx.color(color.line.border),
             dot: cx.color(color.accent.strong),
             cluster: cx.color(color.accent.strong),
             on_strong: cx.color(color.text.on_strong),
-            resolved: Srgba::from(color.text.faint),
+            resolved: rgb8(Srgba::from(color.text.faint)),
+            avatar_face: AvatarFace::of(cx),
             side: cx.control().height,
             inset: cx.tokens.space.gap.inline,
             dot_side: cx.tokens.shape.radius.sm * 2.0,
@@ -311,12 +311,8 @@ impl Component for PinBubble {
         let inner = rect.shrink(st.inset);
         match &self.face {
             Face::Pin { author, color, unread, resolved, .. } => {
-                let fill = if *resolved {
-                    st.resolved
-                } else {
-                    Srgba::rgb(f32::from(color[0]) / 255.0, f32::from(color[1]) / 255.0, f32::from(color[2]) / 255.0)
-                };
-                paint_avatar(&draw, inner, author, fill, &st.caption);
+                let fill = if *resolved { st.resolved } else { *color };
+                paint_avatar(&draw, inner, author, fill, &st.avatar_face);
                 if *unread {
                     let centre = Pos2::new(rect.right() - st.inset, rect.top() + st.inset);
                     draw.fill(&PaintShape::Circle(centre, st.dot_side / 2.0), st.dot);

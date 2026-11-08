@@ -39,7 +39,7 @@ use craft_ui::text::TextField;
 use egui::{CornerRadius, Pos2, Rect, Response, Ui, Vec2, vec2};
 
 use super::annotate::{AnnotateWords, PALETTE};
-use super::avatar::paint_avatar;
+use super::avatar::{AvatarFace, paint_avatar, rgb8};
 use crate::annotate::AnnotationKind;
 use crate::comments::{CommentFilter, CommentSort, CommentThread, ReviewStatus, ThreadId, matches, sort_threads};
 
@@ -565,7 +565,6 @@ impl Collection for CommentList<'_> {
 pub(crate) struct CommentRowStyle {
     #[style(metrics)]
     metrics: Metrics,
-    caption: TextLook,
     normal: StyleColor,
     muted: StyleColor,
     good: StyleColor,
@@ -573,7 +572,8 @@ pub(crate) struct CommentRowStyle {
     faint: StyleColor,
     selected_fill: StyleColor,
     bar: StyleColor,
-    avatar: Srgba,
+    avatar: [u8; 3],
+    avatar_face: AvatarFace,
     bar_width: f32,
     height: f32,
     pad: f32,
@@ -930,7 +930,7 @@ impl Sink for Paint<'_, '_> {
 
     fn avatar(&mut self, rect: Rect, name: &str) {
         let rect = self.place(rect);
-        paint_avatar(&self.ui.draw(), rect, name, self.st.avatar, &self.st.caption);
+        paint_avatar(&self.ui.draw(), rect, name, self.st.avatar, &self.st.avatar_face);
     }
 
     fn button(&mut self, slot: Slot, rect: Rect, id: &'static str, name: &Label, on: bool) {
@@ -979,7 +979,6 @@ impl Component for CommentRow<'_> {
         let color = &cx.tokens.color;
         CommentRowStyle {
             metrics: Metrics::new(),
-            caption: TextLook::new(TypeRole::Caption, Stateful::new(cx.ink(Ink::OnPanel))),
             normal: cx.ink(Ink::OnPanel),
             muted: cx.color(color.text.muted),
             good: cx.color(color.status.good.fg),
@@ -987,7 +986,8 @@ impl Component for CommentRow<'_> {
             faint: cx.color(color.text.faint),
             selected_fill: cx.color(color.state.selected),
             bar: cx.color(color.accent.solid),
-            avatar: Srgba::from(color.accent.strong),
+            avatar: rgb8(Srgba::from(color.accent.strong)),
+            avatar_face: AvatarFace::of(cx),
             bar_width: cx.tokens.stroke.thick,
             height: cx.control().height,
             pad: cx.tokens.space.pad.control,

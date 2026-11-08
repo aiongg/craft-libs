@@ -13,12 +13,12 @@ workspace = true
 [features]
 default = []
 # The review widgets (`craft_review::ui`).
-ui = ["dep:craft-behavior", "dep:craft-keymap", "dep:craft-ui", "dep:craft-host", "dep:craft-theme", "dep:egui", "dep:image"]
+ui = ["dep:craft-keymap", "dep:craft-ui", "dep:craft-host", "dep:craft-theme", "dep:egui", "dep:image"]
 # The stories and the integration tests (`tests/it`).
 screen-testing = ["ui", "craft-ui/testing"]
 
 [dependencies]
-craft-behavior = { workspace = true, optional = true }
+craft-behavior = { workspace = true }
 craft-host = { workspace = true, optional = true, features = ["ui"] }
 craft-i18n = { workspace = true }
 craft-keymap = { workspace = true, optional = true }
