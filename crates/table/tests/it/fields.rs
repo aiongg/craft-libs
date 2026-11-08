@@ -97,13 +97,14 @@ fn field_menus_move_between_areas() {
     assert_eq!(mv.fields, ["Region".to_string()]);
 }
 
-/// A drag from one area onto a field of another ends as a move into the second, before that field.
+/// A drag from one area to the top edge of a field of another ends as a move into the second, before that field.
 #[trial]
 fn dragging_a_field_onto_another_area_moves_it() {
     let (mut fixture, app) = rig();
     let from = area_row(&fixture, "Region");
     let over = area_row(&fixture, "Product");
-    fixture.drag(&from, over.center() - from.center());
+    let before = egui::pos2(over.rect.center().x, over.rect.top());
+    fixture.drag(&from, before - from.center());
     fixture.idle(2);
     let app = app.borrow();
     let moved = app.edits.iter().find_map(|edit| match edit {
