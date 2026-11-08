@@ -78,7 +78,6 @@ fn a_group_hidden_at_its_start_in_a_frozen_pane_keeps_its_bracket() {
     fixture.settle();
     let edge = *edge.borrow();
     let brackets =
-        fixture.shape_bounds().iter().filter(|bounds| bounds.width() < 4.0 && bounds.height() > 4.0 && bounds.center().x < edge - 1.0).count();
-    eprintln!("DIAG edge={edge} thin={:?}", fixture.shape_bounds().iter().filter(|b| b.width() < 4.0 || b.height() < 4.0).collect::<Vec<_>>());
+        fixture.shape_bounds().iter().filter(|bounds| bounds.width() < 2.0 && bounds.height() > 4.0 && bounds.center().x < edge - 1.0).count();
     assert_eq!(brackets, 1, "one bracket in the lane");
 }

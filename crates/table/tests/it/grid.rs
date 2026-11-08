@@ -12,6 +12,7 @@ use craft_table::ui::{
 use craft_ui::contract::PaintUi;
 use craft_ui::primitives::TextRun;
 use craft_ui::runtime::env::Label;
+use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, Rect, Vec2};
 
@@ -85,6 +86,9 @@ fn rig(hidden_column: Option<u32>, selection: CellSelection<u32>, zoom: f32) -> 
         shown_edits.borrow_mut().extend(out.edits);
         shown_committed.borrow_mut().extend(out.committed);
     });
+    fixture.settle();
+    let target = fixture.node_of(grid.get().expect("the grid showed")).expect("the grid has a node");
+    fixture.access(AccessActionKind::Focus, &target);
     fixture.settle();
     Rig { fixture, state, edits, marks, committed, zoom: seen_zoom, grid }
 }

@@ -85,16 +85,8 @@ fn changing_the_field_resets_operator_and_value() {
 fn plus_adds_a_rule_and_alt_plus_a_group() {
     let (mut fixture, state) = build(one_rule());
     let plus = fixture.control(ADD).expect("a + button");
-    {
-        let tree = fixture.tree();
-        eprintln!("DIAG plus={:?}", plus.rect);
-        for key in tree.keys() {
-            if let Some(r) = tree.bounds_of(key) { if r.contains(plus.rect.center()) { eprintln!("DIAG over role={:?} name={:?} rect={:?}", tree.role_of(key), tree.name_of(key), r); } }
-        }
-    }
     fixture.click(&plus);
     fixture.idle(2);
-    eprintln!("DIAG after items={:?} texts={:?}", state.borrow().items.len(), fixture.texts().len());
     assert_eq!(state.borrow().items.len(), 2);
     assert!(matches!(state.borrow().items[1], ConditionItem::Rule(_)));
     let plus = fixture.control(ADD).expect("a + button");
