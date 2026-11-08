@@ -170,7 +170,7 @@ impl CellGrid<'_> {
             || row_key
             || !inputs.is_empty();
         let armed = state.mode == Mode::Ready && state.end_mode;
-        state.end_mode = if end_mode_key { !armed } else { armed && arrows.is_empty() && !other_key && !cx.response.is_pointer_button_down_on() };
+        state.end_mode = if end_mode_key { !armed } else { armed && arrows.is_empty() && !other_key && !cx.press().went_down };
 
         let mut deferred = Vec::new();
         let mut edits = Vec::new();
