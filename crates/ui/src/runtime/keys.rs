@@ -166,6 +166,8 @@ struct Stage {
     alt: AltTrack,
     /// The keys down now, as the input hook read them before it withheld any press.
     down: Vec<Key>,
+    /// The keys whose press the strip took and whose release it is still to drop.
+    consumed: Vec<Key>,
     shortcuts: Shortcuts,
     /// The paste text the focused component reads through its clipboard handle.
     pasted: Option<(Id, Arc<str>)>,
@@ -211,7 +213,10 @@ struct Strip<'a> {
 
 impl Strip<'_> {
     /// Records `event` in `batch` and returns whether egui keeps it.
-    fn event(&self, batch: &mut Batch, alt: &mut AltTrack, event: KeyEvent) -> bool {
+    ///
+    /// `consumed` holds the keys whose press the strip took and whose release has not come yet: the release goes
+    /// with the press, in this pass or a later one.
+    fn event(&self, batch: &mut Batch, alt: &mut AltTrack, consumed: &mut Vec<Key>, event: KeyEvent) -> bool {
         match event {
             KeyEvent::Press { key, input, repeat } => {
                 alt.other_key = true;
@@ -219,9 +224,22 @@ impl Strip<'_> {
                 if key == Key::Enter {
                     batch.enter_down = Some(true);
                 }
-                self.press(batch, key, &input, repeat)
+                let kept = self.press(batch, key, &input, repeat);
+                // The canvas's Space is a momentary chord: its release ends the command, so it stays readable.
+                let held_by_canvas = key == Key::Space && self.canvas_space;
+                if let Some(held) = input.physical.or(input.typed) {
+                    consumed.retain(|k| *k != held);
+                    if !kept && !held_by_canvas {
+                        consumed.push(held);
+                    }
+                }
+                kept
             }
             KeyEvent::Release { input } => {
+                if let Some(at) = input.physical.or(input.typed).and_then(|held| consumed.iter().position(|k| *k == held)) {
+                    consumed.swap_remove(at);
+                    return false;
+                }
                 if input.physical.or(input.typed) == Some(Key::Enter) {
                     batch.enter_down = Some(false);
                 }
@@ -448,7 +466,7 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
                 KeyEvent::Press { .. } | KeyEvent::Text(_) => Some(true),
                 _ => visible,
             };
-            strip.event(&mut batch, &mut stage.alt, read)
+            strip.event(&mut batch, &mut stage.alt, &mut stage.consumed, read)
         });
         for (physical, mods, text) in std::mem::take(&mut batch.learned) {
             stage.layout.observe(physical, mods, &text);
