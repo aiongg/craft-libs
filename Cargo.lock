@@ -1688,11 +1688,12 @@ name = "craft-theme-store"
 version = "0.1.0"
 dependencies = [
  "craft-atomic",
+ "craft-behavior",
  "craft-theme",
- "craft-ui-legacy",
+ "craft-ui",
  "dirs",
  "egui",
- "egui_kittest",
+ "libtest-mimic",
  "serde",
  "serde_json",
  "tempfile",
