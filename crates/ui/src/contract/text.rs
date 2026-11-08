@@ -375,6 +375,9 @@ pub(crate) fn run<C: Component>(
         crate::runtime::egui::sizing::request_discard(&ctx, "craft_ui: a text commit changed the value");
     }
     cx.core.submitted |= resolved.submitted;
+    if keys.submits {
+        cx.core.intents.take(craft_behavior::Intent::Submit);
+    }
     cx.core.escaped |= resolved.escaped;
 }
 

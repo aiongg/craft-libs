@@ -337,9 +337,6 @@ fn body(ui: &mut Ui, form: &mut FormCx<'_, '_>, values: &mut DocumentOptions, sh
             form.request_close_as(CloseReason::Activated);
         }
     }
-    if right.create {
-        form.request_close_as(CloseReason::Activated);
-    }
     if right.request_color {
         let current = background_rgb(values.background, setup.background).unwrap_or([1.0; 3]);
         form.requests().request_color(ColorRequest::new(BACKGROUND_COLOR_KEY, Srgba::from_rgb_array(current)).title(words.custom_swatch.clone()));

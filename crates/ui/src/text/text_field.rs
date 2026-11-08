@@ -148,6 +148,14 @@ impl<'a, C: Codec + Clone + 'static> TextField<'a, C> {
         self
     }
 
+    /// Enter acts in the field itself (it saves the value or runs a search): the field takes it, and an enclosing
+    /// dialog's default button does not. A field without this leaves Enter to that button.
+    #[must_use]
+    pub fn submits(mut self) -> Self {
+        self.options.submits = true;
+        self
+    }
+
     /// Completion candidates for the text before the caret. The text adapter owns the list and the keys it takes.
     #[must_use]
     pub fn complete(mut self, completer: impl Completer + 'static) -> Self {
