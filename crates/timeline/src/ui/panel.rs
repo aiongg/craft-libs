@@ -426,6 +426,7 @@ impl<M: TimelineModel> Timeline<'_, M> {
         let mut toolbar: Option<TimelineToolbar> = None;
         let view = *model.view();
 
+        let mut selected_clip: Option<(TrackId, Rect)> = None;
         let output = {
             let model: &M = &*model;
             let tracks = model.tracks();
@@ -467,7 +468,6 @@ impl<M: TimelineModel> Timeline<'_, M> {
             let mut timecode_edit: Option<EditEvent<Tick>> = None;
             let mut ruler_edits: Vec<TimelineEdit> = Vec::new();
             let mut ruler_snapped: Option<Tick> = None;
-            let mut selected_clip: Option<(TrackId, Rect)> = None;
 
             let overlay = Overlay::default();
             let area = TimelineView::new(label, Bind::given(view), format, duration)
