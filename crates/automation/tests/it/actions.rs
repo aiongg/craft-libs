@@ -326,6 +326,7 @@ fn actions_panel_recording_row_is_named_and_record_ignores_the_click() {
     let record = node(&fixture, "Begin recording");
     node(&fixture, "Sharpen, recording");
     assert!(!fixture.tree().is_disabled_key(record.node), "Record stays live");
+    assert_eq!(fixture.tree().selected_of(record.node), Some(true), "Record reads as pressed while recording");
     fixture.click(&record);
     fixture.idle(2);
     assert!(take(&shared).is_empty(), "a click while recording starts nothing");
