@@ -67,7 +67,8 @@ impl ViewCommands {
             ViewCommands::ZoomOut => {
                 zoom::step(view, -1, size, pixels_per_point);
             }
-            ViewCommands::FitOnScreen => zoom::fit(view, size, pixels_per_point),
+            // Photoshop fits the image to the view, with no margin.
+            ViewCommands::FitOnScreen => zoom::fit(view, size, pixels_per_point, 0.0),
             ViewCommands::FillScreen => zoom::fill(view, size, pixels_per_point),
             ViewCommands::ActualPixels => {
                 zoom::about(view, view.rect.center(), ZoomLadder::clamp(1.0, size), false, pixels_per_point);

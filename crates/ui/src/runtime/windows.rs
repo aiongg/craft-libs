@@ -16,6 +16,7 @@ use craft_host::target::Runtime;
 use craft_host::target::{Caps, DoubleClick, EdgeInsets, Os, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
 use craft_keymap::{Chord, Key, Mods};
 use craft_window::Button;
+use craft_window::native::{CaptionEvent, Edge, Hits, NativeWindow, Zone};
 use craft_window::policy::{CaptionFamily, Captions, Decision, Frame, LayoutWatch, MacInset};
 use craft_window::restore::{Placement, Store};
 use craft_window::system::WindowSystem;
@@ -108,13 +109,25 @@ struct Published {
 /// test, and the answer comes from the exclusive parts the window's last pass declared, so the caption buttons,
 /// edges and drag areas the app draws are the ones the OS acts on (snap layouts, native move and resize). The sink
 /// holds the scale with the regions, so the window procedure needs nothing from egui.
-/// [`WindowHost::install_hit_sink`] makes the sink; the platform layer that owns the window procedure holds it.
+///
+/// Over the maximize button the pointer lies in the non-client area and the app gets no client pointer, so the
+/// procedure reports the button's hover, press and release through [`Hits::caption`]; the next pass turns them into
+/// the pointer events the button would have had. [`WindowHost::install_hit_sink`] makes the sink; the platform layer
+/// that owns the window procedure holds it.
 #[derive(Clone, Debug, Default)]
 pub struct HitSink {
     published: Arc<Mutex<Option<Published>>>,
+    /// The caption events the window procedure reported since the last pass.
+    events: Arc<Mutex<Vec<CaptionEvent>>>,
+    /// The window to repaint when an event arrives from the window procedure.
+    wake: Option<(Context, ViewportId)>,
 }
 
 impl HitSink {
+    fn linked(ctx: &Context, viewport: ViewportId) -> Self {
+        HitSink { wake: Some((ctx.clone(), viewport)), ..HitSink::default() }
+    }
+
     /// What lies at `pixel`, in physical pixels from the top left of the window's client area: the hit test's screen
     /// point after `ScreenToClient`. `None` where no exclusive part lies there: the window procedure leaves the hit
     /// test to the window's content.
@@ -127,7 +140,102 @@ impl HitSink {
     fn publish(&self, published: Option<Published>) {
         *self.published.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = published;
     }
+
+    fn take_events(&self) -> Vec<CaptionEvent> {
+        std::mem::take(&mut *self.events.lock().unwrap_or_else(std::sync::PoisonError::into_inner))
+    }
 }
+
+impl Hits for HitSink {
+    fn zone_at(&self, pixel: [f32; 2]) -> Option<Zone> {
+        Some(match self.answer(Pos2::new(pixel[0], pixel[1]))? {
+            WindowHit::Move => Zone::Move,
+            WindowHit::Resize(edge) => Zone::Edge(edge_of(edge)),
+            WindowHit::Caption(button) => Zone::Button(button),
+        })
+    }
+
+    fn caption(&self, event: CaptionEvent) {
+        self.events.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(event);
+        if let Some((ctx, viewport)) = &self.wake {
+            ctx.request_repaint_of(*viewport);
+        }
+    }
+}
+
+/// The platform layer's name for `edge`.
+fn edge_of(edge: ResizeEdge) -> Edge {
+    match edge {
+        ResizeEdge::Top => Edge::Top,
+        ResizeEdge::Bottom => Edge::Bottom,
+        ResizeEdge::Left => Edge::Left,
+        ResizeEdge::Right => Edge::Right,
+        ResizeEdge::TopLeft => Edge::TopLeft,
+        ResizeEdge::TopRight => Edge::TopRight,
+        ResizeEdge::BottomLeft => Edge::BottomLeft,
+        ResizeEdge::BottomRight => Edge::BottomRight,
+    }
+}
+
+/// Turns the caption events the window procedure reported for `viewport` into the pointer events the caption button
+/// would have had, so the button looks and acts as on the other platforms: a hover moves the pointer onto it, a press
+/// presses the primary button, a release releases it there (a click), and a leave or a cancelled press moves the
+/// pointer away first so the release is no click.
+fn replay_caption_events(ctx: &Context, viewport: ViewportId, input: &mut RawInput) {
+    let Some(sink) = PerViewport::<Record>::with(ctx, viewport, |record| record.sink.clone()) else { return };
+    let events = sink.take_events();
+    if events.is_empty() {
+        return;
+    }
+    let (buttons, moves) =
+        with_exclusive(ctx, viewport, |exclusive| exclusive.done.as_ref().map(|regions| (regions.buttons.clone(), regions.moves.clone())))
+            .unwrap_or_default();
+    let center = |button: Button| buttons.iter().find(|(held, _)| *held == button).map(|(_, rect)| rect.center());
+    let press = |pos, button, pressed| egui::Event::PointerButton { pos, button, pressed, modifiers: egui::Modifiers::NONE };
+    let primary = |pos, pressed| press(pos, egui::PointerButton::Primary, pressed);
+    let scale = scale::pixels_per_point(ctx).max(f32::EPSILON);
+    // Only a position on a drag area is replayed there.
+    let on_band = |pixel: [f32; 2]| {
+        let at = Pos2::new(pixel[0] / scale, pixel[1] / scale);
+        moves.iter().any(|rect| rect.contains(at)).then_some(at)
+    };
+    let mut replay = Vec::new();
+    for event in events {
+        match event {
+            CaptionEvent::Hover(caption) => replay.extend(center(caption).map(egui::Event::PointerMoved)),
+            CaptionEvent::Press(caption) => {
+                if let Some(at) = center(caption) {
+                    replay.extend([egui::Event::PointerMoved(at), primary(at, true)]);
+                }
+            }
+            CaptionEvent::Release(caption) => replay.extend(center(caption).map(|at| primary(at, false))),
+            CaptionEvent::Leave => replay.push(egui::Event::PointerGone),
+            CaptionEvent::Cancel => replay.extend([egui::Event::PointerMoved(OUTSIDE), primary(OUTSIDE, false), egui::Event::PointerGone]),
+            CaptionEvent::BandDouble(pixel) => {
+                if let Some(at) = on_band(pixel) {
+                    replay.extend([egui::Event::PointerMoved(at), primary(at, true), primary(at, false), primary(at, true), primary(at, false)]);
+                }
+            }
+            CaptionEvent::BandMenu(pixel) => {
+                if let Some(at) = on_band(pixel) {
+                    replay.extend([
+                        egui::Event::PointerMoved(at),
+                        press(at, egui::PointerButton::Secondary, true),
+                        press(at, egui::PointerButton::Secondary, false),
+                    ]);
+                }
+            }
+            _ => {}
+        }
+    }
+    // Before the events winit delivered in the same frame: a pointer that moved on from the button to the client
+    // area is the later fact.
+    input.events.splice(0..0, replay);
+    ctx.request_repaint_of(viewport);
+}
+
+/// A position outside every window: a release there ends a press without a click.
+const OUTSIDE: Pos2 = Pos2::new(-1.0, -1.0);
 
 /// The regions the parts `parts` of the running pass declare; `None` for none. A drag area's covers are read from
 /// the pass's widgets, so this runs at the end of the pass.
@@ -433,6 +541,10 @@ pub enum WindowAction {
     SetLevel(WindowLevel),
     /// Changes the window's title.
     SetTitle(String),
+    /// Sets the window's opacity, 1 being opaque (a dock window fades while its drag highlights a drop target).
+    /// The platform applies it where it can: a layered window on Windows, `NSWindow.alphaValue` on macOS. The
+    /// action returns whether the platform applied it.
+    SetOpacity(f32),
 }
 
 /// What a double click on a window's free move band (its title bar, or the strip a modal leaves over it) asks of the
@@ -496,6 +608,9 @@ impl MonitorInfo {
 /// Install-time inputs and the cross-window records of one context.
 #[derive(Default)]
 struct Shared {
+    /// The opacity requests since the last [`take_sent`], for trials: the platform applies them out of reach.
+    #[cfg(feature = "testing")]
+    sent: Vec<(ViewportId, WindowAction)>,
     shell: Option<ShellInfo>,
     system: Option<Arc<dyn WindowSystem>>,
     store: Option<Arc<Mutex<Store>>>,
@@ -546,7 +661,21 @@ struct Record {
     last_inner_size: Option<Vec2>,
     /// The window procedure's hit test, once the platform layer installed it.
     sink: Option<HitSink>,
+    /// The title the window was opened with, which finds its OS window.
+    title: Option<String>,
+    /// The OS window, once found.
+    native: Option<NativeWindow>,
+    /// The pass of the last failed search for the OS window, so the search repeats only every `SEARCH_EVERY` passes.
+    searched: Option<u64>,
+    /// The opacity the window was last set to; 1 is opaque.
+    opacity: Option<f32>,
+    /// The window's component runs its own drag from the move band (a dock window's title row), so a press on the
+    /// band must reach it and the operating system's move loop is not started from the hit test.
+    app_drag: bool,
 }
+
+/// Passes between searches for an OS window that was not found.
+const SEARCH_EVERY: u64 = 20;
 
 /// An OS move or resize started in the pass `pass`: the OS keeps the press and sends no release. `released` is the
 /// pass whose input the runtime ended the press in.
@@ -568,6 +697,19 @@ struct Geometry {
 
 fn shared<R>(ctx: &Context, f: impl FnOnce(&mut Shared) -> R) -> R {
     Service::<Shared>::run(ctx, f)
+}
+
+/// The opacity requests made since the last call: a trial's window action stream, as the platform applies them where
+/// no egui command shows them.
+#[cfg(feature = "testing")]
+pub(crate) fn take_sent(ctx: &Context) -> Vec<(ViewportId, WindowAction)> {
+    shared(ctx, |shared| std::mem::take(&mut shared.sent))
+}
+
+/// Whether `viewport`'s component declared its own drag from the move band.
+#[cfg(feature = "testing")]
+pub(crate) fn keeps_app_drag_of(ctx: &Context, viewport: ViewportId) -> bool {
+    PerViewport::<Record>::with(ctx, viewport, |record| record.app_drag)
 }
 
 /// Called by `install`: keeps the shell, the OS services and the placement store.
@@ -712,6 +854,7 @@ pub(crate) fn set_input(ctx: &Context) {
 /// the viewport's record. Returns whether it added an event.
 pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
     let viewport = input.viewport_id;
+    replay_caption_events(ctx, viewport, input);
     let base = base_shell(ctx);
     let undecorated = base.caps.contains(Caps::OS_RESIZES_UNDECORATED) && window_info(ctx, viewport, &base).chrome == WindowChrome::Integrated;
     let size = viewports::inner_size_in(input, viewport);
@@ -801,6 +944,7 @@ pub(crate) fn end(ctx: &Context) {
 
 /// Whether the root window was asked to close and nothing has cancelled it yet. Valid in the app's `logic`, which
 /// eframe runs while the window is minimized or hidden too.
+#[cfg(feature = "app")]
 pub(crate) fn root_close_requested(ctx: &Context) -> bool {
     root_close_asked(ctx) && blocking_modal(ctx).is_none()
 }
@@ -852,6 +996,9 @@ fn flush_store(ctx: &Context) {
 /// window's state; a root `Close` reaches the app's close decision and the platform quit in [`logic`]. Returns
 /// whether a command went out.
 pub fn act(ctx: &Context, viewport: ViewportId, action: WindowAction) -> bool {
+    if let WindowAction::SetOpacity(opacity) = action {
+        return set_opacity(ctx, viewport, opacity);
+    }
     let base = base_shell(ctx);
     let commands = base.caps.contains(Caps::WINDOW_COMMANDS);
     let window = window_info(ctx, viewport, &base);
@@ -870,6 +1017,7 @@ pub fn act(ctx: &Context, viewport: ViewportId, action: WindowAction) -> bool {
         | WindowAction::SetInnerSize(_)
         | WindowAction::SetLevel(_)
         | WindowAction::SetTitle(_) => commands,
+        WindowAction::SetOpacity(_) => false,
     };
     if !allowed {
         return false;
@@ -909,8 +1057,79 @@ pub fn act(ctx: &Context, viewport: ViewportId, action: WindowAction) -> bool {
             }
         }
         WindowAction::SetTitle(title) => viewports::command(ctx, viewport, egui::ViewportCommand::Title(title)),
+        WindowAction::SetOpacity(_) => {}
     }
     true
+}
+
+/// Applies `opacity` to the OS window. A faded window is told again in every pass, because the window system's own
+/// style changes can drop the layered style; an opaque one only when it was faded. Returns whether the platform applied
+/// it now.
+fn set_opacity(ctx: &Context, viewport: ViewportId, opacity: f32) -> bool {
+    let opacity = opacity.clamp(0.0, 1.0);
+    let before = PerViewport::<Record>::with(ctx, viewport, |record| record.opacity.replace(opacity));
+    if before != Some(opacity) {
+        #[cfg(feature = "testing")]
+        shared(ctx, |shared| shared.sent.push((viewport, WindowAction::SetOpacity(opacity))));
+    }
+    let faded = opacity < 1.0 || before.is_some_and(|before| before < 1.0);
+    faded && native_of(ctx, viewport).is_some_and(|native| native.set_opacity(opacity))
+}
+
+/// The OS window of `viewport`, found once its window exists: by its title among the thread's windows, when exactly
+/// one starts at the reported client origin. A failed search repeats every `SEARCH_EVERY` passes. The root window's is
+/// set by [`route_root`].
+fn native_of(ctx: &Context, viewport: ViewportId) -> Option<NativeWindow> {
+    let pass = pass::pass_nr(ctx, viewport);
+    let (known, title, searched, facts) =
+        PerViewport::<Record>::with(ctx, viewport, |record| (record.native.clone(), record.title.clone(), record.searched, record.facts));
+    if known.is_some() || searched.is_some_and(|last| pass < last + SEARCH_EVERY) {
+        return known;
+    }
+    let (title, inner) = (title?, facts?.inner?);
+    let scale = scale_of(ctx, &facts?)?;
+    let origin = [(inner.min.x * scale).round() as i32, (inner.min.y * scale).round() as i32];
+    let found = NativeWindow::titled(&title, Some(origin));
+    PerViewport::<Record>::with(ctx, viewport, |record| {
+        record.searched = found.is_none().then_some(pass);
+        record.native = found.clone();
+    });
+    found
+}
+
+/// Records that the component of `viewport`'s window runs its own drag from the window's move band, as the floating
+/// dock group does to dock its window: the Windows hit test then leaves the band to the app, whose press starts that
+/// drag and the OS move together. Runs in each pass of the component.
+pub(crate) fn keeps_app_drag(ctx: &Context, viewport: ViewportId) {
+    PerViewport::<Record>::with(ctx, viewport, |record| record.app_drag = true);
+}
+
+/// Routes the Windows hit test of `viewport`'s window to its hit sink, once, when the OS window exists and the app
+/// draws its frame. A platform without the routing leaves the sink uninstalled, so the app moves and resizes the
+/// window itself.
+fn route_hit_test(ctx: &Context, viewport: ViewportId) {
+    if hit_sink_installed(ctx, viewport) || PerViewport::<Record>::with(ctx, viewport, |record| record.app_drag) {
+        return;
+    }
+    let Some(native) = native_of(ctx, viewport) else { return };
+    let sink = HitSink::linked(ctx, viewport);
+    if native.route_hits(Arc::new(sink.clone())) {
+        PerViewport::<Record>::with(ctx, viewport, |record| record.sink = Some(sink));
+    }
+}
+
+/// Gives the root window its OS window (`handle` finds it from eframe's window handle; it runs until the window is
+/// known) and routes its hit test while the app draws the frame. Runs each pass: a frame that becomes integrated later
+/// is routed then.
+#[cfg(windows)]
+pub(crate) fn route_root(ctx: &Context, handle: impl FnOnce() -> Option<NativeWindow>) {
+    if PerViewport::<Record>::with(ctx, ViewportId::ROOT, |record| record.native.is_none()) {
+        let Some(native) = handle() else { return };
+        PerViewport::<Record>::with(ctx, ViewportId::ROOT, |record| record.native = Some(native));
+    }
+    if matches!(shared(ctx, |shared| shared.root_frame.clone()), Some(Frame::Integrated(_))) {
+        route_hit_test(ctx, ViewportId::ROOT);
+    }
 }
 
 /// The OS took the press that started a move or resize of `viewport`'s window: [`input_hook`] ends it on the next
@@ -1183,7 +1402,7 @@ impl WindowHost {
     /// resize and caption hits. The window's move and resize parts still register, as the exclusive parts the sink
     /// reads, and a press on them starts no app move.
     pub fn install_hit_sink(&self, viewport: ViewportId) -> HitSink {
-        PerViewport::<Record>::with(&self.ctx, viewport, |record| record.sink.get_or_insert_with(HitSink::default).clone())
+        PerViewport::<Record>::with(&self.ctx, viewport, |record| record.sink.get_or_insert_with(|| HitSink::linked(&self.ctx, viewport)).clone())
     }
 
     /// The desktop pointer in the coordinates of `viewport`, when it lies inside that window.
@@ -1312,6 +1531,14 @@ pub(crate) fn show_viewport(ctx: &Context, open: &ViewportOpen<'_>, mut body: im
         record.captions = captions.clone();
         record.resizable = Some(open.resizable);
         record.awaiting_first_paint |= spec.shown_after_first_paint && record.facts.is_none();
+        if record.title.as_deref() != Some(open.title) {
+            record.title = Some(open.title.to_owned());
+            // A routed window keeps its handle: the title the system shows changes after this pass.
+            if record.sink.is_none() {
+                record.native = None;
+                record.searched = None;
+            }
+        }
         record.level.get_or_insert(spec.level).for_egui(active, os)
     });
     let opens = viewports::Spec {
@@ -1342,6 +1569,9 @@ pub(crate) fn show_viewport(ctx: &Context, open: &ViewportOpen<'_>, mut body: im
             }
         }
         body(ui);
+        if chrome == WindowChrome::Integrated && os == Os::Windows {
+            route_hit_test(&ctx, viewport);
+        }
         if let Some(key) = open.save {
             record_placement(&ctx, viewport, key, &viewports::current(&ctx));
         }

@@ -81,12 +81,8 @@ impl fmt::Debug for Secret {
 }
 
 impl Drop for Secret {
-    /// The `String`'s own buffer is zeroed (`into_bytes` keeps it), then kept alive by `black_box` so the writes are
-    /// not removed as dead stores.
     fn drop(&mut self) {
-        let mut bytes = std::mem::take(&mut self.0).into_bytes();
-        bytes.fill(0);
-        std::hint::black_box(&bytes);
+        zeroize::Zeroize::zeroize(&mut self.0);
     }
 }
 

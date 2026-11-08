@@ -132,6 +132,7 @@ pub(crate) fn leaves(b: &mut Preset) -> Vec<Leaf<'_>> {
         "base.size.window.cascade" Num 8.0..=96.0 => s.window.cascade;
         "base.size.pane.least" Num 16.0..=128.0 => s.pane.least;
         "base.size.ruler.tick.mid" Num 1.0..=32.0 => s.ruler.tick.mid;
+        "base.size.canvas.compass" Num 16.0..=128.0 => s.canvas.compass;
         "base.size.dock.column" Num 120.0..=640.0 => s.dock.column;
     }
     let sp = &mut b.space;
@@ -145,6 +146,7 @@ pub(crate) fn leaves(b: &mut Preset) -> Vec<Leaf<'_>> {
         "base.space.pad.panel" Num 0.0..=32.0 => sp.pad.panel;
         "base.space.pad.dialog" Num 0.0..=32.0 => sp.pad.dialog;
         "base.space.pad.chip" Num 0.0..=32.0 => sp.pad.chip;
+        "base.space.inset.screen" Num 0.0..=64.0 => sp.inset.screen;
     }
     let r = &mut b.radius;
     leaves! { out;

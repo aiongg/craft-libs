@@ -150,6 +150,7 @@ mod list;
 mod lock_state;
 pub mod mac;
 mod menu;
+pub mod native;
 pub mod native_menu;
 mod place;
 pub mod policy;
@@ -159,6 +160,8 @@ pub mod system;
 pub mod title_bar;
 #[cfg(feature = "ui")]
 mod viewports;
+#[cfg(windows)]
+mod win32;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod restore;

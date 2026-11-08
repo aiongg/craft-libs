@@ -1766,6 +1766,7 @@ dependencies = [
  "syn 2.0.119",
  "toml",
  "toml_edit",
+ "zeroize",
 ]
 
 [[package]]
@@ -1955,18 +1956,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-win32"
+version = "0.1.0"
+dependencies = [
+ "winsafe",
+]
+
+[[package]]
 name = "craft-window"
 version = "0.1.0"
 dependencies = [
  "craft-atomic",
  "craft-host",
  "craft-settings",
+ "craft-win32",
  "eframe",
  "egui",
  "muda",
  "objc2 0.6.5",
  "objc2-app-kit 0.3.2",
  "objc2-foundation 0.3.2",
+ "raw-window-handle",
  "serde",
  "serde_json",
  "tempfile",
