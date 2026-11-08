@@ -19,8 +19,8 @@
 //! canvas's one zoom ease, which the canvas shows from its next pass. `run` also paints the tool's readout;
 //! [`ToolHostResponse::readout`] repeats it as data.
 //!
-//! The context carries the pass's env ([`ToolContext::units`], [`ToolContext::words`]), the snapping the app gave
-//! with [`ToolHost::snap`] ([`ToolContext::snap`]) and, in `paint`, the style context ([`ToolContext::style`]). After
+//! The context carries the pass's env ([`ToolContext::units`], [`ToolContext::words`]), the canvas's snapping
+//! ([`Canvas::snap`](super::Canvas::snap), read with [`ToolContext::snap`]) and, in `paint`, the style context ([`ToolContext::style`]). After
 //! `paint`, `run` emits what [`CanvasTool::access`] returns as nodes under the canvas's node.
 //!
 //! Space and the momentary Hand: while a gesture runs the host withholds Space from the shortcuts for the tool, so a
@@ -209,7 +209,6 @@ fn state_id(canvas: Id) -> Id {
 pub struct ToolHost<'m> {
     disabled: bool,
     momentary: Option<&'m mut Momentary>,
-    snap: Option<Snap<'m>>,
 }
 
 impl<'m> ToolHost<'m> {
@@ -237,18 +236,10 @@ impl<'m> ToolHost<'m> {
         self
     }
 
-    /// The canvas's snapping (View > Snap To), which the tool reads with [`ToolContext::snap`]. The app builds one
-    /// [`Snap`] per pass and gives clones of it to the rulers, the guides and this host.
-    #[must_use]
-    pub fn snap(mut self, snap: Snap<'m>) -> Self {
-        self.snap = Some(snap);
-        self
-    }
-
     /// Delivers the pass's pointer and key events to `tool`, paints it over the canvas, and paints the readout it
     /// asked for beside the pointer.
     pub fn run(self, ui: &Ui, canvas: &CanvasOutput, tool: &mut dyn CanvasTool) -> ToolHostResponse {
-        let ToolHost { disabled, momentary, snap } = self;
+        let ToolHost { disabled, momentary } = self;
         let ctx = ui.ctx().clone();
         let env = Env::of(ui);
         let key = state_id(canvas.response.id);
@@ -288,7 +279,7 @@ impl<'m> ToolHost<'m> {
             mods: input.mods,
             time: input.time,
             env: &env,
-            snap: snap.as_ref(),
+            snap: canvas.snap.as_ref(),
             state: &mut state,
             response: ToolHostResponse::default(),
             requests: ToolRequests::default(),
@@ -331,7 +322,7 @@ impl<'m> ToolHost<'m> {
         let current = state.gesture.map(|active| active.last).or_else(|| over.then(|| hover_pointer(&input, canvas.press)).flatten());
         let context = || {
             let cx = ToolContext::new(rect, space).pointer(current).mods(input.mods).time(input.time).slop(input.slop).down(&down).env(&env);
-            match snap.as_ref() {
+            match canvas.snap.as_ref() {
                 Some(snap) => cx.snapping(snap),
                 None => cx,
             }
@@ -490,7 +481,7 @@ struct Run<'a> {
     mods: Mods,
     time: f64,
     env: &'a Env,
-    snap: Option<&'a Snap<'a>>,
+    snap: Option<&'a Snap>,
     state: &'a mut HostState,
     response: ToolHostResponse,
     requests: ToolRequests,

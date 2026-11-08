@@ -46,7 +46,7 @@ mod snap;
 pub use guide::GuideColor;
 pub(crate) use rulers::LABEL_STEP_MIN;
 pub use rulers::{NUDGE, NUDGE_FAR};
-pub use snap::Snap;
+pub use snap::{Snap, canvas_snap};
 pub(crate) use space::context_menu;
 pub use space::{BackgroundPress, CanvasRulers, context_click};
 // End of l4d-space.
@@ -168,6 +168,8 @@ pub struct Canvas {
     show_rulers: bool,
     /// The rulers' units and zero point, published to the body in its [`CanvasSpace`].
     rulers: Option<CanvasRulers>,
+    /// The canvas's snapping, published to the body and handed to the tool host.
+    snap: Option<Snap>,
     /// The view of this pass, after the canvas folded in its input.
     settled: Option<Settled>,
 }
@@ -194,6 +196,7 @@ impl Canvas {
             navigation: NavigationOptions::default(),
             show_rulers: false,
             rulers: None,
+            snap: None,
             settled: None,
         }
         .label(label)
@@ -303,6 +306,15 @@ impl Canvas {
         self
     }
 
+    /// The snapping of the coordinates the pointer sets on this canvas (View > Snap To): one function that the rulers
+    /// snap their zero point with, the guides snap a guide with and the tool host hands to the tool
+    /// ([`ToolContext::snap`]). Without it nothing snaps.
+    #[must_use]
+    pub fn snap(mut self, snap: Snap) -> Self {
+        self.snap = Some(snap);
+        self
+    }
+
     fn space(&self, pixels_per_point: f32, background: BackgroundPress) -> Option<CanvasSpace> {
         let view = self.settled.map(|settled| settled.shown).or(self.view);
         view.map(|view| CanvasSpace::new(view, pixels_per_point).with_document(self.document).with_rulers(self.rulers).with_background(background))
@@ -345,6 +357,7 @@ pub struct CanvasOutput {
     /// target; the canvas shows the way there itself. [`ToolHost::run`] carries it in [`ToolHostResponse::view`]
     /// when no tool set a view, so an app with a tool host copies that one view.
     pub view: Option<CanvasView>,
+    pub(crate) snap: Option<Snap>,
     pub(crate) document: Option<Size>,
     pub(crate) navigation: NavigationOptions,
 }
@@ -403,6 +416,7 @@ impl Component for Canvas {
     /// The canvas's [`CanvasSpace`] for its body; a canvas without a view hides an outer canvas's.
     fn content_env(&self, cx: &Cx<'_, Self>, values: &mut crate::runtime::env::AppValues) {
         space::publish(values, self.space(cx.env.scale().0, BackgroundPress::of(&Self::background_press(cx).0)));
+        snap::publish(values, self.snap.clone());
     }
 
     /// The background part the active tool gets. It sits in the canvas root's space, the parent layer's. A press on it
@@ -418,7 +432,7 @@ impl Component for Canvas {
         let press = Self::background_press(&cx).0;
         let space = self.space(cx.env.scale().0, BackgroundPress::of(&press));
         let view = self.settled.map(|settled| settled.target).filter(|target| Some(*target) != self.view);
-        CanvasOutput { response: cx.response.clone(), press, space, view, document: self.document, navigation: self.navigation }
+        CanvasOutput { response: cx.response.clone(), press, space, view, snap: self.snap, document: self.document, navigation: self.navigation }
     }
 }
 

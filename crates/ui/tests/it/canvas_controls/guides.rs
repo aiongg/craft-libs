@@ -3,7 +3,7 @@
 use craft_behavior::kurbo::{Point, Rect as DocRect};
 use craft_behavior::{Axis, CanvasView, EditEvent, GesturePhase, RulerUnits, Ticks};
 use craft_keymap::Mods;
-use craft_ui::canvas::{Canvas, Guide, GuideDrag, GuideKey, RulerText};
+use craft_ui::canvas::{Canvas, Guide, GuideDrag, GuideKey, RulerText, Snap};
 use craft_ui::canvas_controls::{GuideCommands, Guides};
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::runtime::env::UnitKind;
@@ -17,6 +17,9 @@ const GUIDE: craft_behavior::PartKey = craft_behavior::PartKey::new("guide");
 
 /// How far a drag moves a guide in the drag tests, in document units.
 const SHIFT: f64 = 20.0;
+
+/// The grid the canvas's snap rounds to in the snap test, in document units.
+const SNAP_STEP: f64 = 25.0;
 
 /// A distance no canvas reaches.
 const FAR: f32 = 5000.0;
@@ -41,6 +44,7 @@ struct Harness {
     bounds: Rc<Cell<Option<DocRect>>>,
     tool_click: Rc<Cell<Option<Pos2>>>,
     units: Rc<Cell<Option<RulerText>>>,
+    snapping: Rc<Cell<bool>>,
 }
 
 fn key(id: u64) -> GuideKey {
@@ -64,15 +68,19 @@ fn harness(guides: Vec<Guide>) -> Harness {
     let bounds = Rc::new(Cell::new(None));
     let tool_click = Rc::new(Cell::new(None));
     let units = Rc::new(Cell::new(None));
+    let snapping = Rc::new(Cell::new(false));
     let (shown_id, shown_guides, shown_selected, shown_seen, shown_pending, shown_bounds, shown_click) =
         (Rc::clone(&id), Rc::clone(&guides), Rc::clone(&selected), Rc::clone(&seen), Rc::clone(&pending), Rc::clone(&bounds), Rc::clone(&tool_click));
-    let shown_units = Rc::clone(&units);
+    let (shown_units, shown_snapping) = (Rc::clone(&units), Rc::clone(&snapping));
     let mut fixture = Fixture::new(move |ui| {
         let room = ui.available_rect_before_wrap();
         let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
         let mut canvas = Canvas::new("Document").view(view);
         if let Some(text) = shown_units.get() {
             canvas = canvas.rulers(text, text, Point::ZERO);
+        }
+        if shown_snapping.get() {
+            canvas = canvas.snap(Snap::new(|_, position, _| (position / SNAP_STEP).round() * SNAP_STEP));
         }
         let canvas = canvas.show(ui, |ui, body| {
             let mut held = shown_guides.borrow_mut();
@@ -107,7 +115,7 @@ fn harness(guides: Vec<Guide>) -> Harness {
         }
     });
     fixture.settle();
-    Harness { fixture, id, guides, selected, seen, pending, bounds, tool_click, units }
+    Harness { fixture, id, guides, selected, seen, pending, bounds, tool_click, units, snapping }
 }
 
 impl Harness {
@@ -319,4 +327,14 @@ fn guides_read_the_canvas_units_with_no_unit_props() {
     let texts: Vec<String> = harness.fixture.texts().iter().map(|text| text.text.to_string()).collect();
     assert!(texts.iter().any(|text| text.contains("1.25")), "the readout of a guide at 120 pixels is in the canvas's inches: {texts:?}");
     assert!(texts.iter().all(|text| !text.contains("px")), "no readout falls back to pixels: {texts:?}");
+}
+
+#[trial]
+fn a_drag_snaps_the_guide_through_the_canvas_snap() {
+    let mut harness = harness(mixed());
+    harness.snapping.set(true);
+    harness.fixture.settle();
+    let target = harness.guide(11);
+    harness.fixture.drag(&target, Vec2::new(SHIFT as f32 + 3.0, 0.0));
+    assert_eq!(harness.position(11), Some(125.0), "the guide lands on the grid the canvas snaps to, not where the pointer is");
 }

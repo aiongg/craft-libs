@@ -432,7 +432,7 @@ impl CanvasTool for Reader {
     }
 }
 
-/// Presses `Reader` once on a canvas whose host snaps to a guide at x = 10 when `snapping`; returns what the tool read
+/// Presses `Reader` once on a canvas that snaps to a guide at x = 10 when `snapping`; returns what the tool read
 /// and the unit words of the env the tool was shown in.
 fn press_reader(snapping: bool) -> (Reader, Arc<UnitWords>) {
     let tool = Rc::new(RefCell::new(Reader::default()));
@@ -441,11 +441,11 @@ fn press_reader(snapping: bool) -> (Reader, Arc<UnitWords>) {
     let press = Rc::new(Cell::new(false));
     let (shown, seen, id, queue) = (Rc::clone(&tool), Rc::clone(&words), Rc::clone(&canvas), Rc::clone(&press));
     let mut fixture = Fixture::new(move |ui| {
-        let out = Canvas::new("Document", ToolPath::Command("the Reader command")).show(ui, |_, _| {});
-        id.set(out.output.response.id);
         let guide = Snap::new(|along, position, _| if along == Axis::Y && (position - 10.0).abs() < 1.0 { 10.0 } else { position });
-        let host = if snapping { ToolHost::new().snap(guide) } else { ToolHost::new() };
-        host.run(ui, &out.output, &mut *shown.borrow_mut());
+        let canvas = Canvas::new("Document");
+        let out = if snapping { canvas.snap(guide) } else { canvas }.show(ui, |_, _| {});
+        id.set(out.output.response.id);
+        ToolHost::new().run(ui, &out.output, &mut *shown.borrow_mut());
         *seen.borrow_mut() = Some(Env::of(ui).words::<UnitWords>());
         if queue.take() {
             let at = out.output.response.rect.center();
@@ -463,9 +463,9 @@ fn press_reader(snapping: bool) -> (Reader, Arc<UnitWords>) {
 #[trial]
 fn a_tool_snaps_a_point_through_its_context_and_reads_the_words_of_the_env() {
     let (reader, env_words) = press_reader(true);
-    assert_eq!(reader.snapped, Some(Point::new(10.0, 7.9)), "the point snaps to the guide the host was given, on the axis it governs");
+    assert_eq!(reader.snapped, Some(Point::new(10.0, 7.9)), "the point snaps to the guide the canvas was given, on the axis it governs");
     let words = reader.unit_words.expect("the press reached the tool");
     assert!(Arc::ptr_eq(&words, &env_words), "the tool reads the words of the env it is shown in");
     let (reader, _) = press_reader(false);
-    assert_eq!(reader.snapped, Some(Point::new(10.3, 7.9)), "a host given no snapping leaves the point");
+    assert_eq!(reader.snapped, Some(Point::new(10.3, 7.9)), "a canvas given no snapping leaves the point");
 }

@@ -12,7 +12,7 @@ name = "ToolHost"
 old = "craft_ui::canvas::tool_host::ToolHost"
 new = "craft_ui::canvas::ToolHost"
 status = "moved"
-note = "`ToolHost::new().run(ui, &canvas_output, &mut tool)` after `Canvas::show`; `ToolHost::new(CanvasId)`, `snap(..)`, `document(..)`, `pen(..)`, `navigation(..)` and `keys(..)` are gone. The host reads the canvas's space from `CanvasOutput::space` (no `capture_values`), keys its state by the canvas's id (`CanvasOutput::response.id`) and paints the tool's readout in `run`. `inject`, `cancel` and `in_gesture` take that canvas id (an `egui::Id`) in place of a `CanvasId`; `cancel` returns whether a gesture was cancelled. `enabled(false)` leaves the open press spent. `ToolHost::sample` and `snap_tolerance` are gone: a tool maps points through `CanvasSpace` and holds its own snap targets."
+note = "`ToolHost::new().run(ui, &canvas_output, &mut tool)` after `Canvas::show`; `ToolHost::new(CanvasId)`, `snap(..)` (the snap is `Canvas::snap`), `document(..)`, `pen(..)`, `navigation(..)` and `keys(..)` are gone. The host reads the canvas's space from `CanvasOutput::space` (no `capture_values`), keys its state by the canvas's id (`CanvasOutput::response.id`) and paints the tool's readout in `run`. `inject`, `cancel` and `in_gesture` take that canvas id (an `egui::Id`) in place of a `CanvasId`; `cancel` returns whether a gesture was cancelled. `enabled(false)` leaves the open press spent. `ToolHost::sample` and `snap_tolerance` are gone: a tool maps points through `CanvasSpace` and holds its own snap targets."
 
 [[type]]
 name = "CanvasTool"
@@ -199,7 +199,7 @@ name = "Snap"
 old = ""
 new = "craft_ui::canvas::Snap"
 status = "replaced"
-note = "The app's snapping of a coordinate the pointer sets, one type for the rulers' zero point (`Rulers::snap(|axis, value, mods| ..)`) and the guides (`Guides::snap(..)`); the setters take the closure."
+note = "The canvas's snapping of a coordinate the pointer sets, given once with `Canvas::snap(Snap::new(|axis, value, mods| ..))`. The canvas publishes it to its body (`canvas_snap(env)`), so the rulers' zero point and the guides read it, and hands it to the tool host through `CanvasOutput`, so `ToolContext::snap` reads it. `Rulers::snap`, `Guides::snap` and `ToolHost::snap` are gone. The closure is `Send + Sync + 'static`."
 
 [[type]]
 name = "CanvasScrollbars"

@@ -211,7 +211,7 @@ pub struct ToolContext<'a> {
     painter: Option<&'a ContentPainterCx<'a>>,
     style: Option<StyleCx<'a>>,
     env: Option<&'a Env>,
-    snap: Option<&'a Snap<'a>>,
+    snap: Option<&'a Snap>,
     requests: ToolRequests,
 }
 
@@ -292,9 +292,9 @@ impl<'a> ToolContext<'a> {
         self
     }
 
-    /// The canvas's snapping, which [`snap`](Self::snap) applies; the host sets the one the app gave it.
+    /// The canvas's snapping, which [`snap`](Self::snap) applies; the host sets the one the canvas has.
     #[must_use]
-    pub fn snapping(mut self, snap: &'a Snap<'a>) -> Self {
+    pub fn snapping(mut self, snap: &'a Snap) -> Self {
         self.snap = Some(snap);
         self
     }
