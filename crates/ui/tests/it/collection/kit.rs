@@ -26,11 +26,13 @@ pub struct Words {
     /// `(depth, has children)` per row; empty for a flat list.
     pub tree: Vec<(usize, bool)>,
     pub open: RefCell<Vec<bool>>,
+    /// Rows that are section stops: they hold the lead and report presses, and are never selected.
+    pub sections: Vec<usize>,
 }
 
 impl Words {
     pub fn flat(words: &[&'static str]) -> Self {
-        Words { words: words.to_vec(), tree: Vec::new(), open: RefCell::new(Vec::new()) }
+        Words { words: words.to_vec(), tree: Vec::new(), open: RefCell::new(Vec::new()), sections: Vec::new() }
     }
 }
 
@@ -61,6 +63,18 @@ impl DisplayOrder<usize> for Words {
 
     fn text(&self, at: usize) -> Option<Cow<'_, str>> {
         Some(Cow::Borrowed(self.words[at]))
+    }
+
+    fn is_section(&self, at: usize) -> bool {
+        self.sections.contains(&at)
+    }
+
+    fn section_stop(&self, at: usize) -> bool {
+        self.sections.contains(&at)
+    }
+
+    fn section_stops_before(&self, at: usize) -> usize {
+        self.sections.iter().filter(|&&section| section < at).count()
     }
 }
 

@@ -806,3 +806,63 @@ fn a_click_on_the_selected_row_of_a_single_list_that_allows_empty_clears_it() {
     pointer::click(&mut frames, over(2), &mut show);
     assert_eq!(seen.selections().last(), Some(&SelectionChange::Set(vec![2])), "a click on another row picks it");
 }
+
+fn sectioned() -> Words {
+    let mut words = Words::flat(&["Fruit", "apple", "apricot", "Veg", "kale"]);
+    words.sections = vec![0, 3];
+    words
+}
+
+/// A click on a section stop moves the lead to it and reports its activation; the section is never selected.
+#[trial]
+fn a_click_on_a_section_stop_takes_the_lead_and_activates() {
+    let words = sectioned();
+    let seen = Seen::default();
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Multi), &words, &seen);
+    frames.idle(3, &mut show);
+    pointer::click(&mut frames, ORIGIN + Vec2::new(30.0, ROW_H * 3.5), &mut show);
+    frames.idle(1, &mut show);
+    assert_eq!(seen.leads(), [3], "the section holds the lead");
+    let activated: Vec<usize> =
+        seen.events.borrow().iter().filter_map(|event| if let CollectionEvent::Activate(key) = event { Some(*key) } else { None }).collect();
+    assert_eq!(activated, [3], "the click reports the section");
+    assert!(seen.selections().is_empty(), "a section is never selected: {:?}", seen.selections());
+}
+
+/// Arrows reach a section stop, and Enter on it reports its activation.
+#[trial]
+fn arrows_reach_a_section_stop_and_enter_activates_it() {
+    let words = sectioned();
+    let seen = Seen::default();
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Single), &words, &seen);
+    frames.idle(2, &mut show);
+    focus_list(&mut frames, &seen, &mut show);
+    for _ in 0..3 {
+        press(&mut frames, Key::ArrowDown, Modifiers::NONE, &mut show);
+    }
+    assert_eq!(seen.leads().last(), Some(&3), "the third Down stops on the section");
+    press(&mut frames, Key::Enter, Modifiers::NONE, &mut show);
+    assert!(seen.events.borrow().iter().any(|event| matches!(event, CollectionEvent::Activate(3))), "Enter activates the section");
+}
+
+/// A right-click on a row outside the selection selects it, gives it the lead and focuses the list, opening nothing
+/// on the press.
+#[trial]
+fn a_secondary_press_on_an_unselected_row_selects_leads_and_focuses() {
+    let words = Words::flat(&["a", "b", "c"]);
+    let seen = Seen::default();
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Single), &words, &seen);
+    frames.idle(3, &mut show);
+    assert_ne!(egui_focused(&frames.ctx), Some(seen.id()), "the list starts unfocused");
+    let at = ORIGIN + Vec2::new(30.0, ROW_H * 1.5);
+    frames.frame(vec![pointer::moved(at)], &mut show);
+    frames.frame(vec![pointer::secondary(at, true)], &mut show);
+    frames.idle(1, &mut show);
+    assert_eq!(seen.selections(), [SelectionChange::Set(vec![1])], "the row is selected on the press");
+    assert_eq!(seen.leads(), [1]);
+    assert_eq!(egui_focused(&frames.ctx), Some(seen.id()), "the list holds focus");
+    assert!(!seen.events.borrow().iter().any(|event| matches!(event, CollectionEvent::ContextMenu(_))), "nothing opens on the press");
+}

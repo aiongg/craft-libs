@@ -1001,6 +1001,10 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                         None => self.pick(comp, at, mods.shift, mods.cmd),
                     }
                     self.move_lead(at, LeadSource::Pointer);
+                    // A secondary press takes focus the way a primary press does: egui and the press classification only move it for the primary button.
+                    if !primary && props.focus_on_press {
+                        focus::request_now(&ctx, focus::FocusTarget::Id(cx.core.id));
+                    }
                     let activates = match props.activate {
                         ActivateOn::DoubleClick => start.clicks == 2,
                         ActivateOn::Click => primary && start.clicks == 1,
@@ -1014,7 +1018,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                         && comp.can_rename(&key);
                     if names && !self.source.section_stop(at) {
                         self.drags.rename = Some(key);
-                    } else if activates && !self.source.section_stop(at) {
+                    } else if activates {
                         self.events.push(CollectionEvent::Activate(key));
                     }
                 }
