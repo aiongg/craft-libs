@@ -33,9 +33,10 @@ status = "pending"
 
 [[type]]
 name = "GradientOverlay"
-old = ""
-new = ""
-status = "pending"
+old = "craft_draw::ui::GradientOverlay"
+new = "craft_draw::ui::gradient::GradientOverlay"
+status = "replaced"
+note = "A canvas control: `new(label, Bind<LineGradient>)` over the canvas's view, snap and arena. The host-driven `hit`, `press`, `track`, `release`, `double_click`, `paint` and `paint_focus` are gone: the arena gives a press on a part to the overlay."
 
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
@@ -363,3 +364,155 @@ old = "craft_draw::ui::shape_drag::ShapeDragStyle"
 new = ""
 status = "removed"
 note = "The outline is painted in the theme's overlay colours; the press slop is the canvas's."
+# gradient-b: the gradient line and its overlay
+
+[[type]]
+name = "GradientOverlayResponse"
+old = "craft_draw::ui::GradientOverlayResponse"
+new = "craft_draw::ui::gradient::GradientOverlayOutput"
+status = "replaced"
+note = "`event` is `edit: EditResponse<LineGradient>`; `color_requested` is a `StopColor`; `claimed` is gone (the arena decides)."
+
+[[type]]
+name = "GradientLineNames"
+old = "craft_draw::ui::GradientLineNames"
+new = "craft_draw::ui::gradient::GradientLineWords"
+status = "replaced"
+note = "A `words!` set."
+
+[[type]]
+name = "GradientLineStyle"
+old = "craft_draw::ui::GradientLineStyle"
+new = "craft_draw::ui::gradient::GradientOverlayStyle"
+status = "replaced"
+note = "A `ComponentStyle`."
+
+[[type]]
+name = "LineCursor"
+old = "craft_draw::ui::LineCursor"
+new = ""
+status = "removed"
+note = "Cursors are per part (`cursor`, `drag_cursor`)."
+
+[[type]]
+name = "LinePress"
+old = "craft_draw::ui::LinePress"
+new = ""
+status = "removed"
+note = "The press is the arena's."
+
+[[type]]
+name = "LineTrack"
+old = "craft_draw::ui::LineTrack"
+new = ""
+status = "removed"
+note = "The drag is the overlay's gesture."
+
+[[type]]
+name = "LineRelease"
+old = "craft_draw::ui::LineRelease"
+new = ""
+status = "removed"
+note = "The release commits the gesture or adds a stop."
+
+[[type]]
+name = "TaggedStop"
+old = "craft_draw::ui::TaggedStop"
+new = ""
+status = "removed"
+note = "The shared `selected` binding and `StopColor.tag` carry the tag."
+
+[[type]]
+name = "ColorRequest"
+old = "craft_draw::ui::ColorRequest"
+new = ""
+status = "removed"
+note = "`StopColor` carries `craft_ui::runtime::requests::ColorRequest`."
+
+[[type]]
+name = "GradientLine"
+old = "craft_draw::ui::GradientLine"
+new = "craft_draw::ui::gradient::GradientLine"
+status = "same"
+
+[[type]]
+name = "LineGradient"
+old = "craft_draw::ui::LineGradient"
+new = "craft_draw::ui::gradient::LineGradient"
+status = "same"
+
+[[type]]
+name = "LinePart"
+old = "craft_draw::ui::LinePart"
+new = "craft_draw::ui::gradient::LinePart"
+status = "same"
+
+[[type]]
+name = "GradientExtent"
+old = "craft_draw::ui::GradientExtent"
+new = "craft_draw::ui::gradient::GradientExtent"
+status = "same"
+
+[[setter]]
+type = "GradientOverlay"
+old = "new(id_salt, &line, &stops, names)"
+new = "new(label, Bind<LineGradient>)"
+
+[[setter]]
+type = "GradientOverlay"
+old = "snap(closure)"
+new = ""
+note = "The canvas's `Snap` snaps the ends and the line."
+
+[[setter]]
+type = "GradientOverlay"
+old = "cursor(closure)"
+new = ""
+note = "Cursors are per part."
+
+[[setter]]
+type = "GradientOverlay"
+old = "policy(EditPolicy)"
+new = ""
+note = "The policy is the `Bind`'s."
+
+[[setter]]
+type = "GradientOverlay"
+old = "labels(GradientLabels)"
+new = ""
+note = "Words come from the environment."
+
+[[setter]]
+type = "GradientOverlay"
+old = "numbers(&LocaleNumbers)"
+new = ""
+note = "Numbers come from the environment."
+
+[[setter]]
+type = "GradientOverlay"
+old = "units(x, y)"
+new = ""
+note = "The canvas's rulers give the units."
+
+[[setter]]
+type = "GradientOverlay"
+old = "selection_of(editor_id)"
+new = "selected(Bind<Option<StopRef>>)"
+note = "One shared selection binding."
+
+[[setter]]
+type = "GradientOverlay"
+old = "value(text)"
+new = "value_text(label)"
+
+[[setter]]
+type = "GradientOverlay"
+old = "editable(bool)"
+new = ""
+note = "Read-only is `Common`'s."
+
+[[setter]]
+type = "GradientOverlay"
+old = "rules(StopRules)"
+new = "rules(StopRules)"
+note = "The rows are `rules.rows`."

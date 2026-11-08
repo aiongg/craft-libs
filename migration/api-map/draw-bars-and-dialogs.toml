@@ -472,3 +472,64 @@ type = "GradientSwatch"
 old = "has_popup(bool)"
 new = "has_popup()"
 
+# gradient-b: the palette and the Gradient Map
+
+[[type]]
+name = "GradientPalette"
+old = "craft_draw::ui::GradientPalette"
+new = "craft_draw::ui::gradient::GradientPalette"
+status = "replaced"
+note = "A pattern over `PresetBrowser`: `new(label, groups, Bind<PresetState<GradientRef>>)`, output `GradientPaletteOutput { picked }`."
+
+[[type]]
+name = "PaletteLayout"
+old = "craft_draw::ui::PaletteLayout"
+new = ""
+status = "removed"
+note = "`PresetView::{Grid, List}` in the bound `PresetState`."
+
+[[type]]
+name = "GradientGroup"
+old = "craft_draw::ui::GradientGroup"
+new = "craft_draw::ui::gradient::GradientGroup"
+status = "same"
+
+[[type]]
+name = "GradientItem"
+old = "craft_draw::ui::GradientItem"
+new = "craft_draw::ui::gradient::GradientItem"
+status = "same"
+
+[[type]]
+name = "GradientRef"
+old = "craft_draw::ui::GradientRef"
+new = "craft_draw::ui::gradient::GradientRef"
+status = "same"
+note = "The browser's key."
+
+[[type]]
+name = "GradientMap"
+old = "craft_draw::ui::GradientMap"
+new = "craft_draw::ui::gradient::GradientMap"
+status = "same"
+
+[[type]]
+name = "GradientMapEditor"
+old = "craft_draw::ui::GradientMapEditor"
+new = "craft_draw::ui::gradient::GradientMapEditor"
+status = "replaced"
+note = "`new(label, &GradientMap)`; output `GradientMapOutput { event, color_requested, import }`."
+
+[[type]]
+name = "GradientMapLabels"
+old = "craft_draw::ui::GradientMapLabels"
+new = "craft_draw::ui::gradient::GradientMapWords"
+status = "replaced"
+note = "A `words!` set."
+
+[[type]]
+name = "GradientMapOutput"
+old = "craft_draw::ui::GradientMapOutput"
+new = "craft_draw::ui::gradient::GradientMapOutput"
+status = "replaced"
+note = "`pick_color` is `color_requested: Option<StopColor>`; `import_presets` is `import`."
