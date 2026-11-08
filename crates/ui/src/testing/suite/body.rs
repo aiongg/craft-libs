@@ -33,24 +33,24 @@ fn layer_fixture(story: &Story) -> Option<Fixture> {
 }
 
 /// Whether `container` is a field container: exactly one control inside it is labelled, by nodes inside the container,
-/// and every other interactive node inside is a part of that control. The label names the control, so the group needs
+/// and every other interactive node inside is a part of that control: below it, or beside it under the same parent with
+/// the same name (a spin button and its text input). The label names the control, so the group needs
 /// no name.
 fn is_field_of_one_control(tree: &crate::testing::access::AccessTree, container: crate::testing::access::NodeKey) -> bool {
     let inside = subtree(tree, container);
     let interactive: Vec<_> = inside.iter().copied().filter(|key| crate::testing::access::is_interactive(tree, *key)).collect();
     let labelled: Vec<_> = interactive.iter().copied().filter(|key| !tree.labelled_by_key(*key).is_empty()).collect();
-    eprintln!("DIAG inside={} interactive={} labelled={}", inside.len(), interactive.len(), labelled.len());
-    for key in tree.keys() {
-        if !tree.labelled_by_key(key).is_empty() {
-            eprintln!("DIAG labelled node {:?} role {:?} in={} labels in={:?}", key, tree.role_of(key), inside.contains(&key), tree.labelled_by_key(key).iter().map(|l| inside.contains(l)).collect::<Vec<_>>());
-        }
-    }
-    for key in &interactive {
-        eprintln!("DIAG interactive {:?} role {:?} parent {:?} name {:?}", key, tree.role_of(*key), tree.parent_of_key(*key), tree.name_of(*key));
-    }
+    eprintln!("DIAG2 inside={} interactive={} labelled={}", inside.len(), interactive.len(), labelled.len());
     let [control] = labelled.as_slice() else { return false };
     let parts = subtree(tree, *control);
-    tree.labelled_by_key(*control).iter().all(|label| inside.contains(label)) && interactive.iter().all(|key| parts.contains(key))
+    for key in &interactive {
+        eprintln!("DIAG2 {:?} part={} parent_eq={} name_eq={}", tree.role_of(*key), parts.contains(key), tree.parent_of_key(*key) == tree.parent_of_key(*control), tree.name_of(*key) == tree.name_of(*control));
+    }
+    eprintln!("DIAG2 labels_inside={:?}", tree.labelled_by_key(*control).iter().map(|l| inside.contains(l)).collect::<Vec<_>>());
+    let is_part = |key: &NodeKey| {
+        parts.contains(key) || (tree.parent_of_key(*key) == tree.parent_of_key(*control) && tree.name_of(*key) == tree.name_of(*control))
+    };
+    tree.labelled_by_key(*control).iter().all(|label| inside.contains(label)) && interactive.iter().all(is_part)
 }
 
 /// A container that is a dialog or a group has a role that needs a name: the title names it. A field container's label
