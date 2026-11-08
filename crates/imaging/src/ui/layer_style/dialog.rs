@@ -212,7 +212,8 @@ impl<'a> LayerStyleDialog<'a> {
     /// Draws the list and the page and reports this pass's change. List actions and field edits become the style edit;
     /// the page, Preview and Blend If channel are reported beside it.
     pub fn show(self, ui: &mut Ui) -> LayerStyleOutput {
-        let LayerStyleDialog { label, draft, channel_names, specs, blend_keys, blend_modes, patterns, user_contours, sampler, mut style_presets } = self;
+        let LayerStyleDialog { label, draft, channel_names, specs, blend_keys, blend_modes, patterns, user_contours, sampler, mut style_presets } =
+            self;
         let env = Env::of(ui);
         let words = env.words::<LayerStyleWords>();
         let contour_words = env.words::<ContourWords>();

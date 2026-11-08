@@ -24,7 +24,8 @@ use super::blending::BlendingOp;
 use super::contour::{ContourAction, ContourField, ContourKey, ContourRequest, ContourWords, contour_rows};
 use super::labels::LayerStyleWords;
 use crate::layer_style::{
-    Contour, EffectField, EffectId, EffectInstance, EffectKind, EffectSpec, FieldKind, FieldUnit, LayerStyle, LayerStyleDraft, StyleParams, StyleValue,
+    Contour, EffectField, EffectId, EffectInstance, EffectKind, EffectSpec, FieldKind, FieldUnit, LayerStyle, LayerStyleDraft, StyleParams,
+    StyleValue,
 };
 use crate::ui::curve::CurveSampler;
 
@@ -243,7 +244,8 @@ fn field_row(ui: &mut Ui, input: &PageInput<'_>, field: &EffectField, shown: &St
                 _ => Srgba::BLACK,
             };
             let request = format!("{}/{key}", id.key());
-            let swatch = Field::new(label.clone()).id_salt(key).show(ui, |ui, _| Swatch::new(label.clone(), color).picker(request.clone()).show(ui)).inner;
+            let swatch =
+                Field::new(label.clone()).id_salt(key).show(ui, |ui, _| Swatch::new(label.clone(), color).picker(request.clone()).show(ui)).inner;
             if let Some(request) = swatch.and_then(|swatch| swatch.pick_color) {
                 out.pick_color = Some(request.title(words.color_picker_title.clone()));
             }
