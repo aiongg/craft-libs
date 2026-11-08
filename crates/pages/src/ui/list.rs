@@ -244,7 +244,7 @@ impl<'a> PageList<'a> {
                         _ => {}
                     }
                 }
-                shown.response.response
+                shown.response
             });
         PageListOutput { response: response.output.response, events: events.into_inner() }
     }
