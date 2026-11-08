@@ -279,6 +279,7 @@ Zoom rules as pure functions on a [`CanvasView`]: Photoshop's zoom range and Zoo
 - `craft_behavior::canvas::zoom::fit_up_to`: `pub fn fit_up_to(view: &mut CanvasView, size: Size, pixels_per_point: f32, max_device: f64)`. [`fit`] with the device zoom allowed up to `max_device` (1 = 100 %) instead of 100 %: a small document is
 - `craft_behavior::canvas::zoom::step`: `pub fn step(view: &mut CanvasView, dir: i32, size: Size, pixels_per_point: f32) -> bool`. View › Zoom In (`dir` > 0) or Zoom Out (`dir` < 0): the next ladder rung
 - `craft_behavior::canvas::zoom::wheel_anchor`: `pub fn wheel_anchor(view: &CanvasView, screen: Pos2, size: Size) -> Pos2`. Where a wheel or pinch zoom anchors for a pointer at `screen`: the pointer over the document,
+- `craft_behavior::canvas::zoom::with_device`: `pub fn with_device(view: &CanvasView, device: f64, size: Size, pixels_per_point: f32) -> CanvasView`. `view` at `device` zoom (1 = 100 %), clamped to the zoom range of a document of `size`, with its centre kept.
 
 ## `craft_behavior::codec`
 
@@ -944,6 +945,7 @@ Where a collection's items come from: the data traits and the one way to show a 
   - `fn toggle_enabled(&self, _at: usize, _column: &ColumnKey) -> bool`. Whether the cell of entry `at` in the toggle column `column` can be flipped: a locked field's cell shows its
 - `craft_behavior::item_source::Keyed`: `pub struct Keyed<'a, T, K>`. A slice as an item source, each entry keyed by `key`.
   - `pub fn with_text(mut self, text: impl for<'t> Fn(&'t T) -> Cow<'t, str> + 'a) -> Self`. The text type-ahead matches each entry against.
+  - `pub fn with_toggled(mut self, toggled: impl Fn(&T, &ColumnKey) -> bool + 'a) -> Self`. Whether an entry's cell in a toggle column is on. Without it every toggle cell is off.
 - `craft_behavior::item_source::Outline`: `pub struct Outline<'a, K>`. `DisplayOrder` as the key-free outline the navigation core steps over.
   - `pub fn new(order: &'a dyn DisplayOrder<K>) -> Self`. The outline of `order`.
   - `pub fn columns(mut self, columns: usize) -> Self`. The cells of every position, for a sheet's cell navigation.
@@ -2727,6 +2729,7 @@ Raw input in the input hook, key events converted to craft-keymap's key types, `
   - `pub fn per_inch(self, points_per_inch: f64) -> Option<f64>`. How many units of this kind make an inch, for the kinds that measure length; `points_per_inch` sets the size
 - `craft_ui::runtime::env::UnitWords`: re-export of `craft_ui::runtime::env::units::UnitWords` (defined outside these crates).
 - `craft_ui::runtime::env::Units`: `pub struct Units`. Reads and writes numbers with their unit in the user's language and digits. Build it with `Env::units` or
+  - `pub fn zoom_codec(&self) -> NumberCodec`. The codec of a zoom field in percent: the percent reader, up to two decimals (the zoom ladder has rungs such as
   - `pub fn points_per_inch(&self) -> f64`. How many points make an inch in the scope: the app's point-size preference.
   - `pub fn symbol(&self, kind: UnitKind) -> String`. The unit's spelling in the user's language without the number: `mm`, `px`.
   - `pub fn text(&self, kind: UnitKind, n: f64, decimals: RangeInclusive<usize>) -> String`. `n` of `kind` with between the least and most digits of `decimals` after the decimal mark, in the user's
@@ -3701,6 +3704,7 @@ Reading text parts in trials: the widget id, the caret and the text a frame pain
 
 `ToolFixture` (22.4, the tool row): drives a [`CanvasTool`] on a [`Canvas`] through press, drag, release and
 
+- `craft_ui::testing::tool_fixture::DOCUMENT`: `pub const DOCUMENT: Size`. The size of the document the fixture's canvas shows, in document units: what the zoom tools read from the canvas's
 - `craft_ui::testing::tool_fixture::FREEHAND_RULE`: `pub const FREEHAND_RULE: &str`. The rule of the `probe` entry that names a freehand tool in `design/exceptions/<crate>/<family>.toml`; the
 - `craft_ui::testing::tool_fixture::ToolFixture`: `pub struct ToolFixture<T: CanvasTool + 'static>`. A tool shown on a canvas that fills the fixture's room, with the gesture phases the host reported.
   - `pub fn new(label: &'static str, tool: T) -> Self`. A canvas named `label` whose active tool is `tool`.
