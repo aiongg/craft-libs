@@ -26,7 +26,7 @@ fn a_list_in_a_sideways_scrolling_body_measures_its_widest_row() {
         .texts()
         .iter()
         .find(|text| text.text == LONG)
-        .unwrap_or_else(|| panic!("PROBE14 the widest row is painted; the list is at {:?}, the texts are {painted:?}", list.rect))
+        .unwrap_or_else(|| panic!("the widest row is painted; the list is at {:?}, the texts are {painted:?}", list.rect))
         .rect;
     assert!(list.rect.width() >= label.width(), "the list is as wide as its widest row: {:?} holds {label:?}", list.rect);
 }

@@ -320,8 +320,7 @@ fn the_selection_count_leaves_out_keys_that_are_not_shown() {
 #[trial]
 fn a_drop_on_a_footer_action_reports_it() {
     let mut bin = setup(false, |_| {});
-    let action_rect = bin.rect("New Item");
-    let action = action_rect.center();
+    let action = bin.rect("New Item").center();
     bin.drag_to("Beach.mov", action);
     let drops: Vec<_> = bin
         .events
@@ -329,7 +328,7 @@ fn a_drop_on_a_footer_action_reports_it() {
         .iter()
         .filter_map(|event| if let BinEvent::FooterDrop { action, keys, .. } = event { Some((*action, keys.clone())) } else { None })
         .collect();
-    assert_eq!(drops, [(0, vec![10])], "PROBE13 events={:?} action={:?}", bin.events.borrow(), action_rect);
+    assert_eq!(drops, [(0, vec![10])], "{:?}", bin.events.borrow());
     assert!(bin.drops().is_empty());
 }
 

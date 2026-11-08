@@ -51,7 +51,7 @@ pub(super) fn footer<K: TextureKey>(
         Entry::new(BinView::Icon, words.icon_view.clone()).icon(IconId::new("grid")),
         Entry::new(BinView::Freeform, words.freeform_view.clone()).icon(IconId::new("layout-grid")),
     ];
-    let row = Row::new().fill().align(RowAlign::End).show(ui, |ui, _| {
+    let row = Row::new().fill_width().align(RowAlign::End).show(ui, |ui, _| {
         Segmented::new(words.views.clone(), Bind::bound(&mut view), &modes).show(ui);
         let edit = ThumbnailSlider::new(words.thumb_size.clone(), Bind::bound(&mut zoom_value), zoom).show(ui);
         (edit, FooterBar::actions(all.clone()).show_footer(ui))
