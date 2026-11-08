@@ -26,13 +26,14 @@ struct Item<T> {
     label: Label,
     icon: Option<IconSpec<'static>>,
     enabled: bool,
+    reason: Option<Label>,
     checked: bool,
 }
 
 impl<T> Entry<T> {
     /// An entry reporting `value` when picked, shown as `label`: enabled and unchecked, without an icon.
     pub fn new(value: T, label: impl Into<Label>) -> Self {
-        Entry { row: Row::Item(Item { value, label: label.into(), icon: None, enabled: true, checked: false }) }
+        Entry { row: Row::Item(Item { value, label: label.into(), icon: None, enabled: true, reason: None, checked: false }) }
     }
 
     /// A rule between groups of entries. It is not a row: it takes no pick and no lead.
@@ -60,6 +61,17 @@ impl<T> Entry<T> {
     pub fn enabled(mut self, on: bool) -> Self {
         if let Row::Item(item) = &mut self.row {
             item.enabled = on;
+        }
+        self
+    }
+
+    /// Disables the entry and says why: the row shows `reason` as its tooltip and its accessible description while the
+    /// entry is disabled. A separator has none.
+    #[must_use]
+    pub fn disabled_reason(mut self, reason: impl Into<Label>) -> Self {
+        if let Row::Item(item) = &mut self.row {
+            item.enabled = false;
+            item.reason = Some(reason.into());
         }
         self
     }
@@ -100,6 +112,14 @@ impl<T> Entry<T> {
     /// Whether the entry can be picked; false for a separator.
     pub fn is_enabled(&self) -> bool {
         matches!(&self.row, Row::Item(item) if item.enabled)
+    }
+
+    /// Why the entry is disabled, while it is.
+    pub fn why_disabled(&self) -> Option<&Label> {
+        match &self.row {
+            Row::Item(item) if !item.enabled => item.reason.as_ref(),
+            _ => None,
+        }
     }
 
     /// Whether the entry shows as the current choice.

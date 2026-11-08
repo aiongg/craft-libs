@@ -39,6 +39,7 @@ mod layout;
 mod list;
 mod lists;
 mod menu;
+mod menu_mac;
 mod motion;
 mod notices;
 mod overlay;

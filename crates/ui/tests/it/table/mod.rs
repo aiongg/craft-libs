@@ -4,3 +4,4 @@ mod cells;
 mod columns;
 mod forwarders;
 mod metadata;
+mod rename;

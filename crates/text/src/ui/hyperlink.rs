@@ -377,17 +377,17 @@ fn body(ui: &mut Ui, given: &Given, form: &mut Form, words: &HyperlinkWords) {
         Stack::new().show(ui, |ui, _| {
             FieldGroup::new(words.fields.clone()).show(ui, |ui, _| {
                 if given.text.is_some() {
-                    text_field(ui, "display", &words.text_to_display, &mut form.display);
+                    text_field(ui, "display", &words.text_to_display, &mut form.display, false);
                 }
                 match form.mode {
-                    Mode::Url => text_field(ui, "url", &words.address, &mut form.url),
+                    Mode::Url => text_field(ui, "url", &words.address, &mut form.url, true),
                     Mode::Email => {
-                        text_field(ui, "email", &words.email_address, &mut form.email);
-                        text_field(ui, "subject", &words.subject, &mut form.subject);
+                        text_field(ui, "email", &words.email_address, &mut form.email, false);
+                        text_field(ui, "subject", &words.subject, &mut form.subject, false);
                     }
                     Mode::Place => place_list(ui, given, form, words),
                 }
-                text_field(ui, "tip", &words.screen_tip, &mut form.tooltip);
+                text_field(ui, "tip", &words.screen_tip, &mut form.tooltip, false);
             });
             if given.highlight {
                 Checkbox::new(Bind::bound(&mut form.highlight_click)).label(words.highlight_click.clone()).show(ui);
@@ -396,9 +396,11 @@ fn body(ui: &mut Ui, given: &Given, form: &mut Form, words: &HyperlinkWords) {
     });
 }
 
-fn text_field(ui: &mut Ui, salt: &'static str, label: &Label, value: &mut String) {
+/// A labelled text field; `default_stop` marks the field the dialog opens on.
+fn text_field(ui: &mut Ui, salt: &'static str, label: &Label, value: &mut String, default_stop: bool) {
     Field::new(label.clone()).id_salt(salt).show(ui, |ui, _| {
-        TextField::new(label.clone(), Bind::bound(value)).show(ui);
+        let field = TextField::new(label.clone(), Bind::bound(value));
+        if default_stop { field.default_stop() } else { field }.show(ui);
     });
 }
 

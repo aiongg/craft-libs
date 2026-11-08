@@ -14,7 +14,7 @@ use super::panel_menu::PresetCommands;
 use super::picker::PresetPicker;
 use super::words::PresetWords;
 use crate::buttons::{Button, IconButton};
-use crate::contract::{Bind, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _, StopProps as _, Trigger, Validity, clicked};
+use crate::contract::{Bind, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _, Trigger, Validity, clicked};
 use crate::display::Divider;
 use crate::form::Field;
 use crate::layout_components::Row;

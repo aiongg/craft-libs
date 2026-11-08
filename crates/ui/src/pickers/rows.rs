@@ -1,7 +1,7 @@
 //! `EntryRows`: the entries of a picker as the rows of its option list.
 
 use super::dress::RowDress;
-use crate::contract::{Entry, Props as _};
+use crate::contract::{Entry, Props as _, TooltipSpec};
 use crate::list::ListRow;
 use crate::runtime::env::Label;
 use craft_behavior::{DisplayOrder, ItemSource};
@@ -29,6 +29,10 @@ impl<'a, T> EntryRows<'a, T> {
         let row = ListRow::new(self.labels[at].clone()).option().enabled(entry.is_enabled());
         let row = match entry.icon_spec() {
             Some(icon) => row.icon(icon.clone()),
+            None => row,
+        };
+        let row = match entry.why_disabled() {
+            Some(reason) => row.description(reason.as_str()).tooltip(TooltipSpec::new(reason.clone()).disabled_text(reason.clone())),
             None => row,
         };
         match dress {

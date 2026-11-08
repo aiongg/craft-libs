@@ -146,6 +146,6 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for Table<'_, K> {
     }
 
     fn rename_editor(&mut self, ui: &mut Ui, draft: Bind<'_, String>, label: Rect, name: &str) -> Option<EditResponse<String>> {
-        Some(TextField::new(name.to_owned(), draft).show_at(ui, label))
+        Some(TextField::new(name.to_owned(), draft).select_on_focus().show_at(ui, label))
     }
 }
