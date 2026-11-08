@@ -6,7 +6,7 @@ mod stories;
 use craft_behavior::{EditEvent, Metrics, Mixed};
 use craft_theme::Rgba;
 use craft_ui::contract::{
-    Bind, BodyCx, Common, Component, Container, ContainerProps, Cx, Outcome, Pattern, Props as _, Role, Show as _, ShowContainer as _, Sizing,
+    Bind, Common, Component, Container, ContainerProps, Cx, Outcome, Pattern, Props as _, Role, Show as _, ShowContainer as _, Sizing,
 };
 use craft_ui::layout::BodyLayout;
 use craft_ui::layout_components::Row;
@@ -116,7 +116,8 @@ impl<'a> ColorReadout<'a> {
                         }
                         mine
                     };
-                    events.extend(field.show(ui).event.map(|event| event.map(channel)));
+                    let out = field.show(ui);
+                    events.extend(out.event.as_ref().map(|event| event.clone().map(channel)));
                 }
             });
             for event in &events {
