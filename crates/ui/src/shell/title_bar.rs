@@ -4,24 +4,26 @@
 use crate::runtime::egui::viewports;
 use egui::Context;
 
-/// Whether the OS may move the running viewport's window from the title-bar band: the last bar drawn in this
-/// pass or the one before said so, else true.
+/// Whether the OS may move the running viewport's window from where the pointer is in this pass: what the move bands
+/// of the pass wrote (the body step writes it for every move band of an OS window, `true` only where a press would go
+/// to the band), else what the app wrote with [`set_window_movable`], else true.
 pub fn window_movable(ctx: &Context) -> bool {
     match viewports::movable_record(ctx) {
-        Some((pass, movable)) if viewports::pass_number(ctx).saturating_sub(pass) <= 1 => movable,
+        Some((pass, movable)) if pass == viewports::pass_number(ctx) => movable,
         _ => true,
     }
 }
 
-/// Records that this pass's title bar of the running viewport lets the OS move the window (`true`) or not. A pass
-/// that draws no bar writes it too, or AppKit drags the window from the transparent strip. The record holds for
-/// this pass and the next.
+/// Records that the OS may move the running viewport's window in this pass (`true`) or not. `AppShell` writes `false`
+/// for a pass that draws no title bar, or AppKit drags the window from the transparent strip; an app that draws its
+/// window without `AppShell` does the same. A move band shown later in the pass still allows the move where a press
+/// would go to it.
 pub fn set_window_movable(ctx: &Context, movable: bool) {
     viewports::write_movable(ctx, movable);
 }
 
-/// Sets the `movable` flag of the context's window from this pass's [`window_movable`]. Call it once per frame per
-/// window, after that window's UI has run; `applied` holds the value last set for the window, so AppKit is only
+/// Sets the `movable` flag of the context's window from this pass's [`window_movable`]: the one place AppKit's flag is
+/// set. Call it once per frame per window, after that window's UI has run; `applied` holds the value last set for the window, so AppKit is only
 /// called when it changes.
 ///
 /// A window is told apart by its viewport: the key window is the one whose viewport has focus, so an unfocused

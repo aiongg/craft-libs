@@ -11,7 +11,7 @@ use crate::runtime::egui::panels::{self, Edge};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::focus::FocusPolicy;
 use crate::runtime::layout_memory;
-use crate::runtime::memory::{SaveKey, sub};
+use crate::runtime::memory::{MemoryStage, SaveKey, sub};
 use crate::runtime::motion::{self, Presence};
 use crate::runtime::overlay::{Backdrop, CloseReason, Rank};
 use crate::runtime::windows::{self, ViewportOpen, WindowHost, WindowSpec};
@@ -103,6 +103,24 @@ impl Host for WindowContentHost {
 /// A pane slot of the shell: the one place `egui::Panel` and `CentralPanel` are called.
 struct PaneHost(ShellPane);
 
+/// The pane memory of an edge pane with no fixed extent: the size it first took, or the extent the user gave it with
+/// its grip.
+pub(super) fn pane_extent_id(id: Id) -> Id {
+    sub(id, "pane_extent")
+}
+
+/// The grip gesture of an edge pane, in shown memory: the extent the pane had when the gesture began and the extent the
+/// pointer gives it. The body step writes it; the pane host shows the gesture's extent while it runs.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(super) struct PaneGrip {
+    pub began: Option<f32>,
+    pub extent: Option<f32>,
+}
+
+pub(super) fn pane_grip_id(id: Id) -> Id {
+    sub(id, "pane_grip")
+}
+
 impl Host for PaneHost {
     fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut HostPass<'_>) {
         // A pane the caller laid out shows in its rect and leaves the room of its siblings alone.
@@ -119,10 +137,12 @@ impl Host for PaneHost {
             _ => (Edge::Center, false),
         };
         let ctx = parent.ctx().clone();
-        // Without a fixed extent the pane's extent is its own memory, seeded from the size the pane first took and kept
-        // until the user resizes it: the body's size does not carry it, since a filling body takes what the pane gives.
-        let extent = sub(id, "pane_extent");
-        let last = self.0.extent.or_else(|| layout_memory::read(&ctx, extent).map(|size| if along_x { size.x } else { size.y }));
+        // A grip gesture's extent wins while it runs. Else a fixed extent, else the pane's own memory, seeded from the
+        // size the pane first took and kept until the user resizes it: the body's size does not carry it, since a
+        // filling body takes what the pane gives.
+        let extent = pane_extent_id(id);
+        let grip = MemoryStage::peek::<PaneGrip>(&ctx, pane_grip_id(id)).extent;
+        let last = grip.or(self.0.extent).or_else(|| layout_memory::read(&ctx, extent).map(|size| if along_x { size.x } else { size.y }));
         let outer = panels::show_pane(parent, edge, sub(id, ("pane", self.0.name)), last, |ui| {
             let installed = Env::install_for(ui, env.clone());
             pass(ui, None, None);

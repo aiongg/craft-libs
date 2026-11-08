@@ -375,6 +375,10 @@ impl<'a> AppShell<'a> {
             // Every shown slot's rect and the body's, before any slot runs. Slots that a reveal shows in body-only mode
             // cover the body.
             let visible: Vec<bool> = slots.iter().map(|placed| !bare && state.reveal.shows(&placed.slot, placed.edge, only, allow_reveal)).collect();
+            // A pass with no title bar has no move band: the OS moves the window from nowhere in it.
+            if !slots.iter().zip(&visible).any(|(placed, shown)| placed.title && *shown) {
+                super::title_bar::set_window_movable(&ctx, false);
+            }
             let claims: Vec<Claim> = slots
                 .iter()
                 .zip(&visible)

@@ -1221,7 +1221,7 @@ name = "PaneRequest"
 old = "craft_ui::panes::PaneRequest"
 new = "craft_ui::patterns::dock::PaneRequest"
 status = "moved"
-note = "`Resize` is not a request: a docked pane's size is the app's `PaneState::size`. `FloatRect` carries a `Rect`. `Minimize(pane, bool)` sets `PaneState::minimized`."
+note = "`Resize(pane, extent)` arrives once, when the drag of a docked pane's inner edge ends; `PaneState::apply` sets `PaneState::size` from it. `FloatRect` carries a `Rect`. `Minimize(pane, bool)` sets `PaneState::minimized`."
 
 [[type]]
 name = "PaneOutput"
