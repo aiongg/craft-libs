@@ -8,7 +8,7 @@ use craft_behavior::kurbo::Point;
 use craft_text::quotes::QuoteStyle;
 use craft_text::ui::editor::{CaretLine, EditKind, HostLine, TextEditor, TextEditorHost, TextSelection, click_count, click_selection, word_boundary};
 use craft_ui::canvas::Canvas;
-use craft_ui::contract::{Bind, ShowContainer as _};
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers, Rect, pos2, vec2};
 
@@ -125,7 +125,7 @@ fn typing_inserts_at_the_caret_and_replaces_the_selection() {
 
 #[trial]
 fn typed_quotes_follow_the_style() {
-    let mut editor = session("", Some(QuoteStyle::default()));
+    let mut editor = session("", Some(QuoteStyle::ENGLISH));
     editor.focus();
     editor.fixture.type_text("\"hi\"").settle();
     assert_ne!(editor.text(), "\"hi\"", "straight quotes become the language's marks while typing");

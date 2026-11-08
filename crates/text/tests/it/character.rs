@@ -1,5 +1,6 @@
 //! The Character and Paragraph controls: the changes they report for typed values, presets, toggles and the colour well.
 
+use crate::set;
 use craft_text::ui::DocUnit;
 use craft_text::ui::character::{
     COLOR_KEY, Caps, CharacterChange, CharacterControls, CharacterValues, Kerning, Leading, ParagraphChange, ParagraphControls, ParagraphValues,
@@ -30,7 +31,12 @@ fn apply(values: &mut CharacterValues, change: &CharacterChange) {
 }
 
 fn base() -> CharacterValues {
-    CharacterValues { size: Some(12.0), tracking: Some(0.0), kerning: Some(Kerning::Metrics), caps: Some(Caps::Normal), ..CharacterValues::default() }
+    set(CharacterValues::default(), |v| {
+        v.size = Some(12.0);
+        v.tracking = Some(0.0);
+        v.kerning = Some(Kerning::Metrics);
+        v.caps = Some(Caps::Normal);
+    })
 }
 
 impl Panel {
@@ -93,7 +99,7 @@ fn size_field_converts_the_type_unit() {
     panel.type_into("Font size", "24");
     assert_eq!(panel.last(), Some(CharacterChange::Size(24.0)));
 
-    let values = CharacterValues { size: Some(24.0), ..base() };
+    let values = set(base(), |v| v.size = Some(24.0));
     let mut panel = Panel::new(values, DocUnit::new(UnitKind::Pixels, 144.0));
     assert!(panel.shown_value("Font size").contains("48"), "{}", panel.shown_value("Font size"));
     panel.type_into("Font size", "36");
@@ -123,7 +129,10 @@ fn kerning_menu_and_mixed_values() {
     panel.type_into("Kerning", "-40");
     assert_eq!(panel.last(), Some(CharacterChange::Kerning(Kerning::Manual(-40.0))));
 
-    let mixed = CharacterValues { kerning: None, tracking: None, ..base() };
+    let mixed = set(base(), |v| {
+        v.kerning = None;
+        v.tracking = None;
+    });
     let panel = Panel::new(mixed, DocUnit::points());
     assert_eq!(panel.shown_value("Kerning"), "");
     assert_eq!(panel.shown_value("Tracking"), "");
@@ -132,7 +141,7 @@ fn kerning_menu_and_mixed_values() {
 /// The colour well files a request with the current colour for the pass of the click only.
 #[trial]
 fn swatch_requests_a_colour_for_one_pass() {
-    let values = CharacterValues { color: Some(Rgba([10, 20, 30, 255])), ..base() };
+    let values = set(base(), |v| v.color = Some(Rgba([10, 20, 30, 255])));
     let mut panel = Panel::new(values, DocUnit::points());
     assert!(panel.requests.borrow().is_empty());
     panel.click("Text color");
@@ -149,7 +158,7 @@ fn swatch_requests_a_colour_for_one_pass() {
 fn justify_buttons_need_a_box() {
     let changes = Rc::new(RefCell::new(Vec::new()));
     let seen = changes.clone();
-    let values = ParagraphValues { align: Some(TextAlign::Center), ..ParagraphValues::default() };
+    let values = set(ParagraphValues::default(), |v| v.align = Some(TextAlign::Center));
     let mut fixture = Fixture::new(move |ui| {
         let out = ParagraphControls::new("Paragraph", &values).point_text(true).show(ui);
         seen.borrow_mut().extend(out.edits.iter().filter_map(|edit| edit.value().copied()));
@@ -168,7 +177,7 @@ fn justify_buttons_need_a_box() {
 /// The leading menu's Auto row reports `Leading(Auto)` as the one edit of the pass.
 #[trial]
 fn leading_menu_has_an_auto_row() {
-    let values = CharacterValues { leading: Some(Leading::Points(20.0)), ..base() };
+    let values = set(base(), |v| v.leading = Some(Leading::Points(20.0)));
     let mut panel = Panel::new(values, DocUnit::points());
     panel.pick_preset("Leading", "Auto");
     assert_eq!(panel.last(), Some(CharacterChange::Leading(Leading::Auto)));

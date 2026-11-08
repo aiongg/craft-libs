@@ -15,6 +15,12 @@ mod tabs_dialog;
 use craft_ui::testing::{TRIALS, suite};
 use libtest_mimic::{Arguments, Trial};
 
+/// `value` after `edit`: a test's variation of a value whose type is non-exhaustive.
+fn set<T>(mut value: T, edit: impl FnOnce(&mut T)) -> T {
+    edit(&mut value);
+    value
+}
+
 fn main() {
     let args = Arguments::from_args();
     let own = module_path!();

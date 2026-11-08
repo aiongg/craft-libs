@@ -79,6 +79,7 @@ craft_ui::words! {
 /// Column settings; `None` where the selected text boxes or sections differ (a field left as
 /// shown is left out of the result, so each keeps its own value).
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct TextColumns {
     /// Number of columns.
     pub count: Option<u32>,
@@ -113,11 +114,11 @@ pub enum ColumnsApply {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ColumnsPreset {
-    #[allow(missing_docs)]
+    /// One.
     One,
-    #[allow(missing_docs)]
+    /// Two.
     Two,
-    #[allow(missing_docs)]
+    /// Three.
     Three,
     /// Two columns, the left one narrower.
     Left,
@@ -220,14 +221,17 @@ impl TextColumnsDialog {
         (1..=self.most_columns()).contains(&count)
     }
 
+    /// Whether the typed count is within one and the most the text width fits.
     pub fn count_in_range(&self) -> bool {
         self.edited.count.is_none_or(|n| self.count_ok(n))
     }
 
+    /// Whether the typed spacing is within the allowed range.
     pub fn spacing_in_range(&self) -> bool {
         self.edited.spacing.is_none_or(|s| (0.0..=MAX_SPACING).contains(&s))
     }
 
+    /// Whether the columns are of equal width.
     pub fn equal(&self) -> bool {
         self.edited.equal_width == Some(true)
     }
@@ -247,6 +251,7 @@ impl TextColumnsDialog {
     }
 
     /// The width and the spacing after each column, as the grid shows them.
+    /// Each column's width and the spacing after it, in points.
     pub fn rows(&self) -> Vec<(f32, f32)> {
         let (Some(width), Some(count)) = (self.word, self.edited.count.filter(|n| self.count_ok(*n))) else {
             return Vec::new();
@@ -257,6 +262,7 @@ impl TextColumnsDialog {
         Self::even_rows(width, self.spacing_now(), count)
     }
 
+    /// Sets the number of columns.
     pub fn set_count(&mut self, count: u32) {
         self.edited.count = Some(count);
         if self.word.is_some() && self.count_ok(count) && !self.equal() {
@@ -268,6 +274,7 @@ impl TextColumnsDialog {
         Self::even_rows(self.word.unwrap_or(0.0), self.spacing_now(), count)
     }
 
+    /// Applies a preset to the edited columns.
     pub fn apply_preset(&mut self, preset: ColumnsPreset) {
         let Some(width) = self.word else { return };
         let spacing = DEFAULT_SPACING;
@@ -720,9 +727,13 @@ const LINE_PITCH: f32 = 0.5;
 /// Where the preview draws: the text area, each column's left and right edge and the x of the
 /// line between each two columns (when [`line_between`](TextColumns::line_between) is on).
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct PreviewPlan {
+    /// The text area on the page.
     pub text: Rect,
+    /// The left and right edge of each column.
     pub columns: Vec<(f32, f32)>,
+    /// The x of the line between each two columns.
     pub separators: Vec<f32>,
 }
 

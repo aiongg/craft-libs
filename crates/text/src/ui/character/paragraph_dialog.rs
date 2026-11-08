@@ -72,18 +72,18 @@ craft_ui::words! {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ParagraphAlign {
-    #[allow(missing_docs)]
+    /// Left.
     #[default]
     Left,
-    #[allow(missing_docs)]
+    /// Center.
     Center,
-    #[allow(missing_docs)]
+    /// Right.
     Right,
-    #[allow(missing_docs)]
+    /// Justify.
     Justify,
-    #[allow(missing_docs)]
+    /// Justify low.
     JustifyLow,
-    #[allow(missing_docs)]
+    /// Distributed.
     Distributed,
 }
 
@@ -91,7 +91,7 @@ pub enum ParagraphAlign {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum SpecialIndent {
-    #[allow(missing_docs)]
+    /// None.
     #[default]
     None,
     /// The first line starts `by` further in.
@@ -133,8 +133,9 @@ impl Default for LineSpacing {
 /// What the dialog edits; `None` where the selected paragraphs differ (the field starts empty
 /// and a field left empty is left as it was).
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct ParagraphFormat {
-    #[allow(missing_docs)]
+    /// The align.
     pub align: Option<ParagraphAlign>,
     /// Points.
     pub before_text: Option<f32>,

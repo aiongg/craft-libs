@@ -1,6 +1,7 @@
 //! The text ruler's gestures: placing, moving and clearing stops, the indent markers, mirroring, keys and column
 //! borders.
 
+use crate::set;
 use craft_behavior::GesturePhase;
 use craft_text::ui::DocUnit;
 use craft_text::ui::ruler::{ColumnDrag, RulerValues, TabAlign, TabLeader, TabStop, TextRuler};
@@ -19,7 +20,7 @@ const ALONG_SHARE: f32 = 0.1;
 const OFF_SHARE: f32 = 0.25;
 
 fn left_stop(position: f32) -> TabStop {
-    TabStop { position, align: TabAlign::Left, leader: TabLeader::None }
+    TabStop::new(position, TabAlign::Left, TabLeader::None)
 }
 
 struct Shown {
@@ -47,7 +48,10 @@ fn show(start: RulerValues, kind: Option<TabAlign>, right_to_left: bool, borders
 }
 
 fn indents() -> RulerValues {
-    RulerValues { stops: Vec::new(), left_indent: 72.0, first_line_indent: 36.0, right_indent: 0.0 }
+    set(RulerValues::default(), |v| {
+        v.left_indent = 72.0;
+        v.first_line_indent = 36.0;
+    })
 }
 
 #[trial]
@@ -63,7 +67,7 @@ fn click_sets_a_stop_of_the_selectors_kind() {
 
 #[trial]
 fn dragging_a_stop_off_the_ruler_clears_it() {
-    let mut shown = show(RulerValues { stops: vec![left_stop(144.0)], ..RulerValues::default() }, None, false, &[]);
+    let mut shown = show(set(RulerValues::default(), |v| v.stops = vec![left_stop(144.0)]), None, false, &[]);
     shown.fixture.settle();
     let stop = shown.fixture.by_label("Left Tab").expect("the stop is a node");
     shown.fixture.drag(&stop, Vec2::Y * (shown.fixture.shown().width() * OFF_SHARE));
@@ -92,7 +96,7 @@ fn indent_markers_move_as_word_does() {
 
 #[trial]
 fn right_to_left_mirrors_positions() {
-    let start = RulerValues { stops: vec![left_stop(144.0)], ..RulerValues::default() };
+    let start = set(RulerValues::default(), |v| v.stops = vec![left_stop(144.0)]);
     let mut ltr = show(start.clone(), None, false, &[]);
     let mut rtl = show(start, None, true, &[]);
     for shown in [&mut ltr, &mut rtl] {
@@ -107,7 +111,7 @@ fn right_to_left_mirrors_positions() {
 #[trial]
 fn delete_and_backspace_clear_the_picked_stop() {
     for key in [Key::Delete, Key::Backspace] {
-        let mut shown = show(RulerValues { stops: vec![left_stop(72.0), left_stop(216.0)], ..RulerValues::default() }, None, false, &[]);
+        let mut shown = show(set(RulerValues::default(), |v| v.stops = vec![left_stop(72.0), left_stop(216.0)]), None, false, &[]);
         shown.fixture.settle();
         let stop = shown.fixture.by_label("Left Tab").expect("the stop is a node");
         shown.fixture.click(&stop);

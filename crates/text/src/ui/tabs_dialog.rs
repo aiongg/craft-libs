@@ -62,6 +62,7 @@ craft_ui::words! {
 
 /// What OK returns.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct TabStopsResult {
     /// The stops, sorted, none within [`SAME_POSITION`] of another.
     pub stops: Vec<TabStop>,
@@ -174,6 +175,7 @@ impl TabStopsDialog {
         self.edited = Some(at);
     }
 
+    /// Selects the stop at index `at`, or none.
     pub fn select(&mut self, at: Option<usize>) {
         self.selected = at.filter(|at| *at < self.stops.len());
     }

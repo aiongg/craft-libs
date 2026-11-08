@@ -56,12 +56,12 @@ craft_ui::words! {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum TabAlign {
-    #[allow(missing_docs)]
+    /// Left.
     #[default]
     Left,
-    #[allow(missing_docs)]
+    /// Center.
     Center,
-    #[allow(missing_docs)]
+    /// Right.
     Right,
     /// On the decimal point (InDesign: on the character the app sets, "." by default).
     Decimal,
@@ -87,7 +87,7 @@ impl TabAlign {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum TabLeader {
-    #[allow(missing_docs)]
+    /// None.
     #[default]
     None,
     /// ……
@@ -121,13 +121,30 @@ impl TabLeader {
 /// right-to-left paragraph), alignment and leader. InDesign's leader is any text; the app maps
 /// it to the nearest [`TabLeader`] or keeps its own in a field the ruler ignores.
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[non_exhaustive]
 pub struct TabStop {
     /// Position in points from the paragraph's start edge.
     pub position: f32,
-    #[allow(missing_docs)]
+    /// The align.
     pub align: TabAlign,
-    #[allow(missing_docs)]
+    /// The leader.
     pub leader: TabLeader,
+}
+
+impl TabStop {
+    /// A stop at `position` points with `align` and `leader`.
+    #[must_use]
+    pub const fn new(position: f32, align: TabAlign, leader: TabLeader) -> Self {
+        TabStop { position, align, leader }
+    }
+}
+
+impl ColumnBorder {
+    /// Border `index` at `position` points from the column's start edge.
+    #[must_use]
+    pub const fn new(index: usize, position: f32) -> Self {
+        ColumnBorder { index, position }
+    }
 }
 
 /// Stops within this many points are the same stop: setting a stop there replaces it.
@@ -138,6 +155,7 @@ pub const MAX_POSITION: f32 = 1584.0;
 
 /// What the ruler shows and edits for the caret's paragraph.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct RulerValues {
     /// Sorted by position.
     pub stops: Vec<TabStop>,
@@ -168,6 +186,7 @@ const DROP_OFF: f32 = 18.0;
 /// A table column border on the ruler: the table's left edge is
 /// border 0, then the right edge of each cell of the caret's row.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct ColumnBorder {
     /// Index of the border: 0 is the table's left edge.
     pub index: usize,
@@ -375,9 +394,9 @@ impl<'a> TextRuler<'a> {
 
 /// The corner, the strip with its column and the marker sizes.
 pub(super) struct Layout {
-    pub(super) g: Geometry,
-    pub(super) shapes: Shapes,
-    pub(super) corner: Rect,
+    g: Geometry,
+    shapes: Shapes,
+    corner: Rect,
 }
 
 impl Component for TextRuler<'_> {

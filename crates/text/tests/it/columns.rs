@@ -1,5 +1,6 @@
 //! The Columns dialog: what comes back, the arithmetic of the grid and presets, the menu and the preview.
 
+use crate::set;
 use craft_text::ui::DocUnit;
 use craft_text::ui::columns::{
     ColumnsApply, ColumnsChoice, ColumnsPreset, MAX_COLUMNS, MAX_COLUMNS_WORD, MIN_COLUMN_WIDTH, TextColumns, TextColumnsDialog, TextColumnsWords,
@@ -15,7 +16,12 @@ use std::rc::Rc;
 const WIDTH: f32 = 468.0;
 
 fn two() -> TextColumns {
-    TextColumns { count: Some(2), spacing: Some(36.0), equal_width: Some(true), line_between: Some(false), ..TextColumns::default() }
+    set(TextColumns::default(), |c| {
+        c.count = Some(2);
+        c.spacing = Some(36.0);
+        c.equal_width = Some(true);
+        c.line_between = Some(false);
+    })
 }
 
 #[trial]
@@ -23,7 +29,7 @@ fn only_changed_fields_come_back() {
     let mut dialog = TextColumnsDialog::new(two());
     assert_eq!(dialog.changes(), None);
     dialog.set_count(3);
-    assert_eq!(dialog.changes(), Some(TextColumns { count: Some(3), ..TextColumns::default() }));
+    assert_eq!(dialog.changes(), Some(set(TextColumns::default(), |c| c.count = Some(3))));
 }
 
 #[trial]

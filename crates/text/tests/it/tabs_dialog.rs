@@ -9,7 +9,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 fn stop(position: f32) -> TabStop {
-    TabStop { position, align: TabAlign::Left, leader: TabLeader::None }
+    TabStop::new(position, TabAlign::Left, TabLeader::None)
 }
 
 fn positions(dialog: &mut TabStopsDialog) -> Vec<f32> {

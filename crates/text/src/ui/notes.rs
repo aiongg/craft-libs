@@ -21,7 +21,7 @@ use craft_ui::runtime::commands::ClipItem;
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::focus::KeyUse;
 use craft_ui::runtime::pending::Pending;
-use craft_ui::style::{ComponentStyle, DataColor, StyleCx};
+use craft_ui::style::{ComponentStyle, DataColor, StyleColor, StyleCx};
 use egui::{Color32, Pos2, Rect, Response, Stroke, Vec2};
 
 use super::editor::word_boundary;
@@ -32,6 +32,8 @@ const MAX_INDENT: f32 = 400.0;
 /// The columns and lines the editor measures when nothing else sizes it.
 const MIN_COLUMNS: f32 = 24.0;
 const MIN_LINES: f32 = 4.0;
+/// A text row's height as a share of the text size.
+const LINE_HEIGHT_SHARE: f32 = 1.3;
 
 craft_ui::words! {
     /// The notes pane's words (PowerPoint's).
@@ -226,18 +228,18 @@ impl Outcome for NotesEditorOutput {
 pub struct NotesEditorStyle {
     #[style(metrics)]
     metrics: Metrics,
-    /// The text colour, RGBA (no `StyleColor` reader outside craft-ui paints raw document text).
-    ink: [u8; 4],
-    /// The selection fill, RGBA.
-    selection: [u8; 4],
+    /// The text colour.
+    ink: StyleColor,
+    /// The selection fill.
+    selection: StyleColor,
     /// The size of the body text, points.
     body_size: f32,
     /// The size of the notes' default text in document points: indents scale as `body_size / points`.
     points: f32,
     /// The largest indent, points.
     max_indent: f32,
-    /// The width of underline and strikethrough lines, as a share of the text size.
-    line_share: f32,
+    /// The caret's width, as a share of the text size.
+    caret_share: f32,
 }
 
 /// The position of the caret and the selection anchor in chars of [`NotesText::plain`].
@@ -454,12 +456,12 @@ impl Component for NotesEditor<'_> {
     fn style(cx: &StyleCx<'_>, _: NotesEditorStyleKey) -> NotesEditorStyle {
         NotesEditorStyle {
             metrics: Metrics::new(),
-            ink: cx.tokens.color.text.normal.0,
-            selection: cx.tokens.color.state.text_selection.0,
+            ink: cx.color(cx.tokens.color.text.normal),
+            selection: cx.color(cx.tokens.color.state.text_selection),
             body_size: cx.tokens.typography.body.size,
             points: cx.tokens.typography.caption.size,
             max_indent: MAX_INDENT,
-            line_share: 0.06,
+            caret_share: CARET_SHARE,
         }
     }
 
@@ -468,8 +470,26 @@ impl Component for NotesEditor<'_> {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let size = cx.style.body_size * self.zoom;
-        Vec2::new(size * MIN_COLUMNS / 2.0, size * MIN_LINES * 1.3)
+        let style = cx.style;
+        let size = style.body_size * self.zoom;
+        let width = size * MIN_COLUMNS / 2.0;
+        let room = cx.room.unwrap_or(width);
+        let scale = size / style.points;
+        let font = FontRef::proportional();
+        let ink = DataColor::new(style.ink.egui());
+        let height: f32 = self
+            .notes
+            .paragraphs
+            .iter()
+            .map(|paragraph| {
+                let (_, margin) = line_starts(paragraph.level, paragraph.margin, paragraph.indent);
+                let runs = paragraph_runs(paragraph, &font, size, ink);
+                let mut text = DocText::new(&runs);
+                text.wrap = Some((room - indent(style, margin, scale)).max(0.0));
+                cx.layout_doc(&text).size().y.max(size)
+            })
+            .sum();
+        Vec2::new(width, height.max(size * MIN_LINES * LINE_HEIGHT_SHARE))
     }
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
@@ -518,17 +538,15 @@ impl Component for NotesEditor<'_> {
         let area = cx.content_rect;
         let size = style.body_size * self.zoom;
         let scale = size / style.points;
-        let to_egui = |[r, g, b, a]: [u8; 4]| Color32::from_rgba_unmultiplied(r, g, b, a);
-        let ink_color = to_egui(style.ink);
+        let ink_color = style.ink.egui();
         let ink = DataColor::new(ink_color);
-        let indent = |points: f64| if points.is_finite() { points.clamp(0.0, f64::from(style.max_indent)) as f32 * scale } else { 0.0 };
         let cursor = cx.recall::<Cursor>();
         let plain = self.notes.plain();
         let chars = plain.chars().count();
         let selected = cursor.caret.min(cursor.anchor).min(chars)..cursor.caret.max(cursor.anchor).min(chars);
         let marks = markers_of(self.notes);
         let font = FontRef::proportional();
-        let line_width = (size * style.line_share).max(1.0);
+        let caret_width = (size * style.caret_share).max(1.0);
 
         let mut y = area.top();
         let mut at = 0usize;
@@ -536,21 +554,10 @@ impl Component for NotesEditor<'_> {
         let mut caret_rect = Rect::from_min_size(area.min, Vec2::new(0.0, size));
         for (paragraph, marker) in self.notes.paragraphs.iter().zip(&marks) {
             let (first, margin) = line_starts(paragraph.level, paragraph.margin, paragraph.indent);
-            let (first, margin) = (indent(first), indent(margin));
+            let (first, margin) = (indent(style, first, scale), indent(style, margin, scale));
             let origin = area.left() + margin;
-            let runs: Vec<DocRun<'_>> = paragraph
-                .runs
-                .iter()
-                .filter(|run| !run.text.is_empty())
-                .map(|run| {
-                    let mut doc = DocRun::new(&run.text, font.clone(), size, run.color.map_or(ink, DataColor::new));
-                    doc.italic = run.italic;
-                    doc.weight = if run.bold { 700 } else { 400 };
-                    doc
-                })
-                .collect();
-            let empty = [DocRun::new("", font.clone(), size, ink)];
-            let mut text = DocText::new(if runs.is_empty() { &empty } else { &runs });
+            let runs = paragraph_runs(paragraph, &font, size, ink);
+            let mut text = DocText::new(&runs);
             text.wrap = Some((area.width() - (origin - area.left())).max(0.0));
             let layout = painter.layout(&text);
             let length: usize = paragraph.runs.iter().map(|run| run.text.chars().count()).sum();
@@ -562,36 +569,9 @@ impl Component for NotesEditor<'_> {
                 let a = layout.galley.pos_from_cursor(egui::text::CCursor::new(from));
                 let b = layout.galley.pos_from_cursor(egui::text::CCursor::new(to));
                 let band = Rect::from_min_max(top_left + a.min.to_vec2(), top_left + b.max.to_vec2());
-                painter.painter.rect_filled(band, 0.0, to_egui(style.selection));
+                painter.painter.rect_filled(band, 0.0, style.selection.egui());
             }
             painter.painter.galley(top_left, layout.galley.clone(), ink_color);
-            for (run_at, run) in paragraph.runs.iter().scan(0usize, |start, run| {
-                let at = *start;
-                *start += run.text.chars().count();
-                Some((at, run))
-            }) {
-                if run.text.is_empty() || !(run.underline || run.strikethrough) {
-                    continue;
-                }
-                let color = run.color.unwrap_or(ink_color);
-                let from = layout.galley.pos_from_cursor(egui::text::CCursor::new(run_at));
-                let to = layout.galley.pos_from_cursor(egui::text::CCursor::new(run_at + run.text.chars().count()));
-                if (from.min.y - to.min.y).abs() < f32::EPSILON {
-                    let base = top_left + egui::vec2(0.0, from.max.y);
-                    if run.underline {
-                        painter.painter.line_segment(
-                            [base + egui::vec2(from.min.x, -line_width), base + egui::vec2(to.min.x, -line_width)],
-                            Stroke::new(line_width, color),
-                        );
-                    }
-                    if run.strikethrough {
-                        let mid = top_left + egui::vec2(0.0, (from.min.y + from.max.y) / 2.0);
-                        painter
-                            .painter
-                            .line_segment([mid + egui::vec2(from.min.x, 0.0), mid + egui::vec2(to.min.x, 0.0)], Stroke::new(line_width, color));
-                    }
-                }
-            }
             if let Some(marker) = marker {
                 let marker_run = [DocRun::new(marker, font.clone(), size, ink)];
                 let laid = painter.layout(&DocText::new(&marker_run));
@@ -617,7 +597,7 @@ impl Component for NotesEditor<'_> {
             painter.painter.galley(area.min, laid.galley, ink_color);
         }
         if cx.is_focused() && selected.is_empty() && cx.blink(cursor.blink_start) {
-            painter.painter.line_segment([caret_rect.center_top(), caret_rect.center_bottom()], Stroke::new(line_width, ink_color));
+            painter.painter.line_segment([caret_rect.center_top(), caret_rect.center_bottom()], Stroke::new(caret_width, ink_color));
         }
         let runs: Vec<[EditorRun<'_>; 1]> = editor_lines.iter().map(|(text, _, _)| [EditorRun::new(0..text.len(), false, &[], &[])]).collect();
         let lines: Vec<EditorLine<'_>> =
@@ -637,6 +617,38 @@ impl Component for NotesEditor<'_> {
     }
 }
 
+/// The indent of `points` document points at `scale`, within the largest indent.
+fn indent(style: &NotesEditorStyle, points: f64, scale: f32) -> f32 {
+    if points.is_finite() { points.clamp(0.0, f64::from(style.max_indent)) as f32 * scale } else { 0.0 }
+}
+
+/// The runs of `paragraph` at `size`: one document run per styled run, or one empty run for an empty paragraph so
+/// it keeps a line.
+fn paragraph_runs<'a>(paragraph: &'a NotesParagraph, font: &FontRef, size: f32, ink: DataColor) -> Vec<DocRun<'a>> {
+    let runs: Vec<DocRun<'a>> = paragraph
+        .runs
+        .iter()
+        .filter(|run| !run.text.is_empty())
+        .map(|run| {
+            let mut doc = DocRun::new(&run.text, font.clone(), size, run.color.map_or(ink, DataColor::new));
+            if run.italic {
+                doc = doc.italic();
+            }
+            if run.bold {
+                doc = doc.bold();
+            }
+            if run.underline {
+                doc = doc.underline();
+            }
+            if run.strikethrough {
+                doc = doc.strikethrough();
+            }
+            doc
+        })
+        .collect();
+    if runs.is_empty() { vec![DocRun::new("", font.clone(), size, ink)] } else { runs }
+}
+
 /// A number that changes with the notes' text, for the input method's revision.
 fn revision(plain: &str) -> u64 {
     use std::hash::{Hash as _, Hasher as _};
@@ -645,5 +657,7 @@ fn revision(plain: &str) -> u64 {
     hasher.finish()
 }
 
+/// The caret's width as a share of the text size.
+const CARET_SHARE: f32 = 0.06;
 /// The part key of the editor part.
 const EDITOR: craft_behavior::PartKey = craft_behavior::PartKey::new("editor");

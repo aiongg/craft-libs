@@ -154,7 +154,7 @@ static TWO_COLUMNS: [ColumnWidth; 2] = [ColumnWidth::fill(1.0), ColumnWidth::fil
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum Leading {
-    #[allow(missing_docs)]
+    /// Auto.
     Auto,
     /// The leading in points.
     Points(f32),
@@ -165,9 +165,9 @@ pub enum Leading {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum Kerning {
-    #[allow(missing_docs)]
+    /// Metrics.
     Metrics,
-    #[allow(missing_docs)]
+    /// Optical.
     Optical,
     /// A value in thousandths of an em; 0 is none.
     Manual(f32),
@@ -177,12 +177,12 @@ pub enum Kerning {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Caps {
-    #[allow(missing_docs)]
+    /// Normal.
     #[default]
     Normal,
-    #[allow(missing_docs)]
+    /// All caps.
     AllCaps,
-    #[allow(missing_docs)]
+    /// Small caps.
     SmallCaps,
 }
 
@@ -190,28 +190,29 @@ pub enum Caps {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum BaselinePosition {
-    #[allow(missing_docs)]
+    /// Normal.
     #[default]
     Normal,
-    #[allow(missing_docs)]
+    /// Superscript.
     Superscript,
-    #[allow(missing_docs)]
+    /// Subscript.
     Subscript,
 }
 
 /// The character attributes at the type target. `None` in a field: the selection mixes values,
 /// and the field shows empty (Photoshop).
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct CharacterValues {
-    #[allow(missing_docs)]
+    /// The family.
     pub family: Option<String>,
-    #[allow(missing_docs)]
+    /// The style.
     pub style: Option<String>,
     /// Size in points.
     pub size: Option<f32>,
-    #[allow(missing_docs)]
+    /// The leading.
     pub leading: Option<Leading>,
-    #[allow(missing_docs)]
+    /// The kerning.
     pub kerning: Option<Kerning>,
     /// Tracking in thousandths of an em.
     pub tracking: Option<f32>,
@@ -223,17 +224,17 @@ pub struct CharacterValues {
     pub baseline_shift: Option<f32>,
     /// The swatch's colour.
     pub color: Option<Rgba>,
-    #[allow(missing_docs)]
+    /// The faux bold.
     pub faux_bold: Option<bool>,
-    #[allow(missing_docs)]
+    /// The faux italic.
     pub faux_italic: Option<bool>,
-    #[allow(missing_docs)]
+    /// The caps.
     pub caps: Option<Caps>,
-    #[allow(missing_docs)]
+    /// The position.
     pub position: Option<BaselinePosition>,
-    #[allow(missing_docs)]
+    /// The underline.
     pub underline: Option<bool>,
-    #[allow(missing_docs)]
+    /// The strikethrough.
     pub strikethrough: Option<bool>,
     /// The [`OPENTYPE_FEATURES`] that are on, by tag.
     pub opentype: Vec<&'static str>,
@@ -245,15 +246,15 @@ pub struct CharacterValues {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum CharacterChange {
-    #[allow(missing_docs)]
+    /// Family.
     Family(String),
     /// A style of the current family; the app keeps the family.
     Style(String),
     /// Size in points.
     Size(f32),
-    #[allow(missing_docs)]
+    /// Leading.
     Leading(Leading),
-    #[allow(missing_docs)]
+    /// Kerning.
     Kerning(Kerning),
     /// Tracking in thousandths of an em.
     Tracking(f32),
@@ -263,27 +264,27 @@ pub enum CharacterChange {
     HorizontalScale(f32),
     /// Baseline shift in points.
     BaselineShift(f32),
-    #[allow(missing_docs)]
+    /// Faux bold.
     FauxBold(bool),
-    #[allow(missing_docs)]
+    /// Faux italic.
     FauxItalic(bool),
     /// All Caps and Small Caps are one choice: pressing the pressed one returns `Normal`.
     Caps(Caps),
     /// Superscript and Subscript, the same way.
     Position(BaselinePosition),
-    #[allow(missing_docs)]
+    /// Underline.
     Underline(bool),
-    #[allow(missing_docs)]
+    /// Strikethrough.
     Strikethrough(bool),
     /// An OpenType feature switched on or off.
     #[non_exhaustive]
     OpenType {
         /// The feature's four-letter tag, such as "liga".
         tag: &'static str,
-        #[allow(missing_docs)]
+        /// On.
         on: bool,
     },
-    #[allow(missing_docs)]
+    /// Language.
     Language(String),
 }
 
@@ -621,20 +622,20 @@ impl<'a> CharacterControls<'a> {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum TextAlign {
-    #[allow(missing_docs)]
+    /// Left.
     #[default]
     Left,
-    #[allow(missing_docs)]
+    /// Center.
     Center,
-    #[allow(missing_docs)]
+    /// Right.
     Right,
-    #[allow(missing_docs)]
+    /// Justify left.
     JustifyLeft,
-    #[allow(missing_docs)]
+    /// Justify center.
     JustifyCenter,
-    #[allow(missing_docs)]
+    /// Justify right.
     JustifyRight,
-    #[allow(missing_docs)]
+    /// Justify all.
     JustifyAll,
 }
 
@@ -652,18 +653,19 @@ pub enum ParagraphDirection {
     /// From the paragraph's first strong character.
     #[default]
     Automatic,
-    #[allow(missing_docs)]
+    /// Left to right.
     LeftToRight,
-    #[allow(missing_docs)]
+    /// Right to left.
     RightToLeft,
 }
 
 /// The paragraph attributes at the type target; `None` where the selected paragraphs differ.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct ParagraphValues {
-    #[allow(missing_docs)]
+    /// The align.
     pub align: Option<TextAlign>,
-    #[allow(missing_docs)]
+    /// The direction.
     pub direction: Option<ParagraphDirection>,
     /// Indent at the start edge in points (the left in left-to-right text).
     pub start_indent: Option<f32>,
@@ -675,7 +677,7 @@ pub struct ParagraphValues {
     pub space_before: Option<f32>,
     /// Space after the paragraph in points.
     pub space_after: Option<f32>,
-    #[allow(missing_docs)]
+    /// The hyphenate.
     pub hyphenate: Option<bool>,
 }
 
@@ -683,9 +685,9 @@ pub struct ParagraphValues {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum ParagraphChange {
-    #[allow(missing_docs)]
+    /// Align.
     Align(TextAlign),
-    #[allow(missing_docs)]
+    /// Direction.
     Direction(ParagraphDirection),
     /// Indent at the start edge in points.
     StartIndent(f32),
@@ -697,7 +699,7 @@ pub enum ParagraphChange {
     SpaceBefore(f32),
     /// Space after the paragraph in points.
     SpaceAfter(f32),
-    #[allow(missing_docs)]
+    /// Hyphenate.
     Hyphenate(bool),
 }
 

@@ -1,6 +1,7 @@
 //! The Paragraph dialog: what OK answers for typed values and choices, the messages beside values out of range, the Tabs…
 //! button, the kind of a spacing, and the preview's lines.
 
+use crate::set;
 use craft_text::ui::DocUnit;
 use craft_text::ui::character::{
     LineSpacing, ParagraphAlign, ParagraphAnswer, ParagraphDialog, ParagraphFormat, ParagraphPreview, SpacingKind, SpecialIndent,
@@ -14,17 +15,16 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 fn start() -> ParagraphFormat {
-    ParagraphFormat {
-        align: Some(ParagraphAlign::Left),
-        before_text: Some(0.0),
-        after_text: None,
-        special: Some(SpecialIndent::None),
-        by: Some(0.0),
-        space_before: Some(0.0),
-        space_after: Some(0.0),
-        line_spacing: Some(LineSpacing::Multiple(1.5)),
-        ..ParagraphFormat::default()
-    }
+    set(ParagraphFormat::default(), |f| {
+        f.align = Some(ParagraphAlign::Left);
+        f.before_text = Some(0.0);
+        f.after_text = None;
+        f.special = Some(SpecialIndent::None);
+        f.by = Some(0.0);
+        f.space_before = Some(0.0);
+        f.space_after = Some(0.0);
+        f.line_spacing = Some(LineSpacing::Multiple(1.5));
+    })
 }
 
 /// The dialog on a host, with the answers it gave.
@@ -120,7 +120,7 @@ fn line_spacing_presets_fix_their_at_value() {
 /// A value out of range shows the field's message and OK waits for a fix.
 #[trial]
 fn a_value_out_of_range_refuses_ok_with_its_message() {
-    let format = ParagraphFormat { space_before: Some(2000.0), ..start() };
+    let format = set(start(), |f| f.space_before = Some(2000.0));
     let mut rig = Rig::new(format);
     assert!(rig.shows("Spacing before must be from"));
     assert!(rig.ok().is_none(), "OK is refused");
@@ -139,21 +139,20 @@ fn tabs_button_answers_with_open_tabs() {
     rig.click("Tabs…");
     let answer = rig.answers.borrow().last().cloned().expect("Tabs… answers");
     assert!(answer.open_tabs);
-    assert_eq!(answer.format, ParagraphFormat { space_after: Some(6.0), ..start() });
+    assert_eq!(answer.format, set(start(), |f| f.space_after = Some(6.0)));
 }
 
 /// The preview's lines follow the indents and spacing: a hanging indent pulls the first line out, the paragraph's
 /// spacing moves the lines under it.
 #[trial]
 fn the_preview_lays_out_the_values() {
-    let format = ParagraphFormat {
-        before_text: Some(36.0),
-        special: Some(SpecialIndent::Hanging),
-        by: Some(18.0),
-        space_before: Some(10.0),
-        line_spacing: Some(LineSpacing::Exactly(20.0)),
-        ..ParagraphFormat::default()
-    };
+    let format = set(ParagraphFormat::default(), |f| {
+        f.before_text = Some(36.0);
+        f.special = Some(SpecialIndent::Hanging);
+        f.by = Some(18.0);
+        f.space_before = Some(10.0);
+        f.line_spacing = Some(LineSpacing::Exactly(20.0));
+    });
     let mut fixture = Fixture::new(move |ui| {
         ParagraphPreview::new("Preview", &format, "Sample Text").show(ui);
     });
@@ -171,7 +170,10 @@ fn the_preview_lays_out_the_values() {
 /// untouched, and answers points once the value changes.
 #[trial]
 fn a_spacing_in_lines_keeps_its_kind_until_its_value_changes() {
-    let lines = ParagraphFormat { space_before: Some(1.5), space_before_kind: SpacingKind::Lines, ..start() };
+    let lines = set(start(), |f| {
+        f.space_before = Some(1.5);
+        f.space_before_kind = SpacingKind::Lines;
+    });
     let mut rig = Rig::new(lines.clone());
     let shown = rig.value_of("Spacing before");
     assert!(shown.starts_with("1.5") && !shown.contains("pt"), "{shown:?}");
@@ -188,6 +190,9 @@ fn a_spacing_in_lines_keeps_its_kind_until_its_value_changes() {
 /// A spacing of 11 lines is out of range (DeckCraft keeps at most 10).
 #[trial]
 fn lines_of_spacing_have_their_own_range() {
-    let rig = Rig::new(ParagraphFormat { space_after: Some(11.0), space_after_kind: SpacingKind::Lines, ..start() });
+    let rig = Rig::new(set(start(), |f| {
+        f.space_after = Some(11.0);
+        f.space_after_kind = SpacingKind::Lines;
+    }));
     assert!(rig.shows("Spacing after must be from 0 to 10"));
 }
