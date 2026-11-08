@@ -6,12 +6,15 @@ use crate::canvas::{
     Canvas, CanvasTool, HandTool, Momentary, NavigationOptions, PixelRect, RasterDisplay, RasterSource, ToolHost, ToolHostResponse, ToolPath,
     WheelNavigation, pan,
 };
-use crate::contract::{NoValue, Outcome, Props as _, Show as _, ShowContainer as _};
+use crate::contract::{Bind, NoValue, Outcome, Props as _, Show as _, ShowContainer as _};
 use crate::primitives::{Checker, Revision};
+use crate::runtime::edit::next_gesture_id;
 use crate::runtime::env::{Env, Label};
+use crate::runtime::memory::{global, with_session};
 use craft_behavior::kurbo::Point;
-use craft_behavior::{CanvasView, PixelSize};
+use craft_behavior::{CanvasView, EditEvent, Mixed, PixelSize};
 use egui::{Color32, ColorImage, Rect, Response, Ui};
+use std::sync::Arc;
 
 /// An image drawn over the canvas's image: the selection's ants, Content-Aware Fill's sampling tint, Liquify's freeze
 /// mask. The source covers the image's pixels as the image's own source does (one texel per pixel at factor 1); an
@@ -76,11 +79,6 @@ impl RasterSource for Tinted<'_> {
 pub struct FullWindowCanvasOutput {
     /// The canvas's response.
     pub response: Response,
-    /// The view after the wheel, a middle-button pan or the tool changed it this pass; `None` when the user did not
-    /// change it. A caller keeps `view.unwrap_or(shown)`.
-    pub view: Option<FullWindowView>,
-    /// The view this pass drew with: the given view settled on the canvas's rect (fitted while it fits).
-    pub shown: FullWindowView,
     /// The image point under the pointer, in image pixels, while it is over the canvas.
     pub hover: Option<Point>,
     /// What the tool host did: the gesture phase, the key the tool took and the cursor it asked for.
@@ -99,21 +97,21 @@ impl Outcome for FullWindowCanvasOutput {
 /// regions left.
 ///
 /// - **Look.** The canvas surface; the image through `RasterDisplay` over the [checkerboard](Self::checkerboard);
-///   then each [`RasterOverlay`] in the order given; then the canvas controls of [`controls`](Self::controls); then
+///   then each [`RasterOverlay`] in the order given (they paint and have no AccessKit node of their own); then the canvas controls of [`controls`](Self::controls); then
 ///   the tool's own painting and cursor.
-/// - **View.** [`FullWindowView`] fits the image on the first pass and keeps fitting it until the user zooms or
-///   pans. The wheel, pinch and two-finger scroll follow the user's [`NavigationOptions`], zooming about the pointer;
+/// - **View.** [`FullWindowView`], bound by the app, fits the image on the first pass and keeps fitting it until the
+///   user zooms or pans. The canvas settles it on the rect its body fills and writes it back. The wheel, pinch and two-finger scroll follow the user's [`NavigationOptions`], zooming about the pointer;
 ///   the middle button pans. Space-drag and the momentary Zoom run in the tool host when the app gives it its
 ///   [`Momentary`] set. The zoom commands (`ViewCommand`) reach the view through the dialog's command scope and the zoom bar.
 /// - **Tool.** One `CanvasTool` in a `ToolHost` on this canvas; presses, drags, keys and the cursor are the host's.
-///   Without a tool the canvas navigates with the Hand tool.
+///   Without a tool the canvas navigates with a Hand tool it keeps between passes.
 /// - **Keyboard and AccessKit.** The canvas is one Tab stop named by its label; while it has the focus its keys are
 ///   the tool's. The image, overlays and tool geometry never mirror in a right-to-left interface.
 #[derive(crate::contract::Pattern)]
 #[must_use = "show the canvas with `show`"]
 pub struct FullWindowCanvas<'a> {
     path: ToolPath,
-    view: FullWindowView,
+    view: Bind<'a, FullWindowView>,
     source: &'a dyn RasterSource,
     checkerboard: Option<Checker>,
     overlays: Vec<RasterOverlay<'a>>,
@@ -125,10 +123,15 @@ pub struct FullWindowCanvas<'a> {
 
 impl<'a> FullWindowCanvas<'a> {
     /// A canvas showing the image `source` through `view`. `path` says how the tool is reached without a pointer.
-    pub fn new(path: ToolPath, view: &FullWindowView, source: &'a dyn RasterSource) -> Self {
+    ///
+    /// The canvas writes the view it settled on its rect, and the view the wheel, a pan or the tool made, through
+    /// `view`, so a binding the app owns (`Bind::bound`) is the one place the view lives. The canvas reads the view
+    /// before its body exists, so a kept binding (which has no value to read yet) shows a new, fitted view every pass,
+    /// and a given value (`Bind::given`) is read and never written.
+    pub fn new(path: ToolPath, view: Bind<'a, FullWindowView>, source: &'a dyn RasterSource) -> Self {
         FullWindowCanvas {
             path,
-            view: *view,
+            view,
             source,
             checkerboard: None,
             overlays: Vec::new(),
@@ -178,27 +181,30 @@ impl<'a> FullWindowCanvas<'a> {
 
     /// Shows the canvas in the rest of `ui`.
     pub fn show(self, ui: &mut Ui) -> FullWindowCanvasOutput {
-        let FullWindowCanvas { path, view, source, checkerboard, overlays, tool, momentary, navigation, mut controls } = self;
+        let FullWindowCanvas { path, mut view, source, checkerboard, overlays, tool, momentary, navigation, mut controls } = self;
         let ppp = ui.pixels_per_point();
         let label: Label = Env::of(ui).words::<DialogWords>().full_window_canvas.clone();
+        let name: Arc<str> = Arc::from(label.as_str());
         let size = source.size();
-        let shown = view.settled(ui.available_rect_before_wrap(), size, ppp);
-        let shown_label = label.clone();
-        let canvas = Canvas::new(label, path).view(shown.view()).show(ui, |ui, body| {
-            let mut image = RasterDisplay::new(shown_label.clone(), source);
+        let given = view.reborrow().get().and_then(|held| held.same().copied()).unwrap_or_default();
+        // The canvas is shown at exactly this rect and has no padding, header or label, so it is the rect the body
+        // gets: the fit, the drawn image and the hover mapping share it.
+        let rect = ui.available_rect_before_wrap();
+        let shown = given.settled(rect, size, ppp);
+        let canvas = Canvas::new(label.clone(), path).view(shown.view()).show_at(ui, rect, |ui, body| {
+            let mut image = RasterDisplay::new(label.clone(), source);
             if let Some(checker) = checkerboard {
                 image = image.checkerboard(checker);
             }
             image.show_at(ui, body.rect);
             for (n, overlay) in overlays.iter().enumerate() {
-                let label = shown_label.clone();
                 match overlay.tint {
                     Some(tint) => {
                         let tinted = Tinted { source: overlay.source, tint };
-                        RasterDisplay::new(label, &tinted).id_salt(("overlay", n)).show_at(ui, body.rect);
+                        RasterDisplay::new(Label::Empty, &tinted).id_salt(("overlay", n)).show_at(ui, body.rect);
                     }
                     None => {
-                        RasterDisplay::new(label, overlay.source).id_salt(("overlay", n)).show_at(ui, body.rect);
+                        RasterDisplay::new(Label::Empty, overlay.source).id_salt(("overlay", n)).show_at(ui, body.rect);
                     }
                 }
             }
@@ -219,21 +225,69 @@ impl<'a> FullWindowCanvas<'a> {
         if let Some(delta) = output.pan {
             pan(&mut moved, delta);
         }
-        let mut fallback = HandTool::new(navigation);
-        let active: &mut dyn CanvasTool = match tool {
-            Some(tool) => tool,
-            None => &mut fallback,
-        };
         let mut host = ToolHost::new();
         if let Some(momentary) = momentary {
             host = host.momentary(momentary);
         }
-        let hosted = host.run(ui, &output, active);
+        let hosted = match tool {
+            Some(tool) => host.run(ui, &output, tool),
+            None => with_session(&ui.ctx().clone(), global("craft-ui full-window canvas hand", output.response.id), |slot: &mut FallbackHand| {
+                let hand = slot.0.get_or_insert_with(|| HandTool::new(navigation));
+                hand.options = navigation;
+                host.run(ui, &output, hand)
+            }),
+        };
         if let Some(set) = hosted.view {
             moved = set;
         }
         next = next.took(moved);
+        if next != given {
+            let event = EditEvent::set(next_gesture_id(ui.ctx()), Mixed::Same(given), next, name, None);
+            view.reborrow().apply(&event);
+        }
         let hover = output.response.hover_pos().filter(|_| output.response.hovered()).map(|at| next.view().to_doc(at));
-        FullWindowCanvasOutput { response: output.response, view: (next != shown).then_some(next), shown, hover, tool: hosted }
+        FullWindowCanvasOutput { response: output.response, hover, tool: hosted }
+    }
+}
+
+/// The Hand tool a canvas without a tool navigates with. It keeps the drag it began between passes.
+#[derive(Clone, Default)]
+struct FallbackHand(Option<HandTool>);
+
+#[cfg(feature = "testing")]
+mod trials {
+    use super::*;
+    use crate::testing::trial;
+
+    /// A source of one colour.
+    struct Solid(Color32);
+
+    impl RasterSource for Solid {
+        fn size(&self) -> PixelSize {
+            PixelSize::new(2, 1)
+        }
+
+        fn revision(&self) -> Revision {
+            Revision::new(1)
+        }
+
+        fn damage(&self, _: Revision) -> Option<PixelRect> {
+            None
+        }
+
+        fn read(&self, _: PixelRect, _: u32, out: &mut ColorImage) {
+            out.pixels.fill(self.0);
+        }
+    }
+
+    #[trial]
+    fn a_tint_multiplies_the_texels_and_white_leaves_them() {
+        let source = Solid(Color32::from_rgb(200, 100, 50));
+        let mut out = ColorImage::filled([2, 1], Color32::TRANSPARENT);
+        let region = PixelRect::of_size(source.size());
+        Tinted { source: &source, tint: Color32::from_rgb(255, 0, 128) }.read(region, 1, &mut out);
+        assert_eq!(out.pixels[0], Color32::from_rgb(200, 0, 25), "texels are multiplied by the tint");
+        Tinted { source: &source, tint: Color32::from_rgb(255, 255, 255) }.read(region, 1, &mut out);
+        assert_eq!(out.pixels[0], source.0, "white leaves them as they are");
     }
 }

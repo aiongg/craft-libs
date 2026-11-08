@@ -16,7 +16,7 @@ mod stories;
 pub use detail::{DetailPlan, snap_to_texels};
 
 use super::{PixelRect, RasterSource, canvas_space};
-use crate::contract::{Common, Component, Cx, NoValue, Outcome, PaintUi, Props as _, Role};
+use crate::contract::{Access, Common, Component, Cx, NoValue, Outcome, PaintUi, Props as _, Role};
 use crate::primitives::{CachedTexture, Checker, Revision, TextureState, TextureStore, TextureStoreOptions, texture_factor, texture_side};
 use crate::runtime::env::Label;
 use crate::runtime::memory::Remember as _;
@@ -105,7 +105,8 @@ pub struct RasterDisplay<'a> {
 }
 
 impl<'a> RasterDisplay<'a> {
-    /// A display named `label` of the document `source` gives.
+    /// A display named `label` of the document `source` gives. An empty label makes a display that only paints, with
+    /// no AccessKit node: a further image over a named one.
     pub fn new(label: impl Into<Label>, source: &'a dyn RasterSource) -> Self {
         RasterDisplay { common: Common::new(), source, checkerboard: None, read: PixelRect::default(), shown: None }.label(label)
     }
@@ -186,6 +187,7 @@ impl<'a> RasterDisplay<'a> {
 
 impl Component for RasterDisplay<'_> {
     const ROLE: Role = Role::IMAGE;
+    const ALT_ROLES: &'static [Role] = &[Role::None];
     const OVERLAYS: bool = false;
     const PARTS: bool = false;
     const STOPS: bool = false;
@@ -194,6 +196,13 @@ impl Component for RasterDisplay<'_> {
 
     fn style(_: &StyleCx<'_>, _: RasterDisplayStyleKey) -> RasterStyle {
         RasterStyle::default()
+    }
+
+    /// A display without a label only paints: it has no node, so a further image over the document adds none.
+    fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
+        if cx.resolved.label.is_empty() {
+            access.role(Role::None);
+        }
     }
 
     /// Reads what changed from the source and uploads it.
