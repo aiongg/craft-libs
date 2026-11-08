@@ -7,8 +7,8 @@ use craft_behavior::kurbo::Point;
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
 use craft_ui::runtime::env::Message;
-use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
-use egui::{Rect, Ui, vec2};
+use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
+use egui::{Rect, Ui};
 
 use super::{CaretLine, EditKind, HostLine, HostRun, TextEditor, TextEditorHost, TextSelection};
 
@@ -158,18 +158,7 @@ fn on_canvas(ui: &mut Ui, data: &mut StoryData, text: &str, selection: TextSelec
     out
 }
 
-/// The canvas is the first focus stop, so the drive clicks into the editor and types there.
-fn type_in_the_editor(fixture: &mut Fixture) {
-    let inside = fixture.shown().min + vec2(EDITOR_CLICK.0, EDITOR_CLICK.1);
-    fixture.click_at(inside);
-    fixture.type_text("sample");
-    fixture.idle(2);
-}
-
-/// Where the drive clicks, from the canvas's corner, points: inside the editor's first line.
-const EDITOR_CLICK: (f32, f32) = (20.0, 8.0);
-
-#[story(TextEditor<'static>, covers = [Default], drive = Drive::Custom(type_in_the_editor))]
+#[story(TextEditor<'static>, covers = [Default], drive = Drive::Type("sample"))]
 fn caret(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     on_canvas(ui, data, SAMPLE, TextSelection::caret_at(5), None)
 }
