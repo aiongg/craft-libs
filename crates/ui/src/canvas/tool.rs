@@ -89,7 +89,7 @@ pub enum ToolKey {
         /// The modifiers held.
         mods: Mods,
     },
-    /// Delete (`forward`) or Backspace.
+    /// Delete (`forward`) or Backspace, while the tool claims the deletes ([`ToolClaims::deletes`]).
     #[non_exhaustive]
     Delete {
         /// Delete toward the reading end.
@@ -99,7 +99,7 @@ pub enum ToolKey {
     Submit,
     /// Escape with no gesture running.
     Cancel,
-    /// A key press the tool kept with [`ToolContext::keep_keys`]: every key without Ctrl or Cmd, so the app's chords
+    /// A key press the tool kept with [`ToolClaims::keyboard`]: every key without Ctrl or Cmd, so the app's chords
     /// still run, but Enter, Escape, Delete and Backspace, which arrive as `Submit`, `Cancel` and `Delete`. It carries
     /// no release; [`ToolContext::held`] says whether the key is still down.
     Kept(Chord),
@@ -212,7 +212,6 @@ impl ToolAnchor {
 pub(crate) struct ToolRequests {
     pub(crate) readout: Option<Vec<(Label, String)>>,
     pub(crate) repaint: bool,
-    pub(crate) keep_keys: bool,
     pub(crate) view: Option<CanvasView>,
     pub(crate) ease: Option<ViewEase>,
 }
@@ -486,14 +485,6 @@ impl<'a> ToolContext<'a> {
         self.requests.repaint = true;
     }
 
-    /// Keeps the canvas's plain keys for the tool this pass and the next: they arrive as [`ToolKey::Kept`] and the
-    /// app's single-key shortcuts leave them. Delete and Backspace are kept with Alt held or not and arrive as
-    /// [`ToolKey::Delete`] (a polygonal lasso removes its last point while Alt holds the straight-segment switch);
-    /// Enter and Escape stay `Submit` and `Cancel`.
-    pub fn keep_keys(&mut self) {
-        self.requests.keep_keys = true;
-    }
-
     pub(crate) fn take_requests(&mut self) -> ToolRequests {
         std::mem::take(&mut self.requests)
     }
@@ -503,6 +494,41 @@ impl<'a> ToolContext<'a> {
 fn fallback() -> &'static (Arc<Format>, Arc<Words>) {
     static FALLBACK: OnceLock<(Arc<Format>, Arc<Words>)> = OnceLock::new();
     FALLBACK.get_or_init(|| (Arc::new(Format::new(&Region::system(), Digits::Locale)), Arc::new(Words::english())))
+}
+
+/// The keys a tool takes from the app's shortcuts in its current state, read by the host at the end of every pass
+/// ([`CanvasTool::claims`]) and held for the next. A key the tool does not claim stays the app's: a plain Delete
+/// with nothing to delete runs Edit > Clear, and Alt+Backspace fills with the foreground colour.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ToolClaims {
+    /// The canvas's plain keys: every key without Ctrl or Cmd, with Shift or not, arrives as [`ToolKey::Kept`] and the
+    /// app's single-key shortcuts leave it. Enter and Escape stay `Submit` and `Cancel`; the deletes are
+    /// [`deletes`](Self::deletes).
+    pub keyboard: bool,
+    /// The plain Delete and Backspace arrive as [`ToolKey::Delete`] (a path's selected anchor, an open outline's last
+    /// point). With [`keyboard`](Self::keyboard) they are also claimed with Alt held: a polygonal lasso removes its
+    /// last point while Alt holds the straight-segment switch. Shift, Cmd and Ctrl deletes stay the app's (Fill).
+    pub deletes: bool,
+}
+
+impl ToolClaims {
+    /// No keys: every key stays the app's.
+    pub const NONE: ToolClaims = ToolClaims { keyboard: false, deletes: false };
+
+    /// The same claims with the canvas's plain keys.
+    #[must_use]
+    pub const fn keyboard(mut self) -> Self {
+        self.keyboard = true;
+        self
+    }
+
+    /// The same claims with the deletes.
+    #[must_use]
+    pub const fn deletes(mut self) -> Self {
+        self.deletes = true;
+        self
+    }
 }
 
 /// A tool on the canvas. The app owns the value and hands it to [`ToolHost::run`](super::ToolHost::run) each
@@ -529,6 +555,14 @@ pub trait CanvasTool {
     /// The gesture ends without a commit; `reason` says why ([`CancelReason::Escape`] for Escape). The tool drops
     /// its drag state and reports `reason` on the gesture's events.
     fn cancel(&mut self, reason: CancelReason, cx: &mut ToolContext<'_>);
+
+    /// The keys the tool takes in its state at the end of this pass, after its pointer events and keys: the host
+    /// holds them from the app's shortcuts for the next pass, so a release that opens a draft has its deletes in the
+    /// frame after. Claim only what the tool takes in that state; a claimed key the tool refuses reaches no one.
+    /// Default: none.
+    fn claims(&self) -> ToolClaims {
+        ToolClaims::NONE
+    }
 
     /// A key while the canvas has the keyboard and no text part keeps it. Return `true` to take it from the app's
     /// shortcuts. Escape during a gesture never reaches here: it cancels. Default: `false`.

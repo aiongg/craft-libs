@@ -8,13 +8,15 @@
 //!    a drag from whether `drag` was called.
 //! 2. `takes(button, mods)` decides whether a button starts a gesture. A middle-button pan belongs to the canvas.
 //! 3. Escape during a drag arrives as a cancelled press ([`PressCancel`]) and calls `cancel` once.
-//! 4. Keys the canvas holds as intents (arrows, plain Delete and Backspace, Enter, Escape) go to `key` while the
-//!    canvas has focus; a text part inside the canvas takes its own keys before they are routed here. Enter and
-//!    Escape carry Alt and Shift (`ToolContext::mods`); a delete with a modifier held is the app's, unless the tool
-//!    keeps the keyboard. While nothing in the window has focus, Enter and Escape are offered too, so a tool holding
-//!    a gesture or a pending edit (a transform box) commits and cancels before the canvas is clicked; one the tool
-//!    leaves goes on to the scopes around it. A focused field or control keeps its own Enter and Escape.
-//! 5. The tool paints over the canvas and requests its cursor at tool priority.
+//! 4. Keys the canvas holds as intents (arrows, Enter, Escape) go to `key` while the canvas has focus; a text part
+//!    inside the canvas takes its own keys before they are routed here. Enter and Escape carry Alt and Shift
+//!    (`ToolContext::mods`). While nothing in the window has focus, Enter and Escape are offered too, so a tool
+//!    holding a gesture or a pending edit (a transform box) commits and cancels before the canvas is clicked; one the
+//!    tool leaves goes on to the scopes around it. A focused field or control keeps its own Enter and Escape.
+//! 5. The deletes and the plain keys are the app's unless the tool claims them ([`CanvasTool::claims`]). The host
+//!    reads the claims at the end of every pass, after the pointer events and keys, and holds the claimed chords from
+//!    the app's shortcuts in the next pass: a plain Delete with nothing to delete runs the app's Edit > Clear.
+//! 6. The tool paints over the canvas and requests its cursor at tool priority.
 //!
 //! The host keeps its state under the canvas's id (`CanvasOutput::response.id`), so two canvases never share a
 //! gesture, and hands the tool the canvas's view from the output ([`ToolContext::space`]). A tool changes the view
@@ -47,7 +49,7 @@
 
 use super::momentary::{Momentary, MomentaryCommands};
 use super::readout::paint_readout;
-use super::tool::{CanvasTool, March, ToolAccess, ToolAction, ToolContext, ToolKey, ToolPointer, ToolRequests};
+use super::tool::{CanvasTool, March, ToolAccess, ToolAction, ToolClaims, ToolContext, ToolKey, ToolPointer, ToolRequests};
 use super::tools::HandTool;
 use super::zoom_motion::{self, Steer};
 use super::{CanvasOutput, CanvasSpace, Snap};
@@ -62,8 +64,8 @@ use crate::runtime::{cursor, focus, frame, keys, lock_keys};
 use crate::style::StyleCx;
 use craft_behavior::kurbo;
 use craft_behavior::{
-    CancelReason, CanvasView, Cursor, CursorPriority, GestureId, GesturePhase, Granularity, Intent, PartKey, PartRef, PointerButton, PointerSample,
-    PressCancel, PressPhase, PressStart, PressState,
+    CancelReason, CanvasView, Cursor, CursorPriority, GestureId, GesturePhase, Intent, PartKey, PartRef, PointerButton, PointerSample, PressCancel,
+    PressPhase, PressStart, PressState,
 };
 use craft_keymap::{Chord, Key, Mods};
 use craft_theme::Variant;
@@ -198,8 +200,8 @@ struct HostState {
     /// The open press was refused, ignored or finished whole: its later phases are not the tool's.
     spent: bool,
     queued: Vec<ToolInput>,
-    /// The tool kept the keys in the last pass.
-    keep_keys: bool,
+    /// The keys the tool claimed at the end of the last pass.
+    claims: ToolClaims,
     /// The canvas of the last pass, for [`ToolHost::cancel`] outside a pass.
     rect: Option<Rect>,
     space: Option<CanvasSpace>,
@@ -363,12 +365,12 @@ impl<'m> ToolHost<'m> {
         if requests.repaint {
             frame::request_repaint(&ctx);
         }
-        state.keep_keys = requests.keep_keys;
-        if requests.keep_keys {
-            for chord in kept_chords().chain(KEPT_DELETES) {
-                keys::claim(&ctx, canvas.response.id, chord);
-            }
-        } else if state.gesture.is_some() {
+        // A disabled host delivers no key, so it holds none from the app.
+        state.claims = if disabled { ToolClaims::NONE } else { tool.claims() };
+        for chord in claimed_chords(state.claims) {
+            keys::claim(&ctx, canvas.response.id, chord);
+        }
+        if !state.claims.keyboard && state.gesture.is_some() {
             keys::claim(&ctx, canvas.response.id, Chord::new(Mods::NONE, Key::Space));
         }
         state.rect = Some(rect);
@@ -497,7 +499,7 @@ fn hover_pointer(frame: &PointerFrame, press: PressState) -> Option<ToolPointer>
 
 /// Every key without Ctrl or Cmd, with and without Shift: the keys a tool that kept the keyboard types with. The
 /// app's chords (Cmd+Z, Cmd+S) still run. Enter, Escape, Delete and Backspace are left out: Enter and Escape reach the
-/// tool as `Submit` and `Cancel` with their modifiers in `ToolContext::mods`, and the deletes as [`KEPT_DELETES`].
+/// tool as `Submit` and `Cancel` with their modifiers in `ToolContext::mods`, and the deletes as [`delete_chords`].
 fn kept_chords() -> impl Iterator<Item = Chord> {
     Key::ALL
         .iter()
@@ -505,16 +507,23 @@ fn kept_chords() -> impl Iterator<Item = Chord> {
         .flat_map(|key| [Mods::NONE, Mods::SHIFT].map(|mods| Chord::new(mods, *key)))
 }
 
-/// The deletes a tool that kept the keyboard takes, with Alt held or not: they reach it as `ToolKey::Delete`. Away
-/// from a kept keyboard the canvas takes only the plain ones, and Alt+Backspace is the app's (Photoshop's Fill with
-/// the foreground colour); a polygonal lasso keeps the keyboard while its outline is open, so Backspace removes its
-/// last point while Alt holds the straight-segment switch.
-const KEPT_DELETES: [Chord; 4] = [
-    Chord::new(Mods::NONE, Key::Delete),
-    Chord::new(Mods::NONE, Key::Backspace),
-    Chord::new(Mods::ALT, Key::Delete),
-    Chord::new(Mods::ALT, Key::Backspace),
-];
+/// The deletes a tool that claims them takes: the plain ones, and with the keyboard kept also with Alt held. They
+/// reach it as `ToolKey::Delete`. Alt+Backspace is otherwise the app's (Photoshop's Fill with the foreground colour);
+/// a polygonal lasso keeps the keyboard while its outline is open, so Backspace removes its last point while Alt
+/// holds the straight-segment switch.
+fn delete_chords(claims: ToolClaims) -> impl Iterator<Item = Chord> {
+    let mods: &[Mods] = match (claims.deletes, claims.keyboard) {
+        (false, _) => &[],
+        (true, false) => &[Mods::NONE],
+        (true, true) => &[Mods::NONE, Mods::ALT],
+    };
+    mods.iter().flat_map(|mods| [Key::Delete, Key::Backspace].map(|key| Chord::new(*mods, key)))
+}
+
+/// Every chord `claims` holds from the app's shortcuts.
+fn claimed_chords(claims: ToolClaims) -> impl Iterator<Item = Chord> {
+    kept_chords().filter(move |_| claims.keyboard).chain(delete_chords(claims))
+}
 
 /// The sample of a press at `pos` taken at `time`: the button the press runs with, and its sample.
 fn press_pointer(start: PressStart, pos: Pos2, time: f64, press: &PressState) -> ToolPointer {
@@ -575,7 +584,6 @@ impl<'a> Run<'a> {
         let asked = cx.take_requests();
         self.requests.readout = asked.readout.or(self.requests.readout.take());
         self.requests.repaint |= asked.repaint;
-        self.requests.keep_keys |= asked.keep_keys;
         if let Some(view) = asked.view {
             if let Some(space) = self.space.as_mut() {
                 space.view = view;
@@ -754,7 +762,7 @@ impl<'a> Run<'a> {
     }
 
     /// The keys the canvas holds: intents routed to it while it has focus, Enter and Escape while nothing in the
-    /// window has focus, and the plain keys a tool kept.
+    /// window has focus, and the chords the tool claimed at the end of the last pass.
     fn keys(&mut self, ctx: &Context, canvas: Id, rtl: bool) {
         if focus::focused_rec(ctx).is_none() {
             let mut window = keys::intents_of(ctx, None, rtl);
@@ -768,11 +776,6 @@ impl<'a> Run<'a> {
         }
         let mut intents = keys::intents_of(ctx, Some(canvas), rtl);
         let mut taken = self.offer(&mut intents, |intents| intents.take_nudge().map(|(direction, mods)| ToolKey::Nudge { direction, mods }));
-        for forward in [true, false] {
-            taken |= self.offer(&mut intents, |intents| {
-                intents.take_exact(&Intent::delete(forward, Granularity::Unit)).then_some(ToolKey::Delete { forward })
-            });
-        }
         taken |= self.offer(&mut intents, |intents| intents.take(Intent::Submit).then_some(ToolKey::Submit));
         if !self.cancelled {
             taken |= self.offer(&mut intents, |intents| intents.take(Intent::Cancel).then_some(ToolKey::Cancel));
@@ -780,13 +783,14 @@ impl<'a> Run<'a> {
         if taken {
             keys::settle(ctx, Some(canvas), &intents);
         }
-        if self.state.keep_keys {
-            for chord in KEPT_DELETES.into_iter().filter(|chord| keys::take_claimed(ctx, canvas, *chord)) {
-                let delete = ToolKey::delete(chord.key == Key::Delete);
-                if self.call(None, |tool, cx| tool.key(&delete, cx)) {
-                    self.response.took_key = Some(delete);
-                }
+        let claims = self.state.claims;
+        for chord in delete_chords(claims).filter(|chord| keys::take_claimed(ctx, canvas, *chord)) {
+            let delete = ToolKey::delete(chord.key == Key::Delete);
+            if self.call(None, |tool, cx| tool.key(&delete, cx)) {
+                self.response.took_key = Some(delete);
             }
+        }
+        if claims.keyboard {
             for chord in kept_chords().filter(|chord| keys::take_claimed(ctx, canvas, *chord)) {
                 let kept = ToolKey::Kept(chord);
                 if self.call(None, |tool, cx| tool.key(&kept, cx)) {

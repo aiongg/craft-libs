@@ -257,8 +257,9 @@ pub struct KeyUse {
     /// The arrows are nudges for the component's content (a canvas tool or control), not moves: they arrive as
     /// `Intents::take_nudge`.
     pub nudge: bool,
-    /// The component acts on Delete and Backspace (`Intent::Delete`: text edits, deleting a selection or a tool's
-    /// object). A component that does not leaves them to the commands around the focus.
+    /// The component acts on Delete and Backspace (`Intent::Delete`: text edits, deleting a selection or a canvas
+    /// control's object). A component that does not leaves them to the commands around the focus; a canvas tool claims
+    /// them instead (`CanvasTool::claims`).
     pub deletes: bool,
     /// The component acts on Enter itself (a text field that saves or searches on it): it takes the `Submit` intent, so
     /// the enclosing dialog's default button does not receive it. A component that does not leaves Enter to that button.

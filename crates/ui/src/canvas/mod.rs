@@ -29,7 +29,7 @@ pub use readout::readout;
 pub use space::{CanvasSpace, RulerText, canvas_space};
 pub use words::CanvasWords;
 
-pub use tool::{CanvasTool, NoTool, ToolAccess, ToolAction, ToolAnchor, ToolContext, ToolKey, ToolPointer, ViewEase};
+pub use tool::{CanvasTool, NoTool, ToolAccess, ToolAction, ToolAnchor, ToolClaims, ToolContext, ToolKey, ToolPointer, ViewEase};
 pub use tool_groups::{PickStep, tool_pick};
 pub use tool_host::{ToolHost, ToolHostResponse, ToolInput, ToolReadout};
 
@@ -405,7 +405,7 @@ impl Outcome for CanvasOutput {
 
 impl Component for Canvas<'_> {
     const ROLE: Role = Role::CANVAS;
-    const KEYS: KeyUse = KeyUse::CANVAS.with_moves().with_deletes();
+    const KEYS: KeyUse = KeyUse::CANVAS.with_moves();
     type Style = CanvasStyle;
     type Output = CanvasOutput;
 
