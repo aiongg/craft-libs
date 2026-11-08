@@ -1,205 +1,54 @@
-//! Stories of the Liquify workspace: not registered. Registering them
-//! adds `liquify::stories` to the crate's `register!` list, `LiquifyWorkspace` to `COMPONENTS` and
-//! [`LiquifyStoryLabels`] to `WORDS`, and regenerates the registry dump.
+//! Stories of the Liquify workspace and its Properties panel.
 //!
-//! The stories run the workspace over `MockImage` (`ui::mock_image`) through a fake
-//! `LiquifySource`: the picture itself (the strokes only reach the app's field, which the stories
-//! do not have), the house as the freeze mask, a backdrop in grey and a gently displaced mesh. The
-//! workspace covers the gallery window, as it does in an app; the `open` arg (or the Overview
-//! tile's button) shows it. An arg that changes the settings opens a fresh workspace. The stroke in
-//! progress, the brush outline and the Alt + right-drag resize with its readout are the pointer's:
-//! draw on the picture to see them. Every string goes through story words.
-//!
-//! | Story id | Shows |
-//! |---|---|
-//! | `patterns/liquify/tools` | The tools in their groups; the picked tool and the brush (args) |
-//! | `patterns/liquify/view-options` | The mesh at the three sizes, the mask overlay, the backdrop in the three modes |
+//! The workspace stories run it over `MockImage` through a fake `LiquifySource`: the picture itself (the strokes
+//! only reach the app's field, which the stories do not have), the house as the freeze mask, a backdrop in grey and a
+//! gently displaced mesh. The stroke in progress, the brush outline and the Alt + right-drag resize with its readout
+//! are the pointer's: draw on the picture to see them.
 
-use craft_ui::canvas::kurbo::Point;
-use craft_ui::canvas::{PixelRect, RasterSource};
-use craft_ui::dialog::Outcome;
-use craft_ui::localized::Labels as _;
-use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface, claim, dialog_closed, dialog_shown, lock, reset_on, shared};
-use craft_ui::typed_story;
+use std::sync::{Arc, Mutex, PoisonError};
+
 use egui::{Color32, ColorImage, Ui};
 
-use super::{
-    BackdropMode, BackdropUse, LiquifyBrush, LiquifyMesh, LiquifyOpen, LiquifySettings, LiquifySource, LiquifyTool, LiquifyWorkspace, MeshSize,
-};
+use craft_behavior::PixelSize;
+use craft_behavior::kurbo::Point;
+use craft_ui::canvas::{PixelRect, RasterSource};
+use craft_ui::contract::Bind;
+use craft_ui::primitives::Revision;
+use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
+
+use super::{BackdropMode, BackdropUse, LiquifyMesh, LiquifyOpen, LiquifyPanel, LiquifySettings, LiquifySource, LiquifyWorkspace, MeshSize};
 use crate::ui::mock_image::MockImage;
-
-/// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["LiquifyWorkspace"];
-
-craft_ui::words! {
-    /// The captions of the Liquify stories, English by default.
-    #[non_exhaustive]
-    pub(crate) struct LiquifyStoryLabels {
-        layer_sky: "liquifyStory.layerSky" = "Sky";
-        layer_house: "liquifyStory.layerHouse" = "House";
-    }
-}
 
 /// The freeze mask's pixels per texel: coarse, since the mask is soft.
 const MASK_TEXEL: u32 = 4;
 /// The mesh's node spacing in document pixels at Small, Medium and Large (a story's picture is
 /// 1600 px wide).
 const MESH_SPACING: [f64; 3] = [32.0, 64.0, 128.0];
-/// The displacement the mesh shows, as a share of the picture's width, and the reach of its bulge
-/// round the house as a share of the picture's width.
+/// The displacement the mesh shows, as a share of the picture's width.
 const BULGE: f64 = 0.03;
+/// The reach of the mesh's bulge round the house, as a share of the picture's width.
 const BULGE_REACH: f64 = 0.18;
 /// The ids of the two layers the backdrop can use.
 const LAYER_SKY: u64 = 1;
 const LAYER_HOUSE: u64 = 2;
+/// The backdrop opacity the view-options stories use.
+const BACKDROP_OPACITY: f64 = 60.0;
 
-/// The stories above.
-pub(crate) fn stories() -> Vec<Story> {
-    vec![
-        typed_story!(
-            "patterns/liquify/tools",
-            Level::Patterns,
-            "LiquifyWorkspace",
-            "Tools",
-            ToolsArgs { open: true, tool: ToolArg::ForwardWarp, size: 100.0, density: 50.0, pressure: 100.0, rate: 80.0 },
-            show_tools
-        )
-        .on(Surface::Own),
-        typed_story!(
-            "patterns/liquify/view-options",
-            Level::Patterns,
-            "LiquifyWorkspace",
-            "View options",
-            LiquifyViewArgs {
-                open: true,
-                show_mesh: true,
-                mesh_size: MeshArg::Medium,
-                show_mask: true,
-                show_backdrop: true,
-                mode: ModeArg::InFront,
-                opacity: 50.0,
-                layer: LayerArg::AllLayers,
-            },
-            show_view_options
-        )
-        .on(Surface::Own),
-    ]
-}
-
-#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
-enum ToolArg {
-    #[choice(name = "Forward Warp")]
-    ForwardWarp,
-    Reconstruct,
-    Smooth,
-    #[choice(name = "Twirl Clockwise")]
-    TwirlClockwise,
-    #[choice(name = "Twirl Counterclockwise")]
-    TwirlCounterclockwise,
-    Pucker,
-    Bloat,
-    #[choice(name = "Push Left")]
-    PushLeft,
-    Freeze,
-    Thaw,
-    #[choice(name = "Freeze Lasso")]
-    FreezeLasso,
-    Hand,
-    Zoom,
-}
-
-impl ToolArg {
-    fn tool(self) -> LiquifyTool {
-        match self {
-            ToolArg::ForwardWarp => LiquifyTool::ForwardWarp,
-            ToolArg::Reconstruct => LiquifyTool::Reconstruct,
-            ToolArg::Smooth => LiquifyTool::Smooth,
-            ToolArg::TwirlClockwise => LiquifyTool::TwirlClockwise,
-            ToolArg::TwirlCounterclockwise => LiquifyTool::TwirlCounterclockwise,
-            ToolArg::Pucker => LiquifyTool::Pucker,
-            ToolArg::Bloat => LiquifyTool::Bloat,
-            ToolArg::PushLeft => LiquifyTool::PushLeft,
-            ToolArg::Freeze => LiquifyTool::Freeze,
-            ToolArg::Thaw => LiquifyTool::Thaw,
-            ToolArg::FreezeLasso => LiquifyTool::FreezeLasso,
-            ToolArg::Hand => LiquifyTool::Hand,
-            ToolArg::Zoom => LiquifyTool::Zoom,
-        }
-    }
-}
-
-#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
-enum MeshArg {
-    Small,
-    Medium,
-    Large,
-}
-
-#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
-enum ModeArg {
-    #[choice(name = "In Front")]
-    InFront,
-    Behind,
-    Blend,
-}
-
-#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
-enum LayerArg {
-    #[choice(name = "All Layers")]
-    AllLayers,
-    Sky,
-    House,
-}
-
-#[derive(StoryArgs, Debug, PartialEq)]
-struct ToolsArgs {
-    /// Whether the workspace is open.
-    open: bool,
-    /// The picked tool.
-    tool: ToolArg,
-    /// The brush diameter in document pixels.
-    #[arg(range = 1.0..=3000.0)]
-    size: f64,
-    /// The brush density in percent.
-    #[arg(range = 0.0..=100.0)]
-    density: f64,
-    /// The brush pressure in percent.
-    #[arg(range = 0.0..=100.0)]
-    pressure: f64,
-    /// The brush rate in percent.
-    #[arg(range = 0.0..=100.0)]
-    rate: f64,
-}
-
-#[derive(StoryArgs, Debug, PartialEq)]
-struct LiquifyViewArgs {
-    /// Whether the workspace is open.
-    open: bool,
-    show_mesh: bool,
-    mesh_size: MeshArg,
-    show_mask: bool,
-    show_backdrop: bool,
-    /// Show Backdrop › Mode.
-    mode: ModeArg,
-    /// Show Backdrop › Opacity in percent.
-    #[arg(range = 0.0..=100.0)]
-    opacity: f64,
-    /// Show Backdrop › Use.
-    layer: LayerArg,
-}
-
-// --- the fake app ---
-
-/// The freeze mask: the house, white with the frozen amount as alpha.
+/// The freeze mask: the house, white with the frozen amount as alpha, one texel per [`MASK_TEXEL`] pixels.
 struct FreezeMask(MockImage);
 
 impl RasterSource for FreezeMask {
-    fn size(&self) -> [u32; 2] {
-        self.0.size().map(|v| v.div_ceil(MASK_TEXEL))
+    fn size(&self) -> PixelSize {
+        let size = self.0.size();
+        PixelSize::new(size.width.div_ceil(MASK_TEXEL), size.height.div_ceil(MASK_TEXEL))
     }
 
-    fn revision(&self) -> u64 {
+    fn revision(&self) -> Revision {
         self.0.revision()
+    }
+
+    fn damage(&self, _: Revision) -> Option<PixelRect> {
+        None
     }
 
     fn read(&self, region: PixelRect, factor: u32, out: &mut ColorImage) {
@@ -219,12 +68,16 @@ impl RasterSource for FreezeMask {
 struct GreyBackdrop(MockImage);
 
 impl RasterSource for GreyBackdrop {
-    fn size(&self) -> [u32; 2] {
+    fn size(&self) -> PixelSize {
         self.0.size()
     }
 
-    fn revision(&self) -> u64 {
+    fn revision(&self) -> Revision {
         self.0.revision()
+    }
+
+    fn damage(&self, since: Revision) -> Option<PixelRect> {
+        self.0.damage(since)
     }
 
     fn read(&self, region: PixelRect, factor: u32, out: &mut ColorImage) {
@@ -246,12 +99,12 @@ struct StorySource {
 }
 
 impl StorySource {
-    fn new(image: MockImage, labels: &LiquifyStoryLabels) -> Self {
+    fn new(image: MockImage) -> Self {
         Self {
             image,
             mask: FreezeMask(image),
             backdrop: GreyBackdrop(image),
-            layers: [(LAYER_SKY, labels.layer_sky.clone()), (LAYER_HOUSE, labels.layer_house.clone())],
+            layers: [(LAYER_SKY, "Sky".to_owned()), (LAYER_HOUSE, "House".to_owned())],
         }
     }
 }
@@ -266,7 +119,8 @@ impl LiquifySource for StorySource {
     }
 
     fn mesh(&self, size: MeshSize) -> Option<LiquifyMesh> {
-        let [width, height] = self.image.size().map(f64::from);
+        let image = self.image.size();
+        let (width, height) = (f64::from(image.width), f64::from(image.height));
         let spacing = MESH_SPACING[MeshSize::ALL.iter().position(|s| *s == size).unwrap_or(0)];
         let columns = (width / spacing).ceil() as usize + 1;
         let rows = (height / spacing).ceil() as usize + 1;
@@ -283,7 +137,7 @@ impl LiquifySource for StorySource {
                 Point::new(p.x + dx / length * bulge * pull, p.y + dy / length * bulge * pull)
             })
             .collect();
-        Some(LiquifyMesh { columns, rows, points })
+        Some(LiquifyMesh::new(columns, rows, points))
     }
 
     fn backdrop(&self) -> Option<&dyn RasterSource> {
@@ -295,61 +149,57 @@ impl LiquifySource for StorySource {
     }
 }
 
-// --- the kept workspace ---
+/// The workspace a story keeps between passes, compared by identity.
+#[derive(Clone)]
+struct Kept(Arc<Mutex<LiquifyWorkspace>>);
 
-/// Shows the workspace with `settings` while the story is open. The workspace is the story's
-/// shared state; other settings open a fresh one.
-fn show_workspace(ui: &mut Ui, open: &mut bool, name: &'static str, settings: LiquifySettings) {
-    reset_on(ui, name, &settings);
-    let state = shared(ui, name, || None::<LiquifyWorkspace>);
-    let mut kept = lock(&state);
-    if !(dialog_shown(ui, *open) && claim(ui.ctx(), "liquify", ui.scope_id())) {
-        *kept = None;
-        return;
+impl PartialEq for Kept {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
     }
+}
+
+/// Shows the workspace over the mock picture with `settings`.
+fn show_workspace(ui: &mut Ui, data: &mut StoryData, settings: &LiquifySettings) -> StoryOutput {
     let image = MockImage::default();
-    let workspace = kept.get_or_insert_with(|| {
-        let subject = StoryLabels::of(ui).photo;
-        LiquifyWorkspace::new(LiquifyOpen::new(image.size(), subject).settings(settings))
-    });
-    let source = StorySource::new(image, &LiquifyStoryLabels::of(ui));
-    let out = workspace.show(ui.ctx(), &source);
-    if out.outcome.is_some_and(Outcome::closes) {
-        dialog_closed(ui, open);
-    }
+    let size = image.size();
+    let open = LiquifyOpen::new([size.width, size.height], "House").settings(settings.clone());
+    let kept = data.value("workspace", Kept(Arc::new(Mutex::new(LiquifyWorkspace::new(open))))).clone();
+    let mut workspace = kept.0.lock().unwrap_or_else(PoisonError::into_inner);
+    workspace.show(ui, &StorySource::new(image)).into()
 }
 
-fn show_tools(ui: &mut Ui, args: &mut ToolsArgs) {
-    let settings = LiquifySettings {
-        tool: args.tool.tool(),
-        brush: LiquifyBrush { size: args.size, density: args.density, pressure: args.pressure, rate: args.rate },
-        ..LiquifySettings::default()
-    };
-    show_workspace(ui, &mut args.open, "tools", settings);
+#[story(LiquifyWorkspace, covers = [Default], drive = Drive::Never)]
+fn workspace(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    show_workspace(ui, data, &LiquifySettings::default())
 }
 
-fn show_view_options(ui: &mut Ui, args: &mut LiquifyViewArgs) {
-    let settings = LiquifySettings {
-        show_mesh: args.show_mesh,
-        mesh_size: match args.mesh_size {
-            MeshArg::Small => MeshSize::Small,
-            MeshArg::Medium => MeshSize::Medium,
-            MeshArg::Large => MeshSize::Large,
-        },
-        show_mask: args.show_mask,
-        show_backdrop: args.show_backdrop,
-        backdrop: match args.layer {
-            LayerArg::AllLayers => BackdropUse::AllLayers,
-            LayerArg::Sky => BackdropUse::Layer(LAYER_SKY),
-            LayerArg::House => BackdropUse::Layer(LAYER_HOUSE),
-        },
-        backdrop_mode: match args.mode {
-            ModeArg::InFront => BackdropMode::InFront,
-            ModeArg::Behind => BackdropMode::Behind,
-            ModeArg::Blend => BackdropMode::Blend,
-        },
-        backdrop_opacity: args.opacity,
+#[story(LiquifyWorkspace, covers = [], drive = Drive::Never)]
+fn workspace_with_the_mask_shown(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    show_workspace(ui, data, &LiquifySettings { show_mask: true, ..LiquifySettings::default() })
+}
+
+#[story(LiquifyWorkspace, covers = [], drive = Drive::Never)]
+fn workspace_with_the_mesh_shown(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    show_workspace(ui, data, &LiquifySettings { show_mesh: true, mesh_size: MeshSize::Medium, ..LiquifySettings::default() })
+}
+
+#[story(LiquifyPanel<'static>, covers = [Default], drive = Drive::Never)]
+fn panel(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let settings = data.value("settings", LiquifySettings::default());
+    LiquifyPanel::new(Bind::bound(settings)).show(ui).into()
+}
+
+#[story(LiquifyPanel<'static>, covers = [], drive = Drive::Never)]
+fn panel_with_the_backdrop_shown(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let shown = LiquifySettings {
+        show_backdrop: true,
+        backdrop: BackdropUse::Layer(LAYER_SKY),
+        backdrop_mode: BackdropMode::Blend,
+        backdrop_opacity: BACKDROP_OPACITY,
         ..LiquifySettings::default()
     };
-    show_workspace(ui, &mut args.open, "view-options", settings);
+    let settings = data.value("settings", shown);
+    let layers = [(LAYER_SKY, "Sky".to_owned()), (LAYER_HOUSE, "House".to_owned())];
+    LiquifyPanel::new(Bind::bound(settings)).layers(&layers).show(ui).into()
 }

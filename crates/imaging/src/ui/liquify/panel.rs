@@ -2,18 +2,21 @@
 
 use std::ops::RangeInclusive;
 
-use egui::{AsIdSalt, IdSalt, Response, Ui};
+use egui::{Response, Ui};
 
-use craft_theme::TypeRole;
-use craft_ui::composites::{SectionHeader, SliderRow};
-use craft_ui::controls::{Button, Checkbox, Select};
-use craft_ui::edit::EditEvent;
-use craft_ui::localized::{Labels as _, UnitKind, Units};
-use craft_ui::primitives::{Content, Gap, Row, Stack, Text};
+use craft_behavior::EditEvent;
+use craft_ui::buttons::Button;
+use craft_ui::choice::Checkbox;
+use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Pattern, SaveKey, Show as _, ShowContainer as _};
+use craft_ui::form::SliderField;
+use craft_ui::layout_components::{Row, Stack};
+use craft_ui::pickers::Select;
+use craft_ui::runtime::env::{Env, Label, UnitKind};
+use craft_ui::sections::Section;
 
-use super::LiquifyLabels;
 use super::session::{BackdropMode, BackdropUse, LiquifyGlobal, LiquifySettings, MeshSize};
 use super::tools::LiquifyBrush;
+use super::words::LiquifyWords;
 
 /// What [`LiquifyPanel::show`] reports.
 #[derive(Clone, Debug)]
@@ -21,9 +24,8 @@ use super::tools::LiquifyBrush;
 pub struct LiquifyPanelOutput {
     /// The panel's response.
     pub response: Response,
-    /// The pass's edit of the settings, which already hold the new value: a slider's gesture
-    /// (`Begin`, `Update`, `Commit`) or a one-shot `Set` for a check box or a select. The
-    /// workspace takes its `busy` from the gesture's liveness (`craft_ui::edit::is_live`).
+    /// The pass's edit of the settings, which already hold the new value: a slider's gesture (`Begin`, `Update`,
+    /// `Commit`) or a one-shot `Set` for a check box or a select.
     pub edit: Option<EditEvent<LiquifySettings>>,
     /// Reconstruct (with the Amount), None, Mask All or Invert All pressed.
     pub global: Option<LiquifyGlobal>,
@@ -36,9 +38,8 @@ pub struct LiquifyPanelOutput {
 
 /// The Properties panel in the side column, top to bottom, as PhotoCraft (and Photoshop) order it:
 ///
-/// - **Brush Tool Options** (`SectionHeader`): `SliderRow`s Size (1..=3000, the
-///   [`LiquifyBrush::SLIDER_MAX`](super::LiquifyBrush::SLIDER_MAX)), Density, Pressure, Rate
-///   (0..=100).
+/// - **Brush Tool Options**: sliders Size (1..=3000, the
+///   [`LiquifyBrush::SLIDER_MAX`](super::LiquifyBrush::SLIDER_MAX)), Density, Pressure, Rate (0..=100).
 /// - **Brush Reconstruct Options**: Amount (0..=100 %); buttons Reconstruct and Restore All.
 /// - **Mask Options**: buttons None, Mask All, Invert All.
 /// - **View Options**: Show Mesh; Mesh Size (Small, Medium, Large); Show Mask; Show Backdrop and,
@@ -48,12 +49,12 @@ pub struct LiquifyPanelOutput {
 /// PhotoCraft's stats line ("N stroke(s) · field … · dab … ms · preview … ms") is not drawn (lead
 /// call 14); [`LiquifyOutput::timing`](super::LiquifyOutput::timing) carries the timing the library
 /// can measure. Every control is a Tab stop in that order. The panel writes the new values to the
-/// settings it holds and reports the pass's change as [`LiquifyPanelOutput::edit`].
+/// bound settings and reports the pass's change as [`LiquifyPanelOutput::edit`]. The sections remember their
+/// open state.
+#[derive(Pattern)]
 pub struct LiquifyPanel<'a> {
-    id_salt: IdSalt,
-    settings: &'a mut LiquifySettings,
+    settings: Bind<'a, LiquifySettings>,
     layers: &'a [(u64, String)],
-    labels: Option<LiquifyLabels>,
 }
 
 /// What the controls of one pass add up to.
@@ -65,149 +66,172 @@ struct Pass {
     backdrop_wanted: Option<Option<u64>>,
 }
 
-impl Pass {
-    /// A one-shot change of the settings by a check box or a select.
-    fn set(&mut self, ui: &Ui, settings: &LiquifySettings) {
-        self.edit = Some(EditEvent::set(settings.clone(), ui.input(|i| i.modifiers)));
+/// Where a control writes its value in the settings.
+type Field<T> = fn(&mut LiquifySettings, T);
+
+/// A control's edit of one field as an edit of the settings: the settings at the start of the pass with that field
+/// replaced.
+fn lift<T: Clone + 'static>(event: EditEvent<T>, base: &LiquifySettings, set: Field<T>) -> EditEvent<LiquifySettings> {
+    event.map(|value| {
+        let mut settings = base.clone();
+        set(&mut settings, value);
+        settings
+    })
+}
+
+impl Outcome for LiquifyPanelOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
     }
 }
 
 impl<'a> LiquifyPanel<'a> {
-    /// Starts the panel over `settings`, which it edits in place; `id_salt` keeps its state apart from other panels.
-    pub fn new(id_salt: impl AsIdSalt, settings: &'a mut LiquifySettings) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), settings, layers: &[], labels: None }
-    }
-
-    /// The words (default: the installed words).
-    pub fn labels(mut self, labels: LiquifyLabels) -> Self {
-        self.labels = Some(labels);
-        self
+    /// A panel over the settings `settings`, which it edits in place.
+    pub fn new(settings: Bind<'a, LiquifySettings>) -> Self {
+        Self { settings, layers: &[] }
     }
 
     /// Show Backdrop › Use's layers, bottom to top ([`LiquifySource::layers`](super::LiquifySource::layers)).
+    #[must_use]
     pub fn layers(mut self, layers: &'a [(u64, String)]) -> Self {
         self.layers = layers;
         self
     }
 
-    /// Draws the panel and returns its response and any settings edit.
+    /// Draws the panel and returns the pass's changes.
     pub fn show(self, ui: &mut Ui) -> LiquifyPanelOutput {
         // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:995-1059 (the four sections).
-        let Self { id_salt, settings, layers, labels } = self;
-        let labels = labels.unwrap_or_else(|| LiquifyLabels::of(ui));
-        let labels = &labels;
-        let id = ui.make_persistent_id(id_salt);
-        let units = Units::of(ui);
-        let mut pass = Pass::default();
-        let shown = Stack::new(Gap::Row).show(ui, |ui| {
-            SectionHeader::new((id, "brush"), labels.brush_options.as_str()).show(ui, |ui| {
+        let Self { mut settings, layers } = self;
+        let env = Env::of(ui);
+        let words = env.words::<LiquifyWords>();
+        let mut done = Pass::default();
+        let shown = Stack::new().show(ui, |ui, root| {
+            let Some(base) = settings.reborrow().read(root).and_then(|held| held.same().cloned()) else { return };
+            let mut rows = Rows { base: &base, pass: Pass::default() };
+            Section::new(words.brush_options.clone()).remember(SaveKey::new("craft_imaging.liquify.brush")).show(ui, |ui, _| {
                 let size = 1.0..=LiquifyBrush::SLIDER_MAX;
-                slider(ui, (id, "size"), &labels.size, settings, |s| &mut s.brush.size, size, None, &units, &mut pass);
-                slider(ui, (id, "density"), &labels.density, settings, |s| &mut s.brush.density, 0.0..=100.0, None, &units, &mut pass);
-                slider(ui, (id, "pressure"), &labels.pressure, settings, |s| &mut s.brush.pressure, 0.0..=100.0, None, &units, &mut pass);
-                slider(ui, (id, "rate"), &labels.rate, settings, |s| &mut s.brush.rate, 0.0..=100.0, None, &units, &mut pass);
+                rows.slider(ui, &words.size, base.brush.size, size, None, |s, v| s.brush.size = v);
+                rows.slider(ui, &words.density, base.brush.density, 0.0..=100.0, None, |s, v| s.brush.density = v);
+                rows.slider(ui, &words.pressure, base.brush.pressure, 0.0..=100.0, None, |s, v| s.brush.pressure = v);
+                rows.slider(ui, &words.rate, base.brush.rate, 0.0..=100.0, None, |s, v| s.brush.rate = v);
             });
-            SectionHeader::new((id, "reconstruct"), labels.reconstruct_options.as_str()).show(ui, |ui| {
-                let range = 0.0..=100.0;
-                slider(
-                    ui,
-                    (id, "amount"),
-                    &labels.amount,
-                    settings,
-                    |s| &mut s.reconstruct_amount,
-                    range,
-                    Some(UnitKind::Percent),
-                    &units,
-                    &mut pass,
-                );
-                let amount = settings.reconstruct_amount;
-                Row::new(Gap::Inline).show(ui, |ui| {
-                    if push(ui, (id, "reconstruct-button"), &labels.reconstruct) {
-                        pass.global = Some(LiquifyGlobal::Reconstruct { amount });
+            Section::new(words.reconstruct_options.clone()).remember(SaveKey::new("craft_imaging.liquify.reconstruct")).show(ui, |ui, _| {
+                let amount = base.reconstruct_amount;
+                rows.slider(ui, &words.amount, amount, 0.0..=100.0, Some(UnitKind::Percent), |s, v| s.reconstruct_amount = v);
+                Row::new().show(ui, |ui, _| {
+                    if Button::new(words.reconstruct.clone()).id_salt("reconstruct").show(ui).clicked() {
+                        rows.pass.global = Some(LiquifyGlobal::Reconstruct { amount });
                     }
-                    if push(ui, (id, "restore-all"), &labels.restore_all) {
-                        pass.restore_all = true;
+                    if Button::new(words.restore_all.clone()).id_salt("restore-all").show(ui).clicked() {
+                        rows.pass.restore_all = true;
                     }
                 });
             });
-            SectionHeader::new((id, "mask"), labels.mask_options.as_str()).show(ui, |ui| {
-                Row::new(Gap::Inline).show(ui, |ui| {
-                    if push(ui, (id, "mask-none"), &labels.mask_none) {
-                        pass.global = Some(LiquifyGlobal::MaskNone);
+            Section::new(words.mask_options.clone()).remember(SaveKey::new("craft_imaging.liquify.mask")).show(ui, |ui, _| {
+                Row::new().show(ui, |ui, _| {
+                    if Button::new(words.mask_none.clone()).id_salt("mask-none").show(ui).clicked() {
+                        rows.pass.global = Some(LiquifyGlobal::MaskNone);
                     }
-                    if push(ui, (id, "mask-all"), &labels.mask_all) {
-                        pass.global = Some(LiquifyGlobal::MaskAll);
+                    if Button::new(words.mask_all.clone()).id_salt("mask-all").show(ui).clicked() {
+                        rows.pass.global = Some(LiquifyGlobal::MaskAll);
                     }
-                    if push(ui, (id, "invert-all"), &labels.invert_all) {
-                        pass.global = Some(LiquifyGlobal::InvertAll);
+                    if Button::new(words.invert_all.clone()).id_salt("invert-all").show(ui).clicked() {
+                        rows.pass.global = Some(LiquifyGlobal::InvertAll);
                     }
                 });
             });
-            SectionHeader::new((id, "view"), labels.view_options.as_str()).show(ui, |ui| {
-                view_options(ui, id, settings, layers, labels, &units, &mut pass);
+            Section::new(words.view_options.clone()).remember(SaveKey::new("craft_imaging.liquify.view")).show(ui, |ui, _| {
+                rows.view_options(ui, words, layers);
             });
+            if let Some(event) = &rows.pass.edit {
+                settings.reborrow().write(root, event);
+            }
+            done = rows.pass;
         });
         LiquifyPanelOutput {
-            response: shown.response,
-            edit: pass.edit,
-            global: pass.global,
-            restore_all: pass.restore_all,
-            backdrop_wanted: pass.backdrop_wanted,
+            response: shown.output,
+            edit: done.edit,
+            global: done.global,
+            restore_all: done.restore_all,
+            backdrop_wanted: done.backdrop_wanted,
         }
     }
 }
 
-/// Show Mesh, Mesh Size, Show Mask and the Show Backdrop group.
-fn view_options(
-    ui: &mut Ui,
-    id: egui::Id,
-    settings: &mut LiquifySettings,
-    layers: &[(u64, String)],
-    labels: &LiquifyLabels,
-    units: &Units,
-    pass: &mut Pass,
-) {
-    if check(ui, (id, "show-mesh"), &labels.show_mesh, &mut settings.show_mesh) {
-        pass.set(ui, settings);
+/// The controls of one pass: the settings they started from and what they add up to.
+struct Rows<'p> {
+    base: &'p LiquifySettings,
+    pass: Pass,
+}
+
+impl Rows<'_> {
+    /// Show Mesh, Mesh Size, Show Mask and the Show Backdrop group.
+    fn view_options(&mut self, ui: &mut Ui, words: &LiquifyWords, layers: &[(u64, String)]) {
+        let base = self.base;
+        self.check(ui, &words.show_mesh, base.show_mesh, |s, v| s.show_mesh = v);
+        let sizes = [(MeshSize::Small, &words.small), (MeshSize::Medium, &words.medium), (MeshSize::Large, &words.large)];
+        self.choose(ui, &words.mesh_size, base.mesh_size, &sizes, |s, v| s.mesh_size = v);
+        self.check(ui, &words.show_mask, base.show_mask, |s, v| s.show_mask = v);
+        if self.check(ui, &words.show_backdrop, base.show_backdrop, |s, v| s.show_backdrop = v) == Some(true) {
+            self.pass.backdrop_wanted = Some(backdrop_id(base.backdrop));
+        }
+        if !base.show_backdrop {
+            return;
+        }
+        // A layer that is gone shows All Layers.
+        let current = match base.backdrop {
+            BackdropUse::Layer(layer) if layers.iter().any(|(known, _)| *known == layer) => BackdropUse::Layer(layer),
+            _ => BackdropUse::AllLayers,
+        };
+        let all = words.all_layers.clone();
+        let named: Vec<(BackdropUse, Label)> = std::iter::once((BackdropUse::AllLayers, all))
+            .chain(layers.iter().map(|(layer, name)| (BackdropUse::Layer(*layer), Label::from(name.clone()))))
+            .collect();
+        let uses: Vec<(BackdropUse, &Label)> = named.iter().map(|(value, label)| (*value, label)).collect();
+        if let Some(picked) = self.choose(ui, &words.backdrop_use, current, &uses, |s, v| s.backdrop = v) {
+            self.pass.backdrop_wanted = Some(backdrop_id(picked));
+        }
+        let modes = [(BackdropMode::InFront, &words.in_front), (BackdropMode::Behind, &words.behind), (BackdropMode::Blend, &words.blend)];
+        self.choose(ui, &words.backdrop_mode, base.backdrop_mode, &modes, |s, v| s.backdrop_mode = v);
+        self.slider(ui, &words.opacity, base.backdrop_opacity, 0.0..=100.0, None, |s, v| s.backdrop_opacity = v);
     }
-    let sizes = [(MeshSize::Small, &labels.small), (MeshSize::Medium, &labels.medium), (MeshSize::Large, &labels.large)];
-    if let Some(size) = caption_row(ui, &labels.mesh_size, |ui| choose(ui, (id, "mesh-size"), &labels.mesh_size, settings.mesh_size, &sizes)) {
-        settings.mesh_size = size;
-        pass.set(ui, settings);
-    }
-    if check(ui, (id, "show-mask"), &labels.show_mask, &mut settings.show_mask) {
-        pass.set(ui, settings);
-    }
-    if check(ui, (id, "show-backdrop"), &labels.show_backdrop, &mut settings.show_backdrop) {
-        pass.set(ui, settings);
-        if settings.show_backdrop {
-            pass.backdrop_wanted = Some(backdrop_id(settings.backdrop));
+
+    /// A slider with a number field over the number `value`; its edit is the pass's edit.
+    fn slider(&mut self, ui: &mut Ui, label: &Label, value: f64, range: RangeInclusive<f64>, unit: Option<UnitKind>, set: Field<f64>) {
+        let mut field = SliderField::new(label.clone(), Bind::given(value), range).step(1.0);
+        if let Some(kind) = unit {
+            field = field.unit_kind(kind);
+        }
+        if let Some(event) = field.show(ui).event {
+            self.pass.edit = Some(lift(event, self.base, set));
         }
     }
-    if !settings.show_backdrop {
-        return;
+
+    /// A check box over `value`; the new value when the user toggled it, whose edit is the pass's edit.
+    fn check(&mut self, ui: &mut Ui, label: &Label, value: bool, set: Field<bool>) -> Option<bool> {
+        let event = Checkbox::new(Bind::given(value)).label(label.clone()).show(ui).event?;
+        let toggled = event.value().copied();
+        self.pass.edit = Some(lift(event, self.base, set));
+        toggled
     }
-    // A layer that is gone shows All Layers.
-    let current = match settings.backdrop {
-        BackdropUse::Layer(layer) if layers.iter().any(|(known, _)| *known == layer) => BackdropUse::Layer(layer),
-        _ => BackdropUse::AllLayers,
-    };
-    let uses: Vec<(BackdropUse, &String)> = std::iter::once((BackdropUse::AllLayers, &labels.all_layers))
-        .chain(layers.iter().map(|(layer, name)| (BackdropUse::Layer(*layer), name)))
-        .collect();
-    if let Some(picked) = caption_row(ui, &labels.backdrop_use, |ui| choose(ui, (id, "backdrop-use"), &labels.backdrop_use, current, &uses)) {
-        settings.backdrop = picked;
-        pass.set(ui, settings);
-        pass.backdrop_wanted = Some(backdrop_id(picked));
+
+    /// A select over `options` named `label`; the value the user picked this pass, whose edit is the pass's edit.
+    fn choose<T: Clone + PartialEq + Send + Sync + 'static>(
+        &mut self,
+        ui: &mut Ui,
+        label: &Label,
+        current: T,
+        options: &[(T, &Label)],
+        set: Field<T>,
+    ) -> Option<T> {
+        let entries: Vec<Entry<T>> = options.iter().map(|(value, text)| Entry::new(value.clone(), (*text).clone())).collect();
+        let event = Select::new(label.clone(), Bind::given(current), &entries).show(ui).event?;
+        let picked = event.value().cloned();
+        self.pass.edit = Some(lift(event, self.base, set));
+        picked
     }
-    let modes = [(BackdropMode::InFront, &labels.in_front), (BackdropMode::Behind, &labels.behind), (BackdropMode::Blend, &labels.blend)];
-    if let Some(mode) =
-        caption_row(ui, &labels.backdrop_mode, |ui| choose(ui, (id, "backdrop-mode"), &labels.backdrop_mode, settings.backdrop_mode, &modes))
-    {
-        settings.backdrop_mode = mode;
-        pass.set(ui, settings);
-    }
-    slider(ui, (id, "opacity"), &labels.opacity, settings, |s| &mut s.backdrop_opacity, 0.0..=100.0, None, units, pass);
 }
 
 /// The layer id the app is asked for: `None` for All Layers.
@@ -216,66 +240,4 @@ pub(super) fn backdrop_id(of: BackdropUse) -> Option<u64> {
         BackdropUse::AllLayers => None,
         BackdropUse::Layer(id) => Some(id),
     }
-}
-
-/// A slider row over the number `field` picks from `settings`, written as the user edits it; the
-/// last event of the row is the pass's edit, carrying the settings with the new value.
-#[expect(clippy::too_many_arguments, reason = "one row's parts, kept apart from the pass it adds to")]
-fn slider(
-    ui: &mut Ui,
-    id_salt: impl AsIdSalt,
-    label: &str,
-    settings: &mut LiquifySettings,
-    field: fn(&mut LiquifySettings) -> &mut f64,
-    range: RangeInclusive<f64>,
-    unit: Option<UnitKind>,
-    units: &Units,
-    pass: &mut Pass,
-) {
-    let mut row = SliderRow::new(id_salt, label, *field(settings), range, units.numbers()).decimals(0).step(1.0);
-    if let Some(kind) = unit {
-        row = row.unit(units.unit(kind));
-    }
-    for event in row.show(ui).edits() {
-        if let Some(next) = event.value().copied() {
-            *field(settings) = next;
-        }
-        pass.edit = Some(event.map(|_| settings.clone()));
-    }
-}
-
-/// A push button; whether it was clicked.
-fn push(ui: &mut Ui, id_salt: impl AsIdSalt, label: &str) -> bool {
-    ui.add(Button::new(label).id_salt(id_salt)).clicked()
-}
-
-/// A check box; whether the user toggled it.
-fn check(ui: &mut Ui, id_salt: impl AsIdSalt, label: &str, value: &mut bool) -> bool {
-    Checkbox::bool(label, value).id_salt(id_salt).show(ui).response.changed()
-}
-
-/// `label` muted before the control `add` draws.
-fn caption_row<R>(ui: &mut Ui, label: &str, add: impl FnOnce(&mut Ui) -> R) -> R {
-    Row::new(Gap::Inline)
-        .show(ui, |ui| {
-            ui.add(Text::new(label).role(TypeRole::Label).content(Content::Muted));
-            add(ui)
-        })
-        .inner
-}
-
-/// A select over `options`; the value the user picked this pass.
-fn choose<T: Clone + PartialEq + Send + Sync + 'static>(
-    ui: &mut Ui,
-    id_salt: impl AsIdSalt,
-    label: &str,
-    current: T,
-    options: &[(T, &String)],
-) -> Option<T> {
-    let mut value = current;
-    let mut select = Select::new(id_salt, label, &mut value);
-    for (option, text) in options {
-        select = select.option(option.clone(), text.as_str());
-    }
-    select.show(ui).event.and_then(|event| event.value().cloned())
 }

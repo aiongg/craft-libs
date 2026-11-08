@@ -2,6 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use craft_behavior::CancelReason;
+
 use super::tools::{LiquifyBrush, LiquifyTool};
 
 /// One brush stroke or Freeze Lasso polygon as the engine replays it: the tool that painted (with
@@ -10,6 +12,7 @@ use super::tools::{LiquifyBrush, LiquifyTool};
 /// pass it on unchanged.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct LiquifyStroke {
     /// The tool that made the stroke.
     pub tool: LiquifyTool,
@@ -30,6 +33,11 @@ pub struct LiquifyStroke {
 }
 
 impl LiquifyStroke {
+    /// A stroke of `tool` with `brush`'s size, density, pressure and rate over `points` (x, y, pressure).
+    pub fn new(tool: LiquifyTool, brush: &LiquifyBrush, points: Vec<[f64; 3]>) -> LiquifyStroke {
+        LiquifyStroke { tool, size: brush.size, density: brush.density, pressure: brush.pressure, rate: brush.rate, points, amount: None }
+    }
+
     /// The same brush and tool over `points`: what an `Update` carries (only the points added
     /// since the last event, so a long stroke costs no more per dab than a short one).
     pub(super) fn with_points(&self, points: Vec<[f64; 3]>) -> LiquifyStroke {
@@ -45,13 +53,31 @@ impl LiquifyStroke {
     }
 }
 
+/// A stroke's phases as the app applies them to its field.
+///
+/// `Begin` carries the stroke with its first point, `Update` the stroke's tool and brush with only the points
+/// added since the last event, `Commit` the whole stroke, `Cancel` why the stroke ended without being recorded.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum StrokeEvent {
+    /// A stroke began.
+    Begin(LiquifyStroke),
+    /// A stroke grew by the points it carries.
+    Update(LiquifyStroke),
+    /// A stroke ended; the session records it.
+    Commit(LiquifyStroke),
+    /// A stroke ended without a record.
+    Cancel(CancelReason),
+}
+
 /// A whole-field operation, recorded and replayed like a stroke.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum LiquifyGlobal {
     /// The Reconstruct button: scales the unfrozen field towards zero by `amount` percent.
     Reconstruct {
-        #[allow(missing_docs)]
+        /// How much of the field is reconstructed, 0..=100.
         amount: f64,
     },
     /// Mask Options › Mask All: freezes everything.
@@ -65,6 +91,7 @@ pub enum LiquifyGlobal {
 /// One recorded step of the session, in replay order.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum LiquifyStep {
     /// A brush stroke.
     Stroke(LiquifyStroke),
@@ -76,6 +103,7 @@ pub enum LiquifyStep {
 /// undo step, where PhotoCraft's could not be undone). The brush, view options and the tool are
 /// [`LiquifySettings`], outside the history: undo never changes them.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct LiquifySession {
     steps: Vec<LiquifyStep>,
 }
@@ -143,13 +171,14 @@ impl LiquifySession {
 /// side (`liquify_ui.rs:1250`); the app builds [`LiquifyMesh`](super::LiquifyMesh) for it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum MeshSize {
-    #[allow(missing_docs)]
+    /// 64 cells across the document's longer side.
     Small,
     #[default]
-    #[allow(missing_docs)]
+    /// 40 cells across the document's longer side.
     Medium,
-    #[allow(missing_docs)]
+    /// 24 cells across the document's longer side.
     Large,
 }
 
@@ -163,13 +192,14 @@ impl MeshSize {
 /// Blend fades the image to 100 − Opacity under the backdrop at the Opacity.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum BackdropMode {
     #[default]
-    #[allow(missing_docs)]
+    /// The backdrop over the image.
     InFront,
-    #[allow(missing_docs)]
+    /// The image over the backdrop.
     Behind,
-    #[allow(missing_docs)]
+    /// The image faded under the backdrop.
     Blend,
 }
 
@@ -181,6 +211,7 @@ impl BackdropMode {
 /// Show Backdrop › Use.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum BackdropUse {
     /// The document as it is, the liquified layer included (as Photoshop).
     #[default]
@@ -195,6 +226,7 @@ pub enum BackdropUse {
 /// amount 100; mesh off at Medium; mask shown; backdrop off, All Layers, In Front, opacity 50.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
+#[non_exhaustive]
 pub struct LiquifySettings {
     /// The selected tool.
     pub tool: LiquifyTool,

@@ -1,28 +1,15 @@
-//! [`LiquifyLabels`]: Liquify's words. OK and Cancel are the dialog's (`DialogLabels`); the frame's
-//! words are `FullWindowLabels`. The workspace reads both with `Labels::of_ctx`.
+//! [`LiquifyWords`]: Liquify's words. The tools' names are their commands' labels ([`LiquifyCommands`]); OK and
+//! Cancel are the dialog footer's shared words.
+//!
+//! [`LiquifyCommands`]: super::LiquifyCommands
 
 craft_ui::words! {
     /// Liquify's words, English by default (Photoshop's names).
-    #[non_exhaustive]
-    pub struct LiquifyLabels {
+    pub struct LiquifyWords {
         /// The title's name: "Liquify (layer, 66%)".
         name: "liquify.name" = "Liquify";
         /// The strip's accessible name.
         tools: "liquify.tools" = "Tools";
-        forward_warp: "liquify.forwardWarp" = "Forward Warp Tool";
-        reconstruct_tool: "liquify.reconstructTool" = "Reconstruct Tool";
-        smooth: "liquify.smooth" = "Smooth Tool";
-        twirl_clockwise: "liquify.twirlClockwise" = "Twirl Clockwise Tool";
-        twirl_counterclockwise: "liquify.twirlCounterclockwise" = "Twirl Counterclockwise Tool";
-        pucker: "liquify.pucker" = "Pucker Tool";
-        bloat: "liquify.bloat" = "Bloat Tool";
-        push_left: "liquify.pushLeft" = "Push Left Tool";
-        freeze: "liquify.freeze" = "Freeze Mask Tool";
-        thaw: "liquify.thaw" = "Thaw Mask Tool";
-        /// The Freeze Lasso's tooltip names the Alt rule.
-        freeze_lasso: "liquify.freezeLasso" = "Freeze Lasso: drag to freeze an area, Alt-drag to thaw it";
-        hand: "liquify.hand" = "Hand Tool";
-        zoom: "liquify.zoom" = "Zoom Tool";
         /// The side column's header (Photoshop heads Liquify's panel "Properties") and accessible name.
         properties: "liquify.properties" = "Properties";
         brush_options: "liquify.brushOptions" = "Brush Tool Options";
