@@ -3,12 +3,14 @@
 
 use crate::windows_kit::Windows;
 use craft_host::target::DoubleClick;
+use craft_ui::contract::Show as _;
+use craft_ui::display::Text;
 use craft_ui::runtime::InstallSpec;
 use craft_ui::runtime::windows::{WindowAction, WindowHit, WindowHost};
 use craft_ui::shell::{Caption, CaptionFamily, Captions, Frame, MacInset, Title, TitleBar, double_click_action};
 use craft_ui::testing::pointer::{moved, press, release};
-use craft_ui::testing::trial;
 use craft_ui::testing::windows::NoWindows;
+use craft_ui::testing::{Frames, trial};
 use craft_window::policy::{Decision, Desktop, DesktopKind};
 use egui::{Rect, ViewportCommand, ViewportId};
 use std::cell::Cell;
@@ -110,4 +112,43 @@ fn maximize_acts_on_the_window_and_close_only_reports() {
     assert!(sent.iter().all(|(_, command)| !matches!(command, ViewportCommand::Close)), "the bar never closes the window itself");
     let sent = click(button(Caption::Maximize));
     assert!(sent.iter().any(|(_, command)| matches!(command, ViewportCommand::Maximized(true))));
+}
+
+// Height and name of the bar.
+
+/// A bar at the top of a column takes the width and its content's height, so the next child lies under it.
+#[trial]
+fn a_bar_in_a_column_leaves_the_room_below_it_to_the_next_child() {
+    let mut frames = Frames::new();
+    let (bar, below, room) = (Cell::new(Rect::NOTHING), Cell::new(Rect::NOTHING), Cell::new(Rect::NOTHING));
+    let mut show = |ui: &mut egui::Ui| {
+        room.set(ui.max_rect());
+        ui.vertical(|ui| {
+            bar.set(TitleBar::new().show_titled(ui, Title::new("Landscape.psd"), |_, _| {}, |_, _| {}).response.rect);
+            below.set(Text::new("Below").show(ui).rect);
+        });
+    };
+    for _ in 0..4 {
+        frames.frame(vec![], &mut show);
+    }
+    assert!(room.get().contains_rect(below.get()), "the next child has room under the bar");
+    assert!(below.get().top() >= bar.get().bottom(), "the next child lies under the bar");
+    assert_eq!(bar.get().width(), room.get().width(), "the bar fills the width");
+}
+
+/// The bar's node is named by the document title and described by the unsaved label; without a title it keeps the
+/// bar's own name.
+#[trial]
+fn the_bar_is_named_by_the_document_title() {
+    let mut frames = Frames::new();
+    let id = Cell::new(None);
+    for _ in 0..3 {
+        frames.frame(vec![], |ui| {
+            id.set(Some(TitleBar::new().show_titled(ui, Title::unsaved("Landscape.psd"), |_, _| {}, |_, _| {}).response.id));
+        });
+    }
+    let tree = frames.tree();
+    let id = id.get().expect("the bar was shown");
+    assert_eq!(tree.name(id), Some("Landscape.psd *"));
+    assert_eq!(tree.description(id), Some("Unsaved changes"));
 }
