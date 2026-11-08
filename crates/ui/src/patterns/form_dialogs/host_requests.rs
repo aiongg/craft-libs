@@ -1,39 +1,9 @@
 //! `HostRequests`: what a hosted dialog's rows ask of the host, kept until the host takes it.
 
-use super::param::{ColorRequest, EyedropperRequest, PathRequest};
 use super::rows::ParamRowsOutput;
+use crate::runtime::requests::{ColorRequest, EyedropperRequest, HostAnswer, PathRequest};
 use craft_theme::Srgba;
 use std::path::PathBuf;
-
-/// What the host answered to a request, kept until the dialog applies it to its values in its next pass.
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub enum HostAnswer {
-    /// The colour the picker returned for the colour request `key`.
-    #[non_exhaustive]
-    Color {
-        /// The request's key.
-        key: String,
-        /// The picked colour.
-        color: Srgba,
-    },
-    /// The path the file dialog returned for the path request `key`.
-    #[non_exhaustive]
-    Path {
-        /// The request's key.
-        key: String,
-        /// The chosen path.
-        path: PathBuf,
-    },
-    /// The colour the eyedropper sampled for the eyedropper request `key`.
-    #[non_exhaustive]
-    Eyedropper {
-        /// The request's key.
-        key: String,
-        /// The sampled colour.
-        color: Srgba,
-    },
-}
 
 /// A request to render a preview of `options`, numbered so the host's answer can be matched to the settings it was
 /// rendered for: an answer with an older `revision` than the dialog's latest request is stale.

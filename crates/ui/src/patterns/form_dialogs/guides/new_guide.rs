@@ -1,18 +1,28 @@
 //! `NewGuideDialog`: View > Guides > New Guide and Edit Selected Guides.
 
 use super::layout::{GuideLength, GuideUnits};
-use super::{FormDialog, GUIDE_LIMIT, GuideDialogWords, HostAnswer, HostRequests, NEW_GUIDE_COLOR_KEY, apply_color_answers, color_row};
+use crate::runtime::requests::HostAnswer;
+
+use super::{FormDialog, GUIDE_LIMIT, GuideDialogWords, HostRequests, NEW_GUIDE_COLOR_KEY, apply_color_answers, color_row};
 use crate::canvas::{Guide, GuideColor, GuideKey};
+
 use crate::choice::Segmented;
 use crate::contract::{Bind, Entry, NoValue, Outcome, Show as _, ShowContainer as _};
+
 use crate::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
+
 use crate::form::{Field, FieldGroup};
+
 use crate::notices::{Notice, NoticeLayout};
+
 use crate::runtime::env::{Env, Label, Units};
+
 use crate::runtime::focus::{self, FocusTarget};
+
 use crate::runtime::overlay::CloseReason;
 use crate::text::NumberField;
 use craft_behavior::{Axis, NumberCodec};
+
 use craft_theme::Rgba;
 use craft_theme::variant::Tone;
 use egui::{Response, Ui};

@@ -14,31 +14,42 @@ mod new_guide;
 mod stories;
 
 pub use layout::{GuideGroup, GuideLayoutError, GuideLayoutOptions, GuideLayoutPreset, GuideLength, GuideRect, GuideTarget, GuideUnits, MAX_COUNT};
+
 pub use new_guide::{HostedNewGuideDialog, NewGuideDialog, NewGuideOutput, NewGuideValues};
 
 use super::color_choice::{self, ColorChoice, ColorRowTexts, apply_color_answers};
-use super::{FormDialog, HostAnswer, HostRequests, ParamDialogWords};
+use crate::runtime::requests::HostAnswer;
+
+use super::{FormDialog, HostRequests, ParamDialogWords};
 use crate::canvas::{Guide, GuideColor};
+
 use crate::choice::Checkbox;
 use crate::contract::{Bind, EditResponse, Entry, NoValue, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _};
+
 use crate::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
+
 use crate::display::Text;
 use crate::form::{Field, FieldGroup};
+
 use crate::notices::{Notice, NoticeLayout};
+
 use crate::pickers::Select;
 use crate::runtime::env::{Env, Label, Units};
+
 use crate::runtime::overlay::CloseReason;
 use crate::sections::GroupBox;
 use crate::text::NumberField;
 use craft_behavior::NumberCodec;
 use craft_theme::variant::Tone;
 use craft_theme::{Rgba, Srgba};
+
 use egui::{Response, Ui};
+
 use std::cell::{Cell, RefCell};
 
-/// The [`ColorRequest::key`](super::ColorRequest::key) of New Guide's Custom colour.
+/// The [`ColorRequest::key`](crate::runtime::requests::ColorRequest::key) of New Guide's Custom colour.
 pub const NEW_GUIDE_COLOR_KEY: &str = "guides.newGuide.color";
-/// The [`ColorRequest::key`](super::ColorRequest::key) of New Guide Layout's Custom colour.
+/// The [`ColorRequest::key`](crate::runtime::requests::ColorRequest::key) of New Guide Layout's Custom colour.
 pub const GUIDE_LAYOUT_COLOR_KEY: &str = "guides.layout.color";
 
 /// How far from the origin a guide may be, in pixels.

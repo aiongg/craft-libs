@@ -5,18 +5,26 @@ use super::{
     ColorTable, Dither, MATTE_COLOR_KEY, MAX_PERCENT, RESAMPLE_METHODS, SaveForWebOptions, SaveForWebWords, SizingWords, WebFormat, WebMetadata,
     WebPreset, percent_of,
 };
+use crate::runtime::requests::ColorRequest;
+
 use crate::buttons::Button;
 use crate::choice::Checkbox;
 use crate::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _, clicked};
+
 use crate::form::{Field, FieldGroup, SliderField};
+
 use crate::layout_components::Row;
-use crate::patterns::form_dialogs::{ColorRequest, LinkedSize, Resample, resize_from_scale};
+use crate::patterns::form_dialogs::{LinkedSize, Resample, resize_from_scale};
 use crate::pickers::{Select, UnitSelect};
+
 use crate::runtime::env::{Label, UnitKind, Units};
+
 use crate::sections::Section;
 use crate::text::{HexField, NumberField};
+
 use craft_behavior::NumberCodec;
 use craft_theme::{Rgba, Srgba};
+
 use egui::Ui;
 use std::ops::RangeInclusive;
 

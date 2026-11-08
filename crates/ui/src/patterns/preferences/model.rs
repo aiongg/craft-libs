@@ -7,6 +7,7 @@ use egui::{Context, Response, Ui};
 
 use crate::contract::{Entry, NoValue, Outcome};
 use crate::runtime::env::UnitKind;
+use crate::runtime::requests::ColorRequest;
 
 /// A setting's value as it crosses the boundary between the window and the host.
 #[derive(Clone, Debug, PartialEq)]
@@ -262,33 +263,6 @@ pub enum Closed {
     Ok,
     /// Cancel, Esc or the window's close: the host dropped the draft.
     Cancel,
-}
-
-/// A request to pick the colour of a colour row. The host opens its colour picker, keeps the request and answers
-/// with [`PreferencesModel::set_color`] on `key`.
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct ColorRequest {
-    /// The row the colour is for, returned with the answer.
-    pub key: String,
-    /// The colour picker's title, translated; `None` for the picker's default.
-    pub title: Option<String>,
-    /// The colour the picker opens with.
-    pub color: Srgba,
-}
-
-impl ColorRequest {
-    /// A request for the row `key`, opening the picker at `color`.
-    pub fn new(key: impl Into<String>, color: Srgba) -> Self {
-        Self { key: key.into(), title: None, color }
-    }
-
-    /// Sets the picker's title.
-    #[must_use]
-    pub fn title(mut self, title: impl Into<String>) -> Self {
-        self.title = Some(title.into());
-        self
-    }
 }
 
 /// What the window reports for one pass.

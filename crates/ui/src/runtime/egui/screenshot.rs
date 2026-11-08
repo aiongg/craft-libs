@@ -122,15 +122,15 @@ pub struct ScreenshotFacts {
 /// Issues one screenshot of `viewport`: a fresh slot bounded to `max_image_bytes` for its one image, the viewport
 /// command, and a pass even while the window is hidden. `max_image_bytes` bounds the single retained image only;
 /// the application reserves its aggregate budget before issuing the request.
-pub fn issue(ctx: &Context, viewport: ViewportId, max_image_bytes: usize) -> ScreenshotSlot {
+pub(crate) fn issue(ctx: &Context, viewport: ViewportId, max_image_bytes: usize) -> ScreenshotSlot {
     let (slot, callback) = ScreenshotSlot::with_callback(ctx, viewport, max_image_bytes);
     ctx.send_viewport_cmd_to(viewport, ViewportCommand::Screenshot(callback));
-    ctx.send_viewport_cmd_to(viewport, ViewportCommand::RequestPaintWhileHidden);
+    viewports::paint_while_hidden(ctx, viewport);
     slot
 }
 
 /// What a screenshot of the running viewport measures this pass.
-pub fn facts(ctx: &Context) -> ScreenshotFacts {
+pub(crate) fn facts(ctx: &Context) -> ScreenshotFacts {
     let window = viewports::current(ctx);
     let size_points = ctx.input(|input| window.inner.map_or_else(|| input.viewport_rect().size(), |inner| inner.size()));
     let max_texture_side = ctx.input(|input| input.max_texture_side);

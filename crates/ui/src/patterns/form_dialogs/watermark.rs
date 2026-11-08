@@ -2,19 +2,27 @@
 //! orientation, the position, the rotation, the size, the opacity, the insets and the shadow.
 
 use super::host_requests::HostRequests;
-use super::param::{PathKind, PathRequest};
 use crate::buttons::Button;
 use crate::choice::{Checkbox, Segmented};
+use crate::runtime::requests::{IMAGE_EXTENSIONS, PathKind, PathRequest};
+
 use crate::contract::{Bind, Entry, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, clicked};
+
 use crate::form::{Field, FieldGroup, SliderField};
+
 use crate::layout_components::Row;
 use crate::pickers::{Anchor9, ReferencePoint, Select};
+
 use crate::runtime::env::{Env, Label, UnitKind, Units};
+
 use crate::runtime::memory::Remember as _;
 use crate::text::TextField;
 use craft_behavior::{EditEvent, GestureId, Mixed};
+
 use egui::{Response, Ui};
+
 use serde::{Deserialize, Serialize};
+
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
@@ -25,7 +33,6 @@ mod stories;
 pub const WATERMARK_IMAGE_KEY: &str = "watermark";
 
 /// The extensions of the images the Choose button offers.
-const IMAGE_EXTENSIONS: [&str; 6] = ["png", "jpg", "jpeg", "webp", "tif", "tiff"];
 
 /// The rotations a watermark takes, in degrees.
 pub const ROTATIONS: [u16; 4] = [0, 90, 180, 270];

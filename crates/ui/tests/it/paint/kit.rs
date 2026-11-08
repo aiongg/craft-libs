@@ -1,7 +1,9 @@
 //! The content-paint kit's dashed line and marching ants.
 
+use craft_behavior::Axis;
 use craft_theme::{Contrast, Mode};
-use craft_ui::primitives::{dashed, marching_ants};
+use craft_ui::primitives::{dashed, marching_ants, ramp};
+use craft_ui::style::DataColor;
 use craft_ui::testing::style::tokens;
 use craft_ui::testing::trial;
 use egui::{Color32, Pos2, Rect, Shape, pos2};
@@ -95,4 +97,27 @@ fn marching_ants_sit_on_device_pixels_march_with_the_phase_and_keep_a_whole_pixe
         let (again, _) = at(0.0);
         assert_eq!(dark_quads, again, "the same phase gives the same dashes at {ppp}");
     }
+}
+
+fn ramp_vertices(shapes: &[Shape]) -> Vec<(Pos2, Color32)> {
+    match shapes {
+        [Shape::Mesh(mesh)] => mesh.vertices.iter().map(|vertex| (vertex.pos, vertex.color)).collect(),
+        other => panic!("a ramp is one mesh, not {other:?}"),
+    }
+}
+
+#[trial]
+fn a_ramp_holds_its_end_colours_out_to_the_edges_and_clamps_stops() {
+    let (red, blue) = (Color32::from_gray(40), Color32::from_gray(220));
+    let rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(100.0, 10.0));
+    let stops = [(-1.0, DataColor::new(red)), (0.25, DataColor::new(red)), (0.75, DataColor::new(blue))];
+    let found = ramp_vertices(&ramp(rect, &stops, Axis::X));
+    let top: Vec<(f32, Color32)> = found.iter().step_by(2).map(|(pos, color)| (pos.x, *color)).collect();
+    assert_eq!(top, [(0.0, red), (25.0, red), (75.0, blue), (100.0, blue)]);
+    assert!(found.chunks(2).all(|pair| pair[0].0.y == 0.0 && pair[1].0.y == 10.0), "each stop spans the strip across the axis");
+    let down = ramp_vertices(&ramp(rect, &stops[1..2], Axis::Y));
+    let rows: Vec<f32> = down.iter().step_by(2).map(|(pos, _)| pos.y).collect();
+    assert_eq!(rows, [0.0, 2.5, 10.0], "the vertical ramp runs top to bottom, holding the stop's colour to both edges");
+    assert!(down.chunks(2).all(|pair| pair[0].0.x == 0.0 && pair[1].0.x == 100.0), "each stop spans the strip across the axis");
+    assert!(ramp(rect, &[], Axis::X).is_empty());
 }

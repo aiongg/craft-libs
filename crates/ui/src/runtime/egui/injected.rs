@@ -10,11 +10,11 @@
 use std::collections::{HashMap, VecDeque};
 
 use craft_behavior::PointerButton;
-use craft_keymap::{Key, Mods};
+use craft_keymap::{Key, Mods, Platform};
 use egui::{Context, Event, Id, Modifiers, Pos2, ViewportId};
 
 use super::memory::Service;
-use super::{focus, pass, repaint};
+use super::{pass, repaint};
 
 /// One frame's events.
 pub(crate) type Frame = Vec<Event>;
@@ -102,9 +102,14 @@ fn egui_button(button: PointerButton) -> Option<egui::PointerButton> {
     }
 }
 
-/// The modifiers egui reports for `mods`: cmd is egui's `command`, which it folds per platform.
-fn egui_modifiers(mods: Mods) -> Modifiers {
-    Modifiers { alt: mods.alt, ctrl: mods.ctrl, shift: mods.shift, mac_cmd: false, command: mods.cmd }
+/// The modifiers egui reports for `mods` on `platform`, as the integration reports them: on macOS cmd is `mac_cmd`
+/// with `command` and ctrl stays the Control key; elsewhere cmd is Ctrl, so `ctrl` with `command`.
+fn egui_modifiers(mods: Mods, platform: Platform) -> Modifiers {
+    if platform.is_mac() {
+        Modifiers { alt: mods.alt, ctrl: mods.ctrl, shift: mods.shift, mac_cmd: mods.cmd, command: mods.cmd }
+    } else {
+        Modifiers { alt: mods.alt, ctrl: mods.cmd, shift: mods.shift, mac_cmd: false, command: mods.cmd }
+    }
 }
 
 /// A step handed to the input and waiting for its pass.
@@ -162,7 +167,7 @@ fn remove_event_run(events: &mut Vec<Event>, step: &[Event]) {
 /// whether a pass of the viewport must follow: steps remain queued.
 pub(crate) fn input_hook(ctx: &Context, input: &mut egui::RawInput) -> bool {
     let viewport = input.viewport_id;
-    let (pass_nr, focused) = (pass::pass_nr(ctx, viewport), focus::focused(ctx));
+    let (pass_nr, focused) = (pass::pass_nr(ctx, viewport), crate::runtime::focus::record(ctx, viewport).focused);
     Service::<Injected>::run(ctx, |injected| {
         let Some(lane) = injected.lanes.get_mut(&viewport) else { return false };
         if let Some(flight) = &lane.flight {
@@ -194,31 +199,31 @@ fn queue(ctx: &Context, viewport: ViewportId, frames: Vec<Frame>) {
 }
 
 /// Queues a pointer move to `at`.
-pub fn inject_move(ctx: &Context, viewport: ViewportId, at: Pos2) {
+pub(crate) fn inject_move(ctx: &Context, viewport: ViewportId, at: Pos2) {
     queue(ctx, viewport, vec![vec![pointer_moved(at)]]);
 }
 
 /// Queues a move to `at`, then `count` presses and releases of `button`, one frame each. A button egui has no
 /// counterpart for queues nothing.
-pub fn inject_click(ctx: &Context, viewport: ViewportId, at: Pos2, button: PointerButton, count: u32) {
+pub(crate) fn inject_click(ctx: &Context, viewport: ViewportId, at: Pos2, button: PointerButton, count: u32) {
     if let Some(button) = egui_button(button) {
         queue(ctx, viewport, click_frames(at, button, count, Modifiers::NONE));
     }
 }
 
 /// Queues `key` pressed and released, `mods` announced with the press and cleared with the release.
-pub fn inject_key(ctx: &Context, viewport: ViewportId, key: Key, mods: Mods) {
-    queue(ctx, viewport, key_frames(key.to_egui(), egui_modifiers(mods)));
+pub(crate) fn inject_key(ctx: &Context, viewport: ViewportId, key: Key, mods: Mods) {
+    queue(ctx, viewport, key_frames(key.to_egui(), egui_modifiers(mods, craft_keymap::egui::platform(ctx))));
 }
 
 /// Queues `text` as typed text.
-pub fn inject_text(ctx: &Context, viewport: ViewportId, text: &str) {
+pub(crate) fn inject_text(ctx: &Context, viewport: ViewportId, text: &str) {
     queue(ctx, viewport, text_frames(text));
 }
 
 /// Drops the queue of `viewport`: the application's document changed. A pending queue counts as withdrawn
 /// ([`take_withdrawn`]).
-pub fn withdraw(ctx: &Context, viewport: ViewportId) {
+pub(crate) fn withdraw(ctx: &Context, viewport: ViewportId) {
     Service::<Injected>::run(ctx, |injected| {
         if let Some(lane) = injected.lanes.remove(&viewport)
             && (lane.flight.is_some() || !lane.queue.is_empty())
@@ -229,7 +234,7 @@ pub fn withdraw(ctx: &Context, viewport: ViewportId) {
 }
 
 /// Drops every queue and step in flight; true when anything was pending.
-pub fn cancel(ctx: &Context) -> bool {
+pub(crate) fn cancel(ctx: &Context) -> bool {
     Service::<Injected>::run(ctx, |injected| {
         let pending = injected.lanes.values().any(|lane| lane.flight.is_some() || !lane.queue.is_empty());
         injected.lanes.clear();
@@ -238,7 +243,7 @@ pub fn cancel(ctx: &Context) -> bool {
 }
 
 /// Whether nothing is queued and no step awaits its pass: the application may answer its waiters.
-pub fn idle(ctx: &Context) -> bool {
+pub(crate) fn idle(ctx: &Context) -> bool {
     let viewports: Vec<ViewportId> = Service::<Injected>::run(ctx, |injected| injected.lanes.keys().copied().collect());
     let passes: Vec<(ViewportId, u64)> = viewports.into_iter().map(|viewport| (viewport, pass::pass_nr(ctx, viewport))).collect();
     Service::<Injected>::run(ctx, |injected| {
@@ -248,7 +253,7 @@ pub fn idle(ctx: &Context) -> bool {
 }
 
 /// Whether a step was withdrawn since the last call.
-pub fn take_withdrawn(ctx: &Context) -> bool {
+pub(crate) fn take_withdrawn(ctx: &Context) -> bool {
     Service::<Injected>::run(ctx, |injected| std::mem::take(&mut injected.withdrawn))
 }
 
@@ -261,8 +266,9 @@ pub fn hook_without_pass(ctx: &Context, viewport: ViewportId) -> Vec<Event> {
     input.events
 }
 
-/// Moves egui's key focus to `id` with no pass, as the application does between handing input over and its pass.
+/// Moves the focus the end hook recorded for `viewport` to the component `id` with no pass, as the application does
+/// between handing input over and its pass.
 #[cfg(feature = "testing")]
-pub fn move_focus_without_pass(ctx: &Context, id: Id) {
-    ctx.memory_mut(|memory| memory.request_focus(id));
+pub fn move_focus_without_pass(ctx: &Context, viewport: ViewportId, id: Id) {
+    crate::runtime::focus::with_viewport(ctx, viewport, |state| state.record.focused = Some(id));
 }

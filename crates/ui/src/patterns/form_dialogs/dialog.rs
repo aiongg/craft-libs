@@ -2,22 +2,33 @@
 //! owned by a `DialogHost`. A command form is a `ParamDialog` without a preview.
 
 use super::fields::{DialogFields, FieldValue};
+use crate::runtime::requests::{ColorRequest, EyedropperRequest, HostAnswer, PathRequest};
+
 use super::form::FormDialog;
-use super::host_requests::{HostAnswer, HostRequests};
-use super::param::{ColorRequest, EyedropperRequest, Param, ParamKind, PathRequest, open_fields, set_color_field};
+use super::host_requests::HostRequests;
+use super::param::{Param, ParamKind, open_fields, set_color_field};
 use super::preview::{PreviewPane, PreviewView, PreviewZoom};
+
 use super::rows::{ParamRows, ParamRowsOutput};
+
 use crate::choice::Checkbox;
 use crate::contract::{Bind, BodyCx, NoValue, Outcome, Props as _, Remember as _, SaveKey, Show as _, ShowContainer as _};
+
 use crate::dialog::{Dialog, DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
+
 use crate::layout_components::{Row, Stack};
+
 use crate::runtime::env::{Env, Label};
+
 use crate::runtime::memory::{MemoryStage, unique};
+
 use crate::runtime::overlay::CloseReason;
 use crate::runtime::words::CommonWords;
 use crate::sections::{DialogRole, FooterButton};
+
 use egui::load::SizedTexture;
 use egui::{Response, Ui};
+
 use std::borrow::Cow;
 
 #[cfg(feature = "testing")]

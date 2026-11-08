@@ -1,10 +1,13 @@
 //! Stories of `ParamRows`.
 
 use super::{DialogFields, ParamRows};
+use crate::runtime::requests::PathKind;
+
 use crate::contract::Bind;
-use crate::patterns::form_dialogs::{NumberUnit, Param, ParamKind, PathKind};
+use crate::patterns::form_dialogs::{NumberUnit, Param, ParamKind};
 use crate::runtime::env::UnitKind;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
+
 use egui::Ui;
 
 const SPEC: &str = r#"{"radius":0.1..1000=1,"method":"spin|zoom","smooth":bool,"seed":u32=0,"tint":color=#336699}"#;
