@@ -8,7 +8,7 @@ use craft_ui::list::{ListRow, RowInk, ThumbSize, ThumbTarget, ToggleCell, Traili
 use craft_ui::primitives::textures::{Priority, ThumbPaint as PicturePaint, ThumbRequest};
 use craft_ui::primitives::{ContentPainterCx, IconSpec};
 use craft_ui::runtime::env::Label;
-use craft_ui::style::DataColor;
+use craft_ui::style::{Corners, DataColor, SurfaceKind};
 use egui::{Color32, Rect, Stroke, pos2, vec2};
 
 use super::LayersPanelWords;
@@ -35,7 +35,6 @@ const CROSS_INSET_SHARE: f32 = 0.12;
 const MARK_WIDTH_SHARE: f32 = 0.06;
 const BADGE_SHARE: f32 = 0.34;
 const BADGE_GLYPH_SHARE: f32 = 0.28;
-const BADGE_FILL_ALPHA: u8 = 190;
 
 /// A data colour as the painter takes it.
 pub(super) fn paint_color(color: Rgba) -> Color32 {
@@ -146,10 +145,8 @@ fn paint_mask_marks(painter: &ContentPainterCx<'_>, rect: Rect, mask: &MaskInfo,
     if badges {
         let badge = side * BADGE_SHARE;
         let area = Rect::from_min_size(pos2(rect.right() - badge, rect.bottom() - badge), vec2(badge, badge));
-        // The glyph takes the surface's ink; the badge is its inverse, so the pair contrasts in either theme.
-        let ink = painter.ink();
-        let fill = Color32::from_rgba_unmultiplied(255 - ink.r(), 255 - ink.g(), 255 - ink.b(), BADGE_FILL_ALPHA);
-        painter.painter.rect_filled(area, 0.0, fill);
+        painter.surface(area, SurfaceKind::Scrim, Corners::None);
+        let ink = painter.ink_on(SurfaceKind::Scrim);
         let glyph = Stroke::new(badge * MARK_WIDTH_SHARE * 2.0, ink);
         if mask.part == LayerPart::VectorMask {
             let inset = area.shrink(badge * CROSS_INSET_SHARE * 2.0);
