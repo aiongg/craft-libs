@@ -5,7 +5,7 @@ use craft_behavior::{Axis, CancelReason, CanvasView, EditEvent};
 use craft_draw::ui::measure::{RulerBar, RulerLine, RulerOverlay, RulerPart, RulerTool, box_distances};
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPath, ToolPointer};
-use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
 use craft_ui::primitives::Draw;
 use craft_ui::testing::{Fixture, ToolFixture, trial};
 use egui::{Key, Modifiers, Pos2, Vec2};
@@ -109,10 +109,11 @@ fn bar_rig(line: Option<RulerLine>, scale: bool, factor: f64) -> Fixture {
     fixture
 }
 
-/// The value the readout field named `name` shows (its field node carries the text its body shows).
+/// The value the readout field named `name` shows (its group node carries the text its body shows).
 fn readout(fixture: &Fixture, name: &str) -> Option<String> {
-    let field = fixture.by_label(name)?;
-    fixture.tree().value_of(field.node).map(str::to_owned)
+    let tree = fixture.tree();
+    let field = fixture.by_role(Role::GROUP).into_iter().find(|group| tree.name_of(group.node) == Some(name))?;
+    tree.value_of(field.node).map(str::to_owned)
 }
 
 /// Use Measurement Scale multiplies the lengths and positions in the readouts, not the angle.

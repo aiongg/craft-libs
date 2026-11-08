@@ -408,6 +408,8 @@ fn overlay_menu_sets_the_overlay_and_show_rule() {
     rig.click("Set the overlay options for the Crop tool");
     rig.click("Triangle");
     assert_eq!(rig.settings.borrow().guide, CropGuide::Triangle);
+    eprintln!("DIAG after Triangle: {:?}", rig.fixture.texts().iter().map(|t| t.text.clone()).collect::<Vec<_>>());
+    eprintln!("DIAG trigger rect {:?}", rig.fixture.by_label("Set the overlay options for the Crop tool").map(|t| t.rect));
 
     rig.click("Set the overlay options for the Crop tool");
     assert!(!rig.disabled("Cycle Orientation"));
