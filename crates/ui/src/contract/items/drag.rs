@@ -34,13 +34,16 @@ pub(super) struct Drags<K> {
     pub(super) over: Option<K>,
     /// The selected row a plain press landed on: a click on it narrows the selection to it, a drag keeps it.
     pub(super) collapse: Option<K>,
+    /// The row whose rename column got a double press: the editor opens when the press ends as a click, not when it
+    /// becomes a drag.
+    pub(super) rename: Option<K>,
     /// The marquee a press on empty space started.
     pub(super) marquee: Option<MarqueeDrag<K>>,
 }
 
 impl<K> Default for Drags<K> {
     fn default() -> Self {
-        Drags { grabbed: None, sweep: None, moving: None, over: None, collapse: None, marquee: None }
+        Drags { grabbed: None, sweep: None, moving: None, over: None, collapse: None, rename: None, marquee: None }
     }
 }
 

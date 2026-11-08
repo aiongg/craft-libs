@@ -34,19 +34,20 @@ fn layer_fixture(story: &Story) -> Option<Fixture> {
 
 /// Whether `container` is a field container: exactly one control inside it is labelled, by nodes inside the container,
 /// and every other interactive node inside is a part of that control: below it, or beside it under the same parent
-/// and named like it (a spin button and its text input). An unnamed or differently named button beside the control is
-/// no part of it. The label names the control, so the group needs no name.
+/// and named like it or drawn inside it (a spin button and its text input, a scroll bar in a text area). A button beside
+/// the control that is neither is no part of it. The label names the control, so the group needs no name.
 fn is_field_of_one_control(tree: &crate::testing::access::AccessTree, container: crate::testing::access::NodeKey) -> bool {
     let inside = subtree(tree, container);
     let interactive: Vec<_> = inside.iter().copied().filter(|key| crate::testing::access::is_interactive(tree, *key)).collect();
     let labelled: Vec<_> = interactive.iter().copied().filter(|key| !tree.labelled_by_key(*key).is_empty()).collect();
     let [control] = labelled.as_slice() else { return false };
     let parts = subtree(tree, *control);
+    let bounds = tree.bounds_of(*control);
     let is_part = |key: &NodeKey| {
         parts.contains(key)
             || (tree.parent_of_key(*key) == tree.parent_of_key(*control)
-                && tree.name_of(*key).is_some()
-                && tree.name_of(*key) == tree.name_of(*control))
+                && (tree.name_of(*key).is_some() && tree.name_of(*key) == tree.name_of(*control)
+                    || bounds.zip(tree.bounds_of(*key)).is_some_and(|(control, part)| control.contains_rect(part))))
     };
     tree.labelled_by_key(*control).iter().all(|label| inside.contains(label)) && interactive.iter().all(is_part)
 }

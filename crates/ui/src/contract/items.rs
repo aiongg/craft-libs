@@ -944,7 +944,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                             == props.rename_column.as_ref()
                         && comp.can_rename(&key);
                     if names && !self.source.section_stop(at) {
-                        self.begin_rename(cx, at);
+                        self.drags.rename = Some(key);
                     } else if activates && !self.source.section_stop(at) {
                         self.events.push(CollectionEvent::Activate(key));
                     }
@@ -982,6 +982,12 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     let request = self.menu_request(layout, Placement { rect, offset, rtl }, row, local(pos));
                     self.events.push(CollectionEvent::ContextMenu(request));
                 }
+                if let Some(key) = self.drags.rename.take()
+                    && click
+                    && let Some(at) = self.index_of(&key)
+                {
+                    self.begin_rename(cx, at);
+                }
                 if let Some(key) = self.drags.collapse.take()
                     && click
                     && let Some(at) = self.index_of(&key)
@@ -993,7 +999,10 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     }
                 }
             }
-            PressPhase::Cancel { .. } => self.drags.collapse = None,
+            PressPhase::Cancel { .. } => {
+                self.drags.collapse = None;
+                self.drags.rename = None;
+            }
             _ => {}
         }
         // A secondary release on a row asks for its menu (9.2 rule 3); the row joins the selection unless it is in it.
