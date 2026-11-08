@@ -1,5 +1,6 @@
 //! The tick rule of a ruler: which values carry a tick and which of them are labelled.
 
+use crate::primitives::TickRank;
 use craft_behavior::RulerUnits;
 use std::ops::RangeInclusive;
 
@@ -84,10 +85,9 @@ pub enum TickRule<'a> {
 pub struct RulerTick {
     /// Ruler units from the zero point.
     pub value: f64,
-    /// A labelled tick: a multiple of the labelled step.
-    pub major: bool,
-    /// The tick halfway between two labelled ticks: not a labelled one, in a subdivision into an even count.
-    pub mid: bool,
+    /// [`TickRank::Major`] for a labelled tick (a multiple of the labelled step), [`TickRank::Mid`] for the tick halfway
+    /// between two labelled ticks in a subdivision into an even count, [`TickRank::Minor`] otherwise.
+    pub rank: TickRank,
     /// The labelled step in ruler units, which the label of a major tick is written for.
     pub step: f64,
 }
@@ -130,7 +130,14 @@ pub fn ticks(units: &RulerUnits, rule: TickRule<'_>, zoom: f64, values: RangeInc
     (first..=last)
         .map(|m| {
             let rem = m.rem_euclid(subdivisions);
-            RulerTick { value: m as f64 * minor, major: rem == 0, mid: subdivisions % 2 == 0 && rem == subdivisions / 2, step }
+            let rank = if rem == 0 {
+                TickRank::Major
+            } else if subdivisions % 2 == 0 && rem == subdivisions / 2 {
+                TickRank::Mid
+            } else {
+                TickRank::Minor
+            };
+            RulerTick { value: m as f64 * minor, rank, step }
         })
         .collect()
 }

@@ -2,8 +2,9 @@
 
 use craft_behavior::kurbo::Point;
 use craft_behavior::{Axis, CanvasView, GesturePhase, RulerUnits, Ticks};
-use craft_ui::canvas::{Canvas, GuideDrag, INCH_EIGHTHS, RulerPart, RulerText, Rulers, TickRule};
+use craft_ui::canvas::{Canvas, GuideDrag, INCH_EIGHTHS, RulerPart, RulerText, Rulers, TickRule, canvas_space};
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::primitives::TickRank;
 use craft_ui::runtime::env::UnitKind;
 use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Key, Modifiers, Pos2, Rect, Vec2};
@@ -36,7 +37,7 @@ fn pixels() -> RulerText {
 }
 
 fn majors(ticks: &[craft_ui::canvas::RulerTick]) -> Vec<f64> {
-    ticks.iter().filter(|tick| tick.major).map(|tick| tick.value).collect()
+    ticks.iter().filter(|tick| tick.rank == TickRank::Major).map(|tick| tick.value).collect()
 }
 
 #[trial]
@@ -47,9 +48,9 @@ fn the_pixel_ruler_labels_every_hundred_and_ticks_every_ten_at_full_size() {
     assert!(majors.iter().all(|value| value.rem_euclid(100.0) == 0.0), "labels sit on multiples of 100: {majors:?}");
     let gaps: Vec<f64> = ticks.windows(2).map(|pair| pair[1].value - pair[0].value).collect();
     assert!(gaps.iter().all(|gap| (gap - PIXEL_MINOR).abs() < 1e-9), "ticks are ten apart: {gaps:?}");
-    let mids: Vec<f64> = ticks.iter().filter(|tick| tick.mid).map(|tick| tick.value).collect();
+    let mids: Vec<f64> = ticks.iter().filter(|tick| tick.rank == TickRank::Mid).map(|tick| tick.value).collect();
     assert!(mids.iter().all(|value| value.rem_euclid(100.0) == 50.0), "the mid tick sits halfway between labels: {mids:?}");
-    assert!(!mids.is_empty() && ticks.iter().all(|tick| !(tick.major && tick.mid)));
+    assert!(!mids.is_empty());
 }
 
 #[trial]
@@ -194,4 +195,41 @@ fn a_secondary_click_on_the_locked_corner_opens_the_units_menu_and_one_on_the_do
     secondary_click(&mut shown, corner.center());
     assert_eq!(shown.contexts.borrow().last(), Some(&RulerPart::Corner));
     assert!(shown.fixture.by_label(MENU_ROW).is_some(), "the units menu is open");
+}
+
+#[trial]
+fn an_inch_range_ranks_labelled_steps_major_the_half_mid_and_the_rest_minor() {
+    let inches = RulerUnits::new(1.0 / 96.0, Ticks::decimal(false));
+    let ticks = Rulers::ticks(&inches, TickRule::Inches(&INCH_EIGHTHS), 1.0, 0.0..=2.0);
+    for tick in &ticks {
+        let eighths = (tick.value * 8.0).round() as i64;
+        let want = match eighths.rem_euclid(8) {
+            0 => TickRank::Major,
+            4 => TickRank::Mid,
+            _ => TickRank::Minor,
+        };
+        assert_eq!(tick.rank, want, "the tick at {} in", tick.value);
+    }
+    assert!(ticks.iter().any(|tick| tick.rank == TickRank::Mid), "the half-inch ticks are there");
+}
+
+#[trial]
+fn the_canvas_places_its_view_where_the_shown_rulers_report_the_content() {
+    let seen: Rc<RefCell<Vec<(Rect, Rect)>>> = Rc::default();
+    let record = Rc::clone(&seen);
+    let mut fixture = Fixture::new(move |ui| {
+        let text = pixels();
+        let view = CanvasView::new(VIEW, Point::new(180.0, 130.0), 1.0);
+        Canvas::new("Document").view(view).show_rulers(true).rulers(text, text, Point::ZERO).show(ui, |ui, body| {
+            let mut zero = Point::ZERO;
+            let out = Rulers::new("Rulers", Bind::bound(&mut zero)).show_at(ui, body.rect);
+            if let Some(space) = canvas_space(&body.env) {
+                record.borrow_mut().push((out.content_rect(), space.view.rect));
+            }
+        });
+    });
+    fixture.settle();
+    let (content, view) = *seen.borrow().last().expect("a pass shows the rulers");
+    assert!(content.width() > 0.0 && content.height() > 0.0);
+    assert_eq!(content, view, "the rulers' content rect is the canvas view's rect");
 }

@@ -233,8 +233,8 @@ impl<'a> Rulers<'a> {
     }
 
     /// The part of the canvas's rect `full` inside the strips: where the view lies.
-    pub fn content_rect(tokens: &UiTokens, full: Rect) -> Rect {
-        Self::content_rect_of(full, thickness(tokens))
+    pub fn content_rect(cx: &StyleCx<'_>, full: Rect) -> Rect {
+        Self::content_rect_of(full, thickness(cx.tokens))
     }
 
     /// The ticks of one ruler over `values` (ruler units from the zero point): the one tick rule of every ruler, so a
@@ -522,21 +522,10 @@ impl Component for Rulers<'_> {
         for (part, strip, edge) in [(RulerPart::Horizontal, top, TickEdge::Bottom), (RulerPart::Vertical, left, TickEdge::Right)] {
             let vertical = part == RulerPart::Vertical;
             let ticks = Self::axis_ticks(&text_of(part), &level, strip, part, zero);
-            let marks: Vec<Tick> = ticks
-                .iter()
-                .map(|(tick, at)| {
-                    let rank = if tick.major {
-                        TickRank::Major
-                    } else if tick.mid {
-                        TickRank::Mid
-                    } else {
-                        TickRank::Minor
-                    };
-                    Tick::new(*at - if vertical { strip.top() } else { strip.left() }, rank)
-                })
-                .collect();
+            let marks: Vec<Tick> =
+                ticks.iter().map(|(tick, at)| Tick::new(*at - if vertical { strip.top() } else { strip.left() }, tick.rank)).collect();
             painter.ticks(strip, edge, &marks);
-            for (tick, at) in ticks.iter().filter(|(tick, _)| tick.major) {
+            for (tick, at) in ticks.iter().filter(|(tick, _)| tick.rank == TickRank::Major) {
                 let text = text_of(part).tick_label(&numbers, tick.value, tick.step);
                 if vertical {
                     // One character per line, centred in the strip: a narrow "1" lines up with a "0".
