@@ -54,14 +54,14 @@ pub struct Picture<'a> {
     /// The picture's height.
     #[style_key]
     #[prop]
-    size: PictureSize,
+    extent: PictureSize,
 }
 
 impl<'a> Picture<'a> {
     /// A picture of the image `image` makes, stored under `key`. `label` names it for a screen reader; an empty
     /// one leaves it decorative.
     pub fn new(label: impl Into<Label>, key: u64, image: &'a dyn Fn() -> ColorImage) -> Self {
-        Picture { common: Common::new(), key, revision: Revision::default(), image, aspect: ThumbAspect::SQUARE, size: PictureSize::Icon }
+        Picture { common: Common::new(), key, revision: Revision::default(), image, aspect: ThumbAspect::SQUARE, extent: PictureSize::Icon }
             .label(label)
     }
 }
@@ -78,7 +78,7 @@ impl Component for Picture<'_> {
 
     fn style(cx: &StyleCx<'_>, key: PictureStyleKey) -> PictureStyle {
         let thumbs = &cx.tokens.size.thumb;
-        let height = match key.size {
+        let height = match key.extent {
             PictureSize::Icon => cx.control().icon,
             PictureSize::Thumb(step) => step.pick([thumbs.sm, thumbs.md, thumbs.lg]),
         };

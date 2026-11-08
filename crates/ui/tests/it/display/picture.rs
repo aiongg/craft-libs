@@ -9,7 +9,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 fn image() -> ColorImage {
-    ColorImage::new([4, 4], vec![Color32::RED; 16])
+    ColorImage::new([4, 4], vec![Color32::from_gray(200); 16])
 }
 
 /// A named picture is an image node and an unnamed one is decoration.

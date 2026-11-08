@@ -22,9 +22,9 @@ fn picture(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 fn picture_thumbnail(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     ui.horizontal(|ui| {
         for (key, step) in [(2, ThumbSize::Small), (3, ThumbSize::Medium), (4, ThumbSize::Large)] {
-            Picture::new("Gradient", key, &gradient).size(PictureSize::Thumb(step)).show(ui);
+            Picture::new("Gradient", key, &gradient).extent(PictureSize::Thumb(step)).show(ui);
         }
-        Picture::new("Gradient", 5, &gradient).size(PictureSize::Icon).show(ui)
+        Picture::new("Gradient", 5, &gradient).extent(PictureSize::Icon).show(ui)
     })
     .inner
     .into()
