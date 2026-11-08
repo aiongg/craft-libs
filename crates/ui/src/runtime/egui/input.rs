@@ -321,7 +321,7 @@ pub(crate) fn wheel_read(ctx: &Context, line: f32, page: f32) -> Option<(Vec2, W
 /// touch. Pointer moves and releases stay, so the pointer position stays right and no press or key sticks down. The
 /// events `keep` admits stay too (the canvas the modal leaves open, `runtime::sampler`); `pointer` is where the pointer
 /// stood before `input`. Returns whether anything went and whether a pointer press did or was kept.
-pub(crate) fn drop_under_modal(input: &mut RawInput, keep: Option<crate::runtime::sampler::Hole>, pointer: Option<Pos2>) -> (bool, bool) {
+pub(crate) fn drop_under_modal(input: &mut RawInput, keep: Option<&crate::runtime::sampler::Hole>, pointer: Option<Pos2>) -> (bool, bool) {
     let before = input.events.len();
     let mut press = false;
     let mut at = pointer;

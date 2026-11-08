@@ -8,8 +8,7 @@ use super::words::ParamWords;
 use crate::buttons::{Button, ToggleButton};
 
 use crate::choice::Checkbox;
-use crate::contract::{Bind, Entry, NoValue, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _, clicked};
-
+use crate::contract::{Bind, Entry, NoValue, Outcome, Props as _, Remember as _, Sampler as _, Show as _, ShowContainer as _, clicked};
 use crate::form::{Field, FieldGroup, SliderField};
 
 use crate::layout_components::{Row, Stack};
@@ -26,8 +25,7 @@ use crate::value_drag::{AngleDial, PointPicker, SliderScale};
 use craft_behavior::{EditEvent, GestureId, IconId, Mixed, NumberCodec};
 
 use craft_theme::Srgba;
-use egui::{Response, Ui};
-
+use egui::{Id, Response, Ui};
 use std::collections::BTreeMap;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
@@ -63,7 +61,8 @@ pub struct ParamRowsOutput {
     /// The Browse button pressed this pass: the host picks a path and writes it into the request's key as a
     /// [`FieldValue::Text`].
     pub path: Option<PathRequest>,
-    /// The eyedropper toggle pressed this pass: the host arms or disarms its dropper for the request's key.
+    /// The eyedropper toggle turned on this pass: the host answers with the colour the sampler picks for the request's
+    /// key. While a toggle is on the rows arm the sampler for `ParamRows::canvas`; turning it off files nothing.
     pub eyedropper: Option<EyedropperRequest>,
 }
 
@@ -95,18 +94,28 @@ pub struct ParamRows<'a> {
     fields: Bind<'a, DialogFields>,
     seed: Option<Bind<'a, u64>>,
     read_only: bool,
+    canvas: Option<Id>,
 }
 
 impl<'a> ParamRows<'a> {
     /// Rows for `params` over `fields`, the group named `label`.
     pub fn new(label: impl Into<Label>, params: &'a [Param], fields: Bind<'a, DialogFields>) -> Self {
-        ParamRows { label: label.into(), params, fields, seed: None, read_only: false }
+        ParamRows { label: label.into(), params, fields, seed: None, read_only: false, canvas: None }
     }
 
     /// The state of the Random button's sequence: each press reads it and writes the next.
     #[must_use]
     pub fn seed(mut self, seed: Bind<'a, u64>) -> Self {
         self.seed = Some(seed);
+        self
+    }
+
+    /// The canvas (the canvas component's id) the eyedropper rows sample while the rows are inside a modal dialog: an
+    /// armed eyedropper registers it with `Sampler::arm_sampler`, so primary presses on it pass through the dialog's
+    /// modal layer. The dialog body keeps the view usable itself with `Sampler::keep_view_open`.
+    #[must_use]
+    pub fn canvas(mut self, canvas: Id) -> Self {
+        self.canvas = Some(canvas);
         self
     }
 
@@ -119,7 +128,7 @@ impl<'a> ParamRows<'a> {
 
     /// Shows the rows across the width offered.
     pub fn show(self, ui: &mut Ui) -> ParamRowsOutput {
-        let ParamRows { label, params, mut fields, mut seed, read_only } = self;
+        let ParamRows { label, params, mut fields, mut seed, read_only, canvas } = self;
         let env = Env::of(ui);
         let words = env.words::<ParamWords>();
         let units = env.units();
@@ -141,6 +150,9 @@ impl<'a> ParamRows<'a> {
                 };
                 pass.begin(&filled, state, cx.keep::<Memo>().clone());
                 pass.rows(ui, params);
+                if let Some(canvas) = canvas.filter(|_| pass.sampling && !read_only) {
+                    cx.arm_sampler(canvas);
+                }
                 *cx.keep::<Memo>() = pass.memo.clone();
                 changed = pass.work != filled;
                 values = (pass.work != before).then(|| pass.work.clone());
@@ -182,6 +194,8 @@ struct Pass<'p> {
     color: Option<ColorRequest>,
     path: Option<PathRequest>,
     eyedropper: Option<EyedropperRequest>,
+    /// An eyedropper row is armed.
+    sampling: bool,
 }
 
 /// A parameter as the pass shows it: its key, its label without the colon, and whether it takes input.
@@ -215,6 +229,7 @@ impl<'p> Pass<'p> {
             color: None,
             path: None,
             eyedropper: None,
+            sampling: false,
         }
     }
 
@@ -227,6 +242,7 @@ impl<'p> Pass<'p> {
         self.color = None;
         self.path = None;
         self.eyedropper = None;
+        self.sampling = false;
     }
 
     /// The rows of `params`: those before the first section, then each section with the rows up to the next.
@@ -416,8 +432,11 @@ impl<'p> Pass<'p> {
                         .show(ui);
                     if let Some(on) = toggle.value().cloned() {
                         self.memo.armed.insert(line.key.to_owned(), on);
-                        self.eyedropper = Some(EyedropperRequest::new(line.key));
+                        if on {
+                            self.eyedropper = Some(EyedropperRequest::new(line.key));
+                        }
                     }
+                    self.sampling |= self.memo.armed.get(line.key).copied().unwrap_or(option.armed());
                 }
             });
         });

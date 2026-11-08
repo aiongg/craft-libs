@@ -65,6 +65,7 @@ pub use props::{Common, Props, Resolved, Tooltip, TooltipAt, TooltipSpec, Toolti
 pub use registry::REGISTRATIONS;
 #[doc(hidden)]
 pub use registry::{CollectionEntry, ContainerEntry, Exemption, LeafEntry, PatternProbe, Probe, Registration, ShowEntry};
+pub use sampler::Sampler;
 pub use values::{Bind, BindMut, EditResponse, ItemOutput, NoValue, Outcome, Validity, ValueOf, clicked};
 
 use crate::runtime::overlay::CloseReason;

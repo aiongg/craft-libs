@@ -4,6 +4,7 @@
 use super::{Act, State, StopKey};
 use crate::runtime::egui::focus as egui_focus;
 use crate::runtime::pointer;
+use crate::runtime::sampler;
 use craft_behavior::PartRef;
 use craft_behavior::Winner;
 use craft_behavior::focus::{PressFocus, classify_press};
@@ -17,7 +18,8 @@ pub(crate) struct PressAt {
 }
 
 pub(crate) fn press_at(ctx: &Context) -> Option<PressAt> {
-    egui_focus::primary_press_origin(ctx).map(|pos| {
+    // A press the modal's canvas took moves no key focus: the dialog keeps it.
+    egui_focus::primary_press_origin(ctx).filter(|pos| !sampler::admitted_press(ctx, *pos)).map(|pos| {
         let (winner, root) = pointer::press_winner(ctx, pos, pointer::pass_pointer(ctx).press_targets).unzip();
         PressAt { winner, root }
     })

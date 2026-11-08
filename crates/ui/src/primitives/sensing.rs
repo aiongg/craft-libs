@@ -495,7 +495,10 @@ fn outcome_in(ctx: &Context, read: &PassRead, arena: ArenaId, layer: Layer, enab
         let step = machine.step(input, |at| {
             // The press-target rule: egui's click target decides, its drag target only for a drag-only root; the
             // root starts a press when that target is its own or there is none.
-            let mine = |id: Option<Id>| id.is_none_or(|id| state.widgets.contains(&id));
+            let mine = |id: Option<Id>| match id {
+                Some(id) => state.widgets.contains(&id),
+                None => crate::runtime::sampler::takes_untargeted(ctx, state.root.map(|root| root.id), at),
+            };
             let targets = pass_pointer.press_targets;
             let allowed = if union_sense.contains(Sense::CLICK) {
                 mine(targets.click)
