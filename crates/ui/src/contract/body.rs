@@ -332,9 +332,10 @@ struct SurfacePress(bool);
 impl BodyCx<'_> {
     /// Whether the second press of a double click went down on the container's move band in this pass. The body step
     /// only reports it; the container decides what it means (a title bar maximizes the window, a floating frame
-    /// minimizes it). A band double click that the container never reads does nothing.
+    /// minimizes it). A band double click that the container never reads does nothing. A measuring run sees none: the
+    /// record it would read is last pass's, and a container that latches it would report the click twice.
     pub fn band_double_pressed(&self) -> bool {
-        self.memory.recall::<BandDouble>(sub(self.id, "band_double")).0
+        !self.memory.is_peek() && self.memory.recall::<BandDouble>(sub(self.id, "band_double")).0
     }
 
     /// Whether the primary press of this pass went down on the container's own surface, for a root that senses
