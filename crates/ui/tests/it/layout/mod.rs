@@ -2,6 +2,7 @@ mod arrange;
 mod body;
 mod column;
 mod end_region;
+mod first_pass;
 mod fonts;
 mod footer_room;
 mod grid_fill_column;

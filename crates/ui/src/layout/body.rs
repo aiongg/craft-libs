@@ -128,7 +128,7 @@ impl Cursor {
 }
 
 /// The cursor of a `SpaceBetween` row: each child in flow takes the next place along the row, and the room the
-/// children left last pass is shared between them. It places from last pass's measure, as `End` and `Center` do.
+/// children left in the measuring run is shared between them. It places from this pass's measuring run, as `End` and `Center` do.
 struct Spread {
     flow: Flow,
     gap: f32,
@@ -145,7 +145,7 @@ struct Spread {
 
 impl Spread {
     /// A cursor over `flow` with `gap` between children, spreading by `last`: the natural width and the number of
-    /// the children last pass.
+    /// the children the measuring run found.
     fn new(flow: Flow, gap: f32, last: Option<Vec2>) -> Self {
         let width = flow.rect().width();
         let between = last.filter(|last| last.y >= 2.0 && last.x < width).map_or(gap, |last| gap + (width - last.x) / (last.y - 1.0));
@@ -174,7 +174,7 @@ impl Spread {
         (self.at, self.natural, self.last) = (self.at + grow, self.natural + grow, self.last + grow);
     }
 
-    /// What `new` spreads by next pass.
+    /// What `new` spreads by in a real run.
     fn measured(&self) -> Vec2 {
         Vec2::new(self.natural, self.count as f32)
     }
@@ -248,21 +248,34 @@ fn row_id(grid: Id, index: usize) -> Id {
     sub(grid, ("row", index))
 }
 
-/// What the grid measured last pass; each entry is read as a placement that used it.
-fn last_measure(ctx: &egui::Context, grid: Id, columns: usize) -> GridMeasure {
-    let rows = layout_memory::read(ctx, sub(grid, "rows")).map_or(0, |count| count.x as usize);
+/// What the grid measured in this pass's measuring run.
+fn last_measure(ctx: &egui::Context, sizing: bool, grid: Id, columns: usize) -> GridMeasure {
+    let rows = this_pass(ctx, sizing, sub(grid, "rows")).map_or(0, |count| count.x as usize);
     GridMeasure::new(
-        (0..columns).map(|i| layout_memory::read(ctx, column_id(grid, i)).map_or(0.0, |size| size.x)).collect(),
-        (0..rows).map(|i| layout_memory::read(ctx, row_id(grid, i)).map_or(0.0, |size| size.y)).collect(),
+        (0..columns).map(|i| this_pass(ctx, sizing, column_id(grid, i)).map_or(0.0, |size| size.x)).collect(),
+        (0..rows).map(|i| this_pass(ctx, sizing, row_id(grid, i)).map_or(0.0, |size| size.y)).collect(),
     )
+}
+
+/// What this pass's measuring run found under `id`. A measuring run itself reads nothing.
+fn this_pass(ctx: &egui::Context, sizing: bool, id: Id) -> Option<Vec2> {
+    if sizing { None } else { layout_memory::measured(ctx, id).map(|found| found.took) }
+}
+
+/// Records what a measuring run found under `id`; a real run records nothing.
+fn found(ctx: &egui::Context, sizing: bool, id: Id, room: Vec2, took: Vec2) {
+    if sizing {
+        layout_memory::record_measured(ctx, id, layout_memory::Measured { room, took });
+    }
 }
 
 /// Runs `body` in a child `Ui` laid out by `layout` under `id`, in the direction of `ui`'s env. `gap` is the
 /// space between the cells of a `Grid`.
 ///
-/// `Row` with `End` or `Center` places its block from the size it took last pass, `SpaceBetween` shares the room
-/// its children left last pass between them, and `Grid` places its cells from last pass's widest child per column
-/// and tallest per row. A change of those sizes asks for one discard pass under the tolerance rule.
+/// Placement comes from this pass's measuring run: `Row` with `End` or `Center` places its block from the size the
+/// run found, `SpaceBetween` shares the room its children left there between them, and `Grid` places its cells from
+/// the widest child per column and tallest per row there. Without a measuring run they place as `Start`, spread at
+/// the gap and size columns from the cells as they come.
 pub(crate) fn run_body<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap: Vec2, body: impl FnOnce(&mut Ui) -> R) -> R {
     run_body_measured(ui, id, layout, gap, body).0
 }
@@ -272,12 +285,13 @@ pub(crate) fn run_body<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap: Vec2, b
 pub(crate) fn run_body_measured<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap: Vec2, body: impl FnOnce(&mut Ui) -> R) -> (R, Option<f32>) {
     let rtl = Env::of(ui).direction.is_rtl();
     let ctx = ui.ctx().clone();
+    let sizing = ui.is_sizing_pass();
     match layout {
         BodyLayout::Stack => (child::block(ui, None, child::column_layout(rtl), |ui| body(ui)).0, None),
         BodyLayout::Row { wrap: false, align: RowAlign::SpaceBetween } => {
             let (inner, _) = child::block(ui, None, child::row_layout(rtl, false), |ui| {
                 let flow = Flow::new(ui.available_rect_before_wrap(), rtl);
-                let spread = Spread::new(flow, gap.x, layout_memory::read(&ctx, id));
+                let spread = Spread::new(flow, gap.x, this_pass(&ctx, sizing, id));
                 Service::<Cursors>::run(&ctx, |cursors| cursors.0.insert(id, Cursor::Spread(spread)));
                 let installed = Env::install_for(ui, Env::of(ui).derive_local(|scoped| scoped.grid = Some(id)));
                 let inner = body(ui);
@@ -289,7 +303,7 @@ pub(crate) fn run_body_measured<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap
                 _ => None,
             };
             if let Some(measured) = measured {
-                layout_memory::record(&ctx, id, measured);
+                found(&ctx, sizing, id, ui.available_rect_before_wrap().size(), measured);
             }
             (inner, measured.map(|measured| measured.x))
         }
@@ -298,8 +312,8 @@ pub(crate) fn run_body_measured<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap
             let rect = match *align {
                 RowAlign::Start | RowAlign::SpaceBetween => None,
                 RowAlign::Center | RowAlign::End => {
-                    let last = layout_memory::read(&ctx, id);
-                    // Without a measured width from last pass the block is placed as `Start`.
+                    let last = this_pass(&ctx, sizing, id);
+                    // Without a measuring run the block is placed as `Start`.
                     last.filter(|last| last.x > 0.0 && last.x < room.width()).map(|last| {
                         let spare = room.width() - last.x;
                         let lead = if *align == RowAlign::Center { spare / 2.0 } else { spare };
@@ -314,13 +328,13 @@ pub(crate) fn run_body_measured<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap
                 inner
             });
             if *align != RowAlign::Start {
-                layout_memory::record(&ctx, id, took.size());
+                found(&ctx, sizing, id, room.size(), took.size());
             }
             (inner, (*align != RowAlign::Start).then(|| took.width()))
         }
         BodyLayout::Grid { columns } => {
             let inner = child::block(ui, None, child::column_layout(rtl), |ui| {
-                let last = last_measure(&ctx, id, columns.len());
+                let last = last_measure(&ctx, sizing, id, columns.len());
                 let cursor = GridCursor::new(Flow::new(ui.available_rect_before_wrap(), rtl), columns, gap, &last);
                 Service::<Cursors>::run(&ctx, |cursors| cursors.0.insert(id, Cursor::Grid(cursor)));
                 let installed = Env::install_for(ui, Env::of(ui).derive_local(|scoped| scoped.grid = Some(id)));
@@ -331,13 +345,14 @@ pub(crate) fn run_body_measured<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap
             .0;
             if let Some(Cursor::Grid(cursor)) = Service::<Cursors>::run(&ctx, |cursors| cursors.0.remove(&id)) {
                 let measured = cursor.measured();
+                let room = ui.available_rect_before_wrap().size();
                 for (i, width) in measured.columns.iter().enumerate() {
-                    layout_memory::record(&ctx, column_id(id, i), Vec2::new(*width, 0.0));
+                    found(&ctx, sizing, column_id(id, i), room, Vec2::new(*width, 0.0));
                 }
                 for (i, height) in measured.rows.iter().enumerate() {
-                    layout_memory::record(&ctx, row_id(id, i), Vec2::new(0.0, *height));
+                    found(&ctx, sizing, row_id(id, i), room, Vec2::new(0.0, *height));
                 }
-                layout_memory::record(&ctx, sub(id, "rows"), Vec2::new(measured.rows.len() as f32, 0.0));
+                found(&ctx, sizing, sub(id, "rows"), room, Vec2::new(measured.rows.len() as f32, 0.0));
             }
             (inner, None)
         }
