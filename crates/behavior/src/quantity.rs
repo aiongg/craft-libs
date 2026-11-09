@@ -27,6 +27,8 @@ pub fn is_unit_spelling(spelling: &str) -> bool {
 struct Unit {
     spelling: String,
     factor: f64,
+    /// What the caller named this unit by, handed back by [`Reader::read_tagged`].
+    tag: Option<u32>,
 }
 
 /// Reads numbers, expressions and unit quantities written in one locale.
@@ -71,7 +73,14 @@ impl Reader {
     /// Spaces between the number and the spelling are skipped, so "12 %" reads like "12%".
     #[must_use]
     pub fn unit(mut self, spelling: &str, factor: f64) -> Self {
-        self.units.push(Unit { spelling: spelling.to_lowercase(), factor });
+        self.units.push(Unit { spelling: spelling.to_lowercase(), factor, tag: None });
+        self
+    }
+
+    /// Like [`Reader::unit`], with a `tag` that [`Reader::read_tagged`] returns when the text names this spelling.
+    #[must_use]
+    pub fn unit_tagged(mut self, spelling: &str, factor: f64, tag: u32) -> Self {
+        self.units.push(Unit { spelling: spelling.to_lowercase(), factor, tag: Some(tag) });
         self
     }
 
@@ -82,13 +91,19 @@ impl Reader {
 
     /// The value of `text`. `start` is the value relative input applies to.
     pub fn read(&self, text: &str, start: Option<f64>) -> Result<f64, NotAValue> {
+        self.read_tagged(text, start).map(|(value, _)| value)
+    }
+
+    /// The value of `text` and the tag of the unit its last quantity named (`None` for a bare number or an untagged
+    /// unit).
+    pub fn read_tagged(&self, text: &str, start: Option<f64>) -> Result<(f64, Option<u32>), NotAValue> {
         let chars: Vec<char> = text.chars().filter(|c| !c.is_whitespace()).collect();
-        let mut parse = Parse { reader: self, chars: &chars, at: 0 };
+        let mut parse = Parse { reader: self, chars: &chars, at: 0, tag: None };
         let value = match (chars.first(), start) {
             (Some('+' | '*' | '/'), Some(start)) => parse.expr_from(start)?,
             _ => parse.expr()?,
         };
-        (parse.at == chars.len() && value.is_finite()).then_some(value).ok_or(NotAValue)
+        (parse.at == chars.len() && value.is_finite()).then_some((value, parse.tag)).ok_or(NotAValue)
     }
 }
 
@@ -96,6 +111,8 @@ struct Parse<'a> {
     reader: &'a Reader,
     chars: &'a [char],
     at: usize,
+    /// The tag of the unit the last quantity named.
+    tag: Option<u32>,
 }
 
 impl Parse<'_> {
@@ -160,6 +177,7 @@ impl Parse<'_> {
 
     fn quantity(&mut self) -> Result<f64, NotAValue> {
         let number = self.number()?;
+        self.tag = None;
         let rest: String = self.chars[self.at..].iter().copied().take_while(|c| is_unit_char(*c)).collect();
         if rest.is_empty() {
             return Ok(number);
@@ -167,6 +185,7 @@ impl Parse<'_> {
         let lowered = rest.to_lowercase();
         let unit = self.reader.units.iter().find(|unit| unit.spelling == lowered).ok_or(NotAValue)?;
         self.at += rest.chars().count();
+        self.tag = unit.tag;
         Ok(number * unit.factor)
     }
 

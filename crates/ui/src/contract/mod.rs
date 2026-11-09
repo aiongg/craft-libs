@@ -315,6 +315,13 @@ pub trait Component: Meta + Sized {
         None
     }
 
+    /// Whether `host`, a value the app wrote back, is the value `proposed` as the component holds values: a host that
+    /// stores a proposal rounded to the component's precision has not changed the document under a gesture. The
+    /// gesture's host-change check compares with this.
+    fn same_value(&self, proposed: &ValueOf<Self>, host: &ValueOf<Self>) -> bool {
+        proposed == host
+    }
+
     /// Lets a drag on the field's side label change the value; the pipeline runs the gesture (16.3, B2).
     fn scrub(&self) -> Option<Scrub<ValueOf<Self>>> {
         None

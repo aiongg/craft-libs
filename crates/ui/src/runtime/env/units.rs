@@ -95,6 +95,11 @@ impl UnitKind {
     /// The kinds that measure a length, which [`per_inch`](Self::per_inch) answers for: what a length field offers.
     pub const LENGTHS: [UnitKind; 5] = [UnitKind::Inches, UnitKind::Centimetres, UnitKind::Millimetres, UnitKind::Points, UnitKind::Picas];
 
+    /// The kind a [`Reader`](craft_behavior::Reader) tag names: the tags `reader_over` registers are indexes of `ALL`.
+    pub(crate) fn from_tag(tag: u32) -> Option<UnitKind> {
+        Self::ALL.get(tag as usize).copied()
+    }
+
     const ALL: [UnitKind; 12] = [
         UnitKind::Pixels,
         UnitKind::Percent,
@@ -413,11 +418,11 @@ impl Units {
             reader = reader.group(group);
         }
         let english = Units::new(self.format.clone(), english_words(), Arc::new(Words::english()), self.point_size);
-        for other in UnitKind::ALL {
+        for (tag, other) in UnitKind::ALL.into_iter().enumerate() {
             let Some(factor) = factor(other) else { continue };
             for spelling in [self.symbol(other), english.symbol(other)] {
                 if is_unit_spelling(&spelling) {
-                    reader = reader.unit(&spelling, factor);
+                    reader = reader.unit_tagged(&spelling, factor, tag as u32);
                 }
             }
         }

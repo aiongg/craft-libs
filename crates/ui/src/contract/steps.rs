@@ -344,9 +344,10 @@ pub(crate) fn value<C: Component>(comp: &mut C, stage: &mut MemoryStage, id: Id,
                 // last value step 11 wrote.
                 let changed = match &host {
                     Some((true, value)) => {
-                        gesture.last_given.as_ref().is_some_and(|last| last != value) && gesture.emitted.as_ref().is_some_and(|e| e != value)
+                        gesture.last_given.as_ref().is_some_and(|last| last != value)
+                            && gesture.emitted.as_ref().is_some_and(|emitted| !comp.same_value(emitted, value))
                     }
-                    Some((false, value)) => gesture.emitted.as_ref().is_some_and(|emitted| emitted != value),
+                    Some((false, value)) => gesture.emitted.as_ref().is_some_and(|emitted| !comp.same_value(emitted, value)),
                     None => false,
                 };
                 changed.then_some(CancelReason::HostChanged)

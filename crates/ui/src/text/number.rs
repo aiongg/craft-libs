@@ -149,6 +149,10 @@ pub struct NumberOutput<V: NumberValue = Option<f64>> {
     pub edit: EditResponse<V>,
     /// The presets row the user picked this pass.
     pub preset: Option<NumberPick>,
+    /// The unit the committed text named ("50 mm"), in the pass the text commits; `None` for a bare number, for
+    /// text that named no unit, and in every other pass. The value still holds the number in the field's stored
+    /// unit.
+    pub typed_unit: Option<UnitKind>,
 }
 
 impl<V: NumberValue> Deref for NumberOutput<V> {
@@ -322,16 +326,20 @@ impl<V: NumberValue> Codec for Ruled<V> {
     }
 
     fn parse(&self, text: &str, start: &V) -> Result<V, NotAValue> {
+        self.parse_tagged(text, start).map(|(value, _)| value)
+    }
+
+    fn parse_tagged(&self, text: &str, start: &V) -> Result<(V, Option<u32>), NotAValue> {
         if let Some(name) = self.name_of(text) {
-            return Ok(name);
+            return Ok((name, None));
         }
         if text.trim().is_empty() && (self.mixed || V::blank().is_none()) {
             return Err(NotAValue);
         }
-        let read = self.inner.parse(text, &self.shown(start))?;
+        let (read, tag) = self.inner.parse_tagged(text, &self.shown(start))?;
         match read {
-            Some(number) => Ok(V::of_number(self.held(number) / self.scale)),
-            None => V::blank().ok_or(NotAValue),
+            Some(number) => Ok((V::of_number(self.held(number) / self.scale), tag)),
+            None => V::blank().map(|blank| (blank, None)).ok_or(NotAValue),
         }
     }
 
@@ -357,6 +365,7 @@ impl<V: NumberValue> Codec for Ruled<V> {
     fn sample(&self, current: &V) -> Cow<'_, str> {
         match current.named() {
             Some(_) => Cow::Owned(self.format(current)),
+            None if self.rule.low.is_finite() && self.rule.high.is_finite() => Cow::Owned(self.inner.widest(&(self.rule.low..=self.rule.high))),
             None => self.inner.sample(&self.shown(current)),
         }
     }
@@ -701,7 +710,9 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         let field = FieldStyle::at(cx);
         NumberStyle {
             surface: field.surface.clone(),
-            metrics: field.metrics,
+            // The width comes from the range's widest value or, with no range, the field's minimum (`measure`); the
+            // style's minimum is only the height.
+            metrics: field.metrics.min_size(Vec2::new(0.0, field.metrics.min_size.y)),
             unit: TextLook::new(TypeRole::Body, Stateful::new(cx.ink(Ink::OnPanel))),
             field,
         }
@@ -721,10 +732,19 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         // The chevrons' extent is the span from the text's end to the last chevron's far edge, laid out in the
         // field's minimum size, which is wide enough for any adornments.
         let chevrons = self.chevrons(&cx.words::<TextWords>());
-        let probe = Rect::from_min_size(Pos2::ZERO, cx.style.metrics.min_size);
+        let probe = Rect::from_min_size(Pos2::ZERO, cx.style.field.metrics().min_size);
         let placed = Self::laid_out(cx.style, probe, false, &chevrons);
         let adornments = placed.trailing.last().map_or(0.0, |last| last.max.x - placed.text.max.x);
-        Vec2::new(text.x + unit + adornments, text.y.max(self.unit_size.y))
+        let width = text.x + unit + adornments;
+        // A field over no range has no widest value to size from, so it keeps the field's minimum width.
+        let rule = self.rule();
+        let width = if rule.low.is_finite() && rule.high.is_finite() {
+            width
+        } else {
+            let field = cx.style.field.metrics();
+            width.max(field.min_size.x - field.padding.start - field.padding.end)
+        };
+        Vec2::new(width, text.y.max(self.unit_size.y))
     }
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
@@ -754,6 +774,13 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
 
     fn bind(&mut self) -> Option<BindMut<'_, V>> {
         Some(self.value.reborrow())
+    }
+
+    /// A write-back equal to the proposal at the field's decimals is the gesture's own write.
+    fn same_value(&self, proposed: &V, host: &V) -> bool {
+        let decimals = self.decimals();
+        let at_precision = |value: &V| value.number().map(|number| round_to(number * self.scale, decimals));
+        proposed == host || (proposed.named() == host.named() && at_precision(proposed) == at_precision(host))
     }
 
     fn scrub(&self) -> Option<Scrub<V>> {
@@ -853,6 +880,10 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> NumberOutput<V> {
-        NumberOutput { edit: cx.edit_response(), preset: self.picked }
+        NumberOutput {
+            edit: cx.edit_response(),
+            preset: self.picked,
+            typed_unit: cx.text(&text_part::<V>()).and_then(|outcome| outcome.committed_tag).and_then(UnitKind::from_tag),
+        }
     }
 }

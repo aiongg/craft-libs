@@ -4,6 +4,7 @@
 use crate::quantity::Reader;
 use std::borrow::Cow;
 use std::fmt;
+use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 /// The text is not a value of the codec's type.
@@ -33,6 +34,11 @@ pub trait Codec {
 
     /// The value of `text`; `start` is the value when editing began, for relative input.
     fn parse(&self, text: &str, start: &Self::Value) -> Result<Self::Value, NotAValue>;
+
+    /// The value of `text` and the tag of the unit it named (`Reader::read_tagged`); the default names none.
+    fn parse_tagged(&self, text: &str, start: &Self::Value) -> Result<(Self::Value, Option<u32>), NotAValue> {
+        self.parse(text, start).map(|value| (value, None))
+    }
 
     /// Whether `text` applies as soon as it is typed rather than on commit.
     fn applies_as_typed(&self, _text: &str) -> bool {
@@ -71,6 +77,10 @@ impl<C: Codec + ?Sized> Codec for &C {
 
     fn parse(&self, text: &str, start: &Self::Value) -> Result<Self::Value, NotAValue> {
         (**self).parse(text, start)
+    }
+
+    fn parse_tagged(&self, text: &str, start: &Self::Value) -> Result<(Self::Value, Option<u32>), NotAValue> {
+        (**self).parse_tagged(text, start)
     }
 
     fn applies_as_typed(&self, text: &str) -> bool {
@@ -191,6 +201,14 @@ impl NumberCodec {
         self
     }
 
+    /// The widest text the codec writes for a number in `range`: the longer of its two ends, with every decimal
+    /// place, so a field over the range is sized for any value in it.
+    pub fn widest(&self, range: &RangeInclusive<f64>) -> String {
+        let text = |number: f64| format!("{number:.*}", self.decimals).replace('.', &self.reader.decimal_separator().to_string());
+        let (low, high) = (text(*range.start()), text(*range.end()));
+        if low.chars().count() > high.chars().count() { low } else { high }
+    }
+
     /// The most decimal places the codec writes.
     pub fn decimals(&self) -> usize {
         self.decimals
@@ -219,12 +237,17 @@ impl Codec for NumberCodec {
     }
 
     fn parse(&self, text: &str, start: &Option<f64>) -> Result<Option<f64>, NotAValue> {
+        self.parse_tagged(text, start).map(|(value, _)| value)
+    }
+
+    /// The tag is that of the unit the text named; `None` when it named no tagged unit or a custom parser read it.
+    fn parse_tagged(&self, text: &str, start: &Option<f64>) -> Result<(Option<f64>, Option<u32>), NotAValue> {
         if text.trim().is_empty() {
-            return Ok(None);
+            return Ok((None, None));
         }
-        match self.reader.read(text, *start) {
-            Ok(number) => Ok(Some(number)),
-            Err(rejected) => self.custom.as_ref().and_then(|parse| parse(text.trim())).map(Some).ok_or(rejected),
+        match self.reader.read_tagged(text, *start) {
+            Ok((number, tag)) => Ok((Some(number), tag)),
+            Err(rejected) => self.custom.as_ref().and_then(|parse| parse(text.trim())).map(|number| (Some(number), None)).ok_or(rejected),
         }
     }
 

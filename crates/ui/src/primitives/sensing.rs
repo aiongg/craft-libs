@@ -64,6 +64,8 @@ pub struct TextOutcome<V> {
     pub caret_visible: bool,
     /// The draft is not a value of the codec.
     pub invalid: bool,
+    /// The tag of the unit the text named in the pass it committed (`Codec::parse_tagged`).
+    pub committed_tag: Option<u32>,
     /// An IME composition is under way.
     pub composing: bool,
     /// The completion candidates the list shows; empty while it is closed.
@@ -73,7 +75,17 @@ pub struct TextOutcome<V> {
 impl<V> TextOutcome<V> {
     /// An outcome over `rect` with no draft or value.
     pub const fn new(rect: Rect) -> Self {
-        TextOutcome { rect, draft: None, value: None, layout: None, caret_visible: true, invalid: false, composing: false, completions: Vec::new() }
+        TextOutcome {
+            rect,
+            draft: None,
+            value: None,
+            layout: None,
+            caret_visible: true,
+            invalid: false,
+            committed_tag: None,
+            composing: false,
+            completions: Vec::new(),
+        }
     }
 }
 

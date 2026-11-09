@@ -160,17 +160,22 @@ impl<C: Codec> TypingRun<C> {
 
     /// Commits the draft: a value closes the run, a draft that is no value keeps it open.
     pub fn commit(&self, run: &mut EditRun<C::Value>) -> Ended<C::Value> {
-        let Some(draft) = run.draft.as_deref() else { return Ended::Idle };
-        match self.codec.parse(draft, &run.start) {
-            Ok(value) => {
+        self.commit_tagged(run).0
+    }
+
+    /// [`commit`](Self::commit), with the tag of the unit the committed text named (`Codec::parse_tagged`).
+    pub fn commit_tagged(&self, run: &mut EditRun<C::Value>) -> (Ended<C::Value>, Option<u32>) {
+        let Some(draft) = run.draft.as_deref() else { return (Ended::Idle, None) };
+        match self.codec.parse_tagged(draft, &run.start) {
+            Ok((value, tag)) => {
                 run.draft = None;
                 run.error = None;
-                Ended::Commit(value)
+                (Ended::Commit(value), tag)
             }
             Err(error) => {
                 run.error = Some(error);
                 run.rejected = Some((draft.to_owned(), run.start.clone()));
-                Ended::Rejected
+                (Ended::Rejected, None)
             }
         }
     }
