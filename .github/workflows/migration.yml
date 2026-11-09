@@ -172,9 +172,16 @@ jobs:
         run: cargo check --locked --target x86_64-pc-windows-gnu -p craft-window -p craft-ui
 
   domain-tests:
-    name: domain crates
+    name: domain crates (${{ matrix.shard }})
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    # Shards run in parallel; `rest` takes every listed crate no other shard names.
+    # craft-imaging is the longest crate: shard imaging-a runs the modules named in
+    # IMAGING_A, imaging-b skips exactly those, so together they run every test once.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [table, color, draw, fonts, imaging-a, imaging-b, rest]
     steps:
       - uses: actions/checkout@v7
       - name: List domain crates
@@ -204,14 +211,42 @@ jobs:
         if: steps.list.outputs.run == 'true'
         with:
           key: domain-tests
+          save-if: ${{ matrix.shard == 'table' }}
       - name: Test domain crates
         if: steps.list.outputs.run == 'true'
+        env:
+          SHARD: ${{ matrix.shard }}
         run: |
-          mapfile -t lines < <(grep -vE '^[[:space:]]*(#|$)' migration/check-crates.txt)
+          declare -A groups=(
+            [table]="craft-table craft-review"
+            [color]="craft-color craft-automation"
+            [draw]="craft-draw craft-browse craft-text craft-timeline"
+            [fonts]="craft-font-manager craft-menu craft-dialogs"
+            [imaging-a]="craft-imaging"
+            [imaging-b]="craft-imaging"
+          )
+          imaging_a=(suite:: warp:: curve:: select:: liquify:: adjust_editors::)
+          assigned=" ${groups[*]} "
+          extra=()
+          case "$SHARD" in
+            imaging-a) extra=(-- "${imaging_a[@]}") ;;
+            imaging-b) for m in "${imaging_a[@]}"; do extra+=(--skip "$m"); done; extra=(-- "${extra[@]}") ;;
+          esac
+          mapfile -t all < <(grep -vE '^[[:space:]]*(#|$)' migration/check-crates.txt)
+          lines=()
+          for line in "${all[@]}"; do
+            read -r pkg _ <<< "$line"
+            if [ "$SHARD" = rest ]; then
+              if [[ "$assigned" != *" $pkg "* ]]; then lines+=("$line"); fi
+            elif [[ " ${groups[$SHARD]} " == *" $pkg "* ]]; then
+              lines+=("$line")
+            fi
+          done
+          : > test.log
+          echo "shard $SHARD: ${#lines[@]} crates" | tee -a test.log
           meta="$RUNNER_TEMP/metadata.json"
           cargo metadata --no-deps --format-version 1 --locked > "$meta"
           failed=0
-          : > test.log
           for line in "${lines[@]}"; do
             read -r pkg fl <<< "$line"
             if [ "$pkg" = craft-ui ]; then
@@ -231,9 +266,9 @@ jobs:
               feats+=("$pkg/screen-testing")
             fi
             list=$(IFS=,; echo "${feats[*]}")
-            if ! cargo test --locked --no-fail-fast -p "$pkg" --features "$list" --test it 2>&1 | tee -a test.log; then failed=1; fi
+            if ! cargo test --locked --no-fail-fast -p "$pkg" --features "$list" --test it "${extra[@]}" 2>&1 | tee -a test.log; then failed=1; fi
           done
           exit "$failed"
       - name: Summary
         if: always() && steps.list.outputs.run == 'true'
-        run: bash .github/ci/summary.sh test.log "domain crates" >> "$GITHUB_STEP_SUMMARY"
+        run: bash .github/ci/summary.sh test.log "domain crates (${{ matrix.shard }})" >> "$GITHUB_STEP_SUMMARY"
