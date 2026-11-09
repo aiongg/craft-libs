@@ -111,17 +111,19 @@ impl<'a> CanvasPanel<'a> {
 
         let mut rail_rect = None;
         if let (Some((label, mut add)), true) = (rail, dock) {
-            let out = ShellRegion::pane(ShellPane::new("panel_rail").edge(PaneEdge::End)).label(label).show(ui, |ui, cx| add(ui, cx));
+            let out =
+                ShellRegion::pane(ShellPane::new("panel_rail").edge(PaneEdge::End)).id_salt("panel_rail").label(label).show(ui, |ui, cx| add(ui, cx));
             rail_rect = Some(out.response.rect);
         }
         let mut tabs_rect = None;
         if let (Some(mut add), true) = (tabs.map(|RegionBody(add)| add), tabs_shown) {
             let out = ShellRegion::pane(ShellPane::new("document_tabs").edge(PaneEdge::Top))
+                .id_salt("document_tabs")
                 .label(words.document_tabs.clone())
                 .show(ui, |ui, cx| add(ui, cx));
             tabs_rect = Some(out.response.rect);
         }
-        let out = ShellRegion::pane(ShellPane::new("document")).label(words.document.clone()).show(ui, |ui, cx| document(ui, cx));
+        let out = ShellRegion::pane(ShellPane::new("document")).id_salt("document").label(words.document.clone()).show(ui, |ui, cx| document(ui, cx));
         CanvasPanelOutput { document: out.response.rect, response: out.output.response, rail: rail_rect, tabs: tabs_rect }
     }
 }
