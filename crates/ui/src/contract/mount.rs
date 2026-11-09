@@ -277,6 +277,10 @@ struct ViewportHost {
 
 impl Host for ViewportHost {
     fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut HostPass<'_>) {
+        // A sizing pass of the parent shows no window: an OS window takes no room in its parent.
+        if parent.is_sizing_pass() {
+            return;
+        }
         let ctx = parent.ctx().clone();
         let focus = self.overlay.focus;
         let mut window_rules = self.overlay.clone();

@@ -120,3 +120,38 @@ fn a_row_widened_live_lays_out_as_a_fresh_one() {
     let near = |a: Rect, b: Rect| (a.min - b.min).length() <= SLACK && (a.max - b.max).length() <= SLACK;
     assert!(near(widened.0, fresh.0) && near(widened.1, fresh.1), "widened {widened:?}, fresh {fresh:?}");
 }
+
+/// Six nested content-sized containers of three kinds: in a settled frame each one's contents run once in a measuring
+/// run (an enclosing one's, reused by the rest) and once in the real run.
+#[trial]
+fn a_six_deep_nest_runs_each_container_once_measuring_and_once_real() {
+    fn nest(ui: &mut Ui, depth: usize, calls: &RefCell<Vec<u32>>) {
+        if depth == 0 {
+            Text::new("Inside").show(ui);
+            return;
+        }
+        calls.borrow_mut()[depth - 1] += 1;
+        let inner = |ui: &mut Ui| nest(ui, depth - 1, calls);
+        match depth % 3 {
+            0 => {
+                let _ = Stack::new().show(ui, |ui, _| inner(ui));
+            }
+            1 => {
+                let _ = Row::new().show(ui, |ui, _| inner(ui));
+            }
+            _ => {
+                let _ = Section::fixed("S").id_salt(("nest", depth)).show(ui, |ui, _| inner(ui));
+            }
+        }
+    }
+    let calls = RefCell::new(vec![0; 6]);
+    let mut frames = Frames::new();
+    frames.idle(3, |ui| nest(ui, 6, &calls));
+    calls.borrow_mut().fill(0);
+    let passes = frames.frame(vec![], |ui| nest(ui, 6, &calls));
+    let runs = measuring_runs(&frames.ctx);
+    assert_eq!(passes, 1);
+    assert!(runs.len() >= 6 && runs.iter().all(|(_, count)| *count == 1), "one measuring run per container: {runs:?}");
+    // The outermost closure runs outside any container; every other one runs in one measuring run and one real run.
+    assert_eq!(calls.borrow()[..5], [2; 5], "each container's contents run twice: {calls:?}");
+}
