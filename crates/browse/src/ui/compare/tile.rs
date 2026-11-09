@@ -2,6 +2,7 @@
 //! and the rejected veil.
 
 use std::cell::RefCell;
+use std::rc::Rc;
 
 use craft_behavior::CanvasTransform;
 use craft_ui::contract::{
@@ -74,16 +75,6 @@ struct Shown {
     clicked: bool,
     double_clicked: bool,
     view: Option<PreviewView>,
-}
-
-/// What the body shows: taken out of the tile before the container runs.
-struct Content<'a> {
-    label: Label,
-    view: Bind<'a, PreviewView>,
-    image: CompareImage<'a>,
-    state: RenderState,
-    survey: bool,
-    overlay: Option<PaneOverlay<'a>>,
 }
 
 /// The pane's well in the last pass, for the marks painted over it.
@@ -182,36 +173,40 @@ impl<'a> CompareTile<'a> {
             RenderState::Failed(message) => Some(message.clone()),
             RenderState::Ready | RenderState::Pending(false) => None,
         };
-        let content = RefCell::new(match (self.view.take(), self.image.take()) {
-            (Some(view), Some(image)) => {
-                Some(Content { label: self.label.clone(), view, image, state: self.state.clone(), survey: self.survey, overlay: self.overlay.take() })
+        let ppp = ui.pixels_per_point();
+        let picture = match self.image.take() {
+            Some(CompareImage::Texture(texture, size)) => Some(SizedTexture::new(texture.id, points(size, ppp))),
+            Some(CompareImage::Picture(key, revision, size, make)) => {
+                let store = TextureStore::<u64>::in_context(ui.ctx(), ("compare-textures", self.label.as_str()), TextureStoreOptions::frames());
+                let texture = store.get_or_put(ui.ctx(), key, revision, make);
+                Some(SizedTexture::new(texture.id, points(size, ppp)))
             }
-            _ => None,
-        });
-        let salt = self.label.as_str().to_owned();
+            Some(CompareImage::None) | None => None,
+        };
+        // The body runs in the measuring pass and again in the real one: it borrows what it shows and consumes
+        // nothing. The overlay is called at most once, by the pane's paint, which only the real run reaches.
+        let view = RefCell::new(self.view.take().map(Held::new));
+        let overlay = self.overlay.take().map(|overlay| Rc::new(RefCell::new(Some(overlay.into_paint()))));
+        let label = self.label.clone();
+        let state = self.state.clone();
+        let survey = self.survey;
         let shown = self.label(name).show_at(ui, rect, |ui, cx| {
-            let content = content.borrow_mut().take()?;
-            let Content { label, view, image, state, survey, overlay } = content;
-            let mut view = Held::new(view);
-            let ppp = ui.pixels_per_point();
-            let picture = match image {
-                CompareImage::Texture(texture, size) => Some(SizedTexture::new(texture.id, points(size, ppp))),
-                CompareImage::Picture(key, revision, size, make) => {
-                    let store = TextureStore::<u64>::in_context(ui.ctx(), ("compare-textures", &salt), TextureStoreOptions::frames());
-                    let texture = store.get_or_put(ui.ctx(), key, revision, make);
-                    Some(SizedTexture::new(texture.id, points(size, ppp)))
-                }
-                CompareImage::None => None,
-            };
+            let mut view = view.borrow_mut();
+            let view = view.as_mut()?;
             let held = if survey { PreviewView::fixed() } else { view.read(cx).unwrap_or_else(PreviewView::fitting) };
             let preview = match (&state, picture) {
                 (RenderState::Failed(message), _) => PreviewState::Failed(Label::from(message.clone())),
                 (RenderState::Pending(true), _) | (_, None) => PreviewState::Pending(None),
                 (_, Some(texture)) => PreviewState::Ready(texture),
             };
-            let mut pane = PreviewPane::state(label, preview, &held);
-            if let Some(overlay) = overlay {
-                pane = pane.overlay(overlay.into_paint());
+            let mut pane = PreviewPane::state(label.clone(), preview, &held);
+            if let Some(overlay) = &overlay {
+                let overlay = Rc::clone(overlay);
+                pane = pane.overlay(move |painter: &ContentPainterCx, view, picture| {
+                    if let Some(paint) = overlay.borrow_mut().take() {
+                        paint(painter, view, picture);
+                    }
+                });
             }
             let out = pane.show(ui);
             cx.memory::<Well>().0 = Some(out.response.rect);
