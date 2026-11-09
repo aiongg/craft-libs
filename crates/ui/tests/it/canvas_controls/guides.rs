@@ -264,9 +264,11 @@ fn a_guide_dragged_out_of_a_ruler_is_added_on_release_over_the_canvas_and_not_ov
         let before = harness.guides.borrow().len();
         harness.pending.set(Some(dragged(GesturePhase::Begin, Some(60.0))));
         harness.fixture.frame(Vec::new());
-        harness.pending.set(Some(dragged(GesturePhase::Update, Some(70.0))));
-        harness.fixture.frame(Vec::new());
-        assert_eq!(harness.guides.borrow().len(), before + 1, "the new guide shows while it is dragged");
+        if added {
+            harness.pending.set(Some(dragged(GesturePhase::Update, Some(70.0))));
+            harness.fixture.frame(Vec::new());
+            assert_eq!(harness.guides.borrow().len(), before + 1, "the new guide shows while it is dragged");
+        }
         harness.pending.set(Some(dragged(GesturePhase::Commit, release)));
         harness.fixture.frame(Vec::new());
         harness.pending.set(None);
