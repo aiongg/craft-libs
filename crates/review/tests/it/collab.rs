@@ -182,7 +182,7 @@ fn cursor_chat_sends_each_change_and_closes_with_escape() {
     let mut fixture = Fixture::new(move |ui| {
         let mut shared = shared.borrow_mut();
         let (mut text, mut open) = std::mem::take(&mut *shared);
-        Stack::new().show(ui, |ui, cx| {
+        Stack::new().command_scope(craft_ui::runtime::commands::CommandScope::APP).show(ui, |ui, cx| {
             while cx.take_command::<ReviewCommand>().is_some() {
                 open = true;
             }
@@ -237,7 +237,7 @@ fn initials_and_name_tags_read_on_every_people_colour() {
             let area = ui.available_rect_before_wrap();
             let view = craft_behavior::CanvasView::new(area, kurbo::Point::new(0.0, 0.0), 1.0);
             Canvas::new("Document").view(view).show(ui, |ui, cx| {
-                craft_review::ui::RemoteCursors::new("Cursors", &room, 1.0).show_at(ui, cx.rect);
+                craft_review::ui::RemoteCursors::new("Cursors", &room).show_at(ui, cx.rect);
             });
         };
         let ratio = contrast_ratio(craft_theme::Rgba::from(first_ink(&mut tag)), fill);
@@ -266,4 +266,26 @@ fn escape_while_following_stops_following() {
     craft_ui::runtime::commands::fire(fixture.ctx(), craft_review::ui::FollowCommand::StopFollowing, craft_ui::runtime::commands::FireSource::Key);
     fixture.settle();
     assert!(following.borrow().is_none(), "the stop command stops following");
+}
+
+/// Escape, the command's default binding, reaches the follow frame while it shows.
+#[trial]
+fn escape_key_stops_following() {
+    let following = Rc::new(RefCell::new(Some(ParticipantId(2))));
+    let shared = following.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let area = ui.available_rect_before_wrap();
+        let view = craft_behavior::CanvasView::new(area, kurbo::Point::new(0.0, 0.0), 1.0);
+        let mut shared = shared.borrow_mut();
+        let on = shared.is_some();
+        Canvas::new("Document").view(view).show(ui, |ui, cx| {
+            if on && craft_review::ui::FollowFrame::new("Following", PEOPLE_COLORS[1], "Following Bo Chen").show_at(ui, cx.rect).stopped {
+                *shared = None;
+            }
+        });
+    });
+    fixture.settle();
+    fixture.key(egui::Key::Escape, egui::Modifiers::NONE);
+    fixture.settle();
+    assert!(following.borrow().is_none(), "Escape stops following");
 }

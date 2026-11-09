@@ -100,7 +100,14 @@ name = "RemoteCursors"
 old = "craft_review::ui::RemoteCursors"
 new = "craft_review::ui::RemoteCursors"
 status = "replaced"
-note = "A canvas control component shown in the canvas body; `new(label, transport, now)`."
+note = "A builder shown in the canvas body with `show_at(ui, rect)`; `new(label, transport)` takes no clock: each person's `RemoteCursor` glides and fades on the motion service."
+
+[[type]]
+name = "RemoteCursor"
+old = ""
+new = "craft_review::ui::RemoteCursor"
+status = "replaced"
+note = "A canvas control component, one person's cursor; `new(label, &Participant)`."
 
 [[type]]
 name = "paint_pointer"
@@ -505,7 +512,7 @@ name = "FollowCommand"
 old = ""
 new = "craft_review::ui::FollowCommand"
 status = "replaced"
-note = "`#[non_exhaustive]` command set: `StopFollowing`, bound to Escape, taken by `FollowFrame`."
+note = "`#[non_exhaustive]` command set: `StopFollowing`, bound to Escape, taken by `FollowFrame`, which is the instance of the `follow` scope while it shows."
 
 [[type]]
 name = "FollowFrameOutput"

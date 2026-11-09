@@ -116,6 +116,22 @@ fn posting_and_replying_report_edits() {
     rig.app.borrow_mut().edits.clear();
 }
 
+/// A click on a card's "..." opens the menu under that button; Escape closes it and focus returns to the button.
+#[trial]
+fn card_menu_hangs_from_its_button_and_escape_returns_focus() {
+    let mut rig = rig(vec![thread(1, 1, 0.0, "first", 0)], Some(1));
+    let button = rig.fx.by_label("More").expect("the selected card shows its menu button");
+    rig.fx.click(&button);
+    rig.fx.settle();
+    let menu = rig.fx.by_role(craft_ui::contract::Role::MENU).into_iter().next().expect("the click opens the menu");
+    assert!(menu.rect.top() >= button.rect.center().y, "the menu hangs under the button: {:?} under {:?}", menu.rect, button.rect);
+    rig.fx.key(egui::Key::Escape, egui::Modifiers::NONE);
+    rig.fx.settle();
+    assert!(rig.fx.by_role(craft_ui::contract::Role::MENU).is_empty(), "Escape closes the menu");
+    let (_, part) = rig.fx.focused_stop().expect("focus stays in the card");
+    assert!(part.is_some_and(|part| part.key.name() == "more"), "focus returns to the button: {part:?}");
+}
+
 #[trial]
 fn selected_card_menu_sets_status_and_deletes() {
     let mut rig = rig(vec![thread(1, 1, 0.0, "first", 0)], Some(1));

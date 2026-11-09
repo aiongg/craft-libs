@@ -2,10 +2,9 @@
 
 use craft_theme::variant::Variant;
 use craft_ui::contract::{Bind, NoValue, Outcome, PaintUi, Pattern, Props, Remember as _, Show as _, ShowContainer as _};
-use craft_ui::fonts::FontRef;
 use craft_ui::layout_components::Stack;
 use craft_ui::popover::Popover;
-use craft_ui::primitives::{DocRun, DocText, PaintShape, TextRun, Wrap};
+use craft_ui::primitives::{PaintShape, TextRun, Wrap};
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::runtime::overlay::CloseReason;
 use craft_ui::style::{DataColor, StyleCx, TypeRole};
@@ -72,9 +71,11 @@ impl BubbleLook {
 pub fn paint_chat_bubble(ui: &PaintUi<'_>, look: &BubbleLook, tip: Pos2, name: Option<&str>, text: &str, fill: [u8; 3], alpha: f32) {
     let draw = ui.draw();
     let [r, g, b] = fill;
-    let ink = ui.with_style(Variant::SECONDARY, |cx| cx.ink_on(DataColor::new(Color32::from_rgb(r, g, b)))).egui();
-    let measured = draw.layout(&TextRun::new(text).role(TypeRole::Body).wrap(Wrap::Wrap), look.width).size();
-    let head = name.map(|name| draw.layout(&TextRun::new(name).role(TypeRole::Caption), look.width).size());
+    let ink = ui.with_style(Variant::SECONDARY, |cx| cx.ink_on(DataColor::new(Color32::from_rgb(r, g, b))));
+    let body = TextRun::new(text).role(TypeRole::Body).wrap(Wrap::Wrap).color(ink);
+    let title = name.map(|name| TextRun::new(name).role(TypeRole::Caption).color(ink));
+    let measured = draw.layout(&body, look.width).size();
+    let head = title.as_ref().map(|title| draw.layout(title, look.width).size());
     let head_height = head.map_or(0.0, |size| size.y + look.gap);
     let width = head.map_or(0.0, |size| size.x).max(measured.x);
     let rect = Rect::from_min_size(tip + look.offset, Vec2::new(width, head_height + measured.y) + 2.0 * look.pad);
@@ -83,13 +84,13 @@ pub fn paint_chat_bubble(ui: &PaintUi<'_>, look: &BubbleLook, tip: Pos2, name: O
         let background = Color32::from_rgb(r, g, b);
         draw.data_fill(&PaintShape::Rect(rect, CornerRadius { nw: 0, ne: round, sw: round, se: round }), DataColor::new(background));
         let mut at = rect.min + look.pad;
-        if let Some(name) = name {
-            let runs = [DocRun::new(name.to_owned(), FontRef::proportional(), look.caption.0, DataColor::new(ink.gamma_multiply(NAME_INK)))];
-            draw.doc(Rect::from_min_size(at, Vec2::new(width, look.caption.1)), &DocText::new(&runs));
+        if let Some(title) = &title {
+            draw.faded(NAME_INK, |draw| {
+                draw.text(Rect::from_min_size(at, Vec2::new(width, look.caption.1)), title);
+            });
             at.y += head_height;
         }
-        let runs = [DocRun::new(text.to_owned(), FontRef::proportional(), look.body.0, DataColor::new(ink))];
-        draw.doc(Rect::from_min_size(at, Vec2::new(width, measured.y)), &DocText::new(&runs));
+        draw.text(Rect::from_min_size(at, Vec2::new(width, measured.y)), &body);
     });
 }
 

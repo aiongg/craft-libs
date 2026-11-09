@@ -1,13 +1,14 @@
 //! Avatars of the people in a shared document and their cursors on the canvas.
 
 use craft_behavior::kurbo::Point;
-use craft_behavior::{IconId, Input, Metrics};
+use craft_behavior::{IconId, Input, Metrics, MotionKind, Playback};
 use craft_theme::Srgba;
 use craft_theme::variant::Variant;
 use craft_ui::buttons::IconButton;
 use craft_ui::canvas::canvas_space;
 use craft_ui::contract::{
-    Commands as _, Common, Component, Cx, Entry, MeasureCx, NoValue, Outcome, PaintUi, Pattern, Props, Role, Show as _, ShowContainer as _, Trigger,
+    Animate as _, CommandSet as _, Commands as _, Common, Component, Cx, Entry, MeasureCx, NoValue, Outcome, PaintUi, Pattern, Props, Remember as _,
+    Role, Show as _, ShowContainer as _, Trigger, spec,
 };
 use craft_ui::display::Badge;
 use craft_ui::layout_components::{Row, Stack};
@@ -19,7 +20,7 @@ use egui::{Color32, CornerRadius, Pos2, Rect, Response, Ui, Vec2};
 
 use super::avatar::Avatar;
 use super::chat::{BubbleLook, paint_chat_bubble};
-use crate::collab::{CollabRequest, CollabTransport, Participant, ParticipantId, chat_alpha};
+use crate::collab::{CHAT_FADE_S, CHAT_HOLD_S, CollabRequest, CollabTransport, Participant, ParticipantId, chat_alpha};
 
 #[cfg(feature = "screen-testing")]
 mod stories;
@@ -220,29 +221,63 @@ fn ink_on_person(ui: &PaintUi<'_>, fill: [u8; 3]) -> StyleColor {
     ui.with_style(Variant::SECONDARY, |cx| cx.ink_on(data(fill)))
 }
 
-/// Other people's cursors over the canvas: a pointer and a name tag in their colour at each reported position, their
-/// selection outlines (at most 500) and their cursor chat bubbles. `now` is the clock the chat stamps use; a bubble
-/// shows for its hold and fades out. Not interactive.
-#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
-#[component(canvas_control)]
+/// Other people's cursors over the canvas: for each other person a pointer and a name tag in their colour, their
+/// selection outlines (at most 500) and their cursor chat bubble. A pointer glides to each reported position on the
+/// motion service's follow curve; a bubble shows for its hold, measured from the pass it first showed its text, and
+/// fades out. Not interactive.
+#[derive(Pattern)]
 pub struct RemoteCursors<'a> {
-    #[common]
-    common: Common,
+    label: Label,
     transport: &'a dyn CollabTransport,
-    now: f64,
-    /// Chat bubbles do not fade (the app's reduced-motion setting).
-    #[prop(name = "reduced_motion")]
-    reduced: bool,
 }
 
 impl<'a> RemoteCursors<'a> {
-    /// Cursors for the people in `transport`'s session, named `label`.
-    pub fn new(label: impl Into<Label>, transport: &'a dyn CollabTransport, now: f64) -> Self {
-        RemoteCursors { common: Common::new(), transport, now, reduced: false }.label(label)
+    /// Cursors for the people in `transport`'s session, each named `label`.
+    pub fn new(label: impl Into<Label>, transport: &'a dyn CollabTransport) -> Self {
+        RemoteCursors { label: label.into(), transport }
+    }
+
+    /// Shows everyone else's cursor over the canvas body at `rect`.
+    pub fn show_at(self, ui: &mut Ui, rect: Rect) {
+        let me = self.transport.me();
+        for person in self.transport.participants().iter().filter(|person| person.id != me) {
+            let _ = RemoteCursor::new(self.label.clone(), person).id_salt(person.id.0).show_at(ui, rect);
+        }
     }
 }
 
-impl Component for RemoteCursors<'_> {
+/// What a remote cursor remembers of its person's chat bubble: the message as it was last seen and the pass time it
+/// first showed.
+#[derive(Clone, Default)]
+struct ChatSeen {
+    text: String,
+    changed: f64,
+    at: f64,
+}
+
+/// One other person's cursor over the canvas; [`RemoteCursors`] shows one per person. Not interactive.
+#[derive(craft_ui::contract::Component)]
+#[component(canvas_control)]
+pub struct RemoteCursor<'a> {
+    #[common]
+    common: Common,
+    person: &'a Participant,
+    /// The pointer's tip in document units after this pass's glide, `None` off the canvas.
+    tip: Option<Pos2>,
+    /// How long the bubble has shown, `None` when the person has no chat.
+    chat_age: Option<f64>,
+    /// Chat bubbles hold until their fade would end instead of fading.
+    reduced: bool,
+}
+
+impl<'a> RemoteCursor<'a> {
+    /// The cursor of `person`, named `label`.
+    pub fn new(label: impl Into<Label>, person: &'a Participant) -> Self {
+        RemoteCursor { common: Common::new(), person, tip: None, chat_age: None, reduced: false }.label(label)
+    }
+}
+
+impl Component for RemoteCursor<'_> {
     const ROLE: Role = Role::GRAPHICS_OBJECT;
     const ALT_ROLES: &'static [Role] = &[Role::None];
     const INPUT: Input = Input::Display;
@@ -252,12 +287,35 @@ impl Component for RemoteCursors<'_> {
     type Style = CursorStyle;
     type Output = Response;
 
-    fn style(cx: &StyleCx<'_>, _: RemoteCursorsStyleKey) -> CursorStyle {
+    fn style(cx: &StyleCx<'_>, _: RemoteCursorStyleKey) -> CursorStyle {
         cursor_style(cx)
     }
 
     fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
         Vec2::ZERO
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        self.tip = self.person.cursor.map(|[x, y]| cx.anim("tip", Pos2::new(x as f32, y as f32), spec::FOLLOW));
+        self.reduced = cx.env.motion().mode.playback(MotionKind::Fade) != Playback::Run;
+        let now = cx.now();
+        let chat = self.person.chat.as_ref().filter(|chat| !chat.text.is_empty());
+        let seen = cx.memory::<ChatSeen>();
+        let first_shown = chat.map(|chat| {
+            if seen.text != chat.text || seen.changed != chat.changed {
+                *seen = ChatSeen { text: chat.text.clone(), changed: chat.changed, at: now };
+            }
+            seen.at
+        });
+        self.chat_age = first_shown.map(|at| now - at);
+        let (Some(at), Some(age)) = (first_shown, self.chat_age) else { return };
+        if age < CHAT_HOLD_S {
+            cx.wake_at(at + CHAT_HOLD_S);
+        } else if self.reduced {
+            cx.wake_at(at + CHAT_HOLD_S + CHAT_FADE_S);
+        } else if age < CHAT_HOLD_S + CHAT_FADE_S {
+            cx.wake_at(now);
+        }
     }
 
     fn access(&self, access: &mut craft_ui::contract::Access, _: &Cx<'_, Self>) {
@@ -266,26 +324,21 @@ impl Component for RemoteCursors<'_> {
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let Some(space) = canvas_space(&cx.env) else { return };
-        let (view, style) = (space.view, cx.style);
+        let (view, style, person) = (space.view, cx.style, self.person);
         let draw = ui.draw();
-        let me = self.transport.me();
-        let screen = |p: [f64; 2]| view.to_screen(Point::new(p[0], p[1]));
-        for person in self.transport.participants().iter().filter(|person| person.id != me) {
-            for [min, max] in person.selection.iter().take(MAX_OUTLINES) {
-                let outline = Rect::from_two_pos(screen(*min), screen(*max));
-                draw.stroke(&PaintShape::Rect(outline, CornerRadius::ZERO), StrokeWidth::Thin, data(person.color));
-            }
-            let Some(cursor) = person.cursor else { continue };
-            let tip = screen(cursor);
-            paint_pointer(&draw, style.halo, style.pointer, tip, person.color);
-            let bubble = person.chat.as_ref().filter(|chat| !chat.text.is_empty()).and_then(|chat| {
-                let alpha = chat_alpha(self.now - chat.changed, self.reduced);
-                (alpha > 0.0).then_some((chat, alpha))
-            });
-            match bubble {
-                Some((chat, alpha)) => paint_chat_bubble(ui, &style.bubble, tip, Some(&person.name), &chat.text, person.color, alpha),
-                None => paint_name_tag(ui, &style.bubble, tip + style.bubble.offset, &person.name, person.color),
-            }
+        for [min, max] in person.selection.iter().take(MAX_OUTLINES) {
+            let outline = Rect::from_two_pos(view.to_screen(Point::new(min[0], min[1])), view.to_screen(Point::new(max[0], max[1])));
+            draw.stroke(&PaintShape::Rect(outline, CornerRadius::ZERO), StrokeWidth::Thin, data(person.color));
+        }
+        let Some(tip) = self.tip.map(|tip| view.to_screen(Point::new(f64::from(tip.x), f64::from(tip.y)))) else { return };
+        paint_pointer(&draw, style.halo, style.pointer, tip, person.color);
+        let bubble = person.chat.as_ref().zip(self.chat_age).and_then(|(chat, age)| {
+            let alpha = chat_alpha(age, self.reduced);
+            (alpha > 0.0).then_some((chat, alpha))
+        });
+        match bubble {
+            Some((chat, alpha)) => paint_chat_bubble(ui, &style.bubble, tip, Some(&person.name), &chat.text, person.color, alpha),
+            None => paint_name_tag(ui, &style.bubble, tip + style.bubble.offset, &person.name, person.color),
         }
     }
 
@@ -294,9 +347,9 @@ impl Component for RemoteCursors<'_> {
     }
 }
 
-/// The commands of the follow frame.
+/// The commands of the follow frame. The frame is the instance of their scope while it shows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui::contract::CommandSet)]
-#[command(prefix = "review")]
+#[command(prefix = "review", scope = "follow")]
 #[non_exhaustive]
 pub enum FollowCommand {
     /// Stop following the person whose view the canvas shows.
@@ -339,7 +392,7 @@ impl Outcome for FollowFrameOutput {
 impl FollowFrame {
     /// A frame in `color` with `text` (built from [`PresenceWords`]'s `following`) at the top.
     pub fn new(label: impl Into<Label>, color: [u8; 3], text: impl Into<String>) -> Self {
-        FollowFrame { common: Common::new(), color, text: text.into(), stopped: false }.label(label)
+        FollowFrame { common: Common::new(), color, text: text.into(), stopped: false }.label(label).command_scope(FollowCommand::SCOPE)
     }
 }
 
