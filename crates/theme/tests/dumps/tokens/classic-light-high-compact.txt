@@ -105,6 +105,7 @@ shape.radius.sm = 0
 shape.radius.control = 0
 shape.radius.surface = 0
 shape.radius.window = 0
+shape.radius.panel = 0
 shape.radius.button = 0
 shape.radius.pill = 0
 shape.edge = bevel #ffffffff #404040ff 1

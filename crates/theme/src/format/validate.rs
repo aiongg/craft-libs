@@ -71,7 +71,9 @@ impl Check {
     fn shape(&mut self, shape: &ShapeSeed) {
         if let Some(r) = shape.radius {
             self.at("radius", |c| {
-                for (key, v) in [("control", r.control), ("surface", r.surface), ("window", r.window), ("button", r.button), ("pill", r.pill)] {
+                for (key, v) in
+                    [("control", r.control), ("surface", r.surface), ("window", r.window), ("panel", r.panel), ("button", r.button), ("pill", r.pill)]
+                {
                     c.at(key, |c| c.length(v));
                 }
             });

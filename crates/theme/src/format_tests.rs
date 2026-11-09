@@ -20,7 +20,7 @@ fn full() -> Value {
             "status": { "good": "#85DC6A", "warn": "#E8B046", "bad": "#FF8080", "info": "#78ADF6", "x_status": 1 }
         },
         "shape": {
-            "radius": { "control": 3, "surface": 4, "window": 6, "button": "full", "x_radius": 1 },
+            "radius": { "control": 3, "surface": 4, "window": 6, "panel": 0, "button": "full", "x_radius": 1 },
             "edge": { "bevel": { "width": 1 } }, "x_shape": true
         },
         "light": { "surface.panel": "#F0F0F0", "accent.solid": "#1062C4" },
@@ -211,7 +211,7 @@ fn write_refuses_what_parse_rejects() {
     def.components = [(radius, f32::NAN)].into_iter().collect();
     def.pins.light = Pins::from_iter([(TokenRef::Color(T::SurfacePanel), hex("#ffffff80")), (TokenRef::Component(radius), Rgba::WHITE)]);
     def.shape = Some(ShapeSeed {
-        radius: Some(RadiusSet { sm: 0.0, control: -1.0, surface: 0.0, window: 0.0, button: 0.0, pill: 0.0 }),
+        radius: Some(RadiusSet { sm: 0.0, control: -1.0, surface: 0.0, window: 0.0, panel: 0.0, button: 0.0, pill: 0.0 }),
         radius_offset: None,
         button_radius: None,
         edge: Some(EdgeSeed::Bevel { width: 0.0 }),
@@ -266,7 +266,7 @@ fn appearance(mode: Mode) -> Appearance {
 fn a_default_pill_radius_is_not_written_and_a_set_one_is() {
     let mut def = grey_blue();
     let radius = |pill| ShapeSeed {
-        radius: Some(RadiusSet { sm: 0.0, control: 1.0, surface: 1.0, window: 1.0, button: 1.0, pill }),
+        radius: Some(RadiusSet { sm: 0.0, control: 1.0, surface: 1.0, window: 1.0, panel: 1.0, button: 1.0, pill }),
         radius_offset: None,
         button_radius: None,
         edge: None,

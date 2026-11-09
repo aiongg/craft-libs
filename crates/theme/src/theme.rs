@@ -231,7 +231,7 @@ pub struct RadiusOffset {
 }
 
 impl RadiusOffset {
-    /// `radius` with the offsets added; `button` and `pill` are not offset.
+    /// `radius` with the offsets added; `panel`, `button` and `pill` are not offset.
     pub fn apply(self, radius: RadiusSet) -> RadiusSet {
         let add = |r: f32, d: f32| if r >= crate::scale::Radius::Full.px() { r } else { (r + d).max(0.0) };
         RadiusSet {

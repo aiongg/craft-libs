@@ -258,12 +258,12 @@ impl Parser {
                 Some(v) => p.length(v),
             })
         };
-        let (control, surface, window, button) = (get("control"), get("surface"), get("window"), get("button"));
+        let (control, surface, window, panel, button) = (get("control"), get("surface"), get("window"), get("panel"), get("button"));
         let pill = match r.get("pill") {
             None | Some(Value::Null) => Radius::Full.px(),
             Some(v) => self.at("pill", |p| p.length(v))?,
         };
-        Some(RadiusSet { sm: 0.0, control: control?, surface: surface?, window: window?, button: button?, pill })
+        Some(RadiusSet { sm: 0.0, control: control?, surface: surface?, window: window?, panel: panel?, button: button?, pill })
     }
 
     /// The radius offsets; each key is optional and defaults to 0.

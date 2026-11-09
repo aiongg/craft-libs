@@ -105,6 +105,7 @@ shape.radius.sm = 3
 shape.radius.control = 6
 shape.radius.surface = 9
 shape.radius.window = 12
+shape.radius.panel = 9
 shape.radius.button = 6
 shape.radius.pill = 999
 shape.edge = flat
