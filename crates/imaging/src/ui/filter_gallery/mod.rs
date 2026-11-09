@@ -43,7 +43,7 @@ use craft_behavior::kurbo::Rect;
 use craft_behavior::{CanvasView, EditEvent, EditHistory, Mixed, PixelSize};
 use craft_theme::Srgba;
 use craft_ui::canvas::{NavigationOptions, PixelRect, ViewCommands};
-use craft_ui::contract::{Bind, Pattern, Pending, Remember as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Commands as _, Pattern, Pending, Remember as _, ShowContainer as _};
 use craft_ui::dialog::{
     DialogOutput, FullWindowCanvas, FullWindowDialog, FullWindowSide, FullWindowStatus, FullWindowTitle, FullWindowView, FullWindowZoomBar,
     SideFooter,
@@ -173,8 +173,6 @@ pub struct FilterGalleryWorkspace {
     zoom: f64,
     /// The preview job of the last pass, for the status line.
     status: Pending<PreviewDone, String>,
-    /// Zoom commands from calls outside `show`, applied by the next pass.
-    zooms: Vec<ViewCommands>,
     /// Events from calls outside `show`, reported by the next pass.
     queued: Vec<FilterGalleryEvent>,
 }
@@ -197,7 +195,6 @@ impl FilterGalleryWorkspace {
             percent: 100.0,
             zoom: 1.0,
             status: Pending::default(),
-            zooms: Vec::new(),
             queued: Vec::new(),
         }
     }
@@ -275,7 +272,7 @@ impl FilterGalleryWorkspace {
                 let mut pass = pass.borrow_mut();
                 let workspace = &mut *pass.workspace;
                 let mut view = cx.keep::<BodyView>().0;
-                for command in std::mem::take(&mut workspace.zooms) {
+                while let Some((command, _)) = cx.take_command::<ViewCommands>() {
                     view.apply(command);
                 }
                 let (visible, zoom) = workspace.visible();
@@ -340,13 +337,6 @@ impl FilterGalleryWorkspace {
         effect.fields = fields.clone();
         self.record(before, &Arc::from(key));
         self.queued.push(FilterGalleryEvent::Stack(EffectChange::with_fields(index, fields)));
-    }
-
-    /// Applies a zoom command the app received (the dialog's own scope handles its keys); the next pass applies
-    /// it to the preview's view.
-    pub fn zoom(&mut self, command: ViewCommands) -> bool {
-        self.zooms.push(command);
-        true
     }
 
     /// Undo or redo from the app's Edit menu; returns whether it stepped. The next pass clamps the

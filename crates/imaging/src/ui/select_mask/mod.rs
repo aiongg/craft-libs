@@ -229,7 +229,7 @@ impl Outcome for SelectMaskOutput {
 /// Keys ([`SelectMaskCommands`], on the dialog's scope; none while a text field edits): W, R, B, L, H, Z pick the
 /// tools, a pressed-again W or L (or Shift+W, Shift+L) cycles its group; `[` and `]` the brush size
 /// ([`BrushSizes::step`]); the app forwards the fired `MaskViewKeys` (O M V A T K Y, F, J, P and X held) to
-/// [`mask_view`](Self::mask_view), the zoom commands to [`zoom`](Self::zoom) and ⌘Z, ⇧⌘Z to
+/// [`mask_view`](Self::mask_view) and ⌘Z, ⇧⌘Z to
 /// [`step`](Self::step). Backspace and Delete remove the polygon's last vertex; Enter closes an open polygon first,
 /// else is OK; Esc drops it first, else is Cancel.
 #[derive(Clone, Pattern)]
@@ -402,6 +402,10 @@ impl SelectMaskWorkspace {
                     work.step_now(step);
                 }
 
+                while let Some((command, _)) = cx.take_command::<ViewCommands>() {
+                    work.view.apply(command);
+                }
+
                 while let Some((command, fired)) = cx.take_command::<SelectMaskCommands>() {
                     if let Some(tool) = command.tool() {
                         let slot = slots.iter().find(|slot| slot.tools.iter().any(|entry| entry.id == tool));
@@ -527,11 +531,6 @@ impl SelectMaskWorkspace {
         }
         self.canvas.drop_polygon();
         self.step_now(step)
-    }
-
-    /// Applies a zoom command (`ViewCommands`) to the workspace's view. Returns whether the view moved.
-    pub fn zoom(&mut self, command: ViewCommands) -> bool {
-        self.view.apply(command)
     }
 
     /// Runs a fired view command (`MaskViewKeys`: the views O M V A T K Y, F, J, P, and X held) on the view state.

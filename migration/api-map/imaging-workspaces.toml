@@ -145,7 +145,7 @@ name = "SelectMaskWorkspace"
 old = "craft_imaging::ui::select_mask::SelectMaskWorkspace"
 new = "craft_imaging::ui::select_mask::SelectMaskWorkspace"
 status = "replaced"
-note = "`show(ui, source)` takes a `Ui` (was a `Context`). `navigation`, `checkerboard`, `cursor_options` and `set_color` stay as setters; `zoom(ViewCommand)` and `mask_view(MaskViewKeys, FirePhase)` are the app's forwards; `step(Step)` is the app's Undo and Redo."
+note = "`show(ui, source)` takes a `Ui` (was a `Context`). `navigation`, `checkerboard`, `cursor_options` and `set_color` stay as setters; `mask_view(MaskViewKeys, FirePhase)` is the app's forward; `step(Step)` is the app's Undo and Redo."
 
 [[type]]
 name = "SelectMaskBar"

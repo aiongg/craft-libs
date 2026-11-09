@@ -8,7 +8,7 @@ name = "FilterGalleryWorkspace"
 old = "craft_imaging::ui::filter_gallery::FilterGalleryWorkspace"
 new = "craft_imaging::ui::filter_gallery::FilterGalleryWorkspace"
 status = "replaced"
-note = "A pattern held by the app: `show(ui, catalog, thumbs, thumb_source, source)` with a `FilterGallerySource`; `zoom(ViewCommand)` queues the app's fired zoom command; `step(craft_behavior::Step)`. `preview_ready`, `preview_progress`, `preview_failed` and `set_note` are removed: the preview is a `Pending` job the dialog body keeps, and the zoom bar shows its progress and its time."
+note = "A pattern held by the app: `show(ui, catalog, thumbs, thumb_source, source)` with a `FilterGallerySource`; `step(craft_behavior::Step)`. `preview_ready`, `preview_progress`, `preview_failed` and `set_note` are removed: the preview is a `Pending` job the dialog body keeps, and the zoom bar shows its progress and its time."
 
 [[type]]
 name = "FilterGalleryOpen"

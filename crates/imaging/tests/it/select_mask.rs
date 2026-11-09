@@ -25,6 +25,7 @@ use craft_ui::runtime::access::Role;
 use craft_ui::runtime::commands::FirePhase;
 use craft_ui::runtime::pending::Job;
 use craft_ui::sections::DialogRole;
+use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, ToolFixture, pointer, trial};
 use egui::{Color32, ColorImage, Key, Modifiers, Pos2, Rect, Vec2};
 use serde_json::json;
@@ -659,4 +660,18 @@ fn select_mask_preview_is_asked_for_only_when_it_changes() {
     assert_eq!(jobs.load(Ordering::SeqCst), first, "hovering changes nothing");
     press_label(&mut fixture, "Invert");
     assert_eq!(jobs.load(Ordering::SeqCst), first + 1, "an edit asks for a new preview");
+}
+
+// The workspace's zoom keys belong to the dialog: with focus on the footer's OK a zoom chord still zooms the view.
+#[trial]
+fn select_mask_zoom_chord_works_with_focus_on_the_footer_button() {
+    let (mut fixture, _app, _jobs) = open();
+    let ok = fixture.by_label("OK").expect("the footer has OK");
+    fixture.access(AccessActionKind::Focus, &ok);
+    fixture.idle(1);
+    let zoom = |fixture: &Fixture| fixture.texts().iter().map(|run| run.text.clone()).find(|text| text.contains("Photo,") && text.contains('%'));
+    let before = zoom(&fixture);
+    fixture.key(Key::Equals, Modifiers::COMMAND);
+    fixture.idle(2);
+    assert!(before.is_some() && zoom(&fixture) != before, "the title's zoom changes: {before:?} then {:?}", zoom(&fixture));
 }
