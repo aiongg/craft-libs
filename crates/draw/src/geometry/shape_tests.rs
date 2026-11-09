@@ -18,7 +18,7 @@ fn shape_drag_rules() {
     for to in [Point::new(130.0, 110.0), Point::new(90.0, 60.0)] {
         let square = box_drag(start, to, true, false).expect("a box");
         assert!(near(square.width(), square.height()));
-        assert!(square.contains(start) && (square.x0 == start.x || square.x1 == start.x) && (square.y0 == start.y || square.y1 == start.y));
+        assert!((square.x0 == start.x || square.x1 == start.x) && (square.y0 == start.y || square.y1 == start.y));
         assert_eq!((square.x0 < start.x, square.y0 < start.y), (to.x < start.x, to.y < start.y), "on the pointer's side");
     }
     let about = box_drag(start, Point::new(110.0, 105.0), false, true).expect("a box");

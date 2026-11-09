@@ -274,7 +274,7 @@ fn make_portrait_shows_only_while_the_board_is_wider_than_tall() {
     let (square, wide, tall) =
         (show(Rect::new(0.0, 0.0, 100.0, 100.0)), show(Rect::new(0.0, 0.0, 200.0, 100.0)), show(Rect::new(0.0, 0.0, 100.0, 200.0)));
     let only = |of: &[String], others: [&[String]; 2]| {
-        of.iter().filter(|text| text.chars().all(char::is_alphabetic) && !others.iter().any(|other| other.contains(text))).count()
+        of.iter().filter(|text| text.chars().all(|c| c.is_alphabetic() || c == ' ') && !others.iter().any(|other| other.contains(text))).count()
     };
     assert_eq!(only(&wide, [&tall, &square]), 1);
     assert_eq!(only(&tall, [&wide, &square]), 1);
