@@ -10,7 +10,7 @@ use craft_ui::testing::pointer;
 use craft_ui::testing::wheel::{register, take};
 use craft_ui::testing::{Fixture, trial};
 use egui::load::SizedTexture;
-use egui::{ColorImage, Id, Pos2, Rect, TextureHandle, TextureOptions, Vec2, pos2};
+use egui::{ColorImage, Pos2, Rect, TextureHandle, TextureOptions, Vec2, pos2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
