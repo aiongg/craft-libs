@@ -1481,8 +1481,13 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
     let min_width = overlay.min_width.points(anchor.width());
     let spec = LayerSpec { id: area, tier, at: placed.at, interactable: overlay.rank != Rank::Tooltip && !layer.exiting };
     // The opener of the layer's scope is the stop focused when the layer first appears: egui's modal gate takes focus
-    // from the widgets below a modal layer by the first pass that shows the layer.
-    let opener = *memory.opener_stop.get_or_insert_with(|| focus::focused_stop(ctx));
+    // from the widgets below a modal layer by the first pass that shows the layer. A dropdown that keeps its anchor's key
+    // focus belongs to the component that opened it: a press moves the key focus onto that component only at the end of
+    // the frame that opens the layer, so the stop focused then is the previous one.
+    let opener = *memory.opener_stop.get_or_insert_with(|| {
+        let owned = (overlay.focus.initial == focus::Initial::KeepAnchor).then(|| focus::stop_rec(ctx, (layer.owner, None))).flatten();
+        owned.map(|rec| rec.stop.key()).or_else(|| focus::focused_stop(ctx))
+    });
     overlay::begin_layer(ctx, layer.id, layer.exiting);
     let shown = areas::show_layer(ctx, &spec, |ui| {
         areas::fade(ui, layer.fade * overlay.opacity);

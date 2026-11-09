@@ -336,6 +336,9 @@ fn a_screen_reader_steps_a_margin() {
     assert!(edges.borrow().margins.left > before, "Increment moves the edge toward the text: {:?}", edges.borrow());
 }
 
+/// The room the page range options are shown in.
+const RANGE_ROOM: Vec2 = Vec2::new(400.0, 200.0);
+
 /// A page range over twelve pages, and the range the options last reported.
 fn range_rig(start: PageRange) -> (Fixture, Rc<RefCell<PageRange>>) {
     let range = Rc::new(RefCell::new(start));
@@ -346,6 +349,7 @@ fn range_rig(start: PageRange) -> (Fixture, Rc<RefCell<PageRange>>) {
             *seen.borrow_mut() = next;
         }
     });
+    fixture.room(RANGE_ROOM);
     fixture.settle();
     (fixture, range)
 }
@@ -460,8 +464,10 @@ fn escape_in_a_width_field_puts_back_the_size_and_the_orientation() {
     fixture.click(&width);
     fixture.key(Key::A, Modifiers::COMMAND);
     fixture.type_text("12");
+    fixture.idle(2);
     assert!(radio_on(&fixture, "Landscape"), "a width past the height turns the page as it is typed");
     fixture.key(Key::Escape, Modifiers::NONE);
+    fixture.idle(2);
     let width = fixture.by_label("Width").expect("the Width field");
     assert_eq!(fixture.tree().value_of(width.node).map(str::to_owned), before, "Escape puts the width back");
     assert!(radio_on(&fixture, "Portrait"), "and the orientation with it");

@@ -675,3 +675,34 @@ fn a_component_chooses_its_key_use_per_state() {
     frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], &mut show);
     assert!(tab_kept.get(), "editing: the same component keeps Tab");
 }
+
+/// A select opened by a click while the key focus is on another control takes End and Enter in its list: the list's
+/// opener is the select, not the stop that was focused when the click began.
+#[trial]
+fn a_select_opened_by_a_click_while_focus_is_elsewhere_takes_list_keys() {
+    use craft_ui::contract::{Bind, Entry};
+    use craft_ui::pickers::Select;
+    use craft_ui::testing::Fixture;
+    let value = std::rc::Rc::new(Cell::new(0u8));
+    let shown = value.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let entries = [Entry::new(0u8, "Normal"), Entry::new(1, "Burn"), Entry::new(2, "Blur"), Entry::new(3, "Screen")];
+        let mut text = String::new();
+        craft_ui::text::TextField::new("Name", Bind::bound(&mut text)).show(ui);
+        let mut mode = shown.get();
+        Select::new("Blend mode", Bind::bound(&mut mode), &entries).id_salt("mode").show(ui);
+        shown.set(mode);
+    });
+    fixture.settle();
+    let name = fixture.by_label("Name").expect("the text field");
+    fixture.click(&name);
+    fixture.idle(2);
+    let select = fixture.by_label("Blend mode").expect("the select");
+    fixture.click(&select);
+    fixture.idle(4);
+    fixture.key(Key::End, Modifiers::NONE);
+    fixture.idle(2);
+    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.idle(4);
+    assert_eq!(value.get(), 3, "End moved the lead to the last entry and Enter picked it");
+}

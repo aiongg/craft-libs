@@ -8,13 +8,13 @@ mod stories;
 use std::ops::RangeInclusive;
 
 use craft_behavior::kurbo::Point;
-use craft_behavior::nav::{StepResult, ValueAxes, ValueSteps, step_value};
-use craft_behavior::{CursorIcon, HitLevel, HitPriority, Metrics, NavMove, PartKey, PressPhase, Sense};
+use craft_behavior::{Axis, Metrics, PartKey, PressPhase};
 use craft_ui::canvas::{RulerMargins, Rulers, readout};
 use craft_ui::contract::{
-    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Name, Numeric, Outcome, PaintUi, PartsCx,
-    Pointer as _, Props, Role, WordSetCx as _,
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Outcome, PaintUi, PartsCx, Pointer as _, Props,
+    Role, WordSetCx as _,
 };
+use craft_ui::docking::divider::{self, Divider, Drag};
 use craft_ui::primitives::{PaintShape, StrokeWidth};
 use craft_ui::runtime::env::{Label, UnitKind, Units};
 use craft_ui::runtime::focus::KeyUse;
@@ -291,19 +291,6 @@ pub fn dragged_margin(edge: MarginEdge, at: f64, rules: &MarginRules) -> MarginC
     clamp_margin(edge, raw, rules)
 }
 
-/// A vertical move read as the move of a value that grows downwards.
-fn along_y(mv: NavMove) -> NavMove {
-    match mv {
-        NavMove::Up => NavMove::Down,
-        NavMove::Down => NavMove::Up,
-        NavMove::PageUp => NavMove::PageDown,
-        NavMove::PageDown => NavMove::PageUp,
-        NavMove::Forward => NavMove::Up,
-        NavMove::Back => NavMove::Down,
-        other => other,
-    }
-}
-
 /// The style of the margin handles.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
@@ -408,9 +395,26 @@ impl<'a> MarginHandles<'a> {
 
     /// The screen coordinate along the visible edge's axis.
     fn screen(&self, rules: &MarginRules, visible: MarginEdge) -> f32 {
-        let points = rules.edges.get(rules.stored(visible));
+        self.screen_of(rules, visible, rules.edges.get(rules.stored(visible)))
+    }
+
+    /// The screen coordinate of the visible edge when its margin is `points`.
+    fn screen_of(&self, rules: &MarginRules, visible: MarginEdge, points: f64) -> f32 {
         let origin = if visible.horizontal() { self.page.rect.min.x } else { self.page.rect.min.y };
         origin + (rules.position(visible, points) * self.page.scale) as f32
+    }
+
+    /// The divider of `visible` in screen coordinates: its bar on the ruler strip `(grab, strip)` thick of `rect`, moving
+    /// between the edge's least and most position.
+    fn divider(&self, rules: &MarginRules, visible: MarginEdge, rect: Rect, (grab, strip): (f32, f32)) -> Divider {
+        let range = margin_range(rules.stored(visible), rules);
+        let (a, b) = (self.screen_of(rules, visible, *range.start()), self.screen_of(rules, visible, *range.end()));
+        let (axis, span) = if visible.horizontal() {
+            (Axis::X, Rect::from_x_y_ranges(rect.x_range(), rect.top()..=rect.top() + strip))
+        } else {
+            (Axis::Y, Rect::from_x_y_ranges(rect.left()..=rect.left() + strip, rect.y_range()))
+        };
+        Divider::new(axis, self.screen(rules, visible), span, (a.min(b), a.max(b)), grab)
     }
 
     /// `points` in the display unit with its symbol.
@@ -449,22 +453,9 @@ impl Component for MarginHandles<'_> {
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let Some(edges) = cx.value().copied() else { return };
         let rules = self.rules(edges, 0.0);
-        let words = cx.words::<MarginHandlesWords>();
         let (grab, strip) = (cx.style.grab, cx.style.strip);
         for &visible in self.edges_shown() {
-            let at = self.screen(&rules, visible);
-            let shape = if visible.horizontal() {
-                Rect::from_x_y_ranges((at - grab)..=(at + grab), rect.top()..=rect.top() + strip)
-            } else {
-                Rect::from_x_y_ranges(rect.left()..=rect.left() + strip, (at - grab)..=(at + grab))
-            };
-            let cursor = if visible.horizontal() { CursorIcon::ResizeHorizontal } else { CursorIcon::ResizeVertical };
-            cx.part(EDGE.at(visible.index()), shape)
-                .sense(Sense::DRAG | Sense::TAKE_FOCUS)
-                .priority(HitPriority::new(HitLevel::Edge, 0))
-                .cursor(cursor)
-                .tooltip(visible.name(&words).clone())
-                .focusable();
+            divider::declare(cx, rect, EDGE, visible.index(), &self.divider(&rules, visible, rect, (grab, strip)));
         }
     }
 
@@ -472,49 +463,46 @@ impl Component for MarginHandles<'_> {
         let Some(edges) = cx.value().copied() else { return };
         let units = cx.env.units();
         let words = cx.words::<MarginHandlesWords>();
-        let scale = self.page.scale;
-        let focused = cx.active_part().filter(|part| part.key == EDGE).and_then(|part| part.index);
+        let (rect, scale) = (cx.rect, self.page.scale);
+        let (grab, strip) = (cx.style.grab, cx.style.strip);
+        let rules = self.rules(edges, self.snap);
+        let mut dividers = Vec::new();
         for &visible in self.edges_shown() {
-            let stored = self.rules(edges, 0.0).stored(visible);
+            let stored = rules.stored(visible);
+            let divider = self.divider(&rules, visible, rect, (grab, strip));
+            dividers.push((visible.index(), divider));
             let press = cx.part(EDGE.at(visible.index())).press;
             let snap = if press.mods.alt { 0.0 } else { self.snap };
-            match press.phase {
-                PressPhase::DragStart { .. } => {
+            let origin = if visible.horizontal() { self.page.rect.min.x } else { self.page.rect.min.y };
+            match divider::pointer(cx, EDGE, visible.index(), &divider) {
+                Some(Drag::Start) => {
                     *cx.press_slot::<Anchor>() = Some(Anchor(edges));
                     cx.begin();
                 }
-                PressPhase::Drag { start, pos, .. } => {
+                Some(Drag::To(coord)) => {
                     let anchor = cx.press_slot::<Anchor>().map_or(edges, |anchor| anchor.0);
-                    let rules = self.rules(anchor, snap);
-                    let moved = if visible.horizontal() { pos.x - start.origin.x } else { pos.y - start.origin.y };
-                    let at = rules.position(visible, anchor.get(stored)) + f64::from(moved) / scale;
-                    let change = dragged_margin(visible, at, &rules);
+                    let change = dragged_margin(visible, f64::from(coord - origin) / scale, &self.rules(anchor, snap));
                     cx.propose(anchor.with(change));
-                    let name = visible.name(&words).clone();
-                    readout(cx, pos, &[(name, self.shown(&units, change.points))]);
-                }
-                PressPhase::Release { click: false, .. } => cx.commit(),
-                _ => {}
-            }
-            if focused == Some(visible.index()) {
-                let rules = self.rules(edges, self.snap);
-                let range = margin_range(stored, &rules);
-                let (a, b) = (rules.position(visible, *range.start()), rules.position(visible, *range.end()));
-                let here = rules.position(visible, edges.get(stored));
-                let step = if self.snap > 0.0 { self.snap } else { SNAP };
-                if let Some((mv, mods)) = cx.intents().take_move() {
-                    let (axes, mv) = if visible.horizontal() { (ValueAxes::Horizontal, mv) } else { (ValueAxes::Vertical, along_y(mv)) };
-                    let steps = ValueSteps::new(here, a.min(b), a.max(b), step, step * JUMP);
-                    if let StepResult::Set(position) = step_value(&steps, axes, mv, mods) {
-                        let change = dragged_margin(visible, position, &rules);
-                        if change.points != edges.get(stored) {
-                            cx.set(edges.with(change));
-                        }
+                    if let PressPhase::Drag { pos, .. } = press.phase {
+                        let name = visible.name(&words).clone();
+                        readout(cx, pos, &[(name, self.shown(&units, change.points))]);
                     }
                 }
+                Some(Drag::Release) => cx.commit(),
+                _ => {}
             }
             if let Some(value) = cx.intents().take_set_value_at(EDGE.at(visible.index())) {
                 cx.set(edges.with(clamp_margin(stored, value, &self.rules(edges, 0.0))));
+            }
+        }
+        let step = if self.snap > 0.0 { self.snap } else { SNAP } * scale;
+        if let Some((index, coord)) = divider::keys(cx, EDGE, &dividers, step as f32, (step * JUMP) as f32)
+            && let Some(&visible) = self.edges_shown().iter().find(|visible| visible.index() == index)
+        {
+            let origin = if visible.horizontal() { self.page.rect.min.x } else { self.page.rect.min.y };
+            let change = dragged_margin(visible, f64::from(coord - origin) / scale, &rules);
+            if change.points != edges.get(rules.stored(visible)) {
+                cx.set(edges.with(change));
             }
         }
     }
@@ -544,14 +532,13 @@ impl Component for MarginHandles<'_> {
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let Some(edges) = cx.value().copied() else { return };
         let words = cx.words::<MarginHandlesWords>();
-        let units = cx.env.units();
         let rules = self.rules(edges, 0.0);
         for &visible in self.edges_shown() {
             let stored = rules.stored(visible);
-            let points = edges.get(stored);
-            let node = access.node(EDGE.at(visible.index()), Role::SPLITTER);
-            node.name = Name::Text(visible.name(&words).as_str().to_owned());
-            node.numeric = Some(Numeric::new(points, margin_range(stored, &rules)).step(self.snap).text(self.shown(&units, points)));
+            let range = margin_range(stored, &rules);
+            let mut divider = self.divider(&rules, visible, cx.rect, (cx.style.grab, cx.style.strip));
+            (divider.at, divider.lo, divider.hi) = (edges.get(stored) as f32, *range.start() as f32, *range.end() as f32);
+            divider::describe(access, EDGE, visible.index(), &divider, visible.name(&words).as_str(), self.snap as f32);
         }
     }
 

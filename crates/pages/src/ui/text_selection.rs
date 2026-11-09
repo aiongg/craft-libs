@@ -247,7 +247,7 @@ fn paint_marks(
 ///   ([`click_unit`]). The cursor is the I-beam over glyphs, the arrow elsewhere. A press off any glyph clears the
 ///   selection.
 /// - Keys while the canvas has the keyboard: Shift with the arrows extends a run by a glyph (Shift and Alt by a word;
-///   left and right swap in a right-to-left interface, [`right_to_left`](Self::right_to_left)), Escape clears. Select
+///   left and right swap in a right-to-left interface), Escape clears. Select
 ///   All and Copy are the app's commands (they read [`TextSelection::text`]).
 /// - Its command form is the app's Select All command: the tool selects, so it is not freehand.
 /// - The selection is reported to assistive technology through the page view's accessibility bridge.
@@ -256,25 +256,18 @@ pub struct TextSelectTool<'a> {
     texts: &'a dyn PageTexts,
     state: &'a mut TextSelectState,
     column: bool,
-    rtl: bool,
     changed: bool,
 }
 
 impl<'a> TextSelectTool<'a> {
     /// A tool over the placed `pages`, reading text from `texts` and keeping its gesture in `state`.
     pub fn new(pages: &'a [PlacedPage], texts: &'a dyn PageTexts, state: &'a mut TextSelectState) -> Self {
-        TextSelectTool { pages, texts, state, column: false, rtl: false, changed: false }
+        TextSelectTool { pages, texts, state, column: false, changed: false }
     }
 
     /// The Column Select tool is active.
     pub fn column(mut self, on: bool) -> Self {
         self.column = on;
-        self
-    }
-
-    /// The interface runs right to left: Shift and the left arrow extend forward in reading order.
-    pub fn right_to_left(mut self, on: bool) -> Self {
-        self.rtl = on;
         self
     }
 
@@ -412,7 +405,7 @@ impl CanvasTool for TextSelectTool<'_> {
         self.end_gesture();
     }
 
-    fn key(&mut self, key: &ToolKey, _cx: &mut ToolContext<'_>) -> bool {
+    fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
         let Some(selection) = self.state.selection else { return false };
         match key {
             ToolKey::Cancel => {
@@ -424,7 +417,7 @@ impl CanvasTool for TextSelectTool<'_> {
                 let Some(text) = self.texts.page(selection.page) else { return false };
                 let count = text.glyph_count();
                 let vertical = direction.y != 0.0;
-                let forward = if vertical { direction.y > 0.0 } else { (direction.x > 0.0) != self.rtl };
+                let forward = if vertical { direction.y > 0.0 } else { (direction.x > 0.0) != cx.direction().is_rtl() };
                 let moved = if vertical {
                     line_step(text, head, forward)
                 } else if mods.alt {

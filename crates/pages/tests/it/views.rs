@@ -11,8 +11,9 @@ use craft_pages::ui::{
 
 use craft_pages::ui::reading::{ReadingState, ReadingView};
 use craft_ui::contract::{ReorderMove, Role, Show as _, SweepStep};
-use craft_ui::primitives::textures::{Revision, ThumbRender, ThumbRequest, ThumbSource};
-use craft_ui::testing::{Fixture, pointer, trial};
+use craft_ui::primitives::textures::{LoadFailure, Revision, ThumbRender, ThumbRequest, ThumbSource};
+use craft_ui::style::DataColor;
+use craft_ui::testing::{Fixture, Frames, pointer, trial};
 use egui::{Key, Modifiers, Pos2, Rect, pos2, vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -181,7 +182,7 @@ fn strip_rig(count: usize, picked: Selection<usize>) -> StripRig {
     let pages = DemoPages::new(count);
     let mut fixture = Fixture::new(move |ui| {
         let mut now = kept.borrow().clone();
-        let out = PageThumbnails::new("Pages", &pages, &mut now, 0).show(ui);
+        let out = PageThumbnails::new("Pages", &pages, &mut now, 0, PAPER).show(ui);
         seen.borrow_mut().extend(out.events);
         *kept.borrow_mut() = now;
     });
@@ -206,6 +207,27 @@ fn delete_with_nothing_picked_removes_the_current_page_but_never_every_page() {
     assert!(rig.picked.borrow().items.is_empty());
 }
 
+#[trial]
+fn delete_removes_the_picked_pages_but_never_all_of_them() {
+    let mut rig = strip_rig(4, Selection::new(vec![1, 2], Some(2), Some(1)));
+    rig.fixture.key(Key::Tab, Modifiers::NONE);
+    rig.fixture.key(Key::Delete, Modifiers::NONE);
+    assert!(rig.events.borrow().contains(&ThumbnailEvent::Delete(vec![1, 2])), "the picked pages go: {:?}", rig.events.borrow());
+    let mut rig = strip_rig(2, Selection::new(vec![0, 1], Some(1), Some(0)));
+    rig.fixture.key(Key::Tab, Modifiers::NONE);
+    rig.fixture.key(Key::Delete, Modifiers::NONE);
+    assert!(!rig.events.borrow().iter().any(|event| matches!(event, ThumbnailEvent::Delete(_))), "a document keeps one page");
+}
+
+#[trial]
+fn enter_on_a_thumbnail_activates_its_page() {
+    let mut rig = strip_rig(3, Selection::single(1));
+    let tile = rig.fixture.by_label("Page 2").expect("the second page's tile");
+    rig.fixture.click(&tile);
+    rig.fixture.key(Key::Enter, Modifiers::NONE);
+    assert!(rig.events.borrow().contains(&ThumbnailEvent::Activate(1)), "events {:?}", rig.events.borrow());
+}
+
 /// A list of three boards, the second locked.
 struct ListRig {
     fixture: Fixture,
@@ -213,9 +235,13 @@ struct ListRig {
 }
 
 fn list_rig() -> ListRig {
+    list_rig_picking(Selection::single(0_usize))
+}
+
+fn list_rig_picking(start: Selection<usize>) -> ListRig {
     let events: Rc<RefCell<Vec<PageListEvent>>> = Rc::default();
     let seen = Rc::clone(&events);
-    let picked = Rc::new(RefCell::new(Selection::single(0_usize)));
+    let picked = Rc::new(RefCell::new(start));
     let rows = vec![PageListRow::new("Board 1"), PageListRow::new("Board 2").locked(true), PageListRow::new("Board 3").hidden(true)];
     let mut fixture = Fixture::new(move |ui| {
         let mut now = picked.borrow().clone();
@@ -255,6 +281,35 @@ fn an_alt_eye_sweep_reports_show_only_then_its_undo() {
     rig.fixture.idle(2);
     let undone: Vec<_> = rig.events.borrow_mut().drain(..).collect();
     assert!(matches!(undone.as_slice(), [PageListEvent::Toggle(SweepStep::UndoShowOnly(cell))] if cell.key == 0), "events {undone:?}");
+}
+
+#[trial]
+fn enter_on_a_row_activates_it() {
+    let mut rig = list_rig();
+    let row = rig.fixture.by_label("Board 3").expect("the row is in the tree");
+    rig.fixture.click(&row);
+    rig.fixture.key(Key::Enter, Modifiers::NONE);
+    assert!(rig.events.borrow().contains(&PageListEvent::Activate(2)), "events {:?}", rig.events.borrow());
+}
+
+#[trial]
+fn a_click_on_a_lock_toggle_reports_the_toggle() {
+    let mut rig = list_rig();
+    let lock = rig.fixture.by_label("Lock Board 1").expect("the first row's lock");
+    rig.fixture.click(&lock);
+    assert!(rig.events.borrow().iter().any(|event| matches!(event, PageListEvent::Toggle(_))), "events {:?}", rig.events.borrow());
+}
+
+#[trial]
+fn delete_skips_the_locked_rows() {
+    let mut rig = list_rig_picking(Selection::new(vec![0, 1], Some(1), Some(0)));
+    rig.fixture.key(Key::Tab, Modifiers::NONE);
+    rig.fixture.key(Key::Delete, Modifiers::NONE);
+    assert!(rig.events.borrow().contains(&PageListEvent::Delete(vec![0])), "the unlocked picked row goes: {:?}", rig.events.borrow());
+    let mut rig = list_rig_picking(Selection::single(1));
+    rig.fixture.key(Key::Tab, Modifiers::NONE);
+    rig.fixture.key(Key::Delete, Modifiers::NONE);
+    assert!(!rig.events.borrow().iter().any(|event| matches!(event, PageListEvent::Delete(_))), "a locked row stays");
 }
 
 #[trial]
@@ -455,6 +510,9 @@ fn the_reading_view_paints_the_paper_under_a_page_without_a_picture() {
     assert!(paints_shape_of(&fixture, page), "a shape the size of the page is the paper");
 }
 
+/// How far a painted fill may stray from the exact page shape: shapes lie on device pixels, so a side is off by at most a point.
+const PAPER_SLACK: f32 = 1.0;
+
 #[trial]
 fn the_preview_paints_the_paper_under_a_page_without_a_picture() {
     let pages = BlankPages(DemoPages::new(2));
@@ -466,13 +524,70 @@ fn the_preview_paints_the_paper_under_a_page_without_a_picture() {
     fixture.room(vec2(500.0, 500.0));
     fixture.settle();
     let page = DemoPages::new(1).page_size(0);
-    let portrait = page.width < page.height;
-    let picture = fixture.by_role(Role::IMAGE).into_iter().next().expect("the page picture").rect;
-    // The paper is the fill centred in the picture that takes most of its height, in the page's orientation.
+    let picture = fixture.by_label(&DemoPages::new(1).page_label(0)).expect("the page picture").rect;
+    // The paper is the fill of the page's aspect that lies in the picture.
     let paper = |bounds: &Rect| {
-        picture.contains(bounds.center()) && bounds.height() > picture.height() - bounds.height() && (bounds.width() < bounds.height()) == portrait
+        picture.expand(PAPER_SLACK).contains_rect(*bounds)
+            && (f64::from(bounds.width()) - f64::from(bounds.height()) * page.width / page.height).abs() < f64::from(PAPER_SLACK)
     };
-    assert!(fixture.shape_bounds().iter().any(paper), "a page-shaped fill is the paper: {:?}", fixture.shape_bounds());
+    assert!(fixture.shape_bounds().iter().any(paper), "a fill with the page's aspect inside the picture is the paper: {:?}", fixture.shape_bounds());
+}
+
+/// Pages whose pictures never arrive: each render is a job that waits for a signal the source keeps and never sends.
+struct LoadingPages {
+    pages: DemoPages,
+    held: std::sync::Mutex<Vec<std::sync::mpsc::Sender<()>>>,
+}
+
+impl ThumbSource<usize> for LoadingPages {
+    fn revision(&self, key: &usize, request: &ThumbRequest) -> Revision {
+        self.pages.revision(key, request)
+    }
+
+    fn render(&self, _: &usize, _: &ThumbRequest) -> ThumbRender {
+        let (hold, wait) = std::sync::mpsc::channel();
+        self.held.lock().expect("the held signals").push(hold);
+        ThumbRender::Later(Box::new(move |_| {
+            let _ = wait.recv();
+            Err(LoadFailure::Missing)
+        }))
+    }
+}
+
+impl PageSource for LoadingPages {
+    fn page_count(&self) -> usize {
+        self.pages.page_count()
+    }
+
+    fn page_size(&self, page: usize) -> Size {
+        self.pages.page_size(page)
+    }
+}
+
+/// Whether any filled rectangle among `shapes` has the colour `color`.
+fn fills_with(shapes: &[egui::Shape], color: egui::Color32) -> bool {
+    shapes.iter().any(|shape| match shape {
+        egui::Shape::Rect(rect) => rect.fill == color,
+        egui::Shape::Vec(inner) => fills_with(inner, color),
+        _ => false,
+    })
+}
+
+/// A paper colour no other fill of the strip uses.
+const LOADING_PAPER: egui::Color32 = egui::Color32::from_rgb(0x12, 0xab, 0x34);
+
+#[trial]
+fn a_thumbnail_paints_the_paper_in_its_tile_while_its_picture_loads() {
+    let pages = LoadingPages { pages: DemoPages::new(2), held: Default::default() };
+    let mut picked = Selection::single(0);
+    let mut frames = Frames::new();
+    frames.screen(vec2(400.0, 500.0));
+    let mut show = |ui: &mut egui::Ui| {
+        let _ = PageThumbnails::new("Pages", &pages, &mut picked, 0, DataColor::new(LOADING_PAPER)).show(ui);
+    };
+    frames.idle(4, &mut show);
+    let shapes = frames.frame_shapes(&mut show);
+    assert!(fills_with(&shapes, LOADING_PAPER), "a tile whose picture is loading shows the paper");
 }
 
 /// A page view over `count` demo pages with the state it starts from, and the rects of the pages it laid out.

@@ -6,19 +6,24 @@ use std::rc::Rc;
 
 use craft_behavior::kurbo::{Point, Rect};
 use craft_behavior::{CellAt, CellRange};
+use craft_i18n::Direction;
 use craft_pages::ui::access::{AccessBuilder, AccessDescriber, AccessNode, AccessPosition, BlockRole, MAX_NODES};
 use craft_pages::ui::fixtures::{PAPER, demo_placed};
-use craft_pages::ui::reading::{ReadingMetrics, ReadingState, reading_size, reading_viewport, swipe_turn, wheel_turns};
+use craft_pages::ui::reading::{MAX_COLUMNS, ReadingMetrics, ReadingState, reading_size, reading_viewport, swipe_turn, wheel_turns};
 use craft_pages::ui::table::{
     BorderEdges, BorderPreset, EdgeKey, EdgePicker, RowHeight, TableChange, TableGeometry, TableProperties, TableSizePicker, TableSizePickerOutput,
     TableValues,
 };
 use craft_pages::ui::text_selection::{PageTextSource, PageTexts, TextSelectState, TextSelectTool, TextSelection, TextSpan};
 use craft_pages::ui::view::{PageView, PageViewState, PlacedPage};
+use craft_theme::{Contrast, Mode};
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
+use craft_ui::primitives::ReadingMeasure;
 use craft_ui::runtime::env::UnitKind;
-use craft_ui::testing::{Fixture, ToolFixture, pointer, trial};
+use craft_ui::style::{Ink, TypeRole};
+use craft_ui::testing::style::{paint_frame, tokens};
+use craft_ui::testing::{Fixture, Frames, ToolFixture, pointer, trial};
 use egui::{Key, Modifiers, Pos2, pos2, vec2};
 
 // Edges
@@ -255,10 +260,11 @@ fn rig(rtl: bool) -> Rig {
     let mut fixture = Fixture::new(move |ui| {
         let canvas = Canvas::new("Page").show(ui, |_, _| ());
         let mut state = shown.borrow_mut();
-        let mut tool = TextSelectTool::new(&pages, &Texts, &mut state).right_to_left(rtl);
+        let mut tool = TextSelectTool::new(&pages, &Texts, &mut state);
         let _ = craft_ui::canvas::ToolHost::new().run(ui, &canvas.output, &mut tool);
     });
     fixture.room(vec2(200.0, 100.0));
+    fixture.direction(if rtl { Direction::Rtl } else { Direction::Ltr });
     fixture.settle();
     Rig { fixture, state }
 }
@@ -464,16 +470,28 @@ fn only_the_pages_in_view_and_one_either_side_are_described() {
 
 // Reading view
 
+/// The metrics of body text laid out the way a painter lays it out.
 fn metrics() -> ReadingMetrics {
-    ReadingMetrics::new(20.0, 40.0)
+    let mut frames = Frames::new();
+    let tokens = tokens(Mode::Light, Contrast::Standard);
+    let mut found = None;
+    paint_frame(&mut frames, &tokens, Direction::Ltr, Ink::OnPanel, |draw| {
+        let measure = ReadingMeasure::of(TypeRole::Body, |run| draw.layout(run, f32::INFINITY));
+        found = Some(ReadingMetrics::new(20.0, 40.0, measure));
+    });
+    found.expect("the frame painted")
 }
 
 #[trial]
 fn the_reading_size_fits_whole_columns() {
     let metrics = metrics();
     let (width, height) = reading_size(vec2(1200.0, 900.0), 1.0, &metrics, None);
-    assert!(width >= 192.0, "no column is narrower than the least width: {width}");
-    assert!((4.0 * width + 5.0 * metrics.column_gap - 1200.0).abs() < 1e-3, "four columns fill the width: {width}");
+    assert!(width >= metrics.column_min, "no column is narrower than the least width: {width}");
+    let columns = (1200.0 / metrics.column_target).round().clamp(1.0, MAX_COLUMNS as f32);
+    assert!(
+        (columns * width + (columns + 1.0) * metrics.column_gap - 1200.0).abs() < 1e-3,
+        "{columns} columns of one target each fill the width: {width}"
+    );
     assert_eq!(height, 900.0 - metrics.column_gap - metrics.nav_bar);
     let (requested, _) = reading_size(vec2(500.0, 900.0), 1.0, &metrics, Some(612.0));
     assert_eq!(requested, 500.0 - 2.0 * metrics.column_gap, "a chosen width gives way to a narrow window");

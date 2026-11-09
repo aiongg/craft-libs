@@ -6,12 +6,12 @@
 mod stories;
 
 use craft_behavior::divider::{Segment, resize, travel};
-use craft_behavior::nav::{StepResult, ValueAxes, ValueSteps, step_value};
-use craft_behavior::{CursorIcon, HitLevel, HitPriority, Metrics, PartKey, PressPhase, Sense};
+use craft_behavior::{Axis, Metrics, PartKey};
 use craft_ui::contract::{
-    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Name, Numeric, Outcome, PaintUi, PartsCx,
-    Pointer as _, Props, Role, WordSetCx as _,
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Outcome, PaintUi, PartsCx, Pointer as _, Props,
+    Role, WordSetCx as _,
 };
+use craft_ui::docking::divider::{self, Divider, Drag};
 use craft_ui::primitives::{PaintShape, StrokeWidth, TextRun};
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::focus::KeyUse;
@@ -146,6 +146,21 @@ fn position(shares: &[f64], at: usize, width: f32) -> f32 {
     shares.iter().take(at + 1).map(|share| *share as f32 * width).sum()
 }
 
+/// The dividers between the columns, in reading order with their indices: each bar `reach` thick (less when a
+/// neighbouring column is narrower), moving as far as the columns beyond let it.
+fn dividers(shares: &[f64], rect: Rect, reach: f32) -> Vec<(u64, Divider)> {
+    let width = rect.width();
+    let segments = row(shares, width);
+    (0..shares.len().saturating_sub(1))
+        .map(|at| {
+            let x = rect.left() + position(shares, at, width);
+            let (lo, hi) = travel(&segments, at);
+            let reach = reach.min(shares[at].min(shares[at + 1]) as f32 * width);
+            (at as u64, Divider::new(Axis::X, x, rect, (x + lo, x + hi), reach))
+        })
+        .collect()
+}
+
 impl Component for ColumnBar<'_> {
     const SINGLE_VALUE: bool = true;
     const ROLE: Role = Role::GROUP;
@@ -170,8 +185,8 @@ impl Component for ColumnBar<'_> {
         }
     }
 
-    fn fills(&self) -> Option<craft_behavior::Axis> {
-        Some(craft_behavior::Axis::X)
+    fn fills(&self) -> Option<Axis> {
+        Some(Axis::X)
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
@@ -182,7 +197,7 @@ impl Component for ColumnBar<'_> {
         Some(self.widths.reborrow())
     }
 
-    /// A strip across each column that names it on hover, and a grab zone on each divider above them, its own Tab stop.
+    /// A strip across each column that names it on hover, and a shared divider on each boundary above them.
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let Some(widths) = cx.value() else { return };
         let (shares, words) = (shares(widths), cx.words::<ColumnBarWords>());
@@ -193,15 +208,8 @@ impl Component for ColumnBar<'_> {
             cx.part(COLUMN.at(at as u64), column).tooltip(self.name(at, &words)).pointer_only("the divider's name and value describe the column");
             start = end;
         }
-        for at in 0..shares.len().saturating_sub(1) {
-            let x = rect.left() + position(&shares, at, rect.width());
-            let reach = cx.style.grab.min(shares[at].min(shares[at + 1]) as f32 * rect.width() / 2.0);
-            let grab = Rect::from_x_y_ranges((x - reach)..=(x + reach), rect.y_range());
-            cx.part(DIVIDER.at(at as u64), grab)
-                .sense(Sense::DRAG | Sense::TAKE_FOCUS)
-                .priority(HitPriority::new(HitLevel::Edge, 0))
-                .cursor(CursorIcon::ResizeColumn)
-                .focusable();
+        for (at, divider) in dividers(&shares, rect, cx.style.grab) {
+            divider::declare(cx, rect, DIVIDER, at, &divider);
         }
     }
 
@@ -209,38 +217,27 @@ impl Component for ColumnBar<'_> {
         let Some(widths) = cx.value().cloned() else { return };
         let rect = cx.rect;
         let width = rect.width();
-        let dividers = widths.len().saturating_sub(1);
-        for at in 0..dividers {
-            let press = cx.part(DIVIDER.at(at as u64)).press;
-            if press.double_pressed() {
-                self.double_clicked = Some(at);
+        let shares = shares(&widths);
+        let dividers = dividers(&shares, rect, cx.style.grab);
+        for (at, divider) in &dividers {
+            let part = DIVIDER.at(*at);
+            if cx.part(part).press.double_pressed() {
+                self.double_clicked = Some(*at as usize);
             }
-            match press.phase {
-                PressPhase::DragStart { .. } => cx.begin(),
-                PressPhase::Drag { pos, .. } => cx.propose(pushed(&widths, at, pos.x - rect.left(), width)),
-                PressPhase::Release { click: false, .. } => cx.commit(),
+            match divider::pointer(cx, DIVIDER, *at, divider) {
+                Some(Drag::Start) => cx.begin(),
+                Some(Drag::To(x)) => cx.propose(pushed(&widths, *at as usize, x - rect.left(), width)),
+                Some(Drag::Release) => cx.commit(),
                 _ => {}
             }
-        }
-        let shares = shares(&widths);
-        let focused = cx.active_part().filter(|part| part.key == DIVIDER).and_then(|part| part.index).map(|at| at as usize);
-        if let Some(at) = focused.filter(|at| *at < dividers) {
-            let segments = row(&shares, width);
-            let here = position(&shares, at, width);
-            let (lo, hi) = travel(&segments, at);
-            let step = KEY_STEP as f32 * width;
-            if let Some((mv, mods)) = cx.intents().take_move() {
-                let steps = ValueSteps::new(f64::from(here), f64::from(here + lo), f64::from(here + hi), f64::from(step), f64::from(step * JUMP));
-                if let StepResult::Set(value) = step_value(&steps, ValueAxes::Horizontal, mv, mods) {
-                    cx.set(pushed(&widths, at, value as f32, width));
-                }
+            if let Some(percent) = cx.intents().take_set_value_at(part) {
+                let start = if *at > 0 { position(&shares, *at as usize - 1, width) } else { 0.0 };
+                cx.set(pushed(&widths, *at as usize, start + (percent / 100.0) as f32 * width, width));
             }
         }
-        for at in 0..dividers {
-            if let Some(percent) = cx.intents().take_set_value_at(DIVIDER.at(at as u64)) {
-                let start = if at > 0 { position(&shares, at - 1, width) } else { 0.0 };
-                cx.set(pushed(&widths, at, start + (percent / 100.0) as f32 * width, width));
-            }
+        let step = KEY_STEP as f32 * width;
+        if let Some((at, x)) = divider::keys(cx, DIVIDER, &dividers, step, step * JUMP) {
+            cx.set(pushed(&widths, at as usize, x - rect.left(), width));
         }
     }
 
@@ -282,11 +279,10 @@ impl Component for ColumnBar<'_> {
         let words = cx.words::<ColumnBarWords>();
         let units = cx.env.units();
         let shares = shares(widths);
-        for (at, share) in shares.iter().enumerate().take(shares.len().saturating_sub(1)) {
+        for (at, mut divider) in dividers(&shares, cx.rect, cx.style.grab) {
             let number = units.number((at + 1) as f64, 0..=0);
-            let node = access.node(DIVIDER.at(at as u64), Role::SPLITTER);
-            node.name = Name::Text(words.divider.fill(&[("n", number.as_str())]).as_str().to_owned());
-            node.numeric = Some(Numeric::new(share * 100.0, 0.0..=100.0).step(KEY_STEP * 100.0).text(units.number(share * 100.0, 0..=0)));
+            (divider.at, divider.lo, divider.hi) = (shares[at as usize] as f32 * 100.0, 0.0, 100.0);
+            divider::describe(access, DIVIDER, at, &divider, words.divider.fill(&[("n", number.as_str())]).as_str(), KEY_STEP as f32 * 100.0);
         }
     }
 
