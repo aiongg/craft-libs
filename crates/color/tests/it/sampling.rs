@@ -165,6 +165,30 @@ fn a_press_on_empty_canvas_places_a_point_that_the_drag_carries() {
     assert_eq!(tool.samplers().points(), [[90.0, 70.0]], "one point, at the release");
 }
 
+/// The point follows the pointer while it is down; Escape puts it back and a release off the canvas removes it.
+#[trial]
+fn a_point_follows_the_pointer_during_the_drag() {
+    let mut tool = sampler_tool(&[[50.0, 50.0]]);
+    let mut cx = context();
+    assert_eq!(tool.press(&at(50.0, 50.0), &mut cx), ToolAction::Claimed);
+    tool.drag(&at(120.6, 90.2), &mut cx);
+    assert_eq!(tool.samplers().points(), [[120.0, 90.0]], "mid-drag the point is under the pointer");
+    tool.drag(&at(350.0, 90.0), &mut cx);
+    assert_eq!(tool.samplers().points(), [[120.0, 90.0]], "off the canvas it waits where it was");
+    tool.cancel(CancelReason::Escape, &mut cx);
+    assert_eq!(tool.samplers().points(), [[50.0, 50.0]], "Escape restores the point the press found");
+
+    assert_eq!(tool.press(&at(200.0, 100.0), &mut cx), ToolAction::Claimed);
+    tool.drag(&at(210.0, 110.0), &mut cx);
+    tool.cancel(CancelReason::Escape, &mut cx);
+    assert_eq!(tool.samplers().points(), [[50.0, 50.0], [200.0, 100.0]], "a new point stays at its press");
+
+    assert_eq!(tool.press(&at(200.0, 100.0), &mut cx), ToolAction::Claimed);
+    tool.drag(&at(250.0, 100.0), &mut cx);
+    tool.release(&at(350.0, 100.0), &mut cx);
+    assert_eq!(tool.samplers().points(), [[50.0, 50.0]], "released off the canvas it is removed");
+}
+
 #[trial]
 fn the_sampler_tool_meets_the_tool_rules() {
     let view = |rect: Rect| CanvasView::new(rect, Point::new(f64::from(SIZE[0]) / 2.0, f64::from(SIZE[1]) / 2.0), 1.0);

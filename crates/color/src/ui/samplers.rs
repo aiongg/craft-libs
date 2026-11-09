@@ -264,7 +264,8 @@ impl Component for ColorSamplerMarks<'_> {
 pub struct ColorSamplerTool<'a> {
     samplers: &'a mut ColorSamplers,
     size: [u32; 2],
-    moving: Option<(usize, [f64; 2])>,
+    /// The point being carried: its index, the press position and where the press found the point.
+    moving: Option<(usize, [f64; 2], [f64; 2])>,
     full: Option<Toast>,
 }
 
@@ -301,13 +302,13 @@ impl CanvasTool for ColorSamplerTool<'_> {
                 ToolAction::Done
             }
             Some(index) => {
-                self.moving = Some((index, at));
+                self.moving = Some((index, at, self.samplers.points()[index]));
                 ToolAction::Claimed
             }
             None if pointer.mods.alt => ToolAction::Done,
             None => match self.samplers.add(at, self.size) {
                 Ok(index) => {
-                    self.moving = Some((index, at));
+                    self.moving = Some((index, at, self.samplers.points()[index]));
                     ToolAction::Claimed
                 }
                 Err(error) => {
@@ -322,10 +323,16 @@ impl CanvasTool for ColorSamplerTool<'_> {
         }
     }
 
-    fn drag(&mut self, _: &ToolPointer, _: &mut ToolContext<'_>) {}
+    fn drag(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
+        let (Some((index, ..)), Some(to)) = (self.moving, Self::doc_at(cx, pointer.pos)) else { return };
+        // Off the canvas the point stays at its last position; the release removes it.
+        if pixel(to, self.size).is_some() {
+            let _ = self.samplers.move_point(index, to, self.size);
+        }
+    }
 
     fn release(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
-        let Some((index, from)) = self.moving.take() else { return };
+        let Some((index, from, _)) = self.moving.take() else { return };
         let Some(to) = Self::doc_at(cx, pointer.pos) else { return };
         if (to[0] - from[0]).hypot(to[1] - from[1]) <= 0.5 {
             return;
@@ -334,7 +341,9 @@ impl CanvasTool for ColorSamplerTool<'_> {
     }
 
     fn cancel(&mut self, _: CancelReason, _: &mut ToolContext<'_>) {
-        self.moving = None;
+        if let Some((index, _, start)) = self.moving.take() {
+            let _ = self.samplers.move_point(index, start, self.size);
+        }
     }
 
     fn paint(&self, _: &craft_ui::primitives::Draw<'_>, _: &ToolContext<'_>) {}

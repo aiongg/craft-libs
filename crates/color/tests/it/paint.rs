@@ -184,14 +184,16 @@ fn pair_rig(popover: bool, click_activates: bool) -> (Fixture, Rc<Cell<PairSeen>
     (fixture, seen, root)
 }
 
-fn well(fixture: &Fixture, root: &Cell<Option<Id>>, at: u64) -> craft_ui::testing::Target {
-    fixture.part(root.get().expect("shown"), PartKey::new("well").at(at)).expect("the well is a node")
+/// The well at `at` (0 the foreground, 1 the background), found by its accessible name.
+fn well(fixture: &Fixture, at: usize) -> craft_ui::testing::Target {
+    let name = ["Foreground colour", "Background colour"][at];
+    fixture.by_label(name).expect("the well is a node")
 }
 
 #[trial]
 fn a_click_makes_a_well_active_and_a_double_click_opens_its_popup() {
     let (mut fixture, seen, root) = pair_rig(true, true);
-    let secondary = well(&fixture, &root, 1);
+    let secondary = well(&fixture, 1);
     fixture.click(&secondary);
     assert_eq!(seen.get().active, Well::Secondary);
     assert!(seen.get().activated);
@@ -214,7 +216,7 @@ fn the_buttons_report_swap_and_default() {
 #[trial]
 fn in_host_picker_mode_a_click_is_reported_and_opens_no_popup() {
     let (mut fixture, seen, root) = pair_rig(false, false);
-    let secondary = well(&fixture, &root, 1);
+    let secondary = well(&fixture, 1);
     fixture.click(&secondary);
     assert_eq!(seen.get().clicked, Some(Well::Secondary));
     assert_eq!(seen.get().active, Well::Primary, "the host keeps the active well");
@@ -240,7 +242,7 @@ fn in_host_picker_mode_enter_clicks_the_focused_well_and_the_arrows_only_move_th
 #[trial]
 fn the_default_mode_reports_clicks_as_well_as_activating() {
     let (mut fixture, seen, root) = pair_rig(true, true);
-    let secondary = well(&fixture, &root, 1);
+    let secondary = well(&fixture, 1);
     fixture.click(&secondary);
     assert_eq!(seen.get().clicked, Some(Well::Secondary));
     assert_eq!(seen.get().active, Well::Secondary);
