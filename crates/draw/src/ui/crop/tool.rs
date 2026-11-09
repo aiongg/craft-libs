@@ -245,13 +245,7 @@ impl CropTool {
     /// the frame refits to [`CropSettings::ratio_value`] about its centre, from the frame the field edit
     /// began with while `editing`, as one box step. Returns the frame's `Set` for the host's mirror, or
     /// `None` when nothing changed. In image mode the next pass turns the view with the frame.
-    pub fn refit(
-        &mut self,
-        settings: &CropSettings,
-        document: &CropDocument,
-        units: &Units,
-        editing: bool,
-    ) -> Option<CropEvent> {
+    pub fn refit(&mut self, settings: &CropSettings, document: &CropDocument, units: &Units, editing: bool) -> Option<CropEvent> {
         let base = self.session.ratio_base(editing);
         self.end_nudges();
         if self.dragging {
