@@ -206,10 +206,68 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
         Rect::from_min_max(Pos2::new(area.min.x, area.min.y + self.header.height), area.max)
     }
 
-    /// Whether the collection takes its width from its widest row: `Sizing::Content` over rows with no columns,
-    /// whose widths the header resolves.
+    /// Whether the collection takes its width from its widest row: `Sizing::Content`. A row's width holds its
+    /// column cells at the widths the header resolves for them.
     fn content_sized(&self, comp: &C) -> bool {
-        comp.props(Internal::new()).sizing == Sizing::Content && !self.header.has_columns()
+        comp.props(Internal::new()).sizing == Sizing::Content
+    }
+
+    /// The widest ideal width of the rows in this pass: each row is built as `content` builds it, with its column
+    /// cells at the widths the header resolves with no room to share (a fixed or toggle column at its own width),
+    /// and measured without allocating.
+    fn widest_row(&mut self, comp: &C, ui: &Ui, id: Id) -> f32 {
+        let ctx = ui.ctx().clone();
+        let env = Env::of(ui);
+        let mut memory = MemoryStage::open_peek(&ctx, id);
+        let cells: Vec<(craft_behavior::ColumnKey, Rect)> =
+            self.header.columns(0.0).into_iter().map(|(key, width)| (key, Rect::from_min_size(Pos2::ZERO, Vec2::new(width, 0.0)))).collect();
+        let columns: Vec<craft_behavior::ColumnKey> = cells.iter().map(|(key, _)| key.clone()).collect();
+        let toggles: Vec<craft_behavior::ColumnKey> = self.header.toggle_columns().map(|(key, _)| key).collect();
+        let len = self.source.len();
+        let mut widest = 0.0f32;
+        for at in 0..len {
+            if self.source.section_stop(at) {
+                continue;
+            }
+            let key = self.source.key(at);
+            let item_id = sub(id, ("key", key_hash(&key)));
+            let position =
+                SetPosition::new(at - self.source.section_stops_before(at)).of(len - self.source.section_stops_before(len)).columns(cells.len());
+            let mut icx = ItemCx {
+                key: &key,
+                at,
+                rect: Rect::ZERO,
+                row: RowState::default(),
+                depth: self.source.depth(at),
+                set: position,
+                row_index: at,
+                row_count: len,
+                column_count: cells.len(),
+                env: env.view(),
+                id: sub(item_id, "item"),
+                cells: cells.clone(),
+                grid: None,
+                tip: None,
+                openers: Vec::new(),
+                item: item_id,
+                memory: &mut memory,
+            };
+            let item = (self.item)(&key, &mut icx);
+            let mut item = Props::id(comp.dress(item, &RowState::default()), item_id);
+            let facts =
+                ItemFacts { item: item_id, flags: crate::style::Flags::empty(), position, columns: columns.clone(), toggles: toggles.clone() };
+            let installed = Env::install_for(
+                ui,
+                env.derive_local(|scoped| {
+                    scoped.item = Some(item_id);
+                    scoped.row = Some(rows::row_group(item_id));
+                    scoped.item_facts = Some(facts);
+                }),
+            );
+            widest = widest.max(item.measure_in(ui, Proposal::Ideal).x);
+            Env::restore(&ctx, installed);
+        }
+        widest
     }
 
     fn rows_rect(&self, cx: &Cx<'_, C>) -> Rect {
@@ -423,7 +481,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             // An unbounded room (a horizontally scrolling body) takes the widest row, as a content-sized collection does.
             (_, _) => {
                 let floor = overlay::drawing_parent(ui.ctx()).map_or(0.0, |layer| super::overlay::floor_width(ui.ctx(), layer));
-                rows::widest_row(ui.ctx(), id).map_or(if bounded { room.x } else { 0.0 }, |widest| widest.max(floor).min(room.x))
+                self.widest_row(comp, ui, id).max(floor).min(room.x)
             }
         };
         let previous = self.layout.take().or_else(|| self.previous.take()).map(|held| Arc::try_unwrap(held).unwrap_or_else(|held| (*held).clone()));
@@ -621,8 +679,6 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let placed = self.selection.placed(self.source);
         let mut row_groups = Vec::with_capacity(order.len());
         let mut shown_rows: Vec<ShownRow<C::Key>> = Vec::with_capacity(order.len());
-        let content_sized = self.content_sized(comp);
-        let mut widest = 0.0f32;
         let place_rows = |ui: &mut Ui| {
             for at in order {
                 if self.source.section_stop(at) {
@@ -714,9 +770,6 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     }),
                 );
                 item = Props::id(item, item_id);
-                if content_sized {
-                    widest = widest.max(item.measure_in(&row_ui, Proposal::Ideal).x);
-                }
                 if layout.is_auto(at) {
                     let measured = item.measure_in(&row_ui, Proposal::Width(row.width())).y;
                     rows::record_measure(&ctx, rows::measured_id(id, &key), Vec2::new(row.width(), measured));
@@ -790,9 +843,6 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.paint_marquee(ui, env, &layout, (rect, offset, rtl));
         focus::register_row_groups(&ctx, id, rtl, row_groups);
         self.shown = shown_rows;
-        if content_sized {
-            rows::record_widest(&ctx, id, widest);
-        }
         cx.core.grid = crate::contract::GridPlace::grid(len, columns.len());
         let size = layout.content_size();
         self.content = Vec2::new(size.x as f32, size.y as f32);

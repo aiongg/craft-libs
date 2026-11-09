@@ -1909,6 +1909,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 scoped.content_column = content_column;
                 scoped.row_room = None;
                 scoped.content = (!self.given.0, !self.given.1);
+                scoped.offered = (!self.given.0 && room.x.is_finite()).then_some(room.x);
                 match scroll {
                     Some(scroll) => {
                         scoped.scroll_owner = Some(id);

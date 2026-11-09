@@ -2,6 +2,7 @@
 //! collections written on the contract only.
 
 mod clicks_and_rename;
+mod content_columns;
 mod drag;
 mod keys;
 pub(crate) mod kit;
