@@ -61,11 +61,11 @@ impl Demo {
     }
 }
 
-/// Shows `ruler` inside a timeline view over `view`, which publishes the time axis the ruler reads.
-fn in_view<'a>(ui: &mut Ui, view: &mut TimeView, ruler: impl FnOnce() -> TimelineRuler<'a>) -> StoryOutput {
-    let mut ruler = Some(ruler);
+/// Shows the ruler `show` makes inside a timeline view over `view`, which publishes the time axis the ruler reads.
+/// `show` builds the ruler and shows it on every run of the view's body.
+fn in_view(ui: &mut Ui, view: &mut TimeView, mut show: impl FnMut(&mut Ui) -> TimelineRulerResponse) -> StoryOutput {
     TimelineView::new("Time", Bind::bound(view), format(), secs(END_SECONDS))
-        .show(ui, |ui, _cx| -> Option<TimelineRulerResponse> { ruler.take().map(|ruler| ruler().show(ui)) })
+        .show(ui, |ui, _cx| -> Option<TimelineRulerResponse> { Some(show(ui)) })
         .inner
         .flatten()
         .map(StoryOutput::from)
@@ -91,28 +91,28 @@ fn split_marks() -> SplitMarks {
 fn ruler_at_second_zoom(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let demo = data.value("second", Demo::at(Tick::ZERO, SECOND_ZOOM));
     let Demo { view, playhead, work_area, render } = demo;
-    in_view(ui, view, || ruler(Bind::bound(playhead), *work_area, render))
+    in_view(ui, view, |ui| ruler(Bind::bound(&mut *playhead), *work_area, render).show(ui))
 }
 
 #[story(TimelineRuler<'static>, covers = [])]
 fn ruler_at_frame_zoom(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let demo = data.value("frame", Demo::at(secs(4.0), FRAME_ZOOM));
     let Demo { view, playhead, work_area, render } = demo;
-    in_view(ui, view, || ruler(Bind::bound(playhead), *work_area, render))
+    in_view(ui, view, |ui| ruler(Bind::bound(&mut *playhead), *work_area, render).show(ui))
 }
 
 #[story(TimelineRuler<'static>, covers = [])]
 fn ruler_at_minute_zoom(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let demo = data.value("minute", Demo::at(Tick::ZERO, MINUTE_ZOOM));
     let Demo { view, playhead, work_area, render } = demo;
-    in_view(ui, view, || ruler(Bind::bound(playhead), *work_area, render))
+    in_view(ui, view, |ui| ruler(Bind::bound(&mut *playhead), *work_area, render).show(ui))
 }
 
 #[story(TimelineRuler<'static>, covers = [Mixed])]
 fn playheads_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let mut view = *data.value("view", TimeView::new(Tick::ZERO, SECOND_ZOOM));
     let playhead = data.value("playhead", Mixed::<Tick>::Mixed);
-    let shown = in_view(ui, &mut view, || TimelineRuler::new("Time ruler", Bind::bound_mixed(playhead)));
+    let shown = in_view(ui, &mut view, |ui| TimelineRuler::new("Time ruler", Bind::bound_mixed(&mut *playhead)).show(ui));
     *data.value("view", TimeView::new(Tick::ZERO, SECOND_ZOOM)) = view;
     shown
 }
@@ -121,11 +121,11 @@ fn playheads_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn playhead_after_the_limit(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let mut view = *data.value("view", TimeView::new(Tick::ZERO, SECOND_ZOOM));
     let playhead = data.value("playhead", secs(LATEST_SECONDS + 1.0));
-    let shown = in_view(ui, &mut view, || {
+    let shown = in_view(ui, &mut view, |ui| {
         let before_the_limit = |t: &Tick| {
             if *t > secs(LATEST_SECONDS) { Validity::Refuse(Message::new("The playhead is past the limit")) } else { Validity::Ok }
         };
-        TimelineRuler::new("Time ruler", Bind::bound(playhead).check(before_the_limit))
+        TimelineRuler::new("Time ruler", Bind::bound(&mut *playhead).check(before_the_limit)).show(ui)
     });
     *data.value("view", TimeView::new(Tick::ZERO, SECOND_ZOOM)) = view;
     shown

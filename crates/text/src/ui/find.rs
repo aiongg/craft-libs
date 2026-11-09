@@ -149,7 +149,7 @@ impl craft_ui::contract::Outcome for FindBarOutput {
 }
 
 /// Whether the bar has just been asked for, kept by the app beside its query ([`open`](Self::open) when Cmd+F opens
-/// it, and again when it is asked for with the bar open).
+/// it, and again when it is asked for with the bar open). The bar clears it once the query field holds focus.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct FindBarState {
     opened: bool,
@@ -161,7 +161,7 @@ impl FindBarState {
         self.opened = true;
     }
 
-    /// Whether the bar was asked for since the last pass.
+    /// Whether the bar was asked for and its query field has not taken focus yet.
     pub fn is_opening(&self) -> bool {
         self.opened
     }
@@ -216,7 +216,8 @@ impl<'a> FindBar<'a> {
     pub fn show(self, ui: &mut Ui) -> FindBarOutput {
         let FindBar { query, options, matches, progress, state } = self;
         let words = Env::of(ui).words::<FindLabels>();
-        let opened = state.is_some_and(|state| std::mem::take(&mut state.opened));
+        let mut state = state;
+        let opened = state.as_deref().is_some_and(|state| state.opened);
         let mut out = FindBarOutput { search: false, stepped: false, closed: false, response: ui.response() };
         let mut step: Option<bool> = None;
         let row = Row::new().show(ui, |ui, cx: &mut BodyCx<'_>| {
@@ -226,6 +227,12 @@ impl<'a> FindBar<'a> {
             let edit = TextField::search(words.find_text.clone(), Bind::given(query.clone())).placeholder(words.find_text.clone()).show(ui);
             if opened {
                 focus::request(ui.ctx(), FocusTarget::Id(edit.response.id));
+                // Asking again each run until the field holds focus keeps the request across the measuring run.
+                if edit.response.has_focus() {
+                    if let Some(state) = state.as_deref_mut() {
+                        state.opened = false;
+                    }
+                }
             }
             if let Some(value) = edit.event.as_ref().and_then(|event| event.value()) {
                 query.clone_from(value);
