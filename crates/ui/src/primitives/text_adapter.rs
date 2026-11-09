@@ -334,8 +334,7 @@ pub(crate) fn run(state: &mut TextState, mut input: AdapterIn<'_>) -> AdapterOut
     let typing = shown.focused && state.preedit.is_none() && !input.read_only;
     let at = state.draft.as_deref().filter(|_| typing).map(|text| (text, caret.unwrap_or_else(|| text.chars().count())));
     state.completions.refresh(input.options.complete.as_deref(), at);
-    let submitted =
-        (shown.entered && shown.focused).then(|| held_mods(ctx)).filter(|mods| !input.options.multiline() || (input.options.submits && mods.cmd));
+    let submitted = (shown.entered && shown.focused).then(|| held_mods(ctx)).filter(|mods| !input.options.multiline() || mods.cmd);
     if let Some(mods) = submitted {
         state.end = Some(End::Submit);
         state.submit_mods = mods;
