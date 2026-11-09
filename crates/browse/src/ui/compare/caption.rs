@@ -12,7 +12,6 @@ use craft_ui::runtime::env::Env;
 use craft_ui::style::TypeRole;
 use craft_ui::tile_grid::TileFlag;
 use egui::Ui;
-use std::cell::RefCell;
 
 use super::CompareWords;
 
@@ -100,15 +99,12 @@ impl CompareCaption {
             marks += Icon::new(dot.clone()).measure_in(ui, Proposal::Ideal).x;
         }
         let name_fits = label.measure_in(ui, Proposal::Ideal).x + name.measure_in(ui, Proposal::Ideal).x + marks <= room;
-        let (label, name) = (RefCell::new(Some(label)), RefCell::new(Some(name)));
         let env = Env::of(ui);
         let stars_name = stars.map(|n| env.words::<CompareWords>().stars.text(u64::from(n), &env.view().format().integer(u64::from(n))).to_string());
         Row::new().show(ui, |ui, _| {
-            if let Some(label) = label.borrow_mut().take() {
-                label.show(ui);
-            }
-            if let (true, Some(name)) = (name_fits, name.borrow_mut().take()) {
-                name.show(ui);
+            Text::new(self.label.clone()).role(TypeRole::BodyStrong).show(ui);
+            if name_fits {
+                Text::new(self.name.clone()).role(TypeRole::Caption).shade(Shade::Muted).show(ui);
             }
             if let Some(n) = stars {
                 let rating = Rating::new(Bind::given(n), STARS).enabled(false);
