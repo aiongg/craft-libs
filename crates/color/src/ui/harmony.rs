@@ -308,8 +308,8 @@ impl<'a> HarmonyPanel<'a> {
         let mut held_state = Held::new(state);
         let mut held_picked = Held::new(picked);
         let (mut chosen, mut set_base) = (None, false);
-        let shown = Stack::new().show(ui, |ui, cx| {
-            let Some(before) = held_state.read(cx) else { return };
+        let mut shown = Stack::new().show(ui, |ui, cx| {
+            let before = held_state.read(cx)?;
             let before_picked = held_picked.read(cx).unwrap_or_default();
             let key = GuideKey { base, rule: before.rule, options: before.options, limit: limit.map(<[Srgba]>::to_vec) };
             let stamp = key.stamp();
@@ -347,9 +347,6 @@ impl<'a> HarmonyPanel<'a> {
             cells.dedup();
             let colors: Vec<Srgba> = cells.iter().filter_map(|&i| flat.get(i).map(|(_, c)| *c)).collect();
             let after_picked = HarmonyPicked { selection, guide: stamp, colors };
-            if after_picked != before_picked {
-                held_picked.write(cx, &before_picked, after_picked, words.variations.as_str());
-            }
 
             let (left, right) = match before.options.variation {
                 Variation::TintsShades => (&words.shades, &words.tints),
@@ -361,6 +358,14 @@ impl<'a> HarmonyPanel<'a> {
                 Text::new(right.clone()).show(ui);
             });
 
+            Some((before, now, before_picked, after_picked))
+        });
+        // Once per pass, after the real run: the edited rule and the picked cells are stored.
+        shown.settle(|cx, edited| {
+            let Some((before, now, before_picked, after_picked)) = edited.take() else { return };
+            if after_picked != before_picked {
+                held_picked.write(cx, &before_picked, after_picked, words.variations.as_str());
+            }
             if now != before {
                 held_state.write(cx, &before, now, words.rule.as_str());
             }

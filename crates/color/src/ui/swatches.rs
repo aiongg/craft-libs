@@ -409,6 +409,16 @@ pub struct SwatchesPanel<'a> {
     foreground: Srgba,
 }
 
+/// What the body decided; `show` stores it after the real run.
+struct Settled {
+    before: SwatchLibrary,
+    lib: SwatchLibrary,
+    before_state: SwatchesState,
+    st: SwatchesState,
+    used: Option<(SwatchAt, Srgba, bool)>,
+    changed: bool,
+}
+
 impl<'a> SwatchesPanel<'a> {
     /// The panel over `library` and the host-owned `state`; `foreground` is what New Swatch adds.
     pub fn new(library: Bind<'a, SwatchLibrary>, state: Bind<'a, SwatchesState>, foreground: Srgba) -> Self {
@@ -430,15 +440,14 @@ impl<'a> SwatchesPanel<'a> {
         let words = Env::of(ui).words::<SwatchesWords>();
         let mut held_library = Held::new(library);
         let mut held_state = Held::new(state);
-        let (mut used, mut changed) = (None, false);
-        let shown = Stack::new().show(ui, |ui, cx| {
-            let (Some(before), Some(before_state)) = (held_library.read(cx), held_state.read(cx)) else { return };
+        let ctx = ui.ctx().clone();
+        let rename_scope = ui.scope_id().with("browser-rows");
+        let mut shown = Stack::new().show(ui, |ui, cx| {
+            let (Some(before), Some(before_state)) = (held_library.read(cx), held_state.read(cx)) else { return None };
+            let (mut used, mut changed) = (None, false);
             let (mut lib, mut st) = (before.clone(), before_state.clone());
             if st.selected.as_ref().is_some_and(|k| !lib.has(k)) {
                 st.selected = None;
-            }
-            if let Some(key) = st.rename.take() {
-                request_rename(ui.ctx(), ui.scope_id().with("browser-rows"), &key);
             }
             let mut rows = Vec::with_capacity(lib.total() + lib.groups.len());
             for group in &lib.groups {
@@ -482,13 +491,25 @@ impl<'a> SwatchesPanel<'a> {
             for event in out.events {
                 actions.event(event);
             }
-            if changed {
-                held_library.write(cx, &before, lib, words.title.as_str());
-            }
-            if st != before_state {
-                held_state.write(cx, &before_state, st, words.title.as_str());
-            }
+            Some(Settled { before, lib, before_state, st, used, changed })
         });
+        // Once per pass, after the real run: the rename request and the edited library and state are stored.
+        let (used, changed) = shown
+            .settle(|cx, settled| {
+                let Settled { before, lib, before_state, mut st, used, changed } = settled.take()?;
+                if let Some(key) = st.rename.take() {
+                    request_rename(&ctx, rename_scope, &key);
+                }
+                if changed {
+                    held_library.write(cx, &before, lib, words.title.as_str());
+                }
+                if st != before_state {
+                    held_state.write(cx, &before_state, st, words.title.as_str());
+                }
+                Some((used, changed))
+            })
+            .flatten()
+            .unwrap_or_default();
         SwatchesPanelOutput { response: shown.output, used, changed }
     }
 
