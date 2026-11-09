@@ -132,7 +132,15 @@ pub(super) fn keys_move_the_lead(subject: &Subject) -> Result<(), String> {
                         ));
                     }
                 }
-                expect(&mut fixture, Key::Home, Modifiers::COMMAND, 0, "Ctrl+Home")?;
+                // Ctrl+Home goes to the first row that scrolls: after a wheel step, the leading rows still shown beside
+                // rows far into the set are frozen, and skipped.
+                fixture.frame(vec![crate::testing::pointer::moved(container.rect.center())]);
+                fixture.frame(vec![crate::testing::pointer::wheel(-3.0 * shown[0].rect.height())]);
+                let scrolled: Vec<usize> =
+                    rows(&fixture, container.node).iter().filter_map(|row| position_in_set(&fixture, row.node).map(|(at, _)| at)).collect();
+                let pinned = scrolled.iter().enumerate().take_while(|(index, at)| *index == **at).count();
+                let pinned = if pinned < scrolled.len() { pinned } else { 0 };
+                expect(&mut fixture, Key::Home, Modifiers::COMMAND, pinned, "Ctrl+Home")?;
             }
         }
         fixture.key(Key::PageDown, Modifiers::NONE);
@@ -335,7 +343,7 @@ pub(super) fn scroll_shows_rows_in_the_same_frame(subject: &Subject) -> Result<(
         };
         let row = top.rect.height();
         let last_row = position_in_set(&fixture, bottom.node).is_some_and(|(at, count)| at + 1 == count);
-        if top.rect.min.y > container.rect.min.y + row || (!last_row && bottom.rect.max.y < container.rect.max.y - row) {
+        if top.rect.min.y > shown[0].rect.min.y + row || (!last_row && bottom.rect.max.y < container.rect.max.y - row) {
             return Err(format!("{}: the frame of the scroll leaves part of the viewport without rows", story.name));
         }
         // A section header between two items fills the space it takes; any other gap is a row that is missing.
