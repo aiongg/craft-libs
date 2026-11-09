@@ -156,13 +156,16 @@ pub(super) struct Drags<K> {
     /// The row whose rename column got a double press: the editor opens when the press ends as a click, not when it
     /// becomes a drag.
     pub(super) rename: Option<K>,
+    /// The row a primary press of an `ActivateOn::Click` collection landed on: it activates when the press ends as a
+    /// click, not when it becomes a drag.
+    pub(super) activate: Option<K>,
     /// The marquee a press on empty space started.
     pub(super) marquee: Option<MarqueeDrag<K>>,
 }
 
 impl<K> Default for Drags<K> {
     fn default() -> Self {
-        Drags { grabbed: None, sweep: None, moving: None, over: None, collapse: None, rename: None, marquee: None }
+        Drags { grabbed: None, sweep: None, moving: None, over: None, collapse: None, rename: None, activate: None, marquee: None }
     }
 }
 

@@ -898,16 +898,28 @@ pub struct CollectionResponse<K, E> {
     pub rename: bool,
     /// The collection reorders items.
     pub reorder: bool,
+    /// The click count of the press behind this pass's `Activate`: 2 for the second click of a double click, 0 when a
+    /// key or no pointer activated.
+    pub activation_clicks: u8,
 }
 
 impl<K, E> CollectionResponse<K, E> {
     pub(crate) fn new(
         response: Response,
-        (events, shown): (Vec<CollectionEvent<K, E>>, Vec<ShownRow<K>>),
+        (events, shown, activation_clicks): (Vec<CollectionEvent<K, E>>, Vec<ShownRow<K>>, u8),
         visible: Range<usize>,
         gestures: Gestures,
     ) -> Self {
-        CollectionResponse { response, events, visible, shown, select: gestures.select, rename: gestures.rename, reorder: gestures.reorder }
+        CollectionResponse {
+            response,
+            events,
+            visible,
+            shown,
+            select: gestures.select,
+            rename: gestures.rename,
+            reorder: gestures.reorder,
+            activation_clicks,
+        }
     }
 
     /// The response of the item part `opener` names: its click this pass and its rect. A menu or popover hangs from

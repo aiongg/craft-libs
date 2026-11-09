@@ -373,10 +373,10 @@ impl<'a> TextStylesPanel<'a> {
 
                 let source = keyed(rows, |row: &TextStyleRow| row.id);
                 let mode = if highlighting { SelectMode::Multi } else { SelectMode::Single };
-                let events = List::new(label.clone())
+                let shown_rows = List::new(label.clone())
                     .id(list_id)
                     .select(mode)
-                    .activate(ActivateOn::DoubleClick)
+                    .activate(ActivateOn::Click)
                     .allow_empty(true)
                     .deletable(true)
                     .natural_height(true)
@@ -392,10 +392,11 @@ impl<'a> TextStylesPanel<'a> {
                         let description = if none { words.no_character_style.as_str().to_owned() } else { tip.clone() };
                         let styled = ListRow::new(name).accessible_name(spoken).description(description).highlight(is_current);
                         if none { styled.ink(RowInk::Dimmed) } else { styled }
-                    })
-                    .events;
+                    });
+                let (events, second) = (shown_rows.events, shown_rows.activation_clicks >= 2);
 
-                let alt = craft_ui::runtime::pointer::frame(ui.ctx()).mods.alt;
+                let pointer = craft_ui::runtime::pointer::frame(ui.ctx());
+                let alt = pointer.mods.alt;
                 // A press reports the selection it makes, then the lead it moved.
                 let by_pointer =
                     events.iter().any(|event| matches!(event, CollectionEvent::LeadMoved { by: craft_ui::contract::LeadSource::Pointer, .. }));
@@ -404,11 +405,12 @@ impl<'a> TextStylesPanel<'a> {
                         CollectionEvent::Selection(SelectionChange::Set(keys)) if by_pointer && keys.len() == 1 => {
                             if target && !paragraph && !text_selected {
                                 hint.set(true);
-                            } else if target {
-                                action.set(Some(TextStyleAction::apply(keys[0], alt)));
                             }
                         }
-                        CollectionEvent::Activate(id) if id != 0 || paragraph => action.set(Some(TextStyleAction::Options(id))),
+                        CollectionEvent::Activate(id) if second && (id != 0 || paragraph) => action.set(Some(TextStyleAction::Options(id))),
+                        CollectionEvent::Activate(id) if target && (paragraph || text_selected) && !pointer.mods.shift && !pointer.mods.cmd => {
+                            action.set(Some(TextStyleAction::apply(id, alt)));
+                        }
                         CollectionEvent::Delete(keys) if keys.len() > 1 => action.set(Some(TextStyleAction::DeleteHighlighted)),
                         CollectionEvent::Delete(keys) => {
                             if let Some(id) = keys.first().copied().filter(|id| *id != 0) {
