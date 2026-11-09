@@ -3488,11 +3488,16 @@ The fixture, the suite runner and the story helpers.
 - `craft_ui::testing::registered_in`: `pub fn registered_in(crate_name: &str) -> Vec<&'static Registration>`. Every registration declared in the library crate of the package `crate_name` and linked into the running
 - `craft_ui::testing::Fixture`: re-export of `craft_ui::testing::fixture::Fixture`.
 - `craft_ui::testing::Frames`: re-export of `craft_ui::testing::frames::Frames`.
+- `craft_ui::testing::Impure`: re-export of `craft_ui::testing::fixture::Impure`.
 - `craft_ui::testing::Room`: re-export of `craft_ui::testing::fixture::Room`.
 - `craft_ui::testing::Target`: re-export of `craft_ui::testing::fixture::Target`.
 - `craft_ui::testing::ToolFixture`: re-export of `craft_ui::testing::tool_fixture::ToolFixture`.
 - `craft_ui::testing::install_spec`: re-export of `craft_ui::testing::windows::install_spec`.
+- `craft_ui::testing::is_measuring`: `pub fn active(ctx: &Context) -> bool`. Whether a measuring run is in progress.
+- `craft_ui::testing::measuring_run`: `pub fn run<R>(ctx: &Context, f: impl FnOnce() -> R) -> R`. Runs `f` as a measuring run. Nested calls are fine.
+- `craft_ui::testing::measuring_runs`: `pub fn body_runs(ctx: &Context) -> Vec<(Id, u32)>`. The bodies whose contents ran in a measuring run in the last pass that ran one, and how many runs each.
 - `craft_ui::testing::story`: re-export of `craft_ui_macros::story` (outside these crates).
+- `craft_ui::testing::take_effects`: `pub fn take_effects(ctx: &Context) -> Vec<&'static str>`. The effects skipped in measuring runs this frame, in order; empties the log.
 - `craft_ui::testing::tool_story`: `pub fn tool_story(ui: &mut Ui, label: &'static str, tool: &mut dyn CanvasTool) -> StoryOutput`. Shows `tool` on a canvas named `label` over the room left in `ui`, and runs it as the canvas's active tool. The
 - `craft_ui::testing::trial`: re-export of `craft_ui_macros::trial` (outside these crates).
 
@@ -3568,6 +3573,7 @@ What the contract trials read: the decision records and findings of the pipeline
 - `craft_ui::testing::contract::clicked_by_primary`: `pub fn clicked_by_primary(response: &egui::Response) -> bool`. Whether `response` reports a primary-button pointer click.
 - `craft_ui::testing::contract::edit_response`: `pub fn edit_response<T>(response: egui::Response) -> crate::contract::EditResponse<T>`. An edit response with no event, for a trial component that has no `cx.edit_response()` to call.
 - `craft_ui::testing::contract::findings`: `pub fn findings(ctx: &Context) -> Vec<Finding>`. Every finding reported on `ctx`.
+- `craft_ui::testing::contract::queue_reveal`: `pub fn queue_reveal(ctx: &Context, owner: Id, rect: egui::Rect)`. Queues a reveal of `rect` for the scroll owner `owner`, as a component that asked for it leaves it for the owner's
 - `craft_ui::testing::contract::raw_widget`: `pub fn raw_widget(ui: &mut egui::Ui, rect: egui::Rect)`. Places a clickable egui widget in `rect` by hand, the way a bypass of the components does.
 - `craft_ui::testing::contract::steps`: `pub fn steps(ctx: &Context, id: Id) -> Vec<&'static str>`. The steps the latest show of `id` ran, in order.
 - `craft_ui::testing::contract::take_reveal`: `pub fn take_reveal(ctx: &Context, owner: Id) -> Option<egui::Rect>`. The reveal request addressed to the scroll owner `owner`, once.
@@ -3681,6 +3687,7 @@ Text dumps for tests: ordered `key = value` lines compared exactly with a file, 
   - `pub fn new(show: impl FnMut(&mut Ui) + 'static) -> Self`. A fixture that shows `show` in a room of 400 by 300 points.
   - `pub fn story(story: &Story) -> Self`. A fixture that shows `story`; its data and outputs are read with [`Fixture::data`] and [`Fixture::take_outputs`].
   - `pub fn story_scoped(story: &Story, scope: fn(&mut Overrides)) -> Self`. A fixture that shows `story` inside an env scope `scope` changes: disabled, read-only, or both.
+  - `pub fn impure(&self) -> Vec<Impure>`. The impure passes the fixture has seen so far; see [`Impure`].
   - `pub fn command_state(&mut self, command: impl Into<CommandRef>, state: CommandState) -> &mut Self`. Gives app-scope `command` this state in every following pass, as an app's `FrameInput.commands` does; a later
   - `pub fn room(&mut self, room: Vec2) -> &mut Self`. The room the story is shown in.
   - `pub fn in_room(&mut self, room: Room) -> &mut Self`. The room of a host kind: the same as [`Fixture::room`] with that kind's size.
@@ -3733,6 +3740,7 @@ Text dumps for tests: ordered `key = value` lines compared exactly with a file, 
   - `pub fn focused_stop(&self) -> Option<(Id, Option<PartRef>)>`. The stop that holds focus: the id of its component and the part when focus is on a part.
   - `pub fn focused(&self) -> Option<Id>`. The id of the widget egui has focused.
   - `pub fn frame_through(&mut self, events: Vec<Event>) -> &mut Self`. `events` as one OS frame, followed by the frames an app runs for it: one for each step of input the one-press
+- `craft_ui::testing::fixture::Impure`: `pub struct Impure { pub pass: usize, pub measuring: bool, pub changed: Vec<&'static str>, pub effects: Vec<&'static str> }`. A pass in which a story's drawing code changed state it must leave alone: in the measuring run the suite runs
 - `craft_ui::testing::fixture::Room`: `pub enum Room { Panel, Dialog, Window }`. The room of a trial, named by the kind of host the component sits in. A trial that needs another size gives it to
   - `pub fn size(self) -> Vec2`. The room's size in points.
 - `craft_ui::testing::fixture::Target`: `pub struct Target { pub node: NodeKey, pub rect: Rect }`. A node of the AccessKit tree, as input addresses it.
@@ -4039,6 +4047,7 @@ Style and paint helpers: token sets, a `StyleCx`, the style cache and a `Draw` o
 The suite runner: one trial per registered type, running the shared cases of its shape over the stories the
 
 - `craft_ui::testing::suite::trials`: `pub fn trials(package: &'static str, registered: &[&'static Registration]) -> Vec<Trial>`. The trials of one package: a trial per registered type and one per story naming a type that is not linked. The
+- `craft_ui::testing::suite::measure_pure_case`: `pub fn measure_pure_case(probe: &Probe, story: &Story) -> Result<(), String>`. The `measure-pure` case over one story of the type `probe` describes: settled and then driven by each way of its
 - `craft_ui::testing::suite::required_states`: `pub fn required_states(probe: &Probe) -> Vec<Required>`. The states a registered type must show, from the facts of its probe, less the states it is exempt from.
 - `craft_ui::testing::suite::rtl_case`: `pub fn rtl_case(story: &Story) -> Result<(), String>`. The suite's right-to-left case for one story.
 - `craft_ui::testing::suite::text_size_case`: `pub fn text_size_case(story: &Story) -> Result<(), String>`. The suite's text-size case for one story: under a larger text size, either density and scale 2 the story grows
