@@ -1110,8 +1110,9 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     let activates = match props.activate {
                         _ if self.source.section_stop(at) => primary && start.clicks == 1,
                         ActivateOn::DoubleClick => start.clicks == 2,
-                        ActivateOn::Click => primary,
+                        ActivateOn::Click => false,
                     };
+                    let on_release = primary && !self.source.section_stop(at) && matches!(props.activate, ActivateOn::Click);
                     let names = primary
                         && start.clicks == 2
                         && props.rename
@@ -1123,6 +1124,8 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                         self.drags.rename = Some(key);
                     } else if activates {
                         self.events.push(CollectionEvent::Activate(key));
+                    } else if on_release {
+                        self.drags.activate = Some(key);
                     }
                 }
             } else if primary
@@ -1169,6 +1172,12 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 {
                     self.begin_rename(cx, at);
                 }
+                if let Some(key) = self.drags.activate.take()
+                    && click
+                    && self.index_of(&key).is_some()
+                {
+                    self.events.push(CollectionEvent::Activate(key));
+                }
                 if let Some(key) = self.drags.collapse.take()
                     && click
                     && let Some(at) = self.index_of(&key)
@@ -1183,6 +1192,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             PressPhase::Cancel { .. } => {
                 self.drags.collapse = None;
                 self.drags.rename = None;
+                self.drags.activate = None;
             }
             _ => {}
         }
