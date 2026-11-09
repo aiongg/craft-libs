@@ -3,8 +3,8 @@
 use craft_ui::canvas::RasterSource as _;
 use craft_ui::contract::{Bind, Show as _, Validity};
 use craft_ui::runtime::env::Message;
-use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
-use egui::{Ui, Vec2};
+use craft_ui::testing::{Drive, Grip, StoryData, StoryOutput, story};
+use egui::{Ui, vec2};
 
 use super::overlay::PIN;
 use super::{BlurKind, BlurPin, BlurPins, BlurPinsOverlay, BlurPinsPanel, IrisShape, TiltBand};
@@ -34,15 +34,7 @@ fn on_picture(ui: &mut Ui, data: &mut StoryData, build: impl FnOnce(&MockImage) 
     })
 }
 
-/// Drags the selected pin by twice the drag threshold.
-fn drag_selected_pin(fixture: &mut Fixture) {
-    let Some(id) = fixture.root_id() else { return };
-    let Some(pin) = fixture.part(id, PIN.at(1)) else { return };
-    let travel = 2.0 * craft_ui::testing::input::max_click_dist(fixture.ctx());
-    fixture.drag(&pin, Vec2::new(travel, 0.0));
-}
-
-#[story(BlurPinsOverlay<'static>, covers = [Default], drive = Drive::Custom(drag_selected_pin))]
+#[story(BlurPinsOverlay<'static>, covers = [Default], drive = Drive::Drag(Grip::part(PIN.at(1)).toward(vec2(1.0, 0.0))))]
 fn field(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     on_picture(ui, data, |image| {
         let mut pins = BlurPins::new(BlurKind::Field, bounds(image), pin(0.5, 0.5, 30.0));

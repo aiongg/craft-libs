@@ -17,8 +17,8 @@ use craft_behavior::Mixed;
 use craft_ui::contract::{Bind, Show as _, Validity};
 use craft_ui::primitives::Revision;
 use craft_ui::runtime::env::{Label, Message};
-use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
-use egui::{Ui, Vec2};
+use craft_ui::testing::{Drive, Grip, StoryData, StoryOutput, story};
+use egui::{Ui, vec2};
 
 /// A generator of repeatable noise in 0..1 (a linear congruential step).
 fn noise(state: &mut u32) -> f32 {
@@ -303,14 +303,6 @@ fn clip_warning_that_is_refused(ui: &mut Ui, data: &mut StoryData) -> StoryOutpu
     ClipWarning::new("Highlight Clipping Warning (O)", Bind::bound(on).check(refuse), ChannelMask::R).show(ui).into()
 }
 
-/// Drags the second tone zone by twice the drag threshold.
-fn drag_second_zone(fixture: &mut Fixture) {
-    let Some(id) = fixture.root_id() else { return };
-    let Some(zone) = fixture.part(id, ZONE.at(1)) else { return };
-    let travel = 2.0 * craft_ui::testing::input::max_click_dist(fixture.ctx());
-    fixture.drag(&zone, Vec2::new(travel, 0.0));
-}
-
 /// The edit the zone stories start from.
 fn first_edit() -> ScopeZoneEdit {
     ScopeZoneEdit { zone: 0, key: ToneZone::CAMERA_RAW[0].key, change: ZoneChange::Step(0) }
@@ -328,7 +320,7 @@ fn zones_story(ui: &mut Ui, value: Bind<'_, ScopeZoneEdit>) -> StoryOutput {
     })
 }
 
-#[story(ToneZones<'static>, covers = [Default], drive = Drive::Custom(drag_second_zone))]
+#[story(ToneZones<'static>, covers = [Default], drive = Drive::Drag(Grip::part(ZONE.at(1)).toward(vec2(1.0, 0.0))))]
 fn zones_over_a_plot(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let edit = data.value("edit", first_edit());
     zones_story(ui, Bind::bound(edit))

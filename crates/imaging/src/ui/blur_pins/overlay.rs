@@ -299,6 +299,7 @@ impl<'a> BlurPinsOverlay<'a> {
             next.selected = Some(index);
         }
         if let Some((direction, mods)) = cx.intents().take_nudge() {
+            next.selected = Some(index);
             let step = if mods.shift { NUDGE_FAR } else { NUDGE };
             let by = view.unmap_vec(direction);
             let length = by.x.hypot(by.y);
