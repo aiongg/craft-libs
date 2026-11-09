@@ -1328,6 +1328,7 @@ dependencies = [
  "egui",
  "serde",
  "toml",
+ "web-time",
 ]
 
 [[package]]
@@ -1733,6 +1734,7 @@ dependencies = [
  "syn 2.0.119",
  "toml",
  "toml_edit",
+ "web-time",
  "zeroize",
 ]
 

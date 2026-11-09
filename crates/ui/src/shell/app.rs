@@ -8,12 +8,12 @@ use crate::runtime::frame::{FrameInput, FrameOutput, request_repaint_after, set_
 use crate::runtime::windows::{self, WindowAction, WindowHost};
 use craft_host::target::{Os, ShellInfo, WindowState};
 use craft_window::desktop::fits;
-use craft_window::policy::{Decision, apply};
-use craft_window::restore::{Defaults, MAIN, Store, place};
+use craft_window::policy::Decision;
+use craft_window::restore::{Defaults, Store};
 use craft_window::system::{NoWindows, WindowSystem};
-use egui::{Context, Pos2, Ui, ViewportBuilder, ViewportId};
+use egui::{Context, Ui, ViewportId};
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use web_time::Instant;
 
 /// What `run` needs of the app.
 #[non_exhaustive]
@@ -177,7 +177,11 @@ impl<A: ShellApp> eframe::App for Driver<A> {
 }
 
 /// The native options for the root window: its saved placement, else the defaults.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn native_options(spec: &AppSpec) -> eframe::NativeOptions {
+    use craft_window::policy::apply;
+    use craft_window::restore::{MAIN, place};
+    use egui::{Pos2, ViewportBuilder};
     let saved = spec.placement.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(MAIN);
     // The monitors are not known before the window exists, so the saved geometry is kept as it is.
     let placed = place(saved.as_ref(), &[], None, &spec.defaults);
@@ -198,21 +202,40 @@ pub fn native_options(spec: &AppSpec) -> eframe::NativeOptions {
     eframe::NativeOptions { viewport, ..eframe::NativeOptions::default() }
 }
 
+/// Installs the runtime on eframe's context, then builds the app with `make`. An install error (two style
+/// replacements for one style key) ends the start with it.
+fn create<A: ShellApp + 'static>(
+    spec: AppSpec,
+    make: impl FnOnce(&Context) -> A + 'static,
+) -> impl FnOnce(&eframe::CreationContext<'_>) -> Result<Box<dyn eframe::App>, Box<dyn std::error::Error + Send + Sync>> {
+    move |cc| {
+        let mut install = InstallSpec::new(spec.shell_info, spec.window_system).placement(spec.placement);
+        if let Some(decision) = spec.frame {
+            install = install.frame(decision);
+        }
+        crate::install(&cc.egui_ctx, install).map_err(|error| format!("the runtime could not be installed: {error}"))?;
+        Ok(Box::new(Driver { app: make(&cc.egui_ctx), movable: None, fitted: false }))
+    }
+}
+
 /// Opens the root window and runs `make`'s app until it closes. The runtime is installed on eframe's context
-/// before `make` runs; an install error (two style replacements for one style key) ends the run with it.
+/// before `make` runs; an install error ends the run with it.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn run<A: ShellApp + 'static>(spec: AppSpec, make: impl FnOnce(&Context) -> A + 'static) -> eframe::Result {
     let options = native_options(&spec);
     let title = spec.app_id.clone();
-    eframe::run_native(
-        &title,
-        options,
-        Box::new(move |cc| {
-            let mut install = InstallSpec::new(spec.shell_info, spec.window_system).placement(spec.placement);
-            if let Some(decision) = spec.frame {
-                install = install.frame(decision);
-            }
-            crate::install(&cc.egui_ctx, install).map_err(|error| format!("the runtime could not be installed: {error}"))?;
-            Ok(Box::new(Driver { app: make(&cc.egui_ctx), movable: None, fitted: false }))
-        }),
-    )
+    eframe::run_native(&title, options, Box::new(create(spec, make)))
+}
+
+/// Runs `make`'s app on `canvas`. The runtime is installed on eframe's context before `make` runs. The returned
+/// runner owns the running app; dropping it does not stop the app, `destroy` does.
+#[cfg(target_arch = "wasm32")]
+pub async fn start_web<A: ShellApp + 'static>(
+    canvas: eframe::web_sys::HtmlCanvasElement,
+    spec: AppSpec,
+    make: impl FnOnce(&Context) -> A + 'static,
+) -> Result<eframe::WebRunner, eframe::wasm_bindgen::JsValue> {
+    let runner = eframe::WebRunner::new();
+    runner.start(canvas, eframe::WebOptions::default(), Box::new(create(spec, make))).await?;
+    Ok(runner)
 }

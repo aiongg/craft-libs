@@ -17,6 +17,7 @@ pub(crate) struct HeldInput {
 
 impl HeldInput {
     /// Whether events wait for the next frame.
+    #[cfg(feature = "testing")]
     pub(crate) fn holds(&self) -> bool {
         !self.events.is_empty()
     }
