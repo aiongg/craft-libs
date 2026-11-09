@@ -350,8 +350,10 @@ impl Strip<'_> {
         } else if key == Key::F6 && (mods.is_none() || mods == Mods::SHIFT) {
             batch.nav.panes.push(!mods.shift);
             false
-        } else if key == Key::Escape && !mods.cmd && !mods.ctrl {
-            // Alt and Shift ride along, as with Enter: a canvas tool reads them; Cmd and Ctrl chords are the app's.
+        } else if key == Key::Escape && !mods.cmd && !mods.ctrl && !(self.records && !mods.is_none()) {
+            // Alt and Shift ride along, as with Enter: a canvas tool reads them; Cmd and Ctrl chords are the app's. While
+            // the focused stop records, Escape with any modifier held is a chord for the recorder; only plain Escape is a
+            // scope escape.
             batch.escapes += 1;
             false
         } else if key == Key::F10 && mods.is_none() && self.menu_bar {

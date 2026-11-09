@@ -24,7 +24,7 @@ fn recording_takes_tab_and_shift_escape_and_escape_cancels_only_the_recording() 
         rig.press(modifiers, key);
     }
     assert_eq!(rig.bindings("object.front"), ["Tab", "Shift+Escape"]);
-    rig.click("Bring to Front");
+    rig.click("Bring to Front: ⇧⎋");
     rig.press(Modifiers::NONE, Key::Escape);
     assert_eq!(rig.bindings("object.front").len(), 2, "Escape only ended the recording");
     assert!(rig.shared.borrow().state.is_open());
