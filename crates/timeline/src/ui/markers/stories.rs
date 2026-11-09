@@ -50,13 +50,15 @@ fn start_view() -> TimeView {
     TimeView::new(Tick::ZERO, POINTS_PER_SECOND)
 }
 
-/// Shows the strip `strip` makes inside a timeline view over `view`, which publishes the time axis the strip reads.
-fn in_view<'a>(ui: &mut Ui, view: &mut TimeView, strip: impl FnOnce() -> MarkerStrip<'a>) -> StoryOutput {
-    let mut strip = Some(strip);
+/// Shows the strip `show` makes inside a timeline view over `view`, which publishes the time axis the strip reads.
+/// `show` builds the strip and shows it on every run of the view's body.
+fn in_view<R>(ui: &mut Ui, view: &mut TimeView, mut show: impl FnMut(&mut Ui) -> R) -> StoryOutput
+where
+    StoryOutput: From<R>,
+{
     TimelineView::new("Timeline", Bind::bound(view), format(), seconds(16.0))
-        .show(ui, |ui, _| strip.take().map(|strip| strip().show(ui)))
+        .show(ui, |ui, _| show(ui))
         .inner
-        .flatten()
         .map(StoryOutput::from)
         .unwrap_or_default()
 }
@@ -65,7 +67,7 @@ fn in_view<'a>(ui: &mut Ui, view: &mut TimeView, strip: impl FnOnce() -> MarkerS
 fn point_and_range_markers(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let markers = [point(), range()];
     let mut view = *data.value("view", start_view());
-    let shown = in_view(ui, &mut view, || MarkerStrip::new("Markers", &markers).bin());
+    let shown = in_view(ui, &mut view, |ui| MarkerStrip::new("Markers", &markers).bin().show(ui));
     *data.value("view", start_view()) = view;
     shown
 }

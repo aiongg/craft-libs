@@ -34,14 +34,16 @@ fn start_view() -> TimeView {
     TimeView::new(Tick::ZERO, POINTS_PER_SECOND)
 }
 
-/// Shows the lane `lane` makes inside a timeline view over `view`, which publishes the time axis the lane reads.
-fn in_view<'a>(ui: &mut Ui, view: &mut TimeView, lane: impl FnOnce() -> KeyframeLane<'a>) -> StoryOutput {
-    let mut lane = Some(lane);
+/// Shows the lane `show` makes inside a timeline view over `view`, which publishes the time axis the lane reads.
+/// `show` builds the lane and shows it on every run of the view's body.
+fn in_view<R>(ui: &mut Ui, view: &mut TimeView, mut show: impl FnMut(&mut Ui) -> R) -> StoryOutput
+where
+    StoryOutput: From<R>,
+{
     let format = TimeFormat::timecode(FrameRate::FPS_24);
     TimelineView::new("Timeline", Bind::bound(view), format, seconds(12.0))
-        .show(ui, |ui, _| lane.take().map(|lane| lane().show(ui)))
+        .show(ui, |ui, _| show(ui))
         .inner
-        .flatten()
         .map(StoryOutput::from)
         .unwrap_or_default()
 }
@@ -54,7 +56,7 @@ fn selected() -> Selection<KeyframeId> {
 fn linear_hold_and_bezier_keys(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let (keys, selection) = (keys(), selected());
     let mut view = *data.value("view", start_view());
-    let shown = in_view(ui, &mut view, || KeyframeLane::new("Keyframes", &keys, &selection).playhead(seconds(4.0)));
+    let shown = in_view(ui, &mut view, |ui| KeyframeLane::new("Keyframes", &keys, &selection).playhead(seconds(4.0)).show(ui));
     *data.value("view", start_view()) = view;
     shown
 }

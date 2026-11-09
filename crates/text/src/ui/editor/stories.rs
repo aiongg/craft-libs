@@ -137,15 +137,14 @@ const SAMPLE: &str = "Hello craft\nSecond line";
 
 /// The editor over `text` with the selection bound to `bind`, on a canvas. The host's edits (typed, pasted and
 /// composed text) are written back to `text`, which the story keeps between passes.
-fn over_canvas(ui: &mut Ui, text: &mut String, bind: Bind<'_, TextSelection>) -> StoryOutput {
+fn over_canvas(ui: &mut Ui, text: &mut String, mut bind: Bind<'_, TextSelection>) -> StoryOutput {
     let mut host = MonoHost { text: std::mem::take(text), revision: 0 };
-    let mut bind = Some(bind);
     let shown = Canvas::new("Document").show(ui, |ui, body| {
         let bounds = Rect::from_min_size(body.rect.min, body.rect.size() * EDITOR_SHARE);
-        bind.take().map(|bind| TextEditor::new("Text", &mut host, bind).show_at(ui, bounds))
+        TextEditor::new("Text", &mut host, bind.reborrowed()).show_at(ui, bounds)
     });
     *text = host.text;
-    shown.inner.flatten().map(StoryOutput::from).unwrap_or_default()
+    shown.inner.map(StoryOutput::from).unwrap_or_default()
 }
 
 /// The editor over `text` with `selection`, and `marked` chars of marked text when given, on a canvas.
