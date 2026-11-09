@@ -1201,10 +1201,9 @@ impl<'b> BodyHooks<'b> {
     }
 
     /// The width the header, body and footer share in a content-sized container: the widest region's, at most the
-    /// room; the whole room before any pass and while every region is empty, which tells nothing about the width
-    /// its content will ask for.
+    /// room; the whole room before any pass.
     fn shared_width(&self, room: f32, props: &ContainerProps) -> f32 {
-        self.wanted_width(props).filter(|wanted| *wanted > 0.0).map_or(room.max(0.0), |wanted| wanted.min(room.max(0.0)))
+        self.wanted_width(props).map_or(room.max(0.0), |wanted| wanted.min(room.max(0.0)))
     }
 
     /// The sizes the regions are placed from before any of them ran this pass: last pass's.
@@ -1914,6 +1913,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 scoped.content_column = content_column;
                 scoped.row_room = None;
                 scoped.content = (!self.given.0, !self.given.1);
+                scoped.offered = (!self.given.0 && room.x.is_finite()).then_some(room.x);
                 match scroll {
                     Some(scroll) => {
                         scoped.scroll_owner = Some(id);
