@@ -116,6 +116,8 @@ pub(crate) struct State {
     pub(super) docs: FastMap<DocKey, Id>,
     pub(super) revealed: Option<StopKey>,
     pub(super) seen: FastMap<Id, u64>,
+    /// A scope moved focus to its initial stop in the running pass.
+    pub(super) entered: bool,
     pub(crate) visible: bool,
     pub(crate) record: FocusedRecord,
     pub(super) menu_bar: bool,
