@@ -94,6 +94,12 @@ impl CanvasTool for Rig {
         pass!(self).key(key, cx)
     }
 
+    fn claims(&self) -> craft_ui::canvas::ToolClaims {
+        let mut options = self.options;
+        let mut canvas = self.canvas.clone();
+        canvas.tool(self.tool, &mut options, self.real_time).claims()
+    }
+
     fn paint(&self, draw: &Draw<'_>, cx: &ToolContext<'_>) {
         let mut options = self.options;
         let mut canvas = self.canvas.clone();

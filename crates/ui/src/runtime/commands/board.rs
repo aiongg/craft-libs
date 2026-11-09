@@ -532,7 +532,14 @@ pub(crate) fn begin(ctx: &Context) {
         let keymap = board.keymap.as_ref().map(|cache| Arc::clone(&cache.keymap))?;
         // An instance of a child scope also brings the scopes it is declared inside, after its own.
         let mut scopes: Vec<&'static str> = Vec::new();
-        for instance in chain.iter().rev().filter_map(|id| board.instances.iter().find(|i| i.id == *id)) {
+        // With nothing focused, the top modal layer's own instance stands for the focus: a dialog's chords work before
+        // anything in it has been focused.
+        let around: Vec<Id> = if chain.is_empty() {
+            board.modal_roots.iter().filter(|(of, _)| *of == viewport).map(|(_, root)| *root).collect()
+        } else {
+            chain.clone()
+        };
+        for instance in around.iter().rev().filter_map(|id| board.instances.iter().find(|i| i.id == *id)) {
             let lineage = board.lineage(instance.scope.name());
             scopes.push(lineage[0]);
             let parents: Vec<&'static str> = lineage[1..].iter().copied().filter(|scope| !scopes.contains(scope)).collect();
