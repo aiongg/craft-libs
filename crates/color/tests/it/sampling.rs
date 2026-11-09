@@ -9,11 +9,11 @@ use craft_behavior::{CancelReason, CanvasView, PointerButton};
 use craft_cms::convert::{CmykConverter, srgb_to_cmyk_naive};
 use craft_color::ui::{
     CaptureSource, ColorPicker, ColorPickerDialog, ColorPickerLayout, ColorPickerResult, ColorSamplerTool, ColorSamplers, PickedColor, SamplerCache,
-    SamplerReadout, SamplerReadouts, ScreenPick, StillCapture,
+    SamplerReadout, SamplerReadouts, ScreenColorPicker, ScreenPick, StillCapture,
 };
 use craft_theme::Srgba;
 use craft_ui::canvas::{CanvasSpace, CanvasTool, ToolAction, ToolContext, ToolPointer};
-use craft_ui::contract::{Bind, Show as _};
+use craft_ui::contract::Bind;
 use craft_ui::dialog::{DialogResult, DialogStack, StackDialog as _};
 use craft_ui::testing::{Fixture, ToolFixture, trial};
 use egui::{Context, Key, Modifiers, Pos2, Rect, vec2};
@@ -283,6 +283,56 @@ fn a_release_outside_the_window_picks_the_colour_under_the_pointer_on_any_monito
     };
     assert_eq!(color, under(&monitors[1]), "the pixel under the pointer on the monitor it is over");
     assert_ne!(color, under(&monitors[0]), "not the same coordinates on the first monitor");
+}
+
+/// A plain click on the picker's screen button shows each monitor's capture in its own window; a click there picks the
+/// pixel under it on that monitor, and Escape in a second pick picks nothing and closes the windows. Guards a click
+/// capture that stays busy with nothing shown.
+#[trial]
+fn a_click_shows_the_capture_and_a_click_on_it_picks_the_pixel_under_the_pointer() {
+    let pick = Rc::new(RefCell::new(ScreenPick::new()));
+    let shared = pick.clone();
+    let monitors = [monitor([0, 0], [720, 700], 1), monitor([720, 0], [400, 700], 2)];
+    let images = monitors.to_vec();
+    let mut fixture = Fixture::new(move |ui| {
+        let mut color = PickedColor::rgb(Srgba::rgb(0.2, 0.5, 0.8));
+        let out = ColorPicker::new("Foreground color", Bind::bound(&mut color)).layout(ColorPickerLayout::Compact).eyedropper(true).show(ui);
+        let mut pick = shared.borrow_mut();
+        if let Some(gesture) = out.screen_pick {
+            pick.hold(ui.ctx(), "fill", gesture);
+        }
+        let images = images.clone();
+        pick.tick_with(ui.ctx(), 1, &move || Box::new(StillCapture::new(Ok(craft_platform::screen::Capture::Images(images.clone())))));
+        ScreenColorPicker::new(&mut pick, "Trial").show(ui);
+    });
+    fixture.room(vec2(1120.0, 700.0));
+    fixture.settle();
+    let button = fixture.by_label("Sample color from the screen").expect("the screen button");
+    fixture.click(&button).settle();
+    assert!(pick.borrow().busy(), "the click starts a pick");
+    // Where OS windows are unavailable each capture is a modal layer, and only the top one reaches the tree.
+    let shown = fixture.by_label("monitor 2").expect("the second monitor's capture shows");
+    let at = shown.rect.min + shown.rect.size() * 0.3;
+    fixture.click_at(at).settle();
+    assert!(!pick.borrow().busy(), "the click ends the pick");
+    let color = pick.borrow_mut().take("fill").expect("the colour under the click");
+    let m = &monitors[1];
+    let (x, y) = (
+        ((at.x - shown.rect.min.x) / shown.rect.width() * m.size[0] as f32) as usize,
+        ((at.y - shown.rect.min.y) / shown.rect.height() * m.size[1] as f32) as usize,
+    );
+    let i = (y * m.size[0] as usize + x) * 4;
+    let under = Srgba::rgb(f32::from(m.rgba[i]) / 255.0, f32::from(m.rgba[i + 1]) / 255.0, f32::from(m.rgba[i + 2]) / 255.0);
+    assert_eq!(color, under, "the pixel under the click on the monitor it shows");
+    assert!(fixture.by_label("monitor 2").is_none(), "the windows close with the pick");
+
+    let button = fixture.by_label("Sample color from the screen").expect("the screen button");
+    fixture.click(&button).settle();
+    assert!(fixture.by_label("monitor 2").is_some(), "a second click shows the capture again");
+    fixture.key(Key::Escape, Modifiers::NONE).settle();
+    assert!(!pick.borrow().busy(), "Escape ends the pick");
+    assert_eq!(pick.borrow_mut().take("fill"), None, "Escape picks nothing");
+    assert!(fixture.by_label("monitor 2").is_none() && fixture.by_label("monitor 1").is_none(), "every window closes");
 }
 
 /// A request from a Mixed swatch carries no colour: the dialog opens with empty channel fields and OK disabled, a typed

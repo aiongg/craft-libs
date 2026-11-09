@@ -57,6 +57,7 @@
 //! [`restore`] (no egui) decides where a window opens, from the last session's geometry and the
 //! connected monitors, and keeps the `window.json` store beside `config.toml`.
 
+pub mod capture;
 pub mod desktop;
 mod layout;
 mod list;

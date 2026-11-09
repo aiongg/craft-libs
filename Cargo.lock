@@ -1145,6 +1145,7 @@ dependencies = [
  "craft-settings",
  "craft-theme",
  "craft-ui",
+ "craft-window",
  "egui",
  "egui_kittest",
  "libtest-mimic",

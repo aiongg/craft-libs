@@ -1,14 +1,16 @@
 //! Screen colour picking (F04.05): one pick at a time, owned by the key that asked, with its state in an app-owned
 //! [`ScreenPick`]. The press-and-drag from the picker's button inside the app's windows samples the app's last frame
 //! through the runtime's screenshot slot; a click, or a release outside the app's windows, captures the screen
-//! ([`craft_platform::screen`]) and takes the colour under a click.
+//! ([`craft_platform::screen`]). A release outside takes the colour under it; after a click the capture shows over
+//! each monitor ([`ScreenColorPicker`]) and a click there takes the colour under it.
 //!
 //! ```ignore
 //! let mut pick = ScreenPick::new();
 //! // In the pass that got the picker's `ScreenPickGesture`:
 //! if let Some(color) = pick.hold(ctx, "fill", gesture) { /* live sample while the button is held */ }
-//! // Once per pass:
+//! // Once per pass, after the app's UI:
 //! pick.tick(ctx, window_generation);
+//! ScreenColorPicker::new(&mut pick, "PhotoCraft").show(ui);
 //! if let Some(color) = pick.take("fill") { /* the picked colour */ }
 //! if let Some(toast) = pick.take_notice(&words) { /* a capture failure */ }
 //! ```
@@ -22,12 +24,19 @@ use craft_host::target::Caps;
 use craft_platform::screen::{self, Capture, CaptureHandle, ScreenError, ScreenImage};
 use craft_theme::Srgba;
 use craft_theme::variant::Tone;
-use craft_ui::runtime::env::Label;
+use craft_ui::contract::{Pattern, Props as _, Show as _, ShowContainer as _};
+use craft_ui::runtime::env::{Env, Label};
 use craft_ui::runtime::toast::Toast;
 use craft_ui::runtime::windows::{ScreenshotSlot, WindowHost};
-use egui::{Color32, Context, Pos2, ViewportId};
+use egui::{Color32, Context, Pos2, Rect, Ui, ViewportId, pos2, vec2};
 
 use super::ScreenPickGesture;
+
+mod capture;
+#[cfg(feature = "screen-testing")]
+mod stories;
+
+use capture::{CaptureView, CaptureWindow};
 
 craft_ui::words! {
     /// The screen picker's words, English by default.
@@ -51,6 +60,9 @@ pub const LOUPE_PIXELS: usize = 11;
 
 /// The loupe's zoom in screen pixels per pixel: the least, the first and the most; the wheel steps between them.
 pub const LOUPE_ZOOM: (usize, usize, usize) = (4, 12, 24);
+
+/// How far one wheel notch steps the loupe's zoom.
+const ZOOM_STEP: usize = 2;
 
 /// The most bytes one frame of the app's own windows may take when sampled during a held drag.
 const FRAME_BYTES: usize = 256 * 1024 * 1024;
@@ -168,12 +180,14 @@ struct Hold {
     frame: Option<Arc<egui::ColorImage>>,
 }
 
-/// The state of the screen picker. The app keeps one and shows `ScreenColorPicker` over it once per pass after its UI.
+/// The state of the screen picker. The app keeps one, and ticks and [`show`](Self::show)s it once per pass after its UI.
 ///
 /// - One pick runs at a time, owned by the key that asked: only the owner [`take`](Self::take)s its colour, even
 ///   after the popover that asked has closed.
 /// - [`tick`](Self::tick) starts a requested capture and settles a finished one; [`cancel`](Self::cancel) ends a
 ///   running pick.
+/// - After a click on the picker's button the capture of each monitor shows in a window over that monitor until the
+///   pick ends.
 #[derive(Default)]
 pub struct ScreenPick {
     request: Option<u64>,
@@ -190,12 +204,73 @@ pub struct ScreenPick {
     /// Where a drag released outside the app's windows, in physical pixels of the virtual desktop: the captured
     /// monitor under it gives the colour.
     release: Option<Pos2>,
+    /// The loupe's zoom in the capture windows, in screen pixels per captured pixel.
+    zoom: usize,
+    /// Counts the picks, so each pick's capture windows are new windows.
+    generation: u64,
 }
 
 fn key_of(owner: impl Hash) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     owner.hash(&mut hasher);
     hasher.finish()
+}
+
+/// The capture windows of a running pick, one over each captured monitor. Show it once per pass, after the app's UI.
+#[must_use = "show the windows with `show`"]
+#[derive(Pattern)]
+pub struct ScreenColorPicker<'a> {
+    pick: &'a mut ScreenPick,
+    app: &'a str,
+}
+
+impl<'a> ScreenColorPicker<'a> {
+    /// The windows of `pick`; `app` is the app's name, for the windows' title.
+    pub fn new(pick: &'a mut ScreenPick, app: &'a str) -> Self {
+        ScreenColorPicker { pick, app }
+    }
+
+    /// Shows the capture windows of `pick`'s running pick, one over each captured monitor, borderless and above every other
+    /// window; `app` is the app's name, for the windows' title. A click picks the pixel under it, as a release outside
+    /// the app's windows does; Escape, a right-click or closing a window cancels. The wheel steps the loupe's zoom
+    /// ([`LOUPE_ZOOM`]). Every window closes when the pick ends.
+    pub fn show(self, ui: &mut Ui) {
+        let ScreenColorPicker { pick, app } = self;
+        if pick.images.is_empty() || pick.answer.is_some() {
+            return;
+        }
+        let words = Env::of(ui).words::<ScreenPickerWords>();
+        let title = Label::from(words.window_title.fill(&[("app", app)]));
+        let hints = [words.click_to_pick.clone(), words.scroll_to_zoom.clone()];
+        let (mut picked, mut cancelled, mut notches) = (None, false, 0);
+        for (n, snapshot) in pick.images.iter().enumerate() {
+            let [x, y, w, h] = capture::area(snapshot).cover();
+            let key = key_of((pick.generation, n));
+            let window = CaptureWindow::new(title.clone(), Rect::from_min_size(pos2(x, y), vec2(w, h))).id_salt((
+                "craft-color screen pick",
+                pick.generation,
+                n,
+            ));
+            let mut shown = window.show(ui, |ui, _| {
+                let rect = ui.max_rect();
+                CaptureView::new(snapshot.image.name.clone(), snapshot, key, pick.zoom, hints.clone()).show_at(ui, rect)
+            });
+            cancelled |= shown.output.closed.is_some();
+            if let Some((at, right_click, wheel)) = shown.settle(|_, view| (view.picked, view.cancelled, view.notches)) {
+                picked = picked.or(at);
+                cancelled |= right_click;
+                notches += wheel;
+            }
+        }
+        let step = notches.unsigned_abs() as usize * ZOOM_STEP;
+        pick.zoom = if notches > 0 { pick.zoom + step } else { pick.zoom.saturating_sub(step) }.clamp(LOUPE_ZOOM.0, LOUPE_ZOOM.2);
+        if let Some(at) = picked {
+            pick.answer = Some(sample_desktop(&pick.images, at).map_err(Failure::Failed));
+        } else if cancelled {
+            pick.answer = Some(Ok(None));
+        }
+        pick.settle(ui.ctx());
+    }
 }
 
 impl ScreenPick {
@@ -234,6 +309,8 @@ impl ScreenPick {
             self.source = Some(start());
             self.owner = Some(owner);
             self.target = Some(target);
+            self.zoom = LOUPE_ZOOM.1;
+            self.generation = self.generation.wrapping_add(1);
         }
         if self.owner.is_none() {
             return;
@@ -278,6 +355,9 @@ impl ScreenPick {
         let owner = self.owner.take();
         self.source = None;
         self.release = None;
+        if !self.images.is_empty() {
+            capture::store(ctx).clear(ctx);
+        }
         self.images.clear();
         match answer {
             Ok(Some(color)) => self.completed = owner.map(|owner| (owner, color)),
