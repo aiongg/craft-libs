@@ -113,7 +113,7 @@ fn pane_rig(picture: [usize; 2], held: &Held, state: fn(SizedTexture) -> Preview
         let texture = handle
             .get_or_insert_with(|| ui.ctx().load_texture("preview-pane", ColorImage::filled(picture, Default::default()), TextureOptions::LINEAR));
         let sized = SizedTexture::new(texture.id(), Vec2::new(picture[0] as f32, picture[1] as f32));
-        let body = Id::new("preview-body");
+        let body = Id::unique("preview-body");
         register(ui.ctx(), WheelTaker::new(body, Rect::from_min_size(ORIGIN, BODY)).vertical(true).horizontal(true));
         let pane = config(PreviewPane::state("Preview", state(sized), &held.view.borrow()));
         let out = pane.show_at(ui, Rect::from_min_size(ORIGIN, held.well.get()));

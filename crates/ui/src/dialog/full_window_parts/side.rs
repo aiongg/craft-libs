@@ -12,6 +12,8 @@ use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{Metrics, Sense};
 use egui::{Response, Ui};
 
+type LeadingFn<'a> = Box<dyn FnMut(&mut Ui) + 'a>;
+
 /// Where the footer of a [`FullWindowDialog`](crate::dialog::FullWindowDialog) with side columns sits: at the bottom
 /// of the side columns' region (Liquify, Select and Mask, Content-Aware Fill, Wide Angle, Vanishing Point) or at its
 /// top (Filter Gallery), with an optional leading slot (a Reset icon button) at the reading start of the footer row.
@@ -19,7 +21,7 @@ use egui::{Response, Ui};
 #[must_use = "pass the footer to `FullWindowDialog::side_footer`"]
 pub struct SideFooter<'a> {
     top: bool,
-    leading: Option<Box<dyn FnMut(&mut Ui) + 'a>>,
+    leading: Option<LeadingFn<'a>>,
 }
 
 impl<'a> SideFooter<'a> {

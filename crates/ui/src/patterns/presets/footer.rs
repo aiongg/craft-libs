@@ -154,21 +154,18 @@ impl<'a, K> PresetFooter<'a, K> {
     }
 
     /// How the slider steps and what it spans; use the browser's.
-    #[must_use]
     pub fn range(mut self, range: TileZoom) -> Self {
         self.range = range;
         self
     }
 
     /// Shows the number of presets after the slider.
-    #[must_use]
     pub fn count(mut self, count: usize) -> Self {
         self.count = Some(count);
         self
     }
 
     /// The host's pieces and actions.
-    #[must_use]
     pub fn options(mut self, options: PresetFooterOptions<'a>) -> Self {
         self.options = options;
         self
@@ -221,9 +218,8 @@ impl<K: Clone + Send + Sync + 'static> PresetFooter<'_, K> {
         if let Some(footer) = footer {
             if let Some(drop) = &footer.dropped {
                 let keys = drop.payload::<ListDrag<K>>().map(|drag| drag.keys.clone()).unwrap_or_default();
-                match slots.get(drop.index) {
-                    Some(Slot::Custom(index)) => events.push(PresetFooterEvent::CustomDrop { index: *index, keys }),
-                    _ => {}
+                if let Some(Slot::Custom(index)) = slots.get(drop.index) {
+                    events.push(PresetFooterEvent::CustomDrop { index: *index, keys })
                 }
             } else if let Some(slot) = footer.picked.and_then(|at| slots.get(at)) {
                 events.push(match *slot {

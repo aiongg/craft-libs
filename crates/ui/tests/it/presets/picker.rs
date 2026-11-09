@@ -95,8 +95,7 @@ fn events_after_menu_delete(label: &str) -> Vec<PresetEvent<u32>> {
     let delete = fixture.by_label("Delete").expect("a secondary click on a preset opens the row menu");
     fixture.click(&delete);
     fixture.idle(3);
-    let reported = seen.borrow().clone();
-    reported
+    seen.borrow().clone()
 }
 
 /// The row menu deletes a preset that `can_delete` passes.

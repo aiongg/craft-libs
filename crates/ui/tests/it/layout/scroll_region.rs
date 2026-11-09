@@ -27,7 +27,7 @@ fn groups(scroll: bool, label: Option<&'static str>) -> (Vec<Option<String>>, Ve
     });
     fixture.settle();
     let tree = fixture.tree();
-    let names = tree.with_role(Role::GROUP).into_iter().map(|key| name(&tree, key).map(str::to_owned)).collect();
+    let names = tree.with_role(Role::GROUP).into_iter().map(|key| name(tree, key).map(str::to_owned)).collect();
     (names, violations(fixture.ctx(), tree))
 }
 

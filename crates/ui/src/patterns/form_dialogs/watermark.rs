@@ -32,8 +32,6 @@ mod stories;
 /// The key of the image request the Choose button files.
 pub const WATERMARK_IMAGE_KEY: &str = "watermark";
 
-/// The extensions of the images the Choose button offers.
-
 /// The rotations a watermark takes, in degrees.
 pub const ROTATIONS: [u16; 4] = [0, 90, 180, 270];
 

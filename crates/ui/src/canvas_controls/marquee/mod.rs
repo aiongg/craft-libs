@@ -230,9 +230,9 @@ impl Component for Marquee {
                     painter.marching_ants(&run.points, run.closed, phase);
                 }
             }
-            MarqueeLook::Band => runs.iter().for_each(|run| paint_band(&painter, run, &cx.style)),
-            MarqueeLook::Drawing => runs.iter().for_each(|run| paint_haloed(&painter, run, &cx.style, cx.style.light.egui(), cx.style.dark.egui())),
-            MarqueeLook::Contrast(color) => runs.iter().for_each(|run| paint_haloed(&painter, run, &cx.style, cx.style.dark.egui(), color.0)),
+            MarqueeLook::Band => runs.iter().for_each(|run| paint_band(&painter, run, cx.style)),
+            MarqueeLook::Drawing => runs.iter().for_each(|run| paint_haloed(&painter, run, cx.style, cx.style.light.egui(), cx.style.dark.egui())),
+            MarqueeLook::Contrast(color) => runs.iter().for_each(|run| paint_haloed(&painter, run, cx.style, cx.style.dark.egui(), color.0)),
         }
     }
 

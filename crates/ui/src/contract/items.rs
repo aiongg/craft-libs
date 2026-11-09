@@ -171,6 +171,15 @@ pub(super) struct ItemsHooks<'s, 'r, C: Collection> {
     page_reveal: Option<usize>,
 }
 
+/// The primary-ness, click count, position in the layout's coordinates and scroll offset of a press on a row.
+#[derive(Clone, Copy)]
+struct RowPress {
+    primary: bool,
+    clicks: u32,
+    origin: Pos2,
+    offset: ScrollPos,
+}
+
 /// Where the rows sit in the collection's pass: the rows rect, the scroll offset and the reading direction.
 #[derive(Clone, Copy)]
 struct Placement {
@@ -1142,6 +1151,33 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         }
     }
 
+    /// What a press on an enabled row does besides selecting it: it activates the row at once, or on release, or opens
+    /// its name for editing.
+    fn press_activation(&mut self, comp: &C, props: &CollectionProps, layout: &C::ItemLayout, key: C::Key, at: usize, press: RowPress) {
+        let RowPress { primary, .. } = press;
+        // A section stop activates on the first primary press whatever `activate` says: the press is its toggle.
+        let activates = match props.activate {
+            _ if self.source.section_stop(at) => primary && press.clicks == 1,
+            ActivateOn::DoubleClick => press.clicks == 2,
+            ActivateOn::Click => false,
+        };
+        let on_release = primary && !self.source.section_stop(at) && matches!(props.activate, ActivateOn::Click);
+        let names = primary
+            && press.clicks == 2
+            && props.rename
+            && props.rename_column.is_some()
+            && layout.column_at(press.origin, press.offset).and_then(|column| self.header.key_at(column)) == props.rename_column.as_ref()
+            && comp.can_rename(&key);
+        if names && !self.source.section_stop(at) {
+            self.drags.rename = Some(key);
+        } else if activates {
+            self.activation_clicks = press.clicks.min(u8::MAX as u32) as u8;
+            self.events.push(CollectionEvent::Activate(key));
+        } else if on_release {
+            self.drags.activate = Some(key);
+        }
+    }
+
     /// A press on a row selects it; a double press activates it; a right press asks for its menu.
     fn press_step(&mut self, comp: &C, cx: &mut Cx<'_, C>, props: &CollectionProps, layout: &C::ItemLayout, at: Placement) {
         let Placement { rect, offset, rtl } = at;
@@ -1191,28 +1227,14 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     if !primary && props.focus_on_press {
                         focus::request_now(&ctx, focus::FocusTarget::Id(cx.core.id));
                     }
-                    // A section stop activates on the first primary press whatever `activate` says: the press is its toggle.
-                    let activates = match props.activate {
-                        _ if self.source.section_stop(at) => primary && start.clicks == 1,
-                        ActivateOn::DoubleClick => start.clicks == 2,
-                        ActivateOn::Click => false,
-                    };
-                    let on_release = primary && !self.source.section_stop(at) && matches!(props.activate, ActivateOn::Click);
-                    let names = primary
-                        && start.clicks == 2
-                        && props.rename
-                        && props.rename_column.is_some()
-                        && layout.column_at(local(start.origin), offset).and_then(|column| self.header.key_at(column))
-                            == props.rename_column.as_ref()
-                        && comp.can_rename(&key);
-                    if names && !self.source.section_stop(at) {
-                        self.drags.rename = Some(key);
-                    } else if activates {
-                        self.activation_clicks = start.clicks.min(u8::MAX as u32) as u8;
-                        self.events.push(CollectionEvent::Activate(key));
-                    } else if on_release {
-                        self.drags.activate = Some(key);
-                    }
+                    self.press_activation(
+                        comp,
+                        props,
+                        layout,
+                        key,
+                        at,
+                        RowPress { primary, clicks: start.clicks, origin: local(start.origin), offset },
+                    );
                 }
             } else if primary
                 && props.allow_empty

@@ -609,7 +609,8 @@ fn decide(ctx: &egui::Context, env: &Env, input: &LabelIn<'_>, kids: &Ui, leaf: 
         }
         Flow::new(wide, rtl)
     };
-    let placed = if input.side.layout == FieldLayout::After {
+
+    if input.side.layout == FieldLayout::After {
         place_after(ctx, input.scope, flow, input.control_min, gap, natural, baseline)
     } else {
         let placed = crate::layout::place_label(
@@ -626,8 +627,7 @@ fn decide(ctx: &egui::Context, env: &Env, input: &LabelIn<'_>, kids: &Ui, leaf: 
             label = label.translate(Vec2::new(if rtl { -spare } else { spare }, 0.0));
         }
         Placed { label, control: placed.control }
-    };
-    placed
+    }
 }
 
 /// Where the control sits once `input.control_min` is known: the decision `run` takes, without showing the label. A

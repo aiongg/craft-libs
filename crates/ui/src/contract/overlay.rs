@@ -1559,7 +1559,7 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
             };
             let scrim = crate::style::scrim_color(&layer.env.tokens).gamma_multiply(layer.fade);
             let through = crate::runtime::sampler::through(ctx, crate::runtime::egui::pass::current_viewport(ctx), layer.id);
-            areas::show_cover_layer(ctx, cover_id, tier, bounds, scrim, hole, through, !layer.exiting);
+            areas::show_cover_layer(ctx, areas::CoverLayer { id: cover_id, tier, screen: bounds, scrim, hole, through, absorbs: !layer.exiting });
             Some(areas::layer_of(tier, cover_id))
         }
         _ => None,

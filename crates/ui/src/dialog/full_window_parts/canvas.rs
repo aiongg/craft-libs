@@ -113,6 +113,8 @@ impl Outcome for FullWindowCanvasOutput {
     }
 }
 
+type ControlsFn<'a> = Box<dyn FnMut(&mut Ui, Rect) + 'a>;
+
 /// The canvas region of a full-window dialog: the app's image, its overlays and one tool, filling what the other
 /// regions left.
 ///
@@ -140,7 +142,7 @@ pub struct FullWindowCanvas<'a> {
     tool: Option<&'a mut dyn CanvasTool>,
     momentary: Option<&'a mut Momentary>,
     navigation: NavigationOptions,
-    controls: Option<Box<dyn FnMut(&mut Ui, Rect) + 'a>>,
+    controls: Option<ControlsFn<'a>>,
 }
 
 impl<'a> FullWindowCanvas<'a> {

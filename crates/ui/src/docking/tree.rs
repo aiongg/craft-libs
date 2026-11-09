@@ -20,11 +20,13 @@ use egui::{Rect, Vec2, pos2, vec2};
 /// much above its minimum, or the groups beyond it give the room.
 pub const DROP_MARGIN: f32 = 1.0;
 
+type DockWidthFn<'a, P> = dyn Fn(&[Column<P>]) -> f32 + 'a;
+
 /// What the maths asks of the app: each panel's limits, the width of a dock's columns and which panels have no
 /// strip.
 pub struct FrameRules<'a, P> {
     limits: &'a dyn Fn(&P) -> SizeLimits,
-    dock_width: Option<&'a dyn Fn(&[Column<P>]) -> f32>,
+    dock_width: Option<&'a DockWidthFn<'a, P>>,
     stripless: Option<&'a dyn Fn(&P) -> bool>,
 }
 

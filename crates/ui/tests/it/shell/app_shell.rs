@@ -291,8 +291,7 @@ fn a_body_that_registers_a_revealed_rect_keeps_the_reveal_while_the_pointer_is_i
         frames.frame(vec![moved(pos2(1.0, 300.0))], &mut show);
         assert!(*kept.borrow(), "the pointer at the start edge reveals it");
         frames.frame(vec![moved(pos2(60.0, 300.0))], &mut show);
-        let kept_inside = *kept.borrow();
-        kept_inside
+        *kept.borrow()
     }
     assert!(run(true), "inside the registered rect the reveal stays");
     assert!(!run(false), "without the rect the reveal ends when the pointer leaves the strip");
@@ -330,8 +329,7 @@ fn tab_hides(shells: &[&'static str]) -> Vec<(&'static str, bool)> {
     click(&mut frames, pos2(room.max.x - room.width() / (2.0 * shells.len() as f32), room.center().y), &mut show);
     settle(&mut frames, &mut show);
     frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], &mut show);
-    let result = seen.borrow().clone();
-    result
+    seen.borrow().clone()
 }
 
 #[trial]

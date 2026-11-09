@@ -83,7 +83,7 @@ fn a_rename_request_names_the_browser_by_its_own_id() {
     let state = Rc::new(RefCell::new(PresetState::<u32>::new()));
     let seen = Rc::new(RefCell::new(Vec::new()));
     let reported = seen.clone();
-    let browser = Id::new("swatch-browser");
+    let browser = Id::unique("swatch-browser");
     let mut fixture = Fixture::new(move |ui| {
         let rows = vec![PresetRow::item(AMBER, "Amber", 0), PresetRow::item(CORAL, "Coral", 0)];
         let mut view = state.borrow_mut();

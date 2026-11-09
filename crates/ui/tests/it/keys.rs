@@ -16,7 +16,6 @@ use craft_ui::runtime::focus::{Initial, KeyUse};
 use craft_ui::sections::Section;
 use craft_ui::style::StyleCx;
 use craft_ui::testing::focus::{AccessActionKind, Stop, access_request, intents_of, register_node, register_stop, widget};
-use craft_ui::testing::input::key_press;
 use craft_ui::testing::{Fixture, Frames, trial};
 use craft_ui::text::TextField;
 use egui::{Key, Modifiers};

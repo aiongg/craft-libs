@@ -99,6 +99,12 @@ pub struct FormOutput<V> {
     pub requests: HostRequests,
 }
 
+type FooterExtraFn<'a> = Box<dyn FnMut(&mut Ui) + 'a>;
+
+type OnResetFn<'a> = Box<dyn FnMut(&mut BodyCx<'_>) + 'a>;
+
+type ResetWithFn<'a, V> = Box<dyn Fn(&V, &V) -> V + 'a>;
+
 /// A dialog over one value `V`.
 ///
 /// - The bind holds the value. [`own`](FormDialog::own) binds the dialog's memory instead, and the value starts from
@@ -123,11 +129,11 @@ pub struct FormDialog<'a, V: Value + Default> {
     collection_body: bool,
     closable: bool,
     accept_stays_open: bool,
-    footer_extra: Option<Box<dyn FnMut(&mut Ui) + 'a>>,
+    footer_extra: Option<FooterExtraFn<'a>>,
     shaped: Option<Box<dyn FnOnce(Dialog<'a>) -> Dialog<'a> + 'a>>,
     answers: Vec<HostAnswer>,
-    reset_with: Option<Box<dyn Fn(&V, &V) -> V + 'a>>,
-    on_reset: Option<Box<dyn FnMut(&mut BodyCx<'_>) + 'a>>,
+    reset_with: Option<ResetWithFn<'a, V>>,
+    on_reset: Option<OnResetFn<'a>>,
 }
 
 impl<'a, V: Value + Default> FormDialog<'a, V> {
@@ -338,7 +344,7 @@ impl<'a, V: Value + Default> FormDialog<'a, V> {
                     cx: &mut *cx,
                     first,
                     answers: if measuring { Vec::new() } else { std::mem::take(&mut answers) },
-                    requests: &mut *requests,
+                    requests: &mut requests,
                 };
                 body(ui, &mut form, &mut values)
             };

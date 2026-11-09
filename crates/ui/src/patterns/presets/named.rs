@@ -45,8 +45,10 @@ pub enum NamedPresetCommands {
     Delete,
 }
 
+type NameCheckFn<'a> = Box<dyn Fn(&str) -> Option<PresetError> + 'a>;
+
 /// Whether a name may be used: the host's answer for a typed name.
-pub struct NameCheck<'a>(Box<dyn Fn(&str) -> Option<PresetError> + 'a>);
+pub struct NameCheck<'a>(NameCheckFn<'a>);
 
 impl<'a> NameCheck<'a> {
     /// The check that runs `check`.

@@ -302,7 +302,7 @@ fn save_row(ui: &mut Ui, session: &mut Session, read: &Read<'_>, right: &mut Rig
         _ => Validity::Ok,
     };
     Field::new(words.preset_name.clone()).id_salt("preset-name").show(ui, |ui, _| {
-        let shown = TextField::new(words.preset_name.clone(), Bind::given(name.clone()).check(&check)).limit(MAX_NAME).submits().show(ui);
+        let shown = TextField::new(words.preset_name.clone(), Bind::given(name.clone()).check(check)).limit(MAX_NAME).submits().show(ui);
         if let Some(typed) = shown.value().cloned() {
             session.naming = Some(typed);
             session.name_tried = false;

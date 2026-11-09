@@ -12,8 +12,10 @@ use std::rc::Rc;
 
 const START: f32 = 0.5;
 
+type Pair = (Fixture, Rc<Cell<f32>>, Rc<RefCell<Vec<Rect>>>);
+
 /// A pair of bodies stacked along Y whose share the host keeps, and the bodies' rects of the last pass.
-fn pair() -> (Fixture, Rc<Cell<f32>>, Rc<RefCell<Vec<Rect>>>) {
+fn pair() -> Pair {
     let share = Rc::new(Cell::new(START));
     let rects: Rc<RefCell<Vec<Rect>>> = Rc::default();
     let (kept, seen) = (Rc::clone(&share), Rc::clone(&rects));

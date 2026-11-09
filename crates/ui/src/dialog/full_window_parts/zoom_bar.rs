@@ -120,7 +120,7 @@ impl<'a> FullWindowZoomBar<'a> {
                 }
             }
             if next != shown {
-                let name: Arc<str> = Arc::from(env.view().resolve(&Label::from(words.full_window_zoom.clone())).as_str());
+                let name: Arc<str> = Arc::from(env.view().resolve(&words.full_window_zoom.clone()).as_str());
                 let _ = bind.write(cx, &EditEvent::set(Mixed::Same(shown), next, name, None));
             }
             match (progress, &note) {

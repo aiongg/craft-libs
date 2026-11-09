@@ -45,9 +45,11 @@ fn a_tool_moved_down_its_own_slot_lands_at_the_index_after_it_leaves() {
     assert_eq!(layout(&apply_toolbar_edit(&slots, &edit, &[])), [(0, vec![REDO, CUT, UNDO])], "the removal shifts the index");
 }
 
+type Drawer = (Fixture, Rc<Cell<bool>>, Rc<RefCell<Vec<ToolbarEdit<u8>>>>);
+
 /// An open drawer beside a rail at the left edge, over two groups of two tools each and an empty toolbar. `closed` is
 /// set when the drawer reports it closed (the host then stops showing it); `edits` collects the edits it reports.
-fn drawer() -> (Fixture, Rc<Cell<bool>>, Rc<RefCell<Vec<ToolbarEdit<u8>>>>) {
+fn drawer() -> Drawer {
     let closed = Rc::new(Cell::new(false));
     let edits = Rc::new(RefCell::new(Vec::new()));
     let (seen_closed, seen_edits) = (closed.clone(), edits.clone());

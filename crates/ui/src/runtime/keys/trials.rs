@@ -133,8 +133,8 @@ fn press_k(name: &str) -> (Vec<craft_keymap::Chord>, usize) {
     let mut frames = shown(false, &mut show);
     focus_on(&mut frames, &mut show, name);
     frames.frame(vec![key_press(Key::K, Modifiers::COMMAND | Modifiers::SHIFT)], &mut show);
-    let taken = taken.borrow().clone();
-    taken
+
+    taken.borrow().clone()
 }
 
 #[trial]

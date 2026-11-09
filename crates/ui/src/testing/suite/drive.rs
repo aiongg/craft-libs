@@ -233,9 +233,7 @@ pub(super) fn run(fixture: &mut Fixture, plan: Plan, variant: usize) {
         Plan::Type(text, story) => {
             // A disabled subject takes no focus and no text, which the disabled case checks.
             let disabled = super::nodes::root(fixture).is_some_and(|root| fixture.tree().data_of(root.node).is_some_and(|node| node.is_disabled()));
-            if !focus_subject(fixture) && !disabled {
-                panic!("{story}: Tab never moved focus into the component, so the typed text has nowhere to go");
-            }
+            assert!(focus_subject(fixture) || disabled, "{story}: Tab never moved focus into the component, so the typed text has nowhere to go");
             fixture.type_text(text);
             // Enter inserts a line in multi-line text, which Cmd/Ctrl+Enter commits; the node declares which it is.
             let multiline = fixture.tree().role_of(fixture.tree().focused_key()) == Some(Role::MULTILINE_TEXT_INPUT);

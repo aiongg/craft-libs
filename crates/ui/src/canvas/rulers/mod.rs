@@ -411,11 +411,13 @@ impl Component for Rulers<'_> {
             }
         }
         let focused = cx.active_part().is_some_and(|part| part.key == CORNER);
-        if focused && !self.origin_locked && self.interactive {
-            if let Some((direction, mods)) = cx.intents().take_nudge() {
-                let step = if mods.shift { NUDGE_FAR } else { NUDGE };
-                cx.set(round_zero(Point::new(zero.x + f64::from(direction.x) * step, zero.y + f64::from(direction.y) * step)));
-            }
+        if focused
+            && !self.origin_locked
+            && self.interactive
+            && let Some((direction, mods)) = cx.intents().take_nudge()
+        {
+            let step = if mods.shift { NUDGE_FAR } else { NUDGE };
+            cx.set(round_zero(Point::new(zero.x + f64::from(direction.x) * step, zero.y + f64::from(direction.y) * step)));
         }
 
         let opened = [RulerPart::Horizontal, RulerPart::Vertical, RulerPart::Corner]

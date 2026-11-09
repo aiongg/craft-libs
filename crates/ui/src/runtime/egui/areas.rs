@@ -225,20 +225,24 @@ pub(crate) fn show_layer(ctx: &Context, spec: &LayerSpec, body: impl FnOnce(&mut
     LayerShown { rect: shown.response.rect, layer: shown.response.layer_id }
 }
 
+/// What [`show_cover_layer`] shows: the layer's id and tier, the `screen` it covers, its `scrim`, the `hole` left
+/// unpainted, the `through` canvas left open, and whether it `absorbs` pointer hits.
+pub(crate) struct CoverLayer {
+    pub id: Id,
+    pub tier: Tier,
+    pub screen: Rect,
+    pub scrim: Color32,
+    pub hole: Option<Rect>,
+    pub through: Option<Rect>,
+    pub absorbs: bool,
+}
+
 /// Shows a layer that covers `screen` and paints `scrim` on it, around `hole` when there is one. While `absorbs` it
 /// takes every pointer hit on it, so nothing below it is hit, except inside `through`, the canvas a modal leaves open
 /// (`runtime::sampler`): that rect is left unpainted and unabsorbed, and the four bands around it absorb. `hole` is
 /// left unpainted as well.
-pub(crate) fn show_cover_layer(
-    ctx: &Context,
-    id: Id,
-    tier: Tier,
-    screen: Rect,
-    scrim: Color32,
-    hole: Option<Rect>,
-    through: Option<Rect>,
-    absorbs: bool,
-) {
+pub(crate) fn show_cover_layer(ctx: &Context, cover: CoverLayer) {
+    let CoverLayer { id, tier, screen, scrim, hole, through, absorbs } = cover;
     let scrim = Some(scrim);
     let clear = through.map(|through| through.intersect(screen)).filter(|through| through.is_positive());
     let holes: Vec<Rect> = [clear, hole].into_iter().flatten().map(|hole| hole.intersect(screen)).filter(|hole| hole.is_positive()).collect();

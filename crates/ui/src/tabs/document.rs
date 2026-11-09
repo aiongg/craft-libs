@@ -124,35 +124,30 @@ impl<'a, D: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Documen
     }
 
     /// The document the group shows.
-    #[must_use]
     pub fn selected(mut self, document: D) -> Self {
         self.selected = Some(document);
         self
     }
 
     /// Tabs reorder by drag and by Alt+Left and Alt+Right.
-    #[must_use]
     pub fn reorderable(mut self, on: bool) -> Self {
         self.reorderable = on;
         self
     }
 
     /// A tab released over no strip is reported as `TornOff`.
-    #[must_use]
     pub fn tear_off(mut self, on: bool) -> Self {
         self.tear_off = on;
         self
     }
 
     /// Host content before the tabs, at the reading start, as wide as it measures.
-    #[must_use]
     pub fn leading(mut self, area: impl FnOnce(&mut Ui) + 'a) -> Self {
         self.leading = Some(Box::new(area));
         self
     }
 
     /// Host content after the tabs, at the reading end, as wide as it measures.
-    #[must_use]
     pub fn trailing(mut self, area: impl FnOnce(&mut Ui) + 'a) -> Self {
         self.trailing = Some(Box::new(area));
         self
@@ -172,31 +167,35 @@ impl<'a, D: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Documen
         if reorderable {
             strip = strip.reorder(ReorderRule::new());
         }
-        let mut out = None;
-        let mut show_strip = |ui: &mut Ui, strip: TabStrip<'_, D>| {
-            out = Some(strip.show_items(ui, &source, &mut |key, _| {
+        let show_strip = |ui: &mut Ui, strip: TabStrip<'_, D>| {
+            strip.show_items(ui, &source, &mut |key, _| {
                 let document = tabs.iter().find(|tab| &tab.id == key);
                 let tab = Tab::new(document.map_or_else(Label::default, |tab| tab.label.clone())).closable(document.is_some_and(|tab| tab.closable));
                 if document.is_some_and(|tab| tab.modified) { tab.modified() } else { tab }
-            }));
+            })
         };
-        if leading.is_none() && trailing.is_none() {
-            show_strip(ui, strip);
+        let shown = if leading.is_none() && trailing.is_none() {
+            Ok(show_strip(ui, strip))
         } else {
             let (mut strip, mut leading, mut trailing) = (Some(strip), leading, trailing);
-            Row::new().show(ui, |ui, _| {
+            let mut shown = None;
+            let row = Row::new().show(ui, |ui, _| {
                 if let Some(area) = leading.take() {
                     area(ui);
                 }
                 if let Some(strip) = strip.take() {
-                    show_strip(ui, strip);
+                    shown = Some(show_strip(ui, strip));
                 }
                 if let Some(area) = trailing.take() {
                     area(ui);
                 }
             });
-        }
-        let Some(shown) = out else { unreachable!("the strip is shown once") };
+            shown.ok_or(row.output)
+        };
+        let shown = match shown {
+            Ok(shown) => shown,
+            Err(response) => return DocumentTabsOutput { response, events: Vec::new() },
+        };
         let mut events = Vec::new();
         let response = shown.response.response.clone();
         for event in shown.response.events {

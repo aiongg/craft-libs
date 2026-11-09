@@ -123,8 +123,10 @@ impl<P: Clone + Send + Sync + 'static> Component for GroupGrip<P> {
     }
 }
 
+type HeaderHookFn<'a> = Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>;
+
 /// A closure that adds the host's items to a group's header, before the tab strip.
-pub struct HeaderHook<'a>(Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>);
+pub struct HeaderHook<'a>(HeaderHookFn<'a>);
 
 impl<'a> HeaderHook<'a> {
     /// A hook that runs `add` in the header's row, with the group's `BodyCx`.

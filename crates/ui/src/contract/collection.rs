@@ -373,12 +373,16 @@ pub struct CollectionProps {
     pub current: Option<Arc<dyn Any + Send + Sync>>,
 }
 
+type Payload = Arc<dyn Any + Send + Sync>;
+
+type PayloadMap = Arc<dyn Fn(&dyn Any) -> Option<Payload> + Send + Sync>;
+
 /// A mapping from a row drag to the payload of type `P` that other drop targets take; the drag session carries it
 /// beside the `ListDrag`, so one drag and one ghost serve the collection's own reorder and the targets of `P`. A row
 /// the map gives `None` for carries no payload: without a reorder rule it does not drag at all.
 #[derive(Clone)]
 pub struct DragPayload {
-    map: Arc<dyn Fn(&dyn Any) -> Option<Arc<dyn Any + Send + Sync>> + Send + Sync>,
+    map: PayloadMap,
 }
 
 impl DragPayload {

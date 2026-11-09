@@ -4,6 +4,9 @@ use craft_behavior::EditCommand;
 use craft_keymap::{Binding, BindingError, CommandDef, Platform};
 use std::collections::{HashMap, HashSet};
 
+/// A command's default binding on one platform: the command id, the platform and the binding.
+type PlatformDefault = (&'static str, Platform, Binding);
+
 /// One registered command set.
 #[doc(hidden)]
 #[derive(Clone, Copy)]
@@ -18,7 +21,7 @@ pub struct SetEntry {
     /// The commands of the set a focused component takes as an edit.
     pub edits: fn() -> Vec<(&'static str, EditCommand)>,
     /// The defaults of one platform, which replace the command's other defaults there.
-    pub platform_defaults: fn() -> Result<Vec<(&'static str, Platform, Binding)>, CommandDefError>,
+    pub platform_defaults: fn() -> Result<Vec<PlatformDefault>, CommandDefError>,
 }
 
 impl SetEntry {
@@ -28,7 +31,7 @@ impl SetEntry {
         defs: fn() -> Result<Vec<CommandDef>, CommandDefError>,
         no_default_on: fn() -> Vec<(&'static str, Platform)>,
         edits: fn() -> Vec<(&'static str, EditCommand)>,
-        platform_defaults: fn() -> Result<Vec<(&'static str, Platform, Binding)>, CommandDefError>,
+        platform_defaults: fn() -> Result<Vec<PlatformDefault>, CommandDefError>,
     ) -> Self {
         SetEntry { name, defs, no_default_on, edits, platform_defaults }
     }

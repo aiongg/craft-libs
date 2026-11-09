@@ -1558,15 +1558,13 @@ pub(crate) fn show_viewport(ctx: &Context, open: &ViewportOpen<'_>, mut body: im
     viewports::show_immediate(ctx, viewport, &opens, |ui| {
         let ctx = ui.ctx().clone();
         refresh(&ctx, viewport, viewports::current(&ctx));
-        if viewports::current(&ctx).close_requested {
-            if !refuse_close_under_modal(&ctx) {
-                viewports::cancel_close(&ctx);
-                shared(&ctx, |shared| {
-                    if !shared.close_requests.contains(&open.id) {
-                        shared.close_requests.push(open.id);
-                    }
-                });
-            }
+        if viewports::current(&ctx).close_requested && !refuse_close_under_modal(&ctx) {
+            viewports::cancel_close(&ctx);
+            shared(&ctx, |shared| {
+                if !shared.close_requests.contains(&open.id) {
+                    shared.close_requests.push(open.id);
+                }
+            });
         }
         body(ui);
         if chrome == WindowChrome::Integrated && os == Os::Windows {

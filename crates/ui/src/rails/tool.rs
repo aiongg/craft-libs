@@ -98,6 +98,8 @@ impl<T> Default for Collected<T> {
     }
 }
 
+type FooterFn<'a> = Box<dyn FnMut(&mut Ui, RailFooter) + 'a>;
+
 /// The rail of tool slots, as a side panel at one edge of the window: one `FlyoutButton` per visible slot showing the
 /// slot's shown tool, the slot with the current tool toggled on. A click selects the shown tool, a row of the flyout
 /// selects that tool. With two columns the slots fill rows in reading order. The column toggle is the header and the
@@ -133,7 +135,7 @@ pub struct ToolRail<'a, T: Value + 'static> {
     /// The tools the user's toolbar settings hide.
     #[prop]
     hidden: &'a [T],
-    footer: Option<Box<dyn FnMut(&mut Ui, RailFooter) + 'a>>,
+    footer: Option<FooterFn<'a>>,
     toggled: bool,
 }
 
@@ -203,7 +205,7 @@ impl<'a, T: Value + 'static> ToolRail<'a, T> {
                             Some((index, tools)) => {
                                 let slot = &slots[*index];
                                 let owned: Vec<RailTool<T>> = tools.iter().map(|tool| (*tool).clone()).collect();
-                                let Some(shown) = shown_tool(current, slot.id, tools, last_used, &enabled) else { continue };
+                                let Some(shown) = shown_tool(current, slot.id, tools, last_used, enabled) else { continue };
                                 let selected = tools.iter().any(|tool| tool.id == *current);
                                 let mut button = FlyoutButton::new(&owned, &shown.id)
                                     .id_salt(("slot", slot.id))

@@ -57,7 +57,7 @@ impl ColorChoice for ProxyColor {
 
 /// The name of `color` in the list.
 fn color_label(color: ProxyColor, words: &NavigatorOptionsWords) -> Label {
-    let word = match color {
+    match color {
         ProxyColor::Default => words.default_color.clone(),
         ProxyColor::Red => words.red.clone(),
         ProxyColor::Orange => words.orange.clone(),
@@ -67,8 +67,7 @@ fn color_label(color: ProxyColor, words: &NavigatorOptionsWords) -> Label {
         ProxyColor::Violet => words.violet.clone(),
         ProxyColor::Gray => words.gray.clone(),
         ProxyColor::Custom(_) => words.custom_color.clone(),
-    };
-    word.into()
+    }
 }
 
 /// What Panel Options reports.
@@ -126,8 +125,8 @@ impl<'a> NavigatorOptionsDialog<'a> {
     pub fn show(self, ui: &mut Ui) -> NavigatorOptionsDialogOutput {
         let NavigatorOptionsDialog { options, answers, open } = self;
         let words = Env::of(ui).words::<NavigatorOptionsWords>();
-        let title = Label::from(words.title.clone());
-        let texts = ColorRowTexts { label: words.proxy_color.clone().into(), picker_title: words.picker_title.clone().into() };
+        let title = words.title.clone();
+        let texts = ColorRowTexts { label: words.proxy_color.clone(), picker_title: words.picker_title.clone() };
         let mut form = FormDialog::new(title.clone(), options).answers(answers);
         if let Some(open) = open {
             form = form.opened(open);

@@ -1,7 +1,7 @@
 //! The chrome toggle under a dialog layer: Tab toggles nothing.
 
 use craft_behavior::Input;
-use craft_ui::contract::{Bind, Show as _};
+use craft_ui::contract::Bind;
 use craft_ui::dialog::Alert;
 use craft_ui::runtime::env::RootEnv;
 use craft_ui::runtime::focus::KeyUse;

@@ -120,15 +120,13 @@ fn preferences_window(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(PreferencesWindow<'static>, covers = [], drive = Drive::Never)]
 fn preferences_window_without_matches(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let mut state = PreferencesState::default();
-    state.search = "zzz".to_owned();
+    let state = PreferencesState { search: "zzz".to_owned(), ..PreferencesState::default() };
     window(ui, data, state, Demo::default())
 }
 
 #[story(PreferencesWindow<'static>, covers = [], drive = Drive::Never)]
 fn preferences_window_with_error(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let mut state = PreferencesState::default();
-    state.selected = "canvas".to_owned();
-    state.error = Some("The brush size can't be applied.".to_owned());
+    let state =
+        PreferencesState { selected: "canvas".to_owned(), error: Some("The brush size can't be applied.".to_owned()), ..PreferencesState::default() };
     window(ui, data, state, Demo { refuse: true, ..Demo::default() })
 }

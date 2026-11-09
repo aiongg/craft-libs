@@ -277,6 +277,8 @@ pub(super) struct TextCell {
     pub wrap: bool,
 }
 
+type LeadPaintFn<'a> = Box<dyn FnOnce(&ContentPainterCx, Rect) + 'a>;
+
 /// One row of a list.
 #[derive(crate::contract::Component, crate::contract::Props)]
 pub struct ListRow<'a> {
@@ -377,8 +379,8 @@ pub struct ListRow<'a> {
     /// The leading slot, one icon wide and as high as the row, painted by the closure into its rect (a timeline rail:
     /// a dot and a line through the row). It sits where the icon does, mirrored in a right-to-left interface, and
     /// replaces the row's icon; thumbnails replace it in turn.
-    #[prop(boxed, name = "lead_painter")]
-    pub(super) lead_paint: Option<Box<dyn FnOnce(&ContentPainterCx, Rect) + 'a>>,
+    #[prop(boxed = "FnOnce(&ContentPainterCx, Rect) + 'a", name = "lead_painter")]
+    pub(super) lead_paint: Option<LeadPaintFn<'a>>,
     pub(super) thumb: ThumbSize,
     pub(super) thumb_aspect: ThumbAspect,
     pub(super) first: Option<ThumbPaint<'a>>,

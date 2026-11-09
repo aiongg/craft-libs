@@ -63,7 +63,6 @@ impl ViewportWindow {
     /// Changes the layer the window falls back to, which starts as the resizable dialog layer: the smallest and
     /// largest size (`Overlay::size_limits`), the place (`Overlay::placed`) and the resizability. Calls compose in
     /// order.
-    #[must_use]
     pub fn overlay(mut self, change: impl FnOnce(Overlay) -> Overlay + 'static) -> Self {
         self.overlay = Some(match self.overlay.take() {
             Some(earlier) => Box::new(move |overlay| change(earlier(overlay))),

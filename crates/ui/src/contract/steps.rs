@@ -711,7 +711,7 @@ pub(crate) fn gesture_gate<C: Component>(comp: &C, cx: &mut Cx<'_, C>) {
 /// The press that carries a scrub: the field's own, or for a scrub by the label, the label's.
 fn scrub_press<C: Component>(comp: &C, cx: &Cx<'_, C>) -> Option<craft_behavior::PressState> {
     let scrub = comp.scrub()?;
-    if scrub.on_field { Some(cx.core.press.clone()) } else { scope::field_label(&cx.core.ctx).map(|label| label.press) }
+    if scrub.on_field { Some(cx.core.press) } else { scope::field_label(&cx.core.ctx).map(|label| label.press) }
 }
 
 /// Step 9, the edit intents the library takes before `C::update`: Escape or a cancelled press ends a running gesture,
@@ -1441,8 +1441,7 @@ fn report_sub(core: &CxCore<'_>, input: &ReportIn<'_>, node: &SubNode, face: Opt
 pub(crate) fn report_inert<C: Component>(cx: &Cx<'_, C>) {
     let (Role::Node(_), Role::Node(role)) = (C::ROLE, Role::GROUP) else { return };
     let core = &cx.core;
-    let mut access = Access::default();
-    access.position = core.env.facts_of(core.id).map(|facts| facts.position);
+    let access = Access { position: core.env.facts_of(core.id).map(|facts| facts.position), ..Access::default() };
     access::report(
         &core.ctx,
         &Own {
