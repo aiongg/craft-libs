@@ -189,8 +189,10 @@ impl Component for CaptureView<'_> {
         CaptureStyle::of(cx)
     }
 
+    /// The capture's size in points: the monitor's own, as it is shown over it.
     fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
-        Vec2::ZERO
+        let [_, _, w, h] = area(self.snapshot).cover();
+        vec2(w, h)
     }
 
     fn sense(&self) -> Sense {

@@ -2,7 +2,7 @@
 //! [`ScreenPick`]. The press-and-drag from the picker's button inside the app's windows samples the app's last frame
 //! through the runtime's screenshot slot; a click, or a release outside the app's windows, captures the screen
 //! ([`craft_platform::screen`]). A release outside takes the colour under it; after a click the capture shows over
-//! each monitor ([`ScreenPick::show`]) and a click there takes the colour under it.
+//! each monitor ([`ScreenColorPicker`]) and a click there takes the colour under it.
 //!
 //! ```ignore
 //! let mut pick = ScreenPick::new();
@@ -10,7 +10,7 @@
 //! if let Some(color) = pick.hold(ctx, "fill", gesture) { /* live sample while the button is held */ }
 //! // Once per pass, after the app's UI:
 //! pick.tick(ctx, window_generation);
-//! pick.show(ui, "PhotoCraft");
+//! ScreenColorPicker::new(&mut pick, "PhotoCraft").show(ui);
 //! if let Some(color) = pick.take("fill") { /* the picked colour */ }
 //! if let Some(toast) = pick.take_notice(&words) { /* a capture failure */ }
 //! ```
@@ -24,7 +24,7 @@ use craft_host::target::Caps;
 use craft_platform::screen::{self, Capture, CaptureHandle, ScreenError, ScreenImage};
 use craft_theme::Srgba;
 use craft_theme::variant::Tone;
-use craft_ui::contract::{Props as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Pattern, Props as _, Show as _, ShowContainer as _};
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::runtime::toast::Toast;
 use craft_ui::runtime::windows::{ScreenshotSlot, WindowHost};
@@ -33,6 +33,8 @@ use egui::{Color32, Context, Pos2, Rect, Ui, ViewportId, pos2, vec2};
 use super::ScreenPickGesture;
 
 mod capture;
+#[cfg(feature = "screen-testing")]
+mod stories;
 
 use capture::{CaptureView, CaptureWindow};
 
@@ -214,6 +216,63 @@ fn key_of(owner: impl Hash) -> u64 {
     hasher.finish()
 }
 
+/// The capture windows of a running pick, one over each captured monitor. Show it once per pass, after the app's UI.
+#[must_use = "show the windows with `show`"]
+#[derive(Pattern)]
+pub struct ScreenColorPicker<'a> {
+    pick: &'a mut ScreenPick,
+    app: &'a str,
+}
+
+impl<'a> ScreenColorPicker<'a> {
+    /// The windows of `pick`; `app` is the app's name, for the windows' title.
+    pub fn new(pick: &'a mut ScreenPick, app: &'a str) -> Self {
+        ScreenColorPicker { pick, app }
+    }
+
+    /// Shows the capture windows of `pick`'s running pick, one over each captured monitor, borderless and above every other
+    /// window; `app` is the app's name, for the windows' title. A click picks the pixel under it, as a release outside
+    /// the app's windows does; Escape, a right-click or closing a window cancels. The wheel steps the loupe's zoom
+    /// ([`LOUPE_ZOOM`]). Every window closes when the pick ends.
+    pub fn show(self, ui: &mut Ui) {
+        let ScreenColorPicker { pick, app } = self;
+        if pick.images.is_empty() || pick.answer.is_some() {
+            return;
+        }
+        let words = Env::of(ui).words::<ScreenPickerWords>();
+        let title = Label::from(words.window_title.fill(&[("app", app)]));
+        let hints = [words.click_to_pick.clone(), words.scroll_to_zoom.clone()];
+        let (mut picked, mut cancelled, mut notches) = (None, false, 0);
+        for (n, snapshot) in pick.images.iter().enumerate() {
+            let [x, y, w, h] = capture::area(snapshot).cover();
+            let key = key_of((pick.generation, n));
+            let window = CaptureWindow::new(title.clone(), Rect::from_min_size(pos2(x, y), vec2(w, h))).id_salt((
+                "craft-color screen pick",
+                pick.generation,
+                n,
+            ));
+            let mut shown = window.show(ui, |ui, _| {
+                let rect = ui.max_rect();
+                CaptureView::new(snapshot.image.name.clone(), snapshot, key, pick.zoom, hints.clone()).show_at(ui, rect)
+            });
+            cancelled |= shown.output.closed.is_some();
+            if let Some((at, right_click, wheel)) = shown.settle(|_, view| (view.picked, view.cancelled, view.notches)) {
+                picked = picked.or(at);
+                cancelled |= right_click;
+                notches += wheel;
+            }
+        }
+        let step = notches.unsigned_abs() as usize * ZOOM_STEP;
+        pick.zoom = if notches > 0 { pick.zoom + step } else { pick.zoom.saturating_sub(step) }.clamp(LOUPE_ZOOM.0, LOUPE_ZOOM.2);
+        if let Some(at) = picked {
+            pick.answer = Some(sample_desktop(&pick.images, at).map_err(Failure::Failed));
+        } else if cancelled {
+            pick.answer = Some(Ok(None));
+        }
+        pick.settle(ui.ctx());
+    }
+}
+
 impl ScreenPick {
     /// No pick.
     pub fn new() -> Self {
@@ -306,47 +365,6 @@ impl ScreenPick {
             Err(notice) => self.notice = Some(notice),
         }
         ctx.request_repaint();
-    }
-
-    /// Shows the capture windows of a running pick, one over each captured monitor, borderless and above every other
-    /// window; `app` is the app's name, for the windows' title. A click picks the pixel under it, as a release outside
-    /// the app's windows does; Escape, a right-click or closing a window cancels. The wheel steps the loupe's zoom
-    /// ([`LOUPE_ZOOM`]). Every window closes when the pick ends.
-    pub fn show(&mut self, ui: &mut Ui, app: &str) {
-        if self.images.is_empty() || self.answer.is_some() {
-            return;
-        }
-        let words = Env::of(ui).words::<ScreenPickerWords>();
-        let title = Label::from(words.window_title.fill(&[("app", app)]));
-        let hints = [words.click_to_pick.clone(), words.scroll_to_zoom.clone()];
-        let (mut picked, mut cancelled, mut notches) = (None, false, 0);
-        for (n, snapshot) in self.images.iter().enumerate() {
-            let [x, y, w, h] = capture::area(snapshot).cover();
-            let key = key_of((self.generation, n));
-            let window = CaptureWindow::new(title.clone(), Rect::from_min_size(pos2(x, y), vec2(w, h))).id_salt((
-                "craft-color screen pick",
-                self.generation,
-                n,
-            ));
-            let mut shown = window.show(ui, |ui, _| {
-                let rect = ui.max_rect();
-                CaptureView::new(snapshot.image.name.clone(), snapshot, key, self.zoom, hints.clone()).show_at(ui, rect)
-            });
-            cancelled |= shown.output.closed.is_some();
-            if let Some((at, right_click, wheel)) = shown.settle(|_, view| (view.picked, view.cancelled, view.notches)) {
-                picked = picked.or(at);
-                cancelled |= right_click;
-                notches += wheel;
-            }
-        }
-        let step = notches.unsigned_abs() as usize * ZOOM_STEP;
-        self.zoom = if notches > 0 { self.zoom + step } else { self.zoom.saturating_sub(step) }.clamp(LOUPE_ZOOM.0, LOUPE_ZOOM.2);
-        if let Some(at) = picked {
-            self.answer = Some(sample_desktop(&self.images, at).map_err(Failure::Failed));
-        } else if cancelled {
-            self.answer = Some(Ok(None));
-        }
-        self.settle(ui.ctx());
     }
 
     /// Whether a pick runs or waits for its capture; the picker's button is disabled meanwhile.

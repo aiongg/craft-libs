@@ -9,11 +9,11 @@ use craft_behavior::{CancelReason, CanvasView, PointerButton};
 use craft_cms::convert::{CmykConverter, srgb_to_cmyk_naive};
 use craft_color::ui::{
     CaptureSource, ColorPicker, ColorPickerDialog, ColorPickerLayout, ColorPickerResult, ColorSamplerTool, ColorSamplers, PickedColor, SamplerCache,
-    SamplerReadout, SamplerReadouts, ScreenPick, StillCapture,
+    SamplerReadout, SamplerReadouts, ScreenColorPicker, ScreenPick, StillCapture,
 };
 use craft_theme::Srgba;
 use craft_ui::canvas::{CanvasSpace, CanvasTool, ToolAction, ToolContext, ToolPointer};
-use craft_ui::contract::{Bind, Show as _};
+use craft_ui::contract::Bind;
 use craft_ui::dialog::{DialogResult, DialogStack, StackDialog as _};
 use craft_ui::testing::{Fixture, ToolFixture, trial};
 use egui::{Context, Key, Modifiers, Pos2, Rect, vec2};
@@ -303,7 +303,7 @@ fn a_click_shows_the_capture_and_a_click_on_it_picks_the_pixel_under_the_pointer
         }
         let images = images.clone();
         pick.tick_with(ui.ctx(), 1, &move || Box::new(StillCapture::new(Ok(craft_platform::screen::Capture::Images(images.clone())))));
-        pick.show(ui, "Trial");
+        ScreenColorPicker::new(&mut pick, "Trial").show(ui);
     });
     fixture.room(vec2(1120.0, 700.0));
     fixture.settle();

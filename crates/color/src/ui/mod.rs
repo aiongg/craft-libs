@@ -75,7 +75,7 @@ pub use samplers::{
     ColorSamplerCommand, ColorSamplerMarks, ColorSamplerTool, ColorSamplers, MAX_SAMPLERS, SamplerCache, SamplerError, SamplerOptions,
     SamplerOptionsOutput, SamplerReadout, SamplerReadouts, SamplerWords,
 };
-pub use screen_picker::{CaptureResult, CaptureSource, LOUPE_PIXELS, LOUPE_ZOOM, ScreenPick, ScreenPickerWords, StillCapture};
+pub use screen_picker::{CaptureResult, CaptureSource, LOUPE_PIXELS, LOUPE_ZOOM, ScreenColorPicker, ScreenPick, ScreenPickerWords, StillCapture};
 pub use strip::{ColorStrip, ColorStripStyle};
 pub use swatches::{
     MAX_GROUPS, MAX_SWATCHES, SwatchAt, SwatchKey, SwatchLibrary, SwatchesCommand, SwatchesFileOutput, SwatchesMenu, SwatchesMenuOutput,
