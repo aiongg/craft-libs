@@ -20,7 +20,6 @@ pub mod input;
 pub mod internals;
 pub mod layout;
 pub mod memory;
-pub mod parity;
 pub mod pointer;
 pub mod relations;
 pub mod sensing;

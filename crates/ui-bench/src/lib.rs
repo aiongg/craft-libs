@@ -1,8 +1,8 @@
 //! Performance scenarios of the UI library (spec 22.7) and the harness that measures them.
 //!
 //! The scenario list, the measurement and the report are shared. A library supplies a
-//! [`Library`]: one binary per library (`legacy`, and the foundation's) runs [`run_all`] over it
-//! and writes `baseline/<library>.json`.
+//! [`Library`]: the foundation binary runs [`run_all`] over it and writes `baseline/foundation.json`. It reads
+//! `baseline/legacy.json`, the recorded baseline of the old library, as its speed gate.
 
 mod alloc;
 mod harness;

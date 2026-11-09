@@ -3,8 +3,6 @@
 //! reads a finished tree update. What a node says is decided in `runtime::access`.
 
 mod node;
-#[cfg(feature = "testing")]
-pub(crate) mod parity;
 mod patch;
 mod roles;
 mod text;
@@ -30,9 +28,9 @@ pub use tree::{AccessTree, Declared, NodeKey};
 /// The AccessKit role of a node.
 pub(crate) type NodeRole = accesskit::Role;
 
-/// The AccessKit vocabulary the parity trials read a tree in.
+/// The AccessKit vocabulary the testing kit reads a tree in.
 #[cfg(feature = "testing")]
-pub(crate) use accesskit::{Action, Role, Toggled};
+pub(crate) use accesskit::{Role, Toggled};
 
 /// The AccessKit node number of `id`, the key an action request's target is matched by.
 pub(crate) fn node_key(id: Id) -> u64 {

@@ -6,20 +6,16 @@ use std::path::{Path, PathBuf};
 
 /// Crates the facade leaves out, by directory, with the reason. Everything else under `crates/` is a member.
 pub const NOT_IN_FACADE: &[(&str, &str)] = &[
-    ("behavior", "layer 1: pure behaviours with no egui, below the new craft-ui"),
+    ("behavior", "layer 1: pure behaviours with no egui, below craft-ui"),
     ("design-lint", "a lint template and checker for apps' clippy.toml, run from xtask"),
     ("fonts-build", "a build-script helper; apps call it from build.rs"),
     ("media-testkit", "test support: ffmpeg discovery and fixture locations for the media crates"),
     ("plate-test", "a test harness: reference PDFs and PDF structure checks"),
-    ("ui", "the new craft-ui, not yet behind the facade"),
+    ("ui-bench", "a tool: the release-mode benchmark of the UI library"),
     ("ui-gallery", "a tool: the story gallery application"),
-    ("ui-gallery-legacy", "a tool: the story gallery application on craft-ui-legacy"),
-    ("ui-macros", "a proc-macro crate that the new craft-ui re-exports"),
-    ("ui-macros-legacy", "a proc-macro crate that craft-ui-legacy re-exports"),
+    ("ui-macros", "a proc-macro crate that craft-ui re-exports"),
+    ("win32", "the `unsafe` Win32 calls behind a safe API, used by craft-window"),
 ];
-
-/// Directories whose crate the facade exposes under another name until cut-over: the facade's `craft-ui` is `crates/ui-legacy`.
-const FACADE_NAME_OF_DIR: &[(&str, &str)] = &[("ui-legacy", "ui")];
 
 /// Crates every app gets without a feature.
 pub const ALWAYS_ON: &[&str] = &["host", "i18n", "theme"];
@@ -60,9 +56,9 @@ pub fn members() -> Vec<Member> {
     dirs.into_iter()
         .map(|folder| {
             let manifest = read_toml(&crates.join(&folder).join("Cargo.toml"));
-            let dir = FACADE_NAME_OF_DIR.iter().find(|(f, _)| *f == folder).map_or(folder.clone(), |(_, n)| (*n).to_owned());
+            let dir = folder.clone();
             let name = manifest["package"]["name"].as_str().unwrap();
-            let expected = if dir == folder { format!("craft-{dir}") } else { format!("craft-{folder}") };
+            let expected = format!("craft-{dir}");
             assert_eq!(name, expected, "crates/{folder} is not named {expected}");
             let features = manifest
                 .get("features")

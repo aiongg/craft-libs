@@ -282,11 +282,6 @@ impl Fixture {
         self.data.borrow_mut()
     }
 
-    /// The story's data, shared with the fixture's show closure.
-    pub(crate) fn data_handle(&self) -> Rc<RefCell<StoryData>> {
-        self.data.clone()
-    }
-
     /// The outputs the story gave since the last call, one per pass.
     pub fn take_outputs(&mut self) -> Vec<StoryOutput> {
         std::mem::take(&mut *self.outputs.borrow_mut())

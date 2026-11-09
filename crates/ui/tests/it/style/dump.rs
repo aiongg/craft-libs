@@ -93,9 +93,8 @@ fn style_group_dump_matches_its_file() {
     dump.check(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/dumps/style_groups.txt"));
 }
 
-/// The dumps of the new crates stay under the budget; token dumps (craft-theme) and the legacy library's
-/// dumps, which are deleted with it, are outside it.
+/// The dumps stay under the budget; token dumps (craft-theme) are outside it.
 #[trial]
 fn dumps_stay_within_the_budget() {
-    check_budget(&["theme", "ui-legacy"]);
+    check_budget(&["theme"]);
 }

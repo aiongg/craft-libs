@@ -88,8 +88,7 @@ fn module_exists(src: &Path, module: &str) -> bool {
 
 #[test]
 fn template_replacements_exist() {
-    // The template guides the apps, which use the legacy library until cut-over.
-    let ui = manifest_dir().join("../ui-legacy/src");
+    let ui = manifest_dir().join("../ui/src");
     let theme = manifest_dir().join("../theme/src");
     let (mut ui_files, mut all_files) = (Vec::new(), Vec::new());
     rust_files(&ui, &mut ui_files);

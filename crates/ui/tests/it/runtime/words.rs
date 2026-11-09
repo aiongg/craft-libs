@@ -65,9 +65,7 @@ fn no_word_id_carries_two_texts() {
     let crates = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
     let mut files = Vec::new();
     for entry in fs::read_dir(&crates).expect("the crates directory").flatten() {
-        if entry.file_name() != "ui-legacy" {
-            sources(&entry.path().join("src"), &mut files);
-        }
+        sources(&entry.path().join("src"), &mut files);
     }
     let mut texts: BTreeMap<String, BTreeMap<String, String>> = BTreeMap::new();
     let mut total = 0;
