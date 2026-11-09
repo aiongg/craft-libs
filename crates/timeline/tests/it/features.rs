@@ -243,10 +243,11 @@ fn the_snap_target_shows_as_a_line_while_dragging() {
         let tall = alpha.height() * 2.0;
         fixture.shape_bounds().iter().filter(|bounds| bounds.width() < bounds.height() / 10.0 && bounds.height() > tall).count()
     };
+    let before = lines(&fixture);
     fixture.drag_at_pausing(alpha.center(), by, |fixture| {
-        assert!(lines(fixture) > 0, "a line stands at the snap target");
+        assert!(lines(fixture) > before, "a line stands at the snap target");
     });
-    assert_eq!(lines(&fixture), 0, "the line is gone with the drag");
+    assert_eq!(lines(&fixture), before, "the line is gone with the drag");
 }
 
 /// Dragging the divider changes the video side's share, and the share the app keeps lays the sides out.
