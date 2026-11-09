@@ -660,12 +660,7 @@ pub(crate) fn update_inputs(core: &mut CxCore<'_>) {
 /// Step 9, before the component: a gesture cancelled under its press is live again once the press is released, and a
 /// given caller's `Update` that fell in the pass of its `Begin` arrives now.
 pub(crate) fn gesture_gate<C: Component>(comp: &C, cx: &mut Cx<'_, C>) {
-    use craft_behavior::PressPhase;
-    // A scrub by the field's label is carried by the label's press.
-    let label_held = comp.scrub().is_some_and(|scrub| !scrub.on_field)
-        && scope::field_label(&cx.core.ctx)
-            .is_some_and(|label| matches!(label.press.phase, PressPhase::Down { .. } | PressPhase::DragStart { .. } | PressPhase::Drag { .. }));
-    let held = cx.core.press_held() || label_held;
+    let held = cx.core.press_held() || scrub_press(comp, cx).is_some_and(|press| super::cx::press_down(&press.phase));
     let slot = gesture_key(cx.core.id);
     let gesture = cx.core.memory.shown::<Gesture<ValueOf<C>>>(slot);
     if gesture.dead && !held {
@@ -677,6 +672,12 @@ pub(crate) fn gesture_gate<C: Component>(comp: &C, cx: &mut Cx<'_, C>) {
         let id = gesture.id;
         cx.events.push(EditEvent::update(id, value));
     }
+}
+
+/// The press that carries a scrub: the field's own, or for a scrub by the label, the label's.
+fn scrub_press<C: Component>(comp: &C, cx: &Cx<'_, C>) -> Option<craft_behavior::PressState> {
+    let scrub = comp.scrub()?;
+    if scrub.on_field { Some(cx.core.press.clone()) } else { scope::field_label(&cx.core.ctx).map(|label| label.press) }
 }
 
 /// Step 9, the edit intents the library takes before `C::update`: Escape or a cancelled press ends a running gesture,
@@ -758,13 +759,10 @@ pub(crate) fn scrub_by_label<C: Component>(comp: &C, cx: &mut Cx<'_, C>) {
         }
         return;
     }
-    let press = if scrub.on_field {
-        cx.core.press
-    } else {
-        let Some(label) = scope::field_label(&cx.core.ctx) else { return };
+    if !scrub.on_field && scope::field_label(&cx.core.ctx).is_some() {
         scope::register_scrub(&cx.core.ctx);
-        label.press
-    };
+    }
+    let Some(press) = scrub_press(comp, cx) else { return };
     let start_id = sub(cx.core.id, "scrub_start");
     let rtl = cx.core.env.direction().is_rtl();
     match press.phase {
