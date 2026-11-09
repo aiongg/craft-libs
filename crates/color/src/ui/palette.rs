@@ -69,7 +69,7 @@ impl<'a> SwatchPalette<'a> {
         let SwatchPalette { label, color, swatches } = self;
         let mut held = Held::new(color);
         let name = label.clone();
-        let shown = Stack::new().show(ui, |ui, cx| {
+        let mut shown = Stack::new().show(ui, |ui, cx| {
             let before = held.read(cx)?;
             let selected = swatches.iter().position(|(_, c)| c.to_rgba() == before.to_rgba());
             let mut current = selected.map_or_else(Selection::default, Selection::single);
@@ -79,10 +79,17 @@ impl<'a> SwatchPalette<'a> {
             if after.to_rgba() == before.to_rgba() {
                 return None;
             }
-            held.write(cx, &before, after, name.as_str());
-            Some(EditEvent::set(Mixed::Same(before), after, Arc::from(name.as_str()), None))
+            Some((before, after))
         });
-        SwatchPaletteOutput { response: shown.output, edit: shown.inner.flatten() }
+        // Once per pass, after the real run: the picked colour is stored and reported.
+        let edit = shown
+            .settle(|cx, picked| {
+                let (before, after) = picked.take()?;
+                held.write(cx, &before, after, name.as_str());
+                Some(EditEvent::set(Mixed::Same(before), after, Arc::from(name.as_str()), None))
+            })
+            .flatten();
+        SwatchPaletteOutput { response: shown.output, edit }
     }
 }
 

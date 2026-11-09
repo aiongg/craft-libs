@@ -324,8 +324,8 @@ impl<'a> ColorPanel<'a> {
         let (words, dialog) = (env.words::<ColorPanelWords>(), env.words::<ColorPickerDialogWords>());
         let mut held = Held::new(state);
         let (mut edits, mut pick_color, mut add_to_swatches) = (Vec::new(), None, None);
-        let shown = Stack::new().label(words.title.clone()).show(ui, |ui, cx| {
-            let Some(before) = held.read(cx) else { return };
+        let mut shown = Stack::new().label(words.title.clone()).show(ui, |ui, cx| {
+            let before = held.read(cx)?;
             let target = if before.background { PanelTarget::Background } else { PanelTarget::Foreground };
             let mut body = Body {
                 target,
@@ -342,12 +342,18 @@ impl<'a> ColorPanel<'a> {
             };
             body.show(ui);
             *cx.memory::<Kept>() = std::mem::take(&mut body.kept);
-            if body.now != before {
-                held.write(cx, &before, body.now, words.title.as_str());
-            }
             edits = body.events;
             pick_color = body.pick_color;
             add_to_swatches = body.add_to_swatches;
+            Some((before, body.now))
+        });
+        // Once per pass, after the real run: the edited state is stored.
+        shown.settle(|cx, state| {
+            if let Some((before, now)) = state.take()
+                && now != before
+            {
+                held.write(cx, &before, now, words.title.as_str());
+            }
         });
         ColorPanelOutput { response: shown.output, edits, pick_color, add_to_swatches }
     }
