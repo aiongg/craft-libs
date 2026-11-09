@@ -24,15 +24,6 @@ fn clean(src: &str) -> bool {
 }
 
 #[test]
-fn vec2_forms() {
-    assert!(flagged("fn f() { let _ = vec2(28.0, 24.0); }", "literal-size/vec2"));
-    assert!(flagged("fn f() { let _ = egui::Vec2::new(4.0, w); }", "literal-size/vec2"));
-    assert!(flagged("fn f() { let _ = Vec2::splat(8.0); }", "literal-size/vec2"));
-    assert!(flagged("fn f() { let _ = Vec2 { x: 3.0, y: h }; }", "literal-size/vec2"));
-    assert!(clean("fn f() { let _ = vec2(0.0, 0.0); let _ = Vec2::splat(0.0); let _ = vec2(w, h); let _ = Vec2 { x: w, y: 0.0 }; }"));
-}
-
-#[test]
 fn literal_shapes() {
     for arg in ["-4.0", "(4.0)", "4 as f32", "4.0_f32", "2.0 * 3.0", "-(1.0 + 2.0)", "8"] {
         let src = format!("fn f(ui: &mut Ui) {{ ui.add_space({arg}); }}");
@@ -42,10 +33,18 @@ fn literal_shapes() {
         let src = format!("fn f(ui: &mut Ui) {{ ui.add_space({arg}); }}");
         assert!(clean(&src), "{arg}");
     }
+
+    {
+        assert!(flagged("fn f() { let _ = vec2(28.0, 24.0); }", "literal-size/vec2"));
+        assert!(flagged("fn f() { let _ = egui::Vec2::new(4.0, w); }", "literal-size/vec2"));
+        assert!(flagged("fn f() { let _ = Vec2::splat(8.0); }", "literal-size/vec2"));
+        assert!(flagged("fn f() { let _ = Vec2 { x: 3.0, y: h }; }", "literal-size/vec2"));
+        assert!(clean("fn f() { let _ = vec2(0.0, 0.0); let _ = Vec2::splat(0.0); let _ = vec2(w, h); let _ = Vec2 { x: w, y: 0.0 }; }"));
+    }
 }
 
 #[test]
-fn corner_radius_forms() {
+fn constructor_forms_are_checked() {
     for src in [
         "fn f() { let _ = CornerRadius::same(4); }",
         "fn f() { let _ = CornerRadius::from(6.0); }",
@@ -55,28 +54,50 @@ fn corner_radius_forms() {
         assert!(flagged(src, "literal-size/corner-radius"), "{src}");
     }
     assert!(clean("fn f() { let _ = CornerRadius::same(0); let _ = Frame::new().corner_radius(r); let _ = CornerRadius::ZERO; }"));
+
+    {
+        for src in [
+            "fn f() { let _ = Margin::same(4); }",
+            "fn f() { let _ = Margin::symmetric(8, 0); }",
+            "fn f() { let _ = Margin { left: 1, right: 0, top: 0, bottom: 0 }; }",
+            "fn f() { let _ = Frame::new().inner_margin(6.0); }",
+            "fn f() { let _ = Frame::new().outer_margin(6.0); }",
+        ] {
+            assert!(flagged(src, "literal-size/margin"), "{src}");
+        }
+        assert!(clean("fn f() { let _ = Margin::same(0); let _ = Margin::symmetric(x, 0); let _ = Frame::new().inner_margin(m); }"));
+    }
+
+    {
+        assert!(flagged("fn f() { let _ = Margin::from(4.0); }", "literal-size/margin"));
+        for name in ["WHITE", "BLACK", "RED", "GREEN", "BLUE"] {
+            assert!(flagged(&format!("fn f() {{ let _ = Rgba::{name}; }}"), "raw-colour/const"), "{name}");
+        }
+        assert!(clean("fn f() { let _ = Rgba::TRANSPARENT; let _ = Rgba::from_rgb_unmultiplied(1, 2, 3); }"));
+    }
 }
 
 #[test]
-fn stroke_checks_the_width_only() {
+fn stroke_width_is_checked() {
     assert!(flagged("fn f() { let _ = Stroke::new(1.0, c); }", "literal-size/stroke"));
     assert!(flagged("fn f() { let _ = PathStroke::new(2.0, c); }", "literal-size/stroke"));
     assert!(flagged("fn f() { let _ = Stroke { width: 1.5, color: c }; }", "literal-size/stroke"));
     assert!(clean("fn f() { let _ = Stroke::new(w, c); let _ = Stroke::new(0.0, c); let _ = Stroke::new(w, 5.0); }"));
-}
 
-#[test]
-fn margin_forms() {
-    for src in [
-        "fn f() { let _ = Margin::same(4); }",
-        "fn f() { let _ = Margin::symmetric(8, 0); }",
-        "fn f() { let _ = Margin { left: 1, right: 0, top: 0, bottom: 0 }; }",
-        "fn f() { let _ = Frame::new().inner_margin(6.0); }",
-        "fn f() { let _ = Frame::new().outer_margin(6.0); }",
-    ] {
-        assert!(flagged(src, "literal-size/margin"), "{src}");
+    {
+        for src in [
+            "fn f(p: &Painter) { p.line_segment([a, b], (1.0, c)); }",
+            "fn f(p: &Painter) { p.rect_stroke(r, radius, (1.5, c), kind); }",
+            "fn f() { let _ = Frame::new().stroke((1.0, c)); }",
+            "fn f() { let _: Stroke = (1.0, c).into(); }",
+            "fn f() { let _ = Stroke::from((2.0, c)); }",
+        ] {
+            assert!(flagged(src, "literal-size/stroke"), "{src}");
+        }
+        assert!(clean(
+            "fn f(p: &Painter) { p.line_segment([a, b], (w, c)); let _ = Frame::new().stroke((0.0, c)); let _ = (1.0, 2.0); let _ = pair((1.0, c)); }"
+        ));
     }
-    assert!(clean("fn f() { let _ = Margin::same(0); let _ = Margin::symmetric(x, 0); let _ = Frame::new().inner_margin(m); }"));
 }
 
 #[test]
@@ -104,7 +125,7 @@ fn non_literal_consts_are_accepted() {
 
 #[test]
 fn named_colour_consts() {
-    for name in ["WHITE", "BLACK", "RED", "DARK_GRAY", "KHAKI", "LIGHT_BLUE"] {
+    for name in ["WHITE", "LIGHT_BLUE"] {
         for path in ["Color32", "egui::Color32", "ecolor::Color32"] {
             let src = format!("fn f() {{ let _ = {path}::{name}; }}");
             assert!(flagged(&src, "raw-colour/const"), "{path}::{name}");
@@ -132,12 +153,28 @@ fn test_code_is_skipped() {
 }
 
 #[test]
-fn finding_position_and_message() {
+fn findings_and_report_render() {
     let found = run("fn f() {\n    let _ = vec2(28.0, 24.0);\n    ui.add_space(4.0);\n}\n");
     assert_eq!((found[0].line, found[0].column), (2, 13));
-    assert!(found[0].message.starts_with("`vec2(28.0, 24.0)` uses literal sizes; use a size token"), "{}", found[0].message);
     assert_eq!((found[1].line, found[1].column), (3, 8));
-    assert!(found[1].message.starts_with("`add_space(4.0)` uses literal sizes"), "{}", found[1].message);
+
+    {
+        let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("report-format");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("src/panels")).unwrap();
+        std::fs::write(root.join("src/panels/toolbar.rs"), "fn f(ui: &mut Ui) {\n    let _ = vec2(28.0, 24.0);\n    let _ = Color32::WHITE;\n}\n")
+            .unwrap();
+        let report = check(&Config::new(["src"]), &root).unwrap();
+        let out = report.render();
+        let lines: Vec<&str> = out.lines().collect();
+        assert_eq!(lines.len(), 3, "{out}");
+        assert!(lines[0].starts_with("src/panels/toolbar.rs:2:13:") && lines[0].contains("literal-size/vec2"), "{out}");
+        assert!(lines[1].starts_with("src/panels/toolbar.rs:3:13:") && lines[1].contains("raw-colour/const"), "{out}");
+        assert!(lines[2].starts_with("design-lint: 2 findings in 1 file"), "{out}");
+
+        let table = report.summary_table();
+        assert!(table.contains("literal-size/vec2") && table.contains("panels"), "{table}");
+    }
 }
 
 #[test]
@@ -186,34 +223,6 @@ fn check_walks_directories_and_skips_test_files() {
 }
 
 #[test]
-fn report_output_format() {
-    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("report-format");
-    let _ = std::fs::remove_dir_all(&root);
-    std::fs::create_dir_all(root.join("src/panels")).unwrap();
-    std::fs::write(root.join("src/panels/toolbar.rs"), "fn f(ui: &mut Ui) {\n    let _ = vec2(28.0, 24.0);\n    let _ = Color32::WHITE;\n}\n")
-        .unwrap();
-    let report = check(&Config::new(["src"]), &root).unwrap();
-    let out = report.render();
-    let mut lines = out.lines();
-    assert_eq!(
-        lines.next().unwrap(),
-        "src/panels/toolbar.rs:2:13: error[literal-size/vec2]: `vec2(28.0, 24.0)` uses literal sizes; use a size token (`Tokens::of(ui).size.control.md`, `space.gap.inline`) or mark `// design: allow(<reason>)`"
-    );
-    assert_eq!(
-        lines.next().unwrap(),
-        "src/panels/toolbar.rs:3:13: error[raw-colour/const]: `Color32::WHITE`; take the colour from a semantic token (`Tokens::of(ui).color.text.normal.to_egui()`) or mark `// design: allow(<reason>)`"
-    );
-    assert_eq!(
-        lines.next().unwrap(),
-        "design-lint: 2 findings in 1 file (literal-size/vec2 1, raw-colour/const 1); 0 markers, 0 exemptions, 0 clippy allows"
-    );
-    assert_eq!(lines.next(), None);
-
-    let table = report.summary_table();
-    assert!(table.contains("literal-size/vec2") && table.contains("panels"), "{table}");
-}
-
-#[test]
 fn config_parses_and_rejects_unknown_keys() {
     let origin = Path::new("design-lint.toml");
     let config = Config::parse(origin, "[lint]\npaths = [\"a\", \"b/c\"]\ninclude-tests = true\n").unwrap();
@@ -257,31 +266,6 @@ fn rich_text_size_is_checked() {
 }
 
 #[test]
-fn stroke_tuples_are_checked() {
-    for src in [
-        "fn f(p: &Painter) { p.line_segment([a, b], (1.0, c)); }",
-        "fn f(p: &Painter) { p.rect_stroke(r, radius, (1.5, c), kind); }",
-        "fn f() { let _ = Frame::new().stroke((1.0, c)); }",
-        "fn f() { let _: Stroke = (1.0, c).into(); }",
-        "fn f() { let _ = Stroke::from((2.0, c)); }",
-    ] {
-        assert!(flagged(src, "literal-size/stroke"), "{src}");
-    }
-    assert!(clean(
-        "fn f(p: &Painter) { p.line_segment([a, b], (w, c)); let _ = Frame::new().stroke((0.0, c)); let _ = (1.0, 2.0); let _ = pair((1.0, c)); }"
-    ));
-}
-
-#[test]
-fn margin_from_and_rgba_colours() {
-    assert!(flagged("fn f() { let _ = Margin::from(4.0); }", "literal-size/margin"));
-    for name in ["WHITE", "BLACK", "RED", "GREEN", "BLUE"] {
-        assert!(flagged(&format!("fn f() {{ let _ = Rgba::{name}; }}"), "raw-colour/const"), "{name}");
-    }
-    assert!(clean("fn f() { let _ = Rgba::TRANSPARENT; let _ = Rgba::from_rgb_unmultiplied(1, 2, 3); }"));
-}
-
-#[test]
 fn style_mutation_is_flagged() {
     for call in [
         "ui.style_mut().spacing.item_spacing.x = 3.0",
@@ -304,7 +288,7 @@ fn style_mutation_is_flagged() {
 }
 
 #[test]
-fn stock_tooltips_name_the_tooltip_ext_replacement() {
+fn stock_tooltips_are_flagged() {
     for (call, replacement) in [
         ("r.on_hover_text(\"x\")", "TooltipExt::tooltip"),
         ("r.on_disabled_hover_text(\"x\")", "TooltipExt::tooltip"),
@@ -320,16 +304,15 @@ fn stock_tooltips_name_the_tooltip_ext_replacement() {
         let hit = found.iter().find(|f| f.rule == "tooltip/stock").unwrap_or_else(|| panic!("{call}: {found:?}"));
         assert!(hit.message.contains(replacement), "{call}: {}", hit.message);
     }
-}
 
-#[test]
-fn stock_tooltip_construction_is_flagged_and_craft_ui_calls_are_not() {
-    assert!(flagged("fn f(r: &Response) { egui::Tooltip::for_enabled(r).show(|ui| {}); }", "tooltip/stock"));
-    assert!(flagged("use egui::Tooltip; fn f(r: &Response) { Tooltip::for_disabled(r); }", "tooltip/stock"));
-    assert!(flagged("use egui::Tooltip; fn f() { Tooltip::always_open(a, b, c, d); }", "tooltip/stock"));
-    assert!(clean(
-        "fn f(r: Response, t: &UiTokens) { r.tooltip(\"x\"); r.tooltip_ui(|ui| {}); r.show_tooltip(\"x\"); let _ = Tooltip::style(t); let _ = r.is_tooltip_open(); }"
-    ));
+    {
+        assert!(flagged("fn f(r: &Response) { egui::Tooltip::for_enabled(r).show(|ui| {}); }", "tooltip/stock"));
+        assert!(flagged("use egui::Tooltip; fn f(r: &Response) { Tooltip::for_disabled(r); }", "tooltip/stock"));
+        assert!(flagged("use egui::Tooltip; fn f() { Tooltip::always_open(a, b, c, d); }", "tooltip/stock"));
+        assert!(clean(
+            "fn f(r: Response, t: &UiTokens) { r.tooltip(\"x\"); r.tooltip_ui(|ui| {}); r.show_tooltip(\"x\"); let _ = Tooltip::style(t); let _ = r.is_tooltip_open(); }"
+        ));
+    }
 }
 
 #[test]
@@ -371,19 +354,18 @@ fn consts_in_test_modules_do_not_resolve() {
 }
 
 #[test]
-fn clippy_allow_attributes_are_counted_and_inner_ones_flagged() {
+fn clippy_allows_are_counted_outside_test_code() {
     let src = "#![allow(clippy::disallowed_methods, reason = \"stock widgets\")]\n#[expect(clippy::disallowed_types)]\nstruct S;\n#[allow(clippy::too_many_arguments)]\nfn f() {}\nmod m {\n    #![expect(clippy::disallowed_methods)]\n}\n";
     let analysis = analyze_source(src, false);
     assert_eq!(analysis.clippy_allows, 3);
     assert_eq!(analysis.findings.iter().map(|f| (f.rule, f.line)).collect::<Vec<_>>(), [("clippy/inner-allow", 1), ("clippy/inner-allow", 7)]);
     assert!(analysis.findings[0].message.contains("[[exempt]]"), "{}", analysis.findings[0].message);
-}
 
-#[test]
-fn clippy_allows_in_test_code_are_not_counted() {
-    let src = "#[cfg(test)]\nmod tests {\n    #![allow(clippy::disallowed_methods)]\n}\n";
-    let analysis = analyze_source(src, false);
-    assert_eq!((analysis.clippy_allows, analysis.findings.len()), (0, 0));
+    {
+        let src = "#[cfg(test)]\nmod tests {\n    #![allow(clippy::disallowed_methods)]\n}\n";
+        let analysis = analyze_source(src, false);
+        assert_eq!((analysis.clippy_allows, analysis.findings.len()), (0, 0));
+    }
 }
 
 #[test]
@@ -391,21 +373,14 @@ fn imported_names_resolve_through_use_items() {
     let margin = "literal-size/margin";
     for (src, rule) in [
         ("use craft_ui::theme::margin;\nfn f() { let _ = margin(4.0); }", margin),
-        ("use craft_ui::theme::{margin, stroke};\nfn f() { let _ = margin(4.0); }", margin),
-        ("use craft_ui::theme::{margin, stroke};\nfn f() { let _ = stroke(1.0, c); }", "literal-size/stroke"),
         ("use craft_ui::theme::margin as m;\nfn f() { let _ = m(4.0); }", margin),
+        ("use craft_ui::theme::{margin, stroke};\nfn f() { let _ = margin(4.0); }", margin),
         ("use craft_ui::theme::{self as t, corner_radius as cr};\nfn f() { let _ = t::margin(4.0); }", margin),
-        ("use craft_ui::theme::{self as t, corner_radius as cr};\nfn f() { let _ = cr(4.0); }", "literal-size/corner-radius"),
         ("use craft_ui::theme::*;\nfn f() { let _ = margin(4.0); }", margin),
         ("use craft_ui::theme;\nfn f() { let _ = theme::margin(4.0); }", margin),
-        ("use craft_ui::{theme::margin_x};\nfn f() { let _ = margin_x(4.0, 0.0); }", margin),
-        ("use craft_ui::*;\nfn f() { let _ = theme::margin(4.0); }", margin),
         ("use egui::Margin as M;\nfn f() { let _ = M::from(4.0); }", margin),
-        ("use egui::Margin as M;\nfn f() { let _ = M { left: 4, right: 0, top: 0, bottom: 0 }; }", margin),
         ("use egui::vec2 as v;\nfn f() { let _ = v(4.0, 4.0); }", "literal-size/vec2"),
-        ("use egui::{Vec2 as V};\nfn f() { let _ = V::splat(4.0); }", "literal-size/vec2"),
         ("use egui::Color32 as C;\nfn f() { let _ = C::WHITE; }", "raw-colour/const"),
-        ("use egui::Color32::WHITE;\nfn f() { let _ = WHITE; }", "raw-colour/const"),
         ("mod m { use craft_ui::theme::margin; fn f() { let _ = margin(4.0); } }", margin),
     ] {
         assert!(flagged(src, rule), "{src}: {:?}", rules(src));

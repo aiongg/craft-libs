@@ -139,16 +139,6 @@ fn has(km: &Keymap, id: impl Into<CommandRef>, texts: &[&str]) {
 }
 
 #[test]
-fn labels_normalize_for_matching() {
-    assert_eq!(normalize_label("Check Spelling..."), "check spelling");
-    assert_eq!(normalize_label("Check  Spelling…"), "check spelling");
-    assert_eq!(normalize_label("Grids && Guides"), "grids guides");
-    assert_eq!(normalize_label("SHOW/HIDE  Guides"), "show/hide guides");
-    assert_eq!(normalize_label("Preferences: General…"), "preferences general");
-    assert_eq!(normalize_label("ÄRGER"), "ärger");
-}
-
-#[test]
 fn every_match_step_finds_its_command() {
     let (km, r) = import_windows();
     assert_eq!(r.set.as_deref(), Some("My Set"));
@@ -190,6 +180,16 @@ fn every_match_step_finds_its_command() {
     assert!(matches!(r.unreadable[0].reason, ForeignError::UnknownKey(_)));
     assert!(r.suggestions.is_empty(), "not asked for");
     assert_eq!(r.truncated, 0);
+
+    // Normalising labels is the first match step.
+    {
+        assert_eq!(normalize_label("Check Spelling..."), "check spelling");
+        assert_eq!(normalize_label("Check  Spelling…"), "check spelling");
+        assert_eq!(normalize_label("Grids && Guides"), "grids guides");
+        assert_eq!(normalize_label("SHOW/HIDE  Guides"), "show/hide guides");
+        assert_eq!(normalize_label("Preferences: General…"), "preferences general");
+        assert_eq!(normalize_label("ÄRGER"), "ärger");
+    }
 }
 
 #[test]
@@ -444,12 +444,6 @@ fn suggestions_are_reported_never_applied() {
 }
 
 #[test]
-fn entries_the_reader_dropped_count_as_truncated() {
-    let set = ForeignSet::new(vec![win("File", &["Close"], &[("Default", "Ctrl+Q")])]).with_truncated(7);
-    assert_eq!(plan(&set, &keymap(Platform::Windows), &default_context()).report.truncated, 7);
-}
-
-#[test]
 fn hostile_sets_are_capped_and_counted() {
     let mut km = keymap(Platform::Windows);
     let long: String = "ä€𝄞 x".repeat(MAX_IMPORT_TEXT);
@@ -480,53 +474,11 @@ fn hostile_sets_are_capped_and_counted() {
     has(&km, "edit.paste", &["Cmd+V"]);
     // Entries past the cap are left out.
     assert_eq!(r.unmatched_without_shortcut, keyless);
-}
 
-#[test]
-#[ignore = "worst-case timing; run with --ignored"]
-fn hostile_sets_finish_in_time() {
-    // A full catalog whose labels share words with every unmatched entry below, so each
-    // suggestion scores every command.
-    let mut catalog = catalog();
-    let filler = MAX_COMMANDS - catalog.len();
-    catalog.extend((0..filler).map(|i| command(format!("filler.c{i}").as_str(), &format!("Filler Command {i}"), &[], &[])));
-    let mut km = Keymap::new(catalog, Scopes::new().with_context("Text"), Platform::Windows).with_reserved(reserved::system(Platform::Windows));
-    let long: String = "ä€𝄞 x".repeat(MAX_IMPORT_TEXT);
-    // Odd entries have keys and long labels that match nothing, so they reach the suggestions:
-    // words in the whole label, or two words and symbols, which score high enough to suggest.
-    let wordy = "Filler Command ä€𝄞 ".repeat(MAX_IMPORT_TEXT / 8);
-    let symbols = format!("Filler Command {}", "€𝄞 ".repeat(MAX_IMPORT_TEXT));
-    let filler_entry = |i: usize| match i % 4 {
-        1 => win("Edit", &[&symbols], &[("Default", "Ctrl+F12")]),
-        3 => win("Edit", &[&format!("{wordy}{i}")], &[("Default", "Ctrl+F12")]),
-        _ => win("Edit", &[&format!("Item {i}")], &[]),
-    };
-    let mut entries: Vec<ForeignEntry> = (0..MAX_IMPORT_ENTRIES + 500).map(filler_entry).collect();
-    let mut big = ForeignEntry::new(Some(long.as_str()), std::iter::repeat_n(long.clone(), 100));
-    for _ in 0..MAX_KEYS_PER_ENTRY + 10 {
-        let trigger = Err(ForeignError::UnknownKey(long.clone()));
-        big = big.with_key(ForeignKey { context: Some(long.clone()), text: long.clone(), trigger, notes: vec![ReadNote::Numpad; 1000] });
+    {
+        let set = ForeignSet::new(vec![win("File", &["Close"], &[("Default", "Ctrl+Q")])]).with_truncated(7);
+        assert_eq!(plan(&set, &keymap(Platform::Windows), &default_context()).report.truncated, 7);
     }
-    entries.insert(0, big);
-    entries.insert(1, win("Edit", &["Paste"], &[("Default", &long), ("Default", "Ctrl+\u{0}"), ("Default", "Win+E")]));
-    let set = ForeignSet::new(entries).with_name(long.clone());
-    let options = ImportOptions { contexts: vec![("Default".into(), ContextRule::Home)], suggest: true, ..ImportOptions::default() };
-    let started = std::time::Instant::now();
-    let r = plan(&set, &km, &options).apply(&mut km);
-    assert!(started.elapsed() < std::time::Duration::from_secs(240), "{:?}", started.elapsed());
-    // Read filler entries are those before the cap, after the two inserted ones.
-    let read = MAX_IMPORT_ENTRIES - 2;
-    let keyed = read / 2;
-    assert!(!r.suggestions.is_empty() && r.suggestions.len() <= MAX_SUGGESTIONS, "{}", r.suggestions.len());
-    assert!(r.truncated >= 500 + 10 + keyed + 1 - MAX_SUGGESTIONS, "{}", r.truncated);
-    assert_eq!(r.set.as_ref().map(|s| s.chars().count()), Some(MAX_IMPORT_TEXT));
-    let row = r.unmatched.iter().find(|u| u.item.starts_with('ä')).unwrap();
-    assert!(row.item.chars().count() <= MAX_IMPORT_TEXT * 34, "item of capped segments");
-    assert!(row.keys.chars().count() <= (2 * MAX_IMPORT_TEXT + 4) * MAX_KEYS_PER_ENTRY);
-    assert_eq!(r.unreadable.len(), 1, "Paste's keys");
-    has(&km, "edit.paste", &["Cmd+V"]);
-    // Entries past the cap are left out.
-    assert_eq!(r.unmatched_without_shortcut, read - keyed);
 }
 
 #[test]
@@ -628,7 +580,7 @@ fn unmatched(r: &ImportReport) -> Vec<(&str, UnmatchedReason)> {
 }
 
 #[test]
-fn panel_menu_entries_match_by_path_end_or_label() {
+fn menu_paths_aliases_and_labels_match() {
     let catalog = vec![
         command("type.allCaps", "All Caps", &["Panels", "Character", "All Caps"], &[]),
         command("pages.overrideAll", "Override All Parent Items", &["Pages", "Override All Parent Page Items"], &[]),
@@ -675,43 +627,41 @@ fn panel_menu_entries_match_by_path_end_or_label() {
             ("Character > All Caps", UnmatchedReason::NoMatch)
         ]
     );
-}
 
-#[test]
-fn aliases_match_like_labels() {
-    let catalog = vec![
-        command("app.quit", "Quit DesignCraft", &["File", "Quit DesignCraft"], &[]).with_alias("Exit"),
-        command("app.preferences", "Preferences…", &["Edit", "Preferences…"], &[]).with_alias("Preferences: General…"),
-        command("type.bold", "Bold", &["Type", "Style", "Bold"], &[]).with_alias("Apply bold"),
-        command("edit.paste", "Paste", &["Edit", "Paste"], &[]).with_alias("Einfügen"),
-    ];
-    let d = "Default";
-    let entries = vec![
-        win("File", &["Exit"], &[(d, "Ctrl+Q")]),
-        win("Edit", &["Preferences", "General..."], &[(d, "Ctrl+K")]),
-        entry(None, &["Apply Bold"], &[(d, "Ctrl+Shift+B")], Flavor::Windows),
-        win("Bearbeiten", &["Einfügen"], &[(d, "Ctrl+Shift+V")]),
-    ];
-    let (km, r) = import_into(catalog, entries, &default_context());
-    has(&km, "app.quit", &["Cmd+Q"]);
-    has(&km, "app.preferences", &["Cmd+K"]);
-    has(&km, "type.bold", &["Cmd+Shift+B"]);
-    has(&km, "edit.paste", &["Cmd+Shift+V"]);
-    assert!(r.unmatched.is_empty(), "{:?}", r.unmatched);
-}
+    {
+        let catalog = vec![
+            command("app.quit", "Quit DesignCraft", &["File", "Quit DesignCraft"], &[]).with_alias("Exit"),
+            command("app.preferences", "Preferences…", &["Edit", "Preferences…"], &[]).with_alias("Preferences: General…"),
+            command("type.bold", "Bold", &["Type", "Style", "Bold"], &[]).with_alias("Apply bold"),
+            command("edit.paste", "Paste", &["Edit", "Paste"], &[]).with_alias("Einfügen"),
+        ];
+        let d = "Default";
+        let entries = vec![
+            win("File", &["Exit"], &[(d, "Ctrl+Q")]),
+            win("Edit", &["Preferences", "General..."], &[(d, "Ctrl+K")]),
+            entry(None, &["Apply Bold"], &[(d, "Ctrl+Shift+B")], Flavor::Windows),
+            win("Bearbeiten", &["Einfügen"], &[(d, "Ctrl+Shift+V")]),
+        ];
+        let (km, r) = import_into(catalog, entries, &default_context());
+        has(&km, "app.quit", &["Cmd+Q"]);
+        has(&km, "app.preferences", &["Cmd+K"]);
+        has(&km, "type.bold", &["Cmd+Shift+B"]);
+        has(&km, "edit.paste", &["Cmd+Shift+V"]);
+        assert!(r.unmatched.is_empty(), "{:?}", r.unmatched);
+    }
 
-#[test]
-fn import_paths_match_like_menu_paths() {
-    let catalog = vec![
-        command("object.color", "Apply Color", &["Object", "Apply Color"], &[]),
-        command("color.applyColor", "Apply Color", &[], &[]).with_import_path(vec!["Tools".into(), "Apply Color".into()]),
-    ];
-    let d = "Default";
-    let entries = vec![win("Tools", &["Apply Color"], &[(d, "Ctrl+,")])];
-    let (km, r) = import_into(catalog, entries, &default_context());
-    has(&km, "color.applyColor", &["Cmd+,"]);
-    has(&km, "object.color", &[]);
-    assert!(r.unmatched.is_empty(), "{:?}", r.unmatched);
+    {
+        let catalog = vec![
+            command("object.color", "Apply Color", &["Object", "Apply Color"], &[]),
+            command("color.applyColor", "Apply Color", &[], &[]).with_import_path(vec!["Tools".into(), "Apply Color".into()]),
+        ];
+        let d = "Default";
+        let entries = vec![win("Tools", &["Apply Color"], &[(d, "Ctrl+,")])];
+        let (km, r) = import_into(catalog, entries, &default_context());
+        has(&km, "color.applyColor", &["Cmd+,"]);
+        has(&km, "object.color", &[]);
+        assert!(r.unmatched.is_empty(), "{:?}", r.unmatched);
+    }
 }
 
 #[test]

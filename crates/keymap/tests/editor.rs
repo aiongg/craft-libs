@@ -65,7 +65,7 @@ fn edits_undo_redo_and_cancel() {
 }
 
 #[test]
-fn undo_keeps_the_newest_steps() {
+fn undo_history_is_capped() {
     let mut km = keymap(Platform::Windows);
     let mut session = EditSession::begin(&km);
     let brush = CommandRef::new("tool.brush");
@@ -83,33 +83,32 @@ fn undo_keeps_the_newest_steps() {
     // The 11 oldest steps are gone: undo stops after the 11th edit, which set N.
     assert_eq!(keys(&km, "tool.brush"), ["N"]);
     assert!(session.is_modified(&km));
-}
 
-#[test]
-fn undo_history_is_capped_by_size() {
-    let mut km = keymap(Platform::Windows);
-    let mut session = EditSession::begin(&km);
-    // Full-size snapshots of entries for commands the catalog does not have.
-    let big = |tag: char| {
-        let mut o = Overrides::new();
-        for n in 0..MAX_COMMANDS {
-            assert!(o.insert(format!("junk.{n}"), vec![tag.to_string().repeat(MAX_BINDING_TEXT); MAX_BINDINGS]));
+    {
+        let mut km = keymap(Platform::Windows);
+        let mut session = EditSession::begin(&km);
+        // Full-size snapshots of entries for commands the catalog does not have.
+        let big = |tag: char| {
+            let mut o = Overrides::new();
+            for n in 0..MAX_COMMANDS {
+                assert!(o.insert(format!("junk.{n}"), vec![tag.to_string().repeat(MAX_BINDING_TEXT); MAX_BINDINGS]));
+            }
+            o
+        };
+        let (a, b) = (big('a'), big('b'));
+        let string = size_of::<String>();
+        let per = a.iter().map(|(k, t)| string + 64 + k.len() + t.iter().map(|t| string + 16 + t.len()).sum::<usize>()).sum::<usize>();
+        let edits = 2 * MAX_UNDO_BYTES / per + 4;
+        for n in 0..edits {
+            let next = if n % 2 == 0 { a.clone() } else { b.clone() };
+            session.edit(&mut km, |km| km.set_overrides(next));
         }
-        o
-    };
-    let (a, b) = (big('a'), big('b'));
-    let string = size_of::<String>();
-    let per = a.iter().map(|(k, t)| string + 64 + k.len() + t.iter().map(|t| string + 16 + t.len()).sum::<usize>()).sum::<usize>();
-    let edits = 2 * MAX_UNDO_BYTES / per + 4;
-    for n in 0..edits {
-        let next = if n % 2 == 0 { a.clone() } else { b.clone() };
-        session.edit(&mut km, |km| km.set_overrides(next));
+        let mut steps = 0;
+        while session.undo(&mut km) {
+            steps += 1;
+        }
+        assert!(steps >= 2 && steps <= MAX_UNDO_BYTES / per, "{steps} steps of {per} bytes");
     }
-    let mut steps = 0;
-    while session.undo(&mut km) {
-        steps += 1;
-    }
-    assert!(steps >= 2 && steps <= MAX_UNDO_BYTES / per, "{steps} steps of {per} bytes");
 }
 
 #[test]

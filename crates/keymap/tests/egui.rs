@@ -48,7 +48,7 @@ fn modifiers_and_shortcuts_follow_the_platform() {
 }
 
 #[test]
-fn shifted_symbols_match_their_bindings() {
+fn shifted_symbols_match_and_reach_their_bindings() {
     let p = Platform::Windows;
     let shift = Modifiers::SHIFT;
     let none = Modifiers::NONE;
@@ -75,6 +75,19 @@ fn shifted_symbols_match_their_bindings() {
     assert!(!matches(&chord("Cmd++"), EguiKey::Equals, &cmd, p));
     assert!(!matches(&chord("Cmd+="), EguiKey::Plus, &none, p));
     assert!(!matches(&chord("Cmd+="), EguiKey::Minus, &cmd, p));
+
+    {
+        let km = dispatch_keymap();
+        let mut d = Dispatcher::new();
+        let shift = Modifiers::SHIFT;
+        let (ran, left) = run(&mut d, &km, &Active::NONE, frame(1.0, shift, vec![press(EguiKey::Colon, shift), Event::Text(":".into())]));
+        assert_eq!(ran, ["help.find"]);
+        assert!(left.is_empty());
+        let (ran, _) = run(&mut d, &km, &Active::NONE, frame(2.0, Modifiers::NONE, vec![press(EguiKey::Plus, Modifiers::NONE)]));
+        assert_eq!(ran, ["view.zoomIn"]);
+        let (ran, _) = run(&mut d, &km, &Active::NONE, frame(3.0, shift, vec![press(EguiKey::Plus, shift)]));
+        assert_eq!(ran, ["view.zoomIn"]);
+    }
 }
 
 const CTRL: Modifiers = Modifiers { ctrl: true, command: true, ..Modifiers::NONE };
@@ -142,21 +155,7 @@ fn a_bound_press_runs_once_and_is_removed_with_its_text() {
 }
 
 #[test]
-fn shifted_symbols_and_zoom_keys_reach_their_bindings() {
-    let km = dispatch_keymap();
-    let mut d = Dispatcher::new();
-    let shift = Modifiers::SHIFT;
-    let (ran, left) = run(&mut d, &km, &Active::NONE, frame(1.0, shift, vec![press(EguiKey::Colon, shift), Event::Text(":".into())]));
-    assert_eq!(ran, ["help.find"]);
-    assert!(left.is_empty());
-    let (ran, _) = run(&mut d, &km, &Active::NONE, frame(2.0, Modifiers::NONE, vec![press(EguiKey::Plus, Modifiers::NONE)]));
-    assert_eq!(ran, ["view.zoomIn"]);
-    let (ran, _) = run(&mut d, &km, &Active::NONE, frame(3.0, shift, vec![press(EguiKey::Plus, shift)]));
-    assert_eq!(ran, ["view.zoomIn"]);
-}
-
-#[test]
-fn clipboard_events_stay_with_the_app_by_default() {
+fn clipboard_events_stay_with_the_app_unless_turned_on() {
     let km = dispatch_keymap();
     let mut d = Dispatcher::new();
     // egui-winit sends these in place of the Ctrl+C and Ctrl+V presses.
@@ -172,6 +171,31 @@ fn clipboard_events_stay_with_the_app_by_default() {
     // A clipboard press with no clipboard event after it is an ordinary press.
     let (ran, _) = run(&mut d, &km, &Active::NONE, frame(3.0, CTRL, vec![press(EguiKey::Insert, CTRL)]));
     assert_eq!(ran, ["edit.copy"]);
+
+    {
+        let km = dispatch_keymap();
+        let mut d = Dispatcher::new().with_clipboard_events(true);
+        let mut input = frame(1.0, CTRL, vec![Event::Copy, Event::Paste("text".into())]);
+        let hits = d.dispatch(&mut input, &km, &Active::NONE);
+        let ran: Vec<_> = hits.iter().map(|h| (h.command.id.as_str(), h.pasted.as_deref())).collect();
+        assert_eq!(ran, [("edit.copy", None), ("edit.paste", Some("text"))]);
+        assert!(input.events.is_empty());
+
+        let typing = Active { typing: true, ..Active::NONE };
+        let (ran, left) = run(&mut d, &km, &typing, frame(2.0, CTRL, vec![Event::Copy]));
+        assert!(ran.is_empty());
+        assert_eq!(left, [Event::Copy]);
+
+        // The web build sends the key press and the clipboard event it causes: one run each.
+        for (time, key, mods, event, id) in [
+            (3.0, EguiKey::C, CTRL, Event::Copy, "edit.copy"),
+            (4.0, EguiKey::Insert, CTRL, Event::Copy, "edit.copy"),
+            (5.0, EguiKey::Insert, Modifiers::SHIFT, Event::Paste("text".into()), "edit.paste"),
+        ] {
+            let (ran, _) = run(&mut d, &km, &Active::NONE, frame(time, mods, vec![press(key, mods), event]));
+            assert_eq!(ran, [id], "{key:?}");
+        }
+    }
 }
 
 #[test]
@@ -208,33 +232,7 @@ fn clipboard_chords_with_more_modifiers_run_their_bindings() {
 }
 
 #[test]
-fn clipboard_events_run_their_chords_outside_text_fields_when_turned_on() {
-    let km = dispatch_keymap();
-    let mut d = Dispatcher::new().with_clipboard_events(true);
-    let mut input = frame(1.0, CTRL, vec![Event::Copy, Event::Paste("text".into())]);
-    let hits = d.dispatch(&mut input, &km, &Active::NONE);
-    let ran: Vec<_> = hits.iter().map(|h| (h.command.id.as_str(), h.pasted.as_deref())).collect();
-    assert_eq!(ran, [("edit.copy", None), ("edit.paste", Some("text"))]);
-    assert!(input.events.is_empty());
-
-    let typing = Active { typing: true, ..Active::NONE };
-    let (ran, left) = run(&mut d, &km, &typing, frame(2.0, CTRL, vec![Event::Copy]));
-    assert!(ran.is_empty());
-    assert_eq!(left, [Event::Copy]);
-
-    // The web build sends the key press and the clipboard event it causes: one run each.
-    for (time, key, mods, event, id) in [
-        (3.0, EguiKey::C, CTRL, Event::Copy, "edit.copy"),
-        (4.0, EguiKey::Insert, CTRL, Event::Copy, "edit.copy"),
-        (5.0, EguiKey::Insert, Modifiers::SHIFT, Event::Paste("text".into()), "edit.paste"),
-    ] {
-        let (ran, _) = run(&mut d, &km, &Active::NONE, frame(time, mods, vec![press(key, mods), event]));
-        assert_eq!(ran, [id], "{key:?}");
-    }
-}
-
-#[test]
-fn a_web_paste_carries_its_text_and_takes_its_event() {
+fn a_web_paste_runs_once_with_its_text() {
     let km = dispatch_keymap();
     let mut d = Dispatcher::new().with_clipboard_events(true);
     // The web build sends the Cmd+V press and then the Paste event with the clipboard text.
@@ -256,18 +254,17 @@ fn a_web_paste_carries_its_text_and_takes_its_event() {
     let ran: Vec<_> = hits.iter().map(|h| h.command.id.as_str()).collect();
     assert_eq!(ran, ["edit.copy"]);
     assert_eq!(input.events, events[..2]);
-}
 
-#[test]
-fn a_held_web_paste_runs_once_when_repeats_are_off() {
-    let km = dispatch_keymap();
-    let mut d = Dispatcher::new().with_clipboard_events(true);
-    let repeat = Event::Key { key: EguiKey::V, physical_key: Some(EguiKey::V), pressed: true, repeat: true, modifiers: CTRL };
-    let paste = || Event::Paste("text".into());
-    let events = vec![press(EguiKey::V, CTRL), paste(), repeat.clone(), paste()];
-    let (ran, left) = run(&mut d, &km, &Active::NONE, frame(1.0, CTRL, events));
-    assert_eq!(ran, ["edit.paste"]);
-    assert_eq!(left, [repeat, paste()], "the repeat and its event stay in egui's input");
+    {
+        let km = dispatch_keymap();
+        let mut d = Dispatcher::new().with_clipboard_events(true);
+        let repeat = Event::Key { key: EguiKey::V, physical_key: Some(EguiKey::V), pressed: true, repeat: true, modifiers: CTRL };
+        let paste = || Event::Paste("text".into());
+        let events = vec![press(EguiKey::V, CTRL), paste(), repeat.clone(), paste()];
+        let (ran, left) = run(&mut d, &km, &Active::NONE, frame(1.0, CTRL, events));
+        assert_eq!(ran, ["edit.paste"]);
+        assert_eq!(left, [repeat, paste()], "the repeat and its event stay in egui's input");
+    }
 }
 
 #[test]
@@ -297,7 +294,7 @@ fn declined_hits_leave_their_events_in_order() {
 }
 
 #[test]
-fn clipboard_presses_stay_with_the_text_field() {
+fn presses_that_type_stay_with_the_text_field() {
     let km = dispatch_keymap();
     let mut d = Dispatcher::new();
     let typing = Active { typing: true, ..Active::NONE };
@@ -308,18 +305,17 @@ fn clipboard_presses_stay_with_the_text_field() {
     assert_eq!(left, events);
     let (ran, _) = run(&mut d, &km, &Active::NONE, frame(2.0, CTRL, vec![press(EguiKey::Insert, CTRL)]));
     assert_eq!(ran, ["edit.copy"]);
-}
 
-#[test]
-fn a_press_that_types_text_stays_with_the_text_field() {
-    let km = dispatch_keymap();
-    let mut d = Dispatcher::new();
-    let typing = Active { typing: true, ..Active::NONE };
-    // A press the web build's text agent follows with the text it typed.
-    let events = vec![press(EguiKey::B, Modifiers::NONE), Event::Text("b".into())];
-    let (ran, left) = run(&mut d, &km, &typing, frame(1.0, Modifiers::NONE, events.clone()));
-    assert!(ran.is_empty(), "{ran:?}");
-    assert_eq!(left, events);
+    {
+        let km = dispatch_keymap();
+        let mut d = Dispatcher::new();
+        let typing = Active { typing: true, ..Active::NONE };
+        // A press the web build's text agent follows with the text it typed.
+        let events = vec![press(EguiKey::B, Modifiers::NONE), Event::Text("b".into())];
+        let (ran, left) = run(&mut d, &km, &typing, frame(1.0, Modifiers::NONE, events.clone()));
+        assert!(ran.is_empty(), "{ran:?}");
+        assert_eq!(left, events);
+    }
 }
 
 #[test]
@@ -402,6 +398,15 @@ fn a_second_press_runs_the_double_binding() {
     // B in between breaks the pair.
     key(&mut d, EguiKey::B, 2.6);
     assert_eq!(u(&mut d, 2.7), ["reveal.one"]);
+
+    {
+        let km = dispatch_keymap();
+        let mut d = Dispatcher::new();
+        let u = press(EguiKey::U, Modifiers::NONE);
+        let (ran, left) = run(&mut d, &km, &Active::NONE, frame(4.0, Modifiers::NONE, vec![u.clone(), u]));
+        assert_eq!(ran, ["reveal.one", "reveal.all"]);
+        assert!(left.is_empty(), "{left:?}");
+    }
 }
 
 #[test]
@@ -420,16 +425,6 @@ fn a_double_press_needs_both_presses_in_one_panel() {
     assert_eq!(a(&mut d, "X", 1.0), ["x.one"]);
     assert_eq!(a(&mut d, "Y", 1.2), ["y.one"]);
     assert_eq!(a(&mut d, "Y", 1.4), ["y.two"]);
-}
-
-#[test]
-fn two_presses_in_one_frame_make_a_double() {
-    let km = dispatch_keymap();
-    let mut d = Dispatcher::new();
-    let u = press(EguiKey::U, Modifiers::NONE);
-    let (ran, left) = run(&mut d, &km, &Active::NONE, frame(4.0, Modifiers::NONE, vec![u.clone(), u]));
-    assert_eq!(ran, ["reveal.one", "reveal.all"]);
-    assert!(left.is_empty(), "{left:?}");
 }
 
 #[test]
@@ -513,7 +508,7 @@ fn the_dispatcher_reads_presses_by_the_layout() {
 }
 
 #[test]
-fn the_iso_key_next_to_left_shift_runs_its_bindings() {
+fn the_iso_key_runs_its_bindings_and_drops_shift_for_symbols() {
     let app = |id: &str, key: &str| Bindable::new(id, id, Scope::app()).with_default(Binding::parse(key).unwrap());
     let km = Keymap::new(
         vec![
@@ -544,29 +539,28 @@ fn the_iso_key_next_to_left_shift_runs_its_bindings() {
     // The press without Shift taught the layout the key's character.
     assert_eq!(chord("Cmd+IntlBackslash").display_for(Platform::Windows, d.layout()), "Ctrl+<");
     assert_eq!(chord("Shift+IntlBackslash").display_for(Platform::Windows, d.layout()), "Shift+<");
+
+    {
+        let app = |id: &str, key: &str| Bindable::new(id, id, Scope::app()).with_default(Binding::parse(key).unwrap());
+        let km = Keymap::new(vec![app("bracket", "["), app("bracket.shift", "Shift+[")], Scopes::new(), Platform::Windows);
+        // A layout on which Shift and the key next to left Shift type `[`. egui reports the physical
+        // key, so the press needs Shift to type `[` and runs `[`, as Shift on other symbol keys does.
+        // A `Shift+[` binding recorded from this key before it had a physical key does not run.
+        let shift = Modifiers::SHIFT;
+        let press = |physical_key| Event::Key { key: EguiKey::OpenBracket, physical_key, pressed: true, repeat: false, modifiers: shift };
+        let input = KeyInput::from_egui(&press(Some(EguiKey::IntlBackslash)), Platform::Windows).unwrap();
+        assert_eq!(Layout::new().resolve(&input), Some(chord("[")));
+        let mut d = Dispatcher::new();
+        let (ran, _) = run(&mut d, &km, &Active::NONE, frame(1.0, shift, vec![press(Some(EguiKey::IntlBackslash))]));
+        assert_eq!(ran, ["bracket"]);
+        // Without a physical key, Shift stays in the chord.
+        let (ran, _) = run(&mut d, &km, &Active::NONE, frame(2.0, shift, vec![press(None)]));
+        assert_eq!(ran, ["bracket.shift"]);
+    }
 }
 
 #[test]
-fn a_symbol_typed_with_shift_on_the_iso_key_drops_shift() {
-    let app = |id: &str, key: &str| Bindable::new(id, id, Scope::app()).with_default(Binding::parse(key).unwrap());
-    let km = Keymap::new(vec![app("bracket", "["), app("bracket.shift", "Shift+[")], Scopes::new(), Platform::Windows);
-    // A layout on which Shift and the key next to left Shift type `[`. egui reports the physical
-    // key, so the press needs Shift to type `[` and runs `[`, as Shift on other symbol keys does.
-    // A `Shift+[` binding recorded from this key before it had a physical key does not run.
-    let shift = Modifiers::SHIFT;
-    let press = |physical_key| Event::Key { key: EguiKey::OpenBracket, physical_key, pressed: true, repeat: false, modifiers: shift };
-    let input = KeyInput::from_egui(&press(Some(EguiKey::IntlBackslash)), Platform::Windows).unwrap();
-    assert_eq!(Layout::new().resolve(&input), Some(chord("[")));
-    let mut d = Dispatcher::new();
-    let (ran, _) = run(&mut d, &km, &Active::NONE, frame(1.0, shift, vec![press(Some(EguiKey::IntlBackslash))]));
-    assert_eq!(ran, ["bracket"]);
-    // Without a physical key, Shift stays in the chord.
-    let (ran, _) = run(&mut d, &km, &Active::NONE, frame(2.0, shift, vec![press(None)]));
-    assert_eq!(ran, ["bracket.shift"]);
-}
-
-#[test]
-fn letters_follow_the_latin_layout_from_egui_winit_to_the_dispatcher() {
+fn letters_follow_the_latin_layout() {
     let app = |id: &str, key: &str| Bindable::new(id, id, Scope::app()).with_default(Binding::parse(key).unwrap());
     let km = Keymap::new(vec![app("d", "Cmd+D"), app("e", "Cmd+E")], Scopes::new(), Platform::Linux);
     let at = |key, modifiers| Event::Key { key, physical_key: Some(EguiKey::D), pressed: true, repeat: false, modifiers };
@@ -593,6 +587,29 @@ fn letters_follow_the_latin_layout_from_egui_winit_to_the_dispatcher() {
         let (ran, _) = run(&mut d, &km, &Active::NONE, frame(1.0, CTRL, vec![at(key, CTRL)]));
         assert_eq!(ran, [expected], "{name}, reported");
     }
+
+    {
+        let app = |id: &str, key: &str| Bindable::new(id, id, Scope::app()).with_default(Binding::parse(key).unwrap());
+        let km = Keymap::new(vec![app("quit", "Cmd+Q"), app("quote", "Cmd+'"), app("j", "Cmd+J")], Scopes::new(), Platform::Linux);
+        let at = |key, physical| Event::Key { key, physical_key: Some(physical), pressed: true, repeat: false, modifiers: CTRL };
+
+        // Dvorak + Russian. The QWERTY Q key types й, and Dvorak ' there: egui-winit reports the key
+        // as ', and egui without a key for the character as its position, Q. The QWERTY C key types
+        // с, and Dvorak j.
+        let latin = [(EguiKey::Q, '\''), (EguiKey::C, 'j')];
+        let cases = [(at(EguiKey::Quote, EguiKey::Q), "quote"), (at(EguiKey::Q, EguiKey::Q), "quote"), (at(EguiKey::J, EguiKey::C), "j")];
+        for (press, expected) in cases {
+            let mut d = Dispatcher::new().with_layout(Layout::new().with_latin(false));
+            let Some(input) = with_latin_layout_chars(frame(1.0, CTRL, vec![press.clone()]), &latin) else {
+                // crates.io egui reports no Latin layout, so the position decides: Ctrl+Q.
+                let (ran, _) = run(&mut d, &km, &Active::NONE, frame(1.0, CTRL, vec![at(EguiKey::Q, EguiKey::Q)]));
+                assert_eq!(ran, ["quit"]);
+                return;
+            };
+            let (ran, _) = run(&mut d, &km, &Active::NONE, input);
+            assert_eq!(ran, [expected], "{press:?}");
+        }
+    }
 }
 
 /// `input` with the Latin layout characters the suite's egui-winit reports per physical key, set
@@ -603,30 +620,6 @@ fn with_latin_layout_chars(mut input: InputState, chars: &[(EguiKey, char)]) -> 
     raw["latin_layout_chars"] = serde_json::to_value(chars).unwrap();
     input.raw = serde_json::from_value(raw).unwrap();
     Some(input)
-}
-
-#[test]
-fn a_key_without_a_latin_letter_runs_no_letter_binding() {
-    let app = |id: &str, key: &str| Bindable::new(id, id, Scope::app()).with_default(Binding::parse(key).unwrap());
-    let km = Keymap::new(vec![app("quit", "Cmd+Q"), app("quote", "Cmd+'"), app("j", "Cmd+J")], Scopes::new(), Platform::Linux);
-    let at = |key, physical| Event::Key { key, physical_key: Some(physical), pressed: true, repeat: false, modifiers: CTRL };
-
-    // Dvorak + Russian. The QWERTY Q key types й, and Dvorak ' there: egui-winit reports the key
-    // as ', and egui without a key for the character as its position, Q. The QWERTY C key types
-    // с, and Dvorak j.
-    let latin = [(EguiKey::Q, '\''), (EguiKey::C, 'j')];
-    let cases = [(at(EguiKey::Quote, EguiKey::Q), "quote"), (at(EguiKey::Q, EguiKey::Q), "quote"), (at(EguiKey::J, EguiKey::C), "j")];
-    for (press, expected) in cases {
-        let mut d = Dispatcher::new().with_layout(Layout::new().with_latin(false));
-        let Some(input) = with_latin_layout_chars(frame(1.0, CTRL, vec![press.clone()]), &latin) else {
-            // crates.io egui reports no Latin layout, so the position decides: Ctrl+Q.
-            let (ran, _) = run(&mut d, &km, &Active::NONE, frame(1.0, CTRL, vec![at(EguiKey::Q, EguiKey::Q)]));
-            assert_eq!(ran, ["quit"]);
-            return;
-        };
-        let (ran, _) = run(&mut d, &km, &Active::NONE, input);
-        assert_eq!(ran, [expected], "{press:?}");
-    }
 }
 
 /// A press as a layout reports it (logical key, physical position, held modifiers) with the text
@@ -657,7 +650,7 @@ fn ran(d: &mut Dispatcher, km: &Keymap, time: f64, modifiers: Modifiers, events:
 }
 
 #[test]
-fn german_keys_are_brackets_and_plus_is_not_a_brush_key() {
+fn bracket_positions_are_brackets_on_every_layout() {
     let km = layout_keymap();
     let mut d = Dispatcher::new();
     // ö arrives as the physical `;`, # as the physical `\`, and ⇧# types `'`.
@@ -672,19 +665,21 @@ fn german_keys_are_brackets_and_plus_is_not_a_brush_key() {
     // ⇧+ types `*` and arrives as the physical `]`: it zooms in, and ⇧- zooms out.
     assert_eq!(ran(&mut d, &km, 5.0, shift, typed(EguiKey::CloseBracket, EguiKey::CloseBracket, shift, "*")), ["view.zoomIn"]);
     assert_eq!(ran(&mut d, &km, 6.0, shift, typed(EguiKey::Slash, EguiKey::Slash, shift, "_")), ["view.zoomOut"]);
-}
 
-#[test]
-fn the_bracket_positions_are_brackets_on_layouts_without_a_table_row() {
-    let km = layout_keymap();
-    // Spanish: `+` at the `]` position runs `]`; AZERTY's dead `^` at `[` runs `[`.
-    let mut d = Dispatcher::new();
-    assert_eq!(ran(&mut d, &km, 1.0, Modifiers::NONE, typed(EguiKey::Plus, EguiKey::CloseBracket, Modifiers::NONE, "+")), ["brush.bigger"]);
-    assert_eq!(ran(&mut d, &km, 2.0, Modifiers::NONE, typed(EguiKey::OpenBracket, EguiKey::OpenBracket, Modifiers::NONE, "^")), ["brush.smaller"]);
-    // Dvorak types `[` on the US `-` key; once seen, the `]` position's `=` is zoom, not `]`.
-    let mut d = Dispatcher::new();
-    assert_eq!(ran(&mut d, &km, 1.0, Modifiers::NONE, typed(EguiKey::OpenBracket, EguiKey::Minus, Modifiers::NONE, "[")), ["brush.smaller"]);
-    assert_eq!(ran(&mut d, &km, 2.0, Modifiers::NONE, typed(EguiKey::Equals, EguiKey::CloseBracket, Modifiers::NONE, "=")), ["view.zoomIn"]);
+    {
+        let km = layout_keymap();
+        // Spanish: `+` at the `]` position runs `]`; AZERTY's dead `^` at `[` runs `[`.
+        let mut d = Dispatcher::new();
+        assert_eq!(ran(&mut d, &km, 1.0, Modifiers::NONE, typed(EguiKey::Plus, EguiKey::CloseBracket, Modifiers::NONE, "+")), ["brush.bigger"]);
+        assert_eq!(
+            ran(&mut d, &km, 2.0, Modifiers::NONE, typed(EguiKey::OpenBracket, EguiKey::OpenBracket, Modifiers::NONE, "^")),
+            ["brush.smaller"]
+        );
+        // Dvorak types `[` on the US `-` key; once seen, the `]` position's `=` is zoom, not `]`.
+        let mut d = Dispatcher::new();
+        assert_eq!(ran(&mut d, &km, 1.0, Modifiers::NONE, typed(EguiKey::OpenBracket, EguiKey::Minus, Modifiers::NONE, "[")), ["brush.smaller"]);
+        assert_eq!(ran(&mut d, &km, 2.0, Modifiers::NONE, typed(EguiKey::Equals, EguiKey::CloseBracket, Modifiers::NONE, "=")), ["view.zoomIn"]);
+    }
 }
 
 #[test]
@@ -728,7 +723,7 @@ fn v_presses(events: &[Event], with_command: bool) -> usize {
 }
 
 #[test]
-fn each_paste_key_is_one_press() {
+fn a_paste_key_is_one_press_even_when_swallowed() {
     let d = Dispatcher::new().with_clipboard_events(true);
     let ctx = egui::Context::default();
     let cmd = Modifiers::COMMAND;
@@ -740,34 +735,33 @@ fn each_paste_key_is_one_press() {
     assert_eq!(presses(vec![Event::Paste("x".into())]), 0);
     assert_eq!(presses(vec![Event::ModifiersChanged(Modifiers::NONE), raw_key(EguiKey::V, false, Modifiers::NONE)]), 0);
     assert_eq!(presses(vec![Event::ModifiersChanged(cmd), raw_key(EguiKey::V, false, cmd)]), 1, "image paste");
-}
 
-#[test]
-fn a_swallowed_paste_press_is_added_once() {
-    let d = Dispatcher::new().with_clipboard_events(true);
-    let cmd = Modifiers::COMMAND;
-    let none = Modifiers::NONE;
-    let pastes = |ctx: &egui::Context, events| v_presses(&raw_events(&d, ctx, false, events), true);
-    // Cmd down, (the swallowed V press,) Cmd up, V up: in one frame or over several.
-    let ctx = egui::Context::default();
-    assert_eq!(pastes(&ctx, vec![Event::ModifiersChanged(cmd), Event::ModifiersChanged(none), raw_key(EguiKey::V, false, none)]), 1);
-    assert_eq!(pastes(&ctx, vec![Event::ModifiersChanged(cmd)]), 0);
-    assert_eq!(pastes(&ctx, vec![Event::ModifiersChanged(none)]), 0);
-    assert_eq!(pastes(&ctx, vec![raw_key(EguiKey::V, false, none)]), 1, "released after Cmd");
-    assert_eq!(pastes(&ctx, vec![raw_key(EguiKey::V, false, none)]), 0, "one swallowed press is one paste");
-    // A plain V tap after Cmd was used is a tool key, not a paste.
-    let ctx = egui::Context::default();
-    assert_eq!(pastes(&ctx, vec![Event::ModifiersChanged(cmd), Event::ModifiersChanged(none)]), 0);
-    assert_eq!(pastes(&ctx, vec![raw_key(EguiKey::V, true, none), raw_key(EguiKey::V, false, none)]), 0);
-    // Without Cmd at all, a lone V release is nothing.
-    let ctx = egui::Context::default();
-    assert_eq!(pastes(&ctx, vec![raw_key(EguiKey::V, false, none)]), 0);
-    // Released with Cmd still held it pastes.
-    assert_eq!(pastes(&ctx, vec![Event::ModifiersChanged(cmd), raw_key(EguiKey::V, false, cmd)]), 1);
-    // egui 0.37's image-only clipboard paste is the same Cmd+V press.
-    let image = std::sync::Arc::new(egui::ColorImage::filled([1, 1], egui::Color32::BLACK));
-    let ctx = egui::Context::default();
-    assert_eq!(pastes(&ctx, vec![Event::PasteImage(image)]), 1);
+    {
+        let d = Dispatcher::new().with_clipboard_events(true);
+        let cmd = Modifiers::COMMAND;
+        let none = Modifiers::NONE;
+        let pastes = |ctx: &egui::Context, events| v_presses(&raw_events(&d, ctx, false, events), true);
+        // Cmd down, (the swallowed V press,) Cmd up, V up: in one frame or over several.
+        let ctx = egui::Context::default();
+        assert_eq!(pastes(&ctx, vec![Event::ModifiersChanged(cmd), Event::ModifiersChanged(none), raw_key(EguiKey::V, false, none)]), 1);
+        assert_eq!(pastes(&ctx, vec![Event::ModifiersChanged(cmd)]), 0);
+        assert_eq!(pastes(&ctx, vec![Event::ModifiersChanged(none)]), 0);
+        assert_eq!(pastes(&ctx, vec![raw_key(EguiKey::V, false, none)]), 1, "released after Cmd");
+        assert_eq!(pastes(&ctx, vec![raw_key(EguiKey::V, false, none)]), 0, "one swallowed press is one paste");
+        // A plain V tap after Cmd was used is a tool key, not a paste.
+        let ctx = egui::Context::default();
+        assert_eq!(pastes(&ctx, vec![Event::ModifiersChanged(cmd), Event::ModifiersChanged(none)]), 0);
+        assert_eq!(pastes(&ctx, vec![raw_key(EguiKey::V, true, none), raw_key(EguiKey::V, false, none)]), 0);
+        // Without Cmd at all, a lone V release is nothing.
+        let ctx = egui::Context::default();
+        assert_eq!(pastes(&ctx, vec![raw_key(EguiKey::V, false, none)]), 0);
+        // Released with Cmd still held it pastes.
+        assert_eq!(pastes(&ctx, vec![Event::ModifiersChanged(cmd), raw_key(EguiKey::V, false, cmd)]), 1);
+        // egui 0.37's image-only clipboard paste is the same Cmd+V press.
+        let image = std::sync::Arc::new(egui::ColorImage::filled([1, 1], egui::Color32::BLACK));
+        let ctx = egui::Context::default();
+        assert_eq!(pastes(&ctx, vec![Event::PasteImage(image)]), 1);
+    }
 }
 
 #[test]
@@ -786,7 +780,7 @@ fn a_swallowed_paste_reaches_the_paste_binding_and_text_fields_keep_theirs() {
 }
 
 #[test]
-fn insert_and_delete_chords_copy_paste_and_cut_on_linux() {
+fn insert_and_delete_chords_run_the_clipboard_bindings_on_linux() {
     let d = Dispatcher::new().with_clipboard_events(true);
     let ctx = egui::Context::default();
     ctx.set_os(egui::os::OperatingSystem::Nix);
@@ -819,17 +813,16 @@ fn insert_and_delete_chords_copy_paste_and_cut_on_linux() {
     assert!(matches!(after(EguiKey::Delete, Modifiers::SHIFT | Modifiers::CTRL, false).as_slice(), [Event::Key { key: EguiKey::Delete, .. }]));
     ctx.set_os(egui::os::OperatingSystem::Mac);
     assert!(matches!(after(EguiKey::Insert, Modifiers::CTRL, false).as_slice(), [Event::Key { key: EguiKey::Insert, .. }]));
-}
 
-#[test]
-fn rewritten_insert_chords_run_the_clipboard_bindings() {
-    let km = dispatch_keymap();
-    let ctx = egui::Context::default();
-    ctx.set_os(egui::os::OperatingSystem::Nix);
-    let mut d = Dispatcher::new().with_clipboard_events(true);
-    let mut raw = egui::RawInput { events: vec![raw_key(EguiKey::Insert, true, Modifiers::SHIFT)], ..Default::default() };
-    d.raw_input(&ctx, &mut raw, false);
-    let (ran, left) = run(&mut d, &km, &Active::NONE, frame(1.0, CTRL, raw.events));
-    assert_eq!(ran, ["edit.paste"]);
-    assert!(left.is_empty());
+    {
+        let km = dispatch_keymap();
+        let ctx = egui::Context::default();
+        ctx.set_os(egui::os::OperatingSystem::Nix);
+        let mut d = Dispatcher::new().with_clipboard_events(true);
+        let mut raw = egui::RawInput { events: vec![raw_key(EguiKey::Insert, true, Modifiers::SHIFT)], ..Default::default() };
+        d.raw_input(&ctx, &mut raw, false);
+        let (ran, left) = run(&mut d, &km, &Active::NONE, frame(1.0, CTRL, raw.events));
+        assert_eq!(ran, ["edit.paste"]);
+        assert!(left.is_empty());
+    }
 }

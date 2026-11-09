@@ -82,26 +82,18 @@ mod tests {
     }
 
     #[test]
-    fn auto_pick_takes_the_first_letter_not_used_in_the_level() {
+    fn auto_pick_prefers_a_word_start_not_used_in_the_level() {
         assert_eq!(letters(&["Copy", "Paste", "Arrange", "Print"]), [Some('C'), Some('P'), Some('A'), Some('R')]);
         assert_eq!(letters(&["Save", "Save As", "Share"]), [Some('S'), Some('A'), Some('H')]);
-    }
-
-    #[test]
-    fn a_word_start_comes_before_the_other_letters() {
         assert_eq!(letters(&["Open", "Open Recent"]), [Some('O'), Some('R')]);
     }
 
     #[test]
-    fn a_marker_wins_and_reserves_its_letter_for_later_labels() {
+    fn markers_win_and_reserve_their_letter() {
         assert_eq!(letters(&["Print", "P&aste", "Copy"]), [Some('P'), Some('A'), Some('C')]);
         assert_eq!(letters(&["Prin&t", "Paste"]), [Some('T'), Some('P')]);
         // Print comes first in the level, yet the marked letter is reserved before it picks.
         assert_eq!(letters(&["Print", "&Paste"]), [Some('R'), Some('P')]);
-    }
-
-    #[test]
-    fn a_marker_an_earlier_label_holds_falls_back_to_auto_pick() {
         assert_eq!(letters(&["&File", "&Fax"]), [Some('F'), Some('A')]);
     }
 
@@ -112,15 +104,11 @@ mod tests {
     }
 
     #[test]
-    fn the_index_is_the_character_of_the_letter_in_the_label_without_markers() {
+    fn marker_stripping_and_index() {
         assert_eq!(assign(&["Save", "Save As"]), [Some(('S', 0)), Some(('A', 5))]);
         assert_eq!(assign(&["S&ave &As"]), [Some(('A', 1))]);
         assert_eq!(assign(&["Save && &Close"]), [Some(('C', 7))]);
         assert_eq!(assign(&["文件(&F)"]), [Some(('F', 3))]);
-    }
-
-    #[test]
-    fn marked_strips_the_marker_and_keeps_a_literal_ampersand() {
         assert_eq!(marked("&File"), ("File".to_owned(), Some('F')));
         assert_eq!(marked("Save && Close"), ("Save & Close".to_owned(), None));
         assert_eq!(marked("S&ave &As"), ("Save As".to_owned(), Some('A')));

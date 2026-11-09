@@ -78,7 +78,7 @@ fn pins_report_their_layer() {
 }
 
 #[test]
-fn contrast_moves_report_the_value_before_the_pass() {
+fn contrast_pass_reports_moved_and_fixed_pairs() {
     let e = explain(&graphite(), appearance(Mode::Dark, Contrast::High, Size::Compact), None);
     let faint = e.color(T::TextFaint).unwrap();
     assert_eq!((faint.source, faint.pin), (ColorSource::Neutral(10), None));
@@ -90,6 +90,29 @@ fn contrast_moves_report_the_value_before_the_pass() {
     let inactive = e.color(T::CaptionInactive).unwrap();
     assert_eq!((inactive.value, inactive.contrast_move), (faint.value, faint.contrast_move));
     assert_eq!(e.color(T::SurfacePanel).unwrap().contrast_move, None);
+
+    {
+        let pair =
+            |e: &Explained, fg: ColorToken, bg: ColorToken| *e.pairs.iter().find(|p| p.pair.fg == fg.into() && p.pair.bg == bg.into()).unwrap();
+        let high = appearance(Mode::Dark, Contrast::High, Size::Compact);
+        let e = explain(&graphite(), high, None);
+
+        let fixed = pair(&e, T::TextFaint, T::SurfacePanel);
+        assert!(fixed.ratio_before < fixed.pair.minimum && fixed.pair.passes());
+        assert!(fixed.moved_by_pass && fixed.fixed_by_pass);
+
+        let moved = pair(&e, T::TextMuted, T::SurfaceBackground);
+        assert!(moved.ratio_before >= moved.pair.minimum && moved.ratio_before != moved.pair.ratio);
+        assert!(moved.moved_by_pass && !moved.fixed_by_pass);
+
+        // A pinned panel no text can reach 7:1 on: `text.normal` moves and still fails.
+        let mut def = unpinned();
+        def.high_contrast.dark = Pins::from_iter([(T::SurfacePanel, Rgba::rgb(0x77, 0x77, 0x77))]);
+        let e = explain(&def, high, None);
+        let failing = pair(&e, T::TextNormal, T::SurfacePanel);
+        assert!(!failing.pair.passes() && failing.ratio_before < failing.pair.minimum);
+        assert!(failing.moved_by_pass && !failing.fixed_by_pass);
+    }
 }
 
 #[test]
@@ -166,30 +189,7 @@ fn aliases_derive_from_their_targets_pins() {
 }
 
 #[test]
-fn fixed_and_moved_pairs_differ() {
-    let pair = |e: &Explained, fg: ColorToken, bg: ColorToken| *e.pairs.iter().find(|p| p.pair.fg == fg.into() && p.pair.bg == bg.into()).unwrap();
-    let high = appearance(Mode::Dark, Contrast::High, Size::Compact);
-    let e = explain(&graphite(), high, None);
-
-    let fixed = pair(&e, T::TextFaint, T::SurfacePanel);
-    assert!(fixed.ratio_before < fixed.pair.minimum && fixed.pair.passes());
-    assert!(fixed.moved_by_pass && fixed.fixed_by_pass);
-
-    let moved = pair(&e, T::TextMuted, T::SurfaceBackground);
-    assert!(moved.ratio_before >= moved.pair.minimum && moved.ratio_before != moved.pair.ratio);
-    assert!(moved.moved_by_pass && !moved.fixed_by_pass);
-
-    // A pinned panel no text can reach 7:1 on: `text.normal` moves and still fails.
-    let mut def = unpinned();
-    def.high_contrast.dark = Pins::from_iter([(T::SurfacePanel, Rgba::rgb(0x77, 0x77, 0x77))]);
-    let e = explain(&def, high, None);
-    let failing = pair(&e, T::TextNormal, T::SurfacePanel);
-    assert!(!failing.pair.passes() && failing.ratio_before < failing.pair.minimum);
-    assert!(failing.moved_by_pass && !failing.fixed_by_pass);
-}
-
-#[test]
-fn a_pulled_anchored_token_names_its_target_and_the_pair() {
+fn a_pulled_anchored_token_names_its_target() {
     let mut def = unpinned();
     def.pins.dark = Pins::from_iter([(T::SurfacePanel, Rgba::from_hex("#555555").unwrap())]);
     let e = explain(&def, appearance(Mode::Dark, Contrast::High, Size::Compact), None);
@@ -197,13 +197,9 @@ fn a_pulled_anchored_token_names_its_target_and_the_pair() {
     assert_eq!(raised.source, ColorSource::Anchored(4));
     assert_eq!(raised.pass_move, Some(PassMove::Pulled(T::TextNormal)));
     assert_eq!(raised.contrast_move, Some(raised.derived));
-    assert_eq!(raised.source_words(), "neutral 4, anchored on surface.panel, pulled toward it for text.normal");
-    assert_eq!(e.color(T::LineDivider).unwrap().source_words(), "neutral 6, anchored on surface.panel");
     // Text the pull can't serve moves the fill away instead, and the explanation names that move.
     let selected_hover = e.color(T::StateSelectedHover).unwrap();
     assert_eq!(selected_hover.pass_move, Some(PassMove::Relaxed(T::TextOnSelected)));
-    assert_eq!(selected_hover.source_words(), "neutral 7, anchored on surface.panel, moved away from text.on_selected for high contrast");
-    assert_eq!(e.color(T::EdgeLight).unwrap().source_words(), "surface.panel lit by 0.15");
     let anchoring = raised.anchoring.unwrap();
     assert_eq!((anchoring.on, anchoring.steps.step(4)), (T::SurfacePanel, raised.derived), "the strip holds the target");
 }

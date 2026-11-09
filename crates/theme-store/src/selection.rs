@@ -441,42 +441,42 @@ mod tests {
         assert_eq!(merge(&none, &theme_only, &both("craft.artcraft")), None);
         // A file that lost a field: the change writes into it.
         assert_eq!(merge(&base, &none, &SelectionChange::mode(ModeChoice::Dark)), Some(choice(None, Some(ModeChoice::Dark))));
-    }
 
-    #[test]
-    fn each_new_field_merges_on_its_own() {
-        let base = choice(Some("craft.artcraft"), None);
-        // Another app set the dark slot, contrast and text size; this one the light slot and size.
-        let disk = SuiteChoice {
-            theme_dark: Some(id("craft.pro")),
-            contrast: Some(ContrastChoice::High),
-            text_size: Some(TextSize::Medium),
-            ..base.clone()
-        };
-        let mine = SelectionChange::theme_light(id("craft.pro-light-gray")).then(SelectionChange::size(Size::Comfortable));
-        let merged = merge(&base, &disk, &mine).unwrap();
-        assert_eq!(
-            merged,
-            SuiteChoice {
-                theme_light: Some(id("craft.pro-light-gray")),
+        // Each newer field merges on its own.
+        {
+            let base = choice(Some("craft.artcraft"), None);
+            // Another app set the dark slot, contrast and text size; this one the light slot and size.
+            let disk = SuiteChoice {
                 theme_dark: Some(id("craft.pro")),
-                mode: None,
                 contrast: Some(ContrastChoice::High),
-                motion: None,
-                size: Some(Size::Comfortable),
                 text_size: Some(TextSize::Medium),
+                ..base.clone()
+            };
+            let mine = SelectionChange::theme_light(id("craft.pro-light-gray")).then(SelectionChange::size(Size::Comfortable));
+            let merged = merge(&base, &disk, &mine).unwrap();
+            assert_eq!(
+                merged,
+                SuiteChoice {
+                    theme_light: Some(id("craft.pro-light-gray")),
+                    theme_dark: Some(id("craft.pro")),
+                    mode: None,
+                    contrast: Some(ContrastChoice::High),
+                    motion: None,
+                    size: Some(Size::Comfortable),
+                    text_size: Some(TextSize::Medium),
+                }
+            );
+            // The same field changed elsewhere conflicts, one field at a time.
+            for change in [
+                SelectionChange::theme_dark(id("craft.studio")),
+                SelectionChange::contrast(ContrastChoice::Standard),
+                SelectionChange::text_size(TextSize::Tiny),
+            ] {
+                assert_eq!(merge(&base, &disk, &change), None, "{change:?}");
             }
-        );
-        // The same field changed elsewhere conflicts, one field at a time.
-        for change in [
-            SelectionChange::theme_dark(id("craft.studio")),
-            SelectionChange::contrast(ContrastChoice::Standard),
-            SelectionChange::text_size(TextSize::Tiny),
-        ] {
-            assert_eq!(merge(&base, &disk, &change), None, "{change:?}");
+            let sized = SuiteChoice { size: Some(Size::Compact), ..base.clone() };
+            assert_eq!(merge(&base, &sized, &SelectionChange::size(Size::Comfortable)), None);
         }
-        let sized = SuiteChoice { size: Some(Size::Compact), ..base.clone() };
-        assert_eq!(merge(&base, &sized, &SelectionChange::size(Size::Comfortable)), None);
     }
 
     #[test]

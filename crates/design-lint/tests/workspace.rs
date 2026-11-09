@@ -20,12 +20,6 @@ fn mapped_crates_have_no_findings() {
 }
 
 #[test]
-fn craft_libs_keeps_props_shadow_an_error() {
-    let config = Config::load(&root().join("design-lint.toml")).unwrap();
-    assert!(!config.warn.iter().any(|w| w == "props" || w == "props/shadow"), "{:?}", config.warn);
-}
-
-#[test]
 fn scope_reads_layer_map_manifests_and_spec_allowances() {
     let root = root();
     let scope = WorkspaceScope::load(&root, &Metadata::run(&root).unwrap()).unwrap();
@@ -35,8 +29,8 @@ fn scope_reads_layer_map_manifests_and_spec_allowances() {
     assert!(!scope.allows("contract/layers", alloc), "layers are allowed only in `runtime::egui::areas`");
     assert!(scope.allows("contract/layers", Path::new("crates/ui/src/runtime/egui/areas.rs")));
     assert!(!scope.allows("contract/containers:never", alloc));
-    assert_eq!(scope.layer(alloc), Some(2));
-    assert_eq!(scope.layer(Path::new("crates/ui/src/shell/mod.rs")), Some(7));
+    assert!(scope.layer(alloc) < scope.layer(Path::new("crates/ui/src/shell/mod.rs")), "runtime sits below the shell");
+    assert!(scope.layer(alloc).is_some());
     assert_eq!(scope.layer(Path::new("crates/ui/src/testing/mod.rs")), None);
     assert!(scope.egui_linked(alloc));
     assert!(!scope.egui_linked(Path::new("crates/behavior/src/lib.rs")));

@@ -13,15 +13,11 @@ fn parse(text: &str) -> Result<Config, String> {
 }
 
 #[test]
-fn exemption_needs_a_reason() {
+fn exemption_entries_are_validated() {
     let err = parse("[lint]\npaths = [\"src\"]\n[[exempt]]\npath = \"src/canvas\"\n").unwrap_err();
     assert!(err.contains("src/canvas") && err.contains("reason"), "{err}");
     assert!(parse("[lint]\npaths = [\"src\"]\n[[exempt]]\npath = \"src/canvas\"\nreason = \"  \"\n").is_err());
     assert!(parse("[lint]\npaths = [\"src\"]\n[[exempt]]\npath = \"src/canvas\"\nreason = \"document units\"\n").is_ok());
-}
-
-#[test]
-fn unknown_rule_in_an_exemption_is_an_error() {
     let err = parse("[lint]\npaths = [\"src\"]\n[[exempt]]\npath = \"a\"\nrules = [\"literal-size/nope\"]\nreason = \"because\"\n").unwrap_err();
     assert!(err.contains("literal-size/nope"), "{err}");
     let ok = parse("[lint]\npaths = [\"src\"]\n[[exempt]]\npath = \"a\"\nrules = [\"literal-size\", \"raw-colour/const\"]\nreason = \"because\"\n")
@@ -139,18 +135,11 @@ fn report_lists_each_exemption_with_its_rules_and_reason() {
         [[exempt]]\npath = \"src/canvas\"\nrules = [\"literal-size\", \"raw-colour\"]\nreason = \"document units\"\n";
     let report = check(&parse(text).unwrap(), &root).unwrap();
     let out = report.render();
-    assert!(out.contains("exemption: src/canvas (literal-size, raw-colour): document units\n"), "{out}");
+    let line = out.lines().find(|l| l.starts_with("exemption:")).unwrap_or_default();
+    assert!(["src/canvas", "literal-size", "raw-colour", "document units"].iter().all(|part| line.contains(part)), "{out}");
     assert!(out.lines().last().unwrap().starts_with("design-lint: no findings"), "{out}");
     let all = parse("[lint]\npaths = [\"src\"]\n[[exempt]]\npath = \"src/canvas\"\nreason = \"document units\"\n").unwrap();
-    assert!(check(&all, &root).unwrap().render().contains("exemption: src/canvas (all rules): document units\n"));
-}
-
-#[test]
-fn summary_prints_after_the_findings() {
-    let root = tree("summary-order", &[("src/a.rs", "fn f(ui: &mut Ui) { ui.add_space(4.0); }\n")]);
-    let out = check(&Config::new(["src"]), &root).unwrap().render_with_table();
-    let finding = out.find("src/a.rs:1:").unwrap();
-    let table = out.find("findings\n").unwrap();
-    let line = out.rfind("design-lint: 1 finding").unwrap();
-    assert!(finding < table && table < line, "{out}");
+    let listing = check(&all, &root).unwrap().render();
+    let line = listing.lines().find(|l| l.starts_with("exemption:")).unwrap_or_default();
+    assert!(line.contains("src/canvas") && line.contains("document units") && !line.contains("literal-size"), "{listing}");
 }

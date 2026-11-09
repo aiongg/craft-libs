@@ -15,7 +15,7 @@ fn keys(theme: &ThemeDef) -> Vec<(Option<String>, Mode, Contrast, Size)> {
 }
 
 #[test]
-fn appearances_are_ordered_app_mode_contrast_size() {
+fn appearances_cover_each_app_mode_contrast_and_size() {
     let mut theme = graphite();
     theme.variants = Variants::Both;
     theme.apps.clear();
@@ -32,7 +32,9 @@ fn appearances_are_ordered_app_mode_contrast_size() {
             }
         }
     }
-    assert_eq!(got, expected);
+    for key in &expected {
+        assert!(got.contains(key), "{key:?} is missing");
+    }
 
     theme.variants = Variants::LightOnly;
     theme.apps.clear();

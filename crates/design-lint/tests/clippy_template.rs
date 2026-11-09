@@ -87,7 +87,7 @@ fn module_exists(src: &Path, module: &str) -> bool {
 }
 
 #[test]
-fn template_replacements_exist() {
+fn template_entries_exist_and_are_unique() {
     // The template guides the apps, which use the legacy library until cut-over.
     let ui = manifest_dir().join("../ui-legacy/src");
     let theme = manifest_dir().join("../theme/src");
@@ -144,10 +144,7 @@ fn template_replacements_exist() {
         }
     }
     assert!(missing.is_empty(), "replacements named in the template that their crate does not export:\n{}", missing.join("\n"));
-}
 
-#[test]
-fn template_paths_are_unique() {
     let mut seen = BTreeMap::new();
     for p in paths() {
         *seen.entry(p).or_insert(0) += 1;

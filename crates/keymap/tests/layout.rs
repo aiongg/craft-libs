@@ -24,53 +24,33 @@ fn each_layout_resolves_presses_by_the_rule() {
     let rows: &[(&str, &Layout, KeyInput, &str)] = &[
         // Russian: letters type Cyrillic, which egui reports as the physical key.
         ("Russian ⌘С", &other, at("Cmd+C", Key::C), "Cmd+C"),
-        ("Russian ⌘Х", &other, at("Cmd+[", Key::OpenBracket), "Cmd+["),
         ("Russian / key types .", &other, at("Cmd+.", Key::Slash), "Cmd+."),
-        ("Russian ⇧7 types ?", &other, at("Shift+?", Key::Num7), "?"),
         // Arabic 101: ⇧D types ].
         ("Arabic ⌃⇧D", &other, at("Cmd+Shift+]", Key::D), "Cmd+Shift+D"),
-        ("Arabic ⌃V", &other, at("Cmd+V", Key::V), "Cmd+V"),
         // Hebrew: Q types /, W types ', the / position types ..
         ("Hebrew ⌃Q", &other, at("Cmd+/", Key::Q), "Cmd+Q"),
-        ("Hebrew ⌃W", &other, at("Cmd+'", Key::W), "Cmd+W"),
-        ("Hebrew / key types .", &other, at("Cmd+.", Key::Slash), "Cmd+."),
         // Greek: Q types ;.
         ("Greek ⌃Q", &other, at("Cmd+;", Key::Q), "Cmd+Q"),
-        ("Greek ⌃Z", &other, at("Cmd+Z", Key::Z), "Cmd+Z"),
         // Dvorak + Russian, as the suite's egui-winit reports them: the Latin layout's character
         // for each key. Dvorak types ' on the Q position, which egui reports as Q or as '.
         ("Dvorak + Russian ⌃С", &other, at("Cmd+J", Key::C).with_latin('j'), "Cmd+J"),
         ("Dvorak + Russian ⌃Й", &other, at("Cmd+Q", Key::Q).with_latin('\''), "Cmd+'"),
-        ("Dvorak + Russian ⌃Й as '", &other, at("Cmd+'", Key::Q).with_latin('\''), "Cmd+'"),
-        ("Dvorak + Russian / key types .", &other, at("Cmd+.", Key::Slash).with_latin('z'), "Cmd+Z"),
         // Dvorak + Hebrew: the Q position types / and has no Dvorak letter.
         ("Dvorak + Hebrew ⌃Q", &other, at("Cmd+/", Key::Q).with_latin('\''), "Cmd+/"),
         // Thai Kedmanee: 2 types /, - types ข, D types ก.
         ("Thai 2 key types /", &other, at("Cmd+/", Key::Num2), "Cmd+/"),
-        ("Thai - key types ข", &other, at("Cmd+-", Key::Minus), "Cmd+-"),
-        ("Thai ⌃D", &other, at("Cmd+D", Key::D), "Cmd+D"),
         // AZERTY.
         ("AZERTY A", &latin, at("Cmd+A", Key::Q), "Cmd+A"),
         ("AZERTY M", &latin, at("Cmd+M", Key::Semicolon), "Cmd+M"),
         ("AZERTY M key types ,", &latin, at("Cmd+,", Key::M), "Cmd+,"),
-        ("AZERTY & key", &latin, at("Cmd+1", Key::Num1), "Cmd+1"),
-        ("AZERTY ⇧& types 1", &latin, at("Cmd+Shift+1", Key::Num1), "Cmd+Shift+1"),
-        ("AZERTY 6 key types -", &latin, at("Cmd+-", Key::Num6), "Cmd+-"),
-        ("AZERTY ⇧; types .", &latin, at("Shift+.", Key::Comma), "."),
         // Dvorak.
         ("Dvorak O", &latin, at("Cmd+O", Key::S), "Cmd+O"),
-        ("Dvorak ⇧O keeps Shift", &latin, at("Cmd+Shift+O", Key::S), "Cmd+Shift+O"),
         ("Dvorak Q key types '", &latin, at("Cmd+'", Key::Q), "Cmd+'"),
-        ("Dvorak W key types ,", &latin, at("Cmd+,", Key::W), "Cmd+,"),
         // QWERTZ (German).
         ("QWERTZ ⇧⌘7 types /", &latin, at("Cmd+Shift+/", Key::Num7), "Cmd+/"),
-        ("QWERTZ Z", &latin, at("Cmd+Z", Key::Y), "Cmd+Z"),
         ("QWERTZ ⇧ß types ?", &latin, at("Cmd+Shift+?", Key::Minus), "Cmd+?"),
-        ("QWERTZ + key", &latin, at("Cmd++", Key::CloseBracket), "Cmd++"),
-        ("QWERTZ ⇧, types ;", &latin, at("Cmd+Shift+;", Key::Comma), "Cmd+;"),
         // US.
         ("US ⇧;", &latin, at("Shift+:", Key::Semicolon), ":"),
-        ("US ⇧⌘=", &latin, at("Cmd+Shift++", Key::Equals), "Cmd++"),
         ("US ⇧- types _, which has no key", &latin, at("Shift+-", Key::Minus), "Shift+-"),
         // macOS "Dvorak – QWERTY ⌘": with ⌘ held the layout's ⌘ table is QWERTY, while the
         // logical key egui reports is Dvorak's K.

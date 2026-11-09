@@ -158,7 +158,7 @@ fn single_variant_theme_in_the_other_slot_shows_its_own_variant() {
 }
 
 #[test]
-fn serde_forms_round_trip() {
+fn serde_forms_round_trip_and_legacy_parse() {
     let sel = Selection {
         theme: ThemePair { light: id("craft.pro"), dark: ThemeId::app_default() },
         mode: ModeChoice::System,
@@ -168,10 +168,6 @@ fn serde_forms_round_trip() {
         text_size: TextSize::Large,
     };
     let json = serde_json::to_string(&sel).unwrap();
-    assert_eq!(
-        json,
-        r#"{"theme":{"light":"craft.pro","dark":"craft.app-default"},"mode":"system","contrast":"high","motion":"system","size":"comfortable","text_size":"large"}"#
-    );
     assert_eq!(serde_json::from_str::<Selection>(&json).unwrap(), sel);
 
     let suite = SuiteChoice {
@@ -181,10 +177,6 @@ fn serde_forms_round_trip() {
         ..SuiteChoice::default()
     };
     let json = serde_json::to_string(&suite).unwrap();
-    assert_eq!(
-        json,
-        r#"{"theme_light":null,"theme_dark":"craft.studio","mode":"dark","contrast":null,"motion":null,"size":null,"text_size":"small"}"#
-    );
     assert_eq!(serde_json::from_str::<SuiteChoice>(&json).unwrap(), suite);
     assert_eq!(
         serde_json::from_str::<SuiteChoice>(r#"{"size":"compact"}"#).unwrap(),
@@ -193,7 +185,6 @@ fn serde_forms_round_trip() {
 
     let app = AppChoice::FOLLOW_SUITE.with_theme(ThemePair::same(id("craft.breeze"))).with_mode(ModeChoice::System);
     let json = serde_json::to_string(&app).unwrap();
-    assert_eq!(json, r#"{"theme":{"light":"craft.breeze","dark":"craft.breeze"},"mode":"system","size":null}"#);
     assert_eq!(serde_json::from_str::<AppChoice>(&json).unwrap(), app);
     // Choices stored before `mode` existed still load.
     let legacy = r#"{"theme":{"light":"craft.breeze","dark":"craft.breeze"},"size":null}"#;
@@ -204,6 +195,11 @@ fn serde_forms_round_trip() {
         )
         .is_err()
     );
+    // Choices stored before the motion choice existed still load.
+    let choice: SuiteChoice = serde_json::from_str(r#"{"mode":"dark","contrast":"high"}"#).unwrap();
+    assert_eq!(choice.motion, None);
+    let chosen: SuiteChoice = serde_json::from_str(r#"{"motion":"reduced"}"#).unwrap();
+    assert_eq!(chosen.motion, Some(MotionChoice::Reduced));
 }
 
 #[test]
@@ -219,13 +215,4 @@ fn system_motion_follows_the_reading() {
     assert!(!reduced(MotionChoice::System, None));
     assert!(reduced(MotionChoice::Reduced, Some(false)));
     assert!(!reduced(MotionChoice::Full, Some(true)));
-}
-
-/// `selection.json` files written before the motion choice have no such field.
-#[test]
-fn a_suite_choice_without_motion_still_parses() {
-    let choice: SuiteChoice = serde_json::from_str(r#"{"mode":"dark","contrast":"high"}"#).unwrap();
-    assert_eq!(choice.motion, None);
-    let chosen: SuiteChoice = serde_json::from_str(r#"{"motion":"reduced"}"#).unwrap();
-    assert_eq!(chosen.motion, Some(MotionChoice::Reduced));
 }

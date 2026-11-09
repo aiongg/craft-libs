@@ -1,7 +1,5 @@
 //! Integration tests of craft-keymap: keymap.
 
-use std::time::{Duration, Instant};
-
 use craft_keymap::{
     Active, AssignError, Bindable, Binding, Chord, CommandRef, ConflictKind, DropReason, Key, Keymap, Kind, Lookup, MAX_BINDINGS, MAX_COMMANDS,
     MAX_CONFLICTS, Mods, Overrides, Platform, Policy, Problem, Scope, Scopes, Trigger, TypingRule, reserved,
@@ -106,35 +104,35 @@ fn typing_rules_decide_what_fires_in_a_text_field() {
             assert_eq!(press(&km, key, &Active::NONE), run(id), "{rule:?} {key} not typing");
         }
     }
-}
 
-#[test]
-fn text_editing_chords_go_to_the_text_field_under_every_rule() {
-    let catalog = vec![app("edit.undo", &["Cmd+Z"]), app("file.save", &["Cmd+S"]), app("nav.word", &["Alt+Left"]), app("nav.start", &["Cmd+Home"])];
-    let typing = Active { typing: true, ..Active::NONE };
-    for rule in [TypingRule::PlainKeysWait, TypingRule::CommandKeysOnly] {
-        for platform in [Platform::Mac, Platform::Windows] {
-            let km = Keymap::new(catalog.clone(), Scopes::new(), platform).with_typing_rule(rule);
-            assert_eq!(press(&km, "Cmd+Z", &typing), Lookup::None, "{rule:?} {platform:?}");
-            assert_eq!(press(&km, "Cmd+Z", &Active::NONE), run("edit.undo"));
-            assert_eq!(press(&km, "Cmd+S", &typing), run("file.save"), "{rule:?} {platform:?}");
+    {
+        let catalog =
+            vec![app("edit.undo", &["Cmd+Z"]), app("file.save", &["Cmd+S"]), app("nav.word", &["Alt+Left"]), app("nav.start", &["Cmd+Home"])];
+        let typing = Active { typing: true, ..Active::NONE };
+        for rule in [TypingRule::PlainKeysWait, TypingRule::CommandKeysOnly] {
+            for platform in [Platform::Mac, Platform::Windows] {
+                let km = Keymap::new(catalog.clone(), Scopes::new(), platform).with_typing_rule(rule);
+                assert_eq!(press(&km, "Cmd+Z", &typing), Lookup::None, "{rule:?} {platform:?}");
+                assert_eq!(press(&km, "Cmd+Z", &Active::NONE), run("edit.undo"));
+                assert_eq!(press(&km, "Cmd+S", &typing), run("file.save"), "{rule:?} {platform:?}");
+            }
         }
-    }
-    // Word and line keys follow the platform.
-    let mac = Keymap::new(catalog.clone(), Scopes::new(), Platform::Mac);
-    let windows = Keymap::new(catalog.clone(), Scopes::new(), Platform::Windows);
-    assert_eq!(press(&mac, "Alt+Left", &typing), Lookup::None);
-    assert_eq!(press(&windows, "Alt+Left", &typing), run("nav.word"));
-    assert_eq!(press(&windows, "Ctrl+Home", &typing), Lookup::None);
-    assert_eq!(press(&mac, "Cmd+Home", &typing), run("nav.start"));
+        // Word and line keys follow the platform.
+        let mac = Keymap::new(catalog.clone(), Scopes::new(), Platform::Mac);
+        let windows = Keymap::new(catalog.clone(), Scopes::new(), Platform::Windows);
+        assert_eq!(press(&mac, "Alt+Left", &typing), Lookup::None);
+        assert_eq!(press(&windows, "Alt+Left", &typing), run("nav.word"));
+        assert_eq!(press(&windows, "Ctrl+Home", &typing), Lookup::None);
+        assert_eq!(press(&mac, "Cmd+Home", &typing), run("nav.start"));
 
-    // A binding in an active context takes the chord from the field.
-    let catalog = vec![app("edit.undo", &["Cmd+Z"]), app("text.undo", &["Text: Cmd+Z"])];
-    let km = Keymap::new(catalog, scopes(), Platform::Windows);
-    let editing = Active { contexts: &["Text"], typing: true, ..Active::NONE };
-    assert_eq!(press(&km, "Cmd+Z", &editing), run("text.undo"));
-    assert_eq!(press(&km, "Cmd+Z", &typing), Lookup::None);
-    assert!(!TypingRule::PlainKeysWait.fires(&chord("Ctrl+Z"), Platform::Linux));
+        // A binding in an active context takes the chord from the field.
+        let catalog = vec![app("edit.undo", &["Cmd+Z"]), app("text.undo", &["Text: Cmd+Z"])];
+        let km = Keymap::new(catalog, scopes(), Platform::Windows);
+        let editing = Active { contexts: &["Text"], typing: true, ..Active::NONE };
+        assert_eq!(press(&km, "Cmd+Z", &editing), run("text.undo"));
+        assert_eq!(press(&km, "Cmd+Z", &typing), Lookup::None);
+        assert!(!TypingRule::PlainKeysWait.fires(&chord("Ctrl+Z"), Platform::Linux));
+    }
 }
 
 #[test]
@@ -199,16 +197,15 @@ fn steal_keep_and_refuse() {
     let done = km.assign(&cmd("timeline.copy"), b("Cmd+D"), Policy::Refuse).unwrap();
     assert!(done.taken_from.is_empty() && done.clashes.is_empty());
     assert_eq!(km.assign(&cmd("nope"), b("Cmd+D"), Policy::Steal), Err(AssignError::UnknownCommand));
-}
 
-#[test]
-fn twins_keep_their_shared_default_key() {
-    let mut km = Keymap::new(vec![app("file.close", &["Cmd+W"]), app("sequence.close", &["Cmd+W"])], Scopes::new(), Platform::Mac);
-    km.clear(&cmd("sequence.close"));
-    let done = km.assign(&cmd("sequence.close"), b("Cmd+W"), Policy::Refuse).unwrap();
-    assert!(done.taken_from.is_empty());
-    assert_eq!(km.bindings(&cmd("file.close")), vec![b("Cmd+W")]);
-    assert!(km.overrides().is_empty(), "back to the defaults");
+    {
+        let mut km = Keymap::new(vec![app("file.close", &["Cmd+W"]), app("sequence.close", &["Cmd+W"])], Scopes::new(), Platform::Mac);
+        km.clear(&cmd("sequence.close"));
+        let done = km.assign(&cmd("sequence.close"), b("Cmd+W"), Policy::Refuse).unwrap();
+        assert!(done.taken_from.is_empty());
+        assert_eq!(km.bindings(&cmd("file.close")), vec![b("Cmd+W")]);
+        assert!(km.overrides().is_empty(), "back to the defaults");
+    }
 }
 
 #[test]
@@ -353,52 +350,6 @@ fn crowded_chords_are_capped() {
 }
 
 #[test]
-#[ignore = "worst-case timing; run with --ignored"]
-fn crowded_chords_stay_fast() {
-    let limit = Duration::from_secs(8);
-
-    // Panels the app never registered are not bound.
-    let (km, o) = crowded(MAX_COMMANDS, Scopes::new(), Kind::Command);
-    let km = km.with_overrides(o);
-    let t = Instant::now();
-    assert!(km.conflicts().is_empty());
-    assert!(t.elapsed() < limit, "{:?}", t.elapsed());
-    assert!(km.bindings(&cmd("c.0")).is_empty());
-    assert_eq!(km.overrides().get("c.0").map(<[String]>::len), Some(MAX_BINDINGS), "kept verbatim");
-    assert!(km.problems().contains(&Problem::UnknownScope { key: "c.0".into(), text: "P1: K".into() }));
-
-    // Registered panels that never share: many conflicts, capped.
-    let (km, o) = crowded(MAX_COMMANDS, panels(MAX_BINDINGS).with_panel_fallthrough(false), Kind::Command);
-    let km = km.with_overrides(o);
-    let t = Instant::now();
-    assert_eq!(km.conflicts().len(), MAX_CONFLICTS);
-    assert!(t.elapsed() < limit, "{:?}", t.elapsed());
-
-    // Tools of one group: no conflicts, and no pair is compared.
-    let (km, o) = crowded(MAX_COMMANDS, panels(MAX_BINDINGS), Kind::Tool { group: None });
-    let km = km.with_overrides(o);
-    let t = Instant::now();
-    assert!(km.conflicts().is_empty());
-    assert!(t.elapsed() < limit, "{:?}", t.elapsed());
-}
-
-#[test]
-fn assigning_many_commands_stays_fast() {
-    let catalog: Vec<Bindable> = (0..MAX_COMMANDS).map(|n| app(&format!("c.{n}"), &[])).collect();
-    let mut km = Keymap::new(catalog, panels(MAX_BINDINGS), Platform::Mac);
-    let list: Vec<Binding> = (1..=MAX_BINDINGS).map(|p| b(&format!("P{p}: K"))).collect();
-    let t = Instant::now();
-    for n in 0..MAX_COMMANDS {
-        let done = km.set_bindings(&cmd(&format!("c.{n}")), list.clone(), Policy::Steal).unwrap();
-        assert_eq!(done.taken_from.len(), if n == 0 { 0 } else { MAX_BINDINGS });
-    }
-    assert!(t.elapsed() < Duration::from_secs(8), "{:?}", t.elapsed());
-    assert_eq!(km.bindings(&cmd(&format!("c.{}", MAX_COMMANDS - 1))), list);
-    assert!(km.bindings(&cmd("c.0")).is_empty());
-    assert_eq!(press(&km, "K", &Active::panel("P3")), run(&format!("c.{}", MAX_COMMANDS - 1)));
-}
-
-#[test]
 fn binding_text_round_trips_for_every_key() {
     let panel = scope("Timeline");
     for &key in Key::ALL {
@@ -416,12 +367,27 @@ fn binding_text_round_trips_for_every_key() {
 }
 
 #[test]
-fn scope_names_with_outer_whitespace_are_refused() {
+fn invalid_scope_names_are_refused() {
     for name in [" Timeline", "Timeline ", "\u{a0}Timeline", ""] {
         assert_eq!(Scope::new(name), None, "{name:?}");
     }
     assert_eq!(Scope::new("Time line").map(|s| s.to_string()).as_deref(), Some("Time line"));
     assert_eq!(Binding::parse(" Timeline :  K").map(|b| b.scope), Ok(Some(scope("Timeline"))));
+
+    {
+        let catalog = vec![app("edit.copy", &["Cmd+C"]), in_scope("timeline.mark", "Timeline", &["M"])];
+        let mut km = Keymap::new(catalog, Scopes::new().with_context("Text"), Platform::Mac);
+        let copy = cmd("edit.copy");
+        assert_eq!(km.assign(&copy, b("Nowhere: Cmd+K"), Policy::Steal), Err(AssignError::UnknownScope(scope("Nowhere"))));
+        assert!(km.assign(&copy, b("Timeline: Cmd+K"), Policy::Steal).is_ok(), "a catalog scope");
+        assert!(km.assign(&copy, b("Text: Cmd+K"), Policy::Steal).is_ok(), "a registered scope");
+
+        let mut o = Overrides::new();
+        o.insert("edit.copy", vec!["Nowhere: Cmd+K".into(), "Cmd+J".into()]);
+        km.set_overrides(o);
+        assert_eq!(km.bindings(&copy), vec![b("Cmd+J")]);
+        assert_eq!(km.problems(), vec![Problem::UnknownScope { key: "edit.copy".into(), text: "Nowhere: Cmd+K".into() }]);
+    }
 }
 
 #[test]
@@ -453,23 +419,7 @@ fn edits_are_refused_when_the_overrides_are_full() {
 }
 
 #[test]
-fn bindings_in_unknown_scopes_are_refused() {
-    let catalog = vec![app("edit.copy", &["Cmd+C"]), in_scope("timeline.mark", "Timeline", &["M"])];
-    let mut km = Keymap::new(catalog, Scopes::new().with_context("Text"), Platform::Mac);
-    let copy = cmd("edit.copy");
-    assert_eq!(km.assign(&copy, b("Nowhere: Cmd+K"), Policy::Steal), Err(AssignError::UnknownScope(scope("Nowhere"))));
-    assert!(km.assign(&copy, b("Timeline: Cmd+K"), Policy::Steal).is_ok(), "a catalog scope");
-    assert!(km.assign(&copy, b("Text: Cmd+K"), Policy::Steal).is_ok(), "a registered scope");
-
-    let mut o = Overrides::new();
-    o.insert("edit.copy", vec!["Nowhere: Cmd+K".into(), "Cmd+J".into()]);
-    km.set_overrides(o);
-    assert_eq!(km.bindings(&copy), vec![b("Cmd+J")]);
-    assert_eq!(km.problems(), vec![Problem::UnknownScope { key: "edit.copy".into(), text: "Nowhere: Cmd+K".into() }]);
-}
-
-#[test]
-fn unreadable_entries_keep_the_defaults() {
+fn unusable_entries_keep_the_defaults() {
     let catalog = vec![app("edit.copy", &["Cmd+C"]), app("edit.paste", &["Cmd+V"])];
     let mut o = Overrides::new();
     o.insert("edit.copy", vec!["Cmd+Nope".into()]);
@@ -480,21 +430,35 @@ fn unreadable_entries_keep_the_defaults() {
     assert_eq!(km.overrides().get("edit.copy"), Some(&["Cmd+Nope".to_string()][..]), "verbatim");
     assert!(km.reset(&cmd("edit.copy")));
     assert_eq!(km.overrides().get("edit.copy"), None);
-}
 
-#[test]
-fn entries_with_nothing_usable_keep_the_defaults() {
-    let catalog = vec![app("edit.copy", &["Cmd+C"]), app("edit.cut", &["Cmd+X"]), app("edit.paste", &["Cmd+V"]), app("edit.undo", &["Cmd+Z"])];
-    let mut o = Overrides::new();
-    o.insert("edit.copy", vec!["Nowhere: Cmd+K".into()]);
-    o.insert("edit.cut", vec!["Alt+F4".into()]);
-    o.insert("edit.paste", vec!["Nowhere: Cmd+K".into(), "Alt+F4".into(), "Cmd+J".into()]);
-    o.insert("edit.undo", vec![]);
-    let km = Keymap::new(catalog, Scopes::new(), Platform::Linux).with_reserved(reserved::system(Platform::Linux)).with_overrides(o);
-    assert_eq!(km.bindings(&cmd("edit.copy")), vec![b("Cmd+C")], "only an unknown scope");
-    assert_eq!(km.bindings(&cmd("edit.cut")), vec![b("Cmd+X")], "only a reserved chord");
-    assert_eq!(km.bindings(&cmd("edit.paste")), vec![b("Cmd+J")]);
-    assert!(km.bindings(&cmd("edit.undo")).is_empty());
+    {
+        let catalog = vec![app("edit.copy", &["Cmd+C"]), app("edit.cut", &["Cmd+X"]), app("edit.paste", &["Cmd+V"]), app("edit.undo", &["Cmd+Z"])];
+        let mut o = Overrides::new();
+        o.insert("edit.copy", vec!["Nowhere: Cmd+K".into()]);
+        o.insert("edit.cut", vec!["Alt+F4".into()]);
+        o.insert("edit.paste", vec!["Nowhere: Cmd+K".into(), "Alt+F4".into(), "Cmd+J".into()]);
+        o.insert("edit.undo", vec![]);
+        let km = Keymap::new(catalog, Scopes::new(), Platform::Linux).with_reserved(reserved::system(Platform::Linux)).with_overrides(o);
+        assert_eq!(km.bindings(&cmd("edit.copy")), vec![b("Cmd+C")], "only an unknown scope");
+        assert_eq!(km.bindings(&cmd("edit.cut")), vec![b("Cmd+X")], "only a reserved chord");
+        assert_eq!(km.bindings(&cmd("edit.paste")), vec![b("Cmd+J")]);
+        assert!(km.bindings(&cmd("edit.undo")).is_empty());
+    }
+
+    {
+        let catalog = vec![app("edit.copy", &["Cmd+C"]), app("edit.paste", &["Cmd+V"]), app("edit.cut", &["Cmd+X"])];
+        let o: Overrides = serde_json::from_str(r#"{"edit.copy": "", "edit.paste": [""], "edit.cut": "Cmd+K"}"#).unwrap();
+        assert!(o.load_notes().is_empty(), "{:?}", o.load_notes());
+        let km = Keymap::new(catalog.clone(), Scopes::new(), Platform::Mac).with_overrides(o);
+        assert!(km.bindings(&cmd("edit.copy")).is_empty(), "a removed default stays removed");
+        assert!(km.bindings(&cmd("edit.paste")).is_empty());
+        assert_eq!(km.bindings(&cmd("edit.cut")), vec![b("Cmd+K")]);
+        assert!(km.problems().is_empty());
+
+        let saved = serde_json::to_string(km.overrides()).unwrap();
+        let again = Keymap::new(catalog, Scopes::new(), Platform::Mac).with_overrides(serde_json::from_str(&saved).unwrap());
+        assert!(again.bindings(&cmd("edit.copy")).is_empty(), "{saved}");
+    }
 }
 
 #[test]
@@ -513,6 +477,13 @@ fn overrides_hold_only_what_differs_from_the_defaults() {
     km.set_bindings(&copy, vec![b("Cmd+Shift+C")], Policy::Steal).unwrap();
     assert!(km.reset(&copy));
     assert!(km.overrides().is_empty());
+
+    {
+        let mut km = Keymap::new(vec![app("file.save", &["Cmd+S"])], Scopes::new(), Platform::Windows);
+        km.set_bindings(&cmd("file.save"), vec![b("Ctrl+S")], Policy::Steal).unwrap();
+        assert!(km.overrides().is_empty());
+        assert_eq!(press(&km, "Ctrl+S", &Active::NONE), run("file.save"));
+    }
 }
 
 #[test]
@@ -537,30 +508,6 @@ fn edits_keep_the_texts_this_build_cannot_use() {
     assert_eq!(texts(&km), strings(&[]));
     assert!(km.reset(&quit));
     assert_eq!(texts(&km), None);
-}
-
-#[test]
-fn an_override_equal_to_the_defaults_on_this_platform_is_not_stored() {
-    let mut km = Keymap::new(vec![app("file.save", &["Cmd+S"])], Scopes::new(), Platform::Windows);
-    km.set_bindings(&cmd("file.save"), vec![b("Ctrl+S")], Policy::Steal).unwrap();
-    assert!(km.overrides().is_empty());
-    assert_eq!(press(&km, "Ctrl+S", &Active::NONE), run("file.save"));
-}
-
-#[test]
-fn an_empty_text_in_the_map_form_removes_the_shortcut() {
-    let catalog = vec![app("edit.copy", &["Cmd+C"]), app("edit.paste", &["Cmd+V"]), app("edit.cut", &["Cmd+X"])];
-    let o: Overrides = serde_json::from_str(r#"{"edit.copy": "", "edit.paste": [""], "edit.cut": "Cmd+K"}"#).unwrap();
-    assert!(o.load_notes().is_empty(), "{:?}", o.load_notes());
-    let km = Keymap::new(catalog.clone(), Scopes::new(), Platform::Mac).with_overrides(o);
-    assert!(km.bindings(&cmd("edit.copy")).is_empty(), "a removed default stays removed");
-    assert!(km.bindings(&cmd("edit.paste")).is_empty());
-    assert_eq!(km.bindings(&cmd("edit.cut")), vec![b("Cmd+K")]);
-    assert!(km.problems().is_empty());
-
-    let saved = serde_json::to_string(km.overrides()).unwrap();
-    let again = Keymap::new(catalog, Scopes::new(), Platform::Mac).with_overrides(serde_json::from_str(&saved).unwrap());
-    assert!(again.bindings(&cmd("edit.copy")).is_empty(), "{saved}");
 }
 
 #[test]

@@ -30,13 +30,6 @@ fn canonical_text_round_trips_for_every_key_and_modifier_set() {
 }
 
 #[test]
-fn plus_and_minus_keys_parse_from_their_glyphs() {
-    assert_eq!(Key::parse("+"), Some(Key::Plus));
-    assert_eq!(Key::parse("-"), Some(Key::Minus));
-    assert_eq!(Key::parse("−"), Some(Key::Minus), "U+2212");
-}
-
-#[test]
 fn the_iso_key_next_to_left_shift_reads_and_writes_as_intl_backslash() {
     assert_eq!(Key::parse("IntlBackslash"), Some(Key::IntlBackslash));
     assert_eq!(Key::parse("intlbackslash"), Some(Key::IntlBackslash));
@@ -60,16 +53,7 @@ fn the_iso_key_next_to_left_shift_reads_and_writes_as_intl_backslash() {
 }
 
 #[test]
-fn arrow_glyphs_parse_as_arrow_keys() {
-    for (glyph, key) in [("←", Key::Left), ("→", Key::Right), ("↑", Key::Up), ("↓", Key::Down)] {
-        assert_eq!(Key::parse(glyph), Some(key), "{glyph}");
-    }
-    assert_eq!(Chord::parse("⌘←").unwrap().to_string(), "Cmd+Left");
-    assert_eq!(Chord::parse("Alt+Shift+→").unwrap().to_string(), "Alt+Shift+Right");
-}
-
-#[test]
-fn aliases_parse_to_canonical_chords() {
+fn glyphs_and_aliases_parse_to_canonical_chords() {
     let cases = [
         ("cmd+shift+z", "Cmd+Shift+Z"),
         ("Shift+Command+Z", "Cmd+Shift+Z"),
@@ -113,6 +97,20 @@ fn aliases_parse_to_canonical_chords() {
     for (text, canonical) in cases {
         assert_eq!(chord(text).to_string(), canonical, "{text}");
     }
+
+    {
+        for (glyph, key) in [("←", Key::Left), ("→", Key::Right), ("↑", Key::Up), ("↓", Key::Down)] {
+            assert_eq!(Key::parse(glyph), Some(key), "{glyph}");
+        }
+        assert_eq!(Chord::parse("⌘←").unwrap().to_string(), "Cmd+Left");
+        assert_eq!(Chord::parse("Alt+Shift+→").unwrap().to_string(), "Alt+Shift+Right");
+    }
+
+    {
+        assert_eq!(Key::parse("+"), Some(Key::Plus));
+        assert_eq!(Key::parse("-"), Some(Key::Minus));
+        assert_eq!(Key::parse("−"), Some(Key::Minus), "U+2212");
+    }
 }
 
 #[test]
@@ -147,24 +145,6 @@ fn hostile_text_is_refused() {
 }
 
 #[test]
-fn spoken_names_follow_the_platform_order_with_words_for_keys() {
-    let c = chord("Cmd+Ctrl+Alt+Shift+K");
-    assert_eq!(c.spoken(Platform::Mac), "Ctrl+Option+Shift+Cmd+K");
-    assert_eq!(c.spoken(Platform::Windows), "Ctrl+Alt+Shift+K");
-    assert_eq!(c.spoken(Platform::Linux), "Ctrl+Alt+Shift+K");
-    assert_eq!(chord("Cmd+Alt+PageDown").spoken(Platform::Mac), "Option+Cmd+Page Down");
-    assert_eq!(chord("Up").spoken(Platform::Mac), "Up");
-}
-
-#[test]
-fn parts_are_one_text_per_key() {
-    let layout = Layout::default();
-    assert_eq!(chord("Cmd+Shift+K").parts_for(Platform::Windows, &layout), ["Ctrl", "Shift", "K"]);
-    assert_eq!(chord("Cmd+Shift+K").parts_for(Platform::Mac, &layout), ["⇧", "⌘", "K"]);
-    assert_eq!(chord("Escape").parts_for(Platform::Mac, &layout), ["⎋"]);
-}
-
-#[test]
 fn display_follows_the_platform() {
     let c = chord("Cmd+Ctrl+Alt+Shift+K");
     assert_eq!(c.display(Platform::Mac), "⌃⌥⇧⌘K");
@@ -177,6 +157,22 @@ fn display_follows_the_platform() {
     assert_eq!(chord("Alt+PageDown").display(Platform::Windows), "Alt+Page Down");
     assert_eq!(Trigger::parse("Cmd+K Cmd+K").unwrap().display(Platform::Mac), "⌘K ⌘K");
     assert_eq!(Trigger::parse("A A").unwrap().to_string(), "A A");
+
+    {
+        let c = chord("Cmd+Ctrl+Alt+Shift+K");
+        assert_eq!(c.spoken(Platform::Mac), "Ctrl+Option+Shift+Cmd+K");
+        assert_eq!(c.spoken(Platform::Windows), "Ctrl+Alt+Shift+K");
+        assert_eq!(c.spoken(Platform::Linux), "Ctrl+Alt+Shift+K");
+        assert_eq!(chord("Cmd+Alt+PageDown").spoken(Platform::Mac), "Option+Cmd+Page Down");
+        assert_eq!(chord("Up").spoken(Platform::Mac), "Up");
+    }
+
+    {
+        let layout = Layout::default();
+        assert_eq!(chord("Cmd+Shift+K").parts_for(Platform::Windows, &layout), ["Ctrl", "Shift", "K"]);
+        assert_eq!(chord("Cmd+Shift+K").parts_for(Platform::Mac, &layout), ["⇧", "⌘", "K"]);
+        assert_eq!(chord("Escape").parts_for(Platform::Mac, &layout), ["⎋"]);
+    }
 }
 
 #[test]
@@ -194,7 +190,7 @@ fn ctrl_folds_into_cmd_off_macos() {
 }
 
 #[test]
-fn foreign_windows_text() {
+fn foreign_shortcut_text_is_read() {
     let read = |t: &str| read_foreign(t, Flavor::Windows);
     let ok = |t: &str| read(t).unwrap_or_else(|e| panic!("{t}: {e}"));
     assert_eq!(ok("Shift+Ctrl+S"), (Trigger::single(chord("Cmd+Shift+S")), vec![]));
@@ -219,23 +215,22 @@ fn foreign_windows_text() {
     assert_eq!(read(&"x".repeat(MAX_CHORD_TEXT + 1)), Err(ForeignError::TooLong));
     assert_eq!(read("Ctrl+Num Lock"), Err(ForeignError::UnknownKey("Num Lock".into())));
     assert_eq!(read("Alt"), Err(ForeignError::UnknownKey("Alt".into())));
-}
 
-#[test]
-fn foreign_mac_text() {
-    let texts = ["Shift+Cmd+S", "Ctrl+Opt+Left"];
-    assert_eq!(Flavor::detect(texts), Flavor::Mac);
-    assert_eq!(Flavor::detect(["Shift+Ctrl+S", "Alt+F4"]), Flavor::Windows);
-    assert_eq!(Flavor::detect(["⌥⌘K"]), Flavor::Mac);
-    let ok = |t: &str| read_foreign(t, Flavor::Mac).unwrap_or_else(|e| panic!("{t}: {e}")).0;
-    assert_eq!(ok("Shift+Cmd+S"), Trigger::single(chord("Cmd+Shift+S")));
-    assert_eq!(ok("Ctrl+Opt+Left"), Trigger::single(chord("Ctrl+Alt+Left")));
-    assert_eq!(ok("Control-Option-Space"), Trigger::single(chord("Ctrl+Alt+Space")));
-    assert_eq!(ok("⇧⌘S"), Trigger::single(chord("Cmd+Shift+S")));
-    assert_eq!(ok("⌃⌥⇞"), Trigger::single(chord("Ctrl+Alt+PageUp")));
-    assert_eq!(ok("Cmd+,"), Trigger::single(chord("Cmd+,")));
-    // In a Windows set the same ⌃ is the command modifier.
-    assert_eq!(read_foreign("⌃S", Flavor::Windows).map(|r| r.0), Ok(Trigger::single(chord("Cmd+S"))));
+    {
+        let texts = ["Shift+Cmd+S", "Ctrl+Opt+Left"];
+        assert_eq!(Flavor::detect(texts), Flavor::Mac);
+        assert_eq!(Flavor::detect(["Shift+Ctrl+S", "Alt+F4"]), Flavor::Windows);
+        assert_eq!(Flavor::detect(["⌥⌘K"]), Flavor::Mac);
+        let ok = |t: &str| read_foreign(t, Flavor::Mac).unwrap_or_else(|e| panic!("{t}: {e}")).0;
+        assert_eq!(ok("Shift+Cmd+S"), Trigger::single(chord("Cmd+Shift+S")));
+        assert_eq!(ok("Ctrl+Opt+Left"), Trigger::single(chord("Ctrl+Alt+Left")));
+        assert_eq!(ok("Control-Option-Space"), Trigger::single(chord("Ctrl+Alt+Space")));
+        assert_eq!(ok("⇧⌘S"), Trigger::single(chord("Cmd+Shift+S")));
+        assert_eq!(ok("⌃⌥⇞"), Trigger::single(chord("Ctrl+Alt+PageUp")));
+        assert_eq!(ok("Cmd+,"), Trigger::single(chord("Cmd+,")));
+        // In a Windows set the same ⌃ is the command modifier.
+        assert_eq!(read_foreign("⌃S", Flavor::Windows).map(|r| r.0), Ok(Trigger::single(chord("Cmd+S"))));
+    }
 }
 
 #[test]
