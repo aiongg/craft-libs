@@ -107,16 +107,15 @@ pub(crate) fn sample_pins(layer: DocRect) -> Vec<Pin> {
 }
 
 /// Shows `pins` on a canvas whose view has the document origin at its top left; the selection the pins report is kept.
-fn on_canvas(ui: &mut Ui, data: &mut StoryData, bind: Bind<'_, Vec<Pin>>, show_mesh: bool) -> StoryOutput {
+fn on_canvas(ui: &mut Ui, data: &mut StoryData, pins: &mut Vec<Pin>, show_mesh: bool) -> StoryOutput {
     let room = ui.available_rect_before_wrap();
     let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
     let selected = data.value("selected", vec![1usize]).clone();
     let solver = IdwSolver::new(layer());
-    let mut control = Some(PinWarp::new("Pins", bind, solver.view()).selected_pins(&selected).show_mesh(show_mesh));
-    let shown = Canvas::new("Document")
-        .view(view)
-        .show(ui, |ui, body| -> Option<PinWarpOutput> { control.take().map(|control| control.show_at(ui, body.rect)) });
-    let Some(output) = shown.inner.flatten() else { return StoryOutput::default() };
+    let shown = Canvas::new("Document").view(view).show(ui, |ui, body| -> PinWarpOutput {
+        PinWarp::new("Pins", Bind::bound(&mut *pins), solver.view()).selected_pins(&selected).show_mesh(show_mesh).show_at(ui, body.rect)
+    });
+    let Some(output) = shown.inner else { return StoryOutput::default() };
     if let Some(select) = output.select.clone() {
         *data.value("selected", vec![1usize]) = select;
     }
@@ -132,7 +131,7 @@ fn pins_with_a_fixed_turn() -> Vec<Pin> {
 #[story(PinWarp<'static>, covers = [Default], drive = Drive::Drag(Grip::part(super::overlay::PIN.at(1)).toward(vec2(1.0, 0.0))))]
 fn pins_with_a_fixed_rotation(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let mut pins = data.value("pins", pins_with_a_fixed_turn()).clone();
-    let output = on_canvas(ui, data, Bind::bound(&mut pins), true);
+    let output = on_canvas(ui, data, &mut pins, true);
     *data.value("pins", pins_with_a_fixed_turn()) = pins;
     output
 }
