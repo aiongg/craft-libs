@@ -154,6 +154,10 @@ pub fn post(ctx: &Context, toast: Toast) -> ToastId {
 
 /// Posts `toast` to `viewport`.
 pub fn post_to(ctx: &Context, viewport: ViewportId, toast: Toast) -> ToastId {
+    if !crate::runtime::measure::effect(ctx, "toast::post") {
+        // No toast is numbered 0, so a later dismiss of this id removes nothing.
+        return ToastId(0);
+    }
     let id = PerViewport::<Queue>::with(ctx, viewport, |queue| {
         queue.next += 1;
         let id = ToastId(queue.next);

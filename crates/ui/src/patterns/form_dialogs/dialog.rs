@@ -629,7 +629,8 @@ impl StackDialog for HostedParamDialog {
     }
 
     fn show(&mut self, ui: &mut Ui, _: &DialogStack) -> Option<DialogResult<ParamResult>> {
-        let shown = (self.build)(&mut self.fields).answers(self.requests.take_answers()).show(ui);
+        let answers = if crate::runtime::measure::active(ui.ctx()) { Vec::new() } else { self.requests.take_answers() };
+        let shown = (self.build)(&mut self.fields).answers(answers).show(ui);
         if let Some(mut rows) = shown.rows {
             self.requests.absorb(&mut rows);
         }

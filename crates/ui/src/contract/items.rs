@@ -217,6 +217,11 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
     /// and measured without allocating.
     fn widest_row(&mut self, comp: &C, ui: &Ui, id: Id) -> f32 {
         let ctx = ui.ctx().clone();
+        crate::runtime::measure::run(&ctx, || self.widest_row_in(comp, ui, id))
+    }
+
+    fn widest_row_in(&mut self, comp: &C, ui: &Ui, id: Id) -> f32 {
+        let ctx = ui.ctx().clone();
         let env = Env::of(ui);
         let mut memory = MemoryStage::open_peek(&ctx, id);
         let cells: Vec<(craft_behavior::ColumnKey, Rect)> =
@@ -439,7 +444,8 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.offset_x_at_read = self.offset_x;
         let view = self.last.view.map_or(0.0, |view| view[3] - view[1]);
         if self.scrolls {
-            let taken = wheel::take(&ctx, id);
+            let quiet = stage.is_peek() || crate::runtime::measure::active(&ctx);
+            let taken = if quiet { wheel::peek(&ctx, id) } else { wheel::take(&ctx, id) };
             if let Some(share) = taken {
                 self.offset -= f64::from(share.scroll.y);
                 self.offset_x -= f64::from(share.scroll.x);
@@ -449,7 +455,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     self.events.push(CollectionEvent::Zoom { factor: share.zoom, about });
                 }
             }
-            if let (Some(rect), Some(bounds)) = (super::take_reveal(&ctx, id), self.last.view) {
+            if let (Some(rect), Some(bounds)) = (if quiet { super::peek_reveal(&ctx, id) } else { super::take_reveal(&ctx, id) }, self.last.view) {
                 if rect.min.y < bounds[1] {
                     self.offset += f64::from(rect.min.y - bounds[1]);
                 } else if rect.max.y > bounds[3] {

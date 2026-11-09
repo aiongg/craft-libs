@@ -42,6 +42,7 @@ mod layer;
 mod layout;
 mod list;
 mod lists;
+mod measure;
 mod menu;
 mod menu_mac;
 mod motion;

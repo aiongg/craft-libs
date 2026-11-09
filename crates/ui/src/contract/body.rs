@@ -1160,7 +1160,7 @@ impl<'b> BodyHooks<'b> {
         let ctx = ui.ctx().clone();
         let mut measure_ui = alloc::child(ui, builder.sizing_pass().invisible());
         let installed = Env::install_for(&measure_ui, env.clone());
-        content(&mut measure_ui);
+        crate::runtime::measure::run(&ctx, || content(&mut measure_ui));
         Env::restore(&ctx, installed);
         self.region_size(&measure_ui)
     }
@@ -1482,8 +1482,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         self.footer_last = if has_footer { layout_memory::read(&ctx, sub(id, "footer")).unwrap_or(Vec2::ZERO) } else { Vec2::ZERO };
         self.end_last = if props.end.is_some() { layout_memory::read(&ctx, sub(id, "end")) } else { None };
         self.region_gap = gap_of(&env.tokens, Gap::Tight);
+        let quiet = stage.is_peek() || crate::runtime::measure::active(&ctx);
         if !matches!(props.mount, Mount::Inline | Mount::Pane(_))
-            && let Some(why) = crate::runtime::overlay::take_close(&ctx, id)
+            && let Some(why) = if quiet { crate::runtime::overlay::peek_close(&ctx, id) } else { crate::runtime::overlay::take_close(&ctx, id) }
         {
             self.close = true;
             self.reason = Some(why);
@@ -1526,13 +1527,13 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let rtl = env.direction.is_rtl();
         let view = self.last.view.map_or(Vec2::ZERO, |view| rect_of(view).size());
         // Step 4 applies, in order, this pass's wheel share and the reveal request queued last pass.
-        if let Some(share) = wheel::take(&ctx, id) {
+        if let Some(share) = if quiet { wheel::peek(&ctx, id) } else { wheel::take(&ctx, id) } {
             let sign = if rtl { 1.0 } else { -1.0 };
             self.offset.x += f64::from(sign * share.scroll.x);
             self.offset.y -= f64::from(share.scroll.y);
             self.moved = true;
         }
-        if let (Some(rect), Some(view_rect)) = (super::take_reveal(&ctx, id), self.last.view.map(rect_of)) {
+        if let (Some(rect), Some(view_rect)) = (if quiet { super::peek_reveal(&ctx, id) } else { super::take_reveal(&ctx, id) }, self.last.view.map(rect_of)) {
             let into = |low: f32, high: f32, view_low: f32, view_high: f32| {
                 if low < view_low {
                     low - view_low
@@ -1547,7 +1548,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             self.offset.x += f64::from(if rtl { -dx } else { dx });
             self.moved = true;
         }
-        for mv in super::steps::take_scroll_moves(&ctx, id) {
+        let moves = if quiet { super::steps::peek_scroll_moves(&ctx, id) } else { super::steps::take_scroll_moves(&ctx, id) };
+        for mv in moves {
             let (visible, extent, offset, vertical) = if scroll.vertical_on() {
                 (view.y, self.last.extent.1, self.offset.y, true)
             } else {

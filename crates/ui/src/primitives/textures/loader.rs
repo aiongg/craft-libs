@@ -212,6 +212,7 @@ impl<K: TextureKey> TextureLoader<K> {
     {
         match self.ask(ctx, key, revision, priority) {
             Some(state) => state,
+            None if !crate::runtime::measure::effect(ctx, "textures::request") => self.store.state(ctx, key, revision),
             None => self.submit(ctx, key.clone(), revision, priority, job()),
         }
     }
@@ -245,6 +246,9 @@ impl<K: TextureKey> TextureLoader<K> {
         priority: Priority,
         job: impl FnOnce(&Cancel) -> LoadResult + Send + 'static,
     ) -> TextureState {
+        if !crate::runtime::measure::effect(ctx, "textures::submit") {
+            return self.store.state(ctx, &key, revision);
+        }
         self.run_frame_work(ctx);
         let stand_in = self.store.state(ctx, &key, revision).shown();
         let frame = pass::root_frame_nr(ctx);

@@ -63,6 +63,9 @@ fn with<R>(ctx: &Context, moment: &Moment, f: impl FnOnce(&mut Entries) -> R) ->
 /// The size entry under `id` as this pass places by it. A placement that read the entry (`None` on a block's
 /// first appearance) compares it with the real size at `record`.
 pub(crate) fn read(ctx: &Context, id: Id) -> Option<Vec2> {
+    if crate::runtime::measure::active(ctx) {
+        return peeking(ctx, |read| read(id));
+    }
     let moment = Moment::of(ctx);
     with(ctx, &moment, |memory| {
         let entry = memory.entries.entry(id).or_default();

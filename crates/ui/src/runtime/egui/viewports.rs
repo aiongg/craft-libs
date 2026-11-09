@@ -129,6 +129,9 @@ pub(crate) fn inner_size_in(input: &egui::RawInput, viewport: ViewportId) -> Opt
 
 /// Sends a window command to `viewport`.
 pub(crate) fn command(ctx: &Context, viewport: ViewportId, command: ViewportCommand) {
+    if !crate::runtime::measure::effect(ctx, "viewports::command") {
+        return;
+    }
     ctx.send_viewport_cmd_to(viewport, command);
 }
 
