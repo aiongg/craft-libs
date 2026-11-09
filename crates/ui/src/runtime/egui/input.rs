@@ -188,6 +188,8 @@ pub(crate) struct PointerRead {
     pub sample: Option<PointerSample>,
     /// The window lost focus in this pass.
     pub focus_lost: bool,
+    /// Whether the real pointer moved or entered in this pass.
+    pub stirred: bool,
     /// The zoom factor of the pass: pinch and Ctrl or Cmd with the wheel.
     pub zoom: f32,
     /// The two-finger gesture: translation, zoom, rotation and centre.
@@ -221,6 +223,7 @@ pub(crate) fn pointer_read(ctx: &Context) -> PointerRead {
     ctx.input(|input| {
         let mut events = Vec::new();
         let mut focus_lost = false;
+        let mut stirred = false;
         let mut kind = PointerKind::Mouse;
         let mut sample = None;
         let mut release = None;
@@ -244,7 +247,10 @@ pub(crate) fn pointer_read(ctx: &Context) -> PointerRead {
                         release = Some(button);
                     }
                 }
-                Event::PointerMoved(pos) => events.push(PointerEvent::Moved(*pos)),
+                Event::PointerMoved(pos) => {
+                    stirred = true;
+                    events.push(PointerEvent::Moved(*pos));
+                }
                 Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, .. } => {
                     events.push(PointerEvent::pressed(*pos, input.time, 1));
                 }
@@ -282,6 +288,7 @@ pub(crate) fn pointer_read(ctx: &Context) -> PointerRead {
             kind,
             sample,
             focus_lost,
+            stirred,
             zoom: input.zoom_delta(),
             multi_touch,
             slop,
