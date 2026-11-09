@@ -16,7 +16,7 @@ const TURNED: f64 = 30.0;
 const MOST: f64 = 90.0;
 
 /// Shows `compass` in the corner of a canvas and returns its output.
-fn in_corner(ui: &mut Ui, compass: impl FnOnce(&mut Ui, egui::Rect) -> RotateViewOutput) -> StoryOutput {
+fn in_corner(ui: &mut Ui, mut compass: impl FnMut(&mut Ui, egui::Rect) -> RotateViewOutput) -> StoryOutput {
     on_canvas_with(ui, Canvas::new("Document"), |ui, rect| {
         let at = RotateView::compass_rect(ui, rect);
         compass(ui, at)

@@ -14,7 +14,7 @@ pub(crate) fn origin_view(room: Rect, zoom: f64) -> CanvasView {
 
 /// Shows `control` as the only canvas control of a canvas over the room left in `ui`, whose view is [`origin_view`]
 /// at `zoom`, and returns the control's output. The control gets the canvas's rect and the view it shows.
-pub(crate) fn on_canvas<R: Into<StoryOutput>>(ui: &mut Ui, zoom: f64, control: impl FnOnce(&mut Ui, Rect, &CanvasView) -> R) -> StoryOutput {
+pub(crate) fn on_canvas<R: Into<StoryOutput>>(ui: &mut Ui, zoom: f64, control: impl FnMut(&mut Ui, Rect, &CanvasView) -> R) -> StoryOutput {
     on_canvas_view(ui, |room| origin_view(room, zoom), control)
 }
 
@@ -22,16 +22,15 @@ pub(crate) fn on_canvas<R: Into<StoryOutput>>(ui: &mut Ui, zoom: f64, control: i
 pub(crate) fn on_canvas_view<R: Into<StoryOutput>>(
     ui: &mut Ui,
     view: impl FnOnce(Rect) -> CanvasView,
-    control: impl FnOnce(&mut Ui, Rect, &CanvasView) -> R,
+    mut control: impl FnMut(&mut Ui, Rect, &CanvasView) -> R,
 ) -> StoryOutput {
     let view = view(ui.available_rect_before_wrap());
     on_canvas_with(ui, Canvas::new("Document").view(view), |ui, rect| control(ui, rect, &view))
 }
 
 /// Shows `control` as the only canvas control of `canvas`, which the caller sets up, and returns the control's
-/// output.
-pub(crate) fn on_canvas_with<R: Into<StoryOutput>>(ui: &mut Ui, canvas: Canvas<'_>, control: impl FnOnce(&mut Ui, Rect) -> R) -> StoryOutput {
-    let mut control = Some(control);
-    let shown = canvas.show(ui, |ui, body| control.take().map(|control| control(ui, body.rect)));
-    shown.inner.flatten().map(Into::into).unwrap_or_default()
+/// output. The body runs once to measure and once to draw, so `control` builds the control on each call.
+pub(crate) fn on_canvas_with<R: Into<StoryOutput>>(ui: &mut Ui, canvas: Canvas<'_>, mut control: impl FnMut(&mut Ui, Rect) -> R) -> StoryOutput {
+    let shown = canvas.show(ui, |ui, body| control(ui, body.rect));
+    shown.inner.map(Into::into).unwrap_or_default()
 }
