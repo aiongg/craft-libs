@@ -1,7 +1,7 @@
 //! What the viewer lists: every registered story, grouped by the component it shows.
 
 use craft_ui::contract::{Probe, Registration};
-use craft_ui::testing::{STORIES, StoryRegistration, registered};
+use craft_ui::testing::{StoryRegistration, registered, stories};
 use std::collections::HashMap;
 
 /// One registered story with the facts the viewer lists.
@@ -53,7 +53,7 @@ pub fn short_type(type_name: &str) -> String {
 
 /// Every story linked into the viewer, ordered by type then story name.
 pub fn entries() -> Vec<Entry> {
-    let mut entries: Vec<_> = STORIES.iter().map(|registration| Entry { registration, type_name: (registration.type_name)() }).collect();
+    let mut entries: Vec<_> = stories().into_iter().map(|registration| Entry { registration, type_name: (registration.type_name)() }).collect();
     entries.sort_by_key(|entry| (entry.type_name, entry.registration.story.name));
     entries
 }

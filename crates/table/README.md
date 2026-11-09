@@ -15,4 +15,4 @@ Spreadsheet widgets for Craft apps, from GridCraft (Excel), with LightCraft's co
 
 Edits go out as events; the app applies them to its workbook.
 
-Stories are `#[story]` functions in `src/ui/*/stories.rs`; they register in `craft_ui::testing::STORIES` and the `craft-ui-gallery` viewer lists them by the type they show.
+Stories are `#[story]` functions in `src/ui/*/stories.rs`; they register in `craft_ui::testing::stories()` and the `craft-ui-gallery` viewer lists them by the type they show.

@@ -19,4 +19,4 @@ The widgets read the document through small traits (`PageSource`, `PageTextSourc
 Page numbers use `craft-text`'s list number styles. The spreadsheet grid is `craft-table`'s.
 
 
-Stories are `#[story]` functions in `src/ui/*/stories.rs`; they register in `craft_ui::testing::STORIES` and the `craft-ui-gallery` viewer lists them by the type they show.
+Stories are `#[story]` functions in `src/ui/*/stories.rs`; they register in `craft_ui::testing::stories()` and the `craft-ui-gallery` viewer lists them by the type they show.

@@ -13,4 +13,4 @@ The core is egui-free:
 
 With the `ui` feature, `craft_timeline::ui` has the `Timeline` panel (track headers, rows, playhead), `TimelineRuler`, `TimelineScrollBar`, `ClipLane`, `KeyframeLane` and `KeyframeNavigator`, `GraphEditor`, `TransportBar` and `MediaControls`, `TimecodeField` and `TimecodePanel`, `FramePreview`, `MarkerStrip` and `MarkerDialog`, `TimelineOverview` and `RenderQueueList`. Edits go out as events; the app applies them to its document and undo stack.
 
-Stories are `#[story]` functions in `src/ui/*/stories.rs`; they register in `craft_ui::testing::STORIES` and the `craft-ui-gallery` viewer lists them by the type they show.
+Stories are `#[story]` functions in `src/ui/*/stories.rs`; they register in `craft_ui::testing::stories()` and the `craft-ui-gallery` viewer lists them by the type they show.
