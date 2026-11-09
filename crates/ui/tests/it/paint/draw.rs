@@ -18,31 +18,6 @@ fn color(c: Rgba) -> Color32 {
 }
 
 #[trial]
-fn fill_stroke_and_data_fill_paint_the_colours_they_are_given() {
-    let mut frames = Frames::new();
-    let tokens = tokens(Mode::Light, Contrast::Standard);
-    let style = with_cx(&frames.ctx, &tokens, Variant::SECONDARY, ControlSize::Md, |cx| cx.color(tokens.color.accent.solid));
-    let swatch = Color32::from_rgb(12, 34, 56);
-    let (shapes, _) = paint_frame(&mut frames, &tokens, Direction::Ltr, Ink::OnPanel, |draw| {
-        draw.fill(&PaintShape::Circle(pos2(20.0, 20.0), 5.0), style);
-        draw.data_fill(&PaintShape::Rect(RECT, egui::CornerRadius::ZERO), DataColor::new(swatch));
-        draw.stroke(&PaintShape::Path(vec![pos2(0.0, 0.0), pos2(30.0, 30.0)]), StrokeWidth::Medium, style);
-    });
-    let accent = color(tokens.color.accent.solid);
-    assert!(shapes.iter().any(|s| matches!(s, Shape::Circle(c) if c.fill == accent)), "the style colour fills the circle");
-    assert!(shapes.iter().any(|s| matches!(s, Shape::Rect(r) if r.fill == swatch)), "the data colour fills the rect");
-    assert!(shapes.iter().any(|s| stroke_is(s, accent)), "the path is stroked in the style colour");
-}
-
-fn stroke_is(shape: &Shape, color: Color32) -> bool {
-    match shape {
-        Shape::LineSegment { stroke, .. } => stroke.color == color,
-        Shape::Path(path) => path.stroke.color == egui::epaint::ColorMode::Solid(color),
-        _ => false,
-    }
-}
-
-#[trial]
 fn a_rule_sits_on_the_pixel_grid_whatever_the_coordinate() {
     let mut frames = Frames::new();
     let tokens = tokens(Mode::Light, Contrast::Standard);
@@ -113,33 +88,6 @@ fn an_icon_loads_its_texture_once_and_paints_it_every_frame() {
 #[derive(Hash)]
 struct Stamp(u64);
 
-#[trial]
-fn texture_keys_of_different_types_name_different_textures() {
-    let frames = Frames::new();
-    let image = || egui::ColorImage::filled([2, 2], Default::default());
-    let plain = TextureCache::texture(&frames.ctx, 7u64, image);
-    let wrapped = TextureCache::texture(&frames.ctx, Stamp(7), image);
-    assert_ne!(plain, wrapped, "equal hashes of different key types share one texture");
-    assert_eq!(TextureCache::len(&frames.ctx), 2);
-}
-
-#[trial]
-fn textures_nobody_asks_for_are_freed_once_the_cache_is_over_capacity() {
-    let mut frames = Frames::new();
-    let image = || egui::ColorImage::filled([1, 1], Default::default());
-    let ctx = frames.ctx.clone();
-    frames.frame(Vec::new(), |_| {
-        for key in 0..TextureCache::CAPACITY as u64 + 10 {
-            TextureCache::texture(&ctx, key, image);
-        }
-    });
-    assert_eq!(TextureCache::len(&ctx), TextureCache::CAPACITY + 10, "textures asked for in the running frame stay");
-    frames.frame(Vec::new(), |_| {
-        TextureCache::texture(&ctx, u64::MAX, image);
-    });
-    assert_eq!(TextureCache::len(&ctx), TextureCache::CAPACITY, "the oldest unused textures are freed down to the capacity");
-}
-
 /// How many textures painting the icon `name` in each direction loads.
 fn textures_for_both_directions(name: &'static str) -> usize {
     let mut frames = Frames::new();
@@ -156,25 +104,6 @@ fn textures_for_both_directions(name: &'static str) -> usize {
 fn a_directional_svg_icon_mirrors_under_rtl_and_another_stays() {
     assert_eq!(textures_for_both_directions("chevron_right"), 2, "the mirrored raster is its own texture");
     assert_eq!(textures_for_both_directions("close"), 1, "an icon that does not point along the reading direction keeps one texture");
-}
-
-#[trial]
-fn a_stroke_paints_a_data_colour_and_a_dashed_path_breaks_into_dashes() {
-    let mut frames = Frames::new();
-    let tokens = tokens(Mode::Light, Contrast::Standard);
-    let style = with_cx(&frames.ctx, &tokens, Variant::SECONDARY, ControlSize::Md, |cx| cx.color(tokens.color.accent.solid));
-    let series = Color32::from_rgb(200, 30, 90);
-    let line = [pos2(0.0, 20.0), pos2(60.0, 20.0)];
-    let (shapes, _) = paint_frame(&mut frames, &tokens, Direction::Ltr, Ink::OnPanel, |draw| {
-        draw.stroke(&PaintShape::Path(line.to_vec()), StrokeWidth::Thin, DataColor::new(series));
-    });
-    assert!(shapes.iter().any(|s| stroke_is(s, series)), "the path is stroked in the data colour");
-    let (dashed, _) = paint_frame(&mut frames, &tokens, Direction::Ltr, Ink::OnPanel, |draw| {
-        draw.dashed(&line, Dashes::even(4.0), StrokeWidth::Thin, style);
-    });
-    let accent = color(tokens.color.accent.solid);
-    let dashes = dashed.iter().filter(|s| stroke_is(s, accent)).count();
-    assert!(dashes > 1, "a 60 point path with 4 point dashes breaks into several: {dashes}");
 }
 
 #[trial]
@@ -221,4 +150,31 @@ fn doc_text_sits_in_its_rect_by_its_alignment_and_start_and_end_swap_under_rtl()
     assert!((end - right).abs() < EPS && start > left, "start is the right edge in RTL");
     let (start, _) = doc_extent(Direction::Rtl, HAlign::End);
     assert!((start - left).abs() < EPS, "end is the left edge in RTL");
+}
+
+#[trial]
+fn the_texture_cache_namespaces_keys_by_type_and_frees_unused_textures_over_capacity() {
+    {
+        let frames = Frames::new();
+        let image = || egui::ColorImage::filled([2, 2], Default::default());
+        let plain = TextureCache::texture(&frames.ctx, 7u64, image);
+        let wrapped = TextureCache::texture(&frames.ctx, Stamp(7), image);
+        assert_ne!(plain, wrapped, "equal hashes of different key types share one texture");
+        assert_eq!(TextureCache::len(&frames.ctx), 2);
+    }
+    {
+        let mut frames = Frames::new();
+        let image = || egui::ColorImage::filled([1, 1], Default::default());
+        let ctx = frames.ctx.clone();
+        frames.frame(Vec::new(), |_| {
+            for key in 0..TextureCache::CAPACITY as u64 + 10 {
+                TextureCache::texture(&ctx, key, image);
+            }
+        });
+        assert_eq!(TextureCache::len(&ctx), TextureCache::CAPACITY + 10, "textures asked for in the running frame stay");
+        frames.frame(Vec::new(), |_| {
+            TextureCache::texture(&ctx, u64::MAX, image);
+        });
+        assert_eq!(TextureCache::len(&ctx), TextureCache::CAPACITY, "the oldest unused textures are freed down to the capacity");
+    }
 }

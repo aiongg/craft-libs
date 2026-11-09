@@ -31,21 +31,20 @@ fn painted(fixture: &Fixture) -> String {
 
 /// A Mixed hex field shows no colour text, and typed hex text sets the value.
 #[trial]
-fn a_mixed_hex_field_shows_no_text_and_takes_typed_hex() {
-    let (mut fixture, value, _) = rig();
-    assert!(!painted(&fixture).contains('#'), "a Mixed hex field shows no hex text: {:?}", painted(&fixture));
-    fixture.type_text("ff0000");
-    fixture.key(Key::Enter, Modifiers::NONE);
-    assert_eq!(*value.borrow(), Mixed::Same(Rgba::rgb(255, 0, 0)), "typed hex text became the value");
-}
-
-/// Enter on text that was emptied sends no event and the value stays Mixed.
-#[trial]
-fn enter_on_empty_text_leaves_a_mixed_field_mixed() {
-    let (mut fixture, value, events) = rig();
-    fixture.type_text("f");
-    fixture.key(Key::Backspace, Modifiers::NONE);
-    fixture.key(Key::Enter, Modifiers::NONE);
-    assert_eq!(*value.borrow(), Mixed::Mixed, "empty text is not a colour");
-    assert_eq!(events.get(), 0, "no event for empty text");
+fn a_mixed_field_shows_no_text_commits_typed_text_and_ignores_empty() {
+    {
+        let (mut fixture, value, _) = rig();
+        assert!(!painted(&fixture).contains('#'), "a Mixed hex field shows no hex text: {:?}", painted(&fixture));
+        fixture.type_text("ff0000");
+        fixture.key(Key::Enter, Modifiers::NONE);
+        assert_eq!(*value.borrow(), Mixed::Same(Rgba::rgb(255, 0, 0)), "typed hex text became the value");
+    }
+    {
+        let (mut fixture, value, events) = rig();
+        fixture.type_text("f");
+        fixture.key(Key::Backspace, Modifiers::NONE);
+        fixture.key(Key::Enter, Modifiers::NONE);
+        assert_eq!(*value.borrow(), Mixed::Mixed, "empty text is not a colour");
+        assert_eq!(events.get(), 0, "no event for empty text");
+    }
 }

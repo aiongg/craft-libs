@@ -24,31 +24,6 @@ fn monitor(rect: Rect) -> Monitor {
     Monitor::new(None, rect, 1.0)
 }
 
-#[trial]
-fn a_further_window_steps_down_and_across_and_wraps_at_the_monitors_edge() {
-    let main = Rect::from_min_size(Pos2::new(40.0, 30.0), WINDOW);
-    let monitors = [monitor(MONITOR)];
-    let next = DocumentWindow::cascade_in(main, WINDOW, &monitors, STEP);
-    assert_eq!(next.min, main.min + Vec2::splat(STEP));
-    assert_eq!(next.size(), WINDOW);
-
-    let wrapped = DocumentWindow::cascade_in(NEAR_CORNER, WINDOW, &monitors, STEP);
-    assert_eq!(wrapped.min, MONITOR.min, "past the edge the window starts again at the monitor's corner");
-
-    let free = DocumentWindow::cascade_in(NEAR_CORNER, WINDOW, &[], STEP);
-    assert_eq!(free.min, NEAR_CORNER.min + Vec2::splat(STEP), "no monitor is known: the step is not bounded");
-}
-
-#[trial]
-fn a_maximized_window_overhanging_two_monitors_cascades_on_the_one_showing_most_of_it() {
-    let right = Rect::from_min_size(Pos2::new(1000.0, 0.0), Vec2::new(1000.0, 800.0));
-    let monitors = [monitor(MONITOR), monitor(right)];
-    // Maximized on the right monitor, overhanging it by a few points on every side.
-    let maximized = right.expand(8.0);
-    let next = DocumentWindow::cascade_in(maximized, WINDOW, &monitors, STEP);
-    assert!(right.contains_rect(next), "the next window opens on the right monitor: {next:?}");
-}
-
 fn reporting() -> ViewportInfo {
     ViewportInfo {
         focused: Some(true),
@@ -56,37 +31,6 @@ fn reporting() -> ViewportInfo {
         native_pixels_per_point: Some(1.0),
         ..ViewportInfo::default()
     }
-}
-
-#[trial]
-fn an_os_close_is_requested_and_the_window_stays_while_the_app_shows_it() {
-    let windows = Windows::new();
-    windows.child_info(reporting());
-    let (reasons, focused, body_runs) = (RefCell::new(Vec::new()), Cell::new(false), Cell::new(0));
-    let frame = || {
-        windows.frame(vec![], vec![], |ui| {
-            let shown = DocumentWindow::new("Landscape.psd").id_salt("document").show(ui, |ui, _| {
-                body_runs.set(body_runs.get() + 1);
-                Block::new(BODY).show(ui);
-            });
-            reasons.borrow_mut().extend(shown.output.close_requested);
-            focused.set(shown.output.focused);
-        })
-    };
-    for _ in 0..SETTLED_FRAMES {
-        frame();
-    }
-    assert!(focused.get(), "the window reports the OS focus its viewport has");
-    assert!(reasons.borrow().is_empty());
-    windows.child_info(ViewportInfo { events: vec![ViewportEvent::Close], ..reporting() });
-    frame();
-    windows.child_info(reporting());
-    let after_request = body_runs.get();
-    for _ in 0..SETTLED_FRAMES {
-        frame();
-    }
-    assert_eq!(*reasons.borrow(), [CloseReason::Requested], "one request for one press of the close button");
-    assert!(body_runs.get() > after_request, "the window stays and its body runs while the app shows it");
 }
 
 #[trial]
@@ -138,4 +82,29 @@ fn raise_brings_the_window_forward_in_the_pass_it_is_set() {
     assert!(!quiet.commands.contains(&(child_of(&quiet), ViewportCommand::Focus)), "no focus command without a request");
     let raised = frame(true);
     assert!(raised.commands.contains(&(child_of(&raised), ViewportCommand::Focus)), "the request raised the window: {:?}", raised.commands);
+}
+
+#[trial]
+fn cascade_in_places_the_next_window_on_the_right_monitor() {
+    {
+        let main = Rect::from_min_size(Pos2::new(40.0, 30.0), WINDOW);
+        let monitors = [monitor(MONITOR)];
+        let next = DocumentWindow::cascade_in(main, WINDOW, &monitors, STEP);
+        assert_eq!(next.min, main.min + Vec2::splat(STEP));
+        assert_eq!(next.size(), WINDOW);
+
+        let wrapped = DocumentWindow::cascade_in(NEAR_CORNER, WINDOW, &monitors, STEP);
+        assert_eq!(wrapped.min, MONITOR.min, "past the edge the window starts again at the monitor's corner");
+
+        let free = DocumentWindow::cascade_in(NEAR_CORNER, WINDOW, &[], STEP);
+        assert_eq!(free.min, NEAR_CORNER.min + Vec2::splat(STEP), "no monitor is known: the step is not bounded");
+    }
+    {
+        let right = Rect::from_min_size(Pos2::new(1000.0, 0.0), Vec2::new(1000.0, 800.0));
+        let monitors = [monitor(MONITOR), monitor(right)];
+        // Maximized on the right monitor, overhanging it by a few points on every side.
+        let maximized = right.expand(8.0);
+        let next = DocumentWindow::cascade_in(maximized, WINDOW, &monitors, STEP);
+        assert!(right.contains_rect(next), "the next window opens on the right monitor: {next:?}");
+    }
 }

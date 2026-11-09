@@ -297,32 +297,31 @@ fn show_probe(ui: &mut Ui, props: CollectionProps, layout: &Ragged, source: &dyn
 /// Down in a ragged grid goes to the item below, which needs the layout's row lengths.
 #[trial]
 fn down_in_a_ragged_grid_moves_to_the_item_below() {
-    let (seen, layout) = (Seen::default(), Ragged { rows: vec![3, 2, 3], hidden_from: 8 });
-    let source = Count(8);
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| show_probe(ui, CollectionProps::new().select(SelectMode::Single), &layout, &source, &seen);
-    frames.idle(3, &mut show);
-    focus(&mut frames, &seen, &mut show);
-    press(&mut frames, Key::ArrowDown, &mut show);
-    press(&mut frames, Key::ArrowRight, &mut show);
-    press(&mut frames, Key::ArrowDown, &mut show);
-    assert_eq!(seen.lead_keys(), vec![0, 1, 4], "the second item of the first row goes to the second item of the second");
-}
-
-/// End lands on the last item that shows, and no item of a closed group is built with an unplaced rect.
-#[trial]
-fn end_skips_the_items_of_a_closed_group() {
-    let (seen, layout) = (Seen::default(), Ragged { rows: vec![3, 2, 3], hidden_from: 5 });
-    let source = Count(8);
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| show_probe(ui, CollectionProps::new().select(SelectMode::Single), &layout, &source, &seen);
-    frames.idle(3, &mut show);
-    focus(&mut frames, &seen, &mut show);
-    press(&mut frames, Key::End, &mut show);
-    press(&mut frames, Key::ArrowDown, &mut show);
-    assert_eq!(seen.lead_keys(), vec![4], "End takes the last shown item, and Down past it stays");
-    let rows = seen.rows.borrow();
-    assert!(rows.iter().all(|(key, rect)| *key < 5 && rect.is_finite()), "only shown items are built: {rows:?}");
+    {
+        let (seen, layout) = (Seen::default(), Ragged { rows: vec![3, 2, 3], hidden_from: 8 });
+        let source = Count(8);
+        let mut frames = Frames::new();
+        let mut show = |ui: &mut Ui| show_probe(ui, CollectionProps::new().select(SelectMode::Single), &layout, &source, &seen);
+        frames.idle(3, &mut show);
+        focus(&mut frames, &seen, &mut show);
+        press(&mut frames, Key::ArrowDown, &mut show);
+        press(&mut frames, Key::ArrowRight, &mut show);
+        press(&mut frames, Key::ArrowDown, &mut show);
+        assert_eq!(seen.lead_keys(), vec![0, 1, 4], "the second item of the first row goes to the second item of the second");
+    }
+    {
+        let (seen, layout) = (Seen::default(), Ragged { rows: vec![3, 2, 3], hidden_from: 5 });
+        let source = Count(8);
+        let mut frames = Frames::new();
+        let mut show = |ui: &mut Ui| show_probe(ui, CollectionProps::new().select(SelectMode::Single), &layout, &source, &seen);
+        frames.idle(3, &mut show);
+        focus(&mut frames, &seen, &mut show);
+        press(&mut frames, Key::End, &mut show);
+        press(&mut frames, Key::ArrowDown, &mut show);
+        assert_eq!(seen.lead_keys(), vec![4], "End takes the last shown item, and Down past it stays");
+        let rows = seen.rows.borrow();
+        assert!(rows.iter().all(|(key, rect)| *key < 5 && rect.is_finite()), "only shown items are built: {rows:?}");
+    }
 }
 
 /// A collection that takes digits receives them, and the other typed text still moves the lead by type-ahead.

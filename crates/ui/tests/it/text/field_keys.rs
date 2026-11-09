@@ -41,31 +41,6 @@ fn shift_enter_submits_a_single_line_field_and_reports_its_modifiers() {
     assert_eq!(*text.borrow(), "hi", "neither Enter changes the text");
 }
 
-/// Cmd+Enter (Ctrl+Enter off macOS) submits a multi-line field that submits and adds no line; Enter adds a line and
-/// does not submit.
-#[trial]
-fn cmd_enter_submits_a_multi_line_field_and_enter_adds_a_line() {
-    for os in [Os::Linux, Os::Mac] {
-        let (mut fixture, text, submitted) = focused_field(os, |field| field.lines(3).submits());
-        fixture.key(Key::Enter, Modifiers::COMMAND).idle(3);
-        assert_eq!(submitted.get().map(|mods| mods.cmd), Some(true), "{os:?}: Cmd+Enter submits");
-        assert_eq!(*text.borrow(), "hi", "{os:?}: Cmd+Enter adds no line break");
-        submitted.set(None);
-        fixture.key(Key::Enter, Modifiers::NONE).idle(3);
-        assert_eq!(submitted.get(), None, "{os:?}: Enter does not submit");
-        assert!(text.borrow().contains('\n'), "{os:?}: Enter adds a line");
-    }
-}
-
-/// A multi-line field without `submits()` leaves Cmd+Enter alone.
-#[trial]
-fn cmd_enter_does_not_submit_a_multi_line_field_that_does_not_submit() {
-    let (mut fixture, text, submitted) = focused_field(Os::Linux, |field| field.lines(3));
-    fixture.key(Key::Enter, Modifiers::COMMAND).idle(3);
-    assert_eq!(submitted.get(), None, "no submit");
-    assert_eq!(*text.borrow(), "hi", "and no line break");
-}
-
 /// A body holding a clearing search field: the first Escape clears the text and the body gets none; the second goes
 /// on to the body, which takes it, so the dialog around it stays open.
 #[trial]
@@ -94,4 +69,28 @@ fn the_escape_an_emptied_search_field_passes_on_reaches_its_body() {
     fixture.key(Key::Escape, Modifiers::NONE).idle(3);
     assert_eq!(taken.get(), 1, "the second Escape reached the body once");
     assert!(open.get(), "the body took it, so the dialog did not close");
+}
+
+/// Cmd+Enter (Ctrl+Enter off macOS) submits a multi-line field that submits and adds no line; Enter adds a line and
+/// does not submit.
+#[trial]
+fn cmd_enter_submits_only_a_multi_line_field_that_submits() {
+    {
+        for os in [Os::Linux, Os::Mac] {
+            let (mut fixture, text, submitted) = focused_field(os, |field| field.lines(3).submits());
+            fixture.key(Key::Enter, Modifiers::COMMAND).idle(3);
+            assert_eq!(submitted.get().map(|mods| mods.cmd), Some(true), "{os:?}: Cmd+Enter submits");
+            assert_eq!(*text.borrow(), "hi", "{os:?}: Cmd+Enter adds no line break");
+            submitted.set(None);
+            fixture.key(Key::Enter, Modifiers::NONE).idle(3);
+            assert_eq!(submitted.get(), None, "{os:?}: Enter does not submit");
+            assert!(text.borrow().contains('\n'), "{os:?}: Enter adds a line");
+        }
+    }
+    {
+        let (mut fixture, text, submitted) = focused_field(Os::Linux, |field| field.lines(3));
+        fixture.key(Key::Enter, Modifiers::COMMAND).idle(3);
+        assert_eq!(submitted.get(), None, "no submit");
+        assert_eq!(*text.borrow(), "hi", "and no line break");
+    }
 }

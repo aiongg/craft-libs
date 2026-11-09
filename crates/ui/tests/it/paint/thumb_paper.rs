@@ -40,15 +40,15 @@ fn under_the_picture(shapes: &[Shape]) -> (Rect, Vec<Color32>) {
 }
 
 #[trial]
-fn paper_fills_under_the_picture_where_the_grid_would_be() {
-    let (_, grid) = under_the_picture(&shapes(ThumbPaint::default()));
-    assert!(grid.len() > 1 && !grid.contains(&PAPER), "the default paints the checkerboard's cells: {grid:?}");
-    let (_, paper) = under_the_picture(&shapes(ThumbPaint::default().paper(DataColor::new(PAPER))));
-    assert_eq!(paper, vec![PAPER], "the paper is the one fill under the picture and no cell of the grid");
-}
-
-#[trial]
-fn paper_wins_over_the_checker() {
-    let (_, both) = under_the_picture(&shapes(ThumbPaint::default().checker(true).paper(DataColor::new(PAPER))));
-    assert_eq!(both, vec![PAPER], "set together, the paper paints and the grid does not");
+fn paper_fills_under_the_picture_in_place_of_the_grid_even_with_the_checker_set() {
+    {
+        let (_, grid) = under_the_picture(&shapes(ThumbPaint::default()));
+        assert!(grid.len() > 1 && !grid.contains(&PAPER), "the default paints the checkerboard's cells: {grid:?}");
+        let (_, paper) = under_the_picture(&shapes(ThumbPaint::default().paper(DataColor::new(PAPER))));
+        assert_eq!(paper, vec![PAPER], "the paper is the one fill under the picture and no cell of the grid");
+    }
+    {
+        let (_, both) = under_the_picture(&shapes(ThumbPaint::default().checker(true).paper(DataColor::new(PAPER))));
+        assert_eq!(both, vec![PAPER], "set together, the paper paints and the grid does not");
+    }
 }

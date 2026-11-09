@@ -13,62 +13,6 @@ fn chips(items: &[&str]) -> Vec<String> {
     items.iter().map(|item| (*item).to_owned()).collect()
 }
 
-/// A draft names one chip per piece between separators, trimmed; pieces already in the list and empty pieces add
-/// nothing, and the new chips follow the old ones in the order typed.
-#[trial]
-fn a_draft_adds_its_pieces_after_the_existing_chips() {
-    let codec = ChipCodec::default();
-    let start = chips(&["kite"]);
-    assert_eq!(codec.parse("red, beach ;kite,, \n sky", &start), Ok(chips(&["kite", "red", "beach", "sky"])));
-    assert_eq!(codec.parse("  ,; ", &start), Ok(start.clone()), "a draft of separators adds nothing");
-    assert_eq!(codec.parse("red, red", &Vec::new()), Ok(chips(&["red"])), "a piece the draft names twice is added once");
-    assert_eq!(codec.parse("two words", &Vec::new()), Ok(chips(&["two words"])), "a space does not end a chip");
-}
-
-/// The text part shows only the draft: committing leaves it empty, whatever the chips are.
-#[trial]
-fn the_draft_text_is_empty_after_a_commit() {
-    let codec = ChipCodec::default();
-    let value = chips(&["kite", "red"]);
-    assert_eq!(codec.format(&value), "");
-    assert_eq!(codec.normalise("red", &value), "");
-}
-
-/// Typing a comma commits the draft as a chip, empties the draft, and the comma is in no chip.
-#[trial]
-fn typing_a_comma_adds_the_chip_and_empties_the_draft() {
-    let value = Rc::new(RefCell::new(Vec::<String>::new()));
-    let shown = value.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        ChipField::new("Keywords", Bind::bound(&mut *shown.borrow_mut())).show(ui);
-    });
-    fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.type_text("red,");
-    fixture.idle(3);
-    assert_eq!(*value.borrow(), chips(&["red"]), "the comma ended the chip and is not part of it");
-    assert!(fixture.by_label("Keywords").is_some());
-    assert!(fixture.texts().iter().all(|run| !run.text.contains("red,")), "the draft shows no separator");
-    fixture.type_text("blue;");
-    fixture.idle(3);
-    assert_eq!(*value.borrow(), chips(&["red", "blue"]), "a semicolon also commits");
-}
-
-/// The chip a comma commits is shown in the frame of the comma, not a frame later.
-#[trial]
-fn a_committed_chip_is_shown_in_the_same_frame() {
-    let value = Rc::new(RefCell::new(Vec::<String>::new()));
-    let shown = value.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        ChipField::new("Keywords", Bind::bound(&mut *shown.borrow_mut())).show(ui);
-    });
-    fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.type_text("red,");
-    assert_eq!(*value.borrow(), chips(&["red"]));
-    assert!(fixture.texts().iter().any(|run| run.text == "red"), "the new chip is painted in the frame that added it");
-}
-
 /// Backspace in an empty draft focuses the last chip and removes nothing; Backspace on that chip removes it and
 /// returns focus to the draft; Delete in an empty draft does nothing.
 #[trial]
@@ -106,4 +50,58 @@ fn backspace_in_an_empty_draft_focuses_the_last_chip_then_removes_it() {
     press(&mut fixture, Key::Backspace);
     assert_eq!(*value.borrow(), chips(&["kite"]), "Backspace on a focused chip removes it");
     assert_eq!(part(&fixture), None, "focus returns to the draft when no chip follows");
+}
+
+/// A draft names one chip per piece between separators, trimmed; pieces already in the list and empty pieces add
+/// nothing, and the new chips follow the old ones in the order typed.
+#[trial]
+fn the_chip_codec_parses_a_draft_and_leaves_no_draft_text() {
+    {
+        let codec = ChipCodec::default();
+        let start = chips(&["kite"]);
+        assert_eq!(codec.parse("red, beach ;kite,, \n sky", &start), Ok(chips(&["kite", "red", "beach", "sky"])));
+        assert_eq!(codec.parse("  ,; ", &start), Ok(start.clone()), "a draft of separators adds nothing");
+        assert_eq!(codec.parse("red, red", &Vec::new()), Ok(chips(&["red"])), "a piece the draft names twice is added once");
+        assert_eq!(codec.parse("two words", &Vec::new()), Ok(chips(&["two words"])), "a space does not end a chip");
+    }
+    {
+        let codec = ChipCodec::default();
+        let value = chips(&["kite", "red"]);
+        assert_eq!(codec.format(&value), "");
+        assert_eq!(codec.normalise("red", &value), "");
+    }
+}
+
+/// Typing a comma commits the draft as a chip, empties the draft, and the comma is in no chip.
+#[trial]
+fn a_separator_commits_a_chip_shown_in_the_same_frame() {
+    {
+        let value = Rc::new(RefCell::new(Vec::<String>::new()));
+        let shown = value.clone();
+        let mut fixture = Fixture::new(move |ui| {
+            ChipField::new("Keywords", Bind::bound(&mut *shown.borrow_mut())).show(ui);
+        });
+        fixture.settle();
+        fixture.key(Key::Tab, Modifiers::NONE);
+        fixture.type_text("red,");
+        fixture.idle(3);
+        assert_eq!(*value.borrow(), chips(&["red"]), "the comma ended the chip and is not part of it");
+        assert!(fixture.by_label("Keywords").is_some());
+        assert!(fixture.texts().iter().all(|run| !run.text.contains("red,")), "the draft shows no separator");
+        fixture.type_text("blue;");
+        fixture.idle(3);
+        assert_eq!(*value.borrow(), chips(&["red", "blue"]), "a semicolon also commits");
+    }
+    {
+        let value = Rc::new(RefCell::new(Vec::<String>::new()));
+        let shown = value.clone();
+        let mut fixture = Fixture::new(move |ui| {
+            ChipField::new("Keywords", Bind::bound(&mut *shown.borrow_mut())).show(ui);
+        });
+        fixture.settle();
+        fixture.key(Key::Tab, Modifiers::NONE);
+        fixture.type_text("red,");
+        assert_eq!(*value.borrow(), chips(&["red"]));
+        assert!(fixture.texts().iter().any(|run| run.text == "red"), "the new chip is painted in the frame that added it");
+    }
 }

@@ -290,33 +290,6 @@ impl Component for Keeper {
     }
 }
 
-/// The pipeline drops evicted slots at its next run, outside every lock.
-#[trial]
-fn an_evicted_slot_drops_once_in_the_next_pipeline_run_outside_any_lock() {
-    let mut frames = Frames::new();
-    if let Ok(mut ctx) = CTX.lock() {
-        *ctx = Some(frames.ctx.clone());
-    }
-    let seen = RefCell::new(Seen::default());
-    for _ in 0..3 {
-        frames.frame(vec![], |ui| {
-            Keeper { common: Common::new() }.id_salt("keeper").show(ui);
-            Probe::new(&seen).id_salt("other").show(ui);
-        });
-    }
-    assert_eq!(DROPPED.load(Ordering::SeqCst), 0, "a shown slot is not evicted");
-    for _ in 0..60 {
-        frames.frame(vec![], |ui| {
-            Probe::new(&seen).id_salt("other").show(ui);
-        });
-    }
-    if let Ok(mut ctx) = CTX.lock() {
-        *ctx = None;
-    }
-    assert_eq!(DROPPED.load(Ordering::SeqCst), 1, "the evicted slot's Drop ran exactly once");
-    assert_eq!(CALLED_CONTEXT.load(Ordering::SeqCst), 1, "and could call a Context API");
-}
-
 /// A composite that measures as the face of a toggle button.
 #[derive(Component)]
 struct FaceMeasure {

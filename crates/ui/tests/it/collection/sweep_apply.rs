@@ -129,32 +129,37 @@ impl Host {
 /// Each switch the pointer crosses applies at once, and Escape puts all of them back.
 #[trial]
 fn a_sweep_flips_each_switch_live_and_escape_restores_all() {
-    let host = Host::new(&[false; 4]);
-    host.sweep_down();
-    assert_eq!(host.state(), vec![true, true, true, false], "the crossed switches are on while the pointer is down");
-    host.frame(vec![input::key_press(Key::Escape, Modifiers::NONE)]);
-    host.idle(2);
-    assert_eq!(host.state(), vec![false; 4], "Escape restores every crossed switch");
-}
-
-/// A lost press capture restores the sweep the same way.
-#[trial]
-fn a_lost_capture_restores_the_sweep() {
-    let host = Host::new(&[false; 4]);
-    host.sweep_down();
-    host.frame(vec![pointer::window_blurred()]);
-    host.idle(2);
-    assert_eq!(host.state(), vec![false; 4]);
-}
-
-/// Releasing keeps the switches the sweep flipped.
-#[trial]
-fn releasing_a_sweep_keeps_the_switches() {
-    let host = Host::new(&[false; 4]);
-    host.sweep_down();
-    host.frame(vec![pointer::release(host.cell(2))]);
-    host.idle(2);
-    assert_eq!(host.state(), vec![true, true, true, false]);
+    {
+        let host = Host::new(&[false; 4]);
+        host.sweep_down();
+        assert_eq!(host.state(), vec![true, true, true, false], "the crossed switches are on while the pointer is down");
+        host.frame(vec![input::key_press(Key::Escape, Modifiers::NONE)]);
+        host.idle(2);
+        assert_eq!(host.state(), vec![false; 4], "Escape restores every crossed switch");
+    }
+    {
+        let host = Host::new(&[false; 4]);
+        host.sweep_down();
+        host.frame(vec![pointer::window_blurred()]);
+        host.idle(2);
+        assert_eq!(host.state(), vec![false; 4]);
+    }
+    {
+        let host = Host::new(&[false; 4]);
+        host.sweep_down();
+        host.frame(vec![pointer::release(host.cell(2))]);
+        host.idle(2);
+        assert_eq!(host.state(), vec![true, true, true, false]);
+    }
+    {
+        let host = Host::new(&[false; 4]);
+        assert_eq!(host.apply.borrow().gesture(), None);
+        host.sweep_down();
+        assert!(host.apply.borrow().gesture().is_some(), "a sweep runs");
+        host.frame(vec![pointer::release(host.cell(2))]);
+        host.idle(2);
+        assert_eq!(host.apply.borrow().gesture(), None, "the release ended it");
+    }
 }
 
 /// An Alt sweep on a plain column ignores Alt: it flips every crossed row and Escape restores all of them.
@@ -170,40 +175,27 @@ fn an_alt_sweep_on_a_plain_column_flips_every_row_and_escape_restores_them() {
     assert_eq!(host.state(), vec![false; 4]);
 }
 
-/// An Alt sweep on a show-only column shows only the first row; Escape undoes it.
-#[trial]
-fn escape_undoes_an_alt_show_only_sweep() {
-    let host = Host::with(&[false, true, true, true], SweepApply::show_only());
-    host.frames.borrow_mut().hold(Modifiers::ALT);
-    host.sweep_down();
-    assert_eq!(host.state(), vec![true, false, false, false]);
-    host.frame(vec![input::key_press(Key::Escape, Modifiers::NONE)]);
-    host.idle(2);
-    assert_eq!(host.state(), vec![false, true, true, true]);
-}
-
-/// The sweep's gesture is known while the pointer is down and gone after the release.
-#[trial]
-fn the_gesture_is_known_only_during_a_sweep() {
-    let host = Host::new(&[false; 4]);
-    assert_eq!(host.apply.borrow().gesture(), None);
-    host.sweep_down();
-    assert!(host.apply.borrow().gesture().is_some(), "a sweep runs");
-    host.frame(vec![pointer::release(host.cell(2))]);
-    host.idle(2);
-    assert_eq!(host.apply.borrow().gesture(), None, "the release ended it");
-}
-
 /// An Alt sweep on a show-only column shows only its first row once; the rows it crosses afterwards change nothing.
 #[trial]
 fn an_alt_sweep_shows_only_the_first_row_once() {
-    let host = Host::with(&[false, true, true, true], SweepApply::show_only());
-    host.frames.borrow_mut().hold(Modifiers::ALT);
-    host.sweep_down();
-    assert_eq!(host.state(), vec![true, false, false, false], "only the first row shows");
-    assert_eq!(*host.show_only.borrow(), 1, "the rule applied once, not for every crossing");
-    host.frame(vec![pointer::release(host.cell(2))]);
-    host.idle(2);
-    assert_eq!(host.state(), vec![true, false, false, false]);
-    assert_eq!(*host.show_only.borrow(), 1);
+    {
+        let host = Host::with(&[false, true, true, true], SweepApply::show_only());
+        host.frames.borrow_mut().hold(Modifiers::ALT);
+        host.sweep_down();
+        assert_eq!(host.state(), vec![true, false, false, false], "only the first row shows");
+        assert_eq!(*host.show_only.borrow(), 1, "the rule applied once, not for every crossing");
+        host.frame(vec![pointer::release(host.cell(2))]);
+        host.idle(2);
+        assert_eq!(host.state(), vec![true, false, false, false]);
+        assert_eq!(*host.show_only.borrow(), 1);
+    }
+    {
+        let host = Host::with(&[false, true, true, true], SweepApply::show_only());
+        host.frames.borrow_mut().hold(Modifiers::ALT);
+        host.sweep_down();
+        assert_eq!(host.state(), vec![true, false, false, false]);
+        host.frame(vec![input::key_press(Key::Escape, Modifiers::NONE)]);
+        host.idle(2);
+        assert_eq!(host.state(), vec![false, true, true, true]);
+    }
 }

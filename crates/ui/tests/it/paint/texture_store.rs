@@ -134,48 +134,6 @@ fn frame(frames: &mut Frames, run: impl FnOnce()) {
 }
 
 #[trial]
-fn a_key_asked_in_several_frames_runs_one_job() {
-    let mut frames = Frames::new();
-    let ctx = frames.ctx.clone();
-    let (loader, jobs) = loader_with(&ctx, 1, 16);
-    let runs = Arc::new(AtomicUsize::new(0));
-    for _ in 0..QUIET_FRAMES {
-        frame(&mut frames, || {
-            let state = loader.request(&ctx, &1, Revision::new(1), Priority::VISIBLE, || counted(&runs, SMALL));
-            assert!(matches!(state, TextureState::Loading { .. }));
-        });
-    }
-    jobs.run_all();
-    frame(&mut frames, || {
-        assert!(ready(&loader.request(&ctx, &1, Revision::new(1), Priority::VISIBLE, || counted(&runs, SMALL))));
-    });
-    assert_eq!(runs.load(Ordering::Relaxed), 1);
-}
-
-#[trial]
-fn jobs_nobody_asked_for_in_two_frames_are_dropped() {
-    let mut frames = Frames::new();
-    let ctx = frames.ctx.clone();
-    let (loader, jobs) = loader_with(&ctx, 1, 16);
-    let runs = [0, 1, 2].map(|_| Arc::new(AtomicUsize::new(0)));
-    let ask = |key: u32| {
-        loader.request(&ctx, &key, Revision::new(1), Priority::VISIBLE, || counted(&runs[key as usize - 1], SMALL));
-    };
-    frame(&mut frames, || [1, 2].into_iter().for_each(ask));
-    frame(&mut frames, || ask(1));
-    frame(&mut frames, || ask(3));
-    jobs.run_all();
-    frame(&mut frames, || {
-        for key in [1, 2, 3] {
-            loader.ask(&ctx, &key, Revision::new(1), Priority::VISIBLE);
-        }
-    });
-    assert_eq!(runs.each_ref().map(|runs| runs.load(Ordering::Relaxed)), [1, 0, 1]);
-    let stored = |key| ready(&loader.cache().state(&ctx, &key, Revision::new(1)));
-    assert_eq!([stored(1), stored(2), stored(3)], [true, false, true]);
-}
-
-#[trial]
 fn a_result_of_an_older_revision_is_discarded() {
     let mut frames = Frames::new();
     let ctx = frames.ctx.clone();
@@ -234,4 +192,46 @@ fn without_a_host_a_job_runs_off_the_calling_thread() {
     });
     let ran_on = receiver.recv_timeout(std::time::Duration::from_secs(10)).expect("the job runs");
     assert_ne!(ran_on, std::thread::current().id(), "the job does not run on the UI thread");
+}
+
+#[trial]
+fn the_loader_runs_one_job_per_asked_key_and_drops_unasked_jobs() {
+    {
+        let mut frames = Frames::new();
+        let ctx = frames.ctx.clone();
+        let (loader, jobs) = loader_with(&ctx, 1, 16);
+        let runs = Arc::new(AtomicUsize::new(0));
+        for _ in 0..QUIET_FRAMES {
+            frame(&mut frames, || {
+                let state = loader.request(&ctx, &1, Revision::new(1), Priority::VISIBLE, || counted(&runs, SMALL));
+                assert!(matches!(state, TextureState::Loading { .. }));
+            });
+        }
+        jobs.run_all();
+        frame(&mut frames, || {
+            assert!(ready(&loader.request(&ctx, &1, Revision::new(1), Priority::VISIBLE, || counted(&runs, SMALL))));
+        });
+        assert_eq!(runs.load(Ordering::Relaxed), 1);
+    }
+    {
+        let mut frames = Frames::new();
+        let ctx = frames.ctx.clone();
+        let (loader, jobs) = loader_with(&ctx, 1, 16);
+        let runs = [0, 1, 2].map(|_| Arc::new(AtomicUsize::new(0)));
+        let ask = |key: u32| {
+            loader.request(&ctx, &key, Revision::new(1), Priority::VISIBLE, || counted(&runs[key as usize - 1], SMALL));
+        };
+        frame(&mut frames, || [1, 2].into_iter().for_each(ask));
+        frame(&mut frames, || ask(1));
+        frame(&mut frames, || ask(3));
+        jobs.run_all();
+        frame(&mut frames, || {
+            for key in [1, 2, 3] {
+                loader.ask(&ctx, &key, Revision::new(1), Priority::VISIBLE);
+            }
+        });
+        assert_eq!(runs.each_ref().map(|runs| runs.load(Ordering::Relaxed)), [1, 0, 1]);
+        let stored = |key| ready(&loader.cache().state(&ctx, &key, Revision::new(1)));
+        assert_eq!([stored(1), stored(2), stored(3)], [true, false, true]);
+    }
 }

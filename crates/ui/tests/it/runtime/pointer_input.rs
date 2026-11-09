@@ -134,22 +134,48 @@ fn a_small_part_is_hit_within_the_target_size() {
 /// Ctrl or Cmd with the wheel zooms and does not also scroll.
 #[trial]
 fn the_zoom_modifier_wheel_zooms_and_does_not_scroll() {
-    let panel = ProbeRoot::id("zoom_panel");
-    let area = rect(0.0, 0.0, 400.0, 400.0);
-    let read = Cell::new((None, 1.0));
-    let mut show_frame = |ui: &mut Ui| {
-        register(ui.ctx(), WheelTaker::new(panel, area).vertical(true));
-        read.set((take(ui.ctx(), panel), frame(ui.ctx()).zoom));
-    };
-    let mut frames = Frames::new();
-    frames.idle(2, &mut show_frame);
-    frames.frame(vec![pointer::moved(Pos2::new(50.0, 50.0))], &mut show_frame);
-    frames.frame(vec![pointer::wheel(-30.0)], &mut show_frame);
-    assert_eq!(read.get(), (Some(Vec2::new(0.0, -30.0)), 1.0), "control: a plain wheel scrolls");
-    frames.frame(vec![pointer::zoom_wheel(-30.0)], &mut show_frame);
-    let (scroll, zoom) = read.get();
-    assert!(zoom != 1.0, "the pass zooms");
-    assert!(scroll.is_none_or(|scroll| scroll == Vec2::ZERO), "and scrolls nothing: {scroll:?}");
+    {
+        let panel = ProbeRoot::id("zoom_panel");
+        let area = rect(0.0, 0.0, 400.0, 400.0);
+        let read = Cell::new((None, 1.0));
+        let mut show_frame = |ui: &mut Ui| {
+            register(ui.ctx(), WheelTaker::new(panel, area).vertical(true));
+            read.set((take(ui.ctx(), panel), frame(ui.ctx()).zoom));
+        };
+        let mut frames = Frames::new();
+        frames.idle(2, &mut show_frame);
+        frames.frame(vec![pointer::moved(Pos2::new(50.0, 50.0))], &mut show_frame);
+        frames.frame(vec![pointer::wheel(-30.0)], &mut show_frame);
+        assert_eq!(read.get(), (Some(Vec2::new(0.0, -30.0)), 1.0), "control: a plain wheel scrolls");
+        frames.frame(vec![pointer::zoom_wheel(-30.0)], &mut show_frame);
+        let (scroll, zoom) = read.get();
+        assert!(zoom != 1.0, "the pass zooms");
+        assert!(scroll.is_none_or(|scroll| scroll == Vec2::ZERO), "and scrolls nothing: {scroll:?}");
+    }
+    {
+        let panel = ProbeRoot::id("sideways_panel");
+        let area = rect(0.0, 0.0, 400.0, 400.0);
+        let read = Cell::new(None);
+        let mut show_frame = |ui: &mut Ui| {
+            register(ui.ctx(), WheelTaker::new(panel, area).vertical(true).horizontal(true).scrolls(true).zoom(true));
+            read.set(take_share(ui.ctx(), panel));
+        };
+        let mut frames = Frames::new();
+        frames.idle(2, &mut show_frame);
+        let at = Pos2::new(50.0, 60.0);
+        frames.frame(vec![pointer::moved(at)], &mut show_frame);
+        let shift = egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Point,
+            delta: Vec2::new(0.0, -30.0),
+            phase: egui::TouchPhase::Move,
+            modifiers: egui::Modifiers::SHIFT,
+            source: egui::MouseWheelSource::Wheel,
+        };
+        frames.frame(vec![shift], &mut show_frame);
+        assert_eq!(read.get().map(|share| share.scroll), Some(Vec2::new(-30.0, 0.0)), "the vertical wheel scrolls along x under Shift");
+        frames.frame(vec![pointer::zoom_wheel(-30.0)], &mut show_frame);
+        assert_eq!(read.get().and_then(|share| share.at), Some(at), "the zoom is about the pointer");
+    }
 }
 
 /// A press on a member of an arena arms the member's value control for the wheel.
@@ -201,31 +227,4 @@ fn a_press_open_while_the_control_turns_disabled_never_activates() {
     frames.frame(vec![pointer::release(at)], &mut show_frame);
     frames.idle(2, &mut show_frame);
     assert_eq!(activations.get(), 0);
-}
-
-/// Shift with the wheel scrolls sideways, and a zoom share names the pointer it is about.
-#[trial]
-fn shift_wheel_scrolls_sideways_and_a_zoom_share_names_the_pointer() {
-    let panel = ProbeRoot::id("sideways_panel");
-    let area = rect(0.0, 0.0, 400.0, 400.0);
-    let read = Cell::new(None);
-    let mut show_frame = |ui: &mut Ui| {
-        register(ui.ctx(), WheelTaker::new(panel, area).vertical(true).horizontal(true).scrolls(true).zoom(true));
-        read.set(take_share(ui.ctx(), panel));
-    };
-    let mut frames = Frames::new();
-    frames.idle(2, &mut show_frame);
-    let at = Pos2::new(50.0, 60.0);
-    frames.frame(vec![pointer::moved(at)], &mut show_frame);
-    let shift = egui::Event::MouseWheel {
-        unit: egui::MouseWheelUnit::Point,
-        delta: Vec2::new(0.0, -30.0),
-        phase: egui::TouchPhase::Move,
-        modifiers: egui::Modifiers::SHIFT,
-        source: egui::MouseWheelSource::Wheel,
-    };
-    frames.frame(vec![shift], &mut show_frame);
-    assert_eq!(read.get().map(|share| share.scroll), Some(Vec2::new(-30.0, 0.0)), "the vertical wheel scrolls along x under Shift");
-    frames.frame(vec![pointer::zoom_wheel(-30.0)], &mut show_frame);
-    assert_eq!(read.get().and_then(|share| share.at), Some(at), "the zoom is about the pointer");
 }

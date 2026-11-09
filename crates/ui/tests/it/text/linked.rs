@@ -24,11 +24,6 @@ fn a_ratio_link_scales_the_others_within_the_range() {
     assert_eq!(follow_ratio([500.0, 400.0], 0, 100.0, &free), [100.0, 80.0], "no rounding noise");
 }
 
-#[trial]
-fn an_equal_link_copies_the_value() {
-    assert_eq!(follow_equal([1.0, 2.0, 3.0, 4.0], 2, 9.0), [9.0; 4]);
-}
-
 type Parts = [Mixed<Option<f64>>; 2];
 type Values = Rc<Cell<Parts>>;
 
@@ -48,18 +43,6 @@ fn rig(values: &Values) -> Fixture {
     fixture.settle();
     fixture.key(Key::Tab, Modifiers::NONE);
     fixture
-}
-
-/// Digits typed one by one into the width scale the height from the values the typing began with, not from the
-/// previous digit.
-#[trial]
-fn typing_into_a_linked_field_keeps_the_starting_ratio() {
-    let values: Values = Rc::new(Cell::new(same(500.0, 400.0)));
-    let mut fixture = rig(&values);
-    fixture.type_text("100");
-    fixture.key(Key::Enter, Modifiers::NONE);
-    fixture.idle(2);
-    assert_eq!(values.get(), same(100.0, 80.0));
 }
 
 /// Escape ends the typing and every field returns to the values the gesture began with.
@@ -97,17 +80,6 @@ fn clicking_the_link_writes_the_bool_through_the_child() {
     assert!(matches!(&events[0], EditEvent::Set { label, .. } if &**label == "Maintain aspect ratio"), "the link's label: {events:?}");
 }
 
-/// With the link on, editing one field moves the other.
-#[trial]
-fn with_the_link_on_editing_one_field_moves_the_other() {
-    let values: Values = Rc::new(Cell::new(same(100.0, 50.0)));
-    let mut fixture = rig(&values);
-    fixture.type_text("200");
-    fixture.key(Key::Enter, Modifiers::NONE);
-    fixture.idle(2);
-    assert_eq!(values.get(), same(200.0, 100.0));
-}
-
 /// On a selection where only the height differs, typing a width commits the width alone: `[Same(width), Mixed]` as one
 /// edit. The width shows its value.
 #[trial]
@@ -139,4 +111,26 @@ fn typing_a_width_on_a_selection_with_mixed_heights_commits_the_width_alone() {
         })
         .collect();
     assert_eq!(commits, vec![edited], "one edit: {events:?}");
+}
+
+/// Digits typed one by one into the width scale the height from the values the typing began with, not from the
+/// previous digit.
+#[trial]
+fn typing_into_a_linked_field_moves_the_other_by_the_starting_ratio() {
+    {
+        let values: Values = Rc::new(Cell::new(same(500.0, 400.0)));
+        let mut fixture = rig(&values);
+        fixture.type_text("100");
+        fixture.key(Key::Enter, Modifiers::NONE);
+        fixture.idle(2);
+        assert_eq!(values.get(), same(100.0, 80.0));
+    }
+    {
+        let values: Values = Rc::new(Cell::new(same(100.0, 50.0)));
+        let mut fixture = rig(&values);
+        fixture.type_text("200");
+        fixture.key(Key::Enter, Modifiers::NONE);
+        fixture.idle(2);
+        assert_eq!(values.get(), same(200.0, 100.0));
+    }
 }

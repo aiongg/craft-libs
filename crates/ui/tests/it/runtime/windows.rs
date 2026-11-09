@@ -181,26 +181,50 @@ fn window_info_updates_per_viewport() {
 /// size change, and so does an undecorated window on a platform that delivers the release itself.
 #[trial]
 fn a_press_is_released_after_an_os_resize_of_an_undecorated_window() {
-    let cases =
-        [(Os::Windows, WindowChrome::Integrated, true), (Os::Windows, WindowChrome::Native, false), (Os::Linux, WindowChrome::Integrated, false)];
-    for (os, chrome, released) in cases {
-        let shell = ShellInfo::default().os(os).caps(Caps::native(os)).window(WindowInfo::new(WindowKind::Main).chrome(chrome));
-        let windows = Windows::with(InstallSpec::new(shell, Arc::new(NoWindows)));
-        let down = Cell::new(false);
-        let sized =
-            |width: f32| ViewportInfo { inner_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(width, 600.0))), ..ViewportInfo::default() };
+    {
+        let cases =
+            [(Os::Windows, WindowChrome::Integrated, true), (Os::Windows, WindowChrome::Native, false), (Os::Linux, WindowChrome::Integrated, false)];
+        for (os, chrome, released) in cases {
+            let shell = ShellInfo::default().os(os).caps(Caps::native(os)).window(WindowInfo::new(WindowKind::Main).chrome(chrome));
+            let windows = Windows::with(InstallSpec::new(shell, Arc::new(NoWindows)));
+            let down = Cell::new(false);
+            let sized =
+                |width: f32| ViewportInfo { inner_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(width, 600.0))), ..ViewportInfo::default() };
+            let frame = |events: Vec<Event>| {
+                windows.frame(events, vec![], |ui| down.set(ui.ctx().input(|input| input.pointer.any_down())));
+            };
+            windows.root_info(sized(800.0));
+            frame(vec![]);
+            frame(vec![moved(Pos2::new(20.0, 20.0))]);
+            frame(vec![press(Pos2::new(20.0, 20.0))]);
+            assert!(down.get(), "the press is down");
+            windows.root_info(sized(812.0));
+            frame(vec![]);
+            frame(vec![]);
+            assert_eq!(!down.get(), released, "{os:?} {chrome:?}: the press after the OS resize");
+        }
+    }
+    {
+        let windows = Windows::new();
+        let (down, hand_off) = (Cell::new(false), Cell::new(false));
         let frame = |events: Vec<Event>| {
-            windows.frame(events, vec![], |ui| down.set(ui.ctx().input(|input| input.pointer.any_down())));
+            windows.frame(events, vec![], |ui| {
+                if hand_off.take() {
+                    assert!(act(ui.ctx(), ViewportId::ROOT, WindowAction::StartMove));
+                }
+                down.set(ui.ctx().input(|input| input.pointer.any_down()));
+            });
         };
-        windows.root_info(sized(800.0));
+        let at = HANDLE.center();
         frame(vec![]);
-        frame(vec![moved(Pos2::new(20.0, 20.0))]);
-        frame(vec![press(Pos2::new(20.0, 20.0))]);
+        frame(vec![moved(at)]);
+        frame(vec![press(at)]);
         assert!(down.get(), "the press is down");
-        windows.root_info(sized(812.0));
-        frame(vec![]);
-        frame(vec![]);
-        assert_eq!(!down.get(), released, "{os:?} {chrome:?}: the press after the OS resize");
+        hand_off.set(true);
+        frame(vec![moved(at + Vec2::splat(30.0))]);
+        assert!(down.get(), "egui still holds the press in the pass that handed it to the OS");
+        frame(vec![moved(at + Vec2::splat(40.0))]);
+        assert!(!down.get(), "the press ended on the next input");
     }
 }
 
@@ -231,77 +255,75 @@ fn placement_is_written_only_when_the_window_geometry_changes() {
 /// The shell's OS, capabilities and menu placement follow the OS a fixture simulates, as the keys do.
 #[trial]
 fn the_shell_follows_the_fixtures_os() {
-    let seen = Rc::new(Cell::new(None));
-    let shown = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        let shell = Env::of(ui).view().shell().clone();
-        shown.set(Some((shell.os, shell.caps.contains(Caps::NATIVE_MENU_BAR), shell.caps.contains(Caps::OS_RESIZES_UNDECORATED))));
-    });
-    for (os, menu, resizes) in [(Os::Mac, true, false), (Os::Windows, false, true), (Os::Linux, false, false)] {
-        fixture.os(os).frame(vec![]);
-        assert_eq!(seen.get(), Some((os, menu, resizes)), "{os:?}");
+    {
+        let seen = Rc::new(Cell::new(None));
+        let shown = seen.clone();
+        let mut fixture = Fixture::new(move |ui| {
+            let shell = Env::of(ui).view().shell().clone();
+            shown.set(Some((shell.os, shell.caps.contains(Caps::NATIVE_MENU_BAR), shell.caps.contains(Caps::OS_RESIZES_UNDECORATED))));
+        });
+        for (os, menu, resizes) in [(Os::Mac, true, false), (Os::Windows, false, true), (Os::Linux, false, false)] {
+            fixture.os(os).frame(vec![]);
+            assert_eq!(seen.get(), Some((os, menu, resizes)), "{os:?}");
+        }
     }
-}
-
-/// A Mac shell keeps its menu at the top of the screen, and puts it in the window when the app draws the frame.
-#[trial]
-fn a_mac_shell_with_an_app_drawn_frame_puts_the_menu_in_the_window() {
-    let seen = Rc::new(Cell::new(None));
-    let shown = seen.clone();
-    let mut fixture = Fixture::new(move |ui| shown.set(Some(Env::of(ui).view().shell().menu())));
-    fixture.os(Os::Mac).frame(vec![]);
-    assert_eq!(seen.get(), Some(MenuPlacement::ScreenTop));
-    fixture.chrome(WindowChrome::Integrated).frame(vec![]);
-    assert_eq!(seen.get(), Some(MenuPlacement::InWindow));
-    fixture.os(Os::Mac).frame(vec![]);
-    assert_eq!(seen.get(), Some(MenuPlacement::InWindow), "a later OS change keeps the frame");
-}
-
-/// A modal in one window blocks presses in another, and the blocked press raises the modal's window.
-#[trial]
-fn a_press_blocked_by_a_modal_in_another_window_raises_the_modal_window() {
-    let windows = Windows::new();
-    let frame = |root: Vec<Event>| {
-        windows.frame(root, vec![], |ui| {
-            ui.ctx().show_viewport_immediate(child(), ViewportBuilder::default(), |cui, _| {
-                let props = ContainerProps::new().mount(Mount::Layer(Overlay::modal()));
-                Modal { common: Common::new(), props }.id_salt("modal").show(cui, |_, _| {});
-            });
-        })
-    };
-    for _ in 0..4 {
-        frame(vec![]);
+    {
+        let seen = Rc::new(Cell::new(None));
+        let shown = seen.clone();
+        let mut fixture = Fixture::new(move |ui| shown.set(Some(Env::of(ui).view().shell().menu())));
+        fixture.os(Os::Mac).frame(vec![]);
+        assert_eq!(seen.get(), Some(MenuPlacement::ScreenTop));
+        fixture.chrome(WindowChrome::Integrated).frame(vec![]);
+        assert_eq!(seen.get(), Some(MenuPlacement::InWindow));
+        fixture.os(Os::Mac).frame(vec![]);
+        assert_eq!(seen.get(), Some(MenuPlacement::InWindow), "a later OS change keeps the frame");
     }
-    frame(vec![moved(Pos2::new(30.0, 30.0))]);
-    let out = frame(vec![press(Pos2::new(30.0, 30.0))]);
-    assert!(out.commands.contains(&(child(), ViewportCommand::Focus)), "the press raised the modal's window: {:?}", out.commands);
 }
 
 /// A modal in one window blocks the others: the pointer over them shows the blocked cursor, and a close request on
 /// them is refused and raises the modal's window.
 #[trial]
 fn an_app_modal_in_one_window_blocks_the_cursor_and_the_close_of_the_others() {
-    let windows = Windows::new();
-    let frame = || {
-        windows.frame(vec![], vec![], |ui| {
-            ui.ctx().show_viewport_immediate(child(), ViewportBuilder::default(), |cui, _| {
-                let props = ContainerProps::new().mount(Mount::Layer(Overlay::modal()));
-                Modal { common: Common::new(), props }.id_salt("modal").show(cui, |_, _| {});
-            });
-        })
-    };
-    for _ in 0..4 {
-        frame();
-    }
-    assert_eq!(craft_ui::runtime::cursor::current(&windows.ctx), Some(Cursor::System(CursorIcon::NotAllowed)), "the root window is blocked");
+    {
+        let windows = Windows::new();
+        let frame = || {
+            windows.frame(vec![], vec![], |ui| {
+                ui.ctx().show_viewport_immediate(child(), ViewportBuilder::default(), |cui, _| {
+                    let props = ContainerProps::new().mount(Mount::Layer(Overlay::modal()));
+                    Modal { common: Common::new(), props }.id_salt("modal").show(cui, |_, _| {});
+                });
+            })
+        };
+        for _ in 0..4 {
+            frame();
+        }
+        assert_eq!(craft_ui::runtime::cursor::current(&windows.ctx), Some(Cursor::System(CursorIcon::NotAllowed)), "the root window is blocked");
 
-    windows.root_info(ViewportInfo { events: vec![ViewportEvent::Close], ..ViewportInfo::default() });
-    let out = frame();
-    craft_ui::runtime::windows::logic(&windows.ctx);
-    let out_after = frame();
-    let sent: Vec<_> = out.commands.iter().chain(&out_after.commands).collect();
-    assert!(sent.contains(&&(ViewportId::ROOT, ViewportCommand::CancelClose)), "the close is refused: {sent:?}");
-    assert!(sent.contains(&&(child(), ViewportCommand::Focus)), "the modal's window is raised: {sent:?}");
+        windows.root_info(ViewportInfo { events: vec![ViewportEvent::Close], ..ViewportInfo::default() });
+        let out = frame();
+        craft_ui::runtime::windows::logic(&windows.ctx);
+        let out_after = frame();
+        let sent: Vec<_> = out.commands.iter().chain(&out_after.commands).collect();
+        assert!(sent.contains(&&(ViewportId::ROOT, ViewportCommand::CancelClose)), "the close is refused: {sent:?}");
+        assert!(sent.contains(&&(child(), ViewportCommand::Focus)), "the modal's window is raised: {sent:?}");
+    }
+    {
+        let windows = Windows::new();
+        let frame = |root: Vec<Event>| {
+            windows.frame(root, vec![], |ui| {
+                ui.ctx().show_viewport_immediate(child(), ViewportBuilder::default(), |cui, _| {
+                    let props = ContainerProps::new().mount(Mount::Layer(Overlay::modal()));
+                    Modal { common: Common::new(), props }.id_salt("modal").show(cui, |_, _| {});
+                });
+            })
+        };
+        for _ in 0..4 {
+            frame(vec![]);
+        }
+        frame(vec![moved(Pos2::new(30.0, 30.0))]);
+        let out = frame(vec![press(Pos2::new(30.0, 30.0))]);
+        assert!(out.commands.contains(&(child(), ViewportCommand::Focus)), "the press raised the modal's window: {:?}", out.commands);
+    }
 }
 
 /// `act` is the one sender of window commands and checks capabilities first.
@@ -320,31 +342,44 @@ fn act_sends_window_commands_only_where_the_capability_is_on() {
 /// reports: the state is refreshed once per pass and a toggle would read a stale one.
 #[trial]
 fn the_set_actions_send_their_state_and_a_sequence_goes_out_in_one_pass() {
-    let windows = Windows::new();
-    windows.root_info(ViewportInfo {
-        maximized: Some(true),
-        inner_rect: Some(PLACED),
-        native_pixels_per_point: Some(1.0),
-        ..ViewportInfo::default()
-    });
-    let out = windows.frame(vec![], vec![], |ui| {
-        assert!(act(ui.ctx(), ViewportId::ROOT, WindowAction::SetMaximized(false)));
-        assert!(act(ui.ctx(), ViewportId::ROOT, WindowAction::SetFullscreen(true)));
-        assert!(act(ui.ctx(), ViewportId::ROOT, WindowAction::SetFullscreen(true)));
-    });
-    let root: Vec<_> = out
-        .commands
-        .iter()
-        .filter(|(viewport, command)| {
-            *viewport == ViewportId::ROOT && matches!(command, ViewportCommand::Maximized(_) | ViewportCommand::Fullscreen(_))
-        })
-        .map(|(_, command)| command.clone())
-        .collect();
-    assert_eq!(
-        root,
-        [ViewportCommand::Maximized(false), ViewportCommand::Fullscreen(true), ViewportCommand::Fullscreen(true)],
-        "each action says what it sets"
-    );
+    {
+        let windows = Windows::new();
+        windows.root_info(ViewportInfo {
+            maximized: Some(true),
+            inner_rect: Some(PLACED),
+            native_pixels_per_point: Some(1.0),
+            ..ViewportInfo::default()
+        });
+        let out = windows.frame(vec![], vec![], |ui| {
+            assert!(act(ui.ctx(), ViewportId::ROOT, WindowAction::SetMaximized(false)));
+            assert!(act(ui.ctx(), ViewportId::ROOT, WindowAction::SetFullscreen(true)));
+            assert!(act(ui.ctx(), ViewportId::ROOT, WindowAction::SetFullscreen(true)));
+        });
+        let root: Vec<_> = out
+            .commands
+            .iter()
+            .filter(|(viewport, command)| {
+                *viewport == ViewportId::ROOT && matches!(command, ViewportCommand::Maximized(_) | ViewportCommand::Fullscreen(_))
+            })
+            .map(|(_, command)| command.clone())
+            .collect();
+        assert_eq!(
+            root,
+            [ViewportCommand::Maximized(false), ViewportCommand::Fullscreen(true), ViewportCommand::Fullscreen(true)],
+            "each action says what it sets"
+        );
+    }
+    {
+        let windows = Windows::new();
+        windows.frame(vec![], vec![], |_| {});
+        assert!(act(&windows.ctx, ViewportId::ROOT, WindowAction::SetLevel(WindowLevel::AlwaysOnTop)));
+        let out = windows.frame(vec![], vec![], |_| {});
+        assert!(
+            out.commands.contains(&(ViewportId::ROOT, ViewportCommand::WindowLevel(egui::WindowLevel::AlwaysOnTop))),
+            "the level command went out: {:?}",
+            out.commands
+        );
+    }
 }
 
 /// A container mounted in an OS viewport that opens as `spec`, with a body the trial gives it.
@@ -411,33 +446,46 @@ fn system_drawn() -> Decision {
 /// caption buttons under either decision.
 #[trial]
 fn a_tool_window_follows_the_installed_decision() {
-    let cases = [(app_drawn(), WindowChrome::Integrated, Some(false), Some(false)), (system_drawn(), WindowChrome::Native, Some(true), None)];
-    for (decision, chrome, decorations, buttons) in cases {
-        let windows = Windows::with(InstallSpec::new(ShellInfo::default(), Arc::new(FakeSystem::new())).frame(decision));
+    {
+        let cases = [(app_drawn(), WindowChrome::Integrated, Some(false), Some(false)), (system_drawn(), WindowChrome::Native, Some(true), None)];
+        for (decision, chrome, decorations, buttons) in cases {
+            let windows = Windows::with(InstallSpec::new(ShellInfo::default(), Arc::new(FakeSystem::new())).frame(decision));
+            let seen = RefCell::new(None);
+            let mut out = None;
+            for _ in 0..3 {
+                out = Some(windows.frame(vec![], vec![], |ui| {
+                    Palette::new("tool", Some(WindowSpec::tool())).show(ui, |ui, _| {
+                        let host = WindowHost::of(ui.ctx());
+                        *seen.borrow_mut() = Some((Env::of(ui).view().shell().window.clone(), host.frame()));
+                    });
+                    Palette::new("plain", None).show(ui, |_, _| {});
+                    Palette::new("forced", Some(WindowSpec::tool().chrome(WindowChrome::Native))).show(ui, |_, _| {});
+                }));
+            }
+            let out = out.expect("frames ran");
+            for title in ["tool", "plain"] {
+                let (_, builder) = builder_titled(&out, title);
+                assert_eq!((builder.decorations, builder.titlebar_buttons_shown), (decorations, buttons), "{chrome:?}: the {title} window");
+            }
+            assert_eq!(builder_titled(&out, "forced").1.decorations, Some(true), "{chrome:?}: a spec's own chrome wins");
+            let (window, frame) = seen.take().expect("the tool window ran");
+            assert_eq!((window.kind, window.chrome), (WindowKind::Tool, chrome), "the window info follows the decision");
+            assert!(
+                matches!(&frame, Frame::Native) || matches!(&frame, Frame::Integrated(captions) if captions.is_empty()),
+                "a tool window shows no caption buttons: {frame:?}"
+            );
+        }
+    }
+    {
+        let desktop = Desktop { kind: DesktopKind::Other, ssd: None, gtk_theme: None, icon_theme: None };
+        let captions = Captions { family: CaptionFamily::Windows, layout: craft_window::Layout::default() };
+        let decision = Decision { frame: Frame::Integrated(captions), overridden: None, desktop };
+        let windows = Windows::with(InstallSpec::new(ShellInfo::default(), Arc::new(NoWindows)).frame(decision.clone()));
         let seen = RefCell::new(None);
-        let mut out = None;
-        for _ in 0..3 {
-            out = Some(windows.frame(vec![], vec![], |ui| {
-                Palette::new("tool", Some(WindowSpec::tool())).show(ui, |ui, _| {
-                    let host = WindowHost::of(ui.ctx());
-                    *seen.borrow_mut() = Some((Env::of(ui).view().shell().window.clone(), host.frame()));
-                });
-                Palette::new("plain", None).show(ui, |_, _| {});
-                Palette::new("forced", Some(WindowSpec::tool().chrome(WindowChrome::Native))).show(ui, |_, _| {});
-            }));
-        }
-        let out = out.expect("frames ran");
-        for title in ["tool", "plain"] {
-            let (_, builder) = builder_titled(&out, title);
-            assert_eq!((builder.decorations, builder.titlebar_buttons_shown), (decorations, buttons), "{chrome:?}: the {title} window");
-        }
-        assert_eq!(builder_titled(&out, "forced").1.decorations, Some(true), "{chrome:?}: a spec's own chrome wins");
-        let (window, frame) = seen.take().expect("the tool window ran");
-        assert_eq!((window.kind, window.chrome), (WindowKind::Tool, chrome), "the window info follows the decision");
-        assert!(
-            matches!(&frame, Frame::Native) || matches!(&frame, Frame::Integrated(captions) if captions.is_empty()),
-            "a tool window shows no caption buttons: {frame:?}"
-        );
+        windows.frame(vec![], vec![], |ui| {
+            *seen.borrow_mut() = Some((Env::of(ui).view().shell().window.chrome, WindowHost::of(ui.ctx()).frame()));
+        });
+        assert_eq!(seen.take(), Some((WindowChrome::Integrated, decision.frame)));
     }
 }
 
@@ -594,94 +642,39 @@ fn window_actions_and_queries_follow_the_window_system() {
 /// overlap.
 #[trial]
 fn monitors_of_different_scales_touch_in_one_window_scale() {
-    let system = Arc::new(FakeSystem::new());
-    system.set_monitors(vec![
-        Monitor::new(MonitorKey::new("DP-1", [3840, 2160]), [0, 0], [3840, 2160], 2.0),
-        Monitor::new(MonitorKey::new("DP-2", [1920, 1080]), [3840, 0], [1920, 1080], 1.0),
-    ]);
-    let windows = Windows::with(InstallSpec::new(ShellInfo::default(), system));
-    for scale in [1.0, 1.5, 2.0] {
-        let monitors = WindowHost::of(&windows.ctx).monitors(scale);
-        let [left, right] = [monitors[0].rect, monitors[1].rect];
-        assert_eq!(left.max.x, right.min.x, "the monitors touch at scale {scale}");
-        assert_eq!((left.min.y, right.min.y), (0.0, 0.0));
+    {
+        let system = Arc::new(FakeSystem::new());
+        system.set_monitors(vec![
+            Monitor::new(MonitorKey::new("DP-1", [3840, 2160]), [0, 0], [3840, 2160], 2.0),
+            Monitor::new(MonitorKey::new("DP-2", [1920, 1080]), [3840, 0], [1920, 1080], 1.0),
+        ]);
+        let windows = Windows::with(InstallSpec::new(ShellInfo::default(), system));
+        for scale in [1.0, 1.5, 2.0] {
+            let monitors = WindowHost::of(&windows.ctx).monitors(scale);
+            let [left, right] = [monitors[0].rect, monitors[1].rect];
+            assert_eq!(left.max.x, right.min.x, "the monitors touch at scale {scale}");
+            assert_eq!((left.min.y, right.min.y), (0.0, 0.0));
+        }
     }
-}
-
-/// A window whose platform reports no scale has the scale of the monitor it lies on; on no known monitor it has
-/// none.
-#[trial]
-fn a_window_without_a_platform_scale_has_its_monitors_scale() {
-    let system = Arc::new(FakeSystem::new());
-    system.set_monitors(vec![
-        Monitor::new(MonitorKey::new("DP-1", [3840, 2160]), [0, 0], [3840, 2160], 2.0),
-        Monitor::new(MonitorKey::new("DP-2", [1920, 1080]), [3840, 0], [1920, 1080], 1.0),
-    ]);
-    let windows = Windows::with(InstallSpec::new(ShellInfo::default(), system));
-    let scale_of = |rect: Rect| {
-        windows.root_info(ViewportInfo { inner_rect: Some(rect), outer_rect: Some(rect), ..ViewportInfo::default() });
-        windows.frame(vec![], vec![], |_| {});
-        WindowHost::of(&windows.ctx).facts(ViewportId::ROOT).expect("the root reported").scale
-    };
-    let on_left = Rect::from_min_size(Pos2::new(100.0, 100.0), Vec2::new(400.0, 300.0));
-    let on_right = Rect::from_min_size(Pos2::new(3900.0, 100.0), Vec2::new(400.0, 300.0));
-    let nowhere = Rect::from_min_size(Pos2::new(-9000.0, -9000.0), Vec2::new(400.0, 300.0));
-    assert_eq!(scale_of(on_left), Some(2.0), "the left monitor's scale");
-    assert_eq!(scale_of(on_right), Some(1.0), "the right monitor's scale");
-    assert_eq!(scale_of(nowhere), None, "a window on no monitor has no scale");
-}
-
-/// `SetLevel` on a window the runtime did not open (the root) sends the level command.
-#[trial]
-fn set_level_on_the_root_window_sends_the_level_command() {
-    let windows = Windows::new();
-    windows.frame(vec![], vec![], |_| {});
-    assert!(act(&windows.ctx, ViewportId::ROOT, WindowAction::SetLevel(WindowLevel::AlwaysOnTop)));
-    let out = windows.frame(vec![], vec![], |_| {});
-    assert!(
-        out.commands.contains(&(ViewportId::ROOT, ViewportCommand::WindowLevel(egui::WindowLevel::AlwaysOnTop))),
-        "the level command went out: {:?}",
-        out.commands
-    );
-}
-
-/// After a move or resize is handed to the OS, the next input without a release ends the press, in any chrome.
-#[trial]
-fn the_press_handed_to_the_os_is_released_on_the_next_input() {
-    let windows = Windows::new();
-    let (down, hand_off) = (Cell::new(false), Cell::new(false));
-    let frame = |events: Vec<Event>| {
-        windows.frame(events, vec![], |ui| {
-            if hand_off.take() {
-                assert!(act(ui.ctx(), ViewportId::ROOT, WindowAction::StartMove));
-            }
-            down.set(ui.ctx().input(|input| input.pointer.any_down()));
-        });
-    };
-    let at = HANDLE.center();
-    frame(vec![]);
-    frame(vec![moved(at)]);
-    frame(vec![press(at)]);
-    assert!(down.get(), "the press is down");
-    hand_off.set(true);
-    frame(vec![moved(at + Vec2::splat(30.0))]);
-    assert!(down.get(), "egui still holds the press in the pass that handed it to the OS");
-    frame(vec![moved(at + Vec2::splat(40.0))]);
-    assert!(!down.get(), "the press ended on the next input");
-}
-
-/// The frame decided at install is the root window's chrome and captions.
-#[trial]
-fn the_installed_frame_is_the_root_windows() {
-    let desktop = Desktop { kind: DesktopKind::Other, ssd: None, gtk_theme: None, icon_theme: None };
-    let captions = Captions { family: CaptionFamily::Windows, layout: craft_window::Layout::default() };
-    let decision = Decision { frame: Frame::Integrated(captions), overridden: None, desktop };
-    let windows = Windows::with(InstallSpec::new(ShellInfo::default(), Arc::new(NoWindows)).frame(decision.clone()));
-    let seen = RefCell::new(None);
-    windows.frame(vec![], vec![], |ui| {
-        *seen.borrow_mut() = Some((Env::of(ui).view().shell().window.chrome, WindowHost::of(ui.ctx()).frame()));
-    });
-    assert_eq!(seen.take(), Some((WindowChrome::Integrated, decision.frame)));
+    {
+        let system = Arc::new(FakeSystem::new());
+        system.set_monitors(vec![
+            Monitor::new(MonitorKey::new("DP-1", [3840, 2160]), [0, 0], [3840, 2160], 2.0),
+            Monitor::new(MonitorKey::new("DP-2", [1920, 1080]), [3840, 0], [1920, 1080], 1.0),
+        ]);
+        let windows = Windows::with(InstallSpec::new(ShellInfo::default(), system));
+        let scale_of = |rect: Rect| {
+            windows.root_info(ViewportInfo { inner_rect: Some(rect), outer_rect: Some(rect), ..ViewportInfo::default() });
+            windows.frame(vec![], vec![], |_| {});
+            WindowHost::of(&windows.ctx).facts(ViewportId::ROOT).expect("the root reported").scale
+        };
+        let on_left = Rect::from_min_size(Pos2::new(100.0, 100.0), Vec2::new(400.0, 300.0));
+        let on_right = Rect::from_min_size(Pos2::new(3900.0, 100.0), Vec2::new(400.0, 300.0));
+        let nowhere = Rect::from_min_size(Pos2::new(-9000.0, -9000.0), Vec2::new(400.0, 300.0));
+        assert_eq!(scale_of(on_left), Some(2.0), "the left monitor's scale");
+        assert_eq!(scale_of(on_right), Some(1.0), "the right monitor's scale");
+        assert_eq!(scale_of(nowhere), None, "a window on no monitor has no scale");
+    }
 }
 
 /// What typing in a tool window does: a shortcut chord pressed there fires its command once, and text typed there

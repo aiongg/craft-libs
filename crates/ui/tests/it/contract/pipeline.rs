@@ -18,17 +18,6 @@ const WITH_CONTENT: [&str; 17] = [
 ];
 
 #[trial]
-fn a_leaf_runs_every_step_but_content_in_order() {
-    let mut frames = Frames::new();
-    let seen = RefCell::new(Seen::default());
-    frames.frame(vec![], |ui| {
-        Probe::new(&seen).show(ui);
-    });
-    let id = seen.borrow().id;
-    assert_eq!(steps(&frames.ctx, id.expect("the leaf updated")), LEAF);
-}
-
-#[trial]
 fn a_body_runs_all_17_steps_and_its_closure_once_in_the_real_run_of_each_pass_and_at_most_once_in_a_measuring_run() {
     let mut frames = Frames::new();
     let ran = RefCell::new(0);
@@ -66,4 +55,17 @@ fn items_run_all_17_steps_and_show_a_row_per_visible_key() {
     assert_eq!(last_pass, [0, 1, 2, 3], "one row per key, in order");
     let tops: Vec<f32> = rows.iter().rev().take(4).rev().map(|(_, rect)| rect.top()).collect();
     assert!(tops.windows(2).all(|pair| pair[0] < pair[1]), "rows stack top to bottom: {tops:?}");
+}
+
+#[trial]
+fn a_leaf_and_a_body_run_the_steps_in_contract_order() {
+    {
+        let mut frames = Frames::new();
+        let seen = RefCell::new(Seen::default());
+        frames.frame(vec![], |ui| {
+            Probe::new(&seen).show(ui);
+        });
+        let id = seen.borrow().id;
+        assert_eq!(steps(&frames.ctx, id.expect("the leaf updated")), LEAF);
+    }
 }

@@ -82,34 +82,6 @@ fn only_the_windows_captions_mirror_under_right_to_left() {
     assert_eq!((adwaita.left(), adwaita.right()), (&[Caption::Close][..], &[Caption::Minimize][..]));
 }
 
-/// Neighbours' hit areas touch, the outermost button's runs to the window's edge and is the widest, and Windows
-/// buttons are all as wide as each other.
-#[trial]
-fn slots_touch_and_the_outermost_reaches_the_window_edge() {
-    let plan = CaptionPlan::new(&captions(CaptionFamily::Adwaita, &[Caption::Close], &[Caption::Minimize, Caption::Maximize]), false);
-    let slots = plan.place(BAR, BAR.left(), BAR.right());
-    let [close, minimize, maximize] = slots[..] else { panic!("three slots: {slots:?}") };
-    assert_eq!((close.rect.left(), close.end), (BAR.left(), Some(CaptionEnd::Left)));
-    assert_eq!((maximize.rect.right(), maximize.end), (BAR.right(), Some(CaptionEnd::Right)));
-    assert_eq!((minimize.rect.right(), minimize.end), (maximize.rect.left(), None));
-    assert!(slots.iter().all(|slot| slot.rect.top() == BAR.top() && slot.rect.bottom() == BAR.bottom()), "full bar height");
-    assert!(close.rect.width() > minimize.rect.width(), "the outermost hit area includes the gap to the window's edge");
-
-    let windows = CaptionPlan::new(&captions(CaptionFamily::Windows, &[], &[Caption::Minimize, Caption::Close]), false);
-    let slots = windows.place(BAR, BAR.left(), BAR.right());
-    let width = slots[0].rect.width();
-    assert!(slots.iter().all(|slot| slot.rect.width() == width), "Windows buttons share one width");
-    assert_eq!(windows.right_width(), 2.0 * width);
-}
-
-/// Slots stay inside a window narrower than the bar's contents.
-#[trial]
-fn slots_follow_the_window_edges_not_the_bar() {
-    let plan = CaptionPlan::new(&captions(CaptionFamily::Windows, &[], &[Caption::Close]), false);
-    let slots = plan.place(BAR, 40.0, 500.0);
-    assert_eq!(slots.iter().map(|slot| slot.rect.right()).collect::<Vec<_>>(), [500.0]);
-}
-
 /// An icon tree held in memory: path to file contents.
 #[derive(Default)]
 struct Tree(BTreeMap<PathBuf, Vec<u8>>);
@@ -191,22 +163,6 @@ fn icons_come_from_the_theme_then_its_parents_then_hicolor_best_size_first() {
     assert!(CaptionIcons::from_theme("Nowhere", &[base()], &files).is_some(), "hicolor still answers");
 }
 
-/// Hostile theme files: cycles, escapes and junk sizes end the search, never hang or panic.
-#[trial]
-fn cyclic_or_hostile_indexes_are_harmless() {
-    let files = Tree::with(&[
-        (
-            "/icons/A/index.theme",
-            "[Icon Theme]\nInherits=B,../etc,\nDirectories=../../x,,/abs,ok\n[ok]\nSize=99999999999999999999\nScale=-3\nType=Threshold\n",
-        ),
-        ("/icons/A/ok/window-close-symbolic.svg", SQUARE),
-        ("/icons/B/index.theme", "[Icon Theme]\nInherits=A\n"),
-    ]);
-    let icons = CaptionIcons::from_theme("A", &[base()], &files).expect("loads");
-    assert!(covered(&icons, CaptionIcon::Close).is_some_and(|area| area > 0));
-    assert!(CaptionIcons::from_theme("..", &[base()], &files).is_none());
-}
-
 /// The theme's glyph renders as a coverage mask; one the theme lacks answers `None` so the family draws its own.
 #[trial]
 fn caption_icons_render_the_themes_glyph() {
@@ -219,25 +175,6 @@ fn caption_icons_render_the_themes_glyph() {
     assert_eq!((mask[side * side / 2 + side / 2], mask[0]), (255, 0), "covered inside the square, clear outside it");
     assert!(icons.mask(CaptionIcon::Minimize, GLYPH_PX).is_none(), "the theme lacks it");
     assert!(CaptionIcons::from_theme("T", &[PathBuf::from("/empty")], &files).is_none());
-}
-
-/// Icon files are untrusted: gzip is not expanded, a DTD or an oversized document is refused, and an `<image>` loads
-/// nothing.
-#[trial]
-fn hostile_svgs_render_nothing() {
-    let gzip = [&[0x1f, 0x8b, 0x08, 0, 0, 0, 0, 0, 0, 0xff][..], SQUARE.as_bytes()].concat();
-    let dtd = r##"<?xml version="1.0"?><!DOCTYPE svg [<!ENTITY a "x">]><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><path d="M4 4h8v8H4z"/></svg>"##;
-    let many = format!(r#"<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16">{}</svg>"#, "<g/>".repeat(20_000));
-    let image = r##"<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><image href="/dev/zero" width="16" height="16"/></svg>"##;
-    let mask_of = |svg: &[u8], px: u32| {
-        let files = [Some(Arc::<[u8]>::from(svg)), None, None, None];
-        CaptionIcons::from_files("T", 0, files).mask(CaptionIcon::Minimize, px)
-    };
-    for hostile in [&gzip[..], dtd.as_bytes(), many.as_bytes(), b"not svg"] {
-        assert!(mask_of(hostile, GLYPH_PX).is_none());
-    }
-    assert!(mask_of(SQUARE.as_bytes(), 0).is_none() && mask_of(SQUARE.as_bytes(), 100_000).is_none());
-    assert!(mask_of(image.as_bytes(), GLYPH_PX).is_some_and(|mask| mask.iter().all(|coverage| *coverage == 0)), "nothing drawn");
 }
 
 /// A theme is searched in `XDG_DATA_DIRS` order, and the setting that names it is the portal's, then the desktop's.
@@ -254,4 +191,64 @@ fn theme_places_and_names_follow_the_desktop() {
     assert_eq!(caption_icon_theme(Some("A"), Some("B")), "A");
     assert_eq!(caption_icon_theme(None, Some("B")), "B");
     assert_eq!(caption_icon_theme(None, None), "Adwaita");
+}
+
+/// Neighbours' hit areas touch, the outermost button's runs to the window's edge and is the widest, and Windows
+/// buttons are all as wide as each other.
+#[trial]
+fn slots_fill_the_window_edges() {
+    {
+        let plan = CaptionPlan::new(&captions(CaptionFamily::Adwaita, &[Caption::Close], &[Caption::Minimize, Caption::Maximize]), false);
+        let slots = plan.place(BAR, BAR.left(), BAR.right());
+        let [close, minimize, maximize] = slots[..] else { panic!("three slots: {slots:?}") };
+        assert_eq!((close.rect.left(), close.end), (BAR.left(), Some(CaptionEnd::Left)));
+        assert_eq!((maximize.rect.right(), maximize.end), (BAR.right(), Some(CaptionEnd::Right)));
+        assert_eq!((minimize.rect.right(), minimize.end), (maximize.rect.left(), None));
+        assert!(slots.iter().all(|slot| slot.rect.top() == BAR.top() && slot.rect.bottom() == BAR.bottom()), "full bar height");
+        assert!(close.rect.width() > minimize.rect.width(), "the outermost hit area includes the gap to the window's edge");
+
+        let windows = CaptionPlan::new(&captions(CaptionFamily::Windows, &[], &[Caption::Minimize, Caption::Close]), false);
+        let slots = windows.place(BAR, BAR.left(), BAR.right());
+        let width = slots[0].rect.width();
+        assert!(slots.iter().all(|slot| slot.rect.width() == width), "Windows buttons share one width");
+        assert_eq!(windows.right_width(), 2.0 * width);
+    }
+    {
+        let plan = CaptionPlan::new(&captions(CaptionFamily::Windows, &[], &[Caption::Close]), false);
+        let slots = plan.place(BAR, 40.0, 500.0);
+        assert_eq!(slots.iter().map(|slot| slot.rect.right()).collect::<Vec<_>>(), [500.0]);
+    }
+}
+
+/// Hostile theme files: cycles, escapes and junk sizes end the search, never hang or panic.
+#[trial]
+fn hostile_theme_files_render_nothing_and_never_hang() {
+    {
+        let files = Tree::with(&[
+            (
+                "/icons/A/index.theme",
+                "[Icon Theme]\nInherits=B,../etc,\nDirectories=../../x,,/abs,ok\n[ok]\nSize=99999999999999999999\nScale=-3\nType=Threshold\n",
+            ),
+            ("/icons/A/ok/window-close-symbolic.svg", SQUARE),
+            ("/icons/B/index.theme", "[Icon Theme]\nInherits=A\n"),
+        ]);
+        let icons = CaptionIcons::from_theme("A", &[base()], &files).expect("loads");
+        assert!(covered(&icons, CaptionIcon::Close).is_some_and(|area| area > 0));
+        assert!(CaptionIcons::from_theme("..", &[base()], &files).is_none());
+    }
+    {
+        let gzip = [&[0x1f, 0x8b, 0x08, 0, 0, 0, 0, 0, 0, 0xff][..], SQUARE.as_bytes()].concat();
+        let dtd = r##"<?xml version="1.0"?><!DOCTYPE svg [<!ENTITY a "x">]><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><path d="M4 4h8v8H4z"/></svg>"##;
+        let many = format!(r#"<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16">{}</svg>"#, "<g/>".repeat(20_000));
+        let image = r##"<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><image href="/dev/zero" width="16" height="16"/></svg>"##;
+        let mask_of = |svg: &[u8], px: u32| {
+            let files = [Some(Arc::<[u8]>::from(svg)), None, None, None];
+            CaptionIcons::from_files("T", 0, files).mask(CaptionIcon::Minimize, px)
+        };
+        for hostile in [&gzip[..], dtd.as_bytes(), many.as_bytes(), b"not svg"] {
+            assert!(mask_of(hostile, GLYPH_PX).is_none());
+        }
+        assert!(mask_of(SQUARE.as_bytes(), 0).is_none() && mask_of(SQUARE.as_bytes(), 100_000).is_none());
+        assert!(mask_of(image.as_bytes(), GLYPH_PX).is_some_and(|mask| mask.iter().all(|coverage| *coverage == 0)), "nothing drawn");
+    }
 }

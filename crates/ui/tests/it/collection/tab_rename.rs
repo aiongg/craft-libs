@@ -62,32 +62,31 @@ fn rename_row(frames: &mut Frames, seen: &Seen, row: usize, show: &mut impl FnMu
 /// Escape in the continued editor cancels it.
 #[trial]
 fn tab_continues_the_rename_on_the_next_renamable_row() {
-    let words = Words::flat(&["a", "b", "c", "d", "e"]);
-    let seen = Seen::default();
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| show_rows(ui, &words, &seen);
-    rename_row(&mut frames, &seen, 0, &mut show);
-    frames.frame(vec![Event::Text("!".into())], &mut show);
-    press(&mut frames, Key::Tab, Modifiers::NONE, &mut show);
-    assert_eq!(seen.renames(), ["begin 0", "commit 0 a!", "begin 2"], "one commit, then the editor of the row after the locked one");
-    frames.frame(vec![Event::Text("?".into())], &mut show);
-    press(&mut frames, Key::Tab, Modifiers::SHIFT, &mut show);
-    assert_eq!(seen.renames()[3..], ["commit 2 c?", "begin 0"], "Shift+Tab goes back over the locked row");
-    press(&mut frames, Key::Escape, Modifiers::NONE, &mut show);
-    assert_eq!(seen.renames()[5..], [format!("cancel {:?}", CancelReason::Escape)], "Escape cancels with no commit");
-    assert_eq!(seen.renames().len(), 6);
-}
-
-/// Past the last renamable row the rename ends and focus stays on the list.
-#[trial]
-fn tab_on_the_last_renamable_row_ends_the_rename() {
-    let words = Words::flat(&["a", "b", "c"]);
-    let seen = Seen::default();
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| show_rows(ui, &words, &seen);
-    rename_row(&mut frames, &seen, 2, &mut show);
-    frames.frame(vec![Event::Text("!".into())], &mut show);
-    press(&mut frames, Key::Tab, Modifiers::NONE, &mut show);
-    assert_eq!(seen.renames(), ["begin 2", "commit 2 c!"]);
-    assert_eq!(craft_ui::testing::focus::egui_focused(&frames.ctx), seen.id.get(), "focus returns to the list");
+    {
+        let words = Words::flat(&["a", "b", "c", "d", "e"]);
+        let seen = Seen::default();
+        let mut frames = Frames::new();
+        let mut show = |ui: &mut Ui| show_rows(ui, &words, &seen);
+        rename_row(&mut frames, &seen, 0, &mut show);
+        frames.frame(vec![Event::Text("!".into())], &mut show);
+        press(&mut frames, Key::Tab, Modifiers::NONE, &mut show);
+        assert_eq!(seen.renames(), ["begin 0", "commit 0 a!", "begin 2"], "one commit, then the editor of the row after the locked one");
+        frames.frame(vec![Event::Text("?".into())], &mut show);
+        press(&mut frames, Key::Tab, Modifiers::SHIFT, &mut show);
+        assert_eq!(seen.renames()[3..], ["commit 2 c?", "begin 0"], "Shift+Tab goes back over the locked row");
+        press(&mut frames, Key::Escape, Modifiers::NONE, &mut show);
+        assert_eq!(seen.renames()[5..], [format!("cancel {:?}", CancelReason::Escape)], "Escape cancels with no commit");
+        assert_eq!(seen.renames().len(), 6);
+    }
+    {
+        let words = Words::flat(&["a", "b", "c"]);
+        let seen = Seen::default();
+        let mut frames = Frames::new();
+        let mut show = |ui: &mut Ui| show_rows(ui, &words, &seen);
+        rename_row(&mut frames, &seen, 2, &mut show);
+        frames.frame(vec![Event::Text("!".into())], &mut show);
+        press(&mut frames, Key::Tab, Modifiers::NONE, &mut show);
+        assert_eq!(seen.renames(), ["begin 2", "commit 2 c!"]);
+        assert_eq!(craft_ui::testing::focus::egui_focused(&frames.ctx), seen.id.get(), "focus returns to the list");
+    }
 }

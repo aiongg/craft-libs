@@ -48,50 +48,6 @@ fn a_click_on_a_candidate_inserts_it_and_the_field_keeps_focus() {
     assert_eq!(fixture.focused(), focused, "the press on the row left focus in the field");
 }
 
-/// The clear part empties a search field.
-#[trial]
-fn the_clear_part_empties_a_search_field() {
-    let text = Rc::new(RefCell::new("poster".to_owned()));
-    let id = Rc::new(Cell::new(Id::NULL));
-    let (shown, field) = (text.clone(), id.clone());
-    let mut fixture = Fixture::new(move |ui| {
-        field.set(TextField::search("Search", Bind::bound(&mut *shown.borrow_mut())).show(ui).response.id);
-    });
-    fixture.settle();
-    let clear = fixture.part(id.get(), CLEAR).expect("a search field with text shows the clear part");
-    fixture.click(&clear);
-    fixture.idle(3);
-    assert_eq!(*text.borrow(), "", "the clear part emptied the text");
-    assert!(fixture.part(id.get(), CLEAR).is_none(), "an empty search field shows no clear part");
-}
-
-/// Clearing a search field that has an open typing run empties it for good: the clear part goes, and leaving the
-/// field commits nothing back.
-#[trial]
-fn clearing_a_search_field_with_a_draft_leaves_it_empty_after_blur() {
-    let (text, other) = (Rc::new(RefCell::new(String::new())), Rc::new(RefCell::new(String::new())));
-    let id = Rc::new(Cell::new(Id::NULL));
-    let (shown, beside, field) = (text.clone(), other.clone(), id.clone());
-    let mut fixture = Fixture::new(move |ui| {
-        field.set(TextField::search("Search", Bind::bound(&mut *shown.borrow_mut())).show(ui).response.id);
-        TextField::new("Other", Bind::bound(&mut *beside.borrow_mut())).id_salt("other").show(ui);
-    });
-    fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.type_text("abc");
-    fixture.idle(2);
-    assert_eq!(*text.borrow(), "abc");
-    let clear = fixture.part(id.get(), CLEAR).expect("a search field with text shows the clear part");
-    fixture.click(&clear);
-    fixture.idle(3);
-    assert_eq!(*text.borrow(), "");
-    assert!(fixture.part(id.get(), CLEAR).is_none(), "an empty search field shows no clear part");
-    assert!(fixture.texts().iter().all(|run| !run.text.contains("abc")), "the field shows the cleared text");
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.idle(3);
-    assert_eq!(*text.borrow(), "", "leaving the field commits nothing back");
-}
-
 /// Escape in a search field that shows committed text clears and commits the empty text and stays with the field;
 /// the next Escape, on the empty field, goes on.
 #[trial]
@@ -157,4 +113,46 @@ fn a_select_on_focus_field_takes_a_focus_request_with_all_its_text_selected() {
     fixture.idle(2);
     let run = NodeKey::of(run_node(id, 0, 0));
     assert_eq!(fixture.tree().text_selection(id), Some(((run, 0), (run, 8))), "the field's whole text is selected");
+}
+
+/// The clear part empties a search field.
+#[trial]
+fn the_clear_part_empties_a_search_field_for_good() {
+    {
+        let text = Rc::new(RefCell::new("poster".to_owned()));
+        let id = Rc::new(Cell::new(Id::NULL));
+        let (shown, field) = (text.clone(), id.clone());
+        let mut fixture = Fixture::new(move |ui| {
+            field.set(TextField::search("Search", Bind::bound(&mut *shown.borrow_mut())).show(ui).response.id);
+        });
+        fixture.settle();
+        let clear = fixture.part(id.get(), CLEAR).expect("a search field with text shows the clear part");
+        fixture.click(&clear);
+        fixture.idle(3);
+        assert_eq!(*text.borrow(), "", "the clear part emptied the text");
+        assert!(fixture.part(id.get(), CLEAR).is_none(), "an empty search field shows no clear part");
+    }
+    {
+        let (text, other) = (Rc::new(RefCell::new(String::new())), Rc::new(RefCell::new(String::new())));
+        let id = Rc::new(Cell::new(Id::NULL));
+        let (shown, beside, field) = (text.clone(), other.clone(), id.clone());
+        let mut fixture = Fixture::new(move |ui| {
+            field.set(TextField::search("Search", Bind::bound(&mut *shown.borrow_mut())).show(ui).response.id);
+            TextField::new("Other", Bind::bound(&mut *beside.borrow_mut())).id_salt("other").show(ui);
+        });
+        fixture.settle();
+        fixture.key(Key::Tab, Modifiers::NONE);
+        fixture.type_text("abc");
+        fixture.idle(2);
+        assert_eq!(*text.borrow(), "abc");
+        let clear = fixture.part(id.get(), CLEAR).expect("a search field with text shows the clear part");
+        fixture.click(&clear);
+        fixture.idle(3);
+        assert_eq!(*text.borrow(), "");
+        assert!(fixture.part(id.get(), CLEAR).is_none(), "an empty search field shows no clear part");
+        assert!(fixture.texts().iter().all(|run| !run.text.contains("abc")), "the field shows the cleared text");
+        fixture.key(Key::Tab, Modifiers::NONE);
+        fixture.idle(3);
+        assert_eq!(*text.borrow(), "", "leaving the field commits nothing back");
+    }
 }

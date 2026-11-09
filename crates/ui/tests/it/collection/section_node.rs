@@ -121,35 +121,6 @@ fn items(fixture: &Fixture) -> usize {
     fixture.by_role(Role::LIST_ITEM).len()
 }
 
-/// Each section header is a node named by its label; Click and Enter on it close and open the section.
-#[trial]
-fn a_section_header_is_a_named_node_that_click_and_enter_toggle() {
-    let (mut fixture, _) = rig(sections(), SelectMode::Single);
-    let names: Vec<String> = headings(&fixture).into_iter().map(|(name, _)| name).collect();
-    assert_eq!(names, ["File", "Edit"], "each section is a heading named by its text");
-    assert_eq!(items(&fixture), 3, "the open sections show their rows");
-    let file = headings(&fixture).remove(0).1;
-    fixture.access(AccessActionKind::Click, &file).settle();
-    assert_eq!(items(&fixture), 1, "Click on the header closes its section");
-    let file = headings(&fixture).remove(0).1;
-    fixture.access(AccessActionKind::Focus, &file).settle();
-    fixture.key(Key::Enter, Modifiers::NONE).settle();
-    assert_eq!(items(&fixture), 3, "Enter on the header opens it again");
-}
-
-/// Expand and Collapse on the header open and close the section.
-#[trial]
-fn expand_and_collapse_on_a_section_header_open_and_close_it() {
-    let (mut fixture, log) = rig(sections(), SelectMode::Single);
-    let edit = headings(&fixture).remove(1).1;
-    fixture.access(AccessActionKind::Collapse, &edit).settle();
-    assert!(log.borrow().iter().any(|line| line == "open 3 false"), "Collapse reports the close: {:?}", log.borrow());
-    assert_eq!(items(&fixture), 2, "the section's row is hidden");
-    let edit = headings(&fixture).remove(1).1;
-    fixture.access(AccessActionKind::Expand, &edit).settle();
-    assert_eq!(items(&fixture), 3);
-}
-
 /// AccessKit Focus on an item row moves the lead to it; Click picks it.
 #[trial]
 fn access_focus_and_click_on_an_item_row_move_the_lead_and_pick() {
@@ -162,4 +133,31 @@ fn access_focus_and_click_on_an_item_row_move_the_lead_and_pick() {
     fixture.access(AccessActionKind::Click, &rows[1]).settle();
     assert!(log.borrow().iter().any(|line| line == "lead 1"), "Click moves the lead: {:?}", log.borrow());
     assert!(log.borrow().iter().any(|line| line.starts_with("select") && line.contains('1')), "Click picks the row: {:?}", log.borrow());
+}
+
+#[trial]
+fn a_section_header_is_a_named_node_that_click_enter_and_expand_toggle() {
+    {
+        let (mut fixture, _) = rig(sections(), SelectMode::Single);
+        let names: Vec<String> = headings(&fixture).into_iter().map(|(name, _)| name).collect();
+        assert_eq!(names, ["File", "Edit"], "each section is a heading named by its text");
+        assert_eq!(items(&fixture), 3, "the open sections show their rows");
+        let file = headings(&fixture).remove(0).1;
+        fixture.access(AccessActionKind::Click, &file).settle();
+        assert_eq!(items(&fixture), 1, "Click on the header closes its section");
+        let file = headings(&fixture).remove(0).1;
+        fixture.access(AccessActionKind::Focus, &file).settle();
+        fixture.key(Key::Enter, Modifiers::NONE).settle();
+        assert_eq!(items(&fixture), 3, "Enter on the header opens it again");
+    }
+    {
+        let (mut fixture, log) = rig(sections(), SelectMode::Single);
+        let edit = headings(&fixture).remove(1).1;
+        fixture.access(AccessActionKind::Collapse, &edit).settle();
+        assert!(log.borrow().iter().any(|line| line == "open 3 false"), "Collapse reports the close: {:?}", log.borrow());
+        assert_eq!(items(&fixture), 2, "the section's row is hidden");
+        let edit = headings(&fixture).remove(1).1;
+        fixture.access(AccessActionKind::Expand, &edit).settle();
+        assert_eq!(items(&fixture), 3);
+    }
 }

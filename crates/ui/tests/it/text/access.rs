@@ -28,45 +28,6 @@ fn a_position_maps_to_the_run_that_holds_its_byte_and_the_character_index_in_it(
     assert_eq!(at(2, 0), None);
 }
 
-/// The node carries the text as its value with a run node under it, declares `SetValue` and `SetTextSelection`,
-/// serves a selection by run node and character, and a `SetValue` becomes the field's value.
-#[trial]
-fn a_text_field_reports_value_and_selection_and_serves_set_value_and_set_text_selection() {
-    let mut rig = Rig::new("hello");
-    rig.focus();
-    rig.idle(1);
-    let id = rig.seen.id;
-    let tree = rig.frames.tree();
-    assert_eq!(tree.value(id), Some("hello"));
-    assert_eq!(tree.run_texts(id), ["hello"]);
-    assert!(tree.declares(id, Declared::SetValue) && tree.declares(id, Declared::SetTextSelection));
-
-    let run = run_node(id, 0, 0);
-    rig.frame(vec![text_selection_request(id, (run, 1), (run, 3))]);
-    rig.idle(1);
-    assert_eq!(caret(&rig.frames.ctx, rig.widget()), Some(3), "the focus end of the request is the caret");
-    let selection = rig.frames.tree().text_selection(id);
-    assert_eq!(selection, Some(((NodeKey::of(run), 1), (NodeKey::of(run), 3))), "and the node reports it back");
-
-    rig.frame(vec![set_value_request(id, "world")]);
-    rig.idle(2);
-    assert_eq!(rig.text, "world", "SetValue replaces the value");
-}
-
-/// A masked field's node carries no value, where the same field unmasked carries its text.
-#[trial]
-fn a_masked_field_exposes_no_value() {
-    let (open, masked) = (Rc::new(Cell::new(egui::Id::NULL)), Rc::new(Cell::new(egui::Id::NULL)));
-    let (plain, hidden) = (open.clone(), masked.clone());
-    let mut fixture = Fixture::new(move |ui| {
-        plain.set(TextField::new("Name", Bind::given("secret".to_owned())).id_salt("name").show(ui).response.id);
-        hidden.set(TextField::new("Password", Bind::given("secret".to_owned())).id_salt("password").masked().show(ui).response.id);
-    });
-    fixture.settle();
-    assert_eq!(fixture.tree().value(open.get()), Some("secret"));
-    assert_eq!(fixture.tree().value(masked.get()), None, "a masked node has no value to read out");
-}
-
 /// A rejected draft marks the field invalid until the run ends; Escape restores the value and clears the mark.
 #[trial]
 fn a_rejected_draft_shows_invalid_until_it_is_restored() {
@@ -110,4 +71,42 @@ fn selectable_text_selects_and_copies() {
     frames.frame(vec![Event::Text("!".into())], &mut show);
     frames.frame(vec![key_press(Key::X, Modifiers::COMMAND)], &mut show);
     assert!(frames.copied().is_empty(), "Cut is dropped: the text is read-only");
+}
+
+/// The node carries the text as its value with a run node under it, declares `SetValue` and `SetTextSelection`,
+/// serves a selection by run node and character, and a `SetValue` becomes the field's value.
+#[trial]
+fn a_text_field_node_carries_its_value_unless_masked() {
+    {
+        let mut rig = Rig::new("hello");
+        rig.focus();
+        rig.idle(1);
+        let id = rig.seen.id;
+        let tree = rig.frames.tree();
+        assert_eq!(tree.value(id), Some("hello"));
+        assert_eq!(tree.run_texts(id), ["hello"]);
+        assert!(tree.declares(id, Declared::SetValue) && tree.declares(id, Declared::SetTextSelection));
+
+        let run = run_node(id, 0, 0);
+        rig.frame(vec![text_selection_request(id, (run, 1), (run, 3))]);
+        rig.idle(1);
+        assert_eq!(caret(&rig.frames.ctx, rig.widget()), Some(3), "the focus end of the request is the caret");
+        let selection = rig.frames.tree().text_selection(id);
+        assert_eq!(selection, Some(((NodeKey::of(run), 1), (NodeKey::of(run), 3))), "and the node reports it back");
+
+        rig.frame(vec![set_value_request(id, "world")]);
+        rig.idle(2);
+        assert_eq!(rig.text, "world", "SetValue replaces the value");
+    }
+    {
+        let (open, masked) = (Rc::new(Cell::new(egui::Id::NULL)), Rc::new(Cell::new(egui::Id::NULL)));
+        let (plain, hidden) = (open.clone(), masked.clone());
+        let mut fixture = Fixture::new(move |ui| {
+            plain.set(TextField::new("Name", Bind::given("secret".to_owned())).id_salt("name").show(ui).response.id);
+            hidden.set(TextField::new("Password", Bind::given("secret".to_owned())).id_salt("password").masked().show(ui).response.id);
+        });
+        fixture.settle();
+        assert_eq!(fixture.tree().value(open.get()), Some("secret"));
+        assert_eq!(fixture.tree().value(masked.get()), None, "a masked node has no value to read out");
+    }
 }

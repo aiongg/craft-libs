@@ -86,21 +86,21 @@ fn every_painted_cursor_but_hidden_paints_at_the_pointer_and_hides_the_system_cu
 
 #[trial]
 fn a_badged_system_cursor_keeps_its_base_and_paints_only_the_badge() {
-    let (shapes, pointer, system) = painted(PaintedCursor::badged(CursorIcon::Copy, CursorBadge::Copy));
-    assert_eq!(system, egui::CursorIcon::Copy, "the system cursor is the base");
-    assert!(!shapes.is_empty(), "the badge is painted");
-    let badge = bounds(&shapes);
-    assert!(badge.min.x > pointer.x && badge.min.y > pointer.y, "the badge sits below and after the pointer: {badge:?} {pointer:?}");
-}
-
-#[trial]
-fn the_pen_badges_paint_beside_the_pointer_and_differ_from_each_other() {
-    let painted_badge = |badge| {
-        let (shapes, pointer, _) = painted(PaintedCursor::badged(CursorIcon::Default, badge));
-        assert!(!shapes.is_empty(), "{badge:?} is painted");
-        let area = bounds(&shapes);
-        assert!(area.min.x > pointer.x && area.min.y > pointer.y, "{badge:?} sits below and after the pointer: {area:?} {pointer:?}");
-        shapes.len()
-    };
-    assert_ne!(painted_badge(CursorBadge::Scissors), painted_badge(CursorBadge::Close), "a cut point and a close point look different");
+    {
+        let (shapes, pointer, system) = painted(PaintedCursor::badged(CursorIcon::Copy, CursorBadge::Copy));
+        assert_eq!(system, egui::CursorIcon::Copy, "the system cursor is the base");
+        assert!(!shapes.is_empty(), "the badge is painted");
+        let badge = bounds(&shapes);
+        assert!(badge.min.x > pointer.x && badge.min.y > pointer.y, "the badge sits below and after the pointer: {badge:?} {pointer:?}");
+    }
+    {
+        let painted_badge = |badge| {
+            let (shapes, pointer, _) = painted(PaintedCursor::badged(CursorIcon::Default, badge));
+            assert!(!shapes.is_empty(), "{badge:?} is painted");
+            let area = bounds(&shapes);
+            assert!(area.min.x > pointer.x && area.min.y > pointer.y, "{badge:?} sits below and after the pointer: {area:?} {pointer:?}");
+            shapes.len()
+        };
+        assert_ne!(painted_badge(CursorBadge::Scissors), painted_badge(CursorBadge::Close), "a cut point and a close point look different");
+    }
 }
