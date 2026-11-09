@@ -267,19 +267,19 @@ new = "new(label, &items, Bind<Selection<RenderItemId>>).running(bool)"
 name = "FrameRate"
 old = "craft_timeline::FrameRate"
 new = "craft_timeline::FrameRate"
-status = "same"
+status = "replaced"
 note = "`#[non_exhaustive]`: build one with `FrameRate::new(num, den)` (a `const fn`, reduced by the gcd) instead of a struct literal; `num` and `den` stay readable."
 
 [[type]]
 name = "SampleRate"
 old = "craft_timeline::SampleRate"
 new = "craft_timeline::SampleRate"
-status = "same"
+status = "replaced"
 note = "The field is private: build one with `SampleRate::new(hz)` (a `const fn`) and read it with `hz()`."
 
 [[type]]
 name = "PixelAspect"
 old = "craft_timeline::PixelAspect"
 new = "craft_timeline::PixelAspect"
-status = "same"
+status = "replaced"
 note = "`#[non_exhaustive]`: build one with `PixelAspect::new(num, den)` (a `const fn`) instead of a struct literal; `num` and `den` stay readable."

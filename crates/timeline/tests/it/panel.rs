@@ -460,7 +460,8 @@ impl Panel {
     }
 }
 
-/// A sweep across Lock switches flips each one as the pointer crosses it, before the release.
+/// A sweep across Lock switches flips each one as the pointer crosses it, before the release. A sweep stays in its
+/// pane (Premiere: the video and audio headers are separate collections).
 #[trial]
 fn a_sweep_across_lock_switches_flips_each_before_release() {
     let mut panel = three_video();
@@ -468,6 +469,20 @@ fn a_sweep_across_lock_switches_flips_each_before_release() {
     let end = panel.in_row("Toggle Track Lock", panel.row("V1")).center();
     panel.fixture.frame(vec![pointer::release(end)]);
     assert_eq!(panel.locks().len(), 3, "the release repeats nothing");
+}
+
+/// A Lock sweep pressed on V1 and moved over A1 flips V1 and leaves A1 unchanged.
+#[trial]
+fn a_lock_sweep_does_not_cross_into_the_other_pane() {
+    let mut panel = panel();
+    let v1 = panel.in_row("Toggle Track Lock", panel.row("V1")).center();
+    let a1 = panel.in_row("Toggle Track Lock", panel.row("A1")).center();
+    panel.fixture.frame(vec![pointer::moved(v1)]);
+    panel.fixture.frame(vec![pointer::press(v1)]);
+    panel.fixture.frame(vec![pointer::moved(a1)]);
+    assert_eq!(panel.locks(), [(V1, true)]);
+    panel.fixture.frame(vec![pointer::release(a1)]);
+    assert_eq!(panel.locks(), [(V1, true)], "the release repeats nothing and A1 stays unchanged");
 }
 
 /// Escape in the middle of a sweep puts every crossed switch back.
