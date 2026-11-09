@@ -5,7 +5,7 @@
 
 use crate::contract::{
     Bind, BindMut, Collection, CollectionProps, CollectionResponse, ColumnSpec, Common, Component, ContainerProps, Cx, EditResponse, ListDrag,
-    Props as _, Role, SelectMode, Show as _, Sizing,
+    Props as _, Role, SelectMode, Sizing,
 };
 use crate::list::{DropTest, ListRow, RowEvent, RowTest, SourceTest};
 use crate::runtime::env::Label;
@@ -145,6 +145,6 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for Table<'_, K> {
     }
 
     fn rename_editor(&mut self, ui: &mut Ui, draft: Bind<'_, String>, label: Rect, name: &str) -> Option<EditResponse<String>> {
-        Some(crate::contract::rename_field(ui, draft, label, name))
+        Some(crate::text::rename_field(ui, draft, label, name))
     }
 }

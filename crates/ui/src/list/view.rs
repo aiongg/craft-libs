@@ -7,7 +7,7 @@ use super::predicate::{DropTest, RowTest, SourceTest};
 use super::{ListRow, RowEvent};
 use crate::contract::{
     Access, ActivateOn, Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, EditResponse,
-    LeadOnOpen, ListDrag, Props as _, Role, SelectMode, Show as _, Sizing,
+    LeadOnOpen, ListDrag, Props as _, Role, SelectMode, Sizing,
 };
 use crate::runtime::env::{Env, Label};
 use crate::style::{ComponentStyle, StyleCx};
@@ -219,7 +219,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for List<'_, K> {
     }
 
     fn rename_editor(&mut self, ui: &mut Ui, draft: Bind<'_, String>, label: Rect, name: &str) -> Option<EditResponse<String>> {
-        Some(crate::contract::rename_field(ui, draft, label, name))
+        Some(crate::text::rename_field(ui, draft, label, name))
     }
 }
 

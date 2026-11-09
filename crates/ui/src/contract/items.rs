@@ -9,7 +9,7 @@ use super::collection::{
 use super::cx::{BodyCx, Pointer as _};
 use super::run::{ShapeHooks, ShowAt};
 use super::steps::ShapeKind;
-use super::{Bind, Collection, Cx, EditResponse, Internal, ItemCx, ItemFn, ItemOpener, ItemOutput as _, PartsCx, Props, Show as _, Sizing};
+use super::{Bind, Collection, Cx, Internal, ItemCx, ItemFn, ItemOpener, ItemOutput as _, PartsCx, Props, Show as _, Sizing};
 use crate::primitives::ScrollBar;
 use crate::runtime::access::{self, Role, SetPosition};
 use crate::runtime::egui::{alloc, areas, child, response};
@@ -37,12 +37,6 @@ pub use header::ColumnCommands;
 pub(crate) use header::put_toggle_names;
 pub(crate) use request::lead_position;
 pub use request::request_rename;
-
-/// The text field every collection's `rename_editor` shows over an item's label: it selects the name on focus, so
-/// typing replaces it.
-pub(crate) fn rename_field(ui: &mut Ui, draft: Bind<'_, String>, label: Rect, name: &str) -> EditResponse<String> {
-    crate::text::TextField::new(name.to_owned(), draft).select_on_focus().show_at(ui, label)
-}
 
 use drag::Drags;
 use header::{Header, HeaderMemory};

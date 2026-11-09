@@ -11,7 +11,6 @@ pub mod ghost;
 mod group;
 mod held;
 mod items;
-pub(crate) use items::rename_field;
 mod label;
 mod looks;
 mod mount;

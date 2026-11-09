@@ -15,7 +15,7 @@ use super::{CaptionPlace, Tile, TilePartEvent};
 use crate::contract::{
     Access, Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, ColumnKind, ColumnSpec, Common, Component,
     ContainerProps, Cx, EditResponse, Focus as _, ListDrag, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role, RowState, SelectMode,
-    Show as _, Sizing, SpaceAction, SweepApply, SweepStep, ToggleColumn,
+    Sizing, SpaceAction, SweepApply, SweepStep, ToggleColumn,
 };
 use crate::contract::{lead_position, section_part};
 use crate::controls::disclosure::Disclosure;
@@ -681,6 +681,6 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for TileGrid<'_, K
     }
 
     fn rename_editor(&mut self, ui: &mut Ui, draft: Bind<'_, String>, label: Rect, name: &str) -> Option<EditResponse<String>> {
-        Some(crate::contract::rename_field(ui, draft, label, name))
+        Some(crate::text::rename_field(ui, draft, label, name))
     }
 }
