@@ -10,7 +10,7 @@ use craft_imaging::ui::select::{
 use craft_keymap::Mods;
 use craft_ui::canvas::{CanvasTool, ToolAccess, ToolContext, ToolHost, ToolInput, ToolKey, ToolPath, ToolPointer};
 use craft_ui::primitives::Draw;
-use craft_ui::testing::{ToolFixture, input, trial};
+use craft_ui::testing::{ToolFixture, input, pointer, trial};
 use egui::{Key, Modifiers, Pos2, Rect as ScreenRect, pos2};
 use kurbo::{Point, Rect, Vec2};
 use std::cell::{Cell, RefCell};
@@ -159,6 +159,10 @@ where
 
     fn takes(&self, button: PointerButton, mods: Mods) -> bool {
         SelectToolPass::new(&mut *self.tool.borrow_mut(), &self.probe).takes(button, mods)
+    }
+
+    fn claims(&self) -> craft_ui::canvas::ToolClaims {
+        SelectToolPass::new(&mut *self.tool.borrow_mut(), &self.probe).claims()
     }
 
     fn access(&self, cx: &ToolContext<'_>) -> Option<ToolAccess> {
@@ -786,7 +790,10 @@ fn pt(point: Point) -> (f64, f64) {
 
 /// A hover to `point`.
 fn glide(rig: &mut Rig<MagneticLassoTool<Circle>>, point: Point, mods: Mods) {
-    inject(rig, ToolInput::moved(at(pt(point))).mods(mods));
+    // The real pointer goes with the injected one, so the hover each pass reports is this point and not where the pointer was left.
+    let (ctx, id) = (rig.fixture().ctx().clone(), rig.canvas_id());
+    ToolHost::inject(&ctx, id, ToolInput::moved(at(pt(point))).mods(mods));
+    rig.fixture().frame(vec![pointer::moved(at(pt(point)))]);
 }
 
 /// The pointer moves along the circle from angle `from` to angle `to` in small samples, as a hand follows an edge.
@@ -876,7 +883,8 @@ fn magnetic_removes_the_last_point_and_cancels() {
     let last_start = || log.froms.borrow().last().copied();
     // Each Backspace traces from the fastening point before: the pointer stays where it was.
     press_key(&mut rig, Key::Backspace, Modifiers::NONE);
-    assert!(last_start().is_some_and(|p| p.distance(on(1.0)) < 1e-6));
+    // The press went through an f32 screen position: 1e-6 is below its rounding at this size.
+    assert!(last_start().is_some_and(|p| p.distance(on(1.0)) < 1e-4));
     assert!(matches!(rig.tool().phase(), SelectPhase::Outline { .. }));
     press_key(&mut rig, Key::Backspace, Modifiers::NONE);
     assert!(last_start().is_some_and(|p| p.distance(start) < 1e-6), "back to the first point");

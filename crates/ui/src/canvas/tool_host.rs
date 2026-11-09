@@ -688,7 +688,10 @@ impl<'a> Run<'a> {
             PressPhase::Idle => self.state.spent = false,
             PressPhase::Hover => {
                 self.state.spent = false;
-                if let Some(pointer) = hover_pointer(frame, *press) {
+                // A pointer that stands still keeps the position an injected move gave the tool.
+                if pointer::with_pass_pointer(self.ctx, |pass| pass.stirred)
+                    && let Some(pointer) = hover_pointer(frame, *press)
+                {
                     self.hover(pointer);
                 }
             }
