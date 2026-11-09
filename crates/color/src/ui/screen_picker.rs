@@ -187,6 +187,9 @@ pub struct ScreenPick {
     target: Option<u64>,
     hold: Option<Hold>,
     monitor: Option<(u64, Option<Arc<Transform>>)>,
+    /// Where a drag released outside the app's windows, in physical pixels of the virtual desktop: the captured
+    /// monitor under it gives the colour.
+    release: Option<Pos2>,
 }
 
 fn key_of(owner: impl Hash) -> u64 {
@@ -245,10 +248,13 @@ impl ScreenPick {
             self.answer = Some(match result {
                 Ok(Capture::Color([r, g, b])) => Ok(Some(Srgba::rgb(r, g, b))),
                 Ok(Capture::Images(images)) => match images.into_iter().map(Snapshot::new).collect::<Result<Vec<_>, _>>() {
-                    Ok(images) if !images.is_empty() => {
-                        self.images = images;
-                        return;
-                    }
+                    Ok(images) if !images.is_empty() => match self.release.take() {
+                        Some(at) => sample_desktop(&images, at).map_err(Failure::Failed),
+                        None => {
+                            self.images = images;
+                            return;
+                        }
+                    },
                     Ok(_) => Err(Failure::NothingCaptured),
                     Err(SnapshotError::Invalid) => Err(Failure::InvalidCapture),
                     Err(SnapshotError::NotRgb) => Err(Failure::NotRgb),
@@ -271,6 +277,7 @@ impl ScreenPick {
         let Some(answer) = self.answer.take() else { return };
         let owner = self.owner.take();
         self.source = None;
+        self.release = None;
         self.images.clear();
         match answer {
             Ok(Some(color)) => self.completed = owner.map(|owner| (owner, color)),
@@ -296,6 +303,7 @@ impl ScreenPick {
             self.answer = Some(Ok(None));
         } else {
             self.request = None;
+            self.release = None;
         }
     }
 
@@ -373,10 +381,32 @@ impl ScreenPick {
         }
         self.hold = None;
         if !inside {
+            // A window with no reported position (a host with no desktop) sits at the desktop's origin.
+            let window = ctx.input(|input| input.viewport().inner_rect).map_or(Pos2::ZERO, |inner| inner.min);
             self.start(owner);
+            if self.request.is_some() {
+                let native = size.pixels_per_point / size.zoom;
+                self.release = Some(Pos2::new(
+                    (window.x * native + at.x * size.pixels_per_point).round(),
+                    (window.y * native + at.y * size.pixels_per_point).round(),
+                ));
+            }
         }
         sampled
     }
+}
+
+/// The colour under the desktop pixel `at` (physical pixels): the pixel of the monitor that holds it, converted from
+/// the monitor's profile to sRGB. `Ok(None)` when no captured monitor holds it.
+fn sample_desktop(images: &[Snapshot], at: Pos2) -> Result<Option<Srgba>, String> {
+    for snapshot in images {
+        let [w, h] = snapshot.image.size.map(|n| n as f32);
+        let (dx, dy) = (at.x - snapshot.image.origin[0] as f32, at.y - snapshot.image.origin[1] as f32);
+        if dx >= 0.0 && dy >= 0.0 && dx < w && dy < h {
+            return snapshot.sample(dx as usize, dy as usize).map(Some);
+        }
+    }
+    Ok(None)
 }
 
 /// The colour of `image` under `at` (points of the viewport), converted with `back` when the monitor is not sRGB.

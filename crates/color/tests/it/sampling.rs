@@ -8,17 +8,18 @@ use craft_behavior::kurbo::Point;
 use craft_behavior::{CancelReason, CanvasView, PointerButton};
 use craft_cms::convert::{CmykConverter, srgb_to_cmyk_naive};
 use craft_color::ui::{
-    CaptureSource, ColorPickerDialog, ColorPickerResult, ColorSamplerTool, ColorSamplers, DropperTool, EyedropperOptions, EyedropperTool,
-    EyedropperWords, MAX_SAMPLERS, PickedColor, SampleSize, SampleSource, SamplerCache, SamplerError, SamplerReadout, SamplerReadouts, SamplerWords,
-    ScreenPick, StillCapture,
+    CaptureSource, ColorPicker, ColorPickerDialog, ColorPickerLayout, ColorPickerResult, ColorSamplerTool, ColorSamplers, DropperTool,
+    EyedropperOptions, EyedropperTool, EyedropperWords, MAX_SAMPLERS, PickedColor, SampleSize, SampleSource, SamplerCache, SamplerError,
+    SamplerReadout, SamplerReadouts, SamplerWords, ScreenPick, StillCapture,
 };
 use craft_keymap::Mods;
 use craft_theme::{ModelValues, Srgba};
 use craft_ui::canvas::{CanvasSpace, CanvasTool, ToolAction, ToolContext, ToolPointer};
+use craft_ui::contract::{Bind, Show as _};
 use craft_ui::dialog::{DialogResult, DialogStack, StackDialog as _};
 use craft_ui::runtime::env::Words;
 use craft_ui::testing::{Fixture, ToolFixture, trial};
-use egui::{Context, Key, Modifiers, Pos2, Rect};
+use egui::{Context, Key, Modifiers, Pos2, Rect, vec2};
 
 const ROOM: egui::Vec2 = egui::Vec2 { x: 400.0, y: 300.0 };
 /// The fixture's room for a dialog.
@@ -443,6 +444,48 @@ fn a_picked_color_answers_without_capture_windows() {
     pick.tick_with(&ctx, 1, &|| Box::new(StillCapture::color(Srgba::rgb(0.25, 0.5, 0.75))));
     assert_eq!(pick.take("fill"), Some(Srgba::rgb(0.25, 0.5, 0.75)));
     assert!(pick.take_notice(&Words::english().set::<craft_color::ui::ScreenPickerWords>()).is_none());
+}
+
+/// A monitor of `size` pixels at `origin` in the virtual desktop whose pixel (x, y) is (x, y, `tag`), so a pick shows
+/// which monitor and which pixel it read.
+fn monitor(origin: [i32; 2], size: [u32; 2], tag: u8) -> craft_platform::screen::ScreenImage {
+    let rgba = (0..size[1]).flat_map(|y| (0..size[0]).flat_map(move |x| [x as u8, y as u8, tag, 255])).collect();
+    craft_platform::screen::ScreenImage { origin, size, scale: 1.0, rgba: Arc::new(rgba), icc_profile: None, name: format!("monitor {tag}") }
+}
+
+/// Dragging from the picker's screen button and releasing outside the app's window picks the colour under the pointer on
+/// whichever monitor it is over, not only inside the window. Guards the capture of every monitor ending without a colour.
+#[trial]
+fn a_release_outside_the_window_picks_the_colour_under_the_pointer_on_any_monitor() {
+    let pick = Rc::new(RefCell::new(ScreenPick::new()));
+    let shared = pick.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let mut color = PickedColor::rgb(Srgba::rgb(0.2, 0.5, 0.8));
+        let out = ColorPicker::new("Foreground color", Bind::bound(&mut color)).layout(ColorPickerLayout::Compact).eyedropper(true).show(ui);
+        if let Some(gesture) = out.screen_pick {
+            shared.borrow_mut().hold(ui.ctx(), "fill", gesture);
+        }
+    });
+    fixture.room(vec2(720.0, 640.0));
+    fixture.settle();
+    let button = fixture.by_label("Sample color from the screen").expect("the screen button");
+    // The window is the first monitor; the second one starts where the first ends.
+    let by = vec2(900.0 - button.center().x, 50.0 - button.center().y);
+    fixture.drag(&button, by);
+    assert!(pick.borrow().busy(), "a release outside the window captures the screen");
+    let monitors = [monitor([0, 0], [720, 700], 1), monitor([720, 0], [400, 700], 2)];
+    let capture = || -> Box<dyn CaptureSource> { Box::new(StillCapture::new(Ok(craft_platform::screen::Capture::Images(monitors.to_vec())))) };
+    pick.borrow_mut().tick_with(&Context::default(), 1, &capture);
+    assert!(!pick.borrow().busy(), "the pick ends with the capture");
+    let color = pick.borrow_mut().take("fill").expect("the colour under the pointer");
+    let released = button.center() + by;
+    let under = |m: &craft_platform::screen::ScreenImage| {
+        let (x, y) = ((released.x as i32 - m.origin[0]) as usize, (released.y as i32 - m.origin[1]) as usize);
+        let at = (y * m.size[0] as usize + x) * 4;
+        Srgba::rgb(f32::from(m.rgba[at]) / 255.0, f32::from(m.rgba[at + 1]) / 255.0, f32::from(m.rgba[at + 2]) / 255.0)
+    };
+    assert_eq!(color, under(&monitors[1]), "the pixel under the pointer on the monitor it is over");
+    assert_ne!(color, under(&monitors[0]), "not the same coordinates on the first monitor");
 }
 
 /// A request from a Mixed swatch carries no colour: the dialog opens with empty channel fields and OK disabled, a typed
