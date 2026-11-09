@@ -10,6 +10,7 @@ use craft_ui::form::{Field, FieldGroup};
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::list::{List, ListRow};
 use craft_ui::runtime::env::{Env, Label};
+use craft_ui::runtime::focus::Initial;
 use craft_ui::runtime::overlay::CloseReason;
 use craft_ui::runtime::words::CommonWords;
 use craft_ui::sections::{DialogRole, FooterButton};
@@ -344,7 +345,7 @@ impl HyperlinkDialog {
         if editing {
             buttons.push(FooterButton::new(words.remove.clone(), DialogRole::Destructive));
         }
-        let dialog = Dialog::new(title).buttons(buttons).opened(Bind::bound(open)).settle_buttons(|_, buttons| {
+        let dialog = Dialog::new(title).buttons(buttons).initial_focus(Initial::Default).opened(Bind::bound(open)).settle_buttons(|_, buttons| {
             if let Some(accept) = buttons.get_mut(OK) {
                 accept.set_enabled(valid.get());
             }
