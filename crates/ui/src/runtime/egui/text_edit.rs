@@ -124,6 +124,8 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
                     .frame(egui::Frame::NONE)
                     .desired_width(rect.width())
                     .min_size(rect.size())
+                    // The part's rect sets the height; egui's default of four rows would grow past it.
+                    .desired_rows(1)
                     .password(password)
                     .event_filter(filter)
                     .return_key(if multiline { Some(egui::KeyboardShortcut::new(egui::Modifiers::NONE, egui::Key::Enter)) } else { None })
