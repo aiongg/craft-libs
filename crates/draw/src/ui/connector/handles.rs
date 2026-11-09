@@ -63,6 +63,11 @@ impl Outcome for ConnectorHandlesOutput {
     fn response(&self) -> &Response {
         &self.edit.response
     }
+
+    #[cfg(feature = "screen-testing")]
+    fn story_facts(&self) -> craft_ui::testing::StoryOutput {
+        self.edit.story_facts()
+    }
 }
 
 /// The ends and bends of the selected connector.
