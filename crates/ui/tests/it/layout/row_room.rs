@@ -88,7 +88,7 @@ fn an_end_row_offers_its_children_the_row_and_its_filling_child_ends_at_the_row_
 #[trial]
 fn a_section_of_labelled_rows_in_a_content_column_is_as_wide_as_its_widest_row() {
     static PANES: [ColumnWidth; 2] = [ColumnWidth::Content, ColumnWidth::fill(1.0)];
-    let seen = Rc::new(Cell::new((Rect::NOTHING, Rect::NOTHING)));
+    let seen = Rc::new(Cell::new((Rect::NOTHING, Rect::NOTHING, Rect::NOTHING)));
     let out = Rc::clone(&seen);
     let mut on = false;
     let mut fixture = Fixture::new(move |ui| {
@@ -98,17 +98,17 @@ fn a_section_of_labelled_rows_in_a_content_column_is_as_wide_as_its_widest_row()
                     cx.labelled(ui, "a", "Allow downloads".into(), SideLabel::new(), Checkbox::new(Bind::bound(&mut on)).id_salt("check"));
                 })
             });
-            let _ = Stack::new().fill().show(ui, |ui, _| {
+            let main = Stack::new().fill().show(ui, |ui, _| {
                 let _ = Button::new("Main").show(ui);
             });
-            out.set((side.inner.map_or(Rect::NOTHING, |section| section.output.response.rect), side.output.rect));
+            out.set((side.inner.map_or(Rect::NOTHING, |section| section.output.response.rect), side.output.rect, main.output.rect));
         });
     });
     fixture.room(ROOM).settle();
-    let (section, side) = seen.get();
+    let (section, side, main) = seen.get();
     let check = fixture.by_label("Allow downloads").map(|target| target.rect);
-    let dump = format!("section {section:?}, side {side:?}, check {check:?}");
-    assert!(section.width() > 0.0 && section.width() < side.width(), "the section is as wide as its row: {dump}");
+    let dump = format!("section {section:?}, side {side:?}, main {main:?}, check {check:?}");
+    assert!(section.width() > 0.0 && section.width() < main.width(), "the section is as wide as its row: {dump}");
     assert!(check.is_some_and(|check| check.max.x <= section.max.x + SLACK), "the row fits the section: {dump}");
 }
 
