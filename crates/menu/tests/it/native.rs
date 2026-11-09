@@ -263,20 +263,24 @@ fn sync_compares_each_frames_layout() {
     menu.sync(mac_layout(&bar, &opts));
     assert_eq!(synced.borrow().len(), 2);
     assert!(!synced.borrow()[1].find(&cmd("file.new")).unwrap().enabled);
-    {
-        let (mut menu, synced, _, _) = driver();
-        let opts = LayoutOptions::new("Sample");
-        let with = |checked: Option<bool>| {
-            let mut bar = sample(false, true);
-            apply_state(&mut bar, |c| ItemState::default().checked(checked.filter(|_| c.id == "file.new")));
-            mac_layout(&bar, &opts)
-        };
-        menu.sync(with(Some(true)));
-        menu.sync(with(None));
-        let synced = synced.borrow();
-        assert_eq!(synced[1].find(&cmd("file.new")).unwrap().kind, ItemKind::Check(false));
-        assert_eq!(structure_key(&synced[1]), structure_key(&synced[0]));
-    }
+}
+
+/// An item that was a check item stays one when the app's state stops saying checked
+/// (`checked: None`): unchecked, with the same structure, so the menus aren't rebuilt.
+#[trial]
+fn a_check_item_keeps_its_kind() {
+    let (mut menu, synced, _, _) = driver();
+    let opts = LayoutOptions::new("Sample");
+    let with = |checked: Option<bool>| {
+        let mut bar = sample(false, true);
+        apply_state(&mut bar, |c| ItemState::default().checked(checked.filter(|_| c.id == "file.new")));
+        mac_layout(&bar, &opts)
+    };
+    menu.sync(with(Some(true)));
+    menu.sync(with(None));
+    let synced = synced.borrow();
+    assert_eq!(synced[1].find(&cmd("file.new")).unwrap().kind, ItemKind::Check(false));
+    assert_eq!(structure_key(&synced[1]), structure_key(&synced[0]));
 }
 
 /// Only shortcuts with ⌘ or ⌃ are key equivalents. A tool key (`B`, `⇧B`, `⌥B`, `F5`) is
@@ -434,15 +438,17 @@ fn outside_press_dismisses_without_starting_a_canvas_gesture() {
 
     through(&mut menu, &mut frames, vec![egui::Event::PointerMoved(egui::pos2(1.0, 1.0))]);
     assert_eq!(cancels.get(), 2, "a pointer move closes nothing");
-    {
-        let mut frames = Frames::new();
-        let tracking = Rc::new(Cell::new(true));
-        let mut menu = NativeMenu::new(Box::new(Fake { tracking: tracking.clone(), ..Default::default() }));
-        let escape = |pressed| key(Key::Escape, pressed, Modifiers::NONE);
-        let seen = through(&mut menu, &mut frames, vec![escape(true), escape(false)]);
-        assert!(seen.is_empty());
-        assert!(!tracking.get());
-    }
+}
+
+#[trial]
+fn escape_dismisses_an_open_menu_without_reaching_the_active_tool() {
+    let mut frames = Frames::new();
+    let tracking = Rc::new(Cell::new(true));
+    let mut menu = NativeMenu::new(Box::new(Fake { tracking: tracking.clone(), ..Default::default() }));
+    let escape = |pressed| key(Key::Escape, pressed, Modifiers::NONE);
+    let seen = through(&mut menu, &mut frames, vec![escape(true), escape(false)]);
+    assert!(seen.is_empty());
+    assert!(!tracking.get());
 }
 
 /// A backend that keeps reporting a menu open costs one window click, not all of them; once it
@@ -577,4 +583,16 @@ fn key_equivalents_run_commands_while_text_editing() {
         assert_eq!(chosen(&mut menu, shortcut, held, true), Event::Key(chord(shortcut)), "{shortcut} stays with the field");
     }
     assert_eq!(chosen(&mut menu, "Cmd+A", shift_cmd, true), Event::Click("cmd".into()), "⇧⌘A is not select all");
+}
+
+/// A modal dialog or a recorded shortcut lets only the built-in items run.
+#[trial]
+fn a_modal_dialog_or_shortcut_recording_lets_only_the_built_in_items_run() {
+    let save = craft_menu::Item::new(CommandRef::new("file.save"), "Save");
+    let quit = craft_menu::Item::new(Builtin::Quit.command(), "Quit");
+    for gate in [modal(), recording()] {
+        assert!(!gate.allows(&save) && gate.allows(&quit), "{gate:?}");
+    }
+    assert!(typing(true).allows(&save));
+    assert!(Gate::default().allows(&save));
 }

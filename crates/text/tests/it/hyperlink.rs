@@ -84,13 +84,16 @@ fn email_and_place_targets() {
     assert!(rig.fixture.by_label("Top of the Document").is_some());
     rig.click("2. Plan");
     assert_eq!(rig.ok(), Some(set(LinkTarget::Place(1))));
-    {
-        let mut rig = Rig::new(HyperlinkDialog::new(CurrentLink::None, None));
-        rig.click("E-mail Address");
-        rig.type_into("E-mail address:", "a@b.example");
-        rig.type_into("Subject:", "Hello");
-        assert_eq!(rig.ok(), Some(set(LinkTarget::email("a@b.example", Some("Hello".to_owned())))));
-    }
+}
+
+/// The email target has a Subject, answered beside the address.
+#[trial]
+fn an_email_link_carries_its_subject() {
+    let mut rig = Rig::new(HyperlinkDialog::new(CurrentLink::None, None));
+    rig.click("E-mail Address");
+    rig.type_into("E-mail address:", "a@b.example");
+    rig.type_into("Subject:", "Hello");
+    assert_eq!(rig.ok(), Some(set(LinkTarget::email("a@b.example", Some("Hello".to_owned())))));
 }
 
 /// Top of the Document is its own target, and an edited Top link reopens with that row picked.

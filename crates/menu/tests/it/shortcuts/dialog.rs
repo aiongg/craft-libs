@@ -21,8 +21,7 @@ fn recording_takes_a_chord_another_command_would_run() {
     assert!(!rig.shared.borrow().state.is_recording());
 }
 
-/// A chord taken from its holder moves to the taker, in Steal mode at once and otherwise on Take It; Undo and Redo (also
-/// Cmd+Z) move it back and forth.
+/// Take It moves the chord; Undo and Redo (also Cmd+Z) move it back and forth.
 #[trial]
 fn conflict_take_it_steals_and_undo_restores() {
     let mut rig = Rig::mac();
@@ -37,11 +36,6 @@ fn conflict_take_it_steals_and_undo_restores() {
     assert_eq!(rig.bindings("file.export"), ["Cmd+S"]);
     rig.press(Modifiers::MAC_CMD, Key::Z);
     assert_eq!(rig.bindings("file.export"), ["Cmd+E"]);
-
-    let mut steal = Rig::new(keymap(Platform::Mac), options().with(|o| o.conflicts = ConflictMode::Steal), None);
-    steal.click("Export…: ⌘E");
-    steal.press(Modifiers::MAC_CMD, Key::S);
-    assert!(steal.bindings("file.save").is_empty() && steal.bindings("file.export") == ["Cmd+S"], "Steal mode moves it without asking");
 }
 
 /// Keep Both lists the clash under the Conflicts filter; undoing the changes changes nothing.
@@ -94,6 +88,17 @@ fn assign_takes_a_held_shortcut_and_keeps_the_others() {
     assert_eq!(run("Cmd+F11"), Lookup::Run("type.paragraphStyles".into()));
     drop(shared);
     assert!(rig.bindings("file.print").is_empty());
+}
+
+/// In Steal mode the chord moves at once, the message says what it took, and Go to Conflict selects the holder.
+#[trial]
+fn steal_mode_says_what_it_took() {
+    let mut rig = Rig::new(keymap(Platform::Mac), options().with(|o| o.conflicts = ConflictMode::Steal), None);
+    rig.click("Export…: ⌘E");
+    rig.press(Modifiers::MAC_CMD, Key::S);
+    assert!(rig.has("⌘S was removed from Save"));
+    rig.click("Go to Conflict");
+    assert!(rig.has("Save (Changed)"));
 }
 
 /// A reserved chord and the app's own rule refuse with a message and change nothing.

@@ -21,11 +21,6 @@ fn dictionary_words() {
     assert!(!h("changed").contains('-'));
     assert_eq!(h("NASA"), "NASA");
     assert_eq!(word_breaks("publication").1, Source::Dictionary);
-    {
-        assert_eq!(h("ripples"), "rip-ples");
-        assert_eq!(h("gradients"), "gra-di-ents");
-        assert_eq!(h("restrained"), "re-strained");
-    }
 }
 
 #[test]
@@ -41,6 +36,13 @@ fn case_apostrophes_and_punctuation() {
     assert_eq!(h("typography-composition"), "ty-pog-ra-phy-com-po-si-tion");
     // Points are byte offsets: the opening quote takes three bytes.
     assert_eq!(hyphen_points("“typography”", &Limits::default()), vec![5, 8, 10]);
+}
+
+#[test]
+fn inflections_inherit_the_stem() {
+    assert_eq!(h("ripples"), "rip-ples");
+    assert_eq!(h("gradients"), "gra-di-ents");
+    assert_eq!(h("restrained"), "re-strained");
 }
 
 #[test]

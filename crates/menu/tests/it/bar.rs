@@ -165,12 +165,14 @@ fn closes_after_clicking(label: &str) -> bool {
 fn a_quit_row_asks_the_root_window_to_close_and_fires_nothing() {
     assert!(closes_after_clicking("Quit"), "the runtime's close path is asked");
     assert!(!closes_after_clicking("New"), "other rows leave the window alone");
-    {
-        let mut fixture = rig(sample(), LINUX);
-        click(&mut fixture, "File");
-        click(&mut fixture, "Minimize");
-        assert!(fired(&fixture).is_empty());
-    }
+}
+
+#[trial]
+fn minimize_fires_nothing() {
+    let mut fixture = rig(sample(), LINUX);
+    click(&mut fixture, "File");
+    click(&mut fixture, "Minimize");
+    assert!(fired(&fixture).is_empty());
 }
 
 #[trial]

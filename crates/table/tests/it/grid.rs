@@ -381,6 +381,22 @@ fn a_filter_button_over_the_header_takes_the_press() {
 }
 
 #[trial]
+fn an_error_tag_beside_a_cell_takes_the_press() {
+    let fixes = Rc::new(vec![Label::from("Convert to number")]);
+    let mut fixture = Fixture::new({
+        let fixes = fixes.clone();
+        move |ui| {
+            let model = Sheet::new(None);
+            let mut state = GridState::default();
+            CellGrid::new("Sheet", &model, &mut state).error_tag(CellProblem::new(CellAt::new(2, 2), "Number stored as text", &fixes)).show_sheet(ui);
+        }
+    });
+    fixture.settle();
+    let tag = fixture.by_label("Error checking options").expect("the tag is a named button");
+    fixture.click(&tag);
+}
+
+#[trial]
 fn the_error_tag_sits_left_or_right_of_the_cell() {
     let rects = Rc::new(RefCell::new(Vec::new()));
     let fixes = Rc::new(vec![Label::from("Ignore")]);
@@ -395,8 +411,6 @@ fn the_error_tag_sits_left_or_right_of_the_cell() {
     let tag = fixture.by_label("Error checking options").expect("the tag has a node").rect;
     let cell = *rects.borrow().last().expect("the grid showed");
     assert!(tag.right() <= cell.left() || tag.left() >= cell.right(), "the tag sits beside the cell, not over it");
-    let tag = fixture.by_label("Error checking options").expect("the tag has a node");
-    fixture.click(&tag);
 }
 
 #[trial]

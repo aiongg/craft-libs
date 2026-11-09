@@ -156,6 +156,19 @@ fn lines_fit_and_cover_the_paragraph() {
     }
 }
 
+/// Every-line breaking spreads the spacing more evenly than greedy breaking.
+#[test]
+fn every_line_is_more_even_than_greedy() {
+    let text = [COPY; 2].join(" ");
+    let p = vectorcraft(false);
+    let para = Para::new(&text, &p, None);
+    for width in [150.0, 190.0, 240.0] {
+        let worst = |lines: &[Line]| lines[..lines.len() - 1].iter().map(|l| l.ratio).fold(0.0, f64::max);
+        let (kp, gr) = (worst(&every_line(&para.items, width, false)), worst(&greedy(&para.items, &|_| width, &p)));
+        assert!(kp <= gr + 1e-9, "{width}: every-line worst ratio {kp} vs greedy {gr}");
+    }
+}
+
 /// Ragged: every-line breaks before a word that would fit, so the last line is not a lone short
 /// word; greedy keeps filling the first line.
 #[test]
@@ -220,13 +233,6 @@ fn hyphen_limit_is_a_hard_constraint() {
             }
             assert!(lines.iter().any(|l| l.flagged));
         }
-    }
-    {
-        let items =
-            [Item::boxed(10.0), Item::penalty(1.0, 0.0, true), Item::boxed(10.0), Item::penalty(1.0, 0.0, true), Item::boxed(10.0), Item::forced()];
-        let p = Params { hyphen_limit: 1, ..Params::default() };
-        let lines = break_paragraph(&items, &|_| 5.0, &p, &[2.5, f64::INFINITY]).lines;
-        assert!(lines.windows(2).all(|w| !(w[0].flagged && w[1].flagged)), "{lines:?}");
     }
 }
 
@@ -369,20 +375,23 @@ fn justification_uses_tiers_in_order() {
     let l = lines[0];
     assert_eq!(l.tiers, [1.0, 0.2, 0.0]);
     assert!((l.ratio - (1.0 + 0.2 * p.tier_cost[1])).abs() < 1e-9, "{l:?}");
-    {
-        let worst = |box_stretch: f64| {
-            let p = designcraft(false);
-            let mut para = Para::new(COPY, &p, Some(275.0));
-            for it in para.items.iter_mut().filter(|i| i.kind == Kind::Box) {
-                it.stretch = [0.0, it.width * box_stretch, it.width * box_stretch];
-                it.shrink = [0.0, it.width * box_stretch / 2.0, it.width * box_stretch / 2.0];
-            }
-            let lines = break_paragraph(&para.items, &|_| 100.0, &p, &PASSES).lines;
-            lines[..lines.len() - 1].iter().map(|l| l.ratio).fold(0.0, f64::max)
-        };
-        let (words, all) = (worst(0.0), worst(0.03));
-        assert!(all < words, "{all} vs {words}");
-    }
+}
+
+/// Letter spacing and glyph scaling absorb what word spacing alone cannot in a narrow column.
+#[test]
+fn letter_and_glyph_tiers_ease_a_narrow_column() {
+    let worst = |box_stretch: f64| {
+        let p = designcraft(false);
+        let mut para = Para::new(COPY, &p, Some(275.0));
+        for it in para.items.iter_mut().filter(|i| i.kind == Kind::Box) {
+            it.stretch = [0.0, it.width * box_stretch, it.width * box_stretch];
+            it.shrink = [0.0, it.width * box_stretch / 2.0, it.width * box_stretch / 2.0];
+        }
+        let lines = break_paragraph(&para.items, &|_| 100.0, &p, &PASSES).lines;
+        lines[..lines.len() - 1].iter().map(|l| l.ratio).fold(0.0, f64::max)
+    };
+    let (words, all) = (worst(0.0), worst(0.03));
+    assert!(all < words, "{all} vs {words}");
 }
 
 /// A long ragged paragraph with a constant measure breaks by Knuth–Plass under the default
@@ -438,16 +447,32 @@ fn lines_never_end_before_they_start() {
     let lines = break_paragraph(&items, &|_| 11.0, &p, &[2.5, f64::INFINITY]).lines;
     assert!(lines.iter().all(|l| l.start <= l.end && l.end <= l.next), "{lines:?}");
     assert_covers(&items, &lines);
-    {
-        let fill = [Item::boxed(20.0), Item::fill(), Item::forced()];
-        assert_eq!(spans(&break_paragraph(&fill, &|_| 11.0, &Params::default(), &[2.5, f64::INFINITY]).lines), [(0, 2)]);
-        let forced = [Item::boxed(20.0), Item::forced(), Item::forced()];
-        assert_eq!(spans(&break_paragraph(&forced, &|_| 11.0, &Params::default(), &[2.5, f64::INFINITY]).lines), [(0, 1), (2, 2)]);
-    }
 }
 
 fn spans(lines: &[Line]) -> Vec<(usize, usize)> {
     lines.iter().map(|l| (l.start, l.end)).collect()
+}
+
+/// A final word wider than the measure is one overfull line: the fill before the forced break
+/// doesn't end it and leave an empty line. Consecutive forced breaks still make an empty line.
+#[test]
+fn an_overlong_last_word_adds_no_empty_line() {
+    let fill = [Item::boxed(20.0), Item::fill(), Item::forced()];
+    assert_eq!(spans(&break_paragraph(&fill, &|_| 11.0, &Params::default(), &[2.5, f64::INFINITY]).lines), [(0, 2)]);
+    let forced = [Item::boxed(20.0), Item::forced(), Item::forced()];
+    assert_eq!(spans(&break_paragraph(&forced, &|_| 11.0, &Params::default(), &[2.5, f64::INFINITY]).lines), [(0, 1), (2, 2)]);
+}
+
+/// Overfull lines keep the hyphen limit too: with a limit of 1, no two consecutive lines end at a
+/// hyphen even when every line is overfull.
+#[test]
+fn overfull_lines_keep_the_hyphen_limit() {
+    let items =
+        [Item::boxed(10.0), Item::penalty(1.0, 0.0, true), Item::boxed(10.0), Item::penalty(1.0, 0.0, true), Item::boxed(10.0), Item::forced()];
+    let p = Params { hyphen_limit: 1, ..Params::default() };
+    let lines = break_paragraph(&items, &|_| 5.0, &p, &[2.5, f64::INFINITY]).lines;
+    assert!(lines.windows(2).all(|w| !(w[0].flagged && w[1].flagged)), "{lines:?}");
+    assert_eq!(spans(&lines), [(0, 1), (2, 5)]);
 }
 
 #[test]
