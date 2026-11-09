@@ -357,10 +357,12 @@ impl CellGrid<'_> {
             let state = Marks::of_line(&marks.rows, row);
             let (fill, text) = look(ROW.at(u64::from(row)));
             draw.fill(&rect(at), fill);
-            // A row cut by the cells' edge shows its number cut at that edge.
-            draw.clipped(at, |draw| {
-                draw.text(at, &TextRun::new((row + 1).to_string()).color(text).align(HAlign::Center).elide());
-            });
+            // A row cut by the cells' edge leaves a strip shorter than its number; the number then stays unpainted
+            // instead of running past the grid (the row header keeps its access name).
+            let number = TextRun::new((row + 1).to_string()).color(text).align(HAlign::Center).elide();
+            if draw.layout(&number, at.width()).size().y <= at.height() {
+                draw.text(at, &number);
+            }
             if state.is_some() {
                 let (from, to) = if rtl { (at.left_top(), at.left_bottom()) } else { (at.right_top(), at.right_bottom()) };
                 draw.stroke(&PaintShape::Path(vec![from, to]), StrokeWidth::Thick, style.accent);
