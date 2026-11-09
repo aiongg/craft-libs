@@ -325,6 +325,15 @@ fn the_bar_reports_new_and_delete_and_edits_options() {
     rig.fixture.click(&fields[0]);
     rig.fixture.key(Key::ArrowUp, Modifiers::NONE).settle();
     let stepped = rig.settings.borrow().ratio;
+    let CropRatio::Sides { width: first, height: first_height, .. } = stepped else { panic!("a stepped ratio has sides") };
+    assert_ne!(first, first_height, "the swap runs on unequal sides");
+
+    rig.click("Swaps height and width");
+    assert_eq!(rig.settings.borrow().ratio, CropRatio::sides(first_height, first));
+    rig.click("Swaps height and width");
+    assert_eq!(rig.settings.borrow().ratio, stepped);
+
+    rig.fixture.click(&fields[0]);
     rig.fixture.key(Key::ArrowUp, Modifiers::NONE).settle();
     let twice = rig.settings.borrow().ratio;
     assert!(
@@ -339,10 +348,6 @@ fn the_bar_reports_new_and_delete_and_edits_options() {
         "each arrow press adds RATIO_STEP to the width and keeps the height: {stepped:?}, {twice:?}"
     );
     assert!(rig.seen.borrow().iter().any(|s| s.ratio.is_some()));
-
-    rig.click("Swaps height and width");
-    let CropRatio::Sides { width, height, .. } = stepped else { panic!("a stepped ratio has sides") };
-    assert_eq!(rig.settings.borrow().ratio, CropRatio::sides(height, width));
 }
 
 /// The gear menu's Custom… reports a colour request for the shield colour through the bar.
