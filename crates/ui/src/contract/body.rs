@@ -1997,7 +1997,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         // The control's narrowest width comes from this pass: the body runs once in an invisible sizing pass and
         // its first control reports.
         let control_min = if is_open && props.label.is_some() {
-            let mut probe_cx = BodyCx::new(body_id, body_env.view(), cx.core.resolved, regions.body, &mut *cx.core.memory, &mut open, gate.as_mut())
+            // The probe writes to a peek stage: the real run still has the body's state as it was.
+            let mut probe_stage = MemoryStage::open_peek(&ctx, id);
+            let mut probe_cx = BodyCx::new(body_id, body_env.view(), cx.core.resolved, regions.body, &mut probe_stage, &mut open, gate.as_mut())
                 .with_field_message(field_message.clone())
                 .with_owner(owner);
             let mut probe_ui = alloc::child(
