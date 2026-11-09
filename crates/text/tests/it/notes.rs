@@ -62,18 +62,25 @@ fn long_text() -> String {
     "Speaker notes that wrap across the pane. ".repeat(4)
 }
 
-/// A row of the editor's body text is about 14 high; the paragraph's own text shape spans all its rows.
-const TALLEST_BAND: f32 = 20.0;
-
-/// The bands a selection paints: rects inside the editor, one per wrapped row, top to bottom. Rects taller than a
-/// row (the paragraph's text) are left out.
-fn bands(fixture: &Fixture) -> Vec<egui::Rect> {
+/// Rects painted inside the editor, top to bottom, one per top edge.
+fn painted(fixture: &Fixture, tallest: f32) -> Vec<egui::Rect> {
     let area = fixture.shown();
     let mut rects: Vec<egui::Rect> =
-        fixture.shape_bounds().iter().filter(|r| r.width() > 1.0 && r.height() < TALLEST_BAND && area.contains_rect(**r)).copied().collect();
+        fixture.shape_bounds().iter().filter(|r| r.width() > 1.0 && r.height() <= tallest && area.contains_rect(**r)).copied().collect();
     rects.sort_by(|a, b| a.top().total_cmp(&b.top()));
     rects.dedup_by(|a, b| (a.top() - b.top()).abs() < 1.0);
     rects
+}
+
+/// The bands a selection paints: one per wrapped row.
+fn bands(fixture: &Fixture) -> Vec<egui::Rect> {
+    painted(fixture, f32::INFINITY)
+}
+
+/// The editor's row height, read while the whole text is selected: a band is one row, shorter than the paragraph's
+/// text shape that spans every row of a wrapped text.
+fn row_height(fixture: &Fixture) -> f32 {
+    bands(fixture).iter().map(|r| r.height()).fold(f32::INFINITY, f32::min)
 }
 
 /// A click places the caret at the character under it; a drag from the first row into the second selects the text
@@ -110,12 +117,13 @@ fn a_click_places_the_caret_and_a_drag_selects() {
     fixture.click(&editor);
     fixture.key(Key::A, Modifiers::COMMAND);
     fixture.settle();
-    let rows = bands(&fixture);
+    let row = row_height(&fixture);
+    let rows = painted(&fixture, row);
     assert!(rows.len() >= 3, "the text wraps: {rows:?}");
     let (first, second) = (rows[0], rows[1]);
     let start = egui::pos2(first.left() + 1.0, first.center().y);
     fixture.click_at(start);
-    let before = bands(&fixture).len();
+    let before = painted(&fixture, row).len();
     fixture.drag_at(start, vec2(second.width() * 0.5, second.center().y - first.center().y));
-    assert_eq!(bands(&fixture).len() - before, 2, "a drag over two rows selects those two rows");
+    assert_eq!(painted(&fixture, row).len() - before, 2, "a drag over two rows selects those two rows");
 }
