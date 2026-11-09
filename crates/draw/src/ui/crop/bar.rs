@@ -125,17 +125,12 @@ impl<'a> CropBar<'a> {
                 settings.clear();
                 report.ratio = Some(CropRatioChange { editing: false });
             }
-            Field::new(words.angle.clone())
-                .id_salt("angle")
-                
-                .sizing(Sizing::Content)
-                .enabled(angle.is_some())
-                .show(ui, |ui, _| {
-                    let field = NumberField::new(words.angle.clone(), Bind::given(angle)).unit_kind(UnitKind::Degrees).range(-180.0..=180.0).show(ui);
-                    if let Some(turned) = field.value().copied().flatten() {
-                        report.angle = Some(turned);
-                    }
-                });
+            Field::new(words.angle.clone()).id_salt("angle").sizing(Sizing::Content).enabled(angle.is_some()).show(ui, |ui, _| {
+                let field = NumberField::new(words.angle.clone(), Bind::given(angle)).unit_kind(UnitKind::Degrees).range(-180.0..=180.0).show(ui);
+                if let Some(turned) = field.value().copied().flatten() {
+                    report.angle = Some(turned);
+                }
+            });
             let toggle = ToggleButton::new(words.straighten.clone(), Bind::given(straighten)).icon(IconId::new("ruler")).icon_only().show(ui);
             report.straighten |= toggle.value().is_some();
             CropOverlayMenu::new(settings).show(ui);
@@ -331,14 +326,11 @@ fn size_fields(ui: &mut Ui, settings: &mut CropSettings, words: &CropBarWords, d
 
     let resolution = settings.size.resolution.trim().replace(',', ".").parse::<f64>().ok().filter(|v| v.is_finite() && *v > 0.0);
     let mut typed = None;
-    Field::new(words.resolution.clone()).id_salt("size-resolution").sizing(Sizing::Content).show(
-        ui,
-        |ui, _| {
-            let codec = NumberCodec::new(units.reader(None), 2);
-            let field = NumberField::new(words.resolution.clone(), Bind::given(resolution)).codec(codec).range(0.0..=FIELD_MAX).show(ui);
-            typed = field.value().copied();
-        },
-    );
+    Field::new(words.resolution.clone()).id_salt("size-resolution").sizing(Sizing::Content).show(ui, |ui, _| {
+        let codec = NumberCodec::new(units.reader(None), 2);
+        let field = NumberField::new(words.resolution.clone(), Bind::given(resolution)).codec(codec).range(0.0..=FIELD_MAX).show(ui);
+        typed = field.value().copied();
+    });
     if let Some(value) = typed {
         let text = match value.filter(|v| *v > 0.0) {
             Some(v) => CropSizeFields::normalize_resolution(&v.to_string(), &settings.size.resolution),
