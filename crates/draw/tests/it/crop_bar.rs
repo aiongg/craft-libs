@@ -270,7 +270,9 @@ impl Rig {
     /// key reaches them.
     fn open_list_wheeled(&mut self, pages: f32) {
         self.click("Crop ratio");
-        self.fixture.frame(vec![egui::Event::PointerMoved(egui::pos2(100.0, 150.0))]);
+        let bar = self.fixture.shown().height();
+        let row = self.fixture.texts().iter().find(|text| text.rect.min.y > bar).expect("the open list shows a row").rect.center();
+        self.fixture.frame(vec![egui::Event::PointerMoved(row)]);
         self.fixture.frame(vec![egui::Event::MouseWheel {
             unit: egui::MouseWheelUnit::Page,
             delta: Vec2::new(0.0, pages),
