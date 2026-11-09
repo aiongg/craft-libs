@@ -215,6 +215,8 @@ fn enter_after_tabs() {
         assert_eq!(active(&sel), c(2, 3));
         assert!(sel.advance(CellAdvance::Enter, false, &space));
         assert_eq!(active(&sel), c(3, 1));
+        sel.advance(CellAdvance::Enter, false, &space);
+        assert_eq!(active(&sel), c(4, 1));
 
         sel.advance(CellAdvance::Tab, false, &space);
         sel.step(CellDirection::Right, &space);

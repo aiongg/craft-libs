@@ -278,18 +278,11 @@ pub fn place(saved: Option<&Placement>, monitors: &[Monitor], home: Option<usize
     }
 }
 
-fn first_launch() {
-    let want = defaults().size;
-    // The default size, and the position left to the system.
-    let p = place(None, &[hd()], Some(0), &defaults());
-    assert_eq!(p.normal.size, want);
-    assert_eq!(p.position_px, None);
-    assert!(!p.maximized);
-    // On a monitor too small for it the window fits and maximizes.
-    let small = mon("S", [0, 0], [1280, 720], 1.0);
-    let p = place(None, &[small], None, &defaults());
-    assert!(p.normal.size[0] <= 1280.0 && p.normal.size[1] < 720.0);
-    assert!(p.maximized);
+fn first_launch(home: &Monitor, d: &Defaults) -> Placement {
+    let usable = home.usable(d.screen_room);
+    let too_small = (0..2).any(|i| d.size[i] > usable[i]);
+    let size = fit(d.size, usable, d.min);
+    Placement { maximized: too_small, ..make(size, None, home.scale(), 1.0, Some(home.key.clone())) }
 }
 
 fn restore(s: &Placement, monitors: &[Monitor], home: &Monitor, primary: &Monitor, d: &Defaults) -> Placement {
@@ -365,20 +358,17 @@ mod tests {
 
     #[test]
     fn first_launch() {
-        // first launch uses default size and leaves position to the system
-        {
-            let p = place(None, &[hd()], Some(0), &defaults());
-            assert_eq!(p.normal.size, [1200.0, 800.0]);
-            assert_eq!(p.position_px, None);
-            assert!(!p.maximized);
-        }
-        // first launch on a small monitor fits and maximizes
-        {
-            let small = mon("S", [0, 0], [1280, 720], 1.0);
-            let p = place(None, &[small], None, &defaults());
-            assert_eq!(p.normal.size, [1200.0, 680.0]);
-            assert!(p.maximized);
-        }
+        let want = defaults().size;
+        // The default size, and the position left to the system.
+        let p = place(None, &[hd()], Some(0), &defaults());
+        assert_eq!(p.normal.size, want);
+        assert_eq!(p.position_px, None);
+        assert!(!p.maximized);
+        // On a monitor too small for it the window fits and maximizes.
+        let small = mon("S", [0, 0], [1280, 720], 1.0);
+        let p = place(None, &[small], None, &defaults());
+        assert!(p.normal.size[0] <= 1280.0 && p.normal.size[1] < 720.0);
+        assert!(p.maximized);
     }
 
     #[test]

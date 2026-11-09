@@ -953,7 +953,7 @@ mod tests {
         for frozen in [0, 1] {
             assert_eq!(layout.rect(frozen, offset).top(), layout.rect(frozen, home).top(), "a frozen row does not scroll");
         }
-        assert_eq!(layout.rect(3, offset).top(), layout.rect(3, home).top() - offset.y, "a scrolled row moves by the offset");
+        assert_eq!(layout.rect(3, offset).top(), layout.rect(3, home).top() - offset.y as f32, "a scrolled row moves by the offset");
         let mut shown = Vec::new();
         layout.visible(offset, view, &mut shown);
         assert!(shown.starts_with(&[0, 1]) && !shown.contains(&2), "the row under the frozen band is not shown");
