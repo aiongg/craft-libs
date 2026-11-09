@@ -1,4 +1,4 @@
-//! `CompareTile`, `CompareCaption` and the compare arrangements (`ComparePair`, `survey_columns`).
+//! `CompareTile`, `CompareCaption` and the compare arrangements (`ComparePair`, `survey_columns`, `survey_cell`).
 //!
 //! ```ignore
 //! let [left, right] = ComparePair::new(space).rtl(rtl).rects(area);
@@ -18,7 +18,7 @@ mod stories;
 mod style;
 mod tile;
 
-pub use arrange::{ArrangeSpace, ComparePair, survey_columns};
+pub use arrange::{ArrangeSpace, ComparePair, survey_cell, survey_columns};
 pub use caption::CompareCaption;
 pub use style::CompareTileStyle;
 pub use tile::{CompareImage, CompareOutput, CompareTile, RenderState};

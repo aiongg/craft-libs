@@ -1,4 +1,4 @@
-//! `ComparePair` and `survey_columns`: the two-pane and survey arrangements, as geometry.
+//! `ComparePair`, `survey_columns` and `survey_cell`: the two-pane and survey arrangements, as geometry.
 
 use egui::{Rect, pos2, vec2};
 
@@ -61,4 +61,15 @@ pub fn survey_columns(n: usize, area: Rect, aspect: f32) -> usize {
         }
     }
     best.0
+}
+
+/// The cell of tile `index` among `count` survey tiles in `area`, for pictures `aspect` wide: `survey_columns` columns
+/// of equal cells fill the area, the tiles run along the rows from the reading start (the right edge when `rtl`).
+pub fn survey_cell(count: usize, index: usize, area: Rect, aspect: f32, rtl: bool) -> Rect {
+    let columns = survey_columns(count, area, aspect);
+    let rows = count.max(1).div_ceil(columns);
+    let cell = vec2(area.width() / columns as f32, area.height() / rows as f32);
+    let (column, row) = ((index % columns) as f32, (index / columns) as f32);
+    let x = if rtl { area.max.x - cell.x * (column + 1.0) } else { area.min.x + cell.x * column };
+    Rect::from_min_size(pos2(x, area.min.y + cell.y * row), cell)
 }

@@ -736,24 +736,41 @@ fn effect_rows_sit_under_their_layer() {
     assert_eq!(effect_eye.min.x, layer_eye.min.x, "one eye column for layers and effects");
 }
 
-/// The heights of the Smart Filters header row and of a filter row at thumbnail size `size`.
-fn smart_filter_heights(size: ThumbSize) -> (f32, f32) {
-    let mut tree = FakeLayers::sample();
-    tree.selection = LayerSelection::default();
-    let (fixture, _app) = rig_with(tree, |app| {
-        app.tree.layer_mut(6).effects_open = true;
-        app.settings.options.thumbnail_size = size;
-    });
-    (row(&fixture, "Smart Filters").rect.height(), row(&fixture, "Gaussian Blur").rect.height())
+/// The list item named `name`.
+fn item_named(fixture: &Fixture, name: &str) -> Target {
+    fixture
+        .by_role(Role::TREE_ITEM)
+        .into_iter()
+        .find(|item| fixture.tree().name_of(item.node).as_deref() == Some(name))
+        .unwrap_or_else(|| panic!("no list item named {name:?}"))
 }
 
-/// The Smart Filters header carries the filter mask's thumbnail unless thumbnails are off; a filter row never does.
+/// The rig of the Smart Filters trials: the smart object's filters open at thumbnail size `size`.
+fn smart_filter_rig(size: ThumbSize) -> Fixture {
+    let mut tree = FakeLayers::sample();
+    tree.selection = LayerSelection::default();
+    rig_with(tree, |app| {
+        app.tree.layer_mut(6).effects_open = true;
+        app.settings.options.thumbnail_size = size;
+    })
+    .0
+}
+
+/// The Smart Filters header carries the filter mask's thumbnail, so it is as tall as a layer row
+/// and taller than a filter row; with thumbnails off all three rows are alike (Photoshop). A row's height follows its
+/// thumbnail, which paints no node of its own.
 #[trial]
 fn the_smart_filters_header_holds_the_shared_mask_thumbnail() {
-    let (header, item) = smart_filter_heights(ThumbSize::Medium);
-    assert!(header > item, "the header row holds a thumbnail: {header} against {item}");
-    let (header, item) = smart_filter_heights(ThumbSize::None);
-    assert!((header - item).abs() < 0.5, "no thumbnail at size None: {header} against {item}");
+    for size in [ThumbSize::Medium] {
+        let fixture = smart_filter_rig(size);
+        let height = |name: &str| item_named(&fixture, name).rect.height();
+        let (header, filter, layer) = (height("Smart Filters"), height("Gaussian Blur"), height("Styled"));
+        assert!(header > filter, "{size:?}: the header row holds a thumbnail: {header} against {filter}");
+        assert_eq!(header, layer, "{size:?}: the filter mask thumbnail matches the layer thumbnails");
+    }
+    let fixture = smart_filter_rig(ThumbSize::None);
+    let (header, filter) = (item_named(&fixture, "Smart Filters").rect.height(), item_named(&fixture, "Gaussian Blur").rect.height());
+    assert!((header - filter).abs() < 0.5, "no thumbnail at size None: {header} against {filter}");
 }
 
 /// Right-click on the node named `label`.

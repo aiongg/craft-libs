@@ -436,3 +436,24 @@ fn point_mode_inserts_an_absolute_reference() {
     let written = rig.committed.borrow().last().cloned();
     assert_eq!(written, Some(CellEdit::new(CellAt::new(5, 5), "=$F$5")), "the arrow pointed at the cell above and Enter committed the formula");
 }
+
+/// While pointing, End then an arrow and Ctrl+arrow reach the data edge, and Enter writes that reference (Excel).
+#[trial]
+fn point_mode_reaches_the_data_edge_with_end_and_ctrl_arrows() {
+    let cases: [(&str, &[(Key, Modifiers)]); 2] = [
+        ("End then Right", &[(Key::End, Modifiers::NONE), (Key::ArrowRight, Modifiers::NONE)]),
+        ("Ctrl+Right", &[(Key::ArrowRight, Modifiers::COMMAND)]),
+    ];
+    for (what, keys) in cases {
+        let mut rig = rig(None, CellSelection::cell(CellAt::new(5, 5)), 1.0);
+        rig.fixture.type_text("=");
+        rig.fixture.idle(2);
+        for &(key, modifiers) in keys {
+            rig.press(key, modifiers);
+        }
+        rig.press(Key::Enter, Modifiers::NONE);
+        let written = rig.committed.borrow().last().cloned();
+        let edge = format!("={}", absolute_reference(CellAt::new(5, SHEET_COLUMNS - 1)));
+        assert_eq!(written, Some(CellEdit::new(CellAt::new(5, 5), edge)), "{what} pointed at the last column of the row");
+    }
+}

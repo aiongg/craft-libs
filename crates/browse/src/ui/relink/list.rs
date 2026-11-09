@@ -206,7 +206,7 @@ pub struct LinkList<'a, K: TextureKey + std::fmt::Debug> {
     actions: bool,
     /// The Link Info section's body for the lead link.
     #[prop(boxed)]
-    info: Option<Box<dyn FnOnce(&mut Ui) + 'a>>,
+    info: Option<Box<dyn FnMut(&mut Ui) + 'a>>,
 }
 
 impl<'a, K: TextureKey + std::fmt::Debug> LinkList<'a, K> {
@@ -339,15 +339,14 @@ impl<K: TextureKey + std::fmt::Debug> LinkList<'_, K> {
         };
 
         let footer = |ui: &mut Ui, cx: &mut BodyCx<'_>| {
-            if let Some(show_info) = info.borrow_mut().take() {
+            // The footer runs in a sizing pass before the shown pass: the section lays out in both and writes memory only
+            // when shown.
+            if let Some(show_info) = info.borrow_mut().as_mut() {
                 let mut open = cx.keep::<ListMemory<K>>().local.settings.info_open;
-                let mut show_info = Some(show_info);
-                Section::new(words.info.clone()).open(Bind::bound(&mut open)).show(ui, |ui, _| {
-                    if let Some(show_info) = show_info.take() {
-                        show_info(ui);
-                    }
-                });
-                cx.keep::<ListMemory<K>>().local.settings.info_open = open;
+                Section::new(words.info.clone()).open(Bind::bound(&mut open)).show(ui, |ui, _| show_info(ui));
+                if !ui.is_sizing_pass() {
+                    cx.keep::<ListMemory<K>>().local.settings.info_open = open;
+                }
             }
             if actions {
                 let (facts, settings) = {

@@ -330,6 +330,10 @@ impl CellGrid<'_> {
         {
             self.pass.edits.push(GridEdit::Paste(text.to_string()));
         }
+        // A key that moves the active cell moves the collection's lead there and scrolls it into view (Excel).
+        if selection.active() != before.active() {
+            self.reveal = selection.active().map(|cell| cell.row);
+        }
         let (pointer_edits, swapped) = self.run_pointer(cx, &mut selection, &mut grab, &mut preview, &order, &hidden_rows, &hidden_columns);
         self.pass.edits.extend(pointer_edits);
         self.pass.fill_swapped |= swapped;
