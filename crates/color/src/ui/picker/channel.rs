@@ -189,9 +189,11 @@ impl<'a> ChannelRow<'a> {
 
     /// Shows the row; the edit of the slider or the field, `None` when the row did not run.
     pub(crate) fn show(self, ui: &mut Ui) -> Option<EditResponse<f64>> {
-        let ChannelRow { label, value, rule, track, checker, unit } = self;
-        let slider = channel_slider(label.clone(), value, &rule, unit, track.map(|stops| (stops, checker)));
-        let mut slider = Some(slider);
-        Field::new(label).side(SideLabel::new().scrub(true)).show(ui, |ui, _| slider.take().map(|slider| slider.show(ui))).inner.flatten()
+        let ChannelRow { label, mut value, rule, track, checker, unit } = self;
+        // The body runs in the measuring run and again in the real one: it builds the slider on each run.
+        Field::new(label.clone())
+            .side(SideLabel::new().scrub(true))
+            .show(ui, |ui, _| channel_slider(label.clone(), value.reborrowed(), &rule, unit, track.clone().map(|stops| (stops, checker))).show(ui))
+            .inner
     }
 }
