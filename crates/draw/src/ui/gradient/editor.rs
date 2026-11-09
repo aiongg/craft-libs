@@ -277,7 +277,7 @@ impl<'a, P: Clone + Send + Sync + 'static> GradientEditor<'a, P> {
         } = self;
         let words = Env::of(ui).words::<super::words::GradientWords>();
         let mut output = None;
-        let shown = Stack::new().show(ui, |ui, cx| {
+        let shown = Stack::new().fill_width().show(ui, |ui, cx| {
             let held = match selected.as_mut() {
                 Some(bind) => bind.reborrow().read(cx).and_then(|held| held.same().copied()).unwrap_or(None),
                 None => cx.memory::<Selection>().0,
