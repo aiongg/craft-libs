@@ -66,15 +66,9 @@ pub struct Press<'a> {
 }
 
 /// The state that matching presses carries between them: the previous press, for double presses.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Matcher {
     last: Option<LastPress>,
-}
-
-impl Default for Matcher {
-    fn default() -> Matcher {
-        Matcher { last: None }
-    }
 }
 
 impl Matcher {

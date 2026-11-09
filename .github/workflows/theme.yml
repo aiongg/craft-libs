@@ -31,7 +31,7 @@ jobs:
       - run: cargo clippy -p craft-theme --all-targets --locked -- -D warnings
       - run: cargo test -p craft-theme --all-features --locked
       - run: cargo check -p craft-theme --all-features --locked --target wasm32-unknown-unknown
-      - run: cargo check -p craft-ui-legacy --lib --locked
+      - run: cargo check -p craft-ui --lib --locked
       - run: cargo fmt -p craft-theme-store --check
       - run: cargo clippy -p craft-theme-store --all-targets --all-features --locked -- -D warnings
       - name: Docs (links and missing docs)
