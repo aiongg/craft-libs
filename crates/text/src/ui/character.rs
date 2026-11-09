@@ -498,7 +498,7 @@ impl<'a> CharacterControls<'a> {
             }
             edits.extend(select_row(ui, &words.style, mixed(values.style.clone()), &style_entries, CharacterChange::Style));
 
-            Grid::new(&TWO_COLUMNS).fill().show(ui, |ui, _| {
+            Grid::new(&TWO_COLUMNS).fill_width().show(ui, |ui, _| {
                 let size = LengthRow {
                     label: words.size.clone(),
                     glyph: GlyphLabel::text("tT"),
@@ -521,7 +521,7 @@ impl<'a> CharacterControls<'a> {
                     edits.push(picked_event(CharacterChange::Leading(Leading::Auto), words.leading.as_str()));
                 }
             });
-            Grid::new(&TWO_COLUMNS).fill().show(ui, |ui, _| {
+            Grid::new(&TWO_COLUMNS).fill_width().show(ui, |ui, _| {
                 let event = lengths.kerning(ui, words.kerning.clone(), GlyphLabel::icon(IconId::new("text_cursor")), kerning_shown, &kerning_presets);
                 edits.extend(event.map(|event| event.map(|value| CharacterChange::Kerning(kerning_of(value)))));
                 let tracking = PlainRow {
@@ -535,7 +535,7 @@ impl<'a> CharacterControls<'a> {
                 let (event, _) = lengths.plain(ui, tracking);
                 edits.extend(number_change(event, CharacterChange::Tracking));
             });
-            Grid::new(&TWO_COLUMNS).fill().show(ui, |ui, _| {
+            Grid::new(&TWO_COLUMNS).fill_width().show(ui, |ui, _| {
                 let vertical = PlainRow {
                     label: words.vertical_scale.clone(),
                     glyph: GlyphLabel::text("↕T"),
@@ -557,7 +557,7 @@ impl<'a> CharacterControls<'a> {
                 let (event, _) = lengths.plain(ui, horizontal);
                 edits.extend(number_change(event, CharacterChange::HorizontalScale));
             });
-            Grid::new(&TWO_COLUMNS).fill().show(ui, |ui, _| {
+            Grid::new(&TWO_COLUMNS).fill_width().show(ui, |ui, _| {
                 let shift = LengthRow {
                     label: words.baseline_shift.clone(),
                     glyph: GlyphLabel::text("Aª"),
@@ -809,7 +809,7 @@ impl<'a> ParagraphControls<'a> {
             let out = Segmented::new(words.direction.clone(), Bind::given(mixed(values.direction)), &directions).show(ui);
             edits.extend(out.event.map(|event| event.map(ParagraphChange::Direction)));
 
-            Grid::new(&TWO_COLUMNS).fill().show(ui, |ui, _| {
+            Grid::new(&TWO_COLUMNS).fill_width().show(ui, |ui, _| {
                 let start = LengthRow {
                     label: words.start_indent.clone(),
                     glyph: GlyphLabel::text("→|"),
@@ -838,7 +838,7 @@ impl<'a> ParagraphControls<'a> {
                 let (event, _) = lengths.row(ui, first);
                 edits.extend(number_change(event, ParagraphChange::FirstLineIndent));
             });
-            Grid::new(&TWO_COLUMNS).fill().show(ui, |ui, _| {
+            Grid::new(&TWO_COLUMNS).fill_width().show(ui, |ui, _| {
                 let before = LengthRow {
                     label: words.space_before.clone(),
                     glyph: GlyphLabel::text("↑¶"),

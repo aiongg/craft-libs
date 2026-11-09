@@ -315,6 +315,10 @@ impl<V: NumberValue> Codec for Ruled<V> {
     type Value = V;
 
     fn format(&self, v: &V) -> String {
+        // A mixed field of a type with no blank value is handed a placeholder number; it shows empty.
+        if self.mixed && V::blank().is_none() {
+            return String::new();
+        }
         match v.named().and_then(|id| self.names.iter().find(|(name, _)| *name == id)) {
             Some((_, label)) => label.clone(),
             None => self.inner.format(&self.shown(v)),
