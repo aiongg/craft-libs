@@ -176,6 +176,13 @@ struct Facts {
     selected: Vec<u64>,
 }
 
+/// A row a press selected, applied when the press ends as a click: a press that turns into a drag only selects.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct PressedRow {
+    row: Option<(u64, bool)>,
+    dragged: bool,
+}
+
 impl Facts {
     /// The action of a footer button or menu command, `None` when its condition doesn't hold.
     fn action(&self, command: TextStyleCommand) -> Option<TextStyleAction> {
@@ -395,7 +402,16 @@ impl<'a> TextStylesPanel<'a> {
                     })
                     .events;
 
-                let alt = craft_ui::runtime::pointer::frame(ui.ctx()).mods.alt;
+                let pointer = craft_ui::runtime::pointer::frame(ui.ctx());
+                let alt = pointer.mods.alt;
+                let pressed = cx.memory::<PressedRow>();
+                pressed.dragged |= craft_ui::runtime::drag::active::<ListDrag<u64>>(ui.ctx()).is_some();
+                if pointer.release.is_some() {
+                    if let Some((id, alt)) = pressed.row.take().filter(|_| !pressed.dragged) {
+                        action.set(Some(TextStyleAction::apply(id, alt)));
+                    }
+                    *pressed = PressedRow::default();
+                }
                 // A press reports the selection it makes, then the lead it moved.
                 let by_pointer =
                     events.iter().any(|event| matches!(event, CollectionEvent::LeadMoved { by: craft_ui::contract::LeadSource::Pointer, .. }));
@@ -405,7 +421,7 @@ impl<'a> TextStylesPanel<'a> {
                             if target && !paragraph && !text_selected {
                                 hint.set(true);
                             } else if target {
-                                action.set(Some(TextStyleAction::apply(keys[0], alt)));
+                                *cx.memory::<PressedRow>() = PressedRow { row: Some((keys[0], alt)), dragged: false };
                             }
                         }
                         CollectionEvent::Activate(id) if id != 0 || paragraph => action.set(Some(TextStyleAction::Options(id))),
