@@ -102,12 +102,11 @@ The gallery holds every theme. Themes switch at run time. It needs Rust 1.95 or 
 
 ```
 git switch design-system
-cargo run --release -p craft-ui-gallery-legacy
+cargo run --release -p craft-ui-gallery
 ```
 
 - Update with `git pull` and rebuild.
 - Candidate fonts are optional: check out the `craft-fonts` repository at branch `design-system-fonts` and set `CRAFT_FONTS_DIR=<absolute path>` before `cargo run`.
-- Web build: `cd crates/ui-gallery-legacy && trunk serve --release true index.html`. It needs `trunk` and the `wasm32` target.
 
 ### 2.2 Depend on `craft` from an app
 
@@ -148,8 +147,8 @@ Rules: tier 0 has no egui except `ecolor`. `craft-ui` names no document concept 
 ### 3.2 The `craft` facade
 
 - Every public UI type is re-exported at `<crate>::ui`; every core type at the crate root: `craft::color::ui::ColorPicker`, `craft::color::Palette`.
-- `craft::prelude` holds `AppInfo`, `Host`, `Section`, `Tokens`, `EditEvent`, `DialogStack` and `Outcome`. There are no other preludes.
-- `craft::story::all()` and `craft::words::all()` collect the stories and word tables of every enabled crate. A feature can move between crates as long as `craft::<family>` stays.
+- `craft::prelude` holds `AppInfo`, `Host`, `Section`, `Tokens`, `DialogStack` and `Outcome`. There are no other preludes.
+- A feature can move between crates as long as `craft::<family>` stays.
 
 Feature names: `ui` is the only UI feature name in every crate, and `screen-testing` adds stories and snapshot tests. The full table is in [reference/crate-layout.md](#facade-features).
 
@@ -485,7 +484,6 @@ Keyboard conventions:
 - The app installs its translator through the host once per language change.
 - Lookup order: the language's row, the English row, the built-in English.
 - A translation with a missing placeholder is ignored.
-- `craft::words::all()` lists the word tables of every enabled crate for catalog extraction.
 - No test requires a translation to exist.
 
 ### 7.3 Goals beyond the required list
@@ -541,13 +539,11 @@ New code follows the same rule. A new feature adds tests only for logic with rea
 
 Text dumps of every token and component style are the regression gate.
 
-The gallery story sweeps (every story in every tab and variants view, the accessible-name and pseudo-locale audits, and the overview size checks) take about ten minutes in a debug build. They are `#[ignore]`d in `craft-ui-gallery`, so `cargo test --workspace` skips them. A smoke test in `crates/ui-gallery/tests/gallery.rs` still checks that the gallery builds and its stories register. Run the full sweep with:
+The gallery's own tests (`crates/ui-gallery/tests/it`) cover the viewer's saved layout, the component filter and the mock editor's keys and menus. Run them with:
 
 ```sh
-cargo test -p craft-ui-gallery-legacy --release -- --include-ignored
+cargo test -p craft-ui-gallery
 ```
-
-The release run takes about 3 minutes against about 10 in debug. The pseudo-locale checks exist in debug builds only, so run them with `cargo test -p craft-ui-gallery-legacy --test gallery -- --include-ignored pseudo`.
 
 ### 8.3 Design lint
 

@@ -28,7 +28,7 @@ fn pin(x: f64, y: f64, amount: f64) -> BlurPin {
 /// The picture with the pins over it.
 fn on_picture(ui: &mut Ui, data: &mut StoryData, build: impl FnOnce(&MockImage) -> BlurPins) -> StoryOutput {
     let image = MockImage::default();
-    let pins = data.shown(PINS, build(&image));
+    let pins = data.value(PINS, build(&image));
     story_canvas(ui, Some(&image), StoryView::Fit, |ui, at| {
         StoryOutput::from(BlurPinsOverlay::new("Blur pins", Bind::bound(&mut *pins)).show_at(ui, at))
     })
@@ -48,7 +48,7 @@ fn field(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(BlurPinsOverlay<'static>, covers = [Invalid], drive = Drive::Never)]
 fn too_many_pins(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let image = MockImage::default();
-    let pins = data.shown(PINS, {
+    let pins = data.value(PINS, {
         let mut pins = BlurPins::new(BlurKind::Field, bounds(&image), pin(0.5, 0.5, 30.0));
         pins.pins = vec![pin(0.22, 0.55, 8.0), pin(0.5, 0.4, 30.0), pin(0.78, 0.62, 30.0)];
         pins.selected = Some(1);
@@ -99,7 +99,7 @@ fn tilt_shift(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 fn panel(ui: &mut Ui, data: &mut StoryData, selected: Option<usize>) -> StoryOutput {
-    let pins = data.shown(PINS, {
+    let pins = data.value(PINS, {
         let mut pins = BlurPins::new(BlurKind::Iris, [0.0, 0.0, 800.0, 600.0], pin(0.5, 0.5, 15.0));
         pins.selected = selected;
         pins

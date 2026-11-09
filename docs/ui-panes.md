@@ -164,7 +164,6 @@ panes with `panes::focus_next`.
 - Format, Animation and Selection return `movable = true`; the rest `false`. Saving their place
   needs new optional `ui.json` fields (`#[serde(default)]`).
 - Thumbnails, outline, notes and the #835 canvas shell stay plain panels.
-- F6 from the host closes the ui-parity F6 gap.
 
 ### GridCraft (`OneSlot`, `.max_fraction(0.5)`)
 

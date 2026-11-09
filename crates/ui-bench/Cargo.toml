@@ -24,16 +24,10 @@ todo = "warn"
 craft-behavior = { workspace = true }
 craft-host = { workspace = true }
 craft-ui = { workspace = true }
-# Both libraries are named `craft_ui`; the legacy one is renamed here so the foundation binary links `craft-ui`.
-craft_ui_legacy = { package = "craft-ui-legacy", path = "../ui-legacy" }
 craft-window = { workspace = true }
 egui = { workspace = true, features = ["default_fonts"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
-
-[[bin]]
-name = "legacy"
-path = "src/bin/legacy.rs"
 
 [[bin]]
 name = "foundation"

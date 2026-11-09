@@ -53,7 +53,6 @@ mod paint;
 // Panels family.
 mod panels;
 
-mod parity;
 mod pickers;
 mod popover;
 mod preferences;
