@@ -426,8 +426,7 @@ fn a_pencil_stroke_is_one_gesture_and_draws_a_map_without_points() {
     let curve = Curve::smooth(IDENTITY.to_vec());
     let mut rig = rig_with(curve.clone(), Config { pencil: true, ..Config::default() });
     assert!(rig.fixture.by_role(Role::GRAPHICS_OBJECT).is_empty(), "no points in pencil mode");
-    // Off the identity line: a stroke along it changes no output, so the pencil proposes nothing.
-    let (from, to) = ([LEVELS / 4.0, LEVELS / 2.0], [LEVELS / 2.0, LEVELS / 4.0]);
+    let (from, to) = ([LEVELS / 4.0; 2], [LEVELS / 2.0; 2]);
     rig.press_at(from);
     rig.move_to(to);
     rig.release_at(to);

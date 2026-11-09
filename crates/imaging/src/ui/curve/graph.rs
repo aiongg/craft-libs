@@ -822,7 +822,9 @@ impl CurveGraph<'_> {
             held.end = None;
         }
         let draw = |held: &mut Held, cx: &mut Cx<'_, Self>, from: [f32; 2], to: [f32; 2]| {
-            if Curve::pencil_line(&mut held.outputs, from, to, self.levels) {
+            // Any stroke makes the curve a drawn map, even one that leaves every output as it was.
+            let changed = Curve::pencil_line(&mut held.outputs, from, to, self.levels);
+            if changed || curve.points().is_some() {
                 cx.propose(Curve::Map(held.outputs.clone()));
             }
         };
