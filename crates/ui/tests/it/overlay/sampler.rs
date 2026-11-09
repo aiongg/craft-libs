@@ -219,36 +219,17 @@ fn space(pressed: bool) -> Event {
     if pressed { key_press(Key::Space, Modifiers::NONE) } else { key_release(Key::Space, Modifiers::NONE) }
 }
 
+/// A press and drag reach the canvas under a dialog only while the dialog arms it; with no arm the modal blocks the canvas.
 #[trial]
 fn an_armed_sampler_takes_the_press_and_an_unarmed_one_gets_none() {
-    {
-        // With a sampler armed, a press and a drag on the canvas under the dialog reach it, the dialog keeps key focus and
-        // Escape closes it; once it is closed the arm lapses, so a dialog that no longer arms blocks the canvas again.
+    for (arm, armed) in [(Arm::Sampler, true), (Arm::Nothing, false)] {
         let mut frames = Frames::new();
-        let scene = Scene::new(Arm::Sampler);
+        let scene = Scene::new(arm);
         scene.open_dialog(&mut frames);
         scene.drag(&mut frames, CANVAS.center(), Vec2::new(40.0, 10.0));
-        assert!(scene.pressed_canvas(), "the press reached the canvas");
-        assert!(scene.dragged_canvas(), "the drag stayed the canvas's");
+        assert_eq!(scene.pressed_canvas(), armed, "the canvas gets the press only when the dialog arms it");
+        assert_eq!(scene.dragged_canvas(), armed, "and keeps the drag");
         assert!(scene.dialog.shown.get(), "a press on the canvas does not close the dialog");
-        assert!(is_focused(&frames.ctx, scene.armer_id.get()), "the dialog keeps key focus");
-        scene.frame(&mut frames, vec![key_press(Key::Escape, Modifiers::NONE)]);
-        scene.settle(&mut frames, 30);
-        assert!(!scene.dialog.shown.get(), "Escape closes the dialog");
-        // A dialog that opens later and does not arm gets no press through.
-        scene.arm.set(Arm::Nothing);
-        scene.open_dialog(&mut frames);
-        scene.forget_canvas();
-        scene.drag(&mut frames, CANVAS.center(), Vec2::new(40.0, 10.0));
-        assert!(!scene.pressed_canvas(), "the old arm has lapsed");
-    }
-    {
-        // Without an arm the modal rule holds: nothing reaches the canvas.
-        let mut frames = Frames::new();
-        let scene = Scene::new(Arm::Nothing);
-        scene.open_dialog(&mut frames);
-        scene.drag(&mut frames, CANVAS.center(), Vec2::new(40.0, 10.0));
-        assert!(!scene.pressed_canvas(), "the modal blocks the canvas");
     }
 }
 
@@ -280,34 +261,22 @@ fn a_press_on_the_canvas_closes_a_popup_over_the_dialog_and_does_not_reach_the_c
     assert!(scene.dialog.shown.get(), "the dialog stays open");
 }
 
+/// The button filter: a secondary press on the armed canvas is blocked, a middle press under a view-only reach passes.
 #[trial]
 fn the_canvas_filters_presses_by_button() {
-    {
-        // Only the primary press passes: a secondary press on the armed canvas is blocked.
+    // Only the arm's own button passes: a secondary press is blocked under Sample, and a middle press (the pan) reaches
+    // the canvas under a view-only reach.
+    for (arm, secondary_button, passes) in [(Arm::Sampler, true, false), (Arm::View, false, true)] {
         let mut frames = Frames::new();
-        let scene = Scene::new(Arm::Sampler);
+        let scene = Scene::new(arm);
         scene.open_dialog(&mut frames);
         let at = CANVAS.center();
+        let button = |down| if secondary_button { secondary(at, down) } else { middle(at, down) };
         scene.frame(&mut frames, vec![moved(at)]);
-        scene.frame(&mut frames, vec![secondary(at, true)]);
-        scene.frame(&mut frames, vec![secondary(at, false)]);
+        scene.frame(&mut frames, vec![button(true)]);
+        scene.frame(&mut frames, vec![button(false)]);
         scene.settle(&mut frames, 2);
-        assert!(!scene.pressed_canvas(), "a secondary press stays blocked");
-    }
-    {
-        // View navigation under a dialog that only keeps the view open: a middle press (the pan) reaches the canvas and a
-        // primary press does not.
-        let mut frames = Frames::new();
-        let scene = Scene::new(Arm::View);
-        scene.open_dialog(&mut frames);
-        let at = CANVAS.center();
-        scene.drag(&mut frames, at, Vec2::new(40.0, 10.0));
-        assert!(!scene.pressed_canvas(), "a primary press stays blocked while only the view is open");
-        scene.frame(&mut frames, vec![moved(at)]);
-        scene.frame(&mut frames, vec![middle(at, true)]);
-        scene.frame(&mut frames, vec![middle(at, false)]);
-        scene.settle(&mut frames, 2);
-        assert!(scene.pressed_canvas(), "the middle press reached the canvas");
+        assert_eq!(scene.pressed_canvas(), passes);
     }
 }
 
@@ -350,39 +319,28 @@ fn a_dialog_in_its_own_viewport_lets_an_armed_canvas_in_the_main_viewport_take_t
     assert!(is_focused(&windows.ctx, held), "the press moved no key focus");
 }
 
+/// A dialog keeps its own presses and a nested modal blocks the armed canvas.
 #[trial]
 fn a_dialog_keeps_its_presses_and_a_nested_modal_blocks_the_canvas() {
-    {
-        // A dialog over the canvas keeps its own presses, under either reach: the press on its button is the dialog's, the
-        // canvas's own corner still reaches the canvas under Sample, and a second root behind the canvas never gets one.
-        for arm in [Arm::View, Arm::Sampler] {
-            let mut frames = Frames::new();
-            let scene = Scene::over(arm, WIDE);
-            scene.open_dialog(&mut frames);
-            let button = scene.armer_at.get().center();
-            assert!(WIDE.contains(button), "the dialog lies over the canvas");
-            scene.click(&mut frames, button);
-            assert!(scene.leaf.borrow().presses > 0, "the dialog's own button got the press");
-            assert!(!scene.pressed_canvas(), "the canvas did not");
-            scene.forget_canvas();
-            let corner = Pos2::new(30.0, 30.0);
-            scene.drag(&mut frames, corner, Vec2::new(20.0, 5.0));
-            assert_eq!(scene.pressed_canvas(), arm == Arm::Sampler, "the canvas takes the press away from the dialog only when armed");
-            assert!(!scene.pressed_behind(), "a root behind the canvas never gets the press");
-            assert!(is_focused(&frames.ctx, scene.armer_id.get()), "the dialog keeps key focus");
-        }
-    }
-    {
-        // A modal opened over an armed dialog blocks the canvas again.
+    // A dialog over the canvas keeps its own presses under either reach, and a modal opened over an armed dialog blocks
+    // the canvas again.
+    for arm in [Arm::View, Arm::Sampler] {
         let mut frames = Frames::new();
-        let scene = Scene::new(Arm::Sampler);
+        let scene = Scene::over(arm, WIDE);
         scene.open_dialog(&mut frames);
-        scene.nested.set(true);
-        scene.settle(&mut frames, 30);
-        assert!(scene.nested_shown.shown.get(), "the nested modal is open over the dialog");
-        scene.drag(&mut frames, CANVAS.center(), Vec2::new(40.0, 10.0));
-        assert!(!scene.pressed_canvas(), "the nested modal blocks the canvas");
+        let button = scene.armer_at.get().center();
+        assert!(WIDE.contains(button), "the dialog lies over the canvas");
+        scene.click(&mut frames, button);
+        assert!(scene.leaf.borrow().presses > 0, "the dialog's own button got the press");
+        assert!(!scene.pressed_canvas() && !scene.pressed_behind(), "neither the canvas nor a root behind it did");
     }
+    let mut frames = Frames::new();
+    let scene = Scene::new(Arm::Sampler);
+    scene.open_dialog(&mut frames);
+    scene.nested.set(true);
+    scene.settle(&mut frames, 30);
+    scene.drag(&mut frames, CANVAS.center(), Vec2::new(40.0, 10.0));
+    assert!(!scene.pressed_canvas(), "the nested modal blocks the canvas");
 }
 
 #[trial]

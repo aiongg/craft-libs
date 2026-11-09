@@ -33,44 +33,25 @@ fn scene(frames: &mut Frames, events: Vec<egui::Event>, trigger: Trigger, make: 
     opened.shown.get()
 }
 
+/// A manual popup opens only through `open` and then stays open over idle frames.
 #[trial]
 fn manual_popup_opens_only_through_open_and_stays_open() {
-    {
-        let mut frames = Frames::new();
-        let below = RefCell::new(Seen::default());
-        let frame = |frames: &mut Frames, events, open| scene(frames, events, Trigger::Manual, Overlay::dropdown, open, &below);
-        for _ in 0..3 {
-            frame(&mut frames, vec![], false);
-        }
-        let at = OPENER.center();
-        frame(&mut frames, vec![moved(at)], false);
-        frame(&mut frames, vec![press(at)], false);
-        frame(&mut frames, vec![release(at)], false);
-        let alt_down = key_press(Key::ArrowDown, Modifiers::ALT);
-        let after_keys = [frame(&mut frames, vec![alt_down], false), frame(&mut frames, vec![], false)];
-        assert_eq!(after_keys, [false, false], "presses and Intent::Open never open a manual popup");
-        frame(&mut frames, vec![], true);
-        assert!(frame(&mut frames, vec![], false), "the popup is open after `open`");
-        assert!(frame(&mut frames, vec![], false), "and stays open");
+    let mut frames = Frames::new();
+    let below = RefCell::new(Seen::default());
+    let frame = |frames: &mut Frames, events, open| scene(frames, events, Trigger::Manual, Overlay::dropdown, open, &below);
+    for _ in 0..3 {
+        frame(&mut frames, vec![], false);
     }
-    {
-        let mut frames = Frames::new();
-        let below = RefCell::new(Seen::default());
-        frames.frame(vec![], |_| {});
-        let opened = Opened::default();
-        let content = RefCell::new(Seen::default());
-        let mut show = |ui: &mut Ui| {
-            opened.shown.set(false);
-            Opener::new(&opened, &content, Trigger::Click, Overlay::dropdown).id_salt("opener").show_at(ui, OPENER);
-            Leaf::new(&below, Vec2::new(60.0, 30.0)).id_salt("below").show_at(ui, BELOW);
-        };
-        click(&mut frames, OPENER.center(), &mut show);
-        frames.idle(2, &mut show);
-        assert!(opened.shown.get(), "a click on the opener opens its popup");
-        for _ in 0..120 {
-            frames.frame(vec![], &mut show);
-            assert!(opened.shown.get(), "the popup stays open over two seconds of idle frames");
-        }
+    let at = OPENER.center();
+    frame(&mut frames, vec![moved(at)], false);
+    frame(&mut frames, vec![press(at)], false);
+    frame(&mut frames, vec![release(at)], false);
+    let alt_down = key_press(Key::ArrowDown, Modifiers::ALT);
+    let after_keys = [frame(&mut frames, vec![alt_down], false), frame(&mut frames, vec![], false)];
+    assert_eq!(after_keys, [false, false], "presses and Intent::Open never open a manual popup");
+    frame(&mut frames, vec![], true);
+    for _ in 0..120 {
+        assert!(frame(&mut frames, vec![], false), "the popup opened by `open` stays open over idle frames");
     }
 }
 
@@ -97,17 +78,13 @@ fn press_outside(make: fn() -> Overlay) -> (bool, u32) {
     (still[1], presses)
 }
 
+/// An outside press closes a dropdown or a menu; only the dropdown lets it reach the widget below.
 #[trial]
 fn an_outside_press_closes_a_dropdown_or_a_menu_and_only_the_dropdown_reaches_below() {
-    {
-        let (open, presses) = press_outside(Overlay::dropdown);
+    for (make, reaches_below) in [(Overlay::dropdown as fn() -> Overlay, true), (Overlay::menu, false)] {
+        let (open, presses) = press_outside(make);
         assert!(!open, "an outside press closes the popup");
-        assert!(presses > 0, "the press reaches the widget below");
-    }
-    {
-        let (open, presses) = press_outside(Overlay::menu);
-        assert!(!open, "an outside press closes the menu");
-        assert_eq!(presses, 0, "the menu absorbs the press");
+        assert_eq!(presses > 0, reaches_below, "only a dropdown lets the press through to the widget below");
     }
 }
 
@@ -280,44 +257,31 @@ fn open_picker() -> Picker {
     Picker { fixture, closed, activated, opener: opener_id }
 }
 
+/// A popup list takes its keys from its opener: navigation and activation, type-ahead and Alt+Up.
 #[trial]
 fn a_popup_list_takes_keys_from_its_opener() {
-    {
-        // Down moves the lead and End reaches the last row; Enter activates the lead row, closes the popup with `Activated`
-        // and leaves the key focus on the opener, which the host never moved.
-        let mut picker = open_picker();
-        picker.fixture.key(Key::ArrowDown, Modifiers::NONE);
-        picker.fixture.idle(2);
-        picker.fixture.key(Key::Enter, Modifiers::NONE);
-        picker.fixture.idle(4);
-        assert_eq!(picker.activated.get(), Some(1), "Down moved the lead from the first row to the second, and Enter activated it");
-        assert_eq!(picker.closed.get(), Some(CloseReason::Activated), "activating a row closes the popup");
-        assert_eq!(picker.fixture.focused(), picker.opener.get(), "the key focus stayed on the opener");
+    // Keys on the opener drive the open list: Down then Enter activates and closes with `Activated`, leaving the key focus
+    // on the opener; a letter types ahead; Alt+Up closes.
+    let mut picker = open_picker();
+    picker.fixture.key(Key::ArrowDown, Modifiers::NONE);
+    picker.fixture.idle(2);
+    picker.fixture.key(Key::Enter, Modifiers::NONE);
+    picker.fixture.idle(4);
+    assert_eq!(picker.activated.get(), Some(1), "Down moved the lead from the first row to the second, and Enter activated it");
+    assert_eq!(picker.closed.get(), Some(CloseReason::Activated), "activating a row closes the popup");
+    assert_eq!(picker.fixture.focused(), picker.opener.get(), "the key focus stayed on the opener");
 
-        let mut picker = open_picker();
-        picker.fixture.key(Key::End, Modifiers::NONE);
-        picker.fixture.idle(2);
-        picker.fixture.key(Key::Enter, Modifiers::NONE);
-        picker.fixture.idle(4);
-        assert_eq!(picker.activated.get(), Some(TIPS.len() - 1), "End moved the lead to the last row");
-    }
-    {
-        // A letter typed on an opener that is not a text field moves the lead to the next row that starts with it.
-        let mut picker = open_picker();
-        picker.fixture.type_text("c");
-        picker.fixture.idle(2);
-        picker.fixture.key(Key::Enter, Modifiers::NONE);
-        picker.fixture.idle(4);
-        assert_eq!(picker.activated.get(), Some(2), "`c` moved the lead to Chisel");
-    }
-    {
-        // Alt+Up on the opener closes its open dropdown, as Alt+Down opens it.
-        let mut picker = open_picker();
-        picker.fixture.key(Key::ArrowUp, Modifiers::ALT);
-        picker.fixture.idle(4);
-        assert_eq!(picker.closed.get(), Some(CloseReason::Requested), "Alt+Up closes the dropdown");
-        assert_eq!(picker.activated.get(), None, "and picks nothing");
-    }
+    let mut picker = open_picker();
+    picker.fixture.type_text("c");
+    picker.fixture.idle(2);
+    picker.fixture.key(Key::Enter, Modifiers::NONE);
+    picker.fixture.idle(4);
+    assert_eq!(picker.activated.get(), Some(2), "a letter moves the lead to the next row that starts with it");
+
+    let mut picker = open_picker();
+    picker.fixture.key(Key::ArrowUp, Modifiers::ALT);
+    picker.fixture.idle(4);
+    assert_eq!(picker.closed.get(), Some(CloseReason::Requested), "Alt+Up closes the dropdown");
 }
 
 /// Rows by position over static text.

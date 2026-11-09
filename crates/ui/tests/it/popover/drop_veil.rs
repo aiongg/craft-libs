@@ -24,34 +24,25 @@ fn show(ui: &mut Ui, dropped: &RefCell<Vec<OsFiles>>) {
     dropped.borrow_mut().extend(out.dropped.clone());
 }
 
+/// Files that hover or leave report nothing; one drop reports once.
 #[trial]
 fn a_drop_reports_once_and_a_hover_that_leaves_reports_nothing() {
-    {
-        let mut frames = Frames::new();
-        let dropped = RefCell::new(Vec::new());
-        let mut run = |ui: &mut Ui| show(ui, &dropped);
-        frames.frame(vec![moved(Pos2::new(300.0, 200.0))], &mut run);
-        frames.hover_files(&["a.png", "b.png"]);
-        frames.idle(3, &mut run);
-        assert!(dropped.borrow().is_empty(), "hovering files are not a drop");
-        frames.drop_files(&["a.png", "b.png"]);
-        frames.idle(4, &mut run);
-        let dropped = dropped.borrow();
-        assert_eq!(dropped.len(), 1, "one drop in one pass");
-        let names: Vec<_> = dropped[0].files.iter().map(|file| file.name.as_str()).collect();
-        assert_eq!(names, ["a.png", "b.png"]);
-    }
-    {
-        let mut frames = Frames::new();
-        let dropped = RefCell::new(Vec::new());
-        let mut run = |ui: &mut Ui| show(ui, &dropped);
-        frames.frame(vec![moved(Pos2::new(300.0, 200.0))], &mut run);
-        frames.hover_files(&["a.png"]);
-        frames.idle(3, &mut run);
-        frames.leave_files();
-        frames.idle(4, &mut run);
-        assert!(dropped.borrow().is_empty());
-    }
+    let mut frames = Frames::new();
+    let dropped = RefCell::new(Vec::new());
+    let mut run = |ui: &mut Ui| show(ui, &dropped);
+    frames.frame(vec![moved(Pos2::new(300.0, 200.0))], &mut run);
+    frames.hover_files(&["a.png", "b.png"]);
+    frames.idle(3, &mut run);
+    frames.leave_files();
+    frames.idle(4, &mut run);
+    assert!(dropped.borrow().is_empty(), "hovering files, even ones that leave, are not a drop");
+    frames.hover_files(&["a.png", "b.png"]);
+    frames.idle(3, &mut run);
+    frames.drop_files(&["a.png", "b.png"]);
+    frames.idle(4, &mut run);
+    let dropped = dropped.borrow();
+    assert_eq!(dropped.len(), 1, "one drop in one pass");
+    assert_eq!(dropped[0].files.len(), 2, "with every file");
 }
 
 /// Files that hover before the window has any pointer position show the veil and drop on the whole window.

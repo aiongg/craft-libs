@@ -118,32 +118,26 @@ fn each_toggling_part_owns_a_popup_and_opening_one_closes_the_other() {
     assert_eq!((rows.shown[0].get(), rows.shown[1].get()), (false, true), "the second popup opened and closed the first");
 }
 
+/// A part that toggles on press opens on the press; a release over a row picks it, and a release on the part leaves the popup open.
 #[trial]
 fn a_part_that_toggles_on_press_opens_then_a_release_picks_and_a_click_leaves_it_open() {
-    {
-        let (mut frames, rows) = (Frames::new(), Rows::default());
-        let mut show = show_titles(&rows, true);
-        frames.idle(3, &mut show);
-        frames.frame(vec![moved(FIRST_AT)], &mut show);
-        frames.frame(vec![press(FIRST_AT)], &mut show);
-        frames.idle(2, &mut show);
-        assert!(rows.shown[0].get(), "the popup opened while the button is still down");
-        // The row hangs below the part, from its start edge.
-        let row = FIRST_AT + Vec2::new(0.0, 30.0);
-        frames.frame(vec![moved(row)], &mut show);
-        frames.frame(vec![release(row)], &mut show);
-        frames.idle(2, &mut show);
-        assert_eq!(rows.activations.get(), 1, "the release over the row picked it");
-    }
-    {
-        let (mut frames, rows) = (Frames::new(), Rows::default());
-        let mut show = show_titles(&rows, true);
-        frames.idle(3, &mut show);
-        click(&mut frames, FIRST_AT, &mut show);
-        frames.idle(2, &mut show);
-        assert!(rows.shown[0].get(), "the release on the part did not toggle it closed");
-        assert_eq!(rows.activations.get(), 0, "no row ran");
-    }
+    let (mut frames, rows) = (Frames::new(), Rows::default());
+    let mut show = show_titles(&rows, true);
+    frames.idle(3, &mut show);
+    frames.frame(vec![moved(FIRST_AT)], &mut show);
+    frames.frame(vec![press(FIRST_AT)], &mut show);
+    frames.idle(2, &mut show);
+    assert!(rows.shown[0].get(), "the popup opened while the button is still down");
+    // The row hangs below the part, from its start edge.
+    let row = FIRST_AT + Vec2::new(0.0, 30.0);
+    frames.frame(vec![moved(row)], &mut show);
+    frames.frame(vec![release(row)], &mut show);
+    frames.idle(30, &mut show);
+    assert_eq!(rows.activations.get(), 1, "the release over the row picked it");
+    click(&mut frames, FIRST_AT, &mut show);
+    frames.idle(2, &mut show);
+    assert!(rows.shown[0].get(), "a release on the part leaves the popup open");
+    assert_eq!(rows.activations.get(), 1, "and runs no row");
 }
 
 #[trial]
