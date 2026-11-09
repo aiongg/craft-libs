@@ -113,10 +113,12 @@ pub struct StripLayout {
     left: Vec<f32>,
     wide: Vec<f32>,
     report: Arc<Mutex<Report>>,
+    /// A measuring run computes the fit and leaves the report to the real pass (`measure::effect`).
+    ctx: egui::Context,
 }
 
 impl StripLayout {
-    fn new(count: usize, width: f32, height: f32, selected: usize, mode: FitMode, report: Arc<Mutex<Report>>) -> Self {
+    fn new(count: usize, width: f32, height: f32, selected: usize, mode: FitMode, report: Arc<Mutex<Report>>, ctx: egui::Context) -> Self {
         let each = if count == 0 { 0.0 } else { width / count as f32 };
         let mut layout = StripLayout {
             ideal: vec![each; count],
@@ -130,6 +132,7 @@ impl StripLayout {
             left: Vec::new(),
             wide: Vec::new(),
             report,
+            ctx,
         };
         layout.refit();
         layout
@@ -153,8 +156,10 @@ impl StripLayout {
             placed.push((index, at, width));
             at += width;
         }
-        *self.report.lock().unwrap_or_else(PoisonError::into_inner) =
-            Report { hidden: fit.overflow, tabs_end: at, overflow: fit.overflow_width, placed };
+        if crate::runtime::measure::effect(&self.ctx, "tab strip report") {
+            *self.report.lock().unwrap_or_else(PoisonError::into_inner) =
+                Report { hidden: fit.overflow, tabs_end: at, overflow: fit.overflow_width, placed };
+        }
     }
 }
 
@@ -455,7 +460,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Collection 
         let count = source.len();
         *self.texts.borrow_mut() = (0..count).map(|at| (source.key(at), source.text(at).map(|text| text.into_owned()).unwrap_or_default())).collect();
         let selected = self.shown.as_ref().and_then(|key| source.index_of(key)).unwrap_or(usize::MAX);
-        StripLayout::new(count, width, cx.tokens.size.bar.tab, selected, self.kind.fit_mode(), self.report.clone())
+        StripLayout::new(count, width, cx.tokens.size.bar.tab, selected, self.kind.fit_mode(), self.report.clone(), cx.frame_ctx().clone())
     }
 
     /// Every tab takes the strip's kind and size.

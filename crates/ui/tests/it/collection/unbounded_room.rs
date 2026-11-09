@@ -30,3 +30,30 @@ fn a_list_in_a_sideways_scrolling_body_measures_its_widest_row() {
         .rect;
     assert!(list.rect.width() >= label.width(), "the list is as wide as its widest row: {:?} holds {label:?}", list.rect);
 }
+
+/// A content-sized list builds every row once to measure, in the measuring run; the real pass builds the rows it
+/// shows and its `extent` builds none.
+#[trial]
+fn a_content_list_builds_each_row_once_to_measure() {
+    use std::cell::Cell;
+    use std::rc::Rc;
+    const ROWS: usize = 50;
+    let words = Words::flat(&["row"; ROWS]);
+    let (measuring, real) = (Rc::new(Cell::new(0usize)), Rc::new(Cell::new(0usize)));
+    let (m, r) = (measuring.clone(), real.clone());
+    let mut fixture = Fixture::new(move |ui| {
+        let ctx = ui.ctx().clone();
+        let _ = List::<usize>::new("Rows").sizing(Sizing::Content).show_items(ui, &words, &mut |key, _| {
+            let counter = if craft_ui::testing::is_measuring(&ctx) { &m } else { &r };
+            counter.set(counter.get() + 1);
+            ListRow::new(words.words[*key])
+        });
+    });
+    fixture.room(Vec2::new(300.0, 2000.0)).settle();
+    measuring.set(0);
+    real.set(0);
+    fixture.frame(vec![]);
+    let passes = fixture.passes();
+    assert_eq!(measuring.get(), ROWS * passes, "each row is built once per pass to measure");
+    assert_eq!(real.get(), ROWS * passes, "the real run builds the shown rows once per pass");
+}
