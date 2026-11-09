@@ -1,6 +1,5 @@
 //! Stories of the Comments panel and its card list.
 
-use craft_ui::contract::Bind;
 use craft_ui::contract::ShowCollection as _;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, show_as_only_item, story};
 use egui::Ui;
@@ -63,7 +62,7 @@ fn comments_panel_empty(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn list(ui: &mut Ui, threads: &[CommentThread]) -> StoryOutput {
     let entries = threads.iter().map(|thread| (CardKey::Thread(thread.id), RowEntry::Card { thread, depth: 0 })).collect();
     let source = Rows { entries };
-    CommentList::new("Comments", Bind::kept(), false)
+    CommentList::new("Comments", None, false)
         .show_items(ui, &source, &mut |_, item| match &source.entries[item.at].1 {
             RowEntry::Card { thread, .. } => CommentRow::card(thread, thread.messages.first().map_or_else(String::new, |first| first.text.clone()))
                 .state(item.row.selected, true, NOW)
