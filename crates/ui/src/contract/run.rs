@@ -542,7 +542,6 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     let mut parts = PartsStep { decls: Vec::new(), rovings: Vec::new(), scrolls: Vec::new(), text: super::text::TextStep::default() };
     if !inert && C::INPUT == Input::Text {
         parts.text.commit_now = focus::commit_now(&ctx) == Some(id);
-        parts.text.parts_follow_value = comp.parts_follow_value();
     }
     // A component that declares no parts skips the step; a debug build runs it anyway to check the declaration.
     let declares_parts = C::PARTS || p.hooks.declares_parts();

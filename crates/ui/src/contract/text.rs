@@ -30,9 +30,6 @@ struct InEditBeforePress(bool);
 pub(crate) struct TextStep {
     /// A press elsewhere or another focus loss asks the run to commit now.
     pub commit_now: bool,
-    /// The component's parts or size depend on its value (`Component::parts_follow_value`): a commit that changes the
-    /// value runs the pass again.
-    pub parts_follow_value: bool,
     pub decl: Option<TextDecl>,
     pub editor: Option<super::editor::EditorDecl>,
 }
@@ -301,7 +298,6 @@ pub(crate) fn run<C: Component>(
     underline: f32,
 ) {
     let Some(decl) = step.decl.take() else { return };
-    let parts_follow_value = step.parts_follow_value;
     let Ok(resolve) = decl.resolve.downcast::<Resolve<ValueOf<C>>>() else {
         debug_assert!(false, "the text part's codec value is the component's value");
         return;
