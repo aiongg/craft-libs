@@ -4,7 +4,7 @@ use craft_imaging::layer_style::{BlendIfRange, Contour, ContourPoint};
 use craft_imaging::ui::layer_style::{
     BlendIfBar, ContourAction, ContourEditorDialog, ContourField, ContourKey, ContourRequest, ContourWords, contour_rows, from_curve, to_curve,
 };
-use craft_ui::contract::Bind;
+use craft_ui::contract::{Bind, Role};
 use craft_ui::dialog::{DialogHost, DialogResult};
 use craft_ui::patterns::presets::PresetState;
 use craft_ui::runtime::env::Env;
@@ -140,7 +140,8 @@ fn new_in_the_contour_editor_suggests_the_contour_word() {
     let new = fixture.by_label("New…").expect("the New button");
     fixture.click(&new);
     fixture.idle(3);
-    assert!(fixture.texts().iter().any(|text| text.text == "Contour"), "the name field starts as the contour word");
+    let field = fixture.by_role(Role::TEXT_INPUT).into_iter().next().expect("the name field");
+    assert_eq!(fixture.tree().value_of(field.node), Some("Contour"), "the name field starts as the contour word");
     let named = host.borrow_mut().get_mut::<ContourEditorDialog>().and_then(ContourEditorDialog::take_action);
     assert_eq!(named, None::<ContourAction>);
 }

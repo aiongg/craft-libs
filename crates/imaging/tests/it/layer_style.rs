@@ -15,7 +15,7 @@ use craft_theme::Srgba;
 use craft_ui::contract::Role;
 use craft_ui::patterns::presets::PresetRow;
 use craft_ui::runtime::requests::ColorRequest;
-use craft_ui::testing::access::name;
+use craft_ui::testing::access::{NodeKey, name};
 use craft_ui::testing::{Fixture, Target, trial};
 use egui::{Key, Modifiers, Vec2};
 
@@ -108,6 +108,18 @@ fn named(fixture: &Fixture, role: Role, label: &str) -> Vec<Target> {
 
 fn one(fixture: &Fixture, role: Role, label: &str) -> Target {
     named(fixture, role, label).into_iter().next().unwrap_or_else(|| panic!("a {role:?} named {label}"))
+}
+
+/// Tabs until `target` holds focus, so a press on its track does not move its value.
+fn focus(fixture: &mut Fixture, target: &Target) {
+    for _ in 0..64 {
+        if fixture.focused_stop().is_some_and(|(id, _)| NodeKey::of(id) == target.node) {
+            return;
+        }
+        fixture.key(Key::Tab, Modifiers::NONE);
+        fixture.idle(1);
+    }
+    panic!("no Tab stop reached {target:?}");
 }
 
 fn effects(host: &Rc<RefCell<Host>>) -> Vec<(u32, EffectKind, bool)> {
@@ -297,11 +309,11 @@ fn color_field_reports_a_colour_request_with_the_effect_and_key() {
     assert_eq!(request.title.as_ref().map(|title| title.as_str()), Some("Color Picker (Layer Style Color)"));
 }
 
-/// A click on Drop Shadow's Contour thumbnail reports a contour request keyed "fx1/contour" and opens no dialog itself.
+/// A click on Drop Shadow's Edit Contour… button reports a contour request keyed "fx1/contour" and opens no dialog itself.
 #[trial]
 fn contour_thumbnail_reports_a_contour_request_with_the_effect_and_key() {
     let (mut fixture, host) = page_rig(EffectKind::DropShadow, None);
-    let thumbnail = fixture.by_label("Contour Editor").expect("the contour thumbnail");
+    let thumbnail = fixture.by_label("Edit Contour…").expect("the Edit Contour… button");
     fixture.click(&thumbnail);
     fixture.idle(2);
     assert_eq!(host.borrow().contours, ["fx1/contour"]);
@@ -399,7 +411,7 @@ fn page_shows_defaults_under_the_values_and_writes_only_edits() {
     assert_eq!(host.borrow().made[0].number("opacity"), defaults.number("opacity"));
 
     let distance = one(&fixture, Role::SLIDER, "Distance");
-    fixture.click(&distance);
+    focus(&mut fixture, &distance);
     fixture.key(Key::ArrowRight, Modifiers::NONE);
     fixture.idle(2);
     let host = host.borrow();

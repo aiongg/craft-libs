@@ -277,7 +277,7 @@ impl Component for AngleDial<'_> {
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let side = rect.width().min(rect.height());
         cx.part(FACE, HitShape::circle(rect.center(), side / 2.0))
-            .sense(Sense::CLICK | Sense::DRAG)
+            .sense(Sense::CLICK | Sense::DRAG | Sense::TAKE_FOCUS)
             .value_part()
             .pointer_only("the arrow keys step the angle");
     }
