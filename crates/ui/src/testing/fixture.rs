@@ -549,10 +549,15 @@ impl Fixture {
 
     /// The id of the widget egui has focused.
     pub fn focused(&self) -> Option<Id> {
-        let id = self.frames.ctx.memory(|memory| memory.focused())?;
-        // A folded text widget keeps its own (hidden) node, so it is the focus; an inner component has none.
-        let folded = !self.tree.is_hidden(NodeKey::of(id));
-        Some(crate::runtime::access::fold::owner_of(&self.frames.ctx, id).filter(|_| folded).unwrap_or(id))
+        let id = crate::runtime::egui::focus::focused(&self.frames.ctx)?;
+        // A folded text widget is the focus itself, though its node folds into the owner's.
+        if crate::runtime::access::fold::is_text_widget(&self.frames.ctx, id) {
+            return Some(id);
+        }
+        // Otherwise the id whose node the access tree reports as focused: the widget itself, or the owner it folds into.
+        let focused = self.tree.focused_key();
+        let owner = crate::runtime::access::fold::owner_of(&self.frames.ctx, id);
+        Some(owner.filter(|owner| NodeKey::of(*owner) == focused).unwrap_or(id))
     }
 }
 
