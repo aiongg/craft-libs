@@ -251,6 +251,19 @@ impl StoryData {
         names
     }
 
+    /// The names of the values that were there in `before` and differ now. A value a story adds on first use is not a
+    /// change.
+    pub(crate) fn changed_values_since(&self, before: &StorySnapshot) -> Vec<&'static str> {
+        let mut names: Vec<_> = self
+            .values
+            .iter()
+            .filter(|(key, now)| before.values.iter().any(|(old, was)| old == *key && !now.same(&**was)))
+            .map(|((name, _), _)| *name)
+            .collect();
+        names.sort_unstable();
+        names
+    }
+
     /// A copy of every value.
     pub fn snapshot(&self) -> StorySnapshot {
         StorySnapshot { values: self.values.iter().map(|(key, value)| (*key, value.copy())).collect() }
