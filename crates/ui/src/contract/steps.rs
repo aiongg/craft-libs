@@ -233,6 +233,12 @@ struct IdPass {
 /// Runs `f` as a measuring run that leaves the `Auto` ordinals as it found them, so the run that follows in the same
 /// pass gives every component the id the measuring run gave it.
 pub(super) fn measuring<R>(ctx: &Context, f: impl FnOnce() -> R) -> R {
+    keeping_ids(ctx, || (crate::runtime::measure::run(ctx, f), true))
+}
+
+/// Runs `f` and, when it returns `true` beside its result, leaves the `Auto` ordinals as it found them, so what runs
+/// next in the same pass gives every component the id `f`'s run gave it.
+pub(crate) fn keeping_ids<R>(ctx: &Context, f: impl FnOnce() -> (R, bool)) -> R {
     let viewport = pass::current_viewport(ctx);
     let pass_nr = pass::pass_nr(ctx, viewport);
     let ordinals = |take: Option<HashMap<(Id, TypeId), u32>>| {
@@ -251,8 +257,10 @@ pub(super) fn measuring<R>(ctx: &Context, f: impl FnOnce() -> R) -> R {
         )
     };
     let kept = ordinals(None);
-    let out = crate::runtime::measure::run(ctx, f);
-    ordinals(kept);
+    let (out, restore) = f();
+    if restore {
+        ordinals(kept);
+    }
     out
 }
 

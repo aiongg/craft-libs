@@ -102,21 +102,42 @@ pub(crate) enum MainFill {
     Room,
 }
 
-/// What a child of `ui`'s body that fills along `axis` takes there. Called once per such child and pass.
+/// What a child of `ui`'s body that fills along `axis` takes there. Called once per such child and run.
 pub(crate) fn main_fill(ui: &Ui, axis: Axis) -> MainFill {
     let env = Env::of(ui);
     let Some((body, _)) = env.fill_body.filter(|(_, along)| *along == axis) else { return MainFill::Room };
+    if let Some(share) = env.fill_share {
+        return MainFill::Share(share);
+    }
     if ui.is_sizing_pass() {
         Service::<FillCounts>::of(ui.ctx()).with(|counts| *counts.0.entry(body).or_insert(0) += 1);
         return MainFill::Measuring;
     }
-    env.fill_share.map_or(MainFill::Room, MainFill::Share)
+    MainFill::Room
+}
+
+/// The share a child of `ui`'s body that fills along `axis` takes there, once its body knows it: the room the child
+/// is measured and shown in along that axis, in the measuring run's second sweep and in the real run alike.
+pub(crate) fn fill_share(ui: &Ui, axis: Axis) -> Option<f32> {
+    let env = Env::of(ui);
+    env.fill_body.filter(|(_, along)| *along == axis).and(env.fill_share)
+}
+
+/// Whether `ui` runs the first sweep of a measuring run of a body that shares its main axis: a child that fills along
+/// `axis` is only counted there, and its contents run in the second sweep, at its share.
+pub(crate) fn counting_fills(ui: &Ui, axis: Axis) -> bool {
+    let env = Env::of(ui);
+    ui.is_sizing_pass() && env.fill_body.is_some_and(|(_, along)| along == axis) && env.fill_share.is_none()
 }
 
 /// Runs `body` as the content of the `Stack` (along y) or unwrapped `Row` (along x) body `id` in `ui`, the block
-/// it is placed in. A measuring run places the children that fill the main axis at no extent and records what the
-/// others and the gaps took, with the number that fill; the real run gives each of them an equal share of the rest.
-fn run_sharing<R>(ui: &mut Ui, id: Id, axis: Axis, layout: egui::Layout, body: impl FnOnce(&mut Ui) -> R) -> R {
+/// it is placed in, when the body is given that axis.
+///
+/// A measuring run sweeps the children once, the children that fill the main axis counted at no extent, and records
+/// what the others and the gaps took with the number that fill. With a child that fills, it sweeps them again: the
+/// others reuse what the first sweep recorded, and each child that fills is measured once, at its equal share of the
+/// rest. The real run gives each the same share from that record.
+fn run_sharing<R>(ui: &mut Ui, id: Id, axis: Axis, layout: egui::Layout, mut body: impl FnMut(&mut Ui) -> R) -> R {
     let ctx = ui.ctx().clone();
     let env = Env::of(ui);
     let given = if axis == Axis::Y { !env.content.1 } else { !env.content.0 };
@@ -124,18 +145,8 @@ fn run_sharing<R>(ui: &mut Ui, id: Id, axis: Axis, layout: egui::Layout, body: i
         return child::block(ui, None, layout, body).0;
     }
     let key = sub(id, "share");
-    let measuring = ui.is_sizing_pass();
-    let (result, used) = child::block(ui, None, layout, |ui| {
-        let room = ui.available_rect_before_wrap();
-        let room = if axis == Axis::Y { room.height() } else { room.width() };
-        let share = if measuring {
-            Service::<FillCounts>::run(&ctx, |counts| counts.0.insert(id, 0));
-            None
-        } else {
-            layout_memory::measured(&ctx, key)
-                .filter(|found| found.took.y >= 1.0 && room.is_finite())
-                .map(|found| ((room - found.took.x) / found.took.y).max(0.0))
-        };
+    let along = |size: Vec2| if axis == Axis::Y { size.y } else { size.x };
+    let sweep = |ui: &mut Ui, share: Option<f32>, body: &mut dyn FnMut(&mut Ui) -> R| {
         let installed = Env::install_for(
             ui,
             Env::of(ui).derive_local(|scoped| {
@@ -146,13 +157,38 @@ fn run_sharing<R>(ui: &mut Ui, id: Id, axis: Axis, layout: egui::Layout, body: i
         let inner = body(ui);
         Env::restore(&ctx, installed);
         inner
-    });
-    if measuring {
-        let fills = Service::<FillCounts>::run(&ctx, |counts| counts.0.remove(&id)).unwrap_or(0);
-        let fixed = if axis == Axis::Y { used.height() } else { used.width() };
-        layout_memory::record_measured(&ctx, key, layout_memory::Measured { room: Vec2::ZERO, took: Vec2::new(fixed, fills as f32) });
+    };
+    if !ui.is_sizing_pass() {
+        let (result, _) = child::block(ui, None, layout, |ui| {
+            let room = along(ui.available_rect_before_wrap().size());
+            let share = layout_memory::measured(&ctx, key)
+                .filter(|found| found.took.y >= 1.0 && room.is_finite())
+                .map(|found| ((room - found.took.x) / found.took.y).max(0.0));
+            sweep(ui, share, &mut body)
+        });
+        return result;
     }
-    result
+    // The first sweep runs in a child that takes no room yet: with a child that fills, the second sweep replaces it
+    // under the same ids.
+    let first = crate::contract::keeping_ids(&ctx, || {
+        let mut first = ui.new_child(egui::UiBuilder::new().layout(layout));
+        let room = along(first.available_rect_before_wrap().size());
+        Service::<FillCounts>::run(&ctx, |counts| counts.0.insert(id, 0));
+        let inner = sweep(&mut first, None, &mut body);
+        let fills = Service::<FillCounts>::run(&ctx, |counts| counts.0.remove(&id)).unwrap_or(0);
+        let fixed = along(first.min_rect().size());
+        layout_memory::record_measured(&ctx, key, layout_memory::Measured { room: Vec2::ZERO, took: Vec2::new(fixed, fills as f32) });
+        let share = (fills > 0 && room.is_finite()).then(|| ((room - fixed) / fills as f32).max(0.0));
+        let rect = first.min_rect();
+        ((inner, rect, share), share.is_some())
+    });
+    match first {
+        (_, _, Some(share)) => child::block(ui, None, layout, |ui| sweep(ui, Some(share), &mut body)).0,
+        (inner, rect, None) => {
+            ui.advance_cursor_after_rect(rect);
+            inner
+        }
+    }
 }
 
 /// What places the children in flow of a body that places them itself.
@@ -320,13 +356,13 @@ fn found(ctx: &egui::Context, sizing: bool, id: Id, room: Vec2, took: Vec2) {
 /// run found, `SpaceBetween` shares the room its children left there between them, and `Grid` places its cells from
 /// the widest child per column and tallest per row there. Without a measuring run they place as `Start`, spread at
 /// the gap and size columns from the cells as they come.
-pub(crate) fn run_body<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap: Vec2, body: impl FnOnce(&mut Ui) -> R) -> R {
+pub(crate) fn run_body<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap: Vec2, body: impl FnMut(&mut Ui) -> R) -> R {
     run_body_measured(ui, id, layout, gap, body).0
 }
 
 /// `run_body`, with the width the children take at the gap alone for a `Row` that places its block itself (`End`,
 /// `Center`, `SpaceBetween`): the width the body asks for, where the room it is placed in spans wider.
-pub(crate) fn run_body_measured<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap: Vec2, body: impl FnOnce(&mut Ui) -> R) -> (R, Option<f32>) {
+pub(crate) fn run_body_measured<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap: Vec2, mut body: impl FnMut(&mut Ui) -> R) -> (R, Option<f32>) {
     let rtl = Env::of(ui).direction.is_rtl();
     let ctx = ui.ctx().clone();
     let sizing = ui.is_sizing_pass();

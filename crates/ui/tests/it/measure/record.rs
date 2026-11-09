@@ -200,3 +200,39 @@ fn a_fill_width_stack_beside_a_fixed_sibling_measures_once() {
     assert!(runs.len() >= 3, "every body measured: {runs:?}");
     assert!(runs.iter().all(|(_, count)| *count == 1), "one measuring run per body: {runs:?}");
 }
+
+/// A fill-width stack of wrapping text beside a fixed block is measured at its share of the row: it is as high as its
+/// text wraps there, and what follows the row starts below all of it. The row sweeps its children twice while
+/// measuring and once in the real run; every body is measured once.
+#[trial]
+fn a_fill_width_stack_is_measured_at_its_share() {
+    const WORDS: &str = "A long line of words that wraps when the stack is narrower than the whole room it could have taken here";
+    let seen = Cell::new([Rect::NOTHING; 4]);
+    let sweeps = Cell::new(0);
+    let runs = runs_of_a_settled_frame(|ui| {
+        sweeps.set(0);
+        Stack::new().fill().show(ui, |ui, _| {
+            let mut text = Rect::NOTHING;
+            let row = Row::new().fill_width().show(ui, |ui, _| {
+                sweeps.set(sweeps.get() + 1);
+                let stack = Stack::new().fill_width().show(ui, |ui, _| {
+                    craft_ui::testing::layout::wrapped_text(ui, WORDS);
+                    text = ui.min_rect();
+                });
+                let block = Block::new(Vec2::new(600.0, 24.0)).show(ui);
+                (stack.output.rect, block.rect)
+            });
+            let below = Block::new(Vec2::new(100.0, 24.0)).show(ui).rect;
+            if let Some((stack, _)) = row.inner {
+                seen.set([row.output.rect, stack, text, below]);
+            }
+        });
+    });
+    let [row, stack, text, below] = seen.get();
+    let dump = format!("row {row:?}, stack {stack:?}, text {text:?}, below {below:?}");
+    assert!(stack.width() < row.width() / 2.0, "the stack takes what the block leaves: {dump}");
+    assert!(text.height() > 0.0 && stack.expand(SLACK).contains_rect(text), "the stack holds its wrapped text: {dump}");
+    assert!(row.expand(SLACK).contains_rect(stack) && below.top() >= row.bottom() - SLACK, "the row below starts after the stack: {dump}");
+    assert_eq!(sweeps.get(), 3, "two measuring sweeps and the real run");
+    assert!(runs.iter().all(|(_, count)| *count == 1), "one measuring run per body: {runs:?}");
+}

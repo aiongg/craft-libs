@@ -1605,6 +1605,20 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             None => self.mount_room(&props, at.ui, at.at),
         };
         self.given = self.given_axes(&props, at.env, at.at);
+        // A body that fills the main axis of the body it sits in is measured and shown at its share of it. The first
+        // sweep of that body's measuring run only counts it: its contents run in the second sweep, at the share.
+        let (x, y) = (craft_behavior::Axis::X, craft_behavior::Axis::Y);
+        if at.ui.is_sizing_pass()
+            && ((self.given.0 && crate::layout::counting_fills(at.ui, x)) || (self.given.1 && crate::layout::counting_fills(at.ui, y)))
+        {
+            return Vec2::ZERO;
+        }
+        if let Some(share) = crate::layout::fill_share(at.ui, x).filter(|_| self.given.0) {
+            self.room.x = share;
+        }
+        if let Some(share) = crate::layout::fill_share(at.ui, y).filter(|_| self.given.1) {
+            self.room.y = share;
+        }
         // A body that fills both axes its parent gives it takes the room, whatever its contents take: a parent's
         // measuring run does not run them. It measures them in its own real run.
         if at.ui.is_sizing_pass() && self.given == (true, true) && self.room.is_finite() {
