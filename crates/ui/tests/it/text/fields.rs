@@ -2,7 +2,6 @@
 
 use super::kit::Rig;
 use craft_behavior::MotionMode;
-use craft_ui::contract::ShowContainer as _;
 use craft_ui::contract::{Bind, Props as _, Role as UiRole, Show as _};
 use craft_ui::primitives::{Completer, Completion};
 use craft_ui::runtime::commands::{CommandRef, EditCommands};

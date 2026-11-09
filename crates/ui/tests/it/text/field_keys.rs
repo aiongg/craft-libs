@@ -76,7 +76,7 @@ fn the_escape_an_emptied_search_field_passes_on_reaches_its_body() {
 #[trial]
 fn cmd_enter_submits_only_a_multi_line_field_that_submits() {
     for (os, submits) in [(Os::Linux, true), (Os::Mac, true), (Os::Linux, false)] {
-        let (mut fixture, text, submitted) = focused_field(os, |field| if submits { field.lines(3).submits() } else { field.lines(3) });
+        let (mut fixture, text, submitted) = focused_field(os, move |field| if submits { field.lines(3).submits() } else { field.lines(3) });
         fixture.key(Key::Enter, Modifiers::COMMAND).idle(3);
         assert_eq!(submitted.get().map(|mods| mods.cmd), submits.then_some(true), "{os:?}, submits {submits}: Cmd+Enter");
         assert_eq!(*text.borrow(), "hi", "{os:?}: Cmd+Enter adds no line break");
