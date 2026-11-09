@@ -121,15 +121,18 @@ fn events_after_menu_delete(label: &str) -> Vec<PresetEvent<u32>> {
     reported
 }
 
-/// The row menu deletes a preset that `can_delete` passes; the row menu of one it refuses opens, and its Delete row
-/// reports no delete, neither for that preset nor for the selected one.
+/// The row menu deletes a preset that `can_delete` passes.
 #[trial]
-fn the_row_menu_deletes_only_what_can_delete_passes() {
-    for (label, deletes) in [("Amber", true), ("Coral", false)] {
-        let events = events_after_menu_delete(label);
-        let deleted = events.iter().any(|event| matches!(event, PresetEvent::Delete(_)));
-        assert_eq!(deleted, deletes, "{label}: {events:?}");
-    }
+fn the_row_menu_deletes_a_preset_can_delete_passes() {
+    assert!(events_after_menu_delete("Amber").contains(&PresetEvent::Delete(AMBER)));
+}
+
+/// The row menu of a preset that `can_delete` refuses opens, and its Delete row reports no delete, neither for that
+/// preset nor for the selected one.
+#[trial]
+fn the_row_menu_cannot_delete_a_preset_can_delete_refuses() {
+    let events = events_after_menu_delete("Coral");
+    assert!(!events.iter().any(|event| matches!(event, PresetEvent::Delete(_))), "no delete was reported: {events:?}");
 }
 
 const NEW_PRESET: &str = "New preset…";
