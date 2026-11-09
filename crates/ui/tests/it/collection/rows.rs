@@ -312,61 +312,63 @@ fn focus_list(frames: &mut Frames, log: &Log, show: &mut impl FnMut(&mut Ui)) {
 /// Up, Down and Escape leave the children for the row, and the collection stays the one egui focus.
 #[trial]
 fn forward_enters_a_rows_children_and_arrows_and_escape_leave_them() {
-    {
-        let (log, source) = (Log::new(), Count(4));
-        let mut frames = Frames::new();
-        let mut show = |ui: &mut Ui| {
-            in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
-                let list = Probe::new(SelectMode::Single, log).id_salt("list");
-                log.take(list.show_items(ui, &source, &mut |key, _| ProbeRow::new(*key, log).children()));
-            });
-        };
-        frames.idle(3, &mut show);
-        focus_list(&mut frames, log, &mut show);
-        let last_focus = || log.focus.borrow().last().copied();
+    let (log, source) = (Log::new(), Count(4));
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            let list = Probe::new(SelectMode::Single, log).id_salt("list");
+            log.take(list.show_items(ui, &source, &mut |key, _| ProbeRow::new(*key, log).children()));
+        });
+    };
+    frames.idle(3, &mut show);
+    focus_list(&mut frames, log, &mut show);
+    let last_focus = || log.focus.borrow().last().copied();
 
-        tap(&mut frames, log, Key::ArrowDown, &mut show);
-        assert_eq!(log.leads().last(), Some(&0));
-        assert_eq!(last_focus(), None, "the lead row alone holds focus until Forward");
-        tap(&mut frames, log, Key::ArrowRight, &mut show);
-        assert_eq!(last_focus(), Some((0, "a")), "Forward enters the row's first child");
-        assert_eq!(craft_ui::testing::focus::egui_focused(&frames.ctx), Some(log.id()), "the children are members of the collection's arena");
-        tap(&mut frames, log, Key::ArrowRight, &mut show);
-        assert_eq!(last_focus(), Some((0, "b")));
-        tap(&mut frames, log, Key::ArrowLeft, &mut show);
-        assert_eq!(last_focus(), Some((0, "a")));
-        tap(&mut frames, log, Key::ArrowLeft, &mut show);
-        assert_eq!(last_focus(), None, "Back from the first child returns to the row");
-        assert_eq!(log.leads().last(), Some(&0));
+    tap(&mut frames, log, Key::ArrowDown, &mut show);
+    assert_eq!(log.leads().last(), Some(&0));
+    assert_eq!(last_focus(), None, "the lead row alone holds focus until Forward");
+    tap(&mut frames, log, Key::ArrowRight, &mut show);
+    assert_eq!(last_focus(), Some((0, "a")), "Forward enters the row's first child");
+    assert_eq!(craft_ui::testing::focus::egui_focused(&frames.ctx), Some(log.id()), "the children are members of the collection's arena");
+    tap(&mut frames, log, Key::ArrowRight, &mut show);
+    assert_eq!(last_focus(), Some((0, "b")));
+    tap(&mut frames, log, Key::ArrowLeft, &mut show);
+    assert_eq!(last_focus(), Some((0, "a")));
+    tap(&mut frames, log, Key::ArrowLeft, &mut show);
+    assert_eq!(last_focus(), None, "Back from the first child returns to the row");
+    assert_eq!(log.leads().last(), Some(&0));
 
-        tap(&mut frames, log, Key::ArrowRight, &mut show);
-        tap(&mut frames, log, Key::ArrowDown, &mut show);
-        assert_eq!((last_focus(), log.leads().last().copied()), (None, Some(1)), "Down leaves the children and moves the lead");
-        tap(&mut frames, log, Key::ArrowRight, &mut show);
-        assert_eq!(last_focus(), Some((1, "a")));
-        tap(&mut frames, log, Key::Escape, &mut show);
-        assert_eq!((last_focus(), log.leads().last().copied()), (None, Some(1)), "Escape returns to the row and keeps the lead");
-    }
-    {
-        let (log, source) = (Log::new(), Count(2));
-        let mut frames = Frames::new();
-        let mut show = |ui: &mut Ui| {
-            in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
-                let list = Probe::new(SelectMode::Single, log).id_salt("list");
-                log.take(list.show_items(ui, &source, &mut |key, _| ProbeRow::new(*key, log).children().nudging()));
-            });
-        };
-        frames.idle(3, &mut show);
-        focus_list(&mut frames, log, &mut show);
-        tap(&mut frames, log, Key::ArrowDown, &mut show);
-        tap(&mut frames, log, Key::ArrowRight, &mut show);
-        assert_eq!(log.focus.borrow().last().copied(), Some((0, "a")), "Forward enters the nudging part");
-        press(&mut frames, Key::ArrowRight, Modifiers::ALT, &mut show);
-        press(&mut frames, Key::ArrowDown, Modifiers::NONE, &mut show);
-        assert_eq!(*log.nudges.borrow(), [(0, Vec2::X, true), (0, Vec2::Y, false)]);
-        assert_eq!(log.focus.borrow().last().copied(), Some((0, "a")), "the arrows moved nothing");
-        assert_eq!(log.leads().last(), Some(&0), "the lead stayed");
-    }
+    tap(&mut frames, log, Key::ArrowRight, &mut show);
+    tap(&mut frames, log, Key::ArrowDown, &mut show);
+    assert_eq!((last_focus(), log.leads().last().copied()), (None, Some(1)), "Down leaves the children and moves the lead");
+    tap(&mut frames, log, Key::ArrowRight, &mut show);
+    assert_eq!(last_focus(), Some((1, "a")));
+    tap(&mut frames, log, Key::Escape, &mut show);
+    assert_eq!((last_focus(), log.leads().last().copied()), (None, Some(1)), "Escape returns to the row and keeps the lead");
+}
+
+/// A part that declares it takes nudges receives the arrows, Alt included, while it sits in a row; the arrows do not
+/// move focus off the part, and the row's other part still gets row-child moves.
+#[trial]
+fn a_nudging_part_in_a_row_gets_alt_arrows() {
+    let (log, source) = (Log::new(), Count(2));
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            let list = Probe::new(SelectMode::Single, log).id_salt("list");
+            log.take(list.show_items(ui, &source, &mut |key, _| ProbeRow::new(*key, log).children().nudging()));
+        });
+    };
+    frames.idle(3, &mut show);
+    focus_list(&mut frames, log, &mut show);
+    tap(&mut frames, log, Key::ArrowDown, &mut show);
+    tap(&mut frames, log, Key::ArrowRight, &mut show);
+    assert_eq!(log.focus.borrow().last().copied(), Some((0, "a")), "Forward enters the nudging part");
+    press(&mut frames, Key::ArrowRight, Modifiers::ALT, &mut show);
+    press(&mut frames, Key::ArrowDown, Modifiers::NONE, &mut show);
+    assert_eq!(*log.nudges.borrow(), [(0, Vec2::X, true), (0, Vec2::Y, false)]);
+    assert_eq!(log.focus.borrow().last().copied(), Some((0, "a")), "the arrows moved nothing");
+    assert_eq!(log.leads().last(), Some(&0), "the lead stayed");
 }
 
 /// 17.7: the arrows move the lead cell, Shift extends the range from the anchor cell, and the selection reports

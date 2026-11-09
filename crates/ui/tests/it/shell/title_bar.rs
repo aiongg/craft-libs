@@ -184,71 +184,74 @@ fn the_bar_is_named_by_the_document_title() {
 /// the free line, the title gap and the room between the leading content and the title, and not the bar's buttons. A
 /// native frame registers none.
 #[trial]
-fn an_integrated_bar_registers_its_parts_and_the_os_moves_from_the_free_bar() {
-    {
-        let windows = integrated();
-        let host = WindowHost::of(&windows.ctx);
-        let shown = Shown::default();
-        run(&windows, vec![], &shown);
-        let regions = host.caption_regions(ViewportId::ROOT).expect("the bar registered its parts");
-        assert_eq!(regions.buttons.iter().map(|(caption, _)| *caption).collect::<Vec<_>>(), [Caption::Minimize, Caption::Maximize, Caption::Close]);
-        let close = regions.buttons.iter().find(|(caption, _)| *caption == Caption::Close).expect("a close button").1;
-        assert!(shown.bar.get().contains_rect(close), "the buttons lie in the bar");
-        assert_eq!(regions.hit(close.center()), Some(WindowHit::Caption(Caption::Close)));
-        assert_eq!(regions.hit(shown.bar.get().center()), Some(WindowHit::Move), "the title gap moves the window: {regions:?}");
-        assert!(shown.leading.get().is_positive(), "the leading content shows: {:?}", shown.leading.get());
-        assert_eq!(regions.hit(after_leading(&shown)), Some(WindowHit::Move), "the room after the leading content moves the window: {regions:?}");
-        assert_eq!(regions.hit(shown.leading.get().center()), None, "a leading button keeps its press: {regions:?}");
-        assert_eq!(regions.hit(shown.trailing.get().center()), None, "a trailing button keeps its press: {regions:?}");
+fn an_integrated_bar_registers_its_captions_and_move_band() {
+    let windows = integrated();
+    let host = WindowHost::of(&windows.ctx);
+    let shown = Shown::default();
+    run(&windows, vec![], &shown);
+    let regions = host.caption_regions(ViewportId::ROOT).expect("the bar registered its parts");
+    assert_eq!(regions.buttons.iter().map(|(caption, _)| *caption).collect::<Vec<_>>(), [Caption::Minimize, Caption::Maximize, Caption::Close]);
+    let close = regions.buttons.iter().find(|(caption, _)| *caption == Caption::Close).expect("a close button").1;
+    assert!(shown.bar.get().contains_rect(close), "the buttons lie in the bar");
+    assert_eq!(regions.hit(close.center()), Some(WindowHit::Caption(Caption::Close)));
+    assert_eq!(regions.hit(shown.bar.get().center()), Some(WindowHit::Move), "the title gap moves the window: {regions:?}");
+    assert!(shown.leading.get().is_positive(), "the leading content shows: {:?}", shown.leading.get());
+    assert_eq!(regions.hit(after_leading(&shown)), Some(WindowHit::Move), "the room after the leading content moves the window: {regions:?}");
+    assert_eq!(regions.hit(shown.leading.get().center()), None, "a leading button keeps its press: {regions:?}");
+    assert_eq!(regions.hit(shown.trailing.get().center()), None, "a trailing button keeps its press: {regions:?}");
 
-        let native = Windows::with(InstallSpec::new(ShellInfo::default(), Arc::new(NoWindows)).frame(decision(Frame::Native)));
-        run(&native, vec![], &shown);
-        assert!(WindowHost::of(&native.ctx).caption_regions(ViewportId::ROOT).is_none(), "a native frame registers no bar parts");
-    }
-    {
-        let windows = integrated();
-        let shown = Shown::default();
-        run(&windows, vec![], &shown);
-        run(&windows, vec![moved(shown.leading.get().center())], &shown);
-        assert!(!shown.movable.get(), "the window does not move from a bar button");
-        run(&windows, vec![moved(shown.bar.get().center())], &shown);
-        assert!(shown.movable.get(), "the window moves from the title gap");
-    }
+    let native = Windows::with(InstallSpec::new(ShellInfo::default(), Arc::new(NoWindows)).frame(decision(Frame::Native)));
+    run(&native, vec![], &shown);
+    assert!(WindowHost::of(&native.ctx).caption_regions(ViewportId::ROOT).is_none(), "a native frame registers no bar parts");
+}
+
+/// The OS may move the window only from where a press would go to the bar's band: not from a button on the bar.
+#[trial]
+fn the_os_moves_the_window_only_from_the_free_bar() {
+    let windows = integrated();
+    let shown = Shown::default();
+    run(&windows, vec![], &shown);
+    run(&windows, vec![moved(shown.leading.get().center())], &shown);
+    assert!(!shown.movable.get(), "the window does not move from a bar button");
+    run(&windows, vec![moved(shown.bar.get().center())], &shown);
+    assert!(shown.movable.get(), "the window moves from the title gap");
 }
 
 /// Maximize sends the window command, Close only reports.
 #[trial]
-fn the_bar_sends_maximize_and_restore_and_close_only_reports() {
-    {
-        let windows = integrated();
-        let host = WindowHost::of(&windows.ctx);
-        let shown = Shown::default();
-        run(&windows, vec![], &shown);
-        let regions = host.caption_regions(ViewportId::ROOT).expect("captions");
-        let button = |wanted: Caption| regions.buttons.iter().find(|(caption, _)| *caption == wanted).expect("a button").1.center();
-        let click = |at| {
-            let mut sent = Vec::new();
-            for events in [vec![moved(at)], vec![press(at)], vec![release(at)], vec![]] {
-                sent.extend(run(&windows, events, &shown).commands);
-            }
-            sent
-        };
-        let sent = click(button(Caption::Close));
-        assert!(shown.closed.get(), "the bar reports Close");
-        assert!(sent.iter().all(|(_, command)| !matches!(command, ViewportCommand::Close)), "the bar never closes the window itself");
-        let sent = click(button(Caption::Maximize));
-        assert!(sent.iter().any(|(_, command)| matches!(command, ViewportCommand::Maximized(true))));
-    }
-    {
-        let windows = integrated();
-        windows.root_info(ViewportInfo { maximized: Some(true), ..ViewportInfo::default() });
-        let shown = Shown::default();
-        run(&windows, vec![], &shown);
-        let gap = shown.bar.get().center();
+fn maximize_acts_on_the_window_and_close_only_reports() {
+    let windows = integrated();
+    let host = WindowHost::of(&windows.ctx);
+    let shown = Shown::default();
+    run(&windows, vec![], &shown);
+    let regions = host.caption_regions(ViewportId::ROOT).expect("captions");
+    let button = |wanted: Caption| regions.buttons.iter().find(|(caption, _)| *caption == wanted).expect("a button").1.center();
+    let click = |at| {
         let mut sent = Vec::new();
-        for events in [vec![moved(gap)], vec![press(gap)], vec![release(gap)], vec![press(gap)], vec![release(gap)], vec![]] {
+        for events in [vec![moved(at)], vec![press(at)], vec![release(at)], vec![]] {
             sent.extend(run(&windows, events, &shown).commands);
         }
-        assert!(sent.iter().any(|(_, command)| matches!(command, ViewportCommand::Maximized(false))), "the double click restores: {sent:?}");
+        sent
+    };
+    let sent = click(button(Caption::Close));
+    assert!(shown.closed.get(), "the bar reports Close");
+    assert!(sent.iter().all(|(_, command)| !matches!(command, ViewportCommand::Close)), "the bar never closes the window itself");
+    let sent = click(button(Caption::Maximize));
+    assert!(sent.iter().any(|(_, command)| matches!(command, ViewportCommand::Maximized(true))));
+}
+
+/// A maximized window keeps its band: a double click on the free bar restores the window, and a drag hands the move
+/// to the platform, which restores and moves the window.
+#[trial]
+fn a_double_click_on_a_maximized_bar_restores_the_window() {
+    let windows = integrated();
+    windows.root_info(ViewportInfo { maximized: Some(true), ..ViewportInfo::default() });
+    let shown = Shown::default();
+    run(&windows, vec![], &shown);
+    let gap = shown.bar.get().center();
+    let mut sent = Vec::new();
+    for events in [vec![moved(gap)], vec![press(gap)], vec![release(gap)], vec![press(gap)], vec![release(gap)], vec![]] {
+        sent.extend(run(&windows, events, &shown).commands);
     }
+    assert!(sent.iter().any(|(_, command)| matches!(command, ViewportCommand::Maximized(false))), "the double click restores: {sent:?}");
 }

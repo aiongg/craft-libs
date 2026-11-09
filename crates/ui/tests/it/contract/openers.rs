@@ -53,13 +53,13 @@ fn clicked_open(mut fixture: Fixture, label: &str, role: Role) -> bool {
 }
 
 #[trial]
-fn a_held_press_opens_a_select_and_a_menu_and_a_click_opens_each_once() {
-    {
-        assert!(held_open(select(), "Color", Role::LIST_BOX), "a press held past the click time opens the list");
-        assert!(clicked_open(select(), "Color", Role::LIST_BOX), "a click opens the list, and its release does not close it");
-    }
-    {
-        assert!(held_open(menu_button(), "File", Role::MENU), "a press held past the click time opens the menu");
-        assert!(clicked_open(menu_button(), "File", Role::MENU), "a click opens the menu, and its release does not close it");
-    }
+fn a_held_press_opens_a_select_and_a_click_opens_it_once() {
+    assert!(held_open(select(), "Color", Role::LIST_BOX), "a press held past the click time opens the list");
+    assert!(clicked_open(select(), "Color", Role::LIST_BOX), "a click opens the list, and its release does not close it");
+}
+
+#[trial]
+fn a_held_press_opens_a_click_openers_menu_and_a_click_opens_it_once() {
+    assert!(held_open(menu_button(), "File", Role::MENU), "a press held past the click time opens the menu");
+    assert!(clicked_open(menu_button(), "File", Role::MENU), "a click opens the menu, and its release does not close it");
 }

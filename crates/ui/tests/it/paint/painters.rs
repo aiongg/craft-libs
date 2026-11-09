@@ -108,48 +108,48 @@ fn a_document_grid_draws_minor_lines_in_their_own_colour_through_the_view() {
 }
 
 #[trial]
-fn a_focus_ring_shows_only_with_focus_visible_and_a_halo_lies_under_it() {
-    {
-        assert!(FocusRing::visible(Flags::FOCUSED | Flags::FOCUS_VISIBLE));
-        assert!(!FocusRing::visible(Flags::FOCUSED), "focus by mouse shows no ring");
-        assert!(!FocusRing::visible(Flags::FOCUS_VISIBLE | Flags::SELECTED));
-    }
-    {
-        let look = FocusLook::new(Stroke::new(2.0, egui::Color32::from_rgb(0, 120, 255)), 1.0);
-        let shape = PaintShape::Circle(pos2(20.0, 20.0), 6.0);
-        let ring = FocusRing::shapes(&look, FocusKind::Ring, &shape, 1.0);
-        let halo = FocusRing::shapes(&look, FocusKind::Halo, &shape, 1.0);
-        assert_eq!(ring.len(), 1);
-        assert_eq!(halo.len(), 2);
-        let width = |s: &Shape| match s {
-            Shape::Circle(c) => c.stroke.width,
-            _ => 0.0,
-        };
-        assert!(width(&halo[0]) > width(&halo[1]), "the halo lies under a narrower ring");
-        assert_eq!(width(&halo[1]), width(&ring[0]), "the ring inside a halo is the plain ring");
-    }
+fn a_ring_shows_only_on_the_focused_component_with_focus_visible() {
+    assert!(FocusRing::visible(Flags::FOCUSED | Flags::FOCUS_VISIBLE));
+    assert!(!FocusRing::visible(Flags::FOCUSED), "focus by mouse shows no ring");
+    assert!(!FocusRing::visible(Flags::FOCUS_VISIBLE | Flags::SELECTED));
 }
 
 #[trial]
-fn the_checker_alternates_cells_from_the_corner_and_the_app_overrides_the_theme() {
-    {
-        let tokens = tokens(Mode::Light, Contrast::Standard);
-        let side = tokens.size.checker;
-        let rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(side * 3.0, side * 2.0));
-        let shapes = craft_ui::primitives::checker(&tokens, rect, rect);
-        // The light base, then the dark squares (0,0), (2,0) and (1,1).
-        assert_eq!(shapes.len(), 1 + 3);
-        let Shape::Rect(first) = &shapes[1] else { panic!("a dark cell is a rect") };
-        assert_eq!(first.rect.min, rect.min, "the first dark cell sits in the corner");
-    }
-    {
-        let tokens = tokens(Mode::Light, Contrast::Standard);
-        let rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(60.0, 40.0));
-        let (light, dark, side) = (Color32::from_rgb(250, 250, 200), Color32::from_rgb(10, 20, 30), 20.0);
-        let shapes = Checker::new().size(side).colors(DataColor::new(light), DataColor::new(dark)).shapes(&tokens, rect, rect);
-        let (Shape::Rect(base), Shape::Rect(cell)) = (&shapes[0], &shapes[1]) else { panic!("the base and its first cell are rects") };
-        assert_eq!((base.fill, cell.fill), (light, dark));
-        assert_eq!(cell.rect.size(), vec2(side, side));
-        assert_eq!(craft_ui::primitives::checker(&tokens, rect, rect), Checker::new().shapes(&tokens, rect, rect), "unset fields are the theme's");
-    }
+fn a_halo_adds_a_wider_translucent_stroke_under_the_ring() {
+    let look = FocusLook::new(Stroke::new(2.0, egui::Color32::from_rgb(0, 120, 255)), 1.0);
+    let shape = PaintShape::Circle(pos2(20.0, 20.0), 6.0);
+    let ring = FocusRing::shapes(&look, FocusKind::Ring, &shape, 1.0);
+    let halo = FocusRing::shapes(&look, FocusKind::Halo, &shape, 1.0);
+    assert_eq!(ring.len(), 1);
+    assert_eq!(halo.len(), 2);
+    let width = |s: &Shape| match s {
+        Shape::Circle(c) => c.stroke.width,
+        _ => 0.0,
+    };
+    assert!(width(&halo[0]) > width(&halo[1]), "the halo lies under a narrower ring");
+    assert_eq!(width(&halo[1]), width(&ring[0]), "the ring inside a halo is the plain ring");
+}
+
+#[trial]
+fn the_checker_puts_dark_cells_on_alternate_squares_from_the_corner() {
+    let tokens = tokens(Mode::Light, Contrast::Standard);
+    let side = tokens.size.checker;
+    let rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(side * 3.0, side * 2.0));
+    let shapes = craft_ui::primitives::checker(&tokens, rect, rect);
+    // The light base, then the dark squares (0,0), (2,0) and (1,1).
+    assert_eq!(shapes.len(), 1 + 3);
+    let Shape::Rect(first) = &shapes[1] else { panic!("a dark cell is a rect") };
+    assert_eq!(first.rect.min, rect.min, "the first dark cell sits in the corner");
+}
+
+#[trial]
+fn the_apps_checker_sets_the_cell_size_and_colours_and_the_default_is_the_themes() {
+    let tokens = tokens(Mode::Light, Contrast::Standard);
+    let rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(60.0, 40.0));
+    let (light, dark, side) = (Color32::from_rgb(250, 250, 200), Color32::from_rgb(10, 20, 30), 20.0);
+    let shapes = Checker::new().size(side).colors(DataColor::new(light), DataColor::new(dark)).shapes(&tokens, rect, rect);
+    let (Shape::Rect(base), Shape::Rect(cell)) = (&shapes[0], &shapes[1]) else { panic!("the base and its first cell are rects") };
+    assert_eq!((base.fill, cell.fill), (light, dark));
+    assert_eq!(cell.rect.size(), vec2(side, side));
+    assert_eq!(craft_ui::primitives::checker(&tokens, rect, rect), Checker::new().shapes(&tokens, rect, rect), "unset fields are the theme's");
 }

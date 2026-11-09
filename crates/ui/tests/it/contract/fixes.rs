@@ -210,60 +210,62 @@ impl Component for Spy<'_> {
 /// Step 17 rewrites the click flags: keyboard activation reports a click, a command-bound component none.
 #[trial]
 fn the_click_flags_follow_how_the_component_was_activated() {
-    {
-        let mut frames = Frames::new();
-        let seen = RefCell::new(Seen::default());
-        let mut clicked = false;
-        let show = |ui: &mut Ui, command: bool, out: &mut bool, by_pointer: &mut bool| {
-            let probe = Probe::new(&seen).id_salt("probe");
-            let response = if command { probe.command("cmd").show(ui) } else { probe.show(ui) };
-            *out = is_clicked(&response);
-            *by_pointer = clicked_by_primary(&response);
-        };
-        let mut by_pointer = false;
-        frames.frame(vec![], |ui| show(ui, false, &mut clicked, &mut by_pointer));
-        frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], |ui| show(ui, false, &mut clicked, &mut by_pointer));
-        frames.frame(vec![key_press(Key::Enter, Modifiers::NONE)], |ui| show(ui, false, &mut clicked, &mut by_pointer));
-        assert!(clicked, "Enter on the focused component reports a click");
-        assert!(!by_pointer, "and not a pointer click");
+    let mut frames = Frames::new();
+    let seen = RefCell::new(Seen::default());
+    let mut clicked = false;
+    let show = |ui: &mut Ui, command: bool, out: &mut bool, by_pointer: &mut bool| {
+        let probe = Probe::new(&seen).id_salt("probe");
+        let response = if command { probe.command("cmd").show(ui) } else { probe.show(ui) };
+        *out = is_clicked(&response);
+        *by_pointer = clicked_by_primary(&response);
+    };
+    let mut by_pointer = false;
+    frames.frame(vec![], |ui| show(ui, false, &mut clicked, &mut by_pointer));
+    frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], |ui| show(ui, false, &mut clicked, &mut by_pointer));
+    frames.frame(vec![key_press(Key::Enter, Modifiers::NONE)], |ui| show(ui, false, &mut clicked, &mut by_pointer));
+    assert!(clicked, "Enter on the focused component reports a click");
+    assert!(!by_pointer, "and not a pointer click");
 
-        let mut bound = Frames::new();
-        let seen = RefCell::new(Seen::default());
-        let at = Pos2::new(10.0, 10.0);
-        let show_bound = |ui: &mut Ui, out: &mut bool, by_pointer: &mut bool| {
-            let response = Probe::new(&seen).id_salt("probe").command("cmd").show(ui);
-            *out = is_clicked(&response);
-            *by_pointer = clicked_by_primary(&response);
-        };
-        bound.frame(vec![moved(at)], |ui| show_bound(ui, &mut clicked, &mut by_pointer));
-        bound.frame(vec![press(at)], |ui| show_bound(ui, &mut clicked, &mut by_pointer));
-        bound.frame(vec![release(at)], |ui| show_bound(ui, &mut clicked, &mut by_pointer));
-        assert!(!clicked && !by_pointer, "a command-bound component reports no click; the command fires");
-    }
-    {
-        let fired_go = |frames: &Frames| -> Vec<FireSource> {
-            take_output(&frames.ctx).fired.into_iter().filter(|fired| fired.command.id == "overlayTrial.go").map(|fired| fired.source).collect()
-        };
-        let seen = RefCell::new(Seen::default());
-        let mut clicked = false;
-        let show = |ui: &mut Ui, bound: bool, out: &mut bool| {
-            let probe = Probe::new(&seen).injects(FireSource::Access).id_salt("probe");
-            let response = if bound { probe.command(Go::Go).show(ui) } else { probe.show(ui) };
-            *out = is_clicked(&response);
-        };
-        let mut frames = Frames::new();
-        frames.frame(vec![], |ui| show(ui, false, &mut clicked));
-        frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], |ui| show(ui, false, &mut clicked));
-        frames.frame(vec![key_press(Key::Enter, Modifiers::NONE)], |ui| show(ui, false, &mut clicked));
-        assert!(clicked, "the Enter that injected the activation reports a click");
+    let mut bound = Frames::new();
+    let seen = RefCell::new(Seen::default());
+    let at = Pos2::new(10.0, 10.0);
+    let show_bound = |ui: &mut Ui, out: &mut bool, by_pointer: &mut bool| {
+        let response = Probe::new(&seen).id_salt("probe").command("cmd").show(ui);
+        *out = is_clicked(&response);
+        *by_pointer = clicked_by_primary(&response);
+    };
+    bound.frame(vec![moved(at)], |ui| show_bound(ui, &mut clicked, &mut by_pointer));
+    bound.frame(vec![press(at)], |ui| show_bound(ui, &mut clicked, &mut by_pointer));
+    bound.frame(vec![release(at)], |ui| show_bound(ui, &mut clicked, &mut by_pointer));
+    assert!(!clicked && !by_pointer, "a command-bound component reports no click; the command fires");
+}
 
-        let mut bound = Frames::new();
-        bound.frame(vec![], |ui| show(ui, true, &mut clicked));
-        bound.frame(vec![key_press(Key::Tab, Modifiers::NONE)], |ui| show(ui, true, &mut clicked));
-        fired_go(&bound);
-        bound.frame(vec![key_press(Key::Enter, Modifiers::NONE)], |ui| show(ui, true, &mut clicked));
-        assert_eq!(fired_go(&bound), vec![FireSource::Access], "the command fired once, with the injected source");
-    }
+/// Step 17 fires the bound command of an injected activation once, with the injected source, and the key
+/// activation that injected it still reports its click.
+#[trial]
+fn an_injected_activation_fires_once_and_keeps_the_key_activations_click() {
+    let fired_go = |frames: &Frames| -> Vec<FireSource> {
+        take_output(&frames.ctx).fired.into_iter().filter(|fired| fired.command.id == "overlayTrial.go").map(|fired| fired.source).collect()
+    };
+    let seen = RefCell::new(Seen::default());
+    let mut clicked = false;
+    let show = |ui: &mut Ui, bound: bool, out: &mut bool| {
+        let probe = Probe::new(&seen).injects(FireSource::Access).id_salt("probe");
+        let response = if bound { probe.command(Go::Go).show(ui) } else { probe.show(ui) };
+        *out = is_clicked(&response);
+    };
+    let mut frames = Frames::new();
+    frames.frame(vec![], |ui| show(ui, false, &mut clicked));
+    frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], |ui| show(ui, false, &mut clicked));
+    frames.frame(vec![key_press(Key::Enter, Modifiers::NONE)], |ui| show(ui, false, &mut clicked));
+    assert!(clicked, "the Enter that injected the activation reports a click");
+
+    let mut bound = Frames::new();
+    bound.frame(vec![], |ui| show(ui, true, &mut clicked));
+    bound.frame(vec![key_press(Key::Tab, Modifiers::NONE)], |ui| show(ui, true, &mut clicked));
+    fired_go(&bound);
+    bound.frame(vec![key_press(Key::Enter, Modifiers::NONE)], |ui| show(ui, true, &mut clicked));
+    assert_eq!(fired_go(&bound), vec![FireSource::Access], "the command fired once, with the injected source");
 }
 
 /// A pane is a layout room of its own: a container shown in a pane from a grid body's flow lays its body out in the
@@ -494,90 +496,90 @@ fn a_style_value_set_in_content_env_changes_a_body_childs_style() {
 
 /// A sizing pass of the parent `Ui` allocates the size and runs nothing else.
 #[trial]
-fn a_sizing_pass_and_measure_in_use_the_ids_the_real_pass_uses() {
-    {
-        let sized_id = {
-            let mut frames = Frames::new();
-            let seen = RefCell::new(Seen::default());
-            let mut id = None;
-            frames.frame(vec![], |ui| {
-                id = Some(ui.scope_builder(UiBuilder::new().sizing_pass(), |ui| Probe::new(&seen).show(ui)).inner.id);
-            });
-            assert_eq!(seen.borrow().updates, 0, "a sizing pass runs no update");
-            id
-        };
+fn a_sizing_pass_registers_nothing_and_its_id_is_the_real_passs() {
+    let sized_id = {
         let mut frames = Frames::new();
         let seen = RefCell::new(Seen::default());
-        let mut real_id = None;
+        let mut id = None;
         frames.frame(vec![], |ui| {
-            real_id = Some(scoped(ui, |ui| Probe::new(&seen).show(ui)).id);
+            id = Some(ui.scope_builder(UiBuilder::new().sizing_pass(), |ui| Probe::new(&seen).show(ui)).inner.id);
         });
-        assert_eq!(sized_id, real_id, "the Auto ordinal of a sizing pass is the real pass's");
+        assert_eq!(seen.borrow().updates, 0, "a sizing pass runs no update");
+        id
+    };
+    let mut frames = Frames::new();
+    let seen = RefCell::new(Seen::default());
+    let mut real_id = None;
+    frames.frame(vec![], |ui| {
+        real_id = Some(scoped(ui, |ui| Probe::new(&seen).show(ui)).id);
+    });
+    assert_eq!(sized_id, real_id, "the Auto ordinal of a sizing pass is the real pass's");
 
-        // The id a sizing pass used is free for the real show in the same pass.
-        let mut frames = Frames::new();
-        let seen = RefCell::new(Seen::default());
-        let shared = named_id("shared");
-        frames.frame(vec![], |ui| {
-            ui.scope_builder(UiBuilder::new().sizing_pass(), |ui| Probe::new(&seen).id(shared).show(ui));
-            Probe::new(&seen).id(shared).show(ui);
-        });
-        assert!(findings(&frames.ctx).is_empty(), "a sizing pass registers no id: {:?}", findings(&frames.ctx));
-    }
-    {
-        let mut frames = Frames::new();
-        let ids = RefCell::new((Vec::new(), Vec::new()));
-        frames.frame(vec![], |ui| {
-            ids.borrow_mut().0.clear();
-            ids.borrow_mut().1.clear();
-            let mut spy = Spy { common: Common::new(), ids: &ids };
-            spy.measure_in(ui, Proposal::Ideal);
-            spy.measure_in(ui, Proposal::Ideal);
-            spy.show(ui);
-        });
-        let (measured, updated) = &*ids.borrow();
-        assert_eq!(measured.len(), 3);
-        assert!(measured.iter().all(|id| *id == measured[0]), "both measurements and the show share one id: {measured:?}");
-        assert_eq!(updated.last(), measured.last());
-    }
+    // The id a sizing pass used is free for the real show in the same pass.
+    let mut frames = Frames::new();
+    let seen = RefCell::new(Seen::default());
+    let shared = named_id("shared");
+    frames.frame(vec![], |ui| {
+        ui.scope_builder(UiBuilder::new().sizing_pass(), |ui| Probe::new(&seen).id(shared).show(ui));
+        Probe::new(&seen).id(shared).show(ui);
+    });
+    assert!(findings(&frames.ctx).is_empty(), "a sizing pass registers no id: {:?}", findings(&frames.ctx));
 }
 
 #[trial]
-fn a_body_settles_between_its_minimum_size_and_its_first_room() {
-    {
-        let (sizes, room) = body_sizes(true);
-        assert!(room.x > 0.0 && room.y > 0.0, "the first frame's body had room: {room:?}");
-        let last = sizes.len() - 1;
-        assert_eq!(sizes[last], sizes[last - 1], "the size settled: {sizes:?}");
-        assert!(sizes[last].x <= room.x && sizes[last].y <= room.y, "the body is no larger than its room {room:?}: {sizes:?}");
-    }
-    {
-        let (sizes, _) = body_sizes(false);
-        assert_eq!(sizes[sizes.len() - 1], Vec2::new(200.0, 100.0), "{sizes:?}");
-    }
+fn measure_in_uses_the_id_the_next_show_uses_and_does_not_advance_the_ordinal() {
+    let mut frames = Frames::new();
+    let ids = RefCell::new((Vec::new(), Vec::new()));
+    frames.frame(vec![], |ui| {
+        ids.borrow_mut().0.clear();
+        ids.borrow_mut().1.clear();
+        let mut spy = Spy { common: Common::new(), ids: &ids };
+        spy.measure_in(ui, Proposal::Ideal);
+        spy.measure_in(ui, Proposal::Ideal);
+        spy.show(ui);
+    });
+    let (measured, updated) = &*ids.borrow();
+    assert_eq!(measured.len(), 3);
+    assert!(measured.iter().all(|id| *id == measured[0]), "both measurements and the show share one id: {measured:?}");
+    assert_eq!(updated.last(), measured.last());
 }
 
 #[trial]
-fn undeclared_parts_and_moves_are_debug_assertions() {
-    {
-        let mut frames = Frames::new();
-        let shown = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            frames.frame(vec![], |ui| {
-                Liar { common: Common::new() }.id_salt("liar").show(ui);
-            });
-        }));
-        assert_eq!(shown.is_err(), cfg!(debug_assertions), "the declaration `PARTS = false` is checked in debug builds");
-    }
-    {
-        let mut frames = Frames::new();
-        let mut show = |ui: &mut Ui| {
-            Stepper { common: Common::new() }.id_salt("stepper").show(ui);
-        };
-        frames.frame(vec![], &mut show);
-        frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], &mut show);
-        let moved = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            frames.frame(vec![key_press(Key::ArrowRight, Modifiers::NONE)], &mut show);
-        }));
-        assert_eq!(moved.is_err(), cfg!(debug_assertions), "taking `Intent::Move` needs `moves` in the key use, checked in debug builds");
-    }
+fn a_body_that_fills_its_room_does_not_grow_past_the_room_it_first_had() {
+    let (sizes, room) = body_sizes(true);
+    assert!(room.x > 0.0 && room.y > 0.0, "the first frame's body had room: {room:?}");
+    let last = sizes.len() - 1;
+    assert_eq!(sizes[last], sizes[last - 1], "the size settled: {sizes:?}");
+    assert!(sizes[last].x <= room.x && sizes[last].y <= room.y, "the body is no larger than its room {room:?}: {sizes:?}");
+}
+
+#[trial]
+fn a_body_smaller_than_the_minimum_size_takes_the_minimum_size() {
+    let (sizes, _) = body_sizes(false);
+    assert_eq!(sizes[sizes.len() - 1], Vec2::new(200.0, 100.0), "{sizes:?}");
+}
+
+#[trial]
+fn a_component_that_declares_no_parts_and_declares_one_is_a_debug_assertion() {
+    let mut frames = Frames::new();
+    let shown = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        frames.frame(vec![], |ui| {
+            Liar { common: Common::new() }.id_salt("liar").show(ui);
+        });
+    }));
+    assert_eq!(shown.is_err(), cfg!(debug_assertions), "the declaration `PARTS = false` is checked in debug builds");
+}
+
+#[trial]
+fn a_component_that_takes_an_arrow_move_without_declaring_moves_is_a_debug_assertion() {
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        Stepper { common: Common::new() }.id_salt("stepper").show(ui);
+    };
+    frames.frame(vec![], &mut show);
+    frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], &mut show);
+    let moved = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        frames.frame(vec![key_press(Key::ArrowRight, Modifiers::NONE)], &mut show);
+    }));
+    assert_eq!(moved.is_err(), cfg!(debug_assertions), "taking `Intent::Move` needs `moves` in the key use, checked in debug builds");
 }

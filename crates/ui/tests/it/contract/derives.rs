@@ -159,36 +159,34 @@ fn named(name: &str) -> Vec<Probe> {
 
 #[trial]
 fn a_registration_records_the_facts_the_contract_types_state() {
-    {
-        let tagged = named("::Tagged<");
-        assert_eq!(tagged.len(), 2, "one probe per listed instantiation");
-        assert!(
-            tagged.iter().any(|probe| probe.type_name().ends_with("Plain>")) && tagged.iter().any(|probe| probe.type_name().ends_with("Number>"))
-        );
-        for probe in &tagged {
-            assert_eq!((probe.shape, probe.role, probe.crate_name), (ShapeKind::Leaf, Role::SLIDER, "craft-ui"));
-            assert!(probe.carries_value() && !probe.overlay && !probe.canvas_control && probe.exempt.is_empty());
-        }
-
-        let handle = named("derives::Handle");
-        assert_eq!(handle.len(), 1);
-        assert!(handle[0].canvas_control && !handle[0].carries_value());
-        assert_eq!((handle[0].exempt[0].case, handle[0].exempt[0].reason), ("sizes", "fills the canvas"));
-
-        assert_eq!(named("::Panel<")[0].shape, ShapeKind::Body);
-        assert_eq!(named("kit::Table")[0].shape, ShapeKind::Items);
-        assert!(named("::Hooked<")[0].overlay, "`#[component(container, overlay)]` declares the open state");
+    let tagged = named("::Tagged<");
+    assert_eq!(tagged.len(), 2, "one probe per listed instantiation");
+    assert!(tagged.iter().any(|probe| probe.type_name().ends_with("Plain>")) && tagged.iter().any(|probe| probe.type_name().ends_with("Number>")));
+    for probe in &tagged {
+        assert_eq!((probe.shape, probe.role, probe.crate_name), (ShapeKind::Leaf, Role::SLIDER, "craft-ui"));
+        assert!(probe.carries_value() && !probe.overlay && !probe.canvas_control && probe.exempt.is_empty());
     }
-    {
-        let manual = named("::Manual");
-        assert_eq!(manual.len(), 1);
-        assert!(manual[0].overlay);
-        assert_eq!(manual[0].exempt[0].case, "sizes");
-        let mut frames = Frames::new();
-        frames.frame(vec![], |ui| {
-            Manual { common: Common::new() }.show(ui);
-        });
-    }
+
+    let handle = named("derives::Handle");
+    assert_eq!(handle.len(), 1);
+    assert!(handle[0].canvas_control && !handle[0].carries_value());
+    assert_eq!((handle[0].exempt[0].case, handle[0].exempt[0].reason), ("sizes", "fills the canvas"));
+
+    assert_eq!(named("::Panel<")[0].shape, ShapeKind::Body);
+    assert_eq!(named("kit::Table")[0].shape, ShapeKind::Items);
+    assert!(named("::Hooked<")[0].overlay, "`#[component(container, overlay)]` declares the open state");
+}
+
+#[trial]
+fn register_contract_registers_a_hand_written_component() {
+    let manual = named("::Manual");
+    assert_eq!(manual.len(), 1);
+    assert!(manual[0].overlay);
+    assert_eq!(manual[0].exempt[0].case, "sizes");
+    let mut frames = Frames::new();
+    frames.frame(vec![], |ui| {
+        Manual { common: Common::new() }.show(ui);
+    });
 }
 
 #[trial]
@@ -289,26 +287,26 @@ fn two_token_groups_with_one_path_are_a_debug_assertion() {
 }
 
 #[trial]
-fn a_pattern_registers_with_its_kind_and_no_component_probe() {
-    {
-        let _ = (ToolRow, Handwritten);
-        let patterns: Vec<_> = craft_ui::contract::REGISTRATIONS.iter().filter_map(|registration| registration.pattern_probe().copied()).collect();
-        let row = patterns.iter().find(|pattern| pattern.type_name().ends_with("ToolRow")).expect("the derive registers the pattern");
-        assert_eq!(row.purpose, "A row of tools: a pattern assembles components and has no contract shape of its own");
-        assert!(patterns.iter().any(|pattern| pattern.type_name().ends_with("Handwritten")), "`register_contract!(Type; pattern)` registers too");
-        assert!(named("ToolRow").is_empty() && named("Handwritten").is_empty(), "a pattern has no component probe");
-    }
-    {
-        let _ = IdleTool;
-        let kind_of = |name: &str| {
-            craft_ui::contract::REGISTRATIONS
-                .iter()
-                .filter_map(|registration| registration.pattern_probe())
-                .find(|pattern| pattern.type_name().ends_with(name))
-                .map(|pattern| pattern.kind)
-        };
-        assert_eq!(kind_of("IdleTool"), Some(PatternKind::Tool));
-        assert_eq!(kind_of("RecoveryDialog"), Some(PatternKind::Dialog));
-        assert_eq!(kind_of("ToolRow"), Some(PatternKind::Composition));
-    }
+fn a_pattern_registers_as_a_pattern_and_has_no_component_probe() {
+    let _ = (ToolRow, Handwritten);
+    let patterns: Vec<_> = craft_ui::contract::REGISTRATIONS.iter().filter_map(|registration| registration.pattern_probe().copied()).collect();
+    let row = patterns.iter().find(|pattern| pattern.type_name().ends_with("ToolRow")).expect("the derive registers the pattern");
+    assert_eq!(row.purpose, "A row of tools: a pattern assembles components and has no contract shape of its own");
+    assert!(patterns.iter().any(|pattern| pattern.type_name().ends_with("Handwritten")), "`register_contract!(Type; pattern)` registers too");
+    assert!(named("ToolRow").is_empty() && named("Handwritten").is_empty(), "a pattern has no component probe");
+}
+
+#[trial]
+fn a_tool_and_a_stack_dialog_register_as_story_hosts_of_their_own_kind() {
+    let _ = IdleTool;
+    let kind_of = |name: &str| {
+        craft_ui::contract::REGISTRATIONS
+            .iter()
+            .filter_map(|registration| registration.pattern_probe())
+            .find(|pattern| pattern.type_name().ends_with(name))
+            .map(|pattern| pattern.kind)
+    };
+    assert_eq!(kind_of("IdleTool"), Some(PatternKind::Tool));
+    assert_eq!(kind_of("RecoveryDialog"), Some(PatternKind::Dialog));
+    assert_eq!(kind_of("ToolRow"), Some(PatternKind::Composition));
 }

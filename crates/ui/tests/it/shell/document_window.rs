@@ -84,26 +84,26 @@ fn raise_brings_the_window_forward_in_the_pass_it_is_set() {
 }
 
 #[trial]
-fn cascade_in_places_the_next_window_on_the_right_monitor() {
-    {
-        let main = Rect::from_min_size(Pos2::new(40.0, 30.0), WINDOW);
-        let monitors = [monitor(MONITOR)];
-        let next = DocumentWindow::cascade_in(main, WINDOW, &monitors, STEP);
-        assert_eq!(next.min, main.min + Vec2::splat(STEP));
-        assert_eq!(next.size(), WINDOW);
+fn a_further_window_steps_down_and_across_and_wraps_at_the_monitors_edge() {
+    let main = Rect::from_min_size(Pos2::new(40.0, 30.0), WINDOW);
+    let monitors = [monitor(MONITOR)];
+    let next = DocumentWindow::cascade_in(main, WINDOW, &monitors, STEP);
+    assert_eq!(next.min, main.min + Vec2::splat(STEP));
+    assert_eq!(next.size(), WINDOW);
 
-        let wrapped = DocumentWindow::cascade_in(NEAR_CORNER, WINDOW, &monitors, STEP);
-        assert_eq!(wrapped.min, MONITOR.min, "past the edge the window starts again at the monitor's corner");
+    let wrapped = DocumentWindow::cascade_in(NEAR_CORNER, WINDOW, &monitors, STEP);
+    assert_eq!(wrapped.min, MONITOR.min, "past the edge the window starts again at the monitor's corner");
 
-        let free = DocumentWindow::cascade_in(NEAR_CORNER, WINDOW, &[], STEP);
-        assert_eq!(free.min, NEAR_CORNER.min + Vec2::splat(STEP), "no monitor is known: the step is not bounded");
-    }
-    {
-        let right = Rect::from_min_size(Pos2::new(1000.0, 0.0), Vec2::new(1000.0, 800.0));
-        let monitors = [monitor(MONITOR), monitor(right)];
-        // Maximized on the right monitor, overhanging it by a few points on every side.
-        let maximized = right.expand(8.0);
-        let next = DocumentWindow::cascade_in(maximized, WINDOW, &monitors, STEP);
-        assert!(right.contains_rect(next), "the next window opens on the right monitor: {next:?}");
-    }
+    let free = DocumentWindow::cascade_in(NEAR_CORNER, WINDOW, &[], STEP);
+    assert_eq!(free.min, NEAR_CORNER.min + Vec2::splat(STEP), "no monitor is known: the step is not bounded");
+}
+
+#[trial]
+fn a_maximized_window_overhanging_two_monitors_cascades_on_the_one_showing_most_of_it() {
+    let right = Rect::from_min_size(Pos2::new(1000.0, 0.0), Vec2::new(1000.0, 800.0));
+    let monitors = [monitor(MONITOR), monitor(right)];
+    // Maximized on the right monitor, overhanging it by a few points on every side.
+    let maximized = right.expand(8.0);
+    let next = DocumentWindow::cascade_in(maximized, WINDOW, &monitors, STEP);
+    assert!(right.contains_rect(next), "the next window opens on the right monitor: {next:?}");
 }

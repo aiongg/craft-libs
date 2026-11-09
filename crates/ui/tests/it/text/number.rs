@@ -234,240 +234,246 @@ fn auto(field: NumberField<'_>) -> NumberField<'_> {
 
 /// An arrow goes to the next multiple of the step in its direction, Shift moves ten steps, and the range holds.
 #[trial]
-fn keys_and_typed_values_stay_in_range() {
-    {
-        let mut rig = Rig::new(5.1, Some(0.0..=7.0));
-        rig.focus();
-        rig.key(Key::ArrowDown, Modifiers::NONE);
-        assert_eq!(rig.value(), Some(5.0), "down from 5.1 goes to 5");
-        rig.key(Key::ArrowUp, Modifiers::NONE);
-        rig.key(Key::ArrowUp, Modifiers::NONE);
-        assert_eq!(rig.value(), Some(7.0), "up reaches the end of the range");
-        rig.key(Key::ArrowUp, Modifiers::NONE);
-        assert_eq!(rig.value(), Some(7.0), "up at the end stays there");
-        rig.key(Key::ArrowDown, Modifiers::SHIFT);
-        assert_eq!(rig.value(), Some(0.0), "Shift moves ten steps and stops at the start of the range");
-    }
-    {
-        let mut rig = Rig::new(1.0, Some(0.0..=10.0));
-        rig.focus();
-        rig.frame(vec![key_press(Key::A, Modifiers::COMMAND)]);
-        rig.frame(vec![Event::Text("250".into())]);
-        rig.idle(1);
-        rig.frame(vec![key_press(Key::Enter, Modifiers::NONE)]);
-        rig.idle(3);
-        assert_eq!(rig.value(), Some(10.0), "250 commits as the end of the range");
-    }
+fn arrows_step_to_the_next_multiple_and_stay_in_range() {
+    let mut rig = Rig::new(5.1, Some(0.0..=7.0));
+    rig.focus();
+    rig.key(Key::ArrowDown, Modifiers::NONE);
+    assert_eq!(rig.value(), Some(5.0), "down from 5.1 goes to 5");
+    rig.key(Key::ArrowUp, Modifiers::NONE);
+    rig.key(Key::ArrowUp, Modifiers::NONE);
+    assert_eq!(rig.value(), Some(7.0), "up reaches the end of the range");
+    rig.key(Key::ArrowUp, Modifiers::NONE);
+    assert_eq!(rig.value(), Some(7.0), "up at the end stays there");
+    rig.key(Key::ArrowDown, Modifiers::SHIFT);
+    assert_eq!(rig.value(), Some(0.0), "Shift moves ten steps and stops at the start of the range");
+}
+
+/// A typed number outside the range commits as the nearest end.
+#[trial]
+fn a_typed_value_is_held_to_the_range() {
+    let mut rig = Rig::new(1.0, Some(0.0..=10.0));
+    rig.focus();
+    rig.frame(vec![key_press(Key::A, Modifiers::COMMAND)]);
+    rig.frame(vec![Event::Text("250".into())]);
+    rig.idle(1);
+    rig.frame(vec![key_press(Key::Enter, Modifiers::NONE)]);
+    rig.idle(3);
+    assert_eq!(rig.value(), Some(10.0), "250 commits as the end of the range");
 }
 
 /// A host that owns the value writes the first typed character in the pass that begins the edit, and the gesture stays
 /// open: Escape then puts the start value back.
 #[trial]
-fn a_host_owned_value_keeps_the_gesture_and_shows_in_the_same_frame() {
-    {
-        let mut frames = Frames::new();
-        let value = RefCell::new(Some(START));
-        let at = Cell::new(Pos2::ZERO);
-        let events = RefCell::new(Vec::<EditEvent<Option<f64>>>::new());
-        let mut show = |ui: &mut Ui| {
-            let current = *value.borrow();
-            let out = NumberField::new("Size", Bind::given(current)).id_salt("size").show(ui);
-            at.set(out.response.rect.center());
-            if let Some(event) = out.event.clone() {
-                match &event {
-                    EditEvent::Begin { .. } => {
-                        if let Some(Mixed::Same(shown)) = &out.shown {
-                            *value.borrow_mut() = **shown;
-                        }
-                    }
-                    EditEvent::Update { value: v, .. } | EditEvent::Commit { after: v, .. } => *value.borrow_mut() = *v,
-                    EditEvent::Cancel { before: Some(Mixed::Same(before)), .. } => *value.borrow_mut() = *before,
-                    _ => {}
-                }
-                events.borrow_mut().push(event);
-            }
-        };
-        frames.idle(3, &mut show);
-        click(&mut frames, at.get(), &mut show);
-        frames.idle(2, &mut show);
-        frames.frame(vec![key_press(Key::A, Modifiers::COMMAND)], &mut show);
-        frames.frame(vec![Event::Text("7".into())], &mut show);
-        assert_eq!(*value.borrow(), Some(TYPED.0), "the first typed character reaches the host in the pass that begins the edit");
-        frames.idle(3, &mut show);
-        assert!(
-            !events.borrow().iter().any(|e| matches!(e, EditEvent::Cancel { .. })),
-            "the host's write is the gesture's own: {:?}",
-            events.borrow()
-        );
-        frames.frame(vec![key_press(Key::Escape, Modifiers::NONE)], &mut show);
-        frames.idle(3, &mut show);
-        assert_eq!(*value.borrow(), Some(START), "Escape restores the start value");
-    }
-    {
-        let mut frames = Frames::new();
-        let value = RefCell::new(Some(START));
-        let at = Cell::new(Pos2::ZERO);
-        let above = Cell::new(None);
-        let mut show = |ui: &mut Ui| {
-            above.set(*value.borrow());
-            let current = *value.borrow();
-            let out = NumberField::new("Size", Bind::given(current)).id_salt("size").show(ui);
-            at.set(out.response.rect.center());
-            match &out.event {
-                Some(EditEvent::Begin { .. }) => {
+fn a_given_value_written_in_the_begin_pass_keeps_the_gesture() {
+    let mut frames = Frames::new();
+    let value = RefCell::new(Some(START));
+    let at = Cell::new(Pos2::ZERO);
+    let events = RefCell::new(Vec::<EditEvent<Option<f64>>>::new());
+    let mut show = |ui: &mut Ui| {
+        let current = *value.borrow();
+        let out = NumberField::new("Size", Bind::given(current)).id_salt("size").show(ui);
+        at.set(out.response.rect.center());
+        if let Some(event) = out.event.clone() {
+            match &event {
+                EditEvent::Begin { .. } => {
                     if let Some(Mixed::Same(shown)) = &out.shown {
                         *value.borrow_mut() = **shown;
                     }
                 }
-                Some(EditEvent::Update { value: v, .. } | EditEvent::Commit { after: v, .. }) => *value.borrow_mut() = *v,
+                EditEvent::Update { value: v, .. } | EditEvent::Commit { after: v, .. } => *value.borrow_mut() = *v,
+                EditEvent::Cancel { before: Some(Mixed::Same(before)), .. } => *value.borrow_mut() = *before,
                 _ => {}
             }
-        };
-        frames.idle(3, &mut show);
-        click(&mut frames, at.get(), &mut show);
-        frames.idle(2, &mut show);
-        frames.frame(vec![key_press(Key::A, Modifiers::COMMAND)], &mut show);
-        frames.frame(vec![Event::Text("7".into())], &mut show);
-        assert_eq!(above.get(), Some(TYPED.0), "the control above the field shows the first typed character in that frame");
-        frames.frame(vec![Event::Text("5".into())], &mut show);
-        assert_eq!(above.get(), Some(TYPED.1), "and the next one");
-    }
+            events.borrow_mut().push(event);
+        }
+    };
+    frames.idle(3, &mut show);
+    click(&mut frames, at.get(), &mut show);
+    frames.idle(2, &mut show);
+    frames.frame(vec![key_press(Key::A, Modifiers::COMMAND)], &mut show);
+    frames.frame(vec![Event::Text("7".into())], &mut show);
+    assert_eq!(*value.borrow(), Some(TYPED.0), "the first typed character reaches the host in the pass that begins the edit");
+    frames.idle(3, &mut show);
+    assert!(!events.borrow().iter().any(|e| matches!(e, EditEvent::Cancel { .. })), "the host's write is the gesture's own: {:?}", events.borrow());
+    frames.frame(vec![key_press(Key::Escape, Modifiers::NONE)], &mut show);
+    frames.idle(3, &mut show);
+    assert_eq!(*value.borrow(), Some(START), "Escape restores the start value");
+}
+
+/// A control drawn above a number field shows the typed value in the frame the typing happens, because the pass that
+/// delivers an edit runs again before painting.
+#[trial]
+fn a_control_above_the_field_shows_the_typed_value_in_the_same_frame() {
+    let mut frames = Frames::new();
+    let value = RefCell::new(Some(START));
+    let at = Cell::new(Pos2::ZERO);
+    let above = Cell::new(None);
+    let mut show = |ui: &mut Ui| {
+        above.set(*value.borrow());
+        let current = *value.borrow();
+        let out = NumberField::new("Size", Bind::given(current)).id_salt("size").show(ui);
+        at.set(out.response.rect.center());
+        match &out.event {
+            Some(EditEvent::Begin { .. }) => {
+                if let Some(Mixed::Same(shown)) = &out.shown {
+                    *value.borrow_mut() = **shown;
+                }
+            }
+            Some(EditEvent::Update { value: v, .. } | EditEvent::Commit { after: v, .. }) => *value.borrow_mut() = *v,
+            _ => {}
+        }
+    };
+    frames.idle(3, &mut show);
+    click(&mut frames, at.get(), &mut show);
+    frames.idle(2, &mut show);
+    frames.frame(vec![key_press(Key::A, Modifiers::COMMAND)], &mut show);
+    frames.frame(vec![Event::Text("7".into())], &mut show);
+    assert_eq!(above.get(), Some(TYPED.0), "the control above the field shows the first typed character in that frame");
+    frames.frame(vec![Event::Text("5".into())], &mut show);
+    assert_eq!(above.get(), Some(TYPED.1), "and the next one");
 }
 
 /// Alt+Down opens the presets list with focus staying in the field; Down then Enter picks the second row, and a
 /// reopened list starts at its first row again. The chevron's node is named by its word and reports expanded.
 #[trial]
-fn presets_open_pick_and_expand_collapse() {
-    {
-        let (mut fixture, shown) = fixture_of(None, presets(), false);
-        fixture.key(Key::Tab, Modifiers::NONE);
-        fixture.idle(2);
-        let field = shown.id.get().expect("the field showed");
-        let chevron = |fixture: &Fixture| fixture.part(field, craft_behavior::PartKey::new("presets")).expect("the chevron has a node");
-        assert_eq!(fixture.tree().expanded_of(chevron(&fixture).node), Some(false), "the closed list's chevron is expandable");
-        fixture.key(Key::ArrowDown, Modifiers::ALT);
-        fixture.idle(4);
-        let typing = craft_ui::testing::text::widget_id(field, super::kit::TEXT);
-        assert_eq!(fixture.focused(), Some(typing), "the list opens with focus still in the field's text, where typing goes");
-        let target = chevron(&fixture);
-        assert_eq!(fixture.tree().name_of(target.node), Some("Presets"), "the chevron is named by its word");
-        assert_eq!(fixture.tree().expanded_of(target.node), Some(true), "the chevron reports the list open");
-        fixture.key(Key::ArrowDown, Modifiers::NONE);
-        fixture.key(Key::Enter, Modifiers::NONE);
-        fixture.idle(3);
-        assert_eq!(*shown.value.borrow(), Some(START), "a choice row leaves the value");
-        assert_eq!(shown.picked.get(), Some(NumberPick::Choice(3)), "the pick names the choice");
-        fixture.key(Key::ArrowDown, Modifiers::ALT);
-        fixture.idle(4);
-        fixture.key(Key::Enter, Modifiers::NONE);
-        fixture.idle(3);
-        const FIRST: f64 = 8.0;
-        assert_eq!(*shown.value.borrow(), Some(FIRST), "the reopened list starts at the first row, a number row");
-    }
-    {
-        let (mut fixture, shown) = fixture_of(None, presets(), false);
-        fixture.idle(2);
-        let field = shown.id.get().expect("the field showed");
-        let chevron = |fixture: &Fixture| fixture.part(field, craft_behavior::PartKey::new("presets")).expect("the chevron has a node");
-        let target = chevron(&fixture);
-        fixture.access(AccessActionKind::Expand, &target);
-        fixture.idle(4);
-        assert_eq!(fixture.tree().expanded_of(chevron(&fixture).node), Some(true), "Expand opens the list");
-        let target = chevron(&fixture);
-        fixture.access(AccessActionKind::Collapse, &target);
-        fixture.idle(4);
-        assert_eq!(fixture.tree().expanded_of(chevron(&fixture).node), Some(false), "Collapse closes it");
-    }
+fn presets_open_over_the_field_and_a_pick_sets_the_value() {
+    let (mut fixture, shown) = fixture_of(None, presets(), false);
+    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.idle(2);
+    let field = shown.id.get().expect("the field showed");
+    let chevron = |fixture: &Fixture| fixture.part(field, craft_behavior::PartKey::new("presets")).expect("the chevron has a node");
+    assert_eq!(fixture.tree().expanded_of(chevron(&fixture).node), Some(false), "the closed list's chevron is expandable");
+    fixture.key(Key::ArrowDown, Modifiers::ALT);
+    fixture.idle(4);
+    let typing = craft_ui::testing::text::widget_id(field, super::kit::TEXT);
+    assert_eq!(fixture.focused(), Some(typing), "the list opens with focus still in the field's text, where typing goes");
+    let target = chevron(&fixture);
+    assert_eq!(fixture.tree().name_of(target.node), Some("Presets"), "the chevron is named by its word");
+    assert_eq!(fixture.tree().expanded_of(target.node), Some(true), "the chevron reports the list open");
+    fixture.key(Key::ArrowDown, Modifiers::NONE);
+    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.idle(3);
+    assert_eq!(*shown.value.borrow(), Some(START), "a choice row leaves the value");
+    assert_eq!(shown.picked.get(), Some(NumberPick::Choice(3)), "the pick names the choice");
+    fixture.key(Key::ArrowDown, Modifiers::ALT);
+    fixture.idle(4);
+    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.idle(3);
+    const FIRST: f64 = 8.0;
+    assert_eq!(*shown.value.borrow(), Some(FIRST), "the reopened list starts at the first row, a number row");
+}
+
+/// AccessKit Expand and Collapse on the presets chevron open and close the list, not the field.
+#[trial]
+fn expand_and_collapse_on_the_presets_chevron_open_and_close_the_list() {
+    let (mut fixture, shown) = fixture_of(None, presets(), false);
+    fixture.idle(2);
+    let field = shown.id.get().expect("the field showed");
+    let chevron = |fixture: &Fixture| fixture.part(field, craft_behavior::PartKey::new("presets")).expect("the chevron has a node");
+    let target = chevron(&fixture);
+    fixture.access(AccessActionKind::Expand, &target);
+    fixture.idle(4);
+    assert_eq!(fixture.tree().expanded_of(chevron(&fixture).node), Some(true), "Expand opens the list");
+    let target = chevron(&fixture);
+    fixture.access(AccessActionKind::Collapse, &target);
+    fixture.idle(4);
+    assert_eq!(fixture.tree().expanded_of(chevron(&fixture).node), Some(false), "Collapse closes it");
 }
 
 #[trial]
-fn a_label_scrub_is_continuous_across_a_warp_and_rounded() {
-    {
-        let system = Arc::new(FakeSystem::new());
-        let mut frames = Frames::uninstalled();
-        let installed = craft_ui::install(&frames.ctx, InstallSpec::new(ShellInfo::default(), system.clone()));
-        assert!(installed.is_ok(), "the context takes the runtime once");
-        let mut value = Some(START);
-        let show = |ui: &mut Ui, value: &mut Option<f64>| {
-            Field::new("Size", SideLabel::new()).id_salt("warp").show_at(ui, ROW, |ui, _| {
-                NumberField::new("Size", Bind::bound(&mut *value)).scrub_by_label().id_salt("scrubbed").show(ui);
-            });
-        };
-        frames.idle(4, |ui| show(ui, &mut value));
-        let from = ROW.min + Vec2::new(4.0, 12.0);
-        let step = |frames: &mut Frames, value: &mut Option<f64>, events: Vec<Event>, at: Pos2| {
-            system.set_pointer(Some([at.x, at.y]));
-            frames.frame(events, |ui| show(ui, value));
-        };
-        step(&mut frames, &mut value, vec![moved(from)], from);
-        step(&mut frames, &mut value, vec![press(from)], from);
-        let along = from + Vec2::new(20.0, 0.0);
-        step(&mut frames, &mut value, vec![moved(along)], along);
-        let edge = Pos2::new(EDGE_X, from.y);
-        step(&mut frames, &mut value, vec![moved(edge)], edge);
-        assert_eq!(system.warps().len(), 1, "reaching the edge warps the pointer once");
-        let before = value.unwrap_or_default();
-        let landed = Pos2::new(LANDED_X, from.y);
-        step(&mut frames, &mut value, vec![moved(landed)], landed);
-        assert!((value.unwrap_or_default() - before).abs() < SAME, "the warp does not move the value: {before} -> {value:?}");
-        let on = landed + Vec2::new(DRAG, 0.0);
-        step(&mut frames, &mut value, vec![moved(on)], on);
-        assert!(
-            (value.unwrap_or_default() - before - f64::from(DRAG)).abs() < SAME,
-            "the drag goes on from the value before the warp: {before} -> {value:?}"
-        );
-    }
-    {
-        let system = Arc::new(FakeSystem::new());
-        let mut frames = Frames::uninstalled();
-        let installed = craft_ui::install(&frames.ctx, InstallSpec::new(ShellInfo::default(), system.clone()));
-        assert!(installed.is_ok(), "the context takes the runtime once");
-        let mut value = Some(START);
-        let show = |ui: &mut Ui, value: &mut Option<f64>| {
-            Field::new("Size", SideLabel::new()).id_salt("round").show_at(ui, ROW, |ui, _| {
-                let codec = NumberCodec::new(Reader::new(), 2);
-                NumberField::new("Size", Bind::bound(&mut *value)).codec(codec).scrub_by_label().id_salt("scrubbed").show(ui);
-            });
-        };
-        frames.idle(4, |ui| show(ui, &mut value));
-        let from = ROW.min + Vec2::new(4.0, 12.0);
-        let step = |frames: &mut Frames, value: &mut Option<f64>, events: Vec<Event>, at: Pos2| {
-            system.set_pointer(Some([at.x, at.y]));
-            frames.frame(events, |ui| show(ui, value));
-        };
-        step(&mut frames, &mut value, vec![moved(from)], from);
-        step(&mut frames, &mut value, vec![press(from)], from);
-        let along = from + Vec2::new(20.0, 0.0);
-        step(&mut frames, &mut value, vec![moved(along)], along);
-        for travel in [23.37_f32, 29.173, 36.3571] {
-            let at = from + Vec2::new(travel, 0.0);
-            step(&mut frames, &mut value, vec![moved(at)], at);
-            let number = value.unwrap_or_default();
-            assert!(number > START, "the drag moved the value: {number}");
-            let cents = 100.0;
-            assert_eq!((number * cents).round() / cents, number, "at most two decimals: {number}");
-        }
+fn a_wrapped_scrub_keeps_its_value_continuous() {
+    let system = Arc::new(FakeSystem::new());
+    let mut frames = Frames::uninstalled();
+    let installed = craft_ui::install(&frames.ctx, InstallSpec::new(ShellInfo::default(), system.clone()));
+    assert!(installed.is_ok(), "the context takes the runtime once");
+    let mut value = Some(START);
+    let show = |ui: &mut Ui, value: &mut Option<f64>| {
+        Field::new("Size", SideLabel::new()).id_salt("warp").show_at(ui, ROW, |ui, _| {
+            NumberField::new("Size", Bind::bound(&mut *value)).scrub_by_label().id_salt("scrubbed").show(ui);
+        });
+    };
+    frames.idle(4, |ui| show(ui, &mut value));
+    let from = ROW.min + Vec2::new(4.0, 12.0);
+    let step = |frames: &mut Frames, value: &mut Option<f64>, events: Vec<Event>, at: Pos2| {
+        system.set_pointer(Some([at.x, at.y]));
+        frames.frame(events, |ui| show(ui, value));
+    };
+    step(&mut frames, &mut value, vec![moved(from)], from);
+    step(&mut frames, &mut value, vec![press(from)], from);
+    let along = from + Vec2::new(20.0, 0.0);
+    step(&mut frames, &mut value, vec![moved(along)], along);
+    let edge = Pos2::new(EDGE_X, from.y);
+    step(&mut frames, &mut value, vec![moved(edge)], edge);
+    assert_eq!(system.warps().len(), 1, "reaching the edge warps the pointer once");
+    let before = value.unwrap_or_default();
+    let landed = Pos2::new(LANDED_X, from.y);
+    step(&mut frames, &mut value, vec![moved(landed)], landed);
+    assert!((value.unwrap_or_default() - before).abs() < SAME, "the warp does not move the value: {before} -> {value:?}");
+    let on = landed + Vec2::new(DRAG, 0.0);
+    step(&mut frames, &mut value, vec![moved(on)], on);
+    assert!(
+        (value.unwrap_or_default() - before - f64::from(DRAG)).abs() < SAME,
+        "the drag goes on from the value before the warp: {before} -> {value:?}"
+    );
+}
+
+/// A scrub over a two-decimal field gives values with at most two decimals.
+#[trial]
+fn a_scrub_rounds_to_the_fields_decimals() {
+    let system = Arc::new(FakeSystem::new());
+    let mut frames = Frames::uninstalled();
+    let installed = craft_ui::install(&frames.ctx, InstallSpec::new(ShellInfo::default(), system.clone()));
+    assert!(installed.is_ok(), "the context takes the runtime once");
+    let mut value = Some(START);
+    let show = |ui: &mut Ui, value: &mut Option<f64>| {
+        Field::new("Size", SideLabel::new()).id_salt("round").show_at(ui, ROW, |ui, _| {
+            let codec = NumberCodec::new(Reader::new(), 2);
+            NumberField::new("Size", Bind::bound(&mut *value)).codec(codec).scrub_by_label().id_salt("scrubbed").show(ui);
+        });
+    };
+    frames.idle(4, |ui| show(ui, &mut value));
+    let from = ROW.min + Vec2::new(4.0, 12.0);
+    let step = |frames: &mut Frames, value: &mut Option<f64>, events: Vec<Event>, at: Pos2| {
+        system.set_pointer(Some([at.x, at.y]));
+        frames.frame(events, |ui| show(ui, value));
+    };
+    step(&mut frames, &mut value, vec![moved(from)], from);
+    step(&mut frames, &mut value, vec![press(from)], from);
+    let along = from + Vec2::new(20.0, 0.0);
+    step(&mut frames, &mut value, vec![moved(along)], along);
+    for travel in [23.37_f32, 29.173, 36.3571] {
+        let at = from + Vec2::new(travel, 0.0);
+        step(&mut frames, &mut value, vec![moved(at)], at);
+        let number = value.unwrap_or_default();
+        assert!(number > START, "the drag moved the value: {number}");
+        let cents = 100.0;
+        assert_eq!((number * cents).round() / cents, number, "at most two decimals: {number}");
     }
 }
 
 /// A unit spelling of the field's kind types in and converts to the field's unit.
 #[trial]
-fn typed_text_is_read_by_the_codec() {
-    {
-        assert_eq!(typed(None, Some(UnitKind::Millimetres), "12 mm"), Some(12.0));
-        assert_eq!(typed(None, Some(UnitKind::Millimetres), "1cm"), Some(10.0));
-    }
-    {
-        let (i18n, problems) = craft_i18n::I18n::from_owned([("de".to_owned(), String::new(), "@id\ttrial.save\tSpeichern\n".to_owned())], &["de"]);
-        assert!(problems.is_empty(), "{problems:?}");
-        i18n.set_format(craft_i18n::Format::from_tag("de"));
-        let host = Arc::new(Host::builder(AppInfo { id: "trial", name: "Trial", version: "0" }).i18n(Arc::new(i18n)).build());
-        assert_eq!(typed(Some(host), None, "12,5"), Some(12.5));
-    }
-    {
-        assert_eq!(typed_with(None, "7", |field| field.step(5.0).snap_typed(true)), Some(5.0), "7 snaps to 5");
-        assert_eq!(typed_with(None, "7", |field| field.step(5.0)), Some(7.0), "without snapping 7 stays");
-        assert_eq!(typed(None, Some(UnitKind::Percent), "12 %"), Some(12.0), "a percent sign after a space");
-        assert_eq!(typed_with(None, "Auto", auto), Some(-1.0), "the context word reads as its number");
-    }
+fn a_unit_spelling_types_in() {
+    assert_eq!(typed(None, Some(UnitKind::Millimetres), "12 mm"), Some(12.0));
+    assert_eq!(typed(None, Some(UnitKind::Millimetres), "1cm"), Some(10.0));
+}
+
+/// Under a decimal-comma locale the comma is the decimal separator.
+#[trial]
+fn a_localised_decimal_types_in() {
+    let (i18n, problems) = craft_i18n::I18n::from_owned([("de".to_owned(), String::new(), "@id\ttrial.save\tSpeichern\n".to_owned())], &["de"]);
+    assert!(problems.is_empty(), "{problems:?}");
+    i18n.set_format(craft_i18n::Format::from_tag("de"));
+    let host = Arc::new(Host::builder(AppInfo { id: "trial", name: "Trial", version: "0" }).i18n(Arc::new(i18n)).build());
+    assert_eq!(typed(Some(host), None, "12,5"), Some(12.5));
+}
+
+/// With `snap_typed` a typed 7 on a step of 5 commits 5; "12 %" reads with a percent unit; "Auto" reads through the
+/// codec's `or_parse`.
+#[trial]
+fn typed_values_snap_read_symbol_units_and_context_words() {
+    assert_eq!(typed_with(None, "7", |field| field.step(5.0).snap_typed(true)), Some(5.0), "7 snaps to 5");
+    assert_eq!(typed_with(None, "7", |field| field.step(5.0)), Some(7.0), "without snapping 7 stays");
+    assert_eq!(typed(None, Some(UnitKind::Percent), "12 %"), Some(12.0), "a percent sign after a space");
+    assert_eq!(typed_with(None, "Auto", auto), Some(-1.0), "the context word reads as its number");
 }

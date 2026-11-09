@@ -414,31 +414,32 @@ fn a_requested_rename_opens_the_rows_field() {
 /// The empty-state text of the collection's props is a label node of the list.
 #[trial]
 fn the_empty_state_text_is_a_label_node() {
-    {
-        let mut frames = Frames::new();
-        let mut show = |ui: &mut Ui| {
-            in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
-                let _ = craft_ui::list::List::<usize>::new("Items")
-                    .empty("Nothing here")
-                    .show_items(ui, &Count(0), &mut |_, _| craft_ui::list::ListRow::new(""));
-            });
-        };
-        frames.idle(3, &mut show);
-        let tree = frames.tree();
-        let label = tree.keys().into_iter().find(|key| tree.name_of(*key) == Some("Nothing here")).expect("the empty text is a node");
-        assert_eq!(tree.role_of(label), Some(craft_ui::contract::Role::LABEL));
-    }
-    {
-        let words = Words::flat(&[]);
-        let seen = Seen::default();
-        let empty = Cell::new(Rect::NOTHING);
-        let mut frames = Frames::new();
-        let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Single).empty_text("Nothing here").on_empty(&empty), &words, &seen);
-        frames.idle(3, &mut show);
-        assert!(empty.get().is_positive(), "the override ran");
-        let tree = frames.tree();
-        assert!(tree.keys().into_iter().all(|key| tree.name_of(key) != Some("Nothing here")), "the props text is not shown beside it");
-    }
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            let _ = craft_ui::list::List::<usize>::new("Items")
+                .empty("Nothing here")
+                .show_items(ui, &Count(0), &mut |_, _| craft_ui::list::ListRow::new(""));
+        });
+    };
+    frames.idle(3, &mut show);
+    let tree = frames.tree();
+    let label = tree.keys().into_iter().find(|key| tree.name_of(*key) == Some("Nothing here")).expect("the empty text is a node");
+    assert_eq!(tree.role_of(label), Some(craft_ui::contract::Role::LABEL));
+}
+
+/// A collection that overrides the empty hooks shows its own empty state, not the text of its props beside it.
+#[trial]
+fn an_overridden_empty_state_replaces_the_empty_text() {
+    let words = Words::flat(&[]);
+    let seen = Seen::default();
+    let empty = Cell::new(Rect::NOTHING);
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Single).empty_text("Nothing here").on_empty(&empty), &words, &seen);
+    frames.idle(3, &mut show);
+    assert!(empty.get().is_positive(), "the override ran");
+    let tree = frames.tree();
+    assert!(tree.keys().into_iter().all(|key| tree.name_of(key) != Some("Nothing here")), "the props text is not shown beside it");
 }
 
 /// A tree opens on Right and closes on Left; Left again goes to the parent.
@@ -656,37 +657,38 @@ fn sectioned() -> Words {
 /// A single click on a section stop (the list activates items on a double click) moves the lead to it and reports its activation; the section is never selected.
 #[trial]
 fn a_click_on_a_section_stop_takes_the_lead_and_activates() {
-    {
-        let words = sectioned();
-        let seen = Seen::default();
-        let mut frames = Frames::new();
-        let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Multi), &words, &seen);
-        frames.idle(3, &mut show);
-        let at = ORIGIN + Vec2::new(30.0, ROW_H * 3.5);
-        frames.frame(vec![pointer::moved(at)], &mut show);
-        frames.frame(vec![pointer::press(at)], &mut show);
-        frames.frame(vec![pointer::release(at)], &mut show);
-        frames.idle(1, &mut show);
-        assert_eq!(seen.leads().last(), Some(&3), "the section holds the lead");
-        let activated: Vec<usize> =
-            seen.events.borrow().iter().filter_map(|event| if let CollectionEvent::Activate(key) = event { Some(*key) } else { None }).collect();
-        assert_eq!(activated, [3], "the click reports the section");
-        assert!(seen.selections().is_empty(), "a section is never selected: {:?}", seen.selections());
+    let words = sectioned();
+    let seen = Seen::default();
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Multi), &words, &seen);
+    frames.idle(3, &mut show);
+    let at = ORIGIN + Vec2::new(30.0, ROW_H * 3.5);
+    frames.frame(vec![pointer::moved(at)], &mut show);
+    frames.frame(vec![pointer::press(at)], &mut show);
+    frames.frame(vec![pointer::release(at)], &mut show);
+    frames.idle(1, &mut show);
+    assert_eq!(seen.leads().last(), Some(&3), "the section holds the lead");
+    let activated: Vec<usize> =
+        seen.events.borrow().iter().filter_map(|event| if let CollectionEvent::Activate(key) = event { Some(*key) } else { None }).collect();
+    assert_eq!(activated, [3], "the click reports the section");
+    assert!(seen.selections().is_empty(), "a section is never selected: {:?}", seen.selections());
+}
+
+/// Arrows reach a section stop, and Enter on it reports its activation.
+#[trial]
+fn arrows_reach_a_section_stop_and_enter_activates_it() {
+    let words = sectioned();
+    let seen = Seen::default();
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Single), &words, &seen);
+    frames.idle(2, &mut show);
+    focus_list(&mut frames, &seen, &mut show);
+    for _ in 0..3 {
+        press(&mut frames, Key::ArrowDown, Modifiers::NONE, &mut show);
     }
-    {
-        let words = sectioned();
-        let seen = Seen::default();
-        let mut frames = Frames::new();
-        let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Single), &words, &seen);
-        frames.idle(2, &mut show);
-        focus_list(&mut frames, &seen, &mut show);
-        for _ in 0..3 {
-            press(&mut frames, Key::ArrowDown, Modifiers::NONE, &mut show);
-        }
-        assert_eq!(seen.leads().last(), Some(&3), "the third Down stops on the section");
-        press(&mut frames, Key::Enter, Modifiers::NONE, &mut show);
-        assert!(seen.events.borrow().iter().any(|event| matches!(event, CollectionEvent::Activate(3))), "Enter activates the section");
-    }
+    assert_eq!(seen.leads().last(), Some(&3), "the third Down stops on the section");
+    press(&mut frames, Key::Enter, Modifiers::NONE, &mut show);
+    assert!(seen.events.borrow().iter().any(|event| matches!(event, CollectionEvent::Activate(3))), "Enter activates the section");
 }
 
 /// A click on an item's menu part opens the caller's menu under that part in the pass of the click, a pick runs its
@@ -732,64 +734,80 @@ fn an_item_menu_part_opens_the_callers_menu_under_it_and_escape_closes_it() {
     assert_eq!(picked.get(), 1, "the pick ran");
 }
 
-/// A secondary press on a row selects it, gives it the lead and the list's focus, and opens nothing; the release asks
-/// for the row's menu. On a selected row the multiple selection stays; on an unselected one it is replaced.
+/// A right-click on a row asks for its menu on the release, selects the row when it was not selected, and names it.
 #[trial]
-fn a_secondary_click_on_a_row_selects_leads_and_asks_for_its_menu_on_release() {
-    let menus = |seen: &Seen| -> Vec<usize> {
-        seen.events
-            .borrow()
-            .iter()
-            .filter_map(|event| if let CollectionEvent::ContextMenu(request) = event { Some(request.key) } else { None })
-            .collect()
+fn a_secondary_release_on_a_row_asks_for_its_context_menu() {
+    let words = Words::flat(&["a", "b", "c"]);
+    let seen = Seen::default();
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Single), &words, &seen);
+    frames.idle(3, &mut show);
+    let at = ORIGIN + Vec2::new(30.0, ROW_H * 1.5);
+    frames.frame(vec![pointer::moved(at)], &mut show);
+    frames.frame(vec![pointer::secondary(at, true)], &mut show);
+    assert!(!seen.events.borrow().iter().any(|event| matches!(event, CollectionEvent::ContextMenu(_))), "nothing opens on the press");
+    frames.frame(vec![pointer::secondary(at, false)], &mut show);
+    frames.idle(1, &mut show);
+    let menus: Vec<usize> = seen
+        .events
+        .borrow()
+        .iter()
+        .filter_map(|event| if let CollectionEvent::ContextMenu(request) = event { Some(request.key) } else { None })
+        .collect();
+    assert_eq!(menus, [1]);
+    assert!(seen.leads().contains(&1), "the row under the pointer holds the lead");
+}
+
+/// A right-click on a row outside the selection selects it, gives it the lead and focuses the list, opening nothing
+/// on the press.
+#[trial]
+fn a_secondary_press_on_an_unselected_row_selects_leads_and_focuses() {
+    let words = Words::flat(&["a", "b", "c"]);
+    let seen = Seen::default();
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Single), &words, &seen);
+    frames.idle(3, &mut show);
+    assert_ne!(egui_focused(&frames.ctx), Some(seen.id()), "the list starts unfocused");
+    let at = ORIGIN + Vec2::new(30.0, ROW_H * 1.5);
+    frames.frame(vec![pointer::moved(at)], &mut show);
+    frames.frame(vec![pointer::secondary(at, true)], &mut show);
+    frames.idle(1, &mut show);
+    let selections = seen.selections();
+    assert!(
+        !selections.is_empty() && selections.iter().all(|change| *change == SelectionChange::Set(vec![1])),
+        "the row is selected on the press: {selections:?}"
+    );
+    assert_eq!(seen.leads().last(), Some(&1));
+    assert_eq!(egui_focused(&frames.ctx), Some(seen.id()), "the list holds focus");
+    assert!(!seen.events.borrow().iter().any(|event| matches!(event, CollectionEvent::ContextMenu(_))), "nothing opens on the press");
+}
+
+/// A right-click on a row of a multiple selection keeps the whole selection, so the menu acts on all of it; on a row
+/// outside the selection it selects that row alone.
+#[trial]
+fn a_secondary_press_on_a_selected_row_keeps_the_multiple_selection() {
+    let words = Words::flat(&["a", "b", "c", "d"]);
+    let seen = Seen::default();
+    let selection = RefCell::new(Selection::<usize>::default());
+    selection.borrow_mut().items = vec![0, 1];
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        let mut held = selection.borrow().clone();
+        show_words(ui, List::new(SelectMode::Multi).selection(Bind::bound(&mut held)), &words, &seen);
+        *selection.borrow_mut() = held;
     };
-    {
-        let words = Words::flat(&["a", "b", "c"]);
-        let seen = Seen::default();
-        let mut frames = Frames::new();
-        let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Single), &words, &seen);
-        frames.idle(3, &mut show);
-        assert_ne!(egui_focused(&frames.ctx), Some(seen.id()), "the list starts unfocused");
-        let at = ORIGIN + Vec2::new(30.0, ROW_H * 1.5);
-        frames.frame(vec![pointer::moved(at)], &mut show);
-        frames.frame(vec![pointer::secondary(at, true)], &mut show);
-        frames.idle(1, &mut show);
-        assert!(menus(&seen).is_empty(), "nothing opens on the press");
-        let selections = seen.selections();
-        assert!(
-            !selections.is_empty() && selections.iter().all(|change| *change == SelectionChange::Set(vec![1])),
-            "the row is selected: {selections:?}"
-        );
-        assert_eq!(seen.leads().last(), Some(&1), "the row holds the lead");
-        assert_eq!(egui_focused(&frames.ctx), Some(seen.id()), "the list holds focus");
-        frames.frame(vec![pointer::secondary(at, false)], &mut show);
-        frames.idle(1, &mut show);
-        assert_eq!(menus(&seen), [1], "the release names the row");
+    frames.idle(3, &mut show);
+    fn right_click(frames: &mut Frames, show: &mut impl FnMut(&mut Ui), row: f32) {
+        let at = ORIGIN + Vec2::new(30.0, ROW_H * row);
+        frames.frame(vec![pointer::moved(at)], &mut *show);
+        frames.frame(vec![pointer::secondary(at, true)], &mut *show);
+        frames.frame(vec![pointer::secondary(at, false)], &mut *show);
+        frames.idle(1, &mut *show);
     }
-    {
-        let words = Words::flat(&["a", "b", "c", "d"]);
-        let seen = Seen::default();
-        let selection = RefCell::new(Selection::<usize>::default());
-        selection.borrow_mut().items = vec![0, 1];
-        let mut frames = Frames::new();
-        let mut show = |ui: &mut Ui| {
-            let mut held = selection.borrow().clone();
-            show_words(ui, List::new(SelectMode::Multi).selection(Bind::bound(&mut held)), &words, &seen);
-            *selection.borrow_mut() = held;
-        };
-        frames.idle(3, &mut show);
-        let mut right_click = |row: f32| {
-            let at = ORIGIN + Vec2::new(30.0, ROW_H * row);
-            frames.frame(vec![pointer::moved(at)], &mut show);
-            frames.frame(vec![pointer::secondary(at, true)], &mut show);
-            frames.frame(vec![pointer::secondary(at, false)], &mut show);
-            frames.idle(1, &mut show);
-        };
-        right_click(1.5);
-        let mut items = selection.borrow().items.clone();
-        items.sort_unstable();
-        assert_eq!(items, vec![0, 1], "a row of the selection leaves all of it");
-        right_click(3.5);
-        assert_eq!(selection.borrow().items, vec![3], "a row outside the selection replaces it");
-    }
+    right_click(&mut frames, &mut show, 1.5);
+    let mut items = selection.borrow().items.clone();
+    items.sort_unstable();
+    assert_eq!(items, vec![0, 1], "the menu's row is in the selection: all of it stays");
+    right_click(&mut frames, &mut show, 3.5);
+    assert_eq!(selection.borrow().items, vec![3], "a row outside the selection replaces it");
 }

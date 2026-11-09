@@ -213,34 +213,35 @@ fn alt_arrows_enter_and_leave_a_group_at_its_end() {
 /// still reorders.
 #[trial]
 fn a_row_drag_also_drops_on_a_target_of_the_mapped_payload() {
-    {
-        let (words, run) = (Words::flat(&["a", "b", "c"]), Run::default());
-        let mut frames = Frames::new();
-        let mut show = |ui: &mut Ui| show_grove(ui, List::new(SelectMode::Single).reorder().row_key_payload(), &words, &run);
-        frames.idle(3, &mut show);
-        drag_to(&mut frames, &run, 1, SLOT.center(), &mut show);
-        release_at(&mut frames, SLOT.center(), &mut show);
-        assert_eq!(*run.dropped.borrow(), [RowKey(1)]);
-        assert!(run.moves().is_empty(), "the drop on the target is not a reorder");
+    let (words, run) = (Words::flat(&["a", "b", "c"]), Run::default());
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_grove(ui, List::new(SelectMode::Single).reorder().row_key_payload(), &words, &run);
+    frames.idle(3, &mut show);
+    drag_to(&mut frames, &run, 1, SLOT.center(), &mut show);
+    release_at(&mut frames, SLOT.center(), &mut show);
+    assert_eq!(*run.dropped.borrow(), [RowKey(1)]);
+    assert!(run.moves().is_empty(), "the drop on the target is not a reorder");
 
-        let bottom = Pos2::new(run.row(2).center().x, run.row(2).max.y - 1.0);
-        drag_to(&mut frames, &run, 0, bottom, &mut show);
-        release_at(&mut frames, bottom, &mut show);
-        assert_eq!(run.moves(), [(vec![0], 2, None)]);
-        assert_eq!(run.dropped.borrow().len(), 1);
-    }
-    {
-        let (words, run) = (Words::flat(&["a", "b", "c"]), Run::default());
-        let mut frames = Frames::new();
-        let mut show = |ui: &mut Ui| show_grove(ui, List::new(SelectMode::Single).row_key_payload_except(0), &words, &run);
-        frames.idle(3, &mut show);
-        drag_to(&mut frames, &run, 1, SLOT.center(), &mut show);
-        release_at(&mut frames, SLOT.center(), &mut show);
-        assert_eq!(*run.dropped.borrow(), [RowKey(1)], "a row with a payload drags to the target");
-        assert!(run.moves().is_empty(), "without a reorder rule nothing reorders");
+    let bottom = Pos2::new(run.row(2).center().x, run.row(2).max.y - 1.0);
+    drag_to(&mut frames, &run, 0, bottom, &mut show);
+    release_at(&mut frames, bottom, &mut show);
+    assert_eq!(run.moves(), [(vec![0], 2, None)]);
+    assert_eq!(run.dropped.borrow().len(), 1);
+}
 
-        drag_to(&mut frames, &run, 0, SLOT.center(), &mut show);
-        release_at(&mut frames, SLOT.center(), &mut show);
-        assert_eq!(run.dropped.borrow().len(), 1, "a row mapped to None does not drag");
-    }
+/// A payload map starts a row drag without a reorder rule, and a row it maps to `None` does not drag.
+#[trial]
+fn a_payload_map_starts_a_row_drag_without_a_reorder_rule_and_a_row_mapped_to_none_does_not() {
+    let (words, run) = (Words::flat(&["a", "b", "c"]), Run::default());
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_grove(ui, List::new(SelectMode::Single).row_key_payload_except(0), &words, &run);
+    frames.idle(3, &mut show);
+    drag_to(&mut frames, &run, 1, SLOT.center(), &mut show);
+    release_at(&mut frames, SLOT.center(), &mut show);
+    assert_eq!(*run.dropped.borrow(), [RowKey(1)], "a row with a payload drags to the target");
+    assert!(run.moves().is_empty(), "without a reorder rule nothing reorders");
+
+    drag_to(&mut frames, &run, 0, SLOT.center(), &mut show);
+    release_at(&mut frames, SLOT.center(), &mut show);
+    assert_eq!(run.dropped.borrow().len(), 1, "a row mapped to None does not drag");
 }

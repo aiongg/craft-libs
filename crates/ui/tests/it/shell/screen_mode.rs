@@ -93,30 +93,30 @@ fn an_embedded_shell_in_full_screen_hides_its_slots_inside_its_region_and_asks_t
 }
 
 #[trial]
-fn entering_full_screen_sends_its_command_once() {
-    {
-        let windows = Windows::new();
-        windows.root_info(root(false, false));
-        let mut mode = ScreenMode::Standard;
-        settle(&windows, &mut mode);
-        mode = ScreenMode::FullScreen;
-        assert_eq!(screen_commands(&frame(&windows, &mut mode)), [ViewportCommand::Fullscreen(true)]);
-        for _ in 0..SETTLED_FRAMES {
-            assert!(screen_commands(&frame(&windows, &mut mode)).is_empty(), "the command is sent once, however long the OS takes");
-        }
-        assert_eq!(mode, ScreenMode::FullScreen, "a window that has not reported full screen yet keeps the mode");
+fn entering_full_screen_sends_its_command_once_and_waits_for_nothing() {
+    let windows = Windows::new();
+    windows.root_info(root(false, false));
+    let mut mode = ScreenMode::Standard;
+    settle(&windows, &mut mode);
+    mode = ScreenMode::FullScreen;
+    assert_eq!(screen_commands(&frame(&windows, &mut mode)), [ViewportCommand::Fullscreen(true)]);
+    for _ in 0..SETTLED_FRAMES {
+        assert!(screen_commands(&frame(&windows, &mut mode)).is_empty(), "the command is sent once, however long the OS takes");
     }
-    {
-        let windows = Windows::with(InstallSpec::new(ShellInfo::default().caps(Caps::web()), Arc::new(NoWindows)));
-        let mut mode = ScreenMode::Standard;
-        settle(&windows, &mut mode);
-        frame(&windows, &mut mode);
-        let quiet = windows.ctx.has_requested_repaint();
-        mode = ScreenMode::FullScreen;
-        let out = frame(&windows, &mut mode);
-        assert!(screen_commands(&out).is_empty(), "a browser build sends no window command");
-        assert!(quiet || !windows.ctx.has_requested_repaint(), "a refused action waits for no repaint");
-    }
+    assert_eq!(mode, ScreenMode::FullScreen, "a window that has not reported full screen yet keeps the mode");
+}
+
+#[trial]
+fn without_window_commands_entering_full_screen_requests_no_repaint() {
+    let windows = Windows::with(InstallSpec::new(ShellInfo::default().caps(Caps::web()), Arc::new(NoWindows)));
+    let mut mode = ScreenMode::Standard;
+    settle(&windows, &mut mode);
+    frame(&windows, &mut mode);
+    let quiet = windows.ctx.has_requested_repaint();
+    mode = ScreenMode::FullScreen;
+    let out = frame(&windows, &mut mode);
+    assert!(screen_commands(&out).is_empty(), "a browser build sends no window command");
+    assert!(quiet || !windows.ctx.has_requested_repaint(), "a refused action waits for no repaint");
 }
 
 #[trial]
@@ -147,37 +147,37 @@ fn the_bind_and_the_os_leave_full_screen_each_way() {
 }
 
 #[trial]
-fn a_maximized_window_enters_full_screen_per_platform() {
-    {
-        let windows = Windows::with(InstallSpec::new(ShellInfo::default().os(Os::Windows), Arc::new(FakeSystem::new())));
-        windows.root_info(root(false, true));
-        let mut mode = ScreenMode::Standard;
-        settle(&windows, &mut mode);
-        mode = ScreenMode::FullScreen;
-        assert_eq!(
-            screen_commands(&frame(&windows, &mut mode)),
-            [ViewportCommand::Maximized(false), ViewportCommand::Fullscreen(true)],
-            "full screen and maximized never overlap, and both go out in one pass"
-        );
-        windows.root_info(root(true, false));
-        settle(&windows, &mut mode);
-        mode = ScreenMode::Standard;
-        assert_eq!(screen_commands(&frame(&windows, &mut mode)), [ViewportCommand::Fullscreen(false), ViewportCommand::Maximized(true)]);
-    }
-    {
-        let windows = Windows::new();
-        windows.root_info(root(false, true));
-        let mut mode = ScreenMode::Standard;
-        settle(&windows, &mut mode);
-        mode = ScreenMode::FullScreen;
-        assert_eq!(screen_commands(&frame(&windows, &mut mode)), [ViewportCommand::Fullscreen(true)]);
-        windows.root_info(root(true, false));
-        settle(&windows, &mut mode);
-        mode = ScreenMode::Standard;
-        assert_eq!(
-            screen_commands(&frame(&windows, &mut mode)),
-            [ViewportCommand::Fullscreen(false)],
-            "no keep-apart: a window not maximized by the shell stays as it is"
-        );
-    }
+fn on_windows_a_maximized_window_leaves_maximized_before_full_screen_and_returns_to_it() {
+    let windows = Windows::with(InstallSpec::new(ShellInfo::default().os(Os::Windows), Arc::new(FakeSystem::new())));
+    windows.root_info(root(false, true));
+    let mut mode = ScreenMode::Standard;
+    settle(&windows, &mut mode);
+    mode = ScreenMode::FullScreen;
+    assert_eq!(
+        screen_commands(&frame(&windows, &mut mode)),
+        [ViewportCommand::Maximized(false), ViewportCommand::Fullscreen(true)],
+        "full screen and maximized never overlap, and both go out in one pass"
+    );
+    windows.root_info(root(true, false));
+    settle(&windows, &mut mode);
+    mode = ScreenMode::Standard;
+    assert_eq!(screen_commands(&frame(&windows, &mut mode)), [ViewportCommand::Fullscreen(false), ViewportCommand::Maximized(true)]);
+}
+
+#[trial]
+fn elsewhere_a_maximized_window_goes_to_full_screen_in_one_command() {
+    let windows = Windows::new();
+    windows.root_info(root(false, true));
+    let mut mode = ScreenMode::Standard;
+    settle(&windows, &mut mode);
+    mode = ScreenMode::FullScreen;
+    assert_eq!(screen_commands(&frame(&windows, &mut mode)), [ViewportCommand::Fullscreen(true)]);
+    windows.root_info(root(true, false));
+    settle(&windows, &mut mode);
+    mode = ScreenMode::Standard;
+    assert_eq!(
+        screen_commands(&frame(&windows, &mut mode)),
+        [ViewportCommand::Fullscreen(false)],
+        "no keep-apart: a window not maximized by the shell stays as it is"
+    );
 }

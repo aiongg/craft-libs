@@ -58,14 +58,12 @@ fn items_run_all_17_steps_and_show_a_row_per_visible_key() {
 }
 
 #[trial]
-fn a_leaf_and_a_body_run_the_steps_in_contract_order() {
-    {
-        let mut frames = Frames::new();
-        let seen = RefCell::new(Seen::default());
-        frames.frame(vec![], |ui| {
-            Probe::new(&seen).show(ui);
-        });
-        let id = seen.borrow().id;
-        assert_eq!(steps(&frames.ctx, id.expect("the leaf updated")), LEAF);
-    }
+fn a_leaf_runs_every_step_but_content_in_order() {
+    let mut frames = Frames::new();
+    let seen = RefCell::new(Seen::default());
+    frames.frame(vec![], |ui| {
+        Probe::new(&seen).show(ui);
+    });
+    let id = seen.borrow().id;
+    assert_eq!(steps(&frames.ctx, id.expect("the leaf updated")), LEAF);
 }

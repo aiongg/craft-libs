@@ -143,70 +143,66 @@ fn a_wire_dragged_between_ports_of_a_zoomed_graph_connects_them() {
 /// Dragging one row of a selected range moves the whole range, and the event names every moved row.
 #[trial]
 fn dragging_a_selected_range_reorders_every_row_of_it() {
-    {
-        let words = Count(8);
-        let (run, selection) = (Run::default(), RefCell::new(Selection::new(vec![1, 2], Some(2), Some(1))));
-        let mut frames = Frames::new();
-        let mut show = |ui: &mut Ui| {
-            in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
-                let mut held = selection.borrow().clone();
-                let out = List::new(SelectMode::Multi).reorder().selection(Bind::bound(&mut held)).id_salt("list").show_items(
-                    ui,
-                    &words,
-                    &mut |key, cx| {
-                        run.note(*key, cx.rect);
-                        Row::new()
-                    },
-                );
-                *selection.borrow_mut() = held;
-                run.take(out);
-            });
-        };
-        frames.idle(3, &mut show);
-        let (from, below) = (run.row(1).center(), run.row(4));
-        let target = Pos2::new(from.x, below.max.y - 1.0);
-        frames.frame(vec![pointer::moved(from)], &mut show);
-        frames.frame(vec![pointer::press(from)], &mut show);
-        for step in 1..=4 {
-            frames.frame(vec![pointer::moved(from + (target - from) * (step as f32 / 4.0))], &mut show);
-        }
-        frames.frame(vec![pointer::release(target)], &mut show);
-        frames.idle(2, &mut show);
-        let moves: Vec<(Vec<usize>, usize)> = run
-            .events
-            .borrow()
-            .iter()
-            .filter_map(
-                |event| if let CollectionEvent::Reorder(edit) = event { edit.value().map(|moved| (moved.keys.clone(), moved.to)) } else { None },
-            )
-            .collect();
-        assert_eq!(moves, [(vec![1, 2], 3)], "rows 1 and 2 land together before the row that followed row 4");
-        assert_eq!(selection.borrow().items, [1, 2], "the press on a selected row kept the range for the drag");
-    }
-    {
-        let words = Count(8);
-        let (run, selection) = (Run::default(), RefCell::new(Selection::new(vec![1, 2], Some(2), Some(1))));
-        let mut frames = Frames::new();
-        let mut show = |ui: &mut Ui| {
-            in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
-                let mut held = selection.borrow().clone();
-                let out = List::new(SelectMode::Multi).selection(Bind::bound(&mut held)).id_salt("list").show_items(ui, &words, &mut |key, cx| {
+    let words = Count(8);
+    let (run, selection) = (Run::default(), RefCell::new(Selection::new(vec![1, 2], Some(2), Some(1))));
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            let mut held = selection.borrow().clone();
+            let out =
+                List::new(SelectMode::Multi).reorder().selection(Bind::bound(&mut held)).id_salt("list").show_items(ui, &words, &mut |key, cx| {
                     run.note(*key, cx.rect);
                     Row::new()
                 });
-                *selection.borrow_mut() = held;
-                run.take(out);
-            });
-        };
-        frames.idle(3, &mut show);
-        let at = run.row(1).center();
-        frames.frame(vec![pointer::moved(at)], &mut show);
-        frames.frame(vec![pointer::press(at)], &mut show);
-        assert_eq!(selection.borrow().items, [1, 2], "the press alone keeps the range");
-        frames.frame(vec![pointer::release(at)], &mut show);
-        frames.idle(2, &mut show);
-        assert_eq!(selection.borrow().items, [1]);
+            *selection.borrow_mut() = held;
+            run.take(out);
+        });
+    };
+    frames.idle(3, &mut show);
+    let (from, below) = (run.row(1).center(), run.row(4));
+    let target = Pos2::new(from.x, below.max.y - 1.0);
+    frames.frame(vec![pointer::moved(from)], &mut show);
+    frames.frame(vec![pointer::press(from)], &mut show);
+    for step in 1..=4 {
+        frames.frame(vec![pointer::moved(from + (target - from) * (step as f32 / 4.0))], &mut show);
     }
+    frames.frame(vec![pointer::release(target)], &mut show);
+    frames.idle(2, &mut show);
+    let moves: Vec<(Vec<usize>, usize)> = run
+        .events
+        .borrow()
+        .iter()
+        .filter_map(|event| if let CollectionEvent::Reorder(edit) = event { edit.value().map(|moved| (moved.keys.clone(), moved.to)) } else { None })
+        .collect();
+    assert_eq!(moves, [(vec![1, 2], 3)], "rows 1 and 2 land together before the row that followed row 4");
+    assert_eq!(selection.borrow().items, [1, 2], "the press on a selected row kept the range for the drag");
+}
+
+/// A click on a row of a selected range narrows the selection to that row on the release.
+#[trial]
+fn a_click_on_a_row_of_a_selected_range_narrows_the_selection_on_release() {
+    let words = Count(8);
+    let (run, selection) = (Run::default(), RefCell::new(Selection::new(vec![1, 2], Some(2), Some(1))));
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            let mut held = selection.borrow().clone();
+            let out = List::new(SelectMode::Multi).selection(Bind::bound(&mut held)).id_salt("list").show_items(ui, &words, &mut |key, cx| {
+                run.note(*key, cx.rect);
+                Row::new()
+            });
+            *selection.borrow_mut() = held;
+            run.take(out);
+        });
+    };
+    frames.idle(3, &mut show);
+    let at = run.row(1).center();
+    frames.frame(vec![pointer::moved(at)], &mut show);
+    frames.frame(vec![pointer::press(at)], &mut show);
+    assert_eq!(selection.borrow().items, [1, 2], "the press alone keeps the range");
+    frames.frame(vec![pointer::release(at)], &mut show);
+    frames.idle(2, &mut show);
+    assert_eq!(selection.borrow().items, [1]);
 }
 
 /// A rename that ends because focus went to another field leaves focus there.
@@ -242,41 +238,42 @@ fn a_rename_that_ends_by_focusing_another_list_keeps_that_focus() {
     assert_eq!(testing_focus::egui_focused(&frames.ctx), Some(second.id()), "focus stays on the field it went to");
 }
 
+/// A collection's `parts` reads the rects the item step gives the rows this pass, scrolled or not.
+#[trial]
+fn parts_read_the_rect_of_a_row_after_the_scroll() {
+    const KEY: usize = 8;
+    let words = Count(40);
+    let (run, seen) = (Run::default(), Cell::new(None));
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            run.take(List::new(SelectMode::None).probe_parts(KEY, &seen).id_salt("list").show_items(ui, &words, &mut |key, cx| {
+                run.note(*key, cx.rect);
+                Row::new()
+            }));
+        });
+    };
+    frames.idle(3, &mut show);
+    frames.frame(vec![pointer::moved(ORIGIN + VIEW / 2.0)], &mut show);
+    frames.frame(vec![pointer::wheel(-60.0)], &mut show);
+    let given = seen.get().expect("the row is in view after the scroll");
+    assert!((given.min - run.row(KEY).min).abs().max_elem() < SAME, "parts saw {given:?}, the row sat at {:?}", run.row(KEY));
+}
+
 /// A press in the frame of a wheel scroll lands on the row the user saw under the pointer.
 #[trial]
 fn a_press_in_the_frame_of_a_wheel_scroll_hits_the_row_the_user_saw() {
-    {
-        let words = Count(40);
-        let run = Run::default();
-        let mut frames = Frames::new();
-        let mut show = |ui: &mut Ui| {
-            in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
-                run.take(List::new(SelectMode::Single).id_salt("list").show_items(ui, &words, &mut |_, _| Row::new()));
-            });
-        };
-        frames.idle(3, &mut show);
-        let at = ORIGIN + Vec2::new(30.0, ROW_H * 2.5);
-        frames.frame(vec![pointer::moved(at)], &mut show);
-        frames.frame(vec![pointer::wheel(-60.0), pointer::press(at)], &mut show);
-        assert_eq!(run.leads().last(), Some(&2), "the press hit row 2 as it stood before the scroll");
-    }
-    {
-        const KEY: usize = 8;
-        let words = Count(40);
-        let (run, seen) = (Run::default(), Cell::new(None));
-        let mut frames = Frames::new();
-        let mut show = |ui: &mut Ui| {
-            in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
-                run.take(List::new(SelectMode::None).probe_parts(KEY, &seen).id_salt("list").show_items(ui, &words, &mut |key, cx| {
-                    run.note(*key, cx.rect);
-                    Row::new()
-                }));
-            });
-        };
-        frames.idle(3, &mut show);
-        frames.frame(vec![pointer::moved(ORIGIN + VIEW / 2.0)], &mut show);
-        frames.frame(vec![pointer::wheel(-60.0)], &mut show);
-        let given = seen.get().expect("the row is in view after the scroll");
-        assert!((given.min - run.row(KEY).min).abs().max_elem() < SAME, "parts saw {given:?}, the row sat at {:?}", run.row(KEY));
-    }
+    let words = Count(40);
+    let run = Run::default();
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            run.take(List::new(SelectMode::Single).id_salt("list").show_items(ui, &words, &mut |_, _| Row::new()));
+        });
+    };
+    frames.idle(3, &mut show);
+    let at = ORIGIN + Vec2::new(30.0, ROW_H * 2.5);
+    frames.frame(vec![pointer::moved(at)], &mut show);
+    frames.frame(vec![pointer::wheel(-60.0), pointer::press(at)], &mut show);
+    assert_eq!(run.leads().last(), Some(&2), "the press hit row 2 as it stood before the scroll");
 }

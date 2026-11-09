@@ -231,61 +231,63 @@ fn a_value_set_outside_ends_the_typing_run() {
 
 /// The completion list gets Up, Down and Tab from the field while it is open, and the caret does not move.
 #[trial]
-fn the_completion_list_takes_arrows_tab_and_enter_while_open() {
-    {
-        let mut rig = Rig::new("");
-        rig.focus();
-        let frame = |rig: &mut Rig, events: Vec<Event>| {
-            let (text, seen) = (&mut rig.text, &mut rig.seen);
-            rig.frames.frame(events, |ui| {
-                let out = TextField::new("Name", Bind::bound(&mut *text)).complete(Prefixes).id_salt("name").show(ui);
-                seen.rect = out.response.rect;
-                seen.id = out.response.id;
-            });
-        };
-        frame(&mut rig, vec![Event::Text("al".into())]);
-        for _ in 0..4 {
-            frame(&mut rig, vec![]);
-        }
-        let shapes = {
-            let (text, seen) = (&mut rig.text, &mut rig.seen);
-            rig.frames.frame_shapes(|ui| {
-                let out = TextField::new("Name", Bind::bound(&mut *text)).complete(Prefixes).id_salt("name").show(ui);
-                seen.id = out.response.id;
-            })
-        };
-        let shown = painted(&shapes);
-        assert!(shown.iter().any(|t| t == "alpha") && shown.iter().any(|t| t == "alps"), "typing opens the list: {shown:?}");
-        let widget = rig.widget();
-        let before = caret(&rig.frames.ctx, widget);
-        for key in [Key::ArrowDown, Key::ArrowDown, Key::ArrowUp, Key::ArrowDown] {
-            frame(&mut rig, vec![key_press(key, Modifiers::NONE)]);
-            frame(&mut rig, vec![]);
-        }
-        assert_eq!(caret(&rig.frames.ctx, widget), before, "Up and Down go to the list and do not also move the caret");
-        let focus = craft_ui::testing::focus::egui_focused(&rig.frames.ctx);
-        frame(&mut rig, vec![key_press(Key::Tab, Modifiers::NONE)]);
-        for _ in 0..4 {
-            frame(&mut rig, vec![]);
-        }
-        assert_eq!(craft_ui::testing::focus::egui_focused(&rig.frames.ctx), focus, "Tab went to the list, not to the next stop");
-        assert_eq!(rig.text, "alps", "Tab accepted the highlighted candidate");
+fn completion_list_takes_arrows_and_tab_while_open_and_the_caret_does_not_move() {
+    let mut rig = Rig::new("");
+    rig.focus();
+    let frame = |rig: &mut Rig, events: Vec<Event>| {
+        let (text, seen) = (&mut rig.text, &mut rig.seen);
+        rig.frames.frame(events, |ui| {
+            let out = TextField::new("Name", Bind::bound(&mut *text)).complete(Prefixes).id_salt("name").show(ui);
+            seen.rect = out.response.rect;
+            seen.id = out.response.id;
+        });
+    };
+    frame(&mut rig, vec![Event::Text("al".into())]);
+    for _ in 0..4 {
+        frame(&mut rig, vec![]);
     }
-    {
-        let mut rig = Rig::new("");
-        rig.focus();
-        completing(&mut rig, vec![Event::Text("al".into())]);
-        for _ in 0..4 {
-            completing(&mut rig, vec![]);
-        }
-        assert_eq!(option_names(&mut rig), ["alpha", "alps"], "one option node per candidate");
-        completing(&mut rig, vec![key_press(Key::ArrowDown, Modifiers::NONE)]);
+    let shapes = {
+        let (text, seen) = (&mut rig.text, &mut rig.seen);
+        rig.frames.frame_shapes(|ui| {
+            let out = TextField::new("Name", Bind::bound(&mut *text)).complete(Prefixes).id_salt("name").show(ui);
+            seen.id = out.response.id;
+        })
+    };
+    let shown = painted(&shapes);
+    assert!(shown.iter().any(|t| t == "alpha") && shown.iter().any(|t| t == "alps"), "typing opens the list: {shown:?}");
+    let widget = rig.widget();
+    let before = caret(&rig.frames.ctx, widget);
+    for key in [Key::ArrowDown, Key::ArrowDown, Key::ArrowUp, Key::ArrowDown] {
+        frame(&mut rig, vec![key_press(key, Modifiers::NONE)]);
+        frame(&mut rig, vec![]);
+    }
+    assert_eq!(caret(&rig.frames.ctx, widget), before, "Up and Down go to the list and do not also move the caret");
+    let focus = craft_ui::testing::focus::egui_focused(&rig.frames.ctx);
+    frame(&mut rig, vec![key_press(Key::Tab, Modifiers::NONE)]);
+    for _ in 0..4 {
+        frame(&mut rig, vec![]);
+    }
+    assert_eq!(craft_ui::testing::focus::egui_focused(&rig.frames.ctx), focus, "Tab went to the list, not to the next stop");
+    assert_eq!(rig.text, "alps", "Tab accepted the highlighted candidate");
+}
+
+/// Down moves the highlighted row and Enter accepts it into the draft, replacing the range the completer named; the
+/// list's rows are option nodes named by their candidates.
+#[trial]
+fn completion_down_moves_the_highlight_and_enter_accepts_it() {
+    let mut rig = Rig::new("");
+    rig.focus();
+    completing(&mut rig, vec![Event::Text("al".into())]);
+    for _ in 0..4 {
         completing(&mut rig, vec![]);
-        completing(&mut rig, vec![key_press(Key::Enter, Modifiers::NONE)]);
-        for _ in 0..3 {
-            completing(&mut rig, vec![]);
-        }
-        assert_eq!(rig.text, "alps", "the highlighted candidate replaced the typed prefix");
-        assert!(option_names(&mut rig).is_empty(), "accepting closes the list");
     }
+    assert_eq!(option_names(&mut rig), ["alpha", "alps"], "one option node per candidate");
+    completing(&mut rig, vec![key_press(Key::ArrowDown, Modifiers::NONE)]);
+    completing(&mut rig, vec![]);
+    completing(&mut rig, vec![key_press(Key::Enter, Modifiers::NONE)]);
+    for _ in 0..3 {
+        completing(&mut rig, vec![]);
+    }
+    assert_eq!(rig.text, "alps", "the highlighted candidate replaced the typed prefix");
+    assert!(option_names(&mut rig).is_empty(), "accepting closes the list");
 }

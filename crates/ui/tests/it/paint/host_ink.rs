@@ -139,20 +139,21 @@ fn alone_fill() -> Color32 {
 /// A face whose style uses `host_ink` paints the host's ink, which differs between a plain and a selected host, and
 /// its own colour when shown alone.
 #[trial]
-fn a_face_reads_the_ink_and_validity_of_its_host() {
-    {
-        let (plain_host, plain_face) = host_fills(false, false);
-        let (selected_host, selected_face) = host_fills(true, false);
-        assert_eq!(plain_face, plain_host, "the face reads the host's ink");
-        assert_eq!(selected_face, selected_host, "the face reads the host's ink while selected");
-        assert_ne!(selected_face, plain_face, "the host's ink changes with its selection");
-        let alone = alone_fill();
-        assert!(alone != plain_face && alone != selected_face, "alone, the face has its own colour");
-    }
-    {
-        host_fills(false, true);
-        assert!(SEEN.get().contains(Flags::INVALID));
-        host_fills(false, false);
-        assert!(!SEEN.get().contains(Flags::INVALID));
-    }
+fn a_face_paints_the_ink_of_its_host_and_its_own_when_alone() {
+    let (plain_host, plain_face) = host_fills(false, false);
+    let (selected_host, selected_face) = host_fills(true, false);
+    assert_eq!(plain_face, plain_host, "the face reads the host's ink");
+    assert_eq!(selected_face, selected_host, "the face reads the host's ink while selected");
+    assert_ne!(selected_face, plain_face, "the host's ink changes with its selection");
+    let alone = alone_fill();
+    assert!(alone != plain_face && alone != selected_face, "alone, the face has its own colour");
+}
+
+/// The face of an invalid host carries INVALID in its state; the face of a valid one does not.
+#[trial]
+fn the_face_of_an_invalid_host_carries_invalid() {
+    host_fills(false, true);
+    assert!(SEEN.get().contains(Flags::INVALID));
+    host_fills(false, false);
+    assert!(!SEEN.get().contains(Flags::INVALID));
 }

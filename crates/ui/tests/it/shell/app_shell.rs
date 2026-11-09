@@ -387,67 +387,67 @@ fn the_pointer_at_an_edge_reveals_that_edge_and_rtl_mirrors_it() {
 }
 
 #[trial]
-fn a_reveal_holds_while_the_pointer_is_inside_what_it_revealed() {
-    {
-        let mut window = Window::new(ScreenMode::FullScreen, Direction::Ltr);
-        window.pass(vec![moved(TOP_STRIP)]);
-        window.pass(Vec::new());
-        window.pass(vec![moved(window.slot_rect("title").center())]);
-        assert_eq!(window.slots(), ["title"]);
-        window.pass(vec![moved(CENTER)]);
-        assert!(window.slots().is_empty());
-    }
-    {
-        fn run(register: bool) -> bool {
-            let kept = RefCell::new(false);
-            let mut frames = Frames::new();
-            let mut show = |ui: &mut Ui| {
-                let mut mode = ScreenMode::FullScreen;
-                AppShell::new(WindowKey::main())
-                    .screen_mode(Bind::bound(&mut mode))
-                    .body(|_, cx, _| {
-                        let shell = cx.shell().expect("the body is in a shell");
-                        if register && shell.edge_revealed(RevealEdge::Start) {
-                            shell.reveal_rect(RevealEdge::Start, Rect::from_min_max(pos2(0.0, 40.0), pos2(120.0, 560.0)));
-                        }
-                        *kept.borrow_mut() = shell.edge_revealed(RevealEdge::Start);
-                    })
-                    .show(ui, &mut ());
-            };
-            frames.frame(vec![moved(pos2(300.0, 300.0))], &mut show);
-            frames.frame(vec![moved(pos2(1.0, 300.0))], &mut show);
-            frames.frame(vec![moved(pos2(1.0, 300.0))], &mut show);
-            assert!(*kept.borrow(), "the pointer at the start edge reveals it");
-            frames.frame(vec![moved(pos2(60.0, 300.0))], &mut show);
-            let kept_inside = *kept.borrow();
-            kept_inside
-        }
-        assert!(run(true), "inside the registered rect the reveal stays");
-        assert!(!run(false), "without the rect the reveal ends when the pointer leaves the strip");
-    }
+fn the_pointer_over_a_revealed_slot_keeps_its_edge_revealed() {
+    let mut window = Window::new(ScreenMode::FullScreen, Direction::Ltr);
+    window.pass(vec![moved(TOP_STRIP)]);
+    window.pass(Vec::new());
+    window.pass(vec![moved(window.slot_rect("title").center())]);
+    assert_eq!(window.slots(), ["title"]);
+    window.pass(vec![moved(CENTER)]);
+    assert!(window.slots().is_empty());
 }
 
 #[trial]
-fn tab_toggles_the_chrome_in_each_mode() {
-    {
-        let mut window = Window::new(ScreenMode::FullScreen, Direction::Ltr);
-        assert!(window.slots().is_empty());
-        window.key(Key::Tab, Modifiers::NONE);
-        let mut shown = window.slots();
-        shown.sort_unstable();
-        assert_eq!(shown, ["inspector", "title", "tools"], "every revealing slot shows, the status bar does not");
-        window.key(Key::Tab, Modifiers::NONE);
-        assert!(window.slots().is_empty(), "Tab again hides them");
+fn a_body_that_registers_a_revealed_rect_keeps_the_reveal_while_the_pointer_is_inside_it() {
+    fn run(register: bool) -> bool {
+        let kept = RefCell::new(false);
+        let mut frames = Frames::new();
+        let mut show = |ui: &mut Ui| {
+            let mut mode = ScreenMode::FullScreen;
+            AppShell::new(WindowKey::main())
+                .screen_mode(Bind::bound(&mut mode))
+                .body(|_, cx, _| {
+                    let shell = cx.shell().expect("the body is in a shell");
+                    if register && shell.edge_revealed(RevealEdge::Start) {
+                        shell.reveal_rect(RevealEdge::Start, Rect::from_min_max(pos2(0.0, 40.0), pos2(120.0, 560.0)));
+                    }
+                    *kept.borrow_mut() = shell.edge_revealed(RevealEdge::Start);
+                })
+                .show(ui, &mut ());
+        };
+        frames.frame(vec![moved(pos2(300.0, 300.0))], &mut show);
+        frames.frame(vec![moved(pos2(1.0, 300.0))], &mut show);
+        frames.frame(vec![moved(pos2(1.0, 300.0))], &mut show);
+        assert!(*kept.borrow(), "the pointer at the start edge reveals it");
+        frames.frame(vec![moved(pos2(60.0, 300.0))], &mut show);
+        let kept_inside = *kept.borrow();
+        kept_inside
     }
-    {
-        let mut window = Window::new(ScreenMode::Standard, Direction::Ltr);
-        let all = window.slots();
-        assert_eq!(all.len(), 4, "normal mode shows every slot: {all:?}");
-        window.key(Key::Tab, Modifiers::NONE);
-        assert!(window.slots().is_empty(), "Tab hides the chrome");
-        window.key(Key::Tab, Modifiers::NONE);
-        assert_eq!(window.slots(), all, "Tab again shows it");
-    }
+    assert!(run(true), "inside the registered rect the reveal stays");
+    assert!(!run(false), "without the rect the reveal ends when the pointer leaves the strip");
+}
+
+#[trial]
+fn tab_reveals_the_revealing_slots_and_never_the_status_bar() {
+    let mut window = Window::new(ScreenMode::FullScreen, Direction::Ltr);
+    assert!(window.slots().is_empty());
+    window.key(Key::Tab, Modifiers::NONE);
+    let mut shown = window.slots();
+    shown.sort_unstable();
+    assert_eq!(shown, ["inspector", "title", "tools"], "every revealing slot shows, the status bar does not");
+    window.key(Key::Tab, Modifiers::NONE);
+    assert!(window.slots().is_empty(), "Tab again hides them");
+}
+
+#[trial]
+fn tab_hides_the_chrome_in_normal_mode_and_tab_again_shows_it() {
+    let mut window = Window::new(ScreenMode::Standard, Direction::Ltr);
+    let all = window.slots();
+    assert_eq!(all.len(), 4, "normal mode shows every slot: {all:?}");
+    window.key(Key::Tab, Modifiers::NONE);
+    assert!(window.slots().is_empty(), "Tab hides the chrome");
+    window.key(Key::Tab, Modifiers::NONE);
+    assert_eq!(window.slots(), all, "Tab again shows it");
 }
 
 #[trial]

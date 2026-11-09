@@ -89,29 +89,26 @@ fn run(inactive: bool) -> (Vec<(f32, Color32)>, Vec<Shape>, TextureId) {
 }
 
 #[trial]
-fn a_data_paint_strokes_and_textures_for_an_active_and_an_inactive_part() {
-    {
-        let tokens = tokens(Mode::Light, Contrast::Standard);
-        let (strokes, ..) = run(false);
-        assert!(
-            strokes.iter().any(|(width, c)| (width - DATA_WIDTH).abs() < EPS && *c == INK),
-            "the document width is the stroke width: {strokes:?}"
-        );
-        assert!(strokes.iter().any(|(width, _)| (width - tokens.stroke.thick).abs() < EPS), "a named width keeps the theme size");
-    }
-    {
-        let disabled_fill = color(tokens(Mode::Light, Contrast::Standard).color.state.disabled_fill);
-        let (_, shapes, texture) = run(false);
-        assert!(
-            shapes.iter().any(|s| matches!(s, Shape::Mesh(mesh) if mesh.texture_id == texture && !mesh.is_empty())),
-            "the texture paints as a textured mesh"
-        );
-        let (strokes, shapes, texture) = run(true);
-        assert!(!shapes.iter().any(|s| matches!(s, Shape::Mesh(mesh) if mesh.texture_id == texture)), "an inactive part paints no picture");
-        assert!(shapes.iter().any(|s| matches!(s, Shape::Rect(rect) if rect.fill == disabled_fill)), "it fills the disabled fill instead");
-        assert!(
-            strokes.iter().any(|(width, c)| (width - DATA_WIDTH).abs() < EPS && *c == disabled_fill),
-            "the data-width stroke takes the disabled fill: {strokes:?}"
-        );
-    }
+fn a_data_width_strokes_at_its_points_and_a_named_width_at_the_theme_size() {
+    let tokens = tokens(Mode::Light, Contrast::Standard);
+    let (strokes, ..) = run(false);
+    assert!(strokes.iter().any(|(width, c)| (width - DATA_WIDTH).abs() < EPS && *c == INK), "the document width is the stroke width: {strokes:?}");
+    assert!(strokes.iter().any(|(width, _)| (width - tokens.stroke.thick).abs() < EPS), "a named width keeps the theme size");
+}
+
+#[trial]
+fn a_texture_paints_a_textured_mesh_in_the_rect_and_an_inactive_part_paints_the_disabled_fill() {
+    let disabled_fill = color(tokens(Mode::Light, Contrast::Standard).color.state.disabled_fill);
+    let (_, shapes, texture) = run(false);
+    assert!(
+        shapes.iter().any(|s| matches!(s, Shape::Mesh(mesh) if mesh.texture_id == texture && !mesh.is_empty())),
+        "the texture paints as a textured mesh"
+    );
+    let (strokes, shapes, texture) = run(true);
+    assert!(!shapes.iter().any(|s| matches!(s, Shape::Mesh(mesh) if mesh.texture_id == texture)), "an inactive part paints no picture");
+    assert!(shapes.iter().any(|s| matches!(s, Shape::Rect(rect) if rect.fill == disabled_fill)), "it fills the disabled fill instead");
+    assert!(
+        strokes.iter().any(|(width, c)| (width - DATA_WIDTH).abs() < EPS && *c == disabled_fill),
+        "the data-width stroke takes the disabled fill: {strokes:?}"
+    );
 }

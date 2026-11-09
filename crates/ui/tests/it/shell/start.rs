@@ -148,17 +148,19 @@ fn many_files_and_templates_share_one_scrolling_page() {
 }
 
 #[trial]
-fn recent_files_sort_by_date_and_name() {
-    {
-        let files = [file("old", Some(10), None), file("none", None, None), file("new", Some(30), None), file("mid", Some(20), None)];
-        assert_eq!(names(&files, RecentSort::Opened), ["new", "mid", "old", "none"]);
-    }
-    {
-        let files = [file("none", None, None), file("old", None, Some(10)), file("new", None, Some(30))];
-        assert_eq!(names(&files, RecentSort::Created), ["new", "old", "none"]);
-    }
-    {
-        let files = [file("page 10", None, None), file("page 2", None, None), file("page 1", None, None)];
-        assert_eq!(names(&files, RecentSort::Name), ["page 1", "page 2", "page 10"]);
-    }
+fn opened_puts_the_newest_first_and_undated_files_last() {
+    let files = [file("old", Some(10), None), file("none", None, None), file("new", Some(30), None), file("mid", Some(20), None)];
+    assert_eq!(names(&files, RecentSort::Opened), ["new", "mid", "old", "none"]);
+}
+
+#[trial]
+fn created_puts_the_newest_first_and_undated_files_last() {
+    let files = [file("none", None, None), file("old", None, Some(10)), file("new", None, Some(30))];
+    assert_eq!(names(&files, RecentSort::Created), ["new", "old", "none"]);
+}
+
+#[trial]
+fn name_reads_runs_of_digits_by_value() {
+    let files = [file("page 10", None, None), file("page 2", None, None), file("page 1", None, None)];
+    assert_eq!(names(&files, RecentSort::Name), ["page 1", "page 2", "page 10"]);
 }
