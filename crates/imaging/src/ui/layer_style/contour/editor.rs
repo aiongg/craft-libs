@@ -10,7 +10,7 @@ use craft_ui::form::{Field, FieldGroup};
 use craft_ui::layout_components::Row;
 use craft_ui::patterns::form_dialogs::FormDialog;
 use craft_ui::pickers::Select;
-use craft_ui::runtime::env::{Env, Label};
+use craft_ui::runtime::env::Env;
 use craft_ui::runtime::focus::{self, FocusTarget};
 use craft_ui::text::TextField;
 use egui::Ui;
@@ -122,7 +122,7 @@ impl StackDialog for ContourEditorDialog {
         let named = Cell::new(false);
         let focus_name = std::mem::take(&mut self.focus_name);
         let sampler = self.sampler.clone();
-        let shown = FormDialog::new(Label::from(words.editor.clone()), Bind::bound(&mut self.draft))
+        let shown = FormDialog::new(words.editor.clone(), Bind::bound(&mut self.draft))
             .outer_gesture(true)
             .footer_extra(|ui| {
                 for (which, label) in [(Extra::Load, &words.load), (Extra::Save, &words.save), (Extra::New, &words.new)] {

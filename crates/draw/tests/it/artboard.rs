@@ -50,7 +50,7 @@ fn harness(rules: ArtboardRules, selected: &[usize]) -> Harness {
         let shown = Canvas::new("Document")
             .view(view)
             .show(ui, |ui, body| ArtboardOverlay::new("Artboards", &items, &selected).rules(rules).show_at(ui, body.rect));
-        ToolHost::new().run(ui, &shown.output, &mut *tool);
+        let _ = ToolHost::new().run(ui, &shown.output, &mut *tool);
         let mut events = tool.take_events();
         if let Some(output) = shown.inner {
             events.extend(output.events);

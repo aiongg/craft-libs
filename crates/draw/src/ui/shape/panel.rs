@@ -93,14 +93,12 @@ impl<'a> ShapePanel<'a> {
     }
 
     /// The Stroke style popover's open flag, kept by the app between passes. Without it the button is not shown.
-    #[must_use]
     pub fn stroke_open(mut self, open: Bind<'a, bool>) -> Self {
         self.stroke_open = Some(open);
         self
     }
 
     /// Decorates each paint chip before it shows (its Gradient, Pattern and Picture editors).
-    #[must_use]
     pub fn chips(mut self, setup: impl for<'b> FnMut(ShapePaint, PaintChip<'b>) -> PaintChip<'b> + 'a) -> Self {
         self.chips = Some(ChipSetup::new(setup));
         self
@@ -108,21 +106,18 @@ impl<'a> ShapePanel<'a> {
 
     /// The colours a switch to Solid starts from when a chip has none: the app's foreground (fill) and background
     /// (stroke). Black and white by default.
-    #[must_use]
     pub fn fallbacks(mut self, fill: Srgba, stroke: Srgba) -> Self {
         self.fallbacks = (fill, stroke);
         self
     }
 
     /// Which sections show; both by default (an app may show one, or a custom path's layer only Appearance).
-    #[must_use]
     pub fn sections(mut self, appearance: bool, shape: bool) -> Self {
         self.sections = (appearance, shape);
         self
     }
 
     /// The host's answer to a chip's screen eyedropper: the colour sampled for that chip.
-    #[must_use]
     pub fn sampled(mut self, sampled: Option<(ShapePaint, Srgba)>) -> Self {
         self.sampled = sampled;
         self
@@ -133,7 +128,8 @@ impl<'a> ShapePanel<'a> {
         let ShapePanel { label, shape, appearance, stroke_open, chips, fallbacks, sections, sampled, pixels_per_inch } = self;
         let env = Env::of(ui);
         let (words, units) = (env.words::<ShapeWords>(), env.units());
-        let mut pass = Cells::new(&words, &units, pixels_per_inch, appearance, fallbacks, sampled, chips, stroke_open);
+        let mut pass = Cells::new(&words, &units, pixels_per_inch, appearance, fallbacks, sampled, chips);
+        pass.open = stroke_open;
         let mut body = |ui: &mut Ui| {
             FieldGroup::new(label.clone()).show(ui, |ui, _| {
                 pass.begin();
@@ -249,7 +245,7 @@ pub(super) struct Cells<'p, 'a> {
     fallbacks: (Srgba, Srgba),
     sampled: Option<(ShapePaint, Srgba)>,
     chips: Option<ChipSetup<'a>>,
-    open: Option<Bind<'a, bool>>,
+    pub(super) open: Option<Bind<'a, bool>>,
     pub events: Vec<EditEvent<ShapeChange>>,
     pub screen_pick: Option<(ShapePaint, ScreenPickGesture)>,
 }
@@ -263,9 +259,8 @@ impl<'p, 'a> Cells<'p, 'a> {
         fallbacks: (Srgba, Srgba),
         sampled: Option<(ShapePaint, Srgba)>,
         chips: Option<ChipSetup<'a>>,
-        open: Option<Bind<'a, bool>>,
     ) -> Self {
-        Cells { words, units, pixels_per_inch, appearance, fallbacks, sampled, chips, open, events: Vec::new(), screen_pick: None }
+        Cells { words, units, pixels_per_inch, appearance, fallbacks, sampled, chips, open: None, events: Vec::new(), screen_pick: None }
     }
 
     /// Starts a run of the body: it may run more than once in a pass, and each run starts clean.

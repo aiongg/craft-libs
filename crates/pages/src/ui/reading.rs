@@ -334,7 +334,7 @@ impl Component for ReadingView<'_> {
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let size = cx.rect.size();
-        let last = std::mem::replace(&mut cx.memory::<LastSize>().0, Some(size));
+        let last = cx.memory::<LastSize>().0.replace(size);
         self.resizing = last.is_some_and(|last| (last - size).abs().max_elem() > SAME_SIZE);
         let count = self.source.page_count();
         if count == 0 {

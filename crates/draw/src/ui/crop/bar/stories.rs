@@ -27,11 +27,13 @@ fn crop_bar_ratio(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(CropBar<'static>, covers = [], drive = Drive::Never)]
 fn crop_bar_size(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let document = document();
-    let mut settings = CropSettings::default();
-    settings.ratio = CropRatio::Size;
-    settings.size.width = Some(CropLength::new(4.0, UnitKind::Inches));
-    settings.size.height = Some(CropLength::new(5.0, UnitKind::Inches));
-    settings.size.resolution = "300".into();
+    let size = CropSizeFields {
+        width: Some(CropLength::new(4.0, UnitKind::Inches)),
+        height: Some(CropLength::new(5.0, UnitKind::Inches)),
+        resolution: "300".into(),
+        ..CropSizeFields::default()
+    };
+    let settings = CropSettings { ratio: CropRatio::Size, size, ..CropSettings::default() };
     let settings = data.value("size", settings);
     let mut output = None;
     Bar::new("Options", BarKind::Options).show(ui, |ui, _| output = Some(CropBar::new(settings, &document).show(ui)));

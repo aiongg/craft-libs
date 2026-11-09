@@ -43,7 +43,8 @@ impl PanelRig {
         start.mode = mode;
         let state = Rc::new(RefCell::new(start));
         let colors = Rc::new(Cell::new([RED, BLUE]));
-        let (edits, opened, added): (Edits, Rc<RefCell<Vec<ColorRequest>>>, Rc<RefCell<Vec<PanelTarget>>>) = Default::default();
+        type Shared = (Edits, Rc<RefCell<Vec<ColorRequest>>>, Rc<RefCell<Vec<PanelTarget>>>);
+        let (edits, opened, added): Shared = Default::default();
         let (s, c, e, o, a) = (state.clone(), colors.clone(), edits.clone(), opened.clone(), added.clone());
         let mut fixture = Fixture::new(move |ui| {
             let mut current = *s.borrow();

@@ -161,9 +161,11 @@ impl StrokeChoice {
     }
 }
 
+type ChoicePaintFn<'a> = Box<dyn Fn(&ContentPainterCx, Rect, &StrokeChoice) + 'a>;
+
 /// The painter of a choice's preview in a [`StrokeChoiceRow`]: it paints the choice into the rect with the content
 /// painter.
-pub struct ChoicePainter<'a>(Box<dyn Fn(&ContentPainterCx, Rect, &StrokeChoice) + 'a>);
+pub struct ChoicePainter<'a>(ChoicePaintFn<'a>);
 
 impl<'a> ChoicePainter<'a> {
     /// The painter that runs `paint`.

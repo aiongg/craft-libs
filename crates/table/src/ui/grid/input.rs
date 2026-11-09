@@ -88,6 +88,88 @@ fn fill_range(source: &CellRange<u32>, target: CellAt<u32>) -> CellRange<u32> {
     }
 }
 
+/// One arrow press and the state it runs in.
+struct ArrowStep {
+    direction: CellDirection,
+    shift: bool,
+    jump: bool,
+    armed: bool,
+    rtl: bool,
+}
+
+/// The grid's claimed keys that were pressed in a pass.
+struct ClaimedKeys {
+    escape: bool,
+    advance: Option<(CellAdvance, bool)>,
+    f2: bool,
+    /// Each arrow: its direction, whether Shift was held and whether Cmd was held.
+    arrows: Vec<(CellDirection, bool, bool)>,
+    home: bool,
+    end: bool,
+    ready: ReadyKeys,
+}
+
+/// The claimed keys that move the selection by sheet, column or row in Ready mode.
+#[derive(Clone, Copy)]
+struct ReadyKeys {
+    cmd_home: bool,
+    cmd_end: bool,
+    next_sheet: bool,
+    previous_sheet: bool,
+    column_key: bool,
+    row_key: bool,
+}
+
+impl ClaimedKeys {
+    fn take(cx: &mut Cx<'_, CellGrid<'_>>) -> Self {
+        let escape = cx.take_claimed(ESCAPE);
+        let advance = ADVANCES.iter().find_map(|&(chord, along, back)| cx.take_claimed(chord).then_some((along, back)));
+        let f2 = cx.take_claimed(F2);
+        let mut arrows = Vec::new();
+        for shift in [false, true] {
+            for (key, direction) in ARROWS {
+                if cx.take_claimed(Chord::new(mods(false, shift), key)) {
+                    arrows.push((direction, shift, false));
+                }
+                if cx.take_claimed(Chord::new(mods(true, shift), key)) {
+                    arrows.push((direction, shift, true));
+                }
+            }
+        }
+        ClaimedKeys {
+            escape,
+            advance,
+            f2,
+            arrows,
+            home: cx.take_claimed(HOME),
+            end: cx.take_claimed(END),
+            ready: ReadyKeys {
+                cmd_home: cx.take_claimed(CMD_HOME),
+                cmd_end: cx.take_claimed(CMD_END),
+                next_sheet: cx.take_claimed(NEXT_SHEET),
+                previous_sheet: cx.take_claimed(PREVIOUS_SHEET),
+                column_key: cx.take_claimed(COLUMN_KEY),
+                row_key: cx.take_claimed(ROW_KEY),
+            },
+        }
+    }
+
+    /// Whether a key other than an arrow or End was pressed, or an editor input arrived.
+    fn ends_end_mode(&self, typed: bool) -> bool {
+        self.escape
+            || self.advance.is_some()
+            || self.f2
+            || self.home
+            || self.ready.cmd_home
+            || self.ready.cmd_end
+            || self.ready.next_sheet
+            || self.ready.previous_sheet
+            || self.ready.column_key
+            || self.ready.row_key
+            || typed
+    }
+}
+
 impl CellGrid<'_> {
     /// The cell space the rules run over: the sheet's size, merged cells, hidden lines and locked cells.
     fn space<'s>(
@@ -98,6 +180,84 @@ impl CellGrid<'_> {
     ) -> CellSpace<'s, u32> {
         use craft_ui::contract::Collection as _;
         self.cell_space(CellSpace::new(order, self.model.columns().count()).hidden_rows(hidden_rows).hidden_columns(hidden_columns))
+    }
+
+    /// One arrow press: it moves the pointed reference of a formula, the caret of an edit, or the selection.
+    fn step_arrow(&self, state: &mut EditState, selection: &mut CellSelection<u32>, space: &CellSpace<'_, u32>, arrow: ArrowStep) {
+        let ArrowStep { direction, shift, jump, armed, rtl } = arrow;
+        let model = self.model;
+        let pointing = state.pointing();
+        let direction = match (rtl, direction) {
+            (true, CellDirection::Left) => CellDirection::Right,
+            (true, CellDirection::Right) => CellDirection::Left,
+            (_, direction) => direction,
+        };
+        if pointing {
+            let at = state.point.as_ref().map(|point| CellAt::new(point.range.last, point.range.lead_column)).or(state.cell);
+            let next = match at {
+                Some(at) if jump || armed => Some(model.data_edge(at, direction)),
+                Some(at) => space.neighbour(at, direction),
+                None => None,
+            };
+            if let Some(next) = next {
+                state.point_to(next, shift);
+            }
+        } else if state.mode == Mode::Edit {
+            let step = match direction {
+                CellDirection::Left => Some(craft_behavior::NavMove::Back),
+                CellDirection::Right => Some(craft_behavior::NavMove::Forward),
+                _ => None,
+            };
+            if let Some(step) = step {
+                let by = if jump { craft_behavior::Granularity::Word } else { craft_behavior::Granularity::Unit };
+                state.draft.apply(EditorInput::Move(step, craft_behavior::MoveMods::new(shift, false, by)));
+            }
+        } else if state.mode == Mode::Ready
+            && (jump || armed)
+            && let Some(active) = selection.active().copied()
+        {
+            let to = model.data_edge(active, direction);
+            if shift {
+                selection.extend_to(to, space);
+            } else {
+                selection.select(to, space);
+            }
+        }
+    }
+
+    /// The Ready-mode keys that jump the selection to the start or end of the data, change the sheet or take a whole
+    /// column or row.
+    fn ready_keys(
+        &self,
+        selection: &mut CellSelection<u32>,
+        space: &CellSpace<'_, u32>,
+        edits: &mut Vec<GridEdit>,
+        keys: ReadyKeys,
+        frozen_columns: u32,
+    ) {
+        let model = self.model;
+        if keys.cmd_home {
+            selection.select(CellAt::new(self.sheet_layout().first_navigable() as u32, frozen_columns), space);
+        }
+        if keys.cmd_end {
+            selection.select(model.last_used(), space);
+        }
+        if keys.next_sheet {
+            edits.push(GridEdit::NextSheet);
+        }
+        if keys.previous_sheet {
+            edits.push(GridEdit::PreviousSheet);
+        }
+        if let Some(active) = selection.active().copied() {
+            if keys.column_key
+                && let Some(range) = space.whole_columns(active.column, active.column)
+            {
+                selection.select_range(range, space);
+            }
+            if keys.row_key {
+                selection.select_range(space.whole_rows(active.row, active.row), space);
+            }
+        }
     }
 
     fn write_selection(&mut self, cx: &mut Cx<'_, Self>, before: &CellSelection<u32>, after: CellSelection<u32>, label: &str) {
@@ -131,45 +291,15 @@ impl CellGrid<'_> {
         let mut grab = cx.memory::<Option<Grab>>().clone();
         let mut preview = Preview::default();
 
-        let escape = cx.take_claimed(ESCAPE);
-        let advance = ADVANCES.iter().find_map(|&(chord, along, back)| cx.take_claimed(chord).then_some((along, back)));
-        let f2 = cx.take_claimed(F2);
-        let mut arrows = Vec::new();
-        for shift in [false, true] {
-            for (key, direction) in ARROWS {
-                if cx.take_claimed(Chord::new(mods(false, shift), key)) {
-                    arrows.push((direction, shift, false));
-                }
-                if cx.take_claimed(Chord::new(mods(true, shift), key)) {
-                    arrows.push((direction, shift, true));
-                }
-            }
-        }
-        let home = cx.take_claimed(HOME);
-        let cmd_home = cx.take_claimed(CMD_HOME);
-        let cmd_end = cx.take_claimed(CMD_END);
-        let end = cx.take_claimed(END);
-        let next_sheet = cx.take_claimed(NEXT_SHEET);
-        let previous_sheet = cx.take_claimed(PREVIOUS_SHEET);
-        let column_key = cx.take_claimed(COLUMN_KEY);
-        let row_key = cx.take_claimed(ROW_KEY);
+        let keys = ClaimedKeys::take(cx);
         let inputs: Vec<EditorInput> = cx.editor_input().collect();
+        // Any key other than an arrow or End, and any press, ends the mode.
+        let other_key = keys.ends_end_mode(!inputs.is_empty());
+        let ClaimedKeys { escape, advance, f2, arrows, home, end, ready } = keys;
         // End mode (Excel): a bare End toggles it in Ready mode and while pointing at a reference. The key stage hands
         // the bare End to a grid that declares `EndKey::EndMode` as a claimed chord; in an edit it moves the caret.
         let end_mode_allowed = state.mode == Mode::Ready || state.pointing();
         let end_mode_key = end && end_mode_allowed;
-        // Any key other than an arrow or End, and any press, ends the mode.
-        let other_key = escape
-            || advance.is_some()
-            || f2
-            || home
-            || cmd_home
-            || cmd_end
-            || next_sheet
-            || previous_sheet
-            || column_key
-            || row_key
-            || !inputs.is_empty();
         let armed = end_mode_allowed && state.end_mode;
         state.end_mode = if end_mode_key { !armed } else { armed && arrows.is_empty() && !other_key && !cx.press().went_down };
 
@@ -210,44 +340,8 @@ impl CellGrid<'_> {
                 state.open(cell, Mode::Edit, &model.cell_text(cell));
                 edits.push(GridEdit::BeginEdit { typed: None });
             }
-            let pointing = state.pointing();
             for &(direction, shift, jump) in &arrows {
-                let direction = match (rtl, direction) {
-                    (true, CellDirection::Left) => CellDirection::Right,
-                    (true, CellDirection::Right) => CellDirection::Left,
-                    (_, direction) => direction,
-                };
-                if pointing {
-                    let at = state.point.as_ref().map(|point| CellAt::new(point.range.last, point.range.lead_column)).or(state.cell);
-                    let next = match at {
-                        Some(at) if jump || armed => Some(model.data_edge(at, direction)),
-                        Some(at) => space.neighbour(at, direction),
-                        None => None,
-                    };
-                    if let Some(next) = next {
-                        state.point_to(next, shift);
-                    }
-                } else if state.mode == Mode::Edit {
-                    let step = match direction {
-                        CellDirection::Left => Some(craft_behavior::NavMove::Back),
-                        CellDirection::Right => Some(craft_behavior::NavMove::Forward),
-                        _ => None,
-                    };
-                    if let Some(step) = step {
-                        let by = if jump { craft_behavior::Granularity::Word } else { craft_behavior::Granularity::Unit };
-                        state.draft.apply(EditorInput::Move(step, craft_behavior::MoveMods::new(shift, false, by)));
-                    }
-                } else if state.mode == Mode::Ready
-                    && (jump || armed)
-                    && let Some(active) = selection.active().copied()
-                {
-                    let to = model.data_edge(active, direction);
-                    if shift {
-                        selection.extend_to(to, &space);
-                    } else {
-                        selection.select(to, &space);
-                    }
-                }
+                self.step_arrow(&mut state, &mut selection, &space, ArrowStep { direction, shift, jump, armed, rtl });
             }
             if state.mode != Mode::Ready && end && !state.pointing() {
                 state.draft.apply(EditorInput::Move(
@@ -263,26 +357,7 @@ impl CellGrid<'_> {
                 } else if home && let Some(active) = selection.active().copied() {
                     selection.select(CellAt::new(active.row, 0), &space);
                 }
-                if cmd_home {
-                    selection.select(CellAt::new(self.sheet_layout().first_navigable() as u32, frozen.1), &space);
-                }
-                if cmd_end {
-                    selection.select(model.last_used(), &space);
-                }
-                if next_sheet {
-                    edits.push(GridEdit::NextSheet);
-                }
-                if previous_sheet {
-                    edits.push(GridEdit::PreviousSheet);
-                }
-                if let Some(active) = selection.active().copied() {
-                    if column_key && let Some(range) = space.whole_columns(active.column, active.column) {
-                        selection.select_range(range, &space);
-                    }
-                    if row_key {
-                        selection.select_range(space.whole_rows(active.row, active.row), &space);
-                    }
-                }
+                self.ready_keys(&mut selection, &space, &mut edits, ready, frozen.1);
             }
             for input in inputs {
                 match (state.mode, input) {
@@ -400,10 +475,10 @@ impl CellGrid<'_> {
 
         if self.headings {
             let result = cx.part(CORNER).clone();
-            if result.press.phase.is_click() {
-                if let Some(all) = space.all() {
-                    selection.select_range(all, &space);
-                }
+            if result.press.phase.is_click()
+                && let Some(all) = space.all()
+            {
+                selection.select_range(all, &space);
             }
             for &column in &frame.columns {
                 let press = cx.part(COLUMN.at(u64::from(column))).press;

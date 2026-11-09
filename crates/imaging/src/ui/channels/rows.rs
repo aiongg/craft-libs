@@ -60,7 +60,7 @@ pub(super) fn channel_row<'r, K: Clone + Eq + Hash + Debug + Send + Sync + 'stat
     let row = &cx.rows[at];
     let words = cx.words;
     let tooltip = if matches!(row.kind, ChannelKind::LayerMask(_)) { &words.mask_overlay } else { &words.toggle_visibility };
-    let eye = ToggleCell::eye(EYE, row.visible).name(named(&Label::from(words.visibility.clone()), &row.name)).tooltip(tooltip.clone());
+    let eye = ToggleCell::eye(EYE, row.visible).name(named(&words.visibility.clone(), &row.name)).tooltip(tooltip.clone());
     let mut list_row = ListRow::new(row.name.clone()).layer(true).toggle(eye).italic(row.kind.italic());
     if !row.visible {
         list_row = list_row.description(words.hidden.as_str().to_owned());

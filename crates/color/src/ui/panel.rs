@@ -303,7 +303,6 @@ impl<'a> ColorPanel<'a> {
 
     /// The document's CMYK converter, for the CMYK sliders, the CMYK Spectrum ramp and the gamut warning; without it
     /// they use the built-in coated CMYK.
-    #[must_use]
     pub fn cmyk(mut self, converter: &'a CmykConverter) -> Self {
         self.cmyk = Some(converter);
         self
@@ -311,7 +310,6 @@ impl<'a> ColorPanel<'a> {
 
     /// Dynamic Color Sliders (PhotoCraft's interface preference, on by default): the slider tracks show the channel's
     /// colours with the other channels as they are. Off, the tracks keep the colours they had when a drag began.
-    #[must_use]
     pub fn dynamic_tracks(mut self, on: bool) -> Self {
         self.dynamic = on;
         self
@@ -558,7 +556,7 @@ impl Body<'_> {
     /// picker.
     fn wells(&mut self, ui: &mut Ui) {
         let was = if self.now.background { Well::Secondary } else { Well::Primary };
-        let mut active = was.clone();
+        let mut active = was;
         let wells = [PairWell::new(self.words.foreground.clone(), self.colors[0]), PairWell::new(self.words.background.clone(), self.colors[1])];
         let pair = SwatchPair::new(self.words.wells.clone(), wells, Bind::bound(&mut active)).popover(false).show(ui);
         self.now.background = active == Well::Secondary;
@@ -731,7 +729,7 @@ impl Body<'_> {
         let add = Row::new().align(RowAlign::End).show(ui, |ui, _| {
             IconButton::new(IconId::new("plus")).label(self.words.add_to_swatches.clone()).tooltip(self.words.create_swatch.clone()).show(ui)
         });
-        if add.inner.as_ref().is_some_and(|out| clicked(out)) {
+        if add.inner.as_ref().is_some_and(clicked) {
             self.add_to_swatches = Some(self.target);
         }
     }
@@ -749,7 +747,7 @@ impl Body<'_> {
         let ramp = ColorRamp::new(self.words.color_ramp.clone(), self.now.ramp.kind(), Bind::kept())
             .kind_name(self.now.ramp.label(self.words))
             .ends([self.colors[0], self.colors[1]])
-            .gamut(&gamut)
+            .gamut(gamut)
             .gamut_revision(hasher.finish())
             .web_safe(self.now.web_safe_ramp)
             .show(ui);

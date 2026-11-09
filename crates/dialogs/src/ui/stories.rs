@@ -52,9 +52,7 @@ fn file_list_picker_empty(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(FileListPicker<'static>, covers = [], drive = Drive::Never)]
 fn file_list_picker_folder(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let mut start = FileList::default();
-    start.mode = FileListMode::Folder;
-    start.folder = Some(PathBuf::from("/photos/trip"));
+    let start = FileList { mode: FileListMode::Folder, folder: Some(PathBuf::from("/photos/trip")), ..FileList::default() };
     let files = photos();
     FileListPicker::new("Files to load", Bind::bound(data.value("folder", start))).folder_mode(true).folder_files(&files).show(ui).into()
 }

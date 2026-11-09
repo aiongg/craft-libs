@@ -318,7 +318,7 @@ impl VanishingPointWorkspace {
             .show(ui, |ui, cx| {
                 let ctx = ui.ctx().clone();
                 let mut guard = this.borrow_mut();
-                let work: &mut VanishingPointWorkspace = &mut **guard;
+                let work: &mut VanishingPointWorkspace = &mut guard;
                 let mut state = std::mem::take(cx.keep::<VanishingView>());
                 let mut out = Vec::new();
 
@@ -408,7 +408,6 @@ impl VanishingPointWorkspace {
                         }
                     })
                     .inner;
-                drop(pass);
                 if let Some(pick) = chosen {
                     work.pick(&ctx, &state, pick, &mut out);
                 }

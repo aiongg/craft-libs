@@ -219,7 +219,7 @@ fn value_of(env: &Env, words: &SelectionWords, bounds: Option<MaskRect>, preview
         PreviewMode::WhiteMatte => &words.white_matte,
         PreviewMode::QuickMask => &words.quick_mask,
     };
-    words.with_mode.fill(&[("value", &base), ("mode", &mode.as_str().to_owned())])
+    words.with_mode.fill(&[("value", &base), ("mode", mode.as_str())])
 }
 
 /// The selection's content bounds in full-size document pixels (the whole canvas when the mask is selected outside its

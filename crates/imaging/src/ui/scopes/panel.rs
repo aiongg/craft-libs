@@ -367,7 +367,7 @@ impl<'a> ScopePanel<'a> {
         let env = Env::of(ui);
         let words = env.words::<ScopeWords>();
         let mut pass = Pass { panel: self, words, env, report: Report::default() };
-        let label = Label::from(pass.words.histogram.clone());
+        let label = pass.words.histogram.clone();
         let shown = Stack::new().label(label).command_scope(ScopeCommand::SCOPE).show(ui, |ui, cx| pass.rows(ui, cx));
         let Report { settings_changed, refresh, source_changed, channel_changed, zone, hovered_level, clipping_toggled } = pass.report;
         ScopePanelOutput {
@@ -455,7 +455,7 @@ impl Pass<'_> {
         let zoned = !self.panel.zones.is_empty();
         let stale = set.stale || set.cache_level > 1;
         let dark = matches!(shown, Shown::Colors(_));
-        let plot_label = Label::from(words.histogram.clone());
+        let plot_label = words.histogram.clone();
         let (markers, state) = (self.panel.markers, &mut *self.panel.state);
         let histogram = themed(ui, dark, |ui| {
             let mut histogram = Histogram::new(plot_label.clone(), &plot.data).value(value.clone()).markers(markers).height(PlotHeight::Standard);
@@ -463,7 +463,7 @@ impl Pass<'_> {
                 histogram = histogram.outline(outline);
             }
             if stale {
-                histogram = histogram.stale(StaleMark::Button(Label::from(words.refresh_hint.clone())));
+                histogram = histogram.stale(StaleMark::Button(words.refresh_hint.clone()));
             }
             // The selection and the zones both take the plot's drags and keys: with zones there is no selection.
             if zoned { histogram.show(ui) } else { histogram.selection(Bind::bound(&mut state.range)).show(ui) }
@@ -488,7 +488,7 @@ impl Pass<'_> {
         if settings.vectorscope
             && let Some(vectorscope) = frame.vectorscope.as_ref()
         {
-            let label = Label::from(words.vectorscope.clone());
+            let label = words.vectorscope.clone();
             let plot = themed(ui, true, |ui| {
                 VectorscopePlot::new(label.clone(), vectorscope).red_right(settings.red_right).skin_tone(settings.skin_tone).show(ui)
             });

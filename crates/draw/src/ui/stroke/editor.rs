@@ -484,7 +484,7 @@ fn choice<T: Value + 'static>(
         .iter()
         .map(|(item, icon, name)| {
             let entry = Entry::new(item.clone(), (*name).clone());
-            if icons { entry.icon(IconSpec::svg(IconId::new(*icon))) } else { entry }
+            if icons { entry.icon(IconSpec::svg(IconId::new(icon))) } else { entry }
         })
         .collect();
     let mut event = None;

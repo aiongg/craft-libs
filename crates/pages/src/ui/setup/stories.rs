@@ -18,9 +18,7 @@ fn page_setup(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(PageSetupDialog<'static>, covers = [], drive = Drive::Never)]
 fn document_setup(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let mut start = PageSetup::default();
-    start.pages = Some(8);
-    start.mirrored = true;
+    let start = PageSetup { pages: Some(8), mirrored: true, ..PageSetup::default() };
     let setup = data.value("setup", start);
     PageSetupDialog::new(Bind::bound(setup)).document_setup().unit(UnitKind::Millimetres).opened(Bind::given(true)).show(ui);
     StoryOutput::default()

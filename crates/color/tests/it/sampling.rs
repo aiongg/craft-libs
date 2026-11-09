@@ -13,7 +13,7 @@ use craft_color::ui::{
 };
 use craft_theme::Srgba;
 use craft_ui::canvas::{CanvasSpace, CanvasTool, ToolAction, ToolContext, ToolPointer};
-use craft_ui::contract::{Bind, Show as _};
+use craft_ui::contract::Bind;
 use craft_ui::dialog::{DialogResult, DialogStack, StackDialog as _};
 use craft_ui::testing::{Fixture, ToolFixture, trial};
 use egui::{Context, Key, Modifiers, Pos2, Rect, vec2};

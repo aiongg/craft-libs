@@ -191,7 +191,7 @@ impl<'a> LevelsPanel<'a> {
                 }
                 next
             };
-            let mut event = shown_edit.edit.event.map(|event| event.map(&mapped));
+            let mut event = shown_edit.edit.event.map(|event| event.map(mapped));
             if let (true, Some(counts)) = (auto, counts) {
                 let set = EditEvent::set(Mixed::Same(all.clone()), mapped(value.auto(counts)), Arc::from("Auto"), None);
                 event = Some(set);

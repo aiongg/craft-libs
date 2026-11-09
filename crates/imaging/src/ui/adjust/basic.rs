@@ -74,7 +74,6 @@ impl<'a> BrightnessContrastEditor<'a> {
     }
 
     /// Dialog or Properties panel; a dialog by default.
-    #[must_use]
     pub fn context(mut self, context: AdjustContext) -> Self {
         self.context = context;
         self
@@ -144,14 +143,12 @@ impl<'a> ThresholdEditor<'a> {
     }
 
     /// The image's histogram; an empty plot without it.
-    #[must_use]
     pub fn histogram(mut self, data: &'a HistogramData) -> Self {
         self.histogram = Some(data);
         self
     }
 
     /// Dialog or Properties panel; a dialog by default.
-    #[must_use]
     pub fn context(mut self, context: AdjustContext) -> Self {
         self.context = context;
         self
@@ -310,14 +307,12 @@ impl<'a> ColorBalanceEditor<'a> {
     }
 
     /// The tone shown, kept by the host.
-    #[must_use]
     pub fn tone(mut self, tone: ColorBalanceTone) -> Self {
         self.tone = Some(tone);
         self
     }
 
     /// Dialog or Properties panel; a dialog by default.
-    #[must_use]
     pub fn context(mut self, context: AdjustContext) -> Self {
         self.context = context;
         self
@@ -601,7 +596,6 @@ impl<'a> PhotoFilterEditor<'a> {
     }
 
     /// Dialog or Properties panel; a dialog by default.
-    #[must_use]
     pub fn context(mut self, context: AdjustContext) -> Self {
         self.context = context;
         self

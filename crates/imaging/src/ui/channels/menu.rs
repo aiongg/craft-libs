@@ -335,11 +335,11 @@ pub fn panel_rows<K>(rows: &[ChannelRow<K>], words: &ChannelsWords) -> Vec<Panel
             Plan::Command(c) => out.push(command(c)),
             Plan::Separator => out.push(PanelRow::Separator),
             Plan::Colors => out.push(PanelRow::Submenu(
-                words.overlay_color.clone().into(),
+                words.overlay_color.clone(),
                 OverlayPreset::ALL.iter().map(|preset| command(ChannelsCommands::of_preset(*preset))).collect(),
             )),
             Plan::Opacities => out.push(PanelRow::Submenu(
-                words.overlay_opacity.clone().into(),
+                words.overlay_opacity.clone(),
                 OVERLAY_OPACITIES.iter().filter_map(|percent| ChannelsCommands::of_opacity(*percent)).map(command).collect(),
             )),
         }
@@ -382,7 +382,7 @@ fn label_of(command: ChannelsCommands, kind: Option<ChannelKind>, words: &Channe
         C::SaveSelection => &words.save_selection,
         _ => &words.row_menu,
     };
-    word.clone().into()
+    word.clone()
 }
 
 /// The command a row menu run picked, from its entries.

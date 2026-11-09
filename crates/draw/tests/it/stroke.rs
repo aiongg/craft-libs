@@ -26,7 +26,7 @@ fn editor(style: StrokeStyle, configure: Configure) -> (Fixture, Rc<RefCell<Stro
     let held = Rc::clone(&value);
     let mut fixture = Fixture::new(move |ui| {
         let mut style = held.borrow_mut();
-        configure(StrokeEditor::new("Stroke", Bind::bound(&mut *style))).show(ui);
+        let _ = configure(StrokeEditor::new("Stroke", Bind::bound(&mut *style))).show(ui);
     });
     fixture.settle();
     (fixture, value)

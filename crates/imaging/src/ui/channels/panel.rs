@@ -147,7 +147,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> ChannelsPanel<'a,
 
         let shown = Stack::new()
             .fill()
-            .label(Label::from(words.list.clone()))
+            .label(words.list.clone())
             .command_scope(<ChannelsCommands as craft_ui::contract::CommandSet>::SCOPE)
             .footer(|ui, _| {
                 let out = show_footer(ui, rows, &words, list);
@@ -258,12 +258,10 @@ fn map_events<K: Clone + PartialEq>(
             }
             CollectionEvent::Activate(key) if kind_of(&key).is_some_and(ChannelKind::has_options) => events.push(ChannelsEvent::Options(key)),
             CollectionEvent::Toggle(edit) => events.extend(session.eyes.feed(&edit).map(ChannelsEvent::Visibility)),
-            CollectionEvent::Rename(edit) => {
-                if let EditEvent::Commit { after, .. } | EditEvent::Set { after, .. } = edit {
-                    let name = after.name.trim();
-                    if !name.is_empty() && rows.iter().find(|row| row.key == after.key).is_some_and(|row| row.name != name) {
-                        events.push(ChannelsEvent::Rename { key: after.key.clone(), text: name.to_owned() });
-                    }
+            CollectionEvent::Rename(EditEvent::Commit { after, .. } | EditEvent::Set { after, .. }) => {
+                let name = after.name.trim();
+                if !name.is_empty() && rows.iter().find(|row| row.key == after.key).is_some_and(|row| row.name != name) {
+                    events.push(ChannelsEvent::Rename { key: after.key.clone(), text: name.to_owned() });
                 }
             }
             CollectionEvent::Reorder(edit) => events.push(ChannelsEvent::Reorder(edit)),

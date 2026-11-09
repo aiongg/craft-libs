@@ -80,7 +80,6 @@ impl<'a> ColorPopover<'a> {
 
     /// Sets up the picker in the popover (alpha, eyedropper, constraint, models): `setup` gets the Compact picker the
     /// popover made.
-    #[must_use]
     pub fn picker(mut self, setup: impl for<'b> FnOnce(ColorPicker<'b>) -> ColorPicker<'b> + 'a) -> Self {
         self.setup = Some(Box::new(setup));
         self
@@ -88,7 +87,6 @@ impl<'a> ColorPopover<'a> {
 
     /// Hangs the popover from `opener`, which the caller drew, and opens it while `open` is true. The caller opens it
     /// on the opener's click and closes it by writing `false`.
-    #[must_use]
     pub fn anchor(mut self, opener: &Response, open: Bind<'a, bool>) -> Self {
         self.anchor = Some((opener.clone(), open));
         self

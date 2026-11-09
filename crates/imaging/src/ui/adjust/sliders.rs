@@ -168,7 +168,6 @@ impl<'a> AdjustSliders<'a> {
     }
 
     /// Dialog or Properties panel; a dialog by default.
-    #[must_use]
     pub fn context(mut self, context: AdjustContext) -> Self {
         self.context = context;
         self

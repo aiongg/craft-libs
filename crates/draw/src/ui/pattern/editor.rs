@@ -21,9 +21,11 @@ use egui::{Rect, Response, Ui};
 /// The angle of the dial runs over half a turn each way.
 const ANGLE_RANGE: std::ops::RangeInclusive<f64> = -180.0..=180.0;
 
+type SwatchPaintFn = Arc<dyn Fn(&ContentPainterCx<'_>, Rect, &PatternSwatch) + Send + Sync>;
+
 /// The host's painter of a swatch's tile, shared with the preset rows that paint it.
 #[derive(Clone)]
-pub struct SwatchPainter(Arc<dyn Fn(&ContentPainterCx<'_>, Rect, &PatternSwatch) + Send + Sync>);
+pub struct SwatchPainter(SwatchPaintFn);
 
 impl SwatchPainter {
     pub(super) fn new(paint: impl Fn(&ContentPainterCx<'_>, Rect, &PatternSwatch) + Send + Sync + 'static) -> Self {
@@ -84,7 +86,6 @@ impl<'a> PatternFillEditor<'a> {
     }
 
     /// Paints a swatch's tile into a rect (the picker's field and cells, the preset grid).
-    #[must_use]
     pub fn thumbnails(mut self, paint: impl Fn(&ContentPainterCx<'_>, Rect, &PatternSwatch) + Send + Sync + 'static) -> Self {
         self.thumbnails = Some(SwatchPainter::new(paint));
         self

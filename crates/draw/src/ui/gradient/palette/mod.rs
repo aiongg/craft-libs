@@ -102,6 +102,7 @@ impl GradientRef {
 /// - AccessKit: Grid is a `Group` named `label` with `Button` cells; List is a `ListBox` of
 ///   `ListBoxOption`s with `selected` on the chosen one. Cells carry their place and the set's
 ///   size. A screen reader's Focus action on a cell moves the palette's stop to it.
+///
 /// What the palette reports.
 #[derive(Debug)]
 #[non_exhaustive]

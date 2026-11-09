@@ -99,8 +99,8 @@ enum Phase {
 fn event(d: &Drag, phase: Phase) -> Option<ConnectorEvent> {
     Some(ConnectorEvent::Draw(match phase {
         Phase::Begin => EditEvent::begin(d.id, Mixed::Mixed, Arc::clone(&d.label), None),
-        Phase::Update => EditEvent::update(d.id, d.value.clone()?),
-        Phase::Commit => EditEvent::commit(d.id, Mixed::Mixed, d.value.clone()?),
+        Phase::Update => EditEvent::update(d.id, Box::new(d.value.clone()?)),
+        Phase::Commit => EditEvent::commit(d.id, Mixed::Mixed, Box::new(d.value.clone()?)),
         Phase::Cancel(reason) => EditEvent::cancel(d.id, reason, None),
     }))
 }

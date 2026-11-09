@@ -625,12 +625,13 @@ impl<P: Clone + Send + Sync + 'static> GradientBar<'_, P> {
         }
         if let Some(m) = self.selected_marker.filter(|m| geo.valid(&stops, *m)) {
             let removed = [true, false].into_iter().any(|forward| cx.intents().take_exact(&Intent::delete(forward, Granularity::Unit)));
-            if removed && m.is_stop() {
-                if let Some((out, j)) = stops::remove(&stops, m.row(), m.index(), &self.rules) {
-                    stops = out;
-                    self.choose(Some(StopRef::stop(m.row(), j)));
-                    cx.focus_part(part_of(StopRef::stop(m.row(), j)));
-                }
+            if removed
+                && m.is_stop()
+                && let Some((out, j)) = stops::remove(&stops, m.row(), m.index(), &self.rules)
+            {
+                stops = out;
+                self.choose(Some(StopRef::stop(m.row(), j)));
+                cx.focus_part(part_of(StopRef::stop(m.row(), j)));
             }
         }
         while let Some((dir, mods)) = cx.intents().take_nudge() {

@@ -266,10 +266,11 @@ pub(super) fn popup<'a>(picker: &mut FontPicker<'a>, ui: &mut OverlayUi<'_>, cx:
         }
         write(&mut picker.settings, cx, changed, "Favorite font");
     }
-    if has_filters && filters != Some(narrowing) {
-        if let Some(filters) = filters {
-            write(&mut picker.filters, cx, filters, "Font filters");
-        }
+    if has_filters
+        && filters != Some(narrowing)
+        && let Some(filters) = filters
+    {
+        write(&mut picker.filters, cx, filters, "Font filters");
     }
     if let Some(Slot::Family(row)) = picked.and_then(|key| slots.get(key)) {
         picker.picked = Some(row.family.clone());

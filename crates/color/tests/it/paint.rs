@@ -14,7 +14,9 @@ use egui::{Id, Key, Modifiers};
 
 const FALLBACK: Srgba = Srgba::rgb(0.2, 0.4, 0.8);
 
-fn chip_rig(paint: Paint, gradient: bool, images: bool) -> (Fixture, Rc<RefCell<Paint>>, Rc<Cell<Option<Id>>>) {
+type ChipRig = (Fixture, Rc<RefCell<Paint>>, Rc<Cell<Option<Id>>>);
+
+fn chip_rig(paint: Paint, gradient: bool, images: bool) -> ChipRig {
     let state = Rc::new(RefCell::new(paint));
     let (shared, root) = (state.clone(), Rc::new(Cell::new(None)));
     let id = root.clone();
@@ -73,7 +75,9 @@ struct PairSeen {
     open: Option<Well>,
 }
 
-fn pair_rig(popover: bool, click_activates: bool) -> (Fixture, Rc<Cell<PairSeen>>, Rc<Cell<Option<Id>>>) {
+type PairRig = (Fixture, Rc<Cell<PairSeen>>, Rc<Cell<Option<Id>>>);
+
+fn pair_rig(popover: bool, click_activates: bool) -> PairRig {
     let seen = Rc::new(Cell::new(PairSeen::default()));
     let root = Rc::new(Cell::new(None));
     let (shared, id) = (seen.clone(), root.clone());

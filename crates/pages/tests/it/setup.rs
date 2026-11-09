@@ -68,8 +68,10 @@ fn header_and_footer_distances_bound_the_margins() {
     assert_eq!(clamp_margin(MarginEdge::Left, f64::NAN, &rules).points, 72.0, "a value that is not a number leaves the edge");
 }
 
+type DialogRig = (Fixture, Rc<RefCell<PageSetup>>, Rc<RefCell<Option<PageSetup>>>);
+
 /// A page setup dialog over `setup`, with the setup it edits and the setup OK answered.
-fn dialog(setup: PageSetup) -> (Fixture, Rc<RefCell<PageSetup>>, Rc<RefCell<Option<PageSetup>>>) {
+fn dialog(setup: PageSetup) -> DialogRig {
     let edited = Rc::new(RefCell::new(setup));
     let answered = Rc::new(RefCell::new(None));
     let (seen_edited, seen_answered) = (Rc::clone(&edited), Rc::clone(&answered));
@@ -274,12 +276,14 @@ fn from_and_to_stay_inside_the_document_and_in_order() {
     assert_eq!((range.borrow().from, range.borrow().to), (2, Some(2)), "the start follows an end before it");
 }
 
+type ZonesRig = (Fixture, Rc<RefCell<(Option<ZoneAt>, bool)>>);
+
 /// The header and footer zones of one page, the zone being edited, and what the zones last reported.
-fn zones_rig() -> (Fixture, Rc<RefCell<(Option<ZoneAt>, bool)>>) {
+fn zones_rig() -> ZonesRig {
     zones_rig_editing(Some(ZoneAt::new(0, Zone::new(true, 2))))
 }
 
-fn zones_rig_editing(editing: Option<ZoneAt>) -> (Fixture, Rc<RefCell<(Option<ZoneAt>, bool)>>) {
+fn zones_rig_editing(editing: Option<ZoneAt>) -> ZonesRig {
     let reported = Rc::new(RefCell::new((None, false)));
     let seen = Rc::clone(&reported);
     let mut fixture = Fixture::new(move |ui| {

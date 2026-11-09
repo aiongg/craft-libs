@@ -101,7 +101,7 @@ where
     let user_order = sort.is_none() && !searching;
     let rows = Rows(build_rows(model, state, sort.as_ref(), collator));
     let thumb = state.settings.thumbnails;
-    let specs = columns_of(columns, &state.settings.widths, Label::from(words.name.clone()));
+    let specs = columns_of(columns, &state.settings.widths, words.name.clone());
     let value_columns: Vec<ColumnKey> = specs.iter().map(|spec| spec.key.clone()).filter(|key| *key != NAME).collect();
     let mods = craft_ui::runtime::pointer::frame(ui.ctx()).mods;
     if let Some(key) = rename {
@@ -129,7 +129,7 @@ where
         .rows_stamp(stamp)
         .empty(empty)
         .reorder(ReorderRule::new().into_groups())
-        .accepts(&accepts);
+        .accepts(accepts);
     let out = table.show_items(ui, &rows, &mut |key, icx| {
         let row = &rows.0[icx.at];
         let item = item_of(model, key);

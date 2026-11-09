@@ -367,11 +367,10 @@ impl Component for SwatchPair<'_> {
             && let Some(part) = cx.active_part()
             && part.key == WELL
             && let Some(well) = part.index.map(Well::of)
+            && well != active
         {
-            if well != active {
-                cx.set(well);
-                self.activated = true;
-            }
+            cx.set(well);
+            self.activated = true;
         }
     }
 

@@ -116,7 +116,8 @@ impl Document {
     /// The layer's textures, built once per layer size: `MockImage` at every mip level, each level
     /// below the first tinted.
     pub(crate) fn textures(&self) -> Arc<PreviewTextures> {
-        static KEPT: OnceLock<Mutex<Vec<([u32; 2], Arc<PreviewTextures>)>>> = OnceLock::new();
+        type Kept = Mutex<Vec<([u32; 2], Arc<PreviewTextures>)>>;
+        static KEPT: OnceLock<Kept> = OnceLock::new();
         let size = self.layer_size();
         let mut kept = KEPT.get_or_init(Mutex::default).lock().unwrap_or_else(PoisonError::into_inner);
         if let Some((_, textures)) = kept.iter().find(|(s, _)| *s == size) {

@@ -249,11 +249,11 @@ impl<'a> ArtboardOverlay<'a> {
                         }
                     }
                     PressPhase::Release { pos, .. } => {
-                        if let Held::Resize { index, rect, handle, run } = std::mem::take(&mut held) {
-                            if run.began() {
-                                let now = resize_to(&space.view, rect, handle, pos, press.mods, &snapping(press.mods));
-                                self.events.extend(run.commit(now).into_iter().map(|event| ArtboardEvent::Resize { index, event }));
-                            }
+                        if let Held::Resize { index, rect, handle, run } = std::mem::take(&mut held)
+                            && run.began()
+                        {
+                            let now = resize_to(&space.view, rect, handle, pos, press.mods, &snapping(press.mods));
+                            self.events.extend(run.commit(now).into_iter().map(|event| ArtboardEvent::Resize { index, event }));
                         }
                         live = false;
                     }

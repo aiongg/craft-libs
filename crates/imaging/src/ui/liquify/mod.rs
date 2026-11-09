@@ -371,7 +371,7 @@ impl LiquifyWorkspace {
             .buttons([FooterButton::new(common.ok.clone(), DialogRole::Accept), FooterButton::new(common.cancel.clone(), DialogRole::Cancel)])
             .sides(|ui, _| {
                 let mut guard = this.borrow_mut();
-                let work: &mut LiquifyWorkspace = &mut **guard;
+                let work: &mut LiquifyWorkspace = &mut guard;
                 let Some(panel) = FullWindowSide::new(words.properties.clone())
                     .show(ui, |ui, _| LiquifyPanel::new(Bind::bound(&mut work.edit.settings)).layers(&layers).show(ui))
                     .inner
@@ -395,7 +395,7 @@ impl LiquifyWorkspace {
             .show(ui, |ui, cx| {
                 let ctx = ui.ctx().clone();
                 let mut guard = this.borrow_mut();
-                let work: &mut LiquifyWorkspace = &mut **guard;
+                let work: &mut LiquifyWorkspace = &mut guard;
                 let state = &mut work.view;
                 state.canvas.navigate(work.navigation);
                 while let Some((command, _)) = cx.take_command::<ViewCommands>() {
@@ -489,7 +489,7 @@ impl LiquifyWorkspace {
         // Once per pass, after the real run: what the canvas reported is stored and its events absorbed.
         shown.settle(|_, canvas| {
             let mut guard = this.borrow_mut();
-            let work: &mut LiquifyWorkspace = &mut **guard;
+            let work: &mut LiquifyWorkspace = &mut guard;
             if let Some((id, cursor)) = canvas.take() {
                 work.view.canvas_id = Some(id);
                 work.cursor = cursor;

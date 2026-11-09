@@ -173,8 +173,10 @@ pub fn contour_rows(presets: &[Contour], user: &[Contour], words: &ContourWords,
     presets.chain(user).collect()
 }
 
+type SamplerFn = dyn Fn(&[[f32; 2]]) -> Vec<f32> + Send + Sync;
+
 /// A thumbnail of a contour: its curve over a well.
-fn paint_thumbnail(painter: &ContentPainterCx<'_>, rect: Rect, curve: &Curve, sampler: Option<&(dyn Fn(&[[f32; 2]]) -> Vec<f32> + Send + Sync)>) {
+fn paint_thumbnail(painter: &ContentPainterCx<'_>, rect: Rect, curve: &Curve, sampler: Option<&SamplerFn>) {
     painter.surface(rect, SurfaceKind::Sunken, Corners::None);
     let Curve::Points { points, corners } = curve else { return };
     let outputs = Curve::through(points, corners, |points| match sampler {
@@ -234,14 +236,12 @@ impl<'a> ContourField<'a> {
     }
 
     /// The user's contours, the targets of [`ContourKey::User`].
-    #[must_use]
     pub fn user(mut self, user: &'a [Contour]) -> Self {
         self.user = user;
         self
     }
 
     /// Shows the Anti-aliased check box over `anti_alias`; `None` in the binding hides it.
-    #[must_use]
     pub fn anti_alias(mut self, anti_alias: Bind<'a, Option<bool>>) -> Self {
         self.anti_alias = Some(anti_alias);
         self

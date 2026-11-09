@@ -511,7 +511,7 @@ fn item_named(fixture: &Fixture, name: &str) -> Target {
     fixture
         .by_role(Role::TREE_ITEM)
         .into_iter()
-        .find(|item| fixture.tree().name_of(item.node).as_deref() == Some(name))
+        .find(|item| fixture.tree().name_of(item.node) == Some(name))
         .unwrap_or_else(|| panic!("no list item named {name:?}"))
 }
 
@@ -531,7 +531,8 @@ fn smart_filter_rig(size: ThumbSize) -> Fixture {
 /// thumbnail, which paints no node of its own.
 #[trial]
 fn the_smart_filters_header_holds_the_shared_mask_thumbnail() {
-    for size in [ThumbSize::Medium] {
+    {
+        let size = ThumbSize::Medium;
         let fixture = smart_filter_rig(size);
         let height = |name: &str| item_named(&fixture, name).rect.height();
         let (header, filter, layer) = (height("Smart Filters"), height("Gaussian Blur"), height("Styled"));

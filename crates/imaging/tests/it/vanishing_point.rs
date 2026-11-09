@@ -319,7 +319,7 @@ fn a_command_drag_tears_off_a_plane_and_the_far_edge_sets_depth_or_angle() {
 
     // Alt on the far edge node turns the plane about the edge instead.
     let far = bottom + Vec2::new(0.0, HALF.y * 2.0);
-    let turned = bottom + Vec2::new(-HALF.y * 2.0 * 0.7071, HALF.y * 2.0 * 0.7071);
+    let turned = bottom + Vec2::new(-HALF.y * 2.0 * std::f32::consts::FRAC_1_SQRT_2, HALF.y * 2.0 * std::f32::consts::FRAC_1_SQRT_2);
     fixture.hold(Modifiers::ALT);
     drag(&mut fixture, far, turned);
     fixture.hold(Modifiers::NONE);

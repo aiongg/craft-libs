@@ -36,6 +36,7 @@ const BACKDROP: PartKey = PartKey::new("laneBackdrop");
 /// A clip's body wins over the backdrop behind it, and the backdrop wins over the row's own root shape.
 const CLIP_PRIORITY: HitPriority = HitPriority::new(HitLevel::Body, 2);
 const BACKDROP_PRIORITY: HitPriority = HitPriority::new(HitLevel::Body, 1);
+/// The clip's body.
 pub const CLIP: PartKey = PartKey::new("clip");
 /// The start edge of the clip.
 pub const CLIP_START: PartKey = PartKey::new("clipStart");
@@ -112,10 +113,12 @@ pub fn thumbnail_tiles(mode: ThumbnailMode, x0: f32, x1: f32, tile_width: f32, v
     tiles.into_iter().filter(|(x, _)| shown(*x)).collect()
 }
 
+type ClipContentFn<'a> = Rc<dyn Fn(&ContentPainterCx<'_>, Rect, Rect, &ClipInfo<'_>) + 'a>;
+
 /// Paints a clip's content (thumbnails, waveform, fades): called with the painter, the clip's whole body, the part of
 /// the body inside the lane (clip the painter to it) and the clip.
 #[derive(Clone)]
-pub struct ClipContent<'a>(Rc<dyn Fn(&ContentPainterCx<'_>, Rect, Rect, &ClipInfo<'_>) + 'a>);
+pub struct ClipContent<'a>(ClipContentFn<'a>);
 
 impl<'a> ClipContent<'a> {
     /// The content that `paint` draws.

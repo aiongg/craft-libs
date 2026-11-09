@@ -285,7 +285,6 @@ impl<'a> TextStylesPanel<'a> {
     }
 
     /// The style at the type target (the selection's start, or the edited layer) and whether the text overrides it.
-    #[must_use]
     pub fn current(mut self, id: Option<u64>, overridden: bool) -> Self {
         self.current = id;
         self.overridden = overridden;
@@ -341,10 +340,10 @@ impl<'a> TextStylesPanel<'a> {
                 if dropped.is_some() {
                     action.set(dropped);
                 }
-            } else if let Some(command) = bar.picked.and_then(|at| FOOTER.get(at)) {
-                if let Some(found) = facts.action(*command) {
-                    action.set(Some(found));
-                }
+            } else if let Some(command) = bar.picked.and_then(|at| FOOTER.get(at))
+                && let Some(found) = facts.action(*command)
+            {
+                action.set(Some(found));
             }
         };
 

@@ -228,7 +228,7 @@ impl UpdatePromptDialog {
         // answer with it.
         let initial = if enabled { Initial::Default } else { Initial::Keep };
         let (status, installing, release, icon) = (&self.status, self.installing, &self.release, &self.icon);
-        let installing_label = Label::from(words.installing.clone());
+        let installing_label = words.installing.clone();
         let shown = Dialog::prompt(words.available_title.clone())
             .buttons(buttons)
             .initial_focus(initial)
@@ -408,11 +408,11 @@ impl UpdateCheckDialog {
             .iter()
             .map(|(choice, role)| {
                 let label: Label = match choice {
-                    CheckChoice::Close => ok.clone().into(),
-                    CheckChoice::CheckNow => words.check_now.clone().into(),
-                    CheckChoice::CheckAgain => words.check_again.clone().into(),
-                    CheckChoice::Update => words.update_and_restart.clone().into(),
-                    CheckChoice::Download => words.download.clone().into(),
+                    CheckChoice::Close => ok.clone(),
+                    CheckChoice::CheckNow => words.check_now.clone(),
+                    CheckChoice::CheckAgain => words.check_again.clone(),
+                    CheckChoice::Update => words.update_and_restart.clone(),
+                    CheckChoice::Download => words.download.clone(),
                 };
                 FooterButton::new(label, *role).enabled(self.answerable(*choice))
             })
@@ -422,7 +422,7 @@ impl UpdateCheckDialog {
         let notes = self.notes_url().map(str::to_owned);
         let version = self.available.as_ref().map(Release::version_label);
         let (status, running, message, installing, icon) = (&self.status, &self.running_version, &self.message, self.installing, &self.icon);
-        let installing_label = Label::from(words.installing.clone());
+        let installing_label = words.installing.clone();
         let shown = Dialog::prompt(words.check_title.clone())
             .buttons(buttons)
             .initial_focus(initial)
@@ -452,7 +452,7 @@ impl UpdateCheckDialog {
                     }
                     subject.head(ui, &words, icon, &format!("v{running}"));
                     match status {
-                        Status::Checking => busy(ui, &Label::from(words.checking.clone())),
+                        Status::Checking => busy(ui, &words.checking.clone()),
                         Status::UpToDate => {
                             Text::new(words.up_to_date.fill(&[("app", subject.name), ("running", running)])).show(ui);
                         }

@@ -170,9 +170,7 @@ impl Component for ConstraintLines<'_> {
         for index in 0..count {
             let part = CONSTRAINT.at(index as u64);
             let Some(result) = cx.part_if_declared(part) else { continue };
-            if context_click(&result.press).is_some() {
-                self.context = Some(index);
-            } else if cx.active_part() == Some(part) && cx.intents().take(Intent::ContextMenu) {
+            if context_click(&result.press).is_some() || (cx.active_part() == Some(part) && cx.intents().take(Intent::ContextMenu)) {
                 self.context = Some(index);
             }
         }

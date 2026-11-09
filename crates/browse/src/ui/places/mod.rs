@@ -125,8 +125,10 @@ craft_ui::words! {
     }
 }
 
+type RowMenuFn<'a> = Box<dyn Fn(&Path) -> Vec<Entry<String>> + 'a>;
+
 /// The host's entries for a folder row's menu.
-pub struct RowMenu<'a>(Box<dyn Fn(&Path) -> Vec<Entry<String>> + 'a>);
+pub struct RowMenu<'a>(RowMenuFn<'a>);
 
 impl<'a> RowMenu<'a> {
     /// The menu that asks `menu` for the entries of a folder.
@@ -648,10 +650,10 @@ impl MenuRows<'_> {
                 for entry in self.host {
                     if entry.is_separator() {
                         Divider::horizontal().show(ui);
-                    } else if let Some(command) = entry.value() {
-                        if MenuItem::new(entry.label().clone()).enabled(entry.is_enabled()).show(ui).ran {
-                            ran.push(Command::Host { path: path.clone(), command: command.clone() });
-                        }
+                    } else if let Some(command) = entry.value()
+                        && MenuItem::new(entry.label().clone()).enabled(entry.is_enabled()).show(ui).ran
+                    {
+                        ran.push(Command::Host { path: path.clone(), command: command.clone() });
                     }
                 }
             }

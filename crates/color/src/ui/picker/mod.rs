@@ -338,7 +338,6 @@ impl<'a> ColorPicker<'a> {
 
     /// The models offered, in order, the host's own among them; the built-in models on by default in the layout
     /// without it.
-    #[must_use]
     pub fn models(mut self, models: impl IntoIterator<Item = &'a dyn ColorModel>) -> Self {
         self.models = Some(models.into_iter().collect());
         self
@@ -346,7 +345,6 @@ impl<'a> ColorPicker<'a> {
 
     /// The warnings beside the Full layout's compare swatch (out-of-gamut and web-colour warnings); a click on one
     /// sets its nearest passing colour. The host gives this pass's warnings for the colour it shows.
-    #[must_use]
     pub fn warnings(mut self, warnings: impl IntoIterator<Item = ColorWarning>) -> Self {
         self.warnings = warnings.into_iter().collect();
         self

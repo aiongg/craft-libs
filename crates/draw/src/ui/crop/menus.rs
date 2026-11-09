@@ -205,16 +205,16 @@ impl<'a> CropOptionsMenu<'a> {
             Popover::new(words.options.clone(), Bind::bound(open)).opened_by(&button).show(ui, |ui, cx| {
                 let shield = &mut settings.shield;
                 let detail = |key: Key| SideLabel::new().layout(FieldLayout::After).detail(chord_text(Mods::NONE, key));
-                cx.labelled(ui, "classic", words.classic_mode.clone().into(), detail(Key::P), Checkbox::new(Bind::bound(&mut shield.classic_mode)));
+                cx.labelled(ui, "classic", words.classic_mode.clone(), detail(Key::P), Checkbox::new(Bind::bound(&mut shield.classic_mode)));
                 // Classic Mode greys the other two out; Show Cropped Area then shows as on, which is how it acts.
                 let classic = shield.classic_mode;
                 let mut forced = true;
                 let area = if classic { Bind::bound(&mut forced) } else { Bind::bound(&mut shield.show_cropped_area) };
-                cx.labelled(ui, "area", words.show_cropped_area.clone().into(), detail(Key::H), Checkbox::new(area).enabled(!classic));
+                cx.labelled(ui, "area", words.show_cropped_area.clone(), detail(Key::H), Checkbox::new(area).enabled(!classic));
                 cx.labelled(
                     ui,
                     "center",
-                    words.auto_center.clone().into(),
+                    words.auto_center.clone(),
                     SideLabel::new().layout(FieldLayout::After),
                     Checkbox::new(Bind::bound(&mut shield.auto_center_preview)).enabled(!classic),
                 );
@@ -222,7 +222,7 @@ impl<'a> CropOptionsMenu<'a> {
                 cx.labelled(
                     ui,
                     "shield",
-                    words.shield.clone().into(),
+                    words.shield.clone(),
                     SideLabel::new().layout(FieldLayout::After),
                     Checkbox::new(Bind::bound(&mut shield.enabled)),
                 );
@@ -232,8 +232,8 @@ impl<'a> CropOptionsMenu<'a> {
                     Row::new().show(ui, |ui, _| {
                         let group = RadioGroup::new(words.color_name.clone(), Bind::bound(&mut color)).show(ui, |ui, cx| {
                             let after = SideLabel::new().layout(FieldLayout::After);
-                            cx.labelled(ui, 0u8, words.match_canvas.clone().into(), after.clone(), Radio::new(ShieldColor::MatchCanvas));
-                            let custom = cx.labelled(ui, 1u8, words.custom.clone().into(), after, Radio::new(ShieldColor::Custom));
+                            cx.labelled(ui, 0u8, words.match_canvas.clone(), after.clone(), Radio::new(ShieldColor::MatchCanvas));
+                            let custom = cx.labelled(ui, 1u8, words.custom.clone(), after, Radio::new(ShieldColor::Custom));
                             clicked(&custom)
                         });
                         pick |= group.inner.unwrap_or(false);
@@ -262,7 +262,7 @@ impl<'a> CropOptionsMenu<'a> {
                 cx.labelled(
                     ui,
                     "adjust",
-                    words.auto_adjust.clone().into(),
+                    words.auto_adjust.clone(),
                     SideLabel::new().layout(FieldLayout::After),
                     Checkbox::new(Bind::bound(&mut shield.auto_adjust)).enabled(on),
                 );
@@ -270,7 +270,7 @@ impl<'a> CropOptionsMenu<'a> {
                 cx.labelled(
                     ui,
                     "delete",
-                    words.delete_pixels.clone().into(),
+                    words.delete_pixels.clone(),
                     SideLabel::new().layout(FieldLayout::After),
                     Checkbox::new(Bind::bound(&mut settings.delete_pixels)),
                 );

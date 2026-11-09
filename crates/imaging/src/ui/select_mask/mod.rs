@@ -379,7 +379,7 @@ impl SelectMaskWorkspace {
             }))
             .sides(|ui, cx| {
                 let mut guard = this.borrow_mut();
-                let work: &mut SelectMaskWorkspace = &mut **guard;
+                let work: &mut SelectMaskWorkspace = &mut guard;
                 let status = cx.pending(key.clone(), || source.preview_job(&request)).clone();
                 *side_status.borrow_mut() = Some(status.clone());
                 side_panel_open.set(None);
@@ -401,7 +401,7 @@ impl SelectMaskWorkspace {
             })
             .show(ui, |ui, cx| {
                 let mut guard = this.borrow_mut();
-                let work: &mut SelectMaskWorkspace = &mut **guard;
+                let work: &mut SelectMaskWorkspace = &mut guard;
                 work.zoom_tool.options = work.navigation;
 
                 while let Some((command, _)) = cx.take_command::<ViewCommands>() {
@@ -478,7 +478,7 @@ impl SelectMaskWorkspace {
         // Once per pass, after the real run: what the columns and the canvas decided is stored and the canvas's
         // events are recorded.
         shown.settle(|_, (subject, canvas_id, zoom_percent)| {
-            let work: &mut SelectMaskWorkspace = &mut **this.borrow_mut();
+            let work: &mut SelectMaskWorkspace = &mut this.borrow_mut();
             if let Some(status) = side_status.take()
                 && work.trail_since.as_ref().is_some_and(|since| *since != key)
                 && !matches!(status, Pending::Loading { .. })

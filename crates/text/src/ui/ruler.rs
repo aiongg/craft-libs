@@ -385,7 +385,7 @@ impl<'a> TextRuler<'a> {
         }
     }
 
-    fn tab_name<'w>(words: &'w TextRulerWords, kind: TabAlign) -> &'w str {
+    fn tab_name(words: &TextRulerWords, kind: TabAlign) -> &str {
         match kind {
             TabAlign::Left => words.left_tab.as_str(),
             TabAlign::Center => words.center_tab.as_str(),

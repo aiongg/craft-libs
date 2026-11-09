@@ -30,10 +30,12 @@ fn room_of(width: f32, height: f32) -> egui::Vec2 {
 /// Bytes of another size, so the file is a different one.
 const OTHER: &[u8] = b"abcdefghi";
 
+type Script = (u64, Vec<(PickId, PickRequest)>, Vec<(PickId, Picked)>);
+
 /// A `Files` service whose pickers stay open until the test answers them.
 #[derive(Default)]
 struct ScriptedFiles {
-    state: Mutex<(u64, Vec<(PickId, PickRequest)>, Vec<(PickId, Picked)>)>,
+    state: Mutex<Script>,
 }
 
 impl ScriptedFiles {
@@ -360,7 +362,7 @@ fn the_link_info_section_shows_its_rows() {
     let state = RefCell::new(state);
     let mut fx = Fixture::new(move |ui| {
         let mut state = state.borrow_mut();
-        LinkList::new("Links", &links, &statuses, Bind::bound(&mut *state))
+        let _ = LinkList::new("Links", &links, &statuses, Bind::bound(&mut *state))
             .info(|ui| {
                 Text::new("/shoot/cover.psd").show(ui);
             })

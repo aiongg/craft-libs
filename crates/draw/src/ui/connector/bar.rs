@@ -105,7 +105,6 @@ impl<'a> ConnectorBar<'a> {
 
     /// The start and end cap menus: the app's rows of arrowheads, each with its picked choice
     /// (mixed across a selection) and its preview painter.
-    #[must_use]
     pub fn caps(mut self, start: StrokeChoiceRow<'a>, end: StrokeChoiceRow<'a>) -> Self {
         self.caps = Some((start, end));
         self

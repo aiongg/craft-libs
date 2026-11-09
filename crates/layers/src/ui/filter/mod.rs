@@ -14,7 +14,7 @@ use craft_ui::buttons::ToggleButton;
 use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Props as _, Show as _, ShowContainer as _};
 use craft_ui::layout_components::Row;
 use craft_ui::pickers::Select;
-use craft_ui::runtime::env::{Env, Label};
+use craft_ui::runtime::env::Env;
 use craft_ui::text::TextField;
 use egui::{Response, Ui};
 
@@ -223,11 +223,11 @@ impl<'a> LayerFilterBar<'a> {
             let Some(Mixed::Same(current)) = filter.reborrow().read(cx) else { return };
             let mut next = current.clone();
             let types = [
-                Entry::new(FilterBy::Kind, Label::from(words.kind.clone())),
-                Entry::new(FilterBy::Name, Label::from(words.name.clone())),
-                Entry::new(FilterBy::Mode, Label::from(words.mode.clone())),
+                Entry::new(FilterBy::Kind, words.kind.clone()),
+                Entry::new(FilterBy::Name, words.name.clone()),
+                Entry::new(FilterBy::Mode, words.mode.clone()),
             ];
-            let picked = Select::new(Label::from(words.filter_type.clone()), Bind::given(current.by), &types).size(size).show(ui);
+            let picked = Select::new(words.filter_type.clone(), Bind::given(current.by), &types).size(size).show(ui);
             if let Some(by) = picked.value() {
                 next.by = *by;
             }
@@ -242,7 +242,7 @@ impl<'a> LayerFilterBar<'a> {
                     ];
                     for (kind, icon, tip) in kinds {
                         let on = current.kinds.contains(&kind);
-                        let toggled = ToggleButton::new(Label::from(tip.clone()), Bind::given(on))
+                        let toggled = ToggleButton::new(tip.clone(), Bind::given(on))
                             .icon(IconId::new(icon))
                             .icon_only()
                             .size(size)
@@ -256,8 +256,8 @@ impl<'a> LayerFilterBar<'a> {
                     }
                 }
                 FilterBy::Name => {
-                    let typed = TextField::search(Label::from(words.search_layers.clone()), Bind::given(current.name.clone()))
-                        .placeholder(Label::from(words.search.clone()))
+                    let typed = TextField::search(words.search_layers.clone(), Bind::given(current.name.clone()))
+                        .placeholder(words.search.clone())
                         .size(size)
                         .show(ui);
                     if let Some(text) = typed.value() {
@@ -265,8 +265,7 @@ impl<'a> LayerFilterBar<'a> {
                     }
                 }
                 FilterBy::Mode => {
-                    let picked =
-                        Select::new(Label::from(words.blend_mode.clone()), Bind::given(current.mode.clone()), blend_modes).size(size).show(ui);
+                    let picked = Select::new(words.blend_mode.clone(), Bind::given(current.mode.clone()), blend_modes).size(size).show(ui);
                     if let Some(mode) = picked.value() {
                         next.mode.clone_from(mode);
                     }

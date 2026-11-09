@@ -427,7 +427,6 @@ impl<'a> SwatchesPanel<'a> {
 
     /// The document's CMYK converter, which draws CMYK swatches and gives their colours when used; without it they
     /// use the built-in coated CMYK.
-    #[must_use]
     pub fn cmyk(mut self, converter: &'a CmykConverter) -> Self {
         self.cmyk = Some(converter);
         self

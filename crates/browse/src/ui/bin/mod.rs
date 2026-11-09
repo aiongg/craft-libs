@@ -491,35 +491,30 @@ where
     }
 
     /// The selection the bin applies changes to; without one the bin keeps its own.
-    #[must_use]
     pub fn selection(mut self, selection: Bind<'a, Selection<K>>) -> Self {
         self.selection = Some(selection);
         self
     }
 
     /// Thumbnails keyed by the item key.
-    #[must_use]
     pub fn thumbnails(mut self, thumbnails: &'a Thumbnails<K>, source: &'a dyn ThumbSource<K>) -> Self {
         self.thumbnails = Some((thumbnails, source));
         self
     }
 
     /// The List view's columns; the first is the name column (key `name`).
-    #[must_use]
     pub fn columns(mut self, columns: Vec<ColumnSpec>) -> Self {
         self.columns = columns;
         self
     }
 
     /// Hover scrub in the Icon view.
-    #[must_use]
     pub fn hover_scrub(mut self, on: bool) -> Self {
         self.hover_scrub = on;
         self
     }
 
     /// The host's area above the content (a preview).
-    #[must_use]
     pub fn header(mut self, header: impl FnMut(&mut Ui) + 'a) -> Self {
         self.header = Some(Box::new(header));
         self
@@ -527,28 +522,24 @@ where
 
     /// The host's footer buttons, after the view buttons and slider. An action that takes drops reports
     /// `FooterDrop` with the dragged keys when it was built with `accepts_drops::<ListDrag<K>>`.
-    #[must_use]
     pub fn footer_actions(mut self, actions: impl IntoIterator<Item = FooterAction>) -> Self {
         self.actions = actions.into_iter().collect();
         self
     }
 
     /// The Freeform view's card positions.
-    #[must_use]
     pub fn freeform(mut self, cards: &'a [FreeformCard<K>]) -> Self {
         self.freeform = cards;
         self
     }
 
     /// Freeform snapping to a grid of `step` points.
-    #[must_use]
     pub fn snap(mut self, step: Option<f32>) -> Self {
         self.snap = step;
         self
     }
 
     /// The zoom slider's range as multiples of the medium thumbnail side.
-    #[must_use]
     pub fn zoom_range(mut self, min: f64, max: f64) -> Self {
         self.zoom_range = (min, max);
         self
@@ -556,7 +547,6 @@ where
 
     /// Opens the in-place rename of `key` in this pass, as F2 would. Call it in the pass that handles the
     /// host's Rename command; ignored when `key` is not shown.
-    #[must_use]
     pub fn start_rename(mut self, key: K) -> Self {
         self.rename = Some(key);
         self
@@ -681,7 +671,7 @@ where
             } else {
                 words.selected_of.fill(&[("selected", &env.format().integer(selected as u64)), ("total", &env.format().integer(total as u64))])
             };
-            let crumbs = crumbs_of(model, local.shown.as_ref(), &Label::from(words.root.clone()));
+            let crumbs = crumbs_of(model, local.shown.as_ref(), &words.root.clone());
             let shown = local.shown.clone();
             let _ = Bar::new(Label::Empty, BarKind::Tool).show(ui, |ui, _| {
                 let up = IconButton::new(IconId::new("chevron_up")).label(words.up.clone()).enabled(shown.is_some()).show(ui);

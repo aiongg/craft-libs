@@ -294,7 +294,8 @@ impl<'a> WarpFields<'a> {
                 if button.value().is_some() {
                     edits.push(WarpFieldsEdit::orientation(!values.vertical));
                 }
-                let fields: [(_, f64, fn(EditEvent<f64>) -> WarpFieldsEdit); 3] = [
+                type FieldEdit = fn(EditEvent<f64>) -> WarpFieldsEdit;
+                let fields: [(_, f64, FieldEdit); 3] = [
                     (&words.bend, values.bend, WarpFieldsEdit::Bend),
                     (&words.horizontal, values.horizontal, WarpFieldsEdit::Horizontal),
                     (&words.vertical, values.vertical_distortion, WarpFieldsEdit::Vertical),

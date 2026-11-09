@@ -521,7 +521,7 @@ impl<T: EdgeTracer> CanvasTool for SelectToolPass<'_, MagneticLassoTool<T>> {
     }
 
     /// Ends an Alt drag: where it stopped fastens.
-    fn release(&mut self, _pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
+    fn release(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {
         self.tool.end_gesture();
     }
 

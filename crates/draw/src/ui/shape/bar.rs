@@ -65,28 +65,24 @@ impl<'a> ShapeBar<'a> {
     }
 
     /// The Stroke style popover's open flag; without it the button is not shown.
-    #[must_use]
     pub fn stroke_open(mut self, open: Bind<'a, bool>) -> Self {
         self.stroke_open = Some(open);
         self
     }
 
     /// Decorates each paint chip before it shows (its Gradient, Pattern and Picture editors).
-    #[must_use]
     pub fn chips(mut self, setup: impl for<'b> FnMut(ShapePaint, PaintChip<'b>) -> PaintChip<'b> + 'a) -> Self {
         self.chips = Some(ChipSetup::new(setup));
         self
     }
 
     /// The foreground and background colours a switch to Solid starts from.
-    #[must_use]
     pub fn fallbacks(mut self, fill: Srgba, stroke: Srgba) -> Self {
         self.fallbacks = (fill, stroke);
         self
     }
 
     /// The host's answer to a chip's screen eyedropper: the colour sampled for that chip.
-    #[must_use]
     pub fn sampled(mut self, sampled: Option<(ShapePaint, Srgba)>) -> Self {
         self.sampled = sampled;
         self
@@ -97,7 +93,8 @@ impl<'a> ShapeBar<'a> {
         let ShapeBar { kind, settings, appearance, stroke_open, chips, fallbacks, sampled, pixels_per_inch } = self;
         let env = Env::of(ui);
         let (words, units) = (env.words::<ShapeWords>(), env.units());
-        let mut pass = Cells::new(&words, &units, pixels_per_inch, appearance, fallbacks, sampled, chips, stroke_open);
+        let mut pass = Cells::new(&words, &units, pixels_per_inch, appearance, fallbacks, sampled, chips);
+        pass.open = stroke_open;
         Row::new().enabled(!appearance.locked).show(ui, |ui, _| {
             pass.begin();
             let fill_on = !matches!(appearance.fill, craft_color::ui::Paint::None);

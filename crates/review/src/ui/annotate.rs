@@ -1344,7 +1344,7 @@ fn style_controls(ui: &mut Ui, body: &mut BodyCx<'_>, annotate: &mut AnnotateToo
         open = !open;
     }
     let shown: Mixed<u8> = PALETTE.iter().position(|&color| color == current).map_or(Mixed::Mixed, |at| Mixed::Same(at as u8));
-    let mut pick = shown.clone();
+    let mut pick = shown;
     Popover::new(words.palette.clone(), Bind::bound(&mut open)).opened_by(&well.response).show(ui, |ui, _| {
         RadioGroup::new(words.palette.clone(), Bind::bound_mixed(&mut pick)).show(ui, |ui, _| {
             Row::new().show(ui, |ui, _| {

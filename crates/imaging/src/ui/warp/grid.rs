@@ -50,8 +50,10 @@ impl<'a> WarpSurface<'a> {
     }
 }
 
+type WarpRuleFn<'a> = Box<dyn Fn(&WarpMesh, &WarpEdit) -> WarpMesh + 'a>;
+
 /// The host's way to move its mesh: [`WarpGrid::rule`].
-pub struct WarpRule<'a>(Box<dyn Fn(&WarpMesh, &WarpEdit) -> WarpMesh + 'a>);
+pub struct WarpRule<'a>(WarpRuleFn<'a>);
 
 impl<'a> WarpRule<'a> {
     /// The rule `rule`: the mesh an edit makes of the mesh at the press.

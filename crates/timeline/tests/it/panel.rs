@@ -345,8 +345,10 @@ fn caption_rows_sit_above_video_with_a_mix_row() {
     assert!(mix.rect.top() >= a1.bottom() - SLACK, "the Mix row lies below the audio rows: {:?} {a1:?}", mix.rect);
 }
 
+type ReportedMenu = (Option<TrackId>, Option<ClipId>, Rect, Option<egui::Pos2>);
+
 /// The context menus a pass reported, as (track, clip, anchor, pointer).
-fn reported_menus(panel: &Panel) -> Vec<(Option<TrackId>, Option<ClipId>, Rect, Option<egui::Pos2>)> {
+fn reported_menus(panel: &Panel) -> Vec<ReportedMenu> {
     panel
         .edits()
         .into_iter()

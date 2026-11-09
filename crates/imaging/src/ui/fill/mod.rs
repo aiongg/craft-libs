@@ -210,6 +210,8 @@ impl FillIssue {
     }
 }
 
+type Ants = (SamplingPlane, Arc<Vec<(Point, Point)>>);
+
 /// The Content-Aware Fill workspace.
 ///
 /// Keys ([`FillCommands`], on the body's scope, none while a text field edits): B, L, H, Z pick the tools; `[` and
@@ -255,7 +257,7 @@ pub struct ContentAwareFillWorkspace {
     /// [`FillOutput::settings_changed`] says so.
     color_owed: bool,
     /// The outline of the fill area's covered cells, kept for as long as the plane is the same.
-    ants: Option<(SamplingPlane, Arc<Vec<(Point, Point)>>)>,
+    ants: Option<Ants>,
     /// Steps the app asked for while a stroke was open; the next `show` cancels the stroke, then steps.
     requested: Vec<Step>,
     /// A stroke, a lasso or a resize was open at the end of the last pass.

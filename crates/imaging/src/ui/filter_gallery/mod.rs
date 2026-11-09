@@ -215,10 +215,10 @@ impl FilterGalleryWorkspace {
         let index = FilterIndex::of(catalog);
         let events = std::mem::take(&mut self.queued);
         self.selected = self.selected.min(self.session.effects.len().saturating_sub(1));
-        let name = self.session.effects.get(self.selected).map_or_else(|| Label::from(words.name.clone()), |effect| index.label(&effect.filter));
+        let name = self.session.effects.get(self.selected).map_or_else(|| words.name.clone(), |effect| index.label(&effect.filter));
         let title = FullWindowTitle::new(name).subject(self.subject.clone()).zoom(self.percent).label(&env);
         let buttons = [FooterButton::new(common.ok.clone(), DialogRole::Accept), FooterButton::new(common.cancel.clone(), DialogRole::Cancel)];
-        let history_name: Arc<str> = Label::from(words.name.clone()).as_str().into();
+        let history_name: Arc<str> = words.name.clone().as_str().into();
         let navigation = self.navigation;
         let checkerboard = self.checkerboard;
         let pass = RefCell::new(Pass { workspace: self, events, pick_color: None });
@@ -264,7 +264,7 @@ impl FilterGalleryWorkspace {
             .show(ui, |ui, cx| {
                 let mut pass = pass.borrow_mut();
                 let workspace = &mut *pass.workspace;
-                let mut view = workspace.view.clone();
+                let mut view = workspace.view;
                 while let Some((command, _)) = cx.take_command::<ViewCommands>() {
                     view.apply(command);
                 }

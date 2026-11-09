@@ -374,8 +374,10 @@ fn a_thumbnail_paints_the_paper_in_its_tile_while_its_picture_loads() {
     assert!(fills_with(&shapes, LOADING_PAPER), "a tile whose picture is loading shows the paper");
 }
 
+type LayoutRig = (Fixture, Rc<RefCell<PageViewState>>, Rc<RefCell<Vec<kurbo::Rect>>>);
+
 /// A page view over `count` demo pages with the state it starts from, and the rects of the pages it laid out.
-fn layout_rig(count: usize, start: PageViewState) -> (Fixture, Rc<RefCell<PageViewState>>, Rc<RefCell<Vec<kurbo::Rect>>>) {
+fn layout_rig(count: usize, start: PageViewState) -> LayoutRig {
     let state = Rc::new(RefCell::new(start));
     let rects: Rc<RefCell<Vec<kurbo::Rect>>> = Rc::default();
     let (kept, seen) = (Rc::clone(&state), Rc::clone(&rects));

@@ -189,7 +189,7 @@ pub struct ConnectorDraft {
 pub enum ConnectorEvent {
     /// A new connector, from [`ConnectorTool::take_events`]: `Begin` past the click slop, `Update`,
     /// `Commit`, `Cancel`. A drag that ends on its start object is cancelled as `Dismissed`.
-    Draw(EditEvent<ConnectorDraft>),
+    Draw(EditEvent<Box<ConnectorDraft>>),
     /// An end of the selected connector dragged onto another object or onto empty canvas, or moved
     /// to the next object with the arrow keys, from [`ConnectorHandlesOutput::event`]. The gesture's
     /// phases are in the output's `edit.event`.

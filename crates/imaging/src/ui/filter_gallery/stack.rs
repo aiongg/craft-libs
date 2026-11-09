@@ -141,7 +141,7 @@ impl<'a> EffectStack<'a> {
                         }
                     }
                     CollectionEvent::Reorder(edit) => {
-                        if let Some(mv) = finished(&edit)
+                        if let Some(mv) = finished(edit)
                             && let Some((from, to)) = effect_move(count, mv)
                         {
                             change = Some(EffectChange::move_to(from, to));

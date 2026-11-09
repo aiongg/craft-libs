@@ -178,7 +178,7 @@ impl Component for TableSizePicker {
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         for index in 0..ROWS * COLUMNS {
             let part =
-                cx.part(Self::part(index), Self::cell_rect(rect, index, &cx.style, cx.flow.is_rtl())).sense(Sense::CLICK | Sense::FOCUS).focusable();
+                cx.part(Self::part(index), Self::cell_rect(rect, index, cx.style, cx.flow.is_rtl())).sense(Sense::CLICK | Sense::FOCUS).focusable();
             if self.lead == Some(index) {
                 part.flags(Flags::CHECKED);
             }
@@ -214,9 +214,9 @@ impl Component for TableSizePicker {
             let (row, column) = (index / COLUMNS, index % COLUMNS);
             let chosen = lit.is_some_and(|(r, c)| row <= r && column <= c);
             let look = if chosen { &cx.style.on } else { &cx.style.off };
-            draw.fill(&PaintShape::Rect(Self::cell_rect(cx.rect, index, &cx.style, cx.flow.is_rtl()), cx.style.radius), cx.resolve(look));
+            draw.fill(&PaintShape::Rect(Self::cell_rect(cx.rect, index, cx.style, cx.flow.is_rtl()), cx.style.radius), cx.resolve(look));
         }
-        let label = Rect::from_min_max(cx.rect.min, pos2(cx.rect.max.x, Self::grid_rect(cx.rect, &cx.style).min.y));
+        let label = Rect::from_min_max(cx.rect.min, pos2(cx.rect.max.x, Self::grid_rect(cx.rect, cx.style).min.y));
         draw.text(label, &TextRun::new(self.text(&words, cx)).role(cx.style.label.role).color(cx.resolve(&cx.style.label.color)));
     }
 

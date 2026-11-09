@@ -511,7 +511,6 @@ pub(super) fn show(ui: &mut Ui, now: f64, env: &mut Env<'_>, state: &mut DialogS
         table = table.reveal(at);
     }
     let out = table.show_items(ui, &source, &mut |key, icx| CommandRow::new(&built.lines[*key], &row_env, icx.cells()));
-    drop(source);
     apply(env, state, now, &built.lines, out);
 }
 

@@ -489,7 +489,7 @@ fn window_actions_and_queries_follow_the_window_system() {
             Palette::new("tool", Some(WindowSpec::tool())).show(ui, |_, _| {});
         })
     };
-    let out = (0..3).map(|_| frame()).next_back().expect("frames ran");
+    let out = (0..3).map(|_| frame()).fold(None, |_, out| Some(out)).expect("frames ran");
     let (viewport, _) = builder_titled(&out, "tool");
     let host = WindowHost::of(&windows.ctx);
     assert_eq!(host.facts(viewport).map(|facts| facts.inner), Some(PLACED));

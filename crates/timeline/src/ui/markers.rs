@@ -363,14 +363,16 @@ impl Component for MarkerStrip<'_> {
                     report.span = Some(EditEvent::begin(id, Mixed::Same(before), Arc::from(cx.resolved.label.to_owned()), None));
                 }
                 PressPhase::Drag { pos, .. } => {
-                    if let Some(grab) = cx.press_slot::<Grab>().clone() {
+                    if let Some(grab) = *cx.press_slot::<Grab>() {
                         let at = self.settle(&axis, reach, axis.tick_at(pos.x, strip.left()), Some(grab.start));
                         let span = if grab.length_drag {
                             MarkerSpan::new(marker.id, grab.start, at.max(grab.start) - grab.start)
                         } else {
                             MarkerSpan::new(marker.id, at, grab.length)
                         };
-                        cx.press_slot::<Grab>().as_mut().map(|held| held.now = (span.start, span.duration));
+                        if let Some(held) = cx.press_slot::<Grab>().as_mut() {
+                            held.now = (span.start, span.duration);
+                        }
                         report.span = Some(EditEvent::update(grab.id, span));
                     }
                 }

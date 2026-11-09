@@ -6,7 +6,7 @@ use super::words::RulerWords;
 use craft_ui::buttons::Button;
 use craft_ui::canvas::CanvasRulers;
 use craft_ui::choice::Checkbox;
-use craft_ui::contract::{Bind, FieldLayout, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, Sizing, clicked};
+use craft_ui::contract::{Bind, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, Sizing, clicked};
 use craft_ui::display::{Divider, Text};
 use craft_ui::form::Field;
 use craft_ui::layout_components::Row;
@@ -102,7 +102,7 @@ impl<'a> RulerBar<'a> {
                 ("l2", &words.l2_name, length(true, reading.and_then(|r| r.l2))),
             ];
             for (salt, name, value) in readouts {
-                readout(ui, salt, name.clone().into(), value);
+                readout(ui, salt, name.clone(), value);
             }
             Divider::vertical().show(ui);
             Checkbox::new(use_scale.reborrowed()).label(words.use_scale.clone()).show(ui);

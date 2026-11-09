@@ -15,9 +15,7 @@ fn printers() -> Vec<Printer> {
 
 #[story(PrintPanel<'static>, covers = [], drive = Drive::Never)]
 fn print_panel(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let mut start = Settings::default();
-    start.printer = "Office_1".to_owned();
-    start.duplex = Some(Duplex::LongEdge);
+    let start = Settings { printer: "Office_1".to_owned(), duplex: Some(Duplex::LongEdge), ..Settings::default() };
     let printers = printers();
     PrintPanel::new(Bind::bound(data.value("settings", start)), &printers).show(ui).into()
 }

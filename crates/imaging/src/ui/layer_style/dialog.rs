@@ -158,7 +158,6 @@ impl<'a> LayerStyleDialog<'a> {
 
     /// The effect tables in list order; Photoshop's ten ([`EffectSpec::photoshop`] for each of [`EffectKind::ALL`]) by
     /// default. A kind without a spec is not listed.
-    #[must_use]
     pub fn specs(mut self, specs: &'a [EffectSpec]) -> Self {
         self.specs = Some(specs);
         self
@@ -167,28 +166,24 @@ impl<'a> LayerStyleDialog<'a> {
     /// Renames the blend defaults of every spec, the built-in ones included, from Photoshop's English names to the
     /// host's blend keys (`"Multiply"` to the host's key). Effects added in the dialog start from the renamed defaults,
     /// so their Blend selects show the host's entry; instances already in the draft are the host's to key.
-    #[must_use]
     pub fn blend_keys(mut self, map: &'a HashMap<String, String>) -> Self {
         self.blend_keys = Some(map);
         self
     }
 
     /// The blend modes the Blend Mode selects offer (the host's list, with `Entry::separator()` between groups).
-    #[must_use]
     pub fn blend_modes(mut self, modes: &'a [Entry<String>]) -> Self {
         self.blend_modes = modes;
         self
     }
 
     /// The patterns Pattern Overlay offers, keyed by the pattern's key.
-    #[must_use]
     pub fn patterns(mut self, patterns: &'a [PresetRow<String>]) -> Self {
         self.patterns = patterns;
         self
     }
 
     /// The host's contour library, after the built-in presets in every contour picker.
-    #[must_use]
     pub fn user_contours(mut self, contours: &'a [Contour]) -> Self {
         self.user_contours = contours;
         self
@@ -196,14 +191,12 @@ impl<'a> LayerStyleDialog<'a> {
 
     /// The host's interpolation of a contour's points: the output of every input level through the points, so the
     /// contour fields draw the curve the engine renders; a monotone cubic by default.
-    #[must_use]
     pub fn sampler(mut self, sample: impl Fn(&[[f32; 2]]) -> Vec<f32> + Send + Sync + 'static) -> Self {
         self.sampler = Some(std::sync::Arc::new(sample));
         self
     }
 
     /// The Styles page's presets; without them the page shows only New Style….
-    #[must_use]
     pub fn style_presets(mut self, presets: StylePresets<'a>) -> Self {
         self.style_presets = Some(presets);
         self

@@ -271,7 +271,7 @@ impl Component for ColorDisc<'_> {
         let running = cx.gesture().is_some();
         // A colour of the host's that changed and is not what the drag reported is an outside change.
         if running && let Some(marker) = grabbed.filter(|marker| *marker < self.markers.len()) {
-            let last = std::mem::replace(&mut cx.memory::<Grab>().last, Some(self.markers[marker]));
+            let last = cx.memory::<Grab>().last.replace(self.markers[marker]);
             if let Some(moved) = cx.value().filter(|moved| moved.marker == marker) {
                 let echo = HsbModel.to_srgb(&ModelValues::new("hsb", &[moved.hue, moved.saturation * 100.0, self.hsb(marker)[2]]).values);
                 if last.is_some_and(|last| last != self.markers[marker]) && !echo.same_rgb8(self.markers[marker]) {
@@ -342,7 +342,7 @@ impl Component for ColorDisc<'_> {
             }
         }
         while let Some(request) = cx.intents().take_access() {
-            let Some(index) = (0..self.markers.len()).find(|index| request.target == Some(MARKER.at(*index as u64).into())) else { continue };
+            let Some(index) = (0..self.markers.len()).find(|index| request.target == Some(MARKER.at(*index as u64))) else { continue };
             let step = match request.action {
                 AccessAction::Increment => KEY_STEP,
                 AccessAction::Decrement => -KEY_STEP,

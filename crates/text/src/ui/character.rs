@@ -415,7 +415,6 @@ impl<'a> CharacterControls<'a> {
     /// The family field is craft-font-manager's font picker over `catalog`, with the app's stars, recents and
     /// filters.
     #[cfg(feature = "font-picker")]
-    #[must_use]
     pub fn font_picker(mut self, catalog: &'a Arc<Catalog>, settings: Bind<'a, FontPickerSettings>, filters: Bind<'a, FontFilters>) -> Self {
         self.picker = Some((catalog, settings, filters));
         self
@@ -467,7 +466,10 @@ impl<'a> CharacterControls<'a> {
         });
 
         let mut edits: Vec<EditEvent<CharacterChange>> = Vec::new();
+        #[cfg(feature = "font-picker")]
         let mut preview_family = None;
+        #[cfg(not(feature = "font-picker"))]
+        let preview_family = None;
         let mut requests = HostRequests::new();
 
         let shown = Stack::new().fill_width().label(self.label).show(ui, |ui, _| {
@@ -476,7 +478,7 @@ impl<'a> CharacterControls<'a> {
                 let family = mixed(values.family.clone());
                 let side = SideLabel::new().kind(LabelKind::Hidden);
                 let shown = Field::new(words.family.clone()).side(side).show(ui, |ui, _| {
-                    let out = FontPicker::new(words.family.clone(), Bind::given(family.clone()), *catalog)
+                    let out = FontPicker::new(words.family.clone(), Bind::given(family.clone()), catalog)
                         .settings(settings.reborrowed())
                         .filters(filters.reborrowed())
                         .show(ui);

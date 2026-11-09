@@ -18,7 +18,9 @@ fn tiled() -> PictureFill {
     fill
 }
 
-fn rig(fill: PictureFill) -> (Fixture, Rc<RefCell<PictureFill>>, Rc<RefCell<Option<PathRequest>>>) {
+type Rig = (Fixture, Rc<RefCell<PictureFill>>, Rc<RefCell<Option<PathRequest>>>);
+
+fn rig(fill: PictureFill) -> Rig {
     let value = Rc::new(RefCell::new(fill));
     let request = Rc::new(RefCell::new(None));
     let (held, asked) = (Rc::clone(&value), Rc::clone(&request));
