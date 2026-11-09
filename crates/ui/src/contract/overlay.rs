@@ -1272,8 +1272,11 @@ fn remember(layer: &Layer<'_>, ctx: &Context, memory: LayerMemory) {
 }
 
 /// The layer `id` is hidden: it forgets what it remembered, so its next appearance starts fresh. Every host caller
-/// calls it when the layer's presence is hidden.
+/// calls it when the layer's presence is hidden. A measuring run writes nothing; the real run forgets.
 pub(crate) fn forget_layer(ctx: &Context, id: Id, owner: Id) {
+    if crate::runtime::measure::active(ctx) {
+        return;
+    }
     let mut stage = MemoryStage::open_owned(ctx, memory_slot(id), owner);
     let taken = stage.take::<LayerMemory>(memory_slot(id));
     stage.write_back();
