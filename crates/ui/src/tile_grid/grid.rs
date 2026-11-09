@@ -681,6 +681,6 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for TileGrid<'_, K
     }
 
     fn rename_editor(&mut self, ui: &mut Ui, draft: Bind<'_, String>, label: Rect, name: &str) -> Option<EditResponse<String>> {
-        Some(crate::text::TextField::new(name.to_owned(), draft).show_at(ui, label))
+        Some(crate::contract::rename_field(ui, draft, label, name))
     }
 }

@@ -11,7 +11,6 @@ use crate::contract::{
 };
 use crate::runtime::env::{Env, Label};
 use crate::style::{ComponentStyle, StyleCx};
-use crate::text::TextField;
 use craft_behavior::{ColumnKey, DisplayOrder, ItemSource, Metrics, Selection, SizeHint, SpanLayout};
 use craft_i18n::matcher::Matcher;
 use egui::{Id, Rect, Ui};
@@ -220,7 +219,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for List<'_, K> {
     }
 
     fn rename_editor(&mut self, ui: &mut Ui, draft: Bind<'_, String>, label: Rect, name: &str) -> Option<EditResponse<String>> {
-        Some(TextField::new(name.to_owned(), draft).select_on_focus().show_at(ui, label))
+        Some(crate::contract::rename_field(ui, draft, label, name))
     }
 }
 
