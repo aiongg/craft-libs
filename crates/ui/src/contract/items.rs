@@ -2,12 +2,13 @@
 
 pub(super) mod rows;
 
+use super::ValueOf;
 use super::collection::{
     ActivateOn, CollectionEvent, CollectionProps, CollectionResponse, ContextMenuRequest, Gestures, LeadOnOpen, LeadSource, OpenChange, Rename,
     RowState, SelectMode, ShownRow, SpaceAction,
 };
 use super::cx::BodyCx;
-use super::run::{ShapeHooks, ShowAt};
+use super::run::{Measuring, ShapeHooks, ShowAt};
 use super::steps::ShapeKind;
 use super::{Bind, Collection, Cx, Internal, ItemCx, ItemFn, ItemOpener, ItemOutput as _, PartsCx, Props, Show as _, Sizing};
 use crate::primitives::ScrollBar;
@@ -15,7 +16,7 @@ use crate::runtime::access::{self, Role, SetPosition};
 use crate::runtime::egui::{alloc, areas, child, response};
 use crate::runtime::env::{AppValues, ArenaId, Env, ItemFacts};
 use crate::runtime::memory::{MemoryStage, sub};
-use crate::runtime::{focus, frame, overlay, wheel};
+use crate::runtime::{focus, frame, layout_memory, overlay, wheel};
 use crate::style::{StyleCx, scroll_bar_look};
 use craft_behavior::{
     Axis, ColumnKey, EditEvent, Flow, GestureId, Granularity, Intent, ItemLayout, ItemSource, Mixed, MoveMods, NavMove, NavState, NavStep, Outline,
@@ -218,6 +219,26 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
     fn widest_row(&mut self, comp: &C, ui: &Ui, id: Id) -> f32 {
         let ctx = ui.ctx().clone();
         super::steps::measuring(&ctx, || self.widest_row_in(comp, ui, id))
+    }
+
+    /// Builds the rows once to measure the widest and records it under `sub(id, "widest")` for `extent`, when this
+    /// pass's width comes from the rows and no measuring run has recorded it yet.
+    fn record_widest(&mut self, comp: &C, at: &Measuring<'_, '_>, id: Id) {
+        let ctx = at.ui.ctx();
+        let room = match at.at {
+            ShowAt::Rect(rect) => rect.size(),
+            ShowAt::Flow => crate::layout::flow_room(at.ui),
+        };
+        if self.source.is_empty() || (room.x.is_finite() && !self.content_sized(comp)) {
+            return;
+        }
+        let key = sub(id, "widest");
+        if layout_memory::measured(ctx, key).is_some() {
+            return;
+        }
+        self.header.measure(at.scx);
+        let widest = self.widest_row(comp, at.ui, id);
+        layout_memory::record_measured(ctx, key, layout_memory::Measured { room, took: Vec2::new(widest, 0.0) });
     }
 
     fn widest_row_in(&mut self, comp: &C, ui: &Ui, id: Id) -> f32 {
@@ -466,6 +487,18 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         }
     }
 
+    fn measured_extent(&mut self, comp: &mut C, at: &Measuring<'_, '_>, cx: &mut Cx<'_, C>) -> Vec2 {
+        let id = cx.core.id;
+        self.record_widest(comp, at, id);
+        self.extent(comp, at.ui, at.at, id, at.scx)
+    }
+
+    fn pass_extent(&mut self, comp: &mut C, at: &Measuring<'_, '_>, _style: &C::Style, _shown: Option<Arc<ValueOf<C>>>) -> Vec2 {
+        let id = at.resolved.id;
+        self.record_widest(comp, at, id);
+        self.extent(comp, at.ui, at.at, id, at.scx)
+    }
+
     fn extent(&mut self, comp: &C, ui: &Ui, at: ShowAt, id: Id, scx: &StyleCx<'_>) -> Vec2 {
         let room = match at {
             ShowAt::Rect(rect) => rect.size(),
@@ -487,7 +520,8 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             // An unbounded room (a horizontally scrolling body) takes the widest row, as a content-sized collection does.
             (_, _) => {
                 let floor = overlay::drawing_parent(ui.ctx()).map_or(0.0, |layer| super::overlay::floor_width(ui.ctx(), layer));
-                self.widest_row(comp, ui, id).max(floor).min(room.x)
+                let widest = layout_memory::measured(ui.ctx(), sub(id, "widest")).map_or(0.0, |measured| measured.took.x);
+                widest.max(floor).min(room.x)
             }
         };
         let previous = self.layout.take().or_else(|| self.previous.take()).map(|held| Arc::try_unwrap(held).unwrap_or_else(|held| (*held).clone()));
