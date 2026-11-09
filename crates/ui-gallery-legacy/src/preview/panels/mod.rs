@@ -5,7 +5,6 @@ mod channels;
 mod history;
 mod layers;
 mod properties;
-mod swatches;
 #[cfg(test)]
 mod tests;
 
@@ -19,7 +18,6 @@ use super::model::Mock;
 pub enum Panel {
     /// The protected centre panel of the dock. Not in [`Panel::ALL`]: the Window menu cannot hide it.
     Canvas,
-    Swatches,
     Properties,
     Adjustments,
     Layers,
@@ -28,12 +26,11 @@ pub enum Panel {
 }
 
 impl Panel {
-    pub const ALL: [Panel; 6] = [Panel::Swatches, Panel::Properties, Panel::Adjustments, Panel::Layers, Panel::Channels, Panel::History];
+    pub const ALL: [Panel; 5] = [Panel::Properties, Panel::Adjustments, Panel::Layers, Panel::Channels, Panel::History];
 
     pub fn label(self) -> &'static str {
         match self {
             Panel::Canvas => "Canvas",
-            Panel::Swatches => "Swatches",
             Panel::Properties => "Properties",
             Panel::Adjustments => "Adjustments",
             Panel::Layers => "Layers",
@@ -59,7 +56,6 @@ impl Panel {
     pub fn show(self, ui: &mut Ui, mock: &mut Mock, state: &mut State) -> Option<Panel> {
         match self {
             Panel::Canvas => {}
-            Panel::Swatches => swatches::show(ui, mock),
             Panel::Properties => properties::show(ui, mock, &mut state.properties),
             Panel::Adjustments => {
                 if adjustments::show(ui, mock) {

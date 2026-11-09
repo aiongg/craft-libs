@@ -129,14 +129,6 @@ fn the_footer_adds_a_layer_above_the_selection_and_selects_it() {
 }
 
 #[test]
-fn a_swatch_sets_the_foreground() {
-    let mut fixture = Fixture::new();
-    fixture.click("Red", Role::RadioButton);
-    assert_eq!(fixture.preview.mock.colors.fg, [237, 28, 36]);
-    assert_eq!(fixture.preview.mock.colors.bg, [255, 255, 255]);
-}
-
-#[test]
 fn the_window_menu_hides_layers_and_shows_them_again() {
     let mut fixture = Fixture::new();
     assert!(fixture.names(Role::ListBoxOption).contains(&"Shapes".to_owned()));

@@ -1,16 +1,12 @@
 //! The tool rail at the start edge and the tool keys.
 
-use craft::color::ui::{PairWell, SwatchPair, Well};
-use craft_theme::{Rgba, Srgba};
 use craft_ui::icons::Icon;
-use craft_ui::localized::LocaleNumbers;
 use craft_ui::menu;
 use craft_ui::patterns::{LastUsed, RailTool, ToolRail, ToolSlot};
 use craft_ui::popover;
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 use egui::{Event, Modifiers, Popup, Ui};
 
-use super::model::{Colors, Mock, Tool};
+use super::model::{Mock, Tool};
 
 /// The tool's icon.
 pub fn icon(tool: Tool) -> Icon {
@@ -73,44 +69,10 @@ fn slots() -> Vec<ToolSlot<Tool>> {
     groups.iter().enumerate().map(|(i, tools)| ToolSlot::new(i as u32, tools.iter().map(|t| rail_tool(*t)).collect())).collect()
 }
 
-fn srgba(c: [u8; 3]) -> Srgba {
-    Rgba::rgb(c[0], c[1], c[2]).into()
-}
-
-fn rgb8(c: Srgba) -> [u8; 3] {
-    let Rgba([r, g, b, _]) = c.into();
-    [r, g, b]
-}
-
 /// Draws the rail at the start edge and applies what was chosen in it.
 pub fn rail(ui: &mut Ui, mock: &mut Mock, last_used: &mut LastUsed<Tool>) {
     let slots = slots();
-    let numbers = LocaleNumbers::of(ui);
-    let backdrop = Tokens::of(ui).color.surface.chrome.to_egui();
-    let colors = mock.colors;
-    let mut after = colors;
-    let out = ToolRail::new("tools").show(ui, &slots, &mock.tools.current, last_used, |ui, _| {
-        let wells = [PairWell::new("Foreground colour", srgba(colors.fg)), PairWell::new("Background colour", srgba(colors.bg))];
-        let active = if colors.bg_active { Well::Secondary } else { Well::Primary };
-        let pair = SwatchPair::new("colours", "Colours", wells, &numbers)
-            .active(active)
-            .swap_button("Swap colours")
-            .default_button("Default colours")
-            .backdrop(backdrop)
-            .show(ui);
-        after.bg_active = pair.active == Well::Secondary;
-        if pair.swap {
-            after.swap();
-        }
-        if pair.defaults {
-            after = Colors { bg_active: after.bg_active, ..Colors::DEFAULT };
-        }
-        if let Some(picked) = pair.edit.event.as_ref().and_then(|e| e.value()) {
-            let color = rgb8(picked.color);
-            *(if pair.well == Well::Secondary { &mut after.bg } else { &mut after.fg }) = color;
-        }
-    });
-    mock.colors = after;
+    let out = ToolRail::new("tools").show(ui, &slots, &mock.tools.current, last_used, |_, _| {});
     if let Some(tool) = out.select {
         mock.select_tool(tool);
     }
