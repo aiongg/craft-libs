@@ -488,13 +488,13 @@ pub(crate) struct CommentList<'a> {
     #[container]
     props: ContainerProps,
     items: CollectionProps,
-    selection: Bind<'a, Selection<CardKey>>,
+    selection: Option<Bind<'a, Selection<CardKey>>>,
     grouped: bool,
 }
 
 impl<'a> CommentList<'a> {
-    /// The list named `label` over the caller's `selection`; `grouped` lists the cards under headings.
-    pub(crate) fn new(label: impl Into<Label>, selection: Bind<'a, Selection<CardKey>>, grouped: bool) -> Self {
+    /// The list named `label` over the caller's `selection` (the list keeps its own when `None`); `grouped` lists the cards under headings.
+    pub(crate) fn new(label: impl Into<Label>, selection: Option<Bind<'a, Selection<CardKey>>>, grouped: bool) -> Self {
         CommentList {
             common: Common::new(),
             props: ContainerProps::new().sizing(Sizing::Fill),
@@ -540,7 +540,7 @@ impl Collection for CommentList<'_> {
     }
 
     fn selection(&mut self) -> Option<BindMut<'_, Selection<CardKey>>> {
-        Some(self.selection.reborrow())
+        self.selection.as_mut().map(Bind::reborrow)
     }
 
     fn item_layout(&self, source: &dyn ItemSource<CardKey>, width: f32, cx: &StyleCx<'_>) -> SpanLayout {
@@ -1396,26 +1396,27 @@ impl CommentsPanel<'_> {
             let reply: &str = &state.reply;
             let editing = state.editing.as_ref().map(|(thread, index, text)| (*thread, *index, text.as_str()));
             let mut openers = Vec::new();
-            let out = CommentList::new(label.clone(), Bind::bound(&mut selection), grouped).show_items(ui, &source, &mut |_, item| match &source
-                .entries[item.at]
-                .1
-            {
-                RowEntry::Group { title, count, open, .. } => CommentRow::heading(title.clone(), count.clone(), *open),
-                RowEntry::Card { thread, .. } => {
-                    let name = thread
-                        .messages
-                        .first()
-                        .map_or_else(String::new, |first| words.card_name.fill(&[("author", &first.author), ("text", &first.text)]));
-                    let is_selected = selected == Some(thread.id);
-                    let editing = editing.filter(|(id, ..)| *id == thread.id).map(|(_, index, text)| (index, text));
-                    if is_selected {
-                        openers.extend((0..thread.messages.len()).map(|index| (index, item.part_opener(MORE.at(index as u64)))));
+            let out =
+                CommentList::new(label.clone(), Some(Bind::bound(&mut selection)), grouped).show_items(ui, &source, &mut |_, item| match &source
+                    .entries[item.at]
+                    .1
+                {
+                    RowEntry::Group { title, count, open, .. } => CommentRow::heading(title.clone(), count.clone(), *open),
+                    RowEntry::Card { thread, .. } => {
+                        let name = thread
+                            .messages
+                            .first()
+                            .map_or_else(String::new, |first| words.card_name.fill(&[("author", &first.author), ("text", &first.text)]));
+                        let is_selected = selected == Some(thread.id);
+                        let editing = editing.filter(|(id, ..)| *id == thread.id).map(|(_, index, text)| (index, text));
+                        if is_selected {
+                            openers.extend((0..thread.messages.len()).map(|index| (index, item.part_opener(MORE.at(index as u64)))));
+                        }
+                        CommentRow::card(thread, name)
+                            .state(is_selected, !read_only && !thread.locked, now)
+                            .drafts(editing, if is_selected { reply } else { "" })
                     }
-                    CommentRow::card(thread, name)
-                        .state(is_selected, !read_only && !thread.locked, now)
-                        .drafts(editing, if is_selected { reply } else { "" })
-                }
-            });
+                });
             let list = out.response.clone();
             let buttons: Vec<(usize, Response)> =
                 openers.into_iter().filter_map(|(index, opener)| Some((index, out.opener(opener)?.clone()))).collect();
