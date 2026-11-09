@@ -240,10 +240,10 @@ impl Component for BarItems {
         BarItemsStyle { metrics: Metrics::new().gap(gap), joint: gap, section_gap: gap * 2.0 }
     }
 
-    /// The whole strip, or the room along the strip when that is shorter. Where the strip is measured for a
-    /// container that sizes from its content on the strip's axis (or the narrowest question), it takes the least that
-    /// shows an item: the first item and the "More" part; the real run then fits the items into the width it is given.
-    /// The strip with no item to move into "More" is as long as its items.
+    /// The whole strip, or the room along the strip when that is shorter. Asked for the narrowest it takes (a
+    /// `Proposal::Min`), it gives the least that shows an item: the first item and the "More" part. The real run fits
+    /// the items into the width it is given, so the strip moves items into "More" only when that is narrower than
+    /// the whole strip. The strip with no item to move into "More" is as long as its items.
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let present = self.present(cx);
         if present.is_empty() {
@@ -254,9 +254,7 @@ impl Component for BarItems {
         let section_gap = cx.style.section_gap + sizes.rule;
         let natural = run_extent(&self.fit_items_of(&sizes, &present), &all, f64::from(cx.gap()), f64::from(section_gap)) as f32;
         let cross = sizes.items.iter().map(|size| across(self.axis, *size)).fold(across(self.axis, sizes.more), f32::max);
-        let content = crate::runtime::env::Env::of(cx.ui).content;
-        let content_sized = if self.axis == Axis::Y { content.1 } else { content.0 };
-        let least = if cx.proposal == Proposal::Min || content_sized {
+        let least = if cx.proposal == Proposal::Min {
             let first = sizes.items.first().map_or(0.0, |size| along(self.axis, *size));
             (present.len() > 1).then(|| (first + cx.gap() + along(self.axis, sizes.more)).min(natural as f32))
         } else {

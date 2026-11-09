@@ -1930,12 +1930,13 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             scoped.content_column = content_column;
             scoped.row_room = None;
             scoped.content = (!self.given.0, !self.given.1);
-            // A content-sized container whose parent gave it a width offers its children, in the real run, the width
-            // this pass measured it at: a child that fits itself into its room (a bar moving items into "More") fits
-            // the width the container takes, not the room it could have taken. Inside a content-sized parent the
-            // room already is the width that parent settled on.
-            scoped.offered = (!self.given.0 && room.x.is_finite())
-                .then(|| if real && !env.content.0 { self.wanted_width(&props).map_or(room.x, |wanted| wanted.min(room.x)) } else { room.x });
+            // A content-sized container offers its children, in the real run, the width this pass measured it at: a
+            // child that fits itself into its room (a bar moving items into "More") fits the width the container
+            // takes, not the room it could have taken. A fill container that is not given the width still takes at
+            // least the room (`regions`), so it offers the room.
+            scoped.offered = (!self.given.0 && room.x.is_finite()).then(|| {
+                if real && sizing == Sizing::Content { self.wanted_width(&props).map_or(room.x, |wanted| wanted.min(room.x)) } else { room.x }
+            });
             match scroll {
                 Some(scroll) => {
                     scoped.scroll_owner = Some(id);
