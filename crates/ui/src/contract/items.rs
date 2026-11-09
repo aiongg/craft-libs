@@ -825,7 +825,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                             self.renaming.focused = true;
                         }
                         let gesture = self.renaming.gesture;
-                        let before = Mixed::Same(Rename { key: key.clone(), name });
+                        let before = Mixed::Same(Rename { key: key.clone(), name: name.clone() });
                         if matches!(editor.event, Some(EditEvent::Commit { .. } | EditEvent::Cancel { .. })) {
                             self.refocus = focus::is_focused(&ctx, editor.response.id);
                         }
@@ -852,6 +852,14 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                             Some(EditEvent::Cancel { reason, .. }) => {
                                 self.events.push(CollectionEvent::Rename(EditEvent::cancel(gesture, reason, Some(before))));
                                 self.ended_rename = true;
+                            }
+                            // Enter on a name nobody typed in opens no edit run, so the editor reports no commit: the rename ends
+                            // with the name it began with.
+                            None if editor.submitted => {
+                                let after = Rename { key: key.clone(), name };
+                                self.events.push(CollectionEvent::Rename(EditEvent::commit(gesture, before, after)));
+                                self.ended_rename = true;
+                                self.refocus = true;
                             }
                             None if editor.left_by_tab.is_some() => {
                                 self.events.push(CollectionEvent::Rename(EditEvent::cancel(gesture, CancelReason::Blur, Some(before))));
