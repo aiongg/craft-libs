@@ -437,7 +437,8 @@ impl Component for MenuBar<'_> {
         let help_rows = help
             .filter(|help| opened == Some(Open::Title(help.menu)))
             .map(|help| Self::help_texts(help.entries, &cx.env, cx.env.words::<CommonWords>().path_separator.as_str()));
-        let mut query = cx.memory::<Query>().clone();
+        // The search starts empty each time the Help menu opens.
+        let mut query = if help_rows.is_some() { cx.memory::<Query>().clone() } else { Query::default() };
         let mut stepped = None;
         for slot in &slots {
             let popup = Self::popup(cx, *slot, found);

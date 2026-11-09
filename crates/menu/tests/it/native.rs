@@ -232,6 +232,21 @@ fn a_click_on_a_text_editing_item_while_typing_taps_its_shortcut() {
     assert_eq!(seen, Vec::<egui::Event>::new(), "the taps act on the focused field and add no key events");
     assert_eq!(frames.copied(), ["read me"], "the tapped Copy acts on the focused field");
     assert!(take_clicks(&mut menu).is_empty());
+
+    // On an editable field the ⌘Z tap undoes the typing.
+    let value = RefCell::new(String::new());
+    let rect = Cell::new(egui::Rect::NOTHING);
+    let mut field =
+        |ui: &mut egui::Ui| rect.set(TextField::new("Note", Bind::bound(&mut *value.borrow_mut())).id_salt("edit").show(ui).response.rect);
+    frames.idle(3, &mut field);
+    click(&mut frames, rect.get().center(), &mut field);
+    frames.frame(vec![egui::Event::Text("typed".into())], &mut field);
+    frames.idle(130, &mut field);
+    assert_eq!(*value.borrow(), "typed");
+    events.borrow_mut().push(Event::Tap(undo));
+    let seen = through_in(&mut menu, &mut frames, vec![], &mut field);
+    assert_eq!(seen, Vec::<egui::Event>::new(), "the tap adds no key events");
+    assert_eq!(*value.borrow(), "", "the tapped Undo takes back the typing in the field");
 }
 
 /// `sync` lays nothing out itself: it compares each frame's layout with the last, so a change

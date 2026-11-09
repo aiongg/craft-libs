@@ -14,7 +14,7 @@ use craft_ui::runtime::frame::take_output;
 use craft_ui::testing::{Fixture, Frames, trial};
 use craft_ui::text::TextField;
 use egui::{Key, Modifiers, Ui};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 fn item(id: &str, label: &str) -> Item {
@@ -262,15 +262,18 @@ fn documents_and_placeholders_from_the_layout_are_rows_of_the_bar() {
 }
 
 /// The Help menu opens with the search field, which finds an item by its label and fires its command. Undo found
-/// there fires once focus is back in the text field that held it before the search opened.
+/// there acts on the text field that held focus before the search opened (text back, focus in the field, menu
+/// closed) and fires nothing; a non-edit item found there fires its command from the menu.
 #[trial]
 fn the_help_search_finds_items_and_fires_their_commands() {
     let bar = sample();
     let text = Rc::new(RefCell::new(String::new()));
     let held = Rc::clone(&text);
+    let field = Rc::new(Cell::new(None));
+    let shown = Rc::clone(&field);
     let mut fixture = Fixture::new(move |ui| {
         MenuBarUi::new(&bar).target(Target::Linux).help_search(true).show(ui);
-        TextField::new("Name", Bind::bound(&mut *held.borrow_mut())).show(ui);
+        shown.set(Some(TextField::new("Name", Bind::bound(&mut *held.borrow_mut())).show(ui).response.id));
     });
     fixture.settle();
     // A search result is a command row: it shows the command's own label.
@@ -285,5 +288,14 @@ fn the_help_search_finds_items_and_fires_their_commands() {
     fixture.type_text("undo");
     fixture.settle();
     click(&mut fixture, "Undo");
-    assert_eq!(fired(&fixture), [("edit.undo".to_owned(), FireSource::Menu)]);
+    assert_eq!(*text.borrow(), "", "Undo took back the typing in the field");
+    assert_eq!(fixture.focused_stop().map(|(id, _)| id), field.get(), "focus is back in the field");
+    assert!(fixture.by_label("Redo").is_none() && fixture.by_label("About").is_none(), "the pick closes the Help menu");
+    assert_eq!(fired(&fixture), [], "Undo reached the field, so nothing fired for edit.undo");
+    click(&mut fixture, "Help");
+    fixture.command_state("file.open", CommandState::new().title("Open…"));
+    fixture.type_text("open");
+    fixture.settle();
+    click(&mut fixture, "Open…");
+    assert_eq!(fired(&fixture), [("file.open".to_owned(), FireSource::Menu)]);
 }

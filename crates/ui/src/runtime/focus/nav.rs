@@ -69,6 +69,7 @@ impl State {
         self.last_row_sets = std::mem::take(&mut self.row_sets);
         self.open.clear();
         self.body_from.clear();
+        self.entered = false;
     }
 
     /// The registered roving group `id` of last pass: a plain group, else one of a collection's row groups.
@@ -376,12 +377,18 @@ pub(super) fn order_regions(state: &mut State) {
 /// Closes the innermost open scope; a scope shown for the first time moves focus to its initial stop.
 pub(super) fn initial_focus(state: &mut State, frame: u64) -> Vec<Act> {
     let Some((scope, first)) = state.open.pop() else { return Vec::new() };
-    state.seen.retain(|_, last| *last + 1 >= frame);
-    let previous = state.seen.insert(scope, frame);
-    if previous.is_some_and(|last| last + 1 >= frame) {
+    let Some((policy, entering)) = state.scopes.get(&scope).map(|rec| (rec.policy, rec.entering)) else { return Vec::new() };
+    let new = match entering {
+        Some(appears) => appears,
+        None => {
+            state.seen.retain(|_, last| *last + 1 >= frame);
+            let previous = state.seen.insert(scope, frame);
+            !previous.is_some_and(|last| last + 1 >= frame)
+        }
+    };
+    if !new {
         return Vec::new();
     }
-    let Some(policy) = state.scopes.get(&scope).map(|rec| rec.policy) else { return Vec::new() };
     let stops = &state.stops[first.min(state.stops.len())..];
     let pick = match policy.initial {
         Initial::First => stops.first(),
@@ -390,7 +397,10 @@ pub(super) fn initial_focus(state: &mut State, frame: u64) -> Vec<Act> {
         _ => None,
     };
     match pick.cloned() {
-        Some(rec) => state.focus_stop(rec),
+        Some(rec) => {
+            state.entered = true;
+            state.focus_stop(rec)
+        }
         None => Vec::new(),
     }
 }
@@ -429,6 +439,10 @@ pub(super) fn end(state: &mut State, focused: Option<Id>, frame: u64) -> Vec<Act
     // The moves below belong to the next frame's passes.
     state.frame = frame + 1;
     let mut acts = state.apply_press(focused);
+    // A layer that appeared in this pass took focus already: the press that opened it does not take it back.
+    if state.entered {
+        acts.clear();
+    }
     if acts.is_empty() {
         let next = state.restored_focus(focused).or_else(|| state.removed_focus(focused));
         if let Some(rec) = next {

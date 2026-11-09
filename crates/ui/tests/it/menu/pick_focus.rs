@@ -131,3 +131,21 @@ fn escape_from_a_bar_menu_leaves_focus_on_the_bar() {
     assert!(fixture.by_label("Zoom").is_none(), "Escape closes the menu");
     assert_eq!(fixture.focused_stop().map(|(id, _)| id), bar.get(), "focus returns to the bar title");
 }
+
+#[trial]
+fn help_menu_reopened_after_escape_focuses_its_search_field() {
+    let mut rig = rig();
+    for open in 1..=3 {
+        rig.click("Help");
+        let stop = rig.fixture.focused_stop();
+        assert!(stop.is_some(), "open {open}: the search field has focus");
+        assert_ne!(stop.map(|(id, _)| id), rig.field.get(), "open {open}: focus is in the popup, not the Name field");
+        rig.fixture.key(Key::Escape, Modifiers::NONE);
+        rig.fixture.settle();
+        assert_eq!(rig.fixture.focused_stop().map(|(id, _)| id), rig.field.get(), "open {open}: Escape returns focus to the Name field");
+    }
+    rig.click("Help");
+    rig.fixture.type_text("undo");
+    rig.fixture.settle();
+    assert!(rig.fixture.by_label("Undo").is_some(), "the text reaches the search field");
+}
