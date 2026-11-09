@@ -294,6 +294,7 @@ fn save_row(ui: &mut Ui, session: &mut Session, read: &Read<'_>, right: &mut Rig
         session.name_tried = false;
         session.focus_preset_name = true;
     }
+    eprintln!("DBG click={dbg_click:?} naming={:?} focus={}", session.naming, session.focus_preset_name);
     let Some(name) = session.naming.clone() else { return };
     let tried = session.name_tried;
     let library = read.library;
@@ -310,10 +311,11 @@ fn save_row(ui: &mut Ui, session: &mut Session, read: &Read<'_>, right: &mut Rig
         if shown.submitted {
             right.save = true;
         }
-        if std::mem::take(&mut session.focus_preset_name) {
+        if session.focus_preset_name {
             focus::request(ui.ctx(), FocusTarget::Id(shown.response.id));
         }
     });
+    session.focus_preset_name = false;
     Row::new().show(ui, |ui, _| {
         if clicked(&Button::new(words.save.clone()).id_salt("save").show(ui)) {
             right.save = true;
