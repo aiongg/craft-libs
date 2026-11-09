@@ -34,6 +34,7 @@ struct Sweep<K> {
 
 /// What a host does for one toggle event, from [`SweepApply::feed`]. Each carries the cell's key, column and value.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum SweepStep<K> {
     /// Set the cell to `on` now. A sweep emits one as the pointer crosses each cell; a plain press emits one.
     Flip(ToggleEdit<K>),

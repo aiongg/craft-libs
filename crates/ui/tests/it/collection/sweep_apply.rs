@@ -84,6 +84,7 @@ impl Host {
                         eyes[toggle.key] = toggle.on;
                     }
                     Some(SweepStep::UndoShowOnly(_)) | None => {}
+                    Some(_) => {}
                 }
             }
         });

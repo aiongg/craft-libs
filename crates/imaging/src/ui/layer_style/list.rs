@@ -240,5 +240,6 @@ pub(super) fn effect_list(
 fn applied<K: Clone>(edit: &EditEvent<ToggleEdit<K>>) -> Option<ToggleEdit<K>> {
     match SweepApply::default().feed(edit)? {
         SweepStep::Flip(cell) | SweepStep::ShowOnly(cell) | SweepStep::Restore(cell) | SweepStep::UndoShowOnly(cell) => Some(cell),
+        _ => None,
     }
 }

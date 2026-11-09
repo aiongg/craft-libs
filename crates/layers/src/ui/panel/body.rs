@@ -544,6 +544,7 @@ fn toggle_events<Id: Clone + PartialEq>(
         }
         // The rows an Alt sweep turned off have no event to take them back.
         SweepStep::UndoShowOnly(_) => {}
+        _ => {}
     }
 }
 

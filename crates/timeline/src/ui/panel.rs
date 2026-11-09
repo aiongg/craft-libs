@@ -359,6 +359,7 @@ impl Mapping<'_> {
                     let (toggled, exclusive) = match step {
                         SweepStep::Flip(cell) | SweepStep::Restore(cell) | SweepStep::UndoShowOnly(cell) => (cell, false),
                         SweepStep::ShowOnly(cell) => (cell, true),
+                        _ => continue,
                     };
                     let switch = match &toggled.column {
                         column if *column == LOCK => TrackSwitch::Locked,
