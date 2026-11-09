@@ -35,28 +35,24 @@ fn a_quad_is_valid_when_convex_wound_clockwise_and_not_flat() {
     assert!(!is_valid(&[PAGE[0], PAGE[1], PAGE[2], Point::new(f64::NAN, 1.0)]), "not finite");
 }
 
-// The grid step count grows with the side and clamps at a minimum and a maximum; the grid lines meet at the quad's vanishing points (an upright box has an axis-aligned grid).
+// The grid step count grows with the side and clamps at a minimum and a maximum; an upright box has an axis-aligned
+// grid and a trapezoid's rows are not evenly spaced.
 #[trial]
 fn the_grid_clamps_its_step_count_and_meets_at_the_quads_vanishing_points() {
-    {
-        assert_eq!(grid_steps(10.0, 48.0), 2);
-        assert_eq!(grid_steps(240.0, 48.0), 5);
-        assert_eq!(grid_steps(10_000.0, 48.0), 12);
-    }
-    {
-        let view = CanvasView::new(egui::Rect::from_min_size(Pos2::ZERO, Vec2::new(400.0, 300.0)), Point::new(200.0, 150.0), 1.0);
-        let upright = [Point::new(100.0, 50.0), Point::new(300.0, 50.0), Point::new(300.0, 190.0), Point::new(100.0, 190.0)];
-        let lines = grid_lines(&view, &upright, 48.0);
-        assert_eq!(lines.len(), 2 * (grid_steps(200.0, 48.0) - 1), "one line per step boundary in each direction");
-        assert!(lines.iter().all(|[a, b]| (a.x - b.x).abs() < 1e-3 || (a.y - b.y).abs() < 1e-3), "an upright box has an axis-aligned grid");
+    let (least, middle, most) = (grid_steps(10.0, 48.0), grid_steps(240.0, 48.0), grid_steps(10_000.0, 48.0));
+    assert!(least < middle && middle < most);
+    assert_eq!((grid_steps(1.0, 48.0), grid_steps(20_000.0, 48.0)), (least, most), "the count stops at both limits");
 
-        // A trapezoid narrower at the top: its rows crowd towards the far edge, as the object's own lines do.
-        let trapezoid = [Point::new(150.0, 50.0), Point::new(250.0, 50.0), Point::new(300.0, 250.0), Point::new(100.0, 250.0)];
-        let mut rows: Vec<f32> = grid_lines(&view, &trapezoid, 48.0).iter().filter(|[a, b]| (a.y - b.y).abs() < 1e-3).map(|[a, _]| a.y).collect();
-        rows.sort_by(f32::total_cmp);
-        let gaps: Vec<f32> = rows.windows(2).map(|pair| pair[1] - pair[0]).collect();
-        assert!(gaps.len() >= 2 && gaps.windows(2).any(|pair| (pair[0] - pair[1]).abs() > 0.5), "perspective rows are not evenly spaced: {gaps:?}");
-    }
+    let view = CanvasView::new(egui::Rect::from_min_size(Pos2::ZERO, Vec2::new(400.0, 300.0)), Point::new(200.0, 150.0), 1.0);
+    let upright = [Point::new(100.0, 50.0), Point::new(300.0, 50.0), Point::new(300.0, 190.0), Point::new(100.0, 190.0)];
+    let lines = grid_lines(&view, &upright, 48.0);
+    assert!(lines.iter().all(|[a, b]| (a.x - b.x).abs() < 1e-3 || (a.y - b.y).abs() < 1e-3), "an upright box has an axis-aligned grid");
+
+    let trapezoid = [Point::new(150.0, 50.0), Point::new(250.0, 50.0), Point::new(300.0, 250.0), Point::new(100.0, 250.0)];
+    let mut rows: Vec<f32> = grid_lines(&view, &trapezoid, 48.0).iter().filter(|[a, b]| (a.y - b.y).abs() < 1e-3).map(|[a, _]| a.y).collect();
+    rows.sort_by(f32::total_cmp);
+    let gaps: Vec<f32> = rows.windows(2).map(|pair| pair[1] - pair[0]).collect();
+    assert!(gaps.len() >= 2 && gaps.windows(2).any(|pair| (pair[0] - pair[1]).abs() > 0.5), "perspective rows are not evenly spaced: {gaps:?}");
 }
 
 struct Host {

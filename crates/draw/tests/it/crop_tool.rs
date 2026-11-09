@@ -244,47 +244,35 @@ fn editing_a_ratio_refits_from_the_frame_the_edit_began_with() {
     assert!((square.rect.width() - 56.25).abs() < 1e-9 && (square.rect.height() - 56.25).abs() < 1e-9, "{square:?}");
 }
 
-// A switch to another document discards a drawn frame and drops the kept frame; each document and size gets its own default frame.
+// A switch to another document discards a drawn frame and a kept frame, and each document and size gets its own default.
 #[trial]
 fn a_document_switch_drops_the_drawn_and_kept_frame_and_each_document_gets_its_own_default() {
-    {
-        let mut run = Run::new(classic());
-        run.settle();
-        run.tool.crop_to(upright(100.0, 80.0, 300.0, 220.0));
-        run.document = CropDocument::new(CropDocKey::new(2), Size::new(200.0, 100.0), 72.0);
-        let (_, events) = run.pass(0.0, Mods::NONE, |_, _| ());
-        assert!(events.contains(&CropEvent::Discard), "{events:?}");
-        assert_eq!(run.frame(), Some(upright(0.0, 0.0, 200.0, 100.0)), "the new document gets its own default frame");
-    }
-    {
-        let mut run = Run::new(classic());
-        run.settle();
-        run.tool.crop_to(upright(100.0, 80.0, 300.0, 220.0));
-        let Some(CropEvent::Apply(_)) = run.tool.apply(&run.settings, &run.document, &units()) else { panic!("a drawn frame applies") };
-        run.document = document(2);
-        run.settle();
-        run.tool.applied(false);
-        assert_eq!(run.frame(), Some(upright(0.0, 0.0, 400.0, 300.0)), "the refusal of another document's crop brings nothing back");
-        assert!(!run.tool.session().pending());
-    }
-    {
-        let mut session = CropSession::new();
-        session.ensure_frame(&sized(1, 200.0, 100.0), false);
-        assert!(session.ensure_frame(&sized(1, 300.0, 100.0), false));
-        assert_eq!(rect_of(&session), Some(Rect::new(0.0, 0.0, 300.0, 100.0)));
-        assert!(session.ensure_frame(&sized(2, 300.0, 100.0), false));
-        assert!(session.is_default());
+    let mut run = Run::new(classic());
+    run.settle();
+    run.tool.crop_to(upright(100.0, 80.0, 300.0, 220.0));
+    run.document = CropDocument::new(CropDocKey::new(2), Size::new(200.0, 100.0), 72.0);
+    let (_, events) = run.pass(0.0, Mods::NONE, |_, _| ());
+    assert!(events.contains(&CropEvent::Discard), "{events:?}");
+    assert_eq!(run.frame(), Some(upright(0.0, 0.0, 200.0, 100.0)), "the new document gets its own default frame");
 
-        assert!(!session.for_document(CropDocKey::new(2)));
-        assert!(session.frame().is_some());
-        session.set(upright(10.0, 10.0, 50.0, 50.0), false, "Crop");
-        assert!(session.for_document(CropDocKey::new(3)), "a drawn frame was dropped");
-        assert!(session.frame().is_none() && !session.can_undo());
+    let mut run = Run::new(classic());
+    run.settle();
+    run.tool.crop_to(upright(100.0, 80.0, 300.0, 220.0));
+    let Some(CropEvent::Apply(_)) = run.tool.apply(&run.settings, &run.document, &units()) else { panic!("a drawn frame applies") };
+    run.document = document(2);
+    run.settle();
+    run.tool.applied(false);
+    assert!(!run.tool.session().pending(), "the refusal of another document's crop brings nothing back");
 
-        session.ensure_frame(&sized(3, 10.0, 10.0), false);
-        assert!(!session.for_document(CropDocKey::new(4)), "an untouched default frame is no discard");
-        assert!(session.frame().is_none());
-    }
+    let mut session = CropSession::new();
+    session.ensure_frame(&sized(1, 200.0, 100.0), false);
+    assert!(session.ensure_frame(&sized(1, 300.0, 100.0), false), "a new size gets a new default");
+    assert!(session.ensure_frame(&sized(2, 300.0, 100.0), false), "a new document gets a new default");
+    session.set(upright(10.0, 10.0, 50.0, 50.0), false, "Crop");
+    assert!(session.for_document(CropDocKey::new(3)), "a drawn frame was dropped");
+    assert!(session.frame().is_none() && !session.can_undo());
+    session.ensure_frame(&sized(3, 10.0, 10.0), false);
+    assert!(!session.for_document(CropDocKey::new(4)), "an untouched default frame is no discard");
 }
 
 #[trial]

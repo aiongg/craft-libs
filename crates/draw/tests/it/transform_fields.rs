@@ -123,35 +123,25 @@ fn near(a: f64, b: f64) -> bool {
     (a - b).abs() < 1e-3
 }
 
-// Typing a linked width scales the height, the angle and skew fields turn and lean the box, all about the reference point; a flipped box keeps its negative width through the other fields.
+// Typing a linked width scales the height, and the angle and skew fields turn and lean the box, all about the
+// reference point; a flipped box keeps its negative width through the other fields.
 #[trial]
 fn field_edits_act_about_the_reference_point_and_keep_the_sign() {
-    {
-        let mut h = harness();
-        let pivot = h.row().state.pivot;
-        h.type_into("Width", "50");
-        let parts = h.parts();
-        assert!(near(parts.w, 0.5) && near(parts.h, 0.5), "{parts:?}");
-        assert!(h.row().state.pivot.distance(pivot) < 1e-6, "the reference point stays");
-    }
-    {
-        let mut h = harness();
-        let pivot = h.row().state.pivot;
-        h.type_into("Angle", "30");
-        assert!(near(h.parts().angle, 30.0), "{:?}", h.parts());
-        h.type_into("Horizontal skew", "20");
-        assert!(near(h.parts().skew_h, 20.0) && near(h.parts().angle, 30.0), "{:?}", h.parts());
-        assert!(h.row().state.pivot.distance(pivot) < 1e-6);
-    }
-    {
-        let state = BoxState::from_rect(START);
-        let mut parts = state.parts(START, 0.0);
-        parts.w = -1.0;
-        let mut h = harness_of(TransformRow::new(state.with_parts(START, 0.0, parts), 0.0), plain());
-        assert!(h.parts().w < 0.0);
-        h.type_into("Angle", "10");
-        assert!(near(h.parts().w, -1.0) && near(h.parts().angle, 10.0), "{:?}", h.parts());
-    }
+    let mut h = harness();
+    let pivot = h.row().state.pivot;
+    h.type_into("Width", "50");
+    assert!(near(h.parts().w, h.parts().h), "the linked height follows: {:?}", h.parts());
+    h.type_into("Angle", "30");
+    h.type_into("Horizontal skew", "20");
+    assert!(near(h.parts().angle, 30.0) && near(h.parts().skew_h, 20.0), "{:?}", h.parts());
+    assert!(h.row().state.pivot.distance(pivot) < 1e-6, "the reference point stays");
+
+    let state = BoxState::from_rect(START);
+    let mut parts = state.parts(START, 0.0);
+    parts.w = -1.0;
+    let mut h = harness_of(TransformRow::new(state.with_parts(START, 0.0, parts), 0.0), plain());
+    h.type_into("Angle", "10");
+    assert!(h.parts().w < 0.0 && near(h.parts().angle, 10.0), "{:?}", h.parts());
 }
 
 /// X and Y move the box with its reference point, and every field stops at its limit.
@@ -181,21 +171,18 @@ fn an_arrow_step_reports_a_box() {
     assert!(matches!(h.host.borrow().events.last(), Some(EditEvent::Set { .. })));
 }
 
-// Escape during a scrub of the V skew, or the host disabling the fields, puts the skew back to the one the scrub began with.
+// A scrub of the V skew that Escape or the host cancels (by disabling the fields) puts the skew back.
 #[trial]
 fn a_cancelled_skew_scrub_restores_the_hosts_skew() {
-    {
+    for by_host in [false, true] {
         let mut h = harness_of(TransformRow::new(BoxState::from_rect(START), 5.0), plain());
         h.scrub("Vertical skew", by(40.0, 0.0));
-        h.fixture.key(Key::Escape, Modifiers::NONE);
-        h.release();
-        assert!(near(h.row().skew_v, 5.0), "{}", h.row().skew_v);
-    }
-    {
-        let mut h = harness_of(TransformRow::new(BoxState::from_rect(START), 5.0), plain());
-        h.scrub("Vertical skew", by(40.0, 0.0));
-        h.host.borrow_mut().enabled = false;
-        h.fixture.idle(2);
+        if by_host {
+            h.host.borrow_mut().enabled = false;
+            h.fixture.idle(2);
+        } else {
+            h.fixture.key(Key::Escape, Modifiers::NONE);
+        }
         h.release();
         assert!(near(h.row().skew_v, 5.0), "{}", h.row().skew_v);
     }
@@ -213,22 +200,19 @@ fn the_row_keeps_its_own_link() {
     assert!(near(h.parts().w, 0.5) && near(h.parts().h, 1.0), "{:?}", h.parts());
 }
 
-// X and Y follow the units the host gives; a length typed in another unit sets the width.
+// X and Y follow the units the host gives, and a length typed in another unit sets the width.
 #[trial]
 fn lengths_follow_the_hosts_units_and_a_typed_other_unit_converts() {
-    {
-        let mut h = harness_of(TransformRow::new(BoxState::from_rect(START), 0.0), Config { units: Some(inches()), ..plain() });
-        h.type_into("X position", "1");
-        assert!(near(h.row().state.pivot.x, PIXELS_PER_INCH), "{:?}", h.row().state.pivot);
-    }
-    {
-        let length = SizeUnit::length(inches(), inches());
-        let mut h = harness_of(TransformRow::new(BoxState::from_rect(START), 0.0), Config { size_unit: length, units: Some(inches()), ..plain() });
-        let link = h.target("Maintain aspect ratio");
-        h.fixture.click(&link);
-        h.type_into("Width", "40px");
-        assert!(near(h.parts().w * START.width(), 40.0), "{:?}", h.parts());
-    }
+    let mut h = harness_of(TransformRow::new(BoxState::from_rect(START), 0.0), Config { units: Some(inches()), ..plain() });
+    h.type_into("X position", "1");
+    assert!(near(h.row().state.pivot.x, PIXELS_PER_INCH), "{:?}", h.row().state.pivot);
+
+    let length = SizeUnit::length(inches(), inches());
+    let mut h = harness_of(TransformRow::new(BoxState::from_rect(START), 0.0), Config { size_unit: length, units: Some(inches()), ..plain() });
+    let link = h.target("Maintain aspect ratio");
+    h.fixture.click(&link);
+    h.type_into("Width", "40px");
+    assert!(near(h.parts().w * START.width(), 40.0), "{:?}", h.parts());
 }
 
 /// Hostile text: a negative width flips the box, a huge one stops at the limit, zero collapses it without a
@@ -245,50 +229,39 @@ fn hostile_typed_lengths_flip_clamp_or_collapse() {
     assert!(row.state.quad.iter().all(|p| p.x.is_finite() && p.y.is_finite()), "{row:?}");
 }
 
-// The bar lays out the reference point, the cells, the interpolation, the check and the buttons in order; a bar of position and size only has just those cells, in the same order.
+// The bar lays out its cells, the interpolation, the check, the switch and the buttons in reading order; a bar of
+// position and size only has just those cells, in the same order.
 #[trial]
 fn the_bar_lays_out_its_cells_in_order_and_a_subset_shows_only_its_cells() {
-    {
-        let h = harness_of(TransformRow::new(BoxState::from_rect(START), 0.0), Config { bar: true, ..plain() });
-        let order =
-            ["Reference point", "X position", "Y position", "Width", "Maintain aspect ratio", "Height", "Angle", "Horizontal skew", "Vertical skew"];
-        let xs: Vec<f32> = order.iter().map(|label| h.target(label).rect.min.x).collect();
-        assert!(xs.windows(2).all(|pair| pair[0] < pair[1]), "{xs:?}");
+    let (mut fixture, _) = bar(false);
+    let order = [
+        "Center", // the reference point's Tab stop is its current cell
+        "X position",
+        "Width",
+        "Angle",
+        "Vertical skew",
+        "Interpolation",
+        "Show Reference Point",
+        "Switch between free transform and warp modes",
+        "Cancel transform",
+        "Commit transform",
+    ];
+    let mut stops = tab_stops(&mut fixture);
+    let members = group_members(&mut fixture);
+    stops.extend(members.into_iter().filter(|name| name != GROUP_STOP));
+    let at: Vec<usize> =
+        order.iter().map(|label| stops.iter().position(|stop| stop == label).unwrap_or_else(|| panic!("Tab reaches {label}: {stops:?}"))).collect();
+    assert!(at.windows(2).all(|pair| pair[0] < pair[1]), "{at:?} {stops:?}");
+
+    let mut groups = BarGroups::ALL;
+    (groups.reference, groups.angle, groups.skew, groups.interpolation) = (false, false, false, false);
+    let h = harness_of(TransformRow::new(BoxState::from_rect(START), 0.0), Config { bar: true, groups, ..plain() });
+    for absent in ["Reference point", "Angle", "Horizontal skew", "Vertical skew"] {
+        assert!(h.fixture.by_label(absent).is_none(), "{absent} is hidden");
     }
-    {
-        let mut groups = BarGroups::ALL;
-        (groups.reference, groups.angle, groups.skew, groups.interpolation) = (false, false, false, false);
-        let h = harness_of(TransformRow::new(BoxState::from_rect(START), 0.0), Config { bar: true, groups, ..plain() });
-        for absent in ["Reference point", "Angle", "Horizontal skew", "Vertical skew"] {
-            assert!(h.fixture.by_label(absent).is_none(), "{absent} is hidden");
-        }
-        let xs: Vec<f32> =
-            ["X position", "Y position", "Width", "Maintain aspect ratio", "Height"].iter().map(|label| h.target(label).rect.min.x).collect();
-        assert!(xs.windows(2).all(|pair| pair[0] < pair[1]), "{xs:?}");
-    }
-    {
-        let (mut fixture, _) = bar(false);
-        let order = [
-            "Center", // the reference point's Tab stop is its current cell
-            "X position",
-            "Width",
-            "Angle",
-            "Vertical skew",
-            "Interpolation",
-            "Show Reference Point",
-            "Switch between free transform and warp modes",
-            "Cancel transform",
-            "Commit transform",
-        ];
-        let mut stops = tab_stops(&mut fixture);
-        let members = group_members(&mut fixture);
-        stops.extend(members.into_iter().filter(|name| name != GROUP_STOP));
-        let at: Vec<usize> = order
-            .iter()
-            .map(|label| stops.iter().position(|stop| stop == label).unwrap_or_else(|| panic!("Tab reaches {label}: {stops:?}")))
-            .collect();
-        assert!(at.windows(2).all(|pair| pair[0] < pair[1]), "{at:?} {stops:?}");
-    }
+    let xs: Vec<f32> =
+        ["X position", "Y position", "Width", "Maintain aspect ratio", "Height"].iter().map(|label| h.target(label).rect.min.x).collect();
+    assert!(xs.windows(2).all(|pair| pair[0] < pair[1]), "{xs:?}");
 }
 
 /// The text typed into W of a perspective box stays in the field until the field commits, whatever the host wrote

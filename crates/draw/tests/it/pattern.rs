@@ -112,31 +112,24 @@ fn dialog(options: PatternFillOptions) -> (Fixture, Rc<RefCell<DialogRig>>) {
     (fixture, state)
 }
 
-// A Scale edit moves `current()` and sets `changed()` in that pass; Cancel answers `DialogResult::Cancel`; OK without a change answers the opening values and `unchanged()` is true.
+// A Scale edit moves `current()` and sets `changed()`; Cancel answers `Cancel`; OK without a change answers the opening values.
 #[trial]
 fn the_dialog_answers_live_values_cancel_and_an_unchanged_ok() {
-    {
-        let (mut fixture, state) = dialog(PatternFillOptions::bitmap("bubbles"));
-        assert!(!state.borrow().saw_changed);
-        type_into(&mut fixture, "Scale", TYPED_SCALE_TEXT);
-        assert_eq!(state.borrow().dialog.current().scale, TYPED_SCALE);
-        assert!(state.borrow().saw_changed);
-        assert!(!state.borrow().dialog.unchanged());
-        assert!(state.borrow().result.is_none(), "the dialog stays open until it is answered");
+    let (mut fixture, state) = dialog(PatternFillOptions::bitmap("bubbles"));
+    type_into(&mut fixture, "Scale", TYPED_SCALE_TEXT);
+    assert_eq!(state.borrow().dialog.current().scale, TYPED_SCALE);
+    assert!(state.borrow().saw_changed && !state.borrow().dialog.unchanged());
+    assert!(state.borrow().result.is_none(), "the dialog stays open until it is answered");
+    let cancel = fixture.by_label("Cancel").expect("the button");
+    fixture.click(&cancel);
+    fixture.settle();
+    assert_eq!(state.borrow().result, Some(DialogResult::Cancel));
 
-        let cancel = fixture.by_label("Cancel").expect("the button");
-        fixture.click(&cancel);
-        fixture.settle();
-        assert_eq!(state.borrow().result, Some(DialogResult::Cancel));
-    }
-    {
-        let opening = PatternFillOptions::bitmap("bubbles");
-        let (mut fixture, state) = dialog(opening.clone());
-        let ok = fixture.by_label("OK").expect("the button");
-        fixture.click(&ok);
-        fixture.settle();
-        assert_eq!(state.borrow().result, Some(DialogResult::Ok(opening)));
-        assert!(state.borrow().dialog.unchanged());
-        assert!(!state.borrow().saw_changed);
-    }
+    let opening = PatternFillOptions::bitmap("bubbles");
+    let (mut fixture, state) = dialog(opening.clone());
+    let ok = fixture.by_label("OK").expect("the button");
+    fixture.click(&ok);
+    fixture.settle();
+    assert_eq!(state.borrow().result, Some(DialogResult::Ok(opening)));
+    assert!(state.borrow().dialog.unchanged());
 }

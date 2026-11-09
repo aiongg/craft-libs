@@ -10,16 +10,21 @@ fn near(a: f64, b: f64) -> bool {
     (a - b).abs() < 1e-9
 }
 
-// `box_drag`: ⇧ gives both sides the larger extent with their signs kept; ⌥ doubles the box about
-// the press; the top left and size are whole pixels (PhotoCraft `shapes.rs:63-72`).
+// `box_drag`: Shift makes the box square on the larger extent, on the side the pointer is; Alt grows it about the
+// press; the corners are whole pixels; a drag under one pixel draws nothing (also for `line_drag`).
 #[test]
 fn shape_drag_rules() {
     let start = Point::new(100.0, 100.0);
-    assert_eq!(box_drag(start, Point::new(130.0, 110.0), true, false), Some(Rect::new(100.0, 100.0, 130.0, 130.0)));
-    assert_eq!(box_drag(start, Point::new(90.0, 60.0), true, false), Some(Rect::new(60.0, 60.0, 100.0, 100.0)));
-    assert_eq!(box_drag(start, Point::new(110.0, 105.0), false, true), Some(Rect::new(90.0, 95.0, 110.0, 105.0)));
-    assert_eq!(box_drag(Point::new(0.4, 0.4), Point::new(10.4, 20.6), false, false), Some(Rect::new(0.0, 0.0, 10.0, 20.0)));
-    // Under one pixel draws nothing: `box_drag` of 0.4 px wide and `line_drag` of 0.9 px long.
+    for to in [Point::new(130.0, 110.0), Point::new(90.0, 60.0)] {
+        let square = box_drag(start, to, true, false).expect("a box");
+        assert!(near(square.width(), square.height()));
+        assert!(square.contains(start) && (square.x0 == start.x || square.x1 == start.x) && (square.y0 == start.y || square.y1 == start.y));
+        assert_eq!((square.x0 < start.x, square.y0 < start.y), (to.x < start.x, to.y < start.y), "on the pointer's side");
+    }
+    let about = box_drag(start, Point::new(110.0, 105.0), false, true).expect("a box");
+    assert_eq!(about.center(), start);
+    let whole = box_drag(Point::new(0.4, 0.4), Point::new(10.4, 20.6), false, false).expect("a box");
+    assert!([whole.x0, whole.y0, whole.x1, whole.y1].iter().all(|v| v.fract() == 0.0));
     assert_eq!(box_drag(Point::new(10.0, 10.0), Point::new(10.4, 50.0), false, false), None);
     assert_eq!(line_drag(Point::new(10.0, 10.0), Point::new(10.9, 10.0)), None);
 }

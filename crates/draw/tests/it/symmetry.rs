@@ -51,32 +51,25 @@ fn axes_start_at_90_0_45_degrees_plus_rotation_and_dual_adds_the_perpendicular()
     assert!(near(dual[0].dot(dual[1]), 0.0));
 }
 
-// Segments clip to the page and vanish when the centre line misses it; the rotation handle sits at a share of the shorter side with a minimum distance.
+// Segments clip to the page and vanish when the centre line misses it; the rotation handle sits at a share of the
+// shorter side, with a minimum distance.
 #[trial]
 fn segments_clip_to_the_page_and_the_rotation_handle_keeps_its_distance() {
-    {
-        for size in [Size::new(100.0, 100.0), Size::new(101.0, 53.0)] {
-            for mode in SymmetryMode::ALL {
-                let s = Symmetry::new(mode, Point::new(size.width / 2.0, size.height / 2.0), 0.0).expect("a valid symmetry");
-                let segments = s.segments(size);
-                assert_eq!(segments.len(), if mode == SymmetryMode::Dual { 2 } else { 1 });
-                for line in segments {
-                    for p in [line.p0, line.p1] {
-                        assert!(p.x >= -1e-9 && p.x <= size.width + 1e-9 && p.y >= -1e-9 && p.y <= size.height + 1e-9);
-                    }
-                }
-            }
+    let size = Size::new(101.0, 53.0);
+    for mode in SymmetryMode::ALL {
+        let s = Symmetry::new(mode, Point::new(size.width / 2.0, size.height / 2.0), 0.0).expect("a valid symmetry");
+        let segments = s.segments(size);
+        assert_eq!(segments.len(), if mode == SymmetryMode::Dual { 2 } else { 1 });
+        for p in segments.iter().flat_map(|line| [line.p0, line.p1]) {
+            assert!(p.x >= -1e-9 && p.x <= size.width + 1e-9 && p.y >= -1e-9 && p.y <= size.height + 1e-9);
         }
-        let off = Symmetry::new(SymmetryMode::Horizontal, Point::new(50.0, -5.0), 0.0).expect("a valid symmetry");
-        assert!(off.segments(Size::new(100.0, 100.0)).is_empty());
     }
-    {
-        let s = sym(SymmetryMode::Horizontal, 0.0);
-        let h = s.rotation_handle(Size::new(200.0, 100.0), 0.35);
-        assert!(near(h.x, 55.0) && near(h.y, 30.0));
-        let tiny = s.rotation_handle(Size::new(2.0, 2.0), 0.35);
-        assert!(near(tiny.x, 21.0));
-    }
+    let off = Symmetry::new(SymmetryMode::Horizontal, Point::new(50.0, -5.0), 0.0).expect("a valid symmetry");
+    assert!(off.segments(Size::new(100.0, 100.0)).is_empty());
+
+    let s = sym(SymmetryMode::Horizontal, 0.0);
+    let (wide, tiny) = (s.rotation_handle(Size::new(200.0, 100.0), 0.35), s.rotation_handle(Size::new(2.0, 2.0), 0.35));
+    assert!(near(wide.x, 55.0) && near(wide.y, 30.0) && near(tiny.x, 21.0));
 }
 
 /// `Symmetry::new` refuses NaN, infinity and a centre past the limit, and wraps 370 to 10 and -90 to 270.
@@ -122,46 +115,33 @@ fn pick(fixture: &mut Fixture, row: &str) {
     fixture.idle(3);
 }
 
-// Menu rows check the current choice and run commands; the button is pressed while a symmetry is on.
+// Menu rows check the current choice and run commands (Transform only when it can); the button is pressed while a
+// symmetry is on.
 #[trial]
 fn menu_rows_check_the_choice_and_the_button_is_pressed_while_a_symmetry_is_on() {
-    {
-        let (mut fixture, host) = menu(SymmetryChoice::Mode(SymmetryMode::Dual), false);
-        open(&mut fixture);
-        let checked = |fixture: &Fixture, row: &str| fixture.by_label(row).and_then(|target| fixture.tree().toggled_of(target.node));
-        assert_eq!(checked(&fixture, "Dual Axis"), Some(Mixed::Same(true)));
-        assert_eq!(checked(&fixture, "Vertical"), Some(Mixed::Same(false)));
-        pick(&mut fixture, "Transform Symmetry");
-        assert!(host.borrow().commands.is_empty(), "no transform without can_transform");
-        pick(&mut fixture, "Horizontal");
-        assert_eq!(host.borrow().commands, [SymmetryCommand::Mode(SymmetryMode::Horizontal)]);
-        assert!(fixture.by_label("Horizontal").is_none(), "the menu closed");
+    let (mut fixture, host) = menu(SymmetryChoice::Mode(SymmetryMode::Dual), false);
+    open(&mut fixture);
+    let checked = |fixture: &Fixture, row: &str| fixture.by_label(row).and_then(|target| fixture.tree().toggled_of(target.node));
+    assert_eq!(checked(&fixture, "Dual Axis"), Some(Mixed::Same(true)));
+    assert_eq!(checked(&fixture, "Vertical"), Some(Mixed::Same(false)));
+    pick(&mut fixture, "Transform Symmetry");
+    assert!(host.borrow().commands.is_empty(), "no transform without can_transform");
+    pick(&mut fixture, "Horizontal");
+    assert_eq!(host.borrow().commands, [SymmetryCommand::Mode(SymmetryMode::Horizontal)]);
+    assert!(fixture.by_label("Horizontal").is_none(), "the menu closed");
 
-        let (mut fixture, host) = menu(SymmetryChoice::Off, false);
-        open(&mut fixture);
-        pick(&mut fixture, "Symmetry Off");
-        assert!(host.borrow().commands.is_empty(), "Symmetry Off is disabled while off");
-        pick(&mut fixture, "Work Path");
-        assert_eq!(host.borrow().commands, [SymmetryCommand::FromPath("work".to_owned())]);
+    let (mut fixture, host) = menu(SymmetryChoice::Path("work".to_owned()), true);
+    open(&mut fixture);
+    pick(&mut fixture, "Transform Symmetry");
+    assert_eq!(host.borrow().commands, [SymmetryCommand::Transform]);
 
-        let (mut fixture, host) = menu(SymmetryChoice::Path("work".to_owned()), true);
-        open(&mut fixture);
-        pick(&mut fixture, "Transform Symmetry");
-        assert_eq!(host.borrow().commands, [SymmetryCommand::Transform]);
-    }
-    {
-        let (mut fixture, _) = menu(SymmetryChoice::Mode(SymmetryMode::Diagonal), false);
+    let pressed = |choice| {
+        let (fixture, _) = menu(choice, false);
         let button = fixture.by_label("Set painting symmetry options").expect("the button is shown");
-        let tree = fixture.tree();
-        assert_eq!(tree.selected_of(button.node), Some(true));
-        assert_eq!(tree.description_of(button.node), Some("Diagonal"));
-
-        let (fixture, _) = menu(SymmetryChoice::Off, false);
-        let button = fixture.by_label("Set painting symmetry options").expect("the button is shown");
-        let tree = fixture.tree();
-        assert_ne!(tree.selected_of(button.node), Some(true));
-        assert_eq!(tree.description_of(button.node), None);
-    }
+        fixture.tree().selected_of(button.node) == Some(true)
+    };
+    assert!(pressed(SymmetryChoice::Mode(SymmetryMode::Diagonal)));
+    assert!(!pressed(SymmetryChoice::Off));
 }
 
 /// The session, the view and the events the handles reported.

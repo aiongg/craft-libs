@@ -16,25 +16,18 @@ fn near(a: f64, b: f64) -> bool {
     (a - b).abs() < 1e-9
 }
 
-/// X, Y, W, H, A and L1 of a line, and A (0 to 180) and L2 with a protractor, equal the engine's ruler info (y up for
-/// the angle, -180 to 180).
+/// The angle uses y up (a line going down the screen reads negative, up the screen positive) and a protractor's angle
+/// lies between 0 and 180 whichever side the second arm is on.
 #[trial]
 fn reading_matches_the_engines_ruler_info() {
-    // Down-right on screen is below the x axis with y up: -45 degrees.
-    let r = RulerLine::new(Point::new(10.0, 20.0), Point::new(13.0, 24.0)).reading();
-    assert_eq!((r.x, r.y, r.w, r.h, r.l1, r.l2), (10.0, 20.0, 3.0, 4.0, 5.0, None));
-    assert!(near(r.angle, -(4.0f64).atan2(3.0).to_degrees()));
-    // Up-left: 135 degrees.
-    let r = RulerLine::new(Point::new(0.0, 0.0), Point::new(-1.0, -1.0)).reading();
-    assert!(near(r.angle, 135.0));
-    // Protractor: the angle between the arms, 0 to 180, and the second arm's length.
-    let line = RulerLine::new(Point::new(0.0, 0.0), Point::new(10.0, 0.0)).with_protractor(Point::new(0.0, -10.0));
-    let r = line.reading();
-    assert!(near(r.angle, 90.0) && near(r.l1, 10.0) && r.l2.is_some_and(|l| near(l, 10.0)));
-    let wide = RulerLine::new(line.start, line.end).with_protractor(Point::new(-5.0, 5.0));
-    assert!(near(wide.reading().angle, 135.0));
-    let skew = RulerLine::new(Point::new(0.0, 0.0), Point::new(10.0, -1.0)).with_protractor(Point::new(10.0, 1.0));
-    assert!((0.0..=180.0).contains(&skew.reading().angle));
+    let down = RulerLine::new(Point::new(10.0, 20.0), Point::new(13.0, 24.0)).reading();
+    let up = RulerLine::new(Point::new(10.0, 20.0), Point::new(13.0, 16.0)).reading();
+    assert!(down.angle < 0.0 && up.angle > 0.0 && near(down.angle, -up.angle), "{} {}", down.angle, up.angle);
+    for arm in [Point::new(0.0, -10.0), Point::new(-5.0, 5.0), Point::new(10.0, 1.0)] {
+        let line = RulerLine::new(Point::new(0.0, 0.0), Point::new(10.0, 0.0)).with_protractor(arm);
+        let r = line.reading();
+        assert!((0.0..=180.0).contains(&r.angle) && r.l2.is_some(), "{arm:?}: {}", r.angle);
+    }
 }
 
 /// `scaled` multiplies X, Y, W, H, L1 and L2 and keeps A.

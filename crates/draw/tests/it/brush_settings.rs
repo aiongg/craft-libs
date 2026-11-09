@@ -92,33 +92,24 @@ fn rig(events: &Rc<RefCell<Vec<BrushSectionEvent<u8>>>>) -> Fixture {
     fixture
 }
 
-// A click on an off pane row shows its pane and turns the section on; a click on a switch row flips the switch and never selects it.
+// A click on an off pane row shows its pane and turns the section on; a click on a switch row only flips the switch.
 #[trial]
 fn row_clicks_select_a_pane_row_and_only_toggle_a_switch_row() {
-    {
+    let click = |label: &str| {
         let events = Rc::new(RefCell::new(Vec::new()));
         let mut fixture = rig(&events);
-        let target = fixture.by_label("Shape Dynamics");
-        assert!(target.is_some(), "the pane row is in the access tree");
-        let Some(target) = target else { return };
+        let target = fixture.by_label(label).expect("the row is in the access tree");
         fixture.click(&target);
         fixture.idle(2);
-        let seen = events.borrow();
-        assert!(seen.contains(&BrushSectionEvent::Select(1)));
-        assert!(seen.iter().any(|event| matches!(event, BrushSectionEvent::Enable { key: 1, on: true, .. })));
-    }
-    {
-        let events = Rc::new(RefCell::new(Vec::new()));
-        let mut fixture = rig(&events);
-        let target = fixture.by_label("Noise");
-        assert!(target.is_some(), "the switch row is in the access tree");
-        let Some(target) = target else { return };
-        fixture.click(&target);
-        fixture.idle(2);
-        let seen = events.borrow();
-        assert!(seen.iter().any(|event| matches!(event, BrushSectionEvent::Switch { key: 10, on: true, .. })));
-        assert!(!seen.iter().any(|event| matches!(event, BrushSectionEvent::Select(_))));
-    }
+        let seen = events.borrow().clone();
+        seen
+    };
+    let pane = click("Shape Dynamics");
+    assert!(pane.contains(&BrushSectionEvent::Select(1)));
+    assert!(pane.iter().any(|event| matches!(event, BrushSectionEvent::Enable { key: 1, on: true, .. })));
+    let switch = click("Noise");
+    assert!(switch.iter().any(|event| matches!(event, BrushSectionEvent::Switch { key: 10, on: true, .. })));
+    assert!(!switch.iter().any(|event| matches!(event, BrushSectionEvent::Select(_))));
 }
 
 /// A click on the link row opens the Brushes panel and nothing else.

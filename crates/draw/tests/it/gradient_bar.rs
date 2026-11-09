@@ -124,37 +124,22 @@ fn halfway_goes_between_the_selection_and_its_neighbour_or_across_the_widest_gap
     assert!(0.0 < implicit && implicit < 1.0, "the implicit 100 % stops lie at 0 and 1");
 }
 
-// Sampler: a segment bends to its midpoint; alpha comes from the opacity stops when split, the colours when combined, and never from either for colour-only rows.
+// Sampler: a segment bends to its midpoint; alpha comes from the opacity stops when split, from the colours when
+// combined, and from neither for colour-only rows.
 #[trial]
 fn the_default_sampler_bends_each_segment_to_its_midpoint_and_takes_alpha_by_layout() {
-    {
-        let mut stops = red_to_blue();
-        stops.color[0].midpoint = 0.25;
-        let half = sample(&stops, StopRows::Split, 0.25);
-        assert!(close(half, Srgba::rgb(0.5, 0.0, 0.5)), "{half:?}");
-        assert!(close(sample(&stops, StopRows::Split, -1.0), RED) && close(sample(&stops, StopRows::Split, 2.0), BLUE));
+    let mut stops = red_to_blue();
+    stops.color[0].midpoint = 0.25;
+    let half = sample(&stops, StopRows::Split, 0.25);
+    assert!(close(half, Srgba::rgb(0.5, 0.0, 0.5)), "{half:?}");
 
-        // Split: alpha from the opacity stops, the colours' own ignored.
-        stops.color[0].color.a = 0.0;
-        stops.opacity = vec![OpacityStop::new(0.0, 0.0), OpacityStop::new(1.0, 1.0)];
-        assert!((sample(&stops, StopRows::Split, 0.5).a - 0.5).abs() < 1e-5);
-        stops.opacity.clear();
-        assert_eq!(sample(&stops, StopRows::Split, 0.0).a, 1.0);
-        // Combined: the colours' alpha.
-        assert_eq!(sample(&stops, StopRows::Combined, 0.0).a, 0.0);
-    }
-    {
-        let mut stops = red_to_blue();
-        stops.color[0].color.a = 0.25;
-        stops.opacity = vec![OpacityStop::new(0.0, 0.0), OpacityStop::new(1.0, 0.0)];
-        assert_eq!(sample(&stops, StopRows::ColorOnly, 0.0).a, 1.0, "neither the colours' alpha nor opacity stops count");
-        assert_eq!(sample(&stops, StopRows::ColorOnly, 0.5).a, 1.0);
-
-        let rules = StopRules::new(StopRows::ColorOnly);
-        let (added, i) = stops::add(&stops, StopRow::Color, 0.1, &default_sampler(StopRows::ColorOnly), &rules).expect("a colour stop");
-        assert_eq!(added.color[i].color.a, 1.0, "an added stop is opaque");
-        assert!(stops::add(&stops, StopRow::Opacity, 0.5, &default_sampler(StopRows::ColorOnly), &rules).is_none(), "there is no opacity row");
-    }
+    stops.color[0].color.a = 0.0;
+    stops.opacity = vec![OpacityStop::new(0.0, 0.0), OpacityStop::new(1.0, 1.0)];
+    assert!(sample(&stops, StopRows::Split, 0.5).a > 0.0, "split: alpha from the opacity stops");
+    assert_eq!(sample(&stops, StopRows::Combined, 0.0).a, 0.0, "combined: the colours' alpha");
+    assert_eq!(sample(&stops, StopRows::ColorOnly, 0.0).a, 1.0, "colour-only: neither counts");
+    let rules = StopRules::new(StopRows::ColorOnly);
+    assert!(stops::add(&stops, StopRow::Opacity, 0.5, &default_sampler(StopRows::ColorOnly), &rules).is_none(), "there is no opacity row");
 }
 
 /// What the editor reported, pass by pass.

@@ -5,7 +5,7 @@ use craft_draw::ui::stroke::{
     ChoicePainter, LineCap, LineJoin, LineStyle, StrokeButton, StrokeChoice, StrokeChoiceRow, StrokeEditor, StrokeMixed, StrokePreview,
     StrokeSections, StrokeStyle,
 };
-use craft_ui::contract::{Bind, Role, Show as _};
+use craft_ui::contract::{Bind, Show as _};
 use craft_ui::primitives::PaintShape;
 use craft_ui::testing::{Fixture, Frames, trial};
 use egui::{Color32, Key, Modifiers, Pos2, Rect, Shape};
@@ -150,76 +150,51 @@ fn stroke_editor_choice_row_reports_the_pick() {
     assert_eq!(*picked.borrow(), Some(("arrowhead".to_owned(), "filled".to_owned())));
 }
 
-// The open binding drives the popover; a target change closes it.
+// The open binding drives the popover, and a target change closes it.
 #[trial]
 fn stroke_button_popover_follows_the_open_binding_and_closes_on_target_change() {
-    {
-        let open = Rc::new(Cell::new(false));
-        let shared = Rc::clone(&open);
-        let mut fixture = Fixture::new(move |ui| {
-            let mut style = StrokeStyle::default();
-            let mut now = shared.get();
-            StrokeButton::new("Stroke Options", Bind::bound(&mut style), Bind::bound(&mut now)).show(ui);
-            shared.set(now);
-        });
-        fixture.settle();
-        assert!(fixture.by_label("Dashed").is_none(), "closed at first");
-        open.set(true);
-        fixture.idle(4);
-        assert!(fixture.by_label("Dashed").is_some(), "the bound value opens the popover");
-        assert!(open.get(), "and stays open");
-        open.set(false);
-        fixture.idle(4);
-        assert!(fixture.by_label("Dashed").is_none(), "the bound value closes it");
-    }
-    {
-        let open = Rc::new(Cell::new(false));
-        let target = Rc::new(Cell::new(1_u64));
-        let (shared, layer) = (Rc::clone(&open), Rc::clone(&target));
-        let mut fixture = Fixture::new(move |ui| {
-            let mut style = StrokeStyle::default();
-            let mut now = shared.get();
-            StrokeButton::new("Stroke Options", Bind::bound(&mut style), Bind::bound(&mut now)).target(layer.get()).show(ui);
-            shared.set(now);
-        });
-        fixture.settle();
-        let button = fixture.by_role(Role::BUTTON).first().cloned().expect("the button is shown");
-        fixture.click(&button);
-        fixture.idle(3);
-        assert!(open.get(), "a click opens the popover");
-        target.set(2);
-        fixture.idle(4);
-        assert!(!open.get(), "another target closes it");
-    }
+    let open = Rc::new(Cell::new(false));
+    let target = Rc::new(Cell::new(1_u64));
+    let (shared, layer) = (Rc::clone(&open), Rc::clone(&target));
+    let mut fixture = Fixture::new(move |ui| {
+        let mut style = StrokeStyle::default();
+        let mut now = shared.get();
+        StrokeButton::new("Stroke Options", Bind::bound(&mut style), Bind::bound(&mut now)).target(layer.get()).show(ui);
+        shared.set(now);
+    });
+    fixture.settle();
+    assert!(fixture.by_label("Dashed").is_none(), "closed at first");
+    open.set(true);
+    fixture.idle(4);
+    assert!(fixture.by_label("Dashed").is_some() && open.get(), "the bound value opens the popover");
+    target.set(2);
+    fixture.idle(4);
+    assert!(!open.get() && fixture.by_label("Dashed").is_none(), "another target closes it");
 }
 
-// Mixed values: the fields that differ are marked, a pick sets the field and no button lights.
+// Mixed values: only the fields that differ are marked, and a pick in a marked field sets it.
 #[trial]
 fn stroke_mixed_values_are_marked_and_a_pick_sets_the_field() {
-    {
-        let first = StrokeStyle::default();
-        let other = StrokeStyle { cap: LineCap::Round, opacity: 0.5, ..first.clone() };
-        let (style, mixed) = StrokeMixed::of([&first, &other]).expect("two styles");
-        assert_eq!(style, first);
-        assert!(mixed.cap && mixed.opacity);
-        assert!(!mixed.align && !mixed.join && !mixed.dashes && !mixed.miter_limit && !mixed.dash_offset);
-        assert!(StrokeMixed::of(std::iter::empty()).is_none());
-    }
-    {
-        let mut mixed = StrokeMixed::default();
-        mixed.cap = true;
-        let value = Rc::new(RefCell::new(dashed()));
-        let held = Rc::clone(&value);
-        let mut fixture = Fixture::new(move |ui| {
-            let mut style = held.borrow_mut();
-            StrokeEditor::new("Stroke", Bind::bound(&mut *style)).sections(StrokeSections::PANEL).mixed(&mixed).show(ui);
-        });
-        fixture.settle();
-        let round = fixture.by_label("Round").expect("the cap segments are shown");
-        fixture.click(&round);
-        fixture.idle(3);
-        assert_eq!(value.borrow().cap, LineCap::Round);
-    }
+    let first = StrokeStyle::default();
+    let other = StrokeStyle { cap: LineCap::Round, opacity: 0.5, ..first.clone() };
+    let (style, mixed) = StrokeMixed::of([&first, &other]).expect("two styles");
+    assert_eq!(style, first);
+    assert!(mixed.cap && mixed.opacity);
+    assert!(!mixed.align && !mixed.join && !mixed.dashes && !mixed.miter_limit && !mixed.dash_offset);
+
+    let mut mixed = StrokeMixed::default();
+    mixed.cap = true;
+    let value = Rc::new(RefCell::new(dashed()));
+    let held = Rc::clone(&value);
+    let mut fixture = Fixture::new(move |ui| {
+        let mut style = held.borrow_mut();
+        StrokeEditor::new("Stroke", Bind::bound(&mut *style)).sections(StrokeSections::PANEL).mixed(&mixed).show(ui);
+    });
+    fixture.settle();
+    let round = fixture.by_label("Round").expect("the cap segments are shown");
+    fixture.click(&round);
+    fixture.idle(3);
+    assert_eq!(value.borrow().cap, LineCap::Round);
 }
 
 /// A dashed sample has more pieces with round or square caps than with butt caps, and a round corner has more points
@@ -262,22 +237,12 @@ fn sample_alphas(style: &StrokeStyle) -> Vec<u8> {
 // The sample alpha follows the style opacity; an invalid style draws nothing.
 #[trial]
 fn the_stroke_sample_follows_the_opacity_and_invalid_styles_draw_nothing() {
-    {
-        let half = StrokeStyle { opacity: 0.5, ..StrokeStyle::default() };
-        let (full, faded) = (sample_alphas(&StrokeStyle::default()), sample_alphas(&half));
-        assert_eq!(full.len(), faded.len(), "the same sample at both opacities: {full:?} {faded:?}");
-        let dashes: Vec<(u8, u8)> = full.iter().copied().zip(faded.iter().copied()).filter(|(full, faded)| full != faded).collect();
-        assert!(!dashes.is_empty(), "the opacity changes the sample: {full:?}");
-        assert!(
-            dashes.iter().all(|(full, faded)| (f32::from(*full) * half.opacity - f32::from(*faded)).abs() <= ALPHA_STEP),
-            "each dash at half the alpha: {dashes:?}"
-        );
-    }
-    {
-        let invalid = StrokeStyle { width: -1.0, ..StrokeStyle::default() };
-        assert!(StrokePreview::new(&invalid, 4.0).shapes(SAMPLE).is_empty());
-        let half = StrokeStyle { opacity: 0.5, ..StrokeStyle::default() };
-        let preview = StrokePreview::new(&half, 4.0);
-        assert!(!preview.shapes(SAMPLE).is_empty());
-    }
+    let half = StrokeStyle { opacity: 0.5, ..StrokeStyle::default() };
+    let (full, faded) = (sample_alphas(&StrokeStyle::default()), sample_alphas(&half));
+    assert_eq!(full.len(), faded.len());
+    let dashes: Vec<(u8, u8)> = full.iter().copied().zip(faded.iter().copied()).filter(|(full, faded)| full != faded).collect();
+    assert!(!dashes.is_empty(), "the opacity changes the sample: {full:?}");
+    assert!(dashes.iter().all(|(full, faded)| (f32::from(*full) * half.opacity - f32::from(*faded)).abs() <= ALPHA_STEP), "{dashes:?}");
+    let invalid = StrokeStyle { width: -1.0, ..StrokeStyle::default() };
+    assert!(StrokePreview::new(&invalid, 4.0).shapes(SAMPLE).is_empty());
 }

@@ -150,7 +150,7 @@ fn scrubbing_a_size_is_one_gesture() {
     assert!(layer.changes().iter().all(|change| matches!(change, ShapeChange::Size { .. })), "{:?}", layer.events);
 }
 
-// A zero stroke width reports nothing; choosing Solid on the Stroke chip, in the panel and on the bar, is one change carrying the enabled width.
+// A zero stroke width reports nothing; choosing Solid on the Stroke chip is one change carrying the enabled width.
 #[trial]
 fn stroke_width_zero_reports_nothing_and_turning_the_stroke_on_is_one_change() {
     {
@@ -174,6 +174,11 @@ fn stroke_width_zero_reports_nothing_and_turning_the_stroke_on_is_one_change() {
             "{changes:?}"
         );
     }
+}
+
+// The same on the bar: Solid on the Stroke chip at width 0 is one change.
+#[trial]
+fn the_bar_turning_the_stroke_on_is_one_change() {
     {
         let layer = Layer::new(look(0.0));
         let mut fixture = bar(ShapeKind::Rectangle, &layer);

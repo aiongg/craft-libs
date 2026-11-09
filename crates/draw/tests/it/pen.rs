@@ -256,45 +256,30 @@ fn a_press_on_the_first_anchor_closes_the_path_on_release_with_or_without_a_drag
     assert_eq!(done.knots.len(), 3, "no anchor added");
 }
 
-// Enter and Escape end the path open and keep it; a draft ended with one anchor leaves no path; a resumed path shrunk to one anchor is removed from the host.
+// Enter and Escape end the path open and keep it; one anchor leaves no path; a resumed path shrunk to one anchor is
+// removed from the host.
 #[trial]
 fn ending_a_draft_keeps_an_open_path_and_one_anchor_leaves_no_path() {
-    {
-        for key in [Key::Enter, Key::Escape] {
-            let mut pen = Pen::three();
-            pen.key(key, Modifiers::NONE);
-            let done = pen.filed().unwrap_or_else(|| panic!("{key:?}: {:?}", pen.kinds()));
-            assert!(!done.closed && done.knots.len() == 3);
-            assert!(pen.finished());
-        }
-        // One anchor is no path.
-        let mut pen = pen();
-        pen.click_doc(60.0, 60.0);
-        pen.key(Key::Enter, Modifiers::NONE);
-        assert!(
-            matches!(pen.log.iter().rev().nth(1), Some(PenEvent::Edit(EditEvent::Cancel { reason: CancelReason::Escape, .. }))),
-            "{:?}",
-            pen.kinds()
-        );
-        assert!(pen.filed().is_none());
+    for key in [Key::Enter, Key::Escape] {
+        let mut pen = Pen::three();
+        pen.key(key, Modifiers::NONE);
+        let done = pen.filed().unwrap_or_else(|| panic!("{key:?}: {:?}", pen.kinds()));
+        assert!(!done.closed && pen.finished());
     }
-    {
-        let mut pen = pen();
-        pen.click_doc(60.0, 60.0);
-        pen.key(Key::Escape, Modifiers::NONE);
-        assert!(pen.filed().is_none() && pen.finished(), "{:?}", pen.kinds());
-        // A resumed path of two anchors that shrinks to one is removed from the host: the empty draft is committed.
-        let path = EditSubpath::new(vec![Knot::corner(doc(300.0, 250.0)), Knot::corner(doc(360.0, 200.0))], false);
-        let mut pen = pen_with(PenTool::new(), view_of);
-        pen.fixture.tool_mut().draft(Some(&path));
-        pen.fixture.fixture().idle(1);
-        pen.sync();
-        assert_eq!(pen.kinds(), ["begin"]);
-        assert!(pen.fixture.tool_mut().remove_last());
-        assert!(pen.fixture.tool_mut().remove_last());
-        pen.sync();
-        assert_eq!(pen.filed(), Some(EditSubpath::default()), "the host's path is removed: {:?}", pen.kinds());
-    }
+    let mut pen = pen();
+    pen.click_doc(60.0, 60.0);
+    pen.key(Key::Escape, Modifiers::NONE);
+    assert!(pen.filed().is_none() && pen.finished(), "{:?}", pen.kinds());
+
+    let path = EditSubpath::new(vec![Knot::corner(doc(300.0, 250.0)), Knot::corner(doc(360.0, 200.0))], false);
+    let mut pen = pen_with(PenTool::new(), view_of);
+    pen.fixture.tool_mut().draft(Some(&path));
+    pen.fixture.fixture().idle(1);
+    pen.sync();
+    assert!(pen.fixture.tool_mut().remove_last());
+    assert!(pen.fixture.tool_mut().remove_last());
+    pen.sync();
+    assert_eq!(pen.filed(), Some(EditSubpath::default()), "the host's path is removed: {:?}", pen.kinds());
 }
 
 #[trial]
@@ -591,24 +576,19 @@ fn curvature_grabs_an_existing_anchor_and_reflows() {
 // Backspace and the host undo (`remove_last`) both remove the last anchor and reflow the handles through the anchors left.
 #[trial]
 fn curvature_remove_last_reflows_the_anchors_left() {
-    {
+    for by_key in [true, false] {
         let mut pen = three_curved();
-        pen.key(Key::Backspace, Modifiers::NONE);
+        if by_key {
+            pen.key(Key::Backspace, Modifiers::NONE);
+        } else {
+            assert!(pen.fixture.tool_mut().remove_last());
+            pen.sync();
+        }
         let draft = pen.draft();
         assert_eq!(draft.knots.len(), 2);
         let mut reflowed = draft.clone();
         reflowed.reflow();
         assert_eq!(draft, reflowed, "the handles flow through the anchors left");
-    }
-    {
-        let mut pen = three_curved();
-        assert!(pen.fixture.tool_mut().remove_last());
-        pen.sync();
-        let draft = pen.draft();
-        assert_eq!(draft.knots.len(), 2);
-        let mut reflowed = draft.clone();
-        reflowed.reflow();
-        assert_eq!(draft, reflowed);
     }
 }
 

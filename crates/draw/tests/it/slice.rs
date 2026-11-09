@@ -204,26 +204,25 @@ fn slice_select_moves_the_whole_slice_when_the_press_hits_a_covered_piece() {
     assert!(h.events().iter().any(|event| matches!(event, SliceEvent::Select { number: Some(1), .. })));
 }
 
-// A drag of a handle resizes the edge it hangs off; a click on a handle resizes nothing.
+// A drag of an edge handle moves only that edge, a drag of a corner handle moves both its edges, and a click on a
+// handle resizes nothing.
 #[trial]
 fn slice_handle_gestures_a_drag_resizes_the_edge_and_a_click_changes_nothing() {
-    {
-        let mut h = harness(SliceMode::Select, |app| app.selected = Some(1));
-        let right = h.screen(120.0, 40.0);
-        h.drag(right, right + egui::vec2(20.0, 30.0), Modifiers::NONE);
-        assert_eq!(committed(&h.events(), 1, true), Some(Rect::new(0.0, 0.0, 140.0, 80.0)), "the middle handle moves one edge: {:?}", h.events());
-        let corner = h.screen(0.0, 0.0);
-        h.clear();
-        h.drag(corner, corner + egui::vec2(-10.0, -5.0), Modifiers::NONE);
-        assert_eq!(committed(&h.events(), 1, true), Some(Rect::new(-10.0, -5.0, 140.0, 80.0)));
-    }
-    {
-        let mut h = harness(SliceMode::Select, |app| app.selected = Some(1));
-        let right = h.screen(120.0, 40.0);
-        h.click(right);
-        assert!(committed(&h.events(), 1, true).is_none() && committed(&h.events(), 1, false).is_none(), "{:?}", h.events());
-        assert_eq!(h.rect(1), Rect::new(0.0, 0.0, 120.0, 80.0));
-    }
+    let mut h = harness(SliceMode::Select, |app| app.selected = Some(1));
+    let start = h.rect(1);
+    let right = h.screen(120.0, 40.0);
+    h.click(right);
+    assert!(committed(&h.events(), 1, true).is_none() && committed(&h.events(), 1, false).is_none(), "{:?}", h.events());
+    assert_eq!(h.rect(1), start);
+
+    h.drag(right, right + egui::vec2(20.0, 30.0), Modifiers::NONE);
+    let edge = committed(&h.events(), 1, true).expect("the edge handle resizes");
+    assert!(edge.x1 > start.x1 && (edge.x0, edge.y0, edge.y1) == (start.x0, start.y0, start.y1), "{edge:?}");
+    let corner = h.screen(0.0, 0.0);
+    h.clear();
+    h.drag(corner, corner + egui::vec2(-10.0, -5.0), Modifiers::NONE);
+    let grown = committed(&h.events(), 1, true).expect("the corner handle resizes");
+    assert!(grown.x0 < edge.x0 && grown.y0 < edge.y0 && (grown.x1, grown.y1) == (edge.x1, edge.y1), "{grown:?}");
 }
 
 #[trial]

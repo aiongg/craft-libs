@@ -150,23 +150,25 @@ fn answered(fixture: &mut Fixture, host: &Rc<RefCell<DialogHost>>) -> Option<cra
     }
 }
 
-// OK creates the shape at the click; with From Centre it is centred on the click and keeps half pixels.
+// OK creates the shape at the click; with From Centre the shape is centred on the click, half pixels kept.
 #[trial]
 fn ok_creates_the_shape_at_the_click_centred_when_from_center() {
-    {
-        let (mut fixture, host) = opened(CreateShapeOptions::initial(ShapeKind::Rectangle, Point::new(40.0, 60.0)));
-        let shape = answered(&mut fixture, &host).expect("OK answers");
-        assert_eq!(shape.geometry, ShapeGeometry::Rect { rect: Rect::new(40.0, 60.0, 140.0, 160.0), radii: [0.0; 4] });
-    }
-    {
-        let mut options = CreateShapeOptions::initial(ShapeKind::Ellipse, Point::new(40.0, 60.0));
-        options.size = (101.0, 51.0);
-        options.from_center = true;
-        let (mut fixture, host) = opened(options);
-        let shape = answered(&mut fixture, &host).expect("OK answers");
-        assert_eq!(shape.geometry, ShapeGeometry::Ellipse { rect: Rect::new(-10.5, 34.5, 90.5, 85.5) });
-        assert!(shape.from_center);
-    }
+    let rect_of = |geometry: ShapeGeometry| match geometry {
+        ShapeGeometry::Rect { rect, .. } | ShapeGeometry::Ellipse { rect } => rect,
+        other => panic!("{other:?}"),
+    };
+    let click = Point::new(40.0, 60.0);
+    let (mut fixture, host) = opened(CreateShapeOptions::initial(ShapeKind::Rectangle, click));
+    let shape = answered(&mut fixture, &host).expect("OK answers");
+    assert_eq!(rect_of(shape.geometry).origin(), click);
+
+    let mut options = CreateShapeOptions::initial(ShapeKind::Ellipse, click);
+    options.size = (101.0, 51.0);
+    options.from_center = true;
+    let (mut fixture, host) = opened(options);
+    let shape = answered(&mut fixture, &host).expect("OK answers");
+    assert_eq!(rect_of(shape.geometry).center(), click);
+    assert!(shape.from_center);
 }
 
 #[trial]

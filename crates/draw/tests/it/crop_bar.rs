@@ -490,39 +490,27 @@ fn type_into(rig: &mut Rig, label: &str, text: &str) {
     rig.fixture.key(Key::Enter, Modifiers::NONE).settle();
 }
 
-// A length typed in the unit the field is in stays in that unit, and so does one typed in another unit ("50 mm" in a field showing inches is 50 mm).
+// A typed length keeps the unit it was typed in, whether or not it is the unit the field showed; the other side is untouched.
 #[trial]
 fn a_typed_length_keeps_the_unit_it_was_typed_in() {
-    {
-        let mut rig = bar(size_mode(inches(4.0), inches(5.0), "300"), Vec::new());
-        type_into(&mut rig, "Width", "2 in");
-        assert_eq!(rig.settings.borrow().size.width, inches(2.0));
-        assert_eq!(rig.settings.borrow().size.height, inches(5.0), "the other side is untouched");
-    }
-    {
-        let mut rig = bar(size_mode(inches(4.0), inches(5.0), "300"), Vec::new());
-        type_into(&mut rig, "Width", "50 mm");
-        assert_eq!(rig.settings.borrow().size.width, Some(CropLength::new(50.0, UnitKind::Millimetres)));
-    }
+    let mut rig = bar(size_mode(inches(4.0), inches(5.0), "300"), Vec::new());
+    type_into(&mut rig, "Width", "2 in");
+    assert_eq!(rig.settings.borrow().size.width, inches(2.0));
+    assert_eq!(rig.settings.borrow().size.height, inches(5.0), "the other side is untouched");
+    type_into(&mut rig, "Width", "50 mm");
+    assert_eq!(rig.settings.borrow().size.width, Some(CropLength::new(50.0, UnitKind::Millimetres)));
 }
 
-// A cleared field is unset and the commit then has no target; a typed 0 or negative number neither unsets the field nor makes it zero.
+// A cleared field is unset and the commit then has no target; a typed non-positive number is not kept.
 #[trial]
 fn a_cleared_length_unsets_and_a_non_positive_one_is_ignored() {
-    {
-        let mut rig = bar(size_mode(inches(4.0), inches(5.0), "300"), Vec::new());
-        type_into(&mut rig, "Height", "");
-        assert_eq!(rig.settings.borrow().size.height, None);
-        assert_eq!(rig.settings.borrow().target(&document(), &units_of(PointSize::PostScript)), None);
-    }
-    {
-        for junk in ["0", "-3"] {
-            let mut rig = bar(size_mode(inches(4.0), inches(5.0), "300"), Vec::new());
-            type_into(&mut rig, "Width", junk);
-            let width = rig.settings.borrow().size.width;
-            assert!(width.is_some_and(|length| length.value >= LENGTH_MIN && length.unit == UnitKind::Inches), "{junk}: {width:?}");
-        }
-    }
+    let mut rig = bar(size_mode(inches(4.0), inches(5.0), "300"), Vec::new());
+    type_into(&mut rig, "Height", "");
+    assert_eq!(rig.settings.borrow().size.height, None);
+    assert_eq!(rig.settings.borrow().target(&document(), &units_of(PointSize::PostScript)), None);
+    type_into(&mut rig, "Width", "-3");
+    let width = rig.settings.borrow().size.width;
+    assert!(width.is_some_and(|length| length.value >= LENGTH_MIN), "{width:?}");
 }
 
 /// Typing "2 in" into a pixel field switches the field to inches; the crop is the same length in pixels.

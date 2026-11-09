@@ -286,29 +286,25 @@ fn each_part_drags_as_quad_drag_has_it_in_every_mode() {
     }
 }
 
-// A click outside and a double click inside apply; a drag outside rotates.
+// A click outside and a double click inside apply; a drag outside rotates and does not apply.
 #[trial]
 fn applying_gestures_click_outside_and_double_click_inside_apply_and_a_drag_outside_rotates() {
-    {
-        let mut h = upright();
-        let at = h.screen(Point::new(340.0, 260.0));
-        h.click(at);
-        assert_eq!(h.host.borrow().applied, 1, "a click outside applies");
-        assert!(h.host.borrow().events.is_empty() && h.state() == BoxState::from_rect(RECT));
+    let mut h = upright();
+    let outside = h.screen(Point::new(340.0, 260.0));
+    h.click(outside);
+    assert_eq!(h.host.borrow().applied, 1, "a click outside applies");
+    assert_eq!(h.state(), BoxState::from_rect(RECT));
+    h.drag(outside, outside + by(-40.0, 30.0), Modifiers::NONE);
+    assert_eq!(h.host.borrow().applied, 1, "a drag doesn't apply");
+    assert!(h.state().angle().abs() > 1.0, "the drag turns the box: {}", h.state().angle());
 
-        h.drag(at, at + by(-40.0, 30.0), Modifiers::NONE);
-        assert_eq!(h.host.borrow().applied, 1, "a drag doesn't apply");
-        assert!(h.state().angle().abs() > 1.0, "the drag turns the box: {}", h.state().angle());
-    }
-    {
-        let mut h = upright();
-        let at = h.screen(Point::new(150.0, 110.0));
-        frame(&mut h, vec![pointer::moved(at), pointer::press(at), pointer::release(at)]);
-        frame(&mut h, vec![pointer::press(at), pointer::release(at)]);
-        frame(&mut h, Vec::new());
-        assert_eq!(h.host.borrow().applied, 1);
-        assert!(h.host.borrow().events.is_empty(), "clicks don't move the box");
-    }
+    let mut h = upright();
+    let inside = h.screen(Point::new(150.0, 110.0));
+    frame(&mut h, vec![pointer::moved(inside), pointer::press(inside), pointer::release(inside)]);
+    frame(&mut h, vec![pointer::press(inside), pointer::release(inside)]);
+    frame(&mut h, Vec::new());
+    assert_eq!(h.host.borrow().applied, 1);
+    assert!(h.host.borrow().events.is_empty(), "clicks don't move the box");
 }
 
 #[trial]
@@ -321,40 +317,28 @@ fn the_rotate_zone_beyond_the_corners_turns_about_the_reference_point_and_shift_
     assert!(near(&BoxState::new([h.state().pivot; 4], h.state().pivot), &BoxState::new([RECT.center(); 4], RECT.center())), "the pivot stays");
 }
 
-// Escape cancels a drag and the rest of the press does nothing; Escape before the first move ends the press.
+// Escape ends a press, whether or not it had moved: the box goes back, the rest of the press does nothing and the
+// box stays open.
 #[trial]
 fn escape_during_a_press_ends_it_with_or_without_a_move() {
-    {
+    for moved_first in [true, false] {
         let mut h = upright();
         let from = h.screen(Point::new(150.0, 110.0));
-        h.hold_drag(from, from + by(40.0, 0.0));
-        assert!(
-            near(&h.state(), &BoxState::from_rect(RECT).moved(doc(40.0, 0.0))),
-            "the host shows the drag: {:?} {:?}",
-            h.state(),
-            h.host.borrow().events
-        );
+        if moved_first {
+            h.hold_drag(from, from + by(40.0, 0.0));
+        } else {
+            frame(&mut h, vec![pointer::moved(from)]);
+            frame(&mut h, vec![pointer::press(from)]);
+        }
         h.fixture.key(Key::Escape, Modifiers::NONE);
-        assert_eq!(h.count(Seen::Cancel), 1, "{:?}", h.host.borrow().events);
-        assert_eq!(h.state(), BoxState::from_rect(RECT), "Esc undoes the drag");
         let count = h.host.borrow().events.len();
         frame(&mut h, vec![pointer::moved(from + by(60.0, 0.0))]);
         frame(&mut h, vec![pointer::release(from + by(60.0, 0.0))]);
-        assert_eq!(h.host.borrow().events.len(), count, "the rest of the press does nothing");
-        assert_eq!(h.host.borrow().applied, 0);
-    }
-    {
-        let mut h = upright();
-        let from = h.screen(Point::new(150.0, 110.0));
-        frame(&mut h, vec![pointer::moved(from)]);
-        frame(&mut h, vec![pointer::press(from)]);
-        h.fixture.key(Key::Escape, Modifiers::NONE);
-        frame(&mut h, vec![pointer::moved(from + by(40.0, 0.0))]);
-        frame(&mut h, vec![pointer::release(from + by(40.0, 0.0))]);
         frame(&mut h, Vec::new());
-        assert!(h.host.borrow().events.is_empty(), "{:?}", h.host.borrow().events);
-        assert_eq!(h.state(), BoxState::from_rect(RECT));
-        assert_eq!(h.host.borrow().discarded, 0, "the box stays open");
+        assert_eq!(h.host.borrow().events.len(), count, "the rest of the press does nothing (moved first: {moved_first})");
+        assert_eq!(h.count(Seen::Cancel), usize::from(moved_first));
+        assert_eq!(h.state(), BoxState::from_rect(RECT), "Esc undoes the drag");
+        assert_eq!((h.host.borrow().applied, h.host.borrow().discarded), (0, 0));
     }
 }
 

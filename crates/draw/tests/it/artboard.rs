@@ -270,12 +270,15 @@ fn make_portrait_shows_only_while_the_board_is_wider_than_tall() {
         fixture.settle();
         fixture.texts().iter().map(|text| text.text.clone()).collect::<Vec<_>>()
     };
-    // Each orientation adds one button the square board lacks, and they are different buttons.
-    let square = show(Rect::new(0.0, 0.0, 100.0, 100.0));
-    let added = |rect: Rect| show(rect).into_iter().filter(|text| !square.contains(text)).collect::<Vec<_>>();
-    let (wide, tall) = (added(Rect::new(0.0, 0.0, 200.0, 100.0)), added(Rect::new(0.0, 0.0, 100.0, 200.0)));
-    assert_eq!((wide.len(), tall.len()), (1, 1), "{wide:?} {tall:?}");
-    assert_ne!(wide, tall);
+    // Each orientation adds one button that the other orientation and the square board lack.
+    let (square, wide, tall) =
+        (show(Rect::new(0.0, 0.0, 100.0, 100.0)), show(Rect::new(0.0, 0.0, 200.0, 100.0)), show(Rect::new(0.0, 0.0, 100.0, 200.0)));
+    let only = |of: &[String], others: [&[String]; 2]| {
+        of.iter().filter(|text| text.chars().all(char::is_alphabetic) && !others.iter().any(|other| other.contains(text))).count()
+    };
+    assert_eq!(only(&wide, [&tall, &square]), 1);
+    assert_eq!(only(&tall, [&wide, &square]), 1);
+    assert_eq!(only(&square, [&wide, &tall]), 0);
 }
 
 #[trial]
