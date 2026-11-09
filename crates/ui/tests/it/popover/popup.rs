@@ -347,7 +347,7 @@ impl ItemSource<usize> for Names {}
 
 const NARROW_BUTTON: Rect = Rect { min: Pos2::new(20.0, 20.0), max: Pos2::new(220.0, 44.0) };
 /// Wider than the opener and narrower than the cap (half the window, which is 400 wide).
-const MEDIUM_ROW: &str = "A brush tip whose name runs on";
+const MEDIUM_ROW: &str = "A brush tip whose name runs on and on";
 const LONG_ROW: &str = "A brush tip whose name runs on and on, well past the width of the button it hangs from";
 const LONGER_ROW: &str = "A brush tip whose name runs on and on, well past the width of the button it hangs from, and then keeps going as far again";
 

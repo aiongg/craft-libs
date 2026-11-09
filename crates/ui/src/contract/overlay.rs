@@ -331,6 +331,18 @@ pub(crate) enum Opening {
     At(Rect),
 }
 
+/// The least width a layer asks of its content: its `min_width` rule applied to the width of the opener it hangs
+/// from, 0 for a layer with no opener or an anchor that is not a rect.
+pub(crate) fn opener_floor(overlay: &Overlay) -> f32 {
+    let Some(opener) = &overlay.opener else { return 0.0 };
+    let width = match &opener.anchor {
+        Some(Anchor::Rect(rect)) => rect.width(),
+        Some(Anchor::Response) | None => opener.rect.width(),
+        Some(_) => return 0.0,
+    };
+    overlay.min_width.points(width)
+}
+
 /// The anchor a layer opened by `opener` hangs from: the opener's own, else the layer's `Pointer` or `Viewport`
 /// place, else the pointer for a context request a secondary release made, else the rect a key's context request
 /// named, else the opener's rect.
