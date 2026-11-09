@@ -219,8 +219,8 @@ struct Wanted {
 
 /// The wall clock's reading, for a host that drives a store on real time (`ShellApp::tick`). It is the one place
 /// outside a pass that reads the clock.
-pub fn now() -> std::time::Instant {
-    std::time::Instant::now()
+pub fn now() -> web_time::Instant {
+    web_time::Instant::now()
 }
 
 /// Marks the running viewport as having an animation that is not at its end value.

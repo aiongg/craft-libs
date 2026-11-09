@@ -33,11 +33,16 @@ pub(crate) fn seen(ctx: &Context) -> Seen {
             .map(|file| {
                 let path = file.path();
                 let usable = !path.as_os_str().is_empty();
+                // The web reads a dropped file's bytes only asynchronously, so a pathless file has none here.
+                #[cfg(not(target_arch = "wasm32"))]
+                let bytes = if usable { None } else { file.bytes().ok().map(Into::into) };
+                #[cfg(target_arch = "wasm32")]
+                let bytes = None;
                 OsFile {
                     name: path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default(),
                     path: usable.then(|| path.to_path_buf()),
                     mime: String::new(),
-                    bytes: if usable { None } else { file.bytes().ok().map(Into::into) },
+                    bytes,
                 }
             })
             .collect(),

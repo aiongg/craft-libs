@@ -44,6 +44,7 @@ pub(crate) fn request_text(ctx: &Context, widget: Id, owner: Id) {
 }
 
 /// Whether `id` is a text widget that folds into its owner, as opposed to an inner component.
+#[cfg(feature = "testing")]
 pub(crate) fn is_text_widget(ctx: &Context, id: Id) -> bool {
     store::peek_clone::<()>(ctx, text_slot(id)).is_some()
 }

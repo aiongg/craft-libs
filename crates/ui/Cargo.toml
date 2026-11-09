@@ -81,6 +81,8 @@ epaint = { version = "0.37", default-features = false, optional = true }
 
 # Icon rasterising; the version egui_extras's `svg` feature uses, so apps build one copy.
 resvg = { version = "0.45.1", default-features = false }
+# `std::time::Instant` on native; the browser clock on wasm, where `Instant::now` panics.
+web-time = "1.1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # The versions egui_system_font_provider 0.37 uses.

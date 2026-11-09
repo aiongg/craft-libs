@@ -70,8 +70,14 @@ impl egui::DroppedFile for DroppedPath {
         &self.0
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn bytes(&self) -> Result<Vec<u8>, String> {
         std::fs::read(&self.0).map_err(|error| error.to_string())
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn bytes_async(&self) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<u8>, String>> + '_>> {
+        Box::pin(std::future::ready(Err("there is no file system on the web".to_owned())))
     }
 }
 

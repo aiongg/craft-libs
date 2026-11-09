@@ -460,6 +460,7 @@ pub(crate) fn note_cancelled_press(ctx: &Context) {
 }
 
 /// Whether the one-press rule (H0) holds input of `viewport` for its next frame.
+#[cfg(feature = "testing")]
 pub(crate) fn holds_input(ctx: &Context, viewport: ViewportId) -> bool {
     PerViewport::<ViewportRecord>::with(ctx, viewport, |record| record.held.holds())
 }

@@ -15,6 +15,7 @@ bitflags = { workspace = true }
 craft-i18n = { workspace = true }
 egui = { workspace = true, optional = true }
 serde = { workspace = true }
+web-time = "1.1"
 toml = { version = "1.1", default-features = false, features = ["std", "parse", "serde"] }
 
 [features]
