@@ -200,7 +200,7 @@ fn overlay_of(props: &ContainerProps) -> Option<&super::Overlay> {
 fn measure_layer(props: &ContainerProps, id: Id, ui: &Ui) -> egui::LayerId {
     let area = sub(id, "area");
     match &props.mount {
-        Mount::Viewport { .. } if viewports::available(ui.ctx()) => ui.layer_id(),
+        Mount::Viewport { .. } if windows::WindowHost::of(ui.ctx()).viewports_available() => ui.layer_id(),
         Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } => areas::layer_of(overlay.rank.tier(), area),
         Mount::FullWindow => areas::layer_of(super::mount::full_window_overlay(props.focus).rank.tier(), area),
         _ => ui.layer_id(),
@@ -2089,7 +2089,12 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 Env::restore(&ctx, installed);
                 Some(took.unwrap_or_else(|| body_ui.min_rect().size()))
             };
-            self.body_size = match props.transform.filter(|_| real) {
+            self.body_size = match props.transform {
+                // The measuring run lays the body out on the layer the real run shows it on.
+                Some(_) if !real => {
+                    let builder = UiBuilder::new().layer_id(areas::body_layer(ui.layer_id(), id)).max_rect(body_rect);
+                    run(&mut alloc::child(ui, builder), body_rect, &mut bcx)
+                }
                 Some(transform) => {
                     let parent = ui.layer_id();
                     let layer = areas::body_layer(parent, id);
