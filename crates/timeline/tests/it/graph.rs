@@ -41,9 +41,9 @@ fn curve(keys: Vec<GraphKey>) -> GraphCurve {
     GraphCurve::new(1, CURVE, keys.iter().map(|k| (k.time, k.value)).collect(), keys)
 }
 
-/// The axis step is positive and grows with the range, and the auto range covers every key and handle.
+/// The axis step is positive and grows with the range.
 #[trial]
-fn axis_steps_and_auto_range_cover_the_data() {
+fn nice_steps_grow_with_the_range() {
     let mut last = 0.0;
     for raw in [0.035, 0.5, 1.4, 3.6, 7.5, 14.0, 90.0] {
         let step = nice_step(raw);
@@ -51,7 +51,11 @@ fn axis_steps_and_auto_range_cover_the_data() {
         last = step;
     }
     assert!(nice_step(0.0) > 0.0 && nice_step(-3.6) > 0.0, "zero and negative ranges stay positive");
+}
 
+/// The auto range covers every key and handle.
+#[trial]
+fn auto_range_covers_the_data() {
     let (low, high) = auto_range(&[], GraphMode::Value);
     assert!(low < high, "an empty graph still has a range");
     let with_handle = key(1, 1.0, 40.0).handles((secs(0.0), 40.0), (secs(2.0), 60.0));

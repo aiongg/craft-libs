@@ -147,8 +147,7 @@ fn a_press_on_empty_canvas_places_a_point_that_the_drag_carries() {
     assert_eq!(tool.samplers().points(), [[90.0, 70.0]], "one point, at the release");
 }
 
-/// The point follows the pointer while it is down; Escape puts it back, a release off the canvas removes it, and a
-/// release inside moves it onto the pixel.
+/// The point follows the pointer while it is down; Escape puts it back and a release off the canvas removes it.
 #[trial]
 fn a_point_follows_the_pointer_during_the_drag() {
     let mut tool = sampler_tool(&[[50.0, 50.0]]);
@@ -170,7 +169,10 @@ fn a_point_follows_the_pointer_during_the_drag() {
     tool.drag(&at(250.0, 100.0), &mut cx);
     tool.release(&at(350.0, 100.0), &mut cx);
     assert_eq!(tool.samplers().points(), [[50.0, 50.0]], "released off the canvas it is removed");
+}
 
+#[trial]
+fn a_point_dragged_off_the_canvas_is_removed() {
     let mut tool = sampler_tool(&[[50.0, 50.0], [100.0, 50.0]]);
     click_drag(&mut tool, at(100.0, 50.0), at(150.6, 80.2));
     assert_eq!(tool.samplers().points(), [[50.0, 50.0], [150.0, 80.0]], "dropped inside it moves, onto the pixel");
@@ -196,8 +198,10 @@ fn the_canvas_tool_samples_for_the_armed_dropper() {
     tool.drag(&at(60.0, 30.0), &mut cx);
     assert_eq!(tool.take(), Some(green), "a drag updates the dialog while the button is held");
     ToolFixture::new("Dropper", DropperTool::new(move |_| Some(green))).check();
+}
 
-    // The eyedropper tool: a press picks the foreground, a drag resamples, Alt picks the background.
+#[trial]
+fn alt_picks_the_background_and_a_drag_resamples() {
     let red = Srgba::rgb(1.0, 0.0, 0.0);
     let seen = Rc::new(RefCell::new(Vec::new()));
     let log = Rc::clone(&seen);
@@ -260,21 +264,26 @@ impl Rig {
 
 const FOREGROUND: Srgba = Srgba::rgb(0.2, 0.4, 0.6);
 
-/// OK answers the opening key and the colour, for each way the dialog is opened.
 #[trial]
-fn ok_answers_with_the_key_and_the_colour() {
+fn ok_answers_the_opening_key() {
     let mut rig = rig(ColorPickerDialog::foreground(FOREGROUND).web_colors_remembered(false));
     rig.click("OK");
     match rig.result() {
         Some(DialogResult::Ok(ColorPickerResult { key, picked, .. })) => assert_eq!((key.as_str(), picked.color), ("foreground", FOREGROUND)),
         other => panic!("OK answers the colour: {other:?}"),
     }
+}
 
+#[trial]
+fn a_dialog_opened_from_a_request_answers_its_key() {
     let request = craft_ui::runtime::requests::ColorRequest::new("stroke", FOREGROUND).title("Stroke colour");
-    let mut rig = self::rig(ColorPickerDialog::from_request(request).web_colors_remembered(false));
+    let mut rig = rig(ColorPickerDialog::from_request(request).web_colors_remembered(false));
     rig.click("OK");
     assert!(matches!(rig.result(), Some(DialogResult::Ok(ColorPickerResult { key, .. })) if key == "stroke"));
+}
 
+#[trial]
+fn set_color_and_confirm_answer_ok_with_the_colour() {
     let mut dialog = ColorPickerDialog::new("fill", "Fill", FOREGROUND).web_colors_remembered(false);
     let set = PickedColor::rgb(Srgba::rgb(0.5, 0.5, 0.0));
     dialog.set_color(set);
@@ -294,10 +303,13 @@ fn enter_presses_ok_and_esc_cancel_as_a_dialog_footer_does() {
     rig.fx.key(Key::Enter, Modifiers::NONE);
     rig.fx.settle();
     assert!(matches!(rig.result(), Some(DialogResult::Ok(ColorPickerResult { key, .. })) if key == "background"), "Enter is OK");
+}
 
-    // Cancel works while the dialog holds no colour.
+/// Cancel works while the dialog holds no colour.
+#[trial]
+fn a_dialog_without_a_colour_cancels() {
     let request = craft_ui::runtime::requests::ColorRequest::new("fills", None);
-    let mut rig = self::rig(ColorPickerDialog::from_request(request).web_colors_remembered(false));
+    let mut rig = rig(ColorPickerDialog::from_request(request).web_colors_remembered(false));
     rig.fx.key(Key::Escape, Modifiers::NONE);
     rig.fx.settle();
     assert!(matches!(rig.result(), Some(DialogResult::Cancel)), "Esc cancels");
@@ -362,8 +374,12 @@ fn the_result_goes_to_its_owner_only() {
     assert_eq!(pick.take("stroke"), None, "another owner takes nothing");
     assert_eq!(pick.take("fill"), Some(blue));
     assert_eq!(pick.take("fill"), None, "the colour is taken once");
+}
 
-    // A picked colour answers without capture windows: no notice is left.
+#[trial]
+fn a_picked_color_answers_without_capture_windows() {
+    let ctx = Context::default();
+    let mut pick = ScreenPick::new();
     pick.start("fill");
     pick.tick_with(&ctx, 1, &|| Box::new(StillCapture::color(Srgba::rgb(0.25, 0.5, 0.75))));
     assert_eq!(pick.take("fill"), Some(Srgba::rgb(0.25, 0.5, 0.75)));

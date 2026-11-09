@@ -199,8 +199,7 @@ fn a_move_gets_its_track_fields_from_the_pointer() {
     assert_eq!(resolve_move(&rows, &[rows[1]], 500.0, bounds), MoveTarget::STAY, "outside the panes nothing changes");
 }
 
-/// A move from or onto a locked track is refused and stays where it was; so is a new track for a selection holding a
-/// locked clip out of view.
+/// A move from or onto a locked track is refused and stays where it was.
 #[trial]
 fn moves_onto_or_from_locked_tracks_are_refused() {
     let mut rows = rows();
@@ -209,8 +208,12 @@ fn moves_onto_or_from_locked_tracks_are_refused() {
     assert!(onto.refused && onto.track_delta == 0);
     let from = resolve_move(&rows, &[rows[0]], 60.0, (0.0, 170.0));
     assert!(from.refused, "a clip on a locked track does not move");
+}
 
-    let rows = self::rows();
+/// A selected clip on a locked track out of view refuses a new track.
+#[trial]
+fn a_selected_clip_on_a_locked_track_out_of_view_refuses_the_new_track() {
+    let rows = rows();
     let locked_away = rows[1].locked();
     let target = resolve_move(&rows, &[rows[0], locked_away], -5.0, (-10.0, 170.0));
     assert!(target.refused && !target.new_track);
@@ -447,8 +450,6 @@ impl Panel {
     }
 }
 
-/// A sweep across Lock switches flips each one as the pointer crosses it, before the release. A sweep stays in its
-/// pane (Premiere: the video and audio headers are separate collections).
 #[trial]
 fn a_sweep_across_lock_switches_flips_each_before_release() {
     let mut panel = three_video();
@@ -456,9 +457,12 @@ fn a_sweep_across_lock_switches_flips_each_before_release() {
     let end = panel.in_row("Toggle Track Lock", panel.row("V1")).center();
     panel.fixture.frame(vec![pointer::release(end)]);
     assert_eq!(panel.locks().len(), 3, "the release repeats nothing");
+}
 
-    // A Lock sweep pressed on V1 and moved over A1 flips V1 and leaves A1 unchanged.
-    let mut panel = self::panel();
+/// A Lock sweep pressed on V1 and moved over A1 flips V1 and leaves A1 unchanged.
+#[trial]
+fn a_lock_sweep_does_not_cross_into_the_other_pane() {
+    let mut panel = panel();
     let v1 = panel.in_row("Toggle Track Lock", panel.row("V1")).center();
     let a1 = panel.in_row("Toggle Track Lock", panel.row("A1")).center();
     panel.fixture.frame(vec![pointer::moved(v1)]);
@@ -569,8 +573,7 @@ fn reported_menus(panel: &Panel) -> Vec<(Option<TrackId>, Option<ClipId>, Rect, 
 }
 
 /// The Menu key and Shift+F10 on a clicked clip report a context menu anchored on that clip; a secondary click on it
-/// reports its position; the menu still anchors on the clip. The same keys on the clip reached by Tab report a menu
-/// anchored on the selection's last clip.
+/// reports its position; the menu still anchors on the clip.
 #[trial]
 fn the_menu_keys_report_a_context_menu_anchored_on_the_focused_clip() {
     let mut panel = panel();
@@ -606,9 +609,13 @@ fn the_menu_keys_report_a_context_menu_anchored_on_the_focused_clip() {
         "the menu anchors on the clip, not the click: {anchor:?} at {:?}",
         clip.rect
     );
+}
 
-    // The Tab stop of the time area comes first: one Tab reaches it.
-    let mut panel = self::panel();
+/// The Tab stop of the time area comes first: one Tab reaches it, and Menu and Shift+F10 then report a context menu
+/// anchored on the selection's last clip.
+#[trial]
+fn the_menu_keys_report_a_context_menu_for_the_clip_reached_by_tab() {
+    let mut panel = panel();
     panel.sequence.borrow_mut().selection = vec![ClipId(1)];
     panel.fixture.idle(2);
     let v1 = panel.row("V1");
@@ -676,10 +683,9 @@ fn clip_fills(disabled: Vec<ClipId>) -> Vec<(Rect, egui::Color32)> {
 /// Frames the panel takes to lay out and paint its clips.
 const SETTLE_FRAMES: usize = 6;
 
-/// A switched-off clip loses its hue while an enabled clip keeps it, and is inactive, not disabled: its node stays
-/// enabled and a click on it still selects it (Premiere).
+/// A disabled clip loses its hue while an enabled clip keeps it.
 #[trial]
-fn a_disabled_clip_loses_its_hue_but_stays_selectable() {
+fn a_disabled_clip_loses_its_hue() {
     let hue = craft_timeline::ui::LabelPalette::default().0[0];
     let of_hue = |fills: &[(Rect, egui::Color32)]| fills.iter().filter(|(_, fill)| *fill == hue).map(|(rect, _)| *rect).collect::<Vec<_>>();
     let all_on = of_hue(&clip_fills(Vec::new()));
@@ -687,7 +693,11 @@ fn a_disabled_clip_loses_its_hue_but_stays_selectable() {
     let fills = clip_fills(vec![ClipId(1)]);
     let kept = of_hue(&fills);
     assert_eq!(kept.len(), 1, "the enabled neighbour keeps its hue: {kept:?}");
+}
 
+/// A switched-off clip is inactive, not disabled: its node stays enabled and a click on it still selects it (Premiere).
+#[trial]
+fn an_inactive_clip_stays_selectable() {
     let mut panel = panel();
     panel.sequence.borrow_mut().disabled = vec![ClipId(1)];
     panel.fixture.idle(2);

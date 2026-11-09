@@ -154,8 +154,10 @@ fn a_page_moves_to_where_a_reorder_puts_it() {
     let after: Vec<usize> = (0..6).map(|page| moved_page(&mv, page, 6)).collect();
     assert_eq!(after, [0, 3, 4, 1, 2, 5]);
     assert_eq!(moved_page(&mv, 9, 6), 9, "a page past the end stays");
+}
 
-    // A page moved to the front pushes the rest back.
+#[trial]
+fn moving_a_page_to_the_front_pushes_the_rest_back() {
     let mv = ReorderMove::new(3, vec![3], 0, false);
     let after: Vec<usize> = (0..5).map(|page| moved_page(&mv, page, 5)).collect();
     assert_eq!(after, [1, 2, 3, 0, 4]);
@@ -185,12 +187,15 @@ fn strip_rig(count: usize, picked: Selection<usize>) -> StripRig {
 }
 
 #[trial]
-fn clicking_or_entering_a_thumbnail_goes_to_its_page() {
+fn clicking_a_thumbnail_goes_to_its_page() {
     let mut rig = strip_rig(4, Selection::single(0));
     let tile = rig.fixture.by_label("Page 3").expect("the third page's tile is in the tree");
     rig.fixture.click(&tile);
     assert!(rig.events.borrow().contains(&ThumbnailEvent::Go(2)), "events {:?}", rig.events.borrow());
+}
 
+#[trial]
+fn enter_on_a_thumbnail_activates_its_page() {
     let mut rig = strip_rig(3, Selection::single(1));
     let tile = rig.fixture.by_label("Page 2").expect("the second page's tile");
     rig.fixture.click(&tile);
@@ -198,13 +203,16 @@ fn clicking_or_entering_a_thumbnail_goes_to_its_page() {
     assert!(rig.events.borrow().contains(&ThumbnailEvent::Activate(1)), "events {:?}", rig.events.borrow());
 }
 
-/// Delete removes the picked pages, skips locked rows and never removes every page.
 #[trial]
-fn delete_removes_the_picked_pages_skips_locked_and_never_all() {
+fn delete_with_nothing_picked_removes_the_current_page_but_never_every_page() {
     let mut rig = strip_rig(1, Selection::new(Vec::new(), None, None));
     rig.fixture.key(Key::Delete, Modifiers::NONE);
     assert!(!rig.events.borrow().iter().any(|event| matches!(event, ThumbnailEvent::Delete(_))), "a document keeps one page");
     assert!(rig.picked.borrow().items.is_empty());
+}
+
+#[trial]
+fn delete_removes_the_picked_pages_but_never_all_of_them() {
     let mut rig = strip_rig(4, Selection::new(vec![1, 2], Some(2), Some(1)));
     rig.fixture.key(Key::Tab, Modifiers::NONE);
     rig.fixture.key(Key::Delete, Modifiers::NONE);
@@ -213,7 +221,10 @@ fn delete_removes_the_picked_pages_skips_locked_and_never_all() {
     rig.fixture.key(Key::Tab, Modifiers::NONE);
     rig.fixture.key(Key::Delete, Modifiers::NONE);
     assert!(!rig.events.borrow().iter().any(|event| matches!(event, ThumbnailEvent::Delete(_))), "a document keeps one page");
+}
 
+#[trial]
+fn delete_skips_the_locked_rows() {
     let mut rig = list_rig_picking(Selection::new(vec![0, 1], Some(1), Some(0)));
     rig.fixture.key(Key::Tab, Modifiers::NONE);
     rig.fixture.key(Key::Delete, Modifiers::NONE);
@@ -400,15 +411,16 @@ impl ReadingRig {
     }
 }
 
-/// A click inside a column leaves the reading view where it is; a click in a gap or a side margin turns toward that
-/// side; Space turns forward.
 #[trial]
-fn reading_view_clicks_and_space_turn_pages() {
+fn a_click_inside_a_column_leaves_the_reading_view_where_it_is() {
     let mut rig = reading_rig(2);
     let inside = rig.middle_column();
     rig.fixture.click_at(inside);
     assert_eq!(rig.at(), 2, "the click is the app's, so the text can be selected");
+}
 
+#[trial]
+fn a_click_in_a_gap_or_a_side_margin_turns_toward_that_side() {
     let mut rig = reading_rig(2);
     let turns = rig.turns();
     assert_eq!(turns.len(), READING_COLUMNS + 1, "a part over each gap and each margin");
@@ -420,7 +432,10 @@ fn reading_view_clicks_and_space_turn_pages() {
     assert_eq!(rig.at(), 1, "a gap left of the middle turns back");
     rig.fixture.click_at(turns[3]);
     assert_eq!(rig.at(), 2, "the right margin turns forward");
+}
 
+#[trial]
+fn space_turns_the_reading_view_forward() {
     let mut rig = reading_rig(0);
     rig.fixture.key(Key::Tab, Modifiers::NONE);
     rig.fixture.key(Key::Space, Modifiers::NONE);
@@ -472,9 +487,8 @@ fn paints_shape_of(fixture: &Fixture, size: egui::Vec2) -> bool {
     fixture.shape_bounds().iter().any(|bounds| (bounds.size() - size).abs().max_elem() < 1.0)
 }
 
-/// A page without a picture gets the paper under it, in the reading view and in the preview.
 #[trial]
-fn blank_pages_get_paper_in_reading_view_and_preview() {
+fn the_reading_view_paints_the_paper_under_a_page_without_a_picture() {
     let scale = ReadingView::screen_scale(1.0);
     let size = DemoPages::new(1).page_size(0);
     let page = vec2(size.width as f32, size.height as f32) * scale;
@@ -487,7 +501,11 @@ fn blank_pages_get_paper_in_reading_view_and_preview() {
     fixture.room(room.size());
     fixture.settle();
     assert!(paints_shape_of(&fixture, page), "a shape the size of the page is the paper");
+}
 
+#[trial]
+fn the_preview_paints_the_paper_under_a_page_without_a_picture() {
+    let size = DemoPages::new(1).page_size(0);
     let pages = BlankPages(DemoPages::new(2));
     let shown = [0, 1];
     let mut at = 0;

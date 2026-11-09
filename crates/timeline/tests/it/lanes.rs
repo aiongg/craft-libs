@@ -143,10 +143,9 @@ fn lane_in(bounds: Option<TimeRange>, playhead: Tick) -> (Fixture, Rc<RefCell<Se
     (fixture, seen)
 }
 
-/// A click replaces the selection with the key, Shift+click toggles it, a click on empty lane clears; Left and Right
-/// select the previous and next key, Shift+Right nudges by a frame, Delete asks to delete.
+/// A click replaces the selection with the key, Shift+click toggles it, a click on empty lane clears.
 #[trial]
-fn keyboard_and_clicks_select_nudge_and_delete_keys() {
+fn click_and_marquee_select_keys() {
     let (mut fixture, seen) = lane();
     let options = options_by_time(&fixture);
     assert_eq!(options.len(), 3);
@@ -159,7 +158,11 @@ fn keyboard_and_clicks_select_nudge_and_delete_keys() {
     let list = fixture.by_role(Role::LIST_BOX).into_iter().next().expect("the lane is a list box");
     fixture.click_at(list.rect.right_center() - vec2(4.0, 0.0));
     assert!(seen.borrow().selection.items.is_empty(), "a click on empty lane clears");
+}
 
+/// Left and Right select the previous and next key, Shift+Right nudges by a frame, Delete asks to delete.
+#[trial]
+fn keyboard_selects_nudges_and_deletes() {
     let (mut fixture, seen) = lane();
     let options = options_by_time(&fixture);
     fixture.click(&options[0]);
@@ -226,16 +229,19 @@ fn strip() -> (Fixture, Rc<RefCell<Strip>>) {
     (fixture, seen)
 }
 
-/// Dragging a marker moves it by the distance dragged; Escape mid-drag cancels the marker's gesture and no commit
-/// follows the release.
+/// Dragging a marker moves it by the distance dragged.
 #[trial]
-fn dragging_a_marker_moves_it_and_escape_cancels() {
+fn dragging_a_marker_moves_it() {
     let (mut fixture, seen) = strip();
     let options = options_by_time(&fixture);
     fixture.drag(&options[0], vec2(POINTS_PER_SECOND as f32, 0.0));
     let last = seen.borrow().moved.last().copied().expect("the drag proposes a start");
     assert!(last > seconds(2.5) && last < seconds(3.5), "dragged one second right of 2 s: {last:?}");
+}
 
+/// Escape mid-drag cancels the marker's gesture and no commit follows the release.
+#[trial]
+fn escape_cancels_a_marker_drag() {
     let (mut fixture, seen) = strip();
     let options = options_by_time(&fixture);
     let from = options[0].center();
@@ -287,10 +293,9 @@ fn key_at(fixture: &Fixture, at: f64) -> Target {
     fixture.by_label(&name).unwrap_or_else(|| panic!("no key named {name}"))
 }
 
-/// A dragged key moves by whole frames; with Shift it snaps to the playhead within a few points and not farther; it
-/// stops at the bounds; Escape mid-drag cancels the gesture back to a zero delta and no commit follows the release.
+/// A dragged key moves by whole frames; with Shift it snaps to the playhead within a few points and not farther.
 #[trial]
-fn dragging_keys_snaps_stays_in_bounds_and_escape_cancels() {
+fn dragging_keys_snaps_to_frames_and_with_shift_to_the_playhead() {
     let frames = |count| FrameRate::FPS_24.tick_of(count);
     let (mut fixture, seen) = lane_in(None, seconds(4.0));
     let key = key_at(&fixture, 3.0);
@@ -302,12 +307,20 @@ fn dragging_keys_snaps_stays_in_bounds_and_escape_cancels() {
     fixture.hold(Modifiers::SHIFT);
     fixture.drag(&key, vec2(48.0, 0.0));
     assert_eq!(seen.borrow().deltas.last().copied(), Some(seconds(1.0)), "2 points from the playhead: snapped to it");
+}
 
+/// A drag past the end of the bounds stops at the bound.
+#[trial]
+fn keys_stay_inside_the_bounds() {
     let (mut fixture, seen) = lane_in(Some(TimeRange::new(Tick::ZERO, seconds(5.5))), Tick::ZERO);
     let key = key_at(&fixture, 3.0);
     fixture.drag(&key, vec2(4.0 * POINTS_PER_SECOND as f32, 0.0));
     assert_eq!(seen.borrow().deltas.last().copied(), Some(seconds(2.5)), "the key stops at 5.5 s");
+}
 
+/// Escape mid-drag cancels the keys' gesture back to a zero delta and no commit follows the release.
+#[trial]
+fn escape_cancels_a_key_drag() {
     let (mut fixture, seen) = lane_in(None, seconds(4.0));
     let key = key_at(&fixture, 3.0);
     let from = key.center();

@@ -30,7 +30,6 @@ fn format() -> TimeFormat {
     TimeFormat::timecode(rate())
 }
 
-/// Labels and ticks keep apart, every label sits on a tick, and the labels use the time format.
 #[trial]
 fn ruler_steps_keep_labels_and_ticks_apart() {
     let ladder = StepLadder::new(24, 110.0, 12.0);
@@ -41,7 +40,10 @@ fn ruler_steps_keep_labels_and_ticks_apart() {
         assert_eq!(label % tick, 0, "every label sits on a tick");
     }
     assert!(StepLadder::new(i64::MAX, 110.0, 12.0).steps(1.0).1 >= 110, "a huge base saturates");
+}
 
+#[trial]
+fn ruler_ticks_label_in_the_format() {
     let ruler = shown(None);
     let texts: Vec<&str> = ruler.fixture.texts().iter().map(|painted| painted.text.as_str()).collect();
     for seconds in [0.0, 1.0, 2.0] {
@@ -141,9 +143,8 @@ fn work_area() -> TimeRange {
     TimeRange::new(secs(2.0), secs(2.0))
 }
 
-/// Dragging the work area moves it or an end; a double click sets it to the visible span.
 #[trial]
-fn the_work_area_drags_and_resets_to_the_visible_span() {
+fn dragging_the_work_area_moves_it_or_an_end() {
     let mut shown = shown(Some(work_area()));
     let (area, shift, stretch) = (work_area(), 0.5, 1.0);
     let bar = shown.fixture.by_label("Work Area").expect("the work-area bar has a node").center();
@@ -161,9 +162,11 @@ fn the_work_area_drags_and_resets_to_the_visible_span() {
     let stretched = TimeRange::from_bounds(area.start, area.end() + secs(stretch));
     let events = ended.work.borrow();
     assert!(matches!(events.last(), Some(DragEvent::Commit(range)) if *range == stretched), "{events:?}");
-    drop(events);
+}
 
-    let mut reset = self::shown(Some(work_area()));
+#[trial]
+fn double_clicking_the_work_area_sets_it_to_the_visible_span() {
+    let mut reset = shown(Some(work_area()));
     let rect = reset.fixture.by_label(RULER).expect("the ruler has a node").rect;
     let bar = reset.fixture.by_label("Work Area").expect("the work-area bar has a node");
     reset.fixture.click(&bar).click(&bar);

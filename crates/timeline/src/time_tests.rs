@@ -107,8 +107,11 @@ fn checked_views_are_clamped_or_refused() {
     assert_eq!(TimeView::new(Tick::MAX, 0.0).checked().map(|v| v.points_per_second), Some(0.001));
     assert_eq!(TimeView::new(secs(20_000_000), 1.0).checked().map(|v| v.start), Some(secs(10_000_000)));
     assert_eq!(TimeView::new(Tick::ZERO, f64::NAN).checked(), None);
+}
 
-    // The scroll start stops past the end of the sequence, and not at all when the view spans more than that.
+/// The scroll start stops past the end of the sequence, and not at all when the view spans more than that.
+#[test]
+fn max_start_stops_past_the_end() {
     let view = TimeView::new(Tick::ZERO, 10.0);
     assert!(view.max_start(secs(6), 100.0) > secs(6), "the view scrolls past the end");
     assert_eq!(view.max_start(secs(6), 1e9), Tick::ZERO);

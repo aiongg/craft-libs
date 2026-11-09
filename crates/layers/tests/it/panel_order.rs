@@ -154,7 +154,7 @@ fn rows_are_listed_top_first_and_closed_groups_hide_their_layers() {
 }
 
 /// A filter lists the matching layers flat, without their groups or the layers it leaves out, and a layer from a group still shows
-/// as nested. A filter reads fields the tree revision does not cover, so it also applies while the revision stands.
+/// as nested.
 #[trial]
 fn a_filter_lists_matches_without_their_groups() {
     let mut rig = rig();
@@ -165,8 +165,12 @@ fn a_filter_lists_matches_without_their_groups() {
     for left_out in ["Group 1", "Title", "Levels 1", "Smart Object"] {
         assert!(rig.fixture.by_label(left_out).is_none(), "{left_out} is filtered out");
     }
+}
 
-    let mut rig = self::rig();
+/// A filter reads fields the tree revision does not cover, so it applies even while the revision stands.
+#[trial]
+fn a_filter_applies_even_while_the_tree_revision_stands() {
+    let mut rig = rig();
     rig.tree.borrow_mut().revision = Some(1);
     rig.filter.borrow_mut().kinds = vec![FilterKind::Pixel];
     rig.fixture.idle(3);
@@ -283,8 +287,7 @@ impl LayerTree for NothingBelowBackground {
     }
 }
 
-/// Layers dropped above or below a layer, and onto a group, report where they land; Alt makes it a copy. A drop the app
-/// refuses takes nothing, while the drop just above it goes through.
+/// Layers dropped above or below a layer, and onto a group, report where they land; Alt makes it a copy.
 #[trial]
 fn a_layer_drop_reports_its_landing_place_and_alt_copies() {
     let mut rig = rig();
@@ -301,7 +304,11 @@ fn a_layer_drop_reports_its_landing_place_and_alt_copies() {
     rig.drop_on("Title", "Hidden", Place::Below);
     rig.fixture.hold(Modifiers::NONE);
     assert_eq!(rig.drops(), [layer_move(&[4], 9, LayerPosition::Before, true)]);
+}
 
+/// A drop the app refuses takes nothing, while the drop just above it goes through.
+#[trial]
+fn a_drop_the_app_refuses_reports_nothing() {
     let mut rig = rig_of(NothingBelowBackground(FakeLayers::sample()));
     rig.drop_on("Title", "Background", Place::Below);
     assert_eq!(rig.drops(), [], "a drop the app refuses reports nothing");

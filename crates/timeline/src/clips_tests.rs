@@ -19,17 +19,20 @@ fn view() -> TimeView {
     TimeView::new(Tick::ZERO, 10.0)
 }
 
-// edge_zone is the edge size, at most a third of the width, None for zero width; edge_at prefers the edge whose clip
-// the pointer is inside.
+/// edge_zone is the edge size, at most a third of the width, None for zero width.
 #[test]
-fn edge_zones_shrink_for_narrow_clips_and_the_pointer_clip_wins_a_cut() {
+fn edge_zone_is_a_third_of_narrow_clips() {
     for width in [100.0, 12.0] {
         let zone = edge_zone(width, &ZONES).expect("a zone");
         assert!(zone > 0.0 && zone <= width / 3.0, "{width}: {zone}");
     }
     assert_eq!(edge_zone(0.0, &ZONES), None);
     assert_eq!(edge_zone(f32::NAN, &ZONES), None);
+}
 
+/// edge_at prefers the edge whose clip the pointer is inside.
+#[test]
+fn the_clip_under_the_pointer_wins_a_shared_cut() {
     let clips = [(ClipId(2), range(5, 10)), (ClipId(1), range(0, 5))];
     // the cut is at x = 50
     let left_side = edge_at(&clips, &view(), 0.0, 48.0, &ZONES).expect("edge");

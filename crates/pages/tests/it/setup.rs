@@ -104,9 +104,8 @@ fn ok_answers_the_edited_setup() {
     assert_eq!(answered.borrow().as_ref().map(|setup| setup.margins.top), Some(TOP));
 }
 
-/// Margins that leave no room for text, and text the field rejects, refuse OK.
 #[trial]
-fn invalid_margins_refuse_ok() {
+fn margins_that_do_not_fit_refuse_ok() {
     let mut setup = PageSetup::default();
     setup.margins.left = 324.0;
     setup.margins.right = 324.0;
@@ -114,7 +113,10 @@ fn invalid_margins_refuse_ok() {
     let ok = fixture.by_label("OK").expect("the OK button");
     fixture.click(&ok);
     assert_eq!(*answered.borrow(), None, "the margins leave no room for text");
+}
 
+#[trial]
+fn text_the_field_rejects_refuses_ok() {
     let (mut fixture, _, answered) = dialog(PageSetup::default());
     let top = fixture.by_label("Top").expect("the Top field");
     fixture.click(&top);
@@ -125,17 +127,17 @@ fn invalid_margins_refuse_ok() {
     assert_eq!(*answered.borrow(), None, "a Top that is not a length keeps the dialog open");
 }
 
-/// Landscape turns the page, and Escape in a width field puts back the size and the orientation.
 #[trial]
-fn landscape_turns_the_page_and_escape_puts_it_back() {
+fn landscape_turns_the_page() {
     let (mut fixture, edited, _) = dialog(PageSetup::default());
     let landscape = fixture.by_label("Landscape").expect("the Landscape radio");
     fixture.click(&landscape);
-    {
-        let setup = edited.borrow();
-        assert!(setup.width > setup.height, "{}x{}", setup.width, setup.height);
-    }
+    let setup = edited.borrow();
+    assert!(setup.width > setup.height, "{}x{}", setup.width, setup.height);
+}
 
+#[trial]
+fn escape_in_a_width_field_puts_back_the_size_and_the_orientation() {
     let (mut fixture, _, _) = dialog(PageSetup::default());
     let width = fixture.by_label("Width").expect("the Width field");
     let before = fixture.tree().value_of(width.node).map(str::to_owned);
@@ -270,7 +272,7 @@ fn a_press_half_a_hit_target_off_a_column_edge_grabs_it() {
 }
 
 #[trial]
-fn a_screen_reader_sets_and_steps_a_divider() {
+fn a_screen_reader_sets_a_divider_by_percent() {
     let (mut fixture, widths) = column_rig();
     let divider = fixture.by_label("Column 1 width").expect("the first divider");
     fixture.access(AccessActionKind::SetValue(SHARE * 100.0), &divider);
@@ -278,8 +280,10 @@ fn a_screen_reader_sets_and_steps_a_divider() {
     let total: f64 = widths.iter().sum();
     assert!(close(widths[0] / total, SHARE), "the first column holds 40 percent: {widths:?}");
     assert!(close(total, EQUAL * COLUMNS as f64), "the total stays: {widths:?}");
-    drop(widths);
+}
 
+#[trial]
+fn a_screen_reader_steps_a_divider() {
     let (mut fixture, widths) = column_rig();
     let divider = fixture.by_label("Column 1 width").expect("the first divider");
     fixture.access(AccessActionKind::Increment, &divider);
@@ -321,7 +325,7 @@ fn the_arrows_move_a_margin_edge_on_the_screen_in_a_right_to_left_interface() {
 }
 
 #[trial]
-fn a_screen_reader_sets_and_steps_a_margin() {
+fn a_screen_reader_sets_a_margin_inside_its_range() {
     let (mut fixture, edges) = margin_rig();
     let left = fixture.by_label("Left Margin").expect("the left edge");
     fixture.access(AccessActionKind::SetValue(SET_MARGIN), &left);
@@ -330,7 +334,10 @@ fn a_screen_reader_sets_and_steps_a_margin() {
     let furthest = *margin_range(MarginEdge::Left, &MarginRules::new(LETTER, *edges.borrow())).end();
     assert_eq!(edges.borrow().margins.left, furthest, "the text keeps its least width: {:?}", edges.borrow());
     assert!(furthest < LETTER.0, "the range ends inside the page");
+}
 
+#[trial]
+fn a_screen_reader_steps_a_margin() {
     let (mut fixture, edges) = margin_rig();
     let left = fixture.by_label("Left Margin").expect("the left edge");
     let before = edges.borrow().margins.left;

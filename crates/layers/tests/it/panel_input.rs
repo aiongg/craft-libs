@@ -276,8 +276,7 @@ impl Eyes {
     }
 }
 
-/// A sweep down the eyes is one undo step: one Undo through the host's history restores every row it crossed. Escape
-/// during a sweep reports the rows it crossed as cancelled, each with the state it had before.
+/// A sweep down the eyes is one undo step: one Undo through the host's history restores every row it crossed.
 #[trial]
 fn a_sweep_down_the_eyes_is_one_undo_step() {
     let (mut fixture, app) = rig(FakeLayers::sample());
@@ -302,7 +301,11 @@ fn a_sweep_down_the_eyes_is_one_undo_step() {
     assert!(eyes.history.step(&mut state, Step::Undo));
     assert_eq!(state, vec![true; 3], "one Undo restores every crossed row");
     assert!(!eyes.history.can_undo(), "the sweep was one step");
+}
 
+/// Escape during a sweep down the eyes reports the rows it crossed as cancelled, each with the state it had before.
+#[trial]
+fn escape_during_an_eye_sweep_restores_the_rows_crossed() {
     let (mut fixture, app) = rig(FakeLayers::sample());
     let (start, end) = (node(&fixture, "Visibility Title").center(), node(&fixture, "Visibility Smart Object").center());
     fixture.frame(vec![pointer::moved(start)]);
@@ -345,8 +348,7 @@ fn escape_during_an_alt_eye_sweep_undoes_the_show_only() {
     assert!(toggles(&events).is_empty(), "events: {events:?}");
 }
 
-/// A pick in the eye's colour menu colours every selected layer, and a row outside the selection alone; the menu checks
-/// the colour the selected layers share, and none when they differ.
+/// A pick in the eye's colour menu colours every selected layer, and a row outside the selection alone.
 #[trial]
 fn the_eye_colour_menu_colours_every_selected_layer() {
     let (mut fixture, app) = rig(FakeLayers::sample());
@@ -364,7 +366,11 @@ fn the_eye_colour_menu_colours_every_selected_layer() {
     let events = take(&app);
     assert_eq!(label_colors(&events), [(vec![8], Some(LabelColor::Blue))], "a row outside the selection");
     assert!(selects(&events).is_empty(), "the colour menu does not select: {events:?}");
+}
 
+/// The eye menu checks the colour the selected layers share, and none when they differ.
+#[trial]
+fn the_eye_menu_checks_only_a_colour_the_rows_share() {
     let mut tree = FakeLayers::sample();
     tree.layer_mut(4).info.label = Some(LabelColor::Red);
     tree.layer_mut(5).info.label = Some(LabelColor::Red);
@@ -511,8 +517,7 @@ fn keys_walk_rows_open_groups_and_activate() {
     assert!(activations(&take(&app)).contains(&(LayerRowKey::Layer(2), ActivateOn::Row)));
 }
 
-/// The effects commands act on the active layer when it has effects; Alt on the disclosure reaches every layer, and on
-/// a group's disclosure every group.
+/// The effects commands act on the active layer when it has effects; Alt on the disclosure reaches every layer.
 #[trial]
 fn effects_commands_and_the_disclosure_report_fx_open() {
     let mut tree = FakeLayers::sample();
@@ -530,8 +535,11 @@ fn effects_commands_and_the_disclosure_report_fx_open() {
     fixture.hold(Modifiers::ALT);
     fixture.click(&node(&fixture, "Collapse effects Styled"));
     assert!(fx_opens(&take(&app)).contains(&(7, false, true)), "Alt reaches every layer");
+}
 
-    // Alt-click on a group's disclosure closes or opens every group.
+/// Alt-click on a group's disclosure closes or opens every group.
+#[trial]
+fn alt_click_on_a_group_disclosure_reaches_every_group() {
     let (mut fixture, app) = rig(FakeLayers::sample());
     fixture.hold(Modifiers::ALT);
     fixture.click(&node(&fixture, "Collapse Group 1"));

@@ -63,7 +63,10 @@ fn switching_tabs_sets_the_paint_and_back_to_solid_restores_the_last_colour() {
     assert!(matches!(&*state.borrow(), Paint::Gradient(preview) if preview.stops.len() == 2));
     pick_tab(&mut fixture, "Solid");
     assert_eq!(*state.borrow(), Paint::Solid(solid), "Solid starts from the last solid colour");
+}
 
+#[trial]
+fn a_chip_that_never_held_a_solid_colour_switches_to_the_fallback() {
     let (mut fixture, state, _) = chip_rig(Paint::None, false, false);
     open(&mut fixture);
     pick_tab(&mut fixture, "Solid");
@@ -123,7 +126,7 @@ fn list_rig(options: PaintListOptions) -> (Fixture, Rc<RefCell<Vec<PaintListEven
 }
 
 #[trial]
-fn a_paint_list_row_reports_its_buttons() {
+fn a_paint_list_row_reports_its_remove_and_select_users_actions() {
     let options = PaintListOptions::default().remove(true).select_users(true);
     let (mut fixture, events) = list_rig(options);
     let remove = fixture.by_label("Remove Brand").expect("the first row has a Remove button");
@@ -133,7 +136,10 @@ fn a_paint_list_row_reports_its_buttons() {
     let seen = events.borrow().clone();
     assert!(seen.contains(&PaintListEvent::Remove(0)), "{seen:?}");
     assert!(seen.contains(&PaintListEvent::SelectUsers(0)), "{seen:?}");
+}
 
+#[trial]
+fn a_bound_row_detaches_and_an_unbound_row_binds() {
     let (mut fixture, events) = list_rig(PaintListOptions::default().bind(true));
     let detach = fixture.by_label("Detach style").expect("the bound row detaches");
     fixture.click(&detach);
@@ -215,15 +221,17 @@ fn the_buttons_report_swap_and_default() {
 }
 
 #[trial]
-fn in_host_picker_mode_clicks_are_reported_and_open_no_popup() {
+fn in_host_picker_mode_a_click_is_reported_and_opens_no_popup() {
     let (mut fixture, seen, root) = pair_rig(false, false);
     let secondary = well(&fixture, 1);
     fixture.click(&secondary);
     assert_eq!(seen.get().clicked, Some(Well::Secondary));
     assert_eq!(seen.get().active, Well::Primary, "the host keeps the active well");
     assert_eq!(seen.get().open, None);
+}
 
-    // Enter clicks the focused well and the arrows only move the focus.
+#[trial]
+fn in_host_picker_mode_enter_clicks_the_focused_well_and_the_arrows_only_move_the_focus() {
     let (mut fixture, seen, _) = pair_rig(false, false);
     fixture.key(Key::Tab, Modifiers::NONE);
     fixture.key(Key::Tab, Modifiers::NONE);

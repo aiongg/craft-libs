@@ -35,7 +35,7 @@ fn a_click_on_a_row_selects_the_layer() {
     assert!(picked, "events: {:?}", seen.borrow());
 }
 
-/// A plain click on an eye toggles it, and selects nothing; Alt-click shows only that layer instead of toggling it.
+/// A plain click on an eye toggles it, and selects nothing.
 #[trial]
 fn a_click_on_an_eye_toggles_it_without_selecting() {
     let (mut fixture, seen) = rig();
@@ -45,8 +45,11 @@ fn a_click_on_an_eye_toggles_it_without_selecting() {
     let events = seen.borrow();
     assert!(events.iter().any(|event| matches!(event, LayersEvent::Toggle(_))), "events: {events:?}");
     assert!(!events.iter().any(|event| matches!(event, LayersEvent::Select(_))), "events: {events:?}");
-    drop(events);
+}
 
+/// Alt-click on an eye shows only that layer instead of toggling it.
+#[trial]
+fn alt_click_on_an_eye_shows_only_that_layer() {
     let (mut fixture, seen) = rig();
     let eye = fixture.by_label("Visibility Title").expect("the Title eye");
     fixture.hold(Modifiers::ALT);

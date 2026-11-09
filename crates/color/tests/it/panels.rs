@@ -208,8 +208,6 @@ fn dragging_to_the_bottom_right_keeps_the_knob_there() {
     assert_eq!(picked.to_rgba(), Srgba::rgb(0.0, 0.0, 0.0).to_rgba(), "the corner is black");
 }
 
-/// Every model the panel offers returns its colours: whole-number fields within a step, and a colour CMYK can print comes
-/// back as itself once converted.
 #[trial]
 fn every_panel_model_round_trips_its_colours() {
     let colours =
@@ -241,8 +239,11 @@ fn every_panel_model_round_trips_its_colours() {
         let twice = cmyk.to_srgb(&rounded(&cmyk, once).values);
         assert!(worst(once, twice) <= 0.03, "cmyk {c:?} -> {once:?} -> {twice:?}");
     }
+}
 
-    // Non-finite channel values become 0; finite ones stay.
+/// Non-finite channel values become 0, as PhotoCraft's model wrapper did; finite ones stay.
+#[trial]
+fn non_finite_channels_become_zero() {
     let cleaned = finite_values(ModelValues::new("hsb", &[f32::NAN, f32::INFINITY, 40.0]));
     assert_eq!(cleaned.values[..3], [0.0, 0.0, 40.0]);
     let cleaned = finite_values(ModelValues::new("rgb", &[f32::NEG_INFINITY, 12.0, 255.0]));
@@ -348,7 +349,6 @@ fn add_picked_keeps_the_typed_model() {
     assert_eq!(library.get(plain).map(|e| &e.color), Some(&SwatchColor::Rgb([0.5, 0.5, 0.5])));
 }
 
-/// Import and Replace ask for a swatch file; the answer is read in `apply_file`.
 #[trial]
 fn import_and_replace_read_the_picked_file() {
     let words = SwatchesWords::default();
@@ -366,8 +366,13 @@ fn import_and_replace_read_the_picked_file() {
         assert!(names.contains(&"Sky"), "{names:?}");
         assert_eq!(names.contains(&"Red"), !replace, "{names:?}");
     }
+}
 
-    // A file that is not a swatch file is a toast, not a change.
+/// A file that is not a swatch file is a toast, not a change.
+#[trial]
+fn a_bad_file_is_a_toast_and_changes_nothing() {
+    let words = SwatchesWords::default();
+    let (presets, format) = (PresetWords::default(), Format::from_tag("en"));
     let (mut lib, mut state) = (library(), SwatchesState::default());
     let out = SwatchesMenu::run_command(&mut lib, &mut state, SwatchesCommand::Import, Srgba::rgb(0.2, 0.4, 0.6), &words);
     let event = out.file.expect("a request").loaded("junk.bin", b"nothing".to_vec()).expect("a load event");
@@ -378,9 +383,9 @@ fn import_and_replace_read_the_picked_file() {
     assert_eq!(lib, library());
 }
 
-/// Export is disabled with no swatches, and otherwise gives a save request with the bytes of the chosen format.
+/// The export entries are disabled with no swatches.
 #[trial]
-fn export_writes_the_chosen_format() {
+fn export_is_disabled_when_empty() {
     // The export entries are disabled with no swatches.
     let enabled = |library: &SwatchLibrary| {
         let states = SwatchesMenu::states(library);
@@ -392,7 +397,11 @@ fn export_writes_the_chosen_format() {
     let empty = SwatchLibrary::new(vec![SwatchGroup { name: "Empty".into(), entries: Vec::new() }]);
     assert_eq!(enabled(&empty), (off.clone(), off, on.clone()));
     assert_eq!(enabled(&library()), (on.clone(), on.clone(), on));
+}
 
+/// Export gives a save request with the bytes of the chosen format.
+#[trial]
+fn export_writes_the_chosen_format() {
     let words = SwatchesWords::default();
     let (mut lib, mut state) = (library(), SwatchesState::default());
     let out = SwatchesMenu::run_command(&mut lib, &mut state, SwatchesCommand::ExportExchange, Srgba::rgb(0.2, 0.4, 0.6), &words);
@@ -524,16 +533,19 @@ impl TableRig {
     }
 }
 
-/// A click selects the clicked index among duplicate colours; a double click and Enter ask to open the index; Space
-/// selects the focused one.
+/// A click selects the clicked index among duplicate colours.
 #[trial]
-fn the_table_click_double_click_enter_and_space() {
+fn a_click_selects_the_clicked_index_among_duplicate_colours() {
     let mut rig = TableRig::new();
     let cell = rig.fixture.by_label("Index 3").expect("the cell");
     rig.fixture.click(&cell);
     assert_eq!(rig.selected.borrow().items, [3]);
     assert!(rig.opened.borrow().is_empty(), "a click edits nothing");
+}
 
+/// A double click and Enter ask to open the index; Space selects the focused one.
+#[trial]
+fn a_double_click_and_enter_ask_to_open_the_index_and_space_selects_the_focused_one() {
     let mut rig = TableRig::new();
     let cell = rig.fixture.by_label("Index 2").expect("the cell");
     rig.fixture.click(&cell).click(&cell);
@@ -617,7 +629,6 @@ impl PaletteRig {
     }
 }
 
-/// The palette is a pick collection: a click, Space or Enter chooses, the arrows only move the focus.
 #[trial]
 fn the_palette_chooses_by_click_space_or_enter_and_moves_focus_by_arrows() {
     let green = Srgba::rgb(0.19, 0.64, 0.42);
@@ -653,8 +664,11 @@ fn the_palette_chooses_by_click_space_or_enter_and_moves_focus_by_arrows() {
     rig.fixture.key(Key::Enter, Modifiers::NONE);
     assert_eq!(rig.events.get(), 3, "Enter chooses the focused swatch: one Set");
     assert_eq!(rig.color.get().to_hex(), swatch_hex("Green"));
+}
 
-    // A screen reader's focus on a swatch moves the palette's stop there and selects nothing.
+/// A screen reader's focus on a swatch moves the palette's stop there and selects nothing.
+#[trial]
+fn a_screen_readers_focus_on_a_palette_swatch_moves_the_stop_there() {
     use craft_ui::testing::focus::AccessActionKind;
     let mut rig = PaletteRig::new(Srgba::rgb(0.9, 0.28, 0.3), PALETTE_WIDE);
     let teal = rig.fixture.by_label("Teal").expect("the swatch");

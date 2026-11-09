@@ -77,8 +77,7 @@ impl FieldRig {
     }
 }
 
-/// A drag on the side label moves the time a frame per point, ten times that with Shift, and never before zero. The
-/// large readout has no side label: a drag on the field itself moves the time a frame per point.
+/// A drag on the side label moves the time a frame per point, ten times that with Shift, and never before zero.
 #[trial]
 fn dragging_the_field_scrubs_a_frame_per_point() {
     for (modifiers, frames) in [(Modifiers::NONE, 10), (Modifiers::SHIFT, 100)] {
@@ -93,7 +92,11 @@ fn dragging_the_field_scrubs_a_frame_per_point() {
     let label = rig.fixture.by_role(Role::LABEL).into_iter().find(|target| rig.fixture.tree().name_of(target.node) == Some("Time")).unwrap();
     rig.fixture.drag(&label, vec2(-30.0, 0.0));
     assert!(rig.time.get() >= Tick::ZERO, "never before the sequence start");
+}
 
+/// The large readout has no side label: a drag on the field itself moves the time a frame per point.
+#[trial]
+fn dragging_the_large_readout_scrubs_a_frame_per_point() {
     let time = Rc::new(Cell::new(secs(10.0)));
     let shown = time.clone();
     let mut fixture = Fixture::new(move |ui| {
@@ -107,8 +110,7 @@ fn dragging_the_field_scrubs_a_frame_per_point() {
     assert_eq!(time.get(), rate().tick_of(250));
 }
 
-/// Typing +15 commits fifteen frames later and 00:00:20:00 commits twenty seconds; Escape commits nothing; text that
-/// is not a time commits nothing and is reported.
+/// Typing +15 commits fifteen frames later and 00:00:20:00 commits twenty seconds; Escape commits nothing.
 #[trial]
 fn typing_commits_relative_and_absolute_times() {
     let mut rig = field(secs(10.0));
@@ -125,7 +127,11 @@ fn typing_commits_relative_and_absolute_times() {
     rig.type_in("+15");
     rig.fixture.key(Key::Escape, Modifiers::NONE);
     assert_eq!(rig.time.get(), secs(10.0));
+}
 
+/// Text that is not a time commits nothing and is reported.
+#[trial]
+fn a_time_that_does_not_parse_commits_nothing() {
     let mut rig = field(secs(10.0));
     rig.type_in("xyz");
     rig.fixture.key(Key::Enter, Modifiers::NONE);
@@ -166,10 +172,9 @@ fn panel(rows: Vec<TimecodeRow>) -> PanelRig {
     PanelRig { fixture, settings, changed }
 }
 
-/// A row that shows its own display can go back to the sequence's display; "+" adds a row and the row menu's Remove Row
-/// removes it. Each reports its change.
+/// A row that shows its own display can go back to the sequence's display.
 #[trial]
-fn timecode_rows_menu_changes_display_adds_and_removes() {
+fn a_row_can_return_to_the_sequence_display() {
     let mut rig = panel(vec![TimecodeRow::default().display(Some(TimeDisplay::Frames))]);
     let row = rig.fixture.by_label("Current Time \u{b7} Active Monitor: CurrentTime").expect("the row has a node");
     secondary_click(&mut rig.fixture, row.center());
@@ -177,7 +182,11 @@ fn timecode_rows_menu_changes_display_adds_and_removes() {
     rig.fixture.click(&item);
     assert_eq!(rig.settings.borrow().rows[0].display, None);
     assert_eq!(rig.changed.get(), 1);
+}
 
+/// "+" adds a row; the row menu's Remove Row removes it.
+#[trial]
+fn panel_rows_can_be_added_and_removed() {
     let mut rig = panel(vec![TimecodeRow::default()]);
     let add = rig.fixture.by_label("Add a timecode row").expect("the add button");
     rig.fixture.click(&add);
