@@ -911,7 +911,11 @@ impl ListRow<'_> {
     fn record_toggle_names(&self, cx: &PartsCx<'_, Self>) {
         let words = cx.words::<ListWords>();
         let label = cx.resolved.label;
-        let names = self.toggles.iter().map(|toggle| (toggle.column.clone(), named(toggle.name_pattern(&words), label), toggle.state == ToggleState::Mixed)).collect();
+        let names = self
+            .toggles
+            .iter()
+            .map(|toggle| (toggle.column.clone(), named(toggle.name_pattern(&words), label), toggle.state == ToggleState::Mixed))
+            .collect();
         crate::contract::put_toggle_names(cx.ui.ctx(), cx.resolved.id, names);
     }
 

@@ -132,9 +132,11 @@ impl UnsavedChangesDialog {
         if self.remaining > 1 && self.scope != CloseScope::Revert {
             let label = words.unsaved_apply_to_all.clone();
             let tick = &mut ticked;
-            let value = if hosted { Bind::bound(&mut self.apply_to_all) } else { Bind::kept() };
+            let mut value = hosted.then(|| &mut self.apply_to_all);
             prompt = prompt.extras(move |ui| {
-                if let Some(Mixed::Same(shown)) = Checkbox::new(value).label(label).show(ui).shown {
+                if let Some(Mixed::Same(shown)) =
+                    Checkbox::new(value.as_mut().map_or_else(Bind::kept, |value| Bind::bound(&mut **value))).label(label.clone()).show(ui).shown
+                {
                     *tick = *shown;
                 }
             });

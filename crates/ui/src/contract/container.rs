@@ -435,8 +435,9 @@ pub enum Gap {
 /// What a container or collection adds to `Common`. A builder added here is added to the forwarder list in
 /// `crates/ui-macros/src/props.rs` too.
 ///
-/// A container body runs at most once per pass, and a sizing pass runs none. A pattern around a container never
-/// guards against a second run.
+/// A container body may run more than once per pass: a measuring run first, then the real run. It builds or borrows
+/// what it shows on every run and consumes nothing (no `Option::take`, no "has run" flag); it changes state and
+/// reports only through `measure::effect`. A pattern around a container never guards against a second run.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct ContainerProps {

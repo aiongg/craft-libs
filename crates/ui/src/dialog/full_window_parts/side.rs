@@ -47,16 +47,14 @@ impl<'a> SideFooter<'a> {
 
     /// Shows the footer row across the footer region: the leading slot at the reading start and `rest` (the dialog's
     /// footer content and buttons) at the end.
-    pub(crate) fn show(&mut self, ui: &mut Ui, rest: impl FnOnce(&mut Ui)) {
+    pub(crate) fn show(&mut self, ui: &mut Ui, mut rest: impl FnMut(&mut Ui)) {
         let align = if self.leading.is_some() { RowAlign::SpaceBetween } else { RowAlign::End };
-        let (leading, mut rest) = (&mut self.leading, Some(rest));
+        let leading = &mut self.leading;
         Row::new().fill_width().align(align).show(ui, |ui, _| {
             if let Some(add) = leading.as_mut() {
                 add(ui);
             }
-            if let Some(rest) = rest.take() {
-                rest(ui);
-            }
+            rest(ui);
         });
     }
 }
