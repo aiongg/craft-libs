@@ -54,5 +54,5 @@ pub fn install(ctx: &egui::Context, spec: InstallSpec) -> Result<(), InstallErro
 #[doc(hidden)]
 pub mod __private {
     pub use egui;
-    pub use linkme;
+    pub use inventory;
 }

@@ -30,7 +30,7 @@ pub use size::text_size_case;
 pub use states::required_states;
 pub use variants::rtl_case;
 
-use super::story::{STORIES, Story};
+use super::story::{Story, stories};
 use crate::contract::{PatternProbe, Probe, Registration, ShapeKind};
 use libtest_mimic::{Failed, Trial};
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -127,7 +127,7 @@ fn run_type(probe: &'static Probe, stories: Vec<Story>) -> Result<(), Failed> {
 /// per-shape cases belong to `craft-ui`'s own package and run once there.
 pub fn trials(package: &'static str, registered: &[&'static Registration]) -> Vec<Trial> {
     let library = package.replace('-', "_");
-    let own: Vec<_> = STORIES.iter().filter(|entry| entry.crate_name == package && entry.crate_target == library).collect();
+    let own: Vec<_> = stories().into_iter().filter(|entry| entry.crate_name == package && entry.crate_target == library).collect();
     let probes: Vec<&'static Probe> = registered.iter().copied().filter_map(Registration::probe).collect();
     let mut trials = Vec::new();
     for probe in probes.iter().copied() {
@@ -150,7 +150,7 @@ pub fn trials(package: &'static str, registered: &[&'static Registration]) -> Ve
             trials.push(Trial::test(format!("suite::stories::{}", entry.story.name), move || Err(Failed::from(message))));
         }
     }
-    for entry in STORIES.iter().filter(|entry| entry.crate_name == package && entry.crate_target != library) {
+    for entry in stories().into_iter().filter(|entry| entry.crate_name == package && entry.crate_target != library) {
         let message = format!(
             "the story `{}` is declared in the target `{}`; stories live in the library crate's `stories` module",
             entry.story.name, entry.crate_target

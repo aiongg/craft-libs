@@ -147,7 +147,7 @@ impl CanvasTool for IdleTool {
 
 /// Every probe linked into this binary, the integration binary's own fixtures included.
 fn probes() -> Vec<Probe> {
-    craft_ui::contract::REGISTRATIONS.iter().filter_map(|registration| registration.probe().copied()).collect()
+    craft_ui::contract::registrations().into_iter().filter_map(|registration| registration.probe().copied()).collect()
 }
 
 fn named(name: &str) -> Vec<Probe> {

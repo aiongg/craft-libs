@@ -12,7 +12,7 @@ pub use library::ChromeCommand;
 pub use library::{EditCommands, WindowCommand};
 pub use registry::CommandDefError;
 #[doc(hidden)]
-pub use registry::{COMMAND_SETS, SetEntry};
+pub use registry::{SetEntry, sets};
 
 pub(crate) use board::publish as publish_for;
 pub(crate) use board::{begin, binds_scoped, edit_chords, end, install, note_focus, platform, register_instance, set_input, take_fired};

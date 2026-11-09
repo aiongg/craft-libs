@@ -151,10 +151,15 @@ impl StoryRegistration {
     }
 }
 
-/// Every story linked into the running binary.
+inventory::collect!(StoryRegistration);
+
+/// Every story linked into the running binary, by type name and story name.
 #[doc(hidden)]
-#[linkme::distributed_slice]
-pub static STORIES: [StoryRegistration];
+pub fn stories() -> Vec<&'static StoryRegistration> {
+    let mut all: Vec<_> = inventory::iter::<StoryRegistration>().collect();
+    all.sort_by_key(|entry| ((entry.type_name)(), entry.story.name));
+    all
+}
 
 /// The values a story shows, by name. Each is a `Value`, so the runner compares them before and after a drive.
 #[derive(Default)]

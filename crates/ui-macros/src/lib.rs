@@ -15,7 +15,7 @@ mod words;
 mod tests;
 
 use proc_macro::TokenStream;
-use quote::{format_ident, quote};
+use quote::quote;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::{Expr, Ident, ItemFn, ReturnType, Token, Type, parse_macro_input};
@@ -113,7 +113,7 @@ pub fn words(input: TokenStream) -> TokenStream {
 /// Registers a function as a trial of craft-ui's integration binary.
 ///
 /// The function takes no arguments and returns `()`; it fails by panicking. The registration lists it in
-/// `craft_ui::testing::TRIALS`, so the runner finds it without a hand-kept list.
+/// `craft_ui::testing::trials()`, so the runner finds it without a hand-kept list.
 #[proc_macro_attribute]
 pub fn trial(attr: TokenStream, item: TokenStream) -> TokenStream {
     if !attr.is_empty() {
@@ -127,16 +127,14 @@ pub fn trial(attr: TokenStream, item: TokenStream) -> TokenStream {
     }
     let ident = &sig.ident;
     let name = ident.to_string();
-    let registration = format_ident!("__CRAFT_TRIAL_{}", name.to_uppercase());
     let allow = util::in_craft_ui().then(|| quote!(#[allow(unsafe_code)]));
     quote! {
         #func
 
         #allow
-        #[::craft_ui::testing::__private::linkme::distributed_slice(::craft_ui::testing::TRIALS)]
-        #[linkme(crate = ::craft_ui::testing::__private::linkme)]
-        #[doc(hidden)]
-        static #registration: ::craft_ui::testing::Trial = ::craft_ui::testing::Trial::new(module_path!(), #name, #ident);
+        ::craft_ui::testing::__private::inventory::submit! {
+            ::craft_ui::testing::Trial::new(module_path!(), #name, #ident)
+        }
     }
     .into()
 }
@@ -186,7 +184,6 @@ pub fn story(attr: TokenStream, item: TokenStream) -> TokenStream {
     let func = parse_macro_input!(item as ItemFn);
     let ident = &func.sig.ident;
     let name = ident.to_string();
-    let registration = format_ident!("__CRAFT_STORY_{}", name.to_uppercase());
     let ty = &args.ty;
     let covers = &args.covers;
     let drive = args.drive.as_ref().map(|drive| quote!(.drive(#drive)));
@@ -196,15 +193,14 @@ pub fn story(attr: TokenStream, item: TokenStream) -> TokenStream {
         #func
 
         #allow
-        #[::craft_ui::testing::__private::linkme::distributed_slice(::craft_ui::testing::STORIES)]
-        #[linkme(crate = ::craft_ui::testing::__private::linkme)]
-        #[doc(hidden)]
-        static #registration: ::craft_ui::testing::StoryRegistration = ::craft_ui::testing::StoryRegistration::new(
-            env!("CARGO_PKG_NAME"),
-            env!("CARGO_CRATE_NAME"),
-            ::std::any::type_name::<#ty>,
-            ::craft_ui::testing::Story::new(#name, #ident).covers(&[#(::craft_ui::testing::Required::#covers),*]) #drive #disabled_text,
-        );
+        ::craft_ui::testing::__private::inventory::submit! {
+            ::craft_ui::testing::StoryRegistration::new(
+                env!("CARGO_PKG_NAME"),
+                env!("CARGO_CRATE_NAME"),
+                ::std::any::type_name::<#ty>,
+                ::craft_ui::testing::Story::new(#name, #ident).covers(&[#(::craft_ui::testing::Required::#covers),*]) #drive #disabled_text,
+            )
+        }
     }
     .into()
 }

@@ -64,7 +64,7 @@ pub use paint_ui::PaintUi;
 pub use props::{Common, Props, Resolved, Tooltip, TooltipAt, TooltipSpec, TooltipWhen};
 #[doc(hidden)]
 #[cfg(feature = "testing")]
-pub use registry::REGISTRATIONS;
+pub use registry::registrations;
 #[doc(hidden)]
 pub use registry::{
     CollectionEntry, ContainerEntry, DialogPattern, Exemption, LeafEntry, PatternKind, PatternProbe, Probe, Registration, ShowEntry, ToolPattern,
