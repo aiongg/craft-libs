@@ -47,3 +47,17 @@ pub(crate) fn offer(ctx: &Context, owner: Id, folded: Folded) {
 pub(crate) fn take(ctx: &Context, owner: Id) -> Option<Folded> {
     store::take::<Folded>(ctx, folded_slot(owner))
 }
+
+fn widget_owner_slot(widget: Id) -> Id {
+    sub(widget, "text_fold_owner")
+}
+
+/// Records that the text widget `widget` has its node folded into the node of `owner`.
+pub(crate) fn fold_text_widget(ctx: &Context, widget: Id, owner: Id) {
+    store::put(ctx, widget_owner_slot(widget), Owner(owner));
+}
+
+/// The owner whose node stands for the text widget `widget`. Unlike [`owner_of`], key focus stays on the widget.
+pub(crate) fn text_widget_owner(ctx: &Context, widget: Id) -> Option<Id> {
+    store::peek_clone::<Owner>(ctx, widget_owner_slot(widget)).map(|owner| owner.0)
+}

@@ -140,6 +140,7 @@ pub(crate) fn fold_widget(ctx: &Context, widget: Id, owner: Id) {
     }
     super::hide(ctx, widget);
     super::note_folded(ctx, widget, owner);
+    crate::runtime::access::fold::fold_text_widget(ctx, widget, owner);
 }
 
 /// Sets the text selection of the node of `id` between two run nodes, for a node whose runs a content painter

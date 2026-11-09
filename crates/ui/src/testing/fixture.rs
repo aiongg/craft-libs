@@ -371,9 +371,11 @@ impl Fixture {
         crate::runtime::pointer::part_bounds(self.ctx(), owner, part.into())
     }
 
-    /// The node of the component `component`.
+    /// The node of the component `component`; for a widget whose node is hidden because it folds into its owner's
+    /// (a text part's widget), the owner's node.
     pub fn node_of(&self, component: Id) -> Option<Target> {
-        self.target(NodeKey::of(component))
+        let owner = crate::runtime::access::fold::text_widget_owner(&self.frames.ctx, component);
+        self.target(NodeKey::of(owner.unwrap_or(component)))
     }
 
     /// Hover, press and release on `target`, in separate frames, then one idle frame.
