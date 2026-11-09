@@ -16,6 +16,8 @@ use std::rc::Rc;
 
 const ROOM: Vec2 = Vec2::new(800.0, 600.0);
 const SLACK: f32 = 0.5;
+/// The rect a fill row is shown at.
+const AT: Vec2 = Vec2::new(300.0, 120.0);
 
 /// The heights of a row, its divider and its button when the row holds both under `row`.
 fn heights(row: impl Fn() -> Row + 'static) -> (f32, f32, f32) {
@@ -53,13 +55,13 @@ fn a_divider_in_a_fill_row_spans_the_rect_it_is_shown_in() {
     let seen = Rc::new(Cell::new((Rect::NOTHING, 0.0)));
     let out = Rc::clone(&seen);
     let mut fixture = Fixture::new(move |ui| {
-        let at = Rect::from_min_size(ui.cursor().min, Vec2::new(300.0, 120.0));
+        let at = Rect::from_min_size(ui.cursor().min, AT);
         let shown = Row::new().fill().show_at(ui, at, |ui, _| Divider::vertical().id_salt("divider").show(ui).rect.height());
         out.set((shown.output.rect, shown.inner.unwrap_or_default()));
     });
     fixture.room(ROOM).settle();
     let (rect, divider) = seen.get();
-    assert!((divider - rect.height()).abs() <= SLACK && rect.height() >= 119.0, "divider {divider}, rect {rect:?}");
+    assert!((divider - rect.height()).abs() <= SLACK && rect.height() >= AT.y - SLACK, "divider {divider}, rect {rect:?}");
 }
 
 #[trial]
@@ -106,7 +108,7 @@ fn a_section_of_labelled_rows_in_a_content_column_is_as_wide_as_its_widest_row()
     let (section, side) = seen.get();
     let check = fixture.by_label("Allow downloads").map(|target| target.rect);
     let dump = format!("section {section:?}, side {side:?}, check {check:?}");
-    assert!(section.width() > 0.0 && section.width() < ROOM.x / 2.0, "the section is as wide as its row: {dump}");
+    assert!(section.width() > 0.0 && section.width() < side.width(), "the section is as wide as its row: {dump}");
     assert!(check.is_some_and(|check| check.max.x <= section.max.x + SLACK), "the row fits the section: {dump}");
 }
 

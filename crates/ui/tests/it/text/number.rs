@@ -21,6 +21,8 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 const START: f64 = 10.0;
+/// The value of the first typed character, then of the second.
+const TYPED: (f64, f64) = (7.0, 75.0);
 /// How far two values may differ and still count as the same.
 const SAME: f64 = 0.01;
 
@@ -211,7 +213,7 @@ fn a_given_value_written_in_the_begin_pass_keeps_the_gesture() {
     frames.idle(2, &mut show);
     frames.frame(vec![key_press(Key::A, Modifiers::COMMAND)], &mut show);
     frames.frame(vec![Event::Text("7".into())], &mut show);
-    assert_eq!(*value.borrow(), Some(7.0), "the first typed character reaches the host in the pass that begins the edit");
+    assert_eq!(*value.borrow(), Some(TYPED.0), "the first typed character reaches the host in the pass that begins the edit");
     frames.idle(3, &mut show);
     assert!(!events.borrow().iter().any(|e| matches!(e, EditEvent::Cancel { .. })), "the host's write is the gesture's own: {:?}", events.borrow());
     frames.frame(vec![key_press(Key::Escape, Modifiers::NONE)], &mut show);
@@ -247,9 +249,9 @@ fn a_control_above_the_field_shows_the_typed_value_in_the_same_frame() {
     frames.idle(2, &mut show);
     frames.frame(vec![key_press(Key::A, Modifiers::COMMAND)], &mut show);
     frames.frame(vec![Event::Text("7".into())], &mut show);
-    assert_eq!(above.get(), Some(7.0), "the control above the field shows the first typed character in that frame");
+    assert_eq!(above.get(), Some(TYPED.0), "the control above the field shows the first typed character in that frame");
     frames.frame(vec![Event::Text("5".into())], &mut show);
-    assert_eq!(above.get(), Some(75.0), "and the next one");
+    assert_eq!(above.get(), Some(TYPED.1), "and the next one");
 }
 
 /// What a fixture of a number field with presets shows: the value, the field's id and the events it reported.
