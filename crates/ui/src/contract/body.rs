@@ -516,8 +516,8 @@ pub(super) struct BodyHooks<'b> {
     /// A record of this pass may serve instead of a measuring run: in a real pass's step 5 and in a sizing pass, not
     /// in `measure_in`, which measures the content it is given.
     reuse: bool,
-    /// `open` was read by the real pass's stage and stands for the measuring run: the run's own peek stage cannot
-    /// see a slot the real stage holds.
+    /// `open` and `presence` were read by the real pass's stage and stand for the measuring run: the run's own peek
+    /// stage cannot see a slot the real stage holds.
     open_given: bool,
     /// The gap between an inline header and the body, and between a header and its trailing region.
     region_gap: f32,
@@ -1735,6 +1735,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             fresh.read(comp, &mut stage, id, at.env);
             fresh.open = self.open;
             fresh.open_at_read = self.open;
+            fresh.presence = self.presence;
             fresh.open_given = true;
             fresh.shown_closed = fading;
             fresh.reuse = true;
