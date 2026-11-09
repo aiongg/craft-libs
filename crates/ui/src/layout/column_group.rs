@@ -1,7 +1,7 @@
 //! `ColumnGroup`: rows that are not one `Grid` share the widest label per column key.
 
 use crate::runtime::egui::memory::Service;
-use crate::runtime::layout_memory;
+use crate::runtime::layout_memory::{self, Measured};
 use crate::runtime::memory::sub;
 use craft_behavior::ColumnKey;
 use egui::{Context, Id, Ui, Vec2};
@@ -20,7 +20,7 @@ pub(crate) const GLYPHS: ColumnKey = ColumnKey::new("glyphs");
 struct Open(Vec<Frame>);
 
 enum Frame {
-    /// A group: rows report their widths and read the widest of last pass.
+    /// A group: rows report their widths; the real run reads the widest of this pass's measuring run.
     Group { id: Id, widest: HashMap<ColumnKey, f32>, room: Option<f32> },
     /// No group: rows inside read none, whatever group is open outside.
     Barrier,
@@ -42,8 +42,11 @@ impl ColumnGroup {
         let mut group = ColumnGroup { id, ctx: ctx.clone() };
         let result = rows(ui, &mut group);
         if let Some(Frame::Group { id, widest, .. }) = Service::<Open>::run(&ctx, |open| open.0.pop()) {
-            for (column, width) in &widest {
-                layout_memory::record(&ctx, sub(id, column), Vec2::new(*width, 0.0));
+            // Only a measuring run records: the real run of the same pass reads these widths.
+            if crate::runtime::measure::active(&ctx) {
+                for (column, width) in &widest {
+                    layout_memory::record_measured(&ctx, sub(id, column), Measured { room: Vec2::ZERO, took: Vec2::new(*width, 0.0) });
+                }
             }
         }
         result
@@ -73,8 +76,8 @@ impl ColumnGroup {
         });
     }
 
-    /// The width every row gives column `column`: the widest content of last pass. `content` is this row's own
-    /// width, kept for the next pass.
+    /// The width every row gives column `column`: the widest content of this pass's measuring run, 0 when none ran.
+    /// `content` is this row's own width, recorded when the group ends.
     pub fn width(&mut self, ui: &Ui, column: &ColumnKey, content: f32) -> f32 {
         debug_assert!(ui.ctx() == &self.ctx, "a column group is used in the context that opened it");
         shared_width(&self.ctx, self.id, column, content)
@@ -111,5 +114,5 @@ fn shared_width(ctx: &Context, group: Id, column: &ColumnKey, content: f32) -> f
             *widest = widest.max(content);
         }
     });
-    layout_memory::read(ctx, sub(group, column)).map_or(0.0, |size| size.x)
+    layout_memory::measured(ctx, sub(group, column)).map_or(0.0, |measured| measured.took.x)
 }

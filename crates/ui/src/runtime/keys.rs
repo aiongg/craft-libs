@@ -1285,14 +1285,15 @@ pub(crate) fn take_submit(ctx: &Context) -> bool {
 
 fn take_untaken(ctx: &Context, intent: &Intent) -> bool {
     let focused = focus::focused_rec(ctx).map(|rec| rec.stop.id);
-    let measuring = crate::runtime::measure::active(ctx);
+    // One-shot takes deliver in the real run only (runtime/measure.rs `take_queued`).
+    if crate::runtime::measure::active(ctx) {
+        return false;
+    }
     current(ctx, |stage| {
         let Some(routed) = stage.routed.get_mut(&focused) else { return false };
         match routed.items.iter().position(|item| item.intent.same_kind(intent)) {
             Some(at) => {
-                if !measuring {
-                    routed.items.remove(at);
-                }
+                routed.items.remove(at);
                 true
             }
             None => false,
@@ -1313,12 +1314,12 @@ pub(crate) fn scope_escape(ctx: &Context, rule: CancelRule, press_captured: bool
 /// Reads the claimed chord: whether it arrived this pass for `id`, consuming it. Also true for a chord
 /// withheld from the component's text or editor part.
 pub(crate) fn take_claimed(ctx: &Context, id: Id, chord: Chord) -> bool {
-    let measuring = crate::runtime::measure::active(ctx);
+    if crate::runtime::measure::active(ctx) {
+        return false;
+    }
     current(ctx, |stage| match stage.claimed.iter().position(|(owner, claimed)| *owner == id && *claimed == chord) {
         Some(at) => {
-            if !measuring {
-                stage.claimed.remove(at);
-            }
+            stage.claimed.remove(at);
             true
         }
         None => false,

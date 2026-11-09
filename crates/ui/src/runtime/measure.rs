@@ -48,12 +48,12 @@ pub fn effect(ctx: &Context, what: &'static str) -> bool {
     false
 }
 
-/// Takes the entries of the one-shot `queue` that `wanted` accepts. A measuring run only reads them (a copy, the
-/// queue stays whole), so the real run still finds them. Every take of a one-shot queue that a body or a component's
+/// Takes the entries of the one-shot `queue` that `wanted` accepts. A measuring run takes none and leaves the queue
+/// whole, so the real run finds them. Every take of a one-shot queue that a body or a component's
 /// steps can reach goes through here.
 pub fn take_queued<T: Clone>(ctx: &Context, queue: &mut Vec<T>, wanted: impl Fn(&T) -> bool) -> Vec<T> {
     if active(ctx) {
-        return queue.iter().filter(|item| wanted(item)).cloned().collect();
+        return Vec::new();
     }
     let mut mine = Vec::new();
     let mut kept = Vec::new();
