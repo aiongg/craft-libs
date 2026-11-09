@@ -109,8 +109,6 @@ struct Scope {
     reset: Option<ResetFact>,
     /// The first message a control inside reported, with its resolved text.
     message: Option<(Message, Tone, String)>,
-    /// The narrowest width of the first control.
-    control_min: Option<f32>,
     /// A control inside scrubs by the label.
     scrub: bool,
 }
@@ -144,18 +142,7 @@ struct Stack(Vec<Scope>);
 /// Opens the scope of `container`; its body shows inside it.
 pub(crate) fn begin(ctx: &Context, container: Id, owner: Id, kind: Kind) {
     Service::<Stack>::run(ctx, |stack| {
-        stack.0.push(Scope {
-            container,
-            owner,
-            kind,
-            nodes: Vec::new(),
-            open: Vec::new(),
-            baseline: None,
-            reset: None,
-            message: None,
-            control_min: None,
-            scrub: false,
-        })
+        stack.0.push(Scope { container, owner, kind, nodes: Vec::new(), open: Vec::new(), baseline: None, reset: None, message: None, scrub: false })
     });
 }
 
@@ -218,23 +205,34 @@ pub(crate) fn record_baseline(ctx: &Context, baseline: f32) {
     });
 }
 
-/// Whether a label scope is open: a control then reports its minimum width.
-pub(crate) fn in_label(ctx: &Context) -> bool {
-    Service::<Stack>::run(ctx, |stack| stack.0.iter().any(|scope| matches!(scope.kind, Kind::Label(_))))
+/// Probe state: while `probe_control_min` runs a body, its first control reports here.
+#[derive(Default)]
+struct Probe {
+    active: bool,
+    min: Option<f32>,
 }
 
-/// Records the narrowest width of a control inside the innermost label scope. The first control to report wins.
+/// Whether a control reports its narrowest width: while a body is probed, in a sizing pass too.
+pub(crate) fn wants_control_min(ctx: &Context) -> bool {
+    Service::<Probe>::run(ctx, |probe| probe.active)
+}
+
+/// Records the narrowest width of a control inside the probed body. The first control to report wins.
 pub(crate) fn record_control_min(ctx: &Context, width: f32) {
-    Service::<Stack>::run(ctx, |stack| {
-        if let Some(scope) = stack.0.iter_mut().rev().find(|scope| matches!(scope.kind, Kind::Label(_))) {
-            scope.control_min.get_or_insert(width);
+    Service::<Probe>::run(ctx, |probe| {
+        if probe.active {
+            probe.min.get_or_insert(width);
         }
     });
 }
 
-/// The narrowest width the first control of `container`'s label scope reported last frame.
-pub(crate) fn last_control_min(ctx: &Context, container: Id) -> f32 {
-    layout_memory::read(ctx, sub(container, "control_min")).map_or(0.0, |size| size.x)
+/// Runs `body` (a body in an invisible sizing pass) and returns the narrowest width its first control reported, 0 when
+/// none did. Probes do not nest: an inner probe's controls report to the inner one.
+pub(crate) fn probe_control_min(ctx: &Context, body: impl FnOnce()) -> f32 {
+    let outer = Service::<Probe>::run(ctx, |probe| std::mem::replace(probe, Probe { active: true, min: None }));
+    body();
+    let inner = Service::<Probe>::run(ctx, |probe| std::mem::replace(probe, outer));
+    inner.min.unwrap_or(0.0)
 }
 
 /// Registers the reset of the control `control` with the innermost label scope.
@@ -386,6 +384,15 @@ pub(crate) fn merge_patch(child: &ScopeNode, merged: &Merged) -> MergePatch {
     }
 }
 
+/// Closes the scope of `container` without recording anything, for a measuring run.
+pub(crate) fn discard(ctx: &Context, container: Id) {
+    Service::<Stack>::run(ctx, |stack| {
+        if stack.0.last().is_some_and(|scope| scope.container == container) {
+            stack.0.pop();
+        }
+    });
+}
+
 /// Closes the scope of `container`, if it opened one, and patches the nodes registered in it. `merged` is the
 /// container's own facts, read by a merge scope.
 pub(crate) fn finish(ctx: &Context, container: Id, merged: Option<Merged>) {
@@ -416,7 +423,6 @@ pub(crate) fn finish(ctx: &Context, container: Id, merged: Option<Merged>) {
             if let Some(baseline) = scope.baseline {
                 layout_memory::record(ctx, sub(scope.container, "baseline"), Vec2::new(0.0, baseline));
             }
-            layout_memory::record(ctx, sub(scope.container, "control_min"), Vec2::new(scope.control_min.unwrap_or(0.0), 0.0));
             let slot = reset_slot(scope.container);
             match scope.reset {
                 Some(fact) => {

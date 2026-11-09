@@ -1971,6 +1971,50 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         if real {
             crate::runtime::focus::begin_body(&ctx);
         }
+        // A held fill-width container is part of the content column it sits in: its own stack is one too.
+        let (sizing, held) = (self.sizing(&props), self.held(&props, env));
+        let content_column = (sizing == Sizing::Content || held || !self.given.0) && matches!(props.layout, layout::BodyLayout::Stack);
+        let body_env = line_env.derive_local(|scoped| {
+            if props.arena {
+                scoped.arena = Some(ArenaId::new(id));
+            }
+            scoped.transform = props.transform;
+            scoped.content_column = content_column;
+            scoped.row_room = None;
+            scoped.content = (!self.given.0, !self.given.1);
+            scoped.offered = (!self.given.0 && room.x.is_finite()).then_some(room.x);
+            match scroll {
+                Some(scroll) => {
+                    scoped.scroll_owner = Some(id);
+                    scoped.unbounded = (scroll.horizontal_on(), scroll.vertical_on());
+                }
+                // A container that sized an axis itself (a rect it was shown at, a fixed layer) bounds the room along it.
+                None => scoped.unbounded = (scoped.unbounded.0 && !self.room.x.is_finite(), scoped.unbounded.1 && !self.room.y.is_finite()),
+            }
+        });
+        let gap = Vec2::splat(gap_of(&env.tokens, props.body_gap));
+        let layout_id = sub(id, "layout");
+        // The control's narrowest width comes from this pass: the body runs once in an invisible sizing pass and
+        // its first control reports.
+        let control_min = if is_open && props.label.is_some() {
+            let mut probe_cx = BodyCx::new(body_id, body_env.view(), cx.core.resolved, regions.body, &mut *cx.core.memory, &mut open, gate.as_mut())
+                .with_field_message(field_message.clone())
+                .with_owner(owner);
+            let mut probe_ui = alloc::child(
+                ui,
+                UiBuilder::new().max_rect(regions.body).layout(child::column_layout(rtl)).scope_id(sub(id, "label_probe")).sizing_pass().invisible(),
+            );
+            style::set_item_spacing(&mut probe_ui, gap);
+            let installed = Env::install_for(&probe_ui, body_env.clone());
+            let (layout, body) = (&props.layout, &mut *self.body);
+            let min = scope::probe_control_min(&ctx, || {
+                super::steps::measuring(&ctx, || layout::run_body(&mut probe_ui, layout_id, layout, gap, |ui| body(ui, &mut probe_cx)));
+            });
+            Env::restore(&ctx, installed);
+            min
+        } else {
+            0.0
+        };
         // B2 label: the control gets the rect the label leaves; the label column adds to the container's extent.
         let mut body_rect = regions.body;
         if let Some(side) = props.label.as_ref() {
@@ -1991,39 +2035,16 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 help: props.help.as_ref(),
                 enabled: resolved.enabled,
                 size: resolved.size,
-                control_min: scope::last_control_min(&ctx, id),
+                control_min,
             };
             body_rect = label::run(ui, env, &input).control;
         }
         let label_extra = (regions.body.size() - body_rect.size()).max(Vec2::ZERO);
         // B3 body, if open, under the body env; the gate is read after the header changed it.
         if is_open {
-            // A held fill-width container is part of the content column it sits in: its own stack is one too.
-            let (sizing, held) = (self.sizing(&props), self.held(&props, env));
-            let content_column = (sizing == Sizing::Content || held || !self.given.0) && matches!(props.layout, layout::BodyLayout::Stack);
-            let body_env = line_env.derive_local(|scoped| {
-                if props.arena {
-                    scoped.arena = Some(ArenaId::new(id));
-                }
-                scoped.transform = props.transform;
-                scoped.content_column = content_column;
-                scoped.row_room = None;
-                scoped.content = (!self.given.0, !self.given.1);
-                scoped.offered = (!self.given.0 && room.x.is_finite()).then_some(room.x);
-                match scroll {
-                    Some(scroll) => {
-                        scoped.scroll_owner = Some(id);
-                        scoped.unbounded = (scroll.horizontal_on(), scroll.vertical_on());
-                    }
-                    // A container that sized an axis itself (a rect it was shown at, a fixed layer) bounds the room along it.
-                    None => scoped.unbounded = (scoped.unbounded.0 && !self.room.x.is_finite(), scoped.unbounded.1 && !self.room.y.is_finite()),
-                }
-            });
             let mut bcx = BodyCx::new(body_id, body_env.view(), resolved, body_rect, &mut *cx.core.memory, &mut open, gate.as_mut())
                 .with_field_message(field_message.clone())
                 .with_owner(owner);
-            let gap = Vec2::splat(gap_of(&env.tokens, props.body_gap));
-            let layout_id = sub(id, "layout");
             // While the body opens or closes, it shows only the part of its last height that the presence reaches.
             let reveal_clip = (animated && self.presence.t < 1.0).then(|| {
                 Rect::from_min_max(
@@ -2145,8 +2166,13 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             self.body_size = if props.collapse.is_some() { None } else { Some(Vec2::ZERO) };
         }
         // The label scope covers the body only: footer controls are not the field's controls.
+        // A measuring run registers no control, so it leaves the facts the real run records alone.
         if props.label.is_some() {
-            scope::finish(&ctx, id, None);
+            if real {
+                scope::finish(&ctx, id, None);
+            } else {
+                scope::discard(&ctx, id);
+            }
         }
         // B4 footer: under the control column of a label-scoped container, which starts where the label step put
         // the control.
