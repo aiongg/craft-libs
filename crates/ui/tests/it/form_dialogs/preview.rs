@@ -397,3 +397,36 @@ fn the_wheel_scrolls_the_body_over_a_fitting_pane_and_pans_an_overflowing_one() 
     zoom_at(&mut overflowing_pane, centre_of(&overflowing), 40.0);
     assert!((overflowing.shown.get().scale - zoomed).abs() > EDGE, "zoom works over an overflowing pane");
 }
+
+/// A pane whose view is fitted and fixed (a one-value zoom range) sizes from the room it is given: in a tile smaller
+/// than the plot token it stays inside the tile.
+#[trial]
+fn a_fitted_fixed_pane_stays_inside_a_tile_smaller_than_the_plot_token() {
+    const TILE: Vec2 = Vec2::new(133.0, 75.0);
+    let seen = Rc::new(Cell::new(Rect::NOTHING));
+    let out = Rc::clone(&seen);
+    let moved_seen = Rc::new(Cell::new(false));
+    let moved = Rc::clone(&moved_seen);
+    let handle: RefCell<Option<TextureHandle>> = RefCell::new(None);
+    let mut fixture = Fixture::new(move |ui| {
+        let mut handle = handle.borrow_mut();
+        let texture = handle.get_or_insert_with(|| {
+            ui.ctx().load_texture("preview-fixed", ColorImage::filled([240, 160], Default::default()), TextureOptions::LINEAR)
+        });
+        let sized = SizedTexture::new(texture.id(), Vec2::new(240.0, 160.0));
+        let view = PreviewView::fixed();
+        ui.scope(|ui| {
+            ui.set_max_size(TILE);
+            let shown = PreviewPane::new("Tile", sized, &view).show(ui);
+            out.set(shown.response.rect);
+            moved.set(moved.get() || shown.view.is_some());
+        });
+    });
+    fixture.settle();
+    fixture.frame(vec![pointer::moved(pos2(60.0, 40.0))]);
+    fixture.frame(vec![pointer::zoom_wheel(3.0)]);
+    fixture.idle(2);
+    assert!(!moved_seen.get(), "the wheel leaves a fixed view unchanged");
+    let rect = seen.get();
+    assert!(rect.width() <= TILE.x + 0.5 && rect.height() <= TILE.y + 0.5, "the pane is {rect:?} in a {TILE:?} tile");
+}

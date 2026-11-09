@@ -92,17 +92,25 @@ pub struct PreviewView {
     pub fit: bool,
     /// The zoom the wheel, the zoom buttons and fit stay inside.
     pub range: RangeInclusive<f32>,
+    /// A fitted view the user cannot change (a survey tile): the pane sizes from the room it is given with no minimum,
+    /// takes no wheel zoom and ignores a double click, and the zoom steps leave the view as it is.
+    pub fixed: bool,
 }
 
 impl PreviewView {
     /// A view at `transform`, not following the well, with the default zoom range (0.125 to 8).
     pub fn new(transform: CanvasTransform) -> Self {
-        PreviewView { transform, fit: false, range: ZOOM_RANGE }
+        PreviewView { transform, fit: false, range: ZOOM_RANGE, fixed: false }
     }
 
     /// A view that follows the well.
     pub fn fitting() -> Self {
         PreviewView { fit: true, ..PreviewView::new(CanvasTransform::new(1.0, Vec2::ZERO)) }
+    }
+
+    /// A view that follows the well and cannot be changed: the whole picture in the room given, no zoom, no pan.
+    pub fn fixed() -> Self {
+        PreviewView { fixed: true, ..PreviewView::fitting() }
     }
 
     /// The same view with the zoom kept inside `range`.
@@ -114,24 +122,30 @@ impl PreviewView {
 
     /// Whether the zoom can go further in.
     pub fn can_zoom_in(&self) -> bool {
-        PreviewPane::can_zoom_in_within(self.transform, &self.range)
+        !self.fixed && PreviewPane::can_zoom_in_within(self.transform, &self.range)
     }
 
     /// Whether the zoom can go further out.
     pub fn can_zoom_out(&self) -> bool {
-        PreviewPane::can_zoom_out_within(self.transform, &self.range)
+        !self.fixed && PreviewPane::can_zoom_out_within(self.transform, &self.range)
     }
 
     /// The view one zoom level in, with the picture's centre kept in place; it no longer follows the well.
     #[must_use]
     pub fn zoomed_in(&self) -> Self {
-        PreviewView { transform: PreviewPane::zoom_in_within(self.transform, &self.range), fit: false, range: self.range.clone() }
+        if self.fixed {
+            return self.clone();
+        }
+        PreviewView { transform: PreviewPane::zoom_in_within(self.transform, &self.range), fit: false, ..self.clone() }
     }
 
     /// The view one zoom level out, with the picture's centre kept in place; it no longer follows the well.
     #[must_use]
     pub fn zoomed_out(&self) -> Self {
-        PreviewView { transform: PreviewPane::zoom_out_within(self.transform, &self.range), fit: false, range: self.range.clone() }
+        if self.fixed {
+            return self.clone();
+        }
+        PreviewView { transform: PreviewPane::zoom_out_within(self.transform, &self.range), fit: false, ..self.clone() }
     }
 }
 
@@ -217,6 +231,10 @@ pub struct PreviewPane<'a> {
     /// Whether the picture overflows the well horizontally, and vertically. Set by `parts`, which runs before the
     /// root's sense is read: the wheel scrolls the pane only on an axis it pans on.
     overflow: (bool, bool),
+    /// The view is fitted and its zoom range is one value: the pane cannot zoom or pan, so it sizes from the room it
+    /// is given and declares no wheel sense.
+    #[style_key]
+    fixed: bool,
 }
 
 impl PreviewPane<'_> {
@@ -236,6 +254,7 @@ impl PreviewPane<'_> {
             double_clicked: false,
             overlay: None,
             overflow: (false, false),
+            fixed: view.fixed,
         }
         .label(label)
     }
@@ -347,9 +366,13 @@ impl Component for PreviewPane<'_> {
     type Style = PreviewPaneStyle;
     type Output = PreviewOutput;
 
-    fn style(cx: &StyleCx<'_>, _: PreviewPaneStyleKey) -> PreviewPaneStyle {
+    fn style(cx: &StyleCx<'_>, key: PreviewPaneStyleKey) -> PreviewPaneStyle {
         PreviewPaneStyle {
-            metrics: Metrics::new().min_size(Vec2::new(cx.tokens.size.plot.width, cx.tokens.size.plot.height)),
+            metrics: if key.fixed {
+                Metrics::new()
+            } else {
+                Metrics::new().min_size(Vec2::new(cx.tokens.size.plot.width, cx.tokens.size.plot.height))
+            },
             focus: cx.focus_look(),
         }
     }
@@ -360,7 +383,10 @@ impl Component for PreviewPane<'_> {
 
     fn sense(&self) -> Sense {
         let (x, y) = self.overflow;
-        let mut sense = Sense::FOCUS | Sense::WHEEL_ZOOM;
+        let mut sense = Sense::FOCUS;
+        if !self.fixed {
+            sense |= Sense::WHEEL_ZOOM;
+        }
         if x {
             sense |= Sense::WHEEL_X;
         }
@@ -396,7 +422,7 @@ impl Component for PreviewPane<'_> {
                 next.offset += delta;
                 cx.cursor(CursorIcon::Grabbing, CursorPriority::Drag);
             }
-            PressPhase::Down { start, .. } if start.clicks >= 2 => {
+            PressPhase::Down { start, .. } if start.clicks >= 2 && !self.fixed => {
                 refit = true;
                 self.double_clicked = true;
             }
