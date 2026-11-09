@@ -688,8 +688,8 @@ fn a_full_window_dialog_scope_chains_under_the_view_scope() {
     assert_eq!(brushed.get(), 1, "the workspace chord reaches it too");
 }
 
-/// A modal full-window dialog with nothing focused routes a plain letter to its own scope; once a stop is focused, a
-/// plain Enter still submits it.
+/// A modal full-window dialog with nothing focused routes a plain letter to its own scope; a plain
+/// Enter submits it.
 #[trial]
 fn a_modal_full_window_dialog_with_nothing_focused_takes_its_letters_and_enter() {
     use craft_ui::contract::Bind;
@@ -716,7 +716,6 @@ fn a_modal_full_window_dialog_with_nothing_focused_takes_its_letters_and_enter()
     frames.idle(2, &mut show);
     assert_eq!(nudged.get(), 1, "the scope's letter reaches the dialog with nothing focused");
     assert!(!closed.get(), "a letter does not submit");
-    frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], &mut show);
     frames.frame(vec![key_press(Key::Enter, Modifiers::NONE)], &mut show);
     frames.idle(2, &mut show);
     assert!(closed.get(), "a plain Enter submits the dialog");

@@ -477,9 +477,13 @@ fn letters_reach_footer(ctx: &Context) -> bool {
 }
 
 /// Whether an Enter reaches the default button of the footer being shown: focus is inside the focus scope the footer
-/// sits in (the dialog's, whether it is a layer or a full window).
+/// sits in (the dialog's, whether it is a layer or a full window), or nothing is focused and that dialog is the top
+/// modal.
 fn enter_reaches_footer(ctx: &Context) -> bool {
-    focus::open_scope(ctx).is_some_and(|scope| focus::focus_in_scope(ctx, scope) == Some(true))
+    focus::open_scope(ctx).is_some_and(|scope| match focus::focus_in_scope(ctx, scope) {
+        Some(inside) => inside,
+        None => crate::runtime::overlay::is_top_modal(ctx, scope),
+    })
 }
 
 #[derive(Default)]
