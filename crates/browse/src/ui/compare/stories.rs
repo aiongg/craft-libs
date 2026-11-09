@@ -1,7 +1,5 @@
 //! Stories of `CompareTile`: a pair (active, rejected, pending, failed) and a survey.
 
-use std::cell::RefCell;
-
 use craft_theme::Srgba;
 use craft_ui::contract::{Bind, ShowContainer as _};
 use craft_ui::layout_components::Row;
@@ -44,10 +42,10 @@ fn caption(label: &str, name: &str) -> CompareCaption {
 
 /// Runs `content` over the room the story fills. The room is a container's body, so the story allocates what the
 /// tiles are placed in.
-fn filling(ui: &mut Ui, content: impl FnOnce(&mut Ui, Rect) -> StoryOutput) -> StoryOutput {
-    let content = RefCell::new(Some(content));
-    let shown = Row::new().fill().show(ui, |ui, body| content.borrow_mut().take().map(|content| content(ui, body.rect)));
-    shown.inner.flatten().unwrap_or_default()
+fn filling(ui: &mut Ui, content: impl FnMut(&mut Ui, Rect) -> StoryOutput) -> StoryOutput {
+    let mut content = content;
+    let shown = Row::new().fill().show(ui, |ui, body| content(ui, body.rect));
+    shown.inner.unwrap_or_default()
 }
 
 #[story(CompareTile<'static>, covers = [Default], drive = Drive::Never)]
