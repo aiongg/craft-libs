@@ -306,7 +306,7 @@ impl<'m> ToolHost<'m> {
             run.cancel(CancelReason::Dismissed);
             run.state.spent |= canvas.press.phase.is_press();
         } else {
-            run.phase(&canvas.press, &input, !queued.is_empty());
+            run.phase(&canvas.press, &input);
             for event in queued {
                 run.injected(event);
             }
@@ -680,7 +680,7 @@ impl<'a> Run<'a> {
 
     /// The canvas background's press phase of this pass. A pass carries one phase, so a press that moved or
     /// released in the pass it began in starts here.
-    fn phase(&mut self, press: &PressState, frame: &PointerFrame, injected: bool) {
+    fn phase(&mut self, press: &PressState, frame: &PointerFrame) {
         if self.state.gesture.is_some_and(|active| active.injected) {
             return;
         }
@@ -688,8 +688,7 @@ impl<'a> Run<'a> {
             PressPhase::Idle => self.state.spent = false,
             PressPhase::Hover => {
                 self.state.spent = false;
-                // Injected input is the pointer of this pass; the real pointer's hover would undo it.
-                if !injected && let Some(pointer) = hover_pointer(frame, *press) {
+                if let Some(pointer) = hover_pointer(frame, *press) {
                     self.hover(pointer);
                 }
             }
