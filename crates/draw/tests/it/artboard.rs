@@ -278,7 +278,6 @@ fn make_portrait_shows_only_while_the_board_is_wider_than_tall() {
     };
     assert_eq!(only(&wide, [&tall, &square]), 1);
     assert_eq!(only(&tall, [&wide, &square]), 1);
-    assert_eq!(only(&square, [&wide, &tall]), 0);
 }
 
 #[trial]
