@@ -25,7 +25,6 @@ mod drag;
 mod edit;
 // end of outer edit
 mod egui_surface;
-mod examples;
 mod focus;
 mod fonts;
 mod form;

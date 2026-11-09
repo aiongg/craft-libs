@@ -150,10 +150,9 @@ fn is_test_path(relative: &Path) -> bool {
 }
 
 /// A crate's `src/testing/` module: the test kit behind feature `testing`, which literal sizes may fill like `tests/`.
-/// `src/testing/examples/` holds real components bound for families, so it is not part of the kit.
 fn is_testing_module(relative: &Path) -> bool {
     let parts: Vec<_> = relative.components().filter_map(|c| c.as_os_str().to_str()).collect();
-    parts.windows(2).position(|pair| pair == ["src", "testing"]).is_some_and(|at| parts.get(at + 2) != Some(&"examples"))
+    parts.windows(2).any(|pair| pair == ["src", "testing"])
 }
 
 fn area_of(base: &Path, file: &Path) -> String {

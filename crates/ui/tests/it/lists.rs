@@ -1,6 +1,6 @@
 //! The pure logic of the list family.
 
-use craft_behavior::{ColumnKey, DisplayOrder as _, RowAt, SelectionChange, SelectionModel as _};
+use craft_behavior::{ColumnKey, DisplayOrder, RowAt, SelectionChange, SelectionModel as _};
 use craft_i18n::Format;
 use craft_ui::contract::{CollectionEvent, Show as _};
 use craft_ui::list::{
@@ -8,10 +8,26 @@ use craft_ui::list::{
     footer_text, summary_text, undo_count,
 };
 use craft_ui::runtime::env::WordSet as _;
-use craft_ui::testing::examples::sheet::Rows;
 use craft_ui::testing::internals::place_row as place;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Pos2, Rect, Vec2};
+
+/// `count` rows keyed by position.
+struct Rows(usize);
+
+impl DisplayOrder<usize> for Rows {
+    fn len(&self) -> usize {
+        self.0
+    }
+
+    fn key(&self, at: usize) -> usize {
+        at
+    }
+
+    fn index_of(&self, key: &usize) -> Option<usize> {
+        (*key < self.0).then_some(*key)
+    }
+}
 
 fn log() -> Vec<LogEvent> {
     vec![
@@ -81,7 +97,7 @@ fn apply_opens_one_group_or_every_group() {
 #[trial]
 fn a_mark_covers_the_row_and_every_newer_one() {
     let mut mark = UndoMark::default();
-    let order = Rows::new(4);
+    let order = Rows(4);
     let covers = |mark: &UndoMark, key: usize| mark.contains(RowAt::new(&key, key, &order));
     assert!(!covers(&mark, 0));
     mark.apply(SelectionChange::Set(vec![2]));
