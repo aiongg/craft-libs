@@ -973,6 +973,13 @@ impl Collection for CellGrid<'_> {
     }
 
     fn item_layout(&self, _: &dyn ItemSource<u32>, _: f32, _: &StyleCx<'_>) -> SheetLayout {
+        self.sheet_layout()
+    }
+}
+
+impl CellGrid<'_> {
+    /// The layout of the sheet: its frozen lines say where Ctrl+Home lands.
+    fn sheet_layout(&self) -> SheetLayout {
         let (rows, columns) = self.model.frozen();
         SheetLayout::lines(self.model.rows().clone(), self.model.columns().clone()).frozen(columns as usize).frozen_rows(rows).zoom(self.zoom)
     }

@@ -60,6 +60,16 @@ fn end_meaning(fixture: &Fixture) -> EndKey {
     crate::runtime::focus::focused_rec(fixture.ctx()).map_or(EndKey::LastItem, |rec| rec.stop.keys.end)
 }
 
+/// Whether the focused stop leaves the arrows to the component around the collection (`ItemKeys::Owner`).
+fn owner_arrows(fixture: &Fixture) -> bool {
+    crate::runtime::focus::focused_rec(fixture.ctx()).is_some_and(|rec| rec.stop.role.owner_arrows)
+}
+
+/// The row Ctrl+Home goes to, as the focused stop declares it.
+fn home_row(fixture: &Fixture) -> usize {
+    crate::runtime::focus::focused_rec(fixture.ctx()).map_or(0, |rec| rec.stop.role.home_row)
+}
+
 /// A click on the first row puts the lead there; the keys then move it: Down and Up by one row, End to the last,
 /// Home to the first, Page Down forward. A grid takes Ctrl+End and Ctrl+Home for the last and first row.
 pub(super) fn keys_move_the_lead(subject: &Subject) -> Result<(), String> {
@@ -83,13 +93,20 @@ pub(super) fn keys_move_the_lead(subject: &Subject) -> Result<(), String> {
         let first = lead(&fixture, &container).ok_or_else(|| format!("{name}: a click on the first row left no lead"))?;
         // Where the second item sits beside the first, the items wrap in rows and Down moves a whole row.
         let wrapped = shown.iter().skip(1).any(|other| (other.rect.min.y - shown[0].rect.min.y).abs() < shown[0].rect.height() / 2.0);
-        fixture.key(Key::ArrowDown, Modifiers::NONE);
-        fixture.idle(2);
-        match lead(&fixture, &container) {
-            Some(found) if found == first + 1 || (wrapped && found > first) => {}
-            found => return Err(format!("{name}: after Down the lead is {found:?}, expected {}", first + 1)),
+        if owner_arrows(&fixture) {
+            // The arrows reach the owner's commands: they are no moves of the lead.
+            fixture.key(Key::ArrowDown, Modifiers::NONE);
+            fixture.idle(2);
+            expect(&mut fixture, Key::ArrowUp, Modifiers::NONE, first, "Down and Up (the owner's arrows)")?;
+        } else {
+            fixture.key(Key::ArrowDown, Modifiers::NONE);
+            fixture.idle(2);
+            match lead(&fixture, &container) {
+                Some(found) if found == first + 1 || (wrapped && found > first) => {}
+                found => return Err(format!("{name}: after Down the lead is {found:?}, expected {}", first + 1)),
+            }
+            expect(&mut fixture, Key::ArrowUp, Modifiers::NONE, first, "Up")?;
         }
-        expect(&mut fixture, Key::ArrowUp, Modifiers::NONE, first, "Up")?;
         match end_meaning(&fixture) {
             EndKey::LastItem => {
                 expect(&mut fixture, Key::End, ends, size - 1, "End")?;
@@ -120,7 +137,8 @@ pub(super) fn keys_move_the_lead(subject: &Subject) -> Result<(), String> {
                         ));
                     }
                 }
-                expect(&mut fixture, Key::Home, Modifiers::COMMAND, 0, "Ctrl+Home")?;
+                let home = home_row(&fixture);
+                expect(&mut fixture, Key::Home, Modifiers::COMMAND, home, "Ctrl+Home")?;
             }
         }
         fixture.key(Key::PageDown, Modifiers::NONE);
@@ -328,7 +346,7 @@ pub(super) fn scroll_shows_rows_in_the_same_frame(subject: &Subject) -> Result<(
         };
         let row = top.rect.height();
         let last_row = position_in_set(&fixture, bottom.node).is_some_and(|(at, count)| at + 1 == count);
-        if top.rect.min.y > container.rect.min.y + row || (!last_row && bottom.rect.max.y < container.rect.max.y - row) {
+        if top.rect.min.y > shown[0].rect.min.y + row || (!last_row && bottom.rect.max.y < container.rect.max.y - row) {
             return Err(format!("{}: the frame of the scroll leaves part of the viewport without rows", story.name));
         }
         // A section header between two items fills the space it takes; any other gap is a row that is missing.
