@@ -28,9 +28,6 @@ pub struct Hit {
     /// ([`CommandDef::has_alt_variant`](crate::CommandDef::has_alt_variant)). `trigger` is the chord
     /// pressed, Alt included.
     pub alt_variant: bool,
-    /// The text of the Paste event that ran the command, or on the web of the Paste event that
-    /// came with the press that ran it.
-    pub pasted: Option<String>,
 }
 
 impl Hit {
@@ -40,7 +37,7 @@ impl Hit {
             Lookup::Run(command) => (command, Vec::new()),
             Lookup::Cycle(cycle) => (cycle.first()?.clone(), cycle),
         };
-        Some(Hit { command, cycle, trigger, exact, alt_variant: false, pasted: None })
+        Some(Hit { command, cycle, trigger, exact, alt_variant: false })
     }
 }
 
@@ -72,13 +69,11 @@ pub struct Press<'a> {
 #[derive(Clone, Debug)]
 pub struct Matcher {
     last: Option<LastPress>,
-    /// See [`Matcher::with_delete_equivalence`].
-    pub(crate) delete_equivalence: bool,
 }
 
 impl Default for Matcher {
     fn default() -> Matcher {
-        Matcher { last: None, delete_equivalence: true }
+        Matcher { last: None }
     }
 }
 
@@ -93,18 +88,16 @@ impl Matcher {
         let Press { input, repeat, now, active, outer } = *press;
         let mut chords = layout.candidates(input);
         let first = *chords.first()?;
-        if self.delete_equivalence {
-            // Delete and Backspace stand for each other, after the press's own chords.
-            let twins: Vec<Chord> = chords
-                .iter()
-                .filter_map(|c| match c.key {
-                    Key::Delete => Some(Chord::new(c.mods, Key::Backspace)),
-                    Key::Backspace => Some(Chord::new(c.mods, Key::Delete)),
-                    _ => None,
-                })
-                .collect();
-            chords.extend(twins);
-        }
+        // Delete and Backspace stand for each other, after the press's own chords.
+        let twins: Vec<Chord> = chords
+            .iter()
+            .filter_map(|c| match c.key {
+                Key::Delete => Some(Chord::new(c.mods, Key::Backspace)),
+                Key::Backspace => Some(Chord::new(c.mods, Key::Delete)),
+                _ => None,
+            })
+            .collect();
+        chords.extend(twins);
         let find = |double: bool| {
             chords
                 .iter()
@@ -119,14 +112,9 @@ impl Matcher {
                 }
                 let plain = Chord::new(Mods { alt: false, ..chord.mods }, chord.key);
                 match keymap.lookup_nested(&plain, false, &Active { typing: false, ..*active }, outer) {
-                    Lookup::Run(command) if keymap.bindable(&command).is_some_and(|b| b.has_alt_variant) => Some(Hit {
-                        command,
-                        cycle: Vec::new(),
-                        trigger: Trigger { chord, double: false },
-                        exact: chord == first,
-                        alt_variant: true,
-                        pasted: None,
-                    }),
+                    Lookup::Run(command) if keymap.bindable(&command).is_some_and(|b| b.has_alt_variant) => {
+                        Some(Hit { command, cycle: Vec::new(), trigger: Trigger { chord, double: false }, exact: chord == first, alt_variant: true })
+                    }
                     _ => None,
                 }
             })
