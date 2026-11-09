@@ -1558,8 +1558,11 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             self.moved = true;
         }
         if let (Some(rect), Some(view_rect)) = (super::take_reveal(&ctx, id), self.last.view.map(rect_of)) {
+            // A view with no extent on an axis shows nothing there: no offset reveals into it.
             let into = |low: f32, high: f32, view_low: f32, view_high: f32| {
-                if low < view_low {
+                if view_high <= view_low {
+                    0.0
+                } else if low < view_low {
                     low - view_low
                 } else if high > view_high {
                     high - view_high

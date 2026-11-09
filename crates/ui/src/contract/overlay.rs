@@ -279,6 +279,8 @@ impl Opener {
             let opening = match (trigger, request) {
                 (Trigger::Context, _) if fired && by_pointer => Opening::Pointer,
                 (Trigger::Context, Some(rect)) if fired => Opening::At(rect),
+                // Opened through its open binding a pass after the press: it still hangs at the pointer over the opener.
+                (Trigger::Context, None) if inside => Opening::Pointer,
                 _ => Opening::Plain,
             };
             let clicked = trigger == Trigger::Click && frame.release == Some(PointerButton::Primary) && response::pointer_clicked(anchor);
@@ -305,15 +307,14 @@ impl Opener {
     }
 
     /// The opener the layer's open slot says opened it, else the first.
-    fn active(&self, ctx: &Context) -> (&Opener, Opening) {
+    /// A layer decides its opening in the pass it opens and keeps it (`stored`, from its `LayerMemory`) while it stays open.
+    fn active(&self, ctx: &Context, stored: Option<Opening>) -> (&Opener, Opening) {
         let by = with_popups(ctx, |popups| popups.opened_by.get(&self.id).copied());
         let found = by.and_then(|(id, trigger, opening)| {
             self.all().find(|opener| opener.id == id && opener.trigger == trigger).map(|opener| (opener, opening))
         });
-        match found {
-            Some(active) => active,
-            None => (self, Opening::Plain),
-        }
+        let (opener, opening) = found.unwrap_or((self, self.opening));
+        (opener, stored.unwrap_or(opening))
     }
 }
 
@@ -1197,7 +1198,7 @@ impl<'a> OverlayUi<'a> {
             forget_layer(&ctx, popup.id, owner);
             return None;
         }
-        let anchor = resolve_anchor(&ctx, &overlay, self.anchor, self.to_screen);
+        let anchor = resolve_anchor(&ctx, popup.id, &overlay, self.anchor, self.to_screen);
         let layer = Layer { id: popup.id, owner, overlay: &overlay, anchor, env: &self.env, exiting: !open, fade: presence.t, size: None };
         let resolved = self.resolved;
         let mut result = None;
@@ -1259,6 +1260,8 @@ pub(crate) struct LayerOut {
 struct LayerMemory {
     /// The pointer position when the layer first appeared, for `Anchor::Pointer`.
     pointer_at: Option<Pos2>,
+    /// How the layer's opener opened it, decided in the pass the layer appeared.
+    opening: Option<Opening>,
     /// The stop that was focused when the layer first appeared.
     opener_stop: Option<Option<focus::StopKey>>,
     /// The pass time the layer first appeared, for `Dismiss.timeout`.
@@ -1320,9 +1323,9 @@ fn area_id(id: Id) -> Id {
 
 /// The anchor of `overlay` in screen space: the opener's rect through the opener's own layer, else `own` (the
 /// owner's rect) or the given rect or point, in the space `own_to_screen` maps.
-pub(crate) fn resolve_anchor(ctx: &Context, overlay: &Overlay, own: Rect, own_to_screen: egui::emath::TSTransform) -> Rect {
+pub(crate) fn resolve_anchor(ctx: &Context, id: Id, overlay: &Overlay, own: Rect, own_to_screen: egui::emath::TSTransform) -> Rect {
     if let Some(first) = &overlay.opener {
-        let (opener, opening) = first.active(ctx);
+        let (opener, opening) = first.active(ctx, stored_opening(ctx, id));
         let to_screen = areas::layer_to_screen(ctx, opener.layer);
         return match opener_anchor(opener, opening, &overlay.place) {
             Anchor::Rect(rect) => to_screen * rect,
@@ -1339,14 +1342,19 @@ pub(crate) fn resolve_anchor(ctx: &Context, overlay: &Overlay, own: Rect, own_to
 
 /// The overlay with the place's anchor that of the opener that opened it, for the anchors the host reads from the
 /// place (`Pointer`, `Viewport`).
-fn opened_overlay(ctx: &Context, overlay: &Overlay) -> Option<Overlay> {
+fn opened_overlay(ctx: &Context, overlay: &Overlay, stored: Option<Opening>) -> Option<(Overlay, Opening)> {
     let first = overlay.opener.as_ref()?;
-    let (opener, opening) = first.active(ctx);
+    let (opener, opening) = first.active(ctx, stored);
     let mut resolved = overlay.clone();
     if let Place::Anchored { anchor, .. } = &mut resolved.place {
         *anchor = opener_anchor(opener, opening, &overlay.place);
     }
-    Some(resolved)
+    Some((resolved, opening))
+}
+
+/// The opening the layer `id` decided when it appeared, `None` before the host has run for it.
+fn stored_opening(ctx: &Context, id: Id) -> Option<Opening> {
+    MemoryStage::peek::<LayerMemory>(ctx, memory_slot(id)).opening
 }
 
 fn anchor_rect(ctx: &Context, layer: &Layer<'_>, bounds: Rect, memory: &mut LayerMemory) -> Rect {
@@ -1378,13 +1386,13 @@ pub(crate) fn measuring_room(
     inset: f32,
     rtl: bool,
 ) -> Option<egui::Vec2> {
-    let opened = opened_overlay(ctx, overlay);
-    let overlay = opened.as_ref().unwrap_or(overlay);
+    let opened = opened_overlay(ctx, overlay, stored_opening(ctx, id));
+    let overlay = opened.as_ref().map_or(overlay, |(overlay, _)| overlay);
     if !matches!(overlay.place, Place::Anchored { .. }) {
         return None;
     }
     let bounds = areas::safe_rect(ctx);
-    let resolved = resolve_anchor(ctx, overlay, own, own_to_screen);
+    let resolved = resolve_anchor(ctx, id, overlay, own, own_to_screen);
     let anchor = resolved_anchor(ctx, overlay, resolved, bounds, inset, &mut MemoryStage::peek::<LayerMemory>(ctx, memory_slot(id)).pointer_at);
     Some(content_room(overlay, bounds, anchor, rtl))
 }
@@ -1462,13 +1470,16 @@ fn placement(ctx: &Context, layer: &Layer<'_>, size: Option<egui::Vec2>, bounds:
 
 /// The overlay host: shows `body` on an egui layer for `layer` and decides its dismissal.
 pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut Ui)) -> LayerOut {
-    let opened = opened_overlay(ctx, layer.overlay);
-    let layer = &Layer { overlay: opened.as_ref().unwrap_or(layer.overlay), ..*layer };
-    let overlay = layer.overlay;
-    let bounds = areas::safe_rect(ctx);
     // A layer that appears starts with nothing it remembered while shown before, also when it opens again during its
     // exit fade or its host never saw it hide: the focus that was inside it does not close it as `focus_left`.
     let mut memory = if overlay::appears(ctx, layer.id, layer.exiting) { LayerMemory::default() } else { recall(layer, ctx) };
+    let opened = opened_overlay(ctx, layer.overlay, memory.opening);
+    if let Some((_, opening)) = &opened {
+        memory.opening.get_or_insert(*opening);
+    }
+    let layer = &Layer { overlay: opened.as_ref().map_or(layer.overlay, |(overlay, _)| overlay), ..*layer };
+    let overlay = layer.overlay;
+    let bounds = areas::safe_rect(ctx);
     let anchor = anchor_rect(ctx, layer, bounds, &mut memory);
     let area = area_id(layer.id);
     // A container's layer is placed by the size its container measured for this pass, any other by the size it took last
@@ -1594,7 +1605,7 @@ fn dismissal(
     if let Some(reason) = escape(ctx, layer, scope, inside) {
         return Some(reason);
     }
-    if dismiss.anchor_gone && layer.overlay.opener.as_ref().is_some_and(|first| !first.active(ctx).0.enabled) {
+    if dismiss.anchor_gone && layer.overlay.opener.as_ref().is_some_and(|first| !first.active(ctx, None).0.enabled) {
         return Some(CloseReason::AnchorGone);
     }
     // The input hook removed the press and recorded it; presses inside the family and its anchors never get here.

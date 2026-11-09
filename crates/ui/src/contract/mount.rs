@@ -208,7 +208,7 @@ impl Host for LayerHost {
         // Without an opener, an anchor given as a rect or point is in the parent's layer, and `Response` is the
         // parent's cursor.
         let own = Rect::from_min_max(parent.cursor().min, parent.cursor().min);
-        let anchor = overlay::resolve_anchor(&ctx, &overlay, own, areas::layer_to_screen(&ctx, parent.layer_id()));
+        let anchor = overlay::resolve_anchor(&ctx, id, &overlay, own, areas::layer_to_screen(&ctx, parent.layer_id()));
         // The layer is placed by the size the container takes in this pass: its placed rect, else what it measured.
         let size = at.map_or(self.size, |shown| match shown {
             ShowAt::Rect(rect) => rect.size(),
