@@ -1930,7 +1930,13 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             };
             body_rect = label::run(ui, env, &input).control;
         }
-        let label_extra = (regions.body.size() - body_rect.size()).max(Vec2::ZERO);
+        // The label takes its column either by narrowing the control's rect or by shifting it along the row, which a
+        // content-sized row (unbounded to the end) does; the extent grows by whichever of the two is finite.
+        let taken = |amount: f32| if amount.is_finite() { amount.max(0.0) } else { 0.0 };
+        let label_extra = (regions.body.size() - body_rect.size()).max(Vec2::ZERO).max(Vec2::new(
+            taken(body_rect.min.x - regions.body.min.x).max(taken(regions.body.max.x - body_rect.max.x)),
+            taken(body_rect.min.y - regions.body.min.y).max(taken(regions.body.max.y - body_rect.max.y)),
+        ));
         // B3 body, if open, under the body env; the gate is read after the header changed it.
         if is_open {
             // A held fill-width container is part of the content column it sits in: its own stack is one too.
