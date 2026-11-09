@@ -1289,7 +1289,8 @@ impl Component for ListRow<'_> {
         }
         let thumbs = placed.first.into_iter().chain(placed.extras.iter().map(|(thumb, _)| *thumb));
         for (at, thumb) in thumbs.enumerate() {
-            let sense = if self.drags.iter().any(|(held, _)| *held == target_at(at)) { Sense::CLICK | Sense::DRAG } else { Sense::CLICK };
+            let sense =
+                if self.drags.iter().any(|(held, _)| *held == target_at(at)) { Sense::CLICK | Sense::DRAG } else { Sense::CLICK } | Sense::PICKS_ITEM;
             cx.part(THUMB.at(at as u64), thumb).sense(sense).pointer_only("A thumbnail is a pointer target; the keys act on the row");
         }
     }
