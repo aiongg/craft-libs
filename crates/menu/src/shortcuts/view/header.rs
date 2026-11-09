@@ -96,8 +96,7 @@ fn search(ui: &mut Ui, now: f64, env: &mut Env<'_>, state: &mut DialogState) {
     }
     if matches!(state.recording.as_ref().map(|recording| &recording.target), Some(Target::Search)) {
         let shown = recording_text(env, state);
-        let start = state.recording.as_ref().is_some_and(|recording| !recording.started);
-        let out = ChordRecorder::new(name, true, shown).start(start).id_salt("searchRecorder").show(ui);
+        let out = ChordRecorder::new(name, true, shown).id_salt("searchRecorder").show(ui);
         if let Some(recording) = state.recording.as_mut() {
             recording.started = true;
         }

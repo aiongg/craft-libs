@@ -416,7 +416,7 @@ impl CommandRow<'_> {
             if *recording_here {
                 let label = words.label_press_keys.fill(&[("label", &line.label)]);
                 let start = self.env.start;
-                let out: RecorderOutput = ChordRecorder::new(label, true, shown).start(start).child(ui, ("record", line.key.as_str()), rect);
+                let out: RecorderOutput = ChordRecorder::new(label, true, shown).child(ui, ("record", line.key.as_str()), rect);
                 if !out.chords.is_empty() {
                     act = Some(RowAct::Chords(out.chords));
                 } else if out.response.lost_focus() {

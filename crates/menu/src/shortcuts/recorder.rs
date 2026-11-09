@@ -3,7 +3,7 @@
 //!
 //! One component serves both states. Idle, the field has the plain widget keys (Tab leaves, Enter and Space start
 //! recording). Recording, its key use is `KeyUse::RECORDER` (every key is a chord; bare Tab stays a chord because
-//! the field keeps Tab). The field takes key focus once, in the pass recording starts.
+//! the field keeps Tab). The recording field takes key focus on every run it lacks it.
 
 use craft_behavior::{Metrics, Proposal, Sense};
 use craft_keymap::{Chord, Key};
@@ -34,8 +34,6 @@ pub(crate) struct RecorderOutput {
     pub chords: Vec<Chord>,
     /// A click or Enter asked to start recording.
     pub started: bool,
-    /// The field took this pass's input: false in a measuring run, so a caller changes its state only when true.
-    pub updated: bool,
 }
 
 impl Outcome for RecorderOutput {
@@ -77,8 +75,7 @@ fn field_style(cx: &StyleCx<'_>, recording: bool) -> FieldStyle {
     }
 }
 
-/// The field that records. `shown` is the recording prompt or the chord, `start` is true in the pass recording
-/// starts.
+/// The field that records. `shown` is the recording prompt or the chord.
 #[derive(craft_ui::contract::Component)]
 struct Recorder {
     #[common]
@@ -86,10 +83,8 @@ struct Recorder {
     #[style_key]
     recording: bool,
     shown: Label,
-    start: bool,
     chords: Vec<Chord>,
     started: bool,
-    updated: bool,
 }
 
 impl Component for Recorder {
@@ -117,9 +112,8 @@ impl Component for Recorder {
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        self.updated = true;
         if self.recording {
-            if self.start {
+            if !cx.response.has_focus() {
                 focus::request(&cx.response.ctx, FocusTarget::Id(cx.response.id));
             }
             self.chords.extend(cx.intents().take_chords());
@@ -142,7 +136,7 @@ impl Component for Recorder {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> RecorderOutput {
-        RecorderOutput { response: cx.response.clone(), chords: self.chords, started: self.started, updated: self.updated }
+        RecorderOutput { response: cx.response.clone(), chords: self.chords, started: self.started }
     }
 }
 
@@ -153,13 +147,12 @@ pub(crate) struct ChordRecorder {
     recording: bool,
     shown: Label,
     salt: Option<&'static str>,
-    start: bool,
 }
 
 impl ChordRecorder {
     /// A recorder named `label` showing `shown`.
     pub(crate) fn new(label: impl Into<Label>, recording: bool, shown: impl Into<Label>) -> Self {
-        ChordRecorder { label: label.into(), recording, shown: shown.into(), salt: None, start: false }
+        ChordRecorder { label: label.into(), recording, shown: shown.into(), salt: None }
     }
 
     /// Salts the field's id.
@@ -169,16 +162,9 @@ impl ChordRecorder {
         self
     }
 
-    /// Whether this pass is the one recording starts in: the recording field then takes key focus.
-    #[must_use]
-    pub(crate) fn start(mut self, start: bool) -> Self {
-        self.start = start;
-        self
-    }
-
     fn component(self) -> (Recorder, Option<&'static str>) {
-        let ChordRecorder { label, recording, shown, salt, start } = self;
-        (Recorder { common: Common::new(), recording, shown, start, chords: Vec::new(), started: false, updated: false }.label(label), salt)
+        let ChordRecorder { label, recording, shown, salt } = self;
+        (Recorder { common: Common::new(), recording, shown, chords: Vec::new(), started: false }.label(label), salt)
     }
 
     /// Shows the field.

@@ -180,10 +180,9 @@ fn new_shortcut(ui: &mut Ui, now: f64, env: &mut Env<'_>, state: &mut DialogStat
     };
     let value = if shown.is_empty() { words.none.as_str().to_owned() } else { shown.clone() };
     let name = words.new_shortcut_chord.fill(&[("chord", &value)]);
-    let start = recording && state.recording.as_ref().is_some_and(|recording| !recording.started);
     let shown_row = Row::new()
         .show(ui, |ui, _| {
-            let out = ChordRecorder::new(name.clone(), recording, shown.clone()).start(start).id_salt("new").show(ui);
+            let out = ChordRecorder::new(name.clone(), recording, shown.clone()).id_salt("new").show(ui);
             let type_more = clicked(&Link::new(words.type_more.clone()).id_salt("typeMore").show(ui));
             (out, type_more)
         })
@@ -192,7 +191,7 @@ fn new_shortcut(ui: &mut Ui, now: f64, env: &mut Env<'_>, state: &mut DialogStat
     if out.started && !recording {
         state.record(env, Target::Field { command: command.clone() });
     }
-    if recording && out.updated {
+    if recording {
         if let Some(recording) = state.recording.as_mut() {
             recording.started = true;
         }
