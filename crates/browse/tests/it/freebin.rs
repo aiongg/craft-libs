@@ -254,23 +254,16 @@ fn unplaced_cards_flow_from_the_reading_start() {
         let mut show = |ui: &mut Ui| show_bin(ui, 3, &placed, bin_region());
         frames.idle(4, &mut show);
         assert_eq!(placed.rect(1), flow_first, "{direction:?}: a card with no position takes the first free cell");
-    }
-}
 
-/// A card without a position never lands on a placed card: it takes the next cell of the flow that is free.
-#[trial]
-fn an_unplaced_card_skips_the_cells_of_placed_cards() {
-    let flowing = Scene::default();
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| show_bin(ui, 3, &flowing, bin_region());
-    frames.idle(4, &mut show);
-    let first_cell = flowing.rect(0);
-    let placed = Scene::with_cards(vec![FreeformCard::new(0, first_cell.min - ORIGIN)]);
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| show_bin(ui, 3, &placed, bin_region());
-    frames.idle(4, &mut show);
-    assert_eq!(placed.rect(0), first_cell, "the placed card keeps its place");
-    assert!(!placed.rect(1).intersects(placed.rect(0)), "the next card does not cover the placed one");
-    assert_eq!(placed.rect(1), flowing.rect(1), "it takes the second cell of the flow");
-    assert_eq!(placed.rect(2), flowing.rect(2), "the third card follows it");
+        // A card without a position never lands on a placed card: it takes the next free cell.
+        let covering = Scene::with_cards(vec![FreeformCard::new(0, flow_first.min - ORIGIN)]);
+        let mut frames = Frames::new();
+        frames.root(RootEnv::default().direction(direction));
+        let mut show = |ui: &mut Ui| show_bin(ui, 3, &covering, bin_region());
+        frames.idle(4, &mut show);
+        assert_eq!(covering.rect(0), flow_first, "{direction:?}: the placed card keeps its place");
+        assert!(!covering.rect(1).intersects(covering.rect(0)), "{direction:?}: the next card does not cover the placed one");
+        assert_eq!(covering.rect(1), second, "{direction:?}: it takes the second cell of the flow");
+        assert_eq!(covering.rect(2), scene.rect(2), "{direction:?}: the third card follows it");
+    }
 }

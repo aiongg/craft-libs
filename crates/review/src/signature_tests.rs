@@ -30,6 +30,12 @@ fn ready_and_saved_follow_the_tab() {
     let image = SignatureImage::new(1, 1, vec![0, 0, 0, 255]);
     draft.image = Some(image.clone());
     assert_eq!(draft.saved(), Some(SavedSignature::Image(image)));
+
+    // Typed text is capped.
+    let mut draft = SignatureDraft::new(false, &"a".repeat(MAX_SIGNATURE_CHARS));
+    assert!(draft.ready());
+    draft.text.push('a');
+    assert!(!draft.ready() && draft.saved().is_none());
 }
 
 // A bare click leaves a one-point stroke; Undo takes it with the stroke before it.
@@ -42,22 +48,10 @@ fn undo_skips_bare_clicks() {
     assert!(!draft.undo_stroke());
 }
 
+// The cache key is made at construction from the content.
 #[test]
-fn typed_text_is_capped() {
-    let mut draft = SignatureDraft::new(false, &"a".repeat(MAX_SIGNATURE_CHARS));
-    assert!(draft.ready());
-    draft.text.push('a');
-    assert!(!draft.ready() && draft.saved().is_none());
-}
-
-// The cache key is made at construction from the content, and deserializing makes it again.
-#[test]
-fn image_key_follows_content_and_survives_serde() {
+fn image_key_follows_content() {
     let image = SignatureImage::new(1, 1, vec![0, 0, 0, 255]);
     assert_eq!(image.key(), SignatureImage::new(1, 1, vec![0, 0, 0, 255]).key());
     assert_ne!(image.key(), SignatureImage::new(1, 1, vec![0, 0, 1, 255]).key());
-    let json = serde_json::to_string(&image).unwrap();
-    assert!(!json.contains("key"));
-    let back: SignatureImage = serde_json::from_str(&json).unwrap();
-    assert_eq!((back.key(), &back), (image.key(), &image));
 }

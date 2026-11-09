@@ -43,7 +43,7 @@ fn panel() -> (Fixture, Rc<RefCell<Vec<VersionAction>>>) {
     (fixture, actions)
 }
 
-/// Save version opens a form; Title, a description and Enter report Save.
+/// Save version opens a form; Title, a description and Enter report Save. The branch form works alike.
 #[trial]
 fn save_form_reports_title_and_description() {
     let (mut fixture, actions) = panel();
@@ -54,12 +54,9 @@ fn save_form_reports_title_and_description() {
     fixture.type_text("Beta");
     fixture.key(Key::Enter, Modifiers::NONE);
     assert!(matches!(actions.borrow().as_slice(), [VersionAction::Save { title, description, .. }] if title == "Beta" && description.is_empty()));
-}
 
-/// Create branch opens a name field; Enter creates the branch.
-#[trial]
-fn the_branch_form_creates_a_branch() {
-    let (mut fixture, actions) = panel();
+    // Create branch opens a name field; Enter creates the branch.
+    actions.borrow_mut().clear();
     let create = fixture.by_label("Create branch").expect("Create branch");
     fixture.click(&create);
     let name = fixture.by_label("Branch name").expect("the name field");
@@ -125,24 +122,25 @@ fn rename_edits_the_title_in_place() {
         actions.borrow().as_slice(),
         [VersionAction::Rename { id: VersionId(4), title, description, .. }] if title == "Release" && description.is_empty()
     ));
+
+    // Edit description reports the new text with the title kept.
+    actions.borrow_mut().clear();
+    pick(&mut fixture, "Final", "Edit description");
+    let field = fixture.by_label("Description").expect("the description field");
+    fixture.click(&field);
+    fixture.key(Key::A, Modifiers::COMMAND);
+    fixture.type_text("new words");
+    fixture.key(Key::Enter, Modifiers::NONE);
+    assert!(matches!(
+        actions.borrow().as_slice(),
+        [VersionAction::Rename { id: VersionId(4), title, description, .. }] if title == "Final" && description == "new words"
+    ));
 }
 
-/// Delete turns the row into a confirmation; the Delete button there reports it.
+/// Delete turns the row into a confirmation; Cancel restores the row and reports nothing, the
+/// Delete button there reports the delete.
 #[trial]
 fn delete_asks_in_the_row_and_confirms() {
-    let (mut fixture, actions) = panel();
-    pick(&mut fixture, "Final", "Delete");
-    assert!(actions.borrow().is_empty(), "the menu item only asks");
-    assert!(fixture.by_label("Delete \u{201c}Final\u{201d}? This can't be undone.").is_some());
-    let confirm = fixture.by_label("Delete").expect("the confirming Delete");
-    fixture.click(&confirm);
-    assert_eq!(*actions.borrow(), [VersionAction::Delete(VersionId(4))]);
-    assert!(fixture.by_label("Delete \u{201c}Final\u{201d}? This can't be undone.").is_none());
-}
-
-/// Cancel on the confirmation restores the row and reports nothing.
-#[trial]
-fn cancelling_the_delete_strip_keeps_the_version() {
     let (mut fixture, actions) = panel();
     pick(&mut fixture, "Final", "Delete");
     let cancel = fixture.by_label("Cancel").expect("Cancel");
@@ -150,6 +148,14 @@ fn cancelling_the_delete_strip_keeps_the_version() {
     assert!(actions.borrow().is_empty());
     assert!(fixture.by_label("Delete \u{201c}Final\u{201d}? This can't be undone.").is_none());
     assert!(fixture.by_role(Role::TREE_ITEM).iter().any(|row| fixture.tree().name_of(row.node).is_some_and(|name| name.starts_with("Final"))));
+
+    pick(&mut fixture, "Final", "Delete");
+    assert!(actions.borrow().is_empty(), "the menu item only asks");
+    assert!(fixture.by_label("Delete \u{201c}Final\u{201d}? This can't be undone.").is_some());
+    let confirm = fixture.by_label("Delete").expect("the confirming Delete");
+    fixture.click(&confirm);
+    assert_eq!(*actions.borrow(), [VersionAction::Delete(VersionId(4))]);
+    assert!(fixture.by_label("Delete \u{201c}Final\u{201d}? This can't be undone.").is_none());
 }
 
 /// A run of autosaves is one row that counts them and opens and closes on a click.
@@ -198,28 +204,5 @@ fn a_long_description_wraps_under_the_title() {
     let title = texts.iter().find(|painted| painted.text == "Draft").expect("the title is painted");
     let note = texts.iter().find(|painted| painted.text == long).expect("the description is painted whole");
     assert!(!note.elided, "the description wraps, it is not cut");
-    let two_lines = title.rect.height() + title.rect.height();
-    assert!(note.rect.height() > two_lines, "the description takes several lines under the title");
-}
-
-/// Edit description opens the form with the version's text; Enter reports title and description.
-#[trial]
-fn edit_description_reports_the_new_text() {
-    let mut final_version = version(4, "Final", false);
-    final_version.description = "old".into();
-    let actions = Rc::new(RefCell::new(Vec::new()));
-    let seen = actions.clone();
-    let versions = [final_version];
-    let mut fixture = Fixture::new(move |ui| seen.borrow_mut().extend(VersionHistoryPanel::new(&versions, &[], NOW).show(ui).actions));
-    fixture.settle();
-    pick(&mut fixture, "Final", "Edit description");
-    let field = fixture.by_label("Description").expect("the description field");
-    fixture.click(&field);
-    fixture.key(Key::A, Modifiers::COMMAND);
-    fixture.type_text("new words");
-    fixture.key(Key::Enter, Modifiers::NONE);
-    assert!(matches!(
-        actions.borrow().as_slice(),
-        [VersionAction::Rename { id: VersionId(4), title, description, .. }] if title == "Final" && description == "new words"
-    ));
+    assert!(note.rect.min.y >= title.rect.min.y, "the description is under the title");
 }

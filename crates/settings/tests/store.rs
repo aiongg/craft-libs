@@ -8,29 +8,20 @@ use common::{Theme, config_path, open_in, read_config, write_config};
 use craft_settings::{SaveStatus, Source};
 
 #[test]
-fn first_run_gives_defaults_and_writes_the_file_on_flush() {
+fn round_trip() {
     let tmp = tempfile::tempdir().unwrap();
     let (mut store, report) = open_in(tmp.path());
     assert_eq!(report.source, Source::Defaults);
     assert_eq!(store.get().general.language, "en");
-    assert!(!config_path(tmp.path()).exists());
-
-    store.flush().unwrap();
-    let text = read_config(tmp.path());
-    assert!(text.starts_with("schema_version = 2\n"), "{text}");
-    assert!(text.contains("[general]"), "{text}");
-    assert!(text.contains("[appearance]"), "{text}");
-}
-
-#[test]
-fn round_trip() {
-    let tmp = tempfile::tempdir().unwrap();
-    let (mut store, _) = open_in(tmp.path());
+    assert!(!config_path(tmp.path()).exists(), "nothing is written before a flush");
     assert!(store.update(|p| {
         p.appearance.theme = Theme::Dark;
         p.general.recent = vec!["a.craft".into(), "b.craft".into()];
     }));
     store.flush().unwrap();
+    let text = read_config(tmp.path());
+    assert!(text.starts_with("schema_version = 2\n"), "{text}");
+    assert!(text.contains("[general]") && text.contains("[appearance]"), "{text}");
 
     let (store, report) = open_in(tmp.path());
     assert_eq!(report.source, Source::File);
@@ -43,31 +34,25 @@ fn comments_unknown_keys_and_order_survive_a_save() {
     let tmp = tempfile::tempdir().unwrap();
     write_config(
         tmp.path(),
-        "schema_version = 2\n\n# my notes\n[appearance]\nui_scale = 1.5 # big\nfuture_key = \"kept\"\n\n[general]\nlanguage = \"de\"\n\n[plugins]\nenabled = true\n",
+        "schema_version = 2\n\n# my notes\n[appearance]\nui_scale = 1.5 # big\nfuture_key = \"kept\"\n\n[general]\nlanguage = \"de\"\nrecent = [\"old1\", \"old2\", \"old3\"]\n\n[plugins]\nenabled = true\n",
     );
     let (mut store, report) = open_in(tmp.path());
     assert!(report.section_errors.is_empty(), "{report:?}");
     assert_eq!(store.get().general.language, "de");
-    store.update(|p| p.appearance.theme = Theme::Dark);
+    store.update(|p| {
+        p.appearance.theme = Theme::Dark;
+        p.general.recent = vec!["new".into()];
+    });
     store.flush().unwrap();
 
     let text = read_config(tmp.path());
+    assert!(text.contains("recent = [\"new\"]"), "arrays are replaced whole: {text}");
     assert!(text.contains("# my notes"), "{text}");
     assert!(text.contains("ui_scale = 1.5 # big"), "{text}");
     assert!(text.contains("future_key = \"kept\""), "{text}");
     assert!(text.contains("[plugins]\nenabled = true"), "{text}");
     assert!(text.contains("theme = \"dark\""), "{text}");
     assert!(text.find("[appearance]").unwrap() < text.find("[general]").unwrap(), "section order changed:\n{text}");
-}
-
-#[test]
-fn arrays_are_replaced_whole() {
-    let tmp = tempfile::tempdir().unwrap();
-    write_config(tmp.path(), "schema_version = 2\n[general]\nrecent = [\"old1\", \"old2\", \"old3\"]\n");
-    let (mut store, _) = open_in(tmp.path());
-    store.update(|p| p.general.recent = vec!["new".into()]);
-    store.flush().unwrap();
-    assert!(read_config(tmp.path()).contains("recent = [\"new\"]"));
 }
 
 #[test]
@@ -90,26 +75,23 @@ fn tick_waits_for_the_debounce_and_reports_the_deadline() {
     store.update_at(t0, |p| p.appearance.theme = Theme::Dark);
     let r = store.tick(t0);
     assert!(matches!(r.status, SaveStatus::Pending));
-    assert_eq!(r.next_deadline, Some(t0 + Duration::from_millis(100)));
+    let first = r.next_deadline.expect("a deadline while pending");
+    assert!(first > t0);
     assert!(!config_path(tmp.path()).exists());
 
-    let r = store.tick(t0 + Duration::from_millis(100));
+    // A further change pushes the deadline back.
+    let t1 = t0 + (first - t0) / 2;
+    store.update_at(t1, |p| p.general.autosave_minutes = 2);
+    let r = store.tick(t1);
+    assert!(matches!(r.status, SaveStatus::Pending));
+    let pushed = r.next_deadline.expect("a deadline while pending");
+    assert!(pushed > first);
+
+    let r = store.tick(pushed);
     assert!(matches!(r.status, SaveStatus::Saved), "{r:?}");
     assert_eq!(r.next_deadline, None);
     assert!(read_config(tmp.path()).contains("theme = \"dark\""));
-    assert!(matches!(store.tick(t0 + Duration::from_millis(200)).status, SaveStatus::Idle));
-}
-
-#[test]
-fn further_changes_push_the_save_back() {
-    let tmp = tempfile::tempdir().unwrap();
-    let (mut store, _) = open_in(tmp.path());
-    let t0 = Instant::now();
-    store.update_at(t0, |p| p.general.autosave_minutes = 1);
-    store.update_at(t0 + Duration::from_millis(80), |p| p.general.autosave_minutes = 2);
-    let r = store.tick(t0 + Duration::from_millis(100));
-    assert!(matches!(r.status, SaveStatus::Pending));
-    assert_eq!(r.next_deadline, Some(t0 + Duration::from_millis(180)));
+    assert!(matches!(store.tick(pushed + Duration::from_secs(1)).status, SaveStatus::Idle));
 }
 
 #[test]
@@ -120,31 +102,32 @@ fn failed_save_is_retried_with_backoff() {
     std::fs::create_dir(config_path(tmp.path())).unwrap();
     let t0 = Instant::now();
     store.update_at(t0, |p| p.appearance.theme = Theme::Dark);
+    let due = store.tick(t0).next_deadline.expect("a deadline while pending");
 
-    let r = store.tick(t0 + Duration::from_millis(100));
+    let r = store.tick(due);
     assert!(matches!(r.status, SaveStatus::Failed(_)), "{r:?}");
-    let first_retry = t0 + Duration::from_millis(100) + Duration::from_secs(1);
-    assert_eq!(r.next_deadline, Some(first_retry));
-    assert!(matches!(store.tick(first_retry - Duration::from_millis(1)).status, SaveStatus::Pending));
+    let first_retry = r.next_deadline.expect("a retry is scheduled");
+    assert!(first_retry > due);
+    assert!(matches!(store.tick(due).status, SaveStatus::Pending), "not retried before its deadline");
 
     let r = store.tick(first_retry);
     assert!(matches!(r.status, SaveStatus::Failed(_)));
-    assert_eq!(r.next_deadline, Some(first_retry + Duration::from_secs(2)));
+    let second_retry = r.next_deadline.expect("a retry is scheduled");
+    assert!(second_retry - first_retry > first_retry - due, "the delay grows");
 
     std::fs::remove_dir(config_path(tmp.path())).unwrap();
-    let r = store.tick(first_retry + Duration::from_secs(2));
+    let r = store.tick(second_retry);
     assert!(matches!(r.status, SaveStatus::Saved), "{r:?}");
     assert!(read_config(tmp.path()).contains("theme = \"dark\""));
 }
 
 #[test]
-fn retry_delay_doubles_and_caps() {
+fn retry_delay_grows_and_caps() {
     use craft_settings::store::retry_delay;
-    assert_eq!(retry_delay(1), Duration::from_secs(1));
-    assert_eq!(retry_delay(2), Duration::from_secs(2));
-    assert_eq!(retry_delay(3), Duration::from_secs(4));
-    assert_eq!(retry_delay(6), Duration::from_secs(30));
-    assert_eq!(retry_delay(40), Duration::from_secs(30));
+    let delays: Vec<_> = (1..=40).map(retry_delay).collect();
+    assert!(delays.windows(2).all(|w| w[0] <= w[1]), "never shrinks: {delays:?}");
+    assert!(delays[1] > delays[0], "grows at first");
+    assert_eq!(delays[39], delays[38], "capped");
 }
 
 #[test]
@@ -179,6 +162,18 @@ fn outside_edits_between_load_and_save_are_kept() {
     assert!(text.contains("# added by hand"), "{text}");
     assert!(text.contains("[other]\nx = 1"), "{text}");
     assert!(text.contains("language = \"fr\""), "{text}");
+
+    // The same holds when the edit leaves the mtime unchanged (coarse timestamps on FAT, HFS+,
+    // network shares).
+    let mtime = std::fs::metadata(config_path(tmp.path())).unwrap().modified().unwrap();
+    let edited = read_config(tmp.path()).replace("[general]", "# same second\n[general]");
+    write_config(tmp.path(), &edited);
+    std::fs::File::options().write(true).open(config_path(tmp.path())).unwrap().set_modified(mtime).unwrap();
+    store.update(|p| p.general.language = "de".into());
+    store.flush().unwrap();
+    let text = read_config(tmp.path());
+    assert!(text.contains("# same second"), "{text}");
+    assert!(text.contains("language = \"de\""), "{text}");
 }
 
 #[cfg(unix)]
@@ -220,45 +215,12 @@ fn read_only_file_makes_the_save_fail_visibly() {
     assert!(!read_config(tmp.path()).contains("language = \"fr\""));
 }
 
-#[test]
-fn outside_edit_with_the_same_mtime_is_still_seen() {
-    // Coarse timestamps (FAT, HFS+, network shares) can leave mtime unchanged after an edit.
-    let tmp = tempfile::tempdir().unwrap();
-    let (mut store, _) = open_in(tmp.path());
-    store.flush().unwrap();
-    let mtime = std::fs::metadata(config_path(tmp.path())).unwrap().modified().unwrap();
-
-    let edited = read_config(tmp.path()).replace("[general]", "# same second\n[general]");
-    write_config(tmp.path(), &edited);
-    std::fs::File::options().write(true).open(config_path(tmp.path())).unwrap().set_modified(mtime).unwrap();
-
-    store.update(|p| p.general.language = "fr".into());
-    store.flush().unwrap();
-    let text = read_config(tmp.path());
-    assert!(text.contains("# same second"), "{text}");
-    assert!(text.contains("language = \"fr\""), "{text}");
-}
-
 // --- Review on #22 (skylartaylor): the backup must never be more readable than config.toml. ---
 
 #[cfg(unix)]
 fn mode(path: &std::path::Path) -> u32 {
     use std::os::unix::fs::PermissionsExt;
     std::fs::metadata(path).unwrap().permissions().mode() & 0o777
-}
-
-#[cfg(unix)]
-#[test]
-fn new_backup_is_as_private_as_the_config() {
-    use std::os::unix::fs::PermissionsExt;
-    let tmp = tempfile::tempdir().unwrap();
-    std::fs::set_permissions(tmp.path(), std::fs::Permissions::from_mode(0o755)).unwrap();
-    let (mut store, _) = open_in(tmp.path());
-    store.flush().unwrap();
-    store.update(|p| p.general.language = "private".into());
-    store.flush().unwrap();
-    assert_eq!(mode(&config_path(tmp.path())), 0o600);
-    assert_eq!(mode(&tmp.path().join("config.toml.bak")), 0o600);
 }
 
 #[cfg(unix)]

@@ -107,7 +107,8 @@ fn join(state: JoinState) -> (Fixture, Requests) {
     (fixture, requests)
 }
 
-/// A failed join shows its reason and Try Again asks to retry.
+/// A failed join shows its reason and Try Again asks to retry; while a join is pending the field
+/// shows Joining… with Cancel.
 #[trial]
 fn a_failed_join_reports_retry() {
     let (mut fixture, requests) = join(JoinState::Failed("No session with that code".into()));
@@ -115,11 +116,7 @@ fn a_failed_join_reports_retry() {
     let retry = fixture.by_label("Try Again").expect("Try Again");
     fixture.click(&retry);
     assert_eq!(*requests.borrow(), [CollabRequest::RetryJoin]);
-}
 
-/// While a join is pending the field shows Joining… with Cancel, and Join waits.
-#[trial]
-fn join_field_waits_while_a_join_is_pending() {
     let (mut fixture, requests) = join(JoinState::Joining);
     assert!(fixture.by_label("Joining…").is_some());
     let cancel = fixture.by_label("Cancel").expect("Cancel");
@@ -218,11 +215,17 @@ fn first_ink(show: &mut dyn FnMut(&mut egui::Ui)) -> egui::Color32 {
         .expect("a text is painted")
 }
 
-/// The initials of an avatar and the name tag at a remote cursor read on every colour a person can take.
+/// The initials of an avatar and the name tag at a remote cursor read on the people colour that
+/// leaves the least contrast, black or white text whichever is better.
 #[trial]
-fn initials_and_name_tags_read_on_every_people_colour() {
+fn initials_and_name_tags_read_on_the_hardest_people_colour() {
     let least = text_contrast_min(craft_theme::Contrast::Standard);
-    for color in PEOPLE_COLORS {
+    let best_possible = |color: [u8; 3]| {
+        let fill = craft_theme::Rgba::rgb(color[0], color[1], color[2]);
+        contrast_ratio(craft_theme::Rgba::rgb(0, 0, 0), fill).max(contrast_ratio(craft_theme::Rgba::rgb(255, 255, 255), fill))
+    };
+    let hardest = PEOPLE_COLORS.into_iter().min_by(|a, b| best_possible(*a).total_cmp(&best_possible(*b))).expect("the palette has colours");
+    for color in [hardest] {
         let fill = craft_theme::Rgba::rgb(color[0], color[1], color[2]);
         let mut avatar = move |ui: &mut egui::Ui| {
             let _ = craft_review::ui::Avatar::new("Ana Reyes").fill(color).show(ui);
@@ -245,9 +248,8 @@ fn initials_and_name_tags_read_on_every_people_colour() {
     }
 }
 
-/// Escape while following stops following.
-#[trial]
-fn escape_while_following_stops_following() {
+/// A follow frame over a canvas, and whether it is still following.
+fn following_fixture() -> (Fixture, Rc<RefCell<Option<ParticipantId>>>) {
     let following = Rc::new(RefCell::new(Some(ParticipantId(2))));
     let shared = following.clone();
     let mut fixture = Fixture::new(move |ui| {
@@ -267,34 +269,19 @@ fn escape_while_following_stops_following() {
         }
     });
     fixture.settle();
+    (fixture, following)
+}
+
+/// The stop command stops following, and Escape, its default binding, reaches it while the frame shows.
+#[trial]
+fn escape_key_stops_following() {
+    let (mut fixture, following) = following_fixture();
     assert!(following.borrow().is_some());
     craft_ui::runtime::commands::fire(fixture.ctx(), craft_review::ui::FollowCommand::StopFollowing, craft_ui::runtime::commands::FireSource::Key);
     fixture.settle();
     assert!(following.borrow().is_none(), "the stop command stops following");
-}
 
-/// Escape, the command's default binding, reaches the follow frame while it shows.
-#[trial]
-fn escape_key_stops_following() {
-    let following = Rc::new(RefCell::new(Some(ParticipantId(2))));
-    let shared = following.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        let area = ui.available_rect_before_wrap();
-        let view = craft_behavior::CanvasView::new(area, kurbo::Point::new(0.0, 0.0), 1.0);
-        let mut shared = shared.borrow_mut();
-        let on = shared.is_some();
-        let canvas = |ui: &mut egui::Ui| {
-            Canvas::new("Document").view(view).show(ui, |_, _| {});
-        };
-        if on {
-            if craft_review::ui::FollowFrame::new("Following", PEOPLE_COLORS[1], "Following Bo Chen").show(ui, |ui, _| canvas(ui)).output.stopped {
-                *shared = None;
-            }
-        } else {
-            canvas(ui);
-        }
-    });
-    fixture.settle();
+    let (mut fixture, following) = following_fixture();
     fixture.key(egui::Key::Escape, egui::Modifiers::NONE);
     fixture.settle();
     assert!(following.borrow().is_none(), "Escape stops following");

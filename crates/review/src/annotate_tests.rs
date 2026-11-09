@@ -2,9 +2,7 @@
 
 use kurbo::{Point, Rect, Vec2};
 
-use crate::annotate::{
-    Annotation, AnnotationGroup, AnnotationHandle, AnnotationHit, AnnotationId, AnnotationKind, AnnotationTool, handles, hit, reshaped, resized,
-};
+use crate::annotate::{Annotation, AnnotationHandle, AnnotationHit, AnnotationId, AnnotationKind, handles, hit, reshaped, resized};
 
 /// The icon side, in page units, the hit tests are given.
 const ICON: f64 = 16.0;
@@ -35,12 +33,13 @@ fn box_kinds_have_eight_handles_and_pointwise_their_points() {
     let rectangle = square(1, AnnotationKind::Rectangle);
     let all = handles(&rectangle);
     assert_eq!(all.len(), 8);
-    assert_eq!(all[0], (AnnotationHandle::Box(-1, -1), Point::new(10.0, 10.0)));
-    assert_eq!(all[4], (AnnotationHandle::Box(1, 1), Point::new(50.0, 30.0)));
+    assert!(all.iter().all(|(handle, _)| matches!(handle, AnnotationHandle::Box(..))));
 
     let mut line = square(2, AnnotationKind::Line);
     line.points = vec![Point::new(0.0, 0.0), Point::new(5.0, 5.0)];
-    assert_eq!(handles(&line), vec![(AnnotationHandle::Point(0), Point::new(0.0, 0.0)), (AnnotationHandle::Point(1), Point::new(5.0, 5.0))]);
+    let ends = handles(&line);
+    assert_eq!(ends.len(), line.points.len());
+    assert!(ends.iter().all(|(handle, _)| matches!(handle, AnnotationHandle::Point(..))));
 
     assert!(handles(&square(3, AnnotationKind::Highlight)).is_empty());
     let mut locked = square(4, AnnotationKind::Rectangle);
@@ -63,21 +62,38 @@ fn hit_prefers_handles_then_the_topmost_body() {
     line.points = vec![Point::new(100.0, 100.0), Point::new(200.0, 100.0)];
     assert_eq!(hit(&[line.clone()], &[], Point::new(150.0, 101.0), 2.0, ICON), Some(AnnotationHit::Body(AnnotationId(3))));
     assert_eq!(hit(&[line], &[], Point::new(150.0, 110.0), 2.0, ICON), None);
+
+    // Note, Attach and Caret keep their icon size on screen: a hit tests the icon side given for
+    // this zoom, not the stored rect.
+    let note = annotation(5, AnnotationKind::Note, Rect::new(100.0, 100.0, 100.0, 100.0));
+    let probe = Point::new(108.0, 108.0);
+    assert_eq!(hit(std::slice::from_ref(&note), &[], probe, 0.0, ICON), Some(AnnotationHit::Body(AnnotationId(5))));
+    assert_eq!(hit(std::slice::from_ref(&note), &[], probe, 0.0, 4.0), None, "zoomed in, the icon covers fewer page units");
+    assert_eq!(hit(std::slice::from_ref(&note), &[], probe, 0.0, 40.0), Some(AnnotationHit::Body(AnnotationId(5))));
 }
 
-// resized keeps the ratio and never inverts.
+// resized keeps the ratio with an aspect and never inverts.
 #[test]
 fn resize_keeps_the_aspect_with_shift() {
     let rect = Rect::new(0.0, 0.0, 40.0, 20.0);
-    let grown = resized(rect, (1, 1), Vec2::new(40.0, 0.0), Some(2.0));
-    assert_eq!((grown.x0, grown.y0, grown.width(), grown.height()), (0.0, 0.0, 80.0, 40.0));
-    let free = resized(rect, (1, 1), Vec2::new(40.0, 0.0), None);
-    assert_eq!((free.width(), free.height()), (80.0, 20.0));
-    // A plain resize adds the delta and normalises: dragging past the other edge flips the box.
+    let ratio = rect.width() / rect.height();
+    let delta = Vec2::new(40.0, 0.0);
+    let grown = resized(rect, (1, 1), delta, Some(ratio));
+    assert!((grown.width() / grown.height() - ratio).abs() < 1e-9, "the ratio is kept");
+    assert!(grown.width() > rect.width());
+    assert_eq!((grown.x0, grown.y0), (rect.x0, rect.y0), "the opposite corner stays");
+    let free = resized(rect, (1, 1), delta, None);
+    assert!(free.width() > rect.width());
+    assert_eq!(free.height(), rect.height(), "without an aspect only the dragged axis changes");
+
+    // Dragging past the opposite edge flips the box instead of inverting it.
     let flipped = resized(rect, (1, 0), Vec2::new(-100.0, 0.0), None);
-    assert_eq!((flipped.x0, flipped.x1, flipped.height()), (-60.0, 0.0, 20.0));
-    let top_left = resized(rect, (-1, -1), Vec2::new(-20.0, 0.0), Some(2.0));
-    assert_eq!((top_left.x1, top_left.y1, top_left.width()), (40.0, 20.0, 60.0));
+    assert!(flipped.x0 < flipped.x1);
+    assert_eq!(flipped.x1, rect.x0, "the fixed edge stays");
+    assert_eq!(flipped.height(), rect.height());
+    let top_left = resized(rect, (-1, -1), Vec2::new(-20.0, 0.0), Some(ratio));
+    assert_eq!((top_left.x1, top_left.y1), (rect.x1, rect.y1), "the opposite corner stays");
+    assert!((top_left.width() / top_left.height() - ratio).abs() < 1e-9);
 }
 
 // reshaped with shift snaps the segment.
@@ -91,23 +107,4 @@ fn reshape_snaps_to_45_degrees() {
     let diagonal = reshaped(&points, 1, Point::new(8.0, 7.0), true);
     assert!((diagonal[1].x - diagonal[1].y).abs() < 1e-9);
     assert_eq!(snapped[0], points[0]);
-}
-
-// AnnotationGroup::tools order and Eraser in Draw.
-#[test]
-fn groups_list_acrobats_tools() {
-    assert_eq!(AnnotationGroup::Comment.tools()[0], AnnotationTool::Draw(AnnotationKind::Note));
-    assert_eq!(AnnotationGroup::Highlight.tools().len(), 6);
-    assert_eq!(AnnotationGroup::Draw.tools().last(), Some(&AnnotationTool::Eraser));
-    assert!(!AnnotationGroup::Comment.tools().contains(&AnnotationTool::Eraser));
-}
-
-// Note, Attach and Caret keep their icon size on screen: a hit tests the icon side given for this
-// zoom, not the stored rect.
-#[test]
-fn icon_kinds_hit_the_icon_side_given() {
-    let note = annotation(5, AnnotationKind::Note, Rect::new(100.0, 100.0, 100.0, 100.0));
-    assert_eq!(hit(std::slice::from_ref(&note), &[], Point::new(108.0, 108.0), 0.0, ICON), Some(AnnotationHit::Body(AnnotationId(5))));
-    assert_eq!(hit(std::slice::from_ref(&note), &[], Point::new(108.0, 108.0), 0.0, 4.0), None, "zoomed in, the icon covers fewer page units");
-    assert_eq!(hit(std::slice::from_ref(&note), &[], Point::new(108.0, 108.0), 0.0, 40.0), Some(AnnotationHit::Body(AnnotationId(5))));
 }

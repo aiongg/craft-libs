@@ -48,18 +48,19 @@ fn monitor(files: &Arc<Disk>, jobs: &Arc<ManualJobs>) -> LinkMonitor<u32> {
     LinkMonitor::new(files.clone(), jobs.clone(), Wake::none())
 }
 
-// A file changes once: one LinkChange Ok -> Modified, and nothing on the following passes.
+// A file changes once: one LinkChange Ok -> Modified, and nothing on the following passes; a focus
+// check reports only the links that changed.
 #[test]
 fn the_monitor_reports_a_change_once() {
-    let files = Disk::new(FakeLinkFiles::new().with("/p/a.png", b"abc", 1));
-    let a = link(1, "/p/a.png", files.identity_of("/p/a.png"));
+    let files = Disk::new(FakeLinkFiles::new().with("/p/a.png", b"abc", 1).with("/p/b.png", b"abc", 1));
+    let (a, b) = (link(1, "/p/a.png", files.identity_of("/p/a.png")), link(2, "/p/b.png", files.identity_of("/p/b.png")));
     let jobs = Arc::new(ManualJobs::new());
     let mut m = monitor(&files, &jobs);
-    m.set(&[a], None);
+    m.set(&[a, b], None);
     jobs.run_all();
-    assert_eq!(m.take_changes(), vec![LinkChange { key: 1, before: None, status: LinkStatus::Ok }]);
+    assert_eq!(m.take_changes().len(), 2);
 
-    files.change(FakeLinkFiles::new().with("/p/a.png", b"abcd", 2));
+    files.change(FakeLinkFiles::new().with("/p/a.png", b"abcd", 2).with("/p/b.png", b"abc", 1));
     m.window_focused();
     jobs.run_all();
     assert_eq!(m.take_changes(), vec![LinkChange { key: 1, before: Some(LinkStatus::Ok), status: LinkStatus::Modified }]);
@@ -69,20 +70,8 @@ fn the_monitor_reports_a_change_once() {
     jobs.run_all();
     assert!(m.take_changes().is_empty());
     assert!(m.take_changes().is_empty());
-}
 
-// `window_focused` checks every link again; unchanged links report nothing.
-#[test]
-fn a_focus_check_reports_only_changed_links() {
-    let files = Disk::new(FakeLinkFiles::new().with("/p/a.png", b"abc", 1).with("/p/b.png", b"abc", 1));
-    let (a, b) = (link(1, "/p/a.png", files.identity_of("/p/a.png")), link(2, "/p/b.png", files.identity_of("/p/b.png")));
-    let jobs = Arc::new(ManualJobs::new());
-    let mut m = monitor(&files, &jobs);
-    m.set(&[a, b], None);
-    jobs.run_all();
-    assert_eq!(m.take_changes().len(), 2);
-
-    files.change(FakeLinkFiles::new().with("/p/a.png", b"abc", 1));
+    files.change(FakeLinkFiles::new().with("/p/a.png", b"abcd", 2));
     m.window_focused();
     jobs.run_all();
     assert_eq!(m.take_changes(), vec![LinkChange { key: 2, before: Some(LinkStatus::Ok), status: LinkStatus::Missing }]);

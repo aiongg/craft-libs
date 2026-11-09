@@ -60,12 +60,8 @@ fn search_matches_text_author_and_kind() {
     assert!(matches(&t, "MARÍA", &folder, name));
     assert!(matches(&t, "highl", &folder, name));
     assert!(!matches(&t, "absent", &folder, name));
-}
 
-// the search folds the Turkish dotted and dotless i the way PdfCraft's fold_case does.
-#[test]
-fn search_folds_the_turkish_i() {
-    let folder = Folder::new("");
+    // The fold handles the Turkish dotted and dotless i.
     let mut t = thread(0, page(0, 0.0), None, None, "Ayşe Yılmaz", 0);
     t.messages[0].text = "Lütfen İMZALAYIN".into();
     assert!(matches(&t, "imzalayın", &folder, name));

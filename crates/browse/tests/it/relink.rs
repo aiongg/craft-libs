@@ -173,7 +173,7 @@ fn linked_keys(result: &DialogResult<RelinkOutcome<u32>>) -> (Vec<u32>, Vec<u32>
 
 #[trial]
 fn the_relink_dialog_links_one_row_then_the_next() {
-    let files = files(&[("/new/a.mov", SAME)]);
+    let files = files(&[("/new/a.mov", SAME), ("/new/b.mov", OTHER)]);
     let mut rig = rig(vec![row(1, "Clip A", "/old/a.mov"), row(2, "Clip B", "/old/b.mov")], &files, "/new", false, true);
     rig.search();
     assert!(rig.present("/new/a.mov"), "the match is listed");
@@ -182,18 +182,14 @@ fn the_relink_dialog_links_one_row_then_the_next() {
     assert!(rig.present("Clip B"), "the next row is shown");
     assert!(!rig.present("/new/a.mov"), "the candidates are cleared");
     assert!(!rig.answered(), "Link keeps the dialog open");
-}
 
-#[trial]
-fn link_anyway_replaces_link_for_a_failing_candidate() {
-    let files = files(&[("/new/a.mov", OTHER)]);
-    let mut rig = rig(vec![row(1, "Clip A", "/old/a.mov")], &files, "/new", false, true);
+    // The next row's candidate fails its check: Link Anyway replaces Link and links the failing file.
     rig.search();
     assert!(rig.present("Link Anyway"));
     assert!(!rig.present("Link"));
     rig.click("Link Anyway");
     let (linked, _) = linked_keys(&rig.done());
-    assert_eq!(linked, [1], "Link Anyway links the failing file");
+    assert_eq!(linked, [1, 2], "Link Anyway links the failing file");
 }
 
 #[trial]
@@ -244,11 +240,16 @@ fn the_search_never_blocks_and_stop_cancels_it() {
     rig.jobs.run_all();
     rig.fx.settle();
     assert!(!rig.present("/new/a.mov"), "a stopped search reports nothing");
+
+    // A search is one job: its hits arrive without a second one.
+    rig.search();
+    assert_eq!(rig.jobs.waiting(), 0, "hits need no second job");
+    assert!(rig.present("/new/a.mov"), "the hit is listed");
 }
 
 #[trial]
 fn browse_fills_the_search_folder() {
-    let files = files(&[("/new/a.mov", SAME)]);
+    let files = files(&[("/new/a.mov", SAME), ("/elsewhere/a.mov", SAME)]);
     let mut rig = rig(vec![row(1, "Clip A", "/old/a.mov")], &files, "", false, true);
     rig.click("Browse…");
     let open = rig.picks.open();
@@ -260,22 +261,15 @@ fn browse_fills_the_search_folder() {
     rig.fx.settle();
     rig.click("Search");
     assert_eq!(rig.jobs.waiting(), 1, "the picked folder is searched");
-}
 
-#[trial]
-fn locate_adds_the_picked_file_as_the_candidate() {
-    let files = files(&[("/elsewhere/b.mov", SAME)]);
-    let mut rig = rig(vec![row(1, "Clip A", "/old/b.mov")], &files, "/new", false, true);
+    // Locate adds the picked file as a candidate.
     rig.click("Locate…");
     assert_eq!(rig.picks.open()[0].kind, PickKind::Open);
-    rig.picks.answer(Picked::Paths(vec!["/elsewhere/b.mov".into()]));
+    rig.picks.answer(Picked::Paths(vec!["/elsewhere/a.mov".into()]));
     rig.fx.settle();
     rig.jobs.run_all();
     rig.fx.settle();
-    assert!(rig.present("/elsewhere/b.mov"), "the located file is listed");
-    rig.click("Link");
-    let (linked, _) = linked_keys(&rig.done());
-    assert_eq!(linked, [1]);
+    assert!(rig.present("/elsewhere/a.mov"), "the located file is listed");
 }
 
 #[trial]
@@ -291,15 +285,6 @@ fn escape_with_a_pick_open_closes_the_pick_and_not_the_dialog() {
     rig.fx.key(Key::Escape, Modifiers::NONE);
     rig.fx.settle();
     assert!(matches!(rig.app.borrow().result, Some(DialogResult::Cancel)), "a second Esc cancels the dialog");
-}
-
-#[trial]
-fn a_search_is_one_job() {
-    let files = files(&[("/new/a.mov", SAME)]);
-    let mut rig = rig(vec![row(1, "Clip A", "/old/a.mov")], &files, "/new", false, true);
-    rig.search();
-    assert_eq!(rig.jobs.waiting(), 0, "hits need no second job");
-    assert!(rig.present("/new/a.mov"), "the hit is listed");
 }
 
 #[trial]
@@ -393,14 +378,6 @@ fn link_list_buttons_follow_the_statuses_of_the_selection() {
 
     select(&mut fx, &panel, &[1]);
     assert_eq!(press(&mut fx, &panel, "Update Link"), [LinkListEvent::Update(vec![1])]);
-}
-
-#[trial]
-fn a_rows_status_is_in_its_name() {
-    let (fx, _panel) = panel();
-    for name in ["a.png, Page 2, Missing", "b.png, Modified", "c.png", "e.png, Embedded"] {
-        assert!(fx.by_label(name).is_some(), "no row named `{name}`");
-    }
 }
 
 /// The Link Info section shows the host's info rows: the footer runs in a sizing pass first and must leave them for the

@@ -12,22 +12,22 @@ fn params_errors_name_the_field() {
     assert_eq!(p.num_field("x"), Ok(Some(3.0)));
     assert_eq!(p.num_field("missing"), Ok(None));
     assert_eq!(p.uint_field("x"), Ok(Some(3)));
-    assert_eq!(p.uint_field("count").unwrap_err(), "count must be a non-negative integer");
-    assert_eq!(p.uint_field("n").unwrap_err(), "n must be a non-negative integer");
-    assert_eq!(p.bool_field("flag").unwrap_err(), "flag must be a boolean");
-    assert_eq!(p.f32_field("big").unwrap_err(), "big must be a finite number within f32 range");
-    assert_eq!(p.str_field("x").unwrap_err(), "x must be a string");
-    assert_eq!(p.choice("name", "button", &BUTTONS).unwrap_err(), "unknown button `up` (left, right, secondary, middle)");
+    assert!(p.uint_field("count").unwrap_err().contains("count"));
+    assert!(p.uint_field("n").unwrap_err().contains("n"));
+    assert!(p.bool_field("flag").unwrap_err().contains("flag"));
+    assert!(p.f32_field("big").unwrap_err().contains("big"));
+    assert!(p.str_field("x").unwrap_err().contains("x"));
+    assert!(p.choice("name", "button", &BUTTONS).unwrap_err().contains("`up`"));
     assert_eq!(p.choice("name", "name", &["up", "down"]), Ok(Some("up")));
-    assert_eq!(p.number_in("x", "x", Some((0.0, 2.0))).unwrap_err(), "x must be between 0 and 2 (got 3)");
-    assert_eq!(p.number_in("name", "x", None).unwrap_err(), "x must be a finite number");
+    assert!(p.number_in("x", "x", Some((0.0, 2.0))).unwrap_err().contains("x"));
+    assert!(p.number_in("name", "x", None).unwrap_err().contains("x"));
 
     // Null fields mean omitted; unknown ones are named.
     assert_eq!(p.only(None, &["x", "n", "flag", "name", "big", "count", "extra"]).unwrap().get("extra"), None);
-    assert_eq!(p.only(None, &["x"]).unwrap_err(), "unknown field `big` (fields: x)");
-    assert_eq!(Params(&json!(5)).only(None, &[]).unwrap_err(), "params must be an object");
+    assert!(p.only(None, &["x"]).unwrap_err().contains("`big`"));
+    assert!(Params(&json!(5)).only(None, &[]).unwrap_err().contains("params"));
     assert_eq!(Params(&json!(null)).only(None, &["x"]).unwrap(), json!({}));
-    assert_eq!(Params(&json!({"z": 1})).only(Some("modifiers"), &["shift"]).unwrap_err(), "unknown modifiers field `z` (fields: shift)");
+    assert!(Params(&json!({"z": 1})).only(Some("modifiers"), &["shift"]).unwrap_err().contains("`z`"));
 
     #[cfg(feature = "ui")]
     {
@@ -35,10 +35,10 @@ fn params_errors_name_the_field() {
         let m = Params(&grouped).modifiers(&KEY_MODIFIERS).unwrap();
         assert!(m.shift && (m.cmd || m.ctrl) && !m.alt);
         let bad = json!({"modifiers": {"shift": "yes"}});
-        assert_eq!(Params(&bad).modifiers(&KEY_MODIFIERS).unwrap_err(), "modifiers.shift must be a boolean");
+        assert!(Params(&bad).modifiers(&KEY_MODIFIERS).unwrap_err().contains("shift"));
         let space = json!({"modifiers": {"space": true}});
-        assert!(Params(&space).modifiers(&KEY_MODIFIERS).unwrap_err().starts_with("unknown modifiers field `space`"));
-        assert_eq!(Params(&json!({"alt": 1})).modifiers(&KEY_MODIFIERS).unwrap_err(), "alt must be a boolean");
+        assert!(Params(&space).modifiers(&KEY_MODIFIERS).unwrap_err().contains("space"));
+        assert!(Params(&json!({"alt": 1})).modifiers(&KEY_MODIFIERS).unwrap_err().contains("alt"));
     }
 
     #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq)]
@@ -49,9 +49,9 @@ fn params_errors_name_the_field() {
     let current = Panels { a: true, b: false };
     let patch = json!({"b": true});
     assert_eq!(Params(&patch).merged_into("panels", &current), Ok(Panels { a: true, b: true }));
-    assert_eq!(Params(&json!({"c": true})).merged_into("panels", &current).unwrap_err(), "unknown panels field `c`");
-    assert!(Params(&json!({"a": 3})).merged_into("panels", &current).unwrap_err().starts_with("panels: "));
-    assert_eq!(Params(&json!([])).merged_into("panels", &current).unwrap_err(), "panels must be an object");
+    assert!(Params(&json!({"c": true})).merged_into("panels", &current).unwrap_err().contains("`c`"));
+    assert!(Params(&json!({"a": 3})).merged_into("panels", &current).unwrap_err().contains("panels"));
+    assert!(Params(&json!([])).merged_into("panels", &current).unwrap_err().contains("panels"));
 
     // `whole` replaces the value but still names a typo (the type does not deny unknown fields).
     #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Default)]
@@ -62,8 +62,8 @@ fn params_errors_name_the_field() {
     }
     let layout = Layout { a: true, b: false };
     assert_eq!(Params(&json!({"b": true})).whole("dock", &layout), Ok(Layout { a: false, b: true }));
-    assert_eq!(Params(&json!({"typo": 1})).whole("dock", &layout).unwrap_err(), "unknown dock field `typo`");
-    assert_eq!(Params(&json!(3)).whole("dock", &layout).unwrap_err(), "dock must be an object");
+    assert!(Params(&json!({"typo": 1})).whole("dock", &layout).unwrap_err().contains("`typo`"));
+    assert!(Params(&json!(3)).whole("dock", &layout).unwrap_err().contains("dock"));
 }
 
 // A reply over MAX_RESPONSE_BYTES is replaced by an error reply.

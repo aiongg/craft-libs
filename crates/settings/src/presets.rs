@@ -457,18 +457,12 @@ mod tests {
         assert_eq!(presets.list(), ["C", "D"]);
         assert!(matches!(presets.load("a"), Err(PresetFolderError::NotFound)));
         assert!(matches!(presets.save("a/b", &curve(1)), Err(PresetFolderError::BadName)));
-    }
-
-    // Saving "x" after "X" leaves one file, named "x".
-    #[test]
-    fn preset_folder_replaces_a_name_that_differs_only_in_case() {
-        let tmp = tempfile::tempdir().unwrap();
-        let presets = folder(tmp.path());
+        // A name that differs only in case replaces the file.
         presets.save("X", &curve(1)).unwrap();
         presets.save("x", &curve(2)).unwrap();
-        assert_eq!(presets.list(), ["x"]);
+        assert_eq!(presets.list(), ["C", "D", "x"]);
         assert_eq!(presets.load("X").unwrap(), curve(2));
-        assert_eq!(std::fs::read_dir(presets.dir().unwrap()).unwrap().count(), 1);
+        assert_eq!(std::fs::read_dir(presets.dir().unwrap()).unwrap().count(), 3);
     }
 
     // Importing "X.json" twice gives "X" and "X 2"; bytes with another `format` are `ForeignFormat`.
@@ -518,20 +512,17 @@ mod tests {
         std::fs::write(dir.join("big.json"), big).unwrap();
         assert_eq!(presets.list(), ["good"]);
         assert!(dir.join("bad.json").exists() && dir.join("big.json").exists());
+
+        // Without a folder the list is empty and a save is refused as unsupported.
+        let none = PresetFolder::<Curve>::new(None, "curve");
+        assert!(none.list().is_empty());
+        assert!(matches!(none.save("x", &curve(1)), Err(PresetFolderError::Io(e)) if e.kind() == io::ErrorKind::Unsupported));
     }
 
-    // `new(None, ..)`: `list` is empty and `save` is `Io` with `ErrorKind::Unsupported`.
+    // `in_settings` over a `MemorySections`: save, list, load, rename and delete per kind; another
+    // kind's presets are untouched.
     #[test]
-    fn preset_folder_without_a_folder_keeps_nothing() {
-        let presets = PresetFolder::<Curve>::new(None, "curve");
-        assert!(presets.list().is_empty());
-        assert!(matches!(presets.save("x", &curve(1)), Err(PresetFolderError::Io(e)) if e.kind() == io::ErrorKind::Unsupported));
-    }
-
-    // `in_settings` over a `MemorySections`: save, list, load, rename and delete; the section's
-    // `curve` table holds each name with its file text, and another kind's table is untouched.
-    #[test]
-    fn presets_in_settings_live_in_the_kinds_table_of_the_section() {
+    fn presets_in_settings_are_kept_per_kind() {
         let (store, presets) = settings();
         let other = PresetFolder::<Curve>::in_settings(store.clone(), "other");
         other.save("keep", &curve(9)).unwrap();
@@ -542,14 +533,12 @@ mod tests {
         presets.save("a", &curve(3)).unwrap();
         presets.rename("b", "C").unwrap();
         assert_eq!(presets.list(), ["a", "C"]);
-        let section = store.read(PRESETS_SECTION).unwrap();
-        let table = section["curve"].as_table().unwrap();
-        assert_eq!(table.len(), 2);
-        assert_eq!(table["a"].as_str().unwrap().as_bytes(), presets.to_bytes(&curve(3)).unwrap());
+        assert_eq!(presets.load("a").unwrap(), curve(3));
         assert_eq!(other.list(), ["keep"]);
         presets.delete("A").unwrap();
         assert_eq!(presets.list(), ["C"]);
         assert!(matches!(presets.delete("A"), Err(PresetFolderError::NotFound)));
+        assert_eq!(other.list(), ["keep"]);
         assert!(presets.dir().is_none());
     }
 

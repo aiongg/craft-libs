@@ -186,30 +186,38 @@ fn file_source_reloads_after_invalidate() {
     assert_eq!(state.shown().map(|texture| texture.id), Some(first.id));
 }
 
-// A failing decode: Failed, and no second job on later passes until `invalidate`.
+// A failing decode is Failed and an unsupported file is Empty (not Failed); either way no second
+// job runs on later passes until `invalidate`.
 #[trial]
 fn file_source_fails_once_per_stamp() {
-    let setup = Setup::new();
-    let decoder = Decoder::new(None);
-    *decoder.answer.lock().unwrap() = Answer::Fail("boom");
-    let source = FileThumbSource::new(decoder.clone(), None);
-    let key = setup.file("a.png");
-    setup.show(&source, &key);
-    setup.jobs.run_all();
-    for _ in 0..3 {
-        let state = setup.show(&source, &key);
-        let TextureState::Failed { failure, .. } = &state else { panic!("expected a failure, got {state:?}") };
-        assert_eq!(*failure, LoadFailure::Message("boom".to_owned()));
-    }
-    assert_eq!(setup.jobs.waiting(), 0);
-    assert_eq!(decoder.decodes(), 1);
+    for answer in [Answer::Fail("boom"), Answer::Unsupported] {
+        let failing = matches!(answer, Answer::Fail(_));
+        let setup = Setup::new();
+        let decoder = Decoder::new(None);
+        *decoder.answer.lock().unwrap() = answer;
+        let source = FileThumbSource::new(decoder.clone(), None);
+        let key = setup.file("a.png");
+        setup.show(&source, &key);
+        setup.jobs.run_all();
+        for _ in 0..3 {
+            let state = setup.show(&source, &key);
+            if failing {
+                let TextureState::Failed { failure, .. } = &state else { panic!("expected a failure, got {state:?}") };
+                assert_eq!(*failure, LoadFailure::Message("boom".to_owned()));
+            } else {
+                assert_eq!(state, TextureState::Empty);
+            }
+        }
+        assert_eq!(setup.jobs.waiting(), 0);
+        assert_eq!(decoder.decodes(), 1);
 
-    *decoder.answer.lock().unwrap() = Answer::Picture;
-    source.invalidate(&key.path);
-    setup.show(&source, &key);
-    setup.jobs.run_all();
-    assert!(matches!(setup.show(&source, &key), TextureState::Ready(_)));
-    assert_eq!(decoder.decodes(), 2);
+        *decoder.answer.lock().unwrap() = Answer::Picture;
+        source.invalidate(&key.path);
+        setup.show(&source, &key);
+        setup.jobs.run_all();
+        assert!(matches!(setup.show(&source, &key), TextureState::Ready(_)));
+        assert_eq!(decoder.decodes(), 2);
+    }
 }
 
 // A decoder with `quick`: the quick picture shows, then stands in while `decode` runs, then the full one.
@@ -235,6 +243,13 @@ fn file_source_shows_the_quick_preview_first() {
     // The full picture is final: no further job.
     setup.show(&source, &key);
     assert_eq!(setup.jobs.waiting(), 0);
+
+    // The stage is per (key, side): a second size starts from the quick preview again.
+    setup.pass(|| {
+        setup.thumbs.state(&setup.ctx, &source, &key, &ThumbRequest::for_cell(128.0, 1.0), Priority::VISIBLE);
+    });
+    setup.jobs.run_all();
+    assert_eq!(decoder.quick_calls.load(Ordering::Relaxed), 2);
 }
 
 // A store hit is final: `decode` is never called and no second revision is asked.
@@ -256,23 +271,6 @@ fn a_stored_thumbnail_needs_no_decode() {
     assert_eq!((decoder.decodes(), decoder.quick_calls.load(Ordering::Relaxed), store.saves.load(Ordering::Relaxed)), (0, 0, 0));
 }
 
-// A decoder answering `ThumbError::Unsupported`: the state is Empty (not Failed), and no second job runs.
-#[trial]
-fn an_unsupported_file_shows_no_picture() {
-    let setup = Setup::new();
-    let decoder = Decoder::new(None);
-    *decoder.answer.lock().unwrap() = Answer::Unsupported;
-    let source = FileThumbSource::new(decoder.clone(), None);
-    let key = setup.file("a.xyz");
-    setup.show(&source, &key);
-    setup.jobs.run_all();
-    for _ in 0..3 {
-        assert_eq!(setup.show(&source, &key), TextureState::Empty);
-    }
-    assert_eq!(setup.jobs.waiting(), 0);
-    assert_eq!(decoder.decodes(), 1);
-}
-
 // The length and modification time come from the decoder's stat hook, not the file system.
 #[trial]
 fn the_job_stats_through_the_decoder() {
@@ -287,21 +285,18 @@ fn the_job_stats_through_the_decoder() {
     assert!(matches!(setup.show(&source, &key), TextureState::Ready(_)));
     let requests = decoder.requests.lock().unwrap();
     assert_eq!((requests[0].len, requests[0].modified), (1234, Some(modified)));
-}
+    drop(requests);
 
-// A stat that finds no file is the loader's "missing" reason, not a decode.
-#[trial]
-fn a_failed_stat_is_missing() {
-    let setup = Setup::new();
-    let decoder = Decoder::new(None);
-    *decoder.stat.lock().unwrap() = Err(ThumbError::Missing);
-    let source = FileThumbSource::new(decoder.clone(), None);
+    // A stat that finds no file is the loader's "missing" reason, not a decode.
+    let missing = Decoder::new(None);
+    *missing.stat.lock().unwrap() = Err(ThumbError::Missing);
+    let source = FileThumbSource::new(missing.clone(), None);
     let key = setup.file("a.png");
     setup.show(&source, &key);
     setup.jobs.run_all();
     let state = setup.show(&source, &key);
     assert!(matches!(state, TextureState::Failed { .. }), "{state:?}");
-    assert_eq!(decoder.decodes(), 0);
+    assert_eq!(missing.decodes(), 0);
 }
 
 // A buffer that is not width x height x 4 fails as unreadable instead of panicking; a zero size shows no picture.
@@ -333,23 +328,4 @@ fn a_malformed_decode_fails_and_a_zero_size_is_empty() {
     assert!(matches!(state, TextureState::Failed { .. }), "{state:?}");
     // The failed quick job did not move the key to `NeedsFull`: no full job is asked.
     assert_eq!(setup.jobs.waiting(), 0);
-}
-
-// The stage is per (key, side): a second size starts from the quick preview again.
-#[trial]
-fn stages_are_kept_per_side() {
-    let setup = Setup::new();
-    let decoder = Decoder::new(Some(2));
-    let source = FileThumbSource::new(decoder.clone(), None);
-    let key = setup.file("a.png");
-    setup.show(&source, &key);
-    setup.jobs.run_all();
-    setup.show(&source, &key);
-    setup.jobs.run_all();
-    assert_eq!(decoder.quick_calls.load(Ordering::Relaxed), 1);
-    setup.pass(|| {
-        setup.thumbs.state(&setup.ctx, &source, &key, &ThumbRequest::for_cell(128.0, 1.0), Priority::VISIBLE);
-    });
-    setup.jobs.run_all();
-    assert_eq!(decoder.quick_calls.load(Ordering::Relaxed), 2);
 }

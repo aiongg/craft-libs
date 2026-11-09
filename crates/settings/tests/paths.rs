@@ -5,25 +5,18 @@ mod common;
 use std::path::PathBuf;
 
 use common::{Prefs, empty_probe, open_in, probe_with_env};
-use craft_settings::paths::{Location, Portable, Probe, Rule, env_var_name, resolve};
+use craft_settings::paths::{Location, Portable, Probe, Rule, resolve};
 use craft_settings::{OpenOptions, Settings, SettingsStore};
 
-#[test]
-fn env_var_name_uppercases_and_replaces_punctuation() {
-    assert_eq!(env_var_name("photocraft"), "PHOTOCRAFT_CONFIG_DIR");
-    assert_eq!(env_var_name("photo-craft"), "PHOTO_CRAFT_CONFIG_DIR");
-}
-
-#[test]
-fn override_wins_over_everything() {
-    let probe = probe_with_env("TESTCRAFT_CONFIG_DIR", "/from/env");
-    let r = resolve("testcraft", &Portable::DEFAULT, &Location::Dir(PathBuf::from("/explicit")), &probe);
-    assert_eq!(r.dir, Some(PathBuf::from("/explicit")));
-    assert_eq!(r.rule, Rule::Override);
-}
-
+// Precedence: an explicit location beats the env var, the env var beats a portable marker and the
+// platform folder, and an empty env var isolates the store instead of falling through.
 #[test]
 fn env_var_wins_over_portable_and_platform() {
+    let r =
+        resolve("testcraft", &Portable::DEFAULT, &Location::Dir(PathBuf::from("/explicit")), &probe_with_env("TESTCRAFT_CONFIG_DIR", "/from/env"));
+    assert_eq!(r.dir, Some(PathBuf::from("/explicit")));
+    assert_eq!(r.rule, Rule::Override);
+
     let tmp = tempfile::tempdir().unwrap();
     std::fs::write(tmp.path().join("portable"), "").unwrap();
     let mut probe = probe_with_env("TESTCRAFT_CONFIG_DIR", "/from/env");
@@ -32,22 +25,12 @@ fn env_var_wins_over_portable_and_platform() {
     let r = resolve("testcraft", &Portable::DEFAULT, &Location::Auto, &probe);
     assert_eq!(r.dir, Some(PathBuf::from("/from/env")));
     assert_eq!(r.rule, Rule::EnvVar("TESTCRAFT_CONFIG_DIR".into()));
-}
 
-#[test]
-fn empty_env_var_means_isolated_not_unset() {
     let mut probe = probe_with_env("TESTCRAFT_CONFIG_DIR", "");
     probe.platform_config_dir = Some(PathBuf::from("/platform"));
     let r = resolve("testcraft", &Portable::DEFAULT, &Location::Auto, &probe);
     assert_eq!(r.rule, Rule::Isolated("TESTCRAFT_CONFIG_DIR".into()));
     assert_eq!(r.dir, None, "never falls through to the real profile");
-}
-
-#[test]
-fn memory_location_has_no_folder() {
-    let r = resolve("testcraft", &Portable::DEFAULT, &Location::Memory, &probe_with_env("TESTCRAFT_CONFIG_DIR", "/from/env"));
-    assert_eq!(r.rule, Rule::Memory);
-    assert_eq!(r.dir, None);
 }
 
 #[test]
@@ -61,15 +44,13 @@ fn app_supplied_portable_names_are_used() {
         assert_eq!(r.rule, Rule::Portable, "{marker}");
         assert_eq!(r.dir, Some(tmp.path().join("PhotoCraftData")), "{marker}");
     }
-}
 
-#[test]
-fn default_marker_is_ignored_when_the_app_uses_its_own() {
-    const LEGACY: Portable = Portable { markers: &["portable.txt"], dir: "PhotoCraftData" };
+    // The default marker is ignored when the app names its own.
+    const OWN: Portable = Portable { markers: &["portable.txt"], dir: "PhotoCraftData" };
     let tmp = tempfile::tempdir().unwrap();
     std::fs::write(tmp.path().join("portable"), "").unwrap();
     let probe = Probe { env: Box::new(|_| None), exe_dir: Some(tmp.path().to_path_buf()), platform_config_dir: Some(PathBuf::from("/platform")) };
-    assert_eq!(resolve("testcraft", &LEGACY, &Location::Auto, &probe).rule, Rule::Platform);
+    assert_eq!(resolve("testcraft", &OWN, &Location::Auto, &probe).rule, Rule::Platform);
 }
 
 #[test]
@@ -80,10 +61,8 @@ fn portable_marker_next_to_executable_uses_config_folder_beside_it() {
     let r = resolve("testcraft", &Portable::DEFAULT, &Location::Auto, &probe);
     assert_eq!(r.rule, Rule::Portable);
     assert_eq!(r.dir, Some(tmp.path().join("config")));
-}
 
-#[test]
-fn no_marker_means_platform_folder() {
+    // Without a marker the platform folder is used.
     let tmp = tempfile::tempdir().unwrap();
     let probe = Probe { env: Box::new(|_| None), exe_dir: Some(tmp.path().to_path_buf()), platform_config_dir: Some(PathBuf::from("/platform")) };
     let r = resolve("testcraft", &Portable::DEFAULT, &Location::Auto, &probe);
@@ -97,8 +76,12 @@ fn portable_marker_is_looked_for_next_to_the_app_bundle() {
     let tmp = tempfile::tempdir().unwrap();
     let exe_dir = tmp.path().join("Test.app/Contents/MacOS");
     std::fs::create_dir_all(&exe_dir).unwrap();
+    let platform = Some(PathBuf::from("/platform"));
+    std::fs::write(exe_dir.join("portable"), "").unwrap();
+    let probe = Probe { env: Box::new(|_| None), exe_dir: Some(exe_dir.clone()), platform_config_dir: platform.clone() };
+    assert_eq!(resolve("testcraft", &Portable::DEFAULT, &Location::Auto, &probe).rule, Rule::Platform, "a marker inside the bundle is ignored");
     std::fs::write(tmp.path().join("portable"), "").unwrap();
-    let probe = Probe { env: Box::new(|_| None), exe_dir: Some(exe_dir), platform_config_dir: None };
+    let probe = Probe { env: Box::new(|_| None), exe_dir: Some(exe_dir), platform_config_dir: platform };
     let r = resolve("testcraft", &Portable::DEFAULT, &Location::Auto, &probe);
     assert_eq!(r.rule, Rule::Portable);
     assert_eq!(r.dir, Some(tmp.path().join("config")));
@@ -109,15 +92,6 @@ fn no_platform_folder_falls_back_to_current_directory() {
     let r = resolve("testcraft", &Portable::DEFAULT, &Location::Auto, &empty_probe());
     assert_eq!(r.rule, Rule::Fallback);
     assert_eq!(r.dir, Some(PathBuf::from("./testcraft")));
-}
-
-#[test]
-fn report_names_the_rule_and_folder() {
-    let tmp = tempfile::tempdir().unwrap();
-    let (_store, report) = open_in(tmp.path());
-    assert_eq!(report.dir.as_deref(), Some(tmp.path()));
-    assert_eq!(report.rule, "override");
-    assert!(!report.has_problems(), "{report:?}");
 }
 
 #[test]

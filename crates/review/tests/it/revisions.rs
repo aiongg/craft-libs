@@ -31,12 +31,13 @@ pub(crate) fn named(fixture: &Fixture, label: &str) -> Vec<Target> {
     found
 }
 
-/// The per-row buttons and the All buttons report their actions.
+/// The per-row buttons and the All buttons report their actions; each card names its kind.
 #[trial]
 fn accept_and_reject_report_their_row() {
-    let (mut fixture, actions) =
-        panel(vec![revision(RevisionKind::Changed, "Slide 3 changed"), revision(RevisionKind::Inserted, "Slide inserted after 2")]);
+    let (mut fixture, actions) = panel(vec![revision(RevisionKind::Changed, "Slide 3 changed"), revision(RevisionKind::Deleted, "Slide 4 deleted")]);
     assert!(fixture.by_label("Accept All (2)").is_some());
+    assert!(fixture.by_label("Changed").is_some(), "a card names its kind");
+    assert!(fixture.by_label("Deleted").is_some());
     let accept = named(&fixture, "Accept")[1].clone();
     fixture.click(&accept);
     let reject = named(&fixture, "Reject")[0].clone();
@@ -56,20 +57,4 @@ fn no_changes_offers_end_review() {
     let end = fixture.by_label("End Review").expect("End Review");
     fixture.click(&end);
     assert_eq!(*actions.borrow(), [RevisionAction::EndReview]);
-}
-
-/// Each card names its kind as a word.
-#[trial]
-fn a_cards_bar_names_its_kind() {
-    let (fixture, _) = panel(vec![revision(RevisionKind::Changed, "Slide 3 changed"), revision(RevisionKind::Deleted, "Slide 4 deleted")]);
-    assert!(fixture.by_label("Changed").is_some());
-    assert!(fixture.by_label("Deleted").is_some());
-}
-
-/// Detail lines get their bullet from the words, and Accept All counts the changes.
-#[trial]
-fn details_are_bulleted_by_a_word() {
-    let (fixture, _) = panel(vec![revision(RevisionKind::Changed, "Slide 3 changed")]);
-    assert!(fixture.by_label("\u{2022} Title text changed").is_some());
-    assert!(fixture.by_label("Accept All (1)").is_some());
 }

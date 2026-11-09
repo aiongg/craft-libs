@@ -27,15 +27,13 @@ fn workspace_lockfile_passes() {
 }
 
 #[test]
-fn a_package_at_another_rev_fails_by_name() {
+fn a_package_at_another_rev_or_from_the_registry_fails_by_name() {
     let lock = workspace_file("Cargo.lock").replacen(&format!("rev={REV}#{REV}"), "rev=0000000#0000000", 1);
     let err = check_lockfile(&lock).unwrap_err();
     assert!(PACKAGES.iter().any(|p| err.contains(&format!("  {p} "))), "{err}");
     assert!(err.contains("0000000"), "{err}");
-}
 
-#[test]
-fn an_unpatched_registry_package_fails() {
+    // A registry package that the patch leaves out fails too.
     let lock = "[[package]]\nname = \"egui\"\nversion = \"0.37.0\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\n";
     let err = check_lockfile(lock).unwrap_err();
     assert!(err.contains("egui 0.37.0"), "{err}");

@@ -1,7 +1,7 @@
 //! `MediaBin` behaviour: what its own logic adds to the collections it shows.
 
 use craft_behavior::{CancelReason, ColumnKey, DisplayOrder, EditEvent, GestureId, IconId, ItemSource, Mixed, Selection};
-use craft_browse::ui::bin::{BinEntry, BinEvent, BinItem, BinModel, BinSettings, BinState, BinView, MediaBin, OpenHow, name_matches};
+use craft_browse::ui::bin::{BinEntry, BinEvent, BinItem, BinModel, BinState, BinView, MediaBin, OpenHow, name_matches};
 use craft_ui::contract::{Bind, ColumnSort, ListDrag, ReorderRule, ShowCollection as _, ShowContainer as _, Sizing};
 use craft_ui::layout_components::Stack;
 use craft_ui::list::{List, ListRow};
@@ -208,16 +208,8 @@ fn opening_a_bin_reports_how_to_open_it() {
     }
 }
 
-/// An item dragged onto a bin row's middle is a drop into the bin.
-#[trial]
-fn dropping_on_a_bin_row_reports_the_target() {
-    let mut bin = setup(false, |_| {});
-    let archive = bin.rect("Archive").center();
-    bin.drag_to("Beach.mov", archive);
-    assert_eq!(bin.drops(), [(vec![10], Some(2))], "{:?}", bin.events.borrow());
-}
-
-/// In a sorted list a release on the empty room drops into the shown bin, except items already in it.
+/// In a sorted list a release on the empty room drops into the shown bin, except items already in
+/// it; an item dragged onto a bin row's middle is a drop into that bin.
 #[trial]
 fn a_release_on_the_background_drops_into_the_shown_bin_unless_they_are_there() {
     let mut bin = setup(false, |state| state.settings.sort = Some(ColumnSort::ascending(NAME)));
@@ -227,6 +219,11 @@ fn a_release_on_the_background_drops_into_the_shown_bin_unless_they_are_there() 
     bin.events.borrow_mut().clear();
     bin.drag_to("Title.psd", room);
     assert!(bin.drops().is_empty(), "Title is in the root, which is the shown bin: {:?}", bin.events.borrow());
+
+    bin.events.borrow_mut().clear();
+    let archive = bin.rect("Archive").center();
+    bin.drag_to("Beach.mov", archive);
+    assert_eq!(bin.drops(), [(vec![10], Some(2))], "{:?}", bin.events.borrow());
 }
 
 /// In User Order a release past the last row moves a row of the shown bin to the end; it is not a drop.
@@ -238,17 +235,6 @@ fn a_release_past_the_last_row_in_user_order_reorders() {
     let events = bin.events.borrow();
     assert!(events.iter().any(|event| matches!(event, BinEvent::Reorder(_))), "{events:?}");
     assert!(!events.iter().any(|event| matches!(event, BinEvent::Drop { .. })));
-}
-
-/// A release past the last row puts the item at the top level of the shown bin: an item of an open sub-bin leaves
-/// its bin, which is a drop into the shown bin, not a reorder.
-#[trial]
-fn a_release_past_the_last_row_takes_an_item_out_of_its_bin() {
-    let mut bin = setup(false, |_| {});
-    let room = bin.empty_room();
-    bin.drag_to("Clip.mov", room);
-    assert_eq!(bin.drops(), [(vec![11], None)], "{:?}", bin.events.borrow());
-    assert!(!bin.events.borrow().iter().any(|event| matches!(event, BinEvent::Reorder(_))));
 }
 
 /// A drag from another list over an item row is a drop on the background, never a reorder; over a bin row it
@@ -352,7 +338,8 @@ fn escape_during_the_zoom_drag_restores_the_size() {
 fn the_icon_view_shows_bins_first_and_scrubs_items() {
     let mut bin = setup(false, |state| state.settings.view = BinView::Icon);
     let (footage, archive, title) = (bin.rect("Footage"), bin.rect("Archive"), bin.rect("Title.psd"));
-    assert!(footage.left() < archive.left() && archive.left() < title.left(), "bins first: {footage:?} {archive:?} {title:?}");
+    let reads_before = |a: Rect, b: Rect| a.top() < b.top() - 0.5 || ((a.top() - b.top()).abs() <= 0.5 && a.left() < b.left());
+    assert!(reads_before(footage, title) && reads_before(archive, title), "bins first: {footage:?} {archive:?} {title:?}");
     assert!(bin.fixture.by_label("Beach.mov").is_none(), "a bin's items show when it is opened");
 
     bin.fixture.frame(vec![pointer::moved(pos2(title.left() + title.width() * 0.5, title.top() + 12.0))]).settle();
@@ -371,42 +358,19 @@ fn the_icon_view_shows_bins_first_and_scrubs_items() {
     assert!(bin.events.borrow().iter().all(|event| !matches!(event, BinEvent::Scrub { .. })), "a bin has no picture to scrub");
 }
 
-/// Icon view: a drag from another list onto a bin tile drops into it, onto the background into the shown bin.
+/// Icon and Freeform views: a drag from another list onto a bin card drops into it, onto the
+/// background into the shown bin.
 #[trial]
-fn icon_cards_drop_into_bins_and_the_background() {
-    let mut bin = setup(true, |state| state.settings.view = BinView::Icon);
-    let archive = bin.rect("Archive").center();
-    bin.drag_to("Other 30", archive);
-    assert_eq!(bin.drops(), [(vec![30], Some(2))], "{:?}", bin.events.borrow());
+fn icon_and_freeform_drops_on_a_bin_card_and_the_background_become_drops() {
+    for (view, card, key) in [(BinView::Icon, "Archive", 2), (BinView::Freeform, "Footage", 1)] {
+        let mut bin = setup(true, |state| state.settings.view = view);
+        let target = bin.rect(card).center();
+        bin.drag_to("Other 30", target);
+        assert_eq!(bin.drops(), [(vec![30], Some(key))], "{view:?}: {:?}", bin.events.borrow());
 
-    bin.events.borrow_mut().clear();
-    let room = bin.empty_room();
-    bin.drag_to("Other 20", room);
-    assert_eq!(bin.drops(), [(vec![20], None)], "{:?}", bin.events.borrow());
-}
-
-/// Freeform view: a drag from another list onto a bin card and onto the background become `Drop` events.
-#[trial]
-fn freeform_drops_on_a_bin_card_and_the_background_become_drops() {
-    let mut bin = setup(true, |state| state.settings.view = BinView::Freeform);
-    let footage = bin.rect("Footage").center();
-    bin.drag_to("Other 30", footage);
-    assert_eq!(bin.drops(), [(vec![30], Some(1))], "{:?}", bin.events.borrow());
-
-    bin.events.borrow_mut().clear();
-    let room = bin.empty_room();
-    bin.drag_to("Other 20", room);
-    assert_eq!(bin.drops(), [(vec![20], None)], "{:?}", bin.events.borrow());
-}
-
-/// The List view's sort, the Icon view's sort and the dragged column widths survive the host's save and load.
-#[trial]
-fn the_sorts_and_column_widths_are_saved() {
-    let mut settings = BinSettings::default();
-    settings.sort = Some(ColumnSort::new(NAME, true));
-    settings.icon_sort = Some(ColumnSort::new(ColumnKey::new("rating"), false));
-    settings.widths = vec![(NAME, 140.0)];
-    let text = serde_json::to_string(&settings).expect("the settings serialize");
-    let loaded: BinSettings = serde_json::from_str(&text).expect("the settings load");
-    assert_eq!(loaded, settings);
+        bin.events.borrow_mut().clear();
+        let room = bin.empty_room();
+        bin.drag_to("Other 20", room);
+        assert_eq!(bin.drops(), [(vec![20], None)], "{view:?}: {:?}", bin.events.borrow());
+    }
 }

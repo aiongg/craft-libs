@@ -124,6 +124,14 @@ mod tests {
         assert_eq!(other.recall(&host), None);
         blur.forget(&host);
         assert_eq!(blur.recall(&host), None);
+
+        // Forgetting by prefix removes only the matching scopes.
+        let skip = Remembered::<bool>::new("prompt.layer.delete");
+        skip.store(&host, &true);
+        other.store(&host, &Blur::default());
+        Remembered::<bool>::forget_prefix(&host, "prompt.");
+        assert_eq!(skip.recall(&host), None);
+        assert_eq!(other.recall(&host), Some(Blur::default()));
     }
 
     #[test]
@@ -131,17 +139,5 @@ mod tests {
         let host = host();
         Remembered::<bool>::new("filter.gaussianBlur").store(&host, &true);
         assert_eq!(Remembered::<Blur>::new("filter.gaussianBlur").recall(&host), None);
-    }
-
-    #[test]
-    fn forget_prefix_removes_only_the_matching_scopes() {
-        let host = host();
-        let skip = Remembered::<bool>::new("prompt.layer.delete");
-        let blur = Remembered::<Blur>::new("filter.gaussianBlur");
-        skip.store(&host, &true);
-        blur.store(&host, &Blur::default());
-        Remembered::<bool>::forget_prefix(&host, "prompt.");
-        assert_eq!(skip.recall(&host), None);
-        assert_eq!(blur.recall(&host), Some(Blur::default()));
     }
 }

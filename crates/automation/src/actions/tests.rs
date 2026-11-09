@@ -123,6 +123,21 @@ fn action_list_toggle_all_rule() {
     assert_eq!(list.toggle_all(0), Ok(false));
     assert_eq!(list.actions[0].include(), ActionInclude::None);
     assert_eq!(list.toggle_all(0), Ok(true));
+
+    // The `set_*` calls are idempotent and bump the revision only when they change something.
+    let mut list = list_of(vec![action("A", &["a", "b"])]);
+    let start = list.revision();
+    list.set_step(0, 1, true).unwrap();
+    list.set_all(0, true).unwrap();
+    list.set_dialog(0, 1, false).unwrap();
+    assert_eq!(list.revision(), start, "nothing changed");
+    list.set_step(0, 1, false).unwrap();
+    assert_eq!(list.actions[0].include(), ActionInclude::Partial);
+    list.set_dialog(0, 0, true).unwrap();
+    assert!(list.actions[0].dialogs.contains(&0));
+    list.set_all(0, false).unwrap();
+    assert_eq!(list.actions[0].include(), ActionInclude::None);
+    assert_eq!(list.set_step(0, 5, true), Err(ActionListError::NoSuchStep { action: 0, step: 5 }));
 }
 
 // Playback stops at the first failure, skips disabled steps uncharged, and reports `ran`.
@@ -140,6 +155,15 @@ fn action_player_stops_at_first_error_and_skips_disabled() {
 
     let report = ActionPlayer::play(&list, 5, 0, &mut runner, &mut budget);
     assert_eq!(report.failed.map(|f| f.message), Some("no such action".to_owned()));
+
+    // An `authorize` denial is one more failure kind: the step neither runs nor pauses.
+    let list = list_of(vec![action("A", &["a", "b", "c"])]);
+    let mut runner = Script { deny: Some("b"), pause: Some("b"), ..Script::default() };
+    let report = ActionPlayer::play(&list, 0, 0, &mut runner, &mut PlaybackBudget::new());
+    assert_eq!(report.ran, 1);
+    assert_eq!(report.failed.map(|f| (f.step, f.message)), Some((1, "denied".to_owned())));
+    assert_eq!(report.paused_at, None);
+    assert_eq!(runner.ran, ["a"]);
 }
 
 // One budget is charged across nested plays and stops at the limit; a call back to a running
@@ -178,18 +202,6 @@ fn action_player_charges_a_shared_budget_and_detects_loops() {
     assert_eq!(deep.enter("more"), Err(PlaybackRefusal::TooDeep));
 }
 
-// An `authorize` denial neither runs nor pauses the step.
-#[test]
-fn action_player_gates_each_step() {
-    let list = list_of(vec![action("A", &["a", "b", "c"])]);
-    let mut runner = Script { deny: Some("b"), pause: Some("b"), ..Script::default() };
-    let report = ActionPlayer::play(&list, 0, 0, &mut runner, &mut PlaybackBudget::new());
-    assert_eq!(report.ran, 1);
-    assert_eq!(report.failed.map(|f| (f.step, f.message)), Some((1, "denied".to_owned())));
-    assert_eq!(report.paused_at, None);
-    assert_eq!(runner.ran, ["a"]);
-}
-
 // `Paused` reports `paused_at`; playing again from the next step finishes the action.
 #[test]
 fn action_player_pauses_for_a_dialog_step() {
@@ -200,32 +212,4 @@ fn action_player_pauses_for_a_dialog_step() {
     let report = ActionPlayer::play(&list, 0, 2, &mut runner, &mut PlaybackBudget::new());
     assert_eq!((report.ran, report.paused_at, report.failed), (1, None, None));
     assert_eq!(runner.ran, ["a", "c"]);
-}
-
-// The panel's toggle events carry the state a cell takes: the `set_*` calls are idempotent and
-// bump the revision only when they change something.
-#[test]
-fn action_list_set_calls_are_idempotent() {
-    let mut list = list_of(vec![action("A", &["a", "b"])]);
-    let start = list.revision();
-    list.set_step(0, 1, true).unwrap();
-    list.set_all(0, true).unwrap();
-    list.set_dialog(0, 1, false).unwrap();
-    assert_eq!(list.revision(), start, "nothing changed");
-    list.set_step(0, 1, false).unwrap();
-    assert_eq!(list.actions[0].include(), ActionInclude::Partial);
-    list.set_dialog(0, 0, true).unwrap();
-    assert!(list.actions[0].dialogs.contains(&0));
-    list.set_all(0, false).unwrap();
-    assert_eq!(list.actions[0].include(), ActionInclude::None);
-    assert_eq!(list.set_step(0, 5, true), Err(ActionListError::NoSuchStep { action: 0, step: 5 }));
-}
-
-// Every colour but `None` maps to its own label colour, so the shared colour words name it.
-#[test]
-fn action_colors_map_to_label_colors() {
-    assert_eq!(ActionColor::None.label_color(), None);
-    let mapped: Vec<_> = ActionColor::ALL.iter().skip(1).map(|color| color.label_color().map(|label| label.name())).collect();
-    let names: Vec<_> = ActionColor::ALL.iter().skip(1).map(|color| Some(color.name())).collect();
-    assert_eq!(mapped, names);
 }

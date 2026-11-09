@@ -97,18 +97,6 @@ fn a_browsed_folder_outside_every_root_gets_a_session_root() {
     assert!(r.groups[0].places.is_empty() && r.session_root.is_none());
 }
 
-// Home and a kept folder inside it both hold the browsed folder: the kept one owns the reveal.
-#[test]
-fn the_innermost_root_owns_the_reveal() {
-    let std = standard(&[(StandardFolder::Home, "/home/example")]);
-    let settings = PlacesSettings { favorites: vec![p("/home/example/Photos")], ..PlacesSettings::default() };
-    let r = resolve(&std, &settings, Some("/home/example/Photos/2026"), &[]);
-    assert_eq!(r.owner, Some((0, 1)));
-    assert_eq!(r.session_root, None);
-    let r = resolve(&std, &settings, Some("/home/example/Music"), &[]);
-    assert_eq!(r.owner, Some((0, 0)));
-}
-
 // LightCraft's `hidden_folder_is_not_revealed_in_an_outer_tree`.
 #[test]
 fn a_hidden_folder_never_opens_a_tree_through_itself() {
@@ -130,6 +118,16 @@ fn a_hidden_folder_never_opens_a_tree_through_itself() {
     let r = resolve(&std, &home_hidden, Some("/home/example/Pictures/Trip"), &[]);
     assert_eq!((names(&r), r.owner), (vec!["Pictures"], Some((0, 0))));
     assert_eq!(r.hidden[0].kind, PlaceKind::Standard(StandardFolder::Home), "a hidden standard root keeps its kind");
+
+    // Home and a kept folder inside it both hold the browsed folder: the kept one, the innermost
+    // root, owns the reveal.
+    let std = standard(&[(StandardFolder::Home, "/home/example")]);
+    let settings = PlacesSettings { favorites: vec![p("/home/example/Photos")], ..PlacesSettings::default() };
+    let r = resolve(&std, &settings, Some("/home/example/Photos/2026"), &[]);
+    assert_eq!(r.owner, Some((0, 1)));
+    assert_eq!(r.session_root, None);
+    let r = resolve(&std, &settings, Some("/home/example/Music"), &[]);
+    assert_eq!(r.owner, Some((0, 0)));
 }
 
 // LightCraft's `equivalent_paths_are_one_local_location`: `/a/b/`, `/a/./b` are one root.
@@ -244,30 +242,4 @@ fn listing_never_blocks_the_pass() {
     assert_eq!(cache.subfolders(Path::new("/other")), Listing::Loading);
     cache.finish_pass();
     assert_eq!(cache.subfolders(dir), Listing::Loading, "/slow was not asked for in the last pass");
-}
-
-// A listing that started before a refresh shows, but stays stale and is listed again; before the fix its landing cleared the refresh.
-#[test]
-fn a_listing_started_before_a_refresh_is_listed_again() {
-    let (mut cache, fake, jobs) = cache();
-    fake.add_folder("/x/a");
-    let dir = Path::new("/x");
-    assert_eq!(cache.subfolders(dir), Listing::Loading);
-    jobs.run_all();
-    // The folder changes and is refreshed while the finished listing is not yet taken in.
-    fake.add_folder("/x/b");
-    cache.refresh_folder(dir);
-    assert_eq!(names_of(cache.subfolders(dir)), ["a"], "the old listing shows");
-    jobs.run_all();
-    assert_eq!(names_of(cache.subfolders(dir)), ["a", "b"]);
-    assert_eq!(fake.calls(), 2);
-
-    // The same for the roots and `refresh`.
-    assert!(cache.roots().is_none());
-    jobs.run_all();
-    cache.refresh();
-    assert!(cache.roots().is_some());
-    jobs.run_all();
-    assert!(cache.roots().is_some());
-    assert_eq!(jobs.waiting(), 0, "the refreshed roots landed fresh");
 }

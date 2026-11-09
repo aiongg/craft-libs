@@ -38,10 +38,7 @@ fn mention_query_and_matches() {
     assert_eq!(mention_matches(&people, "mar", "Me"), ["Ana María", "Mario Ruiz"], "a word of the name, any case");
     assert_eq!(mention_matches(&people, "m", "Me"), ["Ana María", "Mario Ruiz"], "never me");
     assert_eq!(mention_matches(&people, "", "Me").len(), 6, "six rows at most");
-}
 
-#[trial]
-fn insert_mention_returns_the_cursor() {
     let mut text = "ça @An now".to_owned();
     let cursor = insert_mention(&mut text, (4, 7), "Ana María");
     assert_eq!(text, "ça @Ana María  now");
@@ -158,19 +155,13 @@ fn escape_closes_the_mention_list_before_the_popover() {
     fx.settle();
     assert!(app.borrow().closed);
     assert_eq!(app.borrow().draft, "hi @bo", "the draft stays");
-}
 
-#[trial]
-fn clicking_a_suggestion_completes_the_mention() {
+    // The close button closes the popover.
     let (mut fx, app) = popover("Ana María");
-    focus_reply(&mut fx);
-    fx.type_text("hi @an");
+    let close = fx.by_label("Close").expect("Close");
+    fx.click(&close);
     fx.settle();
-    let row = fx.by_role(Role::LIST_BOX_OPTION).into_iter().find(|row| fx.tree().name_of(row.node) == Some("Ana María")).expect("the suggestion");
-    fx.click(&row);
-    fx.settle();
-    assert_eq!(app.borrow().draft, "hi @Ana María ");
-    assert!(!app.borrow().closed);
+    assert!(app.borrow().closed);
 }
 
 #[trial]
@@ -204,10 +195,18 @@ fn popover_completes_mentions_replies_and_resolves() {
     fx.key(Key::Enter, Modifiers::NONE);
     fx.settle();
     assert_eq!(app.borrow().draft, "hi @Bo ");
+    // A click on a suggestion completes a mention too.
+    fx.type_text("@an");
+    fx.settle();
+    let row = fx.by_role(Role::LIST_BOX_OPTION).into_iter().find(|row| fx.tree().name_of(row.node) == Some("Ana María")).expect("the suggestion");
+    fx.click(&row);
+    fx.settle();
+    assert_eq!(app.borrow().draft, "hi @Bo @Ana María ");
+    assert!(!app.borrow().closed);
     let post = fx.by_label("Post").expect("Post");
     fx.click(&post);
     fx.settle();
-    assert!(matches!(app.borrow().edits.as_slice(), [CommentEdit::Reply { thread: ThreadId(7), text, .. }] if text == "hi @Bo"));
+    assert!(matches!(app.borrow().edits.as_slice(), [CommentEdit::Reply { thread: ThreadId(7), text, .. }] if text == "hi @Bo @Ana María"));
 
     app.borrow_mut().edits.clear();
     let resolve = fx.by_label("Resolve").expect("Resolve");
@@ -273,11 +272,8 @@ fn pins_open_drag_and_cluster() {
     fx.settle();
     let moves = app.borrow().moves.clone();
     assert!(matches!(moves.last(), Some(PinMove { thread, to, .. }) if *thread == ThreadId(2) && to.x > start.x), "{moves:?}");
-}
 
-/// While your own pin is dragged it follows the pointer, before the drop.
-#[trial]
-fn your_pin_follows_the_pointer_while_dragged() {
+    // While your own pin is dragged it follows the pointer, before the drop.
     let (mut fx, _) = pins(vec![(ThreadId(2), pos2(100.0, 100.0), "Me")]);
     let own = fx.by_label("Comment by Me: Check the margin").expect("own pin");
     let left = |fx: &Fixture| fx.texts().iter().map(|run| run.rect.min.x).fold(f32::INFINITY, f32::min);
@@ -301,14 +297,4 @@ fn a_message_keeps_its_line_breaks() {
     let first = fx.by_label("first").expect("the first line");
     let second = fx.by_label("second").expect("the second line");
     assert!(second.center().y > first.rect.max.y, "the second line is below the first");
-}
-
-/// The close button closes the popover.
-#[trial]
-fn the_close_button_closes_the_popover() {
-    let (mut fx, app) = popover("Ana María");
-    let close = fx.by_label("Close").expect("Close");
-    fx.click(&close);
-    fx.settle();
-    assert!(app.borrow().closed);
 }

@@ -110,6 +110,13 @@ fn the_tree_reveals_the_browsed_folder_once_and_collapse_sticks() {
     assert!(!rows(&fixture).iter().any(|row| row == "Trip"), "Photos is closed");
     settle(&mut fixture, &state);
     assert!(!rows(&fixture).iter().any(|row| row == "2024"), "the reveal does not open it again");
+
+    // A `current` spelled differently from the listing's (`..`, a trailing slash) opens the same rows.
+    let (fixture, _state) = rig(Some("/home/u/Docs/../Photos/2024/Trip/"), home());
+    let shown = rows(&fixture);
+    for name in ["Photos", "2024", "Trip"] {
+        assert!(shown.iter().any(|row| row == name), "{name} is shown: {shown:?}");
+    }
 }
 
 /// A click on a folder row reports `Open`, and Enter on the lead does too.
@@ -186,16 +193,6 @@ fn the_selection_follows_current_only_when_it_changes() {
     fixture.key(Key::Enter, Modifiers::NONE);
     settle(&mut fixture, &state);
     assert_eq!(state.borrow().events, vec![PlacesEvent::Open(path("/home/u/Photos/2025"))], "a new `current` moves the selection to its row");
-}
-
-/// A `current` spelled differently from the listing's still opens the rows on its way.
-#[trial]
-fn reveal_matches_folders_by_their_key_not_their_spelling() {
-    let (fixture, _state) = rig(Some("/home/u/Docs/../Photos/2024/Trip/"), home());
-    let shown = rows(&fixture);
-    for name in ["Photos", "2024", "Trip"] {
-        assert!(shown.iter().any(|row| row == name), "{name} is shown: {shown:?}");
-    }
 }
 
 /// The host's folder menu rows come after the library's and report their command with the folder.

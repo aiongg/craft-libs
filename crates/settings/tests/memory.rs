@@ -63,11 +63,8 @@ fn memory_location_reads_and_writes_nothing() {
     assert_eq!(report.rule, "in memory only");
     exercise(&mut store);
     assert_untouched(tmp.path());
-}
 
-#[test]
-fn memory_ignores_legacy_files() {
-    let tmp = tempfile::tempdir().unwrap();
+    // Legacy files are not imported either.
     let old = tmp.path().join("prefs.json");
     std::fs::write(&old, "{}").unwrap();
     let files = vec![craft_settings::LegacyFile { path: old, parse: |_| Ok(Prefs::default()) }];

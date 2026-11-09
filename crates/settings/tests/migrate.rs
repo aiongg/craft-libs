@@ -65,7 +65,16 @@ fn legacy_file_is_imported_on_first_run_and_left_in_place() {
     let old = tmp.path().join("prefs.json");
     std::fs::write(&old, r#"{"lang":"de","dark":true}"#).unwrap();
 
-    let (mut store, report) = open_with_legacy(tmp.path(), vec![LegacyFile { path: old.clone(), parse: parse_legacy_json }]);
+    // Files ahead of the good one are skipped: a missing one and one that does not parse.
+    let missing = tmp.path().join("nope.json");
+    let bad = tmp.path().join("bad.json");
+    std::fs::write(&bad, [0xff, 0xfe]).unwrap();
+    let files = vec![
+        LegacyFile { path: missing, parse: parse_legacy_json },
+        LegacyFile { path: bad, parse: parse_legacy_json },
+        LegacyFile { path: old.clone(), parse: parse_legacy_json },
+    ];
+    let (mut store, report) = open_with_legacy(tmp.path(), files);
     assert_eq!(report.source, Source::Legacy(old.clone()));
     assert_eq!(store.get().general.language, "de");
     assert_eq!(store.get().appearance.theme, Theme::Dark);
@@ -86,22 +95,4 @@ fn legacy_import_is_skipped_once_config_exists() {
     let (store, report) = open_with_legacy(tmp.path(), vec![LegacyFile { path: old, parse: parse_legacy_json }]);
     assert_eq!(report.source, Source::File);
     assert_eq!(store.get().general.language, "it");
-}
-
-#[test]
-fn first_legacy_file_that_parses_wins() {
-    let tmp = tempfile::tempdir().unwrap();
-    let missing = tmp.path().join("nope.json");
-    let bad = tmp.path().join("bad.json");
-    std::fs::write(&bad, [0xff, 0xfe]).unwrap();
-    let good = tmp.path().join("good.json");
-    std::fs::write(&good, r#"{"lang":"nl"}"#).unwrap();
-    let files = vec![
-        LegacyFile { path: missing, parse: parse_legacy_json },
-        LegacyFile { path: bad, parse: parse_legacy_json },
-        LegacyFile { path: good.clone(), parse: parse_legacy_json },
-    ];
-    let (store, report) = open_with_legacy(tmp.path(), files);
-    assert_eq!(report.source, Source::Legacy(good));
-    assert_eq!(store.get().general.language, "nl");
 }

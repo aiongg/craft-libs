@@ -66,8 +66,8 @@ fn ready() -> RenderState {
     RenderState::Ready
 }
 
-/// Two panes over one view stay in step: a drag through the first pans the view the second draws, once a zoom
-/// leaves the picture larger than the pane.
+/// Two panes over one view stay in step: a double click toggles Fit and 1:1, and a drag through the
+/// first pans the view the second draws, once a zoom leaves the picture larger than the pane.
 #[trial]
 fn compare_tiles_share_zoom_and_pan() {
     let (mut fixture, seen) = pair(640.0, ready);
@@ -78,6 +78,11 @@ fn compare_tiles_share_zoom_and_pan() {
     fixture.settle();
     let zoomed = seen.borrow().view.clone();
     assert!(!zoomed.fit, "a double click shows 1:1");
+    assert!(seen.borrow().double_clicked[0], "the pane reports the double click");
+    let actual = CompareTile::toggle_zoom(&PreviewView::fitting());
+    assert!(!actual.fit);
+    assert_eq!(actual.transform.scale, CompareTile::ONE_TO_ONE.scale, "one device pixel per image pixel");
+    assert!(CompareTile::toggle_zoom(&actual).fit, "the next double click fits again");
     // The drag starts away from the double click, so it is a first press and not a third.
     let from = select.center() + offset(PAN_START, 0.0);
     fixture.frame(vec![pointer::moved(from)]);
@@ -92,24 +97,6 @@ fn compare_tiles_share_zoom_and_pan() {
     assert_eq!(fixture.by_label("Candidate").map(|pane| pane.rect.size()), fixture.by_label("Select").map(|pane| pane.rect.size()));
 }
 
-/// A double click toggles Fit and 1:1.
-#[trial]
-fn double_click_toggles_fit_and_one_to_one() {
-    let fitted = PreviewView::fitting();
-    let actual = CompareTile::toggle_zoom(&fitted);
-    assert!(!actual.fit);
-    assert_eq!(actual.transform.scale, CompareTile::ONE_TO_ONE.scale, "one device pixel per image pixel");
-    assert!(CompareTile::toggle_zoom(&actual).fit, "the next double click fits again");
-
-    let (mut fixture, seen) = pair(640.0, ready);
-    let select = fixture.by_label("Select").expect("the Select pane is shown");
-    fixture.click(&select);
-    fixture.click(&select);
-    fixture.settle();
-    assert!(seen.borrow().double_clicked[0], "the pane reports the double click");
-    assert!(!seen.borrow().view.fit, "a double click on a fitted pane shows 1:1");
-}
-
 /// The file name leaves the caption when the tile is too narrow for it.
 #[trial]
 fn the_caption_drops_the_name_when_narrow() {
@@ -120,18 +107,23 @@ fn the_caption_drops_the_name_when_narrow() {
     assert!(!named(&narrow), "a narrow tile drops it");
 }
 
-/// An overdue render and a failed one say so; a render still within the host's wait shows nothing.
+/// An overdue render and a failed one show a pill; a render still within the host's wait shows
+/// nothing more than a ready one.
 #[trial]
 fn the_pills_follow_the_render_state() {
-    let said = |state: fn() -> RenderState, text: &str| {
+    let descriptions = |state: fn() -> RenderState| {
         let (fixture, _) = pair(640.0, state);
         let tree = fixture.tree();
-        tree.keys().into_iter().any(|key| tree.description_of(key).is_some_and(|description| description.contains(text)))
+        let mut all: Vec<String> = tree.keys().into_iter().filter_map(|key| tree.description_of(key).map(str::to_owned)).collect();
+        all.sort();
+        all
     };
-    assert!(said(|| RenderState::Pending(true), "Rendering"));
-    assert!(said(|| RenderState::Failed("The renderer stopped".into()), "The renderer stopped"));
-    assert!(!said(|| RenderState::Pending(false), "Rendering"));
-    assert!(!said(ready, "Rendering"));
+    let ready = descriptions(ready);
+    assert_ne!(descriptions(|| RenderState::Pending(true)), ready, "an overdue render says so");
+    let failed = descriptions(|| RenderState::Failed("The renderer stopped".into()));
+    assert_ne!(failed, ready, "a failed render says so");
+    assert!(failed.iter().any(|text| text.contains("The renderer stopped")), "the failure reason is shown");
+    assert_eq!(descriptions(|| RenderState::Pending(false)), ready, "a render within the wait shows nothing");
 }
 
 /// Survey columns maximise the tile for 3:2 pictures.
@@ -143,12 +135,9 @@ fn survey_columns_maximise_the_tile() {
     assert_eq!(survey_columns(1, wide, ASPECT), 1);
     assert!(survey_columns(6, wide, ASPECT) > survey_columns(6, tall, ASPECT), "a wide area takes more columns than a tall one");
     assert_eq!(survey_columns(0, wide, ASPECT), 1, "no tiles still gives one column");
-}
 
-/// A two-row survey puts tile 0 at the top left, and at the top right in a right-to-left interface.
-#[trial]
-fn survey_cells_mirror_in_a_right_to_left_interface() {
-    const ASPECT: f32 = 1.5;
+    // A two-row survey puts tile 0 at the top left, and at the top right in a right-to-left
+    // interface.
     let area = Rect::from_min_size(pos2(10.0, 20.0), offset(400.0, 600.0));
     assert_eq!(survey_columns(2, area, ASPECT), 1, "a tall area stacks two tiles in two rows");
     let (first, second) = (survey_cell(2, 0, area, ASPECT, false), survey_cell(2, 1, area, ASPECT, false));
@@ -156,9 +145,7 @@ fn survey_cells_mirror_in_a_right_to_left_interface() {
     let mirrored = survey_cell(2, 0, area, ASPECT, true);
     assert_eq!(mirrored.max.x, area.max.x, "tile 0 sits at the right edge when reading right to left");
     assert_eq!(mirrored.min.y, area.min.y);
-    let wide = Rect::from_min_size(pos2(0.0, 0.0), offset(900.0, 300.0));
-    let columns = survey_columns(4, wide, ASPECT);
-    assert!(columns > 1);
+    assert!(survey_columns(4, wide, ASPECT) > 1);
     assert_eq!(survey_cell(4, 0, wide, ASPECT, true).max.x, wide.max.x);
     assert!(
         survey_cell(4, 1, wide, ASPECT, true).max.x < survey_cell(4, 0, wide, ASPECT, true).min.x + 0.01,

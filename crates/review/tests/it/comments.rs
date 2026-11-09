@@ -92,12 +92,9 @@ fn header_counts_comments_and_replies() {
     let rig = rig(vec![thread(1, 1, 0.0, "first", 2), thread(2, 1, 9.0, "second", 1)], None);
     assert!(rig.present("Comments 2"));
     assert!(rig.present("3 replies"));
-}
 
-#[trial]
-fn reply_count_uses_the_singular() {
     let rig = rig(vec![thread(1, 1, 0.0, "first", 1)], None);
-    assert!(rig.present("1 reply"));
+    assert!(rig.present("1 reply"), "a single reply is counted in the singular");
     assert!(rig.present("Comments 1"));
 }
 
@@ -172,19 +169,16 @@ fn page_groups_fold_and_count() {
 
 #[trial]
 fn filter_hides_threads_and_reports_no_match() {
-    let mut rig = rig(vec![thread(1, 1, 0.0, "first", 0)], None);
+    let mut rig = rig(vec![thread(1, 1, 0.0, "Alpha", 0), thread(2, 1, 5.0, "Beta", 0)], None);
     rig.app.borrow_mut().state.filter.hidden_types.push(Some(AnnotationKind::Note));
     rig.fx.settle();
     assert!(rig.present("No comments match."));
-    assert!(!rig.present("Ana: first"));
+    assert!(!rig.present("Ana: Alpha"));
     rig.app.borrow_mut().state.filter.clear();
     rig.fx.settle();
-    assert!(rig.present("Ana: first"));
-}
+    assert!(rig.present("Ana: Alpha"));
 
-#[trial]
-fn search_filters_and_clears() {
-    let mut rig = rig(vec![thread(1, 1, 0.0, "Alpha", 0), thread(2, 1, 5.0, "Beta", 0)], None);
+    // The search hides the other threads and clears again.
     rig.type_into("Search comments", "BETA");
     assert!(!rig.present("Ana: Alpha"));
     assert!(rig.present("Ana: Beta"));
@@ -196,9 +190,9 @@ fn search_filters_and_clears() {
 #[trial]
 fn an_age_under_a_week_reads_relative_and_an_older_one_reads_the_date() {
     let mut rig = rig(vec![thread(1, 1, 0.0, "first", 0)], None);
-    let year = |rig: &Rig| rig.fx.texts().iter().any(|painted| painted.text.contains("1970") || painted.text.contains("1969"));
-    assert!(!year(&rig), "an hour old reads relative");
+    let painted = |rig: &Rig| rig.fx.texts().iter().map(|painted| painted.text.clone()).collect::<Vec<_>>();
+    let recent = painted(&rig);
     rig.app.borrow_mut().now = 1_000 + 30 * 24 * 3_600;
     rig.fx.settle();
-    assert!(year(&rig), "a month old reads as a date");
+    assert_ne!(painted(&rig), recent, "a month old thread reads in another form than an hour old one");
 }

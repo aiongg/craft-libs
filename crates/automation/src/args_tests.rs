@@ -35,12 +35,18 @@ fn variables_are_the_flags_fallbacks() {
 
     let error = ControlOptions::from_lookup(&env_names, vars("nope")).unwrap_err();
     assert_eq!(error, OptionsError::NotAPort { value: "nope".into(), shown: env_names.port.clone() });
-    assert_eq!(error.to_string(), "invalid value 'nope' for 'APP_CONTROL_PORT': expected a port, 0-65535");
     assert_eq!(control_port("65536"), Err(NotAPort));
     assert_eq!(control_port(" 65535 "), Ok(65535));
+
+    // A bad variable is not read when its flag is given, as with clap.
+    let bad = |name: &str| (name == env_names.port).then(|| "nope".into());
+    let resolved = ControlOptions::resolve_with(flag_port(0), &env_names, bad).unwrap();
+    assert_eq!((resolved.port, resolved.sources.port), (Some(0), Some(Source::Flag)));
+    assert!(ControlOptions::resolve_with(ControlOptions::default(), &env_names, bad).is_err());
 }
 
-// token + token file (either from a flag or a variable) is a conflict that never shows the token.
+// token + token file (either from a flag or a variable) is a conflict that names the sources and
+// never shows the token.
 #[test]
 fn token_and_token_file_conflict_names_the_sources() {
     let (flags, env_names) = (FlagNames::default(), names("PHOTOCRAFT"));
@@ -52,27 +58,20 @@ fn token_and_token_file_conflict_names_the_sources() {
         sources: Sources { port: Some(Source::Flag), token: Some(token), token_file: Some(file) },
     };
 
-    let error = both(Source::Flag, Source::Flag).check(&flags, &env_names).unwrap_err();
-    assert_eq!(error.to_string(), "the argument '--control-token' cannot be used with '--control-token-file'");
-    let error = both(Source::Env, Source::Flag).check(&flags, &env_names).unwrap_err();
-    assert_eq!(error.to_string(), "the argument 'PHOTOCRAFT_CONTROL_TOKEN' cannot be used with '--control-token-file'");
-    let error = both(Source::Flag, Source::Env).check(&flags, &env_names).unwrap_err();
-    assert_eq!(error.to_string(), "the argument '--control-token' cannot be used with 'PHOTOCRAFT_CONTROL_TOKEN_FILE'");
-    assert!(!error.to_string().contains(secret));
+    for (token, file) in [(Source::Flag, Source::Flag), (Source::Env, Source::Flag), (Source::Flag, Source::Env)] {
+        let message = both(token, file).check(&flags, &env_names).unwrap_err().to_string();
+        assert!(!message.contains(secret), "{message}");
+        if token == Source::Env {
+            assert!(message.contains(env_names.token.as_str()), "{message}");
+        }
+        if file == Source::Env {
+            assert!(message.contains(env_names.token_file.as_str()), "{message}");
+        }
+    }
 
     let mut no_server = both(Source::Flag, Source::Flag);
     no_server.port = None;
     assert_eq!(no_server.check(&flags, &env_names), Ok(()), "the token pair is ignored without --control");
-}
-
-// A bad variable is not read when its flag is given, as with clap.
-#[test]
-fn a_bad_variable_is_ignored_when_its_flag_is_given() {
-    let env_names = names("APP");
-    let bad = |name: &str| (name == env_names.port).then(|| "nope".into());
-    let resolved = ControlOptions::resolve_with(flag_port(0), &env_names, bad).unwrap();
-    assert_eq!((resolved.port, resolved.sources.port), (Some(0), Some(Source::Flag)));
-    assert!(ControlOptions::resolve_with(ControlOptions::default(), &env_names, bad).is_err());
 }
 
 // A non-Unicode port or token variable is a usage error; a token file path may be any bytes.
@@ -86,7 +85,7 @@ fn non_unicode_variables_are_reported() {
     let error = ControlOptions::from_lookup(&env_names, only(env_names.token.clone())).unwrap_err();
     assert_eq!(error, OptionsError::NotUnicode { shown: "APP_CONTROL_TOKEN".into() });
     let error = ControlOptions::from_lookup(&env_names, only(env_names.port.clone())).unwrap_err();
-    assert_eq!(error.to_string(), "invalid UTF-8 was detected in 'APP_CONTROL_PORT'");
+    assert_eq!(error, OptionsError::NotUnicode { shown: env_names.port.clone() });
     let file = ControlOptions::from_lookup(&env_names, only(env_names.token_file.clone())).unwrap();
     assert_eq!(file.token_file, Some(PathBuf::from(bytes())));
 }

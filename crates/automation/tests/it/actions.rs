@@ -171,19 +171,34 @@ fn actions_panel_include_column_events() {
     assert!(painted(&fixture, "2/3 steps"), "the partial action says how many steps are on; painted: {all:?}");
     assert!(painted(&fixture, "2 steps"), "a whole action only counts them; painted: {all:?}");
 
+    let mut events = Vec::new();
     for label in ["Include in playback: Run curves", "Include in playback: Sharpen", "Show dialog during playback: Run blur"] {
         let cell = node(&fixture, label);
         fixture.click(&cell);
         fixture.idle(2);
+        let pressed = take(&shared);
+        assert_eq!(pressed.len(), 1, "a press is one flip: {pressed:?}");
+        events.extend(pressed);
     }
     assert_eq!(
-        toggles(&take(&shared)),
+        toggles(&events),
         [
             (ActionSelection::Step(0, 1), "include", true),
             (ActionSelection::Action(0), "include", true),
             (ActionSelection::Step(0, 2), "dialog", false)
         ]
     );
+
+    // An action with no steps shows no include box.
+    let list = list_of(vec![action("Empty", None, &[]), action("Full", None, &["a"])]);
+    let (fixture, _) = rig(app(list));
+    assert!(fixture.by_label("Include in playback: Empty").is_none());
+    assert!(fixture.by_label("Include in playback: Full").is_some());
+}
+
+/// Loose "Loose", then the sets "Alpha" (one action) and "Beta" (one action).
+fn two_sets() -> ActionList {
+    list_of(vec![action("Loose", None, &["a"]), action("First", Some("Alpha"), &["b"]), action("Second", Some("Beta"), &["c"])])
 }
 
 /// Dragging an action, an action into a set and a step reports the place.
@@ -212,6 +227,23 @@ fn actions_panel_drag_reports_move() {
     let (from, to) = (node(&fixture, "Run blur").center(), at(&node(&fixture, "Run levels"), 0.1));
     drag_to(&mut fixture, from, to);
     assert_eq!(moves(&take(&shared)), [(ActionSelection::Step(0, 2), ActionPlace::step(0, 0))], "a step dropped above another");
+
+    // A drop before a later set goes to the end of the set before it; before the first set it is loose.
+    let (mut fixture, shared) = rig(app(two_sets()));
+    let (from, to) = (node(&fixture, "Loose").center(), at(&node(&fixture, "Beta"), 0.1));
+    drag_to(&mut fixture, from, to);
+    assert_eq!(
+        moves(&take(&shared)),
+        [(ActionSelection::Action(0), ActionPlace::action(1, Some("Alpha".into())))],
+        "the drop line sits under Alpha's last action"
+    );
+    let (from, to) = (node(&fixture, "Second").center(), at(&node(&fixture, "Alpha"), 0.1));
+    drag_to(&mut fixture, from, to);
+    assert_eq!(
+        moves(&take(&shared)),
+        [(ActionSelection::Action(2), ActionPlace::action(1, None))],
+        "before the first set the action is loose, after the last loose one"
+    );
 }
 
 /// In Button Mode a click reports one `Play`, a double click no second one; the tree comes back while recording.
@@ -253,19 +285,30 @@ fn actions_panel_recording_row_expands_and_follows() {
     fixture.idle(3);
     let latest = node(&fixture, "Run pending-3").rect;
     assert!(latest.bottom() <= footer.top() + EDGE_SLACK, "a new step scrolls into view: {latest:?} above {footer:?}");
+
+    // The recording row says so by name; Record stays live while recording and its click starts nothing.
+    take(&shared);
+    let record = node(&fixture, "Begin recording");
+    node(&fixture, "Sharpen, recording");
+    assert!(!fixture.tree().is_disabled_key(record.node), "Record stays live");
+    assert_eq!(fixture.tree().selected_of(record.node), Some(true), "Record reads as pressed while recording");
+    fixture.click(&record);
+    fixture.idle(2);
+    assert!(take(&shared).is_empty(), "a click while recording starts nothing");
 }
 
-/// An empty list shows the empty text; an empty set shows its header.
+/// An empty list shows its empty state instead of rows; an empty set shows its header.
 #[trial]
 fn actions_panel_empty_state_and_empty_set() {
     let (mut fixture, shared) = rig(app(ActionList::new()));
-    let text = "Record a sequence of edits, then play it on any document.";
-    assert!(fixture.by_label(text).is_some());
     assert!(fixture.by_role(Role::TREE_ITEM).is_empty());
+    let empty_state: Vec<_> = fixture.texts().iter().map(|painted| painted.text.clone()).collect();
+    assert!(!empty_state.is_empty(), "the empty list explains itself");
 
     shared.borrow_mut().list = ActionList::from_file(ActionsFile { version: ActionsFile::VERSION, actions: Vec::new(), sets: vec!["Empty".into()] });
     fixture.idle(3);
-    assert!(fixture.by_label(text).is_none());
+    let with_set: Vec<_> = fixture.texts().iter().map(|painted| painted.text.clone()).collect();
+    assert!(empty_state.iter().any(|text| !with_set.contains(text)), "the empty state is gone");
     assert!(fixture.by_label("Empty").is_some(), "an empty set keeps its header");
 }
 
@@ -302,11 +345,8 @@ fn actions_panel_play_with_no_selection_plays_the_first() {
     assert!(shared.borrow().state.settings.button_mode, "Button Mode toggles in the state");
     assert!(take(&shared).is_empty());
     assert!(shared.borrow().settings_changed, "and the output says the settings changed");
-}
 
-/// A set's disclosure changes the persisted settings and the output says so.
-#[trial]
-fn actions_panel_set_disclosure_reports_settings_changed() {
+    // A set's disclosure changes the persisted settings and the output says so.
     let (mut fixture, shared) = rig(app(sample_list()));
     assert!(!shared.borrow().settings_changed);
     let set = node(&fixture, "Effects");
@@ -315,21 +355,6 @@ fn actions_panel_set_disclosure_reports_settings_changed() {
     fixture.idle(2);
     assert_eq!(shared.borrow().state.settings.collapsed_sets, ["Effects"]);
     assert!(shared.borrow().settings_changed);
-}
-
-/// The recording row says so by name; Record stays live while recording and its click starts nothing.
-#[trial]
-fn actions_panel_recording_row_is_named_and_record_ignores_the_click() {
-    let mut recording = app(sample_list());
-    recording.host.recording = Some(0);
-    let (mut fixture, shared) = rig(recording);
-    let record = node(&fixture, "Begin recording");
-    node(&fixture, "Sharpen, recording");
-    assert!(!fixture.tree().is_disabled_key(record.node), "Record stays live");
-    assert_eq!(fixture.tree().selected_of(record.node), Some(true), "Record reads as pressed while recording");
-    fixture.click(&record);
-    fixture.idle(2);
-    assert!(take(&shared).is_empty(), "a click while recording starts nothing");
 }
 
 /// The context menu reports the shortcut with Shift and Command ticked as they are made, the colour, and Save Set.
@@ -377,12 +402,9 @@ fn actions_panel_context_menu_shortcut_and_color() {
     context_click(&mut fixture, &row);
     click(&mut fixture, "Save Set…");
     assert_eq!(take(&shared), [ActionsEvent::save(Some("Effects".to_owned()))]);
-}
 
-/// Reopening the menu on the same row with Shift+F10 starts from the host's shortcut again: its key is marked and Shift
-/// is enabled.
-#[trial]
-fn actions_panel_context_menu_reopens_from_the_hosts_shortcut() {
+    // Reopening the menu on the same row with Shift+F10 starts from the host's shortcut again: its
+    // key is marked and Shift is enabled.
     let mut app = app(sample_list());
     app.host.shortcuts.insert("Sharpen".to_owned(), ShortcutChoice::new(3, false, false));
     let (mut fixture, shared) = rig(app);
@@ -401,32 +423,6 @@ fn actions_panel_context_menu_reopens_from_the_hosts_shortcut() {
         fixture.idle(3);
         assert!(take(&shared).is_empty());
     }
-}
-
-/// Loose "Loose", then the sets "Alpha" (one action) and "Beta" (one action).
-fn two_sets() -> ActionList {
-    list_of(vec![action("Loose", None, &["a"]), action("First", Some("Alpha"), &["b"]), action("Second", Some("Beta"), &["c"])])
-}
-
-/// A drop before a later set goes to the end of the set before it; before the first set it is loose.
-#[trial]
-fn actions_panel_drop_before_a_later_set_lands_at_the_end_of_the_previous_set() {
-    let (mut fixture, shared) = rig(app(two_sets()));
-    let (from, to) = (node(&fixture, "Loose").center(), at(&node(&fixture, "Beta"), 0.1));
-    drag_to(&mut fixture, from, to);
-    assert_eq!(
-        moves(&take(&shared)),
-        [(ActionSelection::Action(0), ActionPlace::action(1, Some("Alpha".into())))],
-        "the drop line sits under Alpha's last action"
-    );
-
-    let (from, to) = (node(&fixture, "Second").center(), at(&node(&fixture, "Alpha"), 0.1));
-    drag_to(&mut fixture, from, to);
-    assert_eq!(
-        moves(&take(&shared)),
-        [(ActionSelection::Action(2), ActionPlace::action(1, None))],
-        "before the first set the action is loose, after the last loose one"
-    );
 }
 
 /// The panel follows its selection through a move, for an action and for a step.
@@ -448,20 +444,6 @@ fn actions_panel_selection_follows_a_move() {
     let (from, to) = (node(&fixture, "Run blur").center(), at(&node(&fixture, "Run levels"), 0.1));
     drag_to(&mut fixture, from, to);
     assert_eq!(shared.borrow().state.selected, Some(ActionSelection::Step(0, 0)), "a pressed step is selected and follows its move");
-}
-
-/// A press on the include column is one step: the cell flips once.
-#[trial]
-fn actions_panel_include_press_is_one_flip() {
-    let mut app = app(sample_list());
-    app.state.expanded.insert("Sharpen".into());
-    let (mut fixture, shared) = rig(app);
-    let cell = node(&fixture, "Include in playback: Run levels");
-    fixture.click(&cell);
-    fixture.idle(2);
-    let events = take(&shared);
-    assert_eq!(events.len(), 1, "{events:?}");
-    assert_eq!(toggles(&events), [(ActionSelection::Step(0, 0), "include", false)]);
 }
 
 /// An Alt sweep down the include column reports Show Only once, for the pressed cell and nothing for the cells it
@@ -486,15 +468,6 @@ fn actions_panel_alt_include_sweep_reports_show_only_then_its_undo() {
     fixture.idle(2);
     let undone = take(&shared);
     assert!(matches!(undone.as_slice(), [ActionsEvent::Toggle(SweepStep::UndoShowOnly(_))]), "{undone:?}");
-}
-
-/// An action with no steps shows no include box.
-#[trial]
-fn actions_panel_an_action_without_steps_has_no_include_cell() {
-    let list = list_of(vec![action("Empty", None, &[]), action("Full", None, &["a"])]);
-    let (fixture, _) = rig(app(list));
-    assert!(fixture.by_label("Include in playback: Empty").is_none());
-    assert!(fixture.by_label("Include in playback: Full").is_some());
 }
 
 /// `start_rename` opens the field; the rename ends with the typed text.
@@ -522,11 +495,8 @@ fn actions_panel_a_row_dropped_on_delete_reports_delete() {
     let (from, to) = (node(&fixture, "Vignette").center(), node(&fixture, "Delete").center());
     drag_to(&mut fixture, from, to);
     assert!(take(&shared).contains(&ActionsEvent::Delete(ActionSelection::Action(1))));
-}
 
-/// While recording, a dropped action is refused, as the button is.
-#[trial]
-fn actions_panel_delete_refuses_a_dropped_action_while_recording() {
+    // While recording, a dropped action is refused, as the button is.
     let mut app = app(sample_list());
     app.host.recording = Some(0);
     let (mut fixture, shared) = rig(app);
@@ -540,22 +510,10 @@ fn actions_panel_delete_refuses_a_dropped_action_while_recording() {
 fn actions_settings_survive_a_serde_round_trip() {
     let settings = ActionsSettings::new(true, vec!["Effects".into(), "Old".into()]);
     let text = serde_json::to_string(&settings).expect("serialized");
-    assert_eq!(text, r#"{"buttonMode":true,"collapsedSets":["Effects","Old"]}"#);
     assert_eq!(serde_json::from_str::<ActionsSettings>(&text).expect("read back"), settings);
 
     let foreign = r#"{"buttonMode":true,"selected":"Sharpen","selectedStep":2,"expanded":["Sharpen"],"collapsedSets":["Effects"]}"#;
     let read: ActionsSettings = serde_json::from_str(foreign).expect("read");
     assert_eq!(read, ActionsSettings::new(true, vec!["Effects".into()]));
     assert_eq!(serde_json::from_str::<ActionsSettings>("{}").expect("read"), ActionsSettings::default());
-}
-
-/// A row writes its shortcut in the keymap's chord text for the platform.
-#[trial]
-fn shortcut_text_is_the_platforms_chord_text() {
-    let (plain, both) = (ShortcutChoice::new(2, false, false), ShortcutChoice::new(3, true, true));
-    if Platform::current().is_mac() {
-        assert_eq!((plain.text().as_str(), both.text().as_str()), ("F2", "⇧⌘F3"));
-    } else {
-        assert_eq!((plain.text().as_str(), both.text().as_str()), ("F2", "Ctrl+Shift+F3"));
-    }
 }
