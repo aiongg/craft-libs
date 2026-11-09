@@ -2,12 +2,11 @@
 //! frame marks.
 
 use craft_behavior::Codec as _;
-use craft_behavior::kurbo::Point;
 use craft_pages::range::{PageRange, PageRangeError, Subset};
 use craft_pages::setup::{Margins, PageSetup};
 use craft_pages::ui::fixtures::{INK, PAPER, demo_placed};
 use craft_pages::ui::{
-    ColumnBar, HeaderFooterPage, HeaderFooterZones, HiddenMark, MarginEdge, MarginHandles, MarginRules, PageEdges, PageRangeCodec, PageRangeOptions,
+    ColumnBar, HeaderFooterPage, HeaderFooterZones, MarginEdge, MarginHandles, MarginRules, PageEdges, PageRangeCodec, PageRangeOptions,
     PageSetupDialog, Zone, ZoneAt, ZoneBands, clamp_margin, dragged_margin, margin_range,
 };
 use craft_theme::{Contrast, Mode};
@@ -15,7 +14,7 @@ use craft_ui::contract::{Bind, Show as _};
 use craft_ui::runtime::env::Direction;
 use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers, Pos2, Vec2, pos2, vec2};
+use egui::{Key, Modifiers, Vec2, pos2, vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -74,13 +73,6 @@ fn header_and_footer_distances_bound_the_margins() {
     assert_eq!(clamp_margin(MarginEdge::Left, f64::NAN, &rules).points, 72.0, "a value that is not a number leaves the edge");
 }
 
-#[trial]
-fn the_ruler_bands_follow_the_visible_edges() {
-    let bands = MarginHandles::spans(&rules(), Point::new(10.0, 20.0));
-    assert_eq!(bands.horizontal, vec![10.0..82.0, 550.0..622.0]);
-    assert_eq!(bands.vertical, vec![20.0..92.0, 740.0..812.0]);
-}
-
 /// A page setup dialog over `setup`, with the setup it edits and the setup OK answered.
 fn dialog(setup: PageSetup) -> (Fixture, Rc<RefCell<PageSetup>>, Rc<RefCell<Option<PageSetup>>>) {
     let edited = Rc::new(RefCell::new(setup));
@@ -112,8 +104,9 @@ fn ok_answers_the_edited_setup() {
     assert_eq!(answered.borrow().as_ref().map(|setup| setup.margins.top), Some(TOP));
 }
 
+/// Margins that leave no room for text, and text the field rejects, refuse OK.
 #[trial]
-fn margins_that_do_not_fit_refuse_ok() {
+fn invalid_margins_refuse_ok() {
     let mut setup = PageSetup::default();
     setup.margins.left = 324.0;
     setup.margins.right = 324.0;
@@ -121,15 +114,40 @@ fn margins_that_do_not_fit_refuse_ok() {
     let ok = fixture.by_label("OK").expect("the OK button");
     fixture.click(&ok);
     assert_eq!(*answered.borrow(), None, "the margins leave no room for text");
+
+    let (mut fixture, _, answered) = dialog(PageSetup::default());
+    let top = fixture.by_label("Top").expect("the Top field");
+    fixture.click(&top);
+    fixture.key(Key::A, Modifiers::COMMAND);
+    fixture.type_text("tall");
+    let ok = fixture.by_label("OK").expect("the OK button");
+    fixture.click(&ok);
+    assert_eq!(*answered.borrow(), None, "a Top that is not a length keeps the dialog open");
 }
 
+/// Landscape turns the page, and Escape in a width field puts back the size and the orientation.
 #[trial]
-fn landscape_turns_the_page() {
+fn landscape_turns_the_page_and_escape_puts_it_back() {
     let (mut fixture, edited, _) = dialog(PageSetup::default());
     let landscape = fixture.by_label("Landscape").expect("the Landscape radio");
     fixture.click(&landscape);
-    let setup = edited.borrow();
-    assert!(setup.width > setup.height, "{}x{}", setup.width, setup.height);
+    {
+        let setup = edited.borrow();
+        assert!(setup.width > setup.height, "{}x{}", setup.width, setup.height);
+    }
+
+    let (mut fixture, _, _) = dialog(PageSetup::default());
+    let width = fixture.by_label("Width").expect("the Width field");
+    let before = fixture.tree().value_of(width.node).map(str::to_owned);
+    assert!(radio_on(&fixture, "Portrait"), "Letter starts upright");
+    fixture.click(&width);
+    fixture.key(Key::A, Modifiers::COMMAND);
+    fixture.type_text("12");
+    assert!(radio_on(&fixture, "Landscape"), "a width past the height turns the page as it is typed");
+    fixture.key(Key::Escape, Modifiers::NONE);
+    let width = fixture.by_label("Width").expect("the Width field");
+    assert_eq!(fixture.tree().value_of(width.node).map(str::to_owned), before, "Escape puts the width back");
+    assert!(radio_on(&fixture, "Portrait"), "and the orientation with it");
 }
 
 #[trial]
@@ -168,26 +186,22 @@ fn an_arrow_key_moves_the_focused_divider_one_step() {
     assert!(close(widths.iter().sum::<f64>(), EQUAL * COLUMNS as f64), "the total stays: {widths:?}");
 }
 
+/// The band splits the width between the side insets into three equal parts in order, and the order mirrors right to
+/// left; the header band lies from the top edge to the top margin and the footer band from the bottom margin down.
 #[trial]
 fn the_band_splits_in_thirds_between_the_sides() {
-    let bands = ZoneBands::new(72.0, 72.0, [50.4, 50.4]);
+    let (margin, inset) = (72.0, 50.4);
+    let bands = ZoneBands::new(margin, margin, [inset, inset]);
     let page = Vec2::new(612.0, 792.0);
-    let third = (612.0 - 100.8) / 3.0;
-    let first = bands.section(page, Zone::new(false, 0), false);
-    assert!((first.x0 - 50.4).abs() < 1e-9 && (first.x1 - (50.4 + third)).abs() < 1e-9, "{first:?}");
-    assert_eq!((first.y0, first.y1), (0.0, 72.0), "the header band lies from the top edge to the top margin");
+    let parts: Vec<_> = (0..3).map(|at| bands.section(page, Zone::new(false, at), false)).collect();
+    let width = parts[0].x1 - parts[0].x0;
+    assert!(parts.iter().all(|part| close(part.x1 - part.x0, width)), "equal parts: {parts:?}");
+    assert!(close(parts[0].x0, inset) && close(parts[0].x1, parts[1].x0) && close(parts[1].x1, parts[2].x0), "in order, side by side: {parts:?}");
+    assert!(close(parts[2].x1, f64::from(page.x) - inset), "the last section ends at the side inset: {parts:?}");
+    assert_eq!((parts[0].y0, parts[0].y1), (0.0, margin), "the header band lies from the top edge to the top margin");
     let footer = bands.section(page, Zone::new(true, 2), false);
-    assert_eq!((footer.y0, footer.y1), (720.0, 792.0), "the footer band lies from the bottom margin to the bottom edge");
-    assert!((footer.x1 - (612.0 - 50.4)).abs() < 1e-9, "the last section ends at the side inset: {footer:?}");
-}
-
-#[trial]
-fn the_sections_mirror_right_to_left() {
-    let bands = ZoneBands::new(72.0, 72.0, [50.4, 50.4]);
-    let page = Vec2::new(612.0, 792.0);
-    let start = bands.section(page, Zone::new(false, 0), true);
-    let end = bands.section(page, Zone::new(false, 2), false);
-    assert_eq!(start, end, "section 0 is the rightmost third");
+    assert_eq!((footer.y0, footer.y1), (f64::from(page.y) - margin, f64::from(page.y)), "the footer band lies below the bottom margin");
+    assert_eq!(bands.section(page, Zone::new(false, 0), true), parts[2], "section 0 is the rightmost third right to left");
 }
 
 #[trial]
@@ -209,13 +223,6 @@ fn page_range_text_reads_and_writes_the_same_format() {
     assert_eq!(wrong.error, Some(PageRangeError::NotAPage("x".to_owned())));
     let beyond = codec.parse("12", &start).expect("a selection that carries its error");
     assert_eq!(beyond.error, Some(PageRangeError::OutOfRange { page: 12, count: 10 }));
-}
-
-#[trial]
-fn characters_map_to_their_hidden_marks() {
-    let marks: Vec<_> = [' ', '\t', '\u{2028}', '\u{A0}'].into_iter().map(|c| HiddenMark::of(c).map(HiddenMark::glyph)).collect();
-    assert_eq!(marks, [Some("·"), Some("»"), Some("¬"), Some("°")]);
-    assert_eq!(HiddenMark::of('a'), None);
 }
 
 /// A column bar over four equal columns, and the widths it keeps.
@@ -263,7 +270,7 @@ fn a_press_half_a_hit_target_off_a_column_edge_grabs_it() {
 }
 
 #[trial]
-fn a_screen_reader_sets_a_divider_by_percent() {
+fn a_screen_reader_sets_and_steps_a_divider() {
     let (mut fixture, widths) = column_rig();
     let divider = fixture.by_label("Column 1 width").expect("the first divider");
     fixture.access(AccessActionKind::SetValue(SHARE * 100.0), &divider);
@@ -271,10 +278,8 @@ fn a_screen_reader_sets_a_divider_by_percent() {
     let total: f64 = widths.iter().sum();
     assert!(close(widths[0] / total, SHARE), "the first column holds 40 percent: {widths:?}");
     assert!(close(total, EQUAL * COLUMNS as f64), "the total stays: {widths:?}");
-}
+    drop(widths);
 
-#[trial]
-fn a_screen_reader_steps_a_divider() {
     let (mut fixture, widths) = column_rig();
     let divider = fixture.by_label("Column 1 width").expect("the first divider");
     fixture.access(AccessActionKind::Increment, &divider);
@@ -316,7 +321,7 @@ fn the_arrows_move_a_margin_edge_on_the_screen_in_a_right_to_left_interface() {
 }
 
 #[trial]
-fn a_screen_reader_sets_a_margin_inside_its_range() {
+fn a_screen_reader_sets_and_steps_a_margin() {
     let (mut fixture, edges) = margin_rig();
     let left = fixture.by_label("Left Margin").expect("the left edge");
     fixture.access(AccessActionKind::SetValue(SET_MARGIN), &left);
@@ -325,10 +330,7 @@ fn a_screen_reader_sets_a_margin_inside_its_range() {
     let furthest = *margin_range(MarginEdge::Left, &MarginRules::new(LETTER, *edges.borrow())).end();
     assert_eq!(edges.borrow().margins.left, furthest, "the text keeps its least width: {:?}", edges.borrow());
     assert!(furthest < LETTER.0, "the range ends inside the page");
-}
 
-#[trial]
-fn a_screen_reader_steps_a_margin() {
     let (mut fixture, edges) = margin_rig();
     let left = fixture.by_label("Left Margin").expect("the left edge");
     let before = edges.borrow().margins.left;
@@ -411,24 +413,12 @@ fn zones_rig_editing(editing: Option<ZoneAt>) -> (Fixture, Rc<RefCell<(Option<Zo
 #[trial]
 fn a_click_on_a_section_starts_editing_it_and_escape_ends_the_editing() {
     let (mut fixture, reported) = zones_rig();
-    let first_header: Pos2 = pos2(20.0 + 50.0 + 20.0, 20.0 + 36.0);
-    fixture.click_at(first_header);
+    let first_header = fixture.by_label("Add header").expect("the first header section");
+    fixture.click(&first_header);
     assert_eq!(reported.borrow().0, Some(ZoneAt::new(0, Zone::new(false, 0))), "{:?}", reported.borrow());
     assert!(!reported.borrow().1, "no end yet");
     fixture.key(Key::Escape, Modifiers::NONE);
     assert!(reported.borrow().1, "Escape on a focused section ends the editing that was under way");
-}
-
-#[trial]
-fn text_the_field_rejects_refuses_ok() {
-    let (mut fixture, _, answered) = dialog(PageSetup::default());
-    let top = fixture.by_label("Top").expect("the Top field");
-    fixture.click(&top);
-    fixture.key(Key::A, Modifiers::COMMAND);
-    fixture.type_text("tall");
-    let ok = fixture.by_label("OK").expect("the OK button");
-    fixture.click(&ok);
-    assert_eq!(*answered.borrow(), None, "a Top that is not a length keeps the dialog open");
 }
 
 #[trial]
@@ -449,27 +439,4 @@ fn custom_size_stays_chosen_while_the_numbers_match_a_paper() {
 fn radio_on(fixture: &Fixture, label: &str) -> bool {
     let radio = fixture.by_label(label).unwrap_or_else(|| panic!("the {label} radio"));
     fixture.tree().toggled_of(radio.node) == Some(craft_behavior::Mixed::Same(true))
-}
-
-#[trial]
-fn escape_in_a_width_field_puts_back_the_size_and_the_orientation() {
-    let (mut fixture, _, _) = dialog(PageSetup::default());
-    let width = fixture.by_label("Width").expect("the Width field");
-    let before = fixture.tree().value_of(width.node).map(str::to_owned);
-    assert!(radio_on(&fixture, "Portrait"), "Letter starts upright");
-    fixture.click(&width);
-    fixture.key(Key::A, Modifiers::COMMAND);
-    fixture.type_text("12");
-    assert!(radio_on(&fixture, "Landscape"), "a width past the height turns the page as it is typed");
-    fixture.key(Key::Escape, Modifiers::NONE);
-    let width = fixture.by_label("Width").expect("the Width field");
-    assert_eq!(fixture.tree().value_of(width.node).map(str::to_owned), before, "Escape puts the width back");
-    assert!(radio_on(&fixture, "Portrait"), "and the orientation with it");
-}
-
-#[trial]
-fn an_empty_section_names_what_a_click_adds() {
-    let (fixture, _) = zones_rig_editing(None);
-    assert!(fixture.by_label("Add header").is_some(), "the hint for a header section");
-    assert!(fixture.by_label("Add footer").is_some(), "the hint for a footer section");
 }

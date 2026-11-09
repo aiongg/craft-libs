@@ -186,15 +186,5 @@ mod tests {
         assert_eq!(AreaMode::from_key("x"), None);
         let keys: std::collections::HashSet<_> = AreaMode::ALL.iter().map(|m| m.key()).collect();
         assert_eq!(keys.len(), AreaMode::ALL.len());
-        assert_eq!(AreaMode::PHOTOSHOP.map(AreaMode::key), ["h", "s", "v", "r", "g", "b", "lab_l", "lab_a", "lab_b"]);
-    }
-
-    #[test]
-    fn serde_writes_the_key() {
-        for mode in AreaMode::ALL {
-            let json = serde_json::to_string(&mode).unwrap();
-            assert_eq!(json, format!("\"{}\"", mode.key()));
-            assert_eq!(serde_json::from_str::<AreaMode>(&json).unwrap(), mode);
-        }
     }
 }

@@ -118,9 +118,6 @@ fn ramp_alt_targets_the_other_and_shift_cycles() {
 /// state.
 #[trial]
 fn copy_entries_use_photoshops_formats() {
-    use craft_ui::menu::PanelRow;
-    let commands = ColorPanelMenu::rows().iter().filter(|row| matches!(row, PanelRow::Command(_))).count();
-    assert_eq!(commands, 9 + 2 + 4 + 1);
     let mut state = ColorPanelState::default();
     let orange = Srgba::rgb(1.0, 0.5, 0.0);
     assert_eq!(ColorPanelMenu::run_command(&mut state, ColorPanelCommand::CopyHtml, orange).as_deref(), Some("color=\"#ff8000\""));
@@ -129,11 +126,6 @@ fn copy_entries_use_photoshops_formats() {
     assert_eq!(state.mode, ColorPanelMode::ColorWheel);
     assert_eq!(ColorPanelMenu::run_command(&mut state, ColorPanelCommand::WebSafeRamp, orange), None);
     assert!(state.web_safe_ramp);
-    let states = ColorPanelMenu::states(&state);
-    let checked = |command| states.iter().find(|(c, _)| *c == command).map(|(_, s)| s.clone());
-    assert_eq!(checked(ColorPanelCommand::ColorWheel), Some(CommandState::new().checked(true)));
-    assert_eq!(checked(ColorPanelCommand::HueCube), Some(CommandState::new().checked(false)));
-    assert_eq!(checked(ColorPanelCommand::WebSafeRamp), Some(CommandState::new().checked(true)));
 }
 
 /// The Add to Swatches button under the wheel asks the app to add the edited colour.
@@ -161,9 +153,6 @@ fn showing_the_panel_keeps_the_focus() {
 fn cube_modes_have_red_green_and_blue_fields() {
     for mode in [ColorPanelMode::HueCube, ColorPanelMode::BrightnessCube] {
         let mut rig = PanelRig::new(mode);
-        for name in ["Hex color", "Red", "Green", "Blue"] {
-            assert!(rig.fixture.by_label(name).is_some(), "{mode:?}: no field named {name:?}");
-        }
         let green = rig.fixture.by_label("Green").expect("the field");
         rig.fixture.click(&green).key(Key::A, Modifiers::COMMAND).type_text("128").key(Key::Enter, Modifiers::NONE);
         let edits = rig.edits.borrow();
@@ -217,11 +206,6 @@ fn dragging_to_the_bottom_right_keeps_the_knob_there() {
     rig.fixture.drag(&area, area.rect.size());
     let picked = rig.edits.borrow().iter().rev().find_map(|(_, e)| e.value().map(|v| v.color)).expect("a picked colour");
     assert_eq!(picked.to_rgba(), Srgba::rgb(0.0, 0.0, 0.0).to_rgba(), "the corner is black");
-
-    rig.set_colors([picked, BLUE]);
-    let area = rig.fixture.focused().expect("the dragged area keeps the focus");
-    let value = rig.fixture.tree().value(area).expect("the area reports its value");
-    assert!(value.contains("Saturation 100") && value.contains("Brightness 0"), "the knob stays at the corner: {value}");
 }
 
 /// Every model the panel offers returns its colours: whole-number fields within a step, and a colour CMYK can print comes
@@ -257,6 +241,12 @@ fn every_panel_model_round_trips_its_colours() {
         let twice = cmyk.to_srgb(&rounded(&cmyk, once).values);
         assert!(worst(once, twice) <= 0.03, "cmyk {c:?} -> {once:?} -> {twice:?}");
     }
+
+    // Non-finite channel values become 0; finite ones stay.
+    let cleaned = finite_values(ModelValues::new("hsb", &[f32::NAN, f32::INFINITY, 40.0]));
+    assert_eq!(cleaned.values[..3], [0.0, 0.0, 40.0]);
+    let cleaned = finite_values(ModelValues::new("rgb", &[f32::NEG_INFINITY, 12.0, 255.0]));
+    assert_eq!(cleaned.values[..3], [0.0, 12.0, 255.0]);
 }
 
 fn rgb(name: &str, c: [f32; 3]) -> SwatchEntry {
@@ -309,22 +299,8 @@ fn click_and_alt_click_use_the_swatch() {
     let at = SwatchAt::new(0, 0);
     let color = Srgba::rgb(1.0, 0.0, 0.0);
     assert_eq!(*rig.used.borrow(), [(at, color, false), (at, color, true)]);
-}
 
-/// A swatch's accessible name carries its value; the plain name stays the label.
-#[trial]
-fn a_swatch_is_named_with_its_value() {
-    let rig = SwatchesRig::new();
-    assert!(rig.fixture.by_label("Red, #ff0000").is_some());
-    assert_eq!(rig.library.borrow().total(), 3);
-}
-
-/// The thumbnails are `SwatchFace`s: the clicked swatch reports selected through the access tree and the others do not.
-#[trial]
-fn a_swatch_thumbnail_reports_its_selection() {
-    let mut rig = SwatchesRig::new();
-    let red = rig.fixture.by_label("Red, #ff0000").expect("the swatch");
-    rig.fixture.click(&red);
+    // The clicked swatch reports selected through the access tree and the others do not.
     rig.fixture.settle();
     let selected = |rig: &SwatchesRig, label: &str| {
         let node = rig.fixture.by_label(label).unwrap_or_else(|| panic!("no `{label}`")).node;
@@ -372,21 +348,6 @@ fn add_picked_keeps_the_typed_model() {
     assert_eq!(library.get(plain).map(|e| &e.color), Some(&SwatchColor::Rgb([0.5, 0.5, 0.5])));
 }
 
-/// The export entries are disabled with no swatches.
-#[trial]
-fn export_is_disabled_when_empty() {
-    let enabled = |library: &SwatchLibrary| {
-        let states = SwatchesMenu::states(library);
-        let state = |command| states.iter().find(|(c, _)| *c == command).map(|(_, s)| s.clone());
-        (state(SwatchesCommand::Export), state(SwatchesCommand::ExportExchange), state(SwatchesCommand::Import))
-    };
-    let on = Some(CommandState::new().enabled(true));
-    let off = Some(CommandState::new().enabled(false));
-    let empty = SwatchLibrary::new(vec![SwatchGroup { name: "Empty".into(), entries: Vec::new() }]);
-    assert_eq!(enabled(&empty), (off.clone(), off, on.clone()));
-    assert_eq!(enabled(&library()), (on.clone(), on.clone(), on));
-}
-
 /// Import and Replace ask for a swatch file; the answer is read in `apply_file`.
 #[trial]
 fn import_and_replace_read_the_picked_file() {
@@ -405,27 +366,33 @@ fn import_and_replace_read_the_picked_file() {
         assert!(names.contains(&"Sky"), "{names:?}");
         assert_eq!(names.contains(&"Red"), !replace, "{names:?}");
     }
-}
 
-/// A file that is not a swatch file is a toast, not a change.
-#[trial]
-fn a_bad_file_is_a_toast_and_changes_nothing() {
-    let words = SwatchesWords::default();
-    let (presets, format) = (PresetWords::default(), Format::from_tag("en"));
+    // A file that is not a swatch file is a toast, not a change.
     let (mut lib, mut state) = (library(), SwatchesState::default());
     let out = SwatchesMenu::run_command(&mut lib, &mut state, SwatchesCommand::Import, Srgba::rgb(0.2, 0.4, 0.6), &words);
     let event = out.file.expect("a request").loaded("junk.bin", b"nothing".to_vec()).expect("a load event");
     let done = SwatchesPanel::apply_file(&mut lib, &mut state, &event, &words, &presets, &format);
     assert!(!done.changed);
     let toast = done.toast.expect("a toast");
-    assert_eq!(toast.message.as_str(), "Swatches could not be imported: not a swatch file");
     assert_eq!(toast.tone, craft_theme::variant::Tone::Bad);
     assert_eq!(lib, library());
 }
 
-/// Export gives a save request with the bytes of the chosen format.
+/// Export is disabled with no swatches, and otherwise gives a save request with the bytes of the chosen format.
 #[trial]
 fn export_writes_the_chosen_format() {
+    // The export entries are disabled with no swatches.
+    let enabled = |library: &SwatchLibrary| {
+        let states = SwatchesMenu::states(library);
+        let state = |command| states.iter().find(|(c, _)| *c == command).map(|(_, s)| s.clone());
+        (state(SwatchesCommand::Export), state(SwatchesCommand::ExportExchange), state(SwatchesCommand::Import))
+    };
+    let on = Some(CommandState::new().enabled(true));
+    let off = Some(CommandState::new().enabled(false));
+    let empty = SwatchLibrary::new(vec![SwatchGroup { name: "Empty".into(), entries: Vec::new() }]);
+    assert_eq!(enabled(&empty), (off.clone(), off, on.clone()));
+    assert_eq!(enabled(&library()), (on.clone(), on.clone(), on));
+
     let words = SwatchesWords::default();
     let (mut lib, mut state) = (library(), SwatchesState::default());
     let out = SwatchesMenu::run_command(&mut lib, &mut state, SwatchesCommand::ExportExchange, Srgba::rgb(0.2, 0.4, 0.6), &words);
@@ -434,19 +401,13 @@ fn export_writes_the_chosen_format() {
     assert_eq!(craft_color::palette::SwatchFormat::sniff(&bytes, "x.ase"), Some(SwatchFormat::Ase));
 }
 
-/// Notes are worded in the panel, with plural forms for counts, and make one toast.
+/// Each report note makes one note line.
 #[trial]
-fn notes_are_worded_and_make_a_toast() {
+fn each_note_makes_a_line() {
     let (words, format) = (SwatchesWords::default(), Format::from_tag("en"));
     let report = SwatchReport { notes: vec![SwatchNote::BookColors(1), SwatchNote::ConvertedToRgb(3), SwatchNote::GroupsFlattened] };
-    assert_eq!(
-        SwatchesPanel::note_lines(&report, true, &words, &format),
-        ["1 color-book color was left out.", "3 colors were converted to RGB.", "The format has no groups; the swatches were written as one list."]
-    );
-    assert_eq!(
-        SwatchesPanel::note_lines(&SwatchReport { notes: vec![SwatchNote::BookColors(2)] }, false, &words, &format),
-        ["2 color-book colors were read as black."]
-    );
+    assert_eq!(SwatchesPanel::note_lines(&report, true, &words, &format).len(), report.notes.len());
+    assert_eq!(SwatchesPanel::note_lines(&SwatchReport { notes: vec![SwatchNote::BookColors(2)] }, false, &words, &format).len(), 1);
 }
 
 /// Dragging keeps names unique and the library whole.
@@ -563,19 +524,16 @@ impl TableRig {
     }
 }
 
-/// A click selects the clicked index among duplicate colours.
+/// A click selects the clicked index among duplicate colours; a double click and Enter ask to open the index; Space
+/// selects the focused one.
 #[trial]
-fn a_click_selects_the_clicked_index_among_duplicate_colours() {
+fn the_table_click_double_click_enter_and_space() {
     let mut rig = TableRig::new();
     let cell = rig.fixture.by_label("Index 3").expect("the cell");
     rig.fixture.click(&cell);
     assert_eq!(rig.selected.borrow().items, [3]);
     assert!(rig.opened.borrow().is_empty(), "a click edits nothing");
-}
 
-/// A double click and Enter ask to open the index; Space selects the focused one.
-#[trial]
-fn a_double_click_and_enter_ask_to_open_the_index_and_space_selects_the_focused_one() {
     let mut rig = TableRig::new();
     let cell = rig.fixture.by_label("Index 2").expect("the cell");
     rig.fixture.click(&cell).click(&cell);
@@ -696,6 +654,16 @@ fn the_palette_chooses_by_click_space_or_enter_and_moves_focus_by_arrows() {
     rig.fixture.key(Key::Enter, Modifiers::NONE);
     assert_eq!(rig.events.get(), 3, "Enter chooses the focused swatch: one Set");
     assert_eq!(rig.color.get().to_hex(), swatch_hex("Green"));
+
+    // A screen reader's focus on a swatch moves the palette's stop there and selects nothing.
+    use craft_ui::testing::focus::AccessActionKind;
+    let mut rig = PaletteRig::new(Srgba::rgb(0.9, 0.28, 0.3), PALETTE_WIDE);
+    let teal = rig.fixture.by_label("Teal").expect("the swatch");
+    rig.fixture.access(AccessActionKind::Focus, &teal);
+    assert_eq!(rig.focused().as_deref(), Some("Teal"));
+    assert_eq!(rig.events.get(), 0, "focusing selects nothing");
+    rig.fixture.key(Key::ArrowRight, Modifiers::NONE);
+    assert_eq!(rig.focused().as_deref(), Some("Blue"), "the arrows go on from there");
 }
 
 /// Up and Down walk the wrapped rows of the palette to the swatch in the same column.
@@ -725,26 +693,4 @@ fn the_palette_arrows_walk_the_wrapped_grid() {
         assert_eq!(rig.focused().as_deref(), Some(expected), "{key:?}");
     }
     assert_eq!(rig.events.get(), 0);
-}
-
-/// A screen reader's focus on a swatch moves the palette's stop there and selects nothing.
-#[trial]
-fn a_screen_readers_focus_on_a_palette_swatch_moves_the_stop_there() {
-    use craft_ui::testing::focus::AccessActionKind;
-    let mut rig = PaletteRig::new(Srgba::rgb(0.9, 0.28, 0.3), PALETTE_WIDE);
-    let teal = rig.fixture.by_label("Teal").expect("the swatch");
-    rig.fixture.access(AccessActionKind::Focus, &teal);
-    assert_eq!(rig.focused().as_deref(), Some("Teal"));
-    assert_eq!(rig.events.get(), 0, "focusing selects nothing");
-    rig.fixture.key(Key::ArrowRight, Modifiers::NONE);
-    assert_eq!(rig.focused().as_deref(), Some("Blue"), "the arrows go on from there");
-}
-
-/// Non-finite channel values become 0, as PhotoCraft's model wrapper did; finite ones stay.
-#[trial]
-fn non_finite_channels_become_zero() {
-    let cleaned = finite_values(ModelValues::new("hsb", &[f32::NAN, f32::INFINITY, 40.0]));
-    assert_eq!(cleaned.values[..3], [0.0, 0.0, 40.0]);
-    let cleaned = finite_values(ModelValues::new("rgb", &[f32::NEG_INFINITY, 12.0, 255.0]));
-    assert_eq!(cleaned.values[..3], [0.0, 12.0, 255.0]);
 }

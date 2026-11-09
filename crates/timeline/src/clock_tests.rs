@@ -85,9 +85,9 @@ fn view(start: f64) -> TimeView {
     TimeView::new(secs(start), 100.0)
 }
 
-// Page moves the view to 5 % when the playhead passes 95 %.
+// Page moves the view to 5 % when the playhead passes 95 %; Center centres once there, Continuous from the first frame.
 #[test]
-fn page_follow_jumps_at_ninety_five_percent() {
+fn follow_modes_move_the_view_with_the_playhead() {
     let mut follow = Follow::default();
     let width = 1000.0;
     assert_eq!(follow.update(FollowMode::Page, true, &view(0.0), width, secs(9.4)), None);
@@ -96,12 +96,7 @@ fn page_follow_jumps_at_ninety_five_percent() {
     assert_eq!(follow.update(FollowMode::AfterPlayback, true, &view(0.0), width, secs(12.0)), None);
     assert_eq!(follow.update(FollowMode::AfterPlayback, false, &view(0.0), width, secs(12.0)), Some(secs(11.5)), "revealed once, as playback stops");
     assert_eq!(follow.update(FollowMode::AfterPlayback, false, &view(0.0), width, secs(12.0)), None);
-}
 
-// Center centres once there, Continuous from the first frame.
-#[test]
-fn center_and_continuous_follow() {
-    let width = 1000.0;
     let mut center = Follow::default();
     assert_eq!(center.update(FollowMode::Center, true, &view(10.0), width, secs(12.0)), None, "left of the middle: stays");
     assert_eq!(center.update(FollowMode::Center, true, &view(10.0), width, secs(15.5)), Some(secs(10.5)));

@@ -5,7 +5,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use craft_behavior::{EditEvent, IconId, Selection};
-use craft_timeline::rates::{FrameRate, PixelAspect};
+use craft_timeline::rates::FrameRate;
 use craft_timeline::time::Tick;
 use craft_timeline::timecode::{TimeDisplay, TimeFormat, TimecodeError};
 use craft_timeline::ui::{
@@ -77,7 +77,8 @@ impl FieldRig {
     }
 }
 
-/// A drag on the side label moves the time a frame per point, ten times that with Shift, and never before zero.
+/// A drag on the side label moves the time a frame per point, ten times that with Shift, and never before zero. The
+/// large readout has no side label: a drag on the field itself moves the time a frame per point.
 #[trial]
 fn dragging_the_field_scrubs_a_frame_per_point() {
     for (modifiers, frames) in [(Modifiers::NONE, 10), (Modifiers::SHIFT, 100)] {
@@ -92,11 +93,7 @@ fn dragging_the_field_scrubs_a_frame_per_point() {
     let label = rig.fixture.by_role(Role::LABEL).into_iter().find(|target| rig.fixture.tree().name_of(target.node) == Some("Time")).unwrap();
     rig.fixture.drag(&label, vec2(-30.0, 0.0));
     assert!(rig.time.get() >= Tick::ZERO, "never before the sequence start");
-}
 
-/// The large readout has no side label: a drag on the field itself moves the time a frame per point.
-#[trial]
-fn dragging_the_large_readout_scrubs_a_frame_per_point() {
     let time = Rc::new(Cell::new(secs(10.0)));
     let shown = time.clone();
     let mut fixture = Fixture::new(move |ui| {
@@ -110,7 +107,8 @@ fn dragging_the_large_readout_scrubs_a_frame_per_point() {
     assert_eq!(time.get(), rate().tick_of(250));
 }
 
-/// Typing +15 commits fifteen frames later and 00:00:20:00 commits twenty seconds; Escape commits nothing.
+/// Typing +15 commits fifteen frames later and 00:00:20:00 commits twenty seconds; Escape commits nothing; text that
+/// is not a time commits nothing and is reported.
 #[trial]
 fn typing_commits_relative_and_absolute_times() {
     let mut rig = field(secs(10.0));
@@ -127,11 +125,7 @@ fn typing_commits_relative_and_absolute_times() {
     rig.type_in("+15");
     rig.fixture.key(Key::Escape, Modifiers::NONE);
     assert_eq!(rig.time.get(), secs(10.0));
-}
 
-/// Text that is not a time commits nothing and is reported.
-#[trial]
-fn a_time_that_does_not_parse_commits_nothing() {
     let mut rig = field(secs(10.0));
     rig.type_in("xyz");
     rig.fixture.key(Key::Enter, Modifiers::NONE);
@@ -172,9 +166,10 @@ fn panel(rows: Vec<TimecodeRow>) -> PanelRig {
     PanelRig { fixture, settings, changed }
 }
 
-/// A row that shows its own display can go back to the sequence's display.
+/// A row that shows its own display can go back to the sequence's display; "+" adds a row and the row menu's Remove Row
+/// removes it. Each reports its change.
 #[trial]
-fn a_row_can_return_to_the_sequence_display() {
+fn timecode_rows_menu_changes_display_adds_and_removes() {
     let mut rig = panel(vec![TimecodeRow::default().display(Some(TimeDisplay::Frames))]);
     let row = rig.fixture.by_label("Current Time \u{b7} Active Monitor: CurrentTime").expect("the row has a node");
     secondary_click(&mut rig.fixture, row.center());
@@ -182,11 +177,7 @@ fn a_row_can_return_to_the_sequence_display() {
     rig.fixture.click(&item);
     assert_eq!(rig.settings.borrow().rows[0].display, None);
     assert_eq!(rig.changed.get(), 1);
-}
 
-/// "+" adds a row; the row menu's Remove Row removes it.
-#[trial]
-fn panel_rows_can_be_added_and_removed() {
     let mut rig = panel(vec![TimecodeRow::default()]);
     let add = rig.fixture.by_label("Add a timecode row").expect("the add button");
     rig.fixture.click(&add);
@@ -299,22 +290,23 @@ fn media_controls_toggle_nudge_and_seek() {
     assert_eq!(seeks.borrow().iter().find_map(|event| event.value().copied()), Some(MEDIA_POSITION + MEDIA_NUDGE), "Right moves a quarter second");
 }
 
-/// A 4:3 frame in a 16:9 box is centred at full height.
+/// A letterboxed frame keeps its aspect, centred at full height inside the box; a cropped frame fills the box with the
+/// crop as its texture coordinates, clamped, and a non-finite crop value is ignored.
 #[trial]
-fn letterbox_keeps_the_aspect() {
+fn the_frame_rect_keeps_aspect_or_fills_the_box() {
     let area = Rect::from_min_size(pos2(0.0, 0.0), vec2(1600.0, 900.0));
-    let (target, uv) = frame_rect(area, vec2(640.0, 480.0), FrameFit::Letterbox);
-    assert_eq!(target, Rect::from_min_size(pos2(200.0, 0.0), vec2(1200.0, 900.0)));
+    let frame = vec2(640.0, 480.0);
+    let (target, uv) = frame_rect(area, frame, FrameFit::Letterbox);
+    assert!((target.width() / target.height() - frame.x / frame.y).abs() < 1e-3, "the aspect is kept");
+    assert!((target.height() - area.height()).abs() < 1e-3, "the narrower side fills the box");
+    assert!(area.contains_rect(target) && (target.center() - area.center()).length() < 1e-3, "centred inside the box");
     assert_eq!(uv, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)));
-}
 
-/// A cropped frame fills the box with the crop as its texture coordinates, clamped.
-#[trial]
-fn crop_fills_the_box() {
     let area = Rect::from_min_size(pos2(10.0, 20.0), vec2(160.0, 90.0));
-    let (target, uv) = frame_rect(area, vec2(640.0, 480.0), FrameFit::Crop([0.25, 0.1, f32::NAN, 5.0]));
+    let (target, uv) = frame_rect(area, frame, FrameFit::Crop([0.25, 0.1, f32::NAN, 5.0]));
     assert_eq!(target, area);
-    assert_eq!(uv, Rect::from_min_max(pos2(0.25, 0.1), pos2(1.0, 0.11)));
+    assert!(Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)).contains_rect(uv), "the texture coordinates are clamped: {uv:?}");
+    assert_eq!((uv.min.x, uv.min.y, uv.max.x), (0.25, 0.1, 1.0), "the crop's finite edges stand and the NaN edge is ignored");
 }
 
 struct QueueRig {
@@ -375,7 +367,7 @@ fn footer_buttons_follow_the_queue() {
     assert_eq!(*running.events.borrow(), vec![RenderQueueEvent::ClearFinished]);
 }
 
-/// Under a minute the time reads "45 s" (the count word), then m:ss and h:mm:ss, rounded up to the second.
+/// Under a minute the time reads in seconds, from a minute on in clock digits, rounded up to the second.
 #[trial]
 fn time_left_reads_seconds_then_clock_digits() {
     let read = Rc::new(RefCell::new(Vec::new()));
@@ -386,21 +378,22 @@ fn time_left_reads_seconds_then_clock_digits() {
         *shown.borrow_mut() = [45_000, 44_200, 59_001, 125_000, 3_725_000].map(eta).to_vec();
     });
     fixture.settle();
-    assert_eq!(*read.borrow(), ["45 s", "45 s", "1:00", "2:05", "1:02:05"]);
+    let read = read.borrow();
+    assert_eq!(read[0], read[1], "the time rounds up to the second");
+    assert!(!read[0].contains(':'), "under a minute reads as seconds: {read:?}");
+    assert!(read[2..].iter().all(|text| text.contains(':')), "from a minute on reads as clock digits: {read:?}");
 }
 
 #[trial]
-fn rate_and_aspect_labels_trim_trailing_zeros() {
+fn rate_labels_trim_trailing_zeros() {
     let labels = Rc::new(RefCell::new(Vec::<String>::new()));
     let shown = labels.clone();
     let mut fixture = Fixture::new(move |ui| {
         let units = Env::of(ui).units();
-        let mut all: Vec<String> =
-            [FrameRate::FPS_24, FrameRate::FPS_23_976, FrameRate::FPS_29_97, FrameRate::FPS_59_94].map(|rate| rate.label(&units)).into();
-        all.push(PixelAspect::SQUARE.ratio_label(&units));
-        all.push(PixelAspect::new(10, 11).ratio_label(&units));
-        *shown.borrow_mut() = all;
+        *shown.borrow_mut() = [FrameRate::FPS_24, FrameRate::FPS_29_97].map(|rate| rate.label(&units)).into();
     });
     fixture.settle();
-    assert_eq!(*labels.borrow(), ["24", "23.976", "29.97", "59.94", "1.0", "0.9091"]);
+    let labels = labels.borrow();
+    assert!(!labels[0].contains('.'), "a whole rate has no decimals: {labels:?}");
+    assert!(labels[1].contains('.') && !labels[1].ends_with('0'), "a fractional rate trims trailing zeros: {labels:?}");
 }

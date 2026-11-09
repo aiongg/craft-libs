@@ -28,17 +28,6 @@ use egui::{Key, Modifiers, Pos2, pos2, vec2};
 
 // Edges
 
-#[trial]
-fn presets_set_or_toggle_edges() {
-    let mut inner = BorderEdges::default();
-    inner.set(EdgeKey::InsideVertical, true);
-    let outside = BorderPreset::Outside.apply(inner);
-    assert_eq!(EdgeKey::ALL.map(|k| outside.get(k)), [true, true, true, true, false, true]);
-    let toggled = BorderPreset::Edge(EdgeKey::Top).apply(outside);
-    assert!(!toggled.get(EdgeKey::Top) && toggled.get(EdgeKey::Bottom));
-    assert_eq!(BorderPreset::None.apply(outside), BorderEdges::default());
-}
-
 fn edge_picker() -> (Fixture, Rc<Cell<BorderEdges>>) {
     let edges = Rc::new(Cell::new(BorderEdges::default()));
     let shared = Rc::clone(&edges);
@@ -55,8 +44,18 @@ fn chosen(edges: &Cell<BorderEdges>) -> Vec<EdgeKey> {
     EdgeKey::ALL.into_iter().filter(|&key| edges.get().get(key)).collect()
 }
 
+/// Presets set or toggle edges; a click toggles an edge, a double click picks the outer group, a triple click toggles
+/// all.
 #[trial]
-fn edge_clicks_toggle_double_picks_a_group_triple_toggles_all() {
+fn border_presets_and_edge_clicks_set_edges() {
+    let mut inner = BorderEdges::default();
+    inner.set(EdgeKey::InsideVertical, true);
+    let outside = BorderPreset::Outside.apply(inner);
+    assert_eq!(EdgeKey::ALL.map(|k| outside.get(k)), [true, true, true, true, false, true]);
+    let toggled = BorderPreset::Edge(EdgeKey::Top).apply(outside);
+    assert!(!toggled.get(EdgeKey::Top) && toggled.get(EdgeKey::Bottom));
+    assert_eq!(BorderPreset::None.apply(outside), BorderEdges::default());
+
     let (mut fixture, edges) = edge_picker();
     let top = fixture.by_label("Top Border").expect("the top line is a check box").center();
     fixture.click_at(top);
@@ -85,8 +84,9 @@ fn size_picker(hovered: Rc<RefCell<Option<(usize, usize)>>>, picked: Rc<RefCell<
     fixture
 }
 
+/// The pointer sizes rows by columns and a click picks; the keys stop at the grid's edges.
 #[trial]
-fn the_pointer_sizes_rows_by_columns_and_a_click_picks() {
+fn the_size_picker_picks_by_pointer_and_keys() {
     let (hovered, picked): (Rc<RefCell<Option<(usize, usize)>>>, Rc<RefCell<Vec<(usize, usize)>>>) = Default::default();
     let mut fixture = size_picker(Rc::clone(&hovered), Rc::clone(&picked));
     let square = fixture.by_label("3 × 4").expect("each square is named by its size").center();
@@ -94,10 +94,7 @@ fn the_pointer_sizes_rows_by_columns_and_a_click_picks() {
     assert_eq!(*hovered.borrow(), Some((3, 4)), "rows, then columns");
     fixture.click_at(square);
     assert_eq!(*picked.borrow(), vec![(3, 4)]);
-}
 
-#[trial]
-fn the_size_picker_keys_stop_at_the_edges() {
     let (hovered, picked): (Rc<RefCell<Option<(usize, usize)>>>, Rc<RefCell<Vec<(usize, usize)>>>) = Default::default();
     let mut fixture = size_picker(Rc::clone(&hovered), Rc::clone(&picked));
     fixture.key(Key::Tab, Modifiers::NONE);
@@ -292,8 +289,9 @@ fn run(anchor: usize, head: usize) -> Option<TextSelection> {
     Some(TextSelection::new(0, TextSpan::run(anchor, head)))
 }
 
+/// A drag selects a run anchored at the press; Escape cancels a drag and then clears the selection.
 #[trial]
-fn a_drag_selects_a_run_anchored_at_the_press() {
+fn a_drag_selects_a_run_and_escape_cancels_it() {
     let mut rig = rig(false);
     rig.press(Mock::center(4));
     rig.move_to(Mock::center(10));
@@ -303,6 +301,17 @@ fn a_drag_selects_a_run_anchored_at_the_press() {
     assert_eq!(selected.rects(&Mock).len(), 2, "one rectangle per line piece");
     rig.release(Mock::center(10));
     assert_eq!(rig.selection(), run(4, 10), "the release keeps it");
+
+    let mut rig = self::rig(false);
+    rig.press(Mock::center(4));
+    rig.release(Mock::center(10));
+    rig.press(Mock::center(15));
+    rig.move_to(Mock::center(19));
+    assert_eq!(rig.selection(), run(15, 19));
+    rig.fixture.key(Key::Escape, Modifiers::NONE);
+    assert_eq!(rig.selection(), run(4, 10), "Escape during the drag brings the earlier selection back");
+    rig.fixture.key(Key::Escape, Modifiers::NONE);
+    assert_eq!(rig.selection(), None, "Escape clears the selection");
 }
 
 #[trial]
@@ -340,20 +349,6 @@ fn shift_arrows_extend_toward_the_arrows_side_in_either_direction() {
         rig.fixture.key(key, Modifiers::SHIFT);
         assert_eq!(rig.selection(), run(4, head), "rtl {rtl} {key:?}");
     }
-}
-
-#[trial]
-fn escape_clears_the_selection_and_cancels_a_drag() {
-    let mut rig = rig(false);
-    rig.press(Mock::center(4));
-    rig.release(Mock::center(10));
-    rig.press(Mock::center(15));
-    rig.move_to(Mock::center(19));
-    assert_eq!(rig.selection(), run(15, 19));
-    rig.fixture.key(Key::Escape, Modifiers::NONE);
-    assert_eq!(rig.selection(), run(4, 10), "Escape during the drag brings the earlier selection back");
-    rig.fixture.key(Key::Escape, Modifiers::NONE);
-    assert_eq!(rig.selection(), None, "Escape clears the selection");
 }
 
 // Accessibility bridge
@@ -452,15 +447,13 @@ fn blocks_nest_as_a_document_a_screen_reader_can_walk() {
     assert_eq!(tree.children_of(lists[0]).len(), 2);
 }
 
+/// The description is bounded: the node count is capped, and only the pages in view and one either side are described.
 #[trial]
-fn the_node_count_is_capped() {
+fn the_description_is_bounded_by_cap_and_visible_pages() {
     let (fixture, _) = described(Content::Paragraphs(MAX_NODES + 500), 1);
     let described = fixture.tree().with_role(Role::PARAGRAPH).len();
     assert_eq!(described, MAX_NODES, "the builder stops at the cap");
-}
 
-#[trial]
-fn only_the_pages_in_view_and_one_either_side_are_described() {
     let placed = demo_placed(10, pos2(0.0, 0.0));
     let (_, fake) = described(Content::Paragraphs(1), 10);
     let shown = fake.described.borrow().clone();
@@ -482,8 +475,9 @@ fn metrics() -> ReadingMetrics {
     found.expect("the frame painted")
 }
 
+/// The reading size fits whole columns, and turns stay within the columns.
 #[trial]
-fn the_reading_size_fits_whole_columns() {
+fn the_reading_size_and_turns_follow_whole_columns() {
     let metrics = metrics();
     let (width, height) = reading_size(vec2(1200.0, 900.0), 1.0, &metrics, None);
     assert!(width >= metrics.column_min, "no column is narrower than the least width: {width}");
@@ -497,10 +491,7 @@ fn the_reading_size_fits_whole_columns() {
     assert_eq!(requested, 500.0 - 2.0 * metrics.column_gap, "a chosen width gives way to a narrow window");
     let viewport = reading_viewport(egui::Rect::from_min_size(Pos2::ZERO, vec2(1000.0, 800.0)), 300.0, 20.0, 1.0);
     assert!(viewport.width() <= 1000.0 && (viewport.width() - 20.0) % 320.0 == 0.0, "whole columns only: {}", viewport.width());
-}
 
-#[trial]
-fn turns_stay_within_the_columns() {
     let mut state = ReadingState::default();
     state.turn(-1, 4);
     assert_eq!(state.column, 0, "no turn back from the first column");

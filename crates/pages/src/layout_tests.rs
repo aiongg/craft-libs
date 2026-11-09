@@ -17,11 +17,11 @@ fn viewport() -> Size {
 
 #[test]
 fn single_pages_centre_and_stack_with_gaps() {
-    let laid = place_pages(&[LETTER; 3], 1.0, viewport(), &LayoutOptions::ACROBAT, &SPACING);
-    let tops: Vec<f64> = laid.rects.iter().map(|r| r.y0).collect();
-    assert_eq!(tops, [28.0, 834.0, 1640.0]);
-    assert!(laid.rects.iter().all(|r| r.x0 == 194.0 && r.width() == 612.0));
-    assert_eq!(laid.size, Size::new(1000.0, 2460.0));
+    let narrow = Size::new(400.0, 500.0);
+    let laid = place_pages(&[LETTER, narrow, LETTER], 1.0, viewport(), &LayoutOptions::ACROBAT, &SPACING);
+    assert_eq!(laid.rects[0].y0, SPACING.margin, "the first page starts below the margin");
+    assert!(laid.rects.windows(2).all(|pair| pair[1].y0 - pair[0].y1 == SPACING.gap), "pages stack with equal gaps");
+    assert!(laid.rects.iter().all(|r| (r.center().x - viewport().width / 2.0).abs() < 1e-9), "every page, narrower ones too, is centred");
 
     let joined = LayoutOptions { page_gaps: false, ..LayoutOptions::ACROBAT };
     let laid = place_pages(&[Size::new(612.4, 792.4); 2], 1.0, viewport(), &joined, &SPACING);
@@ -52,7 +52,7 @@ fn spreads_follow_the_cover_rule() {
 }
 
 #[test]
-fn columns_fit_as_many_pages_as_the_width_holds() {
+fn column_count_and_fits_follow_the_width_and_largest_page() {
     let wide = Size::new(2000.0, 800.0);
     let laid = place_pages(&[LETTER; 10], 0.75, wide, &LayoutOptions::WORD, &SPACING);
     assert_eq!(laid.columns, 4);
@@ -62,10 +62,7 @@ fn columns_fit_as_many_pages_as_the_width_holds() {
     assert_eq!(place_pages(&[LETTER; 2], 0.75, wide, &LayoutOptions::WORD, &SPACING).columns, 2);
     let at_least = LayoutOptions { min_columns: 3, ..LayoutOptions::WORD };
     assert_eq!(place_pages(&[LETTER; 10], 2.0, wide, &at_least, &SPACING).columns, 3);
-}
 
-#[test]
-fn fits_use_the_largest_page_unless_one_page_shows() {
     let sizes = [LETTER, LETTER, Size::new(1224.0, 792.0)];
     let options = LayoutOptions::ACROBAT;
     let widest = fit_scale(&sizes, viewport(), Fit::Width, &options, &SPACING, Some(0)).unwrap();
@@ -80,7 +77,7 @@ fn fits_use_the_largest_page_unless_one_page_shows() {
 }
 
 #[test]
-fn hide_white_space_cuts_margins_and_keeps_coordinates() {
+fn hide_white_space_cuts_margins_keeps_coordinates_and_scales_pad() {
     let mut laid = place_pages(&[LETTER; 3], 1.0, viewport(), &LayoutOptions::ACROBAT, &SPACING);
     let before = laid.rects[1].size();
     laid.hide_white_space(&[(72.0, 720.0); 3], 1.0, 800.0, &SPACING);
@@ -93,11 +90,8 @@ fn hide_white_space_cuts_margins_and_keeps_coordinates() {
     assert_eq!(page_at(&laid, Point::new(centre, 754.5)), None);
     assert!(laid.on_page_gap(Point::new(centre, 754.5)));
     assert!(!laid.on_page_gap(Point::new(centre, 1000.0)));
-}
 
-// The pad is in page points: zoomed to 2, 6 page points of pad are 12 screen points; the seam stays 1.
-#[test]
-fn hide_white_space_pad_scales_with_the_zoom_and_the_seam_does_not() {
+    // The pad is in page points: zoomed to 2, 6 page points of pad are 12 screen points; the seam stays 1.
     let mut laid = place_pages(&[LETTER; 3], 2.0, viewport(), &LayoutOptions::ACROBAT, &SPACING);
     laid.hide_white_space(&[(72.0, 720.0); 3], 2.0, 800.0, &SPACING);
     assert_eq!(laid.bands[1], (72.0 * 2.0 - 6.0 * 2.0, 720.0 * 2.0 + 6.0 * 2.0));
@@ -113,7 +107,7 @@ fn the_largest_zoom_lays_out_at_its_own_scale() {
 }
 
 #[test]
-fn display_tokens_round_trip() {
+fn tokens_and_zoom_names_round_trip_and_refuse_bad_input() {
     for display in PageDisplay::ORDER {
         for continuous in [false, true] {
             // Columns always scroll, so both flags name `columns` and read back as scrolling.
@@ -123,10 +117,7 @@ fn display_tokens_round_trip() {
     }
     assert_eq!(parse_display_token("Two-Up-Single"), Some((PageDisplay::TwoUp, false)));
     assert_eq!(parse_display_token("twoup"), None);
-}
 
-#[test]
-fn zoom_names_round_trip_and_refuse_out_of_range() {
     let defaults = ViewDefaults::default();
     for name in ["fit-width", "fit-page", "125%"] {
         assert_eq!(defaults.with_zoom(name).unwrap().zoom_name(), name);

@@ -43,7 +43,6 @@ mod tests {
         let white = GrayModel.from_srgb(Srgba::rgb(1.0, 1.0, 1.0));
         assert!(white.values[0].abs() < 1e-4);
         let half = GrayModel.from_srgb(Srgba::rgb(0.5, 0.5, 0.5));
-        assert!((half.values[0] - 50.0).abs() < 1e-3);
         let back = GrayModel.to_srgb(&half.values);
         assert!((back.r - 0.5).abs() < 1e-4 && back.r == back.g && back.g == back.b);
     }

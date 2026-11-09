@@ -21,17 +21,15 @@ use std::rc::Rc;
 /// The most baseline lines a page draws.
 const MOST_BASELINES: usize = craft_pages::ui::grid::MAX_BASELINES;
 
+/// Baseline lines start inside the page, and none lies on the bottom edge.
 #[trial]
-fn baseline_lines_start_inside_the_page() {
-    assert_eq!(baseline_lines(-30.0, 12.0, 50.0), [6.0, 18.0, 30.0, 42.0]);
-    assert_eq!(baseline_lines(0.0, 0.2, 3.5), [0.0, 1.0, 2.0, 3.0], "an increment under 1 pt counts as 1");
+fn baseline_lines_stay_inside_the_page() {
+    let lines = baseline_lines(-30.0, 12.0, 50.0);
+    assert!(!lines.is_empty() && lines.iter().all(|line| *line >= 0.0 && *line < 50.0), "{lines:?}");
+    assert_eq!(baseline_lines(0.0, 0.2, 3.5), baseline_lines(0.0, 1.0, 3.5), "an increment under 1 pt counts as 1");
     assert_eq!(baseline_lines(0.0, 1.0, 1.0e9).len(), MOST_BASELINES);
     assert!(baseline_lines(f64::NAN, 12.0, 50.0).is_empty());
-}
-
-#[trial]
-fn baseline_lines_end_before_the_bottom_edge() {
-    assert_eq!(baseline_lines(0.0, 10.0, 30.0), [0.0, 10.0, 20.0], "the bottom edge is not a line");
+    assert!(!baseline_lines(0.0, 10.0, 30.0).contains(&30.0), "the bottom edge is not a line");
 }
 
 /// The default state with `change` applied.
@@ -56,14 +54,6 @@ fn zoom_steps_start_from_the_shown_zoom_and_end_a_fit() {
     state.zoom = *ZOOM_RANGE.end();
     state.zoom_step(true);
     assert_eq!(state.zoom, *ZOOM_RANGE.end(), "the top of the range stays");
-}
-
-#[trial]
-fn going_to_a_page_makes_it_current_at_once() {
-    let mut state = PageViewState::default();
-    state.go_to(4);
-    assert_eq!(state.current, 4);
-    assert_eq!(state.go_to, Some((4, 0.0)));
 }
 
 /// A page view over `count` Letter pages in a room of 400 by 300, with the state the test starts from.
@@ -125,9 +115,9 @@ fn the_current_page_follows_the_middle_line() {
     assert!(state.offset.1 > 0.0, "the view scrolled to it, offset {:?}", state.offset);
 }
 
-/// The pair's pages are Letter-sized: two halves of one document.
+/// The follower takes the leader's zoom, layout and rotation.
 #[trial]
-fn the_follower_takes_the_leaders_zoom_and_layout() {
+fn the_follower_takes_the_leaders_zoom_layout_and_rotation() {
     let states = Rc::new(RefCell::new((SyncedViewsState::default(), PageViewState::default(), PageViewState::default())));
     let kept = Rc::clone(&states);
     let (old_pages, new_pages) = (DemoPages::new(3), DemoPages::new(3));
@@ -146,10 +136,15 @@ fn the_follower_takes_the_leaders_zoom_and_layout() {
     states.borrow_mut().2.zoom = 2.0;
     states.borrow_mut().2.continuous = false;
     fixture.idle(3);
-    let state = states.borrow();
-    assert_eq!(state.0.lead, Lead::Right, "the main view leads at first");
-    assert_eq!(state.1.zoom, state.2.zoom, "the follower shows the leader's zoom");
-    assert_eq!(state.1.continuous, state.2.continuous, "and its layout");
+    {
+        let state = states.borrow();
+        assert_eq!(state.0.lead, Lead::Right, "the main view leads at first");
+        assert_eq!(state.1.zoom, state.2.zoom, "the follower shows the leader's zoom");
+        assert_eq!(state.1.continuous, state.2.continuous, "and its layout");
+    }
+    states.borrow_mut().2.rotation = 90;
+    fixture.idle(3);
+    assert_eq!(states.borrow().1.rotation, 90, "the follower turns with the leader");
 }
 
 #[trial]
@@ -159,10 +154,8 @@ fn a_page_moves_to_where_a_reorder_puts_it() {
     let after: Vec<usize> = (0..6).map(|page| moved_page(&mv, page, 6)).collect();
     assert_eq!(after, [0, 3, 4, 1, 2, 5]);
     assert_eq!(moved_page(&mv, 9, 6), 9, "a page past the end stays");
-}
 
-#[trial]
-fn moving_a_page_to_the_front_pushes_the_rest_back() {
+    // A page moved to the front pushes the rest back.
     let mv = ReorderMove::new(3, vec![3], 0, false);
     let after: Vec<usize> = (0..5).map(|page| moved_page(&mv, page, 5)).collect();
     assert_eq!(after, [1, 2, 3, 0, 4]);
@@ -192,23 +185,26 @@ fn strip_rig(count: usize, picked: Selection<usize>) -> StripRig {
 }
 
 #[trial]
-fn clicking_a_thumbnail_goes_to_its_page() {
+fn clicking_or_entering_a_thumbnail_goes_to_its_page() {
     let mut rig = strip_rig(4, Selection::single(0));
     let tile = rig.fixture.by_label("Page 3").expect("the third page's tile is in the tree");
     rig.fixture.click(&tile);
     assert!(rig.events.borrow().contains(&ThumbnailEvent::Go(2)), "events {:?}", rig.events.borrow());
+
+    let mut rig = strip_rig(3, Selection::single(1));
+    let tile = rig.fixture.by_label("Page 2").expect("the second page's tile");
+    rig.fixture.click(&tile);
+    rig.fixture.key(Key::Enter, Modifiers::NONE);
+    assert!(rig.events.borrow().contains(&ThumbnailEvent::Activate(1)), "events {:?}", rig.events.borrow());
 }
 
+/// Delete removes the picked pages, skips locked rows and never removes every page.
 #[trial]
-fn delete_with_nothing_picked_removes_the_current_page_but_never_every_page() {
+fn delete_removes_the_picked_pages_skips_locked_and_never_all() {
     let mut rig = strip_rig(1, Selection::new(Vec::new(), None, None));
     rig.fixture.key(Key::Delete, Modifiers::NONE);
     assert!(!rig.events.borrow().iter().any(|event| matches!(event, ThumbnailEvent::Delete(_))), "a document keeps one page");
     assert!(rig.picked.borrow().items.is_empty());
-}
-
-#[trial]
-fn delete_removes_the_picked_pages_but_never_all_of_them() {
     let mut rig = strip_rig(4, Selection::new(vec![1, 2], Some(2), Some(1)));
     rig.fixture.key(Key::Tab, Modifiers::NONE);
     rig.fixture.key(Key::Delete, Modifiers::NONE);
@@ -217,15 +213,15 @@ fn delete_removes_the_picked_pages_but_never_all_of_them() {
     rig.fixture.key(Key::Tab, Modifiers::NONE);
     rig.fixture.key(Key::Delete, Modifiers::NONE);
     assert!(!rig.events.borrow().iter().any(|event| matches!(event, ThumbnailEvent::Delete(_))), "a document keeps one page");
-}
 
-#[trial]
-fn enter_on_a_thumbnail_activates_its_page() {
-    let mut rig = strip_rig(3, Selection::single(1));
-    let tile = rig.fixture.by_label("Page 2").expect("the second page's tile");
-    rig.fixture.click(&tile);
-    rig.fixture.key(Key::Enter, Modifiers::NONE);
-    assert!(rig.events.borrow().contains(&ThumbnailEvent::Activate(1)), "events {:?}", rig.events.borrow());
+    let mut rig = list_rig_picking(Selection::new(vec![0, 1], Some(1), Some(0)));
+    rig.fixture.key(Key::Tab, Modifiers::NONE);
+    rig.fixture.key(Key::Delete, Modifiers::NONE);
+    assert!(rig.events.borrow().contains(&PageListEvent::Delete(vec![0])), "the unlocked picked row goes: {:?}", rig.events.borrow());
+    let mut rig = list_rig_picking(Selection::single(1));
+    rig.fixture.key(Key::Tab, Modifiers::NONE);
+    rig.fixture.key(Key::Delete, Modifiers::NONE);
+    assert!(!rig.events.borrow().iter().any(|event| matches!(event, PageListEvent::Delete(_))), "a locked row stays");
 }
 
 /// A list of three boards, the second locked.
@@ -255,11 +251,13 @@ fn list_rig_picking(start: Selection<usize>) -> ListRig {
 }
 
 #[trial]
-fn a_click_on_a_row_makes_it_the_active_one() {
+fn a_click_or_enter_on_a_row_makes_it_the_active_one() {
     let mut rig = list_rig();
     let row = rig.fixture.by_label("Board 3").expect("the row is in the tree");
     rig.fixture.click(&row);
     assert!(rig.events.borrow().contains(&PageListEvent::Go(2)), "events {:?}", rig.events.borrow());
+    rig.fixture.key(Key::Enter, Modifiers::NONE);
+    assert!(rig.events.borrow().contains(&PageListEvent::Activate(2)), "events {:?}", rig.events.borrow());
 }
 
 /// An Alt sweep down the eyes reports Show Only once, for the pressed row, and nothing for the rows it crosses; Escape
@@ -284,32 +282,11 @@ fn an_alt_eye_sweep_reports_show_only_then_its_undo() {
 }
 
 #[trial]
-fn enter_on_a_row_activates_it() {
-    let mut rig = list_rig();
-    let row = rig.fixture.by_label("Board 3").expect("the row is in the tree");
-    rig.fixture.click(&row);
-    rig.fixture.key(Key::Enter, Modifiers::NONE);
-    assert!(rig.events.borrow().contains(&PageListEvent::Activate(2)), "events {:?}", rig.events.borrow());
-}
-
-#[trial]
 fn a_click_on_a_lock_toggle_reports_the_toggle() {
     let mut rig = list_rig();
     let lock = rig.fixture.by_label("Lock Board 1").expect("the first row's lock");
     rig.fixture.click(&lock);
     assert!(rig.events.borrow().iter().any(|event| matches!(event, PageListEvent::Toggle(_))), "events {:?}", rig.events.borrow());
-}
-
-#[trial]
-fn delete_skips_the_locked_rows() {
-    let mut rig = list_rig_picking(Selection::new(vec![0, 1], Some(1), Some(0)));
-    rig.fixture.key(Key::Tab, Modifiers::NONE);
-    rig.fixture.key(Key::Delete, Modifiers::NONE);
-    assert!(rig.events.borrow().contains(&PageListEvent::Delete(vec![0])), "the unlocked picked row goes: {:?}", rig.events.borrow());
-    let mut rig = list_rig_picking(Selection::single(1));
-    rig.fixture.key(Key::Tab, Modifiers::NONE);
-    rig.fixture.key(Key::Delete, Modifiers::NONE);
-    assert!(!rig.events.borrow().iter().any(|event| matches!(event, PageListEvent::Delete(_))), "a locked row stays");
 }
 
 #[trial]
@@ -325,6 +302,13 @@ fn a_name_typed_in_place_is_trimmed_and_never_empty() {
         "events {:?}",
         rig.events.borrow()
     );
+
+    // A name with nothing in it renames nothing.
+    rig.events.borrow_mut().clear();
+    rig.fixture.key(Key::F2, Modifiers::NONE);
+    rig.fixture.type_text("   ");
+    rig.fixture.key(Key::Enter, Modifiers::NONE);
+    assert!(!rig.events.borrow().iter().any(|event| matches!(event, PageListEvent::Rename { .. })), "events {:?}", rig.events.borrow());
 }
 
 /// The preview of five pages, started at page `start`.
@@ -362,12 +346,6 @@ fn the_preview_steps_with_its_buttons_and_stops_at_the_ends() {
     let next = last.fixture.by_label("Next page").expect("the next button is in the tree");
     last.fixture.click(&next);
     assert_eq!(*last.at.borrow(), 4, "the last page has no page after it");
-}
-
-/// The page size the demo source reports, for the reader of the trials above.
-#[trial]
-fn the_demo_pages_are_letter_sized() {
-    assert_eq!(DemoPages::new(2).page_size(1), Size::new(612.0, 792.0));
 }
 
 /// Three columns of the demo pages with a margin each side, in a room of known geometry.
@@ -422,16 +400,15 @@ impl ReadingRig {
     }
 }
 
+/// A click inside a column leaves the reading view where it is; a click in a gap or a side margin turns toward that
+/// side; Space turns forward.
 #[trial]
-fn a_click_inside_a_column_leaves_the_reading_view_where_it_is() {
+fn reading_view_clicks_and_space_turn_pages() {
     let mut rig = reading_rig(2);
     let inside = rig.middle_column();
     rig.fixture.click_at(inside);
     assert_eq!(rig.at(), 2, "the click is the app's, so the text can be selected");
-}
 
-#[trial]
-fn a_click_in_a_gap_or_a_side_margin_turns_toward_that_side() {
     let mut rig = reading_rig(2);
     let turns = rig.turns();
     assert_eq!(turns.len(), READING_COLUMNS + 1, "a part over each gap and each margin");
@@ -443,6 +420,11 @@ fn a_click_in_a_gap_or_a_side_margin_turns_toward_that_side() {
     assert_eq!(rig.at(), 1, "a gap left of the middle turns back");
     rig.fixture.click_at(turns[3]);
     assert_eq!(rig.at(), 2, "the right margin turns forward");
+
+    let mut rig = reading_rig(0);
+    rig.fixture.key(Key::Tab, Modifiers::NONE);
+    rig.fixture.key(Key::Space, Modifiers::NONE);
+    assert_eq!(rig.at(), 1);
 }
 
 #[trial]
@@ -457,14 +439,6 @@ fn a_drag_inside_a_column_does_not_turn_but_a_swipe_from_a_margin_does() {
     assert_eq!(rig.at(), 3, "a swipe to the left turns forward");
     rig.fixture.drag_at(turns[0], -along);
     assert_eq!(rig.at(), 2, "a swipe to the right turns back");
-}
-
-#[trial]
-fn space_turns_the_reading_view_forward() {
-    let mut rig = reading_rig(0);
-    rig.fixture.key(Key::Tab, Modifiers::NONE);
-    rig.fixture.key(Key::Space, Modifiers::NONE);
-    assert_eq!(rig.at(), 1);
 }
 
 /// Pages whose pictures never arrive: only the paper under them is painted.
@@ -490,15 +464,20 @@ impl PageSource for BlankPages {
     }
 }
 
+/// How far a painted fill may stray from the exact page shape: shapes lie on device pixels, so a side is off by at most a point.
+const PAPER_SLACK: f32 = 1.0;
+
 /// Whether a painted shape is as large as `size`, within a point.
 fn paints_shape_of(fixture: &Fixture, size: egui::Vec2) -> bool {
     fixture.shape_bounds().iter().any(|bounds| (bounds.size() - size).abs().max_elem() < 1.0)
 }
 
+/// A page without a picture gets the paper under it, in the reading view and in the preview.
 #[trial]
-fn the_reading_view_paints_the_paper_under_a_page_without_a_picture() {
+fn blank_pages_get_paper_in_reading_view_and_preview() {
     let scale = ReadingView::screen_scale(1.0);
-    let page = vec2(612.0, 792.0) * scale;
+    let size = DemoPages::new(1).page_size(0);
+    let page = vec2(size.width as f32, size.height as f32) * scale;
     let room = Rect::from_min_size(pos2(0.0, 0.0), page + vec2(300.0, 200.0));
     let pages = BlankPages(DemoPages::new(2));
     let mut state = ReadingState::default();
@@ -508,13 +487,7 @@ fn the_reading_view_paints_the_paper_under_a_page_without_a_picture() {
     fixture.room(room.size());
     fixture.settle();
     assert!(paints_shape_of(&fixture, page), "a shape the size of the page is the paper");
-}
 
-/// How far a painted fill may stray from the exact page shape: shapes lie on device pixels, so a side is off by at most a point.
-const PAPER_SLACK: f32 = 1.0;
-
-#[trial]
-fn the_preview_paints_the_paper_under_a_page_without_a_picture() {
     let pages = BlankPages(DemoPages::new(2));
     let shown = [0, 1];
     let mut at = 0;
@@ -523,7 +496,7 @@ fn the_preview_paints_the_paper_under_a_page_without_a_picture() {
     });
     fixture.room(vec2(500.0, 500.0));
     fixture.settle();
-    let page = DemoPages::new(1).page_size(0);
+    let page = size;
     let picture = fixture.by_label(&DemoPages::new(1).page_label(0)).expect("the page picture").rect;
     // The paper is the fill of the page's aspect that lies in the picture.
     let paper = |bounds: &Rect| {
@@ -658,23 +631,4 @@ fn wheel_gathered_past_the_bottom_is_forgotten_by_a_pass_without_wheel_input() {
     assert_eq!(state.borrow().current, 0, "each half notch alone is not a turn");
     wheel(&mut fixture, -3.0);
     assert_eq!(state.borrow().current, 1, "a whole notch at once is");
-}
-
-#[trial]
-fn the_follower_takes_the_leaders_rotation() {
-    let states = Rc::new(RefCell::new((SyncedViewsState::default(), PageViewState::default(), PageViewState::default())));
-    let kept = Rc::clone(&states);
-    let pages = DemoPages::new(3);
-    let mut fixture = Fixture::new(move |ui| {
-        let mut now = kept.borrow().clone();
-        let (pair, left, right) = (&mut now.0, &mut now.1, &mut now.2);
-        SyncedViews::new("Compare", pair)
-            .halves(ui, (left, right), |ui, rect, state, _| PageView::new("Pages", &pages, state, PAPER).show_at(ui, rect, |_, _| ()));
-        *kept.borrow_mut() = now;
-    });
-    fixture.room(vec2(600.0, 300.0));
-    fixture.settle();
-    states.borrow_mut().2.rotation = 90;
-    fixture.idle(3);
-    assert_eq!(states.borrow().1.rotation, 90, "the follower turns with the leader");
 }

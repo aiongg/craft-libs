@@ -68,9 +68,10 @@ fn evicts_to_eighty_percent_least_recently_shown_first() {
     assert!((4..=10).all(|f| cache.contains(&TestKey::new(0, f))));
 }
 
-// with a playhead, unreached frames go first, then the one reached last.
+// with a playhead, unreached frames go first, then the one reached last; a frame at another scale than the on-screen
+// one is the first victim.
 #[test]
-fn spares_the_frames_the_preview_reaches_next() {
+fn eviction_spares_next_frames_and_drops_other_scales_first() {
     let mut cache = FrameCache::new(50);
     cache.set_playhead(Some(playhead(5, 5, 20, false)));
     fill(&mut cache, [0, 1, 5, 6, 7, 8]);
@@ -78,11 +79,7 @@ fn spares_the_frames_the_preview_reaches_next() {
     assert!((5..=8).all(|f| cache.contains(&TestKey::new(0, f))));
     fill(&mut cache, [9, 10]);
     assert_eq!(cache.cached_frames(&TestKey::new(0, 0)), [5, 6, 7, 8]);
-}
 
-// a frame at another scale than the on-screen one is the first victim.
-#[test]
-fn other_scales_go_first() {
     let mut cache = FrameCache::new(30);
     cache.set_on_screen(Some(TestKey { series: 0, frame: 0, scale: 2 }));
     let at = |frame, scale| TestKey { series: 0, frame, scale };

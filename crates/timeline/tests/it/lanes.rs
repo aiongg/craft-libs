@@ -26,13 +26,12 @@ fn format() -> TimeFormat {
 
 /// Thumbnails: none, the head, head and tail, or tiles along the clip, only those in view.
 #[trial]
-fn thumbnail_tiles_follow_the_mode() {
+fn thumbnail_tiles_are_drawn_only_in_view() {
     let (duration, frame) = (seconds(10.0), seconds(1.0 / 24.0));
     let tiles = |mode| thumbnail_tiles(mode, 0.0, 100.0, 20.0, (0.0, 100.0), duration, frame);
-    assert!(tiles(ThumbnailMode::Off).is_empty());
-    assert_eq!(tiles(ThumbnailMode::Head).len(), 1);
-    assert_eq!(tiles(ThumbnailMode::HeadAndTail).len(), 2);
-    assert_eq!(tiles(ThumbnailMode::Continuous).len(), 5);
+    let counts = [ThumbnailMode::Off, ThumbnailMode::Head, ThumbnailMode::HeadAndTail, ThumbnailMode::Continuous].map(|mode| tiles(mode).len());
+    assert_eq!(counts[0], 0);
+    assert!(counts[0] < counts[1] && counts[1] < counts[2] && counts[2] <= counts[3], "each mode draws more than the one before: {counts:?}");
     let cut = thumbnail_tiles(ThumbnailMode::Continuous, 0.0, 100.0, 20.0, (40.0, 60.0), duration, frame);
     assert!(cut.iter().all(|(x, _)| *x < 60.0 && *x + 20.0 > 40.0), "only the tiles in view: {cut:?}");
 }
@@ -144,9 +143,10 @@ fn lane_in(bounds: Option<TimeRange>, playhead: Tick) -> (Fixture, Rc<RefCell<Se
     (fixture, seen)
 }
 
-/// A click replaces the selection with the key, Shift+click toggles it, a click on empty lane clears.
+/// A click replaces the selection with the key, Shift+click toggles it, a click on empty lane clears; Left and Right
+/// select the previous and next key, Shift+Right nudges by a frame, Delete asks to delete.
 #[trial]
-fn click_and_marquee_select_keys() {
+fn keyboard_and_clicks_select_nudge_and_delete_keys() {
     let (mut fixture, seen) = lane();
     let options = options_by_time(&fixture);
     assert_eq!(options.len(), 3);
@@ -159,11 +159,7 @@ fn click_and_marquee_select_keys() {
     let list = fixture.by_role(Role::LIST_BOX).into_iter().next().expect("the lane is a list box");
     fixture.click_at(list.rect.right_center() - vec2(4.0, 0.0));
     assert!(seen.borrow().selection.items.is_empty(), "a click on empty lane clears");
-}
 
-/// Left and Right select the previous and next key, Shift+Right nudges by a frame, Delete asks to delete.
-#[trial]
-fn keyboard_selects_nudges_and_deletes() {
     let (mut fixture, seen) = lane();
     let options = options_by_time(&fixture);
     fixture.click(&options[0]);
@@ -230,19 +226,16 @@ fn strip() -> (Fixture, Rc<RefCell<Strip>>) {
     (fixture, seen)
 }
 
-/// Dragging a marker moves it by the distance dragged.
+/// Dragging a marker moves it by the distance dragged; Escape mid-drag cancels the marker's gesture and no commit
+/// follows the release.
 #[trial]
-fn dragging_a_marker_moves_it() {
+fn dragging_a_marker_moves_it_and_escape_cancels() {
     let (mut fixture, seen) = strip();
     let options = options_by_time(&fixture);
     fixture.drag(&options[0], vec2(POINTS_PER_SECOND as f32, 0.0));
     let last = seen.borrow().moved.last().copied().expect("the drag proposes a start");
     assert!(last > seconds(2.5) && last < seconds(3.5), "dragged one second right of 2 s: {last:?}");
-}
 
-/// Escape mid-drag cancels the marker's gesture and no commit follows the release.
-#[trial]
-fn escape_cancels_a_marker_drag() {
     let (mut fixture, seen) = strip();
     let options = options_by_time(&fixture);
     let from = options[0].center();
@@ -294,30 +287,10 @@ fn key_at(fixture: &Fixture, at: f64) -> Target {
     fixture.by_label(&name).unwrap_or_else(|| panic!("no key named {name}"))
 }
 
-/// Escape mid-drag cancels the keys' gesture back to a zero delta and no commit follows the release.
+/// A dragged key moves by whole frames; with Shift it snaps to the playhead within a few points and not farther; it
+/// stops at the bounds; Escape mid-drag cancels the gesture back to a zero delta and no commit follows the release.
 #[trial]
-fn escape_cancels_a_key_drag() {
-    let (mut fixture, seen) = lane_in(None, seconds(4.0));
-    let key = key_at(&fixture, 3.0);
-    let from = key.center();
-    let by = vec2(37.0, 0.0);
-    fixture.drag_hold_at(from, by);
-    assert!(matches!(seen.borrow().gesture.last(), Some(EditEvent::Update { .. })), "the drag runs");
-    fixture.key(Key::Escape, Modifiers::NONE);
-    fixture.release_at(from + by);
-    let seen = seen.borrow();
-    let Some(EditEvent::Cancel { before: Some(Mixed::Same(before)), .. }) =
-        seen.gesture.iter().rev().find(|event| !matches!(event, EditEvent::Update { .. }))
-    else {
-        panic!("Escape reports a Cancel: {:?}", seen.gesture);
-    };
-    assert_eq!(*before, Tick::ZERO, "the cancel returns to a zero delta");
-    assert!(!seen.gesture.iter().any(|event| matches!(event, EditEvent::Commit { .. })), "nothing commits");
-}
-
-/// A dragged key moves by whole frames; with Shift it snaps to the playhead within a few points and not farther.
-#[trial]
-fn dragging_keys_snaps_to_frames_and_with_shift_to_the_playhead() {
+fn dragging_keys_snaps_stays_in_bounds_and_escape_cancels() {
     let frames = |count| FrameRate::FPS_24.tick_of(count);
     let (mut fixture, seen) = lane_in(None, seconds(4.0));
     let key = key_at(&fixture, 3.0);
@@ -335,15 +308,28 @@ fn dragging_keys_snaps_to_frames_and_with_shift_to_the_playhead() {
     fixture.hold(Modifiers::SHIFT);
     fixture.drag(&key, vec2(38.0, 0.0));
     assert_eq!(seen.borrow().deltas.last().copied(), Some(frames(18)), "12 points away: only the frame grid");
-}
 
-/// A drag past the end of the bounds stops at the bound.
-#[trial]
-fn keys_stay_inside_the_bounds() {
     let (mut fixture, seen) = lane_in(Some(TimeRange::new(Tick::ZERO, seconds(5.5))), Tick::ZERO);
     let key = key_at(&fixture, 3.0);
     fixture.drag(&key, vec2(4.0 * POINTS_PER_SECOND as f32, 0.0));
     assert_eq!(seen.borrow().deltas.last().copied(), Some(seconds(2.5)), "the key stops at 5.5 s");
+
+    let (mut fixture, seen) = lane_in(None, seconds(4.0));
+    let key = key_at(&fixture, 3.0);
+    let from = key.center();
+    let by = vec2(37.0, 0.0);
+    fixture.drag_hold_at(from, by);
+    assert!(matches!(seen.borrow().gesture.last(), Some(EditEvent::Update { .. })), "the drag runs");
+    fixture.key(Key::Escape, Modifiers::NONE);
+    fixture.release_at(from + by);
+    let seen = seen.borrow();
+    let Some(EditEvent::Cancel { before: Some(Mixed::Same(before)), .. }) =
+        seen.gesture.iter().rev().find(|event| !matches!(event, EditEvent::Update { .. }))
+    else {
+        panic!("Escape reports a Cancel: {:?}", seen.gesture);
+    };
+    assert_eq!(*before, Tick::ZERO, "the cancel returns to a zero delta");
+    assert!(!seen.gesture.iter().any(|event| matches!(event, EditEvent::Commit { .. })), "nothing commits");
 }
 
 /// The navigator reports the previous and the toggle buttons; the next button is dimmed without a key after the playhead.

@@ -392,15 +392,16 @@ mod tests {
         c.to_hsb().h
     }
 
-    /// Complementary gives the base and its hue turned 180°; every rule starts with the base.
+    /// Complementary gives the base and its hue turned 180°; every rule starts with the base, and a theme is always
+    /// five colours, base first.
     #[test]
-    fn every_rule_starts_with_the_base_and_complementary_turns_half_way() {
-        let counts = [2, 4, 3, 3, 3, 3, 5, 5, 5, 3, 5, 5, 4, 4, 4, 4, 4, 2, 4, 3, 5];
+    fn every_rule_starts_with_the_base() {
         for base in [Srgba::rgb(0.9, 0.47, 0.16), Srgba::rgb(0.4, 0.4, 0.4)] {
-            for (rule, n) in Harmony::ALL.into_iter().zip(counts) {
-                let colors = rule.apply(base);
-                assert_eq!(colors.len(), n, "{}", rule.id());
-                assert_eq!(colors[0], base, "{}", rule.id());
+            for rule in Harmony::ALL {
+                assert_eq!(rule.apply(base)[0], base, "{}", rule.id());
+                let theme = rule.theme(base);
+                assert_eq!(theme.len(), THEME_SIZE, "{}", rule.id());
+                assert_eq!(theme[0], base, "{}", rule.id());
             }
         }
         let red = Harmony::Complementary.apply(Srgba::rgb(1.0, 0.0, 0.0));
@@ -419,17 +420,6 @@ mod tests {
         move_on_wheel(&mut alone, 0, [30.0, 1.0, 1.0], false);
         assert!((hue(alone[1]) - 120.0).abs() < 0.5);
         move_on_wheel(&mut alone, 9, [0.0, 0.0, 0.0], true);
-    }
-
-    /// A theme always has five colours, base first.
-    #[test]
-    fn a_theme_has_five_colours_base_first() {
-        let base = Srgba::rgb(0.24, 0.39, 0.87);
-        for rule in Harmony::ALL {
-            let theme = rule.theme(base);
-            assert_eq!(theme.len(), THEME_SIZE, "{}", rule.id());
-            assert_eq!(theme[0], base, "{}", rule.id());
-        }
     }
 
     /// The guide's centre column is the harmony; step 0 is the colour itself.

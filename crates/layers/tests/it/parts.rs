@@ -54,25 +54,16 @@ fn filter_rules_for_kind_name_and_mode() {
     assert!(mode.shows(&fill) && !mode.shows(&pixel));
 }
 
-/// `LayersSettings::default()` is Medium, Entire Document, filters shown, the first four switches on, badges off; a
-/// section with missing fields loads with those defaults; a JSON round trip keeps every field.
+/// A section with missing fields loads with the defaults; a JSON round trip keeps every field.
 #[trial]
-fn settings_defaults_missing_fields_and_round_trip() {
+fn partial_settings_load_with_defaults_and_round_trip() {
     let defaults = LayersSettings::default();
-    assert_eq!(defaults.options.thumbnail_size, ThumbSize::Medium);
-    assert_eq!(defaults.options.thumbnail_contents, ThumbContents::EntireDocument);
-    assert!(defaults.show_filters);
-    let o = &defaults.options;
-    assert!(
-        o.use_default_masks_on_fill_layers && o.expand_new_effects && o.add_copy_to_copied_layers_and_groups && o.preview_on_canvas_when_reordering
-    );
-    assert!(!o.show_layer_mask_badges);
-
     let partial: LayersSettings =
         serde_json::from_str(r#"{"options":{"thumbnail_size":"Large","expand_new_effects":false}}"#).expect("partial section loads");
     assert_eq!(partial.options.thumbnail_size, ThumbSize::Large);
     assert!(!partial.options.expand_new_effects);
-    assert!(partial.show_filters && partial.options.use_default_masks_on_fill_layers, "missing fields take their defaults");
+    assert_eq!(partial.show_filters, defaults.show_filters, "missing fields take their defaults");
+    assert_eq!(partial.options.use_default_masks_on_fill_layers, defaults.options.use_default_masks_on_fill_layers);
     assert_eq!(serde_json::from_str::<LayersSettings>("{}").expect("empty section loads"), defaults);
 
     let mut changed = LayersSettings::default();

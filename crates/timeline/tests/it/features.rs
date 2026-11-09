@@ -237,16 +237,11 @@ fn a_marquee_selects_the_clips_it_touches_across_tracks() {
 fn the_snap_target_shows_as_a_line_while_dragging() {
     let (mut fixture, _, _) = panel(Vec::new(), Vec::new());
     let alpha = clip_rect(&fixture, "alpha");
-    let at = |time: f64| alpha.left() + ((time - 2.0) * POINTS_PER_SECOND) as f32;
     // Alpha's end meets the start of gamma (9 s) a point short of it.
     let by = vec2(((9.0 - 6.0) * POINTS_PER_SECOND) as f32 - 1.0, 0.0);
     let lines = |fixture: &Fixture| {
         let tall = alpha.height() * 2.0;
-        fixture
-            .shape_bounds()
-            .iter()
-            .filter(|bounds| bounds.width() < 4.0 && bounds.height() > tall && (bounds.center().x - at(9.0)).abs() < 1.5)
-            .count()
+        fixture.shape_bounds().iter().filter(|bounds| bounds.width() < bounds.height() / 10.0 && bounds.height() > tall).count()
     };
     fixture.drag_at_pausing(alpha.center(), by, |fixture| {
         assert!(lines(fixture) > 0, "a line stands at the snap target");

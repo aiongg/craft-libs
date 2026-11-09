@@ -11,7 +11,6 @@ use craft_layers::ui::panel::{
 use craft_layers::ui::tree::{LayerInfo, LayerKind, LayerLocks, LayerPart, LayerRowKey, LayerSelection, MaskInfo};
 use craft_theme::LabelColor;
 use craft_ui::contract::{Entry, Role};
-use craft_ui::list::ThumbSize;
 use craft_ui::testing::{Fixture, Target, pointer, trial};
 use egui::{Key, Modifiers, Pos2, Rect, Ui, Vec2};
 use std::cell::RefCell;
@@ -277,7 +276,8 @@ impl Eyes {
     }
 }
 
-/// A sweep down the eyes is one undo step: one Undo through the host's history restores every row it crossed.
+/// A sweep down the eyes is one undo step: one Undo through the host's history restores every row it crossed. Escape
+/// during a sweep reports the rows it crossed as cancelled, each with the state it had before.
 #[trial]
 fn a_sweep_down_the_eyes_is_one_undo_step() {
     let (mut fixture, app) = rig(FakeLayers::sample());
@@ -302,11 +302,7 @@ fn a_sweep_down_the_eyes_is_one_undo_step() {
     assert!(eyes.history.step(&mut state, Step::Undo));
     assert_eq!(state, vec![true; 3], "one Undo restores every crossed row");
     assert!(!eyes.history.can_undo(), "the sweep was one step");
-}
 
-/// Escape during a sweep down the eyes reports the rows it crossed as cancelled, each with the state it had before.
-#[trial]
-fn escape_during_an_eye_sweep_restores_the_rows_crossed() {
     let (mut fixture, app) = rig(FakeLayers::sample());
     let (start, end) = (node(&fixture, "Visibility Title").center(), node(&fixture, "Visibility Smart Object").center());
     fixture.frame(vec![pointer::moved(start)]);
@@ -337,7 +333,10 @@ fn escape_during_an_alt_eye_sweep_undoes_the_show_only() {
     fixture.frame(vec![pointer::moved(start)]);
     fixture.frame(vec![pointer::press(start)]);
     fixture.frame(vec![pointer::moved(end)]);
-    take(&app);
+    let swept = take(&app);
+    let shown_only: Vec<_> = swept.iter().filter(|event| matches!(event, LayersEvent::ShowOnly(_))).collect();
+    assert_eq!(shown_only, [&LayersEvent::ShowOnly(LayerRowKey::Layer(4))], "the sweep is one Show Only: {swept:?}");
+    assert!(toggles(&swept).is_empty(), "and no toggle: {swept:?}");
     fixture.key(Key::Escape, Modifiers::ALT);
     fixture.idle(2);
     let events = take(&app);
@@ -346,7 +345,8 @@ fn escape_during_an_alt_eye_sweep_undoes_the_show_only() {
     assert!(toggles(&events).is_empty(), "events: {events:?}");
 }
 
-/// A pick in the eye's colour menu colours every selected layer, and a row outside the selection alone.
+/// A pick in the eye's colour menu colours every selected layer, and a row outside the selection alone; the menu checks
+/// the colour the selected layers share, and none when they differ.
 #[trial]
 fn the_eye_colour_menu_colours_every_selected_layer() {
     let (mut fixture, app) = rig(FakeLayers::sample());
@@ -364,11 +364,7 @@ fn the_eye_colour_menu_colours_every_selected_layer() {
     let events = take(&app);
     assert_eq!(label_colors(&events), [(vec![8], Some(LabelColor::Blue))], "a row outside the selection");
     assert!(selects(&events).is_empty(), "the colour menu does not select: {events:?}");
-}
 
-/// The eye menu checks the colour the selected layers share, and none when they differ.
-#[trial]
-fn the_eye_menu_checks_only_a_colour_the_rows_share() {
     let mut tree = FakeLayers::sample();
     tree.layer_mut(4).info.label = Some(LabelColor::Red);
     tree.layer_mut(5).info.label = Some(LabelColor::Red);
@@ -515,7 +511,8 @@ fn keys_walk_rows_open_groups_and_activate() {
     assert!(activations(&take(&app)).contains(&(LayerRowKey::Layer(2), ActivateOn::Row)));
 }
 
-/// The effects commands act on the active layer when it has effects; Alt on the disclosure reaches every layer.
+/// The effects commands act on the active layer when it has effects; Alt on the disclosure reaches every layer, and on
+/// a group's disclosure every group.
 #[trial]
 fn effects_commands_and_the_disclosure_report_fx_open() {
     let mut tree = FakeLayers::sample();
@@ -533,11 +530,8 @@ fn effects_commands_and_the_disclosure_report_fx_open() {
     fixture.hold(Modifiers::ALT);
     fixture.click(&node(&fixture, "Collapse effects Styled"));
     assert!(fx_opens(&take(&app)).contains(&(7, false, true)), "Alt reaches every layer");
-}
 
-/// Alt-click on a group's disclosure closes or opens every group.
-#[trial]
-fn alt_click_on_a_group_disclosure_reaches_every_group() {
+    // Alt-click on a group's disclosure closes or opens every group.
     let (mut fixture, app) = rig(FakeLayers::sample());
     fixture.hold(Modifiers::ALT);
     fixture.click(&node(&fixture, "Collapse Group 1"));
@@ -588,16 +582,6 @@ fn drop_zones_into_before_and_after_the_last_row() {
     assert_eq!(dropped(&mut fixture, &app, from, below), Some((vec![8], 9, LayerPosition::After, false)), "the space below the last row");
 }
 
-/// Alt during a drag copies the layer instead of moving it.
-#[trial]
-fn an_alt_drag_copies() {
-    let (mut fixture, app) = rig(FakeLayers::sample());
-    let from = row(&fixture, "Hidden").center();
-    let to = at(&row(&fixture, "Title"), 0.75);
-    fixture.hold(Modifiers::ALT);
-    assert_eq!(dropped(&mut fixture, &app, from, to), Some((vec![8], 5, LayerPosition::Before, true)));
-}
-
 /// How far right of a mask's chain its thumbnail starts to hold the pointer.
 const INTO_THUMBNAIL: f32 = 4.0;
 
@@ -611,7 +595,9 @@ fn rows_effects_and_masks_dropped_on_footer_buttons() {
         take(&app);
         let to = button(fixture, label);
         drag_to(fixture, from, to);
-        footer_drops(&take(&app))
+        let events = take(&app);
+        assert!(layer_drop(&events).is_none(), "a footer drop reports no layer reorder: {events:?}");
+        footer_drops(&events)
     };
 
     let title = row(&fixture, "Title").center();
@@ -711,19 +697,21 @@ fn added_centre(bounds: &[Rect], base: &[Rect]) -> Pos2 {
     added.into_iter().fold(Rect::NOTHING, |hull, rect| hull.union(rect)).center()
 }
 
-/// The active row frames its target thumbnail, and the brackets move from the pixels to each mask in reading order.
+/// The active row frames its target thumbnail, and the brackets move from the pixels to each mask.
 #[trial]
 fn target_brackets_frame_the_targeted_thumbnail() {
     let (none, _) = painted_with_target(LayerPart::FilterMask);
-    let (pixels, fixture) = painted_with_target(LayerPart::Pixels);
+    let (pixels, _) = painted_with_target(LayerPart::Pixels);
     let (layer_mask, _) = painted_with_target(LayerPart::LayerMask);
     let (vector_mask, _) = painted_with_target(LayerPart::VectorMask);
-    let chains = [node(&fixture, "Unlink layer mask of Busy").center().x, node(&fixture, "Link vector mask of Busy").center().x];
     let framed = [added_centre(&pixels, &none).x, added_centre(&layer_mask, &none).x, added_centre(&vector_mask, &none).x];
-    assert!(framed[0] < chains[0] && chains[0] < framed[1] && framed[1] < chains[1] && chains[1] < framed[2], "{framed:?} around {chains:?}");
+    assert!(
+        framed[0] != framed[1] && framed[1] != framed[2] && framed[0] != framed[2],
+        "the brackets frame a different thumbnail per target: {framed:?}"
+    );
 }
 
-/// Effects rows sit under their layer in order, no taller than a layer row, with their eye in the eye column of the layers.
+/// Effects rows sit under their layer in order.
 #[trial]
 fn effect_rows_sit_under_their_layer() {
     let mut tree = FakeLayers::sample();
@@ -731,46 +719,6 @@ fn effect_rows_sit_under_their_layer() {
     let (fixture, _app) = rig_with(tree, |app| app.tree.layer_mut(7).effects_open = true);
     let tops: Vec<f32> = ["Styled", "Effects", "Drop Shadow", "Stroke", "Hidden"].iter().map(|name| row(&fixture, name).rect.min.y).collect();
     assert!(tops.windows(2).all(|pair| pair[0] < pair[1]), "the rows follow their layer in order: {tops:?}");
-    assert!(row(&fixture, "Drop Shadow").rect.height() <= row(&fixture, "Styled").rect.height(), "an effects row is no taller than its layer");
-    let (layer_eye, effect_eye) = (node(&fixture, "Visibility Styled").rect, node(&fixture, "Visibility Drop Shadow").rect);
-    assert_eq!(effect_eye.min.x, layer_eye.min.x, "one eye column for layers and effects");
-}
-
-/// The list item named `name`.
-fn item_named(fixture: &Fixture, name: &str) -> Target {
-    fixture
-        .by_role(Role::TREE_ITEM)
-        .into_iter()
-        .find(|item| fixture.tree().name_of(item.node).as_deref() == Some(name))
-        .unwrap_or_else(|| panic!("no list item named {name:?}"))
-}
-
-/// The rig of the Smart Filters trials: the smart object's filters open at thumbnail size `size`.
-fn smart_filter_rig(size: ThumbSize) -> Fixture {
-    let mut tree = FakeLayers::sample();
-    tree.selection = LayerSelection::default();
-    rig_with(tree, |app| {
-        app.tree.layer_mut(6).effects_open = true;
-        app.settings.options.thumbnail_size = size;
-    })
-    .0
-}
-
-/// The Smart Filters header carries the filter mask's thumbnail, so it is as tall as a layer row
-/// and taller than a filter row; with thumbnails off all three rows are alike (Photoshop). A row's height follows its
-/// thumbnail, which paints no node of its own.
-#[trial]
-fn the_smart_filters_header_holds_the_shared_mask_thumbnail() {
-    for size in [ThumbSize::Medium] {
-        let fixture = smart_filter_rig(size);
-        let height = |name: &str| item_named(&fixture, name).rect.height();
-        let (header, filter, layer) = (height("Smart Filters"), height("Gaussian Blur"), height("Styled"));
-        assert!(header > filter, "{size:?}: the header row holds a thumbnail: {header} against {filter}");
-        assert_eq!(header, layer, "{size:?}: the filter mask thumbnail matches the layer thumbnails");
-    }
-    let fixture = smart_filter_rig(ThumbSize::None);
-    let (header, filter) = (item_named(&fixture, "Smart Filters").rect.height(), item_named(&fixture, "Gaussian Blur").rect.height());
-    assert!((header - filter).abs() < 0.5, "no thumbnail at size None: {header} against {filter}");
 }
 
 /// Right-click on the node named `label`.

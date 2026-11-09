@@ -38,7 +38,7 @@ fn formats_every_display() {
 }
 
 #[test]
-fn parses_premiere_input() {
+fn parses_premiere_input_and_refuses_the_rest() {
     let rate = FrameRate::FPS_25;
     let tc = TimeFormat::timecode(rate);
     let frames = |input: &str, current: i64| rate.frame_at(parse_time(input, &tc, rate.tick_of(current)).expect(input));
@@ -59,11 +59,8 @@ fn parses_premiere_input() {
     assert_eq!(other(TimeDisplay::Seconds, "10.5"), Ok(262));
     assert_eq!(parse_time("00:00:10:24000", &tc.display(TimeDisplay::AudioSamples), Tick::ZERO), Ok(Tick(TICKS_PER_SECOND * 21 / 2)));
     assert_eq!(SampleRate::default().hz(), 48_000);
-}
 
-#[test]
-fn refuses_what_is_not_a_time() {
-    let tc = TimeFormat::timecode(FrameRate::FPS_25);
+    // What is not a time is refused.
     assert_eq!(parse_time("  ", &tc, Tick::ZERO), Err(TimecodeError::Empty));
     assert_eq!(parse_time("1:x", &tc, Tick::ZERO), Err(TimecodeError::NotATime("1:x".into())));
     assert_eq!(parse_time("1:2:3:4:5", &tc, Tick::ZERO), Err(TimecodeError::NotATime("1:2:3:4:5".into())));

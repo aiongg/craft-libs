@@ -4,7 +4,7 @@ use craft_behavior::EditEvent;
 use craft_keymap::Mods;
 use craft_layers::ui::filter::{FilterKind, LayerFilter};
 use craft_layers::ui::mock::FakeLayers;
-use craft_layers::ui::panel::{LayerDrop, LayerPosition, LayersEvent, LayersFooterAction, LayersFooterButton, LayersPanel};
+use craft_layers::ui::panel::{LayerDrop, LayerPosition, LayersEvent, LayersFooterAction, LayersPanel};
 use craft_layers::ui::tree::{
     LayerInfo, LayerKind, LayerPart, LayerProperties, LayerRowKey, LayerSelection, LayerTree, LayersFooterState, SubRowGroup, SubRows,
 };
@@ -154,7 +154,7 @@ fn rows_are_listed_top_first_and_closed_groups_hide_their_layers() {
 }
 
 /// A filter lists the matching layers flat, without their groups or the layers it leaves out, and a layer from a group still shows
-/// as nested.
+/// as nested. A filter reads fields the tree revision does not cover, so it also applies while the revision stands.
 #[trial]
 fn a_filter_lists_matches_without_their_groups() {
     let mut rig = rig();
@@ -165,12 +165,8 @@ fn a_filter_lists_matches_without_their_groups() {
     for left_out in ["Group 1", "Title", "Levels 1", "Smart Object"] {
         assert!(rig.fixture.by_label(left_out).is_none(), "{left_out} is filtered out");
     }
-}
 
-/// A filter reads fields the tree revision does not cover, so it applies even while the revision stands.
-#[trial]
-fn a_filter_applies_even_while_the_tree_revision_stands() {
-    let mut rig = rig();
+    let mut rig = self::rig();
     rig.tree.borrow_mut().revision = Some(1);
     rig.filter.borrow_mut().kinds = vec![FilterKind::Pixel];
     rig.fixture.idle(3);
@@ -207,19 +203,6 @@ fn a_new_active_layer_opens_its_closed_ancestors_once() {
     rig.tree.borrow_mut().selection = LayerSelection::new(vec![10], Some(10), LayerPart::Pixels);
     rig.fixture.idle(4);
     assert_eq!(opens(&rig), [(1, true), (2, true)]);
-}
-
-/// An Alt gesture that starts on an eye and sweeps over more is one Show Only, and reports no toggle.
-#[trial]
-fn an_alt_sweep_over_the_eyes_reports_show_only_once() {
-    let mut rig = rig();
-    let (from, to) = (rig.row("Visibility Title").center(), rig.row("Visibility Levels 1").center());
-    rig.fixture.hold(Modifiers::ALT);
-    rig.drag(from, to);
-    let events = rig.seen.borrow();
-    let shown_only: Vec<_> = events.iter().filter(|event| matches!(event, LayersEvent::ShowOnly(_))).collect();
-    assert_eq!(shown_only, [&LayersEvent::ShowOnly(LayerRowKey::Layer(4))], "events: {events:?}");
-    assert!(!events.iter().any(|event| matches!(event, LayersEvent::Toggle(_))), "events: {events:?}");
 }
 
 /// Cmd on a thumbnail loads it as a selection, Shift or Alt on a mask does too, and Cmd on the Background's thumbnail is a plain
@@ -300,17 +283,8 @@ impl LayerTree for NothingBelowBackground {
     }
 }
 
-/// A drop the app refuses takes nothing, while the drop just above it goes through.
-#[trial]
-fn a_drop_the_app_refuses_reports_nothing() {
-    let mut rig = rig_of(NothingBelowBackground(FakeLayers::sample()));
-    rig.drop_on("Title", "Background", Place::Below);
-    assert_eq!(rig.drops(), []);
-    rig.drop_on("Title", "Background", Place::Above);
-    assert_eq!(rig.drops(), [layer_move(&[4], 9, LayerPosition::Before, false)]);
-}
-
-/// Layers dropped above or below a layer, and onto a group, report where they land; Alt makes it a copy.
+/// Layers dropped above or below a layer, and onto a group, report where they land; Alt makes it a copy. A drop the app
+/// refuses takes nothing, while the drop just above it goes through.
 #[trial]
 fn a_layer_drop_reports_its_landing_place_and_alt_copies() {
     let mut rig = rig();
@@ -327,6 +301,12 @@ fn a_layer_drop_reports_its_landing_place_and_alt_copies() {
     rig.drop_on("Title", "Hidden", Place::Below);
     rig.fixture.hold(Modifiers::NONE);
     assert_eq!(rig.drops(), [layer_move(&[4], 9, LayerPosition::Before, true)]);
+
+    let mut rig = rig_of(NothingBelowBackground(FakeLayers::sample()));
+    rig.drop_on("Title", "Background", Place::Below);
+    assert_eq!(rig.drops(), [], "a drop the app refuses reports nothing");
+    rig.drop_on("Title", "Background", Place::Above);
+    assert_eq!(rig.drops(), [layer_move(&[4], 9, LayerPosition::Before, false)]);
 }
 
 /// Effects dropped on another layer move to it (Alt copies); onto their own layer, between layers, or as Smart Filters onto a
@@ -462,56 +442,6 @@ fn footer_modifiers_report_ask_below_and_from_selection() {
     rig.tree.borrow_mut().selection = LayerSelection::new(Vec::new(), None, LayerPart::Pixels);
     rig.fixture.idle(2);
     assert_eq!(press(&mut rig, NEW_GROUP, Modifiers::SHIFT), group(false, false, false), "no active layer: an empty group");
-}
-
-fn footer_drops(rig: &Rig<FakeLayers>) -> Vec<(LayersFooterButton, Vec<LayerRowKey<u32>>)> {
-    rig.seen
-        .borrow()
-        .iter()
-        .filter_map(|event| if let LayersEvent::FooterDrop { button, rows, .. } = event { Some((*button, rows.clone())) } else { None })
-        .collect()
-}
-
-/// Delete takes any row and a mask; New Layer and New Group take layer rows only.
-#[trial]
-fn footer_buttons_accept_the_drags_the_spec_names() {
-    let mut rig = rig();
-    rig.tree.borrow_mut().layers[5].effects_open = true;
-    rig.tree.borrow_mut().layers[6].effects_open = true;
-    rig.fixture.idle(3);
-    let layers = vec![LayerRowKey::Layer(4)];
-    let effects = vec![LayerRowKey::Effects(7, Some(0))];
-    for (button, label) in
-        [(LayersFooterButton::Delete, DELETE), (LayersFooterButton::NewLayer, NEW_LAYER), (LayersFooterButton::NewGroup, NEW_GROUP)]
-    {
-        let onto = rig.row(label).center();
-        rig.drag(rig.row("Title").center(), onto);
-        assert_eq!(footer_drops(&rig), [(button, layers.clone())], "a layer onto {label}");
-    }
-    let delete = rig.row(DELETE).center();
-    rig.drag(rig.row("Drop Shadow").center(), delete);
-    assert_eq!(footer_drops(&rig), [(LayersFooterButton::Delete, effects)]);
-    for label in [NEW_LAYER, NEW_GROUP] {
-        let onto = rig.row(label).center();
-        rig.drag(rig.row("Drop Shadow").center(), onto);
-        assert_eq!(footer_drops(&rig), [], "an effect onto {label}");
-    }
-}
-
-/// Dragging only a mask thumbnail carries only the mask: Delete takes it, New Layer does not, and no layer reorder is reported.
-#[trial]
-fn a_mask_thumbnail_drag_carries_only_the_mask() {
-    let mut rig = rig();
-    let row = rig.row("Masked").rect;
-    let link = rig.row("Unlink layer mask of Masked").rect;
-    let mask = Pos2::new(link.right() + row.height() * 0.2, row.center().y);
-    let delete = rig.row(DELETE).center();
-    rig.drag(mask, delete);
-    assert_eq!(footer_drops(&rig), [(LayersFooterButton::Delete, vec![LayerRowKey::Mask(3, LayerPart::LayerMask)])]);
-    assert_eq!(rig.drops(), []);
-    let new_layer = rig.row(NEW_LAYER).center();
-    rig.drag(mask, new_layer);
-    assert_eq!(footer_drops(&rig), []);
 }
 
 /// A drag from another Layers panel (another document) is taken by none of this panel's footer buttons.

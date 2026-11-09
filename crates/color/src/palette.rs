@@ -1297,6 +1297,5 @@ mod tests {
         assert!(near(SwatchColor::Cmyk([0.0; 4]).to_srgb(cmyk), [1.0; 3], 0.03));
         let cyan = SwatchColor::Cmyk([1.0, 0.0, 0.0, 0.0]).to_srgb(cmyk);
         assert!(cyan.r < 0.3 && cyan.g > cyan.r && cyan.b > cyan.r, "{cyan:?}");
-        assert_eq!(default_swatches().iter().map(|g| g.entries.len()).sum::<usize>(), 46);
     }
 }

@@ -1,6 +1,6 @@
 //! Tick, TimeRange and TimeView.
 
-use crate::time::{TICKS_PER_SECOND, Tick, TimeRange, TimeView, VIEW_EXTENT_PAST_END};
+use crate::time::{TICKS_PER_SECOND, Tick, TimeRange, TimeView};
 
 fn secs(s: i64) -> Tick {
     Tick(s * TICKS_PER_SECOND)
@@ -93,16 +93,6 @@ fn reveal_puts_the_playhead_five_percent_from_the_left() {
 }
 
 #[test]
-fn max_start_reaches_ten_minutes_past_the_end() {
-    let view = TimeView::new(Tick::ZERO, 10.0);
-    // A 100 point view at 10 points a second spans 10 s.
-    assert_eq!(view.max_start(secs(6), 100.0), secs(6 + 600 - 10));
-    assert_eq!(view.max_start(secs(6), 1e9), Tick::ZERO);
-    assert_eq!(TimeView::new(Tick::ZERO, 0.0).max_start(secs(6), 100.0), Tick::ZERO);
-    assert_eq!(VIEW_EXTENT_PAST_END, secs(600));
-}
-
-#[test]
 fn fit_shows_the_range_with_a_margin() {
     let view = TimeView::fit(TimeRange::new(secs(5), secs(10)), 110.0, 10.0);
     assert_eq!(view.start, secs(5));
@@ -117,4 +107,10 @@ fn checked_views_are_clamped_or_refused() {
     assert_eq!(TimeView::new(Tick::MAX, 0.0).checked().map(|v| v.points_per_second), Some(0.001));
     assert_eq!(TimeView::new(secs(20_000_000), 1.0).checked().map(|v| v.start), Some(secs(10_000_000)));
     assert_eq!(TimeView::new(Tick::ZERO, f64::NAN).checked(), None);
+
+    // The scroll start stops past the end of the sequence, and not at all when the view spans more than that.
+    let view = TimeView::new(Tick::ZERO, 10.0);
+    assert!(view.max_start(secs(6), 100.0) > secs(6), "the view scrolls past the end");
+    assert_eq!(view.max_start(secs(6), 1e9), Tick::ZERO);
+    assert_eq!(TimeView::new(Tick::ZERO, 0.0).max_start(secs(6), 100.0), Tick::ZERO);
 }

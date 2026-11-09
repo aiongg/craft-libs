@@ -5,8 +5,7 @@ use std::rc::Rc;
 
 use craft_color::AreaMode;
 use craft_color::ui::{
-    ColorArea, ColorDisc, ColorRamp, ColorStrip, ColorWheel, DiscMove, RampKind, RampPick, WheelGeometry, hue_at, triangle_corners, triangle_point,
-    triangle_sv,
+    ColorArea, ColorDisc, ColorRamp, ColorStrip, ColorWheel, DiscMove, RampKind, WheelGeometry, hue_at, triangle_corners, triangle_point, triangle_sv,
 };
 use craft_theme::{ColorModel, HsbModel, ModelValues, Srgba};
 use craft_ui::contract::{Bind, Show as _};
@@ -25,8 +24,6 @@ const HUE_STEP: f32 = 1.0;
 const HUE_BIG_STEP: f32 = 10.0;
 /// What a click a quarter down the hue strip may differ from its hue by, in degrees.
 const HUE_TOLERANCE: f32 = 2.0;
-/// A grey ramp's left end counts as white from this red level.
-const NEAR_WHITE: f32 = 0.9;
 /// The saturation of the first disc marker's colour, rounded up.
 const MARKER_SATURATION: f32 = 0.78;
 /// Straight up on the wheel, in degrees counter-clockwise from the right.
@@ -82,9 +79,10 @@ fn a_quantized_area_reports_web_colours() {
     }
 }
 
-/// A click on the strip sets its component to the pointer, and the arrow keys step it by the channel's step.
+/// A click on the strip sets its component to the pointer, the arrow keys step it by the channel's step, and a drag
+/// moves only its component.
 #[trial]
-fn a_strip_click_sets_the_value_and_keys_step_it() {
+fn a_strip_click_drag_and_keys_change_only_its_value() {
     let (mut fixture, values) = fixture(ModelValues::new("hsb", &[0.0, 80.0, 80.0]), |ui, values| {
         ColorStrip::new("Hue", AreaMode::Hue, Bind::bound(values)).show(ui);
     });
@@ -99,13 +97,9 @@ fn a_strip_click_sets_the_value_and_keys_step_it() {
     fixture.key(Key::ArrowDown, Modifiers::SHIFT);
     let shifted = stepped - HUE_BIG_STEP;
     assert!(within(values.borrow().values[0], shifted), "Shift Down steps ten");
-}
 
-/// A drag on the strip is one gesture that moves only its component.
-#[trial]
-fn a_strip_drag_keeps_the_other_components() {
     let start = ModelValues::new("hsb", &[0.0, 80.0, 60.0]);
-    let (mut fixture, values) = fixture(start, |ui, values| {
+    let (mut fixture, values) = self::fixture(start, |ui, values| {
         ColorStrip::new("Hue", AreaMode::Hue, Bind::bound(values)).show(ui);
     });
     let strip = fixture.by_label("Hue").expect("the strip is shown");
@@ -134,33 +128,7 @@ fn the_ramp_colour_function_follows_the_kind() {
     assert_eq!(mapped, Srgba::rgb(0.0, 0.0, 0.0), "the spectrum goes through the gamut");
 }
 
-/// A click on the ramp picks the colour there; Shift cycles and picks nothing; a box picks its colour.
-#[trial]
-fn a_ramp_click_picks_and_a_shift_click_cycles() {
-    let seen = Rc::new(RefCell::new((RampPick::new(Srgba::rgb(0.5, 0.5, 0.5), false), 0usize, false)));
-    let shared = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        let mut state = shared.borrow_mut();
-        let mut pick = state.0;
-        let out = ColorRamp::new("Color ramp", RampKind::Grayscale, Bind::bound(&mut pick)).show(ui);
-        state.0 = pick;
-        state.1 += usize::from(out.cycle);
-        state.2 |= out.menu_at.is_some();
-    });
-    fixture.room(vec2(400.0, 120.0));
-    fixture.settle();
-    let ramp = fixture.by_label("Color ramp").expect("the ramp is shown");
-    fixture.click_at(pos2(ramp.rect.left() + 2.0, ramp.rect.center().y));
-    let picked = seen.borrow().0.color;
-    assert!(picked.r > NEAR_WHITE, "the left end of a grey ramp is white, got {picked:?}");
-    fixture.hold(Modifiers::SHIFT);
-    fixture.click_at(pos2(ramp.rect.left() + ramp.rect.width() * 0.4, ramp.rect.center().y));
-    fixture.hold(Modifiers::NONE);
-    assert_eq!(seen.borrow().1, 1, "a Shift click cycles");
-    assert_eq!(seen.borrow().0.color, picked, "and picks nothing");
-}
-
-/// The disc grabs the marker under the press and a drag moves it.
+/// The disc grabs the marker under the press and a drag moves it; a press away from every marker grabs nothing.
 #[trial]
 fn a_disc_drag_moves_the_grabbed_marker() {
     let markers = [Srgba::rgb(0.9, 0.2, 0.2), Srgba::rgb(0.2, 0.7, 0.4)];
@@ -173,14 +141,10 @@ fn a_disc_drag_moves_the_grabbed_marker() {
     let after = *moved.borrow();
     assert_eq!(after.marker, 0, "the drag started on the first marker");
     assert!(after.saturation < MARKER_SATURATION, "the marker moved towards the centre, got {}", after.saturation);
-}
 
-/// A press on the disc away from every marker grabs nothing.
-#[trial]
-fn a_disc_press_away_from_the_markers_grabs_nothing() {
     let markers = [Srgba::rgb(0.9, 0.2, 0.2)];
     let untouched = DiscMove::new(9, 1.0, 0.5);
-    let (mut fixture, moved) = fixture(untouched, move |ui, moved| {
+    let (mut fixture, moved) = self::fixture(untouched, move |ui, moved| {
         ColorDisc::new("Harmony", &markers, Bind::bound(moved)).show(ui);
     });
     let disc = fixture.by_label("Harmony").expect("the disc is shown");
@@ -205,7 +169,8 @@ fn the_wheel_geometry_round_trips() {
     assert!(geometry.inner < geometry.outer && geometry.triangle < geometry.inner);
 }
 
-/// A click on the wheel's ring sets the hue to the pointer's angle and leaves saturation and brightness.
+/// A click on the wheel's ring sets the hue to the pointer's angle and leaves saturation and brightness; a press beside
+/// the wheel, outside the ring's reach, starts nothing.
 #[trial]
 fn a_wheel_ring_click_changes_only_the_hue() {
     let start = ModelValues::new("hsb", &[0.0, 60.0, 70.0]);
@@ -218,13 +183,9 @@ fn a_wheel_ring_click_changes_only_the_hue() {
     let after = *values.borrow();
     assert!(within(after.values[0], UP), "above the centre is 90 degrees, got {}", after.values[0]);
     assert!(within(after.values[1], start.values[1]) && within(after.values[2], start.values[2]));
-}
 
-/// A press beside the wheel, outside the ring's reach, starts nothing.
-#[trial]
-fn a_wheel_press_outside_the_ring_starts_nothing() {
     let start = ModelValues::new("hsb", &[10.0, 60.0, 70.0]);
-    let (mut fixture, values) = fixture(start, |ui, values| {
+    let (mut fixture, values) = self::fixture(start, |ui, values| {
         ColorWheel::new("Color wheel", Bind::bound(values)).show(ui);
     });
     let wheel = fixture.by_label("Hue").expect("the ring has a node");
