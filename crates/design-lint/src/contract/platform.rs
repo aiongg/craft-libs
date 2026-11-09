@@ -14,8 +14,10 @@ const TARGET: &str = "contract/platform:target";
 pub(super) fn check(cx: &Cx<'_>, out: &mut Vec<Finding>) {
     for site in &cx.sites {
         match &site.kind {
-            Kind::Cfg { idents } if names_platform(idents) => {
-                cx.flag(out, ID, TARGET, site, "cfg on the target OS or wasm; ask `craft-host::target`".to_owned());
+            // `#[cfg(target_arch = "wasm32")]` alone marks what does not exist on the web (a file system, native
+            // windows), which no run-time query can stand in for; an OS check is behaviour and asks craft-host.
+            Kind::Cfg { idents } if idents.iter().any(|i| i == "target_os") => {
+                cx.flag(out, ID, TARGET, site, "cfg on the target OS; ask `craft-host::target`".to_owned());
             }
             Kind::Macro { name, idents } if name == "cfg" && names_platform(idents) => {
                 cx.flag(out, ID, TARGET, site, "cfg! on the target OS or wasm; ask `craft-host::target`".to_owned());
