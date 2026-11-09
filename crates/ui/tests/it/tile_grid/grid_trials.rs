@@ -171,17 +171,37 @@ fn end_lands_on_a_shown_tile_when_the_last_group_is_closed() {
     assert!(seen.borrow().cards.iter().all(|(_, card)| card.min.is_finite() && card.max.is_finite()), "no card is infinite");
 }
 
-/// Digits rate the selection the grid keeps with no binding of the app's; a letter still moves by type-ahead.
 #[trial]
-fn digits_rate_the_collection_selection_and_letters_still_type_ahead() {
-    let (mut fixture, seen) = rig_unbound(|grid| grid.rating_keys(RatingKeys::Digits));
-    click(&mut fixture, "alpha");
-    fixture.type_text("c");
-    fixture.idle(2);
-    fixture.type_text("3");
-    fixture.idle(2);
-    let rated = seen.borrow().rates();
-    assert_eq!(rated, [(vec![2], 3)], "the digit rates charlie, where type-ahead put the selection");
+fn a_rating_comes_from_a_digit_or_a_star_and_letters_still_type_ahead() {
+    {
+        // Digits rate the selection the grid keeps with no binding of the app's; a letter still moves by type-ahead.
+        let (mut fixture, seen) = rig_unbound(|grid| grid.rating_keys(RatingKeys::Digits));
+        click(&mut fixture, "alpha");
+        fixture.type_text("c");
+        fixture.idle(2);
+        fixture.type_text("3");
+        fixture.idle(2);
+        let rated = seen.borrow().rates();
+        assert_eq!(rated, [(vec![2], 3)], "the digit rates charlie, where type-ahead put the selection");
+    }
+    {
+        // A click on a star and a digit key give the same event, and the tile's own rating event is not a second route.
+        let rated = |tile: Tile<'static>| tile.rating(2).bar(BadgeVisibility::Always);
+        let (mut fixture, seen) = rig(1, |grid| grid.rating_keys(RatingKeys::Digits), move |_, tile| rated(tile));
+        // The rated tile's name carries its rating, so the tile is clicked by its place.
+        let card = seen.borrow().card(0);
+        fixture.click_at(card.max - Vec2::splat(4.0));
+        fixture.idle(2);
+        // The stars are one node; the fourth of five lies at seven tenths of its width.
+        let stars = fixture.by_label("Rating of alpha").expect("the rating is a node");
+        fixture.click_at(egui::Pos2::new(stars.rect.left() + stars.rect.width() * 0.7, stars.center().y));
+        fixture.idle(2);
+        fixture.type_text("4");
+        fixture.idle(2);
+        let seen = seen.borrow();
+        assert_eq!(seen.rates(), [(vec![0], 4), (vec![0], 4)], "both gestures give the one event: {:?}", seen.grid);
+        assert!(!seen.items().any(|item| matches!(item, TilePartEvent::Rate(_))), "the tile's rating does not reach the collection's events");
+    }
 }
 
 /// A grid whose selection is the item step's: the app gives no binding.
@@ -199,58 +219,38 @@ fn rig_unbound(build: impl Fn(TileGrid<'_, usize>) -> TileGrid<'_, usize> + 'sta
     (fixture, seen)
 }
 
-/// A click on a star and a digit key give the same event, and the tile's own rating event is not a second route.
 #[trial]
-fn a_star_click_and_a_digit_key_give_the_same_rate_event() {
-    let rated = |tile: Tile<'static>| tile.rating(2).bar(BadgeVisibility::Always);
-    let (mut fixture, seen) = rig(1, |grid| grid.rating_keys(RatingKeys::Digits), move |_, tile| rated(tile));
-    // The rated tile's name carries its rating, so the tile is clicked by its place.
-    let card = seen.borrow().card(0);
-    fixture.click_at(card.max - Vec2::splat(4.0));
-    fixture.idle(2);
-    // The stars are one node; the fourth of five lies at seven tenths of its width.
-    let stars = fixture.by_label("Rating of alpha").expect("the rating is a node");
-    fixture.click_at(egui::Pos2::new(stars.rect.left() + stars.rect.width() * 0.7, stars.center().y));
-    fixture.idle(2);
-    fixture.type_text("4");
-    fixture.idle(2);
-    let seen = seen.borrow();
-    assert_eq!(seen.rates(), [(vec![0], 4), (vec![0], 4)], "both gestures give the one event: {:?}", seen.grid);
-    assert!(!seen.items().any(|item| matches!(item, TilePartEvent::Rate(_))), "the tile's rating does not reach the collection's events");
-}
-
-/// Space toggles the lead tile's check, as a click on its check box does.
-#[trial]
-fn space_toggles_the_lead_tiles_check() {
-    let (mut fixture, seen) = rig(4, |grid| grid.checks(true), |_, tile| tile.check(ToggleState::Off));
-    // A click on the picture only selects. The pictures are small, so the click goes to the corner the check box (which
-    // reaches past the picture's bottom end) does not cover.
-    let picture = seen.borrow().picture(1);
-    fixture.click_at(egui::Pos2::new(picture.max.x - 2.0, picture.min.y + 2.0));
-    fixture.idle(2);
-    fixture.key(Key::Space, Modifiers::NONE);
-    fixture.idle(2);
-    let checked: Vec<_> = seen
-        .borrow()
-        .events
-        .iter()
-        .filter_map(|event| if let CollectionEvent::Item(key, TilePartEvent::Check { .. }) = event { Some(*key) } else { None })
-        .collect();
-    assert_eq!(checked, [1], "Space reports the check of the lead tile");
-}
-
-/// A click on a tile's check box reports one `Check` for that tile.
-#[trial]
-fn a_click_on_the_check_box_reports_one_check() {
-    let (mut fixture, seen) = rig(4, |grid| grid.checks(true), |_, tile| tile.check(ToggleState::Off));
-    click(&mut fixture, "bravo");
-    let checked: Vec<_> = seen
-        .borrow()
-        .events
-        .iter()
-        .filter_map(|event| if let CollectionEvent::Item(key, TilePartEvent::Check { .. }) = event { Some(*key) } else { None })
-        .collect();
-    assert_eq!(checked, [1], "the click on the check box reports the tile's check once");
+fn the_check_toggles_by_space_and_by_a_click_on_the_box() {
+    {
+        // Space toggles the lead tile's check, as a click on its check box does.
+        let (mut fixture, seen) = rig(4, |grid| grid.checks(true), |_, tile| tile.check(ToggleState::Off));
+        // A click on the picture only selects. The pictures are small, so the click goes to the corner the check box (which
+        // reaches past the picture's bottom end) does not cover.
+        let picture = seen.borrow().picture(1);
+        fixture.click_at(egui::Pos2::new(picture.max.x - 2.0, picture.min.y + 2.0));
+        fixture.idle(2);
+        fixture.key(Key::Space, Modifiers::NONE);
+        fixture.idle(2);
+        let checked: Vec<_> = seen
+            .borrow()
+            .events
+            .iter()
+            .filter_map(|event| if let CollectionEvent::Item(key, TilePartEvent::Check { .. }) = event { Some(*key) } else { None })
+            .collect();
+        assert_eq!(checked, [1], "Space reports the check of the lead tile");
+    }
+    {
+        // A click on a tile's check box reports one `Check` for that tile.
+        let (mut fixture, seen) = rig(4, |grid| grid.checks(true), |_, tile| tile.check(ToggleState::Off));
+        click(&mut fixture, "bravo");
+        let checked: Vec<_> = seen
+            .borrow()
+            .events
+            .iter()
+            .filter_map(|event| if let CollectionEvent::Item(key, TilePartEvent::Check { .. }) = event { Some(*key) } else { None })
+            .collect();
+        assert_eq!(checked, [1], "the click on the check box reports the tile's check once");
+    }
 }
 
 /// A single click activates a tile when the grid says so, and a click that only selects does not.

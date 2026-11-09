@@ -25,20 +25,33 @@ fn show(ui: &mut Ui, dropped: &RefCell<Vec<OsFiles>>) {
 }
 
 #[trial]
-fn dropped_files_reach_the_output_once() {
-    let mut frames = Frames::new();
-    let dropped = RefCell::new(Vec::new());
-    let mut run = |ui: &mut Ui| show(ui, &dropped);
-    frames.frame(vec![moved(Pos2::new(300.0, 200.0))], &mut run);
-    frames.hover_files(&["a.png", "b.png"]);
-    frames.idle(3, &mut run);
-    assert!(dropped.borrow().is_empty(), "hovering files are not a drop");
-    frames.drop_files(&["a.png", "b.png"]);
-    frames.idle(4, &mut run);
-    let dropped = dropped.borrow();
-    assert_eq!(dropped.len(), 1, "one drop in one pass");
-    let names: Vec<_> = dropped[0].files.iter().map(|file| file.name.as_str()).collect();
-    assert_eq!(names, ["a.png", "b.png"]);
+fn a_drop_reports_once_and_a_hover_that_leaves_reports_nothing() {
+    {
+        let mut frames = Frames::new();
+        let dropped = RefCell::new(Vec::new());
+        let mut run = |ui: &mut Ui| show(ui, &dropped);
+        frames.frame(vec![moved(Pos2::new(300.0, 200.0))], &mut run);
+        frames.hover_files(&["a.png", "b.png"]);
+        frames.idle(3, &mut run);
+        assert!(dropped.borrow().is_empty(), "hovering files are not a drop");
+        frames.drop_files(&["a.png", "b.png"]);
+        frames.idle(4, &mut run);
+        let dropped = dropped.borrow();
+        assert_eq!(dropped.len(), 1, "one drop in one pass");
+        let names: Vec<_> = dropped[0].files.iter().map(|file| file.name.as_str()).collect();
+        assert_eq!(names, ["a.png", "b.png"]);
+    }
+    {
+        let mut frames = Frames::new();
+        let dropped = RefCell::new(Vec::new());
+        let mut run = |ui: &mut Ui| show(ui, &dropped);
+        frames.frame(vec![moved(Pos2::new(300.0, 200.0))], &mut run);
+        frames.hover_files(&["a.png"]);
+        frames.idle(3, &mut run);
+        frames.leave_files();
+        frames.idle(4, &mut run);
+        assert!(dropped.borrow().is_empty());
+    }
 }
 
 /// Files that hover before the window has any pointer position show the veil and drop on the whole window.
@@ -60,19 +73,6 @@ fn files_hovering_with_no_pointer_position_show_the_veil_and_drop_on_the_window(
     frames.idle(4, &mut run);
     let names: Vec<_> = dropped.borrow().iter().flat_map(|files| files.files.iter().map(|file| file.name.clone())).collect();
     assert_eq!(names, ["a.png", "b.png"]);
-}
-
-#[trial]
-fn files_that_leave_without_a_drop_report_nothing() {
-    let mut frames = Frames::new();
-    let dropped = RefCell::new(Vec::new());
-    let mut run = |ui: &mut Ui| show(ui, &dropped);
-    frames.frame(vec![moved(Pos2::new(300.0, 200.0))], &mut run);
-    frames.hover_files(&["a.png"]);
-    frames.idle(3, &mut run);
-    frames.leave_files();
-    frames.idle(4, &mut run);
-    assert!(dropped.borrow().is_empty());
 }
 
 /// The count of AccessKit nodes named by the veil's label: it grows by the card's text while the veil shows.

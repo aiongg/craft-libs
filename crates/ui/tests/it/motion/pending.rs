@@ -118,49 +118,49 @@ fn a_sizing_pass_leaves_a_landed_result_for_the_next_real_pass() {
 
 // A job that panics leaves no spinner: the next passes submit it again.
 #[trial]
-fn a_job_that_panics_is_submitted_again() {
-    let jobs = Arc::new(ManualJobs::new());
-    let mut frames = Frames::new();
-    frames.host(host_over(jobs.clone()));
-    let attempts = Arc::new(AtomicUsize::new(0));
-    polled(&mut frames, false, &attempts, true);
-    jobs.run_all();
-    polled(&mut frames, false, &attempts, true);
-    polled(&mut frames, false, &attempts, true);
-    jobs.run_all();
-    assert_eq!(polled(&mut frames, false, &attempts, true), Pending::Ready(7));
-    assert_eq!(attempts.load(Ordering::Relaxed), 2);
+fn a_panicking_job_is_retried_and_a_job_that_always_panics_ends_lost() {
+    {
+        let jobs = Arc::new(ManualJobs::new());
+        let mut frames = Frames::new();
+        frames.host(host_over(jobs.clone()));
+        let attempts = Arc::new(AtomicUsize::new(0));
+        polled(&mut frames, false, &attempts, true);
+        jobs.run_all();
+        polled(&mut frames, false, &attempts, true);
+        polled(&mut frames, false, &attempts, true);
+        jobs.run_all();
+        assert_eq!(polled(&mut frames, false, &attempts, true), Pending::Ready(7));
+        assert_eq!(attempts.load(Ordering::Relaxed), 2);
+    }
+    {
+        let jobs = Arc::new(ManualJobs::new());
+        let mut frames = Frames::new();
+        frames.host(host_over(jobs.clone()));
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let mut last = Pending::default();
+        for _ in 0..12 {
+            let out = RefCell::new(Pending::default());
+            let counted = attempts.clone();
+            frames.frame(Vec::new(), |ui| {
+                let mut stage = Stage::open(ui.ctx(), global("pending.trial", "always"));
+                let counted = counted.clone();
+                *out.borrow_mut() = stage
+                    .pending("k", move || {
+                        counted.fetch_add(1, Ordering::Relaxed);
+                        Job::new(|_, _| -> Result<u32, String> { panic!("always") })
+                    })
+                    .clone();
+                stage.finish();
+            });
+            jobs.run_all();
+            last = out.into_inner();
+        }
+        assert_eq!(last, Pending::Lost);
+        assert_eq!(attempts.load(Ordering::Relaxed), craft_ui::runtime::pending::LOST_LIMIT as usize, "no further submissions");
+    }
 }
 
 // A job that always panics is submitted a bounded number of times, then the key shows `Lost`.
-#[trial]
-fn a_job_that_always_panics_ends_lost() {
-    let jobs = Arc::new(ManualJobs::new());
-    let mut frames = Frames::new();
-    frames.host(host_over(jobs.clone()));
-    let attempts = Arc::new(AtomicUsize::new(0));
-    let mut last = Pending::default();
-    for _ in 0..12 {
-        let out = RefCell::new(Pending::default());
-        let counted = attempts.clone();
-        frames.frame(Vec::new(), |ui| {
-            let mut stage = Stage::open(ui.ctx(), global("pending.trial", "always"));
-            let counted = counted.clone();
-            *out.borrow_mut() = stage
-                .pending("k", move || {
-                    counted.fetch_add(1, Ordering::Relaxed);
-                    Job::new(|_, _| -> Result<u32, String> { panic!("always") })
-                })
-                .clone();
-            stage.finish();
-        });
-        jobs.run_all();
-        last = out.into_inner();
-    }
-    assert_eq!(last, Pending::Lost);
-    assert_eq!(attempts.load(Ordering::Relaxed), craft_ui::runtime::pending::LOST_LIMIT as usize, "no further submissions");
-}
-
 /// A `Jobs` that drops what it is given while `refusing` (a thread that could not start).
 struct Refusing {
     refusing: AtomicBool,
@@ -203,31 +203,32 @@ fn show_preview(ui: &mut egui::Ui, key: u32, ran: &Arc<Mutex<Vec<u32>>>) {
 
 // A key its owner stops asking for loses its job, waiting or running.
 #[trial]
-fn a_key_the_owner_stops_polling_is_cancelled() {
-    let jobs = Arc::new(ManualJobs::new());
-    let mut frames = Frames::new();
-    frames.host(host_over(jobs.clone()));
-    let ran = Arc::new(Mutex::new(Vec::new()));
-    frames.frame(Vec::new(), |ui| show_preview(ui, 1, &ran));
-    frames.frame(Vec::new(), |ui| show_preview(ui, 2, &ran));
-    jobs.run_all();
-    assert_eq!(*ran.lock().unwrap(), vec![2]);
+fn a_job_is_cancelled_when_its_key_is_unpolled_or_its_owner_evicted() {
+    {
+        let jobs = Arc::new(ManualJobs::new());
+        let mut frames = Frames::new();
+        frames.host(host_over(jobs.clone()));
+        let ran = Arc::new(Mutex::new(Vec::new()));
+        frames.frame(Vec::new(), |ui| show_preview(ui, 1, &ran));
+        frames.frame(Vec::new(), |ui| show_preview(ui, 2, &ran));
+        jobs.run_all();
+        assert_eq!(*ran.lock().unwrap(), vec![2]);
+    }
+    {
+        let jobs = Arc::new(ManualJobs::new());
+        let mut frames = Frames::new();
+        frames.host(host_over(jobs.clone()));
+        let ran = Arc::new(Mutex::new(Vec::new()));
+        frames.frame(Vec::new(), |ui| show_preview(ui, 1, &ran));
+        for _ in 0..6 {
+            frames.advance(0.2);
+            frames.frame(Vec::new(), |ui| {
+                craft_ui::testing::memory::dispose_evicted(ui.ctx());
+            });
+        }
+        jobs.run_all();
+        assert!(ran.lock().unwrap().is_empty());
+    }
 }
 
 // An owner that is evicted takes its waiting job with it.
-#[trial]
-fn an_evicted_owner_cancels_its_job() {
-    let jobs = Arc::new(ManualJobs::new());
-    let mut frames = Frames::new();
-    frames.host(host_over(jobs.clone()));
-    let ran = Arc::new(Mutex::new(Vec::new()));
-    frames.frame(Vec::new(), |ui| show_preview(ui, 1, &ran));
-    for _ in 0..6 {
-        frames.advance(0.2);
-        frames.frame(Vec::new(), |ui| {
-            craft_ui::testing::memory::dispose_evicted(ui.ctx());
-        });
-    }
-    jobs.run_all();
-    assert!(ran.lock().unwrap().is_empty());
-}

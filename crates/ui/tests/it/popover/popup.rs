@@ -34,43 +34,43 @@ fn scene(frames: &mut Frames, events: Vec<egui::Event>, trigger: Trigger, make: 
 }
 
 #[trial]
-fn manual_popup_opens_only_through_open() {
-    let mut frames = Frames::new();
-    let below = RefCell::new(Seen::default());
-    let frame = |frames: &mut Frames, events, open| scene(frames, events, Trigger::Manual, Overlay::dropdown, open, &below);
-    for _ in 0..3 {
-        frame(&mut frames, vec![], false);
+fn manual_popup_opens_only_through_open_and_stays_open() {
+    {
+        let mut frames = Frames::new();
+        let below = RefCell::new(Seen::default());
+        let frame = |frames: &mut Frames, events, open| scene(frames, events, Trigger::Manual, Overlay::dropdown, open, &below);
+        for _ in 0..3 {
+            frame(&mut frames, vec![], false);
+        }
+        let at = OPENER.center();
+        frame(&mut frames, vec![moved(at)], false);
+        frame(&mut frames, vec![press(at)], false);
+        frame(&mut frames, vec![release(at)], false);
+        let alt_down = key_press(Key::ArrowDown, Modifiers::ALT);
+        let after_keys = [frame(&mut frames, vec![alt_down], false), frame(&mut frames, vec![], false)];
+        assert_eq!(after_keys, [false, false], "presses and Intent::Open never open a manual popup");
+        frame(&mut frames, vec![], true);
+        assert!(frame(&mut frames, vec![], false), "the popup is open after `open`");
+        assert!(frame(&mut frames, vec![], false), "and stays open");
     }
-    let at = OPENER.center();
-    frame(&mut frames, vec![moved(at)], false);
-    frame(&mut frames, vec![press(at)], false);
-    frame(&mut frames, vec![release(at)], false);
-    let alt_down = key_press(Key::ArrowDown, Modifiers::ALT);
-    let after_keys = [frame(&mut frames, vec![alt_down], false), frame(&mut frames, vec![], false)];
-    assert_eq!(after_keys, [false, false], "presses and Intent::Open never open a manual popup");
-    frame(&mut frames, vec![], true);
-    assert!(frame(&mut frames, vec![], false), "the popup is open after `open`");
-    assert!(frame(&mut frames, vec![], false), "and stays open");
-}
-
-#[trial]
-fn a_popup_stays_open_over_idle_frames() {
-    let mut frames = Frames::new();
-    let below = RefCell::new(Seen::default());
-    frames.frame(vec![], |_| {});
-    let opened = Opened::default();
-    let content = RefCell::new(Seen::default());
-    let mut show = |ui: &mut Ui| {
-        opened.shown.set(false);
-        Opener::new(&opened, &content, Trigger::Click, Overlay::dropdown).id_salt("opener").show_at(ui, OPENER);
-        Leaf::new(&below, Vec2::new(60.0, 30.0)).id_salt("below").show_at(ui, BELOW);
-    };
-    click(&mut frames, OPENER.center(), &mut show);
-    frames.idle(2, &mut show);
-    assert!(opened.shown.get(), "a click on the opener opens its popup");
-    for _ in 0..120 {
-        frames.frame(vec![], &mut show);
-        assert!(opened.shown.get(), "the popup stays open over two seconds of idle frames");
+    {
+        let mut frames = Frames::new();
+        let below = RefCell::new(Seen::default());
+        frames.frame(vec![], |_| {});
+        let opened = Opened::default();
+        let content = RefCell::new(Seen::default());
+        let mut show = |ui: &mut Ui| {
+            opened.shown.set(false);
+            Opener::new(&opened, &content, Trigger::Click, Overlay::dropdown).id_salt("opener").show_at(ui, OPENER);
+            Leaf::new(&below, Vec2::new(60.0, 30.0)).id_salt("below").show_at(ui, BELOW);
+        };
+        click(&mut frames, OPENER.center(), &mut show);
+        frames.idle(2, &mut show);
+        assert!(opened.shown.get(), "a click on the opener opens its popup");
+        for _ in 0..120 {
+            frames.frame(vec![], &mut show);
+            assert!(opened.shown.get(), "the popup stays open over two seconds of idle frames");
+        }
     }
 }
 
@@ -98,17 +98,17 @@ fn press_outside(make: fn() -> Overlay) -> (bool, u32) {
 }
 
 #[trial]
-fn an_outside_press_closes_a_dropdown_and_reaches_the_widget_below() {
-    let (open, presses) = press_outside(Overlay::dropdown);
-    assert!(!open, "an outside press closes the popup");
-    assert!(presses > 0, "the press reaches the widget below");
-}
-
-#[trial]
-fn an_outside_press_closes_a_menu_and_does_not_reach_the_widget_below() {
-    let (open, presses) = press_outside(Overlay::menu);
-    assert!(!open, "an outside press closes the menu");
-    assert_eq!(presses, 0, "the menu absorbs the press");
+fn an_outside_press_closes_a_dropdown_or_a_menu_and_only_the_dropdown_reaches_below() {
+    {
+        let (open, presses) = press_outside(Overlay::dropdown);
+        assert!(!open, "an outside press closes the popup");
+        assert!(presses > 0, "the press reaches the widget below");
+    }
+    {
+        let (open, presses) = press_outside(Overlay::menu);
+        assert!(!open, "an outside press closes the menu");
+        assert_eq!(presses, 0, "the menu absorbs the press");
+    }
 }
 
 #[trial]
@@ -170,49 +170,49 @@ fn a_press_trigger_opens_on_the_press() {
 }
 
 #[trial]
-fn a_hover_popup_closes_after_a_grace_period_with_the_pointer_on_neither() {
-    let mut frames = Frames::new();
-    let (opened, content) = (Opened::default(), RefCell::new(Seen::default()));
-    let mut show = |ui: &mut Ui| {
-        opened.shown.set(false);
-        Opener::new(&opened, &content, Trigger::Hover, Overlay::popover).id_salt("opener").show_at(ui, OPENER);
-    };
-    frames.idle(3, &mut show);
-    frames.frame(vec![moved(OPENER.center())], &mut show);
-    frames.advance(1.0);
-    frames.idle(3, &mut show);
-    assert!(opened.shown.get(), "hovering the opener opens the popup after the dwell");
-    frames.frame(vec![moved(Pos2::new(700.0, 500.0))], &mut show);
-    frames.idle(2, &mut show);
-    assert!(opened.shown.get(), "the pointer on neither the opener nor the popup does not close it at once");
-    frames.advance(1.0);
-    frames.idle(3, &mut show);
-    assert!(!opened.shown.get(), "it closes once the grace period passed");
-}
-
-/// Keyboard focus on a hover opener counts as resting on it: the popup opens after the dwell, and closes after the
-/// grace once the focus has moved on.
-#[trial]
-fn a_hover_popup_opens_when_its_opener_gets_keyboard_focus() {
-    use craft_ui::contract::tooltip::{DELAY, GRACE};
-    let mut frames = Frames::new();
-    let (hover, other) = (Opened::default(), Opened::default());
-    let (content, unused) = (RefCell::new(Seen::default()), RefCell::new(Seen::default()));
-    let mut show = |ui: &mut Ui| {
-        hover.shown.set(false);
-        Opener::new(&hover, &content, Trigger::Hover, Overlay::popover).id_salt("opener").show_at(ui, OPENER);
-        Opener::new(&other, &unused, Trigger::Manual, Overlay::popover).id_salt("next").show_at(ui, BELOW);
-    };
-    frames.idle(3, &mut show);
-    frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], &mut show);
-    frames.advance(DELAY);
-    frames.idle(3, &mut show);
-    assert!(hover.shown.get(), "keyboard focus on the opener opens its hover popup after the dwell");
-    frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], &mut show);
-    frames.idle(2, &mut show);
-    frames.advance(GRACE);
-    frames.idle(3, &mut show);
-    assert!(!hover.shown.get(), "the popup closes after the grace once focus left the opener");
+fn a_hover_popup_closes_after_a_grace_period_and_opens_on_opener_focus() {
+    {
+        let mut frames = Frames::new();
+        let (opened, content) = (Opened::default(), RefCell::new(Seen::default()));
+        let mut show = |ui: &mut Ui| {
+            opened.shown.set(false);
+            Opener::new(&opened, &content, Trigger::Hover, Overlay::popover).id_salt("opener").show_at(ui, OPENER);
+        };
+        frames.idle(3, &mut show);
+        frames.frame(vec![moved(OPENER.center())], &mut show);
+        frames.advance(1.0);
+        frames.idle(3, &mut show);
+        assert!(opened.shown.get(), "hovering the opener opens the popup after the dwell");
+        frames.frame(vec![moved(Pos2::new(700.0, 500.0))], &mut show);
+        frames.idle(2, &mut show);
+        assert!(opened.shown.get(), "the pointer on neither the opener nor the popup does not close it at once");
+        frames.advance(1.0);
+        frames.idle(3, &mut show);
+        assert!(!opened.shown.get(), "it closes once the grace period passed");
+    }
+    {
+        // Keyboard focus on a hover opener counts as resting on it: the popup opens after the dwell, and closes after the
+        // grace once the focus has moved on.
+        use craft_ui::contract::tooltip::{DELAY, GRACE};
+        let mut frames = Frames::new();
+        let (hover, other) = (Opened::default(), Opened::default());
+        let (content, unused) = (RefCell::new(Seen::default()), RefCell::new(Seen::default()));
+        let mut show = |ui: &mut Ui| {
+            hover.shown.set(false);
+            Opener::new(&hover, &content, Trigger::Hover, Overlay::popover).id_salt("opener").show_at(ui, OPENER);
+            Opener::new(&other, &unused, Trigger::Manual, Overlay::popover).id_salt("next").show_at(ui, BELOW);
+        };
+        frames.idle(3, &mut show);
+        frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], &mut show);
+        frames.advance(DELAY);
+        frames.idle(3, &mut show);
+        assert!(hover.shown.get(), "keyboard focus on the opener opens its hover popup after the dwell");
+        frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], &mut show);
+        frames.idle(2, &mut show);
+        frames.advance(GRACE);
+        frames.idle(3, &mut show);
+        assert!(!hover.shown.get(), "the popup closes after the grace once focus left the opener");
+    }
 }
 
 const TIPS: [&str; 4] = ["Round", "Square", "Chisel", "Fan"];
@@ -280,46 +280,44 @@ fn open_picker() -> Picker {
     Picker { fixture, closed, activated, opener: opener_id }
 }
 
-/// Down moves the lead and End reaches the last row; Enter activates the lead row, closes the popup with `Activated`
-/// and leaves the key focus on the opener, which the host never moved.
 #[trial]
-fn a_popup_list_takes_list_keys_from_its_opener() {
-    let mut picker = open_picker();
-    picker.fixture.key(Key::ArrowDown, Modifiers::NONE);
-    picker.fixture.idle(2);
-    picker.fixture.key(Key::Enter, Modifiers::NONE);
-    picker.fixture.idle(4);
-    assert_eq!(picker.activated.get(), Some(1), "Down moved the lead from the first row to the second, and Enter activated it");
-    assert_eq!(picker.closed.get(), Some(CloseReason::Activated), "activating a row closes the popup");
-    assert_eq!(picker.fixture.focused(), picker.opener.get(), "the key focus stayed on the opener");
+fn a_popup_list_takes_keys_from_its_opener() {
+    {
+        // Down moves the lead and End reaches the last row; Enter activates the lead row, closes the popup with `Activated`
+        // and leaves the key focus on the opener, which the host never moved.
+        let mut picker = open_picker();
+        picker.fixture.key(Key::ArrowDown, Modifiers::NONE);
+        picker.fixture.idle(2);
+        picker.fixture.key(Key::Enter, Modifiers::NONE);
+        picker.fixture.idle(4);
+        assert_eq!(picker.activated.get(), Some(1), "Down moved the lead from the first row to the second, and Enter activated it");
+        assert_eq!(picker.closed.get(), Some(CloseReason::Activated), "activating a row closes the popup");
+        assert_eq!(picker.fixture.focused(), picker.opener.get(), "the key focus stayed on the opener");
 
-    let mut picker = open_picker();
-    picker.fixture.key(Key::End, Modifiers::NONE);
-    picker.fixture.idle(2);
-    picker.fixture.key(Key::Enter, Modifiers::NONE);
-    picker.fixture.idle(4);
-    assert_eq!(picker.activated.get(), Some(TIPS.len() - 1), "End moved the lead to the last row");
-}
-
-/// A letter typed on an opener that is not a text field moves the lead to the next row that starts with it.
-#[trial]
-fn a_letter_on_a_popup_list_opener_moves_the_lead_by_type_ahead() {
-    let mut picker = open_picker();
-    picker.fixture.type_text("c");
-    picker.fixture.idle(2);
-    picker.fixture.key(Key::Enter, Modifiers::NONE);
-    picker.fixture.idle(4);
-    assert_eq!(picker.activated.get(), Some(2), "`c` moved the lead to Chisel");
-}
-
-/// Alt+Up on the opener closes its open dropdown, as Alt+Down opens it.
-#[trial]
-fn alt_up_on_a_popup_list_opener_closes_the_popup() {
-    let mut picker = open_picker();
-    picker.fixture.key(Key::ArrowUp, Modifiers::ALT);
-    picker.fixture.idle(4);
-    assert_eq!(picker.closed.get(), Some(CloseReason::Requested), "Alt+Up closes the dropdown");
-    assert_eq!(picker.activated.get(), None, "and picks nothing");
+        let mut picker = open_picker();
+        picker.fixture.key(Key::End, Modifiers::NONE);
+        picker.fixture.idle(2);
+        picker.fixture.key(Key::Enter, Modifiers::NONE);
+        picker.fixture.idle(4);
+        assert_eq!(picker.activated.get(), Some(TIPS.len() - 1), "End moved the lead to the last row");
+    }
+    {
+        // A letter typed on an opener that is not a text field moves the lead to the next row that starts with it.
+        let mut picker = open_picker();
+        picker.fixture.type_text("c");
+        picker.fixture.idle(2);
+        picker.fixture.key(Key::Enter, Modifiers::NONE);
+        picker.fixture.idle(4);
+        assert_eq!(picker.activated.get(), Some(2), "`c` moved the lead to Chisel");
+    }
+    {
+        // Alt+Up on the opener closes its open dropdown, as Alt+Down opens it.
+        let mut picker = open_picker();
+        picker.fixture.key(Key::ArrowUp, Modifiers::ALT);
+        picker.fixture.idle(4);
+        assert_eq!(picker.closed.get(), Some(CloseReason::Requested), "Alt+Up closes the dropdown");
+        assert_eq!(picker.activated.get(), None, "and picks nothing");
+    }
 }
 
 /// Rows by position over static text.

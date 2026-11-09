@@ -158,22 +158,43 @@ fn texts(shapes: &[Shape]) -> Vec<String> {
     shapes.iter().filter_map(|shape| if let Shape::Text(text) = shape { Some(text.galley.job.text.clone()) } else { None }).collect()
 }
 
-/// Skeleton: `frames_pointer::alt_drag_drop_reports_copy_to_target_and_source`.
 #[trial]
-fn alt_drag_drop_reports_copy_to_target_and_source() {
-    for (modifiers, op) in [(Modifiers::ALT, DropOperation::Copy), (Modifiers::NONE, DropOperation::Move)] {
+fn a_drop_reports_the_operation_for_alt_and_for_the_secondary_button() {
+    {
+        // Skeleton: `frames_pointer::alt_drag_drop_reports_copy_to_target_and_source`.
+        for (modifiers, op) in [(Modifiers::ALT, DropOperation::Copy), (Modifiers::NONE, DropOperation::Move)] {
+            let seen = RefCell::new(Seen::default());
+            let mut show = scene(&seen);
+            let mut frames = Frames::new();
+            frames.hold(modifiers);
+            let over = drag_over_slot(&mut frames, &mut show);
+            assert!(seen.borrow().dropped.is_empty(), "nothing drops while the button is down");
+            frames.frame(vec![release(over)], &mut show);
+            frames.idle(2, &mut show);
+            let seen = seen.borrow();
+            assert_eq!(seen.dropped, vec![(7, op)], "the target reports one drop with {op:?}");
+            assert_eq!(seen.ended, vec![op], "the source sees {op:?} once, in the pass after the drop");
+            assert_eq!(drag::started(&frames.ctx), 1);
+        }
+    }
+    {
+        // A drag begun with the secondary button drops when that button comes up, in the source window.
         let seen = RefCell::new(Seen::default());
         let mut show = scene(&seen);
         let mut frames = Frames::new();
-        frames.hold(modifiers);
-        let over = drag_over_slot(&mut frames, &mut show);
-        assert!(seen.borrow().dropped.is_empty(), "nothing drops while the button is down");
-        frames.frame(vec![release(over)], &mut show);
+        let from = CHIP.center();
+        let over = SLOT.center();
         frames.idle(2, &mut show);
-        let seen = seen.borrow();
-        assert_eq!(seen.dropped, vec![(7, op)], "the target reports one drop with {op:?}");
-        assert_eq!(seen.ended, vec![op], "the source sees {op:?} once, in the pass after the drop");
-        assert_eq!(drag::started(&frames.ctx), 1);
+        frames.frame(vec![moved(from)], &mut show);
+        frames.frame(vec![secondary(from, true)], &mut show);
+        for at in [from + Vec2::new(30.0, 0.0), from + Vec2::new(100.0, 0.0), over] {
+            frames.frame(vec![moved(at)], &mut show);
+        }
+        frames.idle(1, &mut show);
+        assert!(drag::active::<Payload>(&frames.ctx).is_some(), "the secondary-button drag runs");
+        frames.frame(vec![secondary(over, false)], &mut show);
+        frames.idle(2, &mut show);
+        assert_eq!(seen.borrow().dropped, vec![(7, DropOperation::Move)], "the target takes the drop on the secondary release");
     }
 }
 
@@ -192,27 +213,6 @@ fn drag_preview_paints_on_a_frame_with_no_popup() {
     assert!(!texts(&frames.frame_shapes(&mut show)).iter().any(|text| text == BADGE), "the preview ends with the drag");
 }
 
-/// A drag begun with the secondary button drops when that button comes up, in the source window.
-#[trial]
-fn a_secondary_button_drag_drops_on_the_secondary_release() {
-    let seen = RefCell::new(Seen::default());
-    let mut show = scene(&seen);
-    let mut frames = Frames::new();
-    let from = CHIP.center();
-    let over = SLOT.center();
-    frames.idle(2, &mut show);
-    frames.frame(vec![moved(from)], &mut show);
-    frames.frame(vec![secondary(from, true)], &mut show);
-    for at in [from + Vec2::new(30.0, 0.0), from + Vec2::new(100.0, 0.0), over] {
-        frames.frame(vec![moved(at)], &mut show);
-    }
-    frames.idle(1, &mut show);
-    assert!(drag::active::<Payload>(&frames.ctx).is_some(), "the secondary-button drag runs");
-    frames.frame(vec![secondary(over, false)], &mut show);
-    frames.idle(2, &mut show);
-    assert_eq!(seen.borrow().dropped, vec![(7, DropOperation::Move)], "the target takes the drop on the secondary release");
-}
-
 /// Escape ends the session and the press: the release that follows drops nothing and the source is told nothing.
 #[trial]
 fn escape_cancels_a_drag_and_nobody_gets_a_drop() {
@@ -229,23 +229,50 @@ fn escape_cancels_a_drag_and_nobody_gets_a_drop() {
     assert!(seen.dropped.is_empty() && seen.ended.is_empty(), "no drop and no end: {:?} {:?}", seen.dropped, seen.ended);
 }
 
-/// A release over no target ends the drag with nothing to report, and the not-allowed cursor shows while nothing accepts.
 #[trial]
-fn a_release_over_no_target_reports_nothing_and_the_cursor_says_so() {
-    let seen = RefCell::new(Seen::default());
-    let mut show = scene(&seen);
-    let mut frames = Frames::new();
-    let over = drag_over_slot(&mut frames, &mut show);
-    assert_eq!(frames.cursor_icon(), egui::CursorIcon::Grabbing, "an accepting target shows the move cursor");
-    let away = Pos2::new(500.0, 400.0);
-    frames.frame(vec![moved(away)], &mut show);
-    frames.idle(1, &mut show);
-    assert_eq!(frames.cursor_icon(), egui::CursorIcon::NotAllowed, "nothing accepts here");
-    frames.frame(vec![release(away)], &mut show);
-    frames.idle(2, &mut show);
-    let seen = seen.borrow();
-    assert!(seen.dropped.is_empty() && seen.ended.is_empty(), "{:?} {:?}", seen.dropped, seen.ended);
-    let _ = over;
+fn a_release_over_no_target_or_under_another_layer_drops_nothing() {
+    {
+        // A release over no target ends the drag with nothing to report, and the not-allowed cursor shows while nothing accepts.
+        let seen = RefCell::new(Seen::default());
+        let mut show = scene(&seen);
+        let mut frames = Frames::new();
+        let over = drag_over_slot(&mut frames, &mut show);
+        assert_eq!(frames.cursor_icon(), egui::CursorIcon::Grabbing, "an accepting target shows the move cursor");
+        let away = Pos2::new(500.0, 400.0);
+        frames.frame(vec![moved(away)], &mut show);
+        frames.idle(1, &mut show);
+        assert_eq!(frames.cursor_icon(), egui::CursorIcon::NotAllowed, "nothing accepts here");
+        frames.frame(vec![release(away)], &mut show);
+        frames.idle(2, &mut show);
+        let seen = seen.borrow();
+        assert!(seen.dropped.is_empty() && seen.ended.is_empty(), "{:?} {:?}", seen.dropped, seen.ended);
+        let _ = over;
+    }
+    {
+        // A layer over a target hides it: a release there drops nothing and the not-allowed cursor shows.
+        let seen = RefCell::new(Seen::default());
+        let covered = Cell::new(false);
+        let mut show = |ui: &mut Ui| {
+            scene(&seen)(ui);
+            if covered.get() {
+                craft_ui::testing::frames::show_area(ui.ctx(), "cover", |cover| {
+                    Block::new(Vec2::new(400.0, 100.0)).show(cover);
+                });
+            }
+        };
+        let mut frames = Frames::new();
+        let over = drag_over_slot(&mut frames, &mut show);
+        frames.idle(1, &mut show);
+        assert_eq!(frames.cursor_icon(), egui::CursorIcon::Grabbing, "the uncovered slot accepts");
+        covered.set(true);
+        frames.idle(2, &mut show);
+        frames.frame(vec![moved(over + Vec2::new(1.0, 0.0))], &mut show);
+        frames.idle(1, &mut show);
+        assert_eq!(frames.cursor_icon(), egui::CursorIcon::NotAllowed, "the layer over the slot hides it");
+        frames.frame(vec![release(over)], &mut show);
+        frames.idle(2, &mut show);
+        assert!(seen.borrow().dropped.is_empty(), "no drop lands under the layer: {:?}", seen.borrow().dropped);
+    }
 }
 
 /// Another window's pass in the middle of a drag leaves the session running.
@@ -258,33 +285,6 @@ fn another_viewports_pass_does_not_end_a_drag() {
     assert!(drag::active::<Payload>(&frames.ctx).is_some(), "the drag runs");
     frames.frame_in_viewport(egui::ViewportId::from_hash_of("child"), |_| {});
     assert!(drag::active::<Payload>(&frames.ctx).is_some(), "a pass of another viewport keeps the session");
-}
-
-/// A layer over a target hides it: a release there drops nothing and the not-allowed cursor shows.
-#[trial]
-fn a_target_under_another_layer_takes_no_drop() {
-    let seen = RefCell::new(Seen::default());
-    let covered = Cell::new(false);
-    let mut show = |ui: &mut Ui| {
-        scene(&seen)(ui);
-        if covered.get() {
-            craft_ui::testing::frames::show_area(ui.ctx(), "cover", |cover| {
-                Block::new(Vec2::new(400.0, 100.0)).show(cover);
-            });
-        }
-    };
-    let mut frames = Frames::new();
-    let over = drag_over_slot(&mut frames, &mut show);
-    frames.idle(1, &mut show);
-    assert_eq!(frames.cursor_icon(), egui::CursorIcon::Grabbing, "the uncovered slot accepts");
-    covered.set(true);
-    frames.idle(2, &mut show);
-    frames.frame(vec![moved(over + Vec2::new(1.0, 0.0))], &mut show);
-    frames.idle(1, &mut show);
-    assert_eq!(frames.cursor_icon(), egui::CursorIcon::NotAllowed, "the layer over the slot hides it");
-    frames.frame(vec![release(over)], &mut show);
-    frames.idle(2, &mut show);
-    assert!(seen.borrow().dropped.is_empty(), "no drop lands under the layer: {:?}", seen.borrow().dropped);
 }
 
 /// A drag that starts in one window and ends over a target in another: the session maps the pointer to desktop
@@ -427,12 +427,58 @@ fn drop_files_at(at: Pos2, files: &[&str]) -> Landed {
 }
 
 #[trial]
-fn a_file_drop_on_a_list_lands_at_the_pointer() {
-    let files = ["a.png", "b.png"];
-    let third_row = Pos2::new(60.0, LIST.min.y + 2.0 * ROW + 5.0);
-    let landed = drop_files_at(third_row, &files);
-    assert_eq!(landed.rows, vec![(2, files.map(String::from).to_vec())], "the files land on the row under the pointer");
-    assert!(landed.window.is_empty(), "the window target does not take what a target over a component took");
+fn a_file_drop_on_a_list_lands_and_reports_at_the_insert_position() {
+    {
+        let files = ["a.png", "b.png"];
+        let third_row = Pos2::new(60.0, LIST.min.y + 2.0 * ROW + 5.0);
+        let landed = drop_files_at(third_row, &files);
+        assert_eq!(landed.rows, vec![(2, files.map(String::from).to_vec())], "the files land on the row under the pointer");
+        assert!(landed.window.is_empty(), "the window target does not take what a target over a component took");
+    }
+    {
+        // Files dropped on the lower half of a row of a `List` that takes files land before the next row; a list that does
+        // not take them reports nothing.
+        let files = ["a.png", "b.png"];
+        let rows = Rows(5);
+        let rects = RefCell::new(Vec::<Rect>::new());
+        let dropped = |takes: bool| {
+            let events = RefCell::new(Vec::new());
+            let mut frames = Frames::new();
+            let mut show = |ui: &mut Ui| {
+                craft_ui::testing::layout::in_region(ui, LIST, |ui| {
+                    let out = craft_ui::list::List::new("Files").takes_files(takes).id_salt("files").show_items(ui, &rows, &mut |_, cx| {
+                        let mut seen = rects.borrow_mut();
+                        seen.resize(rows.0, Rect::NOTHING);
+                        seen[cx.at] = cx.rect;
+                        craft_ui::list::ListRow::new("row")
+                    });
+                    events.borrow_mut().extend(out.events);
+                });
+            };
+            frames.idle(3, &mut show);
+            let row = rects.borrow()[2];
+            let at = Pos2::new(row.center().x, row.max.y - 2.0);
+            frames.hover_files(&files);
+            frames.frame(vec![moved(at)], &mut show);
+            frames.frame(vec![moved(at)], &mut show);
+            frames.drop_files(&files);
+            frames.frame(vec![moved(at)], &mut show);
+            frames.idle(1, &mut show);
+            events.into_inner()
+        };
+        let landed: Vec<_> = dropped(true)
+            .into_iter()
+            .filter_map(|event| match event {
+                CollectionEvent::FilesDropped { insert, files, .. } => Some((insert, files.into_iter().map(|file| file.name).collect::<Vec<_>>())),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(landed, vec![(3, files.map(String::from).to_vec())], "the files land before the row after the one under the pointer");
+        assert!(
+            !dropped(false).iter().any(|event| matches!(event, CollectionEvent::FilesDropped { .. })),
+            "a list that does not take files reports no drop"
+        );
+    }
 }
 
 #[trial]
@@ -497,49 +543,3 @@ impl DisplayOrder<usize> for Rows {
 }
 
 impl ItemSource<usize> for Rows {}
-
-/// Files dropped on the lower half of a row of a `List` that takes files land before the next row; a list that does
-/// not take them reports nothing.
-#[trial]
-fn a_file_drop_on_a_list_reports_the_files_at_the_insert_position() {
-    let files = ["a.png", "b.png"];
-    let rows = Rows(5);
-    let rects = RefCell::new(Vec::<Rect>::new());
-    let dropped = |takes: bool| {
-        let events = RefCell::new(Vec::new());
-        let mut frames = Frames::new();
-        let mut show = |ui: &mut Ui| {
-            craft_ui::testing::layout::in_region(ui, LIST, |ui| {
-                let out = craft_ui::list::List::new("Files").takes_files(takes).id_salt("files").show_items(ui, &rows, &mut |_, cx| {
-                    let mut seen = rects.borrow_mut();
-                    seen.resize(rows.0, Rect::NOTHING);
-                    seen[cx.at] = cx.rect;
-                    craft_ui::list::ListRow::new("row")
-                });
-                events.borrow_mut().extend(out.events);
-            });
-        };
-        frames.idle(3, &mut show);
-        let row = rects.borrow()[2];
-        let at = Pos2::new(row.center().x, row.max.y - 2.0);
-        frames.hover_files(&files);
-        frames.frame(vec![moved(at)], &mut show);
-        frames.frame(vec![moved(at)], &mut show);
-        frames.drop_files(&files);
-        frames.frame(vec![moved(at)], &mut show);
-        frames.idle(1, &mut show);
-        events.into_inner()
-    };
-    let landed: Vec<_> = dropped(true)
-        .into_iter()
-        .filter_map(|event| match event {
-            CollectionEvent::FilesDropped { insert, files, .. } => Some((insert, files.into_iter().map(|file| file.name).collect::<Vec<_>>())),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(landed, vec![(3, files.map(String::from).to_vec())], "the files land before the row after the one under the pointer");
-    assert!(
-        !dropped(false).iter().any(|event| matches!(event, CollectionEvent::FilesDropped { .. })),
-        "a list that does not take files reports no drop"
-    );
-}

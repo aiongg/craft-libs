@@ -55,24 +55,24 @@ fn focus_on(frames: &mut Frames, show: &mut impl FnMut(&mut Ui), name: &str) {
 }
 
 #[trial]
-fn tab_in_a_window_with_a_canvas_toggles_that_window_only() {
-    let mut show = with_canvas;
-    let mut frames = shown(true, &mut show);
-    let child = ViewportId::from_hash_of("child window");
-    frames.frame_in_viewport(child, without_canvas);
-    take_output(&frames.ctx);
-    assert_eq!(press(&mut frames, &mut show, Key::Tab, Modifiers::NONE), [(ViewportId::ROOT, ChromeToggle::Panels)], "nothing focused");
-    assert_eq!(egui_focused(&frames.ctx), None, "the press moved no focus");
-    focus_on(&mut frames, &mut show, "canvas");
-    assert_eq!(press(&mut frames, &mut show, Key::Tab, Modifiers::NONE), [(ViewportId::ROOT, ChromeToggle::Panels)], "canvas focused");
-    assert_eq!(egui_focused(&frames.ctx), Some(id("canvas")));
-}
-
-#[trial]
-fn shift_tab_toggles_the_panels_and_keeps_the_tools() {
-    let mut show = with_canvas;
-    let mut frames = shown(true, &mut show);
-    assert_eq!(press(&mut frames, &mut show, Key::Tab, Modifiers::SHIFT), [(ViewportId::ROOT, ChromeToggle::PanelsKeepTools)]);
+fn tab_in_a_window_with_a_canvas_toggles_the_panels_that_window_only_and_shift_tab_keeps_the_tools() {
+    {
+        let mut show = with_canvas;
+        let mut frames = shown(true, &mut show);
+        let child = ViewportId::from_hash_of("child window");
+        frames.frame_in_viewport(child, without_canvas);
+        take_output(&frames.ctx);
+        assert_eq!(press(&mut frames, &mut show, Key::Tab, Modifiers::NONE), [(ViewportId::ROOT, ChromeToggle::Panels)], "nothing focused");
+        assert_eq!(egui_focused(&frames.ctx), None, "the press moved no focus");
+        focus_on(&mut frames, &mut show, "canvas");
+        assert_eq!(press(&mut frames, &mut show, Key::Tab, Modifiers::NONE), [(ViewportId::ROOT, ChromeToggle::Panels)], "canvas focused");
+        assert_eq!(egui_focused(&frames.ctx), Some(id("canvas")));
+    }
+    {
+        let mut show = with_canvas;
+        let mut frames = shown(true, &mut show);
+        assert_eq!(press(&mut frames, &mut show, Key::Tab, Modifiers::SHIFT), [(ViewportId::ROOT, ChromeToggle::PanelsKeepTools)]);
+    }
 }
 
 #[trial]
@@ -87,22 +87,22 @@ fn tab_in_a_window_with_a_canvas_moves_focus_off_a_control() {
 }
 
 #[trial]
-fn tab_in_a_window_without_a_canvas_moves_focus() {
-    let mut show = without_canvas;
-    let mut frames = shown(true, &mut show);
-    assert!(press(&mut frames, &mut show, Key::Tab, Modifiers::NONE).is_empty(), "nothing focused");
-    assert_eq!(egui_focused(&frames.ctx), Some(id("button")));
-    focus_on(&mut frames, &mut show, "slider");
-    assert!(press(&mut frames, &mut show, Key::Tab, Modifiers::NONE).is_empty(), "a slider");
-    assert_ne!(egui_focused(&frames.ctx), Some(id("slider")), "focus left the slider");
-}
-
-#[trial]
-fn tab_moves_focus_when_the_app_switch_is_off() {
-    let mut show = with_canvas;
-    let mut frames = shown(false, &mut show);
-    assert!(press(&mut frames, &mut show, Key::Tab, Modifiers::NONE).is_empty());
-    assert_eq!(egui_focused(&frames.ctx), Some(id("button")));
+fn tab_moves_focus_without_a_canvas_or_with_the_app_switch_off() {
+    {
+        let mut show = without_canvas;
+        let mut frames = shown(true, &mut show);
+        assert!(press(&mut frames, &mut show, Key::Tab, Modifiers::NONE).is_empty(), "nothing focused");
+        assert_eq!(egui_focused(&frames.ctx), Some(id("button")));
+        focus_on(&mut frames, &mut show, "slider");
+        assert!(press(&mut frames, &mut show, Key::Tab, Modifiers::NONE).is_empty(), "a slider");
+        assert_ne!(egui_focused(&frames.ctx), Some(id("slider")), "focus left the slider");
+    }
+    {
+        let mut show = with_canvas;
+        let mut frames = shown(false, &mut show);
+        assert!(press(&mut frames, &mut show, Key::Tab, Modifiers::NONE).is_empty());
+        assert_eq!(egui_focused(&frames.ctx), Some(id("button")));
+    }
 }
 
 #[trial]

@@ -75,33 +75,33 @@ fn a_layout_that_cannot_be_read_costs_only_the_layout() {
 }
 
 #[trial]
-fn settings_restore_the_state_they_were_saved_from() {
-    let mut before = viewer(&GallerySettings::default());
-    before.env.mode = Mode::Dark;
-    before.browser.filter = "u".to_owned();
-    before.browser.selection = Selection::single(TreeKey::Component("craft_ui::buttons::link::Link"));
-    before.browser.open.set(&TreeKey::Module("craft_ui::buttons::link"), true);
-    let saved = GallerySettings::of(&before);
-    let files = Arc::new(MemoryFiles::default());
-    let options = || OpenOptions::new(Location::Dir(PathBuf::from("settings"))).files(files.clone());
-    let (mut store, _) = SettingsStore::<GallerySettings>::open_with(options());
-    assert!(store.set(saved.clone()));
-    store.flush().expect("the store writes its file");
-    let (reopened, _) = SettingsStore::<GallerySettings>::open_with(options());
-    let after = viewer(reopened.get());
-    assert_eq!(GallerySettings::of(&after), saved);
-    assert_eq!(after.selected_type(), Some("craft_ui::buttons::link::Link"));
-    assert_eq!(after.open_modules(), vec!["craft_ui::buttons::link".to_owned()]);
-}
-
-#[trial]
-fn a_name_this_build_does_not_know_keeps_the_default() {
-    let mut settings = GallerySettings::default();
-    settings.mode = "sepia".to_owned();
-    settings.selected = "gone::Type".to_owned();
-    let restored = viewer(&settings);
-    assert_eq!(restored.env.mode, viewer(&GallerySettings::default()).env.mode);
-    assert_eq!(restored.selected_type(), None);
+fn settings_restore_and_an_unknown_name_keeps_the_default() {
+    {
+        let mut before = viewer(&GallerySettings::default());
+        before.env.mode = Mode::Dark;
+        before.browser.filter = "u".to_owned();
+        before.browser.selection = Selection::single(TreeKey::Component("craft_ui::buttons::link::Link"));
+        before.browser.open.set(&TreeKey::Module("craft_ui::buttons::link"), true);
+        let saved = GallerySettings::of(&before);
+        let files = Arc::new(MemoryFiles::default());
+        let options = || OpenOptions::new(Location::Dir(PathBuf::from("settings"))).files(files.clone());
+        let (mut store, _) = SettingsStore::<GallerySettings>::open_with(options());
+        assert!(store.set(saved.clone()));
+        store.flush().expect("the store writes its file");
+        let (reopened, _) = SettingsStore::<GallerySettings>::open_with(options());
+        let after = viewer(reopened.get());
+        assert_eq!(GallerySettings::of(&after), saved);
+        assert_eq!(after.selected_type(), Some("craft_ui::buttons::link::Link"));
+        assert_eq!(after.open_modules(), vec!["craft_ui::buttons::link".to_owned()]);
+    }
+    {
+        let mut settings = GallerySettings::default();
+        settings.mode = "sepia".to_owned();
+        settings.selected = "gone::Type".to_owned();
+        let restored = viewer(&settings);
+        assert_eq!(restored.env.mode, viewer(&GallerySettings::default()).env.mode);
+        assert_eq!(restored.selected_type(), None);
+    }
 }
 
 #[trial]

@@ -83,38 +83,38 @@ impl Rig {
     }
 }
 
-/// With no cell open an arrow moves the lead cell; typing opens it, and an arrow then still navigates and commits
-/// the draft into the cell it was typed in.
 #[trial]
-fn arrows_navigate_with_no_cell_open_and_in_enter_mode() {
-    let mut rig = rig();
-    let (row, column) = rig.lead();
-    rig.press(Key::ArrowDown);
-    assert_eq!(rig.lead(), (row + 1, column), "an arrow moves the lead cell when no cell is open");
-    assert!(rig.committed.borrow().is_empty());
-    rig.type_text("x");
-    assert!(rig.committed.borrow().is_empty(), "typing opens the cell and commits nothing");
-    rig.press(Key::ArrowDown);
-    assert_eq!(rig.lead(), (row + 2, column), "in Enter mode the arrows are still navigation");
-    assert_eq!(*rig.committed.borrow(), [CellEdit::new(row + 1, column, "x")], "moving away commits the draft into the cell it was for");
-    assert_eq!(rig.rows.borrow()[row + 1][column], "x");
-}
-
-/// F2 opens the cell with its text and claims Left and Right for the caret: the lead stays, the text changes where
-/// the caret is, and Enter commits.
-#[trial]
-fn edit_mode_claims_the_horizontal_arrows_for_the_caret() {
-    let mut rig = rig();
-    let (row, column) = rig.lead();
-    let original = rig.rows.borrow()[row][column].clone();
-    rig.press(Key::F2);
-    rig.press(Key::ArrowLeft);
-    assert_eq!(rig.lead(), (row, column), "Left moved the caret, not the lead cell");
-    rig.type_text("z");
-    rig.press(Key::Enter);
-    let expected = format!("{}z{}", &original[..original.len() - 1], &original[original.len() - 1..]);
-    assert_eq!(*rig.committed.borrow(), [CellEdit::new(row, column, expected)]);
-    assert_eq!(rig.lead(), (row + 1, column), "Enter commits and moves down");
+fn arrows_navigate_with_no_cell_open_and_edit_mode_claims_the_horizontal_arrows() {
+    {
+        // With no cell open an arrow moves the lead cell; typing opens it, and an arrow then still navigates and commits
+        // the draft into the cell it was typed in.
+        let mut rig = rig();
+        let (row, column) = rig.lead();
+        rig.press(Key::ArrowDown);
+        assert_eq!(rig.lead(), (row + 1, column), "an arrow moves the lead cell when no cell is open");
+        assert!(rig.committed.borrow().is_empty());
+        rig.type_text("x");
+        assert!(rig.committed.borrow().is_empty(), "typing opens the cell and commits nothing");
+        rig.press(Key::ArrowDown);
+        assert_eq!(rig.lead(), (row + 2, column), "in Enter mode the arrows are still navigation");
+        assert_eq!(*rig.committed.borrow(), [CellEdit::new(row + 1, column, "x")], "moving away commits the draft into the cell it was for");
+        assert_eq!(rig.rows.borrow()[row + 1][column], "x");
+    }
+    {
+        // F2 opens the cell with its text and claims Left and Right for the caret: the lead stays, the text changes where
+        // the caret is, and Enter commits.
+        let mut rig = rig();
+        let (row, column) = rig.lead();
+        let original = rig.rows.borrow()[row][column].clone();
+        rig.press(Key::F2);
+        rig.press(Key::ArrowLeft);
+        assert_eq!(rig.lead(), (row, column), "Left moved the caret, not the lead cell");
+        rig.type_text("z");
+        rig.press(Key::Enter);
+        let expected = format!("{}z{}", &original[..original.len() - 1], &original[original.len() - 1..]);
+        assert_eq!(*rig.committed.borrow(), [CellEdit::new(row, column, expected)]);
+        assert_eq!(rig.lead(), (row + 1, column), "Enter commits and moves down");
+    }
 }
 
 /// Enter after an entry moves down; Tab runs along the row and the next Enter returns to the column the run started

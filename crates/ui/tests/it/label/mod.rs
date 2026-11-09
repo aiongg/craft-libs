@@ -84,35 +84,73 @@ fn offsets(rows: &Rows, container: bool, row: Rect, rtl: bool) -> (f32, f32, f32
 }
 
 #[trial]
-fn a_labelled_leaf_and_a_labelled_container_line_up_their_labels_and_mirror_under_rtl() {
-    let side = SideLabel::new();
-    for rtl in [false, true] {
-        let (_, rows) = settled(if rtl { Direction::Rtl } else { Direction::Ltr }, &side);
-        let (container, leaf) = (offsets(&rows, true, ROW_A, rtl), offsets(&rows, false, ROW_B, rtl));
-        assert_eq!(
-            (container.0.round(), container.1.round(), container.2.round(), container.3.round()),
-            (leaf.0.round(), leaf.1.round(), leaf.2.round(), leaf.3.round()),
-            "the container and the leaf place label and control alike (rtl {rtl})"
-        );
-        assert!(container.1 > container.0, "the control follows the label in reading order (rtl {rtl})");
-        let label = rows.label(true).rect;
-        assert_eq!(label.min.x < rows.control(true).min.x, !rtl, "the label is on the start side, mirrored under RTL");
+fn labels_line_up_and_after_labels_follow_and_mirror_under_rtl() {
+    {
+        let side = SideLabel::new();
+        for rtl in [false, true] {
+            let (_, rows) = settled(if rtl { Direction::Rtl } else { Direction::Ltr }, &side);
+            let (container, leaf) = (offsets(&rows, true, ROW_A, rtl), offsets(&rows, false, ROW_B, rtl));
+            assert_eq!(
+                (container.0.round(), container.1.round(), container.2.round(), container.3.round()),
+                (leaf.0.round(), leaf.1.round(), leaf.2.round(), leaf.3.round()),
+                "the container and the leaf place label and control alike (rtl {rtl})"
+            );
+            assert!(container.1 > container.0, "the control follows the label in reading order (rtl {rtl})");
+            let label = rows.label(true).rect;
+            assert_eq!(label.min.x < rows.control(true).min.x, !rtl, "the label is on the start side, mirrored under RTL");
+        }
+    }
+    {
+        let side = SideLabel::new().layout(FieldLayout::After);
+        for rtl in [false, true] {
+            let (_, rows) = settled(if rtl { Direction::Rtl } else { Direction::Ltr }, &side);
+            for (container, row) in [(true, ROW_A), (false, ROW_B)] {
+                let (label, control, _, _) = offsets(&rows, container, row, rtl);
+                assert!(control < label, "the control is first in reading order (rtl {rtl}, container {container})");
+                assert!(
+                    label >= control + rows.control(container).width(),
+                    "the label starts after the control's end, on the end side under RTL (rtl {rtl}, container {container})"
+                );
+                assert!(control < BESIDE, "the control stays at the start edge: the row is not split into a label column");
+            }
+        }
     }
 }
 
 #[trial]
-fn a_narrow_row_puts_the_label_above_the_control() {
-    let mut frames = Frames::new();
-    let narrow = Rect::from_min_size(ROW_A.min, Vec2::new(60.0, 60.0));
-    let seen = RefCell::new(Seen::default());
-    let mut value = 10.0;
-    frames.idle(3, |ui| {
-        Field::new("Opacity", SideLabel::new()).id_salt("narrow").show_at(ui, narrow, |ui, _| {
-            Dial::new(&mut value, &seen).show(ui);
+fn a_label_goes_above_a_narrow_row_and_stays_beside_a_fill_width_control() {
+    {
+        let mut frames = Frames::new();
+        let narrow = Rect::from_min_size(ROW_A.min, Vec2::new(60.0, 60.0));
+        let seen = RefCell::new(Seen::default());
+        let mut value = 10.0;
+        frames.idle(3, |ui| {
+            Field::new("Opacity", SideLabel::new()).id_salt("narrow").show_at(ui, narrow, |ui, _| {
+                Dial::new(&mut value, &seen).show(ui);
+            });
         });
-    });
-    let label = seen.borrow().label.clone().map(|label| label.rect);
-    assert!(label.is_some_and(|label| seen.borrow().rect.min.y >= label.max.y), "the control sits below the label");
+        let label = seen.borrow().label.clone().map(|label| label.rect);
+        assert!(label.is_some_and(|label| seen.borrow().rect.min.y >= label.max.y), "the control sits below the label");
+    }
+    {
+        let mut frames = Frames::new();
+        let rect = std::cell::Cell::new(Rect::NOTHING);
+        let at = |frames: &mut Frames, width: f32, count: usize| {
+            let row = Rect::from_min_size(ROW_A.min, Vec2::new(width, 60.0));
+            frames.idle(count, |ui| {
+                Field::new("Opacity", SideLabel::new()).id_salt("fill").show_at(ui, row, |ui, _| {
+                    rect.set(Wide::new().show(ui).rect);
+                });
+            });
+            rect.get()
+        };
+        let wide = at(&mut frames, 300.0, 6);
+        assert!(wide.min.x > ROW_A.min.x + BESIDE, "a wide row keeps the label beside a control that fills its width: {wide:?}");
+        let narrow = at(&mut frames, 80.0, 4);
+        assert!(narrow.min.y > ROW_A.min.y + STACKED, "a row narrower than label, gap and the control's minimum stacks the label: {narrow:?}");
+        let again = at(&mut frames, 300.0, 4);
+        assert!(again.min.x > ROW_A.min.x + BESIDE, "the label returns beside the control when the row widens: {again:?}");
+    }
 }
 
 #[trial]
@@ -185,14 +223,30 @@ fn double_click(frames: &mut Frames, at: Pos2, show: &mut impl FnMut(&mut Ui)) {
 }
 
 #[trial]
-fn double_clicking_the_label_resets_the_value() {
-    let side = SideLabel::new();
-    let (mut frames, mut rows) = settled(Direction::Ltr, &side);
-    for container in [true, false] {
-        let at = rows.label(container).rect.center();
-        double_click(&mut frames, at, &mut |ui| rows.show(ui, &side));
-        let value = if container { rows.container } else { rows.leaf };
-        assert_eq!(value, RESET, "a double click on the label restores the reset value (container: {container})");
+fn double_clicking_resets_a_label_and_a_value_component() {
+    {
+        let side = SideLabel::new();
+        let (mut frames, mut rows) = settled(Direction::Ltr, &side);
+        for container in [true, false] {
+            let at = rows.label(container).rect.center();
+            double_click(&mut frames, at, &mut |ui| rows.show(ui, &side));
+            let value = if container { rows.container } else { rows.leaf };
+            assert_eq!(value, RESET, "a double click on the label restores the reset value (container: {container})");
+        }
+    }
+    {
+        let mut frames = Frames::new();
+        let seen = RefCell::new(Seen::default());
+        let mut value = START;
+        let show = |ui: &mut Ui, value: &mut f64| {
+            Dial::new(value, &seen).id_salt("alone").show_at(ui, ROW_A);
+        };
+        frames.idle(2, |ui| show(ui, &mut value));
+        let at = ROW_A.center();
+        craft_ui::testing::pointer::click(&mut frames, at, &mut |ui| show(ui, &mut value));
+        assert_eq!(value, START, "one click leaves the value");
+        double_click(&mut frames, at, &mut |ui| show(ui, &mut value));
+        assert_eq!(value, RESET, "a double click on the control's root restores the reset value");
     }
 }
 
@@ -246,43 +300,6 @@ fn a_label_that_describes_leaves_the_control_its_name() {
     assert_eq!(tree.described_by(id), [NodeKey::of(label.id)], "the label describes it");
 }
 
-#[trial]
-fn double_clicking_a_value_component_resets_it_and_a_single_click_does_not() {
-    let mut frames = Frames::new();
-    let seen = RefCell::new(Seen::default());
-    let mut value = START;
-    let show = |ui: &mut Ui, value: &mut f64| {
-        Dial::new(value, &seen).id_salt("alone").show_at(ui, ROW_A);
-    };
-    frames.idle(2, |ui| show(ui, &mut value));
-    let at = ROW_A.center();
-    craft_ui::testing::pointer::click(&mut frames, at, &mut |ui| show(ui, &mut value));
-    assert_eq!(value, START, "one click leaves the value");
-    double_click(&mut frames, at, &mut |ui| show(ui, &mut value));
-    assert_eq!(value, RESET, "a double click on the control's root restores the reset value");
-}
-
-#[trial]
-fn a_label_stays_beside_a_fill_width_control_and_follows_the_row_width() {
-    let mut frames = Frames::new();
-    let rect = std::cell::Cell::new(Rect::NOTHING);
-    let at = |frames: &mut Frames, width: f32, count: usize| {
-        let row = Rect::from_min_size(ROW_A.min, Vec2::new(width, 60.0));
-        frames.idle(count, |ui| {
-            Field::new("Opacity", SideLabel::new()).id_salt("fill").show_at(ui, row, |ui, _| {
-                rect.set(Wide::new().show(ui).rect);
-            });
-        });
-        rect.get()
-    };
-    let wide = at(&mut frames, 300.0, 6);
-    assert!(wide.min.x > ROW_A.min.x + BESIDE, "a wide row keeps the label beside a control that fills its width: {wide:?}");
-    let narrow = at(&mut frames, 80.0, 4);
-    assert!(narrow.min.y > ROW_A.min.y + STACKED, "a row narrower than label, gap and the control's minimum stacks the label: {narrow:?}");
-    let again = at(&mut frames, 300.0, 4);
-    assert!(again.min.x > ROW_A.min.x + BESIDE, "the label returns beside the control when the row widens: {again:?}");
-}
-
 /// A label with an icon and a detail names its control by the text alone; the detail joins the control's
 /// description, and the icon and detail sit inside the row.
 #[trial]
@@ -315,23 +332,6 @@ fn a_label_with_an_icon_and_detail_names_by_text_and_describes_by_detail() {
     let plain = plain_seen.borrow().label.clone().map(|label| label.rect);
     let plain = plain.expect("the plain label ran");
     assert!(label.rect.width() > plain.width(), "the icon and detail widen the label: {:?} against {plain:?}", label.rect);
-}
-
-#[trial]
-fn an_after_label_follows_its_control_and_mirrors_under_rtl() {
-    let side = SideLabel::new().layout(FieldLayout::After);
-    for rtl in [false, true] {
-        let (_, rows) = settled(if rtl { Direction::Rtl } else { Direction::Ltr }, &side);
-        for (container, row) in [(true, ROW_A), (false, ROW_B)] {
-            let (label, control, _, _) = offsets(&rows, container, row, rtl);
-            assert!(control < label, "the control is first in reading order (rtl {rtl}, container {container})");
-            assert!(
-                label >= control + rows.control(container).width(),
-                "the label starts after the control's end, on the end side under RTL (rtl {rtl}, container {container})"
-            );
-            assert!(control < BESIDE, "the control stays at the start edge: the row is not split into a label column");
-        }
-    }
 }
 
 #[trial]

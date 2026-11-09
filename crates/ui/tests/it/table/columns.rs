@@ -21,21 +21,21 @@ fn names(rows: &[(&'static str, u8)]) -> Vec<&'static str> {
 }
 
 #[trial]
-fn descending_reverses_the_order_and_equal_rows_keep_theirs() {
-    let mut ascending = rows();
-    sort_rows(&mut ascending, Some(&ColumnSort::ascending(KIND)), compare);
-    assert_eq!(names(&ascending), ["b", "c", "a", "d"]);
-    let mut descending = rows();
-    sort_rows(&mut descending, Some(&ColumnSort::descending(KIND)), compare);
-    assert_eq!(names(&descending), ["a", "d", "b", "c"]);
-    let mut by_name = rows();
-    sort_rows(&mut by_name, Some(&ColumnSort::descending(NAME)), compare);
-    assert_eq!(names(&by_name), ["d", "c", "b", "a"]);
-}
-
-#[trial]
-fn no_sort_leaves_the_rows_alone() {
-    let mut unsorted = rows();
-    sort_rows(&mut unsorted, None, compare);
-    assert_eq!(names(&unsorted), ["b", "a", "c", "d"]);
+fn sorting_orders_the_rows_and_no_sort_leaves_them_alone() {
+    {
+        let mut ascending = rows();
+        sort_rows(&mut ascending, Some(&ColumnSort::ascending(KIND)), compare);
+        assert_eq!(names(&ascending), ["b", "c", "a", "d"]);
+        let mut descending = rows();
+        sort_rows(&mut descending, Some(&ColumnSort::descending(KIND)), compare);
+        assert_eq!(names(&descending), ["a", "d", "b", "c"]);
+        let mut by_name = rows();
+        sort_rows(&mut by_name, Some(&ColumnSort::descending(NAME)), compare);
+        assert_eq!(names(&by_name), ["d", "c", "b", "a"]);
+    }
+    {
+        let mut unsorted = rows();
+        sort_rows(&mut unsorted, None, compare);
+        assert_eq!(names(&unsorted), ["b", "a", "c", "d"]);
+    }
 }

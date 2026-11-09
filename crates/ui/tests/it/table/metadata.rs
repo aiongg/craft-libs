@@ -70,32 +70,32 @@ fn a_wrapping_value_makes_its_row_taller() {
     assert!(wrapped.rect.height() > short.rect.height(), "the wrapped row is taller than the one-line row");
 }
 
-/// ArrowDown in the filter field leads the first field in the rows while the filter keeps focus, and Enter activates
-/// the lead.
 #[trial]
-fn arrow_down_from_the_filter_leads_into_the_rows() {
-    let seen = Rc::new(Seen::default());
-    let mut fixture = table(camera(), &seen, true, false);
-    let filter = fixture.by_label("Filter fields").expect("the filter field");
-    fixture.click(&filter);
-    fixture.key(Key::ArrowDown, Modifiers::NONE);
-    fixture.idle(2);
-    let focused = fixture.focused().and_then(|id| fixture.node_of(id)).expect("focus is somewhere");
-    assert_eq!(focused.rect, filter.rect, "the filter keeps focus");
-    fixture.key(Key::Enter, Modifiers::NONE);
-    fixture.idle(1);
-    let activated: Vec<_> =
-        seen.events.borrow().iter().filter_map(|event| if let CollectionEvent::Activate(key) = event { Some(*key) } else { None }).collect();
-    assert_eq!(activated, [FieldKey::Field(0, 0)]);
-}
-
-/// The filter keeps the fields whose name or value matches and drops the rest.
-#[trial]
-fn filtering_exp_keeps_exposure_and_drops_iso() {
-    let seen = Rc::new(Seen::default());
-    *seen.filter.borrow_mut() = "exp".to_owned();
-    let fixture = table(camera(), &seen, true, false);
-    let shown = |text: &str| fixture.texts().iter().any(|painted| painted.text == text);
-    assert!(shown("Exposure"));
-    assert!(!shown("ISO"));
+fn the_filter_leads_into_the_rows_and_filters_by_label() {
+    {
+        // ArrowDown in the filter field leads the first field in the rows while the filter keeps focus, and Enter activates
+        // the lead.
+        let seen = Rc::new(Seen::default());
+        let mut fixture = table(camera(), &seen, true, false);
+        let filter = fixture.by_label("Filter fields").expect("the filter field");
+        fixture.click(&filter);
+        fixture.key(Key::ArrowDown, Modifiers::NONE);
+        fixture.idle(2);
+        let focused = fixture.focused().and_then(|id| fixture.node_of(id)).expect("focus is somewhere");
+        assert_eq!(focused.rect, filter.rect, "the filter keeps focus");
+        fixture.key(Key::Enter, Modifiers::NONE);
+        fixture.idle(1);
+        let activated: Vec<_> =
+            seen.events.borrow().iter().filter_map(|event| if let CollectionEvent::Activate(key) = event { Some(*key) } else { None }).collect();
+        assert_eq!(activated, [FieldKey::Field(0, 0)]);
+    }
+    {
+        // The filter keeps the fields whose name or value matches and drops the rest.
+        let seen = Rc::new(Seen::default());
+        *seen.filter.borrow_mut() = "exp".to_owned();
+        let fixture = table(camera(), &seen, true, false);
+        let shown = |text: &str| fixture.texts().iter().any(|painted| painted.text == text);
+        assert!(shown("Exposure"));
+        assert!(!shown("ISO"));
+    }
 }

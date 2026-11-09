@@ -58,30 +58,28 @@ fn assert_open_again(fixture: &Fixture, open: &Cell<bool>) {
     assert!(fixture.by_label(ITEM).is_some(), "the popover shows its body again");
 }
 
-/// An item click that closes the popover from inside leaves it free to open again.
 #[trial]
-fn a_popover_closed_from_its_body_opens_again() {
-    let (fixture, open) = reopened_after(|fixture| {
-        let item = fixture.by_label(ITEM).expect("the popover's item");
-        fixture.click(&item);
-    });
-    assert_open_again(&fixture, &open);
-}
-
-/// Escape closes the popover, and the opener opens it again.
-#[trial]
-fn a_popover_closed_by_escape_opens_again() {
-    let (fixture, open) = reopened_after(|fixture| {
-        fixture.key(Key::Escape, Modifiers::NONE);
-    });
-    assert_open_again(&fixture, &open);
-}
-
-/// A click outside closes the popover, and the opener opens it again.
-#[trial]
-fn a_popover_closed_by_a_click_outside_opens_again() {
-    let (fixture, open) = reopened_after(|fixture| {
-        fixture.click_at(pos2(700.0, 500.0));
-    });
-    assert_open_again(&fixture, &open);
+fn a_popover_opens_again_after_any_close_gesture() {
+    {
+        // An item click that closes the popover from inside leaves it free to open again.
+        let (fixture, open) = reopened_after(|fixture| {
+            let item = fixture.by_label(ITEM).expect("the popover's item");
+            fixture.click(&item);
+        });
+        assert_open_again(&fixture, &open);
+    }
+    {
+        // Escape closes the popover, and the opener opens it again.
+        let (fixture, open) = reopened_after(|fixture| {
+            fixture.key(Key::Escape, Modifiers::NONE);
+        });
+        assert_open_again(&fixture, &open);
+    }
+    {
+        // A click outside closes the popover, and the opener opens it again.
+        let (fixture, open) = reopened_after(|fixture| {
+            fixture.click_at(pos2(700.0, 500.0));
+        });
+        assert_open_again(&fixture, &open);
+    }
 }

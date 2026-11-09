@@ -49,14 +49,22 @@ fn each_listed_variant_differs_from_the_default() {
 
 #[trial]
 fn a_component_accepts_its_variants_and_the_custom_ones_built_for_its_key() {
-    let accepted = accepted_variant::<ButtonKey, ButtonStyle>(Variant::PRIMARY);
-    assert_eq!((accepted.variant, accepted.fell_back), (Variant::PRIMARY, false));
-    let custom = accepted_variant::<ButtonKey, ButtonStyle>(Variant::Custom(RECORD));
-    assert_eq!((custom.variant, custom.fell_back), (Variant::Custom(RECORD), false), "a custom variant built for this key");
-    let foreign = accepted_variant::<OtherKey, ButtonStyle>(Variant::Custom(RECORD));
-    assert_eq!((foreign.variant, foreign.fell_back), (Variant::SECONDARY, true), "a custom variant built for another key");
-    let unlisted = accepted_variant::<ButtonKey, ButtonStyle>(Variant::look(Emphasis::Soft, Tone::Good));
-    assert_eq!((unlisted.variant, unlisted.fell_back), (Variant::SECONDARY, true), "an unlisted built-in variant");
+    {
+        let accepted = accepted_variant::<ButtonKey, ButtonStyle>(Variant::PRIMARY);
+        assert_eq!((accepted.variant, accepted.fell_back), (Variant::PRIMARY, false));
+        let custom = accepted_variant::<ButtonKey, ButtonStyle>(Variant::Custom(RECORD));
+        assert_eq!((custom.variant, custom.fell_back), (Variant::Custom(RECORD), false), "a custom variant built for this key");
+        let foreign = accepted_variant::<OtherKey, ButtonStyle>(Variant::Custom(RECORD));
+        assert_eq!((foreign.variant, foreign.fell_back), (Variant::SECONDARY, true), "a custom variant built for another key");
+        let unlisted = accepted_variant::<ButtonKey, ButtonStyle>(Variant::look(Emphasis::Soft, Tone::Good));
+        assert_eq!((unlisted.variant, unlisted.fell_back), (Variant::SECONDARY, true), "an unlisted built-in variant");
+    }
+    {
+        let custom = accepted_variant::<ButtonKey, BareStyle>(Variant::Custom(RECORD));
+        assert_eq!((custom.variant, custom.fell_back), (Variant::Custom(RECORD), false));
+        let other = accepted_variant::<ButtonKey, BareStyle>(Variant::PRIMARY);
+        assert_eq!((other.variant, other.fell_back), (Variant::SECONDARY, false), "every other request is the default look");
+    }
 }
 
 #[derive(Clone, PartialEq)]
@@ -67,12 +75,4 @@ impl ComponentStyle for BareStyle {
     fn metrics(&self) -> Metrics {
         Metrics::new()
     }
-}
-
-#[trial]
-fn a_component_without_listed_variants_still_accepts_the_custom_ones_built_for_its_key() {
-    let custom = accepted_variant::<ButtonKey, BareStyle>(Variant::Custom(RECORD));
-    assert_eq!((custom.variant, custom.fell_back), (Variant::Custom(RECORD), false));
-    let other = accepted_variant::<ButtonKey, BareStyle>(Variant::PRIMARY);
-    assert_eq!((other.variant, other.fell_back), (Variant::SECONDARY, false), "every other request is the default look");
 }

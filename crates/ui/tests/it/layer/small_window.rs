@@ -88,14 +88,14 @@ fn fits_and_scrolls(list: bool) {
 }
 
 #[trial]
-fn a_dialog_taller_than_the_window_lies_inside_it_and_scrolls_its_body() {
-    fits_and_scrolls(false);
-}
-
-/// The same with a body that is one collection, which owns the scroll (the shortcuts dialog).
-#[trial]
-fn a_dialog_whose_collection_is_taller_than_the_window_lies_inside_it_and_scrolls_it() {
-    fits_and_scrolls(true);
+fn a_dialog_taller_than_the_window_lies_inside_it_with_its_body_and_collection_scrolling() {
+    {
+        fits_and_scrolls(false);
+    }
+    {
+        // The same with a body that is one collection, which owns the scroll (the shortcuts dialog).
+        fits_and_scrolls(true);
+    }
 }
 
 /// A popover open from the start on a button inside `anchor`, holding `rows` rows; returns the fixture and the

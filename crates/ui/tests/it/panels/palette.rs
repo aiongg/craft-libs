@@ -39,22 +39,22 @@ fn palette(recents: Vec<CommandRef>) -> Fixture {
     fixture
 }
 
-/// With no query the list is the commands last run, newest first, and no other command.
 #[trial]
-fn the_empty_query_lists_the_commands_last_run_newest_first() {
-    let fixture = palette(vec![CommandRef::from(EditCommands::Redo), CommandRef::from(EditCommands::Undo)]);
-    let redo = row(&fixture, "Redo").expect("the newest command is listed");
-    let undo = row(&fixture, "Undo").expect("the older command is listed");
-    assert!(redo.center().y < undo.center().y, "newest first");
-    assert!(row(&fixture, "Cut").is_none(), "a command not run is not listed");
-}
-
-/// With no query and nothing run, the list starts with the app's entries.
-#[trial]
-fn the_empty_query_without_recents_lists_the_entries() {
-    let fixture = palette(Vec::new());
-    for label in ["Undo", "Redo", "Cut", "Select All"] {
-        assert!(row(&fixture, label).is_some(), "{label} is listed");
+fn the_empty_query_lists_the_last_run_commands_newest_first_or_the_entries() {
+    {
+        // With no query the list is the commands last run, newest first, and no other command.
+        let fixture = palette(vec![CommandRef::from(EditCommands::Redo), CommandRef::from(EditCommands::Undo)]);
+        let redo = row(&fixture, "Redo").expect("the newest command is listed");
+        let undo = row(&fixture, "Undo").expect("the older command is listed");
+        assert!(redo.center().y < undo.center().y, "newest first");
+        assert!(row(&fixture, "Cut").is_none(), "a command not run is not listed");
+    }
+    {
+        // With no query and nothing run, the list starts with the app's entries.
+        let fixture = palette(Vec::new());
+        for label in ["Undo", "Redo", "Cut", "Select All"] {
+            assert!(row(&fixture, label).is_some(), "{label} is listed");
+        }
     }
 }
 

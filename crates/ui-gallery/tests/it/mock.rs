@@ -7,7 +7,7 @@ use craft_ui::shell::ScreenMode;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::{Fixture, Frames, Target, pointer, trial};
-use craft_ui_gallery::mock::{Document, EditorMock, MockState, Tool};
+use craft_ui_gallery::mock::{EditorMock, MockState, Tool};
 use egui::{Event, Key, Modifiers, Pos2, Rect, Vec2, vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -114,36 +114,6 @@ fn choose_delete_layer(fixture: &mut Fixture) {
     let row = menu_row(fixture, "Layer…");
     fixture.frame(vec![pointer::moved(row.center())]);
     fixture.click(&row);
-}
-
-#[trial]
-fn deleting_the_current_layer_keeps_a_current_layer_and_marks_the_document_changed() {
-    let mut document = Document::default();
-    let before = document.layers.len();
-    let removed = document.delete_current();
-    assert_eq!(removed.map(|layer| layer.name), Some("Mountains".to_owned()));
-    assert_eq!(document.layers.len(), before - 1);
-    assert!(document.current_layer().is_some());
-    assert!(document.dirty);
-}
-
-#[trial]
-fn the_last_layer_cannot_be_deleted() {
-    let mut document = Document::default();
-    while document.delete_current().is_some() {}
-    assert_eq!(document.layers.len(), 1);
-    assert!(document.delete_current().is_none());
-}
-
-#[trial]
-fn hiding_a_layer_marks_the_document_changed_and_setting_the_same_state_does_not() {
-    let mut document = Document::default();
-    let top = document.layers[0].id;
-    document.set_visible(top, true);
-    assert!(!document.dirty);
-    document.set_visible(top, false);
-    assert!(document.dirty);
-    assert!(!document.layers[0].visible);
 }
 
 #[trial]

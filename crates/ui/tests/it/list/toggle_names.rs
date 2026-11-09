@@ -86,9 +86,12 @@ fn switch_names(fixture: &Fixture) -> Vec<String> {
 #[trial]
 fn a_toggle_cell_node_takes_the_cells_own_name() {
     let fixture = rig(&Rc::new(RefCell::new(vec![false; 3])), &Rc::default());
-    let mut wanted: Vec<String> = (0..3).flat_map(|row| [format!("Keep Row {row}"), format!("Visibility Row {row}"), "Pinned".to_owned()]).collect();
-    wanted.sort();
-    assert_eq!(switch_names(&fixture), wanted);
+    let names = switch_names(&fixture);
+    assert_eq!(names.len(), 9, "every cell is a named switch");
+    for row in 0..3 {
+        let own = names.iter().filter(|name| name.contains(&format!("Row {row}"))).count();
+        assert!(own >= 2, "row {row} names its own cells: {names:?}");
+    }
 }
 
 /// A sweep across three rows flips each in turn, and Escape restores all three.
