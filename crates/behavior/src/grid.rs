@@ -54,6 +54,9 @@ impl GridMeasure {
 pub struct GridCursor {
     flow: Flow,
     columns: Vec<ColumnWidth>,
+    /// Which columns share the room left (`Fill` in the columns the app declared): a `Content` column's room does
+    /// not shrink by their widths.
+    fills: Vec<bool>,
     gap: Vec2,
     widths: Vec<f32>,
     last_rows: Vec<f32>,
@@ -65,7 +68,19 @@ impl GridCursor {
     /// A cursor over `columns` in `flow`'s rect, with `gap` between columns (x) and rows (y), placed by `last`.
     pub fn new(flow: Flow, columns: &[ColumnWidth], gap: Vec2, last: &GridMeasure) -> Self {
         let widths = resolve_columns(columns, &last.columns, flow.rect().width(), gap.x);
-        GridCursor { flow, columns: columns.to_vec(), gap, widths, last_rows: last.rows.clone(), next: 0, measured: GridMeasure::default() }
+        let fills = columns.iter().map(|kind| matches!(kind, ColumnWidth::Fill { .. })).collect();
+        GridCursor { flow, columns: columns.to_vec(), fills, gap, widths, last_rows: last.rows.clone(), next: 0, measured: GridMeasure::default() }
+    }
+
+    /// A cursor for a measuring run under a body sized from its content: each `Fill` column of `columns` is placed
+    /// as a `Content` column, taking the width its cells take, while the room of the cells after it stays what the
+    /// fill column leaves them.
+    pub fn sized_by_content(flow: Flow, columns: &[ColumnWidth], gap: Vec2, rows: &[f32]) -> Self {
+        let kinds: Vec<ColumnWidth> =
+            columns.iter().map(|kind| if matches!(kind, ColumnWidth::Fill { .. }) { ColumnWidth::Content } else { *kind }).collect();
+        let mut cursor = Self::new(flow, &kinds, gap, &GridMeasure::new(Vec::new(), rows.to_vec()));
+        cursor.fills = columns.iter().map(|kind| matches!(kind, ColumnWidth::Fill { .. })).collect();
+        cursor
     }
 
     /// The cell of the next child, whose measured size is `size`.
@@ -100,8 +115,8 @@ impl GridCursor {
         let (column, row) = (self.next % count, self.next / count);
         let width = match self.columns.get(column) {
             Some(ColumnWidth::Content) => {
-                let kept: f32 = (self.columns.iter().zip(&self.widths).enumerate())
-                    .filter(|(at, (kind, _))| *at != column && !matches!(kind, ColumnWidth::Fill { .. }))
+                let kept: f32 = (self.fills.iter().zip(&self.widths).enumerate())
+                    .filter(|(at, (fill, _))| *at != column && !**fill)
                     .map(|(_, (_, width))| *width)
                     .sum();
                 let gaps = self.gap.x * count.saturating_sub(1) as f32;

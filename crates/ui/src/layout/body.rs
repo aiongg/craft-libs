@@ -429,10 +429,7 @@ pub(crate) fn run_body_measured<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap
                 // A measuring run under a body sized from its content gives each fill column the width its cells
                 // take, as a content column: the room it would share is not the body's to claim.
                 let cursor = if content_run {
-                    let kinds: Vec<ColumnWidth> =
-                        columns.iter().map(|kind| if matches!(kind, ColumnWidth::Fill { .. }) { ColumnWidth::Content } else { *kind }).collect();
-                    let unknown = GridMeasure::new(Vec::new(), last.rows.clone());
-                    GridCursor::new(Flow::new(ui.available_rect_before_wrap(), rtl), &kinds, gap, &unknown)
+                    GridCursor::sized_by_content(Flow::new(ui.available_rect_before_wrap(), rtl), columns, gap, &last.rows)
                 } else {
                     GridCursor::new(Flow::new(ui.available_rect_before_wrap(), rtl), columns, gap, &last)
                 };
