@@ -878,6 +878,7 @@ pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
     }
     let slot = gesture_key(cx.core.id);
     let (mut emitted, mut began, mut landing, mut last_update) = (None, false, None, None);
+    let mut changed = false;
     let mut at = from;
     while at < cx.events.len() {
         match bind.checked(&mut cx.events[at]) {
@@ -914,6 +915,9 @@ pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
             }
             _ => {}
         }
+        if let EditEvent::Update { value, .. } | EditEvent::Commit { after: value, .. } = event {
+            changed |= bind.get() != Some(Mixed::Same(value.clone()));
+        }
         bind.apply(event);
         if let Some(value) = landed(event) {
             landing = Some(value.clone());
@@ -929,6 +933,12 @@ pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
     } else {
         None
     };
+    // A pass that changes the value, or holds an update for the next pass, runs again before painting, so a control drawn
+    // above the field shows the edit in the frame it happens. egui gives the rerun no input events and caps a frame at
+    // two passes, so nothing is delivered twice.
+    if changed || held.is_some() {
+        crate::runtime::egui::sizing::request_discard(&cx.core.ctx, "craft_ui: an edit changed the value");
+    }
     let repaint_next = held.is_some();
     let gesture = cx.core.memory.shown::<Gesture<ValueOf<C>>>(slot);
     let (running, watched) = (gesture.is_running().then_some(gesture.id), gesture.watched);

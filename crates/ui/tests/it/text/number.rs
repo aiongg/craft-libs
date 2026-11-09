@@ -219,6 +219,39 @@ fn a_given_value_written_in_the_begin_pass_keeps_the_gesture() {
     assert_eq!(*value.borrow(), Some(START), "Escape restores the start value");
 }
 
+/// A control drawn above a number field shows the typed value in the frame the typing happens, because the pass that
+/// delivers an edit runs again before painting.
+#[trial]
+fn a_control_above_the_field_shows_the_typed_value_in_the_same_frame() {
+    let mut frames = Frames::new();
+    let value = RefCell::new(Some(START));
+    let at = Cell::new(Pos2::ZERO);
+    let above = Cell::new(None);
+    let mut show = |ui: &mut Ui| {
+        above.set(*value.borrow());
+        let current = *value.borrow();
+        let out = NumberField::new("Size", Bind::given(current)).id_salt("size").show(ui);
+        at.set(out.response.rect.center());
+        match &out.event {
+            Some(EditEvent::Begin { .. }) => {
+                if let Some(Mixed::Same(shown)) = &out.shown {
+                    *value.borrow_mut() = **shown;
+                }
+            }
+            Some(EditEvent::Update { value: v, .. } | EditEvent::Commit { after: v, .. }) => *value.borrow_mut() = *v,
+            _ => {}
+        }
+    };
+    frames.idle(3, &mut show);
+    click(&mut frames, at.get(), &mut show);
+    frames.idle(2, &mut show);
+    frames.frame(vec![key_press(Key::A, Modifiers::COMMAND)], &mut show);
+    frames.frame(vec![Event::Text("7".into())], &mut show);
+    assert_eq!(above.get(), Some(7.0), "the control above the field shows the first typed character in that frame");
+    frames.frame(vec![Event::Text("5".into())], &mut show);
+    assert_eq!(above.get(), Some(75.0), "and the next one");
+}
+
 /// What a fixture of a number field with presets shows: the value, the field's id and the events it reported.
 struct Shown {
     value: Rc<RefCell<Option<f64>>>,

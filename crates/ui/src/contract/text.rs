@@ -409,12 +409,8 @@ pub(crate) fn run<C: Component>(
     outcome.composing = crate::runtime::ime::composing(&ctx, widget);
     outcome.completions = completions;
     cx.core.texts = Some((decl.key, Box::new(RecordedText { outcome, submit_mods: resolved.submit_mods })));
-    let committed = apply_events(cx, resolved.events);
+    apply_events(cx, resolved.events);
     cx.core.memory.shown::<TextState>(state_id).seen = shown_copy(cx);
-    // `parts` ran for the value before the commit; the pass runs again so a part the new value adds is never missing.
-    if committed && parts_follow_value {
-        crate::runtime::egui::sizing::request_discard(&ctx, "craft_ui: a text commit changed the value");
-    }
     cx.core.submitted |= resolved.submitted;
     if keys.submits {
         cx.core.intents.take(craft_behavior::Intent::Submit);
