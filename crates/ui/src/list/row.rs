@@ -637,7 +637,7 @@ const PROGRESS: PartKey = PartKey::new("progress");
 const LINES: PartKey = PartKey::new("lines");
 const TRAILING: PartKey = PartKey::new("trailing");
 const TRAILING_ICON: PartKey = PartKey::new("trailing-icon");
-const THUMB: PartKey = PartKey::new("thumb");
+pub(crate) const THUMB: PartKey = PartKey::new("thumb");
 
 /// How far the hover tint of the layer form tints toward the accent.
 const LAYER_TINT: f32 = 0.12;
