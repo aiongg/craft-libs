@@ -688,6 +688,39 @@ fn a_full_window_dialog_scope_chains_under_the_view_scope() {
     assert_eq!(brushed.get(), 1, "the workspace chord reaches it too");
 }
 
+/// A modal full-window dialog with nothing focused routes a plain letter to its own scope; a plain
+/// Enter submits it.
+#[trial]
+fn a_modal_full_window_dialog_with_nothing_focused_takes_its_letters_and_enter() {
+    use craft_ui::contract::Bind;
+    use craft_ui::dialog::FullWindowDialog;
+    use craft_ui::sections::{DialogRole, FooterButton};
+
+    let (nudged, closed) = (Cell::new(0), Cell::new(false));
+    let mut show = |ui: &mut Ui| {
+        let mut open = true;
+        let shown = FullWindowDialog::new("Workspace")
+            .opened(Bind::bound(&mut open))
+            .command_scope(WORKSPACE)
+            .buttons([FooterButton::new("OK", DialogRole::Accept)])
+            .show(ui, |_, cx| {
+                while let Some((command, _)) = cx.take_command::<WorkspaceCommand>() {
+                    nudged.set(nudged.get() + usize::from(command == WorkspaceCommand::Nudge));
+                }
+            });
+        closed.set(closed.get() || shown.output.closed.is_some());
+    };
+    let mut frames = Frames::new();
+    frames.idle(4, &mut show);
+    frames.frame(vec![key_press(Key::N, Modifiers::NONE)], &mut show);
+    frames.idle(2, &mut show);
+    assert_eq!(nudged.get(), 1, "the scope's letter reaches the dialog with nothing focused");
+    assert!(!closed.get(), "a letter does not submit");
+    frames.frame(vec![key_press(Key::Enter, Modifiers::NONE)], &mut show);
+    frames.idle(2, &mut show);
+    assert!(closed.get(), "a plain Enter submits the dialog");
+}
+
 /// 11.3: a focused field takes the edit commands for its own text wherever it is; with none focused the app takes them.
 #[trial]
 fn a_focused_field_outside_a_dialog_takes_undo_and_the_app_gets_none() {
