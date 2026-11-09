@@ -3,8 +3,8 @@
 use std::time::{Duration, Instant};
 
 use craft_keymap::{
-    Active, AssignError, Bindable, Binding, Chord, CommandRef, ConflictKind, DropReason, Key, Keymap, Kind, Lookup, MAX_BINDINGS, MAX_COMMANDS,
-    MAX_CONFLICTS, Mods, Overrides, Platform, Policy, Problem, Scope, Scopes, Trigger, TypingRule, reserved,
+    Active, AssignError, Binding, Chord, CommandDef, CommandKind, CommandRef, ConflictKind, DropReason, Key, Keymap, Lookup, MAX_BINDINGS,
+    MAX_COMMANDS, MAX_CONFLICTS, Mods, Overrides, Platform, Policy, Problem, Scope, Scopes, Trigger, TypingRule, reserved,
 };
 use serde_json::json;
 
@@ -24,12 +24,12 @@ fn cmd(id: &str) -> CommandRef {
     CommandRef::new(id)
 }
 
-fn app(id: &str, keys: &[&str]) -> Bindable {
-    keys.iter().fold(Bindable::new(id, id, Scope::app()), |e, k| e.with_default(b(k)))
+fn app(id: &str, keys: &[&str]) -> CommandDef {
+    keys.iter().fold(CommandDef::new(id, id, Scope::app()), |e, k| e.with_default(b(k)))
 }
 
-fn in_scope(id: &str, home: &str, keys: &[&str]) -> Bindable {
-    keys.iter().fold(Bindable::new(id, id, scope(home)), |e, k| e.with_default(b(k)))
+fn in_scope(id: &str, home: &str, keys: &[&str]) -> CommandDef {
+    keys.iter().fold(CommandDef::new(id, id, scope(home)), |e, k| e.with_default(b(k)))
 }
 
 fn run(id: &str) -> Lookup {
@@ -157,7 +157,7 @@ fn bindings_of_an_active_context_fire_while_typing_under_every_rule() {
 
 #[test]
 fn tools_of_one_group_cycle_and_keep_their_shared_key() {
-    let tool = |id: &str, group: &str| app(id, &["B"]).with_kind(Kind::Tool { group: Some(group.into()) });
+    let tool = |id: &str, group: &str| app(id, &["B"]).with_kind(CommandKind::Tool { group: Some(group.into()) });
     let mut km =
         Keymap::new(vec![tool("tool.brush", "brush"), tool("tool.pencil", "brush"), tool("tool.mixer", "brush")], Scopes::new(), Platform::Mac);
     assert_eq!(press(&km, "B", &Active::NONE), Lookup::Cycle(vec![cmd("tool.brush"), cmd("tool.pencil"), cmd("tool.mixer")]));
@@ -302,8 +302,8 @@ fn conflicts_tell_clashes_from_shadows() {
 }
 
 /// `commands` commands, each with 16 bindings on one chord in 16 panels.
-fn crowded(commands: usize, scopes: Scopes, kind: Kind) -> (Keymap, Overrides) {
-    let catalog: Vec<Bindable> = (0..commands).map(|n| app(&format!("c.{n}"), &[]).with_kind(kind.clone())).collect();
+fn crowded(commands: usize, scopes: Scopes, kind: CommandKind) -> (Keymap, Overrides) {
+    let catalog: Vec<CommandDef> = (0..commands).map(|n| app(&format!("c.{n}"), &[]).with_kind(kind.clone())).collect();
     let mut o = Overrides::new();
     for n in 0..commands {
         assert!(o.insert(format!("c.{n}"), (1..=MAX_BINDINGS).map(|p| format!("P{p}: K")).collect()));
@@ -318,7 +318,7 @@ fn panels(n: usize) -> Scopes {
 #[test]
 fn crowded_chords_are_capped() {
     // Panels the app never registered are not bound.
-    let (km, o) = crowded(2, Scopes::new(), Kind::Command);
+    let (km, o) = crowded(2, Scopes::new(), CommandKind::Command);
     let km = km.with_overrides(o);
     assert!(km.conflicts().is_empty());
     assert!(km.bindings(&cmd("c.0")).is_empty());
@@ -326,17 +326,17 @@ fn crowded_chords_are_capped() {
     assert!(km.problems().contains(&Problem::UnknownScope { key: "c.0".into(), text: "P1: K".into() }));
 
     // Registered panels that never share: 32 commands make 16 × 496 pairs, capped.
-    let (km, o) = crowded(32, panels(MAX_BINDINGS).with_panel_fallthrough(false), Kind::Command);
+    let (km, o) = crowded(32, panels(MAX_BINDINGS).with_panel_fallthrough(false), CommandKind::Command);
     assert_eq!(km.with_overrides(o).conflicts().len(), MAX_CONFLICTS);
 
     // Tools of one group: no conflicts.
-    let (km, o) = crowded(32, panels(MAX_BINDINGS), Kind::Tool { group: None });
+    let (km, o) = crowded(32, panels(MAX_BINDINGS), CommandKind::Tool { group: None });
     assert!(km.with_overrides(o).conflicts().is_empty());
 }
 
 #[test]
 fn assigning_many_commands_stays_fast() {
-    let catalog: Vec<Bindable> = (0..MAX_COMMANDS).map(|n| app(&format!("c.{n}"), &[])).collect();
+    let catalog: Vec<CommandDef> = (0..MAX_COMMANDS).map(|n| app(&format!("c.{n}"), &[])).collect();
     let mut km = Keymap::new(catalog, panels(MAX_BINDINGS), Platform::Mac);
     let list: Vec<Binding> = (1..=MAX_BINDINGS).map(|p| b(&format!("P{p}: K"))).collect();
     let t = Instant::now();
@@ -571,7 +571,7 @@ fn hostile_overrides_load_without_panic_and_report_problems() {
 #[test]
 fn reset_removes_hand_written_variants_of_a_key() {
     let layers = CommandRef::with_params("window.panel", json!({"panel": "layers"}));
-    let catalog = vec![Bindable::new(layers.clone(), "Layers", Scope::app()).with_default(b("F7"))];
+    let catalog = vec![CommandDef::new(layers.clone(), "Layers", Scope::app()).with_default(b("F7"))];
     let load = || {
         let mut o = Overrides::new();
         o.insert(r#"window.panel {"panel":"layers"}"#, vec!["Cmd+L".into()]);
@@ -595,9 +595,9 @@ fn reset_removes_hand_written_variants_of_a_key() {
 fn a_panel_around_the_focused_one_beats_the_application_on_a_shared_chord() {
     let chord = Chord::new(Mods::CMD, Key::J);
     let catalog = vec![
-        Bindable::new("app.jump", "Jump", Scope::app()).with_default(Binding::parse("Cmd+J").unwrap()),
-        Bindable::new("dock.close", "Close", Scope::new("Dock").unwrap()).with_default(Binding::parse("Cmd+J").unwrap()),
-        Bindable::new("pane.zoom", "Zoom", Scope::new("Pane").unwrap()),
+        CommandDef::new("app.jump", "Jump", Scope::app()).with_default(Binding::parse("Cmd+J").unwrap()),
+        CommandDef::new("dock.close", "Close", Scope::new("Dock").unwrap()).with_default(Binding::parse("Cmd+J").unwrap()),
+        CommandDef::new("pane.zoom", "Zoom", Scope::new("Pane").unwrap()),
     ];
     let km = Keymap::new(catalog, Scopes::new().with_panel("Dock").with_panel("Pane"), Platform::Mac);
     let active = Active::panel("Pane");

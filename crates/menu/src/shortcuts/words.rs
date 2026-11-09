@@ -211,7 +211,7 @@ use std::sync::Arc;
 
 use craft_host::Host;
 use craft_keymap::import::kys::KysError;
-use craft_keymap::{Bindable, Key, Platform, Trigger};
+use craft_keymap::{CommandDef, Key, Platform, Trigger};
 use craft_ui::display::{ChordWrite, DisplayWords, Kbd};
 use craft_ui::runtime::env::Env;
 
@@ -237,7 +237,7 @@ impl Say {
     }
 
     /// A command's label.
-    pub(crate) fn command(&self, b: &Bindable) -> String {
+    pub(crate) fn command(&self, b: &CommandDef) -> String {
         match &self.host {
             Some(host) => host.commands().label(&b.command.id, &b.label),
             None => b.label.clone(),
@@ -253,7 +253,7 @@ impl Say {
     }
 
     /// Extra lines for a command's tooltip.
-    pub(crate) fn hint(&self, b: &Bindable) -> Option<String> {
+    pub(crate) fn hint(&self, b: &CommandDef) -> Option<String> {
         self.host.as_ref()?.commands().hint(&b.command.id)
     }
 

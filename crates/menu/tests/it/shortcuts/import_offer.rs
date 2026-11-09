@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use craft_keymap::import::kys;
-use craft_keymap::{Bindable, Binding, CommandRef, ForeignSet, ImportOptions, Keymap, Overrides, Platform, Scope, Scopes};
+use craft_keymap::{Binding, CommandDef, CommandRef, ForeignSet, ImportOptions, Keymap, Overrides, Platform, Scope, Scopes};
 use craft_menu::shortcuts::{ImportOffer, NoOffer, OfferAnswer, OfferRecord};
 use craft_ui::dialog::{DialogHost, DialogResult, StartupStage};
 use craft_ui::testing::{Fixture, trial};
@@ -14,7 +14,7 @@ const PSP: &str = "<photoshop-keyboard-shortcuts version=\"4\" filename=\"$$$/Fi
     <command name=\"Rulers\"><shortcut>Cmd+K</shortcut></command></photoshop-keyboard-shortcuts>";
 
 fn keymap() -> Keymap {
-    let command = |id: &str, label: &str, key: &str| Bindable::new(id, label, Scope::app()).with_default(Binding::parse(key).expect("a binding"));
+    let command = |id: &str, label: &str, key: &str| CommandDef::new(id, label, Scope::app()).with_default(Binding::parse(key).expect("a binding"));
     Keymap::new(vec![command("file.save", "Save", "Cmd+S"), command("view.rulers", "Rulers", "Cmd+R")], Scopes::new(), Platform::Mac)
 }
 
@@ -92,8 +92,8 @@ fn a_name_shared_with_an_alias_command_matches_the_one_with_a_default() {
     };
     let km = Keymap::new(
         vec![
-            Bindable::new("history.undo", "Undo", Scope::app()),
-            Bindable::new("edit.undo", "Undo", Scope::app())
+            CommandDef::new("history.undo", "Undo", Scope::app()),
+            CommandDef::new("edit.undo", "Undo", Scope::app())
                 .with_path(vec!["Edit".into(), "Undo".into()])
                 .with_default(Binding::parse("Cmd+Z").expect("a binding")),
         ],

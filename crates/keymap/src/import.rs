@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use crate::chord::Trigger;
 use crate::chord::foreign::{Flavor, ForeignError, ReadNote, read_foreign};
 use crate::command::CommandRef;
-use crate::keymap::{Bindable, Binding, Keymap, Kind, MAX_BINDINGS, Policy};
+use crate::keymap::{Binding, CommandDef, CommandKind, Keymap, MAX_BINDINGS, Policy};
 use crate::scope::Scope;
 
 /// Most entries of a set read; the rest are ignored and counted in [`ImportReport::truncated`].
@@ -519,7 +519,7 @@ pub fn normalize_label(s: &str) -> String {
 
 /// A normalized name without a leading `show/hide `, `show ` or `hide ` when something remains:
 /// sources name a toggle by what choosing it does now. Only toggle commands
-/// ([`Bindable::is_toggle`]) are matched by this form.
+/// (kind [`CommandKind::Toggle`]) are matched by this form.
 fn toggle_name(s: &str) -> String {
     ["show/hide ", "show ", "hide "].iter().find_map(|p| s.strip_prefix(p).filter(|r| !r.is_empty())).unwrap_or(s).to_string()
 }
@@ -801,7 +801,9 @@ impl ImportPlan {
             }
             let effective = pb.binding.trigger.effective(platform);
             let (scope, tools) = match keymap.bindable(&p.command) {
-                Some(b) => (pb.binding.scope_or(&b.scope).clone(), if let Kind::Tool { group } = &b.kind { Some(group.clone()) } else { None }),
+                Some(b) => {
+                    (pb.binding.scope_or(&b.scope).clone(), if let CommandKind::Tool { group } = &b.kind { Some(group.clone()) } else { None })
+                }
                 None => (pb.binding.scope.clone().unwrap_or_else(Scope::app), None),
             };
             let groups = taken.entry(effective).or_default();
@@ -962,7 +964,7 @@ fn add<K: std::hash::Hash + Eq>(map: &mut HashMap<K, Vec<usize>>, key: K, i: usi
 
 impl Names {
     /// Adds command `i`, its label, aliases and the last segment of each path passed through `form`.
-    fn add(&mut self, i: usize, b: &Bindable, form: fn(&str) -> String) {
+    fn add(&mut self, i: usize, b: &CommandDef, form: fn(&str) -> String) {
         let label = form(&normalize_label(&b.label));
         let names: Vec<String> = std::iter::once(label.clone()).chain(b.aliases.iter().map(|a| form(&normalize_label(a)))).collect();
         for name in &names {
@@ -1053,13 +1055,13 @@ impl Index {
             segments: HashSet::new(),
         };
         for (i, b) in keymap.catalog().iter().enumerate() {
-            ix.tool.push(matches!(b.kind, Kind::Tool { .. }));
+            ix.tool.push(matches!(b.kind, CommandKind::Tool { .. }));
             ix.has_default.push(!b.defaults.is_empty());
             ix.has_menu.push(!b.paths.is_empty());
             ix.keys.insert(b.command.key(), i);
             ix.names.add(i, b, str::to_string);
             ix.segments.extend(b.paths.iter().chain(&b.import_paths).flatten().map(|s| normalize_label(s)));
-            if b.is_toggle {
+            if b.kind == CommandKind::Toggle {
                 ix.toggles.add(i, b, toggle_name);
             }
         }
@@ -1129,8 +1131,8 @@ struct ToSuggest {
 
 /// Fuzzy candidates for unmatched entries, among commands of the same kind.
 fn suggest(keymap: &Keymap, entries: &[ToSuggest]) -> Vec<Suggestion> {
-    let pool = |tool: bool| -> Vec<&Bindable> { keymap.catalog().iter().filter(|b| matches!(b.kind, Kind::Tool { .. }) == tool).collect() };
-    let matcher = |pool: &[&Bindable]| {
+    let pool = |tool: bool| -> Vec<&CommandDef> { keymap.catalog().iter().filter(|b| matches!(b.kind, CommandKind::Tool { .. }) == tool).collect() };
+    let matcher = |pool: &[&CommandDef]| {
         let candidates: Vec<namematch::Candidate> = pool
             .iter()
             .map(|b| {

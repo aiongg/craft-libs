@@ -12,7 +12,7 @@
 use crate::chord::foreign::{Flavor, ForeignError};
 use crate::chord::{Mods, Trigger};
 use crate::import::{ForeignEntry, ForeignKey, ForeignSet};
-use crate::keymap::{Keymap, Kind};
+use crate::keymap::{CommandKind, Keymap};
 
 /// A set is a few tens of kilobytes; a larger file is not one and is not parsed.
 // pc: crates/engine/src/kys.rs:26 `MAX_BYTES`.
@@ -207,7 +207,7 @@ pub fn write(name: &str, keymap: &Keymap) -> String {
         "\u{feff}<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<{ROOT} version=\"4\" filename=\"$$$/FileName/Presets/KeyboardCustomization/{name}={name}\">\n"
     );
     for tools in [false, true] {
-        for b in keymap.catalog().iter().filter(|b| matches!(b.kind, Kind::Tool { .. }) == tools) {
+        for b in keymap.catalog().iter().filter(|b| matches!(b.kind, CommandKind::Tool { .. }) == tools) {
             let keys: Vec<String> =
                 keymap.bindings(&b.command).iter().filter(|k| k.scope.is_none() && !k.trigger.double).map(|k| photoshop_key(&k.trigger)).collect();
             let Some(first) = keys.first() else { continue };

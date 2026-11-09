@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use craft_host::target::Os;
-use craft_keymap::{Bindable, Binding, CommandRef, ImportOptions, Keymap, Kind, Overrides, Platform, ProfileError, Profiles, Scope, Scopes};
+use craft_keymap::{Binding, CommandDef, CommandKind, CommandRef, ImportOptions, Keymap, Overrides, Platform, ProfileError, Profiles, Scope, Scopes};
 use craft_menu::shortcuts::{DialogState, Options, Outcome, ShortcutsDialog};
 use craft_ui::contract::Role;
 use craft_ui::testing::{Fixture, Target};
@@ -16,18 +16,18 @@ fn binding(text: &str) -> Binding {
 
 /// A small app: File and Object commands, two tools on `M`, a Timeline panel command and a Text context command.
 pub(crate) fn keymap(platform: Platform) -> Keymap {
-    let tool = Kind::Tool { group: Some("Marquee".into()) };
+    let tool = CommandKind::Tool { group: Some("Marquee".into()) };
     let path = |p: &[&str]| p.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
     let timeline = Scope::new("Timeline").unwrap_or_else(Scope::app);
     let catalog = vec![
-        Bindable::new("file.save", "Save", Scope::app()).with_path(path(&["File", "Save"])).with_default(binding("Cmd+S")),
-        Bindable::new("file.saveAs", "Save As…", Scope::app()).with_path(path(&["File", "Save As…"])).with_default(binding("Cmd+Shift+S")),
-        Bindable::new("file.export", "Export…", Scope::app()).with_path(path(&["File", "Export…"])).with_default(binding("Cmd+E")),
-        Bindable::new("object.front", "Bring to Front", Scope::app()).with_path(path(&["Object", "Arrange", "Bring to Front"])),
-        Bindable::new("tool.marquee", "Marquee Tool", Scope::app()).with_kind(tool.clone()).with_default(binding("M")),
-        Bindable::new("tool.ellipse", "Elliptical Marquee Tool", Scope::app()).with_kind(tool).with_default(binding("M")),
-        Bindable::new("timeline.loop", "Loop", timeline).with_default(binding("L")),
-        Bindable::new("type.bold", "Bold", Scope::app()).with_default(binding("Text: Cmd+B")),
+        CommandDef::new("file.save", "Save", Scope::app()).with_path(path(&["File", "Save"])).with_default(binding("Cmd+S")),
+        CommandDef::new("file.saveAs", "Save As…", Scope::app()).with_path(path(&["File", "Save As…"])).with_default(binding("Cmd+Shift+S")),
+        CommandDef::new("file.export", "Export…", Scope::app()).with_path(path(&["File", "Export…"])).with_default(binding("Cmd+E")),
+        CommandDef::new("object.front", "Bring to Front", Scope::app()).with_path(path(&["Object", "Arrange", "Bring to Front"])),
+        CommandDef::new("tool.marquee", "Marquee Tool", Scope::app()).with_kind(tool.clone()).with_default(binding("M")),
+        CommandDef::new("tool.ellipse", "Elliptical Marquee Tool", Scope::app()).with_kind(tool).with_default(binding("M")),
+        CommandDef::new("timeline.loop", "Loop", timeline).with_default(binding("L")),
+        CommandDef::new("type.bold", "Bold", Scope::app()).with_default(binding("Text: Cmd+B")),
     ];
     Keymap::new(catalog, Scopes::new().with_panel("Timeline").with_context("Text"), platform)
 }

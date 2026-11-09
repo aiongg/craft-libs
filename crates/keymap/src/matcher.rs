@@ -1,5 +1,5 @@
 //! Matching one key press against a keymap: the chord candidates of the layout, the double-press pair and the
-//! Alt variant. It reads no toolkit's events; `egui::Dispatcher` and craft-ui's key stage both run it.
+//! Alt variant. It reads no toolkit's events; craft-ui's key stage runs it.
 
 use crate::DOUBLE_PRESS;
 use crate::chord::{Chord, Key, Mods, Trigger};
@@ -25,7 +25,7 @@ pub struct Hit {
     /// position's digit.
     pub exact: bool,
     /// The press is a bound chord of `command` with Alt added, and `command` opted in
-    /// ([`Bindable::has_alt_variant`](crate::Bindable::has_alt_variant)). `trigger` is the chord
+    /// ([`CommandDef::has_alt_variant`](crate::CommandDef::has_alt_variant)). `trigger` is the chord
     /// pressed, Alt included.
     pub alt_variant: bool,
     /// The text of the Paste event that ran the command, or on the web of the Paste event that

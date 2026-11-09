@@ -1,6 +1,6 @@
 //! The dialog's frame: recording into a row, the conflict bar, undo, Cancel and OK, and the messages under the table.
 
-use craft_keymap::{Active, Bindable, Binding, Chord, ConflictKind, Keymap, Kind, Lookup, Platform, Scope, Scopes};
+use craft_keymap::{Active, Binding, Chord, CommandDef, CommandKind, ConflictKind, Keymap, Lookup, Platform, Scope, Scopes};
 use craft_menu::shortcuts::Outcome;
 use craft_ui::testing::trial;
 use egui::{Key, Modifiers};
@@ -71,8 +71,8 @@ fn conflict_keep_both_lists_the_clash_and_cancel_changes_nothing() {
 fn assign_takes_a_held_shortcut_and_keeps_the_others() {
     let key = |text: &str| Binding::parse(text).unwrap_or_else(|e| panic!("{e}"));
     let catalog = vec![
-        Bindable::new("file.print", "Print…", Scope::app()).with_default(key("Cmd+P")),
-        Bindable::new("type.paragraphStyles", "Paragraph Styles", Scope::app()).with_default(key("Cmd+F11")),
+        CommandDef::new("file.print", "Print…", Scope::app()).with_default(key("Cmd+P")),
+        CommandDef::new("type.paragraphStyles", "Paragraph Styles", Scope::app()).with_default(key("Cmd+F11")),
     ];
     let mut rig = Rig::new(Keymap::new(catalog, Scopes::new(), Platform::Mac), options(), None);
     rig.click("Paragraph Styles");
@@ -98,7 +98,7 @@ fn reserved_chord_and_app_rule_refuse() {
     let reserved = Chord::parse("Cmd+Tab").unwrap_or_else(|e| panic!("{e}"));
     let options = options().with(|o| {
         o.accept = Some(Box::new(|bindable, binding| {
-            if matches!(bindable.kind, Kind::Tool { .. }) && !binding.trigger.chord.mods.is_none() {
+            if matches!(bindable.kind, CommandKind::Tool { .. }) && !binding.trigger.chord.mods.is_none() {
                 Err("Tools take keys without modifiers".into())
             } else {
                 Ok(())

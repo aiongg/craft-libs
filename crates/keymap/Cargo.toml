@@ -26,5 +26,5 @@ craft-settings = { workspace = true }
 tempfile = "3"
 
 [features]
-# The egui key conversions and dispatcher.
+# The egui key conversions.
 egui = ["dep:egui", "craft-host/ui"]

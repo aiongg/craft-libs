@@ -1,7 +1,7 @@
 //! Stories of the Keyboard Shortcuts dialog: one per state the dialog is required to show, over one keymap.
 
 use craft_keymap::{
-    Bindable, Binding, Chord, ContextRule, Flavor, ForeignEntry, ForeignKey, ForeignSet, ImportOptions, Key, Keymap, Overrides, Platform, Profiles,
+    Binding, Chord, CommandDef, ContextRule, Flavor, ForeignEntry, ForeignKey, ForeignSet, ImportOptions, Key, Keymap, Overrides, Platform, Profiles,
     Scope, Scopes,
 };
 use craft_ui::contract::Show as _;
@@ -24,12 +24,12 @@ pub(super) fn keymap() -> Keymap {
     let path = |parts: &[&str]| parts.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
     let timeline = Scope::new("Timeline").unwrap_or_else(Scope::app);
     let catalog = vec![
-        Bindable::new("file.save", "Save", Scope::app()).with_path(path(&["File", "Save"])).with_default(binding("Cmd+S")),
-        Bindable::new("file.export", "Export", Scope::app()).with_path(path(&["File", "Export"])).with_default(binding("Cmd+E")),
-        Bindable::new("tool.marquee", "Marquee Tool", Scope::app()).with_default(binding("M")),
-        Bindable::new("tool.move", "Move Tool", Scope::app()).with_default(binding("M")),
-        Bindable::new("timeline.loop", "Loop", timeline.clone()).with_default(binding("L")),
-        Bindable::new("timeline.play", "Play", timeline).with_default(binding("Space")),
+        CommandDef::new("file.save", "Save", Scope::app()).with_path(path(&["File", "Save"])).with_default(binding("Cmd+S")),
+        CommandDef::new("file.export", "Export", Scope::app()).with_path(path(&["File", "Export"])).with_default(binding("Cmd+E")),
+        CommandDef::new("tool.marquee", "Marquee Tool", Scope::app()).with_default(binding("M")),
+        CommandDef::new("tool.move", "Move Tool", Scope::app()).with_default(binding("M")),
+        CommandDef::new("timeline.loop", "Loop", timeline.clone()).with_default(binding("L")),
+        CommandDef::new("timeline.play", "Play", timeline).with_default(binding("Space")),
     ];
     Keymap::new(catalog, Scopes::new().with_panel("Timeline"), Platform::Linux)
 }

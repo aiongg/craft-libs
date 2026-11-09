@@ -8,8 +8,8 @@ use craft_keymap::import::{
     Failed, FailedChange, MAX_IMPORT_ENTRIES, MAX_IMPORT_TEXT, MAX_KEYS_PER_ENTRY, MAX_SUGGESTIONS, NoChangeReason, SkipReason, UnmatchedReason,
 };
 use craft_keymap::{
-    Bindable, Binding, CommandRef, ContextRule, ForeignEntry, ForeignKey, ForeignSet, ImportOptions, ImportReport, Keymap, Kind, MAX_COMMANDS,
-    Overrides, Platform, Scope, Scopes, Start, plan, reserved,
+    Binding, CommandDef, CommandKind, CommandRef, ContextRule, ForeignEntry, ForeignKey, ForeignSet, ImportOptions, ImportReport, Keymap,
+    MAX_COMMANDS, Overrides, Platform, Scope, Scopes, Start, plan, reserved,
 };
 use serde_json::json;
 
@@ -21,8 +21,8 @@ fn bindings(texts: &[&str]) -> Vec<Binding> {
     texts.iter().map(|t| b(t)).collect()
 }
 
-fn command(id: impl Into<CommandRef>, label: &str, path: &[&str], keys: &[&str]) -> Bindable {
-    let mut out = Bindable::new(id, label, Scope::app());
+fn command(id: impl Into<CommandRef>, label: &str, path: &[&str], keys: &[&str]) -> CommandDef {
+    let mut out = CommandDef::new(id, label, Scope::app());
     if !path.is_empty() {
         out = out.with_path(path.iter().map(|s| s.to_string()).collect());
     }
@@ -33,7 +33,7 @@ fn panel(name: &str) -> CommandRef {
     CommandRef::with_params("window.panel", json!({ "panel": name }))
 }
 
-fn catalog() -> Vec<Bindable> {
+fn catalog() -> Vec<CommandDef> {
     vec![
         command("file.new", "Document…", &["File", "New", "Document…"], &["Cmd+N"]),
         command("dialog.newDocument", "New Document Dialog", &[], &["Cmd+N"]),
@@ -57,8 +57,8 @@ fn catalog() -> Vec<Bindable> {
         command("type.frameBreak", "Insert Break", &["Type", "Frame", "Insert Break"], &[]),
         command("type.bold", "Bold", &["Type", "Style", "Bold"], &[]),
         command("type.italic", "Italic", &["Type", "Style", "Italic"], &[]),
-        command("tool.pen", "Pen Tool", &[], &["P"]).with_kind(Kind::Tool { group: None }).with_alias("Pen"),
-        command("tool.type", "Type Tool", &[], &["T"]).with_kind(Kind::Tool { group: None }),
+        command("tool.pen", "Pen Tool", &[], &["P"]).with_kind(CommandKind::Tool { group: None }).with_alias("Pen"),
+        command("tool.type", "Type Tool", &[], &["T"]).with_kind(CommandKind::Tool { group: None }),
         command("scripts.run", "Run Script", &[], &[]),
     ]
 }
@@ -365,7 +365,7 @@ fn hostile_sets_are_capped_and_counted() {
     assert_eq!(r.unmatched_without_shortcut, keyless);
 }
 
-fn import_into(catalog: Vec<Bindable>, entries: Vec<ForeignEntry>, options: &ImportOptions) -> (Keymap, ImportReport) {
+fn import_into(catalog: Vec<CommandDef>, entries: Vec<ForeignEntry>, options: &ImportOptions) -> (Keymap, ImportReport) {
     let mut km = Keymap::new(catalog, Scopes::new(), Platform::Windows);
     let report = plan(&ForeignSet::new(entries), &km, options).apply(&mut km);
     (km, report)
@@ -484,7 +484,7 @@ fn only_entries_with_keys_to_bind_count_toward_suggestions() {
     assert_eq!(r.truncated, 0);
 }
 
-fn pages_catalog() -> Vec<Bindable> {
+fn pages_catalog() -> Vec<CommandDef> {
     vec![
         command("app.newDocumentDialog", "New Document…", &["File", "New Document…"], &["Cmd+N"]),
         command("layout.pages.insert", "Insert Pages…", &["Layout", "Pages", "Insert Pages…"], &["Cmd+Shift+P"]),

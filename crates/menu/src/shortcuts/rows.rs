@@ -5,7 +5,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 use craft_keymap::chord::{Platform, Trigger};
 use craft_keymap::command::CommandRef;
-use craft_keymap::keymap::{Bindable, Binding, ConflictKind, Keymap, Kind, Overrides};
+use craft_keymap::keymap::{Binding, CommandDef, CommandKind, ConflictKind, Keymap, Overrides};
 
 use crate::shortcuts::Options;
 use crate::shortcuts::words::{Say, around_chord};
@@ -178,16 +178,16 @@ impl RowCache {
     }
 }
 
-fn top_menu(b: &Bindable) -> Option<&str> {
+fn top_menu(b: &CommandDef) -> Option<&str> {
     b.paths.first().and_then(|p| p.first()).map(String::as_str)
 }
 
-fn is_tool(b: &Bindable) -> bool {
-    matches!(b.kind, Kind::Tool { .. })
+fn is_tool(b: &CommandDef) -> bool {
+    matches!(b.kind, CommandKind::Tool { .. })
 }
 
 /// The catalog entries the table lists ([`Options::visible`]).
-fn listed<'k>(keymap: &'k Keymap, options: &Options) -> impl Iterator<Item = &'k Bindable> + Clone {
+fn listed<'k>(keymap: &'k Keymap, options: &Options) -> impl Iterator<Item = &'k CommandDef> + Clone {
     let visible = options.visible;
     keymap.catalog().iter().filter(move |b| visible.is_none_or(|f| f(b)))
 }
@@ -234,7 +234,7 @@ fn panel_label(text: &Say, panel: &str) -> String {
     text.words().panel_panel.fill(&[("panel", &text.segment(panel))])
 }
 
-fn in_area(area: &AreaId, b: &Bindable, options: &Options) -> bool {
+fn in_area(area: &AreaId, b: &CommandDef, options: &Options) -> bool {
     match area {
         AreaId::All => true,
         AreaId::Menu(m) => top_menu(b) == Some(m.as_str()),
@@ -255,12 +255,12 @@ fn id_group(id: &str) -> String {
 
 /// A row's group header (`None`: no header) with its rank among groups, and how many path parts
 /// the header stands for.
-pub(crate) fn group(area: &AreaId, b: &Bindable, submenus: bool, text: &Say) -> (u8, Option<String>, usize) {
+pub(crate) fn group(area: &AreaId, b: &CommandDef, submenus: bool, text: &Say) -> (u8, Option<String>, usize) {
     let path = b.paths.first().map(Vec::as_slice).unwrap_or_default();
     let menu = |depth| path.first().map(|m| (0, Some(text.segment(m).into_owned()), depth));
     match area {
         AreaId::All => menu(1).unwrap_or_else(|| {
-            if let Kind::Tool { .. } = b.kind {
+            if let CommandKind::Tool { .. } = b.kind {
                 (1, Some(text.words().tools.as_str().to_owned()), 0)
             } else if !b.scope.is_app() {
                 (2, Some(panel_label(text, b.scope.as_str())), 0)
@@ -271,7 +271,7 @@ pub(crate) fn group(area: &AreaId, b: &Bindable, submenus: bool, text: &Say) -> 
         AreaId::Menu(_) if submenus && path.len() >= 3 => (0, path.get(1).map(|s| text.segment(s).into_owned()), 2),
         AreaId::Menu(_) => (0, None, 1),
         AreaId::Tools => match &b.kind {
-            Kind::Tool { group: Some(g) } => (0, Some(text.segment(g).into_owned()), usize::MAX),
+            CommandKind::Tool { group: Some(g) } => (0, Some(text.segment(g).into_owned()), usize::MAX),
             _ => (0, None, usize::MAX),
         },
         AreaId::Other => (0, Some(id_group(&b.command.id)), usize::MAX),
@@ -299,7 +299,7 @@ impl Query {
     /// Label, aliases, path parts and id, as written and translated; then the bindings: the same
     /// effective trigger when the query spells one, else their canonical or display text. A query
     /// that spells a chord (`cmd+s`, `⌘S`) does not also match longer chords containing its text.
-    fn matches(&self, b: &Bindable, bindings: &[Binding], text: &Say, platform: Platform) -> bool {
+    fn matches(&self, b: &CommandDef, bindings: &[Binding], text: &Say, platform: Platform) -> bool {
         if self.text.is_empty() {
             return true;
         }
@@ -344,7 +344,7 @@ fn build(keymap: &Keymap, options: &Options, text: &Say, view: &View) -> Built {
     // How many tools of a group hold each effective trigger.
     let mut tool_keys: HashMap<(Option<&str>, Trigger), usize> = HashMap::new();
     for (b, list) in catalog.iter().zip(&bindings) {
-        if let Kind::Tool { group } = &b.kind {
+        if let CommandKind::Tool { group } = &b.kind {
             for x in list {
                 *tool_keys.entry((group.as_deref().filter(|_| !keymap.shares_tool_keys()), x.trigger.effective(platform))).or_default() += 1;
             }
@@ -391,7 +391,7 @@ fn build(keymap: &Keymap, options: &Options, text: &Say, view: &View) -> Built {
             })
             .collect();
         let cycles = match &b.kind {
-            Kind::Tool { group } => list.iter().any(|x| {
+            CommandKind::Tool { group } => list.iter().any(|x| {
                 tool_keys.get(&(group.as_deref().filter(|_| !keymap.shares_tool_keys()), x.trigger.effective(platform))).is_some_and(|n| *n > 1)
             }),
             _ => false,

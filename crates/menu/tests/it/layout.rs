@@ -1,6 +1,6 @@
 //! The Mac, Windows, Linux and web layouts, platform filtering, and the keymap adapter.
 
-use craft_keymap::{Bindable, Binding, Keymap, Platform, Policy, Scope, Scopes};
+use craft_keymap::{Binding, CommandDef, Keymap, Platform, Policy, Scope, Scopes};
 use craft_menu::{
     Builtin, Document, Item, ItemKind, ItemRole, LayoutOptions, Menu, MenuBar, MenuRole, Node, Platforms, Standard, Target, apply_keymap, from_items,
     layout, mac_layout, structure_key, tidy, window_key,
@@ -266,13 +266,13 @@ fn keymap() -> Keymap {
     let app = Scope::app();
     let layers = Scope::new("Layers").unwrap();
     let catalog = vec![
-        Bindable::new("file.save", "Save", app.clone()).with_default(Binding::new(chord("Cmd+S"))),
-        Bindable::new("view.rulers", "Rulers", app.clone()).toggle().with_default(Binding::new(chord("Cmd+R"))),
-        Bindable::new("view.grid", "Grid", app.clone()).toggle(),
-        Bindable::new("layer.new", "New Layer", layers.clone())
+        CommandDef::new("file.save", "Save", app.clone()).with_default(Binding::new(chord("Cmd+S"))),
+        CommandDef::new("view.rulers", "Rulers", app.clone()).toggle().with_default(Binding::new(chord("Cmd+R"))),
+        CommandDef::new("view.grid", "Grid", app.clone()).toggle(),
+        CommandDef::new("layer.new", "New Layer", layers.clone())
             .with_default(Binding::in_scope(chord("Cmd+Shift+N"), app.clone()))
             .with_default(Binding::new(chord("Cmd+L"))),
-        Bindable::new("view.mode", "Mode", app).with_default(Binding::new(chord("M"))),
+        CommandDef::new("view.mode", "Mode", app).with_default(Binding::new(chord("M"))),
     ];
     Keymap::new(catalog, Scopes::new().with_panel("Layers"), Platform::Linux)
 }

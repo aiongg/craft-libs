@@ -8,28 +8,28 @@
 
 use serde::Serialize;
 
-use craft_keymap::{Bindable, CommandRef, Keymap, Kind};
+use craft_keymap::{CommandDef, CommandKind, CommandRef, Keymap};
 
 use super::state::Target;
 use super::view::area_key;
 use super::{Area, DialogState, ShortcutsDialog};
 
-fn is_tool(b: &Bindable) -> bool {
-    matches!(b.kind, Kind::Tool { .. })
+fn is_tool(b: &CommandDef) -> bool {
+    matches!(b.kind, CommandKind::Tool { .. })
 }
 
-fn application_menus(b: &Bindable) -> bool {
+fn application_menus(b: &CommandDef) -> bool {
     !is_tool(b) && b.paths.first().and_then(|p| p.first()).is_some()
 }
 
-fn panel_menus(b: &Bindable) -> bool {
+fn panel_menus(b: &CommandDef) -> bool {
     !is_tool(b) && !b.scope.is_app()
 }
 
 impl Area {
     /// Photoshop's Shortcuts For entries over the catalog: Application Menus (commands with a
     /// menu path in a top menu), Panel Menus (commands whose home scope is a panel) and Tools
-    /// ([`craft_keymap::Kind::Tool`]). With [`super::Options::area_tabs`] off they are the Show
+    /// ([`craft_keymap::CommandKind::Tool`]). With [`super::Options::area_tabs`] off they are the Show
     /// dropdown's entries, as Photoshop's dropdown.
     pub fn photoshop() -> Vec<Area> {
         vec![
