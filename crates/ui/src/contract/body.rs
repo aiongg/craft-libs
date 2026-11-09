@@ -2166,6 +2166,23 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             self.close = true;
             self.reason = self.reason.or(Some(CloseReason::Escape));
         }
+        if C::TAKES_ESCAPE && !self.layer {
+            let ctx = &cx.core.ctx;
+            let escaped = match crate::runtime::focus::focus_in_scope(ctx, id) {
+                Some(true) => {
+                    policy.cancel != CancelRule::Ignore
+                        && matches!(
+                            keys::scope_escape(ctx, policy.cancel, pointer::press_captured(ctx), false),
+                            Some(craft_behavior::focus::EscapeStep::CloseScope)
+                        )
+                }
+                Some(false) => false,
+                None => keys::take_window_cancel(ctx),
+            };
+            if escaped {
+                comp.escaped();
+            }
+        }
         if self.exiting {
             // The container closed already; the fade only keeps its body on screen.
             self.open = self.open_at_read;

@@ -54,8 +54,8 @@ pub(crate) use cx::{SeenPress, THUMB};
 pub use entry::Entry;
 pub use group::{GroupHandle, GroupKind, GroupState};
 pub use held::Held;
-pub(crate) use items::{lead_position, put_toggle_names};
 pub use items::{ColumnCommands, SweepApply, SweepStep, request_rename, section_part};
+pub(crate) use items::{lead_position, put_toggle_names};
 pub use label::{CellWidth, FieldLabelRole, FieldLayout, GlyphLabel, LabelAlign, LabelKind, Scrub, SideLabel};
 pub use looks::Looks;
 pub use overlay::{Overlay, OverlayUi, Overlays, Popup, PopupHandle, SizeLimits, Trigger};
@@ -386,6 +386,13 @@ pub trait Container: Component + HasProps + Meta<Shape = shape::Body> {
     /// `BodyCx::request_close_as`, `overlay::request_close`, or the OS closing its window. Called once for a close,
     /// at step 15 or, for a dismissal rule, right after the pass.
     fn closed(&mut self, _why: CloseReason) {}
+
+    /// Whether the container takes an Escape that nothing inside it took, as `escaped`: the focus is inside it, or
+    /// nothing in the window has focus. Default: no.
+    const TAKES_ESCAPE: bool = false;
+
+    /// An Escape reached the container untaken (see `TAKES_ESCAPE`).
+    fn escaped(&mut self) {}
 
     /// The user moved or resized the container's layer: by the move band, a grip or the keyboard Move and Size
     /// modes. Called for each step of the gesture, so a container whose layer the caller places (`Overlay::placed`)

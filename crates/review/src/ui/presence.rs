@@ -353,7 +353,7 @@ impl Component for RemoteCursor<'_> {
 #[non_exhaustive]
 pub enum FollowCommand {
     /// Stop following the person whose view the canvas shows.
-    #[command(label = "Stop following", default = "Escape")]
+    #[command(label = "Stop following")]
     StopFollowing,
 }
 
@@ -395,12 +395,21 @@ impl Outcome for FollowFrameOutput {
 impl FollowFrame {
     /// A frame in `color` with `text` (built from [`PresenceWords`]'s `following`) at the top.
     pub fn new(label: impl Into<Label>, color: [u8; 3], text: impl Into<String>) -> Self {
-        let props = ContainerProps::new().sizing(Sizing::Fill).command_scope(FollowCommand::SCOPE);
+        let props = ContainerProps::new()
+            .sizing(Sizing::Fill)
+            .focus(craft_ui::runtime::focus::FocusPolicy::NONE.cancel(craft_behavior::CancelRule::Close))
+            .command_scope(FollowCommand::SCOPE);
         FollowFrame { common: Common::new(), props, color, text: text.into(), stopped: false }.label(label)
     }
 }
 
-impl Container for FollowFrame {}
+impl Container for FollowFrame {
+    const TAKES_ESCAPE: bool = true;
+
+    fn escaped(&mut self) {
+        self.stopped = true;
+    }
+}
 
 impl Component for FollowFrame {
     const ROLE: Role = Role::GROUP;

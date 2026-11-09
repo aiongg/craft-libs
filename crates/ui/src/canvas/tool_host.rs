@@ -767,16 +767,13 @@ impl<'a> Run<'a> {
     /// The keys the canvas holds: intents routed to it while it has focus, Enter and Escape while nothing in the
     /// window has focus, and the chords the tool claimed at the end of the last pass.
     fn keys(&mut self, ctx: &Context, canvas: Id, rtl: bool) {
-        if focus::focused_rec(ctx).is_none() {
-            let mut window = keys::intents_of(ctx, None, rtl);
-            let mut taken = self.offer(&mut window, |intents| intents.take(Intent::Submit).then_some(ToolKey::Submit));
+        keys::with_window_intents(ctx, rtl, |window| {
+            let mut taken = self.offer(window, |intents| intents.take(Intent::Submit).then_some(ToolKey::Submit));
             if !self.cancelled {
-                taken |= self.offer(&mut window, |intents| intents.take(Intent::Cancel).then_some(ToolKey::Cancel));
+                taken |= self.offer(window, |intents| intents.take(Intent::Cancel).then_some(ToolKey::Cancel));
             }
-            if taken {
-                keys::settle(ctx, None, &window);
-            }
-        }
+            taken
+        });
         let mut intents = keys::intents_of(ctx, Some(canvas), rtl);
         let mut taken = self.offer(&mut intents, |intents| intents.take_nudge().map(|(direction, mods)| ToolKey::Nudge { direction, mods }));
         taken |= self.offer(&mut intents, |intents| intents.take(Intent::Submit).then_some(ToolKey::Submit));
