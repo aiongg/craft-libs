@@ -329,10 +329,13 @@ impl<'a, T: LayerTree> LayersPanel<'a, T> {
                 }
                 let body = show_body(ui, &cx, &rows, session, &plan, filter.active(), &unlock_label);
                 let menus = show_row_menus(ui, &cx, &body.response, row_menu.as_deref(), session);
-                let mut events = events.borrow_mut();
-                events.extend(body.events);
-                events.extend(menus);
+                let mut reported = body.events;
+                reported.extend(menus);
+                reported
             });
-        LayersOutput { events: events.into_inner(), response: shown.output }
+        // Only the real run's result comes back, so the reveal's opens and the list's events are reported once.
+        let mut events = events.into_inner();
+        events.extend(shown.inner.unwrap_or_default());
+        LayersOutput { events, response: shown.output }
     }
 }
