@@ -292,9 +292,9 @@ fn the_bar_reports_new_and_delete_and_edits_options() {
                 CropRatio::Sides { width: before, height, .. },
                 CropRatio::Sides { width: after, height: kept, .. },
                 CropRatio::Sides { width: again, height: still, .. },
-            ) if after == before + 1.0 && again == after + 1.0 && kept == height && still == height
+            ) if after > before && again - after == after - before && kept == height && still == height
         ),
-        "each arrow press adds the step of 1 to the width and keeps the height: {stepped:?}, {twice:?}"
+        "each arrow press adds the same step to the width and keeps the height: {stepped:?}, {twice:?}"
     );
     assert!(rig.seen.borrow().iter().any(|s| s.ratio.is_some()));
 

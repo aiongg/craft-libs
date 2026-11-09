@@ -141,7 +141,11 @@ const COLLECTION: &[Forwarded] = &[
     ("select", "::craft_ui::contract::SelectMode", "What the user can select."),
     ("reorder", "::craft_ui::contract::ReorderRule", "Rows reorder by dragging and by Alt with the arrow keys."),
     ("rename", "bool", "Rows rename in place: a double click on the label, F2 or the rename command opens the editor."),
-    ("rename_column", "::craft_ui::contract::ColumnKey", "A double click on this column of a renamable row opens its rename editor; elsewhere on the row it activates."),
+    (
+        "rename_column",
+        "::craft_ui::contract::ColumnKey",
+        "A double click on this column of a renamable row opens its rename editor; elsewhere on the row it activates.",
+    ),
     ("columns", "::std::vec::Vec<::craft_ui::contract::ColumnSpec>", "The columns."),
     (
         "sort",

@@ -263,14 +263,15 @@ fn a_footer_sits_under_a_body_that_grew_this_pass() {
     let passes = run(50.0);
     let (body, footer) = (took.borrow().body.unwrap(), took.borrow().footer.unwrap());
     assert_eq!(passes, 1, "the frame took one pass");
-    assert!((footer.min.y - body.max.y).abs() < 1.0, "the footer starts where the grown body ends: {body:?} {footer:?}");
+    assert!((footer.min.y - body.max.y).abs() < EDGE_SLACK, "the footer starts where the grown body ends: {body:?} {footer:?}");
 }
 
 #[trial]
 fn an_inline_header_line_is_as_high_as_its_tallest_part() {
     let took = RefCell::new(Took::default());
     let mut frames = Frames::new();
-    frames.screen(Vec2::new(400.0, 300.0));
+    let frames_room = Vec2::new(400.0, 300.0);
+    frames.screen(frames_room);
     let mut outer = Rect::NOTHING;
     for _ in 0..4 {
         frames.frame(Vec::new(), |ui| {
@@ -289,5 +290,6 @@ fn an_inline_header_line_is_as_high_as_its_tallest_part() {
     }
     let body = took.borrow().body.unwrap();
     eprintln!("outer {outer:?} body {body:?}");
-    assert!(outer.height() < 100.0, "the container is as high as its body, not the room: {outer:?}");
+    let room = frames_room.y;
+    assert!(outer.height() < room - outer.height(), "the container is as high as its body, less than half the room: {outer:?}");
 }

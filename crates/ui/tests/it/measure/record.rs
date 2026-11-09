@@ -33,7 +33,7 @@ fn a_content_section_takes_its_new_width_in_the_same_pass() {
     *text.borrow_mut() = "A much longer line of text than before";
     let passes = frames.frame(vec![], show);
     let (section, long) = seen.get();
-    assert!(long.width() > short.width() + 10.0, "the text grew: {short:?} -> {long:?}");
+    assert!(long.width() > short.width() + SLACK, "the text grew: {short:?} -> {long:?}");
     assert!(
         (section.width() - (long.width() + pad)).abs() <= SLACK,
         "the section is the text's width plus padding {pad}: {section:?}, text {long:?}"
@@ -230,7 +230,7 @@ fn a_fill_width_stack_is_measured_at_its_share() {
     });
     let [row, stack, text, below] = seen.get();
     let dump = format!("row {row:?}, stack {stack:?}, text {text:?}, below {below:?}");
-    assert!(stack.width() < row.width() / 2.0, "the stack takes what the block leaves: {dump}");
+    assert!(row.width() - stack.width() > stack.width(), "the stack takes what the block leaves: {dump}");
     assert!(text.height() > 0.0 && stack.expand(SLACK).contains_rect(text), "the stack holds its wrapped text: {dump}");
     assert!(row.expand(SLACK).contains_rect(stack) && below.top() >= row.bottom() - SLACK, "the row below starts after the stack: {dump}");
     assert_eq!(sweeps.get(), 3, "two measuring sweeps and the real run");

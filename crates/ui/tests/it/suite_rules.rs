@@ -49,7 +49,7 @@ fn counting_draws(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn counting_clicks(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let out = craft_ui::buttons::Button::new("Count").show(ui);
     let clicks = data.value("clicks", 0u32);
-    if out.clicked() {
+    if craft_ui::testing::contract::clicked(&out.response) {
         *clicks += 1;
     }
     out.into()

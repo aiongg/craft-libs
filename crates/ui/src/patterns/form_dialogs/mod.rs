@@ -21,7 +21,9 @@ pub use dialog::{
 };
 pub use form::{FormCx, FormDialog, FormOutput};
 pub use host_requests::{HostRequests, PreviewRequest};
-pub use preview::{PaneOverlay, PreviewOutput, PreviewPane, PreviewPaneStyle, PreviewState, PreviewView, PreviewWords, PreviewZoom, PreviewZoomOutput};
+pub use preview::{
+    PaneOverlay, PreviewOutput, PreviewPane, PreviewPaneStyle, PreviewState, PreviewView, PreviewWords, PreviewZoom, PreviewZoomOutput,
+};
 
 mod size_model;
 

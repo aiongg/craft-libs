@@ -1,8 +1,8 @@
 //! The integration binary of craft-color: every test is a registered trial.
 
 mod color_parts;
-mod panels;
 mod paint;
+mod panels;
 mod picker;
 mod sampling;
 

@@ -197,7 +197,7 @@ fn overlay_of(props: &ContainerProps) -> Option<&super::Overlay> {
 
 /// The layer a measuring run lays the regions out on: the one the real run shows them on, since egui keeps a
 /// region's `Ui` on one layer per pass. A viewport's own window keeps its widgets apart, so it measures on the parent's.
-fn measure_layer(props: &ContainerProps, id: Id, ui: &Ui) -> egui::LayerId {
+fn measure_layer(props: &ContainerProps, id: Id, ui: &Ui) -> areas::Layer {
     let area = sub(id, "area");
     match &props.mount {
         Mount::Viewport { .. } if windows::WindowHost::of(ui.ctx()).viewports_available() => ui.layer_id(),
