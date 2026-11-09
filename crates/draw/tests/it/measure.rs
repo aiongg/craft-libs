@@ -151,7 +151,8 @@ struct Driven {
     tool: RulerTool,
     line: Rc<RefCell<Option<RulerLine>>>,
     log: Rc<RefCell<Vec<&'static str>>>,
-    ctx: egui::Context,
+    /// The fixture's context, set once the fixture exists, so key-edit ids come from the same counter as the drags'.
+    ctx: Option<egui::Context>,
 }
 
 impl Driven {
@@ -180,7 +181,7 @@ impl Driven {
 
     fn with_pass<R>(&mut self, call: impl FnOnce(&mut dyn CanvasTool) -> R) -> R {
         let line = *self.line.borrow();
-        let result = call(&mut self.tool.pass(&self.ctx, line));
+        let result = call(&mut self.tool.pass(self.ctx.as_ref().expect("the fixture sets the context"), line));
         self.sync();
         result
     }
@@ -223,10 +224,10 @@ struct Shown {
 fn shown(start: Option<RulerLine>) -> Shown {
     let line = Rc::new(RefCell::new(start));
     let log = Rc::new(RefCell::new(Vec::new()));
-    let driven = Driven { tool: RulerTool::new(), line: Rc::clone(&line), log: Rc::clone(&log), ctx: egui::Context::default() };
+    let driven = Driven { tool: RulerTool::new(), line: Rc::clone(&line), log: Rc::clone(&log), ctx: None };
     let body_line = Rc::clone(&line);
     let body_log = Rc::clone(&log);
-    let fixture = ToolFixture::with_view(
+    let mut fixture = ToolFixture::with_view(
         "Ruler",
         driven,
         |room| CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0),
@@ -245,6 +246,8 @@ fn shown(start: Option<RulerLine>) -> Shown {
             *body_line.borrow_mut() = line;
         },
     );
+    let ctx = fixture.fixture().ctx().clone();
+    fixture.tool_mut().ctx = Some(ctx);
     Shown { fixture, line, log }
 }
 

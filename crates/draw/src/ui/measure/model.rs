@@ -35,7 +35,7 @@ pub enum RulerPart {
 
 impl RulerPart {
     /// The part's index in the overlay's part group: 0, 1, 2 in keyboard order.
-    pub(super) fn key(self) -> u64 {
+    pub(super) const fn key(self) -> u64 {
         match self {
             RulerPart::Start => 0,
             RulerPart::End => 1,
