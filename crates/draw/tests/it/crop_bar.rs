@@ -498,3 +498,15 @@ fn a_zero_or_negative_length_is_not_kept() {
         assert!(width.is_some_and(|length| length.value >= LENGTH_MIN && length.unit == UnitKind::Inches), "{junk}: {width:?}");
     }
 }
+
+/// Typing "2 in" into a pixel field switches the field to inches; the crop is the same length in pixels.
+#[trial]
+fn a_unit_typed_into_a_pixel_field_becomes_the_fields_unit() {
+    let mut rig = bar(size_mode(pixels(600.0), pixels(500.0), "300"), Vec::new());
+    type_into(&mut rig, "Width", "2 in");
+    let width = rig.settings.borrow().size.width.expect("the width is set");
+    assert_eq!(width.unit, UnitKind::Inches);
+    assert!((width.value - 2.0).abs() < 1e-6, "{width:?}");
+    let target = rig.settings.borrow().target(&document(), &units_of(PointSize::PostScript)).expect("a target");
+    assert!((target.width - 600.0).abs() < 1e-6, "{target:?}");
+}
