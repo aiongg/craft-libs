@@ -228,7 +228,7 @@ fn a_click_opens_a_select_and_a_click_on_a_row_picks_it() {
         let shown = value.clone();
         let mut fixture = Fixture::new(move |ui| {
             let entries = entries();
-            let mut select = |ui: &mut egui::Ui| {
+            let select = |ui: &mut egui::Ui| {
                 let mut color = shown.get();
                 Select::new("Color", Bind::bound(&mut color), &entries).id_salt("select").show(ui);
                 shown.set(color);

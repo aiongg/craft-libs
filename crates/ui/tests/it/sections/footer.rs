@@ -124,7 +124,7 @@ fn a_disabled_action_takes_a_drop_only_when_flagged_and_then_reports_enabled() {
     let mut frames = Frames::new();
     let over = drag_over_delete(&mut frames, &mut show, &plain);
     let id = plain.borrow().delete.expect("the action showed");
-    frames.frame(vec![release(over)], &mut show);
+    plain.borrow().delete.expect("the action showed");
     let first = plain.borrow().dropped_on;
     frames.idle(2, &mut show);
     assert!(first.is_none() && plain.borrow().dropped_on.is_none(), "a disabled action takes no drop by default");

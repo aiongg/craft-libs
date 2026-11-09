@@ -85,7 +85,8 @@ fn ui_language_face_leads_when_the_app_face_lacks_its_script() {
         ("ko", "Noto Sans CJK KR Regular"),
     ];
     for (language, region) in cases {
-        let chain = fonts(language).stack().chain(&proportional);
+        let stack = fonts(language).stack();
+        let chain = stack.chain(&proportional);
         assert_eq!(position(&chain, "ui"), 0, "{language}");
         for other in CRAFT.iter().filter(|f| f.scripts.contains(&"Latn") && f.name() != region) {
             assert!(position(&chain, region) < position(&chain, &other.name()), "{language}: {region} before {}", other.name());

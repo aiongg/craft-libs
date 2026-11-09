@@ -122,7 +122,9 @@ fn running_or_activating_in_a_bar_menu_returns_focus_to_where_the_bar_took_it_an
                 let target = fixture.by_label(label).expect("the menu holds it");
                 fixture.click(&target);
             }
-            None => fixture.key(Key::Escape, Modifiers::NONE),
+            None => {
+                fixture.key(Key::Escape, Modifiers::NONE);
+            }
         }
         fixture.settle();
         assert!(fixture.by_label("Zoom").is_none(), "{activate:?}: the menu closes");
