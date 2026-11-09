@@ -232,6 +232,13 @@ pub(crate) fn record_control_min(ctx: &Context, width: f32) {
     });
 }
 
+/// The narrowest width the first control of the open label scope of `container` has reported so far; 0 before any.
+pub(crate) fn open_control_min(ctx: &Context, container: Id) -> f32 {
+    Service::<Stack>::run(ctx, |stack| {
+        stack.0.iter().rev().find(|scope| scope.container == container).and_then(|scope| scope.control_min).unwrap_or(0.0)
+    })
+}
+
 /// The narrowest width the first control of `container`'s label scope reported in this pass's measuring run; 0 when
 /// no measuring run ran.
 pub(crate) fn measured_control_min(ctx: &Context, container: Id) -> f32 {
