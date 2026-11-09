@@ -2,15 +2,32 @@
 //! before the real run. APIs that get only a `Context` ask here whether to skip an effect, so a measuring run
 //! delivers nothing the real run then lacks.
 
+use super::egui::memory as store;
 use egui::{Context, Id};
 
 fn depth_id() -> Id {
-    Id::unique("craft-ui measuring run depth")
+    store::unique("craft-ui measuring run depth")
+}
+
+/// The effects skipped in measuring runs, with the pass that logged them.
+#[cfg(any(test, feature = "testing"))]
+#[derive(Default)]
+struct EffectLog {
+    pass: u64,
+    effects: Vec<&'static str>,
+}
+
+/// The bodies whose contents ran in a measuring run, with the pass that counted them.
+#[cfg(feature = "testing")]
+#[derive(Default)]
+struct BodyRuns {
+    pass: u64,
+    runs: Vec<(Id, u32)>,
 }
 
 /// Runs `f` as a measuring run. Nested calls are fine.
 pub fn run<R>(ctx: &Context, f: impl FnOnce() -> R) -> R {
-    let set = |to: u32| ctx.data_mut(|data| data.insert_temp(depth_id(), to));
+    let set = |to: u32| store::put(ctx, depth_id(), to);
     let before = depth(ctx);
     set(before + 1);
     let out = f();
@@ -19,7 +36,7 @@ pub fn run<R>(ctx: &Context, f: impl FnOnce() -> R) -> R {
 }
 
 fn depth(ctx: &Context) -> u32 {
-    ctx.data(|data| data.get_temp::<u32>(depth_id())).unwrap_or(0)
+    store::peek_copy::<u32>(ctx, depth_id()).unwrap_or(0)
 }
 
 /// Whether a measuring run is in progress.
@@ -36,12 +53,11 @@ pub fn effect(ctx: &Context, what: &'static str) -> bool {
     #[cfg(any(test, feature = "testing"))]
     let frame = ctx.cumulative_pass_nr();
     #[cfg(any(test, feature = "testing"))]
-    ctx.data_mut(|data| {
-        let log = data.get_temp_mut_or_default::<(u64, Vec<&'static str>)>(Id::unique("craft-ui measuring run effects"));
-        if log.0 != frame {
-            *log = (frame, Vec::new());
+    store::with::<EffectLog, _>(ctx, |log| {
+        if log.pass != frame {
+            *log = EffectLog { pass: frame, effects: Vec::new() };
         }
-        log.1.push(what);
+        log.effects.push(what);
     });
     #[cfg(not(any(test, feature = "testing")))]
     let _ = what;
@@ -68,29 +84,20 @@ pub fn take_queued<T>(ctx: &Context, queue: &mut Vec<T>, wanted: impl Fn(&T) -> 
 #[cfg(feature = "testing")]
 pub fn take_effects(ctx: &Context) -> Vec<&'static str> {
     let frame = ctx.cumulative_pass_nr();
-    ctx.data_mut(|data| {
-        let log = data.get_temp_mut_or_default::<(u64, Vec<&'static str>)>(Id::unique("craft-ui measuring run effects"));
-        if log.0 == frame { std::mem::take(&mut log.1) } else { Vec::new() }
-    })
-}
-
-#[cfg(feature = "testing")]
-fn runs_id() -> Id {
-    Id::unique("craft-ui measuring runs per body")
+    store::with::<EffectLog, _>(ctx, |log| if log.pass == frame { std::mem::take(&mut log.effects) } else { Vec::new() })
 }
 
 /// Counts a measuring run of the contents of the body `id` in this pass.
 #[cfg(feature = "testing")]
 pub(crate) fn count_body(ctx: &Context, id: Id) {
     let pass = ctx.cumulative_pass_nr();
-    ctx.data_mut(|data| {
-        let log = data.get_temp_mut_or_default::<(u64, Vec<(Id, u32)>)>(runs_id());
-        if log.0 != pass {
-            *log = (pass, Vec::new());
+    store::with::<BodyRuns, _>(ctx, |log| {
+        if log.pass != pass {
+            *log = BodyRuns { pass, runs: Vec::new() };
         }
-        match log.1.iter_mut().find(|(body, _)| *body == id) {
+        match log.runs.iter_mut().find(|(body, _)| *body == id) {
             Some((_, count)) => *count += 1,
-            None => log.1.push((id, 1)),
+            None => log.runs.push((id, 1)),
         }
     });
 }
@@ -98,5 +105,5 @@ pub(crate) fn count_body(ctx: &Context, id: Id) {
 /// The bodies whose contents ran in a measuring run in the last pass that ran one, and how many runs each.
 #[cfg(feature = "testing")]
 pub fn body_runs(ctx: &Context) -> Vec<(Id, u32)> {
-    ctx.data(|data| data.get_temp::<(u64, Vec<(Id, u32)>)>(runs_id())).map(|(_, runs)| runs).unwrap_or_default()
+    store::with::<BodyRuns, _>(ctx, |log| log.runs.clone())
 }

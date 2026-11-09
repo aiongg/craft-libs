@@ -44,7 +44,7 @@ fn a_body_runs_all_17_steps_and_its_closure_once_in_the_real_run_of_each_pass_an
         id = Some(out.output.id);
     });
     assert_eq!(*ran.borrow(), passes, "the body ran once in the real run of each pass");
-    assert!(*measured.borrow() <= passes, "the body ran at most once in a measuring run of each pass");
+    assert_eq!(*measured.borrow(), passes, "the body ran once in the measuring run of each pass");
     assert_eq!(steps(&frames.ctx, id.expect("the panel was shown")), WITH_CONTENT);
 }
 

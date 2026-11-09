@@ -51,7 +51,7 @@ impl ColumnGroup {
         let mut group = ColumnGroup { id, ctx: ctx.clone() };
         let result = rows(ui, &mut group);
         let Some(Frame::Group { id, widest, beyond, .. }) = Service::<Open>::run(&ctx, |open| open.0.pop()) else { return (result, None) };
-        if !ui.is_sizing_pass() {
+        if !crate::runtime::measure::active(&ctx) {
             return (result, None);
         }
         let mut extent = None::<f32>;

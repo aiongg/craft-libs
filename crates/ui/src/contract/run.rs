@@ -806,6 +806,7 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     let shape = hooks.shape();
     // Steps 1 to 5 read the sizing flag of the parent `Ui`; steps 6 to 16 read the host `Ui`'s. A sizing pass runs
     // steps 1 to 6 and allocates the size: no id registration, sensing or memory writes.
+    // egui's own invisible pass: it allocates and registers nothing, whether or not the framework is measuring.
     let sizing = ui.is_sizing_pass();
     // The inspector flag is read once per run.
     let recording = !sizing && inspect::recording(&ctx);
@@ -840,7 +841,9 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     let room = match at {
         ShowAt::Rect(rect) => Some(rect.width()),
         // A measuring run in a content column asks for what the content needs: nothing there fills the room.
-        ShowAt::Flow => Some(crate::layout::flow_room(ui).x).filter(|width| width.is_finite() && !(env.content_column && ui.is_sizing_pass())),
+        ShowAt::Flow => {
+            Some(crate::layout::flow_room(ui).x).filter(|width| width.is_finite() && !(env.content_column && crate::runtime::measure::active(&ctx)))
+        }
     };
     // Sizes come from this pass: a sizing pass measures the shape from its content; in a real pass a body or item
     // shape takes what its measuring run found.

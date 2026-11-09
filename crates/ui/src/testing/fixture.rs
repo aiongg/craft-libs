@@ -11,7 +11,7 @@ use crate::runtime::env::{Direction, Overrides, RootEnv, Scale, with_env};
 use craft_behavior::{MotionMode, PartRef};
 use craft_host::target::Os;
 use craft_theme::{Contrast, Mode, Size, TextSize};
-use egui::{Event, Id, Key, Modifiers, Pos2, Rect, Ui, UiBuilder, Vec2};
+use egui::{Event, Id, Key, Modifiers, Pos2, Rect, Ui, Vec2};
 use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
 use std::rc::Rc;
@@ -148,7 +148,7 @@ impl Fixture {
             let before = shared_data.borrow().snapshot();
             crate::testing::take_effects(&ctx);
             crate::testing::measuring_run(&ctx, || {
-                let mut child = ui.new_child(UiBuilder::new().id_salt("measuring run").sizing_pass().invisible());
+                let mut child = crate::runtime::egui::memory::sizing_child(ui, "measuring run");
                 shown(&mut child, scope, show, &shared_data);
             });
             let (changed, effects) = (shared_data.borrow().changed_values_since(&before), crate::testing::take_effects(&ctx));

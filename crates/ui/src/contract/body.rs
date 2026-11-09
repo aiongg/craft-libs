@@ -197,7 +197,7 @@ fn overlay_of(props: &ContainerProps) -> Option<&super::Overlay> {
 
 /// The layer a measuring run lays the regions out on: the one the real run shows them on, since egui keeps a
 /// region's `Ui` on one layer per pass. A viewport's own window keeps its widgets apart, so it measures on the parent's.
-fn measure_layer(props: &ContainerProps, id: Id, ui: &Ui) -> egui::LayerId {
+fn measure_layer(props: &ContainerProps, id: Id, ui: &Ui) -> areas::Layer {
     let area = sub(id, "area");
     match &props.mount {
         Mount::Viewport { .. } if windows::WindowHost::of(ui.ctx()).viewports_available() => ui.layer_id(),
@@ -1185,7 +1185,7 @@ impl<'b> BodyHooks<'b> {
     }
 
     /// The sizes the regions are placed from before any of them ran in this run: the measuring run's.
-    fn last_sizes(&self) -> RegionSizes {
+    fn measured_sizes(&self) -> RegionSizes {
         RegionSizes { header: self.measured_header, footer: self.measured_footer, end: self.measured_end }
     }
 
@@ -1784,7 +1784,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let tokens = pcx.tokens;
         let inner = pcx.content_rect.shrink(pad_of(tokens, props.pad));
         let room = self.room_size(rect, inner);
-        let regions = self.regions(&props, inner, room, rtl, self.last_sizes());
+        let regions = self.regions(&props, inner, room, rtl, self.measured_sizes());
         let scroll = scroll_of(&props);
         if self.open && scroll.is_some() {
             let view = regions.body;
@@ -1877,7 +1877,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let pad = pad_of(&env.tokens, props.pad);
         let inner = cx.core.content_rect.shrink(pad);
         let room = self.room_size(rect, inner);
-        let mut regions = self.regions(&props, inner, room, rtl, self.last_sizes());
+        let mut regions = self.regions(&props, inner, room, rtl, self.measured_sizes());
         let surface_slot = ui.painter().add(Shape::Noop);
         // A measuring run lays out and measures: it registers no instance, focus body, scroll region or body layer,
         // and claims no room in a parent flow.

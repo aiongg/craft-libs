@@ -2,19 +2,19 @@
 
 mod derives;
 mod direction;
-mod inactive;
 mod fixes;
 mod focus_arrival;
 mod hit_order;
+mod inactive;
+pub(crate) mod kit;
 mod measure;
 mod openers;
 mod os_window;
 mod part_reads;
-mod surface;
-pub(crate) mod kit;
 mod pipeline;
 mod pointer;
 mod style;
+mod surface;
 
 // fwh-contractlater
 mod key_activation;

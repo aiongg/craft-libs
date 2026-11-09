@@ -239,3 +239,9 @@ pub(crate) fn with<S: Default + Send + 'static, R>(ctx: &Context, f: impl FnOnce
 pub(crate) fn scoped_by<R>(ui: &mut egui::Ui, salt: impl std::hash::Hash + std::fmt::Debug, f: impl FnOnce(&mut egui::Ui) -> R) -> R {
     ui.push_id(salt, f).inner
 }
+
+/// A hidden sizing-pass child of `ui` whose auto ids start from `salt`.
+#[cfg(feature = "testing")]
+pub(crate) fn sizing_child(ui: &mut egui::Ui, salt: &'static str) -> egui::Ui {
+    ui.new_child(egui::UiBuilder::new().id_salt(salt).sizing_pass().invisible())
+}
