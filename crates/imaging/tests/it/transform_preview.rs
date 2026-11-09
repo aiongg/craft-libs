@@ -89,39 +89,39 @@ fn cells_past_the_horizon_are_left_out_of_a_distorted_quad() {
 
 // A quad hanging past the canvas edge draws nothing past it, also under a turned view.
 #[trial]
-fn clipping_cuts_to_the_canvas_in_document_space_and_keeps_inside_meshes_whole() {
-    {
-        fn quad() -> PreviewMap<'static> {
-            PreviewMap::quad([pt(-50.0, -50.0), pt(150.0, -50.0), pt(150.0, 150.0), pt(-50.0, 150.0)])
-        }
-        for rotation in [0.0, 30.0] {
-            let (meshes, view) = shown(quad, 1.0, Some([100, 100]), rotation);
-            assert_eq!(meshes.len(), 1);
-            for vertex in &meshes[0].vertices {
-                let at = view.to_doc(vertex.pos);
-                assert!(at.x > -1e-3 && at.y > -1e-3 && at.x < 100.001 && at.y < 100.001, "{at:?}");
-            }
-            // The covered area is the whole canvas (100 × 100 document units).
-            let area: f32 = meshes[0]
-                .indices
-                .as_chunks::<3>()
-                .0
-                .iter()
-                .map(|t| {
-                    let [a, b, c] = [t[0], t[1], t[2]].map(|k| meshes[0].vertices[k as usize].pos);
-                    ((b - a).x * (c - a).y - (b - a).y * (c - a).x).abs() / 2.0
-                })
-                .sum();
-            assert!((area - 10_000.0).abs() < 5.0, "{area}");
-        }
-        // Without a clip the whole quad is drawn.
-        let (open, view) = shown(quad, 1.0, None, 0.0);
-        assert!(open[0].vertices.iter().any(|v| view.to_doc(v.pos).x < 0.0));
+fn pixels_past_the_canvas_edge_are_clipped_in_document_space() {
+    fn quad() -> PreviewMap<'static> {
+        PreviewMap::quad([pt(-50.0, -50.0), pt(150.0, -50.0), pt(150.0, 150.0), pt(-50.0, 150.0)])
     }
-    {
-        let mesh = PreviewMap::quad([pt(10.0, 10.0), pt(20.0, 10.0), pt(20.0, 20.0), pt(10.0, 20.0)]).build(1.0, [1.0, 1.0]);
-        assert_eq!(mesh.clone().clipped([100, 100]), mesh);
+    for rotation in [0.0, 30.0] {
+        let (meshes, view) = shown(quad, 1.0, Some([100, 100]), rotation);
+        assert_eq!(meshes.len(), 1);
+        for vertex in &meshes[0].vertices {
+            let at = view.to_doc(vertex.pos);
+            assert!(at.x > -1e-3 && at.y > -1e-3 && at.x < 100.001 && at.y < 100.001, "{at:?}");
+        }
+        // The covered area is the whole canvas (100 × 100 document units).
+        let area: f32 = meshes[0]
+            .indices
+            .as_chunks::<3>()
+            .0
+            .iter()
+            .map(|t| {
+                let [a, b, c] = [t[0], t[1], t[2]].map(|k| meshes[0].vertices[k as usize].pos);
+                ((b - a).x * (c - a).y - (b - a).y * (c - a).x).abs() / 2.0
+            })
+            .sum();
+        assert!((area - 10_000.0).abs() < 5.0, "{area}");
     }
+    // Without a clip the whole quad is drawn.
+    let (open, view) = shown(quad, 1.0, None, 0.0);
+    assert!(open[0].vertices.iter().any(|v| view.to_doc(v.pos).x < 0.0));
+}
+
+#[trial]
+fn clipping_keeps_a_mesh_inside_the_canvas_whole() {
+    let mesh = PreviewMap::quad([pt(10.0, 10.0), pt(20.0, 10.0), pt(20.0, 20.0), pt(10.0, 20.0)]).build(1.0, [1.0, 1.0]);
+    assert_eq!(mesh.clone().clipped([100, 100]), mesh);
 }
 
 // A pulled warp's cells come out from the most displaced to the least.
@@ -181,26 +181,27 @@ fn a_narrow_pulled_cell_gets_as_many_samples_as_its_stretch_needs() {
 }
 
 // An identity mesh at zoom 1 samples each patch at the minimum.
+#[trial]
+fn an_unwarped_mesh_stays_cheap() {
+    let frame = Rect::new(0.0, 0.0, 20.0, 20.0);
+    let mesh = WarpMesh::identity(frame, 2, 2);
+    let drawn = PreviewMap::mesh(&mesh, frame).build(1.0, [1.0, 1.0]);
+    assert_eq!(drawn.points.len(), 9 * 9);
+    assert!(drawn.points.iter().zip(&drawn.rest).all(|(p, r)| (*p - *r).hypot() < 1e-9));
+}
+
 // A warp mesh's rest is the unwarped frame, also when only the corner controls moved: pulling the top-left corner out
 // leaves its rest on the frame's corner, so the pull ranks as a displacement.
 #[trial]
-fn an_unwarped_mesh_stays_at_its_rest_and_a_warp_meshs_rest_is_the_frame() {
-    {
-        let frame = Rect::new(0.0, 0.0, 20.0, 20.0);
-        let mesh = WarpMesh::identity(frame, 2, 2);
-        let drawn = PreviewMap::mesh(&mesh, frame).build(1.0, [1.0, 1.0]);
-        assert!(drawn.points.iter().zip(&drawn.rest).all(|(p, r)| (*p - *r).hypot() < 1e-9));
-    }
-    {
-        let frame = Rect::new(10.0, 20.0, 50.0, 60.0);
-        let mut mesh = WarpMesh::identity(frame, 2, 2);
-        mesh.points[0] = pt(0.0, 0.0);
-        let drawn = PreviewMap::mesh(&mesh, frame).build(1.0, [1.0, 1.0]);
-        assert!((drawn.rest[0] - pt(10.0, 20.0)).hypot() < 1e-9);
-        assert!((drawn.points[0] - pt(0.0, 0.0)).hypot() < 1e-9);
-        let last = drawn.rest.len() - 1;
-        assert!((drawn.rest[last] - pt(50.0, 60.0)).hypot() < 1e-9);
-    }
+fn a_warp_meshs_rest_is_the_frame() {
+    let frame = Rect::new(10.0, 20.0, 50.0, 60.0);
+    let mut mesh = WarpMesh::identity(frame, 2, 2);
+    mesh.points[0] = pt(0.0, 0.0);
+    let drawn = PreviewMap::mesh(&mesh, frame).build(1.0, [1.0, 1.0]);
+    assert!((drawn.rest[0] - pt(10.0, 20.0)).hypot() < 1e-9);
+    assert!((drawn.points[0] - pt(0.0, 0.0)).hypot() < 1e-9);
+    let last = drawn.rest.len() - 1;
+    assert!((drawn.rest[last] - pt(50.0, 60.0)).hypot() < 1e-9);
 }
 
 // A lower opacity tints every vertex alike and more transparent than full opacity.
@@ -433,24 +434,24 @@ fn resampling_handles_empty_texels_and_nearest_neighbor() {
 
 // Below ½ screen pixel per source pixel a mip level (zoom 0.25 → level 2, at most 12); around 1:1 level 0 linear; at
 // zoom ≥ 2 with scale ≤ 1.05 level 0 nearest; a scale over 1.05 stays linear.
+#[trial]
+fn the_texture_level_follows_the_on_screen_size() {
+    assert_eq!(PreviewTextures::choose(1.0, 1.0, false), choice(0, false));
+    assert_eq!(PreviewTextures::choose(3.0, 1.0, false), choice(0, true));
+    assert_eq!(PreviewTextures::choose(3.0, 2.0, false), choice(0, false));
+    assert_eq!(PreviewTextures::choose(0.25, 1.0, false), choice(2, false));
+    assert_eq!(PreviewTextures::choose(0.3, 1.0, false), choice(1, false));
+    assert_eq!(PreviewTextures::choose(1e-9, 1.0, false).level, 12);
+    assert_eq!(PreviewTextures::choose(f32::NAN, 1.0, false), choice(0, false));
+    assert_eq!(PreviewTextures::choose(1.0, 0.0, false), choice(0, false));
+}
+
 // With nearest interpolation every zoom and scale gives level 0 with nearest filtering.
 #[trial]
-fn the_texture_level_follows_the_on_screen_size_and_nearest_interpolation_pins_level_zero() {
-    {
-        assert_eq!(PreviewTextures::choose(1.0, 1.0, false), choice(0, false));
-        assert_eq!(PreviewTextures::choose(3.0, 1.0, false), choice(0, true));
-        assert_eq!(PreviewTextures::choose(3.0, 2.0, false), choice(0, false));
-        assert_eq!(PreviewTextures::choose(0.25, 1.0, false), choice(2, false));
-        assert_eq!(PreviewTextures::choose(0.3, 1.0, false), choice(1, false));
-        assert_eq!(PreviewTextures::choose(1e-9, 1.0, false).level, 12);
-        assert_eq!(PreviewTextures::choose(f32::NAN, 1.0, false), choice(0, false));
-        assert_eq!(PreviewTextures::choose(1.0, 0.0, false), choice(0, false));
-    }
-    {
-        for zoom in [1.0 / 4096.0, 0.25, 1.0, 8.0] {
-            for scale in [0.1, 1.0, 4.0] {
-                assert_eq!(PreviewTextures::choose(zoom, scale, true), choice(0, true));
-            }
+fn nearest_interpolation_keeps_level_zero_and_nearest_filtering() {
+    for zoom in [1.0 / 4096.0, 0.25, 1.0, 8.0] {
+        for scale in [0.1, 1.0, 4.0] {
+            assert_eq!(PreviewTextures::choose(zoom, scale, true), choice(0, true));
         }
     }
 }

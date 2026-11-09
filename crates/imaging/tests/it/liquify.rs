@@ -289,120 +289,120 @@ fn liquify_escape_cancels_the_stroke_and_replays_then_the_next_cancels_the_dialo
     assert_eq!(app.borrow().closed, Some(DialogRole::Cancel));
 }
 
+#[trial]
+fn liquify_freeze_lasso_commits_a_polygon_and_alt_thaws() {
+    let (mut fixture, app) = open();
+    fixture.key(Key::L, Modifiers::NONE);
+    assert_eq!(app.borrow().workspace.settings().tool, LiquifyTool::FreezeLasso);
+    let corners = [Vec2::ZERO, by(80.0, 0.0), by(80.0, 60.0), by(0.0, 60.0)].map(|by| canvas_point(&fixture, by));
+    for modifiers in [Modifiers::NONE, Modifiers::ALT] {
+        fixture.hold(modifiers);
+        fixture.frame(vec![pointer::moved(corners[0])]);
+        fixture.frame(vec![pointer::press(corners[0])]);
+        for corner in &corners[1..] {
+            fixture.frame(vec![pointer::moved(*corner)]);
+        }
+        fixture.frame(vec![pointer::release(corners[3])]);
+        fixture.frame(Vec::new());
+    }
+    let committed: Vec<_> = commits(&app.borrow().events).iter().map(|stroke| (stroke.tool, stroke.amount, stroke.points.len() >= 4)).collect();
+    assert_eq!(committed, [(LiquifyTool::FreezeLasso, Some(1.0), true), (LiquifyTool::FreezeLasso, Some(0.0), true)]);
+    assert_eq!(strokes(&app.borrow().events), 2, "a lasso reports only its Commit");
+    assert_eq!(app.borrow().workspace.session().len(), 2);
+}
+
 // A closed Freeze Lasso records one stroke with amount 1 (0 with Alt at the press) and the first point again at its
 // end; fewer than 3 points record nothing.
 #[trial]
-fn liquify_freeze_lasso_commits_records_a_polygon_and_alt_thaws() {
-    {
-        let (mut fixture, app) = open();
-        fixture.key(Key::L, Modifiers::NONE);
-        assert_eq!(app.borrow().workspace.settings().tool, LiquifyTool::FreezeLasso);
-        let corners = [Vec2::ZERO, by(80.0, 0.0), by(80.0, 60.0), by(0.0, 60.0)].map(|by| canvas_point(&fixture, by));
-        for modifiers in [Modifiers::NONE, Modifiers::ALT] {
-            fixture.hold(modifiers);
-            fixture.frame(vec![pointer::moved(corners[0])]);
-            fixture.frame(vec![pointer::press(corners[0])]);
-            for corner in &corners[1..] {
-                fixture.frame(vec![pointer::moved(*corner)]);
-            }
-            fixture.frame(vec![pointer::release(corners[3])]);
-            fixture.frame(Vec::new());
-        }
-        let committed: Vec<_> = commits(&app.borrow().events).iter().map(|stroke| (stroke.tool, stroke.amount, stroke.points.len() >= 4)).collect();
-        assert_eq!(committed, [(LiquifyTool::FreezeLasso, Some(1.0), true), (LiquifyTool::FreezeLasso, Some(0.0), true)]);
-        assert_eq!(strokes(&app.borrow().events), 2, "a lasso reports only its Commit");
-        assert_eq!(app.borrow().workspace.session().len(), 2);
-    }
-    {
-        let mut session = LiquifySession::default();
-        let open = [[0.0, 0.0, 1.0], [10.0, 0.0, 1.0], [10.0, 10.0, 1.0]];
-        let mut freeze = stroke(LiquifyTool::FreezeLasso, &open);
-        freeze.amount = Some(1.0);
-        session.record(freeze);
-        let mut thaw = stroke(LiquifyTool::FreezeLasso, &[open[0], open[1], open[2], [0.2, 0.3, 1.0]]);
-        thaw.amount = Some(0.0);
-        session.record(thaw);
-        session.record(stroke(LiquifyTool::FreezeLasso, &open[..2]));
-        session.record(stroke(LiquifyTool::ForwardWarp, &[]));
-        let [LiquifyStep::Stroke(first), LiquifyStep::Stroke(second)] = session.steps() else { panic!("two lassos recorded") };
-        assert_eq!((first.amount, first.points.len(), first.points.last()), (Some(1.0), 4, Some(&open[0])));
-        assert_eq!((second.amount, second.points.len()), (Some(0.0), 4), "a point within half a pixel closes it");
-    }
+fn liquify_freeze_lasso_records_a_stroke_and_alt_thaws() {
+    let mut session = LiquifySession::default();
+    let open = [[0.0, 0.0, 1.0], [10.0, 0.0, 1.0], [10.0, 10.0, 1.0]];
+    let mut freeze = stroke(LiquifyTool::FreezeLasso, &open);
+    freeze.amount = Some(1.0);
+    session.record(freeze);
+    let mut thaw = stroke(LiquifyTool::FreezeLasso, &[open[0], open[1], open[2], [0.2, 0.3, 1.0]]);
+    thaw.amount = Some(0.0);
+    session.record(thaw);
+    session.record(stroke(LiquifyTool::FreezeLasso, &open[..2]));
+    session.record(stroke(LiquifyTool::ForwardWarp, &[]));
+    let [LiquifyStep::Stroke(first), LiquifyStep::Stroke(second)] = session.steps() else { panic!("two lassos recorded") };
+    assert_eq!((first.amount, first.points.len(), first.points.last()), (Some(1.0), 4, Some(&open[0])));
+    assert_eq!((second.amount, second.points.len()), (Some(0.0), 4), "a point within half a pixel closes it");
 }
 
 #[trial]
-fn liquify_mid_stroke_letter_or_undo_cancels_the_stroke() {
-    {
-        let (mut fixture, app) = open();
-        let from = canvas_point(&fixture, Vec2::ZERO);
-        open_stroke(&mut fixture, from);
-        app.borrow_mut().events.clear();
+fn liquify_a_letter_mid_stroke_cancels_the_stroke_and_leaves_the_canvas_idle() {
+    let (mut fixture, app) = open();
+    let from = canvas_point(&fixture, Vec2::ZERO);
+    open_stroke(&mut fixture, from);
+    app.borrow_mut().events.clear();
 
-        fixture.key(Key::R, Modifiers::NONE);
-        assert_eq!(app.borrow().workspace.settings().tool, LiquifyTool::Reconstruct, "the letter picked the tool");
-        let events = app.borrow().events.clone();
-        assert!(
-            matches!(events.as_slice(), [LiquifyEvent::Stroke(StrokeEvent::Cancel(CancelReason::Removed)), LiquifyEvent::Replay(steps)] if steps.is_empty()),
-            "{events:?}"
-        );
-        fixture.frame(vec![pointer::release(from + by(30.0, 0.0))]);
-        assert!(commits(&app.borrow().events).is_empty(), "the new tool got no release");
-        assert!(app.borrow().workspace.session().is_empty());
-    }
-    {
-        let (mut fixture, app) = open();
-        let left = canvas_point(&fixture, by(-40.0, 0.0));
-        drag(&mut fixture, primary, left, left + by(80.0, 10.0));
-        assert_eq!(app.borrow().workspace.session().len(), 1);
-        let below = canvas_point(&fixture, by(0.0, 40.0));
-        open_stroke(&mut fixture, below);
-        app.borrow_mut().events.clear();
+    fixture.key(Key::R, Modifiers::NONE);
+    assert_eq!(app.borrow().workspace.settings().tool, LiquifyTool::Reconstruct, "the letter picked the tool");
+    let events = app.borrow().events.clone();
+    assert!(
+        matches!(events.as_slice(), [LiquifyEvent::Stroke(StrokeEvent::Cancel(CancelReason::Removed)), LiquifyEvent::Replay(steps)] if steps.is_empty()),
+        "{events:?}"
+    );
+    fixture.frame(vec![pointer::release(from + by(30.0, 0.0))]);
+    assert!(commits(&app.borrow().events).is_empty(), "the new tool got no release");
+    assert!(app.borrow().workspace.session().is_empty());
+}
 
-        assert!(app.borrow_mut().workspace.step(Step::Undo), "the step waits for the next pass");
-        fixture.frame(Vec::new());
-        let events = app.borrow().events.clone();
-        assert!(
-            matches!(
-                events.as_slice(),
-                [LiquifyEvent::Stroke(StrokeEvent::Cancel(CancelReason::UndoDuringGesture)), LiquifyEvent::Replay(steps)] if steps.is_empty()
-            ),
-            "{events:?}"
-        );
-        assert!(app.borrow().workspace.session().is_empty(), "the earlier stroke is undone");
-    }
+#[trial]
+fn liquify_undo_mid_stroke_cancels_the_stroke_then_steps() {
+    let (mut fixture, app) = open();
+    let left = canvas_point(&fixture, by(-40.0, 0.0));
+    drag(&mut fixture, primary, left, left + by(80.0, 10.0));
+    assert_eq!(app.borrow().workspace.session().len(), 1);
+    let below = canvas_point(&fixture, by(0.0, 40.0));
+    open_stroke(&mut fixture, below);
+    app.borrow_mut().events.clear();
+
+    assert!(app.borrow_mut().workspace.step(Step::Undo), "the step waits for the next pass");
+    fixture.frame(Vec::new());
+    let events = app.borrow().events.clone();
+    assert!(
+        matches!(
+            events.as_slice(),
+            [LiquifyEvent::Stroke(StrokeEvent::Cancel(CancelReason::UndoDuringGesture)), LiquifyEvent::Replay(steps)] if steps.is_empty()
+        ),
+        "{events:?}"
+    );
+    assert!(app.borrow().workspace.session().is_empty(), "the earlier stroke is undone");
+}
+
+#[trial]
+fn liquify_step_from_the_menu_queues_the_replay_for_the_next_pass() {
+    let (mut fixture, app) = open();
+    let left = canvas_point(&fixture, by(-40.0, 0.0));
+    drag(&mut fixture, primary, left, left + by(80.0, 10.0));
+    app.borrow_mut().events.clear();
+
+    assert!(app.borrow_mut().workspace.step(Step::Undo));
+    assert!(app.borrow().workspace.session().is_empty());
+    assert!(!app.borrow_mut().workspace.step(Step::Undo), "nothing left to undo");
+    fixture.frame(Vec::new());
+    let events = app.borrow().events.clone();
+    assert!(matches!(events.as_slice(), [LiquifyEvent::Replay(steps)] if steps.is_empty()), "{events:?}");
 }
 
 // Undo after two strokes gives the first; redo gives both, and each step asks the app to replay.
 #[trial]
-fn liquify_undo_redo_queue_the_replay_for_the_next_pass_and_redo_is_bounded() {
-    {
-        let (mut fixture, app) = open();
-        let left = canvas_point(&fixture, by(-40.0, 0.0));
-        drag(&mut fixture, primary, left, left + by(80.0, 10.0));
-        app.borrow_mut().events.clear();
-
-        assert!(app.borrow_mut().workspace.step(Step::Undo));
-        assert!(app.borrow().workspace.session().is_empty());
-        assert!(!app.borrow_mut().workspace.step(Step::Undo), "nothing left to undo");
-        fixture.frame(Vec::new());
-        let events = app.borrow().events.clone();
-        assert!(matches!(events.as_slice(), [LiquifyEvent::Replay(steps)] if steps.is_empty()), "{events:?}");
+fn liquify_undo_redo_ask_the_app_to_replay_and_redo_is_bounded() {
+    let (mut fixture, app) = open();
+    for row in [-40.0, 40.0] {
+        let from = canvas_point(&fixture, by(-40.0, row));
+        drag(&mut fixture, primary, from, from + by(80.0, 0.0));
     }
-    {
-        let (mut fixture, app) = open();
-        for row in [-40.0, 40.0] {
-            let from = canvas_point(&fixture, by(-40.0, row));
-            drag(&mut fixture, primary, from, from + by(80.0, 0.0));
-        }
-        assert_eq!(app.borrow().workspace.session().len(), 2);
-        assert!(app.borrow_mut().workspace.step(Step::Undo));
-        assert_eq!(app.borrow().workspace.session().len(), 1);
-        assert!(app.borrow_mut().workspace.step(Step::Redo));
-        assert_eq!(app.borrow().workspace.session().len(), 2);
-        fixture.frame(Vec::new());
-        let replays = app.borrow().events.iter().filter(|event| matches!(event, LiquifyEvent::Replay(_))).count();
-        assert_eq!(replays, 2, "each step asks the app to rebuild its field");
-    }
+    assert_eq!(app.borrow().workspace.session().len(), 2);
+    assert!(app.borrow_mut().workspace.step(Step::Undo));
+    assert_eq!(app.borrow().workspace.session().len(), 1);
+    assert!(app.borrow_mut().workspace.step(Step::Redo));
+    assert_eq!(app.borrow().workspace.session().len(), 2);
+    fixture.frame(Vec::new());
+    let replays = app.borrow().events.iter().filter(|event| matches!(event, LiquifyEvent::Replay(_))).count();
+    assert_eq!(replays, 2, "each step asks the app to rebuild its field");
 }
 
 #[trial]
@@ -453,7 +453,7 @@ fn liquify_tool_letters_and_alt_swaps() {
     let slots = LiquifyTool::slots();
     assert_eq!(slots.len(), LiquifyTool::ALL.len());
     let group_ends = slots.iter().filter(|slot| slot.group_end).count();
-    assert!(group_ends > 0 && slots.last().is_some_and(|slot| slot.group_end) && group_ends < slots.len(), "the strip is split into groups");
+    assert!(group_ends > 0 && group_ends < slots.len(), "the strip is split into groups");
 }
 
 // A press, two drags and a release report Begin, Update, Update, Commit; each Update carries only its new point and

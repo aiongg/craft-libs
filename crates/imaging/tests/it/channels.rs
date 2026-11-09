@@ -199,48 +199,50 @@ fn a_double_click_on_the_thumbnail_opens_the_options() {
 
 /// A double click on an alpha row's name opens the rename field and Enter commits it; composite and colour rows do not
 /// rename.
+#[trial]
+fn a_double_click_on_the_name_renames_an_alpha_channel_only() {
+    let (mut fixture, app) = rig(sample_rows());
+    for name in ["RGB", "Red"] {
+        let at = row(&fixture, name).center();
+        double_click(&mut fixture, at);
+        assert!(!editing(&fixture), "{name} renamed");
+        fixture.key(Key::Escape, Modifiers::NONE);
+    }
+    take(&app);
+    let at = row(&fixture, "Alpha 1").center();
+    double_click(&mut fixture, at);
+    assert!(editing(&fixture));
+    fixture.key(Key::A, Modifiers::COMMAND);
+    fixture.type_text("Sketch");
+    fixture.key(Key::Enter, Modifiers::NONE);
+    assert_eq!(renames(take(&app)), [(ALPHA_1, String::from("Sketch"))]);
+}
+
 /// Rename Channel… in a row's context menu opens that row's rename field.
+#[trial]
+fn rename_from_the_row_menu_starts_the_rename() {
+    let (mut fixture, _) = rig(sample_rows());
+    let pos = row(&fixture, "Alpha 1").center();
+    fixture.frame(vec![pointer::moved(pos)]);
+    fixture.frame(vec![pointer::secondary(pos, true)]);
+    fixture.frame(vec![pointer::secondary(pos, false)]);
+    fixture.idle(3);
+    let item = row(&fixture, "Rename Channel…");
+    fixture.click(&item);
+    fixture.idle(3);
+    assert!(editing(&fixture), "the rename field is open");
+}
+
 /// The app's Rename Channel command opens the row's rename field through `start_rename`; a composite row ignores it.
 #[trial]
-fn rename_opens_the_field_of_an_alpha_channel_only_from_every_entry_point() {
-    {
-        let (mut fixture, app) = rig(sample_rows());
-        for name in ["RGB", "Red"] {
-            let at = row(&fixture, name).center();
-            double_click(&mut fixture, at);
-            assert!(!editing(&fixture), "{name} renamed");
-            fixture.key(Key::Escape, Modifiers::NONE);
-        }
-        take(&app);
-        let at = row(&fixture, "Alpha 1").center();
-        double_click(&mut fixture, at);
-        assert!(editing(&fixture));
-        fixture.key(Key::A, Modifiers::COMMAND);
-        fixture.type_text("Sketch");
-        fixture.key(Key::Enter, Modifiers::NONE);
-        assert_eq!(renames(take(&app)), [(ALPHA_1, String::from("Sketch"))]);
-    }
-    {
-        let (mut fixture, _) = rig(sample_rows());
-        let pos = row(&fixture, "Alpha 1").center();
-        fixture.frame(vec![pointer::moved(pos)]);
-        fixture.frame(vec![pointer::secondary(pos, true)]);
-        fixture.frame(vec![pointer::secondary(pos, false)]);
-        fixture.idle(3);
-        let item = row(&fixture, "Rename Channel…");
-        fixture.click(&item);
-        fixture.idle(3);
-        assert!(editing(&fixture), "the rename field is open");
-    }
-    {
-        let (mut fixture, app) = rig(sample_rows());
-        app.borrow_mut().rename = Some(COMPOSITE);
-        fixture.idle(3);
-        assert!(!editing(&fixture));
-        app.borrow_mut().rename = Some(ALPHA_2);
-        fixture.idle(3);
-        assert!(editing(&fixture), "the rename field is open");
-    }
+fn start_rename_opens_the_field_of_an_alpha_channel_only() {
+    let (mut fixture, app) = rig(sample_rows());
+    app.borrow_mut().rename = Some(COMPOSITE);
+    fixture.idle(3);
+    assert!(!editing(&fixture));
+    app.borrow_mut().rename = Some(ALPHA_2);
+    fixture.idle(3);
+    assert!(editing(&fixture), "the rename field is open");
 }
 
 /// An alpha row dragged below another or above Quick Mask reports a move; over colour rows nothing is reported.

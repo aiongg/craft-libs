@@ -205,63 +205,61 @@ fn fill_brush_adds_in_custom_and_subtracts_in_auto_and_alt_reverses() {
 }
 
 #[trial]
-fn fill_lasso_modes_and_expand_contract_report_fill_area_edits_with_the_bars_amount() {
-    {
-        for (modifiers, expect) in
-            [(NONE, "new"), (Modifiers::SHIFT, "add"), (Modifiers::ALT, "subtract"), (Modifiers::SHIFT | Modifiers::ALT, "intersect")]
-        {
-            let mut rig = Rig::standard();
-            rig.lasso();
-            rig.square(modifiers);
-            let edits: Vec<String> = rig
-                .events()
-                .into_iter()
-                .filter_map(|event| match event {
-                    FillEvent::FillArea(edit) => serde_json::to_value(edit).ok().and_then(|v| v["op"].as_str().map(str::to_owned)),
-                    _ => None,
-                })
-                .collect();
-            assert_eq!(edits, [expect], "{modifiers:?}");
-        }
-        // Under three points nothing is reported.
-        let mut rig = Rig::standard();
-        rig.lasso();
-        rig.stroke(rig.canvas(), &[rig.canvas() + vec2(10.0, 0.0)], NONE);
-        assert!(rig.events().iter().all(|event| !matches!(event, FillEvent::FillArea(_))));
-        assert_eq!(FillAreaEdit::lasso(SelectionOperation::Add, vec![[0.0, 0.0], [1.0, 0.0]]), None);
-
-        // Expand and Contract clamp to 1..=100.
-        let amount = |edit: FillAreaEdit| serde_json::to_value(edit).ok().and_then(|v| v["by"].as_f64());
-        assert_eq!(amount(FillAreaEdit::grow(true, 500.0)), Some(FillAreaEdit::GROW_RANGE.1));
-        assert_eq!(amount(FillAreaEdit::grow(false, 0.0)), Some(FillAreaEdit::GROW_RANGE.0));
-        let Some(subtract) = FillAreaEdit::lasso(SelectionOperation::Subtract, vec![[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]) else {
-            panic!("three points are a lasso")
-        };
-        let edits = [subtract, FillAreaEdit::grow(true, 4.0), FillAreaEdit::grow(false, 2.0)];
-        assert_eq!(
-            serde_json::to_value(edits).ok(),
-            Some(
-                json!([{"op": "subtract", "points": [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]}, {"op": "expand", "by": 4.0}, {"op": "contract", "by": 2.0}])
-            )
-        );
-    }
+fn fill_lasso_modes_and_expand_contract_report_fill_area_edits() {
+    for (modifiers, expect) in
+        [(NONE, "new"), (Modifiers::SHIFT, "add"), (Modifiers::ALT, "subtract"), (Modifiers::SHIFT | Modifiers::ALT, "intersect")]
     {
         let mut rig = Rig::standard();
         rig.lasso();
-        rig.fixture.idle(2);
-        let Some(expand) = rig.fixture.by_label("Expand") else { panic!("the Lasso's bar has Expand") };
-        rig.fixture.click(&expand);
-        let edits: Vec<FillAreaEdit> = rig
+        rig.square(modifiers);
+        let edits: Vec<String> = rig
             .events()
             .into_iter()
             .filter_map(|event| match event {
-                FillEvent::FillArea(edit) => Some(edit),
+                FillEvent::FillArea(edit) => serde_json::to_value(edit).ok().and_then(|v| v["op"].as_str().map(str::to_owned)),
                 _ => None,
             })
             .collect();
-        let amounts: Vec<Option<f64>> = edits.into_iter().map(|edit| serde_json::to_value(edit).ok().and_then(|v| v["by"].as_f64())).collect();
-        assert_eq!(amounts, [Some(FillToolOptions::GROW_BY)]);
+        assert_eq!(edits, [expect], "{modifiers:?}");
     }
+    // Under three points nothing is reported.
+    let mut rig = Rig::standard();
+    rig.lasso();
+    rig.stroke(rig.canvas(), &[rig.canvas() + vec2(10.0, 0.0)], NONE);
+    assert!(rig.events().iter().all(|event| !matches!(event, FillEvent::FillArea(_))));
+    assert_eq!(FillAreaEdit::lasso(SelectionOperation::Add, vec![[0.0, 0.0], [1.0, 0.0]]), None);
+
+    // Expand and Contract clamp to 1..=100.
+    let amount = |edit: FillAreaEdit| serde_json::to_value(edit).ok().and_then(|v| v["by"].as_f64());
+    assert_eq!(amount(FillAreaEdit::grow(true, 500.0)), Some(FillAreaEdit::GROW_RANGE.1));
+    assert_eq!(amount(FillAreaEdit::grow(false, 0.0)), Some(FillAreaEdit::GROW_RANGE.0));
+    let Some(subtract) = FillAreaEdit::lasso(SelectionOperation::Subtract, vec![[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]) else {
+        panic!("three points are a lasso")
+    };
+    let edits = [subtract, FillAreaEdit::grow(true, 4.0), FillAreaEdit::grow(false, 2.0)];
+    assert_eq!(
+        serde_json::to_value(edits).ok(),
+        Some(json!([{"op": "subtract", "points": [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]}, {"op": "expand", "by": 4.0}, {"op": "contract", "by": 2.0}]))
+    );
+}
+
+#[trial]
+fn fill_expand_uses_the_bars_amount() {
+    let mut rig = Rig::standard();
+    rig.lasso();
+    rig.fixture.idle(2);
+    let Some(expand) = rig.fixture.by_label("Expand") else { panic!("the Lasso's bar has Expand") };
+    rig.fixture.click(&expand);
+    let edits: Vec<FillAreaEdit> = rig
+        .events()
+        .into_iter()
+        .filter_map(|event| match event {
+            FillEvent::FillArea(edit) => Some(edit),
+            _ => None,
+        })
+        .collect();
+    let amounts: Vec<Option<f64>> = edits.into_iter().map(|edit| serde_json::to_value(edit).ok().and_then(|v| v["by"].as_f64())).collect();
+    assert_eq!(amounts, [Some(FillToolOptions::GROW_BY)]);
 }
 
 #[trial]
@@ -424,32 +422,32 @@ fn fill_stroke_updates_carry_only_the_new_points() {
 }
 
 #[trial]
-fn fill_mid_stroke_letter_or_undo_cancels_the_stroke() {
-    {
-        let mut rig = Rig::standard();
-        rig.fixture.frame(vec![pointer::moved(rig.canvas())]);
-        rig.fixture.frame(vec![pointer::press(rig.canvas())]);
-        rig.fixture.frame(vec![pointer::moved(rig.canvas() + vec2(20.0, 0.0))]);
-        rig.take();
-        // The dialog takes the letter wherever focus is; the stroke is the open gesture it cancels.
-        rig.fixture.key(Key::L, NONE);
-        let events = rig.events();
-        assert!(events.contains(&FillEvent::Stroke(FillStrokeEvent::Cancel(CancelReason::Removed))), "{events:?}");
-        assert!(rig.work.borrow().session().strokes.is_empty(), "the history records nothing for it");
-        rig.fixture.frame(vec![pointer::release(rig.canvas() + vec2(20.0, 0.0))]);
-        assert!(committed(&rig.events()).is_none());
-    }
-    {
-        let mut rig = Rig::standard();
-        rig.fixture.frame(vec![pointer::moved(rig.canvas())]);
-        rig.fixture.frame(vec![pointer::press(rig.canvas())]);
-        rig.fixture.frame(vec![pointer::moved(rig.canvas() + vec2(20.0, 0.0))]);
-        rig.take();
-        rig.work.borrow_mut().step(Step::Undo);
-        rig.fixture.idle(1);
-        let events = rig.events();
-        assert!(events.contains(&FillEvent::Stroke(FillStrokeEvent::Cancel(CancelReason::UndoDuringGesture))), "{events:?}");
-    }
+fn fill_letter_mid_stroke_cancels_the_stroke_and_ends_busy() {
+    let mut rig = Rig::standard();
+    rig.fixture.frame(vec![pointer::moved(rig.canvas())]);
+    rig.fixture.frame(vec![pointer::press(rig.canvas())]);
+    rig.fixture.frame(vec![pointer::moved(rig.canvas() + vec2(20.0, 0.0))]);
+    rig.take();
+    // The dialog takes the letter wherever focus is; the stroke is the open gesture it cancels.
+    rig.fixture.key(Key::L, NONE);
+    let events = rig.events();
+    assert!(events.contains(&FillEvent::Stroke(FillStrokeEvent::Cancel(CancelReason::Removed))), "{events:?}");
+    assert!(rig.work.borrow().session().strokes.is_empty(), "the history records nothing for it");
+    rig.fixture.frame(vec![pointer::release(rig.canvas() + vec2(20.0, 0.0))]);
+    assert!(committed(&rig.events()).is_none());
+}
+
+#[trial]
+fn fill_undo_mid_stroke_cancels_the_stroke() {
+    let mut rig = Rig::standard();
+    rig.fixture.frame(vec![pointer::moved(rig.canvas())]);
+    rig.fixture.frame(vec![pointer::press(rig.canvas())]);
+    rig.fixture.frame(vec![pointer::moved(rig.canvas() + vec2(20.0, 0.0))]);
+    rig.take();
+    rig.work.borrow_mut().step(Step::Undo);
+    rig.fixture.idle(1);
+    let events = rig.events();
+    assert!(events.contains(&FillEvent::Stroke(FillStrokeEvent::Cancel(CancelReason::UndoDuringGesture))), "{events:?}");
 }
 
 #[trial]

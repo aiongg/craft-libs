@@ -220,21 +220,21 @@ fn scope_settings_survive_a_serde_round_trip() {
 }
 
 #[trial]
-fn scope_point_places_red_at_the_chosen_angle_inside_the_margin() {
-    {
-        let rect = Rect::from_min_max(pos2(10.0, 20.0), pos2(210.0, 120.0));
-        let (center, radius) = (rect.center(), 36.0);
-        let near = |a: egui::Pos2, b: egui::Pos2| (a - b).length() < 1e-3;
-        assert!(near(scope_point(rect, 14.0, true, 0.0, 1.0), center + vec2(radius, 0.0)));
-        assert!(near(scope_point(rect, 14.0, true, 0.0, 0.5), center + vec2(radius * 0.5, 0.0)));
-        let angle = -100.0f32.to_radians();
-        assert!(near(scope_point(rect, 14.0, false, 0.0, 1.0), center + vec2(angle.cos(), angle.sin()) * radius));
-        assert!(near(scope_point(rect, 14.0, true, 0.0, 0.0), center));
-    }
-    {
-        let rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(200.0, 100.0));
-        assert!((scope_point(rect, 20.0, true, 0.0, 1.0).x - (rect.center().x + 30.0)).abs() < 1e-3);
-    }
+fn vectorscope_places_red_at_the_chosen_angle() {
+    let rect = Rect::from_min_max(pos2(10.0, 20.0), pos2(210.0, 120.0));
+    let (center, radius) = (rect.center(), 36.0);
+    let near = |a: egui::Pos2, b: egui::Pos2| (a - b).length() < 1e-3;
+    assert!(near(scope_point(rect, 14.0, true, 0.0, 1.0), center + vec2(radius, 0.0)));
+    assert!(near(scope_point(rect, 14.0, true, 0.0, 0.5), center + vec2(radius * 0.5, 0.0)));
+    let angle = -100.0f32.to_radians();
+    assert!(near(scope_point(rect, 14.0, false, 0.0, 1.0), center + vec2(angle.cos(), angle.sin()) * radius));
+    assert!(near(scope_point(rect, 14.0, true, 0.0, 0.0), center));
+}
+
+#[trial]
+fn the_margin_sets_the_rings_radius() {
+    let rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(200.0, 100.0));
+    assert!((scope_point(rect, 20.0, true, 0.0, 1.0).x - (rect.center().x + 30.0)).abs() < 1e-3);
 }
 
 #[trial]

@@ -93,43 +93,43 @@ fn global_light_angle_is_shared_by_effects_that_use_it() {
 
 // From 120° and 5 px, a drag of (4.5, −2.2) lands on whole degrees and pixels by the offset rule;
 // with Use Global Light the shared angle follows; a drag back under 0.5 px keeps the angle.
+#[test]
+fn shadow_drag_uses_whole_degrees_and_pixels_and_moves_the_global_angle() {
+    let mut draft = LayerStyleDraft::new(style_with(&[(1, EffectKind::DropShadow)]));
+    assert!(draft.drags_shadow());
+    let defaults = EffectSpec::photoshop(EffectKind::DropShadow).defaults;
+    assert!(draft.drag_shadow(&defaults, true, [0.0, 0.0]) || draft.shadow_drag.is_some());
+
+    assert!(draft.drag_shadow(&defaults, false, [4.5, -2.2]));
+    let params = &draft.style.effects[0].params;
+    assert_eq!((params.number("angle"), params.number("distance")), (Some(163.0), Some(7.0)));
+    assert_eq!(draft.style.global_light, 163.0);
+
+    // Back to the press point: the offset is under 0.5 px, so the start angle returns.
+    assert!(draft.drag_shadow(&defaults, false, [-2.5, -4.330_127]));
+    let params = &draft.style.effects[0].params;
+    assert_eq!((params.number("angle"), params.number("distance")), (Some(120.0), Some(0.0)));
+    assert_eq!(draft.style.global_light, 120.0);
+
+    // Other pages are not dragged.
+    draft.page = LayerStylePage::Blending;
+    assert!(!draft.drag_shadow(&defaults, true, [10.0, 10.0]));
+}
+
 // An instance without angle and distance starts the drag from the spec's defaults, not from 120°
 // and 0.
 #[test]
-fn shadow_drag_moves_the_global_angle_and_starts_from_the_defaults() {
-    {
-        let mut draft = LayerStyleDraft::new(style_with(&[(1, EffectKind::DropShadow)]));
-        assert!(draft.drags_shadow());
-        let defaults = EffectSpec::photoshop(EffectKind::DropShadow).defaults;
-        assert!(draft.drag_shadow(&defaults, true, [0.0, 0.0]) || draft.shadow_drag.is_some());
-
-        assert!(draft.drag_shadow(&defaults, false, [4.5, -2.2]));
-        let params = &draft.style.effects[0].params;
-        assert_eq!((params.number("angle"), params.number("distance")), (Some(163.0), Some(7.0)));
-        assert_eq!(draft.style.global_light, 163.0);
-
-        // Back to the press point: the offset is under 0.5 px, so the start angle returns.
-        assert!(draft.drag_shadow(&defaults, false, [-2.5, -4.330_127]));
-        let params = &draft.style.effects[0].params;
-        assert_eq!((params.number("angle"), params.number("distance")), (Some(120.0), Some(0.0)));
-        assert_eq!(draft.style.global_light, 120.0);
-
-        // Other pages are not dragged.
-        draft.page = LayerStylePage::Blending;
-        assert!(!draft.drag_shadow(&defaults, true, [10.0, 10.0]));
-    }
-    {
-        let mut style = style_with(&[(1, EffectKind::DropShadow)]);
-        style.effects[0].params = StyleParams::default();
-        let mut draft = LayerStyleDraft::new(style);
-        let mut defaults = StyleParams::default();
-        defaults.set("angle", StyleValue::Number(30.0));
-        defaults.set("distance", StyleValue::Number(10.0));
-        assert!(draft.drag_shadow(&defaults, true, [0.0, 0.0]));
-        assert_eq!(draft.shadow_drag, Some(ShadowDrag::begin(30.0, 10.0)));
-        let params = &draft.style.effects[0].params;
-        assert_eq!((params.number("angle"), params.number("distance")), (Some(30.0), Some(10.0)));
-    }
+fn shadow_drag_starts_from_the_defaults_under_the_instances_values() {
+    let mut style = style_with(&[(1, EffectKind::DropShadow)]);
+    style.effects[0].params = StyleParams::default();
+    let mut draft = LayerStyleDraft::new(style);
+    let mut defaults = StyleParams::default();
+    defaults.set("angle", StyleValue::Number(30.0));
+    defaults.set("distance", StyleValue::Number(10.0));
+    assert!(draft.drag_shadow(&defaults, true, [0.0, 0.0]));
+    assert_eq!(draft.shadow_drag, Some(ShadowDrag::begin(30.0, 10.0)));
+    let params = &draft.style.effects[0].params;
+    assert_eq!((params.number("angle"), params.number("distance")), (Some(30.0), Some(10.0)));
 }
 
 // The blend defaults of a spec become the host's keys; unknown names stay. Bevel & Emboss has two
@@ -147,32 +147,32 @@ fn blend_keys_remap_the_blend_defaults_only() {
 
 // `BlendIfRange::ordered` and `moved` always give black low ≤ black high ≤ white low ≤ white
 // high, pushing the other handles.
+#[test]
+fn blend_if_edits_keep_the_four_values_ordered() {
+    assert_eq!(BlendIfRange::ordered([10, 5, 200, 100]), BlendIfRange([10, 10, 200, 200]));
+    let start = BlendIfRange([10, 30, 200, 220]);
+    for handle in 0..4 {
+        for to in (0..=255u8).step_by(5) {
+            for split in [false, true] {
+                let r = start.moved(handle, to, split).0;
+                assert!(r.windows(2).all(|w| w[0] <= w[1]), "{handle} {to} {split}: {r:?}");
+            }
+        }
+    }
+    // A split move past a neighbour pushes it.
+    assert_eq!(start.moved(1, 210, true), BlendIfRange([10, 210, 210, 220]));
+    assert_eq!(start.moved(9, 0, false), start);
+}
+
 // An unsplit move of the black pair [10, 30] by +20 gives [30, 50]; with `split` only the moved
 // half changes.
 #[test]
-fn blend_if_edits_keep_the_four_values_ordered_and_split_only_on_alt() {
-    {
-        assert_eq!(BlendIfRange::ordered([10, 5, 200, 100]), BlendIfRange([10, 10, 200, 200]));
-        let start = BlendIfRange([10, 30, 200, 220]);
-        for handle in 0..4 {
-            for to in (0..=255u8).step_by(5) {
-                for split in [false, true] {
-                    let r = start.moved(handle, to, split).0;
-                    assert!(r.windows(2).all(|w| w[0] <= w[1]), "{handle} {to} {split}: {r:?}");
-                }
-            }
-        }
-        // A split move past a neighbour pushes it.
-        assert_eq!(start.moved(1, 210, true), BlendIfRange([10, 210, 210, 220]));
-        assert_eq!(start.moved(9, 0, false), start);
-    }
-    {
-        let start = BlendIfRange([10, 30, 200, 220]);
-        assert_eq!(start.moved(0, 30, false), BlendIfRange([30, 50, 200, 220]));
-        assert_eq!(start.moved(0, 20, true), BlendIfRange([20, 30, 200, 220]));
-        // The white pair clamps at the ends.
-        assert_eq!(start.moved(3, 255, false).0[2..], [235, 255]);
-    }
+fn blend_if_unsplit_move_keeps_the_spread_and_alt_move_splits() {
+    let start = BlendIfRange([10, 30, 200, 220]);
+    assert_eq!(start.moved(0, 30, false), BlendIfRange([30, 50, 200, 220]));
+    assert_eq!(start.moved(0, 20, true), BlendIfRange([20, 30, 200, 220]));
+    // The white pair clamps at the ends.
+    assert_eq!(start.moved(3, 255, false).0[2..], [235, 255]);
 }
 
 // Two drafts with the same style on different pages, Blend If channels and Preview states hash

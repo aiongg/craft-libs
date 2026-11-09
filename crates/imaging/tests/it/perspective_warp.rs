@@ -60,35 +60,35 @@ fn corners_within_the_link_distance_are_linked() {
 
 #[trial]
 fn linked_corners_move_together_in_warp_and_layout_is_kept() {
-    {
-        let mut s = session();
-        set(&mut s, two_planes());
-        s.apply(PerspectiveEdit::Mode(PlaneMode::Warp));
-        let mut moved = s.planes().to_vec();
-        for c in [(0, 1), (1, 0)] {
-            moved[c.0].target[c.1] = Point::new(55.0, 5.0);
-        }
-        // The overlay's edit may carry stale sources; Warp keeps the session's.
-        moved[0].source[1] = Point::new(1.0, 1.0);
-        drag(&mut s, moved);
-        assert_eq!(s.planes()[0].target[1], Point::new(55.0, 5.0));
-        assert_eq!(s.planes()[1].target[0], Point::new(55.0, 5.0));
-        assert_eq!(s.planes()[0].source, quad(0.0, 0.0, 50.0, 100.0));
-        assert_eq!(s.planes()[1].source, quad(50.0, 0.0, 100.0, 100.0));
+    let mut s = session();
+    set(&mut s, two_planes());
+    s.apply(PerspectiveEdit::Mode(PlaneMode::Warp));
+    let mut moved = s.planes().to_vec();
+    for c in [(0, 1), (1, 0)] {
+        moved[c.0].target[c.1] = Point::new(55.0, 5.0);
     }
-    {
-        let mut h = harness(vec![square(100.0, 100.0, 200.0, 200.0), square(200.0, 100.0, 300.0, 200.0)], PlaneMode::Warp);
-        h.drag((200.0, 100.0), (210.0, 80.0));
-        let moved = h.planes();
-        assert_eq!((moved[0].target[1], moved[1].target[0]), (Point::new(210.0, 80.0), Point::new(210.0, 80.0)));
-        assert_eq!((moved[0].source[1], moved[1].source[0]), (Point::new(200.0, 100.0), Point::new(200.0, 100.0)));
+    // The overlay's edit may carry stale sources; Warp keeps the session's.
+    moved[0].source[1] = Point::new(1.0, 1.0);
+    drag(&mut s, moved);
+    assert_eq!(s.planes()[0].target[1], Point::new(55.0, 5.0));
+    assert_eq!(s.planes()[1].target[0], Point::new(55.0, 5.0));
+    assert_eq!(s.planes()[0].source, quad(0.0, 0.0, 50.0, 100.0));
+    assert_eq!(s.planes()[1].source, quad(50.0, 0.0, 100.0, 100.0));
+}
 
-        // A press away from a corner draws nothing in Warp.
-        let before = h.state.borrow().seen.len();
-        h.drag((20.0, 20.0), (60.0, 60.0));
-        assert_eq!(h.state.borrow().seen.len(), before);
-        assert_eq!(h.planes().len(), 2);
-    }
+#[trial]
+fn a_warp_drag_moves_the_target_of_linked_corners_and_keeps_the_layout() {
+    let mut h = harness(vec![square(100.0, 100.0, 200.0, 200.0), square(200.0, 100.0, 300.0, 200.0)], PlaneMode::Warp);
+    h.drag((200.0, 100.0), (210.0, 80.0));
+    let moved = h.planes();
+    assert_eq!((moved[0].target[1], moved[1].target[0]), (Point::new(210.0, 80.0), Point::new(210.0, 80.0)));
+    assert_eq!((moved[0].source[1], moved[1].source[0]), (Point::new(200.0, 100.0), Point::new(200.0, 100.0)));
+
+    // A press away from a corner draws nothing in Warp.
+    let before = h.state.borrow().seen.len();
+    h.drag((20.0, 20.0), (60.0, 60.0));
+    assert_eq!(h.state.borrow().seen.len(), before);
+    assert_eq!(h.planes().len(), 2);
 }
 
 #[trial]
@@ -150,50 +150,50 @@ fn warp_needs_at_least_one_plane() {
 }
 
 #[trial]
-fn replacing_the_planes_bumps_the_generation_ends_a_drag_and_identity_gives_no_result() {
-    {
-        let mut s = session();
-        assert_eq!(s.result(), None);
-        let inserted = s.inserted_plane();
-        set(&mut s, vec![inserted]);
-        assert_eq!(s.inserted_plane().source, quad(25.0, 25.0, 75.0, 75.0));
-        assert_eq!(s.result(), None);
-        let (id, before) = (GestureId::new(1), Mixed::Same(s.planes().to_vec()));
-        s.apply(PerspectiveEdit::Planes(EditEvent::begin(id, before, Arc::from("Planes"), None)));
-        assert!(s.dragging());
-        let generation = s.generation();
-        let mut planes = two_planes();
-        planes[0].target[0].x = 3.0;
-        s.replace(planes);
-        assert!(!s.dragging());
-        assert_eq!(s.generation(), generation + 1);
-        assert_eq!(s.planes().len(), 2);
-        assert_eq!(s.result().map(<[Plane]>::len), Some(2));
-    }
-    {
-        let mut h = harness(vec![square(100.0, 100.0, 200.0, 200.0)], PlaneMode::Layout);
-        let from = h.at(100.0, 100.0);
-        h.fixture.frame(vec![pointer::moved(from)]);
-        h.fixture.frame(vec![pointer::press(from)]);
-        h.fixture.frame(vec![pointer::moved(h.at(110.0, 110.0))]);
-        h.fixture.frame(vec![pointer::moved(h.at(120.0, 120.0))]);
-        h.fixture.settle();
-        assert!(h.state.borrow().session.dragging());
-        assert_eq!(h.planes()[0].source[0], Point::new(120.0, 120.0));
+fn replacing_the_planes_bumps_the_generation_and_identity_gives_no_result() {
+    let mut s = session();
+    assert_eq!(s.result(), None);
+    let inserted = s.inserted_plane();
+    set(&mut s, vec![inserted]);
+    assert_eq!(s.inserted_plane().source, quad(25.0, 25.0, 75.0, 75.0));
+    assert_eq!(s.result(), None);
+    let (id, before) = (GestureId::new(1), Mixed::Same(s.planes().to_vec()));
+    s.apply(PerspectiveEdit::Planes(EditEvent::begin(id, before, Arc::from("Planes"), None)));
+    assert!(s.dragging());
+    let generation = s.generation();
+    let mut planes = two_planes();
+    planes[0].target[0].x = 3.0;
+    s.replace(planes);
+    assert!(!s.dragging());
+    assert_eq!(s.generation(), generation + 1);
+    assert_eq!(s.planes().len(), 2);
+    assert_eq!(s.result().map(<[Plane]>::len), Some(2));
+}
 
-        h.state.borrow_mut().session.replace(vec![]);
-        h.fixture.settle();
-        assert!(!h.state.borrow().session.dragging());
-        assert!(h.state.borrow().seen.contains(&Seen::Cancel), "the drag ends with a cancel");
+#[trial]
+fn replacing_the_planes_in_the_middle_of_a_corner_drag_ends_the_drag() {
+    let mut h = harness(vec![square(100.0, 100.0, 200.0, 200.0)], PlaneMode::Layout);
+    let from = h.at(100.0, 100.0);
+    h.fixture.frame(vec![pointer::moved(from)]);
+    h.fixture.frame(vec![pointer::press(from)]);
+    h.fixture.frame(vec![pointer::moved(h.at(110.0, 110.0))]);
+    h.fixture.frame(vec![pointer::moved(h.at(120.0, 120.0))]);
+    h.fixture.settle();
+    assert!(h.state.borrow().session.dragging());
+    assert_eq!(h.planes()[0].source[0], Point::new(120.0, 120.0));
 
-        let before = h.state.borrow().seen.len();
-        let away = h.at(140.0, 140.0);
-        h.fixture.frame(vec![pointer::moved(away)]);
-        h.fixture.frame(vec![pointer::release(away)]);
-        h.fixture.settle();
-        assert_eq!(h.state.borrow().seen.len(), before, "nothing after the replacement");
-        assert!(h.planes().is_empty());
-    }
+    h.state.borrow_mut().session.replace(vec![]);
+    h.fixture.settle();
+    assert!(!h.state.borrow().session.dragging());
+    assert!(h.state.borrow().seen.contains(&Seen::Cancel), "the drag ends with a cancel");
+
+    let before = h.state.borrow().seen.len();
+    let away = h.at(140.0, 140.0);
+    h.fixture.frame(vec![pointer::moved(away)]);
+    h.fixture.frame(vec![pointer::release(away)]);
+    h.fixture.settle();
+    assert_eq!(h.state.borrow().seen.len(), before, "nothing after the replacement");
+    assert!(h.planes().is_empty());
 }
 
 #[trial]

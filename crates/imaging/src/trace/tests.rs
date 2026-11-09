@@ -77,32 +77,32 @@ fn trace_coarse_cells_keep_one_pixel_selections() {
 
 // `bounded_step`: 200 × 150 keeps step 1, 6000 × 6000 gives 8, and huge or negative bounds give a
 // grid of at most `TRACE_BUDGET` cells (PhotoCraft's `whole_transform_trace_has_a_bounded_grid`).
+#[test]
+fn trace_bounded_step_caps_cells() {
+    assert_eq!(bounded_step(MaskRect::new(0, 0, 200, 150), 1), 1);
+    assert_eq!(bounded_step(MaskRect::new(0, 0, 6000, 6000), 1), 8);
+    let huge = MaskRect::new(-(1 << 30), -(1 << 30), 1 << 30, 1 << 30);
+    let step = i64::from(bounded_step(huge, 1));
+    let axis = ((1_i64 << 30) + step - 1).div_euclid(step) - (-(1_i64 << 30)).div_euclid(step) + 2;
+    assert!(axis * axis <= TRACE_BUDGET as i64);
+}
+
 // `trace_step` at 100 %, 50 %, 12 % and 1 % (with a reduction of 2), and `quantised_region` keeps
 // the region for a pan of less than `256 · step` and changes it past that.
 #[test]
-fn trace_step_budget_caps_cells_and_the_region_follows_pan() {
-    {
-        assert_eq!(bounded_step(MaskRect::new(0, 0, 200, 150), 1), 1);
-        assert_eq!(bounded_step(MaskRect::new(0, 0, 6000, 6000), 1), 8);
-        let huge = MaskRect::new(-(1 << 30), -(1 << 30), 1 << 30, 1 << 30);
-        let step = i64::from(bounded_step(huge, 1));
-        let axis = ((1_i64 << 30) + step - 1).div_euclid(step) - (-(1_i64 << 30)).div_euclid(step) + 2;
-        assert!(axis * axis <= TRACE_BUDGET as i64);
-    }
-    {
-        assert_eq!(trace_step(1.0, 1), 1);
-        assert_eq!(trace_step(0.5, 1), 2);
-        assert_eq!(trace_step(0.12, 1), 8);
-        assert_eq!(trace_step(0.01, 2), 32);
-        assert_eq!(trace_step(0.001, 1), 64);
-        assert_eq!(trace_step(4.0, 1), 1);
-        let region = |x: f64| quantised_region([x, 0.0, x + 800.0, 600.0], 2, 1);
-        assert_eq!(region(10.0), region(100.0));
-        assert_ne!(region(10.0), region(600.0));
-        assert_eq!(region(10.0).x0 % 512, 0);
-        let huge = quantised_region([f64::MAX, f64::MIN, f64::MAX, f64::MAX], 64, 1);
-        assert!(huge.x1 > 0 && huge.y0 < 0);
-    }
+fn trace_step_and_region_follow_zoom_and_pan() {
+    assert_eq!(trace_step(1.0, 1), 1);
+    assert_eq!(trace_step(0.5, 1), 2);
+    assert_eq!(trace_step(0.12, 1), 8);
+    assert_eq!(trace_step(0.01, 2), 32);
+    assert_eq!(trace_step(0.001, 1), 64);
+    assert_eq!(trace_step(4.0, 1), 1);
+    let region = |x: f64| quantised_region([x, 0.0, x + 800.0, 600.0], 2, 1);
+    assert_eq!(region(10.0), region(100.0));
+    assert_ne!(region(10.0), region(600.0));
+    assert_eq!(region(10.0).x0 % 512, 0);
+    let huge = quantised_region([f64::MAX, f64::MIN, f64::MAX, f64::MAX], 64, 1);
+    assert!(huge.x1 > 0 && huge.y0 < 0);
 }
 
 // `edges_of_grid` gives PhotoCraft's Content-Aware Fill unit edges for an L-shaped grid, and
