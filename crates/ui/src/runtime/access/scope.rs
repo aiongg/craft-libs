@@ -109,10 +109,10 @@ struct Scope {
     reset: Option<ResetFact>,
     /// The first message a control inside reported, with its resolved text.
     message: Option<(Message, Tone, String)>,
-    /// The narrowest width of the first control.
-    control_min: Option<f32>,
     /// A control inside scrubs by the label.
     scrub: bool,
+    /// The narrowest width of the first control.
+    control_min: Option<f32>,
 }
 
 /// A control that reported its node in a scope: the name and description its node got at its own report.
@@ -232,9 +232,10 @@ pub(crate) fn record_control_min(ctx: &Context, width: f32) {
     });
 }
 
-/// The narrowest width the first control of `container`'s label scope reported last frame.
-pub(crate) fn last_control_min(ctx: &Context, container: Id) -> f32 {
-    layout_memory::read(ctx, sub(container, "control_min")).map_or(0.0, |size| size.x)
+/// The narrowest width the first control of `container`'s label scope reported in this pass's measuring run; 0 when
+/// no measuring run ran.
+pub(crate) fn measured_control_min(ctx: &Context, container: Id) -> f32 {
+    layout_memory::measured(ctx, sub(container, "control_min")).map_or(0.0, |measured| measured.took.x)
 }
 
 /// Registers the reset of the control `control` with the innermost label scope.
@@ -386,6 +387,16 @@ pub(crate) fn merge_patch(child: &ScopeNode, merged: &Merged) -> MergePatch {
     }
 }
 
+/// Closes the scope of `container` for a measuring run: it records only the control's narrowest width, as this pass's
+/// measure for the real run's label step.
+pub(crate) fn discard(ctx: &Context, container: Id) {
+    let scope = Service::<Stack>::run(ctx, |stack| stack.0.last().is_some_and(|scope| scope.container == container).then(|| stack.0.pop()).flatten());
+    if let Some(scope) = scope {
+        let took = Vec2::new(scope.control_min.unwrap_or(0.0), 0.0);
+        layout_memory::record_measured(ctx, sub(container, "control_min"), layout_memory::Measured { room: Vec2::ZERO, took });
+    }
+}
+
 /// Closes the scope of `container`, if it opened one, and patches the nodes registered in it. `merged` is the
 /// container's own facts, read by a merge scope.
 pub(crate) fn finish(ctx: &Context, container: Id, merged: Option<Merged>) {
@@ -415,10 +426,6 @@ pub(crate) fn finish(ctx: &Context, container: Id, merged: Option<Merged>) {
             }
             if let Some(baseline) = scope.baseline {
                 layout_memory::record(ctx, sub(scope.container, "baseline"), Vec2::new(0.0, baseline));
-            }
-            // Only a real run reports a control's width; a measuring run's scope has none and must not record zero.
-            if let Some(width) = scope.control_min {
-                layout_memory::record(ctx, sub(scope.container, "control_min"), Vec2::new(width, 0.0));
             }
             let slot = reset_slot(scope.container);
             match scope.reset {
