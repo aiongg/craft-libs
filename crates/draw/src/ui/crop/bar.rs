@@ -10,7 +10,7 @@ use super::session::CropDocument;
 use craft_behavior::{EditEvent, IconId, NumberCodec};
 use craft_ui::buttons::{Button, IconButton, ToggleButton};
 use craft_ui::contract::{
-    Bind, BodyCx, CellWidth, Entry, FieldLayout, NoValue, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _, Sizing, clicked,
+    Bind, BodyCx, Entry, FieldLayout, NoValue, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _, Sizing, clicked,
 };
 use craft_ui::display::Divider;
 use craft_ui::form::Field;
@@ -23,9 +23,6 @@ use egui::{Response, Ui};
 
 #[cfg(feature = "screen-testing")]
 mod stories;
-
-/// The width of a field's caption cell: the caption's own.
-const CAPTION: CellWidth = CellWidth::Content;
 
 /// The ratio, a ratio field, a preset or W × H × Resolution changed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -130,7 +127,7 @@ impl<'a> CropBar<'a> {
             }
             Field::new(words.angle.clone())
                 .id_salt("angle")
-                .layout(FieldLayout::Caption(CAPTION))
+                
                 .sizing(Sizing::Content)
                 .enabled(angle.is_some())
                 .show(ui, |ui, _| {
@@ -276,7 +273,7 @@ fn ratio_field(
     let current = shown.get(side).copied().unwrap_or(0.0);
     let salt = if side == 0 { "ratio-width" } else { "ratio-height" };
     let mut event = None;
-    Field::new(caption.clone()).id_salt(salt).layout(FieldLayout::Caption(CAPTION)).sizing(Sizing::Content).show(ui, |ui, _| {
+    Field::new(caption.clone()).id_salt(salt).sizing(Sizing::Content).show(ui, |ui, _| {
         let codec = NumberCodec::new(units.reader(None), RATIO_DECIMALS);
         let field = NumberField::new(caption.clone(), Bind::given((current > 0.0).then_some(current)))
             .codec(codec)
@@ -334,7 +331,7 @@ fn size_fields(ui: &mut Ui, settings: &mut CropSettings, words: &CropBarWords, d
 
     let resolution = settings.size.resolution.trim().replace(',', ".").parse::<f64>().ok().filter(|v| v.is_finite() && *v > 0.0);
     let mut typed = None;
-    Field::new(words.resolution.clone()).id_salt("size-resolution").layout(FieldLayout::Caption(CAPTION)).sizing(Sizing::Content).show(
+    Field::new(words.resolution.clone()).id_salt("size-resolution").sizing(Sizing::Content).show(
         ui,
         |ui, _| {
             let codec = NumberCodec::new(units.reader(None), 2);
@@ -387,7 +384,7 @@ fn length_field(
     let unit = value.map_or(UnitKind::Pixels, |length| length.unit);
     let mut typed = None;
     let mut typed_unit = None;
-    Field::new(caption.clone()).id_salt(salt).layout(FieldLayout::Caption(CAPTION)).sizing(Sizing::Content).show(ui, |ui, _| {
+    Field::new(caption.clone()).id_salt(salt).sizing(Sizing::Content).show(ui, |ui, _| {
         let lengths = LengthUnits::new(unit, unit, pixels_per_inch);
         let field =
             NumberField::length(caption.clone(), Bind::given(value.map(|length| length.value)), lengths).range(LENGTH_MIN..=FIELD_MAX).show(ui);

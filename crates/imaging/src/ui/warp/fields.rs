@@ -1,7 +1,7 @@
 //! [`WarpFields`]: the Warp group of a transform's options bar: Split tools, Grid menu, warp style,
 //! orientation and Bend, H and V.
 
-use craft_behavior::{ColumnWidth, EditEvent, IconId};
+use craft_behavior::{EditEvent, IconId};
 use craft_ui::buttons::ToggleButton;
 use craft_ui::contract::{Bind, Entry, FieldLayout, Props as _, Show as _, ShowContainer as _, Sizing};
 use craft_ui::display::Divider;
@@ -232,7 +232,7 @@ impl<'a> WarpFields<'a> {
     pub fn show(self, ui: &mut Ui) -> WarpFieldsOutput {
         let Self { styles, values, split, on_type } = self;
         let words = Env::of(ui).words::<WarpFieldsWords>();
-        let caption = FieldLayout::Caption(ColumnWidth::Content);
+        let caption = FieldLayout::Beside;
         let mut edits = Vec::new();
         Row::new().show(ui, |ui, _| {
             Row::new().enabled(!on_type).show(ui, |ui, _| {

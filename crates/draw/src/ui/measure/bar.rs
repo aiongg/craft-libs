@@ -6,16 +6,13 @@ use super::words::RulerWords;
 use craft_ui::buttons::Button;
 use craft_ui::canvas::CanvasRulers;
 use craft_ui::choice::Checkbox;
-use craft_ui::contract::{Bind, CellWidth, FieldLayout, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, Sizing, clicked};
+use craft_ui::contract::{Bind, FieldLayout, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, Sizing, clicked};
 use craft_ui::display::{Divider, Text};
 use craft_ui::form::Field;
 use craft_ui::layout_components::Row;
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::style::TypeRole;
 use egui::{Response, Ui};
-
-/// The width of a readout's caption cell: the caption's own.
-const CAPTION: CellWidth = CellWidth::Content;
 
 /// The digits of a readout.
 const DECIMALS: usize = 2;
@@ -119,7 +116,7 @@ impl<'a> RulerBar<'a> {
 
 /// One readout: a caption above a tabular value, named `name` for AccessKit.
 fn readout(ui: &mut Ui, salt: &'static str, name: Label, value: String) {
-    Field::new(name).id_salt(salt).layout(FieldLayout::Caption(CAPTION)).sizing(Sizing::Content).value(value.clone()).show(ui, |ui, _| {
+    Field::new(name).id_salt(salt).sizing(Sizing::Content).value(value.clone()).show(ui, |ui, _| {
         Text::new(value.clone()).role(TypeRole::Mono).show(ui);
     });
 }
