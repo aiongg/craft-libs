@@ -63,10 +63,10 @@ impl Component for VeilCard {
     type Output = Response;
 
     fn style(cx: &StyleCx<'_>, _: VeilCardStyleKey) -> VeilCardStyle {
-        let radius = UiTokens::corner(cx.tokens.shape.radius.popup);
+        let radius = UiTokens::corner(cx.tokens.shape.radius.surface);
         let surface =
             SurfaceLook::new(Stateful::new(cx.color(cx.tokens.color.surface.panel))).kind(SurfaceKind::Popup).radius(radius).corners(Corners::All);
-        VeilCardStyle { surface, metrics: Metrics::new().padding(Insets::uniform(cx.tokens.space.pad.dialog)) }
+        VeilCardStyle { surface, metrics: Metrics::new().padding(Insets::uniform(cx.tokens.space.pad.roomy)) }
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> egui::Vec2 {

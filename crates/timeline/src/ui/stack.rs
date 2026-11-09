@@ -473,7 +473,7 @@ impl Component for TrackRow<'_> {
             off: IconLook::new(cx.control().icon, Stateful::new(cx.color(color.text.faint))),
             divider: cx.color(color.line.divider),
             hover: cx.color(color.state.hover),
-            pad: cx.tokens.space.pad.panel,
+            pad: cx.tokens.space.pad.regular,
             edge: cx.tokens.size.hit.target / 2.0,
             clip: ClipLook::of(cx),
             sizes: TrackSizes::of(cx.tokens),

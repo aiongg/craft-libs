@@ -8,9 +8,8 @@
     "radius": {
       "button": "full",
       "control": 6.0,
-      "panel": 0.0,
       "pill": "full",
-      "popup": 8.0,
+      "surface": 8.0,
       "window": 12.0
     },
     "rows": "rounded",
@@ -109,8 +108,8 @@
       "pad": {
         "chip": 6.0,
         "control": 8.0,
-        "dialog": 20.0,
-        "panel": 12.0
+        "regular": 12.0,
+        "roomy": 20.0
       }
     },
     "stroke": {

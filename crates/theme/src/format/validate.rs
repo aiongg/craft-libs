@@ -71,16 +71,14 @@ impl Check {
     fn shape(&mut self, shape: &ShapeSeed) {
         if let Some(r) = shape.radius {
             self.at("radius", |c| {
-                for (key, v) in
-                    [("control", r.control), ("popup", r.popup), ("window", r.window), ("panel", r.panel), ("button", r.button), ("pill", r.pill)]
-                {
+                for (key, v) in [("control", r.control), ("surface", r.surface), ("window", r.window), ("button", r.button), ("pill", r.pill)] {
                     c.at(key, |c| c.length(v));
                 }
             });
         }
         if let Some(o) = shape.radius_offset {
             self.at("radius_offset", |c| {
-                for (key, v) in [("control", o.control), ("popup", o.popup), ("window", o.window)] {
+                for (key, v) in [("control", o.control), ("surface", o.surface), ("window", o.window)] {
                     c.at(key, |c| {
                         if !v.is_finite() {
                             c.fail(ErrorKind::BadValue { expected: OFFSET });

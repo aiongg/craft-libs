@@ -68,8 +68,8 @@ fn edge(e: Edge) -> String {
 
 fn shape_lines(out: &mut Lines, shape: &ShapeTokens) {
     let ShapeTokens { radius, edge: e, rows } = shape;
-    let RadiusSet { sm, control, popup, window, panel, button, pill } = radius;
-    for (k, v) in [("sm", sm), ("control", control), ("popup", popup), ("window", window), ("panel", panel), ("button", button), ("pill", pill)] {
+    let RadiusSet { sm, control, surface, window, button, pill } = radius;
+    for (k, v) in [("sm", sm), ("control", control), ("surface", surface), ("window", window), ("button", button), ("pill", pill)] {
         out.line(&format!("shape.radius.{k}"), len(*v));
     }
     out.line("shape.edge", edge(*e));
@@ -89,8 +89,8 @@ fn space_lines(out: &mut Lines, space: &SpaceTokens) {
     for (k, v) in [("tight", tight), ("inline", inline), ("row", row), ("stack", stack), ("section", section)] {
         out.line(&format!("space.gap.{k}"), len(*v));
     }
-    let Pads { control, panel, dialog, chip } = pad;
-    for (k, v) in [("control", control), ("panel", panel), ("dialog", dialog), ("chip", chip)] {
+    let Pads { control, regular, roomy, chip } = pad;
+    for (k, v) in [("control", control), ("regular", regular), ("roomy", roomy), ("chip", chip)] {
         out.line(&format!("space.pad.{k}"), len(*v));
     }
     let Insets { screen } = inset;

@@ -1409,7 +1409,7 @@ fn stored_opening(ctx: &Context, id: Id) -> Option<Opening> {
 }
 
 fn anchor_rect(ctx: &Context, layer: &Layer<'_>, bounds: Rect, memory: &mut LayerMemory) -> Rect {
-    resolved_anchor(ctx, layer.overlay, layer.anchor, bounds, layer.env.tokens.space.pad.panel, &mut memory.pointer_at)
+    resolved_anchor(ctx, layer.overlay, layer.anchor, bounds, layer.env.tokens.space.pad.regular, &mut memory.pointer_at)
 }
 
 /// The anchor rect of `overlay` in screen space, the one rule the host and the body's measuring run share: a

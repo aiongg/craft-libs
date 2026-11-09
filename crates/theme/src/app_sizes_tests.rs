@@ -103,7 +103,7 @@ fn a_theme_file_still_rejects_a_size_path() {
 fn written_sizes_parse_back_to_the_same_overrides() {
     let original = sizes(&json!({
         "all": { "size.control.md": 28.5, "radius.button": "full" },
-        "compact": { "space.pad.panel": 6, "typography.body.size": 15 },
+        "compact": { "space.pad.regular": 6, "typography.body.size": 15 },
     }));
     let text = original.to_json();
     assert!(text.starts_with("{\n  \"all\": {"), "{text}");

@@ -313,7 +313,7 @@ impl Component for EdgePicker<'_> {
                 .border(edge, cx.tokens.stroke.thin),
             focus: cx.focus_look(),
             side: cx.tokens.size.thumb.sm,
-            inset: cx.tokens.space.pad.panel,
+            inset: cx.tokens.space.pad.regular,
             fill: cx.color(colors.surface.sunken),
             on: Stateful::new(cx.color(colors.accent.solid)),
             off: Stateful::new(cx.color(colors.text.faint)),

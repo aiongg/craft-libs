@@ -208,7 +208,7 @@ pub enum PinLayer {
 pub struct ShapeSeed {
     /// Replaces every radius of the preset.
     pub radius: Option<RadiusSet>,
-    /// Added to the control, popup and window radii in force (the preset's, or `radius`), so a
+    /// Added to the control, surface and window radii in force (the preset's, or `radius`), so a
     /// theme keeps its own shape at every Size. A result below 0 is 0; a "full" radius stays full.
     pub radius_offset: Option<RadiusOffset>,
     /// Replaces the button radius in force (the preset's, or `radius`'s); 999 gives pills.
@@ -224,19 +224,19 @@ pub struct ShapeSeed {
 pub struct RadiusOffset {
     /// Added to `control`.
     pub control: f32,
-    /// Added to `popup`.
-    pub popup: f32,
+    /// Added to `surface`.
+    pub surface: f32,
     /// Added to `window`.
     pub window: f32,
 }
 
 impl RadiusOffset {
-    /// `radius` with the offsets added; `panel`, `button` and `pill` are not offset.
+    /// `radius` with the offsets added; `button` and `pill` are not offset.
     pub fn apply(self, radius: RadiusSet) -> RadiusSet {
         let add = |r: f32, d: f32| if r >= crate::scale::Radius::Full.px() { r } else { (r + d).max(0.0) };
         RadiusSet {
             control: add(radius.control, self.control),
-            popup: add(radius.popup, self.popup),
+            surface: add(radius.surface, self.surface),
             window: add(radius.window, self.window),
             ..radius
         }

@@ -434,8 +434,8 @@ fn pad_of(tokens: &UiTokens, pad: Pad) -> f32 {
     let pads = &tokens.tokens().space.pad;
     match pad {
         Pad::Control => pads.control,
-        Pad::Regular => pads.panel,
-        Pad::Roomy => pads.dialog,
+        Pad::Regular => pads.regular,
+        Pad::Roomy => pads.roomy,
         _ => 0.0,
     }
 }
@@ -1328,7 +1328,7 @@ impl<'b> BodyHooks<'b> {
                     overlay,
                     own,
                     areas::layer_to_screen(ctx, ui.layer_id()),
-                    Env::of(ui).tokens.space.pad.panel,
+                    Env::of(ui).tokens.space.pad.regular,
                     rtl,
                 ) {
                     Some(side) => side.min(room),

@@ -334,8 +334,8 @@ impl Component for Notice<'_> {
                     TextLook::new(TypeRole::BodyStrong, stateful(normal)),
                     TextLook::new(TypeRole::Body, stateful(normal)),
                     TextLook::new(TypeRole::Body, stateful(normal)),
-                    SurfaceLook::new(Stateful::new(fill)).kind(SurfaceKind::Floating).radius(UiTokens::corner(cx.tokens.shape.radius.popup)),
-                    Insets::uniform(cx.tokens.space.pad.dialog),
+                    SurfaceLook::new(Stateful::new(fill)).kind(SurfaceKind::Floating).radius(UiTokens::corner(cx.tokens.shape.radius.surface)),
+                    Insets::uniform(cx.tokens.space.pad.roomy),
                 )
             }
             NoticeLayout::Centred => (

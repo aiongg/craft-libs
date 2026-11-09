@@ -25,9 +25,8 @@
     "radius": {
       "button": 0.0,
       "control": 0.0,
-      "panel": 0.0,
       "pill": 0.0,
-      "popup": 0.0,
+      "surface": 0.0,
       "window": 0.0
     },
     "rows": "rounded"
