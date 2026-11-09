@@ -376,7 +376,7 @@ pub enum MediaBinCommand {
 }
 
 /// A host slot drawn inside the widget.
-type Slot<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
+type Slot<'a> = Box<dyn FnMut(&mut Ui) + 'a>;
 
 /// The thumbnails a widget draws with: the cache and the app's source, keyed by the widget's key.
 type ThumbPair<'a, K> = (&'a Thumbnails<K>, &'a dyn ThumbSource<K>);
@@ -520,7 +520,7 @@ where
 
     /// The host's area above the content (a preview).
     #[must_use]
-    pub fn header(mut self, header: impl FnOnce(&mut Ui) + 'a) -> Self {
+    pub fn header(mut self, header: impl FnMut(&mut Ui) + 'a) -> Self {
         self.header = Some(Box::new(header));
         self
     }
@@ -628,7 +628,6 @@ where
         let state = RefCell::new(state);
         let selection = RefCell::new(selection);
         let header = RefCell::new(header);
-        let rename = RefCell::new(rename);
         let footer_events: RefCell<Vec<BinEvent<K>>> = RefCell::new(Vec::new());
         let zoom = TileZoom::bounded(zoom_range.0, zoom_range.1, ZOOM_STEP, ZOOM_DEFAULT.clamp(zoom_range.0, zoom_range.1));
 
@@ -702,37 +701,35 @@ where
                 }
                 Text::new(count_text.clone()).role(TypeRole::Caption).shade(Shade::Faint).show(ui);
             });
-            if let Some(header) = header.borrow_mut().take() {
+            if let Some(header) = header.borrow_mut().as_mut() {
                 header(ui);
             }
 
             // The view, inside a slot that takes the drops the view leaves.
             let (response, mut view_events, background, moving_now) = {
                 let mut hosted = selection.borrow_mut();
-                let bind = match hosted.as_mut() {
-                    Some(bind) => bind.reborrowed(),
-                    None => Bind::bound(&mut own),
-                };
-                let input = ViewIn {
-                    id: list_id,
-                    model,
-                    state: &local,
-                    selection: bind,
-                    held: &held,
-                    thumbnails,
-                    columns: &columns,
-                    words: &words,
-                    collator: &collator,
-                    rename: rename.borrow_mut().take(),
-                    hover_scrub,
-                    scrub: scrub.clone(),
-                    stack: None,
-                    moving: moving.clone(),
-                };
-                let mut input = Some(input);
                 let shown_view = DropAction::<ListDrag<K>>::new(|_| true).sizing(Sizing::Fill).show(ui, |ui, _| {
-                    let mut input = input.take().expect("a slot shows its body once");
-                    input.stack = restack;
+                    // The body runs in the measuring run and again in the real one: it builds its input each time.
+                    let bind = match hosted.as_mut() {
+                        Some(bind) => bind.reborrowed(),
+                        None => Bind::bound(&mut own),
+                    };
+                    let input = ViewIn {
+                        id: list_id,
+                        model,
+                        state: &local,
+                        selection: bind,
+                        held: &held,
+                        thumbnails,
+                        columns: &columns,
+                        words: &words,
+                        collator: &collator,
+                        rename: rename.clone(),
+                        hover_scrub,
+                        scrub: scrub.clone(),
+                        stack: restack,
+                        moving: moving.clone(),
+                    };
                     match view {
                         BinView::List => list::list_view(ui, input),
                         BinView::Icon => icon::icon_view(ui, input),
