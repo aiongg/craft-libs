@@ -1226,7 +1226,14 @@ impl<'b> BodyHooks<'b> {
         } else {
             // A fill-width body is offered the room the parent gives this pass, never the height its content took last
             // pass: a collection that scrolls takes its rows up to that room, and from zero it would stay at zero.
-            let offered = (self.sizing(props) == Sizing::FillWidth && room.y.is_finite()).then(|| top + (room.y - stacked_h - across_h).max(0.0));
+            let body_room = (room.y - stacked_h - across_h).max(0.0);
+            // An inline header shares its line with the body: the line is as high as the tallest of header, end region
+            // and what the body took, never the whole room, so a body that centres itself centres in the line.
+            let line = inline.then(|| {
+                let body_h = self.remembered.map_or(0.0, |size| size.y) * self.presence.t;
+                top + body_h.max(header_h).max(end_h - across_h).min(body_room)
+            });
+            let offered = (self.sizing(props) == Sizing::FillWidth && room.y.is_finite()).then(|| line.unwrap_or(top + body_room));
             (offered.unwrap_or(inner.max.y - across_h), inner.max.y - across_h)
         };
         let width = if content_sized { self.shared_width(room.x, props) } else { inner.width() };
