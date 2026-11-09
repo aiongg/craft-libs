@@ -320,11 +320,22 @@ impl<'a> PageView<'a> {
         let mut held = Held::new(Bind::bound(state));
         let mut seen: Option<Seen> = None;
         let mut canvas_body = |ui: &mut Ui, cx: &mut BodyCx<'_>| {
-            let Some(next) = run_pass(ui, cx, &mut held, &Inputs { source, describer, build: &build, rect, given, paper }) else { return };
+            let Some(next) = run_pass(ui, cx, &mut held, &Inputs { source, describer, build: &build, rect, given, paper }) else { return None };
             body(ui, &PageBody { rect: cx.rect, pages: &next.pages, view: next.view });
+            let decided = next.next.clone();
             seen = Some(next);
+            decided
         };
-        let shown = if take_room { canvas.show_at_taking_room(ui, rect, &mut canvas_body) } else { canvas.show_at(ui, rect, &mut canvas_body) };
+        let mut shown = if take_room { canvas.show_at_taking_room(ui, rect, &mut canvas_body) } else { canvas.show_at(ui, rect, &mut canvas_body) };
+        // Once per pass, after the real run: the memory and the state the pass decided are stored.
+        shown.settle(|cx, decided| {
+            if let Some(Next { started, state, mem, edit }) = decided.take() {
+                *cx.memory::<Memory>() = mem;
+                if state != started {
+                    held.write(cx, &started, state, &edit);
+                }
+            }
+        });
         let output = shown.output;
         let seen = seen.unwrap_or_else(|| Seen::empty(given, frame));
         let toggle_white_space = match output.press.phase {
@@ -365,6 +376,17 @@ struct Seen {
     visible: Range<usize>,
     current_changed: bool,
     pasteboard: Option<PasteboardOutput>,
+    /// What the caller stores after the real run.
+    next: Option<Next>,
+}
+
+/// The state and memory a pass decided, stored by `run` once per pass after the real run.
+#[derive(Clone)]
+struct Next {
+    started: PageViewState,
+    state: PageViewState,
+    mem: Memory,
+    edit: String,
 }
 
 impl Seen {
@@ -378,6 +400,7 @@ impl Seen {
             visible: 0..0,
             current_changed: false,
             pasteboard: None,
+            next: None,
         }
     }
 }
@@ -585,19 +608,17 @@ fn run_pass(ui: &mut Ui, cx: &mut BodyCx<'_>, held: &mut Held<'_, PageViewState>
         state.current = page_on_line(&geo.layout, offset.1 + vh / 2.0);
     }
     mem.offset = Some(offset);
-    mem.layout = build.cache.borrow_mut().take();
-    *cx.memory::<Memory>() = mem;
-    if state != started {
-        held.write(cx, &started, state.clone(), words.edit.as_str());
-    }
+    mem.layout = build.cache.borrow().clone();
+    let current_changed = state.current != started_on;
     Some(Seen {
         geo: drawn,
         frame: drawn_frame,
         view: shown,
         pages,
         visible,
-        current_changed: state.current != started_on,
+        current_changed,
         pasteboard: Some(pasteboard),
+        next: Some(Next { started, state, mem, edit: words.edit.as_str().to_owned() }),
     })
 }
 

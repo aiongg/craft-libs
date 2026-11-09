@@ -96,7 +96,9 @@ impl<'a> SyncedViews<'a> {
         };
         let mut views: [Option<PageViewOutput>; 2] = [None, None];
         let divider = *at;
-        let split = SplitViews::new(label, SplitLayout::Two, Bind::bound(at)).active(active).show(ui, |ui, body| {
+        let mut split = SplitViews::new(label, SplitLayout::Two, Bind::bound(at)).active(active).show(ui, |ui, body| {
+            // The follower is a copy per run, so the body writes nothing kept; `settle` stores the last copy.
+            let mut followed = None;
             let rects = SplitLayout::Two.placed(divider, body.rect, body.env.direction().is_rtl());
             for pane in [active, 1 - active] {
                 let Some(&rect) = rects.get(pane) else { continue };
@@ -104,9 +106,22 @@ impl<'a> SyncedViews<'a> {
                 views[pane] = Some(if this == lead {
                     half(ui, rect, leader, this)
                 } else {
-                    follow(leader, follower, &mut *last_offset, &mut *last_current);
-                    half(ui, rect, follower, this)
+                    let mut copy = follower.clone();
+                    let (mut offset, mut current) = (*last_offset, *last_current);
+                    follow(leader, &mut copy, &mut offset, &mut current);
+                    let output = half(ui, rect, &mut copy, this);
+                    followed = Some((copy, offset, current));
+                    output
                 });
+            }
+            followed
+        });
+        // Once per pass, after the real run: the follower and what it followed from are stored.
+        split.settle(|_, followed| {
+            if let Some((copy, offset, current)) = followed.take() {
+                *follower = copy;
+                *last_offset = offset;
+                *last_current = current;
             }
         });
         if let Some(pane) = split.output.activated {
