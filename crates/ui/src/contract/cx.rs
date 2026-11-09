@@ -1287,16 +1287,10 @@ impl<'a> BodyCx<'a> {
         crate::runtime::egui::output::open_url(self.memory.ctx(), url, new_tab);
     }
 
-    /// Whether this run of the body only measures it: the real run follows, so the body shows what it
-    /// shows and changes nothing that must outlive the run.
-    pub fn measuring(&self) -> bool {
-        crate::runtime::measure::active(self.memory.ctx())
-    }
-
     /// The host file service's answer to the picker `ticket`, taken once. A measuring run gets none and leaves
     /// the answer in the service, so the real run of the body finds it.
     pub fn take_pick_answer(&self, ticket: craft_host::PickId) -> Option<craft_host::Picked> {
-        if self.measuring() {
+        if crate::runtime::measure::active(self.memory.ctx()) {
             return None;
         }
         self.env.host()?.files().take_answer(ticket)

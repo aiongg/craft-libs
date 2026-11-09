@@ -170,7 +170,7 @@ impl<'a> FileListPicker<'a> {
     pub fn show(self, ui: &mut Ui) -> FileListPickerOutput {
         let FileListPicker { label, list, request, folder_mode, open_files, folder_files, info } = self;
         let words = Env::of(ui).words::<FileListWords>();
-        let pass = RefCell::new(Pass { held: Held::new(list), seen: None, browsing: None, measured: None });
+        let pass = RefCell::new(Pass { held: Held::new(list), seen: None, browsing: None });
         let mut stack = Stack::new().fill();
         if folder_mode {
             stack = stack.header(|ui, cx| {
@@ -281,28 +281,22 @@ struct Pass<'h> {
     /// The value at the start of the pass and its working copy.
     seen: Option<(FileList, FileList)>,
     browsing: Option<PickId>,
-    /// The copy a measuring run works on.
-    measured: Option<FileList>,
 }
 
 impl Pass<'_> {
     /// The working copy, read and given the pick answer on the region that runs first.
-    /// A measuring run gets a copy of it and leaves the pass's own untouched, so the real run still takes the answer.
+    /// Every load asks for the answer: a measuring run gets none, so the run that receives it puts it in the copy.
     fn load(&mut self, cx: &mut BodyCx<'_>) -> &mut FileList {
-        if cx.measuring() {
-            let copy = self.peek(cx);
-            return self.measured.insert(copy);
-        }
         let held = &mut self.held;
         let (_, now) = self.seen.get_or_insert_with(|| {
             let before = held.read(cx).unwrap_or_default();
             let mut now = before.clone();
-            take_answer(cx, &mut now);
             if now.selected.as_ref().is_some_and(|path| !now.files.contains(path)) {
                 now.selected = None;
             }
             (before, now)
         });
+        take_answer(cx, now);
         now
     }
 
