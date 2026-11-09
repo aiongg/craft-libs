@@ -2,6 +2,10 @@
 
 use egui::{Context, Layout, Rect, Ui, UiBuilder, Vec2};
 
+/// The reason of the rerun that delivers an update a given binding held in the pass before. That rerun writes the update to
+/// the host, so the purity check of the suite's fixture lets it change state.
+pub(crate) const HELD_UPDATE_RERUN: &str = "craft_ui: an update is held for the next pass";
+
 /// Asks egui to discard the running pass and run it again.
 pub(crate) fn request_discard(ctx: &Context, reason: &'static str) {
     ctx.request_discard(reason);
