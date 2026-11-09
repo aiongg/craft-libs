@@ -61,7 +61,7 @@ impl Component for Holder<'_> {
 impl Container for Holder<'_> {
     fn header(&mut self, ui: &mut Ui, bcx: &mut BodyCx<'_>) {
         Block::new(Vec2::new(100.0, 10.0)).show(ui);
-        if self.close.replace(false) {
+        if self.close.get() {
             bcx.request_close();
         }
     }
@@ -235,6 +235,7 @@ fn an_animated_collapse_keeps_the_body_while_it_closes() {
             ran.set(true);
             Block::new(Vec2::new(100.0, 80.0)).show(ui);
         });
+        close.set(false);
         height.set(out.output.rect.height());
     };
     frames.idle(4, &mut show);
