@@ -74,46 +74,43 @@ impl Component for Stop {
     }
 }
 
-/// Two instances of one command scope, as stacks and as focusable leaves: the chord reaches the one that holds focus,
-/// and not the other.
+/// Two instances of one command scope, shown as stacks or as focusable leaves: the chord reaches the one that holds
+/// focus, and not the other.
 #[trial]
 fn a_scope_command_reaches_only_the_instance_that_holds_focus() {
-    let counts = [Rc::new(Cell::new(0)), Rc::new(Cell::new(0))];
-    let ids = [Rc::new(Cell::new(None)), Rc::new(Cell::new(None))];
-    let (seen, stops) = (counts.clone(), ids.clone());
-    let mut fixture = Fixture::new(move |ui| {
-        for (at, name) in ["First", "Second"].into_iter().enumerate() {
-            let taken = &seen[at];
-            Stack::new().command_scope(PANEL).id_salt(name).show(ui, |ui, cx| {
-                while cx.take_command::<PanelCommand>().is_some() {
-                    taken.set(taken.get() + 1);
-                }
-                stops[at].set(Some(Button::new(name).show(ui).id));
-            });
-        }
-    });
-    fixture.settle();
-    for (focused, expected) in [(1, (0, 1)), (0, (1, 1))] {
-        request(fixture.ctx(), FocusTarget::Id(ids[focused].get().expect("the button ran")));
+    type Instance = fn(&mut egui::Ui, &'static str, &Cell<u32>) -> egui::Id;
+    let stack: Instance = |ui, name, taken| {
+        let id = Cell::new(egui::Id::NULL);
+        Stack::new().command_scope(PANEL).id_salt(name).show(ui, |ui, cx| {
+            while cx.take_command::<PanelCommand>().is_some() {
+                taken.set(taken.get() + 1);
+            }
+            id.set(Button::new(name).show(ui).id);
+        });
+        id.get()
+    };
+    let leaf: Instance = |ui, name, taken| {
+        let taken_here = Rc::new(Cell::new(0));
+        let id = Stop::new(&taken_here).command_scope(PANEL).id_salt(name).label(name).show(ui).id;
+        taken.set(taken.get() + taken_here.get());
+        id
+    };
+    for instance in [stack, leaf] {
+        let counts = [Rc::new(Cell::new(0)), Rc::new(Cell::new(0))];
+        let ids = [Rc::new(Cell::new(egui::Id::NULL)), Rc::new(Cell::new(egui::Id::NULL))];
+        let (seen, stops) = (counts.clone(), ids.clone());
+        let mut fixture = Fixture::new(move |ui| {
+            for (at, name) in ["First", "Second"].into_iter().enumerate() {
+                stops[at].set(instance(ui, name, &seen[at]));
+            }
+        });
         fixture.settle();
-        toggle(&mut fixture);
-        assert_eq!((counts[0].get(), counts[1].get()), expected, "only the stack holding focus ({focused}) takes the command");
-    }
-
-    let counts = [Rc::new(Cell::new(0)), Rc::new(Cell::new(0))];
-    let ids = [Rc::new(Cell::new(None)), Rc::new(Cell::new(None))];
-    let (seen, stops) = (counts.clone(), ids.clone());
-    let mut fixture = Fixture::new(move |ui| {
-        for (at, name) in ["one", "two"].into_iter().enumerate() {
-            stops[at].set(Some(Stop::new(&seen[at]).command_scope(PANEL).id_salt(name).label(name).show(ui).id));
+        for (focused, expected) in [(1, (0, 1)), (0, (1, 1))] {
+            request(fixture.ctx(), FocusTarget::Id(ids[focused].get()));
+            fixture.settle();
+            toggle(&mut fixture);
+            assert_eq!((counts[0].get(), counts[1].get()), expected, "only the instance holding focus ({focused}) takes the command");
         }
-    });
-    fixture.settle();
-    for (focused, expected) in [(1, (0, 1)), (0, (1, 1))] {
-        request(fixture.ctx(), FocusTarget::Id(ids[focused].get().expect("the leaf ran")));
-        fixture.settle();
-        toggle(&mut fixture);
-        assert_eq!((counts[0].get(), counts[1].get()), expected, "only the focused leaf ({focused}) takes the command");
     }
 }
 

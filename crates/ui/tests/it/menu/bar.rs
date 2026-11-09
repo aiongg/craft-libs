@@ -3,7 +3,7 @@
 
 use craft_i18n::{Direction, Folder};
 use craft_ui::buttons::Button;
-use craft_ui::contract::{PopupKind, Show as _};
+use craft_ui::contract::{PopupKind, Role, Show as _};
 use craft_ui::menu::MenuItem;
 use craft_ui::menu::bar::{MenuBar, MenuHelp, MenuTitle, TitleFit, fit_titles};
 use craft_ui::menu::search::{HelpEntry, search_order};
@@ -86,6 +86,10 @@ impl Rig {
     }
 }
 
+fn menu_open(fixture: &Fixture) -> bool {
+    !fixture.by_role(Role::MENU).is_empty()
+}
+
 /// A command to run from a menu row.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui::contract::CommandSet)]
 #[command(prefix = "menuTrial")]
@@ -101,13 +105,13 @@ fn a_press_on_a_title_opens_its_menu_a_release_on_a_row_runs_it_and_a_click_on_a
     let file = rig.fixture.by_label("File").expect("the File title");
     rig.fixture.press(&file);
     rig.fixture.idle(3);
-    assert!(rig.open("Save"), "the menu is open while the press is still held");
-    let save = rig.fixture.by_label("Save").expect("the Save row");
+    assert!(menu_open(&rig.fixture), "the menu is open while the press is still held");
+    let save = rig.fixture.by_role(Role::MENU_ITEM).pop().expect("the last row of the File menu");
     rig.fixture.frame(vec![pointer::moved(save.center())]);
     rig.fixture.release(&save);
     rig.fixture.settle();
     assert_eq!(*rig.ran.borrow(), ["Save"]);
-    assert!(!rig.open("Save"), "running a row closes the menu");
+    assert!(!menu_open(&rig.fixture), "running a row closes the menu");
 
     // A click on a command row fires the command as `FireSource::Menu`, like the typed run of the same row.
     {
@@ -122,8 +126,8 @@ fn a_press_on_a_title_opens_its_menu_a_release_on_a_row_runs_it_and_a_click_on_a
         fixture.click(&edit);
         fixture.settle();
         take_output(fixture.ctx());
-        let paste = fixture.by_label("Go").expect("the Go row");
-        fixture.click(&paste);
+        let go = fixture.by_role(Role::MENU_ITEM).pop().expect("the command row");
+        fixture.click(&go);
         fixture.settle();
         let fired: Vec<_> = take_output(fixture.ctx()).fired.into_iter().map(|fired| (fired.command.id.clone(), fired.source)).collect();
         assert_eq!(fired, [("menuTrial.go".to_owned(), FireSource::Menu)]);

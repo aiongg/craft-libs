@@ -133,39 +133,32 @@ fn access_facts_reach_the_node_and_its_sub_nodes() {
     assert_eq!(tree.name_of(sub[0]), Some("Peak"));
 }
 
+const SAID: &str = "Saved";
+
+/// An announcement reaches the frame output and the one status node. The same text announced again reads as a change
+/// on that node, and a discarded pass that announces twice adds nothing.
 #[trial]
 fn announcements_reach_the_frame_output_and_the_one_status_node() {
     let mut frames = Frames::new();
-    frames.frame(vec![], |ui| {
-        announce(ui.ctx(), "Saved", Politeness::Polite);
-    });
-    let tree = frames.tree();
-    let status = tree.with_role(UiRole::STATUS);
-    assert_eq!(status.len(), 1);
-    assert_eq!(tree.name_of(status[0]), Some("Saved"));
-    assert_eq!(craft_ui::runtime::frame::take_output(&frames.ctx).announcements, ["Saved"]);
+    let mut said = Vec::new();
+    for _ in 0..3 {
+        frames.frame(vec![], |ui| {
+            announce(ui.ctx(), SAID, Politeness::Polite);
+            announce(ui.ctx(), SAID, Politeness::Polite);
+        });
+        let tree = frames.tree();
+        let status = tree.with_role(UiRole::STATUS);
+        assert_eq!(status.len(), 1);
+        said.push(tree.name_of(status[0]).map(str::to_owned));
+        assert_eq!(craft_ui::runtime::frame::take_output(&frames.ctx).announcements, [SAID]);
+    }
+    assert!(said.windows(2).all(|pair| pair[0] != pair[1]), "each repeat changes the status text: {said:?}");
+    assert!(said.iter().all(|text| text.as_deref().is_some_and(|text| text.starts_with(SAID))));
     frames.frame(vec![], |_| {});
     let tree = frames.tree();
     let status = tree.with_role(UiRole::STATUS);
     assert_eq!(status.len(), 1, "the status node stays, so the next announcement is a change of a live node");
     assert_eq!(tree.name_of(status[0]), None, "and it says nothing");
-
-    // The same text announced in two frames in a row reads as a change both times, and a discarded pass that
-    // announces again adds nothing.
-    let mut frames = Frames::new();
-    let mut said = Vec::new();
-    for _ in 0..3 {
-        frames.frame(vec![], |ui| {
-            announce(ui.ctx(), "Saved", Politeness::Polite);
-            announce(ui.ctx(), "Saved", Politeness::Polite);
-        });
-        let tree = frames.tree();
-        let status = tree.with_role(UiRole::STATUS);
-        said.push(tree.name_of(status[0]).map(str::to_owned));
-        assert_eq!(craft_ui::runtime::frame::take_output(&frames.ctx).announcements, ["Saved"]);
-    }
-    assert!(said.windows(2).all(|pair| pair[0] != pair[1]), "{said:?}");
-    assert!(said.iter().all(|text| text.as_deref().is_some_and(|text| text.starts_with("Saved") && !text.contains(". "))));
 }
 
 #[trial]

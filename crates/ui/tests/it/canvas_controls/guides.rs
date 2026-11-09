@@ -167,25 +167,24 @@ fn page_keys_select_vertical_guides_left_to_right_then_horizontal_ones_and_skip_
 #[trial]
 fn arrows_nudge_the_selected_guide_across_its_axis_shift_takes_the_large_step_and_bounds_stop_it() {
     let mut harness = harness(mixed());
+    let limit = 115.0;
+    harness.bounds.set(Some(DocRect::new(0.0, 0.0, limit, 200.0)));
+    harness.fixture.settle();
+    let start = harness.position(11).expect("the guide");
     harness.press(11, Key::ArrowRight, Modifiers::NONE);
-    let small = harness.position(11).expect("the guide") - 100.0;
+    let small = harness.position(11).expect("the guide") - start;
     assert!(small > 0.0, "an arrow moves a guide across its axis");
-    let before = harness.position(11);
+    let before = harness.position(11).expect("the guide");
     harness.fixture.key(Key::ArrowRight, Modifiers::SHIFT);
-    let large = harness.position(11).expect("the guide") - before.expect("the guide");
-    assert!(large > small, "Shift takes a larger step");
+    assert!(harness.position(11).expect("the guide") - before > small, "Shift takes a larger step");
     let before = harness.position(11);
     harness.fixture.key(Key::ArrowDown, Modifiers::NONE);
     assert_eq!(harness.position(11), before, "an arrow along the guide moves nothing");
+    for _ in 0..3 {
+        harness.fixture.key(Key::ArrowRight, Modifiers::SHIFT);
+    }
+    assert!(harness.position(11).expect("the guide") <= limit, "a guide stays inside the bounds");
     assert_eq!(harness.position(12), Some(30.0), "the other guides stay");
-
-    let mut bounded = self::harness(mixed());
-    let limit = 105.0;
-    bounded.bounds.set(Some(DocRect::new(0.0, 0.0, limit, 200.0)));
-    bounded.fixture.settle();
-    bounded.press(11, Key::ArrowRight, Modifiers::SHIFT);
-    bounded.fixture.key(Key::ArrowRight, Modifiers::SHIFT);
-    assert!(bounded.position(11).expect("the guide") <= limit, "a guide stays inside the bounds");
 }
 
 #[trial]
@@ -211,18 +210,15 @@ fn a_drag_moves_the_guide_in_one_gesture() {
 
 #[trial]
 fn a_release_outside_the_canvas_or_the_bounds_removes_the_guide() {
-    let mut harness = harness(mixed());
-    let target = harness.guide(11);
-    harness.fixture.drag(&target, Vec2::new(FAR, 0.0));
-    assert_eq!(harness.position(11), None, "a guide released outside is removed");
-    assert_eq!(harness.count(Seen::Commit), 1);
-
-    let mut bounded = self::harness(mixed());
-    bounded.bounds.set(Some(DocRect::new(0.0, 0.0, 110.0, 200.0)));
-    bounded.fixture.settle();
-    let target = bounded.guide(11);
-    bounded.fixture.drag(&target, Vec2::new(SHIFT as f32 * 2.0, 0.0));
-    assert_eq!(bounded.position(11), None, "a guide dropped past the document edge is removed");
+    for bounds in [None, Some(DocRect::new(0.0, 0.0, 110.0, 200.0))] {
+        let mut harness = harness(mixed());
+        harness.bounds.set(bounds);
+        harness.fixture.settle();
+        let target = harness.guide(11);
+        harness.fixture.drag(&target, Vec2::new(FAR, 0.0));
+        assert_eq!(harness.position(11), None, "a guide released outside is removed (bounds {bounds:?})");
+        assert_eq!(harness.count(Seen::Commit), 1);
+    }
 }
 
 #[trial]
@@ -263,30 +259,22 @@ fn dragged(phase: GesturePhase, at: Option<f64>) -> GuideDrag {
 
 #[trial]
 fn a_guide_dragged_out_of_a_ruler_is_added_on_release_over_the_canvas_and_not_over_a_ruler() {
-    let mut harness = harness(mixed());
-    harness.pending.set(Some(dragged(GesturePhase::Begin, Some(60.0))));
-    harness.fixture.frame(Vec::new());
-    harness.pending.set(Some(dragged(GesturePhase::Update, Some(70.0))));
-    harness.fixture.frame(Vec::new());
-    assert_eq!(harness.guides.borrow().len(), 5, "the new guide shows while it is dragged");
-    harness.pending.set(Some(dragged(GesturePhase::Commit, Some(80.0))));
-    harness.fixture.frame(Vec::new());
-    harness.pending.set(None);
-    harness.fixture.frame(Vec::new());
-    {
+    for (release, added) in [(Some(80.0), true), (None, false)] {
+        let mut harness = harness(mixed());
+        let before = harness.guides.borrow().len();
+        harness.pending.set(Some(dragged(GesturePhase::Begin, Some(60.0))));
+        harness.fixture.frame(Vec::new());
+        harness.pending.set(Some(dragged(GesturePhase::Update, Some(70.0))));
+        harness.fixture.frame(Vec::new());
+        assert_eq!(harness.guides.borrow().len(), before + 1, "the new guide shows while it is dragged");
+        harness.pending.set(Some(dragged(GesturePhase::Commit, release)));
+        harness.fixture.frame(Vec::new());
+        harness.pending.set(None);
+        harness.fixture.frame(Vec::new());
         let guides = harness.guides.borrow();
-        assert_eq!(guides.len(), 5, "one guide was added");
-        assert_eq!(guides.iter().filter(|guide| guide.position == 80.0 && guide.along == Axis::Y).count(), 1, "at the release position");
+        assert_eq!(guides.len(), before + usize::from(added), "added only when released over the canvas");
+        assert_eq!(guides.iter().any(|guide| Some(guide.position) == release), added);
     }
-
-    let mut over_ruler = self::harness(mixed());
-    over_ruler.pending.set(Some(dragged(GesturePhase::Begin, Some(60.0))));
-    over_ruler.fixture.frame(Vec::new());
-    over_ruler.pending.set(Some(dragged(GesturePhase::Commit, None)));
-    over_ruler.fixture.frame(Vec::new());
-    over_ruler.pending.set(None);
-    over_ruler.fixture.frame(Vec::new());
-    assert_eq!(over_ruler.guides.borrow().len(), 4, "a guide dropped on a ruler is discarded");
 }
 
 #[trial]

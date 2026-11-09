@@ -60,7 +60,8 @@ fn a_link_in_a_text_run_is_a_link_child_named_by_its_text_inside_the_run() {
     assert_eq!(runs.len(), 1);
     let links = tree.with_role(Role::LINK);
     assert_eq!(links.len(), 1, "one link in the run");
-    assert_eq!(tree.name_of(links[0]), Some("docs"));
+    let linked: String = TEXT.chars().skip(8).take(4).collect();
+    assert_eq!(tree.name_of(links[0]), Some(linked.as_str()), "the link is named by the characters it covers");
     assert_eq!(tree.parent_of_key(links[0]), Some(runs[0]), "the link is a child of the run node");
     let (run, link): (Rect, Rect) = (tree.bounds_of(runs[0]).expect("run bounds"), tree.bounds_of(links[0]).expect("link bounds"));
     assert!(run.contains_rect(link) && link.width() > 0.0, "the link lies inside the run: {link:?} in {run:?}");

@@ -1,6 +1,6 @@
 //! Focus on press (8.3): the kinds of a primary press and the draft that commits in the press pass.
 
-use super::{control, focus, focused, id, stop_with};
+use super::{focus, focused, id, stop_with};
 use craft_behavior::Input;
 use craft_behavior::Sense;
 use craft_ui::runtime::focus::{FocusPolicy, KeyUse};
@@ -41,48 +41,40 @@ fn press(frames: &mut Frames, at: Pos2, show: &mut impl FnMut(&mut Ui)) {
 
 /// Skeleton `structure_keep_focus` (both tests) and `frames_state::press_nobody_claims_surrenders_focus_and_
 /// commits_the_draft`: a press on a text field takes focus (kind 1); a press on a keep-focus shape leaves
-/// focus and the draft (kind 2); a press on another control moves focus to the pane and commits (kind 3); a
-/// press nobody claims commits and surrenders focus (kind 4). A press on a control while a non-text component
-/// holds focus leaves focus where it is (kind 3 acts without moving key focus), so a canvas keeps its single-key
-/// shortcuts after a panel click.
+/// focus and the draft (kind 2); a press on another control commits the draft and moves focus to the pane, but
+/// leaves a non-text component's focus where it is so a canvas keeps its single-key shortcuts (kind 3); a press
+/// nobody claims commits and surrenders focus (kind 4).
 #[trial]
 fn a_press_takes_keeps_or_releases_key_focus_by_the_winning_shape() {
-    let mut frames = Frames::new();
-    let rects = Cell::new(None);
-    let commits = RefCell::new(Vec::new());
-    let mut show = |ui: &mut Ui| layout(ui, &rects, &commits);
-    frames.idle(3, &mut show);
-    let (field, palette, button) = rects.get().expect("laid out");
-    let rects = Rects { field, palette, button };
-    assert_eq!(focused(&frames.ctx), None);
-    press(&mut frames, rects.field.center(), &mut show);
-    assert_eq!(focused(&frames.ctx), Some(id("field")), "kind 1: a press on a text field takes key focus");
-    assert!(commits.borrow().iter().all(Option::is_none), "and commits nothing");
-    press(&mut frames, rects.palette.center(), &mut show);
-    assert_eq!(focused(&frames.ctx), Some(id("field")), "kind 2: a keep-focus shape leaves focus where it is");
-    assert!(commits.borrow().iter().all(Option::is_none), "and leaves the draft");
-    press(&mut frames, rects.button.center(), &mut show);
-    assert_eq!(commits.borrow().iter().flatten().copied().collect::<Vec<_>>(), [id("field")], "kind 3: the draft commits in the press pass");
-    assert_eq!(focused(&frames.ctx), Some(id("pane")), "and key focus moves to the enclosing pane");
-    commits.borrow_mut().clear();
-    focus(&mut frames, "field", &mut show);
-    commits.borrow_mut().clear();
-    press(&mut frames, Pos2::new(700.0, 500.0), &mut show);
-    assert_eq!(commits.borrow().iter().flatten().copied().collect::<Vec<_>>(), [id("field")], "kind 4: a press nobody claims commits the draft");
-    assert_eq!(focused(&frames.ctx), None, "and the end hook surrendered key focus");
-
     let mut frames = Frames::new();
     let rects = Cell::new(None);
     let commits = RefCell::new(Vec::new());
     let mut show = |ui: &mut Ui| {
         layout(ui, &rects, &commits);
         stop_with(ui, "canvas", KeyUse::CANVAS);
-        control(ui, "unused");
     };
     frames.idle(3, &mut show);
+    let (field, palette, button) = rects.get().expect("laid out");
+    let rects = Rects { field, palette, button };
+    let committed = || commits.borrow().iter().flatten().copied().collect::<Vec<_>>();
+    assert_eq!(focused(&frames.ctx), None);
+    press(&mut frames, rects.field.center(), &mut show);
+    assert_eq!(focused(&frames.ctx), Some(id("field")), "kind 1: a press on a text field takes key focus");
+    assert!(committed().is_empty(), "and commits nothing");
+    press(&mut frames, rects.palette.center(), &mut show);
+    assert_eq!(focused(&frames.ctx), Some(id("field")), "kind 2: a keep-focus shape leaves focus where it is");
+    assert!(committed().is_empty(), "and leaves the draft");
+    press(&mut frames, rects.button.center(), &mut show);
+    assert_eq!(committed(), [id("field")], "kind 3: the draft commits in the press pass");
+    assert_eq!(focused(&frames.ctx), Some(id("pane")), "and key focus moves to the enclosing pane");
     focus(&mut frames, "canvas", &mut show);
-    let (_, _, button) = rects.get().expect("laid out");
-    press(&mut frames, button.center(), &mut show);
-    assert_eq!(focused(&frames.ctx), Some(id("canvas")), "a control press leaves the focus of a non-text component");
-    assert!(commits.borrow().iter().all(Option::is_none), "no text part, nothing to commit");
+    commits.borrow_mut().clear();
+    press(&mut frames, rects.button.center(), &mut show);
+    assert_eq!(focused(&frames.ctx), Some(id("canvas")), "kind 3 leaves the focus of a non-text component");
+    assert!(committed().is_empty(), "no text part, nothing to commit");
+    focus(&mut frames, "field", &mut show);
+    commits.borrow_mut().clear();
+    press(&mut frames, Pos2::new(700.0, 500.0), &mut show);
+    assert_eq!(committed(), [id("field")], "kind 4: a press nobody claims commits the draft");
+    assert_eq!(focused(&frames.ctx), None, "and the end hook surrendered key focus");
 }

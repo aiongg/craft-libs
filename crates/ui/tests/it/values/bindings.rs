@@ -110,10 +110,12 @@ fn a_kept_binding_holds_the_edited_value_across_frames() {
 #[trial]
 fn a_gesture_in_one_pass_reaches_the_app_as_one_set_with_label_and_key() {
     let mut frames = Frames::new();
+    const LABEL: &str = "Nudge";
+    let key = DocKey::new("trial.nudge");
     let mut value = 0.0f32;
     let sets = RefCell::new(Vec::new());
     let mut show = |ui: &mut Ui| {
-        let out = Scrub::new(Bind::bound(&mut value)).one_pass().label("Nudge").doc_key(DocKey::new("trial.nudge")).id_salt("one").show_at(ui, AT);
+        let out = Scrub::new(Bind::bound(&mut value)).one_pass().label(LABEL).doc_key(key).id_salt("one").show_at(ui, AT);
         sets.borrow_mut().extend(out.event.clone());
         if let Some(EditEvent::Set { .. }) = &out.event {
             assert!(out.response.changed(), "a Set marks the response changed");
@@ -129,7 +131,7 @@ fn a_gesture_in_one_pass_reaches_the_app_as_one_set_with_label_and_key() {
     assert_eq!(value, STEP);
     assert_eq!(sets.len(), 1, "one event for the whole gesture: {sets:?}");
     let EditEvent::Set { label, doc_key, after, .. } = &sets[0] else { panic!("a Set, not {:?}", sets[0]) };
-    assert_eq!((&**label, *doc_key, *after), ("Nudge", Some(DocKey::new("trial.nudge")), STEP));
+    assert_eq!((&**label, *doc_key, *after), (LABEL, Some(key), STEP));
 }
 
 /// The check replaces a value with `Fix`, and a refused commit ends the drag with `Cancel(Refused)` and restores the value.
@@ -161,6 +163,8 @@ fn a_check_fixes_values_and_a_refusing_check_blocks_the_commit() {
 /// A warning check describes the node, after the description the app gave it.
 #[trial]
 fn a_warning_describes_the_node_after_the_apps_description() {
+    const WARNING: &str = "too far";
+    const GIVEN: &str = "Nudge amount";
     let describe = |description: Option<&str>| {
         let mut frames = Frames::new();
         let mut value = INITIAL;
@@ -174,6 +178,6 @@ fn a_warning_describes_the_node_after_the_apps_description() {
         });
         frames.tree().description(id.expect("shown")).map(str::to_owned)
     };
-    assert_eq!(describe(None).as_deref(), Some("too far"));
-    assert_eq!(describe(Some("Nudge amount")).as_deref(), Some("Nudge amount"));
+    assert_eq!(describe(None).as_deref(), Some(WARNING));
+    assert_eq!(describe(Some(GIVEN)).as_deref(), Some(GIVEN));
 }

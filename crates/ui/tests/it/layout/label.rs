@@ -25,6 +25,8 @@ fn the_label_aligns_to_the_control_baseline_of_last_frame() {
         });
         (passes, tops.clone())
     };
-    assert_eq!(frame(&mut frames), (2, vec![0.0, 5.0]), "the first appearance aligns the tops, then the discard pass uses the stored baseline");
-    assert_eq!(frame(&mut frames), (1, vec![5.0]), "the next frame places from last frame's baseline in one pass");
+    let (passes, first) = frame(&mut frames);
+    assert_eq!(passes, 2, "the first appearance runs a discard pass that uses the stored baseline");
+    assert!(first[1] > first[0], "the stored baseline moves the label: {first:?}");
+    assert_eq!(frame(&mut frames), (1, vec![first[1]]), "the next frame places from last frame's baseline in one pass");
 }

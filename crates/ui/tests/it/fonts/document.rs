@@ -105,19 +105,22 @@ fn until_ready(frames: &mut Frames, tally: &Tally, owners: &[(&'static str, Vec<
 #[trial]
 fn only_faces_off_screen_are_taken_out() {
     let (mut frames, tally) = (Frames::new(), Tally::default());
+    const OVER: usize = 10;
+    const SCROLL: usize = 2 * OVER;
     let screen = |range| [("owner", keys(range))];
     until_ready(&mut frames, &tally, &screen(0..MAX_DOCUMENT_FACES));
-    until_ready(&mut frames, &tally, &screen(0..MAX_DOCUMENT_FACES + 10));
-    assert_eq!(tally.loads(), MAX_DOCUMENT_FACES + 10, "a screen over the cap keeps every face");
+    until_ready(&mut frames, &tally, &screen(0..MAX_DOCUMENT_FACES + OVER));
+    assert_eq!(tally.loads(), MAX_DOCUMENT_FACES + OVER, "a screen over the cap keeps every face");
 
-    // Scrolled on: the ten new faces load, and the twenty the screen left are taken out.
-    until_ready(&mut frames, &tally, &screen(20..MAX_DOCUMENT_FACES + 20));
-    assert_eq!(tally.loads(), MAX_DOCUMENT_FACES + 20);
+    // Scrolled on: the new faces load, and the faces the screen left are taken out.
+    until_ready(&mut frames, &tally, &screen(SCROLL..MAX_DOCUMENT_FACES + SCROLL));
+    assert_eq!(tally.loads(), MAX_DOCUMENT_FACES + SCROLL);
 
-    frame(&mut frames, &tally, &[("owner", vec!["k30".to_owned(), "k5".to_owned()])], false);
-    assert!(matches!(tally.state("k30"), FaceState::Ready(_)), "a face still on screen stays");
-    assert_eq!(tally.state("k5"), FaceState::Loading, "a face that left the screen loads again");
-    assert_eq!(tally.loads(), MAX_DOCUMENT_FACES + 21);
+    let (on_screen, left) = (format!("k{SCROLL}"), "k0".to_owned());
+    frame(&mut frames, &tally, &[("owner", vec![on_screen.clone(), left.clone()])], false);
+    assert!(matches!(tally.state(&on_screen), FaceState::Ready(_)), "a face still on screen stays");
+    assert_eq!(tally.state(&left), FaceState::Loading, "a face that left the screen loads again");
+    assert_eq!(tally.loads(), MAX_DOCUMENT_FACES + SCROLL + 1);
 }
 
 /// Owners share one registry and one budget: a frame adds at most the budget's faces however many owners ask, and a key
@@ -125,11 +128,12 @@ fn only_faces_off_screen_are_taken_out() {
 #[trial]
 fn one_registry_serves_every_owner_and_a_frame_begins_once() {
     let (mut frames, tally) = (Frames::new(), Tally::default());
-    let owners = [("a", keys(0..4)), ("b", keys(2..8))];
+    const DISTINCT: usize = 8;
+    let owners = [("a", keys(0..DISTINCT / 2)), ("b", keys(DISTINCT / 4..DISTINCT))];
     frame(&mut frames, &tally, &owners, false);
     assert_eq!(tally.loads(), DOCUMENT_FACES_PER_PASS, "the budget counts both owners");
     until_ready(&mut frames, &tally, &owners);
-    assert_eq!(tally.loads(), 8, "the keys both owners ask for load once");
+    assert_eq!(tally.loads(), DISTINCT, "the keys both owners ask for load once");
 }
 
 #[trial]
@@ -160,14 +164,15 @@ fn a_face_that_cannot_load_is_unavailable_and_not_tried_again() {
 #[trial]
 fn faces_are_registered_again_after_the_definitions_are_replaced() {
     let (mut frames, tally) = (Frames::new(), Tally::default());
-    let owners = [("owner", keys(0..3))];
+    const COUNT: usize = 3;
+    let owners = [("owner", keys(0..COUNT))];
     until_ready(&mut frames, &tally, &owners);
-    assert_eq!(tally.loads(), 3);
+    assert_eq!(tally.loads(), COUNT);
 
     fonts::load(&frames.ctx, craft_ui::fonts::deflated_default_definitions());
     frame(&mut frames, &tally, &owners, false);
-    assert!(keys(0..3).iter().all(|key| tally.state(key) == FaceState::Loading), "the replaced faces wait for their registration");
-    assert_eq!(tally.loads(), 6, "each face loads again");
+    assert!(keys(0..COUNT).iter().all(|key| tally.state(key) == FaceState::Loading), "the replaced faces wait for their registration");
+    assert_eq!(tally.loads(), 2 * COUNT, "each face loads again");
     until_ready(&mut frames, &tally, &owners);
-    assert_eq!(tally.loads(), 6);
+    assert_eq!(tally.loads(), 2 * COUNT);
 }

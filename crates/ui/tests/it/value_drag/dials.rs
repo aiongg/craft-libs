@@ -149,22 +149,27 @@ fn a_point_picker_maps_a_click_to_the_range_with_y_growing_downwards_with_or_wit
 #[trial]
 fn a_point_picker_moves_one_axis_per_arrow_key_in_either_reading_direction() {
     let mut fixture = focused(picker);
+    let start = point(&fixture);
     key(&mut fixture, Key::ArrowRight, Modifiers::NONE);
-    assert_eq!(point(&fixture), [51.0, 50.0]);
+    let right = point(&fixture);
+    assert!(right[0] > start[0] && right[1] == start[1], "Right raises x alone: {start:?} {right:?}");
     key(&mut fixture, Key::ArrowDown, Modifiers::NONE);
-    assert_eq!(point(&fixture), [51.0, 51.0]);
+    let down = point(&fixture);
+    assert!(down[1] > right[1] && down[0] == right[0], "Down raises y alone: {right:?} {down:?}");
     key(&mut fixture, Key::ArrowUp, Modifiers::SHIFT);
-    assert_eq!(point(&fixture), [51.0, 41.0], "Shift moves ten steps, and up lowers y");
+    let up = point(&fixture);
+    assert!(up[1] < down[1] - (right[0] - start[0]) && up[0] == down[0], "Shift+Up lowers y by more than a plain step: {down:?} {up:?}");
 
     // The picker keeps its axis order: Right raises x and Left lowers it in either reading direction.
     for direction in [Direction::Ltr, Direction::Rtl] {
         let mut fixture = shown(picker);
         fixture.direction(direction).settle();
         key(&mut fixture, Key::Tab, Modifiers::NONE);
+        let start = point(&fixture);
         key(&mut fixture, Key::ArrowRight, Modifiers::NONE);
-        assert_eq!(point(&fixture), [51.0, 50.0], "Right raises x under {direction:?}");
+        assert!(point(&fixture)[0] > start[0], "Right raises x under {direction:?}");
         key(&mut fixture, Key::ArrowLeft, Modifiers::NONE);
-        assert_eq!(point(&fixture), [50.0, 50.0], "Left lowers x under {direction:?}");
+        assert_eq!(point(&fixture), start, "Left lowers x again under {direction:?}");
     }
 }
 

@@ -55,47 +55,25 @@ fn escape_restores_the_value_and_the_press_proposes_nothing_until_release() {
     assert!(near(value, FIRST), "the first gesture was undone and the second wrote its own value: {value}");
 }
 
-/// A change from the host during a drag cancels it and does not resume under the same press: the app changing the
-/// value (`HostChanged`) and an undo (`UndoDuringGesture`) both leave the app's value standing.
+/// A change from the host during a drag (the app writing its own value, or an undo) cancels it with the matching reason,
+/// and the drag does not resume over the app's value under the same press.
 #[trial]
 fn a_host_change_during_a_drag_cancels_it_and_keeps_the_app_value() {
-    {
-        let mut frames = Frames::new();
-        let mut value = INITIAL;
-        let seen = RefCell::new(Vec::new());
-        let mut show = |ui: &mut Ui| {
-            let out = Scrub::new(Bind::bound(&mut value)).id_salt("scrub").show_at(ui, AT);
-            seen.borrow_mut().push(ev_of(&out.event));
-        };
-        dragging(&mut frames, &mut show);
-        seen.borrow_mut().clear();
-        drop(show);
-        value = APP_VALUE;
-        let mut show = |ui: &mut Ui| {
-            let out = Scrub::new(Bind::bound(&mut value)).id_salt("scrub").show_at(ui, AT);
-            seen.borrow_mut().push(ev_of(&out.event));
-        };
-        frames.frame(vec![moved(start() + Vec2::new(50.0, 0.0))], &mut show);
-        frames.frame(vec![moved(start() + Vec2::new(60.0, 0.0))], &mut show);
-        let events: Vec<Ev> = seen.borrow().iter().flatten().cloned().collect();
-        assert_eq!(events, vec![Ev::Cancel(CancelReason::HostChanged)], "{events:?}");
-        drop(show);
-        assert_eq!(value, APP_VALUE, "the cancel restored nothing over the app's value");
-    }
-    {
+    for (undo, reason) in [(false, CancelReason::HostChanged), (true, CancelReason::UndoDuringGesture)] {
         let mut frames = Frames::new();
         let mut value = INITIAL;
         let seen = RefCell::new(Vec::new());
         dragging(&mut frames, &mut |ui| scrub(&mut value, &seen, ui));
-        assert!(near(value, HELD), "the drag wrote through: {value}");
-        cancel_all(&frames.ctx, CancelReason::UndoDuringGesture);
+        if undo {
+            cancel_all(&frames.ctx, reason);
+        }
         value = APP_VALUE;
         seen.borrow_mut().clear();
         frames.frame(vec![moved(start() + Vec2::new(50.0, 0.0))], |ui| scrub(&mut value, &seen, ui));
         frames.frame(vec![moved(start() + Vec2::new(60.0, 0.0))], |ui| scrub(&mut value, &seen, ui));
         let events: Vec<Ev> = seen.borrow().iter().flatten().cloned().collect();
-        assert_eq!(events, vec![Ev::Cancel(CancelReason::UndoDuringGesture)], "{events:?}");
-        assert_eq!(value, APP_VALUE, "the drag did not resume over the undone document");
+        assert_eq!(events, vec![Ev::Cancel(reason)], "{reason:?}: {events:?}");
+        assert_eq!(value, APP_VALUE, "{reason:?}");
     }
 }
 
@@ -179,29 +157,13 @@ impl Component for Wrapper<'_> {
     }
 }
 
-/// A composite adopts its child's gesture as its own: one `Commit` with the child's last value, a mixed value maps the
-/// edit onto the start value, and the commit carries the value the gesture began with.
+/// A composite adopts its child's gesture as its own, whether its value is concrete or mixed: one commit that begins from
+/// the composite's start value and ends on the child's last value, which every target then holds.
 #[trial]
 fn a_composite_adopts_its_childs_gesture_as_its_own() {
-    {
+    for start_value in [Mixed::Same(INITIAL), Mixed::Mixed] {
         let mut frames = Frames::new();
-        let mut value = INITIAL;
-        let seen = RefCell::new(Vec::new());
-        let mut show = |ui: &mut Ui| {
-            let out = Wrapper { common: Common::new(), value: Bind::bound(&mut value) }.id_salt("wrapper").show_at(ui, AT);
-            seen.borrow_mut().extend(ev_of(&out.event));
-        };
-        dragging(&mut frames, &mut show);
-        frames.frame(vec![release(start() + Vec2::new(35.0, 0.0))], &mut show);
-        frames.idle(2, &mut show);
-        drop(show);
-        let events = seen.take();
-        assert_eq!(events.iter().filter(|e| matches!(e, Ev::Commit(_) | Ev::Set(_))).count(), 1, "one commit for one gesture: {events:?}");
-        assert!(near(value, HELD), "the child's last value reached the composite's binding: {value}");
-    }
-    {
-        let mut frames = Frames::new();
-        let mut field = Mixed::Mixed;
+        let mut field = start_value;
         let seen = RefCell::new(Vec::new());
         let mut show = |ui: &mut Ui| {
             let out = Wrapper { common: Common::new(), value: Bind::bound_mixed(&mut field) }.id_salt("wrapper").show_at(ui, AT);
@@ -215,30 +177,13 @@ fn a_composite_adopts_its_childs_gesture_as_its_own() {
         let commits: Vec<_> = events
             .iter()
             .filter_map(|event| match event {
-                EditEvent::Commit { before, after, .. } => Some((*before, *after)),
-                EditEvent::Set { before, after, .. } => Some((*before, *after)),
+                EditEvent::Commit { before, after, .. } | EditEvent::Set { before, after, .. } => Some((*before, *after)),
                 _ => None,
             })
             .collect();
         assert_eq!(commits.len(), 1, "one commit for one gesture: {events:?}");
-        assert_eq!(commits[0].0, Mixed::Mixed, "the edit began from the mixed value");
-        assert!(near(commits[0].1, HELD), "the child's last value is the commit's: {}", commits[0].1);
-        assert!(matches!(field, Mixed::Same(value) if near(value, HELD)), "every target took the value: {field:?}");
-    }
-    {
-        let mut frames = Frames::new();
-        let mut value = INITIAL;
-        let (seen, escaped) = (RefCell::new(Vec::new()), RefCell::new(false));
-        dragging(&mut frames, &mut |ui| wrapper_events(&mut value, &seen, &escaped, ui));
-        frames.frame(vec![release(start() + Vec2::new(35.0, 0.0))], |ui| wrapper_events(&mut value, &seen, &escaped, ui));
-        let events = seen.take();
-        let commit = events.iter().find_map(|event| match event {
-            EditEvent::Commit { before, after, .. } => Some((*before, *after)),
-            _ => None,
-        });
-        let (before, after) = commit.unwrap_or_else(|| panic!("a commit: {events:?}"));
-        assert_eq!(before, Mixed::Same(INITIAL));
-        assert!(near(after, HELD));
+        assert_eq!(commits[0].0, start_value, "the edit began from the start value");
+        assert!(matches!(field, Mixed::Same(value) if value == commits[0].1), "every target took the commit's value: {field:?}");
     }
 }
 

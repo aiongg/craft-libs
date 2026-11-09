@@ -34,10 +34,17 @@ fn groups(scroll: bool, label: Option<&'static str>) -> (Vec<Option<String>>, Ve
 #[trial]
 fn a_scrolled_or_labelled_stack_is_a_group_named_by_its_label_and_an_unlabelled_unscrolled_one_is_no_node() {
     const LABEL: &str = "Page";
-    assert_eq!(groups(true, Some(LABEL)), (vec![Some(LABEL.to_owned())], Vec::new()));
-    assert_eq!(groups(true, None).0, vec![None], "a scrolled stack without a label is an unnamed group");
-    assert_eq!(groups(false, Some(LABEL)).0, vec![Some(LABEL.to_owned())]);
-    assert_eq!(groups(false, None).0, Vec::<Option<String>>::new());
+    // (scrolled, label, the group nodes' names: none for no node, `None` inside for an unnamed group)
+    let cases: [(bool, Option<&str>, Vec<Option<&str>>); 4] =
+        [(true, Some(LABEL), vec![Some(LABEL)]), (true, None, vec![None]), (false, Some(LABEL), vec![Some(LABEL)]), (false, None, vec![])];
+    for (scroll, label, expected) in cases {
+        let (names, violations) = groups(scroll, label);
+        let expected: Vec<Option<String>> = expected.into_iter().map(|name| name.map(str::to_owned)).collect();
+        assert_eq!(names, expected, "scrolled: {scroll}, label: {label:?}");
+        if scroll && label.is_some() {
+            assert!(violations.is_empty(), "{violations:?}");
+        }
+    }
 }
 
 /// More rows than the fixture's room holds, so one of them crosses the room's bottom edge.

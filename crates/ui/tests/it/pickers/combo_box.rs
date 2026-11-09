@@ -54,8 +54,8 @@ impl Rig {
     }
 }
 
-/// "ar" lists the options that contain it, and Enter picks the one that starts with it although it comes later in
-/// the options. The filter reads the labels the rows show: "sys" lists the option labelled "Arial (system)".
+/// Typed text lists the options whose labels contain it, and Enter picks the one that starts with it although it comes
+/// later in the options. The filter reads the labels the rows show, not the values.
 #[trial]
 fn typed_text_lists_the_matches_by_their_labels_and_enter_picks_the_one_that_starts_with_it() {
     let mut rig = rig();

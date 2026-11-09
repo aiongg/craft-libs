@@ -57,6 +57,11 @@ fn frames_of(count: usize, mut body: impl FnMut(&mut craft_ui::contract::BodyCx<
     }
 }
 
+const STORED: f32 = 5.0;
+const LIMIT: f32 = 10.0;
+const FIX: f32 = 0.0;
+const GIVEN: f32 = 2.0;
+
 /// A kept binding written through the body context reads back the written value in the next frames.
 #[trial]
 fn a_kept_binding_written_in_a_body_reads_back_next_frame() {
@@ -67,13 +72,13 @@ fn a_kept_binding_written_in_a_body_reads_back_next_frame() {
         // The body runs in a measuring run and then the real run; the last read of a frame is the real run's.
         seen.borrow_mut()[frame] = bind.read(cx);
         if frame == 1 {
-            assert!(bind.write(cx, &set(5.0)), "a new value is a change");
-            assert!(!bind.write(cx, &set(5.0)), "the same value is not");
+            assert!(bind.write(cx, &set(STORED)), "a new value is a change");
+            assert!(!bind.write(cx, &set(STORED)), "the same value is not");
         }
     });
     let seen = seen.take();
     assert_eq!(seen[0], None, "nothing kept yet");
-    assert_eq!(seen[3], Some(Mixed::Same(5.0)));
+    assert_eq!(seen[3], Some(Mixed::Same(STORED)));
 }
 
 /// A given binding never writes: the caller reports the event.
@@ -81,12 +86,12 @@ fn a_kept_binding_written_in_a_body_reads_back_next_frame() {
 fn a_given_binding_is_not_written_in_a_body() {
     let seen = RefCell::new(None);
     frames_of(2, |cx, _| {
-        let mut bind = Bind::given(2.0f32);
+        let mut bind = Bind::given(GIVEN);
         let mut bind = bind.reborrow();
-        assert!(!bind.write(cx, &set(5.0)));
+        assert!(!bind.write(cx, &set(STORED)));
         *seen.borrow_mut() = bind.read(cx);
     });
-    assert_eq!(seen.take(), Some(Mixed::Same(2.0)));
+    assert_eq!(seen.take(), Some(Mixed::Same(GIVEN)));
 }
 
 /// A refused value writes nothing; a fixed one writes the fix.
@@ -95,20 +100,20 @@ fn a_check_decides_what_a_body_write_stores() {
     let seen = RefCell::new(Vec::new());
     frames_of(3, |cx, frame| {
         let check = |v: &f32| match *v {
-            v if v > 10.0 => Validity::Refuse(Message::new("too big")),
-            v if v < 0.0 => Validity::Fix(0.0),
+            v if v > LIMIT => Validity::Refuse(Message::new("too big")),
+            v if v < FIX => Validity::Fix(FIX),
             _ => Validity::Ok,
         };
         let mut bind = Bind::<f32>::kept().check(check);
         let mut bind = bind.reborrow();
         match frame {
-            0 => assert!(!bind.write(cx, &set(50.0)), "refused"),
-            1 => assert!(bind.write(cx, &set(-3.0)), "fixed"),
+            0 => assert!(!bind.write(cx, &set(LIMIT + 1.0)), "refused"),
+            1 => assert!(bind.write(cx, &set(FIX - 1.0)), "fixed"),
             _ => {}
         }
         seen.borrow_mut().push(bind.read(cx));
     });
     let seen = seen.take();
     assert_eq!(seen[0], None, "the refused value was not stored");
-    assert_eq!(seen[2], Some(Mixed::Same(0.0)), "the fixed value was");
+    assert_eq!(seen[2], Some(Mixed::Same(FIX)), "the fixed value was");
 }

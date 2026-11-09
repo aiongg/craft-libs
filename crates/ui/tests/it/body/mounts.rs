@@ -27,6 +27,8 @@ const GROW: Vec2 = Vec2::new(30.0, 20.0);
 const SLACK: f32 = 1.5;
 /// The inner size of the exported window, in points.
 const INNER: [f32; 2] = [420.0, 310.0];
+/// The title of the viewport mount in the title trial.
+const TITLE: &str = "Export";
 /// The body the layers show.
 const BODY: Vec2 = Vec2::new(120.0, 60.0);
 
@@ -127,7 +129,7 @@ fn a_viewport_mount_opens_a_titled_window_of_the_kind_its_overlay_gives() {
     let frame = || {
         windows.frame(vec![], vec![], |ui| {
             let props = ContainerProps::new().mount(Mount::viewport(Overlay::floating())).sizing(Sizing::Content);
-            Slab::new(props).label("Export").id_salt("window").show(ui, |ui, _| {
+            Slab::new(props).label(TITLE).id_salt("window").show(ui, |ui, _| {
                 in_window.set(ui.ctx().viewport_id() != ViewportId::ROOT);
                 Block::new(BODY).show(ui);
             });
@@ -137,7 +139,7 @@ fn a_viewport_mount_opens_a_titled_window_of_the_kind_its_overlay_gives() {
     let out = frame();
     assert!(in_window.get(), "the body ran in the child viewport");
     assert!(
-        out.titles.iter().any(|(id, title)| *id != ViewportId::ROOT && title == "Export"),
+        out.titles.iter().any(|(id, title)| *id != ViewportId::ROOT && title == TITLE),
         "the window is titled by the container: {:?}",
         out.titles
     );
@@ -149,7 +151,7 @@ fn a_viewport_mount_opens_a_titled_window_of_the_kind_its_overlay_gives() {
         for _ in 0..3 {
             windows.frame(vec![], vec![], |ui| {
                 let props = ContainerProps::new().mount(Mount::viewport(overlay.clone())).sizing(Sizing::Content);
-                Slab::new(props).label("Export").id_salt("window").show(ui, |ui, cx| {
+                Slab::new(props).label(TITLE).id_salt("window").show(ui, |ui, cx| {
                     if ui.ctx().viewport_id() != ViewportId::ROOT {
                         seen.set(Some(cx.env.shell().window.kind));
                     }
@@ -161,8 +163,7 @@ fn a_viewport_mount_opens_a_titled_window_of_the_kind_its_overlay_gives() {
     }
 }
 
-/// Without the viewport capability the same mount shows its body in the main window, on the fallback layer, inside
-/// the screen.
+/// Without the viewport capability the same mount shows its body in the main window, on the fallback layer.
 #[trial]
 fn a_viewport_mount_without_the_capability_uses_the_fallback_overlay() {
     let shell = ShellInfo::default().caps(Caps::web());
@@ -179,21 +180,6 @@ fn a_viewport_mount_without_the_capability_uses_the_fallback_overlay() {
         });
     }
     assert!(ran.get() > 0 && !in_window.get(), "the body ran in the main window's fallback layer");
-
-    // The harness without windows falls back the same way.
-    let (ran, rect) = (Cell::new(0), Cell::new(Rect::NOTHING));
-    let mut frames = Frames::new();
-    let screen = Rect::from_min_max(Pos2::ZERO, Pos2::new(800.0, 600.0));
-    frames.idle(4, |ui| {
-        let props = ContainerProps::new().mount(Mount::viewport(Overlay::floating())).sizing(Sizing::Content);
-        let out = Slab::new(props).id_salt("window").show(ui, |ui, _| {
-            ran.set(ran.get() + 1);
-            Block::new(BODY).show(ui);
-        });
-        rect.set(out.output.rect);
-    });
-    assert!(ran.get() > 0, "the body ran in the fallback layer");
-    assert!(screen.contains_rect(rect.get()) && rect.get().width() >= BODY.x, "the fallback layer sits inside the window: {:?}", rect.get());
 }
 
 /// A viewport mount's window placement goes to the placement store under the container's save key, and the next

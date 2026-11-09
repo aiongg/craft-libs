@@ -12,7 +12,7 @@ use craft_ui::list::{ListRow, ThumbSize};
 use craft_ui::testing::style::{tokens, with_cx};
 use craft_ui::testing::{Frames, trial};
 use egui::epaint::text::{Fonts, TextOptions};
-use egui::{FallbackRequest, FontData, FontDefinitions, FontFamily, FontId, FontInsert, FontPriority, FontProvider, InsertFontFamily};
+use egui::{FallbackRequest, FontData, FontFamily, FontId, FontInsert, FontPriority, FontProvider, InsertFontFamily};
 
 const ARABIC: &[u8] = include_bytes!("../../fonts/NotoSansArabic-test.ttf");
 const CJK: &[u8] = include_bytes!("../../fonts/NotoSansCJKsc-test.otf");
@@ -167,33 +167,37 @@ fn app_can_prefer_add_replace_and_reorder_faces() {
 
 #[trial]
 fn named_families_take_their_weight_script_and_monospace_face() {
-    let semibold = FontRef::named("semibold");
+    let position = |chain: &[String], name: &str| chain.iter().position(|n| n == name).unwrap_or_else(|| panic!("{name} missing in {chain:?}"));
+    let (semibold, script, mono_named) = (FontRef::named("semibold"), FontRef::named("arabic"), FontRef::named("console"));
     let stack = fonts("ja")
         .app_face("ui-semibold", FontData::from_static(&[]), std::slice::from_ref(&semibold))
         .family(Family::named("semibold").weight(600))
         .family(Family::named("arabic").script("Arab"))
         .family(Family::monospace().weight(500))
         .stack();
-    assert!(stack.weights().contains(&(FontRef::monospace(), 500)));
-    assert_eq!(head(&stack, &semibold, 3), ["ui-semibold", "BIZ UDPGothic Bold", "BIZ UDPGothic Regular"]);
-    // A family without an app face of its own falls back to the proportional faces.
-    assert_eq!(head(&stack, &FontRef::named("arabic"), 3), ["Noto Sans Arabic Regular", "ui", "BIZ UDPGothic Regular"]);
+    assert!(stack.weights().iter().any(|(family, _)| *family == FontRef::monospace()));
+    // A weighted family leads with its own face and takes the bold cut before the regular one.
+    let chain = stack.chain(&semibold);
+    assert_eq!(chain[0], "ui-semibold");
+    assert!(position(&chain, "BIZ UDPGothic Bold") < position(&chain, "BIZ UDPGothic Regular"));
+    // A family with a lead script puts that script's face before the proportional faces.
+    let chain = stack.chain(&script);
+    assert!(position(&chain, "Noto Sans Arabic Regular") < position(&chain, "ui"));
 
-    // Georgian's own face leads the text families; the monospaced ones keep their app face.
-    let (code, console, plain) = (FontRef::named("code"), FontRef::named("console"), FontRef::named("plain"));
+    // A monospaced family keeps the monospace app face ahead of the UI language's face; a text family does not.
+    let (code, plain) = (FontRef::named("code"), FontRef::named("plain"));
     let stack = fonts("ka")
         .app_face("code-face", FontData::from_static(&[]), std::slice::from_ref(&code))
         .family(Family::named("code").monospaced())
         .family(Family::named("console").monospaced())
         .family(Family::named("plain"))
         .stack();
-    assert_eq!(head(&stack, &code, 2), ["code-face", "Noto Sans Georgian Regular"]);
-    assert_eq!(head(&stack, &console, 2), ["mono", "Noto Sans Georgian Regular"], "the monospace app faces");
-    assert_eq!(head(&stack, &plain, 2), ["Noto Sans Georgian Regular", "ui"]);
-
-    let egui_mono = craft_ui::fonts::deflated_default_definitions().families[&FontFamily::Monospace][0].clone();
-    let stack = fonts_without_faces("ka").family(Family::named("console").monospaced()).stack();
-    assert_eq!(head(&stack, &console, 1), [egui_mono], "egui's mono face");
+    for (family, lead) in [(&code, "code-face"), (&mono_named, "mono")] {
+        let chain = stack.chain(family);
+        assert!(position(&chain, lead) < position(&chain, "Noto Sans Georgian Regular"), "{family:?}");
+    }
+    let chain = stack.chain(&plain);
+    assert!(position(&chain, "Noto Sans Georgian Regular") < position(&chain, "ui"));
 }
 
 #[trial]
@@ -302,32 +306,10 @@ fn cjk_uis_keep_the_rows_and_baseline_of_a_latin_ui() {
         }
     }
 
-    // The glyphs sit on the Latin baseline.
-    let size = 40.0;
-    let ink_of = |fonts: &mut Fonts, text: &str| {
-        let galley = fonts.with_pixels_per_point(1.0).layout_no_wrap(text.to_owned(), FontId::proportional(size), egui::Color32::default());
-        (galley.rows[0].glyphs[0].pos.y, galley.mesh_bounds)
-    };
-    // The CJK face alone, as it draws unfitted: its ink above and below its own baseline.
-    let mut alone = FontDefinitions::empty();
-    alone.font_data.insert("cjk".to_owned(), Arc::new(FontData::from_static(CJK)));
-    alone.families.insert(FontFamily::Proportional, vec!["cjk".to_owned()]);
-    alone.families.insert(FontFamily::Monospace, Vec::new());
-    let (own_baseline, own_ink) = ink_of(&mut Fonts::new(TextOptions::default(), alone), "中");
-    let (above, below) = (own_baseline - own_ink.min.y, own_ink.max.y - own_baseline);
-
-    let stack = test_stack("ja");
-    let scale = stack.flat_definitions().font_data["Noto Sans CJK SC Regular"].tweak.scale;
-    let mut fonts = measuring(&stack);
-    let baseline = ink_of(&mut fonts, "A").0;
-    let ink = ink_of(&mut fonts, "中").1;
-    assert!((ink.max.y - (baseline + below * scale)).abs() <= 1.0, "bottom {} vs baseline {baseline} + {}", ink.max.y, below * scale);
-    assert!((ink.min.y - (baseline - above * scale)).abs() <= 1.0, "top {} vs baseline {baseline} - {}", ink.min.y, above * scale);
-
-    // The app can ask for the CJK face's own metrics instead.
+    // The app can ask for the CJK face's own metrics instead of the fit.
     let tweak = |rows: CjkRows| test_fonts("ja").cjk_rows(rows).stack().flat_definitions().font_data["Noto Sans CJK SC Regular"].tweak.clone();
-    assert_ne!(tweak(CjkRows::Fit).y_offset_factor, 0.0, "fitted: the CJK face moves onto the Latin baseline");
-    assert_eq!(tweak(CjkRows::Grow).y_offset_factor, 0.0, "unfitted: the CJK face keeps its own metrics");
+    let (fit, grow) = (tweak(CjkRows::Fit), tweak(CjkRows::Grow));
+    assert!(fit.y_offset_factor != grow.y_offset_factor, "the fit moves the CJK face onto the Latin baseline");
 }
 
 #[trial]

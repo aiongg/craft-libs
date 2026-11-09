@@ -74,28 +74,20 @@ fn a_select_opens_from_the_keyboard_and_picks_with_arrows_and_enter() {
     assert_eq!(rig.value.get(), 0, "focus returned to the field, whose arrows step the value");
 }
 
-/// Escape closes the listbox and keeps the value, whatever the list's highlight reached.
+/// Escape closes the listbox and keeps the value, whatever the list's highlight reached; the list opens again on the
+/// picked option, not on the highlight Escape abandoned.
 #[trial]
-fn escape_closes_a_select_without_a_change() {
+fn escape_closes_a_select_without_a_change_and_the_next_opening_starts_at_the_pick() {
     let mut rig = rig();
     rig.open();
+    rig.press(Key::ArrowDown);
     rig.press(Key::ArrowDown);
     rig.press(Key::Escape);
     assert!(!rig.listbox_shown(), "Escape closes the listbox");
     assert_eq!(rig.value.get(), 0);
     rig.open();
     rig.press(Key::Enter);
-    assert_eq!(rig.value.get(), 0, "the listbox opens on the picked option, not on the highlight Escape abandoned");
-
-    // The lead starts again at every opening: one moved to the last row and abandoned with Escape does not come back.
-    let mut rig = rig();
-    rig.open();
-    rig.press(Key::ArrowDown);
-    rig.press(Key::ArrowDown);
-    rig.press(Key::Escape);
-    rig.open();
-    rig.press(Key::Enter);
-    assert_eq!(rig.value.get(), 0, "the lead began on the picked option, not on the last row");
+    assert_eq!(rig.value.get(), 0, "the lead began on the picked option");
 }
 
 /// Typing a letter in the open list moves to the option that starts with it; in a searchable select, typing narrows the
@@ -222,60 +214,48 @@ fn entries_with_swatches_pick_by_keys() {
     assert_eq!(value.get(), 1);
 }
 
-/// A select in a field is found by the field's label and is the combo box; a click on it opens its list, and a click
-/// on a row picks that row and closes the list.
+/// A click on a select opens its list and a click on a row picks that row and closes the list, whether the select
+/// sits in a field (found by the field's label as the combo box) or beside a radio option in a two-valued group whose
+/// value is no gate on its content.
 #[trial]
 fn a_click_opens_a_select_and_a_click_on_a_row_picks_it() {
-    let value = Rc::new(Cell::new(0u8));
-    let shown = value.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        let entries = [Entry::new(0u8, "Blue"), Entry::new(1, "Red"), Entry::new(2, "Green")];
-        Field::new("Color").show(ui, |ui, _| {
-            let mut color = shown.get();
-            Select::new("Color", Bind::bound(&mut color), &entries).show(ui);
-            shown.set(color);
-        });
-    });
-    fixture.settle();
-    let select = fixture.by_label("Color").expect("the select is the control named Color");
-    assert_eq!(fixture.tree().role_of(select.node), Some(Role::COMBO_BOX), "the label finds the control, not the label or the group");
-    fixture.click(&select);
-    assert!(!fixture.by_role(Role::LIST_BOX).is_empty(), "a click opens the list");
-    let red = fixture.by_label("Red").expect("the open list shows its rows");
-    fixture.click(&red);
-    fixture.idle(FADE_FRAMES);
-    assert_eq!(value.get(), 1, "a click on a row picks it");
-    assert!(fixture.by_role(Role::LIST_BOX).is_empty(), "the pick closes the list");
-
-    // The same beside the options of a two-valued radio group (a `bool` value, off): the group's value is no gate on its content.
-    {
-        use craft_ui::choice::{Radio, RadioGroup};
-        use craft_ui::form::FieldGroup;
-        use craft_ui::layout_components::Row;
+    use craft_ui::choice::{Radio, RadioGroup};
+    use craft_ui::form::FieldGroup;
+    use craft_ui::layout_components::Row;
+    let entries = || [Entry::new(0u8, "Blue"), Entry::new(1, "Red"), Entry::new(2, "Green")];
+    for grouped in [false, true] {
         let value = Rc::new(Cell::new(0u8));
         let shown = value.clone();
         let mut fixture = Fixture::new(move |ui| {
-            let entries = [Entry::new(0u8, "Blue"), Entry::new(1, "Red"), Entry::new(2, "Green")];
-            FieldGroup::new("Filter").show(ui, |ui, _| {
-                RadioGroup::new("Filter", Bind::given(false)).show(ui, |ui, _| {
-                    Field::new("Preset").id_salt("preset").show(ui, |ui, _| {
-                        Row::new().show(ui, |ui, _| {
-                            Radio::new(false).label("Preset").show(ui);
-                            let mut color = shown.get();
-                            Select::new("Preset", Bind::bound(&mut color), &entries).id_salt("select").show(ui);
-                            shown.set(color);
+            let entries = entries();
+            let mut select = |ui: &mut egui::Ui| {
+                let mut color = shown.get();
+                Select::new("Color", Bind::bound(&mut color), &entries).id_salt("select").show(ui);
+                shown.set(color);
+            };
+            if grouped {
+                FieldGroup::new("Filter").show(ui, |ui, _| {
+                    RadioGroup::new("Filter", Bind::given(false)).show(ui, |ui, _| {
+                        Field::new("Color").id_salt("preset").show(ui, |ui, _| {
+                            Row::new().show(ui, |ui, _| {
+                                Radio::new(false).label("Preset").show(ui);
+                                select(ui);
+                            });
                         });
                     });
                 });
-            });
+            } else {
+                Field::new("Color").show(ui, |ui, _| select(ui));
+            }
         });
         fixture.settle();
-        let select = fixture.by_role(Role::COMBO_BOX).into_iter().next().expect("the select is shown");
+        let select = fixture.by_role(Role::COMBO_BOX).into_iter().next().expect("the select is the combo box");
         fixture.click(&select);
         assert!(!fixture.by_role(Role::LIST_BOX).is_empty(), "a click opens the list");
-        let red = fixture.by_label("Red").expect("the open list shows its rows");
-        fixture.click(&red);
+        let row = fixture.by_label("Red").expect("the open list shows its rows");
+        fixture.click(&row);
         fixture.idle(FADE_FRAMES);
-        assert_eq!(value.get(), 1, "a click on a row picks it");
+        assert_eq!(value.get(), 1, "a click on a row picks it (grouped: {grouped})");
+        assert!(fixture.by_role(Role::LIST_BOX).is_empty(), "the pick closes the list");
     }
 }

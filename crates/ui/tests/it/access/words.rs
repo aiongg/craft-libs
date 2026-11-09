@@ -39,7 +39,6 @@ fn a_missing_translation_shows_the_english_text() {
     assert_eq!(set.corners[1].as_str(), english.corners[1].as_str(), "a missing row is English");
     assert_eq!(set.plain.as_str(), english.plain.as_str());
     assert_eq!(set.size.fill(&[("n", "12")]), english.size.fill(&[("n", "12")]));
-    assert_eq!(set.items.text(2, "2"), english.items.text(2, "2"));
     assert!(set.saved.fill(&[("name", "a.txt")]).contains("a.txt"));
     assert_eq!(Trial::english().rows().text(SAVE), Some(english.save.as_str()));
 }

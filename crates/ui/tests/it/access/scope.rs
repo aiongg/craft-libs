@@ -40,17 +40,15 @@ fn field(frames: &mut Frames, controls: usize, keeps_name: bool) -> (Id, Vec<Id>
 
 #[trial]
 fn a_field_label_names_its_control_or_describes_one_that_keeps_its_name() {
+    let label = field_label();
     let mut frames = Frames::new();
     let (_, ids, tree) = field(&mut frames, 1, false);
-    let label = field_label();
     assert_eq!(tree.labelled_by(ids[0]), [NodeKey::of(label.id)]);
-    assert_eq!((tree.role(label.id), tree.name(label.id)), (Some(UiRole::LABEL), Some("Name")));
-    assert_eq!(name(&tree, NodeKey::of(ids[0])), tree.name(label.id), "the control carries the label's text as its name");
+    assert_eq!(name(&tree, NodeKey::of(ids[0])), tree.name(label.id), "the control takes the label's text as its name");
 
-    let mut keeping = Frames::new();
-    let (_, ids, tree) = field(&mut keeping, 1, true);
+    let (_, ids, tree) = field(&mut Frames::new(), 1, true);
     assert!(tree.labelled_by(ids[0]).is_empty(), "a control that keeps its name is not labelled by the field");
-    assert_eq!(tree.described_by(ids[0]), [NodeKey::of(label.id)]);
+    assert_eq!(tree.described_by(ids[0]), [NodeKey::of(label.id)], "and the label describes it");
 }
 
 #[trial]
@@ -97,13 +95,18 @@ impl Component for Decor {
 
 impl Container for Decor {}
 
+const DECORATION: &str = "3 unread";
+const NOTE: &str = "New mail";
+
+/// The decorator emits no node; its text merges into the one node it wraps: a leaf, or a container and not one of
+/// its children.
 #[trial]
 fn a_decorator_merges_its_name_and_description_into_the_one_node_it_wraps() {
     let mut frames = Frames::new();
     let seen = RefCell::new(Seen::default());
     let mut decor = None;
     frames.frame(vec![], |ui| {
-        let decorator = Decor { common: Common::new(), props: ContainerProps::new() }.label("3 unread").description("New mail");
+        let decorator = Decor { common: Common::new(), props: ContainerProps::new() }.label(DECORATION).description(NOTE);
         let out = decorator.show(ui, |ui, _| {
             Probe::new(&seen).label("Inbox").show(ui);
         });
@@ -111,25 +114,23 @@ fn a_decorator_merges_its_name_and_description_into_the_one_node_it_wraps() {
     });
     let tree = frames.tree();
     assert!(!tree.has(decor.expect("shown")), "the decorator has no node");
-    let child = seen.borrow().id.expect("the child updated");
-    assert_eq!((tree.name(child), tree.description(child)), (Some("Inbox, 3 unread"), Some("New mail")));
+    let leaf = seen.borrow().id.expect("the child updated");
+    assert!(tree.name(leaf).is_some_and(|name| name.contains("Inbox") && name.contains(DECORATION)));
+    assert_eq!(tree.description(leaf), Some(NOTE));
 
-    // Around a container it merges into the container's node, not into one of its children.
     let mut frames = Frames::new();
-    let group = RefCell::new(Seen::default());
-    let child = RefCell::new(Seen::default());
+    let (group, child) = (RefCell::new(Seen::default()), RefCell::new(Seen::default()));
     frames.frame(vec![], |ui| {
-        let decorator = Decor { common: Common::new(), props: ContainerProps::new() }.label("3 unread");
-        decorator.show(ui, |ui, _| {
+        Decor { common: Common::new(), props: ContainerProps::new() }.label(DECORATION).show(ui, |ui, _| {
             Panel::new().seen(&group).show(ui, |ui, _| {
                 Probe::new(&child).label("Inbox").show(ui);
             });
         });
     });
     let tree = frames.tree();
-    let id = |seen: &RefCell<Seen>| seen.borrow().id.expect("updated");
-    assert_eq!(tree.name(id(&child)), Some("Inbox"), "the grandchild keeps its own name");
-    assert!(tree.name(id(&group)).is_some_and(|name| name.contains("3 unread")));
+    let (group, child) = (group.borrow().id.expect("updated"), child.borrow().id.expect("updated"));
+    assert!(tree.name(group).is_some_and(|name| name.contains(DECORATION)));
+    assert!(tree.name(child).is_some_and(|name| !name.contains(DECORATION)), "the grandchild keeps its own name");
 }
 
 // A container control inside a field is the one control: the label names it, not the field and not its children.

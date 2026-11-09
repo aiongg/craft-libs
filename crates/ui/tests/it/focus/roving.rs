@@ -119,48 +119,40 @@ fn an_accesskit_click_on_a_group_member_activates_it_through_the_group() {
     assert_eq!(activated.get(), (true, Some(id("m3"))));
 }
 
-/// Tab arrival sets the first part of a component with focusable parts active; a group of parts of one component
-/// arrives at the part its registration names instead, and at the new one after the selection moves.
+/// Tab arrival sets the first part of a component with focusable parts active; when its parts form a group it
+/// arrives at the part the group's registration names instead, and at the new one after the selection moves.
 #[trial]
 fn tab_arrives_at_the_first_part_or_the_selected_part_of_a_part_group() {
-    {
-        const KNOB: PartKey = PartKey::new("knob");
+    const KNOB: PartKey = PartKey::new("knob");
+    // The active part after Tab from outside, and after the selection moved and Shift+Tab came back.
+    let arrive = |grouped: bool| {
+        let selected = Cell::new(1u64);
         let mut frames = Frames::new();
-        let read = Cell::new((false, None));
         let mut show = |ui: &mut Ui| {
             control(ui, "before");
-            widget(ui, id("pair"));
-            for part in 0..2 {
-                register_stop(ui.ctx(), Stop::new(id("pair"), KeyUse::of(Input::Pointer)).part(KNOB.at(part)));
+            widget(ui, id("row"));
+            for part in 0..3 {
+                let stop = Stop::new(id("row"), KeyUse::of(Input::Pointer)).part(KNOB.at(part));
+                register_stop(ui.ctx(), if grouped { stop.in_group(id("row-group")) } else { stop });
             }
-            read.set((is_focused(ui.ctx(), id("pair")), active_part(ui.ctx(), id("pair"))));
+            if grouped {
+                let arrival = (id("row"), Some(KNOB.at(selected.get())));
+                register_group(ui.ctx(), Group::new(id("row-group"), Roving::new(NavShape::Flat)).selected(arrival));
+            }
         };
         frames.idle(2, &mut show);
         focus(&mut frames, "before", &mut show);
         tap(&mut frames, Key::Tab, Modifiers::NONE, &mut show);
-        assert_eq!(read.get(), (true, Some(KNOB.at(0))), "Tab arrives at the first part and the component reads as focused");
-    }
-    const KNOB: PartKey = PartKey::new("knob");
-    let selected = Cell::new(1u64);
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| {
-        control(ui, "before");
-        widget(ui, id("row"));
-        for part in 0..3 {
-            register_stop(ui.ctx(), Stop::new(id("row"), KeyUse::of(Input::Pointer)).part(KNOB.at(part)).in_group(id("row-group")));
-        }
-        let arrival = (id("row"), Some(KNOB.at(selected.get())));
-        register_group(ui.ctx(), Group::new(id("row-group"), Roving::new(NavShape::Flat)).selected(arrival));
+        let first = active_part(&frames.ctx, id("row"));
+        assert!(is_focused(&frames.ctx, id("row")), "the component reads as focused");
+        tap(&mut frames, Key::Tab, Modifiers::NONE, &mut show);
+        selected.set(2);
+        frames.idle(2, &mut show);
+        tap(&mut frames, Key::Tab, Modifiers::SHIFT, &mut show);
+        (first, active_part(&frames.ctx, id("row")))
     };
-    frames.idle(2, &mut show);
-    focus(&mut frames, "before", &mut show);
-    tap(&mut frames, Key::Tab, Modifiers::NONE, &mut show);
-    assert_eq!(active_part(&frames.ctx, id("row")), Some(KNOB.at(1)), "Tab arrives at the selected part, not the first");
-    tap(&mut frames, Key::Tab, Modifiers::NONE, &mut show);
-    selected.set(2);
-    frames.idle(2, &mut show);
-    tap(&mut frames, Key::Tab, Modifiers::SHIFT, &mut show);
-    assert_eq!(active_part(&frames.ctx, id("row")), Some(KNOB.at(2)), "after the selection moves Tab arrives at the new part");
+    assert_eq!(arrive(false).0, Some(KNOB.at(0)), "without a group Tab arrives at the first part");
+    assert_eq!(arrive(true), (Some(KNOB.at(1)), Some(KNOB.at(2))), "a group arrives at its selected part, then at the new one");
 }
 
 /// A wrapped grid whose first row starts at column 3 (the leading blanks of a calendar month): Up and Down keep
