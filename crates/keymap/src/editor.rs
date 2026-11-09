@@ -5,11 +5,11 @@
 //!
 //! ```
 //! use craft_keymap::editor::holders;
-//! use craft_keymap::{AssignError, Bindable, Binding, Chord, EditSession, Keymap, Platform, Policy, Recorded, Recorder, Scope, Scopes};
+//! use craft_keymap::{AssignError, CommandDef, Binding, Chord, EditSession, Keymap, Platform, Policy, Recorded, Recorder, Scope, Scopes};
 //!
 //! let catalog = vec![
-//!     Bindable::new("file.save", "Save", Scope::app()).with_default(Binding::parse("Cmd+S").unwrap()),
-//!     Bindable::new("edit.copy", "Copy", Scope::app()).with_default(Binding::parse("Cmd+C").unwrap()),
+//!     CommandDef::new("file.save", "Save", Scope::app()).with_default(Binding::parse("Cmd+S").unwrap()),
+//!     CommandDef::new("edit.copy", "Copy", Scope::app()).with_default(Binding::parse("Cmd+C").unwrap()),
 //! ];
 //! let mut keymap = Keymap::new(catalog, Scopes::new(), Platform::Mac);
 //! let now = 12.5;
@@ -36,7 +36,7 @@ use std::collections::VecDeque;
 
 use crate::chord::{Chord, Key, Platform, Trigger};
 use crate::command::CommandRef;
-use crate::keymap::{AssignError, Assigned, Bindable, Binding, Holder, Keymap, Overrides, Policy};
+use crate::keymap::{AssignError, Assigned, Binding, CommandDef, Holder, Keymap, Overrides, Policy};
 
 /// Undo steps an [`EditSession`] keeps; older ones are dropped.
 pub const MAX_UNDO: usize = 500;
@@ -238,7 +238,7 @@ impl Recorder {
 /// The bindables matching `query`, in catalog order: a case-insensitive substring of the label,
 /// an alias, a menu path segment, the command id, or a binding's canonical or `platform` display
 /// text. An empty query matches everything.
-pub fn search<'a>(keymap: &'a Keymap, query: &str, platform: Platform) -> Vec<&'a Bindable> {
+pub fn search<'a>(keymap: &'a Keymap, query: &str, platform: Platform) -> Vec<&'a CommandDef> {
     let q = query.trim().to_lowercase();
     keymap
         .catalog()

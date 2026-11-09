@@ -1,7 +1,6 @@
 //! What PhotoCraft's own key handling does that the keymap must match before PhotoCraft drops it
 //! (gaps 43, 44, 85): the Return glyph, modifier-only hints, Delete and Backspace as one key,
-//! layout position fallback, tools sharing a key, unparseable override texts, and the clipboard
-//! pairing as a reader of its own.
+//! layout position fallback, tools sharing a key and unparseable override texts.
 //!
 //! "Main shortcut removed, alternates stay" (gap 84) needs nothing new: [`Keymap::remove`] on the
 //! first binding writes an override with the others.
@@ -95,72 +94,4 @@ impl Layout {
         self.position_fallback = on;
         self
     }
-}
-
-#[cfg(feature = "egui")]
-impl crate::egui::Dispatcher {
-    /// Whether Delete and Backspace match each other's bindings: a binding on Delete also runs
-    /// from Backspace (the Mac's "delete" key), and Backspace from Delete (⌥⌫ and ⌥Delete both
-    /// fill on Windows). On by default.
-    // pc: crates/ui-egui/src/input/shortcuts.rs:141-146 `key_matches`.
-    pub fn with_delete_equivalence(mut self, on: bool) -> crate::egui::Dispatcher {
-        self.matcher.delete_equivalence = on;
-        self
-    }
-}
-
-/// A clipboard chord read from a frame's events: the press and the Copy, Cut or Paste event it
-/// caused, paired.
-#[cfg(feature = "egui")]
-#[derive(Clone, Debug, PartialEq)]
-pub struct ClipboardPress {
-    /// The chord pressed (Cmd+V, Shift+Insert).
-    pub chord: Chord,
-    /// The event index of the press, when the integration sent one (the web build does; the
-    /// desktop sends only the clipboard event).
-    pub press: Option<usize>,
-    /// The event index of the Copy, Cut or Paste event.
-    pub event: Option<usize>,
-    /// A Paste event's text.
-    pub pasted: Option<String>,
-}
-
-/// The frame's clipboard chords, paired with their events as [`crate::egui::Dispatcher`] pairs
-/// them, for an app that handles copy and paste outside the dispatcher (label selection, a
-/// Linux's Shift+Insert). Reads only; removes nothing. A swallowed ⌘V (a V release whose press never
-/// arrived) needs the previous frames' modifiers, so the app keeps that state itself.
-// pc: crates/ui-egui/src/input/shortcuts.rs:286 `clipboard_keys` (doc :267-285: a clipboard
-// event right after its own ⌘ press is that press, #2638; a V release whose press never arrived,
-// after ⌘ was held and before any other key, is a swallowed ⌘V, #6329, not read here; Ctrl+Insert copies and
-// Shift+Insert pastes, mapped by hand on Linux). The pairing is egui.rs `clipboard_event_follows`,
-// shared.
-#[cfg(feature = "egui")]
-pub fn clipboard_presses(input: &egui::InputState, layout: &Layout, platform: Platform) -> Vec<ClipboardPress> {
-    use crate::egui::{clipboard_chord, clipboard_event_follows, clipboard_kind, event_clip, key_input};
-    use egui::Event;
-
-    let events = &input.events;
-    let causes = clipboard_event_follows(events, layout, platform, input);
-    let claimed: Vec<usize> = causes.iter().flatten().map(|(j, _)| *j).collect();
-    let held = Mods::from_egui(&input.modifiers, platform);
-    let mut out = Vec::new();
-    for (i, event) in events.iter().enumerate() {
-        match event {
-            Event::Key { pressed: true, repeat: false, .. } => {
-                let Some(chord) = layout.resolve(&key_input(event, platform, input)) else { continue };
-                if clipboard_kind(chord.key, chord.mods).is_none() {
-                    continue;
-                }
-                let cause = causes.get(i).cloned().flatten();
-                out.push(ClipboardPress { chord, press: Some(i), event: cause.as_ref().map(|(j, _)| *j), pasted: cause.and_then(|(_, text)| text) });
-            }
-            _ if event_clip(event).is_some() && !claimed.contains(&i) => {
-                let (key, mods, _) = clipboard_chord(event, held);
-                let pasted = if let Event::Paste(text) = event { Some(text.clone()) } else { None };
-                out.push(ClipboardPress { chord: Chord::new(mods, key), press: None, event: Some(i), pasted });
-            }
-            _ => {}
-        }
-    }
-    out
 }

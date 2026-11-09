@@ -7,7 +7,7 @@ use serde_json::Value;
 use super::kys::{self, KysError, MAX_BYTES};
 use crate::chord::Platform;
 use crate::import::{ForeignSet, ImportOptions, Start, UnmatchedReason, plan};
-use crate::keymap::{Bindable, Binding, Keymap, Kind};
+use crate::keymap::{Binding, CommandDef, CommandKind, Keymap};
 use crate::scope::{Scope, Scopes};
 use crate::{CommandRef, Trigger};
 
@@ -19,11 +19,11 @@ fn trigger(text: &str) -> Trigger {
     binding(text).trigger
 }
 
-fn command(id: &str, label: &str, defaults: &[&str]) -> Bindable {
-    defaults.iter().fold(Bindable::new(id, label, Scope::app()), |b, d| b.with_default(binding(d)))
+fn command(id: &str, label: &str, defaults: &[&str]) -> CommandDef {
+    defaults.iter().fold(CommandDef::new(id, label, Scope::app()), |b, d| b.with_default(binding(d)))
 }
 
-fn keymap(catalog: Vec<Bindable>) -> Keymap {
+fn keymap(catalog: Vec<CommandDef>) -> Keymap {
     Keymap::new(catalog, Scopes::new(), Platform::Mac)
 }
 
@@ -95,7 +95,7 @@ fn written_sets_read_back_exactly() {
         command("none.bound", "Unbound", &[]),
         command("only.double", "Double", &[]).with_default(Binding::new(Trigger::double("F5".parse().unwrap()))),
         command("only.scoped", "Scoped", &[]).with_default(Binding::parse("Scoped: F6").unwrap()),
-        Bindable::new("tools.move", "Move Tool", Scope::app()).with_kind(Kind::Tool { group: None }).with_default(binding("V")),
+        CommandDef::new("tools.move", "Move Tool", Scope::app()).with_kind(CommandKind::Tool { group: None }).with_default(binding("V")),
     ]);
     let xml = kys::write(" My & Set ", &km);
     assert!(xml.contains("KeyboardCustomization/My &amp; Set=My &amp; Set"), "{xml}");
@@ -126,7 +126,7 @@ fn written_sets_read_back_exactly() {
         command("view.zoomIn", "Hineinzoomen", &[]),
         command("image.levels", "Tonwertkorrektur", &[]),
         command("odd.name", "Seltsam", &[]),
-        Bindable::new("tools.move", "Verschieben", Scope::app()).with_kind(Kind::Tool { group: None }),
+        CommandDef::new("tools.move", "Verschieben", Scope::app()).with_kind(CommandKind::Tool { group: None }),
     ]);
     let options = ImportOptions { start: Start::Defaults, ..ImportOptions::default() };
     plan(&read, &renamed, &options).apply(&mut renamed);
@@ -153,11 +153,9 @@ fn matches_photocrafts_plan_on_its_test_sets() {
             let default: Vec<&str> = c["default"].as_str().into_iter().collect();
             command(c["id"].as_str().unwrap(), c["label"].as_str().unwrap().trim_end_matches('…'), &default)
         });
-        let tools = fixture["tools"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|t| Bindable::new(t["id"].as_str().unwrap(), t["label"].as_str().unwrap(), Scope::app()).with_kind(Kind::Tool { group: None }));
+        let tools = fixture["tools"].as_array().unwrap().iter().map(|t| {
+            CommandDef::new(t["id"].as_str().unwrap(), t["label"].as_str().unwrap(), Scope::app()).with_kind(CommandKind::Tool { group: None })
+        });
         keymap(commands.chain(tools).collect())
     };
     let mut ran = 0;

@@ -1,7 +1,7 @@
 //! Integration tests of craft-keymap: profiles.
 
 use craft_keymap::{
-    Bindable, Binding, CommandRef, ContextRule, Flavor, ForeignEntry, ForeignKey, ForeignSet, ImportOptions, Keymap, MAX_SETS, Overrides, Platform,
+    Binding, CommandDef, CommandRef, ContextRule, Flavor, ForeignEntry, ForeignKey, ForeignSet, ImportOptions, Keymap, MAX_SETS, Overrides, Platform,
     Policy, ProfileError, Profiles, Scope, Scopes, SetProblem, Start, plan,
 };
 use serde_json::json;
@@ -12,10 +12,10 @@ fn b(text: &str) -> Binding {
 
 fn keymap() -> Keymap {
     let catalog = vec![
-        Bindable::new("file.save", "Save", Scope::app()).with_path(vec!["File".into(), "Save".into()]).with_default(b("Cmd+S")),
-        Bindable::new("edit.copy", "Copy", Scope::app()).with_path(vec!["Edit".into(), "Copy".into()]).with_default(b("Cmd+C")),
-        Bindable::new(CommandRef::with_params("window.panel", json!({"panel": "layers"})), "Layers", Scope::app()).with_default(b("F7")),
-        Bindable::new("timeline.loop", "Loop", Scope::new("Timeline").unwrap()).with_default(b("L")),
+        CommandDef::new("file.save", "Save", Scope::app()).with_path(vec!["File".into(), "Save".into()]).with_default(b("Cmd+S")),
+        CommandDef::new("edit.copy", "Copy", Scope::app()).with_path(vec!["Edit".into(), "Copy".into()]).with_default(b("Cmd+C")),
+        CommandDef::new(CommandRef::with_params("window.panel", json!({"panel": "layers"})), "Layers", Scope::app()).with_default(b("F7")),
+        CommandDef::new("timeline.loop", "Loop", Scope::new("Timeline").unwrap()).with_default(b("L")),
     ];
     Keymap::new(catalog, Scopes::new().with_panel("Timeline"), Platform::Mac)
 }

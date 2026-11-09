@@ -2,7 +2,7 @@
 
 use craft_keymap::editor::{MAX_UNDO_BYTES, holders};
 use craft_keymap::{
-    AssignError, Bindable, Binding, Chord, CommandRef, DOUBLE_PRESS, EditSession, Holder, Keymap, MAX_BINDING_TEXT, MAX_BINDINGS, MAX_COMMANDS,
+    AssignError, Binding, Chord, CommandDef, CommandRef, DOUBLE_PRESS, EditSession, Holder, Keymap, MAX_BINDING_TEXT, MAX_BINDINGS, MAX_COMMANDS,
     MAX_UNDO, Overrides, Platform, Policy, Recorded, Recorder, Scope, Scopes, Trigger,
 };
 
@@ -16,10 +16,10 @@ fn b(text: &str) -> Binding {
 
 fn keymap(platform: Platform) -> Keymap {
     let catalog = vec![
-        Bindable::new("file.save", "Save", Scope::app()).with_default(b("Cmd+S")).with_path(vec!["File".into(), "Save".into()]),
-        Bindable::new("edit.copy", "Copy", Scope::app()).with_default(b("Cmd+C")).with_alias("Kopieren"),
-        Bindable::new("view.zoomIn", "Zoom In", Scope::app()).with_default(b("Cmd+=")),
-        Bindable::new("tool.brush", "Brush", Scope::app()).with_default(b("B")).with_path(vec!["Tools".into(), "Paint".into()]),
+        CommandDef::new("file.save", "Save", Scope::app()).with_default(b("Cmd+S")).with_path(vec!["File".into(), "Save".into()]),
+        CommandDef::new("edit.copy", "Copy", Scope::app()).with_default(b("Cmd+C")).with_alias("Kopieren"),
+        CommandDef::new("view.zoomIn", "Zoom In", Scope::app()).with_default(b("Cmd+=")),
+        CommandDef::new("tool.brush", "Brush", Scope::app()).with_default(b("B")).with_path(vec!["Tools".into(), "Paint".into()]),
     ];
     Keymap::new(catalog, Scopes::new(), platform)
 }

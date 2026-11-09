@@ -27,22 +27,22 @@ Tools of one group share a key and cycle. A binding can name a scope other than 
 home scope.
 
 ```rust
-use craft_keymap::{Active, Bindable, Binding, Chord, CommandRef, Keymap, Kind, Lookup, Platform, Scope, Scopes};
+use craft_keymap::{Active, Binding, Chord, CommandDef, CommandKind, CommandRef, Keymap, Lookup, Platform, Scope, Scopes};
 use serde_json::json;
 
 let key = |text: &str| Binding::parse(text).unwrap();
 let layers = CommandRef::with_params("window.panel", json!({"panel": "layers"}));
-let select = Kind::Tool { group: Some("select".into()) };
+let select = CommandKind::Tool { group: Some("select".into()) };
 let catalog = vec![
-    Bindable::new("file.save", "Save", Scope::app()).with_path(vec!["File".into(), "Save".into()]).with_default(key("Cmd+S")),
-    Bindable::new(layers.clone(), "Layers", Scope::app()).with_path(vec!["Window".into(), "Layers".into()]).with_default(key("F7")),
-    Bindable::new("tool.marquee", "Marquee Tool", Scope::app()).with_kind(select.clone()).with_default(key("M")),
-    Bindable::new("tool.ellipse", "Elliptical Marquee Tool", Scope::app()).with_kind(select).with_default(key("M")),
+    CommandDef::new("file.save", "Save", Scope::app()).with_path(vec!["File".into(), "Save".into()]).with_default(key("Cmd+S")),
+    CommandDef::new(layers.clone(), "Layers", Scope::app()).with_path(vec!["Window".into(), "Layers".into()]).with_default(key("F7")),
+    CommandDef::new("tool.marquee", "Marquee Tool", Scope::app()).with_kind(select.clone()).with_default(key("M")),
+    CommandDef::new("tool.ellipse", "Elliptical Marquee Tool", Scope::app()).with_kind(select).with_default(key("M")),
     // Home scope: the Timeline panel, where it wins over the app's L.
-    Bindable::new("timeline.loop", "Loop", Scope::new("Timeline").unwrap()).with_default(key("L")),
-    Bindable::new("layer.lock", "Lock Layer", Scope::app()).with_default(key("L")),
+    CommandDef::new("timeline.loop", "Loop", Scope::new("Timeline").unwrap()).with_default(key("L")),
+    CommandDef::new("layer.lock", "Lock Layer", Scope::app()).with_default(key("L")),
     // An app command whose binding works only in the Text context.
-    Bindable::new("type.bold", "Bold", Scope::app()).with_default(key("Text: Cmd+B")),
+    CommandDef::new("type.bold", "Bold", Scope::app()).with_default(key("Text: Cmd+B")),
 ];
 let keymap = Keymap::new(catalog, Scopes::new().with_panel("Timeline").with_context("Text"), Platform::Mac);
 
@@ -65,8 +65,6 @@ to the field too: undo and redo, select all, and moving and deleting by word, li
 elsewhere). Other command chords, such as Cmd+S, still fire. Bindings in an active context
 always fire, so `Text: Cmd+B` works while typing, and a `Text: Cmd+Z` binding takes undo from
 the field.
-
-With the `egui` feature, `egui::Dispatcher` does this for a frame's key events (see Features).
 
 ## Chords
 
@@ -149,7 +147,7 @@ impl Settings for Prefs {
     const SCHEMA_VERSION: u32 = 1;
 }
 
-// `catalog` is the app's Vec<Bindable>.
+// `catalog` is the app's Vec<CommandDef>.
 let (mut store, _report) = SettingsStore::<Prefs>::open(Location::Auto);
 let mut keymap = Keymap::new(catalog, Scopes::new(), Platform::current()).with_overrides(store.get().shortcuts.clone());
 // Entries for unknown commands and texts that do not parse are kept and listed here.
@@ -246,10 +244,10 @@ compile. `import::plan` matches each entry to one command and changes nothing;
 rows carry the entry's `item` (its path) and `line`.
 
 ```rust
-use craft_keymap::{Bindable, Binding, ContextRule, Flavor, ForeignEntry, ForeignKey, ForeignSet, ImportOptions, Keymap, Platform};
+use craft_keymap::{Binding, CommandDef, ContextRule, Flavor, ForeignEntry, ForeignKey, ForeignSet, ImportOptions, Keymap, Platform};
 use craft_keymap::{Scope, Scopes, plan};
 
-let save = Bindable::new("file.save", "Save", Scope::app())
+let save = CommandDef::new("file.save", "Save", Scope::app())
     .with_path(vec!["File".into(), "Save".into()])
     .with_default(Binding::parse("Cmd+S").unwrap());
 let mut keymap = Keymap::new(vec![save], Scopes::new(), Platform::Windows);
@@ -275,8 +273,8 @@ assert_eq!((report.unmatched[0].item.as_str(), report.unmatched[0].line), ("File
   it `in_panel_menu()`. Tool entries match only tools.
 - Names are compared after `import::normalize_label`: case, `…`, `...`, `&`, colons and extra
   spaces aside, so the alias `Preferences: General…` matches `Edit > Preferences > General...`.
-  Aliases (`Bindable::with_alias`) count wherever labels do, and import paths
-  (`Bindable::with_import_path`, such as `["Tools", label]` for a tool) wherever menu paths do;
+  Aliases (`CommandDef::with_alias`) count wherever labels do, and import paths
+  (`CommandDef::with_import_path`, such as `["Tools", label]` for a tool) wherever menu paths do;
   the dialog makes no areas or groups from import paths.
 - Panel menus: sources list panel-menu items with the panel's name in front (InDesign's Panel
   Menus area writes `Character: All Caps`; Illustrator and Photoshop sets have similar areas).
@@ -289,7 +287,7 @@ assert_eq!((report.unmatched[0].item.as_str(), report.unmatched[0].line), ("File
   in `matched_without_change` (reason `PanelMenu`).
 - Show/Hide: a source often lists one toggle as two items, `Show Rulers` and `Hide Rulers`. Names
   are matched as written first. When no step finds a command, the steps run again on commands
-  marked `Bindable::toggle()`, with a leading `Show `, `Hide ` or `Show/Hide ` dropped from the
+  marked `CommandDef::toggle()`, with a leading `Show `, `Hide ` or `Show/Hide ` dropped from the
   entry's label and from the command's label, aliases and path labels. A command not marked as a
   toggle never matches through a dropped prefix, so `Hide Conveyor` does not match `Conveyor`.
 - `ImportOptions.contexts` says what each source context becomes (home scope, another scope, the
@@ -354,35 +352,4 @@ The Keyboard Shortcuts dialog is `craft_menu::shortcuts`.
 
 - `egui`: the egui side. Conversions to and from egui keys and modifiers; `KeyInput::from_egui`;
   `egui::matches`, which accepts the shifted key egui reports for a Shift binding (`Shift+;`
-  matches `:`); and `egui::Dispatcher`, which runs a frame's key presses against the keymap,
-  reading them by the layout it learns from typing or is given (`with_layout`, `layout()`):
-
-  ```rust,ignore
-  let hits = ctx.input_mut(|i| dispatcher.dispatch(i, &keymap, &active));
-  for hit in hits {
-      app.run(&hit.command);
-  }
-  ```
-
-  A press that runs a command is removed from egui's events, with the text it typed, so widgets
-  do not see it too. Each `Hit` carries the `trigger` that matched and `exact`, which is false
-  when the press matched through a stand-in (`:` for `Shift+;`, `+` for `=`).
-  `dispatch_filtered` takes a predicate that can decline a hit, for example a chord the native
-  menu has already handled: the press and its text then stay in egui's events, in their place.
-  While a text field has the keyboard, plain clipboard key presses and presses that typed text in the
-  same frame stay with it. That covers AltGr, which a browser on Windows reports as Ctrl+Alt
-  followed by the text; a Ctrl+Alt press that types nothing is a command chord.
-  `Dispatcher::new().with_repeat(true)` also runs commands on key repeats (held arrows).
-
-  On the desktop, egui-winit sends egui's Copy, Cut and Paste events in place of the key press
-  for any chord of Cmd with C, X or V (Ctrl off macOS); the web build sends the press and then
-  the event. For the plain chords Cmd+C, Cmd+X and Cmd+V (and Cmd+Insert, Shift+Delete,
-  Shift+Insert), the events stay with the app by default, so a binding on those chords runs only
-  with `with_clipboard_events(true)`. Then the events count as their chords outside text fields,
-  and a Paste event's text moves to `Hit::pasted`. On the web, the press runs the command and
-  takes the event, with its text, along. An app whose paste command asks egui for a paste gets a
-  Paste event back, which runs that command again; such an app keeps the default. A clipboard
-  event with more modifiers held (Cmd+Shift+V, Cmd+Alt+C) always counts as its chord, also while
-  typing, and stays when that chord has no binding. egui-winit sends no Paste event when the
-  clipboard is empty or holds an image, so a binding on a Cmd+V chord cannot run then on the
-  desktop.
+  matches `:`).

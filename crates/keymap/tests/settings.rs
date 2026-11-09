@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use craft_keymap::{Bindable, Binding, CommandRef, DropReason, Keymap, Overrides, Platform, Policy, Problem, Profiles, Scope, Scopes};
+use craft_keymap::{Binding, CommandDef, CommandRef, DropReason, Keymap, Overrides, Platform, Policy, Problem, Profiles, Scope, Scopes};
 use craft_settings::{Location, OpenOptions, Probe, Settings, SettingsStore};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -37,10 +37,10 @@ fn open(dir: &std::path::Path) -> SettingsStore<Prefs> {
 
 fn keymap(overrides: Overrides) -> Keymap {
     let catalog = vec![
-        Bindable::new(CommandRef::with_params("window.panel", json!({"panel": "layers"})), "Layers", Scope::app()),
-        Bindable::new("text.bold", "Bold", Scope::app()),
-        Bindable::new("edit.copy", "Copy", Scope::app()).with_default(Binding::parse("Cmd+C").unwrap()),
-        Bindable::new("edit.paste", "Paste", Scope::app()).with_default(Binding::parse("Cmd+V").unwrap()),
+        CommandDef::new(CommandRef::with_params("window.panel", json!({"panel": "layers"})), "Layers", Scope::app()),
+        CommandDef::new("text.bold", "Bold", Scope::app()),
+        CommandDef::new("edit.copy", "Copy", Scope::app()).with_default(Binding::parse("Cmd+C").unwrap()),
+        CommandDef::new("edit.paste", "Paste", Scope::app()).with_default(Binding::parse("Cmd+V").unwrap()),
     ];
     Keymap::new(catalog, Scopes::new().with_context("Text"), Platform::Mac).with_overrides(overrides)
 }

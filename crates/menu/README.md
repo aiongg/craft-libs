@@ -89,7 +89,7 @@ substitutes `{app}`.
 `craft_keymap::Keymap`, the user's overrides included: the first single-press binding, one in
 the command's home scope first. A command the keymap knows but binds to nothing loses its
 shortcut; an item whose command the keymap doesn't know keeps its own. Items of toggle commands
-(`Bindable::toggle`) become check items, keeping their checked state; radio items stay radio
+(`CommandDef::toggle`) become check items, keeping their checked state; radio items stay radio
 items.
 
 Each frame, `apply_state(&mut bar, |command| ItemState { enabled, checked })` sets enabled and

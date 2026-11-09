@@ -1,12 +1,12 @@
 //! Shortcuts and checked states from the app's craft-keymap [`Keymap`], and the per-frame
 //! enabled and checked update.
 
-use craft_keymap::{CommandRef, Keymap};
+use craft_keymap::{CommandKind, CommandRef, Keymap};
 
 use crate::model::{Builtin, ItemKind, MenuBar};
 
 /// Give each item the shortcut its command has in `keymap`, the user's overrides included, and
-/// make the items of toggle commands ([`craft_keymap::Bindable::is_toggle`]) check items.
+/// make the items of toggle commands (kind [`CommandKind::Toggle`]) check items.
 ///
 /// The shortcut is the first single-press binding, one in the command's home scope first; a
 /// double press can't be a menu shortcut. A command the keymap binds to nothing loses its
@@ -20,7 +20,7 @@ pub fn apply_keymap(bar: &mut MenuBar, keymap: &Keymap) {
         let single = || bindings.iter().filter(|b| !b.trigger.double);
         let home = single().find(|b| *b.scope_or(&bindable.scope) == bindable.scope);
         it.shortcut = home.or_else(|| single().next()).map(|b| b.trigger.chord);
-        if bindable.is_toggle && it.kind == ItemKind::Plain {
+        if bindable.kind == CommandKind::Toggle && it.kind == ItemKind::Plain {
             it.kind = ItemKind::Check(false);
         }
     });

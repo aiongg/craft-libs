@@ -27,7 +27,7 @@ pub const MAX_CONFLICTS: usize = 4096;
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
-pub enum Kind {
+pub enum CommandKind {
     #[default]
     /// Runs the command.
     Command,
@@ -47,9 +47,6 @@ pub enum Kind {
     /// Acts while its key is held and ends on the release.
     Momentary,
 }
-
-/// What a command is, as [`CommandDef`] states it.
-pub type CommandKind = Kind;
 
 /// Whether a command fires while a dialog is open.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -170,10 +167,10 @@ impl<'de> Deserialize<'de> for Binding {
     }
 }
 
-/// A command the user can bind, as the app describes it.
+/// A command as the registry describes it: the catalog entry of the keymap and of every command surface.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Bindable {
+pub struct CommandDef {
     /// The command's id and parameters.
     pub command: CommandRef,
     /// The name the UI shows.
@@ -191,14 +188,10 @@ pub struct Bindable {
     /// Home scope.
     pub scope: Scope,
     #[serde(default)]
-    /// Whether it runs a command or selects a tool.
-    pub kind: Kind,
-    /// The command shows and hides something (a panel, guides, rulers). Import matching reads a
-    /// foreign name without a leading `Show`, `Hide` or `Show/Hide` only for such commands.
-    #[serde(default)]
-    pub is_toggle: bool,
+    /// What the command is: a plain command, a tool, a toggle, a radio choice or a momentary key.
+    pub kind: CommandKind,
     /// Alt added to one of the command's chords runs it as its last-settings variant
-    /// ([`Hit::alt_variant`](crate::egui::Hit::alt_variant)), unless a binding owns the Alt chord.
+    /// ([`Hit::alt_variant`](crate::Hit::alt_variant)), unless a binding owns the Alt chord.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub has_alt_variant: bool,
     #[serde(default)]
@@ -212,21 +205,17 @@ pub struct Bindable {
     pub modal: ModalRule,
 }
 
-/// A command as the registry describes it: the catalog entry of the keymap and of every command surface.
-pub type CommandDef = Bindable;
-
-impl Bindable {
+impl CommandDef {
     /// A command in `scope` without default bindings.
-    pub fn new(command: impl Into<CommandRef>, label: impl Into<String>, scope: Scope) -> Bindable {
-        Bindable {
+    pub fn new(command: impl Into<CommandRef>, label: impl Into<String>, scope: Scope) -> CommandDef {
+        CommandDef {
             command: command.into(),
             label: label.into(),
             paths: Vec::new(),
             import_paths: Vec::new(),
             aliases: Vec::new(),
             scope,
-            kind: Kind::Command,
-            is_toggle: false,
+            kind: CommandKind::Command,
             has_alt_variant: false,
             defaults: Vec::new(),
             icon: None,
@@ -234,61 +223,61 @@ impl Bindable {
         }
     }
 
-    /// Sets the [`icon`](Bindable::icon).
-    pub fn with_icon(mut self, icon: impl Into<std::borrow::Cow<'static, str>>) -> Bindable {
+    /// Sets the [`icon`](CommandDef::icon).
+    pub fn with_icon(mut self, icon: impl Into<std::borrow::Cow<'static, str>>) -> CommandDef {
         self.icon = Some(icon.into());
         self
     }
 
-    /// Sets the [`modal`](Bindable::modal) rule.
-    pub fn with_modal(mut self, modal: ModalRule) -> Bindable {
+    /// Sets the [`modal`](CommandDef::modal) rule.
+    pub fn with_modal(mut self, modal: ModalRule) -> CommandDef {
         self.modal = modal;
         self
     }
 
-    /// Marks the command as showing and hiding something ([`Bindable::is_toggle`]).
-    pub fn toggle(mut self) -> Bindable {
-        self.is_toggle = true;
-        if self.kind == Kind::Command {
-            self.kind = Kind::Toggle;
+    /// Marks the command as showing and hiding something (a panel, guides, rulers): kind
+    /// [`CommandKind::Toggle`]. Import matching reads a foreign name without a leading `Show`,
+    /// `Hide` or `Show/Hide` only for such commands.
+    pub fn toggle(mut self) -> CommandDef {
+        if self.kind == CommandKind::Command {
+            self.kind = CommandKind::Toggle;
         }
         self
     }
 
-    /// Opts the command in to the Alt variant ([`Bindable::has_alt_variant`]): Photoshop opens an
+    /// Opts the command in to the Alt variant ([`CommandDef::has_alt_variant`]): Photoshop opens an
     /// adjustment at its last settings on its key with Alt added.
-    pub fn with_alt_variant(mut self) -> Bindable {
+    pub fn with_alt_variant(mut self) -> CommandDef {
         self.has_alt_variant = true;
         self
     }
 
-    /// Sets the [`kind`](Bindable::kind).
-    pub fn with_kind(mut self, kind: Kind) -> Bindable {
-        self.is_toggle |= kind == Kind::Toggle;
+    /// Sets the [`kind`](CommandDef::kind).
+    pub fn with_kind(mut self, kind: CommandKind) -> CommandDef {
         self.kind = kind;
         self
     }
 
     /// Adds a default binding.
-    pub fn with_default(mut self, binding: Binding) -> Bindable {
+    pub fn with_default(mut self, binding: Binding) -> CommandDef {
         self.defaults.push(binding);
         self
     }
 
     /// Adds a menu path; the first one added is the main path.
-    pub fn with_path(mut self, path: Vec<String>) -> Bindable {
+    pub fn with_path(mut self, path: Vec<String>) -> CommandDef {
         self.paths.push(path);
         self
     }
 
-    /// Adds a path only import matching reads ([`Bindable::import_paths`]).
-    pub fn with_import_path(mut self, path: Vec<String>) -> Bindable {
+    /// Adds a path only import matching reads ([`CommandDef::import_paths`]).
+    pub fn with_import_path(mut self, path: Vec<String>) -> CommandDef {
         self.import_paths.push(path);
         self
     }
 
     /// Adds an alias.
-    pub fn with_alias(mut self, alias: impl Into<String>) -> Bindable {
+    pub fn with_alias(mut self, alias: impl Into<String>) -> CommandDef {
         self.aliases.push(alias.into());
         self
     }
@@ -608,7 +597,7 @@ type Pair<'a> = (usize, usize, bool, (usize, &'a Bound), (usize, &'a Bound));
 /// The catalog, the scope registry, the platform and the user's overrides.
 #[derive(Clone, Debug)]
 pub struct Keymap {
-    catalog: Vec<Bindable>,
+    catalog: Vec<CommandDef>,
     keys: Vec<String>,
     index: HashMap<String, usize>,
     defaults: Vec<Vec<Bound>>,
@@ -634,7 +623,7 @@ pub struct Keymap {
 impl Keymap {
     /// A keymap with default bindings. Entries past [`MAX_COMMANDS`], with a key over
     /// [`MAX_KEY`] bytes, or repeating an earlier key are left out.
-    pub fn new(catalog: Vec<Bindable>, scopes: Scopes, platform: Platform) -> Keymap {
+    pub fn new(catalog: Vec<CommandDef>, scopes: Scopes, platform: Platform) -> Keymap {
         let mut km = Keymap {
             catalog: Vec::new(),
             keys: Vec::new(),
@@ -718,12 +707,12 @@ impl Keymap {
     }
 
     /// Every command the user can bind, in catalog order.
-    pub fn catalog(&self) -> &[Bindable] {
+    pub fn catalog(&self) -> &[CommandDef] {
         &self.catalog
     }
 
     /// The catalog entry of `command`, if it is in the catalog.
-    pub fn bindable(&self, command: &CommandRef) -> Option<&Bindable> {
+    pub fn bindable(&self, command: &CommandRef) -> Option<&CommandDef> {
         self.find(command).map(|i| &self.catalog[i])
     }
 
@@ -989,7 +978,7 @@ impl Keymap {
 
     fn same_group(&self, i: usize, j: usize) -> bool {
         match (&self.catalog[i].kind, &self.catalog[j].kind) {
-            (Kind::Tool { group: a }, Kind::Tool { group: b }) => self.shared_tool_keys || a == b,
+            (CommandKind::Tool { group: a }, CommandKind::Tool { group: b }) => self.shared_tool_keys || a == b,
             _ => false,
         }
     }
@@ -1039,7 +1028,7 @@ impl Keymap {
         for (pos, &(i, k)) in holders.iter().enumerate() {
             let Some(b) = self.at(i, k) else { continue };
             let tools = match &self.catalog[i].kind {
-                Kind::Tool { group } => Some(group),
+                CommandKind::Tool { group } => Some(group),
                 _ => None,
             };
             let g = *group_of.entry((&b.1, tools)).or_insert_with(|| {

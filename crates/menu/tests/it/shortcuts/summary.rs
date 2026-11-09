@@ -3,7 +3,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use craft_keymap::{Bindable, Binding, Keymap, Platform, Scope, Scopes};
+use craft_keymap::{Binding, CommandDef, Keymap, Platform, Scope, Scopes};
 use craft_menu::shortcuts::{Outcome, summary};
 use craft_ui::testing::{Fixture, trial};
 use egui::Ui;
@@ -14,7 +14,7 @@ fn tricky_keymap() -> Keymap {
     let mut catalog = keymap(Platform::Mac).catalog().to_vec();
     let label = "<b>\"Tom\" & 'Jerry'</b>\nNext";
     catalog.push(
-        Bindable::new("edit.tricky", label, Scope::app())
+        CommandDef::new("edit.tricky", label, Scope::app())
             .with_path(vec!["Edit".into(), "Tricky".into()])
             .with_default(Binding::parse("F6").unwrap_or_else(|e| panic!("{e}"))),
     );

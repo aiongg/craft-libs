@@ -67,7 +67,7 @@
 //! key names come from the display words, and the direction from the environment: a right-to-left
 //! interface mirrors the layout and moves the text around a chord to the other side. Command
 //! labels and tooltips come from the Host's `Commands`: install a `Host` whose commands are
-//! `KeymapCommands::new(i18n, lang)`, or the `Bindable` labels show as written. Menu path parts
+//! `KeymapCommands::new(i18n, lang)`, or the `CommandDef` labels show as written. Menu path parts
 //! and scope names are looked up in the Host's catalog.
 //!
 //! [`Options`] sets the conflict mode, double-press recording, area tabs, the on-screen keyboard,
@@ -78,7 +78,7 @@
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 
-use craft_keymap::{Bindable, Binding, Builtins, CommandRef, ForeignSet, ImportOptions, Keymap, ProfileError, Profiles, Trigger};
+use craft_keymap::{Binding, Builtins, CommandDef, CommandRef, ForeignSet, ImportOptions, Keymap, ProfileError, Profiles, Trigger};
 use craft_ui::contract::{Animate as _, Bind, NoValue, Pattern, SaveKey, ShowContainer as _};
 use craft_ui::dialog::{Dialog, DialogOutput};
 use craft_ui::runtime::commands::{CommandState, Commands as _, EditCommands};
@@ -199,12 +199,12 @@ pub struct Area {
     /// The entry's text in the Show dropdown or tabs.
     pub label: &'static str,
     /// Whether a catalog entry is listed under this area.
-    pub rows: fn(&Bindable) -> bool,
+    pub rows: fn(&CommandDef) -> bool,
 }
 
 impl Area {
     /// An entry with the id `id`, shown as `label`, listing the catalog entries `rows` returns true for.
-    pub const fn new(id: &'static str, label: &'static str, rows: fn(&Bindable) -> bool) -> Self {
+    pub const fn new(id: &'static str, label: &'static str, rows: fn(&CommandDef) -> bool) -> Self {
         Area { id, label, rows }
     }
 }
@@ -257,7 +257,7 @@ impl Format {
 }
 
 /// A rule an app adds for which bindings a command may get; `Err` carries the message shown.
-pub type Accept = Box<dyn Fn(&Bindable, &Binding) -> Result<(), String>>;
+pub type Accept = Box<dyn Fn(&CommandDef, &Binding) -> Result<(), String>>;
 
 /// How the dialog looks and behaves. [`Options::default`] gives the defaults noted on each field;
 /// set fields on it, or with [`Options::with`].
@@ -290,7 +290,7 @@ pub struct Options {
     /// `None`: every catalog entry is listed. Otherwise the table, its Show entries and search
     /// list only the entries it returns true for; the others keep their bindings and still count
     /// in conflicts.
-    pub visible: Option<fn(&Bindable) -> bool>,
+    pub visible: Option<fn(&CommandDef) -> bool>,
     /// false: the on-screen keyboard pane.
     pub keyboard: bool,
     /// Read-only rows for keys outside the catalog.
