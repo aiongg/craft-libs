@@ -674,10 +674,16 @@ fn page_keys_pick_each_anchor_then_its_in_and_out_handles() {
     assert_eq!(h.selection(), sel(1, &[(0, 3)]));
     h.key(Key::PageUp, Modifiers::NONE);
     assert!(h.picked("Out handle"));
+    assert_eq!(h.selection(), sel(1, &[(0, 3)]), "picking a handle leaves the selection on the anchor");
     h.key(Key::Home, Modifiers::NONE);
     assert!(h.picked("Anchor 1 of 4"));
     h.key(Key::End, Modifiers::NONE);
     assert!(h.picked("Anchor 4 of 4"));
+    // Page Up from the last anchor lands on anchor 3's out handle: a nudge moves that handle.
+    h.key(Key::PageUp, Modifiers::NONE);
+    assert!(h.picked("Out handle"));
+    h.key(Key::ArrowLeft, Modifiers::ALT);
+    assert_eq!(h.last_change(), Some(PathEdit::move_handle(1, kr(2), HandleSide::Out, p(289.0, 100.0), true)));
 }
 
 #[trial]
