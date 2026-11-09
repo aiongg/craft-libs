@@ -1548,7 +1548,6 @@ dependencies = [
  "craft-docpath",
  "craft-host",
  "craft-theme",
- "egui",
  "futures-lite",
  "js-sys",
  "log",
@@ -1614,7 +1613,6 @@ version = "0.1.0"
 dependencies = [
  "dispatch2",
  "egui",
- "muda",
  "objc2 0.6.5",
  "objc2-app-kit 0.3.2",
 ]
@@ -1987,7 +1985,6 @@ dependencies = [
  "craft-host",
  "craft-settings",
  "craft-win32",
- "eframe",
  "egui",
  "muda",
  "objc2 0.6.5",
@@ -1998,7 +1995,6 @@ dependencies = [
  "serde_json",
  "tempfile",
  "wayland-client",
- "winit",
  "winsafe",
 ]
 
@@ -2309,7 +2305,6 @@ dependencies = [
  "egui-wgpu",
  "egui-winit",
  "egui_glow",
- "glow",
  "glutin",
  "glutin-winit",
  "image",

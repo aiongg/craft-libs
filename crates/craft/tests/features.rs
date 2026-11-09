@@ -16,9 +16,6 @@ const NATIVE_ONLY: &[(&str, &str)] = &[
     ("ui-window-restore", "native only: the window-restore store"),
     ("update", "native only: downloads and installs through getrandom without wasm support"),
     ("window-restore", "native only: the window-restore store"),
-    ("window-restore-eframe", "native only: the window-restore store"),
-    ("window-restore-ui", "native only: the window-restore store"),
-    ("window-restore-ui-glow", "native only: the window-restore store"),
 ];
 
 fn native_only(name: &str) -> Option<&'static str> {

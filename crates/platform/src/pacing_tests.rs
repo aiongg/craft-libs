@@ -15,16 +15,6 @@ fn frame_cap_spaces_frames_by_the_minimum_interval() {
     assert_eq!(cap.wait_at(t0 + Duration::from_millis(55)), Duration::from_millis(5));
 }
 
-// Minimized or occluded viewports read Hidden; unknown visibility reads Shown.
-#[test]
-fn window_visibility_is_hidden_only_when_the_host_says_so() {
-    let info = |minimized, occluded| egui::ViewportInfo { minimized, occluded, ..Default::default() };
-    assert_eq!(WindowVisibility::of(&info(None, None)), WindowVisibility::Shown);
-    assert_eq!(WindowVisibility::of(&info(Some(false), Some(false))), WindowVisibility::Shown);
-    assert_eq!(WindowVisibility::of(&info(Some(true), None)), WindowVisibility::Hidden);
-    assert_eq!(WindowVisibility::of(&info(Some(false), Some(true))), WindowVisibility::Hidden);
-}
-
 // On a manual clock a slice ends when the clock passes its budget; a budget without a hidden share gives no slice while hidden.
 #[test]
 fn work_slices_follow_the_window_state() {

@@ -11,8 +11,7 @@
 //! - [`ClipboardProbe`]: asks a second clipboard handle on a worker thread whether Paste has
 //!   something to take, so a slow clipboard owner never stalls a frame.
 //!
-//! No egui, except the two event helpers behind the `ui` feature
-//! ([`flavors_from_event`], [`copy_through_egui`]) that the web path uses.
+//! No egui.
 
 use std::borrow::Cow;
 use std::hash::{Hash, Hasher};
@@ -43,7 +42,7 @@ pub const URI_LIST: &str = "text/uri-list";
 /// returns it as [`ClipboardImage`]. Also for [`ClipboardBackend::has`] and [`Clipboard::has`].
 pub const BITMAP: &str = "image/*";
 /// A raw bitmap as [`EventClipboard`] carries it: width and height as little-endian `u32`s, then
-/// the straight RGBA8 pixels. What [`flavors_from_event`] makes of egui's `Event::PasteImage`.
+/// the straight RGBA8 pixels. The form an `RGBA8` flavour carries.
 pub const RGBA8: &str = "image/x-rgba8";
 
 /// One representation of the clipboard's contents: its MIME type and bytes. A copy offers
@@ -612,12 +611,10 @@ impl ClipboardBackend for SystemClipboard {
 
 /// A clipboard fed by the app from paste events: the browser's (its Paste event carries text,
 /// pictures and files; a page can't read the clipboard on its own) and any host that delivers
-/// pastes as events. Writes go out through `out` (on the web, egui's copy commands:
-/// [`copy_through_egui`]).
+/// pastes as events. Writes go out through `out`.
 ///
 /// [`offer`](Self::offer) holds one paste's flavours for the pass it was offered in. The
-/// clipboard counts passes itself (`pass`, egui's `cumulative_pass_nr` for
-/// [`for_egui`](Self::for_egui)), so a menu Paste in a later pass finds nothing and
+/// clipboard counts passes itself (`pass`), so a menu Paste in a later pass finds nothing and
 /// [`Clipboard::has`] is false: the browser can't be read outside a paste event. The app does
 /// nothing at the end of a pass.
 pub struct EventClipboard {
@@ -639,14 +636,6 @@ impl EventClipboard {
     /// ([`ClipboardBackend::write`]).
     pub fn new(pass: impl Fn() -> u64 + Send + 'static, out: impl FnMut(&[Flavor]) -> Result<usize, ClipboardError> + Send + 'static) -> Self {
         Self { pasted: Vec::new(), offered_in: 0, pass: Box::new(pass), out: Box::new(out) }
-    }
-
-    /// The browser's clipboard under egui: passes are `ctx.cumulative_pass_nr()` and copies go
-    /// through [`copy_through_egui`]. With the `ui` feature.
-    #[cfg(feature = "ui")]
-    pub fn for_egui(ctx: &egui::Context) -> Self {
-        let (clock, out) = (ctx.clone(), ctx.clone());
-        Self::new(move || clock.cumulative_pass_nr(), move |flavors| copy_through_egui(&out, flavors))
     }
 
     /// The first of `mimes` this pass's paste offered; [`BITMAP`] is any offered `image/*`.
@@ -972,49 +961,6 @@ impl Drop for ClipboardProbe {
         let end = Instant::now() + PROBE_STOP_WAIT;
         while self.verdicts.recv_timeout(end.saturating_duration_since(Instant::now())).is_ok() {}
     }
-}
-
-/// The flavours an egui paste event carries: `Event::Paste` as [`TEXT`], `Event::PasteImage`
-/// (the fork's) as an [`RGBA8`] flavour. `None` for other
-/// events. With the `ui` feature.
-#[cfg(feature = "ui")]
-// pc: crates/ui-egui/src/input/shortcuts.rs:231 Event::PasteImage
-pub fn flavors_from_event(event: &egui::Event) -> Option<Vec<Flavor>> {
-    match event {
-        egui::Event::Paste(text) => Some(vec![Flavor::text(text)]),
-        egui::Event::PasteImage(image) => {
-            let [width, height] = image.size;
-            let rgba = image.pixels.iter().flat_map(|pixel| pixel.to_srgba_unmultiplied()).collect();
-            Some(vec![rgba8_flavor(&ClipboardImage { width: width as u32, height: height as u32, rgba })])
-        }
-        _ => None,
-    }
-}
-
-/// Writes the best of `flavors` through egui's output (the web's clipboard) and answers its
-/// index: the first text flavour with `ctx.copy_text`, or the first bitmap with
-/// `OutputCommand::CopyImage`, whichever comes first. One only: eframe's web code makes each
-/// command its own `navigator.clipboard` write, so a second command would replace the first.
-/// With the `ui` feature.
-#[cfg(feature = "ui")]
-// new: eframe's web integration owns navigator.clipboard (app_runner.rs: CopyText and CopyImage each write on their own)
-pub fn copy_through_egui(ctx: &egui::Context, flavors: &[Flavor]) -> Result<usize, ClipboardError> {
-    if flavors.is_empty() {
-        return Ok(0);
-    }
-    for (index, flavor) in flavors.iter().enumerate() {
-        if flavor.mime == TEXT {
-            ctx.copy_text(String::from_utf8_lossy(&flavor.data).into_owned());
-            return Ok(index);
-        }
-        if flavor.mime == RGBA8
-            && let Some(image) = rgba8_image(&flavor.data).filter(ClipboardImage::is_whole)
-        {
-            ctx.copy_image(egui::ColorImage::from_rgba_unmultiplied([image.width as usize, image.height as usize], &image.rgba));
-            return Ok(index);
-        }
-    }
-    Err(ClipboardError::NoFormat)
 }
 
 /// Text types read under [`ClipboardLimits::text_bytes`]: plain, HTML and RTF text and SVG markup.

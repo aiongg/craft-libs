@@ -14,26 +14,6 @@ pub struct Reading {
     pub reduced_motion: Option<bool>,
 }
 
-#[cfg(feature = "ui")]
-impl Reading {
-    /// The colour scheme as an egui theme.
-    pub fn egui_theme(&self) -> Option<egui::Theme> {
-        self.theme.map(|t| match t {
-            Theme::Dark => egui::Theme::Dark,
-            Theme::Light => egui::Theme::Light,
-        })
-    }
-
-    /// `theme`, else `fallback`, which a host takes from egui's own system theme.
-    fn with_theme_from(mut self, fallback: Option<egui::Theme>) -> Self {
-        self.theme = self.theme.or(fallback.map(|t| match t {
-            egui::Theme::Dark => Theme::Dark,
-            egui::Theme::Light => Theme::Light,
-        }));
-        self
-    }
-}
-
 impl From<Reading> for craft_theme::SystemAppearance {
     fn from(reading: Reading) -> Self {
         craft_theme::SystemAppearance {
@@ -55,33 +35,13 @@ impl From<Reading> for craft_theme::SystemAppearance {
 /// notification, so read it when building a frame. A target with neither reports no answers.
 pub struct SystemReader {
     watcher: Option<Watcher>,
-    /// Set by the first read with a context, for the watcher's wake-up.
-    #[cfg(feature = "ui")]
-    ctx: std::sync::Arc<std::sync::OnceLock<egui::Context>>,
 }
 
 impl SystemReader {
     /// Starts watching. `wake` runs on the watcher's worker when a preference changes and must
     /// not block.
     pub fn start(wake: impl Fn() + Send + Sync + 'static) -> Self {
-        Self {
-            watcher: Watcher::start(wake),
-            #[cfg(feature = "ui")]
-            ctx: std::sync::Arc::default(),
-        }
-    }
-
-    /// Starts watching; a change repaints the context [`read_in`](Self::read_in) saw first.
-    #[cfg(feature = "ui")]
-    pub fn for_egui() -> Self {
-        let ctx = std::sync::Arc::new(std::sync::OnceLock::<egui::Context>::new());
-        let woken = std::sync::Arc::clone(&ctx);
-        let watcher = Watcher::start(move || {
-            if let Some(ctx) = woken.get() {
-                ctx.request_repaint();
-            }
-        });
-        Self { watcher, ctx }
+        Self { watcher: Watcher::start(wake) }
     }
 
     /// Whether a desktop watcher is running.
@@ -117,30 +77,6 @@ impl SystemReader {
             }
         }
     }
-
-    /// [`read`](Self::read) for an egui host: registers `ctx` for wake-ups, hands the native
-    /// window the observed scheme (see [`sync_native_window_theme`](super::sync_native_window_theme))
-    /// and answers the scheme from egui's own system theme where the OS reader has none (the web,
-    /// macOS, Windows).
-    #[cfg(feature = "ui")]
-    pub fn read_in(&self, ctx: &egui::Context) -> Reading {
-        self.observe(ctx).with_theme_from(ctx.system_theme())
-    }
-
-    /// [`read_in`](Self::read_in) without the egui fallback for the scheme.
-    #[cfg(feature = "ui")]
-    fn observe(&self, ctx: &egui::Context) -> Reading {
-        let _ = self.ctx.set(ctx.clone());
-        let reading = self.read();
-        super::sync_native_window_theme(ctx, reading.theme);
-        reading
-    }
-
-    /// The scheme the watcher observed, for [`egui_service`](super::egui_service).
-    #[cfg(feature = "ui")]
-    pub(super) fn observed_theme(&self, ctx: &egui::Context) -> Option<egui::Theme> {
-        self.observe(ctx).egui_theme()
-    }
 }
 
 #[cfg(test)]
@@ -158,14 +94,5 @@ mod tests {
         let reading = Reading { theme: Some(Theme::Dark), contrast: Some(Contrast::High), reduced_motion: Some(true) };
         assert_eq!(SystemAppearance::from(reading), SystemAppearance { mode: Some(Mode::Dark), contrast: Some(C::High), reduced_motion: Some(true) });
         assert_eq!(SystemAppearance::from(Reading::default()), SystemAppearance::default());
-    }
-
-    #[cfg(feature = "ui")]
-    #[test]
-    fn the_scheme_falls_back_to_eguis_system_theme_only_without_an_answer() {
-        let answered = Reading { theme: Some(Theme::Light), ..Reading::default() };
-        assert_eq!(answered.with_theme_from(Some(egui::Theme::Dark)).theme, Some(Theme::Light));
-        assert_eq!(Reading::default().with_theme_from(Some(egui::Theme::Dark)).theme, Some(Theme::Dark));
-        assert_eq!(Reading::default().with_theme_from(None).theme, None);
     }
 }

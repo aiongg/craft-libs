@@ -12,16 +12,12 @@ workspace = true
 
 [features]
 default = []
-dialogs = []
 appearance = ["dep:zbus", "dep:futures-lite", "dep:async-channel", "dep:async-io", "dep:async-process", "dep:web-sys"]
 browser = ["dep:wasm-bindgen", "dep:js-sys", "dep:web-sys"]
-ui = ["dep:egui"]
 # Moving the system pointer (a scrub's screen-edge wrap).
 pointer = ["dep:core-graphics"]
 # `usage`: the process's memory use.
 usage = ["dep:sysinfo"]
-# `pacing`: frame-rate cap, window state and background work slices.
-pacing = ["dep:egui"]
 # Screen capture for the screen colour picker (`craft_platform::screen`).
 screen = ["dep:zbus", "zbus?/blocking-api", "dep:futures-lite", "dep:async-io", "dep:x11rb", "dep:core-graphics2", "dep:xcap"]
 # `clipboard`: the system clipboard with size limits, the synthetic-input fence and the paste probe.
@@ -29,7 +25,6 @@ screen = ["dep:zbus", "zbus?/blocking-api", "dep:futures-lite", "dep:async-io", 
 clipboard = ["dep:arboard", "dep:clipboard-win", "dep:objc2-app-kit", "dep:objc2-foundation", "dep:wl-clipboard-rs", "dep:x11rb"]
 
 [dependencies]
-egui = { workspace = true, optional = true }
 craft-theme = { workspace = true }
 log = "0.4"
 web-time = "1.1"

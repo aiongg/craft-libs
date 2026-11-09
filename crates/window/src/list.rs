@@ -3,8 +3,6 @@
 use std::num::NonZeroU64;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use crate::place::Rect;
-
 /// One top-level window, for as long as the process runs.
 ///
 /// Ids come from one process-wide counter, so an id is never reused, even after its window closes
@@ -41,7 +39,6 @@ pub struct Closed<T> {
 struct Entry<T> {
     id: WindowId,
     data: T,
-    outer: Option<Rect>,
 }
 
 /// The app's open windows, each with the app's data `T` (per-window state, or a document key).
@@ -72,7 +69,7 @@ impl<T> WindowList<T> {
     /// window.
     pub fn open(&mut self, data: T) -> WindowId {
         let id = WindowId::mint();
-        self.entries.push(Entry { id, data, outer: None });
+        self.entries.push(Entry { id, data });
         self.recent.insert(0, id);
         id
     }
@@ -153,25 +150,6 @@ impl<T> WindowList<T> {
     /// Whether no window is open.
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
-    }
-
-    /// The window's last known outer rectangle (frame included), in points.
-    pub fn outer_rect(&self, id: WindowId) -> Option<Rect> {
-        self.entries.iter().find(|e| e.id == id).and_then(|e| e.outer)
-    }
-
-    /// Record a window's outer rectangle; the egui driver does this every frame. Platforms that
-    /// don't report window positions (Wayland) leave it unknown.
-    pub fn set_outer_rect(&mut self, id: WindowId, rect: Option<Rect>) {
-        if let Some(entry) = self.entries.iter_mut().find(|e| e.id == id) {
-            entry.outer = rect;
-        }
-    }
-
-    /// The outer rectangle of the most recently focused window whose position is known, other
-    /// than `except`: what a new window cascades from.
-    pub fn cascade_origin(&self, except: Option<WindowId>) -> Option<Rect> {
-        self.recent.iter().filter(|&&id| Some(id) != except).find_map(|&id| self.outer_rect(id))
     }
 }
 
