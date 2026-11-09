@@ -933,7 +933,9 @@ pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
     let gesture = cx.core.memory.shown::<Gesture<ValueOf<C>>>(slot);
     let (running, watched) = (gesture.is_running().then_some(gesture.id), gesture.watched);
     if gesture.is_running() {
-        gesture.emitted = emitted.or(gesture.emitted.take());
+        // The value held for the next pass is already readable from the response's `shown` in this one, so a host write of
+        // it is the gesture's own.
+        gesture.emitted = held.clone().or(emitted).or(gesture.emitted.take());
         gesture.last_given = given_now.or(gesture.last_given.take());
         gesture.held = held.or(gesture.held.take());
         // A value the check replaced is the gesture's proposal, so the next pass shows it.
