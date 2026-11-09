@@ -35,8 +35,12 @@ fn only_our_changes_are_written() {
     let out = parse(&merged(base, ours, theirs)).unwrap();
     assert_eq!(out["general"]["theme_hint"].as_str(), Some("x"), "a key only we added is written");
     assert_eq!(out["general"]["language"].as_str(), Some("de"));
+}
 
-    // A section both instances added since the base merges per key, ours winning.
+// A section both instances added since the base: PhotoCraft replaces the whole subtree with ours
+// and loses the other instance's keys; the merge keeps them and ours wins per key.
+#[test]
+fn a_section_added_on_both_sides_merges_per_key() {
     let base = "schema_version = 2\n";
     let ours = "schema_version = 2\n[plugins]\nb = 2\nshared = \"ours\"\n";
     let theirs = "schema_version = 2\n[plugins]\na = 1\nshared = \"theirs\"\n";
@@ -100,17 +104,22 @@ fn two_stores_keep_each_others_changes() {
     assert_eq!(c.get().general.autosave_minutes, 9);
     assert_eq!(c.get().appearance.ui_scale, 3.0);
     assert_eq!(c.get().general.language, "fr", "b's second save must not write its old language back");
+}
 
-    // The store that merged holds the merged value and reports it once.
+// After a save merged the other instance's change, the store holds the merged value and says so
+// once.
+#[test]
+fn a_merge_updates_the_stores_value_and_reports_it() {
+    let tmp = tempfile::tempdir().unwrap();
     let (mut a, _) = open_in(tmp.path());
     let (mut b, _) = open_in(tmp.path());
-    a.update(|p| p.general.language = "de".into());
+    a.update(|p| p.general.language = "fr".into());
     a.flush().unwrap();
     assert!(!a.take_merged_change(), "nothing from outside");
-    b.update(|p| p.appearance.ui_scale = 4.0);
+    b.update(|p| p.appearance.ui_scale = 2.0);
     b.flush().unwrap();
-    assert_eq!(b.get().general.language, "de");
-    assert_eq!(b.get().appearance.ui_scale, 4.0);
+    assert_eq!(b.get().general.language, "fr");
+    assert_eq!(b.get().appearance.ui_scale, 2.0);
     assert!(b.take_merged_change());
     assert!(!b.take_merged_change(), "reported once");
 }

@@ -118,9 +118,11 @@ fn a_hidden_folder_never_opens_a_tree_through_itself() {
     let r = resolve(&std, &home_hidden, Some("/home/example/Pictures/Trip"), &[]);
     assert_eq!((names(&r), r.owner), (vec!["Pictures"], Some((0, 0))));
     assert_eq!(r.hidden[0].kind, PlaceKind::Standard(StandardFolder::Home), "a hidden standard root keeps its kind");
+}
 
-    // Home and a kept folder inside it both hold the browsed folder: the kept one, the innermost
-    // root, owns the reveal.
+// Home and a kept folder inside it both hold the browsed folder: the kept one owns the reveal.
+#[test]
+fn the_innermost_root_owns_the_reveal() {
     let std = standard(&[(StandardFolder::Home, "/home/example")]);
     let settings = PlacesSettings { favorites: vec![p("/home/example/Photos")], ..PlacesSettings::default() };
     let r = resolve(&std, &settings, Some("/home/example/Photos/2026"), &[]);

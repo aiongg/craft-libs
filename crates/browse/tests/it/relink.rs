@@ -239,8 +239,12 @@ fn the_search_never_blocks_and_stop_cancels_it() {
     rig.jobs.run_all();
     rig.fx.settle();
     assert!(!rig.present("/new/a.mov"), "a stopped search reports nothing");
+}
 
-    // A search is one job: its hits arrive without a second one.
+#[trial]
+fn a_search_is_one_job() {
+    let files = files(&[("/new/a.mov", SAME)]);
+    let mut rig = rig(vec![row(1, "Clip A", "/old/a.mov")], &files, "/new", false, true);
     rig.search();
     assert_eq!(rig.jobs.waiting(), 0, "hits need no second job");
     assert!(rig.present("/new/a.mov"), "the hit is listed");

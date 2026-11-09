@@ -123,8 +123,12 @@ fn action_list_toggle_all_rule() {
     assert_eq!(list.toggle_all(0), Ok(false));
     assert_eq!(list.actions[0].include(), ActionInclude::None);
     assert_eq!(list.toggle_all(0), Ok(true));
+}
 
-    // The `set_*` calls are idempotent and bump the revision only when they change something.
+// The panel's toggle events carry the state a cell takes: the `set_*` calls are idempotent and
+// bump the revision only when they change something.
+#[test]
+fn action_list_set_calls_are_idempotent() {
     let mut list = list_of(vec![action("A", &["a", "b"])]);
     let start = list.revision();
     list.set_step(0, 1, true).unwrap();
@@ -155,8 +159,11 @@ fn action_player_stops_at_first_error_and_skips_disabled() {
 
     let report = ActionPlayer::play(&list, 5, 0, &mut runner, &mut budget);
     assert_eq!(report.failed.map(|f| f.message), Some("no such action".to_owned()));
+}
 
-    // An `authorize` denial is one more failure kind: the step neither runs nor pauses.
+// An `authorize` denial neither runs nor pauses the step.
+#[test]
+fn action_player_gates_each_step() {
     let list = list_of(vec![action("A", &["a", "b", "c"])]);
     let mut runner = Script { deny: Some("b"), pause: Some("b"), ..Script::default() };
     let report = ActionPlayer::play(&list, 0, 0, &mut runner, &mut PlaybackBudget::new());

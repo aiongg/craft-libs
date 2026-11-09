@@ -155,8 +155,11 @@ fn escape_closes_the_mention_list_before_the_popover() {
     fx.settle();
     assert!(app.borrow().closed);
     assert_eq!(app.borrow().draft, "hi @bo", "the draft stays");
+}
 
-    // The close button closes the popover.
+/// The close button closes the popover.
+#[trial]
+fn the_close_button_closes_the_popover() {
     let (mut fx, app) = popover("Ana María");
     let close = fx.by_label("Close").expect("Close");
     fx.click(&close);
@@ -271,8 +274,11 @@ fn pins_open_drag_and_cluster() {
     fx.settle();
     let moves = app.borrow().moves.clone();
     assert!(matches!(moves.last(), Some(PinMove { thread, to, .. }) if *thread == ThreadId(2) && to.x > start.x), "{moves:?}");
+}
 
-    // While your own pin is dragged it follows the pointer, before the drop.
+/// While your own pin is dragged it follows the pointer, before the drop.
+#[trial]
+fn your_pin_follows_the_pointer_while_dragged() {
     let (mut fx, _) = pins(vec![(ThreadId(2), pos2(100.0, 100.0), "Me")]);
     let own = fx.by_label("Comment by Me: Check the margin").expect("own pin");
     let left = |fx: &Fixture| fx.texts().iter().map(|run| run.rect.min.x).fold(f32::INFINITY, f32::min);

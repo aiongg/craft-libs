@@ -162,17 +162,6 @@ fn outside_edits_between_load_and_save_are_kept() {
     assert!(text.contains("# added by hand"), "{text}");
     assert!(text.contains("[other]\nx = 1"), "{text}");
     assert!(text.contains("language = \"fr\""), "{text}");
-
-    // The same holds when the edit leaves the mtime unchanged (coarse timestamps on FAT, HFS+,
-    // network shares).
-    let mtime = std::fs::metadata(config_path(tmp.path())).unwrap().modified().unwrap();
-    let edited = read_config(tmp.path()).replace("[general]", "# same second\n[general]");
-    write_config(tmp.path(), &edited);
-    std::fs::File::options().write(true).open(config_path(tmp.path())).unwrap().set_modified(mtime).unwrap();
-    store.update(|p| p.general.language = "de".into());
-    store.flush().unwrap();
-    let text = read_config(tmp.path());
-    assert!(text.contains("# same second") && text.contains("language = \"de\""), "{text}");
 }
 
 #[cfg(unix)]
@@ -212,6 +201,25 @@ fn read_only_file_makes_the_save_fail_visibly() {
     let r = store.tick(Instant::now() + Duration::from_secs(1));
     assert!(matches!(r.status, SaveStatus::Failed(craft_settings::SettingsError::Io(_))), "{r:?}");
     assert!(!read_config(tmp.path()).contains("language = \"fr\""));
+}
+
+#[test]
+fn outside_edit_with_the_same_mtime_is_still_seen() {
+    // Coarse timestamps (FAT, HFS+, network shares) can leave mtime unchanged after an edit.
+    let tmp = tempfile::tempdir().unwrap();
+    let (mut store, _) = open_in(tmp.path());
+    store.flush().unwrap();
+    let mtime = std::fs::metadata(config_path(tmp.path())).unwrap().modified().unwrap();
+
+    let edited = read_config(tmp.path()).replace("[general]", "# same second\n[general]");
+    write_config(tmp.path(), &edited);
+    std::fs::File::options().write(true).open(config_path(tmp.path())).unwrap().set_modified(mtime).unwrap();
+
+    store.update(|p| p.general.language = "fr".into());
+    store.flush().unwrap();
+    let text = read_config(tmp.path());
+    assert!(text.contains("# same second"), "{text}");
+    assert!(text.contains("language = \"fr\""), "{text}");
 }
 
 // --- Review on #22 (skylartaylor): the backup must never be more readable than config.toml. ---

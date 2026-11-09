@@ -511,11 +511,14 @@ mod tests {
         std::fs::write(dir.join("big.json"), big).unwrap();
         assert_eq!(presets.list(), ["good"]);
         assert!(dir.join("bad.json").exists() && dir.join("big.json").exists());
+    }
 
-        // Without a folder the list is empty and a save is refused as unsupported.
-        let none = PresetFolder::<Curve>::new(None, "curve");
-        assert!(none.list().is_empty());
-        assert!(none.save("x", &curve(1)).is_err());
+    // `new(None, ..)`: `list` is empty and `save` is `Io` with `ErrorKind::Unsupported`.
+    #[test]
+    fn preset_folder_without_a_folder_keeps_nothing() {
+        let presets = PresetFolder::<Curve>::new(None, "curve");
+        assert!(presets.list().is_empty());
+        assert!(matches!(presets.save("x", &curve(1)), Err(PresetFolderError::Io(e)) if e.kind() == io::ErrorKind::Unsupported));
     }
 
     // `in_settings` over a `MemorySections`: save, list, load, rename and delete per kind; another

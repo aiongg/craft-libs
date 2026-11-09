@@ -285,18 +285,21 @@ fn the_job_stats_through_the_decoder() {
     assert!(matches!(setup.show(&source, &key), TextureState::Ready(_)));
     let requests = decoder.requests.lock().unwrap();
     assert_eq!((requests[0].len, requests[0].modified), (1234, Some(modified)));
-    drop(requests);
+}
 
-    // A stat that finds no file is the loader's "missing" reason, not a decode.
-    let missing = Decoder::new(None);
-    *missing.stat.lock().unwrap() = Err(ThumbError::Missing);
-    let source = FileThumbSource::new(missing.clone(), None);
+// A stat that finds no file is the loader's "missing" reason, not a decode.
+#[trial]
+fn a_failed_stat_is_missing() {
+    let setup = Setup::new();
+    let decoder = Decoder::new(None);
+    *decoder.stat.lock().unwrap() = Err(ThumbError::Missing);
+    let source = FileThumbSource::new(decoder.clone(), None);
     let key = setup.file("a.png");
     setup.show(&source, &key);
     setup.jobs.run_all();
     let state = setup.show(&source, &key);
     assert!(matches!(state, TextureState::Failed { .. }), "{state:?}");
-    assert_eq!(missing.decodes(), 0);
+    assert_eq!(decoder.decodes(), 0);
 }
 
 // A buffer that is not width x height x 4 fails as unreadable instead of panicking; a zero size shows no picture.

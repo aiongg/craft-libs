@@ -107,8 +107,7 @@ fn join(state: JoinState) -> (Fixture, Requests) {
     (fixture, requests)
 }
 
-/// A failed join shows its reason and Try Again asks to retry; while a join is pending the field
-/// shows Joining… with Cancel.
+/// A failed join shows its reason and Try Again asks to retry.
 #[trial]
 fn a_failed_join_reports_retry() {
     let (mut fixture, requests) = join(JoinState::Failed("No session with that code".into()));
@@ -116,7 +115,11 @@ fn a_failed_join_reports_retry() {
     let retry = fixture.by_label("Try Again").expect("Try Again");
     fixture.click(&retry);
     assert_eq!(*requests.borrow(), [CollabRequest::RetryJoin]);
+}
 
+/// While a join is pending the field shows Joining… with Cancel, and Join waits.
+#[trial]
+fn join_field_waits_while_a_join_is_pending() {
     let (mut fixture, requests) = join(JoinState::Joining);
     assert!(fixture.by_label("Joining…").is_some());
     let cancel = fixture.by_label("Cancel").expect("Cancel");
@@ -272,15 +275,19 @@ fn following_fixture() -> (Fixture, Rc<RefCell<Option<ParticipantId>>>) {
     (fixture, following)
 }
 
-/// The stop command stops following, and Escape, its default binding, reaches it while the frame shows.
+/// Escape while following stops following.
 #[trial]
-fn escape_key_stops_following() {
+fn escape_while_following_stops_following() {
     let (mut fixture, following) = following_fixture();
     assert!(following.borrow().is_some());
     craft_ui::runtime::commands::fire(fixture.ctx(), craft_review::ui::FollowCommand::StopFollowing, craft_ui::runtime::commands::FireSource::Key);
     fixture.settle();
     assert!(following.borrow().is_none(), "the stop command stops following");
+}
 
+/// Escape, the command's default binding, reaches the follow frame while it shows.
+#[trial]
+fn escape_key_stops_following() {
     let (mut fixture, following) = following_fixture();
     fixture.key(egui::Key::Escape, egui::Modifiers::NONE);
     fixture.settle();

@@ -208,8 +208,16 @@ fn opening_a_bin_reports_how_to_open_it() {
     }
 }
 
-/// In a sorted list a release on the empty room drops into the shown bin, except items already in
-/// it; an item dragged onto a bin row's middle is a drop into that bin.
+/// An item dragged onto a bin row's middle is a drop into the bin.
+#[trial]
+fn dropping_on_a_bin_row_reports_the_target() {
+    let mut bin = setup(false, |_| {});
+    let archive = bin.rect("Archive").center();
+    bin.drag_to("Beach.mov", archive);
+    assert_eq!(bin.drops(), [(vec![10], Some(2))], "{:?}", bin.events.borrow());
+}
+
+/// In a sorted list a release on the empty room drops into the shown bin, except items already in it.
 #[trial]
 fn a_release_on_the_background_drops_into_the_shown_bin_unless_they_are_there() {
     let mut bin = setup(false, |state| state.settings.sort = Some(ColumnSort::ascending(NAME)));
@@ -219,11 +227,6 @@ fn a_release_on_the_background_drops_into_the_shown_bin_unless_they_are_there() 
     bin.events.borrow_mut().clear();
     bin.drag_to("Title.psd", room);
     assert!(bin.drops().is_empty(), "Title is in the root, which is the shown bin: {:?}", bin.events.borrow());
-
-    bin.events.borrow_mut().clear();
-    let archive = bin.rect("Archive").center();
-    bin.drag_to("Beach.mov", archive);
-    assert_eq!(bin.drops(), [(vec![10], Some(2))], "{:?}", bin.events.borrow());
 }
 
 /// In User Order a release past the last row moves a row of the shown bin to the end; it is not a drop.

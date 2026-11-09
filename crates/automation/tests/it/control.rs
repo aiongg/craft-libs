@@ -83,9 +83,14 @@ fn waiters_reply_when_input_or_job_settles() {
     let waiting = park(&mut channel, Reply::AfterInput);
     channel.input_cancelled("gone");
     assert_eq!(waiting.try_recv().expect("a reply"), json!({"ok": false, "error": "input cancelled: gone"}));
+}
 
-    // Cancelling with only waiters left (the input was already consumed) still fails them, and
-    // input the host still holds counts as pending.
+/// Cancelling with only waiters left (the input was already consumed) still fails them, and input the host still
+/// holds counts as pending.
+#[trial]
+fn cancel_input_fails_waiters_without_queued_input() {
+    let (_tx, rx) = channel();
+    let mut channel = ControlChannel::new(rx);
     let host = WindowHost::of(&Context::default());
     assert!(!channel.cancel_input(&host, "idle"));
     let waiting = park(&mut channel, Reply::AfterInput);

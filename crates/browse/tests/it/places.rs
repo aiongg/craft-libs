@@ -110,8 +110,11 @@ fn the_tree_reveals_the_browsed_folder_once_and_collapse_sticks() {
     assert!(!rows(&fixture).iter().any(|row| row == "Trip"), "Photos is closed");
     settle(&mut fixture, &state);
     assert!(!rows(&fixture).iter().any(|row| row == "2024"), "the reveal does not open it again");
+}
 
-    // A `current` spelled differently from the listing's (`..`, a trailing slash) opens the same rows.
+/// A `current` spelled differently from the listing's still opens the rows on its way.
+#[trial]
+fn reveal_matches_folders_by_their_key_not_their_spelling() {
     let (fixture, _state) = rig(Some("/home/u/Docs/../Photos/2024/Trip/"), home());
     let shown = rows(&fixture);
     for name in ["Photos", "2024", "Trip"] {

@@ -43,7 +43,7 @@ fn panel() -> (Fixture, Rc<RefCell<Vec<VersionAction>>>) {
     (fixture, actions)
 }
 
-/// Save version opens a form; Title, a description and Enter report Save. The branch form works alike.
+/// Save version opens a form; Title, a description and Enter report Save.
 #[trial]
 fn save_form_reports_title_and_description() {
     let (mut fixture, actions) = panel();
@@ -54,9 +54,12 @@ fn save_form_reports_title_and_description() {
     fixture.type_text("Beta");
     fixture.key(Key::Enter, Modifiers::NONE);
     assert!(matches!(actions.borrow().as_slice(), [VersionAction::Save { title, description, .. }] if title == "Beta" && description.is_empty()));
+}
 
-    // Create branch opens a name field; Enter creates the branch.
-    actions.borrow_mut().clear();
+/// Create branch opens a name field; Enter creates the branch.
+#[trial]
+fn the_branch_form_creates_a_branch() {
+    let (mut fixture, actions) = panel();
     let create = fixture.by_label("Create branch").expect("Create branch");
     fixture.click(&create);
     let name = fixture.by_label("Branch name").expect("the name field");
@@ -122,9 +125,18 @@ fn rename_edits_the_title_in_place() {
         actions.borrow().as_slice(),
         [VersionAction::Rename { id: VersionId(4), title, description, .. }] if title == "Release" && description.is_empty()
     ));
+}
 
-    // Edit description reports the new text with the title kept.
-    actions.borrow_mut().clear();
+/// Edit description opens the form with the version's text; Enter reports title and description.
+#[trial]
+fn edit_description_reports_the_new_text() {
+    let mut final_version = version(4, "Final", false);
+    final_version.description = "old".into();
+    let actions = Rc::new(RefCell::new(Vec::new()));
+    let seen = actions.clone();
+    let versions = [final_version];
+    let mut fixture = Fixture::new(move |ui| seen.borrow_mut().extend(VersionHistoryPanel::new(&versions, &[], NOW).show(ui).actions));
+    fixture.settle();
     pick(&mut fixture, "Final", "Edit description");
     let field = fixture.by_label("Description").expect("the description field");
     fixture.click(&field);

@@ -188,8 +188,11 @@ fn actions_panel_include_column_events() {
             (ActionSelection::Step(0, 2), "dialog", false)
         ]
     );
+}
 
-    // An action with no steps shows no include box.
+/// An action with no steps shows no include box.
+#[trial]
+fn actions_panel_an_action_without_steps_has_no_include_cell() {
     let list = list_of(vec![action("Empty", None, &[]), action("Full", None, &["a"])]);
     let (fixture, _) = rig(app(list));
     assert!(fixture.by_label("Include in playback: Empty").is_none());
@@ -227,8 +230,11 @@ fn actions_panel_drag_reports_move() {
     let (from, to) = (node(&fixture, "Run blur").center(), at(&node(&fixture, "Run levels"), 0.1));
     drag_to(&mut fixture, from, to);
     assert_eq!(moves(&take(&shared)), [(ActionSelection::Step(0, 2), ActionPlace::step(0, 0))], "a step dropped above another");
+}
 
-    // A drop before a later set goes to the end of the set before it; before the first set it is loose.
+/// A drop before a later set goes to the end of the set before it; before the first set it is loose.
+#[trial]
+fn actions_panel_drop_before_a_later_set_lands_at_the_end_of_the_previous_set() {
     let (mut fixture, shared) = rig(app(two_sets()));
     let (from, to) = (node(&fixture, "Loose").center(), at(&node(&fixture, "Beta"), 0.1));
     drag_to(&mut fixture, from, to);
@@ -343,8 +349,11 @@ fn actions_panel_play_with_no_selection_plays_the_first() {
     assert!(shared.borrow().state.settings.button_mode, "Button Mode toggles in the state");
     assert!(take(&shared).is_empty());
     assert!(shared.borrow().settings_changed, "and the output says the settings changed");
+}
 
-    // A set's disclosure changes the persisted settings and the output says so.
+/// A set's disclosure changes the persisted settings and the output says so.
+#[trial]
+fn actions_panel_set_disclosure_reports_settings_changed() {
     let (mut fixture, shared) = rig(app(sample_list()));
     assert!(!shared.borrow().settings_changed);
     let set = node(&fixture, "Effects");
@@ -400,9 +409,12 @@ fn actions_panel_context_menu_shortcut_and_color() {
     context_click(&mut fixture, &row);
     click(&mut fixture, "Save Set…");
     assert_eq!(take(&shared), [ActionsEvent::save(Some("Effects".to_owned()))]);
+}
 
-    // Reopening the menu on the same row with Shift+F10 starts from the host's shortcut again: its
-    // key is marked and Shift is enabled.
+/// Reopening the menu on the same row with Shift+F10 starts from the host's shortcut again: its key is marked and Shift
+/// is enabled.
+#[trial]
+fn actions_panel_context_menu_reopens_from_the_hosts_shortcut() {
     let mut app = app(sample_list());
     app.host.shortcuts.insert("Sharpen".to_owned(), ShortcutChoice::new(3, false, false));
     let (mut fixture, shared) = rig(app);
@@ -491,8 +503,11 @@ fn actions_panel_a_row_dropped_on_delete_reports_delete() {
     let (from, to) = (node(&fixture, "Vignette").center(), node(&fixture, "Delete").center());
     drag_to(&mut fixture, from, to);
     assert!(take(&shared).contains(&ActionsEvent::Delete(ActionSelection::Action(1))));
+}
 
-    // While recording, a dropped action is refused, as the button is.
+/// While recording, a dropped action is refused, as the button is.
+#[trial]
+fn actions_panel_delete_refuses_a_dropped_action_while_recording() {
     let mut app = app(sample_list());
     app.host.recording = Some(0);
     let (mut fixture, shared) = rig(app);

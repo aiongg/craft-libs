@@ -92,9 +92,12 @@ fn header_counts_comments_and_replies() {
     let rig = rig(vec![thread(1, 1, 0.0, "first", 2), thread(2, 1, 9.0, "second", 1)], None);
     assert!(rig.present("Comments 2"));
     assert!(rig.present("3 replies"));
+}
 
+#[trial]
+fn reply_count_uses_the_singular() {
     let rig = rig(vec![thread(1, 1, 0.0, "first", 1)], None);
-    assert!(rig.present("1 reply"), "a single reply is counted in the singular");
+    assert!(rig.present("1 reply"));
     assert!(rig.present("Comments 1"));
 }
 
@@ -177,8 +180,11 @@ fn filter_hides_threads_and_reports_no_match() {
     rig.app.borrow_mut().state.filter.clear();
     rig.fx.settle();
     assert!(rig.present("Ana: Alpha"));
+}
 
-    // The search hides the other threads and clears again.
+#[trial]
+fn search_filters_and_clears() {
+    let mut rig = rig(vec![thread(1, 1, 0.0, "Alpha", 0), thread(2, 1, 5.0, "Beta", 0)], None);
     rig.type_into("Search comments", "BETA");
     assert!(!rig.present("Ana: Alpha"));
     assert!(rig.present("Ana: Beta"));

@@ -127,8 +127,10 @@ fn delete_and_arrows_edit_the_selection() {
             AnnotationEdit::Delete(ids),
         ]
     );
+}
 
-    // Backspace deletes the selection too.
+#[trial]
+fn backspace_deletes_the_selection() {
     let mut tool = AnnotateTool::new(AnnotationTool::Select, 0);
     tool.annotations = vec![annotation(1, AnnotationKind::Rectangle, Rect::new(10.0, 10.0, 60.0, 60.0))];
     tool.selected = vec![AnnotationId(1)];
