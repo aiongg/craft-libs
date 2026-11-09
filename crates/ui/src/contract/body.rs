@@ -1094,7 +1094,7 @@ impl<'b> BodyHooks<'b> {
 
     /// What the regions took together, padding included, from the records a measuring run left in this pass, when they
     /// serve a run offered `self.room`: on each axis the room equals the recorded one, or the container is not given
-    /// that axis and took less than both rooms (the room did not bound it).
+    /// that axis, took less than the recorded room (the room did not bound it) and fits in the room now.
     fn reusable(&self, props: &ContainerProps, ctx: &Context, id: Id, pad: Vec2, tolerance: f32) -> Option<Vec2> {
         let body = layout_memory::measured(ctx, id)?;
         let region =
@@ -1102,7 +1102,7 @@ impl<'b> BodyHooks<'b> {
         let (header, footer, end) =
             (region("header", props.header.is_some()), region("footer", props.footer.is_some()), region("end", props.end.is_some()));
         let fits =
-            |now: f32, was: f32, given: bool, took: f32| now == was || (now - was).abs() <= tolerance || (!given && took < now.min(was) - tolerance);
+            |now: f32, was: f32, given: bool, took: f32| now == was || (now - was).abs() <= tolerance || (!given && took < was - tolerance && took <= now + tolerance);
         let full = self.regions_size(props, body.took, header, footer, end) + pad;
         if !(fits(self.room.x, body.room.x, self.given.0, full.x) && fits(self.room.y, body.room.y, self.given.1, full.y)) {
             return None;
@@ -2026,13 +2026,11 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 scoped.content_column = content_column;
                 scoped.row_room = None;
                 scoped.content = (!self.given.0, !self.given.1);
-                // A content-sized container whose parent gave it a width offers its children, in the real run, the width
-                // the sizing pass settled on: a child that fits itself into its room (a bar moving items into "More")
-                // fits the width the container takes, not the room it could have taken. Inside a content-sized parent
-                // the room already is that width.
-                let settled = real && !env.content.0 && matches!(props.mount, Mount::Layer(_) | Mount::Viewport { .. });
+                // A content-sized container offers its children, in the real run, the width this pass measured it at:
+                // a child that fits itself into its room (a bar moving items into "More") fits the width the container
+                // takes, not the room it could have taken.
                 scoped.offered = (!self.given.0 && room.x.is_finite())
-                    .then(|| if settled { self.wanted_width(&props).map_or(room.x, |wanted| wanted.min(room.x)) } else { room.x });
+                    .then(|| if real { self.wanted_width(&props).map_or(room.x, |wanted| wanted.min(room.x)) } else { room.x });
                 match scroll {
                     Some(scroll) => {
                         scoped.scroll_owner = Some(id);
