@@ -288,18 +288,19 @@ impl<'a> PageView<'a> {
     }
 
     /// Shows the view in the room left in `ui`, and runs `body` for the app's canvas controls (margins, zones,
-    /// marks, grids), which it shows with `show_at(ui, body.rect)`.
-    pub fn show(self, ui: &mut Ui, body: impl FnOnce(&mut Ui, &PageBody<'_>)) -> PageViewOutput {
+    /// marks, grids), which it shows with `show_at(ui, body.rect)`. `body` runs on every run of the canvas body (the measuring run and
+    /// the real one), so it builds what it shows each time and consumes nothing.
+    pub fn show(self, ui: &mut Ui, mut body: impl FnMut(&mut Ui, &PageBody<'_>)) -> PageViewOutput {
         let rect = ui.available_rect_before_wrap();
         self.run(ui, rect, true, body)
     }
 
     /// Shows the view at `rect` without allocating (a pane of split views).
-    pub fn show_at(self, ui: &mut Ui, rect: Rect, body: impl FnOnce(&mut Ui, &PageBody<'_>)) -> PageViewOutput {
+    pub fn show_at(self, ui: &mut Ui, rect: Rect, mut body: impl FnMut(&mut Ui, &PageBody<'_>)) -> PageViewOutput {
         self.run(ui, rect, false, body)
     }
 
-    fn run(self, ui: &mut Ui, rect: Rect, take_room: bool, body: impl FnOnce(&mut Ui, &PageBody<'_>)) -> PageViewOutput {
+    fn run(self, ui: &mut Ui, rect: Rect, take_room: bool, mut body: impl FnMut(&mut Ui, &PageBody<'_>)) -> PageViewOutput {
         let PageView { label, source, state, options, navigation, bodies, describer, paper } = self;
         let spacing = PageMetrics::new().show_at(ui, Rect::from_min_size(rect.min, Vec2::ZERO)).spacing;
         let count = source.page_count();
@@ -317,13 +318,10 @@ impl<'a> PageView<'a> {
             canvas = canvas.document(frame.document(&geo));
         }
         let mut held = Held::new(Bind::bound(state));
-        let mut app_body = Some(body);
         let mut seen: Option<Seen> = None;
         let mut canvas_body = |ui: &mut Ui, cx: &mut BodyCx<'_>| {
             let Some(next) = run_pass(ui, cx, &mut held, &Inputs { source, describer, build: &build, rect, given, paper }) else { return };
-            if let Some(body) = app_body.take() {
-                body(ui, &PageBody { rect: cx.rect, pages: &next.pages, view: next.view });
-            }
+            body(ui, &PageBody { rect: cx.rect, pages: &next.pages, view: next.view });
             seen = Some(next);
         };
         let shown = if take_room { canvas.show_at_taking_room(ui, rect, &mut canvas_body) } else { canvas.show_at(ui, rect, &mut canvas_body) };
