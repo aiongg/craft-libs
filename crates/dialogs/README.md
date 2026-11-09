@@ -10,7 +10,7 @@ is any `raw-window-handle` 0.6 window, and the app passes a closure that wakes i
 `craft_dialogs::ui` holds the egui widgets over `host.files()`: `PathField` (a path text field with a
 Browse button) and `FileListPicker` with `FileList` (Photoshop's Load Files into Stack list:
 Files or Folder mode, Browse…, Remove, Add Open Files, Sort By Name; a 300 × 160 list box and
-120-wide buttons from the `file_list.*` tokens). `ui::WORDS` lists their labels for the words registry.
+120-wide buttons from the `file_list.*` tokens).
 
 ## Save flow
 

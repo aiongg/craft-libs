@@ -75,16 +75,16 @@ const STYLE_MUTATORS: [&str; 6] = ["style_mut", "spacing_mut", "visuals_mut", "s
 const STROKE_TAKERS: [&str; 11] =
     ["stroke", "rect", "rect_stroke", "line_segment", "circle", "circle_stroke", "hline", "vline", "line", "closed_line", "dotted_line"];
 
-/// egui's tooltip methods on `Response`, each with the `TooltipExt` method that replaces it.
+/// egui's tooltip methods on `Response`, each with the craft-ui contract call that replaces it.
 const STOCK_TOOLTIPS: [(&str, &str); 8] = [
-    ("on_hover_text", "tooltip"),
-    ("on_disabled_hover_text", "tooltip"),
-    ("on_hover_ui", "tooltip_ui"),
-    ("on_disabled_hover_ui", "tooltip_ui"),
-    ("on_hover_text_at_pointer", "tooltip_at_pointer"),
-    ("on_hover_ui_at_pointer", "tooltip_ui_at_pointer"),
-    ("show_tooltip_text", "show_tooltip"),
-    ("show_tooltip_ui", "show_tooltip_ui"),
+    ("on_hover_text", "craft_ui::contract::Props::tooltip"),
+    ("on_disabled_hover_text", "craft_ui::contract::Props::tooltip"),
+    ("on_hover_ui", "craft_ui::contract::Show::show_with_tip"),
+    ("on_disabled_hover_ui", "craft_ui::contract::Show::show_with_tip"),
+    ("on_hover_text_at_pointer", "craft_ui::contract::Props::tooltip with TooltipSpec::at(TooltipAt::Pointer)"),
+    ("on_hover_ui_at_pointer", "craft_ui::contract::Show::show_with_tip"),
+    ("show_tooltip_text", "craft_ui::contract::Props::tooltip with TooltipSpec::when(TooltipWhen::Now)"),
+    ("show_tooltip_ui", "craft_ui::contract::Show::show_with_tip"),
 ];
 
 /// The colour constants of egui's `Rgba`.
@@ -655,14 +655,8 @@ impl Linter<'_> {
             "size" if rooted_in_rich_text(&call.receiver) => self.size_rule(FONT_ID, span, call.args.iter()),
             "into" if call.args.is_empty() => self.stroke_tuples([&*call.receiver]),
             n if STOCK_TOOLTIPS.iter().any(|(stock, _)| *stock == n) => {
-                let replacement = STOCK_TOOLTIPS.iter().find(|(stock, _)| *stock == n).map_or("tooltip", |(_, r)| r);
-                self.report(
-                    TOOLTIP,
-                    span,
-                    format!(
-                        "`{n}` is a stock egui tooltip; use `craft_ui::controls::TooltipExt::{replacement}` or mark `// design: allow(<reason>)`"
-                    ),
-                );
+                let replacement = STOCK_TOOLTIPS.iter().find(|(stock, _)| *stock == n).map_or("craft_ui::contract::Props::tooltip", |(_, r)| r);
+                self.report(TOOLTIP, span, format!("`{n}` is a stock egui tooltip; use `{replacement}` or mark `// design: allow(<reason>)`"));
             }
             n if STYLE_MUTATORS.contains(&n) || n.starts_with("override_") => {
                 let snippet = self.snippet(span);
@@ -719,7 +713,7 @@ fn hint(rule: &str) -> &'static str {
         CORNER_RADIUS => "use a radius token from `Tokens::of(ui)` or mark `// design: allow(<reason>)`",
         STROKE => "use a stroke width token from `Tokens::of(ui)` or mark `// design: allow(<reason>)`",
         MARGIN => "use a spacing token (`Tokens::of(ui).space`) or mark `// design: allow(<reason>)`",
-        TOOLTIP => "use `craft_ui::controls::TooltipExt` (`tooltip`, `tooltip_ui`, `show_tooltip`) or mark `// design: allow(<reason>)`",
+        TOOLTIP => "use `craft_ui::contract::Props::tooltip` or `craft_ui::contract::Show::show_with_tip` or mark `// design: allow(<reason>)`",
         STYLE_MUTATION => "set styles through the theme (craft-ui installs them from the tokens) or mark `// design: allow(<reason>)`",
         _ => "use a type-size token from `Tokens::of(ui)` or mark `// design: allow(<reason>)`",
     }

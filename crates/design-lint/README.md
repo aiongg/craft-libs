@@ -44,7 +44,7 @@ reason = "document-space drawing"
 | `literal-size/font-id` | `FontId::proportional/monospace/new` (size); `.size(lit)` on a `RichText::..` chain |
 | `raw-colour/const` | `Color32::WHITE` and the other named constants; `Rgba::{WHITE, BLACK, RED, GREEN, BLUE}` |
 | `style-mutation` | `style_mut`, `spacing_mut`, `visuals_mut`, `set_style`, `set_visuals`, `set_zoom_factor`, `override_*` |
-| `tooltip/stock` | `on_hover_text`, `on_disabled_hover_text`, `on_hover_ui`, `on_disabled_hover_ui`, `on_hover_text_at_pointer`, `on_hover_ui_at_pointer`, `show_tooltip_text`, `show_tooltip_ui`, `egui::Tooltip::for_enabled/for_disabled/for_widget/always_open`; the message names the `craft_ui::controls::TooltipExt` method that replaces the call. craft-ui's own tooltip module is not in the paths an app lints |
+| `tooltip/stock` | `on_hover_text`, `on_disabled_hover_text`, `on_hover_ui`, `on_disabled_hover_ui`, `on_hover_text_at_pointer`, `on_hover_ui_at_pointer`, `show_tooltip_text`, `show_tooltip_ui`, `egui::Tooltip::for_enabled/for_disabled/for_widget/always_open`; the message names the `craft_ui::contract` call that replaces it (`Props::tooltip`, or `Show::show_with_tip` for a tooltip with a body). craft-ui's own tooltip module is not in the paths an app lints |
 | `clippy/inner-allow` | `#![allow(clippy::disallowed_*)]` or `#![expect(..)]` in any scope; list the file in an `[[exempt]]` to accept it. Outer `#[allow]`/`#[expect]` of those lints are counted in the summary line. |
 
 ## Egui-ban and API rules

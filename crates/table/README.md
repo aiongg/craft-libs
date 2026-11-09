@@ -15,4 +15,4 @@ Spreadsheet widgets for Craft apps, from GridCraft (Excel), with LightCraft's co
 
 Edits go out as events; the app applies them to its workbook.
 
-Stories (in `craft::story::all()` with the `table` and `ui` features): `patterns/cell-grid/sheet`, `patterns/condition-builder/rules`, `patterns/outline-band/outline`, `patterns/field-list-pane/pane`, `composites/chart-primitive/primitives`, `composites/slicer/tiles` and `composites/selection-stats/readout`. `ui::WORDS` lists the labels tables for the facade's catalog extraction.
+Stories are `#[story]` functions in `src/ui/*/stories.rs`; they register in `craft_ui::testing::STORIES` and the `craft-ui-gallery` viewer lists them by the type they show.

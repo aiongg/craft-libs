@@ -13,7 +13,7 @@ With the `ui` feature, `craft_imaging::ui` has:
 - the full-window editors, each a workspace over a session, panel and options bar: `SelectMaskWorkspace`, `ContentAwareFillWorkspace`, `FilterGalleryWorkspace`, `LiquifyWorkspace`, `WideAngleWorkspace` and `VanishingPointWorkspace` (settings in `VanishingPointSettings` and `StampSettings`); the limits an app passes to Select and Mask and Content-Aware Fill are `SelectMaskLimits` and `FillLimits`, and a refused edit is a `LimitRefused` or a `FillLimit`; `BlurPinsOverlay` and `BlurPinsPanel` edit blur pins on the canvas;
 - the `ChannelsPanel` (thumbnails, eyes, selection, rename in place with `start_rename`, drag, the footer (`ChannelsEvent::Footer` and `FooterDrop`) and the menus over plain `ChannelRow`s; `ChannelsPanel::style(&UiTokens)` gives the look);
 - the `ScopePanel` (histogram, statistics, tone zones and vectorscope) and the `ClippingOverlay` for a preview;
-- their stories and words (`craft_imaging::ui::stories()`, `craft_imaging::ui::WORDS`).
+- their stories, registered in `craft_ui::testing::STORIES`.
 
 The main types of every module are re-exported at `craft_imaging::ui`. The panels and editors report what the user did as events and hold no document. Thumbnails load as jobs on `craft_host::queue::JobQueue`.
 

@@ -20,8 +20,7 @@ impl PlatformText {
 }
 
 /// Every message the library's services word with a [`PlatformText`] (the services this build
-/// has), in module order, for an app's missing-translation report beside the UI words of
-/// `craft_ui::localized::words::all()`. The save flow's are in `craft_dialogs::save::TEXTS`.
+/// has), in module order, for an app's missing-translation report. The save flow's are in `craft_dialogs::save::TEXTS`.
 pub fn texts() -> Vec<PlatformText> {
     let tables: &[&[PlatformText]] = &[
         #[cfg(feature = "clipboard")]
