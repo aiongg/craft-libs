@@ -2260,9 +2260,9 @@ The layout services: `LabelColumn`, `ColumnGroup`, the `Grid` cursor, `measure_s
   - `pub fn wrap(self, on: bool) -> Self`. A `Row` that wraps; any other layout is unchanged.
   - `pub fn align(self, align: RowAlign) -> Self`. A `Row` with `align`; any other layout is unchanged.
 - `craft_ui::layout::ColumnGroup`: `pub struct ColumnGroup`. The widest content per column key of one scope, measured through the same `LayoutMemory` rule as a `Grid`
-  - `pub fn scope<R>(ui: &mut Ui, key: impl Hash + Debug, rows: impl FnOnce(&mut Ui, &mut ColumnGroup) -> R) -> R`. Runs `rows` with a group named `key` under `ui`. The widths each row reported are recorded when it ends.
+  - `pub fn scope<R>(ui: &mut Ui, key: impl Hash + Debug, rows: impl FnOnce(&mut Ui, &mut ColumnGroup) -> R) -> R`. Runs `rows` with a group named `key` under `ui`. A measuring run records the widest width per column the rows
   - `pub fn barrier<R>(ui: &mut Ui, rows: impl FnOnce(&mut Ui) -> R) -> R`. Runs `rows` with no group open: a labelled row inside reads no column, so only the rows that sit directly in a
-  - `pub fn width(&mut self, ui: &Ui, column: &ColumnKey, content: f32) -> f32`. The width every row gives column `column`: the widest content of last pass. `content` is this row's own
+  - `pub fn width(&mut self, ui: &Ui, column: &ColumnKey, content: f32) -> f32`. The width every row gives column `column`: the widest content this pass's measuring run found, or in that run
 - `craft_ui::layout::Placed`: `pub struct Placed<'c>`. A keyed child for `arrange`; shown once, under the id derived from the key.
   - `pub fn new<C: Show + 'c>(key: impl Hash + Debug + 'c, child: C) -> Self`. A child shown under the id `key` derives from the arranging `Ui`.
   - `pub fn response(&self) -> Option<&Response>`. The child's response after `arrange` showed it.
@@ -2858,6 +2858,7 @@ AccessKit node building, `register_accesskit_parent` and `set_accesskit_focus`: 
   - `pub fn position(&self, id: Id) -> Option<(usize, usize)>`. The place of the node of `id` in its set: its zero-based index and the size of the set.
   - `pub fn grid_of(&self, key: NodeKey) -> GridPlace`. The row and column indexes and counts of a node by key.
   - `pub fn sort_of(&self, key: NodeKey) -> Option<bool>`. The sort order a column header node by key shows: `true` descending.
+  - `pub fn declares_sort(&self, key: NodeKey) -> bool`. Whether a column header node declares a sort direction: it sorts when activated, sorted now or not.
   - `pub fn expanded(&self, id: Id) -> Option<bool>`. The expanded state of the node of `id`.
   - `pub fn has_popup(&self, id: Id) -> Option<PopupKind>`. The kind of popup the node of `id` opens.
   - `pub fn controls(&self, id: Id) -> Vec<NodeKey>`. The nodes the node of `id` controls.
@@ -3529,6 +3530,7 @@ What the accessibility trials read: the AccessKit tree a frame produced, and the
   - `pub fn position(&self, id: Id) -> Option<(usize, usize)>`. The place of the node of `id` in its set: its zero-based index and the size of the set.
   - `pub fn grid_of(&self, key: NodeKey) -> GridPlace`. The row and column indexes and counts of a node by key.
   - `pub fn sort_of(&self, key: NodeKey) -> Option<bool>`. The sort order a column header node by key shows: `true` descending.
+  - `pub fn declares_sort(&self, key: NodeKey) -> bool`. Whether a column header node declares a sort direction: it sorts when activated, sorted now or not.
   - `pub fn expanded(&self, id: Id) -> Option<bool>`. The expanded state of the node of `id`.
   - `pub fn has_popup(&self, id: Id) -> Option<PopupKind>`. The kind of popup the node of `id` opens.
   - `pub fn controls(&self, id: Id) -> Vec<NodeKey>`. The nodes the node of `id` controls.
