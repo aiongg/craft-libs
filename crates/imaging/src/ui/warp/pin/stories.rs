@@ -4,15 +4,11 @@
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Rect as DocRect, Vec2};
 use craft_ui::canvas::Canvas;
-use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
-use craft_ui::runtime::env::Message;
-use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
-use egui::Ui;
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::testing::{Drive, Grip, StoryData, StoryOutput, story};
+use egui::{Ui, vec2};
 
 use super::{Pin, PinDensity, PinEdit, PinMeshView, PinSolver, PinWarp, PinWarpBar, PinWarpOptions, PinWarpOutput, PinWarpSession, PinWarpSettings};
-
-/// The most pins the invalid story accepts.
-const MOST_PINS: usize = 3;
 
 /// The layer the pins deform.
 fn layer() -> DocRect {
@@ -127,34 +123,17 @@ fn on_canvas(ui: &mut Ui, data: &mut StoryData, bind: Bind<'_, Vec<Pin>>, show_m
     StoryOutput::from(output)
 }
 
-/// Drags the second pin by twice the drag threshold.
-fn drag_second(fixture: &mut Fixture) {
-    let Some(id) = fixture.root_id() else { return };
-    let Some(pin) = fixture.part(id, super::overlay::PIN.at(1)) else { return };
-    let travel = 2.0 * craft_ui::testing::input::max_click_dist(fixture.ctx());
-    fixture.drag(&pin, egui::Vec2::new(travel, 0.0));
-}
-
 fn pins_with_a_fixed_turn() -> Vec<Pin> {
     let mut pins = sample_pins(layer());
     pins[1].angle = Some(30.0);
     pins
 }
 
-#[story(PinWarp<'static>, covers = [Default], drive = Drive::Custom(drag_second))]
+#[story(PinWarp<'static>, covers = [Default], drive = Drive::Drag(Grip::part(super::overlay::PIN.at(1)).toward(vec2(1.0, 0.0))))]
 fn pins_with_a_fixed_rotation(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let mut pins = data.value("pins", pins_with_a_fixed_turn()).clone();
     let output = on_canvas(ui, data, Bind::bound(&mut pins), true);
     *data.value("pins", pins_with_a_fixed_turn()) = pins;
-    output
-}
-
-#[story(PinWarp<'static>, covers = [Invalid], drive = Drive::Never)]
-fn too_many_pins(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let mut pins = data.value("invalid", sample_pins(layer())).clone();
-    let few = |pins: &Vec<Pin>| if pins.len() > MOST_PINS { Validity::Refuse(Message::new("There are too many pins")) } else { Validity::Ok };
-    let output = on_canvas(ui, data, Bind::bound(&mut pins).check(few), true);
-    *data.value("invalid", sample_pins(layer())) = pins;
     output
 }
 

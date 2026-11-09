@@ -350,6 +350,22 @@ fn blur_pins_are_keyboard_parts() {
     assert!((ten / one - NUDGE_RATIO).abs() < 1e-6, "Shift moves ten times as far: {one} then {ten}");
 }
 
+// An arrow moves the focused pin and selects it, even when the host selected another pin after the focus arrived.
+#[trial]
+fn arrow_moves_the_focused_pin_and_selects_it() {
+    let mut o = overlay(pins_of(BlurKind::Field, &[30.0, 15.0]));
+    let first = o.pins.borrow().to_document(&o.pins.borrow().pins[0]);
+    o.click(first.x, first.y);
+    o.fixture.key(Key::PageDown, Modifiers::NONE);
+    assert_eq!(o.pins.borrow().selected, Some(1));
+    o.pins.borrow_mut().selected = Some(0);
+    let (x0, x1) = (o.pins.borrow().pins[0].x, o.pins.borrow().pins[1].x);
+    o.fixture.key(Key::ArrowRight, Modifiers::NONE);
+    assert!(o.pins.borrow().pins[1].x > x1, "the focused pin moves");
+    assert_eq!(o.pins.borrow().pins[0].x, x0, "the other pin stays");
+    assert_eq!(o.pins.borrow().selected, Some(1), "the moved pin is the selected one");
+}
+
 // A Spin Blur pin's part is named with its angle and the degree unit.
 #[trial]
 fn spin_pins_are_named_with_their_angle() {
