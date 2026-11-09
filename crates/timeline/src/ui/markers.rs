@@ -4,22 +4,24 @@
 mod stories;
 
 use std::cell::Cell;
+use std::sync::Arc;
 
 use craft_behavior::{
-    Arrows, CursorIcon, Granularity, HitLevel, HitPriority, Input, Intent, Metrics, Mixed, NavShape, PartKey, PointerButton, PressPhase, Roving,
-    Sense,
+    Arrows, CancelReason, CursorIcon, EditEvent, GestureId, Granularity, HitLevel, HitPriority, Input, Intent, Metrics, Mixed, NavShape, PartKey,
+    PointerButton, PressCancel, PressPhase, Roving, Sense,
 };
 use craft_ui::buttons::Button;
 use craft_ui::choice::{RadioGroup, Swatch};
 use craft_ui::contract::{
-    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pointer as _,
-    Props as _, Remember as _, Role, SetPosition, Show as _, ShowContainer as _, WordSetCx as _, clicked,
+    Access, Bind, Common, Component, Cx, Focus as _, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Remember as _,
+    Role, SetPosition, Show as _, ShowContainer as _, WordSetCx as _, clicked,
 };
 use craft_ui::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
 use craft_ui::form::{Field, FieldGroup};
 use craft_ui::layout_components::Row;
 use craft_ui::patterns::form_dialogs::FormDialog;
 use craft_ui::primitives::{IconSpec, PaintShape, StrokeWidth, TextRun};
+use craft_ui::runtime::edit::next_gesture_id;
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::runtime::focus::{self, FocusTarget, KeyUse};
 use craft_ui::style::{ComponentStyle, DataColor, StyleColor, StyleCx, TypeRole};
@@ -132,22 +134,37 @@ pub struct MarkerStripStyle {
 /// was grabbed.
 #[derive(Clone, Copy, Debug, Default)]
 struct Grab {
+    id: GestureId,
+    marker: MarkerId,
     length_drag: bool,
     start: Tick,
     length: Tick,
+    /// The place the drag has reached, as drawn.
+    now: (Tick, Tick),
 }
 
 /// What the strip's paint reads of the pass: the marker being dragged out of the bin.
 #[derive(Clone, Debug, Default)]
 struct Pulled {
     at: Option<Tick>,
+    /// The marker being dragged and where the drag has put it.
+    dragged: Option<MarkerSpan>,
 }
 
 /// What the strip reports besides the drag.
 #[derive(Clone, Debug, Default)]
 struct Report {
+    span: Option<EditEvent<MarkerSpan>>,
     edits: Vec<MarkerEdit>,
     context: Option<MarkerId>,
+}
+
+fn cancel_reason(cancel: PressCancel) -> CancelReason {
+    match cancel {
+        PressCancel::Escape => CancelReason::Escape,
+        PressCancel::Removed => CancelReason::Removed,
+        _ => CancelReason::Blur,
+    }
 }
 
 /// A row of markers in the rect it is shown at (the ruler's marker band, a clip or layer bar): a flag pointing down
@@ -166,9 +183,6 @@ pub struct MarkerStrip<'a> {
     #[common]
     common: Common,
     markers: &'a [Marker],
-    /// The place of the marker being dragged, kept by the caller; the strip reports it as an edit either way.
-    #[prop]
-    span: Bind<'a, MarkerSpan>,
     /// The snap targets for drags; none turns snapping off.
     #[prop]
     snap: Option<&'a SnapTargets>,
@@ -181,9 +195,7 @@ pub struct MarkerStrip<'a> {
 impl<'a> MarkerStrip<'a> {
     /// A strip named `label` for `markers`.
     pub fn new(label: impl Into<Label>, markers: &'a [Marker]) -> Self {
-        MarkerStrip { common: Common::new(), markers, span: Bind::given(Mixed::Mixed), snap: None, bin: false, report: Report::default() }
-            .label(label)
-            .ltr_axis()
+        MarkerStrip { common: Common::new(), markers, snap: None, bin: false, report: Report::default() }.label(label).ltr_axis()
     }
 
     fn sorted(&self) -> Vec<&'a Marker> {
@@ -279,10 +291,6 @@ impl Component for MarkerStrip<'_> {
         Vec2::new(0.0, cx.style.height)
     }
 
-    fn bind(&mut self) -> Option<BindMut<'_, MarkerSpan>> {
-        Some(self.span.reborrow())
-    }
-
     /// One focusable part per marker in time order, in one roving group; the bin is pointer-only.
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let Some(axis) = time_axis(&cx.env) else { return };
@@ -341,9 +349,18 @@ impl Component for MarkerStrip<'_> {
             }
             match press.phase {
                 PressPhase::DragStart { .. } => {
-                    let grab = Grab { length_drag: press.mods.alt, start: marker.start, length: marker.duration };
+                    let id = next_gesture_id(&cx.response.ctx);
+                    let grab = Grab {
+                        id,
+                        marker: marker.id,
+                        length_drag: press.mods.alt,
+                        start: marker.start,
+                        length: marker.duration,
+                        now: (marker.start, marker.duration),
+                    };
                     *cx.press_slot::<Grab>() = Some(grab);
-                    cx.propose(MarkerSpan::new(marker.id, marker.start, marker.duration));
+                    let before = MarkerSpan::new(marker.id, marker.start, marker.duration);
+                    report.span = Some(EditEvent::begin(id, Mixed::Same(before), Arc::from(cx.resolved.label.to_owned()), None));
                 }
                 PressPhase::Drag { pos, .. } => {
                     if let Some(grab) = cx.press_slot::<Grab>().clone() {
@@ -353,10 +370,23 @@ impl Component for MarkerStrip<'_> {
                         } else {
                             MarkerSpan::new(marker.id, at, grab.length)
                         };
-                        cx.propose(span);
+                        cx.press_slot::<Grab>().as_mut().map(|held| held.now = (span.start, span.duration));
+                        report.span = Some(EditEvent::update(grab.id, span));
                     }
                 }
-                PressPhase::Release { click: false, .. } => cx.commit(),
+                PressPhase::Release { click: false, .. } => {
+                    if let Some(grab) = cx.press_slot::<Grab>().take() {
+                        let before = MarkerSpan::new(marker.id, grab.start, grab.length);
+                        let after = MarkerSpan::new(marker.id, grab.now.0, grab.now.1);
+                        report.span = Some(EditEvent::commit(grab.id, Mixed::Same(before), after));
+                    }
+                }
+                PressPhase::Cancel { reason, .. } => {
+                    if let Some(grab) = cx.press_slot::<Grab>().take() {
+                        let before = MarkerSpan::new(marker.id, grab.start, grab.length);
+                        report.span = Some(EditEvent::cancel(grab.id, cancel_reason(reason), Some(Mixed::Same(before))));
+                    }
+                }
                 PressPhase::Release { click: true, .. } if press.mods.cmd => report.edits.push(MarkerEdit::Delete(marker.id)),
                 _ => {}
             }
@@ -386,6 +416,7 @@ impl Component for MarkerStrip<'_> {
                 _ => {}
             }
         }
+        pulled.dragged = cx.press_slot::<Grab>().as_ref().map(|grab| MarkerSpan::new(grab.marker, grab.now.0, grab.now.1));
         *cx.memory::<Pulled>() = pulled;
         self.report = report;
     }
@@ -395,7 +426,7 @@ impl Component for MarkerStrip<'_> {
         let (style, rect) = (cx.style, cx.rect);
         let palette = label_palette(&cx.env);
         let tint = |color: MarkerColor| palette.0[usize::from(color.0) % palette.0.len()];
-        let dragged = cx.value().copied();
+        let dragged = cx.recall::<Pulled>().dragged;
         let height = rect.height().min(style.height);
         let draw = ui.draw();
         let placed: Vec<(&Marker, Tick, Tick)> = self
@@ -468,8 +499,8 @@ impl Component for MarkerStrip<'_> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> MarkerStripOutput {
-        let Report { edits, context } = self.report;
-        MarkerStripOutput { span: cx.edit_response(), edits, context }
+        let Report { span, edits, context } = self.report;
+        MarkerStripOutput { response: cx.response.clone(), span, edits, context }
     }
 }
 
@@ -477,8 +508,10 @@ impl Component for MarkerStrip<'_> {
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct MarkerStripOutput {
+    /// The strip's response.
+    pub response: Response,
     /// The marker being dragged and where it is: the app previews each `Update` and applies the `Commit`.
-    pub span: EditResponse<MarkerSpan>,
+    pub span: Option<EditEvent<MarkerSpan>>,
     /// This pass's edits, in order.
     pub edits: Vec<MarkerEdit>,
     /// The marker that asked for its menu; the app opens it.
@@ -486,15 +519,19 @@ pub struct MarkerStripOutput {
 }
 
 impl Outcome for MarkerStripOutput {
-    type Value = MarkerSpan;
+    type Value = NoValue;
 
     fn response(&self) -> &Response {
-        &self.span.response
+        &self.response
     }
 
     #[cfg(feature = "screen-testing")]
     fn story_facts(&self) -> craft_ui::testing::StoryOutput {
-        self.span.story_facts()
+        let mut facts = craft_ui::testing::StoryOutput::default();
+        facts.id = Some(self.response.id);
+        facts.clicked = clicked(&self.response);
+        facts.edits = self.span.iter().filter_map(craft_ui::testing::EditKind::of).collect();
+        facts
     }
 }
 

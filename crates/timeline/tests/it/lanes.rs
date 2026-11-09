@@ -3,9 +3,9 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use craft_behavior::{Selection, SelectionChange};
+use craft_behavior::{EditEvent, Mixed, Selection, SelectionChange};
 use craft_timeline::ui::{
-    KeyframeId, KeyframeInterpolation, KeyframeLane, KeyframeMark, KeyframeNavigator, LabelPalette, MarkerEdit, MarkerStrip, OverviewRun,
+    KeyframeId, KeyframeInterpolation, KeyframeLane, KeyframeMark, KeyframeNavigator, LabelPalette, MarkerEdit, MarkerSpan, MarkerStrip, OverviewRun,
     ThumbnailMode, TimelineOverview, TimelineView, overview_runs, thumbnail_tiles,
 };
 use craft_timeline::{FrameRate, Marker, MarkerColor, MarkerId, Tick, TimeFormat, TimeRange, TimeView, format_time};
@@ -76,6 +76,7 @@ struct Seen {
     selection: Selection<KeyframeId>,
     changes: Vec<SelectionChange<KeyframeId>>,
     deltas: Vec<Tick>,
+    gesture: Vec<EditEvent<Tick>>,
     deleted: bool,
     double_clicked: Option<KeyframeId>,
 }
@@ -130,7 +131,8 @@ fn lane_in(bounds: Option<TimeRange>, playhead: Tick) -> (Fixture, Rc<RefCell<Se
                     _ => seen.selection = Selection::default(),
                 }
             }
-            if let Some(&delta) = out.delta.value() {
+            seen.gesture.extend(out.delta.clone());
+            if let Some(&delta) = out.delta.as_ref().and_then(EditEvent::value) {
                 seen.deltas.push(delta);
             }
             seen.deleted |= out.delete;
@@ -189,6 +191,7 @@ fn double_click_on_a_key_is_reported() {
 struct Strip {
     edits: Vec<MarkerEdit>,
     moved: Vec<Tick>,
+    gesture: Vec<EditEvent<MarkerSpan>>,
 }
 
 fn markers() -> Vec<Marker> {
@@ -216,7 +219,8 @@ fn strip() -> (Fixture, Rc<RefCell<Strip>>) {
             .inner;
         if let Some(out) = out {
             seen.edits.extend(out.edits);
-            if let Some(span) = out.span.value() {
+            seen.gesture.extend(out.span.clone());
+            if let Some(span) = out.span.as_ref().and_then(EditEvent::value) {
                 seen.moved.push(span.start);
             }
         }
@@ -234,6 +238,27 @@ fn dragging_a_marker_moves_it() {
     fixture.drag(&options[0], vec2(POINTS_PER_SECOND as f32, 0.0));
     let last = seen.borrow().moved.last().copied().expect("the drag proposes a start");
     assert!(last > seconds(2.5) && last < seconds(3.5), "dragged one second right of 2 s: {last:?}");
+}
+
+/// Escape mid-drag cancels the marker's gesture and no commit follows the release.
+#[trial]
+fn escape_cancels_a_marker_drag() {
+    let (mut fixture, seen) = strip();
+    let options = options_by_time(&fixture);
+    let from = options[0].center();
+    let by = vec2(POINTS_PER_SECOND as f32, 0.0);
+    fixture.drag_hold_at(from, by);
+    assert!(matches!(seen.borrow().gesture.last(), Some(EditEvent::Update { .. })), "the drag runs");
+    fixture.key(Key::Escape, Modifiers::NONE);
+    fixture.release_at(from + by);
+    let seen = seen.borrow();
+    let Some(EditEvent::Cancel { before: Some(Mixed::Same(before)), .. }) =
+        seen.gesture.iter().rev().find(|event| !matches!(event, EditEvent::Update { .. }))
+    else {
+        panic!("Escape reports a Cancel: {:?}", seen.gesture);
+    };
+    assert_eq!((before.id, before.start), (MarkerId(1), seconds(2.0)), "the cancel names the start");
+    assert!(!seen.gesture.iter().any(|event| matches!(event, EditEvent::Commit { .. })), "nothing commits");
 }
 
 /// Cmd-click deletes and a double-click opens.
@@ -267,6 +292,27 @@ fn keys_pick_open_and_delete_markers() {
 fn key_at(fixture: &Fixture, at: f64) -> Target {
     let name = format_time(seconds(at), &format());
     fixture.by_label(&name).unwrap_or_else(|| panic!("no key named {name}"))
+}
+
+/// Escape mid-drag cancels the keys' gesture back to a zero delta and no commit follows the release.
+#[trial]
+fn escape_cancels_a_key_drag() {
+    let (mut fixture, seen) = lane_in(None, seconds(4.0));
+    let key = key_at(&fixture, 3.0);
+    let from = key.center();
+    let by = vec2(37.0, 0.0);
+    fixture.drag_hold_at(from, by);
+    assert!(matches!(seen.borrow().gesture.last(), Some(EditEvent::Update { .. })), "the drag runs");
+    fixture.key(Key::Escape, Modifiers::NONE);
+    fixture.release_at(from + by);
+    let seen = seen.borrow();
+    let Some(EditEvent::Cancel { before: Some(Mixed::Same(before)), .. }) =
+        seen.gesture.iter().rev().find(|event| !matches!(event, EditEvent::Update { .. }))
+    else {
+        panic!("Escape reports a Cancel: {:?}", seen.gesture);
+    };
+    assert_eq!(*before, Tick::ZERO, "the cancel returns to a zero delta");
+    assert!(!seen.gesture.iter().any(|event| matches!(event, EditEvent::Commit { .. })), "nothing commits");
 }
 
 /// A dragged key moves by whole frames; with Shift it snaps to the playhead within a few points and not farther.

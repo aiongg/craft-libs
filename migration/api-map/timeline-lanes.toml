@@ -47,7 +47,7 @@ name = "KeyframeLane"
 old = "craft_timeline::ui::keyframes::KeyframeLane"
 new = "craft_timeline::ui::keyframes::KeyframeLane"
 status = "same"
-note = "A leaf: `new(label, keys, &Selection)` with `playhead` and `bounds`; the `view` and `rate` arguments are the `TimeAxis` of the enclosing `TimelineView`. The value is the delta of a key drag; the selection comes back as `SelectionChange`s."
+note = "A leaf: `new(label, keys, &Selection)` with `playhead` and `bounds`; the `view` and `rate` arguments are the `TimeAxis` of the enclosing `TimelineView`. The key drag comes back as an `EditEvent<Tick>` (the delta) in the output, not as a value; the selection comes back as `SelectionChange`s."
 
 [[type]]
 name = "KeyframeLaneResponse"
@@ -61,7 +61,7 @@ name = "KeyframeLaneOutput"
 old = ""
 new = "craft_timeline::ui::keyframes::KeyframeLaneOutput"
 status = "replaced"
-note = "`KeyframeLaneOutput { delta, select, double_clicked, context, delete }`."
+note = "`KeyframeLaneOutput { response, delta: Option<EditEvent<Tick>>, select, double_clicked, context, delete }`; the value is `NoValue`."
 
 [[type]]
 name = "KeyframeNavigator"
@@ -123,7 +123,7 @@ name = "MarkerStrip"
 old = "craft_timeline::ui::markers::MarkerStrip"
 new = "craft_timeline::ui::markers::MarkerStrip"
 status = "same"
-note = "A leaf: `new(label, markers)` with `snap` and `bin`; the `view` argument is the `TimeAxis`, `palette` and `labels` are gone. The drag is the strip's value, a `MarkerSpan`."
+note = "A leaf: `new(label, markers)` with `snap` and `bin`; the `view` argument is the `TimeAxis`, `palette` and `labels` are gone. The drag comes back as an `EditEvent<MarkerSpan>` in the output, not as a value."
 
 [[type]]
 name = "MarkerStripResponse"
@@ -137,7 +137,7 @@ name = "MarkerStripOutput"
 old = ""
 new = "craft_timeline::ui::markers::MarkerStripOutput"
 status = "replaced"
-note = "`MarkerStripOutput { span, edits, context }`."
+note = "`MarkerStripOutput { response, span: Option<EditEvent<MarkerSpan>>, edits, context }`; the value is `NoValue`."
 
 [[type]]
 name = "MarkerEdit"

@@ -3,16 +3,20 @@
 #[cfg(feature = "screen-testing")]
 mod stories;
 
+use std::sync::Arc;
+
 use craft_behavior::{
-    Granularity, HitLevel, HitPriority, IconId, Intent, MarqueeSelect, Metrics, PartKey, PointerButton, PressPhase, Selection, SelectionChange, Sense,
+    CancelReason, EditEvent, GestureId, Granularity, HitLevel, HitPriority, IconId, Intent, MarqueeSelect, Metrics, Mixed, PartKey, PointerButton,
+    PressCancel, PressPhase, Selection, SelectionChange, Sense,
 };
 use craft_ui::buttons::{IconButton, ToggleButton};
 use craft_ui::contract::{
-    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Gap, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pattern,
-    Pointer as _, Props as _, Remember as _, Role, SetPosition, Show as _, ShowContainer as _, clicked,
+    Access, Bind, Common, Component, Cx, EditResponse, Focus as _, Gap, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pattern, Pointer as _,
+    Props as _, Remember as _, Role, SetPosition, Show as _, ShowContainer as _, clicked,
 };
 use craft_ui::layout_components::Row;
 use craft_ui::primitives::{IconSpec, Mirror, PaintShape, StrokeWidth};
+use craft_ui::runtime::edit::next_gesture_id;
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::focus::KeyUse;
 use craft_ui::style::{ComponentStyle, StyleColor, StyleCx};
@@ -140,6 +144,9 @@ struct Drag {
     press_x: f32,
     /// The time of the key that was grabbed.
     anchor: Tick,
+    id: GestureId,
+    /// The delta the drag has reached, as drawn.
+    now: Tick,
 }
 
 /// A marquee under way.
@@ -157,6 +164,8 @@ impl Default for Sweep {
 struct Seen {
     marquee: Option<Rect>,
     group: Vec<KeyframeId>,
+    /// The delta the dragged keys are drawn moved by.
+    shown: Tick,
 }
 
 /// The keyframes of one property row on its lane.
@@ -181,9 +190,6 @@ pub struct KeyframeLane<'a> {
     common: Common,
     keys: &'a [KeyframeMark],
     selection: &'a Selection<KeyframeId>,
-    /// The delta the dragged keys move by, kept by the caller; the lane reports it as an edit either way.
-    #[prop]
-    delta: Bind<'a, Tick>,
     /// The playhead time; Shift-dragged keys snap to it.
     #[prop]
     playhead: Tick,
@@ -196,6 +202,7 @@ pub struct KeyframeLane<'a> {
 /// What the lane reports besides the delta.
 #[derive(Clone, Debug, Default)]
 struct Report {
+    delta: Option<EditEvent<Tick>>,
     select: Option<SelectionChange<KeyframeId>>,
     double_clicked: Option<KeyframeId>,
     context: Option<KeyframeId>,
@@ -205,17 +212,7 @@ struct Report {
 impl<'a> KeyframeLane<'a> {
     /// A lane named `label` for `keys`, with the app's key `selection`.
     pub fn new(label: impl Into<Label>, keys: &'a [KeyframeMark], selection: &'a Selection<KeyframeId>) -> Self {
-        KeyframeLane {
-            common: Common::new(),
-            keys,
-            selection,
-            delta: Bind::given(Tick::ZERO),
-            playhead: Tick::ZERO,
-            bounds: None,
-            report: Report::default(),
-        }
-        .label(label)
-        .ltr_axis()
+        KeyframeLane { common: Common::new(), keys, selection, playhead: Tick::ZERO, bounds: None, report: Report::default() }.label(label).ltr_axis()
     }
 
     fn sorted(&self) -> Vec<&'a KeyframeMark> {
@@ -303,10 +300,6 @@ impl Component for KeyframeLane<'_> {
         Vec2::new(0.0, cx.style.glyph)
     }
 
-    fn bind(&mut self) -> Option<BindMut<'_, Tick>> {
-        Some(self.delta.reborrow())
-    }
-
     /// The keys, above the lane's own press: a drag that starts on a key moves it.
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let Some(axis) = time_axis(&cx.env) else { return };
@@ -361,15 +354,27 @@ impl Component for KeyframeLane<'_> {
                             out.select = Some(SelectionChange::Set(vec![key.id]));
                         }
                     }
-                    *cx.press_slot::<Drag>() = Some(Drag { group, press_x: start.origin.x, anchor: key.time });
-                    cx.propose(Tick::ZERO);
+                    let id = next_gesture_id(&cx.response.ctx);
+                    *cx.press_slot::<Drag>() = Some(Drag { group, press_x: start.origin.x, anchor: key.time, id, now: Tick::ZERO });
+                    out.delta = Some(EditEvent::begin(id, Mixed::Same(Tick::ZERO), Arc::from(cx.resolved.label.to_owned()), None));
                 }
                 PressPhase::Drag { pos, .. } => {
                     if let Some(drag) = cx.press_slot::<Drag>().clone() {
-                        cx.propose(self.delta_at(&drag, pos.x, press.mods.shift, &axis, reach));
+                        let now = self.delta_at(&drag, pos.x, press.mods.shift, &axis, reach);
+                        cx.press_slot::<Drag>().as_mut().map(|held| held.now = now);
+                        out.delta = Some(EditEvent::update(drag.id, now));
                     }
                 }
-                PressPhase::Release { click: false, .. } => cx.commit(),
+                PressPhase::Release { click: false, .. } => {
+                    if let Some(drag) = cx.press_slot::<Drag>().take() {
+                        out.delta = Some(EditEvent::commit(drag.id, Mixed::Same(Tick::ZERO), drag.now));
+                    }
+                }
+                PressPhase::Cancel { reason, .. } => {
+                    if let Some(drag) = cx.press_slot::<Drag>().take() {
+                        out.delta = Some(EditEvent::cancel(drag.id, cancel_reason(reason), Some(Mixed::Same(Tick::ZERO))));
+                    }
+                }
                 PressPhase::Release { click: true, .. } => {
                     out.select = Some(if additive { SelectionChange::Toggle(key.id) } else { SelectionChange::Set(vec![key.id]) });
                 }
@@ -378,6 +383,7 @@ impl Component for KeyframeLane<'_> {
         }
         if let Some(drag) = cx.press_slot::<Drag>().clone() {
             seen.group = drag.group;
+            seen.shown = drag.now;
         }
 
         // The marquee and clicks on the empty lane.
@@ -427,7 +433,7 @@ impl Component for KeyframeLane<'_> {
         let Some(axis) = time_axis(&cx.env) else { return };
         let (style, lane) = (cx.style, cx.rect);
         let seen = cx.recall::<Seen>();
-        let shown = cx.value().copied().unwrap_or(Tick::ZERO);
+        let shown = seen.shown;
         let enabled = cx.resolved.enabled;
         let draw = ui.draw();
         for key in self.sorted() {
@@ -463,8 +469,16 @@ impl Component for KeyframeLane<'_> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> KeyframeLaneOutput {
-        let Report { select, double_clicked, context, delete } = self.report;
-        KeyframeLaneOutput { delta: cx.edit_response(), select, double_clicked, context, delete }
+        let Report { delta, select, double_clicked, context, delete } = self.report;
+        KeyframeLaneOutput { response: cx.response.clone(), delta, select, double_clicked, context, delete }
+    }
+}
+
+fn cancel_reason(cancel: PressCancel) -> CancelReason {
+    match cancel {
+        PressCancel::Escape => CancelReason::Escape,
+        PressCancel::Removed => CancelReason::Removed,
+        _ => CancelReason::Blur,
     }
 }
 
@@ -492,7 +506,8 @@ impl KeyframeLane<'_> {
                 let (low, high) = self.limits(&selected);
                 let step = Tick(axis.frame().0 * toward);
                 if !selected.is_empty() && (low..=high).contains(&step.0) {
-                    cx.set(step);
+                    let id = next_gesture_id(&cx.response.ctx);
+                    out.delta = Some(EditEvent::set(id, Mixed::Same(Tick::ZERO), step, Arc::from(cx.resolved.label.to_owned()), None));
                 }
             } else {
                 let last = sorted.len() - 1;
@@ -511,9 +526,11 @@ impl KeyframeLane<'_> {
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct KeyframeLaneOutput {
+    /// The lane's response.
+    pub response: Response,
     /// The delta the dragged keys move by (the selected keys, all by the same delta): one gesture from the drag's
     /// start to its release, or a `Set` of one frame from the keyboard.
-    pub delta: EditResponse<Tick>,
+    pub delta: Option<EditEvent<Tick>>,
     /// A click, marquee or key changed the selection.
     pub select: Option<SelectionChange<KeyframeId>>,
     /// The key that was double-clicked.
@@ -525,15 +542,19 @@ pub struct KeyframeLaneOutput {
 }
 
 impl Outcome for KeyframeLaneOutput {
-    type Value = Tick;
+    type Value = NoValue;
 
     fn response(&self) -> &Response {
-        &self.delta.response
+        &self.response
     }
 
     #[cfg(feature = "screen-testing")]
     fn story_facts(&self) -> craft_ui::testing::StoryOutput {
-        self.delta.story_facts()
+        let mut facts = craft_ui::testing::StoryOutput::default();
+        facts.id = Some(self.response.id);
+        facts.clicked = clicked(&self.response);
+        facts.edits = self.delta.iter().filter_map(craft_ui::testing::EditKind::of).collect();
+        facts
     }
 }
 
