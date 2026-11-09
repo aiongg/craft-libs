@@ -85,7 +85,7 @@ fn harness(guides: Vec<Guide>) -> Harness {
         let canvas = canvas.show(ui, |ui, body| {
             let mut held = shown_guides.borrow_mut();
             let mut control = Guides::new("Guides", Bind::bound(&mut *held)).interactive(true);
-            if let Some(drag) = shown_pending.get() {
+            if let Some(drag) = shown_pending.take() {
                 control = control.pending(drag);
             }
             if let Some(selected) = shown_selected.get() {

@@ -671,7 +671,7 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     }
     // 9 update
     p.trace.mark(Step::Update);
-    steps::gesture_gate(cx);
+    steps::gesture_gate(comp, cx);
     steps::update_inputs(&mut cx.core);
     overlay::drive_toggles(cx);
     steps::edit_intents(comp, cx);

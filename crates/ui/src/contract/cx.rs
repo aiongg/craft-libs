@@ -821,6 +821,11 @@ impl<C: Component> Focus for Cx<'_, C> {
     }
 }
 
+/// A press phase in which the button is down.
+pub(crate) fn press_down(phase: &PressPhase) -> bool {
+    matches!(phase, PressPhase::Down { .. } | PressPhase::DragStart { .. } | PressPhase::Drag { .. })
+}
+
 impl CxCore<'_> {
     /// The resolved label as the name an edit event carries.
     pub(crate) fn label_arc(&self) -> Arc<str> {
@@ -829,8 +834,7 @@ impl CxCore<'_> {
 
     /// A press on the component or one of its parts is down: the press that carries a gesture.
     pub(crate) fn press_held(&self) -> bool {
-        let down = |phase: &PressPhase| matches!(phase, PressPhase::Down { .. } | PressPhase::DragStart { .. } | PressPhase::Drag { .. });
-        down(&self.press.phase) || self.results.values().any(|result| down(&result.press.phase))
+        press_down(&self.press.phase) || self.results.values().any(|result| press_down(&result.press.phase))
     }
 
     /// The reason a press of the component or one of its parts was cancelled in this pass.
