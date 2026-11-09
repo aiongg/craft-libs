@@ -1428,8 +1428,9 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
     let min_width = overlay.min_width.points(anchor.width());
     let spec = LayerSpec { id: area, tier, at: placed.at, interactable: overlay.rank != Rank::Tooltip && !layer.exiting };
     // The opener of the layer's scope is the stop focused when the layer first appears: egui's modal gate takes focus
-    // from the widgets below a modal layer by the first pass that shows the layer.
-    let opener = *memory.opener_stop.get_or_insert_with(|| focus::focused_stop(ctx));
+    // from the widgets below a modal layer by the first pass that shows the layer. A sizing pass does not count: a
+    // press that opens the layer moves the key focus to its opener only at the end of that frame.
+    let opener_seen = std::cell::Cell::new(memory.opener_stop);
     overlay::begin_layer(ctx, layer.id, layer.exiting);
     let shown = areas::show_layer(ctx, &spec, |ui| {
         areas::fade(ui, layer.fade * overlay.opacity);
@@ -1441,6 +1442,8 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
             access::report_layer(ctx, layer.id, ui.unique_id(), ui.max_rect(), overlay.rank.is_modal(), layer.exiting);
         }
         if let (Some(policy), true) = (scope, real) {
+            let opener = *opener_seen.get().get_or_insert_with(|| focus::focused_stop(ctx));
+            opener_seen.set(Some(opener));
             focus::push_scope_from(ctx, layer.id, policy, None, opener, layer.exiting);
         }
         areas::bound(ui, placed.room, min_width.min(placed.room.x));
@@ -1467,6 +1470,7 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
     entry.absorbs = overlay.dismiss.outside == Outside::Absorb;
     overlay::record(ctx, entry);
     memory.min_width = min_width.min(placed.room.x);
+    memory.opener_stop = opener_seen.get();
     let dismissed = if layer.exiting { None } else { dismissal(ctx, layer, shown.rect, anchor, scope, &mut memory) };
     close_family(ctx, layer, layer.exiting || dismissed.is_some(), &mut memory);
     remember(layer, ctx, memory);

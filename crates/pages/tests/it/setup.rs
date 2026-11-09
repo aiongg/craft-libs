@@ -441,12 +441,9 @@ fn custom_size_stays_chosen_while_the_numbers_match_a_paper() {
     let paper = fixture.by_label("Paper size").expect("the paper list");
     fixture.click(&paper);
     fixture.idle(2);
-    eprintln!("DBG open focus {:?} lists {}", fixture.focused_stop(), fixture.by_role(craft_ui::contract::Role::LIST_BOX).len());
     // The list shows the papers that fit its height, so the last entry, Custom size, is reached with End.
     fixture.key(Key::End, Modifiers::NONE);
-    eprintln!("DBG end focus {:?}", fixture.focused_stop());
     fixture.key(Key::Enter, Modifiers::NONE);
-    eprintln!("DBG enter focus {:?}", fixture.focused_stop());
     fixture.idle(2);
     let paper = fixture.by_label("Paper size").expect("the paper list");
     assert_eq!(fixture.tree().value_of(paper.node), Some("Custom size"), "the size is still Letter's");
