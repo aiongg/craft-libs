@@ -121,6 +121,7 @@ impl<'a> EffectStack<'a> {
                 .columns(columns.clone())
                 .reorder(ReorderRule::new())
                 .natural_height(true)
+                .sizing(craft_ui::contract::Sizing::Content)
                 .selection(craft_ui::contract::Bind::bound(&mut selection))
                 .show_items(ui, &layers, &mut |key, icx| {
                     let effect = &effects[*key];
