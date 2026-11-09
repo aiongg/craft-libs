@@ -672,10 +672,8 @@ fn page_keys_pick_each_anchor_then_its_in_and_out_handles() {
     h.key(Key::PageDown, Modifiers::NONE);
     assert!(h.picked("Anchor 4 of 4"));
     assert_eq!(h.selection(), sel(1, &[(0, 3)]));
-    // Selecting the last anchor hides the handles of the one before it, so Page Up lands on that anchor.
     h.key(Key::PageUp, Modifiers::NONE);
-    assert!(h.picked("Anchor 3 of 4"));
-    assert_eq!(h.selection(), sel(1, &[(0, 2)]));
+    assert!(h.picked("Out handle"));
     h.key(Key::Home, Modifiers::NONE);
     assert!(h.picked("Anchor 1 of 4"));
     h.key(Key::End, Modifiers::NONE);

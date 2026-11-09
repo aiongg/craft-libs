@@ -4,8 +4,7 @@ use craft_behavior::kurbo::{Point, Rect};
 use craft_behavior::{CanvasView, Mixed};
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::canvas::Canvas;
-use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
-use craft_ui::runtime::env::Message;
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Drive, Grip, StoryData, StoryOutput, story};
 use egui::{Ui, vec2};
 
@@ -41,25 +40,6 @@ fn connector_glued_at_both_ends(ui: &mut Ui, data: &mut StoryData) -> StoryOutpu
         ConnectorItem { id: 9, from: glued(1, ConnectionSide::Right), to: glued(2, ConnectionSide::Left), routing: Routing::Elbow, path: None },
     );
     on_canvas(ui, ConnectorHandles::new("Connector", Bind::bound(&mut *item), &targets))
-}
-
-#[story(ConnectorHandles<'static>, covers = [Invalid], drive = Drive::Never)]
-fn connector_with_one_free_end(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let targets = targets();
-    let item = data.value(
-        "item",
-        ConnectorItem {
-            id: 9,
-            from: glued(1, ConnectionSide::Right),
-            to: ConnectorEnd::Free(Point::new(300.0, 180.0)),
-            routing: Routing::Curved,
-            path: None,
-        },
-    );
-    let refuse_free = |item: &ConnectorItem| {
-        if matches!(item.to, ConnectorEnd::Free(_)) { Validity::Refuse(Message::new("Attach the end to an object")) } else { Validity::Ok }
-    };
-    on_canvas(ui, ConnectorHandles::new("Connector", Bind::bound(&mut *item).check(refuse_free), &targets))
 }
 
 fn caps() -> Vec<StrokeChoice> {

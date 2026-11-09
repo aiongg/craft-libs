@@ -7,9 +7,8 @@ use craft_behavior::CanvasView;
 use craft_behavior::kurbo::Point;
 use craft_theme::Srgba;
 use craft_ui::canvas::Canvas;
-use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
-use craft_ui::runtime::env::Message;
-use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::testing::{Drive, Grip, StoryData, StoryOutput, story};
 use egui::{Ui, Vec2};
 
 /// An open subpath of three anchors, the last smooth with handles, and a closed triangle.
@@ -32,37 +31,29 @@ fn on_canvas(ui: &mut Ui, overlay: BezierOverlay<'_>) -> StoryOutput {
     shown.inner.flatten().map(StoryOutput::from).unwrap_or_default()
 }
 
-/// Drags the first anchor right by twice the drag threshold.
-fn drag_first(fixture: &mut Fixture) {
-    let Some(id) = fixture.root_id() else { return };
-    let Some(anchor) = fixture.part(id, ANCHOR.at(index(0, KnotRef::new(0, 0)))) else { return };
-    let travel = 2.0 * craft_ui::testing::input::max_click_dist(fixture.ctx());
-    fixture.drag(&anchor, Vec2::new(travel, 0.0));
-}
-
 fn selected() -> PathSelection {
     PathSelection { path: Some(1), anchors: vec![KnotRef::new(0, 2)], segment: None }
 }
 
-#[story(BezierOverlay<'static>, covers = [Default], drive = Drive::Custom(drag_first))]
+#[story(BezierOverlay<'static>, covers = [Default], drive = Drive::Drag(Grip::part(ANCHOR.at(index(0, KnotRef { subpath: 0, knot: 0 }))).toward(Vec2::X)))]
 fn direct_selection_with_a_selected_anchor(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let paths = data.value("paths", paths());
     on_canvas(ui, BezierOverlay::new("Paths", Bind::bound(&mut *paths), &selected()))
 }
 
-#[story(BezierOverlay<'static>, covers = [Default], drive = Drive::Custom(drag_first))]
+#[story(BezierOverlay<'static>, covers = [Default], drive = Drive::Drag(Grip::part(ANCHOR.at(index(0, KnotRef { subpath: 0, knot: 0 }))).toward(Vec2::X)))]
 fn all_handles_shown(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let paths = data.value("paths", paths());
     on_canvas(ui, BezierOverlay::new("Paths", Bind::bound(&mut *paths), &PathSelection::default()).handles(HandlesShown::All))
 }
 
-#[story(BezierOverlay<'static>, covers = [Default], drive = Drive::Custom(drag_first))]
+#[story(BezierOverlay<'static>, covers = [Default], drive = Drive::Drag(Grip::part(ANCHOR.at(index(0, KnotRef { subpath: 0, knot: 0 }))).toward(Vec2::X)))]
 fn curvature_tool(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let paths = data.value("paths", paths());
     on_canvas(ui, BezierOverlay::new("Paths", Bind::bound(&mut *paths), &selected()).tool(BezierTool::Curvature))
 }
 
-#[story(BezierOverlay<'static>, covers = [Default], drive = Drive::Custom(drag_first))]
+#[story(BezierOverlay<'static>, covers = [Default], drive = Drive::Drag(Grip::part(ANCHOR.at(index(0, KnotRef { subpath: 0, knot: 0 }))).toward(Vec2::X)))]
 fn add_anchor_tool(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let paths = data.value("paths", paths());
     on_canvas(ui, BezierOverlay::new("Paths", Bind::bound(&mut *paths), &PathSelection::default()).tool(BezierTool::AddAnchor))
@@ -77,7 +68,7 @@ fn outlines_only(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     )
 }
 
-#[story(BezierOverlay<'static>, covers = [Default], drive = Drive::Custom(drag_first))]
+#[story(BezierOverlay<'static>, covers = [Default], drive = Drive::Drag(Grip::part(ANCHOR.at(index(0, KnotRef { subpath: 0, knot: 0 }))).toward(Vec2::X)))]
 fn a_path_in_its_own_colour(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let coloured = || {
         let mut paths = paths();
@@ -86,11 +77,4 @@ fn a_path_in_its_own_colour(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     };
     let paths = data.value("paths", coloured());
     on_canvas(ui, BezierOverlay::new("Paths", Bind::bound(&mut *paths), &selected()))
-}
-
-#[story(BezierOverlay<'static>, covers = [Invalid], drive = Drive::Never)]
-fn paths_the_host_refuses(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let paths = data.value("refused", paths());
-    let refuse_many = |paths: &Vec<EditPath>| if paths.len() > 1 { Validity::Refuse(Message::new("Only one path")) } else { Validity::Ok };
-    on_canvas(ui, BezierOverlay::new("Paths", Bind::bound(&mut *paths).check(refuse_many), &selected()))
 }

@@ -67,6 +67,7 @@ pub(super) fn shown_handles(paths: &[EditPath], sel: &PathSelection, handles: Ha
                     HandlesShown::All => true,
                     HandlesShown::Selected => {
                         sel.has_anchor(path.key, knot_ref)
+                            || next_to_selected_anchor(path, sel, knot_ref, side)
                             || segment_ends
                                 .is_some_and(|(a, b)| (side == HandleSide::Out && a == knot_ref) || (side == HandleSide::In && b == knot_ref))
                     }
@@ -78,6 +79,20 @@ pub(super) fn shown_handles(paths: &[EditPath], sel: &PathSelection, handles: Ha
         }
     }
     shown
+}
+
+/// Whether `side` of `knot` is the handle of a segment that a selected anchor ends: the previous anchor's out
+/// handle or the next anchor's in handle, across a closed subpath's seam too.
+fn next_to_selected_anchor(path: &EditPath, sel: &PathSelection, knot: KnotRef, side: HandleSide) -> bool {
+    let Some(sub) = path.subpaths.get(knot.subpath) else { return false };
+    let count = sub.knots.len();
+    match side {
+        HandleSide::Out => sub.segment_ends(knot.knot).is_some_and(|(_, next)| sel.has_anchor(path.key, KnotRef::new(knot.subpath, next))),
+        HandleSide::In => {
+            let previous = (knot.knot + count.saturating_sub(1)) % count.max(1);
+            sub.segment_ends(previous).is_some_and(|(previous, _)| sel.has_anchor(path.key, KnotRef::new(knot.subpath, previous)))
+        }
+    }
 }
 
 /// The hit among `shown` handles, then (with `anchors`) anchors, then segments.
