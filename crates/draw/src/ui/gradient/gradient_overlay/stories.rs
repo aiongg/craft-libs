@@ -5,10 +5,11 @@ use craft_behavior::kurbo::Point;
 use craft_theme::Srgba;
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
-use craft_ui::testing::{StoryData, StoryOutput, story};
-use egui::Ui;
+use craft_ui::testing::{Drive, Grip, StoryData, StoryOutput, story};
+use egui::{Ui, vec2};
 
 use super::GradientOverlay;
+use super::parts::END;
 use crate::ui::gradient::{ColorStop, GradientEditor, GradientExtent, GradientLine, GradientStops, LineGradient, StopRef};
 
 fn gradient() -> LineGradient {
@@ -34,7 +35,7 @@ fn on_canvas(ui: &mut Ui, overlay: impl FnOnce(&mut Ui, egui::Rect) -> craft_ui:
     shown.inner.flatten().map(StoryOutput::from).unwrap_or_default()
 }
 
-#[story(GradientOverlay<'static>, covers = [Default])]
+#[story(GradientOverlay<'static>, covers = [Default], drive = Drive::Drag(Grip::new(END).toward(vec2(0.0, 1.0))))]
 fn gradient_overlay(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let (value, selected) = state(data, StopRef::Color(1));
     on_canvas(ui, |ui, at| {
@@ -42,19 +43,19 @@ fn gradient_overlay(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     })
 }
 
-#[story(GradientOverlay<'static>, covers = [Default])]
+#[story(GradientOverlay<'static>, covers = [Default], drive = Drive::Drag(Grip::new(END).toward(vec2(0.0, 1.0))))]
 fn gradient_overlay_extent(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let value = data.value("gradient", gradient());
     on_canvas(ui, |ui, at| GradientOverlay::new("Gradient", Bind::bound(&mut *value)).extent(GradientExtent::Circle).reverse().show_at(ui, at).edit)
 }
 
-#[story(GradientOverlay<'static>, covers = [Default])]
+#[story(GradientOverlay<'static>, covers = [Default], drive = Drive::Drag(Grip::new(END).toward(vec2(0.0, 1.0))))]
 fn gradient_overlay_mirror(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let value = data.value("gradient", gradient());
     on_canvas(ui, |ui, at| GradientOverlay::new("Gradient", Bind::bound(&mut *value)).extent(GradientExtent::Mirror).show_at(ui, at).edit)
 }
 
-#[story(GradientOverlay<'static>, covers = [Default])]
+#[story(GradientOverlay<'static>, covers = [Default], drive = Drive::Drag(Grip::new(END).toward(vec2(0.0, 1.0))))]
 fn gradient_overlay_shared(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let (value, selected) = state(data, StopRef::Color(0));
     let mut stops = value.stops.clone();

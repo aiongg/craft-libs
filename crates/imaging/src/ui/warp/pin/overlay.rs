@@ -166,8 +166,8 @@ impl<'a> PinWarp<'a> {
 enum Kind {
     /// Moves these pins by the pointer's movement.
     Move(Vec<usize>),
-    /// Moves the placed pin, the last one.
-    Place,
+    /// Moves the placed pin, the last one; Escape restores the selection the press found.
+    Place { before: Vec<usize> },
     /// Turns this pin about its position: its turn when pressed and the pointer's angle about it then, in degrees.
     Turn { pin: usize, base: f64, from: f64 },
 }
@@ -196,7 +196,7 @@ impl Drag {
                     }
                 }
             }
-            Kind::Place => {
+            Kind::Place { .. } => {
                 if let Some(pin) = pins.last_mut() {
                     pin.at += by;
                 }
@@ -215,7 +215,7 @@ impl Drag {
 
 impl Default for Drag {
     fn default() -> Self {
-        Drag { kind: Kind::Place, origin: Point::ZERO, base: Vec::new(), began: false }
+        Drag { kind: Kind::Place { before: Vec::new() }, origin: Point::ZERO, base: Vec::new(), began: false }
     }
 }
 
@@ -295,10 +295,11 @@ impl PinWarp<'_> {
         } else if let Some(rest) = self.mesh.rest_of(at) {
             let mut placed = pins.to_vec();
             placed.push(Pin::new(rest, at));
+            let before = self.selection().to_vec();
             self.report.select = Some(vec![placed.len() - 1]);
             cx.begin();
             cx.propose(placed.clone());
-            *cx.press_slot::<Drag>() = Some(Drag { kind: Kind::Place, origin: at, base: placed, began: true });
+            *cx.press_slot::<Drag>() = Some(Drag { kind: Kind::Place { before }, origin: at, base: placed, began: true });
         }
     }
 
@@ -322,7 +323,12 @@ impl PinWarp<'_> {
                 }
             }
             PressPhase::Cancel { .. } => {
-                if cx.press_slot::<Drag>().take().is_some_and(|drag| drag.began) {
+                if let Some(drag) = cx.press_slot::<Drag>().take()
+                    && drag.began
+                {
+                    if let Kind::Place { before } = drag.kind {
+                        self.report.select = Some(before);
+                    }
                     cx.cancel(CancelReason::Escape);
                 }
             }
