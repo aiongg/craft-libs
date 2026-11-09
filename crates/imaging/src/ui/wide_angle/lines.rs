@@ -61,8 +61,8 @@ pub struct ConstraintLinesOutput {
     /// The keyboard moved or deleted the focused constraint; the app applies it to its session.
     pub edit: Option<WideAngleConstraintEdit>,
     /// The constraint whose curve was clicked with the secondary button, or that asked for its menu from the
-    /// keyboard, and where the menu hangs: the click, or the focused part's bottom start corner.
-    pub context: Option<(usize, Pos2)>,
+    /// keyboard.
+    pub context: Option<usize>,
 }
 
 impl Outcome for ConstraintLinesOutput {
@@ -95,7 +95,7 @@ pub struct ConstraintLines<'a> {
     #[prop]
     draft: Option<[Point; 2]>,
     edit: Option<WideAngleConstraintEdit>,
-    context: Option<(usize, Pos2)>,
+    context: Option<usize>,
 }
 
 impl<'a> ConstraintLines<'a> {
@@ -170,11 +170,10 @@ impl Component for ConstraintLines<'_> {
         for index in 0..count {
             let part = CONSTRAINT.at(index as u64);
             let Some(result) = cx.part_if_declared(part) else { continue };
-            let (press, rect) = (result.press, result.rect);
-            if let Some(at) = context_click(&press) {
-                self.context = Some((index, at));
+            if context_click(&result.press).is_some() {
+                self.context = Some(index);
             } else if cx.active_part() == Some(part) && cx.intents().take(Intent::ContextMenu) {
-                self.context = Some((index, rect.left_bottom()));
+                self.context = Some(index);
             }
         }
         let Some(index) = cx.active_part().filter(|part| part.key == CONSTRAINT).and_then(|part| part.index).map(|i| i as usize) else { return };

@@ -279,6 +279,8 @@ impl Opener {
             let opening = match (trigger, request) {
                 (Trigger::Context, _) if fired && by_pointer => Opening::Pointer,
                 (Trigger::Context, Some(rect)) if fired => Opening::At(rect),
+                // Opened through its open binding a pass after the press: it still hangs at the pointer over the opener.
+                (Trigger::Context, None) if inside => Opening::Pointer,
                 _ => Opening::Plain,
             };
             let clicked = trigger == Trigger::Click && frame.release == Some(PointerButton::Primary) && response::pointer_clicked(anchor);
@@ -312,7 +314,7 @@ impl Opener {
         });
         match found {
             Some(active) => active,
-            None => (self, Opening::Plain),
+            None => (self, self.opening),
         }
     }
 }
