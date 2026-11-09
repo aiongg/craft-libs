@@ -6,8 +6,8 @@ use craft_ui::contract::{Common, Component, Cx, Focus as _, MeasureCx, PartsCx, 
 use craft_ui::runtime::focus::KeyUse;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::{Frames, trial};
-use egui::{Key, Modifiers, Rect, Response, Ui, Vec2};
-use std::cell::RefCell;
+use egui::{Event, Key, Modifiers, Pos2, Rect, Response, Ui, Vec2};
+use std::cell::{Cell, RefCell};
 
 const LEFT: PartKey = PartKey::new("left");
 const RIGHT: PartKey = PartKey::new("right");
@@ -40,8 +40,8 @@ impl Component for Pair<'_> {
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let half = |from: f32| Rect::from_min_size(rect.min + Vec2::new(from, 0.0), Vec2::new(40.0, 20.0));
-        cx.part(LEFT, half(0.0)).sense(Sense::CLICK | Sense::FOCUS).focusable().selected();
-        cx.part(RIGHT, half(40.0)).sense(Sense::CLICK | Sense::FOCUS).focusable();
+        cx.part(LEFT, half(0.0)).sense(Sense::CLICK | Sense::FOCUS | Sense::TAKE_FOCUS).focusable().selected();
+        cx.part(RIGHT, half(40.0)).sense(Sense::CLICK | Sense::FOCUS | Sense::TAKE_FOCUS).focusable();
         cx.roving(Roving::new(NavShape::Flat));
     }
 
@@ -54,14 +54,13 @@ impl Component for Pair<'_> {
     }
 }
 
-/// Tab into the group is a key arrival.
+/// Tab into the group is a key arrival; a press on a part moves focus onto it but is no key arrival.
 #[trial]
-fn a_tab_into_the_group_is_a_key_arrival() {
+fn a_tab_arrival_is_a_key_arrival_and_a_press_arrival_is_not() {
     let seen = RefCell::new(Vec::new());
     let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| {
-        Pair { common: Common::new(), seen: &seen }.id_salt("pair").show(ui);
-    };
+    let shown = Cell::new(Rect::NOTHING);
+    let mut show = |ui: &mut Ui| shown.set(Pair { common: Common::new(), seen: &seen }.id_salt("pair").show(ui).rect);
     for _ in 0..3 {
         frames.frame(vec![], &mut show);
     }
@@ -72,4 +71,13 @@ fn a_tab_into_the_group_is_a_key_arrival() {
         !tab.is_empty() && tab.iter().all(|(any, by_key)| *any == Some(PartRef::from(LEFT)) && by_key == any),
         "Tab arrives at the selected part by key: {tab:?}"
     );
+    let rect = shown.get();
+    let at: Pos2 = Pos2::new(rect.max.x - 5.0, rect.center().y);
+    seen.borrow_mut().clear();
+    frames.frame(vec![Event::PointerMoved(at), craft_ui::testing::focus::primary_button(at, true)], &mut show);
+    // The press moves focus at the end hook of its frame, so the arrival shows in the next frame.
+    frames.frame(vec![], &mut show);
+    let press = seen.borrow().clone();
+    assert!(!press.is_empty() && press.iter().all(|(_, by_key)| by_key.is_none()), "a press reports no key arrival: {press:?}");
+    assert!(press.iter().any(|(any, _)| *any == Some(PartRef::from(RIGHT))), "the press still moved focus onto the part: {press:?}");
 }
