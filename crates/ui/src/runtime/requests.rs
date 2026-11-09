@@ -22,14 +22,15 @@ pub struct ColorRequest {
     pub key: String,
     /// The colour picker's title; `None` for the picker's default.
     pub title: Option<Label>,
-    /// The colour the picker opens with.
-    pub color: Srgba,
+    /// The colour the picker opens with; `None` opens it with no current colour (a mixed swatch): no current swatch
+    /// and empty fields, and the first pick sets the colour.
+    pub color: Option<Srgba>,
 }
 
 impl ColorRequest {
-    /// A request for `key`, opening the picker at `color`.
-    pub fn new(key: impl Into<String>, color: Srgba) -> Self {
-        Self { key: key.into(), title: None, color }
+    /// A request for `key`, opening the picker at `color`, or with no colour for `None`.
+    pub fn new(key: impl Into<String>, color: impl Into<Option<Srgba>>) -> Self {
+        Self { key: key.into(), title: None, color: color.into() }
     }
 
     /// The picker's title.

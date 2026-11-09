@@ -138,11 +138,6 @@ impl PaintUi<'_> {
 
     /// The raw painter for an allowlisted content painter, clipped to the component's own rect.
     pub fn content_painter<C: ContentPainter>(&self, cx: &Cx<'_, C>) -> ContentPainterCx<'_> {
-        ContentPainterCx::new(
-            self.ui.painter().with_clip_rect(cx.core.rect.intersect(self.ui.clip_rect())),
-            &self.env.tokens,
-            self.env.direction,
-            self.ink,
-        )
+        ContentPainterCx::new(self.ui.painter().with_clip_rect(cx.core.rect.intersect(self.ui.clip_rect())), self.env, self.ink)
     }
 }

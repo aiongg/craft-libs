@@ -127,7 +127,7 @@ fn a_click_on_a_picker_swatch_files_one_colour_request_and_the_answer_sets_the_c
     let well = fixture.by_label("Fill").expect("shown");
     fixture.click(&well);
     let request = requests.borrow_mut().take_color().expect("the click filed a request");
-    assert_eq!((request.key.as_str(), request.color), ("fill", BLUE));
+    assert_eq!((request.key.as_str(), request.color), ("fill", Some(BLUE)));
     assert!(requests.borrow_mut().take_color().is_none(), "one request per click");
     requests.borrow_mut().answer_color("fill", GREEN);
     fixture.idle(2);
