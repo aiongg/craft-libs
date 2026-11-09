@@ -2179,12 +2179,19 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         };
         // A collapse is the user's own toggle: Escape never folds an inline container, only closes one with an open state.
         let closable = !collapsible && comp.open().is_some();
+        // The focus inside the scope runs the scope's Escape step; with nothing focused, the window's untaken Escape
+        // closes a scope whose rule is `Close`.
         if !self.layer
             && closable
             && policy.cancel != CancelRule::Ignore
-            && crate::runtime::focus::focus_in_scope(&cx.core.ctx, id) == Some(true)
-            && let Some(craft_behavior::focus::EscapeStep::CloseScope) =
-                keys::scope_escape(&cx.core.ctx, policy.cancel, pointer::press_captured(&cx.core.ctx), false)
+            && match crate::runtime::focus::focus_in_scope(&cx.core.ctx, id) {
+                Some(true) => matches!(
+                    keys::scope_escape(&cx.core.ctx, policy.cancel, pointer::press_captured(&cx.core.ctx), false),
+                    Some(craft_behavior::focus::EscapeStep::CloseScope)
+                ),
+                Some(false) => false,
+                None => policy.cancel == CancelRule::Close && keys::take_window_cancel(&cx.core.ctx),
+            }
         {
             self.close = true;
             self.reason = self.reason.or(Some(CloseReason::Escape));

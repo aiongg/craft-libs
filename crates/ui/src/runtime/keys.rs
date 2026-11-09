@@ -1269,6 +1269,25 @@ pub(crate) fn intents_of(ctx: &Context, id: Option<Id>, rtl: bool) -> Intents {
     }
 }
 
+/// Offers the window's unfocused intents to `take` while nothing in the window has focus, and writes back what it
+/// left untaken. `take` returns whether it took any. `false` when something is focused or nothing was taken.
+pub(crate) fn with_window_intents(ctx: &Context, rtl: bool, take: impl FnOnce(&mut Intents) -> bool) -> bool {
+    if focus::focused_rec(ctx).is_some() {
+        return false;
+    }
+    let mut window = intents_of(ctx, None, rtl);
+    let taken = take(&mut window);
+    if taken {
+        settle(ctx, None, &window);
+    }
+    taken
+}
+
+/// Takes the window's untaken `Cancel` (Escape) while nothing has focus.
+pub(crate) fn take_window_cancel(ctx: &Context) -> bool {
+    with_window_intents(ctx, false, |window| window.take(Intent::Cancel))
+}
+
 /// Writes back what a component left untaken, so a scope's `Submit` and `Cancel` rules see it.
 pub(crate) fn settle(ctx: &Context, id: Option<Id>, intents: &Intents) {
     current(ctx, |stage| {
