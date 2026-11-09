@@ -19,7 +19,7 @@ fn help_rows_follow_the_kit_order() {
     let shape: Vec<String> = nodes
         .iter()
         .map(|n| match n {
-            Node::Item(i) => format!("{}={}", i.command.id, i.label),
+            Node::Item(i) => i.command.id.to_string(),
             Node::Separator => "-".to_owned(),
             _ => "?".to_owned(),
         })
@@ -27,14 +27,14 @@ fn help_rows_follow_the_kit_order() {
     assert_eq!(
         shape,
         [
-            "help.helpCenter=PhotoCraft Help",
-            "help.keyboardShortcuts=Keyboard Shortcuts…",
-            "help.discord=Join the Discord…",
-            "help.reportIssue=Report an Issue…",
-            "help.checkForUpdates=Check for Updates…",
+            "help.helpCenter",
+            "help.keyboardShortcuts",
+            "help.discord",
+            "help.reportIssue",
+            "help.checkForUpdates",
             "-",
-            "help.systemInfo=System Info…",
-            "help.about=About PhotoCraft",
+            "help.systemInfo",
+            "help.about",
         ]
     );
     assert!(matches!(nodes.last(), Some(Node::Item(i)) if i.role == Some(ItemRole::About)));

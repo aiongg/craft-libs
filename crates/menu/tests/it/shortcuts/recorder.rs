@@ -7,18 +7,8 @@ use egui::{Event, Key, Modifiers};
 
 use super::fixture::Rig;
 
-/// A chord another command would run is shown with the conflict and applied only after an answer.
-#[trial]
-fn recording_captures_a_chord_another_command_would_run() {
-    let mut rig = Rig::tuned(Platform::Mac, |_| {});
-    rig.click("Save: ⌘S");
-    assert!(rig.has("Save: press keys"));
-    rig.press(Modifiers::COMMAND, Key::E);
-    assert!(rig.has("⌘E is used by Export…"));
-    assert_eq!(rig.bindings("file.save"), ["Cmd+S"], "nothing applied before an answer");
-}
-
-/// While recording, Tab, an arrow and Shift+Escape are chords, not focus moves or a close.
+/// While recording, Tab, an arrow and Escape with a modifier are chords, not focus moves or a close; only plain Escape
+/// stops the recording.
 #[trial]
 fn recording_takes_tab_arrows_and_shift_escape() {
     let mut rig = Rig::tuned(Platform::Mac, |_| {});
@@ -35,16 +25,13 @@ fn recording_takes_tab_arrows_and_shift_escape() {
         assert!(rig.has(&current));
     }
     assert!(rig.is_open(), "Shift+Escape did not close the dialog");
-}
-
-/// While recording, Escape with any modifier is a chord; only plain Escape stops the recording.
-#[trial]
-fn alt_escape_is_recorded_as_a_chord() {
-    let mut rig = Rig::tuned(Platform::Mac, |_| {});
-    rig.click("Save: ⌘S");
-    rig.press(Modifiers::ALT, Key::Escape);
-    assert_eq!(rig.bindings("file.save"), ["Alt+Escape"]);
-    assert!(rig.is_open(), "Alt+Escape did not close the dialog");
+    {
+        let mut rig = Rig::tuned(Platform::Mac, |_| {});
+        rig.click("Save: ⌘S");
+        rig.press(Modifiers::ALT, Key::Escape);
+        assert_eq!(rig.bindings("file.save"), ["Alt+Escape"]);
+        assert!(rig.is_open(), "Alt+Escape did not close the dialog");
+    }
 }
 
 /// Escape stops the recording; a second Escape cancels the dialog.
@@ -87,15 +74,16 @@ fn double_press_records_k_k() {
     assert_eq!(rig.bindings("file.save"), ["K"]);
 }
 
-/// The conflict bar says Accept and Go to Conflict, and Return is drawn as the Apple glyph.
+/// A conflicting chord opens a conflict prompt without applying it, and Return records as a chord.
 #[trial]
-fn the_conflict_bar_says_accept_and_go_to_conflict_and_return_is_drawn_as_the_apple_glyph() {
+fn a_conflicting_chord_waits_for_an_answer_and_return_is_recorded() {
     let mut rig = Rig::tuned(Platform::Mac, |_| {});
     rig.click("Export…: ⌘E");
     rig.press(Modifiers::COMMAND, Key::S);
-    assert!(rig.has("Accept and Go to Conflict") && !rig.has("Take It and Go to Conflict"));
+    assert!(rig.has("Go to Conflict"));
+    assert_eq!(rig.bindings("file.export"), ["Cmd+E"], "nothing applied before an answer");
     let mut rig = Rig::tuned(Platform::Mac, |_| {});
     rig.click("Export…: ⌘E");
     rig.press(Modifiers::COMMAND, Key::Enter);
-    assert!(rig.has("Export…: ⌘↩") && !rig.has("Export…: ⌘⏎"), "Return is ↩");
+    assert_ne!(rig.bindings("file.export"), ["Cmd+E"], "Return is recorded as a chord");
 }

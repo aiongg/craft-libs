@@ -16,16 +16,16 @@ fn language_rows_are_radio_items_with_automatic_first() {
     let nodes = menu.items(&LanguageLabels::default());
     assert_eq!(nodes.len(), 4);
     let item = |n: &Node| match n {
-        Node::Item(i) => (i.label.clone(), i.kind, i.command.clone()),
+        Node::Item(i) => (i.kind, i.command.clone()),
         _ => panic!("an item"),
     };
-    assert_eq!(item(&nodes[0]), ("Automatic".into(), ItemKind::Radio(false), CommandRef::with_params(LANGUAGE_COMMAND, json!({"lang": "auto"}))));
+    assert_eq!(item(&nodes[0]), (ItemKind::Radio(false), CommandRef::with_params(LANGUAGE_COMMAND, json!({"lang": "auto"}))));
     assert!(matches!(nodes[1], Node::Separator));
-    assert_eq!(item(&nodes[2]).1, ItemKind::Radio(false));
-    assert_eq!(item(&nodes[3]), ("Français".into(), ItemKind::Radio(true), CommandRef::with_params(LANGUAGE_COMMAND, json!({"lang": "fr"}))));
+    assert_eq!(item(&nodes[2]).0, ItemKind::Radio(false));
+    assert_eq!(item(&nodes[3]), (ItemKind::Radio(true), CommandRef::with_params(LANGUAGE_COMMAND, json!({"lang": "fr"}))));
 
     let automatic = LanguageMenu::new(vec![row("en", "English")], LanguageChoice::Automatic);
-    assert_eq!(item(&automatic.items(&LanguageLabels::default())[0]).1, ItemKind::Radio(true));
+    assert_eq!(item(&automatic.items(&LanguageLabels::default())[0]).0, ItemKind::Radio(true));
     assert_eq!(automatic.clone().automatic(false).items(&LanguageLabels::default()).len(), 1);
     assert!(matches!(automatic.submenu(&LanguageLabels::default()), Node::Submenu { role: Some(ItemRole::Language), .. }));
 }

@@ -41,6 +41,14 @@ fn a_workspace_blocks_every_app_command() {
         assert!(gate.allows_under(&rules, &Builtin::Hide.command()));
         assert!(gate.allows_under(&rules, &Builtin::Minimize.command()));
     }
+    // Without per-command rules, a dialog or a recorded shortcut lets only built-in items run.
+    let save = Item::new(CommandRef::new("file.save"), "Save");
+    let quit = Item::new(Builtin::Quit.command(), "Quit");
+    for gate in [dialog(), Gate::default().recording_shortcut(true)] {
+        assert!(!gate.allows(&save) && gate.allows(&quit), "{gate:?}");
+    }
+    assert!(Gate::default().text_editing(true).allows(&save));
+    assert!(Gate::default().allows(&save));
 }
 
 #[derive(Default)]

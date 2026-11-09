@@ -27,7 +27,7 @@ fn prepare(km: &Keymap, record: Option<&OfferRecord>) -> Result<ImportOffer, NoO
 }
 
 /// No record and no overrides offers; a record, own overrides or a set equal to the defaults gives `NoOffer` with
-/// the record to store.
+/// the record to store. Only commands that end up off their defaults count.
 #[trial]
 fn the_offer_is_made_once_and_only_for_a_set_that_changes_something() {
     let offer = prepare(&keymap(), None).expect("an offer");
@@ -51,6 +51,24 @@ fn the_offer_is_made_once_and_only_for_a_set_that_changes_something() {
     let unnamed = ImportOffer::prepare("/ps/My Keys.psp", &set(&PSP.replace(" filename=", " x=")), &keymap(), &ImportOptions::default(), None)
         .expect("an offer");
     assert_eq!(unnamed.set_name, "My Keys.psp", "without a name in the file the offer names the file");
+    {
+        let command = |id: &str, label: &str, key: &str| Bindable::new(id, label, Scope::app()).with_default(Binding::parse(key).expect("a binding"));
+        let km = Keymap::new(
+            vec![command("file.save", "Save", "Cmd+S"), command("view.rulers", "Rulers", "Cmd+R"), command("view.grid", "Grid", "Cmd+G")],
+            Scopes::new(),
+            Platform::Mac,
+        );
+        let file = |save: &str, rulers: &str, grid: &str| {
+            format!(
+                "<photoshop-keyboard-shortcuts version=\"4\"><command name=\"Save\"><shortcut>{save}</shortcut></command>\
+                <command name=\"Rulers\"><shortcut>{rulers}</shortcut></command>\
+                <command name=\"Grid\"><shortcut>{grid}</shortcut></command></photoshop-keyboard-shortcuts>"
+            )
+        };
+        let prepare = |text: String| ImportOffer::prepare("/ps/x.psp", &set(&text), &km, &ImportOptions::default(), None);
+        assert_eq!(prepare(file("Cmd+S", "Cmd+R", "Cmd+G")).expect_err("no change"), NoOffer::NothingChanges);
+        assert_eq!(prepare(file("Cmd+S", "Cmd+K", "Cmd+J")).expect("an offer").changes, 2);
+    }
 }
 
 /// Import on the shown prompt answers `Import`, and applying the plan changes the counted shortcuts.
@@ -80,27 +98,6 @@ fn the_import_answer_applies_the_plan() {
     assert_eq!(report.imported, offer.changes);
     let rulers: Vec<String> = km.bindings(&CommandRef::new("view.rulers")).iter().map(|b| b.trigger.to_string()).collect();
     assert_eq!(rulers, ["Cmd+K"]);
-}
-
-/// Only commands that end up off their defaults count.
-#[trial]
-fn the_count_is_the_commands_that_differ_from_the_defaults() {
-    let command = |id: &str, label: &str, key: &str| Bindable::new(id, label, Scope::app()).with_default(Binding::parse(key).expect("a binding"));
-    let km = Keymap::new(
-        vec![command("file.save", "Save", "Cmd+S"), command("view.rulers", "Rulers", "Cmd+R"), command("view.grid", "Grid", "Cmd+G")],
-        Scopes::new(),
-        Platform::Mac,
-    );
-    let file = |save: &str, rulers: &str, grid: &str| {
-        format!(
-            "<photoshop-keyboard-shortcuts version=\"4\"><command name=\"Save\"><shortcut>{save}</shortcut></command>\
-            <command name=\"Rulers\"><shortcut>{rulers}</shortcut></command>\
-            <command name=\"Grid\"><shortcut>{grid}</shortcut></command></photoshop-keyboard-shortcuts>"
-        )
-    };
-    let prepare = |text: String| ImportOffer::prepare("/ps/x.psp", &set(&text), &km, &ImportOptions::default(), None);
-    assert_eq!(prepare(file("Cmd+S", "Cmd+R", "Cmd+G")).expect_err("no change"), NoOffer::NothingChanges);
-    assert_eq!(prepare(file("Cmd+S", "Cmd+K", "Cmd+J")).expect("an offer").changes, 2);
 }
 
 /// A foreign name that fits an alias command and the menu command prefers the one with a default shortcut.

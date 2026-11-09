@@ -130,15 +130,13 @@ fn tab_leaves_the_new_shortcut_field_after_recording() {
     assert!(!rig.recording(), "a recorded chord ends the recording");
     rig.press(Modifiers::NONE, Key::Tab);
     assert!(!rig.recording(), "Tab moves on instead of recording");
-}
-
-#[trial]
-fn tab_leaves_search_by_key_after_recording() {
-    let mut rig = Rig::mac();
-    rig.click("Search by key");
-    assert!(rig.recording());
-    rig.press(Modifiers::COMMAND, Key::S);
-    assert!(!rig.recording(), "the chord becomes the query and the recording ends");
-    rig.press(Modifiers::NONE, Key::Tab);
-    assert!(!rig.recording(), "Tab moves on instead of recording");
+    {
+        let mut rig = Rig::mac();
+        rig.click("Search by key");
+        assert!(rig.recording());
+        rig.press(Modifiers::COMMAND, Key::S);
+        assert!(!rig.recording(), "the chord becomes the query and the recording ends");
+        rig.press(Modifiers::NONE, Key::Tab);
+        assert!(!rig.recording(), "Tab moves on instead of recording");
+    }
 }

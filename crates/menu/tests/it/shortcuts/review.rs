@@ -32,6 +32,8 @@ fn the_foreign_import_review_lists_skipped_and_unreadable_and_imports_on_request
     assert!(rig.shared.borrow().km.overrides().is_empty(), "the review changes nothing");
     rig.click("Import as New Set");
     assert!(rig.has("Imported as “Theirs”"));
+    assert_eq!(rig.active_set().as_deref(), Some("Theirs"), "the new set is active");
+    assert_eq!(rig.bindings("file.save"), ["Cmd+Alt+S"], "with the file's shortcuts");
     rig.click("Done");
     assert!(rig.has("Commands"));
 }
