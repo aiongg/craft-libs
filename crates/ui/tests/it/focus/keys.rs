@@ -57,9 +57,9 @@ fn shift_f10_and_the_menu_key_reach_the_focused_stop_as_a_context_menu() {
 }
 
 /// The key stage removes Tab, F6 and Escape from the raw input of the pass, and keeps arrows and Enter for
-/// egui's `TextEdit`.
+/// egui's `TextEdit`; Ctrl+Tab goes too, but only for a component that switches pages.
 #[trial]
-fn the_key_stage_strips_tab_f6_and_escape_and_keeps_arrows() {
+fn the_key_stage_strips_tab_f6_escape_and_page_switching_ctrl_tab_and_keeps_arrows() {
     let mut frames = Frames::new();
     let seen = RefCell::new(Vec::new());
     let mut show = |ui: &mut egui::Ui| {
@@ -72,6 +72,25 @@ fn the_key_stage_strips_tab_f6_and_escape_and_keeps_arrows() {
     let keys = [Key::Tab, Key::F6, Key::Escape, Key::ArrowLeft, Key::Enter].map(|key| craft_ui::testing::input::key_press(key, Modifiers::NONE));
     frames.frame(keys.to_vec(), &mut show);
     assert_eq!(*seen.borrow().last().unwrap(), [false, false, false, true, true]);
+    // Ctrl+Tab is the focused component's only when it switches pages and does not keep Tab.
+    let seen_by_egui = |keys: KeyUse, role: KeyRole| {
+        let mut frames = Frames::new();
+        let kept = Cell::new(false);
+        let mut show = |ui: &mut egui::Ui| {
+            widget(ui, id("x"));
+            register_stop(ui.ctx(), Stop::new(id("x"), keys).role(role));
+            kept.set(ui.input(|i| i.events.iter().any(|e| event_is_key(e, Key::Tab))));
+        };
+        frames.idle(2, &mut show);
+        focus(&mut frames, "x", &mut show);
+        frames.idle(1, &mut show);
+        frames.frame(vec![craft_ui::testing::input::key_press(Key::Tab, Modifiers::CTRL)], &mut show);
+        kept.get()
+    };
+    let pages = KeyRole::new().pages(true);
+    assert!(seen_by_egui(KeyUse::of(Input::Pointer), KeyRole::new()), "no pages: Ctrl+Tab stays in the raw input");
+    assert!(!seen_by_egui(KeyUse::of(Input::Pointer), pages), "a component with pages takes it");
+    assert!(seen_by_egui(KeyUse::CODE, pages), "a component that keeps Tab keeps Ctrl+Tab too");
 }
 
 /// A component that keeps Tab (a code editor) receives it through egui; every other component loses it to
@@ -128,66 +147,39 @@ fn request_and_press(frames: &mut Frames, show: &mut impl FnMut(&mut egui::Ui)) 
     frames.frame(vec![craft_ui::testing::input::key_press(Key::ArrowUp, Modifiers::NONE)], show);
 }
 
-/// A claim added in `update` holds from the next frame.
+/// 11.3: a listed edit command reaches the component once as `Intent::Edit` and never reaches egui, neither as
+/// its clipboard event nor as its raw chord (so a field's own undo keys stay out of egui); an unlisted one is read
+/// as its chord by the shortcut path alone, so egui never sees it either.
 #[trial]
-fn a_state_dependent_claim_holds_from_the_next_frame() {
+fn listed_edit_commands_arrive_as_intents_once_and_the_raw_chord_does_not_reach_egui() {
     let mut frames = Frames::new();
-    let taken = Cell::new(false);
+    // Pastes taken, undos taken, clipboard events egui saw, Z key presses egui saw.
+    let reads = RefCell::new((0, 0, false, 0));
     let mut show = |ui: &mut egui::Ui| {
-        stop_with(ui, "field", KeyUse::of(Input::Text));
-        claim(ui.ctx(), id("field"), Chord::plain(craft_keymap::Key::Down));
-        taken.set(take_claimed(ui.ctx(), id("field"), Chord::plain(craft_keymap::Key::Down)));
-    };
-    frames.idle(2, &mut show);
-    focus(&mut frames, "field", &mut show);
-    frames.frame(vec![craft_ui::testing::input::key_press(Key::ArrowDown, Modifiers::NONE)], &mut show);
-    assert!(taken.get());
-}
-
-/// 11.3: a listed edit command reaches the component once as `Intent::Edit` and never reaches egui; an
-/// unlisted one is read as its chord by the shortcut path alone, so egui never sees it either.
-#[trial]
-fn listed_edit_commands_arrive_as_intents_once() {
-    let mut frames = Frames::new();
-    let reads = RefCell::new((0, false));
-    let mut show = |ui: &mut egui::Ui| {
-        stop_with(ui, "field", KeyUse::of(Input::Text).with_edits(EditSet::NONE.with(EditCommand::Paste)));
+        stop_with(ui, "field", KeyUse::of(Input::Text).with_edits(EditSet::NONE.with(EditCommand::Paste).with(EditCommand::Undo)));
         let mut reads = reads.borrow_mut();
-        reads.0 += usize::from(intents_of(ui.ctx(), Some(id("field")), false).take(Intent::Edit(EditCommand::Paste)));
-        reads.1 |= ui.input(|i| i.events.iter().any(|e| matches!(e, Event::Paste(_) | Event::Copy)));
+        let mut intents = intents_of(ui.ctx(), Some(id("field")), false);
+        reads.0 += usize::from(intents.take(Intent::Edit(EditCommand::Paste)));
+        reads.1 += usize::from(intents.take(Intent::Edit(EditCommand::Undo)));
+        reads.2 |= ui.input(|i| i.events.iter().any(|e| matches!(e, Event::Paste(_) | Event::Copy)));
+        reads.3 += ui.input(|i| i.events.iter().filter(|e| matches!(e, Event::Key { key: egui::Key::Z, pressed: true, .. })).count());
     };
     frames.idle(2, &mut show);
     focus(&mut frames, "field", &mut show);
     frames.idle(1, &mut show);
+    *reads.borrow_mut() = (0, 0, false, 0);
     frames.frame(vec![Event::Paste("x".into())], &mut show);
     assert_eq!(reads.borrow().0, 1);
-    assert!(!reads.borrow().1, "egui never saw the paste");
+    assert!(!reads.borrow().2, "egui never saw the paste");
     frames.frame(vec![Event::Copy], &mut show);
     assert_eq!(reads.borrow().0, 1, "Copy is not listed");
-    assert!(!reads.borrow().1, "an unlisted clipboard event stands for its chord and is not left to egui");
-}
-
-/// 11.3: the raw chord of a listed edit command is removed with the clipboard events, so a field's own undo keys
-/// never reach egui, and a rebound chord works the same way.
-#[trial]
-fn the_raw_chord_of_a_listed_edit_command_does_not_reach_egui() {
-    let mut frames = Frames::new();
-    let reads = RefCell::new((0, 0));
-    let mut show = |ui: &mut egui::Ui| {
-        stop_with(ui, "field", KeyUse::of(Input::Text).with_edits(EditSet::NONE.with(EditCommand::Undo)));
-        let mut reads = reads.borrow_mut();
-        reads.0 += usize::from(intents_of(ui.ctx(), Some(id("field")), false).take(Intent::Edit(EditCommand::Undo)));
-        reads.1 += ui.input(|i| i.events.iter().filter(|e| matches!(e, Event::Key { key: egui::Key::Z, pressed: true, .. })).count());
-    };
-    frames.idle(2, &mut show);
-    focus(&mut frames, "field", &mut show);
-    frames.idle(1, &mut show);
-    *reads.borrow_mut() = (0, 0);
+    assert!(!reads.borrow().2, "an unlisted clipboard event stands for its chord and is not left to egui");
+    *reads.borrow_mut() = (0, 0, false, 0);
     frames.frame(vec![key_press(egui::Key::Z, egui::Modifiers::COMMAND)], &mut show);
-    assert_eq!(*reads.borrow(), (1, 0), "the component takes the undo once and egui sees no Cmd+Z");
-    *reads.borrow_mut() = (0, 0);
+    assert_eq!((reads.borrow().1, reads.borrow().3), (1, 0), "the component takes the undo once and egui sees no Cmd+Z");
+    *reads.borrow_mut() = (0, 0, false, 0);
     frames.frame(vec![key_press(egui::Key::Z, egui::Modifiers::NONE)], &mut show);
-    assert_eq!(*reads.borrow(), (0, 1), "a plain Z is no edit chord");
+    assert_eq!((reads.borrow().1, reads.borrow().3), (0, 1), "a plain Z is no edit chord");
 }
 
 /// 9.2 rule 2: AccessKit requests go to the owner of their node whatever the focus; `Click` is `Activate`,
@@ -338,9 +330,9 @@ fn a_claim_matches_through_the_layout_not_the_exact_chord() {
     assert!(taken.get());
 }
 
-/// 9.3: a state-dependent claim holds only while its owner is the focused component.
+/// 9.3: a claim added in `update` holds from the next frame, and only while its owner is the focused component.
 #[trial]
-fn a_state_dependent_claim_holds_only_while_its_owner_has_focus() {
+fn a_state_dependent_claim_holds_from_the_next_frame_and_only_while_its_owner_has_focus() {
     let mut frames = Frames::new();
     let reads = RefCell::new((Vec::new(), false));
     let mut show = |ui: &mut egui::Ui| {
@@ -358,32 +350,8 @@ fn a_state_dependent_claim_holds_only_while_its_owner_has_focus() {
     assert_eq!(reads.borrow().0, [NavMove::Down], "the unfocused component's claim left the key to the focused one");
     assert!(!reads.borrow().1);
     focus(&mut frames, "b", &mut show);
-    frames.idle(1, &mut show);
     frames.frame(vec![craft_ui::testing::input::key_press(Key::ArrowDown, Modifiers::NONE)], &mut show);
-    assert!(reads.borrow().1, "the focused owner's claim holds");
-}
-
-/// 9.2: Ctrl+Tab is the focused component's only when it switches pages and does not keep Tab.
-#[trial]
-fn ctrl_tab_is_stripped_only_for_a_component_that_switches_pages() {
-    let seen_by_egui = |keys: KeyUse, role: KeyRole| {
-        let mut frames = Frames::new();
-        let kept = Cell::new(false);
-        let mut show = |ui: &mut egui::Ui| {
-            widget(ui, id("x"));
-            register_stop(ui.ctx(), Stop::new(id("x"), keys).role(role));
-            kept.set(ui.input(|i| i.events.iter().any(|e| event_is_key(e, Key::Tab))));
-        };
-        frames.idle(2, &mut show);
-        focus(&mut frames, "x", &mut show);
-        frames.idle(1, &mut show);
-        frames.frame(vec![craft_ui::testing::input::key_press(Key::Tab, Modifiers::CTRL)], &mut show);
-        kept.get()
-    };
-    let pages = KeyRole::new().pages(true);
-    assert!(seen_by_egui(KeyUse::of(Input::Pointer), KeyRole::new()), "no pages: Ctrl+Tab stays in the raw input");
-    assert!(!seen_by_egui(KeyUse::of(Input::Pointer), pages), "a component with pages takes it");
-    assert!(seen_by_egui(KeyUse::CODE, pages), "a component that keeps Tab keeps Ctrl+Tab too");
+    assert!(reads.borrow().1, "the focused owner's claim holds from the frame after focus arrives");
 }
 
 /// 9.7: the menu keys of a pass are that pass's: unread keys do not wait for a later pass.
@@ -401,42 +369,6 @@ fn unread_menu_keys_do_not_pile_up_across_passes() {
     read.set(true);
     frames.frame(Vec::new(), &mut show);
     assert!(keys.borrow().is_empty());
-}
-
-/// A dropdown whose list has a search field: the field keeps the typed text, and Up, Down and Enter typed in it
-/// reach the list in the same layer.
-#[trial]
-fn a_search_field_in_a_dropdown_hands_its_list_keys_to_the_list() {
-    use craft_ui::contract::{Bind, Entry};
-    use craft_ui::pickers::Select;
-    use craft_ui::testing::Fixture;
-    let value = std::rc::Rc::new(Cell::new(0u8));
-    let shown = value.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        let entries = [Entry::new(0u8, "Normal"), Entry::new(1, "Burn"), Entry::new(2, "Blur"), Entry::new(3, "Screen")];
-        let mut mode = shown.get();
-        Select::new("Blend mode", Bind::bound(&mut mode), &entries).searchable().id_salt("mode").show(ui);
-        shown.set(mode);
-    });
-    fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.idle(2);
-    fixture.key(Key::ArrowDown, Modifiers::ALT);
-    fixture.idle(2);
-    let field = fixture.by_role(Role::TEXT_INPUT).pop().expect("the search field shows");
-    fixture.click(&field);
-    fixture.idle(2);
-    fixture.type_text("b");
-    fixture.idle(2);
-    fixture.key(Key::ArrowDown, Modifiers::NONE);
-    fixture.idle(2);
-    fixture.key(Key::ArrowDown, Modifiers::NONE);
-    fixture.idle(2);
-    let typed = fixture.focused().and_then(|id| fixture.tree().value(id).map(str::to_owned));
-    assert_eq!(typed.as_deref(), Some("b"), "the arrows left the typed text in the field");
-    fixture.key(Key::Enter, Modifiers::NONE);
-    fixture.idle(10);
-    assert_eq!(value.get(), 2, "the second match is picked");
 }
 
 /// A field's Enter that raises a modal alert, held down, leaves the alert open: its repeats began before the layer
@@ -532,9 +464,42 @@ fn drive_fixture(in_modal: bool) -> (craft_ui::testing::Fixture, std::rc::Rc<Ref
     (fixture, activated)
 }
 
-/// A text field that drives a list hands it Down and Enter inline and in a modal layer, and keeps the typed text.
+/// A search field hands its list Down and Enter in a dropdown, inline and in a modal layer, and keeps the typed text.
 #[trial]
-fn a_field_that_drives_a_list_hands_it_its_list_keys_inline_and_in_a_modal() {
+fn a_field_that_drives_a_list_hands_it_its_list_keys_in_a_dropdown_inline_and_in_a_modal() {
+    use craft_ui::contract::Bind;
+    {
+        // A dropdown whose list has a search field: Up, Down and Enter typed in it reach the list in the same layer.
+        use craft_ui::contract::Entry;
+        use craft_ui::pickers::Select;
+        let value = std::rc::Rc::new(Cell::new(0u8));
+        let shown = value.clone();
+        let mut fixture = craft_ui::testing::Fixture::new(move |ui| {
+            let entries = [Entry::new(0u8, "Normal"), Entry::new(1, "Burn"), Entry::new(2, "Blur"), Entry::new(3, "Screen")];
+            let mut mode = shown.get();
+            Select::new("Blend mode", Bind::bound(&mut mode), &entries).searchable().id_salt("mode").show(ui);
+            shown.set(mode);
+        });
+        fixture.settle();
+        fixture.key(Key::Tab, Modifiers::NONE);
+        fixture.idle(2);
+        fixture.key(Key::ArrowDown, Modifiers::ALT);
+        fixture.idle(2);
+        let field = fixture.by_role(Role::TEXT_INPUT).pop().expect("the search field shows");
+        fixture.click(&field);
+        fixture.idle(2);
+        fixture.type_text("b");
+        fixture.idle(2);
+        for _ in 0..2 {
+            fixture.key(Key::ArrowDown, Modifiers::NONE);
+            fixture.idle(2);
+        }
+        let typed = fixture.focused().and_then(|id| fixture.tree().value(id).map(str::to_owned));
+        assert_eq!(typed.as_deref(), Some("b"), "the arrows left the typed text in the dropdown's field");
+        fixture.key(Key::Enter, Modifiers::NONE);
+        fixture.idle(10);
+        assert_eq!(value.get(), 2, "the second match is picked");
+    }
     for in_modal in [false, true] {
         let (mut fixture, activated) = drive_fixture(in_modal);
         fixture.settle();

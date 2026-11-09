@@ -134,7 +134,7 @@ fn access_facts_reach_the_node_and_its_sub_nodes() {
 }
 
 #[trial]
-fn announcements_reach_the_frame_output_and_one_status_node() {
+fn announcements_reach_the_frame_output_and_the_one_status_node() {
     let mut frames = Frames::new();
     frames.frame(vec![], |ui| {
         announce(ui.ctx(), "Saved", Politeness::Polite);
@@ -149,12 +149,9 @@ fn announcements_reach_the_frame_output_and_one_status_node() {
     let status = tree.with_role(UiRole::STATUS);
     assert_eq!(status.len(), 1, "the status node stays, so the next announcement is a change of a live node");
     assert_eq!(tree.name_of(status[0]), None, "and it says nothing");
-}
 
-// The same text announced in two frames in a row reads as a change both times, and a discarded pass that
-// announces again adds nothing.
-#[trial]
-fn a_repeated_announcement_changes_the_status_text_and_a_discarded_pass_adds_nothing() {
+    // The same text announced in two frames in a row reads as a change both times, and a discarded pass that
+    // announces again adds nothing.
     let mut frames = Frames::new();
     let mut said = Vec::new();
     for _ in 0..3 {
@@ -184,26 +181,6 @@ fn an_unnamed_button_is_a_role_rule_finding() {
     });
     let id = seen.borrow().id.expect("updated");
     assert_eq!(frames.tree().name(id), Some("Save the file"), "an icon-only control takes its tooltip as its name");
-}
-
-// A word tooltip that names an icon-only control is read in the scope's language.
-#[trial]
-fn a_word_tooltip_is_resolved_in_the_scopes_language() {
-    use craft_ui::runtime::env::{Overrides, Word, WordRows, WordsOverride, with_env};
-    const SAVE: Word = Word::keyed("trial.save", "Save");
-    let mut frames = Frames::new();
-    let seen = RefCell::new(Seen::default());
-    frames.frame(vec![], |ui| {
-        with_env(
-            ui,
-            |o: &mut Overrides| o.words = Some(WordsOverride::Overlay(WordRows::new().row(SAVE, "Sichern"))),
-            |ui| {
-                Probe::new(&seen).label("").tooltip(SAVE).show(ui);
-            },
-        );
-    });
-    let id = seen.borrow().id.expect("updated");
-    assert_eq!(frames.tree().name(id), Some("Sichern"));
 }
 
 /// A combo box that reports an open state only when it has one.

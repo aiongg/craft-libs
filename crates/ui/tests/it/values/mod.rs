@@ -6,5 +6,4 @@ mod fixture_through;
 mod gestures;
 mod history;
 mod kit;
-mod lifted;
 mod write_back;

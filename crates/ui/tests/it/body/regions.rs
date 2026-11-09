@@ -196,18 +196,16 @@ fn a_filling_body_lies_between_its_header_and_its_footer_in_the_first_pass() {
     let props = ContainerProps::new().sizing(Sizing::Fill).header(HeaderRegion::new()).footer(FooterRegion::new());
     let took = first_pass(props, Some(Vec2::new(100.0, 20.0)));
     let (header, body, footer) = (took.header.unwrap(), took.body.unwrap(), took.footer.unwrap());
+    assert!((header.min.y - AREA.min.y).abs() < EDGE_SLACK, "the header sits at the top: {header:?}");
     assert!(body.min.y >= header.max.y - EDGE_SLACK, "the body starts under the header: {header:?} {body:?}");
     assert!(body.max.y <= footer.min.y + EDGE_SLACK, "the body ends at the footer's top: {body:?} {footer:?}");
     assert!(footer.max.y <= AREA.max.y + EDGE_SLACK, "the footer lies inside the container, at its foot: {footer:?}");
-}
 
-#[trial]
-fn a_filling_body_ends_at_a_footer_beside_a_full_height_end_region_in_the_first_pass() {
     // Beside a full-height end region the footer lies under the body only.
     let props = ContainerProps::new().sizing(Sizing::Fill).end(EndRegion::new().full_height(true)).footer(FooterRegion::new());
     let took = first_pass(props, None);
     let (body, footer) = (took.body.unwrap(), took.footer.unwrap());
-    assert!(body.max.y <= footer.min.y + EDGE_SLACK, "the body ends at the footer's top: {body:?} {footer:?}");
+    assert!(body.max.y <= footer.min.y + EDGE_SLACK, "beside an end region the body ends at the footer's top: {body:?} {footer:?}");
     assert!(footer.max.y <= AREA.max.y + EDGE_SLACK, "the footer lies inside the container: {footer:?}");
 }
 

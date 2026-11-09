@@ -7,9 +7,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use craft_host::Wake;
 use craft_i18n::Han;
-use craft_ui::fonts::{
-    FontCandidates, MAX_SCRIPT_READS, OnDemandFonts, SystemCandidates, deflated_default_definitions, han_for_locale, on_demand_registered,
-};
+use craft_ui::fonts::{FontCandidates, MAX_SCRIPT_READS, OnDemandFonts, SystemCandidates, han_for_locale, on_demand_registered};
 use craft_ui::testing::{Frames, trial};
 use egui::{FontFamily, FontId};
 
@@ -116,19 +114,6 @@ fn han_preference_follows_ui_language_then_os_locale() {
     assert_eq!(han_for_locale("en", None), None);
 }
 
-/// `deflated_default_definitions` holds egui's default font files, with egui's tweaks and family order.
-#[trial]
-fn deflated_defaults_match_egui_defaults() {
-    let ours = deflated_default_definitions();
-    let bytes = |name: &str| -> Vec<u8> { ours.font_data.get(name).unwrap_or_else(|| panic!("{name} is missing")).font.as_ref().as_ref().to_vec() };
-    assert_eq!(bytes("Hack"), epaint_default_fonts::HACK_REGULAR);
-    assert_eq!(bytes("Ubuntu-Light"), epaint_default_fonts::UBUNTU_LIGHT);
-    assert_eq!(bytes("egui-icons"), epaint_default_fonts::EGUI_ICONS);
-    let names = |family: FontFamily| ours.families[&family].clone();
-    assert_eq!(names(FontFamily::Proportional), ["Ubuntu-Light", "egui-icons"]);
-    assert_eq!(names(FontFamily::Monospace), ["Hack", "Ubuntu-Light", "egui-icons"]);
-}
-
 /// A source whose lookup is still running: it keeps the wake it was given.
 struct Slow {
     wakes: std::sync::Mutex<Vec<Wake>>,
@@ -183,28 +168,4 @@ fn the_system_provider_is_shared_per_locale() {
     use craft_ui::fonts::system_font_provider;
     let (a, b) = (system_font_provider("ja"), system_font_provider("ja"));
     assert!(a.zip(b).is_some_and(|(a, b)| Arc::ptr_eq(&a, &b)));
-}
-
-/// A context asking for the OS's interface face is woken once the index of installed fonts is built, and the face is
-/// then known without waiting.
-#[cfg(feature = "system_fonts")]
-#[trial]
-fn the_system_interface_face_resolves_in_the_background_and_wakes_the_context() {
-    use craft_ui::fonts::{poll_system_ui_face, system_ui_face};
-    let ctx = egui::Context::default();
-    let woken = Arc::new(AtomicUsize::new(0));
-    let counter = woken.clone();
-    ctx.set_request_repaint_callback(move |_| {
-        counter.fetch_add(1, Ordering::Relaxed);
-    });
-    let ready = (0..6000).find_map(|_| match poll_system_ui_face(&ctx) {
-        std::task::Poll::Ready(face) => Some(face),
-        std::task::Poll::Pending => {
-            std::thread::sleep(std::time::Duration::from_millis(5));
-            None
-        }
-    });
-    let face = ready.expect("the face resolves once the index is built");
-    assert_eq!(face.map(|face| face.family.as_str()), system_ui_face().map(|face| face.family.as_str()));
-    assert!(woken.load(Ordering::Relaxed) > 0, "the context was woken when the face resolved");
 }

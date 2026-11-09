@@ -32,22 +32,11 @@ fn groups(scroll: bool, label: Option<&'static str>) -> (Vec<Option<String>>, Ve
 }
 
 #[trial]
-fn a_scrolled_stack_is_a_group_named_by_its_label() {
-    assert_eq!(groups(true, Some("Page")), (vec![Some("Page".to_owned())], Vec::new()));
-}
-
-#[trial]
-fn a_scrolled_stack_without_a_label_is_an_unnamed_group() {
-    assert_eq!(groups(true, None).0, vec![None]);
-}
-
-#[trial]
-fn a_labelled_stack_is_a_group_named_by_its_label() {
-    assert_eq!(groups(false, Some("Page")).0, vec![Some("Page".to_owned())]);
-}
-
-#[trial]
-fn an_unlabelled_unscrolled_stack_is_no_node() {
+fn a_scrolled_or_labelled_stack_is_a_group_named_by_its_label_and_an_unlabelled_unscrolled_one_is_no_node() {
+    const LABEL: &str = "Page";
+    assert_eq!(groups(true, Some(LABEL)), (vec![Some(LABEL.to_owned())], Vec::new()));
+    assert_eq!(groups(true, None).0, vec![None], "a scrolled stack without a label is an unnamed group");
+    assert_eq!(groups(false, Some(LABEL)).0, vec![Some(LABEL.to_owned())]);
     assert_eq!(groups(false, None).0, Vec::<Option<String>>::new());
 }
 

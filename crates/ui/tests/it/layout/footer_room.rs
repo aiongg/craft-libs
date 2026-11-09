@@ -64,13 +64,12 @@ fn revealed(in_first_pass: bool) -> (Rect, Rect) {
 }
 
 #[trial]
-fn a_row_revealed_in_the_first_pass_lies_above_the_footer_of_a_filling_stack() {
-    let (last, footer) = revealed(true);
-    assert!(last.bottom() <= footer.top() + EDGE_SLACK, "the revealed row is above the footer: {last:?} over {footer:?}");
-}
-
-#[trial]
-fn a_row_revealed_after_the_stack_settled_lies_above_its_footer() {
-    let (last, footer) = revealed(false);
-    assert!(last.bottom() <= footer.top() + EDGE_SLACK, "the revealed row is above the footer: {last:?} over {footer:?}");
+fn a_row_revealed_in_the_first_pass_or_after_the_stack_settled_lies_above_the_footer_of_a_filling_stack() {
+    for in_first_pass in [true, false] {
+        let (last, footer) = revealed(in_first_pass);
+        assert!(
+            last.bottom() <= footer.top() + EDGE_SLACK,
+            "the revealed row is above the footer (first pass: {in_first_pass}): {last:?} over {footer:?}"
+        );
+    }
 }

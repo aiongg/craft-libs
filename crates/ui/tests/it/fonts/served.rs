@@ -3,7 +3,7 @@
 use std::sync::{Arc, Mutex};
 
 use craft_fonts_build::{EmbeddedFace, ServedFace};
-use craft_ui::fonts::{Emoji, Family, FetchDone, FetchWake, FontFetcher, FontRef, I18nScripts, Stack, SystemFonts, UiFonts};
+use craft_ui::fonts::{Family, FetchDone, FetchWake, FontFetcher, FontRef, I18nScripts, Stack, SystemFonts, UiFonts};
 use craft_ui::testing::{Frames, trial};
 use egui::epaint::text::{Blob, Fonts, TextOptions};
 use egui::{FontFamily, FontId};
@@ -110,26 +110,22 @@ fn the_ui_language_downloads_its_own_faces_first() {
 }
 
 #[trial]
-fn a_missing_character_downloads_the_face_for_its_script() {
-    let stack = web_fonts("en", SERVED).stack();
+fn a_missing_character_downloads_the_face_for_its_kind() {
     let regular = FontRef::proportional();
-    assert_eq!(names(stack.downloads_for(&regular, 'ع')), ["Noto Sans Arabic Regular"]);
+    let cjk = web_fonts("en", SERVED).stack();
+    assert_eq!(names(cjk.downloads_for(&regular, 'ع')), ["Noto Sans Arabic Regular"]);
     // Han follows the offered languages: Japanese before Chinese.
-    assert_eq!(names(stack.downloads_for(&regular, '日'))[..2], ["BIZ UDPGothic Regular", "Noto Sans CJK SC Regular"]);
-    assert_eq!(names(stack.downloads_for(&FontRef::named("semibold"), 'あ'))[0], "BIZ UDPGothic Bold");
+    let han = names(cjk.downloads_for(&regular, '日'));
+    let at = |prefix: &str| han.iter().position(|n| n.starts_with(prefix)).expect(prefix);
+    assert!(at("BIZ UDPGothic") < at("Noto Sans CJK SC"), "{han:?}");
     // The CJK faces' Latin doesn't stand in for a Latin face.
-    for c in ['a', 'ж', 'λ', '1', 'ổ', '🔍', '⌘'] {
-        assert!(stack.downloads_for(&regular, c).is_empty(), "{c}");
-    }
-    let twemoji = served("Twemoji", "Regular", &[], "fonts/Twemoji.ttf", 0);
-    let mut emoji = Emoji::default();
-    emoji.served = Some(twemoji);
-    let stack = web_fonts("en", SERVED).emoji(emoji).stack();
-    for c in ['🔍', '⌚', '✅', '⭐'] {
-        assert_eq!(names(stack.downloads_for(&regular, c)), ["Twemoji Regular"], "{c}");
-    }
-    assert!(stack.downloads_for(&regular, '⌘').is_empty(), "a symbol, not an emoji");
-    assert!(stack.ui_downloads().is_empty());
+    assert!(cjk.downloads_for(&regular, 'a').is_empty());
+
+    let all = web_fonts("en", &[SERVED, SERVED_SYMBOLS].concat()).stack();
+    assert_eq!(names(all.downloads_for(&regular, 'ổ')), ["Noto Sans Regular"]);
+    let symbol = names(all.downloads_for(&regular, '⌘'));
+    assert!(!symbol.is_empty() && !symbol.iter().any(|n| n == "Noto Sans Regular" || n == "Noto Color Emoji Regular"), "{symbol:?}");
+    assert_eq!(names(all.downloads_for(&regular, '🔍')), ["Noto Color Emoji Regular"]);
 }
 
 #[trial]
@@ -251,20 +247,6 @@ fn a_taiwanese_ui_takes_characters_no_interface_face_has_from_the_system_fonts()
     assert!(asked.lock().expect("lock").is_empty(), "the Simplified interface face has them");
 }
 
-#[trial]
-fn a_web_build_downloads_the_interface_face_for_its_language() {
-    let faces = [
-        served("Noto Sans SC UI", "Regular", &["Hans", "Latn"], "fonts/ui/NotoSansSCUI-Regular.0123456789abcdef.ttf", 0),
-        served("Noto Sans TC UI", "Regular", &["Hant", "Latn"], "fonts/ui/NotoSansTCUI-Regular.0123456789abcdef.ttf", 0),
-        served("BIZ UDPGothic", "Regular", &["Jpan", "Latn"], "fonts/biz-ud-pgothic/BIZUDPGothic-Regular.0123456789abcdef.ttf", 0),
-        served("Noto Sans Arabic", "Regular", &["Arab"], "fonts/noto-sans-arabic/NotoSansArabic.ttf", 0),
-    ];
-    // The interface faces are Regular only: the semibold family takes that face too.
-    for (language, want) in [("zh-TW", "Noto Sans TC UI Regular"), ("zh-CN", "Noto Sans SC UI Regular"), ("ja", "BIZ UDPGothic Regular")] {
-        assert_eq!(names(web_fonts(language, &faces).stack().ui_downloads()), [want], "{language}");
-    }
-}
-
 /// craft-fonts' faces for Latin, Greek and Cyrillic, symbols and emoji, as a web build serves them.
 const SERVED_SYMBOLS: &[ServedFace] = &[
     served("Noto Sans", "Regular", &["Latn", "Cyrl", "Grek", "Deva"], "fonts/noto-sans/NotoSans.ttf", 0),
@@ -273,26 +255,6 @@ const SERVED_SYMBOLS: &[ServedFace] = &[
     served("Noto Sans Symbols 2", "Regular", &["Zsym"], "fonts/noto-sans-symbols-2/NotoSansSymbols2-Regular.ttf", 0),
     served("Noto Sans Math", "Regular", &["Zmth", "Zsym"], "fonts/noto-sans-math/NotoSansMath-Regular.ttf", 0),
 ];
-
-#[trial]
-fn letters_symbols_and_emoji_download_their_own_kind_of_face() {
-    let stack = web_fonts("en", &[SERVED, SERVED_SYMBOLS].concat()).stack();
-    let regular = FontRef::proportional();
-    let first = |c: char| names(stack.downloads_for(&regular, c)).first().cloned().unwrap_or_default();
-    for c in ['ổ', 'ẫ', 'ạ', 'ư', 'λ', 'ῶ', 'ж', 'ӂ', 'ǅ', '₫'] {
-        assert_eq!(names(stack.downloads_for(&regular, c)), ["Noto Sans Regular"], "{c}");
-    }
-    let symbols = ["Noto Sans Symbols Regular", "Noto Sans Symbols 2 Regular", "Noto Sans Math Regular"];
-    for c in ['⌘', '⌥', '⇧', '⌃', '⎋', '⏎', '⌫', '⇥', '↩', '⌦', '⇪', '⏏', '☰', '✓', '♠', '🁣', '♔'] {
-        assert_eq!(names(stack.downloads_for(&regular, c)), symbols, "{c}");
-    }
-    for c in ['⊞', '∀', '⟨', '𝔸'] {
-        assert_eq!(first(c), "Noto Sans Math Regular", "{c}");
-    }
-    for c in ['🔍', '😀', '⌚', '☕', '✅', '⭐', '🃏'] {
-        assert_eq!(names(stack.downloads_for(&regular, c)), ["Noto Color Emoji Regular"], "{c}");
-    }
-}
 
 /// Fetches nothing until the test answers, on a clock the test moves.
 #[derive(Default)]

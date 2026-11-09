@@ -86,7 +86,7 @@ fn a_marquee_maps_each_shape_through_a_turned_view() {
 }
 
 #[trial]
-fn the_hover_mask_marks_the_edge_of_the_covered_texels_only() {
+fn the_hover_mask_marks_the_edge_of_the_covered_texels_only_and_samples_a_large_area_coarsely() {
     let bounds = Rect::new(0.0, 0.0, 9.0, 9.0);
     let mask = HoverMask::sampled(bounds, |x, y| if (3.0..6.0).contains(&x) && (3.0..6.0).contains(&y) { 1.0 } else { 0.0 });
     assert!(mask.is_edge(3, 3), "a corner texel of the covered block");
@@ -96,10 +96,8 @@ fn the_hover_mask_marks_the_edge_of_the_covered_texels_only() {
     let full = HoverMask::sampled(bounds, |_, _| 1.0);
     assert!(full.is_edge(0, 4) && full.is_edge(8, 4), "texels on the mask's border are edges");
     assert!(!full.is_edge(4, 4));
-}
 
-#[trial]
-fn a_large_hover_mask_samples_fewer_texels_than_its_size() {
+    // A large mask samples fewer texels than its size.
     let mask = HoverMask::sampled(Rect::new(0.0, 0.0, 4000.0, 1000.0), |_, _| 1.0);
     let [across, down] = mask.size();
     assert!(across.max(down) <= HoverMask::MAX_TEXELS, "the long side stays within {}: {across} x {down}", HoverMask::MAX_TEXELS);

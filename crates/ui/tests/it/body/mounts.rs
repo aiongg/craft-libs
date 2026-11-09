@@ -100,23 +100,6 @@ fn a_zoomed_canvas_body_hits_its_members_in_canvas_space() {
 }
 
 #[trial]
-fn a_viewport_mount_shows_its_body_in_the_fallback_layer_under_test() {
-    let (ran, rect) = (Cell::new(0), Cell::new(Rect::NOTHING));
-    let mut frames = Frames::new();
-    let screen = Rect::from_min_max(Pos2::ZERO, Pos2::new(800.0, 600.0));
-    frames.idle(4, |ui| {
-        let props = ContainerProps::new().mount(Mount::viewport(Overlay::floating())).sizing(Sizing::Content);
-        let out = Slab::new(props).id_salt("window").show(ui, |ui, _| {
-            ran.set(ran.get() + 1);
-            Block::new(BODY).show(ui);
-        });
-        rect.set(out.output.rect);
-    });
-    assert!(ran.get() > 0, "the body ran in the fallback layer");
-    assert!(screen.contains_rect(rect.get()) && rect.get().width() >= BODY.x, "the fallback layer sits inside the window: {:?}", rect.get());
-}
-
-#[trial]
 fn a_pane_holds_its_width_while_its_body_fills_it() {
     use craft_ui::contract::{PaneEdge, ShellPane};
     let width = Cell::new(0.0);
@@ -136,9 +119,9 @@ fn a_pane_holds_its_width_while_its_body_fills_it() {
 }
 
 /// Where viewports are available a viewport mount opens a window with the container's title, and its body runs in
-/// that window's passes, not the main window's.
+/// that window's passes, not the main window's. A modal overlay opens a dialog window, a floating one a tool window.
 #[trial]
-fn a_viewport_mount_opens_a_window_with_its_title() {
+fn a_viewport_mount_opens_a_titled_window_of_the_kind_its_overlay_gives() {
     let windows = Windows::new();
     let in_window = Cell::new(false);
     let frame = || {
@@ -158,9 +141,28 @@ fn a_viewport_mount_opens_a_window_with_its_title() {
         "the window is titled by the container: {:?}",
         out.titles
     );
+
+    let kinds = [(Overlay::floating(), craft_host::target::WindowKind::Tool), (Overlay::dialog(), craft_host::target::WindowKind::Dialog)];
+    for (overlay, kind) in kinds {
+        let windows = Windows::new();
+        let seen = Cell::new(None);
+        for _ in 0..3 {
+            windows.frame(vec![], vec![], |ui| {
+                let props = ContainerProps::new().mount(Mount::viewport(overlay.clone())).sizing(Sizing::Content);
+                Slab::new(props).label("Export").id_salt("window").show(ui, |ui, cx| {
+                    if ui.ctx().viewport_id() != ViewportId::ROOT {
+                        seen.set(Some(cx.env.shell().window.kind));
+                    }
+                    Block::new(BODY).show(ui);
+                });
+            });
+        }
+        assert_eq!(seen.get(), Some(kind), "the overlay decides the window kind");
+    }
 }
 
-/// Without the viewport capability the same mount shows its body in the main window, on the fallback layer.
+/// Without the viewport capability the same mount shows its body in the main window, on the fallback layer, inside
+/// the screen.
 #[trial]
 fn a_viewport_mount_without_the_capability_uses_the_fallback_overlay() {
     let shell = ShellInfo::default().caps(Caps::web());
@@ -177,6 +179,21 @@ fn a_viewport_mount_without_the_capability_uses_the_fallback_overlay() {
         });
     }
     assert!(ran.get() > 0 && !in_window.get(), "the body ran in the main window's fallback layer");
+
+    // The harness without windows falls back the same way.
+    let (ran, rect) = (Cell::new(0), Cell::new(Rect::NOTHING));
+    let mut frames = Frames::new();
+    let screen = Rect::from_min_max(Pos2::ZERO, Pos2::new(800.0, 600.0));
+    frames.idle(4, |ui| {
+        let props = ContainerProps::new().mount(Mount::viewport(Overlay::floating())).sizing(Sizing::Content);
+        let out = Slab::new(props).id_salt("window").show(ui, |ui, _| {
+            ran.set(ran.get() + 1);
+            Block::new(BODY).show(ui);
+        });
+        rect.set(out.output.rect);
+    });
+    assert!(ran.get() > 0, "the body ran in the fallback layer");
+    assert!(screen.contains_rect(rect.get()) && rect.get().width() >= BODY.x, "the fallback layer sits inside the window: {:?}", rect.get());
 }
 
 /// A viewport mount's window placement goes to the placement store under the container's save key, and the next
@@ -186,10 +203,13 @@ fn a_viewport_mount_saves_its_window_placement_in_the_store() {
     let store = Arc::new(Mutex::new(Store::in_memory()));
     let spec = InstallSpec::new(ShellInfo::default(), Arc::new(NoWindows)).placement(store.clone());
     let windows = Windows::with(spec);
+    let inner = Rect::from_min_size(Pos2::new(120.0, 90.0), Vec2::from(INNER));
+    let outer = Rect::from_min_size(Pos2::new(118.0, 60.0), Vec2::new(424.0, 342.0));
+    let scale = 2.0;
     windows.child_info(ViewportInfo {
-        inner_rect: Some(Rect::from_min_size(Pos2::new(120.0, 90.0), Vec2::from(INNER))),
-        outer_rect: Some(Rect::from_min_size(Pos2::new(118.0, 60.0), Vec2::new(424.0, 342.0))),
-        native_pixels_per_point: Some(2.0),
+        inner_rect: Some(inner),
+        outer_rect: Some(outer),
+        native_pixels_per_point: Some(scale),
         ..ViewportInfo::default()
     });
     for _ in 0..3 {
@@ -204,8 +224,12 @@ fn a_viewport_mount_saves_its_window_placement_in_the_store() {
         });
     }
     let saved = store.lock().unwrap().get("craft_ui_tests.export_window").expect("the window's placement was saved");
-    assert_eq!(saved.normal.size, INNER, "the inner size in points");
-    assert_eq!(saved.position_px, Some([236, 120]), "the outer position in physical pixels");
+    assert_eq!(saved.normal.size, [inner.width(), inner.height()], "the inner size in points");
+    assert_eq!(
+        saved.position_px,
+        Some([(outer.min.x * scale).round() as i32, (outer.min.y * scale).round() as i32]),
+        "the outer position in physical pixels"
+    );
 }
 
 /// The OS asking a viewport mount's window to close closes the container: its body stops running.
@@ -282,26 +306,6 @@ fn escape_closes_a_dialog_mounted_in_an_os_window() {
         frame(vec![]);
     }
     assert_eq!(ran.get(), after_close, "Escape closed the dialog in its window: the body no longer runs");
-}
-
-/// A modal fallback mounted in an OS window is a dialog window, where the same mount with a floating overlay is a tool
-/// window.
-#[trial]
-fn a_modal_viewport_mount_opens_a_dialog_window() {
-    let windows = Windows::new();
-    let seen = Cell::new(None);
-    for _ in 0..3 {
-        windows.frame(vec![], vec![], |ui| {
-            let props = ContainerProps::new().mount(Mount::viewport(Overlay::dialog())).sizing(Sizing::Content);
-            Slab::new(props).label("Export").id_salt("window").show(ui, |ui, cx| {
-                if ui.ctx().viewport_id() != ViewportId::ROOT {
-                    seen.set(Some(cx.env.shell().window.kind));
-                }
-                Block::new(BODY).show(ui);
-            });
-        });
-    }
-    assert_eq!(seen.get(), Some(craft_host::target::WindowKind::Dialog), "the modal mount's window is a dialog window");
 }
 
 /// A close request the container did not take in its frame (it was shown in a parent's sizing pass, which runs no

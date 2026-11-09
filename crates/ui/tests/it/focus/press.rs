@@ -42,7 +42,9 @@ fn press(frames: &mut Frames, at: Pos2, show: &mut impl FnMut(&mut Ui)) {
 /// Skeleton `structure_keep_focus` (both tests) and `frames_state::press_nobody_claims_surrenders_focus_and_
 /// commits_the_draft`: a press on a text field takes focus (kind 1); a press on a keep-focus shape leaves
 /// focus and the draft (kind 2); a press on another control moves focus to the pane and commits (kind 3); a
-/// press nobody claims commits and surrenders focus (kind 4).
+/// press nobody claims commits and surrenders focus (kind 4). A press on a control while a non-text component
+/// holds focus leaves focus where it is (kind 3 acts without moving key focus), so a canvas keeps its single-key
+/// shortcuts after a panel click.
 #[trial]
 fn a_press_takes_keeps_or_releases_key_focus_by_the_winning_shape() {
     let mut frames = Frames::new();
@@ -68,12 +70,7 @@ fn a_press_takes_keeps_or_releases_key_focus_by_the_winning_shape() {
     press(&mut frames, Pos2::new(700.0, 500.0), &mut show);
     assert_eq!(commits.borrow().iter().flatten().copied().collect::<Vec<_>>(), [id("field")], "kind 4: a press nobody claims commits the draft");
     assert_eq!(focused(&frames.ctx), None, "and the end hook surrendered key focus");
-}
 
-/// A press on a control while a non-text component holds focus leaves focus where it is (kind 3 acts without
-/// moving key focus), so a canvas keeps its single-key shortcuts after a panel click.
-#[trial]
-fn a_control_press_leaves_the_focus_of_a_non_text_component() {
     let mut frames = Frames::new();
     let rects = Cell::new(None);
     let commits = RefCell::new(Vec::new());
@@ -86,6 +83,6 @@ fn a_control_press_leaves_the_focus_of_a_non_text_component() {
     focus(&mut frames, "canvas", &mut show);
     let (_, _, button) = rects.get().expect("laid out");
     press(&mut frames, button.center(), &mut show);
-    assert_eq!(focused(&frames.ctx), Some(id("canvas")));
+    assert_eq!(focused(&frames.ctx), Some(id("canvas")), "a control press leaves the focus of a non-text component");
     assert!(commits.borrow().iter().all(Option::is_none), "no text part, nothing to commit");
 }

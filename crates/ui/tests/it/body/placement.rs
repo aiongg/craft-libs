@@ -137,7 +137,7 @@ fn header_of(rect: Rect) -> Pos2 {
 }
 
 #[trial]
-fn a_placed_layer_reports_its_move_and_keeps_no_placement_of_its_own() {
+fn a_placed_layer_reports_its_move_and_keeps_no_placement_of_its_own_and_one_cancel_on_escape() {
     let (caller, mut frames) = (Caller::new(), Frames::new());
     let overlay = Overlay::floating().movable(true);
     let mut show = caller.show(&overlay);
@@ -159,6 +159,31 @@ fn a_placed_layer_reports_its_move_and_keeps_no_placement_of_its_own() {
     caller.controlled.set(false);
     frames.idle(3, &mut show);
     assert!((caller.rect.get().min - commit.rect.min).abs().max_elem() > SLACK, "no placement was stored: {:?}", caller.rect.get());
+
+    // Escape during a move drag reports one cancel with the starting rect.
+    {
+        let (caller, mut frames) = (Caller::new(), Frames::new());
+        let overlay = Overlay::floating().movable(true);
+        let mut show = caller.show(&overlay);
+        frames.idle(4, &mut show);
+        let from = header_of(START);
+        frames.frame(vec![pointer::moved(from)], &mut show);
+        frames.frame(vec![pointer::press(from)], &mut show);
+        frames.frame(vec![pointer::moved(from + MOVE / 2.0)], &mut show);
+        frames.frame(vec![pointer::moved(from + MOVE)], &mut show);
+        assert!(!near(caller.rect.get(), START), "the layer followed the drag: {:?}", caller.rect.get());
+        caller.escape.set(true);
+        frames.frame(vec![pointer::moved(from + MOVE * 1.5)], &mut show);
+        frames.idle(2, &mut show);
+        frames.frame(vec![pointer::release(from + MOVE * 1.5)], &mut show);
+        frames.idle(2, &mut show);
+        let phases = caller.phases();
+        assert_eq!(phases.iter().filter(|phase| **phase == GesturePhase::Cancel).count(), 1, "one cancel: {phases:?}");
+        assert_eq!(phases.last(), Some(&GesturePhase::Cancel), "nothing follows the cancel, not the release: {phases:?}");
+        assert!(!phases.contains(&GesturePhase::Commit), "no commit: {phases:?}");
+        assert!(near(caller.last().rect, START), "the cancel carries the rect from before the gesture: {:?}", caller.last().rect);
+        assert!(near(caller.rect.get(), START), "the layer returned to it: {:?}", caller.rect.get());
+    }
 }
 
 #[trial]
@@ -188,31 +213,6 @@ fn a_move_stops_at_the_bounds_and_a_size_drag_at_the_size_limits() {
     let shrunk = caller.last().rect;
     assert!(shrunk.width() >= LEAST.x - SLACK && shrunk.height() >= LEAST.y - SLACK, "the size stopped at the least: {shrunk:?}");
     assert!((shrunk.min - grown.rect.min).abs().max_elem() < SLACK, "the opposite corner stayed: {shrunk:?}");
-}
-
-#[trial]
-fn escape_during_a_move_drag_reports_one_cancel_with_the_starting_rect() {
-    let (caller, mut frames) = (Caller::new(), Frames::new());
-    let overlay = Overlay::floating().movable(true);
-    let mut show = caller.show(&overlay);
-    frames.idle(4, &mut show);
-    let from = header_of(START);
-    frames.frame(vec![pointer::moved(from)], &mut show);
-    frames.frame(vec![pointer::press(from)], &mut show);
-    frames.frame(vec![pointer::moved(from + MOVE / 2.0)], &mut show);
-    frames.frame(vec![pointer::moved(from + MOVE)], &mut show);
-    assert!(!near(caller.rect.get(), START), "the layer followed the drag: {:?}", caller.rect.get());
-    caller.escape.set(true);
-    frames.frame(vec![pointer::moved(from + MOVE * 1.5)], &mut show);
-    frames.idle(2, &mut show);
-    frames.frame(vec![pointer::release(from + MOVE * 1.5)], &mut show);
-    frames.idle(2, &mut show);
-    let phases = caller.phases();
-    assert_eq!(phases.iter().filter(|phase| **phase == GesturePhase::Cancel).count(), 1, "one cancel: {phases:?}");
-    assert_eq!(phases.last(), Some(&GesturePhase::Cancel), "nothing follows the cancel, not the release: {phases:?}");
-    assert!(!phases.contains(&GesturePhase::Commit), "no commit: {phases:?}");
-    assert!(near(caller.last().rect, START), "the cancel carries the rect from before the gesture: {:?}", caller.last().rect);
-    assert!(near(caller.rect.get(), START), "the layer returned to it: {:?}", caller.rect.get());
 }
 
 #[trial]

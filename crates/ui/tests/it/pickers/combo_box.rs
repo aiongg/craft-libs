@@ -55,14 +55,18 @@ impl Rig {
 }
 
 /// "ar" lists the options that contain it, and Enter picks the one that starts with it although it comes later in
-/// the options.
+/// the options. The filter reads the labels the rows show: "sys" lists the option labelled "Arial (system)".
 #[trial]
-fn typed_text_lists_the_matches_and_enter_picks_the_one_that_starts_with_it() {
+fn typed_text_lists_the_matches_by_their_labels_and_enter_picks_the_one_that_starts_with_it() {
     let mut rig = rig();
     rig.type_text("ar");
     assert_eq!(rig.listed(), ["Arial", "Charter", "Garamond"]);
     rig.press(Key::Enter);
     assert_eq!(*rig.text.borrow(), "Arial");
+
+    let mut rig = rig_over(|| vec![Entry::new("Arial".to_owned(), "Arial (system)"), Entry::new("Charter".to_owned(), "Charter")]);
+    rig.type_text("sys");
+    assert_eq!(rig.listed(), ["Arial (system)"]);
 }
 
 /// Text that matches no option shows no list, and Enter keeps the text as typed.
@@ -74,13 +78,4 @@ fn text_that_matches_nothing_closes_the_list_and_commits_as_typed() {
     assert!(rig.listed().is_empty(), "no option contains `arz`");
     rig.press(Key::Enter);
     assert_eq!(*rig.text.borrow(), "arz");
-}
-
-/// The filter reads the labels the rows show: "sys" lists the option labelled "Arial (system)", whose value is
-/// "Arial".
-#[trial]
-fn typed_text_matches_the_labels_the_rows_show() {
-    let mut rig = rig_over(|| vec![Entry::new("Arial".to_owned(), "Arial (system)"), Entry::new("Charter".to_owned(), "Charter")]);
-    rig.type_text("sys");
-    assert_eq!(rig.listed(), ["Arial (system)"]);
 }

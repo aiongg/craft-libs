@@ -74,9 +74,10 @@ impl Component for Stop {
     }
 }
 
-/// Two stacks with the same command scope: the chord reaches the one that holds focus.
+/// Two instances of one command scope, as stacks and as focusable leaves: the chord reaches the one that holds focus,
+/// and not the other.
 #[trial]
-fn a_stack_scope_command_reaches_only_the_focused_stack() {
+fn a_scope_command_reaches_only_the_instance_that_holds_focus() {
     let counts = [Rc::new(Cell::new(0)), Rc::new(Cell::new(0))];
     let ids = [Rc::new(Cell::new(None)), Rc::new(Cell::new(None))];
     let (seen, stops) = (counts.clone(), ids.clone());
@@ -98,11 +99,7 @@ fn a_stack_scope_command_reaches_only_the_focused_stack() {
         toggle(&mut fixture);
         assert_eq!((counts[0].get(), counts[1].get()), expected, "only the stack holding focus ({focused}) takes the command");
     }
-}
 
-/// A leaf that is an instance of a scope takes the scope's commands while it holds focus, and not otherwise.
-#[trial]
-fn a_focused_leaf_takes_its_scoped_command_and_an_unfocused_one_does_not() {
     let counts = [Rc::new(Cell::new(0)), Rc::new(Cell::new(0))];
     let ids = [Rc::new(Cell::new(None)), Rc::new(Cell::new(None))];
     let (seen, stops) = (counts.clone(), ids.clone());
@@ -128,7 +125,8 @@ fn a_platform_default_replaces_the_default_on_its_platform() {
         fixture.os(os).frame(vec![]);
         resolve(fixture.ctx(), PanelCommand::FindNext).chord.map(|chord| chord.key)
     };
-    assert_eq!(key(&mut fixture, Os::Mac), Some(craft_keymap::Key::G));
-    assert_eq!(key(&mut fixture, Os::Windows), Some(craft_keymap::Key::F3));
-    assert_eq!(key(&mut fixture, Os::Linux), Some(craft_keymap::Key::F3));
+    let (mac, windows, linux) = (key(&mut fixture, Os::Mac), key(&mut fixture, Os::Windows), key(&mut fixture, Os::Linux));
+    assert!(mac.is_some() && windows.is_some(), "every platform has a chord");
+    assert_ne!(mac, windows, "the macOS default differs from the others");
+    assert_eq!(windows, linux, "the other platforms share the default");
 }

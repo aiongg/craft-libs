@@ -39,29 +39,18 @@ fn field(frames: &mut Frames, controls: usize, keeps_name: bool) -> (Id, Vec<Id>
 }
 
 #[trial]
-fn one_control_is_labelled_by_the_field_label() {
+fn a_field_label_names_its_control_or_describes_one_that_keeps_its_name() {
     let mut frames = Frames::new();
     let (_, ids, tree) = field(&mut frames, 1, false);
-    assert_eq!(tree.labelled_by(ids[0]), [NodeKey::of(field_label().id)]);
-    assert_eq!((tree.role(field_label().id), tree.name(field_label().id)), (Some(UiRole::LABEL), Some("Name")));
-}
+    let label = field_label();
+    assert_eq!(tree.labelled_by(ids[0]), [NodeKey::of(label.id)]);
+    assert_eq!((tree.role(label.id), tree.name(label.id)), (Some(UiRole::LABEL), Some("Name")));
+    assert_eq!(name(&tree, NodeKey::of(ids[0])), tree.name(label.id), "the control carries the label's text as its name");
 
-#[trial]
-fn the_name_rule_follows_labelled_by() {
-    let mut frames = Frames::new();
-    let (_, ids, tree) = field(&mut frames, 1, false);
-    let control = NodeKey::of(ids[0]);
-    assert_eq!(tree.name(ids[0]), Some("Name"), "the control carries the label's text as its name");
-    assert_eq!(tree.labelled_by(ids[0]), [NodeKey::of(field_label().id)], "and keeps the label that names it");
-    assert_eq!(name(&tree, control), Some("Name"));
-}
-
-#[trial]
-fn a_control_that_keeps_its_name_is_described_by_the_label() {
-    let mut frames = Frames::new();
-    let (_, ids, tree) = field(&mut frames, 1, true);
-    assert_eq!((tree.name(ids[0]), tree.labelled_by(ids[0]).len()), (Some("Control 0"), 0));
-    assert_eq!(tree.described_by(ids[0]), [NodeKey::of(field_label().id)]);
+    let mut keeping = Frames::new();
+    let (_, ids, tree) = field(&mut keeping, 1, true);
+    assert!(tree.labelled_by(ids[0]).is_empty(), "a control that keeps its name is not labelled by the field");
+    assert_eq!(tree.described_by(ids[0]), [NodeKey::of(label.id)]);
 }
 
 #[trial]
@@ -109,7 +98,7 @@ impl Component for Decor {
 impl Container for Decor {}
 
 #[trial]
-fn a_decorator_merges_its_name_and_description_into_the_child() {
+fn a_decorator_merges_its_name_and_description_into_the_one_node_it_wraps() {
     let mut frames = Frames::new();
     let seen = RefCell::new(Seen::default());
     let mut decor = None;
@@ -124,6 +113,23 @@ fn a_decorator_merges_its_name_and_description_into_the_child() {
     assert!(!tree.has(decor.expect("shown")), "the decorator has no node");
     let child = seen.borrow().id.expect("the child updated");
     assert_eq!((tree.name(child), tree.description(child)), (Some("Inbox, 3 unread"), Some("New mail")));
+
+    // Around a container it merges into the container's node, not into one of its children.
+    let mut frames = Frames::new();
+    let group = RefCell::new(Seen::default());
+    let child = RefCell::new(Seen::default());
+    frames.frame(vec![], |ui| {
+        let decorator = Decor { common: Common::new(), props: ContainerProps::new() }.label("3 unread");
+        decorator.show(ui, |ui, _| {
+            Panel::new().seen(&group).show(ui, |ui, _| {
+                Probe::new(&child).label("Inbox").show(ui);
+            });
+        });
+    });
+    let tree = frames.tree();
+    let id = |seen: &RefCell<Seen>| seen.borrow().id.expect("updated");
+    assert_eq!(tree.name(id(&child)), Some("Inbox"), "the grandchild keeps its own name");
+    assert!(tree.name(id(&group)).is_some_and(|name| name.contains("3 unread")));
 }
 
 // A container control inside a field is the one control: the label names it, not the field and not its children.
@@ -147,26 +153,6 @@ fn a_container_control_inside_a_field_is_the_one_control() {
     assert_eq!(tree.labelled_by(id(&group)), [NodeKey::of(field_label().id)]);
     assert!(tree.labelled_by(container).is_empty(), "the field is not made a group");
     assert!(tree.labelled_by(id(&first)).is_empty() && tree.labelled_by(id(&second)).is_empty());
-}
-
-// A decorator around a container merges into the container's node, not into one of its children.
-#[trial]
-fn a_decorator_around_a_container_merges_into_the_container() {
-    let mut frames = Frames::new();
-    let group = RefCell::new(Seen::default());
-    let child = RefCell::new(Seen::default());
-    frames.frame(vec![], |ui| {
-        let decorator = Decor { common: Common::new(), props: ContainerProps::new() }.label("3 unread");
-        decorator.show(ui, |ui, _| {
-            Panel::new().seen(&group).show(ui, |ui, _| {
-                Probe::new(&child).label("Inbox").show(ui);
-            });
-        });
-    });
-    let tree = frames.tree();
-    let id = |seen: &RefCell<Seen>| seen.borrow().id.expect("updated");
-    assert_eq!(tree.name(id(&child)), Some("Inbox"), "the grandchild keeps its own name");
-    assert!(tree.name(id(&group)).is_some_and(|name| name.contains("3 unread")));
 }
 
 /// A container with no label whose labelled rows share one label column.

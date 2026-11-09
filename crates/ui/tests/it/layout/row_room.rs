@@ -39,19 +39,13 @@ fn heights(row: impl Fn() -> Row + 'static) -> (f32, f32, f32) {
 }
 
 #[trial]
-fn a_divider_in_a_fill_width_row_is_as_high_as_the_row_and_its_button() {
-    let (row, divider, button) = heights(|| Row::new().fill_width());
-    assert!((row - button).abs() <= SLACK && (divider - button).abs() <= SLACK, "row {row}, divider {divider}, button {button}");
-}
+fn a_divider_in_a_fill_row_is_as_high_as_the_row_and_its_button_and_spans_the_rect_it_is_shown_in() {
+    let plain = heights(|| Row::new().fill_width());
+    let scrolling = heights(|| Row::new().fill_width().scroll(Scroll::horizontal()));
+    for (row, divider, button) in [plain, scrolling] {
+        assert!((row - button).abs() <= SLACK && (divider - button).abs() <= SLACK, "row {row}, divider {divider}, button {button}");
+    }
 
-#[trial]
-fn a_divider_in_a_scrolling_fill_width_row_is_as_high_as_the_row_and_its_button() {
-    let (row, divider, button) = heights(|| Row::new().fill_width().scroll(Scroll::horizontal()));
-    assert!((row - button).abs() <= SLACK && (divider - button).abs() <= SLACK, "row {row}, divider {divider}, button {button}");
-}
-
-#[trial]
-fn a_divider_in_a_fill_row_spans_the_rect_it_is_shown_in() {
     let seen = Rc::new(Cell::new((Rect::NOTHING, 0.0)));
     let out = Rc::clone(&seen);
     let mut fixture = Fixture::new(move |ui| {

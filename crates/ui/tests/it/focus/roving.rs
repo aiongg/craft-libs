@@ -55,27 +55,6 @@ fn a_roving_group_is_one_tab_stop_and_its_members_read_their_own_focus() {
     assert_eq!(*reads.borrow(), [false; 4], "focus leaving the group clears every member's focus");
 }
 
-/// Skeleton `frames_state::tab_into_a_component_sets_its_first_part_active`: Tab arrival sets the first part
-/// of a component with focusable parts active, and the component reads as focused.
-#[trial]
-fn tab_into_a_component_sets_its_first_part_active() {
-    const KNOB: PartKey = PartKey::new("knob");
-    let mut frames = Frames::new();
-    let read = Cell::new((false, None));
-    let mut show = |ui: &mut Ui| {
-        control(ui, "before");
-        widget(ui, id("pair"));
-        for part in 0..2 {
-            register_stop(ui.ctx(), Stop::new(id("pair"), KeyUse::of(Input::Pointer)).part(KNOB.at(part)));
-        }
-        read.set((is_focused(ui.ctx(), id("pair")), active_part(ui.ctx(), id("pair"))));
-    };
-    frames.idle(2, &mut show);
-    focus(&mut frames, "before", &mut show);
-    tap(&mut frames, Key::Tab, Modifiers::NONE, &mut show);
-    assert_eq!(read.get(), (true, Some(KNOB.at(0))));
-}
-
 fn members(ui: &mut Ui, names: &[&str], group: Group) {
     widget(ui, id("group"));
     for member in names {
@@ -140,10 +119,27 @@ fn an_accesskit_click_on_a_group_member_activates_it_through_the_group() {
     assert_eq!(activated.get(), (true, Some(id("m3"))));
 }
 
-/// 9.5: a group of parts of one component arrives at the part its registration names, and at the new one after the
-/// selection moves.
+/// Tab arrival sets the first part of a component with focusable parts active; a group of parts of one component
+/// arrives at the part its registration names instead, and at the new one after the selection moves.
 #[trial]
-fn tab_arrives_at_the_selected_part_of_a_part_group() {
+fn tab_arrives_at_the_first_part_or_the_selected_part_of_a_part_group() {
+    {
+        const KNOB: PartKey = PartKey::new("knob");
+        let mut frames = Frames::new();
+        let read = Cell::new((false, None));
+        let mut show = |ui: &mut Ui| {
+            control(ui, "before");
+            widget(ui, id("pair"));
+            for part in 0..2 {
+                register_stop(ui.ctx(), Stop::new(id("pair"), KeyUse::of(Input::Pointer)).part(KNOB.at(part)));
+            }
+            read.set((is_focused(ui.ctx(), id("pair")), active_part(ui.ctx(), id("pair"))));
+        };
+        frames.idle(2, &mut show);
+        focus(&mut frames, "before", &mut show);
+        tap(&mut frames, Key::Tab, Modifiers::NONE, &mut show);
+        assert_eq!(read.get(), (true, Some(KNOB.at(0))), "Tab arrives at the first part and the component reads as focused");
+    }
     const KNOB: PartKey = PartKey::new("knob");
     let selected = Cell::new(1u64);
     let mut frames = Frames::new();

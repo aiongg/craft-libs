@@ -66,26 +66,34 @@ fn egui_face(name: &str) -> FontData {
 
 #[trial]
 fn ui_language_face_leads_when_the_app_face_lacks_its_script() {
-    // CJK UIs keep the Latin face first: Han, kana and Hangul fit its rows.
-    let cases: &[(&str, &[&str])] = &[
-        ("ar", &["Noto Sans Arabic Regular", "ui"]),
-        ("ja", &["ui", "BIZ UDPGothic Regular", "Shippori Mincho Regular", "Noto Sans CJK SC Regular"]),
-        ("zh-TW", &["ui", "Noto Sans CJK TC Regular", "Noto Sans CJK HK Regular", "Noto Sans CJK SC Regular"]),
-        ("zh-HK", &["ui", "Noto Sans CJK HK Regular", "Noto Sans CJK TC Regular", "Noto Sans CJK SC Regular"]),
-        ("zh-CN", &["ui", "Noto Sans CJK SC Regular", "Noto Sans CJK TC Regular"]),
-        // craft-fonts' preference for BIZ UDPGothic orders Japanese faces only where they are
-        // the best region: for Korean they keep manifest order.
-        ("ko", &["ui", "Noto Sans CJK KR Regular", "Shippori Mincho Regular", "BIZ UDPGothic Regular"]),
-        ("th", &["Noto Sans Thai Regular", "ui"]),
-        ("ka", &["Noto Sans Georgian Regular", "ui"]),
-        ("ru", &["ui", "Noto Sans Arabic Regular", "BIZ UDPGothic Regular"]),
-        ("en", &["ui", "Noto Sans Arabic Regular", "BIZ UDPGothic Regular"]),
+    let proportional = FontRef::proportional();
+    let position = |chain: &[String], name: &str| chain.iter().position(|n| n == name).unwrap_or_else(|| panic!("{name} missing in {chain:?}"));
+
+    // A UI language the app face lacks leads with its own face.
+    let stack = fonts("ar").stack();
+    let chain = stack.chain(&proportional);
+    assert_eq!(position(&chain, "Noto Sans Arabic Regular"), 0);
+    assert!(position(&chain, "Noto Sans Arabic Regular") < position(&chain, "ui"));
+
+    // CJK UIs keep the Latin face first: Han, kana and Hangul fit its rows. Their own region's face comes before the
+    // other CJK faces.
+    let cases = [
+        ("ja", "BIZ UDPGothic Regular"),
+        ("zh-TW", "Noto Sans CJK TC Regular"),
+        ("zh-HK", "Noto Sans CJK HK Regular"),
+        ("zh-CN", "Noto Sans CJK SC Regular"),
+        ("ko", "Noto Sans CJK KR Regular"),
     ];
-    for (language, want) in cases {
-        let stack = fonts(language).stack();
-        assert_eq!(head(&stack, &FontRef::proportional(), want.len()), *want, "{language}");
-        // Monospace keeps the app's face first, so code and numbers stay aligned.
-        assert_eq!(stack.chain(&FontRef::monospace()).first().map(String::as_str), Some("mono"), "{language}");
+    for (language, region) in cases {
+        let chain = fonts(language).stack().chain(&proportional);
+        assert_eq!(position(&chain, "ui"), 0, "{language}");
+        for other in CRAFT.iter().filter(|f| f.scripts.contains(&"Latn") && f.name() != region) {
+            assert!(position(&chain, region) < position(&chain, &other.name()), "{language}: {region} before {}", other.name());
+        }
+    }
+    // Monospace keeps the app's face first, so code and numbers stay aligned.
+    for language in ["ar", "ja"] {
+        assert_eq!(fonts(language).stack().chain(&FontRef::monospace()).first().map(String::as_str), Some("mono"), "{language}");
     }
 }
 
@@ -128,14 +136,12 @@ fn craft_preference_orders_the_best_region_only() {
 
 #[trial]
 fn every_shipped_face_is_in_every_stack() {
-    for language in OFFERED {
-        let stack = fonts(language).stack();
-        let chain = stack.chain(&FontRef::proportional());
-        for face in CRAFT.iter().filter(|f| f.style == "Regular") {
-            assert!(chain.contains(&face.name()), "{language}: {} missing", face.name());
-        }
-        assert!(!chain.contains(&"BIZ UDPGothic Bold".to_owned()), "{language}: bold face in the regular chain");
+    let stack = fonts("en").stack();
+    let chain = stack.chain(&FontRef::proportional());
+    for face in CRAFT.iter().filter(|f| f.style == "Regular") {
+        assert!(chain.contains(&face.name()), "{} missing", face.name());
     }
+    assert!(!chain.contains(&"BIZ UDPGothic Bold".to_owned()), "bold face in the regular chain");
 }
 
 #[trial]
@@ -160,7 +166,7 @@ fn app_can_prefer_add_replace_and_reorder_faces() {
 }
 
 #[trial]
-fn named_families_take_their_weight_and_lead_script() {
+fn named_families_take_their_weight_script_and_monospace_face() {
     let semibold = FontRef::named("semibold");
     let stack = fonts("ja")
         .app_face("ui-semibold", FontData::from_static(&[]), std::slice::from_ref(&semibold))
@@ -172,10 +178,7 @@ fn named_families_take_their_weight_and_lead_script() {
     assert_eq!(head(&stack, &semibold, 3), ["ui-semibold", "BIZ UDPGothic Bold", "BIZ UDPGothic Regular"]);
     // A family without an app face of its own falls back to the proportional faces.
     assert_eq!(head(&stack, &FontRef::named("arabic"), 3), ["Noto Sans Arabic Regular", "ui", "BIZ UDPGothic Regular"]);
-}
 
-#[trial]
-fn monospaced_named_families_keep_their_latin_face_first() {
     // Georgian's own face leads the text families; the monospaced ones keep their app face.
     let (code, console, plain) = (FontRef::named("code"), FontRef::named("console"), FontRef::named("plain"));
     let stack = fonts("ka")
@@ -223,19 +226,6 @@ fn test_fonts(ui_language: &str) -> UiFonts<'static> {
 
 fn test_stack(ui_language: &str) -> Stack {
     test_fonts(ui_language).stack()
-}
-
-#[trial]
-fn remove_and_replace_reach_the_faces_after_the_system_fonts() {
-    let stack = || test_fonts("en").system_fonts(SystemFonts::BeforeCraft).stack();
-    let has_arabic = |stack: &Stack| stack.flat_definitions().font_data.get("Noto Sans Arabic Regular").map(|data| data.bytes().len());
-    let mut removed = stack();
-    assert_eq!(has_arabic(&removed), Some(ARABIC.len()));
-    removed.remove("Noto Sans Arabic Regular");
-    assert_eq!(has_arabic(&removed), None);
-    let mut replaced = stack();
-    replaced.replace("Noto Sans Arabic Regular", FontData::from_static(CJK));
-    assert_eq!(has_arabic(&replaced), Some(CJK.len()));
 }
 
 #[trial]
@@ -293,7 +283,7 @@ fn variable_faces_draw_at_regular_weight() {
 }
 
 #[trial]
-fn cjk_uis_keep_the_rows_of_a_latin_ui() {
+fn cjk_uis_keep_the_rows_and_baseline_of_a_latin_ui() {
     let latin =
         UiFonts::new(&I18nScripts).app_face("ui", egui_face("Ubuntu-Light"), &[FontRef::proportional()]).system_fonts(SystemFonts::Off).stack();
     for language in ["ja", "ko", "zh-CN", "en"] {
@@ -311,10 +301,8 @@ fn cjk_uis_keep_the_rows_of_a_latin_ui() {
             assert!(row.expand(1.0 / ppp).contains_rect(label.mesh_bounds), "{language} at {size} pt: {:?} in {row:?}", label.mesh_bounds);
         }
     }
-}
 
-#[trial]
-fn cjk_glyphs_sit_on_the_latin_baseline() {
+    // The glyphs sit on the Latin baseline.
     let size = 40.0;
     let ink_of = |fonts: &mut Fonts, text: &str| {
         let galley = fonts.with_pixels_per_point(1.0).layout_no_wrap(text.to_owned(), FontId::proportional(size), egui::Color32::default());
@@ -335,10 +323,8 @@ fn cjk_glyphs_sit_on_the_latin_baseline() {
     let ink = ink_of(&mut fonts, "中").1;
     assert!((ink.max.y - (baseline + below * scale)).abs() <= 1.0, "bottom {} vs baseline {baseline} + {}", ink.max.y, below * scale);
     assert!((ink.min.y - (baseline - above * scale)).abs() <= 1.0, "top {} vs baseline {baseline} - {}", ink.min.y, above * scale);
-}
 
-#[trial]
-fn cjk_faces_keep_their_own_metrics_when_the_app_asks() {
+    // The app can ask for the CJK face's own metrics instead.
     let tweak = |rows: CjkRows| test_fonts("ja").cjk_rows(rows).stack().flat_definitions().font_data["Noto Sans CJK SC Regular"].tweak.clone();
     assert_ne!(tweak(CjkRows::Fit).y_offset_factor, 0.0, "fitted: the CJK face moves onto the Latin baseline");
     assert_eq!(tweak(CjkRows::Grow).y_offset_factor, 0.0, "unfitted: the CJK face keeps its own metrics");

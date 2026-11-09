@@ -89,6 +89,7 @@ fn focus_section(fixture: &mut Fixture, title: &str) {
     panic!("Tab never reached the section {title}");
 }
 
+/// Alt+Down moves the first section one place toward the end and leaves it open, and Alt+Up on it moves nothing.
 #[trial]
 fn alt_down_in_the_first_section_moves_it_to_position_one_and_alt_up_moves_nothing() {
     let (mut fixture, seen) = scene();
@@ -98,6 +99,8 @@ fn alt_down_in_the_first_section_moves_it_to_position_one_and_alt_up_moves_nothi
     fixture.key(Key::ArrowDown, Modifiers::ALT);
     assert_eq!(seen.borrow().moves, [(0, 1)], "Alt+Down moves the first section one place toward the end");
     assert_eq!(seen.borrow().order, [1, 0, 2]);
+    fixture.settle();
+    assert!(seen.borrow().bodies.contains(&0), "the moved section is still open");
 }
 
 #[trial]
@@ -109,15 +112,6 @@ fn expand_on_a_closed_section_of_a_stack_opens_it() {
     fixture.access(AccessActionKind::Expand, &target);
     fixture.settle();
     assert!(seen.borrow().bodies.contains(&1), "Expand opened the section");
-}
-
-#[trial]
-fn alt_down_in_a_stack_section_does_not_close_it() {
-    let (mut fixture, seen) = scene();
-    focus_section(&mut fixture, TITLES[0]);
-    fixture.key(Key::ArrowDown, Modifiers::ALT);
-    fixture.settle();
-    assert!(seen.borrow().bodies.contains(&0), "the moved section is still open");
 }
 
 #[trial]

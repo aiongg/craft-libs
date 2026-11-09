@@ -86,8 +86,17 @@ impl Rig {
     }
 }
 
+/// A command to run from a menu row.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui::contract::CommandSet)]
+#[command(prefix = "menuTrial")]
+#[non_exhaustive]
+enum RowCommand {
+    #[command(label = "Go")]
+    Go,
+}
+
 #[trial]
-fn a_press_on_a_title_opens_its_menu_and_a_release_on_a_row_runs_it() {
+fn a_press_on_a_title_opens_its_menu_a_release_on_a_row_runs_it_and_a_click_on_a_command_row_fires_it_from_the_menu() {
     let mut rig = rig(Direction::Ltr);
     let file = rig.fixture.by_label("File").expect("the File title");
     rig.fixture.press(&file);
@@ -99,6 +108,26 @@ fn a_press_on_a_title_opens_its_menu_and_a_release_on_a_row_runs_it() {
     rig.fixture.settle();
     assert_eq!(*rig.ran.borrow(), ["Save"]);
     assert!(!rig.open("Save"), "running a row closes the menu");
+
+    // A click on a command row fires the command as `FireSource::Menu`, like the typed run of the same row.
+    {
+        let mut fixture = Fixture::new(|ui| {
+            let titles = vec![MenuTitle::new("&Edit", |ui| {
+                MenuItem::command(RowCommand::Go).show(ui);
+            })];
+            MenuBar::new("Main menu", titles).show(ui);
+        });
+        fixture.settle();
+        let edit = fixture.by_label("Edit").expect("the Edit title");
+        fixture.click(&edit);
+        fixture.settle();
+        take_output(fixture.ctx());
+        let paste = fixture.by_label("Go").expect("the Go row");
+        fixture.click(&paste);
+        fixture.settle();
+        let fired: Vec<_> = take_output(fixture.ctx()).fired.into_iter().map(|fired| (fired.command.id.clone(), fired.source)).collect();
+        assert_eq!(fired, [("menuTrial.go".to_owned(), FireSource::Menu)]);
+    }
 }
 
 #[trial]
@@ -126,20 +155,6 @@ fn f10_focuses_the_first_title_and_escape_returns_focus_to_the_previous_owner() 
 }
 
 #[trial]
-fn running_a_row_returns_focus_to_the_component_that_held_it() {
-    let mut rig = rig(Direction::Ltr);
-    rig.key(Key::Tab);
-    rig.key(Key::F10);
-    rig.key(Key::ArrowDown);
-    assert!(rig.open("Save"), "Down on a title opens its menu");
-    let save = rig.fixture.by_label("Save").expect("the Save row");
-    rig.fixture.click(&save);
-    rig.fixture.settle();
-    assert_eq!(*rig.ran.borrow(), ["Save"]);
-    assert_eq!(rig.fixture.focused(), rig.button.get());
-}
-
-#[trial]
 fn enter_and_space_on_a_focused_title_open_its_menu() {
     for key in [Key::Enter, Key::Space] {
         let mut rig = rig(Direction::Ltr);
@@ -163,7 +178,7 @@ fn a_title_reports_its_popup_its_state_and_its_access_key() {
 }
 
 #[trial]
-fn help_search_ignores_accents_and_matches_the_english_label_and_the_path() {
+fn help_search_ignores_accents_matches_the_english_label_and_the_path_and_ranks_labels_first() {
     let mut rig = rig(Direction::Ltr);
     let help = rig.fixture.by_label("Help").expect("the Help title");
     rig.fixture.click(&help);
@@ -177,42 +192,9 @@ fn help_search_ignores_accents_and_matches_the_english_label_and_the_path() {
         assert!(rig.open(found), "{typed:?} finds the entry whose command row reads {found:?}");
         assert!(!rig.open(absent), "{typed:?} leaves {absent:?} out");
     }
-}
 
-/// An entry found by its label ranks before one found only through its menu path, whatever their order.
-#[trial]
-fn a_label_match_ranks_before_a_path_only_match() {
+    // An entry found by its label ranks before one found only through its menu path, whatever their order.
     let texts = [["Zoom", "", "Window"], ["Window", "", "View"], ["Tile", "", "Window"]];
     assert_eq!(search_order(&Folder::new("en"), "window", &texts), vec![1, 0, 2]);
     assert!(search_order(&Folder::new("en"), "  ", &texts).is_empty());
-}
-
-/// A command to run from a menu row.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui::contract::CommandSet)]
-#[command(prefix = "menuTrial")]
-#[non_exhaustive]
-enum RowCommand {
-    #[command(label = "Go")]
-    Go,
-}
-
-/// A click on a command row fires the command as `FireSource::Menu`, like the typed run of the same row.
-#[trial]
-fn a_click_on_a_command_row_fires_it_from_the_menu() {
-    let mut fixture = Fixture::new(|ui| {
-        let titles = vec![MenuTitle::new("&Edit", |ui| {
-            MenuItem::command(RowCommand::Go).show(ui);
-        })];
-        MenuBar::new("Main menu", titles).show(ui);
-    });
-    fixture.settle();
-    let edit = fixture.by_label("Edit").expect("the Edit title");
-    fixture.click(&edit);
-    fixture.settle();
-    take_output(fixture.ctx());
-    let paste = fixture.by_label("Go").expect("the Go row");
-    fixture.click(&paste);
-    fixture.settle();
-    let fired: Vec<_> = take_output(fixture.ctx()).fired.into_iter().map(|fired| (fired.command.id.clone(), fired.source)).collect();
-    assert_eq!(fired, [("menuTrial.go".to_owned(), FireSource::Menu)]);
 }

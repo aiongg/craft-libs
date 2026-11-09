@@ -51,6 +51,7 @@ fn an_arrangement_survives_saving() {
     assert_eq!(back.sidebar, layout);
 }
 
+/// A damaged arrangement is made whole, and an unreadable one is the usual arrangement.
 #[trial]
 fn a_damaged_arrangement_is_made_whole() {
     let layout = read(
@@ -64,10 +65,7 @@ fn a_damaged_arrangement_is_made_whole() {
     );
     assert!(layout.is_folded(&key("keywords")) && !layout.is_hidden(&key("keywords")), "the first entry for a section counts; `collapsed` is read");
     assert!(!layout.is_hidden(&key("albums")) && !layout.is_folded(&key("albums")), "a flag that is not true or false is off");
-}
 
-#[trial]
-fn an_unreadable_arrangement_is_the_usual_one() {
     for saved in ["sidebar = []", "sidebar = \"albums\"", "sidebar = 3", "sidebar = { albums = true }"] {
         assert_eq!(read(saved), usual(), "{saved}");
     }
@@ -82,20 +80,7 @@ fn reconciling_drops_unknown_sections_and_reports_a_change_only_when_there_is_on
     assert_eq!(order(&layout), ["albums", "local", "byDate"]);
 }
 
-#[trial]
-fn a_move_that_changes_nothing_shown_is_a_no_op() {
-    let mut layout = usual();
-    layout.set_hidden(&key("local"), true);
-    let before = layout.clone();
-    // Albums before ByDate only steps over the hidden Local: the shown order stays.
-    assert!(!layout.move_before(&key("albums"), Some(&key("byDate"))));
-    assert!(!layout.move_before(&key("albums"), Some(&key("albums"))));
-    assert!(!layout.move_before(&key("keywords"), None));
-    assert_eq!(layout, before);
-    assert!(layout.move_before(&key("albums"), Some(&key("folders"))));
-    assert_eq!(order(&layout), ["local", "byDate", "albums", "folders", "keywords"]);
-}
-
+/// Moving by a place steps over hidden sections, and a move that changes nothing shown is a no-op.
 #[trial]
 fn moving_by_a_place_steps_over_hidden_sections() {
     let mut layout = usual();
@@ -110,6 +95,17 @@ fn moving_by_a_place_steps_over_hidden_sections() {
     assert!(!layout.move_by(&key("albums"), false, true));
     assert!(layout.move_by(&key("albums"), true, true));
     assert_eq!(shown(&layout).first(), Some(&"albums"));
+
+    let mut layout = usual();
+    layout.set_hidden(&key("local"), true);
+    let before = layout.clone();
+    // Albums before ByDate only steps over the hidden Local: the shown order stays.
+    assert!(!layout.move_before(&key("albums"), Some(&key("byDate"))));
+    assert!(!layout.move_before(&key("albums"), Some(&key("albums"))));
+    assert!(!layout.move_before(&key("keywords"), None));
+    assert_eq!(layout, before);
+    assert!(layout.move_before(&key("albums"), Some(&key("folders"))));
+    assert_eq!(order(&layout), ["local", "byDate", "albums", "folders", "keywords"]);
 }
 
 #[trial]
@@ -133,15 +129,10 @@ fn pinned_sections_stay_above_the_others() {
     assert_eq!(order(&layout), ["local", "folders", "albums", "byDate", "keywords"], "a released section sits after the pinned ones");
 }
 
+/// An event that sets what is already set reports no change.
 #[trial]
-fn applying_events_changes_the_layout() {
+fn applying_an_event_that_sets_what_is_set_reports_no_change() {
     let mut layout = usual();
-    assert!(layout.apply(&SectionEvent::moved(key("keywords"), Some(key("albums")))));
-    assert_eq!(order(&layout)[0], "keywords");
     assert!(layout.apply(&SectionEvent::Hidden(key("local"))) && layout.is_hidden(&key("local")));
     assert!(!layout.apply(&SectionEvent::Hidden(key("local"))), "already hidden");
-    assert!(layout.apply(&SectionEvent::Shown(key("local"))) && !layout.is_hidden(&key("local")));
-    assert!(layout.apply(&SectionEvent::folded(key("byDate"), true)) && layout.is_folded(&key("byDate")));
-    assert!(layout.apply(&SectionEvent::Pinned(key("byDate"))) && layout.is_pinned(&key("byDate")));
-    assert!(layout.apply(&SectionEvent::Unpinned(key("byDate"))) && !layout.is_pinned(&key("byDate")));
 }

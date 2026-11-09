@@ -53,18 +53,23 @@ impl Rig {
 }
 
 /// Alt+Down opens the listbox, Down and Enter pick the next option as one change and close it, and focus is back on
-/// the field: an arrow on the closed field steps the value.
+/// the field: an arrow on the closed field steps the value. The field is a combo box that reports whether its listbox
+/// is shown.
 #[trial]
 fn a_select_opens_from_the_keyboard_and_picks_with_arrows_and_enter() {
     let mut rig = rig();
+    let id = rig.id.get();
     assert!(!rig.listbox_shown());
+    assert_eq!(rig.fixture.tree().expanded(id), Some(false));
     rig.open();
     assert!(rig.listbox_shown(), "Alt+Down opens the listbox");
+    assert_eq!(rig.fixture.tree().expanded(id), Some(true));
     rig.press(Key::ArrowDown);
     assert_eq!(rig.value.get(), 0, "moving through the list changes nothing until a pick");
     rig.press(Key::Enter);
     assert_eq!(rig.value.get(), 1, "the lead started on the picked option, so one Down reaches the next");
     assert!(!rig.listbox_shown(), "a pick closes the listbox");
+    assert_eq!(rig.fixture.tree().expanded(id), Some(false));
     rig.press(Key::ArrowUp);
     assert_eq!(rig.value.get(), 0, "focus returned to the field, whose arrows step the value");
 }
@@ -81,35 +86,8 @@ fn escape_closes_a_select_without_a_change() {
     rig.open();
     rig.press(Key::Enter);
     assert_eq!(rig.value.get(), 0, "the listbox opens on the picked option, not on the highlight Escape abandoned");
-}
 
-/// Typing a letter in the open list moves to the option that starts with it.
-#[trial]
-fn typing_in_a_select_list_moves_to_the_matching_option() {
-    let mut rig = rig();
-    rig.open();
-    rig.fixture.type_text("S");
-    rig.fixture.idle(2);
-    rig.press(Key::Enter);
-    assert_eq!(rig.value.get(), 2);
-}
-
-/// The field is a combo box that reports whether its listbox is shown.
-#[trial]
-fn a_select_reports_its_popup_state() {
-    let mut rig = rig();
-    let id = rig.id.get();
-    assert_eq!(rig.fixture.tree().expanded(id), Some(false));
-    rig.open();
-    assert_eq!(rig.fixture.tree().expanded(id), Some(true));
-    rig.press(Key::Escape);
-    assert_eq!(rig.fixture.tree().expanded(id), Some(false));
-}
-
-/// The lead of the list starts again at every opening: a lead moved to the last row and abandoned with Escape does
-/// not come back when the list opens next.
-#[trial]
-fn a_reopened_select_list_starts_its_lead_again() {
+    // The lead starts again at every opening: one moved to the last row and abandoned with Escape does not come back.
     let mut rig = rig();
     rig.open();
     rig.press(Key::ArrowDown);
@@ -118,6 +96,25 @@ fn a_reopened_select_list_starts_its_lead_again() {
     rig.open();
     rig.press(Key::Enter);
     assert_eq!(rig.value.get(), 0, "the lead began on the picked option, not on the last row");
+}
+
+/// Typing a letter in the open list moves to the option that starts with it; in a searchable select, typing narrows the
+/// list to the matches, Down moves the lead to the first of them and Enter picks it.
+#[trial]
+fn typing_in_a_select_list_moves_to_the_matching_option() {
+    let mut rig = rig();
+    rig.open();
+    rig.fixture.type_text("S");
+    rig.fixture.idle(2);
+    rig.press(Key::Enter);
+    assert_eq!(rig.value.get(), 2);
+
+    let mut rig = searchable(&["Apple", "Banana", "Cherry", "Blueberry"]);
+    rig.fixture.type_text("b");
+    rig.fixture.idle(4);
+    rig.press(Key::ArrowDown);
+    rig.press(Key::Enter);
+    assert_eq!(rig.value.get(), 1, "Banana is the first entry that matches");
 }
 
 /// Arrows on the closed field step over entries that cannot be picked and over separators: Down from the first entry
@@ -180,17 +177,6 @@ fn a_searchable_select_finds_accented_names() {
     rig.fixture.type_text("cafe");
     rig.fixture.idle(4);
     assert_eq!(rig.listed(), ["Café"]);
-}
-
-/// Typing "b" narrows the list to the entries that match, Down moves the lead to the first of them and Enter picks it.
-#[trial]
-fn typing_then_down_and_enter_picks_the_first_match() {
-    let mut rig = searchable(&["Apple", "Banana", "Cherry", "Blueberry"]);
-    rig.fixture.type_text("b");
-    rig.fixture.idle(4);
-    rig.press(Key::ArrowDown);
-    rig.press(Key::Enter);
-    assert_eq!(rig.value.get(), 1, "Banana is the first entry that matches");
 }
 
 #[trial]
@@ -260,38 +246,36 @@ fn a_click_opens_a_select_and_a_click_on_a_row_picks_it() {
     fixture.idle(FADE_FRAMES);
     assert_eq!(value.get(), 1, "a click on a row picks it");
     assert!(fixture.by_role(Role::LIST_BOX).is_empty(), "the pick closes the list");
-}
 
-/// A select beside the options of a two-valued radio group (a `bool` value, off) opens and picks by click: the group's
-/// value is no gate on its content.
-#[trial]
-fn a_select_in_a_radio_option_s_field_group_picks_by_click() {
-    use craft_ui::choice::{Radio, RadioGroup};
-    use craft_ui::form::FieldGroup;
-    use craft_ui::layout_components::Row;
-    let value = Rc::new(Cell::new(0u8));
-    let shown = value.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        let entries = [Entry::new(0u8, "Blue"), Entry::new(1, "Red"), Entry::new(2, "Green")];
-        FieldGroup::new("Filter").show(ui, |ui, _| {
-            RadioGroup::new("Filter", Bind::given(false)).show(ui, |ui, _| {
-                Field::new("Preset").id_salt("preset").show(ui, |ui, _| {
-                    Row::new().show(ui, |ui, _| {
-                        Radio::new(false).label("Preset").show(ui);
-                        let mut color = shown.get();
-                        Select::new("Preset", Bind::bound(&mut color), &entries).id_salt("select").show(ui);
-                        shown.set(color);
+    // The same beside the options of a two-valued radio group (a `bool` value, off): the group's value is no gate on its content.
+    {
+        use craft_ui::choice::{Radio, RadioGroup};
+        use craft_ui::form::FieldGroup;
+        use craft_ui::layout_components::Row;
+        let value = Rc::new(Cell::new(0u8));
+        let shown = value.clone();
+        let mut fixture = Fixture::new(move |ui| {
+            let entries = [Entry::new(0u8, "Blue"), Entry::new(1, "Red"), Entry::new(2, "Green")];
+            FieldGroup::new("Filter").show(ui, |ui, _| {
+                RadioGroup::new("Filter", Bind::given(false)).show(ui, |ui, _| {
+                    Field::new("Preset").id_salt("preset").show(ui, |ui, _| {
+                        Row::new().show(ui, |ui, _| {
+                            Radio::new(false).label("Preset").show(ui);
+                            let mut color = shown.get();
+                            Select::new("Preset", Bind::bound(&mut color), &entries).id_salt("select").show(ui);
+                            shown.set(color);
+                        });
                     });
                 });
             });
         });
-    });
-    fixture.settle();
-    let select = fixture.by_role(Role::COMBO_BOX).into_iter().next().expect("the select is shown");
-    fixture.click(&select);
-    assert!(!fixture.by_role(Role::LIST_BOX).is_empty(), "a click opens the list");
-    let red = fixture.by_label("Red").expect("the open list shows its rows");
-    fixture.click(&red);
-    fixture.idle(FADE_FRAMES);
-    assert_eq!(value.get(), 1, "a click on a row picks it");
+        fixture.settle();
+        let select = fixture.by_role(Role::COMBO_BOX).into_iter().next().expect("the select is shown");
+        fixture.click(&select);
+        assert!(!fixture.by_role(Role::LIST_BOX).is_empty(), "a click opens the list");
+        let red = fixture.by_label("Red").expect("the open list shows its rows");
+        fixture.click(&red);
+        fixture.idle(FADE_FRAMES);
+        assert_eq!(value.get(), 1, "a click on a row picks it");
+    }
 }

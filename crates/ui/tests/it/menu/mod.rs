@@ -52,26 +52,26 @@ fn a_typed_letter_runs_the_row_it_names_and_closes_the_menu() {
     fixture.idle(4);
     assert_eq!(ran.get(), Some("Save As"));
     assert!(!open.get(), "running a row closes the menu");
-}
 
-/// A menu opened by a press of its opener, with no binding and no row focused: the container reads the typed letter.
-#[trial]
-fn a_typed_letter_runs_a_row_of_a_menu_opened_by_the_pointer() {
-    let ran = Rc::new(Cell::new(None));
-    let shown_ran = ran.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        let opener = Button::new("File").show(ui);
-        Menu::new("File").opened_by(&opener, Trigger::Press).show(ui, |ui, _| rows(ui, &shown_ran));
-    });
-    fixture.settle();
-    let opener = fixture.by_label("File").expect("the opener has a node");
-    fixture.click(&opener);
-    fixture.idle(4);
-    assert!(menu_shown(&fixture), "a press of the opener opens the menu");
-    fixture.type_text("a");
-    fixture.idle(4);
-    assert_eq!(ran.get(), Some("Save As"));
-    assert!(!menu_shown(&fixture), "running a row closes the menu");
+    // The same for a menu opened by a press of its opener, with no binding and no row focused: the container reads the
+    // typed letter.
+    {
+        let ran = Rc::new(Cell::new(None));
+        let shown_ran = ran.clone();
+        let mut fixture = Fixture::new(move |ui| {
+            let opener = Button::new("File").show(ui);
+            Menu::new("File").opened_by(&opener, Trigger::Press).show(ui, |ui, _| rows(ui, &shown_ran));
+        });
+        fixture.settle();
+        let opener = fixture.by_label("File").expect("the opener has a node");
+        fixture.click(&opener);
+        fixture.idle(4);
+        assert!(menu_shown(&fixture), "a press of the opener opens the menu");
+        fixture.type_text("a");
+        fixture.idle(4);
+        assert_eq!(ran.get(), Some("Save As"));
+        assert!(!menu_shown(&fixture), "running a row closes the menu");
+    }
 }
 
 /// The names of the menus on screen, sorted.
@@ -161,17 +161,16 @@ fn value_menu(checked: Option<u8>) -> Fixture {
 }
 
 #[trial]
-fn a_value_menu_has_radio_rows_whether_or_not_an_entry_is_checked() {
-    assert_eq!(value_menu(None).by_role(Role::MENU_ITEM_RADIO).len(), 3, "nothing checked");
-    assert_eq!(value_menu(Some(1)).by_role(Role::MENU_ITEM_RADIO).len(), 3, "one checked");
-}
-
-#[trial]
-fn a_value_menu_opens_with_the_lead_on_the_checked_entry() {
+fn a_value_menu_of_radio_rows_opens_with_the_lead_on_the_checked_entry() {
     let fixture = value_menu(Some(2));
     let focused = fixture.focused().and_then(|id| fixture.node_of(id)).expect("a row holds the focus");
     let checked = fixture.by_label("100%").expect("the checked entry shows");
     assert_eq!(focused.rect, checked.rect);
+    assert_eq!(
+        fixture.by_role(Role::MENU_ITEM_RADIO).len(),
+        value_menu(None).by_role(Role::MENU_ITEM_RADIO).len(),
+        "the rows are radio rows whether or not an entry is checked"
+    );
 }
 
 #[trial]

@@ -69,16 +69,13 @@ impl Rig {
 }
 
 #[trial]
-fn undo_picked_from_the_edit_menu_undoes_in_the_field_that_held_focus() {
+fn undo_picked_from_the_edit_menu_or_found_through_the_help_search_undoes_in_the_field_that_held_focus() {
     let mut rig = rig();
     rig.click("Edit");
     rig.click("Undo");
     rig.assert_undone_in_the_field("Edit › Undo");
-}
 
-#[trial]
-fn undo_found_through_the_help_search_undoes_in_the_field_that_held_focus() {
-    let mut rig = rig();
+    let mut rig = self::rig();
     rig.click("Help");
     rig.fixture.type_text("undo");
     rig.fixture.settle();
@@ -114,17 +111,21 @@ fn bar_rig() -> (Fixture, Rc<Cell<Option<Id>>>, Rc<Cell<Option<Id>>>) {
 }
 
 #[trial]
-fn a_button_activated_in_a_bar_menu_returns_focus_to_where_the_bar_took_it() {
+fn running_or_activating_in_a_bar_menu_returns_focus_to_where_the_bar_took_it_and_escape_leaves_it_on_the_bar() {
     let (mut fixture, apply, _) = bar_rig();
     let reset = fixture.by_label("Reset").expect("the button in the menu");
     fixture.click(&reset);
     fixture.settle();
     assert!(fixture.by_label("Zoom").is_none(), "the activation closes the menu");
     assert_eq!(fixture.focused_stop().map(|(id, _)| id), apply.get(), "focus is back on the button F10 took it from");
-}
 
-#[trial]
-fn escape_from_a_bar_menu_leaves_focus_on_the_bar() {
+    let (mut fixture, apply, _) = bar_rig();
+    let zoom = fixture.by_label("Zoom").expect("the row in the menu");
+    fixture.click(&zoom);
+    fixture.settle();
+    assert!(fixture.by_label("Zoom").is_none(), "running a row closes the menu");
+    assert_eq!(fixture.focused_stop().map(|(id, _)| id), apply.get(), "running a row returns focus to the component that held it");
+
     let (mut fixture, _, bar) = bar_rig();
     fixture.key(Key::Escape, Modifiers::NONE);
     fixture.settle();

@@ -37,7 +37,7 @@ fn two_openers() -> (Fixture, Rc<Ids>) {
 }
 
 #[trial]
-fn a_menu_opens_from_each_of_its_openers_at_the_anchor_of_the_one_that_opened_it() {
+fn a_menu_hangs_at_the_anchor_of_the_opener_that_opened_it() {
     let (mut fixture, ids) = two_openers();
     let button = fixture.node_of(ids.button.get().unwrap()).expect("the button has a node");
     let area = fixture.node_of(ids.area.get().unwrap()).expect("the second control has a node");
@@ -58,10 +58,18 @@ fn a_menu_opens_from_each_of_its_openers_at_the_anchor_of_the_one_that_opened_it
     let at_pointer = menu_rect(&fixture).expect("a secondary click on the second control opens the menu");
     assert!(at_pointer.top() < area.rect.bottom(), "the menu hangs at the pointer, inside the control");
     assert!(at_pointer.left() <= at.x + 1.0 && at_pointer.right() >= at.x, "the menu starts at the pointer");
+
+    // A menu a Manual opener opens hangs from the opener rect.
+    {
+        let (fixture, ids) = manual_and_context(true);
+        let button = fixture.node_of(ids.button.get().unwrap()).expect("the menu button has a node");
+        let menu = menu_rect(&fixture).expect("the bound menu is open");
+        assert!(menu.top() >= button.rect.bottom() - 1.0, "the menu hangs under the menu button: {menu:?} vs {:?}", button.rect);
+    }
 }
 
 #[trial]
-fn the_menu_key_on_a_context_opener_opens_the_menu_and_escape_returns_the_focus_to_it() {
+fn the_menu_key_on_a_context_opener_opens_the_menu_and_escape_returns_the_focus_to_it_also_on_a_shared_response() {
     let (mut fixture, ids) = two_openers();
     let area = fixture.node_of(ids.area.get().unwrap()).expect("the second control has a node");
     fixture.key(Key::Tab, Modifiers::NONE);
@@ -75,6 +83,21 @@ fn the_menu_key_on_a_context_opener_opens_the_menu_and_escape_returns_the_focus_
     fixture.settle();
     assert!(menu_rect(&fixture).is_none(), "Escape closes the menu");
     assert_eq!(fixture.focused(), ids.area.get(), "the focus is back on the opener that opened the menu");
+
+    // The same on one response that is both a Manual opener and a Context opener.
+    {
+        let (mut fixture, ids) = manual_and_context(false);
+        fixture.key(Key::Tab, Modifiers::NONE);
+        fixture.key(Key::Tab, Modifiers::NONE);
+        assert_eq!(fixture.focused(), ids.area.get(), "the target has the focus");
+        fixture.key(Key::F10, Modifiers::SHIFT);
+        fixture.settle();
+        assert!(menu_rect(&fixture).is_some(), "the Menu key opens the menu");
+        fixture.key(Key::Escape, Modifiers::NONE);
+        fixture.settle();
+        assert!(menu_rect(&fixture).is_none(), "Escape closes the menu");
+        assert_eq!(fixture.focused(), ids.area.get(), "the focus returns to the response");
+    }
 }
 
 /// Press on the opener, hold past `HOLD`, move onto the second row and release there.
@@ -142,61 +165,10 @@ fn a_context_opening_shares_the_response_of_a_manual_opener_and_hangs_at_the_poi
     assert!(menu.left() <= at.x + 1.0 && menu.right() >= at.x, "the menu starts at the pointer");
 }
 
-#[trial]
-fn a_context_key_on_a_shared_response_returns_the_focus_to_it_when_the_menu_closes() {
-    let (mut fixture, ids) = manual_and_context(false);
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.key(Key::Tab, Modifiers::NONE);
-    assert_eq!(fixture.focused(), ids.area.get(), "the target has the focus");
-    fixture.key(Key::F10, Modifiers::SHIFT);
-    fixture.settle();
-    assert!(menu_rect(&fixture).is_some(), "the Menu key opens the menu");
-    fixture.key(Key::Escape, Modifiers::NONE);
-    fixture.settle();
-    assert!(menu_rect(&fixture).is_none(), "Escape closes the menu");
-    assert_eq!(fixture.focused(), ids.area.get(), "the focus returns to the response");
-}
-
-#[trial]
-fn a_menu_a_manual_opener_opens_hangs_from_the_opener_rect() {
-    let (fixture, ids) = manual_and_context(true);
-    let button = fixture.node_of(ids.button.get().unwrap()).expect("the menu button has a node");
-    let menu = menu_rect(&fixture).expect("the bound menu is open");
-    assert!(menu.top() >= button.rect.bottom() - 1.0, "the menu hangs under the menu button: {menu:?} vs {:?}", button.rect);
-}
-
-/// A context menu whose opener sits inside an open popover opens on the first secondary click, and the popover
-/// keeps its content.
-#[trial]
-fn a_context_menu_opened_from_inside_a_popover_leaves_the_popover_open() {
-    let mut fixture = Fixture::new(move |ui| {
-        let opener = Button::new("Brush").show(ui);
-        let mut open = true;
-        Popover::new("Brush options", Bind::bound(&mut open)).opened_by(&opener).show(ui, |ui, _| {
-            let target = Button::new("Target").show(ui);
-            Button::new("Reset").show(ui);
-            Menu::context("Target menu", &target).show(ui, |ui, _| {
-                MenuItem::new("Delete").show(ui);
-            });
-        });
-    });
-    fixture.settle();
-    let target = fixture.by_label("Target").expect("the target has a node");
-    fixture.click(&target);
-    fixture.settle();
-    let at = target.center();
-    fixture.frame(vec![pointer::moved(at)]);
-    fixture.frame(vec![pointer::secondary(at, true)]);
-    fixture.frame(vec![pointer::secondary(at, false)]);
-    fixture.settle();
-    assert!(menu_rect(&fixture).is_some(), "a secondary click on the target opens the menu");
-    assert!(fixture.by_label("Reset").is_some(), "the popover keeps its content");
-}
-
 /// A context menu opened over the popover it was opened from takes the click on its row: the row runs and the menu
 /// closes, and the popover stays open below it.
 #[trial]
-fn a_menu_opened_from_a_popover_takes_a_click_on_its_row() {
+fn a_menu_opened_from_a_popover_takes_a_click_on_its_row_and_leaves_the_popover_open() {
     let ran = Rc::new(Cell::new(false));
     let seen = ran.clone();
     let mut fixture = Fixture::new(move |ui| {
@@ -227,6 +199,32 @@ fn a_menu_opened_from_a_popover_takes_a_click_on_its_row() {
     assert!(ran.get(), "the click ran the row");
     assert!(menu_rect(&fixture).is_none(), "the menu closed");
     assert!(fixture.by_label("Reset").is_some(), "the popover stays open");
+
+    // A context menu opened from inside a popover opens on the first secondary click, and the popover keeps its content.
+    {
+        let mut fixture = Fixture::new(move |ui| {
+            let opener = Button::new("Brush").show(ui);
+            let mut open = true;
+            Popover::new("Brush options", Bind::bound(&mut open)).opened_by(&opener).show(ui, |ui, _| {
+                let target = Button::new("Target").show(ui);
+                Button::new("Reset").show(ui);
+                Menu::context("Target menu", &target).show(ui, |ui, _| {
+                    MenuItem::new("Delete").show(ui);
+                });
+            });
+        });
+        fixture.settle();
+        let target = fixture.by_label("Target").expect("the target has a node");
+        fixture.click(&target);
+        fixture.settle();
+        let at = target.center();
+        fixture.frame(vec![pointer::moved(at)]);
+        fixture.frame(vec![pointer::secondary(at, true)]);
+        fixture.frame(vec![pointer::secondary(at, false)]);
+        fixture.settle();
+        assert!(menu_rect(&fixture).is_some(), "a secondary click on the target opens the menu");
+        assert!(fixture.by_label("Reset").is_some(), "the popover keeps its content");
+    }
 }
 
 /// A menu taller than both sides of its opener takes the side with more room, is capped to it, and scrolls its rows:

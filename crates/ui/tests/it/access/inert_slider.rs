@@ -19,14 +19,10 @@ fn slider_at(width: f32) -> Fixture {
 }
 
 #[trial]
-fn a_slider_shown_too_narrow_publishes_no_slider_node() {
-    let fixture = slider_at(0.0);
-    assert!(fixture.tree().with_role(Role::SLIDER).is_empty(), "no slider node for a slider that shows nothing");
-    assert_eq!(violations(fixture.ctx(), fixture.tree()), Vec::<String>::new());
-}
-
-#[trial]
-fn a_slider_shown_at_a_width_publishes_its_node() {
-    let fixture = slider_at(120.0);
-    assert_eq!(fixture.tree().with_role(Role::SLIDER).len(), 1);
+fn a_slider_publishes_a_node_only_when_shown_wide_enough() {
+    let narrow = slider_at(0.0);
+    assert!(narrow.tree().with_role(Role::SLIDER).is_empty(), "no slider node for a slider that shows nothing");
+    assert_eq!(violations(narrow.ctx(), narrow.tree()), Vec::<String>::new());
+    let wide = slider_at(120.0);
+    assert_eq!(wide.tree().with_role(Role::SLIDER).len(), 1);
 }

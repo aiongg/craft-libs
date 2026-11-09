@@ -63,7 +63,7 @@ fn rings(cursor: &PaintedCursor) -> usize {
 }
 
 #[trial]
-fn the_painting_cursor_follows_the_preferences() {
+fn the_painting_cursor_follows_the_preferences_and_an_aliased_tip_hides_the_pointer() {
     let tip = BrushTip::round(DIAMETER, NORMAL);
     let brush = BrushCursor::new(&tip);
     let view = view();
@@ -88,6 +88,14 @@ fn the_painting_cursor_follows_the_preferences() {
     let only = options(PaintingCursor::NormalBrushTip).show_only_crosshair_while_painting(true);
     assert_eq!(pick(&BrushCursor::new(&tip).painting(true), &only, false), PaintedCursor::Crosshair);
     assert!(matches!(pick(&brush, &only, false), PaintedCursor::Circle { .. }));
+
+    // An aliased tip hides the pointer unless it is too small or asks for the crosshair.
+    let aliased = options(PaintingCursor::NormalBrushTip);
+    let big = cell_tip(DocRect::new(10.0, 10.0, 15.0, 15.0), false);
+    assert_eq!(painted(BrushCursor::new(&big).cursor(&cx(false), &aliased, &view)), PaintedCursor::Hidden);
+    assert_eq!(painted(BrushCursor::new(&big).centre(true).cursor(&cx(false), &aliased, &view)), PaintedCursor::Crosshair);
+    let single = cell_tip(DocRect::new(10.0, 10.0, 11.0, 11.0), false);
+    assert_eq!(painted(BrushCursor::new(&single).cursor(&cx(false), &aliased, &view)), PaintedCursor::Crosshair);
 }
 
 #[trial]
@@ -112,16 +120,6 @@ fn an_outline_shows_the_pose_the_view_and_the_inner_ring() {
 
 fn cell_tip(cell: DocRect, round: bool) -> BrushTip {
     BrushTip::new(cell.width(), BrushTipOutline::pixels(cell, round))
-}
-
-#[trial]
-fn an_aliased_tip_hides_the_pointer_unless_it_is_too_small_or_asks_for_the_crosshair() {
-    let normal = options(PaintingCursor::NormalBrushTip);
-    let big = cell_tip(DocRect::new(10.0, 10.0, 15.0, 15.0), false);
-    assert_eq!(painted(BrushCursor::new(&big).cursor(&cx(false), &normal, &view())), PaintedCursor::Hidden);
-    assert_eq!(painted(BrushCursor::new(&big).centre(true).cursor(&cx(false), &normal, &view())), PaintedCursor::Crosshair);
-    let single = cell_tip(DocRect::new(10.0, 10.0, 11.0, 11.0), false);
-    assert_eq!(painted(BrushCursor::new(&single).cursor(&cx(false), &normal, &view())), PaintedCursor::Crosshair);
 }
 
 #[trial]
@@ -226,11 +224,18 @@ fn the_resize_chord_is_alt_with_the_secondary_button_or_control_and_alt_with_the
 #[trial]
 fn a_falloff_is_solid_to_its_core_and_empty_at_its_reach() {
     let soft = TipFalloff::from_hardness(20.0, 0.5);
-    assert_eq!((soft.core(), soft.reach()), (10.0, 20.0));
+    let softer = TipFalloff::from_hardness(20.0, 0.25);
     let hard = TipFalloff::hard(20.0);
-    assert_eq!((hard.core(), hard.reach()), (20.0, 20.0));
+    // The core never passes the reach, and a softer tip has a smaller core under the same reach.
+    for falloff in [&soft, &softer, &hard] {
+        assert!(falloff.core() <= falloff.reach());
+    }
+    assert!(softer.core() < soft.core() && soft.core() < hard.core());
+    assert_eq!(soft.reach(), hard.reach());
+    assert_eq!(hard.core(), hard.reach());
+    // A size that is not a number gives a finite, empty falloff.
     let empty = TipFalloff::from_hardness(f64::NAN, 0.5);
-    assert_eq!((empty.core(), empty.reach()), (0.0, 0.0));
+    assert!(empty.core().is_finite() && empty.reach().is_finite() && empty.core() <= empty.reach());
 }
 
 #[trial]

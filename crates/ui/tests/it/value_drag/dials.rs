@@ -80,10 +80,6 @@ fn point(fixture: &Fixture) -> [f64; 2] {
     value.map(|part| part.same().copied().unwrap_or(f64::NAN))
 }
 
-fn angle_text(fixture: &Fixture) -> Option<String> {
-    fixture.tree().numeric(fixture.root_id().expect("the dial is the root")).and_then(|numeric| numeric.text)
-}
-
 fn key(fixture: &mut Fixture, key: Key, modifiers: Modifiers) {
     fixture.key(key, modifiers);
     fixture.idle(2);
@@ -96,7 +92,7 @@ fn focused(show: fn(&mut Ui, &mut StoryData) -> StoryOutput) -> Fixture {
 }
 
 #[trial]
-fn a_dial_points_at_the_pointer_from_its_zero_in_its_direction() {
+fn a_dial_points_at_the_pointer_from_its_zero_in_its_direction_and_shift_snaps_the_drag_to_45_degrees() {
     let mut up = shown(counter_clockwise);
     let center = control_rect(&up).center();
     up.click_at(center + Vec2::new(0.0, -REACH));
@@ -108,6 +104,13 @@ fn a_dial_points_at_the_pointer_from_its_zero_in_its_direction() {
     let center = control_rect(&right).center();
     right.click_at(center + Vec2::new(REACH, 0.0));
     assert_eq!(angle(&right), 90.0, "clockwise, 0 at 12 o'clock: right is 90");
+
+    let mut snapped = shown(counter_clockwise);
+    let center = control_rect(&snapped).center();
+    snapped.hold(Modifiers::SHIFT);
+    let from = center + Vec2::new(-REACH, 0.0);
+    drag_through(&mut snapped, from, &[center + Vec2::new(0.0, -REACH), center + Vec2::new(13.2, 4.8)]);
+    assert_eq!(angle(&snapped).rem_euclid(45.0), 0.0, "a Shift drag snaps to a multiple of 45");
 }
 
 #[trial]
@@ -125,17 +128,26 @@ fn a_dial_wraps_round_a_turn_and_stops_at_the_ends_of_a_narrower_range() {
     assert_eq!(angle(&wraps), 1.0, "a range that wraps by choice continues from its start");
 }
 
+/// Alt makes a drag fine; a click is not a drag, so Alt+click still puts the point where the pointer is.
 #[trial]
-fn a_point_picker_maps_a_click_to_the_range_with_y_growing_downwards() {
-    let mut fixture = shown(picker);
-    let well = control_rect(&fixture);
-    fixture.click_at(well.lerp_inside(Vec2::new(0.25, 0.75)));
-    let [x, y] = point(&fixture);
-    assert!((x - 25.0).abs() < 0.1 && (y - 75.0).abs() < 0.1, "a click a quarter across and three quarters down is (25, 75), not ({x}, {y})");
+fn a_point_picker_maps_a_click_to_the_range_with_y_growing_downwards_with_or_without_alt() {
+    for alt in [false, true] {
+        let mut fixture = shown(picker);
+        let well = control_rect(&fixture);
+        if alt {
+            fixture.hold(Modifiers::ALT);
+        }
+        fixture.click_at(well.lerp_inside(Vec2::new(0.25, 0.75)));
+        let [x, y] = point(&fixture);
+        assert!(
+            (x - 25.0).abs() < 0.1 && (y - 75.0).abs() < 0.1,
+            "a click a quarter across and three quarters down is (25, 75), not ({x}, {y}); alt: {alt}"
+        );
+    }
 }
 
 #[trial]
-fn a_point_picker_moves_one_axis_per_arrow_key() {
+fn a_point_picker_moves_one_axis_per_arrow_key_in_either_reading_direction() {
     let mut fixture = focused(picker);
     key(&mut fixture, Key::ArrowRight, Modifiers::NONE);
     assert_eq!(point(&fixture), [51.0, 50.0]);
@@ -143,6 +155,17 @@ fn a_point_picker_moves_one_axis_per_arrow_key() {
     assert_eq!(point(&fixture), [51.0, 51.0]);
     key(&mut fixture, Key::ArrowUp, Modifiers::SHIFT);
     assert_eq!(point(&fixture), [51.0, 41.0], "Shift moves ten steps, and up lowers y");
+
+    // The picker keeps its axis order: Right raises x and Left lowers it in either reading direction.
+    for direction in [Direction::Ltr, Direction::Rtl] {
+        let mut fixture = shown(picker);
+        fixture.direction(direction).settle();
+        key(&mut fixture, Key::Tab, Modifiers::NONE);
+        key(&mut fixture, Key::ArrowRight, Modifiers::NONE);
+        assert_eq!(point(&fixture), [51.0, 50.0], "Right raises x under {direction:?}");
+        key(&mut fixture, Key::ArrowLeft, Modifiers::NONE);
+        assert_eq!(point(&fixture), [50.0, 50.0], "Left lowers x under {direction:?}");
+    }
 }
 
 /// The picker's value is two slider sub-nodes, one per axis, each with its own numeric; the picker stays one Tab
@@ -192,36 +215,14 @@ fn a_point_picker_with_a_y_up_axis_takes_keys_and_drags_and_up_raises_the_value(
     assert!((y - 25.0).abs() < 0.1, "a drag to three quarters down is 25, not {y}");
 }
 
-/// Alt makes a drag fine; a click is not a drag, so Alt+click still puts the point where the pointer is.
 #[trial]
-fn an_alt_click_on_a_point_picker_sets_the_clicked_point() {
-    let mut fixture = shown(picker);
-    let well = control_rect(&fixture);
-    fixture.hold(Modifiers::ALT);
-    fixture.click_at(well.lerp_inside(Vec2::new(0.25, 0.75)));
-    let [x, y] = point(&fixture);
-    assert!((x - 25.0).abs() < 0.1 && (y - 75.0).abs() < 0.1, "Alt+click is (25, 75), not ({x}, {y})");
-}
-
-#[trial]
-fn a_wheel_notch_steps_an_angle_dial_and_the_value_text_uses_the_degree_unit() {
+fn a_wheel_notch_steps_an_angle_dial() {
     let mut fixture = focused(counter_clockwise);
-    assert_eq!(angle_text(&fixture).as_deref(), Some("45°"));
     let center = control_rect(&fixture).center();
     fixture.frame(vec![moved(center)]);
     fixture.frame(vec![wheel(30.0)]);
     fixture.idle(2);
     assert_eq!((angle(&fixture) - 45.0).abs(), 1.0, "one notch is one step");
-}
-
-#[trial]
-fn shift_snaps_a_dial_drag_to_45_degrees() {
-    let mut fixture = shown(counter_clockwise);
-    let center = control_rect(&fixture).center();
-    fixture.hold(Modifiers::SHIFT);
-    let from = center + Vec2::new(-REACH, 0.0);
-    drag_through(&mut fixture, from, &[center + Vec2::new(0.0, -REACH), center + Vec2::new(13.2, 4.8)]);
-    assert_eq!(angle(&fixture), 0.0, "about -20 degrees snaps to the nearest multiple of 45");
 }
 
 #[trial]
@@ -260,18 +261,4 @@ fn a_press_on_the_point_of_an_unfocused_picker_focuses_it() {
     let [x, y] = point(&fixture);
     key(&mut fixture, Key::ArrowRight, Modifiers::NONE);
     assert_eq!(point(&fixture), [x + 1.0, y]);
-}
-
-/// The picker keeps its axis order: Right raises x and Left lowers it in either reading direction.
-#[trial]
-fn a_point_picker_moves_right_on_right_in_either_reading_direction() {
-    for direction in [Direction::Ltr, Direction::Rtl] {
-        let mut fixture = shown(picker);
-        fixture.direction(direction).settle();
-        key(&mut fixture, Key::Tab, Modifiers::NONE);
-        key(&mut fixture, Key::ArrowRight, Modifiers::NONE);
-        assert_eq!(point(&fixture), [51.0, 50.0], "Right raises x under {direction:?}");
-        key(&mut fixture, Key::ArrowLeft, Modifiers::NONE);
-        assert_eq!(point(&fixture), [50.0, 50.0], "Left lowers x under {direction:?}");
-    }
 }

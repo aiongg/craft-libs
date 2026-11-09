@@ -26,8 +26,6 @@ const SAME: f32 = 0.5;
 const HALF: f32 = 0.5;
 /// The views of content End has to pass.
 const TWO_VIEWS: f32 = 2.0;
-/// Shift multiplies a step by this.
-const SHIFT_STEPS: f32 = 4.0;
 /// How much shorter than open a collapsed container is at least.
 const COLLAPSED_BY: f32 = 70.0;
 
@@ -117,6 +115,14 @@ fn a_wheel_line_scrolls_the_distance_of_the_bodys_notch() {
     frames.frame(vec![pointer::wheel_lines(-1.0)], &mut show);
     let moved = top0 - seen.first_top.get();
     assert!((moved - VIEW.y * HALF).abs() < SAME, "one line scrolled half the view: {moved}");
+    for _ in 0..3 {
+        frames.frame(vec![pointer::wheel(-100_000.0)], &mut show);
+    }
+    let end = top0 - seen.first_top.get();
+    assert!(end > moved, "a long wheel run scrolled on to the end: {end}");
+    frames.frame(vec![pointer::wheel(-100_000.0)], &mut show);
+    let past = top0 - seen.first_top.get();
+    assert!((past - end).abs() < SAME, "the body stops at its end instead of scrolling past it: {end} {past}");
 }
 
 #[trial]
@@ -164,7 +170,7 @@ fn layer_props() -> ContainerProps {
 }
 
 #[trial]
-fn the_window_move_mode_moves_the_layer_by_arrows_and_escape_restores_it() {
+fn the_window_move_and_size_modes_change_the_layer_by_arrows_and_end_by_escape_enter_or_a_click() {
     let (rect, probes) = (Cell::new(Rect::NOTHING), RefCell::new(Seen::default()));
     let mut frames = Frames::new();
     let mut show = |ui: &mut Ui| {
@@ -178,6 +184,8 @@ fn the_window_move_mode_moves_the_layer_by_arrows_and_escape_restores_it() {
     let start = rect.get().min;
     request(&frames.ctx, FocusTarget::Id(probes.borrow().id.expect("the probe ran")));
     frames.idle(2, &mut show);
+
+    // Move mode: arrows move, Shift moves further, Escape restores and ends the mode.
     assert!(commands::fire(&frames.ctx, WindowCommand::Move, FireSource::Palette), "the command has a live instance");
     frames.idle(2, &mut show);
     frames.frame(vec![key_press(Key::ArrowRight, Modifiers::NONE)], &mut show);
@@ -187,30 +195,15 @@ fn the_window_move_mode_moves_the_layer_by_arrows_and_escape_restores_it() {
     frames.frame(vec![key_press(Key::ArrowRight, Modifiers::SHIFT)], &mut show);
     frames.idle(2, &mut show);
     let large = rect.get().min - start - step;
-    assert!((large.x - SHIFT_STEPS * step.x).abs() < SAME, "Shift moves four steps: {large:?} against {step:?}");
+    assert!(large.x > step.x, "Shift moves further than a plain arrow: {large:?} against {step:?}");
     frames.frame(vec![key_press(Key::Escape, Modifiers::NONE)], &mut show);
     frames.idle(2, &mut show);
     assert!((rect.get().min - start).abs().max_elem() < SAME, "Escape restored the placement: {:?} {start:?}", rect.get().min);
     frames.frame(vec![key_press(Key::ArrowRight, Modifiers::NONE)], &mut show);
     frames.idle(2, &mut show);
     assert!((rect.get().min - start).abs().max_elem() < SAME, "the mode ended with Escape: arrows no longer move the layer");
-}
 
-#[trial]
-fn a_click_ends_keyboard_move_mode_and_keeps_the_placement() {
-    let (rect, probes) = (Cell::new(Rect::NOTHING), RefCell::new(Seen::default()));
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| {
-        let close = Cell::new(false);
-        let out = Holder::new(layer_props(), &close).id_salt("window").show(ui, |ui, _| {
-            Probe::new(&probes).size(LINE).show(ui);
-        });
-        rect.set(out.output.rect);
-    };
-    frames.idle(4, &mut show);
-    let start = rect.get().min;
-    request(&frames.ctx, FocusTarget::Id(probes.borrow().id.expect("the probe ran")));
-    frames.idle(2, &mut show);
+    // A click ends move mode and keeps the placement.
     assert!(commands::fire(&frames.ctx, WindowCommand::Move, FireSource::Palette), "the command has a live instance");
     frames.idle(2, &mut show);
     frames.frame(vec![key_press(Key::ArrowRight, Modifiers::NONE)], &mut show);
@@ -226,6 +219,21 @@ fn a_click_ends_keyboard_move_mode_and_keeps_the_placement() {
     frames.frame(vec![key_press(Key::ArrowRight, Modifiers::NONE)], &mut show);
     frames.idle(2, &mut show);
     assert!((rect.get().min - moved).abs().max_elem() < SAME, "the click ended the mode: arrows no longer move the layer");
+
+    // Size mode: an arrow resizes along its axis and Enter keeps the size.
+    let before = rect.get();
+    assert!(commands::fire(&frames.ctx, WindowCommand::Size, FireSource::Palette));
+    frames.idle(2, &mut show);
+    frames.frame(vec![key_press(Key::ArrowDown, Modifiers::NONE)], &mut show);
+    frames.idle(2, &mut show);
+    let grown = rect.get().size() - before.size();
+    assert!(
+        grown.y > 0.0 && grown.x.abs() < SAME && (rect.get().min - before.min).abs().max_elem() < SAME,
+        "an arrow grew the layer's height: {grown:?}"
+    );
+    frames.frame(vec![key_press(Key::Enter, Modifiers::NONE)], &mut show);
+    frames.idle(2, &mut show);
+    assert_eq!(rect.get().size(), before.size() + grown, "Enter kept the size");
 }
 
 /// A floating container with commands of its own still takes the `window` commands.
@@ -250,35 +258,6 @@ fn a_layer_with_its_own_command_scope_still_takes_the_window_commands() {
     frames.frame(vec![key_press(Key::ArrowRight, Modifiers::NONE)], &mut show);
     frames.idle(2, &mut show);
     assert!(rect.get().min.x > start.x, "an arrow moved the layer: {:?} from {start:?}", rect.get().min);
-}
-
-#[trial]
-fn the_window_size_mode_resizes_the_layer_and_enter_keeps_it() {
-    let (rect, probes) = (Cell::new(Rect::NOTHING), RefCell::new(Seen::default()));
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| {
-        let close = Cell::new(false);
-        let out = Holder::new(layer_props(), &close).id_salt("window").show(ui, |ui, _| {
-            Probe::new(&probes).size(LINE).show(ui);
-        });
-        rect.set(out.output.rect);
-    };
-    frames.idle(4, &mut show);
-    let before = rect.get();
-    request(&frames.ctx, FocusTarget::Id(probes.borrow().id.expect("the probe ran")));
-    frames.idle(2, &mut show);
-    assert!(commands::fire(&frames.ctx, WindowCommand::Size, FireSource::Palette));
-    frames.idle(2, &mut show);
-    frames.frame(vec![key_press(Key::ArrowDown, Modifiers::NONE)], &mut show);
-    frames.idle(2, &mut show);
-    let grown = rect.get().size() - before.size();
-    assert!(
-        grown.y > 0.0 && grown.x.abs() < SAME && (rect.get().min - before.min).abs().max_elem() < SAME,
-        "an arrow grew the layer's height: {grown:?}"
-    );
-    frames.frame(vec![key_press(Key::Enter, Modifiers::NONE)], &mut show);
-    frames.idle(2, &mut show);
-    assert_eq!(rect.get().size(), before.size() + grown, "Enter kept the size");
 }
 
 #[trial]
