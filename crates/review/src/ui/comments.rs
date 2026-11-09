@@ -1079,7 +1079,9 @@ impl Component for CommentRow<'_> {
         self.lay(cx.style, rect.width(), &age, &mut sink);
         self.mores = sink.more.iter().map(|(index, _)| *index).collect();
         for (index, local) in sink.more {
-            cx.part(MORE.at(index as u64), placed(rect.min, rect.width(), rtl, local)).sense(Sense::CLICK | Sense::FOCUS).focusable();
+            cx.part(MORE.at(index as u64), placed(rect.min, rect.width(), rtl, local))
+                .sense(Sense::CLICK | Sense::FOCUS | Sense::TAKE_FOCUS)
+                .focusable();
         }
     }
 

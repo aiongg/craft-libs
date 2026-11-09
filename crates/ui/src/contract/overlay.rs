@@ -1486,7 +1486,8 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
     // the frame that opens the layer, so the stop focused then is the previous one.
     let opener = *memory.opener_stop.get_or_insert_with(|| {
         let owned = (overlay.focus.initial == focus::Initial::KeepAnchor).then(|| focus::stop_rec(ctx, (layer.owner, None))).flatten();
-        owned.map(|rec| rec.stop.key()).or_else(|| focus::focused_stop(ctx))
+        let pressed = overlay.opener.as_ref().filter(|first| first.fired && first.pressed).and_then(|_| focus::pressed_stop(ctx));
+        owned.map(|rec| rec.stop.key()).or(pressed).or_else(|| focus::focused_stop(ctx))
     });
     overlay::begin_layer(ctx, layer.id, layer.exiting);
     let shown = areas::show_layer(ctx, &spec, |ui| {

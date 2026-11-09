@@ -351,6 +351,12 @@ pub(crate) fn focused_stop(ctx: &Context) -> Option<StopKey> {
     })
 }
 
+/// The stop this pass's press takes focus for. The end hook moves focus there, after a layer the press opens has
+/// recorded its opener.
+pub(crate) fn pressed_stop(ctx: &Context) -> Option<StopKey> {
+    with(ctx, |state| state.pressed_stop())
+}
+
 /// The registration of the stop `key`.
 pub(crate) fn stop_rec(ctx: &Context, key: StopKey) -> Option<StopRec> {
     with(ctx, |state| state.find_stop(key))

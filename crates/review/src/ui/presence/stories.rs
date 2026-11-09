@@ -66,8 +66,7 @@ fn on_canvas(ui: &mut Ui, mut control: impl FnMut(&mut Ui, egui::Rect)) -> Story
 }
 
 /// Two people with a cursor on the page; the second has said something.
-#[story(RemoteCursor<'static>, covers = [Default], drive = Drive::Never)]
-fn remote_cursors(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+fn cursors_on_canvas(ui: &mut Ui) -> StoryOutput {
     let mut room = Room::of(&["Ana Reyes", "Bo Chen", "Cy Dahl"]);
     room.0[1].cursor = Some([120.0, 80.0]);
     room.0[1].chat = Some(CursorChat { text: "Move this up?".into(), changed: 0.0 });
@@ -75,6 +74,16 @@ fn remote_cursors(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     on_canvas(ui, |ui, at| {
         RemoteCursors::new("Cursors", &room).show_at(ui, at);
     })
+}
+
+#[story(RemoteCursor<'static>, covers = [Default], drive = Drive::Never)]
+fn remote_cursor(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    cursors_on_canvas(ui)
+}
+
+#[story(RemoteCursors<'static>, covers = [Default], drive = Drive::Never)]
+fn remote_cursors(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    cursors_on_canvas(ui)
 }
 
 #[story(FollowFrame, covers = [Default], drive = Drive::Never)]

@@ -71,6 +71,13 @@ impl State {
         self.press.plan = Some(Plan { kind, owner, root: at.root, part, pane, was_text });
     }
 
+    /// The stop this pass's press takes focus for, which the end hook moves focus to.
+    pub(super) fn pressed_stop(&self) -> Option<StopKey> {
+        let plan = self.press.plan.as_ref().filter(|plan| plan.kind == PressFocus::Take)?;
+        let owner = plan.owner?;
+        self.find_stop((owner, plan.part)).or_else(|| self.find_stop((owner, None))).map(|rec| rec.stop.key())
+    }
+
     /// The press's focus move at the end hook; `focused` is egui's focus now.
     pub(super) fn apply_press(&mut self, focused: Option<Id>) -> Vec<Act> {
         let Some(plan) = self.press.plan.take() else { return Vec::new() };
