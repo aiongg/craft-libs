@@ -12,22 +12,8 @@ autotests = false
 # Every test lives in the `it` integration binary, so `cargo test` builds the library once.
 test = false
 
-# The `[workspace.lints]` tables of the root manifest, with `unsafe_code` at `deny` instead of `forbid`: with the
-# `testing` feature, registrations written by the derives inside this crate expand `inventory`'s `link_section`
-# statics from a macro this crate defines, which `forbid` rejects (a macro from another crate is exempt). The
-# derives write `#[allow(unsafe_code)]` on the registration block when they expand inside craft-ui, and the
-# design-lint rule `contract/unsafe-allow` rejects every other `allow(unsafe_code)` in the crate.
-[lints.rust]
-unsafe_code = "deny"
-missing_docs = "warn"
-unexpected_cfgs = { level = "warn", check-cfg = ["cfg(craft_pdf_unicode_fixtures)"] }
-
-[lints.clippy]
-cognitive_complexity = "deny"
-too_many_arguments = "deny"
-wildcard_imports = "deny"
-dbg_macro = "warn"
-todo = "warn"
+[lints]
+workspace = true
 
 [features]
 default = []

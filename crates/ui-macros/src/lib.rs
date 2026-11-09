@@ -127,11 +127,9 @@ pub fn trial(attr: TokenStream, item: TokenStream) -> TokenStream {
     }
     let ident = &sig.ident;
     let name = ident.to_string();
-    let allow = util::in_craft_ui().then(|| quote!(#[allow(unsafe_code)]));
     quote! {
         #func
 
-        #allow
         ::craft_ui::testing::__private::inventory::submit! {
             ::craft_ui::testing::Trial::new(module_path!(), #name, #ident)
         }
@@ -188,11 +186,9 @@ pub fn story(attr: TokenStream, item: TokenStream) -> TokenStream {
     let covers = &args.covers;
     let drive = args.drive.as_ref().map(|drive| quote!(.drive(#drive)));
     let disabled_text = args.disabled_text.as_ref().map(|text| quote!(.disabled_text(#text)));
-    let allow = util::in_craft_ui().then(|| quote!(#[allow(unsafe_code)]));
     quote! {
         #func
 
-        #allow
         ::craft_ui::testing::__private::inventory::submit! {
             ::craft_ui::testing::StoryRegistration::new(
                 env!("CARGO_PKG_NAME"),

@@ -180,18 +180,13 @@ pub(crate) fn purpose_of(attrs: &[Attribute]) -> String {
 /// The attributes on a registration block, from the crate being compiled. See `gate_for`.
 fn registration_gate() -> TokenStream {
     let manifest = std::env::var_os("CARGO_MANIFEST_DIR").and_then(|dir| std::fs::read_to_string(std::path::Path::new(&dir).join("Cargo.toml")).ok());
-    gate_for(crate::util::in_craft_ui(), manifest.as_deref().unwrap_or_default())
+    gate_for(manifest.as_deref().unwrap_or_default())
 }
 
-/// The attributes on a registration block. Inside craft-ui the `link_section` statics meet the crate's
-/// `deny(unsafe_code)`, so the block carries an `allow` (written only there: an `allow` in an app crate that forbids it
-/// is an error). Elsewhere the registration's types can exist only under the defining package's `screen-testing`
-/// feature, which may be off while craft-ui's `testing` is on, so the block is gated on it (the cfg is evaluated in
-/// the defining crate) when the package's `manifest` declares that feature, and is not gated otherwise.
-pub(crate) fn gate_for(in_craft_ui: bool, manifest: &str) -> TokenStream {
-    if in_craft_ui {
-        return quote!(#[allow(unsafe_code)]);
-    }
+/// The attributes on a registration block. The registration's types can exist only under the defining package's
+/// `screen-testing` feature, which may be off while craft-ui's `testing` is on, so the block is gated on it (the cfg
+/// is evaluated in the defining crate) when the package's `manifest` declares that feature, and is not gated otherwise.
+pub(crate) fn gate_for(manifest: &str) -> TokenStream {
     let mut in_features = false;
     let declares = manifest.lines().map(str::trim).any(|line| {
         if line.starts_with('[') {
