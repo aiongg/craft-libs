@@ -1026,7 +1026,9 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     if !primary && props.focus_on_press {
                         focus::request_now(&ctx, focus::FocusTarget::Id(cx.core.id));
                     }
+                    // A section stop activates on the first primary press whatever `activate` says: the press is its toggle.
                     let activates = match props.activate {
+                        _ if self.source.section_stop(at) => primary && start.clicks == 1,
                         ActivateOn::DoubleClick => start.clicks == 2,
                         ActivateOn::Click => primary,
                     };
