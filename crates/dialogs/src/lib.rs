@@ -1,6 +1,6 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
-//! Native file and message dialogs that never block the event loop.
+//! Native only (rfd does not build for the web): file and message dialogs that never block the event loop.
 //!
 //! A blocking `rfd::FileDialog` or `rfd::MessageDialog` runs AppKit's modal loop
 //! (`-[NSSavePanel runModal]`) inside winit's event handler on macOS. An event that arrives while

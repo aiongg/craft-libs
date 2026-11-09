@@ -41,14 +41,13 @@ craft-behavior = { workspace = true }
 craft-settings = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+web-time = "1.1"
 
 # The domain crates' stories, registered under each crate's `screen-testing`.
 craft-automation = { workspace = true, features = ["screen-testing"] }
 craft-browse = { workspace = true, features = ["screen-testing"] }
 craft-color = { workspace = true, features = ["screen-testing"] }
-craft-dialogs = { workspace = true, features = ["screen-testing"] }
 craft-draw = { workspace = true, features = ["screen-testing"] }
-craft-font-manager = { workspace = true, features = ["screen-testing"] }
 craft-imaging = { workspace = true, features = ["screen-testing"] }
 craft-layers = { workspace = true, features = ["screen-testing"] }
 craft-menu = { workspace = true, features = ["screen-testing"] }
@@ -59,7 +58,15 @@ craft-table = { workspace = true, features = ["screen-testing"] }
 craft-text = { workspace = true, features = ["screen-testing"] }
 craft-theme-store = { workspace = true, features = ["screen-testing"] }
 craft-timeline = { workspace = true, features = ["screen-testing"] }
+
+# Native only: these crates do not build for the web, so their stories are not in the web gallery.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+craft-dialogs = { workspace = true, features = ["screen-testing"] }
+craft-font-manager = { workspace = true, features = ["screen-testing"] }
 craft-update = { workspace = true, features = ["screen-testing"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen-futures = "0.4"
 
 [dev-dependencies]
 libtest-mimic = "0.8"
