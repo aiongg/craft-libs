@@ -8,7 +8,7 @@ use craft_imaging::ui::warp::{
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
 use craft_ui::testing::access::name;
-use craft_ui::testing::{Fixture, Target, pointer, trial};
+use craft_ui::testing::{Fixture, Room, Target, pointer, trial};
 use egui::{Id, Key, Modifiers, Pos2, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -630,6 +630,8 @@ fn fields(style: &'static str, on_type: bool) -> Fields {
         }
         shown.borrow_mut().extend(group.show(ui).edits);
     });
+    // The options bar is one row of controls that fits a window, not a panel.
+    fixture.in_room(Room::Window);
     fixture.settle();
     Fields { fixture, edits }
 }
