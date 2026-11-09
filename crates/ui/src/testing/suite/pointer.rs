@@ -6,7 +6,7 @@ use crate::contract::ShapeKind;
 use crate::runtime::egui::access::Declared;
 use crate::testing::fixture::{Fixture, Target};
 use crate::testing::sensing::{ProbeMember, ProbePart, ProbeRoot, RootReport, show};
-use crate::testing::story::{EditKind, Grip};
+use crate::testing::story::{EditKind, Grip, Required};
 use crate::testing::{Frames, input, pointer};
 use craft_behavior::{HitLevel, PartKey, Sense};
 use egui::{Pos2, Rect, Ui, Vec2};
@@ -111,7 +111,9 @@ fn parts_take_presses_in_their_hit_areas(subject: &Subject) -> Result<(), String
                 ));
             }
         }
-        if let (Plan::Drag(Grip { part, .. }), true) = (plan, probe.carries_value()) {
+        // A refused value is moved while the pointer drags and put back at the release, so the drag leaves no value.
+        let refused = story.covers.contains(&Required::Invalid);
+        if let (Plan::Drag(Grip { part, .. }), true, false) = (plan, probe.carries_value(), refused) {
             let Some(grip) = fixture.root_id().and_then(|id| fixture.part(id, part)) else { continue };
             let off_middle = Pos2::new(grip.rect.center().x + 0.25 * grip.rect.width(), grip.rect.center().y);
             let mut fixture = fixture;
