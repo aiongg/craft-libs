@@ -429,9 +429,11 @@ pub fn record_input_hooks(ctx: &Context, log: std::sync::Arc<std::sync::Mutex<Ve
     ctx.add_plugin(Recorder(log));
 }
 
-/// The id of the widget egui has focused.
+/// The id of the node that holds focus: the widget egui has focused, or the owner whose node stands for it when that
+/// widget is folded into an owner (`PaintUi::inner`).
 pub(crate) fn focused(ctx: &Context) -> Option<egui::Id> {
-    ctx.memory(|memory| memory.focused())
+    let id = ctx.memory(|memory| memory.focused())?;
+    Some(crate::runtime::access::fold::owner_of(ctx, id).unwrap_or(id))
 }
 
 /// The area `ui` has allocated so far.

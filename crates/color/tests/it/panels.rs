@@ -530,9 +530,10 @@ fn a_grid_click_chooses_its_colour() {
     assert_eq!(*chosen.borrow(), [centre]);
     assert_eq!(
         HarmonyMenu::states(&state.borrow(), &picked.borrow()).iter().find(|(c, _)| *c == HarmonyCommand::SaveAsSwatches).map(|(_, s)| s.clone()),
-        Some(CommandState::new().enabled(false)),
-        "no cell is chosen for Save Colors as Swatches"
+        Some(CommandState::new().enabled(true)),
+        "the clicked cell is chosen for Save Colors as Swatches"
     );
+    assert_eq!(picked.borrow().colors(), [centre]);
 }
 
 /// A table of six entries, indexes 1 and 3 the same colour.
