@@ -39,8 +39,3 @@ pub(crate) fn wrapped<'a>(ty: &'a Type, wrapper: &str) -> Option<&'a Type> {
 pub(crate) fn is_named(ty: &Type, name: &str) -> bool {
     matches!(ty, Type::Path(path) if path.qself.is_none() && path.path.segments.last().is_some_and(|segment| segment.ident == name))
 }
-
-/// Whether the crate being compiled is craft-ui itself.
-pub(crate) fn in_craft_ui() -> bool {
-    std::env::var("CARGO_CRATE_NAME").is_ok_and(|name| name == "craft_ui")
-}

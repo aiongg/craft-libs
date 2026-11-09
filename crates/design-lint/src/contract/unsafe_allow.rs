@@ -1,6 +1,5 @@
 //! `contract/unsafe-allow`: no `allow(unsafe_code)` in source, except in craft-win32 and the benchmark's allocator
-//! ([`ALLOWED`]). craft-ui keeps `unsafe_code` at `deny`, and the derives write the one scoped allow its registrations
-//! need; source text never contains it.
+//! (`ALLOWED`). Every other crate keeps the workspace `forbid`.
 
 use std::path::Path;
 
@@ -43,13 +42,6 @@ pub(super) fn check(cx: &Cx<'_>, out: &mut Vec<Finding>) {
     let mut allows = Allows { spans: Vec::new() };
     allows.visit_file(cx.file);
     for span in allows.spans {
-        cx.flag_span(
-            out,
-            ID,
-            ID,
-            span,
-            "`allow(unsafe_code)`; only craft-win32 and the benchmark allocator allow it, and the derives write the registrations' scoped allow"
-                .to_owned(),
-        );
+        cx.flag_span(out, ID, ID, span, "`allow(unsafe_code)`; only craft-win32 and the benchmark allocator allow it".to_owned());
     }
 }
