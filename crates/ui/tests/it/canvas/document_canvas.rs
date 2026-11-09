@@ -63,12 +63,8 @@ impl Document {
                 NavigatorPanel::new("Navigator", Bind::bound(&mut *held.borrow_mut()), DOC).navigation(navigation).show(ui);
             }
             let given = *held.borrow();
-            let shown = Canvas::new("Document")
-                .view(given)
-                .document(DOC)
-                .navigation(navigation)
-                .show_rulers(ruled.get())
-                .show_at(ui, at.get(), |_, body| {
+            let shown =
+                Canvas::new("Document").view(given).document(DOC).navigation(navigation).show_rulers(ruled.get()).show_at(ui, at.get(), |_, body| {
                     if let Some(space) = canvas_space(&body.env) {
                         saw.borrow_mut().push((body.rect, space.view));
                     }
@@ -227,23 +223,23 @@ fn eases(document: &mut Document, start: impl FnOnce(&mut Fixture)) {
 }
 
 #[trial]
-fn a_zoom_command_under_animated_zoom_eases_on_the_canvas() {
-    let mut document = Document::new(covering(), CANVAS, Options { animated: true, ..Options::default() });
-    document.fixture.settle();
-    document.fixture.click_at(CANVAS.center()).settle();
-    eases(&mut document, |fixture| {
-        fixture.key(Key::Equals, Modifiers::COMMAND);
-    });
-}
-
-#[trial]
-fn a_navigator_zoom_under_animated_zoom_eases_on_the_canvas() {
-    let start = CanvasView::new(BESIDE, Point::new(DOC.width / 2.0, DOC.height / 2.0), 0.5);
-    let mut document = Document::new(start, BESIDE, Options { animated: true, navigator: true, ..Options::default() });
-    document.fixture.settle();
-    // The first Tab focuses the preview box, whose `=` steps the zoom in.
-    document.fixture.key(Key::Tab, Modifiers::NONE).settle();
-    eases(&mut document, |fixture| {
-        fixture.key(Key::Equals, Modifiers::NONE);
-    });
+fn animated_zoom_eases_a_zoom_command_and_a_navigator_zoom() {
+    {
+        let mut document = Document::new(covering(), CANVAS, Options { animated: true, ..Options::default() });
+        document.fixture.settle();
+        document.fixture.click_at(CANVAS.center()).settle();
+        eases(&mut document, |fixture| {
+            fixture.key(Key::Equals, Modifiers::COMMAND);
+        });
+    }
+    {
+        let start = CanvasView::new(BESIDE, Point::new(DOC.width / 2.0, DOC.height / 2.0), 0.5);
+        let mut document = Document::new(start, BESIDE, Options { animated: true, navigator: true, ..Options::default() });
+        document.fixture.settle();
+        // The first Tab focuses the preview box, whose `=` steps the zoom in.
+        document.fixture.key(Key::Tab, Modifiers::NONE).settle();
+        eases(&mut document, |fixture| {
+            fixture.key(Key::Equals, Modifiers::NONE);
+        });
+    }
 }

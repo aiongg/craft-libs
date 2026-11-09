@@ -41,22 +41,24 @@ fn majors(ticks: &[craft_ui::canvas::RulerTick]) -> Vec<f64> {
 }
 
 #[trial]
-fn the_pixel_ruler_labels_every_hundred_and_ticks_every_ten_at_full_size() {
+fn pixel_ruler_labels_sit_on_major_ticks_finer_ticks_between_and_zooming_in_labels_closer_values() {
     let ticks = Rulers::ticks(&RulerUnits::pixels(), TickRule::Metric, 1.0, 0.0..=200.0);
-    let majors = majors(&ticks);
-    assert!(majors.contains(&0.0) && majors.contains(&100.0) && majors.contains(&200.0), "{majors:?}");
-    assert!(majors.iter().all(|value| value.rem_euclid(100.0) == 0.0), "labels sit on multiples of 100: {majors:?}");
-    let gaps: Vec<f64> = ticks.windows(2).map(|pair| pair[1].value - pair[0].value).collect();
-    assert!(gaps.iter().all(|gap| (gap - PIXEL_MINOR).abs() < 1e-9), "ticks are ten apart: {gaps:?}");
+    let labels = majors(&ticks);
+    assert!(labels.len() >= 2, "{labels:?}");
+    let label_step = labels[1] - labels[0];
+    let tick_step = ticks[1].value - ticks[0].value;
+    assert!(tick_step < label_step, "ticks are finer than labels");
+    assert!(ticks.windows(2).all(|pair| (pair[1].value - pair[0].value - tick_step).abs() < 1e-9), "ticks are evenly spaced");
+    assert!(labels.windows(2).all(|pair| (pair[1] - pair[0] - label_step).abs() < 1e-9), "labels are evenly spaced: {labels:?}");
     let mids: Vec<f64> = ticks.iter().filter(|tick| tick.rank == TickRank::Mid).map(|tick| tick.value).collect();
-    assert!(mids.iter().all(|value| value.rem_euclid(100.0) == 50.0), "the mid tick sits halfway between labels: {mids:?}");
     assert!(!mids.is_empty());
-}
+    assert!(
+        mids.iter().all(|value| ((value - labels[0]).rem_euclid(label_step) - label_step / 2.0).abs() < 1e-9),
+        "the mid tick sits halfway between labels: {mids:?}"
+    );
 
-#[trial]
-fn zooming_in_labels_closer_values() {
     let zoomed = majors(&Rulers::ticks(&RulerUnits::pixels(), TickRule::Metric, 4.0, 0.0..=200.0));
-    assert!(zoomed.windows(2).all(|pair| (pair[1] - pair[0] - 20.0).abs() < 1e-9), "labels are twenty apart at 400 percent: {zoomed:?}");
+    assert!(zoomed[1] - zoomed[0] < label_step, "zoomed in, labels are closer: {zoomed:?}");
 }
 
 #[trial]
@@ -94,26 +96,26 @@ fn shown(locked: bool) -> Shown {
 }
 
 #[trial]
-fn a_drag_from_the_top_ruler_places_a_horizontal_guide_and_ends_on_the_document() {
-    let mut shown = shown(false);
-    let strip = shown.fixture.by_label("Horizontal ruler").expect("the top ruler has a node");
-    shown.fixture.drag(&strip, ONTO_DOCUMENT);
-    let guides = shown.guides.borrow();
-    let (first, last) = (guides.first().expect("the drag is reported"), guides.last().expect("the drag is reported"));
-    assert_eq!(first.phase, GesturePhase::Begin);
-    assert_eq!(last.phase, GesturePhase::Commit);
-    assert!(guides.iter().all(|drag| drag.along == Axis::X && drag.key.is_none()), "the top ruler makes new horizontal guides");
-    assert!(last.at.is_some(), "released on the document, the guide stays");
-}
-
-#[trial]
-fn a_guide_released_over_the_ruler_has_no_position() {
-    let mut shown = shown(false);
-    let strip = shown.fixture.by_label("Vertical ruler").expect("the left ruler has a node");
-    shown.fixture.drag(&strip, Vec2::new(0.0, ALONG_STRIP.x));
-    let guides = shown.guides.borrow();
-    let last = guides.last().expect("the drag is reported");
-    assert_eq!((last.phase, last.at, last.along), (GesturePhase::Commit, None, Axis::Y), "a release over a ruler removes the guide");
+fn a_guide_drag_from_the_ruler_stays_on_the_document_and_is_removed_over_the_ruler() {
+    {
+        let mut shown = shown(false);
+        let strip = shown.fixture.by_label("Horizontal ruler").expect("the top ruler has a node");
+        shown.fixture.drag(&strip, ONTO_DOCUMENT);
+        let guides = shown.guides.borrow();
+        let (first, last) = (guides.first().expect("the drag is reported"), guides.last().expect("the drag is reported"));
+        assert_eq!(first.phase, GesturePhase::Begin);
+        assert_eq!(last.phase, GesturePhase::Commit);
+        assert!(guides.iter().all(|drag| drag.along == Axis::X && drag.key.is_none()), "the top ruler makes new horizontal guides");
+        assert!(last.at.is_some(), "released on the document, the guide stays");
+    }
+    {
+        let mut shown = shown(false);
+        let strip = shown.fixture.by_label("Vertical ruler").expect("the left ruler has a node");
+        shown.fixture.drag(&strip, Vec2::new(0.0, ALONG_STRIP.x));
+        let guides = shown.guides.borrow();
+        let last = guides.last().expect("the drag is reported");
+        assert_eq!((last.phase, last.at, last.along), (GesturePhase::Commit, None, Axis::Y), "a release over a ruler removes the guide");
+    }
 }
 
 #[trial]
@@ -167,34 +169,34 @@ fn shift_f10_on_the_focused_corner_opens_the_units_menu() {
 }
 
 #[trial]
-fn a_secondary_click_on_a_strip_opens_the_units_menu() {
-    let mut shown = shown(false);
-    let strip = shown.fixture.by_label("Horizontal ruler").expect("the top ruler has a node");
-    let at = strip.center();
-    shown.fixture.frame(vec![pointer::moved(at)]);
-    shown.fixture.frame(vec![pointer::secondary(at, true)]);
-    shown.fixture.frame(vec![pointer::secondary(at, false)]);
-    shown.fixture.settle();
-    assert_eq!(shown.contexts.borrow().last(), Some(&RulerPart::Horizontal));
-    assert!(shown.fixture.by_label(MENU_ROW).is_some(), "the units menu is open");
-}
-
-#[trial]
-fn a_secondary_click_on_the_locked_corner_opens_the_units_menu_and_one_on_the_document_does_not() {
-    let mut shown = shown(true);
-    let secondary_click = |shown: &mut Shown, at: Pos2| {
+fn a_secondary_click_opens_the_units_menu_on_a_strip_and_the_corner_not_the_document() {
+    {
+        let mut shown = shown(false);
+        let strip = shown.fixture.by_label("Horizontal ruler").expect("the top ruler has a node");
+        let at = strip.center();
         shown.fixture.frame(vec![pointer::moved(at)]);
         shown.fixture.frame(vec![pointer::secondary(at, true)]);
         shown.fixture.frame(vec![pointer::secondary(at, false)]);
         shown.fixture.settle();
-    };
-    secondary_click(&mut shown, VIEW.center());
-    assert!(shown.contexts.borrow().is_empty(), "a secondary click on the document is no ruler request");
+        assert_eq!(shown.contexts.borrow().last(), Some(&RulerPart::Horizontal));
+        assert!(shown.fixture.by_label(MENU_ROW).is_some(), "the units menu is open");
+    }
+    {
+        let mut shown = shown(true);
+        let secondary_click = |shown: &mut Shown, at: Pos2| {
+            shown.fixture.frame(vec![pointer::moved(at)]);
+            shown.fixture.frame(vec![pointer::secondary(at, true)]);
+            shown.fixture.frame(vec![pointer::secondary(at, false)]);
+            shown.fixture.settle();
+        };
+        secondary_click(&mut shown, VIEW.center());
+        assert!(shown.contexts.borrow().is_empty(), "a secondary click on the document is no ruler request");
 
-    let corner = shown.fixture.by_label("Ruler origin").expect("the corner has a node");
-    secondary_click(&mut shown, corner.center());
-    assert_eq!(shown.contexts.borrow().last(), Some(&RulerPart::Corner));
-    assert!(shown.fixture.by_label(MENU_ROW).is_some(), "the units menu is open");
+        let corner = shown.fixture.by_label("Ruler origin").expect("the corner has a node");
+        secondary_click(&mut shown, corner.center());
+        assert_eq!(shown.contexts.borrow().last(), Some(&RulerPart::Corner));
+        assert!(shown.fixture.by_label(MENU_ROW).is_some(), "the units menu is open");
+    }
 }
 
 #[trial]

@@ -76,14 +76,33 @@ fn the_proxy_follows_a_rotated_or_flipped_view() {
 }
 
 #[trial]
-fn a_click_in_the_preview_asks_for_the_document_point_under_it() {
-    let middle = view_center_for(preview(), DOC, Pos2::new(108.0, 83.0));
-    assert!((middle.x - CENTRE.x).abs() < 1e-2 && (middle.y - CENTRE.y).abs() < 1e-2, "{middle:?}");
-    assert_eq!(
-        view_center_for(preview(), DOC, Pos2::new(-40.0, 400.0)),
-        Point::new(0.0, DOC.height),
-        "a click off the picture stays on the document"
-    );
+fn a_click_in_the_preview_maps_to_the_document_point_and_centres_the_view() {
+    {
+        let middle = view_center_for(preview(), DOC, Pos2::new(108.0, 83.0));
+        assert!((middle.x - CENTRE.x).abs() < 1e-2 && (middle.y - CENTRE.y).abs() < 1e-2, "{middle:?}");
+        assert_eq!(
+            view_center_for(preview(), DOC, Pos2::new(-40.0, 400.0)),
+            Point::new(0.0, DOC.height),
+            "a click off the picture stays on the document"
+        );
+    }
+    {
+        let view = Rc::new(RefCell::new(CanvasView::new(ZOOM_CANVAS, Point::new(0.0, 0.0), START)));
+        let held = Rc::clone(&view);
+        let mut fixture = Fixture::new(move |ui| {
+            let mut view = held.borrow_mut();
+            Navigator::new("Navigator", Bind::bound(&mut *view), DOC).show(ui);
+        });
+        fixture.settle();
+        let preview = fixture.by_label("Navigator").expect("the navigator has a node");
+        fixture.click(&preview);
+        fixture.settle();
+        let centre = view.borrow().center;
+        assert!(
+            (centre.x - CENTRE.x).abs() < CENTRE_SLACK && (centre.y - CENTRE.y).abs() < CENTRE_SLACK,
+            "the middle of the box is the middle of the document: {centre:?}"
+        );
+    }
 }
 
 fn zoom_view(zoom: f64) -> CanvasView {
@@ -155,18 +174,6 @@ fn zoom_row(view: &Rc<RefCell<CanvasView>>, animated: bool) -> Fixture {
 }
 
 #[trial]
-fn a_zoom_in_without_the_ease_steps_the_ladder_about_the_centre() {
-    let view = Rc::new(RefCell::new(row_view(START)));
-    let mut fixture = zoom_row(&view, false);
-    fixture.settle();
-    let zoom_in = fixture.by_label("Zoom In").expect("the row has a Zoom In button");
-    fixture.click(&zoom_in).settle();
-    let after = *view.borrow();
-    assert!(after.zoom > START && after.zoom <= ZoomLadder::MAX, "one rung in: {after:?}");
-    assert_eq!(after.center, CENTRE, "the centre stays");
-}
-
-#[trial]
 fn the_percent_field_steps_the_zoom_ladder_and_shows_two_decimals() {
     let view = Rc::new(RefCell::new(row_view(TWO_THIRDS)));
     let mut fixture = zoom_row(&view, false);
@@ -180,25 +187,6 @@ fn the_percent_field_steps_the_zoom_ladder_and_shows_two_decimals() {
     let after = view.borrow().zoom;
     let next_rung = ZoomLadder::step(TWO_THIRDS, 1, DOC);
     assert!(next_rung > TWO_THIRDS && (after - next_rung).abs() < 1e-9, "up from 66.67 % goes to the next rung: {after}");
-}
-
-#[trial]
-fn a_press_on_the_preview_centres_the_view_on_the_point_pressed() {
-    let view = Rc::new(RefCell::new(CanvasView::new(ZOOM_CANVAS, Point::new(0.0, 0.0), START)));
-    let held = Rc::clone(&view);
-    let mut fixture = Fixture::new(move |ui| {
-        let mut view = held.borrow_mut();
-        Navigator::new("Navigator", Bind::bound(&mut *view), DOC).show(ui);
-    });
-    fixture.settle();
-    let preview = fixture.by_label("Navigator").expect("the navigator has a node");
-    fixture.click(&preview);
-    fixture.settle();
-    let centre = view.borrow().center;
-    assert!(
-        (centre.x - CENTRE.x).abs() < CENTRE_SLACK && (centre.y - CENTRE.y).abs() < CENTRE_SLACK,
-        "the middle of the box is the middle of the document: {centre:?}"
-    );
 }
 
 // l4e-navprev: the preview box's behaviour.
@@ -277,30 +265,30 @@ impl Shown {
 }
 
 #[trial]
-fn a_drag_of_the_proxy_moves_the_view_by_the_distance_dragged() {
-    let moved_by = |by: Vec2| {
+fn a_drag_of_the_proxy_moves_the_view_by_the_distance_and_escape_puts_it_back() {
+    {
+        let moved_by = |by: Vec2| {
+            let mut shown = Shown::new(zoom_view(START), false);
+            let from = shown.frame().center() + Vec2::new(GRIP, 0.0);
+            shown.drag(from, by);
+            assert_eq!(shown.ends(), 1, "the drag is one commit: {:?}", shown.edits.borrow());
+            shown.view().center - CENTRE
+        };
+        let once = moved_by(Vec2::new(DRAG, 0.0));
+        let twice = moved_by(Vec2::new(2.0 * DRAG, 0.0));
+        assert!(once.x > 0.0 && once.y.abs() < 1e-6, "a drag to the right moves the view right: {once:?}");
+        assert!((twice.x - 2.0 * once.x).abs() < 1e-3 * twice.x, "the view moves by the distance dragged, not to the pointer: {once:?}, {twice:?}");
+    }
+    {
         let mut shown = Shown::new(zoom_view(START), false);
-        let from = shown.frame().center() + Vec2::new(GRIP, 0.0);
-        shown.drag(from, by);
-        assert_eq!(shown.ends(), 1, "the drag is one commit: {:?}", shown.edits.borrow());
-        shown.view().center - CENTRE
-    };
-    let once = moved_by(Vec2::new(DRAG, 0.0));
-    let twice = moved_by(Vec2::new(2.0 * DRAG, 0.0));
-    assert!(once.x > 0.0 && once.y.abs() < 1e-6, "a drag to the right moves the view right: {once:?}");
-    assert!((twice.x - 2.0 * once.x).abs() < 1e-3 * twice.x, "the view moves by the distance dragged, not to the pointer: {once:?}, {twice:?}");
-}
-
-#[trial]
-fn escape_during_a_drag_puts_the_view_back() {
-    let mut shown = Shown::new(zoom_view(START), false);
-    let from = shown.frame().center();
-    shown.press_and_move(from, Vec2::new(DRAG, DRAG));
-    shown.fixture.key(Key::Escape, Modifiers::NONE);
-    shown.fixture.frame(vec![release(from + Vec2::new(DRAG, DRAG))]);
-    assert!(shown.edits.borrow().contains(&EditKind::Update), "the drag ran: {:?}", shown.edits.borrow());
-    assert_eq!(shown.view(), zoom_view(START), "Escape restores the view of the press");
-    assert_eq!(shown.ends(), 0, "a cancelled drag commits nothing: {:?}", shown.edits.borrow());
+        let from = shown.frame().center();
+        shown.press_and_move(from, Vec2::new(DRAG, DRAG));
+        shown.fixture.key(Key::Escape, Modifiers::NONE);
+        shown.fixture.frame(vec![release(from + Vec2::new(DRAG, DRAG))]);
+        assert!(shown.edits.borrow().contains(&EditKind::Update), "the drag ran: {:?}", shown.edits.borrow());
+        assert_eq!(shown.view(), zoom_view(START), "Escape restores the view of the press");
+        assert_eq!(shown.ends(), 0, "a cancelled drag commits nothing: {:?}", shown.edits.borrow());
+    }
 }
 
 #[trial]
@@ -346,16 +334,28 @@ fn an_arrow_key_pans_by_a_share_of_the_span_and_end_shows_the_document_end() {
 }
 
 #[trial]
-fn plus_and_minus_step_the_zoom_and_a_step_past_the_least_zoom_makes_no_edit() {
-    let mut shown = Shown::focused(zoom_view(START), false);
-    shown.fixture.key(Key::Equals, Modifiers::NONE);
-    assert!(shown.view().zoom > START && shown.view().center == CENTRE, "= steps in about the centre: {:?}", shown.view());
+fn zoom_in_and_the_keys_step_the_ladder_and_a_step_past_the_least_zoom_makes_no_edit() {
+    {
+        let mut shown = Shown::focused(zoom_view(START), false);
+        shown.fixture.key(Key::Equals, Modifiers::NONE);
+        assert!(shown.view().zoom > START && shown.view().center == CENTRE, "= steps in about the centre: {:?}", shown.view());
 
-    let least = zoom_view(ZoomLadder::min(DOC));
-    let mut shown = Shown::focused(least, true);
-    shown.fixture.key(Key::Minus, Modifiers::NONE);
-    assert_eq!(shown.view(), least, "the least zoom settles");
-    assert!(shown.edits.borrow().is_empty(), "and reports no edit: {:?}", shown.edits.borrow());
+        let least = zoom_view(ZoomLadder::min(DOC));
+        let mut shown = Shown::focused(least, true);
+        shown.fixture.key(Key::Minus, Modifiers::NONE);
+        assert_eq!(shown.view(), least, "the least zoom settles");
+        assert!(shown.edits.borrow().is_empty(), "and reports no edit: {:?}", shown.edits.borrow());
+    }
+    {
+        let view = Rc::new(RefCell::new(row_view(START)));
+        let mut fixture = zoom_row(&view, false);
+        fixture.settle();
+        let zoom_in = fixture.by_label("Zoom In").expect("the row has a Zoom In button");
+        fixture.click(&zoom_in).settle();
+        let after = *view.borrow();
+        assert!(after.zoom > START && after.zoom <= ZoomLadder::MAX, "one rung in: {after:?}");
+        assert_eq!(after.center, CENTRE, "the centre stays");
+    }
 }
 
 #[trial]

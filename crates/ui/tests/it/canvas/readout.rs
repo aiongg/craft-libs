@@ -67,21 +67,29 @@ fn find(fixture: &Fixture, word: &str) -> Rect {
 }
 
 #[trial]
-fn the_readout_shows_its_rows_beside_the_pointer_and_inside_the_window() {
-    let at = Rc::new(Cell::new(Pos2::new(100.0, 100.0)));
-    let mut fixture = fixture(&at, true);
-    fixture.settle();
-    let (width, value, angle) = (find(&fixture, "Width"), find(&fixture, "120 px"), find(&fixture, "Angle"));
-    find(&fixture, "15.0");
-    assert!(width.min.x > at.get().x && width.min.y > at.get().y, "beside the pointer, toward its lower end: {width:?}");
-    assert!(value.min.x > width.max.x, "the value follows the label");
-    assert!(angle.min.y >= width.max.y, "rows stack");
+fn the_readout_places_beside_the_pointer_clamps_to_the_window_and_empty_paints_nothing() {
+    {
+        let at = Rc::new(Cell::new(Pos2::new(100.0, 100.0)));
+        let mut fixture = fixture(&at, true);
+        fixture.settle();
+        let (width, value, angle) = (find(&fixture, "Width"), find(&fixture, "120 px"), find(&fixture, "Angle"));
+        find(&fixture, "15.0");
+        assert!(width.min.x > at.get().x && width.min.y > at.get().y, "beside the pointer, toward its lower end: {width:?}");
+        assert!(value.min.x > width.max.x, "the value follows the label");
+        assert!(angle.min.y >= width.max.y, "rows stack");
 
-    let window = fixture.ctx().content_rect();
-    at.set(window.max - Vec2::splat(4.0));
-    fixture.settle();
-    for word in ["Width", "120 px", "Angle", "15.0"] {
-        assert!(window.contains_rect(find(&fixture, word)), "{word} stays inside the window at its corner");
+        let window = fixture.ctx().content_rect();
+        at.set(window.max - Vec2::splat(4.0));
+        fixture.settle();
+        for word in ["Width", "120 px", "Angle", "15.0"] {
+            assert!(window.contains_rect(find(&fixture, word)), "{word} stays inside the window at its corner");
+        }
+    }
+    {
+        let at = Rc::new(Cell::new(Pos2::new(100.0, 100.0)));
+        let mut fixture = fixture(&at, false);
+        fixture.settle();
+        assert!(fixture.texts().iter().all(|text| text.text.is_empty()), "no words: {:?}", fixture.texts());
     }
 }
 
@@ -94,12 +102,4 @@ fn the_readout_mirrors_under_right_to_left() {
     let (label, value) = (find(&fixture, "Width"), find(&fixture, "120 px"));
     assert!(label.max.x < at.get().x, "the readout sits toward the reading end, to the pointer's left: {label:?}");
     assert!(label.min.x > value.max.x, "the label starts at the right and the value ends at the left");
-}
-
-#[trial]
-fn a_readout_with_no_rows_paints_nothing() {
-    let at = Rc::new(Cell::new(Pos2::new(100.0, 100.0)));
-    let mut fixture = fixture(&at, false);
-    fixture.settle();
-    assert!(fixture.texts().iter().all(|text| text.text.is_empty()), "no words: {:?}", fixture.texts());
 }

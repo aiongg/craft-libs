@@ -130,7 +130,7 @@ fn a_zoom_press_that_dragged_never_steps_whatever_the_rectangle() {
 }
 
 #[trial]
-fn the_rotate_drag_turns_the_view_and_shift_snaps_and_a_double_click_resets() {
+fn the_rotate_drag_turns_the_view_and_a_double_click_resets() {
     let mut turned = view();
     turned.rotation = 40.0;
     let mut tool = RotateViewTool::default();

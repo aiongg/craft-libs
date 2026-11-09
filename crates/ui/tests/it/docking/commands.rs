@@ -225,27 +225,49 @@ fn lock_and_reset_act_on_the_set_and_select_keeps_each_workspaces_edits() {
 }
 
 #[trial]
-fn the_switcher_reports_the_workspace_that_was_picked() {
-    let set = WorkspaceSet::new(vec![
-        NamedWorkspace::new("essentials", "Essentials", Workspace::<u32>::default()),
-        NamedWorkspace::new("painting", "Painting", Workspace::default()),
-    ]);
-    let reported: Rc<RefCell<Vec<Option<String>>>> = Rc::default();
-    let seen = Rc::clone(&reported);
-    let mut fixture = Fixture::new(move |ui| {
-        let out = WorkspaceSwitcher::new(&set).show(ui);
-        seen.borrow_mut().push(out.switched);
-    });
-    fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.idle(2);
-    fixture.key(Key::ArrowDown, Modifiers::ALT);
-    fixture.idle(2);
-    fixture.key(Key::ArrowDown, Modifiers::NONE);
-    fixture.idle(FADE_FRAMES);
-    fixture.key(Key::Enter, Modifiers::NONE);
-    fixture.idle(FADE_FRAMES);
-    assert!(reported.borrow().iter().any(|switched| switched.as_deref() == Some("painting")), "the pick is reported once as the workspace id");
+fn the_switcher_reports_the_pick_once_and_runs_the_bound_command_once() {
+    {
+        let set = WorkspaceSet::new(vec![
+            NamedWorkspace::new("essentials", "Essentials", Workspace::<u32>::default()),
+            NamedWorkspace::new("painting", "Painting", Workspace::default()),
+        ]);
+        let reported: Rc<RefCell<Vec<Option<String>>>> = Rc::default();
+        let seen = Rc::clone(&reported);
+        let mut fixture = Fixture::new(move |ui| {
+            let out = WorkspaceSwitcher::new(&set).show(ui);
+            seen.borrow_mut().push(out.switched);
+        });
+        fixture.settle();
+        fixture.key(Key::Tab, Modifiers::NONE);
+        fixture.idle(2);
+        fixture.key(Key::ArrowDown, Modifiers::ALT);
+        fixture.idle(2);
+        fixture.key(Key::ArrowDown, Modifiers::NONE);
+        fixture.idle(FADE_FRAMES);
+        fixture.key(Key::Enter, Modifiers::NONE);
+        fixture.idle(FADE_FRAMES);
+        assert!(reported.borrow().iter().any(|switched| switched.as_deref() == Some("painting")), "the pick is reported once as the workspace id");
+    }
+    {
+        let set = Rc::new(RefCell::new(WorkspaceSet::new(vec![NamedWorkspace::new("essentials", "Essentials", Workspace::<u32>::default())])));
+        let shown = Rc::clone(&set);
+        let mut fixture = Fixture::new(move |ui| {
+            let _ = WorkspaceSwitcher::new(&shown.borrow()).show(ui);
+        });
+        let mut live = Workspace::default();
+        fixture.settle();
+        let select = fixture.by_label("Choose a workspace").expect("the switcher has a node");
+        fixture.click(&select);
+        fixture.idle(FADE_FRAMES);
+        let more = fixture.by_label("More options").expect("the list has a header menu");
+        fixture.access(AccessActionKind::Click, &more);
+        fixture.idle(FADE_FRAMES);
+        let lock = fixture.by_label("Lock Workspace").expect("the header menu lists Lock Workspace");
+        fixture.access(AccessActionKind::Click, &lock);
+        fixture.idle(FADE_FRAMES);
+        run_fired(&fixture, &set, &mut live);
+        assert!(set.borrow().locked, "one pick of Lock runs the command once");
+    }
 }
 
 /// Runs the workspace commands fired since the last call, as a host that binds `WorkspaceCommands` does.
@@ -255,26 +277,4 @@ fn run_fired(fixture: &Fixture, set: &RefCell<WorkspaceSet<u32>>, live: &mut Wor
             run_workspace(&mut set.borrow_mut(), live, command);
         }
     }
-}
-
-#[trial]
-fn lock_picked_once_in_the_switcher_locks_the_set_of_a_host_that_binds_the_commands() {
-    let set = Rc::new(RefCell::new(WorkspaceSet::new(vec![NamedWorkspace::new("essentials", "Essentials", Workspace::<u32>::default())])));
-    let shown = Rc::clone(&set);
-    let mut fixture = Fixture::new(move |ui| {
-        let _ = WorkspaceSwitcher::new(&shown.borrow()).show(ui);
-    });
-    let mut live = Workspace::default();
-    fixture.settle();
-    let select = fixture.by_label("Choose a workspace").expect("the switcher has a node");
-    fixture.click(&select);
-    fixture.idle(FADE_FRAMES);
-    let more = fixture.by_label("More options").expect("the list has a header menu");
-    fixture.access(AccessActionKind::Click, &more);
-    fixture.idle(FADE_FRAMES);
-    let lock = fixture.by_label("Lock Workspace").expect("the header menu lists Lock Workspace");
-    fixture.access(AccessActionKind::Click, &lock);
-    fixture.idle(FADE_FRAMES);
-    run_fired(&fixture, &set, &mut live);
-    assert!(set.borrow().locked, "one pick of Lock runs the command once");
 }

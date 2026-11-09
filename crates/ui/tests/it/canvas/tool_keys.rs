@@ -71,19 +71,19 @@ impl CanvasTool for Transform {
 }
 
 #[trial]
-fn escape_discards_a_pending_edit_while_nothing_has_focus() {
-    let mut canvas = ToolFixture::new("Document", Transform::default());
-    canvas.fixture().settle();
-    canvas.fixture().key(Key::Escape, Modifiers::NONE);
-    assert_eq!(canvas.tool().answers, [Answer::Discard], "Escape reaches the tool before the canvas is clicked");
-}
-
-#[trial]
-fn enter_commits_a_pending_edit_while_nothing_has_focus() {
-    let mut canvas = ToolFixture::new("Document", Transform::default());
-    canvas.fixture().settle();
-    canvas.fixture().key(Key::Enter, Modifiers::NONE);
-    assert_eq!(canvas.tool().answers, [Answer::Commit], "Enter reaches the tool before the canvas is clicked");
+fn enter_commits_and_escape_discards_a_pending_edit_while_nothing_has_focus() {
+    {
+        let mut canvas = ToolFixture::new("Document", Transform::default());
+        canvas.fixture().settle();
+        canvas.fixture().key(Key::Escape, Modifiers::NONE);
+        assert_eq!(canvas.tool().answers, [Answer::Discard], "Escape reaches the tool before the canvas is clicked");
+    }
+    {
+        let mut canvas = ToolFixture::new("Document", Transform::default());
+        canvas.fixture().settle();
+        canvas.fixture().key(Key::Enter, Modifiers::NONE);
+        assert_eq!(canvas.tool().answers, [Answer::Commit], "Enter reaches the tool before the canvas is clicked");
+    }
 }
 
 #[trial]
@@ -173,49 +173,49 @@ fn focused_outline(os: Os, keeps: bool) -> ToolFixture<Outline> {
 }
 
 #[trial]
-fn a_tool_with_an_outline_open_takes_backspace_and_delete_with_alt_held_on_every_platform() {
-    for os in [Os::Linux, Os::Windows, Os::Mac] {
-        let mut canvas = focused_outline(os, true);
-        canvas.fixture().hold(Modifiers::ALT).settle();
-        canvas.fixture().key(Key::Backspace, Modifiers::NONE).key(Key::Delete, Modifiers::NONE);
+fn an_outline_takes_alt_backspace_and_delete_whether_open_or_opened_by_the_release() {
+    {
+        for os in [Os::Linux, Os::Windows, Os::Mac] {
+            let mut canvas = focused_outline(os, true);
+            canvas.fixture().hold(Modifiers::ALT).settle();
+            canvas.fixture().key(Key::Backspace, Modifiers::NONE).key(Key::Delete, Modifiers::NONE);
+            canvas.fixture().hold(Modifiers::NONE).settle();
+            let want = [Seen::Delete { forward: false }, Seen::Delete { forward: true }];
+            assert_eq!(canvas.tool().seen, want, "{os:?}: Backspace and Delete with Alt held reach the tool");
+        }
+    }
+    {
+        let mut canvas = ToolFixture::new("Document", Outline::new(false));
+        canvas.fixture().settle();
+        let at = canvas.canvas().center();
+        canvas.press_at(at);
+        // The key comes in the frame right after the release: the claim is made from the tool's state after it.
+        canvas.fixture().frame(vec![pointer::release(at)]).hold(Modifiers::ALT);
+        canvas.fixture().frame(vec![key_press(Key::Backspace, Modifiers::ALT)]).frame(vec![key_release(Key::Backspace, Modifiers::ALT)]);
         canvas.fixture().hold(Modifiers::NONE).settle();
-        let want = [Seen::Delete { forward: false }, Seen::Delete { forward: true }];
-        assert_eq!(canvas.tool().seen, want, "{os:?}: Backspace and Delete with Alt held reach the tool");
+        assert_eq!(canvas.tool().seen, [Seen::Delete { forward: false }], "the outline the release opened takes Alt+Backspace");
     }
 }
 
 #[trial]
-fn a_tool_whose_release_opens_an_outline_takes_alt_backspace_in_the_next_frame() {
-    let mut canvas = ToolFixture::new("Document", Outline::new(false));
-    canvas.fixture().settle();
-    let at = canvas.canvas().center();
-    canvas.press_at(at);
-    // The key comes in the frame right after the release: the claim is made from the tool's state after it.
-    canvas.fixture().frame(vec![pointer::release(at)]).hold(Modifiers::ALT);
-    canvas.fixture().frame(vec![key_press(Key::Backspace, Modifiers::ALT)]).frame(vec![key_release(Key::Backspace, Modifiers::ALT)]);
-    canvas.fixture().hold(Modifiers::NONE).settle();
-    assert_eq!(canvas.tool().seen, [Seen::Delete { forward: false }], "the outline the release opened takes Alt+Backspace");
-}
-
-#[trial]
-fn enter_and_escape_reach_a_tool_that_keeps_the_keyboard_as_submit_and_cancel() {
-    let mut canvas = focused_outline(Os::Linux, true);
-    canvas.fixture().key(Key::Enter, Modifiers::NONE).key(Key::Escape, Modifiers::NONE).key(Key::A, Modifiers::NONE);
-    let want = [Seen::Submit { alt: false }, Seen::Cancel { alt: false }, Seen::Kept];
-    assert_eq!(canvas.tool().seen, want, "the kept keys leave Enter and Escape to the intents");
-    canvas.fixture().key(Key::Backspace, Modifiers::NONE);
-    assert_eq!(canvas.tool().seen.last(), Some(&Seen::Delete { forward: false }), "Backspace stays a delete while the tool keeps the keyboard");
-}
-
-#[trial]
-fn alt_enter_and_alt_escape_reach_a_tool_with_alt_held() {
-    for keeps in [false, true] {
-        let mut canvas = focused_outline(Os::Linux, keeps);
-        canvas.fixture().hold(Modifiers::ALT).settle();
-        canvas.fixture().key(Key::Enter, Modifiers::NONE).key(Key::Escape, Modifiers::NONE);
-        canvas.fixture().hold(Modifiers::NONE).settle();
-        let want = [Seen::Submit { alt: true }, Seen::Cancel { alt: true }];
-        assert_eq!(canvas.tool().seen, want, "keeps the keyboard: {keeps}; Alt+Enter submits and Alt+Escape cancels with Alt");
+fn a_tool_that_keeps_the_keyboard_gets_enter_and_escape_plain_or_with_alt() {
+    {
+        let mut canvas = focused_outline(Os::Linux, true);
+        canvas.fixture().key(Key::Enter, Modifiers::NONE).key(Key::Escape, Modifiers::NONE).key(Key::A, Modifiers::NONE);
+        let want = [Seen::Submit { alt: false }, Seen::Cancel { alt: false }, Seen::Kept];
+        assert_eq!(canvas.tool().seen, want, "the kept keys leave Enter and Escape to the intents");
+        canvas.fixture().key(Key::Backspace, Modifiers::NONE);
+        assert_eq!(canvas.tool().seen.last(), Some(&Seen::Delete { forward: false }), "Backspace stays a delete while the tool keeps the keyboard");
+    }
+    {
+        for keeps in [false, true] {
+            let mut canvas = focused_outline(Os::Linux, keeps);
+            canvas.fixture().hold(Modifiers::ALT).settle();
+            canvas.fixture().key(Key::Enter, Modifiers::NONE).key(Key::Escape, Modifiers::NONE);
+            canvas.fixture().hold(Modifiers::NONE).settle();
+            let want = [Seen::Submit { alt: true }, Seen::Cancel { alt: true }];
+            assert_eq!(canvas.tool().seen, want, "keeps the keyboard: {keeps}; Alt+Enter submits and Alt+Escape cancels with Alt");
+        }
     }
 }
 

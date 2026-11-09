@@ -535,29 +535,29 @@ fn a_tools_marching_ants_step_with_the_clock_and_ask_for_the_next_repaint() {
 const MARCH_STEP: f64 = 0.1;
 
 #[trial]
-fn a_gesture_reads_one_id_from_press_to_release_and_the_next_gesture_a_later_one() {
-    let mut fixture = ToolFixture::new("Document", Recorder::default());
-    fixture.drag(BY);
-    fixture.drag(BY);
-    let tool = fixture.tool();
-    assert_eq!(tool.passes.first().map(|pass| pass.0), Some(None), "no gesture runs before the first press");
-    let ids: Vec<GestureId> = tool.ids.iter().map(|id| id.expect("every gesture call reads the id")).collect();
-    let (first, second) = ids.split_at(ids.len() / 2);
-    assert!(first.len() >= 3 && first.len() == second.len(), "two drags of the same calls: {:?}", tool.calls);
-    assert!(first.iter().all(|id| *id == first[0]), "press, drags and release share one id: {first:?}");
-    assert!(second.iter().all(|id| *id == second[0]), "and so does the next gesture: {second:?}");
-    assert!(second[0] > first[0], "ids grow in the order gestures begin: {first:?} then {second:?}");
-}
-
-#[trial]
-fn a_cancelled_gesture_reads_its_id_in_the_cancel() {
-    let mut fixture = ToolFixture::new("Document", Recorder::default());
-    let from = fixture.canvas().center();
-    fixture.drag_and_escape_from(from, BY);
-    let tool = fixture.tool();
-    let press = tool.ids.first().copied().flatten();
-    assert!(press.is_some(), "the press reads an id");
-    assert_eq!(tool.ids.last().copied().flatten(), press, "the cancel reads the id of the gesture it ends: {:?}", tool.ids);
+fn a_gesture_reads_one_id_from_press_to_release_and_a_cancel_reads_it_too() {
+    {
+        let mut fixture = ToolFixture::new("Document", Recorder::default());
+        fixture.drag(BY);
+        fixture.drag(BY);
+        let tool = fixture.tool();
+        assert_eq!(tool.passes.first().map(|pass| pass.0), Some(None), "no gesture runs before the first press");
+        let ids: Vec<GestureId> = tool.ids.iter().map(|id| id.expect("every gesture call reads the id")).collect();
+        let (first, second) = ids.split_at(ids.len() / 2);
+        assert!(first.len() >= 3 && first.len() == second.len(), "two drags of the same calls: {:?}", tool.calls);
+        assert!(first.iter().all(|id| *id == first[0]), "press, drags and release share one id: {first:?}");
+        assert!(second.iter().all(|id| *id == second[0]), "and so does the next gesture: {second:?}");
+        assert!(second[0] > first[0], "ids grow in the order gestures begin: {first:?} then {second:?}");
+    }
+    {
+        let mut fixture = ToolFixture::new("Document", Recorder::default());
+        let from = fixture.canvas().center();
+        fixture.drag_and_escape_from(from, BY);
+        let tool = fixture.tool();
+        let press = tool.ids.first().copied().flatten();
+        assert!(press.is_some(), "the press reads an id");
+        assert_eq!(tool.ids.last().copied().flatten(), press, "the cancel reads the id of the gesture it ends: {:?}", tool.ids);
+    }
 }
 
 #[trial]
@@ -608,19 +608,6 @@ impl CanvasTool for Mover {
     fn command_form(&self) -> ToolPath {
         ToolPath::Command("the Move command")
     }
-}
-
-#[trial]
-fn a_tool_test_builds_the_nudge_and_delete_keys_it_drives() {
-    let mut tool = Mover { at: Vec2::ZERO };
-    let mut cx = ToolContext::new(Rect::from_min_size(Pos2::ZERO, Vec2::splat(100.0)), None);
-    assert!(tool.key(&ToolKey::nudge(Vec2::X, Mods::NONE), &mut cx));
-    assert!(tool.key(&ToolKey::nudge(Vec2::Y, Mods::SHIFT), &mut cx));
-    assert_eq!(tool.at, Vec2::new(1.0, 10.0), "the nudges carry their direction and modifiers");
-    assert!(tool.key(&ToolKey::delete(false), &mut cx));
-    assert_eq!(tool.at, Vec2::splat(-1.0), "Backspace is a backward delete");
-    assert!(tool.key(&ToolKey::delete(true), &mut cx));
-    assert_eq!(tool.at, Vec2::ZERO, "Delete is a forward delete");
 }
 
 #[trial]

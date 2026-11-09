@@ -28,18 +28,30 @@ fn view_at(center: Point, zoom: f64) -> CanvasView {
 }
 
 #[trial]
-fn without_overscroll_the_view_stays_on_the_document() {
-    let large = DocRect::new(0.0, 0.0, 1000.0, 800.0);
-    let mut view = view_at(Point::new(-50.0, 100.0), 1.0);
-    assert!(CanvasScrollbars::clamp(&mut view, large), "a view past the edge moves");
-    assert_eq!(view.center, Point::new(200.0, 150.0), "the view's edges meet the document's");
-    assert!(!CanvasScrollbars::clamp(&mut view, large), "a view on the document stays");
+fn the_overscroll_choice_gates_scrolling_past_the_document() {
+    {
+        let large = DocRect::new(0.0, 0.0, 1000.0, 800.0);
+        let mut view = view_at(Point::new(-50.0, 100.0), 1.0);
+        assert!(CanvasScrollbars::clamp(&mut view, large), "a view past the edge moves");
+        assert_eq!(view.center, Point::new(200.0, 150.0), "the view's edges meet the document's");
+        assert!(!CanvasScrollbars::clamp(&mut view, large), "a view on the document stays");
 
-    let small = DocRect::new(0.0, 0.0, 100.0, 100.0);
-    let mut view = view_at(Point::new(0.0, 0.0), 1.0);
-    assert!(!CanvasScrollbars::clamp(&mut view, small), "a document smaller than the view may sit anywhere inside it");
-    let mut view = view_at(Point::new(-500.0, 0.0), 1.0);
-    assert!(CanvasScrollbars::clamp(&mut view, small), "but not leave it");
+        let small = DocRect::new(0.0, 0.0, 100.0, 100.0);
+        let mut view = view_at(Point::new(0.0, 0.0), 1.0);
+        assert!(!CanvasScrollbars::clamp(&mut view, small), "a document smaller than the view may sit anywhere inside it");
+        let mut view = view_at(Point::new(-500.0, 0.0), 1.0);
+        assert!(CanvasScrollbars::clamp(&mut view, small), "but not leave it");
+    }
+    {
+        let small = DocRect::new(0.0, 0.0, 100.0, 100.0);
+        for (overscroll, scrolls) in [(false, false), (true, true)] {
+            let mut shown = shown(small, overscroll);
+            let bar = shown.fixture.by_label("Horizontal scroll bar").expect("the bar has a node");
+            let before = shown.view.borrow().center;
+            drag_from(&mut shown.fixture, bar.rect.left_center() + Vec2::new(GRIP, 0.0), Vec2::new(DRAG, 0.0));
+            assert_eq!(shown.view.borrow().center != before, scrolls, "overscroll {overscroll}");
+        }
+    }
 }
 
 #[trial]
@@ -101,16 +113,4 @@ fn pressing_the_track_pages_by_one_screenful_toward_the_press() {
     let page = f64::from(VIEW.width()) / ZOOM;
     let moved = shown.view.borrow().center.x;
     assert!((moved - page).abs() < 1e-6, "paged {moved}, a screenful is {page}");
-}
-
-#[trial]
-fn only_overscroll_lets_a_document_smaller_than_the_window_scroll() {
-    let small = DocRect::new(0.0, 0.0, 100.0, 100.0);
-    for (overscroll, scrolls) in [(false, false), (true, true)] {
-        let mut shown = shown(small, overscroll);
-        let bar = shown.fixture.by_label("Horizontal scroll bar").expect("the bar has a node");
-        let before = shown.view.borrow().center;
-        drag_from(&mut shown.fixture, bar.rect.left_center() + Vec2::new(GRIP, 0.0), Vec2::new(DRAG, 0.0));
-        assert_eq!(shown.view.borrow().center != before, scrolls, "overscroll {overscroll}");
-    }
 }
