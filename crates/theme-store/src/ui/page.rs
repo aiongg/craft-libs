@@ -108,7 +108,7 @@ impl<'a> AppearancePage<'a> {
         let mut held = Held::new(draft);
         let mut toggled = None;
         let mut changed = false;
-        let shown = FieldGroup::new(words.appearance.clone()).show(ui, |ui, cx| {
+        let mut shown = FieldGroup::new(words.appearance.clone()).show(ui, |ui, cx| {
             let before = held.read(cx).unwrap_or_default();
             let mut now = before.clone();
             let shown = now.applied_to(&client.shown());
@@ -166,7 +166,11 @@ impl<'a> AppearancePage<'a> {
             if let Some(motion) = pick(ui, &words.motion, "motion", shown.motion.unwrap_or_default(), &motions) {
                 now.motion = Some(motion);
             }
-            if now != before {
+            (now != before).then_some((before, now))
+        });
+        // Once per pass, after the real run: the edit the body decided is written.
+        shown.settle(|cx, edit| {
+            if let Some((before, now)) = edit.take() {
                 changed = true;
                 held.write(cx, &before, now, words.appearance.as_str());
             }

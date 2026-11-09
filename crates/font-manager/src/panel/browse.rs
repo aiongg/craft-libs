@@ -491,7 +491,7 @@ impl Component for FamilyCard {
     }
 
     fn paint(&mut self, ui: &mut craft_ui::contract::PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let Some(placed) = self.placed.take() else { return };
+        let Some(placed) = self.placed.as_ref() else { return };
         let style = cx.style;
         let words = cx.env.words::<FontsBrowseWords>();
         {
