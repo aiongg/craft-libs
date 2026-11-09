@@ -1321,9 +1321,16 @@ impl<'b> BodyHooks<'b> {
                 // offers it: a body taller than that scrolls instead of covering the anchor.
                 let ctx = ui.ctx();
                 let own = Rect::from_min_max(ui.cursor().min, ui.cursor().min);
-                let last = crate::runtime::overlay::entry(ctx, id).and_then(|entry| entry.anchor);
                 let rtl = Env::of(ui).direction.is_rtl();
-                match super::overlay::measuring_room(ctx, overlay, own, areas::layer_to_screen(ctx, ui.layer_id()), last, rtl) {
+                match super::overlay::measuring_room(
+                    ctx,
+                    id,
+                    overlay,
+                    own,
+                    areas::layer_to_screen(ctx, ui.layer_id()),
+                    Env::of(ui).tokens.space.pad.panel,
+                    rtl,
+                ) {
                     Some(side) => side.min(room),
                     None => room,
                 }

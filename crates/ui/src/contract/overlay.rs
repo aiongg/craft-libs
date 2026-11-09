@@ -1349,39 +1349,44 @@ fn opened_overlay(ctx: &Context, overlay: &Overlay) -> Option<Overlay> {
     Some(resolved)
 }
 
-/// The room a layer's body is measured in before the layer is placed, from where its anchor is in this pass: the
-/// room `content_room` offers. `last` is the anchor the layer was placed at in an earlier pass, which an anchor the host
-/// reads from memory (`Pointer`, `Viewport`) needs; `None` when no anchor is known yet.
+fn anchor_rect(ctx: &Context, layer: &Layer<'_>, bounds: Rect, memory: &mut LayerMemory) -> Rect {
+    resolved_anchor(ctx, layer.overlay, layer.anchor, bounds, layer.env.tokens.space.pad.panel, &mut memory.pointer_at)
+}
+
+/// The anchor rect of `overlay` in screen space, the one rule the host and the body's measuring run share: a
+/// `Viewport` anchor from the safe rect `bounds` less `inset`, a `Pointer` anchor from `pointer_at` (the pointer where
+/// the layer opened, taken from the pointer now when none is recorded), any other from `resolved`.
+fn resolved_anchor(ctx: &Context, overlay: &Overlay, resolved: Rect, bounds: Rect, inset: f32, pointer_at: &mut Option<Pos2>) -> Rect {
+    let point = |at: Pos2| Rect::from_min_max(at, at);
+    match &overlay.place {
+        Place::Anchored { anchor: Anchor::Viewport(at), .. } => point(at.pos_in_rect(&bounds.shrink(inset))),
+        Place::Anchored { anchor: Anchor::Pointer, .. } => {
+            point(*pointer_at.get_or_insert_with(|| areas::pointer_pos(ctx).unwrap_or(bounds.center())))
+        }
+        _ => resolved,
+    }
+}
+
+/// The room a layer's body is measured in before the layer is placed: `content_room` for the anchor as the host
+/// resolves it in this pass. `id` is the layer, whose memory holds the pointer where it opened. `own` and `own_to_screen` are the owner's rect and its layer's map to screen space.
 pub(crate) fn measuring_room(
     ctx: &Context,
+    id: Id,
     overlay: &Overlay,
     own: Rect,
     own_to_screen: egui::emath::TSTransform,
-    last: Option<Rect>,
+    inset: f32,
     rtl: bool,
 ) -> Option<egui::Vec2> {
     let opened = opened_overlay(ctx, overlay);
     let overlay = opened.as_ref().unwrap_or(overlay);
-    let Place::Anchored { anchor, .. } = &overlay.place else { return None };
-    let anchor = match anchor {
-        Anchor::Viewport(_) | Anchor::Pointer => last?,
-        _ => resolve_anchor(ctx, overlay, own, own_to_screen),
-    };
-    Some(content_room(overlay, areas::safe_rect(ctx), anchor, rtl))
-}
-
-fn anchor_rect(ctx: &Context, layer: &Layer<'_>, bounds: Rect, memory: &mut LayerMemory) -> Rect {
-    let point = |at: Pos2| Rect::from_min_max(at, at);
-    match &layer.overlay.place {
-        Place::Anchored { anchor: Anchor::Viewport(at), .. } => {
-            let inset = layer.env.tokens.space.pad.panel;
-            point(at.pos_in_rect(&bounds.shrink(inset)))
-        }
-        Place::Anchored { anchor: Anchor::Pointer, .. } => {
-            point(*memory.pointer_at.get_or_insert_with(|| areas::pointer_pos(ctx).unwrap_or(bounds.center())))
-        }
-        _ => layer.anchor,
+    if !matches!(overlay.place, Place::Anchored { .. }) {
+        return None;
     }
+    let bounds = areas::safe_rect(ctx);
+    let resolved = resolve_anchor(ctx, overlay, own, own_to_screen);
+    let anchor = resolved_anchor(ctx, overlay, resolved, bounds, inset, &mut MemoryStage::peek::<LayerMemory>(ctx, memory_slot(id)).pointer_at);
+    Some(content_room(overlay, bounds, anchor, rtl))
 }
 
 /// The most a layer's body may take: the fit's share of the safe rect `bounds`, at least as wide as the layer's
