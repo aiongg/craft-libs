@@ -77,13 +77,13 @@ mod value_drag;
 mod values;
 mod windows_kit;
 
-use craft_ui::testing::{TRIALS, registered, suite};
+use craft_ui::testing::{registered, suite, trials};
 use libtest_mimic::{Arguments, Trial};
 
 fn main() {
     let args = Arguments::from_args();
-    let mut trials: Vec<Trial> = TRIALS
-        .iter()
+    let mut trials: Vec<Trial> = trials()
+        .into_iter()
         .map(|trial| {
             let run = trial.run;
             Trial::test(trial.full_name(), move || {

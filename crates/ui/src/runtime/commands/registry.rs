@@ -34,10 +34,15 @@ impl SetEntry {
     }
 }
 
-/// Every command set linked into the running binary.
+inventory::collect!(SetEntry);
+
+/// Every command set linked into the running binary, by type name.
 #[doc(hidden)]
-#[linkme::distributed_slice]
-pub static COMMAND_SETS: [SetEntry];
+pub fn sets() -> Vec<&'static SetEntry> {
+    let mut sets: Vec<_> = inventory::iter::<SetEntry>().collect();
+    sets.sort_by_key(|entry| (entry.name)());
+    sets
+}
 
 /// Registers the command set `$ty`, so `install` loads it.
 #[doc(hidden)]
@@ -45,15 +50,15 @@ pub static COMMAND_SETS: [SetEntry];
 macro_rules! __register_command_set {
     ($ty:ty) => {
         const _: () = {
-            #[$crate::__private::linkme::distributed_slice($crate::runtime::commands::COMMAND_SETS)]
-            #[linkme(crate = $crate::__private::linkme)]
-            static REGISTRATION: $crate::runtime::commands::SetEntry = $crate::runtime::commands::SetEntry::new(
-                ::std::any::type_name::<$ty>,
-                <$ty as $crate::runtime::commands::CommandSet>::defs,
-                <$ty as $crate::runtime::commands::CommandSet>::no_default_on,
-                <$ty as $crate::runtime::commands::CommandSet>::edits,
-                <$ty as $crate::runtime::commands::CommandSet>::platform_defaults,
-            );
+            $crate::__private::inventory::submit! {
+                $crate::runtime::commands::SetEntry::new(
+                    ::std::any::type_name::<$ty>,
+                    <$ty as $crate::runtime::commands::CommandSet>::defs,
+                    <$ty as $crate::runtime::commands::CommandSet>::no_default_on,
+                    <$ty as $crate::runtime::commands::CommandSet>::edits,
+                    <$ty as $crate::runtime::commands::CommandSet>::platform_defaults,
+                )
+            }
         };
     };
 }
@@ -125,7 +130,7 @@ impl Registry {
     /// Loads every linked set.
     pub(crate) fn load() -> Result<Registry, CommandDefError> {
         let mut registry = Registry::default();
-        for entry in COMMAND_SETS {
+        for entry in sets() {
             for def in (entry.defs)()? {
                 registry.add(def)?;
             }

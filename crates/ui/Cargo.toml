@@ -13,7 +13,7 @@ autotests = false
 test = false
 
 # The `[workspace.lints]` tables of the root manifest, with `unsafe_code` at `deny` instead of `forbid`: with the
-# `testing` feature, registrations written by the derives inside this crate expand `linkme`'s `link_section`
+# `testing` feature, registrations written by the derives inside this crate expand `inventory`'s `link_section`
 # statics from a macro this crate defines, which `forbid` rejects (a macro from another crate is exempt). The
 # derives write `#[allow(unsafe_code)]` on the registration block when they expand inside craft-ui, and the
 # design-lint rule `contract/unsafe-allow` rejects every other `allow(unsafe_code)` in the crate.
@@ -58,7 +58,7 @@ craft-quit = { workspace = true }
 craft-i18n = { workspace = true, features = ["collate"] }
 log = "0.4"
 smallvec = { workspace = true }
-linkme = "0.3"
+inventory = "0.3.25"
 serde = { workspace = true }
 # `patterns::preferences::SettingsDocument` turns an app's settings struct into a draft table and back; `toml_edit` gives
 # the struct's field order, which a `toml::Table` sorts away.

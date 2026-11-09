@@ -387,11 +387,20 @@ impl Registration {
     }
 }
 
-/// Every registration in the running binary.
+#[cfg(feature = "testing")]
+inventory::collect!(Registration);
+
+/// Every registration in the running binary, by crate, module and type name.
 #[doc(hidden)]
 #[cfg(feature = "testing")]
-#[linkme::distributed_slice]
-pub static REGISTRATIONS: [Registration];
+pub fn registrations() -> Vec<&'static Registration> {
+    let mut all: Vec<_> = inventory::iter::<Registration>().collect();
+    all.sort_by_key(|registration| match registration {
+        Registration::Component(probe) => (probe.crate_name, probe.crate_target, probe.module, probe.type_name()),
+        Registration::Pattern(probe) => (probe.crate_name, probe.crate_target, probe.module, probe.type_name()),
+    });
+    all
+}
 
 /// Registers the component type `$ty` of shape `$shape` (`leaf`, `container` or `collection`) with its declarations:
 /// `$overlay`, the `($case, $reason)` exemptions, the optional `$sample` constructor (`fn() -> $ty`, leaves only)
@@ -428,13 +437,13 @@ macro_rules! __register_contract {
 macro_rules! __register_probe {
     ($ty:ty, $shape:ident, $overlay:expr, [$(($case:expr, $reason:expr)),*], $purpose:expr, $($with:tt)*) => {
         const EXEMPT: &[$crate::contract::Exemption] = &[$($crate::contract::Exemption::new($case, $reason)),*];
-        #[$crate::__private::linkme::distributed_slice($crate::contract::REGISTRATIONS)]
-        #[linkme(crate = $crate::__private::linkme)]
-        static REGISTRATION: $crate::contract::Registration = $crate::contract::Registration::component(
-            $crate::contract::Probe::$shape::<$ty>(env!("CARGO_PKG_NAME"), env!("CARGO_CRATE_NAME"), module_path!(), $overlay, EXEMPT)
-                .with_purpose($purpose)
-                $($with)*,
-        );
+        $crate::__private::inventory::submit! {
+            $crate::contract::Registration::component(
+                $crate::contract::Probe::$shape::<$ty>(env!("CARGO_PKG_NAME"), env!("CARGO_CRATE_NAME"), module_path!(), $overlay, EXEMPT)
+                    .with_purpose($purpose)
+                    $($with)*,
+            )
+        }
     };
 }
 
@@ -448,14 +457,11 @@ macro_rules! __register_pattern {
         $crate::__register_pattern!($ty, $purpose, of);
     };
     ($ty:ty, $purpose:expr, $probe:ident) => {
-        const _: () =
-            {
-                #[$crate::__private::linkme::distributed_slice($crate::contract::REGISTRATIONS)]
-                #[linkme(crate = $crate::__private::linkme)]
-                static REGISTRATION: $crate::contract::Registration = $crate::contract::Registration::pattern(
-                    $crate::contract::PatternProbe::$probe::<$ty>(env!("CARGO_PKG_NAME"), env!("CARGO_CRATE_NAME"), module_path!(), $purpose),
-                );
-            };
+        $crate::__private::inventory::submit! {
+            $crate::contract::Registration::pattern(
+                $crate::contract::PatternProbe::$probe::<$ty>(env!("CARGO_PKG_NAME"), env!("CARGO_CRATE_NAME"), module_path!(), $purpose),
+            )
+        }
     };
 }
 
