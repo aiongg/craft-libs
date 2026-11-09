@@ -3,8 +3,8 @@
 use super::bar_words::CropBarWords;
 use super::menus::{CropOptionsMenu, CropOverlayMenu};
 use super::options::{
-    CROP_RATIOS, CROP_SIZES, CropLength, CropPresetChoice, CropRatio, CropSettings, CropSizeFields, CropUserPreset, FIELD_MAX, RATIO_DECIMALS,
-    RATIO_MAX, RATIO_STEP, ResolutionUnit,
+    CROP_RATIOS, CROP_SIZES, CropLength, CropPresetChoice, CropRatio, CropSettings, CropSizeFields, CropUserPreset, FIELD_MAX, LENGTH_MIN,
+    RATIO_DECIMALS, RATIO_MAX, RATIO_STEP, ResolutionUnit,
 };
 use super::session::CropDocument;
 use craft_behavior::{EditEvent, IconId, NumberCodec};
@@ -381,11 +381,12 @@ fn length_field(ui: &mut Ui, salt: &'static str, caption: &Label, value: &mut Op
     let mut typed = None;
     Field::new(caption.clone()).id_salt(salt).layout(FieldLayout::Caption(CAPTION)).sizing(Sizing::Content).show(ui, |ui, _| {
         let lengths = LengthUnits::new(unit, unit, pixels_per_inch);
-        let field = NumberField::length(caption.clone(), Bind::given(value.map(|length| length.value)), lengths).range(0.0..=FIELD_MAX).show(ui);
+        let field =
+            NumberField::length(caption.clone(), Bind::given(value.map(|length| length.value)), lengths).range(LENGTH_MIN..=FIELD_MAX).show(ui);
         typed = field.value().copied();
     });
     let Some(next) = typed else { return false };
-    let next = next.filter(|length| *length > 0.0).map(|length| CropLength::new(length, unit));
+    let next = next.map(|length| CropLength::new(length, unit));
     let changed = next != *value;
     *value = next;
     changed

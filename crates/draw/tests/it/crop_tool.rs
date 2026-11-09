@@ -11,16 +11,24 @@ use craft_keymap::{Chord, Key, Mods};
 use craft_ui::canvas::{Canvas, CanvasSpace, CanvasTool as _, ToolContext, ToolHost, ToolKey};
 use craft_ui::contract::ShowContainer as _;
 use craft_ui::runtime::access::Role;
-use craft_ui::runtime::env::UnitKind;
-use craft_ui::testing::{Fixture, pointer, trial};
+use craft_ui::runtime::env::{Env, UnitKind, Units};
+use craft_ui::testing::{Fixture, Frames, pointer, trial};
 use egui::{Pos2, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
 const SIZE: Size = Size::new(400.0, 300.0);
 
+/// The units of the default scope (PostScript points).
+fn units() -> Units {
+    let mut frames = Frames::new();
+    let mut units = None;
+    frames.frame(vec![], |ui| units = Some(Env::of(ui).units()));
+    units.expect("the frame ran")
+}
+
 fn document(key: u64) -> CropDocument {
-    CropDocument::new(CropDocKey::new(key), SIZE)
+    CropDocument::new(CropDocKey::new(key), SIZE, 72.0)
 }
 
 fn upright(x0: f64, y0: f64, x1: f64, y1: f64) -> CropBox {
@@ -94,7 +102,7 @@ fn the_tool_always_shows_a_frame() {
     assert!(!run.tool.session().pending());
 
     run.tool.crop_to(upright(100.0, 80.0, 300.0, 220.0));
-    let Some(CropEvent::Apply(commit)) = run.tool.apply(&run.settings, &run.document) else { panic!("a drawn frame applies") };
+    let Some(CropEvent::Apply(commit)) = run.tool.apply(&run.settings, &run.document, &units()) else { panic!("a drawn frame applies") };
     assert_eq!(commit.frame, upright(100.0, 80.0, 300.0, 220.0));
     run.tool.applied(true);
     run.settle();
@@ -104,7 +112,7 @@ fn the_tool_always_shows_a_frame() {
     assert_eq!(run.tool.discard(), Some(CropEvent::Discard));
     run.settle();
     assert_eq!(run.frame(), Some(canvas), "a new default frame after a discard");
-    assert_eq!(run.tool.apply(&run.settings, &run.document), None, "the default frame does not apply");
+    assert_eq!(run.tool.apply(&run.settings, &run.document, &units()), None, "the default frame does not apply");
 }
 
 #[trial]
@@ -157,7 +165,7 @@ fn o_h_p_i_act_only_with_a_frame() {
     assert_eq!(fill, Some((CropRatio::Size, Some(CropLength::new(400.0, UnitKind::Pixels)))), "I fills the size fields from the document");
 
     let mut empty = Run::new(CropSettings::default());
-    empty.document = CropDocument::new(CropDocKey::new(1), Size::ZERO);
+    empty.document = CropDocument::new(CropDocKey::new(1), Size::ZERO, 72.0);
     empty.settle();
     assert_eq!(empty.frame(), None);
     for letter in [Key::O, Key::H, Key::P] {
@@ -221,7 +229,7 @@ fn editing_a_ratio_refits_from_the_frame_the_edit_began_with() {
     let mut settings = run.settings.clone();
     let mut refit = |tool: &mut CropTool, width: f64, height: f64, editing: bool| {
         settings.ratio = CropRatio::sides(width, height);
-        let Some(CropEvent::Frame(event)) = tool.refit(&settings, &document, editing) else { return None };
+        let Some(CropEvent::Frame(event)) = tool.refit(&settings, &document, &units(), editing) else { return None };
         event.value().copied()
     };
 
@@ -241,7 +249,7 @@ fn a_second_document_discards_a_drawn_frame() {
     let mut run = Run::new(classic());
     run.settle();
     run.tool.crop_to(upright(100.0, 80.0, 300.0, 220.0));
-    run.document = CropDocument::new(CropDocKey::new(2), Size::new(200.0, 100.0));
+    run.document = CropDocument::new(CropDocKey::new(2), Size::new(200.0, 100.0), 72.0);
     let (_, events) = run.pass(0.0, Mods::NONE, |_, _| ());
     assert!(events.contains(&CropEvent::Discard), "{events:?}");
     assert_eq!(run.frame(), Some(upright(0.0, 0.0, 200.0, 100.0)), "the new document gets its own default frame");
@@ -251,14 +259,14 @@ fn a_second_document_discards_a_drawn_frame() {
 fn leaving_applies_a_drawn_frame_and_a_refused_commit_restores_it() {
     let mut run = Run::new(classic());
     run.settle();
-    assert_eq!(run.tool.leave(&run.settings, &run.document, false), None, "the default frame is dropped");
+    assert_eq!(run.tool.leave(&run.settings, &run.document, &units(), false), None, "the default frame is dropped");
     assert_eq!(run.frame(), None);
     run.settle();
 
     let drawn = upright(100.0, 80.0, 300.0, 220.0);
     run.tool.crop_to(drawn);
-    assert_eq!(run.tool.leave(&run.settings, &run.document, true), None, "a kept frame stays");
-    let Some(CropEvent::Apply(commit)) = run.tool.leave(&run.settings, &run.document, false) else { panic!("a drawn frame applies") };
+    assert_eq!(run.tool.leave(&run.settings, &run.document, &units(), true), None, "a kept frame stays");
+    let Some(CropEvent::Apply(commit)) = run.tool.leave(&run.settings, &run.document, &units(), false) else { panic!("a drawn frame applies") };
     assert_eq!(commit.frame, drawn);
     // A refusal of the Apply from leaving clears the session: the next tool does not retry it.
     run.tool.applied(false);
@@ -266,7 +274,7 @@ fn leaving_applies_a_drawn_frame_and_a_refused_commit_restores_it() {
     run.settle();
 
     run.tool.crop_to(drawn);
-    let Some(CropEvent::Apply(_)) = run.tool.apply(&run.settings, &run.document) else { panic!("a drawn frame applies") };
+    let Some(CropEvent::Apply(_)) = run.tool.apply(&run.settings, &run.document, &units()) else { panic!("a drawn frame applies") };
     // The app's command changed the box history; the refusal gives it back.
     run.tool.undo();
     run.tool.applied(false);
@@ -279,7 +287,7 @@ fn a_document_switch_drops_the_kept_frame() {
     let mut run = Run::new(classic());
     run.settle();
     run.tool.crop_to(upright(100.0, 80.0, 300.0, 220.0));
-    let Some(CropEvent::Apply(_)) = run.tool.apply(&run.settings, &run.document) else { panic!("a drawn frame applies") };
+    let Some(CropEvent::Apply(_)) = run.tool.apply(&run.settings, &run.document, &units()) else { panic!("a drawn frame applies") };
     run.document = document(2);
     run.settle();
     run.tool.applied(false);
@@ -308,7 +316,7 @@ fn rect_of(session: &CropSession) -> Option<Rect> {
 }
 
 fn sized(key: u64, width: f64, height: f64) -> CropDocument {
-    CropDocument::new(CropDocKey::new(key), Size::new(width, height))
+    CropDocument::new(CropDocKey::new(key), Size::new(width, height), 72.0)
 }
 
 #[trial]
@@ -577,11 +585,11 @@ fn leaving_during_a_drag_waits_for_the_release() {
         let mut host = rig.host.borrow_mut();
         let Host { tool, settings, document, .. } = &mut *host;
         assert!(tool.dragging());
-        assert_eq!(tool.leave(settings, document, false), None, "a drag keeps the frame pending");
+        assert_eq!(tool.leave(settings, document, &units(), false), None, "a drag keeps the frame pending");
     }
     rig.fixture.frame(vec![pointer::release(from + Vec2::new(40.0, 20.0))]);
     rig.fixture.frame(Vec::new());
     let mut host = rig.host.borrow_mut();
     let Host { tool, settings, document, .. } = &mut *host;
-    assert!(matches!(tool.leave(settings, document, false), Some(CropEvent::Apply(_))), "after the release the drawn frame applies");
+    assert!(matches!(tool.leave(settings, document, &units(), false), Some(CropEvent::Apply(_))), "after the release the drawn frame applies");
 }

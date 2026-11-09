@@ -11,6 +11,8 @@ use egui::{Key, Modifiers, Vec2, vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
+/// The resolution of the test document.
+const PIXELS_PER_INCH: f64 = 72.0;
 const PANEL_ROOM: Vec2 = vec2(420.0, 900.0);
 const BAR_ROOM: Vec2 = vec2(900.0, 120.0);
 
@@ -72,7 +74,7 @@ fn panel(layer: &Rc<RefCell<Layer>>) -> Fixture {
         let mut layer = shown.borrow_mut();
         let (shape, look) = (layer.shape.clone(), layer.look.clone());
         let mut open = layer.open;
-        let out = ShapePanel::new("Shape properties", &shape, &look).stroke_open(Bind::bound(&mut open)).show(ui);
+        let out = ShapePanel::new("Shape properties", &shape, &look, PIXELS_PER_INCH).stroke_open(Bind::bound(&mut open)).show(ui);
         layer.open = open;
         layer.take(out.events);
     });
@@ -86,7 +88,7 @@ fn bar(kind: ShapeKind, layer: &Rc<RefCell<Layer>>) -> Fixture {
     let mut fixture = Fixture::new(move |ui| {
         let mut layer = shown.borrow_mut();
         let (settings, look) = (layer.settings, layer.look.clone());
-        let out = Bar::new("Shape options", BarKind::Options).show(ui, |ui, _| ShapeBar::new(kind, &settings, &look).show(ui)).inner;
+        let out = Bar::new("Shape options", BarKind::Options).show(ui, |ui, _| ShapeBar::new(kind, &settings, &look, PIXELS_PER_INCH).show(ui)).inner;
         layer.take(out.into_iter().flat_map(|out| out.events).collect());
     });
     fixture.room(BAR_ROOM);

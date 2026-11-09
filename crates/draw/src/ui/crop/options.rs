@@ -13,12 +13,15 @@ use super::session::CropDocument;
 /// The largest number a ratio side keeps: 99,999 (PhotoCraft's ratio fields).
 pub const RATIO_MAX: f64 = 99_999.0;
 /// What one arrow press on a ratio field adds to its side.
-pub(super) const RATIO_STEP: f64 = 1.0;
+pub const RATIO_STEP: f64 = 1.0;
 /// Decimals a ratio side keeps and shows: 3, so 1.414 : 1 (ISO A sizes) survives (#6487).
 pub const RATIO_DECIMALS: usize = 3;
 /// The largest number a length or resolution field keeps: 1e9 (the crop command refuses what is
 /// past a canvas or resolution limit with its own message).
 pub const FIELD_MAX: f64 = 1e9;
+/// The smallest length a W or H field keeps, in the field's own unit: a typed 0 or negative number lands here
+/// (the field's two decimals), so a length is always positive.
+pub const LENGTH_MIN: f64 = 0.01;
 
 /// What the frame's proportions follow.
 #[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -298,14 +301,14 @@ impl CropSettings {
     /// [`CropRatio::Original`], the sides' for [`CropRatio::Sides`], W : H of the
     /// [`target`](Self::target) for [`CropRatio::Size`]; `None` for a free ratio and for any
     /// ratio that is not a positive finite number.
-    pub fn ratio_value(&self, document: &CropDocument) -> Option<f64> {
+    pub fn ratio_value(&self, document: &CropDocument, units: &Units) -> Option<f64> {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:217 `preset_ratio`; crop_size.rs:146 `ratio`.
         let (width, height) = match self.ratio {
             CropRatio::Free => return None,
             CropRatio::Original => (document.size.width, document.size.height),
             CropRatio::Sides { width, height } => (width, height),
             CropRatio::Size => {
-                let target = self.target(document)?;
+                let target = self.target(document, units)?;
                 (target.width, target.height)
             }
         };
@@ -315,8 +318,8 @@ impl CropSettings {
     /// The size the commit resamples to, in W × H × Resolution mode with both W and H holding
     /// lengths; `None` otherwise (W or H empty is a free crop: no resample). Physical lengths
     /// convert at the typed resolution, else at the document's; points and picas at the
-    /// document's points per inch. A bare number is in pixels.
-    pub fn target(&self, document: &CropDocument) -> Option<CropTarget> {
+    /// the environment's points per inch (`units`). A bare number is in pixels.
+    pub fn target(&self, document: &CropDocument, units: &Units) -> Option<CropTarget> {
         // pc: crates/ui-egui/src/tools/crop_size.rs:131 `target`, :122 `resolution_ppi` (px/cm × 2.54),
         // :71 `parse_length` (positive, at most 1e9, no percent, ',' read as '.').
         if self.ratio != CropRatio::Size {
@@ -326,7 +329,7 @@ impl CropSettings {
         let dpi = resolution.unwrap_or(document.resolution);
         let pixels = |length: Option<CropLength>| {
             let length = CropLength::usable(length)?;
-            let px = length.unit.to_pixels(length.value, 0.0, dpi, document.points_per_inch)?;
+            let px = length.unit.to_pixels(length.value, 0.0, dpi, units.points_per_inch())?;
             (px.is_finite() && px > 0.0).then_some(px)
         };
         Some(CropTarget { width: pixels(self.size.width)?, height: pixels(self.size.height)?, resolution })

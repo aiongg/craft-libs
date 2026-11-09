@@ -76,8 +76,9 @@ pub struct ShapePanel<'a> {
 }
 
 impl<'a> ShapePanel<'a> {
-    /// The panel named `label` for `shape` with `appearance`.
-    pub fn new(label: impl Into<Label>, shape: &'a LiveShape, appearance: &'a ShapeAppearance) -> Self {
+    /// The panel named `label` for `shape` with `appearance`, in a document of `pixels_per_inch`, which sizes a length typed in
+    /// inches or points.
+    pub fn new(label: impl Into<Label>, shape: &'a LiveShape, appearance: &'a ShapeAppearance, pixels_per_inch: f64) -> Self {
         ShapePanel {
             label: label.into(),
             shape,
@@ -87,7 +88,7 @@ impl<'a> ShapePanel<'a> {
             fallbacks: (Srgba::BLACK, Srgba::WHITE),
             sections: (true, true),
             sampled: None,
-            pixels_per_inch: DEFAULT_PIXELS_PER_INCH,
+            pixels_per_inch,
         }
     }
 
@@ -124,13 +125,6 @@ impl<'a> ShapePanel<'a> {
     #[must_use]
     pub fn sampled(mut self, sampled: Option<(ShapePaint, Srgba)>) -> Self {
         self.sampled = sampled;
-        self
-    }
-
-    /// The document's pixels per inch, which sizes a length typed in inches or points. 72 by default.
-    #[must_use]
-    pub fn pixels_per_inch(mut self, pixels_per_inch: f64) -> Self {
-        self.pixels_per_inch = pixels_per_inch;
         self
     }
 
@@ -240,8 +234,6 @@ impl NumberCell {
     }
 }
 
-/// The pixels per inch of a document that names none (the web default).
-pub(super) const DEFAULT_PIXELS_PER_INCH: f64 = 72.0;
 /// The most decimals a length in pixels shows.
 const PIXEL_DECIMALS: usize = 2;
 /// The most decimals a percentage shows.

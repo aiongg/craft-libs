@@ -32,29 +32,21 @@ pub struct CropDocument {
     pub key: CropDocKey,
     /// The canvas size in document units (pixels).
     pub size: Size,
-    /// The document's resolution in px/in: 72 by default.
+    /// The document's resolution in px/in.
     pub resolution: f64,
-    /// Points per inch for points and picas: 72 (PostScript, the default) or 72.27.
-    pub points_per_inch: f64,
     /// The selection's bounds clipped to the canvas, when there is a selection.
     pub selection: Option<Rect>,
 }
 
 impl CropDocument {
-    /// Document `key` of `size`, at 72 px/in, 72 points per inch, no selection.
-    pub fn new(key: CropDocKey, size: Size) -> Self {
-        Self { key, size, resolution: 72.0, points_per_inch: 72.0, selection: None }
+    /// Document `key` of `size` at `resolution` px/in, no selection.
+    pub fn new(key: CropDocKey, size: Size, resolution: f64) -> Self {
+        Self { key, size, resolution, selection: None }
     }
 
     /// The resolution in px/in.
     pub fn resolution(mut self, ppi: f64) -> Self {
         self.resolution = ppi;
-        self
-    }
-
-    /// Points per inch (Preferences › Units & Rulers › Point/Pica Size).
-    pub fn points_per_inch(mut self, points_per_inch: f64) -> Self {
-        self.points_per_inch = points_per_inch;
         self
     }
 

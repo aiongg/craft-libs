@@ -60,11 +60,14 @@ fn apply_all(events: Vec<EditEvent<ShapeChange>>, shape: &mut LiveShape, look: &
     }
 }
 
+/// The resolution of the stories' document.
+const DOCUMENT_PIXELS_PER_INCH: f64 = 72.0;
+
 fn panel(ui: &mut Ui, data: &mut StoryData, start: LiveShape) -> StoryOutput {
     let shape = data.value("shape", start).clone();
     let appearance = data.value("look", look()).clone();
     let mut open = *data.value("open", false);
-    let out = ShapePanel::new("Shape properties", &shape, &appearance).stroke_open(Bind::bound(&mut open)).show(ui);
+    let out = ShapePanel::new("Shape properties", &shape, &appearance, DOCUMENT_PIXELS_PER_INCH).stroke_open(Bind::bound(&mut open)).show(ui);
     *data.value("open", false) = open;
     let (mut next, mut next_look) = (shape, appearance);
     apply_all(out.events, &mut next, &mut next_look);
@@ -93,7 +96,7 @@ fn bar(ui: &mut Ui, data: &mut StoryData, kind: ShapeKind) -> StoryOutput {
     let appearance = data.value("look", look()).clone();
     let mut open = *data.value("open", false);
     let out = Bar::new("Shape options", BarKind::Options)
-        .show(ui, |ui, _| ShapeBar::new(kind, &settings, &appearance).stroke_open(Bind::bound(&mut open)).show(ui))
+        .show(ui, |ui, _| ShapeBar::new(kind, &settings, &appearance, DOCUMENT_PIXELS_PER_INCH).stroke_open(Bind::bound(&mut open)).show(ui))
         .inner;
     *data.value("open", false) = open;
     let (mut shape, mut next_look) = (rectangle(), appearance);
