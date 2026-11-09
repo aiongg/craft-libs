@@ -95,63 +95,11 @@ pub use craft_window as window;
 #[cfg(feature = "ui")]
 pub use egui;
 
-/// The types an app imports first: the host handle, a dialog stack, edit events and the theme
+/// The types an app imports first: the host handle, a dialog stack, the dialog outcome and the theme
 /// tokens.
 pub mod prelude {
     pub use craft_host::{AppInfo, Host, Section};
+    pub use craft_theme::Tokens;
     #[cfg(feature = "ui")]
-    pub use craft_ui::{
-        dialog::{DialogStack, Outcome},
-        edit::EditEvent,
-        theme::Tokens,
-    };
-}
-
-/// Every story of every enabled crate.
-#[cfg(feature = "ui")]
-pub mod story {
-    use craft_ui::story::Story;
-
-    /// Every story: the kernel's first, then the family crates alphabetically, each only when its
-    /// feature is on.
-    pub fn all() -> Vec<Story> {
-        craft_ui::story::registry()
-    }
-}
-
-/// Every labels table of every enabled crate, for the catalog extraction and the missing list.
-#[cfg(feature = "ui")]
-pub mod words {
-    use craft_ui::localized::Word;
-    use craft_ui::localized::words::Counted;
-
-    /// Every labels table: the kernel's, then the family crates' alphabetically, each only when
-    /// its feature is on. craft-font-manager's fonts panel keeps its words in a catalog of its own;
-    /// the picker, Glyphs panel, Missing Fonts dialog and axis sliders are listed.
-    pub fn all() -> Vec<&'static [Word]> {
-        let mut all: Vec<&'static [Word]> = craft_ui::localized::words::tables().to_vec();
-        #[cfg(any(feature = "platform", feature = "dialogs"))]
-        all.push(service_messages());
-        all
-    }
-
-    /// The messages the platform services and the save flow word with `PlatformText`, as one table
-    /// of words (the services have no catalog; the app looks the ids up in its own).
-    #[cfg(any(feature = "platform", feature = "dialogs"))]
-    fn service_messages() -> &'static [Word] {
-        static TABLE: std::sync::OnceLock<Vec<Word>> = std::sync::OnceLock::new();
-        TABLE.get_or_init(|| {
-            let mut words: Vec<Word> = Vec::new();
-            #[cfg(feature = "platform")]
-            words.extend(craft_platform::texts().iter().map(|t| Word::keyed(t.id, t.english)));
-            #[cfg(feature = "dialogs")]
-            words.extend(craft_dialogs::save::TEXTS.iter().map(|t| Word::keyed(t.id, t.english)));
-            words
-        })
-    }
-
-    /// The counted words (singular and plural forms) of every enabled crate that has them.
-    pub fn counts() -> Vec<&'static [Counted]> {
-        vec![craft_ui::localized::words::COUNTS]
-    }
+    pub use craft_ui::{contract::Outcome, dialog::DialogStack};
 }

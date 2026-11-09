@@ -13,7 +13,6 @@ const SHARED: &[&str] = &["ui", "screen-testing"];
 const NATIVE_ONLY: &[(&str, &str)] = &[
     ("dialogs", "native only: rfd's folder picker and file paths"),
     ("font-manager", "native only: needs craft-font-store's store and network client"),
-    ("ui-window-restore", "native only: the window-restore store"),
     ("update", "native only: downloads and installs through getrandom without wasm support"),
     ("window-restore", "native only: the window-restore store"),
     ("window-restore-eframe", "native only: the window-restore store"),
@@ -65,7 +64,7 @@ fn expected(members: &[Member]) -> String {
     ui.extend(forwarded_to_all(members, "ui"));
     out += &line("ui", &ui, None);
     out += "\n";
-    let mut testing = vec!["ui".to_owned(), "craft-ui/screen-testing".to_owned()];
+    let mut testing = vec!["ui".to_owned(), "craft-ui/testing".to_owned()];
     testing.extend(forwarded_to_all(members, "screen-testing"));
     out += &line("screen-testing", &testing, None);
     out += "\n";
