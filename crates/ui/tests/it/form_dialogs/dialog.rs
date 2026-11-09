@@ -118,54 +118,51 @@ fn reset_rig(alt: bool, alt_resets: bool) -> (Fixture, Rc<RefCell<DialogFields>>
     (fixture, fields, open)
 }
 
-/// Holding Alt turns Cancel into Reset, which restores the opening values and keeps the dialog open; with
-/// `alt_resets(false)` the button stays Cancel.
 #[trial]
-fn alt_turns_cancel_into_reset_and_reset_keeps_the_dialog_open() {
-    let (plain, ..) = reset_rig(false, true);
-    assert!(plain.by_label("Cancel").is_some() && plain.by_label("Reset").is_none(), "Cancel without Alt");
+fn the_reset_footer_turns_cancel_into_reset_with_alt_and_serves_any_dialog() {
+    {
+        let (plain, ..) = reset_rig(false, true);
+        assert!(plain.by_label("Cancel").is_some() && plain.by_label("Reset").is_none(), "Cancel without Alt");
 
-    let (kept, ..) = reset_rig(true, false);
-    assert!(kept.by_label("Cancel").is_some() && kept.by_label("Reset").is_none(), "Cancel with Alt when alt_resets is off");
+        let (kept, ..) = reset_rig(true, false);
+        assert!(kept.by_label("Cancel").is_some() && kept.by_label("Reset").is_none(), "Cancel with Alt when alt_resets is off");
 
-    let (mut held, fields, open) = reset_rig(true, true);
-    assert!(held.by_label("Reset").is_some() && held.by_label("Cancel").is_none(), "Reset with Alt");
-    let opening = fields.borrow().number("width");
-    fields.borrow_mut().set("width", 700.0);
-    held.idle(3);
-    assert_ne!(fields.borrow().number("width"), opening, "the value was edited");
-    let reset = held.by_label("Reset").expect("the Reset button is shown");
-    held.click(&reset);
-    held.idle(3);
-    assert_eq!(fields.borrow().number("width"), opening, "Reset restores the opening value");
-    assert!(open.get(), "Reset keeps the dialog open");
-}
-
-/// A second dialog built on `ResetFooter` swaps its button the same way and reads the pick from `DialogOutput::picked`.
-#[trial]
-fn the_shared_reset_footer_serves_any_dialog() {
-    let picked = Rc::new(Cell::new(None));
-    for alt in [false, true] {
-        let seen = Rc::clone(&picked);
-        let mut fixture = Fixture::new(move |ui| {
-            let mut open = true;
-            let footer = ResetFooter::new(ui, None, true);
-            let shown = Dialog::new("Other")
-                .opened(Bind::bound(&mut open))
-                .buttons(footer.buttons(FooterButton::new("OK", DialogRole::Accept), true))
-                .show(ui, |_, _| {});
-            if let Some(pick) = footer.pick(shown.output.picked) {
-                seen.set(Some(pick));
-            }
-        });
-        fixture.hold(if alt { Modifiers::ALT } else { Modifiers::NONE });
-        fixture.settle();
-        let (shown, hidden) = if alt { ("Reset", "Cancel") } else { ("Cancel", "Reset") };
-        assert!(fixture.by_label(shown).is_some() && fixture.by_label(hidden).is_none(), "the second button is {shown} (alt: {alt})");
-        let button = fixture.by_label(shown).expect("the second button is shown");
-        fixture.click(&button);
-        fixture.idle(2);
-        assert_eq!(picked.get(), Some(if alt { ResetPick::Reset } else { ResetPick::Cancel }), "the footer answers with the pick (alt: {alt})");
+        let (mut held, fields, open) = reset_rig(true, true);
+        assert!(held.by_label("Reset").is_some() && held.by_label("Cancel").is_none(), "Reset with Alt");
+        let opening = fields.borrow().number("width");
+        fields.borrow_mut().set("width", 700.0);
+        held.idle(3);
+        assert_ne!(fields.borrow().number("width"), opening, "the value was edited");
+        let reset = held.by_label("Reset").expect("the Reset button is shown");
+        held.click(&reset);
+        held.idle(3);
+        assert_eq!(fields.borrow().number("width"), opening, "Reset restores the opening value");
+        assert!(open.get(), "Reset keeps the dialog open");
+    }
+    {
+        let picked = Rc::new(Cell::new(None));
+        for alt in [false, true] {
+            let seen = Rc::clone(&picked);
+            let mut fixture = Fixture::new(move |ui| {
+                let mut open = true;
+                let footer = ResetFooter::new(ui, None, true);
+                let shown = Dialog::new("Other")
+                    .opened(Bind::bound(&mut open))
+                    .buttons(footer.buttons(FooterButton::new("OK", DialogRole::Accept), true))
+                    .show(ui, |_, _| {});
+                if let Some(pick) = footer.pick(shown.output.picked) {
+                    seen.set(Some(pick));
+                }
+            });
+            fixture.hold(if alt { Modifiers::ALT } else { Modifiers::NONE });
+            fixture.settle();
+            let (shown, hidden) = if alt { ("Reset", "Cancel") } else { ("Cancel", "Reset") };
+            assert!(fixture.by_label(shown).is_some() && fixture.by_label(hidden).is_none(), "the second button is {shown} (alt: {alt})");
+            let button = fixture.by_label(shown).expect("the second button is shown");
+            fixture.click(&button);
+            fixture.idle(2);
+            assert_eq!(picked.get(), Some(if alt { ResetPick::Reset } else { ResetPick::Cancel }), "the footer answers with the pick (alt: {alt})");
+        }
     }
 }
 

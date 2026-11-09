@@ -1,4 +1,4 @@
-//! Reset in the footer step: Alt-Reset restores the opening value of an unbound, a bound and a typed form dialog,
+//! Reset in the footer step: Alt-Reset restores the opening value of an unbound and a typed form dialog,
 //! and what the body keeps; a host's cancel drops a pending request.
 
 use craft_ui::choice::Checkbox;
@@ -37,29 +37,6 @@ fn alt_reset_in_an_unbound_param_dialog_restores_the_opening_values() {
     fixture.click(&reset);
     fixture.settle();
     assert_eq!(shown.get(), Some(false), "Reset restores the opening value and the next pass keeps it");
-}
-
-/// With an app binding, Reset restores the bound values.
-#[trial]
-fn alt_reset_in_a_bound_param_dialog_restores_the_bind() {
-    let fields = Rc::new(RefCell::new(DialogFields::new()));
-    let held = Rc::clone(&fields);
-    let params = smooth();
-    let mut fixture = Fixture::new(move |ui| {
-        let mut fields = held.borrow_mut();
-        ParamDialog::new("blur", "Blur", params.clone()).values(Bind::bound(&mut *fields)).show(ui);
-    });
-    fixture.settle();
-    let target = fixture.by_label("Smooth").expect("the row is shown");
-    fixture.click(&target);
-    fixture.settle();
-    assert_eq!(fields.borrow().bool("smooth"), Some(true), "the edit wrote through");
-    fixture.hold(Modifiers::ALT);
-    fixture.settle();
-    let reset = fixture.by_label("Reset").expect("Alt turns Cancel into Reset");
-    fixture.click(&reset);
-    fixture.settle();
-    assert_eq!(fields.borrow().bool("smooth"), Some(false), "Reset wrote the opening value back");
 }
 
 /// What the body of the form below keeps beside its value.

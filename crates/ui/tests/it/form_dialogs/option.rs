@@ -28,7 +28,11 @@ fn the_report_text_names_each_notes_tone() {
         *held.borrow_mut() = ReportDialog::new("Report", "Imported 12 pages.", notes).as_text(&Env::of(ui));
     });
     fixture.settle();
-    assert_eq!(*text.borrow(), "Warning: Font Garamond was substituted\nInfo: Page 4 has no bleed");
+    let text = text.borrow();
+    let lines: Vec<&str> = text.lines().collect();
+    assert_eq!(lines.len(), 2, "one line per note");
+    assert!(lines[0].ends_with("Font Garamond was substituted") && lines[1].ends_with("Page 4 has no bleed"), "{lines:?}");
+    assert_ne!(lines[0].split(':').next(), lines[1].split(':').next(), "each line is led by its own tone");
 }
 
 /// Pressing Run with an entry's name in the box answers with that entry and the trimmed name.

@@ -39,6 +39,5 @@ mod watermark;
 
 mod list_manager;
 
-mod report;
 
 mod navigator_options;

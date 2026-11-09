@@ -14,24 +14,47 @@ use std::rc::Rc;
 /// The artboards of the document the ranges are checked against.
 const ARTBOARDS: usize = 5;
 
-/// A refused setting is worded from the values the check reports; an unknown rule keeps craft-pdf's message.
 #[trial]
-fn check_messages_come_from_words_with_their_values() {
-    let words = PdfExportWords::english();
-    let mut settings = PdfSettings::default();
-    settings.compression.color.ppi = 5.0;
-    let error = settings.check_values().expect_err("a resolution of 5 ppi is refused");
-    assert_eq!(words.error_text(&error), "Compression › Color images › to must be 9–2400 ppi (got 5)");
+fn check_messages_come_from_words_with_their_values_and_a_missing_artboard_range_errs() {
+    {
+        let words = PdfExportWords::english();
+        let mut settings = PdfSettings::default();
+        settings.compression.color.ppi = 5.0;
+        let error = settings.check_values().expect_err("a resolution of 5 ppi is refused");
+        assert_eq!(words.error_text(&error), "Compression › Color images › to must be 9–2400 ppi (got 5)");
 
-    let settings = PdfSettings {
-        output: OutputSettings { conversion: ColorConversion::Destination, destination: "Nowhere".to_owned(), ..OutputSettings::default() },
-        ..PdfSettings::default()
-    };
-    let error = settings.check(&()).expect_err("no profile is called Nowhere");
-    assert_eq!(words.error_text(&error), "Destination: no RGB or CMYK profile is called “Nowhere”");
+        let settings = PdfSettings {
+            output: OutputSettings { conversion: ColorConversion::Destination, destination: "Nowhere".to_owned(), ..OutputSettings::default() },
+            ..PdfSettings::default()
+        };
+        let error = settings.check(&()).expect_err("no profile is called Nowhere");
+        assert_eq!(words.error_text(&error), "Destination: no RGB or CMYK profile is called “Nowhere”");
 
-    let unknown = SettingsError { id: "newRule", message: "a new rule".to_owned(), values: Vec::new() };
-    assert_eq!(words.error_text(&unknown), "a new rule");
+        let unknown = SettingsError { id: "newRule", message: "a new rule".to_owned(), values: Vec::new() };
+        assert_eq!(words.error_text(&unknown), "a new rule");
+    }
+    {
+        let (mut fixture, _) = open_on(PdfSettings::default());
+        let radios = fixture.by_role(Role::RADIO_BUTTON);
+        fixture.click(&radios[1]);
+        fixture.settle();
+        let range = |fixture: &Fixture| {
+            fixture.by_role(Role::TEXT_INPUT).into_iter().find(|field| fixture.tree().name_of(field.node) == Some("Range")).expect("the range field")
+        };
+        let type_range = |fixture: &mut Fixture, text: &str| {
+            let field = range(fixture);
+            fixture.click(&field);
+            fixture.key(egui::Key::A, Modifiers::COMMAND);
+            fixture.type_text(text);
+            fixture.settle();
+        };
+        type_range(&mut fixture, "1-3, 5");
+        assert!(!fixture.texts().iter().any(|run| run.text.starts_with("Range `")), "a range inside the document shows no error");
+        type_range(&mut fixture, "9");
+        assert!(shows(&fixture, "Range `9`: `9` is not a number from 1 to 5"), "out of bounds");
+        type_range(&mut fixture, "4-2");
+        assert!(shows(&fixture, "Range `4-2`: `4-2` runs backwards"), "backwards");
+    }
 }
 
 /// Alt-Reset restores what the dialog keeps beside the settings: the artboard choice and the password switch.
@@ -101,31 +124,6 @@ fn go_to(fixture: &mut Fixture, section: &str) {
 
 fn shows(fixture: &Fixture, text: &str) -> bool {
     fixture.texts().iter().any(|run| run.text == text)
-}
-
-/// A typed range names artboards the document has or the dialog says why not, in the words of the check that failed.
-#[trial]
-fn an_artboard_range_the_document_does_not_have_shows_its_error() {
-    let (mut fixture, _) = open_on(PdfSettings::default());
-    let radios = fixture.by_role(Role::RADIO_BUTTON);
-    fixture.click(&radios[1]);
-    fixture.settle();
-    let range = |fixture: &Fixture| {
-        fixture.by_role(Role::TEXT_INPUT).into_iter().find(|field| fixture.tree().name_of(field.node) == Some("Range")).expect("the range field")
-    };
-    let type_range = |fixture: &mut Fixture, text: &str| {
-        let field = range(fixture);
-        fixture.click(&field);
-        fixture.key(egui::Key::A, Modifiers::COMMAND);
-        fixture.type_text(text);
-        fixture.settle();
-    };
-    type_range(&mut fixture, "1-3, 5");
-    assert!(!fixture.texts().iter().any(|run| run.text.starts_with("Range `")), "a range inside the document shows no error");
-    type_range(&mut fixture, "9");
-    assert!(shows(&fixture, "Range `9`: `9` is not a number from 1 to 5"), "out of bounds");
-    type_range(&mut fixture, "4-2");
-    assert!(shows(&fixture, "Range `4-2`: `4-2` runs backwards"), "backwards");
 }
 
 /// The Summary lists each option that differs from the preset, as "Section › Setting: value".

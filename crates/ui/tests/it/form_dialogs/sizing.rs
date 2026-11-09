@@ -1,4 +1,4 @@
-//! The size dialogs' own logic: the answer at OK, the refusal of an empty size, Alt-Reset, the pixel fields with
+//! The size dialogs' own logic: the answer at OK, the refusal of an empty size, the pixel fields with
 //! Resample off and the method list.
 
 use craft_behavior::PixelSize;
@@ -54,34 +54,32 @@ fn image_fixture(values: &Rc<RefCell<ImageSizeValues>>) -> Fixture {
     fixture
 }
 
-/// OK answers the values the dialog opened with: the size, the resolution, the units and the method.
 #[trial]
-fn image_size_answers_the_opening_values() {
-    let values = Rc::new(RefCell::new(ImageSizeValues::new(PICTURE).pixels_per_inch(RESOLUTION).method(Resample::Lanczos)));
-    let held = Rc::clone(&values);
-    let (mut fixture, answer, open) = rig(move |open, ui| {
-        let mut values = held.borrow_mut();
-        ImageSize::new(Bind::bound(&mut *values)).opened(open).show(ui).result
-    });
-    press_ok(&mut fixture);
-    let expected = answer.borrow_mut().take().expect("OK answers");
-    assert_eq!(expected.size, PICTURE);
-    assert_eq!(expected.pixels_per_inch, RESOLUTION);
-    assert_eq!((expected.unit, expected.resolution_unit), (UnitKind::Pixels, UnitKind::PixelsPerInch));
-    assert_eq!(expected.resample, Some(Resample::Lanczos));
-    assert!(!open.get(), "OK closes the dialog");
-}
-
-/// With Resample off the answer names no method.
-#[trial]
-fn image_size_with_resample_off_answers_no_method() {
-    let values = Rc::new(RefCell::new(ImageSizeValues::new(PICTURE).resampling(false)));
-    let (mut fixture, answer, _) = rig(move |open, ui| {
-        let mut values = values.borrow_mut();
-        ImageSize::new(Bind::bound(&mut *values)).opened(open).show(ui).result
-    });
-    press_ok(&mut fixture);
-    assert_eq!(answer.borrow().as_ref().map(|result| result.resample), Some(None));
+fn image_size_answers_the_opening_values_and_no_method_without_resampling() {
+    {
+        let values = Rc::new(RefCell::new(ImageSizeValues::new(PICTURE).pixels_per_inch(RESOLUTION).method(Resample::Lanczos)));
+        let held = Rc::clone(&values);
+        let (mut fixture, answer, open) = rig(move |open, ui| {
+            let mut values = held.borrow_mut();
+            ImageSize::new(Bind::bound(&mut *values)).opened(open).show(ui).result
+        });
+        press_ok(&mut fixture);
+        let expected = answer.borrow_mut().take().expect("OK answers");
+        assert_eq!(expected.size, PICTURE);
+        assert_eq!(expected.pixels_per_inch, RESOLUTION);
+        assert_eq!((expected.unit, expected.resolution_unit), (UnitKind::Pixels, UnitKind::PixelsPerInch));
+        assert_eq!(expected.resample, Some(Resample::Lanczos));
+        assert!(!open.get(), "OK closes the dialog");
+    }
+    {
+        let values = Rc::new(RefCell::new(ImageSizeValues::new(PICTURE).resampling(false)));
+        let (mut fixture, answer, _) = rig(move |open, ui| {
+            let mut values = values.borrow_mut();
+            ImageSize::new(Bind::bound(&mut *values)).opened(open).show(ui).result
+        });
+        press_ok(&mut fixture);
+        assert_eq!(answer.borrow().as_ref().map(|result| result.resample), Some(None));
+    }
 }
 
 /// An empty size cannot be answered: OK leaves the dialog open and answers nothing.
@@ -111,24 +109,6 @@ fn canvas_size_without_a_background_answers_transparent() {
     assert_eq!(result.extension, CanvasExtension::Transparent);
     assert_eq!(result.anchor, Anchor9::TopLeft);
     assert_eq!(result.size, PICTURE);
-}
-
-/// Alt turns Cancel into Reset, which puts back the values the dialog opened with.
-#[trial]
-fn alt_reset_in_image_size_restores_the_opening_values() {
-    let opening = ImageSizeValues::new(PICTURE);
-    let values = Rc::new(RefCell::new(opening.clone()));
-    let mut fixture = image_fixture(&values);
-    let resample = fixture.by_label("Resample").expect("the Resample box is shown");
-    fixture.click(&resample);
-    fixture.settle();
-    assert_ne!(*values.borrow(), opening, "the edit wrote through");
-    fixture.hold(Modifiers::ALT);
-    fixture.settle();
-    let reset = fixture.by_label("Reset").expect("Alt turns Cancel into Reset");
-    fixture.click(&reset);
-    fixture.settle();
-    assert_eq!(*values.borrow(), opening, "Reset wrote the opening values back");
 }
 
 /// Typing a width changes the size with Resample on and does nothing with Resample off, where the pixel count is

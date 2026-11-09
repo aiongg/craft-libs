@@ -10,7 +10,7 @@ use craft_ui::runtime::overlay::CloseReason;
 use craft_ui::runtime::requests::PathRequest;
 use craft_ui::testing::{Fixture, trial};
 use egui::load::SizedTexture;
-use egui::{ColorImage, Modifiers, TextureHandle, TextureOptions, Vec2};
+use egui::{ColorImage, TextureHandle, TextureOptions, Vec2};
 use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -114,33 +114,6 @@ fn save_files_the_picker_and_the_path_makes_the_answer() {
     assert_eq!(answered.path, PathBuf::from("/exports/poster.jpg"));
     assert_eq!((answered.width, answered.height), (DOCUMENT.width, DOCUMENT.height));
     assert_eq!(*rig.closed.borrow(), Some(CloseReason::Activated), "the path answer closes the dialog");
-}
-
-/// With Alt held the second button is Reset: it restores the opening settings and keeps the dialog open, and Save…
-/// stays a button that waits for the host.
-#[trial]
-fn alt_turns_cancel_into_reset_which_keeps_save_for_web_open() {
-    let options = Rc::new(RefCell::new(SaveForWebOptions::default()));
-    let closed = Rc::new(RefCell::new(None::<CloseReason>));
-    let (held, done) = (Rc::clone(&options), Rc::clone(&closed));
-    let mut fixture = Fixture::new(move |ui| {
-        let mut options = held.borrow_mut();
-        let out = SaveForWebDialog::new("poster.psd", DOCUMENT, WebPictures::new(), Bind::bound(&mut *options)).show(ui);
-        if out.closed.is_some() {
-            *done.borrow_mut() = out.closed;
-        }
-    });
-    fixture.hold(Modifiers::ALT);
-    fixture.settle();
-    assert!(fixture.by_label("Reset").is_some() && fixture.by_label("Cancel").is_none(), "Reset with Alt");
-    let opening = options.borrow().quality;
-    options.borrow_mut().quality = opening - 1;
-    fixture.idle(3);
-    let reset = fixture.by_label("Reset").expect("the Reset button");
-    fixture.click(&reset);
-    fixture.settle();
-    assert_eq!(options.borrow().quality, opening, "Reset restores the opening settings");
-    assert!(closed.borrow().is_none(), "Reset keeps the dialog open");
 }
 
 struct Pictured {

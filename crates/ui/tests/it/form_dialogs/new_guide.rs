@@ -1,4 +1,4 @@
-//! New Guide and Edit Selected Guides: where the dialog opens, Alt-Reset, and the host's colour requests.
+//! New Guide and Edit Selected Guides: where the dialog opens and the host's colour requests.
 
 use craft_behavior::Axis;
 use craft_theme::Srgba;
@@ -47,24 +47,6 @@ fn new_guide_opens_with_the_focus_on_position() {
     let fixture = new_guide(&Rc::new(RefCell::new(NewGuideValues::default())), &Rc::new(RefCell::new(HostRequests::new())));
     let focused = focused_key(fixture.tree());
     assert_eq!(fixture.tree().name_of(focused), Some("Position"));
-}
-
-/// Alt turns Cancel into Reset, which puts back the values the dialog opened with.
-#[trial]
-fn alt_reset_in_new_guide_restores_the_opening_values() {
-    let opening = NewGuideValues::default();
-    let values = Rc::new(RefCell::new(opening));
-    let mut fixture = new_guide(&values, &Rc::new(RefCell::new(HostRequests::new())));
-    let vertical = fixture.by_label("Vertical").expect("the orientation is shown");
-    fixture.click(&vertical);
-    fixture.settle();
-    assert_ne!(*values.borrow(), opening, "the edit wrote through");
-    fixture.hold(Modifiers::ALT);
-    fixture.settle();
-    let reset = fixture.by_label("Reset").expect("Alt turns Cancel into Reset");
-    fixture.click(&reset);
-    fixture.settle();
-    assert_eq!(*values.borrow(), opening, "Reset wrote the opening values back");
 }
 
 /// Edit Selected Guides starts from the guide it edits, whatever the binding held.

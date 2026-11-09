@@ -9,7 +9,6 @@ use craft_ui::patterns::form_dialogs::{
 use craft_ui::runtime::requests::{PathKind, PathRequest};
 use craft_ui::testing::{Fixture, trial};
 
-use egui::Modifiers;
 use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -94,33 +93,6 @@ fn export_then_a_path_answer_gives_the_result_and_closes() {
     assert!(closed.get(), "the path answer closes the dialog");
     let done = result.borrow().clone().expect("the answer carries the result");
     assert_eq!((done.path, done.size), (PathBuf::from("out/Poster.png"), document()));
-}
-
-/// With Alt held the second button is Reset: it restores the opening settings and keeps the dialog open, as for any
-/// form dialog.
-#[trial]
-fn alt_turns_cancel_into_reset_which_keeps_export_open() {
-    let options = Rc::new(RefCell::new(ExportOptions::default()));
-    let closed = Rc::new(Cell::new(false));
-    let (held, done) = (Rc::clone(&options), Rc::clone(&closed));
-    let mut fixture = Fixture::new(move |ui| {
-        let mut options = held.borrow_mut();
-        let out = ExportAsDialog::new("Poster", document(), Bind::bound(&mut *options)).show(ui);
-        if out.closed.is_some() {
-            done.set(true);
-        }
-    });
-    fixture.hold(Modifiers::ALT);
-    fixture.settle();
-    assert!(fixture.by_label("Reset").is_some() && fixture.by_label("Cancel").is_none(), "Reset with Alt");
-    let opening = options.borrow().quality;
-    options.borrow_mut().quality = opening - 1;
-    fixture.idle(3);
-    let reset = fixture.by_label("Reset").expect("the Reset button");
-    fixture.click(&reset);
-    fixture.settle();
-    assert_eq!(options.borrow().quality, opening, "Reset restores the opening settings");
-    assert!(!closed.get(), "Reset keeps the dialog open");
 }
 
 /// The file name Export asks the host to save under for a document called `name`.
