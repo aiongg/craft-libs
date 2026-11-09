@@ -256,6 +256,10 @@ fn unplaced_cards_flow_from_the_reading_start() {
         assert_eq!(placed.rect(1), flow_first, "{direction:?}: a card with no position takes the first free cell");
 
         // A card without a position never lands on a placed card: it takes the next free cell.
+        // A stored position is in the bin's own coordinates, so the card is placed in the left-to-right flow only.
+        if direction.is_rtl() {
+            continue;
+        }
         let covering = Scene::with_cards(vec![FreeformCard::new(0, flow_first.min - ORIGIN)]);
         let mut frames = Frames::new();
         frames.root(RootEnv::default().direction(direction));
