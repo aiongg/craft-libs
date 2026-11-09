@@ -36,6 +36,7 @@ use std::time::Duration;
 use craft_behavior::edit_history::Step;
 use craft_behavior::{CancelReason, EditEvent, EditHistory, Mixed};
 use craft_ui::canvas::{CanvasTool, HandTool, NavigationOptions, PickStep, RasterSource, ToolHost, ViewCommands, ZoomTool, tool_pick};
+use craft_ui::contract::overlay::Anchor;
 use craft_ui::contract::{Bind, Pattern, Remember as _, Show as _, ShowContainer as _};
 use craft_ui::dialog::{FullWindowCanvas, FullWindowDialog, FullWindowSide, FullWindowStatus, FullWindowTitle, FullWindowView};
 use craft_ui::display::Divider;
@@ -49,7 +50,7 @@ use craft_ui::runtime::overlay::CloseReason;
 use craft_ui::runtime::pending::{Job, Pending};
 use craft_ui::runtime::words::CommonWords;
 use craft_ui::sections::{DialogRole, FooterButton};
-use egui::{Id, Rect, Ui};
+use egui::{Id, Pos2, Rect, Ui};
 
 use crate::ui::live_preview::settings_hash;
 
@@ -163,7 +164,7 @@ struct Body {
     /// The canvas of the last pass: a gesture is ended through the host that holds it.
     canvas: Option<Id>,
     /// The constraint the context menu is open for.
-    menu: Option<usize>,
+    menu: Option<(usize, Pos2)>,
     /// The Add Constraint form is open.
     adding: bool,
 }
@@ -381,25 +382,28 @@ impl WideAngleWorkspace {
                     }
                     drop(queued);
 
-                    if let Some(index) = body.menu.filter(|&i| i < snapshot.constraints.len()) {
+                    if let Some((index, at)) = body.menu.filter(|&(i, _)| i < snapshot.constraints.len()) {
                         let current = snapshot.constraints[index].orientation;
                         let mut open = true;
                         let mut chosen = None;
-                        let menu = Menu::context(words.constraint_lines.clone(), &out.response).open(Bind::bound(&mut open)).show(ui, |ui, _| {
-                            for (orientation, label) in [
-                                (ConstraintOrientation::Free, &words.free),
-                                (ConstraintOrientation::Horizontal, &words.horizontal),
-                                (ConstraintOrientation::Vertical, &words.vertical),
-                            ] {
-                                if MenuItem::new(label.clone()).radio_mark(orientation == current).show(ui).ran {
-                                    chosen = Some(WideAngleConstraintEdit::Orient { index, orientation });
+                        let menu = Menu::context(words.constraint_lines.clone(), &out.response)
+                            .anchor(Anchor::Point(at))
+                            .open(Bind::bound(&mut open))
+                            .show(ui, |ui, _| {
+                                for (orientation, label) in [
+                                    (ConstraintOrientation::Free, &words.free),
+                                    (ConstraintOrientation::Horizontal, &words.horizontal),
+                                    (ConstraintOrientation::Vertical, &words.vertical),
+                                ] {
+                                    if MenuItem::new(label.clone()).radio_mark(orientation == current).show(ui).ran {
+                                        chosen = Some(WideAngleConstraintEdit::Orient { index, orientation });
+                                    }
                                 }
-                            }
-                            Divider::horizontal().show(ui);
-                            if MenuItem::new(words.delete.clone()).show(ui).ran {
-                                chosen = Some(WideAngleConstraintEdit::Delete(index));
-                            }
-                        });
+                                Divider::horizontal().show(ui);
+                                if MenuItem::new(words.delete.clone()).show(ui).ran {
+                                    chosen = Some(WideAngleConstraintEdit::Delete(index));
+                                }
+                            });
                         let picked = chosen.is_some();
                         if let Some(edit) = chosen {
                             actions.borrow_mut().push(Action::Constraint(edit));

@@ -941,6 +941,8 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
 
     fn settle(&mut self, comp: &mut C, cx: &mut Cx<'_, C>) {
         let id = cx.core.id;
+        // A collection's focus move reveals through its lead (`page_reveal`), never the collection's whole rect.
+        crate::runtime::focus::take_reveal_of(&cx.core.ctx, id);
         if self.scrolls && (self.offset != self.offset_at_read || self.offset_x != self.offset_x_at_read) {
             match comp.scroll() {
                 Some(mut bind) => {
