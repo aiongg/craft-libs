@@ -195,7 +195,7 @@ impl<'a> FloatingGroup<'a> {
         self.props = self.props.mount(mount);
         let minimized = self.minimized;
         let shown = self.show(ui, |ui, cx| (!minimized).then(|| body(ui, cx)));
-        Inner { output: shown.output, inner: shown.inner.flatten() }
+        Inner { output: shown.output, inner: shown.inner.flatten(), settle: shown.settle }
     }
 
     /// The layer or window the group shows in. `header` is the height of the title row.

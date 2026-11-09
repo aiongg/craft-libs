@@ -21,6 +21,7 @@ mod registry;
 pub(crate) mod reorder;
 mod run;
 mod sampler;
+mod settle;
 mod shell;
 mod steps;
 pub(crate) mod text;
@@ -69,6 +70,7 @@ pub use registry::{
     CollectionEntry, ContainerEntry, DialogPattern, Exemption, LeafEntry, PatternKind, PatternProbe, Probe, Registration, ShowEntry, ToolPattern,
 };
 pub use sampler::Sampler;
+pub use settle::SettleCx;
 pub(crate) use values::landed;
 pub use values::{Bind, BindMut, EditResponse, ItemOutput, NoValue, Outcome, Validity, ValueOf, clicked};
 
@@ -206,8 +208,28 @@ pub trait HasProps {
 pub struct Inner<O, R> {
     /// The component's own output.
     pub output: O,
-    /// The body's result; `None` when the body did not run.
+    /// The body's result; `None` when the body did not run. A body may run twice in a pass (the measuring run, then
+    /// the real run), and `inner` is the last run's value. A state change or a report made from it goes in
+    /// [`Inner::settle`], which runs once per pass after the real run.
     pub inner: Option<R>,
+    pub(crate) settle: Option<settle::SettleAt>,
+}
+
+impl<O, R> Inner<O, R> {
+    /// Runs `f` once, after the pass's real run, with the body's memory (`keep`, `memory`, `saved`, `pending`,
+    /// `take`, as the body has it) and the real run's result. It is not called when no real run ran the body (an
+    /// inert container, a sizing parent, a closed gate) or when the body returned nothing. Writes made in `f` show
+    /// from the next pass.
+    pub fn settle<T>(&mut self, f: impl FnOnce(&mut SettleCx<'_>, &mut R) -> T) -> Option<T> {
+        let at = self.settle.take()?;
+        let inner = self.inner.as_mut()?;
+        Some(at.run(|cx| f(cx, inner)))
+    }
+
+    /// Maps the component's own output and keeps the body's result and its settle handle.
+    pub fn map_output<O2>(self, f: impl FnOnce(O) -> O2) -> Inner<O2, R> {
+        Inner { output: f(self.output), inner: self.inner, settle: self.settle }
+    }
 }
 
 impl<O, R> Deref for Inner<O, R> {

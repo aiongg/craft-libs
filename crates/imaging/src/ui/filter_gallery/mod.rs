@@ -271,9 +271,9 @@ impl FilterGalleryWorkspace {
                 let (visible, zoom) = workspace.visible();
                 let key = (workspace.revision, visible, zoom.to_bits());
                 let effects = &workspace.session.effects;
-                workspace.status = cx.pending(key, || source.render(effects, visible, zoom)).clone();
-                let mut bar = FullWindowZoomBar::new(Bind::bound(&mut view)).progress(FullWindowStatus::of(&workspace.status).progress());
-                if let Pending::Ready(done) = &workspace.status {
+                let status = cx.pending(key, || source.render(effects, visible, zoom)).clone();
+                let mut bar = FullWindowZoomBar::new(Bind::bound(&mut view)).progress(FullWindowStatus::of(&status).progress());
+                if let Pending::Ready(done) = &status {
                     let milliseconds = done.timing.as_millis().to_string();
                     bar = bar.note(Label::from(words.preview_ms.fill(&[("n", milliseconds.as_str())])));
                 }
@@ -283,16 +283,18 @@ impl FilterGalleryWorkspace {
                     canvas = canvas.checkerboard(checker);
                 }
                 canvas.show(ui);
-                view
+                (view, status)
             });
-        // The body's value is the real run's; the view it settled is stored here, once per pass.
-        if let Some(view) = dialog.inner.take() {
+        // Once per pass, after the real run: the view it settled and the render status are stored.
+        dialog.settle(|_, (view, status)| {
+            let view = std::mem::take(view);
             let workspace = &mut *pass.borrow_mut().workspace;
+            workspace.status = status.clone();
             workspace.shown = Some(view.view());
             workspace.percent = view.zoom_percent();
             workspace.zoom = view.device_zoom();
             workspace.view = view;
-        }
+        });
 
         let Pass { workspace, mut events, pick_color } = pass.into_inner();
         events.append(&mut workspace.queued);
