@@ -2019,10 +2019,13 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         // The label takes its column either by narrowing the control's rect or by shifting it along the row, which a
         // content-sized row (unbounded to the end) does; the extent grows by whichever of the two is finite.
         let taken = |amount: f32| if amount.is_finite() { amount.max(0.0) } else { 0.0 };
-        let label_extra = (regions.body.size() - body_rect.size()).max(Vec2::ZERO).max(Vec2::new(
-            taken(body_rect.min.x - regions.body.min.x).max(taken(regions.body.max.x - body_rect.max.x)),
-            taken(body_rect.min.y - regions.body.min.y).max(taken(regions.body.max.y - body_rect.max.y)),
-        ));
+        let label_taken = |control: Rect| {
+            (regions.body.size() - control.size()).max(Vec2::ZERO).max(Vec2::new(
+                taken(control.min.x - regions.body.min.x).max(taken(regions.body.max.x - control.max.x)),
+                taken(control.min.y - regions.body.min.y).max(taken(regions.body.max.y - control.max.y)),
+            ))
+        };
+        let label_extra = label_taken(body_rect);
         // B3 body, if open, under the body env; the gate is read after the header changed it.
         if is_open {
             let mut bcx = BodyCx::new(body_id, body_env.view(), resolved, body_rect, &mut *cx.core.memory, &mut open, gate.as_mut())
@@ -2133,7 +2136,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             let mut label_extra = label_extra;
             if let (false, Some(input)) = (real, label_input.as_mut()) {
                 input.control_min = scope::open_control_min(&ctx, id);
-                label_extra = (regions.body.size() - label::control_after(ui, env, input).size()).max(Vec2::ZERO);
+                label_extra = label_taken(label::control_after(ui, env, input));
             }
             if let Some(size) = &mut self.body_size {
                 *size += label_extra;
