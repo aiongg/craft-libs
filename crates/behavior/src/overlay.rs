@@ -234,20 +234,17 @@ mod tests {
 
     #[test]
     fn hangs_below_the_anchor_start_edge_and_mirrors_under_rtl() {
-        // hangs below the anchor start edge and mirrors under rtl
-        {
-            let anchor = rect(100.0, 100.0, 80.0, 20.0);
-            let ltr = place(&PlaceRequest::new(anchor, Vec2::new(120.0, 50.0), BOUNDS));
-            assert_eq!(ltr.rect, rect(100.0, 120.0, 120.0, 50.0));
-            let rtl = place(&PlaceRequest::new(anchor, Vec2::new(120.0, 50.0), BOUNDS).rtl(true));
-            assert_eq!(rtl.rect, rect(60.0, 120.0, 120.0, 50.0), "the start edge is the right edge under RTL");
-        }
-        // minimum width follows the anchor
-        {
-            let anchor = rect(10.0, 10.0, 200.0, 20.0);
-            let placed = place(&PlaceRequest::new(anchor, Vec2::new(50.0, 30.0), BOUNDS).min_width(MinWidth::Anchor));
-            assert_eq!(placed.rect.width(), 200.0);
-        }
+        let anchor = rect(100.0, 100.0, 80.0, 20.0);
+        let size = Vec2::new(120.0, 50.0);
+        let ltr = place(&PlaceRequest::new(anchor, size, BOUNDS)).rect;
+        let rtl = place(&PlaceRequest::new(anchor, size, BOUNDS).rtl(true)).rect;
+        assert_eq!((ltr.min.y, rtl.min.y), (anchor.max.y, anchor.max.y), "it hangs below the anchor");
+        assert_eq!(ltr.min.x, anchor.min.x, "it lines up with the anchor's start edge");
+        assert_eq!(rtl.max.x, anchor.max.x, "the start edge is the right edge under RTL");
+        // The minimum width follows the anchor.
+        let wide = rect(10.0, 10.0, 200.0, 20.0);
+        let placed = place(&PlaceRequest::new(wide, Vec2::new(50.0, 30.0), BOUNDS).min_width(MinWidth::Anchor));
+        assert!(placed.rect.width() >= wide.width());
     }
 
     #[test]

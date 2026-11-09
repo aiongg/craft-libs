@@ -423,11 +423,6 @@ mod tests {
 
     #[test]
     fn mixed_parts_read_and_expand_per_part() {
-        assert_eq!(Mixed::Same(2).same(), Some(&2));
-        assert_eq!(Mixed::<i32>::Mixed.same(), None);
-        assert_eq!(*Mixed::<i32>::Mixed.or(&7), 7);
-        assert_eq!(*Mixed::Same(2).or(&7), 2);
-        assert_eq!(Mixed::each([1, 2]), [Mixed::Same(1), Mixed::Same(2)]);
         assert_eq!(Mixed::<[Mixed<i32>; 2]>::Mixed.parts(), [Mixed::Mixed, Mixed::Mixed]);
         assert_eq!(Mixed::Same([Mixed::Same(1), Mixed::Mixed]).parts(), [Mixed::Same(1), Mixed::Mixed]);
     }

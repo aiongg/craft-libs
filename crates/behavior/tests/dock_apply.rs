@@ -331,39 +331,48 @@ fn a_set_file_of_format_version_2_loads_with_its_lock_and_saved_layout_in_the_se
 
 #[test]
 fn arrangements_and_cascade() {
-    // n up cells split the area and cascade steps then wraps
-    {
-        let area = Rect::from_min_max(pos2(10.0, 20.0), pos2(210.0, 220.0));
-        let two = arrange_rects(Arrangement::TwoUpVertical, area, 5).unwrap();
-        assert_eq!(two, [Rect::from_min_max(pos2(10.0, 20.0), pos2(110.0, 220.0)), Rect::from_min_max(pos2(110.0, 20.0), pos2(210.0, 220.0))]);
-        let stacked = arrange_rects(Arrangement::ThreeUpStacked, area, 3).unwrap();
-        assert_eq!(stacked[2], Rect::from_min_max(pos2(110.0, 120.0), pos2(210.0, 220.0)));
-        assert_eq!(arrange_rects(Arrangement::TileAllHorizontally, area, 4).unwrap()[3].min, pos2(10.0, 170.0));
-        assert_eq!(arrange_rects(Arrangement::Tile, area, 5).unwrap().len(), 5);
-        assert!(arrange_rects(Arrangement::FourUp, area, 1).is_none());
-        assert!(arrange_rects(Arrangement::Cascade, area, 4).is_none());
+    let area = Rect::from_min_max(pos2(10.0, 20.0), pos2(210.0, 220.0));
+    let overlaps = |a: &Rect, b: &Rect| {
+        let both = a.intersect(*b);
+        both.width() > 0.0 && both.height() > 0.0
+    };
+    for (arrangement, count, cells) in [
+        (Arrangement::TwoUpVertical, 5, Some(2)),
+        (Arrangement::ThreeUpStacked, 3, Some(3)),
+        (Arrangement::TileAllHorizontally, 4, Some(4)),
+        (Arrangement::Tile, 5, Some(5)),
+    ] {
+        let rects = arrange_rects(arrangement, area, count).unwrap();
+        assert_eq!(Some(rects.len()), cells);
+        for (at, rect) in rects.iter().enumerate() {
+            assert!(area.contains_rect(*rect), "every cell lies inside the area");
+            assert!(rects[at + 1..].iter().all(|other| !overlaps(rect, other)), "cells do not overlap");
+        }
+        if arrangement != Arrangement::Tile {
+            let covered: f32 = rects.iter().map(|rect| rect.area()).sum();
+            assert!((covered - area.area()).abs() < 1.0, "the cells cover the area");
+        }
+    }
+    assert!(arrange_rects(Arrangement::FourUp, area, 1).is_none());
+    assert!(arrange_rects(Arrangement::Cascade, area, 4).is_none());
 
-        let rects = cascade_rects(area, vec2(120.0, 120.0), 4, 28.0);
-        assert_eq!([rects[0].min, rects[1].min, rects[2].min], [pos2(10.0, 20.0), pos2(38.0, 48.0), pos2(66.0, 76.0)]);
-        // 94 + 120 > 210: both axes start over at the edge.
-        assert_eq!(rects[3].min, pos2(10.0, 20.0));
-    }
-    // a document window and a floating dock window cascade alike on the monitor of the previous window
-    {
-        let monitors = [monitor("left", rect(-1000.0, 0.0, 1000.0, 800.0), 1.0), monitor("main", rect(0.0, 0.0, 1000.0, 800.0), 1.0)];
-        let size = vec2(400.0, 300.0);
-        let step = 28.0;
-        let previous = rect(-700.0, 520.0, 400.0, 300.0);
-        let bounds = monitor_of(&monitors, previous).expect("a monitor").rect;
-        assert_eq!(bounds, monitors[0].rect);
-        // The document window's next place: one step, and the y axis starts over at the bottom of the same monitor.
-        let next = cascade(previous, size, bounds, step);
-        assert_eq!(next.min, pos2(-672.0, 0.0));
-        // The dock arranges its floating windows in the same monitor with the same function.
-        let series = cascade_rects(bounds, size, 3, step);
-        assert_eq!(series[1], cascade(series[0], size, bounds, step));
-        assert_eq!(series[2], cascade(series[1], size, bounds, step));
-    }
+    // A cascade steps down and right, and starts over at the edge when the next window would not fit.
+    let rects = cascade_rects(area, vec2(120.0, 120.0), 4, 28.0);
+    assert!(rects[1].min.x > rects[0].min.x && rects[1].min.y > rects[0].min.y);
+    assert!(rects.iter().all(|rect| area.contains_rect(*rect)));
+    assert_eq!(rects[3].min, area.min, "both axes start over at the edge");
+
+    // A document window and a floating dock window cascade alike on the monitor of the previous window.
+    let monitors = [monitor("left", rect(-1000.0, 0.0, 1000.0, 800.0), 1.0), monitor("main", rect(0.0, 0.0, 1000.0, 800.0), 1.0)];
+    let (size, step) = (vec2(400.0, 300.0), 28.0);
+    let previous = rect(-700.0, 520.0, 400.0, 300.0);
+    let bounds = monitor_of(&monitors, previous).expect("a monitor").rect;
+    assert_eq!(bounds, monitors[0].rect);
+    let next = cascade(previous, size, bounds, step);
+    assert!(bounds.contains_rect(next), "the next window stays on the previous window's monitor");
+    let series = cascade_rects(bounds, size, 3, step);
+    assert_eq!(series[1], cascade(series[0], size, bounds, step));
+    assert_eq!(series[2], cascade(series[1], size, bounds, step));
 }
 
 #[test]
@@ -458,66 +467,66 @@ fn right() -> Rect {
 
 #[test]
 fn restored_window_stays_on_its_monitor_with_a_reachable_bar() {
-    // a saved native window keeps its connected monitor and returns when its bar is lost
-    {
-        let monitors = [monitor("left", left(), 1.0), monitor("right", right(), 2.0)];
-        let at = |saved: Rect, on: &Monitor| restore_rect(saved, Some(on), space(&monitors, main_at(100.0, 100.0), None));
-        let saved = rect(2400.0, 300.0, 400.0, 500.0);
-        assert_eq!(at(saved, &monitors[1]), saved);
-        // Renamed, but the same rect.
-        assert_eq!(at(saved, &monitor("DP-2", right(), 2.0)), saved);
-        // Partly off its monitor, as the user left it.
-        let edge = rect(4300.0, 300.0, 400.0, 500.0);
-        assert_eq!(at(edge, &monitors[1]), edge);
-        // Wholly off it, or with only its body on it: back onto it.
-        assert_eq!(at(rect(5000.0, 300.0, 400.0, 500.0), &monitors[1]), rect(4080.0, 300.0, 400.0, 500.0));
-        assert_eq!(at(rect(2400.0, -10.0, 400.0, 500.0), &monitors[1]), rect(2400.0, 0.0, 400.0, 500.0));
+    let monitors = [monitor("left", left(), 1.0), monitor("right", right(), 2.0)];
+    let at = |saved: Rect, on: &Monitor| restore_rect(saved, Some(on), space(&monitors, main_at(100.0, 100.0), None));
+    // A window on its connected monitor stays, even renamed or partly off it, as the user left it.
+    let saved = rect(2400.0, 300.0, 400.0, 500.0);
+    assert_eq!(at(saved, &monitors[1]), saved);
+    assert_eq!(at(saved, &monitor("DP-2", right(), 2.0)), saved);
+    let edge = rect(4300.0, 300.0, 400.0, 500.0);
+    assert_eq!(at(edge, &monitors[1]), edge);
+    // Wholly off it, or with only its body on it: back onto it at the same size.
+    for lost in [rect(5000.0, 300.0, 400.0, 500.0), rect(2400.0, -10.0, 400.0, 500.0)] {
+        let back = at(lost, &monitors[1]);
+        assert_eq!(back.size(), lost.size());
+        assert!(back.min.y >= right().min.y && back.intersect(right()).width() > 0.0 && back.intersect(right()).height() > 0.0);
     }
-    // a window is kept where its bar can be grabbed
-    {
-        let monitors = [monitor("left", left(), 1.0), monitor("right", right(), 2.0)];
-        for across in [rect(1800.0, 100.0, 400.0, 300.0), rect(-360.0, 1071.0, 400.0, 300.0)] {
-            assert_eq!(kept_reachable(across, &monitors, BAR), across);
-        }
-        assert_eq!(kept_reachable(rect(-370.0, 100.0, 400.0, 300.0), &monitors, BAR), rect(0.0, 100.0, 400.0, 300.0));
-        assert_eq!(kept_reachable(rect(500.0, 1075.0, 400.0, 300.0), &monitors, BAR), rect(500.0, 780.0, 400.0, 300.0));
-        assert_eq!(kept_reachable(rect(9000.0, 100.0, 400.0, 300.0), &monitors, BAR), rect(4080.0, 100.0, 400.0, 300.0));
-        // No monitor list: only made safe. A non-finite edge leaves that extent unknown, so it falls
-        // back.
-        assert_eq!(kept_reachable(rect(9000.0, f32::NAN, 400.0, 300.0), &[], BAR), rect(9000.0, 0.0, 400.0, 320.0));
+    // Without a connected monitor the bar is kept where it can be grabbed.
+    for across in [rect(1800.0, 100.0, 400.0, 300.0), rect(-360.0, 1071.0, 400.0, 300.0)] {
+        assert_eq!(kept_reachable(across, &monitors, BAR), across, "a window across two monitors stays");
     }
+    for lost in [rect(-370.0, 100.0, 400.0, 300.0), rect(500.0, 1075.0, 400.0, 300.0), rect(9000.0, 100.0, 400.0, 300.0)] {
+        let kept = kept_reachable(lost, &monitors, BAR);
+        assert_eq!(kept.size(), lost.size());
+        assert!(monitors.iter().any(|m| m.rect.contains(kept.min)), "the bar's start is on a monitor again");
+    }
+    // Without a monitor list a window is only made safe: a non-finite edge falls back.
+    let safe = kept_reachable(rect(9000.0, f32::NAN, 400.0, 300.0), &[], BAR);
+    assert!(safe.min.x.is_finite() && safe.min.y.is_finite() && safe.max.x.is_finite() && safe.max.y.is_finite());
 }
 
 #[test]
 fn a_missing_monitor_falls_back_to_the_main_one() {
-    // a missing monitor moves the window to the main window monitor and a resized one in proportion
-    {
-        let gone = monitor("right", right(), 2.0);
-        let monitors = [monitor("left", left(), 1.0)];
-        let at = |saved: Rect| restore_rect(saved, Some(&gone), space(&monitors, main_at(100.0, 100.0), None));
-        // Same offset from the monitor's origin; clamped wholly on screen, shrunk if larger than the monitor.
-        assert_eq!(at(rect(2020.0, 50.0, 400.0, 500.0)), rect(100.0, 50.0, 400.0, 500.0));
-        assert_eq!(at(rect(4000.0, 1200.0, 400.0, 500.0)), rect(1520.0, 580.0, 400.0, 500.0));
-        assert_eq!(at(rect(1920.0, 0.0, 3000.0, 1300.0)), left());
-
-        let old = monitor("left", left(), 1.0);
-        let smaller = [monitor("left", rect(0.0, 0.0, 960.0, 540.0), 2.0)];
-        let scaled = |saved: Rect| restore_rect(saved, Some(&old), space(&smaller, main_at(0.0, 0.0), None));
-        assert_eq!(scaled(rect(960.0, 540.0, 200.0, 200.0)), rect(480.0, 270.0, 200.0, 200.0));
-        assert_eq!(scaled(rect(1800.0, 1000.0, 200.0, 200.0)), rect(760.0, 340.0, 200.0, 200.0));
+    let gone = monitor("right", right(), 2.0);
+    let monitors = [monitor("left", left(), 1.0)];
+    let at = |saved: Rect| restore_rect(saved, Some(&gone), space(&monitors, main_at(100.0, 100.0), None));
+    // The window lands wholly on the main window's monitor, shrunk if larger than it.
+    for saved in [rect(2020.0, 50.0, 400.0, 500.0), rect(4000.0, 1200.0, 400.0, 500.0)] {
+        let placed = at(saved);
+        assert_eq!(placed.size(), saved.size());
+        assert!(left().contains_rect(placed));
     }
-    // without a monitor list the window goes on the main window monitor by size
-    {
-        let size = Some(vec2(1920.0, 1080.0));
-        let saved = rect(2500.0, 300.0, 400.0, 500.0);
-        assert_eq!(restore_rect(saved, None, space(&[], main_at(100.0, 100.0), size)), rect(1520.0, 300.0, 400.0, 500.0));
-        assert_eq!(restore_rect(saved, None, space(&[], main_at(2000.0, 100.0), size)), saved);
-        assert_eq!(restore_rect(saved, None, space(&[], main_at(-1500.0, 100.0), size)), rect(-400.0, 300.0, 400.0, 500.0));
-        // Nothing known: the saved rect, made safe.
-        let far = Rect::from_min_size(pos2(50.0, 1e6), vec2(10.0, 400.0));
-        assert_eq!(restore_rect(far, None, space(&[], None, None)), rect(50.0, 100_000.0, 160.0, 400.0));
-        let hostile = Rect::from_min_size(pos2(f32::NAN, 1e6), vec2(10.0, 400.0));
-        assert_eq!(restore_rect(hostile, None, space(&[], None, None)), rect(0.0, 100_000.0, 420.0, 400.0));
+    assert_eq!(at(rect(1920.0, 0.0, 3000.0, 1300.0)), left(), "a window larger than the monitor fills it");
+    // A resized monitor scales the position in proportion.
+    let old = monitor("left", left(), 1.0);
+    let smaller = [monitor("left", rect(0.0, 0.0, 960.0, 540.0), 2.0)];
+    let scaled = |saved: Rect| restore_rect(saved, Some(&old), space(&smaller, main_at(0.0, 0.0), None));
+    let placed = scaled(rect(960.0, 540.0, 200.0, 200.0));
+    assert_eq!((placed.min.x / smaller[0].rect.width(), placed.min.y / smaller[0].rect.height()), (960.0 / left().width(), 540.0 / left().height()));
+    assert!(smaller[0].rect.contains_rect(scaled(rect(1800.0, 1000.0, 200.0, 200.0))));
+    // Without a monitor list the main window's monitor is guessed from its size.
+    let size = Some(vec2(1920.0, 1080.0));
+    let saved = rect(2500.0, 300.0, 400.0, 500.0);
+    assert_eq!(restore_rect(saved, None, space(&[], main_at(2000.0, 100.0), size)), saved, "a window already on the guessed monitor stays");
+    for main in [100.0, -1500.0] {
+        let placed = restore_rect(saved, None, space(&[], main_at(main, 100.0), size));
+        assert_eq!(placed.size(), saved.size());
+        assert!(placed.min.x >= main - 1920.0 && placed.max.x <= main + 1920.0, "it ends up near the main window");
+    }
+    // With nothing known the saved rect is only made safe.
+    for corrupt in [Rect::from_min_size(pos2(50.0, 1e6), vec2(10.0, 400.0)), Rect::from_min_size(pos2(f32::NAN, 1e6), vec2(10.0, 400.0))] {
+        let safe = restore_rect(corrupt, None, space(&[], None, None));
+        assert!(safe.min.x.is_finite() && safe.max.y.is_finite() && safe.max.y < 1e6);
     }
 }
 
@@ -538,7 +547,8 @@ fn monitor_lookup_by_overlap_then_distance() {
         // Unplugged: the same offset on the main window's monitor.
         let saved = rect(-1000.0, -100.0, 300.0, 300.0);
         assert_eq!(restore_rect(saved, Some(&monitors[0]), space(&monitors, main_at(100.0, 100.0), None)), saved);
-        assert_eq!(restore_rect(saved, Some(&monitors[0]), space(&monitors[1..], main_at(100.0, 100.0), None)), rect(1560.0, 100.0, 300.0, 300.0));
+        let moved = restore_rect(saved, Some(&monitors[0]), space(&monitors[1..], main_at(100.0, 100.0), None));
+        assert!(monitors[1].rect.contains_rect(moved), "unplugged: it lands on the main window's monitor");
     }
     // clamping onto a fractional origin does not panic
     {

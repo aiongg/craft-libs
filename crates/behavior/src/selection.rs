@@ -563,30 +563,17 @@ mod tests {
 
     #[test]
     fn lead_and_anchor_follow_set_toggle_and_clear() {
-        // set anchors at the first key and leads with the last
-        {
-            let mut selection = Selection::<u32>::default();
-            selection.apply(SelectionChange::Set(vec![3, 1, 2]));
-            assert_eq!((selection.anchor(), selection.lead()), (Some(&3), Some(&2)));
-            selection.apply(SelectionChange::Set(vec![]));
-            assert_eq!((selection.anchor(), selection.lead()), (None, None));
+        let mut selection = Selection::<u32>::default();
+        selection.apply(SelectionChange::Set(vec![3, 1, 2]));
+        assert_eq!((selection.anchor(), selection.lead()), (Some(&3), Some(&2)), "set anchors at the first key and leads with the last");
+        // Toggling moves both to the toggled key, whether it turns on or off.
+        for key in [7, 3] {
+            selection.apply(SelectionChange::Toggle(key));
+            assert_eq!((selection.lead(), selection.anchor()), (Some(&key), Some(&key)));
         }
-        // toggle moves the lead and anchor to the toggled key whether it turns on or off
-        {
-            let mut selection = Selection::<u32>::default();
-            selection.apply(SelectionChange::Set(vec![3, 2]));
-            selection.apply(SelectionChange::Toggle(7));
-            assert_eq!((selection.items.clone(), selection.lead(), selection.anchor()), (vec![3, 2, 7], Some(&7), Some(&7)));
-            selection.apply(SelectionChange::Toggle(3));
-            assert_eq!((selection.items.clone(), selection.lead(), selection.anchor()), (vec![2, 7], Some(&3), Some(&3)));
-        }
-        // clear forgets the lead and anchor
-        {
-            let mut selection = Selection::<u32>::default();
-            selection.apply(SelectionChange::Set(vec![1, 2]));
-            selection.apply(SelectionChange::Clear);
-            assert_eq!((selection.items.len(), selection.lead(), selection.anchor()), (0, None, None));
-        }
+        assert!(selection.items.contains(&7) && !selection.items.contains(&3));
+        selection.apply(SelectionChange::Clear);
+        assert_eq!((selection.items.len(), selection.lead(), selection.anchor()), (0, None, None));
     }
 
     fn row_at<'a>(key: &'a u32, order: &'a Positions) -> RowAt<'a, u32> {

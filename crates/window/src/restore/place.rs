@@ -278,11 +278,18 @@ pub fn place(saved: Option<&Placement>, monitors: &[Monitor], home: Option<usize
     }
 }
 
-fn first_launch(home: &Monitor, d: &Defaults) -> Placement {
-    let usable = home.usable(d.screen_room);
-    let too_small = (0..2).any(|i| d.size[i] > usable[i]);
-    let size = fit(d.size, usable, d.min);
-    Placement { maximized: too_small, ..make(size, None, home.scale(), 1.0, Some(home.key.clone())) }
+fn first_launch() {
+    let want = defaults().size;
+    // The default size, and the position left to the system.
+    let p = place(None, &[hd()], Some(0), &defaults());
+    assert_eq!(p.normal.size, want);
+    assert_eq!(p.position_px, None);
+    assert!(!p.maximized);
+    // On a monitor too small for it the window fits and maximizes.
+    let small = mon("S", [0, 0], [1280, 720], 1.0);
+    let p = place(None, &[small], None, &defaults());
+    assert!(p.normal.size[0] <= 1280.0 && p.normal.size[1] < 720.0);
+    assert!(p.maximized);
 }
 
 fn restore(s: &Placement, monitors: &[Monitor], home: &Monitor, primary: &Monitor, d: &Defaults) -> Placement {
@@ -440,27 +447,21 @@ mod tests {
 
     #[test]
     fn scale_and_zoom_keep_point_geometry() {
-        // scale change keeps points and takes the new scale
-        {
-            let old = hd();
-            let hidpi = mon("B", [0, 0], [3840, 2160], 2.0);
-            let s = saved(Some([200, 100]), [1000.0, 700.0], 1.0, &old);
-            let p = place(Some(&s), std::slice::from_ref(&hidpi), Some(0), &defaults());
-            assert_eq!(p.normal.size, [1000.0, 700.0]);
-            assert_eq!(p.scale, 2.0);
-            assert_eq!(p.monitor, Some(hidpi.key));
-            assert_eq!(p.position_px, Some([200, 100]));
-            assert_eq!(p.normal.pos, [100.0, 50.0]);
-        }
-        // size saved at zoom one does not shrink with zoom
-        {
-            let m = hd();
-            let mut s = saved(Some([100, 100]), [1000.0, 700.0], 1.0, &m);
-            s.zoom = 1.5;
-            let p = place(Some(&s), &[m], Some(0), &defaults());
-            assert_eq!(p.normal.size, [1000.0, 700.0]);
-            assert_eq!(p.zoom, 1.5);
-        }
+        // A scale change keeps the size in points, takes the new scale, and keeps the pixel position.
+        let old = hd();
+        let hidpi = mon("B", [0, 0], [3840, 2160], 2.0);
+        let s = saved(Some([200, 100]), [1000.0, 700.0], 1.0, &old);
+        let p = place(Some(&s), std::slice::from_ref(&hidpi), Some(0), &defaults());
+        assert_eq!(p.normal.size, [1000.0, 700.0]);
+        assert_eq!((p.scale, p.monitor), (2.0, Some(hidpi.key)));
+        assert_eq!(p.position_px, Some([200, 100]));
+        assert_eq!(p.normal.pos, [200.0 / p.scale, 100.0 / p.scale], "points are pixels over the scale");
+        // A size saved at zoom one does not shrink with zoom.
+        let m = hd();
+        let mut s = saved(Some([100, 100]), [1000.0, 700.0], 1.0, &m);
+        s.zoom = 1.5;
+        let p = place(Some(&s), &[m], Some(0), &defaults());
+        assert_eq!((p.normal.size, p.zoom), ([1000.0, 700.0], 1.5));
     }
 
     #[test]

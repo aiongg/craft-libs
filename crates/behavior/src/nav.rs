@@ -747,29 +747,19 @@ mod tests {
 
     #[test]
     fn flat_moves() {
-        // flat moves skip disabled rows and stop or wrap at the ends
-        {
-            let mut rows = Rows::flat(5);
-            rows.disabled = vec![2];
-            let mut state = NavState::at(1);
-            assert_eq!(go(NavShape::Flat, &rows, &mut state, NavMove::Down), NavStep::Moved(3));
-            assert_eq!(go(NavShape::Flat, &rows, &mut state, NavMove::End), NavStep::Moved(4));
-            assert_eq!(go(NavShape::Flat, &rows, &mut state, NavMove::Forward), NavStep::Stay);
-            state.wrap = true;
-            assert_eq!(go(NavShape::Flat, &rows, &mut state, NavMove::Forward), NavStep::Moved(0));
-            assert_eq!(go(NavShape::Flat, &rows, &mut state, NavMove::PageDown), NavStep::Moved(4));
-            let mut none = NavState::new();
-            assert_eq!(go(NavShape::Flat, &rows, &mut none, NavMove::Up), NavStep::Moved(4), "the first backward move lands on the last row");
-        }
-        // a page move from the last row wraps only when the state wraps
-        {
-            let rows = Rows::flat(5);
-            let mut stops = NavState::at(4);
-            assert_eq!(go(NavShape::Flat, &rows, &mut stops, NavMove::PageDown), NavStep::Stay);
-            let mut wraps = NavState::at(4).wrap(true);
-            assert_eq!(go(NavShape::Flat, &rows, &mut wraps, NavMove::PageDown), NavStep::Moved(0));
-            assert_eq!(go(NavShape::Flat, &rows, &mut wraps, NavMove::PageUp), NavStep::Moved(4));
-        }
+        let mut rows = Rows::flat(5);
+        rows.disabled = vec![2];
+        let mut state = NavState::at(1);
+        assert_eq!(go(NavShape::Flat, &rows, &mut state, NavMove::Down), NavStep::Moved(3), "a disabled row is skipped");
+        assert_eq!(go(NavShape::Flat, &rows, &mut state, NavMove::End), NavStep::Moved(4));
+        assert_eq!(go(NavShape::Flat, &rows, &mut state, NavMove::Forward), NavStep::Stay, "the end stops unless the state wraps");
+        assert_eq!(go(NavShape::Flat, &rows, &mut state, NavMove::PageDown), NavStep::Stay, "a page move from the last row stops too");
+        state.wrap = true;
+        assert_eq!(go(NavShape::Flat, &rows, &mut state, NavMove::Forward), NavStep::Moved(0));
+        state.lead = Some(4);
+        assert_eq!(go(NavShape::Flat, &rows, &mut state, NavMove::PageDown), NavStep::Moved(0), "a page move wraps when the state wraps");
+        let mut none = NavState::new();
+        assert_eq!(go(NavShape::Flat, &rows, &mut none, NavMove::Up), NavStep::Moved(4), "the first backward move lands on the last row");
     }
 
     #[test]
@@ -914,32 +904,24 @@ mod tests {
 
     #[test]
     fn value_moves() {
-        // alt steps finely and shift with alt steps by small
-        {
-            let steps = ValueSteps::new(5.0, 0.0, 10.0, 1.0, 4.0).fine(0.25);
-            let fine = MoveMods::PLAIN.fine(true);
-            assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::Forward, fine), StepResult::Set(5.25));
-            assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::Down, fine), StepResult::Set(4.75));
-            let both = MoveMods::new(true, false, Granularity::Unit).fine(true);
-            assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::Forward, both), StepResult::Set(6.0));
-            let StepResult::Set(default_fine) = step_value(&ValueSteps::new(5.0, 0.0, 10.0, 1.0, 4.0), ValueAxes::Both, NavMove::Forward, fine)
-            else {
-                panic!("a forward move sets the value")
-            };
-            assert!((default_fine - 5.1).abs() < 1e-9);
-        }
-        // single value moves clamp and follow the axes
-        {
-            let steps = ValueSteps::new(5.0, 0.0, 10.0, 1.0, 4.0);
-            let plain = MoveMods::PLAIN;
-            assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::Forward, plain), StepResult::Set(6.0));
-            assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::Down, plain), StepResult::Set(4.0));
-            assert_eq!(step_value(&steps, ValueAxes::Horizontal, NavMove::Up, plain), StepResult::Ignored);
-            assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::Forward, MoveMods::new(true, false, Granularity::Unit)), StepResult::Set(9.0));
-            assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::PageUp, plain), StepResult::Set(9.0));
-            assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::End, plain), StepResult::Set(10.0));
-            assert_eq!(step_value(&ValueSteps::new(9.0, 0.0, 10.0, 2.0, 4.0), ValueAxes::Both, NavMove::Forward, plain), StepResult::Set(10.0));
-        }
+        let steps = ValueSteps::new(5.0, 0.0, 10.0, 1.0, 4.0);
+        let set = |steps: &ValueSteps, axes, mv, mods| match step_value(steps, axes, mv, mods) {
+            StepResult::Set(value) => value,
+            other => panic!("expected a value, got {other:?}"),
+        };
+        let plain = MoveMods::PLAIN;
+        let fine = plain.fine(true);
+        let shifted = MoveMods::new(true, false, Granularity::Unit);
+        let (up, down) = (set(&steps, ValueAxes::Both, NavMove::Forward, plain), set(&steps, ValueAxes::Both, NavMove::Down, plain));
+        assert!(down < 5.0 && 5.0 < up, "forward raises and down lowers");
+        let fine_up = set(&steps, ValueAxes::Both, NavMove::Forward, fine);
+        assert!(5.0 < fine_up && fine_up < up, "Alt steps by less than a plain move");
+        assert!(set(&steps, ValueAxes::Both, NavMove::Forward, shifted) > up, "Shift steps by more than a plain move");
+        assert!(set(&steps, ValueAxes::Both, NavMove::PageUp, plain) > up, "a page steps by more than a line");
+        assert_eq!(step_value(&steps, ValueAxes::Horizontal, NavMove::Up, plain), StepResult::Ignored, "a move off the control's axes is ignored");
+        // Moves clamp to the range, and End goes to its end.
+        assert_eq!(set(&steps, ValueAxes::Both, NavMove::End, plain), 10.0);
+        assert_eq!(set(&ValueSteps::new(9.0, 0.0, 10.0, 2.0, 4.0), ValueAxes::Both, NavMove::Forward, plain), 10.0);
     }
 
     #[test]

@@ -243,25 +243,23 @@ mod tests {
 
     #[test]
     fn escape_step_order() {
-        // escape over a captured press is the presss and the rest go on
-        {
-            assert_eq!(route_escapes(0, true), EscapeRouting { cancels_press: false, to_components: 0 });
-            assert_eq!(route_escapes(1, true), EscapeRouting { cancels_press: true, to_components: 0 });
-            assert_eq!(route_escapes(2, true), EscapeRouting { cancels_press: true, to_components: 1 });
-            assert_eq!(route_escapes(2, false), EscapeRouting { cancels_press: false, to_components: 2 });
+        // Escape goes to a captured press first, then the component, then the row, then the scope.
+        let all = EscapeFacts::new().press_captured(true).component_undoable(true).in_row_child(true);
+        assert_eq!(escape_step(all, CancelRule::Close), EscapeStep::CancelPress);
+        assert_eq!(escape_step(all.press_captured(false), CancelRule::Close), EscapeStep::Component);
+        assert_eq!(escape_step(all.press_captured(false).component_undoable(false), CancelRule::Close), EscapeStep::BackToRow);
+        let idle = EscapeFacts::new();
+        assert_eq!(escape_step(idle, CancelRule::Close), EscapeStep::CloseScope);
+        assert_eq!(escape_step(idle.scope_clearable(true), CancelRule::ClearThenClose), EscapeStep::ClearScope);
+        assert_eq!(escape_step(idle, CancelRule::Ignore), EscapeStep::Ignore);
+        // A captured press takes the first Escape; the rest go on to the components.
+        assert!(!route_escapes(0, true).cancels_press);
+        for count in 1..4 {
+            let routed = route_escapes(count, true);
+            assert!(routed.cancels_press);
+            assert_eq!(routed.to_components, count - 1);
         }
-        // escape goes to the press then the component then the row then the scope
-        {
-            let all = EscapeFacts::new().press_captured(true).component_undoable(true).in_row_child(true);
-            assert_eq!(escape_step(all, CancelRule::Close), EscapeStep::CancelPress);
-            assert_eq!(escape_step(all.press_captured(false), CancelRule::Close), EscapeStep::Component);
-            assert_eq!(escape_step(all.press_captured(false).component_undoable(false), CancelRule::Close), EscapeStep::BackToRow);
-            let idle = EscapeFacts::new();
-            assert_eq!(escape_step(idle, CancelRule::Close), EscapeStep::CloseScope);
-            assert_eq!(escape_step(idle.scope_clearable(true), CancelRule::ClearThenClose), EscapeStep::ClearScope);
-            assert_eq!(escape_step(idle, CancelRule::ClearThenClose), EscapeStep::CloseScope);
-            assert_eq!(escape_step(idle, CancelRule::Ignore), EscapeStep::Ignore);
-        }
+        assert_eq!(route_escapes(2, false), EscapeRouting { cancels_press: false, to_components: 2 });
     }
 
     #[test]

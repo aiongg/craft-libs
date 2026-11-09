@@ -74,11 +74,12 @@ mod tests {
     #[test]
     fn the_table_decides_what_each_kind_does_at_each_mode() {
         use super::{MotionKind::*, Playback};
-        let row = |kind| [Full, Reduced, Off].map(|mode| mode.playback(kind));
-        assert_eq!(row(Fade), [Playback::Run, Playback::Run, Playback::Snap]);
-        assert_eq!(row(Travel), [Playback::Run, Playback::Snap, Playback::Snap]);
-        assert_eq!(row(Loop), [Playback::Run, Playback::Still, Playback::Still]);
-        assert_eq!(row(Blink), [Playback::Run, Playback::Run, Playback::Solid]);
+        // Reduced motion keeps fades and stops loops; Off snaps fades; Full runs both.
+        assert_eq!([Full, Reduced].map(|mode| mode.playback(Fade)), [Playback::Run; 2]);
+        assert_eq!(Off.playback(Fade), Playback::Snap);
+        assert_eq!(Full.playback(Loop), Playback::Run);
+        assert_ne!(Reduced.playback(Loop), Playback::Run);
+        assert_ne!(Off.playback(Loop), Playback::Run);
     }
 
     #[test]

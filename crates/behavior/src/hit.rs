@@ -309,31 +309,21 @@ mod tests {
 
     #[test]
     fn hit_priority_order() {
-        // the topmost position hides higher levels below it
-        {
-            let shapes = [
-                shape(rect(0.0, 0.0, 100.0, 100.0), Sense::DRAG, 1, 0, HitLevel::Handle, 9),
-                shape(rect(0.0, 0.0, 100.0, 100.0), Sense::CLICK, 2, 1, HitLevel::Background, 0),
-            ];
-            assert_eq!(resolve(&shapes, pos2(50.0, 50.0), ResolveFor::Press).map(|w| w.owner), Some(2));
-        }
-        // inside one position level then sub then nearest then last decide
-        {
-            let at = pos2(50.0, 50.0);
-            let owner = |shapes: &[Shape<u8>]| resolve(shapes, at, ResolveFor::Press).map(|w| w.owner);
-            let big = || rect(0.0, 0.0, 100.0, 100.0);
-            let level = [shape(big(), Sense::CLICK, 1, 0, HitLevel::Edge, 0), shape(big(), Sense::CLICK, 2, 0, HitLevel::Body, 5)];
-            assert_eq!(owner(&level), Some(1));
-            let sub = [shape(big(), Sense::CLICK, 1, 0, HitLevel::Body, 3), shape(big(), Sense::CLICK, 2, 0, HitLevel::Body, 1)];
-            assert_eq!(owner(&sub), Some(1));
-            let near = [
-                shape(rect(0.0, 0.0, 100.0, 100.0), Sense::CLICK, 1, 0, HitLevel::Body, 0),
-                shape(rect(40.0, 40.0, 20.0, 20.0), Sense::CLICK, 2, 0, HitLevel::Body, 0),
-            ];
-            assert_eq!(owner(&near), Some(2));
-            let tie = [shape(big(), Sense::CLICK, 1, 0, HitLevel::Body, 0), shape(big(), Sense::CLICK, 2, 0, HitLevel::Body, 0)];
-            assert_eq!(owner(&tie), Some(2));
-        }
+        let at = pos2(50.0, 50.0);
+        let owner = |shapes: &[Shape<u8>]| resolve(shapes, at, ResolveFor::Press).map(|w| w.owner);
+        let big = || rect(0.0, 0.0, 100.0, 100.0);
+        // The topmost position hides higher levels below it.
+        let layers = [shape(big(), Sense::DRAG, 1, 0, HitLevel::Handle, 9), shape(big(), Sense::CLICK, 2, 1, HitLevel::Background, 0)];
+        assert_eq!(owner(&layers), Some(2));
+        // Inside one position: level, then sub-order, then the nearest, then the last registered.
+        let level = [shape(big(), Sense::CLICK, 1, 0, HitLevel::Edge, 0), shape(big(), Sense::CLICK, 2, 0, HitLevel::Body, 5)];
+        assert_eq!(owner(&level), Some(1));
+        let sub = [shape(big(), Sense::CLICK, 1, 0, HitLevel::Body, 3), shape(big(), Sense::CLICK, 2, 0, HitLevel::Body, 1)];
+        assert_eq!(owner(&sub), Some(1));
+        let near = [shape(big(), Sense::CLICK, 1, 0, HitLevel::Body, 0), shape(rect(40.0, 40.0, 20.0, 20.0), Sense::CLICK, 2, 0, HitLevel::Body, 0)];
+        assert_eq!(owner(&near), Some(2));
+        let tie = [shape(big(), Sense::CLICK, 1, 0, HitLevel::Body, 0), shape(big(), Sense::CLICK, 2, 0, HitLevel::Body, 0)];
+        assert_eq!(owner(&tie), Some(2));
     }
 
     #[test]

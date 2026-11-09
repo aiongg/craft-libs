@@ -67,16 +67,17 @@ mod tests {
     #[test]
     fn the_label_follows_the_control_baseline_and_mirrors() {
         let column = LabelColumn::new(80.0, 120.0, 4.0);
-        let first = column.place(row(false, 300.0), Vec2::new(40.0, 12.0), 9.0, None);
-        assert_eq!(first.label.top(), 0.0);
-        let later = column.place(row(false, 300.0), Vec2::new(40.0, 12.0), 9.0, Some(14.0));
-        assert_eq!(later.label.top(), 5.0, "the label drops to the control's baseline");
-        assert_eq!(later.control.left(), 84.0);
-        let rtl = column.place(row(true, 300.0), Vec2::new(40.0, 12.0), 9.0, Some(14.0));
-        assert_eq!(rtl.label.right(), 300.0, "the label starts at the right edge under RTL");
-        assert_eq!(rtl.control.right(), 216.0);
-        let low = column.place(row(false, 300.0), Vec2::new(40.0, 12.0), 9.0, Some(4.0));
-        assert_eq!((low.label.top(), low.control.top()), (0.0, 5.0), "a control with the higher baseline moves down instead");
+        let (label, baseline) = (Vec2::new(40.0, 12.0), 9.0);
+        for control_baseline in [14.0, 4.0] {
+            let placed = column.place(row(false, 300.0), label, baseline, Some(control_baseline));
+            assert_eq!(placed.label.top() + baseline, placed.control.top() + control_baseline, "the label and control baselines line up");
+            assert!(placed.label.top() >= 0.0 && placed.control.top() >= 0.0, "the one with the higher baseline moves down, none moves up");
+        }
+        let ltr = column.place(row(false, 300.0), label, baseline, Some(14.0));
+        let rtl = column.place(row(true, 300.0), label, baseline, Some(14.0));
+        assert!(ltr.control.left() >= ltr.label.right(), "the control sits beyond the label");
+        assert_eq!((rtl.label.right(), rtl.control.right()), (300.0 - ltr.label.left(), 300.0 - ltr.control.left()), "RTL mirrors LTR");
+        assert_eq!(rtl.label.top(), ltr.label.top());
     }
 
     #[test]
@@ -84,6 +85,7 @@ mod tests {
         let column = LabelColumn::new(80.0, 120.0, 4.0);
         let placed = column.place(row(false, 100.0), Vec2::new(40.0, 12.0), 9.0, Some(14.0));
         assert!(placed.stacked);
-        assert_eq!((placed.control.left(), placed.control.top()), (0.0, 16.0));
+        assert_eq!(placed.control.left(), placed.label.left());
+        assert!(placed.control.top() >= placed.label.bottom());
     }
 }

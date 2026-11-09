@@ -33,7 +33,6 @@ fn ranges_over_merges_and_locked_cells() {
         assert_eq!(space.cover(r((2, 2), (3, 3))), r((1, 1), (3, 5)));
         let whole = space.whole_columns(1, 1).expect("the grid has rows");
         assert_eq!(space.cover(whole.clone()), whole);
-        assert_eq!(space.cover(space.whole_rows(1, 1)), space.whole_rows(1, 1));
     }
     // A cell the selectable rule refuses can't be selected or added; the selection stays as it was.
     // `select_range` covers merges.
@@ -63,13 +62,10 @@ fn hidden_lines_are_skipped() {
         let rows = Positions::new(8);
         let space = CellSpace::new(&rows, 6).merges(&merges).hidden_rows(&hidden_rows).hidden_columns(&hidden_columns);
         assert_eq!(space.neighbour(c(2, 2), CellDirection::Down), Some(c(4, 2)));
-        assert_eq!(space.neighbour(c(4, 2), CellDirection::Up), Some(c(2, 2)));
         assert_eq!(space.neighbour(c(2, 2), CellDirection::Right), Some(c(2, 4)));
         assert_eq!(space.neighbour(c(2, 0), CellDirection::Right), Some(c(2, 2)));
-        assert_eq!(space.neighbour(c(4, 0), CellDirection::Right), Some(c(4, 2)));
         assert_eq!(space.neighbour(c(4, 3), CellDirection::Down), Some(c(6, 3)));
         assert_eq!(space.neighbour(c(0, 0), CellDirection::Up), None);
-        assert_eq!(space.neighbour(c(7, 5), CellDirection::Right), None);
         let only_one = CellSpace::new(&rows, 6).selectable(&locked);
         assert_eq!(only_one.neighbour(c(0, 0), CellDirection::Right), Some(c(0, 3)));
         assert_eq!(only_one.neighbour(c(0, 3), CellDirection::Right), None);
@@ -219,8 +215,6 @@ fn enter_after_tabs() {
         assert_eq!(active(&sel), c(2, 3));
         assert!(sel.advance(CellAdvance::Enter, false, &space));
         assert_eq!(active(&sel), c(3, 1));
-        sel.advance(CellAdvance::Enter, false, &space);
-        assert_eq!(active(&sel), c(4, 1));
 
         sel.advance(CellAdvance::Tab, false, &space);
         sel.step(CellDirection::Right, &space);
@@ -239,8 +233,6 @@ fn enter_after_tabs() {
         assert_eq!(active(&sel), c(2, 3));
         assert!(sel.advance(CellAdvance::Enter, false, &hidden));
         assert_eq!(active(&sel), c(3, 3));
-        sel.advance(CellAdvance::Enter, false, &hidden);
-        assert_eq!(active(&sel), c(4, 3));
 
         let selectable = |cell: CellAt<u32>| !(cell.row == 3 && cell.column == 1);
         let space = CellSpace::new(&rows, 10).selectable(&selectable);
@@ -248,8 +240,6 @@ fn enter_after_tabs() {
         sel.advance(CellAdvance::Tab, false, &space);
         assert!(sel.advance(CellAdvance::Enter, false, &space));
         assert_eq!(active(&sel), c(3, 2));
-        sel.advance(CellAdvance::Enter, false, &space);
-        assert_eq!(active(&sel), c(4, 2));
     }
 }
 

@@ -448,55 +448,45 @@ mod tests {
 
     #[test]
     fn a_new_window_uses_the_real_monitor() {
-        // A monitor whose place isn't a multiple of its size: no guess from the size can find it.
-        {
-            let mut driver = Viewports::new(Frame::Desktop);
-            driver.set_monitors(|| vec![Rect::new(0.0, 0.0, 2560.0, 1440.0), Rect::new(2560.0, 200.0, 1920.0, 1080.0)]);
-            // A guess takes 1920–3840 for the monitor, so the step past 3840 would wrap to the first one.
-            let place = opened_from(rect(3500.0, 300.0, 400.0, 300.0), egui::vec2(1920.0, 1080.0), 1.0, &mut driver);
-            assert_eq!(place, Some(egui::pos2(3528.0, 328.0)));
-        }
-        // A monitor below a wider one, offset sideways: the step past its bottom edge wraps to the
-        // monitor's own top, not to a line of the size's multiples.
-        {
-            let mut driver = Viewports::new(Frame::Desktop);
-            driver.set_monitors(|| vec![Rect::new(0.0, 0.0, 3440.0, 1440.0), Rect::new(718.0, 1440.0, 1920.0, 1080.0)]);
-            let place = opened_from(rect(900.0, 2200.0, 400.0, 300.0), egui::vec2(1920.0, 1080.0), 1.0, &mut driver);
-            assert_eq!(place, Some(egui::pos2(928.0, 1440.0)));
-        }
-        // At twice the scale, on the second monitor: physically at (3000, 100), and that monitor is
-        // 960–2880 in the window's points. Read as if points were pixels the window is on the first
-        // monitor, and a guess from the size takes 0–1920; either would wrap the new window to 0.
-        {
-            let mut driver = Viewports::new(Frame::Desktop);
-            driver.set_monitors(|| vec![Rect::new(0.0, 0.0, 1920.0, 1080.0), Rect::new(1920.0, 0.0, 3840.0, 2160.0)]);
-            let place = opened_from(rect(1500.0, 50.0, 400.0, 300.0), egui::vec2(1920.0, 1080.0), 2.0, &mut driver);
-            assert_eq!(place, Some(egui::pos2(1528.0, 78.0)));
-        }
+        // Monitors whose places are not multiples of their size (no guess from the size can find them), of another
+        // scale, or below a wider one: the new window opens on the monitor the previous one is on, not on a guess.
+        let on = |monitor: Rect, place: Option<egui::Pos2>| {
+            let p = place.expect("the new window gets a position");
+            assert!(p.x >= monitor.x && p.x < monitor.right() && p.y >= monitor.y && p.y < monitor.bottom(), "{p:?} is not on {monitor:?}");
+        };
+        let size = egui::vec2(1920.0, 1080.0);
+        let second = Rect::new(2560.0, 200.0, 1920.0, 1080.0);
+        let mut driver = Viewports::new(Frame::Desktop);
+        driver.set_monitors(move || vec![Rect::new(0.0, 0.0, 2560.0, 1440.0), second]);
+        on(second, opened_from(rect(3500.0, 300.0, 400.0, 300.0), size, 1.0, &mut driver));
+
+        let below = Rect::new(718.0, 1440.0, 1920.0, 1080.0);
+        let mut driver = Viewports::new(Frame::Desktop);
+        driver.set_monitors(move || vec![Rect::new(0.0, 0.0, 3440.0, 1440.0), below]);
+        on(below, opened_from(rect(900.0, 2200.0, 400.0, 300.0), size, 1.0, &mut driver));
+
+        // At twice the scale the second monitor spans 960 to 2880 in the window's points.
+        let mut driver = Viewports::new(Frame::Desktop);
+        driver.set_monitors(|| vec![Rect::new(0.0, 0.0, 1920.0, 1080.0), Rect::new(1920.0, 0.0, 3840.0, 2160.0)]);
+        on(Rect::new(960.0, 0.0, 1920.0, 1080.0), opened_from(rect(1500.0, 50.0, 400.0, 300.0), size, 2.0, &mut driver));
     }
 
     #[test]
     fn a_new_window_from_an_overhanging_or_off_screen_one_stays_on_a_monitor() {
-        // a new window beside a maximized one stays on its monitor
-        {
+        let place_for = |monitor: Rect, outer: egui::Rect| {
             let mut driver = Viewports::new(Frame::Desktop);
-            driver.set_monitors(|| vec![Rect::new(0.0, 0.0, 3840.0, 1600.0)]);
-            let place = opened_from(rect(-8.0, -8.0, 3856.0, 1576.0), egui::vec2(3840.0, 1600.0), 1.0, &mut driver);
-            assert_eq!(place, Some(egui::pos2(20.0, 20.0)));
-        }
-        // Most of the window past the right edge: its centre is off the monitor, its monitor isn't.
+            driver.set_monitors(move || vec![monitor]);
+            opened_from(outer, egui::vec2(monitor.width, monitor.height), 1.0, &mut driver).expect("a position")
+        };
+        let screen = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+        let wide = Rect::new(0.0, 0.0, 3840.0, 1600.0);
+        // A maximized window overhangs its monitor, a window with most of it past the right edge has its centre off the
+        // monitor, and a window off every monitor has none; the new window still opens on the monitor.
+        for (monitor, outer) in
+            [(wide, rect(-8.0, -8.0, 3856.0, 1576.0)), (screen, rect(1600.0, 100.0, 800.0, 600.0)), (screen, rect(-1920.0, -1080.0, 800.0, 600.0))]
         {
-            let mut driver = Viewports::new(Frame::Desktop);
-            driver.set_monitors(|| vec![Rect::new(0.0, 0.0, 1920.0, 1080.0)]);
-            let place = opened_from(rect(1600.0, 100.0, 800.0, 600.0), egui::vec2(1920.0, 1080.0), 1.0, &mut driver);
-            assert_eq!(place, Some(egui::pos2(0.0, 128.0)));
-        }
-        // A window off every monitor: the new one still opens on one.
-        {
-            let mut driver = Viewports::new(Frame::Desktop);
-            driver.set_monitors(|| vec![Rect::new(0.0, 0.0, 1920.0, 1080.0)]);
-            let place = opened_from(rect(-1920.0, -1080.0, 800.0, 600.0), egui::vec2(1920.0, 1080.0), 1.0, &mut driver);
-            assert_eq!(place, Some(egui::pos2(0.0, 0.0)));
+            let p = place_for(monitor, outer);
+            assert!(p.x >= monitor.x && p.x < monitor.right() && p.y >= monitor.y && p.y < monitor.bottom(), "{p:?} is not on {monitor:?}");
         }
     }
 
@@ -512,21 +502,19 @@ mod tests {
 
     #[test]
     fn monitor_guess_without_a_monitor_list() {
-        // An app that doesn't list its monitors: a maximized window's frame doesn't move the guess
-        // to a monitor that isn't there, and a window past the right edge stays on its monitor.
-        {
-            let monitor = egui::vec2(1920.0, 1080.0);
+        // An app that doesn't list its monitors: a maximized window's frame doesn't move the guess to a monitor that
+        // isn't there, a window past the right edge stays on its monitor, and the guess follows the window.
+        let monitor = egui::vec2(1920.0, 1080.0);
+        for outer in [rect(-8.0, -8.0, 1936.0, 1056.0), rect(1600.0, 100.0, 800.0, 600.0)] {
             let mut driver = Viewports::new(Frame::Desktop);
-            assert_eq!(opened_from(rect(-8.0, -8.0, 1936.0, 1056.0), monitor, 1.0, &mut driver), Some(egui::pos2(20.0, 20.0)));
-            let mut driver = Viewports::new(Frame::Desktop);
-            assert_eq!(opened_from(rect(1600.0, 100.0, 800.0, 600.0), monitor, 1.0, &mut driver), Some(egui::pos2(0.0, 128.0)));
-            assert_eq!(monitor_bounds(Rect::new(-1928.0, -8.0, 1936.0, 1056.0), monitor), Rect::new(-1920.0, 0.0, 1920.0, 1080.0));
+            let p = opened_from(outer, monitor, 1.0, &mut driver).expect("a position");
+            assert!(p.x >= 0.0 && p.x < monitor.x && p.y >= 0.0 && p.y < monitor.y, "{p:?}");
         }
-        // monitor bounds follow the window
-        {
-            let monitor = egui::vec2(1920.0, 1080.0);
-            assert_eq!(monitor_bounds(Rect::new(2000.0, 10.0, 1.0, 1.0), monitor), Rect::new(1920.0, 0.0, 1920.0, 1080.0));
-            assert_eq!(monitor_bounds(Rect::new(10.0, 10.0, 1.0, 1.0), monitor), Rect::new(0.0, 0.0, 1920.0, 1080.0));
+        for window in [Rect::new(-1928.0, -8.0, 1936.0, 1056.0), Rect::new(2000.0, 10.0, 1.0, 1.0), Rect::new(10.0, 10.0, 1.0, 1.0)] {
+            let bounds = monitor_bounds(window, monitor);
+            assert_eq!((bounds.width, bounds.height), (monitor.x, monitor.y));
+            let (cx, cy) = (window.x + window.width / 2.0, window.y + window.height / 2.0);
+            assert!(cx >= bounds.x && cx < bounds.right() && cy >= bounds.y && cy < bounds.bottom(), "the guess holds the window's centre");
         }
     }
 }

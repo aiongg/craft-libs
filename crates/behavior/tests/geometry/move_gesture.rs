@@ -15,28 +15,20 @@ fn polar(deg: f64, len: f64) -> Vec2 {
 
 #[test]
 fn direction_lock() {
-    // lock direction keeps the axis until eight degrees past half
-    {
-        let axis = lock_direction(Vec2::new(10.0, 0.0), None, Directions::Eight);
-        assert_eq!(axis, Vec2::new(10.0, 0.0));
-        // 22.5 + 8 = 30.5 degrees is the switch.
-        let kept = lock_direction(polar(30.0, 10.0), Some(axis), Directions::Eight);
-        assert_eq!(kept.y, 0.0);
-        assert!(kept.x > 0.0);
-        let switched = lock_direction(polar(31.0, 10.0), Some(axis), Directions::Eight);
-        assert!((switched.y - switched.x).abs() < 1e-9 && switched.y > 0.0);
-    }
-    // four and eight directions
-    {
-        let d = polar(40.0, 10.0);
-        let four = lock_direction(d, None, Directions::Four);
-        assert_eq!(four.y, 0.0);
-        assert!((four.x - d.x).abs() < 1e-9);
-        let eight = lock_direction(d, None, Directions::Eight);
-        assert!((eight.x - eight.y).abs() < 1e-9);
-        assert!((eight.hypot() - 10.0 * 5.0_f64.to_radians().cos()).abs() < 1e-9);
-        assert_eq!(lock_direction(Vec2::ZERO, None, Directions::Four), Vec2::ZERO);
-    }
+    let axis = lock_direction(Vec2::new(10.0, 0.0), None, Directions::Eight);
+    assert_eq!(axis, Vec2::new(10.0, 0.0));
+    // The lock keeps its axis until the pointer is eight degrees past the half step (22.5 + 8), then switches.
+    let kept = lock_direction(polar(30.0, 10.0), Some(axis), Directions::Eight);
+    assert!(kept.y == 0.0 && kept.x > 0.0);
+    let switched = lock_direction(polar(31.0, 10.0), Some(axis), Directions::Eight);
+    assert!((switched.y - switched.x).abs() < 1e-9 && switched.y > 0.0);
+    // Four directions lock to an axis, eight also to the diagonals; no travel locks nowhere.
+    let d = polar(40.0, 10.0);
+    let four = lock_direction(d, None, Directions::Four);
+    assert!(four.y == 0.0 && (four.x - d.x).abs() < 1e-9);
+    let eight = lock_direction(d, None, Directions::Eight);
+    assert!((eight.x - eight.y).abs() < 1e-9);
+    assert_eq!(lock_direction(Vec2::ZERO, None, Directions::Four), Vec2::ZERO);
 }
 
 #[test]

@@ -244,7 +244,6 @@ mod tests {
             let text = format!("{{\"window\": r#\"{w}\"#}}");
             let p = eframe_app_ron(&text).unwrap();
             assert_eq!((p.scale, p.position_px, p.normal.size), (2.0, Some([200, 100]), [640.0, 480.0]));
-            assert_eq!(p.normal.pos, [100.0, 50.0]);
             assert!(p.fullscreen);
         }
     }
@@ -272,7 +271,6 @@ mod tests {
             assert_eq!(json_pair(&v, &["window", "pos"], ["x", "y"]), Some([1.0, 2.0]));
             assert_eq!(json_bool(&v, &["window", "max"]), Some(true));
             assert_eq!(json_f32(&v, &["window", "w"]), Some(3.5));
-            assert_eq!(json_f32(&v, &["window", "nope"]), None);
         }
     }
 

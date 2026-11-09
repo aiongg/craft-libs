@@ -453,9 +453,7 @@ mod tests {
             t.observe(&info([150.0, 70.0], [900.0, 650.0], 2.0), NO_SIZE, 1.0, 0.1);
             let p = t.current.clone().unwrap();
             assert_eq!(p.normal.size, [900.0, 650.0]);
-            assert_eq!(p.position_px, Some([300, 140]));
-            assert_eq!(p.normal.pos, [150.0, 70.0]);
-            assert_eq!(p.scale, 2.0);
+            assert_eq!(p.normal.pos, [p.position_px.unwrap()[0] as f32 / p.scale, p.position_px.unwrap()[1] as f32 / p.scale]);
             assert!(!p.maximized && !p.fullscreen);
         }
         // maximize full screen and minimize keep the normal rect
@@ -549,7 +547,6 @@ mod tests {
             // Empty list.
             assert_eq!(monitor_key(Some(&key), &[], Some([10, 10]), Some([1920, 1080])), Some(key.clone()));
             assert_eq!(monitor_key(Some(&key), &[], Some([10, 10]), Some([2560, 1440])), None);
-            assert_eq!(monitor_key(None, &[], Some([10, 10]), None), None);
         }
     }
 

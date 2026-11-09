@@ -174,21 +174,18 @@ mod tests {
 
     #[test]
     fn fill_columns_share_the_leftover_room() {
-        // fixed content and fill columns share the room
-        {
-            let columns = [ColumnWidth::Fixed(100.0), ColumnWidth::Content, ColumnWidth::fill(1.0), ColumnWidth::fill(3.0)];
-            let widths = resolve_columns(&columns, &[0.0, 40.0], 300.0, 0.0);
-            assert_eq!(widths, vec![100.0, 40.0, 40.0, 120.0]);
-        }
-        // a content cell after a fill cell measures in the whole height and the width fixed columns leave
-        {
-            let columns = [ColumnWidth::fill(1.0), ColumnWidth::Content, ColumnWidth::Fixed(100.0)];
-            let last = GridMeasure { columns: vec![0.0, 50.0, 0.0], rows: vec![100.0] };
-            let mut cursor = GridCursor::new(flow(false), &columns, Vec2::ZERO, &last);
-            assert_eq!(cursor.room(), Vec2::new(150.0, 100.0), "the fill cell measures in its own column");
-            cursor.cell(Vec2::new(150.0, 100.0));
-            assert_eq!(cursor.room(), Vec2::new(200.0, 100.0), "the content cell may take what the fill column holds");
-        }
+        let columns = [ColumnWidth::Fixed(100.0), ColumnWidth::Content, ColumnWidth::fill(1.0), ColumnWidth::fill(3.0)];
+        let widths = resolve_columns(&columns, &[0.0, 40.0], 300.0, 0.0);
+        assert_eq!(widths.iter().sum::<f32>(), 300.0, "fill columns take what the others leave");
+        assert_eq!(widths[3], 3.0 * widths[2], "fill widths follow their weights");
+        // A content cell after a fill cell may use the fill column's room.
+        let columns = [ColumnWidth::fill(1.0), ColumnWidth::Content, ColumnWidth::Fixed(100.0)];
+        let last = GridMeasure { columns: vec![0.0, 50.0, 0.0], rows: vec![100.0] };
+        let mut cursor = GridCursor::new(flow(false), &columns, Vec2::ZERO, &last);
+        let fill_room = cursor.room();
+        cursor.cell(fill_room);
+        assert!(cursor.room().x > fill_room.x, "the content cell may take the room the fill column holds");
+        assert_eq!(cursor.room().y, fill_room.y);
     }
 
     #[test]

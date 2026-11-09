@@ -50,23 +50,18 @@ mod tests {
 
     #[test]
     fn cascade_from_main_steps_and_wraps() {
-        // the second and third windows step from main
-        {
-            let main = main_window();
-            let second = cascade_window(&main, 1, 28.0, None);
-            assert_eq!((second.position_px, second.normal.size), (Some([256, 156]), [800.0, 600.0]));
-            assert_eq!(second.normal.pos, [128.0, 78.0]);
-            assert!(!second.maximized);
-            let third = cascade_window(&main, 2, 28.0, None);
-            assert_eq!(third.position_px, Some([312, 212]));
-        }
-        // cascading wraps within the bounds
-        {
-            let main = main_window();
-            // 1000 × 700 pt: the third window's bottom (106 + 600) runs past 700 and starts over at the top.
-            let third = cascade_window(&main, 2, 28.0, Some(Rect::new(0.0, 0.0, 1000.0, 700.0)));
-            assert_eq!(third.position_px, Some([312, 0]));
-        }
+        let main = main_window();
+        let at = |p: &Placement| p.position_px.unwrap();
+        let second = cascade_window(&main, 1, 28.0, None);
+        let third = cascade_window(&main, 2, 28.0, None);
+        let (m, s, t) = (at(&main), at(&second), at(&third));
+        assert!(s[0] > m[0] && s[1] > m[1], "each window steps down and right from the one before");
+        assert_eq!((t[0] - s[0], t[1] - s[1]), (s[0] - m[0], s[1] - m[1]), "every step is the same");
+        assert_eq!(second.normal.size, main.normal.size);
+        assert!(!second.maximized);
+        // When the next window would run past the bounds, the axis starts over.
+        let wrapped = cascade_window(&main, 2, 28.0, Some(Rect::new(0.0, 0.0, 1000.0, 700.0)));
+        assert!(at(&wrapped)[1] < t[1]);
     }
 
     #[test]

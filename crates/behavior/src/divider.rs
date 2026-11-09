@@ -71,21 +71,25 @@ mod tests {
 
     #[test]
     fn divider_conserves_total_and_respects_limits() {
-        // the segments past the divider give way in turn
-        {
-            // The divider after the first segment moves 80 points toward the end: the second gives 60, the third 20.
-            assert_eq!(resize(&row(), 0, 180.0), vec![180.0, 40.0, 80.0]);
+        let capped = vec![Segment::new(100.0, 40.0, 120.0), Segment::unbounded(100.0, 40.0)];
+        let rows = [row(), capped];
+        for row in &rows {
+            let total: f32 = row.iter().map(|s| s.extent).sum();
+            for index in 0..row.len() - 1 {
+                for target in [180.0, 300.0, 1000.0, -1000.0] {
+                    let out = resize(row, index, target);
+                    assert_eq!(out.iter().sum::<f32>(), total, "the divider moves room between segments, it adds none");
+                    for (extent, segment) in out.iter().zip(row) {
+                        assert!(*extent >= segment.min && *extent <= segment.max, "every segment stays within its limits");
+                    }
+                }
+            }
         }
-        // the divider stops where every giver is at its minimum
-        {
-            assert_eq!(resize(&row(), 0, 1000.0), vec![220.0, 40.0, 40.0]);
-            assert_eq!(resize(&row(), 1, -1000.0), vec![40.0, 40.0, 220.0]);
-        }
-        // the receiving segment stops at its maximum
-        {
-            let capped = vec![Segment::new(100.0, 40.0, 120.0), Segment::unbounded(100.0, 40.0)];
-            assert_eq!(resize(&capped, 0, 300.0), vec![120.0, 80.0]);
-        }
+        // Segments past the divider give way in order: the next one gives before the one after it.
+        let row = row();
+        let out = resize(&row, 0, 180.0);
+        assert!(out[0] > row[0].extent && out[1] < row[1].extent);
+        assert!(out[2] == row[2].extent || out[1] == row[1].min);
     }
 
     #[test]

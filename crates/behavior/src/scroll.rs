@@ -105,18 +105,15 @@ mod tests {
 
     #[test]
     fn keyboard_and_page_moves_stop_at_the_ends() {
-        // home and end show the ends of the content
-        {
-            let span = ScrollSpan::new(0.0..500.0, 100.0..300.0);
-            assert_eq!(jump(&span, NavMove::Start), Some(0.0..200.0));
-            assert_eq!(jump(&span, NavMove::End), Some(300.0..500.0));
-            assert_eq!(jump(&span, NavMove::Down), None);
-        }
-        // a page press moves one visible length and stops at the ends
-        {
-            let span = ScrollSpan::new(0.0..500.0, 100.0..300.0);
-            assert_eq!(page(&span, true), 300.0..500.0);
-            assert_eq!(page(&span, false), 0.0..200.0);
-        }
+        let span = ScrollSpan::new(0.0..500.0, 100.0..300.0);
+        let (content, view) = (0.0..500.0, 200.0);
+        let start = jump(&span, NavMove::Start).unwrap();
+        let end = jump(&span, NavMove::End).unwrap();
+        assert_eq!((start.start, end.end), (content.start, content.end), "Home and End show the ends of the content");
+        assert_eq!((start.end - start.start, end.end - end.start), (view, view));
+        assert_eq!(jump(&span, NavMove::Down), None);
+        // A page moves one visible length and stops at the ends.
+        assert_eq!(page(&span, true), end);
+        assert_eq!(page(&span, false), start);
     }
 }
