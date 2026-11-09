@@ -447,10 +447,13 @@ fn alt_drag_near_a_selected_pin_turns_it_and_fixes_its_rotation() {
 #[trial]
 fn tab_onto_a_pin_selects_it() {
     let mut h = harness(vec![pin(100.0, 100.0), pin(200.0, 100.0)], vec![]);
+    // The canvas is the first Tab stop, the pins group the second: Tab 2 enters it on the first pin.
     h.key(Key::Tab, Modifiers::NONE);
-    assert_eq!(h.selected(), vec![0]);
+    assert_eq!(h.selected(), Vec::<usize>::new(), "Tab 1 is the canvas");
     h.key(Key::Tab, Modifiers::NONE);
-    assert_eq!(h.selected(), vec![1], "the pin Tab reaches is the selection");
+    assert_eq!(h.selected(), vec![0], "the pin Tab reaches is the selection");
+    h.key(Key::PageDown, Modifiers::NONE);
+    assert_eq!(h.selected(), vec![1], "the pin Page Down reaches is the selection");
 }
 
 #[trial]
