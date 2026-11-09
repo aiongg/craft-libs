@@ -407,7 +407,9 @@ pub(crate) fn run<C: Component>(
     outcome.caret_visible = caret_visible;
     outcome.composing = crate::runtime::ime::composing(&ctx, widget);
     outcome.completions = completions;
-    cx.core.texts = Some((decl.key, Box::new(RecordedText { outcome, submit_mods: resolved.submit_mods })));
+    // The focus service moved focus off the widget with Tab before this pass's widgets ran.
+    let left_by_tab = if was_focused && !out.focused { crate::runtime::focus::tabbed_off(&ctx, widget) } else { None };
+    cx.core.texts = Some((decl.key, Box::new(RecordedText { outcome, submit_mods: resolved.submit_mods, left_by_tab })));
     let committed = apply_events(cx, resolved.events);
     cx.core.memory.shown::<TextState>(state_id).seen = shown_copy(cx);
     // `parts` ran for the value before the commit; the pass runs again so a part the new value adds is never missing.

@@ -15,11 +15,11 @@ use crate::runtime::access::{self, Role, SetPosition};
 use crate::runtime::egui::{alloc, areas, child, response};
 use crate::runtime::env::{AppValues, ArenaId, Env, ItemFacts};
 use crate::runtime::memory::{MemoryStage, sub};
-use crate::runtime::{focus, frame, overlay, wheel};
+use crate::runtime::{focus, frame, keys, overlay, wheel};
 use crate::style::{StyleCx, scroll_bar_look};
 use craft_behavior::{
-    Axis, ColumnKey, EditEvent, Flow, GestureId, Granularity, Intent, ItemLayout, ItemSource, Mixed, MoveMods, NavMove, NavState, NavStep, Outline,
-    PressPhase, Proposal, ScrollPos, ScrollSpan, SelectionChange, SelectionModel, Sense, TypeAhead, WheelTaker, nav,
+    Axis, CancelReason, ColumnKey, EditEvent, Flow, GestureId, Granularity, Intent, ItemLayout, ItemSource, Mixed, MoveMods, NavMove, NavState,
+    NavStep, Outline, PressPhase, Proposal, ScrollPos, ScrollSpan, SelectionChange, SelectionModel, Sense, TypeAhead, WheelTaker, nav,
 };
 use egui::{Context, Id, Pos2, Rect, Ui, UiBuilder, Vec2};
 use std::ops::Range;
@@ -763,7 +763,21 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                         if matches!(editor.event, Some(EditEvent::Commit { .. } | EditEvent::Cancel { .. })) {
                             self.refocus = focus::is_focused(&ctx, editor.response.id);
                         }
+                        // The editor claims Escape for the whole rename, as a text part with a draft does: Escape does not leave the
+                        // row. One the editor leaves untaken (it holds no draft yet) cancels the rename.
+                        keys::hold_escape(&ctx, editor.response.id);
+                        let escaped = editor.event.is_none() && focus::is_focused(&ctx, editor.response.id) && {
+                            let mut intents = keys::intents_of(&ctx, Some(editor.response.id), rtl);
+                            let left = intents.take(Intent::Cancel);
+                            keys::settle(&ctx, Some(editor.response.id), &intents);
+                            left
+                        };
                         match editor.event {
+                            None if escaped => {
+                                self.events.push(CollectionEvent::Rename(EditEvent::cancel(gesture, CancelReason::Escape, Some(before))));
+                                self.ended_rename = true;
+                                self.refocus = true;
+                            }
                             Some(EditEvent::Commit { after, .. }) => {
                                 let after = Rename { key: key.clone(), name: after };
                                 self.events.push(CollectionEvent::Rename(EditEvent::commit(gesture, before, after)));
@@ -773,7 +787,20 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                                 self.events.push(CollectionEvent::Rename(EditEvent::cancel(gesture, reason, Some(before))));
                                 self.ended_rename = true;
                             }
+                            None if editor.left_by_tab.is_some() => {
+                                self.events.push(CollectionEvent::Rename(EditEvent::cancel(gesture, CancelReason::Blur, Some(before))));
+                                self.ended_rename = true;
+                            }
                             _ => {}
+                        }
+                        if let Some(forward) = editor.left_by_tab.filter(|_| self.ended_rename) {
+                            // Tab continues the rename on the next renamable row; past the last one focus returns to the collection.
+                            let renamable = |row: &usize| !self.source.section_stop(*row) && comp.can_rename(&self.source.key(*row));
+                            let next = if forward { (at + 1..len).find(renamable) } else { (0..at).rev().find(renamable) };
+                            self.refocus = next.is_none();
+                            if let Some(next) = next {
+                                request::request_rename(&ctx, id, &self.source.key(next));
+                            }
                         }
                     }
                 }

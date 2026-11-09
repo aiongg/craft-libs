@@ -193,6 +193,8 @@ pub struct List<'a> {
     tree: bool,
     on_empty: Option<&'a Cell<Rect>>,
     text_editor: bool,
+    /// Rows that `can_rename` refuses.
+    locked: &'static [usize],
     /// Where `parts` records the rect `PartsCx::rect_of` gives for the key.
     parts_probe: Option<(usize, &'a Cell<Option<Rect>>)>,
 }
@@ -208,6 +210,7 @@ impl<'a> List<'a> {
             tree: false,
             on_empty: None,
             text_editor: false,
+            locked: &[],
             parts_probe: None,
         }
     }
@@ -215,6 +218,12 @@ impl<'a> List<'a> {
     /// Renames in a library text field, whose open draft owns Escape.
     pub fn text_editor(mut self) -> Self {
         self.text_editor = true;
+        self
+    }
+
+    /// The rows that cannot be renamed.
+    pub fn locked(mut self, rows: &'static [usize]) -> Self {
+        self.locked = rows;
         self
     }
 
@@ -382,6 +391,10 @@ impl Collection for List<'_> {
     fn item_layout(&self, source: &dyn ItemSource<usize>, width: f32, _: &StyleCx<'_>) -> SpanLayout {
         let layout = SpanLayout::new(source, width, ROW_H);
         if self.tree { layout.tree() } else { layout }
+    }
+
+    fn can_rename(&self, key: &usize) -> bool {
+        !self.locked.contains(key)
     }
 
     fn rename_editor(&mut self, ui: &mut Ui, draft: Bind<'_, String>, _: Rect, _: &str) -> Option<EditResponse<String>> {
