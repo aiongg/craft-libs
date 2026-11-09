@@ -24,7 +24,7 @@ use craft_ui::testing::input::key_press;
 use craft_ui::testing::layout::Block;
 use craft_ui::testing::memory::scoped;
 use craft_ui::testing::pointer::{moved, press, release};
-use craft_ui::testing::{Frames, trial};
+use craft_ui::testing::{Frames, is_measuring, trial};
 use egui::{Id, Key, Modifiers, Pos2, Rect, Response, Ui, UiBuilder, Vec2};
 use std::cell::RefCell;
 
@@ -44,16 +44,26 @@ struct Hooked<'a> {
     #[container]
     props: ContainerProps,
     log: &'a Log,
+    /// Where the calls of a measuring run go, when the trial tells the runs apart.
+    measured: Option<(&'a Log, egui::Context)>,
     tone: Option<u8>,
 }
 
 impl<'a> Hooked<'a> {
     fn new(log: &'a Log) -> Self {
-        Hooked { common: Common::new(), props: ContainerProps::new().sizing(Sizing::Content), log, tone: None }
+        Hooked { common: Common::new(), props: ContainerProps::new().sizing(Sizing::Content), log, measured: None, tone: None }
+    }
+
+    fn telling_runs_apart(mut self, measured: &'a Log, ctx: &egui::Context) -> Self {
+        self.measured = Some((measured, ctx.clone()));
+        self
     }
 
     fn mark(&self, hook: &'static str) {
-        self.log.borrow_mut().push(hook);
+        match &self.measured {
+            Some((measured, ctx)) if is_measuring(ctx) => measured.borrow_mut().push(hook),
+            _ => self.log.borrow_mut().push(hook),
+        }
     }
 }
 
@@ -124,13 +134,26 @@ impl Container for Hooked<'_> {}
 fn hooks_run_in_pipeline_order_with_the_body_between_paint_and_paint_over() {
     let mut frames = Frames::new();
     let log: Log = RefCell::new(Vec::new());
+    let measured: Log = RefCell::new(Vec::new());
     frames.frame(vec![], |ui| {
         log.borrow_mut().clear();
-        Hooked::new(&log).show(ui, |_, _| log.borrow_mut().push("body"));
+        measured.borrow_mut().clear();
+        let ctx = ui.ctx().clone();
+        Hooked::new(&log).telling_runs_apart(&measured, &ctx).show(ui, |ui, _| {
+            let into = if is_measuring(ui.ctx()) { &measured } else { &log };
+            into.borrow_mut().push("body");
+        });
     });
     assert_eq!(
         *log.borrow(),
-        ["measure", "parts", "update", "overlay", "flags", "content_env", "paint", "body", "paint_over", "activated", "finish"]
+        ["measure", "parts", "update", "overlay", "flags", "content_env", "paint", "body", "paint_over", "activated", "finish"],
+        "the real run"
+    );
+    let mut order = ["content_env", "body", "measure"].into_iter();
+    assert!(
+        measured.borrow().iter().all(|call| order.any(|allowed| allowed == *call)),
+        "a measuring run calls only content_env, body, measure, in this order: {:?}",
+        measured.borrow()
     );
 }
 

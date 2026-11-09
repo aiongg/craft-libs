@@ -5,7 +5,7 @@ use crate::runtime::egui::input::{self as raw_input, HeldInput, RawInput};
 use crate::runtime::egui::memory::{self as store, Service};
 use crate::runtime::egui::{pass, scale, style};
 use crate::runtime::env::{Env, RootEnv, WindowKey};
-use crate::runtime::{access, cursor, drag, focus, ime, keys, layout_memory, memory, motion, overlay, pointer, toast, wheel, windows};
+use crate::runtime::{access, cursor, drag, focus, ime, keys, layout_memory, measure, memory, motion, overlay, pointer, toast, wheel, windows};
 use craft_behavior::{DocKey, GestureId};
 use craft_host::Host;
 use craft_host::target::Os;
@@ -148,6 +148,7 @@ struct ShellRecord {
 }
 
 /// A chrome toggle waiting for its window's shell.
+#[derive(Clone)]
 struct PendingToggle {
     viewport: ViewportId,
     /// The window that held focus when the toggle was asked for; none when no shell of the viewport did.
@@ -402,15 +403,8 @@ fn queue_toggle(ctx: &Context, viewport: ViewportId, toggle: ChromeToggle) {
 /// focus for. A shell calls it once in each pass, so its window toggles in the pass the key went down.
 pub(crate) fn take_chrome_toggles(ctx: &Context, viewport: ViewportId, window: &WindowKey) -> Vec<ChromeToggle> {
     store::with::<FrameState, _>(ctx, |state| {
-        let mut mine = Vec::new();
-        state.toggles.retain(|pending| {
-            let wanted = pending.viewport == viewport && pending.window.as_ref().is_none_or(|aimed| aimed == window);
-            if wanted {
-                mine.push(pending.toggle);
-            }
-            !wanted
-        });
-        mine
+        let wanted = |pending: &PendingToggle| pending.viewport == viewport && pending.window.as_ref().is_none_or(|aimed| aimed == window);
+        measure::take_queued(ctx, &mut state.toggles, wanted).into_iter().map(|pending| pending.toggle).collect()
     })
 }
 

@@ -3,7 +3,7 @@
 use super::kit::{Panel, Probe, RowProbe, Rows, Seen, Table};
 use craft_ui::contract::{Show as _, ShowCollection as _, ShowContainer as _};
 use craft_ui::testing::contract::steps;
-use craft_ui::testing::{Frames, trial};
+use craft_ui::testing::{Frames, is_measuring, trial};
 use egui::Rect;
 use std::cell::RefCell;
 use std::sync::Mutex;
@@ -29,20 +29,22 @@ fn a_leaf_runs_every_step_but_content_in_order() {
 }
 
 #[trial]
-fn a_body_runs_all_17_steps_and_its_closure_once_per_pass() {
+fn a_body_runs_all_17_steps_and_its_closure_once_in_the_real_run_of_each_pass_and_at_most_once_in_a_measuring_run() {
     let mut frames = Frames::new();
     let ran = RefCell::new(0);
+    let measured = RefCell::new(0);
     let mut id = None;
     let passes = frames.frame(vec![], |ui| {
         let out = Panel::new().show(ui, |ui, _| {
-            *ran.borrow_mut() += 1;
+            *(if is_measuring(ui.ctx()) { &measured } else { &ran }).borrow_mut() += 1;
             let seen = RefCell::new(Seen::default());
             Probe::new(&seen).show(ui);
         });
         assert!(out.inner.is_some(), "the body ran");
         id = Some(out.output.id);
     });
-    assert_eq!(*ran.borrow(), passes, "the body ran once per pass");
+    assert_eq!(*ran.borrow(), passes, "the body ran once in the real run of each pass");
+    assert!(*measured.borrow() <= passes, "the body ran at most once in a measuring run of each pass");
     assert_eq!(steps(&frames.ctx, id.expect("the panel was shown")), WITH_CONTENT);
 }
 
