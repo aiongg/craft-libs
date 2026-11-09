@@ -37,19 +37,13 @@ fn typed(value: &Rc<Cell<f64>>, mut fixture: Fixture, text: &str) -> f64 {
     value.get()
 }
 
+/// A typed value goes to the set step's grid; without a step it keeps the places the default step needs.
 #[trial]
 fn a_typed_value_snaps_to_the_step_set_or_default() {
-    {
-        // A set step is the grid typed values go to.
-        let value = Rc::new(Cell::new(10.0));
-        let fixture = rig(&value, PERCENT, Some(5.0));
-        assert_eq!(typed(&value, fixture, "42"), 40.0);
-    }
-    {
-        // Without a step a typed value keeps the places the default step needs.
-        let value = Rc::new(Cell::new(0.5));
-        let fixture = rig(&value, UNIT, None);
-        assert_eq!(typed(&value, fixture, "0.456"), 0.46);
+    for (start, range, step, text, expected) in [(10.0, PERCENT, Some(5.0), "42", 40.0), (0.5, UNIT, None, "0.456", 0.46)] {
+        let value = Rc::new(Cell::new(start));
+        let fixture = rig(&value, range, step);
+        assert_eq!(typed(&value, fixture, text), expected, "{text} with step {step:?}");
     }
 }
 

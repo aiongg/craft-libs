@@ -87,14 +87,12 @@ fn fits_and_scrolls(list: bool) {
     assert!(last.bottom() <= done.top() + EDGE_SLACK, "the last row lies above the footer: {last:?} over {done:?}");
 }
 
+/// A dialog taller than the window lies inside it and scrolls: with an ordinary body, and with a body that is one
+/// collection, which owns the scroll (the shortcuts dialog).
 #[trial]
-fn a_dialog_taller_than_the_window_lies_inside_it_with_its_body_and_collection_scrolling() {
-    {
-        fits_and_scrolls(false);
-    }
-    {
-        // The same with a body that is one collection, which owns the scroll (the shortcuts dialog).
-        fits_and_scrolls(true);
+fn a_dialog_taller_than_the_window_lies_inside_it_and_scrolls() {
+    for list in [false, true] {
+        fits_and_scrolls(list);
     }
 }
 

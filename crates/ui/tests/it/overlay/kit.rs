@@ -199,15 +199,11 @@ fn popup_open_after_popover_reopens(motion: MotionMode) -> bool {
     inner_open.get()
 }
 
+/// A popup opened inside a popover closes when the popover closes, so reopening the popover does not show it open. With
+/// motion off the popover hides in the frame it closes and the popup's owner runs only when it reopens; the close waits for it.
 #[trial]
 fn closing_a_popover_closes_the_popup_opened_inside_it() {
-    {
-        // A popup opened inside a popover closes when the popover closes, so reopening the popover does not show it open.
-        assert!(!popup_open_after_popover_reopens(MotionMode::Full), "the popup closed with the popover that held it");
-    }
-    {
-        // With motion off the popover hides in the frame it closes, so the popup's owner does not run until the popover
-        // reopens; the close waits for it.
-        assert!(!popup_open_after_popover_reopens(MotionMode::Off), "the popup closed with the popover that held it");
+    for motion in [MotionMode::Full, MotionMode::Off] {
+        assert!(!popup_open_after_popover_reopens(motion), "the popup closed with the popover that held it");
     }
 }

@@ -47,30 +47,30 @@ fn type_into(fixture: &mut Fixture, field: &Target, text: &str) {
     fixture.settle();
 }
 
+/// Picking a style resets the numbers to that style's start, whatever they were. The pick is made with the arrow
+/// keys on the focused select, which steps through the styles without opening its list.
 #[trial]
-fn a_style_pick_resets_the_numbers_and_normal_greys_the_cells() {
-    {
-        // Picking a style resets the numbers to that style's start, whatever they were. The pick is made with the arrow
-        // keys on the focused select, which steps through the styles without opening its list.
-        let (mut fixture, state) = rig(Constraint::Ratio(16.0, 9.0), None, true);
-        fixture.key(Key::Tab, Modifiers::NONE).settle();
-        fixture.key(Key::ArrowDown, Modifiers::NONE).settle();
-        let reset = Constraint::Size(ConstraintFields::SIZE_START.0, ConstraintFields::SIZE_START.1);
-        assert_eq!(state.get(), reset);
-    }
-    {
-        // Normal greys Width, the swap and Height; Fixed Ratio does not.
-        let greyed = |start: Constraint| {
-            let (fixture, _) = rig(start, None, true);
-            let (width, height) = fields(&fixture);
-            let swap = fixture.by_label("Swaps height and width").unwrap();
-            [width, height, swap].map(|target| fixture.tree().is_disabled_key(target.node))
-        };
-        let ratio = Constraint::Ratio(1.0, 2.0);
-        let (free, fixed) = (greyed(Constraint::Free), greyed(ratio));
-        assert!(free.iter().all(|grey| *grey), "Normal greys Width, the swap and Height");
-        assert!(fixed.iter().all(|grey| !*grey), "Fixed Ratio leaves them enabled");
-    }
+fn a_style_pick_resets_the_numbers() {
+    let (mut fixture, state) = rig(Constraint::Ratio(16.0, 9.0), None, true);
+    fixture.key(Key::Tab, Modifiers::NONE).settle();
+    fixture.key(Key::ArrowDown, Modifiers::NONE).settle();
+    let reset = Constraint::Size(ConstraintFields::SIZE_START.0, ConstraintFields::SIZE_START.1);
+    assert_eq!(state.get(), reset);
+}
+
+/// Normal greys Width, the swap and Height; Fixed Ratio does not.
+#[trial]
+fn normal_greys_the_cells() {
+    let greyed = |start: Constraint| {
+        let (fixture, _) = rig(start, None, true);
+        let (width, height) = fields(&fixture);
+        let swap = fixture.by_label("Swaps height and width").unwrap();
+        [width, height, swap].map(|target| fixture.tree().is_disabled_key(target.node))
+    };
+    let ratio = Constraint::Ratio(1.0, 2.0);
+    let (free, fixed) = (greyed(Constraint::Free), greyed(ratio));
+    assert!(free.iter().all(|grey| *grey), "Normal greys Width, the swap and Height");
+    assert!(fixed.iter().all(|grey| !*grey), "Fixed Ratio leaves them enabled");
 }
 
 /// A typed width commits on Enter and leaves the height.
@@ -105,44 +105,44 @@ fn disabled_cells_take_no_input() {
     assert_eq!(state.get(), start);
 }
 
+/// Fixed Size in inches: 3 in at 100 pixels per inch is 300 pixels; a secondary click offers the units menu only
+/// when the host gave units.
 #[trial]
-fn typed_lengths_convert_through_the_document_and_the_menu_needs_units() {
-    {
-        // Fixed Size in inches: 3 in at 100 pixels per inch is 300 pixels; a secondary click offers the units menu only
-        // when the host gave units.
-        let (mut fixture, state) = rig(Constraint::Size(200.0, 100.0), Some(UnitKind::Inches), true);
-        let (width, _) = fields(&fixture);
-        type_into(&mut fixture, &width, "3");
-        let expected = Constraint::Size(300.0, 100.0);
-        assert_eq!(state.get(), expected);
-        let at = width.center();
-        fixture.frame(vec![craft_ui::testing::pointer::moved(at)]);
-        fixture.frame(vec![craft_ui::testing::pointer::secondary(at, true)]);
-        fixture.frame(vec![craft_ui::testing::pointer::secondary(at, false)]);
-        fixture.settle();
-        assert!(fixture.by_label("Centimetres").is_some(), "the units menu opens");
+fn fixed_size_converts_units_and_offers_the_menu_only_with_units() {
+    let (mut fixture, state) = rig(Constraint::Size(200.0, 100.0), Some(UnitKind::Inches), true);
+    let (width, _) = fields(&fixture);
+    type_into(&mut fixture, &width, "3");
+    let expected = Constraint::Size(300.0, 100.0);
+    assert_eq!(state.get(), expected);
+    let at = width.center();
+    fixture.frame(vec![craft_ui::testing::pointer::moved(at)]);
+    fixture.frame(vec![craft_ui::testing::pointer::secondary(at, true)]);
+    fixture.frame(vec![craft_ui::testing::pointer::secondary(at, false)]);
+    fixture.settle();
+    assert!(fixture.by_label("Centimetres").is_some(), "the units menu opens");
 
-        let (mut plain, _) = rig(Constraint::Size(200.0, 100.0), None, true);
-        let (width, _) = fields(&plain);
-        let at = width.center();
-        plain.frame(vec![craft_ui::testing::pointer::moved(at)]);
-        plain.frame(vec![craft_ui::testing::pointer::secondary(at, true)]);
-        plain.frame(vec![craft_ui::testing::pointer::secondary(at, false)]);
-        plain.settle();
-        assert!(plain.by_label("Centimetres").is_none(), "no units, no menu");
-    }
-    {
-        // Typed text carries the unit it is meant in: the document's resolution (100 pixels per inch) and extent (1000 by 500
-        // pixels) convert it whatever unit the field shows.
-        let typed = |unit: UnitKind, text: &str, width: bool| {
-            let (mut fixture, state) = rig(Constraint::Size(640.0, 480.0), Some(unit), true);
-            let (w, h) = fields(&fixture);
-            type_into(&mut fixture, if width { &w } else { &h }, text);
-            state.get()
-        };
-        assert_eq!(typed(UnitKind::Pixels, "2in", true), Constraint::Size(200.0, 480.0), "inches in a Pixels field");
-        assert_eq!(typed(UnitKind::Inches, "250px", true), Constraint::Size(250.0, 480.0), "pixels in an Inches field");
-        assert_eq!(typed(UnitKind::Inches, "50%", true), Constraint::Size(500.0, 480.0), "percent of the width");
-        assert_eq!(typed(UnitKind::Pixels, "50%", false), Constraint::Size(640.0, 250.0), "percent of the height");
-    }
+    let (mut plain, _) = rig(Constraint::Size(200.0, 100.0), None, true);
+    let (width, _) = fields(&plain);
+    let at = width.center();
+    plain.frame(vec![craft_ui::testing::pointer::moved(at)]);
+    plain.frame(vec![craft_ui::testing::pointer::secondary(at, true)]);
+    plain.frame(vec![craft_ui::testing::pointer::secondary(at, false)]);
+    plain.settle();
+    assert!(plain.by_label("Centimetres").is_none(), "no units, no menu");
+}
+
+/// Typed text carries the unit it is meant in: the document's resolution (100 pixels per inch) and extent (1000 by 500
+/// pixels) convert it whatever unit the field shows.
+#[trial]
+fn typed_lengths_convert_through_the_document_in_every_unit() {
+    let typed = |unit: UnitKind, text: &str, width: bool| {
+        let (mut fixture, state) = rig(Constraint::Size(640.0, 480.0), Some(unit), true);
+        let (w, h) = fields(&fixture);
+        type_into(&mut fixture, if width { &w } else { &h }, text);
+        state.get()
+    };
+    assert_eq!(typed(UnitKind::Pixels, "2in", true), Constraint::Size(200.0, 480.0), "inches in a Pixels field");
+    assert_eq!(typed(UnitKind::Inches, "250px", true), Constraint::Size(250.0, 480.0), "pixels in an Inches field");
+    assert_eq!(typed(UnitKind::Inches, "50%", true), Constraint::Size(500.0, 480.0), "percent of the width");
+    assert_eq!(typed(UnitKind::Pixels, "50%", false), Constraint::Size(640.0, 250.0), "percent of the height");
 }

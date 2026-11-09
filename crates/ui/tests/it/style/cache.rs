@@ -131,31 +131,31 @@ fn equal_token_sets_share_a_key_and_different_ones_do_not() {
     assert_ne!(light.key(), light.with_groups(values).key(), "token group values are part of the set");
 }
 
+/// An app that builds a fresh `RootEnv` (and so a fresh sizes table) every frame leaves a bounded root-token cache.
 #[trial]
-fn the_root_token_key_is_bounded_and_holds_the_root_theme() {
-    {
-        // An app that builds a fresh `RootEnv` (and so a fresh sizes table) every frame leaves a bounded root-token cache.
-        let mut frames = Frames::new();
-        for _ in 0..20 {
-            frames.root(RootEnv::default());
-            frames.idle(1, |_| {});
-        }
-        let kept = root_token_entries(&frames.ctx);
-        assert!(kept > 0 && kept < 20, "{kept} entries after 20 frames with 20 distinct roots");
+fn root_tokens_are_cached_for_a_bounded_number_of_inputs() {
+    let mut frames = Frames::new();
+    for _ in 0..20 {
+        frames.root(RootEnv::default());
+        frames.idle(1, |_| {});
     }
-    {
-        // The root's theme is part of the root-token cache key, so a theme change resolves new tokens.
-        let mut frames = Frames::new();
-        let root = RootEnv::new();
-        frames.root(root.clone());
-        frames.idle(1, |_| {});
-        let one_theme = root_token_entries(&frames.ctx);
-        frames.root(root.clone());
-        frames.idle(1, |_| {});
-        assert_eq!(root_token_entries(&frames.ctx), one_theme, "an unchanged root adds no entry");
-        let other = builtins().iter().map(|theme| theme.id.clone()).find(|id| *id != root.theme).expect("a second built-in theme");
-        frames.root(root.theme(other));
-        frames.idle(1, |_| {});
-        assert_eq!(root_token_entries(&frames.ctx), one_theme + 1, "another theme resolves its own tokens");
-    }
+    let kept = root_token_entries(&frames.ctx);
+    assert!(kept > 0 && kept < 20, "{kept} entries after 20 frames with 20 distinct roots");
+}
+
+/// The root's theme is part of the root-token cache key, so a theme change resolves new tokens.
+#[trial]
+fn a_root_theme_is_part_of_the_root_token_key() {
+    let mut frames = Frames::new();
+    let root = RootEnv::new();
+    frames.root(root.clone());
+    frames.idle(1, |_| {});
+    let one_theme = root_token_entries(&frames.ctx);
+    frames.root(root.clone());
+    frames.idle(1, |_| {});
+    assert_eq!(root_token_entries(&frames.ctx), one_theme, "an unchanged root adds no entry");
+    let other = builtins().iter().map(|theme| theme.id.clone()).find(|id| *id != root.theme).expect("a second built-in theme");
+    frames.root(root.theme(other));
+    frames.idle(1, |_| {});
+    assert_eq!(root_token_entries(&frames.ctx), one_theme + 1, "another theme resolves its own tokens");
 }

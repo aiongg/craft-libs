@@ -117,36 +117,36 @@ fn moves_window(sent: &[(ViewportId, ViewportCommand)]) -> bool {
     sent.iter().any(|(viewport, command)| *viewport == ViewportId::ROOT && matches!(command, ViewportCommand::StartDrag))
 }
 
+/// With a modal dialog open and moved into the title bar, a drag on the bar beside the dialog moves the window, and
+/// a drag that starts on the dialog where it lies over the bar does not.
 #[trial]
-fn a_modal_leaves_the_covered_title_bar_draggable_and_maximizable() {
-    {
-        // With a modal dialog open and moved into the title bar, a drag on the bar beside the dialog moves the window, and
-        // a drag that starts on the dialog where it lies over the bar does not.
-        let windows = framed_window();
-        let seen = Seen::new();
-        let at = Pos2::new(300.0, 4.0);
-        let beside = modal_over_bar(&windows, at, &seen);
-        let on_dialog = Pos2::new(seen.dialog.get().center().x, seen.bar.get().center().y);
-        let regions = WindowHost::of(&windows.ctx).caption_regions(ViewportId::ROOT).expect("the bar registered its parts");
-        assert_ne!(regions.hit(on_dialog), Some(WindowHit::Move), "the dialog stays in front of the bar");
+fn a_modal_leaves_the_covered_title_bar_draggable_but_not_the_dialog() {
+    let windows = framed_window();
+    let seen = Seen::new();
+    let at = Pos2::new(300.0, 4.0);
+    let beside = modal_over_bar(&windows, at, &seen);
+    let on_dialog = Pos2::new(seen.dialog.get().center().x, seen.bar.get().center().y);
+    let regions = WindowHost::of(&windows.ctx).caption_regions(ViewportId::ROOT).expect("the bar registered its parts");
+    assert_ne!(regions.hit(on_dialog), Some(WindowHit::Move), "the dialog stays in front of the bar");
 
-        assert!(moves_window(&drag(&windows, beside, at, &seen)), "a drag on the covered bar moves the window");
-        assert!(!moves_window(&drag(&windows, on_dialog, at, &seen)), "a drag on the dialog stays the dialog's");
-    }
-    {
-        // A double click on the bar beside the modal maximizes the window, as one on the free title bar does.
-        let windows = framed_window();
-        let seen = Seen::new();
-        let at = Pos2::new(300.0, 4.0);
-        let beside = modal_over_bar(&windows, at, &seen);
-        let steps = vec![vec![moved(beside)], vec![press(beside)], vec![release(beside)], vec![press(beside)], vec![release(beside)], vec![]];
-        let sent = run(&windows, steps, at, &seen);
-        assert!(
-            sent.iter().any(|(viewport, command)| *viewport == ViewportId::ROOT && matches!(command, ViewportCommand::Maximized(true))),
-            "the double click maximizes the window: {sent:?}"
-        );
-        assert!(seen.open.get(), "the modal stays open");
-    }
+    assert!(moves_window(&drag(&windows, beside, at, &seen)), "a drag on the covered bar moves the window");
+    assert!(!moves_window(&drag(&windows, on_dialog, at, &seen)), "a drag on the dialog stays the dialog's");
+}
+
+/// A double click on the bar beside the modal maximizes the window, as one on the free title bar does.
+#[trial]
+fn a_double_click_beside_a_modal_maximizes_the_window() {
+    let windows = framed_window();
+    let seen = Seen::new();
+    let at = Pos2::new(300.0, 4.0);
+    let beside = modal_over_bar(&windows, at, &seen);
+    let steps = vec![vec![moved(beside)], vec![press(beside)], vec![release(beside)], vec![press(beside)], vec![release(beside)], vec![]];
+    let sent = run(&windows, steps, at, &seen);
+    assert!(
+        sent.iter().any(|(viewport, command)| *viewport == ViewportId::ROOT && matches!(command, ViewportCommand::Maximized(true))),
+        "the double click maximizes the window: {sent:?}"
+    );
+    assert!(seen.open.get(), "the modal stays open");
 }
 
 /// The strips over the bar take no keys: Escape cancels the modal under them, and Enter activates its default

@@ -71,21 +71,14 @@ fn press(fixture: &mut Fixture, label: &str) {
     fixture.idle(3);
 }
 
+/// OK applies the draft once and closes the window as answered; Apply applies it and leaves the window open.
 #[trial]
 fn ok_applies_and_closes_and_apply_keeps_the_window_open() {
-    {
-        // OK applies the draft once and closes the window as answered.
+    for (label, closed) in [("OK", Some(Closed::Ok)), ("Apply", None)] {
         let (mut fixture, log) = rig(false);
-        press(&mut fixture, "OK");
-        assert_eq!(log.applied.get(), 1);
-        assert_eq!(log.closed.get(), Some(Closed::Ok));
-    }
-    {
-        // Apply applies the draft and leaves the window open.
-        let (mut fixture, log) = rig(false);
-        press(&mut fixture, "Apply");
-        assert_eq!(log.applied.get(), 1);
-        assert_eq!(log.closed.get(), None);
+        press(&mut fixture, label);
+        assert_eq!(log.applied.get(), 1, "{label}");
+        assert_eq!(log.closed.get(), closed, "{label}");
     }
 }
 

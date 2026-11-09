@@ -27,35 +27,35 @@ struct Outer {
 }
 
 #[trial]
-fn dump_format_writes_a_key_once_and_flattens_debug_values() {
-    {
-        let mut themed = Themed::new();
-        themed
-            .theme("a.light", entries(&[("x", "1"), ("y", "2")]))
-            .theme("a.dark", entries(&[("x", "1"), ("y", "3")]))
-            .theme("b.light", entries(&[("x", "1"), ("y", "2"), ("z", "9")]))
-            .theme("b.dark", entries(&[("x", "4"), ("y", "2")]));
-        let mut dump = Dump::new();
-        themed.write(&mut dump);
-        assert_eq!(dump.text(), "x = 1\nx@b.dark = 4\ny = 2\ny@a.dark = 3\nz = 9\nz@a.light = <absent>\nz@a.dark = <absent>\nz@b.dark = <absent>\n");
-    }
-    {
-        let value = Outer { height: 24.0, inner: Inner { gap: 4.0, pair: (1, 2) }, items: vec![7, 8], none: None };
-        let flat = flatten_debug(&value);
-        let keys: Vec<(&str, &str)> = flat.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-        assert_eq!(
-            keys,
-            [
-                ("height", "24.0"),
-                ("inner.gap", "4.0"),
-                ("inner.pair.0", "1"),
-                ("inner.pair.1", "2"),
-                ("items.0", "7"),
-                ("items.1", "8"),
-                ("none", "None")
-            ]
-        );
-    }
+fn a_key_is_written_once_with_its_common_value_and_one_line_per_differing_theme() {
+    let mut themed = Themed::new();
+    themed
+        .theme("a.light", entries(&[("x", "1"), ("y", "2")]))
+        .theme("a.dark", entries(&[("x", "1"), ("y", "3")]))
+        .theme("b.light", entries(&[("x", "1"), ("y", "2"), ("z", "9")]))
+        .theme("b.dark", entries(&[("x", "4"), ("y", "2")]));
+    let mut dump = Dump::new();
+    themed.write(&mut dump);
+    assert_eq!(dump.text(), "x = 1\nx@b.dark = 4\ny = 2\ny@a.dark = 3\nz = 9\nz@a.light = <absent>\nz@a.dark = <absent>\nz@b.dark = <absent>\n");
+}
+
+#[trial]
+fn debug_values_flatten_to_dotted_keys() {
+    let value = Outer { height: 24.0, inner: Inner { gap: 4.0, pair: (1, 2) }, items: vec![7, 8], none: None };
+    let flat = flatten_debug(&value);
+    let keys: Vec<(&str, &str)> = flat.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+    assert_eq!(
+        keys,
+        [
+            ("height", "24.0"),
+            ("inner.gap", "4.0"),
+            ("inner.pair.0", "1"),
+            ("inner.pair.1", "2"),
+            ("items.0", "7"),
+            ("items.1", "8"),
+            ("none", "None")
+        ]
+    );
 }
 
 /// Every surface kind and control size resolves in each built-in theme and appears in the dump.

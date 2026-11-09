@@ -96,70 +96,71 @@ fn required_trailing_items_stay_and_optional_text_drops_first() {
     assert!(narrow.label.width() >= narrow.min_label);
 }
 
+/// A press on a trailing part reports it with the modifiers held and leaves the selection alone.
 #[trial]
-fn a_click_on_a_trailing_part_reports_its_modifiers() {
-    {
-        // A press on a trailing part reports it with the modifiers held and leaves the selection alone.
-        let (mut fixture, seen) = rig(with_trailing);
-        let part = fixture.by_label("Effects").expect("the part has a node");
-        fixture.hold(Modifiers::ALT);
-        fixture.click(&part);
-        let events = seen.events.borrow();
-        assert!(matches!(events.as_slice(), [RowEvent::Trailing { part, mods, .. }] if *part == PART && mods.alt), "{events:?}");
-        assert_eq!(seen.selections.get(), 0);
-    }
-    {
-        // A click on a thumbnail reports the modifiers held.
-        let rect = Rc::new(Cell::new(Rect::NOTHING));
-        let (mut fixture, seen) = rig(with_thumb(rect.clone()));
-        fixture.hold(Modifiers::SHIFT);
-        fixture.click_at(rect.get().center());
-        let events = seen.events.borrow();
-        assert!(
-            events.iter().any(|event| matches!(event, RowEvent::ThumbClicked { target: ThumbTarget::First, mods, .. } if mods.shift)),
-            "{events:?}"
-        );
-    }
-    {
-        // A click on a toggle cell reports the modifiers held.
-        let scene = Scene::new();
-        let mut frames = Frames::new();
-        let mut show = |ui: &mut Ui| show_table(ui, &scene);
-        frames.idle(3, &mut show);
-        frames.hold(Modifiers::SHIFT);
-        pointer::click(&mut frames, toggle_cell(&scene), &mut show);
-        let mods: Vec<Mods> = scene
-            .events
-            .borrow()
-            .iter()
-            .filter_map(|event| {
-                if let CollectionEvent::Toggle(edit) = event {
-                    edit.value()
-                        .filter(|_| matches!(edit, craft_behavior::EditEvent::Set { .. } | craft_behavior::EditEvent::Commit { .. }))
-                        .map(|toggle| toggle.mods)
-                } else {
-                    None
-                }
-            })
-            .collect();
-        assert!(!mods.is_empty() && mods.iter().all(|mods| mods.shift), "{mods:?}");
-    }
-    {
-        // A footer pick reports the modifiers held at the pick.
-        let picked = Rc::new(RefCell::new(Vec::new()));
-        let sink = picked.clone();
-        let mut fixture = Fixture::new(move |ui| {
-            let out = FooterBar::actions([FooterAction::new(IconId::new("trash"), "Delete")]).show_footer(ui);
-            if out.picked.is_some() {
-                sink.borrow_mut().push(out.mods);
+fn a_press_on_a_trailing_part_reports_its_modifiers_and_keeps_the_selection() {
+    let (mut fixture, seen) = rig(with_trailing);
+    let part = fixture.by_label("Effects").expect("the part has a node");
+    fixture.hold(Modifiers::ALT);
+    fixture.click(&part);
+    let events = seen.events.borrow();
+    assert!(matches!(events.as_slice(), [RowEvent::Trailing { part, mods, .. }] if *part == PART && mods.alt), "{events:?}");
+    assert_eq!(seen.selections.get(), 0);
+}
+
+/// A click on a thumbnail reports the modifiers held.
+#[trial]
+fn a_modified_thumbnail_click_reports_its_modifiers() {
+    let rect = Rc::new(Cell::new(Rect::NOTHING));
+    let (mut fixture, seen) = rig(with_thumb(rect.clone()));
+    fixture.hold(Modifiers::SHIFT);
+    fixture.click_at(rect.get().center());
+    let events = seen.events.borrow();
+    assert!(events.iter().any(|event| matches!(event, RowEvent::ThumbClicked { target: ThumbTarget::First, mods, .. } if mods.shift)), "{events:?}");
+}
+
+/// A click on a toggle cell reports the modifiers held.
+#[trial]
+fn a_toggle_click_reports_its_modifiers() {
+    let scene = Scene::new();
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_table(ui, &scene);
+    frames.idle(3, &mut show);
+    frames.hold(Modifiers::SHIFT);
+    pointer::click(&mut frames, toggle_cell(&scene), &mut show);
+    let mods: Vec<Mods> = scene
+        .events
+        .borrow()
+        .iter()
+        .filter_map(|event| {
+            if let CollectionEvent::Toggle(edit) = event {
+                edit.value()
+                    .filter(|_| matches!(edit, craft_behavior::EditEvent::Set { .. } | craft_behavior::EditEvent::Commit { .. }))
+                    .map(|toggle| toggle.mods)
+            } else {
+                None
             }
-        });
-        fixture.settle();
-        let target = fixture.by_label("Delete").expect("the action has a node");
-        fixture.hold(Modifiers::ALT);
-        fixture.click(&target);
-        assert!(picked.borrow().iter().any(|mods: &Mods| mods.alt), "{:?}", picked.borrow());
-    }
+        })
+        .collect();
+    assert!(!mods.is_empty() && mods.iter().all(|mods| mods.shift), "{mods:?}");
+}
+
+/// A footer pick reports the modifiers held at the pick.
+#[trial]
+fn a_footer_pick_reports_its_modifiers() {
+    let picked = Rc::new(RefCell::new(Vec::new()));
+    let sink = picked.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let out = FooterBar::actions([FooterAction::new(IconId::new("trash"), "Delete")]).show_footer(ui);
+        if out.picked.is_some() {
+            sink.borrow_mut().push(out.mods);
+        }
+    });
+    fixture.settle();
+    let target = fixture.by_label("Delete").expect("the action has a node");
+    fixture.hold(Modifiers::ALT);
+    fixture.click(&target);
+    assert!(picked.borrow().iter().any(|mods: &Mods| mods.alt), "{:?}", picked.borrow());
 }
 
 /// A disabled trailing part is a disabled node: a press on it reports nothing, and Forward from the row does not
@@ -331,66 +332,66 @@ fn a_context_request_on_a_toggle_cell_names_the_column() {
     assert_eq!(columns, [Some(MUTE)]);
 }
 
+/// A field hosted in a row takes the typing aimed at it, leaves the row's selection and focus model alone, and Tab
+/// leaves the collection for the next stop after it.
 #[trial]
-fn a_hosted_field_takes_typing_and_is_entered_from_the_row() {
-    {
-        // A field hosted in a row takes the typing aimed at it, leaves the row's selection and focus model alone, and Tab
-        // leaves the collection for the next stop after it.
-        let committed = Rc::new(Cell::new(None));
-        let sink = committed.clone();
-        let mut fixture = Fixture::new(move |ui| {
+fn a_hosted_field_takes_typing_and_tab_leaves_it() {
+    let committed = Rc::new(Cell::new(None));
+    let sink = committed.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let sink = sink.clone();
+        let _ = List::new("Items").select(SelectMode::Single).show_items(ui, &Two, &mut |key, _| {
             let sink = sink.clone();
-            let _ = List::new("Items").select(SelectMode::Single).show_items(ui, &Two, &mut |key, _| {
-                let sink = sink.clone();
-                let row = ListRow::new(format!("Row {key}"));
-                if *key == 0 {
-                    row.trailing_field(HexField::hex("Hex", Bind::given(craft_theme::Rgba::rgb(0, 0, 0))), move |out| {
-                        if let Some(value) = out.value() {
-                            sink.set(Some(*value));
-                        }
-                    })
-                } else {
-                    row
-                }
-            });
-            let _ = craft_ui::buttons::Button::new("After the list").show(ui);
+            let row = ListRow::new(format!("Row {key}"));
+            if *key == 0 {
+                row.trailing_field(HexField::hex("Hex", Bind::given(craft_theme::Rgba::rgb(0, 0, 0))), move |out| {
+                    if let Some(value) = out.value() {
+                        sink.set(Some(*value));
+                    }
+                })
+            } else {
+                row
+            }
         });
-        fixture.settle();
-        let field = fixture.by_role(Role::TEXT_INPUT).into_iter().next().expect("the row hosts a field");
-        fixture.click(&field);
-        fixture.idle(2);
-        fixture.type_text("ff0000");
-        fixture.key(Key::Enter, Modifiers::NONE);
-        fixture.idle(2);
-        assert_eq!(committed.get(), Some(craft_theme::Rgba::rgb(255, 0, 0)), "the typing reached the field");
-        fixture.key(Key::Tab, Modifiers::NONE);
-        fixture.idle(2);
-        let after = fixture.by_label("After the list").expect("the control after the list has a node");
-        let focused = craft_ui::testing::access::NodeKey::of(fixture.focused().expect("Tab lands on a stop"));
-        let tree = fixture.tree();
-        assert_eq!(
-            focused,
-            after.node,
-            "Tab leaves the collection for the next control; it landed on {:?} {:?}",
-            tree.role_of(focused),
-            tree.name_of(focused)
-        );
-    }
-    {
-        // Forward from a row reaches the field hosted in it.
-        let mut fixture = Fixture::new(move |ui| {
-            let _ = List::new("Items").select(SelectMode::Single).show_items(ui, &Two, &mut |key, _| {
-                let row = ListRow::new(format!("Row {key}"));
-                if *key == 0 { row.trailing_field(HexField::hex("Hex", Bind::given(craft_theme::Rgba::rgb(0, 0, 0))), |_| {}) } else { row }
-            });
+        let _ = craft_ui::buttons::Button::new("After the list").show(ui);
+    });
+    fixture.settle();
+    let field = fixture.by_role(Role::TEXT_INPUT).into_iter().next().expect("the row hosts a field");
+    fixture.click(&field);
+    fixture.idle(2);
+    fixture.type_text("ff0000");
+    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.idle(2);
+    assert_eq!(committed.get(), Some(craft_theme::Rgba::rgb(255, 0, 0)), "the typing reached the field");
+    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.idle(2);
+    let after = fixture.by_label("After the list").expect("the control after the list has a node");
+    let focused = craft_ui::testing::access::NodeKey::of(fixture.focused().expect("Tab lands on a stop"));
+    let tree = fixture.tree();
+    assert_eq!(
+        focused,
+        after.node,
+        "Tab leaves the collection for the next control; it landed on {:?} {:?}",
+        tree.role_of(focused),
+        tree.name_of(focused)
+    );
+}
+
+/// Forward from a row reaches the field hosted in it.
+#[trial]
+fn forward_from_a_row_enters_its_hosted_field() {
+    let mut fixture = Fixture::new(move |ui| {
+        let _ = List::new("Items").select(SelectMode::Single).show_items(ui, &Two, &mut |key, _| {
+            let row = ListRow::new(format!("Row {key}"));
+            if *key == 0 { row.trailing_field(HexField::hex("Hex", Bind::given(craft_theme::Rgba::rgb(0, 0, 0))), |_| {}) } else { row }
         });
-        fixture.settle();
-        let field = fixture.by_role(Role::TEXT_INPUT).into_iter().next().expect("the row hosts a field");
-        let row = fixture.by_label("Row 0").expect("the row has a node");
-        fixture.click(&row);
-        fixture.idle(2);
-        fixture.key(Key::ArrowRight, Modifiers::NONE);
-        fixture.idle(2);
-        assert_eq!(craft_ui::testing::access::focused_key(fixture.tree()), field.node, "Forward from the row reaches the field");
-    }
+    });
+    fixture.settle();
+    let field = fixture.by_role(Role::TEXT_INPUT).into_iter().next().expect("the row hosts a field");
+    let row = fixture.by_label("Row 0").expect("the row has a node");
+    fixture.click(&row);
+    fixture.idle(2);
+    fixture.key(Key::ArrowRight, Modifiers::NONE);
+    fixture.idle(2);
+    assert_eq!(craft_ui::testing::access::focused_key(fixture.tree()), field.node, "Forward from the row reaches the field");
 }

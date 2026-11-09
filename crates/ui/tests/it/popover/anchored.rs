@@ -154,11 +154,10 @@ fn a_popover_without_a_focusable_body_stays_open_over_passes() {
     assert_eq!(scene.closed.get(), None, "no close rule fired");
 }
 
-/// The state of the opener closes its popover: the focus leaving a kept anchor, or the opener turning disabled.
+/// A popover that keeps the focus on its opener stays open while the focus is there, closes with `FocusLeft` once
+/// it moves to another control, and Escape on the opener closes it.
 #[trial]
-fn the_opener_state_closes_its_popover() {
-    // A popover that keeps the focus on its opener closes with `FocusLeft` once the focus moves on, and a disabled opener
-    // closes it with `AnchorGone`.
+fn a_keep_anchor_popover_follows_the_focus_of_its_opener() {
     let keep_anchor = Build { setters: |popover| popover.initial_focus(Initial::KeepAnchor), focusable_body: true, at_point: None };
     let mut scene = open_scene(keep_anchor);
     scene.focus_opener();
@@ -167,13 +166,30 @@ fn the_opener_state_closes_its_popover() {
     assert!(scene.open.get(), "the popover stays open while the focus is on its opener");
     scene.focus_other();
     scene.fixture.idle(3);
+    assert!(!scene.open.get(), "the focus moving to another control closes it");
     assert_eq!(scene.closed.get(), Some(CloseReason::FocusLeft));
 
+    let keep_anchor = Build { setters: |popover| popover.initial_focus(Initial::KeepAnchor), focusable_body: true, at_point: None };
+    let mut scene = open_scene(keep_anchor);
+    scene.focus_opener();
+    scene.open.set(true);
+    scene.fixture.idle(10);
+    scene.fixture.key(Key::Escape, Modifiers::NONE);
+    scene.fixture.idle(30);
+    assert!(!scene.open.get(), "Escape with the focus on the opener closes the popover");
+    assert_eq!(scene.closed.get(), Some(CloseReason::Escape));
+}
+
+/// A disabled opener closes its popover with `AnchorGone`.
+#[trial]
+fn disabling_the_opener_closes_its_popover() {
     let mut scene = open_scene(Build { setters: |popover| popover, focusable_body: true, at_point: None });
     scene.open.set(true);
     scene.fixture.idle(5);
+    assert!(scene.open.get(), "the popover is open");
     scene.opener_enabled.set(false);
     scene.fixture.idle(5);
+    assert!(!scene.open.get(), "the opener turned disabled");
     assert_eq!(scene.closed.get(), Some(CloseReason::AnchorGone));
 }
 

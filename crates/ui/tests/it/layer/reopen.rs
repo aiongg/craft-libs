@@ -58,28 +58,23 @@ fn assert_open_again(fixture: &Fixture, open: &Cell<bool>) {
     assert!(fixture.by_label(ITEM).is_some(), "the popover shows its body again");
 }
 
+/// A popover opens again after any way it closed: an item click from inside, Escape, or a click outside.
 #[trial]
 fn a_popover_opens_again_after_any_close_gesture() {
-    {
-        // An item click that closes the popover from inside leaves it free to open again.
-        let (fixture, open) = reopened_after(|fixture| {
+    let gestures: [Box<dyn FnOnce(&mut Fixture)>; 3] = [
+        Box::new(|fixture: &mut Fixture| {
             let item = fixture.by_label(ITEM).expect("the popover's item");
             fixture.click(&item);
-        });
-        assert_open_again(&fixture, &open);
-    }
-    {
-        // Escape closes the popover, and the opener opens it again.
-        let (fixture, open) = reopened_after(|fixture| {
+        }),
+        Box::new(|fixture: &mut Fixture| {
             fixture.key(Key::Escape, Modifiers::NONE);
-        });
-        assert_open_again(&fixture, &open);
-    }
-    {
-        // A click outside closes the popover, and the opener opens it again.
-        let (fixture, open) = reopened_after(|fixture| {
+        }),
+        Box::new(|fixture: &mut Fixture| {
             fixture.click_at(pos2(700.0, 500.0));
-        });
+        }),
+    ];
+    for close in gestures {
+        let (fixture, open) = reopened_after(close);
         assert_open_again(&fixture, &open);
     }
 }

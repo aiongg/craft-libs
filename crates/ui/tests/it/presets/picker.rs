@@ -35,29 +35,29 @@ fn open(fixture: &mut Fixture) {
     fixture.idle(3);
 }
 
+/// A click on a preset in the popover writes its key.
 #[trial]
-fn a_click_picks_a_preset_and_the_popover_opens_again() {
-    {
-        // A click on a preset in the popover writes its key.
-        let (mut fixture, value) = picker();
-        open(&mut fixture);
-        let coral = fixture.by_label("Coral").expect("the preset's tile");
-        fixture.click(&coral);
-        fixture.idle(3);
-        assert_eq!(value.get(), Some(CORAL));
-    }
-    {
-        // A click on the field opens the popover again after a pick closed it.
-        let (mut fixture, value) = picker();
-        open(&mut fixture);
-        let coral = fixture.by_label("Coral").expect("the preset's tile");
-        fixture.click(&coral);
-        fixture.idle(3);
-        assert_eq!(value.get(), Some(CORAL));
-        assert!(fixture.by_label("Amber").is_none(), "the pick closed the popover");
-        open(&mut fixture);
-        assert!(fixture.by_label("Amber").is_some(), "the popover opened again");
-    }
+fn a_click_on_a_preset_picks_it() {
+    let (mut fixture, value) = picker();
+    open(&mut fixture);
+    let coral = fixture.by_label("Coral").expect("the preset's tile");
+    fixture.click(&coral);
+    fixture.idle(3);
+    assert_eq!(value.get(), Some(CORAL));
+}
+
+/// A click on the field opens the popover again after a pick closed it.
+#[trial]
+fn the_popover_opens_again_after_a_pick_closed_it() {
+    let (mut fixture, value) = picker();
+    open(&mut fixture);
+    let coral = fixture.by_label("Coral").expect("the preset's tile");
+    fixture.click(&coral);
+    fixture.idle(3);
+    assert_eq!(value.get(), Some(CORAL));
+    assert!(fixture.by_label("Amber").is_none(), "the pick closed the popover");
+    open(&mut fixture);
+    assert!(fixture.by_label("Amber").is_some(), "the popover opened again");
 }
 
 /// Escape closes the popover and the value stays what it was.
@@ -121,17 +121,14 @@ fn events_after_menu_delete(label: &str) -> Vec<PresetEvent<u32>> {
     reported
 }
 
+/// The row menu deletes a preset that `can_delete` passes; the row menu of one it refuses opens, and its Delete row
+/// reports no delete, neither for that preset nor for the selected one.
 #[trial]
-fn the_row_menu_honours_can_delete() {
-    {
-        // The row menu deletes a preset that `can_delete` passes.
-        assert!(events_after_menu_delete("Amber").contains(&PresetEvent::Delete(AMBER)));
-    }
-    {
-        // The row menu of a preset that `can_delete` refuses opens, and its Delete row reports no delete, neither for that
-        // preset nor for the selected one.
-        let events = events_after_menu_delete("Coral");
-        assert!(!events.iter().any(|event| matches!(event, PresetEvent::Delete(_))), "no delete was reported: {events:?}");
+fn the_row_menu_deletes_only_what_can_delete_passes() {
+    for (label, deletes) in [("Amber", true), ("Coral", false)] {
+        let events = events_after_menu_delete(label);
+        let deleted = events.iter().any(|event| matches!(event, PresetEvent::Delete(_)));
+        assert_eq!(deleted, deletes, "{label}: {events:?}");
     }
 }
 

@@ -5,7 +5,6 @@ use std::sync::Arc;
 use craft_host::target::Os;
 use craft_i18n::Folder;
 use craft_i18n::matcher::Matcher;
-use craft_theme::Rgba;
 use craft_ui::patterns::preferences::{
     GroupSpec, PageInfo, PageSpec, PrefValue, PreferencesModel, RowKind, RowSpec, SettingRule, SettingsDocument, StandardPage, list_pages, matches,
     row_shown, shown_position,
@@ -44,30 +43,30 @@ fn the_search_rule_ignores_case_space_and_accents() {
     assert!(matches(&matcher(""), "anything", "", ""));
 }
 
+/// A title match lists the page with every visible row; a row match lists the page with that row only.
 #[trial]
-fn a_search_matches_by_title_row_help_and_keywords() {
-    {
-        // A title match lists the page with every visible row; a row match lists the page with that row only.
-        let pages = pages();
-        let by_title = matcher("tools");
-        let listed = list_pages(&pages, &by_title);
-        assert_eq!(listed.len(), 1);
-        let shown = |matcher: &Matcher, listed: &craft_ui::patterns::preferences::Listed| -> Vec<&str> {
-            pages[listed.index].groups[0].rows.iter().filter(|r| row_shown(matcher, listed, r)).map(|r| r.key).collect()
-        };
-        assert_eq!(shown(&by_title, &listed[0]), ["tools.snap", "tools.smoothing"]);
-        let by_row = matcher("smooth");
-        let listed = list_pages(&pages, &by_row);
-        assert_eq!(listed.len(), 1);
-        assert_eq!(shown(&by_row, &listed[0]), ["tools.smoothing"]);
-        assert_eq!(listed_ids(&pages, "locale"), ["general"]);
-    }
-    {
-        // A row matches by its help text, and a custom page by its keywords.
-        assert_eq!(listed_ids(&pages(), "memory runs low"), ["advanced"]);
-        let custom = vec![PageSpec::custom("graphics", "Graphics").keywords("GPU adapter"), PageSpec::custom("other", "Other")];
-        assert_eq!(listed_ids(&custom, "adapter"), ["graphics"]);
-    }
+fn a_title_match_shows_every_row_and_a_row_match_only_that_row() {
+    let pages = pages();
+    let by_title = matcher("tools");
+    let listed = list_pages(&pages, &by_title);
+    assert_eq!(listed.len(), 1);
+    let shown = |matcher: &Matcher, listed: &craft_ui::patterns::preferences::Listed| -> Vec<&str> {
+        pages[listed.index].groups[0].rows.iter().filter(|r| row_shown(matcher, listed, r)).map(|r| r.key).collect()
+    };
+    assert_eq!(shown(&by_title, &listed[0]), ["tools.snap", "tools.smoothing"]);
+    let by_row = matcher("smooth");
+    let listed = list_pages(&pages, &by_row);
+    assert_eq!(listed.len(), 1);
+    assert_eq!(shown(&by_row, &listed[0]), ["tools.smoothing"]);
+    assert_eq!(listed_ids(&pages, "locale"), ["general"]);
+}
+
+/// A row matches by its help text, and a custom page by its keywords.
+#[trial]
+fn a_row_matches_by_its_help_and_a_custom_page_by_its_keywords() {
+    assert_eq!(listed_ids(&pages(), "memory runs low"), ["advanced"]);
+    let custom = vec![PageSpec::custom("graphics", "Graphics").keywords("GPU adapter"), PageSpec::custom("other", "Other")];
+    assert_eq!(listed_ids(&custom, "adapter"), ["graphics"]);
 }
 
 /// A page with no visible row is dimmed in the list and drops out of a search unless its title matches.
@@ -191,55 +190,54 @@ fn history_states(doc: &impl PreferencesModel) -> i64 {
         .expect("a row")
 }
 
+/// A struct of a bool, an int with a range, a float, a choice and a colour gives one row of each kind on its page, in
+/// field order.
 #[trial]
-fn rows_follow_the_value_types_and_labels_come_from_the_key_or_the_catalog() {
-    {
-        // A struct of a bool, an int with a range, a float, a choice and a colour gives one row of each kind on its page, in
-        // field order.
-        let doc = document();
-        let kinds: Vec<_> =
-            rows(&doc, "performance").into_iter().map(|(key, kind)| (key.trim_start_matches("performance.").to_owned(), kind)).collect();
-        // `levels` is an array: no row.
-        assert_eq!(
-            kinds,
-            [
-                ("useGpu".to_owned(), "bool"),
-                ("historyStates".to_owned(), "int"),
-                ("zoomStep".to_owned(), "float"),
-                ("renderMode".to_owned(), "choice"),
-                ("canvasCustomColor".to_owned(), "color"),
-                ("tileSize".to_owned(), "int"),
-            ]
-        );
-        let pages = PreferencesModel::pages(&doc);
-        let ids: Vec<_> = pages.iter().map(|page| (page.id.to_owned(), page.title.to_owned())).collect();
-        assert_eq!(ids, [("performance".to_owned(), "Performance".to_owned()), ("type".to_owned(), "Type".to_owned())]);
-    }
-    {
-        // Labels come from the key, a rule's label wins, and a translation under `setting.<key>` replaces the English.
-        let mut doc = SettingsDocument::new(Prefs::default())
-            .expect("the prefs serialize")
-            .rules(vec![SettingRule::new("performance.zoomStep").label("Zoom increment")]);
-        assert_eq!(label_of(&doc, "performance.zoomStep"), "Zoom increment");
+fn rows_follow_the_value_types_and_rules() {
+    let doc = document();
+    let kinds: Vec<_> = rows(&doc, "performance").into_iter().map(|(key, kind)| (key.trim_start_matches("performance.").to_owned(), kind)).collect();
+    // `levels` is an array: no row.
+    assert_eq!(
+        kinds,
+        [
+            ("useGpu".to_owned(), "bool"),
+            ("historyStates".to_owned(), "int"),
+            ("zoomStep".to_owned(), "float"),
+            ("renderMode".to_owned(), "choice"),
+            ("canvasCustomColor".to_owned(), "color"),
+            ("tileSize".to_owned(), "int"),
+        ]
+    );
+    let pages = PreferencesModel::pages(&doc);
+    let ids: Vec<_> = pages.iter().map(|page| (page.id.to_owned(), page.title.to_owned())).collect();
+    assert_eq!(ids, [("performance".to_owned(), "Performance".to_owned()), ("type".to_owned(), "Type".to_owned())]);
+}
 
-        let (i18n, problems) = craft_i18n::I18n::new(
-            &[(
-                "fr",
-                "",
-                "@id\tsetting.performance.historyStates\tÉtats d'historique\n@id\tsetting.performance.zoomStep\tPas du zoom\n@id\tsettingsPage.performance\tPerformances\n",
-            )],
-            &["fr"],
-        );
-        assert!(problems.is_empty(), "{problems:?}");
-        let fr = i18n.from_code("fr").expect("fr is offered");
-        let host = craft_host::Host::builder(craft_host::AppInfo { id: "test", name: "Test", version: "1.0" }).i18n(Arc::new(i18n)).lang(fr).build();
-        doc.relabel(&host);
-        assert_eq!(label_of(&doc, "performance.historyStates"), "États d'historique");
-        assert_eq!(label_of(&doc, "performance.zoomStep"), "Pas du zoom");
-        let titled = PreferencesModel::pages(&doc);
-        assert_eq!(titled[0].title, "Performances");
-        assert_eq!(titled[1].title, "Type");
-    }
+/// Labels come from the key, a rule's label wins, and a translation under `setting.<key>` replaces the English.
+#[trial]
+fn labels_come_from_the_key_or_the_catalog() {
+    let mut doc = SettingsDocument::new(Prefs::default())
+        .expect("the prefs serialize")
+        .rules(vec![SettingRule::new("performance.zoomStep").label("Zoom increment")]);
+    assert_eq!(label_of(&doc, "performance.zoomStep"), "Zoom increment");
+
+    let (i18n, problems) = craft_i18n::I18n::new(
+        &[(
+            "fr",
+            "",
+            "@id\tsetting.performance.historyStates\tÉtats d'historique\n@id\tsetting.performance.zoomStep\tPas du zoom\n@id\tsettingsPage.performance\tPerformances\n",
+        )],
+        &["fr"],
+    );
+    assert!(problems.is_empty(), "{problems:?}");
+    let fr = i18n.from_code("fr").expect("fr is offered");
+    let host = craft_host::Host::builder(craft_host::AppInfo { id: "test", name: "Test", version: "1.0" }).i18n(Arc::new(i18n)).lang(fr).build();
+    doc.relabel(&host);
+    assert_eq!(label_of(&doc, "performance.historyStates"), "États d'historique");
+    assert_eq!(label_of(&doc, "performance.zoomStep"), "Pas du zoom");
+    let titled = PreferencesModel::pages(&doc);
+    assert_eq!(titled[0].title, "Performances");
+    assert_eq!(titled[1].title, "Type");
 }
 
 /// `set` clamps to the range and keeps to the choices; Apply returns the typed value once through `take_applied`; Cancel
@@ -280,29 +278,29 @@ fn apply_returns_the_typed_value_and_cancel_drops_the_draft() {
     assert!(doc.differs());
 }
 
+/// Reset Section restores the page's defaults except `keep_on_reset` keys; other pages keep their draft.
 #[trial]
-fn reset_section_keeps_marked_keys_and_drops_unserialized_ones() {
-    {
-        // Reset Section restores the page's defaults except `keep_on_reset` keys; other pages keep their draft.
-        let mut doc =
-            SettingsDocument::new(Prefs::default()).expect("the prefs serialize").rules(vec![SettingRule::new("type.favoriteFont").keep_on_reset()]);
-        doc.set("type.favoriteFont", PrefValue::Text("Inter".into()));
-        doc.set("type.recentFonts", PrefValue::Int(9));
-        doc.set("performance.historyStates", PrefValue::Int(7));
-        doc.reset_page("type");
-        doc.apply().expect("the draft fits the struct");
-        let applied = doc.take_applied().expect("applied");
-        assert_eq!(applied.text, Type { recent_fonts: 0, favorite_font: "Inter".into() });
-        assert_eq!(applied.performance.history_states, 7);
-    }
-    {
-        // Reset Section replaces the page: a key the defaults leave out (an `Option` that is `None`) goes too.
-        let saved = Sparse { brush: SparseBrush { size: 9, last_preset: Some("soft".into()) } };
-        let mut doc = SettingsDocument::new(saved).expect("serializes");
-        doc.reset_page("brush");
-        doc.apply().expect("the draft fits the struct");
-        assert_eq!(doc.take_applied().expect("applied"), Sparse::default());
-    }
+fn reset_section_keeps_marked_keys() {
+    let mut doc =
+        SettingsDocument::new(Prefs::default()).expect("the prefs serialize").rules(vec![SettingRule::new("type.favoriteFont").keep_on_reset()]);
+    doc.set("type.favoriteFont", PrefValue::Text("Inter".into()));
+    doc.set("type.recentFonts", PrefValue::Int(9));
+    doc.set("performance.historyStates", PrefValue::Int(7));
+    doc.reset_page("type");
+    doc.apply().expect("the draft fits the struct");
+    let applied = doc.take_applied().expect("applied");
+    assert_eq!(applied.text, Type { recent_fonts: 0, favorite_font: "Inter".into() });
+    assert_eq!(applied.performance.history_states, 7);
+}
+
+/// Reset Section replaces the page: a key the defaults leave out (an `Option` that is `None`) goes too.
+#[trial]
+fn reset_section_drops_keys_the_defaults_do_not_serialize() {
+    let saved = Sparse { brush: SparseBrush { size: 9, last_preset: Some("soft".into()) } };
+    let mut doc = SettingsDocument::new(saved).expect("serializes");
+    doc.reset_page("brush");
+    doc.apply().expect("the draft fits the struct");
+    assert_eq!(doc.take_applied().expect("applied"), Sparse::default());
 }
 
 /// Hidden rules, `linux_only` off Linux and `shown_when` with another value hide the row.

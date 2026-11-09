@@ -106,32 +106,32 @@ fn button(rig: &Rig) -> craft_ui::testing::Target {
 }
 
 #[trial]
-fn a_click_selects_the_shown_tool_and_a_hold_opens_the_flyout() {
-    {
-        let mut clicked_rig = rig(true);
-        let target = button(&clicked_rig);
-        clicked_rig.fixture.click(&target);
-        clicked_rig.fixture.idle(3);
-        assert_eq!(*clicked_rig.selected.borrow(), [UNDO], "a click selects the shown tool");
-        assert!(clicked_rig.fixture.by_role(Role::MENU).is_empty(), "a click opens no flyout");
+fn a_click_selects_the_shown_tool_and_holding_opens_the_flyout() {
+    let mut clicked_rig = rig(true);
+    let target = button(&clicked_rig);
+    clicked_rig.fixture.click(&target);
+    clicked_rig.fixture.idle(3);
+    assert_eq!(*clicked_rig.selected.borrow(), [UNDO], "a click selects the shown tool");
+    assert!(clicked_rig.fixture.by_role(Role::MENU).is_empty(), "a click opens no flyout");
 
-        let mut held = rig(true);
-        let target = button(&held);
-        held.fixture.press(&target);
-        held.fixture.advance(HELD);
-        held.fixture.idle(3);
-        assert!(!held.fixture.by_role(Role::MENU).is_empty(), "a held press opens the flyout");
-    }
-    {
-        let mut held = rig(false);
-        let target = button(&held);
-        held.fixture.press(&target);
-        held.fixture.advance(HELD);
-        held.fixture.idle(3);
-        held.fixture.release(&target);
-        held.fixture.idle(3);
-        assert!(held.selected.borrow().is_empty(), "releasing after the hold selects nothing when the hold does not select");
-    }
+    let mut held = rig(true);
+    let target = button(&held);
+    held.fixture.press(&target);
+    held.fixture.advance(HELD);
+    held.fixture.idle(3);
+    assert!(!held.fixture.by_role(Role::MENU).is_empty(), "a held press opens the flyout");
+}
+
+#[trial]
+fn a_hold_that_does_not_select_only_opens_the_flyout() {
+    let mut held = rig(false);
+    let target = button(&held);
+    held.fixture.press(&target);
+    held.fixture.advance(HELD);
+    held.fixture.idle(3);
+    held.fixture.release(&target);
+    held.fixture.idle(3);
+    assert!(held.selected.borrow().is_empty(), "releasing after the hold selects nothing when the hold does not select");
 }
 
 #[trial]

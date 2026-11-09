@@ -95,49 +95,49 @@ fn bar_items_and_a_button_are_one_tab_stop() {
     assert!(!focused_is(&fixture, "Extra") && !focused_is(&fixture, "Redo"), "no member past the first is a Tab stop");
 }
 
+/// The status bar is a polite live region; the zoom readout in it is not.
 #[trial]
-fn the_status_bar_is_live_and_a_typed_zoom_writes_the_view() {
-    {
-        // The status bar is a polite live region; the zoom readout in it is not.
-        let (bar, zoom) = (Rc::new(Cell::<Option<Id>>::new(None)), Rc::new(Cell::<Option<Id>>::new(None)));
-        let (shown_bar, shown_zoom) = (bar.clone(), zoom.clone());
-        let mut fixture = Fixture::new(move |ui| {
-            let values = StatusValues::default();
-            let mut view = status_view(0.5);
-            let shown = Bar::new("Status", BarKind::Status)
-                .show(ui, |ui, _| StatusReadout::new(Bind::bound(&mut view), STATUS_DOCUMENT, StatusItem::DocumentSizes, &values).show(ui));
-            shown_bar.set(Some(shown.output.response.id));
-            shown_zoom.set(shown.inner.and_then(|readout| readout.zoom).map(|zoom| zoom.id));
-        });
-        fixture.settle();
-        let tree = fixture.tree();
-        assert_eq!(tree.live(bar.get().unwrap()), Some(Politeness::Polite));
-        assert_eq!(tree.live(zoom.get().unwrap()), None);
-    }
-    {
-        // The zoom field shows the device percent, as the Navigator's zoom row does, and a typed zoom is written into the
-        // bound view about its centre and reported.
-        let view = Rc::new(RefCell::new(status_view(0.5)));
-        let reported = Rc::new(Cell::new(false));
-        let (held, seen) = (view.clone(), reported.clone());
-        let mut fixture = Fixture::new(move |ui| {
-            let values = StatusValues::default();
-            let shown = StatusReadout::new(Bind::bound(&mut *held.borrow_mut()), STATUS_DOCUMENT, StatusItem::DocumentSizes, &values).show(ui);
-            seen.set(seen.get() || shown.view.is_some());
-        });
-        fixture.scale(Scale::new(STATUS_SCALE));
-        fixture.settle();
-        let centre = view.borrow().center;
-        let before = zoom::device(&view.borrow(), STATUS_SCALE);
-        tab(&mut fixture);
-        fixture.type_text("200");
-        fixture.key(Key::Enter, Modifiers::NONE);
-        fixture.idle(2);
-        let doubled = before * TYPED_FACTOR;
-        assert_eq!(zoom::device(&view.borrow(), STATUS_SCALE), doubled, "the typed 200 % doubles the shown 100 %");
-        assert_eq!(view.borrow().center, centre, "the zoom keeps the view's centre");
-        assert!(reported.get(), "the output carries the view edit");
-    }
+fn the_status_bar_is_live_and_the_zoom_readout_is_not() {
+    let (bar, zoom) = (Rc::new(Cell::<Option<Id>>::new(None)), Rc::new(Cell::<Option<Id>>::new(None)));
+    let (shown_bar, shown_zoom) = (bar.clone(), zoom.clone());
+    let mut fixture = Fixture::new(move |ui| {
+        let values = StatusValues::default();
+        let mut view = status_view(0.5);
+        let shown = Bar::new("Status", BarKind::Status)
+            .show(ui, |ui, _| StatusReadout::new(Bind::bound(&mut view), STATUS_DOCUMENT, StatusItem::DocumentSizes, &values).show(ui));
+        shown_bar.set(Some(shown.output.response.id));
+        shown_zoom.set(shown.inner.and_then(|readout| readout.zoom).map(|zoom| zoom.id));
+    });
+    fixture.settle();
+    let tree = fixture.tree();
+    assert_eq!(tree.live(bar.get().unwrap()), Some(Politeness::Polite));
+    assert_eq!(tree.live(zoom.get().unwrap()), None);
+}
+
+/// The zoom field shows the device percent, as the Navigator's zoom row does, and a typed zoom is written into the
+/// bound view about its centre and reported.
+#[trial]
+fn the_status_zoom_is_the_device_percent_and_a_typed_zoom_is_written_into_the_view() {
+    let view = Rc::new(RefCell::new(status_view(0.5)));
+    let reported = Rc::new(Cell::new(false));
+    let (held, seen) = (view.clone(), reported.clone());
+    let mut fixture = Fixture::new(move |ui| {
+        let values = StatusValues::default();
+        let shown = StatusReadout::new(Bind::bound(&mut *held.borrow_mut()), STATUS_DOCUMENT, StatusItem::DocumentSizes, &values).show(ui);
+        seen.set(seen.get() || shown.view.is_some());
+    });
+    fixture.scale(Scale::new(STATUS_SCALE));
+    fixture.settle();
+    let centre = view.borrow().center;
+    let before = zoom::device(&view.borrow(), STATUS_SCALE);
+    tab(&mut fixture);
+    fixture.type_text("200");
+    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.idle(2);
+    let doubled = before * TYPED_FACTOR;
+    assert_eq!(zoom::device(&view.borrow(), STATUS_SCALE), doubled, "the typed 200 % doubles the shown 100 %");
+    assert_eq!(view.borrow().center, centre, "the zoom keeps the view's centre");
+    assert!(reported.get(), "the output carries the view edit");
 }
 
 /// The interface scale of the status trial.

@@ -9,9 +9,10 @@ use std::rc::Rc;
 const UNDO: u8 = 1;
 const REDO: u8 = 2;
 
+/// A click on a closed panel's icon asks to open that panel; on an open panel's icon, to close it.
 #[trial]
 fn a_click_on_a_panels_icon_asks_to_open_or_close_it() {
-    {
+    for (open, expected) in [(false, PanelRailRequest::Open(REDO)), (true, PanelRailRequest::Close(REDO))] {
         let requests = Rc::new(RefCell::new(Vec::new()));
         let seen = requests.clone();
         let mut fixture = Fixture::new(move |ui| {
@@ -20,26 +21,13 @@ fn a_click_on_a_panels_icon_asks_to_open_or_close_it() {
                 seen.borrow_mut().push(request);
             }
         });
+        if open {
+            fixture.command_state(EditCommands::Redo, CommandState::new().checked(true));
+        }
         fixture.settle();
-        assert!(fixture.by_label("Undo").is_some(), "the first panel has an icon");
         let icon = fixture.by_label("Redo").expect("the second panel has an icon");
         fixture.click(&icon);
         fixture.idle(3);
-        assert_eq!(*requests.borrow(), [PanelRailRequest::Open(REDO)]);
-    }
-    {
-        let requests = Rc::new(RefCell::new(Vec::new()));
-        let seen = requests.clone();
-        let mut fixture = Fixture::new(move |ui| {
-            let panels = [RailTool::new(UNDO, EditCommands::Undo), RailTool::new(REDO, EditCommands::Redo)];
-            if let Some(request) = PanelRail::new("Panels", &panels).show_rail(ui, |_| {}).request {
-                seen.borrow_mut().push(request);
-            }
-        });
-        fixture.command_state(EditCommands::Redo, CommandState::new().checked(true));
-        fixture.settle();
-        let icon = fixture.by_label("Redo").expect("the second panel has an icon");
-        fixture.click(&icon);
-        assert_eq!(*requests.borrow(), [PanelRailRequest::Close(REDO)]);
+        assert_eq!(*requests.borrow(), [expected]);
     }
 }

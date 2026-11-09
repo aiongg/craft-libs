@@ -30,21 +30,31 @@ fn drag(key: u32) -> ListDrag<u32> {
     ListDrag::new(Id::NULL, vec![key], key)
 }
 
-/// Drop landing rules for presets and groups, within the nesting limit.
+/// A preset lands next to another preset or on a group header, which it goes into; groups stay put unless asked to
+/// move.
 #[trial]
-fn drop_rules_land_presets_and_groups_within_the_nesting_limit() {
+fn presets_land_next_to_presets() {
     let rows = rows();
-    // A preset lands next to a preset or on a group header; a group never lands on a preset.
-    let items = PresetReorder::<u32>::items();
-    assert!(items.allows(&rows, &drag(A_ONE), Some(&B_ONE), 5));
-    assert!(items.allows(&rows, &drag(A_ONE), Some(&B), 4));
-    assert!(!items.allows(&rows, &drag(B), Some(&A), 0));
-    // A group lands next to a group within the nesting limit, and never inside its own subtree.
+    let rules = PresetReorder::<u32>::items();
+    assert!(rules.allows(&rows, &drag(A_ONE), Some(&B_ONE), 5));
+    assert!(rules.allows(&rows, &drag(A_ONE), Some(&INNER_ONE), 3));
+    assert!(rules.allows(&rows, &drag(A_ONE), Some(&B), 4));
+    assert!(!rules.allows(&rows, &drag(B), Some(&A), 0));
+}
+
+/// A group lands next to a group at a depth `nest` allows, and never inside its own subtree.
+#[trial]
+fn groups_land_next_to_groups_within_the_nesting_limit() {
+    let rows = rows();
     let flat = PresetReorder::<u32>::items_and_groups();
     assert!(flat.allows(&rows, &drag(B), Some(&A), 0));
+    assert!(!flat.allows(&rows, &drag(B), Some(&A_ONE), 1));
     assert!(!flat.allows(&rows, &drag(B), Some(&INNER), 2));
     assert!(!flat.allows(&rows, &drag(A), Some(&INNER), 2));
-    assert!(flat.nest(1).allows(&rows, &drag(B), Some(&INNER), 2));
+
+    let nested = PresetReorder::<u32>::items_and_groups().nest(1);
+    assert!(nested.allows(&rows, &drag(B), Some(&INNER), 2));
+    assert!(nested.allows(&rows, &drag(A), Some(&B), 4));
 }
 
 /// The host's test refuses a landing the rules would allow.

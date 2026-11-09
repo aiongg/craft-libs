@@ -41,22 +41,24 @@ fn a_tool_added_as_a_new_slot_gets_the_next_free_slot_id_at_the_place() {
 }
 
 #[trial]
-fn a_tool_move_edits_the_toolbar() {
-    {
-        let slots = [slot(0, &[UNDO, REDO, CUT])];
-        let edit = ToolbarEdit::move_to(UNDO, DropAt::into_slot(0, 3));
-        assert_eq!(layout(&apply_toolbar_edit(&slots, &edit, &[])), [(0, vec![REDO, CUT, UNDO])], "the removal shifts the index");
-    }
-    {
-        let slots = [slot(0, &[UNDO]), slot(1, &[REDO])];
-        let edit = ToolbarEdit::move_to(UNDO, DropAt::into_slot(1, 0));
-        assert_eq!(layout(&apply_toolbar_edit(&slots, &edit, &[])), [(1, vec![UNDO, REDO])], "the slot the tool left is gone");
-    }
-    {
-        let slots = [slot(0, &[UNDO])];
-        let edit = ToolbarEdit::move_to(COPY, DropAt::new_slot(0));
-        assert_eq!(layout(&apply_toolbar_edit(&slots, &edit, &[])), layout(&slots));
-    }
+fn a_tool_moved_down_its_own_slot_lands_at_the_index_after_it_leaves() {
+    let slots = [slot(0, &[UNDO, REDO, CUT])];
+    let edit = ToolbarEdit::move_to(UNDO, DropAt::into_slot(0, 3));
+    assert_eq!(layout(&apply_toolbar_edit(&slots, &edit, &[])), [(0, vec![REDO, CUT, UNDO])], "the removal shifts the index");
+}
+
+#[trial]
+fn a_tool_moved_out_of_its_only_slot_takes_the_slot_with_it() {
+    let slots = [slot(0, &[UNDO]), slot(1, &[REDO])];
+    let edit = ToolbarEdit::move_to(UNDO, DropAt::into_slot(1, 0));
+    assert_eq!(layout(&apply_toolbar_edit(&slots, &edit, &[])), [(1, vec![UNDO, REDO])], "the slot the tool left is gone");
+}
+
+#[trial]
+fn a_move_of_a_tool_that_is_not_on_the_toolbar_changes_nothing() {
+    let slots = [slot(0, &[UNDO])];
+    let edit = ToolbarEdit::move_to(COPY, DropAt::new_slot(0));
+    assert_eq!(layout(&apply_toolbar_edit(&slots, &edit, &[])), layout(&slots));
 }
 
 #[trial]

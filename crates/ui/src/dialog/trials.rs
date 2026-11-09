@@ -45,59 +45,48 @@ fn a_dialog_takes_its_first_field_as_initial_focus() {
     assert!(!second.is_some_and(|id| is_focused(&frames.ctx, id)), "the second field does not");
 }
 
+/// The field is a text field: a check box takes Enter as its own activation, so only a field that leaves Enter untaken
+/// lets it reach the dialog as the OK.
 #[trial]
-fn a_dialog_reports_how_it_closed_and_an_overlay_with_nothing_to_focus_closes() {
-    {
-        let shown = Shown::default();
-        shown.open.set(true);
-        let mut frames = Frames::new();
-        let mut ui = show(&shown);
-        frames.idle(30, &mut ui);
-        assert!(shown.open.get(), "the dialog is open");
-        frames.frame(vec![key_press(Key::Escape, Modifiers::NONE)], &mut ui);
-        frames.idle(2, &mut ui);
-        assert!(!shown.open.get(), "Escape wrote the open state");
-    }
-    {
-        // The field is a text field: a check box takes Enter as its own activation, so only a field that leaves Enter untaken
-        // lets it reach the dialog as the OK.
-        let run = |keys: Vec<egui::Event>, enter: bool| {
-            let (open, reason) = (Cell::new(true), Cell::new(None));
-            let mut frames = Frames::new();
-            let mut ui = |ui: &mut Ui| {
-                let mut now = open.get();
-                let mut name = String::new();
-                let shown = Dialog::new("Options").opened(Bind::bound(&mut now)).close_on_enter(enter).show(ui, |ui, _| {
-                    TextField::new("Name", Bind::bound(&mut name)).show(ui);
-                });
-                if let Some(why) = shown.output.closed {
-                    reason.set(Some(why));
-                }
-                open.set(now);
-            };
-            frames.idle(30, &mut ui);
-            frames.frame(keys, &mut ui);
-            frames.idle(2, &mut ui);
-            (open.get(), reason.get())
-        };
-        assert_eq!(run(vec![key_press(Key::Escape, Modifiers::NONE)], false), (false, Some(CloseReason::Escape)), "Escape cancels");
-        assert_eq!(run(vec![key_press(Key::Enter, Modifiers::NONE)], true), (false, Some(CloseReason::Enter)), "Enter is the OK");
-        assert_eq!(run(vec![key_press(Key::Enter, Modifiers::NONE)], false), (true, None), "Enter closes only when asked to");
-    }
-    {
-        let open = Cell::new(true);
+fn a_dialog_reports_how_it_closed() {
+    let run = |keys: Vec<egui::Event>, enter: bool| {
+        let (open, reason) = (Cell::new(true), Cell::new(None));
         let mut frames = Frames::new();
         let mut ui = |ui: &mut Ui| {
             let mut now = open.get();
-            BlockingOverlay::new("Working").opened(Bind::bound(&mut now)).cancellable(true).show(ui, |_, _| {});
+            let mut name = String::new();
+            let shown = Dialog::new("Options").opened(Bind::bound(&mut now)).close_on_enter(enter).show(ui, |ui, _| {
+                TextField::new("Name", Bind::bound(&mut name)).show(ui);
+            });
+            if let Some(why) = shown.output.closed {
+                reason.set(Some(why));
+            }
             open.set(now);
         };
         frames.idle(30, &mut ui);
-        assert!(open.get(), "the overlay is open");
-        frames.frame(vec![key_press(Key::Escape, Modifiers::NONE)], &mut ui);
+        frames.frame(keys, &mut ui);
         frames.idle(2, &mut ui);
-        assert!(!open.get(), "Escape closed the overlay though nothing inside takes the focus");
-    }
+        (open.get(), reason.get())
+    };
+    assert_eq!(run(vec![key_press(Key::Escape, Modifiers::NONE)], false), (false, Some(CloseReason::Escape)), "Escape cancels");
+    assert_eq!(run(vec![key_press(Key::Enter, Modifiers::NONE)], true), (false, Some(CloseReason::Enter)), "Enter is the OK");
+    assert_eq!(run(vec![key_press(Key::Enter, Modifiers::NONE)], false), (true, None), "Enter closes only when asked to");
+}
+
+#[trial]
+fn escape_closes_a_cancellable_overlay_with_nothing_to_focus() {
+    let open = Cell::new(true);
+    let mut frames = Frames::new();
+    let mut ui = |ui: &mut Ui| {
+        let mut now = open.get();
+        BlockingOverlay::new("Working").opened(Bind::bound(&mut now)).cancellable(true).show(ui, |_, _| {});
+        open.set(now);
+    };
+    frames.idle(30, &mut ui);
+    assert!(open.get(), "the overlay is open");
+    frames.frame(vec![key_press(Key::Escape, Modifiers::NONE)], &mut ui);
+    frames.idle(2, &mut ui);
+    assert!(!open.get(), "Escape closed the overlay though nothing inside takes the focus");
 }
 
 #[trial]
@@ -187,36 +176,36 @@ fn a_footer_button_closes_the_dialog_by_its_role() {
 }
 
 #[trial]
-fn a_blocking_overlays_buttons_close_it_once_placed_and_keep_their_place() {
-    {
-        let seen = std::rc::Rc::new(Cell::new(None));
-        let sink = seen.clone();
-        let mut fixture = Fixture::new(move |ui| {
-            let mut open = true;
-            let shown = BlockingOverlay::new("Working").opened(Bind::bound(&mut open)).card(true).cancel("Stop").show(ui, |_, _| {});
-            if shown.output.closed.is_some() {
-                sink.set(shown.output.closed);
-            }
-        });
-        fixture.settle();
-        let button = fixture.by_label("Stop");
-        assert!(button.is_some(), "the cancel button is shown");
-        if let Some(button) = button {
-            fixture.click(&button);
+fn a_blocking_overlays_cancel_button_closes_it_once_placed() {
+    let seen = std::rc::Rc::new(Cell::new(None));
+    let sink = seen.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let mut open = true;
+        let shown = BlockingOverlay::new("Working").opened(Bind::bound(&mut open)).card(true).cancel("Stop").show(ui, |_, _| {});
+        if shown.output.closed.is_some() {
+            sink.set(shown.output.closed);
         }
-        assert_eq!(seen.get(), Some(CloseReason::Requested));
+    });
+    fixture.settle();
+    let button = fixture.by_label("Stop");
+    assert!(button.is_some(), "the cancel button is shown");
+    if let Some(button) = button {
+        fixture.click(&button);
     }
-    {
-        let mut fixture = Fixture::new(|ui| {
-            let mut open = true;
-            BlockingOverlay::new("Working").opened(Bind::bound(&mut open)).card(true).cancel("Stop").show(ui, |_, _| {});
-        });
-        fixture.settle();
-        let first = fixture.by_label("Stop").map(|button| button.rect);
-        assert!(first.is_some(), "the cancel button is shown");
-        fixture.idle(10);
-        assert_eq!(fixture.by_label("Stop").map(|button| button.rect), first, "the overlay did not move or resize after it settled");
-    }
+    assert_eq!(seen.get(), Some(CloseReason::Requested));
+}
+
+#[trial]
+fn a_blocking_overlays_buttons_keep_their_place_after_it_settled() {
+    let mut fixture = Fixture::new(|ui| {
+        let mut open = true;
+        BlockingOverlay::new("Working").opened(Bind::bound(&mut open)).card(true).cancel("Stop").show(ui, |_, _| {});
+    });
+    fixture.settle();
+    let first = fixture.by_label("Stop").map(|button| button.rect);
+    assert!(first.is_some(), "the cancel button is shown");
+    fixture.idle(10);
+    assert_eq!(fixture.by_label("Stop").map(|button| button.rect), first, "the overlay did not move or resize after it settled");
 }
 
 /// The width of each footer button by name, after the dialog settled, with a body of `body` text.

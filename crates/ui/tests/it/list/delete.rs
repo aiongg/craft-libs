@@ -47,22 +47,16 @@ fn rig(deletable: bool) -> (Fixture, Rc<RefCell<Vec<Vec<usize>>>>) {
     (fixture, reported)
 }
 
+/// Delete and Backspace on the row at the lead of a deletable list report that row; a list that is not deletable
+/// reports nothing, so the keys stay shortcut candidates.
 #[trial]
 fn delete_reports_the_row_only_on_a_deletable_list() {
-    {
-        // Delete and Backspace on the row at the lead of a deletable list report that row.
-        let (mut fixture, reported) = rig(true);
+    for (deletable, expected) in [(true, vec![vec![1], vec![1]]), (false, vec![])] {
+        let (mut fixture, reported) = rig(deletable);
         fixture.key(Key::Delete, Modifiers::NONE);
         fixture.idle(2);
         fixture.key(Key::Backspace, Modifiers::NONE);
         fixture.idle(2);
-        assert_eq!(*reported.borrow(), [vec![1], vec![1]]);
-    }
-    {
-        // A list that is not deletable reports nothing, so the key stays a shortcut candidate.
-        let (mut fixture, reported) = rig(false);
-        fixture.key(Key::Delete, Modifiers::NONE);
-        fixture.idle(2);
-        assert!(reported.borrow().is_empty());
+        assert_eq!(*reported.borrow(), expected, "deletable: {deletable}");
     }
 }

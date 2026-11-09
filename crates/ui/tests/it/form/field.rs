@@ -31,23 +31,23 @@ fn help_shown(fixture: &Fixture) -> bool {
 }
 
 #[trial]
-fn help_text_shows_only_when_the_field_has_it_and_a_message_replaces_it() {
-    {
-        assert!(help_shown(&shown(Some(Help::Text(HELP.into())))), "the help line is shown");
-        assert!(!help_shown(&shown(None)), "a field without help shows no help line");
-    }
-    {
-        // The help line gives way to a validity message on the next frame and returns when the validity clears.
-        let value = Rc::new(Cell::new(SIZE));
-        let mut fixture = judged(&value, |size| if size > 100.0 { Validity::Refuse(Message::new(MESSAGE)) } else { Validity::Ok });
-        assert!(line_shown(&fixture, HELP) && !line_shown(&fixture, MESSAGE), "a valid value shows the help line");
-        value.set(500.0);
-        fixture.settle();
-        assert!(line_shown(&fixture, MESSAGE) && !line_shown(&fixture, HELP), "a refused value shows its message in place of the help");
-        value.set(SIZE);
-        fixture.settle();
-        assert!(line_shown(&fixture, HELP) && !line_shown(&fixture, MESSAGE), "the help returns once the message clears");
-    }
+fn help_text_shows_only_when_the_field_has_it() {
+    assert!(help_shown(&shown(Some(Help::Text(HELP.into())))), "the help line is shown");
+    assert!(!help_shown(&shown(None)), "a field without help shows no help line");
+}
+
+/// The help line gives way to a validity message on the next frame and returns when the validity clears.
+#[trial]
+fn a_message_replaces_the_help_line_until_the_validity_clears() {
+    let value = Rc::new(Cell::new(SIZE));
+    let mut fixture = judged(&value, |size| if size > 100.0 { Validity::Refuse(Message::new(MESSAGE)) } else { Validity::Ok });
+    assert!(line_shown(&fixture, HELP) && !line_shown(&fixture, MESSAGE), "a valid value shows the help line");
+    value.set(500.0);
+    fixture.settle();
+    assert!(line_shown(&fixture, MESSAGE) && !line_shown(&fixture, HELP), "a refused value shows its message in place of the help");
+    value.set(SIZE);
+    fixture.settle();
+    assert!(line_shown(&fixture, HELP) && !line_shown(&fixture, MESSAGE), "the help returns once the message clears");
 }
 
 const MESSAGE: &str = "Size is too large";

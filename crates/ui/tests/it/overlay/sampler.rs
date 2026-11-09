@@ -319,11 +319,10 @@ fn a_dialog_in_its_own_viewport_lets_an_armed_canvas_in_the_main_viewport_take_t
     assert!(is_focused(&windows.ctx, held), "the press moved no key focus");
 }
 
-/// A dialog keeps its own presses and a nested modal blocks the armed canvas.
+/// A dialog over the canvas keeps its own presses, under either reach: the press on its button is the dialog's, the
+/// canvas's own corner still reaches the canvas under Sample, and a second root behind the canvas never gets one.
 #[trial]
-fn a_dialog_keeps_its_presses_and_a_nested_modal_blocks_the_canvas() {
-    // A dialog over the canvas keeps its own presses under either reach, and a modal opened over an armed dialog blocks
-    // the canvas again.
+fn a_dialog_over_the_canvas_keeps_its_presses_and_a_root_behind_the_canvas_gets_none() {
     for arm in [Arm::View, Arm::Sampler] {
         let mut frames = Frames::new();
         let scene = Scene::over(arm, WIDE);
@@ -332,81 +331,93 @@ fn a_dialog_keeps_its_presses_and_a_nested_modal_blocks_the_canvas() {
         assert!(WIDE.contains(button), "the dialog lies over the canvas");
         scene.click(&mut frames, button);
         assert!(scene.leaf.borrow().presses > 0, "the dialog's own button got the press");
-        assert!(!scene.pressed_canvas() && !scene.pressed_behind(), "neither the canvas nor a root behind it did");
+        assert!(!scene.pressed_canvas(), "the canvas did not");
+        scene.forget_canvas();
+        let corner = Pos2::new(30.0, 30.0);
+        scene.drag(&mut frames, corner, Vec2::new(20.0, 5.0));
+        assert_eq!(scene.pressed_canvas(), arm == Arm::Sampler, "the canvas takes the press away from the dialog only when armed");
+        assert!(!scene.pressed_behind(), "a root behind the canvas never gets the press");
+        assert!(is_focused(&frames.ctx, scene.armer_id.get()), "the dialog keeps key focus");
     }
+}
+
+/// A modal opened over an armed dialog blocks the canvas again.
+#[trial]
+fn a_nested_modal_over_an_armed_dialog_blocks_the_canvas() {
     let mut frames = Frames::new();
     let scene = Scene::new(Arm::Sampler);
     scene.open_dialog(&mut frames);
     scene.nested.set(true);
     scene.settle(&mut frames, 30);
+    assert!(scene.nested_shown.shown.get(), "the nested modal is open over the dialog");
     scene.drag(&mut frames, CANVAS.center(), Vec2::new(40.0, 10.0));
     assert!(!scene.pressed_canvas(), "the nested modal blocks the canvas");
 }
 
+/// Space held over the canvas turns the primary press into a pan press, under either reach, and the dialog's focused
+/// button never gets the Space.
 #[trial]
-fn space_drag_reaches_the_canvas_and_pans_under_a_dialog() {
-    {
-        // Space held over the canvas turns the primary press into a pan press, under either reach, and the dialog's focused
-        // button never gets the Space.
-        let mut frames = Frames::new();
-        let scene = Scene::new(Arm::View);
-        scene.open_dialog(&mut frames);
-        scene.forget_canvas();
-        let at = CANVAS.center();
-        scene.frame(&mut frames, vec![moved(at)]);
-        scene.frame(&mut frames, vec![space(true)]);
-        scene.frame(&mut frames, vec![press(at)]);
-        scene.frame(&mut frames, vec![moved(at + Vec2::new(30.0, 0.0))]);
-        scene.frame(&mut frames, vec![moved(at + Vec2::new(60.0, 0.0))]);
-        scene.frame(&mut frames, vec![release(at + Vec2::new(60.0, 0.0))]);
-        scene.frame(&mut frames, vec![space(false)]);
-        scene.settle(&mut frames, 2);
-        assert!(scene.dragged_canvas(), "the Space drag is the canvas's");
-        assert_eq!(scene.leaf.borrow().activations, 0, "the dialog's focused button did not take the Space");
-        assert!(is_focused(&frames.ctx, scene.armer_id.get()), "the dialog keeps key focus");
-    }
-    {
-        // Space held over a canvas under an armed dialog is the Hand: the pointer drag pans the view. The canvas is a real
-        // `Canvas` under a `ToolHost` with a `Momentary`, as an app shows it, and the dialog holds the key focus.
-        let mut frames = Frames::new();
-        let scene = Scene::new(Arm::View);
-        let view = Cell::new(None::<CanvasView>);
-        let canvas = Cell::new(Id::NULL);
-        let momentary = RefCell::new(Momentary::new(NavigationOptions::default()));
-        let show = |frames: &mut Frames, events: Vec<Event>| {
-            frames.frame(events, &mut |ui: &mut Ui| {
-                scene.dialog.shown.set(false);
-                let mut current = view.get().unwrap_or_else(|| CanvasView::new(CANVAS, Point::new(500.0, 400.0), 1.0));
-                current.rect = CANVAS;
-                let shown = Canvas::new("Document").view(current).document(Size::new(1000.0, 800.0)).show_at(ui, CANVAS, |_, _| {});
-                canvas.set(shown.output.response.id);
-                let reply = ToolHost::new().momentary(&mut momentary.borrow_mut()).run(ui, &shown.output, &mut NoTool);
-                view.set(Some(reply.view.unwrap_or(current)));
-                Dialog { common: Common::new(), scene: &scene, canvas: canvas.get() }.id_salt("dialog").show_at(ui, OPENER);
-            });
-        };
-        for _ in 0..3 {
-            show(&mut frames, vec![]);
-        }
-        scene.open.set(true);
+fn space_drag_over_the_canvas_reaches_it_and_does_not_press_the_dialogs_button() {
+    let mut frames = Frames::new();
+    let scene = Scene::new(Arm::View);
+    scene.open_dialog(&mut frames);
+    scene.forget_canvas();
+    let at = CANVAS.center();
+    scene.frame(&mut frames, vec![moved(at)]);
+    scene.frame(&mut frames, vec![space(true)]);
+    scene.frame(&mut frames, vec![press(at)]);
+    scene.frame(&mut frames, vec![moved(at + Vec2::new(30.0, 0.0))]);
+    scene.frame(&mut frames, vec![moved(at + Vec2::new(60.0, 0.0))]);
+    scene.frame(&mut frames, vec![release(at + Vec2::new(60.0, 0.0))]);
+    scene.frame(&mut frames, vec![space(false)]);
+    scene.settle(&mut frames, 2);
+    assert!(scene.dragged_canvas(), "the Space drag is the canvas's");
+    assert_eq!(scene.leaf.borrow().activations, 0, "the dialog's focused button did not take the Space");
+    assert!(is_focused(&frames.ctx, scene.armer_id.get()), "the dialog keeps key focus");
+}
+
+/// Space held over a canvas under an armed dialog is the Hand: the pointer drag pans the view. The canvas is a real
+/// `Canvas` under a `ToolHost` with a `Momentary`, as an app shows it, and the dialog holds the key focus.
+#[trial]
+fn space_drag_over_the_canvas_under_a_dialog_pans_the_view() {
+    let mut frames = Frames::new();
+    let scene = Scene::new(Arm::View);
+    let view = Cell::new(None::<CanvasView>);
+    let canvas = Cell::new(Id::NULL);
+    let momentary = RefCell::new(Momentary::new(NavigationOptions::default()));
+    let show = |frames: &mut Frames, events: Vec<Event>| {
+        frames.frame(events, &mut |ui: &mut Ui| {
+            scene.dialog.shown.set(false);
+            let mut current = view.get().unwrap_or_else(|| CanvasView::new(CANVAS, Point::new(500.0, 400.0), 1.0));
+            current.rect = CANVAS;
+            let shown = Canvas::new("Document").view(current).document(Size::new(1000.0, 800.0)).show_at(ui, CANVAS, |_, _| {});
+            canvas.set(shown.output.response.id);
+            let reply = ToolHost::new().momentary(&mut momentary.borrow_mut()).run(ui, &shown.output, &mut NoTool);
+            view.set(Some(reply.view.unwrap_or(current)));
+            Dialog { common: Common::new(), scene: &scene, canvas: canvas.get() }.id_salt("dialog").show_at(ui, OPENER);
+        });
+    };
+    for _ in 0..3 {
         show(&mut frames, vec![]);
-        scene.open.set(false);
-        for _ in 0..30 {
-            show(&mut frames, vec![]);
-        }
-        assert!(scene.dialog.shown.get(), "the dialog shows");
-        let at = CANVAS.center();
-        let start = view.get().map(|view| view.center);
-        show(&mut frames, vec![moved(at)]);
-        show(&mut frames, vec![space(true)]);
-        show(&mut frames, vec![press(at)]);
-        show(&mut frames, vec![moved(at + Vec2::new(30.0, 0.0))]);
-        show(&mut frames, vec![moved(at + Vec2::new(60.0, 0.0))]);
-        show(&mut frames, vec![release(at + Vec2::new(60.0, 0.0))]);
-        show(&mut frames, vec![space(false)]);
-        show(&mut frames, vec![]);
-        assert_ne!(view.get().map(|view| view.center), start, "the Hand pans the view under the dialog");
     }
+    scene.open.set(true);
+    show(&mut frames, vec![]);
+    scene.open.set(false);
+    for _ in 0..30 {
+        show(&mut frames, vec![]);
+    }
+    assert!(scene.dialog.shown.get(), "the dialog shows");
+    let at = CANVAS.center();
+    let start = view.get().map(|view| view.center);
+    show(&mut frames, vec![moved(at)]);
+    show(&mut frames, vec![space(true)]);
+    show(&mut frames, vec![press(at)]);
+    show(&mut frames, vec![moved(at + Vec2::new(30.0, 0.0))]);
+    show(&mut frames, vec![moved(at + Vec2::new(60.0, 0.0))]);
+    show(&mut frames, vec![release(at + Vec2::new(60.0, 0.0))]);
+    show(&mut frames, vec![space(false)]);
+    show(&mut frames, vec![]);
+    assert_ne!(view.get().map(|view| view.center), start, "the Hand pans the view under the dialog");
 }
 
 /// The wheel over a canvas under a dialog is blocked without a registration and passes with `keep_view_open`.

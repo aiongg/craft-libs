@@ -12,23 +12,21 @@ fn parse(text: &str) -> Option<Rgba> {
     HexCodec::default().parse(text, &TRANSLUCENT).ok()
 }
 
+/// Six digits, three digits, with or without the hash and in either case read as the same colour, and the colour keeps
+/// the alpha it had when editing began; eight digits carry their own alpha; anything else is not a colour.
 #[trial]
 fn hex_text_parses_every_form_and_refuses_the_rest() {
-    {
-        // Six digits, three digits, with or without the hash and in either case read as the same colour, and the colour
-        // keeps the alpha it had when editing began.
-        let opaque = |r, g, b| Some(Rgba([r, g, b, 0x80]));
-        assert_eq!(parse("#FF8800"), opaque(0xff, 0x88, 0x00));
-        assert_eq!(parse("ff8800"), opaque(0xff, 0x88, 0x00));
-        assert_eq!(parse("#f80"), opaque(0xff, 0x88, 0x00));
-        assert_eq!(parse("  #Abc "), opaque(0xaa, 0xbb, 0xcc));
-    }
-    {
-        // Eight digits carry their own alpha; anything else is not a colour.
-        assert_eq!(parse("#ff880040"), Some(Rgba([0xff, 0x88, 0x00, 0x40])));
-        for text in ["", "#", "#12", "#12345", "#1234567", "#gg0000", "+f8000", "#ff 880"] {
-            assert_eq!(parse(text), None, "{text:?}");
-        }
+    let opaque = |r, g, b| Some(Rgba([r, g, b, 0x80]));
+    let mut cases = vec![
+        ("#FF8800", opaque(0xff, 0x88, 0x00)),
+        ("ff8800", opaque(0xff, 0x88, 0x00)),
+        ("#f80", opaque(0xff, 0x88, 0x00)),
+        ("  #Abc ", opaque(0xaa, 0xbb, 0xcc)),
+        ("#ff880040", Some(Rgba([0xff, 0x88, 0x00, 0x40]))),
+    ];
+    cases.extend(["", "#", "#12", "#12345", "#1234567", "#gg0000", "+f8000", "#ff 880"].map(|text| (text, None)));
+    for (text, colour) in cases {
+        assert_eq!(parse(text), colour, "{text:?}");
     }
 }
 

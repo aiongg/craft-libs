@@ -17,78 +17,99 @@ fn component(input: TokenStream) -> String {
 
 #[test]
 fn component_derive_rejects_invalid_input() {
-    {
-        let message = component(quote! {
-            struct Field<C: 'static> { #[common] common: Common, codec: C }
-        });
-        assert!(message.contains("probe"), "{message}");
-    }
-    {
-        let on_plain = component(quote! {
-            #[component(probe(Plain))]
-            struct Plain { #[common] common: Common }
-        });
-        assert!(on_plain.contains("type parameters"), "{on_plain}");
-        let elsewhere = component(quote! {
-            #[component(probe(Other<u8>))]
-            struct Field<C: 'static> { #[common] common: Common, codec: C }
-        });
-        assert!(elsewhere.contains("instantiations of `Field`"), "{elsewhere}");
-        let borrowed = component(quote! {
-            #[component(probe(Field<'a, u8>))]
-            struct Field<'a, C: 'static> { #[common] common: Common, codec: &'a C }
-        });
-        assert!(borrowed.contains("'static"), "{borrowed}");
-    }
-    {
-        let missing = component(quote!(
-            struct Leaf {
-                size: u8,
-            }
-        ));
-        assert!(missing.contains("#[common]"), "{missing}");
-        let body_without_props = component(quote! {
-            #[component(container)]
-            struct Body { #[common] common: Common }
-        });
-        assert!(body_without_props.contains("#[container]"), "{body_without_props}");
-        let leaf_with_props = component(quote! {
-            struct Leaf { #[common] common: Common, #[container] props: ContainerProps }
-        });
-        assert!(leaf_with_props.contains("#[container]"), "{leaf_with_props}");
-        let canvas_body = component(quote! {
-            #[component(container, canvas_control)]
-            struct Body { #[common] common: Common, #[container] props: ContainerProps }
-        });
-        assert!(canvas_body.contains("canvas_control"), "{canvas_body}");
-    }
-    {
-        let widget = component(quote! {
-            #[component(container, widget)]
-            struct Body { #[common] common: Common, #[container] props: ContainerProps }
-        });
-        assert!(widget.contains("leaf"), "{widget}");
-        let partial = component(quote! {
-            #[component(exempt(case = "sizes"))]
-            struct Leaf { #[common] common: Common }
-        });
-        assert!(partial.contains("both"), "{partial}");
-        let both = component(quote! {
-            #[component(container, collection)]
-            struct Leaf { #[common] common: Common, #[container] props: ContainerProps }
-        });
-        assert!(both.contains("not both"), "{both}");
-        let unknown = component(quote! {
-            #[component(sticky)]
-            struct Leaf { #[common] common: Common }
-        });
-        assert!(unknown.contains("unknown `component` option"), "{unknown}");
-    }
-    {
-        let message = error(crate::style::derive(quote! {
-            struct Look { #[style(surface)] #[style(focus)] both: SurfaceLook, #[style(metrics)] metrics: Metrics }
-        }));
-        assert!(message.contains("one"), "{message}");
+    let cases = [
+        (
+            component(quote! {
+                struct Field<C: 'static> { #[common] common: Common, codec: C }
+            }),
+            "probe",
+        ),
+        (
+            component(quote! {
+                #[component(probe(Plain))]
+                struct Plain { #[common] common: Common }
+            }),
+            "type parameters",
+        ),
+        (
+            component(quote! {
+                #[component(probe(Other<u8>))]
+                struct Field<C: 'static> { #[common] common: Common, codec: C }
+            }),
+            "instantiations of `Field`",
+        ),
+        (
+            component(quote! {
+                #[component(probe(Field<'a, u8>))]
+                struct Field<'a, C: 'static> { #[common] common: Common, codec: &'a C }
+            }),
+            "'static",
+        ),
+        (
+            component(quote!(
+                struct Leaf {
+                    size: u8,
+                }
+            )),
+            "#[common]",
+        ),
+        (
+            component(quote! {
+                #[component(container)]
+                struct Body { #[common] common: Common }
+            }),
+            "#[container]",
+        ),
+        (
+            component(quote! {
+                struct Leaf { #[common] common: Common, #[container] props: ContainerProps }
+            }),
+            "#[container]",
+        ),
+        (
+            component(quote! {
+                #[component(container, canvas_control)]
+                struct Body { #[common] common: Common, #[container] props: ContainerProps }
+            }),
+            "canvas_control",
+        ),
+        (
+            component(quote! {
+                #[component(container, widget)]
+                struct Body { #[common] common: Common, #[container] props: ContainerProps }
+            }),
+            "leaf",
+        ),
+        (
+            component(quote! {
+                #[component(exempt(case = "sizes"))]
+                struct Leaf { #[common] common: Common }
+            }),
+            "both",
+        ),
+        (
+            component(quote! {
+                #[component(container, collection)]
+                struct Leaf { #[common] common: Common, #[container] props: ContainerProps }
+            }),
+            "not both",
+        ),
+        (
+            component(quote! {
+                #[component(sticky)]
+                struct Leaf { #[common] common: Common }
+            }),
+            "unknown `component` option",
+        ),
+        (
+            error(crate::style::derive(quote! {
+                struct Look { #[style(surface)] #[style(focus)] both: SurfaceLook, #[style(metrics)] metrics: Metrics }
+            })),
+            "one",
+        ),
+    ];
+    for (message, needle) in cases {
+        assert!(message.contains(needle), "{needle}: {message}");
     }
 }
 
@@ -119,54 +140,58 @@ fn a_lifetime_only_component_needs_no_probe() {
 
 #[test]
 fn props_style_and_registration_reject_invalid_input() {
-    {
-        let message = error(crate::props::derive(quote! {
-            struct Button {
-                #[prop] loading: bool,
-            }
-        }));
-        assert!(message.contains("doc comment"), "{message}");
-    }
-    {
-        let message = error(crate::props::derive(quote! {
-            struct Button {
-                /// Count.
-                #[prop(flag)] count: u8,
-            }
-        }));
-        assert!(message.contains("bool"), "{message}");
-    }
-    {
-        let unprefixed = error(crate::token_group::derive(quote! {
-            #[group(path = "clips")]
-            struct Clips { audio: Rgba }
-        }));
-        assert!(unprefixed.contains("crate prefix"), "{unprefixed}");
-        let missing = error(crate::token_group::derive(quote!(
-            struct Clips {
-                audio: Rgba,
-            }
-        )));
-        assert!(missing.contains("path"), "{missing}");
-        let wrong_field = error(crate::token_group::derive(quote! {
-            #[group(path = "craft_timeline.clips")]
-            struct Clips { height: f32 }
-        }));
-        assert!(wrong_field.contains("colours"), "{wrong_field}");
-    }
-    {
-        let message = error(crate::style::derive(quote! {
-            struct Look { #[style(surface)] surface: SurfaceLook }
-        }));
-        assert!(message.contains("metrics"), "{message}");
-    }
-    {
-        assert!(error(crate::component::register(quote!())).contains("component types"));
-        assert!(error(crate::component::register(quote!(Chip; sticky))).contains("overlay"));
-    }
-    {
-        let message = error(crate::props::derive(quote! { struct Grid { #[collection] props: ContainerProps } }));
-        assert!(message.contains("CollectionProps"), "{message}");
+    let cases = [
+        (
+            error(crate::props::derive(quote! {
+                struct Button {
+                    #[prop] loading: bool,
+                }
+            })),
+            "doc comment",
+        ),
+        (
+            error(crate::props::derive(quote! {
+                struct Button {
+                    /// Count.
+                    #[prop(flag)] count: u8,
+                }
+            })),
+            "bool",
+        ),
+        (
+            error(crate::token_group::derive(quote! {
+                #[group(path = "clips")]
+                struct Clips { audio: Rgba }
+            })),
+            "crate prefix",
+        ),
+        (
+            error(crate::token_group::derive(quote!(
+                struct Clips {
+                    audio: Rgba,
+                }
+            ))),
+            "path",
+        ),
+        (
+            error(crate::token_group::derive(quote! {
+                #[group(path = "craft_timeline.clips")]
+                struct Clips { height: f32 }
+            })),
+            "colours",
+        ),
+        (
+            error(crate::style::derive(quote! {
+                struct Look { #[style(surface)] surface: SurfaceLook }
+            })),
+            "metrics",
+        ),
+        (error(crate::component::register(quote!())), "component types"),
+        (error(crate::component::register(quote!(Chip; sticky))), "overlay"),
+        (error(crate::props::derive(quote! { struct Grid { #[collection] props: ContainerProps } })), "CollectionProps"),
+    ];
+    for (message, needle) in cases {
+        assert!(message.contains(needle), "{needle}: {message}");
     }
 }
 
@@ -251,76 +276,72 @@ fn a_widget_impl_keeps_the_types_bounds_and_requires_a_response_output() {
 
 #[test]
 fn command_set_and_words_reject_invalid_input() {
-    {
-        assert!(
+    let mut cases = vec![
+        (
             error(crate::command_set::derive(quote!(
                 enum Set {
                     #[command(label = "A")]
                     A,
                 }
-            )))
-            .contains("prefix")
-        );
-        assert!(
+            ))),
+            "prefix".to_owned(),
+        ),
+        (
             error(crate::command_set::derive(quote!(
                 #[command(prefix = "p")]
                 enum Set {
                     A,
                 }
-            )))
-            .contains("label")
-        );
-        assert!(
+            ))),
+            "label".to_owned(),
+        ),
+        (
             error(crate::command_set::derive(quote!(
                 #[command(prefix = "p")]
                 enum Set {
                     #[command(label = "A", kind = "x")]
                     A,
                 }
-            )))
-            .contains("kind")
-        );
-        assert!(
+            ))),
+            "kind".to_owned(),
+        ),
+        (
             error(crate::command_set::derive(quote!(
                 #[command(prefix = "p")]
                 enum Set {
                     #[command(label = "A")]
                     A(u8),
                 }
-            )))
-            .contains("unit")
-        );
-    }
-    {
-        for prefix in ["canvas.view", "kbd_trial", "Canvas", "", "9p"] {
-            let message = error(crate::command_set::derive(quote!(
-                #[command(prefix = #prefix)]
-                enum Set {
-                    #[command(label = "A")]
-                    A,
-                }
-            )));
-            assert!(message.contains("lower-camel"), "`{prefix}`: {message}");
-        }
-        let accepted = crate::command_set::derive(quote!(
-            #[command(prefix = "canvasView")]
+            ))),
+            "unit".to_owned(),
+        ),
+        (words(quote! { struct W { save: "Save" = "Save"; } }), "module.camelCase".to_owned()),
+        (words(quote! { struct W { size: unit "w.size" = "px"; } }), "{n}".to_owned()),
+        (words(quote! { struct W { items: count "w.items" = "{n} item" | "items"; } }), "{n}".to_owned()),
+        (words(quote! { struct W { saved: template "w.saved" = "Saved {name"; } }), "unmatched".to_owned()),
+    ];
+    // A command prefix is one lower-camel segment.
+    for prefix in ["canvas.view", "kbd_trial", "Canvas", "", "9p"] {
+        let message = error(crate::command_set::derive(quote!(
+            #[command(prefix = #prefix)]
             enum Set {
                 #[command(label = "A")]
                 A,
             }
-        ));
-        assert!(accepted.is_ok());
+        )));
+        cases.push((message, "lower-camel".to_owned()));
     }
-    {
-        let id = words(quote! { struct W { save: "Save" = "Save"; } });
-        assert!(id.contains("module.camelCase"), "{id}");
-        let unit = words(quote! { struct W { size: unit "w.size" = "px"; } });
-        assert!(unit.contains("{n}"), "{unit}");
-        let count = words(quote! { struct W { items: count "w.items" = "{n} item" | "items"; } });
-        assert!(count.contains("{n}"), "{count}");
-        let braces = words(quote! { struct W { saved: template "w.saved" = "Saved {name"; } });
-        assert!(braces.contains("unmatched"), "{braces}");
+    for (message, needle) in cases {
+        assert!(message.contains(&needle), "{needle}: {message}");
     }
+    let accepted = crate::command_set::derive(quote!(
+        #[command(prefix = "canvasView")]
+        enum Set {
+            #[command(label = "A")]
+            A,
+        }
+    ));
+    assert!(accepted.is_ok());
 }
 
 fn words(input: TokenStream) -> String {

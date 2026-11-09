@@ -57,34 +57,34 @@ fn layouts(setup: impl FnOnce(&Fixture), sets: Vec<Vec<DocRun<'static>>>) -> Vec
     Rc::try_unwrap(found).map(RefCell::into_inner).unwrap_or_default()
 }
 
+/// A run's lines are in the galley's text formats, in the run's colour, and an indent shifts the run by its space.
 #[trial]
 fn run_styles_change_the_laid_out_galley() {
-    {
-        // A run's lines are in the galley's text formats, in the run's colour, and an indent shifts the run by its space.
-        let sets = vec![
-            vec![run("Word")],
-            vec![run("Word").underline()],
-            vec![run("Word").strikethrough()],
-            vec![run("Word").indent(INDENT)],
-            vec![run("Word").bold()],
-        ];
-        let found = layouts(install_semibold, sets);
-        assert_eq!(found.len(), 5, "every set laid out");
-        let format = |at: usize| found[at].galley.job.sections[0].format.clone();
-        assert_eq!(format(0).underline.width, 0.0);
-        assert_eq!(format(0).strikethrough.width, 0.0);
-        assert!(format(1).underline.width > 0.0 && format(1).underline.color == INK, "underline in the run's colour");
-        assert!(format(2).strikethrough.width > 0.0 && format(2).strikethrough.color == INK, "strikethrough in the run's colour");
-        let shift = found[3].size().x - found[0].size().x;
-        assert!((shift - INDENT).abs() < EPS, "the first-line indent adds its space to the row: {shift}");
-        assert_ne!(format(4).font_id.family, format(0).font_id.family, "bold takes the semibold family");
-        assert!((found[4].size().x - found[0].size().x).abs() > EPS, "the bold face has its own advances");
-    }
-    {
-        // Without a semibold family a bold run keeps the interface face.
-        let found = layouts(|_| {}, vec![vec![run("Word")], vec![run("Word").bold()]]);
-        assert_eq!(found[0].galley.job.sections[0].format.font_id.family, found[1].galley.job.sections[0].format.font_id.family);
-    }
+    let sets = vec![
+        vec![run("Word")],
+        vec![run("Word").underline()],
+        vec![run("Word").strikethrough()],
+        vec![run("Word").indent(INDENT)],
+        vec![run("Word").bold()],
+    ];
+    let found = layouts(install_semibold, sets);
+    assert_eq!(found.len(), 5, "every set laid out");
+    let format = |at: usize| found[at].galley.job.sections[0].format.clone();
+    assert_eq!(format(0).underline.width, 0.0);
+    assert_eq!(format(0).strikethrough.width, 0.0);
+    assert!(format(1).underline.width > 0.0 && format(1).underline.color == INK, "underline in the run's colour");
+    assert!(format(2).strikethrough.width > 0.0 && format(2).strikethrough.color == INK, "strikethrough in the run's colour");
+    let shift = found[3].size().x - found[0].size().x;
+    assert!((shift - INDENT).abs() < EPS, "the first-line indent adds its space to the row: {shift}");
+    assert_ne!(format(4).font_id.family, format(0).font_id.family, "bold takes the semibold family");
+    assert!((found[4].size().x - found[0].size().x).abs() > EPS, "the bold face has its own advances");
+}
+
+/// Without a semibold family a bold run keeps the interface face.
+#[trial]
+fn bold_keeps_the_face_without_a_semibold_family() {
+    let found = layouts(|_| {}, vec![vec![run("Word")], vec![run("Word").bold()]]);
+    assert_eq!(found[0].galley.job.sections[0].format.font_id.family, found[1].galley.job.sections[0].format.font_id.family);
 }
 
 /// `Text::spans` is named by its joined text, and a span's size and indent change the room the text takes.

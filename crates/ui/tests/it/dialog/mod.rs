@@ -145,15 +145,17 @@ fn enter_in_field(allow: bool, submits: bool) -> (Option<CloseReason>, Option<us
     (closed, picked, open.get())
 }
 
+/// Enter in a dialog activates the default button, through the host's close guard; a field that acts on Enter itself keeps it.
 #[trial]
 fn enter_in_a_dialog_activates_the_default_button_through_the_close_guard() {
-    {
-        // A field that acts on Enter itself keeps it: the dialog's default button is not activated.
-        assert_eq!(enter_in_field(true, true), (None, None, true), "Enter stays with the field and the dialog stays open");
-    }
-    {
-        assert_eq!(enter_in_field(true, false), (Some(CloseReason::Activated), Some(0), false), "Enter closes as OK when the host allows it");
-        assert_eq!(enter_in_field(false, false), (None, Some(0), true), "Enter leaves the dialog open when the host refuses, and reports the pick");
+    let cases = [
+        // (host allows the close, field submits, closed, picked, still open)
+        (true, true, None, None, true),
+        (true, false, Some(CloseReason::Activated), Some(0), false),
+        (false, false, None, Some(0), true),
+    ];
+    for (allow, submits, closed, picked, open) in cases {
+        assert_eq!(enter_in_field(allow, submits), (closed, picked, open), "allow {allow}, submits {submits}");
     }
 }
 
