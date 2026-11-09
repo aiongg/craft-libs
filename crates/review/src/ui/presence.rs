@@ -368,6 +368,7 @@ pub struct FollowFrame {
     common: Common,
     #[container]
     props: ContainerProps,
+    open: craft_ui::contract::Bind<'static, bool>,
     color: [u8; 3],
     text: String,
     stopped: bool,
@@ -399,14 +400,18 @@ impl FollowFrame {
             .sizing(Sizing::Fill)
             .focus(craft_ui::runtime::focus::FocusPolicy::NONE.cancel(craft_behavior::CancelRule::Close))
             .command_scope(FollowCommand::SCOPE);
-        FollowFrame { common: Common::new(), props, color, text: text.into(), stopped: false }.label(label)
+        FollowFrame { common: Common::new(), props, open: craft_ui::contract::Bind::given(true), color, text: text.into(), stopped: false }
+            .label(label)
     }
 }
 
 impl Container for FollowFrame {
-    const TAKES_ESCAPE: bool = true;
+    /// Showing the frame is following: it is open while it shows, and closing it (Escape) stops following.
+    fn open(&mut self) -> Option<craft_ui::contract::BindMut<'_, bool>> {
+        Some(self.open.reborrow())
+    }
 
-    fn escaped(&mut self) {
+    fn closed(&mut self, _why: craft_ui::runtime::overlay::CloseReason) {
         self.stopped = true;
     }
 }

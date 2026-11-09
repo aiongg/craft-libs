@@ -359,3 +359,36 @@ fn escape_cancels_a_pending_edit_before_it_stops_following() {
     fixture.settle();
     assert!(following.borrow().is_none(), "the second Escape stops following");
 }
+
+/// With the canvas focused, an Escape the tool does not take stops following.
+#[trial]
+fn escape_with_the_canvas_focused_stops_following() {
+    let following = Rc::new(RefCell::new(Some(ParticipantId(2))));
+    let shared = following.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let area = ui.available_rect_before_wrap();
+        let view = craft_behavior::CanvasView::new(area, kurbo::Point::new(0.0, 0.0), 1.0);
+        let mut shared = shared.borrow_mut();
+        if shared.is_none() {
+            return;
+        }
+        let stopped = craft_review::ui::FollowFrame::new("Following", PEOPLE_COLORS[1], "Following Bo Chen")
+            .show(ui, |ui, _| {
+                let shown = Canvas::new("Document").view(view).show(ui, |_, _| {});
+                let _ = ToolHost::new().run(ui, &shown.output, &mut Editing(Rc::new(std::cell::Cell::new(false))));
+            })
+            .output
+            .stopped;
+        if stopped {
+            *shared = None;
+        }
+    });
+    fixture.settle();
+    let at = egui::pos2(100.0, 100.0);
+    fixture.click_at(at);
+    fixture.settle();
+    assert!(fixture.focused().is_some(), "the canvas holds focus");
+    fixture.key(egui::Key::Escape, egui::Modifiers::NONE);
+    fixture.settle();
+    assert!(following.borrow().is_none(), "Escape stops following");
+}
