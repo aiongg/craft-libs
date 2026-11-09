@@ -258,3 +258,32 @@ fn a_menu_taller_than_either_side_of_its_opener_stays_on_one_side_and_scrolls_to
     let menu = menu_rect(&fixture).expect("the menu is still open");
     assert!(menu.contains_rect(last.rect), "the last row {:?} is revealed inside the menu {menu:?}", last.rect);
 }
+
+/// A context menu its owner opens through the open binding, a pass after the press, keeps the place it opened at
+/// when the pointer leaves the opener for the menu.
+#[trial]
+fn a_context_menu_opened_by_its_binding_stays_where_it_opened_when_the_pointer_leaves_the_opener() {
+    let wanted = Rc::new(Cell::new(false));
+    let shown = wanted.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let target = Button::new("Target").show(ui);
+        if shown.get() {
+            let mut open = true;
+            Menu::context("Actions", &target).open(Bind::bound(&mut open)).show(ui, |ui, _| {
+                MenuItem::new("Open").show(ui);
+            });
+        }
+    });
+    fixture.settle();
+    let target = fixture.by_label("Target").expect("the target shows").rect;
+    let at = target.right_bottom() - egui::vec2(2.0, 2.0);
+    fixture.frame(vec![pointer::moved(at)]);
+    wanted.set(true);
+    fixture.settle();
+    let opened = menu_rect(&fixture).expect("the bound menu is open");
+    let row = fixture.by_role(Role::MENU_ITEM).pop().expect("the menu has a row");
+    assert!(!target.contains(row.center()), "the row lies off the opener");
+    fixture.frame(vec![pointer::moved(row.center())]);
+    fixture.settle();
+    assert_eq!(menu_rect(&fixture), Some(opened), "the menu does not move when the pointer leaves the opener");
+}
