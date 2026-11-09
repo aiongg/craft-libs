@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use craft_behavior::{EditEvent, GestureId, IconId, Mixed};
+use craft_behavior::{EditEvent, IconId, Mixed};
 use craft_ui::buttons::IconButton;
 use craft_ui::contract::{Bind, EditResponse, Outcome, Props as _, Show as _, ShowContainer as _, clicked};
 use craft_ui::form::{Field, SliderField};
@@ -79,7 +79,7 @@ impl<'a> BrushSizeField<'a> {
                         Some(Mixed::Same(held)) => held,
                         _ => value,
                     };
-                    let event = EditEvent::set(GestureId::default(), Mixed::Same(before), value, name.clone(), None);
+                    let event = EditEvent::set(Mixed::Same(before), value, name.clone(), None);
                     diameter.reborrow().write(cx, &event);
                     restored = Some(event);
                 }

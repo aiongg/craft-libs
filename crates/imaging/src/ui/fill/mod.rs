@@ -51,7 +51,7 @@ use egui::{Color32, Context, Id, Response, Ui};
 use craft_behavior::edit_history::Step;
 use craft_behavior::geometry::selection_op::SelectionOperation;
 use craft_behavior::kurbo::{Point, Rect};
-use craft_behavior::{CancelReason, EditEvent, EditHistory, GestureId, IconId, Mixed, PixelSize};
+use craft_behavior::{CancelReason, EditEvent, EditHistory, IconId, Mixed, PixelSize};
 use craft_theme::Srgba;
 use craft_ui::buttons::IconButton;
 use craft_ui::canvas::{HandTool, Momentary, NavigationOptions, PickStep, RasterSource, ToolHost, ViewCommands, ZoomTool, tool_pick};
@@ -260,8 +260,6 @@ pub struct ContentAwareFillWorkspace {
     requested: Vec<Step>,
     /// A stroke, a lasso or a resize was open at the end of the last pass.
     busy: bool,
-    /// The id the next history entry takes.
-    gesture: GestureId,
     /// This pass's events and colour request.
     events: Vec<FillEvent>,
     pick_color: Option<ColorRequest>,
@@ -310,7 +308,6 @@ impl ContentAwareFillWorkspace {
             ants: None,
             requested: Vec::new(),
             busy: false,
-            gesture: GestureId::default(),
             events: Vec::new(),
             pick_color: None,
         }
@@ -725,9 +722,8 @@ impl ContentAwareFillWorkspace {
         if before == self.session {
             return;
         }
-        self.gesture = self.gesture.next();
         let name: Arc<str> = Arc::from(HISTORY_NAME);
-        self.history.record(&EditEvent::set(self.gesture, Mixed::Same(before), self.session.clone(), name, None));
+        self.history.record(&EditEvent::set(Mixed::Same(before), self.session.clone(), name, None));
     }
 
     /// What the session's sampling option sets in the settings and the bar after undo, redo or a

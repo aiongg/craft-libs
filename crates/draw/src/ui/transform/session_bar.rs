@@ -5,7 +5,7 @@ mod stories;
 
 use super::session::{TransformEdit, TransformPhase, TransformSession, TransformSettings, TransformWarp};
 use super::transform_fields::{BarGroups, TransformFields, TransformRow, size_unit_of};
-use craft_behavior::{EditEvent, GestureId, IconId, Mixed, RulerUnits};
+use craft_behavior::{EditEvent, IconId, Mixed, RulerUnits};
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::buttons::IconButton;
 use craft_ui::canvas::RulerText;
@@ -215,7 +215,7 @@ impl<'a, W: TransformWarp> TransformBar<'a, W> {
                 }
             }
             if next != current {
-                let _ = settings.reborrow().write(cx, &EditEvent::set(GestureId::default(), Mixed::Same(current), next, name.clone(), None));
+                let _ = settings.reborrow().write(cx, &EditEvent::set(Mixed::Same(current), next, name.clone(), None));
             }
         });
         TransformBarOutput {

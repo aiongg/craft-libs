@@ -465,7 +465,7 @@ impl Component for TransformBox<'_> {
         }
         match self.rotate_zone {
             RotateZone::Outside => {
-                cx.part(OUTSIDE.at(0), HitShape::Rect(rect))
+                cx.part(OUTSIDE.at(0), HitShape::outside_polygon(rect, quad.to_vec()))
                     .sense(Sense::DRAG | Sense::CLICK)
                     .priority(HitPriority::new(HitLevel::Background, 0))
                     .pointer_only(ROTATE_BY_KEY);

@@ -5,7 +5,7 @@ use std::cell::RefCell;
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, GestureId, IconId, ItemSource, Mixed};
+use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, IconId, ItemSource, Mixed};
 use craft_ui::buttons::Button;
 use craft_ui::contract::{
     CollectionEvent, ColumnKind, ColumnSpec, Pattern, Props as _, Remember, ReorderMove, ReorderRule, Show as _, ShowCollection as _,
@@ -586,7 +586,7 @@ impl Model<'_> {
 
     /// A move that happens at once, as a menu item makes it.
     fn set(mv: FieldMove) -> EditEvent<FieldMove> {
-        EditEvent::set(GestureId::default(), Mixed::Mixed, mv, Arc::from("Move Field"), None)
+        EditEvent::set(Mixed::Mixed, mv, Arc::from("Move Field"), None)
     }
 
     /// A field's menu: Move to each other area, Move Up and Move Down, then for a value field Summarize by and Show

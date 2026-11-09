@@ -869,13 +869,13 @@ note = "The overlay snaps; the tool snaps nothing itself."
 type = "CropInput"
 old = "CropInput::new(settings, document)"
 new = "CropInput::new(ctx, settings, document)"
-note = "`ctx` mints the ids of the key edits the tool opens (`runtime::edit::next_gesture_id`)."
+note = "`ctx` mints the ids of the gestures the arrow-key nudges open (`runtime::edit::next_gesture_id`)."
 
 [[setter]]
 type = "CropTool"
 old = "refit(settings, document, units, editing)"
-new = "refit(ctx, settings, document, editing)"
-note = "Lengths are stored values, so no `units`; `ctx` mints the edit id. `crop_to(ctx, frame)` takes it too; `apply`, `leave`, `CropCommit::new`, `ratio_value` and `target` drop `units`."
+new = "refit(settings, document, editing)"
+note = "Lengths are stored values, so no `units`; `Set` events carry no id, so no `ctx`. `crop_to(frame)` takes none either; `apply`, `leave`, `CropCommit::new`, `ratio_value` and `target` drop `units`."
 
 [[setter]]
 type = "CropSession"
@@ -1090,7 +1090,7 @@ name = "RulerInput"
 old = "craft_draw::ui::measure::RulerInput"
 new = ""
 status = "removed"
-note = "`RulerTool::pass(ctx, line)` takes the line; the units come from the canvas space."
+note = "`RulerTool::pass(line)` takes the line; the units come from the canvas space."
 
 [[type]]
 name = "CropBarLabels"
@@ -1262,8 +1262,8 @@ note = "Words are `RulerWords` from the scope."
 [[setter]]
 type = "RulerTool"
 old = "RulerTool::pass(RulerInput)"
-new = "RulerTool::pass(ctx, line)"
-note = "`ctx` mints the ids of key edits; a drag uses the host's gesture id."
+new = "RulerTool::pass(line)"
+note = "Key edits are `Set` events, which carry no id; a drag uses the host's gesture id."
 
 [[setter]]
 type = "RulerInput"

@@ -1,6 +1,6 @@
 //! [`PathField`]: a labelled path with a Browse button that opens a picker through `host.files()`.
 
-use craft_behavior::{EditEvent, GestureId, Mixed};
+use craft_behavior::{EditEvent, Mixed};
 use craft_host::target::Caps;
 use craft_host::{PickId, PickKind, PickRequest};
 use craft_ui::contract::{Bind, Held, NoValue, Outcome, Remember as _, ShowContainer as _, Validity};
@@ -107,7 +107,7 @@ impl<'a> PathField<'a> {
             });
             let landed = typed.or_else(|| {
                 answered.map(|path| {
-                    let event = EditEvent::set(GestureId::default(), Mixed::Same(before.clone()), path.clone(), label.as_str().into(), None);
+                    let event = EditEvent::set(Mixed::Same(before.clone()), path.clone(), label.as_str().into(), None);
                     (path, event)
                 })
             });

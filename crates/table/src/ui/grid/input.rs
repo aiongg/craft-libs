@@ -102,7 +102,7 @@ impl CellGrid<'_> {
 
     fn write_selection(&mut self, cx: &mut Cx<'_, Self>, before: &CellSelection<u32>, after: CellSelection<u32>, label: &str) {
         if &after != before {
-            let event = EditEvent::set(GestureId::default(), Mixed::Same(before.clone()), after, Arc::from(label), None);
+            let event = EditEvent::set(Mixed::Same(before.clone()), after, Arc::from(label), None);
             let _ = self.selection.reborrow().write(cx, &event);
         }
     }

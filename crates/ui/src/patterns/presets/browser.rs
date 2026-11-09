@@ -33,7 +33,7 @@ use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::Remember as _;
 use crate::text::TextField;
 use crate::tile_grid::{CaptionPlace, GridEvent, TailRow, Tile, TileGrid, TileGroup, TileZoom};
-use craft_behavior::{DisplayOrder, EditEvent, GestureId, GesturePhase, IconId, ItemSource, Mixed, Selection, SelectionChange};
+use craft_behavior::{DisplayOrder, EditEvent, GesturePhase, IconId, ItemSource, Mixed, Selection, SelectionChange};
 use craft_i18n::matcher::Matcher;
 use craft_theme::variant::Tone;
 use egui::{Id, Rect, Ui};
@@ -453,7 +453,7 @@ fn commit<K: Clone + Eq + Hash + Send + Sync + 'static>(cx: &mut BodyCx<'_>, sta
     };
     local.retain_groups(rows);
     if local != before {
-        let event = EditEvent::set(GestureId::default(), Mixed::Same(before), local, Arc::from(name), None);
+        let event = EditEvent::set(Mixed::Same(before), local, Arc::from(name), None);
         let _ = state.borrow_mut().reborrow().write(cx, &event);
     }
 }

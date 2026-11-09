@@ -13,8 +13,8 @@ use crate::clips::ClipEdit;
 use crate::model::{ClipId, TrackId, TrackInfo, TrackKind};
 use crate::time::Tick;
 use craft_behavior::{
-    ColumnKey, ColumnWidth, CursorIcon, DisplayOrder, EditEvent, GestureId, HitLevel, HitPriority, IconId, ItemSource, MarqueeSelect, Metrics, Mixed,
-    PartKey, PressPhase, Selection, SelectionChange, Sense, SizeHint, SpanLayout,
+    ColumnKey, ColumnWidth, CursorIcon, DisplayOrder, EditEvent, HitLevel, HitPriority, IconId, ItemSource, MarqueeSelect, Metrics, Mixed, PartKey,
+    PressPhase, Selection, SelectionChange, Sense, SizeHint, SpanLayout,
 };
 use craft_ui::contract::{
     Access, Bind, BindMut, Collection, CollectionProps, CollectionResponse, ColumnKind, ColumnSpec, Common, Component, ContainerProps, Cx, Edit as _,
@@ -787,7 +787,7 @@ pub fn resolve_move(rows: &[RowGeom], sources: &[RowGeom], y: f32, bounds: (f32,
 
 /// The one-step event a header gesture without a drag reports (a width a column resize gave): a `Set`.
 pub(crate) fn set_event<T>(before: T, after: T, label: &str) -> EditEvent<T> {
-    EditEvent::set(GestureId::default(), Mixed::Same(before), after, Arc::from(label), None)
+    EditEvent::set(Mixed::Same(before), after, Arc::from(label), None)
 }
 
 #[cfg(feature = "screen-testing")]

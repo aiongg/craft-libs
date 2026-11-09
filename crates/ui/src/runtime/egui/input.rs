@@ -252,6 +252,7 @@ pub(crate) fn pointer_read(ctx: &Context) -> PointerRead {
                     release = Some(PointerButton::Primary);
                     events.push(PointerEvent::released(*pos));
                 }
+                Event::PointerGone => events.push(PointerEvent::Gone),
                 Event::WindowFocused(false) => focus_lost = true,
                 Event::Touch { phase, force, .. } => {
                     kind = PointerKind::Touch;

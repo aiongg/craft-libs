@@ -3,7 +3,7 @@
 
 use std::hash::Hash;
 
-use craft_behavior::{EditEvent, GestureId, IconId, Mixed, Value};
+use craft_behavior::{EditEvent, IconId, Mixed, Value};
 use craft_ui::buttons::IconButton;
 use craft_ui::contract::{Bind, BodyCx, EditResponse, Outcome, Props as _, Show as _, ShowContainer as _, Trigger, clicked};
 use craft_ui::form::{Field, SliderField};
@@ -286,7 +286,7 @@ impl<'a, K: Value + Eq + Hash> BrushPresetPicker<'a, K> {
             let after = BrushPickerState { browser, parts: next_parts };
             let mut settings = None;
             if after != before {
-                let event = EditEvent::set(GestureId::default(), Mixed::Same(before.clone()), after.clone(), name.clone(), None);
+                let event = EditEvent::set(Mixed::Same(before.clone()), after.clone(), name.clone(), None);
                 state.reborrow().write(cx, &event);
                 settings = (after.settings() != before.settings()).then(|| after.settings());
             }

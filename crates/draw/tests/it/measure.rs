@@ -151,7 +151,6 @@ struct Driven {
     tool: RulerTool,
     line: Rc<RefCell<Option<RulerLine>>>,
     log: Rc<RefCell<Vec<&'static str>>>,
-    ctx: egui::Context,
 }
 
 impl Driven {
@@ -180,7 +179,7 @@ impl Driven {
 
     fn with_pass<R>(&mut self, call: impl FnOnce(&mut dyn CanvasTool) -> R) -> R {
         let line = *self.line.borrow();
-        let result = call(&mut self.tool.pass(&self.ctx, line));
+        let result = call(&mut self.tool.pass(line));
         self.sync();
         result
     }
@@ -223,7 +222,7 @@ struct Shown {
 fn shown(start: Option<RulerLine>) -> Shown {
     let line = Rc::new(RefCell::new(start));
     let log = Rc::new(RefCell::new(Vec::new()));
-    let driven = Driven { tool: RulerTool::new(), line: Rc::clone(&line), log: Rc::clone(&log), ctx: egui::Context::default() };
+    let driven = Driven { tool: RulerTool::new(), line: Rc::clone(&line), log: Rc::clone(&log) };
     let body_line = Rc::clone(&line);
     let body_log = Rc::clone(&log);
     let fixture = ToolFixture::with_view(

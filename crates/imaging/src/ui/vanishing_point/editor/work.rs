@@ -84,7 +84,6 @@ pub(in crate::ui::vanishing_point) fn close_plane(
     scene: &dyn VanishingScene,
     corners: [[f64; 2]; 4],
     step: &str,
-    id: GestureId,
 ) -> bool {
     if session.planes.len() >= MAX_PLANES {
         return false;
@@ -101,7 +100,7 @@ pub(in crate::ui::vanishing_point) fn close_plane(
     // Photoshop hands over to Edit Plane once a plane is closed.
     editor.tool = VanishingTool::EditPlane;
     let after = PlaneEdit::new(session.planes.clone(), session.torn.clone());
-    editor.events.push(VanishingPointEvent::Planes(EditEvent::set(id, Mixed::Same(before), after, label(step), None)));
+    editor.events.push(VanishingPointEvent::Planes(EditEvent::set(Mixed::Same(before), after, label(step), None)));
     true
 }
 
@@ -186,8 +185,7 @@ impl Work<'_> {
         }
         self.editor.pending.push(p);
         if let Ok(corners) = <[[f64; 2]; 4]>::try_from(self.editor.pending.as_slice()) {
-            let id = self.gesture.take().unwrap_or_else(|| next_gesture_id(self.ctx));
-            close_plane(self.editor, self.session, self.scene, corners, words.edit_planes_step.as_str(), id);
+            close_plane(self.editor, self.session, self.scene, corners, words.edit_planes_step.as_str());
         }
     }
 
@@ -435,10 +433,8 @@ impl Work<'_> {
         *c = [c[0] + by[0], c[1] + by[1]];
         self.editor.selected = Some(plane);
         self.resolve();
-        let id = self.gesture.take().unwrap_or_else(|| next_gesture_id(self.ctx));
         let after = self.plane_edit();
         self.editor.events.push(VanishingPointEvent::Planes(EditEvent::set(
-            id,
             Mixed::Same(before),
             after,
             label(words.edit_planes_step.as_str()),

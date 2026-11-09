@@ -4,7 +4,7 @@
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
-use craft_behavior::{EditEvent, GestureId, IconId, Mixed};
+use craft_behavior::{EditEvent, IconId, Mixed};
 use craft_theme::Srgba;
 use craft_ui::buttons::IconButton;
 use craft_ui::choice::{Checkbox, Swatch};
@@ -150,7 +150,7 @@ impl<'a> PathOptionsPopover<'a> {
                 }
             });
             if now != before {
-                let event = EditEvent::set(GestureId::default(), Mixed::Same(before), now, Arc::from(words.title.as_str()), None);
+                let event = EditEvent::set(Mixed::Same(before), now, Arc::from(words.title.as_str()), None);
                 let _ = settings.reborrow().write(cx, &event);
                 edit = Some(event);
             }

@@ -190,18 +190,7 @@ impl CanvasTool for ArtboardTool {
             _ => return false,
         };
         let words = cx.words::<ArtboardToolWords>();
-        let mut ids = self.ids;
-        let events = key_events(
-            &Boards { items: &self.items, selected: &self.selected },
-            &self.rules,
-            act,
-            &mut || {
-                ids = ids.next();
-                ids
-            },
-            &words,
-        );
-        self.ids = ids;
+        let events = key_events(&Boards { items: &self.items, selected: &self.selected }, &self.rules, act, &words);
         let taken = !events.is_empty();
         self.events.extend(events);
         taken

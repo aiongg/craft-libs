@@ -146,7 +146,7 @@ impl CanvasTool for PerspectiveCropTool {
             let quad = Some(ordered([a, b, c, d]));
             let label: Arc<str> = Arc::from(cx.words::<CropWords>().perspective_group.as_str());
             self.quad = quad;
-            self.events.push(PerspectiveCropEvent::Edit(EditEvent::set(press.id, Mixed::Same(press.before), quad, label, None)));
+            self.events.push(PerspectiveCropEvent::Edit(EditEvent::set(Mixed::Same(press.before), quad, label, None)));
         }
     }
 

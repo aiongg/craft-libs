@@ -7,7 +7,7 @@
 #[cfg(feature = "screen-testing")]
 mod stories;
 
-use craft_behavior::{EditEvent, GestureId, Mixed};
+use craft_behavior::{EditEvent, Mixed};
 use craft_ui::buttons::Button;
 use craft_ui::choice::Checkbox;
 use craft_ui::contract::{Bind, Pattern, Props as _, Show as _, ShowContainer as _, clicked};
@@ -120,7 +120,7 @@ impl<'a> GradientMapEditor<'a> {
         let words = Env::of(ui).words::<GradientMapWords>();
         let base = self.value.clone();
         let label: Arc<str> = Arc::from(words.gradient_map.as_str());
-        let set = |after: GradientMap| EditEvent::set(GestureId::default(), Mixed::Same(base.clone()), after, Arc::clone(&label), None);
+        let set = |after: GradientMap| EditEvent::set(Mixed::Same(base.clone()), after, Arc::clone(&label), None);
         let mut event = None;
         let mut color_requested = None;
         let mut import = false;

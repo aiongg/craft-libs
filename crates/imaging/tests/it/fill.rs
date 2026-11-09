@@ -292,13 +292,7 @@ fn fill_reset_scopes_sampling_fill_and_all() {
     let mut history = EditHistory::new(&session);
     let before = session.clone();
     assert!(session.reset(FillReset::All, &mut settings));
-    history.record(&craft_behavior::EditEvent::set(
-        craft_behavior::GestureId::new(1),
-        craft_behavior::Mixed::Same(before),
-        session.clone(),
-        "Reset".into(),
-        None,
-    ));
+    history.record(&craft_behavior::EditEvent::set(craft_behavior::Mixed::Same(before), session.clone(), "Reset".into(), None));
     assert_eq!(session, FillSession::default());
     assert_eq!(settings, FillSettings::default());
     assert!(history.step(&mut session, Step::Undo));

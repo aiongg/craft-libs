@@ -7,7 +7,7 @@ use std::sync::Arc;
 use kurbo::{Point, Rect};
 
 use craft_behavior::edit_history::Step;
-use craft_behavior::{EditEvent, EditHistory, GestureId, Mixed};
+use craft_behavior::{EditEvent, EditHistory, Mixed};
 
 /// One pin: where it attaches on the rest mesh and where it holds that point now, in document
 /// units (PhotoCraft `PuppetPin { src, dst, rotate, depth }`, VectorCraft `rest`, `at`, `angle`).
@@ -250,7 +250,7 @@ impl PinEdit {
     /// A one-step change of the pin list from `before` to `after`, named `label` in the undo list: what the bar and
     /// the commands report.
     pub fn replace(before: &[Pin], after: Vec<Pin>, label: &str) -> PinEdit {
-        PinEdit::Pins(EditEvent::set(GestureId::default(), Mixed::Same(before.to_vec()), after, Arc::from(label), None))
+        PinEdit::Pins(EditEvent::set(Mixed::Same(before.to_vec()), after, Arc::from(label), None))
     }
 }
 

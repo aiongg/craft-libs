@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use craft_behavior::{EditEvent, GestureId, Mixed};
+use craft_behavior::{EditEvent, Mixed};
 use craft_theme::{ControlSize, TypeRole};
 use craft_ui::buttons::Button;
 use craft_ui::choice::Checkbox;
@@ -87,8 +87,7 @@ impl<'a> WideAnglePanel<'a> {
                 if let Some(&picked) = Select::new(words.correction.clone(), Bind::given(session.model), &models).show(ui).value() {
                     let mut after = session.clone();
                     after.model = picked;
-                    edit =
-                        Some(EditEvent::set(GestureId::default(), Mixed::Same(session.clone()), after, Arc::from(words.correction.as_str()), None));
+                    edit = Some(EditEvent::set(Mixed::Same(session.clone()), after, Arc::from(words.correction.as_str()), None));
                 }
                 let rows = [
                     Slider { name: |w| &w.scale, range: 50.0..=150.0, unit: UnitKind::Percent, step: 1.0, get: |s| s.scale, set: |s, v| s.scale = v },

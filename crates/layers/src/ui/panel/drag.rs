@@ -1,7 +1,7 @@
 //! Drag and drop: what a reorder of the list means for layers, effects and Smart Filters, the
 //! payload that footer buttons accept, and the stacking commands.
 
-use craft_behavior::{EditEvent, GestureId, Mixed};
+use craft_behavior::{EditEvent, Mixed};
 use craft_keymap::Mods;
 use craft_ui::contract::{ListDrag, ReorderMove};
 use std::sync::Arc;
@@ -154,9 +154,9 @@ pub(super) fn drop_event<K: Clone + PartialEq>(
     relaxed: bool,
 ) -> Option<LayersEvent<K>> {
     match edit {
-        EditEvent::Set { id, after, label, .. } => {
+        EditEvent::Set { after, label, .. } => {
             let drop = layer_drop(&after, order, parent_of, relaxed)?;
-            Some(LayersEvent::Drop(EditEvent::set(id, Mixed::Mixed, drop, label, None)))
+            Some(LayersEvent::Drop(EditEvent::set(Mixed::Mixed, drop, label, None)))
         }
         _ => None,
     }
@@ -189,5 +189,5 @@ pub(super) fn stacking_event<T: LayerTree>(tree: &T, command: LayersPanelCommand
         return None;
     }
     let drop = LayerDrop::Layers(LayerMove::new(layers, target, position, false));
-    Some(LayersEvent::Drop(EditEvent::set(GestureId::default(), Mixed::Mixed, drop, label, None)))
+    Some(LayersEvent::Drop(EditEvent::set(Mixed::Mixed, drop, label, None)))
 }

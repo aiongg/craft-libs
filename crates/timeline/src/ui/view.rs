@@ -9,7 +9,7 @@ use crate::clock::{Follow, FollowMode};
 use crate::time::{Tick, TimeRange, TimeView, VIEW_EXTENT_PAST_END};
 use crate::timecode::TimeFormat;
 use craft_behavior::scroll::{self, ScrollSpan};
-use craft_behavior::{Axis, ColumnWidth, EditEvent, GestureId, Granularity, Intent, Metrics, Mixed, NavMove, PartKey, Sense, Wheel};
+use craft_behavior::{Axis, ColumnWidth, EditEvent, Granularity, Intent, Metrics, Mixed, NavMove, PartKey, Sense, Wheel};
 use craft_ui::contract::{
     Access, Bind, BindMut, CommandSet, Commands as _, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, Focus as _, Name,
     Outcome, PaintUi, PartsCx, Pointer as _, Props, Remember as _, Role, Sizing, Styled as _, WordSetCx as _,
@@ -320,7 +320,7 @@ impl<'a> TimelineView<'a> {
         let to = to.max(Tick::ZERO);
         if to != self.playhead {
             let before = Mixed::Same(self.playhead);
-            self.playhead_edit = Some(EditEvent::set(GestureId::default(), before, to, Arc::from(label), None));
+            self.playhead_edit = Some(EditEvent::set(before, to, Arc::from(label), None));
         }
     }
 

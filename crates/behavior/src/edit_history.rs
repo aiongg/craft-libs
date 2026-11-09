@@ -134,16 +134,16 @@ mod tests {
     use super::*;
     use crate::value::Mixed;
 
-    fn set(n: u64, before: i32, after: i32) -> EditEvent<i32> {
-        EditEvent::set(GestureId::new(n), Mixed::Same(before), after, "Fill".into(), None)
+    fn set(before: i32, after: i32) -> EditEvent<i32> {
+        EditEvent::set(Mixed::Same(before), after, "Fill".into(), None)
     }
 
     #[test]
     fn a_take_back_returns_the_earlier_value_keeps_redo_and_settles() {
         let mut history = EditHistory::new(&0);
-        history.record(&set(1, 0, 1));
-        history.record(&set(2, 1, 2));
-        history.record(&set(3, 2, 5));
+        history.record(&set(0, 1));
+        history.record(&set(1, 2));
+        history.record(&set(2, 5));
         let mut now = 5;
         assert!(history.step(&mut now, Step::Undo));
         assert_eq!(now, 2);
@@ -160,9 +160,9 @@ mod tests {
     #[test]
     fn a_commit_equal_to_the_restored_value_adds_no_step() {
         let mut history = EditHistory::new(&0);
-        history.record(&set(1, 0, 1));
+        history.record(&set(0, 1));
         assert_eq!(history.take_back(), Some(0));
-        history.record(&set(2, 0, 0));
+        history.record(&set(0, 0));
         assert!(!history.can_undo());
         assert_eq!(history.take_back(), None);
     }

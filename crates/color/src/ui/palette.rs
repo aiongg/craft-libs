@@ -1,7 +1,7 @@
 //! `SwatchPalette`: a wrapping grid of colour cells that chooses one colour. `SwatchTable`: a table of touching cells
 //! selected by index, for a colour table whose entries may repeat a colour.
 
-use craft_behavior::{DisplayOrder, EditEvent, GestureId, ItemSource, Metrics, Mixed, PartKey, Selection, Sense, TileLayout};
+use craft_behavior::{DisplayOrder, EditEvent, ItemSource, Metrics, Mixed, PartKey, Selection, Sense, TileLayout};
 use craft_theme::Srgba;
 use craft_ui::choice::{Swatch, SwatchMetrics};
 use craft_ui::contract::{
@@ -80,7 +80,7 @@ impl<'a> SwatchPalette<'a> {
                 return None;
             }
             held.write(cx, &before, after, name.as_str());
-            Some(EditEvent::set(GestureId::default(), Mixed::Same(before), after, Arc::from(name.as_str()), None))
+            Some(EditEvent::set(Mixed::Same(before), after, Arc::from(name.as_str()), None))
         });
         SwatchPaletteOutput { response: shown.output, edit: shown.inner.flatten() }
     }

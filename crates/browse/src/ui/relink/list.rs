@@ -5,7 +5,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use craft_behavior::{DisplayOrder, EditEvent, GestureId, IconId, ItemSource, Mixed, Selection, SelectionChange};
+use craft_behavior::{DisplayOrder, EditEvent, IconId, ItemSource, Mixed, Selection, SelectionChange};
 use craft_docpath::links::{Link, LinkStatus};
 use craft_theme::variant::Tone;
 use craft_ui::contract::{
@@ -288,7 +288,7 @@ impl<K: TextureKey + std::fmt::Debug> LinkList<'_, K> {
             }
             settings_changed.set(local.settings != before.settings);
             if local != before {
-                let event = EditEvent::set(GestureId::default(), Mixed::Same(before), local, Arc::from(label.as_str()), None);
+                let event = EditEvent::set(Mixed::Same(before), local, Arc::from(label.as_str()), None);
                 let _ = state.borrow_mut().reborrow().write(cx, &event);
             }
         };

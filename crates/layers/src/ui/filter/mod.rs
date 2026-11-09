@@ -8,7 +8,7 @@
 #[cfg(feature = "screen-testing")]
 mod stories;
 
-use craft_behavior::{EditEvent, GestureId, IconId, Mixed};
+use craft_behavior::{EditEvent, IconId, Mixed};
 use craft_theme::ControlSize;
 use craft_ui::buttons::ToggleButton;
 use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Props as _, Show as _, ShowContainer as _};
@@ -274,7 +274,7 @@ impl<'a> LayerFilterBar<'a> {
             }
             if next != current {
                 let name: std::sync::Arc<str> = std::sync::Arc::from(words.filter_type.as_str());
-                let event = EditEvent::set(GestureId::default(), Mixed::Same(current), next, name, None);
+                let event = EditEvent::set(Mixed::Same(current), next, name, None);
                 filter.reborrow().write(cx, &event);
                 edit = Some(event);
             }

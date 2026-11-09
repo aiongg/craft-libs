@@ -931,7 +931,7 @@ impl<C: Component> Cx<'_, C> {
             }
             EditEvent::Set { before, after, label, doc_key, .. } => {
                 *slot = slot.ended(false);
-                Some(EditEvent::set(fresh, before, after, label, doc_key))
+                Some(EditEvent::set(before, after, label, doc_key))
             }
             _ => None,
         }
@@ -976,7 +976,7 @@ impl<C: Component> Edit for Cx<'_, C> {
             EditEvent::Update { id, .. } => EditEvent::update(*id, mine),
             EditEvent::Commit { id, .. } => EditEvent::commit(*id, before, mine),
             EditEvent::Cancel { id, reason, .. } => EditEvent::cancel(*id, *reason, Some(before)),
-            EditEvent::Set { id, label, doc_key, .. } => EditEvent::set(*id, before, mine, label.clone(), *doc_key),
+            EditEvent::Set { label, doc_key, .. } => EditEvent::set(before, mine, label.clone(), *doc_key),
             _ => return,
         };
         self.core.paint.borrow_mut().adopted.push(Adopted::new(adopted));
@@ -1030,9 +1030,7 @@ impl<C: Component> Edit for Cx<'_, C> {
         }
         let before = self.before();
         let (label, doc_key) = (self.core.label_arc(), self.core.resolved.doc_key);
-        // A `Set` has its own id: a running gesture's id stays that gesture's, which the host ends when it applies the `Set`.
-        let id = crate::runtime::edit::next_gesture_id(&self.core.ctx);
-        self.events.push(EditEvent::set(id, before, v.clone(), label, doc_key));
+        self.events.push(EditEvent::set(before, v.clone(), label, doc_key));
         self.shown = Some(Arc::new(v));
         self.mixed = false;
     }

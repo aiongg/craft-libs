@@ -11,7 +11,6 @@ use craft_ui::buttons::IconButton;
 use craft_ui::choice::Swatch;
 use craft_ui::contract::{Bind, BodyCx, Props as _, Remember as _, Show as _, ShowContainer as _, clicked};
 use craft_ui::form::{Field, FieldGroup};
-use craft_ui::runtime::edit::next_gesture_id;
 use craft_ui::runtime::env::{Label, UnitKind};
 use craft_ui::text::NumberField;
 use egui::{Id, Ui};
@@ -47,7 +46,7 @@ struct At {
 /// back leaves the stops as they were.
 #[derive(Clone, Debug, Default)]
 struct LocationRun {
-    run: Option<(GestureId, StopRow, usize)>,
+    run: Option<(Option<GestureId>, StopRow, usize)>,
     base: GradientStops,
 }
 
@@ -140,7 +139,7 @@ pub(super) fn stop_color(stops: &GradientStops, rows: StopRows, i: usize) -> Srg
 
 /// One `Set` of the stops, replacing `before`.
 fn set_event(ui: &Ui, before: &GradientStops, after: GradientStops, name: &str) -> EditEvent<GradientStops> {
-    EditEvent::set(next_gesture_id(ui.ctx()), Mixed::Same(before.clone()), after, Arc::from(name), None)
+    EditEvent::set(Mixed::Same(before.clone()), after, Arc::from(name), None)
 }
 
 /// A number field in percent named `name`, which its label scrubs.

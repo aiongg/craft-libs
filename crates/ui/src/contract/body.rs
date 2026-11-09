@@ -25,7 +25,7 @@ use crate::style::ComponentStyle as _;
 use crate::style::{Corners, RuleKind, StyleCx, UiTokens, rule_look, scroll_bar_look, surface_style};
 use craft_behavior::layout_memory::measure_tolerance;
 use craft_behavior::{
-    Axis, CancelRule, Cursor, CursorIcon, CursorPriority, EditEvent, GestureId, GesturePhase, HitLevel, HitPriority, Intent, KeyRole, Mixed, PartKey,
+    Axis, CancelRule, Cursor, CursorIcon, CursorPriority, EditEvent, GesturePhase, HitLevel, HitPriority, Intent, KeyRole, Mixed, PartKey,
     PressPhase, Roving, ScrollPos, ScrollSpan, WheelNotch, WheelTaker,
 };
 use craft_host::target::{Caps, WindowChrome, WindowState};
@@ -1359,7 +1359,7 @@ impl BodyHooks<'_> {
         match comp.open() {
             Some(mut bind) => {
                 let (label, doc_key) = (cx.core.label_arc(), cx.core.resolved.doc_key);
-                bind.apply(&EditEvent::set(GestureId::default(), Mixed::Same(self.open_at_read), self.open, label, doc_key));
+                bind.apply(&EditEvent::set(Mixed::Same(self.open_at_read), self.open, label, doc_key));
             }
             None => match &opener {
                 Some(opener) => super::overlay::set_opener_open(&mut *cx.core.memory, opener, self.open),
@@ -2134,7 +2134,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             match comp.scroll() {
                 Some(mut bind) => {
                     let (label, doc_key) = (cx.core.label_arc(), cx.core.resolved.doc_key);
-                    bind.apply(&EditEvent::set(GestureId::default(), Mixed::Same(self.offset_at_read), self.offset, label, doc_key));
+                    bind.apply(&EditEvent::set(Mixed::Same(self.offset_at_read), self.offset, label, doc_key));
                 }
                 None => {
                     let state = cx.core.memory.session::<ScrollState>(sub(cx.core.id, "scroll"));

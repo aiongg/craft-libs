@@ -3,7 +3,7 @@
 use std::borrow::Cow;
 use std::ops::RangeInclusive;
 
-use craft_behavior::{Axis, CancelReason, DisplayOrder, EditEvent, GestureId, IconId, Input, ItemSource, Metrics, Mixed, Selection, Sense, Value};
+use craft_behavior::{Axis, CancelReason, DisplayOrder, EditEvent, IconId, Input, ItemSource, Metrics, Mixed, Selection, Sense, Value};
 use craft_theme::variant::Tone;
 use craft_ui::buttons::Button;
 use craft_ui::choice::{Checkbox, Segmented};
@@ -252,7 +252,7 @@ struct Body<'a> {
 impl Body<'_> {
     /// Reports the one-step change to `next`.
     fn set(&self, found: &mut Found, field: StrokeField, next: StrokeStyle) {
-        let event = EditEvent::set(GestureId::default(), Mixed::Same(self.style.clone()), next, self.name.clone(), None);
+        let event = EditEvent::set(Mixed::Same(self.style.clone()), next, self.name.clone(), None);
         found.push(field, Some(event));
     }
 

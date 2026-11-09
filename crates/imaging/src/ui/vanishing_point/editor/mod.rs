@@ -16,7 +16,6 @@ use serde::{Deserialize, Serialize};
 use craft_behavior::geometry::quad::Homography;
 use craft_behavior::kurbo::Rect;
 use craft_behavior::{CancelReason, EditEvent, GestureId};
-use craft_ui::runtime::edit::next_gesture_id;
 
 use super::planes::{TornPlane, VanishingPlane, VanishingScene};
 use super::{VanishingPointEvent, VanishingPointSource};
@@ -299,13 +298,7 @@ impl VanishingPointEditor {
     /// Delete or Backspace: removes the selected plane from `session`; planes torn off it keep their place as drawn
     /// planes, later parents' indices shift down. Returns the edit, which is also reported (a `Planes` `Set`).
     /// Nothing while a drag runs: the gesture ends first.
-    pub fn delete_selected(
-        &mut self,
-        ctx: &egui::Context,
-        session: &mut VanishingPointSession,
-        scene: &dyn VanishingScene,
-        step: &str,
-    ) -> Option<PlaneEdit> {
+    pub fn delete_selected(&mut self, session: &mut VanishingPointSession, scene: &dyn VanishingScene, step: &str) -> Option<PlaneEdit> {
         // pc: crates/ui-egui/src/dialogs/vp_ui.rs:398 `delete_selected`.
         if self.drag.is_some() {
             return None;
@@ -326,26 +319,18 @@ impl VanishingPointEditor {
             session.planes = scene.resolve(&session.planes, &session.torn);
         }
         let edit = PlaneEdit::new(session.planes.clone(), session.torn.clone());
-        let id = next_gesture_id(ctx);
-        self.events.push(VanishingPointEvent::Planes(EditEvent::set(id, craft_behavior::Mixed::Same(before), edit.clone(), step.into(), None)));
+        self.events.push(VanishingPointEvent::Planes(EditEvent::set(craft_behavior::Mixed::Same(before), edit.clone(), step.into(), None)));
         Some(edit)
     }
 
     /// Adds the plane whose corners are `corners` (the New Plane form's four points) as Create Plane's fourth click
     /// does: the scene normalises it, it is selected and Edit Plane takes over. Returns whether a plane was added
     /// (not past [`MAX_PLANES`](super::MAX_PLANES)). Reported as a `Planes` `Set`.
-    pub fn add_plane(
-        &mut self,
-        ctx: &egui::Context,
-        session: &mut VanishingPointSession,
-        scene: &dyn VanishingScene,
-        corners: [[f64; 2]; 4],
-        step: &str,
-    ) -> bool {
+    pub fn add_plane(&mut self, session: &mut VanishingPointSession, scene: &dyn VanishingScene, corners: [[f64; 2]; 4], step: &str) -> bool {
         if self.drag.is_some() {
             return false;
         }
-        work::close_plane(self, session, scene, corners, step, next_gesture_id(ctx))
+        work::close_plane(self, session, scene, corners, step)
     }
 
     /// After undo or redo: no pending corners, the selection clamped. A drag in progress ended before the step

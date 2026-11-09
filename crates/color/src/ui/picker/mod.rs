@@ -197,7 +197,7 @@ impl Collected {
             EditEvent::Update { id, value, .. } => EditEvent::update(*id, made(value)),
             EditEvent::Commit { id, after, .. } => EditEvent::commit(*id, before, made(after)),
             EditEvent::Cancel { id, reason, .. } => EditEvent::cancel(*id, *reason, Some(before)),
-            EditEvent::Set { id, after, label, doc_key, .. } => EditEvent::set(*id, before, made(after), label.clone(), *doc_key),
+            EditEvent::Set { after, label, doc_key, .. } => EditEvent::set(before, made(after), label.clone(), *doc_key),
             _ => return,
         };
         self.edits.push(adopted);
@@ -381,7 +381,6 @@ impl<'a> ColorPicker<'a> {
             has_web_check: web_colors.is_some(),
         };
         let mut run = Run {
-            ctx: ui.ctx().clone(),
             name: Arc::from(label.as_str()),
             full,
             models: &models,
@@ -404,7 +403,6 @@ impl<'a> ColorPicker<'a> {
 /// One pass of the picker: its body settles the rules, shows the children and applies each child's output to the
 /// bound colour in the same pass.
 struct Run<'s, 'a> {
-    ctx: egui::Context,
     /// The picker's name, the label of the edits it makes itself.
     name: Arc<str>,
     full: bool,
@@ -472,7 +470,7 @@ impl<'a> Run<'_, 'a> {
         }
         if let Some(on) = got.web_pick.filter(|on| *on != held_web) {
             if let Some(held) = self.web.as_mut() {
-                let event = EditEvent::set(GestureId::default(), Mixed::Same(held_web), on, Arc::from("Only Web Colors"), None);
+                let event = EditEvent::set(Mixed::Same(held_web), on, Arc::from("Only Web Colors"), None);
                 let _ = held.write(&mut *body, &event);
             }
             if on {
@@ -521,15 +519,14 @@ impl<'a> Run<'_, 'a> {
         if next == self.latest {
             return;
         }
-        let id = craft_ui::runtime::edit::next_gesture_id(&self.ctx);
-        let event = EditEvent::set(id, Mixed::Same(self.latest), next, self.name.clone(), None);
+        let event = EditEvent::set(Mixed::Same(self.latest), next, self.name.clone(), None);
         self.land(body, event);
     }
 
     /// Sets the mode the host holds, if it holds one.
     fn write_mode(&mut self, body: &mut BodyCx<'_>, from: AreaMode, to: AreaMode) {
         if let Some(held) = self.mode.as_mut() {
-            let event = EditEvent::set(GestureId::default(), Mixed::Same(from), to, Arc::from("Field shows"), None);
+            let event = EditEvent::set(Mixed::Same(from), to, Arc::from("Field shows"), None);
             let _ = held.write(&mut *body, &event);
         }
     }

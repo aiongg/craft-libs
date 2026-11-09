@@ -613,7 +613,7 @@ impl Cells<'_> {
         let Some(picked) = shown.value().copied() else { return };
         let before = pass.before;
         let state = BoxState::new(before.state.quad, before.state.point_at(picked));
-        let event = EditEvent::set(GestureId::default(), Mixed::Same(before), TransformRow { state, skew_v: before.skew_v }, self.name.clone(), None);
+        let event = EditEvent::set(Mixed::Same(before), TransformRow { state, skew_v: before.skew_v }, self.name.clone(), None);
         self.report(cx, event);
     }
 
@@ -741,11 +741,11 @@ fn lift(
             bases.0[slot] = None;
             Some(EditEvent::cancel(id, reason, Some(Mixed::Same(origin))))
         }
-        EditEvent::Set { id, after: Some(value), label, doc_key, .. } => {
+        EditEvent::Set { after: Some(value), label, doc_key, .. } => {
             if (value - current).abs() < tolerance {
                 return None;
             }
-            Some(EditEvent::set(id, Mixed::Same(*before), conversion.row(before, field, value), label, doc_key))
+            Some(EditEvent::set(Mixed::Same(*before), conversion.row(before, field, value), label, doc_key))
         }
         _ => None,
     }

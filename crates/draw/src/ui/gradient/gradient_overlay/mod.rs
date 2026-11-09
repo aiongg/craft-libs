@@ -11,7 +11,7 @@ mod stories;
 use std::sync::Arc;
 
 use craft_behavior::kurbo::Point;
-use craft_behavior::{EditEvent, GestureId, Metrics, Mixed};
+use craft_behavior::{EditEvent, Metrics, Mixed};
 use craft_keymap::{Chord, Key, Mods};
 use craft_ui::canvas::{canvas_snap, canvas_space};
 use craft_ui::contract::{
@@ -207,7 +207,7 @@ impl<'a> GradientOverlay<'a> {
         match self.shared_selection.as_mut() {
             Some(bind) => {
                 let label: Arc<str> = Arc::from(cx.words::<GradientLineWords>().group.as_str());
-                let event = EditEvent::set(GestureId::default(), Mixed::Same(before), next, label, None);
+                let event = EditEvent::set(Mixed::Same(before), next, label, None);
                 bind.reborrow().write(cx, &event);
             }
             None => cx.keep::<OwnSelection>().0 = next,

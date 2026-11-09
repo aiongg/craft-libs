@@ -11,7 +11,7 @@ mod stories;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
-use craft_behavior::{EditEvent, GestureId, Mixed, Value, decimals_for_step};
+use craft_behavior::{EditEvent, Mixed, Value, decimals_for_step};
 use craft_ui::contract::{Bind, BodyCx, EditResponse, Pattern, Props as _, Remember as _, Show as _, ShowContainer as _};
 use craft_ui::form::{Field, FieldGroup, SliderField};
 use craft_ui::runtime::env::{Env, Label, UnitKind};
@@ -257,7 +257,7 @@ impl<'b, 'a, V: Value> Run<'b, 'a, V> {
         if after == self.now {
             return;
         }
-        let event = EditEvent::set(GestureId::default(), Mixed::Same(self.now.clone()), after, Arc::from(label.as_str()), None);
+        let event = EditEvent::set(Mixed::Same(self.now.clone()), after, Arc::from(label.as_str()), None);
         let _ = self.bind.reborrow().write(cx, &event);
         self.event = Some(event);
     }
@@ -278,8 +278,8 @@ impl<'b, 'a, V: Value> Run<'b, 'a, V> {
                 Some(EditEvent::commit(*id, Mixed::Same(base), after))
             }
             EditEvent::Cancel { id, reason, .. } => Some(EditEvent::cancel(*id, *reason, self.began.take().map(Mixed::Same))),
-            EditEvent::Set { id, after, label, doc_key, .. } => {
-                Some(EditEvent::set(*id, Mixed::Same(self.now.clone()), make(&self.now, after), label.clone(), *doc_key))
+            EditEvent::Set { after, label, doc_key, .. } => {
+                Some(EditEvent::set(Mixed::Same(self.now.clone()), make(&self.now, after), label.clone(), *doc_key))
             }
             _ => None,
         }

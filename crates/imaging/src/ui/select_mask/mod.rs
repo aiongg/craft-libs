@@ -468,7 +468,7 @@ impl SelectMaskWorkspace {
                     work.zoom_percent = work.view.zoom_percent();
                 });
                 work.absorb_canvas();
-                work.settle(&ctx, work.canvas.busy() || work.panel_open);
+                work.settle(work.canvas.busy() || work.panel_open);
                 work.settings.take_view(&work.mask_view);
                 work.settings.refine = work.session.refine.clone();
             });
@@ -482,7 +482,7 @@ impl SelectMaskWorkspace {
             this.canvas.drop_polygon();
             this.session.reset();
             this.error = None;
-            this.settle(ui.ctx(), false);
+            this.settle(false);
         }
         SelectMaskOutput {
             events: std::mem::take(&mut this.events),
@@ -559,14 +559,13 @@ impl SelectMaskWorkspace {
     }
 
     /// Records the session as one history step when it differs from the last step and no gesture is open.
-    fn settle(&mut self, ctx: &egui::Context, busy: bool) {
+    fn settle(&mut self, busy: bool) {
         if busy || self.session == self.settled {
             return;
         }
-        let id = next_gesture_id(ctx);
         let name: Arc<str> = Arc::from(HISTORY_NAME);
         let before = std::mem::replace(&mut self.settled, self.session.clone());
-        self.history.record(&EditEvent::set(id, Mixed::Same(before), self.session.clone(), name, None));
+        self.history.record(&EditEvent::set(Mixed::Same(before), self.session.clone(), name, None));
     }
 
     /// Steps the history now.

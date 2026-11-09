@@ -9,8 +9,8 @@
 use crate::geometry::artboard::{resized_keep_ratio, resized_rect};
 use crate::ui::add_beside::AddSide;
 use crate::ui::slice::Run;
+use craft_behavior::EditEvent;
 use craft_behavior::kurbo::{Point, Rect, Size, Vec2};
-use craft_behavior::{EditEvent, GestureId};
 use craft_keymap::Mods;
 use craft_theme::Srgba;
 use std::sync::Arc;
@@ -252,13 +252,7 @@ pub(crate) enum KeyAct {
 /// The events of a key on the selected boards: the one rule the control's focused board and the tool share. Arrows
 /// move the selected boards by the rules' step (Shift ten times), Alt and the arrows resize from the end edges, Delete
 /// removes the selection, Enter opens the options.
-pub(crate) fn key_events(
-    boards: &Boards<'_>,
-    rules: &ArtboardRules,
-    act: KeyAct,
-    mint: &mut dyn FnMut() -> GestureId,
-    words: &ArtboardToolWords,
-) -> Vec<ArtboardEvent> {
+pub(crate) fn key_events(boards: &Boards<'_>, rules: &ArtboardRules, act: KeyAct, words: &ArtboardToolWords) -> Vec<ArtboardEvent> {
     let Some(active) = boards.active() else { return Vec::new() };
     match act {
         KeyAct::Delete => {
@@ -277,14 +271,14 @@ pub(crate) fn key_events(
                 }
                 let handle = if by.x == 0.0 { [0, 1] } else { [1, 0] };
                 let rect = resized_rect(board.rect, handle, by, false);
-                let event = Run::set(mint(), words.resize_board.as_str().into(), board.rect, rect);
+                let event = Run::set(words.resize_board.as_str().into(), board.rect, rect);
                 vec![ArtboardEvent::Resize { index: active, event }]
             } else {
                 let indices = boards.movable();
                 if indices.is_empty() {
                     return Vec::new();
                 }
-                let event = Run::set(mint(), words.move_board.as_str().into(), Vec2::ZERO, by);
+                let event = Run::set(words.move_board.as_str().into(), Vec2::ZERO, by);
                 vec![ArtboardEvent::Move { indices, event, copy: false }]
             }
         }

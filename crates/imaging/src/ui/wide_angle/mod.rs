@@ -34,7 +34,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use craft_behavior::edit_history::Step;
-use craft_behavior::{CancelReason, EditEvent, EditHistory, GestureId, Mixed};
+use craft_behavior::{CancelReason, EditEvent, EditHistory, Mixed};
 use craft_ui::canvas::{CanvasTool, HandTool, NavigationOptions, PickStep, RasterSource, ToolHost, ViewCommands, ZoomTool, tool_pick};
 use craft_ui::contract::{Bind, Pattern, Remember as _, Show as _, ShowContainer as _};
 use craft_ui::dialog::{FullWindowCanvas, FullWindowDialog, FullWindowSide, FullWindowStatus, FullWindowTitle, FullWindowView};
@@ -478,7 +478,7 @@ impl WideAngleWorkspace {
                     let before = self.session.clone();
                     if self.session.apply(edit.clone()) {
                         let name = Arc::<str>::from(edit_name(&words, &edit));
-                        self.history.record(&EditEvent::set(GestureId::default(), Mixed::Same(before), self.session.clone(), name, None));
+                        self.history.record(&EditEvent::set(Mixed::Same(before), self.session.clone(), name, None));
                         events.push(WideAngleEvent::Constraints(edit));
                     }
                 }

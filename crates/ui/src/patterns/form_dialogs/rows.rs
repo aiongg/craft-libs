@@ -21,7 +21,7 @@ use crate::text::{NumberField, TextField};
 
 use crate::value_drag::{AngleDial, PointPicker, SliderScale};
 
-use craft_behavior::{EditEvent, GestureId, IconId, Mixed, NumberCodec};
+use craft_behavior::{EditEvent, IconId, Mixed, NumberCodec};
 
 use craft_theme::Srgba;
 use egui::{Id, Response, Ui};
@@ -156,12 +156,12 @@ impl<'a> ParamRows<'a> {
                 changed = pass.work != filled;
                 values = (pass.work != before).then(|| pass.work.clone());
                 if let Some(after) = &values {
-                    let event = EditEvent::set(GestureId::default(), Mixed::Same(before), after.clone(), name.clone(), None);
+                    let event = EditEvent::set(Mixed::Same(before), after.clone(), name.clone(), None);
                     let _ = fields.reborrow().write(cx, &event);
                 }
                 if let (Some(bind), Some(next)) = (seed.as_mut(), pass.seed) {
                     let held = Mixed::Same(state.unwrap_or(SEED_START));
-                    let _ = bind.reborrow().write(cx, &EditEvent::set(GestureId::default(), held, next, name.clone(), None));
+                    let _ = bind.reborrow().write(cx, &EditEvent::set(held, next, name.clone(), None));
                 }
             })
         };

@@ -165,8 +165,7 @@ impl<'a> ReorderableSections<'a> {
                 }
             }
             if changed {
-                let gesture = crate::runtime::edit::next_gesture_id(ui.ctx());
-                bind.reborrow().write(root, &EditEvent::set(gesture, Mixed::Same(stored.unwrap_or_default()), next, Arc::clone(&name), None));
+                bind.reborrow().write(root, &EditEvent::set(Mixed::Same(stored.unwrap_or_default()), next, Arc::clone(&name), None));
             }
             events.extend(local);
         });

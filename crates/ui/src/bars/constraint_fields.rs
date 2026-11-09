@@ -11,7 +11,7 @@ use crate::pickers::Select;
 use crate::runtime::env::{Env, Label, UnitKind};
 use crate::text::NumberField;
 use craft_behavior::geometry::Constraint;
-use craft_behavior::{EditEvent, GestureId, IconId, Mixed, NumberCodec, PixelSize};
+use craft_behavior::{EditEvent, IconId, Mixed, NumberCodec, PixelSize};
 use egui::{Response, Ui};
 use std::ops::RangeInclusive;
 use std::sync::Arc;
@@ -181,7 +181,7 @@ impl<'a> ConstraintFields<'a> {
                 now = with_side(before, edit, false);
             }
             if now != before {
-                let _ = constraint.reborrow().write(cx, &EditEvent::set(GestureId::default(), Mixed::Same(before), now, name.clone(), None));
+                let _ = constraint.reborrow().write(cx, &EditEvent::set(Mixed::Same(before), now, name.clone(), None));
                 next = Some(now);
             }
         });

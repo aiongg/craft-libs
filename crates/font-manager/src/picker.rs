@@ -10,7 +10,7 @@ mod stories;
 
 use std::sync::Arc;
 
-use craft_behavior::{Codec, EditEvent, GestureId, IconId, Mixed, NotAValue, PartKey, Sense, Value};
+use craft_behavior::{Codec, EditEvent, IconId, Mixed, NotAValue, PartKey, Sense, Value};
 use craft_behavior::{HitLevel, HitPriority, NavMove};
 use craft_font_catalog::Catalog;
 use craft_host::Section;
@@ -366,7 +366,7 @@ pub(crate) fn write_event<T: Value>(bind: &mut Bind<'_, T>, cx: &mut impl StageA
 pub(crate) fn write_bind<T: Value>(bind: &mut Bind<'_, T>, cx: &mut impl StageAccess, after: T, label: &str) {
     let mut at = bind.reborrow();
     let before = at.read(cx).unwrap_or(Mixed::Mixed);
-    at.write(cx, &EditEvent::set(GestureId::default(), before, after, Arc::from(label), None));
+    at.write(cx, &EditEvent::set(before, after, Arc::from(label), None));
 }
 
 /// The value of `bind`, if it holds one.

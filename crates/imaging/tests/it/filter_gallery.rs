@@ -6,7 +6,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use craft_behavior::edit_history::Step;
-use craft_behavior::{EditEvent, EditHistory, GestureId, Mixed, PixelSize};
+use craft_behavior::{EditEvent, EditHistory, Mixed, PixelSize};
 use craft_imaging::ui::filter_gallery::{
     EffectChange, EffectLayer, FilterCatalog, FilterCategory, FilterGalleryEvent, FilterGalleryOpen, FilterGalleryOutput, FilterGallerySession,
     FilterGallerySource, FilterGalleryWorkspace, GalleryFilter, GalleryThumb,
@@ -66,7 +66,7 @@ fn filters(session: &FilterGallerySession) -> Vec<&str> {
 fn change(session: &mut FilterGallerySession, history: &mut EditHistory<FilterGallerySession>, selected: &mut usize, change: EffectChange) -> bool {
     let before = session.clone();
     let changed = session.apply(change, &Catalog, selected);
-    history.record(&EditEvent::set(GestureId::default(), Mixed::Same(before), session.clone(), "Filter Gallery".into(), None));
+    history.record(&EditEvent::set(Mixed::Same(before), session.clone(), "Filter Gallery".into(), None));
     changed
 }
 

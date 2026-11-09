@@ -10,7 +10,7 @@ use std::sync::Arc;
 use craft_behavior::geometry::SnapTargets;
 use craft_behavior::geometry::quad::{BoxPart, BoxRules};
 use craft_behavior::kurbo::Vec2 as DocVec;
-use craft_behavior::{CancelReason, EditEvent, GestureId, Mixed};
+use craft_behavior::{CancelReason, EditEvent, Mixed};
 use craft_keymap::Mods;
 use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPath, ToolPointer};
 use craft_ui::contract::Bind;
@@ -189,7 +189,7 @@ impl<W: TransformWarp> CanvasTool for TransformTool<'_, W> {
                 let step = if mods.shift { NUDGE_FAR } else { NUDGE };
                 let by: DocVec = doc * (step / length);
                 let before = *self.session.state();
-                let event = EditEvent::set(GestureId::default(), Mixed::Same(before), before.moved(by), Arc::from(""), None);
+                let event = EditEvent::set(Mixed::Same(before), before.moved(by), Arc::from(""), None);
                 self.edits.push(TransformEdit::Box(event));
                 true
             }

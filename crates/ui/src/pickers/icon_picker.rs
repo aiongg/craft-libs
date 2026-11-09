@@ -16,7 +16,7 @@ use crate::primitives::IconSpec;
 use crate::runtime::env::{Env, Label};
 use crate::text::TextField;
 use crate::tile_grid::{CaptionPlace, GridEvent, Tile, TileGrid, TileGroup};
-use craft_behavior::{DisplayOrder, EditEvent, GestureId, ItemSource, Mixed, Selection};
+use craft_behavior::{DisplayOrder, EditEvent, ItemSource, Mixed, Selection};
 use craft_i18n::matcher::Matcher;
 use egui::{Response, Ui};
 use std::borrow::Cow;
@@ -234,7 +234,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> IconPicker<'a, K> {
             && held.as_ref() != Some(key)
         {
             let name: Arc<str> = Arc::from(label.as_str());
-            value.reborrow().apply(&EditEvent::set(GestureId::default(), Mixed::Same(held), Some(key.clone()), name, None));
+            value.reborrow().apply(&EditEvent::set(Mixed::Same(held), Some(key.clone()), name, None));
         }
         IconPickerOutput { response: grid.response.response, picked, search_changed }
     }

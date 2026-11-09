@@ -444,7 +444,7 @@ name = "VanishingPointEditor"
 old = "craft_imaging::ui::vanishing_point::VanishingPointEditor"
 new = "craft_imaging::ui::vanishing_point::VanishingPointEditor"
 status = "replaced"
-note = "`pass(ctx, session, settings, scene, source)` returns a `VanishingPointPass` whose `tool()` is the canvas tool and `planes()` the canvas control; `delete_selected(ctx, ..)` takes the history step's name; `cancel(session, reason)` ends a drag (the host cancels only the tool's presses); `add_plane(ctx, ..)` adds a plane from four typed corners; `labels`, `cursor_options` and `style` are gone."
+note = "`pass(ctx, session, settings, scene, source)` returns a `VanishingPointPass` whose `tool()` is the canvas tool and `planes()` the canvas control; `delete_selected(session, scene, step)` takes the history step's name; `cancel(session, reason)` ends a drag (the host cancels only the tool's presses); `add_plane(session, scene, corners, step)` adds a plane from four typed corners; `labels`, `cursor_options` and `style` are gone."
 
 [[type]]
 name = "VanishingPointPass"

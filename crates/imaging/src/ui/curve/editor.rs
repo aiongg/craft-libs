@@ -343,10 +343,10 @@ impl FieldsRow<'_> {
         if self.corners {
             let mut on = self.at.is_some_and(|i| self.now.is_corner(i));
             let check = Checkbox::new(Bind::bound(&mut on)).label(self.words.corner.clone()).enabled(self.at.is_some()).show(ui);
-            if let (Some(EditEvent::Set { id, label, doc_key, .. }), Some(i)) = (check.event.as_ref(), self.at)
+            if let (Some(EditEvent::Set { label, doc_key, .. }), Some(i)) = (check.event.as_ref(), self.at)
                 && let Some(after) = CurveRules::cornered(self.now, i, on)
             {
-                let event = EditEvent::set(*id, Mixed::Same(self.now.clone()), after, label.clone(), *doc_key);
+                let event = EditEvent::set(Mixed::Same(self.now.clone()), after, label.clone(), *doc_key);
                 curve.reborrow().write(root, &event);
                 lifted = Some(event);
             }
@@ -383,10 +383,10 @@ fn lift(
             let began = memory.field.take().map(|(base, _)| Mixed::Same(base));
             Some(EditEvent::cancel(*id, *reason, began))
         }
-        EditEvent::Set { id, label, doc_key, .. } => {
+        EditEvent::Set { label, doc_key, .. } => {
             let value = (*event.value()?)?;
             let after = make(now, at?, value)?;
-            Some(EditEvent::set(*id, Mixed::Same(now.clone()), after, label.clone(), *doc_key))
+            Some(EditEvent::set(Mixed::Same(now.clone()), after, label.clone(), *doc_key))
         }
         _ => None,
     }

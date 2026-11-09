@@ -295,7 +295,7 @@ impl<'a> SliceOverlay<'a> {
             let step = if mods.shift { NUDGE_FAR } else { NUDGE };
             let doc = space.view.unmap_vec(direction);
             let rect = item.rect + whole(doc * (step / doc.hypot().max(f64::EPSILON)));
-            let event = Run::set(next_id(cx), words.move_slice.as_str().into(), item.rect, rect);
+            let event = Run::set(words.move_slice.as_str().into(), item.rect, rect);
             self.events.push(SliceEvent::Move { number: item.number, event });
         }
         if item.origin.stored() {

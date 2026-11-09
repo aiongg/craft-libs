@@ -35,7 +35,7 @@ use craft_behavior::Anchor9;
 use craft_behavior::edit_history::{EditHistory, Step};
 use craft_behavior::geometry::quad::{BoxAllow, BoxRules, BoxState, Homography, ScaleRule, TransformMode};
 use craft_behavior::kurbo::{Point, Rect};
-use craft_behavior::{EditEvent, GestureId, Mixed};
+use craft_behavior::{EditEvent, Mixed};
 use craft_ui::contract::Entry;
 use craft_ui::runtime::env::{Label, UnitKind};
 use serde::{Deserialize, Deserializer};
@@ -688,7 +688,7 @@ impl<W: TransformWarp> TransformSession<W> {
         if !std::mem::take(&mut self.changed) {
             return;
         }
-        let step = EditEvent::set(GestureId::default(), Mixed::Same(self.rested.clone()), self.draft.clone(), Arc::from(""), None);
+        let step = EditEvent::set(Mixed::Same(self.rested.clone()), self.draft.clone(), Arc::from(""), None);
         self.history.record(&step);
         self.rested = self.draft.clone();
     }

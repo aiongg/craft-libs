@@ -3,7 +3,7 @@
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
-use craft_behavior::{EditEvent, GestureId, Mixed, Value};
+use craft_behavior::{EditEvent, Mixed, Value};
 use craft_ui::buttons::Button;
 use craft_ui::choice::Checkbox;
 use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _, clicked};
@@ -169,7 +169,7 @@ impl Pass<'_> {
     /// Keeps a one-step change unless a row already reported.
     fn set(&mut self, next: PictureFill) {
         if self.event.is_none() {
-            self.event = Some(EditEvent::set(GestureId::default(), Mixed::Same(self.fill.clone()), next, self.name.clone(), None));
+            self.event = Some(EditEvent::set(Mixed::Same(self.fill.clone()), next, self.name.clone(), None));
         }
     }
 }

@@ -582,10 +582,7 @@ impl Body<'_> {
                 if ColorWarningChip::new(&warning).show(ui).clicked {
                     let picked = PickedColor { color: warning.nearest().with_alpha(color.a), model: None };
                     let name = self.words.title.as_str();
-                    self.push(
-                        self.target,
-                        EditEvent::set(Default::default(), Mixed::Same(PickedColor { color, model: None }), picked, name.into(), None),
-                    );
+                    self.push(self.target, EditEvent::set(Mixed::Same(PickedColor { color, model: None }), picked, name.into(), None));
                 }
             }
         });

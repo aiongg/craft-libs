@@ -3,7 +3,7 @@
 
 use super::menu::SymmetryWords;
 use super::model::Symmetry;
-use craft_behavior::{CancelReason, EditEvent, GestureId, Mixed};
+use craft_behavior::{CancelReason, EditEvent, Mixed};
 use craft_ui::canvas::{CanvasTool, NUDGE, NUDGE_FAR, ToolAction, ToolContext, ToolKey, ToolPath, ToolPointer};
 use craft_ui::primitives::Draw;
 use std::sync::Arc;
@@ -118,7 +118,7 @@ impl CanvasTool for SymmetryTool<'_> {
                 let moved = Symmetry::new(before.mode, before.center + doc * (step / length), before.rotation).unwrap_or(before);
                 if moved != before {
                     let name: Arc<str> = Arc::from(cx.words::<SymmetryWords>().group.as_str());
-                    let event = EditEvent::set(GestureId::default(), Mixed::Same(before), moved, name, None);
+                    let event = EditEvent::set(Mixed::Same(before), moved, name, None);
                     self.events.push(SymmetryEvent::Preview(event));
                 }
                 true

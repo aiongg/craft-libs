@@ -8,7 +8,6 @@ use craft_color::ui::{ColorPicker, ScreenPickGesture};
 use craft_theme::Srgba;
 use craft_ui::contract::{Bind, EditResponse, Outcome, Pattern, Props as _, Remember as _, Show as _, ShowContainer as _};
 use craft_ui::layout_components::Stack;
-use craft_ui::runtime::edit::next_gesture_id;
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::runtime::requests::ColorRequest;
 use egui::{Response, Ui};
@@ -337,7 +336,7 @@ impl<'a, P: Clone + Send + Sync + 'static> GradientEditor<'a, P> {
             if now_selected != held {
                 match selected.as_mut() {
                     Some(bind) => {
-                        let event = EditEvent::set(next_gesture_id(ui.ctx()), Mixed::Same(held), now_selected, Arc::from("Select stop"), None);
+                        let event = EditEvent::set(Mixed::Same(held), now_selected, Arc::from("Select stop"), None);
                         bind.reborrow().write(cx, &event);
                     }
                     None => cx.memory::<Selection>().0 = now_selected,

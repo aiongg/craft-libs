@@ -1,7 +1,7 @@
 //! A binding read and written from a container body, where no pipeline step runs for it.
 
 use super::kit::PlainStyle;
-use craft_behavior::{EditEvent, GestureId, Mixed};
+use craft_behavior::{EditEvent, Mixed};
 use craft_ui::contract::{Bind, Common, Component, Container, ContainerProps, Cx, Role, ShowContainer as _, Validity};
 use craft_ui::runtime::env::Message;
 use craft_ui::style::StyleCx;
@@ -41,7 +41,7 @@ impl Component for Host {
 impl Container for Host {}
 
 fn set(value: f32) -> EditEvent<f32> {
-    EditEvent::set(GestureId::default(), Mixed::Same(0.0), value, "Set".into(), None)
+    EditEvent::set(Mixed::Same(0.0), value, "Set".into(), None)
 }
 
 /// Runs `body` in a host container for several frames; `body` gets the frame number.

@@ -1,7 +1,7 @@
 //! `Held`: a caller's binding read and written from inside a container body.
 
 use super::{Bind, BodyCx};
-use craft_behavior::{EditEvent, GestureId, Mixed, Value};
+use craft_behavior::{EditEvent, Mixed, Value};
 use std::sync::Arc;
 
 /// The caller's binding of a value a pattern edits in its body: the body reads the value at the start of its pass and
@@ -24,7 +24,7 @@ impl<'a, T: Value> Held<'a, T> {
 
     /// Replaces `before` with `after`, the edit named `name`.
     pub fn write(&mut self, cx: &mut BodyCx<'_>, before: &T, after: T, name: &str) {
-        let event = EditEvent::set(GestureId::default(), Mixed::Same(before.clone()), after, Arc::from(name), None);
+        let event = EditEvent::set(Mixed::Same(before.clone()), after, Arc::from(name), None);
         let _ = self.0.reborrow().write(cx, &event);
     }
 }

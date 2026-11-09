@@ -1,6 +1,6 @@
 //! The effect page: one field per entry of the effect's [`EffectSpec`], drawn by kind.
 
-use craft_behavior::{EditEvent, GestureId, Mixed, NumberCodec};
+use craft_behavior::{EditEvent, Mixed, NumberCodec};
 use craft_theme::variant::Tone;
 use craft_theme::{Srgba, TypeRole};
 use craft_ui::buttons::Button;
@@ -71,7 +71,7 @@ pub(super) fn style_edit<T: Clone>(edit: &EditResponse<T>, style: &LayerStyle, o
 /// A one-step edit of the style by `op`, labelled `label`.
 pub(super) fn set_edit(style: &LayerStyle, op: &StyleOp, label: &str) -> Option<EditEvent<LayerStyle>> {
     let after = apply_op(op, style)?;
-    Some(EditEvent::set(GestureId::default(), Mixed::Same(style.clone()), after, label.into(), None))
+    Some(EditEvent::set(Mixed::Same(style.clone()), after, label.into(), None))
 }
 
 /// Adds `next` to the pass's edit: a gesture's `Begin` and `Commit` fold into a `Set`, otherwise the later event wins.

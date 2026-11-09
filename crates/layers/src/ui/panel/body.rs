@@ -464,7 +464,7 @@ fn map_events<T: LayerTree>(
                 let layer = row.layer().clone();
                 match part {
                     part if part == craft_ui::list::TrailingPart::new(LOCK_PART) => {
-                        let unlock = EditEvent::set(GestureId::default(), Mixed::Same(true), false, Arc::from(lock_name.as_str()), None);
+                        let unlock = EditEvent::set(Mixed::Same(true), false, Arc::from(lock_name.as_str()), None);
                         events.push(LayersEvent::Toggle(LayerToggle::new(vec![row], LayerColumn::Lock, unlock)));
                     }
                     part if part == craft_ui::list::TrailingPart::new(FX_PART) => {
@@ -528,19 +528,20 @@ fn toggle_events<Id: Clone + PartialEq>(
         }
     };
     let Some(step) = sweeps.of(column).feed(&edit) else { return };
-    // A plain press is a gesture of its own; the cells of a sweep report under its first.
-    let gesture = if matches!(edit, EditEvent::Set { .. }) { edit.id() } else { *sweeps.gesture.get_or_insert(edit.id()) };
+    // A plain press is a `Set` with no gesture; the cells of a sweep report under its first.
+    let gesture = edit.id().map(|id| *sweeps.gesture.get_or_insert(id));
     match step {
         // Only the eye column shows one layer; on a lock column the first cell is a plain flip.
         SweepStep::ShowOnly(cell) if column == LayerColumn::Visibility => events.push(LayersEvent::ShowOnly(cell.key)),
         SweepStep::Flip(cell) | SweepStep::ShowOnly(cell) => {
-            let edit = EditEvent::set(gesture, Mixed::Same(!cell.on), cell.on, label.clone(), None);
+            let edit = EditEvent::set(Mixed::Same(!cell.on), cell.on, label.clone(), None);
             push_cell(events, gesture, cell.key, column, edit);
         }
         SweepStep::Restore(cell) => {
             let EditEvent::Cancel { reason, .. } = edit else { return };
+            let Some(gesture) = gesture else { return };
             let edit = EditEvent::cancel(gesture, reason, Some(Mixed::Same(cell.on)));
-            push_cell(events, gesture, cell.key, column, edit);
+            push_cell(events, Some(gesture), cell.key, column, edit);
         }
         // The rows an Alt sweep turned off have no event to take them back.
         SweepStep::UndoShowOnly(_) => {}
@@ -552,13 +553,19 @@ fn toggle_events<Id: Clone + PartialEq>(
 /// new event otherwise.
 fn push_cell<Id: Clone + PartialEq>(
     events: &mut Vec<LayersEvent<Id>>,
-    gesture: GestureId,
+    gesture: Option<GestureId>,
     key: LayerRowKey<Id>,
     column: LayerColumn,
     edit: EditEvent<bool>,
 ) {
+    // A `Set` has no id: the cells of a sweep (which has a gesture) join the last `Set` of their column.
+    let same_run = |last: &EditEvent<bool>| match last.id() {
+        Some(id) => Some(id) == gesture,
+        None => gesture.is_some(),
+    };
     if let Some(LayersEvent::Toggle(last)) = events.last_mut()
-        && last.edit.id() == gesture
+        && last.column == column
+        && same_run(&last.edit)
         && std::mem::discriminant(&last.edit) == std::mem::discriminant(&edit)
     {
         last.rows.push(key);

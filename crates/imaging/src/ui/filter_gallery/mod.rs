@@ -40,7 +40,7 @@ use std::sync::Arc;
 
 use craft_behavior::edit_history::Step;
 use craft_behavior::kurbo::Rect;
-use craft_behavior::{CanvasView, EditEvent, EditHistory, GestureId, Mixed, PixelSize};
+use craft_behavior::{CanvasView, EditEvent, EditHistory, Mixed, PixelSize};
 use craft_theme::Srgba;
 use craft_ui::canvas::{NavigationOptions, PixelRect, ViewCommands};
 use craft_ui::contract::{Bind, Pattern, Pending, Remember as _, ShowContainer as _};
@@ -363,7 +363,7 @@ impl FilterGalleryWorkspace {
     /// Records the session as one undo step named `name`, after `before`.
     fn record(&mut self, before: FilterGallerySession, name: &Arc<str>) {
         self.revision += 1;
-        self.history.record(&EditEvent::set(GestureId::default(), Mixed::Same(before), self.session.clone(), name.clone(), None));
+        self.history.record(&EditEvent::set(Mixed::Same(before), self.session.clone(), name.clone(), None));
     }
 }
 

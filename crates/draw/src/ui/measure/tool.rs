@@ -49,17 +49,15 @@ impl RulerTool {
         std::mem::take(&mut self.events)
     }
 
-    /// This pass's tool for the host, over `line`: the document's Ruler line, `None` before the first. `ctx` mints
-    /// the ids of key edits, which run outside a gesture.
-    pub fn pass<'a>(&'a mut self, ctx: &'a egui::Context, line: Option<RulerLine>) -> RulerPass<'a> {
-        RulerPass { tool: self, ctx, line: line.filter(RulerLine::is_finite) }
+    /// This pass's tool for the host, over `line`: the document's Ruler line, `None` before the first.
+    pub fn pass(&mut self, line: Option<RulerLine>) -> RulerPass<'_> {
+        RulerPass { tool: self, line: line.filter(RulerLine::is_finite) }
     }
 }
 
 /// The Ruler tool for one pass of the host ([`RulerTool::pass`]).
 pub struct RulerPass<'a> {
     tool: &'a mut RulerTool,
-    ctx: &'a egui::Context,
     /// The line as this pass's events leave it: the input's, then every change the tool reported.
     line: Option<RulerLine>,
 }
@@ -109,8 +107,7 @@ impl RulerPass<'_> {
         next.start += by;
         next.end += by;
         next.protractor = line.protractor.map(|arm| arm + by);
-        let id = craft_ui::runtime::edit::next_gesture_id(self.ctx);
-        self.report(Some(next), EditEvent::set(id, Mixed::Same(Some(line)), Some(next), Self::label(cx), None));
+        self.report(Some(next), EditEvent::set(Mixed::Same(Some(line)), Some(next), Self::label(cx), None));
         true
     }
 }
@@ -167,8 +164,7 @@ impl CanvasTool for RulerPass<'_> {
         match key {
             ToolKey::Nudge { direction, mods, .. } => self.nudge(line, *direction, mods.shift, cx),
             ToolKey::Delete { .. } => {
-                let id = craft_ui::runtime::edit::next_gesture_id(self.ctx);
-                self.report(None, EditEvent::set(id, Mixed::Same(Some(line)), None, Self::label(cx), None));
+                self.report(None, EditEvent::set(Mixed::Same(Some(line)), None, Self::label(cx), None));
                 true
             }
             _ => false,

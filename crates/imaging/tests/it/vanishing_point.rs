@@ -669,7 +669,7 @@ fn four_typed_corners_make_the_plane_the_scene_checks() {
     let scene = Flat { verdicts: Vec::new() };
     let mut editor = craft_imaging::ui::vanishing_point::VanishingPointEditor::new(LIMITS);
     let skewed = [[300.0, 200.0], [300.0, 100.0], [100.0, 100.0], [100.0, 200.0]];
-    assert!(editor.add_plane(&egui::Context::default(), &mut session, &scene, skewed, "New Plane"));
+    assert!(editor.add_plane(&mut session, &scene, skewed, "New Plane"));
     assert_eq!(session.planes[0].corners, [[100.0, 100.0], [300.0, 100.0], [300.0, 200.0], [100.0, 200.0]], "the scene normalises the typed corners");
     assert_eq!(editor.selected(), Some(0));
     assert!(matches!(editor.take_events().as_slice(), [VanishingPointEvent::Planes(EditEvent::Set { .. })]));

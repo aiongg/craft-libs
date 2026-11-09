@@ -8,7 +8,7 @@ mod stories;
 
 use std::sync::Arc;
 
-use craft_behavior::{EditEvent, GestureId, IconId, Mixed};
+use craft_behavior::{EditEvent, IconId, Mixed};
 use craft_keymap::{Chord, Key, Mods};
 use craft_theme::Srgba;
 use craft_ui::buttons::{Button, ToggleButton};
@@ -370,13 +370,7 @@ impl<'a> CurvesPanel<'a> {
             };
             let mut event = shown.edit.event.clone().map(|event| event.map(&mapped));
             if let (true, Curve::Map(map)) = (smooth, curve) {
-                event = Some(EditEvent::set(
-                    GestureId::default(),
-                    Mixed::Same(value.clone()),
-                    mapped(Curve::Map(smoothed(map))),
-                    Arc::from("Smooth"),
-                    None,
-                ));
+                event = Some(EditEvent::set(Mixed::Same(value.clone()), mapped(Curve::Map(smoothed(map))), Arc::from("Smooth"), None));
             }
             if let Some(event) = &event {
                 curves.reborrow().write(cx, event);

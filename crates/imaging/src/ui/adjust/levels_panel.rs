@@ -6,7 +6,7 @@ mod stories;
 
 use std::sync::Arc;
 
-use craft_behavior::{EditEvent, GestureId, Mixed};
+use craft_behavior::{EditEvent, Mixed};
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Pattern, Props, Remember as _, Show as _, ShowContainer as _, clicked};
 use craft_ui::display::{Shade, Text};
@@ -193,7 +193,7 @@ impl<'a> LevelsPanel<'a> {
             };
             let mut event = shown_edit.edit.event.map(|event| event.map(&mapped));
             if let (true, Some(counts)) = (auto, counts) {
-                let set = EditEvent::set(GestureId::default(), Mixed::Same(all.clone()), mapped(value.auto(counts)), Arc::from("Auto"), None);
+                let set = EditEvent::set(Mixed::Same(all.clone()), mapped(value.auto(counts)), Arc::from("Auto"), None);
                 event = Some(set);
             }
             if let Some(event) = &event {

@@ -13,7 +13,7 @@ use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use super::length::{DocUnit, length_edit, length_field};
-use craft_behavior::{ColumnWidth, EditEvent, GestureId, IconId, Mixed, NumberCodec};
+use craft_behavior::{ColumnWidth, EditEvent, IconId, Mixed, NumberCodec};
 use craft_theme::{Rgba, Srgba};
 use craft_ui::buttons::ToggleButton;
 use craft_ui::choice::{Checkbox, Segmented, Swatch};
@@ -967,7 +967,7 @@ fn number_change<C>(event: Option<EditEvent<Option<f64>>>, change: impl Fn(f32) 
 
 /// A menu row that is not a number, as the one-step change it makes.
 fn picked_event<C>(change: C, name: &str) -> EditEvent<C> {
-    EditEvent::set(GestureId::default(), Mixed::Mixed, change, Arc::from(name), None)
+    EditEvent::set(Mixed::Mixed, change, Arc::from(name), None)
 }
 
 /// The rows of a presets menu over groups of numbers, a separator between the groups.

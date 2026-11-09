@@ -30,7 +30,7 @@ use std::cell::RefCell;
 use std::hash::Hash;
 use std::sync::Arc;
 
-use craft_behavior::{ColumnKey, EditEvent, GestureId, IconId, Mixed, Selection, SelectionChange};
+use craft_behavior::{ColumnKey, EditEvent, IconId, Mixed, Selection, SelectionChange};
 use craft_theme::{Srgba, TypeRole};
 use craft_ui::bars::{Bar, BarKind, BreadcrumbBar};
 use craft_ui::buttons::IconButton;
@@ -748,7 +748,7 @@ where
             for step in commanded {
                 let next = zoom.step(zoom_now, step);
                 if next != zoom_now {
-                    let event = EditEvent::set(GestureId::default(), Mixed::Same(zoom_now), next, name.clone(), None);
+                    let event = EditEvent::set(Mixed::Same(zoom_now), next, name.clone(), None);
                     local.apply(&BinEvent::Zoom(event.clone()));
                     events.push(BinEvent::Zoom(event));
                     zoom_now = next;
@@ -826,7 +826,7 @@ fn commit<K: TextureKey>(cx: &mut BodyCx<'_>, state: &RefCell<Bind<'_, BinState<
         (memory.before.clone(), memory.local.clone())
     };
     if local != before {
-        let event = EditEvent::set(GestureId::default(), Mixed::Same(before), local, name.clone(), None);
+        let event = EditEvent::set(Mixed::Same(before), local, name.clone(), None);
         let _ = state.borrow_mut().reborrow().write(cx, &event);
     }
 }

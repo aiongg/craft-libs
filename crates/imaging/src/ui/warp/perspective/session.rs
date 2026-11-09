@@ -8,7 +8,7 @@ use kurbo::{Point, Rect};
 
 use craft_behavior::edit_history::Step;
 use craft_behavior::geometry::quad::Homography;
-use craft_behavior::{EditEvent, EditHistory, GestureId, Mixed};
+use craft_behavior::{EditEvent, EditHistory, Mixed};
 
 /// Corners closer than this in the source (each axis) are one linked corner (PhotoCraft
 /// `LINK_EPS`).
@@ -181,7 +181,7 @@ impl PerspectiveEdit {
     /// A one-step change of the planes from `before` to `after`, named `label` in the undo list: what the commands
     /// and the bar report.
     pub fn replace(before: &[Plane], after: Vec<Plane>, label: &str) -> PerspectiveEdit {
-        PerspectiveEdit::Planes(EditEvent::set(GestureId::default(), Mixed::Same(before.to_vec()), after, Arc::from(label), None))
+        PerspectiveEdit::Planes(EditEvent::set(Mixed::Same(before.to_vec()), after, Arc::from(label), None))
     }
 }
 
@@ -336,7 +336,7 @@ impl PerspectiveSession {
 
     /// Records the change from `before` to the draft as one step named `name`.
     fn record_step(&mut self, before: PerspectiveDraft, name: &str) {
-        let event = EditEvent::set(GestureId::default(), Mixed::Same(before), self.draft.clone(), Arc::from(name), None);
+        let event = EditEvent::set(Mixed::Same(before), self.draft.clone(), Arc::from(name), None);
         self.history.record(&event);
     }
 
@@ -363,7 +363,7 @@ impl PerspectiveSession {
                     self.draft = before;
                 }
             }
-            EditEvent::Set { id, after, label, doc_key, .. } => {
+            EditEvent::Set { after, label, doc_key, .. } => {
                 if self.dragging() {
                     return;
                 }
@@ -372,7 +372,7 @@ impl PerspectiveSession {
                 if self.draft.planes.is_empty() {
                     self.draft.mode = PlaneMode::Layout;
                 }
-                self.history.record(&EditEvent::set(id, Mixed::Same(before), self.draft.clone(), label, doc_key));
+                self.history.record(&EditEvent::set(Mixed::Same(before), self.draft.clone(), label, doc_key));
             }
             _ => {}
         }

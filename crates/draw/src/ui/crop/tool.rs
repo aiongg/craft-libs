@@ -92,7 +92,7 @@ pub struct CropInput<'a> {
 }
 
 impl<'a> CropInput<'a> {
-    /// The pass on `document` with `settings`; `ctx` mints the ids of the key edits the tool opens.
+    /// The pass on `document` with `settings`; `ctx` mints the ids of the arrow-key nudge gestures the tool opens.
     pub fn new(ctx: &'a egui::Context, settings: &'a CropSettings, document: &'a CropDocument) -> Self {
         Self { ctx, settings, document, snap: None, nudge_pause: None }
     }
@@ -245,7 +245,7 @@ impl CropTool {
     /// the frame refits to [`CropSettings::ratio_value`] about its centre, from the frame the field edit
     /// began with while `editing`, as one box step. Returns the frame's `Set` for the host's mirror, or
     /// `None` when nothing changed. In image mode the next pass turns the view with the frame.
-    pub fn refit(&mut self, ctx: &egui::Context, settings: &CropSettings, document: &CropDocument, editing: bool) -> Option<CropEvent> {
+    pub fn refit(&mut self, settings: &CropSettings, document: &CropDocument, editing: bool) -> Option<CropEvent> {
         let base = self.session.ratio_base(editing);
         self.end_nudges();
         if self.dragging {
@@ -262,19 +262,19 @@ impl CropTool {
         }
         // Fitting the untouched default frame to a ratio alone is not an edit.
         let keep_default = !editing && !sized && self.session.is_default();
-        let event = self.session.set(ctx, next, keep_default, &self.step);
+        let event = self.session.set(next, keep_default, &self.step);
         self.synced = None;
         Some(CropEvent::Frame(event))
     }
 
     /// The Crop To... command's answer: the frame is set as one box step. Returns the frame's `Set`,
     /// `None` for a frame that is not finite or has no area.
-    pub fn crop_to(&mut self, ctx: &egui::Context, frame: CropBox) -> Option<CropEvent> {
+    pub fn crop_to(&mut self, frame: CropBox) -> Option<CropEvent> {
         if !frame.is_finite() || frame.rect.width() <= 0.0 || frame.rect.height() <= 0.0 {
             return None;
         }
         self.end_nudges();
-        let event = self.session.set(ctx, frame, false, &self.step);
+        let event = self.session.set(frame, false, &self.step);
         self.synced = None;
         Some(CropEvent::Frame(event))
     }
@@ -432,7 +432,7 @@ impl CropToolPass<'_> {
         self.tool.session.straighten_mut().disarm();
         let Some(frame) = self.tool.session.frame() else { return };
         if let Some(next) = frame.fitted(self.input.document.size, angle) {
-            let event = self.tool.session.set(self.input.ctx, next, false, &self.tool.step);
+            let event = self.tool.session.set(next, false, &self.tool.step);
             self.tool.synced = None;
             self.push(CropEvent::Frame(event));
             self.push(CropEvent::Straightened(angle));
@@ -455,7 +455,7 @@ impl CropToolPass<'_> {
             self.tool.session.nudge(self.input.ctx, next, &self.tool.step)
         } else {
             self.tool.end_nudges();
-            self.tool.session.set(self.input.ctx, next, false, &self.tool.step)
+            self.tool.session.set(next, false, &self.tool.step)
         };
         self.push(CropEvent::Frame(event));
         match view {

@@ -102,10 +102,7 @@ impl<'a> ArtboardBar<'a> {
         // Make Portrait is for a board wider than tall, Make Landscape for one taller than wide.
         let swapped = Size::new(shown.height, shown.width);
         let swap = |ui: &mut Ui, label: &craft_ui::runtime::env::Label| {
-            clicked(&Button::new(label.clone()).show(ui)).then(|| {
-                let id = craft_ui::runtime::edit::next_gesture_id(ui.ctx());
-                EditEvent::set(id, Mixed::Same(shown), swapped, label.as_str().into(), None)
-            })
+            clicked(&Button::new(label.clone()).show(ui)).then(|| EditEvent::set(Mixed::Same(shown), swapped, label.as_str().into(), None))
         };
         if shown.width > shown.height {
             size_event = swap(ui, &words.make_portrait).or(size_event);

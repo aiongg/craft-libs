@@ -288,8 +288,6 @@ impl<'a> ArtboardOverlay<'a> {
             self.events.push(ArtboardEvent::Select { indices: vec![index], mods: Mods::NONE });
         }
         let boards = self.boards();
-        let ctx = cx.response.ctx.clone();
-        let mut ids = || craft_ui::runtime::edit::next_gesture_id(&ctx);
         let mut acts = Vec::new();
         if let Some((direction, mods)) = cx.intents().take_nudge() {
             let doc = space.view.unmap_vec(direction);
@@ -305,7 +303,7 @@ impl<'a> ArtboardOverlay<'a> {
             acts.push(KeyAct::Submit);
         }
         for act in acts {
-            self.events.extend(key_events(&boards, &self.rules, act, &mut ids, &words));
+            self.events.extend(key_events(&boards, &self.rules, act, &words));
         }
     }
 }

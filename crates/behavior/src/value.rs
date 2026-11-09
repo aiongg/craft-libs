@@ -198,11 +198,9 @@ pub enum EditEvent<T> {
         before: Option<Mixed<T>>,
     },
     /// A value that arrived as one step, or a gesture that began and committed in one pass. It names itself the way
-    /// a `Begin` does.
+    /// a `Begin` does. It belongs to no gesture: each `Set` is its own undo step.
     #[non_exhaustive]
     Set {
-        /// The gesture the value belongs to; the last one when it arrived outside a gesture.
-        id: GestureId,
         /// The value before.
         before: Mixed<T>,
         /// The new value.
@@ -236,18 +234,15 @@ impl<T> EditEvent<T> {
     }
 
     /// A one-step change, named the way a `Begin` names its gesture.
-    pub fn set(id: GestureId, before: Mixed<T>, after: T, label: Arc<str>, doc_key: Option<DocKey>) -> Self {
-        EditEvent::Set { id, before, after, label, doc_key }
+    pub fn set(before: Mixed<T>, after: T, label: Arc<str>, doc_key: Option<DocKey>) -> Self {
+        EditEvent::Set { before, after, label, doc_key }
     }
 
-    /// The gesture the event belongs to.
-    pub fn id(&self) -> GestureId {
+    /// The gesture the event belongs to; a `Set` belongs to none.
+    pub fn id(&self) -> Option<GestureId> {
         match self {
-            EditEvent::Begin { id, .. }
-            | EditEvent::Update { id, .. }
-            | EditEvent::Commit { id, .. }
-            | EditEvent::Cancel { id, .. }
-            | EditEvent::Set { id, .. } => *id,
+            EditEvent::Begin { id, .. } | EditEvent::Update { id, .. } | EditEvent::Commit { id, .. } | EditEvent::Cancel { id, .. } => Some(*id),
+            EditEvent::Set { .. } => None,
         }
     }
 
@@ -262,7 +257,7 @@ impl<T> EditEvent<T> {
             EditEvent::Update { id, value } => EditEvent::Update { id, value: f(value) },
             EditEvent::Commit { id, before, after } => EditEvent::Commit { id, before: mixed(before), after: f(after) },
             EditEvent::Cancel { id, reason, before } => EditEvent::Cancel { id, reason, before: before.map(mixed) },
-            EditEvent::Set { id, before, after, label, doc_key } => EditEvent::Set { id, before: mixed(before), after: f(after), label, doc_key },
+            EditEvent::Set { before, after, label, doc_key } => EditEvent::Set { before: mixed(before), after: f(after), label, doc_key },
         }
     }
 
@@ -328,8 +323,8 @@ impl<T: Value> EditEvent<T> {
     /// event.
     pub fn fold(prev: Option<EditEvent<T>>, next: EditEvent<T>) -> Option<EditEvent<T>> {
         match (prev, next) {
-            (Some(EditEvent::Begin { id, before, label, doc_key }), EditEvent::Commit { after, .. }) => {
-                Some(EditEvent::Set { id, before, after, label, doc_key })
+            (Some(EditEvent::Begin { before, label, doc_key, .. }), EditEvent::Commit { after, .. }) => {
+                Some(EditEvent::Set { before, after, label, doc_key })
             }
             (Some(EditEvent::Begin { .. }), EditEvent::Cancel { .. }) => None,
             (Some(begin @ EditEvent::Begin { .. }), EditEvent::Update { .. }) => Some(begin),

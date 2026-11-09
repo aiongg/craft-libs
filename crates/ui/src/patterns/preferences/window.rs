@@ -15,7 +15,7 @@ use crate::runtime::memory::StageAccess;
 use crate::runtime::overlay::CloseReason;
 use crate::runtime::words::CommonWords;
 use crate::sections::{DialogRole, FooterButton};
-use craft_behavior::{EditEvent, GestureId, Mixed};
+use craft_behavior::{EditEvent, Mixed};
 use craft_i18n::matcher::Matcher;
 use craft_theme::variant::Tone;
 use egui::Ui;
@@ -98,7 +98,7 @@ impl<H: PreferencesModel + ?Sized> Session<'_, '_, H> {
     /// Writes the state the pass changed through the binding.
     fn commit(&mut self, cx: &mut impl StageAccess) {
         if self.work != self.before {
-            let event = EditEvent::set(GestureId::default(), Mixed::Same(self.before.clone()), self.work.clone(), self.title.clone(), None);
+            let event = EditEvent::set(Mixed::Same(self.before.clone()), self.work.clone(), self.title.clone(), None);
             let _ = self.state.reborrow().write(cx, &event);
             self.before = self.work.clone();
         }

@@ -283,8 +283,8 @@ impl<T: Clone + PartialEq> Run<T> {
     }
 
     /// A one-step change to `value`.
-    pub(crate) fn set(id: GestureId, label: Arc<str>, before: T, value: T) -> EditEvent<T> {
-        EditEvent::set(id, Mixed::Same(before), value, label, None)
+    pub(crate) fn set(label: Arc<str>, before: T, value: T) -> EditEvent<T> {
+        EditEvent::set(Mixed::Same(before), value, label, None)
     }
 }
 

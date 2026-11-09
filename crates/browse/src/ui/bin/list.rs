@@ -4,7 +4,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, GestureId, GesturePhase, IconId, ItemSource, Mixed};
+use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, GesturePhase, IconId, ItemSource, Mixed};
 use craft_i18n::Collator;
 use craft_theme::variant::Tone;
 use craft_ui::contract::{
@@ -250,7 +250,7 @@ pub(super) fn stack_event<K: Clone + PartialEq>(order: &[K], selected: &[K], for
     let key = moving[0].clone();
     let before = ReorderMove::new(key.clone(), moving.clone(), from, false).in_group(parent.clone());
     let after = ReorderMove::new(key, moving, to, false).in_group(parent);
-    Some(BinEvent::Reorder(EditEvent::set(GestureId::default(), Mixed::Same(before), after, Arc::from("mediaBin.stack"), None)))
+    Some(BinEvent::Reorder(EditEvent::set(Mixed::Same(before), after, Arc::from("mediaBin.stack"), None)))
 }
 
 /// The `items` a drop into the bin `into` (`None`: the root) moves: those the model holds elsewhere. `None` when

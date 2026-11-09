@@ -551,8 +551,7 @@ impl AnnotateTool {
 
     /// Reports `edit` as a step of its own, named `label`.
     fn push(&mut self, edit: AnnotationEdit, label: &str) {
-        let id = self.next_id();
-        self.edits.push(EditEvent::set(id, Mixed::Mixed, edit, Arc::from(label), None));
+        self.edits.push(EditEvent::set(Mixed::Mixed, edit, Arc::from(label), None));
     }
 
     /// Applies `change` to the selection and reports it.

@@ -57,7 +57,6 @@ use craft_ui::layout_components::Row;
 use craft_ui::primitives::Checker;
 use craft_ui::rails::{LastUsed, RailTool, ToolRail, ToolSlot};
 use craft_ui::runtime::commands::{CommandSet as _, Commands as _, FirePhase};
-use craft_ui::runtime::edit::next_gesture_id;
 use craft_ui::runtime::env::Env;
 use craft_ui::runtime::words::CommonWords;
 use craft_ui::sections::{DialogRole, FooterButton};
@@ -417,7 +416,7 @@ impl VanishingPointWorkspace {
                     let NewPlaneState { open, values } = &mut work.new_plane;
                     if let Some(corners) = new_plane::show(ui, document, Bind::bound(values), Bind::bound(open)) {
                         let VanishingPointWorkspace { editor, session, .. } = &mut *work;
-                        editor.add_plane(&ctx, session, scene, corners, words.new_plane.as_str());
+                        editor.add_plane(session, scene, corners, words.new_plane.as_str());
                     }
                 }
                 state.canvas = shown.as_ref().map(|canvas| canvas.response.id);
@@ -430,7 +429,7 @@ impl VanishingPointWorkspace {
         let picked = shown.output.picked.and_then(|at| [DialogRole::Accept, DialogRole::Cancel].get(at).copied());
         let closed = picked.or(shown.output.closed.map(|_| DialogRole::Cancel));
         let events = events.into_inner();
-        this.record(ui.ctx(), &events, words.source_step.as_str());
+        this.record(&events, words.source_step.as_str());
         VanishingPointOutput {
             events,
             settings_changed: this.settings != settings_before,
@@ -530,7 +529,7 @@ impl VanishingPointWorkspace {
 
     /// Takes this pass's events into the history: a gesture's Begin opens a step, its Commit closes it, a Set is a
     /// step of its own, and a change with no event (Alt-click sets the clone source) is a step by itself.
-    fn record(&mut self, ctx: &egui::Context, events: &[VanishingPointEvent], source_step: &str) {
+    fn record(&mut self, events: &[VanishingPointEvent], source_step: &str) {
         for event in events {
             match event {
                 VanishingPointEvent::Planes(event) => self.record_event(event),
@@ -540,9 +539,8 @@ impl VanishingPointWorkspace {
         }
         if !self.history.is_open() {
             if self.session != self.recorded {
-                let id = next_gesture_id(ctx);
                 let name: Arc<str> = Arc::from(source_step);
-                self.history.record(&EditEvent::set(id, Mixed::Same(self.recorded.clone()), self.session.clone(), name, None));
+                self.history.record(&EditEvent::set(Mixed::Same(self.recorded.clone()), self.session.clone(), name, None));
                 self.revision += 1;
             }
             self.recorded = self.session.clone();
@@ -559,8 +557,8 @@ impl VanishingPointWorkspace {
                 self.revision += 1;
             }
             EditEvent::Cancel { id, reason, .. } => self.history.record(&EditEvent::cancel(*id, *reason, None)),
-            EditEvent::Set { id, label, .. } => {
-                self.history.record(&EditEvent::set(*id, before, self.session.clone(), label.clone(), None));
+            EditEvent::Set { label, .. } => {
+                self.history.record(&EditEvent::set(before, self.session.clone(), label.clone(), None));
                 self.recorded = self.session.clone();
                 self.revision += 1;
             }

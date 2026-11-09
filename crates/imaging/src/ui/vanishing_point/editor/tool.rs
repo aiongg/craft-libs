@@ -97,7 +97,7 @@ impl CanvasTool for VanishingPointTool<'_> {
         let words = cx.words::<VanishingPointWords>();
         match key {
             ToolKey::Delete { .. } => {
-                self.run(|work| work.editor.delete_selected(work.ctx, work.session, work.scene, words.edit_planes_step.as_str()).is_some())
+                self.run(|work| work.editor.delete_selected(work.session, work.scene, words.edit_planes_step.as_str()).is_some())
             }
             ToolKey::Cancel => self.run(|work| work.editor.drop_pending()),
             _ => false,

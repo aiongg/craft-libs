@@ -25,7 +25,7 @@ fn commit<T>(id: GestureId, value: T) -> EditEvent<T> {
 }
 
 fn set<T>(value: T) -> EditEvent<T> {
-    EditEvent::set(GestureId::new(1), Mixed::Mixed, value, Arc::from(""), None)
+    EditEvent::set(Mixed::Mixed, value, Arc::from(""), None)
 }
 
 fn cancel<T>(id: GestureId) -> EditEvent<T> {

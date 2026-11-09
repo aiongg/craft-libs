@@ -72,7 +72,6 @@ use craft_ui::layout_components::Row;
 use craft_ui::primitives::Checker;
 use craft_ui::rails::{LastUsed, ToolRail};
 use craft_ui::runtime::commands::{CommandSet as _, Commands as _};
-use craft_ui::runtime::edit::next_gesture_id;
 use craft_ui::runtime::env::Env;
 use craft_ui::runtime::words::CommonWords;
 use craft_ui::sections::{DialogRole, FooterButton};
@@ -349,12 +348,12 @@ impl LiquifyWorkspace {
                     return;
                 };
                 if let Some(op) = panel.global {
-                    work.record_global(&ui.ctx().clone(), None, op);
+                    work.record_global(None, op);
                 }
                 if panel.restore_all {
                     let before = work.session.clone();
                     work.session.restore_all();
-                    work.record_history(&ui.ctx().clone(), before);
+                    work.record_history(before);
                     work.events.push(LiquifyEvent::Replay(Vec::new()));
                 }
                 if let Some(of) = panel.backdrop_wanted {
@@ -402,8 +401,8 @@ impl LiquifyWorkspace {
                             LiquifyCommands::Smaller => work.settings.brush = work.settings.brush.smaller(),
                             LiquifyCommands::Larger => work.settings.brush = work.settings.brush.larger(),
                             LiquifyCommands::ShowMask => work.settings.show_mask = !work.settings.show_mask,
-                            LiquifyCommands::InvertMask => work.record_global(&ctx, Some(&mut state), LiquifyGlobal::InvertAll),
-                            LiquifyCommands::ClearMask => work.record_global(&ctx, Some(&mut state), LiquifyGlobal::MaskNone),
+                            LiquifyCommands::InvertMask => work.record_global(Some(&mut state), LiquifyGlobal::InvertAll),
+                            LiquifyCommands::ClearMask => work.record_global(Some(&mut state), LiquifyGlobal::MaskNone),
                             _ => {}
                         }
                     }
@@ -478,7 +477,7 @@ impl LiquifyWorkspace {
                     }
                     work.zoom_percent = state.view.zoom_percent();
 
-                    work.absorb_canvas_events(&ctx, &mut state);
+                    work.absorb_canvas_events(&mut state);
                     work.busy = state.canvas.busy();
                     work.timing = state.canvas.timing();
                 }
@@ -531,18 +530,17 @@ impl LiquifyWorkspace {
 
 impl LiquifyWorkspace {
     /// Records the session as one history step when it differs from `before`.
-    fn record_history(&mut self, ctx: &egui::Context, before: LiquifySession) {
+    fn record_history(&mut self, before: LiquifySession) {
         if before == self.session {
             return;
         }
-        let id = next_gesture_id(ctx);
         let name: Arc<str> = Arc::from(HISTORY_NAME);
-        self.history.record(&EditEvent::set(id, Mixed::Same(before), self.session.clone(), name, None));
+        self.history.record(&EditEvent::set(Mixed::Same(before), self.session.clone(), name, None));
     }
 
     /// Puts `event` in this pass's events, recording a committed stroke in the session first (the lasso's closing
     /// point included) and following a cancelled one with the replay that rebuilds the app's field.
-    fn absorb(&mut self, ctx: &egui::Context, event: LiquifyEvent) {
+    fn absorb(&mut self, event: LiquifyEvent) {
         match event {
             LiquifyEvent::Stroke(StrokeEvent::Commit(stroke)) => {
                 let before = self.session.clone();
@@ -551,7 +549,7 @@ impl LiquifyWorkspace {
                     Some(LiquifyStep::Stroke(recorded)) if self.session.len() > before.len() => recorded.clone(),
                     _ => stroke,
                 };
-                self.record_history(ctx, before);
+                self.record_history(before);
                 self.events.push(LiquifyEvent::Stroke(StrokeEvent::Commit(recorded)));
             }
             LiquifyEvent::Stroke(cancel @ StrokeEvent::Cancel(_)) => {
@@ -563,22 +561,22 @@ impl LiquifyWorkspace {
     }
 
     /// Takes the events the canvas tool collected.
-    fn absorb_canvas_events(&mut self, ctx: &egui::Context, state: &mut LiquifyView) {
+    fn absorb_canvas_events(&mut self, state: &mut LiquifyView) {
         for event in state.canvas.take_events() {
-            self.absorb(ctx, event);
+            self.absorb(event);
         }
     }
 
     /// Records a whole-field operation after the stroke in progress, if `state` has one.
-    fn record_global(&mut self, ctx: &egui::Context, state: Option<&mut LiquifyView>, op: LiquifyGlobal) {
+    fn record_global(&mut self, state: Option<&mut LiquifyView>, op: LiquifyGlobal) {
         if let Some(state) = state
             && let Some(event) = state.canvas.end_stroke()
         {
-            self.absorb(ctx, event);
+            self.absorb(event);
         }
         let before = self.session.clone();
         self.session.record_global(op);
-        self.record_history(ctx, before);
+        self.record_history(before);
         self.events.push(LiquifyEvent::Global(op));
     }
 
@@ -597,7 +595,7 @@ impl LiquifyWorkspace {
         if canvas.busy() {
             canvas.tool(&mut self.settings, &cursor).abandon(reason);
         }
-        self.absorb_canvas_events(ctx, state);
+        self.absorb_canvas_events(state);
     }
 
     /// Switches to `tool`, cancelling the old tool's gesture first.

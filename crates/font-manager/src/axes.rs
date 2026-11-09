@@ -6,7 +6,7 @@ mod stories;
 
 use std::sync::Arc;
 
-use craft_behavior::{EditEvent, GestureId, Mixed};
+use craft_behavior::{EditEvent, Mixed};
 use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Pattern, Props, Show as _, ShowContainer as _};
 use craft_ui::form::{Field, FieldGroup, SliderField};
 use craft_ui::pickers::Select;
@@ -237,7 +237,7 @@ impl<'a> AxisSliders<'a> {
                     for &(tag, value) in &chosen.coordinates {
                         set_value(&mut after, tag, value);
                     }
-                    let event = EditEvent::set(GestureId::default(), Mixed::Same(held), after, Arc::from("Font instance"), None);
+                    let event = EditEvent::set(Mixed::Same(held), after, Arc::from("Font instance"), None);
                     write_event(&mut values, cx, &event);
                     edit = EditEvent::fold(edit.take(), event);
                     instance = Some(chosen.clone());

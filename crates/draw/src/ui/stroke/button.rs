@@ -1,6 +1,6 @@
 //! [`StrokeButton`]: the field that shows the stroke's style and opens the editor in a popover.
 
-use craft_behavior::{EditEvent, GestureId, HitLevel, HitPriority, Mixed, PartKey, Sense};
+use craft_behavior::{EditEvent, HitLevel, HitPriority, Mixed, PartKey, Sense};
 use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx,
     Pointer as _, Props as _, Role, Show as _, WordSetCx as _,
@@ -179,7 +179,7 @@ impl Component for StrokeButton<'_> {
             && held != is_open
         {
             let name: Arc<str> = cx.label().as_str().into();
-            let _ = self.open.reborrow().write(cx, &EditEvent::set(GestureId::default(), Mixed::Same(held), is_open, name, None));
+            let _ = self.open.reborrow().write(cx, &EditEvent::set(Mixed::Same(held), is_open, name, None));
         }
     }
 

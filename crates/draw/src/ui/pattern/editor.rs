@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use super::{PatternColors, PatternFillOptions, PatternSwatch, PatternWords};
-use craft_behavior::{EditEvent, GestureId, Mixed, NumberCodec};
+use craft_behavior::{EditEvent, Mixed, NumberCodec};
 use craft_color::ui::{ColorPopover, PickedColor};
 use craft_ui::buttons::Button;
 use craft_ui::choice::Checkbox;
@@ -256,7 +256,7 @@ fn edited(options: &PatternFillOptions, change: impl FnOnce(&mut PatternFillOpti
 
 /// A one-step edit of `current` made by `change`.
 fn set(current: &PatternFillOptions, name: &Arc<str>, change: impl FnOnce(&mut PatternFillOptions)) -> EditEvent<PatternFillOptions> {
-    EditEvent::set(GestureId::default(), Mixed::Same(current.clone()), edited(current, change), Arc::clone(name), None)
+    EditEvent::set(Mixed::Same(current.clone()), edited(current, change), Arc::clone(name), None)
 }
 
 fn set_colors(options: &mut PatternFillOptions, change: impl FnOnce(&mut PatternColors)) {

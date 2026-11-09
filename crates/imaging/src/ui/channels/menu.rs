@@ -2,7 +2,7 @@
 //! panel menu (`panel_rows`). Both list the commands one row kind offers.
 
 use craft_behavior::geometry::selection_op::SelectionOperation;
-use craft_behavior::{EditEvent, GestureId, Mixed};
+use craft_behavior::{EditEvent, Mixed};
 use craft_keymap::Mods;
 use craft_theme::Srgba;
 use craft_ui::contract::{CommandSet, Props as _, ReorderMove, ShowContainer as _};
@@ -265,13 +265,7 @@ fn move_event<K: Clone + PartialEq>(rows: &[ChannelRow<K>], lead: &ChannelRow<K>
         return None;
     }
     let mv = ReorderMove::new(lead.key.clone(), vec![lead.key.clone()], to, false);
-    Some(ChannelsEvent::Reorder(EditEvent::set(
-        GestureId::default(),
-        Mixed::Mixed,
-        mv,
-        Arc::from(if up { "Move Channel Up" } else { "Move Channel Down" }),
-        None,
-    )))
+    Some(ChannelsEvent::Reorder(EditEvent::set(Mixed::Mixed, mv, Arc::from(if up { "Move Channel Up" } else { "Move Channel Down" }), None)))
 }
 
 /// A line of a row's menu.

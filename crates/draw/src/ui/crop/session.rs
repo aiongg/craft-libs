@@ -298,11 +298,11 @@ impl CropSession {
                 self.adopt(self.settled);
                 self.record(EditEvent::cancel(*id, *reason, None));
             }
-            EditEvent::Set { id, after, label, .. } => {
+            EditEvent::Set { after, label, .. } => {
                 let step = if unchanged(&self.settled, after) { self.settled } else { drawn(after) };
                 self.adopt(step);
                 self.editing |= !step.default_frame;
-                self.record(EditEvent::set(*id, Mixed::Same(self.settled), step, Arc::clone(label), None));
+                self.record(EditEvent::set(Mixed::Same(self.settled), step, Arc::clone(label), None));
             }
             _ => {}
         }
@@ -311,7 +311,7 @@ impl CropSession {
     /// A key, refit or Straighten set the frame: one box step named `label`, reported as the `Set` the
     /// tool mirrors. The frame is no longer the default unless `keep_default` (a refit of the untouched
     /// default frame to a ratio alone).
-    pub fn set(&mut self, ctx: &egui::Context, frame: CropBox, keep_default: bool, label: &str) -> EditEvent<CropBox> {
+    pub fn set(&mut self, frame: CropBox, keep_default: bool, label: &str) -> EditEvent<CropBox> {
         self.settle();
         let before = self.frame.map_or(Mixed::Mixed, Mixed::Same);
         self.frame = Some(frame);
@@ -319,9 +319,9 @@ impl CropSession {
             self.default_frame = false;
         }
         self.editing |= !self.default_frame;
-        let (id, step) = (next_gesture_id(ctx), self.current());
-        self.record(EditEvent::set(id, Mixed::Same(self.settled), step, label.into(), None));
-        EditEvent::set(id, before, frame, label.into(), None)
+        let step = self.current();
+        self.record(EditEvent::set(Mixed::Same(self.settled), step, label.into(), None));
+        EditEvent::set(before, frame, label.into(), None)
     }
 
     /// An arrow nudge set the frame: it joins the run of nudges, one open box step that
@@ -336,8 +336,7 @@ impl CropSession {
             self.nudging = Some(id);
             self.record(EditEvent::begin(id, Mixed::Same(self.settled), label.into(), None));
         }
-        let id = next_gesture_id(ctx);
-        EditEvent::set(id, before, frame, label.into(), None)
+        EditEvent::set(before, frame, label.into(), None)
     }
 
     /// Ends a run of arrow nudges: records them as one box step.
