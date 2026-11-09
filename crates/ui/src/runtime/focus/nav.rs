@@ -289,6 +289,13 @@ impl State {
             return None;
         }
         let gone = self.last_stops.iter().find(|rec| rec.stop.key() == key)?;
+        // A removed child of a collection row hands focus back to the row, as Escape does, not to the next stop.
+        let row = gone.stop.group.and_then(|group| self.group(group)).filter(|group| group.row);
+        if let Some(owner) =
+            row.and_then(|group| self.row_owner(&group)).filter(|owner| self.stops.iter().any(|rec| rec.stop.key() == owner.stop.key()))
+        {
+            return Some(owner);
+        }
         let order: Vec<StopKey> = self.last_stops.iter().filter(|rec| rec.scope == gone.scope).map(|rec| rec.stop.key()).collect();
         let registered = |candidate: &StopKey| self.stops.iter().any(|rec| rec.stop.key() == *candidate);
         match after_removal(&order, &key, registered) {

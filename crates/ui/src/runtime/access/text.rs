@@ -39,8 +39,6 @@ pub(crate) struct Line {
 pub(crate) struct TextFacts {
     /// The egui widget that holds the text and key focus; its node folds into the owner's.
     pub widget: Id,
-    /// The component's name, which the widget's folded node keeps.
-    pub name: String,
     /// The whole text, for the node's value (not exposed while masked).
     pub text: String,
     /// A password: the node carries no value and exposes no runs.
@@ -92,7 +90,6 @@ pub(crate) fn exposed(ctx: &Context, widget: Id) -> bool {
 /// spin button, an editable combo box) is one node that takes focus and the text actions. Call it after the node's
 /// common facts.
 pub(crate) fn report_text(ctx: &Context, owner: Id, facts: &TextFacts) {
-    adapter::set_label(ctx, facts.widget, &facts.name);
     adapter::fold_widget(ctx, facts.widget, owner);
     let mut entries = Vec::new();
     if !facts.masked {

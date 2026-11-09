@@ -497,7 +497,9 @@ impl LeafPlaced {
 /// rect left for the child. The caller shows the child there and then calls `LeafPlaced::finish`.
 pub(crate) fn leaf<C: Show>(ui: &mut Ui, env: &Env, at: &LeafLabel<'_>, child: &mut C) -> LeafPlaced {
     let scope = sub(at.id, "field");
-    let control_min = super::run::measure_under(child, &*ui, Some(at.id), craft_behavior::Proposal::Min, Some((at.enabled, at.size))).x;
+    // The child's own `enabled(false)` disables its label too: a disabled field's label does not scrub.
+    let enabled = at.enabled && child.common(super::Internal::new()).enabled.unwrap_or(true);
+    let control_min = super::run::measure_under(child, &*ui, Some(at.id), craft_behavior::Proposal::Min, Some((enabled, at.size))).x;
     let input = LabelIn {
         scope,
         owner: at.owner,
@@ -507,7 +509,7 @@ pub(crate) fn leaf<C: Show>(ui: &mut Ui, env: &Env, at: &LeafLabel<'_>, child: &
         text: at.text,
         side: at.side,
         help: None,
-        enabled: at.enabled,
+        enabled,
         size: at.size,
         control_min,
     };
@@ -571,7 +573,7 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Placed {
     }
     let slot = if reset.is_some() { slot_side } else { 0.0 };
     let mut leaf = LabelLeaf::new(input.text.clone(), slot);
-    leaf.scrub = input.side.scrub || scope::last_scrub(&ctx, input.scope);
+    leaf.scrub = input.enabled && (input.side.scrub || scope::last_scrub(&ctx, input.scope));
     leaf.resettable = reset.is_some();
     leaf.differs = reset.is_some_and(|fact| fact.differs);
     match &input.side.kind {

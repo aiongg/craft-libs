@@ -6,7 +6,7 @@ use craft_ui::canvas::{Guide, GuideColor, GuideKey};
 use craft_ui::contract::{Bind, Role};
 use craft_ui::patterns::form_dialogs::{GuideUnits, HostRequests, NewGuideDialog, NewGuideValues};
 use craft_ui::runtime::env::UnitKind;
-use craft_ui::testing::access::NodeKey;
+use craft_ui::testing::access::focused_key;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers};
 use std::cell::RefCell;
@@ -45,8 +45,8 @@ fn new_guide(values: &Rc<RefCell<NewGuideValues>>, requests: &Rc<RefCell<HostReq
 #[trial]
 fn new_guide_opens_with_the_focus_on_position() {
     let fixture = new_guide(&Rc::new(RefCell::new(NewGuideValues::default())), &Rc::new(RefCell::new(HostRequests::new())));
-    let focused = fixture.focused().expect("a field has the focus");
-    assert_eq!(fixture.tree().name_of(NodeKey::of(focused)), Some("Position"));
+    let focused = focused_key(fixture.tree());
+    assert_eq!(fixture.tree().name_of(focused), Some("Position"));
 }
 
 /// Alt turns Cancel into Reset, which puts back the values the dialog opened with.

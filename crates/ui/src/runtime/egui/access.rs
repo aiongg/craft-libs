@@ -56,12 +56,6 @@ pub(crate) fn enabled(ctx: &Context, id: Id) -> bool {
     create_node(ctx, id)
 }
 
-/// Names the node of `id`, a widget node egui made for a text part, and notes it as the runtime's.
-pub(crate) fn set_label(ctx: &Context, id: Id, label: &str) {
-    super::widgets::note_node(ctx, id);
-    ctx.accesskit_node_builder(id, |node| node.set_label(label));
-}
-
 /// Hides the node of `id` from assistive technology and strips its actions: a hit-test widget the runtime made for
 /// a part that has its own sub-node, or to stand in for a root on another layer. The sub-node or the root's own
 /// node carries the actions.

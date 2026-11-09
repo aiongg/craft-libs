@@ -1373,7 +1373,7 @@ impl BodyCx<'_> {
     /// is empty. `true` once per Escape; the enclosing scope (a dialog, a popover) then does not act on it.
     /// Components shown earlier in the body have run by the time the body asks.
     pub fn take_cancel(&mut self) -> bool {
-        crate::runtime::keys::scope_escape(self.memory.ctx(), craft_behavior::CancelRule::Ignore, false, false).is_some()
+        crate::runtime::keys::take_cancel(self.memory.ctx())
     }
 }
 
@@ -1640,6 +1640,8 @@ pub(crate) struct PartExtras {
     pub drag_cursor: Option<CursorIcon>,
     pub tooltip: Option<Tooltip>,
     pub pointer_only: Option<&'static str>,
+    /// The part senses a click but declares no AccessKit `Click`: a click would do nothing.
+    pub no_access_click: bool,
     pub keyboard_via: Option<PartKey>,
     pub value: bool,
     pub own_reset: bool,
@@ -1760,6 +1762,13 @@ impl PartBuilder<'_> {
         self
     }
 
+    /// Whether the part's node declares AccessKit `Click` when it senses a click; a part whose click does nothing in
+    /// this pass turns it off.
+    pub(crate) fn access_click(self, on: bool) -> Self {
+        self.declared.no_access_click = !on;
+        self
+    }
+
     /// A part with no focus stop names its keyboard path: the intent or command that does the same.
     pub fn pointer_only(self, reason: &'static str) -> Self {
         self.declared.pointer_only = Some(reason);
@@ -1865,6 +1874,7 @@ impl<C: Component> PartsCx<'_, C> {
         let thumb = thumb_rect(rect, axis, rtl, at, len);
         self.part(key, rect)
             .sense(Sense::CLICK)
+            .access_click(!thumb_covers_centre(rect, thumb, axis))
             .priority(HitPriority::new(HitLevel::Body, 0))
             .pointer_only("Page Up and Page Down scroll the region");
         self.part(key.at(THUMB), thumb)
@@ -1873,6 +1883,13 @@ impl<C: Component> PartsCx<'_, C> {
             .pointer_only("Page Up and Page Down scroll the region");
         self.scrolls.push(ScrollDecl { key, axis, rtl, track: rect, thumb, span, min_thumb });
     }
+}
+
+/// Whether the thumb covers the track's centre, the point an AccessKit click on the track pages toward: a click there
+/// pages nowhere.
+fn thumb_covers_centre(track: Rect, thumb: Rect, axis: Axis) -> bool {
+    let middle = track.center();
+    if axis == Axis::X { thumb.x_range().contains(middle.x) } else { thumb.y_range().contains(middle.y) }
 }
 
 /// The index of a scroll bar's thumb part.
@@ -1934,8 +1951,7 @@ pub(crate) fn scroll_moves(decls: &[ScrollDecl], results: &PartResults) -> Vec<S
             _ => None,
         };
         let middle = decl.track.center();
-        let covered = if decl.axis == Axis::X { decl.thumb.x_range().contains(middle.x) } else { decl.thumb.y_range().contains(middle.y) };
-        let clicked = (!covered).then(|| page_toward(axis_pos(middle)));
+        let clicked = (!thumb_covers_centre(decl.track, decl.thumb, decl.axis)).then(|| page_toward(axis_pos(middle)));
         moves.push(ScrollMove { key: decl.key, pressed, clicked });
     }
     moves
