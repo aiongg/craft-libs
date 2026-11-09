@@ -1,0 +1,16 @@
+craft-settings lib
+craft-settings memory
+craft-settings merge
+craft-settings migrate
+craft-settings paths
+craft-settings photocraft_paths
+craft-settings recovery
+craft-settings store
+craft-review lib
+craft-review it
+craft-browse lib
+craft-browse it
+craft-automation lib
+craft-automation it
+craft egui_fork
+craft registries
