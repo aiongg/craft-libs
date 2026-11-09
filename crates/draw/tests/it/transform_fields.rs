@@ -362,12 +362,83 @@ fn click(fixture: &mut Fixture, label: &str) {
     fixture.idle(3);
 }
 
+/// The name of the node that holds key focus: the focused part, or the focused component's own node.
+fn focused_name(fixture: &Fixture) -> Option<String> {
+    let (owner, part) = fixture.focused_stop()?;
+    let target = match part {
+        Some(part) => fixture.part(owner, part)?,
+        None => fixture.node_of(owner)?,
+    };
+    fixture.tree().name_of(target.node).map(str::to_owned)
+}
+
+/// Tabs through the bar and returns the names of the stops reached, in order, until the first stop repeats.
+fn tab_stops(fixture: &mut Fixture) -> Vec<String> {
+    let mut stops: Vec<String> = Vec::new();
+    for _ in 0..64 {
+        fixture.key(Key::Tab, Modifiers::NONE);
+        match focused_name(fixture) {
+            Some(name) if stops.contains(&name) => break,
+            Some(name) => stops.push(name),
+            None => {}
+        }
+    }
+    stops
+}
+
+/// The bar's buttons form one roving group whose Tab stop is the aspect link in the Box phase; the Warp phase has no
+/// fields, so its first Tab arrives in the group. Tabs to that stop.
+fn tab_to_the_bar_group(fixture: &mut Fixture) {
+    if fixture.by_label(GROUP_STOP).is_none() {
+        fixture.key(Key::Tab, Modifiers::NONE);
+        return;
+    }
+    for _ in 0..64 {
+        fixture.key(Key::Tab, Modifiers::NONE);
+        if focused_name(fixture).as_deref() == Some(GROUP_STOP) {
+            return;
+        }
+    }
+    panic!("Tab reaches {GROUP_STOP}");
+}
+
+const GROUP_STOP: &str = "Maintain aspect ratio";
+
+/// The names of the group's members, reached by Right from its Tab stop, in order after the stop itself.
+fn group_members(fixture: &mut Fixture) -> Vec<String> {
+    tab_to_the_bar_group(fixture);
+    let mut names = vec![GROUP_STOP.to_owned()];
+    for _ in 0..16 {
+        fixture.key(Key::ArrowRight, Modifiers::NONE);
+        match focused_name(fixture) {
+            Some(name) if !names.contains(&name) => names.push(name),
+            _ => break,
+        }
+    }
+    names
+}
+
+/// Reaches the control named `label` as a keyboard user does, a Tab stop or an arrow move inside the bar's group (which
+/// scrolls it into view), and presses Enter on it.
+fn activate(fixture: &mut Fixture, label: &str) {
+    tab_to_the_bar_group(fixture);
+    for _ in 0..16 {
+        if focused_name(fixture).as_deref() == Some(label) {
+            fixture.key(Key::Enter, Modifiers::NONE);
+            fixture.idle(3);
+            return;
+        }
+        fixture.key(Key::ArrowRight, Modifiers::NONE);
+    }
+    panic!("the bar's group reaches {label}");
+}
+
 /// The Box phase in reading order: the fields, the interpolation, the check, the switch, then cancel and commit.
 #[trial]
 fn the_bar_shows_fields_interpolation_check_and_buttons_in_phase_order() {
-    let (fixture, _) = bar(false);
+    let (mut fixture, _) = bar(false);
     let order = [
-        "Reference point",
+        "Center", // the reference point's Tab stop is its current cell
         "X position",
         "Width",
         "Angle",
@@ -378,8 +449,12 @@ fn the_bar_shows_fields_interpolation_check_and_buttons_in_phase_order() {
         "Cancel transform",
         "Commit transform",
     ];
-    let xs: Vec<f32> = order.iter().map(|label| fixture.by_label(label).unwrap_or_else(|| panic!("the bar shows {label}")).rect.min.x).collect();
-    assert!(xs.windows(2).all(|pair| pair[0] < pair[1]), "{xs:?}");
+    let mut stops = tab_stops(&mut fixture);
+    let members = group_members(&mut fixture);
+    stops.extend(members.into_iter().filter(|name| name != GROUP_STOP));
+    let at: Vec<usize> =
+        order.iter().map(|label| stops.iter().position(|stop| stop == label).unwrap_or_else(|| panic!("Tab reaches {label}: {stops:?}"))).collect();
+    assert!(at.windows(2).all(|pair| pair[0] < pair[1]), "{at:?} {stops:?}");
 }
 
 /// The commit and cancel buttons carry the phase's names and report their presses.
@@ -412,12 +487,12 @@ fn the_check_and_the_interpolation_report_edits_and_write_the_settings() {
 #[trial]
 fn the_switch_asks_for_a_warp_and_reset_asks_for_an_identity_warp() {
     let (mut fixture, host) = bar(false);
-    click(&mut fixture, "Switch between free transform and warp modes");
+    activate(&mut fixture, "Switch between free transform and warp modes");
     assert!(host.borrow().edits.iter().any(|edit| matches!(edit, TransformEdit::WarpRequested)));
     let (mut fixture, host) = bar(true);
-    click(&mut fixture, "Reset warp");
+    activate(&mut fixture, "Reset warp");
     assert!(host.borrow().reset);
-    click(&mut fixture, "Switch between free transform and warp modes");
+    activate(&mut fixture, "Switch between free transform and warp modes");
     assert!(host.borrow().edits.iter().any(|edit| matches!(edit, TransformEdit::LeaveWarp)));
 }
 
@@ -425,8 +500,13 @@ fn the_switch_asks_for_a_warp_and_reset_asks_for_an_identity_warp() {
 #[trial]
 fn a_unit_picked_in_the_size_menu_is_written_to_the_settings() {
     let (mut fixture, host) = bar(false);
-    let width = fixture.by_label("Width").expect("the bar shows Width");
-    fixture.click(&width);
+    for _ in 0..64 {
+        fixture.key(Key::Tab, Modifiers::NONE);
+        if focused_name(&fixture).as_deref() == Some("Width") {
+            break;
+        }
+    }
+    assert_eq!(focused_name(&fixture).as_deref(), Some("Width"), "Tab reaches Width");
     fixture.key(Key::F10, Modifiers::SHIFT);
     fixture.idle(3);
     click(&mut fixture, "Inches");
