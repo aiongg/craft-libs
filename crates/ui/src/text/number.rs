@@ -31,7 +31,6 @@ use egui::{Pos2, Rect, Response, Vec2};
 use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::ops::{Deref, RangeInclusive};
-use std::sync::{Arc, Mutex, PoisonError};
 
 /// The step of an arrow press, the wheel and the label scrub when the field sets none.
 const DEFAULT_STEP: f64 = 1.0;
@@ -280,18 +279,7 @@ struct Ruled<V> {
     names: Vec<(u32, String)>,
     /// How many shown units make one stored unit (1 for a field that shows what it holds).
     scale: f64,
-    /// The unit the last parsed and committed text named; shared with the field, which reports it.
-    typed: Arc<Mutex<TypedUnit>>,
     value: PhantomData<fn() -> V>,
-}
-
-/// The unit the text part's parses and commit named.
-#[derive(Default)]
-struct TypedUnit {
-    /// The text the codec parsed last and the unit it named.
-    read: Option<(String, Option<UnitKind>)>,
-    /// The unit of the text that committed this pass.
-    committed: Option<UnitKind>,
 }
 
 impl<V> Clone for Ruled<V> {
@@ -304,7 +292,6 @@ impl<V> Clone for Ruled<V> {
             mixed: self.mixed,
             names: self.names.clone(),
             scale: self.scale,
-            typed: self.typed.clone(),
             value: PhantomData,
         }
     }
@@ -339,17 +326,20 @@ impl<V: NumberValue> Codec for Ruled<V> {
     }
 
     fn parse(&self, text: &str, start: &V) -> Result<V, NotAValue> {
+        self.parse_tagged(text, start).map(|(value, _)| value)
+    }
+
+    fn parse_tagged(&self, text: &str, start: &V) -> Result<(V, Option<u32>), NotAValue> {
         if let Some(name) = self.name_of(text) {
-            return Ok(name);
+            return Ok((name, None));
         }
         if text.trim().is_empty() && (self.mixed || V::blank().is_none()) {
             return Err(NotAValue);
         }
         let (read, tag) = self.inner.parse_tagged(text, &self.shown(start))?;
-        self.typed.lock().unwrap_or_else(PoisonError::into_inner).read = Some((text.to_string(), tag.and_then(UnitKind::from_tag)));
         match read {
-            Some(number) => Ok(V::of_number(self.held(number) / self.scale)),
-            None => V::blank().ok_or(NotAValue),
+            Some(number) => Ok((V::of_number(self.held(number) / self.scale), tag)),
+            None => V::blank().map(|blank| (blank, None)).ok_or(NotAValue),
         }
     }
 
@@ -362,11 +352,6 @@ impl<V: NumberValue> Codec for Ruled<V> {
     }
 
     fn normalise(&self, text: &str, v: &V) -> String {
-        {
-            // Called once, right after the commit's parse of `text`: the unit that parse read is the committed one.
-            let mut typed = self.typed.lock().unwrap_or_else(PoisonError::into_inner);
-            typed.committed = typed.read.take().filter(|(read, _)| read == text).and_then(|(_, unit)| unit);
-        }
         match v.named() {
             Some(_) => self.format(v),
             None => self.inner.normalise(text, &self.shown(v)),
@@ -449,8 +434,6 @@ pub struct NumberField<'a, V: NumberValue + 'static = Option<f64>> {
     scrub: bool,
     picked: Option<NumberPick>,
     unit_size: Vec2,
-    /// What the text part's codec read (`Ruled::typed`).
-    typed: Arc<Mutex<TypedUnit>>,
 }
 
 impl<'a> NumberField<'a, Option<f64>> {
@@ -499,7 +482,6 @@ impl<'a, V: NumberValue + 'static> NumberField<'a, V> {
             scrub: false,
             picked: None,
             unit_size: Vec2::ZERO,
-            typed: Arc::default(),
         }
         .label(label)
     }
@@ -584,7 +566,6 @@ impl<'a, V: NumberValue + 'static> NumberField<'a, V> {
             mixed,
             names,
             scale: self.scale,
-            typed: self.typed.clone(),
             value: PhantomData,
         }
     }
@@ -902,7 +883,7 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         NumberOutput {
             edit: cx.edit_response(),
             preset: self.picked,
-            typed_unit: self.typed.lock().unwrap_or_else(PoisonError::into_inner).committed.take(),
+            typed_unit: cx.text(&text_part::<V>()).and_then(|outcome| outcome.committed_tag).and_then(UnitKind::from_tag),
         }
     }
 }

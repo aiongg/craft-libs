@@ -132,6 +132,7 @@ fn resolver<K: Codec + Clone + 'static>(codec: K, options: &TextOptions, rect: R
         }
         let draft_text = run.draft.clone().unwrap_or_default();
         let (mut submitted, mut escaped) = (false, false);
+        let mut committed_tag = None;
         let submit_mods = std::mem::take(&mut state.submit_mods);
         let end = match state.end.take() {
             None if commit_now && run.is_open() => Some(End::Blur),
@@ -153,22 +154,24 @@ fn resolver<K: Codec + Clone + 'static>(codec: K, options: &TextOptions, rect: R
                     _ => {}
                 }
             }
-            Some(end @ (End::Submit | End::Separator)) => match typing.commit(&mut run) {
-                Ended::Commit(committed) => {
+            Some(end @ (End::Submit | End::Separator)) => match typing.commit_tagged(&mut run) {
+                (Ended::Commit(committed), tag) => {
+                    committed_tag = tag;
                     state.normalised = Some(typing.codec().normalise(&draft_text, &committed));
                     events.push(TextEvent::Commit(committed));
                     submitted = end == End::Submit;
                 }
-                Ended::Rejected => {}
-                Ended::Idle => submitted = end == End::Submit,
+                (Ended::Rejected, _) => {}
+                (Ended::Idle, _) => submitted = end == End::Submit,
                 _ => {}
             },
-            Some(End::Blur) => match typing.commit(&mut run) {
-                Ended::Commit(committed) => {
+            Some(End::Blur) => match typing.commit_tagged(&mut run) {
+                (Ended::Commit(committed), tag) => {
+                    committed_tag = tag;
                     state.normalised = Some(typing.codec().normalise(&draft_text, &committed));
                     events.push(TextEvent::Commit(committed));
                 }
-                Ended::Rejected => {
+                (Ended::Rejected, _) => {
                     typing.cancel(&mut run);
                     events.push(TextEvent::Cancel(CancelReason::Blur));
                 }
@@ -182,6 +185,7 @@ fn resolver<K: Codec + Clone + 'static>(codec: K, options: &TextOptions, rect: R
         let mut outcome = TextOutcome::new(rect);
         outcome.draft = run.draft.clone();
         outcome.invalid = state.invalid;
+        outcome.committed_tag = committed_tag;
         Resolved { events, outcome, submitted, submit_mods: if submitted { submit_mods } else { Mods::NONE }, escaped }
     })
 }

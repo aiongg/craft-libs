@@ -35,6 +35,11 @@ pub trait Codec {
     /// The value of `text`; `start` is the value when editing began, for relative input.
     fn parse(&self, text: &str, start: &Self::Value) -> Result<Self::Value, NotAValue>;
 
+    /// The value of `text` and the tag of the unit it named (`Reader::read_tagged`); the default names none.
+    fn parse_tagged(&self, text: &str, start: &Self::Value) -> Result<(Self::Value, Option<u32>), NotAValue> {
+        self.parse(text, start).map(|value| (value, None))
+    }
+
     /// Whether `text` applies as soon as it is typed rather than on commit.
     fn applies_as_typed(&self, _text: &str) -> bool {
         false
@@ -72,6 +77,10 @@ impl<C: Codec + ?Sized> Codec for &C {
 
     fn parse(&self, text: &str, start: &Self::Value) -> Result<Self::Value, NotAValue> {
         (**self).parse(text, start)
+    }
+
+    fn parse_tagged(&self, text: &str, start: &Self::Value) -> Result<(Self::Value, Option<u32>), NotAValue> {
+        (**self).parse_tagged(text, start)
     }
 
     fn applies_as_typed(&self, text: &str) -> bool {
@@ -205,18 +214,6 @@ impl NumberCodec {
         self.decimals
     }
 
-    /// The value of `text` and the tag of the unit it named (`Reader::read_tagged`); `None` when the text named no
-    /// tagged unit or a custom parser read it.
-    pub fn parse_tagged(&self, text: &str, start: &Option<f64>) -> Result<(Option<f64>, Option<u32>), NotAValue> {
-        if text.trim().is_empty() {
-            return Ok((None, None));
-        }
-        match self.reader.read_tagged(text, *start) {
-            Ok((number, tag)) => Ok((Some(number), tag)),
-            Err(rejected) => self.custom.as_ref().and_then(|parse| parse(text.trim())).map(|number| (Some(number), None)).ok_or(rejected),
-        }
-    }
-
     /// The reader the codec parses with.
     pub fn reader(&self) -> &Reader {
         &self.reader
@@ -241,6 +238,17 @@ impl Codec for NumberCodec {
 
     fn parse(&self, text: &str, start: &Option<f64>) -> Result<Option<f64>, NotAValue> {
         self.parse_tagged(text, start).map(|(value, _)| value)
+    }
+
+    /// The tag is that of the unit the text named; `None` when it named no tagged unit or a custom parser read it.
+    fn parse_tagged(&self, text: &str, start: &Option<f64>) -> Result<(Option<f64>, Option<u32>), NotAValue> {
+        if text.trim().is_empty() {
+            return Ok((None, None));
+        }
+        match self.reader.read_tagged(text, *start) {
+            Ok((number, tag)) => Ok((Some(number), tag)),
+            Err(rejected) => self.custom.as_ref().and_then(|parse| parse(text.trim())).map(|number| (Some(number), None)).ok_or(rejected),
+        }
     }
 
     fn sample(&self, _current: &Option<f64>) -> Cow<'_, str> {
