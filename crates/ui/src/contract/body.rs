@@ -1081,17 +1081,6 @@ impl<'b> BodyHooks<'b> {
         }
     }
 
-    /// Whether a region took another size than the pass placed it by.
-    fn regions_moved(&self, tolerance: f32) -> bool {
-        let moved = |took: Option<Vec2>, placed: Option<Vec2>| {
-            took.is_some_and(|took| placed.is_none_or(|placed| (took - placed).abs().max_elem() > tolerance))
-        };
-        moved(self.body_size, self.measured_body)
-            || moved(self.header_size, self.measured_header)
-            || moved(self.footer_size, Some(self.measured_footer))
-            || moved(self.end_size, self.measured_end)
-    }
-
     /// What the regions took together, padding included, from the records a measuring run left in this pass, when they
     /// serve a run offered `self.room`: on each axis the room equals the recorded one, or the container is not given
     /// that axis and took less than both rooms (the room did not bound it).
@@ -1109,41 +1098,6 @@ impl<'b> BodyHooks<'b> {
         }
         let body = if self.open { body.took } else { Vec2::ZERO };
         Some(self.regions_size(props, body, header, footer, end) + pad)
-    }
-
-    /// A block whose regions took more than the extent its parent's flow placed it at claims what it took: on its
-    /// first appearance (it was placed without a size entry) and in any pass in which a region's size changed. The
-    /// parent's flow moves past the size the block really took (a grid cell is widened to it, so the cells after it
-    /// are placed by it), so whatever contains the block measures its content true in this pass and records it, at
-    /// every depth, and the tree settles in the one discard pass the first record asks for. A block that keeps its
-    /// sizes claims nothing. A block that shrank keeps the extent it was placed at until the next pass places it by
-    /// its record. While the body opens or closes it shows a part of its height by design and claims nothing.
-    fn claim_extent(&self, props: &ContainerProps, ui: &mut Ui, env: &Env, rect: Rect, pad: f32, rtl: bool) {
-        let held = self.held(props, env);
-        if !matches!(props.mount, Mount::Inline) || (self.sizing(props) == Sizing::Fill && !held) {
-            return;
-        }
-        let tolerance = measure_tolerance(crate::runtime::egui::scale::pixels_per_point(ui.ctx()));
-        let animating = self.presence.t > 0.0 && self.presence.t < 1.0;
-        if self.measured_body.is_some() && (animating || !self.regions_moved(tolerance)) {
-            return;
-        }
-        let (body, header, footer) =
-            (self.body_size.unwrap_or(Vec2::ZERO), self.header_size.unwrap_or(Vec2::ZERO), self.footer_size.unwrap_or(Vec2::ZERO));
-        let took = self.regions_size(props, body, header, footer, self.end_size.unwrap_or(Vec2::ZERO)) + Vec2::splat(2.0 * pad);
-        let real = if rtl { Rect::from_min_size(Pos2::new(rect.max.x - took.x, rect.min.y), took) } else { Rect::from_min_size(rect.min, took) };
-        // A held block took no width in the flow: it shows across the column, and only its content counts.
-        let placed = if !held {
-            rect
-        } else if rtl {
-            Rect::from_min_max(Pos2::new(rect.max.x, rect.min.y), rect.max)
-        } else {
-            Rect::from_min_max(rect.min, Pos2::new(rect.min.x, rect.max.y))
-        };
-        if !placed.expand(tolerance).contains_rect(real) {
-            layout::widen_cell(ui, took);
-            alloc::advance_past(ui, real.union(placed));
-        }
     }
 
     /// The header region (B1): the trailing controls take the end edge first (their first control sits at the edge)
@@ -1184,9 +1138,7 @@ impl<'b> BodyHooks<'b> {
         comp.header(&mut header_ui, bcx);
         Env::restore(&ctx, installed);
         let mut took = self.region_size(&header_ui);
-        // A header that took the whole room records no width (see `region_size`); the trailing region adds to a
-        // width that is known.
-        if took.x > 0.0 && controls.x > 0.0 {
+        if controls.x > 0.0 {
             took.x += controls.x + self.region_gap;
         }
         took.y = took.y.max(controls.y);
@@ -1194,24 +1146,9 @@ impl<'b> BodyHooks<'b> {
         bcx.close_requested()
     }
 
-    /// Runs a region's content in an invisible sizing pass under `env` and returns what it took, as the region
-    /// records it. Nothing in a sizing pass senses, registers a stop or writes memory, so the region runs again
-    /// where it shows.
-    fn measure_region(&self, ui: &mut Ui, builder: UiBuilder, env: &Env, content: impl FnOnce(&mut Ui)) -> Vec2 {
-        let ctx = ui.ctx().clone();
-        let mut measure_ui = alloc::child(ui, builder.sizing_pass().invisible());
-        let installed = Env::install_for(&measure_ui, env.clone());
-        super::steps::measuring(&ctx, || content(&mut measure_ui));
-        Env::restore(&ctx, installed);
-        self.region_size(&measure_ui)
-    }
-
-    /// What a header or footer took. Before the body's width is known a region runs in the whole room and a `Fill`
-    /// child takes all of it, so a region that took the whole room records no width then; one that took less
-    /// records what its content needs, so the next pass offers it that much and nothing in it measures squeezed.
+    /// What a header, footer or end region took: what its content allocated.
     fn region_size(&self, ui: &Ui) -> Vec2 {
-        let size = ui.min_rect().size();
-        if self.measured_body.is_some() || size.x + 0.5 < ui.max_rect().width() { size } else { Vec2::new(0.0, size.y) }
+        ui.min_rect().size()
     }
 
     /// The size the regions take together, from what the body, header, footer and end region took (zero for a region
@@ -1280,7 +1217,17 @@ impl<'b> BodyHooks<'b> {
         } else {
             // A fill-width body is offered the room the parent gives this pass, never the height its content took last
             // pass: a collection that scrolls takes its rows up to that room, and from zero it would stay at zero.
-            let offered = (self.sizing(props) == Sizing::FillWidth && room.y.is_finite()).then(|| top + (room.y - stacked_h - across_h).max(0.0));
+            // An inline header shares the line with the body, so the body is offered that line: as high as the tallest of
+            // header, end region and the body this pass measured, at most the room.
+            let body_room = (room.y - stacked_h - across_h).max(0.0);
+            let offered = (self.sizing(props) == Sizing::FillWidth && room.y.is_finite()).then(|| {
+                let line = if inline && self.measured_body.is_some() {
+                    header_h.max(end_h).max(self.measured_body.map_or(0.0, |size| size.y)).min(body_room)
+                } else {
+                    body_room
+                };
+                top + line
+            });
             (offered.unwrap_or(inner.max.y - across_h), inner.max.y - across_h)
         };
         let width = if content_sized {
@@ -1868,7 +1815,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let pad = pad_of(&env.tokens, props.pad);
         let inner = cx.core.content_rect.shrink(pad);
         let room = self.room_size(rect, inner);
-        let regions = self.regions(&props, inner, room, rtl, self.last_sizes());
+        let mut regions = self.regions(&props, inner, room, rtl, self.last_sizes());
         let surface_slot = ui.painter().add(Shape::Noop);
         // A measuring run lays out and measures: it registers no instance, focus body, scroll region or body layer,
         // and claims no room in a parent flow.
@@ -1891,6 +1838,11 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             }
             scoped.ink = cx.core.ink;
             scoped.start_room();
+            // Along a width the container takes from its content, its regions measure at their content widths: a child
+            // that fills takes what it needs, not the whole room.
+            if !real && !self.given.0 {
+                scoped.content_column = true;
+            }
             if props.header.is_some_and(|header| header.band == DragBand::Reorder) {
                 scoped.commands = scoped.commands.pushed(REORDER_SCOPE, id);
             }
@@ -1946,28 +1898,6 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         // A footer in the end region is part of a column sized from its content: a fill-width child takes its
         // measured width there and shows across the column, so it never sets the column's width.
         let footer_env = if footer_in_end(&props) { region_env.derive_local(|scoped| scoped.content_column = true) } else { region_env.clone() };
-        // A filling container places its body from the header that ran above and from the height its footer across
-        // the bottom takes this pass, measured before the body runs. The footer shows after the body, so reading and
-        // Tab order stay header, body, footer. An inline header, the end region and a footer in it keep last pass's
-        // widths, and so does the footer of a label-scoped container, which starts at the control column the label
-        // step finds after this.
-        let regions = if self.sizing(&props) == Sizing::Content {
-            regions
-        } else {
-            let across = props.footer.is_some() && !footer_in_end(&props) && props.label.is_none();
-            let footer = if across {
-                let (mut open_measured, mut gate_measured) = (open, gate);
-                let mut footer_cx =
-                    BodyCx::new(body_id, env_view, resolved, regions.footer, &mut *cx.core.memory, &mut open_measured, gate_measured.as_mut())
-                        .with_owner(owner);
-                self.measure_region(ui, frame.region("footer", regions.footer), &footer_env, |ui| comp.footer(ui, &mut footer_cx))
-            } else {
-                self.measured_footer
-            };
-            let inline = props.header.is_some_and(|header| header.inline);
-            let header = if props.header.is_some() && !inline { self.header_size } else { self.measured_header };
-            self.regions(&props, inner, room, rtl, RegionSizes { header, footer, end: self.measured_end })
-        };
         if real {
             crate::runtime::focus::begin_body(&ctx);
         }
@@ -2151,6 +2081,16 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         // B4 footer: under the control column of a label-scoped container, which starts where the label step put
         // the control.
         if props.footer.is_some() {
+            // Along an axis the room leaves unbounded (a measuring run) the footer follows the body and the end region
+            // it ran after; along a bounded axis it sits at the far edge.
+            if !inner.max.y.is_finite() && !footer_in_end(&props) {
+                let mut bottom = regions.body.min.y + self.body_size.map_or(0.0, |size| size.y);
+                if props.end.is_some() && !end_full_height(&props) {
+                    bottom = bottom.max(regions.end.min.y + self.end_size.map_or(0.0, |size| size.y));
+                }
+                regions.footer.min.y = bottom;
+                regions.footer.max.y = bottom + self.measured_footer.y;
+            }
             let mut footer_rect = regions.footer;
             if props.label.is_some() {
                 if rtl {
@@ -2169,8 +2109,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             Env::restore(&ctx, installed);
             close = close.or(bcx.close_requested());
             let mut took = self.region_size(&footer_ui);
-            // A footer that took the whole room records no width (see `region_size`); one that is known adds the
-            // column it starts after.
+            // The footer's width counts from the container's edge, past the column it starts after.
             if took.x > 0.0 {
                 took.x += offset;
             }
@@ -2214,9 +2153,6 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         }
         let rule = rule_look(&env.tokens, RuleKind::Divider);
         let ppp = ctx.pixels_per_point();
-        if real {
-            self.claim_extent(&props, ui, env, rect, pad, rtl);
-        }
         let draw_rule = |from: f32, to: f32, y: f32| ui.painter().extend(Rule::shapes(&rule, Pos2::new(from, y), Pos2::new(to, y), ppp));
         if props.header.is_some_and(|header| header.rule && !header.inline) {
             draw_rule(inner.min.x, inner.max.x, regions.header.max.y);
@@ -2285,13 +2221,6 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
     }
 
     fn record(&mut self, stage: &mut MemoryStage, ctx: &Context, id: Id) {
-        // A layer is shown as soon as it opens, so a region that took another size than the pass placed by asks for
-        // the discard pass at once, even when its size changed in the last frame too.
-        if self.layer {
-            if self.regions_moved(measure_tolerance(crate::runtime::egui::scale::pixels_per_point(ctx))) {
-                layout_memory::ask_discard(ctx);
-            }
-        }
         if let Some(size) = self.body_size {
             super::steps::record_size(ctx, id, size);
         }

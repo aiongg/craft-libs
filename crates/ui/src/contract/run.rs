@@ -827,7 +827,8 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     // 5 measure
     let room = match at {
         ShowAt::Rect(rect) => Some(rect.width()),
-        ShowAt::Flow => Some(crate::layout::flow_room(ui).x).filter(|width| width.is_finite()),
+        // A measuring run in a content column asks for what the content needs: nothing there fills the room.
+        ShowAt::Flow => Some(crate::layout::flow_room(ui).x).filter(|width| width.is_finite() && !(env.content_column && ui.is_sizing_pass())),
     };
     // Sizes come from this pass: a sizing pass measures the shape from its content; in a real pass a body or item
     // shape takes what its measuring run found.
