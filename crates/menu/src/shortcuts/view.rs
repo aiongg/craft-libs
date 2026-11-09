@@ -12,6 +12,7 @@ mod stories;
 mod table;
 
 use std::borrow::Cow;
+use std::cell::RefCell;
 
 use craft_behavior::IconId;
 use craft_behavior::{ColumnWidth, DisplayOrder, ItemSource, SelectionChange};
@@ -59,24 +60,47 @@ pub(crate) fn body(ui: &mut Ui, cx: &mut BodyCx<'_>, env: &mut Env<'_>, state: &
     sets::show(ui, env, state);
     let browsing = state.review.is_none();
     Stack::new().enabled(browsing).show(ui, |ui, cx| header::show(ui, cx, now, env, state));
-    if !browsing {
-        Stack::new().fill().scroll(Scroll::vertical()).show(ui, |ui, cx| review::show(ui, cx, env, state));
-    } else {
-        let idle = state.prompt.is_none();
-        Stack::new().fill().enabled(idle).show(ui, |ui, cx| middle(ui, cx, now, env, state));
-    }
-    bars::show(ui, cx, env, state);
+    // The bars are the footer of the stack that fills the room, so the table gives them their height.
+    let session = RefCell::new((env, state));
+    Stack::new()
+        .fill()
+        .footer(|ui, cx| {
+            let mut guard = session.borrow_mut();
+            let (env, state) = &mut *guard;
+            bars::show(ui, cx, env, state);
+        })
+        .show(ui, |ui, _| {
+            let mut guard = session.borrow_mut();
+            let (env, state) = &mut *guard;
+            if !browsing {
+                Stack::new().fill().scroll(Scroll::vertical()).show(ui, |ui, cx| review::show(ui, cx, env, state));
+            } else {
+                let idle = state.prompt.is_none();
+                Stack::new().fill().enabled(idle).show(ui, |ui, cx| middle(ui, cx, now, env, state));
+            }
+        });
 }
 
-/// The table beside the detail pane, with the keyboard pane under both while it is on.
-fn middle(ui: &mut Ui, cx: &mut BodyCx<'_>, now: f64, env: &mut Env<'_>, state: &mut DialogState) {
-    Grid::new(&PANES).fill().show(ui, |ui, _| {
-        Stack::new().fill().show(ui, |ui, _| table::show(ui, now, env, state));
-        Stack::new().fill().show(ui, |ui, cx| detail::show(ui, cx, now, env, state));
-    });
-    if env.options.keyboard && !state.keyboard.hidden {
-        keyboard::show(ui, cx, env, state);
+/// The table beside the detail pane; the keyboard pane is the footer under both while it is on.
+fn middle(ui: &mut Ui, _cx: &mut BodyCx<'_>, now: f64, env: &mut Env<'_>, state: &mut DialogState) {
+    let keyboard_on = env.options.keyboard && !state.keyboard.hidden;
+    let session = RefCell::new((env, state));
+    let mut stack = Stack::new().fill();
+    if keyboard_on {
+        stack = stack.footer(|ui, cx| {
+            let mut guard = session.borrow_mut();
+            let (env, state) = &mut *guard;
+            keyboard::show(ui, cx, env, state);
+        });
     }
+    stack.show(ui, |ui, _| {
+        let mut guard = session.borrow_mut();
+        let (env, state) = &mut *guard;
+        Grid::new(&PANES).fill().show(ui, |ui, _| {
+            Stack::new().fill().show(ui, |ui, _| table::show(ui, now, env, state));
+            Stack::new().fill().show(ui, |ui, cx| detail::show(ui, cx, now, env, state));
+        });
+    });
 }
 
 /// The titles of a strip of tabs, keyed by position.
