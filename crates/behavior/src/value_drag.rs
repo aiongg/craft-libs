@@ -244,28 +244,29 @@ mod tests {
     }
 
     #[test]
-    fn an_absolute_drag_follows_the_pointer_on_the_track_and_stops_at_its_ends() {
-        let slider = ValueDrag::absolute(100.0..300.0, 0.0..=10.0);
-        let value = |x: f32, rtl| slider.value(0.0, &drag(pos2(150.0, 0.0), pos2(x, 0.0), Mods::NONE), rtl);
-        assert_eq!(value(200.0, false), Some(5.0));
-        assert_eq!(value(500.0, false), Some(10.0));
-        assert_eq!(value(0.0, false), Some(0.0));
-        assert_eq!(value(250.0, true), Some(2.5), "the track mirrors under RTL");
-    }
-
-    #[test]
-    fn a_vertical_track_that_runs_backwards_gives_the_minimum_at_the_bottom() {
-        let slider = ValueDrag::absolute(300.0..100.0, 0.0..=10.0).axis(Axis::Y);
-        assert_eq!(slider.value(0.0, &drag(pos2(0.0, 300.0), pos2(0.0, 200.0), Mods::NONE), false), Some(5.0));
-    }
-
-    #[test]
-    fn a_range_that_runs_backwards_clamps_to_its_ends_and_maps_the_track_the_other_way() {
-        let slider = ValueDrag::absolute(0.0..100.0, 100.0..=0.0);
-        let value = |x: f32| slider.value(50.0, &drag(pos2(50.0, 0.0), pos2(x, 0.0), Mods::NONE), false);
-        assert_eq!(value(25.0), Some(75.0));
-        assert_eq!(value(500.0), Some(0.0));
-        assert_eq!(value(-500.0), Some(100.0));
+    fn absolute_drag_maps_pointer_to_value() {
+        // an absolute drag follows the pointer on the track and stops at its ends
+        {
+            let slider = ValueDrag::absolute(100.0..300.0, 0.0..=10.0);
+            let value = |x: f32, rtl| slider.value(0.0, &drag(pos2(150.0, 0.0), pos2(x, 0.0), Mods::NONE), rtl);
+            assert_eq!(value(200.0, false), Some(5.0));
+            assert_eq!(value(500.0, false), Some(10.0));
+            assert_eq!(value(0.0, false), Some(0.0));
+            assert_eq!(value(250.0, true), Some(2.5), "the track mirrors under RTL");
+        }
+        // a vertical track that runs backwards gives the minimum at the bottom
+        {
+            let slider = ValueDrag::absolute(300.0..100.0, 0.0..=10.0).axis(Axis::Y);
+            assert_eq!(slider.value(0.0, &drag(pos2(0.0, 300.0), pos2(0.0, 200.0), Mods::NONE), false), Some(5.0));
+        }
+        // a range that runs backwards clamps to its ends and maps the track the other way
+        {
+            let slider = ValueDrag::absolute(0.0..100.0, 100.0..=0.0);
+            let value = |x: f32| slider.value(50.0, &drag(pos2(50.0, 0.0), pos2(x, 0.0), Mods::NONE), false);
+            assert_eq!(value(25.0), Some(75.0));
+            assert_eq!(value(500.0), Some(0.0));
+            assert_eq!(value(-500.0), Some(100.0));
+        }
     }
 
     #[test]
