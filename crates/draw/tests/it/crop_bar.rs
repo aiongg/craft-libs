@@ -3,7 +3,7 @@
 use craft_behavior::geometry::crop::{CropGuide, GuideShow};
 use craft_draw::ui::crop::{
     CROP_RATIOS, CROP_SIZES, CropBar, CropBarWords, CropDocKey, CropDocument, CropFill, CropLength, CropOptionsMenu, CropOverlayMenu,
-    CropPresetChoice, CropRatio, CropRatioChange, CropSettings, CropSizeFields, CropUserPreset, ResolutionUnit,
+    CropPresetChoice, CropRatio, CropRatioChange, CropSettings, CropSizeFields, CropUserPreset, LENGTH_MIN, RATIO_STEP, ResolutionUnit,
 };
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::canvas::ShieldColor;
@@ -15,8 +15,10 @@ use kurbo::Size;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+const POINTS: f64 = UnitKind::POINTS_PER_INCH;
+
 fn document() -> CropDocument {
-    CropDocument::new(CropDocKey::new(1), Size::new(2400.0, 1500.0)).resolution(72.0)
+    CropDocument::new(CropDocKey::new(1), Size::new(2400.0, 1500.0), 72.0)
 }
 
 /// Runs `check` with the units of the default scope.
@@ -104,17 +106,17 @@ fn the_resolution_field_keeps_a_positive_number() {
 fn target_uses_the_typed_resolution_else_the_documents() {
     {
         let doc = document().resolution(100.0);
-        let at_typed = size_mode(inches(4.0), inches(6.0), "300").target(&doc).unwrap();
+        let at_typed = size_mode(inches(4.0), inches(6.0), "300").target(&doc, POINTS).unwrap();
         assert_eq!((at_typed.width, at_typed.height, at_typed.resolution), (1200.0, 1800.0, Some(300.0)));
-        let at_document = size_mode(inches(4.0), pixels(1024.0), "").target(&doc).unwrap();
+        let at_document = size_mode(inches(4.0), pixels(1024.0), "").target(&doc, POINTS).unwrap();
         assert_eq!((at_document.width, at_document.height, at_document.resolution), (400.0, 1024.0, None));
         let mut per_cm = size_mode(Some(CropLength::new(2.54, UnitKind::Centimetres)), inches(1.0), "100");
         per_cm.size.resolution_unit = ResolutionUnit::PixelsPerCentimetre;
-        let t = per_cm.target(&doc).unwrap();
+        let t = per_cm.target(&doc, POINTS).unwrap();
         assert!((t.width - 254.0).abs() < 1e-9 && (t.height - 254.0).abs() < 1e-9 && t.resolution == Some(254.0));
-        let points = size_mode(Some(CropLength::new(72.0, UnitKind::Points)), pixels(1.0), "").target(&doc.points_per_inch(72.27)).unwrap();
+        let points = size_mode(Some(CropLength::new(72.0, UnitKind::Points)), pixels(1.0), "").target(&doc, 72.27).unwrap();
         assert!((points.width - 100.0 * 72.0 / 72.27).abs() < 1e-9);
-        assert!((size_mode(inches(4.0), inches(6.0), "").ratio_value(&doc).unwrap() - 4.0 / 6.0).abs() < 1e-12);
+        assert!((size_mode(inches(4.0), inches(6.0), "").ratio_value(&doc, POINTS).unwrap() - 4.0 / 6.0).abs() < 1e-12);
     }
 }
 
@@ -124,10 +126,10 @@ fn empty_w_or_h_is_a_free_crop() {
     {
         let doc = document();
         let half = size_mode(inches(4.0), None, "300");
-        assert_eq!((half.target(&doc), half.ratio_value(&doc)), (None, None));
+        assert_eq!((half.target(&doc, POINTS), half.ratio_value(&doc, POINTS)), (None, None));
         let mut settings = CropSettings::default();
         settings.set_ratio_field(0, 3.0);
-        assert_eq!((settings.ratio, settings.ratio_fields, settings.ratio_value(&doc)), (CropRatio::Free, [3.0, 0.0], None));
+        assert_eq!((settings.ratio, settings.ratio_fields, settings.ratio_value(&doc, POINTS)), (CropRatio::Free, [3.0, 0.0], None));
         assert_eq!(settings.shown_ratio_fields(&doc), [3.0, 0.0]);
         settings.set_ratio_field(1, 1.41437);
         assert_eq!(settings.ratio, CropRatio::sides(3.0, 1.414));
@@ -292,9 +294,9 @@ fn the_bar_reports_new_and_delete_and_edits_options() {
                 CropRatio::Sides { width: before, height, .. },
                 CropRatio::Sides { width: after, height: kept, .. },
                 CropRatio::Sides { width: again, height: still, .. },
-            ) if after == before + 1.0 && again == after + 1.0 && kept == height && still == height
+            ) if after == before + RATIO_STEP && again == after + RATIO_STEP && kept == height && still == height
         ),
-        "each arrow press adds the step of 1 to the width and keeps the height: {stepped:?}, {twice:?}"
+        "each arrow press adds RATIO_STEP to the width and keeps the height: {stepped:?}, {twice:?}"
     );
     assert!(rig.seen.borrow().iter().any(|s| s.ratio.is_some()));
 
@@ -469,5 +471,17 @@ fn a_cleared_length_field_is_unset() {
     let mut rig = bar(size_mode(inches(4.0), inches(5.0), "300"), Vec::new());
     type_into(&mut rig, "Height", "");
     assert_eq!(rig.settings.borrow().size.height, None);
-    assert_eq!(rig.settings.borrow().target(&document()), None);
+    assert_eq!(rig.settings.borrow().target(&document(), POINTS), None);
+}
+
+/// Photoshop's crop bar holds a positive length: a typed 0 or negative number does not unset the field or make it
+/// zero.
+#[trial]
+fn a_zero_or_negative_length_is_not_kept() {
+    for junk in ["0", "-3"] {
+        let mut rig = bar(size_mode(inches(4.0), inches(5.0), "300"), Vec::new());
+        type_into(&mut rig, "Width", junk);
+        let width = rig.settings.borrow().size.width;
+        assert!(width.is_some_and(|length| length.value >= LENGTH_MIN && length.unit == UnitKind::Inches), "{junk}: {width:?}");
+    }
 }

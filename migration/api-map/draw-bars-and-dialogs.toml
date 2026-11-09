@@ -58,7 +58,7 @@ name = "ShapePanel"
 old = "craft_draw::ui::shape::ShapePanel"
 new = "craft_draw::ui::shape::ShapePanel"
 status = "replaced"
-note = "A `Pattern`: `ShapePanel::new(label, &LiveShape, &ShapeAppearance)`, `show(ui)`; sections are `Section`s, rows are `Field`s."
+note = "A `Pattern`: `ShapePanel::new(label, &LiveShape, &ShapeAppearance, pixels_per_inch)` (the document resolution is required; the `pixels_per_inch` setter is gone), `show(ui)`; sections are `Section`s, rows are `Field`s."
 
 [[type]]
 name = "ShapePanelOutput"
@@ -72,7 +72,7 @@ name = "ShapeBar"
 old = "craft_draw::ui::shape::ShapeBar"
 new = "craft_draw::ui::shape::ShapeBar"
 status = "replaced"
-note = "A `Pattern` shown as children of a `Bar` (`BarKind::Options`): `ShapeBar::new(kind, &settings, &appearance)`, `show(ui)`."
+note = "A `Pattern` shown as children of a `Bar` (`BarKind::Options`): `ShapeBar::new(kind, &settings, &appearance, pixels_per_inch)` (the document resolution is required; the `pixels_per_inch` setter is gone), `show(ui)`."
 
 [[type]]
 name = "ShapeBarOutput"
@@ -697,6 +697,7 @@ name = "CropDocument"
 old = "craft_draw::ui::crop::CropDocument"
 new = "craft_draw::ui::crop::CropDocument"
 status = "same"
+note = "`CropDocument::new(key, size, resolution)` takes the resolution; the `points_per_inch` field and setter are gone (points per inch is the environment's: `Env::units().points_per_inch()`, passed to `CropInput::new`, `CropTool::{apply, leave, refit}`, `CropCommit::new`, `CropSettings::{target, ratio_value}`)."
 
 [[type]]
 name = "CropDocKey"
@@ -1133,6 +1134,20 @@ old = ""
 new = "craft_draw::ui::crop::CropOverlayMenuOutput"
 status = "replaced"
 note = "The overlay menu output: `response` and `changed`."
+
+[[type]]
+name = "RATIO_STEP"
+old = ""
+new = "craft_draw::ui::crop::RATIO_STEP"
+status = "replaced"
+note = "What one arrow press on a ratio field adds to its side; `pub` so trials assert with it."
+
+[[type]]
+name = "LENGTH_MIN"
+old = ""
+new = "craft_draw::ui::crop::LENGTH_MIN"
+status = "replaced"
+note = "The smallest length a W or H field keeps, in its own unit; the field's range starts there."
 
 [[type]]
 name = "CropBarWords"

@@ -20,8 +20,8 @@ pub use bar::{CropBar, CropBarOutput, CropRatioChange};
 pub use bar_words::CropBarWords;
 pub use menus::{CropOptionsMenu, CropOptionsMenuOutput, CropOverlayMenu};
 pub use options::{
-    CROP_RATIOS, CROP_SIZES, CropFill, CropLength, CropPresetChoice, CropRatio, CropSettings, CropSizeFields, CropSizePreset, CropTarget, CropUserPreset,
-    FIELD_MAX, RATIO_DECIMALS, RATIO_MAX, ResolutionUnit,
+    CROP_RATIOS, CROP_SIZES, CropFill, CropLength, CropPresetChoice, CropRatio, CropSettings, CropSizeFields, CropSizePreset, CropTarget,
+    CropUserPreset, FIELD_MAX, LENGTH_MIN, RATIO_DECIMALS, RATIO_MAX, RATIO_STEP, ResolutionUnit,
 };
 pub use perspective_crop::{
     PerspectiveCropOutput, PerspectiveCropQuad, PerspectiveCropStyle, PerspectiveQuad, grid_lines, grid_steps, is_valid, ordered,

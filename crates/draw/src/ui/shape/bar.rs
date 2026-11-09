@@ -1,6 +1,6 @@
 //! [`ShapeBar`]: the Shape tools' options bar cells.
 
-use super::panel::{Cells, ChipSetup, DEFAULT_PIXELS_PER_INCH, NumberCell, SIDES_RANGE, sides_change};
+use super::panel::{Cells, ChipSetup, NumberCell, SIDES_RANGE, sides_change};
 use super::{ShapeAppearance, ShapeChange, ShapePaint, ShapeToolSettings, ShapeWords};
 use crate::ui::shape_drag::ShapeKind;
 use craft_behavior::EditEvent;
@@ -49,8 +49,9 @@ pub struct ShapeBar<'a> {
 }
 
 impl<'a> ShapeBar<'a> {
-    /// The cells for `kind` with the `settings` and `appearance` shown.
-    pub fn new(kind: ShapeKind, settings: &'a ShapeToolSettings, appearance: &'a ShapeAppearance) -> Self {
+    /// The cells for `kind` with the `settings` and `appearance` shown, in a document of `pixels_per_inch`, which sizes a length
+    /// typed in inches or points.
+    pub fn new(kind: ShapeKind, settings: &'a ShapeToolSettings, appearance: &'a ShapeAppearance, pixels_per_inch: f64) -> Self {
         ShapeBar {
             kind,
             settings,
@@ -59,7 +60,7 @@ impl<'a> ShapeBar<'a> {
             chips: None,
             fallbacks: (Srgba::BLACK, Srgba::WHITE),
             sampled: None,
-            pixels_per_inch: DEFAULT_PIXELS_PER_INCH,
+            pixels_per_inch,
         }
     }
 
@@ -88,13 +89,6 @@ impl<'a> ShapeBar<'a> {
     #[must_use]
     pub fn sampled(mut self, sampled: Option<(ShapePaint, Srgba)>) -> Self {
         self.sampled = sampled;
-        self
-    }
-
-    /// The document's pixels per inch, which sizes a length typed in inches or points. 72 by default.
-    #[must_use]
-    pub fn pixels_per_inch(mut self, pixels_per_inch: f64) -> Self {
-        self.pixels_per_inch = pixels_per_inch;
         self
     }
 
