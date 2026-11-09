@@ -141,12 +141,27 @@ pub(crate) fn order_children(ctx: &Context) {
     {
         ctx.set_accesskit_focus(*owner);
     }
+    hide_behind_modal(ctx, viewport, &emitted.written);
     for parent in emitted.written {
         ctx.accesskit_node_builder(parent, |node| {
             let mut children = node.children().to_vec();
             children.sort_by_key(|id| emitted.order.get(&id.0).copied().unwrap_or(usize::MAX));
             node.set_children(children);
         });
+    }
+}
+
+/// While a modal layer is open in `viewport`, hides the nodes the runtime wrote on layers below it: what sits behind
+/// a modal is inert for assistive technology, as it is for the pointer and the keys.
+fn hide_behind_modal(ctx: &Context, viewport: ViewportId, written: &HashSet<Id>) {
+    if crate::runtime::commands::modal_root(ctx, viewport).is_none() {
+        return;
+    }
+    for id in written {
+        let behind = ctx.read_response(*id).is_some_and(|response| !ctx.memory(|memory| memory.is_above_modal_layer(response.layer_id)));
+        if behind {
+            hide(ctx, *id);
+        }
     }
 }
 

@@ -358,6 +358,11 @@ pub(crate) fn set_modal_open(ctx: &Context, open: bool, viewport: ViewportId, ro
     });
 }
 
+/// The root of the top modal layer of `viewport`, if one is open.
+pub(crate) fn modal_root(ctx: &Context, viewport: ViewportId) -> Option<Id> {
+    with(ctx, |board| board.modal_roots.iter().find(|(of, _)| *of == viewport).map(|(_, root)| *root))
+}
+
 /// `command` as seen by `instance` (`None` for the app), with the gate applied outside the board's lock.
 fn resolve_in(ctx: &Context, command: &CommandRef, instance: Option<Id>) -> ResolvedCommand {
     let (mut resolved, first_unknown, gate) = with(ctx, |board| {
