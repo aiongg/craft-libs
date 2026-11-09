@@ -606,6 +606,12 @@ const SWATCHES: [(&str, [f32; 3]); 6] = [
     ("Violet", [0.56, 0.31, 0.78]),
 ];
 
+/// The hex of the `SWATCHES` colour named `name`.
+fn swatch_hex(name: &str) -> String {
+    let (_, [r, g, b]) = SWATCHES.iter().find(|(n, _)| *n == name).expect("a listed swatch");
+    Srgba::rgb(*r, *g, *b).to_hex()
+}
+
 /// A palette over `SWATCHES` choosing the colour the test sets.
 struct PaletteRig {
     fixture: Fixture,
@@ -669,11 +675,11 @@ fn the_palette_chooses_by_click_space_or_enter_and_moves_focus_by_arrows() {
     let orange = rig.fixture.by_label("Orange").expect("the swatch");
     rig.fixture.click(&orange);
     assert_eq!(rig.events.get(), 2, "a click is one Set");
-    assert_eq!(rig.color.get().to_hex(), "#f76b15");
+    assert_eq!(rig.color.get().to_hex(), swatch_hex("Orange"));
     rig.fixture.key(Key::ArrowRight, Modifiers::NONE);
     rig.fixture.key(Key::Enter, Modifiers::NONE);
     assert_eq!(rig.events.get(), 3, "Enter chooses the focused swatch: one Set");
-    assert_eq!(rig.color.get().to_hex(), "#30a36b");
+    assert_eq!(rig.color.get().to_hex(), swatch_hex("Green"));
 }
 
 /// Up and Down walk the wrapped rows of the palette to the swatch in the same column.
