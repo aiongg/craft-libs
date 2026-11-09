@@ -121,7 +121,7 @@ fn entering_full_screen_sends_its_command_once() {
 
 #[trial]
 fn the_bind_and_the_os_leave_full_screen_each_way() {
-    {
+    for by_the_app in [true, false] {
         let windows = Windows::new();
         windows.root_info(root(false, false));
         let mut mode = ScreenMode::Standard;
@@ -131,26 +131,18 @@ fn the_bind_and_the_os_leave_full_screen_each_way() {
         windows.root_info(root(true, false));
         settle(&windows, &mut mode);
         assert_eq!(mode, ScreenMode::FullScreen);
-        mode = ScreenMode::Standard;
-        assert_eq!(screen_commands(&frame(&windows, &mut mode)), [ViewportCommand::Fullscreen(false)], "the app's own write is carried out");
-    }
-    {
-        let windows = Windows::new();
-        windows.root_info(root(false, false));
-        let mut mode = ScreenMode::Standard;
-        settle(&windows, &mut mode);
-        mode = ScreenMode::FullScreen;
-        frame(&windows, &mut mode);
-        windows.root_info(root(true, false));
-        settle(&windows, &mut mode);
-        assert_eq!(mode, ScreenMode::FullScreen);
-        windows.root_info(root(false, false));
-        let mut sent = Vec::new();
-        for _ in 0..SETTLED_FRAMES {
-            sent.extend(screen_commands(&frame(&windows, &mut mode)));
+        if by_the_app {
+            mode = ScreenMode::Standard;
+            assert_eq!(screen_commands(&frame(&windows, &mut mode)), [ViewportCommand::Fullscreen(false)], "the app's own write is carried out");
+        } else {
+            windows.root_info(root(false, false));
+            let mut sent = Vec::new();
+            for _ in 0..SETTLED_FRAMES {
+                sent.extend(screen_commands(&frame(&windows, &mut mode)));
+            }
+            assert_eq!(mode, ScreenMode::Standard, "the window left full screen on its own, as the macOS green button does");
+            assert!(!sent.contains(&ViewportCommand::Fullscreen(true)), "the shell does not send the window back: {sent:?}");
         }
-        assert_eq!(mode, ScreenMode::Standard, "the window left full screen on its own, as the macOS green button does");
-        assert!(!sent.contains(&ViewportCommand::Fullscreen(true)), "the shell does not send the window back: {sent:?}");
     }
 }
 

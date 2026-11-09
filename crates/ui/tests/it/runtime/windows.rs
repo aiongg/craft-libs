@@ -639,42 +639,30 @@ fn window_actions_and_queries_follow_the_window_system() {
 }
 
 /// Monitors of different scales that touch in pixels touch in the points of any one window's scale: no gap, no
-/// overlap.
+/// overlap. A window's scale is that of the monitor it is on, and none when it is on no monitor.
 #[trial]
 fn monitors_of_different_scales_touch_in_one_window_scale() {
-    {
-        let system = Arc::new(FakeSystem::new());
-        system.set_monitors(vec![
-            Monitor::new(MonitorKey::new("DP-1", [3840, 2160]), [0, 0], [3840, 2160], 2.0),
-            Monitor::new(MonitorKey::new("DP-2", [1920, 1080]), [3840, 0], [1920, 1080], 1.0),
-        ]);
-        let windows = Windows::with(InstallSpec::new(ShellInfo::default(), system));
-        for scale in [1.0, 1.5, 2.0] {
-            let monitors = WindowHost::of(&windows.ctx).monitors(scale);
-            let [left, right] = [monitors[0].rect, monitors[1].rect];
-            assert_eq!(left.max.x, right.min.x, "the monitors touch at scale {scale}");
-            assert_eq!((left.min.y, right.min.y), (0.0, 0.0));
-        }
+    let system = Arc::new(FakeSystem::new());
+    system.set_monitors(vec![
+        Monitor::new(MonitorKey::new("DP-1", [3840, 2160]), [0, 0], [3840, 2160], 2.0),
+        Monitor::new(MonitorKey::new("DP-2", [1920, 1080]), [3840, 0], [1920, 1080], 1.0),
+    ]);
+    let windows = Windows::with(InstallSpec::new(ShellInfo::default(), system));
+    for scale in [1.0, 1.5, 2.0] {
+        let monitors = WindowHost::of(&windows.ctx).monitors(scale);
+        let [left, right] = [monitors[0].rect, monitors[1].rect];
+        assert_eq!(left.max.x, right.min.x, "the monitors touch at scale {scale}");
+        assert_eq!((left.min.y, right.min.y), (0.0, 0.0));
     }
-    {
-        let system = Arc::new(FakeSystem::new());
-        system.set_monitors(vec![
-            Monitor::new(MonitorKey::new("DP-1", [3840, 2160]), [0, 0], [3840, 2160], 2.0),
-            Monitor::new(MonitorKey::new("DP-2", [1920, 1080]), [3840, 0], [1920, 1080], 1.0),
-        ]);
-        let windows = Windows::with(InstallSpec::new(ShellInfo::default(), system));
-        let scale_of = |rect: Rect| {
-            windows.root_info(ViewportInfo { inner_rect: Some(rect), outer_rect: Some(rect), ..ViewportInfo::default() });
-            windows.frame(vec![], vec![], |_| {});
-            WindowHost::of(&windows.ctx).facts(ViewportId::ROOT).expect("the root reported").scale
-        };
-        let on_left = Rect::from_min_size(Pos2::new(100.0, 100.0), Vec2::new(400.0, 300.0));
-        let on_right = Rect::from_min_size(Pos2::new(3900.0, 100.0), Vec2::new(400.0, 300.0));
-        let nowhere = Rect::from_min_size(Pos2::new(-9000.0, -9000.0), Vec2::new(400.0, 300.0));
-        assert_eq!(scale_of(on_left), Some(2.0), "the left monitor's scale");
-        assert_eq!(scale_of(on_right), Some(1.0), "the right monitor's scale");
-        assert_eq!(scale_of(nowhere), None, "a window on no monitor has no scale");
-    }
+    let scale_of = |rect: Rect| {
+        windows.root_info(ViewportInfo { inner_rect: Some(rect), outer_rect: Some(rect), ..ViewportInfo::default() });
+        windows.frame(vec![], vec![], |_| {});
+        WindowHost::of(&windows.ctx).facts(ViewportId::ROOT).expect("the root reported").scale
+    };
+    let size = Vec2::new(400.0, 300.0);
+    assert_eq!(scale_of(Rect::from_min_size(Pos2::new(100.0, 100.0), size)), Some(2.0), "the left monitor's scale");
+    assert_eq!(scale_of(Rect::from_min_size(Pos2::new(3900.0, 100.0), size)), Some(1.0), "the right monitor's scale");
+    assert_eq!(scale_of(Rect::from_min_size(Pos2::new(-9000.0, -9000.0), size)), None, "a window on no monitor has no scale");
 }
 
 /// What typing in a tool window does: a shortcut chord pressed there fires its command once, and text typed there

@@ -124,27 +124,18 @@ fn shift_tab_hides_the_panels_and_keeps_the_tools_in_normal_mode_only() {
 
 #[trial]
 fn the_f_key_cycles_the_window_and_shift_f_goes_back() {
-    {
-        let mut window = Window::new(ScreenMode::Standard, Direction::Ltr);
-        for expected in [ScreenMode::FullScreenWithMenuBar, ScreenMode::FullScreen, ScreenMode::Standard] {
-            window.key(Key::F, Modifiers::NONE);
-            assert_eq!(window.mode.get(), expected);
-        }
-        window.key(Key::F, Modifiers::SHIFT);
-        assert_eq!(window.mode.get(), ScreenMode::FullScreen);
+    let mut window = Window::new(ScreenMode::Standard, Direction::Ltr);
+    for expected in [ScreenMode::FullScreenWithMenuBar, ScreenMode::FullScreen, ScreenMode::Standard] {
+        window.key(Key::F, Modifiers::NONE);
+        assert_eq!(window.mode.get(), expected);
     }
-    {
-        let mut mode = ScreenMode::Standard;
-        for expected in [ScreenMode::FullScreenWithMenuBar, ScreenMode::FullScreen, ScreenMode::Standard] {
-            mode = mode.next();
-            assert_eq!(mode, expected);
-        }
-        for mode in [ScreenMode::Standard, ScreenMode::FullScreenWithMenuBar, ScreenMode::FullScreen] {
-            assert_eq!(mode.next().previous(), mode);
-            assert_eq!(ScreenModeCommands::Cycle.apply(mode), mode.next());
-            assert_eq!(ScreenModeCommands::CycleBack.apply(mode), mode.previous());
-            assert_eq!(ScreenModeCommands::of(mode).apply(ScreenMode::Standard), mode);
-        }
+    window.key(Key::F, Modifiers::SHIFT);
+    assert_eq!(window.mode.get(), ScreenMode::FullScreen);
+    for mode in [ScreenMode::Standard, ScreenMode::FullScreenWithMenuBar, ScreenMode::FullScreen] {
+        assert_eq!(mode.next().previous(), mode);
+        assert_eq!(ScreenModeCommands::Cycle.apply(mode), mode.next());
+        assert_eq!(ScreenModeCommands::CycleBack.apply(mode), mode.previous());
+        assert_eq!(ScreenModeCommands::of(mode).apply(ScreenMode::Standard), mode);
     }
 }
 
@@ -381,18 +372,17 @@ fn two_windows_keep_separate_dialog_hosts() {
 
 #[trial]
 fn the_pointer_at_an_edge_reveals_that_edge_and_rtl_mirrors_it() {
-    {
-        let cases = [(TOP_STRIP, vec!["title"]), (START_STRIP, vec!["tools"]), (END_STRIP, vec!["inspector"]), (BOTTOM_STRIP, vec![])];
-        for (pointer, expected) in cases {
-            let mut window = Window::new(ScreenMode::FullScreen, Direction::Ltr);
-            window.pass(vec![moved(pointer)]);
-            assert_eq!(window.slots(), expected, "pointer at {pointer:?}");
-        }
-    }
-    {
-        let mut window = Window::new(ScreenMode::FullScreen, Direction::Rtl);
-        window.pass(vec![moved(START_STRIP)]);
-        assert_eq!(window.slots(), ["inspector"], "the left edge is the end edge");
+    let cases = [
+        (Direction::Ltr, TOP_STRIP, vec!["title"]),
+        (Direction::Ltr, START_STRIP, vec!["tools"]),
+        (Direction::Ltr, END_STRIP, vec!["inspector"]),
+        (Direction::Ltr, BOTTOM_STRIP, vec![]),
+        (Direction::Rtl, START_STRIP, vec!["inspector"]),
+    ];
+    for (direction, pointer, expected) in cases {
+        let mut window = Window::new(ScreenMode::FullScreen, direction);
+        window.pass(vec![moved(pointer)]);
+        assert_eq!(window.slots(), expected, "{direction:?}: pointer at {pointer:?}");
     }
 }
 
@@ -462,25 +452,17 @@ fn tab_toggles_the_chrome_in_each_mode() {
 
 #[trial]
 fn tab_goes_to_the_window_that_holds_focus() {
-    {
-        assert_eq!(tab_hides(&["main"]), [("main", false)]);
-    }
-    {
-        assert_eq!(tab_hides(&["first", "second"]), [("first", true), ("second", false)], "Tab goes to the window that holds focus");
-    }
+    assert_eq!(tab_hides(&["main"]), [("main", false)]);
+    assert_eq!(tab_hides(&["first", "second"]), [("first", true), ("second", false)], "Tab goes to the window that holds focus");
 }
 
 #[trial]
 fn a_window_prompt_answers_the_body_by_click_and_by_enter() {
-    {
-        prompt_through_the_window_host(|fixture| {
-            let button = fixture.by_label("Delete").expect("the default button of the prompt");
-            fixture.click(&button);
-        });
-    }
-    {
-        prompt_through_the_window_host(|fixture| {
-            fixture.key(Key::Enter, Modifiers::NONE);
-        });
-    }
+    prompt_through_the_window_host(|fixture| {
+        let button = fixture.by_label("Delete").expect("the default button of the prompt");
+        fixture.click(&button);
+    });
+    prompt_through_the_window_host(|fixture| {
+        fixture.key(Key::Enter, Modifiers::NONE);
+    });
 }
