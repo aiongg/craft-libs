@@ -64,17 +64,6 @@ pub(super) fn record_measure(ctx: &Context, id: Id, size: Vec2) {
     layout_memory::record(ctx, id, size);
 }
 
-/// The widest ideal row width the last pass measured for a content-sized collection, read as a placement: a change
-/// at `record_widest` asks for the one discard pass.
-pub(super) fn widest_row(ctx: &Context, collection: Id) -> Option<f32> {
-    layout_memory::read(ctx, sub(collection, "row_width")).map(|size| size.x)
-}
-
-/// Records the widest ideal width of the rows this pass built.
-pub(super) fn record_widest(ctx: &Context, collection: Id, widest: f32) {
-    layout_memory::record(ctx, sub(collection, "row_width"), Vec2::new(widest, 0.0));
-}
-
 impl<C: Collection> ItemsHooks<'_, '_, C> {
     /// The row-child move of 17.5, tried before the navigation core: Forward on the lead row enters its first
     /// focusable child or part. A closed parent expands instead, a row with no children leaves the move to the

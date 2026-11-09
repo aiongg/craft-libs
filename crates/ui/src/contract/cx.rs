@@ -1346,11 +1346,25 @@ impl<'a> BodyCx<'a> {
             size: self.resolved.size,
         };
         let placed = label::leaf(ui, &env, &at, &mut child);
-        let control = Rect::from_min_size(placed.control.min, Vec2::new(placed.control.width(), ideal.y));
+        // In a column that sizes from its content the row is the label plus the control, never the room around them.
+        let content = env.content.0;
+        let control_width = if content { placed.control.width().min(ideal.x) } else { placed.control.width() };
+        let mut control = Rect::from_min_size(placed.control.min, Vec2::new(control_width, ideal.y));
+        let rtl = env.direction.is_rtl();
+        if content && rtl {
+            control = control.translate(Vec2::new(placed.control.width() - control_width, 0.0));
+        }
+        let extent = if !content {
+            avail.width()
+        } else if rtl {
+            avail.max.x - control.min.x.min(placed.label.min.x)
+        } else {
+            control.max.x.max(placed.label.max.x) - avail.min.x
+        };
         let output = super::run::show_leaf(super::Props::id(child, id), ui, ShowAt::Rect(control), None);
         let bottom = control.bottom().max(placed.label.bottom());
         placed.finish(ui.ctx());
-        alloc::space(ui, Vec2::new(avail.width(), (bottom - row.top()).max(ideal.y)));
+        alloc::space(ui, Vec2::new(extent, (bottom - row.top()).max(ideal.y)));
         output
     }
 }

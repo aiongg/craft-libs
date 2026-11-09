@@ -537,6 +537,9 @@ pub(super) struct BodyHooks<'b> {
     reports: Vec<PlacementChange>,
     /// The host gives the container a rect of its own size: a full window, an OS viewport or a layer the user sized.
     fixed: bool,
+    /// The axes (horizontal, vertical) the container is given: it fills them, and its own container was given them
+    /// too or it is shown at a rect. Along the others it sizes from its content.
+    given: (bool, bool),
     /// A bottom-anchored region is following the end of its content.
     follows_end: bool,
 }
@@ -1022,6 +1025,7 @@ impl<'b> BodyHooks<'b> {
             pane_grip: None,
             reports: Vec::new(),
             fixed: false,
+            given: (false, false),
             follows_end: false,
         }
     }
@@ -1041,6 +1045,18 @@ impl<'b> BodyHooks<'b> {
     /// width and shows it across the width the column settles on (step 6).
     fn held(&self, props: &ContainerProps, env: &Env) -> bool {
         env.content_column && matches!(props.mount, Mount::Inline) && self.sizing(props) != Sizing::Content
+    }
+
+    /// The axes the container is given where `env` is its parent's: a rect it is shown at gives both; an inline
+    /// container that fills an axis takes the room only where its parent was given that axis.
+    fn given_axes(&self, props: &ContainerProps, env: &Env, at: ShowAt) -> (bool, bool) {
+        let sizing = self.sizing(props);
+        let (x, y) = (sizing != Sizing::Content, sizing == Sizing::Fill);
+        match (at, &props.mount) {
+            (ShowAt::Rect(_), _) => (true, true),
+            (ShowAt::Flow, Mount::Inline) => (x && !env.content.0 && !self.held(props, env), y && !env.content.1),
+            (ShowAt::Flow, _) => (x, y),
+        }
     }
 
     /// Whether a region took another size than the pass placed it by.
@@ -1207,8 +1223,11 @@ impl<'b> BodyHooks<'b> {
         // An inline header takes no height of its own: the line is as high as the taller of header and body.
         let stacked_h = if inline { 0.0 } else { header_h };
         let top = inner.min.y + stacked_h;
+        // Along an axis the container is not given, its body is offered the room the container was offered and the
+        // container takes what the body took.
         let content_sized = self.sizing(props) == Sizing::Content;
-        let (bottom, footer_top) = if content_sized {
+        let content_y = content_sized || (self.sizing(props) == Sizing::Fill && !self.given.1);
+        let (bottom, footer_top) = if content_y {
             let body_room = (room.y - stacked_h - across_h).max(0.0);
             // A body that fills records the band it was given, which may predate the footer's measure: the line is
             // never taller than the room less header and footer, so the footer stays inside the room.
@@ -1223,7 +1242,13 @@ impl<'b> BodyHooks<'b> {
             let offered = (self.sizing(props) == Sizing::FillWidth && room.y.is_finite()).then(|| top + (room.y - stacked_h - across_h).max(0.0));
             (offered.unwrap_or(inner.max.y - across_h), inner.max.y - across_h)
         };
-        let width = if content_sized { self.shared_width(room.x, props) } else { inner.width() };
+        let width = if content_sized {
+            self.shared_width(room.x, props)
+        } else if !self.given.0 {
+            self.shared_width(room.x, props).max(inner.width())
+        } else {
+            inner.width()
+        };
         let (left, right) = if rtl { (inner.max.x - width, inner.max.x) } else { (inner.min.x, inner.min.x + width) };
         let band = |top: f32, bottom: f32| Rect::from_min_max(Pos2::new(left, top), Pos2::new(right, bottom.max(top)));
         let header = band(inner.min.y, if props.header.is_some() { inner.min.y + header_h.max(0.0) } else { inner.min.y });
@@ -1553,6 +1578,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
     fn extent(&mut self, comp: &C, ui: &Ui, at: ShowAt, _id: Id, scx: &StyleCx<'_>) -> Vec2 {
         let props = comp.props(Internal::new());
         self.room = self.mount_room(props, ui, at);
+        self.given = self.given_axes(props, &Env::of(ui), at);
         let remembered = self.remembered.unwrap_or(Vec2::ZERO);
         let body = if self.presence.visible { Vec2::new(remembered.x, remembered.y * self.presence.t) } else { Vec2::ZERO };
         let room = self.room.x - 2.0 * pad_of(scx.tokens, props.pad);
@@ -1588,6 +1614,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             Some(width) => Vec2::new(width, f32::INFINITY),
             None => self.mount_room(&props, at.ui, at.at),
         };
+        self.given = self.given_axes(&props, at.env, at.at);
         let origin = match at.at {
             ShowAt::Rect(rect) => rect.min,
             ShowAt::Flow => at.ui.cursor().min,
@@ -1614,17 +1641,24 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
     }
 
     fn sized(&self, comp: &C, ui: &Ui, size: Vec2) -> Vec2 {
-        match self.sizing(comp.props(Internal::new())) {
+        let props = comp.props(Internal::new());
+        match self.sizing(props) {
             Sizing::Fill => {
                 let room = crate::layout::flow_room(ui);
                 // The available rect, not at least it: a fill child that took the whole room in an earlier pass (a
                 // content-sized layer offers its whole room before the footer is known) must not keep its remembered
-                // size once the room is less.
-                Vec2::new(if room.x.is_finite() { room.x } else { size.x }, if room.y.is_finite() { room.y } else { size.y })
+                // size once the room is less. Along an axis it is not given it takes its measured size.
+                Vec2::new(
+                    if room.x.is_finite() && self.given.0 { room.x } else { size.x },
+                    if room.y.is_finite() && self.given.1 { room.y } else { size.y },
+                )
             }
             Sizing::FillWidth => {
                 let room = crate::layout::flow_fill_room(ui).x;
-                Vec2::new(if room.is_finite() { size.x.max(room) } else { size.x }, size.y)
+                // A fill-width child held in a content column is not given the width (it never sets the column's
+                // width) but shows across the column.
+                let across = self.given.0 || self.held(props, &Env::of(ui));
+                Vec2::new(if room.is_finite() && across { size.x.max(room) } else { size.x }, size.y)
             }
             Sizing::Content => size,
         }
@@ -1857,6 +1891,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 } else {
                     regions.body.width()
                 },
+                content_row: false,
                 text: resolved.label_value,
                 side,
                 help: props.help.as_ref(),
@@ -1870,14 +1905,17 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         // B3 body, if open, under the body env; the gate is read after the header changed it.
         if is_open {
             // A held fill-width container is part of the content column it sits in: its own stack is one too.
-            let content_column =
-                (self.sizing(&props) == Sizing::Content || self.held(&props, env)) && matches!(props.layout, layout::BodyLayout::Stack);
+            let (sizing, held) = (self.sizing(&props), self.held(&props, env));
+            let content_column = (sizing == Sizing::Content || held || !self.given.0) && matches!(props.layout, layout::BodyLayout::Stack);
             let body_env = line_env.derive_local(|scoped| {
                 if props.arena {
                     scoped.arena = Some(ArenaId::new(id));
                 }
                 scoped.transform = props.transform;
                 scoped.content_column = content_column;
+                scoped.row_room = None;
+                scoped.content = (!self.given.0, !self.given.1);
+                scoped.offered = (!self.given.0 && room.x.is_finite()).then_some(room.x);
                 match scroll {
                     Some(scroll) => {
                         scoped.scroll_owner = Some(id);

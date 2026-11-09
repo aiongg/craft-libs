@@ -68,6 +68,18 @@ pub struct StampSettings {
     pub aligned: bool,
 }
 
+impl StampSettings {
+    /// The hardness as a share of 1, as the engine takes it.
+    pub fn hardness_share(&self) -> f64 {
+        self.hardness / 100.0
+    }
+
+    /// The opacity as a share of 1, as the engine takes it.
+    pub fn opacity_share(&self) -> f64 {
+        self.opacity / 100.0
+    }
+}
+
 impl Default for StampSettings {
     fn default() -> Self {
         // pc: crates/ui-egui/src/dialogs/vp_ui.rs:826.
