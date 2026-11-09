@@ -3711,7 +3711,7 @@ Text dumps for tests: ordered `key = value` lines compared exactly with a file, 
   - `pub fn tree(&self) -> &AccessTree`. The AccessKit tree of the latest frame.
   - `pub fn target(&self, node: NodeKey) -> Option<Target>`. The node by key, with its bounds, when the latest tree has it.
   - `pub fn by_label(&self, label: &str) -> Option<Target>`. The node named `label`: the interactive node whose name resolves to it (its own, or the node that labels it
-  - `pub fn by_role(&self, role: Role) -> Vec<Target>`. The nodes of `role` in tree order: depth first from the root, children in their declared order.
+  - `pub fn by_role(&self, role: Role) -> Vec<Target>`. The nodes of `role` in tree order.
   - `pub fn part(&self, component: Id, part: impl Into<PartRef>) -> Option<Target>`. The sub-node of `part` below the component `component`.
   - `pub fn part_rect(&self, owner: Id, part: impl Into<PartRef>) -> Option<Rect>`. The rect of the part `part` of the component `owner` as the sensing step recorded it, for parts that have no
   - `pub fn node_of(&self, component: Id) -> Option<Target>`. The node of the component `component`.
