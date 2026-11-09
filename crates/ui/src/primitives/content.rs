@@ -46,6 +46,19 @@ impl<'a> ContentPainterCx<'a> {
         width.points(self.tokens, self.painter.ctx().pixels_per_point())
     }
 
+    /// Runs `paint` with a `ContentPainterCx` whose painting is `share` as opaque as it would be: the fade
+    /// `Draw::faded` applies (fades multiply; a value outside 0 to 1 is clamped and a non-finite one leaves the
+    /// opacity as it was).
+    pub fn faded(&self, share: f32, paint: impl FnOnce(&ContentPainterCx<'_>)) {
+        let faded = ContentPainterCx {
+            painter: super::draw::faded_painter(&self.painter, share),
+            tokens: self.tokens,
+            direction: self.direction,
+            ink: self.ink,
+        };
+        paint(&faded);
+    }
+
     /// The one sanctioned text layout for content painters: document runs with their own font, size and colour,
     /// laid out by the call `TextRun::layout` uses.
     pub fn layout(&self, text: &DocText<'_>) -> TextLayout {

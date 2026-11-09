@@ -51,8 +51,8 @@ impl Component for Plate {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let rect = cx.part(BODY).rect;
         let draw = ui.draw_part(BODY);
-        draw.data_stroke(&PaintShape::Path(vec![rect.left_center(), rect.right_center()]), DataWidth::points(DATA_WIDTH), DataColor::new(INK));
-        draw.data_stroke(&PaintShape::Path(vec![rect.left_top(), rect.right_top()]), StrokeWidth::Thick, DataColor::new(INK));
+        draw.stroke(&PaintShape::Path(vec![rect.left_center(), rect.right_center()]), DataWidth::points(DATA_WIDTH), DataColor::new(INK));
+        draw.stroke(&PaintShape::Path(vec![rect.left_top(), rect.right_top()]), StrokeWidth::Thick, DataColor::new(INK));
         draw.texture(rect, self.texture, UV);
     }
 
