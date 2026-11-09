@@ -487,7 +487,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let previous = self.layout.take().or_else(|| self.previous.take()).map(|held| Arc::try_unwrap(held).unwrap_or_else(|held| (*held).clone()));
         let mut layout = comp.item_layout_from(previous, self.source, width, scx);
         if self.header.has_columns() {
-            layout.set_columns(&self.header.columns(width));
+            layout.set_columns(&if self.content_sized(comp) { self.header.columns_shared(width) } else { self.header.columns(width) });
         }
         let ctx = ui.ctx();
         rows::measured_heights(ctx, |height| layout.measured(&|at| height(rows::measured_id(id, &self.source.key(at)))));

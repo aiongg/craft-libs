@@ -138,7 +138,20 @@ impl Header {
 
     /// The width of each column, in display order, in a row `room` wide.
     fn widths(&self, room: f32) -> Vec<f32> {
-        let kinds: Vec<ColumnWidth> = self.specs.iter().map(|spec| self.width_of(spec)).collect();
+        self.widths_for(room, false)
+    }
+
+    /// `widths`, where `shared` makes a `Content` column share the room beside the fixed ones with the `Fill` columns:
+    /// a collection sized from its widest row has no other measure of a column's content than that row.
+    fn widths_for(&self, room: f32, shared: bool) -> Vec<f32> {
+        let kinds: Vec<ColumnWidth> = self
+            .specs
+            .iter()
+            .map(|spec| match self.width_of(spec) {
+                ColumnWidth::Content if shared => ColumnWidth::fill(1.0),
+                width => width,
+            })
+            .collect();
         let content = vec![self.min; kinds.len()];
         resolve_columns(&kinds, &content, room, 0.0)
     }
@@ -174,6 +187,11 @@ impl Header {
     /// The columns with their widths for the item layout.
     pub(super) fn columns(&self, room: f32) -> Vec<(ColumnKey, f32)> {
         self.specs.iter().map(|spec| spec.key.clone()).zip(self.widths(room)).collect()
+    }
+
+    /// The columns for a collection sized from its widest row, `width` wide (see `widths_for`).
+    pub(super) fn columns_shared(&self, width: f32) -> Vec<(ColumnKey, f32)> {
+        self.specs.iter().map(|spec| spec.key.clone()).zip(self.widths_for(width, true)).collect()
     }
 
     /// Step 7: one focusable part per column, a resize grip at the end edge of each resizable one, and the group.

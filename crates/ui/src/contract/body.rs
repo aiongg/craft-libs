@@ -1657,7 +1657,11 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 let room = crate::layout::flow_fill_room(ui).x;
                 // A fill-width child held in a content column is not given the width (it never sets the column's
                 // width) but shows across the column.
-                let across = self.given.0 || self.held(props, &Env::of(ui));
+                // It widens to the column it is held in, never past it, and only where it is shown: its measure never
+                // sets the column's width.
+                let held = !self.given.0 && self.held(props, &Env::of(ui)) && !Env::of(ui).content.0;
+                let room = if held { room.min(crate::layout::flow_room(ui).x) } else { room };
+                let across = self.given.0 || held;
                 Vec2::new(if room.is_finite() && across { size.x.max(room) } else { size.x }, size.y)
             }
             Sizing::Content => size,
