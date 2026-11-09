@@ -156,7 +156,7 @@ impl StripLayout {
             placed.push((index, at, width));
             at += width;
         }
-        if crate::runtime::measure::effect(&self.ctx, "tab strip report") {
+        if !crate::runtime::measure::active(&self.ctx) {
             *self.report.lock().unwrap_or_else(PoisonError::into_inner) =
                 Report { hidden: fit.overflow, tabs_end: at, overflow: fit.overflow_width, placed };
         }
