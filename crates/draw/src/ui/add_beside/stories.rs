@@ -25,10 +25,15 @@ fn on_canvas<'a>(ui: &mut Ui, handles: impl Fn(Rect) -> AddBesideHandles<'a>) ->
     let board = [PageFrame::new(artboard()).name("Artboard 1").active(true)];
     let view = view(ui);
     let shown = Canvas::new("Document").view(view).show(ui, |ui, body| {
-        Pasteboard::new("Pasteboard", &board).show_at(ui, body.rect);
-        handles(body.rect).show_at(ui, body.rect)
+        let name_clicked = Pasteboard::new("Pasteboard", &board).show_at(ui, body.rect).name_clicked.is_some();
+        (handles(body.rect).show_at(ui, body.rect), name_clicked)
     });
-    shown.inner.map_or_else(StoryOutput::default, StoryOutput::from)
+    // The artboard's name is a button too: its click is a click of the story.
+    shown.inner.map_or_else(StoryOutput::default, |(output, name_clicked)| {
+        let mut facts = StoryOutput::from(output);
+        facts.clicked |= name_clicked;
+        facts
+    })
 }
 
 #[story(AddBesideHandles<'static>, covers = [Default], drive = Drive::Never)]
