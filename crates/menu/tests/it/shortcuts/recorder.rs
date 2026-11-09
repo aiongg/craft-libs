@@ -37,6 +37,16 @@ fn recording_takes_tab_arrows_and_shift_escape() {
     assert!(rig.is_open(), "Shift+Escape did not close the dialog");
 }
 
+/// While recording, Escape with any modifier is a chord; only plain Escape stops the recording.
+#[trial]
+fn alt_escape_is_recorded_as_a_chord() {
+    let mut rig = Rig::tuned(Platform::Mac, |_| {});
+    rig.click("Save: ⌘S");
+    rig.press(Modifiers::ALT, Key::Escape);
+    assert_eq!(rig.bindings("file.save"), ["Alt+Escape"]);
+    assert!(rig.is_open(), "Alt+Escape did not close the dialog");
+}
+
 /// Escape stops the recording; a second Escape cancels the dialog.
 #[trial]
 fn escape_cancels_recording_only() {
