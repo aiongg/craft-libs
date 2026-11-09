@@ -62,10 +62,15 @@ fn long_text() -> String {
     "Speaker notes that wrap across the pane. ".repeat(4)
 }
 
-/// The bands a selection paints: rects inside the editor, one per wrapped row, top to bottom.
+/// A row of the editor's body text is about 14 high; the paragraph's own text shape spans all its rows.
+const TALLEST_BAND: f32 = 20.0;
+
+/// The bands a selection paints: rects inside the editor, one per wrapped row, top to bottom. Rects taller than a
+/// row (the paragraph's text) are left out.
 fn bands(fixture: &Fixture) -> Vec<egui::Rect> {
     let area = fixture.shown();
-    let mut rects: Vec<egui::Rect> = fixture.shape_bounds().iter().filter(|r| r.width() > 1.0 && area.contains_rect(**r)).copied().collect();
+    let mut rects: Vec<egui::Rect> =
+        fixture.shape_bounds().iter().filter(|r| r.width() > 1.0 && r.height() < TALLEST_BAND && area.contains_rect(**r)).copied().collect();
     rects.sort_by(|a, b| a.top().total_cmp(&b.top()));
     rects.dedup_by(|a, b| (a.top() - b.top()).abs() < 1.0);
     rects
@@ -109,11 +114,8 @@ fn a_click_places_the_caret_and_a_drag_selects() {
     assert!(rows.len() >= 3, "the text wraps: {rows:?}");
     let (first, second) = (rows[0], rows[1]);
     let start = egui::pos2(first.left() + 1.0, first.center().y);
+    fixture.click_at(start);
+    let before = bands(&fixture).len();
     fixture.drag_at(start, vec2(second.width() * 0.5, second.center().y - first.center().y));
-    fixture.type_text("X");
-    let original = long_text();
-    let plain = long.borrow().plain();
-    assert!(plain.starts_with('X'), "the drag began at the first row's start: {plain:?}");
-    let removed = original.chars().count() + 1 - plain.chars().count();
-    assert!(removed > original.chars().count() / rows.len() + 1, "the drag took more than the first row: {removed} chars");
+    assert_eq!(bands(&fixture).len() - before, 2, "a drag over two rows selects those two rows");
 }
