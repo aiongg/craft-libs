@@ -921,6 +921,7 @@ The `Grid` cursor: columns resolved from last pass's measurements, and the cell 
 
 - `craft_behavior::grid::GridCursor`: `pub struct GridCursor`. Hands out the cells of one `Grid` pass, row-major. Cells are placed from `last` pass's measurements; this
   - `pub fn new(flow: Flow, columns: &[ColumnWidth], gap: Vec2, last: &GridMeasure) -> Self`. A cursor over `columns` in `flow`'s rect, with `gap` between columns (x) and rows (y), placed by `last`.
+  - `pub fn sized_by_content(flow: Flow, columns: &[ColumnWidth], gap: Vec2, rows: &[f32]) -> Self`. A cursor for a measuring run under a body sized from its content: each `Fill` column of `columns` is placed
   - `pub fn cell(&mut self, size: Vec2) -> Rect`. The cell of the next child, whose measured size is `size`.
   - `pub fn room(&self) -> Vec2`. The room the next child measures in: as wide as its column, or for a `Content` column as wide as the columns
   - `pub fn fill_room(&self) -> Vec2`. The room the next child fills when it fills its width: its column's width, which for a `Content` column is the
@@ -1634,10 +1635,9 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
 - `craft_ui::contract::HasProps`: `pub trait HasProps`. Written by the derive from a `#[container]` field, for containers and collections.
   - `fn props(&self, _: Internal) -> &ContainerProps`.
 - `craft_ui::contract::IdSource`: `pub enum IdSource { Auto, Salt(IdSalt), Id(Id) }`. Where an element's id comes from.
-- `craft_ui::contract::Inner`: `pub struct Inner<O, R> { pub output: O, pub inner: Option<R> }`. The container show output: the component's own output and the body's result. `inner` is the last run's value; a state change made from it goes in `settle`.
-  - `pub fn settle<T>(&mut self, f: impl FnOnce(&mut SettleCx<'_>, &mut R) -> T) -> Option<T>`. Runs `f` once, after the pass's real run, with the body's memory and the real run's result. Not called when no real run ran the body.
+- `craft_ui::contract::Inner`: `pub struct Inner<O, R> { pub output: O, pub inner: Option<R> }`. The container show output: the component's own output and the body's result.
+  - `pub fn settle<T>(&mut self, f: impl FnOnce(&mut SettleCx<'_>, &mut R) -> T) -> Option<T>`. Runs `f` once, after the pass's real run, with the body's memory (`keep`, `memory`, `saved`, `pending`,
   - `pub fn map_output<O2>(self, f: impl FnOnce(O) -> O2) -> Inner<O2, R>`. Maps the component's own output and keeps the body's result and its settle handle.
-- `craft_ui::contract::SettleCx`: `pub struct SettleCx<'a>`. The body's memory after the real run: the same `Remember` access the body's context has, and the `Held` and `Bind` reads and writes that take it.
 - `craft_ui::contract::Internal`: `pub struct Internal`. A token only craft-ui can build: the private field and `pub(crate)` constructor let derive output in any
 - `craft_ui::contract::ItemFn`: `pub type ItemFn<'r, C> = dyn FnMut(&<C as Collection>::Key, &mut ItemCx<'_, 'r,<C as Collection>::Key>) -><C as Collection>::Item<'r> + 'r`. The item closure of `ShowCollection::show_items`: one call per visible key.
 - `craft_ui::contract::MAX_EXTENT`: `pub const MAX_EXTENT: f32`. The most a component may measure on either side, in points.
@@ -1691,6 +1691,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub fn write(&mut self, cx: &mut impl StageAccess, event: &EditEvent<T>) -> bool`. Writes `event` as the pipeline's apply step does: the check may replace the value (`Fix`) or refuse it
 - `craft_ui::contract::BodyCx`: `pub struct BodyCx<'a> { pub id: Id, pub env: EnvView<'a>, pub resolved: &'a Resolved<'a>, pub rect: Rect }`. What a body closure and the header, footer and empty hooks read: a view over the pipeline's memory stage
   - `pub fn open_url(&mut self, url: &str, new_tab: bool)`. Asks the platform to open `url`, in a new tab where the platform has tabs and `new_tab` is set: the opener
+  - `pub fn take_pick_answer(&self, ticket: craft_host::PickId) -> Option<craft_host::Picked>`. The host file service's answer to the picker `ticket`, taken once. A measuring run gets none and leaves
   - `pub fn field_message(&self) -> Option<(Message, craft_theme::variant::Tone)>`. The validity message of the first control in the container's label scope, recorded last frame, with the
   - `pub fn is_open(&self) -> bool`. Whether the body is open.
   - `pub fn open(&mut self) -> &mut bool`. The open state: a title row's disclosure binds to it, and step 15 writes a change to its owner.
@@ -1900,7 +1901,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub const fn rule(mut self, on: bool) -> Self`. Whether a rule separates the header from the body.
   - `pub const fn inline(mut self, on: bool) -> Self`. Whether the header shares a line with the body.
   - `pub const fn trailing(mut self, on: bool) -> Self`. Whether the header has a trailing region for the container's controls.
-- `craft_ui::contract::Held`: `pub struct Held<'a, T>`. The caller's binding of a value a pattern edits: the body reads the value at the start of its pass and returns the edited one in its result, and the caller writes it from `Inner::settle`, once per pass after the real run. A body may run more than once per pass, so it never writes.
+- `craft_ui::contract::Held`: `pub struct Held<'a, T>`. The caller's binding of a value a pattern edits: the body reads the value at the start of its pass and returns
   - `pub fn new(bind: Bind<'a, T>) -> Self`. Holds `bind`.
   - `pub fn read(&mut self, cx: &mut impl StageAccess) -> Option<T>`. The bound value; `None` while a mixed or kept binding holds none.
   - `pub fn write(&mut self, cx: &mut impl StageAccess, before: &T, after: T, name: &str)`. Replaces `before` with `after`, the edit named `name`.
@@ -2062,6 +2063,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub fn on_field(mut self) -> Self`. The drag starts on the control itself instead of its side label, for a readout with no label. The control
 - `craft_ui::contract::SelectMode`: `pub enum SelectMode { None, Single, Multi, Cells }`. What a collection lets the user select.
 - `craft_ui::contract::SetPosition`: re-export of `craft_ui::runtime::access::SetPosition`.
+- `craft_ui::contract::SettleCx`: `pub struct SettleCx<'a>`. The body's memory after the real run: the same `Remember` access the body's context has, and the `Held` and
 - `craft_ui::contract::ShellPane`: `pub struct ShellPane { pub name: &'static str, pub edge: PaneEdge, pub extent: Option<f32>, pub at: Option<Rect> }`. One of `AppShell`'s panes.
   - `pub const fn new(name: &'static str) -> Self`. The central pane named `name`.
   - `pub const fn edge(mut self, edge: PaneEdge) -> Self`. The pane at `edge`.
