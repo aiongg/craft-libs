@@ -86,6 +86,16 @@ impl PaintUi<'_> {
         self.child_with(self.id.with(key), rect, child, None)
     }
 
+    /// Shows `child` as the owner's own control, such as a picker the owner draws its field with. The child's node
+    /// folds into the owner's: the owner's node stands for the child's focus stop, carries the child's value text when
+    /// the owner's `access` sets none, and takes the actions and requests aimed at it, which reach the child. The
+    /// owner's name names the control.
+    pub fn inner<C: Show>(&mut self, key: impl Hash + Debug, rect: Rect, child: C) -> C::Output {
+        let id = self.id.with(key);
+        access::fold::request(self.ui.ctx(), id, self.id);
+        self.child_with(id, rect, child, None)
+    }
+
     /// Shows a child with rich tooltip content.
     pub fn child_with_tip<C: Show>(&mut self, key: impl Hash + Debug, rect: Rect, child: C, tip: impl FnOnce(&mut Ui)) -> C::Output {
         self.child_with(self.id.with(key), rect, child, Some(Box::new(tip)))

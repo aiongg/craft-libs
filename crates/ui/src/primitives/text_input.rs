@@ -75,6 +75,10 @@ pub struct TextOptions {
     /// Enter does something in the field itself (it saves or runs a search): the field takes the `Submit` intent, so the
     /// enclosing dialog's default button does not act on it.
     pub submits: bool,
+    /// The component's value is mixed: the part shows no text, whatever its codec, and typing starts from empty text.
+    /// The value handed to the part is the start the codec parses against; committing empty text that the codec
+    /// rejects leaves the value mixed.
+    pub mixed: bool,
 }
 
 impl Default for TextOptions {
@@ -97,6 +101,7 @@ impl Default for TextOptions {
             steps_value: false,
             select_on_focus: false,
             submits: false,
+            mixed: false,
         }
     }
 }

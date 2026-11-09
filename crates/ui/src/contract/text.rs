@@ -190,7 +190,7 @@ impl<C: Component> PartsCx<'_, C> {
     /// Registers the component's one text part (`INPUT = Input::Text`).
     pub fn text<K: Codec + Clone + 'static>(&mut self, key: TextKey<K::Value>, rect: Rect, codec: &K, value: &K::Value, options: &TextOptions) {
         debug_assert!(self.text.decl.is_none(), "a component registers one text part");
-        let shown = codec.format(value);
+        let shown = if options.mixed { String::new() } else { codec.format(value) };
         self.text.decl = Some(TextDecl {
             key: key.0,
             rect,

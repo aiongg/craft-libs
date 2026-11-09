@@ -29,10 +29,10 @@ pub struct TextField<'a, C: Codec + Clone + 'static = PlainText> {
     value: Bind<'a, C::Value>,
     codec: C,
     options: TextOptions,
-    /// The value of an empty field, for a codec whose values have no natural empty: a mixed field shows its text and
-    /// the clear part of a search field sets it.
+    /// The value of an empty field, for a codec whose values have no natural empty: the start a mixed field's typing
+    /// parses against (a mixed field shows no text) and what the clear part of a search field sets.
     #[prop]
-    empty: Option<C::Value>,
+    pub(super) empty: Option<C::Value>,
     /// The search form: a clear part while there is text, and Escape clears the text.
     search: bool,
     /// The adornments before the text, in reading order.
@@ -239,8 +239,9 @@ impl<C: Codec + Clone + 'static> Component for TextField<'_, C> {
                 cx.part(CLEAR, *rect).sense(Sense::CLICK | Sense::KEEP_FOCUS).pointer_only("Escape clears the text");
             }
         }
-        if let Some(value) = value.or(self.empty.as_ref()) {
-            cx.text(text_part::<C::Value>(), placed.text, &self.codec, value, &self.options);
+        if let Some(start) = value.or(self.empty.as_ref()) {
+            let options = TextOptions { mixed: value.is_none(), ..self.options.clone() };
+            cx.text(text_part::<C::Value>(), placed.text, &self.codec, start, &options);
         }
     }
 

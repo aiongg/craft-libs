@@ -1263,7 +1263,12 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
     if !input.node {
         return;
     }
-    let focusable = takes_focus(resolved) && input.sense.contains(Sense::FOCUS);
+    let inner_of = access::fold::owner_of(ctx, id);
+    let folded = access::fold::take(ctx, id);
+    if access.value.is_none() {
+        access.value = folded.as_ref().and_then(|folded| folded.value.clone());
+    }
+    let focusable = takes_focus(resolved) && (input.sense.contains(Sense::FOCUS) || folded.is_some());
     let own = Own {
         id,
         component: std::any::type_name::<C>(),
@@ -1290,7 +1295,19 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         popups_by_part: super::overlay::has_toggle_nodes(&core.toggles, &access.nodes),
         ltr_axis: resolved.ltr_axis,
     };
-    access::report(ctx, &own);
+    if let Some(owner) = inner_of {
+        // Shown as the owner's control: the owner's node is the one node, and stands for this root's key focus.
+        access::hide(ctx, id);
+        access::fold::offer(ctx, owner, access::fold::Folded { inner: id, value: access.value.clone() });
+        if flags.contains(Flags::FOCUSED) {
+            access::set_focus(ctx, owner);
+        }
+    } else {
+        access::report(ctx, &own);
+    }
+    if let Some(folded) = &folded {
+        keys::register_node(ctx, id, folded.inner, None, focusable);
+    }
     if let Some(facts) = core.text_access.take() {
         crate::runtime::access::text::report_text(ctx, id, &facts);
     }
@@ -1343,7 +1360,7 @@ fn report_sub(core: &CxCore<'_>, input: &ReportIn<'_>, node: &SubNode, face: Opt
         active: core.active == Some(node.part),
         face: face.map(|face| FaceFacts { name: &face.name, flags: face.flags, numeric: face.numeric.as_ref(), expanded: face.expanded }),
         label: core.resolved.label,
-        parent: node.under.map_or(core.id, |under| access::sub_node_id(core.id, under)),
+        parent: node.under.map_or_else(|| access::fold::owner_of(&core.ctx, core.id).unwrap_or(core.id), |under| access::sub_node_id(core.id, under)),
     };
     access::report_sub(&core.ctx, &decl);
 }

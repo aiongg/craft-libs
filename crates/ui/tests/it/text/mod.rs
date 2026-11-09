@@ -5,6 +5,7 @@ mod editor;
 mod field_keys;
 mod fields;
 mod ime;
+mod mixed_blank;
 mod kit;
 mod linked;
 mod number;
