@@ -7,7 +7,7 @@ use craft_behavior::EditEvent;
 use craft_color::ui::{PaintChip, ScreenPickGesture};
 use craft_theme::Srgba;
 use craft_ui::choice::Checkbox;
-use craft_ui::contract::{Bind, FieldLayout, LabelKind, Props as _, Show as _, ShowContainer as _, SideLabel, Sizing};
+use craft_ui::contract::{Bind, LabelKind, Props as _, Show as _, ShowContainer as _, SideLabel, Sizing};
 use craft_ui::form::Field;
 use craft_ui::layout_components::Row;
 use craft_ui::runtime::env::Env;
@@ -101,12 +101,8 @@ impl<'a> ShapeBar<'a> {
         Row::new().enabled(!appearance.locked).show(ui, |ui, _| {
             pass.begin();
             let fill_on = !matches!(appearance.fill, craft_color::ui::Paint::None);
-            let check = Field::new(words.fill.clone())
-                .id_salt("fill-on")
-                .layout(FieldLayout::After)
-                .sizing(Sizing::Content)
-                .show(ui, |ui, _| Checkbox::new(Bind::given(fill_on)).show(ui).event);
-            pass.events.extend(check.inner.flatten().map(|event| event.map(ShapeChange::FillOn)));
+            let check = Checkbox::new(Bind::given(fill_on)).label(words.fill.clone()).show(ui).event;
+            pass.events.extend(check.map(|event| event.map(ShapeChange::FillOn)));
             let hidden = SideLabel::new().kind(LabelKind::Hidden);
             let fill = Field::new(words.fill_color.clone())
                 .id_salt("fill")
