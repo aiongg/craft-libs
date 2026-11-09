@@ -895,6 +895,16 @@ fn route_press(
         Some(Intent::Activate) => route_activate(ctx, rec, routed, activated),
         // A collection that activates on Enter opens its lead with any modifier held (in a new tab or window, say); the
         // component reads the modifiers. Fields and dialogs keep SubmitForce.
+        // A chord that a scoped command of the focused chain binds (Cmd+Enter of a panel's Load as Selection) is that
+        // command's, not the stop's activation.
+        Some(Intent::SubmitForce)
+            if press.key == Key::Enter
+                && stop.role.space
+                && stop.keys.activate.enter()
+                && commands::binds_scoped(ctx, &Chord { mods: press.mods, key: press.key }) =>
+        {
+            return Taken::No;
+        }
         Some(Intent::SubmitForce) if press.key == Key::Enter && stop.role.space && stop.keys.activate.enter() => {
             route_activate(ctx, rec, routed, activated)
         }
@@ -905,7 +915,12 @@ fn route_press(
         Some(intent) => push(routed, id, intent, false),
         // Enter the key table leaves unbound activates a stop that takes Enter with any modifier held; the component
         // reads the modifiers (Alt+Enter adds the way Alt+click does). Plain Enter elsewhere submits.
-        None if press.key == Key::Enter && stop.keys.activate.enter() => route_activate(ctx, rec, routed, activated),
+        None if press.key == Key::Enter
+            && stop.keys.activate.enter()
+            && (plain || !commands::binds_scoped(ctx, &Chord { mods: press.mods, key: press.key })) =>
+        {
+            route_activate(ctx, rec, routed, activated)
+        }
         None if press.key == Key::Enter && plain => push(routed, id, Intent::Submit, false),
         None if press.key == Key::Space && plain && stop.keys.activate.space() => route_activate(ctx, rec, routed, activated),
         None if press.key == Key::Tab && plain && stop.keys.keep == focus::KeepKeys::Tab => push(routed, id, Intent::Tab, false),

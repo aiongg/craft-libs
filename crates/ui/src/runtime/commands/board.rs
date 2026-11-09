@@ -9,7 +9,7 @@ use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::{pass, repaint};
 use crate::runtime::{focus, keys, sampler};
 use craft_behavior::{EditCommand, pick_instance, resolve_flags};
-use craft_keymap::{Active, Chord, CommandKind, CommandRef, Keymap, Matcher, ModalRule, Overrides, Platform, Press, Scopes};
+use craft_keymap::{Active, Chord, CommandKind, CommandRef, Keymap, Lookup, Matcher, ModalRule, Overrides, Platform, Press, Scopes};
 use egui::{Context, Id, ViewportId};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -164,6 +164,20 @@ impl Board {
         // The held-open canvas ranks below every instance around the focus.
         let focused: Vec<Id> = self.held_open.into_iter().chain(self.focused.iter().flat_map(|(_, chain)| chain.iter().copied())).collect();
         pick_instance(&self.live_instances(ctx, scope), &focused, &self.last_focused)
+    }
+
+    /// The non-app scopes around the focus, innermost first. An instance of a child scope also brings the scopes it
+    /// is declared inside, after its own.
+    fn scopes_around(&self, chain: &[Id]) -> Vec<&'static str> {
+        let mut scopes: Vec<&'static str> = Vec::new();
+        for instance in chain.iter().rev().filter_map(|id| self.instances.iter().find(|i| i.id == *id)) {
+            let lineage = self.lineage(instance.scope.name());
+            scopes.push(lineage[0]);
+            let parents: Vec<&'static str> = lineage[1..].iter().copied().filter(|scope| !scopes.contains(scope)).collect();
+            scopes.extend(parents);
+        }
+        scopes.retain(|scope| !is_app(scope));
+        scopes
     }
 
     /// Where `command` goes when a source with no component of its own fires it: `None` for an app-scope command,
@@ -506,6 +520,26 @@ pub(crate) fn take_around<S: CommandSet>(ctx: &Context, at: Id, around: &Command
 
 /// H7: the key stage's shortcut events, matched against the keymap in the scopes around the focused component,
 /// through the gate, to their commands.
+/// Whether the keymap binds `chord` to a scoped command of the focused component's command chain. A key the focused
+/// stop would activate with is left to that command.
+pub(crate) fn binds_scoped(ctx: &Context, chord: &Chord) -> bool {
+    let viewport = pass::current_viewport(ctx);
+    let focused = focus::record(ctx, viewport).focused;
+    with(ctx, |board| {
+        let Some(keymap) = board.keymap.as_ref().map(|cache| Arc::clone(&cache.keymap)) else { return false };
+        let chain: Vec<Id> =
+            board.chains.get(&viewport).filter(|(id, _)| Some(*id) == focused).map(|(_, chain)| chain.ids().collect()).unwrap_or_default();
+        let scopes = board.scopes_around(&chain);
+        let (panel, outer) = scopes.split_first().map_or((None, &[][..]), |(panel, outer)| (Some(*panel), outer));
+        let active = Active { panel, contexts: &[], typing: false };
+        match keymap.lookup_nested(chord, false, &active, outer) {
+            Lookup::Run(command) => !is_app(board.scope_of(&command)),
+            Lookup::Cycle(commands) => commands.iter().any(|command| !is_app(board.scope_of(command))),
+            _ => false,
+        }
+    })
+}
+
 pub(crate) fn begin(ctx: &Context) {
     let viewport = pass::current_viewport(ctx);
     let focused = focus::record(ctx, viewport).focused;
@@ -530,15 +564,7 @@ pub(crate) fn begin(ctx: &Context) {
             return None;
         }
         let keymap = board.keymap.as_ref().map(|cache| Arc::clone(&cache.keymap))?;
-        // An instance of a child scope also brings the scopes it is declared inside, after its own.
-        let mut scopes: Vec<&'static str> = Vec::new();
-        for instance in chain.iter().rev().filter_map(|id| board.instances.iter().find(|i| i.id == *id)) {
-            let lineage = board.lineage(instance.scope.name());
-            scopes.push(lineage[0]);
-            let parents: Vec<&'static str> = lineage[1..].iter().copied().filter(|scope| !scopes.contains(scope)).collect();
-            scopes.extend(parents);
-        }
-        scopes.retain(|scope| !is_app(scope));
+        let mut scopes = board.scopes_around(&chain);
         // The held-open canvas's scope is around the focus for matching: its commands fire from the dialog.
         let held_scope = held_open.and_then(|id| board.instances.iter().find(|i| i.id == id)).map(|i| i.scope.name()).filter(|scope| !is_app(scope));
         if let Some(scope) = held_scope
