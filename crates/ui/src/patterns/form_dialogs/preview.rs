@@ -90,7 +90,8 @@ pub struct PreviewView {
     /// Whether the view follows the well: the zoom is the one that shows the whole picture in it, recomputed when the
     /// well changes. A pan or zoom leaves fit and a double click on the pane returns to it.
     pub fit: bool,
-    /// The zoom the wheel, the zoom buttons and fit stay inside.
+    /// The zoom the wheel, the zoom buttons and fit stay inside. A fitted view with a one-value range is fixed: the pane
+    /// shows the whole picture at the fit zoom in whatever room it is given (no minimum size) and takes no wheel zoom.
     pub range: RangeInclusive<f32>,
 }
 
@@ -217,6 +218,10 @@ pub struct PreviewPane<'a> {
     /// Whether the picture overflows the well horizontally, and vertically. Set by `parts`, which runs before the
     /// root's sense is read: the wheel scrolls the pane only on an axis it pans on.
     overflow: (bool, bool),
+    /// The view is fitted and its zoom range is one value: the pane cannot zoom or pan, so it sizes from the room it
+    /// is given and declares no wheel sense.
+    #[style_key]
+    fixed: bool,
 }
 
 impl PreviewPane<'_> {
@@ -236,6 +241,7 @@ impl PreviewPane<'_> {
             double_clicked: false,
             overlay: None,
             overflow: (false, false),
+            fixed: view.fit && view.range.start() >= view.range.end(),
         }
         .label(label)
     }
@@ -286,7 +292,8 @@ impl PreviewPane<'_> {
     /// inside `range`.
     pub fn fit_view(picture: Vec2, well: Vec2, range: &RangeInclusive<f32>) -> CanvasTransform {
         let scale = if picture.x > 0.0 && picture.y > 0.0 { (well.x / picture.x).min(well.y / picture.y) } else { 1.0 };
-        CanvasTransform::new(scale.clamp(*range.start(), *range.end()), Vec2::ZERO)
+        let fixed = range.start() >= range.end();
+        CanvasTransform::new(if fixed { scale } else { scale.clamp(*range.start(), *range.end()) }, Vec2::ZERO)
     }
 
     /// The zoom levels inside `range`, ascending: its ends and the base levels between them.
@@ -347,9 +354,13 @@ impl Component for PreviewPane<'_> {
     type Style = PreviewPaneStyle;
     type Output = PreviewOutput;
 
-    fn style(cx: &StyleCx<'_>, _: PreviewPaneStyleKey) -> PreviewPaneStyle {
+    fn style(cx: &StyleCx<'_>, key: PreviewPaneStyleKey) -> PreviewPaneStyle {
         PreviewPaneStyle {
-            metrics: Metrics::new().min_size(Vec2::new(cx.tokens.size.plot.width, cx.tokens.size.plot.height)),
+            metrics: if key.fixed {
+                Metrics::new()
+            } else {
+                Metrics::new().min_size(Vec2::new(cx.tokens.size.plot.width, cx.tokens.size.plot.height))
+            },
             focus: cx.focus_look(),
         }
     }
@@ -360,7 +371,10 @@ impl Component for PreviewPane<'_> {
 
     fn sense(&self) -> Sense {
         let (x, y) = self.overflow;
-        let mut sense = Sense::FOCUS | Sense::WHEEL_ZOOM;
+        let mut sense = Sense::FOCUS;
+        if !self.fixed {
+            sense |= Sense::WHEEL_ZOOM;
+        }
         if x {
             sense |= Sense::WHEEL_X;
         }
