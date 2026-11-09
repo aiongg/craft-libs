@@ -491,7 +491,11 @@ impl Fixture {
     /// The id of the widget egui has focused.
     pub fn focused(&self) -> Option<Id> {
         let id = crate::runtime::egui::focus::focused(&self.frames.ctx)?;
-        // The id whose node the access tree reports as focused: the widget itself, or the owner it folds into.
+        // A folded text widget is the focus itself, though its node folds into the owner's.
+        if crate::runtime::access::fold::is_text_widget(&self.frames.ctx, id) {
+            return Some(id);
+        }
+        // Otherwise the id whose node the access tree reports as focused: the widget itself, or the owner it folds into.
         let focused = self.tree.focused_key();
         let owner = crate::runtime::access::fold::owner_of(&self.frames.ctx, id);
         Some(owner.filter(|owner| NodeKey::of(*owner) == focused).unwrap_or(id))
