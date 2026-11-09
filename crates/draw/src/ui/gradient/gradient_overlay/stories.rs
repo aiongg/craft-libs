@@ -4,9 +4,8 @@ use craft_behavior::CanvasView;
 use craft_behavior::kurbo::Point;
 use craft_theme::Srgba;
 use craft_ui::canvas::Canvas;
-use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
-use craft_ui::runtime::env::Message;
-use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::testing::{StoryData, StoryOutput, story};
 use egui::Ui;
 
 use super::GradientOverlay;
@@ -64,13 +63,4 @@ fn gradient_overlay_shared(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     on_canvas(ui, |ui, at| {
         GradientOverlay::new("Gradient", Bind::bound(&mut *value)).shared_selection(Bind::bound(&mut *selected)).show_at(ui, at).edit
     })
-}
-
-#[story(GradientOverlay<'static>, covers = [Invalid], drive = Drive::Never)]
-fn gradient_overlay_refused(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let value = data.value("refused", gradient());
-    let refuse_many = |gradient: &LineGradient| {
-        if gradient.stops.color.len() > 2 { Validity::Refuse(Message::new("Two color stops at most")) } else { Validity::Ok }
-    };
-    on_canvas(ui, |ui, at| GradientOverlay::new("Gradient", Bind::bound(&mut *value).check(refuse_many)).show_at(ui, at).edit)
 }

@@ -80,7 +80,8 @@ pub enum BezierTool {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum HandlesShown {
-    /// Both of each selected anchor and the two of a selected segment (PhotoCraft).
+    /// Both of each selected anchor, the facing handles of the segments next to it, and the two of a selected
+    /// segment (Illustrator's Direct Selection).
     #[default]
     Selected,
     /// Every anchor's (DesignCraft).
@@ -146,7 +147,7 @@ const KNOT_BITS: u32 = 20;
 const SUBPATH_BITS: u32 = 20;
 
 /// The index of the part of knot `knot` of the path at `path`.
-fn index(path: usize, knot: KnotRef) -> u64 {
+const fn index(path: usize, knot: KnotRef) -> u64 {
     ((path as u64) << (KNOT_BITS + SUBPATH_BITS)) | ((knot.subpath as u64) << KNOT_BITS) | knot.knot as u64
 }
 
@@ -1033,9 +1034,11 @@ impl Component for BezierOverlay<'_> {
             let named = if segment { StrokeWidth::Thick } else { StrokeWidth::Medium };
             match (color, thickness) {
                 (color, Some(thickness)) => {
-                    let width = if segment { thickness + (style.segment_width - style.line_width) } else { thickness };
                     let ink = color.map_or(DataColor::new(style.line.egui()), |color| DataColor::new(color.into()));
-                    draw.data_stroke(&shape, DataWidth::points(width), ink);
+                    draw.data_stroke(&shape, DataWidth::points(thickness), ink);
+                    if segment {
+                        draw.data_stroke(&shape, named, ink);
+                    }
                 }
                 (Some(color), None) => draw.data_stroke(&shape, named, DataColor::new(color.into())),
                 (None, None) => draw.stroke(&shape, named, style.line),
