@@ -464,10 +464,8 @@ fn escape_in_a_width_field_puts_back_the_size_and_the_orientation() {
     fixture.click(&width);
     fixture.key(Key::A, Modifiers::COMMAND);
     fixture.type_text("12");
-    fixture.idle(2);
     assert!(radio_on(&fixture, "Landscape"), "a width past the height turns the page as it is typed");
     fixture.key(Key::Escape, Modifiers::NONE);
-    fixture.idle(2);
     let width = fixture.by_label("Width").expect("the Width field");
     assert_eq!(fixture.tree().value_of(width.node).map(str::to_owned), before, "Escape puts the width back");
     assert!(radio_on(&fixture, "Portrait"), "and the orientation with it");
