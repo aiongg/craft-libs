@@ -1201,9 +1201,10 @@ impl<'b> BodyHooks<'b> {
     }
 
     /// The width the header, body and footer share in a content-sized container: the widest region's, at most the
-    /// room; the whole room before any pass.
+    /// room; the whole room before any pass and while every region is empty, which tells nothing about the width
+    /// its content will ask for.
     fn shared_width(&self, room: f32, props: &ContainerProps) -> f32 {
-        self.wanted_width(props).map_or(room.max(0.0), |wanted| wanted.min(room.max(0.0)))
+        self.wanted_width(props).filter(|wanted| *wanted > 0.0).map_or(room.max(0.0), |wanted| wanted.min(room.max(0.0)))
     }
 
     /// The sizes the regions are placed from before any of them ran this pass: last pass's.
@@ -1641,7 +1642,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
     }
 
     fn sized(&self, comp: &C, ui: &Ui, size: Vec2) -> Vec2 {
-        match self.sizing(comp.props(Internal::new())) {
+        let props = comp.props(Internal::new());
+        match self.sizing(props) {
             Sizing::Fill => {
                 let room = crate::layout::flow_room(ui);
                 // The available rect, not at least it: a fill child that took the whole room in an earlier pass (a
@@ -1654,7 +1656,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             }
             Sizing::FillWidth => {
                 let room = crate::layout::flow_fill_room(ui).x;
-                Vec2::new(if room.is_finite() && self.given.0 { size.x.max(room) } else { size.x }, size.y)
+                // A fill-width child held in a content column is not given the width (it never sets the column's
+                // width) but shows across the column.
+                let across = self.given.0 || self.held(props, &Env::of(ui));
+                Vec2::new(if room.is_finite() && across { size.x.max(room) } else { size.x }, size.y)
             }
             Sizing::Content => size,
         }
@@ -1909,7 +1914,6 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 scoped.content_column = content_column;
                 scoped.row_room = None;
                 scoped.content = (!self.given.0, !self.given.1);
-                scoped.offered = (!self.given.0 && room.x.is_finite()).then_some(room.x);
                 match scroll {
                     Some(scroll) => {
                         scoped.scroll_owner = Some(id);

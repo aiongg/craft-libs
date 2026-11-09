@@ -344,7 +344,7 @@ impl WideAngleWorkspace {
                     view.apply(command);
                 }
 
-                Row::new().show(ui, |ui, _| {
+                Row::new().fill().show(ui, |ui, _| {
                     let rail = ToolRail::new(words.tools.clone(), &slots, &body.tool, &body.last_used).show_rail(ui, |_, _| {});
                     next = rail.select.or(next);
                     if let Some(last_used) = rail.last_used {

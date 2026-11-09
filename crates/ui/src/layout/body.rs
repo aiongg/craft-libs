@@ -206,10 +206,8 @@ pub(crate) fn flow_room(ui: &Ui) -> Vec2 {
 fn open_room(ui: &Ui) -> Vec2 {
     let (x, y) = Env::of(ui).unbounded;
     let mut room = ui.available_size_before_wrap();
-    // A body sized from its content offers its children the width it was offered, and a row body that placed its
-    // block behind a lead the width of its band; either less what they took.
-    let env = Env::of(ui);
-    if let Some(offered) = env.offered.or(env.row_room) {
+    // A row body that placed its block behind a lead offers its children the width it was offered, less what they took.
+    if let Some(offered) = Env::of(ui).row_room {
         room.x += offered - ui.max_rect().width();
     }
     Vec2::new(if x { f32::INFINITY } else { room.x }, if y { f32::INFINITY } else { room.y })
