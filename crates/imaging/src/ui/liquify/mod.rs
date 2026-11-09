@@ -332,6 +332,14 @@ impl LiquifyWorkspace {
         let settings_before = self.settings.clone();
         let mut asked_steps = std::mem::take(&mut self.requested);
         self.events = std::mem::take(&mut self.queued);
+        if !self.settings.show_backdrop {
+            self.asked = None;
+        } else if self.asked.is_none() {
+            // Show Backdrop was already on when the workspace opened.
+            let of = backdrop_id(self.settings.backdrop);
+            self.events.push(LiquifyEvent::BackdropWanted(of));
+            self.asked = Some(of);
+        }
         let slots = LiquifyTool::slots();
         let this = RefCell::new(&mut *self);
 
@@ -407,15 +415,6 @@ impl LiquifyWorkspace {
                         }
                     }
 
-                    if !work.settings.show_backdrop {
-                        work.asked = None;
-                    } else if work.asked.is_none() {
-                        // Show Backdrop was already on when the workspace opened.
-                        let of = backdrop_id(work.settings.backdrop);
-                        work.events.push(LiquifyEvent::BackdropWanted(of));
-                        work.asked = Some(of);
-                    }
-
                     let backdrop = source.backdrop().filter(|_| work.settings.show_backdrop);
                     let layering = BackdropLayering::of(backdrop.is_some(), work.settings.backdrop_mode, work.settings.backdrop_opacity);
                     let layered = backdrop.filter(|_| !layering.is_plain()).map(|backdrop| LayeredImage::new(source.picture(), backdrop, layering));
@@ -431,7 +430,7 @@ impl LiquifyWorkspace {
                     let edges = source.mesh(work.settings.mesh_size).filter(|_| work.settings.show_mesh).map(|mesh| mesh.edges());
                     let lasso = state.canvas.lasso_line();
                     let falloff = state.canvas.resize().dimensions().map(|dims| TipFalloff::from_hardness(dims.diameter / 2.0, dims.level));
-                    let mut preview = falloff.as_ref().and_then(|falloff| state.canvas.resize().preview(falloff));
+                    let preview = falloff.as_ref().and_then(|falloff| state.canvas.resize().preview(falloff));
 
                     let shown = Row::new()
                         .fill()
@@ -454,8 +453,8 @@ impl LiquifyWorkspace {
                                     if let Some((points, tone)) = &lasso {
                                         LassoLine::new(points).tone(*tone).show_at(ui, rect);
                                     }
-                                    if let Some(preview) = preview.take() {
-                                        preview.show_at(ui, rect);
+                                    if let Some(preview) = &preview {
+                                        preview.clone().show_at(ui, rect);
                                     }
                                 });
                             if let Some(mask) = &mask {

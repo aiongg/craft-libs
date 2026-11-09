@@ -438,7 +438,7 @@ impl SelectMaskWorkspace {
                         let radius = dims.diameter / 2.0;
                         if work.tool == SelectMaskTool::Brush { TipFalloff::from_hardness(radius, dims.level) } else { TipFalloff::hard(radius) }
                     });
-                    let mut preview = falloff.as_ref().and_then(|falloff| work.canvas.resize().preview(falloff));
+                    let preview = falloff.as_ref().and_then(|falloff| work.canvas.resize().preview(falloff));
 
                     let shown = Row::new().fill().show(ui, |ui, _| {
                         let rail = ToolRail::new(words.tools.clone(), &slots, &work.tool, &work.last_used).show_rail(ui, |_, _| {});
@@ -455,8 +455,8 @@ impl SelectMaskWorkspace {
                                 if let Some((mask, reduction)) = ants {
                                     SelectionOverlay::new("Selection", OutlineSource::Mask(mask)).reduction(reduction).show_at(ui, rect);
                                 }
-                                if let Some(preview) = preview.take() {
-                                    preview.show_at(ui, rect);
+                                if let Some(preview) = &preview {
+                                    preview.clone().show_at(ui, rect);
                                 }
                             });
                         match work.tool {

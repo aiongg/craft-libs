@@ -612,7 +612,7 @@ impl ContentAwareFillWorkspace {
         let ants = source.fill_area().map(|plane| self.ants_of(plane));
         let lasso: Option<Vec<Point>> = self.canvas.lasso_points().map(<[Point]>::to_vec);
         let falloff = self.canvas.resize().dimensions().map(|dimensions| TipFalloff::hard(dimensions.diameter / 2.0));
-        let mut resize = falloff.as_ref().and_then(|falloff| self.canvas.resize().preview(falloff));
+        let resize = falloff.as_ref().and_then(|falloff| self.canvas.resize().preview(falloff));
         let fill_area_name = words.fill_area.clone();
 
         let mut canvas = FullWindowCanvas::new(Bind::bound(&mut self.view), image)
@@ -626,8 +626,8 @@ impl ContentAwareFillWorkspace {
                 if let Some(points) = &lasso {
                     Marquee::polyline(Label::Empty, points.iter().copied()).look(MarqueeLook::Drawing).show_at(ui, rect);
                 }
-                if let Some(preview) = resize.take() {
-                    preview.show_at(ui, rect);
+                if let Some(preview) = &resize {
+                    preview.clone().show_at(ui, rect);
                 }
             });
         if let Some(overlay) = &overlay {

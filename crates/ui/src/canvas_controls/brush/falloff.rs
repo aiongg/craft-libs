@@ -122,7 +122,7 @@ pub struct FalloffPreviewStyle {
 
 /// A tip's falloff centred at a document point, with the circle of the brush's size round it: the preview a brush
 /// resize and a hover show. Shown at the canvas rect, in a canvas given a view.
-#[derive(crate::contract::Component, crate::contract::Props)]
+#[derive(Clone, crate::contract::Component, crate::contract::Props)]
 #[component(canvas_control, content_painter)]
 pub struct FalloffPreview<'a> {
     #[common]
