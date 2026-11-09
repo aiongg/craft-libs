@@ -38,7 +38,7 @@ fn on_canvas(ui: &mut Ui, control: CornerWidgets<'_>) -> StoryOutput {
     let shown = Canvas::new("Document")
         .view(view)
         .show(ui, |ui, body| -> Option<CornerWidgetsOutput> { control.take().map(|control| control.show_at(ui, body.rect)) });
-    shown.inner.flatten().map(StoryOutput::from).unwrap_or_default()
+    shown.inner.flatten().map(|out| StoryOutput::from(out.edit)).unwrap_or_default()
 }
 
 #[story(CornerWidgets<'static>, covers = [Default], drive = Drive::Drag(Grip::part(WIDGET.at(0)).toward(vec2(1.0, 1.0))))]
