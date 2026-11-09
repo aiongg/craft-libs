@@ -4,11 +4,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use craft_table::ui::{Condition, ConditionBuilder, ConditionFields, ConditionGroup, ConditionItem, ConditionKind, ConditionValue, Match};
-use craft_ui::contract::{Bind, Role};
+use craft_ui::contract::Bind;
 use craft_ui::pickers::PickedDate;
-use craft_ui::testing::access::name;
 use craft_ui::testing::{Fixture, trial};
-use egui::{Modifiers, Vec2};
+use egui::Vec2;
 
 const ROOM: Vec2 = Vec2::new(900.0, 600.0);
 
@@ -45,8 +44,6 @@ impl ConditionFields for Photos {
     }
 }
 
-const ADD: &str = "Add a rule (⌥-click: a group)";
-
 fn rule(field: &str, operator: &str, value: ConditionValue) -> ConditionItem {
     ConditionItem::Rule(Condition::new(field, operator, value))
 }
@@ -78,4 +75,3 @@ fn changing_the_field_resets_operator_and_value() {
     let ConditionItem::Rule(rule) = &state.borrow().items[0] else { panic!("a rule") };
     assert_eq!(rule, &Condition::new("name", "contains", ConditionValue::Text(String::new())));
 }
-

@@ -275,5 +275,4 @@ mod tests {
         assert_eq!(of(1), Some((Vec2::new(4.0, 6.0), 1.0)), "both scroll shares reach the panel");
         assert_eq!(of(2), Some((Vec2::ZERO, 1.5)), "the zoom share stays with the pane");
     }
-
 }

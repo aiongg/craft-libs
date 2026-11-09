@@ -478,5 +478,4 @@ mod tests {
         assert_eq!(opened_from(rect(1600.0, 100.0, 800.0, 600.0), monitor, 1.0, &mut driver), Some(egui::pos2(0.0, 128.0)));
         assert_eq!(monitor_bounds(Rect::new(-1928.0, -8.0, 1936.0, 1056.0), monitor), Rect::new(-1920.0, 0.0, 1920.0, 1080.0));
     }
-
 }

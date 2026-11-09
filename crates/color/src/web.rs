@@ -14,7 +14,4 @@ pub fn not_web_safe(color: [f32; 3]) -> Option<[f32; 3]> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-}
+mod tests {}

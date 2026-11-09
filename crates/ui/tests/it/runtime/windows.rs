@@ -4,7 +4,7 @@
 use crate::contract::kit::PlainStyle;
 use crate::windows_kit::Windows;
 use craft_behavior::{Cursor, CursorIcon, PartKey, PressCancel, Sense};
-use craft_host::target::{Caps, MenuPlacement, Os, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
+use craft_host::target::{Caps, Os, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
 use craft_ui::buttons::Button;
 use craft_ui::contract::SizeLimits;
 use craft_ui::contract::{
@@ -18,14 +18,13 @@ use craft_ui::runtime::windows::{ResizeEdge, WindowAction, WindowHit, WindowHost
 use craft_ui::style::StyleCx;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::{moved, press, release};
+use craft_ui::testing::trial;
 use craft_ui::testing::windows::{FakeSystem, NoWindows, dragged_id, record_input_hooks};
-use craft_ui::testing::{Fixture, trial};
 use craft_ui::text::TextField;
 use craft_window::policy::{CaptionFamily, Captions, Decision, Desktop, DesktopKind, Frame};
 use craft_window::restore::{MAIN, Monitor, MonitorKey, Placement, Store};
 use egui::{Event, Key, Modifiers, Pos2, Rect, Response, Vec2, ViewportBuilder, ViewportCommand, ViewportEvent, ViewportId, ViewportInfo};
 use std::cell::{Cell, RefCell};
-use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 const HANDLE: Rect = Rect { min: Pos2::new(10.0, 10.0), max: Pos2::new(90.0, 50.0) };

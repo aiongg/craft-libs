@@ -1,28 +1,18 @@
 //! `DocumentWindow`: where a further window opens, and what the window reports of its OS window.
 
 use crate::windows_kit::Windows;
-use craft_behavior::Monitor;
 use craft_ui::contract::{Props as _, Show as _, ShowContainer as _};
 use craft_ui::runtime::overlay::CloseReason;
 use craft_ui::shell::DocumentWindow;
 use craft_ui::testing::layout::Block;
 use craft_ui::testing::trial;
 use craft_window::{WindowId, WindowList};
-use egui::{Pos2, Rect, Vec2, ViewportCommand, ViewportEvent, ViewportId, ViewportInfo};
+use egui::{Pos2, Rect, Vec2, ViewportEvent, ViewportInfo};
 use std::cell::{Cell, RefCell};
 
 const BODY: Vec2 = Vec2::new(120.0, 80.0);
 const WINDOW: Vec2 = Vec2::new(400.0, 300.0);
-const MONITOR: Rect = Rect { min: Pos2::ZERO, max: Pos2::new(1000.0, 800.0) };
-/// The offset between cascaded windows the trials use.
-const STEP: f32 = 28.0;
-/// Near the monitor's bottom right, where one more cascade step leaves it on both axes.
-const NEAR_CORNER: Rect = Rect { min: Pos2::new(600.0, 480.0), max: Pos2::new(1000.0, 780.0) };
 const SETTLED_FRAMES: usize = 3;
-
-fn monitor(rect: Rect) -> Monitor {
-    Monitor::new(None, rect, 1.0)
-}
 
 fn reporting() -> ViewportInfo {
     ViewportInfo {
@@ -89,4 +79,3 @@ fn gaining_focus_makes_the_window_the_active_one_of_its_list_once() {
     frames(second, "Portrait.psd", "second");
     assert_eq!(list.borrow().active(), Some(first), "only the edge activates: a window that stays focused does not take the mark back");
 }
-

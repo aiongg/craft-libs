@@ -1,8 +1,6 @@
 //! `Field`: the help line is part of the field, and a field without help shows none.
 
-use craft_theme::variant::Tone;
-use craft_ui::contract::{Bind, Props as _, Role, Show as _, ShowContainer as _, Validity};
-use craft_ui::display::Text;
+use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _, Validity};
 use craft_ui::form::{Field, Help};
 use craft_ui::runtime::env::Message;
 use craft_ui::testing::access::focused_key;
@@ -13,23 +11,6 @@ use std::rc::Rc;
 
 const SIZE: f64 = 12.0;
 const HELP: &str = "In points";
-
-fn shown(help: Option<Help>) -> Fixture {
-    let mut fixture = Fixture::new(move |ui| {
-        let field = Field::new("Size");
-        let field = match help.clone() {
-            Some(help) => field.help(help),
-            None => field,
-        };
-        field.show(ui, |ui, _| NumberField::new("Size", Bind::given(Some(SIZE))).show(ui));
-    });
-    fixture.settle();
-    fixture
-}
-
-fn help_shown(fixture: &Fixture) -> bool {
-    fixture.by_role(Role::LABEL).into_iter().any(|label| fixture.tree().name_of(label.node) == Some(HELP))
-}
 
 const MESSAGE: &str = "Size is too large";
 
@@ -75,20 +56,6 @@ fn a_message_replaces_the_help_line_until_the_validity_clears() {
     assert!(line_shown(&fixture, HELP) && !line_shown(&fixture, MESSAGE), "the help returns once the message clears");
 }
 
-/// The colours the texts of the field paint with.
-fn inks(fixture: &Fixture) -> Vec<craft_ui::style::Stateful<craft_ui::style::StyleColor>> {
-    fixture.styles_of(std::any::type_name::<Text>()).iter().flat_map(|seen| seen.looks.texts.iter().map(|look| look.color.clone())).collect()
-}
-
-/// The ink a `Text` in `tone` reads in.
-fn tone_ink(tone: Tone) -> craft_ui::style::Stateful<craft_ui::style::StyleColor> {
-    let mut fixture = Fixture::new(move |ui| {
-        Text::new("Reference").tone(tone).id_salt("reference").show(ui);
-    });
-    fixture.settle();
-    inks(&fixture).into_iter().next().expect("the reference text resolved a style")
-}
-
 /// A click on a field's label moves focus to its control, as on any form label.
 #[trial]
 fn a_click_on_the_label_focuses_the_control() {
@@ -105,6 +72,3 @@ fn a_click_on_the_label_focuses_the_control() {
     fixture.click(&label);
     assert_eq!(focused_key(fixture.tree()), control.node, "the label's click focused the control");
 }
-
-const READOUT: &str = "12 mm";
-

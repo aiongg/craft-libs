@@ -1,14 +1,12 @@
 //! `TransformSession`: results, gestures, undo, presets, the warp phase, the mode menu and the settings.
 
-use craft_behavior::geometry::quad::{BoxAllow, BoxState, ScaleRule, TransformMode};
+use craft_behavior::geometry::quad::{BoxState, TransformMode};
 use craft_behavior::kurbo::{Point, Rect, Vec2};
 use craft_behavior::{Anchor9, CancelReason, EditEvent, GestureId, Mixed};
 use craft_draw::ui::transform::{
-    Interpolation, TransformChoice, TransformEdit, TransformMenuWords, TransformPhase, TransformPreset, TransformRequest, TransformRow,
-    TransformSession, TransformSettings, TransformWarp,
+    Interpolation, TransformEdit, TransformPreset, TransformRequest, TransformRow, TransformSession, TransformSettings, TransformWarp,
 };
-use craft_ui::contract::Entry;
-use craft_ui::runtime::env::{UnitKind, WordSet};
+use craft_ui::runtime::env::UnitKind;
 use craft_ui::testing::trial;
 use std::sync::Arc;
 

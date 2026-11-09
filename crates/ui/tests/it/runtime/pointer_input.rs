@@ -1,11 +1,11 @@
 //! Pointer input, press focus and the wheel service read through the sensing core's shape record: double
 //! clicks, buttons, press targets, hit sizes, the zoom modifier and armed controls.
 
-use craft_behavior::{Buttons, HitLevel, PartKey, PointerButton, PressFocus, Sense, WheelTaker};
+use craft_behavior::{HitLevel, PartKey, PressFocus, Sense, WheelTaker};
 use craft_ui::runtime::pointer::frame;
 use craft_ui::testing::pointer::{self, settle};
 use craft_ui::testing::sensing::{ProbeMember, ProbePart, ProbeRoot, RootReport, press_focus, show};
-use craft_ui::testing::wheel::{register, take, take_share};
+use craft_ui::testing::wheel::{register, take};
 use craft_ui::testing::{Frames, trial};
 use egui::{Pos2, Rect, Ui, Vec2};
 use std::cell::{Cell, RefCell};
@@ -182,4 +182,3 @@ fn a_press_open_while_the_control_turns_disabled_never_activates() {
     frames.idle(2, &mut show_frame);
     assert_eq!(activations.get(), 0);
 }
-

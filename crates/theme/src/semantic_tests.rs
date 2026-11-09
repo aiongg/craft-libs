@@ -1,6 +1,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use super::*;
 use crate::ThemeId;
@@ -657,4 +657,3 @@ fn unpinned_accent_strong_follows_a_pinned_accent_solid() {
     assert_eq!(text, Rgba::WHITE);
     assert!(contrast_ratio(text, strong) >= 4.5, "{strong:?}");
 }
-

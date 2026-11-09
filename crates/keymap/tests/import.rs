@@ -5,12 +5,11 @@ use std::collections::BTreeMap;
 use craft_keymap::chord::foreign::ReadNote;
 use craft_keymap::chord::foreign::{Flavor, ForeignError};
 use craft_keymap::import::{
-    Failed, FailedChange, MAX_IMPORT_ENTRIES, MAX_IMPORT_TEXT, MAX_KEYS_PER_ENTRY, MAX_SUGGESTIONS, NoChangeReason, SkipReason, Skipped,
-    UnmatchedReason, normalize_label,
+    Failed, FailedChange, MAX_IMPORT_ENTRIES, MAX_IMPORT_TEXT, MAX_KEYS_PER_ENTRY, MAX_SUGGESTIONS, NoChangeReason, SkipReason, UnmatchedReason,
 };
 use craft_keymap::{
     Bindable, Binding, CommandRef, ContextRule, ForeignEntry, ForeignKey, ForeignSet, ImportOptions, ImportReport, Keymap, Kind, MAX_COMMANDS,
-    NoneDefined, Overrides, Platform, Scope, Scopes, Start, plan, reserved,
+    Overrides, Platform, Scope, Scopes, Start, plan, reserved,
 };
 use serde_json::json;
 
@@ -111,10 +110,6 @@ fn windows_set() -> ForeignSet {
         win("Scripts", &["Frobnicate"], &[(d, "Ctrl+Alt+R")]),
     ];
     ForeignSet::new(entries).with_name("My Set")
-}
-
-fn numpad_set() -> ForeignSet {
-    ForeignSet::new(vec![win("Window", &["Layers"], &[("Default", "Num 7")]).at_line(2)])
 }
 
 fn windows_options() -> ImportOptions {

@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use super::builtins::{SOURCES, suite_default};
+use super::builtins::SOURCES;
 use super::format;
 use super::semantic_tests::{appearances, resolve};
 use super::*;

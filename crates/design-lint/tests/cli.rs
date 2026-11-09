@@ -54,4 +54,3 @@ fn exit_codes() {
     assert_eq!(code(&run(&root, &["check-clippy", "--clippy-toml"])), 2);
     assert_eq!(code(&run(&root, &["clippy", "--bogus"])), 2);
 }
-

@@ -1,11 +1,8 @@
 //! `LayersPanel`: what a click, an Alt-click and a footer press report.
 
-use craft_behavior::SelectionChange;
 use craft_layers::ui::mock::FakeLayers;
-use craft_layers::ui::panel::{LayersEvent, LayersFooterAction, LayersPanel};
-use craft_layers::ui::tree::LayerRowKey;
+use craft_layers::ui::panel::{LayersEvent, LayersPanel};
 use craft_ui::testing::{Fixture, trial};
-use egui::Modifiers;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -35,4 +32,3 @@ fn a_click_on_an_eye_toggles_it_without_selecting() {
     assert!(events.iter().any(|event| matches!(event, LayersEvent::Toggle(_))), "events: {events:?}");
     assert!(!events.iter().any(|event| matches!(event, LayersEvent::Select(_))), "events: {events:?}");
 }
-

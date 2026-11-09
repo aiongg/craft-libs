@@ -6,7 +6,7 @@ use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::dialog::{DialogResult, PromptChoice, StandardPrompt};
 use craft_ui::display::Text;
 use craft_ui::runtime::env::{RevealEdge, RootEnv, WindowKey};
-use craft_ui::shell::{AppShell, AppShellOutput, ScreenMode, ScreenModeCommands, Slot, SlotSize};
+use craft_ui::shell::{AppShell, AppShellOutput, ScreenMode, Slot, SlotSize};
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::{click, moved, press, release, settle};
 use craft_ui::testing::{Fixture, Frames, trial};

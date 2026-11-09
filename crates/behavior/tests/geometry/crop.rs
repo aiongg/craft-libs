@@ -2,7 +2,7 @@
 
 use craft_behavior::CanvasView;
 use craft_behavior::geometry::crop::{direction, drawn, turn};
-use craft_behavior::geometry::{BoxPart, CropBox, CropGuide, GuideShow, crop_view_about, hit_rect};
+use craft_behavior::geometry::{BoxPart, CropBox, CropGuide, GuideShow, crop_view_about};
 use craft_keymap::Mods;
 use kurbo::{Point, Rect, Size, Vec2};
 

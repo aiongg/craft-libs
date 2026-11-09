@@ -11,7 +11,6 @@ struct Rig {
     fixture: Fixture,
     host: Rc<RefCell<DialogHost>>,
     actions: Rc<RefCell<Vec<SpellingAction>>>,
-    results: Rc<RefCell<usize>>,
 }
 
 fn item(word: &str, suggestions: &[&str]) -> SpellingItem {
@@ -49,7 +48,7 @@ impl Rig {
             }
         });
         fixture.settle();
-        Rig { fixture, host, actions, results }
+        Rig { fixture, host, actions }
     }
 
     fn click(&mut self, label: &str) {
@@ -86,4 +85,3 @@ fn change_uses_change_to_and_enter_on_a_suggestion_changes() {
     rig.fixture.key(Key::Enter, Modifiers::NONE);
     assert_eq!(rig.actions.borrow().last().and_then(changed), Some(("teh", "tea")));
 }
-

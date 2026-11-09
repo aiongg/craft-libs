@@ -1,12 +1,12 @@
 //! The pure painters: focus rings, scroll bars, handles and the face id.
 
 use craft_behavior::PartKey;
-use craft_theme::{Contrast, ControlSize, Flags, Mode, State, StateMix, Variant};
-use craft_ui::primitives::{BarAxis, Checker, FocusKind, FocusRing, GridInk, GridLines, Handle, HandleShape, PaintShape, ScrollBar, grid_lines};
-use craft_ui::style::{DataColor, FocusLook, StateSet};
+use craft_theme::{Contrast, ControlSize, Mode, Variant};
+use craft_ui::primitives::{BarAxis, GridInk, GridLines, ScrollBar, grid_lines};
+use craft_ui::style::{DataColor, StateSet};
 use craft_ui::testing::style::{face_id, tokens, with_cx};
 use craft_ui::testing::{Frames, trial};
-use egui::{Color32, Rect, Shape, Stroke, pos2, vec2};
+use egui::{Color32, Rect, Shape, pos2, vec2};
 
 const EPS: f32 = 1e-3;
 const END: f32 = 800.0;

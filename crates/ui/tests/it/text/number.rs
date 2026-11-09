@@ -2,19 +2,18 @@
 
 use crate::label::kit::Field;
 use craft_behavior::EditEvent;
-use craft_behavior::{Mixed, NumberCodec, Reader};
+use craft_behavior::Mixed;
 use craft_host::target::ShellInfo;
 use craft_host::{AppInfo, Host};
 use craft_ui::contract::{Bind, Entry, Props as _, Role, Show as _, ShowContainer as _, SideLabel};
 use craft_ui::runtime::InstallSpec;
 use craft_ui::runtime::env::UnitKind;
-use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::{click, moved, press};
 use craft_ui::testing::windows::FakeSystem;
 use craft_ui::testing::{Fixture, Frames, trial};
 use craft_ui::text::{NumberField, NumberPick};
-use egui::{Event, Key, Modifiers, MouseWheelSource, MouseWheelUnit, Pos2, Rect, TouchPhase, Ui, Vec2};
+use egui::{Event, Key, Modifiers, Pos2, Rect, Ui, Vec2};
 use std::cell::{Cell, RefCell};
 use std::ops::RangeInclusive;
 use std::rc::Rc;
@@ -75,20 +74,6 @@ impl Rig {
 
     fn value(&self) -> Option<f64> {
         *self.value.borrow()
-    }
-
-    /// One wheel notch of `dy` lines over the field with `modifiers` held.
-    fn wheel(&mut self, dy: f32, modifiers: Modifiers) {
-        let at = self.rect.get().center();
-        self.frame(vec![moved(at)]);
-        self.frame(vec![Event::MouseWheel {
-            unit: MouseWheelUnit::Line,
-            delta: Vec2::new(0.0, dy),
-            phase: TouchPhase::Move,
-            source: MouseWheelSource::Wheel,
-            modifiers,
-        }]);
-        self.idle(3);
     }
 }
 
@@ -372,9 +357,4 @@ fn a_localised_decimal_types_in() {
     i18n.set_format(craft_i18n::Format::from_tag("de"));
     let host = Arc::new(Host::builder(AppInfo { id: "trial", name: "Trial", version: "0" }).i18n(Arc::new(i18n)).build());
     assert_eq!(typed(Some(host), None, "12,5"), Some(12.5));
-}
-
-/// The field with a codec that reads "Auto" as -1.
-fn auto(field: NumberField<'_>) -> NumberField<'_> {
-    field.codec(NumberCodec::new(Reader::new(), 1).or_parse(|text| text.trim().eq_ignore_ascii_case("auto").then_some(-1.0)))
 }

@@ -1,6 +1,6 @@
 //! The find bar and the Find and Replace dialog.
 
-use craft_text::find::{FindError, FindMatches, FindOptions, FindPattern};
+use craft_text::find::{FindMatches, FindOptions};
 use craft_text::ui::find::{FindBar, FindBarState};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers};
@@ -11,9 +11,7 @@ use std::rc::Rc;
 struct Bar {
     fixture: Fixture,
     query: Rc<RefCell<String>>,
-    matches: Rc<RefCell<FindMatches>>,
     searched: Rc<Cell<bool>>,
-    stepped: Rc<Cell<bool>>,
     closed: Rc<Cell<bool>>,
 }
 
@@ -37,7 +35,7 @@ fn bar(query: &str) -> Bar {
         flags.2.set(flags.2.get() || out.closed);
     });
     fixture.settle();
-    Bar { fixture, query, matches, searched, stepped, closed }
+    Bar { fixture, query, searched, closed }
 }
 
 /// Opening the bar puts the keyboard in its field: typing sets the query and asks the app to search.
@@ -59,4 +57,3 @@ fn escape_clears_the_query_then_closes() {
     bar.fixture.key(Key::Escape, Modifiers::NONE).settle();
     assert!(bar.closed.get());
 }
-

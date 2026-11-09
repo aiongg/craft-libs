@@ -5,9 +5,7 @@ use craft_behavior::{EditEvent, EditHistory, Mixed, SelectionChange};
 use craft_i18n::Direction;
 use craft_layers::ui::mock::FakeLayers;
 use craft_layers::ui::options::LayersSettings;
-use craft_layers::ui::panel::{
-    ActivateOn, LayerColumn, LayerDrop, LayerPosition, LayerToggle, LayersEvent, LayersFooterButton, LayersPanel, LayersPanelCommands,
-};
+use craft_layers::ui::panel::{LayerColumn, LayerDrop, LayerPosition, LayerToggle, LayersEvent, LayersFooterButton, LayersPanel};
 use craft_layers::ui::tree::{LayerInfo, LayerKind, LayerLocks, LayerPart, LayerRowKey, LayerSelection, MaskInfo};
 use craft_theme::LabelColor;
 use craft_ui::contract::{Entry, Role};
@@ -131,11 +129,6 @@ fn row(fixture: &Fixture, name: &str) -> Target {
     node(fixture, name)
 }
 
-/// The middle of the painted name of a row.
-fn name_at(fixture: &Fixture, name: &str) -> Pos2 {
-    fixture.texts().iter().find(|text| text.text == name).unwrap_or_else(|| panic!("{name:?} is not painted")).rect.center()
-}
-
 /// The point `share` of the way down `target`, in the middle of its width.
 fn at(target: &Target, share: f32) -> Pos2 {
     Pos2::new(target.rect.center().x, target.rect.top() + target.rect.height() * share)
@@ -148,15 +141,6 @@ fn context_click(fixture: &mut Fixture, target: &Target) {
     fixture.frame(vec![pointer::secondary(pos, true)]);
     fixture.frame(vec![pointer::secondary(pos, false)]);
     fixture.idle(3);
-}
-
-fn double_click(fixture: &mut Fixture, pos: Pos2) {
-    fixture.frame(vec![pointer::moved(pos)]);
-    for _ in 0..2 {
-        fixture.frame(vec![pointer::press(pos)]);
-        fixture.frame(vec![pointer::release(pos)]);
-    }
-    fixture.idle(2);
 }
 
 /// Press at `from`, move past the drag threshold and on to `to`, release there.
@@ -179,41 +163,11 @@ fn selects(events: &[LayersEvent<u32>]) -> Vec<SelectionChange<u32>> {
     events.iter().filter_map(|event| if let LayersEvent::Select(select) = event { Some(select.change.clone()) } else { None }).collect()
 }
 
-fn set(layers: &[u32]) -> SelectionChange<u32> {
-    SelectionChange::Set(layers.to_vec())
-}
-
-fn opens(events: &[LayersEvent<u32>]) -> Vec<(u32, bool, bool)> {
-    events.iter().filter_map(|event| if let LayersEvent::Open(change) = event { Some((change.key, change.open, change.all)) } else { None }).collect()
-}
-
-fn fx_opens(events: &[LayersEvent<u32>]) -> Vec<(u32, bool, bool)> {
-    events
-        .iter()
-        .filter_map(|event| if let LayersEvent::FxOpen { layer, open, all, .. } = event { Some((*layer, *open, *all)) } else { None })
-        .collect()
-}
-
-fn renames(events: &[LayersEvent<u32>]) -> Vec<(u32, String)> {
-    events.iter().filter_map(|event| if let LayersEvent::Rename { layer, text, .. } = event { Some((*layer, text.clone())) } else { None }).collect()
-}
-
 fn label_colors(events: &[LayersEvent<u32>]) -> Vec<(Vec<u32>, Option<LabelColor>)> {
     events
         .iter()
         .filter_map(|event| if let LayersEvent::LabelColor { rows, color, .. } = event { Some((rows.clone(), *color)) } else { None })
         .collect()
-}
-
-fn mask_links(events: &[LayersEvent<u32>]) -> Vec<(u32, LayerPart, bool)> {
-    events
-        .iter()
-        .filter_map(|event| if let LayersEvent::MaskLink { layer, part, linked, .. } = event { Some((*layer, *part, *linked)) } else { None })
-        .collect()
-}
-
-fn activations(events: &[LayersEvent<u32>]) -> Vec<(LayerRowKey<u32>, ActivateOn)> {
-    events.iter().filter_map(|event| if let LayersEvent::Activate { row, on, .. } = event { Some((row.clone(), *on)) } else { None }).collect()
 }
 
 fn menus(events: &[LayersEvent<u32>]) -> Vec<LayerRowKey<u32>> {
@@ -395,36 +349,6 @@ fn a_right_click_on_an_effects_eye_opens_the_row_menu_for_that_row() {
     fixture.click(&node(&fixture, "Rename Layer…"));
     fixture.idle(3);
     assert_eq!(menus(&take(&app)), [LayerRowKey::Effects(7, Some(0))]);
-}
-
-/// The number of text inputs shown: the rename field while a row is renamed (number fields are spin buttons).
-fn text_inputs(fixture: &Fixture) -> usize {
-    fixture.by_role(Role::TEXT_INPUT).len()
-}
-
-/// Seconds between two separate double clicks: longer than the interval in which presses count as one multi-click.
-/// The advance models the user's pause between two renames; the 3rd and 4th click of an unbroken chain are a triple
-/// click and begin no rename (Finder, Photoshop).
-const BETWEEN_DOUBLE_CLICKS: f64 = 1.0;
-
-/// Opens the rename field of `name` by a double click on it, a while after the last click.
-fn begin_rename(fixture: &mut Fixture, app: &Shared, name: &str) {
-    let plain = text_inputs(fixture);
-    let pos = name_at(fixture, name);
-    fixture.advance(BETWEEN_DOUBLE_CLICKS);
-    double_click(fixture, pos);
-    assert!(text_inputs(fixture) > plain, "{name} is being renamed");
-    take(app);
-}
-
-/// Replaces the text of the rename field.
-fn retype(fixture: &mut Fixture, text: &str) {
-    fixture.key(Key::A, Modifiers::COMMAND);
-    if text.is_empty() {
-        fixture.key(Key::Backspace, Modifiers::NONE);
-    } else {
-        fixture.type_text(text);
-    }
 }
 
 /// Where a layer dragged from `from` and released at `to` lands.

@@ -243,7 +243,4 @@ pub fn pick(requests: &[(Cursor, CursorPriority)]) -> Option<&Cursor> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-}
+mod tests {}

@@ -3,7 +3,6 @@
 
 use craft_behavior::DockSide;
 use craft_theme::{Contrast, ControlSize, Mode};
-use craft_ui::contract::DropMark;
 use craft_ui::docking::{DockSizes, DockSpot, DockTargets, ZoneRule};
 use craft_ui::style::Variant;
 use craft_ui::testing::memory::global;
@@ -12,7 +11,6 @@ use craft_ui::testing::{Frames, trial};
 use egui::{Context, Id, Pos2, Rect, Vec2};
 
 const GROUP: u32 = 4;
-const OTHER: u32 = 5;
 const LAYOUT: Rect = Rect { min: Pos2::new(0.0, 0.0), max: Pos2::new(400.0, 300.0) };
 const STRIP_HEIGHT: f32 = 24.0;
 
@@ -151,4 +149,3 @@ fn a_blocked_rect_hides_the_spots_registered_below_it() {
         },
     );
 }
-

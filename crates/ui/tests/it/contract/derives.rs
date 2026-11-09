@@ -1,17 +1,14 @@
 //! What the derives write: registrations and probes, style keys per instantiation, setters and style accessors.
 
 use super::kit::PlainStyle;
-use craft_behavior::{CancelReason, Metrics};
-use craft_theme::{Contrast, ControlSize, Mode, Rgba, Tokens, Variant};
+use craft_behavior::CancelReason;
 use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolPath, ToolPointer};
-use craft_ui::contract::PatternKind;
 use craft_ui::contract::{
-    Common, Component, Cx, EditResponse, Internal, MeasureCx, Meta, Pattern, Props, Role, ShapeKind, Show as _, register_contract, shape,
+    Common, Component, Cx, EditResponse, Internal, MeasureCx, Meta, Pattern, Role, ShapeKind, Show as _, register_contract, shape,
 };
 use craft_ui::primitives::Draw;
-use craft_ui::style::{ComponentStyle, FocusLook, StyleCx, StyleKey, SurfaceLook, TokenGroup};
-use craft_ui::testing::style::{tokens, with_cx};
-use craft_ui::testing::{Frames, Probe, registered, trial};
+use craft_ui::style::{StyleCx, StyleKey};
+use craft_ui::testing::{Frames, Probe, trial};
 use egui::{Response, Vec2};
 use std::any::TypeId;
 use std::marker::PhantomData;
@@ -189,8 +186,6 @@ fn register_contract_registers_a_hand_written_component() {
     });
 }
 
-static ROWS: std::sync::Mutex<Vec<(usize, egui::Rect)>> = std::sync::Mutex::new(Vec::new());
-
 #[trial]
 fn each_instantiation_of_a_generic_component_has_its_own_style_key() {
     let plain = Tagged::<Plain> { common: Common::new(), kind: 3, codec: PhantomData };
@@ -204,58 +199,3 @@ fn each_instantiation_of_a_generic_component_has_its_own_style_key() {
     );
     let _ = number;
 }
-
-/// Setters of each field form.
-#[derive(Props)]
-struct Fancy {
-    /// An optional count.
-    #[prop]
-    count: Option<u8>,
-    /// A title.
-    #[prop]
-    title: String,
-    /// A subtitle converted from a `&str`.
-    #[prop(into)]
-    sub: Option<String>,
-    /// Busy.
-    #[prop(flag)]
-    busy: bool,
-    /// A plain boolean under another name.
-    #[prop(name = "wide")]
-    stretch: bool,
-}
-
-/// A style with every part the derive reads.
-#[derive(Clone, Debug, PartialEq, ComponentStyle)]
-#[style(variants = [Variant::GHOST, Variant::PRIMARY])]
-struct Parts {
-    #[style(surface)]
-    surface: Option<SurfaceLook>,
-    #[style(focus)]
-    focus: FocusLook,
-    #[style(metrics)]
-    metrics: Metrics,
-}
-
-#[derive(Clone, TokenGroup)]
-#[group(path = "craft_ui_tests.same")]
-struct First {
-    colour: Rgba,
-}
-
-impl First {
-    fn derive(_: &Tokens) -> Self {
-        First { colour: Rgba::rgb(1, 2, 3) }
-    }
-}
-
-#[derive(Clone, TokenGroup)]
-#[group(path = "craft_ui_tests.same")]
-struct Second;
-
-impl Second {
-    fn derive(_: &Tokens) -> Self {
-        Second
-    }
-}
-

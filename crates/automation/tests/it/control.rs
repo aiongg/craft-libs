@@ -6,12 +6,8 @@ use std::sync::mpsc::{Receiver, channel};
 use std::time::Duration;
 
 use craft_automation::control::{ControlChannel, ControlRequest, ControlResponse, Reply, expired_error, timeout_error};
-use craft_automation::screenshot::{CaptureGeometry, Finished};
 use craft_automation::security::{AUTH_DEADLINE, MAX_REQUEST_BYTES};
 use craft_automation::server;
-use craft_automation::synthetic::{Click, KeyPress, move_from_params};
-use craft_behavior::PointerButton;
-use craft_keymap::Key;
 use craft_ui::runtime::motion;
 use craft_ui::runtime::windows::WindowHost;
 use craft_ui::testing::trial;
@@ -184,4 +180,3 @@ fn an_over_long_request_is_refused_and_closes_the_connection() {
     assert!(read_json(&mut reader).is_none(), "the connection is closed");
     assert!(rx.try_recv().is_err());
 }
-

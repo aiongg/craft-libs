@@ -1,6 +1,6 @@
 //! The transform box: which keys change a corner drag, and the skew limit.
 
-use craft_behavior::geometry::{BoxRules, BoxState, Parts, SKEW_LIMIT, TransformMode, drag};
+use craft_behavior::geometry::{BoxRules, BoxState, drag};
 use craft_keymap::Mods;
 use kurbo::{Point, Rect};
 
@@ -45,4 +45,3 @@ fn alt_scales_about_the_centre_in_a_corner_drag() {
     let stretched = dragged(p(100.0, 50.0), p(150.0, 60.0), ALT_SHIFT, &BoxRules::default());
     assert!(corners_are(&stretched, -50.0, -10.0, 150.0, 60.0), "{:?}", stretched.quad);
 }
-

@@ -205,7 +205,3 @@ impl serde::Serialize for SlowFrames {
 pub fn now_ms() -> f64 {
     craft_platform::clock::monotonic_ms()
 }
-
-#[cfg(test)]
-#[path = "profiler_tests.rs"]
-mod profiler_tests;

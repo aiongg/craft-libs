@@ -4,9 +4,9 @@
 use craft_behavior::{PartKey, Sense};
 use craft_i18n::Direction;
 use craft_theme::{Contrast, Mode};
-use craft_ui::contract::{Common, Component, Cx, PaintUi, PartsCx, Pointer as _, Props as _, Role, Show as _};
-use craft_ui::primitives::{Dashes, DataWidth, PaintShape, StrokeWidth};
-use craft_ui::style::{ComponentStyle, DataColor, Ink, StyleCx};
+use craft_ui::contract::{Common, Component, Cx, PaintUi, PartsCx, Pointer as _, Role};
+use craft_ui::primitives::{DataWidth, PaintShape};
+use craft_ui::style::{ComponentStyle, Ink, StyleCx};
 use craft_ui::testing::style::{paint_frame, tokens, with_cx};
 use craft_ui::testing::{Frames, trial};
 use egui::{Color32, Rect, Response, Shape, Vec2, pos2};
@@ -98,4 +98,3 @@ impl Component for Preview {
         cx.response.clone()
     }
 }
-

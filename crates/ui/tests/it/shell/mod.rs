@@ -4,18 +4,14 @@ mod caption_button;
 
 mod document_window;
 mod screen_mode;
-mod viewport_window;
 mod window_parts;
 
 // Start screen.
 mod start;
 
-use crate::contract::kit::Panel;
-use craft_ui::contract::{PaneEdge, ShowContainer as _};
-use craft_ui::runtime::env::{BodyMode, RevealEdge, RootEnv, ShellCx, ShellRegions, WindowKey};
-use craft_ui::testing::{Frames, trial};
+use craft_ui::runtime::env::{BodyMode, RevealEdge, ShellCx, WindowKey};
+use craft_ui::testing::trial;
 use egui::{Rect, pos2};
-use std::cell::RefCell;
 
 fn body() -> Rect {
     Rect::from_min_max(pos2(40.0, 30.0), pos2(640.0, 480.0))

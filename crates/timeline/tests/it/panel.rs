@@ -6,12 +6,12 @@ use std::rc::Rc;
 use craft_behavior::{EditEvent, SelectionChange};
 use craft_timeline::ui::stack::{MoveTarget, RowGeom, Side, TrackSizes, resolve_move};
 use craft_timeline::ui::view::TimelineView;
-use craft_timeline::ui::{Timeline, TimelineEdit, TrackSwitch};
+use craft_timeline::ui::{Timeline, TimelineEdit};
 use craft_timeline::{ClipId, ClipInfo, TimeRange, TimelineModel, TrackId, TrackInfo};
 use craft_timeline::{FollowMode, FrameRate, Tick, TimeFormat, TimeView, TrackKind};
 use craft_ui::contract::{Bind, ShowContainer as _};
-use craft_ui::testing::{Fixture, Frames, Target, pointer, trial};
-use egui::{Event, Key, Modifiers, MouseWheelSource, MouseWheelUnit, Rect, TouchPhase, Vec2};
+use craft_ui::testing::{Fixture, Target, pointer, trial};
+use egui::{Key, Modifiers, Rect, Vec2};
 
 const RATE: FrameRate = FrameRate::FPS_29_97;
 
@@ -77,14 +77,6 @@ fn arrows_step_the_playhead_by_exact_chords() {
     assert_eq!(state.borrow().moved.len(), before, "Alt+Right is a clip nudge, not a playhead step");
 }
 
-/// A wheel turn of `delta` points over the view's middle, carrying `modifiers` the way a device reports them.
-fn wheel(fixture: &mut Fixture, delta: Vec2, modifiers: Modifiers) {
-    let at = fixture.shown().center();
-    let turn = Event::MouseWheel { unit: MouseWheelUnit::Point, delta, phase: TouchPhase::Move, modifiers, source: MouseWheelSource::Wheel };
-    fixture.frame(vec![pointer::moved(at)]);
-    fixture.frame(vec![turn]);
-}
-
 /// While playing the view follows the playhead; a jump while stopped reveals it.
 #[trial]
 fn view_follows_the_playhead_while_playing() {
@@ -139,14 +131,11 @@ fn a_move_gets_its_track_fields_from_the_pointer() {
 const V1: TrackId = TrackId(1);
 const V2: TrackId = TrackId(2);
 const A1: TrackId = TrackId(3);
-const V3: TrackId = TrackId(4);
 const C1: TrackId = TrackId(9);
 /// The panel's room.
 const PANEL_ROOM: Vec2 = Vec2::new(900.0, 500.0);
 /// The time the panel's view shows per second of room.
 const PANEL_POINTS_PER_SECOND: f64 = 20.0;
-/// Audio tracks beyond the room's share, so the audio side scrolls.
-const EXTRA_AUDIO: u64 = 12;
 
 struct Sequence {
     tracks: Vec<(TrackId, TrackKind, String)>,
@@ -257,18 +246,6 @@ fn panel() -> Panel {
     panel_with(named(&[(V2, TrackKind::Video, "V2"), (V1, TrackKind::Video, "V1"), (A1, TrackKind::Audio, "A1")]), None)
 }
 
-/// Three video tracks, which share one pane.
-fn three_video() -> Panel {
-    panel_with(named(&[(V3, TrackKind::Video, "V3"), (V2, TrackKind::Video, "V2"), (V1, TrackKind::Video, "V1")]), None)
-}
-
-/// V1 over A1 and many more audio tracks.
-fn many_audio() -> Panel {
-    let mut tracks = named(&[(V1, TrackKind::Video, "V1"), (A1, TrackKind::Audio, "A1")]);
-    tracks.extend((2..2 + EXTRA_AUDIO).map(|n| (TrackId(20 + n), TrackKind::Audio, format!("A{n}"))));
-    panel_with(tracks, None)
-}
-
 impl Panel {
     /// The row of the track called `name`: of the nodes with that name, the widest (the row spans the header and the lane).
     fn row(&self, name: &str) -> Rect {
@@ -290,18 +267,6 @@ impl Panel {
             .filter(|key| tree.name_of(*key).is_some_and(|label| label.contains(name)))
             .filter_map(|key| self.fixture.target(key))
             .find(|target| row.contains(target.center()))
-            .unwrap_or_else(|| panic!("no node named {name} in {row:?}"))
-    }
-
-    /// The node named exactly `name` that lies inside `row`: the narrowest, since the row itself carries its track's name.
-    fn name_in_row(&self, name: &str, row: Rect) -> Target {
-        let tree = self.fixture.tree();
-        tree.keys()
-            .into_iter()
-            .filter(|key| tree.name_of(*key) == Some(name))
-            .filter_map(|key| self.fixture.target(key))
-            .filter(|target| row.contains(target.center()))
-            .min_by(|a, b| a.rect.width().total_cmp(&b.rect.width()))
             .unwrap_or_else(|| panic!("no node named {name} in {row:?}"))
     }
 
@@ -330,29 +295,7 @@ fn video_tracks_stack_up_from_the_divider() {
     assert_eq!(v2.height(), v1.height());
 }
 
-impl Panel {
-    /// Presses the Lock switch of V3 and moves down over the Lock switches of V2 and V1 (one pane), then returns the
-    /// switches reported so far (the pointer is still down).
-    fn sweep_locks(&mut self) -> Vec<(TrackId, bool)> {
-        let centers: Vec<_> = ["V3", "V2", "V1"].map(|name| self.in_row("Toggle Track Lock", self.row(name)).center()).into();
-        self.fixture.frame(vec![pointer::moved(centers[0])]);
-        self.fixture.frame(vec![pointer::press(centers[0])]);
-        for center in &centers[1..] {
-            self.fixture.frame(vec![pointer::moved(*center)]);
-        }
-        self.locks()
-    }
-
-    fn locks(&self) -> Vec<(TrackId, bool)> {
-        self.edits()
-            .into_iter()
-            .filter_map(|edit| match edit {
-                TimelineEdit::Switch { track, switch: TrackSwitch::Locked, value, .. } => Some((track, value)),
-                _ => None,
-            })
-            .collect()
-    }
-}
+impl Panel {}
 
 /// A row resizes from its own height: video rows grow upward, so an edge dragged up adds height, and the top video row
 /// has a top edge.
@@ -401,9 +344,6 @@ fn caption_rows_sit_above_video_with_a_mix_row() {
     let mix = panel.fixture.by_label("Mix").expect("a model with a master volume has a Mix row");
     assert!(mix.rect.top() >= a1.bottom() - SLACK, "the Mix row lies below the audio rows: {:?} {a1:?}", mix.rect);
 }
-
-/// The points one wheel turn moves.
-const WHEEL_POINTS: f32 = 30.0;
 
 /// The context menus a pass reported, as (track, clip, anchor, pointer).
 fn reported_menus(panel: &Panel) -> Vec<(Option<TrackId>, Option<ClipId>, Rect, Option<egui::Pos2>)> {
@@ -477,38 +417,6 @@ fn the_menu_keys_report_a_context_menu_for_the_clip_reached_by_tab() {
         assert!(clip.rect.expand(SLACK).contains(anchor.center()), "{anchor:?} lies on the clip {:?}", clip.rect);
     }
 }
-
-/// The rects of the panel that are filled with a clip colour or the disabled fill, as one frame paints them.
-fn clip_fills(disabled: Vec<ClipId>) -> Vec<(Rect, egui::Color32)> {
-    let sequence = Rc::new(RefCell::new(Sequence {
-        tracks: named(&[(V1, TrackKind::Video, "V1"), (A1, TrackKind::Audio, "A1")]),
-        master: None,
-        view: TimeView::new(Tick::ZERO, PANEL_POINTS_PER_SECOND),
-        playhead: Tick::ZERO,
-        selection: Vec::new(),
-        disabled,
-        edits: Vec::new(),
-    }));
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut egui::Ui| {
-        let mut sequence = sequence.borrow_mut();
-        Timeline::new("Timeline", &mut *sequence).show(ui);
-    };
-    for _ in 0..SETTLE_FRAMES {
-        frames.frame(Vec::new(), &mut show);
-    }
-    frames
-        .frame_shapes(&mut show)
-        .into_iter()
-        .filter_map(|shape| match shape {
-            egui::Shape::Rect(rect) if rect.fill != egui::Color32::TRANSPARENT => Some((rect.rect, rect.fill)),
-            _ => None,
-        })
-        .collect()
-}
-
-/// Frames the panel takes to lay out and paint its clips.
-const SETTLE_FRAMES: usize = 6;
 
 /// A switched-off clip is inactive, not disabled: its node stays enabled and a click on it still selects it (Premiere).
 #[trial]

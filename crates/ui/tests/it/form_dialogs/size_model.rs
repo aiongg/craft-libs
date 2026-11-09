@@ -1,7 +1,7 @@
 //! The size model of the size dialogs: linked fields, units, the pixel cap and the export size rules.
 
 use craft_behavior::PixelSize;
-use craft_ui::patterns::form_dialogs::{LinkedSize, MAX_DOCUMENT_SIDE, SizeError, resize_from_scale, resize_from_side};
+use craft_ui::patterns::form_dialogs::{LinkedSize, SizeError, resize_from_scale, resize_from_side};
 use craft_ui::runtime::env::{Env, UnitKind};
 use craft_ui::testing::{Frames, trial};
 

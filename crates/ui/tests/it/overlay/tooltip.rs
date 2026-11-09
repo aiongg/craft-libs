@@ -1,14 +1,11 @@
 //! Tooltips: shown after a delay, hidden on a press.
 
 use super::kit::{Leaf, Seen};
-use craft_behavior::IconId;
-use craft_ui::buttons::IconButton;
 use craft_ui::contract::tooltip::DELAY;
-use craft_ui::contract::{Bind, Props as _, Role, Show as _};
+use craft_ui::contract::{Props as _, Role, Show as _};
 use craft_ui::runtime::overlay::{OpenFilter, any_open};
 use craft_ui::testing::pointer::{moved, press};
 use craft_ui::testing::{Fixture, Frames, trial};
-use craft_ui::value_drag::Slider;
 use egui::{Pos2, Rect, Ui, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -53,15 +50,3 @@ fn a_shown_tooltip_is_a_node_named_by_its_text_and_describes_its_control() {
     let tip_nodes: Vec<_> = tips.iter().map(|tip| tip.node).collect();
     assert_eq!(control.map(|id| fixture.tree().described_by(id)), Some(tip_nodes), "the control is described by the tip");
 }
-
-/// Whether resting the pointer on the shown component past the delay opens a tooltip.
-fn tooltip_opens(mut show_component: impl FnMut(&mut Ui)) -> bool {
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| show_component(ui);
-    frames.idle(3, &mut show);
-    frames.frame(vec![moved(TARGET.center())], &mut show);
-    frames.advance(DELAY);
-    frames.idle(3, &mut show);
-    any_open(&frames.ctx, OpenFilter::Any)
-}
-

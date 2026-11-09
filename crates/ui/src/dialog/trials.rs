@@ -4,34 +4,13 @@ use super::{BlockingOverlay, Dialog, FullWindowDialog};
 use crate::choice::Checkbox;
 use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use crate::runtime::focus::Initial;
-use crate::runtime::overlay::{CloseReason, OpenFilter, any_open};
+use crate::runtime::overlay::CloseReason;
 use crate::sections::{DialogRole, FooterButton};
-use crate::testing::focus::is_focused;
 use crate::testing::input::key_press;
 use crate::testing::{Fixture, Frames, trial};
 use crate::text::TextField;
-use egui::{Id, Key, Modifiers, Ui};
+use egui::{Key, Modifiers, Ui};
 use std::cell::Cell;
-
-/// What a shown dialog reports: its open state and the ids of its two check boxes.
-#[derive(Default)]
-struct Shown {
-    open: Cell<bool>,
-    fields: Cell<[Option<Id>; 2]>,
-}
-
-fn show(shown: &Shown) -> impl FnMut(&mut Ui) + '_ {
-    move |ui| {
-        let mut open = shown.open.get();
-        let (mut snap, mut rulers) = (false, false);
-        Dialog::new("Options").opened(Bind::bound(&mut open)).show(ui, |ui, _| {
-            let first = Checkbox::new(Bind::bound(&mut snap)).label("Snap").show(ui).response.id;
-            let second = Checkbox::new(Bind::bound(&mut rulers)).label("Rulers").show(ui).response.id;
-            shown.fields.set([Some(first), Some(second)]);
-        });
-        shown.open.set(open);
-    }
-}
 
 #[trial]
 fn escape_closes_a_cancellable_overlay_with_nothing_to_focus() {

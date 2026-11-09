@@ -10,7 +10,6 @@ use craft_ui::contract::{
 };
 use craft_ui::list::{List, ListRow, RowEvent, ThumbSize, ThumbTarget, TrailingFace, TrailingPart};
 use craft_ui::runtime::drag;
-use craft_ui::sections::{FooterAction, FooterBar};
 use craft_ui::testing::internals::place_row;
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::{Fixture, Frames, pointer, trial};

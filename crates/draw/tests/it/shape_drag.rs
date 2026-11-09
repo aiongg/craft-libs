@@ -8,15 +8,13 @@ use craft_behavior::{CancelReason, CanvasView, EditEvent, PointerButton};
 use craft_draw::geometry::shape::ShapeGeometry;
 use craft_draw::ui::shape_drag::{CreateShapeDialog, CreateShapeOptions, ShapeDragEvent, ShapeDragOptions, ShapeDragRules, ShapeDragTool, ShapeKind};
 use craft_keymap::{Key as KeymapKey, Mods};
-use craft_ui::canvas::{CanvasSpace, CanvasTool as _, ToolContext, ToolKey, ToolPointer};
+use craft_ui::canvas::{CanvasSpace, CanvasTool as _, ToolContext, ToolPointer};
 use craft_ui::dialog::{DialogHost, DialogResult};
 use craft_ui::testing::{Fixture, ToolFixture, trial};
 use egui::{Pos2, Vec2, pos2};
 
 const CANVAS: Vec2 = Vec2::new(400.0, 300.0);
 const SLOP: f32 = 6.0;
-const SIDES: u32 = 7;
-const RATIO: f64 = 0.5;
 
 fn view(zoom: f64) -> CanvasView {
     CanvasView::new(egui::Rect::from_min_size(Pos2::ZERO, CANVAS), Point::new(200.0, 150.0), zoom)
@@ -138,4 +136,3 @@ fn a_size_out_of_range_shows_a_notice_and_disables_ok() {
     assert!(fixture.texts().iter().any(|run| run.text.contains("must be between 1 and")), "the notice says why");
     assert!(answered(&mut fixture, &host).is_none(), "OK is disabled while a side is out of range");
 }
-

@@ -5,7 +5,6 @@ use craft_ui::contract::ShowContainer as _;
 use craft_ui::runtime::drag;
 use craft_ui::sections::{Section, SectionStack};
 use craft_ui::testing::access::NodeKey;
-use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Id, Key, Modifiers, Vec2};

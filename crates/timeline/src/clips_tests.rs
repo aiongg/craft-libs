@@ -1,6 +1,6 @@
 //! Clip edges, trims and snapping.
 
-use crate::clips::{ClipEdge, EdgeZones, SnapTargets, TrimKind, edge_at, edge_zone, selection_trim, snap_time};
+use crate::clips::{ClipEdge, EdgeZones, edge_at};
 use crate::model::ClipId;
 use crate::time::{TICKS_PER_SECOND, Tick, TimeRange, TimeView};
 

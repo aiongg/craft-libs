@@ -15,7 +15,7 @@ use craft_ui::contract::{
 use craft_ui::style::StyleCx;
 use craft_ui::testing::focus::{is_focused, key_release};
 use craft_ui::testing::input::key_press;
-use craft_ui::testing::pointer::{middle, moved, press, release, secondary, wheel};
+use craft_ui::testing::pointer::{middle, moved, press, release, wheel};
 use craft_ui::testing::wheel::{focus, register, take};
 use craft_ui::testing::{Frames, trial};
 use egui::{Event, Id, Key, Modifiers, Pos2, Rect, Response, Ui, Vec2};

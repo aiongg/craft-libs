@@ -6,8 +6,8 @@ use std::rc::Rc;
 use craft_behavior::kurbo::Point;
 use craft_behavior::{CanvasView, Cursor, CursorIcon, EditEvent};
 use craft_imaging::ui::blur_pins::{
-    AXIS_HANDLES, BlurGrab, BlurKind, BlurPin, BlurPins, BlurPinsCommand, BlurPinsOverlay, BlurPinsPanel, DEFAULT_AMOUNT, IrisShape, MAX_PINS,
-    PinReach, TiltBand, drag, feather_handles, grab, iris_point, round_handle, tilt_point, turn_handle,
+    AXIS_HANDLES, BlurGrab, BlurKind, BlurPin, BlurPins, BlurPinsOverlay, DEFAULT_AMOUNT, IrisShape, MAX_PINS, PinReach, TiltBand, drag,
+    feather_handles, grab, iris_point, round_handle, tilt_point, turn_handle,
 };
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
@@ -152,9 +152,6 @@ fn blur_pins_tilt_shift_lines_and_dots() {
 
 // The cursor over each grab: Alias, Move, ResizeVertical, Grab, Crosshair (Default for Tilt-Shift).
 
-/// How much farther Shift moves a pin with an arrow key.
-const NUDGE_RATIO: f64 = 10.0;
-
 const CANVAS: [f64; 4] = [0.0, 0.0, 400.0, 300.0];
 
 fn pins_of(kind: BlurKind, amounts: &[f64]) -> BlurPins {
@@ -277,26 +274,6 @@ fn arrow_moves_the_focused_pin_and_selects_it() {
 // A Spin Blur pin's part is named with its angle and the degree unit.
 
 // Add Pin puts a pin at the middle of the bounds, selected: the keyboard path to creating a pin.
-
-struct Panel {
-    fixture: Fixture,
-}
-
-fn panel(pins: BlurPins) -> Panel {
-    let pins = Rc::new(RefCell::new(pins));
-    let mut fixture = Fixture::new(move |ui| {
-        BlurPinsPanel::new(&mut pins.borrow_mut()).show(ui);
-    });
-    fixture.settle();
-    Panel { fixture }
-}
-
-impl Panel {
-    fn has(&self, text: &str) -> bool {
-        let tree = self.fixture.tree();
-        tree.keys().into_iter().any(|key| tree.name_of(key).is_some_and(|name| name.contains(text)))
-    }
-}
 
 // The panel shows Blur (Spin: Blur Angle) for the selected pin, "No pin selected" without one, and the kind's hints.
 

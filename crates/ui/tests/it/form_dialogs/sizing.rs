@@ -5,37 +5,13 @@ use craft_behavior::PixelSize;
 use craft_ui::contract::Bind;
 use craft_ui::contract::Role;
 use craft_ui::dialog::{DialogHost, DialogResult};
-use craft_ui::patterns::form_dialogs::{
-    CanvasExtension, CanvasSize, CanvasSizeValues, HostedImageSize, ImageSize, ImageSizeValues, Resample, SizingWords,
-};
-use craft_ui::pickers::Anchor9;
-use craft_ui::runtime::env::UnitKind;
-use craft_ui::runtime::env::WordSet as _;
+use craft_ui::patterns::form_dialogs::{HostedImageSize, ImageSize, ImageSizeValues};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers};
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::rc::Rc;
 
 const PICTURE: PixelSize = PixelSize::new(1600, 900);
-const RESOLUTION: f64 = 300.0;
-
-/// A fixture with a dialog built by `build`, which keeps the answer and whether the dialog is still open.
-fn rig<R: 'static>(
-    build: impl for<'a> Fn(Bind<'a, bool>, &mut egui::Ui) -> Option<R> + 'static,
-) -> (Fixture, Rc<RefCell<Option<R>>>, Rc<Cell<bool>>) {
-    let answer = Rc::new(RefCell::new(None));
-    let open = Rc::new(Cell::new(true));
-    let (kept, state) = (Rc::clone(&answer), Rc::clone(&open));
-    let mut fixture = Fixture::new(move |ui| {
-        let mut now = state.get();
-        if let Some(result) = build(Bind::bound(&mut now), ui) {
-            *kept.borrow_mut() = Some(result);
-        }
-        state.set(now);
-    });
-    fixture.settle();
-    (fixture, answer, open)
-}
 
 fn press_ok(fixture: &mut Fixture) {
     let ok = fixture.by_label("OK").expect("the OK button is shown");

@@ -4,7 +4,7 @@
 
 use super::kit::{List, Row, Words};
 use craft_behavior::{DisplayOrder, ItemSource};
-use craft_ui::contract::{CollectionEvent, Props as _, Role, SelectMode, Show as _, ShowCollection as _};
+use craft_ui::contract::{CollectionEvent, Props as _, Role, SelectMode, ShowCollection as _};
 use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::{Fixture, Target, trial};
@@ -136,4 +136,3 @@ fn a_section_header_is_a_named_node_that_click_and_enter_toggle() {
     fixture.key(Key::Enter, Modifiers::NONE).settle();
     assert_eq!(items(&fixture), 3, "Enter on the header opens it again");
 }
-

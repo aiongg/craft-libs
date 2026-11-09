@@ -113,16 +113,6 @@ fn a_list_body_shows_and_scrolls_in_a_docked_and_a_floating_pane() {
     }
 }
 
-/// A double click, a second after the last press so it does not extend an earlier multi-click.
-fn double_click(bed: &mut Bed, at: Pos2) {
-    bed.fixture.advance(1.0);
-    for events in [vec![moved(at)], vec![press(at)], vec![release(at)], vec![press(at)]] {
-        bed.fixture.frame(events);
-    }
-    bed.fixture.frame(vec![release(at)]);
-    bed.fixture.idle(4);
-}
-
 #[trial]
 fn a_moved_pane_shows_the_drop_mark_on_the_other_edge_and_docks_there_on_release() {
     let mut bed = Bed::new(docked(PaneEdge::Start), floated(), false);

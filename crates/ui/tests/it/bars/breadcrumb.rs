@@ -2,7 +2,7 @@
 //! ancestor elides.
 
 use craft_ui::bars::{BreadcrumbBar, path_crumbs};
-use craft_ui::contract::{Entry, Role, Show as _};
+use craft_ui::contract::{Entry, Show as _};
 use craft_ui::testing::{Fixture, trial};
 use egui::Vec2;
 use std::cell::Cell;
@@ -62,4 +62,3 @@ fn the_root_end_overflows_into_a_menu_that_navigates() {
     narrow.click(&row).settle();
     assert_eq!(picked.get(), Some(0), "the row navigates to its crumb");
 }
-

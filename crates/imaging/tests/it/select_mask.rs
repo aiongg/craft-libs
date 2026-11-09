@@ -11,18 +11,17 @@ use craft_behavior::kurbo::Point;
 use craft_behavior::{CancelReason, CanvasView, Cursor, PixelSize, PointerButton};
 use craft_host::{AppInfo, Host, InlineJobs};
 use craft_imaging::trace::MaskSource;
-use craft_imaging::ui::mask_view::{MaskViewKeys, MaskViewMode, MaskViewState};
+use craft_imaging::ui::mask_view::{MaskViewMode, MaskViewState};
 use craft_imaging::ui::select_mask::{
-    BrushSizes, EditMode, EditPhase, LimitRefused, ObjectTarget, OutputTo, RefineStroke, SelectMaskCanvas, SelectMaskEdit, SelectMaskEvent,
-    SelectMaskLimits, SelectMaskOpen, SelectMaskPreviewRequest, SelectMaskSession, SelectMaskSettings, SelectMaskSource, SelectMaskTool,
-    SelectMaskToolOptions, SelectMaskWorkspace,
+    EditMode, EditPhase, LimitRefused, ObjectTarget, OutputTo, RefineStroke, SelectMaskCanvas, SelectMaskEdit, SelectMaskEvent, SelectMaskLimits,
+    SelectMaskOpen, SelectMaskPreviewRequest, SelectMaskSession, SelectMaskSettings, SelectMaskSource, SelectMaskTool, SelectMaskToolOptions,
+    SelectMaskWorkspace,
 };
 use craft_imaging::ui::wide_angle::PreviewDone;
 use craft_keymap::Mods;
 use craft_ui::canvas::{CanvasTool, PixelRect, RasterSource, ToolAction, ToolContext, ToolKey, ToolPath, ToolPointer};
 use craft_ui::primitives::{Draw, Revision};
 use craft_ui::runtime::access::Role;
-use craft_ui::runtime::commands::FirePhase;
 use craft_ui::runtime::pending::Job;
 use craft_ui::sections::DialogRole;
 use craft_ui::testing::focus::AccessActionKind;

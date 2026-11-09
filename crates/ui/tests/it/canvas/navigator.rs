@@ -3,11 +3,9 @@
 use craft_behavior::kurbo::{Point, Rect as DocRect, Size};
 use craft_behavior::{CanvasView, ZoomLadder};
 use craft_ui::canvas::{
-    Canvas, NavigationOptions, Navigator, NavigatorOptions, NavigatorSettings, NavigatorZoomRow, ProxyColor, preview_rect, proxy_quad,
-    view_center_for, zoom_to_document_rect,
+    NavigationOptions, Navigator, NavigatorOptions, NavigatorSettings, ProxyColor, preview_rect, proxy_quad, zoom_to_document_rect,
 };
-use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
-use craft_ui::testing::focus::AccessActionKind;
+use craft_ui::contract::{Bind, Show as _};
 use craft_ui::testing::pointer::{moved, press, release, wheel_lines};
 use craft_ui::testing::story::EditKind;
 use craft_ui::testing::{Fixture, trial};
@@ -30,8 +28,6 @@ const CENTRE_SLACK: f64 = 100.0;
 
 /// The zoom the row starts from.
 const START: f64 = 1.0;
-/// The 66.67 % rung of the zoom ladder.
-const TWO_THIRDS: f64 = 2.0 / 3.0;
 
 const CENTRE: Point = Point::new(1000.0, 750.0);
 
@@ -117,30 +113,6 @@ fn the_navigator_settings_round_trip() {
     let written = toml::Value::try_from(custom).expect("settings serialise");
     assert_eq!(written.try_into::<NavigatorSettings>().expect("settings read back"), custom);
     assert_eq!(toml::from_str::<NavigatorSettings>("other = 1").expect("unknown fields are ignored"), NavigatorSettings::default());
-}
-
-/// Where the canvas beside the zoom row shows, below the row.
-const ROW_CANVAS: Rect = Rect::from_min_max(Pos2::new(0.0, 100.0), Pos2::new(800.0, 700.0));
-
-/// The view of the canvas beside the zoom row, at `zoom` about `CENTRE`.
-fn row_view(zoom: f64) -> CanvasView {
-    CanvasView::new(ROW_CANVAS, CENTRE, zoom)
-}
-
-/// A zoom row over `view` and the canvas that shows it below the row. The app copies the view the canvas reports
-/// into `view`.
-fn zoom_row(view: &Rc<RefCell<CanvasView>>, animated: bool) -> Fixture {
-    let held = Rc::clone(view);
-    Fixture::new(move |ui| {
-        let mut options = NavigationOptions::default();
-        options.animated_zoom = animated;
-        NavigatorZoomRow::new(Bind::bound(&mut *held.borrow_mut()), DOC).show(ui);
-        let shown = *held.borrow();
-        let canvas = Canvas::new("Document").view(shown).document(DOC).navigation(options).show_at(ui, ROW_CANVAS, |_, _| {});
-        if let Some(next) = canvas.output.view {
-            *held.borrow_mut() = next;
-        }
-    })
 }
 
 #[trial]

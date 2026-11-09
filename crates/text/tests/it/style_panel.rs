@@ -1,9 +1,7 @@
 //! The styles panel: what a click, a key, a drop and the panel menu's commands ask the app to do.
 
-use craft_behavior::{IconId, Selection};
-use craft_text::ui::style_panel::{
-    NamedStyleRow, StylePreview, TextStyleAction, TextStyleCommand, TextStyleKind, TextStyleRow, TextStylesPanel, style_rows,
-};
+use craft_behavior::Selection;
+use craft_text::ui::style_panel::{TextStyleAction, TextStyleCommand, TextStyleKind, TextStyleRow, TextStylesPanel};
 use craft_ui::contract::Bind;
 use craft_ui::runtime::commands::{self, FireSource};
 use craft_ui::testing::{Fixture, trial};
@@ -146,4 +144,3 @@ fn highlighted_rows_act_together() {
     rig.fixture.drag(&from, new.center() - from.center());
     assert_eq!(rig.take(), [TextStyleAction::Duplicate(4)]);
 }
-

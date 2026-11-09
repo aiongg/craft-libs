@@ -1,12 +1,8 @@
 //! The Tabs dialog: Set, in-place edits, the result and the leader options.
 
 use craft_text::ui::ruler::{TabAlign, TabLeader, TabStop};
-use craft_text::ui::tabs_dialog::{TabStopsDialog, TabStopsWords, leader_text};
-use craft_ui::dialog::{DialogResult, DialogStack, StackDialog as _};
-use craft_ui::runtime::env::Env;
-use craft_ui::testing::{Fixture, trial};
-use std::cell::RefCell;
-use std::rc::Rc;
+use craft_text::ui::tabs_dialog::TabStopsDialog;
+use craft_ui::testing::trial;
 
 fn stop(position: f32) -> TabStop {
     TabStop::new(position, TabAlign::Left, TabLeader::None)
@@ -35,4 +31,3 @@ fn editing_in_place_merges_on_normalize() {
     dialog.normalize();
     assert_eq!(positions(&mut dialog), vec![72.2, 144.0]);
 }
-

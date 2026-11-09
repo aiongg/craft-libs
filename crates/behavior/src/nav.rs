@@ -942,5 +942,4 @@ mod tests {
         assert!((set(wheel(vec2(0.0, 1.0), Mods::ALT), false) - 0.001).abs() < 1e-9);
         assert_eq!(wheel_step(&steps, ValueAxes::Vertical, &wheel(vec2(3.0, 0.0), Mods::NONE), false), StepResult::Ignored);
     }
-
 }

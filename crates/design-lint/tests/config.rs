@@ -8,10 +8,6 @@ use craft_design_lint::{Config, check};
 
 const ORIGIN: &str = "design-lint.toml";
 
-fn parse(text: &str) -> Result<Config, String> {
-    Config::parse(Path::new(ORIGIN), text).map_err(|e| e.to_string())
-}
-
 #[test]
 fn check_applies_exemptions_markers_and_counts() {
     let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("check-exempt");
@@ -41,4 +37,3 @@ fn check_applies_exemptions_markers_and_counts() {
     assert_eq!((report.markers, report.exemptions.len()), (2, 1));
     assert!(report.summary_line().ends_with("2 markers, 1 exemption, 0 clippy allows"), "{}", report.summary_line());
 }
-

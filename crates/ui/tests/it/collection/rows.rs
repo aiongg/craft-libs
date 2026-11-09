@@ -507,4 +507,3 @@ fn a_nudging_part_in_a_row_gets_alt_arrows() {
     assert_eq!(log.focus.borrow().last().copied(), Some((0, "a")), "the arrows moved nothing");
     assert_eq!(log.leads().last(), Some(&0), "the lead stayed");
 }
-

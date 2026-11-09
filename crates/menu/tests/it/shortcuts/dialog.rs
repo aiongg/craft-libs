@@ -1,7 +1,7 @@
 //! The dialog's frame: recording into a row, the conflict bar, undo, Cancel and OK, and the messages under the table.
 
 use craft_keymap::{Active, Bindable, Binding, Chord, ConflictKind, Keymap, Kind, Lookup, Platform, Scope, Scopes};
-use craft_menu::shortcuts::{ConflictMode, Outcome};
+use craft_menu::shortcuts::Outcome;
 use craft_ui::testing::trial;
 use egui::{Key, Modifiers};
 
@@ -129,4 +129,3 @@ fn cancel_restores_the_keymap_and_reports_changed_after() {
     assert_eq!(after, [false, true], "Changed follows Cancel, which undid an edit");
     assert!(!rig.shared.borrow().state.is_open());
 }
-

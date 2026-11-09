@@ -855,10 +855,6 @@ mod tests {
         }
     }
 
-    fn rows(count: usize) -> SpanLayout {
-        SpanLayout::new(&Count(count), 100.0, 20.0).columns(vec![(ColumnKey::new("a"), 30.0), (ColumnKey::new("b"), 70.0)])
-    }
-
     struct Hints(Vec<SizeHint>);
 
     impl DisplayOrder<usize> for Hints {

@@ -1,27 +1,14 @@
 //! The Levels editor and panel, the Curves panel's point helper and the tone pickers, driven through the public
 //! widgets as a host would show them.
 
-use craft_behavior::CanvasView;
-use craft_behavior::kurbo::Point;
-use craft_imaging::ui::adjust::{
-    CurvesMode, CurvesPanel, Levels, LevelsEditor, LevelsPanel, ToneChannel, ToneChannels, ToneCurves, TonePick, TonePickTool, TonePicker,
-    TonePickerRow, ToneSpace,
-};
+use craft_imaging::ui::adjust::{CurvesPanel, Levels, LevelsEditor, ToneChannels, ToneCurves, ToneSpace};
 use craft_imaging::ui::curve::Curve;
-use craft_imaging::ui::histogram::ChannelColor;
 use craft_theme::Srgba;
-use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
-use craft_ui::dialog::Dialog;
-use craft_ui::runtime::focus::Initial;
-use craft_ui::sections::{DialogRole, FooterButton};
-use craft_ui::testing::{Fixture, Target, ToolFixture, trial};
-use egui::{Key, Modifiers, Vec2, vec2};
-use std::cell::{Cell, RefCell};
+use craft_ui::contract::{Bind, Role, Show as _};
+use craft_ui::testing::{Fixture, Target, trial};
+use egui::vec2;
+use std::cell::RefCell;
 use std::rc::Rc;
-
-fn identity() -> Levels {
-    Levels::identity(0.0..=255.0)
-}
 
 fn grey(v: f32) -> Srgba {
     Srgba { r: v, g: v, b: v, a: 1.0 }
@@ -33,12 +20,6 @@ fn rgb() -> ToneChannels {
 
 fn monotone(points: &[[f32; 2]]) -> Vec<f32> {
     Curve::monotone(points, 255.0)
-}
-
-fn drawn() -> ToneCurves {
-    let mut map: Vec<f32> = (0..256).map(|k| k as f32).collect();
-    map[128] = 135.0;
-    ToneCurves::new(vec![Curve::Map(map); 4], CurvesMode::Pencil)
 }
 
 /// The thumbs of a shown editor, top row first and left to right within a row.
@@ -109,15 +90,6 @@ fn auto_follows_the_clip_rule_at_both_ends() {
     assert_eq!((auto.in_black, auto.in_white), (1.0, 253.0));
 }
 
-/// A canvas whose view lets the tool map the pointer to a document point.
-fn pick_canvas(label: &'static str, tool: TonePickTool<'static>) -> ToolFixture<TonePickTool<'static>> {
-    let view = |room: egui::Rect| {
-        let centre = room.center();
-        CanvasView::new(room, Point::new(f64::from(centre.x), f64::from(centre.y)), 1.0)
-    };
-    ToolFixture::with_view(label, tool, view, |_, _| {})
-}
-
 /// A sample of grey 0.5 on the composite adds a point at input 128 (Rec. 709 luma), output the curve's there rounded.
 #[trial]
 fn a_sample_adds_a_point_on_the_curve_at_the_sampled_tone() {
@@ -161,4 +133,3 @@ fn a_sample_reads_each_corner_run_on_its_own() {
     let Some(points) = curves.curves[0].points() else { panic!("still a point curve") };
     assert_eq!(points[2], [128.0, 210.0], "the chord of the run from the corner at 100, not of the whole curve");
 }
-

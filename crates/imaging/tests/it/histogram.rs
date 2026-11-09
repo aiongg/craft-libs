@@ -1,22 +1,17 @@
 //! The histogram: how tall the bins are drawn, how overlapping channels combine, the selection band and what the
 //! plot reports for the pointer, the keys and the stale mark.
 
-use craft_imaging::ui::histogram::paint::{
-    outline, outline_shapes, plot_shapes, product, rgb_heights, rgb_mesh, selection_shapes, sum, tone_heights, tone_mesh,
-};
-use craft_imaging::ui::histogram::{
-    Blend, ChannelColor, Histogram, HistogramData, HistogramInks, HistogramLook, HistogramScale, LevelRange, StaleMark, level_at,
-};
+use craft_imaging::ui::histogram::paint::{outline_shapes, product, rgb_heights, rgb_mesh, selection_shapes, sum, tone_heights};
+use craft_imaging::ui::histogram::{Blend, ChannelColor, Histogram, HistogramData, HistogramInks, HistogramScale, LevelRange, level_at};
 use craft_theme::{Contrast, ControlSize, Mode, Variant};
-use craft_ui::contract::{Bind, Role, Show as _};
+use craft_ui::contract::{Bind, Show as _};
 use craft_ui::testing::style::{tokens, with_cx};
-use craft_ui::testing::{Fixture, Frames, Story, StoryData, StoryOutput, pointer, trial};
+use craft_ui::testing::{Fixture, Frames, Story, StoryData, StoryOutput, trial};
 use egui::{Color32, Key, Mesh, Modifiers, Pos2, Rect, Shape, Ui, Vec2, pos2};
 
 const BINS: usize = 100;
 const WHITE: Color32 = Color32::from_rgb(255, 255, 255);
 const PLOT: Vec2 = Vec2::new(256.0, 100.0);
-const SIDE: f32 = 100.0;
 const TOLERANCE: f32 = 1e-5;
 
 fn rect() -> Rect {
@@ -43,14 +38,6 @@ fn color_at(mesh: &Mesh, point: Pos2) -> Option<Color32> {
         let sides = [cross(b - a, point - a), cross(c - b, point - b), cross(a - c, point - c)];
         (sides.iter().all(|&s| s >= -1e-5) || sides.iter().all(|&s| s <= 1e-5)).then_some(mesh.vertices[t[0] as usize].color)
     })
-}
-
-fn is_empty_mesh(shape: &Shape) -> bool {
-    matches!(shape, Shape::Mesh(m) if m.vertices.is_empty())
-}
-
-fn first_mesh(shapes: &[Shape]) -> &Mesh {
-    shapes.iter().find_map(|s| if let Shape::Mesh(m) = s { Some(&**m) } else { None }).expect("a mesh")
 }
 
 #[trial]
@@ -249,30 +236,3 @@ fn a_click_or_escape_clears_the_selection_once_and_is_reported() {
     fixture.idle(2);
     assert_eq!(clears(&fixture), 1);
 }
-
-fn show_stale(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let button = *data.value("button", false);
-    let data_ptr = bins();
-    let mark = if button { StaleMark::Button("Recalculate".into()) } else { StaleMark::Mark("Cached data".into()) };
-    let out = Histogram::new("Histogram", &data_ptr).stale(mark).show(ui);
-    *data.value("refreshes", 0u32) += u32::from(out.refresh);
-    out.selection.into()
-}
-
-fn stale_refreshes(button: bool) -> (bool, u32) {
-    let mut fixture = Fixture::story(&Story::new("histogram-stale", show_stale));
-    *fixture.data().value("button", false) = button;
-    fixture.settle();
-    let name = if button { "Recalculate" } else { "Cached data" };
-    let mark = fixture.by_label(name).expect("the stale mark is named");
-    let is_button = fixture.by_role(Role::BUTTON).iter().any(|target| target.node == mark.node);
-    fixture.click(&mark);
-    (is_button, *fixture.data().value("refreshes", 0u32))
-}
-
-fn show_markers(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let data = HistogramData::tone(&(0..256).map(|i| 100 + i % 7).collect::<Vec<u32>>(), ChannelColor::Neutral);
-    let markers = [(10.0, "Black".into()), (250.0, "White".into())];
-    Histogram::new("Histogram", &data).markers(&markers).show(ui).selection.into()
-}
-

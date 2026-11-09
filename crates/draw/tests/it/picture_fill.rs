@@ -1,7 +1,7 @@
 //! The picture fill editor: its tile fields, the scale floor and the Insert… request.
 
-use craft_draw::ui::picture_fill::{PICTURE_FILL_KEY, PictureFill, PictureFillEditor, PictureMode, TileAlignment, TileMirror};
-use craft_ui::contract::{Bind, Show as _};
+use craft_draw::ui::picture_fill::{PictureFill, PictureFillEditor, PictureMode, TileAlignment, TileMirror};
+use craft_ui::contract::Bind;
 use craft_ui::runtime::requests::PathRequest;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers};
@@ -68,4 +68,3 @@ fn picture_editor_tile_fields_and_stretch_offsets() {
         other => panic!("tiled again, got {other:?}"),
     }
 }
-

@@ -237,4 +237,3 @@ fn a_row_drag_also_drops_on_a_target_of_the_mapped_payload() {
     assert_eq!(run.moves(), [(vec![0], 2, None)]);
     assert_eq!(run.dropped.borrow().len(), 1);
 }
-

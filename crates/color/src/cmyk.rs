@@ -73,7 +73,4 @@ impl ColorModel for CmykModel {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-}
+mod tests {}

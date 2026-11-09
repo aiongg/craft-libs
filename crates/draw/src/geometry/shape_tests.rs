@@ -4,7 +4,7 @@ use std::f64::consts::{FRAC_PI_2, PI};
 
 use kurbo::{PathEl, Point, Rect, RoundedRect, Shape};
 
-use super::shape::{RadialFrame, STAR_RATIO, ShapeGeometry, box_drag, line_drag};
+use super::shape::{RadialFrame, STAR_RATIO, ShapeGeometry, box_drag};
 
 fn near(a: f64, b: f64) -> bool {
     (a - b).abs() < 1e-9

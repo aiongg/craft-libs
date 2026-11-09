@@ -86,4 +86,3 @@ fn hiding_a_panel_replaces_its_split_with_the_side_that_stays() {
     let view = maximize(&layout, None, HidePanels::All, &protected);
     assert_eq!(view.layout.panels().into_iter().copied().collect::<Vec<_>>(), vec![B], "a protected panel always stays");
 }
-

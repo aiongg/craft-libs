@@ -11,7 +11,7 @@ use craft_host::{ManualJobs, Wake};
 use craft_ui::contract::{Entry, Role};
 use craft_ui::testing::access::name;
 use craft_ui::testing::{Fixture, trial};
-use egui::{Event, Key, Modifiers, PointerButton};
+use egui::{Key, Modifiers};
 
 fn path(s: &str) -> PathBuf {
     PathBuf::from(s)
@@ -31,15 +31,10 @@ fn home() -> Places {
     Places { groups: vec![PlaceGroup { kind: PlaceGroupKind::Places, places: vec![place] }], owner: Some((0, 0)), ..Places::default() }
 }
 
-fn hidden(names: &[&str]) -> Vec<Place> {
-    names.iter().map(|n| Place { path: path(&format!("/home/u/{n}")), name: (*n).into(), kind: PlaceKind::Favorite }).collect()
-}
-
 struct Rig {
     places: Places,
     cache: FolderCache,
     jobs: Arc<ManualJobs>,
-    fake: Arc<FakeDirectories>,
     current: Option<PathBuf>,
     host_menu: bool,
     events: Vec<PlacesEvent>,
@@ -49,7 +44,7 @@ fn rig(current: Option<&str>, places: Places) -> (Fixture, Rc<RefCell<Rig>>) {
     let jobs = Arc::new(ManualJobs::new());
     let fake = Arc::new(fake());
     let cache = FolderCache::new(fake.clone(), jobs.clone(), Wake::new(|| {}));
-    let state = Rc::new(RefCell::new(Rig { places, cache, jobs, fake, current: current.map(path), host_menu: false, events: Vec::new() }));
+    let state = Rc::new(RefCell::new(Rig { places, cache, jobs, current: current.map(path), host_menu: false, events: Vec::new() }));
     let shown = state.clone();
     let mut fixture = Fixture::new(move |ui| {
         let mut rig = shown.borrow_mut();
@@ -83,16 +78,6 @@ fn rows(fixture: &Fixture) -> Vec<String> {
 fn click_row(fixture: &mut Fixture, label: &str) {
     let row = fixture.by_label(label).unwrap_or_else(|| panic!("{label} is shown: {:?}", rows(fixture)));
     fixture.click(&row);
-}
-
-fn secondary_click(fixture: &mut Fixture, label: &str) {
-    let at = fixture.by_label(label).unwrap_or_else(|| panic!("{label} is shown")).center();
-    for pressed in [true, false] {
-        fixture.frame(vec![
-            Event::PointerMoved(at),
-            Event::PointerButton { pos: at, button: PointerButton::Secondary, pressed, modifiers: Modifiers::NONE },
-        ]);
-    }
 }
 
 /// `current` deep in Home: the rows open once on the way down; collapsing one keeps it closed on the next passes.
@@ -139,4 +124,3 @@ fn the_selection_follows_current_only_when_it_changes() {
     settle(&mut fixture, &state);
     assert_eq!(state.borrow().events, vec![PlacesEvent::Open(path("/home/u/Photos/2025"))], "a new `current` moves the selection to its row");
 }
-

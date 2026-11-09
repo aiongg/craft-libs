@@ -109,5 +109,4 @@ mod tests {
         let second = rect(1000.0, 30.0, 1200.0, 770.0);
         assert_eq!(cascade(rect(1780.0, 100.0, 400.0, 300.0), size, second, 28.0), rect(1000.0, 128.0, 400.0, 300.0));
     }
-
 }

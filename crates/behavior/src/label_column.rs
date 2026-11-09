@@ -78,5 +78,4 @@ mod tests {
         let low = column.place(row(false, 300.0), Vec2::new(40.0, 12.0), 9.0, Some(4.0));
         assert_eq!((low.label.top(), low.control.top()), (0.0, 5.0), "a control with the higher baseline moves down instead");
     }
-
 }

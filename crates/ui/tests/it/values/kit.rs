@@ -26,7 +26,6 @@ pub const AT: Rect = Rect { min: Pos2::new(10.0, 10.0), max: Pos2::new(110.0, 30
 /// trials stops at `HELD`.
 pub const INITIAL: f32 = 10.0;
 pub const APP_VALUE: f32 = 3.0;
-pub const RESET_TO: f32 = 0.25;
 pub const STEP: f32 = 1.0;
 pub const CAP: f32 = 30.0;
 pub const FIRST: f32 = 40.0;

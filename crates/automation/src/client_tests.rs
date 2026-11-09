@@ -1,12 +1,8 @@
 //! Behaviour tests of `client`.
 
-use std::time::Duration;
-
 use serde_json::json;
 
 use super::*;
-use crate::server::start;
-use craft_ui::runtime::windows::WindowHost;
 
 const TOKEN: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 

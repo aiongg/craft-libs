@@ -4,11 +4,11 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
-use craft_table::ui::outline::{LANE_MIN_ZOOM, OutlineAction, OutlineAxis, OutlineBand, OutlineGroup, bands, lane};
+use craft_table::ui::outline::{OutlineAxis, OutlineBand, OutlineGroup, bands};
 use craft_table::ui::{GridLayout, LineIndex, SheetGeometry, SheetMetrics};
 use craft_ui::contract::Show as _;
 use craft_ui::testing::{Fixture, trial};
-use egui::{Rect, Vec2, vec2};
+use egui::Rect;
 
 const LANE: f32 = 16.0;
 const SLACK: f32 = 4.0;
@@ -20,11 +20,6 @@ fn geometry(room: Rect, levels: (u8, u8), frozen: (u32, u32), hidden: &BTreeMap<
     let columns = LineIndex::new(&BTreeMap::new(), 80.0, 100);
     let layout = GridLayout::new(room, rows, columns).frozen(frozen.0, frozen.1).bands(bands(levels, true, 1.0, LANE, SLACK));
     SheetGeometry::new(layout, SheetMetrics::new(ROW_HEIGHT, 8.0, 6.0))
-}
-
-/// Rows 4 to 6 (one-based) in a group, its summary row below.
-fn rows() -> OutlineAxis {
-    OutlineAxis::new(1, vec![OutlineGroup::new(3, 5, 1)])
 }
 
 /// A group whose first line is hidden and whose other lines are frozen keeps its bracket: a vertical line in its

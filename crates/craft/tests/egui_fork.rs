@@ -33,4 +33,3 @@ fn a_package_at_another_rev_fails_by_name() {
     assert!(PACKAGES.iter().any(|p| err.contains(&format!("  {p} "))), "{err}");
     assert!(err.contains("0000000"), "{err}");
 }
-

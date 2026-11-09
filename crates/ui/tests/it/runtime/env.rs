@@ -1,13 +1,11 @@
 //! `Env`: the root, scopes and the interface scale.
 
 use craft_behavior::MotionMode;
-use craft_host::{AppInfo, Host};
 use craft_theme::ControlSize;
-use craft_ui::runtime::env::{AgeStyle, Direction, Env, EnvValue, RootEnv, Scale, with_env};
+use craft_ui::runtime::env::{Direction, Env, EnvValue, RootEnv, Scale, with_env};
 use craft_ui::testing::frames::show_area;
 use craft_ui::testing::memory::scoped;
 use craft_ui::testing::{Frames, trial};
-use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq, EnvValue)]
 #[env(root = Units("pt"))]
@@ -112,4 +110,3 @@ fn a_scope_that_changes_direction_builds_its_own_style_and_layout() {
         assert_eq!(seen, Some((scope, scope.is_rtl())), "the scope's Ui reads {scope:?} under a {root:?} root");
     }
 }
-

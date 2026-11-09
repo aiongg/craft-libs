@@ -4,14 +4,10 @@
 
 use craft_behavior::{EditEvent, Value};
 use craft_imaging::ui::adjust::{
-    AdjustContext, AdjustField, AdjustSession, AdjustSliders, AdjustTrack, AdjustWords, BlackWhite, BlackWhiteEditor, BrightnessContrast,
-    BrightnessContrastEditor, ChannelMixer, ChannelMixerEditor, ColorBalance, ColorBalanceEditor, ColorBalanceTone, HueRangeValue, HueSaturation,
-    HueSaturationEditor, PhotoFilter, PhotoFilterEditor, PhotoFilterPreset, SelectiveColor, SelectiveColorEditor, ThresholdEditor,
+    AdjustField, AdjustSession, AdjustSliders, AdjustWords, ChannelMixer, ChannelMixerEditor, ColorBalance, ColorBalanceEditor, ColorBalanceTone,
+    HueRangeValue, HueSaturation, HueSaturationEditor, SelectiveColor, SelectiveColorEditor,
 };
-use craft_theme::Srgba;
 use craft_ui::contract::{Bind, Role};
-use craft_ui::runtime::requests::ColorRequest;
-use craft_ui::style::DataColor;
 use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Fixture, Target, trial};

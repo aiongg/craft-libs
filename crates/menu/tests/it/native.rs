@@ -7,8 +7,8 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use craft_menu::{
-    Backend, Builtin, ClipboardKeys, CommandRef, Dispatch, Event, Gate, ItemKind, ItemState, LayoutOptions, Menu, MenuBar, MenuRole, NativeMenu,
-    Node, apply_state, mac_layout, structure_key,
+    Backend, Builtin, ClipboardKeys, CommandRef, Dispatch, Event, Gate, ItemKind, ItemState, LayoutOptions, MenuBar, NativeMenu, apply_state,
+    mac_layout, structure_key,
 };
 use craft_ui::contract::{Bind, Props as _, Show as _};
 use craft_ui::testing::focus::key_release;
@@ -519,4 +519,3 @@ fn key_equivalents_run_commands_while_text_editing() {
     }
     assert_eq!(chosen(&mut menu, "Cmd+A", shift_cmd, true), Event::Click("cmd".into()), "⇧⌘A is not select all");
 }
-

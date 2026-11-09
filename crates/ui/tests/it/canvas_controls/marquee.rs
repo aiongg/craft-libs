@@ -5,14 +5,11 @@ use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Rect};
 use craft_ui::canvas::Canvas;
 use craft_ui::canvas_controls::{
-    CanvasGrid, HoverMask, HoverOutline, HoverShape, Marquee, MarqueeLook, MarqueeShape, SelectionOutline, StraightLinePreview, range_bands,
-    rect_around,
+    CanvasGrid, HoverMask, HoverOutline, HoverShape, Marquee, MarqueeLook, SelectionOutline, StraightLinePreview, range_bands, rect_around,
 };
 use craft_ui::contract::{Role, Show as _, ShowContainer as _};
-use craft_ui::style::DataColor;
 use craft_ui::testing::{Fixture, Frames, trial};
-use egui::epaint::ColorMode;
-use egui::{Color32, Pos2, Shape, Vec2};
+use egui::{Pos2, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
@@ -117,4 +114,3 @@ fn a_shown_selection_asks_for_its_next_repaint_a_march_step_ahead() {
     assert!(waits.iter().all(|wait| wait.is_some_and(|wait| wait <= MARCH_TICK)), "the ants ask for a repaint within a step: {waits:?}");
     assert!(immediate * 3 <= waits.len(), "a repaint is not asked for every frame: {waits:?}");
 }
-

@@ -3,8 +3,8 @@
 
 use craft_behavior::PixelSize;
 use craft_ui::contract::{Bind, SaveKey};
-use craft_ui::patterns::form_dialogs::{DocumentOptions, DocumentPreset, NewDocumentDialog, NewDocumentPresetWords, Orientation, PresetCategory};
-use craft_ui::runtime::env::{Env, UnitKind};
+use craft_ui::patterns::form_dialogs::{DocumentOptions, DocumentPreset, NewDocumentDialog};
+use craft_ui::runtime::env::UnitKind;
 use craft_ui::testing::{Fixture, Target, trial};
 use egui::Vec2;
 use std::cell::{Cell, RefCell};
@@ -30,7 +30,6 @@ fn a_card_opens_at_the_apps_resolution() {
 /// A fixture with the dialog over its settings, which collects what each pass of Create answers with.
 struct Rig {
     fixture: Fixture,
-    options: Rc<RefCell<DocumentOptions>>,
     created: Rc<RefCell<Vec<DocumentOptions>>>,
     closed: Rc<Cell<bool>>,
 }
@@ -52,7 +51,7 @@ fn rig() -> Rig {
     });
     fixture.room(WINDOW);
     fixture.settle();
-    Rig { fixture, options, created, closed }
+    Rig { fixture, created, closed }
 }
 
 /// The node named `label`, or one named `label` followed by its details.
@@ -84,25 +83,6 @@ fn enter_on_a_card_creates_once() {
     let answers = created.borrow();
     assert_eq!(answers.len(), 1, "one answer");
     assert_eq!(answers[0].size, PixelSize::new(2550, 3300));
-}
-
-/// Where `target` sits after a click on it: its bounds then and now, its ancestors' bounds, the layer under its
-/// centre and the focused node.
-fn where_is(fixture: &Fixture, target: &Target) -> String {
-    let tree = fixture.tree();
-    let mut chain = Vec::new();
-    let mut key = Some(target.node);
-    while let Some(at) = key {
-        chain.push(format!("{:?} {:?} {:?}", tree.role_of(at), tree.name_of(at), tree.bounds_of(at)));
-        key = tree.parent_of_key(at);
-    }
-    let layer = fixture.ctx().layer_id_at(target.center());
-    let focused = fixture.focused().map(|id| tree.name_of(craft_ui::testing::access::NodeKey::of(id)).map(str::to_owned));
-    format!(
-        "clicked at {:?}; now {:?}; layer {layer:?}; focused {focused:?}; chain {chain:#?}",
-        target.rect,
-        fixture.target(target.node).map(|now| now.rect)
-    )
 }
 
 /// Types `name` into the Save Preset row and presses Enter.

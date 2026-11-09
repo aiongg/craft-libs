@@ -2,7 +2,7 @@
 
 use craft_i18n::Direction;
 use craft_theme::{Contrast, Mode};
-use craft_ui::primitives::{ChordText, HAlign, Span, TextRun, Wrap};
+use craft_ui::primitives::{ChordText, HAlign, TextRun, Wrap};
 use craft_ui::style::Ink;
 use craft_ui::testing::style::{paint_frame, tokens};
 use craft_ui::testing::{Frames, trial};

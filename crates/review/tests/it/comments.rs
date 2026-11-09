@@ -75,16 +75,6 @@ impl Rig {
                 .iter()
                 .any(|row| tree.name_of(row.node).is_some_and(|name| name.starts_with(&card)))
     }
-
-    fn type_into(&mut self, label: &str, text: &str) {
-        self.click(label);
-        self.fx.type_text(text);
-        self.fx.settle();
-    }
-
-    fn edits(&self) -> Vec<CommentEdit> {
-        self.app.borrow().edits.clone()
-    }
 }
 
 /// A click on a card's "..." opens the menu under that button; Escape closes it and focus returns to the button.
@@ -117,4 +107,3 @@ fn page_groups_fold_and_count() {
     rig.fx.settle();
     assert!(rig.present("Ana: first"), "`reveal` unfolds the group");
 }
-

@@ -2,11 +2,10 @@
 
 use craft_behavior::Axis;
 use craft_theme::Srgba;
-use craft_ui::canvas::{Guide, GuideColor, GuideKey};
+use craft_ui::canvas::{Guide, GuideColor};
 use craft_ui::contract::{Bind, Role};
 use craft_ui::patterns::form_dialogs::{GuideUnits, HostRequests, NewGuideDialog, NewGuideValues};
 use craft_ui::runtime::env::UnitKind;
-use craft_ui::testing::access::focused_key;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers};
 use std::cell::RefCell;
@@ -15,17 +14,10 @@ use std::rc::Rc;
 const WIDTH: f64 = 1000.0;
 const HEIGHT: f64 = 800.0;
 const PPI: f64 = 72.0;
-const EDITED_AT: f64 = 250.0;
-/// Where the guide the binding holds stands.
-const HELD_AT: f64 = 10.0;
 const PICKED: Srgba = Srgba::rgb(0.07, 0.2, 0.34);
 
 fn units() -> GuideUnits {
     GuideUnits::new(UnitKind::Pixels, WIDTH, HEIGHT, PPI)
-}
-
-fn preference() -> craft_theme::Rgba {
-    GuideColor::Cyan.rgba()
 }
 
 /// A fixture showing New Guide over `values`, with the host's `requests` answered and refilled each pass.

@@ -3,7 +3,7 @@
 use craft_ui::canvas::PixelRect;
 use craft_ui::testing::trial;
 
-use craft_imaging::ui::live_preview::{DraftScale, LivePreview, PreviewKey, PreviewLane, PreviewSession, ProxyPlan, settings_hash};
+use craft_imaging::ui::live_preview::{DraftScale, LivePreview, PreviewKey, PreviewLane, PreviewSession, ProxyPlan};
 
 const REGION: PixelRect = PixelRect::new(0, 0, 100, 100);
 const VIEW: PixelRect = PixelRect::new(0, 0, 50, 50);

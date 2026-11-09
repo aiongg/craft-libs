@@ -1,9 +1,8 @@
 //! The frame loop: installed options, the one-press rule and the per-frame output.
 
-use craft_ui::runtime::env::RootEnv;
 use craft_ui::runtime::frame::take_output;
 use craft_ui::testing::frames::announce_text;
-use craft_ui::testing::input::{allow_zoom_keys, key_press, max_click_dist, set_max_click_duration};
+use craft_ui::testing::input::{allow_zoom_keys, key_press};
 use craft_ui::testing::{Frames, trial};
 use egui::{Event, Modifiers, PointerButton, Pos2};
 

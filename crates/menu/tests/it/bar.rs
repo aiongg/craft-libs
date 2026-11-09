@@ -1,19 +1,13 @@
 //! The in-window bar as an adapter: the menu model becomes command rows, the target and the app's hooks reach the
 //! bar, and a choice comes back as a fired command. The bar's own behaviour is craft-ui's.
 
-use craft_behavior::Mixed;
-use craft_host::target::{Os, WindowChrome};
-use craft_menu::{
-    Builtin, Chord, Document, Item, LayoutOptions, Menu, MenuBar, MenuBarUi, MenuRole, Node, Standard, Target,
-    bar::{is_focused, is_open},
-    layout,
-};
+use craft_menu::{Builtin, Chord, Item, Menu, MenuBar, MenuBarUi, MenuRole, Node, Standard, Target, bar::is_open};
 use craft_ui::contract::{Bind, Show as _};
 use craft_ui::runtime::commands::{CommandState, FireSource};
 use craft_ui::runtime::frame::take_output;
-use craft_ui::testing::{Fixture, Frames, trial};
+use craft_ui::testing::{Fixture, trial};
 use craft_ui::text::TextField;
-use egui::{Key, Modifiers, Ui};
+use egui::{Key, Modifiers};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -89,10 +83,6 @@ fn fired(fixture: &Fixture) -> Vec<(String, FireSource)> {
     take_output(fixture.ctx()).fired.into_iter().map(|fired| (fired.command.id.clone(), fired.source)).collect()
 }
 
-fn toggled(fixture: &Fixture, label: &str) -> Option<Mixed<bool>> {
-    fixture.by_label(label).and_then(|target| fixture.tree().toggled_of(target.node))
-}
-
 #[trial]
 fn clicking_an_item_fires_its_command_and_closes_the_menu() {
     let mut fixture = rig(sample(), LINUX);
@@ -113,27 +103,6 @@ fn disabled_commands_and_dead_submenus_fire_nothing() {
     assert!(fired(&fixture).is_empty(), "a disabled command");
     click(&mut fixture, "Nothing Here");
     assert!(fixture.by_label("Gone").is_none() && fired(&fixture).is_empty(), "a submenu of disabled items does not open");
-}
-
-/// A frame that sends a close command, from a bar whose File menu is clicked open and whose row `label` is clicked.
-fn closes_after_clicking(label: &str) -> bool {
-    let bar = sample();
-    let mut show = |ui: &mut Ui| {
-        MenuBarUi::new(&bar).target(Target::Linux).show(ui);
-    };
-    let mut frames = Frames::new();
-    frames.idle(4, &mut show);
-    let mut closed = false;
-    for name in ["File", label] {
-        let tree = frames.tree();
-        let key = tree.keys().into_iter().find(|key| tree.name_of(*key) == Some(name)).unwrap_or_else(|| panic!("no {name:?}"));
-        let at = tree.bounds_of(key).unwrap_or_else(|| panic!("{name:?} has no bounds")).center();
-        for event in [craft_ui::testing::pointer::moved(at), craft_ui::testing::pointer::press(at), craft_ui::testing::pointer::release(at)] {
-            closed |= frames.frame_without_input(vec![event], &mut show);
-        }
-        frames.idle(3, &mut show);
-    }
-    closed
 }
 
 #[trial]

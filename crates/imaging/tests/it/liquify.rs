@@ -4,12 +4,11 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use craft_behavior::edit_history::Step;
-use craft_behavior::{CancelReason, Cursor, PaintedCursor, PixelSize};
+use craft_behavior::{CancelReason, Cursor, PixelSize};
 use craft_host::target::Os;
 use craft_imaging::ui::liquify::{
-    BackdropLayering, BackdropMode, BackdropUse, LayeredImage, LiquifyBrush, LiquifyCommands, LiquifyEvent, LiquifyGlobal, LiquifyMesh, LiquifyOpen,
-    LiquifySession, LiquifySettings, LiquifySource, LiquifyStep, LiquifyStroke, LiquifyTiming, LiquifyTool, LiquifyWorkspace, MeshSize, StrokeEvent,
-    StrokeRecorder,
+    BackdropLayering, BackdropMode, LayeredImage, LiquifyBrush, LiquifyEvent, LiquifyMesh, LiquifyOpen, LiquifySettings, LiquifySource,
+    LiquifyStroke, LiquifyTiming, LiquifyTool, LiquifyWorkspace, MeshSize, StrokeEvent, StrokeRecorder,
 };
 use craft_ui::canvas::{PixelRect, RasterSource};
 use craft_ui::primitives::Revision;

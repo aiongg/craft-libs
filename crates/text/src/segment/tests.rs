@@ -1,4 +1,3 @@
-use super::kinsoku::{no_line_end, no_line_start};
 use super::*;
 
 fn opts(kinsoku: Kinsoku) -> Options {
@@ -128,4 +127,3 @@ fn assert_word_breaks(words: &[&str], min: usize) {
 fn thai_breaks_between_words() {
     assert_word_breaks(&["Thai: ", "ภาษา", "ไทย", "เป็น", "ภาษา", "ราชการ", "ของ", "ประเทศ", "ไทย."], 6);
 }
-

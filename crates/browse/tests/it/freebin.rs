@@ -1,6 +1,6 @@
 //! The free bin: moves with stacks, the marquee, foreign drops and the flow of unplaced cards.
 
-use craft_behavior::{DisplayOrder, ItemSource, SelectionChange};
+use craft_behavior::{DisplayOrder, ItemSource};
 use craft_browse::ui::freebin::{FreeBin, FreeBinMove, FreeformCard};
 use craft_i18n::Direction;
 use craft_ui::contract::{CollectionEvent, ListDrag, Props as _, ReorderRule, ShowCollection as _};
@@ -80,16 +80,6 @@ impl Scene {
             .iter()
             .filter_map(|event| if let CollectionEvent::Dropped { key: Some(key), keys, .. } = event { Some((*key, keys.clone())) } else { None })
             .collect()
-    }
-
-    /// The last selection the bin reported with `Set`.
-    fn selected(&self) -> Vec<usize> {
-        self.events
-            .borrow()
-            .iter()
-            .rev()
-            .find_map(|event| if let CollectionEvent::Selection(SelectionChange::Set(keys)) = event { Some(keys.clone()) } else { None })
-            .unwrap_or_default()
     }
 }
 

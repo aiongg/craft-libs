@@ -1,6 +1,6 @@
 //! `Picture`: the image node of a named picture and the texture built once per key and revision.
 
-use craft_ui::contract::{Role, Show as _};
+use craft_ui::contract::Show as _;
 use craft_ui::display::Picture;
 use craft_ui::primitives::Revision;
 use craft_ui::testing::{Fixture, trial};

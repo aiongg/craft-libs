@@ -111,4 +111,3 @@ fn written_sizes_parse_back_to_the_same_overrides() {
     assert_eq!(AppSizes::parse(text.as_bytes()).unwrap(), original);
     assert_eq!(AppSizes::default().to_json(), "{}\n");
 }
-

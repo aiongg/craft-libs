@@ -221,16 +221,6 @@ impl Boards<'_> {
     pub(crate) fn movable(&self) -> Vec<usize> {
         self.selected.iter().copied().filter(|&i| self.items.get(i).is_some_and(|b| !b.locked)).collect()
     }
-
-    /// The board a point lands in: the last (topmost) board containing it.
-    pub(crate) fn board_at(&self, at: Point) -> Option<usize> {
-        self.items.iter().rposition(|b| contains(b.rect, at))
-    }
-}
-
-pub(crate) fn contains(rect: Rect, at: Point) -> bool {
-    let r = rect.abs();
-    at.x >= r.x0 && at.x < r.x1 && at.y >= r.y0 && at.y < r.y1
 }
 
 pub(crate) fn overlaps(a: Rect, b: Rect) -> bool {

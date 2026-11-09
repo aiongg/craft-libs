@@ -17,9 +17,6 @@ const VIEW: Rect = Rect::from_min_max(Pos2::new(30.0, 30.0), Pos2::new(390.0, 29
 /// How far a drag from a strip goes: out of the strip and onto the document.
 const ONTO_DOCUMENT: Vec2 = Vec2::new(0.0, 100.0);
 
-/// How far a drag along a strip goes: not out of it.
-const ALONG_STRIP: Vec2 = Vec2::new(40.0, 0.0);
-
 /// The corner's drag: out of the corner and onto the document.
 const FROM_CORNER: Vec2 = Vec2::new(90.0, 90.0);
 

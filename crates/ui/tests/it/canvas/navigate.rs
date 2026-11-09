@@ -1,12 +1,11 @@
 //! Navigation rules (wheel, page keys, flick, autoscroll), the zoom motion and the momentary tool order.
 
 use craft_behavior::kurbo::{Point, Size};
-use craft_behavior::{CancelReason, CanvasView, Granularity, MoveMods, NavMove, PixelSize, Wheel, WheelPhase, WheelUnit};
+use craft_behavior::{CancelReason, CanvasView, PixelSize, Wheel, WheelPhase, WheelUnit};
 use craft_keymap::Mods;
 use craft_ui::canvas::{
-    Autoscroll, Canvas, CanvasTool, FlickPan, HoldZoom, Momentary, MomentaryCommands, MomentaryTool, NavigationOptions, PageKey, PixelRect,
-    RasterSource, ToolAction, ToolContext, ToolHost, ToolPath, ToolPointer, TouchpadGlide, ViewTurn, WheelAction, WheelInput, WheelNavigation,
-    ZoomAnimation, ZoomDrag,
+    Canvas, CanvasTool, FlickPan, Momentary, MomentaryCommands, MomentaryTool, NavigationOptions, PixelRect, RasterSource, ToolAction, ToolContext,
+    ToolHost, ToolPath, ToolPointer, TouchpadGlide, WheelAction, WheelInput, WheelNavigation, ZoomAnimation, ZoomDrag,
 };
 use craft_ui::contract::{Bind, Props as _, Role, Show as _, ShowContainer as _};
 use craft_ui::dialog::{FullWindowCanvas, FullWindowDialog, FullWindowView};

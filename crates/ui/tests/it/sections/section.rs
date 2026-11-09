@@ -2,10 +2,9 @@
 //! `TitleRow` too narrow for both texts drops the subtitle.
 
 use craft_ui::choice::Checkbox;
-use craft_ui::contract::{Bind, Props as _, Role, Show as _, ShowContainer as _};
-use craft_ui::menu::MenuItem;
+use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use craft_ui::runtime::focus::{FocusTarget, request};
-use craft_ui::sections::{HeaderAction, Section, TitleRow};
+use craft_ui::sections::{Section, TitleRow};
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::click;
 use craft_ui::testing::{Fixture, Frames, trial};

@@ -2,36 +2,19 @@
 //! moves it, which window a palette's level and a drop follow.
 
 use crate::windows_kit::Windows;
-use craft_behavior::Monitor;
-use craft_behavior::dock::{Action, Floating, Layout, NativeSpace, Permissions, Workspace};
+use craft_behavior::dock::{Action, Floating, Layout, Permissions, Workspace};
 use craft_ui::contract::{Bind, BodyCx};
-use craft_ui::docking::native::restore;
-use craft_ui::docking::{DockConfig, DockPanels, FloatingGroup, PanelSpec, native};
+use craft_ui::docking::{DockConfig, DockPanels, FloatingGroup, PanelSpec};
 use craft_ui::patterns::dock::DockArea;
 use craft_ui::runtime::windows::{WindowHost, WindowSpec};
 use craft_ui::testing::trial;
-use egui::{Pos2, Rect, Ui, Vec2, ViewportBuilder, ViewportId, ViewportInfo};
+use egui::{Pos2, Rect, Ui, Vec2, ViewportId, ViewportInfo};
 
-const BAR: f32 = 24.0;
-const PRIMARY: Rect = Rect { min: Pos2::new(0.0, 0.0), max: Pos2::new(1920.0, 1080.0) };
-const GONE: Rect = Rect { min: Pos2::new(1920.0, 0.0), max: Pos2::new(3840.0, 1080.0) };
-const SAVED: Rect = Rect { min: Pos2::new(2000.0, 100.0), max: Pos2::new(2400.0, 400.0) };
 /// The root window and the palette overlap at `OVERLAP`; the palette is the larger.
 const ROOT_AT: Rect = Rect { min: Pos2::new(100.0, 100.0), max: Pos2::new(300.0, 300.0) };
 const PALETTE_AT: Rect = Rect { min: Pos2::new(200.0, 150.0), max: Pos2::new(600.0, 450.0) };
 const OVERLAP: Pos2 = Pos2::new(250.0, 200.0);
 const PALETTE_TITLE: &str = "Tools";
-
-fn monitor(name: &str, rect: Rect) -> Monitor {
-    Monitor::new(Some(name.to_owned()), rect, 1.0)
-}
-
-fn native_window() -> Floating<u32> {
-    let mut window = Floating::single(vec![1], 0, Rect::from_min_size(Pos2::new(40.0, 40.0), Vec2::new(300.0, 200.0)));
-    window.native = Some(SAVED);
-    window.monitor = Some(monitor("B", GONE));
-    window
-}
 
 struct Palettes;
 
@@ -80,12 +63,6 @@ fn palette_frame(windows: &Windows) -> crate::windows_kit::Out {
     windows.frame(vec![], vec![], |ui| {
         FloatingGroup::new(PALETTE_TITLE, PALETTE_AT).native(WindowSpec::tool()).show_group(ui, |_, _| {});
     })
-}
-
-fn palette_level(out: &crate::windows_kit::Out) -> Option<egui::WindowLevel> {
-    let (_, builder): &(ViewportId, ViewportBuilder) =
-        out.builders.iter().find(|(_, builder)| builder.title.as_deref() == Some(PALETTE_TITLE)).expect("the palette asked to open");
-    builder.window_level
 }
 
 fn info(focused: bool, rect: Rect) -> ViewportInfo {
@@ -176,4 +153,3 @@ fn a_native_dock_window_fades_while_its_drag_shows_a_drop_target() {
     dock_window_frame(&windows, vec![], true);
     assert!(sent(1.0), "the window is opaque after the drag is cancelled");
 }
-

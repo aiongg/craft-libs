@@ -8,10 +8,6 @@ use egui::{Key, Modifiers};
 
 use super::fixture::{Rig, keymap, options};
 
-fn rig_with(options: craft_menu::shortcuts::Options) -> Rig {
-    Rig::new(keymap(Platform::Mac), options, None)
-}
-
 /// Deleting the last set of an app without built-in sets loads no overrides, and OK stores no copy of the deleted set.
 #[trial]
 fn deleting_the_last_set_without_builtins_loads_no_overrides() {

@@ -12,7 +12,6 @@ use craft_ui::patterns::dock::{DockArea, DockAreaOutput};
 use craft_ui::style::Variant;
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::pointer::{moved, press, release};
-use craft_ui::testing::relations::equals_token;
 use craft_ui::testing::style::{tokens, with_cx};
 use craft_ui::testing::{Fixture, Target, trial};
 use egui::{Modifiers, Pos2, Rect, Ui, Vec2};
@@ -359,25 +358,3 @@ fn areas_with_different_labels_keep_separate_flyouts() {
     assert!(opened.contains(&("Left", true)), "the flyout opened in the area that was clicked: {opened:?}");
     assert!(!opened.contains(&("Right", true)), "the other area's flyout stayed closed: {opened:?}");
 }
-
-/// Panels whose group header holds one button, for the group of the side panel.
-struct Headed;
-
-impl DockPanels<usize> for Headed {
-    fn spec(&self, panel: &usize) -> PanelSpec {
-        PanelSpec::new(format!("Panel {panel}"))
-    }
-
-    fn permissions(&self, panel: &usize) -> Permissions {
-        if *panel == CANVAS { Permissions::PROTECTED } else { Permissions::ALL }
-    }
-
-    fn body(&mut self, _: &usize, _: &mut Ui, _: &mut BodyCx<'_>) {}
-
-    fn group_header(&mut self, panels: &[usize], _: usize, ui: &mut Ui, _: &mut BodyCx<'_>) {
-        if panels.contains(&SIDE) {
-            let _ = Button::new("Header tool").show(ui);
-        }
-    }
-}
-

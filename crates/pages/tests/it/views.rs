@@ -2,11 +2,11 @@
 //! preview.
 
 use craft_behavior::{Selection, kurbo, kurbo::Size};
-use craft_pages::layout::{Fit, LayoutOptions, ZOOM_RANGE};
+use craft_pages::layout::{Fit, LayoutOptions};
 use craft_pages::ui::fixtures::{DemoPages, PAPER};
 use craft_pages::ui::{
-    Lead, PageList, PageListEvent, PageListRow, PagePreview, PageSource, PageThumbnails, PageView, PageViewState, SyncedViews, SyncedViewsState,
-    ThumbnailEvent, baseline_lines, moved_page,
+    PageList, PageListEvent, PageListRow, PagePreview, PageSource, PageThumbnails, PageView, PageViewState, ThumbnailEvent, baseline_lines,
+    moved_page,
 };
 
 use craft_pages::ui::reading::{ReadingState, ReadingView};
@@ -40,7 +40,6 @@ fn state_with(change: impl FnOnce(&mut PageViewState)) -> PageViewState {
 struct ViewRig {
     fixture: Fixture,
     state: Rc<RefCell<PageViewState>>,
-    shown: Rc<RefCell<Vec<usize>>>,
 }
 
 fn view_rig(count: usize, start: PageViewState) -> ViewRig {
@@ -56,7 +55,7 @@ fn view_rig(count: usize, start: PageViewState) -> ViewRig {
     });
     fixture.room(vec2(400.0, 300.0));
     fixture.settle();
-    ViewRig { fixture, state, shown }
+    ViewRig { fixture, state }
 }
 
 #[trial]
@@ -81,7 +80,6 @@ fn a_page_moves_to_where_a_reorder_puts_it() {
 /// Thumbnails of `count` pages with the events of every pass collected.
 struct StripRig {
     fixture: Fixture,
-    picked: Rc<RefCell<Selection<usize>>>,
     events: Rc<RefCell<Vec<ThumbnailEvent>>>,
 }
 
@@ -98,7 +96,7 @@ fn strip_rig(count: usize, picked: Selection<usize>) -> StripRig {
     });
     fixture.room(vec2(400.0, 500.0));
     fixture.settle();
-    StripRig { fixture, picked, events }
+    StripRig { fixture, events }
 }
 
 #[trial]
@@ -170,27 +168,6 @@ fn delete_skips_the_locked_rows() {
     rig.fixture.key(Key::Tab, Modifiers::NONE);
     rig.fixture.key(Key::Delete, Modifiers::NONE);
     assert!(!rig.events.borrow().iter().any(|event| matches!(event, PageListEvent::Delete(_))), "a locked row stays");
-}
-
-/// The preview of five pages, started at page `start`.
-struct PreviewRig {
-    fixture: Fixture,
-    at: Rc<RefCell<usize>>,
-}
-
-fn preview_rig(start: usize) -> PreviewRig {
-    let at = Rc::new(RefCell::new(start));
-    let kept = Rc::clone(&at);
-    let pages = DemoPages::new(5);
-    let shown = [0, 1, 2, 3, 4];
-    let mut fixture = Fixture::new(move |ui| {
-        let mut now = *kept.borrow();
-        PagePreview::new(&pages, &shown, &mut now, PAPER).show(ui);
-        *kept.borrow_mut() = now;
-    });
-    fixture.room(vec2(500.0, 500.0));
-    fixture.settle();
-    PreviewRig { fixture, at }
 }
 
 /// Three columns of the demo pages with a margin each side, in a room of known geometry.
@@ -466,4 +443,3 @@ fn wheel_gathered_past_the_bottom_is_forgotten_by_a_pass_without_wheel_input() {
     wheel(&mut fixture, -3.0);
     assert_eq!(state.borrow().current, 1, "a whole notch at once is");
 }
-

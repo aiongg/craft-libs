@@ -1,9 +1,7 @@
 //! The dock model: validation, restore to the old place, permissions and the persisted shapes.
 
-use craft_behavior::dock::{
-    Action, Column, DockEdge, DockError, DockPlacement, DockSide, Floating, Group, Layout, Location, Node, PanelState, Permissions, SplitSize,
-};
-use craft_behavior::{Axis, Flow, Monitor};
+use craft_behavior::dock::{Column, DockEdge, DockError, DockPlacement, Floating, Group, Layout, Location, Node, SplitSize};
+use craft_behavior::{Axis, Monitor};
 use emath::{Pos2, Rect, Vec2};
 use serde_json::json;
 
@@ -218,4 +216,3 @@ fn a_layout_saved_with_the_physical_names_loads_and_writes_back_in_reading_order
     renamed["root"]["Split"]["axis"] = json!("X");
     assert_eq!(written, renamed);
 }
-

@@ -4,14 +4,12 @@
 use craft_behavior::geometry::CropBox;
 use craft_behavior::kurbo::{Point, Rect, Size};
 use craft_behavior::{CanvasView, EditEvent, GestureId, Mixed};
-use craft_draw::ui::crop::{
-    CropDocKey, CropDocument, CropEvent, CropInput, CropLength, CropRatio, CropSession, CropSettings, CropTool, CropToolPass, LeaveFrame,
-};
-use craft_keymap::{Chord, Key, Mods};
-use craft_ui::canvas::{Canvas, CanvasSpace, CanvasTool as _, ToolContext, ToolHost, ToolKey};
+use craft_draw::ui::crop::{CropDocKey, CropDocument, CropEvent, CropInput, CropRatio, CropSession, CropSettings, CropTool, CropToolPass};
+use craft_keymap::Mods;
+use craft_ui::canvas::{Canvas, CanvasSpace, CanvasTool as _, ToolContext, ToolHost};
 use craft_ui::contract::ShowContainer as _;
 use craft_ui::runtime::access::Role;
-use craft_ui::runtime::env::{Env, UnitKind, Units};
+use craft_ui::runtime::env::{Env, Units};
 use craft_ui::testing::{Fixture, Frames, pointer, trial};
 use egui::{Pos2, Vec2};
 use std::cell::RefCell;
@@ -76,21 +74,9 @@ impl Run {
         self.pass(0.0, Mods::NONE, |_, _| ());
     }
 
-    fn key(&mut self, key: &ToolKey) -> (bool, Vec<CropEvent>) {
-        self.pass(0.0, Mods::NONE, |pass, cx| pass.key(key, cx))
-    }
-
     fn frame(&self) -> Option<CropBox> {
         self.tool.frame()
     }
-}
-
-fn kept(key: Key, mods: Mods) -> ToolKey {
-    ToolKey::Kept(Chord::new(mods, key))
-}
-
-fn settings_of(events: &[CropEvent]) -> Vec<&CropSettings> {
-    events.iter().filter_map(|event| if let CropEvent::Settings(settings) = event { Some(settings) } else { None }).collect()
 }
 
 #[trial]
@@ -344,10 +330,6 @@ impl Rig {
         }
         self.fixture.frame(vec![pointer::release(to)]);
         self.fixture.frame(Vec::new());
-    }
-
-    fn frame(&self) -> CropBox {
-        self.host.borrow().tool.frame().expect("the tool shows a frame")
     }
 }
 

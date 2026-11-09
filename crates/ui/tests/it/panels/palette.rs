@@ -11,9 +11,6 @@ use egui::{Key, Modifiers};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-/// How many commands the palette remembers.
-const KEPT: usize = 8;
-
 fn entries() -> Vec<HelpEntry> {
     vec![
         HelpEntry::new(EditCommands::Undo, "Undo").with_path(["Edit"]),

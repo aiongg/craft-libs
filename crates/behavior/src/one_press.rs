@@ -12,7 +12,4 @@ pub fn split_after_first_press<E>(mut events: Vec<E>, is_press: impl Fn(&E) -> b
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-}
+mod tests {}

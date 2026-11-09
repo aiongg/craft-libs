@@ -7,8 +7,8 @@ use craft_behavior::{CancelReason, CanvasView, EditEvent, SelectionChange};
 use craft_review::annotate::{Annotation, AnnotationEdit, AnnotationId, AnnotationKind, AnnotationTool};
 use craft_review::ui::{AnnotateTool, AnnotationToolbar, PALETTE};
 use craft_ui::testing::{Fixture, ToolFixture, trial};
-use egui::{Key, Modifiers, Pos2, Rect as ScreenRect, Vec2, vec2};
-use kurbo::{Point, Rect, Vec2 as PageVec};
+use egui::{Modifiers, Pos2, Rect as ScreenRect, Vec2, vec2};
+use kurbo::{Point, Rect};
 
 /// How close two page coordinates are when they went through the view and back.
 const SAME: f64 = 1e-3;
@@ -58,12 +58,6 @@ fn values(rig: &ToolFixture<AnnotateTool>) -> Vec<AnnotationEdit> {
 fn drag(rig: &mut ToolFixture<AnnotateTool>, from: Point, to: Point) {
     let (start, end) = (on_screen(rig, from), on_screen(rig, to));
     rig.drag_from(start, end - start);
-}
-
-/// A click on the annotation that is already selected: it gives the canvas the keyboard and changes nothing.
-fn focus_on(rig: &mut ToolFixture<AnnotateTool>, at: Point) {
-    let pos = on_screen(rig, at);
-    rig.press_at(pos).release_at(pos);
 }
 
 fn same(a: Rect, b: Rect) -> bool {

@@ -68,7 +68,4 @@ impl MotionMode {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::MotionMode::*;
-
-}
+mod tests {}

@@ -3,10 +3,10 @@
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::Point;
 use craft_draw::ui::corner::{CornerKind, CornerPoint, CornerRef, CornerTarget, CornerWidgets};
-use craft_ui::canvas::{Canvas, NUDGE, NUDGE_FAR};
+use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, Target, trial};
-use egui::{Key, Modifiers, vec2};
+use egui::{Modifiers, vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -148,4 +148,3 @@ fn a_drag_sets_every_target_and_alt_sets_one_corner() {
     assert_eq!(radii(&state, 0), vec![PULL, 0.0, 0.0, 0.0], "one corner of the rectangle");
     assert_eq!(radii(&state, 1), vec![PULL; 4], "a polygon shares one radius");
 }
-

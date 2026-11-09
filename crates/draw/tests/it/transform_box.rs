@@ -4,15 +4,13 @@
 use craft_behavior::geometry::quad::{self, BoxPart, BoxRules, BoxState, TransformMode};
 use craft_behavior::kurbo::{Point, Rect, Vec2 as DocVec};
 use craft_behavior::{CanvasView, EditEvent, PartKey};
-use craft_draw::ui::transform::{
-    RotateZone, TransformBox, TransformEdit, TransformOverlay, TransformPhase, TransformSession, TransformSettings, TransformTool,
-};
+use craft_draw::ui::transform::{RotateZone, TransformBox, TransformEdit, TransformOverlay, TransformSession, TransformSettings};
 use craft_keymap::Mods;
-use craft_ui::canvas::{Canvas, CanvasSpace, CanvasTool as _, ToolContext, ToolKey, ToolPath};
+use craft_ui::canvas::Canvas;
 use craft_ui::canvas::{Guide, GuideKey};
 use craft_ui::canvas_controls::Guides;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
-use craft_ui::testing::{Fixture, ToolFixture, pointer, trial};
+use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Key, Modifiers, Pos2, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -507,18 +505,12 @@ fn a_release_with_the_pointer_gone_is_not_a_click_outside() {
     assert_eq!(h.host.borrow().applied, 0);
 }
 
-fn tool_context(rect: egui::Rect) -> ToolContext<'static> {
-    let space = CanvasSpace::new(CanvasView::new(rect, Point::new(200.0, 150.0), 1.0), 1.0);
-    ToolContext::new(rect, Some(space))
-}
-
 /// The session, the overlay's reports and the hosts' counters.
 struct OverlayHost {
     session: TransformSession<()>,
     kinds: Vec<&'static str>,
     applied: usize,
     discarded: usize,
-    id: egui::Id,
     view: CanvasView,
 }
 
@@ -532,7 +524,7 @@ fn overlay(shown: bool, setup: impl FnOnce(&mut TransformSession<()>)) -> (Fixtu
         kinds: Vec::new(),
         applied: 0,
         discarded: 0,
-        id: egui::Id::NULL,
+
         view: CanvasView::new(egui::Rect::NOTHING, Point::ZERO, 1.0),
     }));
     let shown_host = Rc::clone(&host);
@@ -586,4 +578,3 @@ fn a_hidden_reference_point_is_not_drawn_hit_or_picked() {
     let parts = fixture.by_role(craft_ui::contract::Role::BUTTON).len();
     assert_eq!(parts, 9, "the whole box, four corners and four edges");
 }
-

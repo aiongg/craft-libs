@@ -1,10 +1,9 @@
 //! `Select`: opens from the keyboard and from a click, picks through the listbox, closes on Escape without a change and
 //! reports its popup to assistive technology.
 
-use craft_theme::Srgba;
 use craft_ui::contract::{Bind, Entry, Props as _, Role, Show as _, ShowContainer as _};
 use craft_ui::form::Field;
-use craft_ui::pickers::{Select, SelectFace};
+use craft_ui::pickers::Select;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Id, Key, Modifiers};
 use std::cell::Cell;
@@ -15,7 +14,6 @@ const FADE_FRAMES: usize = 10;
 struct Rig {
     fixture: Fixture,
     value: Rc<Cell<u8>>,
-    id: Rc<Cell<Id>>,
 }
 
 /// A select over three options with focus on it.
@@ -32,7 +30,7 @@ fn rig() -> Rig {
     fixture.settle();
     fixture.key(Key::Tab, Modifiers::NONE);
     fixture.idle(2);
-    Rig { fixture, value, id }
+    Rig { fixture, value }
 }
 
 impl Rig {
@@ -97,18 +95,12 @@ fn searchable(names: &'static [&'static str]) -> Rig {
     fixture.settle();
     fixture.key(Key::Tab, Modifiers::NONE);
     fixture.idle(2);
-    let mut rig = Rig { fixture, value, id };
+    let mut rig = Rig { fixture, value };
     rig.open();
     rig
 }
 
-impl Rig {
-    /// The names of the option rows the list shows, in order.
-    fn listed(&self) -> Vec<String> {
-        let tree = self.fixture.tree();
-        tree.with_role(Role::LIST_BOX_OPTION).iter().filter_map(|key| tree.name_of(*key)).map(str::to_owned).collect()
-    }
-}
+impl Rig {}
 
 /// Typing "b" narrows the list to the entries that match, Down moves the lead to the first of them and Enter picks it.
 #[trial]

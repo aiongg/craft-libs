@@ -1,10 +1,9 @@
 //! `ReferencePoint`: the nine points are one Tab stop; the arrows move the focus over the grid in both directions and
 //! stop at its edges; Space and Enter pick; AccessKit reports nine radios in one group with the pick checked.
 
-use craft_behavior::{Anchor9, Mixed, PartKey};
-use craft_ui::bars::{Bar, BarKind};
+use craft_behavior::{Anchor9, PartKey};
 use craft_ui::choice::Checkbox;
-use craft_ui::contract::{Bind, Props as _, Role, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Props as _, Show as _};
 use craft_ui::pickers::ReferencePoint;
 use craft_ui::testing::focus::active_part;
 use craft_ui::testing::{Fixture, trial};
@@ -94,4 +93,3 @@ fn growth_arrows_follow_the_sign_of_the_change() {
     assert_eq!(ReferencePoint::arrow(Centre, TopLeft, (-10.0, -10.0)), Some((1, 1)));
     assert_eq!(ReferencePoint::arrow(Centre, Centre, (10.0, 10.0)), None);
 }
-

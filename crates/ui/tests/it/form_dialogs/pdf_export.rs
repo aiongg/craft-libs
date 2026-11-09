@@ -2,10 +2,9 @@
 //! wording of the checks.
 
 use craft_behavior::Mixed;
-use craft_pdf::settings::{ColorConversion, Compatibility, OutputSettings, PdfSettings, SettingsError, Standard};
+use craft_pdf::settings::PdfSettings;
 use craft_ui::contract::{Bind, Role};
-use craft_ui::patterns::form_dialogs::{PdfExportDialog, PdfExportWords};
-use craft_ui::runtime::env::WordSet as _;
+use craft_ui::patterns::form_dialogs::PdfExportDialog;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Modifiers, Vec2};
 use std::cell::RefCell;
@@ -73,12 +72,6 @@ fn open_on(settings: PdfSettings) -> (Fixture, Rc<RefCell<PdfSettings>>) {
     (fixture, settings)
 }
 
-fn go_to(fixture: &mut Fixture, section: &str) {
-    let target = fixture.by_label(section).unwrap_or_else(|| panic!("the section list shows {section}"));
-    fixture.click(&target);
-    fixture.settle();
-}
-
 fn shows(fixture: &Fixture, text: &str) -> bool {
     fixture.texts().iter().any(|run| run.text == text)
 }
@@ -107,4 +100,3 @@ fn an_artboard_range_the_document_does_not_have_shows_its_error() {
     type_range(&mut fixture, "4-2");
     assert!(shows(&fixture, "Range `4-2`: `4-2` runs backwards"), "backwards");
 }
-

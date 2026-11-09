@@ -1,22 +1,19 @@
 //! Roles, names and sub-nodes of the nodes the pipeline emits, and announcements.
 
-use crate::contract::kit::{Panel, Probe, RowProbe, Rows, Seen, Table};
+use crate::contract::kit::{Panel, Probe, Seen};
 use craft_behavior::{Mixed, PartKey, Sense};
 use craft_ui::contract::Bind;
 use craft_ui::contract::announce;
-use craft_ui::contract::{
-    Access, Common, Component, Cx, Name, Numeric, Politeness, Props as _, Role as UiRole, Show as _, ShowCollection as _, ShowContainer as _,
-};
+use craft_ui::contract::{Access, Common, Component, Cx, Name, Numeric, Politeness, Props as _, Role as UiRole, Show as _, ShowContainer as _};
 use craft_ui::style::StyleCx;
-use craft_ui::testing::access::{Declared, NodeKey};
+use craft_ui::testing::access::NodeKey;
 use craft_ui::testing::contract::findings;
 use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, Story};
 use craft_ui::testing::{Frames, trial};
 use craft_ui::value_drag::{Thumb, ThumbRow};
-use egui::{Rect, Response, Vec2};
+use egui::{Response, Vec2};
 use std::cell::RefCell;
-use std::sync::Mutex;
 
 #[trial]
 fn a_body_is_the_parent_of_the_nodes_it_shows() {
@@ -34,8 +31,6 @@ fn a_body_is_the_parent_of_the_nodes_it_shows() {
     assert_eq!((tree.role(panel), tree.name(panel)), (Some(UiRole::GROUP), Some("Options")));
     assert_eq!(tree.parent_of(child), Some(NodeKey::of(panel)), "the child's nearest visible ancestor is the container's node");
 }
-
-static ROWS: Mutex<Vec<(usize, Rect)>> = Mutex::new(Vec::new());
 
 /// A leaf with a faced sub-node and a numeric value.
 #[derive(craft_ui::contract::Component)]
@@ -77,11 +72,7 @@ fn level() -> Numeric {
     Numeric::new(3.0, 0.0..=10.0).step(1.0).text("3 of 10")
 }
 
-impl Meter {
-    fn new() -> Self {
-        Meter { common: Common::new() }
-    }
-}
+impl Meter {}
 
 #[trial]
 fn announcements_reach_the_frame_output_and_one_status_node() {

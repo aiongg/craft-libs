@@ -1,24 +1,16 @@
 //! The layers parts: the filter rule, the settings, the options dialog's answer and the property rows' locks and
 //! disabled states.
 
-use craft_layers::ui::filter::{FilterBy, FilterKind, LayerFilter};
-use craft_layers::ui::options::{LayersOptions, LayersOptionsDialog, LayersSettings};
+use craft_layers::ui::options::LayersSettings;
 use craft_layers::ui::rows::{BlendRows, LayerPropertyEdit};
 use craft_layers::ui::thumbs::ThumbContents;
-use craft_layers::ui::tree::{LayerInfo, LayerKind, LayerProperties, LockKind};
+use craft_layers::ui::tree::{LayerProperties, LockKind};
 use craft_ui::contract::{Entry, Role};
-use craft_ui::dialog::{DialogStack, StackDialog as _};
 use craft_ui::list::ThumbSize;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers};
 use std::cell::RefCell;
 use std::rc::Rc;
-
-fn layer(name: &str, kind: LayerKind, blend_key: &str) -> LayerInfo {
-    let mut info = LayerInfo::new(name, kind);
-    info.blend_key = blend_key.to_owned();
-    info
-}
 
 /// `LayersSettings::default()` is Medium, Entire Document, filters shown, the first four switches on, badges off; a
 /// section with missing fields loads with those defaults; a JSON round trip keeps every field.
@@ -52,32 +44,6 @@ fn settings_defaults_missing_fields_and_round_trip() {
     changed.show_filters = false;
     let json = serde_json::to_string(&changed).expect("serializes");
     assert_eq!(serde_json::from_str::<LayersSettings>(&json).expect("round trip"), changed);
-}
-
-/// The answers the dialog gave: `Some(options)` for OK, `None` for Cancel.
-type Answers = Rc<RefCell<Vec<Option<LayersOptions>>>>;
-
-/// The room of a dialog: the whole 800 by 600 screen of a fixture, so no row of its body is clipped away.
-const SCREEN: egui::Vec2 = by(800.0, 600.0);
-
-/// A size of `width` by `height` points.
-const fn by(width: f32, height: f32) -> egui::Vec2 {
-    egui::Vec2::new(width, height)
-}
-
-fn open_dialog() -> (Fixture, Answers) {
-    let answers: Answers = Rc::default();
-    let seen = answers.clone();
-    let mut dialog = LayersOptionsDialog::new(LayersOptions::default());
-    let stack = DialogStack::default();
-    let mut fixture = Fixture::new(move |ui| {
-        if let Some(answer) = dialog.show(ui, &stack) {
-            seen.borrow_mut().push(answer.ok());
-        }
-    });
-    fixture.room(SCREEN);
-    fixture.settle();
-    (fixture, answers)
 }
 
 fn click(fixture: &mut Fixture, label: &str) {

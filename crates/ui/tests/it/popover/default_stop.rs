@@ -12,7 +12,6 @@ use std::rc::Rc;
 struct Rig {
     fixture: Fixture,
     second: Rc<Cell<Id>>,
-    drafts: Rc<RefCell<[String; 2]>>,
 }
 
 fn rig() -> Rig {
@@ -28,7 +27,7 @@ fn rig() -> Rig {
         });
     });
     fixture.settle();
-    Rig { fixture, second, drafts }
+    Rig { fixture, second }
 }
 
 /// `Initial::Default` focuses the field that declared `default_stop`, not the first field.
@@ -37,4 +36,3 @@ fn a_popover_opens_on_the_field_that_declares_the_default_stop() {
     let rig = rig();
     assert_eq!(rig.fixture.focused_stop().map(|(id, _)| id), Some(rig.second.get()));
 }
-

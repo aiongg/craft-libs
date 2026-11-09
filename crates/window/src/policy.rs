@@ -335,5 +335,4 @@ mod tests {
         let unknown = decide_main(Os::Linux, Backend::Wayland, &kde, System, Some("maybe"));
         assert_eq!((unknown.frame, unknown.overridden), (Frame::Native, None));
     }
-
 }

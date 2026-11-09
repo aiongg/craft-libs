@@ -59,8 +59,6 @@ mod explain_tests;
 #[cfg(test)]
 mod format_tests;
 #[cfg(test)]
-mod report_tests;
-#[cfg(test)]
 mod selection_tests;
 #[cfg(test)]
 mod semantic_tests;

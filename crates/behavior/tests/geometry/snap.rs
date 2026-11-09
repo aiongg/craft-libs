@@ -2,7 +2,7 @@
 
 use craft_behavior::Axis;
 use craft_behavior::geometry::{SnapKind, SnapTarget, SnapTargets};
-use kurbo::{Point, Rect, Vec2};
+use kurbo::{Rect, Vec2};
 
 fn guide(along: Axis, position: f64) -> SnapTarget {
     SnapTarget::new(along, position, SnapKind::Guide)
@@ -19,4 +19,3 @@ fn a_moving_rect_snaps_its_nearest_edge_or_centre() {
     assert_eq!(offset, Vec2::ZERO);
     assert!(lines.is_empty());
 }
-

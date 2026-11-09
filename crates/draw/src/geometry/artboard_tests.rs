@@ -1,8 +1,8 @@
 //! Tests of artboard rectangles.
 
-use kurbo::{Point, Rect, Vec2};
+use kurbo::{Rect, Vec2};
 
-use super::artboard::{drawn_rect, moved_rect, resized_keep_ratio, resized_rect};
+use super::artboard::{resized_keep_ratio, resized_rect};
 
 // `resized_rect` of (0, 0, 100, 100) with the left handle dragged by 150 gives (100, 0, 150, 100);
 // dragged by exactly 100 it is 1 px wide; ⌥ moves the right edge the other way.

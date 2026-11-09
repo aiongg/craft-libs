@@ -12,10 +12,10 @@ use std::{
 
 use craft_theme::{ContrastChoice, ModeChoice, MotionChoice, Selection, Size, TextSize, ThemeId, ThemePair, Variants};
 
-use super::{Intervals, Op, OpOutput, SuiteWatch};
+use super::{Intervals, Op, SuiteWatch};
 use crate::{
     Accepted, ParseCounts, Problem, SelectionChange, SelectionError, Snapshot, Store, StoreError, StoreOptions, SuiteDir, ThemeRecord,
-    testing::{FailAt, FailingFs, SAMPLE_THEME_ID, SAMPLE_THEME_JSON},
+    testing::{SAMPLE_THEME_ID, SAMPLE_THEME_JSON},
 };
 
 const FAST: Intervals = Intervals { stat: Duration::from_millis(5), verify: Duration::from_millis(20) };
@@ -80,11 +80,6 @@ fn wait_for(what: &str, mut done: impl FnMut() -> bool) {
         assert!(Instant::now() < deadline, "timed out waiting for {what}");
         std::thread::sleep(Duration::from_millis(2));
     }
-}
-
-fn result(watch: &SuiteWatch, id: u64) -> Result<OpOutput, StoreError> {
-    wait_for("the result", || watch.snapshot().result(id).is_some());
-    watch.snapshot().result(id).unwrap().clone()
 }
 
 #[test]

@@ -11,7 +11,6 @@ use craft_imaging::layer_style::{
     StyleParams, StyleValue,
 };
 use craft_imaging::ui::layer_style::{LayerStyleDialog, StylePresets};
-use craft_theme::Srgba;
 use craft_ui::contract::Role;
 use craft_ui::patterns::presets::PresetRow;
 use craft_ui::runtime::requests::ColorRequest;
@@ -221,10 +220,6 @@ fn page_rig(kind: EffectKind, params: Option<StyleParams>) -> (Fixture, Rc<RefCe
     let effects = vec![EffectInstance { id: EffectId(1), kind, on: true, params }];
     let draft = LayerStyleDraft::new(LayerStyle { effects, ..LayerStyle::default() });
     rig_of(host(draft, vec![spec]))
-}
-
-fn angle(host: &Rc<RefCell<Host>>) -> Option<f64> {
-    host.borrow().draft.style.effect(EffectId(1)).and_then(|e| e.params.number("angle"))
 }
 
 fn blending_rig(blending: Blending, names: &[&str]) -> (Fixture, Rc<RefCell<Host>>) {

@@ -2,7 +2,7 @@
 
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::Point;
-use craft_ui::canvas::{Canvas, SplitAt, SplitLayout, SplitPane, SplitViews};
+use craft_ui::canvas::{Canvas, SplitAt, SplitLayout, SplitViews};
 use craft_ui::contract::{Bind, ShowContainer as _};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Pos2, Rect, Vec2};
@@ -58,4 +58,3 @@ fn a_click_on_an_inactive_view_activates_it_and_its_canvas_gets_no_press() {
     fixture.click(&left);
     assert_eq!(*seen.borrow(), (Some(1), false));
 }
-

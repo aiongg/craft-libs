@@ -6,22 +6,20 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
+use craft_behavior::PixelSize;
 use craft_behavior::edit_history::Step;
-use craft_behavior::{EditEvent, EditHistory, Mixed, PixelSize};
 use craft_host::{AppInfo, Host};
 use craft_imaging::ui::filter_gallery::{
     EffectChange, EffectLayer, FilterCatalog, FilterCategory, FilterGalleryEvent, FilterGalleryOpen, FilterGalleryOutput, FilterGallerySession,
     FilterGallerySource, FilterGalleryWorkspace, GalleryFilter, GalleryThumb,
 };
 use craft_imaging::ui::wide_angle::PreviewDone;
-use craft_theme::Srgba;
 use craft_ui::canvas::{PixelRect, RasterSource};
 use craft_ui::contract::{Job, Role};
 use craft_ui::patterns::form_dialogs::{DialogFields, FieldValue, Param, ParamKind};
 use craft_ui::primitives::Revision;
 use craft_ui::primitives::textures::{FakeThumbSource, ThumbnailOptions, Thumbnails};
 use craft_ui::testing::focus::AccessActionKind;
-use craft_ui::testing::relations::equals_token;
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::value_drag::SliderScale;
 use egui::{Color32, ColorImage, Key, Modifiers, Vec2};
@@ -63,14 +61,6 @@ impl FilterCatalog for Catalog {
 
 fn filters(session: &FilterGallerySession) -> Vec<&str> {
     session.effects.iter().map(|effect| effect.filter.as_str()).collect()
-}
-
-/// Applies `change`, records it as the workspace does, and reports whether the stack changed.
-fn change(session: &mut FilterGallerySession, history: &mut EditHistory<FilterGallerySession>, selected: &mut usize, change: EffectChange) -> bool {
-    let before = session.clone();
-    let changed = session.apply(change, &Catalog, selected);
-    history.record(&EditEvent::set(Mixed::Same(before), session.clone(), "Filter Gallery".into(), None));
-    changed
 }
 
 // Picking a filter for the selected layer resets its fields to the filter's defaults and keeps its eye; the same

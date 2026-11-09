@@ -2,8 +2,8 @@
 
 #![cfg(feature = "egui")]
 
-use craft_keymap::egui::{Dispatcher, Hit, matches, platform};
-use craft_keymap::{Active, Bindable, Binding, Chord, CommandRef, Key, KeyInput, Keymap, Kind, Layout, Mods, Platform, Scope, Scopes, Trigger};
+use craft_keymap::egui::Dispatcher;
+use craft_keymap::{Active, Bindable, Binding, Chord, KeyInput, Keymap, Kind, Layout, Platform, Scope, Scopes};
 use egui::{Event, InputState, Key as EguiKey, Modifiers};
 
 fn chord(text: &str) -> Chord {
@@ -383,16 +383,6 @@ fn letters_follow_the_latin_layout_from_egui_winit_to_the_dispatcher() {
     }
 }
 
-/// `input` with the Latin layout characters the suite's egui-winit reports per physical key, set
-/// through serde because crates.io egui has no such field; `None` there.
-fn with_latin_layout_chars(mut input: InputState, chars: &[(EguiKey, char)]) -> Option<InputState> {
-    let mut raw = serde_json::to_value(&input.raw).unwrap();
-    raw.get("latin_layout_chars")?;
-    raw["latin_layout_chars"] = serde_json::to_value(chars).unwrap();
-    input.raw = serde_json::from_value(raw).unwrap();
-    Some(input)
-}
-
 /// A press as a layout reports it (logical key, physical position, held modifiers) with the text
 /// it typed after it, as egui-winit sends them.
 fn typed(key: EguiKey, physical: EguiKey, modifiers: Modifiers, text: &str) -> Vec<Event> {
@@ -584,4 +574,3 @@ fn insert_and_delete_chords_copy_paste_and_cut_on_linux() {
     ctx.set_os(egui::os::OperatingSystem::Mac);
     assert!(matches!(after(EguiKey::Insert, Modifiers::CTRL, false).as_slice(), [Event::Key { key: EguiKey::Insert, .. }]));
 }
-

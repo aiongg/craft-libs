@@ -3,17 +3,11 @@
 //! column stay inside it and apart. A Window menu row reopens a closed panel.
 
 use craft_behavior::Axis;
-use craft_behavior::dock::{Action, Column, DockEdge, Floating, Group, Layout, Node, PanelState, Permissions, SplitSize, StackEntry, Workspace};
-use craft_theme::{Contrast, ControlSize, Mode};
-use craft_ui::buttons::Button;
-use craft_ui::contract::overlay::Trigger;
-use craft_ui::contract::{Bind, BodyCx, Role, Show as _, ShowContainer as _};
-use craft_ui::docking::{DockConfig, DockPanels, DockSizes, PanelSpec, WindowMenuRows};
-use craft_ui::menu::Menu;
+use craft_behavior::dock::{Action, Column, DockEdge, Floating, Group, Layout, Node, Permissions, SplitSize, Workspace};
+use craft_ui::contract::{Bind, BodyCx, Role};
+use craft_ui::docking::{DockConfig, DockPanels, PanelSpec};
 use craft_ui::patterns::dock::DockArea;
-use craft_ui::style::Variant;
 use craft_ui::testing::pointer::{moved, press, release};
-use craft_ui::testing::style::{tokens, with_cx};
 use craft_ui::testing::{Fixture, Target, trial};
 use egui::{Pos2, Rect, Ui, Vec2};
 use std::cell::RefCell;
@@ -21,7 +15,6 @@ use std::rc::Rc;
 
 const FIRST: usize = 1;
 const SECOND: usize = 2;
-const CLOSED: usize = 4;
 const CANVAS: usize = 3;
 const COLUMN_WIDTH: f32 = 200.0;
 const AREA: Vec2 = Vec2::new(800.0, 600.0);
@@ -78,10 +71,6 @@ fn splitters(fixture: &Fixture, vertical: bool) -> Vec<Target> {
     found
 }
 
-fn sizes() -> DockSizes {
-    with_cx(&egui::Context::default(), &tokens(Mode::Dark, Contrast::Standard), Variant::SECONDARY, ControlSize::Md, DockSizes::style)
-}
-
 #[trial]
 fn dragging_a_columns_inner_edge_reports_its_width_and_the_dock_follows() {
     let (mut fixture, actions) = bed(docked(Column::new(vec![Group::new(vec![FIRST], 0)]).with_width(COLUMN_WIDTH)));
@@ -127,4 +116,3 @@ fn dragging_a_divider_inside_a_floating_window_reports_the_window_split() {
         actions.borrow()
     );
 }
-

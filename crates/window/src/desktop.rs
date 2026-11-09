@@ -100,5 +100,4 @@ mod tests {
         assert_eq!(kind_from_env(&env(&[("GNOME_DESKTOP_SESSION_ID", "x")])), DesktopKind::Gnome);
         assert_eq!(kind_from_env(&env(&[])), DesktopKind::Other);
     }
-
 }

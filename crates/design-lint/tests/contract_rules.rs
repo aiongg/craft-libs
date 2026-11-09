@@ -8,7 +8,7 @@
 
 use std::path::Path;
 
-use craft_design_lint::{Config, Severity, StaticScope, analyze_contract, check_with_scope};
+use craft_design_lint::{Config, StaticScope, analyze_contract, check_with_scope};
 
 const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/contract-rules");
 
@@ -125,12 +125,6 @@ fn layer_rules_read_only_their_layers() {
     }
 }
 
-fn shadow_findings(config: &Config) -> Vec<Severity> {
-    let root = Path::new(FIXTURES).join("tree");
-    let report = check_with_scope(config, &root, &scope()).unwrap();
-    report.findings.iter().filter(|f| f.rule == "props/shadow").map(|f| f.severity).collect()
-}
-
 #[test]
 fn type_facts_cross_files_of_a_crate() {
     let root = Path::new(FIXTURES).join("tree");
@@ -156,4 +150,3 @@ fn registration_reads_the_whole_crate() {
     let hits: Vec<_> = report.findings.iter().map(|f| (f.path.display().to_string(), f.rule, f.line)).collect();
     assert_eq!(hits, [("src/b.rs".to_owned(), "contract/registration", 5)], "`Listed` is registered in another file; `Loose` is not");
 }
-

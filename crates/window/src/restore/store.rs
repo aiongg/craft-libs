@@ -375,5 +375,4 @@ mod tests {
         s.mark_saved(second.generation);
         assert!(!s.is_dirty() && s.take_pending().is_none());
     }
-
 }

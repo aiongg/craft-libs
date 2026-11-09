@@ -74,7 +74,4 @@ impl Search {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-}
+mod tests {}

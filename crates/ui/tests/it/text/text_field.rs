@@ -1,7 +1,7 @@
 //! `TextField`: a click on a completion candidate picks it without moving focus, and the search form's clear part
 //! and Escape empty the text.
 
-use craft_behavior::{EditEvent, Mixed, PartKey};
+use craft_behavior::PartKey;
 use craft_ui::contract::{Bind, Props as _, Show as _};
 use craft_ui::primitives::{Completer, Completion};
 use craft_ui::runtime::focus::{FocusTarget, request};

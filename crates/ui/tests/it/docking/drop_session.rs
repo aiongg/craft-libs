@@ -11,7 +11,7 @@ use craft_ui::runtime::drag;
 use craft_ui::style::{ComponentStyle, StyleCx};
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Fixture, trial};
-use egui::{Id, Key, Modifiers, Pos2, Rect, Response, Vec2};
+use egui::{Id, Pos2, Rect, Response, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -184,4 +184,3 @@ fn a_group_grip_drag_shows_the_drop_mark_over_a_group_side_and_docks_on_release(
     assert_eq!(groups(&layout.borrow()).len(), 2, "the group moved beside the right group");
     assert_eq!(groups(&layout.borrow())[1], panels(&["Layers", "Channels"]));
 }
-

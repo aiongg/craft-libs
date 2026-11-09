@@ -203,5 +203,4 @@ mod tests {
         assert_eq!(list.close(c), None);
         assert!(!list.focus(c));
     }
-
 }

@@ -420,5 +420,4 @@ mod tests {
         assert_eq!(fold(vec![update(3), cancel.clone()]), Some(cancel), "Update..Cancel is Cancel");
         assert_eq!(fold(vec![update(3), update(4)]), Some(update(4)), "otherwise the later event");
     }
-
 }

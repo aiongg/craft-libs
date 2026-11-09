@@ -4,9 +4,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use crate::cache::FrameCacheKey;
 use crate::cache_tests::{TestFrame, TestKey};
-use crate::frames::{CancelToken, FrameRenderer, FrameServer, PlaybackRequest, playback_plan, prefetch_depth};
+use crate::frames::{CancelToken, FrameRenderer, FrameServer, PlaybackRequest};
 
 struct Recorder {
     rendered: Mutex<Vec<(u8, i64)>>,

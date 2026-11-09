@@ -5,8 +5,6 @@ use craft_timeline::ui::{DragEvent, TimelineRuler, TimelineView};
 use craft_timeline::{FrameRate, Tick, TimeFormat, TimeRange, TimeView, format_time};
 use craft_ui::canvas::StepLadder;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
-use craft_ui::testing::access::NodeKey;
-use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Key, Modifiers, Pos2, Rect};
 use std::cell::RefCell;
@@ -151,10 +149,3 @@ fn dragging_the_work_area_moves_it_or_an_end() {
     let events = ended.work.borrow();
     assert!(matches!(events.last(), Some(DragEvent::Commit(range)) if *range == stretched), "{events:?}");
 }
-
-/// The name of the node that holds keyboard focus.
-fn focused_name(fixture: &Fixture) -> Option<String> {
-    let id = fixture.focused()?;
-    fixture.tree().name_of(NodeKey::of(id)).map(str::to_owned)
-}
-

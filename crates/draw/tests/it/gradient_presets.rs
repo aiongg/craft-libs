@@ -3,7 +3,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use craft_draw::ui::gradient::{ColorStop, GradientGroup, GradientItem, GradientMap, GradientMapEditor, GradientPalette, GradientRef, GradientStops};
+use craft_draw::ui::gradient::{ColorStop, GradientGroup, GradientItem, GradientPalette, GradientRef, GradientStops};
 use craft_theme::Srgba;
 use craft_ui::contract::Bind;
 use craft_ui::patterns::presets::PresetState;
@@ -33,4 +33,3 @@ fn a_click_is_one_pick_of_the_preset_clicked_also_when_it_is_selected() {
     fixture.click(&light);
     assert_eq!(*picks.borrow(), vec![GradientRef::item(0, 1)]);
 }
-

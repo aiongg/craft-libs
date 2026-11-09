@@ -5,7 +5,6 @@ use craft_theme::Rgba;
 use craft_ui::testing::trial;
 use craft_ui::text::HexCodec;
 
-const ORANGE: Rgba = Rgba([0xff, 0x88, 0x00, 0xff]);
 const TRANSLUCENT: Rgba = Rgba([0x10, 0x20, 0x30, 0x80]);
 
 fn parse(text: &str) -> Option<Rgba> {
@@ -31,4 +30,3 @@ fn hex_text_with_alpha_wins_and_other_text_is_refused() {
         assert_eq!(parse(text), None, "{text:?}");
     }
 }
-

@@ -3,17 +3,15 @@
 mod align;
 mod glyph;
 pub mod group;
-mod help;
 pub mod kit;
 mod message;
 
 use self::kit::{Dial, Field, LabelledDial, RESET, SIZE, Seen, Wide};
 use craft_host::target::ShellInfo;
 use craft_i18n::Direction;
-use craft_ui::contract::{FieldLabel, FieldLabelRole, FieldLayout, Props as _, Show as _, ShowContainer as _, SideLabel};
+use craft_ui::contract::{FieldLabel, FieldLayout, Props as _, Show as _, ShowContainer as _, SideLabel};
 use craft_ui::runtime::InstallSpec;
 use craft_ui::runtime::env::RootEnv;
-use craft_ui::testing::access::NodeKey;
 use craft_ui::testing::pointer::{drag, moved, press, release};
 use craft_ui::testing::windows::FakeSystem;
 use craft_ui::testing::{Frames, trial};

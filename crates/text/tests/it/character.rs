@@ -2,12 +2,7 @@
 
 use crate::set;
 use craft_text::ui::DocUnit;
-use craft_text::ui::character::{
-    COLOR_KEY, Caps, CharacterChange, CharacterControls, CharacterValues, Kerning, Leading, ParagraphChange, ParagraphControls, ParagraphValues,
-    TextAlign,
-};
-use craft_theme::{Rgba, Srgba};
-use craft_ui::runtime::env::UnitKind;
+use craft_text::ui::character::{Caps, CharacterChange, CharacterControls, CharacterValues, Kerning};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers};
 use std::cell::RefCell;
@@ -17,7 +12,6 @@ use std::rc::Rc;
 struct Panel {
     fixture: Fixture,
     edits: Rc<RefCell<Vec<craft_behavior::EditEvent<CharacterChange>>>>,
-    requests: Rc<RefCell<Vec<craft_ui::runtime::requests::ColorRequest>>>,
 }
 
 fn apply(values: &mut CharacterValues, change: &CharacterChange) {
@@ -58,7 +52,7 @@ impl Panel {
             asked.borrow_mut().extend(out.requests.take_color());
         });
         fixture.settle();
-        Panel { fixture, edits, requests }
+        Panel { fixture, edits }
     }
 
     /// The last change any edit carried.
@@ -109,4 +103,3 @@ fn kerning_menu_and_mixed_values() {
     assert_eq!(panel.shown_value("Kerning"), "");
     assert_eq!(panel.shown_value("Tracking"), "");
 }
-

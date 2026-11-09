@@ -1,16 +1,13 @@
 //! The page setup dialog, the margin rules, the column bar, the header and footer zones, the page range codec and the
 //! frame marks.
 
-use craft_behavior::Codec as _;
-use craft_behavior::kurbo::Point;
-use craft_pages::range::{PageRange, PageRangeError, Subset};
+use craft_pages::range::{PageRange, Subset};
 use craft_pages::setup::{Margins, PageSetup};
 use craft_pages::ui::fixtures::{INK, PAPER, demo_placed};
 use craft_pages::ui::{
-    ColumnBar, HeaderFooterPage, HeaderFooterZones, HiddenMark, MarginEdge, MarginHandles, MarginRules, PageEdges, PageRangeCodec, PageRangeOptions,
-    PageSetupDialog, Zone, ZoneAt, ZoneBands, clamp_margin, dragged_margin, margin_range,
+    ColumnBar, HeaderFooterZones, MarginEdge, MarginHandles, MarginRules, PageEdges, PageRangeOptions, PageSetupDialog, Zone, ZoneAt, ZoneBands,
+    clamp_margin, dragged_margin, margin_range,
 };
-use craft_theme::{Contrast, Mode};
 use craft_ui::contract::{Bind, Show as _};
 use craft_ui::runtime::env::Direction;
 use craft_ui::testing::focus::AccessActionKind;
@@ -25,9 +22,6 @@ const COLUMNS: usize = 4;
 
 /// A drag far past the end of the bar, points.
 const FAR: f32 = 10_000.0;
-
-/// A hundredth of the whole bar, the arrow key's step.
-const KEY_STEP: f64 = 0.01;
 
 /// 1.5 inches in points.
 const TOP: f64 = 1.5 * 72.0;
@@ -364,4 +358,3 @@ fn escape_in_a_width_field_puts_back_the_size_and_the_orientation() {
     assert_eq!(fixture.tree().value_of(width.node).map(str::to_owned), before, "Escape puts the width back");
     assert!(radio_on(&fixture, "Portrait"), "and the orientation with it");
 }
-

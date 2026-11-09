@@ -1,11 +1,7 @@
 //! The selection statistics.
 
-use std::cell::RefCell;
-use std::rc::Rc;
-
-use craft_table::ui::stats::{SelectionStats, SelectionStatsReadout, StatPart, StatsShown, StatsWords, stats_parts};
-use craft_ui::contract::{Bind, Show as _};
-use craft_ui::testing::{Fixture, trial};
+use craft_table::ui::stats::{SelectionStats, StatsShown, StatsWords, stats_parts};
+use craft_ui::testing::trial;
 
 fn texts(stats: &SelectionStats, shown: &StatsShown, format: impl Fn(f64) -> String) -> Vec<String> {
     stats_parts(stats, shown, &StatsWords::default(), format).into_iter().map(|part| part.text).collect()
@@ -25,4 +21,3 @@ fn parts_follow_shown_and_values() {
     assert_eq!(texts(&text_only, &StatsShown::default(), format), ["Count: 3"]);
     assert!(texts(&SelectionStats::default(), &StatsShown::all(), format).is_empty());
 }
-

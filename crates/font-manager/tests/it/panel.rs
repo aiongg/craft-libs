@@ -129,22 +129,6 @@ impl Rig {
             .unwrap_or_else(|| panic!("no {role:?} named `{name}` on screen"))
     }
 
-    /// Presses the button named `name` whose description is `description`: the style rows of the details sheet share
-    /// their name and differ in the description.
-    fn click_described(&mut self, name: &str, description: &str) {
-        let target = self
-            .fx
-            .by_role(Role::BUTTON)
-            .into_iter()
-            .find(|target| {
-                craft_ui::testing::access::name(self.fx.tree(), target.node) == Some(name)
-                    && self.fx.tree().description_of(target.node) == Some(description)
-            })
-            .unwrap_or_else(|| panic!("no button `{name}` described `{description}` on screen"));
-        self.fx.click(&target);
-        self.fx.settle();
-    }
-
     /// Presses the notice action named `name`: a link beside the message, a button when the actions stack.
     fn click_notice_action(&mut self, name: &str) {
         let target = [Role::LINK, Role::BUTTON]

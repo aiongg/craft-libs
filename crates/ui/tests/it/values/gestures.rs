@@ -1,7 +1,7 @@
 //! Gestures: Escape restores, an app change or an undo cancels, a cancelled gesture stays cancelled under its press, a
 //! reset is one `Set`, a read-only component refuses edits and a composite adopts its children's edits.
 
-use super::kit::{APP_VALUE, AT, Ev, FIRST, HELD, INITIAL, PlainStyle, RESET_TO, Scrub, ev_of, near};
+use super::kit::{APP_VALUE, AT, Ev, FIRST, HELD, INITIAL, PlainStyle, Scrub, ev_of, near};
 use craft_behavior::{CancelReason, EditEvent, Mixed, Sense};
 use craft_ui::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Props as _, Role, Show as _};
 use craft_ui::runtime::edit::cancel_all;

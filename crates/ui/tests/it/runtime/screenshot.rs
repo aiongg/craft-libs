@@ -1,9 +1,9 @@
 //! The screenshot slot: one completion per slot, a bounded image, and a wake of the owning viewport only.
 
-use std::sync::{Arc, Barrier, Mutex};
+use std::sync::{Arc, Mutex};
 
 use craft_ui::runtime::egui::screenshot::{ScreenshotError, ScreenshotSlot};
-use craft_ui::runtime::windows::{ScreenshotSlot as ReexportedSlot, WindowHost};
+use craft_ui::runtime::windows::WindowHost;
 use craft_ui::testing::trial;
 use egui::{Color32, ColorImage, Context, ScreenshotCallback, ViewportCommand, ViewportId};
 

@@ -3,8 +3,8 @@
 use craft_behavior::kurbo::{ParamCurve as _, Point, Vec2};
 use craft_behavior::{CanvasView, EditEvent};
 use craft_draw::ui::{
-    AnchorsShown, BezierHit, BezierOverlay, BezierTool, EditPath, EditSubpath, HandleSide, HandlesShown, Knot, KnotRef, MAX_ANCHORS, PathEdit,
-    PathSelection, SegmentMark,
+    AnchorsShown, BezierHit, BezierOverlay, BezierTool, EditPath, EditSubpath, HandleSide, HandlesShown, Knot, KnotRef, PathEdit, PathSelection,
+    SegmentMark,
 };
 use craft_ui::canvas::{Canvas, Guide, GuideKey};
 use craft_ui::canvas_controls::Guides;

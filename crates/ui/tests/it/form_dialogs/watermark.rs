@@ -3,16 +3,9 @@
 
 use craft_ui::contract::Bind;
 use craft_ui::patterns::form_dialogs::{Watermark, WatermarkSettings, WatermarkStyle};
-use craft_ui::pickers::Anchor9;
 use craft_ui::testing::{Fixture, trial};
 use std::cell::RefCell;
 use std::rc::Rc;
-
-fn at(position: Anchor9) -> WatermarkSettings {
-    let mut settings = WatermarkSettings::default();
-    settings.position = position;
-    settings
-}
 
 /// Picking Graphic and then Text again brings the typed text back.
 #[trial]

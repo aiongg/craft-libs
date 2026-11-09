@@ -3,11 +3,9 @@
 mod drag_strip;
 mod toggle_keys;
 
-use craft_behavior::{DisplayOrder, ItemSource};
-use craft_ui::contract::{Bind, Entry, Role, SelectMode, Show as _, ShowCollection as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Entry, Role, Show as _, ShowContainer as _};
 use craft_ui::dialog::Dialog;
 use craft_ui::display::Text;
-use craft_ui::list::{List, ListRow};
 use craft_ui::pickers::Select;
 use craft_ui::runtime::focus::Initial;
 use craft_ui::runtime::overlay::CloseReason;
@@ -17,21 +15,6 @@ use craft_ui::text::TextField;
 use egui::{Key, Modifiers, Rect, Vec2};
 use std::cell::Cell;
 use std::rc::Rc;
-
-const ROWS: usize = 40;
-
-struct Rows;
-
-impl DisplayOrder<usize> for Rows {
-    fn len(&self) -> usize {
-        ROWS
-    }
-    fn key(&self, at: usize) -> usize {
-        at
-    }
-}
-
-impl ItemSource<usize> for Rows {}
 
 /// Shows a dialog with Apply (stays open), OK and Cancel; `allow` answers the guard for OK. Returns what the dialog
 /// reported on the pass the button was clicked and whether it is still open after.
@@ -167,4 +150,3 @@ fn a_select_in_a_scrolling_dialog_body_opens_its_list_and_picks() {
     fixture.settle();
     assert_eq!(value.get(), 1, "Up and Enter pick the option above");
 }
-

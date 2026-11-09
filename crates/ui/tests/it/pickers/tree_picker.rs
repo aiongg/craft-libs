@@ -1,7 +1,6 @@
 //! `TreePicker`: each opening shows only the folders above the pick, a folder click opens or closes the folder and
 //! picks nothing, and a mixed value shows the mixed word.
 
-use craft_behavior::Mixed;
 use craft_ui::contract::{Bind, Role, Show as _};
 use craft_ui::pickers::{TreeEntry, TreePicker};
 use craft_ui::testing::{Fixture, trial};
@@ -92,4 +91,3 @@ fn each_opening_shows_only_the_folders_above_the_pick() {
     rig.open();
     assert_eq!(rig.listed(), ["Archive", "2024", "Summer", "2025", "Inbox"]);
 }
-

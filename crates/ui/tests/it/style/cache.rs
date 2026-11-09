@@ -1,11 +1,9 @@
 //! The style cache, the env key and app style replacements.
 
-use craft_host::target::Os;
-use craft_i18n::Direction;
-use craft_theme::{Contrast, ControlSize, Mode, Variant, builtins};
-use craft_ui::runtime::env::{RootEnv, Scale};
+use craft_theme::{Contrast, ControlSize, Mode, Variant};
+use craft_ui::runtime::env::RootEnv;
 use craft_ui::runtime::{InstallError, install};
-use craft_ui::style::{ComponentStyle, EnvKey, Metrics, StyleCx, StyleKey, StyleReplacements};
+use craft_ui::style::{ComponentStyle, Metrics, StyleCx, StyleKey, StyleReplacements};
 use craft_ui::testing::style::{root_token_entries, style_of, tokens, with_cx};
 use craft_ui::testing::{Frames, trial};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -112,4 +110,3 @@ fn root_tokens_are_cached_for_a_bounded_number_of_inputs() {
     let kept = root_token_entries(&frames.ctx);
     assert!(kept > 0 && kept < 20, "{kept} entries after 20 frames with 20 distinct roots");
 }
-

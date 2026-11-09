@@ -4,7 +4,6 @@ use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Size};
 use craft_ui::canvas::{Canvas, NavigationOptions, ViewCommands};
 use craft_ui::contract::ShowContainer as _;
-use craft_ui::runtime::commands;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers, Pos2, Rect};
 use std::cell::RefCell;
@@ -47,4 +46,3 @@ fn cmd_equals_zooms_a_focused_canvas_and_cmd_0_fits_it() {
     ViewCommands::FitOnScreen.apply(&mut fitted, DOC, fixture.ctx().pixels_per_point());
     assert!((view.borrow().zoom - fitted.zoom).abs() < SAME_ZOOM, "Cmd+0 fits the document: {:?}", view.borrow());
 }
-

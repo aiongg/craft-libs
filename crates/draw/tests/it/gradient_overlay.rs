@@ -6,13 +6,12 @@ use std::rc::Rc;
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::Point;
 use craft_draw::ui::gradient::gradient_line::{GradientLine, LineGradient, at, project, snap45};
-use craft_draw::ui::gradient::stops::{STOP_STEP, STOP_STEP_FAR};
 use craft_draw::ui::gradient::{ColorStop, GradientOverlay, GradientStops, StopRef};
 use craft_theme::Srgba;
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers, Vec2};
+use egui::Vec2;
 
 fn black() -> Srgba {
     Srgba { r: 0.0, g: 0.0, b: 0.0, a: 1.0 }
@@ -78,4 +77,3 @@ fn a_press_on_a_stop_selects_it_and_its_drag_moves_it() {
     let moved = s.value.borrow().stops.color[1].location;
     assert!(moved > before, "the stop followed the pointer to {moved}");
 }
-

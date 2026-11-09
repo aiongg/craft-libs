@@ -1,9 +1,9 @@
 //! A scrolling body: the wheel and the thumb move it in the frame that carries them, and its content size and
 //! scroll offset follow the content.
 
-use super::kit::{Regions, Slab};
+use super::kit::Slab;
 use craft_behavior::ColumnWidth;
-use craft_ui::contract::{ContainerProps, FooterRegion, HeaderRegion, Props as _, Scroll, Show as _, ShowContainer as _, Sizing};
+use craft_ui::contract::{ContainerProps, Props as _, Scroll, Show as _, ShowContainer as _, Sizing};
 use craft_ui::layout_components::{Grid, Stack};
 use craft_ui::testing::layout::{Block, in_region};
 use craft_ui::testing::{Frames, pointer, trial};
@@ -14,8 +14,6 @@ const LINE: Vec2 = Vec2::new(100.0, 20.0);
 /// Positions that should coincide, and a looser bound for positions that follow a drag.
 const SAME: f32 = 0.5;
 const NEAR: f32 = 1.0;
-/// Wheel distances, and the least a thumb drag of 60 points moves a body of 40 lines beyond them.
-const STEP: f32 = 60.0;
 const BIG_STEP: f32 = 200.0;
 const HUNDRED: f32 = 100.0;
 const THUMB_GAIN: f32 = 150.0;

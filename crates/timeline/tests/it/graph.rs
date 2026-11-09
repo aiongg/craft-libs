@@ -1,15 +1,12 @@
 //! `GraphEditor`: the grid and range rules, key and handle drags, the bottom bar, the wheel and the keys.
 
 use craft_behavior::{Selection, SelectionChange};
-use craft_timeline::ui::graph::{
-    GraphAction, GraphCurve, GraphEditor, GraphEditorOutput, GraphKey, GraphMode, GraphRange, HandleSide, auto_range, nice_step,
-};
+use craft_timeline::ui::graph::{GraphAction, GraphCurve, GraphEditor, GraphEditorOutput, GraphKey, GraphMode, GraphRange, HandleSide, auto_range};
 use craft_timeline::ui::{DragEvent, KeyframeId, KeyframeInterpolation, TimelineView};
 use craft_timeline::{FrameRate, Tick, TimeFormat, TimeView};
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
-use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, pointer, trial};
-use egui::{Key, Modifiers, Pos2, Rect, Vec2};
+use egui::{Modifiers, Pos2, Rect, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -23,7 +20,6 @@ const GRAPH: &str = "Graph";
 const CURVE: &str = "Opacity";
 /// The tooltip words of the bottom bar buttons.
 const SPEED: &str = "Edit Speed Graph";
-const REFERENCE: &str = "Show Reference Graph";
 
 fn secs(s: f64) -> Tick {
     Tick::from_seconds_f64(s)
@@ -65,7 +61,6 @@ struct Shown {
     selection: Rc<RefCell<Selection<KeyframeId>>>,
     moved: Rc<RefCell<Vec<DragEvent<craft_timeline::ui::GraphKeyMove>>>>,
     handles: Rc<RefCell<Vec<DragEvent<craft_timeline::ui::HandleMove>>>>,
-    actions: Rc<RefCell<Vec<GraphAction>>>,
 }
 
 fn selected(ids: &[u64]) -> Selection<KeyframeId> {
@@ -108,7 +103,7 @@ fn shown(curves: Vec<GraphCurve>, selection: Selection<KeyframeId>, auto_zoom: b
     });
     fixture.room(ROOM);
     fixture.settle();
-    Shown { fixture, range, selection, moved, handles, actions }
+    Shown { fixture, range, selection, moved, handles }
 }
 
 /// A drag from `from` by `by` with `modifiers` held.
@@ -195,4 +190,3 @@ fn ctrl_wheel_zooms_the_value_range_about_its_middle() {
     assert!((middle(range.low, range.high) - middle(low, high)).abs() < 1e-9, "the middle stays: {range:?}");
     assert!(range.high - range.low < high - low, "wheel up zooms in: {range:?}");
 }
-

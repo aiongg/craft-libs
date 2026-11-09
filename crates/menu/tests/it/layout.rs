@@ -2,8 +2,8 @@
 
 use craft_keymap::{Bindable, Binding, Keymap, Platform, Policy, Scope, Scopes};
 use craft_menu::{
-    Builtin, Document, Item, ItemKind, ItemRole, ItemState, LayoutOptions, Menu, MenuBar, MenuRole, Node, Platforms, Standard, Target, apply_keymap,
-    apply_state, from_items, layout, mac_layout, structure_key, tidy, window_key,
+    Builtin, Document, Item, ItemKind, ItemRole, LayoutOptions, Menu, MenuBar, MenuRole, Node, Platforms, Standard, Target, apply_keymap, from_items,
+    layout, mac_layout, structure_key, tidy, window_key,
 };
 use craft_ui::testing::trial;
 
@@ -299,4 +299,3 @@ fn the_keymap_gives_shortcuts_and_check_items() {
     assert_eq!(item("view.mode").kind, ItemKind::Radio(true));
     assert_eq!(item("view.other").shortcut, Some(chord("F9")), "a command the keymap doesn't know keeps its shortcut");
 }
-

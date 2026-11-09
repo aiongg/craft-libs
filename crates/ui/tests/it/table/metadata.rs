@@ -88,4 +88,3 @@ fn arrow_down_from_the_filter_leads_into_the_rows() {
         seen.events.borrow().iter().filter_map(|event| if let CollectionEvent::Activate(key) = event { Some(*key) } else { None }).collect();
     assert_eq!(activated, [FieldKey::Field(0, 0)]);
 }
-

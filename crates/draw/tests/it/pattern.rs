@@ -108,4 +108,3 @@ fn the_dialog_reports_live_values_and_cancel_answers_nothing() {
     fixture.settle();
     assert_eq!(state.borrow().result, Some(DialogResult::Cancel));
 }
-

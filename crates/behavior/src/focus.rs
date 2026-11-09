@@ -271,5 +271,4 @@ mod tests {
         assert_eq!(escape_step(idle, CancelRule::ClearThenClose), EscapeStep::CloseScope);
         assert_eq!(escape_step(idle, CancelRule::Ignore), EscapeStep::Ignore);
     }
-
 }

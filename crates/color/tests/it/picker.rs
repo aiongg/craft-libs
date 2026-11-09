@@ -4,9 +4,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use craft_behavior::{Codec as _, Mixed};
-use craft_color::ui::{ChosenColor, ColorChoice, ColorPicker, ColorPickerLayout, ColorReadout, ColorWarning, NamedColor, PairCodec, PickedColor};
+use craft_color::ui::{ColorPicker, ColorPickerLayout, ColorReadout, ColorWarning, PairCodec, PickedColor};
 use craft_theme::{Channel, ColorModel, DefaultOn, HsbModel, MAX_CHANNELS, ModelValues, OklchModel, RgbModel, Rgba, Srgba};
-use craft_ui::contract::{Bind, Show as _};
+use craft_ui::contract::Bind;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers, vec2};
 
@@ -220,21 +220,3 @@ fn a_channel_typed_into_a_mixed_readout_keeps_each_items_other_channels() {
     assert_eq!(&whole.0[..3], &[0x33, 0x66, 0x99], "the hex sets the colour");
     assert_eq!(items.borrow()[1], whole, "and sets it for both items");
 }
-
-fn choice_fixture(start: ChosenColor, custom: Option<Srgba>) -> (Fixture, Rc<RefCell<(ChosenColor, usize)>>) {
-    let state = Rc::new(RefCell::new((start, 0usize)));
-    let shown = state.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        let mut state = shown.borrow_mut();
-        let named = [NamedColor::new("default", "Default", None), NamedColor::new("black", "Black", Some(Srgba::rgb(0.0, 0.0, 0.0)))];
-        let out = ColorChoice::new("Pasteboard color", &state.0).named(named).custom(custom).show(ui);
-        if let Some(chosen) = out.chosen {
-            state.0 = chosen;
-        }
-        state.1 += usize::from(out.pick_color.as_ref().is_some_and(|request| request.key == ColorChoice::CUSTOM_KEY));
-    });
-    fixture.room(vec2(320.0, 320.0));
-    fixture.settle();
-    (fixture, state)
-}
-

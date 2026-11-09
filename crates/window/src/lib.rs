@@ -503,7 +503,7 @@ mod platform {
 
 #[cfg(test)]
 mod tests {
-    use super::{Button, Frame, Layout, Prefix, parse_override};
+    use super::{Button, Layout};
 
     #[test]
     fn parse_drops_quotes_unknown_names_and_duplicates() {
@@ -512,5 +512,4 @@ mod tests {
         assert!(layout.left.is_empty());
         assert_eq!(layout.right, vec![Button::Minimize, Button::Close]);
     }
-
 }

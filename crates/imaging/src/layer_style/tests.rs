@@ -16,10 +16,6 @@ fn pt(input: f32, output: f32) -> ContourPoint {
     ContourPoint { input, output, corner: false }
 }
 
-fn keys(spec: &EffectSpec) -> Vec<&str> {
-    spec.fields.iter().map(|f| &*f.key).collect()
-}
-
 // Per effect, the field keys in order with their kinds and ranges match the table in
 // `EffectSpec::photoshop`'s doc (Outer Glow: Technique before Spread, Range after Contour).
 

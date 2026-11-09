@@ -1,21 +1,13 @@
 //! The Pen and the Curvature Pen: anchors, handles, keys, Auto Add/Delete, the close cue and the tool's access
 //! node, driven through `ToolFixture`.
 
-use craft_behavior::PointerButton as ToolButton;
 use craft_behavior::kurbo::Point;
 use craft_behavior::{CancelReason, CanvasView, EditEvent};
-use craft_draw::ui::pen::{
-    BezierTool, EditSubpath, HandleSide, Knot, KnotRef, PATH_OPTIONS_COLOR_KEY, PathMode, PathOptionsPopover, PathOptionsSettings, PathTool,
-    PenEvent, PenMode, PenTool,
-};
+use craft_draw::ui::pen::{BezierTool, EditSubpath, HandleSide, Knot, KnotRef, PathMode, PathTool, PenEvent, PenMode, PenTool};
 use craft_keymap::Mods;
-use craft_ui::canvas::{CanvasSpace, CanvasTool, Guide, GuideKey, ToolContext, ToolPointer};
-use craft_ui::canvas_controls::Guides;
-use craft_ui::contract::{Bind, Show as _};
-use craft_ui::testing::{Fixture, ToolFixture, trial};
+use craft_ui::canvas::{CanvasTool, ToolContext};
+use craft_ui::testing::{ToolFixture, trial};
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, Rect, vec2};
-use std::cell::RefCell;
-use std::rc::Rc;
 
 /// The document point drawn at the middle of the canvas: the canvas shows (0, 0) to (400, 300) at zoom 1.
 const MIDDLE: Point = Point::new(200.0, 150.0);
@@ -290,13 +282,6 @@ fn remove_last_waits_for_a_press_that_is_still_down() {
     assert_eq!(pen.draft().knots.len(), 3, "one request removes one anchor");
 }
 
-/// A context over the fixture's canvas with the pointer at `at`.
-fn context_at<'a>(pen: &Pen, at: Pos2) -> ToolContext<'a> {
-    let room = pen.fixture.canvas().rect;
-    let space = CanvasSpace::new((pen.view)(room), 1.0);
-    ToolContext::new(room, Some(space)).pointer(Some(ToolPointer::new(at, ToolButton::Primary, 0.0)))
-}
-
 #[trial]
 fn a_press_on_an_open_paths_end_resumes_it_only_without_a_draft() {
     let end = KnotRef::new(0, 1);
@@ -311,10 +296,6 @@ fn a_press_on_an_open_paths_end_resumes_it_only_without_a_draft() {
     pen.click(at, Modifiers::NONE);
     assert_eq!(pen.draft().knots.len(), 2);
     assert_eq!(pen.log.iter().filter(|event| matches!(event, PenEvent::Resumed(..))).count(), 1);
-}
-
-fn rotated_flipped(room: Rect) -> CanvasView {
-    CanvasView::new(room, MIDDLE, 1.0).rotation(30.0).flip_x(true)
 }
 
 #[trial]
@@ -487,10 +468,6 @@ fn resolve(tool: PathTool, mods: Mods, drawing: bool, auto_add_delete: bool) -> 
     (resolved.bezier, resolved.draft, resolved.draft_senses)
 }
 
-fn options(rubber_band: bool, color: Option<[u8; 3]>, thickness: Option<f32>) -> PathOptionsSettings {
-    serde_json::from_value(serde_json::json!({ "rubberBand": rubber_band, "color": color, "thickness": thickness })).expect("settings")
-}
-
 /// `PathMode::resolve` over every row of its table: each tool, drawing or not, Auto Add/Delete on and off, with no
 /// key, Shift, Alt and Command.
 #[trial]
@@ -538,10 +515,3 @@ fn path_mode_resolves_the_pen_tools_and_modifiers() {
         assert_eq!(r(T::DirectSelection, held, true, true), mode(Direct, pen, false));
     }
 }
-
-struct Options {
-    settings: PathOptionsSettings,
-    open: bool,
-    asked: Vec<String>,
-}
-

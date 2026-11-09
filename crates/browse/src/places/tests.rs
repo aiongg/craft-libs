@@ -4,7 +4,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use craft_host::queue::Cancel;
 use craft_host::{ManualJobs, Wake};
 
 use super::*;

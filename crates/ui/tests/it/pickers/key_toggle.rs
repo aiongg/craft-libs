@@ -5,10 +5,8 @@ use craft_behavior::Sense;
 use craft_ui::contract::{Common, Component, Cx, MeasureCx, Overlay, OverlayUi, Overlays as _, Props as _, Role, Show as _, Trigger};
 use craft_ui::pickers::toggle_on_key;
 use craft_ui::style::StyleCx;
-use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers, Response, Vec2};
+use egui::{Response, Vec2};
 use std::cell::{Cell, RefCell};
-use std::rc::Rc;
 
 const FACE: Vec2 = Vec2::new(80.0, 20.0);
 const CONTENT: Vec2 = Vec2::new(80.0, 30.0);
@@ -59,4 +57,3 @@ impl Component for Face<'_> {
         cx.response.clone()
     }
 }
-

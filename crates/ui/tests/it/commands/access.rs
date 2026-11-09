@@ -1,12 +1,11 @@
 //! Commands and part activations as a component reads them: `MeasureCx::resolve_command`, `Cx::fire` and
 //! `Cx::part_activated`.
 
-use super::kit::{AppCommand, FixedStyle, Pane, PaneCommand};
+use super::kit::{FixedStyle, Pane, PaneCommand};
 use craft_behavior::{NavShape, PartKey, Roving, Sense};
 use craft_ui::contract::{Common, Component, Cx, Input, MeasureCx, PartsCx, Props as _, Role, Show as _, ShowContainer as _};
-use craft_ui::runtime::commands::{CommandInput, CommandRef, CommandState, Commands as _, FireSource};
+use craft_ui::runtime::commands::{CommandRef, CommandState, Commands as _, FireSource};
 use craft_ui::runtime::focus::{ActivateKeys, KeyUse};
-use craft_ui::runtime::frame::take_output;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::click;
 use craft_ui::testing::{Frames, trial};
@@ -31,11 +30,6 @@ impl<'a> Asker<'a> {
 
     fn resolve(mut self, command: impl Into<CommandRef>) -> Self {
         self.resolve = Some(command.into());
-        self
-    }
-
-    fn fire(mut self, command: impl Into<CommandRef>, source: FireSource) -> Self {
-        self.fire = Some((command.into(), source));
         self
     }
 }

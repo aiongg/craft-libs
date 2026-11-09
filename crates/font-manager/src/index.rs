@@ -61,7 +61,4 @@ pub fn script_name<'a>(index: &'a Index, id: &str) -> Option<&'a str> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-}
+mod tests {}

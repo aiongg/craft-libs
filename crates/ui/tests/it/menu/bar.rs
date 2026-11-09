@@ -3,19 +3,15 @@
 
 use craft_i18n::{Direction, Folder};
 use craft_ui::buttons::Button;
-use craft_ui::contract::{PopupKind, Show as _};
+use craft_ui::contract::Show as _;
 use craft_ui::menu::MenuItem;
-use craft_ui::menu::bar::{MenuBar, MenuHelp, MenuTitle, TitleFit, fit_titles};
+use craft_ui::menu::bar::{MenuBar, MenuHelp, MenuTitle};
 use craft_ui::menu::search::{HelpEntry, search_order};
-use craft_ui::runtime::commands::{EditCommands, FireSource};
-use craft_ui::runtime::frame::take_output;
+use craft_ui::runtime::commands::EditCommands;
 use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Id, Key, Modifiers};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-
-const TITLES: [f32; 3] = [40.0, 50.0, 60.0];
-const MORE: f32 = 20.0;
 
 /// A button, then a menu bar with File, Edit and Help; the rows' runs and the ids of the button and the bar are
 /// recorded.
@@ -157,4 +153,3 @@ enum RowCommand {
     #[command(label = "Go")]
     Go,
 }
-

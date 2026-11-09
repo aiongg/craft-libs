@@ -5,8 +5,7 @@ use std::rc::Rc;
 
 use craft_color::AreaMode;
 use craft_color::ui::{
-    ColorArea, ColorDisc, ColorRamp, ColorStrip, ColorWheel, DiscMove, RampKind, RampPick, WheelGeometry, hue_at, triangle_corners, triangle_point,
-    triangle_sv,
+    ColorArea, ColorDisc, ColorRamp, ColorStrip, DiscMove, RampKind, RampPick, WheelGeometry, hue_at, triangle_corners, triangle_point, triangle_sv,
 };
 use craft_theme::{ColorModel, HsbModel, ModelValues, Srgba};
 use craft_ui::contract::{Bind, Show as _};
@@ -29,10 +28,6 @@ const HUE_TOLERANCE: f32 = 2.0;
 const NEAR_WHITE: f32 = 0.9;
 /// The saturation of the first disc marker's colour, rounded up.
 const MARKER_SATURATION: f32 = 0.78;
-/// Straight up on the wheel, in degrees counter-clockwise from the right.
-const UP: f32 = 90.0;
-/// The wheel's last whole hue, in degrees.
-const LAST_HUE: f32 = 359.0;
 
 /// The HSB values of `color`.
 fn hsb(color: Srgba) -> ModelValues {
@@ -177,4 +172,3 @@ fn the_wheel_geometry_round_trips() {
     let geometry = WheelGeometry::new(Rect::from_min_size(Pos2::ZERO, vec2(200.0, 200.0)), 4.0, (8.0, 24.0), 0.09, 1.0);
     assert!(geometry.inner < geometry.outer && geometry.triangle < geometry.inner);
 }
-

@@ -68,4 +68,3 @@ fn invalid_file_exits_one_with_every_error() {
     assert_eq!(run(&[], &[&missing]).status.code(), Some(1));
     assert_eq!(Command::new(env!("CARGO_BIN_EXE_craft-theme")).output().unwrap().status.code(), Some(2));
 }
-

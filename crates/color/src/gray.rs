@@ -35,7 +35,4 @@ impl ColorModel for GrayModel {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-}
+mod tests {}

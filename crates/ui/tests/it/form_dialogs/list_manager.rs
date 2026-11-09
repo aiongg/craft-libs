@@ -1,12 +1,10 @@
 //! `ListManager`: Delete runs the `delete` action from the list and edits text in the name box.
 
-use craft_ui::contract::tooltip::DELAY;
-use craft_ui::contract::{Bind, Role};
+use craft_ui::contract::Bind;
 use craft_ui::patterns::form_dialogs::{ListManager, ListManagerAction, ListManagerEntry, ListManagerWords};
 use craft_ui::runtime::env::Env;
-use craft_ui::testing::pointer::moved;
 use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers, Pos2};
+use egui::{Key, Modifiers};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -46,16 +44,3 @@ fn delete_runs_the_delete_action_from_the_list_and_not_from_the_name_box() {
     fixture.idle(2);
     assert_eq!(*chosen.borrow(), ["delete"]);
 }
-
-/// The tooltip a hover over the button named `label` shows, and the pointer moved away again.
-fn tip_over(fixture: &mut Fixture, label: &str) -> Option<String> {
-    let button = fixture.by_label(label).expect("the button is shown");
-    fixture.frame(vec![moved(button.center())]);
-    fixture.advance(DELAY);
-    fixture.idle(3);
-    let tip = fixture.by_role(Role::TOOLTIP).first().and_then(|tip| fixture.tree().name_of(tip.node)).map(str::to_owned);
-    fixture.frame(vec![moved(Pos2::ZERO)]);
-    fixture.idle(3);
-    tip
-}
-

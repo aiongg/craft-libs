@@ -1,6 +1,6 @@
 //! Tick, TimeRange and TimeView.
 
-use crate::time::{TICKS_PER_SECOND, Tick, TimeRange, TimeView, VIEW_EXTENT_PAST_END};
+use crate::time::{TICKS_PER_SECOND, Tick, TimeView};
 
 fn secs(s: i64) -> Tick {
     Tick(s * TICKS_PER_SECOND)
@@ -59,4 +59,3 @@ fn zoom_about_keeps_the_anchor_under_the_pointer() {
     view.zoom_about(0.5, secs(1), 1000.0);
     assert!(view.start >= Tick::ZERO);
 }
-

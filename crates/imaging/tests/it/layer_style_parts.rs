@@ -1,21 +1,14 @@
 //! The Blend If bar, the contour field and the Contour Editor.
 
-use craft_imaging::layer_style::{BlendIfRange, Contour, ContourPoint};
-use craft_imaging::ui::layer_style::{
-    BlendIfBar, ContourAction, ContourEditorDialog, ContourField, ContourKey, ContourRequest, ContourWords, contour_rows, from_curve, to_curve,
-};
+use craft_imaging::layer_style::Contour;
+use craft_imaging::ui::layer_style::{ContourAction, ContourEditorDialog, ContourField, ContourKey, ContourRequest, ContourWords, contour_rows};
 use craft_ui::contract::{Bind, Role};
-use craft_ui::dialog::{DialogHost, DialogResult};
+use craft_ui::dialog::DialogHost;
 use craft_ui::patterns::presets::PresetState;
 use craft_ui::runtime::env::Env;
 use craft_ui::testing::{Fixture, trial};
 use std::cell::RefCell;
 use std::rc::Rc;
-
-fn user_contour() -> Contour {
-    let point = |input, output| ContourPoint { input, output, corner: false };
-    Contour { name: String::from("Soft Step"), points: vec![point(0.0, 0.0), point(0.4, 0.1), point(1.0, 1.0)] }
-}
 
 /// Picking a built-in contour from the picker edits the contour to it.
 #[trial]

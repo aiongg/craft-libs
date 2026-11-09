@@ -1,12 +1,12 @@
 //! A number field is one spin button node: the numeric value and the editable text on the node that takes focus.
 
 use craft_ui::contract::{Bind, Role, Show as _};
-use craft_ui::testing::access::{NodeKey, focused_key, is_interactive, name};
+use craft_ui::testing::access::{NodeKey, is_interactive, name};
 use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::text::set_value_request;
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::text::NumberField;
-use egui::{Id, Key, Modifiers};
+use egui::Id;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 

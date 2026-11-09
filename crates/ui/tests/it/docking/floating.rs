@@ -1,9 +1,7 @@
 //! `FloatingGroup`: the caller owns the rect, the title moves the window, a double click on it asks to minimize,
 //! and the move and the size stay inside the bounds and the panel limits.
 
-use craft_behavior::GesturePhase;
 use craft_ui::contract::SizeLimits;
-use craft_ui::contract::overlay::PlacementKind;
 use craft_ui::contract::{Common, Component, Cx, DropMark, DropOperation, DropTarget, MeasureCx, Pointer as _, Props as _, Role, Show as _, Sizing};
 use craft_ui::docking::{DragUnit, FloatingGroup, FloatingGroupOutput, GroupDrag};
 use craft_ui::runtime::drag;
@@ -18,7 +16,6 @@ const START: Rect = Rect { min: Pos2::new(60.0, 70.0), max: Pos2::new(300.0, 250
 const BOUNDS: Rect = Rect { min: Pos2::ZERO, max: Pos2::new(400.0, 320.0) };
 const LEAST: Vec2 = Vec2::new(150.0, 90.0);
 const MOVE: Vec2 = Vec2::new(30.0, 20.0);
-const FAR: f32 = 600.0;
 /// A point on the title row, clear of the action parts at its end.
 const TITLE_AT: Vec2 = Vec2::new(24.0, 10.0);
 
@@ -76,14 +73,6 @@ impl Caller {
             self.history.borrow_mut().push(out.output);
         }
     }
-
-    fn last_change(&self) -> craft_ui::contract::overlay::PlacementChange {
-        self.history.borrow().iter().rev().find_map(|out| out.placed).expect("a change was reported")
-    }
-}
-
-fn near(a: Rect, b: Rect) -> bool {
-    (a.min - b.min).abs().max_elem() < SLACK && (a.size() - b.size()).abs().max_elem() < SLACK
 }
 
 fn title_of(rect: Rect) -> Pos2 {
@@ -219,4 +208,3 @@ fn a_double_click_on_the_title_minimizes_the_group_and_keeps_the_height_it_resto
     );
     assert!((caller.rect.get().min - (START.min + MOVE)).abs().max_elem() < SLACK, "and moves the group: {:?}", caller.rect.get());
 }
-

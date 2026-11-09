@@ -1,7 +1,7 @@
 //! Screen mode: the shell brings its OS window to the bound mode in one pass and follows the OS out of full screen.
 
 use crate::windows_kit::{Out, Windows};
-use craft_host::target::{Caps, Os, ShellInfo};
+use craft_host::target::{Os, ShellInfo};
 use craft_ui::contract::{Bind, Show as _};
 use craft_ui::display::Text;
 use craft_ui::runtime::InstallSpec;
@@ -9,7 +9,7 @@ use craft_ui::runtime::env::WindowKey;
 use craft_ui::shell::{AppShell, ScreenMode};
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::trial;
-use craft_ui::testing::windows::{FakeSystem, NoWindows};
+use craft_ui::testing::windows::FakeSystem;
 use egui::{Pos2, Rect, ViewportCommand, ViewportId, ViewportInfo};
 use std::sync::Arc;
 

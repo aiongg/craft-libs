@@ -1,7 +1,7 @@
 //! Integration tests of craft-keymap: chord.
 
 use craft_keymap::chord::foreign::{Flavor, ForeignError, ReadNote, read_foreign};
-use craft_keymap::{Chord, Key, Layout, MAX_CHORD_TEXT, Mods, ParseError, Platform, Trigger};
+use craft_keymap::{Chord, Key, MAX_CHORD_TEXT, Mods, ParseError, Platform, Trigger};
 
 fn chord(text: &str) -> Chord {
     Chord::parse(text).unwrap_or_else(|e| panic!("{text}: {e}"))
@@ -151,4 +151,3 @@ fn foreign_mac_text() {
     // In a Windows set the same ⌃ is the command modifier.
     assert_eq!(read_foreign("⌃S", Flavor::Windows).map(|r| r.0), Ok(Trigger::single(chord("Cmd+S"))));
 }
-

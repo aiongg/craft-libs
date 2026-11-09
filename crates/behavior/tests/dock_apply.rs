@@ -5,7 +5,7 @@ use craft_behavior::dock::{
     NamedWorkspace, NativeSpace, Node, PanelPlace, PanelState, Permissions, SplitSize, Target, Workspace, WorkspaceChrome, WorkspaceError,
     WorkspaceSet, arrange_rects, kept_reachable, node_at, restore_rect,
 };
-use craft_behavior::placement::{cascade, cascade_rects, monitor_of};
+use craft_behavior::placement::cascade_rects;
 use craft_behavior::{Axis, Monitor};
 use emath::{Rect, Vec2, pos2, vec2};
 

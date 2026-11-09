@@ -15,7 +15,4 @@ pub fn owner_due(last_pass: u64, last_at: f64, pass_now: u64, now: f64, viewport
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-}
+mod tests {}

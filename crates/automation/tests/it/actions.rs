@@ -3,7 +3,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use craft_automation::actions::{ActionColor, ActionList, ActionsFile};
+use craft_automation::actions::{ActionColor, ActionList};
 use craft_automation::ui::actions::mock::{FakeActionsHost, action, list_of, sample_list, step};
 use craft_automation::ui::actions::{
     ActionMove, ActionPlace, ActionSelection, ActionsEvent, ActionsPanel, ActionsPanelState, ActionsSettings, DIALOG_COLUMN, INCLUDE_COLUMN,
@@ -11,7 +11,7 @@ use craft_automation::ui::actions::{
 };
 use craft_behavior::Mixed;
 use craft_keymap::Platform;
-use craft_ui::contract::{Role, SweepStep};
+use craft_ui::contract::SweepStep;
 use craft_ui::testing::{Fixture, Target, pointer, trial};
 use egui::{Key, Modifiers, Pos2, Ui, Vec2};
 
@@ -104,15 +104,6 @@ fn context_click(fixture: &mut Fixture, target: &Target) {
     fixture.frame(vec![pointer::secondary(pos, true)]);
     fixture.frame(vec![pointer::secondary(pos, false)]);
     fixture.idle(3);
-}
-
-fn double_click(fixture: &mut Fixture, pos: Pos2) {
-    fixture.frame(vec![pointer::moved(pos)]);
-    for _ in 0..2 {
-        fixture.frame(vec![pointer::press(pos)]);
-        fixture.frame(vec![pointer::release(pos)]);
-    }
-    fixture.idle(2);
 }
 
 /// The cells the toggle steps set (a `Flip`): row, column, state.
@@ -399,4 +390,3 @@ fn actions_settings_survive_a_serde_round_trip() {
     assert_eq!(read, ActionsSettings::new(true, vec!["Effects".into()]));
     assert_eq!(serde_json::from_str::<ActionsSettings>("{}").expect("read"), ActionsSettings::default());
 }
-

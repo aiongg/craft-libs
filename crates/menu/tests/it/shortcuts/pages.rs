@@ -1,6 +1,6 @@
 //! The Show areas, the app's tabs and the state snapshot automation reads.
 
-use craft_keymap::{CommandRef, Platform};
+use craft_keymap::Platform;
 use craft_menu::shortcuts::{Area, DialogTab, Outcome, ShortcutsDialog};
 use craft_ui::contract::Show as _;
 use craft_ui::display::Text;
@@ -9,7 +9,7 @@ use egui::{Key, Modifiers};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use super::fixture::{Rig, keymap, options};
+use super::fixture::{keymap, options};
 
 /// Area::photoshop puts File > Save in Application Menus, a panel-scoped command in Panel Menus and a tool in Tools.
 #[trial]
@@ -71,4 +71,3 @@ fn app_tabs_switch_and_report_changes() {
     fixture.idle(3);
     assert!(host.borrow().outcomes.iter().any(|o| matches!(o, Outcome::Changed)));
 }
-

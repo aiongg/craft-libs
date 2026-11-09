@@ -3,7 +3,6 @@
 use craft_ui::contract::{Bind, Role, Show as _};
 use craft_ui::patterns::presets::{PresetEvent, PresetPicker, PresetRow, PresetState};
 use craft_ui::testing::{Fixture, pointer, trial};
-use egui::{Key, Modifiers};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 

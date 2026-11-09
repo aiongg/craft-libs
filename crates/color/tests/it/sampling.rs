@@ -8,15 +8,12 @@ use craft_behavior::kurbo::Point;
 use craft_behavior::{CancelReason, CanvasView, PointerButton};
 use craft_cms::convert::{CmykConverter, srgb_to_cmyk_naive};
 use craft_color::ui::{
-    CaptureSource, ColorPickerDialog, ColorPickerResult, ColorSamplerTool, ColorSamplers, DropperTool, EyedropperOptions, EyedropperTool,
-    EyedropperWords, MAX_SAMPLERS, PickedColor, SampleSize, SampleSource, SamplerCache, SamplerError, SamplerReadout, SamplerReadouts, SamplerWords,
-    ScreenPick, StillCapture,
+    CaptureSource, ColorPickerDialog, ColorPickerResult, ColorSamplerTool, ColorSamplers, SamplerCache, SamplerReadout, SamplerReadouts, ScreenPick,
+    StillCapture,
 };
-use craft_keymap::Mods;
-use craft_theme::{ModelValues, Srgba};
+use craft_theme::Srgba;
 use craft_ui::canvas::{CanvasSpace, CanvasTool, ToolAction, ToolContext, ToolPointer};
 use craft_ui::dialog::{DialogResult, DialogStack, StackDialog as _};
-use craft_ui::runtime::env::Words;
 use craft_ui::testing::{Fixture, ToolFixture, trial};
 use egui::{Context, Key, Modifiers, Pos2, Rect};
 
@@ -33,10 +30,6 @@ fn context() -> ToolContext<'static> {
 
 fn at(x: f32, y: f32) -> ToolPointer {
     ToolPointer::new(Pos2::new(x, y), PointerButton::Primary, 0.0)
-}
-
-fn alt(x: f32, y: f32) -> ToolPointer {
-    at(x, y).mods(Mods::ALT)
 }
 
 const SIZE: [u32; 2] = [300, 200];
@@ -282,4 +275,3 @@ fn a_request_without_a_colour_opens_empty_until_the_first_pick() {
         other => panic!("OK answers the typed colour: {other:?}"),
     }
 }
-

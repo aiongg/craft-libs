@@ -8,7 +8,7 @@
 mod common;
 
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use craft_settings::paths::{Location, Portable, Probe, Rule, resolve_named};
 

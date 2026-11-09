@@ -1,42 +1,14 @@
 //! `CropOverlay`: the frame's gestures and keys through real input.
 
-use craft_behavior::geometry::{BoxPart, CropBox, SnapKind, SnapLine, SnapTarget, SnapTargets, crop_view, screen_step};
+use craft_behavior::geometry::{BoxPart, CropBox, SnapKind, SnapLine, SnapTarget, SnapTargets, crop_view};
 use craft_behavior::kurbo::{Point, Rect, Vec2 as DocVec};
 use craft_behavior::{Axis, CanvasView, EditEvent};
 use craft_ui::canvas::{Canvas, CropOverlay, CropShield, ShieldColor};
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
-use craft_ui::testing::{Fixture, Frames, focus, input, layout, pointer, trial};
+use craft_ui::testing::{Frames, focus, input, layout, pointer, trial};
 use egui::{Color32, Event, Key, Modifiers, Pos2, Vec2};
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::rc::Rc;
-
-const FRAME: Rect = Rect::new(40.0, 30.0, 200.0, 140.0);
-
-struct Shown {
-    crop: Rc<RefCell<CropBox>>,
-    applied: Rc<Cell<bool>>,
-    discarded: Rc<Cell<bool>>,
-    fixture: Fixture,
-}
-
-fn shown(configure: impl Fn(CropOverlay<'_>) -> CropOverlay<'_> + 'static) -> Shown {
-    let crop = Rc::new(RefCell::new(CropBox::upright(FRAME)));
-    let (applied, discarded) = (Rc::new(Cell::new(false)), Rc::new(Cell::new(false)));
-    let (c, a, d) = (Rc::clone(&crop), Rc::clone(&applied), Rc::clone(&discarded));
-    let mut fixture = Fixture::new(move |ui| {
-        let _ = Canvas::new("Document").show(ui, |ui, body| {
-            let out = configure(CropOverlay::new("Crop", Bind::bound(&mut *c.borrow_mut()))).show_at(ui, body.rect);
-            a.set(a.get() || out.apply);
-            d.set(d.get() || out.discard);
-        });
-    });
-    fixture.settle();
-    Shown { crop, applied, discarded, fixture }
-}
-
-fn travel(fixture: &Fixture) -> f32 {
-    4.0 * craft_ui::testing::input::max_click_dist(fixture.ctx())
-}
 
 // Real input through the canvas: a frame per event batch, the view and the shown options held by the rig.
 
@@ -243,13 +215,6 @@ impl Rig {
         self.press(from);
         self.move_to(from.lerp(to, 0.5));
         self.move_to(to);
-        self.frame(Vec::new());
-    }
-
-    fn click(&mut self, at: Pos2) {
-        self.frame(vec![pointer::moved(at)]);
-        self.frame(vec![pointer::press(at)]);
-        self.frame(vec![pointer::release(at)]);
         self.frame(Vec::new());
     }
 

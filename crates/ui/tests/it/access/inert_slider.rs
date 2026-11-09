@@ -24,4 +24,3 @@ fn a_slider_shown_too_narrow_publishes_no_slider_node() {
     assert!(fixture.tree().with_role(Role::SLIDER).is_empty(), "no slider node for a slider that shows nothing");
     assert_eq!(violations(fixture.ctx(), fixture.tree()), Vec::<String>::new());
 }
-

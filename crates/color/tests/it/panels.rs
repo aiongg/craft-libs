@@ -6,18 +6,14 @@ use std::rc::Rc;
 
 use craft_behavior::{EditEvent, Selection};
 use craft_cms::convert::CmykConverter;
-use craft_color::palette::{SwatchColor, SwatchEntry, SwatchFormat, SwatchGroup, SwatchNote, SwatchReport};
+use craft_color::palette::{SwatchColor, SwatchEntry, SwatchGroup};
 use craft_color::ui::{
-    ColorPanel, ColorPanelCommand, ColorPanelMenu, ColorPanelMode, ColorPanelRamp, ColorPanelState, HarmonyCommand, HarmonyMenu, HarmonyPanel,
-    HarmonyPanelState, HarmonyPicked, HarmonyWheel, PanelTarget, PickedColor, SwatchAt, SwatchLibrary, SwatchPalette, SwatchTable, SwatchesCommand,
-    SwatchesMenu, SwatchesPanel, SwatchesState, SwatchesWords, finite_values,
+    ColorPanel, ColorPanelMode, ColorPanelRamp, ColorPanelState, HarmonyWheel, PanelTarget, PickedColor, SwatchLibrary, SwatchPalette, SwatchTable,
+    SwatchesCommand, SwatchesMenu, SwatchesState, SwatchesWords,
 };
 use craft_color::{CmykModel, GrayModel};
-use craft_i18n::Format;
-use craft_theme::{ColorModel, HsbModel, LabModel, ModelValues, RgbModel, Srgba};
+use craft_theme::{ColorModel, HsbModel, LabModel, RgbModel, Srgba};
 use craft_ui::contract::{Bind, Role, Show as _};
-use craft_ui::patterns::presets::{PresetFileRequest, PresetWords};
-use craft_ui::runtime::commands::CommandState;
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::requests::ColorRequest;
 use craft_ui::testing::{Fixture, trial};
@@ -28,8 +24,6 @@ const BLUE: Srgba = Srgba::rgb(0.0, 0.0, 1.0);
 
 /// The rooms the panels are shown in.
 const COLOR_ROOM: Vec2 = Vec2::new(320.0, 600.0);
-const SWATCHES_ROOM: Vec2 = Vec2::new(320.0, 320.0);
-const GUIDE_ROOM: Vec2 = Vec2::new(480.0, 640.0);
 const PALETTE_WIDE: Vec2 = Vec2::new(600.0, 300.0);
 
 type Edits = Rc<RefCell<Vec<(PanelTarget, EditEvent<PickedColor>)>>>;
@@ -41,7 +35,6 @@ struct PanelRig {
     colors: Rc<Cell<[Srgba; 2]>>,
     edits: Edits,
     opened: Rc<RefCell<Vec<ColorRequest>>>,
-    added: Rc<RefCell<Vec<PanelTarget>>>,
 }
 
 impl PanelRig {
@@ -62,7 +55,7 @@ impl PanelRig {
         });
         fixture.room(COLOR_ROOM);
         fixture.settle();
-        PanelRig { fixture, state, colors, edits, opened, added }
+        PanelRig { fixture, state, colors, edits, opened }
     }
 
     fn set_colors(&mut self, colors: [Srgba; 2]) {
@@ -176,33 +169,6 @@ fn library() -> SwatchLibrary {
         SwatchGroup { name: "Basics".into(), entries: vec![rgb("Red", [1.0, 0.0, 0.0]), rgb("Color Swatch 1", [0.0, 0.0, 1.0])] },
         SwatchGroup { name: "Pastels".into(), entries: vec![rgb("Pink", [1.0, 0.8, 0.8])] },
     ])
-}
-
-/// The Swatches panel on a library the test can read back.
-struct SwatchesRig {
-    fixture: Fixture,
-    library: Rc<RefCell<SwatchLibrary>>,
-    used: Rc<RefCell<Vec<(SwatchAt, Srgba, bool)>>>,
-}
-
-impl SwatchesRig {
-    fn new() -> Self {
-        let library = Rc::new(RefCell::new(library()));
-        let state = Rc::new(RefCell::new(SwatchesState::default()));
-        let used: Rc<RefCell<Vec<(SwatchAt, Srgba, bool)>>> = Rc::default();
-        let (l, s, u) = (library.clone(), state, used.clone());
-        let mut fixture = Fixture::new(move |ui| {
-            let (mut lib, mut st) = (l.borrow().clone(), s.borrow().clone());
-            let shown =
-                SwatchesPanel::new(Bind::bound(&mut lib), Bind::bound(&mut st), Srgba::rgb(0.2, 0.4, 0.6)).cmyk(CmykConverter::coated()).show(ui);
-            *l.borrow_mut() = lib;
-            *s.borrow_mut() = st;
-            u.borrow_mut().extend(shown.used);
-        });
-        fixture.room(SWATCHES_ROOM);
-        fixture.settle();
-        SwatchesRig { fixture, library, used }
-    }
 }
 
 /// New Swatch adds the foreground to the selected swatch's group under a free name, and only for the panel whose state
@@ -461,4 +427,3 @@ fn a_screen_readers_focus_on_a_palette_swatch_moves_the_stop_there() {
     rig.fixture.key(Key::ArrowRight, Modifiers::NONE);
     assert_eq!(rig.focused().as_deref(), Some("Blue"), "the arrows go on from there");
 }
-

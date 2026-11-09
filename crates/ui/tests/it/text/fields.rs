@@ -1,25 +1,17 @@
 //! Typing runs, submit and escape, undo, completion, the number field and the caret blink.
 
 use super::kit::Rig;
-use crate::label::kit::Field;
 use craft_behavior::MotionMode;
 use craft_ui::contract::{Bind, Props as _, Role as UiRole, Show as _};
-use craft_ui::contract::{ShowContainer as _, SideLabel};
 use craft_ui::primitives::{Completer, Completion};
 use craft_ui::runtime::commands::{CommandRef, EditCommands};
 use craft_ui::runtime::frame::take_output;
 use craft_ui::testing::input::key_press;
-use craft_ui::testing::pointer::drag;
 use craft_ui::testing::text::{caret, painted};
 use craft_ui::testing::trial;
 use craft_ui::text::{NumberField, TextField};
 use egui::{Event, Key, Modifiers};
 use std::ops::Range;
-
-/// What `2+3` evaluates to.
-const SUM: f64 = 5.0;
-/// The value a scrubbed field starts at.
-const SCRUB_START: f64 = 10.0;
 
 /// Typing then Ctrl+Z undoes the whole run; Ctrl+Z with nothing to undo fires the app's Undo.
 #[trial]

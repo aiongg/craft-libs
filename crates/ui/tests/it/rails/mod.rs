@@ -2,10 +2,9 @@
 //! and click.
 
 mod drawer;
-mod panel_rail;
 
 use craft_ui::contract::{Role, Show as _};
-use craft_ui::rails::{DropAt, FlyoutButton, LastUsed, RailTool, ToolSlot, column_toggle_icon, drop_in_slot, remembered, shown_tool, visible_slots};
+use craft_ui::rails::{FlyoutButton, LastUsed, RailTool, column_toggle_icon, shown_tool};
 use craft_ui::runtime::commands::EditCommands;
 use craft_ui::testing::{Fixture, trial};
 use std::cell::RefCell;
@@ -105,4 +104,3 @@ fn a_hold_that_does_not_select_only_opens_the_flyout() {
     held.fixture.idle(3);
     assert!(held.selected.borrow().is_empty(), "releasing after the hold selects nothing when the hold does not select");
 }
-

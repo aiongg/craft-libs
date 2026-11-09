@@ -42,9 +42,4 @@ impl Commands for KeymapCommands {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    static CATALOG: &craft_i18n::Embedded = &[("de", "@id\tfile.save\tSichern\n", "")];
-
-}
+mod tests {}

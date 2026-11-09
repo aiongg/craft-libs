@@ -122,5 +122,4 @@ mod tests {
         let prev = Rect::new(1780.0, 100.0, 400.0, 300.0);
         assert_eq!(cascade(prev, [400.0, 300.0], second, 28.0), Rect::new(1000.0, 128.0, 400.0, 300.0));
     }
-
 }

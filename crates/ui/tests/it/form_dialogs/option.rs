@@ -1,10 +1,7 @@
 //! The option dialogs' own logic: password strength and secrecy, the report text and the list manager's action rules.
 
-use craft_theme::variant::Tone;
 use craft_ui::contract::Bind;
-use craft_ui::patterns::form_dialogs::{
-    ListManager, ListManagerAction, ListManagerChoice, ListManagerEntry, ListManagerWords, ReportDialog, ReportNote, Secret,
-};
+use craft_ui::patterns::form_dialogs::{ListManager, ListManagerAction, ListManagerChoice, ListManagerEntry, ListManagerWords};
 use craft_ui::runtime::env::Env;
 use craft_ui::testing::{Fixture, trial};
 use std::cell::RefCell;

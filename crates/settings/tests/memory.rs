@@ -17,11 +17,6 @@ fn probe_in(dir: &std::path::Path, env: Option<(&'static str, &'static str)>) ->
     probe
 }
 
-fn assert_untouched(dir: &std::path::Path) {
-    let entries: Vec<_> = std::fs::read_dir(dir).unwrap().collect();
-    assert!(entries.is_empty(), "nothing may be written: {entries:?}");
-}
-
 fn exercise(store: &mut SettingsStore<Prefs>) {
     assert!(!store.is_persistent());
     assert_eq!(store.dir(), None);

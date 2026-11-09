@@ -71,4 +71,3 @@ fn a_new_file_or_rule_is_a_rise_and_parse_errors_are_never_baselined() {
     let result = broken.check(&check(&config, &root).unwrap());
     assert_eq!((result.exit_code(), result.increases.len(), result.unbaselined.len()), (1, 0, 1));
 }
-

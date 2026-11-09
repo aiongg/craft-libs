@@ -1,15 +1,9 @@
 //! The Columns dialog: what comes back, the arithmetic of the grid and presets, the menu and the preview.
 
 use crate::set;
-use craft_text::ui::columns::{
-    ColumnsApply, ColumnsChoice, ColumnsPreset, MAX_COLUMNS, MAX_COLUMNS_WORD, MIN_COLUMN_WIDTH, TextColumns, TextColumnsDialog, TextColumnsWords,
-    columns_menu, preview_plan,
-};
-use craft_ui::runtime::env::Env;
-use craft_ui::testing::{Fixture, trial};
+use craft_text::ui::columns::{ColumnsPreset, MIN_COLUMN_WIDTH, TextColumns, TextColumnsDialog, preview_plan};
+use craft_ui::testing::trial;
 use egui::{Rect, pos2};
-use std::cell::RefCell;
-use std::rc::Rc;
 
 /// A text width of 6.5 in, points.
 const WIDTH: f32 = 468.0;
@@ -60,4 +54,3 @@ fn the_preview_places_columns_and_the_line_between() {
     assert!(plan.columns[0].1 <= plan.separators[0] && plan.separators[0] <= plan.columns[1].0);
     assert!(preview_plan(&rows, 220.0, false, page).separators.is_empty());
 }
-

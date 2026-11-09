@@ -8,7 +8,7 @@ use craft_theme::{Contrast, Mode};
 use craft_ui::contract::{Bind, Role, Show as _};
 use craft_ui::display::Text;
 use craft_ui::testing::access::name;
-use craft_ui::testing::pointer::{moved, press, release, secondary};
+use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Fixture, style, trial};
 use egui::{Key, Modifiers, Pos2, Vec2, pos2, vec2};
 use std::cell::{Cell, RefCell};
@@ -300,4 +300,3 @@ fn a_corner_dragged_off_the_plot_and_back_keeps_its_flag() {
     rig.click([200.0, 190.0]);
     assert!(!rig.curve.borrow().is_corner(2), "a new point is smooth");
 }
-

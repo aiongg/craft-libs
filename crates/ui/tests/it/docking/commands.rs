@@ -8,15 +8,14 @@ use craft_behavior::dock::{
 };
 use craft_behavior::{Axis, DockSide};
 use craft_ui::docking::{
-    ArrangeCommands, ArrangeSpace, Arranged, DockCommands, DockScene, DockTo, DragUnit, FloatSpace, WorkspaceAsk, WorkspaceCommands, actions,
-    arrange, dock_states, move_actions, run_workspace, select_workspace,
+    ArrangeCommands, ArrangeSpace, Arranged, DockScene, DockTo, DragUnit, FloatSpace, WorkspaceCommands, arrange, move_actions, run_workspace,
 };
 use craft_ui::patterns::dock::WorkspaceSwitcher;
-use craft_ui::runtime::commands::{CommandSet as _, CommandState};
+use craft_ui::runtime::commands::CommandSet as _;
 use craft_ui::runtime::frame::take_output;
 use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers, Pos2, Rect, Vec2};
+use egui::{Pos2, Rect, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -40,15 +39,6 @@ fn workspace() -> Workspace<u32> {
 
 fn space() -> FloatSpace<u32> {
     FloatSpace::new(AREA, &sizes(4.0, 40.0, 24.0))
-}
-
-/// Runs `command` on `panel` of `workspace` and applies the actions.
-fn run(workspace: &mut Workspace<u32>, command: DockCommands, panel: u32, locked: bool) -> Result<(), craft_behavior::dock::DockError> {
-    let space = space();
-    let permissions = |_: &u32| Permissions::ALL;
-    let scene = DockScene::new(&workspace.layout, &space, locked, &permissions);
-    let planned = actions(&scene, command, &panel)?;
-    workspace.apply_all(planned, locked, permissions).map(drop)
 }
 
 #[trial]

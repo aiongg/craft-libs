@@ -2,14 +2,10 @@
 
 use craft_behavior::PixelSize;
 use craft_ui::contract::Bind;
-use craft_ui::patterns::form_dialogs::{
-    ExportAsDialog, ExportAsResult, ExportFormat, ExportOptions, ExportOptionsKind, ExportSize, FormatOptions, FormatOptionsDialog, HostRequests,
-    JpegOptions,
-};
+use craft_ui::patterns::form_dialogs::{ExportAsDialog, ExportAsResult, ExportFormat, ExportOptions, ExportSize, HostRequests};
 use craft_ui::runtime::requests::{PathKind, PathRequest};
 use craft_ui::testing::{Fixture, trial};
 
-use egui::Modifiers;
 use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -116,16 +112,3 @@ fn the_default_file_name_is_made_safe() {
     let long = "x".repeat(100);
     assert_eq!(requested_file(&long).len(), 80 + ".png".len(), "at most 80 characters");
 }
-
-/// The JPEG options dialog opened on `quality`, in a room that shows its rows.
-fn jpeg_dialog(quality: u8, answer: Rc<RefCell<Option<FormatOptions>>>) -> Fixture {
-    let mut fixture = Fixture::new(move |ui| {
-        let shown = FormatOptionsDialog::new(ExportOptionsKind::Jpeg).initial(FormatOptions::Jpeg(JpegOptions::new(quality))).show(ui);
-        if shown.result.is_some() {
-            *answer.borrow_mut() = shown.result;
-        }
-    });
-    fixture.settle();
-    fixture
-}
-

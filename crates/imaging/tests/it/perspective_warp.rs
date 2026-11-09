@@ -3,19 +3,15 @@
 use craft_behavior::kurbo::{Point, Rect};
 use craft_behavior::{CanvasView, EditEvent, GestureId, Mixed};
 use craft_imaging::ui::warp::perspective::{
-    LINK_DISTANCE, PerspectiveBar, PerspectiveCommands, PerspectiveEdit, PerspectiveSession, PerspectiveWarp, Plane, PlaneCorner, PlaneMode,
-    Straighten, linked_corners, straighten, unify,
+    PerspectiveEdit, PerspectiveSession, PerspectiveWarp, Plane, PlaneCorner, PlaneMode, Straighten, linked_corners, straighten, unify,
 };
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, pointer, trial};
-use egui::{Key, Modifiers, Pos2, Vec2};
+use egui::Pos2;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
-
-/// A room wide enough for the whole bar.
-const WIDE_BAR: Vec2 = Vec2::new(1200.0, 80.0);
 
 fn quad(x0: f64, y0: f64, x1: f64, y1: f64) -> [Point; 4] {
     [Point::new(x0, y0), Point::new(x1, y0), Point::new(x1, y1), Point::new(x0, y1)]
@@ -198,11 +194,6 @@ impl Harness {
         self.fixture.frame(Vec::new());
     }
 
-    fn key(&mut self, key: Key, mods: Modifiers) {
-        self.fixture.key(key, mods);
-        self.fixture.settle();
-    }
-
     fn planes(&self) -> Vec<Plane> {
         self.state.borrow().session.planes().to_vec()
     }
@@ -276,32 +267,3 @@ fn replacing_the_planes_in_the_middle_of_a_corner_drag_ends_the_drag() {
     assert_eq!(h.state.borrow().seen.len(), before, "nothing after the replacement");
     assert!(h.planes().is_empty());
 }
-
-struct BarState {
-    session: PerspectiveSession,
-    edits: Vec<PerspectiveEdit>,
-    apply: bool,
-    discard: bool,
-}
-
-fn bar(count: usize, mode: PlaneMode) -> (Fixture, Rc<RefCell<BarState>>) {
-    let mut session = PerspectiveSession::new(Rect::new(0.0, 0.0, 100.0, 100.0));
-    if count > 0 {
-        let planes = (0..count).map(|i| square(20.0 * i as f64, 0.0, 20.0 * i as f64 + 10.0, 10.0)).collect();
-        session.apply(PerspectiveEdit::replace(&[], planes, "Planes"));
-    }
-    session.apply(PerspectiveEdit::Mode(mode));
-    let state = Rc::new(RefCell::new(BarState { session, edits: Vec::new(), apply: false, discard: false }));
-    let shown = Rc::clone(&state);
-    let mut fixture = Fixture::new(move |ui| {
-        let mut held = shown.borrow_mut();
-        let output = PerspectiveBar::new(&held.session).show(ui);
-        held.apply |= output.apply;
-        held.discard |= output.discard;
-        held.edits.extend(output.edits);
-    });
-    fixture.room(WIDE_BAR);
-    fixture.settle();
-    (fixture, state)
-}
-

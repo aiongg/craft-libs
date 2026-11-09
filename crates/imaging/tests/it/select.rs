@@ -2,7 +2,7 @@
 //! and a fake `SelectionProbe`, then reads the events the tool reports.
 
 use craft_behavior::geometry::{Constraint, SelectionOperation};
-use craft_behavior::{CancelReason, EditEvent, PixelSize, PointerButton, PointerSample};
+use craft_behavior::{CancelReason, EditEvent, PixelSize, PointerButton};
 use craft_imaging::ui::select::{
     DragKind, EdgeSearch, EdgeTracer, LassoTool, MagneticLassoTool, MarqueeKind, MarqueeTool, PolygonLassoTool, SelectEvent, SelectPhase,
     SelectToolPass, SelectionProbe, SelectionShape,
@@ -673,10 +673,6 @@ impl Log {
         self.snaps.set(0);
         self.froms.borrow_mut().clear();
         self.searches.borrow_mut().clear();
-    }
-
-    fn last_width(&self) -> f64 {
-        self.searches.borrow().last().map_or(f64::NAN, |search| search.width)
     }
 }
 

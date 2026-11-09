@@ -9,7 +9,7 @@ use craft_review::ui::{
 use craft_review::{CommentAnchor, CommentMessage, CommentThread, ReviewStatus, ThreadId};
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Role, Show as _};
-use craft_ui::testing::{Fixture, pointer, trial};
+use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers, Pos2, pos2, vec2};
 
 fn names(list: &[&str]) -> Vec<String> {
@@ -248,4 +248,3 @@ fn a_message_keeps_its_line_breaks() {
     let second = fx.by_label("second").expect("the second line");
     assert!(second.center().y > first.rect.max.y, "the second line is below the first");
 }
-

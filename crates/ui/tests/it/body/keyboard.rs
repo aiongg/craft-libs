@@ -4,7 +4,7 @@
 use crate::contract::kit::{PlainStyle, Probe, Seen};
 use craft_behavior::CancelRule;
 use craft_ui::contract::{
-    BodyCx, Collapse, Common, Component, Container, ContainerProps, Cx, HeaderRegion, Mount, Notch, Overlay, Props as _, Role, Scroll, Show as _,
+    BodyCx, Collapse, Common, Component, Container, ContainerProps, Cx, HeaderRegion, Mount, Overlay, Props as _, Role, Scroll, Show as _,
     ShowContainer as _, Sizing,
 };
 use craft_ui::runtime::commands::{self, CommandSet, FireSource, WindowCommand};
@@ -22,12 +22,8 @@ const LINE: Vec2 = Vec2::new(100.0, 20.0);
 const VIEW: Vec2 = Vec2::new(300.0, 200.0);
 const ORIGIN: Pos2 = Pos2::new(10.0, 10.0);
 const SAME: f32 = 0.5;
-/// A line step is half the view.
-const HALF: f32 = 0.5;
 /// The views of content End has to pass.
 const TWO_VIEWS: f32 = 2.0;
-/// Shift multiplies a step by this.
-const SHIFT_STEPS: f32 = 4.0;
 /// How much shorter than open a collapsed container is at least.
 const COLLAPSED_BY: f32 = 70.0;
 

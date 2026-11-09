@@ -102,5 +102,4 @@ mod tests {
         let past = drag(&span, 100.0, 10.0, 500.0);
         assert_eq!(past, 800.0..1000.0, "the range stops at the end of the content");
     }
-
 }

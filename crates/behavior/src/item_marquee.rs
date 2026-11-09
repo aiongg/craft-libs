@@ -112,5 +112,4 @@ mod tests {
         assert_eq!(sweep(Mods::CMD), vec![3, 0, 2]);
         assert_eq!(sweep(Mods::ALT), vec![3]);
     }
-
 }

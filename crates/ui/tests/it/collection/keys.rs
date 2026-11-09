@@ -1,27 +1,22 @@
 //! The collection's keys: Space actions, ragged-grid moves, hidden items, digits against type-ahead, the header
 //! flag, the lead's source and the first sort order.
 
-use super::kit::{Count, Dismissed, ROW_H, Row, Words};
-use super::table::Table;
+use super::kit::{Count, Dismissed, ROW_H, Row};
 use crate::contract::kit::PlainStyle;
-use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, ItemLayout, ItemSource, NavShape, ScrollPos, Selection, SelectionChange};
+use craft_behavior::{ItemLayout, ItemSource, NavShape, ScrollPos, Selection};
 use craft_ui::contract::{
-    Collection, CollectionEvent, CollectionProps, CollectionResponse, ColumnEvent, ColumnKind, ColumnSpec, Common, Component, ContainerProps, Cx,
-    Focus as _, LeadSource, Props as _, Role, SelectMode, ShowCollection as _, SpaceAction, ToggleColumn,
+    Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Focus as _, LeadSource, Props as _,
+    Role, SelectMode, ShowCollection as _,
 };
 use craft_ui::runtime::focus::{FocusTarget, request};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::layout::in_region;
-use craft_ui::testing::{Frames, input, pointer, trial};
+use craft_ui::testing::{Frames, input, trial};
 use egui::{Id, Key, Modifiers, Pos2, Rect, Ui, Vec2};
 use std::cell::{Cell, RefCell};
 
 const ORIGIN: Pos2 = Pos2::new(10.0, 10.0);
 const VIEW: Vec2 = Vec2::new(400.0, 240.0);
-const COL: f32 = 100.0;
-const NAME: ColumnKey = ColumnKey::new("name");
-const SIZE: ColumnKey = ColumnKey::new("size");
-const MUTE: ColumnKey = ColumnKey::new("mute");
 const TILE: Vec2 = Vec2::new(30.0, ROW_H);
 
 /// What a collection reported and where its items were built.
@@ -45,10 +40,6 @@ impl Seen {
         rows.push((key, rect));
     }
 
-    fn row(&self, key: usize) -> Rect {
-        self.rows.borrow().iter().find(|(held, _)| *held == key).map(|(_, rect)| *rect).expect("the row was built")
-    }
-
     fn leads(&self) -> Vec<(usize, LeadSource)> {
         self.events
             .borrow()
@@ -59,37 +50,6 @@ impl Seen {
 
     fn lead_keys(&self) -> Vec<usize> {
         self.leads().into_iter().map(|(key, _)| key).collect()
-    }
-
-    fn toggles(&self) -> Vec<(usize, bool)> {
-        self.events
-            .borrow()
-            .iter()
-            .filter_map(|event| {
-                if let CollectionEvent::Toggle(edit) = event {
-                    edit.value()
-                        .filter(|_| matches!(edit, craft_behavior::EditEvent::Set { .. } | craft_behavior::EditEvent::Commit { .. }))
-                        .map(|toggle| (toggle.key, toggle.on))
-                } else {
-                    None
-                }
-            })
-            .collect()
-    }
-
-    fn activations(&self) -> Vec<usize> {
-        self.events.borrow().iter().filter_map(|event| if let CollectionEvent::Activate(key) = event { Some(*key) } else { None }).collect()
-    }
-
-    fn sorts(&self) -> Vec<(ColumnKey, bool)> {
-        self.events
-            .borrow()
-            .iter()
-            .filter_map(|event| match event {
-                CollectionEvent::Column(ColumnEvent::Sort { key, descending, .. }) => Some((key.clone(), *descending)),
-                _ => None,
-            })
-            .collect()
     }
 
     fn id(&self) -> Id {
@@ -105,40 +65,6 @@ fn press(frames: &mut Frames, key: Key, show: &mut impl FnMut(&mut Ui)) {
 fn focus(frames: &mut Frames, seen: &Seen, show: &mut impl FnMut(&mut Ui)) {
     request(&frames.ctx, FocusTarget::Id(seen.id()));
     frames.idle(2, &mut *show);
-}
-
-/// Rows with a toggle cell in the column `MUTE`.
-struct Switches {
-    on: RefCell<Vec<bool>>,
-}
-
-impl DisplayOrder<usize> for Switches {
-    fn len(&self) -> usize {
-        self.on.borrow().len()
-    }
-
-    fn key(&self, at: usize) -> usize {
-        at
-    }
-
-    fn index_of(&self, key: &usize) -> Option<usize> {
-        (*key < self.len()).then_some(*key)
-    }
-}
-
-impl ItemSource<usize> for Switches {
-    fn toggled(&self, at: usize, column: &ColumnKey) -> bool {
-        *column == MUTE && self.on.borrow()[at]
-    }
-}
-
-fn show_table(ui: &mut Ui, props: CollectionProps, source: &dyn ItemSource<usize>, seen: &Seen) {
-    in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
-        seen.take(Table::new(props).id_salt("table").show_items(ui, source, &mut |key, cx| {
-            seen.note(*key, cx.rect);
-            Row::new()
-        }));
-    });
 }
 
 /// A collection that lays its items in rows of different lengths, the last items hidden as a closed group's are.
@@ -281,4 +207,3 @@ fn end_skips_the_items_of_a_closed_group() {
     let rows = seen.rows.borrow();
     assert!(rows.iter().all(|(key, rect)| *key < 5 && rect.is_finite()), "only shown items are built: {rows:?}");
 }
-

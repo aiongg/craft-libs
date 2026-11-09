@@ -2,13 +2,10 @@
 
 use craft_behavior::kurbo::{Point, Rect as DocRect, Vec2 as DocVec};
 use craft_behavior::{CanvasView, EditEvent};
-use craft_imaging::ui::warp::{
-    POINT, WarpEdit, WarpFieldValues, WarpFields, WarpFieldsEdit, WarpGrid, WarpGridChoice, WarpMesh, WarpSplit, WarpStyleEntry,
-};
+use craft_imaging::ui::warp::{WarpEdit, WarpFieldValues, WarpFields, WarpFieldsEdit, WarpGrid, WarpMesh, WarpSplit, WarpStyleEntry};
 use craft_ui::canvas::Canvas;
-use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
-use craft_ui::testing::access::name;
-use craft_ui::testing::{Fixture, Room, Target, pointer, trial};
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::testing::{Fixture, Room, pointer, trial};
 use egui::{Id, Key, Modifiers, Pos2, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -22,9 +19,6 @@ fn shift(dx: f32, dy: f32) -> Vec2 {
 fn doc_shift(dx: f64, dy: f64) -> DocVec {
     DocVec::new(dx, dy)
 }
-
-/// What the Horizontal distortion field is typed.
-const TYPED: f64 = -30.0;
 
 const RECT: DocRect = DocRect::new(100.0, 80.0, 280.0, 200.0);
 
@@ -40,11 +34,9 @@ enum Seen {
 
 struct Harness {
     fixture: Fixture,
-    id: Rc<Cell<Id>>,
     mesh: Rc<RefCell<WarpMesh>>,
     split: Rc<Cell<Option<WarpSplit>>>,
     preset: Rc<Cell<bool>>,
-    lines_only: Rc<Cell<bool>>,
     bounds: Rc<Cell<DocRect>>,
     view: Rc<Cell<Option<CanvasView>>>,
     seen: Rc<RefCell<Vec<Seen>>>,
@@ -116,7 +108,7 @@ fn harness_in(mesh: WarpMesh, rotation: f64, flip: bool) -> Harness {
         }
     });
     fixture.settle();
-    Harness { fixture, id, mesh, split, preset, lines_only, bounds, view, seen, edit, picked }
+    Harness { fixture, mesh, split, preset, bounds, view, seen, edit, picked }
 }
 
 impl Harness {
@@ -127,10 +119,6 @@ impl Harness {
     /// The pointer at fractions `(u, v)` across `RECT`.
     fn at_fraction(&self, u: f64, v: f64) -> Pos2 {
         self.screen(Point::new(RECT.x0 + u * RECT.width(), RECT.y0 + v * RECT.height()))
-    }
-
-    fn point(&self, index: usize) -> Option<Target> {
-        self.fixture.part(self.id.get(), POINT.at(index as u64))
     }
 
     fn drag(&mut self, from: Pos2, to: Pos2) {
@@ -432,23 +420,6 @@ fn committing_the_thirds_keeps_the_surface_and_only_a_one_patch_mesh_has_them() 
     assert_eq!(two.commit_thirds(), two);
 }
 
-/// PhotoCraft's `quick_split_kind` (`transform_tool/warp.rs`) on a mesh's knots, for the mesh
-/// parameters `(s, t)`.
-fn photocraft_quick_split(us: &[f64], vs: &[f64], bounds: DocRect, (s, t): (f64, f64)) -> WarpSplit {
-    let w = bounds.width().abs().max(1.0);
-    let h = bounds.height().abs().max(1.0);
-    let (su, sv) = ((8.0 / w).clamp(0.02, 0.12), (8.0 / h).clamp(0.02, 0.12));
-    let thirds = us.len() == 2 && vs.len() == 2;
-    let near = |knots: &[f64], v: f64, tol: f64| {
-        knots.iter().any(|k| *k > 0.0 && *k < 1.0 && (k - v).abs() < tol) || (thirds && [1.0 / 3.0, 2.0 / 3.0].iter().any(|k| (k - v).abs() < tol))
-    };
-    match (near(us, s, su), near(vs, t, sv)) {
-        (true, false) => WarpSplit::Horizontal,
-        (false, true) => WarpSplit::Vertical,
-        _ => WarpSplit::Cross,
-    }
-}
-
 #[trial]
 fn params_and_locate_follow_the_knots_and_a_mesh_hands_over_with_its_knots() {
     let mesh = uneven();
@@ -529,4 +500,3 @@ fn a_type_layer_greys_split_and_grid_and_hides_custom() {
     f.fixture.settle();
     assert!(f.fixture.by_label("Custom").is_some());
 }
-

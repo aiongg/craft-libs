@@ -74,20 +74,6 @@ pub(super) fn widgets(targets: &[CornerTarget], view: &CanvasView, inset_screen:
     out
 }
 
-/// The widget under the screen point `at`: the nearest within `reach` screen points
-/// (the hit); of equal distances the earlier (topmost) one.
-pub(super) fn hit(widgets: &[Widget], at: Pos2, reach: f32) -> Option<usize> {
-    // pc: crates/ui-egui/src/tools/corner_radius.rs:209-221 `hit` (7 points).
-    let mut best: Option<(usize, f32)> = None;
-    for (i, w) in widgets.iter().enumerate() {
-        let d = w.at.distance(at);
-        if d <= reach && best.is_none_or(|(_, b)| d < b) {
-            best = Some((i, d));
-        }
-    }
-    best.map(|(i, _)| i)
-}
-
 /// The dragged radius: the radius at the press plus the pointer's move from `press` to `pointer`
 /// projected on `step` (`dot(move, step) / |step|²`), not below 0; `from` when not finite. A
 /// click without movement gives `from`, so it changes nothing.

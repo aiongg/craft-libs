@@ -1,6 +1,6 @@
 //! List numbering and number styles.
 
-use super::lists::{ListMarker, ListParagraph, NumberPunctuation, NumberStyle, line_starts, markers};
+use super::lists::{ListMarker, ListParagraph, NumberPunctuation, NumberStyle, markers};
 
 // Each style writes 1, 4, 9, 27 and 4000 as DesignCraft does (roman, letters AA, symbols doubled, kanji digit by digit; 4000 in Arabic digits).
 #[test]

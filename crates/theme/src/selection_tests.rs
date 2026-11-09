@@ -131,4 +131,3 @@ fn serde_forms_round_trip() {
         .is_err()
     );
 }
-

@@ -2,13 +2,12 @@
 
 use craft_ui::runtime::access::Role;
 use craft_ui::runtime::env::RootEnv;
-use craft_ui::runtime::env::UnitKind;
 use craft_ui::shell::ScreenMode;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::{Fixture, Frames, Target, pointer, trial};
-use craft_ui_gallery::mock::{Document, EditorMock, MockState, Tool};
-use egui::{Event, Key, Modifiers, Pos2, Rect, Vec2, vec2};
+use craft_ui_gallery::mock::{EditorMock, MockState};
+use egui::{Event, Key, Modifiers, Rect, Vec2, vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -22,7 +21,6 @@ const DIALOG_OPEN: usize = 30;
 #[derive(Clone, Copy)]
 struct Seen {
     mode: ScreenMode,
-    slots: usize,
     body: Rect,
 }
 
@@ -39,7 +37,7 @@ impl Cells {
         let mut root = RootEnv::default();
         root.tab_toggles_chrome = true;
         frames.root(root);
-        let seen = vec![Seen { mode: ScreenMode::Standard, slots: 0, body: Rect::NOTHING }; count];
+        let seen = vec![Seen { mode: ScreenMode::Standard, body: Rect::NOTHING }; count];
         let mut cells = Cells { frames, states: (0..count).map(|_| MockState::default()).collect(), seen };
         cells.settle();
         cells
@@ -54,7 +52,7 @@ impl Cells {
                 let rect = Rect::from_min_size(room.min + vec2(width * at as f32, 0.0), vec2(width, room.height()));
                 in_region(ui, rect, |ui| {
                     let out = EditorMock::new(format!("Editor {at}"), state).show(ui);
-                    seen[at] = Seen { mode: out.screen_mode, slots: out.regions.slots.len(), body: out.regions.body };
+                    seen[at] = Seen { mode: out.screen_mode, body: out.regions.body };
                 });
             }
         });
@@ -149,25 +147,6 @@ fn canvas(fixture: &Fixture) -> Target {
     fixture.by_role(Role::CANVAS).into_iter().max_by(|a, b| area(a).total_cmp(&area(b))).expect("a canvas")
 }
 
-/// A window whose document is zoomed in, so a pan has room to move the view.
-fn zoomed_window() -> (Fixture, Rc<RefCell<MockState>>) {
-    let (mut fixture, state) = window(MockState::default());
-    state.borrow_mut().document.view.zoom *= 4.0;
-    fixture.settle();
-    (fixture, state)
-}
-
-fn center_of(state: &Rc<RefCell<MockState>>) -> (f64, f64) {
-    let center = state.borrow().document.view.center;
-    (center.x, center.y)
-}
-
-/// The shapes as large as the canvas's document: the pasteboard's page and one picture per visible layer.
-fn page_sized_shapes(fixture: &Fixture) -> usize {
-    let page = canvas(fixture).rect;
-    fixture.shape_bounds().iter().filter(|rect| rect.width() > page.width() / 3.0 && rect.height() > page.height() / 3.0).count()
-}
-
 #[trial]
 fn the_marquee_drag_selects_a_rectangle_and_escape_clears_it() {
     let (mut fixture, state) = window(MockState::default());
@@ -178,10 +157,3 @@ fn the_marquee_drag_selects_a_rectangle_and_escape_clears_it() {
     fixture.key(Key::Escape, Modifiers::NONE).settle();
     assert!(state.borrow().document.marquee.is_none(), "Escape cleared it");
 }
-
-/// A point on the middle of the top ruler of the window's canvas.
-fn top_ruler(fixture: &Fixture, state: &Rc<RefCell<MockState>>) -> Pos2 {
-    let view = state.borrow().document.view.rect;
-    Pos2::new(view.center().x, (canvas(fixture).rect.min.y + view.min.y) / 2.0)
-}
-

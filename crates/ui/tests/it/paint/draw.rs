@@ -1,29 +1,17 @@
 //! Painting through `Draw`: shapes, colours from the two colour types, and what `Draw` records.
 
 use craft_i18n::Direction;
-use craft_theme::{Contrast, ControlSize, Mode, Rgba, Variant};
+use craft_theme::{Contrast, Mode};
 use craft_ui::fonts::FontRef;
-use craft_ui::primitives::{Dashes, DocRun, DocText, HAlign, IconSpec, PaintShape, RuleKind, StrokeWidth, TextRun, TextureCache, ToolIcon, has_icon};
-use craft_ui::style::{Corners, DataColor, Ink, SurfaceKind};
-use craft_ui::testing::style::{paint_frame, tokens, with_cx};
+use craft_ui::primitives::{DocRun, DocText, HAlign, IconSpec, RuleKind, TextureCache, ToolIcon, has_icon};
+use craft_ui::style::{DataColor, Ink};
+use craft_ui::testing::style::{paint_frame, tokens};
 use craft_ui::testing::{Frames, trial};
 use egui::{Color32, Pos2, Rect, Shape, pos2};
 
 const HALF: f32 = 0.5;
 const EPS: f32 = 1e-3;
 const RECT: Rect = Rect::from_min_max(pos2(10.0, 10.0), pos2(90.0, 40.0));
-
-fn color(c: Rgba) -> Color32 {
-    Color32::from_rgba_unmultiplied(c.0[0], c.0[1], c.0[2], c.0[3])
-}
-
-fn stroke_is(shape: &Shape, color: Color32) -> bool {
-    match shape {
-        Shape::LineSegment { stroke, .. } => stroke.color == color,
-        Shape::Path(path) => path.stroke.color == egui::epaint::ColorMode::Solid(color),
-        _ => false,
-    }
-}
 
 #[trial]
 fn a_rule_sits_on_the_pixel_grid_whatever_the_coordinate() {

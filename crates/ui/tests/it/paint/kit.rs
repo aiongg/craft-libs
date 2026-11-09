@@ -2,38 +2,13 @@
 
 use craft_behavior::Axis;
 use craft_theme::{Contrast, Mode};
-use craft_ui::primitives::{Dashes, dashed, marching_ants, ramp};
+use craft_ui::primitives::{marching_ants, ramp};
 use craft_ui::style::DataColor;
 use craft_ui::testing::style::tokens;
 use craft_ui::testing::trial;
 use egui::{Color32, Pos2, Rect, Shape, pos2};
 
 const EPS: f32 = 1e-3;
-
-/// How far along the polyline `path` the point `p` lies (it lies on the path).
-fn along(path: &[Pos2], p: Pos2) -> f32 {
-    let mut walked = 0.0;
-    for pair in path.windows(2) {
-        let (a, b) = (pair[0], pair[1]);
-        let on = (a.distance(p) + p.distance(b) - a.distance(b)).abs() < EPS;
-        if on {
-            return walked + a.distance(p);
-        }
-        walked += a.distance(b);
-    }
-    walked
-}
-
-fn dashes(shapes: &[Shape]) -> Vec<Vec<Pos2>> {
-    shapes
-        .iter()
-        .map(|shape| match shape {
-            Shape::LineSegment { points, .. } => points.to_vec(),
-            Shape::Path(path) => path.points.clone(),
-            other => panic!("a dash is a line, not {other:?}"),
-        })
-        .collect()
-}
 
 /// The mesh quads of the dark dashes and of the light band (the colour the mesh starts with), in device pixels:
 /// `[x0, y0, x1, y1]`.

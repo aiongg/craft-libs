@@ -609,4 +609,3 @@ fn a_modal_full_window_dialog_with_nothing_focused_takes_its_letters_and_enter()
     frames.idle(2, &mut show);
     assert!(closed.get(), "a plain Enter submits the dialog");
 }
-

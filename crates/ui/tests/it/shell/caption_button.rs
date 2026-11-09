@@ -1,19 +1,14 @@
 //! Caption buttons: the exclusive window parts they declare, the click they report, the slot layout of a bar and the
 //! icon-theme search behind the round families' glyphs.
 
-use crate::windows_kit::Windows;
-use craft_ui::contract::{Props as _, Show as _};
-use craft_ui::runtime::windows::{WindowHit, WindowHost};
 use craft_ui::shell::{
-    Caption, CaptionButton, CaptionEnd, CaptionFamily, CaptionIcon, CaptionIcons, CaptionPlan, Captions, ThemeFiles, base_dirs, caption_icon_theme,
+    Caption, CaptionEnd, CaptionFamily, CaptionIcon, CaptionIcons, CaptionPlan, Captions, ThemeFiles, base_dirs, caption_icon_theme,
 };
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::trial;
 use craft_window::Layout;
-use egui::{Key, Modifiers, Rect, ViewportId, pos2};
-use std::cell::Cell;
+use egui::{Rect, pos2};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 use std::sync::Arc;
 
 const BAR: Rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(600.0, 32.0));
@@ -81,7 +76,6 @@ impl ThemeFiles for Tree {
 }
 
 const SQUARE: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><path d="M4 4h8v8H4z" fill="#2e3436"/></svg>"##;
-const FIXED_16: &str = "[Icon Theme]\nDirectories=s\n[s]\nSize=16\nType=Fixed\n";
 
 fn base() -> PathBuf {
     PathBuf::from("/icons")

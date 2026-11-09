@@ -1,9 +1,8 @@
 //! `Tab`: which side the close button is on, and that the close button and the middle click close the tab while a
 //! click on its body does not.
 
-use craft_host::target::Os;
 use craft_ui::contract::Show as _;
-use craft_ui::tabs::{CloseSide, Tab, TabKind, TabPartEvent, close_side};
+use craft_ui::tabs::{Tab, TabKind, TabPartEvent};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Event, Modifiers, PointerButton, Pos2};
 use std::cell::Cell;

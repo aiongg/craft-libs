@@ -1,6 +1,6 @@
 //! The sensing core over probe roots: the press lifecycle, arenas, press targets, parts and the shape record.
 
-use craft_behavior::{CanvasTransform, HitLevel, PartKey, PressCancel, PressFocus, PressPhase, Sense};
+use craft_behavior::{CanvasTransform, HitLevel, PartKey, PressFocus, PressPhase, Sense};
 use craft_ui::testing::pointer::{self, drag, settle};
 use craft_ui::testing::sensing::{ProbeMember, ProbePart, ProbeRoot, RootReport, SenseReport, cover, egui_click_target, press_focus, show};
 use craft_ui::testing::{Frames, trial};

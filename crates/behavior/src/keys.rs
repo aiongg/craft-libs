@@ -394,5 +394,4 @@ mod tests {
         check(Os::Mac, Key::Backspace, Mods::ALT, text, Some(Intent::delete(false, Granularity::Word)));
         check(Os::Linux, Key::Backspace, Mods::ALT, text, None);
     }
-
 }

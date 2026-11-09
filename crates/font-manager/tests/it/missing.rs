@@ -1,16 +1,11 @@
 //! Missing fonts: resolution and the dialog.
 
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::sync::Arc;
 
 use craft_font_catalog::{Limits, Os};
-use craft_font_manager::missing::{
-    DocumentFont, FontStatus, MissingFontsDialog, MissingFontsResult, MissingFontsWords, document_fonts, missing_font_warnings,
-};
+use craft_font_manager::missing::{DocumentFont, FontStatus, MissingFontsWords, document_fonts, missing_font_warnings};
 use craft_font_manager::{Catalog, FontEnv, Source};
-use craft_ui::dialog::{DialogResult, DialogStack, StackDialog as _};
-use craft_ui::testing::{Fixture, Room, trial};
+use craft_ui::testing::trial;
 
 /// Hack, the face egui ships.
 fn catalog() -> Arc<Catalog> {
@@ -43,10 +38,3 @@ fn postscript_name_resolves_before_family_and_style() {
         ["font 'Nonesuch' is not installed; text may render using a fallback face"]
     );
 }
-
-struct App {
-    dialog: MissingFontsDialog,
-    stack: DialogStack,
-    results: Vec<MissingFontsResult>,
-}
-

@@ -1,7 +1,7 @@
 //! The label scope and the merge rule.
 
 use crate::contract::kit::{Panel, Probe, Seen};
-use crate::label::kit::{Dial, Field, PlainStyle, SIZE, Seen as DialSeen};
+use crate::label::kit::{Field, PlainStyle, SIZE};
 use craft_behavior::Sense;
 use craft_ui::contract::{
     Bind, BindMut, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, FieldLabel, MeasureCx, Props as _, Role as UiRole,
@@ -171,11 +171,7 @@ struct Form {
     props: ContainerProps,
 }
 
-impl Form {
-    fn new() -> Self {
-        Form { common: Common::new(), props: ContainerProps::new().label_column(true) }
-    }
-}
+impl Form {}
 
 impl Component for Form {
     const ROLE: UiRole = UiRole::GROUP;

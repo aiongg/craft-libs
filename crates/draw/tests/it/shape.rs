@@ -2,11 +2,10 @@
 
 use craft_behavior::EditEvent;
 use craft_color::ui::Paint;
-use craft_draw::ui::{LiveShape, ShapeAppearance, ShapeBar, ShapeChange, ShapeKind, ShapePanel, ShapeToolSettings};
+use craft_draw::ui::{LiveShape, ShapeAppearance, ShapeChange, ShapePanel, ShapeToolSettings};
 use craft_theme::Srgba;
-use craft_ui::bars::{Bar, BarKind};
-use craft_ui::contract::{Bind, Role, ShowContainer as _};
-use craft_ui::testing::{Fixture, Target, pointer, trial};
+use craft_ui::contract::{Bind, Role};
+use craft_ui::testing::{Fixture, Target, trial};
 use egui::{Key, Modifiers, Vec2, vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -14,7 +13,6 @@ use std::rc::Rc;
 /// The resolution of the test document.
 const PIXELS_PER_INCH: f64 = 72.0;
 const PANEL_ROOM: Vec2 = vec2(420.0, 900.0);
-const BAR_ROOM: Vec2 = vec2(900.0, 120.0);
 
 /// The fake layer and what the cells reported.
 struct Layer {
@@ -79,19 +77,6 @@ fn panel(layer: &Rc<RefCell<Layer>>) -> Fixture {
         layer.take(out.events);
     });
     fixture.room(PANEL_ROOM);
-    fixture.settle();
-    fixture
-}
-
-fn bar(kind: ShapeKind, layer: &Rc<RefCell<Layer>>) -> Fixture {
-    let shown = Rc::clone(layer);
-    let mut fixture = Fixture::new(move |ui| {
-        let mut layer = shown.borrow_mut();
-        let (settings, look) = (layer.settings, layer.look.clone());
-        let out = Bar::new("Shape options", BarKind::Options).show(ui, |ui, _| ShapeBar::new(kind, &settings, &look, PIXELS_PER_INCH).show(ui)).inner;
-        layer.take(out.into_iter().flat_map(|out| out.events).collect());
-    });
-    fixture.room(BAR_ROOM);
     fixture.settle();
     fixture
 }
@@ -178,4 +163,3 @@ fn a_rect_shows_a_uniform_radius_and_four_corners() {
     type_into(&mut fixture, "Corner radius", "5");
     assert_eq!(layer.borrow().changes().last(), Some(&ShapeChange::Radii([5.0; 4])));
 }
-

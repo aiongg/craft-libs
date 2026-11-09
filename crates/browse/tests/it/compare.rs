@@ -133,4 +133,3 @@ fn survey_cells_mirror_in_a_right_to_left_interface() {
         "tile 1 follows tile 0 toward the left"
     );
 }
-

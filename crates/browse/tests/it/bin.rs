@@ -1,13 +1,13 @@
 //! `MediaBin` behaviour: what its own logic adds to the collections it shows.
 
-use craft_behavior::{CancelReason, ColumnKey, DisplayOrder, EditEvent, GestureId, IconId, ItemSource, Mixed, Selection};
-use craft_browse::ui::bin::{BinEntry, BinEvent, BinItem, BinModel, BinSettings, BinState, BinView, MediaBin, OpenHow, name_matches};
+use craft_behavior::{ColumnKey, DisplayOrder, IconId, ItemSource, Selection};
+use craft_browse::ui::bin::{BinEntry, BinEvent, BinItem, BinModel, BinSettings, BinState, BinView, MediaBin};
 use craft_ui::contract::{Bind, ColumnSort, ListDrag, ReorderRule, ShowCollection as _, ShowContainer as _, Sizing};
 use craft_ui::layout_components::Stack;
 use craft_ui::list::{List, ListRow};
 use craft_ui::sections::FooterAction;
 use craft_ui::testing::{Fixture, pointer, trial};
-use egui::{Key, Modifiers, Rect, pos2};
+use egui::{Rect, pos2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -132,12 +132,6 @@ fn setup(other: bool, configure: impl FnOnce(&mut BinState<u32>)) -> Setup {
 impl Setup {
     fn rect(&self, label: &str) -> Rect {
         self.fixture.by_label(label).unwrap_or_else(|| panic!("{label} is shown")).rect
-    }
-
-    fn click(&mut self, label: &str) {
-        let target = self.fixture.by_label(label).unwrap_or_else(|| panic!("{label} is shown"));
-        self.fixture.click(&target);
-        self.fixture.settle();
     }
 
     /// Drags the control labelled `from` to the centre of the one labelled `to`.

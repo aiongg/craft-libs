@@ -46,4 +46,3 @@ fn paper_fills_under_the_picture_where_the_grid_would_be() {
     let (_, paper) = under_the_picture(&shapes(ThumbPaint::default().paper(DataColor::new(PAPER))));
     assert_eq!(paper, vec![PAPER], "the paper is the one fill under the picture and no cell of the grid");
 }
-

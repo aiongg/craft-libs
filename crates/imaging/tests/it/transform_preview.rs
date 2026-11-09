@@ -8,11 +8,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Rect};
 use craft_imaging::ui::transform_preview::{
-    PreviewDisplay, PreviewMap, PreviewMask, PreviewMesh, PreviewPixels, PreviewTextures, StylePlan, StyledBudget, StyledContent, StyledFrame,
-    StyledPreview, StyledSource, TextureChoice, TransformPreview, resample,
+    PreviewDisplay, PreviewMap, PreviewMask, PreviewPixels, PreviewTextures, StylePlan, StyledContent, StyledFrame, StyledPreview, StyledSource,
+    TextureChoice, TransformPreview, resample,
 };
 use craft_imaging::ui::warp::WarpMesh;
-use craft_imaging::ui::warp::pin::PinMeshView;
 use craft_ui::canvas::{Canvas, PixelRect};
 use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, trial};
@@ -64,10 +63,6 @@ fn shown(map: fn() -> PreviewMap<'static>, opacity: f32, clip: Option<[u32; 2]>,
     fixture.settle();
     let view = seen_view.get().expect("the canvas was shown");
     (meshes.take(), view)
-}
-
-fn triangles(mesh: &PreviewMesh) -> impl Iterator<Item = [Point; 3]> + '_ {
-    mesh.indices.as_chunks::<3>().0.iter().map(|t| [mesh.points[t[0] as usize], mesh.points[t[1] as usize], mesh.points[t[2] as usize]])
 }
 
 fn unit_quad() -> [Point; 4] {

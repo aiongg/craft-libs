@@ -2,11 +2,9 @@
 //! shares a line with its body, and an elided title shows whole in a tooltip.
 
 use craft_ui::choice::{Checkbox, Segmented};
-use craft_ui::contract::tooltip::DELAY;
 use craft_ui::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _};
-use craft_ui::runtime::overlay::{OpenFilter, any_open};
-use craft_ui::sections::{GroupBox, HeaderAction, Section, TitleRow};
-use craft_ui::testing::pointer::{click, moved};
+use craft_ui::sections::{GroupBox, HeaderAction, Section};
+use craft_ui::testing::pointer::click;
 use craft_ui::testing::{Frames, trial};
 use egui::{Pos2, Rect, Ui};
 use std::cell::Cell;
@@ -83,4 +81,3 @@ fn an_inline_header_and_its_body_share_one_line() {
     assert!(row.height() < line, "the row is one line high");
     assert!(body.left() > row.left(), "the body sits after the header");
 }
-

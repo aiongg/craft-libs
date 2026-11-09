@@ -221,7 +221,6 @@ fn escaped(text: &str, from: usize) -> (String, usize) {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
-    use crate::restore::Store;
 
     const FLAT: &str = r#"{
     "egui": "(options:(zoom_factor:1.5,other:1))",
@@ -254,5 +253,4 @@ mod tests {
         assert!(eframe_window_settings("(", 1.0).is_none());
         assert!(eframe_app_ron("not ron").is_none());
     }
-
 }

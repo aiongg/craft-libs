@@ -1,12 +1,11 @@
 //! `Guides`: keyboard order, nudges, drags, deletion and the ruler hand-off.
 
 use craft_behavior::kurbo::{Point, Rect as DocRect};
-use craft_behavior::{Axis, CanvasView, EditEvent, GesturePhase, RulerUnits, Ticks};
+use craft_behavior::{Axis, CanvasView, EditEvent, GesturePhase};
 use craft_keymap::Mods;
-use craft_ui::canvas::{Canvas, Guide, GuideDrag, GuideKey, RulerText, Snap};
-use craft_ui::canvas_controls::{GuideCommands, Guides};
+use craft_ui::canvas::{Canvas, Guide, GuideDrag, GuideKey, Snap};
+use craft_ui::canvas_controls::Guides;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
-use craft_ui::runtime::env::UnitKind;
 use craft_ui::testing::{Fixture, Target, pointer, trial};
 use egui::{Id, Key, Modifiers, Pos2, Vec2};
 use std::cell::{Cell, RefCell};
@@ -43,8 +42,6 @@ struct Harness {
     pending: Rc<Cell<Option<GuideDrag>>>,
     bounds: Rc<Cell<Option<DocRect>>>,
     tool_click: Rc<Cell<Option<Pos2>>>,
-    units: Rc<Cell<Option<RulerText>>>,
-    snapping: Rc<Cell<bool>>,
 }
 
 fn key(id: u64) -> GuideKey {
@@ -115,7 +112,7 @@ fn harness(guides: Vec<Guide>) -> Harness {
         }
     });
     fixture.settle();
-    Harness { fixture, id, guides, selected, seen, pending, bounds, tool_click, units, snapping }
+    Harness { fixture, id, guides, selected, seen, pending, bounds, tool_click }
 }
 
 impl Harness {
@@ -134,11 +131,6 @@ impl Harness {
 
     fn count(&self, phase: Seen) -> usize {
         self.seen.borrow().iter().filter(|seen| **seen == phase).count()
-    }
-
-    fn press(&mut self, id: u64, key: Key, mods: Modifiers) {
-        self.click(id);
-        self.fixture.key(key, mods);
     }
 }
 
@@ -255,4 +247,3 @@ fn a_guide_released_over_a_ruler_is_not_added() {
     harness.fixture.frame(Vec::new());
     assert_eq!(harness.guides.borrow().len(), 4, "a guide dropped on a ruler is discarded");
 }
-

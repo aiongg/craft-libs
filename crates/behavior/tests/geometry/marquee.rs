@@ -37,4 +37,3 @@ fn constraint_loads_the_legacy_settings_json() {
     assert_eq!(loaded, [Constraint::Free, Constraint::Ratio(1.0, 1.0), Constraint::Size(64.0, 48.0)]);
     assert_eq!(serde_json::to_string(&loaded).unwrap(), r#"["free",{"ratio":[1.0,1.0]},{"size":[64.0,48.0]}]"#);
 }
-

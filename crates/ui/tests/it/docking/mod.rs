@@ -18,7 +18,6 @@ mod floating_area;
 mod pane_grip;
 mod panes;
 mod panes_requests;
-mod spec;
 mod targets;
 
 mod columns;

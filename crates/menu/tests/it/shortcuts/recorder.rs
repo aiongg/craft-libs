@@ -65,4 +65,3 @@ fn double_press_records_k_k() {
     rig.press(Modifiers::NONE, Key::K);
     assert_eq!(rig.bindings("file.save"), ["K"]);
 }
-

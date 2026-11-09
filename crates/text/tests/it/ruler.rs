@@ -8,7 +8,7 @@ use craft_text::ui::ruler::{ColumnDrag, RulerValues, TabAlign, TabLeader, TabSto
 use craft_ui::contract::{Bind, Role, Show as _};
 use craft_ui::runtime::env::UnitKind;
 use craft_ui::testing::{Fixture, Target, trial};
-use egui::{Key, Modifiers, Vec2};
+use egui::Vec2;
 use std::cell::RefCell;
 use std::rc::Rc;
 

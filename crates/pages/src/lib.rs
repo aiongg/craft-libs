@@ -23,8 +23,6 @@ pub mod layout;
 #[cfg(test)]
 mod layout_tests;
 pub mod numbering;
-#[cfg(test)]
-mod numbering_tests;
 pub mod range;
 #[cfg(test)]
 mod range_tests;

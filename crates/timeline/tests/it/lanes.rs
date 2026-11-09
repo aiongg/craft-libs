@@ -5,8 +5,8 @@ use std::rc::Rc;
 
 use craft_behavior::{EditEvent, Mixed, Selection, SelectionChange};
 use craft_timeline::ui::{
-    KeyframeId, KeyframeInterpolation, KeyframeLane, KeyframeMark, KeyframeNavigator, LabelPalette, MarkerEdit, MarkerSpan, MarkerStrip, OverviewRun,
-    ThumbnailMode, TimelineOverview, TimelineView, overview_runs, thumbnail_tiles,
+    KeyframeId, KeyframeInterpolation, KeyframeLane, KeyframeMark, LabelPalette, MarkerEdit, MarkerSpan, MarkerStrip, OverviewRun, ThumbnailMode,
+    TimelineOverview, TimelineView, overview_runs, thumbnail_tiles,
 };
 use craft_timeline::{FrameRate, Marker, MarkerColor, MarkerId, Tick, TimeFormat, TimeRange, TimeView, format_time};
 use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
@@ -89,10 +89,6 @@ fn options_by_time(fixture: &Fixture) -> Vec<Target> {
 fn keys() -> Vec<KeyframeMark> {
     let key = |id: u64, at: f64| KeyframeMark::new(KeyframeId::new(id), seconds(at), KeyframeInterpolation::Linear);
     vec![key(1, 1.0), key(2, 3.0), key(3, 5.0)]
-}
-
-fn lane() -> (Fixture, Rc<RefCell<Seen>>) {
-    lane_in(None, Tick::ZERO)
 }
 
 /// A lane whose keys stay inside `bounds` and whose Shift-drags snap to `playhead`.
@@ -267,4 +263,3 @@ fn dragging_keys_snaps_to_frames_and_with_shift_to_the_playhead() {
     fixture.drag(&key, vec2(38.0, 0.0));
     assert_eq!(seen.borrow().deltas.last().copied(), Some(frames(18)), "12 points away: only the frame grid");
 }
-

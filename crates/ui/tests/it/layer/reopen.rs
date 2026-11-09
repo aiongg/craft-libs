@@ -6,7 +6,7 @@ use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::popover::Popover;
 use craft_ui::testing::contract::clicked;
 use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers, pos2};
+use egui::{Key, Modifiers};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -76,4 +76,3 @@ fn a_popover_closed_by_escape_opens_again() {
     });
     assert_open_again(&fixture, &open);
 }
-

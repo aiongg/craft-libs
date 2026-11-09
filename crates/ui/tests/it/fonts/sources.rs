@@ -7,9 +7,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use craft_host::Wake;
 use craft_i18n::Han;
-use craft_ui::fonts::{
-    FontCandidates, MAX_SCRIPT_READS, OnDemandFonts, SystemCandidates, deflated_default_definitions, han_for_locale, on_demand_registered,
-};
+use craft_ui::fonts::{FontCandidates, MAX_SCRIPT_READS, OnDemandFonts, SystemCandidates, deflated_default_definitions, on_demand_registered};
 use craft_ui::testing::{Frames, trial};
 use egui::{FontFamily, FontId};
 

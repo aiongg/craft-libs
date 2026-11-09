@@ -2,7 +2,6 @@
 //! typed entry, conflicts and the read-only dialog.
 
 use craft_keymap::Platform;
-use craft_menu::shortcuts::ConflictMode;
 use craft_ui::testing::trial;
 use egui::{Key, Modifiers};
 
@@ -94,4 +93,3 @@ fn tab_leaves_the_new_shortcut_field_after_recording() {
     rig.press(Modifiers::NONE, Key::Tab);
     assert!(!rig.recording(), "Tab moves on instead of recording");
 }
-

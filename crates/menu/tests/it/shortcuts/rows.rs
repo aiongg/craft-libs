@@ -1,8 +1,8 @@
 //! The table's model through the dialog: what each Show area, filter and search lists, how groups sort and
 //! collapse, and which rows count as conflicts.
 
-use craft_keymap::{Bindable, Binding, CommandRef, Keymap, Kind, Platform, Policy, Scope, Scopes, Trigger};
-use craft_menu::shortcuts::{FixedRow, Options};
+use craft_keymap::{Binding, CommandRef, Platform, Policy, Trigger};
+use craft_menu::shortcuts::FixedRow;
 use craft_ui::testing::trial;
 
 use super::fixture::{self, Rig};
@@ -84,4 +84,3 @@ fn fixed_rows_strike_through_when_a_command_takes_their_chord() {
     assert!(rig.has("Loop: L (Now used by Loop)"), "a fixed row whose chord a command took names the command");
     assert!(rig.has("Rate 1: 1"), "a free fixed row is plain");
 }
-

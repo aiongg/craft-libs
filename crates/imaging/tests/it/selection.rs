@@ -5,11 +5,9 @@ use craft_behavior::CanvasView;
 use craft_behavior::kurbo::Point;
 use craft_imaging::selection::PreviewMode;
 use craft_imaging::trace::{MaskRect, MaskSource};
-use craft_imaging::ui::mask_view::{MaskViewChange, MaskViewKeys, MaskViewMode, MaskViewRecipe, MaskViewState};
 use craft_imaging::ui::selection::SelectionOverlay;
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::ShowContainer as _;
-use craft_ui::runtime::commands::FirePhase;
 use craft_ui::testing::{Fixture, Story, StoryData, StoryOutput, trial};
 use egui::{Rect, Ui, pos2};
 
@@ -77,4 +75,3 @@ fn the_overlay_retraces_only_when_the_revision_or_the_reduction_changes() {
         "the bounds are in full-size document pixels"
     );
 }
-

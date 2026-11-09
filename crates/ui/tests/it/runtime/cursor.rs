@@ -92,4 +92,3 @@ fn a_badged_system_cursor_keeps_its_base_and_paints_only_the_badge() {
     let badge = bounds(&shapes);
     assert!(badge.min.x > pointer.x && badge.min.y > pointer.y, "the badge sits below and after the pointer: {badge:?} {pointer:?}");
 }
-

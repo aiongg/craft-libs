@@ -1,7 +1,7 @@
 //! The signature pad's stored and drawn forms.
 
 use craft_behavior::Metrics;
-use craft_review::signature::{SavedSignature, SignatureDraft, SignatureImage, SignatureTab};
+use craft_review::signature::{SavedSignature, SignatureImage};
 use craft_review::ui::signature::{DrawPad, paint_signature};
 use craft_ui::contract::{Bind, Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role, Show as _};
 use craft_ui::style::{ComponentStyle, DataColor, StyleCx};

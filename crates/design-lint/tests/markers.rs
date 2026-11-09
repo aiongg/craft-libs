@@ -9,10 +9,6 @@ fn run(src: &str) -> (Vec<Finding>, usize) {
     (marked.findings, marked.markers)
 }
 
-fn rules(src: &str) -> Vec<&'static str> {
-    run(src).0.iter().map(|f| f.rule).collect()
-}
-
 #[test]
 fn end_of_line_marker_covers_its_line_only() {
     let src = "fn f(ui: &mut Ui) {\n    ui.add_space(4.0); // design: allow(optical gap)\n    ui.add_space(8.0);\n}\n";
@@ -102,4 +98,3 @@ fn marker_with_a_rule_list_covers_only_those_rules() {
     let family = "fn f(ui: &mut Ui) {\n    ui.add_space(4.0); let _ = Color32::RED; // design: allow[literal-size, raw-colour](both)\n}\n";
     assert!(run(family).0.is_empty());
 }
-

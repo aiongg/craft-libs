@@ -2,8 +2,8 @@
 //! inline runs. Every test drives lanes with `ManualJobs` (or `lanes: 0`), so nothing depends on
 //! thread timing.
 
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use crate::queue::{Cancel, Finished, JobQueue, Priority, QueueOptions};

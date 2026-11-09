@@ -1,6 +1,6 @@
 //! The file list, the path field and the picker tickets they keep, against a file service that records its requests.
 
-use craft_dialogs::ui::{FileList, FileListMode, FileListPicker, FileListWords, PathField, PathFieldWords};
+use craft_dialogs::ui::{FileList, FileListPicker, PathField};
 use craft_host::{AppInfo, FileError, Files, Host, PickAnswer, PickId, PickKind, PickRequest, Picked};
 use craft_ui::contract::Bind;
 use craft_ui::testing::{Fixture, trial};
@@ -220,4 +220,3 @@ fn browse_answer_fills_the_field_and_an_orphaned_answer_blocks_nothing() {
     assert_eq!(*field.value.borrow(), "/new.png");
     assert_eq!(field.edits.get(), 1);
 }
-

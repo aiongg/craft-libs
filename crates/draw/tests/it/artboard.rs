@@ -1,12 +1,8 @@
 //! The Artboard tool: the overlay's parts and the tool on one canvas, the bar and the Properties section.
 
-use craft_behavior::kurbo::{Point, Rect, Size, Vec2};
+use craft_behavior::kurbo::{Point, Rect, Vec2};
 use craft_behavior::{CanvasView, EditEvent};
-use craft_draw::ui::add_beside::AddSide;
-use craft_draw::ui::artboard::{
-    ArtboardBackground, ArtboardBar, ArtboardEvent, ArtboardItem, ArtboardOverlay, ArtboardPreset, ArtboardProperties, ArtboardRules, ArtboardTool,
-};
-use craft_ui::bars::{Bar, BarKind};
+use craft_draw::ui::artboard::{ArtboardEvent, ArtboardItem, ArtboardOverlay, ArtboardRules, ArtboardTool};
 use craft_ui::canvas::{Canvas, ToolHost};
 use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, pointer, trial};
@@ -213,8 +209,3 @@ fn keys_on_a_focused_board_move_resize_delete_and_open() {
     h.fixture.key(Key::Enter, Modifiers::NONE);
     assert!(h.events().iter().any(|event| matches!(event, ArtboardEvent::OpenOptions { index: 0, .. })));
 }
-
-fn presets() -> Vec<ArtboardPreset> {
-    vec![ArtboardPreset::new("Square", Size::new(100.0, 100.0))]
-}
-

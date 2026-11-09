@@ -7,20 +7,16 @@ use std::rc::Rc;
 use craft_behavior::kurbo::{Point, Rect};
 use craft_behavior::{CellAt, CellRange};
 use craft_i18n::Direction;
-use craft_pages::ui::access::{AccessBuilder, AccessDescriber, AccessNode, AccessPosition, BlockRole, MAX_NODES};
+use craft_pages::ui::access::{AccessBuilder, AccessDescriber, AccessNode, AccessPosition, BlockRole};
 use craft_pages::ui::fixtures::{PAPER, demo_placed};
 use craft_pages::ui::reading::{MAX_COLUMNS, ReadingMetrics, ReadingState, reading_size, reading_viewport, swipe_turn, wheel_turns};
-use craft_pages::ui::table::{
-    BorderEdges, BorderPreset, EdgeKey, EdgePicker, RowHeight, TableChange, TableGeometry, TableProperties, TableSizePicker, TableSizePickerOutput,
-    TableValues,
-};
+use craft_pages::ui::table::{BorderEdges, EdgeKey, EdgePicker, TableGeometry};
 use craft_pages::ui::text_selection::{PageTextSource, PageTexts, TextSelectState, TextSelectTool, TextSelection, TextSpan};
 use craft_pages::ui::view::{PageView, PageViewState, PlacedPage};
 use craft_theme::{Contrast, Mode};
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
 use craft_ui::primitives::ReadingMeasure;
-use craft_ui::runtime::env::UnitKind;
 use craft_ui::style::{Ink, TypeRole};
 use craft_ui::testing::style::{paint_frame, tokens};
 use craft_ui::testing::{Fixture, Frames, ToolFixture, pointer, trial};
@@ -63,16 +59,6 @@ fn edge_clicks_toggle_double_picks_a_group_triple_toggles_all() {
 }
 
 // Size picker
-
-fn size_picker(hovered: Rc<RefCell<Option<(usize, usize)>>>, picked: Rc<RefCell<Vec<(usize, usize)>>>) -> Fixture {
-    let mut fixture = Fixture::new(move |ui| {
-        let out: TableSizePickerOutput = TableSizePicker::new("Insert Table").show(ui);
-        *hovered.borrow_mut() = out.hovered;
-        picked.borrow_mut().extend(out.picked);
-    });
-    fixture.settle();
-    fixture
-}
 
 // Properties
 

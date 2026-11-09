@@ -1,8 +1,7 @@
 //! `TabStrip`: which tabs fit, and that a click on a tab reports it selected.
 
 use craft_behavior::{DisplayOrder, ItemSource, SelectionChange};
-use craft_ui::contract::{CollectionEvent, ListDrag, ShowCollection as _};
-use craft_ui::runtime::drag;
+use craft_ui::contract::{CollectionEvent, ShowCollection as _};
 use craft_ui::tabs::{Tab, TabStrip};
 use craft_ui::testing::{Fixture, trial};
 use egui::Vec2;
@@ -65,9 +64,6 @@ fn the_tabs_that_do_not_fit_have_no_node_and_the_overflow_menu_lists_them() {
         assert!(fixture.by_label(title).is_some(), "the overflow menu lists {title}");
     }
 }
-
-/// What the strip's drag carries: the grabbed tab.
-struct Grabbed(usize);
 
 /// Ctrl+Tab on the focused strip selects the next tab, wrapping at the end; Ctrl+Shift+Tab goes back.
 #[trial]

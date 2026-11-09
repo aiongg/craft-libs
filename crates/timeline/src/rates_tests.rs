@@ -27,4 +27,3 @@ fn snap_nearest_picks_the_nearer_boundary() {
     assert_eq!(rate.snap_nearest(start + Tick(d / 2 + 1)), rate.tick_of(11));
     assert_eq!(rate.snap_nearest(Tick::MAX).0, rate.snap_nearest(Tick::MAX).0);
 }
-

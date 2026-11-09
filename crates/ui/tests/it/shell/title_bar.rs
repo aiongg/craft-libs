@@ -3,14 +3,14 @@
 
 use crate::body::kit::Slab;
 use crate::windows_kit::Windows;
-use craft_host::target::{Caps, DoubleClick, ShellInfo};
+use craft_host::target::{Caps, ShellInfo};
 use craft_ui::buttons::Button;
 use craft_ui::contract::overlay::Resize;
 use craft_ui::contract::{ContainerProps, DragBand, HeaderRegion, Mount, Overlay, Props as _, Show as _, ShowContainer as _, Sizing};
 use craft_ui::display::Text;
 use craft_ui::runtime::InstallSpec;
-use craft_ui::runtime::windows::{WindowAction, WindowHit, WindowHost, double_click_action};
-use craft_ui::shell::{Caption, CaptionFamily, Captions, Frame, MacInset, Title, TitleBar, title_bar};
+use craft_ui::runtime::windows::{WindowHit, WindowHost};
+use craft_ui::shell::{Caption, CaptionFamily, Captions, Frame, Title, TitleBar, title_bar};
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::windows::NoWindows;
 use craft_ui::testing::{Frames, trial};
@@ -18,9 +18,6 @@ use craft_window::policy::{Decision, Desktop, DesktopKind};
 use egui::{Pos2, Rect, Ui, ViewportCommand, ViewportId, ViewportInfo, vec2};
 use std::cell::Cell;
 use std::sync::Arc;
-
-const GAP: f32 = 400.0;
-const WIDE: f32 = 100.0;
 
 fn decision(frame: Frame) -> Decision {
     let desktop = Desktop { kind: DesktopKind::Other, ssd: None, gtk_theme: None, icon_theme: None };
@@ -190,4 +187,3 @@ fn a_bar_in_a_column_leaves_the_room_below_it_to_the_next_child() {
     assert!(below.get().top() >= bar.get().bottom(), "the next child lies under the bar");
     assert_eq!(bar.get().width(), room.get().width(), "the bar fills the width");
 }
-

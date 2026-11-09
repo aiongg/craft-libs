@@ -2,14 +2,13 @@
 
 use crate::contract::kit::PlainStyle;
 use craft_behavior::{IconId, PartKey, PressPhase, Sense};
-use craft_host::target::Os;
-use craft_ui::contract::{Common, Component, Cx, DragPreview, MeasureCx, PartsCx, Pointer as _, PopupKind, Props as _, Role, Show as _};
-use craft_ui::sections::{DialogRole, FooterAction, FooterBar, FooterButton, FooterOutput};
+use craft_ui::contract::{Common, Component, Cx, DragPreview, MeasureCx, PartsCx, Pointer as _, Props as _, Role, Show as _};
+use craft_ui::sections::{FooterAction, FooterBar, FooterOutput};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::pointer::{moved, press, release};
-use craft_ui::testing::{Fixture, Frames, trial};
+use craft_ui::testing::{Frames, trial};
 use egui::{Id, Pos2, Rect, Response, Ui, Vec2};
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 
 const CHIP: Rect = Rect { min: Pos2::new(10.0, 100.0), max: Pos2::new(60.0, 130.0) };
 const GRIP: PartKey = PartKey::new("grip");
@@ -146,4 +145,3 @@ fn a_flagged_action_under_a_disabled_parent_takes_no_drop() {
     frames.idle(2, &mut show);
     assert!(first.is_none() && seen.borrow().dropped_on.is_none(), "the flagged action takes no drop under a disabled parent");
 }
-

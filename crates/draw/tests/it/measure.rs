@@ -2,7 +2,7 @@
 
 use craft_behavior::kurbo::{Point, Rect};
 use craft_behavior::{Axis, CancelReason, CanvasView, EditEvent};
-use craft_draw::ui::measure::{RulerBar, RulerLine, RulerOverlay, RulerPart, RulerTool, box_distances};
+use craft_draw::ui::measure::{RulerBar, RulerLine, RulerOverlay, RulerTool, box_distances};
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPath, ToolPointer};
 use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
@@ -175,7 +175,6 @@ impl CanvasTool for Driven {
 struct Shown {
     fixture: ToolFixture<Driven>,
     line: Rc<RefCell<Option<RulerLine>>>,
-    log: Rc<RefCell<Vec<&'static str>>>,
 }
 
 fn shown(start: Option<RulerLine>) -> Shown {
@@ -203,7 +202,7 @@ fn shown(start: Option<RulerLine>) -> Shown {
             *body_line.borrow_mut() = line;
         },
     );
-    Shown { fixture, line, log }
+    Shown { fixture, line }
 }
 
 impl Shown {

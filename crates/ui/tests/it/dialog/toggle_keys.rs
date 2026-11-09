@@ -3,7 +3,6 @@
 use crate::contract::kit::PlainStyle;
 use craft_behavior::{Input, Sense};
 use craft_keymap::Chord;
-use craft_ui::choice::Checkbox;
 use craft_ui::contract::{Bind, Common, Component, Cx, Focus as _, MeasureCx, Props as _, Role, Show as _, ShowContainer as _};
 use craft_ui::dialog::Dialog;
 use craft_ui::runtime::focus::Initial;

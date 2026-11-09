@@ -13,10 +13,8 @@ use craft_ui::testing::input::key_press;
 use craft_ui::testing::layout::Block;
 use craft_ui::testing::pointer::{moved, press, release, secondary};
 use craft_ui::testing::{Frames, trial};
-use egui::{Key, Modifiers, Pos2, Rect, Response, Shape, Ui, Vec2, ViewportBuilder, ViewportId, ViewportInfo};
+use egui::{Key, Modifiers, Pos2, Rect, Response, Ui, Vec2, ViewportBuilder, ViewportId, ViewportInfo};
 use std::cell::{Cell, RefCell};
-
-mod frame;
 mod frame_label;
 
 const GRIP: PartKey = PartKey::new("grip");
@@ -152,10 +150,6 @@ fn drag_over_slot(frames: &mut Frames, show: &mut impl FnMut(&mut Ui)) -> Pos2 {
     }
     frames.idle(1, &mut *show);
     over
-}
-
-fn texts(shapes: &[Shape]) -> Vec<String> {
-    shapes.iter().filter_map(|shape| if let Shape::Text(text) = shape { Some(text.galley.job.text.clone()) } else { None }).collect()
 }
 
 /// A drag begun with the secondary button drops when that button comes up, in the source window.

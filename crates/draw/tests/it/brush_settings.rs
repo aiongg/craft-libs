@@ -1,9 +1,6 @@
 //! The Brush Settings panel's rows: the tip angle widget, the stroke test data and the section list.
 
-use craft_draw::ui::brush_settings::{
-    BrushSection, BrushSectionEvent, BrushSectionList, PreviewStroke, TipAngle, TipEllipse, TipEllipseGrab, ellipse_drag, ellipse_grab,
-    ellipse_handles,
-};
+use craft_draw::ui::brush_settings::{BrushSection, BrushSectionEvent, BrushSectionList, TipAngle, TipEllipse, TipEllipseGrab, ellipse_drag};
 use craft_ui::contract::{Bind, Show as _};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers, Vec2};
@@ -11,7 +8,6 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 const RADIUS: f32 = 34.0;
-const REACH: f32 = 7.0;
 const PULL: f32 = 20.0;
 const NEAR_CENTRE: f32 = 0.5;
 /// The angles and roundness the key trial walks through.

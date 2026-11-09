@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use craft_browse::thumbs::{DecodeRequest, DecodedThumb, FileStat, FileThumbKey, FileThumbSource, StoreKey, ThumbDecoder, ThumbError, ThumbStore};
 use craft_host::ManualJobs;
 use craft_host::queue::Cancel;
-use craft_ui::primitives::textures::{LoadFailure, Priority, TextureState, ThumbRequest, ThumbnailOptions, Thumbnails};
+use craft_ui::primitives::textures::{Priority, TextureState, ThumbRequest, ThumbnailOptions, Thumbnails};
 use craft_ui::testing::trial;
 use egui::Context;
 
@@ -15,8 +15,6 @@ use egui::Context;
 #[derive(Clone)]
 enum Answer {
     Picture,
-    Fail(&'static str),
-    Unsupported,
     Raw(DecodedThumb),
 }
 
@@ -67,8 +65,6 @@ impl ThumbDecoder for Decoder {
         self.decoded.lock().unwrap().push(request.key.path.clone());
         match self.answer.lock().unwrap().clone() {
             Answer::Picture => Ok(picture(self.full_side.load(Ordering::Relaxed))),
-            Answer::Fail(message) => Err(ThumbError::Failed(message.to_owned())),
-            Answer::Unsupported => Err(ThumbError::Unsupported),
             Answer::Raw(thumb) => Ok(thumb),
         }
     }

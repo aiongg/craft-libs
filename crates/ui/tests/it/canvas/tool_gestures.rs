@@ -1,6 +1,6 @@
 //! A tool's one-shot `Set` events belong to no gesture: each is its own undo step, whatever gesture ran before.
 
-use craft_behavior::{DocKey, EditEvent, GestureId, Mixed};
+use craft_behavior::{EditEvent, GestureId, Mixed};
 use craft_ui::edit::{GestureHost, StepName, UndoMarks};
 use craft_ui::testing::trial;
 

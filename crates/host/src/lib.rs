@@ -257,22 +257,10 @@ mod ui {
 
 #[cfg(test)]
 mod tests {
-    use serde::{Deserialize, Serialize};
 
     use super::*;
 
     const APP: AppInfo = AppInfo { id: "test", name: "Test", version: "1.0" };
-
-    #[derive(Serialize, Deserialize, Default, PartialEq, Debug)]
-    #[serde(default)]
-    struct Panel {
-        open: bool,
-        width: u32,
-    }
-
-    impl Section for Panel {
-        const KEY: &'static str = "panel";
-    }
 
     #[cfg(feature = "ui")]
     #[test]

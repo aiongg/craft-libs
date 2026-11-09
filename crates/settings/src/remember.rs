@@ -125,5 +125,4 @@ mod tests {
         blur.forget(&host);
         assert_eq!(blur.recall(&host), None);
     }
-
 }

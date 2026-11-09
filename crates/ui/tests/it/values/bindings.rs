@@ -2,7 +2,7 @@
 //! check fixes or refuses.
 
 use super::kit::{AT, CAP, DRAGGED, Ev, INITIAL, STEP, Scrub, Seen, ev_of, near};
-use craft_behavior::{CancelReason, DocKey, EditEvent, Mixed};
+use craft_behavior::{CancelReason, DocKey, EditEvent};
 use craft_ui::contract::{Bind, Props as _, Show as _, Validity};
 use craft_ui::runtime::env::Message;
 use craft_ui::style::Flags;
@@ -139,4 +139,3 @@ fn a_check_fixes_values_and_a_refusing_check_blocks_the_commit() {
     assert_eq!(value, INITIAL, "the cancel restored the value from before the drag");
     assert!(!flags.contains(Flags::INVALID), "the restored value is valid");
 }
-

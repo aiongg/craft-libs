@@ -7,7 +7,7 @@ use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Fixture, Frames, Story, StoryData, StoryOutput, trial};
 use craft_ui::value_drag::{Anchor, Order, RowOp, Thumb, ThumbOp, ThumbRow};
 use egui::{Key, Modifiers, Pos2, Rect, Ui, Vec2};
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 
 fn forward(thumb: usize) -> RowOp {
     RowOp::new(thumb, ThumbOp::Move(NavMove::Forward, MoveMods::PLAIN))
@@ -147,16 +147,6 @@ fn a_label_reset_restores_the_whole_row_while_a_thumb_with_a_default_is_focused(
     assert_eq!(value, ends);
 }
 
-fn mixed_row(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let thumbs = [Thumb::new("Black"), Thumb::new("White")];
-    ThumbRow::new(Bind::bound(data.value("mixed", [Mixed::Mixed, Mixed::Mixed])), 0.0..=100.0)
-        .step(1.0)
-        .thumbs(thumbs)
-        .label("Levels")
-        .show(ui)
-        .into()
-}
-
 const ROW: Rect = Rect { min: Pos2::new(20.0, 20.0), max: Pos2::new(320.0, 50.0) };
 const BY: f32 = 10.0;
 
@@ -273,17 +263,3 @@ fn the_thumb_a_press_would_move_takes_the_hover_look() {
     assert_ne!(lit[0], rest[0], "the ring of the thumb nearest the pointer is lit");
     assert_eq!(lit[2], rest[2], "the other thumb's ring is not");
 }
-
-/// A row of two thumbs at the ends of its range, shown at `ROW`, with the output of its latest pass.
-fn row_at_the_ends() -> (Fixture, std::rc::Rc<Cell<Option<(Option<usize>, egui::Rangef)>>>) {
-    let seen = std::rc::Rc::new(Cell::new(None));
-    let shown = seen.clone();
-    let mut value = Mixed::each([0.0, 100.0]);
-    let mut fixture = Fixture::new(move |ui| {
-        let out = ThumbRow::new(Bind::bound(&mut value), 0.0..=100.0).step(1.0).thumbs([Thumb::new("Black"), Thumb::new("White")]).show_at(ui, ROW);
-        shown.set(Some((out.held.map(|held| held.thumb), out.travel)));
-    });
-    fixture.settle();
-    (fixture, seen)
-}
-

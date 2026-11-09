@@ -5,8 +5,8 @@ use super::table::Table;
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, ItemSource, Selection, SelectionModel};
 use craft_ui::contract::{CollectionEvent, CollectionProps, ColumnKind, ColumnSpec, Props as _, SelectMode, ShowCollection as _, ToggleColumn};
 use craft_ui::testing::layout::in_region;
-use craft_ui::testing::{Frames, input, pointer, trial};
-use egui::{Key, Modifiers, Pos2, Rect, Ui, Vec2};
+use craft_ui::testing::{Frames, pointer, trial};
+use egui::{Modifiers, Pos2, Rect, Ui, Vec2};
 use std::cell::RefCell;
 
 const ORIGIN: Pos2 = Pos2::new(10.0, 10.0);
@@ -169,4 +169,3 @@ fn locked_cells_and_section_rows_take_no_toggle_press_or_sweep() {
     assert_eq!(toggle_drag(&Switches::new(6, &[2], &[]), 1, 3), vec![(1, true), (3, true)], "a sweep passes over a locked cell without setting it");
     assert!(toggle_drag(&Switches::new(6, &[], &[0]), 0, 3).is_empty(), "a section row's toggle column starts no sweep");
 }
-

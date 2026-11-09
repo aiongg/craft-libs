@@ -10,7 +10,7 @@ use craft_behavior::geometry::quad::Homography;
 use craft_behavior::kurbo::Point;
 use craft_behavior::{CancelReason, EditEvent, PixelSize};
 use craft_imaging::ui::vanishing_point::{
-    MAX_PLANES, PlaneCheck, PlaneEdge, StampLimits, TornPlane, VanishingPlane, VanishingPointEvent, VanishingPointOpen, VanishingPointSession,
+    PlaneCheck, PlaneEdge, StampLimits, TornPlane, VanishingPlane, VanishingPointEvent, VanishingPointOpen, VanishingPointSession,
     VanishingPointSettings, VanishingPointSource, VanishingPointWorkspace, VanishingPreviewRequest, VanishingScene, VanishingTool, slide_edge,
 };
 use craft_imaging::ui::wide_angle::PreviewDone;
@@ -19,8 +19,8 @@ use craft_ui::contract::Job;
 use craft_ui::primitives::Revision;
 use craft_ui::runtime::access::Role;
 use craft_ui::sections::DialogRole;
-use craft_ui::testing::{Fixture, Frames, pointer, trial};
-use egui::{Color32, ColorImage, Key, Modifiers, Pos2, Shape, Vec2};
+use craft_ui::testing::{Fixture, pointer, trial};
+use egui::{Color32, ColorImage, Key, Modifiers, Pos2, Vec2};
 
 /// The layer's size in document pixels.
 const LAYER: [u32; 2] = [800, 600];
@@ -30,9 +30,6 @@ const LIMITS: StampLimits = StampLimits::new(4096, 200_000);
 
 /// Half the width and height of the plane the tests draw on screen, in points.
 const HALF: Vec2 = Vec2::new(100.0, 50.0);
-
-/// How far inside the canvas's corner a press lands on empty canvas, in points.
-const CORNER_INSET: f32 = 8.0;
 
 /// How close two document points count as the same.
 const NEAR: f64 = 1e-6;
@@ -259,13 +256,6 @@ fn phases(app: &Rc<RefCell<App>>) -> Vec<&'static str> {
     app.borrow().events.iter().map(phase).collect()
 }
 
-fn drawn() -> VanishingPointSession {
-    let mut session = VanishingPointSession::default();
-    session.planes = vec![VanishingPlane::new([[100.0, 100.0], [300.0, 100.0], [300.0, 200.0], [100.0, 200.0]])];
-    session.torn = vec![None];
-    session
-}
-
 #[trial]
 fn four_clicks_make_a_plane_in_any_order() {
     let reversed = [3, 2, 1, 0];
@@ -450,51 +440,6 @@ fn undo_steps_back_through_planes_and_strokes() {
     assert_eq!(counts(&app), (1, false, 0));
 }
 
-/// A layer with a clipboard image.
-struct Pasted {
-    layer: Layer,
-    image: Image,
-}
-
-/// The clipboard image: `size` pixels of one colour.
-struct Image(PixelSize);
-
-impl RasterSource for Image {
-    fn size(&self) -> PixelSize {
-        self.0
-    }
-
-    fn revision(&self) -> Revision {
-        Revision::new(1)
-    }
-
-    fn damage(&self, _: Revision) -> Option<PixelRect> {
-        None
-    }
-
-    fn read(&self, _: PixelRect, _: u32, out: &mut ColorImage) {
-        out.pixels.fill(Color32::from_gray(u8::MAX));
-    }
-}
-
-impl VanishingPointSource for Pasted {
-    fn image(&self) -> &dyn RasterSource {
-        &self.layer
-    }
-
-    fn stamp_preview(&self) -> Option<&dyn RasterSource> {
-        None
-    }
-
-    fn paste(&self) -> Option<&dyn RasterSource> {
-        Some(&self.image)
-    }
-
-    fn preview_job(&self, request: &VanishingPreviewRequest) -> Job<PreviewDone, String> {
-        self.layer.preview_job(request)
-    }
-}
-
 #[trial]
 fn a_gesture_the_app_cancels_reports_its_reason_and_ends() {
     for reason in [CancelReason::Removed, CancelReason::UndoDuringGesture] {
@@ -523,4 +468,3 @@ fn a_gesture_the_app_cancels_reports_its_reason_and_ends() {
         assert!(cancelled, "{:?}", phases(&app));
     }
 }
-

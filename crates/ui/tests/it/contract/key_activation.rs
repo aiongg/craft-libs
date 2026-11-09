@@ -2,12 +2,9 @@
 //! the click: Alt+Enter on a button can add beside, the way Alt+click does.
 
 use craft_behavior::{Metrics, Sense};
-use craft_keymap::Mods;
-use craft_ui::contract::{Activation, Common, Component, Cx, MeasureCx, Pointer as _, Props as _, Role, Show as _};
+use craft_ui::contract::{Activation, Common, Component, Cx, MeasureCx, Pointer as _, Role};
 use craft_ui::style::{ComponentStyle, StyleCx};
-use craft_ui::testing::input::key_press;
-use craft_ui::testing::{Frames, trial};
-use egui::{Key, Modifiers, Response, Ui, Vec2};
+use egui::{Response, Vec2};
 use std::cell::Cell;
 
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
@@ -52,18 +49,3 @@ impl Component for Adder<'_> {
         cx.response.clone()
     }
 }
-
-/// The activation that pressing `key` with `modifiers` on the focused button gives it.
-fn activation_by(key: Key, modifiers: Modifiers) -> Option<Activation> {
-    let seen = Cell::new(None);
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| {
-        Adder { common: Common::new(), seen: &seen }.id_salt("adder").show(ui);
-    };
-    frames.frame(vec![], &mut show);
-    frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], &mut show);
-    frames.hold(modifiers);
-    frames.frame(vec![key_press(key, modifiers)], &mut show);
-    seen.get()
-}
-

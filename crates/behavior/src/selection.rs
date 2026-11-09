@@ -596,5 +596,4 @@ mod tests {
         let json = serde_json::to_string(&range).expect("a range serializes");
         assert_eq!(serde_json::from_str::<CellRange<u32>>(&json).expect("it loads"), range);
     }
-
 }

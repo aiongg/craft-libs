@@ -2,16 +2,15 @@
 //! buttons, the tone zones and the commands.
 
 use craft_behavior::EditEvent;
-use craft_imaging::scopes::ChannelMask;
 use craft_imaging::ui::histogram::ChannelColor;
 use craft_imaging::ui::{
-    ClipWarning, ClippingFrame, HistogramSet, ScopeChannel, ScopeCommand, ScopeFrame, ScopePanel, ScopePanelState, ScopeSettings, ScopeSource,
-    ScopeView, ScopeWords, ScopeZoneEdit, ToneZone, ToneZones, VectorscopeFrame, ZoneChange, scope_point,
+    ClippingFrame, HistogramSet, ScopeChannel, ScopeFrame, ScopePanel, ScopePanelState, ScopeSettings, ScopeSource, ScopeView, ScopeWords,
+    ScopeZoneEdit, ToneZone, ToneZones, VectorscopeFrame, ZoneChange,
 };
-use craft_ui::contract::{Bind, Role, Show as _};
+use craft_ui::contract::Show as _;
 use craft_ui::runtime::env::Label;
 use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers, Rect, pos2, vec2};
+use egui::{Rect, pos2, vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -160,4 +159,3 @@ fn tone_zone_drag_is_one_gesture() {
     assert_eq!(begins, 1, "one gesture per drag: {events:?}");
     assert!(events.iter().filter_map(|event| event.value()).all(|edit| edit.key == "shadows"), "the press locks the zone: {events:?}");
 }
-

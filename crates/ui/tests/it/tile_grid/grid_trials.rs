@@ -2,11 +2,11 @@
 //! hidden tiles, and ratings, checks and activation each have one route.
 
 use craft_behavior::{DisplayOrder, ItemSource, Selection, SizeHint};
-use craft_ui::contract::{ActivateOn, Bind, CollectionEvent, Role, ShowCollection as _};
+use craft_ui::contract::{Bind, CollectionEvent, Role, ShowCollection as _};
 use craft_ui::list::{ThumbAspect, ToggleState};
 use craft_ui::testing::access::focused_key;
 use craft_ui::testing::{Fixture, trial};
-use craft_ui::tile_grid::{BadgeVisibility, CaptionPlace, GridEvent, RatingKeys, Tile, TileGrid, TileGroup, TilePartEvent};
+use craft_ui::tile_grid::{CaptionPlace, GridEvent, RatingKeys, Tile, TileGrid, TileGroup, TilePartEvent};
 use egui::{Key, Modifiers, Rect, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -70,10 +70,6 @@ impl Seen {
             .iter()
             .filter_map(|event| if let GridEvent::Rate { keys, rating, .. } = event { Some((keys.clone(), *rating)) } else { None })
             .collect()
-    }
-
-    fn items(&self) -> impl Iterator<Item = &TilePartEvent> {
-        self.events.iter().filter_map(|event| if let CollectionEvent::Item(_, item) = event { Some(item) } else { None })
     }
 }
 
@@ -284,4 +280,3 @@ fn a_click_on_a_group_header_focuses_the_grid_with_the_header_as_lead() {
         .collect();
     assert_eq!(closed, [(1, false)], "Left on the lead header closes its group");
 }
-

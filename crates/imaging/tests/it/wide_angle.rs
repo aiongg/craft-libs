@@ -17,7 +17,6 @@ use craft_ui::canvas::{PixelRect, RasterSource};
 use craft_ui::contract::Role;
 use craft_ui::primitives::Revision;
 use craft_ui::runtime::pending::Job;
-use craft_ui::testing::relations::equals_token;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Color32, ColorImage, Event, Key, Modifiers, PointerButton, Pos2, Vec2};
 
@@ -25,10 +24,6 @@ const IMAGE: [u32; 2] = [400, 200];
 
 /// The test picture's colour: data, not a theme colour.
 const PICTURE: Color32 = Color32::from_gray(0x80);
-
-/// A step of the arrow keys in document pixels, and the step with Shift.
-const NUDGE: f64 = 1.0;
-const NUDGE_FAR: f64 = 10.0;
 
 /// A distance along one axis, in points.
 fn along(x: f32, y: f32) -> Vec2 {
@@ -239,4 +234,3 @@ fn a_tool_switch_during_a_drag_cancels_the_drag() {
     fixture.idle(2);
     assert!(constraints(&app).is_empty(), "no constraint from the cancelled drag");
 }
-

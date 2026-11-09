@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use craft_behavior::EditEvent;
-use craft_font_manager::axes::{AxisSliders, AxisValues, FontAxis, NamedInstance, axis_label, matching_instance, read_axes, read_named_instances};
+use craft_font_manager::axes::{AxisSliders, AxisValues, FontAxis, NamedInstance, read_axes, read_named_instances};
 use craft_ui::contract::{Bind, Role};
 use craft_ui::testing::{Fixture, trial};
 use egui::Vec2;

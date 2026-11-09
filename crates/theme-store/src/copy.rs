@@ -152,5 +152,4 @@ mod tests {
         let out = String::from_utf8(replace_top_level_id(src.as_bytes(), &id).unwrap()).unwrap();
         assert_eq!(out, src.replace("\"id\" : \"mine\"", "\"id\" : \"mine-2\""));
     }
-
 }

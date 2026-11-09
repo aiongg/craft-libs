@@ -509,5 +509,4 @@ mod tests {
         files.write(Path::new("/out.txt"), b"out").expect("memory write");
         assert_eq!(files.file(Path::new("/out.txt")), Some(b"out".to_vec()));
     }
-
 }

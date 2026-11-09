@@ -124,5 +124,4 @@ mod tests {
         assert_eq!(titles.title(second), Some("Book1:1"), "numbers close up in opening order");
         assert_eq!(titles.title(third), Some("Book1:2"));
     }
-
 }

@@ -5,9 +5,9 @@ use egui::{Event, InputState, Key as EguiKey, Modifiers};
 use crate::chord::{Chord, Key, Mods, Platform};
 use crate::egui::Dispatcher;
 use crate::keymap::{Bindable, Binding, Keymap, Kind, Lookup};
-use crate::layout::{KeyInput, Layout};
+use crate::layout::Layout;
 use crate::scope::Active;
-use crate::{CommandRef, ReturnGlyph, Scope, Scopes};
+use crate::{Scope, Scopes};
 
 fn tool(id: &str, group: &str, key: &str) -> Bindable {
     Bindable::new(id, id, Scope::app()).with_kind(Kind::Tool { group: Some(group.to_owned()) }).with_default(Binding::parse(key).unwrap())

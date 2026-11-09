@@ -1,22 +1,16 @@
 //! The stroke editor, its button and the line sample: the rows' rules, what a pick reports and the sample's geometry.
 
-use craft_behavior::Mixed;
-use craft_draw::ui::stroke::{
-    ChoicePainter, LineCap, LineJoin, LineStyle, StrokeButton, StrokeChoice, StrokeChoiceRow, StrokeEditor, StrokeMixed, StrokePreview,
-    StrokeSections, StrokeStyle,
-};
+use craft_draw::ui::stroke::{LineCap, LineJoin, LineStyle, StrokeButton, StrokeEditor, StrokePreview, StrokeStyle};
 use craft_ui::contract::{Bind, Role, Show as _};
 use craft_ui::primitives::PaintShape;
 use craft_ui::testing::{Fixture, Frames, trial};
-use egui::{Color32, Key, Modifiers, Pos2, Rect, Shape};
+use egui::{Color32, Pos2, Rect, Shape};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 /// A sample rect for the line geometry.
 const SAMPLE: Rect = Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(200.0, 40.0));
 
-/// The dash offset a trial types into its field.
-const TYPED_OFFSET: f32 = 3.0;
 /// One step of an 8-bit alpha, the rounding of a faded fill.
 const ALPHA_STEP: f32 = 1.0;
 

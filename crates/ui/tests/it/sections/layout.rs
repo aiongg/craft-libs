@@ -1,7 +1,7 @@
 //! `SectionLayout`: reading a saved arrangement leniently, reconciling it with the registered sections, and the
 //! rules for hiding, pinning and moving sections.
 
-use craft_ui::sections::{SectionEvent, SectionKey, SectionLayout};
+use craft_ui::sections::{SectionKey, SectionLayout};
 use craft_ui::testing::trial;
 use serde::{Deserialize, Serialize};
 
@@ -123,4 +123,3 @@ fn pinned_sections_stay_above_the_others() {
     layout.set_pinned(&key("folders"), false);
     assert_eq!(order(&layout), ["local", "folders", "albums", "byDate", "keywords"], "a released section sits after the pinned ones");
 }
-

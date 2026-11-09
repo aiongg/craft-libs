@@ -1,8 +1,6 @@
 use serde_json::{Value, json};
 
 use crate::format::{ErrorKind, FormatErrors, parse_sizes, write_sizes};
-use crate::sizes::builtin;
-use crate::theme::Size;
 
 const COMPACT: &str = include_str!("../sizes/compact.json");
 const COMFORTABLE: &str = include_str!("../sizes/comfortable.json");
@@ -61,4 +59,3 @@ fn out_of_range_unknown_and_wrong_kind_values_are_rejected_naming_the_path() {
     let e = rejected(&edited("base.size.hit.slop", None));
     assert_eq!(error_at(&e, "base.size.hit.slop"), &ErrorKind::Missing);
 }
-

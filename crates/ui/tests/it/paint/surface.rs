@@ -3,7 +3,7 @@
 use craft_i18n::Direction;
 use craft_theme::{Contrast, ControlSize, Mode, Variant};
 use craft_ui::primitives::Surface;
-use craft_ui::style::{Corners, SurfaceEdge, SurfaceKind};
+use craft_ui::style::{Corners, SurfaceKind};
 use craft_ui::testing::style::{tokens, tokens_named, with_cx};
 use craft_ui::testing::{Frames, trial};
 use egui::epaint::RectShape;

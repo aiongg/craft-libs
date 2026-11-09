@@ -7,8 +7,8 @@ use std::{
 };
 
 use craft_theme::{
-    Appearance, Contrast, ContrastChoice, ContrastIntent, IdError, Mode, ModeChoice, MotionChoice, Selection, Size, SuiteChoice, TextSize, ThemeId,
-    ThemePair, builtins, resolve,
+    Appearance, Contrast, ContrastChoice, IdError, Mode, ModeChoice, MotionChoice, Selection, Size, SuiteChoice, TextSize, ThemeId, ThemePair,
+    builtins, resolve,
 };
 use serde_json::Value;
 

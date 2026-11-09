@@ -3,15 +3,14 @@
 //! shared by panes.
 
 use craft_behavior::{CanvasTransform, WheelTaker};
-use craft_ui::contract::{Role, Show as _};
+use craft_ui::contract::Show as _;
 use craft_ui::patterns::form_dialogs::{PreviewPane, PreviewState, PreviewView};
 use craft_ui::testing::access::Declared;
-use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::pointer;
 use craft_ui::testing::wheel::{register, take};
 use craft_ui::testing::{Fixture, trial};
 use egui::load::SizedTexture;
-use egui::{ColorImage, Id, Key, Modifiers, Pos2, Rect, TextureHandle, TextureOptions, Vec2, pos2};
+use egui::{ColorImage, Id, Pos2, Rect, TextureHandle, TextureOptions, Vec2, pos2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -20,7 +19,6 @@ const WIDE: [usize; 2] = [2000, 8];
 
 struct Rig {
     fixture: Fixture,
-    view: Rc<RefCell<PreviewView>>,
 }
 
 fn rig() -> Rig {
@@ -38,7 +36,7 @@ fn rig() -> Rig {
         }
     });
     fixture.settle();
-    Rig { fixture, view }
+    Rig { fixture }
 }
 
 /// A picture wider than the well declares ScrollLeft and ScrollRight on the pane, and no vertical scroll action.

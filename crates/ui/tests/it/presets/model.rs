@@ -2,9 +2,7 @@
 
 use craft_ui::contract::{OpenChange, ReorderMove};
 use craft_ui::patterns::presets::{
-    DefaultOpen, GroupPath, PresetChange, PresetCommands, PresetError, PresetEvent, PresetFileEvent, PresetFileFailure, PresetFileRequest,
-    PresetFiles, PresetId, PresetKey, PresetLibrary, PresetMenuAction, PresetPanelMenu, PresetRow, PresetState, PresetView, children_end,
-    nest_allowed,
+    DefaultOpen, GroupPath, PresetChange, PresetError, PresetId, PresetKey, PresetLibrary, PresetRow, PresetState, children_end, nest_allowed,
 };
 use craft_ui::testing::trial;
 use craft_ui::tile_grid::TileZoom;
@@ -198,4 +196,3 @@ fn filtering_opens_every_group_and_stale_keys_and_zoom_are_cleaned_up() {
     state.zoom = f64::NAN;
     assert_eq!(state.zoom_in(&zoom), 1.0);
 }
-

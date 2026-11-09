@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use craft_behavior::kurbo::{Point, Rect};
-use craft_behavior::{CancelReason, CanvasView, Cursor, CursorIcon, EditEvent, Mixed, PointerButton};
+use craft_behavior::{CancelReason, CanvasView, EditEvent, Mixed, PointerButton};
 use craft_draw::geometry::connector::{ConnectionSide, ConnectorPath, RouteEnd, Routing, route_along};
 use craft_draw::ui::connector::{
     ConnectionSite, ConnectionTarget, ConnectorBar, ConnectorDraft, ConnectorEnd, ConnectorEndKind, ConnectorEvent, ConnectorHandles, ConnectorItem,

@@ -2,11 +2,8 @@
 
 use craft_behavior::dock::{Action, Column, DockEdge, DockPlacement, Floating, Group, Layout, Node, Permissions, SplitSize, Target};
 use craft_behavior::{Axis, DockSide};
-use craft_theme::{Contrast, ControlSize, Mode};
-use craft_ui::docking::{DockDrag, DockSizes, DockSpot, DockTargets, DragUnit, FloatSpace, float_drop, resolve_drop};
-use craft_ui::style::Variant;
+use craft_ui::docking::{DockDrag, DockSpot, DockTargets, DragUnit, resolve_drop};
 use craft_ui::testing::memory::global;
-use craft_ui::testing::style::{tokens, with_cx};
 use craft_ui::testing::{Frames, trial};
 use egui::{Context, Id, Pos2, Rect, Vec2};
 

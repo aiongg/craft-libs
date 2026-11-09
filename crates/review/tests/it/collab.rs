@@ -3,16 +3,14 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use craft_review::collab::{CollabRequest, CollabTransport, JoinState, PEOPLE_COLORS, Participant, ParticipantId, VoteScope, VoteSession};
-use craft_review::ui::{CursorChatBox, JoinField, PeopleBar, ReviewCommand, VotePill};
+use craft_review::collab::{CollabRequest, CollabTransport, JoinState, PEOPLE_COLORS, Participant, ParticipantId, VoteSession};
+use craft_review::ui::{CursorChatBox, ReviewCommand};
 use craft_theme::{contrast_ratio, text_contrast_min};
 use craft_ui::canvas::{Canvas, ToolHost};
 use craft_ui::contract::Show as _;
 use craft_ui::contract::{Commands as _, ShowContainer as _};
 use craft_ui::layout_components::Stack;
-use craft_ui::testing::{Fixture, Frames, pointer, trial};
-
-use crate::revisions::named;
+use craft_ui::testing::{Fixture, Frames, trial};
 
 #[derive(Clone)]
 struct Scripted {
@@ -62,33 +60,6 @@ fn session() -> Scripted {
 }
 
 type Requests = Rc<RefCell<Vec<CollabRequest>>>;
-
-fn bar(transport: Scripted) -> (Fixture, Requests) {
-    let requests: Requests = Rc::default();
-    let seen = requests.clone();
-    let mut fixture = Fixture::new(move |ui| seen.borrow_mut().extend(PeopleBar::new(&transport).show(ui).requests));
-    fixture.settle();
-    (fixture, requests)
-}
-
-fn join(state: JoinState) -> (Fixture, Requests) {
-    let requests: Requests = Rc::default();
-    let seen = requests.clone();
-    let transport = Scripted { join: state, ..session() };
-    let mut typed = String::new();
-    let mut fixture = Fixture::new(move |ui| seen.borrow_mut().extend(JoinField::new(&transport, &mut typed).show(ui).requests));
-    fixture.settle();
-    (fixture, requests)
-}
-
-fn pill(vote: Option<VoteSession>) -> (Fixture, Requests) {
-    let requests: Requests = Rc::default();
-    let seen = requests.clone();
-    let transport = Scripted { vote, ..session() };
-    let mut fixture = Fixture::new(move |ui| seen.borrow_mut().extend(VotePill::new(&transport).show(ui).requests));
-    fixture.settle();
-    (fixture, requests)
-}
 
 /// The cursor chat command opens the cursor chat; typing in it sends each change and Escape closes it with an empty chat.
 #[trial]

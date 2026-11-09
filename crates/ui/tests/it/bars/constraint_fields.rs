@@ -100,4 +100,3 @@ fn typed_lengths_convert_through_the_document_in_every_unit() {
     assert_eq!(typed(UnitKind::Inches, "50%", true), Constraint::Size(500.0, 480.0), "percent of the width");
     assert_eq!(typed(UnitKind::Pixels, "50%", false), Constraint::Size(640.0, 250.0), "percent of the height");
 }
-

@@ -2,13 +2,12 @@
 //! the resize gesture's chord and travel, and the cursor bitmap.
 
 use craft_behavior::kurbo::{Point, Rect as DocRect};
-use craft_behavior::{CanvasView, Cursor, GesturePhase, PaintedCursor, PointerButton};
-use craft_keymap::Mods;
+use craft_behavior::{CanvasView, Cursor, GesturePhase, PaintedCursor};
 use craft_theme::Rgba;
 use craft_ui::canvas::ToolContext;
 use craft_ui::canvas_controls::brush::{
     BrushCursor, BrushCursorOptions, BrushDimensions, BrushResize, BrushResizeOptions, BrushTip, BrushTipOutline, CursorBitmap, CursorBitmapSpec,
-    PaintingCursor, TipFalloff, TipPose,
+    PaintingCursor, TipPose,
 };
 use craft_ui::testing::trial;
 use egui::{Pos2, Rect, pos2, vec2};

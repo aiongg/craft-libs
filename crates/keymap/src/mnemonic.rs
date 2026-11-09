@@ -101,5 +101,4 @@ mod tests {
         assert_eq!(assign(&["Save && &Close"]), [Some(('C', 7))]);
         assert_eq!(assign(&["文件(&F)"]), [Some(('F', 3))]);
     }
-
 }

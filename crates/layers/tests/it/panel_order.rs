@@ -4,7 +4,7 @@ use craft_behavior::EditEvent;
 use craft_keymap::Mods;
 use craft_layers::ui::filter::{FilterKind, LayerFilter};
 use craft_layers::ui::mock::FakeLayers;
-use craft_layers::ui::panel::{LayerDrop, LayerPosition, LayersEvent, LayersFooterAction, LayersFooterButton, LayersPanel};
+use craft_layers::ui::panel::{LayerDrop, LayerPosition, LayersEvent, LayersFooterAction, LayersPanel};
 use craft_layers::ui::tree::{
     LayerInfo, LayerKind, LayerPart, LayerProperties, LayerRowKey, LayerSelection, LayerTree, LayersFooterState, SubRowGroup, SubRows,
 };
@@ -443,14 +443,6 @@ fn footer_modifiers_report_ask_below_and_from_selection() {
     rig.tree.borrow_mut().selection = LayerSelection::new(Vec::new(), None, LayerPart::Pixels);
     rig.fixture.idle(2);
     assert_eq!(press(&mut rig, NEW_GROUP, Modifiers::SHIFT), group(false, false, false), "no active layer: an empty group");
-}
-
-fn footer_drops(rig: &Rig<FakeLayers>) -> Vec<(LayersFooterButton, Vec<LayerRowKey<u32>>)> {
-    rig.seen
-        .borrow()
-        .iter()
-        .filter_map(|event| if let LayersEvent::FooterDrop { button, rows, .. } = event { Some((*button, rows.clone())) } else { None })
-        .collect()
 }
 
 /// A drag from another Layers panel (another document) is taken by none of this panel's footer buttons.

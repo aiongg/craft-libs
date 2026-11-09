@@ -3,7 +3,7 @@
 
 use craft_host::target::Os;
 use craft_keymap::Mods;
-use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::dialog::Dialog;
 use craft_ui::runtime::focus::Initial;
 use craft_ui::sections::{DialogRole, FooterButton};

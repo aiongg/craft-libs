@@ -4,7 +4,7 @@
 use craft_behavior::kurbo::{Point, Vec2};
 use craft_behavior::{CanvasView, PixelSize};
 use craft_ui::canvas::{Canvas, CanvasSpace, PixelRect, RasterSource};
-use craft_ui::canvas_controls::{CanvasGrid, GridLine, GridSegment, MAX_LINES, PixelGrid};
+use craft_ui::canvas_controls::{CanvasGrid, GridLine, GridSegment, PixelGrid};
 use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::primitives::Revision;
 use craft_ui::testing::{Fixture, trial};
@@ -16,11 +16,7 @@ use std::rc::Rc;
 const PIXELS_PER_POINT: f32 = 1.0;
 const SIDE: f32 = 400.0;
 
-/// A canvas wide enough to show more lines than the cap allows.
-const HUGE_SIDE: f32 = 1.0e6;
 const MAJOR: f64 = 100.0;
-/// A step wide enough to draw (six points or more) that still puts more lines than the cap in `HUGE_SIDE`.
-const DENSE: f64 = 10.0;
 
 /// A view of a `SIDE` square canvas showing the document from (0, 0) at `zoom` points per unit.
 fn space(zoom: f64) -> CanvasSpace {

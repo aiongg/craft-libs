@@ -6,7 +6,7 @@ use std::rc::Rc;
 use craft_behavior::{EditEvent, SelectionChange};
 use craft_timeline::ui::{Timeline, TimelineEdit};
 use craft_timeline::{
-    ClipEdit, ClipId, ClipInfo, FrameRate, Marker, MarkerColor, Tick, TimeFormat, TimeRange, TimeView, TimelineModel, TrackId, TrackInfo, TrackKind,
+    ClipEdit, ClipId, ClipInfo, FrameRate, Marker, Tick, TimeFormat, TimeRange, TimeView, TimelineModel, TrackId, TrackInfo, TrackKind,
 };
 use craft_ui::contract::Role;
 use craft_ui::testing::{Fixture, trial};
@@ -268,4 +268,3 @@ fn the_divider_changes_and_keeps_the_share() {
     let after = rows(&fixture)[2].top();
     assert!(after < before, "the audio side moved up with the divider: {before} -> {after}");
 }
-

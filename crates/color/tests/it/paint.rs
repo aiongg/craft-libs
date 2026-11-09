@@ -3,11 +3,8 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use craft_behavior::PartKey;
 use craft_color::ui::{
-    FillKind, GradientPreview, ImagePreview, LutChoice, LutPicker, Paint, PaintChip, PaintLink, PaintLinkKind, PaintList, PaintListEvent,
-    PaintListOptions, PaintRow, PairWell, ProfileAction, ProfileMismatchDialog, ProfileMode, ProfileQuestion, ProfileStatus, ProfileWords,
-    SwatchPair, Well,
+    GradientPreview, ImagePreview, Paint, PaintChip, PairWell, ProfileAction, ProfileMismatchDialog, ProfileMode, ProfileQuestion, SwatchPair, Well,
 };
 use craft_theme::Srgba;
 use craft_ui::contract::{Bind, Role, Show as _};
@@ -65,22 +62,6 @@ fn switching_tabs_sets_the_paint_and_back_to_solid_restores_the_last_colour() {
     assert_eq!(*state.borrow(), Paint::Solid(solid), "Solid starts from the last solid colour");
 }
 
-fn list_rig(options: PaintListOptions) -> (Fixture, Rc<RefCell<Vec<PaintListEvent>>>) {
-    let events = Rc::new(RefCell::new(Vec::new()));
-    let shared = events.clone();
-    let paints = vec![("Brand".to_owned(), Paint::Solid(FALLBACK)), ("Sky".to_owned(), Paint::Solid(Srgba::rgb(0.5, 0.7, 1.0)))];
-    let rows = vec![PaintRow::linked(PaintLink::new("Primary", PaintLinkKind::Style)), PaintRow::default()];
-    let selected = Rc::new(Cell::new(None::<usize>));
-    let mut fixture = Fixture::new(move |ui| {
-        let mut held = selected.get();
-        let out = PaintList::new("Paints", &paints, Bind::bound(&mut held)).options(options).rows(&rows).show(ui);
-        selected.set(out.selected.or(held));
-        shared.borrow_mut().extend(out.events);
-    });
-    fixture.settle();
-    (fixture, events)
-}
-
 #[derive(Default, Clone, Copy)]
 struct PairSeen {
     clicked: Option<Well>,
@@ -130,7 +111,7 @@ fn well(fixture: &Fixture, at: usize) -> craft_ui::testing::Target {
 
 #[trial]
 fn a_click_makes_a_well_active_and_a_double_click_opens_its_popup() {
-    let (mut fixture, seen, root) = pair_rig(true, true);
+    let (mut fixture, seen, _root) = pair_rig(true, true);
     let secondary = well(&fixture, 1);
     fixture.click(&secondary);
     assert_eq!(seen.get().active, Well::Secondary);
@@ -155,18 +136,6 @@ fn in_host_picker_mode_enter_clicks_the_focused_well_and_the_arrows_only_move_th
     fixture.idle(2);
     assert!(seen.get().clicked.is_some(), "Enter clicks the focused well");
     assert_eq!(seen.get().open, None);
-}
-
-fn lut_rig(value: LutChoice) -> (Fixture, Rc<RefCell<LutChoice>>) {
-    let state = Rc::new(RefCell::new(value));
-    let shared = state.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        let mut choice = shared.borrow().clone();
-        LutPicker::new(Bind::bound(&mut choice)).show(ui);
-        *shared.borrow_mut() = choice;
-    });
-    fixture.settle();
-    (fixture, state)
 }
 
 fn profile_rig(dialog: ProfileMismatchDialog) -> (Fixture, Rc<RefCell<Option<DialogResult<craft_color::ui::ProfileAnswer>>>>) {
@@ -213,4 +182,3 @@ fn remember_shows_for_a_mismatch_only_and_comes_back_in_the_answer() {
         other => panic!("{other:?}"),
     }
 }
-

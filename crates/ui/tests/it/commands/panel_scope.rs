@@ -2,11 +2,10 @@
 
 use super::kit::FixedStyle;
 use craft_behavior::Sense;
-use craft_host::target::Os;
 use craft_ui::buttons::Button;
 use craft_ui::contract::{CommandSet, Common, Component, Cx, Props as _, Role, Show as _, ShowContainer as _};
 use craft_ui::layout_components::Stack;
-use craft_ui::runtime::commands::{CommandScope, Commands as _, resolve};
+use craft_ui::runtime::commands::{CommandScope, Commands as _};
 use craft_ui::runtime::focus::{FocusTarget, request};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::{Fixture, trial};
@@ -119,4 +118,3 @@ fn a_focused_leaf_takes_its_scoped_command_and_an_unfocused_one_does_not() {
         assert_eq!((counts[0].get(), counts[1].get()), expected, "only the focused leaf ({focused}) takes the command");
     }
 }
-

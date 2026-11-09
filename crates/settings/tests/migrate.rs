@@ -63,4 +63,3 @@ fn legacy_file_is_imported_on_first_run_and_left_in_place() {
     assert_eq!(std::fs::read_to_string(&old).unwrap(), r#"{"lang":"de","dark":true}"#);
     assert!(read_config(tmp.path()).contains("language = \"de\""));
 }
-

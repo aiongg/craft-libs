@@ -1,16 +1,13 @@
 //! The view tools: what a gesture asks the app's view to become, and the checks every tool owes the canvas.
 
 use craft_behavior::kurbo::{Point, Size};
-use craft_behavior::{CancelReason, CanvasView, PointerButton};
-use craft_ui::canvas::{
-    CanvasSpace, CanvasTool, HandTool, NavigationOptions, RotateViewTool, ToolContext, ToolKey, ToolPointer, ViewCommands, ZoomTool,
-};
+use craft_behavior::{CanvasView, PointerButton};
+use craft_ui::canvas::{CanvasSpace, CanvasTool, HandTool, NavigationOptions, RotateViewTool, ToolContext, ToolKey, ToolPointer, ZoomTool};
 use craft_ui::testing::{ToolFixture, trial};
 use egui::{Pos2, Rect, Vec2};
 
 const CANVAS: Vec2 = Vec2::new(800.0, 600.0);
 const DOCUMENT: Size = Size::new(2000.0, 1500.0);
-const DRAG: Vec2 = Vec2::new(60.0, 40.0);
 
 fn view() -> CanvasView {
     CanvasView::new(Rect::from_min_size(Pos2::ZERO, CANVAS), Point::new(1000.0, 750.0), 1.0)

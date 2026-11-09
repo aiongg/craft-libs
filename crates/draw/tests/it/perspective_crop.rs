@@ -6,7 +6,7 @@ use craft_behavior::{CanvasView, EditEvent};
 use craft_draw::ui::crop::{
     PerspectiveCropEvent, PerspectiveCropQuad, PerspectiveCropTool, PerspectiveQuad, grid_lines, grid_steps, is_valid, ordered,
 };
-use craft_ui::canvas::{Canvas, CanvasTool as _, NUDGE, NUDGE_FAR, ToolContext, ToolHost, ToolKey};
+use craft_ui::canvas::{Canvas, ToolHost};
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
 use craft_ui::runtime::access::Role;
 use craft_ui::runtime::env::Message;
@@ -67,11 +67,6 @@ struct Rig {
 impl Rig {
     fn new(quad: PerspectiveQuad) -> Self {
         Self::build(quad, false)
-    }
-
-    /// A rig whose binding refuses a quad that cannot be committed, as a host's check does.
-    fn refusing(quad: PerspectiveQuad) -> Self {
-        Self::build(quad, true)
     }
 
     fn build(quad: PerspectiveQuad, refuse: bool) -> Self {
@@ -182,8 +177,3 @@ fn four_clicks_make_an_ordered_quad_and_a_drag_clears_the_clicks() {
     rig.press_move_release(from, to, false);
     assert_eq!(rig.host.borrow().tool.placing(), 0, "a drag clears the clicks");
 }
-
-fn context() -> ToolContext<'static> {
-    ToolContext::new(egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(400.0, 300.0)), None)
-}
-

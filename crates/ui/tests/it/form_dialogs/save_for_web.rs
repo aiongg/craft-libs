@@ -3,14 +3,13 @@
 use craft_behavior::PixelSize;
 use craft_ui::contract::Bind;
 use craft_ui::patterns::form_dialogs::{
-    Animation, HostRequests, SAVE_PATH_KEY, SaveForWebDialog, SaveForWebOptions, SaveForWebResult, WantedVariant, WebFormat, WebPane, WebPictures,
-    WebPreset, WebVariant, WebView,
+    Animation, HostRequests, SAVE_PATH_KEY, SaveForWebDialog, SaveForWebOptions, SaveForWebResult, WantedVariant, WebFormat, WebPictures, WebVariant,
 };
 use craft_ui::runtime::overlay::CloseReason;
 use craft_ui::runtime::requests::PathRequest;
 use craft_ui::testing::{Fixture, trial};
 use egui::load::SizedTexture;
-use egui::{ColorImage, Modifiers, TextureHandle, TextureOptions, Vec2};
+use egui::{ColorImage, TextureHandle, TextureOptions, Vec2};
 use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -109,7 +108,6 @@ fn save_files_the_picker_and_the_path_makes_the_answer() {
 struct Pictured {
     fixture: Fixture,
     /// The byte sizes the app answers for panes 0, 1 and 2, read on every frame.
-    bytes: Rc<RefCell<[u64; 3]>>,
     /// The frame the dialog reports.
     /// How many panes the dialog has asked the app to encode in all.
     asked: Rc<Cell<usize>>,
@@ -140,7 +138,7 @@ fn pictured(change: impl FnOnce(&mut SaveForWebOptions), animation: Option<Anima
         counted.set(counted.get() + dialog.show(ui).wanted_variants.len());
     });
     fixture.settle();
-    Pictured { fixture, bytes, asked }
+    Pictured { fixture, asked }
 }
 
 /// The painted texts that start with `prefix`.

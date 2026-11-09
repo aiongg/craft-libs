@@ -3,11 +3,11 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use craft_table::ui::{FieldArea, FieldListEdit, FieldListPane, FieldSort, PivotField};
+use craft_table::ui::{FieldArea, FieldListEdit, FieldListPane, PivotField};
 use craft_ui::contract::Role;
 use craft_ui::testing::access::name;
 use craft_ui::testing::{Fixture, Target, trial};
-use egui::{Event, Modifiers, PointerButton, Vec2};
+use egui::Vec2;
 
 /// The room the pane is shown in: tall enough for all four areas.
 const ROOM: Vec2 = Vec2::new(420.0, 900.0);
@@ -54,14 +54,6 @@ fn named(fixture: &Fixture, role: Role, label: &str) -> Vec<Target> {
 /// The field's row in an area: the lower of the rows named after it (the checklist's is above).
 fn area_row(fixture: &Fixture, field: &str) -> Target {
     named(fixture, Role::LIST_ITEM, field).pop().expect("the field's row in an area")
-}
-
-fn secondary_click(fixture: &mut Fixture, at: egui::Pos2) {
-    let button = |pressed| Event::PointerButton { pos: at, button: PointerButton::Secondary, pressed, modifiers: Modifiers::NONE };
-    fixture.frame(vec![Event::PointerMoved(at)]);
-    fixture.frame(vec![button(true)]);
-    fixture.frame(vec![button(false)]);
-    fixture.idle(2);
 }
 
 fn moves_into(app: &Rc<RefCell<App>>, area: FieldArea) -> Option<(Vec<String>, usize)> {

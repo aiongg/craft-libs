@@ -176,4 +176,3 @@ fn a_spacing_in_lines_keeps_its_kind_until_its_value_changes() {
     assert_eq!((answer.format.space_before, answer.format.space_before_kind), (Some(12.0), SpacingKind::Points));
     assert_eq!(answer.format.space_after_kind, SpacingKind::Points);
 }
-

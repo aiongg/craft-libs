@@ -2,9 +2,7 @@
 
 use kurbo::{Point, Rect, Vec2};
 
-use crate::annotate::{
-    Annotation, AnnotationGroup, AnnotationHandle, AnnotationHit, AnnotationId, AnnotationKind, AnnotationTool, handles, hit, reshaped, resized,
-};
+use crate::annotate::{Annotation, AnnotationHandle, AnnotationHit, AnnotationId, AnnotationKind, hit, resized};
 
 /// The icon side, in page units, the hit tests are given.
 const ICON: f64 = 16.0;

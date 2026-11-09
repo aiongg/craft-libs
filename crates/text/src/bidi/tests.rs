@@ -14,10 +14,6 @@ fn shown(p: &Paragraph<'_>, line: Range<usize>) -> String {
     p.visual_runs(line).iter().map(|r| if r.is_rtl() { rev(&p.text()[r.range.clone()]) } else { p.text()[r.range.clone()].to_string() }).collect()
 }
 
-fn shown_all(text: &str, base: Direction) -> String {
-    shown(&Paragraph::new(text, base), 0..text.len())
-}
-
 #[test]
 fn mixed_arabic_latin_numbers_and_brackets() {
     let s = "سنة 2024 (Retrait) فقط";

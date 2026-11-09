@@ -7,8 +7,8 @@ use craft_i18n::Folder;
 use craft_i18n::matcher::Matcher;
 use craft_theme::Rgba;
 use craft_ui::patterns::preferences::{
-    GroupSpec, PageInfo, PageSpec, PrefValue, PreferencesModel, RowKind, RowSpec, SettingRule, SettingsDocument, StandardPage, list_pages, matches,
-    row_shown, setting_label, shown_position,
+    GroupSpec, PageInfo, PageSpec, PrefValue, PreferencesModel, RowKind, RowSpec, SettingRule, SettingsDocument, StandardPage, list_pages, row_shown,
+    setting_label,
 };
 use craft_ui::runtime::env::UnitKind;
 use craft_ui::testing::trial;
@@ -321,11 +321,6 @@ fn reset_section_drops_keys_the_defaults_do_not_serialize() {
     doc.reset_page("brush");
     doc.apply().expect("the draft fits the struct");
     assert_eq!(doc.take_applied().expect("applied"), Sparse::default());
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-struct NoTomlForm {
-    map: std::collections::BTreeMap<(i32, i32), i32>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

@@ -9,7 +9,7 @@ use craft_ui::style::StyleCx;
 use craft_ui::testing::access::Declared;
 use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, trial};
-use egui::{Id, Key, Modifiers, Rect, Vec2, pos2};
+use egui::{Id, Rect, Vec2, pos2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 

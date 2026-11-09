@@ -275,29 +275,4 @@ impl<'a> FullWindowCanvas<'a> {
 struct FallbackHand(Option<HandTool>);
 
 #[cfg(feature = "testing")]
-mod trials {
-    use super::*;
-    use crate::testing::trial;
-
-    /// A source of one colour.
-    struct Solid(Color32);
-
-    impl RasterSource for Solid {
-        fn size(&self) -> PixelSize {
-            PixelSize::new(2, 1)
-        }
-
-        fn revision(&self) -> Revision {
-            Revision::new(1)
-        }
-
-        fn damage(&self, _: Revision) -> Option<PixelRect> {
-            None
-        }
-
-        fn read(&self, _: PixelRect, _: u32, out: &mut ColorImage) {
-            out.pixels.fill(self.0);
-        }
-    }
-
-}
+mod trials {}

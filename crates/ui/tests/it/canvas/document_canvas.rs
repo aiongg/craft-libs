@@ -14,8 +14,6 @@ use std::rc::Rc;
 
 const DOC: Size = Size::new(2000.0, 1500.0);
 const CANVAS: Rect = Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(800.0, 600.0));
-/// The canvas beside a Navigator panel: right of the panel's column.
-const BESIDE: Rect = Rect::from_min_max(Pos2::new(500.0, 0.0), Pos2::new(1300.0, 600.0));
 const ROOM: Vec2 = Vec2::new(1400.0, 800.0);
 
 /// Screen points two positions may differ by after the view's maths.
@@ -231,4 +229,3 @@ fn a_zoom_command_under_animated_zoom_eases_on_the_canvas() {
         fixture.key(Key::Equals, Modifiers::COMMAND);
     });
 }
-

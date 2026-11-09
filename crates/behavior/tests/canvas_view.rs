@@ -128,4 +128,3 @@ fn shift_snap_lands_on_a_tick_of_the_ruler() {
         assert!((snapped - position).abs() <= minor / 2.0 + 1e-9, "{position} moves to the nearest tick, not {snapped}");
     }
 }
-

@@ -9,7 +9,7 @@ use craft_host::target::{Caps, ShellInfo};
 use craft_ui::choice::Checkbox;
 use craft_ui::contract::overlay::OverlayFit;
 use craft_ui::contract::{Bind, SaveKey};
-use craft_ui::contract::{ContainerProps, DragBand, HeaderRegion, Mount, Overlay, Props as _, Show as _, ShowContainer as _, Sizing};
+use craft_ui::contract::{ContainerProps, Mount, Overlay, Props as _, Show as _, ShowContainer as _, Sizing};
 use craft_ui::layout_components::Stack;
 use craft_ui::runtime::InstallSpec;
 use craft_ui::testing::input::key_press;
@@ -21,29 +21,11 @@ use egui::{Key, Modifiers, Pos2, Rect, Ui, Vec2, ViewportEvent, ViewportId, View
 use std::cell::{Cell, RefCell};
 use std::sync::{Arc, Mutex};
 
-/// What the pointer drags a layer by, and the most its position may differ from the drag.
-const MOVE: Vec2 = Vec2::new(40.0, 30.0);
-const GROW: Vec2 = Vec2::new(30.0, 20.0);
 const SLACK: f32 = 1.5;
 /// The inner size of the exported window, in points.
 const INNER: [f32; 2] = [420.0, 310.0];
 /// The body the layers show.
 const BODY: Vec2 = Vec2::new(120.0, 60.0);
-
-fn layer_props(overlay: Overlay) -> ContainerProps {
-    ContainerProps::new().mount(Mount::Layer(overlay)).sizing(Sizing::Content).header(HeaderRegion::new().band(DragBand::Move))
-}
-
-/// Shows a layer container for `frames`, recording its rect.
-fn show_layer(rect: &Cell<Rect>, overlay: &Overlay) -> impl FnMut(&mut Ui) {
-    let overlay = overlay.clone();
-    move |ui| {
-        let out = Slab::new(layer_props(overlay.clone())).id_salt("layer").show(ui, |ui, _| {
-            Block::new(BODY).show(ui);
-        });
-        rect.set(out.output.rect);
-    }
-}
 
 #[trial]
 fn a_zoomed_canvas_body_hits_its_members_in_canvas_space() {

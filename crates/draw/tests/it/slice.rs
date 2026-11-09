@@ -3,15 +3,11 @@
 use craft_behavior::geometry::Constraint;
 use craft_behavior::kurbo::{Point, Rect};
 use craft_behavior::{CanvasView, EditEvent};
-use craft_draw::ui::slice::{
-    DivideBy, DivideSlices, DivideSlicesDialog, SliceCommand, SliceEvent, SliceItem, SliceKind, SliceMode, SliceOptions, SliceOptionsDialog,
-    SliceOrigin, SliceOverlay, SliceRefusal, SliceRules, SliceTool, SliceToolSettings,
-};
+use craft_draw::ui::slice::{SliceEvent, SliceItem, SliceMode, SliceOrigin, SliceOverlay, SliceRefusal, SliceRules, SliceTool, SliceToolSettings};
 use craft_ui::canvas::{Canvas, ToolHost};
 use craft_ui::contract::{Show as _, ShowContainer as _};
-use craft_ui::dialog::{DialogHost, StackDialog as _};
 use craft_ui::testing::{Fixture, pointer, trial};
-use egui::{Key, Modifiers, Pos2};
+use egui::{Modifiers, Pos2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -243,11 +239,3 @@ fn locked_slices_refuse_every_gesture() {
     h.drag(from, from + egui::vec2(40.0, 25.0), Modifiers::NONE);
     assert!(drawn(&h.events()).is_empty() && h.events().contains(&SliceEvent::Refused(SliceRefusal::Locked)));
 }
-
-fn committed_or_set(events: &[SliceEvent], number: usize) -> Option<Rect> {
-    events.iter().find_map(|event| match event {
-        SliceEvent::Move { number: n, event: EditEvent::Set { after, .. }, .. } if *n == number => Some(*after),
-        _ => None,
-    })
-}
-

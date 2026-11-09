@@ -4,11 +4,9 @@
 use craft_behavior::geometry::quad::BoxState;
 use craft_behavior::kurbo::{Point, Rect};
 use craft_behavior::{EditEvent, RulerUnits, Ticks};
-use craft_draw::ui::transform::{
-    BarGroups, Interpolation, SizeUnit, TransformBar, TransformEdit, TransformFields, TransformRow, TransformSession, TransformSettings,
-};
+use craft_draw::ui::transform::{BarGroups, SizeUnit, TransformFields, TransformRow};
 use craft_ui::canvas::RulerText;
-use craft_ui::contract::{Bind, Entry, Show as _};
+use craft_ui::contract::Bind;
 use craft_ui::runtime::env::UnitKind;
 use craft_ui::testing::{Fixture, Target, pointer, trial};
 use egui::{Key, Modifiers, Pos2, Vec2};
@@ -215,120 +213,3 @@ fn typing_50_into_w_of_a_distorted_box_equals_typing_50_once_from_the_start_box(
     let (a, b) = (once.row(), by_digit.row());
     assert!(a.state.quad.iter().zip(&b.state.quad).all(|(p, q)| p.distance(*q) < 1e-6), "{a:?} {b:?}");
 }
-
-/// What the bar host keeps.
-struct BarHost {
-    session: TransformSession<()>,
-    settings: TransformSettings,
-    edits: Vec<TransformEdit<()>>,
-    apply: bool,
-    discard: bool,
-    reset: bool,
-    unit: Option<UnitKind>,
-}
-
-fn bar(warp: bool) -> (Fixture, Rc<RefCell<BarHost>>) {
-    let mut session = TransformSession::<()>::new(START);
-    if warp {
-        let _ = session.apply(TransformEdit::Warp(()), 0.0);
-    }
-    let host = Rc::new(RefCell::new(BarHost {
-        session,
-        settings: TransformSettings::default(),
-        edits: Vec::new(),
-        apply: false,
-        discard: false,
-        reset: false,
-        unit: None,
-    }));
-    let shown = Rc::clone(&host);
-    let units = [Entry::new(UnitKind::Percent, "Percent"), Entry::new(UnitKind::Pixels, "Pixels"), Entry::new(UnitKind::Inches, "Inches")];
-    let mut fixture = Fixture::new(move |ui| {
-        let mut host = shown.borrow_mut();
-        let BarHost { session, settings, edits, apply, discard, reset, unit } = &mut *host;
-        let output = TransformBar::new("Free Transform", session, Bind::bound(settings)).size_units(&units).show(ui);
-        edits.extend(output.edits);
-        (*apply, *discard, *reset) = (*apply | output.apply, *discard | output.discard, *reset | output.reset_warp);
-        *unit = unit.or(output.unit_picked);
-    });
-    fixture.settle();
-    (fixture, host)
-}
-
-fn click(fixture: &mut Fixture, label: &str) {
-    let target = fixture.by_label(label).unwrap_or_else(|| panic!("the bar shows {label}"));
-    fixture.click(&target);
-    fixture.idle(3);
-}
-
-/// The name of the node that holds key focus: the focused part, or the focused component's own node.
-fn focused_name(fixture: &Fixture) -> Option<String> {
-    let (owner, part) = fixture.focused_stop()?;
-    let target = match part {
-        Some(part) => fixture.part(owner, part)?,
-        None => fixture.node_of(owner)?,
-    };
-    fixture.tree().name_of(target.node).map(str::to_owned)
-}
-
-/// Tabs through the bar and returns the names of the stops reached, in order, until the first stop repeats.
-fn tab_stops(fixture: &mut Fixture) -> Vec<String> {
-    let mut stops: Vec<String> = Vec::new();
-    for _ in 0..64 {
-        fixture.key(Key::Tab, Modifiers::NONE);
-        match focused_name(fixture) {
-            Some(name) if stops.contains(&name) => break,
-            Some(name) => stops.push(name),
-            None => {}
-        }
-    }
-    stops
-}
-
-/// The bar's buttons form one roving group whose Tab stop is the aspect link in the Box phase; the Warp phase has no
-/// fields, so its first Tab arrives in the group. Tabs to that stop.
-fn tab_to_the_bar_group(fixture: &mut Fixture) {
-    if fixture.by_label(GROUP_STOP).is_none() {
-        fixture.key(Key::Tab, Modifiers::NONE);
-        return;
-    }
-    for _ in 0..64 {
-        fixture.key(Key::Tab, Modifiers::NONE);
-        if focused_name(fixture).as_deref() == Some(GROUP_STOP) {
-            return;
-        }
-    }
-    panic!("Tab reaches {GROUP_STOP}");
-}
-
-const GROUP_STOP: &str = "Maintain aspect ratio";
-
-/// The names of the group's members, reached by Right from its Tab stop, in order after the stop itself.
-fn group_members(fixture: &mut Fixture) -> Vec<String> {
-    tab_to_the_bar_group(fixture);
-    let mut names = vec![GROUP_STOP.to_owned()];
-    for _ in 0..16 {
-        fixture.key(Key::ArrowRight, Modifiers::NONE);
-        match focused_name(fixture) {
-            Some(name) if !names.contains(&name) => names.push(name),
-            _ => break,
-        }
-    }
-    names
-}
-
-/// Reaches the control named `label` as a keyboard user does, a Tab stop or an arrow move inside the bar's group (which
-/// scrolls it into view), and presses Enter on it.
-fn activate(fixture: &mut Fixture, label: &str) {
-    tab_to_the_bar_group(fixture);
-    for _ in 0..16 {
-        if focused_name(fixture).as_deref() == Some(label) {
-            fixture.key(Key::Enter, Modifiers::NONE);
-            fixture.idle(3);
-            return;
-        }
-        fixture.key(Key::ArrowRight, Modifiers::NONE);
-    }
-    panic!("the bar's group reaches {label}");
-}
-

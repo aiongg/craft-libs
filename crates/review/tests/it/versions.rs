@@ -3,11 +3,11 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use craft_review::ui::{VersionAction, VersionHistoryPanel, VersionPreviewBanner};
+use craft_review::ui::{VersionAction, VersionHistoryPanel};
 use craft_review::versions::{Branch, BranchId, BranchState, Version, VersionId};
 use craft_ui::contract::Role;
 use craft_ui::testing::{Fixture, Target, trial};
-use egui::{Key, Modifiers, Rect, vec2};
+use egui::{Key, Modifiers, vec2};
 
 const NOW: i64 = 10_000;
 

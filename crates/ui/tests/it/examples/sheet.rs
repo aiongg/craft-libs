@@ -1,18 +1,16 @@
 //! The arrow split of 18.4 in `SheetGrid`: arrows are navigation with no cell open and in Enter mode, the caret's in
 //! Edit mode, and the reference cursor's in formula point mode.
 
-use craft_behavior::{CellSelection, RowAt, SelectionModel as _};
+use craft_behavior::CellSelection;
 use craft_ui::contract::{Bind, Props as _, Role, ShowCollection as _};
 use craft_ui::testing::examples::sheet::{CellEdit, Rows, SheetGrid, SheetRow};
 use craft_ui::testing::{Fixture, trial};
-use egui::{Event, Key, Modifiers, Vec2};
+use egui::{Key, Modifiers};
 use std::cell::RefCell;
 use std::rc::Rc;
 
 /// Enough rows that two steps down from the clicked middle cell stay inside the sheet.
 const ROWS: usize = 12;
-/// Far enough below the grid's middle to land at least two rows down.
-const ROW_STEP: f32 = 80.0;
 const COLUMNS: [&str; 4] = ["A", "B", "C", "D"];
 
 struct Rig {
@@ -64,16 +62,6 @@ impl Rig {
 
     fn press_with(&mut self, key: Key, mods: Modifiers) {
         self.fixture.key(key, mods);
-        self.fixture.idle(2);
-    }
-
-    /// A click at `at` with Ctrl (Cmd on macOS) held.
-    fn ctrl_click(&mut self, at: egui::Pos2) {
-        self.fixture.frame(vec![Event::ModifiersChanged(Modifiers::COMMAND)]);
-        self.fixture.frame(vec![craft_ui::testing::pointer::moved(at)]);
-        self.fixture.frame(vec![craft_ui::testing::pointer::press(at)]);
-        self.fixture.frame(vec![craft_ui::testing::pointer::release(at)]);
-        self.fixture.frame(vec![Event::ModifiersChanged(Modifiers::NONE)]);
         self.fixture.idle(2);
     }
 

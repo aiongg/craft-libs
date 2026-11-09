@@ -6,7 +6,7 @@ use std::rc::Rc;
 use craft_font_manager::glyphs::{GlyphSource, GlyphsPanel, GlyphsPanelSettings};
 use craft_ui::contract::Bind;
 use craft_ui::testing::{Fixture, Room, trial};
-use egui::{ColorImage, Key, Modifiers};
+use egui::ColorImage;
 
 /// Latin capitals, the euro sign and an arrow, with white square glyphs.
 struct Fake;
@@ -75,4 +75,3 @@ fn category_filters_the_grid() {
     assert!(fixture.by_label(&cell('€')).is_some());
     assert!(fixture.by_label(&cell('A')).is_none() && fixture.by_label(&cell('→')).is_none());
 }
-

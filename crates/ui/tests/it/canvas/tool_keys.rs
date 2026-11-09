@@ -274,4 +274,3 @@ fn alt_backspace_fills_with_no_outline_open_and_removes_a_point_with_one() {
         assert_eq!(app.outcome(), want, "outline open: {keeps}; an open outline takes the key, else the app fills");
     }
 }
-

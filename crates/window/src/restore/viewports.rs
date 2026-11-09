@@ -58,5 +58,4 @@ mod tests {
         let third = cascade_window(&main, 2, 28.0, None);
         assert_eq!(third.position_px, Some([312, 212]));
     }
-
 }

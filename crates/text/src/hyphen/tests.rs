@@ -297,4 +297,3 @@ fn hyphenating_a_long_word_is_linear() {
         assert!(ratio < 8.0, "4x the letters, not linear: {what}");
     }
 }
-

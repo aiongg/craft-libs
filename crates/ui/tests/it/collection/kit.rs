@@ -244,13 +244,6 @@ impl<'a> List<'a> {
         self
     }
 
-    /// A row drag carries the dragged row's key as a `RowKey`, except the row `skip`, which carries none.
-    pub fn row_key_payload_except(mut self, skip: usize) -> Self {
-        self.items =
-            self.items.drag_payload(move |drag: &craft_ui::contract::ListDrag<usize>| (drag.grabbed != skip).then_some(RowKey(drag.grabbed)));
-        self
-    }
-
     /// `parts` records `rect_of(key)` into `seen`.
     pub fn probe_parts(mut self, key: usize, seen: &'a Cell<Option<Rect>>) -> Self {
         self.parts_probe = Some((key, seen));
@@ -290,18 +283,6 @@ impl<'a> List<'a> {
         self
     }
 
-    /// A plain click on a row asks for its menu.
-    pub fn menu_on_click(mut self, on: bool) -> Self {
-        self.items = self.items.menu_on_click(on);
-        self
-    }
-
-    /// A press on the empty space, or on the selected row of a single selection, empties the selection.
-    pub fn allow_empty(mut self) -> Self {
-        self.items = self.items.allow_empty(true);
-        self
-    }
-
     /// A press picks a row and leaves key focus where it is.
     pub fn keep_focus(mut self) -> Self {
         self.items = self.items.focus_on_press(false);
@@ -312,12 +293,6 @@ impl<'a> List<'a> {
     pub fn natural_height(mut self) -> Self {
         self.items = self.items.natural_height(true);
         self.props = self.props.sizing(craft_ui::contract::Sizing::FillWidth);
-        self
-    }
-
-    /// Row `key` is the current one.
-    pub fn current(mut self, key: usize) -> Self {
-        self.items = self.items.current(Some(key));
         self
     }
 
@@ -334,17 +309,6 @@ impl<'a> List<'a> {
 
     pub fn tree(mut self) -> Self {
         self.tree = true;
-        self
-    }
-
-    /// The collection's own empty-state text.
-    pub fn empty_text(mut self, text: &'static str) -> Self {
-        self.items = self.items.empty(text);
-        self
-    }
-
-    pub fn on_empty(mut self, seen: &'a Cell<Rect>) -> Self {
-        self.on_empty = Some(seen);
         self
     }
 }

@@ -1,8 +1,7 @@
 //! `ChannelsPanel` over sample rows: targeting, loading, options, rename, reorder, the footer and the commands.
 
 use craft_behavior::EditEvent;
-use craft_behavior::geometry::selection_op::SelectionOperation;
-use craft_imaging::ui::channels::{ChannelKind, ChannelRow, ChannelsEvent, ChannelsFooterButton, ChannelsPanel, ColorIndicates, targeted_row};
+use craft_imaging::ui::channels::{ChannelKind, ChannelRow, ChannelsEvent, ChannelsFooterButton, ChannelsPanel, ColorIndicates};
 use craft_theme::Srgba;
 use craft_ui::contract::{Role, SweepStep};
 use craft_ui::testing::{Fixture, Target, pointer, trial};
@@ -82,12 +81,6 @@ fn row(fixture: &Fixture, name: &str) -> Target {
     fixture.by_label(name).unwrap_or_else(|| panic!("no row named {name}"))
 }
 
-/// The middle of the thumbnail of the row `name`: after the eye, in the first square of the row.
-fn thumb(fixture: &Fixture, name: &str) -> Pos2 {
-    let rect = row(fixture, name).rect;
-    Pos2::new(rect.left() + rect.height() * 1.5, rect.center().y)
-}
-
 fn double_click(fixture: &mut Fixture, pos: Pos2) {
     fixture.frame(vec![pointer::moved(pos)]);
     for _ in 0..2 {
@@ -116,13 +109,6 @@ fn drops(events: Vec<ChannelsEvent<u32>>) -> Vec<(ChannelsFooterButton, Vec<u32>
     events
         .into_iter()
         .filter_map(|event| if let ChannelsEvent::FooterDrop { button, rows, .. } = event { Some((button, rows)) } else { None })
-        .collect()
-}
-
-fn loads(events: Vec<ChannelsEvent<u32>>) -> Vec<(u32, SelectionOperation)> {
-    events
-        .into_iter()
-        .filter_map(|event| if let ChannelsEvent::LoadSelection { key, operation, .. } = event { Some((key, operation)) } else { None })
         .collect()
 }
 
@@ -252,4 +238,3 @@ fn rename_from_the_row_menu_starts_the_rename() {
     fixture.idle(3);
     assert!(editing(&fixture), "the rename field is open");
 }
-

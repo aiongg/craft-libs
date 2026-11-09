@@ -69,4 +69,3 @@ fn a_step_in_flight_is_withdrawn_when_focus_moves_before_its_pass() {
     assert!(hook_without_pass(&ctx, viewport).is_empty(), "the rest of the queue went with it");
     assert!(WindowHost::of(&ctx).injected_idle());
 }
-

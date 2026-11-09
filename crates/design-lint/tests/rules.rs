@@ -4,7 +4,7 @@
 
 use std::path::Path;
 
-use craft_design_lint::{Config, Finding, Severity, analyze_source, check};
+use craft_design_lint::{Config, Finding, analyze_source, check};
 
 fn run(src: &str) -> Vec<Finding> {
     analyze_source(src, false).findings

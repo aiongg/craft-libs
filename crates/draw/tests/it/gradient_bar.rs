@@ -4,11 +4,11 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use craft_behavior::{EditEvent, PartKey};
+use craft_behavior::EditEvent;
 use craft_draw::ui::gradient::stops::{self, StopRules, default_sampler, sample};
 use craft_draw::ui::gradient::{ColorStop, GradientEditor, GradientStops, OpacityStop, StopDrop, StopRef, StopRow, StopRows};
 use craft_theme::Srgba;
-use craft_ui::contract::{Bind, Role};
+use craft_ui::contract::Bind;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers, Vec2};
 

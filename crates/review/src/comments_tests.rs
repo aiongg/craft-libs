@@ -1,9 +1,7 @@
 //! Comment threads.
 
-use craft_i18n::Folder;
-
 use crate::annotate::AnnotationKind;
-use crate::comments::{CommentAnchor, CommentFilter, CommentMessage, CommentSort, CommentThread, ReviewStatus, ThreadId, matches, sort_threads};
+use crate::comments::{CommentAnchor, CommentFilter, CommentMessage, CommentSort, CommentThread, ReviewStatus, ThreadId, sort_threads};
 
 fn name(kind: AnnotationKind) -> String {
     match kind {

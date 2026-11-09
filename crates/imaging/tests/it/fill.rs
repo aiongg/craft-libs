@@ -12,8 +12,8 @@ use craft_behavior::kurbo::Rect;
 use craft_behavior::{CancelReason, EditHistory, PixelSize};
 use craft_imaging::ui::fill::{
     ContentAwareFillWorkspace, FillAreaEdit, FillCommand, FillEvent, FillLimit, FillLimits, FillOpen, FillOutput, FillOutputTo, FillOverlay,
-    FillPreviewPane, FillPreviewRequest, FillReset, FillSession, FillSettings, FillSource, FillStrokeEvent, FillToolOptions, PreviewFraming,
-    RotationAdaptation, SamplingMode, SamplingPlane, SamplingStroke,
+    FillPreviewPane, FillPreviewRequest, FillReset, FillSession, FillSettings, FillSource, FillStrokeEvent, PreviewFraming, RotationAdaptation,
+    SamplingMode, SamplingPlane, SamplingStroke,
 };
 use craft_imaging::ui::select_mask::EditMode;
 use craft_imaging::ui::wide_angle::PreviewDone;
@@ -23,7 +23,6 @@ use craft_ui::dialog::FullWindowView;
 use craft_ui::primitives::Revision;
 use craft_ui::runtime::access::Role;
 use craft_ui::runtime::pending::{Job, Pending};
-use craft_ui::sections::DialogRole;
 use craft_ui::testing::{Fixture, pointer, trial};
 
 const NONE: Modifiers = Modifiers::NONE;

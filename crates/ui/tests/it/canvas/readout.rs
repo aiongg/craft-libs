@@ -95,4 +95,3 @@ fn the_readout_mirrors_under_right_to_left() {
     assert!(label.max.x < at.get().x, "the readout sits toward the reading end, to the pointer's left: {label:?}");
     assert!(label.min.x > value.max.x, "the label starts at the right and the value ends at the left");
 }
-

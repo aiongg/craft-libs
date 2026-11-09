@@ -5,9 +5,7 @@ use std::sync::Arc;
 
 use craft_fonts_build::EmbeddedFace;
 use craft_theme::{Contrast, ControlSize, Mode, Variant};
-use craft_ui::fonts::{
-    CjkRows, Emoji, FaceList, Family, FontRef, I18nScripts, RegularWeight, Stack, SystemFonts, UiFonts, set_weight, system_font_provider,
-};
+use craft_ui::fonts::{Emoji, FaceList, Family, FontRef, I18nScripts, RegularWeight, Stack, SystemFonts, UiFonts, set_weight, system_font_provider};
 use craft_ui::list::{ListRow, ThumbSize};
 use craft_ui::testing::style::{tokens, with_cx};
 use craft_ui::testing::{Frames, trial};

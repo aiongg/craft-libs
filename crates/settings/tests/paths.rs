@@ -4,9 +4,8 @@ mod common;
 
 use std::path::PathBuf;
 
-use common::{Prefs, empty_probe, open_in, probe_with_env};
-use craft_settings::paths::{Location, Portable, Probe, Rule, env_var_name, resolve};
-use craft_settings::{OpenOptions, Settings, SettingsStore};
+use common::{open_in, probe_with_env};
+use craft_settings::paths::{Location, Portable, Probe, Rule, resolve};
 
 #[test]
 fn env_var_wins_over_portable_and_platform() {

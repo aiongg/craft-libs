@@ -2,17 +2,14 @@
 //! the rows' use of a bound value.
 
 use craft_ui::contract::Bind;
-use craft_ui::patterns::form_dialogs::{DialogFields, FieldValue, NumberUnit, Param, ParamDialog, ParamKind, ParamResult, ParamRows, open_fields};
-use craft_ui::runtime::env::UnitKind;
+use craft_ui::patterns::form_dialogs::{DialogFields, FieldValue, Param, ParamKind, ParamRows};
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::value_drag::SliderScale;
-use egui::{Key, Modifiers};
 use std::cell::RefCell;
 use std::rc::Rc;
 
 const SPEC: &str = r#"{"radius":0.1..1000=1,"method":"spin|zoom"="zoom","monochromatic":bool,"seed":u32=0,"cellSize":px=4,"tint":color=#ff8000,"kernel":int[25],"layer":layer id,"curve":json,"note":text} -> {"x":1}"#;
 const KERNEL_CELLS: usize = 25;
-const LOG_LIMIT: f64 = 500.0;
 const RADIUS_DEFAULT: f64 = 1.0;
 
 /// The registry notation gives the kinds, bounds, defaults and labels the rows show; entries the rows do not edit are
@@ -37,13 +34,6 @@ fn the_registry_notation_parses_into_params() {
     assert!(params[6].kind.fits(&kernel));
     assert!(!params[0].kind.fits(&FieldValue::Number(5000.0)));
     assert!(!params[1].kind.fits(&FieldValue::Text("wobble".into())));
-}
-
-fn sample() -> DialogFields {
-    let mut fields = DialogFields::from_pairs([("radius", FieldValue::Number(2.5)), ("method", "spin".into())]);
-    fields.set("seed", 7_i64);
-    fields.snapshot();
-    fields
 }
 
 /// A stored table reads back with its integers as integers and its lists as lists, and equality ignores the opening
@@ -80,4 +70,3 @@ fn rows_fill_defaults_through_the_binding() {
     let fields = fields.borrow();
     assert_eq!((fields.number("radius"), fields.text("method"), fields.text("note")), (Some(RADIUS_DEFAULT), Some("zoom"), Some("kept")));
 }
-

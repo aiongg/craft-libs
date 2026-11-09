@@ -55,4 +55,3 @@ fn an_inspector_keys_its_controls_by_the_target() {
     rig.show(Some("a"));
     assert_eq!(rig.field.get(), Some(first), "the first target gets its ids back");
 }
-

@@ -1,10 +1,9 @@
 //! `Panel`: the header's menu opens from the menu key as well as from a click on the menu button.
 
-use craft_ui::contract::{Role, Show as _, ShowContainer as _};
+use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::menu::MenuItem;
 use craft_ui::sections::{HeaderAction, Panel};
 use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers};
 
 #[trial]
 fn a_click_on_a_panels_menu_button_opens_the_panel_menu() {

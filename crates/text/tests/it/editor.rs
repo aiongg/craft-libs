@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 use craft_behavior::kurbo::Point;
 use craft_text::quotes::QuoteStyle;
-use craft_text::ui::editor::{CaretLine, EditKind, HostLine, TextEditor, TextEditorHost, TextSelection, click_count, click_selection, word_boundary};
+use craft_text::ui::editor::{CaretLine, EditKind, HostLine, TextEditor, TextEditorHost, TextSelection, click_count, click_selection};
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, trial};
@@ -78,7 +78,6 @@ impl TextEditorHost for Host {
 struct Session {
     fixture: Fixture,
     host: Rc<RefCell<Host>>,
-    selection: Rc<RefCell<TextSelection>>,
     commits: Rc<Cell<u32>>,
 }
 
@@ -99,7 +98,7 @@ fn session(text: &str, quotes: Option<QuoteStyle>) -> Session {
         });
     });
     fixture.settle();
-    Session { fixture, host, selection, commits }
+    Session { fixture, host, commits }
 }
 
 impl Session {
@@ -134,4 +133,3 @@ fn click_runs_select_word_line_paragraph_all() {
     assert_eq!(click_selection(text, 9, None, 4), 8..13);
     assert_eq!(click_selection(text, 9, None, 5), 0..13);
 }
-

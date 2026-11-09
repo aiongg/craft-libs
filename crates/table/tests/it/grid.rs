@@ -6,8 +6,8 @@ use std::rc::Rc;
 
 use craft_behavior::{CellSelection, EditEvent, PartKey, PartRef};
 use craft_table::ui::{
-    CellAt, CellEdit, CellGrid, CellProblem, CellRange, ColumnFilter, GridEdit, GridLayout, GridModel, GridState, LineIndex, SHEET_COLUMNS,
-    SHEET_ROWS, SheetGeometry, SheetMetrics, absolute_reference, column_letters,
+    CellAt, CellEdit, CellGrid, CellProblem, CellRange, ColumnFilter, GridEdit, GridModel, GridState, LineIndex, SHEET_COLUMNS, SHEET_ROWS,
+    absolute_reference, column_letters,
 };
 use craft_ui::contract::PaintUi;
 use craft_ui::primitives::TextRun;
@@ -60,9 +60,7 @@ struct Rig {
     fixture: Fixture,
     state: Rc<RefCell<GridState>>,
     edits: Rc<RefCell<Vec<GridEdit>>>,
-    marks: Rc<RefCell<Vec<CellRange<u32>>>>,
     committed: Rc<RefCell<Vec<CellEdit>>>,
-    zoom: Rc<Cell<f32>>,
     grid: Rc<Cell<Option<egui::Id>>>,
 }
 
@@ -90,7 +88,7 @@ fn rig(hidden_column: Option<u32>, selection: CellSelection<u32>, zoom: f32) -> 
     let target = fixture.node_of(grid.get().expect("the grid showed")).expect("the grid has a node");
     fixture.access(AccessActionKind::Focus, &target);
     fixture.settle();
-    Rig { fixture, state, edits, marks, committed, zoom: seen_zoom, grid }
+    Rig { fixture, state, edits, committed, grid }
 }
 
 impl Rig {
@@ -133,14 +131,6 @@ impl Rig {
 
 fn a1() -> CellSelection<u32> {
     CellSelection::cell(CellAt::new(0, 0))
-}
-
-fn geometry(zoom: f32, rtl: bool) -> SheetGeometry {
-    let rows = LineIndex::new(&BTreeMap::new(), ROW, SHEET_ROWS);
-    let columns = LineIndex::new(&BTreeMap::new(), COLUMN, SHEET_COLUMNS);
-    let room = Vec2::new(columns.start(6) as f32, rows.start(15) as f32);
-    let layout = GridLayout::new(Rect::from_min_size(Pos2::ZERO, room), rows, columns).zoom(zoom).frozen(1, 1).right_to_left(rtl);
-    SheetGeometry::new(layout, SheetMetrics::new(ROW, 8.0, 4.0))
 }
 
 #[trial]

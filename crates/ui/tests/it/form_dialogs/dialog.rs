@@ -1,25 +1,19 @@
 //! The preview view maths and what a remembering dialog saves.
 
 use craft_behavior::CanvasTransform;
-use craft_ui::contract::tooltip::DELAY;
-use craft_ui::contract::{Bind, Role, ShowContainer as _};
+use craft_ui::contract::{Bind, ShowContainer as _};
 use craft_ui::dialog::{Dialog, FullWindowDialog};
-use craft_ui::patterns::form_dialogs::{
-    DialogFields, FieldValue, HostRequests, Param, ParamDialog, ParamKind, ParamRows, PreviewPane, ResetFooter, ResetPick,
-};
+use craft_ui::patterns::form_dialogs::{DialogFields, FieldValue, Param, ParamDialog, ParamKind, PreviewPane, ResetFooter, ResetPick};
 use craft_ui::runtime::focus::Initial;
 use craft_ui::sections::{DialogRole, FooterButton};
-use craft_ui::testing::pointer::moved;
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::value_drag::SliderScale;
-use egui::{Key, Modifiers, Pos2, Vec2};
+use egui::{Key, Modifiers, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 const PICTURE: Vec2 = Vec2::new(400.0, 300.0);
 const WELL: Vec2 = Vec2::new(200.0, 200.0);
-const START: Vec2 = Vec2::new(10.0, -20.0);
-const STEPPED: Vec2 = Vec2::new(15.0, -30.0);
 const FAR: Vec2 = Vec2::new(5000.0, -5000.0);
 
 /// A picture smaller than the well sits in its middle; a larger one never shows a gap at an edge.
@@ -53,27 +47,6 @@ fn a_remembering_dialog_saves_the_portable_values() {
     assert_eq!(saved.bool("smooth"), Some(true));
     assert!(!saved.contains("note") && !saved.contains("scratch") && !saved.contains("stale"));
     assert_eq!(fields.get("note"), Some(&FieldValue::Text("hello".into())));
-}
-
-/// A fixture with a parameter dialog over `fields`, which reports whether it is still open, with Alt held or not.
-fn reset_rig(alt: bool, alt_resets: bool) -> (Fixture, Rc<RefCell<DialogFields>>, Rc<Cell<bool>>) {
-    let params = vec![Param::number("width", "Width", 640.0, 1.0, 0)];
-    let fields = Rc::new(RefCell::new(DialogFields::new()));
-    let open = Rc::new(Cell::new(true));
-    let (held, state) = (Rc::clone(&fields), Rc::clone(&open));
-    let mut fixture = Fixture::new(move |ui| {
-        let mut fields = held.borrow_mut();
-        let mut now = state.get();
-        ParamDialog::new("size", "Size", params.clone())
-            .values(Bind::bound(&mut *fields))
-            .opened(Bind::bound(&mut now))
-            .alt_resets(alt_resets)
-            .show(ui);
-        state.set(now);
-    });
-    fixture.hold(if alt { Modifiers::ALT } else { Modifiers::NONE });
-    fixture.settle();
-    (fixture, fields, open)
 }
 
 /// A second dialog built on `ResetFooter` swaps its button the same way and reads the pick from `DialogOutput::picked`.
@@ -183,16 +156,3 @@ fn param_dialog_ok_and_enter_go_through_the_close_guard() {
         "(asked, open) after a refused click, then Enter; after a refused Enter; after an allowed Enter"
     );
 }
-
-/// The tooltip a hover over the button named `label` shows, and the pointer moved away again.
-fn tip_over(fixture: &mut Fixture, label: &str) -> Option<String> {
-    let button = fixture.by_label(label).expect("the button is shown");
-    fixture.frame(vec![moved(button.center())]);
-    fixture.advance(DELAY);
-    fixture.idle(3);
-    let tip = fixture.by_role(Role::TOOLTIP).first().and_then(|tip| fixture.tree().name_of(tip.node)).map(str::to_owned);
-    fixture.frame(vec![moved(Pos2::ZERO)]);
-    fixture.idle(3);
-    tip
-}
-

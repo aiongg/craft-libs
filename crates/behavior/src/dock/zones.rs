@@ -50,10 +50,6 @@ mod tests {
         Rect::from_min_max(Pos2::new(10.0, 20.0), Pos2::new(310.0, 220.0))
     }
 
-    fn zone(zones: &[(DockSide, Rect); 5], side: DockSide) -> Rect {
-        zones.iter().find(|(s, _)| *s == side).map(|(_, rect)| *rect).unwrap()
-    }
-
     #[test]
     fn zones_do_not_overlap_and_cover_the_body() {
         for size in [ZoneSize::Fraction, ZoneSize::Depth(30.0), ZoneSize::Depth(500.0)] {

@@ -1,9 +1,7 @@
 //! The menu commands as help-search entries.
 
-use craft_i18n::Folder;
-use craft_menu::{Builtin, Item, ItemRole, Labeled, LayoutOptions, Menu, MenuBar, MenuRole, Node, Target};
+use craft_menu::{Item, ItemRole, LayoutOptions, Menu, MenuBar, MenuRole, Node, Target};
 use craft_ui::menu::HelpEntry;
-use craft_ui::menu::search::search_order;
 use craft_ui::runtime::env::Label;
 use craft_ui::testing::trial;
 
@@ -37,22 +35,6 @@ fn path(entry: &HelpEntry) -> Vec<&str> {
     entry.path().iter().map(Label::as_str).collect()
 }
 
-/// The search texts of `entries`, as the bar builds them.
-fn texts(entries: &[HelpEntry]) -> Vec<[String; 3]> {
-    entries
-        .iter()
-        .map(|entry| {
-            [entry.label().as_str().to_owned(), entry.english().map(|label| label.as_str().to_owned()).unwrap_or_default(), path(entry).join(" › ")]
-        })
-        .collect()
-}
-
-fn found(entries: &[HelpEntry], query: &str) -> Vec<String> {
-    let texts = texts(entries);
-    let refs: Vec<[&str; 3]> = texts.iter().map(|[a, b, c]| [a.as_str(), b.as_str(), c.as_str()]).collect();
-    search_order(&Folder::new("en"), query, &refs).into_iter().map(|at| entries[at].command().id.clone()).collect()
-}
-
 #[trial]
 fn paths_follow_nested_submenus_and_skip_separators_and_submenu_rows() {
     let all = entries(Target::Linux);
@@ -61,4 +43,3 @@ fn paths_follow_nested_submenus_and_skip_separators_and_submenu_rows() {
     assert!(all.iter().all(|entry| !["Export", "Adjustments", "Levels"].contains(&entry.label().as_str())));
     assert_eq!(all.iter().filter(|entry| entry.label().as_str() == "Save").count(), 1);
 }
-

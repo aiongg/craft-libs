@@ -15,11 +15,6 @@ fn hue_gap(a: f64, b: f64) -> f64 {
     d.min(360.0 - d)
 }
 
-const SAMPLES: [&str; 20] = [
-    "#ff0000", "#00ff00", "#0000ff", "#ffff00", "#00ffff", "#ff00ff", "#000000", "#ffffff", "#808080", "#777777", "#3e63dd", "#e5484d", "#12a594",
-    "#f5d90a", "#8e4ec6", "#101010", "#fafafa", "#c0ffee", "#123456", "#fedcba",
-];
-
 #[test]
 fn easing_curves_run_from_zero_to_one_as_their_css_cubic_beziers() {
     for easing in [Easing::Standard, Easing::Enter, Easing::Exit] {

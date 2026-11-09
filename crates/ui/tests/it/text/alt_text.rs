@@ -5,7 +5,6 @@ use craft_behavior::{Mixed, PartKey};
 use craft_ui::contract::{Bind, Show as _};
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::text::{AltText, AltTextField};
-use egui::{Key, Modifiers};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 

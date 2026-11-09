@@ -1,10 +1,9 @@
 //! Variants and their acceptance by a component's style key.
 
 use craft_theme::variant::Tone;
-use craft_theme::{Contrast, ControlSize, CustomVariant, Emphasis, Mode, States, Tokens, Variant, VariantLook};
+use craft_theme::{CustomVariant, Emphasis, States, Tokens, Variant, VariantLook};
 use craft_ui::style::{ComponentStyle, Metrics, StyleKey, accepted_variant};
-use craft_ui::testing::style::{tokens, with_cx};
-use craft_ui::testing::{Frames, trial};
+use craft_ui::testing::trial;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 struct ButtonKey;
@@ -45,14 +44,3 @@ fn a_component_accepts_its_variants_and_the_custom_ones_built_for_its_key() {
     let unlisted = accepted_variant::<ButtonKey, ButtonStyle>(Variant::look(Emphasis::Soft, Tone::Good));
     assert_eq!((unlisted.variant, unlisted.fell_back), (Variant::SECONDARY, true), "an unlisted built-in variant");
 }
-
-#[derive(Clone, PartialEq)]
-struct BareStyle;
-
-// derive output
-impl ComponentStyle for BareStyle {
-    fn metrics(&self) -> Metrics {
-        Metrics::new()
-    }
-}
-

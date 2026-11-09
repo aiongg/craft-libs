@@ -1,8 +1,6 @@
 //! The drawer's own logic: how an edit changes the toolbar and what a drop on the rail asks for.
 
-use craft_ui::rails::{
-    DrawerGroup, DropAt, LastUsed, RailTool, ToolDrag, ToolRail, ToolSlot, ToolbarDrawer, ToolbarEdit, apply_toolbar_edit, drop_edit,
-};
+use craft_ui::rails::{DrawerGroup, DropAt, LastUsed, RailTool, ToolRail, ToolSlot, ToolbarDrawer, ToolbarEdit, apply_toolbar_edit};
 use craft_ui::runtime::commands::EditCommands;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers, Rect, pos2, vec2};

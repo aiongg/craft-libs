@@ -3,21 +3,15 @@
 use craft_behavior::kurbo::Point;
 use craft_behavior::{CancelReason, CanvasView, EditEvent, GestureId, Mixed};
 use craft_imaging::ui::warp::pin::{
-    Pin, PinDensity, PinEdit, PinMeshView, PinMode, PinSolver, PinWarp, PinWarpBar, PinWarpCommands, PinWarpOptions, PinWarpSession, PinWarpSettings,
+    Pin, PinDensity, PinEdit, PinMeshView, PinMode, PinSolver, PinWarp, PinWarpCommands, PinWarpOptions, PinWarpSession, PinWarpSettings,
 };
 use craft_ui::canvas::Canvas;
-use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, pointer, trial};
-use egui::{Key, Modifiers, Pos2, Vec2};
+use egui::{Key, Modifiers, Pos2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
-
-/// A room wide enough for the whole bar.
-const WIDE_BAR: Vec2 = Vec2::new(1700.0, 80.0);
-/// The expansion and the rotation the bar tests type.
-const TYPED_EXPANSION: f64 = 12.0;
-const TYPED_ROTATION: f64 = 45.0;
 
 #[derive(Debug, PartialEq)]
 enum Call {
@@ -67,11 +61,6 @@ fn pin(x: f64, y: f64) -> Pin {
 
 fn moved(mut pin: Pin, dx: f64) -> Pin {
     pin.at.x += dx;
-    pin
-}
-
-fn turned(mut pin: Pin, degrees: f64) -> Pin {
-    pin.angle = Some(degrees);
     pin
 }
 
@@ -472,39 +461,3 @@ fn alt_drag_turns_an_auto_pin_from_the_meshs_turn() {
     let angle = h.state.borrow().session.pins()[0].angle.expect("fixed");
     assert!((angle - 110.0).abs() < 1e-9, "{angle}");
 }
-
-struct BarState {
-    session: PinWarpSession,
-    notice: Option<String>,
-    edits: Vec<PinEdit>,
-    apply: bool,
-    discard: bool,
-}
-
-fn bar(selected: bool, notice: Option<&str>) -> (Fixture, Rc<RefCell<BarState>>) {
-    let mut solver = Fake::default();
-    let mut session = PinWarpSession::from_pins(vec![pin(10.0, 0.0), pin(20.0, 0.0)], &PinWarpSettings::default());
-    if selected {
-        session.apply(PinEdit::Select(vec![1]), &mut solver).expect("selects");
-    }
-    let state = Rc::new(RefCell::new(BarState { session, notice: notice.map(str::to_owned), edits: Vec::new(), apply: false, discard: false }));
-    let shown = Rc::clone(&state);
-    let mut fixture = Fixture::new(move |ui| {
-        let mut held = shown.borrow_mut();
-        let output = PinWarpBar::new(&held.session).notice(held.notice.as_deref()).show(ui);
-        held.apply |= output.apply;
-        held.discard |= output.discard;
-        held.edits.extend(output.edits);
-    });
-    fixture.room(WIDE_BAR);
-    fixture.settle();
-    (fixture, state)
-}
-
-fn depths(edit: &PinEdit) -> Vec<i32> {
-    match edit {
-        PinEdit::Pins(event) => event.value().map_or_else(Vec::new, |pins| pins.iter().map(|p| p.depth).collect()),
-        _ => Vec::new(),
-    }
-}
-

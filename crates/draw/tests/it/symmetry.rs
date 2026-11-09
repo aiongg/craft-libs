@@ -2,15 +2,11 @@
 //! keys.
 
 use craft_behavior::kurbo::{Point, Size};
-use craft_behavior::{CanvasView, EditEvent, Mixed, PartKey};
-use craft_draw::ui::symmetry::{
-    MAX_COORDINATE, Symmetry, SymmetryChoice, SymmetryCommand, SymmetryEvent, SymmetryHandles, SymmetryMenu, SymmetryMode, SymmetryPathRow,
-    SymmetryTool, SymmetryTransform,
-};
-use craft_keymap::Mods;
-use craft_ui::canvas::{Canvas, CanvasSpace, CanvasTool as _, ToolContext, ToolKey, ToolPath};
+use craft_behavior::{CanvasView, EditEvent, PartKey};
+use craft_draw::ui::symmetry::{Symmetry, SymmetryEvent, SymmetryHandles, SymmetryMode, SymmetryTool, SymmetryTransform};
+use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
-use craft_ui::testing::{Fixture, Target, pointer, trial};
+use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Key, Modifiers, Pos2, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -24,10 +20,6 @@ const SYMMETRY: PartKey = PartKey::new("symmetry");
 /// A vertical symmetry at (200, 150): the rotation handle sits at (200, 255).
 fn start() -> Symmetry {
     Symmetry::new(SymmetryMode::Vertical, Point::new(200.0, 150.0), 0.0).expect("a valid symmetry")
-}
-
-fn sym(mode: SymmetryMode, rotation: f64) -> Symmetry {
-    Symmetry::new(mode, Point::new(20.0, 30.0), rotation).expect("a valid symmetry")
 }
 
 fn near(a: f64, b: f64) -> bool {
@@ -51,38 +43,6 @@ fn segments_clip_to_the_page_and_vanish_when_the_centre_line_misses_it() {
     }
     let off = Symmetry::new(SymmetryMode::Horizontal, Point::new(50.0, -5.0), 0.0).expect("a valid symmetry");
     assert!(off.segments(Size::new(100.0, 100.0)).is_empty());
-}
-
-/// What the menu host keeps.
-struct MenuHost {
-    choice: SymmetryChoice,
-    can_transform: bool,
-    commands: Vec<SymmetryCommand>,
-}
-
-fn menu(choice: SymmetryChoice, can_transform: bool) -> (Fixture, Rc<RefCell<MenuHost>>) {
-    let host = Rc::new(RefCell::new(MenuHost { choice, can_transform, commands: Vec::new() }));
-    let shown = Rc::clone(&host);
-    let paths = vec![SymmetryPathRow::new("work", "Work Path")];
-    let mut fixture = Fixture::new(move |ui| {
-        let mut host = shown.borrow_mut();
-        let output = SymmetryMenu::new("Symmetry", &host.choice).paths(&paths).can_transform(host.can_transform).show(ui);
-        host.commands.extend(output.command);
-    });
-    fixture.settle();
-    (fixture, host)
-}
-
-fn open(fixture: &mut Fixture) {
-    let button = fixture.by_label("Set painting symmetry options").expect("the menu button is shown");
-    fixture.click(&button);
-    fixture.idle(3);
-}
-
-fn pick(fixture: &mut Fixture, row: &str) {
-    let target: Target = fixture.by_label(row).unwrap_or_else(|| panic!("the menu has a row {row}"));
-    fixture.click(&target);
-    fixture.idle(3);
 }
 
 /// The session, the view and the events the handles reported.
@@ -247,12 +207,6 @@ fn escape_during_a_drag_cancels_the_drag_not_the_session() {
     assert_eq!(h.preview(), start());
 }
 
-fn tool_context() -> ToolContext<'static> {
-    let rect = egui::Rect::from_min_size(Pos2::ZERO, by(400.0, 300.0));
-    let space = CanvasSpace::new(CanvasView::new(rect, Point::new(200.0, 150.0), 1.0), 1.0);
-    ToolContext::new(rect, Some(space))
-}
-
 /// The session opens from a menu, so the canvas has no focus yet: Enter and Escape still reach the tool.
 #[trial]
 fn enter_and_escape_work_before_the_canvas_is_focused() {
@@ -264,4 +218,3 @@ fn enter_and_escape_work_before_the_canvas_is_focused() {
     canvas.fixture().key(Key::Escape, Modifiers::NONE);
     assert_eq!(canvas.tool_mut().take_events(), [SymmetryEvent::Discard]);
 }
-

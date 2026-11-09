@@ -3,8 +3,6 @@
 
 mod bar;
 
-mod item_access;
-
 mod native;
 
 mod openers;
@@ -114,4 +112,3 @@ fn a_value_menu_opens_with_the_lead_on_the_checked_entry() {
     let checked = fixture.by_label("100%").expect("the checked entry shows");
     assert_eq!(focused.rect, checked.rect);
 }
-

@@ -2,13 +2,12 @@
 
 use craft_behavior::geometry::crop::{CropGuide, GuideShow};
 use craft_draw::ui::crop::{
-    CROP_RATIOS, CROP_SIZES, CropBar, CropBarWords, CropDocKey, CropDocument, CropFill, CropLength, CropOptionsMenu, CropOverlayMenu,
-    CropPresetChoice, CropRatio, CropRatioChange, CropSettings, CropSizeFields, CropUserPreset, LENGTH_MIN, RATIO_STEP, ResolutionUnit,
+    CROP_RATIOS, CROP_SIZES, CropBar, CropDocKey, CropDocument, CropFill, CropLength, CropPresetChoice, CropRatio, CropRatioChange, CropSettings,
+    CropSizeFields, CropUserPreset, RATIO_STEP, ResolutionUnit,
 };
 use craft_ui::bars::{Bar, BarKind};
-use craft_ui::canvas::ShieldColor;
 use craft_ui::contract::{Role, ShowContainer as _};
-use craft_ui::runtime::env::{Env, PointSize, RootEnv, UnitKind, Units, WordSet as _};
+use craft_ui::runtime::env::{Env, PointSize, RootEnv, UnitKind, Units};
 use craft_ui::testing::{Fixture, Frames, trial};
 use egui::{Key, Modifiers, Vec2};
 use kurbo::Size;
@@ -28,16 +27,6 @@ fn units_of(points: PointSize) -> Units {
     let mut units = None;
     frames.frame(vec![], |ui| units = Some(Env::of(ui).units()));
     units.expect("the frame ran")
-}
-
-/// Runs `check` with the units of the default scope.
-fn with_units(check: impl FnOnce(&Units)) {
-    let mut check = Some(check);
-    Frames::new().frame(vec![], |ui| {
-        if let Some(check) = check.take() {
-            check(&Env::of(ui).units());
-        }
-    });
 }
 
 fn inches(value: f64) -> Option<CropLength> {
@@ -236,14 +225,6 @@ impl Rig {
         self.open_list_at_end();
         self.click(label);
     }
-
-    fn disabled(&self, label: &str) -> bool {
-        let target = self.fixture.by_label(label).unwrap_or_else(|| {
-            let texts: Vec<_> = self.fixture.texts().iter().map(|text| text.text.clone()).collect();
-            panic!("{label} is not shown; the texts are {texts:?}")
-        });
-        self.fixture.tree().is_disabled_key(target.node)
-    }
 }
 
 /// New Crop Preset… and Delete Crop Preset… report their events; a preset pick and a ratio field step change the
@@ -293,38 +274,6 @@ fn the_bar_reports_new_and_delete_and_edits_options() {
         "each arrow press adds RATIO_STEP to the width and keeps the height: {stepped:?}, {twice:?}"
     );
     assert!(rig.seen.borrow().iter().any(|s| s.ratio.is_some()));
-}
-
-enum Menu {
-    Overlay,
-    Gear,
-}
-
-fn menu(settings: CropSettings, which: Menu) -> Rig {
-    let state = Rc::new(RefCell::new(settings));
-    let seen = Rc::new(RefCell::new(Vec::new()));
-    let (shared, log) = (Rc::clone(&state), Rc::clone(&seen));
-    let mut fixture = Fixture::new(move |ui| {
-        let mut settings = shared.borrow().clone();
-        match which {
-            Menu::Overlay => {
-                CropOverlayMenu::new(&mut settings).show(ui);
-            }
-            Menu::Gear => {
-                let out = CropOptionsMenu::new(&mut settings).show(ui);
-                log.borrow_mut().push(Seen {
-                    ratio: None,
-                    new_preset: false,
-                    delete_preset: false,
-                    changed: out.changed,
-                    colour: out.pick_color.is_some(),
-                });
-            }
-        }
-        *shared.borrow_mut() = settings;
-    });
-    fixture.room(Vec2::new(480.0, 600.0)).settle();
-    Rig { fixture, settings: state, seen }
 }
 
 /// Types `text` into the field named `label`, replacing what it holds, and commits it.

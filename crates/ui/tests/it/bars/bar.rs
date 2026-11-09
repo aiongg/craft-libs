@@ -3,16 +3,15 @@
 use craft_behavior::CanvasView;
 use craft_behavior::canvas::zoom;
 use craft_behavior::kurbo::{Point, Size};
-use craft_ui::bars::{AlignBar, Bar, BarItem, BarItems, BarKind, BreadcrumbBar, DistributeButtons, StatusItem, StatusReadout, StatusValues};
+use craft_ui::bars::{Bar, BarItem, BarItems, BarKind, BreadcrumbBar, StatusItem, StatusReadout, StatusValues};
 use craft_ui::buttons::{Button, IconButton};
-use craft_ui::contract::{Bind, Entry, Politeness, Props as _, Role, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Entry, Props as _, Role, Show as _, ShowContainer as _};
 use craft_ui::pickers::Select;
 use craft_ui::runtime::commands::EditCommands;
 use craft_ui::runtime::env::Scale;
-use craft_ui::runtime::frame::take_output;
 use craft_ui::testing::access::NodeKey;
 use craft_ui::testing::{Fixture, trial};
-use egui::{Id, Key, Modifiers, Pos2, Rect, Vec2};
+use egui::{Key, Modifiers, Pos2, Rect, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -132,10 +131,6 @@ fn the_status_zoom_is_the_device_percent_and_a_typed_zoom_is_written_into_the_vi
     assert_eq!(zoom::device(&view.borrow(), STATUS_SCALE), doubled, "the typed 200 % doubles the shown 100 %");
     assert_eq!(view.borrow().center, centre, "the zoom keeps the view's centre");
     assert!(reported.get(), "the output carries the view edit");
-}
-
-fn fired(fixture: &Fixture) -> Vec<String> {
-    take_output(fixture.ctx()).fired.iter().map(|fired| fired.command.id.to_string()).collect()
 }
 
 /// A select inside a bar opens its list in a layer of its own: the bar's scrolling body does not reach the list, Down

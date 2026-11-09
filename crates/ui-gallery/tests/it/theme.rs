@@ -1,6 +1,6 @@
 //! The theme workspace: its words, the file it edits, what it caches and what its browser does with a pick.
 
-use craft_theme::{AppSizes, Appearance, ColorToken, Contrast, Mode, Size, SizeValue, TextSize, TokenRef, builtins, explain};
+use craft_theme::{AppSizes, Appearance, ColorToken, Contrast, Mode, Size, TextSize, TokenRef, builtins, explain};
 use craft_ui::contract::Bind;
 use craft_ui::testing::{Fixture, trial};
 use craft_ui_gallery::theme::{Pick, ThemeSubject, ThemeWorkspace, TokenBrowser, parse_sizes};

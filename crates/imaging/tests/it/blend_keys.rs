@@ -22,10 +22,6 @@ fn step(command: BlendStep, current: Option<&'static str>, entries: &[BlendKeyEn
     keys.command(&CommandRef::from(command), FirePhase::Press)
 }
 
-fn letter(shortcut: BlendShortcut, entries: &[BlendKeyEntry<&'static str>]) -> Option<BlendKeyPick<&'static str>> {
-    BlendKeys::new(entries).command(&CommandRef::from(shortcut), FirePhase::Press)
-}
-
 #[trial]
 fn shift_plus_and_minus_step_and_wrap() {
     let entries = modes();
@@ -51,4 +47,3 @@ fn every_shortcut_has_its_own_letter() {
         .collect();
     assert_eq!(chords.len(), 26, "no two shortcuts share a chord");
 }
-
