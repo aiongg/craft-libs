@@ -1239,16 +1239,19 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 focus::request_now(&ctx, focus::FocusTarget::Id(cx.core.id));
             }
         }
-        // A click on a row's thumbnail is also a click on the row: the item reports the thumbnail's click and the row picks
-        // in the same pass, so a host that maps a modified thumbnail click to its own action sees both.
+        // A click on a row's thumbnail is also a click on the row: the item reports the thumbnail's click and an unmodified click picks
+        // in the same pass.
         if let (Some(PressPhase::Release { click: true, start, .. }), Some(target)) = (outcome.phase, outcome.target)
             && start.button == craft_behavior::PointerButton::Primary
             && target.part.is_some_and(|part| part.key == crate::list::row::THUMB)
             && local(start.origin).y >= 0.0
             && let Some(at) = layout.hit(local(start.origin), offset).filter(|&at| self.source.enabled(at) && layout.shown(at))
         {
+            // A modified click is a command on the thumbnail (load as selection, and so on), not a pick.
             let mods = crate::runtime::pointer::frame(&ctx).mods;
-            self.pick(comp, at, mods.shift, mods.cmd);
+            if !(mods.shift || mods.cmd || mods.alt) {
+                self.pick(comp, at, false, false);
+            }
         }
         match cx.core.press.phase {
             PressPhase::Release { click, start, pos, .. } => {
