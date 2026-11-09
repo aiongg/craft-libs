@@ -22,7 +22,7 @@ plain text and a language and return what layout needs before it shapes and plac
 | `ui::find` | `ui` and `find` | The find bar and Find and Replace |
 | | `font-picker` | The Character controls' family field is craft-font-manager's font picker |
 
-Stories are `#[story]` functions in `src/ui/*/stories.rs`; they register in `craft_ui::testing::STORIES` and the `craft-ui-gallery` viewer lists them by the type they show.
+Stories are `#[story]` functions in `src/ui/*/stories.rs`; they register in `craft_ui::testing::stories()` and the `craft-ui-gallery` viewer lists them by the type they show.
 
 Language features (`spanish`, `german`, …, `all-languages`) add the data for one language to every
 module that uses it, and turn those modules on. Build with `default-features = false` to leave

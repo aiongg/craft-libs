@@ -4,14 +4,14 @@ mod setup;
 mod text_tables;
 mod views;
 
-use craft_ui::testing::{TRIALS, suite};
+use craft_ui::testing::{suite, trials};
 use libtest_mimic::{Arguments, Trial};
 
 fn main() {
     let args = Arguments::from_args();
     let own = module_path!();
-    let mut trials: Vec<Trial> = TRIALS
-        .iter()
+    let mut trials: Vec<Trial> = trials()
+        .into_iter()
         .filter(|trial| trial.module == own || trial.module.starts_with(&format!("{own}::")))
         .map(|trial| {
             let run = trial.run;

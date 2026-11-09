@@ -4,14 +4,14 @@ mod mock;
 mod theme;
 mod viewer;
 
-use craft_ui::testing::{TRIALS, suite};
+use craft_ui::testing::{suite, trials};
 use craft_ui_gallery::testing::registered;
 use libtest_mimic::{Arguments, Trial};
 
 fn main() {
     let args = Arguments::from_args();
-    let mut trials: Vec<Trial> = TRIALS
-        .iter()
+    let mut trials: Vec<Trial> = trials()
+        .into_iter()
         .map(|trial| {
             let run = trial.run;
             Trial::test(trial.full_name(), move || {

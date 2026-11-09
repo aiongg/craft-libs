@@ -9,13 +9,13 @@ mod refpick;
 mod stats;
 
 use craft_table::ui::testing::registered;
-use craft_ui::testing::{TRIALS, suite};
+use craft_ui::testing::{suite, trials};
 use libtest_mimic::{Arguments, Trial};
 
 fn main() {
     let args = Arguments::from_args();
-    let mut trials: Vec<Trial> = TRIALS
-        .iter()
+    let mut trials: Vec<Trial> = trials()
+        .into_iter()
         .map(|trial| {
             let run = trial.run;
             Trial::test(trial.full_name(), move || {
