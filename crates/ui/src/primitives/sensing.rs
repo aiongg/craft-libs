@@ -203,6 +203,11 @@ struct ArenaState {
     union_sense: Sense,
     previous_union_sense: Sense,
     layer: Option<Layer>,
+    /// The layer and the egui sense the root's widgets had at its last step 8, for `sense_early`.
+    last_layer: Option<Layer>,
+    last_sense: Sense,
+    /// The pass whose outcome `sense_early` stepped before the root's step 8.
+    early: u64,
     root: Option<RootInfo>,
     /// The egui widgets of the root: the root's, the transform forwarder and the edge widgets.
     widgets: Vec<Id>,
@@ -340,6 +345,50 @@ impl PassRead {
     }
 }
 
+/// Steps the press machine of the root `id` before its measuring run, from what last pass registered: the root rect,
+/// widgets, layer and sense. A body reads the parts' presses of this pass in both of its runs through
+/// [`part_press`]; step 8 finds the memoised outcome. Does nothing on a root's first pass and when the root was not
+/// drawn last pass. `enabled` is what is known before the root's step 5; step 8 ends a press of a root that turns out
+/// to be inert.
+pub(crate) fn sense_early(ctx: &Context, id: Id, enabled: bool) {
+    let arena = ArenaId::new(id);
+    let read = PassRead::of(ctx);
+    let last = with_arena_in(ctx, read.viewport, arena, read.pass_nr, |state| {
+        if state.pass != read.pass_nr && state.pass + 1 != read.pass_nr {
+            return None;
+        }
+        rotate(state, read.pass_nr);
+        let root = state.root?;
+        let layer = state.last_layer?;
+        (root.rect.is_positive() && root.rect.is_finite() && !state.previous_own.is_empty())
+            .then_some((layer, state.last_sense | state.previous_union_sense))
+    });
+    let Some((layer, sense)) = last else { return };
+    outcome_in(ctx, &read, arena, layer, enabled, sense);
+    with_arena_in(ctx, read.viewport, arena, read.pass_nr, |state| state.early = read.pass_nr);
+}
+
+/// The press, hover and hover position of one part of the root `owner` this pass, from the outcome of the pass
+/// (stepped early when the root has parts), idle when the root has not stepped yet.
+pub(crate) struct PartPress {
+    pub press: PressState,
+    pub hovered: bool,
+    pub hover_pos: Option<Pos2>,
+}
+
+pub(crate) fn part_press(ctx: &Context, owner: Id, part: PartRef) -> PartPress {
+    let read = PassRead::of(ctx);
+    let arena = ArenaId::new(owner);
+    let (outcome, known) = with_arena_in(ctx, read.viewport, arena, read.pass_nr, |state| {
+        (state.outcome.filter(|outcome| outcome.pass == read.pass_nr), known_in(state, owner))
+    });
+    let (mods, sample, at) = read.inputs();
+    match outcome {
+        Some(outcome) => part_press_in(&outcome, &known, (mods, sample, at), owner, part),
+        None => PartPress { press: PressState::new(PressPhase::Idle).mods(mods).sample(sample), hovered: false, hover_pos: None },
+    }
+}
+
 /// What a root registers and reads at step 8.
 pub(crate) struct RootSpec<'a> {
     pub id: Id,
@@ -404,6 +453,13 @@ pub(crate) fn sense_root(ui: &Ui, spec: RootSpec<'_>) -> RootResult {
         state.own = spec.own.to_vec();
         state.root = Some(RootInfo { id: spec.id, rect: spec.rect, own_sense: spec.own_sense });
         state.widgets = widgets.clone();
+        state.last_layer = Some(layer);
+        state.last_sense = sense;
+        // A root that stepped early while it was not yet known to be inert: an open press ends as the disabled root's
+        // would, by stepping again with the cancel.
+        if !spec.enabled && state.early == read.pass_nr && state.outcome.is_some_and(|outcome| outcome.pass == read.pass_nr) {
+            state.outcome = None;
+        }
         known_in(state, spec.id)
     });
     pointer::record_shapes_in(ctx, read.viewport, layer, spec.id, shapes);
@@ -505,6 +561,7 @@ pub(crate) struct MemberResult {
 
 pub(crate) fn sense_member(ui: &Ui, arena: ArenaId, spec: MemberSpec<'_>) -> MemberResult {
     let ctx = ui.ctx();
+    debug_assert!(!crate::runtime::measure::active(ctx), "a member joins its arena in a real run only");
     let layer = ui.layer_id();
     let pass_nr = pass::pass_nr(ctx, pass::current_viewport(ctx));
     // One read of the pointer and one of the arena serve the join, the outcome and the part results.
@@ -721,23 +778,46 @@ fn part_results_in(
     decls
         .iter()
         .map(|decl| {
-            let key = (decl.key, decl.index);
-            let is_known = known.contains(&key);
-            let mine = |hit: &Hit| hit.owner == owner && hit.part == Some(decl.part_ref());
-            let won = outcome.target.filter(|target| is_known && mine(target));
-            let hover = outcome.hover.filter(|hit| is_known && mine(hit));
-            let hovered = hover.is_some();
-            let hover_pos = hover.zip(at).map(|(hit, at)| if hit.local { outcome.xf.map_or(at, |map| map.to_layer(at)) } else { at });
-            let phase = match (won, outcome.phase) {
-                (Some(target), Some(phase)) => in_owner_space(phase, &target, outcome.xf),
-                _ if hovered => PressPhase::Hover,
-                _ => PressPhase::Idle,
-            };
-            let captured = won.is_some() && outcome.dragging && phase.is_drag();
-            let press = PressState::new(phase).mods(mods).sample(sample).captured(captured).went_down(won.is_some() && outcome.went_down);
-            (key, PartResult { rect: decl.shape.bounds(), press, hovered, hover_pos, flags: decl.flags, inactive: decl.inactive })
+            let read = part_press_in(outcome, known, (mods, sample, at), owner, decl.part_ref());
+            let (key, hovered) = ((decl.key, decl.index), read.hovered);
+            (
+                key,
+                PartResult {
+                    rect: decl.shape.bounds(),
+                    press: read.press,
+                    hovered,
+                    hover_pos: read.hover_pos,
+                    flags: decl.flags,
+                    inactive: decl.inactive,
+                },
+            )
         })
         .collect()
+}
+
+/// One part's press: the phase when it is the press winner, `Hover` when it is the topmost shape under the pointer,
+/// else idle. A part not in `known` reads idle.
+fn part_press_in(
+    outcome: &Outcome,
+    known: &[(PartKey, Option<u64>)],
+    (mods, sample, at): (Mods, Option<PointerSample>, Option<Pos2>),
+    owner: Id,
+    part: PartRef,
+) -> PartPress {
+    let is_known = known.contains(&(part.key, part.index));
+    let mine = |hit: &Hit| hit.owner == owner && hit.part == Some(part);
+    let won = outcome.target.filter(|target| is_known && mine(target));
+    let hover = outcome.hover.filter(|hit| is_known && mine(hit));
+    let hovered = hover.is_some();
+    let hover_pos = hover.zip(at).map(|(hit, at)| if hit.local { outcome.xf.map_or(at, |map| map.to_layer(at)) } else { at });
+    let phase = match (won, outcome.phase) {
+        (Some(target), Some(phase)) => in_owner_space(phase, &target, outcome.xf),
+        _ if hovered => PressPhase::Hover,
+        _ => PressPhase::Idle,
+    };
+    let captured = won.is_some() && outcome.dragging && phase.is_drag();
+    let press = PressState::new(phase).mods(mods).sample(sample).captured(captured).went_down(won.is_some() && outcome.went_down);
+    PartPress { press, hovered, hover_pos }
 }
 
 /// The owner's own shape's press state: a member's root shape or the root background. `Idle` unless it won.

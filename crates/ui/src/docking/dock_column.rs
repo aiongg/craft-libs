@@ -16,7 +16,6 @@ use crate::contract::{
 use crate::menu::{GroupItem, Menu, MenuWords, PanelMenu, PanelRow};
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
-use crate::runtime::memory::sub;
 use crate::sections::{HeaderAction, TitleRow};
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::divider::{self as push, Segment};
@@ -333,12 +332,6 @@ pub struct DockColumnStyle {
     sizes: DockSizes,
 }
 
-/// The rects of a column's groups as this pass's resizes leave them, for the body.
-#[derive(Clone, Default)]
-struct GroupRects(Vec<Rect>);
-
-const RECTS: &str = "column_rects";
-
 /// One column of a side dock: the column bar over the stacked groups of `column`. Show it with
 /// [`show_groups`](DockColumn::show_groups); the closure shows one group in the rect it is given, through
 /// `DockPanels::group_view` or a `DockGroup`. A double click on the bar collapses the column to icons; the bar's
@@ -399,28 +392,20 @@ impl<'a, P: Value + Hash + 'static> DockColumn<'a, P> {
 
     /// Shows the column; `view` shows one group in the rect it gets.
     pub fn show_groups(self, ui: &mut Ui, mut view: impl FnMut(&Group<P>, Rect, &mut Ui, &mut BodyCx<'_>) + 'a) -> DockColumnOutput<P> {
-        let column = self.column;
+        let (column, spec) = (self.column, self.spec);
         self.show(ui, move |ui, body| {
             if body.shell().is_some_and(|shell| !shell.dock_visible()) {
                 return;
             }
-            let rects = body.memory.recall::<GroupRects>(sub(body.id, RECTS)).0;
-            for (group, rect) in column.groups.iter().zip(&rects) {
+            let Some(sizes) = body.style::<DockColumn<'_, P>>().map(|style| style.sizes) else { return };
+            // The groups at the heights this pass's drag leaves them, in the measuring run and the real run alike.
+            let drags = |key: u64, divider: &Divider| divider::drag(body.part_press(DIVIDER.at(key)).phase, body.rect, false, divider);
+            let plan = body_plan(column, spec, Rect::from_min_size(body.rect.min, Vec2::ZERO), body.rect, &sizes, drags);
+            for (group, rect) in column.groups.iter().zip(&plan.groups) {
                 view(group, *rect, ui, body);
             }
         })
         .output
-    }
-
-    /// The bar and body of the column in `rect`, and the groups stacked in the body.
-    fn plan(&self, rect: Rect, sizes: &DockSizes) -> Plan {
-        let bar = Rect::from_min_max(rect.min, Pos2::new(rect.right(), (rect.top() + sizes.bar).min(rect.bottom())));
-        let body = Rect::from_min_max(Pos2::new(rect.left(), bar.bottom()), rect.max);
-        let group_sizes = group_sizes(self.column, self.spec, sizes);
-        let heights = group_heights(&group_sizes, sizes.strip, body.height());
-        let groups = stacked(body, &heights);
-        let open = (0..group_sizes.len()).filter(|at| !group_sizes[*at].minimized).collect();
-        Plan { bar, body, groups, heights, mins: group_sizes.iter().map(|size| size.min).collect(), open }
     }
 
     /// The divider on the column's inner edge, which moves between the width bounds of its panels.
@@ -440,23 +425,42 @@ impl<'a, P: Value + Hash + 'static> DockColumn<'a, P> {
     fn anchor(&self, group: usize) -> Option<&P> {
         self.column.groups.get(group).and_then(|group| group.panels.first())
     }
+}
 
-    /// Moves the divider after the `index`-th open group by `delta` points: the heights that change come out as
-    /// resizes, and the plan takes them so the groups are shown at their new heights in the same pass.
-    fn move_divider(&mut self, plan: &mut Plan, index: usize, delta: f32) {
-        let row = plan.row();
-        let at: f32 = row.iter().take(index + 1).map(|segment| segment.extent).sum();
-        let sizes = push::resize(&row, index, at + delta);
-        for ((group, next), segment) in plan.open.clone().into_iter().zip(sizes).zip(&row) {
-            if next != segment.extent {
-                if let Some(anchor) = self.anchor(group) {
-                    self.resized.push((anchor.clone(), next));
-                }
-                plan.heights[group] = next;
-            }
+/// The bar and body of the column in `rect`, and the groups stacked in the body, with the drags `drags` makes of
+/// the dividers between open groups (the divider's part index and the divider as laid out before the drag).
+fn column_plan<P: Value + Hash>(
+    column: &Column<P>,
+    spec: &dyn Fn(&P) -> PanelSpec,
+    rect: Rect,
+    sizes: &DockSizes,
+    drags: impl Fn(u64, &Divider) -> Option<Drag>,
+) -> Plan {
+    let bar = Rect::from_min_max(rect.min, Pos2::new(rect.right(), (rect.top() + sizes.bar).min(rect.bottom())));
+    let body = Rect::from_min_max(Pos2::new(rect.left(), bar.bottom()), rect.max);
+    body_plan(column, spec, bar, body, sizes, drags)
+}
+
+/// [`column_plan`] for a column whose `bar` and `body` rects are known.
+fn body_plan<P: Value + Hash>(
+    column: &Column<P>,
+    spec: &dyn Fn(&P) -> PanelSpec,
+    bar: Rect,
+    body: Rect,
+    sizes: &DockSizes,
+    drags: impl Fn(u64, &Divider) -> Option<Drag>,
+) -> Plan {
+    let group_sizes = group_sizes(column, spec, sizes);
+    let heights = group_heights(&group_sizes, sizes.strip, body.height());
+    let groups = stacked(body, &heights);
+    let open = (0..group_sizes.len()).filter(|at| !group_sizes[*at].minimized).collect();
+    let mut plan = Plan { bar, body, groups, heights, mins: group_sizes.iter().map(|size| size.min).collect(), open };
+    for (key, index, divider) in plan.dividers(body, sizes.reach) {
+        if let Some(Drag::To(coord)) = drags(key, &divider) {
+            plan.move_divider(index, coord - divider.at);
         }
-        plan.groups = stacked(plan.body, &plan.heights);
     }
+    plan
 }
 
 /// Where the parts of a column sit.
@@ -470,6 +474,17 @@ struct Plan {
 }
 
 impl Plan {
+    /// Moves the divider after the `index`-th open group by `delta` points; the groups are stacked at their new heights.
+    fn move_divider(&mut self, index: usize, delta: f32) {
+        let row = self.row();
+        let at: f32 = row.iter().take(index + 1).map(|segment| segment.extent).sum();
+        let sizes = push::resize(&row, index, at + delta);
+        for (group, next) in self.open.clone().into_iter().zip(sizes) {
+            self.heights[group] = next;
+        }
+        self.groups = stacked(self.body, &self.heights);
+    }
+
     /// The open groups as a row of segments, for the push rule of the dividers between them.
     fn row(&self) -> Vec<Segment> {
         self.open.iter().filter_map(|at| Some(Segment::unbounded(*self.heights.get(*at)?, *self.mins.get(*at)?))).collect()
@@ -508,7 +523,7 @@ impl<P: Value + Hash + 'static> Component for DockColumn<'_, P> {
     /// The bar's drag band under the bar's own controls, and a divider between every two open groups.
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let sizes = cx.style.sizes;
-        let plan = self.plan(rect, &sizes);
+        let plan = column_plan(self.column, self.spec, rect, &sizes, |_, _| None);
         let dividers = plan.dividers(rect, sizes.reach);
         cx.part(BAR, plan.bar)
             .sense(Sense::DRAG)
@@ -525,23 +540,27 @@ impl<P: Value + Hash + 'static> Component for DockColumn<'_, P> {
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let sizes = cx.style.sizes;
         let (rect, rtl, ctx) = (cx.rect, cx.flow.is_rtl(), cx.core.ctx.clone());
-        let Some(mut plan) = self.laid.take() else { return };
+        let Some(base) = self.laid.take() else { return };
         let bar = cx.part(BAR).clone();
         if matches!(bar.press.phase, PressPhase::DragStart { start, .. } if start.button == craft_behavior::PointerButton::Primary) {
             drag_column(cx, self.column, self.spec, rect.size());
         }
         self.toggled = bar.press.double_pressed();
-        let dividers = plan.dividers(rect, sizes.reach);
-        for (key, index, divider) in &dividers {
-            if let Some(Drag::To(coord)) = divider::pointer(cx, DIVIDER, *key, divider) {
-                self.move_divider(&mut plan, *index, coord - divider.at);
-            }
-        }
+        let mut plan = column_plan(self.column, self.spec, rect, &sizes, |key, divider| divider::pointer(cx, DIVIDER, key, divider));
+        let dividers = base.dividers(rect, sizes.reach);
         let keyed: Vec<(u64, Divider)> = dividers.iter().map(|(key, _, divider)| (*key, *divider)).collect();
         if let Some((key, coord)) = divider::keys(cx, DIVIDER, &keyed, sizes.step, sizes.jump)
             && let Some((_, index, divider)) = dividers.iter().find(|(at, ..)| *at == key)
         {
-            self.move_divider(&mut plan, *index, coord - divider.at);
+            plan.move_divider(*index, coord - divider.at);
+        }
+        // The groups whose height the drag or the keys changed, each named by its first panel.
+        for group in 0..plan.heights.len() {
+            if plan.heights[group] != base.heights[group]
+                && let Some(anchor) = self.anchor(group)
+            {
+                self.resized.push((anchor.clone(), plan.heights[group]));
+            }
         }
         let edge = self.edge_divider(rect, &sizes);
         if let Some(Drag::To(coord)) = divider::pointer(cx, EDGE, 0, &edge) {
@@ -550,7 +569,6 @@ impl<P: Value + Hash + 'static> Component for DockColumn<'_, P> {
         if let Some((_, coord)) = divider::keys(cx, EDGE, &[(0, edge)], sizes.step, sizes.jump) {
             self.move_edge(rect, &edge, coord);
         }
-        cx.core.memory.shown::<GroupRects>(sub(sub(cx.core.id, "body"), RECTS)).0 = plan.groups.clone();
         self.register(&ctx, rect, rtl, &plan, &sizes);
         self.laid = Some(plan);
     }

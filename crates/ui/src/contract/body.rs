@@ -27,8 +27,8 @@ use crate::style::ComponentStyle as _;
 use crate::style::{Corners, RuleKind, StyleCx, UiTokens, rule_look, scroll_bar_look, surface_style};
 use craft_behavior::layout_memory::measure_tolerance;
 use craft_behavior::{
-    Axis, CancelRule, Cursor, CursorIcon, CursorPriority, EditEvent, GesturePhase, HitLevel, HitPriority, Intent, KeyRole, Mixed, PartKey,
-    PressPhase, Roving, ScrollPos, ScrollSpan, WheelNotch, WheelTaker,
+    Axis, CancelRule, Cursor, CursorIcon, CursorPriority, EditEvent, GesturePhase, HitLevel, HitPriority, Intent, KeyRole, Mixed, PartKey, PartRef,
+    PressPhase, PressState, Roving, ScrollPos, ScrollSpan, WheelNotch, WheelTaker,
 };
 use craft_host::target::{Caps, WindowChrome, WindowState};
 use craft_i18n::Direction;
@@ -336,6 +336,13 @@ impl BodyCx<'_> {
     /// record it would read is last pass's, and a container that latches it would report the click twice.
     pub fn band_double_pressed(&self) -> bool {
         !self.memory.is_peek() && self.memory.recall::<BandDouble>(sub(self.id, "band_double")).0
+    }
+
+    /// The press state of the container's own part `part` in this pass, the same in a measuring run and in the real
+    /// run: the container's press machine steps before the measuring run, from the parts it declared last pass (a
+    /// part declared first this pass reads idle). Idle for a container that has not stepped.
+    pub fn part_press(&self, part: impl Into<PartRef>) -> PressState {
+        crate::primitives::sensing::part_press(self.memory.ctx(), self.resolved.id, part.into()).press
     }
 
     /// Whether the primary press of this pass went down on the container's own surface, for a root that senses
