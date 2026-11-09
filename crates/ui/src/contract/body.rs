@@ -1776,7 +1776,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 // width) but shows across the column.
                 // It widens to the column it is held in, never past it, and only where it is shown: its measure never
                 // sets the column's width.
-                let held = !self.given.0 && self.held(props, &Env::of(ui)) && !Env::of(ui).content.0;
+                let held = !self.given.0 && self.held(props, &Env::of(ui));
                 let room = if held { room.min(crate::layout::flow_room(ui).x) } else { room };
                 let across = self.given.0 || held;
                 let width = if room.is_finite() && across {
@@ -2164,7 +2164,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             let mut label_extra = label_extra;
             if let (false, Some(input)) = (real, label_input.as_mut()) {
                 input.control_min = scope::open_control_min(&ctx, id);
-                label_extra = label_extra_of(regions.body, label::control_after(ui, env, input));
+                // The footer starts under the control column this decision gives, not the one before the control
+                // reported its minimum.
+                body_rect = label::control_after(ui, env, input);
+                label_extra = label_extra_of(regions.body, body_rect);
             }
             if let Some(size) = &mut self.body_size {
                 // A body beside its label in a content-sized column of rows reports how far it reaches past the label
