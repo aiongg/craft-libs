@@ -338,7 +338,6 @@ impl LiquifyWorkspace {
 
         let shown = FullWindowDialog::new(title)
             .command_scope(LiquifyCommands::SCOPE)
-            .initial_focus(craft_ui::runtime::focus::Initial::First)
             .buttons([FooterButton::new(common.ok.clone(), DialogRole::Accept), FooterButton::new(common.cancel.clone(), DialogRole::Cancel)])
             .sides(|ui, _| {
                 let mut guard = this.borrow_mut();

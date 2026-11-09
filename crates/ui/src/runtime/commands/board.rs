@@ -516,6 +516,11 @@ pub(crate) fn begin(ctx: &Context) {
         board.held_open = held_open;
         let chain: Vec<Id> =
             board.chains.get(&viewport).filter(|(id, _)| Some(*id) == focused).map(|(_, chain)| chain.ids().collect()).unwrap_or_default();
+        // Nothing focused inside a modal: the modal's root takes the commands, as a plain Enter goes to its default button.
+        let chain = match (chain.is_empty() && focused.is_none(), board.modal_roots.iter().find(|(of, _)| *of == viewport)) {
+            (true, Some((_, root))) => vec![*root],
+            _ => chain,
+        };
         if !chain.is_empty() {
             board.last_focused.clone_from(&chain);
         }

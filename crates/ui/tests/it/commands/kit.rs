@@ -61,6 +61,8 @@ pub enum DockCommand {
 pub enum WorkspaceCommand {
     #[command(label = "Brush", modal = "in_dialogs", default = "Cmd+Alt+W")]
     Brush,
+    #[command(label = "Nudge", default = "N")]
+    Nudge,
 }
 
 pub const WORKSPACE: CommandScope = <WorkspaceCommand as CommandSet>::SCOPE;
