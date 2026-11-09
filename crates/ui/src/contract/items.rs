@@ -382,6 +382,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             .moves(true)
             .deletes(props.deletable)
             .owner_arrows(props.item_keys == super::collection::ItemKeys::Owner)
+            .home_row(self.layout.as_ref().map_or(0, |layout| layout.first_navigable()))
     }
 
     fn instance_scope(&self, comp: &C) -> Option<crate::runtime::commands::CommandScope> {

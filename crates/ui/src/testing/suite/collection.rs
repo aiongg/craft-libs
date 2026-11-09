@@ -65,6 +65,11 @@ fn owner_arrows(fixture: &Fixture) -> bool {
     crate::runtime::focus::focused_rec(fixture.ctx()).is_some_and(|rec| rec.stop.role.owner_arrows)
 }
 
+/// The row Ctrl+Home goes to, as the focused stop declares it.
+fn home_row(fixture: &Fixture) -> usize {
+    crate::runtime::focus::focused_rec(fixture.ctx()).map_or(0, |rec| rec.stop.role.home_row)
+}
+
 /// A click on the first row puts the lead there; the keys then move it: Down and Up by one row, End to the last,
 /// Home to the first, Page Down forward. A grid takes Ctrl+End and Ctrl+Home for the last and first row.
 pub(super) fn keys_move_the_lead(subject: &Subject) -> Result<(), String> {
@@ -132,7 +137,8 @@ pub(super) fn keys_move_the_lead(subject: &Subject) -> Result<(), String> {
                         ));
                     }
                 }
-                expect(&mut fixture, Key::Home, Modifiers::COMMAND, 0, "Ctrl+Home")?;
+                let home = home_row(&fixture);
+                expect(&mut fixture, Key::Home, Modifiers::COMMAND, home, "Ctrl+Home")?;
             }
         }
         fixture.key(Key::PageDown, Modifiers::NONE);

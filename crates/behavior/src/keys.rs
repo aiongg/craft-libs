@@ -39,6 +39,8 @@ pub struct KeyRole {
     /// A collection that leaves its arrow keys to the component around it (`ItemKeys::Owner`): they are no moves
     /// of this role.
     pub owner_arrows: bool,
+    /// The item that Ctrl or Cmd with Home goes to: the first one that is not frozen. Zero where nothing is frozen.
+    pub home_row: usize,
 }
 
 impl KeyRole {
@@ -58,6 +60,7 @@ impl KeyRole {
             moves: false,
             deletes: false,
             owner_arrows: false,
+            home_row: 0,
         }
     }
 
@@ -130,6 +133,12 @@ impl KeyRole {
     /// The arrow keys are the enclosing component's, not this role's moves.
     pub const fn owner_arrows(mut self, on: bool) -> Self {
         self.owner_arrows = on;
+        self
+    }
+
+    /// Ctrl or Cmd with Home goes to item `row`.
+    pub const fn home_row(mut self, row: usize) -> Self {
+        self.home_row = row;
         self
     }
 

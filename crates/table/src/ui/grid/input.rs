@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use craft_behavior::{EditEvent, EditorInput, GestureId, Mixed, PointerButton, PressCancel, PressPhase, PressState};
+use craft_behavior::{EditEvent, EditorInput, GestureId, ItemLayout as _, Mixed, PointerButton, PressCancel, PressPhase, PressState};
 use craft_keymap::{Chord, Key, Mods};
 use craft_ui::contract::{Cx, Focus as _, Pointer as _, Remember as _};
 use craft_ui::runtime::commands::{ClipContent, Commands as _};
@@ -264,7 +264,7 @@ impl CellGrid<'_> {
                     selection.select(CellAt::new(active.row, 0), &space);
                 }
                 if cmd_home {
-                    selection.select(CellAt::new(frozen.0, frozen.1), &space);
+                    selection.select(CellAt::new(self.sheet_layout().first_navigable() as u32, frozen.1), &space);
                 }
                 if cmd_end {
                     selection.select(model.last_used(), &space);

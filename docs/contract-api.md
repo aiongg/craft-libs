@@ -1004,6 +1004,7 @@ Item geometry: where each item of a collection sits for a scroll offset and view
   - `fn cells(&self, _at: usize, _offset: ScrollPos, _out: &mut Vec<(ColumnKey, Rect)>)`. The cells of item `at`, with their rects.
   - `fn grid(&self) -> Option<&GridView>`. Column virtualisation and sections of a sheet.
   - `fn frozen_band(&self, _at: usize) -> f32`. The height at the top of the view that item `at` must not paint into: the zoomed frozen-row band for a scrolled
+  - `fn first_navigable(&self) -> usize`. The first item that is not frozen: where Ctrl or Cmd with Home goes. Zero for a layout without frozen rows.
   - `fn set_columns(&mut self, _columns: &[(ColumnKey, f32)])`. The column widths the collection resolved, from the start edge; layouts without columns ignore them.
   - `fn column_count(&self) -> usize`. The number of columns of a table or sheet; 0 for a layout with none.
   - `fn column_shown(&self, _index: usize) -> bool`. Whether the column at position `index` is shown; a hidden column has no cell and the arrows skip it.
@@ -1093,7 +1094,7 @@ Where a collection's items come from: the data traits and the one way to show a 
 The key table (spec 9.2): the one place that maps a key press to an intent and modifiers to `MoveMods`.
 
 - `craft_behavior::keys::DropOperation`: `pub enum DropOperation { Move, Copy, Link }`. What a drop of a dragged payload does with it.
-- `craft_behavior::keys::KeyRole`: `pub struct KeyRole { pub resettable: bool, pub space: bool, pub reorderable: bool, pub rename: bool, pub pages: bool, pub nudge: bool, pub type_ahead: bool, pub digits: bool, pub value: bool, pub text: bool, pub moves: bool, pub deletes: bool, pub owner_arrows: bool }`. What the focused stop is, as far as the table's rows differ.
+- `craft_behavior::keys::KeyRole`: `pub struct KeyRole { pub resettable: bool, pub space: bool, pub reorderable: bool, pub rename: bool, pub pages: bool, pub nudge: bool, pub type_ahead: bool, pub digits: bool, pub value: bool, pub text: bool, pub moves: bool, pub deletes: bool, pub owner_arrows: bool, pub home_row: usize }`. What the focused stop is, as far as the table's rows differ.
   - `pub const fn new() -> KeyRole`. A role with no special rows.
   - `pub const fn resettable(mut self, on: bool) -> Self`. Delete resets the control.
   - `pub const fn space(mut self, on: bool) -> Self`. Space is the component's own intent.
@@ -1107,6 +1108,7 @@ The key table (spec 9.2): the one place that maps a key press to an intent and m
   - `pub const fn moves(mut self, on: bool) -> Self`. The component acts on the moves routed to it.
   - `pub const fn deletes(mut self, on: bool) -> Self`. Delete and Backspace are the component's own.
   - `pub const fn owner_arrows(mut self, on: bool) -> Self`. The arrow keys are the enclosing component's, not this role's moves.
+  - `pub const fn home_row(mut self, row: usize) -> Self`. Ctrl or Cmd with Home goes to item `row`.
   - `pub const fn text(mut self, on: bool) -> Self`. The stop is a text part.
 - `craft_behavior::keys::drop_operation`: `pub fn drop_operation(os: Os, mods: Mods) -> DropOperation`. The drop operation the held modifiers pick.
 - `craft_behavior::keys::intent`: `pub fn intent(os: Os, key: Key, mods: Mods, role: KeyRole) -> Option<Intent>`. The intent a key press has for a stop of `role`, if any. `Enter` and `Space` as activation are not rows:

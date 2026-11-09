@@ -58,6 +58,11 @@ pub trait ItemLayout {
         0.0
     }
 
+    /// The first item that is not frozen: where Ctrl or Cmd with Home goes. Zero for a layout without frozen rows.
+    fn first_navigable(&self) -> usize {
+        0
+    }
+
     /// The column widths the collection resolved, from the start edge; layouts without columns ignore them.
     fn set_columns(&mut self, _columns: &[(ColumnKey, f32)]) {}
 
@@ -750,6 +755,10 @@ impl ItemLayout for SheetLayout {
 
     fn grid(&self) -> Option<&GridView> {
         self.grid.as_ref()
+    }
+
+    fn first_navigable(&self) -> usize {
+        (self.frozen_rows as usize).min(self.rows.count() as usize)
     }
 
     fn frozen_band(&self, at: usize) -> f32 {
