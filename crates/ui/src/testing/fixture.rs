@@ -7,6 +7,7 @@ use crate::runtime::commands::{CommandInput, CommandRef, CommandState};
 use crate::runtime::egui::access::{AccessTree, NodeKey};
 use crate::runtime::egui::fixture::{self, AccessActionKind};
 use crate::runtime::egui::injected;
+use crate::runtime::egui::sizing::HELD_UPDATE_RERUN;
 use crate::runtime::env::{Direction, Overrides, RootEnv, Scale, with_env};
 use craft_behavior::{MotionMode, PartRef};
 use craft_host::target::Os;
@@ -138,6 +139,7 @@ impl Fixture {
         let pass = Rc::new(Cell::new(0));
         let impure = Rc::new(RefCell::new(Vec::new()));
         let (shared_pass, shared_impure) = (pass.clone(), impure.clone());
+        let shared_delivers = Cell::new(false);
         let mut fixture = Fixture::new(move |ui| {
             let number = shared_pass.get() + 1;
             shared_pass.set(number);
@@ -157,7 +159,10 @@ impl Fixture {
             }
             let before = shared_data.borrow().snapshot();
             let output = shown(ui, scope, show, &shared_data);
-            if number >= 2 {
+            // A pass that held an update for the next pass asks for that rerun, which delivers the update.
+            let delivers =
+                shared_delivers.replace(ctx.output(|out| out.request_discard_reasons.iter().any(|cause| cause.reason == HELD_UPDATE_RERUN)));
+            if number >= 2 && !delivers {
                 let changed = shared_data.borrow().changed_values_since(&before);
                 if !changed.is_empty() {
                     shared_impure.borrow_mut().push(Impure { pass: number, measuring: false, changed, effects: Vec::new() });

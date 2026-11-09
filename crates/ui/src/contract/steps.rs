@@ -983,7 +983,9 @@ pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
     // A pass that changes the value, or holds an update for the next pass, runs again before painting, so a control drawn
     // above the field shows the edit in the frame it happens. egui gives the rerun no input events and caps a frame at
     // two passes, so nothing is delivered twice.
-    if changed || held.is_some() {
+    if held.is_some() {
+        crate::runtime::egui::sizing::request_discard(&cx.core.ctx, crate::runtime::egui::sizing::HELD_UPDATE_RERUN);
+    } else if changed {
         crate::runtime::egui::sizing::request_discard(&cx.core.ctx, "craft_ui: an edit changed the value");
     }
     let repaint_next = held.is_some();
