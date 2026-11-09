@@ -130,16 +130,6 @@ impl FilterGalleryOutput {
 /// The footer button that accepts.
 const OK: usize = 0;
 
-/// The dialog body's session slot: the preview's view.
-#[derive(Clone)]
-struct BodyView(FullWindowView);
-
-impl Default for BodyView {
-    fn default() -> Self {
-        Self(FullWindowView::new())
-    }
-}
-
 /// What one pass of the two closures shares.
 struct Pass<'w> {
     workspace: &'w mut FilterGalleryWorkspace,
@@ -171,6 +161,8 @@ pub struct FilterGalleryWorkspace {
     /// The zoom on screen as a percentage and as screen pixels per document pixel, of the last pass.
     percent: f64,
     zoom: f64,
+    /// The preview's view: the body returns it each pass and `show` stores it after the dialog.
+    view: FullWindowView,
     /// The preview job of the last pass, for the status line.
     status: Pending<PreviewDone, String>,
     /// Events from calls outside `show`, reported by the next pass.
@@ -194,6 +186,7 @@ impl FilterGalleryWorkspace {
             shown: None,
             percent: 100.0,
             zoom: 1.0,
+            view: FullWindowView::new(),
             status: Pending::default(),
             queued: Vec::new(),
         }
@@ -230,7 +223,7 @@ impl FilterGalleryWorkspace {
         let checkerboard = self.checkerboard;
         let pass = RefCell::new(Pass { workspace: self, events, pick_color: None });
 
-        let dialog = FullWindowDialog::new(title)
+        let mut dialog = FullWindowDialog::new(title)
             .buttons(buttons)
             .side_footer(SideFooter::top())
             .sides(|ui, _| {
@@ -271,7 +264,7 @@ impl FilterGalleryWorkspace {
             .show(ui, |ui, cx| {
                 let mut pass = pass.borrow_mut();
                 let workspace = &mut *pass.workspace;
-                let mut view = cx.keep::<BodyView>().0;
+                let mut view = workspace.view.clone();
                 while let Some((command, _)) = cx.take_command::<ViewCommands>() {
                     view.apply(command);
                 }
@@ -290,11 +283,16 @@ impl FilterGalleryWorkspace {
                     canvas = canvas.checkerboard(checker);
                 }
                 canvas.show(ui);
-                workspace.shown = Some(view.view());
-                workspace.percent = view.zoom_percent();
-                workspace.zoom = view.device_zoom();
-                cx.keep::<BodyView>().0 = view;
+                view
             });
+        // The body's value is the real run's; the view it settled is stored here, once per pass.
+        if let Some(view) = dialog.inner.take() {
+            let workspace = &mut *pass.borrow_mut().workspace;
+            workspace.shown = Some(view.view());
+            workspace.percent = view.zoom_percent();
+            workspace.zoom = view.device_zoom();
+            workspace.view = view;
+        }
 
         let Pass { workspace, mut events, pick_color } = pass.into_inner();
         events.append(&mut workspace.queued);

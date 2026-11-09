@@ -565,6 +565,12 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let empty = if self.source.is_empty() { comp.empty_height(width, ui, scx) } else { 0.0 };
         let height = self.content.y.max(empty) + self.header.height;
         if !(self.scrolls && room.y.is_finite()) {
+            // Under a body sized from its content, a `Fill` collection offers its least width here too: the body
+            // has no room of its own to hand it, and the layout above was made at the enclosing room.
+            if self.from_content.0 && comp.props(Internal::new()).sizing == Sizing::Fill {
+                let wide = if self.header.has_columns() { self.header.least_width() } else { self.widest_row(comp, ui, id).min(room.x) };
+                return Vec2::new(wide, height);
+            }
             return Vec2::new(self.content.x, height);
         }
         // A scrolling collection in a bounded room: `Content` takes its rows up to the room, `Fill` the room.
