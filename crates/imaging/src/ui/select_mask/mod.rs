@@ -351,14 +351,26 @@ impl SelectMaskWorkspace {
         let common = env.words::<CommonWords>();
         let title = FullWindowTitle::new(words.name.clone()).subject(self.subject.clone()).zoom(self.zoom_percent).label(&env);
         let settings_before = self.settings.clone();
-        let mut asked_steps = std::mem::take(&mut self.requested);
+        // Steps asked while a stroke was open run before the canvas: an open stroke is cancelled first, so its
+        // Commit never lands on the restored session.
+        for step in std::mem::take(&mut self.requested) {
+            self.cancel_gesture(ui.ctx(), CancelReason::UndoDuringGesture);
+            self.canvas.drop_polygon();
+            self.step_now(step);
+        }
         let slots = SelectMaskTool::slots();
         let request = self.request_now();
         let key = format!("{request:?}");
         let reset = Cell::new(false);
+        // What the Properties column decided this run (the last run wins); `settle` applies it.
+        let side_status = RefCell::new(None);
+        let side_panel_open = Cell::new(None);
+        let side_pick = RefCell::new(None);
+        let side_edit = RefCell::new(None);
+        let ctx = ui.ctx().clone();
         let this = RefCell::new(&mut *self);
 
-        let shown = FullWindowDialog::new(title)
+        let mut shown = FullWindowDialog::new(title)
             .command_scope(SelectMaskCommands::SCOPE)
             .buttons([FooterButton::new(common.ok.clone(), DialogRole::Accept), FooterButton::new(common.cancel.clone(), DialogRole::Cancel)])
             .side_footer(SideFooter::bottom().leading(|ui| {
@@ -369,38 +381,28 @@ impl SelectMaskWorkspace {
                 let mut guard = this.borrow_mut();
                 let work: &mut SelectMaskWorkspace = &mut **guard;
                 let status = cx.pending(key.clone(), || source.preview_job(&request)).clone();
-                if work.trail_since.as_ref().is_some_and(|since| *since != key) && !matches!(status, Pending::Loading { .. }) {
-                    work.canvas.drop_trail();
-                    work.trail_since = None;
-                }
+                *side_status.borrow_mut() = Some(status.clone());
+                side_panel_open.set(None);
+                *side_pick.borrow_mut() = None;
+                *side_edit.borrow_mut() = None;
                 FullWindowSide::new(words.properties.clone()).show(ui, |ui, _| {
                     let message = work.error.map(|why| why.message(&env));
                     let SelectMaskWorkspace { settings, session, mask_view, .. } = &mut *work;
                     let panel = SelectMaskPanel::new(settings, &mut session.refine, mask_view).error(message.as_deref()).show(ui);
-                    work.panel_open = match &panel.edit {
-                        Some(EditEvent::Begin { .. } | EditEvent::Update { .. }) => true,
-                        Some(_) => false,
-                        None => work.panel_open,
-                    };
-                    work.pick_color = panel.pick_color;
-                    if let Some(edit) = panel.selection_edit {
-                        work.absorb_edit(ui.ctx(), edit);
-                    }
+                    side_panel_open.set(match &panel.edit {
+                        Some(EditEvent::Begin { .. } | EditEvent::Update { .. }) => Some(true),
+                        Some(_) => Some(false),
+                        None => None,
+                    });
+                    *side_pick.borrow_mut() = panel.pick_color;
+                    *side_edit.borrow_mut() = panel.selection_edit;
                     FullWindowStatus::of(&status).show(ui);
                 });
             })
             .show(ui, |ui, cx| {
-                let ctx = ui.ctx().clone();
                 let mut guard = this.borrow_mut();
                 let work: &mut SelectMaskWorkspace = &mut **guard;
                 work.zoom_tool.options = work.navigation;
-
-                // An open stroke is cancelled first, so its Commit never lands on the restored session.
-                for step in asked_steps.drain(..) {
-                    work.cancel_gesture(&ctx, CancelReason::UndoDuringGesture);
-                    work.canvas.drop_polygon();
-                    work.step_now(step);
-                }
 
                 while let Some((command, _)) = cx.take_command::<ViewCommands>() {
                     work.view.apply(command);
@@ -425,11 +427,12 @@ impl SelectMaskWorkspace {
                     }
                 }
 
+                let mut subject = None;
+                let mut canvas_id = None;
                 Stack::new().fill().show(ui, |ui, _| {
                     let bar = SelectMaskBar::new(work.tool, &mut work.options).show(ui);
                     if bar.select_subject {
-                        let edit = SelectMaskEdit::Subject { sample_all_layers: work.options.sample_all_layers };
-                        work.absorb_edit(&ctx, edit);
+                        subject = Some(SelectMaskEdit::Subject { sample_all_layers: work.options.sample_all_layers });
                     }
                     let recipe = work.mask_view.recipe();
                     let image: &dyn RasterSource = if recipe.hidden { source.image() } else { source.view() };
@@ -468,14 +471,35 @@ impl SelectMaskWorkspace {
                             }
                         }
                     });
-                    work.canvas_id = shown.inner.as_ref().map(|canvas| canvas.response.id);
-                    work.zoom_percent = work.view.zoom_percent();
+                    canvas_id = shown.inner.as_ref().map(|canvas| canvas.response.id);
                 });
-                work.absorb_canvas();
-                work.settle(work.canvas.busy() || work.panel_open);
-                work.settings.take_view(&work.mask_view);
-                work.settings.refine = work.session.refine.clone();
+                (subject, canvas_id, work.view.zoom_percent())
             });
+        // Once per pass, after the real run: what the columns and the canvas decided is stored and the canvas's
+        // events are recorded.
+        shown.settle(|_, (subject, canvas_id, zoom_percent)| {
+            let work: &mut SelectMaskWorkspace = &mut **this.borrow_mut();
+            if let Some(status) = side_status.take()
+                && work.trail_since.as_ref().is_some_and(|since| *since != key)
+                && !matches!(status, Pending::Loading { .. })
+            {
+                work.canvas.drop_trail();
+                work.trail_since = None;
+            }
+            if let Some(open) = side_panel_open.take() {
+                work.panel_open = open;
+            }
+            work.pick_color = side_pick.take();
+            for edit in [side_edit.take(), subject.take()].into_iter().flatten() {
+                work.absorb_edit(&ctx, edit);
+            }
+            work.canvas_id = *canvas_id;
+            work.zoom_percent = *zoom_percent;
+            work.absorb_canvas();
+            work.settle(work.canvas.busy() || work.panel_open);
+            work.settings.take_view(&work.mask_view);
+            work.settings.refine = work.session.refine.clone();
+        });
         let this = this.into_inner();
         let picked = shown.output.picked.and_then(|at| [DialogRole::Accept, DialogRole::Cancel].get(at).copied());
         let closed = picked.or(shown.output.closed.map(|_| DialogRole::Cancel));
