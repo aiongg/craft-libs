@@ -148,7 +148,7 @@ fn swatch_requests_a_colour_for_one_pass() {
     let seen = panel.requests.borrow().clone();
     assert_eq!(seen.len(), 1, "{seen:?}");
     assert_eq!(seen[0].key, COLOR_KEY);
-    assert_eq!(seen[0].color, Srgba::from(Rgba([10, 20, 30, 255])));
+    assert_eq!(seen[0].color, Some(Srgba::from(Rgba([10, 20, 30, 255]))));
     panel.fixture.settle();
     assert_eq!(panel.requests.borrow().len(), 1, "a request is made once per click");
 }
