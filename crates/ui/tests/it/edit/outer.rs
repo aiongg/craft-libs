@@ -87,12 +87,12 @@ fn dialog() -> (Fixture, Rc<RefCell<App>>) {
         app.drain(ui.ctx());
         let App { doc, host, open, shown, .. } = &mut *app;
         let values = doc.values;
-        shown.clear();
         Dialog::new(TITLE)
             .opened(Bind::bound(open))
             .outer_gesture(true)
             .buttons([FooterButton::new("OK", DialogRole::Accept), FooterButton::new("Cancel", DialogRole::Cancel)])
             .show(ui, |ui, _| {
+                shown.clear();
                 let snap = Checkbox::new(Bind::given(values.snap)).label("Snap").show(ui);
                 shown.push(snap.shown.clone());
                 if let Some(event) = snap.event {

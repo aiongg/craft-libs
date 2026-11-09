@@ -149,8 +149,8 @@ fn a_grid_body_places_children_by_column() {
                 Vec2::new(WIDEST_CHILD, 10.0),
                 Vec2::new(20.0, 10.0),
             ];
-            rects.borrow_mut().clear();
             Grid::new(&COLUMNS).id_salt("grid").show(ui, |ui, _| {
+                rects.borrow_mut().clear();
                 for size in sizes {
                     rects.borrow_mut().push(Block::new(size).show(ui).rect);
                 }

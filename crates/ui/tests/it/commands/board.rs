@@ -140,13 +140,13 @@ fn a_scoped_command_goes_to_the_instance_it_was_fired_in() {
     };
     frames.idle(3, &mut show);
     // The two panes' buttons are laid out one under the other; the second pane's command is disabled.
-    let mut centers = Vec::new();
+    let mut centers = [Pos2::ZERO; 2];
     frames.frame(vec![], |ui| {
-        centers.clear();
-        for (name, _) in [("a", true), ("b", false)] {
+        for (index, name) in ["a", "b"].into_iter().enumerate() {
+            let center = &mut centers[index];
             super::kit::Pane::new()
                 .id_salt(name)
-                .show(ui, |ui, _| centers.push(Tap::new().id_salt("zoom").command(PaneCommand::ZoomIn).show(ui).rect.center()));
+                .show(ui, |ui, _| *center = Tap::new().id_salt("zoom").command(PaneCommand::ZoomIn).show(ui).rect.center());
         }
     });
     click_at(&mut frames, centers[1], &mut show, false);

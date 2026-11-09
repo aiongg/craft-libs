@@ -310,10 +310,11 @@ fn save_row(ui: &mut Ui, session: &mut Session, read: &Read<'_>, right: &mut Rig
         if shown.submitted {
             right.save = true;
         }
-        if std::mem::take(&mut session.focus_preset_name) {
+        if session.focus_preset_name {
             focus::request(ui.ctx(), FocusTarget::Id(shown.response.id));
         }
     });
+    session.focus_preset_name = false;
     Row::new().show(ui, |ui, _| {
         if clicked(&Button::new(words.save.clone()).id_salt("save").show(ui)) {
             right.save = true;
