@@ -5,6 +5,7 @@ use std::rc::Rc;
 
 use craft_behavior::edit_history::Step;
 use craft_behavior::{CancelReason, Cursor, PaintedCursor, PixelSize};
+use craft_host::target::Os;
 use craft_imaging::ui::liquify::{
     BackdropLayering, BackdropMode, BackdropUse, LayeredImage, LiquifyBrush, LiquifyCommands, LiquifyEvent, LiquifyGlobal, LiquifyMesh, LiquifyOpen,
     LiquifySession, LiquifySettings, LiquifySource, LiquifyStep, LiquifyStroke, LiquifyTiming, LiquifyTool, LiquifyWorkspace, MeshSize, StrokeEvent,
@@ -173,6 +174,8 @@ fn liquify_alt_right_drag_resizes_size_and_density_and_paints_nothing() {
     assert!(brush.density > start.density, "down raises the density");
     assert_eq!((strokes(&app.borrow().events), app.borrow().workspace.session().len()), (0, 0), "a resize paints nothing");
 
+    // Control + Alt is the Mac chord (Control and Option); elsewhere Ctrl is the command key.
+    fixture.os(Os::Mac);
     fixture.hold(Modifiers { alt: true, ctrl: true, ..Modifiers::NONE });
     drag(&mut fixture, primary, from, from + by(-20.0, -20.0));
     let narrower = app.borrow().workspace.settings().brush;
@@ -547,7 +550,12 @@ fn liquify_keys_work_with_focus_on_the_footer_button() {
     let ok = fixture.by_label("OK").expect("the footer has OK");
     fixture.access(AccessActionKind::Focus, &ok);
     fixture.idle(1);
-    let zoom = |fixture: &Fixture| fixture.texts().iter().map(|run| run.text.clone()).find(|text| text.contains('%'));
+    // The zoom is the last bracketed part of the dialog's title: "Liquify (Photo, 89.25%)".
+    let zoom = |fixture: &Fixture| {
+        let dialog = fixture.by_role(Role::DIALOG).into_iter().next()?;
+        let title = craft_ui::testing::access::name(fixture.tree(), dialog.node)?;
+        title.rsplit(", ").next()?.strip_suffix(")").filter(|zoom| zoom.ends_with('%')).map(str::to_owned)
+    };
     let before = zoom(&fixture);
     fixture.key(Key::R, Modifiers::NONE);
     assert_eq!(app.borrow().workspace.settings().tool, LiquifyTool::Reconstruct);
