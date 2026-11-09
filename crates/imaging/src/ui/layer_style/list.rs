@@ -1,9 +1,9 @@
 //! The effect list on the dialog's left.
 
-use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, IconId, ItemSource, Selection, SelectionChange};
+use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, IconId, ItemSource, Selection, SelectionChange};
 use craft_ui::contract::{
     ActivateOn, Bind, BodyCx, CollectionEvent, ColumnKind, ColumnSpec, CommandSet, Commands as _, Remember as _, SelectMode, ShowCollection as _,
-    Sizing, SpaceAction, SweepApply, SweepStep, ToggleColumn, ToggleEdit,
+    Sizing, SpaceAction, SweepApply, SweepStep, ToggleColumn,
 };
 use craft_ui::list::{List, ListRow, RowEvent, RowInk, ToggleCell, ToggleState, TrailingFace, TrailingPart};
 use craft_ui::primitives::IconSpec;
@@ -200,7 +200,8 @@ pub(super) fn effect_list(
     for event in &out.events {
         match event {
             CollectionEvent::Toggle(edit) => {
-                if let Some(toggle) = applied(edit) {
+                // This column does not sweep: each toggle edit is one press.
+                if let Some(SweepStep::Flip(toggle) | SweepStep::Restore(toggle)) = cx.keep::<SweepApply>().feed(edit) {
                     first(match &toggle.key {
                         EffectRow::Instance(id) => Some(ListAction::Toggle(*id)),
                         EffectRow::Absent(kind) => Some(ListAction::Add(*kind)),
@@ -234,12 +235,4 @@ pub(super) fn effect_list(
         });
     }
     action
-}
-
-/// The cell a toggle edit sets, from a fresh sweep reader: this column does not sweep, so each edit is one press.
-fn applied<K: Clone>(edit: &EditEvent<ToggleEdit<K>>) -> Option<ToggleEdit<K>> {
-    match SweepApply::default().feed(edit)? {
-        SweepStep::Flip(cell) | SweepStep::ShowOnly(cell) | SweepStep::Restore(cell) | SweepStep::UndoShowOnly(cell) => Some(cell),
-        _ => None,
-    }
 }

@@ -596,7 +596,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
                 CollectionEvent::Item(key, TilePartEvent::Rate(rating)) => events.push(GridEvent::Rate { keys: vec![key], rating }),
                 CollectionEvent::Toggle(edit) if self.checks => {
                     // The check column does not sweep, so each flip arrives whole as a `Set`.
-                    if let Some(SweepStep::Flip(toggle) | SweepStep::ShowOnly(toggle)) = SweepApply::default().feed(&edit) {
+                    if let Some(SweepStep::Flip(toggle)) = SweepApply::default().feed(&edit) {
                         kept.push(CollectionEvent::Item(toggle.key, TilePartEvent::Check { mods: Mods::NONE }));
                     }
                 }

@@ -47,16 +47,23 @@ struct Host {
     apply: RefCell<SweepApply>,
     rows: RefCell<Vec<(usize, Rect)>>,
     show_only: RefCell<usize>,
+    /// The state from before the last `ShowOnly`, which the host restores on `UndoShowOnly`.
+    before: RefCell<Vec<bool>>,
     frames: RefCell<Frames>,
 }
 
 impl Host {
     fn new(state: &[bool]) -> Self {
+        Self::with(state, SweepApply::new())
+    }
+
+    fn with(state: &[bool], apply: SweepApply) -> Self {
         Host {
             eyes: Eyes(RefCell::new(state.to_vec())),
-            apply: RefCell::default(),
+            apply: RefCell::new(apply),
             rows: RefCell::default(),
             show_only: RefCell::new(0),
+            before: RefCell::default(),
             frames: RefCell::new(Frames::new()),
         }
     }
@@ -80,10 +87,12 @@ impl Host {
                     Some(SweepStep::Flip(toggle) | SweepStep::Restore(toggle)) => eyes[toggle.key] = toggle.on,
                     Some(SweepStep::ShowOnly(toggle)) => {
                         *self.show_only.borrow_mut() += 1;
+                        *self.before.borrow_mut() = eyes.clone();
                         eyes.iter_mut().for_each(|on| *on = false);
                         eyes[toggle.key] = toggle.on;
                     }
-                    Some(SweepStep::UndoShowOnly(_)) | None => {}
+                    Some(SweepStep::UndoShowOnly(_)) => *eyes = self.before.borrow().clone(),
+                    None => {}
                     Some(_) => {}
                 }
             }
@@ -148,10 +157,47 @@ fn releasing_a_sweep_keeps_the_switches() {
     assert_eq!(host.state(), vec![true, true, true, false]);
 }
 
-/// An Alt sweep shows only its first row once; the rows it crosses afterwards change nothing.
+/// An Alt sweep on a plain column ignores Alt: it flips every crossed row and Escape restores all of them.
+#[trial]
+fn an_alt_sweep_on_a_plain_column_flips_every_row_and_escape_restores_them() {
+    let host = Host::new(&[false; 4]);
+    host.frames.borrow_mut().hold(Modifiers::ALT);
+    host.sweep_down();
+    assert_eq!(host.state(), vec![true, true, true, false]);
+    assert_eq!(*host.show_only.borrow(), 0, "a plain column never shows only");
+    host.frame(vec![input::key_press(Key::Escape, Modifiers::NONE)]);
+    host.idle(2);
+    assert_eq!(host.state(), vec![false; 4]);
+}
+
+/// An Alt sweep on a show-only column shows only the first row; Escape undoes it.
+#[trial]
+fn escape_undoes_an_alt_show_only_sweep() {
+    let host = Host::with(&[false, true, true, true], SweepApply::show_only());
+    host.frames.borrow_mut().hold(Modifiers::ALT);
+    host.sweep_down();
+    assert_eq!(host.state(), vec![true, false, false, false]);
+    host.frame(vec![input::key_press(Key::Escape, Modifiers::NONE)]);
+    host.idle(2);
+    assert_eq!(host.state(), vec![false, true, true, true]);
+}
+
+/// The sweep's gesture is known while the pointer is down and gone after the release.
+#[trial]
+fn the_gesture_is_known_only_during_a_sweep() {
+    let host = Host::new(&[false; 4]);
+    assert_eq!(host.apply.borrow().gesture(), None);
+    host.sweep_down();
+    assert!(host.apply.borrow().gesture().is_some(), "a sweep runs");
+    host.frame(vec![pointer::release(host.cell(2))]);
+    host.idle(2);
+    assert_eq!(host.apply.borrow().gesture(), None, "the release ended it");
+}
+
+/// An Alt sweep on a show-only column shows only its first row once; the rows it crosses afterwards change nothing.
 #[trial]
 fn an_alt_sweep_shows_only_the_first_row_once() {
-    let host = Host::new(&[false, true, true, true]);
+    let host = Host::with(&[false, true, true, true], SweepApply::show_only());
     host.frames.borrow_mut().hold(Modifiers::ALT);
     host.sweep_down();
     assert_eq!(host.state(), vec![true, false, false, false], "only the first row shows");

@@ -1,9 +1,9 @@
 //! The Brush Settings section list ([`BrushSectionList`]).
 
-use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, IconId, ItemSource, Mixed, Selection, SelectionChange, Value};
+use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, IconId, ItemSource, Mixed, Selection, SelectionChange, Value};
 use craft_ui::contract::{
-    ActivateOn, Bind, CollectionEvent, ColumnKind, ColumnSpec, Outcome, SelectMode, ShowCollection as _, ShowContainer as _, Sizing, SpaceAction,
-    SweepApply, SweepStep, ToggleColumn, ToggleEdit,
+    ActivateOn, Bind, CollectionEvent, ColumnKind, ColumnSpec, Outcome, Remember as _, SelectMode, ShowCollection as _, ShowContainer as _, Sizing,
+    SpaceAction, SweepApply, SweepStep, ToggleColumn, ToggleEdit,
 };
 use craft_ui::layout_components::Stack;
 use craft_ui::list::{ListRow, ToggleCell, ToggleState};
@@ -312,7 +312,19 @@ impl<'a, K: Value + Eq + Hash> BrushSectionList<'a, K> {
                     }
                 }
             });
-            (out.response, out.events, pane)
+            // The columns do not sweep: each toggle edit is one press, read once here.
+            let pressed: Vec<Option<ToggleEdit<Slot<K>>>> = out
+                .events
+                .iter()
+                .map(|event| match event {
+                    CollectionEvent::Toggle(edit) => match cx.keep::<SweepApply>().feed(edit) {
+                        Some(SweepStep::Flip(cell) | SweepStep::Restore(cell)) => Some(cell),
+                        _ => None,
+                    },
+                    _ => None,
+                })
+                .collect();
+            (out.response, out.events.into_iter().zip(pressed).collect::<Vec<_>>(), pane)
         });
         let Some((_, list_events, pane)) = shown_stack.inner else {
             return BrushSectionListOutput { response: shown_stack.output, events: Vec::new() };
@@ -324,22 +336,22 @@ impl<'a, K: Value + Eq + Hash> BrushSectionList<'a, K> {
     /// The section events of the collection's events, in order.
     fn events(
         rows: &Rows<'_, K>,
-        list_events: Vec<CollectionEvent<Slot<K>, craft_ui::list::RowEvent>>,
+        list_events: Vec<(CollectionEvent<Slot<K>, craft_ui::list::RowEvent>, Option<ToggleEdit<Slot<K>>>)>,
         pane: Option<&K>,
     ) -> Vec<BrushSectionEvent<K>> {
         let mut events = Vec::new();
         // A press on a box or lock flips only that cell, whatever else the press reported for the row.
         let toggled: Vec<Slot<K>> = list_events
             .iter()
-            .filter_map(|event| match event {
-                CollectionEvent::Toggle(edit) => applied(edit).map(|toggle| toggle.key),
+            .filter_map(|(event, pressed)| match event {
+                CollectionEvent::Toggle(_) => pressed.as_ref().map(|toggle| toggle.key.clone()),
                 _ => None,
             })
             .collect();
-        for event in list_events {
+        for (event, pressed) in list_events {
             match event {
-                CollectionEvent::Toggle(edit) => {
-                    let Some(toggle) = applied(&edit) else { continue };
+                CollectionEvent::Toggle(_) => {
+                    let Some(toggle) = pressed else { continue };
                     let Slot::Section(key) = &toggle.key else { continue };
                     let Some(section) = rows.section(key) else { continue };
                     let key = key.clone();
@@ -386,13 +398,5 @@ impl<'a, K: Value + Eq + Hash> BrushSectionList<'a, K> {
             }
         }
         events
-    }
-}
-
-/// The cell a toggle edit sets, from a fresh sweep reader: this column does not sweep, so each edit is one press.
-fn applied<K: Clone>(edit: &EditEvent<ToggleEdit<K>>) -> Option<ToggleEdit<K>> {
-    match SweepApply::default().feed(edit)? {
-        SweepStep::Flip(cell) | SweepStep::ShowOnly(cell) | SweepStep::Restore(cell) | SweepStep::UndoShowOnly(cell) => Some(cell),
-        _ => None,
     }
 }

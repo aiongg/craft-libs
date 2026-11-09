@@ -38,8 +38,9 @@ struct Sweep<K> {
 pub enum SweepStep<K> {
     /// Set the cell to `on` now. A sweep emits one as the pointer crosses each cell; a plain press emits one.
     Flip(ToggleEdit<K>),
-    /// Alt was held at the first press: show only this cell, turning the column's other cells off. A sweep emits it once,
-    /// for its first cell; the cells it crosses afterwards emit nothing.
+    /// Alt was held at the first press of a [`SweepApply::show_only`] column: show only this cell, turning the column's
+    /// other cells off. A sweep emits it once, for its first cell; the cells it crosses afterwards emit nothing. A plain
+    /// column never emits it.
     ShowOnly(ToggleEdit<K>),
     /// Put the cell back to the value it had before the sweep (Escape or a lost press capture). Every flipped cell
     /// emits one.
@@ -64,16 +65,39 @@ struct Run {
 /// restores every crossed cell (`Restore`); and a sweep that began with Alt shows only its first cell once
 /// (`ShowOnly`), where the cells it crosses afterwards apply nothing and restore nothing. The host owns the toggle
 /// state, so the steps carry no state to read: a `Restore` carries the value from before.
+///
+/// Alt show-only is the column's choice. [`SweepApply::new`] (also `Default`) is plain: Alt is ignored, every crossed
+/// cell gives `Flip` and a cancel gives `Restore` per flipped cell. [`SweepApply::show_only`] makes Alt plus the first
+/// press show only that cell (`ShowOnly`, undone by `UndoShowOnly`); it never locks the other cells.
 #[derive(Clone, Debug, Default)]
 pub struct SweepApply {
     run: Option<Run>,
+    show_only: bool,
 }
 
 impl SweepApply {
+    /// A plain column: Alt is ignored.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// A column where Alt plus the first press shows only that cell.
+    pub fn show_only() -> Self {
+        SweepApply { run: None, show_only: true }
+    }
+
+    /// The first gesture of the running sweep, which a host that groups a sweep's edits as one undo step uses as the
+    /// id of all of them. `None` between sweeps.
+    pub fn gesture(&self) -> Option<GestureId> {
+        self.run.filter(|run| !run.ended).map(|run| run.first)
+    }
+
     /// The step for `edit`, if it asks the host for one. `Commit` repeats what its `Update` already applied.
     pub fn feed<K: Clone>(&mut self, edit: &EditEvent<ToggleEdit<K>>) -> Option<SweepStep<K>> {
         match edit {
-            EditEvent::Set { after, .. } => Some(if after.mods.alt { SweepStep::ShowOnly(after.clone()) } else { SweepStep::Flip(after.clone()) }),
+            EditEvent::Set { after, .. } => {
+                Some(if self.show_only && after.mods.alt { SweepStep::ShowOnly(after.clone()) } else { SweepStep::Flip(after.clone()) })
+            }
             EditEvent::Begin { id, before: Mixed::Same(before), .. } => {
                 self.open(*id, before);
                 None
@@ -103,7 +127,7 @@ impl SweepApply {
         match self.run {
             Some(run) if !run.ended => run,
             _ => {
-                let run = Run { first: id, alt: edit.mods.alt, ended: false };
+                let run = Run { first: id, alt: self.show_only && edit.mods.alt, ended: false };
                 self.run = Some(run);
                 run
             }
