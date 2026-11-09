@@ -176,8 +176,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     # Shards run in parallel; `rest` takes every listed crate no other shard names.
-    # craft-imaging is the longest crate. The libtest-mimic harness takes one filter and any
-    # number of --skip, so each imaging shard skips the other's modules (substring match).
+    # craft-imaging is the longest crate. Its harness (libtest-mimic) takes one substring filter
+    # and any number of --skip: imaging-a runs the tests whose name contains `_the_`, imaging-b
+    # skips them, so together they run every test exactly once (about half each).
     strategy:
       fail-fast: false
       matrix:
@@ -225,19 +226,12 @@ jobs:
             [imaging-a]="craft-imaging"
             [imaging-b]="craft-imaging"
           )
-          imaging_a=(suite:: warp:: curve:: select:: liquify:: adjust_editors::)
-          imaging_b=(blend_keys:: blur_pins:: channels:: fill:: filter_gallery:: histogram:: layer_style:: layer_style_parts:: live_preview:: scopes:: select_mask:: selection:: transform_preview:: vanishing_point:: wide_angle::)
           assigned=" ${groups[*]} "
           extra=()
           case "$SHARD" in
-            imaging-a) skips=("${imaging_b[@]}") ;;
-            imaging-b) skips=("${imaging_a[@]}") ;;
-            *) skips=() ;;
+            imaging-a) extra=(-- _the_) ;;
+            imaging-b) extra=(-- --skip _the_) ;;
           esac
-          if [ "${#skips[@]}" -gt 0 ]; then
-            extra=(--)
-            for m in "${skips[@]}"; do extra+=(--skip "$m"); done
-          fi
           mapfile -t all < <(grep -vE '^[[:space:]]*(#|$)' migration/check-crates.txt)
           lines=()
           for line in "${all[@]}"; do
