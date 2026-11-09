@@ -1,0 +1,5 @@
+craft-menu it
+craft-table it
+craft-text it
+craft-text lib
+craft-font-manager lib
