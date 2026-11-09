@@ -8,7 +8,6 @@ use craft_text::ui::character::{
 };
 use craft_theme::{Rgba, Srgba};
 use craft_ui::runtime::env::UnitKind;
-use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers};
 use std::cell::RefCell;
@@ -84,11 +83,9 @@ impl Panel {
         self.fixture.tree().value_of(target.node).unwrap_or_default().to_owned()
     }
 
-    /// Opens the presets list of the field `label` (focused through its node, by name and role) with Alt+Down and picks
-    /// the row `row`.
+    /// Opens the presets list of the field `label` with Alt+Down and picks the row `row`.
     fn pick_preset(&mut self, label: &str, row: &str) {
-        let field = self.fixture.by_label(label).unwrap_or_else(|| panic!("`{label}` is shown"));
-        self.fixture.access(AccessActionKind::Focus, &field);
+        self.click(label);
         self.fixture.key(Key::ArrowDown, Modifiers::ALT);
         self.click(row);
     }
