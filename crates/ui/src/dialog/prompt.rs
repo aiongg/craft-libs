@@ -134,7 +134,7 @@ fn has_default(answers: &[FooterButton]) -> bool {
     default_position(answers).is_some()
 }
 
-type Below<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
+type Below<'a> = Box<dyn FnMut(&mut Ui) + 'a>;
 
 /// What a prompt shows under its message, in this order: a tone line, paragraphs, a list of lines, a collapsible
 /// section, and the caller's own content.
@@ -152,23 +152,23 @@ impl Extras<'_> {
         self.tone.is_none() && self.paragraphs.is_empty() && self.lines.is_empty() && self.details.is_none() && self.below.is_none()
     }
 
-    fn show(self, ui: &mut Ui) {
+    fn show(&mut self, ui: &mut Ui) {
         let Extras { tone, paragraphs, lines, details, below } = self;
         if let Some((tone, text)) = tone {
-            Notice::new(tone, text).layout(NoticeLayout::Inline).show(ui);
+            Notice::new(*tone, text.clone()).layout(NoticeLayout::Inline).show(ui);
         }
-        for paragraph in paragraphs {
-            Text::new(paragraph).show(ui);
+        for paragraph in paragraphs.iter() {
+            Text::new(paragraph.clone()).show(ui);
         }
-        for line in lines {
-            Text::new(line).show(ui);
+        for line in lines.iter() {
+            Text::new(line.clone()).show(ui);
         }
         if let Some((label, text)) = details {
-            Section::new(label).initially_open(false).show(ui, |ui, _| {
+            Section::new(label.clone()).initially_open(false).show(ui, |ui, _| {
                 Text::new(text.clone()).show(ui);
             });
         }
-        if let Some(below) = below {
+        if let Some(below) = below.as_mut() {
             below(ui);
         }
     }
@@ -257,7 +257,7 @@ impl<'a> Prompt<'a> {
 
     /// The caller's content under the message and the extras: a "Don't show again" check box.
     #[must_use]
-    pub fn extras(mut self, body: impl FnOnce(&mut Ui) + 'a) -> Self {
+    pub fn extras(mut self, body: impl FnMut(&mut Ui) + 'a) -> Self {
         self.extras.below = Some(Box::new(body));
         self
     }
@@ -276,11 +276,11 @@ impl<'a> Prompt<'a> {
         if let Some(open) = open {
             dialog = dialog.opened(open);
         }
-        let mut extras = Some(extras);
+        let mut extras = extras;
         let shown = dialog.show(ui, |ui, _| {
             Stack::new().show(ui, |ui, _| {
                 Text::new(message.clone()).show(ui);
-                if let Some(extras) = extras.take().filter(|extras| !extras.is_empty()) {
+                if !extras.is_empty() {
                     extras.show(ui);
                 }
             });

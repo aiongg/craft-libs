@@ -250,12 +250,15 @@ impl Container for FullWindowDialog<'_> {
 
     fn footer(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         let enter = self.props.focus.enter == EnterRule::Submit;
-        let host = frame::FooterHost { picked: &mut self.picked, guard: &mut self.guard, on_pick: &mut self.on_pick, settle: &mut self.settle };
         let (content, buttons) = (&mut self.footer, &self.buttons);
+        let (picked, guard, on_pick, settle) = (&mut self.picked, &mut self.guard, &mut self.on_pick, &mut self.settle);
         if self.sides.is_some() {
-            self.side_footer.show(ui, |ui| frame::footer(ui, cx, content, buttons, enter, host));
+            self.side_footer.show(ui, |ui| {
+                let host = frame::FooterHost { picked: &mut *picked, guard: &mut *guard, on_pick: &mut *on_pick, settle: &mut *settle };
+                frame::footer(ui, cx, content, buttons, enter, host);
+            });
         } else {
-            frame::footer(ui, cx, content, buttons, enter, host);
+            frame::footer(ui, cx, content, buttons, enter, frame::FooterHost { picked, guard, on_pick, settle });
         }
     }
 

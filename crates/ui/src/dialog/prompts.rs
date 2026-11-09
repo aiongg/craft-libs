@@ -422,9 +422,11 @@ impl StandardPrompt {
         if self.skip_box {
             let label = common.dont_show_again.clone();
             let tick = &mut ticked;
-            let value = if hosted { Bind::bound(&mut self.skip) } else { Bind::kept() };
+            let mut value = hosted.then(|| &mut self.skip);
             prompt = prompt.extras(move |ui| {
-                if let Some(Mixed::Same(shown)) = Checkbox::new(value).label(label).show(ui).shown {
+                if let Some(Mixed::Same(shown)) =
+                    Checkbox::new(value.as_mut().map_or_else(Bind::kept, |value| Bind::bound(&mut **value))).label(label.clone()).show(ui).shown
+                {
                     *tick = *shown;
                 }
             });

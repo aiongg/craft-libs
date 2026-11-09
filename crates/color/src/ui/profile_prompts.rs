@@ -290,13 +290,13 @@ impl StackDialog for ProfileMismatchDialog {
         let shown = Prompt::new(title, message)
             .answers(answers)
             .extras(move |ui| {
-                RadioGroup::new(group_label, Bind::bound(held)).show(ui, |ui, _| {
+                RadioGroup::new(group_label.clone(), Bind::bound(&mut *held)).show(ui, |ui, _| {
                     for (value, text) in choices.iter().cloned() {
                         Radio::new(value).label(text).show(ui);
                     }
                 });
                 if can_remember {
-                    Checkbox::new(Bind::bound(ticked)).label(remember_label).tooltip(remember_tip).show(ui);
+                    Checkbox::new(Bind::bound(&mut *ticked)).label(remember_label.clone()).tooltip(remember_tip.clone()).show(ui);
                 }
             })
             .opened(Bind::bound(open))

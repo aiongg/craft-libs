@@ -1680,7 +1680,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 crate::runtime::measure::count_body(&ctx, id);
                 let origin = match at.at {
                     ShowAt::Rect(rect) => rect.min,
-                    ShowAt::Flow => at.ui.cursor().min,
+                    // Not the cursor: in a right-to-left layout it extends to -inf along the line.
+                    ShowAt::Flow => at.ui.available_rect_before_wrap().min,
                 };
                 let rect = Rect::from_min_size(origin, self.room);
                 cx.core.rect = rect;
