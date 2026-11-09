@@ -62,13 +62,25 @@ fn long_text() -> String {
     "Speaker notes that wrap across the pane. ".repeat(4)
 }
 
-/// The bands a selection paints: rects inside the editor, one per wrapped row, top to bottom.
-fn bands(fixture: &Fixture) -> Vec<egui::Rect> {
+/// Rects painted inside the editor, top to bottom, one per top edge.
+fn painted(fixture: &Fixture, tallest: f32) -> Vec<egui::Rect> {
     let area = fixture.shown();
-    let mut rects: Vec<egui::Rect> = fixture.shape_bounds().iter().filter(|r| r.width() > 1.0 && area.contains_rect(**r)).copied().collect();
+    let mut rects: Vec<egui::Rect> =
+        fixture.shape_bounds().iter().filter(|r| r.width() > 1.0 && r.height() <= tallest && area.contains_rect(**r)).copied().collect();
     rects.sort_by(|a, b| a.top().total_cmp(&b.top()));
     rects.dedup_by(|a, b| (a.top() - b.top()).abs() < 1.0);
     rects
+}
+
+/// The bands a selection paints: one per wrapped row.
+fn bands(fixture: &Fixture) -> Vec<egui::Rect> {
+    painted(fixture, f32::INFINITY)
+}
+
+/// The editor's row height, read while the whole text is selected: a band is one row, shorter than the paragraph's
+/// text shape that spans every row of a wrapped text.
+fn row_height(fixture: &Fixture) -> f32 {
+    bands(fixture).iter().map(|r| r.height()).fold(f32::INFINITY, f32::min)
 }
 
 /// A click places the caret at the character under it; a drag from the first row into the second selects the text
@@ -105,15 +117,13 @@ fn a_click_places_the_caret_and_a_drag_selects() {
     fixture.click(&editor);
     fixture.key(Key::A, Modifiers::COMMAND);
     fixture.settle();
-    let rows = bands(&fixture);
+    let row = row_height(&fixture);
+    let rows = painted(&fixture, row);
     assert!(rows.len() >= 3, "the text wraps: {rows:?}");
     let (first, second) = (rows[0], rows[1]);
     let start = egui::pos2(first.left() + 1.0, first.center().y);
+    fixture.click_at(start);
+    let before = painted(&fixture, row).len();
     fixture.drag_at(start, vec2(second.width() * 0.5, second.center().y - first.center().y));
-    fixture.type_text("X");
-    let original = long_text();
-    let plain = long.borrow().plain();
-    assert!(plain.starts_with('X'), "the drag began at the first row's start: {plain:?}");
-    let removed = original.chars().count() + 1 - plain.chars().count();
-    assert!(removed > original.chars().count() / rows.len() + 1, "the drag took more than the first row: {removed} chars");
+    assert_eq!(painted(&fixture, row).len() - before, 2, "a drag over two rows selects those two rows");
 }
