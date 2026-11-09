@@ -2011,6 +2011,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                     body_ui.set_clip_rect(clip.intersect(body_ui.clip_rect()));
                 }
                 let installed = Env::install_for(&body_ui, body_env.clone());
+                let mut group_extent = None;
                 // The size the body took: a scrolling body takes the visible part of its content, since its region
                 // is a child that allocates nothing in `body_ui`.
                 let took = match scroll {
@@ -2036,7 +2037,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                             alloc::child(&mut body_ui, UiBuilder::new().scope_id(sub(id, "scroll_region")).layout(layout_of).max_rect(max));
                         region_ui.set_clip_rect(at.intersect(body_ui.clip_rect()));
                         layout::run_body(&mut region_ui, layout_id, layout, gap, |ui| {
-                            shared_labels(ui, id, label_column, room.x, |ui| body(ui, bcx))
+                            shared_labels(ui, id, label_column, room.x, &mut group_extent, |ui| body(ui, bcx))
                         });
                         let extent = region_ui.min_rect().size();
                         if real {
@@ -2053,13 +2054,20 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                     // A row that places its block itself asks for its children's width, not the room it spans.
                     None => {
                         let (_, natural) = layout::run_body_measured(&mut body_ui, layout_id, layout, gap, |ui| {
-                            shared_labels(ui, id, label_column, room.x, |ui| body(ui, bcx))
+                            shared_labels(ui, id, label_column, room.x, &mut group_extent, |ui| body(ui, bcx))
                         });
                         natural.map(|width| Vec2::new(width, body_ui.min_rect().height()))
                     }
                 };
                 Env::restore(&ctx, installed);
-                Some(took.unwrap_or_else(|| body_ui.min_rect().size()))
+                let took = took.unwrap_or_else(|| body_ui.min_rect().size());
+                // A content-sized column of rows takes, in a measuring run, the width they take at the group's widest
+                // label: the rows measured before the widest one measured against a narrower column.
+                let stacked = matches!(layout, layout::BodyLayout::Stack) && !self.given.0;
+                Some(match group_extent.filter(|_| stacked && !real) {
+                    Some(width) => Vec2::new(took.x.max(width), took.y),
+                    None => took,
+                })
             };
             self.body_size = match props.transform {
                 // The measuring run lays the body out on the layer the real run shows it on.
@@ -2100,6 +2108,13 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 label_extra = (regions.body.size() - label::control_after(ui, env, input).size()).max(Vec2::ZERO);
             }
             if let Some(size) = &mut self.body_size {
+                // A body beside its label in a content-sized column of rows reports how far it reaches past the label
+                // column, so that column's container measures its rows at the widest label.
+                if let (false, true, Some(side)) = (real, env.content.0, props.label.as_ref().filter(|_| label_extra.x > 0.0 && label_extra.y <= 0.0))
+                {
+                    let column = if matches!(side.kind, label::LabelKind::Glyph(_)) { layout::GLYPHS } else { layout::LABELS };
+                    layout::report_beyond(&ctx, &column, env.tokens.space.gap.inline + size.x);
+                }
                 *size += label_extra;
             }
             self.view = Some(body_rect);
@@ -2307,13 +2322,16 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
 
 /// Runs `body` in a column group named `labels` under the container `id` when `shared` is set, so the labelled
 /// rows directly inside share the widest label. Otherwise the body runs behind a barrier: the labelled rows of a
-/// nested container read no group of the container around it.
-fn shared_labels<R>(ui: &mut Ui, id: Id, shared: bool, room: f32, body: impl FnOnce(&mut Ui) -> R) -> R {
+/// nested container read no group of the container around it. In a measuring run, `extent` takes the width the
+/// group's rows take at the widest label (`ColumnGroup::scope_measured`).
+fn shared_labels<R>(ui: &mut Ui, id: Id, shared: bool, room: f32, extent: &mut Option<f32>, body: impl FnOnce(&mut Ui) -> R) -> R {
     if shared {
-        ColumnGroup::scope(ui, sub(id, "labels"), |ui, group| {
+        let (result, took) = ColumnGroup::scope_measured(ui, sub(id, "labels"), |ui, group| {
             group.offer(room);
             body(ui)
-        })
+        });
+        *extent = took;
+        result
     } else {
         ColumnGroup::barrier(ui, body)
     }

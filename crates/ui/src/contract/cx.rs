@@ -1345,6 +1345,12 @@ impl<'a> BodyCx<'a> {
         } else {
             control.max.x.max(placed.label.max.x) - avail.min.x
         };
+        // A control beside its label in a content-sized column reports how far it reaches past the label column, so
+        // the column's container measures its rows at the widest label.
+        if content && ui.is_sizing_pass() && side.layout == super::label::FieldLayout::Beside && placed.label.bottom() > placed.control.top() {
+            let column = if matches!(side.kind, super::label::LabelKind::Glyph(_)) { crate::layout::GLYPHS } else { crate::layout::LABELS };
+            crate::layout::report_beyond(ui.ctx(), &column, env.tokens.space.gap.inline + control_width);
+        }
         let output = super::run::show_leaf(super::Props::id(child, id), ui, ShowAt::Rect(control), None);
         let bottom = control.bottom().max(placed.label.bottom());
         placed.finish(ui.ctx());
