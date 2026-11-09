@@ -79,6 +79,7 @@ overlay.trail
 shape.edge
 shape.radius.button
 shape.radius.control
+shape.radius.panel
 shape.radius.pill
 shape.radius.sm
 shape.radius.surface

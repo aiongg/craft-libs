@@ -159,6 +159,7 @@ pub(crate) fn leaves(b: &mut Preset) -> Vec<Leaf<'_>> {
         "base.radius.control" Length 0.0..=64.0 => r.control;
         "base.radius.surface" Length 0.0..=64.0 => r.surface;
         "base.radius.window" Length 0.0..=64.0 => r.window;
+        "base.radius.panel" Length 0.0..=64.0 => r.panel;
         "base.radius.button" Length 0.0..=64.0 => r.button;
         "base.radius.pill" Length 0.0..=64.0 => r.pill;
     }

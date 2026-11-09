@@ -665,10 +665,12 @@ pub struct RadiusSet {
     pub sm: f32,
     /// Buttons other than pills, fields, small controls.
     pub control: f32,
-    /// Popups, menus and docked panels.
+    /// Popups and menus.
     pub surface: f32,
     /// Windows and dialogs.
     pub window: f32,
+    /// Docked panels.
+    pub panel: f32,
     /// Push buttons; [`Radius::Full`](super::scale::Radius::Full) gives pills.
     pub button: f32,
     /// Pill-shaped parts (switch, slider, progress, badge); each clamps it to half its height.

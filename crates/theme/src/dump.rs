@@ -68,8 +68,8 @@ fn edge(e: Edge) -> String {
 
 fn shape_lines(out: &mut Lines, shape: &ShapeTokens) {
     let ShapeTokens { radius, edge: e, rows } = shape;
-    let RadiusSet { sm, control, surface, window, button, pill } = radius;
-    for (k, v) in [("sm", sm), ("control", control), ("surface", surface), ("window", window), ("button", button), ("pill", pill)] {
+    let RadiusSet { sm, control, surface, window, panel, button, pill } = radius;
+    for (k, v) in [("sm", sm), ("control", control), ("surface", surface), ("window", window), ("panel", panel), ("button", button), ("pill", pill)] {
         out.line(&format!("shape.radius.{k}"), len(*v));
     }
     out.line("shape.edge", edge(*e));

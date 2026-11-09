@@ -21,6 +21,7 @@
     "radius": {
       "button": 5.0,
       "control": 5.0,
+      "panel": 5.0,
       "surface": 5.0,
       "window": 5.0
     },
