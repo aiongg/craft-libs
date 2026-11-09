@@ -4,7 +4,7 @@ use std::io::Cursor;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
 
-use craft_behavior::{EditCommand, Input, Metrics, PartKey, PressPhase, Sense};
+use craft_behavior::{EditCommand, Input, Metrics, PartKey, PointerButton, PressPhase, Sense};
 use craft_host::{Host, PickId, PickRequest, Picked};
 use craft_theme::variant::Tone;
 use craft_ui::buttons::Button;
@@ -19,7 +19,7 @@ use craft_ui::fonts::FontRef;
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::list::ThumbSize;
 use craft_ui::notices::{Notice, NoticeLayout};
-use craft_ui::primitives::{DocRun, DocText, Draw, PaintShape, StrokeWidth};
+use craft_ui::primitives::{DocRun, DocText, Draw, HAlign, PaintShape, StrokeWidth, TextureCache};
 use craft_ui::runtime::env::Env;
 use craft_ui::runtime::focus::{ActivateKeys, EditSet, KeyUse};
 use craft_ui::sections::{DialogRole, FooterButton};
@@ -83,10 +83,10 @@ impl craft_host::Section for SignatureSettings {
     const KEY: &'static str = "signatures";
 }
 
-/// Draws a saved drawn or typed signature into `rect` in `color`: strokes scaled from pad units and fitted keeping
-/// the pad's shape, typed text in the proportional face fitted to the rect. An image signature is shown with a
-/// `Picture`, which a painter cannot place.
-pub fn paint_signature(draw: &Draw<'_>, rect: Rect, signature: &SavedSignature, color: DataColor) {
+/// Draws a saved signature into `rect` in `color`: strokes scaled from pad units and fitted keeping the pad's shape
+/// (at the theme's medium stroke, whatever the rect's size), typed text in the proportional face centred in the
+/// rect, an image fitted keeping its aspect. `ctx` holds the image's texture, cached under the image's key.
+pub fn paint_signature(ctx: &egui::Context, draw: &Draw<'_>, rect: Rect, signature: &SavedSignature, color: DataColor) {
     match signature {
         SavedSignature::Drawn(strokes) => paint_strokes(
             rect,
@@ -96,7 +96,7 @@ pub fn paint_signature(draw: &Draw<'_>, rect: Rect, signature: &SavedSignature, 
             |line| draw.stroke(&PaintShape::Path(line), StrokeWidth::Medium, color),
         ),
         SavedSignature::Typed(label) => paint_typed(draw, rect, label, color),
-        SavedSignature::Image(_) => {}
+        SavedSignature::Image(image) => paint_image(ctx, draw, rect, image),
     }
 }
 
@@ -139,10 +139,23 @@ fn paint_typed(draw: &Draw<'_>, rect: Rect, label: &str, color: DataColor) {
         return;
     }
     let size = rect.height() * TYPED_HEIGHT_SHARE;
-    let room = rect.width() * TYPED_WIDTH_SHARE;
-    let run = |size: f32| [DocRun::new(label.to_owned(), FontRef::proportional(), size, color)];
-    let at = Rect::from_center_size(rect.center(), Vec2::new(room, size));
-    draw.doc(Rect::from_min_size(Pos2::new(rect.center().x - room / 2.0, at.top()), Vec2::new(room, size)), &DocText::new(&run(size)));
+    let room = Vec2::new(rect.width() * TYPED_WIDTH_SHARE, size);
+    let run = [DocRun::new(label.to_owned(), FontRef::proportional(), size, color)];
+    let mut text = DocText::new(&run);
+    text.align = HAlign::Center;
+    draw.doc(Rect::from_center_size(rect.center(), room), &text);
+}
+
+/// `image` fitted into `rect` keeping its aspect.
+fn paint_image(ctx: &egui::Context, draw: &Draw<'_>, rect: Rect, image: &SignatureImage) {
+    let size = Vec2::new(image.width() as f32, image.height() as f32);
+    if size.min_elem() < 1.0 {
+        return;
+    }
+    let texture = TextureCache::texture(ctx, ("signature-image", image.key()), || pixels(image));
+    let fitted = size * (rect.width() / size.x).min(rect.height() / size.y);
+    let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
+    draw.texture(Rect::from_center_size(rect.center(), fitted), texture, uv);
 }
 
 /// Why a picked image was not taken.
@@ -265,20 +278,26 @@ impl Component for DrawPad<'_> {
                 cx.set(strokes.clone());
             }
         }
-        let press = cx.press();
+        // The pointer belongs to the pad part: the component itself senses focus only.
+        let press = cx.part(PAD).press;
+        if !press.phase.start().is_some_and(|start| start.button == PointerButton::Primary) {
+            return;
+        }
         match press.phase {
             PressPhase::DragStart { pos, .. } => {
                 strokes.push(vec![normalise(pos)]);
-                cx.set(strokes);
+                cx.propose(strokes);
             }
-            PressPhase::Drag { pos, .. } | PressPhase::Release { pos, click: false, .. } => {
-                let point = normalise(pos);
-                if let Some(stroke) = strokes.last_mut()
-                    && stroke.last().is_none_or(|last| (last[0] - point[0]).abs() + (last[1] - point[1]).abs() > MIN_STEP)
-                {
-                    stroke.push(point);
-                    cx.set(strokes);
+            PressPhase::Drag { pos, .. } if cx.gesture().is_some() => {
+                if extend(&mut strokes, normalise(pos)) {
+                    cx.propose(strokes);
                 }
+            }
+            PressPhase::Release { pos, click: false, .. } if cx.gesture().is_some() => {
+                if extend(&mut strokes, normalise(pos)) {
+                    cx.propose(strokes);
+                }
+                cx.commit();
             }
             _ => {}
         }
@@ -300,6 +319,17 @@ impl Component for DrawPad<'_> {
 
     fn finish(self, cx: Cx<'_, Self>) -> Self::Output {
         cx.edit_response()
+    }
+}
+
+/// Adds `point` to the last stroke unless it is within [`MIN_STEP`] of the stroke's last point; `true` when it was added.
+fn extend(strokes: &mut [Vec<[f32; 2]>], point: [f32; 2]) -> bool {
+    let Some(stroke) = strokes.last_mut() else { return false };
+    if stroke.last().is_none_or(|last| (last[0] - point[0]).abs() + (last[1] - point[1]).abs() > MIN_STEP) {
+        stroke.push(point);
+        true
+    } else {
+        false
     }
 }
 

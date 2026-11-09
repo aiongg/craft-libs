@@ -14,12 +14,12 @@ use craft_ui::fonts::FontRef;
 use craft_ui::layout_components::Row;
 use craft_ui::patterns::form_dialogs::{DialogFields, FieldValue, Param, ParamKind};
 use craft_ui::popover::Popover;
-use craft_ui::primitives::{ContentPainterCx, DocRun, DocText, Draw, Handle, HandleShape, PaintShape, StrokeWidth};
+use craft_ui::primitives::{DataWidth, DocRun, DocText, Draw, Handle, HandleShape, PaintShape, StrokeWidth};
 use craft_ui::rails::{FlyoutButton, LastUsed, RailTool, SlotId, ToolSlot, remembered, shown_tool};
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::style::{ComponentStyle, DataColor, HandleLook, StateSet, StyleColor, StyleCx};
 use craft_ui::text::NumberField;
-use egui::{Color32, Pos2, Response, Shape, Stroke, StrokeKind, Ui};
+use egui::{Color32, CornerRadius, Pos2, Response, Ui};
 use kurbo::{Point, Rect};
 use std::sync::Arc;
 
@@ -281,9 +281,9 @@ const WIDTH_RANGE: std::ops::RangeInclusive<f64> = 1.0..=12.0;
 const WIDTH_DECIMALS: usize = 1;
 /// A highlight lets the text show through.
 const HIGHLIGHT_OPACITY: f32 = 0.4;
-/// The side of a note, attachment or caret icon on screen, in points, for the tool's hits and the form's notes: a
-/// tool's pointer calls have no style to read `size.icon.md` from, which the overlay paints with.
-pub const ICON_SIDE: f32 = 16.0;
+/// The side of a note the "New Annotation..." form makes, in page units: the fixed square Acrobat gives a note
+/// annotation, whatever the icon size on screen.
+const NOTE_SIDE: f64 = 16.0;
 /// The key of the "New Annotation..." command form.
 pub const NEW_ANNOTATION_FORM: &str = "newAnnotation";
 
@@ -312,11 +312,12 @@ enum Change {
 }
 
 /// What a call knows when it reads a pointer: the pointer in page units, the page-unit sizes of the screen
-/// distances the tool tests with, and the tool's words.
+/// distances the tool tests with, the host's gesture id and the tool's words.
 struct Reading {
     at: Point,
     tolerance: f64,
     icon_side: f64,
+    gesture: Option<GestureId>,
     words: Arc<AnnotateWords>,
 }
 
@@ -325,7 +326,8 @@ fn read(cx: &ToolContext<'_>, pos: Pos2) -> Option<Reading> {
     Some(Reading {
         at: space.view.to_doc(pos),
         tolerance: space.view.doc_len(cx.slop),
-        icon_side: space.view.doc_len(ICON_SIDE),
+        icon_side: space.view.doc_len(cx.icon_side()),
+        gesture: cx.gesture_id(),
         words: cx.words::<AnnotateWords>(),
     })
 }
@@ -418,7 +420,6 @@ pub struct AnnotateTool {
     strokes: Vec<Vec<Point>>,
     hover: Option<Point>,
     last_tool: AnnotationTool,
-    last_id: GestureId,
 }
 
 impl AnnotateTool {
@@ -439,7 +440,6 @@ impl AnnotateTool {
             strokes: Vec::new(),
             hover: None,
             last_tool: tool,
-            last_id: GestureId::default(),
         }
     }
 
@@ -484,8 +484,7 @@ impl AnnotateTool {
         let area = Rect::from_points(from, to);
         let mut annotation = match kind {
             AnnotationKind::Note => {
-                let side = f64::from(ICON_SIDE);
-                let mut note = self.fresh(kind, Rect::from_origin_size(from, (side, side)));
+                let mut note = self.fresh(kind, Rect::from_origin_size(from, (NOTE_SIDE, NOTE_SIDE)));
                 note.points = vec![from];
                 note
             }
@@ -544,11 +543,6 @@ fn form_id(kind: AnnotationKind) -> &'static str {
 }
 
 impl AnnotateTool {
-    fn next_id(&mut self) -> GestureId {
-        self.last_id = self.last_id.next();
-        self.last_id
-    }
-
     /// Reports `edit` as a step of its own, named `label`.
     fn push(&mut self, edit: AnnotationEdit, label: &str) {
         self.edits.push(EditEvent::set(Mixed::Mixed, edit, Arc::from(label), None));
@@ -627,7 +621,7 @@ impl AnnotateTool {
         let shift = pointer.mods.shift;
         let found = hit(&self.annotations, &self.selected, reading.at, reading.tolerance, reading.icon_side);
         let locked = |id: AnnotationId, list: &[Annotation]| list.iter().any(|a| a.id == id && a.locked);
-        let id = self.next_id();
+        let Some(id) = reading.gesture else { return ToolAction::Ignored };
         let edit = |change: Change| Drag::Edit { id, begun: false, origin: reading.at, change };
         match found {
             Some(AnnotationHit::Handle(target, AnnotationHandle::Box(hx, hy))) => {
@@ -1078,25 +1072,27 @@ fn pictogram(kind: AnnotationKind) -> Vec<(Vec<(f32, f32)>, bool)> {
     }
 }
 
-fn paint_annotation(
-    painter: &ContentPainterCx<'_>,
-    draw: &Draw<'_>,
-    a: &Annotation,
-    to_screen: &impl Fn(Point) -> Pos2,
-    (text_size, icon_side): (f32, f32),
-) {
+/// `points` as a closed path.
+fn closed(mut points: Vec<Pos2>) -> PaintShape {
+    if let Some(&first) = points.first() {
+        points.push(first);
+    }
+    PaintShape::Path(points)
+}
+
+fn paint_annotation(draw: &Draw<'_>, a: &Annotation, to_screen: &impl Fn(Point) -> Pos2, (text_size, icon_side): (f32, f32), hairline: f32) {
     use AnnotationKind as K;
     let scale = (to_screen(Point::new(1.0, 0.0)) - to_screen(Point::ZERO)).length();
-    let color = color32(a);
-    let width = (a.stroke_width as f32 * scale).max(1.0 / painter.pixels_per_point());
-    let stroke = Stroke::new(width, color);
+    let color = DataColor::new(color32(a));
+    // The document's width through the view, never thinner than a physical pixel.
+    let width = (a.stroke_width as f32 * scale).max(hairline);
+    let line = |shape: PaintShape| draw.stroke(&shape, DataWidth::points(width), color);
     let map = |points: &[Point]| -> Vec<Pos2> { points.iter().map(|&p| to_screen(p)).collect() };
-    let raw = &painter.painter;
     let quads = || -> Vec<egui::Rect> { a.points.chunks(4).map(|quad| around(quad.iter().map(|&p| to_screen(p)))).collect() };
     match a.kind {
         K::Highlight => {
             for r in quads() {
-                raw.rect_filled(r, 0.0, color);
+                draw.data_fill(&PaintShape::Rect(r, CornerRadius::ZERO), color);
             }
         }
         K::Underline | K::StrikeOut | K::Squiggly | K::ReplaceText => {
@@ -1108,62 +1104,61 @@ fn paint_annotation(
                     let wave: Vec<Pos2> = (0..=steps)
                         .map(|i| egui::pos2(r.left() + r.width() * i as f32 / steps as f32, y + if i % 2 == 0 { -amplitude } else { amplitude }))
                         .collect();
-                    raw.add(Shape::line(wave, stroke));
+                    line(PaintShape::Path(wave));
                 } else {
-                    raw.line_segment([egui::pos2(r.left(), y), egui::pos2(r.right(), y)], stroke);
+                    line(PaintShape::Path(vec![egui::pos2(r.left(), y), egui::pos2(r.right(), y)]));
                 }
             }
         }
         K::Line | K::Arrow | K::PolyLine => {
             let path = map(&a.points);
             if let [.., from, to] = path[..] {
-                raw.add(Shape::line(path.clone(), stroke));
+                line(PaintShape::Path(path.clone()));
                 if a.kind == K::Arrow {
                     let back = (from - to).normalized() * width * ARROW_HEAD;
                     for turn in [0.5_f32, -0.5] {
                         let (s, c) = turn.sin_cos();
-                        raw.line_segment([to, to + egui::vec2(back.x * c - back.y * s, back.x * s + back.y * c)], stroke);
+                        line(PaintShape::Path(vec![to, to + egui::vec2(back.x * c - back.y * s, back.x * s + back.y * c)]));
                     }
                 }
             }
         }
-        K::Polygon => {
-            raw.add(Shape::closed_line(map(&a.points), stroke));
-        }
+        K::Polygon => line(closed(map(&a.points))),
         K::Cloud => {
             let corners = map(&a.points);
             if corners.len() > 2 {
-                raw.add(Shape::closed_line(scalloped(&corners, width * CLOUD_BUMP), stroke));
+                line(closed(scalloped(&corners, width * CLOUD_BUMP)));
             }
         }
         K::Ink => {
             for s in &a.strokes {
-                raw.add(Shape::line(map(s), stroke));
+                line(PaintShape::Path(map(s)));
             }
         }
-        K::Rectangle => {
-            raw.add(Shape::closed_line(map(&corners(a.rect)), stroke));
-        }
-        K::Oval => {
-            raw.add(Shape::closed_line(map(&ellipse_points(a.rect)), stroke));
-        }
+        K::Rectangle => line(closed(map(&corners(a.rect)))),
+        K::Oval => line(closed(map(&ellipse_points(a.rect)))),
         K::TextBox | K::Callout => {
             let r = screen_rect(a.rect, to_screen);
-            raw.rect_stroke(r, 0.0, stroke, StrokeKind::Inside);
+            line(PaintShape::Rect(r, CornerRadius::ZERO));
             // The text is document-scaled: the body size at zoom 1, wrapped at the box's width.
-            let run = DocRun::new(a.text.as_str(), FontRef::proportional(), text_size * scale, DataColor::new(color));
+            let run = DocRun::new(a.text.as_str(), FontRef::proportional(), text_size * scale, color);
             draw.clipped(r, |draw| {
                 draw.doc(r, &DocText::new(&[run]));
             });
         }
         K::Note | K::Attach | K::Caret => {
             let slot = egui::Rect::from_min_size(to_screen(Point::new(a.rect.x0, a.rect.y0)), egui::Vec2::splat(icon_side));
-            for (run, closed) in pictogram(a.kind) {
+            for (run, is_closed) in pictogram(a.kind) {
                 let points: Vec<Pos2> = run.iter().map(|&(x, y)| slot.min + egui::vec2(x * slot.width(), y * slot.height())).collect();
-                raw.add(if closed { Shape::closed_line(points, stroke) } else { Shape::line(points, stroke) });
+                line(if is_closed { closed(points) } else { PaintShape::Path(points) });
             }
         }
     }
+}
+
+/// The four corners of `rect` as a closed path, for an outline centred on the rect's edge.
+fn ring(rect: egui::Rect) -> PaintShape {
+    closed(vec![rect.left_top(), rect.right_top(), rect.right_bottom(), rect.left_bottom()])
 }
 
 /// The style of the annotation overlay.
@@ -1228,20 +1223,21 @@ impl Component for AnnotationOverlay<'_> {
         let to_screen = |p: Point| view.to_screen(p);
         let painter = ui.content_painter(cx);
         let draw = ui.draw();
+        let hairline = 1.0 / cx.response.ctx.pixels_per_point();
         for a in self.annotations {
-            paint_annotation(&painter, &draw, a, &to_screen, (cx.style.text_size, cx.style.icon_side));
+            paint_annotation(&draw, a, &to_screen, (cx.style.text_size, cx.style.icon_side), hairline);
         }
-        let outline = Stroke::new(cx.style.handle.stroke_width, cx.style.line.egui());
+        let outline = |shape: PaintShape| draw.stroke(&shape, StrokeWidth::Thin, cx.style.line);
         let raw = &painter.painter;
         for a in self.annotations.iter().filter(|a| self.selected.contains(&a.id)) {
             if a.kind.is_markup() {
                 for quad in a.points.chunks(4) {
-                    raw.rect_stroke(around(quad.iter().map(|&p| to_screen(p))), 0.0, outline, StrokeKind::Outside);
+                    outline(ring(around(quad.iter().map(|&p| to_screen(p)))));
                 }
             } else if a.kind.is_pointwise() && !a.points.is_empty() {
-                raw.add(Shape::line(a.points.iter().map(|&p| to_screen(p)).collect(), outline));
+                outline(PaintShape::Path(a.points.iter().map(|&p| to_screen(p)).collect()));
             } else {
-                raw.rect_stroke(screen_rect(a.rect, &to_screen), 0.0, outline, StrokeKind::Outside);
+                outline(ring(screen_rect(a.rect, &to_screen)));
             }
             for (handle, at) in handles(a) {
                 let shape = match handle {
