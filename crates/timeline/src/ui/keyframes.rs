@@ -506,8 +506,7 @@ impl KeyframeLane<'_> {
                 let (low, high) = self.limits(&selected);
                 let step = Tick(axis.frame().0 * toward);
                 if !selected.is_empty() && (low..=high).contains(&step.0) {
-                    let id = next_gesture_id(&cx.response.ctx);
-                    out.delta = Some(EditEvent::set(id, Mixed::Same(Tick::ZERO), step, Arc::from(cx.resolved.label.to_owned()), None));
+                    out.delta = Some(EditEvent::set(Mixed::Same(Tick::ZERO), step, Arc::from(cx.resolved.label.to_owned()), None));
                 }
             } else {
                 let last = sorted.len() - 1;
