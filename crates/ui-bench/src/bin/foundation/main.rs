@@ -8,6 +8,7 @@ mod kit;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use craft_behavior::dock::{Column, DockEdge, Group, Layout, Node, Permissions, SplitSize, Workspace};
 use craft_behavior::kurbo::Point;
 use craft_behavior::{Axis, CanvasView, ColumnKey, ColumnWidth, DisplayOrder, ItemSource, PixelSize, RulerUnits, Selection};
 use craft_host::target::ShellInfo;
@@ -17,12 +18,16 @@ use craft_ui::canvas::{
 use craft_ui::canvas_controls::Guides;
 use craft_ui::contract::ColumnSpec;
 use craft_ui::contract::{
-    Bind, Collapse, ContainerProps, Mount, Overlay, Props as _, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, Sizing,
+    Bind, BodyCx, Collapse, ColumnKind, ContainerProps, Mount, Overlay, Props as _, SelectMode, Show as _, ShowCollection as _, ShowContainer as _,
+    Sizing, ToggleColumn,
 };
 use craft_ui::dialog::Dialog;
+use craft_ui::docking::{DockConfig, DockPanels, PanelSpec};
 use craft_ui::layout::ColumnGroup;
-use craft_ui::list::{List, ListRow};
+use craft_ui::layout_components as lc;
+use craft_ui::list::{List, ListRow, ToggleCell, ToggleState};
 use craft_ui::menu::{Menu, MenuItem};
+use craft_ui::patterns::dock::DockArea;
 use craft_ui::patterns::form_dialogs::{ExportAsDialog, ExportOptions, ExportPreview, PreviewState, SizeEstimate};
 use craft_ui::primitives::{Revision, TextureCache};
 use craft_ui::runtime::env::RootEnv;
@@ -101,6 +106,18 @@ impl Library for Foundation {
                 Box::new(ReadoutScene),
                 // F8-MERGE: layout: the grid's `Content` column and the status bar's end slot.
                 "two labelled TextFields in a ColumnGroup whose label text changes width every frame, and an end-aligned readout block",
+            ),
+            "fill-dialog-later-siblings" => (
+                Box::new(FillDialogScene::new()),
+                "a Stack with a header Row, a fill Grid of two fill Stacks of 20 TextField rows each, a Block pane and a button-bar Row",
+            ),
+            "content-list-500" => (Box::new(ContentListScene::new()), "a Sizing::Content List of 500 ListRows with a check toggle column"),
+            "nested-fill-8" => {
+                (Box::new(NestedFillScene), "Row and Stack alternating 8 deep, each a fill container holding a fixed Block and the next level")
+            }
+            "app-window" => (
+                Box::new(AppWindowScene::new()),
+                "a fill Stack: a DockArea of three docked panes (50 TextFields, a 200-row List, a Block canvas) and a status-bar Block",
             ),
             _ => return SceneBuild::Missing { reason: "the scenario list names a scenario this binary does not know" },
         };
@@ -523,6 +540,187 @@ impl Scene for ReadoutScene {
         });
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             let _ = Block::new(vec2(digits as f32 * 8.0, 16.0)).id_salt("readout").show(ui);
+        });
+    }
+}
+
+const FILL_FIELDS: usize = 20;
+static FILL_COLUMNS: [ColumnWidth; 2] = [ColumnWidth::fill(1.0), ColumnWidth::fill(1.0)];
+
+struct FillDialogScene {
+    texts: Vec<String>,
+}
+
+impl FillDialogScene {
+    fn new() -> Self {
+        Self { texts: (0..2 * FILL_FIELDS).map(|i| format!("Value {i}")).collect() }
+    }
+}
+
+impl Scene for FillDialogScene {
+    fn size(&self) -> Vec2 {
+        vec2(900.0, 700.0)
+    }
+
+    fn show(&mut self, ui: &mut Ui, _frame: u64) {
+        let (left, right) = self.texts.split_at_mut(FILL_FIELDS);
+        let (mut left, mut right) = (Some(left), Some(right));
+        lc::Stack::new().fill().show(ui, |ui, _| {
+            lc::Row::new().show(ui, |ui, _| {
+                let _ = Block::new(vec2(200.0, 24.0)).id_salt("title").show(ui);
+            });
+            lc::Grid::new(&FILL_COLUMNS).fill().show(ui, |ui, _| {
+                for (side, texts) in [left.take(), right.take()].into_iter().enumerate() {
+                    let mut texts = texts;
+                    lc::Stack::new().fill().id_salt(side).show(ui, |ui, _| {
+                        for (i, text) in texts.iter_mut().flat_map(|t| t.iter_mut()).enumerate() {
+                            let _ = TextField::new(format!("Field {i}:"), Bind::bound(text)).id_salt(i).show(ui);
+                        }
+                    });
+                }
+            });
+            let _ = Block::new(vec2(400.0, 80.0)).id_salt("pane").show(ui);
+            lc::Row::new().show(ui, |ui, _| {
+                for i in 0..2 {
+                    let _ = Block::new(vec2(80.0, 24.0)).id_salt(i).show(ui);
+                }
+            });
+        });
+    }
+}
+
+const CONTENT_CHECK: ColumnKey = ColumnKey::new("check");
+
+struct ContentListScene {
+    source: Count,
+}
+
+impl ContentListScene {
+    fn new() -> Self {
+        Self { source: Count(500) }
+    }
+}
+
+impl Scene for ContentListScene {
+    fn size(&self) -> Vec2 {
+        vec2(600.0, 900.0)
+    }
+
+    fn show(&mut self, ui: &mut Ui, _frame: u64) {
+        let list = List::<usize>::new("Effects")
+            .sizing(Sizing::Content)
+            .header(false)
+            .columns(vec![ColumnSpec::new(CONTENT_CHECK, "", ColumnWidth::Controls(1.0)).kind(ColumnKind::Toggle(ToggleColumn::default()))]);
+        let _ = list.id_salt("effects").show_items(ui, &self.source, &mut |&key, cx| {
+            ListRow::new(format!("Effect {key}")).cells(cx.cells()).toggle(ToggleCell::check(
+                CONTENT_CHECK,
+                ToggleState::of(key % 2 == 0),
+                format!("Enable {key}"),
+            ))
+        });
+    }
+}
+
+const NESTED_DEPTH: usize = 8;
+
+struct NestedFillScene;
+
+impl NestedFillScene {
+    fn level(ui: &mut Ui, depth: usize) {
+        if depth == 0 {
+            let _ = Block::new(vec2(40.0, 16.0)).id_salt("leaf").show(ui);
+            return;
+        }
+        if depth % 2 == 0 {
+            lc::Row::new().fill().id_salt(depth).show(ui, |ui, _| {
+                let _ = Block::new(vec2(30.0, 16.0)).id_salt("fixed").show(ui);
+                Self::level(ui, depth - 1);
+            });
+        } else {
+            lc::Stack::new().fill().id_salt(depth).show(ui, |ui, _| {
+                let _ = Block::new(vec2(30.0, 16.0)).id_salt("fixed").show(ui);
+                Self::level(ui, depth - 1);
+            });
+        }
+    }
+}
+
+impl Scene for NestedFillScene {
+    fn size(&self) -> Vec2 {
+        vec2(900.0, 700.0)
+    }
+
+    fn show(&mut self, ui: &mut Ui, _frame: u64) {
+        Self::level(ui, NESTED_DEPTH);
+    }
+}
+
+const INSPECTOR: usize = 1;
+const ITEMS: usize = 2;
+const CANVAS_PANEL: usize = 3;
+
+struct AppPanels {
+    texts: Vec<String>,
+    source: Count,
+}
+
+impl DockPanels<usize> for AppPanels {
+    fn spec(&self, panel: &usize) -> PanelSpec {
+        PanelSpec::new(format!("Panel {panel}"))
+    }
+
+    fn permissions(&self, _: &usize) -> Permissions {
+        Permissions::ALL
+    }
+
+    fn body(&mut self, panel: &usize, ui: &mut Ui, _: &mut BodyCx<'_>) {
+        match *panel {
+            INSPECTOR => {
+                for (i, text) in self.texts.iter_mut().enumerate() {
+                    let _ = TextField::new(format!("Property {i}:"), Bind::bound(text)).id_salt(i).show(ui);
+                }
+            }
+            ITEMS => {
+                let _ = List::<usize>::new("Items").id_salt("items").show_items(ui, &self.source, &mut |&key, _| ListRow::new(format!("Item {key}")));
+            }
+            _ => {
+                let _ = BenchCanvas::new(vec2(400.0, 400.0), 20).id_salt("canvas").show(ui);
+            }
+        }
+    }
+}
+
+struct AppWindowScene {
+    workspace: Workspace<usize>,
+    panels: AppPanels,
+}
+
+impl AppWindowScene {
+    fn new() -> Self {
+        let side = |panel| Node::dock(DockEdge::Start, vec![Column::new(vec![Group::new(vec![panel], 0)]).with_width(260.0)]);
+        let root = Node::split(
+            Axis::X,
+            SplitSize::FixedFirst(260.0),
+            side(INSPECTOR),
+            Node::split(Axis::X, SplitSize::FixedFirst(260.0), side(ITEMS), Node::tabs(vec![CANVAS_PANEL], 0)),
+        );
+        Self {
+            workspace: Workspace::new(Layout::new(Some(root), Vec::new())),
+            panels: AppPanels { texts: (0..50).map(|i| format!("Value {i}")).collect(), source: Count(200) },
+        }
+    }
+}
+
+impl Scene for AppWindowScene {
+    fn size(&self) -> Vec2 {
+        vec2(1280.0, 800.0)
+    }
+
+    fn show(&mut self, ui: &mut Ui, _frame: u64) {
+        let Self { workspace, panels } = self;
+        lc::Stack::new().fill().show(ui, |ui, _| {
+            let _ = DockArea::new("Dock", Bind::bound(&mut *workspace), panels, DockConfig::default()).show(ui);
+            let _ = Block::new(vec2(1280.0, 22.0)).id_salt("status").show(ui);
         });
     }
 }

@@ -39,4 +39,20 @@ pub const SCENARIOS: &[Scenario] = &[
         description: "an end-aligned readout and a Content grid column changing every frame",
         no_discard: true,
     },
+    Scenario {
+        name: "fill-dialog-later-siblings",
+        description: "a dialog body Stack: a header Row, a fill Grid of two fill Stacks of Field rows, then a pane and a button bar",
+        no_discard: false,
+    },
+    Scenario { name: "content-list-500", description: "a Content-sized List of 500 rows with a toggle column", no_discard: false },
+    Scenario {
+        name: "nested-fill-8",
+        description: "Row and Stack alternating 8 deep, each holding a fill child and a fixed sibling",
+        no_discard: false,
+    },
+    Scenario {
+        name: "app-window",
+        description: "a DockArea filling a window with three docked panes (50 Fields, a 200-row list, a canvas) and a status bar after it",
+        no_discard: false,
+    },
 ];
