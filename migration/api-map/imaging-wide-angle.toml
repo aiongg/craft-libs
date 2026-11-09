@@ -8,7 +8,7 @@ name = "WideAngleWorkspace"
 old = "craft_imaging::ui::wide_angle::WideAngleWorkspace"
 new = "craft_imaging::ui::wide_angle::WideAngleWorkspace"
 status = "replaced"
-note = "`show(ui, geometry, source)` takes the `Ui` and returns the output with `closed` (OK is `CloseReason::Activated` or `Enter`); `zoom(key)` and `step(step)` queue for the next `show`. `preview_ready` and `preview_failed` are removed: the result is the job `WideAngleSource::preview_job` returns, read as `Pending<PreviewDone, String>`."
+note = "`show(ui, geometry, source)` takes the `Ui` and returns the output with `closed` (OK is `CloseReason::Activated` or `Enter`); `step(step)` queues for the next `show`. `preview_ready` and `preview_failed` are removed: the result is the job `WideAngleSource::preview_job` returns, read as `Pending<PreviewDone, String>`."
 
 [[type]]
 name = "WideAngleOutput"

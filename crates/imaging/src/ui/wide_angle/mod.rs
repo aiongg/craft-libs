@@ -205,7 +205,6 @@ pub struct WideAngleWorkspace {
     /// The panel's Add button was pressed and the form is not open yet.
     add_requested: bool,
     steps: Vec<Step>,
-    zooms: Vec<ViewCommands>,
 }
 
 impl WideAngleWorkspace {
@@ -222,7 +221,6 @@ impl WideAngleWorkspace {
             navigation: NavigationOptions::default(),
             add_requested: false,
             steps: Vec::new(),
-            zooms: Vec::new(),
         }
     }
 
@@ -260,12 +258,6 @@ impl WideAngleWorkspace {
         can
     }
 
-    /// Applies the zoom command the app fired to the view on the next [`show`](Self::show).
-    pub fn zoom(&mut self, command: ViewCommands) -> bool {
-        self.zooms.push(command);
-        true
-    }
-
     /// Shows the workspace for this pass: the title, the strip, the side column ([`WideAnglePanel`], OK and Cancel),
     /// the canvas (the corrected preview while Preview is on and no drag runs, else the source) with the Constraint
     /// tool (or Hand, Zoom) and the [`ConstraintLines`], and the constraint menu while a constraint asked for it.
@@ -282,7 +274,6 @@ impl WideAngleWorkspace {
         let size = self.size;
         let navigation = self.navigation;
         let steps = std::mem::take(&mut self.steps);
-        let zooms = std::mem::take(&mut self.zooms);
         let ending = !steps.is_empty();
         let preview_on = Cell::new(self.preview_on);
         let actions = RefCell::new(Vec::<Action>::new());
@@ -337,9 +328,6 @@ impl WideAngleWorkspace {
                 body.constraint.picture(pixels, size);
                 let draft = body.constraint.draft();
                 let mut view = body.view.take().unwrap_or_else(FullWindowView::new);
-                for command in &zooms {
-                    view.apply(*command);
-                }
                 while let Some((command, _)) = cx.take_command::<ViewCommands>() {
                     view.apply(command);
                 }

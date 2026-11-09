@@ -18,6 +18,7 @@ use craft_ui::contract::{Job, Role};
 use craft_ui::patterns::form_dialogs::{DialogFields, FieldValue, Param, ParamKind};
 use craft_ui::primitives::Revision;
 use craft_ui::primitives::textures::{FakeThumbSource, ThumbnailOptions, Thumbnails};
+use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::relations::equals_token;
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::value_drag::SliderScale;
@@ -295,4 +296,18 @@ fn gallery_preview_shows_progress_and_drops_stale_results() {
     let renders = rig.renders.borrow().clone();
     assert!(renders.len() > asked, "the change asks again: {renders:?}");
     assert!(!rig.fixture.by_role(Role::PROGRESS_INDICATOR).is_empty(), "the new render is the one shown");
+}
+
+// The workspace's zoom keys belong to the dialog: with focus on the footer's OK a zoom chord still zooms the preview.
+#[trial]
+fn gallery_zoom_chord_works_with_focus_on_the_footer_button() {
+    let mut rig = rig(FilterGallerySession::new("cutout", &Catalog), true);
+    let ok = rig.fixture.by_label("OK").expect("the footer has OK");
+    rig.fixture.access(AccessActionKind::Focus, &ok);
+    rig.fixture.idle(1);
+    let zoom = |rig: &Rig| rig.fixture.texts().iter().map(|run| run.text.clone()).find(|text| text.contains("Layer 1,") && text.contains('%'));
+    let before = zoom(&rig);
+    rig.fixture.key(Key::Equals, Modifiers::COMMAND);
+    rig.fixture.idle(2);
+    assert!(before.is_some() && zoom(&rig) != before, "the title's zoom changes: {before:?} then {:?}", zoom(&rig));
 }
