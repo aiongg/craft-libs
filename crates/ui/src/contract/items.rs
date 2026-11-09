@@ -214,7 +214,7 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
     /// Whether the collection takes its width from its widest row: `Sizing::Content` over rows with no columns,
     /// whose widths the header resolves.
     fn content_sized(&self, comp: &C) -> bool {
-        comp.props(Internal::new()).sizing == Sizing::Content && !self.header.has_columns()
+        comp.props(Internal::new()).sizing == Sizing::Content
     }
 
     fn rows_rect(&self, cx: &Cx<'_, C>) -> Rect {

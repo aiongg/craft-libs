@@ -214,9 +214,8 @@ pub struct CurveGraphStyle {
     #[style(focus)]
     focus: FocusLook,
     look: PlotLook,
-    /// The least and greatest side of the graph, tone bars included.
-    min_side: f32,
-    max_side: f32,
+    /// The side of the graph, tone bars included: the plot size of the theme.
+    side: f32,
     /// Thickness of the tone bars and the gap between them and the plot.
     bar: f32,
     bar_gap: f32,
@@ -495,8 +494,7 @@ impl Component for CurveGraph<'_> {
             metrics: Metrics::new(),
             focus: cx.focus_look(),
             look: PlotLook::new(cx),
-            min_side: side,
-            max_side: side * MAX_SIDE_SHARE,
+            side,
             bar: tokens.size.icon.sm,
             bar_gap: tokens.space.gap.inline,
             hit: tokens.size.hit.target,
@@ -511,8 +509,7 @@ impl Component for CurveGraph<'_> {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let side = cx.room.unwrap_or(cx.style.max_side).clamp(cx.style.min_side, cx.style.max_side);
-        Vec2::splat(side)
+        Vec2::splat(cx.style.side)
     }
 
     fn sense(&self) -> Sense {
@@ -719,9 +716,6 @@ impl Component for CurveGraph<'_> {
         CurveGraphOutput { selected: self.chosen, edit: cx.edit_response() }
     }
 }
-
-/// Least and greatest side of the graph in plot sizes.
-const MAX_SIDE_SHARE: f32 = 2.5;
 
 /// A point's handle: round for a smooth point when corners are on, square otherwise; the selected one filled.
 fn point(draw: &Draw<'_>, style: &CurveGraphStyle, center: Pos2, smooth: bool, selected: bool) {
