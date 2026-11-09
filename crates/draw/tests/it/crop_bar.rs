@@ -8,17 +8,26 @@ use craft_draw::ui::crop::{
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::canvas::ShieldColor;
 use craft_ui::contract::{Role, ShowContainer as _};
-use craft_ui::runtime::env::{Env, UnitKind, Units, WordSet as _};
+use craft_ui::runtime::env::{Env, PointSize, RootEnv, UnitKind, Units, WordSet as _};
 use craft_ui::testing::{Fixture, Frames, trial};
 use egui::{Key, Modifiers, Vec2};
 use kurbo::Size;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-const POINTS: f64 = UnitKind::POINTS_PER_INCH;
-
 fn document() -> CropDocument {
     CropDocument::new(CropDocKey::new(1), Size::new(2400.0, 1500.0), 72.0)
+}
+
+/// The units of a scope whose point size is `points`.
+fn units_of(points: PointSize) -> Units {
+    let mut frames = Frames::new();
+    let mut root = RootEnv::default();
+    root.values.set(points);
+    frames.root(root);
+    let mut units = None;
+    frames.frame(vec![], |ui| units = Some(Env::of(ui).units()));
+    units.expect("the frame ran")
 }
 
 /// Runs `check` with the units of the default scope.
@@ -106,17 +115,18 @@ fn the_resolution_field_keeps_a_positive_number() {
 fn target_uses_the_typed_resolution_else_the_documents() {
     {
         let doc = document().resolution(100.0);
-        let at_typed = size_mode(inches(4.0), inches(6.0), "300").target(&doc, POINTS).unwrap();
+        let at_typed = size_mode(inches(4.0), inches(6.0), "300").target(&doc, &units_of(PointSize::PostScript)).unwrap();
         assert_eq!((at_typed.width, at_typed.height, at_typed.resolution), (1200.0, 1800.0, Some(300.0)));
-        let at_document = size_mode(inches(4.0), pixels(1024.0), "").target(&doc, POINTS).unwrap();
+        let at_document = size_mode(inches(4.0), pixels(1024.0), "").target(&doc, &units_of(PointSize::PostScript)).unwrap();
         assert_eq!((at_document.width, at_document.height, at_document.resolution), (400.0, 1024.0, None));
         let mut per_cm = size_mode(Some(CropLength::new(2.54, UnitKind::Centimetres)), inches(1.0), "100");
         per_cm.size.resolution_unit = ResolutionUnit::PixelsPerCentimetre;
-        let t = per_cm.target(&doc, POINTS).unwrap();
+        let t = per_cm.target(&doc, &units_of(PointSize::PostScript)).unwrap();
         assert!((t.width - 254.0).abs() < 1e-9 && (t.height - 254.0).abs() < 1e-9 && t.resolution == Some(254.0));
-        let points = size_mode(Some(CropLength::new(72.0, UnitKind::Points)), pixels(1.0), "").target(&doc, 72.27).unwrap();
+        let points =
+            size_mode(Some(CropLength::new(72.0, UnitKind::Points)), pixels(1.0), "").target(&doc, &units_of(PointSize::Traditional)).unwrap();
         assert!((points.width - 100.0 * 72.0 / 72.27).abs() < 1e-9);
-        assert!((size_mode(inches(4.0), inches(6.0), "").ratio_value(&doc, POINTS).unwrap() - 4.0 / 6.0).abs() < 1e-12);
+        assert!((size_mode(inches(4.0), inches(6.0), "").ratio_value(&doc, &units_of(PointSize::PostScript)).unwrap() - 4.0 / 6.0).abs() < 1e-12);
     }
 }
 
@@ -126,10 +136,13 @@ fn empty_w_or_h_is_a_free_crop() {
     {
         let doc = document();
         let half = size_mode(inches(4.0), None, "300");
-        assert_eq!((half.target(&doc, POINTS), half.ratio_value(&doc, POINTS)), (None, None));
+        assert_eq!((half.target(&doc, &units_of(PointSize::PostScript)), half.ratio_value(&doc, &units_of(PointSize::PostScript))), (None, None));
         let mut settings = CropSettings::default();
         settings.set_ratio_field(0, 3.0);
-        assert_eq!((settings.ratio, settings.ratio_fields, settings.ratio_value(&doc, POINTS)), (CropRatio::Free, [3.0, 0.0], None));
+        assert_eq!(
+            (settings.ratio, settings.ratio_fields, settings.ratio_value(&doc, &units_of(PointSize::PostScript))),
+            (CropRatio::Free, [3.0, 0.0], None)
+        );
         assert_eq!(settings.shown_ratio_fields(&doc), [3.0, 0.0]);
         settings.set_ratio_field(1, 1.41437);
         assert_eq!(settings.ratio, CropRatio::sides(3.0, 1.414));
@@ -471,7 +484,7 @@ fn a_cleared_length_field_is_unset() {
     let mut rig = bar(size_mode(inches(4.0), inches(5.0), "300"), Vec::new());
     type_into(&mut rig, "Height", "");
     assert_eq!(rig.settings.borrow().size.height, None);
-    assert_eq!(rig.settings.borrow().target(&document(), POINTS), None);
+    assert_eq!(rig.settings.borrow().target(&document(), &units_of(PointSize::PostScript)), None);
 }
 
 /// Photoshop's crop bar holds a positive length: a typed 0 or negative number does not unset the field or make it

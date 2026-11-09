@@ -697,7 +697,7 @@ name = "CropDocument"
 old = "craft_draw::ui::crop::CropDocument"
 new = "craft_draw::ui::crop::CropDocument"
 status = "same"
-note = "`CropDocument::new(key, size, resolution)` takes the resolution; the `points_per_inch` field and setter are gone (points per inch is the environment's: `Env::units().points_per_inch()`, passed to `CropInput::new`, `CropTool::{apply, leave, refit}`, `CropCommit::new`, `CropSettings::{target, ratio_value}`)."
+note = "`CropDocument::new(key, size, resolution)` takes the resolution; the `points_per_inch` field and setter are gone (points per inch is the environment's: the host passes `&Env::of(ui).units()` to `CropTool::{apply, leave, refit}`, `CropCommit::new` and `CropSettings::{target, ratio_value}`; inside the tool pass it reads `cx.units()`; `CropInput::new` is unchanged)."
 
 [[type]]
 name = "CropDocKey"

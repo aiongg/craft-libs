@@ -301,14 +301,14 @@ impl CropSettings {
     /// [`CropRatio::Original`], the sides' for [`CropRatio::Sides`], W : H of the
     /// [`target`](Self::target) for [`CropRatio::Size`]; `None` for a free ratio and for any
     /// ratio that is not a positive finite number.
-    pub fn ratio_value(&self, document: &CropDocument, points_per_inch: f64) -> Option<f64> {
+    pub fn ratio_value(&self, document: &CropDocument, units: &Units) -> Option<f64> {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:217 `preset_ratio`; crop_size.rs:146 `ratio`.
         let (width, height) = match self.ratio {
             CropRatio::Free => return None,
             CropRatio::Original => (document.size.width, document.size.height),
             CropRatio::Sides { width, height } => (width, height),
             CropRatio::Size => {
-                let target = self.target(document, points_per_inch)?;
+                let target = self.target(document, units)?;
                 (target.width, target.height)
             }
         };
@@ -318,8 +318,8 @@ impl CropSettings {
     /// The size the commit resamples to, in W × H × Resolution mode with both W and H holding
     /// lengths; `None` otherwise (W or H empty is a free crop: no resample). Physical lengths
     /// convert at the typed resolution, else at the document's; points and picas at the
-    /// the environment's points per inch (`points_per_inch`). A bare number is in pixels.
-    pub fn target(&self, document: &CropDocument, points_per_inch: f64) -> Option<CropTarget> {
+    /// the environment's points per inch (`units`). A bare number is in pixels.
+    pub fn target(&self, document: &CropDocument, units: &Units) -> Option<CropTarget> {
         // pc: crates/ui-egui/src/tools/crop_size.rs:131 `target`, :122 `resolution_ppi` (px/cm × 2.54),
         // :71 `parse_length` (positive, at most 1e9, no percent, ',' read as '.').
         if self.ratio != CropRatio::Size {
@@ -329,7 +329,7 @@ impl CropSettings {
         let dpi = resolution.unwrap_or(document.resolution);
         let pixels = |length: Option<CropLength>| {
             let length = CropLength::usable(length)?;
-            let px = length.unit.to_pixels(length.value, 0.0, dpi, points_per_inch)?;
+            let px = length.unit.to_pixels(length.value, 0.0, dpi, units.points_per_inch())?;
             (px.is_finite() && px > 0.0).then_some(px)
         };
         Some(CropTarget { width: pixels(self.size.width)?, height: pixels(self.size.height)?, resolution })
