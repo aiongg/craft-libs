@@ -1775,10 +1775,14 @@ pub(crate) fn opener_open(stage: &mut MemoryStage, first: &Opener) -> bool {
         overlay::claim_activation(&ctx, opener.id);
     }
     let (open, by) = (slot.open, slot.by);
-    with_popups(&ctx, |popups| match by {
-        Some(by) if open => popups.opened_by.insert(first.id, by),
-        _ => popups.opened_by.remove(&first.id),
-    });
+    // A peek stage reads the slot the real stage of the pass holds, so it sees none of what that stage decided:
+    // the opener the layer opened by stays as the real stage recorded it.
+    if !stage.is_peek() {
+        with_popups(&ctx, |popups| match by {
+            Some(by) if open => popups.opened_by.insert(first.id, by),
+            _ => popups.opened_by.remove(&first.id),
+        });
+    }
     open
 }
 
