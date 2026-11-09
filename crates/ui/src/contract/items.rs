@@ -6,7 +6,7 @@ use super::collection::{
     ActivateOn, CollectionEvent, CollectionProps, CollectionResponse, ContextMenuRequest, Gestures, LeadOnOpen, LeadSource, OpenChange, Rename,
     RowState, SelectMode, ShownRow, SpaceAction,
 };
-use super::cx::BodyCx;
+use super::cx::{BodyCx, Pointer as _};
 use super::run::{ShapeHooks, ShowAt};
 use super::steps::ShapeKind;
 use super::{Bind, Collection, Cx, Internal, ItemCx, ItemFn, ItemOpener, ItemOutput as _, PartsCx, Props, Show as _, Sizing};
@@ -51,6 +51,9 @@ const SCROLL: craft_behavior::PartKey = craft_behavior::PartKey::new("items_scro
 const SECTION: craft_behavior::PartKey = craft_behavior::PartKey::new("section");
 /// The sub-node of a toggle cell of an item row; the index is the hash of the row's key and the column.
 const TOGGLE_CELL: craft_behavior::PartKey = craft_behavior::PartKey::new("toggle_cell");
+/// The part an item row's own access node stands for in the collection: AccessKit requests on the row's node reach
+/// the collection under this part, the index being the hash of the row's key.
+const ITEM_NODE: craft_behavior::PartKey = craft_behavior::PartKey::new("item_node");
 
 /// The part of a collection that stands for the section row `key` (`ItemSource::section_stop`): the item step builds
 /// no row for it, so the access node that AccessKit focus goes to while the section holds the lead, and the pointer
@@ -549,6 +552,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.context_key(cx, &layout, at, lead_at);
         self.delete_key(cx, &props, lead_at);
         self.toggle_by_access(cx, &layout, at);
+        self.node_by_access(comp, cx, &layout, at);
         self.reorder_and_rename(comp, cx, &props, lead_at);
         self.requested_rename(comp, cx, &props, &layout, view);
         self.requested_reveal(comp, &layout, view);
@@ -625,6 +629,14 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let mut shown_rows: Vec<ShownRow<C::Key>> = Vec::with_capacity(order.len());
         let content_sized = self.content_sized(comp);
         let mut widest = 0.0f32;
+        // A section row the component lays out as its own `section_part` reports its own node; any other is the
+        // collection's: a heading named by the row's text.
+        for &at in order.iter().filter(|&&at| self.source.section_stop(at) && layout.shown(at)) {
+            if cx.part_if_declared(section_part(&self.source.key(at))).is_none() {
+                let row = self.screen(&layout, rect, at, offset, rtl);
+                self.report_section_node(&ctx, id, at, row, cx.core.resolved.enabled);
+            }
+        }
         let place_rows = |ui: &mut Ui| {
             for at in order {
                 if self.source.section_stop(at) {
@@ -742,6 +754,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 // After the row is shown: its toggle cells have recorded their names by then.
                 self.report_toggle_cells(&ctx, (id, item_id), (at, &key), (shown_cells.as_slice(), cx.core.resolved.enabled), &cx.core.env);
                 let label = out.label_rect().unwrap_or(row);
+                crate::runtime::keys::redirect_node(&ctx, item_id, id, ITEM_NODE.at(key_hash(&key)));
                 if let Some(row) = shown_rows.last_mut() {
                     row.openers = self.item_openers(&row_ui, &ctx, id, cx.core.resolved.enabled, openers);
                 }
@@ -1043,7 +1056,9 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     if !primary && props.focus_on_press {
                         focus::request_now(&ctx, focus::FocusTarget::Id(cx.core.id));
                     }
+                    // A section stop activates on the first primary press whatever `activate` says: the press is its toggle.
                     let activates = match props.activate {
+                        _ if self.source.section_stop(at) => primary && start.clicks == 1,
                         ActivateOn::DoubleClick => start.clicks == 2,
                         ActivateOn::Click => primary,
                     };
@@ -1352,6 +1367,81 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 parent: item,
             };
             access::report_sub(ctx, &decl);
+        }
+    }
+
+    /// The collection's node for the section row `at` that the component does not lay out itself: a heading named by
+    /// the row's text, expandable when it has children, that serves Click, Expand and Collapse.
+    fn report_section_node(&self, ctx: &Context, id: Id, at: usize, rect: Rect, enabled: bool) {
+        let mut node = access::SubNode::new(section_part(&self.source.key(at)), Role::HEADING);
+        node.name = access::Name::Text(self.source.text(at).map(|text| text.into_owned()).unwrap_or_default());
+        node.level(self.source.depth(at) + 1);
+        if self.source.has_children(at) {
+            node.expanded = Some(self.source.open(at));
+        }
+        let decl = access::SubDecl {
+            owner: id,
+            component: "",
+            node: &node,
+            rect,
+            enabled: enabled && self.source.enabled(at),
+            focusable: false,
+            clickable: true,
+            active: false,
+            face: None,
+            label: "",
+            parent: id,
+        };
+        access::report_sub(ctx, &decl);
+    }
+
+    /// AccessKit requests on an item row's node or on a section row's collection node (`report_section_node`): Focus
+    /// moves the lead to the row and key focus to the collection; Click does that and picks an item or activates a
+    /// section, as a press does; Expand and Collapse open and close a row that has children.
+    fn node_by_access(&mut self, comp: &C, cx: &mut Cx<'_, C>, layout: &C::ItemLayout, place: Placement) {
+        use craft_behavior::AccessAction;
+        let (_, built) = self.built(layout, place.rect, place.offset);
+        let rows: Vec<(u64, usize)> = built
+            .into_iter()
+            .filter(|&at| !self.source.section_stop(at) || cx.part_if_declared(section_part(&self.source.key(at))).is_none())
+            .map(|at| (key_hash(&self.source.key(at)), at))
+            .collect();
+        let wanted = |request: &craft_behavior::AccessRequest| {
+            request.target.is_some_and(|part| {
+                (part.key == ITEM_NODE || part.key == SECTION) && part.index.is_some_and(|hash| rows.iter().any(|(held, _)| *held == hash))
+            })
+        };
+        while let Some(request) = cx.core.intents.take_access_where(wanted) {
+            let Some(at) = request.target.and_then(|part| part.index).and_then(|hash| rows.iter().find(|(held, _)| *held == hash)).map(|(_, at)| *at)
+            else {
+                continue;
+            };
+            if !self.source.enabled(at) {
+                continue;
+            }
+            let key = self.source.key(at);
+            match request.action {
+                AccessAction::Focus | AccessAction::Click => {
+                    if self.lead.key.as_ref() != Some(&key) {
+                        self.move_lead(at, LeadSource::Keys);
+                    }
+                    focus::request_now(&cx.core.ctx, focus::FocusTarget::Id(cx.core.id));
+                    if request.action == AccessAction::Click {
+                        if self.source.section_stop(at) {
+                            self.events.push(CollectionEvent::Activate(key));
+                        } else {
+                            self.pick(comp, at, false, false);
+                        }
+                    }
+                }
+                AccessAction::Expand | AccessAction::Collapse => {
+                    let open = request.action == AccessAction::Expand;
+                    if self.source.has_children(at) && self.source.open(at) != open {
+                        self.events.push(CollectionEvent::Open(OpenChange::new(key, open)));
+                    }
+                }
+                _ => {}
+            }
         }
     }
 

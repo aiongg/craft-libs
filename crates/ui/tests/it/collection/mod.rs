@@ -12,6 +12,7 @@ mod reorder_groups;
 mod review;
 mod row_children;
 mod rows;
+mod section_node;
 mod strip;
 mod sweep_apply;
 mod tab_rename;

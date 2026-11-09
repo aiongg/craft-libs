@@ -816,7 +816,7 @@ fn sectioned() -> Words {
     words
 }
 
-/// A double click on a section stop (the list activates on a double click) moves the lead to it and reports its activation; the section is never selected.
+/// A single click on a section stop (the list activates items on a double click) moves the lead to it and reports its activation; the section is never selected.
 #[trial]
 fn a_click_on_a_section_stop_takes_the_lead_and_activates() {
     let words = sectioned();
@@ -826,10 +826,8 @@ fn a_click_on_a_section_stop_takes_the_lead_and_activates() {
     frames.idle(3, &mut show);
     let at = ORIGIN + Vec2::new(30.0, ROW_H * 3.5);
     frames.frame(vec![pointer::moved(at)], &mut show);
-    for _ in 0..2 {
-        frames.frame(vec![pointer::press(at)], &mut show);
-        frames.frame(vec![pointer::release(at)], &mut show);
-    }
+    frames.frame(vec![pointer::press(at)], &mut show);
+    frames.frame(vec![pointer::release(at)], &mut show);
     frames.idle(1, &mut show);
     assert_eq!(seen.leads().last(), Some(&3), "the section holds the lead");
     let activated: Vec<usize> =

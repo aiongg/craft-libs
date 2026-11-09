@@ -7,7 +7,7 @@ use crate::runtime::egui::access::Declared;
 use crate::testing::fixture::{Fixture, Target};
 use egui::{Pos2, Rect};
 
-/// The point of `row` to press: its centre when no focusable descendant covers it, else the middle of the widest
+/// The point of `row` to press: its centre when no focusable or clickable descendant covers it, else the middle of the widest
 /// stretch of the row's centre line that none covers, and the centre when the descendants cover the whole line.
 pub(super) fn point(fixture: &Fixture, row: &Target) -> Pos2 {
     let tree = fixture.tree();
@@ -15,7 +15,7 @@ pub(super) fn point(fixture: &Fixture, row: &Target) -> Pos2 {
     let mut covered: Vec<Rect> = subtree(tree, row.node)
         .into_iter()
         .skip(1)
-        .filter(|node| tree.declares_key(*node, Declared::Focus))
+        .filter(|node| tree.declares_key(*node, Declared::Focus) || tree.declares_key(*node, Declared::Click))
         .filter_map(|node| tree.bounds_of(node))
         .filter(|bounds| bounds.min.y <= centre.y && centre.y <= bounds.max.y)
         .collect();
