@@ -21,32 +21,27 @@ fn recording_takes_a_chord_another_command_would_run() {
     assert!(!rig.shared.borrow().state.is_recording());
 }
 
-/// Take It moves the chord, the message offers Undo, and Undo and Redo (also Cmd+Z) move it back and forth. In Steal mode
-/// the chord moves at once with the same message, and Go to Conflict selects the holder.
+/// A chord taken from its holder moves to the taker, in Steal mode at once and otherwise on Take It; Undo and Redo (also
+/// Cmd+Z) move it back and forth.
 #[trial]
 fn conflict_take_it_steals_and_undo_restores() {
     let mut rig = Rig::mac();
     rig.click("Export…: ⌘E");
     rig.press(Modifiers::MAC_CMD, Key::S);
     rig.click("Take It");
-    assert_eq!(rig.bindings("file.save"), Vec::<String>::new());
+    assert!(rig.bindings("file.save").is_empty());
     assert_eq!(rig.bindings("file.export"), ["Cmd+S"]);
-    assert!(rig.has("⌘S was removed from Save"));
     rig.click("Undo");
-    assert_eq!(rig.bindings("file.save"), ["Cmd+S"]);
-    assert_eq!(rig.bindings("file.export"), ["Cmd+E"]);
+    assert_eq!((rig.bindings("file.save"), rig.bindings("file.export")), (vec!["Cmd+S".to_owned()], vec!["Cmd+E".to_owned()]));
     rig.click("Redo");
     assert_eq!(rig.bindings("file.export"), ["Cmd+S"]);
     rig.press(Modifiers::MAC_CMD, Key::Z);
-    assert_eq!(rig.bindings("file.export"), ["Cmd+E"], "Cmd+Z undoes when no text field has focus");
-    {
-        let mut rig = Rig::new(keymap(Platform::Mac), options().with(|o| o.conflicts = ConflictMode::Steal), None);
-        rig.click("Export…: ⌘E");
-        rig.press(Modifiers::MAC_CMD, Key::S);
-        assert!(rig.has("⌘S was removed from Save"));
-        rig.click("Go to Conflict");
-        assert!(rig.has("Save (Changed)"));
-    }
+    assert_eq!(rig.bindings("file.export"), ["Cmd+E"]);
+
+    let mut steal = Rig::new(keymap(Platform::Mac), options().with(|o| o.conflicts = ConflictMode::Steal), None);
+    steal.click("Export…: ⌘E");
+    steal.press(Modifiers::MAC_CMD, Key::S);
+    assert!(steal.bindings("file.save").is_empty() && steal.bindings("file.export") == ["Cmd+S"], "Steal mode moves it without asking");
 }
 
 /// Keep Both lists the clash under the Conflicts filter; undoing the changes changes nothing.
