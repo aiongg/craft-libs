@@ -315,7 +315,9 @@ impl Body<'_> {
             .events;
         let mut picked = selection.items.first().copied().filter(|at| Some(*at) != current);
         for event in events {
-            if let CollectionEvent::Activate(at) = event {
+            if let CollectionEvent::Activate(at) = event
+                && Some(at) != current
+            {
                 picked = Some(at);
             }
         }
