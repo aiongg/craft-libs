@@ -43,7 +43,7 @@ pub struct GroupBox<'a> {
 impl<'a> GroupBox<'a> {
     /// A group box titled `title`, gated by `gate` when it has one.
     pub fn new(title: impl Into<crate::runtime::env::Label>, gate: Option<Bind<'a, bool>>) -> Self {
-        let props = ContainerProps::new().surface(SurfaceKind::Frame).pad(Pad::Regular).sizing(Sizing::FillWidth).header(HeaderRegion::new());
+        let props = ContainerProps::new().surface(SurfaceKind::Frame).pad(Pad::Regular).sizing(Sizing::FillWidth).header(HeaderRegion::new()).gates();
         GroupBox { common: Common::new(), props, gate, strength: HeaderStrength::Section, header_fill: true }.label(title)
     }
 
@@ -51,7 +51,7 @@ impl<'a> GroupBox<'a> {
     /// `Mixed` value, is enabled only while `apply` is on. Opening a dialog or visiting a tab never turns mixed values
     /// into the first item's value: the caller starts `apply` off.
     pub fn apply(label: impl Into<crate::runtime::env::Label>, apply: Bind<'a, bool>) -> Self {
-        let props = ContainerProps::new().pad(Pad::None).header(HeaderRegion::new().inline(true));
+        let props = ContainerProps::new().pad(Pad::None).header(HeaderRegion::new().inline(true)).gates();
         GroupBox { common: Common::new(), props, gate: Some(apply), strength: HeaderStrength::Normal, header_fill: false }.label(label)
     }
 

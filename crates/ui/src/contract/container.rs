@@ -473,6 +473,8 @@ pub struct ContainerProps {
     pub child_size: Option<ControlSize>,
     /// The container is an arena root.
     pub arena: bool,
+    /// The container's value is a gate that disables its content while off.
+    pub(crate) gates: bool,
     /// The body is shown through this transform on its own egui layer.
     pub transform: Option<CanvasTransform>,
     /// Token-changing values for the body.
@@ -522,6 +524,7 @@ impl ContainerProps {
             body_gap: Gap::Row,
             child_size: None,
             arena: false,
+            gates: false,
             transform: None,
             theme: None,
             command_scope: None,
@@ -631,6 +634,12 @@ impl ContainerProps {
     /// A scope size for the body.
     pub const fn child_size(mut self, size: ControlSize) -> Self {
         self.child_size = Some(size);
+        self
+    }
+
+    /// Makes the container's `bool` value a gate on its content.
+    pub(crate) const fn gates(mut self) -> Self {
+        self.gates = true;
         self
     }
 

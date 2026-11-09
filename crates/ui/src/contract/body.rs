@@ -1743,9 +1743,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         // A measuring run lays out and measures: it registers no instance, focus body, scroll region or body layer,
         // and claims no room in a parent flow.
         let real = !ui.is_sizing_pass();
-        // Only a container with a header carries a gate there (a group box's check box); a headerless container whose
-        // value happens to be a bool (a radio group of two options) gates nothing.
-        self.gate = cx.shown.as_deref().filter(|_| props.header.is_some()).and_then(|value| (value as &dyn Any).downcast_ref::<bool>()).copied();
+        // Only a container that declares its value a gate (a group box) gates its content; a radio group whose value
+        // is a bool does not.
+        self.gate = cx.shown.as_deref().filter(|_| props.gates).and_then(|value| (value as &dyn Any).downcast_ref::<bool>()).copied();
         self.gate_at_read = self.gate;
         let window = window_instance(&props, id).filter(|window| *window != id);
         if real {
