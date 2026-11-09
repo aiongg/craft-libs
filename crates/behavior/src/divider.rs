@@ -70,21 +70,22 @@ mod tests {
     }
 
     #[test]
-    fn the_segments_past_the_divider_give_way_in_turn() {
-        // The divider after the first segment moves 80 points toward the end: the second gives 60, the third 20.
-        assert_eq!(resize(&row(), 0, 180.0), vec![180.0, 40.0, 80.0]);
-    }
-
-    #[test]
-    fn the_divider_stops_where_every_giver_is_at_its_minimum() {
-        assert_eq!(resize(&row(), 0, 1000.0), vec![220.0, 40.0, 40.0]);
-        assert_eq!(resize(&row(), 1, -1000.0), vec![40.0, 40.0, 220.0]);
-    }
-
-    #[test]
-    fn the_receiving_segment_stops_at_its_maximum() {
-        let capped = vec![Segment::new(100.0, 40.0, 120.0), Segment::unbounded(100.0, 40.0)];
-        assert_eq!(resize(&capped, 0, 300.0), vec![120.0, 80.0]);
+    fn divider_conserves_total_and_respects_limits() {
+        // the segments past the divider give way in turn
+        {
+            // The divider after the first segment moves 80 points toward the end: the second gives 60, the third 20.
+            assert_eq!(resize(&row(), 0, 180.0), vec![180.0, 40.0, 80.0]);
+        }
+        // the divider stops where every giver is at its minimum
+        {
+            assert_eq!(resize(&row(), 0, 1000.0), vec![220.0, 40.0, 40.0]);
+            assert_eq!(resize(&row(), 1, -1000.0), vec![40.0, 40.0, 220.0]);
+        }
+        // the receiving segment stops at its maximum
+        {
+            let capped = vec![Segment::new(100.0, 40.0, 120.0), Segment::unbounded(100.0, 40.0)];
+            assert_eq!(resize(&capped, 0, 300.0), vec![120.0, 80.0]);
+        }
     }
 
     #[test]

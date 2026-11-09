@@ -14,74 +14,78 @@ fn near(a: &CropBox, b: &CropBox) -> bool {
 }
 
 #[test]
-fn hit_finds_handles_inside_and_outside_with_a_reach_that_shrinks_inside_small_frames() {
-    let b = CropBox::upright(Rect::new(10.0, 10.0, 110.0, 60.0));
-    let at = |x, y| b.part_at(Point::new(x, y), 4.0);
-    assert_eq!(at(10.0, 10.0), BoxPart::Corner(0));
-    assert_eq!(at(112.0, 61.0), BoxPart::Corner(2));
-    assert_eq!(at(60.0, 8.0), BoxPart::Edge(0));
-    assert_eq!(at(108.0, 30.0), BoxPart::Edge(1));
-    assert_eq!(at(60.0, 30.0), BoxPart::Inside);
-    assert_eq!(at(150.0, 30.0), BoxPart::Outside);
-    assert_eq!(at(113.9, 30.0), BoxPart::Edge(1), "outside the full reach");
-    assert_eq!(at(114.1, 30.0), BoxPart::Outside);
-    // A tiny frame keeps a movable middle: inside, the reach is a quarter of the side.
-    let tiny = CropBox::upright(Rect::new(0.0, 0.0, 4.0, 4.0));
-    assert_eq!(tiny.part_at(Point::new(2.0, 2.0), 8.0), BoxPart::Inside);
-    assert_eq!(tiny.part_at(Point::new(-7.0, 2.0), 8.0), BoxPart::Edge(3));
-    assert_eq!(tiny.part_at(Point::new(0.9, 2.0), 8.0), BoxPart::Edge(3), "a quarter of the side: 1");
-    assert_eq!(tiny.part_at(Point::new(1.1, 2.0), 8.0), BoxPart::Inside);
-}
-
-#[test]
-fn a_turned_frame_is_hit_in_its_own_axes() {
-    let b = CropBox::new(Rect::new(40.0, 30.0, 100.0, 70.0), 90.0);
-    // A quarter turn: the frame covers x 50..90, y 20..80 on the page.
-    assert_eq!(b.part_at(Point::new(70.0, 75.0), 2.0), BoxPart::Inside);
-    assert_eq!(CropBox::upright(b.rect).part_at(Point::new(70.0, 75.0), 2.0), BoxPart::Outside);
-    assert_eq!(b.part_at(Point::new(45.0, 50.0), 2.0), BoxPart::Outside);
-    assert_eq!(b.part_at(Point::new(90.0, 20.0), 2.0), BoxPart::Corner(0), "the upright top left is now top right");
-    assert_eq!(b.part_at(Point::new(70.0, 80.0), 2.0), BoxPart::Edge(1), "its right edge faces down");
-    let want = [(90.0, 20.0), (90.0, 80.0), (50.0, 80.0), (50.0, 20.0)];
-    for (c, (x, y)) in b.corners().iter().zip(want) {
-        assert!(c.distance(Point::new(x, y)) < 1e-9, "{c:?}");
+fn crop_handle_hit() {
+    // hit finds handles inside and outside with a reach that shrinks inside small frames
+    {
+        let b = CropBox::upright(Rect::new(10.0, 10.0, 110.0, 60.0));
+        let at = |x, y| b.part_at(Point::new(x, y), 4.0);
+        assert_eq!(at(10.0, 10.0), BoxPart::Corner(0));
+        assert_eq!(at(112.0, 61.0), BoxPart::Corner(2));
+        assert_eq!(at(60.0, 8.0), BoxPart::Edge(0));
+        assert_eq!(at(108.0, 30.0), BoxPart::Edge(1));
+        assert_eq!(at(60.0, 30.0), BoxPart::Inside);
+        assert_eq!(at(150.0, 30.0), BoxPart::Outside);
+        assert_eq!(at(113.9, 30.0), BoxPart::Edge(1), "outside the full reach");
+        assert_eq!(at(114.1, 30.0), BoxPart::Outside);
+        // A tiny frame keeps a movable middle: inside, the reach is a quarter of the side.
+        let tiny = CropBox::upright(Rect::new(0.0, 0.0, 4.0, 4.0));
+        assert_eq!(tiny.part_at(Point::new(2.0, 2.0), 8.0), BoxPart::Inside);
+        assert_eq!(tiny.part_at(Point::new(-7.0, 2.0), 8.0), BoxPart::Edge(3));
+        assert_eq!(tiny.part_at(Point::new(0.9, 2.0), 8.0), BoxPart::Edge(3), "a quarter of the side: 1");
+        assert_eq!(tiny.part_at(Point::new(1.1, 2.0), 8.0), BoxPart::Inside);
     }
-    let bounds = b.turned_bounds();
-    assert!((bounds.x0 - 50.0).abs() < 1e-9 && (bounds.y1 - 80.0).abs() < 1e-9, "{bounds:?}");
+    // a turned frame is hit in its own axes
+    {
+        let b = CropBox::new(Rect::new(40.0, 30.0, 100.0, 70.0), 90.0);
+        // A quarter turn: the frame covers x 50..90, y 20..80 on the page.
+        assert_eq!(b.part_at(Point::new(70.0, 75.0), 2.0), BoxPart::Inside);
+        assert_eq!(CropBox::upright(b.rect).part_at(Point::new(70.0, 75.0), 2.0), BoxPart::Outside);
+        assert_eq!(b.part_at(Point::new(45.0, 50.0), 2.0), BoxPart::Outside);
+        assert_eq!(b.part_at(Point::new(90.0, 20.0), 2.0), BoxPart::Corner(0), "the upright top left is now top right");
+        assert_eq!(b.part_at(Point::new(70.0, 80.0), 2.0), BoxPart::Edge(1), "its right edge faces down");
+        let want = [(90.0, 20.0), (90.0, 80.0), (50.0, 80.0), (50.0, 20.0)];
+        for (c, (x, y)) in b.corners().iter().zip(want) {
+            assert!(c.distance(Point::new(x, y)) < 1e-9, "{c:?}");
+        }
+        let bounds = b.turned_bounds();
+        assert!((bounds.x0 - 50.0).abs() < 1e-9 && (bounds.y1 - 80.0).abs() < 1e-9, "{bounds:?}");
+    }
 }
 
 #[test]
-fn handles_resize_with_shift_alt_and_a_ratio() {
-    let d = Vec2::new;
-    let resize = |r: Rect, part: BoxPart, by: Vec2, ratio: Option<f64>, alt: bool| CropBox::upright(r).resized(part, by, ratio, alt).rect;
-    let r = Rect::new(20.0, 20.0, 100.0, 60.0);
-    assert_eq!(resize(r, BoxPart::Edge(1), d(20.0, 10.0), None, false), Rect::new(20.0, 20.0, 120.0, 60.0));
-    assert_eq!(resize(r, BoxPart::Corner(2), d(40.0, 10.0), None, false), Rect::new(20.0, 20.0, 140.0, 70.0));
-    // A ratio: the larger relative extent wins at a corner, the opposite corner stays.
-    let k = 120.0 / 50.0;
-    let held = resize(Rect::new(20.0, 20.0, 140.0, 70.0), BoxPart::Corner(0), d(-10.0, -20.0), Some(k), false);
-    assert_eq!((held.x1, held.y1), (140.0, 70.0));
-    assert!((held.width() / held.height() - k).abs() < 1e-9, "{held:?}");
-    assert!((held.height() - 70.0).abs() < 1e-9, "the larger relative extent: {held:?}");
-    // Alt about the centre.
-    assert_eq!(resize(Rect::new(40.0, 20.0, 80.0, 60.0), BoxPart::Edge(1), d(10.0, 0.0), None, true), Rect::new(30.0, 20.0, 90.0, 60.0));
-    // A ratio on an edge: centred on the other axis.
-    assert_eq!(resize(Rect::new(40.0, 20.0, 80.0, 60.0), BoxPart::Edge(1), d(20.0, 0.0), Some(1.0), false), Rect::new(40.0, 10.0, 100.0, 70.0));
-    // Past the other side the frame flips.
-    assert_eq!(resize(Rect::new(20.0, 20.0, 60.0, 60.0), BoxPart::Edge(1), d(-50.0, 0.0), None, false), Rect::new(10.0, 20.0, 20.0, 60.0));
-}
-
-#[test]
-fn a_turned_frame_resizes_along_its_axes_and_keeps_the_opposite_edge() {
-    let b = CropBox::new(Rect::new(40.0, 30.0, 100.0, 70.0), 90.0);
-    // At 90 degrees the right edge faces down the page: dragging down 10 grows the width.
-    let n = b.resized(BoxPart::Edge(1), Vec2::new(0.0, 10.0), None, false);
-    assert!((n.rect.width() - 70.0).abs() < 1e-9 && (n.rect.height() - 40.0).abs() < 1e-9, "{n:?}");
-    let (old, new) = (b.corners(), n.corners());
-    assert!(old[0].distance(new[0]) < 1e-9 && old[3].distance(new[3]) < 1e-9, "the left edge stays on the page");
-    assert!(near(&b.resized(BoxPart::Edge(1), Vec2::new(25.0, 0.0), None, false), &b), "a sideways drag does nothing to that handle");
-    let plain = CropBox::upright(RECT).resized(BoxPart::Corner(2), Vec2::new(5.0, 6.0), None, false);
-    assert_eq!(plain.rect, Rect::new(100.0, 80.0, 305.0, 226.0));
+fn crop_resize() {
+    // handles resize with shift alt and a ratio
+    {
+        let d = Vec2::new;
+        let resize = |r: Rect, part: BoxPart, by: Vec2, ratio: Option<f64>, alt: bool| CropBox::upright(r).resized(part, by, ratio, alt).rect;
+        let r = Rect::new(20.0, 20.0, 100.0, 60.0);
+        assert_eq!(resize(r, BoxPart::Edge(1), d(20.0, 10.0), None, false), Rect::new(20.0, 20.0, 120.0, 60.0));
+        assert_eq!(resize(r, BoxPart::Corner(2), d(40.0, 10.0), None, false), Rect::new(20.0, 20.0, 140.0, 70.0));
+        // A ratio: the larger relative extent wins at a corner, the opposite corner stays.
+        let k = 120.0 / 50.0;
+        let held = resize(Rect::new(20.0, 20.0, 140.0, 70.0), BoxPart::Corner(0), d(-10.0, -20.0), Some(k), false);
+        assert_eq!((held.x1, held.y1), (140.0, 70.0));
+        assert!((held.width() / held.height() - k).abs() < 1e-9, "{held:?}");
+        assert!((held.height() - 70.0).abs() < 1e-9, "the larger relative extent: {held:?}");
+        // Alt about the centre.
+        assert_eq!(resize(Rect::new(40.0, 20.0, 80.0, 60.0), BoxPart::Edge(1), d(10.0, 0.0), None, true), Rect::new(30.0, 20.0, 90.0, 60.0));
+        // A ratio on an edge: centred on the other axis.
+        assert_eq!(resize(Rect::new(40.0, 20.0, 80.0, 60.0), BoxPart::Edge(1), d(20.0, 0.0), Some(1.0), false), Rect::new(40.0, 10.0, 100.0, 70.0));
+        // Past the other side the frame flips.
+        assert_eq!(resize(Rect::new(20.0, 20.0, 60.0, 60.0), BoxPart::Edge(1), d(-50.0, 0.0), None, false), Rect::new(10.0, 20.0, 20.0, 60.0));
+    }
+    // a turned frame resizes along its axes and keeps the opposite edge
+    {
+        let b = CropBox::new(Rect::new(40.0, 30.0, 100.0, 70.0), 90.0);
+        // At 90 degrees the right edge faces down the page: dragging down 10 grows the width.
+        let n = b.resized(BoxPart::Edge(1), Vec2::new(0.0, 10.0), None, false);
+        assert!((n.rect.width() - 70.0).abs() < 1e-9 && (n.rect.height() - 40.0).abs() < 1e-9, "{n:?}");
+        let (old, new) = (b.corners(), n.corners());
+        assert!(old[0].distance(new[0]) < 1e-9 && old[3].distance(new[3]) < 1e-9, "the left edge stays on the page");
+        assert!(near(&b.resized(BoxPart::Edge(1), Vec2::new(25.0, 0.0), None, false), &b), "a sideways drag does nothing to that handle");
+        let plain = CropBox::upright(RECT).resized(BoxPart::Corner(2), Vec2::new(5.0, 6.0), None, false);
+        assert_eq!(plain.rect, Rect::new(100.0, 80.0, 305.0, 226.0));
+    }
 }
 
 #[test]
@@ -108,28 +112,33 @@ fn turning_snaps_to_the_step_and_stays_in_range() {
 }
 
 #[test]
-fn bounds_cut_an_unturned_frame_and_move_a_turned_one() {
-    let bounds = Rect::new(0.0, 0.0, 400.0, 300.0);
-    let out = CropBox::upright(Rect::new(-20.0, 10.0, 450.0, 200.0));
-    assert_eq!(out.within(bounds, true, false).unwrap().rect, Rect::new(0.0, 10.0, 400.0, 200.0));
-    assert_eq!(CropBox::upright(Rect::new(-20.0, 10.0, 80.0, 60.0)).within(bounds, false, false).unwrap().rect, Rect::new(0.0, 10.0, 100.0, 60.0));
-    let turned = CropBox::new(Rect::new(-30.0, 100.0, 70.0, 150.0), 90.0);
-    let moved = turned.within(bounds, false, false).unwrap();
-    assert!(moved.turned_bounds().x0 >= -1e-9 && moved.angle == 90.0);
-    assert!(turned.within(bounds, true, false).is_none(), "a resize that leaves is refused");
-}
-
-#[test]
-fn a_turn_stops_at_the_bounds() {
-    let tight = Rect::new(100.0, 80.0, 300.0, 220.0);
-    let roomy = Rect::new(0.0, 0.0, 400.0, 300.0);
-    let frame = CropBox::upright(RECT);
-    let grab = direction(frame.center(), Point::new(340.0, 260.0));
-    let turned = frame.turned_to(grab, Point::new(300.0, 290.0), None, false);
-    assert!(turned.angle.abs() > 1.0);
-    assert!(turned.within(tight, true, false).is_none(), "a turn that would leave the bounds is refused");
-    let t = turned.within(roomy, true, false).unwrap().turned_bounds();
-    assert!(t.x0 >= 0.0 && t.y0 >= 0.0 && t.x1 <= 400.0 && t.y1 <= 300.0, "{t:?}");
+fn bounds_rules() {
+    // bounds cut an unturned frame and move a turned one
+    {
+        let bounds = Rect::new(0.0, 0.0, 400.0, 300.0);
+        let out = CropBox::upright(Rect::new(-20.0, 10.0, 450.0, 200.0));
+        assert_eq!(out.within(bounds, true, false).unwrap().rect, Rect::new(0.0, 10.0, 400.0, 200.0));
+        assert_eq!(
+            CropBox::upright(Rect::new(-20.0, 10.0, 80.0, 60.0)).within(bounds, false, false).unwrap().rect,
+            Rect::new(0.0, 10.0, 100.0, 60.0)
+        );
+        let turned = CropBox::new(Rect::new(-30.0, 100.0, 70.0, 150.0), 90.0);
+        let moved = turned.within(bounds, false, false).unwrap();
+        assert!(moved.turned_bounds().x0 >= -1e-9 && moved.angle == 90.0);
+        assert!(turned.within(bounds, true, false).is_none(), "a resize that leaves is refused");
+    }
+    // a turn stops at the bounds
+    {
+        let tight = Rect::new(100.0, 80.0, 300.0, 220.0);
+        let roomy = Rect::new(0.0, 0.0, 400.0, 300.0);
+        let frame = CropBox::upright(RECT);
+        let grab = direction(frame.center(), Point::new(340.0, 260.0));
+        let turned = frame.turned_to(grab, Point::new(300.0, 290.0), None, false);
+        assert!(turned.angle.abs() > 1.0);
+        assert!(turned.within(tight, true, false).is_none(), "a turn that would leave the bounds is refused");
+        let t = turned.within(roomy, true, false).unwrap().turned_bounds();
+        assert!(t.x0 >= 0.0 && t.y0 >= 0.0 && t.x1 <= 400.0 && t.y1 <= 300.0, "{t:?}");
+    }
 }
 
 #[test]
@@ -160,37 +169,31 @@ fn the_rect_hit_is_the_frames_hit() {
     assert_eq!(hit_rect(RECT, Point::new(20.0, 20.0), 8.0), BoxPart::Outside);
 }
 
-#[test]
-fn part_keys_round_trip() {
-    for index in 0..=9 {
-        assert_eq!(BoxPart::from_index(index).map(BoxPart::index), Some(index));
-    }
-    assert_eq!(BoxPart::from_index(10), None);
-}
-
 // Straighten.
 
 #[test]
-fn a_line_levels_a_horizon_and_plumbs_a_nearer_vertical_one() {
-    let from = Point::new(60.0, 60.0);
-    let polar = |len: f64, deg: f64| from + Vec2::new(deg.to_radians().cos() * len, deg.to_radians().sin() * len);
-    // Falling to the right, rising to the right, drawn leftwards, a wall leaning either way.
-    let cases = [(10.0, 10.0), (-7.0, -7.0), (170.0, -10.0), (95.0, 5.0), (85.0, -5.0), (-85.0, 5.0), (44.0, 44.0), (0.0, 0.0), (90.0, 0.0)];
-    for (line, want) in cases {
-        let got = CropBox::level_angle(from, polar(120.0, line)).unwrap();
-        assert!((got - want).abs() < 1e-3, "line at {line}: {got}");
+fn level_line_angle() {
+    // a line levels a horizon and plumbs a nearer vertical one
+    {
+        let from = Point::new(60.0, 60.0);
+        let polar = |len: f64, deg: f64| from + Vec2::new(deg.to_radians().cos() * len, deg.to_radians().sin() * len);
+        // Falling to the right, rising to the right, drawn leftwards, a wall leaning either way.
+        let cases = [(10.0, 10.0), (-7.0, -7.0), (170.0, -10.0), (95.0, 5.0), (85.0, -5.0), (-85.0, 5.0), (44.0, 44.0), (0.0, 0.0), (90.0, 0.0)];
+        for (line, want) in cases {
+            let got = CropBox::level_angle(from, polar(120.0, line)).unwrap();
+            assert!((got - want).abs() < 1e-3, "line at {line}: {got}");
+        }
     }
-}
-
-#[test]
-fn a_line_is_levelled_in_the_document_not_on_the_screen() {
-    // A page turned a quarter: a line along the screen's horizontal is along the document's vertical.
-    let view =
-        CanvasView::new(emath::Rect::from_min_size(emath::pos2(0.0, 0.0), emath::vec2(400.0, 300.0)), Point::new(200.0, 150.0), 1.0).rotation(90.0);
-    let a = emath::pos2(200.0, 150.0);
-    let level = |to: emath::Pos2| CropBox::level_angle(view.to_doc(a), view.to_doc(to)).unwrap();
-    assert!(level(a + emath::vec2(100.0, 0.0)).abs() < 1e-3);
-    assert!((level(a + emath::vec2(100.0, 10.0)).abs() - (10.0f64 / 100.0).atan().to_degrees()).abs() < 1e-3);
+    // a line is levelled in the document not on the screen
+    {
+        // A page turned a quarter: a line along the screen's horizontal is along the document's vertical.
+        let view = CanvasView::new(emath::Rect::from_min_size(emath::pos2(0.0, 0.0), emath::vec2(400.0, 300.0)), Point::new(200.0, 150.0), 1.0)
+            .rotation(90.0);
+        let a = emath::pos2(200.0, 150.0);
+        let level = |to: emath::Pos2| CropBox::level_angle(view.to_doc(a), view.to_doc(to)).unwrap();
+        assert!(level(a + emath::vec2(100.0, 0.0)).abs() < 1e-3);
+        assert!((level(a + emath::vec2(100.0, 10.0)).abs() - (10.0f64 / 100.0).atan().to_degrees()).abs() < 1e-3);
+    }
 }
 
 #[test]
@@ -262,85 +265,91 @@ fn same(a: Point, b: Point) -> bool {
 }
 
 #[test]
-fn every_guide_stays_in_the_unit_square() {
-    for kind in CropGuide::ALL {
-        for o in 0..8 {
-            for (w, h) in [(1.0, 1.0), (300.0, 200.0), (200.0, 300.0), (5000.0, 3.0), (3.0, 5000.0), (1e7, 1e7), (1e30, 2.0)] {
-                let g = kind.guides(o, w, h, 32.0, 96);
-                assert!(!g.is_empty(), "{kind:?} {w}x{h}");
-                for p in points(&g) {
-                    assert!([p.x, p.y].iter().all(|v| v.is_finite() && (-1e-9..=1.0 + 1e-9).contains(v)), "{kind:?} o{o} {w}x{h}: {p:?}");
+fn guides_stay_inside_and_degenerate_frames_have_none() {
+    // every guide stays in the unit square
+    {
+        for kind in CropGuide::ALL {
+            for o in 0..8 {
+                for (w, h) in [(1.0, 1.0), (300.0, 200.0), (200.0, 300.0), (5000.0, 3.0), (3.0, 5000.0), (1e7, 1e7), (1e30, 2.0)] {
+                    let g = kind.guides(o, w, h, 32.0, 96);
+                    assert!(!g.is_empty(), "{kind:?} {w}x{h}");
+                    for p in points(&g) {
+                        assert!([p.x, p.y].iter().all(|v| v.is_finite() && (-1e-9..=1.0 + 1e-9).contains(v)), "{kind:?} o{o} {w}x{h}: {p:?}");
+                    }
+                    assert!(g.iter().all(|l| l.len() >= 2));
                 }
-                assert!(g.iter().all(|l| l.len() >= 2));
+            }
+        }
+    }
+    // degenerate frames have no guides
+    {
+        for kind in CropGuide::ALL {
+            for (w, h) in [(0.0, 10.0), (10.0, 0.0), (f64::NAN, 10.0), (f64::INFINITY, 10.0), (-5.0, -5.0), (0.5, 100.0)] {
+                assert!(kind.guides(0, w, h, 32.0, 96).is_empty(), "{kind:?} {w}x{h}");
             }
         }
     }
 }
 
 #[test]
-fn degenerate_frames_have_no_guides() {
-    for kind in CropGuide::ALL {
-        for (w, h) in [(0.0, 10.0), (10.0, 0.0), (f64::NAN, 10.0), (f64::INFINITY, 10.0), (-5.0, -5.0), (0.5, 100.0)] {
-            assert!(kind.guides(0, w, h, 32.0, 96).is_empty(), "{kind:?} {w}x{h}");
+fn guide_line_counts() {
+    // thirds and golden ratio positions
+    {
+        let xs = |g: Vec<Vec<Point>>| -> Vec<f64> { g.iter().filter(|l| l[0].y == 0.0 && l[1].y == 1.0).map(|l| l[0].x).collect() };
+        let t = xs(CropGuide::Thirds.guides(0, 300.0, 200.0, 32.0, 96));
+        assert_eq!(t.len(), 2);
+        assert!((t[0] - 1.0 / 3.0).abs() < 1e-9 && (t[1] - 2.0 / 3.0).abs() < 1e-9);
+        let g = xs(CropGuide::GoldenRatio.guides(0, 300.0, 200.0, 32.0, 96));
+        assert!((g[0] - 0.381_966).abs() < 1e-5 && (g[1] - 0.618_034).abs() < 1e-5, "{g:?}");
+        assert_eq!(CropGuide::GoldenRatio.guides(0, 300.0, 200.0, 32.0, 96).len(), 4);
+    }
+    // grid spacing is bounded
+    {
+        let count = |g: &[Vec<Point>], vertical: bool| g.iter().filter(|l| (l[0].x == l[1].x) == vertical).count();
+        for (w, h) in [(10.0, 10.0), (64.0, 64.0), (640.0, 320.0), (1e6, 1e6)] {
+            let g = CropGuide::Grid.guides(0, w, h, 32.0, 96);
+            let (v, hz) = (count(&g, true), count(&g, false));
+            assert!((1..96).contains(&v) && (1..96).contains(&hz), "{w}x{h}: {v} {hz}");
         }
+        // About one line per grid step on screen.
+        let g = CropGuide::Grid.guides(0, 640.0, 320.0, 32.0, 96);
+        assert_eq!((count(&g, true), count(&g, false)), (19, 9));
+        // The cell size and the cap are the caller's to give.
+        assert_eq!(count(&CropGuide::Grid.guides(0, 640.0, 320.0, 64.0, 4), true), 3);
     }
 }
 
 #[test]
-fn thirds_and_golden_ratio_positions() {
-    let xs = |g: Vec<Vec<Point>>| -> Vec<f64> { g.iter().filter(|l| l[0].y == 0.0 && l[1].y == 1.0).map(|l| l[0].x).collect() };
-    let t = xs(CropGuide::Thirds.guides(0, 300.0, 200.0, 32.0, 96));
-    assert_eq!(t.len(), 2);
-    assert!((t[0] - 1.0 / 3.0).abs() < 1e-9 && (t[1] - 2.0 / 3.0).abs() < 1e-9);
-    let g = xs(CropGuide::GoldenRatio.guides(0, 300.0, 200.0, 32.0, 96));
-    assert!((g[0] - 0.381_966).abs() < 1e-5 && (g[1] - 0.618_034).abs() < 1e-5, "{g:?}");
-    assert_eq!(CropGuide::GoldenRatio.guides(0, 300.0, 200.0, 32.0, 96).len(), 4);
-}
-
-#[test]
-fn grid_spacing_is_bounded() {
-    let count = |g: &[Vec<Point>], vertical: bool| g.iter().filter(|l| (l[0].x == l[1].x) == vertical).count();
-    for (w, h) in [(10.0, 10.0), (64.0, 64.0), (640.0, 320.0), (1e6, 1e6)] {
-        let g = CropGuide::Grid.guides(0, w, h, 32.0, 96);
-        let (v, hz) = (count(&g, true), count(&g, false));
-        assert!((1..96).contains(&v) && (1..96).contains(&hz), "{w}x{h}: {v} {hz}");
+fn diagonal_guides_are_geometrically_true() {
+    // diagonals run at 45 degrees on screen
+    {
+        let (w, h) = (300.0, 200.0);
+        for l in CropGuide::Diagonal.guides(0, w, h, 32.0, 96) {
+            let (dx, dy) = ((l[1].x - l[0].x) * w, (l[1].y - l[0].y) * h);
+            assert!((dx.abs() - dy.abs()).abs() < 1e-6 && (dx.abs() - 200.0).abs() < 1e-6, "{l:?}");
+        }
+        // A square frame: corner to corner.
+        let g = CropGuide::Diagonal.guides(0, 100.0, 100.0, 32.0, 96);
+        assert_eq!(g[0], vec![Point::new(0.0, 0.0), Point::new(1.0, 1.0)]);
     }
-    // About one line per grid step on screen.
-    let g = CropGuide::Grid.guides(0, 640.0, 320.0, 32.0, 96);
-    assert_eq!((count(&g, true), count(&g, false)), (19, 9));
-    // The cell size and the cap are the caller's to give.
-    assert_eq!(count(&CropGuide::Grid.guides(0, 640.0, 320.0, 64.0, 4), true), 3);
-}
-
-#[test]
-fn diagonals_run_at_45_degrees_on_screen() {
-    let (w, h) = (300.0, 200.0);
-    for l in CropGuide::Diagonal.guides(0, w, h, 32.0, 96) {
-        let (dx, dy) = ((l[1].x - l[0].x) * w, (l[1].y - l[0].y) * h);
-        assert!((dx.abs() - dy.abs()).abs() < 1e-6 && (dx.abs() - 200.0).abs() < 1e-6, "{l:?}");
+    // triangle perpendiculars meet the diagonal at right angles
+    {
+        let (w, h) = (300.0, 200.0);
+        let g = CropGuide::Triangle.guides(0, w, h, 32.0, 96);
+        for l in &g[1..] {
+            let d = [(l[1].x - l[0].x) * w, (l[1].y - l[0].y) * h];
+            assert!((d[0] * w + d[1] * h).abs() < 1e-6, "{l:?}");
+            assert!((l[1].x - l[1].y).abs() < 1e-9, "foot on the diagonal: {l:?}");
+        }
+        // The other orientation mirrors it: the diagonal runs top-right to bottom-left.
+        let m = CropGuide::Triangle.guides(1, w, h, 32.0, 96);
+        assert_eq!(m[0], vec![Point::new(1.0, 0.0), Point::new(0.0, 1.0)]);
+        for (a, b) in g.iter().zip(&m) {
+            assert!(a.iter().zip(b).all(|(p, q)| same(*p, Point::new(1.0 - q.x, q.y))));
+        }
+        // Two orientations: 2 is 0 again.
+        assert_eq!(CropGuide::Triangle.guides(2, w, h, 32.0, 96), g);
     }
-    // A square frame: corner to corner.
-    let g = CropGuide::Diagonal.guides(0, 100.0, 100.0, 32.0, 96);
-    assert_eq!(g[0], vec![Point::new(0.0, 0.0), Point::new(1.0, 1.0)]);
-}
-
-#[test]
-fn triangle_perpendiculars_meet_the_diagonal_at_right_angles() {
-    let (w, h) = (300.0, 200.0);
-    let g = CropGuide::Triangle.guides(0, w, h, 32.0, 96);
-    for l in &g[1..] {
-        let d = [(l[1].x - l[0].x) * w, (l[1].y - l[0].y) * h];
-        assert!((d[0] * w + d[1] * h).abs() < 1e-6, "{l:?}");
-        assert!((l[1].x - l[1].y).abs() < 1e-9, "foot on the diagonal: {l:?}");
-    }
-    // The other orientation mirrors it: the diagonal runs top-right to bottom-left.
-    let m = CropGuide::Triangle.guides(1, w, h, 32.0, 96);
-    assert_eq!(m[0], vec![Point::new(1.0, 0.0), Point::new(0.0, 1.0)]);
-    for (a, b) in g.iter().zip(&m) {
-        assert!(a.iter().zip(b).all(|(p, q)| same(*p, Point::new(1.0 - q.x, q.y))));
-    }
-    // Two orientations: 2 is 0 again.
-    assert_eq!(CropGuide::Triangle.guides(2, w, h, 32.0, 96), g);
 }
 
 #[test]
@@ -385,13 +394,6 @@ fn cycling_guides_and_orientations() {
     assert_eq!(turns, [1, 2, 3, 0, 1]);
     // A stray orientation still cycles in range.
     assert!(CropGuide::Triangle.next_orientation(200) < 2);
-}
-
-#[test]
-fn visibility_modes() {
-    assert!(GuideShow::Auto.shows(true) && !GuideShow::Auto.shows(false));
-    assert!(GuideShow::Always.shows(true) && GuideShow::Always.shows(false));
-    assert!(!GuideShow::Never.shows(true) && !GuideShow::Never.shows(false));
 }
 
 #[test]

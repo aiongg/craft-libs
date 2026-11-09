@@ -9,24 +9,26 @@ fn guide(along: Axis, position: f64) -> SnapTarget {
 }
 
 #[test]
-fn a_point_snaps_within_the_tolerance_and_not_outside_it() {
-    let mut targets = SnapTargets::new();
-    targets.add(guide(Axis::Y, 120.0));
-    let (snapped, lines) = targets.snap_point(Point::new(123.0, 50.0), 4.0);
-    assert_eq!(snapped, Point::new(120.0, 50.0));
-    assert_eq!(lines.len(), 1);
-    let (unsnapped, lines) = targets.snap_point(Point::new(125.5, 50.0), 5.0);
-    assert_eq!(unsnapped, Point::new(125.5, 50.0));
-    assert!(lines.is_empty());
-}
-
-#[test]
-fn the_nearest_target_wins() {
-    let mut targets = SnapTargets::new();
-    targets.add(guide(Axis::Y, 100.0));
-    targets.add(guide(Axis::Y, 103.0));
-    let (snapped, _) = targets.snap_point(Point::new(102.0, 0.0), 4.0);
-    assert_eq!(snapped.x, 103.0);
+fn point_snap() {
+    // a point snaps within the tolerance and not outside it
+    {
+        let mut targets = SnapTargets::new();
+        targets.add(guide(Axis::Y, 120.0));
+        let (snapped, lines) = targets.snap_point(Point::new(123.0, 50.0), 4.0);
+        assert_eq!(snapped, Point::new(120.0, 50.0));
+        assert_eq!(lines.len(), 1);
+        let (unsnapped, lines) = targets.snap_point(Point::new(125.5, 50.0), 5.0);
+        assert_eq!(unsnapped, Point::new(125.5, 50.0));
+        assert!(lines.is_empty());
+    }
+    // the nearest target wins
+    {
+        let mut targets = SnapTargets::new();
+        targets.add(guide(Axis::Y, 100.0));
+        targets.add(guide(Axis::Y, 103.0));
+        let (snapped, _) = targets.snap_point(Point::new(102.0, 0.0), 4.0);
+        assert_eq!(snapped.x, 103.0);
+    }
 }
 
 #[test]

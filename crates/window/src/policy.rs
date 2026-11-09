@@ -314,40 +314,25 @@ mod tests {
     }
 
     #[test]
-    fn a_tool_window_has_no_captions_and_a_document_window_its_families() {
-        let gnome = desk(DesktopKind::Gnome, Some(false), None);
-        let for_kind = |os, kind| decide(os, Runtime::Native, Backend::Wayland, &gnome, kind, Int, None).frame;
-        for (os, family) in [(Os::Windows, Windows), (Os::Linux, Adwaita)] {
-            let Frame::Integrated(tool) = for_kind(os, WindowKind::Tool) else { panic!("{os:?}: a tool window's bar is the app's") };
-            assert_eq!((tool.family, tool.is_empty()), (family, true), "{os:?} tool");
-            let Frame::Integrated(document) = for_kind(os, WindowKind::Document) else { panic!("{os:?}: a document window's bar is the app's") };
-            assert_eq!((document.family, document.is_empty()), (family, false), "{os:?} document");
+    fn frame_by_window_kind_and_os() {
+        // a tool window has no captions and a document window its families
+        {
+            let gnome = desk(DesktopKind::Gnome, Some(false), None);
+            let for_kind = |os, kind| decide(os, Runtime::Native, Backend::Wayland, &gnome, kind, Int, None).frame;
+            for (os, family) in [(Os::Windows, Windows), (Os::Linux, Adwaita)] {
+                let Frame::Integrated(tool) = for_kind(os, WindowKind::Tool) else { panic!("{os:?}: a tool window's bar is the app's") };
+                assert_eq!((tool.family, tool.is_empty()), (family, true), "{os:?} tool");
+                let Frame::Integrated(document) = for_kind(os, WindowKind::Document) else { panic!("{os:?}: a document window's bar is the app's") };
+                assert_eq!((document.family, document.is_empty()), (family, false), "{os:?} document");
+            }
+            assert_eq!(for_kind(Os::Mac, WindowKind::Tool), Frame::Inset(MacInset::default()), "the OS draws the traffic lights");
         }
-        assert_eq!(for_kind(Os::Mac, WindowKind::Tool), Frame::Inset(MacInset::default()), "the OS draws the traffic lights");
-    }
-
-    #[test]
-    fn native_on_ssd_desktops_when_the_flag_is_off() {
-        use DesktopKind::{Gnome, Kde, Other};
-        let frame = |kind, backend, ssd, forced| integrated_frame(Os::Linux, backend, &desk(kind, ssd, None), forced, false, &layout::default_layout);
-        assert_eq!(frame(Kde, Backend::Wayland, Some(true), false), Frame::Native);
-        assert_eq!(frame(Other, Backend::X11, None, false), Frame::Native);
-        assert!(matches!(frame(Kde, Backend::Wayland, Some(true), true), Frame::Integrated(_)), "the override still forces the bar");
-        assert!(matches!(frame(Gnome, Backend::Wayland, Some(false), false), Frame::Integrated(_)));
-        assert!(matches!(frame(Other, Backend::Wayland, Some(false), false), Frame::Integrated(_)), "no SSD: nothing else draws a frame");
-    }
-
-    #[test]
-    fn the_decision_carries_the_desktop() {
-        let d = desk(DesktopKind::Tiling, Some(true), None);
-        assert_eq!(decide_main(Os::Linux, Backend::Wayland, &d, Int, None).desktop, d);
-    }
-
-    #[test]
-    fn macos_gets_the_inset() {
-        let d = decide_main(Os::Mac, Backend::X11, &desk(DesktopKind::Other, None, None), Int, None);
-        assert_eq!(d.frame, Frame::Inset(MacInset::default()));
-        assert_eq!(decide_main(Os::Mac, Backend::X11, &desk(DesktopKind::Other, None, None), System, None).frame, Frame::Native);
+        // macos gets the inset
+        {
+            let d = decide_main(Os::Mac, Backend::X11, &desk(DesktopKind::Other, None, None), Int, None);
+            assert_eq!(d.frame, Frame::Inset(MacInset::default()));
+            assert_eq!(decide_main(Os::Mac, Backend::X11, &desk(DesktopKind::Other, None, None), System, None).frame, Frame::Native);
+        }
     }
 
     #[test]

@@ -267,14 +267,24 @@ mod tests {
     }
 
     #[test]
-    fn kwin_button_letters_become_a_gtk_layout() {
-        assert_eq!(kwin_layout(""), ":minimize,maximize,close", "KWin's defaults");
-        let rc = "[Desktops]\nButtonsOnLeft=X\n[org.kde.kdecoration2]\nButtonsOnLeft=XIA\nButtonsOnRight=\nlibrary=org.kde.breeze\n";
-        assert_eq!(kwin_layout(rc), "close,minimize,maximize:");
-        assert_eq!(ini_value(rc, "org.kde.kdecoration2", "library").as_deref(), Some("org.kde.breeze"));
-        assert_eq!(ini_value(rc, "nope", "library"), None);
-        // Garbage is just no buttons on that side, never a panic.
-        assert_eq!(kwin_layout("[org.kde.kdecoration2]\nButtonsOnRight=\u{ff}\u{20ac}=X\n"), ":close");
+    fn kwin_button_letters() {
+        // kwin button letters become a gtk layout
+        {
+            assert_eq!(kwin_layout(""), ":minimize,maximize,close", "KWin's defaults");
+            let rc = "[Desktops]\nButtonsOnLeft=X\n[org.kde.kdecoration2]\nButtonsOnLeft=XIA\nButtonsOnRight=\nlibrary=org.kde.breeze\n";
+            assert_eq!(kwin_layout(rc), "close,minimize,maximize:");
+            assert_eq!(ini_value(rc, "org.kde.kdecoration2", "library").as_deref(), Some("org.kde.breeze"));
+            assert_eq!(ini_value(rc, "nope", "library"), None);
+            // Garbage is just no buttons on that side, never a panic.
+            assert_eq!(kwin_layout("[org.kde.kdecoration2]\nButtonsOnRight=\u{ff}\u{20ac}=X\n"), ":close");
+        }
+        // kwin order parses into a layout
+        {
+            let rc = "[org.kde.kdecoration2]\nButtonsOnLeft=XIA\nButtonsOnRight=\n";
+            let layout = Layout::parse(&kwin_layout(rc));
+            assert_eq!(layout.left, vec![Close, Minimize, Maximize]);
+            assert!(layout.right.is_empty());
+        }
     }
 
     #[test]
@@ -288,27 +298,21 @@ mod tests {
     }
 
     #[test]
-    fn kwin_order_parses_into_a_layout() {
-        let rc = "[org.kde.kdecoration2]\nButtonsOnLeft=XIA\nButtonsOnRight=\n";
-        let layout = Layout::parse(&kwin_layout(rc));
-        assert_eq!(layout.left, vec![Close, Minimize, Maximize]);
-        assert!(layout.right.is_empty());
-    }
-
-    #[test]
-    fn gtk_settings_give_the_layout_and_theme() {
-        let ini = "[Settings]\ngtk-theme-name=Yaru\ngtk-decoration-layout=close,maximize:\n";
-        assert_eq!(gtk_settings(ini), (Some("close,maximize:".into()), Some("Yaru".into())));
-        assert_eq!(gtk_settings(""), (None, None));
-        let layout = Layout::parse("close,maximize:");
-        assert_eq!((layout.left, layout.right), (vec![Close, Maximize], vec![]));
-    }
-
-    #[test]
-    fn missing_or_unusable_layouts_fall_back_to_the_desktops_default() {
-        assert_eq!(parse_or_default(None, DesktopKind::Gnome).right, vec![Close], "GNOME's default shows Close only");
-        assert_eq!(parse_or_default(Some("appmenu:spacer"), DesktopKind::Other).right, vec![Minimize, Maximize, Close]);
-        assert_eq!(parse_or_default(Some("close:"), DesktopKind::Other).left, vec![Close]);
+    fn gtk_settings_and_fallback() {
+        // gtk settings give the layout and theme
+        {
+            let ini = "[Settings]\ngtk-theme-name=Yaru\ngtk-decoration-layout=close,maximize:\n";
+            assert_eq!(gtk_settings(ini), (Some("close,maximize:".into()), Some("Yaru".into())));
+            assert_eq!(gtk_settings(""), (None, None));
+            let layout = Layout::parse("close,maximize:");
+            assert_eq!((layout.left, layout.right), (vec![Close, Maximize], vec![]));
+        }
+        // missing or unusable layouts fall back to the desktops default
+        {
+            assert_eq!(parse_or_default(None, DesktopKind::Gnome).right, vec![Close], "GNOME's default shows Close only");
+            assert_eq!(parse_or_default(Some("appmenu:spacer"), DesktopKind::Other).right, vec![Minimize, Maximize, Close]);
+            assert_eq!(parse_or_default(Some("close:"), DesktopKind::Other).left, vec![Close]);
+        }
     }
 
     #[test]

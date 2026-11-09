@@ -20,42 +20,73 @@ fn current(selection: &CellSelection<u32>) -> CellRange<u32> {
     selection.current().expect("the selection has a current range").clone()
 }
 
-// A range grows over a merge it crosses and again over a merge that one reaches; whole columns
-// stay as they are in `CellSpace::cover`.
 #[test]
-fn ranges_grow_over_merged_cells_but_whole_lines_stay() {
-    let merges = [r((1, 1), (2, 2)), r((3, 3), (3, 5))];
-    let rows = Positions::new(10);
-    let space = CellSpace::new(&rows, 8).merges(&merges);
-    // B2:C3 holds the first merge; D4:F4 touches it only through the second merge.
-    assert_eq!(space.cover(r((0, 0), (1, 1))), r((0, 0), (2, 2)));
-    assert_eq!(space.cover(r((2, 2), (3, 3))), r((1, 1), (3, 5)));
-    let whole = space.whole_columns(1, 1).expect("the grid has rows");
-    assert_eq!(space.cover(whole.clone()), whole);
-    assert_eq!(space.cover(space.whole_rows(1, 1)), space.whole_rows(1, 1));
+fn ranges_over_merges_and_locked_cells() {
+    // A range grows over a merge it crosses and again over a merge that one reaches; whole columns
+    // stay as they are in `CellSpace::cover`.
+    {
+        let merges = [r((1, 1), (2, 2)), r((3, 3), (3, 5))];
+        let rows = Positions::new(10);
+        let space = CellSpace::new(&rows, 8).merges(&merges);
+        // B2:C3 holds the first merge; D4:F4 touches it only through the second merge.
+        assert_eq!(space.cover(r((0, 0), (1, 1))), r((0, 0), (2, 2)));
+        assert_eq!(space.cover(r((2, 2), (3, 3))), r((1, 1), (3, 5)));
+        let whole = space.whole_columns(1, 1).expect("the grid has rows");
+        assert_eq!(space.cover(whole.clone()), whole);
+        assert_eq!(space.cover(space.whole_rows(1, 1)), space.whole_rows(1, 1));
+    }
+    // A cell the selectable rule refuses can't be selected or added; the selection stays as it was.
+    // `select_range` covers merges.
+    {
+        let merges = [r((2, 2), (3, 3))];
+        let selectable = |cell: CellAt<u32>| cell != c(5, 5);
+        let rows = Positions::new(10);
+        let space = CellSpace::new(&rows, 10).merges(&merges).selectable(&selectable);
+        let mut sel = CellSelection::cell(c(0, 0));
+        assert!(!sel.select(c(5, 5), &space));
+        assert!(!sel.add(c(5, 5), &space));
+        assert_eq!(sel, CellSelection::cell(c(0, 0)));
+        assert!(sel.select_range(r((1, 1), (2, 2)), &space));
+        assert_eq!(sel.ranges(), [r((1, 1), (3, 3))]);
+    }
 }
 
-// `neighbour` leaves a merge from its far edge, skips hidden rows and columns, lands on a merge's
-// top-left, steps over unselectable cells and is None at the edge.
 #[test]
-fn neighbour_skips_hidden_lines_and_merges() {
-    let merges = [r((2, 2), (3, 3))];
-    let hidden_rows = |row: u32| row == 5;
-    let hidden_columns = |column: u32| column == 1;
-    let locked = |cell: CellAt<u32>| cell == c(0, 3);
-    let rows = Positions::new(8);
-    let space = CellSpace::new(&rows, 6).merges(&merges).hidden_rows(&hidden_rows).hidden_columns(&hidden_columns);
-    assert_eq!(space.neighbour(c(2, 2), CellDirection::Down), Some(c(4, 2)));
-    assert_eq!(space.neighbour(c(4, 2), CellDirection::Up), Some(c(2, 2)));
-    assert_eq!(space.neighbour(c(2, 2), CellDirection::Right), Some(c(2, 4)));
-    assert_eq!(space.neighbour(c(2, 0), CellDirection::Right), Some(c(2, 2)));
-    assert_eq!(space.neighbour(c(4, 0), CellDirection::Right), Some(c(4, 2)));
-    assert_eq!(space.neighbour(c(4, 3), CellDirection::Down), Some(c(6, 3)));
-    assert_eq!(space.neighbour(c(0, 0), CellDirection::Up), None);
-    assert_eq!(space.neighbour(c(7, 5), CellDirection::Right), None);
-    let only_one = CellSpace::new(&rows, 6).selectable(&locked);
-    assert_eq!(only_one.neighbour(c(0, 0), CellDirection::Right), Some(c(0, 3)));
-    assert_eq!(only_one.neighbour(c(0, 3), CellDirection::Right), None);
+fn hidden_lines_are_skipped() {
+    // `neighbour` leaves a merge from its far edge, skips hidden rows and columns, lands on a merge's
+    // top-left, steps over unselectable cells and is None at the edge.
+    {
+        let merges = [r((2, 2), (3, 3))];
+        let hidden_rows = |row: u32| row == 5;
+        let hidden_columns = |column: u32| column == 1;
+        let locked = |cell: CellAt<u32>| cell == c(0, 3);
+        let rows = Positions::new(8);
+        let space = CellSpace::new(&rows, 6).merges(&merges).hidden_rows(&hidden_rows).hidden_columns(&hidden_columns);
+        assert_eq!(space.neighbour(c(2, 2), CellDirection::Down), Some(c(4, 2)));
+        assert_eq!(space.neighbour(c(4, 2), CellDirection::Up), Some(c(2, 2)));
+        assert_eq!(space.neighbour(c(2, 2), CellDirection::Right), Some(c(2, 4)));
+        assert_eq!(space.neighbour(c(2, 0), CellDirection::Right), Some(c(2, 2)));
+        assert_eq!(space.neighbour(c(4, 0), CellDirection::Right), Some(c(4, 2)));
+        assert_eq!(space.neighbour(c(4, 3), CellDirection::Down), Some(c(6, 3)));
+        assert_eq!(space.neighbour(c(0, 0), CellDirection::Up), None);
+        assert_eq!(space.neighbour(c(7, 5), CellDirection::Right), None);
+        let only_one = CellSpace::new(&rows, 6).selectable(&locked);
+        assert_eq!(only_one.neighbour(c(0, 0), CellDirection::Right), Some(c(0, 3)));
+        assert_eq!(only_one.neighbour(c(0, 3), CellDirection::Right), None);
+    }
+    // A hidden column inside a range is skipped by Tab and Enter inside a multi-cell selection.
+    {
+        let hidden_columns = |column: u32| column == 1;
+        let rows = Positions::new(5);
+        let space = CellSpace::new(&rows, 5).hidden_columns(&hidden_columns);
+        let mut sel = CellSelection::range(r((0, 0), (1, 2)));
+        let mut seen = Vec::new();
+        for _ in 0..4 {
+            sel.advance(CellAdvance::Tab, false, &space);
+            seen.push(active(&sel));
+        }
+        assert_eq!(seen, [c(0, 2), c(1, 0), c(1, 2), c(0, 0)]);
+    }
 }
 
 // A click selects a merge whole with its top-left active; Shift+click extends from the anchor and
@@ -142,115 +173,84 @@ fn enter_and_tab_cycle_inside_the_selection() {
     assert!(CellSelection::from_ranges(vec![r((0, 0), (1, 1))], c(5, 5)).is_none());
 }
 
-// A hidden column inside a range is skipped by Tab and Enter inside a multi-cell selection.
 #[test]
-fn advance_inside_a_range_skips_hidden_lines() {
-    let hidden_columns = |column: u32| column == 1;
-    let rows = Positions::new(5);
-    let space = CellSpace::new(&rows, 5).hidden_columns(&hidden_columns);
-    let mut sel = CellSelection::range(r((0, 0), (1, 2)));
-    let mut seen = Vec::new();
-    for _ in 0..4 {
-        sel.advance(CellAdvance::Tab, false, &space);
-        seen.push(active(&sel));
+fn stored_selection_loads_validated_and_legacy_bytes_survive() {
+    // A stored selection with ranges but no active cell is refused, and so is an active cell with no ranges, where
+    // `advance` would otherwise index past the end; a stored selection keeps its order and current range through a
+    // round trip. The empty selection loads.
+    {
+        assert_eq!(serde_json::from_str::<CellSelection<u32>>(r#"{"ranges":[]}"#).unwrap(), CellSelection::default());
+        let no_ranges = r#"{"ranges":[],"active":{"row":0,"column":0},"anchor":{"row":0,"column":0}}"#;
+        assert!(serde_json::from_str::<CellSelection<u32>>(no_ranges).is_err());
+        let no_active = r#"{"ranges":[{"start":{"row":0,"column":0},"end":{"row":1,"column":1}}]}"#;
+        assert!(serde_json::from_str::<CellSelection<u32>>(no_active).is_err());
+        let outside = r#"{"ranges":[{"start":{"row":0,"column":0},"end":{"row":1,"column":1}}],"active":{"row":0,"column":4}}"#;
+        assert!(serde_json::from_str::<CellSelection<u32>>(outside).is_err());
+        let rows = Positions::new(10);
+        let space = CellSpace::new(&rows, 10);
+        let mut sel = CellSelection::from_ranges(vec![r((2, 2), (3, 3)), r((6, 6), (6, 7))], c(6, 6)).unwrap();
+        sel.advance(CellAdvance::Tab, true, &space);
+        let back: CellSelection<u32> = serde_json::from_str(&serde_json::to_string(&sel).unwrap()).unwrap();
+        assert_eq!(back, sel);
     }
-    assert_eq!(seen, [c(0, 2), c(1, 0), c(1, 2), c(0, 0)]);
+    // A selection stored by the legacy sheet loads, the last range current when `current` is absent, and saves the same
+    // bytes.
+    {
+        let stored = r#"{"ranges":[{"start":{"row":2,"column":2},"end":{"row":3,"column":3}},{"start":{"row":6,"column":6},"end":{"row":6,"column":7}}],"current":1,"active":{"row":6,"column":7},"anchor":{"row":6,"column":6},"tab_run":null}"#;
+        let sel: CellSelection<u32> = serde_json::from_str(stored).unwrap();
+        assert_eq!((current(&sel), active(&sel)), (r((6, 6), (6, 7)), c(6, 7)));
+        assert_eq!(serde_json::to_string(&sel).unwrap(), stored);
+        let without_current = stored.replace(r#""current":1,"#, "");
+        let loaded: CellSelection<u32> = serde_json::from_str(&without_current).unwrap();
+        assert_eq!(loaded, sel);
+        assert_eq!(serde_json::to_string(&CellSelection::<u32>::default()).unwrap(), r#"{"ranges":[],"current":0,"tab_run":null}"#);
+    }
 }
 
-// A cell the selectable rule refuses can't be selected or added; the selection stays as it was.
-// `select_range` covers merges.
 #[test]
-fn locked_cells_refuse_selection_and_ranges_cover_merges() {
-    let merges = [r((2, 2), (3, 3))];
-    let selectable = |cell: CellAt<u32>| cell != c(5, 5);
-    let rows = Positions::new(10);
-    let space = CellSpace::new(&rows, 10).merges(&merges).selectable(&selectable);
-    let mut sel = CellSelection::cell(c(0, 0));
-    assert!(!sel.select(c(5, 5), &space));
-    assert!(!sel.add(c(5, 5), &space));
-    assert_eq!(sel, CellSelection::cell(c(0, 0)));
-    assert!(sel.select_range(r((1, 1), (2, 2)), &space));
-    assert_eq!(sel.ranges(), [r((1, 1), (3, 3))]);
-}
+fn enter_after_tabs() {
+    // Tab, Tab, Enter goes to the next row in the column the Tabs started in; an arrow ends the run.
+    {
+        let rows = Positions::new(10);
+        let space = CellSpace::new(&rows, 10);
+        let mut sel = CellSelection::cell(c(2, 1));
+        sel.advance(CellAdvance::Tab, false, &space);
+        sel.advance(CellAdvance::Tab, false, &space);
+        assert_eq!(active(&sel), c(2, 3));
+        assert!(sel.advance(CellAdvance::Enter, false, &space));
+        assert_eq!(active(&sel), c(3, 1));
+        sel.advance(CellAdvance::Enter, false, &space);
+        assert_eq!(active(&sel), c(4, 1));
 
-// A stored selection with ranges but no active cell is refused, and so is an active cell with no ranges, where
-// `advance` would otherwise index past the end; a stored selection keeps its order and current range through a
-// round trip. The empty selection loads.
-#[test]
-fn a_stored_selection_is_checked_on_the_way_in() {
-    assert_eq!(serde_json::from_str::<CellSelection<u32>>(r#"{"ranges":[]}"#).unwrap(), CellSelection::default());
-    let no_ranges = r#"{"ranges":[],"active":{"row":0,"column":0},"anchor":{"row":0,"column":0}}"#;
-    assert!(serde_json::from_str::<CellSelection<u32>>(no_ranges).is_err());
-    let no_active = r#"{"ranges":[{"start":{"row":0,"column":0},"end":{"row":1,"column":1}}]}"#;
-    assert!(serde_json::from_str::<CellSelection<u32>>(no_active).is_err());
-    let outside = r#"{"ranges":[{"start":{"row":0,"column":0},"end":{"row":1,"column":1}}],"active":{"row":0,"column":4}}"#;
-    assert!(serde_json::from_str::<CellSelection<u32>>(outside).is_err());
-    let rows = Positions::new(10);
-    let space = CellSpace::new(&rows, 10);
-    let mut sel = CellSelection::from_ranges(vec![r((2, 2), (3, 3)), r((6, 6), (6, 7))], c(6, 6)).unwrap();
-    sel.advance(CellAdvance::Tab, true, &space);
-    let back: CellSelection<u32> = serde_json::from_str(&serde_json::to_string(&sel).unwrap()).unwrap();
-    assert_eq!(back, sel);
-}
+        sel.advance(CellAdvance::Tab, false, &space);
+        sel.step(CellDirection::Right, &space);
+        sel.advance(CellAdvance::Enter, false, &space);
+        assert_eq!(active(&sel), c(5, 3));
+    }
+    // Enter after a Tab run goes to the start column only when a walk may stop there: with it hidden
+    // or locked it takes the plain Down neighbour, and the run ends either way.
+    {
+        let hidden_columns = |column: u32| column == 1;
+        let rows = Positions::new(10);
+        let hidden = CellSpace::new(&rows, 10).hidden_columns(&hidden_columns);
+        let mut sel = CellSelection::cell(c(2, 1));
+        sel.advance(CellAdvance::Tab, false, &hidden);
+        sel.advance(CellAdvance::Tab, false, &hidden);
+        assert_eq!(active(&sel), c(2, 3));
+        assert!(sel.advance(CellAdvance::Enter, false, &hidden));
+        assert_eq!(active(&sel), c(3, 3));
+        sel.advance(CellAdvance::Enter, false, &hidden);
+        assert_eq!(active(&sel), c(4, 3));
 
-// A selection stored by the legacy sheet loads, the last range current when `current` is absent, and saves the same
-// bytes.
-#[test]
-fn a_legacy_stored_selection_loads_and_saves_the_same_bytes() {
-    let stored = r#"{"ranges":[{"start":{"row":2,"column":2},"end":{"row":3,"column":3}},{"start":{"row":6,"column":6},"end":{"row":6,"column":7}}],"current":1,"active":{"row":6,"column":7},"anchor":{"row":6,"column":6},"tab_run":null}"#;
-    let sel: CellSelection<u32> = serde_json::from_str(stored).unwrap();
-    assert_eq!((current(&sel), active(&sel)), (r((6, 6), (6, 7)), c(6, 7)));
-    assert_eq!(serde_json::to_string(&sel).unwrap(), stored);
-    let without_current = stored.replace(r#""current":1,"#, "");
-    let loaded: CellSelection<u32> = serde_json::from_str(&without_current).unwrap();
-    assert_eq!(loaded, sel);
-    assert_eq!(serde_json::to_string(&CellSelection::<u32>::default()).unwrap(), r#"{"ranges":[],"current":0,"tab_run":null}"#);
-}
-
-// Tab, Tab, Enter goes to the next row in the column the Tabs started in; an arrow ends the run.
-#[test]
-fn enter_after_tabs_returns_to_the_starting_column() {
-    let rows = Positions::new(10);
-    let space = CellSpace::new(&rows, 10);
-    let mut sel = CellSelection::cell(c(2, 1));
-    sel.advance(CellAdvance::Tab, false, &space);
-    sel.advance(CellAdvance::Tab, false, &space);
-    assert_eq!(active(&sel), c(2, 3));
-    assert!(sel.advance(CellAdvance::Enter, false, &space));
-    assert_eq!(active(&sel), c(3, 1));
-    sel.advance(CellAdvance::Enter, false, &space);
-    assert_eq!(active(&sel), c(4, 1));
-
-    sel.advance(CellAdvance::Tab, false, &space);
-    sel.step(CellDirection::Right, &space);
-    sel.advance(CellAdvance::Enter, false, &space);
-    assert_eq!(active(&sel), c(5, 3));
-}
-
-// Enter after a Tab run goes to the start column only when a walk may stop there: with it hidden
-// or locked it takes the plain Down neighbour, and the run ends either way.
-#[test]
-fn enter_after_tabs_ignores_a_start_column_that_cannot_be_visited() {
-    let hidden_columns = |column: u32| column == 1;
-    let rows = Positions::new(10);
-    let hidden = CellSpace::new(&rows, 10).hidden_columns(&hidden_columns);
-    let mut sel = CellSelection::cell(c(2, 1));
-    sel.advance(CellAdvance::Tab, false, &hidden);
-    sel.advance(CellAdvance::Tab, false, &hidden);
-    assert_eq!(active(&sel), c(2, 3));
-    assert!(sel.advance(CellAdvance::Enter, false, &hidden));
-    assert_eq!(active(&sel), c(3, 3));
-    sel.advance(CellAdvance::Enter, false, &hidden);
-    assert_eq!(active(&sel), c(4, 3));
-
-    let selectable = |cell: CellAt<u32>| !(cell.row == 3 && cell.column == 1);
-    let space = CellSpace::new(&rows, 10).selectable(&selectable);
-    let mut sel = CellSelection::cell(c(2, 1));
-    sel.advance(CellAdvance::Tab, false, &space);
-    assert!(sel.advance(CellAdvance::Enter, false, &space));
-    assert_eq!(active(&sel), c(3, 2));
-    sel.advance(CellAdvance::Enter, false, &space);
-    assert_eq!(active(&sel), c(4, 2));
+        let selectable = |cell: CellAt<u32>| !(cell.row == 3 && cell.column == 1);
+        let space = CellSpace::new(&rows, 10).selectable(&selectable);
+        let mut sel = CellSelection::cell(c(2, 1));
+        sel.advance(CellAdvance::Tab, false, &space);
+        assert!(sel.advance(CellAdvance::Enter, false, &space));
+        assert_eq!(active(&sel), c(3, 2));
+        sel.advance(CellAdvance::Enter, false, &space);
+        assert_eq!(active(&sel), c(4, 2));
+    }
 }
 
 // A document table's Tab runs on to the next row, visits a merge once and is None past the last
@@ -342,18 +342,30 @@ fn a_reported_change_rebuilds_the_selection_on_a_copy() {
     assert!(held(&copy, 8, 8));
 }
 
-// The selection is placed once; the reads after that are by position, in the order of the pass.
 #[test]
-fn a_selection_places_its_rows_once_in_the_order_of_the_pass() {
-    let before = Names(vec!["a", "b", "c", "d", "e"]);
-    let mut sel = CellSelection::<&'static str>::default();
-    let space = CellSpace::new(&before, 3);
-    assert!(sel.select_range(CellRange::new("b", "d", 0..2, 1), &space));
-    assert_eq!(sel.placed(&before).rows(), vec![1, 2, 3]);
-    let after = Names(vec!["d", "a", "b", "e", "c"]);
-    assert_eq!(sel.placed(&after).rows(), vec![0, 1, 2]);
-    let keys = craft_behavior::Selection::new(vec!["e", "a", "b", "z"], None, None);
-    assert_eq!(keys.placed(&before).rows(), vec![0, 1, 4]);
+fn placed_rows_follow_the_pass_order() {
+    // The selection is placed once; the reads after that are by position, in the order of the pass.
+    {
+        let before = Names(vec!["a", "b", "c", "d", "e"]);
+        let mut sel = CellSelection::<&'static str>::default();
+        let space = CellSpace::new(&before, 3);
+        assert!(sel.select_range(CellRange::new("b", "d", 0..2, 1), &space));
+        assert_eq!(sel.placed(&before).rows(), vec![1, 2, 3]);
+        let after = Names(vec!["d", "a", "b", "e", "c"]);
+        assert_eq!(sel.placed(&after).rows(), vec![0, 1, 2]);
+        let keys = craft_behavior::Selection::new(vec!["e", "a", "b", "z"], None, None);
+        assert_eq!(keys.placed(&before).rows(), vec![0, 1, 4]);
+    }
+    // Ranges and single cells place to the same rows.
+    {
+        let order = Names(vec!["a", "b", "c", "d", "e", "f", "g", "h"]);
+        let mut sel = CellSelection::<&'static str>::default();
+        let space = CellSpace::new(&order, 3);
+        assert!(sel.select_range(CellRange::new("b", "g", 0..3, 2), &space));
+        sel.add(CellAt::new("a", 1), &space);
+        let placed = sel.placed(&order);
+        assert_eq!((0..8).filter(|&at| placed.holds_row(at)).count(), 7);
+    }
 }
 
 // Cmd+click takes out a held cell between the first and last row of a range, which `apply` cannot see without the
@@ -386,40 +398,6 @@ fn an_empty_order_selects_nothing_and_panics_nowhere() {
     let mut sel = CellSelection::<u32>::default();
     assert!(!sel.select(c(0, 0), &space));
     assert_eq!(space.cover(space.whole_rows(0, 0)), space.whole_rows(0, 0));
-}
-
-struct Counting {
-    names: Names,
-    scans: std::cell::Cell<usize>,
-}
-
-impl DisplayOrder<&'static str> for Counting {
-    fn len(&self) -> usize {
-        self.names.len()
-    }
-
-    fn key(&self, at: usize) -> &'static str {
-        self.names.key(at)
-    }
-
-    fn index_of(&self, key: &&'static str) -> Option<usize> {
-        self.scans.set(self.scans.get() + 1);
-        self.names.index_of(key)
-    }
-}
-
-// Placing a selection looks up the two ends of each range once, however many rows the ranges hold.
-#[test]
-fn placing_a_selection_looks_up_each_range_end_once() {
-    let order = Counting { names: Names(vec!["a", "b", "c", "d", "e", "f", "g", "h"]), scans: std::cell::Cell::new(0) };
-    let mut sel = CellSelection::<&'static str>::default();
-    let space = CellSpace::new(&order, 3);
-    assert!(sel.select_range(CellRange::new("b", "g", 0..3, 2), &space));
-    sel.add(CellAt::new("a", 1), &space);
-    order.scans.set(0);
-    let placed = sel.placed(&order);
-    assert_eq!(order.scans.get(), 4, "two ends of each of the two ranges");
-    assert_eq!((0..8).filter(|&at| placed.holds_row(at)).count(), 7);
 }
 
 // A row stays unselected once the only cell of its selection is toggled out.

@@ -746,28 +746,30 @@ mod tests {
     }
 
     #[test]
-    fn flat_moves_skip_disabled_rows_and_stop_or_wrap_at_the_ends() {
-        let mut rows = Rows::flat(5);
-        rows.disabled = vec![2];
-        let mut state = NavState::at(1);
-        assert_eq!(go(NavShape::Flat, &rows, &mut state, NavMove::Down), NavStep::Moved(3));
-        assert_eq!(go(NavShape::Flat, &rows, &mut state, NavMove::End), NavStep::Moved(4));
-        assert_eq!(go(NavShape::Flat, &rows, &mut state, NavMove::Forward), NavStep::Stay);
-        state.wrap = true;
-        assert_eq!(go(NavShape::Flat, &rows, &mut state, NavMove::Forward), NavStep::Moved(0));
-        assert_eq!(go(NavShape::Flat, &rows, &mut state, NavMove::PageDown), NavStep::Moved(4));
-        let mut none = NavState::new();
-        assert_eq!(go(NavShape::Flat, &rows, &mut none, NavMove::Up), NavStep::Moved(4), "the first backward move lands on the last row");
-    }
-
-    #[test]
-    fn a_page_move_from_the_last_row_wraps_only_when_the_state_wraps() {
-        let rows = Rows::flat(5);
-        let mut stops = NavState::at(4);
-        assert_eq!(go(NavShape::Flat, &rows, &mut stops, NavMove::PageDown), NavStep::Stay);
-        let mut wraps = NavState::at(4).wrap(true);
-        assert_eq!(go(NavShape::Flat, &rows, &mut wraps, NavMove::PageDown), NavStep::Moved(0));
-        assert_eq!(go(NavShape::Flat, &rows, &mut wraps, NavMove::PageUp), NavStep::Moved(4));
+    fn flat_moves() {
+        // flat moves skip disabled rows and stop or wrap at the ends
+        {
+            let mut rows = Rows::flat(5);
+            rows.disabled = vec![2];
+            let mut state = NavState::at(1);
+            assert_eq!(go(NavShape::Flat, &rows, &mut state, NavMove::Down), NavStep::Moved(3));
+            assert_eq!(go(NavShape::Flat, &rows, &mut state, NavMove::End), NavStep::Moved(4));
+            assert_eq!(go(NavShape::Flat, &rows, &mut state, NavMove::Forward), NavStep::Stay);
+            state.wrap = true;
+            assert_eq!(go(NavShape::Flat, &rows, &mut state, NavMove::Forward), NavStep::Moved(0));
+            assert_eq!(go(NavShape::Flat, &rows, &mut state, NavMove::PageDown), NavStep::Moved(4));
+            let mut none = NavState::new();
+            assert_eq!(go(NavShape::Flat, &rows, &mut none, NavMove::Up), NavStep::Moved(4), "the first backward move lands on the last row");
+        }
+        // a page move from the last row wraps only when the state wraps
+        {
+            let rows = Rows::flat(5);
+            let mut stops = NavState::at(4);
+            assert_eq!(go(NavShape::Flat, &rows, &mut stops, NavMove::PageDown), NavStep::Stay);
+            let mut wraps = NavState::at(4).wrap(true);
+            assert_eq!(go(NavShape::Flat, &rows, &mut wraps, NavMove::PageDown), NavStep::Moved(0));
+            assert_eq!(go(NavShape::Flat, &rows, &mut wraps, NavMove::PageUp), NavStep::Moved(4));
+        }
     }
 
     #[test]
@@ -798,29 +800,31 @@ mod tests {
     }
 
     #[test]
-    fn wrapped_grids_move_by_columns_and_pages_land_in_the_same_column() {
-        let rows = Rows::flat(10);
-        let shape = NavShape::wrapped_grid(3);
-        let mut state = NavState::at(4).page(2);
-        assert_eq!(go(shape, &rows, &mut state, NavMove::Down), NavStep::Moved(7));
-        assert_eq!(go(shape, &rows, &mut state, NavMove::Down), NavStep::Stay, "no row below");
-        assert_eq!(go(shape, &rows, &mut state, NavMove::Up), NavStep::Moved(4));
-        assert_eq!(go(shape, &rows, &mut state, NavMove::PageDown), NavStep::Moved(9), "a short last row takes the last position");
-        assert_eq!(go(shape, &rows, &mut state, NavMove::Forward), NavStep::Stay);
-        assert_eq!(go(shape, &rows, &mut state, NavMove::Back), NavStep::Moved(8));
-    }
-
-    #[test]
-    fn bounded_grids_stop_left_and_right_at_the_row_ends() {
-        let rows = Rows::flat(9);
-        let shape = NavShape::bounded_grid(3);
-        let mut state = NavState::at(2);
-        assert_eq!(go(shape, &rows, &mut state, NavMove::Forward), NavStep::Stay, "the end of a row does not continue on the next");
-        assert_eq!(go(shape, &rows, &mut state, NavMove::Down), NavStep::Moved(5));
-        let mut state = NavState::at(3);
-        assert_eq!(go(shape, &rows, &mut state, NavMove::Back), NavStep::Stay, "the start of a row does not continue on the previous");
-        assert_eq!(go(shape, &rows, &mut state, NavMove::Forward), NavStep::Moved(4));
-        assert_eq!(go(shape, &rows, &mut NavState::at(0), NavMove::Up), NavStep::Stay, "no row above");
+    fn grid_moves() {
+        // wrapped grids move by columns and pages land in the same column
+        {
+            let rows = Rows::flat(10);
+            let shape = NavShape::wrapped_grid(3);
+            let mut state = NavState::at(4).page(2);
+            assert_eq!(go(shape, &rows, &mut state, NavMove::Down), NavStep::Moved(7));
+            assert_eq!(go(shape, &rows, &mut state, NavMove::Down), NavStep::Stay, "no row below");
+            assert_eq!(go(shape, &rows, &mut state, NavMove::Up), NavStep::Moved(4));
+            assert_eq!(go(shape, &rows, &mut state, NavMove::PageDown), NavStep::Moved(9), "a short last row takes the last position");
+            assert_eq!(go(shape, &rows, &mut state, NavMove::Forward), NavStep::Stay);
+            assert_eq!(go(shape, &rows, &mut state, NavMove::Back), NavStep::Moved(8));
+        }
+        // bounded grids stop left and right at the row ends
+        {
+            let rows = Rows::flat(9);
+            let shape = NavShape::bounded_grid(3);
+            let mut state = NavState::at(2);
+            assert_eq!(go(shape, &rows, &mut state, NavMove::Forward), NavStep::Stay, "the end of a row does not continue on the next");
+            assert_eq!(go(shape, &rows, &mut state, NavMove::Down), NavStep::Moved(5));
+            let mut state = NavState::at(3);
+            assert_eq!(go(shape, &rows, &mut state, NavMove::Back), NavStep::Stay, "the start of a row does not continue on the previous");
+            assert_eq!(go(shape, &rows, &mut state, NavMove::Forward), NavStep::Moved(4));
+            assert_eq!(go(shape, &rows, &mut NavState::at(0), NavMove::Up), NavStep::Stay, "no row above");
+        }
     }
 
     /// Rows of 3, 1 and 2 positions; a sheet of 3 rows by 4 columns; four items at free positions.
@@ -909,17 +913,33 @@ mod tests {
     }
 
     #[test]
-    fn alt_steps_finely_and_shift_with_alt_steps_by_small() {
-        let steps = ValueSteps::new(5.0, 0.0, 10.0, 1.0, 4.0).fine(0.25);
-        let fine = MoveMods::PLAIN.fine(true);
-        assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::Forward, fine), StepResult::Set(5.25));
-        assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::Down, fine), StepResult::Set(4.75));
-        let both = MoveMods::new(true, false, Granularity::Unit).fine(true);
-        assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::Forward, both), StepResult::Set(6.0));
-        let StepResult::Set(default_fine) = step_value(&ValueSteps::new(5.0, 0.0, 10.0, 1.0, 4.0), ValueAxes::Both, NavMove::Forward, fine) else {
-            panic!("a forward move sets the value")
-        };
-        assert!((default_fine - 5.1).abs() < 1e-9);
+    fn value_moves() {
+        // alt steps finely and shift with alt steps by small
+        {
+            let steps = ValueSteps::new(5.0, 0.0, 10.0, 1.0, 4.0).fine(0.25);
+            let fine = MoveMods::PLAIN.fine(true);
+            assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::Forward, fine), StepResult::Set(5.25));
+            assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::Down, fine), StepResult::Set(4.75));
+            let both = MoveMods::new(true, false, Granularity::Unit).fine(true);
+            assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::Forward, both), StepResult::Set(6.0));
+            let StepResult::Set(default_fine) = step_value(&ValueSteps::new(5.0, 0.0, 10.0, 1.0, 4.0), ValueAxes::Both, NavMove::Forward, fine)
+            else {
+                panic!("a forward move sets the value")
+            };
+            assert!((default_fine - 5.1).abs() < 1e-9);
+        }
+        // single value moves clamp and follow the axes
+        {
+            let steps = ValueSteps::new(5.0, 0.0, 10.0, 1.0, 4.0);
+            let plain = MoveMods::PLAIN;
+            assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::Forward, plain), StepResult::Set(6.0));
+            assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::Down, plain), StepResult::Set(4.0));
+            assert_eq!(step_value(&steps, ValueAxes::Horizontal, NavMove::Up, plain), StepResult::Ignored);
+            assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::Forward, MoveMods::new(true, false, Granularity::Unit)), StepResult::Set(9.0));
+            assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::PageUp, plain), StepResult::Set(9.0));
+            assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::End, plain), StepResult::Set(10.0));
+            assert_eq!(step_value(&ValueSteps::new(9.0, 0.0, 10.0, 2.0, 4.0), ValueAxes::Both, NavMove::Forward, plain), StepResult::Set(10.0));
+        }
     }
 
     #[test]
@@ -941,18 +961,5 @@ mod tests {
         assert!((set(wheel(vec2(0.0, 1.0), Mods::SHIFT), false) - 0.1).abs() < 1e-9);
         assert!((set(wheel(vec2(0.0, 1.0), Mods::ALT), false) - 0.001).abs() < 1e-9);
         assert_eq!(wheel_step(&steps, ValueAxes::Vertical, &wheel(vec2(3.0, 0.0), Mods::NONE), false), StepResult::Ignored);
-    }
-
-    #[test]
-    fn single_value_moves_clamp_and_follow_the_axes() {
-        let steps = ValueSteps::new(5.0, 0.0, 10.0, 1.0, 4.0);
-        let plain = MoveMods::PLAIN;
-        assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::Forward, plain), StepResult::Set(6.0));
-        assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::Down, plain), StepResult::Set(4.0));
-        assert_eq!(step_value(&steps, ValueAxes::Horizontal, NavMove::Up, plain), StepResult::Ignored);
-        assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::Forward, MoveMods::new(true, false, Granularity::Unit)), StepResult::Set(9.0));
-        assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::PageUp, plain), StepResult::Set(9.0));
-        assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::End, plain), StepResult::Set(10.0));
-        assert_eq!(step_value(&ValueSteps::new(9.0, 0.0, 10.0, 2.0, 4.0), ValueAxes::Both, NavMove::Forward, plain), StepResult::Set(10.0));
     }
 }

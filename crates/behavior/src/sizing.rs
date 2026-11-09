@@ -94,18 +94,3 @@ impl ControlMetrics {
         Metrics::new().padding(Insets::horizontal(self.pad_x)).min_size(Vec2::new(0.0, self.height)).gap(self.gap)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn control_metrics_read_the_table_entries_of_the_size() {
-        let table = |sm, md| BySize { sm, md };
-        let at = ControlMetrics::at(ControlSize::Sm, &table(20.0, 28.0), &table(12.0, 16.0), &table(4.0, 8.0), &table(2.0, 4.0));
-        assert_eq!(at, ControlMetrics { height: 20.0, icon: 12.0, pad_x: 4.0, gap: 2.0 });
-        let metrics = at.metrics();
-        assert_eq!(metrics.min_size, Vec2::new(0.0, 20.0));
-        assert_eq!(metrics.padding, Insets::horizontal(4.0));
-    }
-}

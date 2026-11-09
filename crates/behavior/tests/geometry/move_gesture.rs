@@ -14,36 +14,46 @@ fn polar(deg: f64, len: f64) -> Vec2 {
 }
 
 #[test]
-fn lock_direction_keeps_the_axis_until_eight_degrees_past_half() {
-    let axis = lock_direction(Vec2::new(10.0, 0.0), None, Directions::Eight);
-    assert_eq!(axis, Vec2::new(10.0, 0.0));
-    // 22.5 + 8 = 30.5 degrees is the switch.
-    let kept = lock_direction(polar(30.0, 10.0), Some(axis), Directions::Eight);
-    assert_eq!(kept.y, 0.0);
-    assert!(kept.x > 0.0);
-    let switched = lock_direction(polar(31.0, 10.0), Some(axis), Directions::Eight);
-    assert!((switched.y - switched.x).abs() < 1e-9 && switched.y > 0.0);
+fn direction_lock() {
+    // lock direction keeps the axis until eight degrees past half
+    {
+        let axis = lock_direction(Vec2::new(10.0, 0.0), None, Directions::Eight);
+        assert_eq!(axis, Vec2::new(10.0, 0.0));
+        // 22.5 + 8 = 30.5 degrees is the switch.
+        let kept = lock_direction(polar(30.0, 10.0), Some(axis), Directions::Eight);
+        assert_eq!(kept.y, 0.0);
+        assert!(kept.x > 0.0);
+        let switched = lock_direction(polar(31.0, 10.0), Some(axis), Directions::Eight);
+        assert!((switched.y - switched.x).abs() < 1e-9 && switched.y > 0.0);
+    }
+    // four and eight directions
+    {
+        let d = polar(40.0, 10.0);
+        let four = lock_direction(d, None, Directions::Four);
+        assert_eq!(four.y, 0.0);
+        assert!((four.x - d.x).abs() < 1e-9);
+        let eight = lock_direction(d, None, Directions::Eight);
+        assert!((eight.x - eight.y).abs() < 1e-9);
+        assert!((eight.hypot() - 10.0 * 5.0_f64.to_radians().cos()).abs() < 1e-9);
+        assert_eq!(lock_direction(Vec2::ZERO, None, Directions::Four), Vec2::ZERO);
+    }
 }
 
 #[test]
-fn four_and_eight_directions() {
-    let d = polar(40.0, 10.0);
-    let four = lock_direction(d, None, Directions::Four);
-    assert_eq!(four.y, 0.0);
-    assert!((four.x - d.x).abs() < 1e-9);
-    let eight = lock_direction(d, None, Directions::Eight);
-    assert!((eight.x - eight.y).abs() < 1e-9);
-    assert!((eight.hypot() - 10.0 * 5.0_f64.to_radians().cos()).abs() < 1e-9);
-    assert_eq!(lock_direction(Vec2::ZERO, None, Directions::Four), Vec2::ZERO);
-}
-
-#[test]
-fn alt_copies_once_after_the_reach_and_stays_on() {
-    let mut g = MoveGesture::press(&style(), Point::ZERO, Mods::ALT, Directions::Four);
-    // 1 document unit at zoom 1.5 is 1.5 screen points.
-    assert!(!g.follow(Point::new(1.0, 0.0), Mods::ALT, 1.5).unwrap().copy);
-    assert!(g.follow(Point::new(2.0, 0.0), Mods::ALT, 1.5).unwrap().copy);
-    assert!(g.follow(Point::new(0.5, 0.0), Mods::ALT, 1.5).unwrap().copy);
+fn alt_copy_rules() {
+    // alt copies once after the reach and stays on
+    {
+        let mut g = MoveGesture::press(&style(), Point::ZERO, Mods::ALT, Directions::Four);
+        // 1 document unit at zoom 1.5 is 1.5 screen points.
+        assert!(!g.follow(Point::new(1.0, 0.0), Mods::ALT, 1.5).unwrap().copy);
+        assert!(g.follow(Point::new(2.0, 0.0), Mods::ALT, 1.5).unwrap().copy);
+        assert!(g.follow(Point::new(0.5, 0.0), Mods::ALT, 1.5).unwrap().copy);
+    }
+    // alt after the press does not copy
+    {
+        let mut g = MoveGesture::press(&style(), Point::ZERO, Mods::NONE, Directions::Four);
+        assert!(!g.follow(Point::new(50.0, 0.0), Mods::ALT, 1.0).unwrap().copy);
+    }
 }
 
 #[test]
@@ -52,12 +62,6 @@ fn a_click_without_travel_is_unchanged() {
     let value = g.release(Point::new(5.0, 5.0), Mods::ALT, 1.0);
     assert!(!value.changed());
     assert!(!value.copy);
-}
-
-#[test]
-fn alt_after_the_press_does_not_copy() {
-    let mut g = MoveGesture::press(&style(), Point::ZERO, Mods::NONE, Directions::Four);
-    assert!(!g.follow(Point::new(50.0, 0.0), Mods::ALT, 1.0).unwrap().copy);
 }
 
 #[test]

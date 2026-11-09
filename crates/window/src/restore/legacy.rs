@@ -229,37 +229,51 @@ mod tests {
 }"#;
 
     #[test]
-    fn imports_the_flat_eframe_layout_with_zoom() {
-        let p = eframe_app_ron(FLAT).unwrap();
-        assert_eq!(p.position_px, Some([120, -30]));
-        assert_eq!(p.normal.size, [1200.0, 900.0]);
-        assert_eq!(p.zoom, 1.5);
-        assert!(p.maximized && !p.fullscreen);
+    fn imports_both_eframe_layouts() {
+        // imports the flat eframe layout with zoom
+        {
+            let p = eframe_app_ron(FLAT).unwrap();
+            assert_eq!(p.position_px, Some([120, -30]));
+            assert_eq!(p.normal.size, [1200.0, 900.0]);
+            assert_eq!(p.zoom, 1.5);
+            assert!(p.maximized && !p.fullscreen);
+        }
+        // imports the nested layout with its scale
+        {
+            let w = "(normal_geometry:(outer_position_pixels:Some((x:200.0,y:100.0)),scale_factor:2.0,inner_size_points:(x:640.0,y:480.0)),fullscreen:true,maximized:false)";
+            let text = format!("{{\"window\": r#\"{w}\"#}}");
+            let p = eframe_app_ron(&text).unwrap();
+            assert_eq!((p.scale, p.position_px, p.normal.size), (2.0, Some([200, 100]), [640.0, 480.0]));
+            assert_eq!(p.normal.pos, [100.0, 50.0]);
+            assert!(p.fullscreen);
+        }
     }
 
     #[test]
-    fn imports_the_nested_layout_with_its_scale() {
-        let w = "(normal_geometry:(outer_position_pixels:Some((x:200.0,y:100.0)),scale_factor:2.0,inner_size_points:(x:640.0,y:480.0)),fullscreen:true,maximized:false)";
-        let text = format!("{{\"window\": r#\"{w}\"#}}");
-        let p = eframe_app_ron(&text).unwrap();
-        assert_eq!((p.scale, p.position_px, p.normal.size), (2.0, Some([200, 100]), [640.0, 480.0]));
-        assert_eq!(p.normal.pos, [100.0, 50.0]);
-        assert!(p.fullscreen);
-    }
-
-    #[test]
-    fn missing_position_and_garbage_are_handled() {
-        let w = "(outer_position_pixels:None,fullscreen:false,maximized:false,inner_size_points:Some((x:300.0,y:200.0)))";
-        assert_eq!(eframe_window_settings(w, 1.0).unwrap().position_px, None);
-        assert!(eframe_window_settings("(", 1.0).is_none());
-        assert!(eframe_app_ron("not ron").is_none());
-    }
-
-    #[test]
-    fn minimized_windows_parked_off_screen_have_no_position() {
-        let w = "(outer_position_pixels:Some((x:-32000.0,y:-32000.0)),fullscreen:false,maximized:false,inner_size_points:Some((x:300.0,y:200.0)))";
-        let p = eframe_window_settings(w, 1.0).unwrap();
-        assert_eq!((p.position_px, p.normal.size), (None, [300.0, 200.0]));
+    fn bad_or_missing_legacy_input() {
+        // missing position and garbage are handled
+        {
+            let w = "(outer_position_pixels:None,fullscreen:false,maximized:false,inner_size_points:Some((x:300.0,y:200.0)))";
+            assert_eq!(eframe_window_settings(w, 1.0).unwrap().position_px, None);
+            assert!(eframe_window_settings("(", 1.0).is_none());
+            assert!(eframe_app_ron("not ron").is_none());
+        }
+        // minimized windows parked off screen have no position
+        {
+            let w =
+                "(outer_position_pixels:Some((x:-32000.0,y:-32000.0)),fullscreen:false,maximized:false,inner_size_points:Some((x:300.0,y:200.0)))";
+            let p = eframe_window_settings(w, 1.0).unwrap();
+            assert_eq!((p.position_px, p.normal.size), (None, [300.0, 200.0]));
+        }
+        // json helpers read nested values
+        {
+            let v: Value = serde_json::from_str(r#"{"window":{"size":[800,600],"pos":{"x":1,"y":2},"max":true,"w":3.5}}"#).unwrap();
+            assert_eq!(json_pair(&v, &["window", "size"], ["w", "h"]), Some([800.0, 600.0]));
+            assert_eq!(json_pair(&v, &["window", "pos"], ["x", "y"]), Some([1.0, 2.0]));
+            assert_eq!(json_bool(&v, &["window", "max"]), Some(true));
+            assert_eq!(json_f32(&v, &["window", "w"]), Some(3.5));
+            assert_eq!(json_f32(&v, &["window", "nope"]), None);
+        }
     }
 
     #[test]
@@ -267,15 +281,5 @@ mod tests {
         let mut store = Store::in_memory();
         store.set("main", &eframe_app_ron(FLAT).unwrap());
         assert_eq!(store.get("main").unwrap().position_px, Some([120, -30]));
-    }
-
-    #[test]
-    fn json_helpers_read_nested_values() {
-        let v: Value = serde_json::from_str(r#"{"window":{"size":[800,600],"pos":{"x":1,"y":2},"max":true,"w":3.5}}"#).unwrap();
-        assert_eq!(json_pair(&v, &["window", "size"], ["w", "h"]), Some([800.0, 600.0]));
-        assert_eq!(json_pair(&v, &["window", "pos"], ["x", "y"]), Some([1.0, 2.0]));
-        assert_eq!(json_bool(&v, &["window", "max"]), Some(true));
-        assert_eq!(json_f32(&v, &["window", "w"]), Some(3.5));
-        assert_eq!(json_f32(&v, &["window", "nope"]), None);
     }
 }

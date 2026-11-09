@@ -357,19 +357,21 @@ mod tests {
     }
 
     #[test]
-    fn first_launch_uses_default_size_and_leaves_position_to_the_system() {
-        let p = place(None, &[hd()], Some(0), &defaults());
-        assert_eq!(p.normal.size, [1200.0, 800.0]);
-        assert_eq!(p.position_px, None);
-        assert!(!p.maximized);
-    }
-
-    #[test]
-    fn first_launch_on_a_small_monitor_fits_and_maximizes() {
-        let small = mon("S", [0, 0], [1280, 720], 1.0);
-        let p = place(None, &[small], None, &defaults());
-        assert_eq!(p.normal.size, [1200.0, 680.0]);
-        assert!(p.maximized);
+    fn first_launch() {
+        // first launch uses default size and leaves position to the system
+        {
+            let p = place(None, &[hd()], Some(0), &defaults());
+            assert_eq!(p.normal.size, [1200.0, 800.0]);
+            assert_eq!(p.position_px, None);
+            assert!(!p.maximized);
+        }
+        // first launch on a small monitor fits and maximizes
+        {
+            let small = mon("S", [0, 0], [1280, 720], 1.0);
+            let p = place(None, &[small], None, &defaults());
+            assert_eq!(p.normal.size, [1200.0, 680.0]);
+            assert!(p.maximized);
+        }
     }
 
     #[test]
@@ -403,20 +405,29 @@ mod tests {
     }
 
     #[test]
-    fn bar_is_a_strip_not_a_corner() {
-        let m = hd();
-        // Left edge: 100 px of an 800 pt window show on the right of x = -700; the strip is wide enough.
-        let s = saved(Some([-700, 100]), [800.0, 600.0], 1.0, &m);
-        assert_eq!(place(Some(&s), std::slice::from_ref(&m), Some(0), &defaults()).position_px, Some([-700, 100]));
-        // Only 30 px show: moved back.
-        let s = saved(Some([-770, 100]), [800.0, 600.0], 1.0, &m);
-        assert_eq!(place(Some(&s), std::slice::from_ref(&m), Some(0), &defaults()).position_px, Some([0, 100]));
-        // Windows' snapped -7 px offset on the left or top is fine.
-        let s = saved(Some([-7, -7]), [800.0, 600.0], 1.0, &m);
-        assert_eq!(place(Some(&s), std::slice::from_ref(&m), Some(0), &defaults()).position_px, Some([-7, -7]));
-        // Top edge: the strip is 64 pt tall; 40 pt of it visible is not enough.
-        let s = saved(Some([100, -24]), [800.0, 600.0], 1.0, &m);
-        assert_eq!(place(Some(&s), std::slice::from_ref(&m), Some(0), &defaults()).position_px, Some([100, 0]));
+    fn bar_is_a_strip() {
+        // bar is a strip not a corner
+        {
+            let m = hd();
+            // Left edge: 100 px of an 800 pt window show on the right of x = -700; the strip is wide enough.
+            let s = saved(Some([-700, 100]), [800.0, 600.0], 1.0, &m);
+            assert_eq!(place(Some(&s), std::slice::from_ref(&m), Some(0), &defaults()).position_px, Some([-700, 100]));
+            // Only 30 px show: moved back.
+            let s = saved(Some([-770, 100]), [800.0, 600.0], 1.0, &m);
+            assert_eq!(place(Some(&s), std::slice::from_ref(&m), Some(0), &defaults()).position_px, Some([0, 100]));
+            // Windows' snapped -7 px offset on the left or top is fine.
+            let s = saved(Some([-7, -7]), [800.0, 600.0], 1.0, &m);
+            assert_eq!(place(Some(&s), std::slice::from_ref(&m), Some(0), &defaults()).position_px, Some([-7, -7]));
+            // Top edge: the strip is 64 pt tall; 40 pt of it visible is not enough.
+            let s = saved(Some([100, -24]), [800.0, 600.0], 1.0, &m);
+            assert_eq!(place(Some(&s), std::slice::from_ref(&m), Some(0), &defaults()).position_px, Some([100, 0]));
+        }
+        // bar above the top edge counts as off screen
+        {
+            let m = hd();
+            let s = saved(Some([100, -50]), [800.0, 600.0], 1.0, &m);
+            assert_eq!(place(Some(&s), &[m], Some(0), &defaults()).position_px, Some([100, 0]));
+        }
     }
 
     #[test]
@@ -428,23 +439,28 @@ mod tests {
     }
 
     #[test]
-    fn bar_above_the_top_edge_counts_as_off_screen() {
-        let m = hd();
-        let s = saved(Some([100, -50]), [800.0, 600.0], 1.0, &m);
-        assert_eq!(place(Some(&s), &[m], Some(0), &defaults()).position_px, Some([100, 0]));
-    }
-
-    #[test]
-    fn scale_change_keeps_points_and_takes_the_new_scale() {
-        let old = hd();
-        let hidpi = mon("B", [0, 0], [3840, 2160], 2.0);
-        let s = saved(Some([200, 100]), [1000.0, 700.0], 1.0, &old);
-        let p = place(Some(&s), std::slice::from_ref(&hidpi), Some(0), &defaults());
-        assert_eq!(p.normal.size, [1000.0, 700.0]);
-        assert_eq!(p.scale, 2.0);
-        assert_eq!(p.monitor, Some(hidpi.key));
-        assert_eq!(p.position_px, Some([200, 100]));
-        assert_eq!(p.normal.pos, [100.0, 50.0]);
+    fn scale_and_zoom_keep_point_geometry() {
+        // scale change keeps points and takes the new scale
+        {
+            let old = hd();
+            let hidpi = mon("B", [0, 0], [3840, 2160], 2.0);
+            let s = saved(Some([200, 100]), [1000.0, 700.0], 1.0, &old);
+            let p = place(Some(&s), std::slice::from_ref(&hidpi), Some(0), &defaults());
+            assert_eq!(p.normal.size, [1000.0, 700.0]);
+            assert_eq!(p.scale, 2.0);
+            assert_eq!(p.monitor, Some(hidpi.key));
+            assert_eq!(p.position_px, Some([200, 100]));
+            assert_eq!(p.normal.pos, [100.0, 50.0]);
+        }
+        // size saved at zoom one does not shrink with zoom
+        {
+            let m = hd();
+            let mut s = saved(Some([100, 100]), [1000.0, 700.0], 1.0, &m);
+            s.zoom = 1.5;
+            let p = place(Some(&s), &[m], Some(0), &defaults());
+            assert_eq!(p.normal.size, [1000.0, 700.0]);
+            assert_eq!(p.zoom, 1.5);
+        }
     }
 
     #[test]
@@ -465,27 +481,29 @@ mod tests {
     }
 
     #[test]
-    fn negative_origin_monitors_are_valid_places() {
-        let left = mon("L", [-1920, 0], [1920, 1080], 1.0);
-        let above = mon("U", [0, -1080], [1920, 1080], 1.0);
-        let ms = [hd(), left.clone(), above.clone()];
-        let s = saved(Some([-1500, 100]), [800.0, 600.0], 1.0, &left);
-        assert_eq!(place(Some(&s), &ms, Some(0), &defaults()).position_px, Some([-1500, 100]));
-        let s = saved(Some([300, -900]), [800.0, 600.0], 1.0, &above);
-        assert_eq!(place(Some(&s), &ms, Some(0), &defaults()).position_px, Some([300, -900]));
-        // The left monitor is unplugged: back onto the primary, not stuck at a negative x.
-        let s = saved(Some([-1500, 100]), [800.0, 600.0], 1.0, &left);
-        assert_eq!(place(Some(&s), &[hd()], Some(0), &defaults()).position_px, Some([0, 100]));
-    }
-
-    #[test]
-    fn nearest_monitor_wins_when_the_saved_one_is_gone() {
-        let right = mon("R", [1920, 0], [1920, 1080], 1.0);
-        let far = mon("F", [5000, 0], [1920, 1080], 1.0);
-        let gone = mon("Gone", [3840, 0], [1920, 1080], 1.0);
-        let s = saved(Some([6000, 100]), [800.0, 600.0], 1.0, &gone);
-        let p = place(Some(&s), &[hd(), right, far.clone()], Some(0), &defaults());
-        assert_eq!(p.monitor, Some(far.key));
+    fn monitor_choice() {
+        // negative origin monitors are valid places
+        {
+            let left = mon("L", [-1920, 0], [1920, 1080], 1.0);
+            let above = mon("U", [0, -1080], [1920, 1080], 1.0);
+            let ms = [hd(), left.clone(), above.clone()];
+            let s = saved(Some([-1500, 100]), [800.0, 600.0], 1.0, &left);
+            assert_eq!(place(Some(&s), &ms, Some(0), &defaults()).position_px, Some([-1500, 100]));
+            let s = saved(Some([300, -900]), [800.0, 600.0], 1.0, &above);
+            assert_eq!(place(Some(&s), &ms, Some(0), &defaults()).position_px, Some([300, -900]));
+            // The left monitor is unplugged: back onto the primary, not stuck at a negative x.
+            let s = saved(Some([-1500, 100]), [800.0, 600.0], 1.0, &left);
+            assert_eq!(place(Some(&s), &[hd()], Some(0), &defaults()).position_px, Some([0, 100]));
+        }
+        // nearest monitor wins when the saved one is gone
+        {
+            let right = mon("R", [1920, 0], [1920, 1080], 1.0);
+            let far = mon("F", [5000, 0], [1920, 1080], 1.0);
+            let gone = mon("Gone", [3840, 0], [1920, 1080], 1.0);
+            let s = saved(Some([6000, 100]), [800.0, 600.0], 1.0, &gone);
+            let p = place(Some(&s), &[hd(), right, far.clone()], Some(0), &defaults());
+            assert_eq!(p.monitor, Some(far.key));
+        }
     }
 
     #[test]
@@ -501,53 +519,47 @@ mod tests {
     }
 
     #[test]
-    fn size_saved_at_zoom_one_does_not_shrink_with_zoom() {
-        let m = hd();
-        let mut s = saved(Some([100, 100]), [1000.0, 700.0], 1.0, &m);
-        s.zoom = 1.5;
-        let p = place(Some(&s), &[m], Some(0), &defaults());
-        assert_eq!(p.normal.size, [1000.0, 700.0]);
-        assert_eq!(p.zoom, 1.5);
+    fn maximized_and_full_screen() {
+        // maximized keeps the normal rect
+        {
+            let m = hd();
+            let mut s = saved(Some([100, 100]), [900.0, 600.0], 1.0, &m);
+            s.maximized = true;
+            let p = place(Some(&s), &[m], Some(0), &defaults());
+            assert!(p.maximized);
+            assert_eq!((p.normal.size, p.position_px), ([900.0, 600.0], Some([100, 100])));
+        }
+        // full screen needs the opt in
+        {
+            let m = hd();
+            let mut s = saved(Some([100, 100]), [900.0, 600.0], 1.0, &m);
+            s.fullscreen = true;
+            let mut d = defaults();
+            assert!(!place(Some(&s), std::slice::from_ref(&m), Some(0), &d).fullscreen);
+            d.restore_fullscreen = true;
+            assert!(place(Some(&s), &[m], Some(0), &d).fullscreen);
+        }
     }
 
     #[test]
-    fn maximized_keeps_the_normal_rect() {
-        let m = hd();
-        let mut s = saved(Some([100, 100]), [900.0, 600.0], 1.0, &m);
-        s.maximized = true;
-        let p = place(Some(&s), &[m], Some(0), &defaults());
-        assert!(p.maximized);
-        assert_eq!((p.normal.size, p.position_px), ([900.0, 600.0], Some([100, 100])));
-    }
-
-    #[test]
-    fn full_screen_needs_the_opt_in() {
-        let m = hd();
-        let mut s = saved(Some([100, 100]), [900.0, 600.0], 1.0, &m);
-        s.fullscreen = true;
-        let mut d = defaults();
-        assert!(!place(Some(&s), std::slice::from_ref(&m), Some(0), &d).fullscreen);
-        d.restore_fullscreen = true;
-        assert!(place(Some(&s), &[m], Some(0), &d).fullscreen);
-    }
-
-    #[test]
-    fn nonsense_saved_numbers_fall_back_to_a_first_launch() {
-        let m = hd();
-        let mut s = saved(Some([0, 0]), [f32::NAN, 600.0], 1.0, &m);
-        assert_eq!(place(Some(&s), std::slice::from_ref(&m), Some(0), &defaults()).normal.size, [1200.0, 800.0]);
-        s.normal.size = [800.0, 600.0];
-        s.scale = 0.0;
-        s.zoom = 99.0;
-        let p = place(Some(&s), &[m], Some(0), &defaults());
-        assert_eq!((p.scale, p.zoom), (1.0, 1.0));
-    }
-
-    #[test]
-    fn no_monitors_keeps_the_saved_geometry() {
-        let m = hd();
-        let s = saved(Some([10, 20]), [800.0, 600.0], 1.0, &m);
-        let p = place(Some(&s), &[], None, &defaults());
-        assert_eq!((p.normal.size, p.position_px), ([800.0, 600.0], Some([10, 20])));
+    fn degenerate_input() {
+        // nonsense saved numbers fall back to a first launch
+        {
+            let m = hd();
+            let mut s = saved(Some([0, 0]), [f32::NAN, 600.0], 1.0, &m);
+            assert_eq!(place(Some(&s), std::slice::from_ref(&m), Some(0), &defaults()).normal.size, [1200.0, 800.0]);
+            s.normal.size = [800.0, 600.0];
+            s.scale = 0.0;
+            s.zoom = 99.0;
+            let p = place(Some(&s), &[m], Some(0), &defaults());
+            assert_eq!((p.scale, p.zoom), (1.0, 1.0));
+        }
+        // no monitors keeps the saved geometry
+        {
+            let m = hd();
+            let s = saved(Some([10, 20]), [800.0, 600.0], 1.0, &m);
+            let p = place(Some(&s), &[], None, &defaults());
+            assert_eq!((p.normal.size, p.position_px), ([800.0, 600.0], Some([10, 20])));
+        }
     }
 }

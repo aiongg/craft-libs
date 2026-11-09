@@ -679,46 +679,48 @@ mod tests {
     }
 
     #[test]
-    fn a_middle_press_drags_but_never_clicks_and_ignores_other_buttons_releases() {
-        let middle = |x: f32| PointerEvent::pressed_by(PointerButton::Middle, pos2(x, 0.0), 1.0, 1);
-        let mut machine = PressMachine::new();
-        pass(&mut machine, &[middle(0.0)], Sense::CLICK | Sense::DRAG);
-        assert_eq!(machine.button(), Some(PointerButton::Middle));
-        let step = pass(&mut machine, &[PointerEvent::released(pos2(0.0, 0.0)), PointerEvent::Moved(pos2(20.0, 0.0))], Sense::CLICK | Sense::DRAG);
-        assert!(matches!(step.phase, Some(PressPhase::DragStart { start, .. }) if start.button == PointerButton::Middle), "{step:?}");
-        let release = PointerEvent::released_by(PointerButton::Middle, pos2(20.0, 0.0));
-        let step = pass(&mut machine, &[release], Sense::CLICK | Sense::DRAG);
-        assert!(matches!(step.phase, Some(PressPhase::Release { click: false, .. })));
-        assert_eq!(step.activated, None);
-        pass(&mut machine, &[middle(0.0)], Sense::CLICK);
-        assert_eq!(machine.target(), None, "a target that senses no drag takes no middle press");
-    }
-
-    #[test]
-    fn a_target_that_senses_a_middle_click_reports_it_without_activating() {
-        let middle = |x: f32| PointerEvent::pressed_by(PointerButton::Middle, pos2(x, 0.0), 1.0, 1);
-        let sense = Sense::CLICK | Sense::MIDDLE_CLICK;
-        let mut machine = PressMachine::new();
-        pass(&mut machine, &[middle(0.0)], sense);
-        let release = PointerEvent::released_by(PointerButton::Middle, pos2(0.0, 0.0));
-        let step = pass(&mut machine, &[release], sense);
-        assert!(matches!(step.phase, Some(PressPhase::Release { start, click: true, .. }) if start.button == PointerButton::Middle), "{step:?}");
-        assert_eq!(step.activated, None, "a middle click never activates");
-        pass(&mut machine, &[middle(0.0)], sense);
-        let step = pass(&mut machine, &[PointerEvent::Moved(pos2(20.0, 0.0))], sense);
-        assert!(matches!(step.phase, Some(PressPhase::Down { .. })), "no drag sense, no drag");
-        let step = pass(&mut machine, &[PointerEvent::released_by(PointerButton::Middle, pos2(20.0, 0.0))], sense);
-        assert!(matches!(step.phase, Some(PressPhase::Release { click: false, .. })));
-    }
-
-    #[test]
-    fn a_primary_press_leaves_an_open_middle_press_open() {
-        let mut machine = PressMachine::new();
-        pass(&mut machine, &[PointerEvent::pressed_by(PointerButton::Middle, pos2(0.0, 0.0), 1.0, 1)], Sense::DRAG);
-        pass(&mut machine, &[press(0.0, 2.0)], Sense::CLICK | Sense::DRAG);
-        assert_eq!(machine.button(), Some(PointerButton::Middle), "the primary press neither replaces nor drops the middle press");
-        let step = pass(&mut machine, &[PointerEvent::Moved(pos2(20.0, 0.0))], Sense::DRAG);
-        assert!(matches!(step.phase, Some(PressPhase::DragStart { start, .. }) if start.button == PointerButton::Middle), "{step:?}");
+    fn middle_button_press() {
+        // a middle press drags but never clicks and ignores other buttons releases
+        {
+            let middle = |x: f32| PointerEvent::pressed_by(PointerButton::Middle, pos2(x, 0.0), 1.0, 1);
+            let mut machine = PressMachine::new();
+            pass(&mut machine, &[middle(0.0)], Sense::CLICK | Sense::DRAG);
+            assert_eq!(machine.button(), Some(PointerButton::Middle));
+            let step =
+                pass(&mut machine, &[PointerEvent::released(pos2(0.0, 0.0)), PointerEvent::Moved(pos2(20.0, 0.0))], Sense::CLICK | Sense::DRAG);
+            assert!(matches!(step.phase, Some(PressPhase::DragStart { start, .. }) if start.button == PointerButton::Middle), "{step:?}");
+            let release = PointerEvent::released_by(PointerButton::Middle, pos2(20.0, 0.0));
+            let step = pass(&mut machine, &[release], Sense::CLICK | Sense::DRAG);
+            assert!(matches!(step.phase, Some(PressPhase::Release { click: false, .. })));
+            assert_eq!(step.activated, None);
+            pass(&mut machine, &[middle(0.0)], Sense::CLICK);
+            assert_eq!(machine.target(), None, "a target that senses no drag takes no middle press");
+        }
+        // a target that senses a middle click reports it without activating
+        {
+            let middle = |x: f32| PointerEvent::pressed_by(PointerButton::Middle, pos2(x, 0.0), 1.0, 1);
+            let sense = Sense::CLICK | Sense::MIDDLE_CLICK;
+            let mut machine = PressMachine::new();
+            pass(&mut machine, &[middle(0.0)], sense);
+            let release = PointerEvent::released_by(PointerButton::Middle, pos2(0.0, 0.0));
+            let step = pass(&mut machine, &[release], sense);
+            assert!(matches!(step.phase, Some(PressPhase::Release { start, click: true, .. }) if start.button == PointerButton::Middle), "{step:?}");
+            assert_eq!(step.activated, None, "a middle click never activates");
+            pass(&mut machine, &[middle(0.0)], sense);
+            let step = pass(&mut machine, &[PointerEvent::Moved(pos2(20.0, 0.0))], sense);
+            assert!(matches!(step.phase, Some(PressPhase::Down { .. })), "no drag sense, no drag");
+            let step = pass(&mut machine, &[PointerEvent::released_by(PointerButton::Middle, pos2(20.0, 0.0))], sense);
+            assert!(matches!(step.phase, Some(PressPhase::Release { click: false, .. })));
+        }
+        // a primary press leaves an open middle press open
+        {
+            let mut machine = PressMachine::new();
+            pass(&mut machine, &[PointerEvent::pressed_by(PointerButton::Middle, pos2(0.0, 0.0), 1.0, 1)], Sense::DRAG);
+            pass(&mut machine, &[press(0.0, 2.0)], Sense::CLICK | Sense::DRAG);
+            assert_eq!(machine.button(), Some(PointerButton::Middle), "the primary press neither replaces nor drops the middle press");
+            let step = pass(&mut machine, &[PointerEvent::Moved(pos2(20.0, 0.0))], Sense::DRAG);
+            assert!(matches!(step.phase, Some(PressPhase::DragStart { start, .. }) if start.button == PointerButton::Middle), "{step:?}");
+        }
     }
 
     #[test]
@@ -746,38 +748,51 @@ mod tests {
     }
 
     #[test]
-    fn escape_cancels_a_drag_once_and_the_later_release_belongs_to_nobody() {
-        let mut machine = PressMachine::new();
-        pass(&mut machine, &[press(0.0, 1.0)], Sense::DRAG);
-        pass(&mut machine, &[PointerEvent::Moved(pos2(20.0, 0.0))], Sense::DRAG);
-        let held = PassInput::new(&[], SLOP, pos2(20.0, 0.0), true).cancel(Some(PressCancel::Escape));
-        let step = machine.step(held, |_| Some((1, Sense::DRAG)));
-        assert!(matches!(step.phase, Some(PressPhase::Cancel { reason: PressCancel::Escape, .. })));
-        let step = pass(&mut machine, &[PointerEvent::released(pos2(20.0, 0.0))], Sense::DRAG);
-        assert_eq!(step, PressStep::default());
+    fn escape_cancels_the_press() {
+        // escape cancels a drag once and the later release belongs to nobody
+        {
+            let mut machine = PressMachine::new();
+            pass(&mut machine, &[press(0.0, 1.0)], Sense::DRAG);
+            pass(&mut machine, &[PointerEvent::Moved(pos2(20.0, 0.0))], Sense::DRAG);
+            let held = PassInput::new(&[], SLOP, pos2(20.0, 0.0), true).cancel(Some(PressCancel::Escape));
+            let step = machine.step(held, |_| Some((1, Sense::DRAG)));
+            assert!(matches!(step.phase, Some(PressPhase::Cancel { reason: PressCancel::Escape, .. })));
+            let step = pass(&mut machine, &[PointerEvent::released(pos2(20.0, 0.0))], Sense::DRAG);
+            assert_eq!(step, PressStep::default());
+        }
+        // an escape before the drag starts cancels the press and the release clicks nothing
+        {
+            let mut machine = PressMachine::new();
+            pass(&mut machine, &[press(0.0, 1.0)], Sense::CLICK | Sense::DRAG);
+            let held = PassInput::new(&[], SLOP, pos2(0.0, 0.0), true).cancel(Some(PressCancel::Escape));
+            let step = machine.step(held, |_| Some((1, Sense::CLICK | Sense::DRAG)));
+            assert!(matches!(step.phase, Some(PressPhase::Cancel { reason: PressCancel::Escape, .. })));
+            let step = pass(&mut machine, &[PointerEvent::released(pos2(0.0, 0.0))], Sense::CLICK | Sense::DRAG);
+            assert_eq!(step, PressStep::default());
+        }
     }
 
     #[test]
-    fn an_escape_before_the_drag_starts_cancels_the_press_and_the_release_clicks_nothing() {
-        let mut machine = PressMachine::new();
-        pass(&mut machine, &[press(0.0, 1.0)], Sense::CLICK | Sense::DRAG);
-        let held = PassInput::new(&[], SLOP, pos2(0.0, 0.0), true).cancel(Some(PressCancel::Escape));
-        let step = machine.step(held, |_| Some((1, Sense::CLICK | Sense::DRAG)));
-        assert!(matches!(step.phase, Some(PressPhase::Cancel { reason: PressCancel::Escape, .. })));
-        let step = pass(&mut machine, &[PointerEvent::released(pos2(0.0, 0.0))], Sense::CLICK | Sense::DRAG);
-        assert_eq!(step, PressStep::default());
-    }
-
-    #[test]
-    fn disabled_or_removed_cancels_an_open_press_before_it_can_activate() {
-        for reason in [PressCancel::Disabled, PressCancel::Removed] {
+    fn a_press_that_cannot_finish_ends_without_activating() {
+        // disabled or removed cancels an open press before it can activate
+        {
+            for reason in [PressCancel::Disabled, PressCancel::Removed] {
+                let mut machine = PressMachine::new();
+                pass(&mut machine, &[press(0.0, 1.0)], Sense::CLICK);
+                let held = PassInput::new(&[], SLOP, pos2(0.0, 0.0), true).cancel(Some(reason));
+                let step = machine.step(held, |_| Some((1, Sense::CLICK)));
+                assert!(matches!(step.phase, Some(PressPhase::Cancel { reason: r, .. }) if r == reason));
+                let step = pass(&mut machine, &[PointerEvent::released(pos2(0.0, 0.0))], Sense::CLICK);
+                assert_eq!(step, PressStep::default());
+            }
+        }
+        // a press lost without a release ends quietly
+        {
             let mut machine = PressMachine::new();
             pass(&mut machine, &[press(0.0, 1.0)], Sense::CLICK);
-            let held = PassInput::new(&[], SLOP, pos2(0.0, 0.0), true).cancel(Some(reason));
-            let step = machine.step(held, |_| Some((1, Sense::CLICK)));
-            assert!(matches!(step.phase, Some(PressPhase::Cancel { reason: r, .. }) if r == reason));
-            let step = pass(&mut machine, &[PointerEvent::released(pos2(0.0, 0.0))], Sense::CLICK);
-            assert_eq!(step, PressStep::default());
+            let lost = machine.step(PassInput::new(&[], SLOP, pos2(0.0, 0.0), false), |_| None);
+            assert_eq!(lost, PressStep::default());
+            assert_eq!(machine.target(), None);
         }
     }
 
@@ -802,14 +817,5 @@ mod tests {
         let late = count_clicks(Some((pos2(0.0, 0.0), 1.2, second)), pos2(1.0, 0.0), 2.0, SLOP);
         let far = count_clicks(Some((pos2(0.0, 0.0), 1.2, second)), pos2(50.0, 0.0), 1.3, SLOP);
         assert_eq!((first, second, late, far), (1, 2, 1, 1));
-    }
-
-    #[test]
-    fn a_press_lost_without_a_release_ends_quietly() {
-        let mut machine = PressMachine::new();
-        pass(&mut machine, &[press(0.0, 1.0)], Sense::CLICK);
-        let lost = machine.step(PassInput::new(&[], SLOP, pos2(0.0, 0.0), false), |_| None);
-        assert_eq!(lost, PressStep::default());
-        assert_eq!(machine.target(), None);
     }
 }

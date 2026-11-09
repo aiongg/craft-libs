@@ -109,27 +109,29 @@ mod tests {
     }
 
     #[test]
-    fn numbers_only_windows_that_share_a_document() {
-        let mut list = WindowList::new();
-        let book = list.open((1, "Book1", true));
-        let _notes = list.open((2, "Notes", false));
-        let second = list.open((1, "Book1", true));
-        list.focus(book);
-        assert_eq!(menu(&list), [entry("Book1:1", true, true), entry("Notes", false, false), entry("Book1:2", true, false)]);
+    fn window_menu_numbering() {
+        // numbers only windows that share a document
+        {
+            let mut list = WindowList::new();
+            let book = list.open((1, "Book1", true));
+            let _notes = list.open((2, "Notes", false));
+            let second = list.open((1, "Book1", true));
+            list.focus(book);
+            assert_eq!(menu(&list), [entry("Book1:1", true, true), entry("Notes", false, false), entry("Book1:2", true, false)]);
 
-        list.close(book);
-        assert_eq!(menu(&list), [entry("Notes", false, false), entry("Book1", true, true)], "one window left: no suffix");
-        let third = list.open((1, "Book1", true));
-        let titles = WindowMenu::new(&list, |_, &(key, name, dirty)| Document { key, name: name.to_owned(), dirty });
-        assert_eq!(titles.title(second), Some("Book1:1"), "numbers close up in opening order");
-        assert_eq!(titles.title(third), Some("Book1:2"));
-    }
-
-    #[test]
-    fn same_name_different_documents_stay_unnumbered() {
-        let mut list = WindowList::new();
-        list.open((1, "report.docx", false));
-        list.open((2, "report.docx", false));
-        assert_eq!(menu(&list), [entry("report.docx", false, false), entry("report.docx", false, true)]);
+            list.close(book);
+            assert_eq!(menu(&list), [entry("Notes", false, false), entry("Book1", true, true)], "one window left: no suffix");
+            let third = list.open((1, "Book1", true));
+            let titles = WindowMenu::new(&list, |_, &(key, name, dirty)| Document { key, name: name.to_owned(), dirty });
+            assert_eq!(titles.title(second), Some("Book1:1"), "numbers close up in opening order");
+            assert_eq!(titles.title(third), Some("Book1:2"));
+        }
+        // same name different documents stay unnumbered
+        {
+            let mut list = WindowList::new();
+            list.open((1, "report.docx", false));
+            list.open((2, "report.docx", false));
+            assert_eq!(menu(&list), [entry("report.docx", false, false), entry("report.docx", false, true)]);
+        }
     }
 }

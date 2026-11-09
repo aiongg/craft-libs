@@ -209,12 +209,23 @@ mod tests {
     use egui::{Context, Event, Order, PointerButton, Pos2, RawInput, Rect, ViewportCommand, ViewportId, pos2, vec2};
 
     #[test]
-    fn parses_the_defaults_output() {
-        assert_eq!(parse("Maximize\n"), DoubleClick::Zoom);
-        assert_eq!(parse("Minimize\n"), DoubleClick::Minimize);
-        assert_eq!(parse("None\n"), DoubleClick::Nothing);
-        for junk in ["", "Fill", "minimize", "1", "The domain/default pair of (kCFPreferencesAnyApplication, X) does not exist"] {
-            assert_eq!(parse(junk), DoubleClick::Zoom, "{junk:?}");
+    fn double_click_preference_picks_zoom_or_minimize() {
+        // parses the defaults output
+        {
+            assert_eq!(parse("Maximize\n"), DoubleClick::Zoom);
+            assert_eq!(parse("Minimize\n"), DoubleClick::Minimize);
+            assert_eq!(parse("None\n"), DoubleClick::Nothing);
+            for junk in ["", "Fill", "minimize", "1", "The domain/default pair of (kCFPreferencesAnyApplication, X) does not exist"] {
+                assert_eq!(parse(junk), DoubleClick::Zoom, "{junk:?}");
+            }
+        }
+        // zoom toggles and minimize minimizes
+        {
+            use egui::ViewportCommand::{Maximized, Minimized};
+            assert_eq!(double_click_command(DoubleClick::Zoom, false), Some(Maximized(true)));
+            assert_eq!(double_click_command(DoubleClick::Zoom, true), Some(Maximized(false)));
+            assert_eq!(double_click_command(DoubleClick::Minimize, false), Some(Minimized(true)));
+            assert_eq!(double_click_command(DoubleClick::Nothing, true), None);
         }
     }
 
@@ -227,15 +238,6 @@ mod tests {
         bar.frame(vec![]);
         let focused = bar.ctx.memory(|m| m.focused()).and_then(|id| bar.ctx.read_response(id)).map(|r| r.rect);
         assert!(focused.is_some_and(|r| r.contains(BUTTON) && r.width() < 100.0), "the first Tab goes to the strip's button: {focused:?}");
-    }
-
-    #[test]
-    fn zoom_toggles_and_minimize_minimizes() {
-        use egui::ViewportCommand::{Maximized, Minimized};
-        assert_eq!(double_click_command(DoubleClick::Zoom, false), Some(Maximized(true)));
-        assert_eq!(double_click_command(DoubleClick::Zoom, true), Some(Maximized(false)));
-        assert_eq!(double_click_command(DoubleClick::Minimize, false), Some(Minimized(true)));
-        assert_eq!(double_click_command(DoubleClick::Nothing, true), None);
     }
 
     /// A 400×28 strip with a button at x 10..60, a `Middle` area at x 100..180 and a `Foreground`

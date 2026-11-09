@@ -300,81 +300,83 @@ mod tests {
     }
 
     #[test]
-    fn table_rows_follow_the_role_and_the_os() {
-        let list = KeyRole::new().reorderable(true).space(true);
-        let any = KeyRole::new();
-        let rename = KeyRole::new().rename(true);
-        let pages = KeyRole::new().pages(true);
-        let nudge = KeyRole::new().nudge(true);
-        let reset = KeyRole::new().resettable(true);
-        let deleter = KeyRole::new().deletes(true);
-        let alt_mods = Mods::ALT;
-        let word = |extend, lead| MoveMods::new(extend, lead, Granularity::Word);
-        for os in [Os::Linux, Os::Windows] {
-            check(os, Key::Down, alt_mods, list, Some(Intent::move_item(true)));
-            check(os, Key::Up, alt_mods, list, Some(Intent::move_item(false)));
-            check(os, Key::Down, alt_mods, any, Some(Intent::Open));
-            check(os, Key::Up, alt_mods, any, Some(Intent::Close));
-            check(os, Key::Space, NONE, list, Some(Intent::Space));
-            check(os, Key::Space, NONE, any, None);
-            check(os, Key::PageDown, Mods::CMD, any, Some(Intent::switch_page(true)));
-            check(os, Key::Enter, Mods::CMD, any, Some(Intent::SubmitForce));
-            check(os, Key::F2, NONE, rename, Some(Intent::Rename));
-            check(os, Key::F2, NONE, any, None);
-            check(os, Key::Menu, NONE, any, Some(Intent::ContextMenu));
-            check(os, Key::Tab, Mods::CMD, pages, Some(Intent::switch_page(true)));
-            check(os, Key::Tab, Mods { shift: true, ..Mods::CMD }, pages, Some(Intent::switch_page(false)));
-            check(os, Key::Tab, Mods::CMD, any, None);
-            check(os, Key::Left, Mods::CMD, any, Some(Intent::Move(NavMove::Back, word(false, true))));
-            check(os, Key::End, NONE, any, Some(Intent::Move(NavMove::End, MoveMods::new(false, false, Granularity::Line))));
-            check(os, Key::Home, Mods::CMD, any, Some(Intent::Move(NavMove::Start, MoveMods::new(false, true, Granularity::Document))));
-            check(os, Key::Delete, NONE, reset, Some(Intent::Reset));
-            check(os, Key::Delete, NONE, any, None);
-            check(os, Key::Backspace, NONE, any, None);
-            check(os, Key::Delete, NONE, deleter, Some(Intent::delete(true, Granularity::Unit)));
-            check(os, Key::Backspace, Mods::CMD, deleter, Some(Intent::delete(false, Granularity::Word)));
-            check(os, Key::Delete, Mods::SHIFT, deleter, Some(Intent::shift_delete(true, Granularity::Unit)));
-            check(os, Key::Down, Mods::ALT, nudge, None);
-            check(os, Key::Left, NONE, KeyRole::new().owner_arrows(true), None);
+    fn bindings_follow_role_and_os() {
+        // table rows follow the role and the os
+        {
+            let list = KeyRole::new().reorderable(true).space(true);
+            let any = KeyRole::new();
+            let rename = KeyRole::new().rename(true);
+            let pages = KeyRole::new().pages(true);
+            let nudge = KeyRole::new().nudge(true);
+            let reset = KeyRole::new().resettable(true);
+            let deleter = KeyRole::new().deletes(true);
+            let alt_mods = Mods::ALT;
+            let word = |extend, lead| MoveMods::new(extend, lead, Granularity::Word);
+            for os in [Os::Linux, Os::Windows] {
+                check(os, Key::Down, alt_mods, list, Some(Intent::move_item(true)));
+                check(os, Key::Up, alt_mods, list, Some(Intent::move_item(false)));
+                check(os, Key::Down, alt_mods, any, Some(Intent::Open));
+                check(os, Key::Up, alt_mods, any, Some(Intent::Close));
+                check(os, Key::Space, NONE, list, Some(Intent::Space));
+                check(os, Key::Space, NONE, any, None);
+                check(os, Key::PageDown, Mods::CMD, any, Some(Intent::switch_page(true)));
+                check(os, Key::Enter, Mods::CMD, any, Some(Intent::SubmitForce));
+                check(os, Key::F2, NONE, rename, Some(Intent::Rename));
+                check(os, Key::F2, NONE, any, None);
+                check(os, Key::Menu, NONE, any, Some(Intent::ContextMenu));
+                check(os, Key::Tab, Mods::CMD, pages, Some(Intent::switch_page(true)));
+                check(os, Key::Tab, Mods { shift: true, ..Mods::CMD }, pages, Some(Intent::switch_page(false)));
+                check(os, Key::Tab, Mods::CMD, any, None);
+                check(os, Key::Left, Mods::CMD, any, Some(Intent::Move(NavMove::Back, word(false, true))));
+                check(os, Key::End, NONE, any, Some(Intent::Move(NavMove::End, MoveMods::new(false, false, Granularity::Line))));
+                check(os, Key::Home, Mods::CMD, any, Some(Intent::Move(NavMove::Start, MoveMods::new(false, true, Granularity::Document))));
+                check(os, Key::Delete, NONE, reset, Some(Intent::Reset));
+                check(os, Key::Delete, NONE, any, None);
+                check(os, Key::Backspace, NONE, any, None);
+                check(os, Key::Delete, NONE, deleter, Some(Intent::delete(true, Granularity::Unit)));
+                check(os, Key::Backspace, Mods::CMD, deleter, Some(Intent::delete(false, Granularity::Word)));
+                check(os, Key::Delete, Mods::SHIFT, deleter, Some(Intent::shift_delete(true, Granularity::Unit)));
+                check(os, Key::Down, Mods::ALT, nudge, None);
+                check(os, Key::Left, NONE, KeyRole::new().owner_arrows(true), None);
+            }
+            check(Os::Mac, Key::PageDown, Mods::CTRL, any, None);
+            check(Os::Mac, Key::PageDown, Mods::CMD, any, None);
+            check(Os::Mac, Key::Enter, Mods::CMD, any, Some(Intent::SubmitForce));
+            check(Os::Mac, Key::Enter, NONE, rename, Some(Intent::Rename));
+            check(Os::Mac, Key::Down, Mods::CMD, rename, Some(Intent::Activate));
+            check(Os::Mac, Key::Menu, NONE, any, None);
+            check(Os::Mac, Key::CloseBracket, Mods { shift: true, ..Mods::CMD }, any, Some(Intent::switch_page(true)));
+            check(Os::Mac, Key::Tab, Mods::CTRL, pages, Some(Intent::switch_page(true)));
+            check(Os::Mac, Key::Left, Mods::ALT, any, Some(Intent::Move(NavMove::Back, word(false, false))));
+            check(Os::Mac, Key::Left, Mods::CMD, any, Some(Intent::Move(NavMove::Start, MoveMods::new(false, true, Granularity::Line))));
+            check(Os::Mac, Key::Down, Mods::CMD, any, Some(Intent::Move(NavMove::End, MoveMods::new(false, true, Granularity::Document))));
+            for os in [Os::Linux, Os::Windows, Os::Mac] {
+                check(os, Key::F10, Mods::SHIFT, any, Some(Intent::ContextMenu));
+                check(os, Key::F10, NONE, any, None);
+                check(os, Key::Right, Mods::SHIFT, any, Some(Intent::Move(NavMove::Forward, MoveMods::new(true, false, Granularity::Unit))));
+                check(os, Key::Left, NONE, nudge, None);
+                check(os, Key::PageUp, NONE, any, Some(Intent::Move(NavMove::PageUp, MoveMods::PLAIN)));
+            }
         }
-        check(Os::Mac, Key::PageDown, Mods::CTRL, any, None);
-        check(Os::Mac, Key::PageDown, Mods::CMD, any, None);
-        check(Os::Mac, Key::Enter, Mods::CMD, any, Some(Intent::SubmitForce));
-        check(Os::Mac, Key::Enter, NONE, rename, Some(Intent::Rename));
-        check(Os::Mac, Key::Down, Mods::CMD, rename, Some(Intent::Activate));
-        check(Os::Mac, Key::Menu, NONE, any, None);
-        check(Os::Mac, Key::CloseBracket, Mods { shift: true, ..Mods::CMD }, any, Some(Intent::switch_page(true)));
-        check(Os::Mac, Key::Tab, Mods::CTRL, pages, Some(Intent::switch_page(true)));
-        check(Os::Mac, Key::Left, Mods::ALT, any, Some(Intent::Move(NavMove::Back, word(false, false))));
-        check(Os::Mac, Key::Left, Mods::CMD, any, Some(Intent::Move(NavMove::Start, MoveMods::new(false, true, Granularity::Line))));
-        check(Os::Mac, Key::Down, Mods::CMD, any, Some(Intent::Move(NavMove::End, MoveMods::new(false, true, Granularity::Document))));
-        for os in [Os::Linux, Os::Windows, Os::Mac] {
-            check(os, Key::F10, Mods::SHIFT, any, Some(Intent::ContextMenu));
-            check(os, Key::F10, NONE, any, None);
-            check(os, Key::Right, Mods::SHIFT, any, Some(Intent::Move(NavMove::Forward, MoveMods::new(true, false, Granularity::Unit))));
-            check(os, Key::Left, NONE, nudge, None);
-            check(os, Key::PageUp, NONE, any, Some(Intent::Move(NavMove::PageUp, MoveMods::PLAIN)));
+        // alt arrows are fine moves on a value role
+        {
+            let fine = |mv, extend| Some(Intent::Move(mv, MoveMods::new(extend, false, Granularity::Unit).fine(true)));
+            let value = KeyRole::new().value(true);
+            let number = value.text(true);
+            let text = KeyRole::new().text(true);
+            for os in [Os::Linux, Os::Windows, Os::Mac] {
+                check(os, Key::Up, Mods::ALT, value, fine(NavMove::Up, false));
+                check(os, Key::Down, Mods::ALT, value, fine(NavMove::Down, false));
+                check(os, Key::Right, Mods::ALT, value, fine(NavMove::Forward, false));
+                check(os, Key::Left, Mods { shift: true, ..Mods::ALT }, value, fine(NavMove::Back, true));
+                check(os, Key::Up, Mods::ALT, number, fine(NavMove::Up, false));
+                check(os, Key::Up, Mods::ALT, text, Some(Intent::Close));
+            }
+            let word = MoveMods::new(false, false, Granularity::Word);
+            check(Os::Mac, Key::Left, Mods::ALT, text, Some(Intent::Move(NavMove::Back, word)));
+            check(Os::Mac, Key::Left, Mods::ALT, number, Some(Intent::Move(NavMove::Back, word)));
+            check(Os::Linux, Key::Right, Mods::ALT, number, None);
         }
-    }
-
-    #[test]
-    fn alt_arrows_are_fine_moves_on_a_value_role() {
-        let fine = |mv, extend| Some(Intent::Move(mv, MoveMods::new(extend, false, Granularity::Unit).fine(true)));
-        let value = KeyRole::new().value(true);
-        let number = value.text(true);
-        let text = KeyRole::new().text(true);
-        for os in [Os::Linux, Os::Windows, Os::Mac] {
-            check(os, Key::Up, Mods::ALT, value, fine(NavMove::Up, false));
-            check(os, Key::Down, Mods::ALT, value, fine(NavMove::Down, false));
-            check(os, Key::Right, Mods::ALT, value, fine(NavMove::Forward, false));
-            check(os, Key::Left, Mods { shift: true, ..Mods::ALT }, value, fine(NavMove::Back, true));
-            check(os, Key::Up, Mods::ALT, number, fine(NavMove::Up, false));
-            check(os, Key::Up, Mods::ALT, text, Some(Intent::Close));
-        }
-        let word = MoveMods::new(false, false, Granularity::Word);
-        check(Os::Mac, Key::Left, Mods::ALT, text, Some(Intent::Move(NavMove::Back, word)));
-        check(Os::Mac, Key::Left, Mods::ALT, number, Some(Intent::Move(NavMove::Back, word)));
-        check(Os::Linux, Key::Right, Mods::ALT, number, None);
     }
 
     #[test]

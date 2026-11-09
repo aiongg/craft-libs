@@ -69,21 +69,23 @@ mod tests {
     }
 
     #[test]
-    fn only_a_first_appearance_or_a_change_after_a_settled_frame_asks() {
-        let placed = Vec2::new(100.0, 20.0);
-        let tolerance = measure_tolerance(1.0);
-        assert!(measured_change_asks_for_discard(None, placed, false, tolerance));
-        assert!(measured_change_asks_for_discard(None, placed, true, tolerance));
-        assert!(!measured_change_asks_for_discard(Some(placed), Vec2::new(100.4, 20.0), false, tolerance));
-        assert!(measured_change_asks_for_discard(Some(placed), Vec2::new(100.0, 21.0), false, tolerance));
-        assert!(!measured_change_asks_for_discard(Some(placed), Vec2::new(100.0, 21.0), true, tolerance));
-    }
-
-    #[test]
-    fn the_tolerance_is_half_a_physical_pixel() {
-        let placed = Vec2::new(100.0, 20.0);
-        let real = Vec2::new(100.3, 20.0);
-        assert!(!measured_change_asks_for_discard(Some(placed), real, false, measure_tolerance(1.0)));
-        assert!(measured_change_asks_for_discard(Some(placed), real, false, measure_tolerance(2.0)));
+    fn relayout_asks_only_on_first_or_real_change() {
+        // only a first appearance or a change after a settled frame asks
+        {
+            let placed = Vec2::new(100.0, 20.0);
+            let tolerance = measure_tolerance(1.0);
+            assert!(measured_change_asks_for_discard(None, placed, false, tolerance));
+            assert!(measured_change_asks_for_discard(None, placed, true, tolerance));
+            assert!(!measured_change_asks_for_discard(Some(placed), Vec2::new(100.4, 20.0), false, tolerance));
+            assert!(measured_change_asks_for_discard(Some(placed), Vec2::new(100.0, 21.0), false, tolerance));
+            assert!(!measured_change_asks_for_discard(Some(placed), Vec2::new(100.0, 21.0), true, tolerance));
+        }
+        // the tolerance is half a physical pixel
+        {
+            let placed = Vec2::new(100.0, 20.0);
+            let real = Vec2::new(100.3, 20.0);
+            assert!(!measured_change_asks_for_discard(Some(placed), real, false, measure_tolerance(1.0)));
+            assert!(measured_change_asks_for_discard(Some(placed), real, false, measure_tolerance(2.0)));
+        }
     }
 }

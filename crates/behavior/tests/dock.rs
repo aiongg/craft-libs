@@ -41,58 +41,60 @@ fn with_column(column: Column<u32>) -> Layout<u32> {
 }
 
 #[test]
-fn validation_rejects_two_docks_per_side_nested_docks_empty_columns_and_bad_widths() {
-    docked().validate().unwrap();
-    let empty_dock = |side| Node::dock(side, Vec::new());
-    Layout::new(Some(hsplit(SplitSize::FixedFirst(10.0), empty_dock(DockEdge::Start), tabs(&[1], 0))), Vec::new()).validate().unwrap();
+fn validation_rejects_malformed_layouts() {
+    // validation rejects two docks per side nested docks empty columns and bad widths
+    {
+        docked().validate().unwrap();
+        let empty_dock = |side| Node::dock(side, Vec::new());
+        Layout::new(Some(hsplit(SplitSize::FixedFirst(10.0), empty_dock(DockEdge::Start), tabs(&[1], 0))), Vec::new()).validate().unwrap();
 
-    let two = hsplit(SplitSize::Ratio(0.5), empty_dock(DockEdge::Start), empty_dock(DockEdge::Start));
-    let nested = Node::split(Axis::Y, SplitSize::Ratio(0.5), empty_dock(DockEdge::Start), tabs(&[1], 0));
-    let wrong_side = hsplit(SplitSize::Ratio(0.5), empty_dock(DockEdge::End), tabs(&[1], 0));
-    for root in [two, nested, wrong_side] {
-        assert_eq!(Layout::new(Some(root), Vec::new()).validate(), Err(DockError::InvalidPlacement));
+        let two = hsplit(SplitSize::Ratio(0.5), empty_dock(DockEdge::Start), empty_dock(DockEdge::Start));
+        let nested = Node::split(Axis::Y, SplitSize::Ratio(0.5), empty_dock(DockEdge::Start), tabs(&[1], 0));
+        let wrong_side = hsplit(SplitSize::Ratio(0.5), empty_dock(DockEdge::End), tabs(&[1], 0));
+        for root in [two, nested, wrong_side] {
+            assert_eq!(Layout::new(Some(root), Vec::new()).validate(), Err(DockError::InvalidPlacement));
+        }
+
+        let mut nan_height = g(&[2], 0);
+        nan_height.height = Some(f32::NAN);
+        let mut nan_iconic = Column::new(vec![g(&[2], 0)]).with_width(100.0);
+        nan_iconic.iconic_width = Some(f32::NAN);
+        let bad = [
+            Column::new(Vec::new()).with_width(100.0),
+            Column::new(vec![g(&[], 0)]).with_width(100.0),
+            Column::new(vec![g(&[2], 1)]).with_width(100.0),
+            Column::new(vec![nan_height]).with_width(100.0),
+            Column::new(vec![g(&[2], 0)]).with_width(0.0),
+            Column::new(vec![g(&[2], 0)]).with_width(-5.0),
+            Column::new(vec![g(&[2], 0)]).with_width(f32::INFINITY),
+            Column::new(vec![g(&[2], 0)]).with_width(2.0e6),
+            nan_iconic,
+        ];
+        for column in bad {
+            assert!(with_column(column.clone()).validate().is_err(), "{column:?}");
+        }
     }
-
-    let mut nan_height = g(&[2], 0);
-    nan_height.height = Some(f32::NAN);
-    let mut nan_iconic = Column::new(vec![g(&[2], 0)]).with_width(100.0);
-    nan_iconic.iconic_width = Some(f32::NAN);
-    let bad = [
-        Column::new(Vec::new()).with_width(100.0),
-        Column::new(vec![g(&[], 0)]).with_width(100.0),
-        Column::new(vec![g(&[2], 1)]).with_width(100.0),
-        Column::new(vec![nan_height]).with_width(100.0),
-        Column::new(vec![g(&[2], 0)]).with_width(0.0),
-        Column::new(vec![g(&[2], 0)]).with_width(-5.0),
-        Column::new(vec![g(&[2], 0)]).with_width(f32::INFINITY),
-        Column::new(vec![g(&[2], 0)]).with_width(2.0e6),
-        nan_iconic,
-    ];
-    for column in bad {
-        assert!(with_column(column.clone()).validate().is_err(), "{column:?}");
+    // validation rejects bad floating windows and duplicate panels
+    {
+        let mut duplicate = docked();
+        duplicate.floating[0].root = tabs(&[6, 7, 2], 0);
+        assert_eq!(duplicate.validate(), Err(DockError::DuplicatePanel));
+        let mut empty_window = docked();
+        empty_window.floating[0].root = tabs(&[], 0);
+        assert_eq!(empty_window.validate(), Err(DockError::InvalidGeometry));
+        let mut docked_window = docked();
+        docked_window.floating[0].root = Node::dock(DockEdge::End, vec![Column::new(vec![g(&[6, 7], 0)]).with_width(100.0)]);
+        assert_eq!(docked_window.validate(), Err(DockError::InvalidPlacement));
+        let mut native = docked();
+        native.floating[0].native = Some(area(0.0, 0.0, -1.0, 10.0));
+        assert_eq!(native.validate(), Err(DockError::InvalidGeometry));
+        let mut monitor = docked();
+        monitor.floating[0].monitor = Some(Monitor::new(None, Rect::from_min_size(Pos2::ZERO, Vec2::new(1920.0, 1080.0)), f32::NAN));
+        assert_eq!(monitor.validate(), Err(DockError::InvalidGeometry));
+        let mut monitor_size = docked();
+        monitor_size.floating[0].monitor_size = Some([f32::NAN, 1080.0]);
+        assert_eq!(monitor_size.validate(), Err(DockError::InvalidGeometry));
     }
-}
-
-#[test]
-fn validation_rejects_bad_floating_windows_and_duplicate_panels() {
-    let mut duplicate = docked();
-    duplicate.floating[0].root = tabs(&[6, 7, 2], 0);
-    assert_eq!(duplicate.validate(), Err(DockError::DuplicatePanel));
-    let mut empty_window = docked();
-    empty_window.floating[0].root = tabs(&[], 0);
-    assert_eq!(empty_window.validate(), Err(DockError::InvalidGeometry));
-    let mut docked_window = docked();
-    docked_window.floating[0].root = Node::dock(DockEdge::End, vec![Column::new(vec![g(&[6, 7], 0)]).with_width(100.0)]);
-    assert_eq!(docked_window.validate(), Err(DockError::InvalidPlacement));
-    let mut native = docked();
-    native.floating[0].native = Some(area(0.0, 0.0, -1.0, 10.0));
-    assert_eq!(native.validate(), Err(DockError::InvalidGeometry));
-    let mut monitor = docked();
-    monitor.floating[0].monitor = Some(Monitor::new(None, Rect::from_min_size(Pos2::ZERO, Vec2::new(1920.0, 1080.0)), f32::NAN));
-    assert_eq!(monitor.validate(), Err(DockError::InvalidGeometry));
-    let mut monitor_size = docked();
-    monitor_size.floating[0].monitor_size = Some([f32::NAN, 1080.0]);
-    assert_eq!(monitor_size.validate(), Err(DockError::InvalidGeometry));
 }
 
 /// The layout of `restore_returns_each_panel_to_the_place_it_was_in` with `skip` absent.
@@ -127,34 +129,36 @@ fn without(skip: Option<u32>) -> Layout<u32> {
 }
 
 #[test]
-fn restore_returns_each_panel_to_the_place_it_was_in() {
-    let original = without(None);
-    original.validate().unwrap();
-    // 4: the seam between [2, 3] and [9]; 9: below [4]; 5: a new column after A; 3: a tab;
-    // 7: below a floating group.
-    for panel in [4, 9, 5, 3, 7] {
-        let location = original.location(&panel).unwrap();
-        let location: Location<u32> = serde_json::from_str(&serde_json::to_string(&location).unwrap()).unwrap();
-        let mut layout = without(Some(panel));
-        layout.validate().unwrap();
-        layout.restore(panel, &location).unwrap_or_else(|e| panic!("{panel}: {e} {location:?}"));
-        assert_eq!(layout, original, "{panel}: {location:?}");
+fn restore_rules() {
+    // restore returns each panel to the place it was in
+    {
+        let original = without(None);
+        original.validate().unwrap();
+        // 4: the seam between [2, 3] and [9]; 9: below [4]; 5: a new column after A; 3: a tab;
+        // 7: below a floating group.
+        for panel in [4, 9, 5, 3, 7] {
+            let location = original.location(&panel).unwrap();
+            let location: Location<u32> = serde_json::from_str(&serde_json::to_string(&location).unwrap()).unwrap();
+            let mut layout = without(Some(panel));
+            layout.validate().unwrap();
+            layout.restore(panel, &location).unwrap_or_else(|e| panic!("{panel}: {e} {location:?}"));
+            assert_eq!(layout, original, "{panel}: {location:?}");
+        }
     }
-}
+    // restore refuses a present panel and a missing anchor and changes nothing
+    {
+        let original = without(None);
+        let location = original.location(&3).unwrap();
+        let mut layout = original.clone();
+        assert!(layout.restore(3, &location).is_err());
+        assert_eq!(layout, original);
 
-#[test]
-fn restore_refuses_a_present_panel_and_a_missing_anchor_and_changes_nothing() {
-    let original = without(None);
-    let location = original.location(&3).unwrap();
-    let mut layout = original.clone();
-    assert!(layout.restore(3, &location).is_err());
-    assert_eq!(layout, original);
-
-    let mut layout = without(Some(3));
-    let before = layout.clone();
-    let orphan = Location::new(Some(99), DockPlacement::tab(None));
-    assert!(layout.restore(3, &orphan).is_err());
-    assert_eq!(layout, before);
+        let mut layout = without(Some(3));
+        let before = layout.clone();
+        let orphan = Location::new(Some(99), DockPlacement::tab(None));
+        assert!(layout.restore(3, &orphan).is_err());
+        assert_eq!(layout, before);
+    }
 }
 
 #[test]
@@ -208,41 +212,45 @@ fn a_saved_stack_of_groups_loads_as_a_vertical_split_by_their_heights() {
 }
 
 #[test]
-fn a_single_plain_floating_window_writes_the_v1_shape_and_others_round_trip() {
-    let saved = [1.0, 2.0, 300.0, 200.0];
-    let rect = Rect::from_min_size(Pos2::new(saved[0], saved[1]), Vec2::new(saved[2], saved[3]));
-    let plain = Floating::single(vec![4u32, 5], 1, rect);
-    assert_eq!(serde_json::to_value(&plain).unwrap(), json!({"id": plain.id, "panels": [4, 5], "active": 1, "rect": saved}));
-    let mut minimized = Floating::single(vec![4u32], 0, rect);
-    minimized.minimized = true;
-    let stacked = Floating::stack(vec![g(&[4], 0), g(&[5], 0)], rect).unwrap();
-    let mut native = Floating::single(vec![4u32], 0, rect);
-    native.native = Some(rect);
-    for window in [minimized, stacked, native] {
-        let value = serde_json::to_value(&window).unwrap();
-        assert!(value.get("root").is_some() && value.get("panels").is_none(), "{value}");
-        assert_eq!(value["id"], json!(window.id), "{value}");
-        assert_eq!(serde_json::from_value::<Floating<u32>>(value).unwrap(), window);
+fn floating_windows_save_and_load() {
+    // a single plain floating window writes the v1 shape and others round trip
+    {
+        let saved = [1.0, 2.0, 300.0, 200.0];
+        let rect = Rect::from_min_size(Pos2::new(saved[0], saved[1]), Vec2::new(saved[2], saved[3]));
+        let plain = Floating::single(vec![4u32, 5], 1, rect);
+        assert_eq!(serde_json::to_value(&plain).unwrap(), json!({"id": plain.id, "panels": [4, 5], "active": 1, "rect": saved}));
+        let mut minimized = Floating::single(vec![4u32], 0, rect);
+        minimized.minimized = true;
+        let stacked = Floating::stack(vec![g(&[4], 0), g(&[5], 0)], rect).unwrap();
+        let mut native = Floating::single(vec![4u32], 0, rect);
+        native.native = Some(rect);
+        for window in [minimized, stacked, native] {
+            let value = serde_json::to_value(&window).unwrap();
+            assert!(value.get("root").is_some() && value.get("panels").is_none(), "{value}");
+            assert_eq!(value["id"], json!(window.id), "{value}");
+            assert_eq!(serde_json::from_value::<Floating<u32>>(value).unwrap(), window);
+        }
+        assert!(serde_json::from_value::<Floating<u32>>(json!({"rect": saved})).is_err());
     }
-    assert!(serde_json::from_value::<Floating<u32>>(json!({"rect": saved})).is_err());
+    // windows keep their ids through a save
+    {
+        let rect = Rect::from_min_size(Pos2::new(1.0, 2.0), Vec2::new(300.0, 200.0));
+        let layout = Layout::new(
+            None,
+            vec![Floating::single(vec![4u32], 0, rect).with_id(7), Floating::stack(vec![g(&[5], 0), g(&[6], 0)], rect).unwrap().with_id(8)],
+        );
+        let saved = serde_json::to_string(&layout).unwrap();
+        let loaded: Layout<u32> = serde_json::from_str(&saved).unwrap();
+        assert_eq!(loaded, layout);
+        assert_eq!(loaded.floating.iter().map(|w| w.id).collect::<Vec<_>>(), [7, 8]);
+    }
 }
 
 #[test]
-fn windows_keep_their_ids_through_a_save() {
-    let rect = Rect::from_min_size(Pos2::new(1.0, 2.0), Vec2::new(300.0, 200.0));
-    let layout = Layout::new(
-        None,
-        vec![Floating::single(vec![4u32], 0, rect).with_id(7), Floating::stack(vec![g(&[5], 0), g(&[6], 0)], rect).unwrap().with_id(8)],
-    );
-    let saved = serde_json::to_string(&layout).unwrap();
-    let loaded: Layout<u32> = serde_json::from_str(&saved).unwrap();
-    assert_eq!(loaded, layout);
-    assert_eq!(loaded.floating.iter().map(|w| w.id).collect::<Vec<_>>(), [7, 8]);
-}
-
-#[test]
-fn a_layout_saved_with_the_physical_names_loads_and_writes_back_in_reading_order() {
-    let saved = r#"{
+fn older_left_right_names_load_as_start_end() {
+    // a layout saved with the physical names loads and writes back in reading order
+    {
+        let saved = r#"{
         "root": {"Split": {"axis": "Horizontal", "size": {"FixedSecond": 300.0},
             "first": {"Tabs": {"panels": [1, 2], "active": 1}},
             "second": {"Dock": {"side": "End", "columns": [
@@ -250,22 +258,31 @@ fn a_layout_saved_with_the_physical_names_loads_and_writes_back_in_reading_order
             ]}}}},
         "floating": [{"id": 5, "panels": [4], "active": 0, "rect": [1.0, 2.0, 300.0, 200.0]}]
     }"#;
-    let layout: Layout<u32> = serde_json::from_str(saved).unwrap();
-    layout.validate().unwrap();
-    let expected = Layout::new(
-        Some(hsplit(
-            SplitSize::FixedSecond(300.0),
-            tabs(&[1, 2], 1),
-            Node::dock(DockEdge::End, vec![Column::new(vec![g(&[3], 0)]).with_width(180.0)]),
-        )),
-        vec![Floating::single(vec![4], 0, area(1.0, 2.0, 300.0, 200.0)).with_id(5)],
-    );
-    assert_eq!(layout, expected);
-    let written = serde_json::to_value(&layout).unwrap();
-    assert_eq!(written["root"]["Split"]["axis"], json!("X"));
-    let mut renamed: serde_json::Value = serde_json::from_str(saved).unwrap();
-    renamed["root"]["Split"]["axis"] = json!("X");
-    assert_eq!(written, renamed);
+        let layout: Layout<u32> = serde_json::from_str(saved).unwrap();
+        layout.validate().unwrap();
+        let expected = Layout::new(
+            Some(hsplit(
+                SplitSize::FixedSecond(300.0),
+                tabs(&[1, 2], 1),
+                Node::dock(DockEdge::End, vec![Column::new(vec![g(&[3], 0)]).with_width(180.0)]),
+            )),
+            vec![Floating::single(vec![4], 0, area(1.0, 2.0, 300.0, 200.0)).with_id(5)],
+        );
+        assert_eq!(layout, expected);
+        let written = serde_json::to_value(&layout).unwrap();
+        assert_eq!(written["root"]["Split"]["axis"], json!("X"));
+        let mut renamed: serde_json::Value = serde_json::from_str(saved).unwrap();
+        renamed["root"]["Split"]["axis"] = json!("X");
+        assert_eq!(written, renamed);
+    }
+    // actions saved with left and right load as start and end
+    {
+        for (saved, side) in [("Left", DockSide::Start), ("left", DockSide::Start), ("Right", DockSide::End), ("right", DockSide::End)] {
+            let action: Action<u32> = serde_json::from_value(json!({"Move": {"panel": 1, "anchor": 2, "placement": {"Split": saved}}})).unwrap();
+            assert_eq!(action, Action::move_beside(1, 2, DockPlacement::Split(side)), "{saved}");
+        }
+        assert_eq!(serde_json::to_value(DockPlacement::<u32>::Split(DockSide::Start)).unwrap(), json!({"Split": "Start"}));
+    }
 }
 
 #[test]
@@ -277,15 +294,6 @@ fn a_column_keeps_no_width_until_resized_and_a_resized_width_survives_a_save() {
     assert_eq!(widths(&reload(&layout)), Some(None), "a column nobody resized has no stored width");
     layout.apply(Action::resize_column(3, 222.0)).unwrap();
     assert_eq!(widths(&reload(&layout)), Some(Some(222.0)));
-}
-
-#[test]
-fn actions_saved_with_left_and_right_load_as_start_and_end() {
-    for (saved, side) in [("Left", DockSide::Start), ("left", DockSide::Start), ("Right", DockSide::End), ("right", DockSide::End)] {
-        let action: Action<u32> = serde_json::from_value(json!({"Move": {"panel": 1, "anchor": 2, "placement": {"Split": saved}}})).unwrap();
-        assert_eq!(action, Action::move_beside(1, 2, DockPlacement::Split(side)), "{saved}");
-    }
-    assert_eq!(serde_json::to_value(DockPlacement::<u32>::Split(DockSide::Start)).unwrap(), json!({"Split": "Start"}));
 }
 
 #[test]

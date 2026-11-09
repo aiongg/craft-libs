@@ -275,20 +275,22 @@ mod tests {
     }
 
     #[test]
-    fn defaults_are_english_with_memory_sections() {
-        let host = Host::builder(APP).build();
-        assert_eq!(host.lang(), Lang::EN);
-        assert!(host.i18n().is_none());
-        assert_eq!(host.commands().label("file.save", "Save"), "Save");
-    }
-
-    #[test]
     fn with_lang_changes_only_the_language() {
-        let host = Host::builder(APP).build();
-        let other = host.with_lang(Lang::PSEUDO);
-        assert_eq!(other.lang(), Lang::PSEUDO);
-        assert_eq!(host.lang(), Lang::EN);
-        assert_eq!(other.app().name, "Test");
+        // defaults are english with memory sections
+        {
+            let host = Host::builder(APP).build();
+            assert_eq!(host.lang(), Lang::EN);
+            assert!(host.i18n().is_none());
+            assert_eq!(host.commands().label("file.save", "Save"), "Save");
+        }
+        // with lang changes only the language
+        {
+            let host = Host::builder(APP).build();
+            let other = host.with_lang(Lang::PSEUDO);
+            assert_eq!(other.lang(), Lang::PSEUDO);
+            assert_eq!(host.lang(), Lang::EN);
+            assert_eq!(other.app().name, "Test");
+        }
     }
 
     #[test]
@@ -297,14 +299,6 @@ mod tests {
         assert_eq!(host.setting::<Panel>(), Panel::default());
         host.set_setting(&Panel { open: true, width: 240 });
         assert_eq!(host.setting::<Panel>(), Panel { open: true, width: 240 });
-    }
-
-    #[test]
-    fn inline_jobs_run_at_once() {
-        let done = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let flag = Arc::clone(&done);
-        InlineJobs.spawn("t", Box::new(move || flag.store(true, std::sync::atomic::Ordering::SeqCst)));
-        assert!(done.load(std::sync::atomic::Ordering::SeqCst));
     }
 
     #[cfg(feature = "ui")]

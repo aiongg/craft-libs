@@ -15,24 +15,26 @@ fn origin(phase: Option<PressPhase>) -> Option<Pos2> {
 }
 
 #[test]
-fn a_press_and_moves_past_slop_in_one_pass_start_the_drag_at_the_press() {
-    let mut machine = PressMachine::new();
-    let events = [PointerEvent::pressed(pos2(10.0, 10.0), 1.0, 1), PointerEvent::Moved(pos2(20.0, 12.0)), PointerEvent::Moved(pos2(50.0, 20.0))];
-    let phase = pass(&mut machine, &events, true);
-    assert!(matches!(phase, Some(PressPhase::DragStart { pos, .. }) if pos == pos2(50.0, 20.0)), "{phase:?}");
-    assert_eq!(origin(phase), Some(pos2(10.0, 10.0)));
-}
-
-#[test]
-fn moves_and_a_release_in_the_pass_after_the_press_read_drag_start_then_release() {
-    let mut machine = PressMachine::new();
-    assert!(matches!(pass(&mut machine, &[PointerEvent::pressed(pos2(10.0, 10.0), 1.0, 1)], true), Some(PressPhase::Down { .. })));
-    let events = [PointerEvent::Moved(pos2(30.0, 15.0)), PointerEvent::Moved(pos2(50.0, 20.0)), PointerEvent::released(pos2(50.0, 20.0))];
-    let phase = pass(&mut machine, &events, false);
-    assert!(matches!(phase, Some(PressPhase::DragStart { pos, .. }) if pos == pos2(50.0, 20.0)), "{phase:?}");
-    assert!(machine.dragging(), "the drag stays live until its release is reported");
-    let phase = pass(&mut machine, &[], false);
-    assert!(matches!(phase, Some(PressPhase::Release { pos, click: false, .. }) if pos == pos2(50.0, 20.0)), "{phase:?}");
-    assert_eq!(origin(phase), Some(pos2(10.0, 10.0)));
-    assert_eq!(pass(&mut machine, &[], false), None, "the press is over");
+fn drag_start_and_release_across_passes() {
+    // a press and moves past slop in one pass start the drag at the press
+    {
+        let mut machine = PressMachine::new();
+        let events = [PointerEvent::pressed(pos2(10.0, 10.0), 1.0, 1), PointerEvent::Moved(pos2(20.0, 12.0)), PointerEvent::Moved(pos2(50.0, 20.0))];
+        let phase = pass(&mut machine, &events, true);
+        assert!(matches!(phase, Some(PressPhase::DragStart { pos, .. }) if pos == pos2(50.0, 20.0)), "{phase:?}");
+        assert_eq!(origin(phase), Some(pos2(10.0, 10.0)));
+    }
+    // moves and a release in the pass after the press read drag start then release
+    {
+        let mut machine = PressMachine::new();
+        assert!(matches!(pass(&mut machine, &[PointerEvent::pressed(pos2(10.0, 10.0), 1.0, 1)], true), Some(PressPhase::Down { .. })));
+        let events = [PointerEvent::Moved(pos2(30.0, 15.0)), PointerEvent::Moved(pos2(50.0, 20.0)), PointerEvent::released(pos2(50.0, 20.0))];
+        let phase = pass(&mut machine, &events, false);
+        assert!(matches!(phase, Some(PressPhase::DragStart { pos, .. }) if pos == pos2(50.0, 20.0)), "{phase:?}");
+        assert!(machine.dragging(), "the drag stays live until its release is reported");
+        let phase = pass(&mut machine, &[], false);
+        assert!(matches!(phase, Some(PressPhase::Release { pos, click: false, .. }) if pos == pos2(50.0, 20.0)), "{phase:?}");
+        assert_eq!(origin(phase), Some(pos2(10.0, 10.0)));
+        assert_eq!(pass(&mut machine, &[], false), None, "the press is over");
+    }
 }

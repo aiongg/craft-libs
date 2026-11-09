@@ -194,40 +194,42 @@ mod tests {
     }
 
     #[test]
-    fn focus_and_close_keep_most_recent_order() {
-        let mut list = WindowList::new();
-        let a = list.open("a");
-        let b = list.open("b");
-        let c = list.open("c");
-        assert_eq!(list.active(), Some(c), "a new window is active");
-        assert!(list.focus(a));
-        assert_eq!(list.recent().collect::<Vec<_>>(), [a, c, b]);
-        assert_eq!(list.ids().collect::<Vec<_>>(), [a, b, c], "opening order is stable");
+    fn recency_order_drives_focus_and_find() {
+        // focus and close keep most recent order
+        {
+            let mut list = WindowList::new();
+            let a = list.open("a");
+            let b = list.open("b");
+            let c = list.open("c");
+            assert_eq!(list.active(), Some(c), "a new window is active");
+            assert!(list.focus(a));
+            assert_eq!(list.recent().collect::<Vec<_>>(), [a, c, b]);
+            assert_eq!(list.ids().collect::<Vec<_>>(), [a, b, c], "opening order is stable");
 
-        // Closing a background window leaves the active one alone.
-        let closed = list.close(b);
-        assert_eq!(closed, Some(Closed { data: "b", focus: None }));
-        assert_eq!(list.active(), Some(a));
+            // Closing a background window leaves the active one alone.
+            let closed = list.close(b);
+            assert_eq!(closed, Some(Closed { data: "b", focus: None }));
+            assert_eq!(list.active(), Some(a));
 
-        // Closing the active window hands focus to the one focused before it.
-        assert_eq!(list.close(a).and_then(|c| c.focus), Some(c));
-        assert_eq!(list.active(), Some(c));
-        assert_eq!(list.close(c).map(|c| c.focus), Some(None), "nothing left to focus");
-        assert!(list.is_empty());
-        assert_eq!(list.close(c), None);
-        assert!(!list.focus(c));
-    }
-
-    #[test]
-    fn find_prefers_the_most_recent_match() {
-        let mut list = WindowList::new();
-        let first = list.open("book.xlsx");
-        let _other = list.open("notes.xlsx");
-        let second = list.open("book.xlsx");
-        assert_eq!(list.find(|d| *d == "book.xlsx"), Some(second));
-        list.focus(first);
-        assert_eq!(list.find(|d| *d == "book.xlsx"), Some(first));
-        assert_eq!(list.find(|d| *d == "missing"), None);
+            // Closing the active window hands focus to the one focused before it.
+            assert_eq!(list.close(a).and_then(|c| c.focus), Some(c));
+            assert_eq!(list.active(), Some(c));
+            assert_eq!(list.close(c).map(|c| c.focus), Some(None), "nothing left to focus");
+            assert!(list.is_empty());
+            assert_eq!(list.close(c), None);
+            assert!(!list.focus(c));
+        }
+        // find prefers the most recent match
+        {
+            let mut list = WindowList::new();
+            let first = list.open("book.xlsx");
+            let _other = list.open("notes.xlsx");
+            let second = list.open("book.xlsx");
+            assert_eq!(list.find(|d| *d == "book.xlsx"), Some(second));
+            list.focus(first);
+            assert_eq!(list.find(|d| *d == "book.xlsx"), Some(first));
+            assert_eq!(list.find(|d| *d == "missing"), None);
+        }
     }
 
     #[test]

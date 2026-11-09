@@ -444,47 +444,49 @@ mod tests {
     const NO_SIZE: Vec2 = Vec2::ZERO;
 
     #[test]
-    fn moves_and_resizes_update_the_normal_rect() {
-        let store = Arc::new(Mutex::new(Store::in_memory()));
-        let mut t = tracker(&store);
-        t.observe(&info([100.0, 50.0], [800.0, 600.0], 2.0), NO_SIZE, 1.0, 0.0);
-        t.observe(&info([150.0, 70.0], [900.0, 650.0], 2.0), NO_SIZE, 1.0, 0.1);
-        let p = t.current.clone().unwrap();
-        assert_eq!(p.normal.size, [900.0, 650.0]);
-        assert_eq!(p.position_px, Some([300, 140]));
-        assert_eq!(p.normal.pos, [150.0, 70.0]);
-        assert_eq!(p.scale, 2.0);
-        assert!(!p.maximized && !p.fullscreen);
-    }
+    fn normal_rect_tracks_moves_and_survives_maximize() {
+        // moves and resizes update the normal rect
+        {
+            let store = Arc::new(Mutex::new(Store::in_memory()));
+            let mut t = tracker(&store);
+            t.observe(&info([100.0, 50.0], [800.0, 600.0], 2.0), NO_SIZE, 1.0, 0.0);
+            t.observe(&info([150.0, 70.0], [900.0, 650.0], 2.0), NO_SIZE, 1.0, 0.1);
+            let p = t.current.clone().unwrap();
+            assert_eq!(p.normal.size, [900.0, 650.0]);
+            assert_eq!(p.position_px, Some([300, 140]));
+            assert_eq!(p.normal.pos, [150.0, 70.0]);
+            assert_eq!(p.scale, 2.0);
+            assert!(!p.maximized && !p.fullscreen);
+        }
+        // maximize full screen and minimize keep the normal rect
+        {
+            let store = Arc::new(Mutex::new(Store::in_memory()));
+            let mut t = tracker(&store);
+            t.observe(&info([100.0, 50.0], [800.0, 600.0], 1.0), NO_SIZE, 1.0, 0.0);
+            let normal = t.current.clone().unwrap().normal;
 
-    #[test]
-    fn maximize_full_screen_and_minimize_keep_the_normal_rect() {
-        let store = Arc::new(Mutex::new(Store::in_memory()));
-        let mut t = tracker(&store);
-        t.observe(&info([100.0, 50.0], [800.0, 600.0], 1.0), NO_SIZE, 1.0, 0.0);
-        let normal = t.current.clone().unwrap().normal;
+            let mut max = info([0.0, 0.0], [1920.0, 1050.0], 1.0);
+            max.maximized = Some(true);
+            t.observe(&max, NO_SIZE, 1.0, 0.1);
+            let p = t.current.clone().unwrap();
+            assert!(p.maximized);
+            assert_eq!((p.normal, p.position_px), (normal, Some([100, 50])));
 
-        let mut max = info([0.0, 0.0], [1920.0, 1050.0], 1.0);
-        max.maximized = Some(true);
-        t.observe(&max, NO_SIZE, 1.0, 0.1);
-        let p = t.current.clone().unwrap();
-        assert!(p.maximized);
-        assert_eq!((p.normal, p.position_px), (normal, Some([100, 50])));
+            // Full screen from maximized: back to maximized after it.
+            let mut full = info([0.0, 0.0], [1920.0, 1080.0], 1.0);
+            full.fullscreen = Some(true);
+            full.maximized = Some(false);
+            t.observe(&full, NO_SIZE, 1.0, 0.2);
+            let p = t.current.clone().unwrap();
+            assert!(p.fullscreen && p.maximized);
+            assert_eq!(p.normal, normal);
 
-        // Full screen from maximized: back to maximized after it.
-        let mut full = info([0.0, 0.0], [1920.0, 1080.0], 1.0);
-        full.fullscreen = Some(true);
-        full.maximized = Some(false);
-        t.observe(&full, NO_SIZE, 1.0, 0.2);
-        let p = t.current.clone().unwrap();
-        assert!(p.fullscreen && p.maximized);
-        assert_eq!(p.normal, normal);
-
-        // Minimized (Windows parks the window at -32000).
-        let mut min = info([-32000.0, -32000.0], [160.0, 28.0], 1.0);
-        min.minimized = Some(true);
-        t.observe(&min, NO_SIZE, 1.0, 0.3);
-        assert_eq!(t.current.clone().unwrap(), p);
+            // Minimized (Windows parks the window at -32000).
+            let mut min = info([-32000.0, -32000.0], [160.0, 28.0], 1.0);
+            min.minimized = Some(true);
+            t.observe(&min, NO_SIZE, 1.0, 0.3);
+            assert_eq!(t.current.clone().unwrap(), p);
+        }
     }
 
     #[test]
@@ -525,28 +527,30 @@ mod tests {
     }
 
     #[test]
-    fn the_monitor_key_follows_the_monitor_under_the_window() {
-        let a = mon("A", [0, 0], [1920, 1080]);
-        let b = mon("B", [1920, 0], [1920, 1080]);
-        let monitors = [a.clone(), b.clone()];
-        let size = Some([1920, 1080]);
-        assert_eq!(monitor_key(Some(&a.key), &monitors, Some([2500, 300]), size), Some(b.key.clone()));
-        assert_eq!(monitor_key(Some(&b.key), &monitors, Some([100, 300]), size), Some(a.key.clone()));
-        // Off every monitor: the keyed one no longer holds the window.
-        assert_eq!(monitor_key(Some(&a.key), &monitors, Some([-500, 300]), size), None);
-    }
-
-    #[test]
-    fn without_a_position_or_list_the_key_follows_the_reported_size() {
-        let key = MonitorKey::new("A", [1920, 1080]);
-        // Wayland: no position.
-        let monitors = [mon("A", [0, 0], [1920, 1080])];
-        assert_eq!(monitor_key(Some(&key), &monitors, None, Some([1920, 1080])), Some(key.clone()));
-        assert_eq!(monitor_key(Some(&key), &monitors, None, Some([2560, 1440])), None);
-        // Empty list.
-        assert_eq!(monitor_key(Some(&key), &[], Some([10, 10]), Some([1920, 1080])), Some(key.clone()));
-        assert_eq!(monitor_key(Some(&key), &[], Some([10, 10]), Some([2560, 1440])), None);
-        assert_eq!(monitor_key(None, &[], Some([10, 10]), None), None);
+    fn monitor_key_follows_the_window() {
+        // the monitor key follows the monitor under the window
+        {
+            let a = mon("A", [0, 0], [1920, 1080]);
+            let b = mon("B", [1920, 0], [1920, 1080]);
+            let monitors = [a.clone(), b.clone()];
+            let size = Some([1920, 1080]);
+            assert_eq!(monitor_key(Some(&a.key), &monitors, Some([2500, 300]), size), Some(b.key.clone()));
+            assert_eq!(monitor_key(Some(&b.key), &monitors, Some([100, 300]), size), Some(a.key.clone()));
+            // Off every monitor: the keyed one no longer holds the window.
+            assert_eq!(monitor_key(Some(&a.key), &monitors, Some([-500, 300]), size), None);
+        }
+        // without a position or list the key follows the reported size
+        {
+            let key = MonitorKey::new("A", [1920, 1080]);
+            // Wayland: no position.
+            let monitors = [mon("A", [0, 0], [1920, 1080])];
+            assert_eq!(monitor_key(Some(&key), &monitors, None, Some([1920, 1080])), Some(key.clone()));
+            assert_eq!(monitor_key(Some(&key), &monitors, None, Some([2560, 1440])), None);
+            // Empty list.
+            assert_eq!(monitor_key(Some(&key), &[], Some([10, 10]), Some([1920, 1080])), Some(key.clone()));
+            assert_eq!(monitor_key(Some(&key), &[], Some([10, 10]), Some([2560, 1440])), None);
+            assert_eq!(monitor_key(None, &[], Some([10, 10]), None), None);
+        }
     }
 
     #[test]

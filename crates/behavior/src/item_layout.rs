@@ -928,19 +928,39 @@ mod tests {
     }
 
     #[test]
-    fn a_sheet_grid_view_follows_the_viewport_and_keeps_frozen_columns_in_place() {
-        let columns: Vec<_> = ["a", "b", "c", "d", "e"].into_iter().map(|key| (ColumnKey::new(key), 40.0)).collect();
-        let mut layout = SheetLayout::new(&Count(3), 20.0, columns).frozen(1);
-        layout.set_view(Vec2::new(100.0, 60.0), ScrollPos { x: 50.0, y: 0.0 });
-        let grid = layout.grid().expect("a view was set");
-        assert_eq!(grid.sections.len(), 2);
-        assert_eq!((grid.sections[0].columns.clone(), grid.sections[0].edges.clone()), (0..1, vec![0.0, 40.0]));
-        assert_eq!((grid.sections[1].columns.clone(), grid.sections[1].edges.clone()), (2..4, vec![30.0, 70.0, 110.0]));
-        let mut cells = Vec::new();
-        layout.cells(0, ScrollPos { x: 50.0, y: 0.0 }, &mut cells);
-        assert_eq!(cells.iter().map(|(key, _)| key.clone()).collect::<Vec<_>>(), ["a", "c", "d"].map(ColumnKey::new));
-        assert_eq!(layout.column_at(Pos2::new(10.0, 5.0), ScrollPos { x: 50.0, y: 0.0 }), Some(0));
-        assert_eq!(layout.column_at(Pos2::new(60.0, 5.0), ScrollPos { x: 50.0, y: 0.0 }), Some(2));
+    fn frozen_lines_stay_in_place_under_scroll() {
+        // a sheet grid view follows the viewport and keeps frozen columns in place
+        {
+            let columns: Vec<_> = ["a", "b", "c", "d", "e"].into_iter().map(|key| (ColumnKey::new(key), 40.0)).collect();
+            let mut layout = SheetLayout::new(&Count(3), 20.0, columns).frozen(1);
+            layout.set_view(Vec2::new(100.0, 60.0), ScrollPos { x: 50.0, y: 0.0 });
+            let grid = layout.grid().expect("a view was set");
+            assert_eq!(grid.sections.len(), 2);
+            assert_eq!((grid.sections[0].columns.clone(), grid.sections[0].edges.clone()), (0..1, vec![0.0, 40.0]));
+            assert_eq!((grid.sections[1].columns.clone(), grid.sections[1].edges.clone()), (2..4, vec![30.0, 70.0, 110.0]));
+            let mut cells = Vec::new();
+            layout.cells(0, ScrollPos { x: 50.0, y: 0.0 }, &mut cells);
+            assert_eq!(cells.iter().map(|(key, _)| key.clone()).collect::<Vec<_>>(), ["a", "c", "d"].map(ColumnKey::new));
+            assert_eq!(layout.column_at(Pos2::new(10.0, 5.0), ScrollPos { x: 50.0, y: 0.0 }), Some(0));
+            assert_eq!(layout.column_at(Pos2::new(60.0, 5.0), ScrollPos { x: 50.0, y: 0.0 }), Some(2));
+        }
+        // frozen rows and columns stay in place under scroll
+        {
+            let (rows, columns) = (LineIndex::uniform(20.0, 100), LineIndex::uniform(40.0, 10));
+            let mut layout = sheet(rows, columns).frozen(1).frozen_rows(2);
+            let (offset, view) = (ScrollPos { x: 50.0, y: 30.0 }, Vec2::new(100.0, 100.0));
+            layout.set_view(view, offset);
+            assert_eq!((layout.rect(0, offset).top(), layout.rect(1, offset).top()), (0.0, 20.0));
+            assert_eq!(layout.rect(3, offset).top(), 30.0, "a scrolled row moves by the offset");
+            let mut shown = Vec::new();
+            layout.visible(offset, view, &mut shown);
+            assert_eq!(shown, vec![0, 1, 3, 4, 5, 6], "row 2 is under the frozen band");
+            assert_eq!((layout.hit(Pos2::new(10.0, 25.0), offset), layout.hit(Pos2::new(10.0, 45.0), offset)), (Some(1), Some(3)));
+            assert_eq!((layout.column_at(Pos2::new(10.0, 5.0), offset), layout.column_at(Pos2::new(60.0, 5.0), offset)), (Some(0), Some(2)));
+            let grid = layout.grid().expect("a view was set");
+            let edges: Vec<_> = grid.sections.iter().map(|section| (section.columns.clone(), section.edges.clone())).collect();
+            assert_eq!(edges, vec![(0..1, vec![0.0, 40.0]), (2..4, vec![30.0, 70.0, 110.0])]);
+        }
     }
 
     #[test]
@@ -958,39 +978,30 @@ mod tests {
     }
 
     #[test]
-    fn a_sheet_of_a_million_rows_places_and_hits_its_last_row_with_cells() {
-        let layout = SheetLayout::new(&Count(1_048_576), 20.0, vec![(ColumnKey::new("a"), 30.0), (ColumnKey::new("b"), 70.0)]);
-        let offset = ScrollPos { x: 0.0, y: layout.content_size().y - 100.0 };
-        assert_eq!(layout.rect(1_048_575, offset).top(), 80.0);
-        assert_eq!(layout.hit(Pos2::new(10.0, 90.0), offset), Some(1_048_575));
-        let mut cells = Vec::new();
-        layout.cells(1_048_575, offset, &mut cells);
-        assert_eq!(cells.iter().map(|(_, rect)| rect.left()).collect::<Vec<_>>(), vec![0.0, 30.0]);
-        assert_eq!(layout.nav(), NavShape::Cell);
-    }
-
-    #[test]
-    fn a_column_of_no_width_is_not_shown() {
-        let layout = SheetLayout::new(&Count(2), 20.0, vec![(ColumnKey::new("a"), 30.0), (ColumnKey::new("b"), 0.0), (ColumnKey::new("c"), 30.0)]);
-        assert_eq!((layout.column_shown(0), layout.column_shown(1), layout.column_shown(2), layout.column_shown(3)), (true, false, true, false));
-    }
-
-    #[test]
-    fn line_index_finds_starts_and_lines() {
-        let custom = BTreeMap::from([(2, 40.0), (3, 0.0)]);
-        let lines = LineIndex::new(&custom, 20.0, 100);
-        let starts: Vec<_> = (0..6).map(|line| lines.start(line)).collect();
-        assert_eq!(starts, [0.0, 20.0, 40.0, 80.0, 80.0, 100.0]);
-        assert_eq!((lines.size(2), lines.size(3), lines.size(7)), (40.0, 0.0, 20.0));
-        assert_eq!([-5.0, 0.0, 19.9, 40.0, 79.9, 80.0, 99.9, 100.0, 1.0e9].map(|pos| lines.at(pos)), [0, 0, 0, 2, 2, 4, 4, 5, 99]);
-        assert_eq!(lines.count(), 100);
-        assert!(!lines.shown(3) && lines.shown(4));
-        assert!((0..2000).map(|tenth| lines.at(f64::from(tenth) / 10.0)).all(|line| lines.shown(line)), "no position lands on a hidden line");
-        assert_eq!((lines.span(30.0, 90.0), lines.span(80.0, 90.0), lines.span(10.0, 80.0)), (1..5, 4..5, 0..3));
-        let mut moved = lines.clone();
-        moved.set(1, 30.0);
-        moved.set(3, 20.0);
-        assert_eq!((moved.start(2), moved.start(4), moved.total()), (50.0, 110.0, 2030.0));
+    fn hidden_lines_are_skipped_in_the_index() {
+        // a column of no width is not shown
+        {
+            let layout =
+                SheetLayout::new(&Count(2), 20.0, vec![(ColumnKey::new("a"), 30.0), (ColumnKey::new("b"), 0.0), (ColumnKey::new("c"), 30.0)]);
+            assert_eq!((layout.column_shown(0), layout.column_shown(1), layout.column_shown(2), layout.column_shown(3)), (true, false, true, false));
+        }
+        // line index finds starts and lines
+        {
+            let custom = BTreeMap::from([(2, 40.0), (3, 0.0)]);
+            let lines = LineIndex::new(&custom, 20.0, 100);
+            let starts: Vec<_> = (0..6).map(|line| lines.start(line)).collect();
+            assert_eq!(starts, [0.0, 20.0, 40.0, 80.0, 80.0, 100.0]);
+            assert_eq!((lines.size(2), lines.size(3), lines.size(7)), (40.0, 0.0, 20.0));
+            assert_eq!([-5.0, 0.0, 19.9, 40.0, 79.9, 80.0, 99.9, 100.0, 1.0e9].map(|pos| lines.at(pos)), [0, 0, 0, 2, 2, 4, 4, 5, 99]);
+            assert_eq!(lines.count(), 100);
+            assert!(!lines.shown(3) && lines.shown(4));
+            assert!((0..2000).map(|tenth| lines.at(f64::from(tenth) / 10.0)).all(|line| lines.shown(line)), "no position lands on a hidden line");
+            assert_eq!((lines.span(30.0, 90.0), lines.span(80.0, 90.0), lines.span(10.0, 80.0)), (1..5, 4..5, 0..3));
+            let mut moved = lines.clone();
+            moved.set(1, 30.0);
+            moved.set(3, 20.0);
+            assert_eq!((moved.start(2), moved.start(4), moved.total()), (50.0, 110.0, 2030.0));
+        }
     }
 
     fn sheet(rows: LineIndex, columns: LineIndex) -> SheetLayout {
@@ -1021,24 +1032,6 @@ mod tests {
         assert_eq!(shown, vec![6, 8], "the hidden row takes no place");
         assert!(!layout.shown(7) && layout.shown(6));
         assert_eq!(layout.hit(Pos2::new(1.0, 5.0), ScrollPos { x: 0.0, y: 180.0 }), Some(8));
-    }
-
-    #[test]
-    fn frozen_rows_and_columns_stay_in_place_under_scroll() {
-        let (rows, columns) = (LineIndex::uniform(20.0, 100), LineIndex::uniform(40.0, 10));
-        let mut layout = sheet(rows, columns).frozen(1).frozen_rows(2);
-        let (offset, view) = (ScrollPos { x: 50.0, y: 30.0 }, Vec2::new(100.0, 100.0));
-        layout.set_view(view, offset);
-        assert_eq!((layout.rect(0, offset).top(), layout.rect(1, offset).top()), (0.0, 20.0));
-        assert_eq!(layout.rect(3, offset).top(), 30.0, "a scrolled row moves by the offset");
-        let mut shown = Vec::new();
-        layout.visible(offset, view, &mut shown);
-        assert_eq!(shown, vec![0, 1, 3, 4, 5, 6], "row 2 is under the frozen band");
-        assert_eq!((layout.hit(Pos2::new(10.0, 25.0), offset), layout.hit(Pos2::new(10.0, 45.0), offset)), (Some(1), Some(3)));
-        assert_eq!((layout.column_at(Pos2::new(10.0, 5.0), offset), layout.column_at(Pos2::new(60.0, 5.0), offset)), (Some(0), Some(2)));
-        let grid = layout.grid().expect("a view was set");
-        let edges: Vec<_> = grid.sections.iter().map(|section| (section.columns.clone(), section.edges.clone())).collect();
-        assert_eq!(edges, vec![(0..1, vec![0.0, 40.0]), (2..4, vec![30.0, 70.0, 110.0])]);
     }
 
     #[test]

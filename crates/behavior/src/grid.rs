@@ -173,10 +173,22 @@ mod tests {
     }
 
     #[test]
-    fn fixed_content_and_fill_columns_share_the_room() {
-        let columns = [ColumnWidth::Fixed(100.0), ColumnWidth::Content, ColumnWidth::fill(1.0), ColumnWidth::fill(3.0)];
-        let widths = resolve_columns(&columns, &[0.0, 40.0], 300.0, 0.0);
-        assert_eq!(widths, vec![100.0, 40.0, 40.0, 120.0]);
+    fn fill_columns_share_the_leftover_room() {
+        // fixed content and fill columns share the room
+        {
+            let columns = [ColumnWidth::Fixed(100.0), ColumnWidth::Content, ColumnWidth::fill(1.0), ColumnWidth::fill(3.0)];
+            let widths = resolve_columns(&columns, &[0.0, 40.0], 300.0, 0.0);
+            assert_eq!(widths, vec![100.0, 40.0, 40.0, 120.0]);
+        }
+        // a content cell after a fill cell measures in the whole height and the width fixed columns leave
+        {
+            let columns = [ColumnWidth::fill(1.0), ColumnWidth::Content, ColumnWidth::Fixed(100.0)];
+            let last = GridMeasure { columns: vec![0.0, 50.0, 0.0], rows: vec![100.0] };
+            let mut cursor = GridCursor::new(flow(false), &columns, Vec2::ZERO, &last);
+            assert_eq!(cursor.room(), Vec2::new(150.0, 100.0), "the fill cell measures in its own column");
+            cursor.cell(Vec2::new(150.0, 100.0));
+            assert_eq!(cursor.room(), Vec2::new(200.0, 100.0), "the content cell may take what the fill column holds");
+        }
     }
 
     #[test]
@@ -191,15 +203,5 @@ mod tests {
         let second = rtl.cell(Vec2::new(10.0, 10.0));
         assert_eq!((first.max.x, second.max.x), (300.0, 200.0), "the first column is on the right");
         assert_eq!(ltr.measured().rows, vec![10.0, 10.0]);
-    }
-
-    #[test]
-    fn a_content_cell_after_a_fill_cell_measures_in_the_whole_height_and_the_width_fixed_columns_leave() {
-        let columns = [ColumnWidth::fill(1.0), ColumnWidth::Content, ColumnWidth::Fixed(100.0)];
-        let last = GridMeasure { columns: vec![0.0, 50.0, 0.0], rows: vec![100.0] };
-        let mut cursor = GridCursor::new(flow(false), &columns, Vec2::ZERO, &last);
-        assert_eq!(cursor.room(), Vec2::new(150.0, 100.0), "the fill cell measures in its own column");
-        cursor.cell(Vec2::new(150.0, 100.0));
-        assert_eq!(cursor.room(), Vec2::new(200.0, 100.0), "the content cell may take what the fill column holds");
     }
 }

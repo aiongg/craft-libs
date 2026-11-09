@@ -234,11 +234,20 @@ mod tests {
 
     #[test]
     fn hangs_below_the_anchor_start_edge_and_mirrors_under_rtl() {
-        let anchor = rect(100.0, 100.0, 80.0, 20.0);
-        let ltr = place(&PlaceRequest::new(anchor, Vec2::new(120.0, 50.0), BOUNDS));
-        assert_eq!(ltr.rect, rect(100.0, 120.0, 120.0, 50.0));
-        let rtl = place(&PlaceRequest::new(anchor, Vec2::new(120.0, 50.0), BOUNDS).rtl(true));
-        assert_eq!(rtl.rect, rect(60.0, 120.0, 120.0, 50.0), "the start edge is the right edge under RTL");
+        // hangs below the anchor start edge and mirrors under rtl
+        {
+            let anchor = rect(100.0, 100.0, 80.0, 20.0);
+            let ltr = place(&PlaceRequest::new(anchor, Vec2::new(120.0, 50.0), BOUNDS));
+            assert_eq!(ltr.rect, rect(100.0, 120.0, 120.0, 50.0));
+            let rtl = place(&PlaceRequest::new(anchor, Vec2::new(120.0, 50.0), BOUNDS).rtl(true));
+            assert_eq!(rtl.rect, rect(60.0, 120.0, 120.0, 50.0), "the start edge is the right edge under RTL");
+        }
+        // minimum width follows the anchor
+        {
+            let anchor = rect(10.0, 10.0, 200.0, 20.0);
+            let placed = place(&PlaceRequest::new(anchor, Vec2::new(50.0, 30.0), BOUNDS).min_width(MinWidth::Anchor));
+            assert_eq!(placed.rect.width(), 200.0);
+        }
     }
 
     #[test]
@@ -251,13 +260,6 @@ mod tests {
         let kept = place(&request.kept(Some(Side::Below)));
         assert_eq!(kept.side, Side::Below);
         assert_eq!(kept.rect.height(), 40.0, "the kept side caps the height to its room");
-    }
-
-    #[test]
-    fn minimum_width_follows_the_anchor() {
-        let anchor = rect(10.0, 10.0, 200.0, 20.0);
-        let placed = place(&PlaceRequest::new(anchor, Vec2::new(50.0, 30.0), BOUNDS).min_width(MinWidth::Anchor));
-        assert_eq!(placed.rect.width(), 200.0);
     }
 
     #[test]

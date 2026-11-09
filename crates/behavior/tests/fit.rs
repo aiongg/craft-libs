@@ -26,29 +26,55 @@ fn natural_widths_and_common_cap_preserve_tab_order() {
 
 #[test]
 fn overflow_retains_selection_and_partitions_all_tabs() {
-    let natural = [80.0, 90.0, 85.0, 95.0];
-    for selected in [0, 1, 2, 3, usize::MAX] {
-        for available in [0.0, 1.0, 5.0, 18.0, 19.0, 55.0, 120.0, 200.0, 500.0] {
-            let f = fit(&natural, selected, available, 40.0, 18.0);
-            let selected = selected.min(natural.len() - 1);
-            assert!(f.shown.iter().any(|&(i, _)| i == selected), "{selected} at {available}: {f:?}");
-            assert!(!f.overflow.contains(&selected));
-            assert!(f.shown.windows(2).all(|w| w[0].0 < w[1].0));
-            assert!(f.overflow.windows(2).all(|w| w[0] < w[1]));
-            let mut all: Vec<usize> = f.shown.iter().map(|&(i, _)| i).chain(f.overflow.iter().copied()).collect();
-            all.sort_unstable();
-            assert_eq!(all, [0, 1, 2, 3]);
-            assert!(total(&f) <= available + 0.001, "{available}: {f:?}");
+    // overflow retains selection and partitions all tabs
+    {
+        let natural = [80.0, 90.0, 85.0, 95.0];
+        for selected in [0, 1, 2, 3, usize::MAX] {
+            for available in [0.0, 1.0, 5.0, 18.0, 19.0, 55.0, 120.0, 200.0, 500.0] {
+                let f = fit(&natural, selected, available, 40.0, 18.0);
+                let selected = selected.min(natural.len() - 1);
+                assert!(f.shown.iter().any(|&(i, _)| i == selected), "{selected} at {available}: {f:?}");
+                assert!(!f.overflow.contains(&selected));
+                assert!(f.shown.windows(2).all(|w| w[0].0 < w[1].0));
+                assert!(f.overflow.windows(2).all(|w| w[0] < w[1]));
+                let mut all: Vec<usize> = f.shown.iter().map(|&(i, _)| i).chain(f.overflow.iter().copied()).collect();
+                all.sort_unstable();
+                assert_eq!(all, [0, 1, 2, 3]);
+                assert!(total(&f) <= available + 0.001, "{available}: {f:?}");
+            }
         }
+    }
+    // many tabs keep the last selected without quadratic membership scans
+    {
+        let widths = vec![60.0; 10_000];
+        let f = fit(&widths, widths.len() - 1, 240.0, 40.0, 18.0);
+        assert!(f.shown.iter().any(|&(i, w)| i == widths.len() - 1 && w > 0.0));
+        assert_eq!(f.shown.len() + f.overflow.len(), widths.len());
+        assert!(total(&f) <= 240.001);
     }
 }
 
 #[test]
-fn one_tab_never_reserves_an_unused_overflow_button() {
-    let f = fit(&[80.0], 99, 10.0, 40.0, 18.0);
-    assert_eq!(f.shown, [(0, 10.0)]);
-    assert!(f.overflow.is_empty());
-    assert_eq!(f.overflow_width, 0.0);
+fn overflow_only_when_needed_and_last_first() {
+    // one tab never reserves an unused overflow button
+    {
+        let f = fit(&[80.0], 99, 10.0, 40.0, 18.0);
+        assert_eq!(f.shown, [(0, 10.0)]);
+        assert!(f.overflow.is_empty());
+        assert_eq!(f.overflow_width, 0.0);
+    }
+    // Items that fit whole leave no overflow and no room for the control.
+    {
+        let fit = fit_items(&items(&[0, 0, 0, 0]), EXTENT * 4.0 + GAP * 3.0, GAP, SECTION_GAP, CONTROL);
+        assert_eq!(fit.shown, vec![0, 1, 2, 3]);
+        assert!(fit.overflow.is_empty());
+    }
+    // The last items leave first, and the items kept leave room for the control and its gap.
+    {
+        let fit = fit_items(&items(&[0, 0, 0, 0]), 40.0, GAP, SECTION_GAP, CONTROL);
+        assert_eq!(fit.shown, vec![0, 1]);
+        assert_eq!(fit.overflow, vec![2, 3]);
+    }
 }
 
 #[test]
@@ -66,15 +92,6 @@ fn malformed_dimensions_remain_finite_and_within_the_strip() {
             }
         }
     }
-}
-
-#[test]
-fn many_tabs_keep_the_last_selected_without_quadratic_membership_scans() {
-    let widths = vec![60.0; 10_000];
-    let f = fit(&widths, widths.len() - 1, 240.0, 40.0, 18.0);
-    assert!(f.shown.iter().any(|&(i, w)| i == widths.len() - 1 && w > 0.0));
-    assert_eq!(f.shown.len() + f.overflow.len(), widths.len());
-    assert!(total(&f) <= 240.001);
 }
 
 #[test]
@@ -126,22 +143,6 @@ const CONTROL: f32 = 8.0;
 
 fn items(sections: &[u16]) -> Vec<FitItem> {
     sections.iter().map(|&section| FitItem::new(EXTENT, section, FitKeep::Free)).collect()
-}
-
-/// Items that fit whole leave no overflow and no room for the control.
-#[test]
-fn items_that_fit_leave_no_overflow() {
-    let fit = fit_items(&items(&[0, 0, 0, 0]), EXTENT * 4.0 + GAP * 3.0, GAP, SECTION_GAP, CONTROL);
-    assert_eq!(fit.shown, vec![0, 1, 2, 3]);
-    assert!(fit.overflow.is_empty());
-}
-
-/// The last items leave first, and the items kept leave room for the control and its gap.
-#[test]
-fn the_last_items_overflow_first() {
-    let fit = fit_items(&items(&[0, 0, 0, 0]), 40.0, GAP, SECTION_GAP, CONTROL);
-    assert_eq!(fit.shown, vec![0, 1]);
-    assert_eq!(fit.overflow, vec![2, 3]);
 }
 
 /// A section change costs the section gap, not the item gap.

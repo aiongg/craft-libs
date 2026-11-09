@@ -49,22 +49,24 @@ mod tests {
     }
 
     #[test]
-    fn the_second_and_third_windows_step_from_main() {
-        let main = main_window();
-        let second = cascade_window(&main, 1, 28.0, None);
-        assert_eq!((second.position_px, second.normal.size), (Some([256, 156]), [800.0, 600.0]));
-        assert_eq!(second.normal.pos, [128.0, 78.0]);
-        assert!(!second.maximized);
-        let third = cascade_window(&main, 2, 28.0, None);
-        assert_eq!(third.position_px, Some([312, 212]));
-    }
-
-    #[test]
-    fn cascading_wraps_within_the_bounds() {
-        let main = main_window();
-        // 1000 × 700 pt: the third window's bottom (106 + 600) runs past 700 and starts over at the top.
-        let third = cascade_window(&main, 2, 28.0, Some(Rect::new(0.0, 0.0, 1000.0, 700.0)));
-        assert_eq!(third.position_px, Some([312, 0]));
+    fn cascade_from_main_steps_and_wraps() {
+        // the second and third windows step from main
+        {
+            let main = main_window();
+            let second = cascade_window(&main, 1, 28.0, None);
+            assert_eq!((second.position_px, second.normal.size), (Some([256, 156]), [800.0, 600.0]));
+            assert_eq!(second.normal.pos, [128.0, 78.0]);
+            assert!(!second.maximized);
+            let third = cascade_window(&main, 2, 28.0, None);
+            assert_eq!(third.position_px, Some([312, 212]));
+        }
+        // cascading wraps within the bounds
+        {
+            let main = main_window();
+            // 1000 × 700 pt: the third window's bottom (106 + 600) runs past 700 and starts over at the top.
+            let third = cascade_window(&main, 2, 28.0, Some(Rect::new(0.0, 0.0, 1000.0, 700.0)));
+            assert_eq!(third.position_px, Some([312, 0]));
+        }
     }
 
     #[test]

@@ -284,71 +284,92 @@ mod tests {
     }
 
     #[test]
-    fn corrupt_file_is_moved_aside_and_the_store_starts_empty() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join(FILE_NAME);
-        std::fs::write(&path, "{ not json").unwrap();
-        let mut s = Store::at(&path);
-        assert!(s.get(MAIN).is_none() && s.read_only().is_none());
-        let aside = s.moved_aside().unwrap().to_path_buf();
-        assert_eq!(std::fs::read_to_string(aside).unwrap(), "{ not json");
-        assert!(!path.exists());
-        s.set(MAIN, &sample(1));
-        s.save().unwrap();
-        assert!(Store::at(&path).get(MAIN).is_some());
-        assert_eq!(siblings(dir.path()).len(), 2);
+    fn corrupt_store_is_moved_aside() {
+        // corrupt file is moved aside and the store starts empty
+        {
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join(FILE_NAME);
+            std::fs::write(&path, "{ not json").unwrap();
+            let mut s = Store::at(&path);
+            assert!(s.get(MAIN).is_none() && s.read_only().is_none());
+            let aside = s.moved_aside().unwrap().to_path_buf();
+            assert_eq!(std::fs::read_to_string(aside).unwrap(), "{ not json");
+            assert!(!path.exists());
+            s.set(MAIN, &sample(1));
+            s.save().unwrap();
+            assert!(Store::at(&path).get(MAIN).is_some());
+            assert_eq!(siblings(dir.path()).len(), 2);
+        }
+        // json without a schema version counts as corrupt
+        {
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join(FILE_NAME);
+            std::fs::write(&path, r#"{"windows":{}}"#).unwrap();
+            assert!(Store::at(&path).moved_aside().is_some());
+        }
     }
 
     #[test]
-    fn json_without_a_schema_version_counts_as_corrupt() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join(FILE_NAME);
-        std::fs::write(&path, r#"{"windows":{}}"#).unwrap();
-        assert!(Store::at(&path).moved_aside().is_some());
+    fn newer_schema_is_left_alone() {
+        // newer schema is read but never written
+        {
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join(FILE_NAME);
+            let mut doc = json!({ "schema_version": 2, "windows": {}, "future": [1] });
+            doc["windows"][MAIN] = serde_json::to_value(sample(7)).unwrap();
+            let text = serde_json::to_string(&doc).unwrap();
+            std::fs::write(&path, &text).unwrap();
+            let mut s = Store::at(&path);
+            assert_eq!(s.read_only(), Some(&ReadOnly::NewerSchema(2)));
+            assert_eq!(s.get(MAIN), Some(sample(7)));
+            s.set(MAIN, &sample(8));
+            assert!(!s.save().unwrap());
+            assert_eq!(std::fs::read_to_string(&path).unwrap(), text);
+            assert_eq!(siblings(dir.path()), [FILE_NAME]);
+        }
+        // newer schema with an unexpected shape is not moved aside
+        {
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join(FILE_NAME);
+            std::fs::write(&path, r#"{"schema_version":3,"windows":[1,2]}"#).unwrap();
+            let s = Store::at(&path);
+            assert_eq!(s.read_only(), Some(&ReadOnly::NewerSchema(3)));
+            assert!(s.moved_aside().is_none() && path.exists());
+        }
     }
 
     #[test]
-    fn newer_schema_is_read_but_never_written() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join(FILE_NAME);
-        let mut doc = json!({ "schema_version": 2, "windows": {}, "future": [1] });
-        doc["windows"][MAIN] = serde_json::to_value(sample(7)).unwrap();
-        let text = serde_json::to_string(&doc).unwrap();
-        std::fs::write(&path, &text).unwrap();
-        let mut s = Store::at(&path);
-        assert_eq!(s.read_only(), Some(&ReadOnly::NewerSchema(2)));
-        assert_eq!(s.get(MAIN), Some(sample(7)));
-        s.set(MAIN, &sample(8));
-        assert!(!s.save().unwrap());
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), text);
-        assert_eq!(siblings(dir.path()), [FILE_NAME]);
-    }
-
-    #[test]
-    fn unknown_keys_survive_a_write() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join(FILE_NAME);
-        let mut doc = json!({ "schema_version": 1, "note": {"a": 1}, "windows": { "odd": {"unexpected": true} } });
-        doc["windows"][MAIN] = serde_json::to_value(sample(1)).unwrap();
-        std::fs::write(&path, doc.to_string()).unwrap();
-        let mut s = Store::at(&path);
-        assert!(s.get("odd").is_none());
-        s.set(MAIN, &sample(2));
-        s.save().unwrap();
-        let v: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
-        assert_eq!(v["note"], json!({"a": 1}));
-        assert_eq!(v["windows"]["odd"], json!({"unexpected": true}));
-        assert_eq!(Store::at(&path).get(MAIN), Some(sample(2)));
-    }
-
-    #[test]
-    fn newer_schema_with_an_unexpected_shape_is_not_moved_aside() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join(FILE_NAME);
-        std::fs::write(&path, r#"{"schema_version":3,"windows":[1,2]}"#).unwrap();
-        let s = Store::at(&path);
-        assert_eq!(s.read_only(), Some(&ReadOnly::NewerSchema(3)));
-        assert!(s.moved_aside().is_none() && path.exists());
+    fn unknown_keys_and_fields_survive_a_write() {
+        // unknown keys survive a write
+        {
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join(FILE_NAME);
+            let mut doc = json!({ "schema_version": 1, "note": {"a": 1}, "windows": { "odd": {"unexpected": true} } });
+            doc["windows"][MAIN] = serde_json::to_value(sample(1)).unwrap();
+            std::fs::write(&path, doc.to_string()).unwrap();
+            let mut s = Store::at(&path);
+            assert!(s.get("odd").is_none());
+            s.set(MAIN, &sample(2));
+            s.save().unwrap();
+            let v: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+            assert_eq!(v["note"], json!({"a": 1}));
+            assert_eq!(v["windows"]["odd"], json!({"unexpected": true}));
+            assert_eq!(Store::at(&path).get(MAIN), Some(sample(2)));
+        }
+        // set keeps unknown fields of the entry
+        {
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join(FILE_NAME);
+            let mut entry = serde_json::to_value(sample(1)).unwrap();
+            entry["later"] = json!("x");
+            std::fs::write(&path, json!({"schema_version": 1, "windows": {MAIN: entry}}).to_string()).unwrap();
+            let mut s = Store::at(&path);
+            s.set(MAIN, &sample(2));
+            s.save().unwrap();
+            let v: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+            assert_eq!(v["windows"][MAIN]["later"], "x");
+            assert_eq!(Store::at(&path).get(MAIN), Some(sample(2)));
+        }
     }
 
     #[test]
@@ -362,21 +383,6 @@ mod tests {
         p.normal.pos[1] = f32::INFINITY;
         s.set(MAIN, &p);
         assert_eq!(s.get(MAIN).unwrap().normal.pos, [0.0, 0.0]);
-    }
-
-    #[test]
-    fn set_keeps_unknown_fields_of_the_entry() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join(FILE_NAME);
-        let mut entry = serde_json::to_value(sample(1)).unwrap();
-        entry["later"] = json!("x");
-        std::fs::write(&path, json!({"schema_version": 1, "windows": {MAIN: entry}}).to_string()).unwrap();
-        let mut s = Store::at(&path);
-        s.set(MAIN, &sample(2));
-        s.save().unwrap();
-        let v: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
-        assert_eq!(v["windows"][MAIN]["later"], "x");
-        assert_eq!(Store::at(&path).get(MAIN), Some(sample(2)));
     }
 
     #[test]
