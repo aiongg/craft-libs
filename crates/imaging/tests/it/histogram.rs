@@ -54,28 +54,28 @@ fn first_mesh(shapes: &[Shape]) -> &Mesh {
 }
 
 #[trial]
-fn the_tallest_bin_is_drawn_at_one_over_one_point_one_and_a_sparse_bin_keeps_its_proportion() {
-    let heights = tone_heights(&[0.0, 10.0, 5.0], HistogramScale::Peak);
-    assert!((heights[1] - 1.0 / 1.1).abs() < TOLERANCE && (heights[2] - 0.5 / 1.1).abs() < TOLERANCE, "{heights:?}");
-    let mut bins = vec![0.0; 256];
-    bins[10] = 1.0;
-    bins[200] = 5000.0;
-    let heights = tone_heights(&bins, HistogramScale::Peak);
-    assert!(heights[10] < 0.001 && heights[200] > 0.9, "a percentile would draw the one-pixel bin as tall as the peak");
-}
-
-#[trial]
-fn the_typical_scale_runs_spikes_off_the_top() {
-    let mut bins = flat(256, 100.0);
-    bins[128] = 100_000.0;
-    let heights = tone_heights(&bins, HistogramScale::Typical);
-    assert!((heights[50] - 100.0 / 150.0).abs() < TOLERANCE, "{}", heights[50]);
-    assert_eq!(heights[128], 1.0);
-    assert!(tone_heights(&bins, HistogramScale::Peak)[50] < 0.01, "Peak keeps the spike on the plot");
-    let mut channel = flat(256, 100.0);
-    channel[100] = 50_000.0;
-    let rgb = rgb_heights(&[channel.clone(), channel.clone(), channel], HistogramScale::Typical);
-    assert!((rgb[0][30] - 2.0 / 3.0).abs() < 0.01 && rgb[0][100] == 1.0, "{}", rgb[0][30]);
+fn the_peak_and_typical_scales_set_the_tallest_bin_and_run_spikes_off_the_top() {
+    {
+        let heights = tone_heights(&[0.0, 10.0, 5.0], HistogramScale::Peak);
+        assert!((heights[1] - 1.0 / 1.1).abs() < TOLERANCE && (heights[2] - 0.5 / 1.1).abs() < TOLERANCE, "{heights:?}");
+        let mut bins = vec![0.0; 256];
+        bins[10] = 1.0;
+        bins[200] = 5000.0;
+        let heights = tone_heights(&bins, HistogramScale::Peak);
+        assert!(heights[10] < 0.001 && heights[200] > 0.9, "a percentile would draw the one-pixel bin as tall as the peak");
+    }
+    {
+        let mut bins = flat(256, 100.0);
+        bins[128] = 100_000.0;
+        let heights = tone_heights(&bins, HistogramScale::Typical);
+        assert!((heights[50] - 100.0 / 150.0).abs() < TOLERANCE, "{}", heights[50]);
+        assert_eq!(heights[128], 1.0);
+        assert!(tone_heights(&bins, HistogramScale::Peak)[50] < 0.01, "Peak keeps the spike on the plot");
+        let mut channel = flat(256, 100.0);
+        channel[100] = 50_000.0;
+        let rgb = rgb_heights(&[channel.clone(), channel.clone(), channel], HistogramScale::Typical);
+        assert!((rgb[0][30] - 2.0 / 3.0).abs() < 0.01 && rgb[0][100] == 1.0, "{}", rgb[0][30]);
+    }
 }
 
 #[trial]
@@ -108,38 +108,38 @@ fn smoothing_evens_out_a_comb_and_pins_the_edges() {
 }
 
 #[trial]
-fn overlaps_combine_the_channels_whatever_their_order() {
-    let rect = rect();
-    let colors = [Color32::from_rgb(255, 80, 80), Color32::from_rgb(80, 224, 80), Color32::from_rgb(80, 128, 255)];
-    let at = |heights: [f32; 3], colors: &[Color32; 3], height: f32| {
-        let h = heights.map(|v| flat(4, v));
-        color_at(&rgb_mesh(rect, &h, colors, Blend::Add), pos2(rect.center().x, rect.bottom() - height * rect.height()))
-    };
-    let red_green = sum(&colors, 0b011);
-    assert_eq!(red_green, Color32::from_rgb(255, 255, 160));
-    assert_eq!(at([0.8, 0.5, 0.0], &colors, 0.2), Some(red_green));
-    assert_eq!(at([0.5, 0.8, 0.0], &[colors[1], colors[0], colors[2]], 0.2), Some(red_green), "the same data with the roles swapped");
-    assert_eq!(at([0.5, 0.5, 0.5], &colors, 0.2), Some(WHITE));
-    assert_eq!(at([0.8, 0.5, 0.0], &colors, 0.7), Some(colors[0]));
-    assert_eq!(at([0.5, 0.5, 0.5], &colors, 0.7), None, "nothing above the tallest");
+fn overlaps_combine_the_channels_whatever_their_order_and_crossing() {
+    {
+        let rect = rect();
+        let colors = [Color32::from_rgb(255, 80, 80), Color32::from_rgb(80, 224, 80), Color32::from_rgb(80, 128, 255)];
+        let at = |heights: [f32; 3], colors: &[Color32; 3], height: f32| {
+            let h = heights.map(|v| flat(4, v));
+            color_at(&rgb_mesh(rect, &h, colors, Blend::Add), pos2(rect.center().x, rect.bottom() - height * rect.height()))
+        };
+        let red_green = sum(&colors, 0b011);
+        assert_eq!(red_green, Color32::from_rgb(255, 255, 160));
+        assert_eq!(at([0.8, 0.5, 0.0], &colors, 0.2), Some(red_green));
+        assert_eq!(at([0.5, 0.8, 0.0], &[colors[1], colors[0], colors[2]], 0.2), Some(red_green), "the same data with the roles swapped");
+        assert_eq!(at([0.5, 0.5, 0.5], &colors, 0.2), Some(WHITE));
+        assert_eq!(at([0.8, 0.5, 0.0], &colors, 0.7), Some(colors[0]));
+        assert_eq!(at([0.5, 0.5, 0.5], &colors, 0.7), None, "nothing above the tallest");
 
-    let inks = [Color32::from_rgb(200, 100, 0), Color32::from_rgb(100, 200, 255)];
-    assert_eq!(product(&inks, 0b11), Color32::from_rgb(78, 78, 0));
-    assert_eq!(product(&inks, 0), WHITE);
-    let heights = vec![flat(8, 0.8), flat(8, 0.4)];
-    let at = |blend| color_at(&rgb_mesh(rect, &heights, &inks, blend), pos2(rect.center().x, rect.bottom() - 5.0));
-    assert_eq!(at(Blend::Multiply), Some(Color32::from_rgb(78, 78, 0)));
-    assert_eq!(at(Blend::Add), Some(WHITE));
-}
-
-#[trial]
-fn crossing_channels_keep_the_overlap_colour_under_both() {
-    let rect = rect();
-    let colors = [Color32::from_rgb(255, 0, 0), Color32::from_rgb(0, 255, 0), Color32::from_rgb(0, 0, 255)];
-    let mesh = rgb_mesh(rect, &[vec![0.9, 0.9, 0.1, 0.1], vec![0.1, 0.1, 0.9, 0.9], flat(4, 0.0)], &colors, Blend::Add);
-    for x in [0.1, 0.3, 0.5, 0.7, 0.9] {
-        let point = pos2(rect.left() + x * rect.width(), rect.bottom() - 0.05 * rect.height());
-        assert_eq!(color_at(&mesh, point), Some(Color32::from_rgb(255, 255, 0)), "x = {x}");
+        let inks = [Color32::from_rgb(200, 100, 0), Color32::from_rgb(100, 200, 255)];
+        assert_eq!(product(&inks, 0b11), Color32::from_rgb(78, 78, 0));
+        assert_eq!(product(&inks, 0), WHITE);
+        let heights = vec![flat(8, 0.8), flat(8, 0.4)];
+        let at = |blend| color_at(&rgb_mesh(rect, &heights, &inks, blend), pos2(rect.center().x, rect.bottom() - 5.0));
+        assert_eq!(at(Blend::Multiply), Some(Color32::from_rgb(78, 78, 0)));
+        assert_eq!(at(Blend::Add), Some(WHITE));
+    }
+    {
+        let rect = rect();
+        let colors = [Color32::from_rgb(255, 0, 0), Color32::from_rgb(0, 255, 0), Color32::from_rgb(0, 0, 255)];
+        let mesh = rgb_mesh(rect, &[vec![0.9, 0.9, 0.1, 0.1], vec![0.1, 0.1, 0.9, 0.9], flat(4, 0.0)], &colors, Blend::Add);
+        for x in [0.1, 0.3, 0.5, 0.7, 0.9] {
+            let point = pos2(rect.left() + x * rect.width(), rect.bottom() - 0.05 * rect.height());
+            assert_eq!(color_at(&mesh, point), Some(Color32::from_rgb(255, 255, 0)), "x = {x}");
+        }
     }
 }
 
@@ -284,34 +284,34 @@ fn a_dragged_selection_reports_its_range() {
 }
 
 #[trial]
-fn the_arrow_keys_move_the_selection_edges() {
-    let mut fixture = selection_fixture();
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.key(Key::ArrowRight, Modifiers::NONE);
-    fixture.idle(2);
-    assert_eq!(range_of(&fixture), Some(LevelRange::new(10.0, 21.0)), "the arrow moves the end edge");
-    fixture.key(Key::ArrowLeft, Modifiers::SHIFT);
-    fixture.idle(2);
-    assert_eq!(range_of(&fixture), Some(LevelRange::new(9.0, 21.0)), "Shift moves the start edge");
-}
+fn the_selection_edges_move_by_arrow_and_clear_by_click_or_escape_once() {
+    {
+        let mut fixture = selection_fixture();
+        fixture.key(Key::Tab, Modifiers::NONE);
+        fixture.key(Key::ArrowRight, Modifiers::NONE);
+        fixture.idle(2);
+        assert_eq!(range_of(&fixture), Some(LevelRange::new(10.0, 21.0)), "the arrow moves the end edge");
+        fixture.key(Key::ArrowLeft, Modifiers::SHIFT);
+        fixture.idle(2);
+        assert_eq!(range_of(&fixture), Some(LevelRange::new(9.0, 21.0)), "Shift moves the start edge");
+    }
+    {
+        let mut fixture = selection_fixture();
+        let plot = fixture.by_label("Histogram").expect("the plot is named by its label");
+        fixture.click(&plot);
+        assert_eq!((range_of(&fixture), clears(&fixture)), (None, 1), "a click clears");
+        fixture.click(&plot);
+        assert_eq!(clears(&fixture), 1, "a click without a selection reports nothing");
 
-#[trial]
-fn a_click_or_escape_clears_the_selection_once_and_is_reported() {
-    let mut fixture = selection_fixture();
-    let plot = fixture.by_label("Histogram").expect("the plot is named by its label");
-    fixture.click(&plot);
-    assert_eq!((range_of(&fixture), clears(&fixture)), (None, 1), "a click clears");
-    fixture.click(&plot);
-    assert_eq!(clears(&fixture), 1, "a click without a selection reports nothing");
-
-    let mut fixture = selection_fixture();
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.key(Key::Escape, Modifiers::NONE);
-    fixture.idle(2);
-    assert_eq!((range_of(&fixture), clears(&fixture)), (None, 1), "Escape clears");
-    fixture.key(Key::Escape, Modifiers::NONE);
-    fixture.idle(2);
-    assert_eq!(clears(&fixture), 1);
+        let mut fixture = selection_fixture();
+        fixture.key(Key::Tab, Modifiers::NONE);
+        fixture.key(Key::Escape, Modifiers::NONE);
+        fixture.idle(2);
+        assert_eq!((range_of(&fixture), clears(&fixture)), (None, 1), "Escape clears");
+        fixture.key(Key::Escape, Modifiers::NONE);
+        fixture.idle(2);
+        assert_eq!(clears(&fixture), 1);
+    }
 }
 
 #[trial]

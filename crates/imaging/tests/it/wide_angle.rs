@@ -235,40 +235,40 @@ fn constraints_are_keyboard_parts_that_nudge_and_delete() {
 }
 
 #[trial]
-fn undo_during_a_drag_cancels_the_drag() {
-    let (mut fixture, app) = fixture(Vec::new());
-    let from = screen(&fixture, &app, [100.0, 100.0]);
-    fixture.frame(vec![Event::PointerMoved(from)]);
-    fixture.frame(vec![Event::PointerButton { pos: from, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE }]);
-    fixture.frame(vec![Event::PointerMoved(from + along(80.0, 0.0))]);
-    app.borrow_mut().workspace.step(Step::Undo);
-    fixture.idle(2);
-    fixture.frame(vec![Event::PointerButton {
-        pos: from + along(80.0, 0.0),
-        button: PointerButton::Primary,
-        pressed: false,
-        modifiers: Modifiers::NONE,
-    }]);
-    fixture.idle(2);
-    assert!(constraints(&app).is_empty(), "no constraint from the cancelled drag");
-}
-
-#[trial]
-fn a_tool_switch_during_a_drag_cancels_the_drag() {
-    let (mut fixture, app) = fixture(Vec::new());
-    let from = screen(&fixture, &app, [100.0, 100.0]);
-    fixture.frame(vec![Event::PointerMoved(from)]);
-    fixture.frame(vec![Event::PointerButton { pos: from, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE }]);
-    fixture.frame(vec![Event::PointerMoved(from + along(80.0, 0.0))]);
-    fixture.key(Key::H, Modifiers::NONE);
-    fixture.frame(vec![Event::PointerButton {
-        pos: from + along(80.0, 0.0),
-        button: PointerButton::Primary,
-        pressed: false,
-        modifiers: Modifiers::NONE,
-    }]);
-    fixture.idle(2);
-    assert!(constraints(&app).is_empty(), "no constraint from the cancelled drag");
+fn a_drag_is_cancelled_by_undo_or_a_tool_switch() {
+    {
+        let (mut fixture, app) = fixture(Vec::new());
+        let from = screen(&fixture, &app, [100.0, 100.0]);
+        fixture.frame(vec![Event::PointerMoved(from)]);
+        fixture.frame(vec![Event::PointerButton { pos: from, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE }]);
+        fixture.frame(vec![Event::PointerMoved(from + along(80.0, 0.0))]);
+        app.borrow_mut().workspace.step(Step::Undo);
+        fixture.idle(2);
+        fixture.frame(vec![Event::PointerButton {
+            pos: from + along(80.0, 0.0),
+            button: PointerButton::Primary,
+            pressed: false,
+            modifiers: Modifiers::NONE,
+        }]);
+        fixture.idle(2);
+        assert!(constraints(&app).is_empty(), "no constraint from the cancelled drag");
+    }
+    {
+        let (mut fixture, app) = fixture(Vec::new());
+        let from = screen(&fixture, &app, [100.0, 100.0]);
+        fixture.frame(vec![Event::PointerMoved(from)]);
+        fixture.frame(vec![Event::PointerButton { pos: from, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE }]);
+        fixture.frame(vec![Event::PointerMoved(from + along(80.0, 0.0))]);
+        fixture.key(Key::H, Modifiers::NONE);
+        fixture.frame(vec![Event::PointerButton {
+            pos: from + along(80.0, 0.0),
+            button: PointerButton::Primary,
+            pressed: false,
+            modifiers: Modifiers::NONE,
+        }]);
+        fixture.idle(2);
+        assert!(constraints(&app).is_empty(), "no constraint from the cancelled drag");
+    }
 }
 
 #[trial]

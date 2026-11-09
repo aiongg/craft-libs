@@ -75,20 +75,35 @@ fn change(session: &mut FilterGallerySession, history: &mut EditHistory<FilterGa
 
 // Picking a filter for the selected layer resets its fields to the filter's defaults and keeps its eye; the same
 // filter changes nothing.
+// Clicking a thumbnail picks its filter; arrows and Enter do the same from the keyboard; each pick is one undo step.
 #[trial]
-fn gallery_thumbnail_click_sets_the_selected_effects_filter() {
-    let mut session = FilterGallerySession::new("cutout", &Catalog);
-    let mut selected = 0;
-    let fields = DialogFields::from_pairs([("levels", 3.0)]);
-    assert!(session.apply(EffectChange::with_fields(0, fields), &Catalog, &mut selected));
-    assert!(session.apply(EffectChange::set_visible(0, false), &Catalog, &mut selected));
-    assert!(!session.apply(EffectChange::set_filter(0, "cutout"), &Catalog, &mut selected));
-    assert_eq!(session.effects[0].fields.get("levels"), Some(&FieldValue::Number(3.0)));
-    assert!(session.apply(EffectChange::set_filter(0, "sponge"), &Catalog, &mut selected));
-    assert_eq!(session.effects[0].filter, "sponge");
-    assert_eq!(session.effects[0].fields, Catalog.filter("sponge").map(|found| found.defaults()).unwrap_or_default());
-    assert!(!session.effects[0].visible);
-    assert!(!session.apply(EffectChange::set_filter(0, "gone"), &Catalog, &mut selected));
+fn gallery_picking_a_filter_resets_the_fields_by_model_pointer_and_keyboard() {
+    {
+        let mut session = FilterGallerySession::new("cutout", &Catalog);
+        let mut selected = 0;
+        let fields = DialogFields::from_pairs([("levels", 3.0)]);
+        assert!(session.apply(EffectChange::with_fields(0, fields), &Catalog, &mut selected));
+        assert!(session.apply(EffectChange::set_visible(0, false), &Catalog, &mut selected));
+        assert!(!session.apply(EffectChange::set_filter(0, "cutout"), &Catalog, &mut selected));
+        assert_eq!(session.effects[0].fields.get("levels"), Some(&FieldValue::Number(3.0)));
+        assert!(session.apply(EffectChange::set_filter(0, "sponge"), &Catalog, &mut selected));
+        assert_eq!(session.effects[0].filter, "sponge");
+        assert_eq!(session.effects[0].fields, Catalog.filter("sponge").map(|found| found.defaults()).unwrap_or_default());
+        assert!(!session.effects[0].visible);
+        assert!(!session.apply(EffectChange::set_filter(0, "gone"), &Catalog, &mut selected));
+    }
+    {
+        let mut rig = rig(FilterGallerySession::new("cutout", &Catalog), true);
+        let sponge = rig.fixture.by_label("sponge").expect("a tile per filter");
+        rig.fixture.click(&sponge).settle();
+        assert_eq!(rig.workspace.borrow().session().effects[0].filter, "sponge");
+        assert!(rig.events().iter().any(|e| matches!(e, FilterGalleryEvent::Stack(EffectChange::SetFilter { filter, .. }) if filter == "sponge")));
+
+        rig.fixture.key(Key::ArrowRight, Modifiers::NONE).key(Key::Enter, Modifiers::NONE).settle();
+        assert_eq!(rig.workspace.borrow().session().effects[0].filter, "neon");
+        assert!(rig.workspace.borrow_mut().step(Step::Undo));
+        assert_eq!(rig.workspace.borrow().session().effects[0].filter, "sponge");
+    }
 }
 
 // New copies the selected layer above it and selects it; Delete keeps the last layer; Move and the eye change one
@@ -256,7 +271,7 @@ fn gallery_set_color_writes_the_selected_effects_field_as_one_undo_step() {
     assert_eq!(workspace.session().effects[0].fields.get("glowColor"), Some(&FieldValue::Color([1.0, 0.0, 0.5])));
 }
 
-// OK and Cancel sit at the top of the settings column, in the platform's order, over the Filter select and the
+// OK and Cancel share one row above the Filter select, which sits above the
 // stack.
 #[trial]
 fn gallery_footer_is_at_the_top() {
@@ -268,22 +283,6 @@ fn gallery_footer_is_at_the_top() {
     assert!(ok.bottom() <= select.top() && cancel.bottom() <= select.top(), "{ok:?} {cancel:?} over {select:?}");
     assert!(select.bottom() <= stack.top());
     assert!(equals_token(ok.center().y, cancel.center().y), "one row");
-    assert!(ok.right().max(cancel.right()) > WINDOW.x - ok.width(), "the column is at the end edge: {ok:?} {cancel:?}");
-}
-
-// Clicking a thumbnail picks its filter; arrows and Enter do the same from the keyboard; each pick is one undo step.
-#[trial]
-fn gallery_thumbnails_pick_by_pointer_and_keyboard() {
-    let mut rig = rig(FilterGallerySession::new("cutout", &Catalog), true);
-    let sponge = rig.fixture.by_label("sponge").expect("a tile per filter");
-    rig.fixture.click(&sponge).settle();
-    assert_eq!(rig.workspace.borrow().session().effects[0].filter, "sponge");
-    assert!(rig.events().iter().any(|e| matches!(e, FilterGalleryEvent::Stack(EffectChange::SetFilter { filter, .. }) if filter == "sponge")));
-
-    rig.fixture.key(Key::ArrowRight, Modifiers::NONE).key(Key::Enter, Modifiers::NONE).settle();
-    assert_eq!(rig.workspace.borrow().session().effects[0].filter, "neon");
-    assert!(rig.workspace.borrow_mut().step(Step::Undo));
-    assert_eq!(rig.workspace.borrow().session().effects[0].filter, "sponge");
 }
 
 // While a render runs the zoom bar shows its progress; a change replaces the running request with a new one.

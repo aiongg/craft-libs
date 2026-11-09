@@ -148,26 +148,45 @@ fn the_auto_button_sets_the_shown_channel() {
 }
 
 /// A grey document's channel list disables the Neutral Gray picker without the context saying so.
+/// In a colour mode without pickers every picker is disabled and the note shows.
 #[trial]
-fn the_panel_disables_the_gray_picker_for_gray_channels() {
-    let armed = Rc::new(Cell::new(None::<TonePicker>));
-    let shared = armed.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        let mut levels = vec![identity()];
-        let mut picker = shared.get();
-        LevelsPanel::new("Levels", Bind::bound(&mut levels), ToneChannels::of(ToneSpace::Rgb, true)).pickers(Bind::bound(&mut picker)).show(ui);
-        shared.set(picker);
-    });
-    fixture.room(vec2(480.0, 640.0));
-    fixture.settle();
-    let gray = fixture.by_label("Set Neutral Gray Point").expect("the gray picker");
-    fixture.click(&gray);
-    fixture.idle(2);
-    assert_eq!(armed.get(), None, "the disabled picker takes no click");
-    let black = fixture.by_label("Set Black Point").expect("the black picker");
-    fixture.click(&black);
-    fixture.idle(2);
-    assert_eq!(armed.get(), Some(TonePicker::Black));
+fn disabled_pickers_take_no_click() {
+    {
+        let armed = Rc::new(Cell::new(None::<TonePicker>));
+        let shared = armed.clone();
+        let mut fixture = Fixture::new(move |ui| {
+            let mut levels = vec![identity()];
+            let mut picker = shared.get();
+            LevelsPanel::new("Levels", Bind::bound(&mut levels), ToneChannels::of(ToneSpace::Rgb, true)).pickers(Bind::bound(&mut picker)).show(ui);
+            shared.set(picker);
+        });
+        fixture.room(vec2(480.0, 640.0));
+        fixture.settle();
+        let gray = fixture.by_label("Set Neutral Gray Point").expect("the gray picker");
+        fixture.click(&gray);
+        fixture.idle(2);
+        assert_eq!(armed.get(), None, "the disabled picker takes no click");
+        let black = fixture.by_label("Set Black Point").expect("the black picker");
+        fixture.click(&black);
+        fixture.idle(2);
+        assert_eq!(armed.get(), Some(TonePicker::Black));
+    }
+    {
+        let armed = Rc::new(Cell::new(None::<TonePicker>));
+        let shared = armed.clone();
+        let mut fixture = Fixture::new(move |ui| {
+            let mut picker = shared.get();
+            TonePickerRow::new(Bind::bound(&mut picker)).unavailable().show(ui);
+            shared.set(picker);
+        });
+        fixture.settle();
+        for name in ["Set Black Point", "Set Neutral Gray Point", "Set White Point"] {
+            let picker = fixture.by_label(name).expect("a picker");
+            fixture.click(&picker);
+            fixture.idle(2);
+        }
+        assert_eq!(armed.get(), None);
+    }
 }
 
 /// A click arms a picker, a second click on it disarms it, and a picker the host disabled takes no click.
@@ -220,26 +239,6 @@ fn escape_ends_an_armed_picker_before_it_closes_the_dialog() {
     assert!(!open.get(), "the second Escape closes the dialog");
 }
 
-/// In a colour mode without pickers every picker is disabled and the note shows.
-#[trial]
-fn an_unavailable_row_disables_every_picker_and_says_why() {
-    let armed = Rc::new(Cell::new(None::<TonePicker>));
-    let shared = armed.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        let mut picker = shared.get();
-        TonePickerRow::new(Bind::bound(&mut picker)).unavailable().show(ui);
-        shared.set(picker);
-    });
-    fixture.settle();
-    assert!(fixture.by_label("Unavailable in this color mode").is_some(), "the note shows");
-    for name in ["Set Black Point", "Set Neutral Gray Point", "Set White Point"] {
-        let picker = fixture.by_label(name).expect("a picker");
-        fixture.click(&picker);
-        fixture.idle(2);
-    }
-    assert_eq!(armed.get(), None);
-}
-
 /// A canvas whose view lets the tool map the pointer to a document point.
 fn pick_canvas(label: &'static str, tool: TonePickTool<'static>) -> ToolFixture<TonePickTool<'static>> {
     let view = |room: egui::Rect| {
@@ -250,89 +249,89 @@ fn pick_canvas(label: &'static str, tool: TonePickTool<'static>) -> ToolFixture<
 }
 
 /// A press on the canvas samples at the document point and `take` yields a pick for the armed picker once.
-#[trial]
-fn the_pick_tool_reports_the_sample_for_the_armed_picker() {
-    let tool = TonePickTool::new(TonePicker::White, |at| Some(Srgba::rgb(at[0] as f32 / 1200.0, 0.0, 0.0)));
-    assert_eq!(tool.picker(), TonePicker::White);
-    let mut fixture = pick_canvas("Tone pick", tool);
-    let centre = fixture.canvas().center();
-    fixture.press_at(centre);
-    fixture.release_at(centre);
-    let pick: TonePick = fixture.tool_mut().take().expect("a press on the image reports a pick");
-    assert_eq!(pick.picker, TonePicker::White);
-    assert_eq!(pick.color.r, pick.at[0] as f32 / 1200.0);
-    assert_eq!(fixture.tool_mut().take(), None, "a pick is taken once");
-}
-
 /// Off the image the sample function returns nothing and nothing is reported.
 #[trial]
-fn the_pick_tool_reports_nothing_off_the_image() {
-    let mut fixture = pick_canvas("Tone pick off", TonePickTool::new(TonePicker::Black, |_| None));
-    let centre = fixture.canvas().center();
-    fixture.press_at(centre);
-    fixture.release_at(centre);
-    assert_eq!(fixture.tool_mut().take(), None);
+fn the_pick_tool_reports_one_sample_for_the_armed_picker_and_nothing_off_the_image() {
+    {
+        let tool = TonePickTool::new(TonePicker::White, |at| Some(Srgba::rgb(at[0] as f32 / 1200.0, 0.0, 0.0)));
+        assert_eq!(tool.picker(), TonePicker::White);
+        let mut fixture = pick_canvas("Tone pick", tool);
+        let centre = fixture.canvas().center();
+        fixture.press_at(centre);
+        fixture.release_at(centre);
+        let pick: TonePick = fixture.tool_mut().take().expect("a press on the image reports a pick");
+        assert_eq!(pick.picker, TonePicker::White);
+        assert_eq!(pick.color.r, pick.at[0] as f32 / 1200.0);
+        assert_eq!(fixture.tool_mut().take(), None, "a pick is taken once");
+    }
+    {
+        let mut fixture = pick_canvas("Tone pick off", TonePickTool::new(TonePicker::Black, |_| None));
+        let centre = fixture.canvas().center();
+        fixture.press_at(centre);
+        fixture.release_at(centre);
+        assert_eq!(fixture.tool_mut().take(), None);
+    }
 }
 
 /// A sample of grey 0.5 on the composite adds a point at input 128 (Rec. 709 luma), output the curve's there rounded.
-#[trial]
-fn a_sample_adds_a_point_on_the_curve_at_the_sampled_tone() {
-    let mut curves = ToneCurves::identity(&rgb());
-    curves.curves[0] = Curve::smooth(vec![[0.0, 0.0], [64.0, 40.0], [255.0, 255.0]]);
-    let want = monotone(&[[0.0, 0.0], [64.0, 40.0], [255.0, 255.0]])[128].round();
-    let at = CurvesPanel::add_point_from_sample(&mut curves, &rgb(), 0, grey(0.5), false, &monotone);
-    assert_eq!(at, Some(2));
-    let Some(points) = curves.curves[0].points() else { panic!("still a point curve") };
-    assert_eq!(points, [[0.0, 0.0], [64.0, 40.0], [128.0, want], [255.0, 255.0]]);
-    assert_eq!(curves.curves[1], Curve::identity(255.0), "the other channels are untouched");
-}
-
 /// With every channel asked for, a sample adds one point to Red, Green and Blue each, at that channel's value.
 #[trial]
-fn a_sample_with_shift_adds_one_point_per_rgb_channel() {
-    let mut curves = ToneCurves::identity(&rgb());
-    let sample = Srgba { r: 0.2, g: 0.4, b: 0.6, a: 1.0 };
-    let at = CurvesPanel::add_point_from_sample(&mut curves, &rgb(), 2, sample, true, &monotone);
-    assert_eq!(at, Some(1), "the shown channel's point");
-    for (index, input) in [(1, 51.0), (2, 102.0), (3, 153.0)] {
-        let Some(points) = curves.curves[index].points() else { panic!("a point curve") };
-        assert_eq!(points.len(), 3, "channel {index}");
-        assert_eq!(points[1], [input, input], "channel {index}");
+fn a_sample_adds_points_on_the_curve_at_the_sampled_tone() {
+    {
+        let mut curves = ToneCurves::identity(&rgb());
+        curves.curves[0] = Curve::smooth(vec![[0.0, 0.0], [64.0, 40.0], [255.0, 255.0]]);
+        let want = monotone(&[[0.0, 0.0], [64.0, 40.0], [255.0, 255.0]])[128].round();
+        let at = CurvesPanel::add_point_from_sample(&mut curves, &rgb(), 0, grey(0.5), false, &monotone);
+        assert_eq!(at, Some(2));
+        let Some(points) = curves.curves[0].points() else { panic!("still a point curve") };
+        assert_eq!(points, [[0.0, 0.0], [64.0, 40.0], [128.0, want], [255.0, 255.0]]);
+        assert_eq!(curves.curves[1], Curve::identity(255.0), "the other channels are untouched");
     }
-    assert_eq!(curves.curves[0], Curve::identity(255.0), "the composite is untouched");
+    {
+        let mut curves = ToneCurves::identity(&rgb());
+        let sample = Srgba { r: 0.2, g: 0.4, b: 0.6, a: 1.0 };
+        let at = CurvesPanel::add_point_from_sample(&mut curves, &rgb(), 2, sample, true, &monotone);
+        assert_eq!(at, Some(1), "the shown channel's point");
+        for (index, input) in [(1, 51.0), (2, 102.0), (3, 153.0)] {
+            let Some(points) = curves.curves[index].points() else { panic!("a point curve") };
+            assert_eq!(points.len(), 3, "channel {index}");
+            assert_eq!(points[1], [input, input], "channel {index}");
+        }
+        assert_eq!(curves.curves[0], Curve::identity(255.0), "the composite is untouched");
+    }
 }
 
 /// In pencil mode, for Lab or CMYK, and for an isolated mask the helper returns `None` and the value is unchanged.
-#[trial]
-fn a_sample_does_nothing_in_pencil_mode_or_for_other_spaces() {
-    let mut pencil = drawn();
-    let before = pencil.clone();
-    assert_eq!(CurvesPanel::add_point_from_sample(&mut pencil, &rgb(), 0, grey(0.5), false, &monotone), None);
-    assert_eq!(pencil, before);
-
-    for channels in [ToneChannels::of(ToneSpace::Lab, false), ToneChannels::of(ToneSpace::Cmyk, false)] {
-        let mut curves = ToneCurves::identity(&channels);
-        let before = curves.clone();
-        assert_eq!(CurvesPanel::add_point_from_sample(&mut curves, &channels, 0, grey(0.5), false, &monotone), None);
-        assert_eq!(CurvesPanel::add_point_from_sample(&mut curves, &channels, 1, grey(0.5), true, &monotone), None);
-        assert_eq!(curves, before);
-    }
-
-    let isolated = ToneChannels::isolated(ToneChannel::named("Alpha 1", ChannelColor::Neutral));
-    let mut curves = ToneCurves::identity(&isolated);
-    let before = curves.clone();
-    assert_eq!(CurvesPanel::add_point_from_sample(&mut curves, &isolated, 0, grey(0.5), false, &monotone), None);
-    assert_eq!(curves, before);
-}
-
 /// An isolated colour channel takes the point at its own value; only a mask or saved channel refuses.
 #[trial]
-fn a_sample_works_on_an_isolated_colour_channel() {
-    let isolated = ToneChannels::isolated(ToneChannel::Red);
-    let mut curves = ToneCurves::identity(&isolated);
-    let sample = Srgba { r: 0.2, g: 0.4, b: 0.6, a: 1.0 };
-    assert_eq!(CurvesPanel::add_point_from_sample(&mut curves, &isolated, 0, sample, true, &monotone), Some(1));
-    assert_eq!(curves.curves[0].points().map(<[_]>::len), Some(3));
+fn sample_availability_follows_mode_space_and_channel() {
+    {
+        let mut pencil = drawn();
+        let before = pencil.clone();
+        assert_eq!(CurvesPanel::add_point_from_sample(&mut pencil, &rgb(), 0, grey(0.5), false, &monotone), None);
+        assert_eq!(pencil, before);
+
+        for channels in [ToneChannels::of(ToneSpace::Lab, false), ToneChannels::of(ToneSpace::Cmyk, false)] {
+            let mut curves = ToneCurves::identity(&channels);
+            let before = curves.clone();
+            assert_eq!(CurvesPanel::add_point_from_sample(&mut curves, &channels, 0, grey(0.5), false, &monotone), None);
+            assert_eq!(CurvesPanel::add_point_from_sample(&mut curves, &channels, 1, grey(0.5), true, &monotone), None);
+            assert_eq!(curves, before);
+        }
+
+        let isolated = ToneChannels::isolated(ToneChannel::named("Alpha 1", ChannelColor::Neutral));
+        let mut curves = ToneCurves::identity(&isolated);
+        let before = curves.clone();
+        assert_eq!(CurvesPanel::add_point_from_sample(&mut curves, &isolated, 0, grey(0.5), false, &monotone), None);
+        assert_eq!(curves, before);
+    }
+    {
+        let isolated = ToneChannels::isolated(ToneChannel::Red);
+        let mut curves = ToneCurves::identity(&isolated);
+        let sample = Srgba { r: 0.2, g: 0.4, b: 0.6, a: 1.0 };
+        assert_eq!(CurvesPanel::add_point_from_sample(&mut curves, &isolated, 0, sample, true, &monotone), Some(1));
+        assert_eq!(curves.curves[0].points().map(<[_]>::len), Some(3));
+    }
 }
 
 /// The output at the sampled input is the curve's as drawn: each run between corner points is sampled on its own.

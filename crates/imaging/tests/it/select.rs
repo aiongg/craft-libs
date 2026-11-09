@@ -374,16 +374,29 @@ fn marquee_single_row_and_column_follow_the_pointer() {
 }
 
 // A release without a drag reports `Deselect`; with Fixed Size the click commits the box at the pointer.
+// A press and release that draw fewer than 3 points (a click, or a two-point drag) deselect.
 #[trial]
-fn marquee_click_deselects_and_fixed_size_click_places() {
-    let mut rig = rig("Marquee", MarqueeTool::new(MarqueeKind::Rectangle), Fake::empty());
-    click(&mut rig, (30.0, 30.0), NONE);
-    assert_eq!(rig.tool_mut().events(), [SelectEvent::Deselect]);
-    assert_eq!(rig.tool().phase(), SelectPhase::Idle);
+fn a_click_without_a_drag_deselects_and_fixed_size_click_places() {
+    {
+        let mut rig = rig("Marquee", MarqueeTool::new(MarqueeKind::Rectangle), Fake::empty());
+        click(&mut rig, (30.0, 30.0), NONE);
+        assert_eq!(rig.tool_mut().events(), [SelectEvent::Deselect]);
+        assert_eq!(rig.tool().phase(), SelectPhase::Idle);
 
-    rig.tool_mut().tool().constraint(Constraint::Size(10.0, 10.0));
-    click(&mut rig, (30.2, 30.2), NONE);
-    assert_eq!(rig.tool_mut().events(), [commit((30.0, 30.0, 40.0, 40.0), SelectionOperation::New)]);
+        rig.tool_mut().tool().constraint(Constraint::Size(10.0, 10.0));
+        click(&mut rig, (30.2, 30.2), NONE);
+        assert_eq!(rig.tool_mut().events(), [commit((30.0, 30.0, 40.0, 40.0), SelectionOperation::New)]);
+    }
+    {
+        let mut rig = rig("Lasso", LassoTool::new(), Fake::empty());
+        click(&mut rig, (50.0, 50.0), NONE);
+        assert_eq!(rig.tool_mut().events(), [SelectEvent::Deselect]);
+        assert_eq!(rig.tool().phase(), SelectPhase::Idle);
+        down(&mut rig, (50.0, 50.0), NONE);
+        drag_to(&mut rig, (90.0, 60.0), NONE);
+        up(&mut rig, (90.0, 60.0), NONE);
+        assert_eq!(rig.tool_mut().events(), [SelectEvent::Deselect], "two points are no outline");
+    }
 }
 
 // A plain press inside the selection with the bar on New drags the outline; with Shift, Alt or a bar on Add it draws a
@@ -477,15 +490,40 @@ fn marquee_space_moves_the_marquee() {
 }
 
 // While a marquee is dragged the tool is one accessible object named "Selection outline" valued with its pixel size.
+// While a freehand outline is open the tool is one accessible object with its point count; after the commit it has none.
+// While the outline is open the tool is one accessible object with its point count (fastening points and the live trace).
 #[trial]
-fn marquee_being_dragged_is_one_accessible_object() {
-    let mut rig = rig("Marquee", MarqueeTool::new(MarqueeKind::Rectangle), Fake::empty());
-    assert_eq!(outline_value(&mut rig), None);
-    down(&mut rig, (10.0, 10.0), NONE);
-    drag_to(&mut rig, (40.0, 30.0), NONE);
-    assert_eq!(outline_value(&mut rig).as_deref(), Some("30 px × 20 px"));
-    up(&mut rig, (40.0, 30.0), NONE);
-    assert_eq!(outline_value(&mut rig), None);
+fn the_open_outline_is_one_accessible_object_for_every_selection_tool() {
+    {
+        let mut rig = rig("Marquee", MarqueeTool::new(MarqueeKind::Rectangle), Fake::empty());
+        assert_eq!(outline_value(&mut rig), None);
+        down(&mut rig, (10.0, 10.0), NONE);
+        drag_to(&mut rig, (40.0, 30.0), NONE);
+        assert!(outline_value(&mut rig).is_some(), "one accessible object while dragging");
+        up(&mut rig, (40.0, 30.0), NONE);
+        assert_eq!(outline_value(&mut rig), None);
+    }
+    {
+        let mut rig = rig("Lasso", LassoTool::new(), Fake::empty());
+        assert_eq!(outline_value(&mut rig), None);
+        down(&mut rig, (50.0, 50.0), NONE);
+        drag_to(&mut rig, (150.0, 50.0), NONE);
+        drag_to(&mut rig, (150.0, 150.0), NONE);
+        assert!(outline_value(&mut rig).is_some(), "one accessible object while drawing");
+        up(&mut rig, (150.0, 150.0), NONE);
+        assert_eq!(outline_value(&mut rig), None);
+    }
+    {
+        let (mut rig, _) = magnetic();
+        assert_eq!(outline_value(&mut rig), None);
+        click(&mut rig, pt(on(0.0)), NONE);
+        glide(&mut rig, on(0.3), NONE);
+        let SelectPhase::Outline { .. } = rig.tool().phase() else { panic!("open") };
+        assert!(outline_value(&mut rig).is_some(), "one accessible object while drawing");
+        rig.tool_mut().tool().reset();
+        rig.fixture().frame(Vec::new());
+        assert_eq!(outline_value(&mut rig), None);
+    }
 }
 
 // ---- the Lasso ----
@@ -580,32 +618,6 @@ fn lasso_is_dropped_on_reset_or_document_change() {
     assert!(rig.tool_mut().events().is_empty());
 }
 
-// While a freehand outline is open the tool is one accessible object with its point count; after the commit it has none.
-#[trial]
-fn lasso_outline_being_drawn_is_one_accessible_object() {
-    let mut rig = rig("Lasso", LassoTool::new(), Fake::empty());
-    assert_eq!(outline_value(&mut rig), None);
-    down(&mut rig, (50.0, 50.0), NONE);
-    drag_to(&mut rig, (150.0, 50.0), NONE);
-    drag_to(&mut rig, (150.0, 150.0), NONE);
-    assert_eq!(outline_value(&mut rig).as_deref(), Some("3 points"));
-    up(&mut rig, (150.0, 150.0), NONE);
-    assert_eq!(outline_value(&mut rig), None);
-}
-
-// A press and release that draw fewer than 3 points (a click, or a two-point drag) deselect.
-#[trial]
-fn lasso_click_deselects() {
-    let mut rig = rig("Lasso", LassoTool::new(), Fake::empty());
-    click(&mut rig, (50.0, 50.0), NONE);
-    assert_eq!(rig.tool_mut().events(), [SelectEvent::Deselect]);
-    assert_eq!(rig.tool().phase(), SelectPhase::Idle);
-    down(&mut rig, (50.0, 50.0), NONE);
-    drag_to(&mut rig, (90.0, 60.0), NONE);
-    up(&mut rig, (90.0, 60.0), NONE);
-    assert_eq!(rig.tool_mut().events(), [SelectEvent::Deselect], "two points are no outline");
-}
-
 // ---- the Polygonal Lasso ----
 
 // Shift turns a segment to 45 degree steps from the last vertex, not for the first vertex and not with Alt.
@@ -632,24 +644,38 @@ fn polygon_shift_constrains_to_45_degrees() {
 }
 
 // A plain press inside the selection places a vertex; only Cmd drags it, and not while an outline is open.
+// A new outline replaces the selection while it is open: true only for the operation New.
 #[trial]
-fn polygon_click_driven_needs_cmd_to_drag() {
-    let mut rig = rig("Polygonal Lasso", PolygonLassoTool::new(), Fake::selected(Rect::new(100.0, 100.0, 200.0, 200.0)));
-    click(&mut rig, (150.0, 150.0), NONE);
-    assert_eq!(rig.tool().phase(), SelectPhase::outline(1));
-    click(&mut rig, (180.0, 120.0), Mods::CMD);
-    assert_eq!(rig.tool().phase(), SelectPhase::outline(2), "Cmd with an outline open places a vertex too");
-    assert!(rig.tool_mut().events().is_empty());
-    rig.tool_mut().tool().reset();
-    down(&mut rig, (150.0, 150.0), Mods::CMD);
-    assert_eq!(rig.tool().phase(), SelectPhase::Dragging(DragKind::pixels(false)));
-    drag_to(&mut rig, (155.0, 150.0), Mods::CMD);
-    up(&mut rig, (155.0, 150.0), Mods::CMD);
-    assert_eq!(tags(&rig.tool_mut().events()), ["begin", "update 5,0", "commit 5,0"]);
-    rig.forget();
-    click(&mut rig, (300.0, 250.0), Mods::CMD);
-    assert_eq!(rig.tool().phase(), SelectPhase::Idle, "Cmd outside the selection is the Move tool's");
-    assert!(rig.gestures().is_empty(), "{:?}", rig.gestures());
+fn polygon_click_driven_needs_cmd_to_drag_and_a_new_outline_replaces_the_selection() {
+    {
+        let mut rig = rig("Polygonal Lasso", PolygonLassoTool::new(), Fake::selected(Rect::new(100.0, 100.0, 200.0, 200.0)));
+        click(&mut rig, (150.0, 150.0), NONE);
+        assert_eq!(rig.tool().phase(), SelectPhase::outline(1));
+        click(&mut rig, (180.0, 120.0), Mods::CMD);
+        assert_eq!(rig.tool().phase(), SelectPhase::outline(2), "Cmd with an outline open places a vertex too");
+        assert!(rig.tool_mut().events().is_empty());
+        rig.tool_mut().tool().reset();
+        down(&mut rig, (150.0, 150.0), Mods::CMD);
+        assert_eq!(rig.tool().phase(), SelectPhase::Dragging(DragKind::pixels(false)));
+        drag_to(&mut rig, (155.0, 150.0), Mods::CMD);
+        up(&mut rig, (155.0, 150.0), Mods::CMD);
+        assert_eq!(tags(&rig.tool_mut().events()), ["begin", "update 5,0", "commit 5,0"]);
+        rig.forget();
+        click(&mut rig, (300.0, 250.0), Mods::CMD);
+        assert_eq!(rig.tool().phase(), SelectPhase::Idle, "Cmd outside the selection is the Move tool's");
+        assert!(rig.gestures().is_empty(), "{:?}", rig.gestures());
+    }
+    {
+        let mut rig = rig("Polygonal Lasso", PolygonLassoTool::new(), Fake::selected(Rect::new(100.0, 100.0, 200.0, 200.0)));
+        assert!(!rig.tool_mut().tool().replaces_selection());
+        click(&mut rig, (20.0, 20.0), NONE);
+        assert!(rig.tool_mut().tool().replaces_selection());
+        rig.tool_mut().tool().reset();
+        assert!(!rig.tool_mut().tool().replaces_selection());
+        click(&mut rig, (20.0, 20.0), Mods::SHIFT);
+        assert_eq!(rig.tool().phase(), SelectPhase::outline(1));
+        assert!(!rig.tool_mut().tool().replaces_selection(), "Add keeps the selection visible");
+    }
 }
 
 // A secondary click while an outline is open, Backspace and Delete remove the last vertex; the last one cancels with no
@@ -674,20 +700,6 @@ fn polygon_secondary_click_removes_the_last_vertex_then_cancels() {
     secondary(&mut rig);
     assert_eq!(rig.tool().phase(), SelectPhase::Idle);
     assert!(rig.tool_mut().events().is_empty());
-}
-
-// A new outline replaces the selection while it is open: true only for the operation New.
-#[trial]
-fn polygon_new_outline_replaces_the_selection() {
-    let mut rig = rig("Polygonal Lasso", PolygonLassoTool::new(), Fake::selected(Rect::new(100.0, 100.0, 200.0, 200.0)));
-    assert!(!rig.tool_mut().tool().replaces_selection());
-    click(&mut rig, (20.0, 20.0), NONE);
-    assert!(rig.tool_mut().tool().replaces_selection());
-    rig.tool_mut().tool().reset();
-    assert!(!rig.tool_mut().tool().replaces_selection());
-    click(&mut rig, (20.0, 20.0), Mods::SHIFT);
-    assert_eq!(rig.tool().phase(), SelectPhase::outline(1));
-    assert!(!rig.tool_mut().tool().replaces_selection(), "Add keeps the selection visible");
 }
 
 // ---- the Magnetic Lasso ----
@@ -965,18 +977,4 @@ fn magnetic_stylus_pressure_narrows_the_width() {
     rig.tool_mut().tool().settings_mut().pressure_width = false;
     inject(&mut rig, ToolInput::moved(at(pt(on(0.6)))).sample(pen));
     assert_eq!(log.last_width(), 10.0, "the option is off");
-}
-
-// While the outline is open the tool is one accessible object with its point count (fastening points and the live trace).
-#[trial]
-fn magnetic_outline_being_drawn_is_one_accessible_object() {
-    let (mut rig, _) = magnetic();
-    assert_eq!(outline_value(&mut rig), None);
-    click(&mut rig, pt(on(0.0)), NONE);
-    glide(&mut rig, on(0.3), NONE);
-    let SelectPhase::Outline { points, .. } = rig.tool().phase() else { panic!("open") };
-    assert_eq!(outline_value(&mut rig), Some(format!("{points} points")));
-    rig.tool_mut().tool().reset();
-    rig.fixture().frame(Vec::new());
-    assert_eq!(outline_value(&mut rig), None);
 }

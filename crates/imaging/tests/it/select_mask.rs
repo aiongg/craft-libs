@@ -295,27 +295,37 @@ fn select_mask_brush_sizes_are_per_tool_and_alt_reverses_the_mode() {
 }
 
 #[trial]
-fn select_mask_release_uses_the_gestures_own_tool() {
-    let mut fixture = rig(SelectMaskTool::Quick, true);
-    let origin = at(0.0, 0.0);
-    fixture.press_at(origin + Vec2::new(100.0, 100.0));
-    fixture.tool_mut().tool = SelectMaskTool::Brush;
-    fixture.move_to(origin + Vec2::new(160.0, 100.0));
-    fixture.tool_mut().tool = SelectMaskTool::RefineEdge;
-    fixture.release_at(origin + Vec2::new(160.0, 100.0));
-    let got = events(&fixture);
-    assert_eq!(tags(&got), ["begin", "update", "commit"], "{got:?}");
-    assert!(got.iter().all(|e| matches!(e, SelectMaskEvent::Edit(_))), "{got:?}");
-    assert!(matches!(committed(&got), SelectMaskEdit::Quick { .. }), "{got:?}");
+fn select_mask_a_gesture_keeps_its_own_tool_and_the_secondary_button_is_taken_by_brushes_with_alt_only() {
+    {
+        for (tool, brush) in [(SelectMaskTool::Quick, true), (SelectMaskTool::Lasso, false), (SelectMaskTool::Object, false)] {
+            let pass = Rig::new(tool, false);
+            assert!(pass.takes(PointerButton::Primary, Mods::NONE));
+            assert!(!pass.takes(PointerButton::Secondary, Mods::NONE));
+            assert_eq!(pass.takes(PointerButton::Secondary, Mods::ALT), brush);
+        }
+    }
+    {
+        let mut fixture = rig(SelectMaskTool::Quick, true);
+        let origin = at(0.0, 0.0);
+        fixture.press_at(origin + Vec2::new(100.0, 100.0));
+        fixture.tool_mut().tool = SelectMaskTool::Brush;
+        fixture.move_to(origin + Vec2::new(160.0, 100.0));
+        fixture.tool_mut().tool = SelectMaskTool::RefineEdge;
+        fixture.release_at(origin + Vec2::new(160.0, 100.0));
+        let got = events(&fixture);
+        assert_eq!(tags(&got), ["begin", "update", "commit"], "{got:?}");
+        assert!(got.iter().all(|e| matches!(e, SelectMaskEvent::Edit(_))), "{got:?}");
+        assert!(matches!(committed(&got), SelectMaskEdit::Quick { .. }), "{got:?}");
 
-    let mut fixture = rig(SelectMaskTool::RefineEdge, false);
-    let origin = at(0.0, 0.0);
-    fixture.press_at(origin + Vec2::new(100.0, 100.0));
-    fixture.tool_mut().tool = SelectMaskTool::Quick;
-    fixture.release_at(origin + Vec2::new(160.0, 100.0));
-    let got = events(&fixture);
-    assert_eq!(tags(&got), ["begin", "commit"], "{got:?}");
-    assert!(got.iter().all(|e| matches!(e, SelectMaskEvent::Refine(_))), "{got:?}");
+        let mut fixture = rig(SelectMaskTool::RefineEdge, false);
+        let origin = at(0.0, 0.0);
+        fixture.press_at(origin + Vec2::new(100.0, 100.0));
+        fixture.tool_mut().tool = SelectMaskTool::Quick;
+        fixture.release_at(origin + Vec2::new(160.0, 100.0));
+        let got = events(&fixture);
+        assert_eq!(tags(&got), ["begin", "commit"], "{got:?}");
+        assert!(got.iter().all(|e| matches!(e, SelectMaskEvent::Refine(_))), "{got:?}");
+    }
 }
 
 #[trial]
@@ -332,16 +342,6 @@ fn select_mask_stroke_trail_stays_until_the_preview_shows_it() {
     assert!(fixture.tool().canvas.trail_shown());
     fixture.press_at(origin + Vec2::new(20.0, 20.0));
     assert!(!fixture.tool().canvas.trail_shown(), "a new press drops the old trail");
-}
-
-#[trial]
-fn select_mask_secondary_button_is_taken_by_brushes_with_alt_only() {
-    for (tool, brush) in [(SelectMaskTool::Quick, true), (SelectMaskTool::Lasso, false), (SelectMaskTool::Object, false)] {
-        let pass = Rig::new(tool, false);
-        assert!(pass.takes(PointerButton::Primary, Mods::NONE));
-        assert!(!pass.takes(PointerButton::Secondary, Mods::NONE));
-        assert_eq!(pass.takes(PointerButton::Secondary, Mods::ALT), brush);
-    }
 }
 
 // ---- The session and its data ----
@@ -378,22 +378,32 @@ fn select_mask_limits_refuse_at_the_brush_with_a_message() {
 }
 
 #[trial]
-fn select_mask_decontaminate_limits_output_to_new_targets() {
-    let mut refine = SelectMaskSession::default().refine;
-    refine.follow_decontaminate();
-    assert_eq!(refine.output, OutputTo::Selection, "nothing moves while Decontaminate Colors is off");
-    for start in [OutputTo::Selection, OutputTo::LayerMask] {
-        refine.output = start;
-        refine.decontaminate = true;
+fn select_mask_decontaminate_moves_the_output_to_new_targets_only() {
+    {
+        let mut refine = SelectMaskSession::default().refine;
         refine.follow_decontaminate();
-        assert_eq!(refine.output, OutputTo::NewLayerWithMask);
+        assert_eq!(refine.output, OutputTo::Selection, "nothing moves while Decontaminate Colors is off");
+        for start in [OutputTo::Selection, OutputTo::LayerMask] {
+            refine.output = start;
+            refine.decontaminate = true;
+            refine.follow_decontaminate();
+            assert_eq!(refine.output, OutputTo::NewLayerWithMask);
+        }
+        refine.output = OutputTo::NewDocument;
+        refine.follow_decontaminate();
+        assert_eq!(refine.output, OutputTo::NewDocument, "a new target stays");
+        let allowed: Vec<OutputTo> = OutputTo::ALL.into_iter().filter(|o| o.allowed(true)).collect();
+        assert_eq!(allowed, [OutputTo::NewLayer, OutputTo::NewLayerWithMask, OutputTo::NewDocument, OutputTo::NewDocumentWithMask]);
+        assert!(OutputTo::ALL.into_iter().all(|o| o.allowed(false)));
     }
-    refine.output = OutputTo::NewDocument;
-    refine.follow_decontaminate();
-    assert_eq!(refine.output, OutputTo::NewDocument, "a new target stays");
-    let allowed: Vec<OutputTo> = OutputTo::ALL.into_iter().filter(|o| o.allowed(true)).collect();
-    assert_eq!(allowed, [OutputTo::NewLayer, OutputTo::NewLayerWithMask, OutputTo::NewDocument, OutputTo::NewDocumentWithMask]);
-    assert!(OutputTo::ALL.into_iter().all(|o| o.allowed(false)));
+    {
+        let (mut fixture, app, _) = open();
+        assert_eq!(app.borrow().workspace.session().refine.output, OutputTo::Selection);
+        press_label(&mut fixture, "Decontaminate Colors");
+        let refine = app.borrow().workspace.session().refine.clone();
+        assert!(refine.decontaminate);
+        assert_eq!(refine.output, OutputTo::NewLayerWithMask, "Output To follows Decontaminate Colors");
+    }
 }
 
 #[trial]
@@ -431,29 +441,44 @@ fn select_mask_command_matches_the_engine_params() {
 }
 
 #[trial]
-fn select_mask_settings_round_trip_and_carry_the_view() {
-    let defaults = SelectMaskSettings::default();
-    assert_eq!(defaults.view, MaskViewMode::OnionSkin);
-    assert_eq!(defaults.overlay_color, [255, 0, 0]);
-    assert!(defaults.real_time && !defaults.high_quality && !defaults.remember);
-    let empty: SelectMaskSettings = serde_json::from_str("{}").unwrap_or_default();
-    assert_eq!(empty, defaults);
-    let mut settings = defaults.clone();
-    settings.view = MaskViewMode::Overlay;
-    settings.show_edge = true;
-    settings.overlay_color = [12, 200, 77];
-    settings.opacities[2] = 35.0;
-    settings.refine.shift_edge = -40.0;
-    settings.remember = true;
-    let text = serde_json::to_string(&settings).unwrap_or_default();
-    assert_eq!(serde_json::from_str::<SelectMaskSettings>(&text).ok(), Some(settings.clone()));
-    let state = settings.view_state();
-    assert_eq!(state.mode, MaskViewMode::Overlay);
-    assert!(state.show_edge && !state.hide_view);
-    let mut other = SelectMaskSettings::default();
-    other.take_view(&state);
-    assert_eq!((other.view, other.show_edge, other.overlay_color, other.opacities), (settings.view, true, [12, 200, 77], settings.opacities));
-    assert_eq!(SelectMaskSettings::default().view_state(), MaskViewState::default());
+fn select_mask_settings_round_trip_and_the_view_keys_carry_the_view() {
+    {
+        let defaults = SelectMaskSettings::default();
+        assert_eq!(defaults.view, MaskViewMode::OnionSkin);
+        assert_eq!(defaults.overlay_color, [255, 0, 0]);
+        assert!(defaults.real_time && !defaults.high_quality && !defaults.remember);
+        let empty: SelectMaskSettings = serde_json::from_str("{}").unwrap_or_default();
+        assert_eq!(empty, defaults);
+        let mut settings = defaults.clone();
+        settings.view = MaskViewMode::Overlay;
+        settings.show_edge = true;
+        settings.overlay_color = [12, 200, 77];
+        settings.opacities[2] = 35.0;
+        settings.refine.shift_edge = -40.0;
+        settings.remember = true;
+        let text = serde_json::to_string(&settings).unwrap_or_default();
+        assert_eq!(serde_json::from_str::<SelectMaskSettings>(&text).ok(), Some(settings.clone()));
+        let state = settings.view_state();
+        assert_eq!(state.mode, MaskViewMode::Overlay);
+        assert!(state.show_edge && !state.hide_view);
+        let mut other = SelectMaskSettings::default();
+        other.take_view(&state);
+        assert_eq!((other.view, other.show_edge, other.overlay_color, other.opacities), (settings.view, true, [12, 200, 77], settings.opacities));
+        assert_eq!(SelectMaskSettings::default().view_state(), MaskViewState::default());
+    }
+    {
+        let (mut fixture, app, _) = open();
+        assert!(app.borrow_mut().workspace.mask_view(MaskViewKeys::Overlay, FirePhase::Press));
+        assert_eq!(app.borrow().workspace.recipe().mode, MaskViewMode::Overlay);
+        assert!(app.borrow_mut().workspace.mask_view(MaskViewKeys::HideView, FirePhase::Press));
+        assert!(app.borrow().workspace.recipe().hidden, "X held shows the image");
+        assert!(app.borrow_mut().workspace.mask_view(MaskViewKeys::HideView, FirePhase::Release));
+        assert!(!app.borrow().workspace.recipe().hidden);
+        fixture.settle();
+        assert_eq!(app.borrow().workspace.settings().view, MaskViewMode::Overlay, "the settings carry the view");
+        press_label(&mut fixture, "Remember Settings");
+        assert!(app.borrow().workspace.settings().remember);
+    }
 }
 
 // ---- The workspace, on a fixture ----
@@ -587,31 +612,6 @@ fn select_mask_reset_is_one_undo_step_that_keeps_what_it_replaced() {
 }
 
 #[trial]
-fn select_mask_decontaminate_moves_the_output_target() {
-    let (mut fixture, app, _) = open();
-    assert_eq!(app.borrow().workspace.session().refine.output, OutputTo::Selection);
-    press_label(&mut fixture, "Decontaminate Colors");
-    let refine = app.borrow().workspace.session().refine.clone();
-    assert!(refine.decontaminate);
-    assert_eq!(refine.output, OutputTo::NewLayerWithMask, "Output To follows Decontaminate Colors");
-}
-
-#[trial]
-fn select_mask_view_keys_and_remember_settings() {
-    let (mut fixture, app, _) = open();
-    assert!(app.borrow_mut().workspace.mask_view(MaskViewKeys::Overlay, FirePhase::Press));
-    assert_eq!(app.borrow().workspace.recipe().mode, MaskViewMode::Overlay);
-    assert!(app.borrow_mut().workspace.mask_view(MaskViewKeys::HideView, FirePhase::Press));
-    assert!(app.borrow().workspace.recipe().hidden, "X held shows the image");
-    assert!(app.borrow_mut().workspace.mask_view(MaskViewKeys::HideView, FirePhase::Release));
-    assert!(!app.borrow().workspace.recipe().hidden);
-    fixture.settle();
-    assert_eq!(app.borrow().workspace.settings().view, MaskViewMode::Overlay, "the settings carry the view");
-    press_label(&mut fixture, "Remember Settings");
-    assert!(app.borrow().workspace.settings().remember);
-}
-
-#[trial]
 fn select_mask_ok_is_one_command_and_cancel_changes_nothing() {
     let (mut fixture, app, _) = open();
     press_label(&mut fixture, "Select Subject");
@@ -627,33 +627,36 @@ fn select_mask_ok_is_one_command_and_cancel_changes_nothing() {
 }
 
 #[trial]
-fn select_mask_tool_switch_mid_stroke_cancels_the_stroke() {
-    let (mut fixture, app, _) = open();
-    let from = canvas_point(&fixture, Vec2::ZERO);
-    open_stroke(&mut fixture, from);
-    app.borrow_mut().events.clear();
-    fixture.key(Key::R, Modifiers::NONE);
-    let events = app.borrow().events.clone();
-    assert!(events.iter().any(|event| matches!(event, SelectMaskEvent::Edit(EditPhase::Cancel { reason: CancelReason::Removed, .. }))), "{events:?}");
-    fixture.frame(vec![pointer::release(from + Vec2::new(30.0, 0.0))]);
-    assert!(app.borrow().workspace.session().edits.is_empty() && app.borrow().workspace.session().strokes.is_empty());
-}
-
-#[trial]
-fn select_mask_undo_mid_stroke_cancels_the_stroke() {
-    let (mut fixture, app, _) = open();
-    let from = canvas_point(&fixture, Vec2::ZERO);
-    open_stroke(&mut fixture, from);
-    app.borrow_mut().events.clear();
-    app.borrow_mut().workspace.step(Step::Undo);
-    fixture.frame(Vec::new());
-    let events = app.borrow().events.clone();
-    assert!(
-        events.iter().any(|event| matches!(event, SelectMaskEvent::Edit(EditPhase::Cancel { reason: CancelReason::UndoDuringGesture, .. }))),
-        "{events:?}"
-    );
-    fixture.frame(vec![pointer::release(from + Vec2::new(30.0, 0.0))]);
-    assert!(app.borrow().workspace.session().edits.is_empty());
+fn select_mask_mid_stroke_tool_switch_or_undo_cancels_the_stroke() {
+    {
+        let (mut fixture, app, _) = open();
+        let from = canvas_point(&fixture, Vec2::ZERO);
+        open_stroke(&mut fixture, from);
+        app.borrow_mut().events.clear();
+        fixture.key(Key::R, Modifiers::NONE);
+        let events = app.borrow().events.clone();
+        assert!(
+            events.iter().any(|event| matches!(event, SelectMaskEvent::Edit(EditPhase::Cancel { reason: CancelReason::Removed, .. }))),
+            "{events:?}"
+        );
+        fixture.frame(vec![pointer::release(from + Vec2::new(30.0, 0.0))]);
+        assert!(app.borrow().workspace.session().edits.is_empty() && app.borrow().workspace.session().strokes.is_empty());
+    }
+    {
+        let (mut fixture, app, _) = open();
+        let from = canvas_point(&fixture, Vec2::ZERO);
+        open_stroke(&mut fixture, from);
+        app.borrow_mut().events.clear();
+        app.borrow_mut().workspace.step(Step::Undo);
+        fixture.frame(Vec::new());
+        let events = app.borrow().events.clone();
+        assert!(
+            events.iter().any(|event| matches!(event, SelectMaskEvent::Edit(EditPhase::Cancel { reason: CancelReason::UndoDuringGesture, .. }))),
+            "{events:?}"
+        );
+        fixture.frame(vec![pointer::release(from + Vec2::new(30.0, 0.0))]);
+        assert!(app.borrow().workspace.session().edits.is_empty());
+    }
 }
 
 #[trial]

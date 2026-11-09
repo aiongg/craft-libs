@@ -39,10 +39,17 @@ fn shift_plus_and_minus_step_and_wrap() {
 }
 
 #[trial]
-fn shift_alt_letter_picks_the_listed_mode() {
-    let pick = letter(BlendShortcut::Multiply, &modes());
-    assert_eq!(pick, Some(BlendKeyPick::Lettered("multiply")));
-    assert_eq!(pick.map(BlendKeyPick::into_key), Some("multiply"));
+fn a_letter_picks_the_listed_mode_and_a_missing_mode_is_consumed() {
+    {
+        let pick = letter(BlendShortcut::Multiply, &modes());
+        assert_eq!(pick, Some(BlendKeyPick::Lettered("multiply")));
+        assert_eq!(pick.map(BlendKeyPick::into_key), Some("multiply"));
+    }
+    {
+        let entries = modes();
+        assert_eq!(letter(BlendShortcut::PassThrough, &entries), None);
+        assert_eq!(letter(BlendShortcut::Overlay, &entries), None);
+    }
 }
 
 #[trial]
@@ -56,14 +63,7 @@ fn every_shortcut_has_its_own_letter() {
             format!("{:?}", def.defaults[0].trigger)
         })
         .collect();
-    assert_eq!(chords.len(), 26, "no two shortcuts share a chord");
-}
-
-#[trial]
-fn a_letter_for_a_missing_mode_is_consumed_and_does_nothing() {
-    let entries = modes();
-    assert_eq!(letter(BlendShortcut::PassThrough, &entries), None);
-    assert_eq!(letter(BlendShortcut::Overlay, &entries), None);
+    assert_eq!(chords.len(), defs.len(), "no two shortcuts share a chord");
 }
 
 #[trial]

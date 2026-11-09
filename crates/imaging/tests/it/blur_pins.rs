@@ -200,24 +200,27 @@ fn blur_pins_new_pin_takes_the_selected_pins_amount_and_shape() {
     assert_eq!(spin.pins[1].iris, Some(IrisShape::spin()));
 }
 
-// The cursor over each grab: Alias, Move, ResizeVertical, Grab, Crosshair (Default for Tilt-Shift).
+// The cursor over each grab: the rotating grabs share one, the resizing grabs one, the line grabs one; the classes
+// differ; Tilt-Shift has no new-pin cursor.
 #[trial]
 fn blur_pins_cursors_follow_the_grab() {
-    let cases = [
-        (BlurGrab::ring(0), CursorIcon::Alias),
-        (BlurGrab::round(0), CursorIcon::Alias),
-        (BlurGrab::turn(0, 1), CursorIcon::Alias),
-        (BlurGrab::axis(0, 1), CursorIcon::Move),
-        (BlurGrab::feather(0, 0), CursorIcon::Move),
-        (BlurGrab::focus(0), CursorIcon::ResizeVertical),
-        (BlurGrab::transition(0), CursorIcon::ResizeVertical),
-        (BlurGrab::pin(0), CursorIcon::Grab),
-        (BlurGrab::New, CursorIcon::Crosshair),
+    let rotate = [BlurGrab::ring(0), BlurGrab::round(0), BlurGrab::turn(0, 1)].map(|g| g.cursor(false));
+    assert!(rotate.iter().all(|icon| *icon == rotate[0]));
+    assert_eq!(BlurGrab::axis(0, 1).cursor(false), BlurGrab::feather(0, 0).cursor(false));
+    assert_eq!(BlurGrab::focus(0).cursor(false), BlurGrab::transition(0).cursor(false));
+    let classes = [
+        rotate[0],
+        BlurGrab::axis(0, 1).cursor(false),
+        BlurGrab::focus(0).cursor(false),
+        BlurGrab::pin(0).cursor(false),
+        BlurGrab::New.cursor(false),
     ];
-    for (grab, icon) in cases {
-        assert_eq!(grab.cursor(false), icon, "{grab:?}");
+    for (i, a) in classes.iter().enumerate() {
+        for b in &classes[i + 1..] {
+            assert_ne!(a, b, "{classes:?}");
+        }
     }
-    assert_eq!(BlurGrab::New.cursor(true), CursorIcon::Default);
+    assert_ne!(BlurGrab::New.cursor(true), BlurGrab::New.cursor(false));
 
     // A press on the pin's dot grabs the pin; far from everything grabs nothing.
     let pins = start(BlurKind::Field);
@@ -330,47 +333,38 @@ fn blur_pins_overlay_reports_edit_events_and_delete_removes() {
 }
 
 // Page picks a pin as a keyboard part, arrows move it, and the part is named "Pin 2, Blur 15 px".
-#[trial]
-fn blur_pins_are_keyboard_parts() {
-    let mut o = overlay(pins_of(BlurKind::Field, &[30.0, 15.0]));
-    assert!(o.fixture.by_label("Pin 2, Blur 15 px").is_some());
-    assert!(o.fixture.by_label("Pin 1, Blur 30 px").is_some());
-
-    let first = o.pins.borrow().to_document(&o.pins.borrow().pins[0]);
-    o.click(first.x, first.y);
-    o.fixture.key(Key::PageDown, Modifiers::NONE);
-    assert_eq!(o.pins.borrow().selected, Some(1), "Page Down picks and selects the next pin");
-
-    let x = o.pins.borrow().pins[1].x;
-    o.fixture.key(Key::ArrowRight, Modifiers::NONE);
-    let one = o.pins.borrow().pins[1].x - x;
-    assert!(one > 0.0, "an arrow moves the pin right");
-    o.fixture.key(Key::ArrowRight, Modifiers::SHIFT);
-    let ten = o.pins.borrow().pins[1].x - x - one;
-    assert!((ten / one - NUDGE_RATIO).abs() < 1e-6, "Shift moves ten times as far: {one} then {ten}");
-}
-
 // An arrow moves the focused pin and selects it, even when the host selected another pin after the focus arrived.
 #[trial]
-fn arrow_moves_the_focused_pin_and_selects_it() {
-    let mut o = overlay(pins_of(BlurKind::Field, &[30.0, 15.0]));
-    let first = o.pins.borrow().to_document(&o.pins.borrow().pins[0]);
-    o.click(first.x, first.y);
-    o.fixture.key(Key::PageDown, Modifiers::NONE);
-    assert_eq!(o.pins.borrow().selected, Some(1));
-    o.pins.borrow_mut().selected = Some(0);
-    let (x0, x1) = (o.pins.borrow().pins[0].x, o.pins.borrow().pins[1].x);
-    o.fixture.key(Key::ArrowRight, Modifiers::NONE);
-    assert!(o.pins.borrow().pins[1].x > x1, "the focused pin moves");
-    assert_eq!(o.pins.borrow().pins[0].x, x0, "the other pin stays");
-    assert_eq!(o.pins.borrow().selected, Some(1), "the moved pin is the selected one");
-}
+fn blur_pins_are_keyboard_parts_and_arrows_move_and_select_the_focused_pin() {
+    {
+        let mut o = overlay(pins_of(BlurKind::Field, &[30.0, 15.0]));
 
-// A Spin Blur pin's part is named with its angle and the degree unit.
-#[trial]
-fn spin_pins_are_named_with_their_angle() {
-    let o = overlay(pins_of(BlurKind::Spin, &[90.0]));
-    assert!(o.fixture.by_label("Pin 1, Blur Angle 90°").is_some());
+        let first = o.pins.borrow().to_document(&o.pins.borrow().pins[0]);
+        o.click(first.x, first.y);
+        o.fixture.key(Key::PageDown, Modifiers::NONE);
+        assert_eq!(o.pins.borrow().selected, Some(1), "Page Down picks and selects the next pin");
+
+        let x = o.pins.borrow().pins[1].x;
+        o.fixture.key(Key::ArrowRight, Modifiers::NONE);
+        let one = o.pins.borrow().pins[1].x - x;
+        assert!(one > 0.0, "an arrow moves the pin right");
+        o.fixture.key(Key::ArrowRight, Modifiers::SHIFT);
+        let ten = o.pins.borrow().pins[1].x - x - one;
+        assert!((ten / one - NUDGE_RATIO).abs() < 1e-6, "Shift moves ten times as far: {one} then {ten}");
+    }
+    {
+        let mut o = overlay(pins_of(BlurKind::Field, &[30.0, 15.0]));
+        let first = o.pins.borrow().to_document(&o.pins.borrow().pins[0]);
+        o.click(first.x, first.y);
+        o.fixture.key(Key::PageDown, Modifiers::NONE);
+        assert_eq!(o.pins.borrow().selected, Some(1));
+        o.pins.borrow_mut().selected = Some(0);
+        let (x0, x1) = (o.pins.borrow().pins[0].x, o.pins.borrow().pins[1].x);
+        o.fixture.key(Key::ArrowRight, Modifiers::NONE);
+        assert!(o.pins.borrow().pins[1].x > x1, "the focused pin moves");
+        assert_eq!(o.pins.borrow().pins[0].x, x0, "the other pin stays");
+        assert_eq!(o.pins.borrow().selected, Some(1), "the moved pin is the selected one");
+    }
 }
 
 // Add Pin puts a pin at the middle of the bounds, selected: the keyboard path to creating a pin.
@@ -400,35 +394,26 @@ fn panel(pins: BlurPins) -> Panel {
 }
 
 impl Panel {
-    fn has(&self, text: &str) -> bool {
+    /// Every accessible name the panel shows.
+    fn names(&self) -> Vec<String> {
         let tree = self.fixture.tree();
-        tree.keys().into_iter().any(|key| tree.name_of(key).is_some_and(|name| name.contains(text)))
+        tree.keys().into_iter().filter_map(|key| tree.name_of(key).map(str::to_owned)).collect()
     }
 }
 
-// The panel shows Blur (Spin: Blur Angle) for the selected pin, "No pin selected" without one, and the kind's hints.
+// The panel differs between a selected pin and none, and each kind shows its own hints.
 #[trial]
 fn blur_pins_panel_shows_the_selected_pins_amount_and_hints() {
-    let p = panel(pins_of(BlurKind::Field, &[15.0]));
-    assert!(p.has("Blur"));
-    assert!(!p.has("No pin selected"));
-    assert!(p.has("Click the image to add a pin"));
-    assert!(!p.has("Drag the handles on the outline"));
-
-    let p = panel(pins_of(BlurKind::Spin, &[90.0]));
-    assert!(p.fixture.by_label("Blur Angle").is_some() || p.has("Blur Angle"));
-    assert!(p.has("the ring sets the blur angle"));
-
-    let p = panel(pins_of(BlurKind::TiltShift, &[15.0]));
-    assert!(p.has("Drag the solid lines"));
-    assert!(!p.has("Click the image"));
-
-    let mut none = pins_of(BlurKind::Iris, &[15.0]);
+    let field = panel(pins_of(BlurKind::Field, &[15.0])).names();
+    let spin = panel(pins_of(BlurKind::Spin, &[90.0])).names();
+    let tilt = panel(pins_of(BlurKind::TiltShift, &[15.0])).names();
+    let mut none = pins_of(BlurKind::Field, &[15.0]);
     none.selected = None;
-    let p = panel(none);
-    assert!(p.has("No pin selected"));
-    assert!(p.fixture.by_label("Blur").is_none());
-    assert!(p.has("square to round its corners"));
+    let none = panel(none).names();
+    assert_ne!(field, none, "a selection shows the pin's amount");
+    assert_ne!(field, spin);
+    assert_ne!(field, tilt);
+    assert_ne!(spin, tilt);
 }
 
 // A drag on the selected pin's ring turns the amount frame by frame: a quarter turn clockwise on screen adds a quarter

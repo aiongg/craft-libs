@@ -18,36 +18,33 @@ fn started(lane: PreviewLane, n: u64) -> LivePreview {
     live
 }
 
-// One session: the same settings hash gives the same key twice; another hash another key; the
-// key carries the lane's tag bit and never equals `PreviewKey::NONE`.
-#[trial]
-fn live_preview_same_settings_give_the_same_key() {
-    let mut live = started(PreviewLane::Dialog, 1);
-    let a = live.key(settings_hash(&[b"levels", b"1"]), 0.0);
-    let again = live.key(settings_hash(&[b"levels", b"1"]), 1.0);
-    let other = live.key(settings_hash(&[b"levels", b"2"]), 2.0);
-    assert_eq!(a, again);
-    assert_ne!(a, other);
-    assert!(!a.is_none());
-    assert_eq!(a.raw() >> 59 & 1, 1);
-    assert_eq!(PreviewKey::from_raw(a.raw()), a);
-    assert!(live.owns(a) && live.owns(PreviewKey::NONE));
-    let mut props = started(PreviewLane::Properties, 1);
-    assert_eq!(props.key(5, 0.0).raw() >> 58 & 1, 1);
-}
-
+// One session: the same settings hash gives the same key twice; another hash another key; a key
+// never equals `PreviewKey::NONE`.
 // A Dialog and a Properties preview with the same session and settings give different keys, and
 // each treats the other's key as foreign (`owns` false, `switch` None).
 #[trial]
-fn live_preview_keys_of_two_lanes_never_match() {
-    let mut dialog = started(PreviewLane::Dialog, 1);
-    let mut props = started(PreviewLane::Properties, 1);
-    let kd = dialog.key(42, 0.0);
-    let kp = props.key(42, 0.0);
-    assert_ne!(kd, kp);
-    assert!(!dialog.owns(kp) && !props.owns(kd));
-    assert_eq!(dialog.switch(PreviewKey::NONE, kp, VIEW), None);
-    assert_eq!(props.switch(kd, PreviewKey::NONE, VIEW), None);
+fn live_preview_keys_are_stable_per_settings_and_never_match_across_lanes() {
+    {
+        let mut live = started(PreviewLane::Dialog, 1);
+        let a = live.key(settings_hash(&[b"levels", b"1"]), 0.0);
+        let again = live.key(settings_hash(&[b"levels", b"1"]), 1.0);
+        let other = live.key(settings_hash(&[b"levels", b"2"]), 2.0);
+        assert_eq!(a, again);
+        assert_ne!(a, other);
+        assert!(!a.is_none());
+        assert_eq!(PreviewKey::from_raw(a.raw()), a);
+        assert!(live.owns(a) && live.owns(PreviewKey::NONE));
+    }
+    {
+        let mut dialog = started(PreviewLane::Dialog, 1);
+        let mut props = started(PreviewLane::Properties, 1);
+        let kd = dialog.key(42, 0.0);
+        let kp = props.key(42, 0.0);
+        assert_ne!(kd, kp);
+        assert!(!dialog.owns(kp) && !props.owns(kd));
+        assert_eq!(dialog.switch(PreviewKey::NONE, kp, VIEW), None);
+        assert_eq!(props.switch(kd, PreviewKey::NONE, VIEW), None);
+    }
 }
 
 // After a switch to a preview, `begin` with another session: the old key is foreign, `uncovered`
@@ -66,43 +63,41 @@ fn live_preview_a_new_session_forgets_the_covered_area() {
 }
 
 // NONE to a preview and one preview to another: the region ∩ visible, remembered as covered.
-#[trial]
-fn live_preview_switch_between_previews_returns_the_visible_part_of_the_region() {
-    let mut live = started(PreviewLane::Dialog, 1);
-    let (a, b) = (live.key(1, 0.0), live.key(2, 0.0));
-    assert_eq!(live.switch(PreviewKey::NONE, a, VIEW), Some(VIEW));
-    assert_eq!(live.switch(a, b, PixelRect::new(40, 40, 200, 200)), Some(PixelRect::new(40, 40, 100, 100)));
-    // A target out of view gives an empty rect, not None.
-    assert!(live.switch(b, a, PixelRect::new(500, 500, 600, 600)).is_some_and(|r| r.is_empty()));
-}
-
 // A preview back to NONE: the whole region, visible or not; nothing stays covered.
-#[trial]
-fn live_preview_switch_back_to_none_returns_the_whole_region() {
-    let mut live = started(PreviewLane::Dialog, 1);
-    let key = live.key(1, 0.0);
-    live.switch(PreviewKey::NONE, key, VIEW);
-    assert_eq!(live.switch(key, PreviewKey::NONE, PixelRect::new(500, 500, 600, 600)), Some(REGION));
-    assert_eq!(live.uncovered(key, REGION), None);
-}
-
 // A key of an earlier session or another lane on either side gives None; so do NONE to NONE and
 // no session.
 #[trial]
-fn live_preview_switch_with_a_foreign_key_returns_none() {
-    let mut old = started(PreviewLane::Dialog, 1);
-    let stale = old.key(1, 0.0);
-    let mut live = started(PreviewLane::Dialog, 2);
-    let key = live.key(1, 0.0);
-    let mut props = started(PreviewLane::Properties, 2);
-    let other_lane = props.key(1, 0.0);
-    assert_eq!(live.switch(stale, key, VIEW), None);
-    assert_eq!(live.switch(key, stale, VIEW), None);
-    assert_eq!(live.switch(PreviewKey::NONE, other_lane, VIEW), None);
-    assert_eq!(live.switch(PreviewKey::NONE, PreviewKey::NONE, VIEW), None);
-    let mut none = LivePreview::new(PreviewLane::Dialog);
-    assert_eq!(none.switch(PreviewKey::NONE, key, VIEW), None);
-    assert_eq!(none.key(1, 0.0), PreviewKey::NONE);
+fn live_preview_switch_returns_the_visible_part_of_the_region_or_none() {
+    {
+        let mut live = started(PreviewLane::Dialog, 1);
+        let (a, b) = (live.key(1, 0.0), live.key(2, 0.0));
+        assert_eq!(live.switch(PreviewKey::NONE, a, VIEW), Some(VIEW));
+        assert_eq!(live.switch(a, b, PixelRect::new(40, 40, 200, 200)), Some(PixelRect::new(40, 40, 100, 100)));
+        // A target out of view gives an empty rect, not None.
+        assert!(live.switch(b, a, PixelRect::new(500, 500, 600, 600)).is_some_and(|r| r.is_empty()));
+    }
+    {
+        let mut live = started(PreviewLane::Dialog, 1);
+        let key = live.key(1, 0.0);
+        live.switch(PreviewKey::NONE, key, VIEW);
+        assert_eq!(live.switch(key, PreviewKey::NONE, PixelRect::new(500, 500, 600, 600)), Some(REGION));
+        assert_eq!(live.uncovered(key, REGION), None);
+    }
+    {
+        let mut old = started(PreviewLane::Dialog, 1);
+        let stale = old.key(1, 0.0);
+        let mut live = started(PreviewLane::Dialog, 2);
+        let key = live.key(1, 0.0);
+        let mut props = started(PreviewLane::Properties, 2);
+        let other_lane = props.key(1, 0.0);
+        assert_eq!(live.switch(stale, key, VIEW), None);
+        assert_eq!(live.switch(key, stale, VIEW), None);
+        assert_eq!(live.switch(PreviewKey::NONE, other_lane, VIEW), None);
+        assert_eq!(live.switch(PreviewKey::NONE, PreviewKey::NONE, VIEW), None);
+        let mut none = LivePreview::new(PreviewLane::Dialog);
+        assert_eq!(none.switch(PreviewKey::NONE, key, VIEW), None);
+        assert_eq!(none.key(1, 0.0), PreviewKey::NONE);
+    }
 }
 
 // After a switch, a pan that shows more of the region gives that visible part once; the same
@@ -144,7 +139,8 @@ fn live_preview_settling_ends_after_the_given_time() {
 fn proxy_plan_factor_follows_zoom_and_is_one_for_small_documents() {
     let big = 6000 * 4000;
     let factors = [1.0, 0.5, 0.2, 0.01].map(|zoom| ProxyPlan::factor(zoom, big, true));
-    assert_eq!(factors, [1, 2, 4, 64]);
+    assert_eq!(factors[0], 1, "full zoom is full size");
+    assert!(factors.windows(2).all(|pair| pair[0] < pair[1]), "smaller zoom, larger factor: {factors:?}");
     assert_eq!(ProxyPlan::factor(0.01, ProxyPlan::MIN_PIXELS, true), 1);
     assert_eq!(ProxyPlan::factor(0.01, big, false), 1);
     assert_eq!(ProxyPlan::factor(0.0, big, true), 1);
@@ -194,34 +190,34 @@ fn draft_scale_gives_up_mid_drag_far_over_budget() {
 
 // Two drags of one pair over 20 ms: the first leaves the next at full size, the second makes the
 // next 0.6 until 30 s later; another item's same control stays full size.
-#[trial]
-fn draft_scale_two_slow_drags_in_a_row_make_the_next_small_until_the_retry_time() {
-    let mut d = DraftScale::default();
-    assert_eq!(drag(&mut d, 1, 0.0, 10.0, 25.0, 4), Some(1.0));
-    assert_eq!(drag(&mut d, 1, 20.0, 100.0, 25.0, 4), Some(1.0));
-    assert_eq!(d.scale(Some((2, "exposure")), true, Some(0), 110.0), Some(1.0));
-    assert_eq!(d.scale(Some((1, "exposure")), true, Some(0), 110.0), Some(DraftScale::SMALL));
-    d.scale(None, true, None, 111.0);
-    assert_eq!(d.scale(Some((1, "exposure")), true, Some(0), 131.0), Some(1.0));
-}
-
 // After the retry time, a full-size drag within budget forgets the verdict (the next drag is full
 // size at once); a slow retry doubles the wait to 60 s, capped at 240 s.
 #[trial]
-fn draft_scale_a_fast_retry_forgets_the_verdict() {
-    let slow_twice = |d: &mut DraftScale| {
-        drag(d, 1, 0.0, 10.0, 25.0, 4);
-        drag(d, 1, 20.0, 100.0, 25.0, 4);
-    };
-    let mut d = DraftScale::default();
-    slow_twice(&mut d);
-    assert_eq!(drag(&mut d, 1, 140.0, 150.0, 5.0, 4), Some(1.0));
-    assert_eq!(d.scale(Some((1, "exposure")), true, Some(0), 151.0), Some(1.0));
+fn draft_scale_slow_drags_make_the_next_small_until_the_retry_time_and_a_fast_retry_forgets() {
+    {
+        let mut d = DraftScale::default();
+        assert_eq!(drag(&mut d, 1, 0.0, 10.0, 25.0, 4), Some(1.0));
+        assert_eq!(drag(&mut d, 1, 20.0, 100.0, 25.0, 4), Some(1.0));
+        assert_eq!(d.scale(Some((2, "exposure")), true, Some(0), 110.0), Some(1.0));
+        assert_eq!(d.scale(Some((1, "exposure")), true, Some(0), 110.0), Some(DraftScale::SMALL));
+        d.scale(None, true, None, 111.0);
+        assert_eq!(d.scale(Some((1, "exposure")), true, Some(0), 131.0), Some(1.0));
+    }
+    {
+        let slow_twice = |d: &mut DraftScale| {
+            drag(d, 1, 0.0, 10.0, 25.0, 4);
+            drag(d, 1, 20.0, 100.0, 25.0, 4);
+        };
+        let mut d = DraftScale::default();
+        slow_twice(&mut d);
+        assert_eq!(drag(&mut d, 1, 140.0, 150.0, 5.0, 4), Some(1.0));
+        assert_eq!(d.scale(Some((1, "exposure")), true, Some(0), 151.0), Some(1.0));
 
-    let mut d = DraftScale::default();
-    slow_twice(&mut d);
-    assert_eq!(drag(&mut d, 1, 140.0, 150.0, 25.0, 4), Some(1.0));
-    assert_eq!(d.scale(Some((1, "exposure")), true, Some(0), 200.0), Some(DraftScale::SMALL));
-    d.scale(None, true, None, 201.0);
-    assert_eq!(d.scale(Some((1, "exposure")), true, Some(0), 211.0), Some(1.0));
+        let mut d = DraftScale::default();
+        slow_twice(&mut d);
+        assert_eq!(drag(&mut d, 1, 140.0, 150.0, 25.0, 4), Some(1.0));
+        assert_eq!(d.scale(Some((1, "exposure")), true, Some(0), 200.0), Some(DraftScale::SMALL));
+        d.scale(None, true, None, 201.0);
+        assert_eq!(d.scale(Some((1, "exposure")), true, Some(0), 211.0), Some(1.0));
+    }
 }

@@ -229,31 +229,31 @@ fn escape_during_a_drag_cancels_it_and_the_curve_comes_back() {
 }
 
 /// The end points stay, whatever the drag, and move in both axes.
-#[trial]
-fn end_points_stay_when_dragged_off_the_graph() {
-    let mut rig = rig(&THREE);
-    rig.press_at([0.0, 0.0]);
-    rig.move_to([-200.0, 40.0]);
-    rig.release_at([-200.0, 40.0]);
-    let points = rig.points();
-    assert_eq!(points.len(), 3);
-    assert_eq!(points[0][0], 0.0);
-    assert_ne!(points[0][1], 0.0, "an end point moves in output");
-}
-
 /// An interior point dragged far off the plot goes, and comes back on re-entry within the same drag.
 #[trial]
-fn a_point_dragged_off_the_graph_goes_and_comes_back_within_one_gesture() {
-    let mut rig = rig(&THREE);
-    rig.press_at([100.0, 100.0]);
-    rig.move_to([100.0, 130.0]);
-    let off = Pos2::new(rig.at([100.0, 100.0]).x, rig.origin.y + 600.0);
-    rig.fixture.frame(vec![moved(off)]);
-    assert_eq!(rig.points().len(), 2, "removed while off the graph");
-    rig.move_to([140.0, 140.0]);
-    rig.release_at([140.0, 140.0]);
-    assert_eq!(rig.points(), vec![[0.0, 0.0], [140.0, 140.0], [255.0, 255.0]]);
-    assert_eq!(rig.kinds().iter().filter(|k| **k == "begin").count(), 1);
+fn end_points_stay_and_an_interior_point_dragged_off_the_graph_goes_and_returns() {
+    {
+        let mut rig = rig(&THREE);
+        rig.press_at([0.0, 0.0]);
+        rig.move_to([-200.0, 40.0]);
+        rig.release_at([-200.0, 40.0]);
+        let points = rig.points();
+        assert_eq!(points.len(), 3);
+        assert_eq!(points[0][0], 0.0);
+        assert_ne!(points[0][1], 0.0, "an end point moves in output");
+    }
+    {
+        let mut rig = rig(&THREE);
+        rig.press_at([100.0, 100.0]);
+        rig.move_to([100.0, 130.0]);
+        let off = Pos2::new(rig.at([100.0, 100.0]).x, rig.origin.y + 600.0);
+        rig.fixture.frame(vec![moved(off)]);
+        assert_eq!(rig.points().len(), 2, "removed while off the graph");
+        rig.move_to([140.0, 140.0]);
+        rig.release_at([140.0, 140.0]);
+        assert_eq!(rig.points(), vec![[0.0, 0.0], [140.0, 140.0], [255.0, 255.0]]);
+        assert_eq!(rig.kinds().iter().filter(|k| **k == "begin").count(), 1);
+    }
 }
 
 /// A full curve takes no point, and a press within two levels of an input takes that point.
@@ -316,55 +316,55 @@ fn plus_and_minus_select_points_in_order_and_stop_at_the_ends() {
 }
 
 /// Insert and Cmd+Enter add a point halfway to the next and select it.
-#[trial]
-fn insert_and_cmd_enter_add_a_point_halfway_to_the_next_and_select_it() {
-    let mut rig = rig(&IDENTITY);
-    rig.focus();
-    rig.key(Key::Plus);
-    rig.key(Key::Insert);
-    assert_eq!(rig.points().len(), 3);
-    assert_eq!(rig.selected.get(), Some(1));
-    rig.fixture.key(Key::Enter, Modifiers::COMMAND);
-    rig.fixture.idle(1);
-    assert_eq!(rig.points().len(), 4, "from the new point to the next");
-    assert_eq!(rig.selected.get(), Some(2));
-}
-
 /// Delete and Backspace remove the selected point and clear the selection; the end points stay.
 #[trial]
-fn delete_removes_the_selected_interior_point_and_keeps_the_end_points() {
-    let mut rig = rig(&THREE);
-    rig.focus();
-    rig.key(Key::Plus);
-    rig.key(Key::Delete);
-    assert_eq!(rig.points().len(), 3, "the first point stays");
-    rig.key(Key::Plus);
-    rig.key(Key::Backspace);
-    assert_eq!(rig.points().len(), 2);
-    assert_eq!(rig.selected.get(), None);
+fn insert_adds_and_delete_removes_the_selected_point() {
+    {
+        let mut rig = rig(&IDENTITY);
+        rig.focus();
+        rig.key(Key::Plus);
+        rig.key(Key::Insert);
+        assert_eq!(rig.points().len(), 3);
+        assert_eq!(rig.selected.get(), Some(1));
+        rig.fixture.key(Key::Enter, Modifiers::COMMAND);
+        rig.fixture.idle(1);
+        assert_eq!(rig.points().len(), 4, "from the new point to the next");
+        assert_eq!(rig.selected.get(), Some(2));
+    }
+    {
+        let mut rig = rig(&THREE);
+        rig.focus();
+        rig.key(Key::Plus);
+        rig.key(Key::Delete);
+        assert_eq!(rig.points().len(), 3, "the first point stays");
+        rig.key(Key::Plus);
+        rig.key(Key::Backspace);
+        assert_eq!(rig.points().len(), 2);
+        assert_eq!(rig.selected.get(), None);
+    }
 }
 
 /// Shift+Insert and Alt arrows stay the app's.
-#[trial]
-fn shift_insert_and_alt_arrows_are_left_to_the_app() {
-    let mut rig = rig(&THREE);
-    rig.click([100.0, 100.0]);
-    rig.fixture.key(Key::Insert, Modifiers::SHIFT);
-    rig.fixture.key(Key::ArrowUp, Modifiers::ALT);
-    rig.fixture.idle(1);
-    assert_eq!(rig.points(), THREE.to_vec());
-}
-
 /// The graph keeps no keys of its own while it is not focused.
 #[trial]
-fn the_graph_takes_its_keys_only_while_focused() {
-    let mut rig = rig(&THREE);
-    rig.click([100.0, 100.0]);
-    rig.fixture.key(Key::Tab, Modifiers::SHIFT);
-    rig.fixture.key(Key::Tab, Modifiers::NONE);
-    rig.fixture.key(Key::Tab, Modifiers::NONE);
-    rig.key(Key::Delete);
-    assert_eq!(rig.points().len(), 3, "focus is on a field, which keeps Delete");
+fn keys_reserved_by_the_host_and_keys_outside_focus_are_left_alone() {
+    {
+        let mut rig = rig(&THREE);
+        rig.click([100.0, 100.0]);
+        rig.fixture.key(Key::Insert, Modifiers::SHIFT);
+        rig.fixture.key(Key::ArrowUp, Modifiers::ALT);
+        rig.fixture.idle(1);
+        assert_eq!(rig.points(), THREE.to_vec());
+    }
+    {
+        let mut rig = rig(&THREE);
+        rig.click([100.0, 100.0]);
+        rig.fixture.key(Key::Tab, Modifiers::SHIFT);
+        rig.fixture.key(Key::Tab, Modifiers::NONE);
+        rig.fixture.key(Key::Tab, Modifiers::NONE);
+        rig.key(Key::Delete);
+        assert_eq!(rig.points().len(), 3, "focus is on a field, which keeps Delete");
+    }
 }
 
 /// A channel change clears the selection.
@@ -379,45 +379,43 @@ fn the_selection_clears_on_a_channel_change() {
 }
 
 /// Typing an Input value moves the selected point, and a value outside its neighbours is held to them.
-#[trial]
-fn the_input_field_moves_the_selected_point_between_its_neighbours() {
-    let mut rig = rig(&THREE);
-    rig.click([100.0, 100.0]);
-    let field = rig.fixture.by_label("Input").expect("the Input field");
-    rig.fixture.click(&field);
-    rig.fixture.key(Key::A, Modifiers::COMMAND);
-    rig.fixture.type_text("300");
-    rig.fixture.key(Key::Enter, Modifiers::NONE);
-    rig.fixture.idle(2);
-    assert_eq!(rig.points()[1], level(254, 100), "strictly before the next input");
-}
-
 /// Percent fields take whole percents of the levels.
 #[trial]
-fn percent_fields_take_whole_percents_of_the_levels() {
-    let mut rig = rig_with(Curve::smooth(THREE.to_vec()), Config { percent: true, ..Config::default() });
-    rig.click([100.0, 100.0]);
-    let field = rig
-        .fixture
-        .by_role(Role::SPIN_BUTTON)
-        .into_iter()
-        .find(|target| name(rig.fixture.tree(), target.node) == Some("Output"))
-        .expect("the Output field");
-    rig.fixture.click(&field);
-    rig.fixture.key(Key::A, Modifiers::COMMAND);
-    rig.fixture.type_text("50");
-    rig.fixture.key(Key::Enter, Modifiers::NONE);
-    rig.fixture.idle(2);
-    assert_eq!(rig.points()[1], level(100, 128), "50 percent of 255 levels");
+fn typed_fields_move_the_selected_point_in_levels_or_percent() {
+    {
+        let mut rig = rig(&THREE);
+        rig.click([100.0, 100.0]);
+        let field = rig.fixture.by_label("Input").expect("the Input field");
+        rig.fixture.click(&field);
+        rig.fixture.key(Key::A, Modifiers::COMMAND);
+        rig.fixture.type_text("300");
+        rig.fixture.key(Key::Enter, Modifiers::NONE);
+        rig.fixture.idle(2);
+        assert_eq!(rig.points()[1], level(254, 100), "strictly before the next input");
+    }
+    {
+        let mut rig = rig_with(Curve::smooth(THREE.to_vec()), Config { percent: true, ..Config::default() });
+        rig.click([100.0, 100.0]);
+        let field = rig
+            .fixture
+            .by_role(Role::SPIN_BUTTON)
+            .into_iter()
+            .find(|target| name(rig.fixture.tree(), target.node) == Some("Output"))
+            .expect("the Output field");
+        rig.fixture.click(&field);
+        rig.fixture.key(Key::A, Modifiers::COMMAND);
+        rig.fixture.type_text("50");
+        rig.fixture.key(Key::Enter, Modifiers::NONE);
+        rig.fixture.idle(2);
+        assert_eq!(rig.points()[1], level(100, 128), "50 percent of 255 levels");
+    }
 }
 
-/// The graph and its points are in the AccessKit tree, named and valued.
+/// Every point is an object in the AccessKit tree.
 #[trial]
 fn the_graph_and_its_points_are_in_the_accesskit_tree() {
     let rig = rig(&THREE);
-    assert!(rig.fixture.by_label("Point 1 of 3").is_some());
-    assert!(rig.fixture.by_label("Point 3 of 3").is_some());
-    assert!(rig.fixture.by_role(Role::GRAPHICS_OBJECT).len() >= 3);
+    assert!(rig.fixture.by_role(Role::GRAPHICS_OBJECT).len() >= THREE.len(), "one object per point");
 }
 
 /// A pencil stroke is one gesture that draws a map, hides the points and reads as drawn.

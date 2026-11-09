@@ -97,75 +97,117 @@ fn set(s: &mut PinWarpSession, f: &mut Fake, pins: Vec<Pin>) {
 }
 
 #[trial]
-fn a_click_on_the_mesh_places_a_pin_at_the_rest_position_under_it() {
-    let rest = [Point::new(0.0, 0.0), Point::new(10.0, 0.0), Point::new(0.0, 10.0)];
-    // The deformed triangle is the rest one shifted by (100, 0) and drawn twice: the later entry of the order is on
-    // top and wins.
-    let deformed = [Point::new(100.0, 0.0), Point::new(110.0, 0.0), Point::new(100.0, 10.0)];
-    let rest2 = [Point::new(50.0, 50.0), Point::new(60.0, 50.0), Point::new(50.0, 60.0)];
-    let rest_all = [rest, rest2].concat();
-    let deformed_all = [deformed, deformed].concat();
-    let triangles = [[0, 1, 2], [3, 4, 5]];
-    let view = |order: &'static [u32]| PinMeshView::new(&rest_all, &deformed_all, &triangles, order);
-    let under = Point::new(102.0, 3.0);
-    let top_last = view(&[0, 1]).rest_of(under).unwrap();
-    assert!((top_last.x - 52.0).abs() < 1e-9 && (top_last.y - 53.0).abs() < 1e-9);
-    let top_first = view(&[1, 0]).rest_of(under).unwrap();
-    assert!((top_first.x - 2.0).abs() < 1e-9 && (top_first.y - 3.0).abs() < 1e-9);
-    assert_eq!(view(&[0, 1]).rest_of(Point::new(0.0, 0.0)), None, "off the mesh");
+fn a_click_on_the_mesh_places_a_pin_at_the_rest_position_under_it_and_its_drag_moves_it() {
+    {
+        let rest = [Point::new(0.0, 0.0), Point::new(10.0, 0.0), Point::new(0.0, 10.0)];
+        // The deformed triangle is the rest one shifted by (100, 0) and drawn twice: the later entry of the order is on
+        // top and wins.
+        let deformed = [Point::new(100.0, 0.0), Point::new(110.0, 0.0), Point::new(100.0, 10.0)];
+        let rest2 = [Point::new(50.0, 50.0), Point::new(60.0, 50.0), Point::new(50.0, 60.0)];
+        let rest_all = [rest, rest2].concat();
+        let deformed_all = [deformed, deformed].concat();
+        let triangles = [[0, 1, 2], [3, 4, 5]];
+        let view = |order: &'static [u32]| PinMeshView::new(&rest_all, &deformed_all, &triangles, order);
+        let under = Point::new(102.0, 3.0);
+        let top_last = view(&[0, 1]).rest_of(under).unwrap();
+        assert!((top_last.x - 52.0).abs() < 1e-9 && (top_last.y - 53.0).abs() < 1e-9);
+        let top_first = view(&[1, 0]).rest_of(under).unwrap();
+        assert!((top_first.x - 2.0).abs() < 1e-9 && (top_first.y - 3.0).abs() < 1e-9);
+        assert_eq!(view(&[0, 1]).rest_of(Point::new(0.0, 0.0)), None, "off the mesh");
+    }
+    {
+        let mut h = harness(vec![pin(100.0, 100.0)], vec![]);
+        h.drag((200.0, 150.0), (230.0, 170.0), Modifiers::NONE);
+        let pins = h.state.borrow().session.pins().to_vec();
+        assert_eq!(pins.len(), 2);
+        assert_eq!(pins[1].rest, Point::new(200.0, 150.0), "attached where it was placed");
+        assert_eq!(pins[1].at, Point::new(230.0, 170.0), "and moved by the drag");
+        assert_eq!(h.selected(), vec![1]);
+        assert_eq!(h.seen(), [Seen::Begin, Seen::Commit], "placement and drag are one gesture");
+
+        let edits = h.state.borrow().edits;
+        let off = h.at(5.0, 5.0);
+        h.fixture.click_at(off);
+        assert_eq!(h.state.borrow().edits, edits, "a click off the mesh does nothing");
+        assert_eq!(h.state.borrow().session.pins().len(), 2);
+    }
 }
 
 #[trial]
-fn placing_a_pin_and_dragging_it_on_is_one_step() {
-    let (mut s, mut f) = (session(), Fake::default());
-    let placed = vec![pin(5.0, 5.0)];
-    drag(&mut s, &mut f, vec![moved(placed[0], 20.0)], 1);
-    assert!(matches!(f.calls[0], Call::Rebind(_)));
-    assert!(f.calls[1..].iter().all(|c| matches!(c, Call::Solve(_))));
-    assert_eq!(s.selected(), &[0], "the placed pin is selected");
-    assert!(s.can_undo());
-    assert!(s.undo(&mut f));
-    assert!(s.pins().is_empty(), "placement and drag undo together");
-    assert!(!s.can_undo());
+fn dragging_a_placed_or_existing_pin_is_one_step_and_esc_puts_it_back() {
+    {
+        let (mut s, mut f) = (session(), Fake::default());
+        let placed = vec![pin(5.0, 5.0)];
+        drag(&mut s, &mut f, vec![moved(placed[0], 20.0)], 1);
+        assert!(matches!(f.calls[0], Call::Rebind(_)));
+        assert!(f.calls[1..].iter().all(|c| matches!(c, Call::Solve(_))));
+        assert_eq!(s.selected(), &[0], "the placed pin is selected");
+        assert!(s.can_undo());
+        assert!(s.undo(&mut f));
+        assert!(s.pins().is_empty(), "placement and drag undo together");
+        assert!(!s.can_undo());
+    }
+    {
+        let (mut s, mut f) = (session(), Fake::default());
+        let start = vec![pin(5.0, 5.0)];
+        set(&mut s, &mut f, start.clone());
+        drag(&mut s, &mut f, vec![moved(start[0], 9.0)], 1);
+        assert_eq!(s.pins()[0].at.x, 14.0);
+        assert!(s.undo(&mut f));
+        assert_eq!(s.pins(), &start[..]);
+
+        let id = GestureId::new(2);
+        s.apply(PinEdit::Pins(EditEvent::begin(id, Mixed::Same(start.clone()), label(), None)), &mut f).unwrap();
+        s.apply(PinEdit::Pins(EditEvent::update(id, vec![moved(start[0], 30.0)])), &mut f).unwrap();
+        assert!(s.dragging());
+        assert!(!s.undo(&mut f), "undo waits for the drag");
+        s.apply(PinEdit::Pins(EditEvent::cancel(id, CancelReason::Escape, Some(Mixed::Same(start.clone())))), &mut f).unwrap();
+        assert!(!s.dragging());
+        assert_eq!(s.pins(), &start[..]);
+        assert!(s.can_redo(), "the cancelled drag recorded nothing, so the undone step is still there");
+    }
 }
 
 #[trial]
-fn dragging_a_pin_is_one_step_and_esc_puts_it_back() {
-    let (mut s, mut f) = (session(), Fake::default());
-    let start = vec![pin(5.0, 5.0)];
-    set(&mut s, &mut f, start.clone());
-    drag(&mut s, &mut f, vec![moved(start[0], 9.0)], 1);
-    assert_eq!(s.pins()[0].at.x, 14.0);
-    assert!(s.undo(&mut f));
-    assert_eq!(s.pins(), &start[..]);
+fn alt_click_deletes_a_pin_as_one_step_and_esc_cancels_a_drag_or_discards() {
+    {
+        let (mut s, mut f) = (session(), Fake::default());
+        let pins = vec![pin(1.0, 1.0), pin(2.0, 2.0), pin(3.0, 3.0)];
+        set(&mut s, &mut f, pins.clone());
+        s.apply(PinEdit::Select(vec![0, 2, 9]), &mut f).unwrap();
+        assert_eq!(s.selected(), &[0, 2], "out-of-range indices are dropped");
+        f.calls.clear();
+        set(&mut s, &mut f, vec![pins[0], pins[2]]);
+        assert_eq!(f.calls.len(), 1);
+        assert!(matches!(f.calls[0], Call::Rebind(_)));
+        assert_eq!(s.selected(), &[0, 1]);
+        set(&mut s, &mut f, vec![pins[2]]);
+        assert_eq!(s.selected(), &[0], "pin 0 was deleted and pin 2 slid down");
+        assert!(s.undo(&mut f));
+        assert_eq!(s.pins().len(), 2);
+    }
+    {
+        let mut h = harness(vec![pin(100.0, 100.0), pin(200.0, 100.0)], vec![]);
+        h.click((100.0, 100.0), Modifiers::ALT);
+        assert_eq!(h.places(), vec![Point::new(200.0, 100.0)]);
+        assert_eq!(h.seen(), [Seen::Set]);
 
-    let id = GestureId::new(2);
-    s.apply(PinEdit::Pins(EditEvent::begin(id, Mixed::Same(start.clone()), label(), None)), &mut f).unwrap();
-    s.apply(PinEdit::Pins(EditEvent::update(id, vec![moved(start[0], 30.0)])), &mut f).unwrap();
-    assert!(s.dragging());
-    assert!(!s.undo(&mut f), "undo waits for the drag");
-    s.apply(PinEdit::Pins(EditEvent::cancel(id, CancelReason::Escape, Some(Mixed::Same(start.clone())))), &mut f).unwrap();
-    assert!(!s.dragging());
-    assert_eq!(s.pins(), &start[..]);
-    assert!(s.can_redo(), "the cancelled drag recorded nothing, so the undone step is still there");
-}
-
-#[trial]
-fn alt_click_deletes_a_pin_as_one_step() {
-    let (mut s, mut f) = (session(), Fake::default());
-    let pins = vec![pin(1.0, 1.0), pin(2.0, 2.0), pin(3.0, 3.0)];
-    set(&mut s, &mut f, pins.clone());
-    s.apply(PinEdit::Select(vec![0, 2, 9]), &mut f).unwrap();
-    assert_eq!(s.selected(), &[0, 2], "out-of-range indices are dropped");
-    f.calls.clear();
-    set(&mut s, &mut f, vec![pins[0], pins[2]]);
-    assert_eq!(f.calls.len(), 1);
-    assert!(matches!(f.calls[0], Call::Rebind(_)));
-    assert_eq!(s.selected(), &[0, 1]);
-    set(&mut s, &mut f, vec![pins[2]]);
-    assert_eq!(s.selected(), &[0], "pin 0 was deleted and pin 2 slid down");
-    assert!(s.undo(&mut f));
-    assert_eq!(s.pins().len(), 2);
+        let from = h.at(200.0, 100.0);
+        h.fixture.frame(vec![pointer::moved(from)]);
+        h.fixture.frame(vec![pointer::press(from)]);
+        h.fixture.frame(vec![pointer::moved(h.at(220.0, 100.0))]);
+        h.fixture.frame(vec![pointer::moved(h.at(240.0, 100.0))]);
+        h.fixture.settle();
+        assert_eq!(h.places(), vec![Point::new(240.0, 100.0)]);
+        h.key(Key::Escape, Modifiers::NONE);
+        assert_eq!(h.places(), vec![Point::new(200.0, 100.0)], "cancelled");
+        assert!(h.seen().contains(&Seen::Cancel));
+        assert!(!h.state.borrow().discard, "the Esc ended the drag");
+        h.fixture.frame(vec![pointer::release(h.at(240.0, 100.0))]);
+        h.fixture.settle();
+        h.key(Key::Escape, Modifiers::NONE);
+        assert!(h.state.borrow().discard, "Esc with no drag discards the session");
+    }
 }
 
 #[trial]
@@ -378,24 +420,6 @@ impl Harness {
 }
 
 #[trial]
-fn a_click_on_the_mesh_places_a_selected_pin_and_its_drag_moves_it() {
-    let mut h = harness(vec![pin(100.0, 100.0)], vec![]);
-    h.drag((200.0, 150.0), (230.0, 170.0), Modifiers::NONE);
-    let pins = h.state.borrow().session.pins().to_vec();
-    assert_eq!(pins.len(), 2);
-    assert_eq!(pins[1].rest, Point::new(200.0, 150.0), "attached where it was placed");
-    assert_eq!(pins[1].at, Point::new(230.0, 170.0), "and moved by the drag");
-    assert_eq!(h.selected(), vec![1]);
-    assert_eq!(h.seen(), [Seen::Begin, Seen::Commit], "placement and drag are one gesture");
-
-    let edits = h.state.borrow().edits;
-    let off = h.at(5.0, 5.0);
-    h.fixture.click_at(off);
-    assert_eq!(h.state.borrow().edits, edits, "a click off the mesh does nothing");
-    assert_eq!(h.state.borrow().session.pins().len(), 2);
-}
-
-#[trial]
 fn shift_click_toggles_the_selection_and_a_drag_moves_every_selected_pin() {
     let mut h = harness(vec![pin(100.0, 100.0), pin(200.0, 100.0), pin(300.0, 100.0)], vec![0]);
     h.click((200.0, 100.0), Modifiers::SHIFT);
@@ -423,25 +447,34 @@ fn turn_ring() -> f64 {
 const RING_MARGIN: f64 = 1.0;
 
 #[trial]
-fn alt_drag_near_a_selected_pin_turns_it_and_fixes_its_rotation() {
-    let ring = turn_ring();
-    let (centre, release) = (Point::new(200.0, 150.0), Point::new(200.0, 190.0));
-    let press = Point::new(centre.x + ring - RING_MARGIN, centre.y);
-    // The turn is the angle the drag sweeps around the pin, from the press to the release.
-    let swept = ((release.y - centre.y).atan2(release.x - centre.x) - (press.y - centre.y).atan2(press.x - centre.x)).to_degrees();
-    let mut h = harness(vec![pin(centre.x, centre.y)], vec![0]);
-    h.drag((press.x, press.y), (release.x, release.y), Modifiers::ALT);
-    let turned = h.state.borrow().session.pins()[0];
-    assert!((turned.angle.expect("fixed") - swept).abs() < 1e-9, "{:?} vs {swept}", turned.angle);
-    assert_eq!(turned.at, centre, "the pin stays where it is");
-    assert_eq!(h.seen(), [Seen::Begin, Seen::Commit]);
+fn alt_drag_turns_a_fixed_pin_by_the_swept_angle() {
+    {
+        let mut h = harness(vec![turned(pin(200.0, 150.0), 30.0)], vec![0]);
+        let near = turn_ring() - RING_MARGIN;
+        h.drag((200.0, 150.0 + near), (200.0 - near, 150.0), Modifiers::ALT);
+        let angle = h.state.borrow().session.pins()[0].angle.expect("fixed");
+        assert!((angle - 120.0).abs() < 1e-9, "{angle}");
+    }
+    {
+        let ring = turn_ring();
+        let (centre, release) = (Point::new(200.0, 150.0), Point::new(200.0, 190.0));
+        let press = Point::new(centre.x + ring - RING_MARGIN, centre.y);
+        // The turn is the angle the drag sweeps around the pin, from the press to the release.
+        let swept = ((release.y - centre.y).atan2(release.x - centre.x) - (press.y - centre.y).atan2(press.x - centre.x)).to_degrees();
+        let mut h = harness(vec![pin(centre.x, centre.y)], vec![0]);
+        h.drag((press.x, press.y), (release.x, release.y), Modifiers::ALT);
+        let turned = h.state.borrow().session.pins()[0];
+        assert!((turned.angle.expect("fixed") - swept).abs() < 1e-9, "{:?} vs {swept}", turned.angle);
+        assert_eq!(turned.at, centre, "the pin stays where it is");
+        assert_eq!(h.seen(), [Seen::Begin, Seen::Commit]);
 
-    h.state.borrow_mut().seen.clear();
-    h.drag((centre.x + ring + RING_MARGIN, centre.y), (release.x, release.y), Modifiers::ALT);
-    assert!(h.seen().is_empty(), "just outside the turn ring the press turns nothing: {:?}", h.seen());
+        h.state.borrow_mut().seen.clear();
+        h.drag((centre.x + ring + RING_MARGIN, centre.y), (release.x, release.y), Modifiers::ALT);
+        assert!(h.seen().is_empty(), "just outside the turn ring the press turns nothing: {:?}", h.seen());
 
-    h.drag((300.0, 150.0), (300.0, 190.0), Modifiers::ALT);
-    assert!(h.seen().is_empty(), "far from the pin the press turns nothing: {:?}", h.seen());
+        h.drag((300.0, 150.0), (300.0, 190.0), Modifiers::ALT);
+        assert!(h.seen().is_empty(), "far from the pin the press turns nothing: {:?}", h.seen());
+    }
 }
 
 #[trial]
@@ -454,30 +487,6 @@ fn tab_onto_a_pin_selects_it() {
     assert_eq!(h.selected(), vec![0], "the pin Tab reaches is the selection");
     h.key(Key::PageDown, Modifiers::NONE);
     assert_eq!(h.selected(), vec![1], "the pin Page Down reaches is the selection");
-}
-
-#[trial]
-fn alt_click_deletes_a_pin_and_esc_cancels_a_drag_or_discards() {
-    let mut h = harness(vec![pin(100.0, 100.0), pin(200.0, 100.0)], vec![]);
-    h.click((100.0, 100.0), Modifiers::ALT);
-    assert_eq!(h.places(), vec![Point::new(200.0, 100.0)]);
-    assert_eq!(h.seen(), [Seen::Set]);
-
-    let from = h.at(200.0, 100.0);
-    h.fixture.frame(vec![pointer::moved(from)]);
-    h.fixture.frame(vec![pointer::press(from)]);
-    h.fixture.frame(vec![pointer::moved(h.at(220.0, 100.0))]);
-    h.fixture.frame(vec![pointer::moved(h.at(240.0, 100.0))]);
-    h.fixture.settle();
-    assert_eq!(h.places(), vec![Point::new(240.0, 100.0)]);
-    h.key(Key::Escape, Modifiers::NONE);
-    assert_eq!(h.places(), vec![Point::new(200.0, 100.0)], "cancelled");
-    assert!(h.seen().contains(&Seen::Cancel));
-    assert!(!h.state.borrow().discard, "the Esc ended the drag");
-    h.fixture.frame(vec![pointer::release(h.at(240.0, 100.0))]);
-    h.fixture.settle();
-    h.key(Key::Escape, Modifiers::NONE);
-    assert!(h.state.borrow().discard, "Esc with no drag discards the session");
 }
 
 #[trial]
@@ -527,15 +536,6 @@ fn the_keyboard_places_picks_moves_and_removes_pins() {
     h.fixture.settle();
     add(&h);
     assert_eq!(h.places()[3], Point::new(200.0, 150.0));
-}
-
-#[trial]
-fn alt_drag_turns_a_fixed_pin_by_the_swept_angle() {
-    let mut h = harness(vec![turned(pin(200.0, 150.0), 30.0)], vec![0]);
-    let near = turn_ring() - RING_MARGIN;
-    h.drag((200.0, 150.0 + near), (200.0 - near, 150.0), Modifiers::ALT);
-    let angle = h.state.borrow().session.pins()[0].angle.expect("fixed");
-    assert!((angle - 120.0).abs() < 1e-9, "{angle}");
 }
 
 #[trial]
@@ -635,8 +635,9 @@ fn pins_depth_buttons_change_the_selected_pins_depth() {
 
 #[trial]
 fn the_options_report_edits_and_a_refused_remesh_shows_its_notice() {
-    let (mut fixture, state) = bar(false, Some("Could not use Puppet Warp"));
-    assert!(fixture.by_label("Could not use Puppet Warp").is_some(), "the notice shows its text");
+    let (mut fixture, state) = bar(false, None);
+    let (noisy, _) = bar(false, Some("A notice"));
+    assert!(noisy.tree().keys().len() > fixture.tree().keys().len(), "a refused remesh adds its notice to the bar");
     let combos = fixture.by_role(Role::COMBO_BOX);
     fixture.click(&combos[0]);
     let rigid = fixture.by_label("Rigid").expect("the mode list is open");

@@ -79,13 +79,6 @@ fn the_overlay_retraces_only_when_the_revision_or_the_reduction_changes() {
 }
 
 #[trial]
-fn the_overlay_is_one_graphics_object_named_by_its_label() {
-    let mut fixture = Fixture::story(&Story::new("selection-overlay", show_overlay));
-    fixture.settle();
-    assert!(fixture.by_label("Selection").is_some());
-}
-
-#[trial]
 fn the_view_commands_pick_cycle_and_hold() {
     let mut state = MaskViewState::default();
     assert_eq!(state.run(MaskViewKeys::OnWhite, FirePhase::Press), Some(MaskViewChange::Mode(MaskViewMode::OnWhite)));

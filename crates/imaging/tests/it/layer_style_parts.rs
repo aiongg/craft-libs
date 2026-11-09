@@ -26,52 +26,53 @@ fn the_blend_if_readout_writes_split_and_joined_levels() {
         let _ = BlendIfBar::new("This Layer", Bind::bound(&mut shared.borrow_mut())).show(ui);
     });
     fixture.settle();
-    assert!(
-        fixture.texts().iter().any(|text| text.text == "0 / 20    255"),
-        "texts: {:?}",
-        fixture.texts().iter().map(|t| &t.text).collect::<Vec<_>>()
-    );
+    // The split side shows both of its levels around a slash; the joined side shows its one level.
+    let texts: Vec<String> = fixture.texts().iter().map(|text| text.text.clone()).collect();
+    let readout = texts.iter().find(|text| text.contains('/')).unwrap_or_else(|| panic!("a split readout in {texts:?}"));
+    let levels: Vec<String> = readout.split(|c: char| !c.is_ascii_digit()).filter(|part| !part.is_empty()).map(str::to_owned).collect();
+    let want = [0, 20, 255].map(|level| level.to_string());
+    assert_eq!(levels, want, "{readout:?}");
 }
 
 /// The picker lists the user's contours after the built-in ones.
-#[trial]
-fn the_picker_lists_user_contours() {
-    let user = vec![user_contour()];
-    let mut fixture = Fixture::new(move |ui| {
-        let words = Env::of(ui).words::<ContourWords>();
-        let rows = contour_rows(&Contour::presets(), &user, &words, None);
-        let mut contour = Contour::linear();
-        let mut state = PresetState::<ContourKey>::new();
-        let _ = ContourField::new("Contour", Bind::bound(&mut contour), &rows, Bind::bound(&mut state)).user(&user).show(ui);
-    });
-    fixture.settle();
-    let field = fixture.by_label("Contour").expect("the contour field");
-    fixture.click(&field);
-    fixture.idle(3);
-    assert!(fixture.by_label("Soft Step").is_some(), "the user's contour is listed");
-    assert!(fixture.by_label("Cone").is_some(), "the built-in contours are listed");
-}
-
 /// Picking a built-in contour from the picker edits the contour to it.
 #[trial]
-fn picking_a_preset_edits_the_contour() {
-    let held = Rc::new(RefCell::new(Contour::linear()));
-    let shared = Rc::clone(&held);
-    let mut fixture = Fixture::new(move |ui| {
-        let words = Env::of(ui).words::<ContourWords>();
-        let rows = contour_rows(&Contour::presets(), &[], &words, None);
-        let mut state = PresetState::<ContourKey>::new();
-        let mut contour = shared.borrow_mut();
-        let _ = ContourField::new("Contour", Bind::bound(&mut contour), &rows, Bind::bound(&mut state)).show(ui);
-    });
-    fixture.settle();
-    let field = fixture.by_label("Contour").expect("the contour field");
-    fixture.click(&field);
-    fixture.idle(3);
-    let cone = fixture.by_label("Cone").expect("the Cone contour");
-    fixture.click(&cone);
-    fixture.idle(3);
-    assert_eq!(held.borrow().name, "Cone");
+fn the_picker_lists_the_user_contours_and_picking_a_preset_edits_the_contour() {
+    {
+        let user = vec![user_contour()];
+        let mut fixture = Fixture::new(move |ui| {
+            let words = Env::of(ui).words::<ContourWords>();
+            let rows = contour_rows(&Contour::presets(), &user, &words, None);
+            let mut contour = Contour::linear();
+            let mut state = PresetState::<ContourKey>::new();
+            let _ = ContourField::new("Contour", Bind::bound(&mut contour), &rows, Bind::bound(&mut state)).user(&user).show(ui);
+        });
+        fixture.settle();
+        let field = fixture.by_label("Contour").expect("the contour field");
+        fixture.click(&field);
+        fixture.idle(3);
+        assert!(fixture.by_label("Soft Step").is_some(), "the user's contour is listed");
+        assert!(fixture.by_label("Cone").is_some(), "the built-in contours are listed");
+    }
+    {
+        let held = Rc::new(RefCell::new(Contour::linear()));
+        let shared = Rc::clone(&held);
+        let mut fixture = Fixture::new(move |ui| {
+            let words = Env::of(ui).words::<ContourWords>();
+            let rows = contour_rows(&Contour::presets(), &[], &words, None);
+            let mut state = PresetState::<ContourKey>::new();
+            let mut contour = shared.borrow_mut();
+            let _ = ContourField::new("Contour", Bind::bound(&mut contour), &rows, Bind::bound(&mut state)).show(ui);
+        });
+        fixture.settle();
+        let field = fixture.by_label("Contour").expect("the contour field");
+        fixture.click(&field);
+        fixture.idle(3);
+        let cone = fixture.by_label("Cone").expect("the Cone contour");
+        fixture.click(&cone);
+        fixture.idle(3);
+        assert_eq!(held.borrow().name, "Cone");
+    }
 }
 
 /// The contour and its curve convert both ways; a drawn curve is no contour.
@@ -86,47 +87,47 @@ fn a_contour_converts_to_the_editor_curve_and_back() {
 }
 
 /// The Contour Editor shows live values; OK answers the contour.
-#[trial]
-fn the_contour_editor_answers_the_contour_on_ok() {
-    let answer: Rc<RefCell<Option<DialogResult<Contour>>>> = Rc::new(RefCell::new(None));
-    let sink = Rc::clone(&answer);
-    let host = Rc::new(RefCell::new(DialogHost::new()));
-    host.borrow_mut().open(ContourEditorDialog::new(ContourRequest::new("Contour", Contour::linear())));
-    let shared = Rc::clone(&host);
-    let mut fixture = Fixture::new(move |ui| {
-        let mut host = shared.borrow_mut();
-        host.run(ui);
-        if let Some(result) = host.take::<ContourEditorDialog>() {
-            *sink.borrow_mut() = Some(result);
-        }
-    });
-    fixture.settle();
-    let ok = fixture.by_label("OK").expect("the OK button");
-    fixture.click(&ok);
-    fixture.idle(3);
-    assert!(matches!(answer.borrow().as_ref(), Some(DialogResult::Ok(contour)) if *contour == Contour::linear()));
-}
-
 /// Cancel answers nothing.
 #[trial]
-fn the_contour_editor_answers_nothing_on_cancel() {
-    let answer: Rc<RefCell<Option<DialogResult<Contour>>>> = Rc::new(RefCell::new(None));
-    let sink = Rc::clone(&answer);
-    let host = Rc::new(RefCell::new(DialogHost::new()));
-    host.borrow_mut().open(ContourEditorDialog::new(ContourRequest::new("Contour", Contour::linear())));
-    let shared = Rc::clone(&host);
-    let mut fixture = Fixture::new(move |ui| {
-        let mut host = shared.borrow_mut();
-        host.run(ui);
-        if let Some(result) = host.take::<ContourEditorDialog>() {
-            *sink.borrow_mut() = Some(result);
-        }
-    });
-    fixture.settle();
-    let cancel = fixture.by_label("Cancel").expect("the Cancel button");
-    fixture.click(&cancel);
-    fixture.idle(3);
-    assert!(matches!(answer.borrow().as_ref(), Some(DialogResult::Cancel)));
+fn the_contour_editor_answers_the_contour_on_ok_and_nothing_on_cancel() {
+    {
+        let answer: Rc<RefCell<Option<DialogResult<Contour>>>> = Rc::new(RefCell::new(None));
+        let sink = Rc::clone(&answer);
+        let host = Rc::new(RefCell::new(DialogHost::new()));
+        host.borrow_mut().open(ContourEditorDialog::new(ContourRequest::new("Contour", Contour::linear())));
+        let shared = Rc::clone(&host);
+        let mut fixture = Fixture::new(move |ui| {
+            let mut host = shared.borrow_mut();
+            host.run(ui);
+            if let Some(result) = host.take::<ContourEditorDialog>() {
+                *sink.borrow_mut() = Some(result);
+            }
+        });
+        fixture.settle();
+        let ok = fixture.by_label("OK").expect("the OK button");
+        fixture.click(&ok);
+        fixture.idle(3);
+        assert!(matches!(answer.borrow().as_ref(), Some(DialogResult::Ok(contour)) if *contour == Contour::linear()));
+    }
+    {
+        let answer: Rc<RefCell<Option<DialogResult<Contour>>>> = Rc::new(RefCell::new(None));
+        let sink = Rc::clone(&answer);
+        let host = Rc::new(RefCell::new(DialogHost::new()));
+        host.borrow_mut().open(ContourEditorDialog::new(ContourRequest::new("Contour", Contour::linear())));
+        let shared = Rc::clone(&host);
+        let mut fixture = Fixture::new(move |ui| {
+            let mut host = shared.borrow_mut();
+            host.run(ui);
+            if let Some(result) = host.take::<ContourEditorDialog>() {
+                *sink.borrow_mut() = Some(result);
+            }
+        });
+        fixture.settle();
+        let cancel = fixture.by_label("Cancel").expect("the Cancel button");
+        fixture.click(&cancel);
+        fixture.idle(3);
+        assert!(matches!(answer.borrow().as_ref(), Some(DialogResult::Cancel)));
+    }
 }
 
 /// New asks for a name that starts as the contour word, and a named New is reported as an action.

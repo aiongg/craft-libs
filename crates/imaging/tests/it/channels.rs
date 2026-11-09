@@ -199,23 +199,48 @@ fn a_double_click_on_the_thumbnail_opens_the_options() {
 
 /// A double click on an alpha row's name opens the rename field and Enter commits it; composite and colour rows do not
 /// rename.
+/// Rename Channel… in a row's context menu opens that row's rename field.
+/// The app's Rename Channel command opens the row's rename field through `start_rename`; a composite row ignores it.
 #[trial]
-fn a_double_click_on_the_name_renames_an_alpha_channel_only() {
-    let (mut fixture, app) = rig(sample_rows());
-    for name in ["RGB", "Red"] {
-        let at = row(&fixture, name).center();
+fn rename_opens_the_field_of_an_alpha_channel_only_from_every_entry_point() {
+    {
+        let (mut fixture, app) = rig(sample_rows());
+        for name in ["RGB", "Red"] {
+            let at = row(&fixture, name).center();
+            double_click(&mut fixture, at);
+            assert!(!editing(&fixture), "{name} renamed");
+            fixture.key(Key::Escape, Modifiers::NONE);
+        }
+        take(&app);
+        let at = row(&fixture, "Alpha 1").center();
         double_click(&mut fixture, at);
-        assert!(!editing(&fixture), "{name} renamed");
-        fixture.key(Key::Escape, Modifiers::NONE);
+        assert!(editing(&fixture));
+        fixture.key(Key::A, Modifiers::COMMAND);
+        fixture.type_text("Sketch");
+        fixture.key(Key::Enter, Modifiers::NONE);
+        assert_eq!(renames(take(&app)), [(ALPHA_1, String::from("Sketch"))]);
     }
-    take(&app);
-    let at = row(&fixture, "Alpha 1").center();
-    double_click(&mut fixture, at);
-    assert!(editing(&fixture));
-    fixture.key(Key::A, Modifiers::COMMAND);
-    fixture.type_text("Sketch");
-    fixture.key(Key::Enter, Modifiers::NONE);
-    assert_eq!(renames(take(&app)), [(ALPHA_1, String::from("Sketch"))]);
+    {
+        let (mut fixture, _) = rig(sample_rows());
+        let pos = row(&fixture, "Alpha 1").center();
+        fixture.frame(vec![pointer::moved(pos)]);
+        fixture.frame(vec![pointer::secondary(pos, true)]);
+        fixture.frame(vec![pointer::secondary(pos, false)]);
+        fixture.idle(3);
+        let item = row(&fixture, "Rename Channel…");
+        fixture.click(&item);
+        fixture.idle(3);
+        assert!(editing(&fixture), "the rename field is open");
+    }
+    {
+        let (mut fixture, app) = rig(sample_rows());
+        app.borrow_mut().rename = Some(COMPOSITE);
+        fixture.idle(3);
+        assert!(!editing(&fixture));
+        app.borrow_mut().rename = Some(ALPHA_2);
+        fixture.idle(3);
+        assert!(editing(&fixture), "the rename field is open");
+    }
 }
 
 /// An alpha row dragged below another or above Quick Mask reports a move; over colour rows nothing is reported.
@@ -278,40 +303,15 @@ fn a_footer_drop_acts_on_the_grabbed_row_while_the_composite_is_targeted() {
     assert_eq!(drops(take(&app)), [(ChannelsFooterButton::New, vec![2])]);
 }
 
-/// Rename Channel… in a row's context menu opens that row's rename field.
-#[trial]
-fn rename_from_the_row_menu_starts_the_rename() {
-    let (mut fixture, _) = rig(sample_rows());
-    let pos = row(&fixture, "Alpha 1").center();
-    fixture.frame(vec![pointer::moved(pos)]);
-    fixture.frame(vec![pointer::secondary(pos, true)]);
-    fixture.frame(vec![pointer::secondary(pos, false)]);
-    fixture.idle(3);
-    let item = row(&fixture, "Rename Channel…");
-    fixture.click(&item);
-    fixture.idle(3);
-    assert!(editing(&fixture), "the rename field is open");
-}
-
-/// The app's Rename Channel command opens the row's rename field through `start_rename`; a composite row ignores it.
-#[trial]
-fn start_rename_opens_the_field_of_an_alpha_channel_only() {
-    let (mut fixture, app) = rig(sample_rows());
-    app.borrow_mut().rename = Some(COMPOSITE);
-    fixture.idle(3);
-    assert!(!editing(&fixture));
-    app.borrow_mut().rename = Some(ALPHA_2);
-    fixture.idle(3);
-    assert!(editing(&fixture), "the rename field is open");
-}
-
 /// Each row but Quick Mask shows the chord of its number at the trailing end.
 #[trial]
 fn the_shortcut_chords_follow_the_row_order() {
     let (fixture, _) = rig(sample_rows());
-    let shown = |digit: char| fixture.texts().iter().any(|text| text.text.ends_with(digit));
-    assert!(shown('2') && shown('3') && shown('8'), "the composite is 2, the colours 3 to 5, Alpha 1 is 6 ... Spot 1 is 8");
-    assert!(!shown('9'), "Quick Mask takes no number");
+    let shown = |digit: u32| char::from_digit(digit, 10).is_some_and(|digit| fixture.texts().iter().any(|text| text.text.ends_with(digit)));
+    // The composite is 2 and every row down to the last before Quick Mask follows in order.
+    let rows = u32::try_from(sample_rows().len()).unwrap_or(u32::MAX);
+    assert!((2..rows).all(shown), "every row but Quick Mask has its number");
+    assert!(!shown(rows + 1), "Quick Mask takes no number");
 }
 
 /// The Load Channel as Selection command (Cmd/Ctrl+Enter) loads the lead, with Shift adding.
