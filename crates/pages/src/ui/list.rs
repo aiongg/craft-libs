@@ -13,7 +13,7 @@
 //!         PageListEvent::Go(row) => doc.set_active_artboard(row),
 //!         PageListEvent::Rename { row, text } => doc.rename_artboard(row, &text),
 //!         PageListEvent::Reorder(EditEvent::Commit { value, .. }) => doc.move_artboards(value),
-//!         PageListEvent::Toggle(edit) => doc.apply_toggles(edit),
+//!         PageListEvent::Toggle(step) => doc.apply_toggle_step(step),
 //!         PageListEvent::New { duplicate, options } => doc.new_artboard(duplicate, options),
 //!         _ => {}
 //!     }
@@ -23,14 +23,15 @@
 #[cfg(feature = "screen-testing")]
 mod stories;
 
-use craft_behavior::{ColumnKey, ColumnWidth, EditEvent, IconId, Selection, SelectionChange, keyed};
+use craft_behavior::{ColumnKey, ColumnWidth, EditEvent, IconId, Mixed, Selection, SelectionChange, keyed};
 use craft_ui::contract::{
     Bind, CollectionEvent, ColumnKind, ColumnSpec, ContextMenuRequest, ListDrag, NoValue, Outcome, ReorderMove, ReorderRule, SelectMode,
-    ShowCollection as _, ShowContainer as _, ToggleColumn, ToggleEdit,
+    ShowCollection as _, ShowContainer as _, SweepApply, SweepStep, ToggleColumn, ToggleEdit,
 };
 use craft_ui::list::{ListRow, RowEvent, ToggleCell, TrailingFace, TrailingPart};
 use craft_ui::primitives::IconSpec;
 use craft_ui::runtime::env::{Env, Label};
+use craft_ui::runtime::memory::Remember as _;
 use craft_ui::sections::{FooterAction, FooterBar, Panel};
 use craft_ui::table::Table;
 use egui::{Id, Response, Ui};
@@ -112,8 +113,12 @@ pub enum PageListEvent {
     },
     /// A drag of rows or a stacking key (Cmd/Ctrl+] and [), as the table reports reorders.
     Reorder(EditEvent<ReorderMove<usize>>),
-    /// A click or a sweep in the visibility or lock column; `column` tells which.
-    Toggle(EditEvent<ToggleEdit<usize>>),
+    /// A click or a sweep in the visibility or lock column, as the step to apply; the step's cell names the column.
+    /// `Flip` and `Restore` set the cell to the step's value (Escape restores every flipped cell). `ShowOnly` (Alt on
+    /// the first press of the eye column, VectorCraft's hide others) shows only that row, turning the other rows'
+    /// eyes off, or on again when it is the only one on; `UndoShowOnly` puts the eyes back as they were. The lock
+    /// column ignores Alt. The app groups one sweep as one undo step.
+    Toggle(SweepStep<usize>),
     /// New, Duplicate, or a row dropped on New (`duplicate`, the dragged rows' grabbed row); `options` with Alt held
     /// (open the options for the new one first).
     #[non_exhaustive]
@@ -148,6 +153,29 @@ impl Outcome for PageListOutput {
 
     fn response(&self) -> &Response {
         &self.response
+    }
+}
+
+/// The readers of the eye and lock sweeps, kept across passes while the pointer is held.
+#[derive(Clone)]
+struct Sweeps {
+    eye: SweepApply,
+    lock: SweepApply,
+}
+
+impl Default for Sweeps {
+    /// Alt on the first press of an eye sweep shows only that row; the lock column ignores Alt.
+    fn default() -> Self {
+        Sweeps { eye: SweepApply::show_only(), lock: SweepApply::new() }
+    }
+}
+
+/// The column of a toggle edit, when it names one.
+fn toggle_column(edit: &EditEvent<ToggleEdit<usize>>) -> Option<&ColumnKey> {
+    match edit {
+        EditEvent::Update { value: cell, .. } | EditEvent::Set { after: cell, .. } | EditEvent::Commit { after: cell, .. } => Some(&cell.column),
+        EditEvent::Begin { before: Mixed::Same(cell), .. } | EditEvent::Cancel { before: Some(Mixed::Same(cell)), .. } => Some(&cell.column),
+        _ => None,
     }
 }
 
@@ -224,7 +252,7 @@ impl<'a> PageList<'a> {
                     });
                 }
             })
-            .show(ui, |ui, _| {
+            .show(ui, |ui, cx| {
                 let shown = Table::new(label.clone(), columns.clone())
                     .select(SelectMode::Multi)
                     .selection(Bind::bound(&mut *picked))
@@ -257,7 +285,11 @@ impl<'a> PageList<'a> {
                                 }
                             }
                         }
-                        CollectionEvent::Toggle(edit) => events.push(PageListEvent::Toggle(edit)),
+                        CollectionEvent::Toggle(edit) => {
+                            let sweeps = cx.keep::<Sweeps>();
+                            let sweep = if toggle_column(&edit) == Some(&VISIBLE) { &mut sweeps.eye } else { &mut sweeps.lock };
+                            events.extend(sweep.feed(&edit).map(PageListEvent::Toggle));
+                        }
                         CollectionEvent::Reorder(edit) => events.push(PageListEvent::Reorder(edit)),
                         CollectionEvent::ContextMenu(request) => events.push(PageListEvent::ContextMenu(request)),
                         CollectionEvent::Delete(rows) => {

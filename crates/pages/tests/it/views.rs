@@ -10,9 +10,9 @@ use craft_pages::ui::{
 };
 
 use craft_pages::ui::reading::{ReadingState, ReadingView};
-use craft_ui::contract::{ReorderMove, Role, Show as _};
+use craft_ui::contract::{ReorderMove, Role, Show as _, SweepStep};
 use craft_ui::primitives::textures::{Revision, ThumbRender, ThumbRequest, ThumbSource};
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Key, Modifiers, Pos2, Rect, pos2, vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -234,6 +234,27 @@ fn a_click_on_a_row_makes_it_the_active_one() {
     let row = rig.fixture.by_label("Board 3").expect("the row is in the tree");
     rig.fixture.click(&row);
     assert!(rig.events.borrow().contains(&PageListEvent::Go(2)), "events {:?}", rig.events.borrow());
+}
+
+/// An Alt sweep down the eyes reports Show Only once, for the pressed row, and nothing for the rows it crosses; Escape
+/// reports the undo of it.
+#[trial]
+fn an_alt_eye_sweep_reports_show_only_then_its_undo() {
+    let mut rig = list_rig();
+    let from = rig.fixture.by_label("Visibility Board 1").expect("the eye").center();
+    let to = rig.fixture.by_label("Visibility Board 3").expect("the eye").center();
+    rig.fixture.hold(Modifiers::ALT);
+    rig.fixture.frame(vec![pointer::moved(from)]);
+    rig.fixture.frame(vec![pointer::press(from)]);
+    rig.fixture.frame(vec![pointer::moved(from + vec2(0.0, 8.0))]);
+    rig.fixture.frame(vec![pointer::moved(to)]);
+    rig.fixture.idle(2);
+    let shown: Vec<_> = rig.events.borrow_mut().drain(..).collect();
+    assert!(matches!(shown.as_slice(), [PageListEvent::Toggle(SweepStep::ShowOnly(cell))] if cell.key == 0), "events {shown:?}");
+    rig.fixture.key(Key::Escape, Modifiers::ALT);
+    rig.fixture.idle(2);
+    let undone: Vec<_> = rig.events.borrow_mut().drain(..).collect();
+    assert!(matches!(undone.as_slice(), [PageListEvent::Toggle(SweepStep::UndoShowOnly(cell))] if cell.key == 0), "events {undone:?}");
 }
 
 #[trial]

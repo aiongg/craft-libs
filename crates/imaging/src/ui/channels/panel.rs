@@ -8,8 +8,8 @@ use std::hash::Hash;
 use craft_behavior::geometry::selection_op::SelectionOperation;
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, IconId, ItemSource, Selection, SelectionChange};
 use craft_ui::contract::{
-    Bind, CollectionEvent, ColumnKind, ColumnSpec, ListDrag, Props as _, ReorderRule, ShowCollection as _, ShowContainer as _, ToggleColumn,
-    request_rename,
+    Bind, CollectionEvent, ColumnKind, ColumnSpec, ListDrag, Props as _, ReorderRule, ShowCollection as _, ShowContainer as _, SweepApply,
+    ToggleColumn, request_rename,
 };
 use craft_ui::layout_components::Stack;
 use craft_ui::list::{List, RowEvent, ThumbSize, ThumbTarget};
@@ -29,11 +29,13 @@ use super::rows::{EYE, NAME, RowContext, ThumbHost, channel_row};
 #[derive(Clone)]
 struct Session<K> {
     menu: Option<K>,
+    /// The reader of the eye sweeps; Photoshop's channels have no Alt isolate, so it is plain.
+    eyes: SweepApply,
 }
 
 impl<K> Default for Session<K> {
     fn default() -> Self {
-        Session { menu: None }
+        Session { menu: None, eyes: SweepApply::new() }
     }
 }
 
@@ -84,8 +86,8 @@ impl<K: Clone> ItemSource<K> for Order<'_, K> {
 ///   reports [`Target`](ChannelsEvent::Target); Cmd/Ctrl-click on the thumbnail reports
 ///   [`LoadSelection`](ChannelsEvent::LoadSelection) with the operation Shift and Alt ask for; ↑ ↓ report `Target`
 ///   for the new lead; the Load Selection command (Cmd/Ctrl+Enter) loads the lead.
-/// - **Eyes**: the list's toggle column; a click or a sweep reports [`Visibility`](ChannelsEvent::Visibility); the
-///   eye never targets.
+/// - **Eyes**: the list's toggle column; a click or a sweep reports [`Visibility`](ChannelsEvent::Visibility) steps, one per eye crossed;
+///   Escape restores them; the eye never targets.
 /// - **Double click and Enter**: on the thumbnail of a row with options, or Enter, [`Options`](ChannelsEvent::Options);
 ///   on the name of an alpha or spot row, or F2, rename in place; an empty or unchanged name reports nothing, else
 ///   [`Rename`](ChannelsEvent::Rename).
@@ -255,7 +257,7 @@ fn map_events<K: Clone + PartialEq>(
                 events.push(ChannelsEvent::Options(key));
             }
             CollectionEvent::Activate(key) if kind_of(&key).is_some_and(ChannelKind::has_options) => events.push(ChannelsEvent::Options(key)),
-            CollectionEvent::Toggle(edit) => events.push(ChannelsEvent::Visibility(edit)),
+            CollectionEvent::Toggle(edit) => events.extend(session.eyes.feed(&edit).map(ChannelsEvent::Visibility)),
             CollectionEvent::Rename(edit) => {
                 if let EditEvent::Commit { after, .. } | EditEvent::Set { after, .. } = edit {
                     let name = after.name.trim();

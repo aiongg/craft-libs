@@ -1,12 +1,12 @@
 //! The body above the footer: the empty notice, Button Mode's buttons or the tree, and the mapping
 //! of the list's events to the panel's.
 
-use craft_behavior::{ColumnWidth, EditEvent, IconId, Selection};
+use craft_behavior::{ColumnWidth, EditEvent, IconId, Mixed, Selection};
 use craft_theme::variant::Tone;
 use craft_ui::buttons::Button;
 use craft_ui::contract::{
-    Bind, CollectionEvent, ColumnKind, ColumnSpec, ListDrag, OpenChange, Outcome as _, Props as _, ReorderMove, ReorderRule, Scroll, SelectMode,
-    Show as _, ShowCollection as _, ShowContainer as _, ToggleColumn, request_rename,
+    Bind, CollectionEvent, ColumnKey, ColumnKind, ColumnSpec, ListDrag, OpenChange, Outcome as _, Props as _, ReorderMove, ReorderRule, Scroll,
+    SelectMode, Show as _, ShowCollection as _, ShowContainer as _, ToggleColumn, ToggleEdit, request_rename,
 };
 use craft_ui::display::Text;
 use craft_ui::layout_components::{Row, Stack};
@@ -131,6 +131,15 @@ fn show_buttons(ui: &mut Ui, body: &Body<'_>) -> BodyOutput {
     BodyOutput { events, response: shown_buttons.output }
 }
 
+/// The column of a toggle edit, when it names one.
+fn toggle_column(edit: &EditEvent<ToggleEdit<ActionSelection>>) -> Option<&ColumnKey> {
+    match edit {
+        EditEvent::Update { value: cell, .. } | EditEvent::Set { after: cell, .. } | EditEvent::Commit { after: cell, .. } => Some(&cell.column),
+        EditEvent::Begin { before: Mixed::Same(cell), .. } | EditEvent::Cancel { before: Some(Mixed::Same(cell)), .. } => Some(&cell.column),
+        _ => None,
+    }
+}
+
 /// The tree on a [`List`] in tree mode, and the events of what happened on it.
 fn show_tree(ui: &mut Ui, body: &Body<'_>, state: &mut ActionsPanelState, session: &mut Session, rename: Option<usize>) -> BodyOutput {
     let Body { list, host, words, list_id, .. } = *body;
@@ -193,7 +202,10 @@ fn show_tree(ui: &mut Ui, body: &Body<'_>, state: &mut ActionsPanelState, sessio
                 }
                 _ => {}
             },
-            CollectionEvent::Toggle(edit) if editable => events.push(ActionsEvent::Toggle(edit)),
+            CollectionEvent::Toggle(edit) if editable => {
+                let sweep = if toggle_column(&edit) == Some(&INCLUDE_COLUMN) { &mut session.include } else { &mut session.dialog };
+                events.extend(sweep.feed(&edit).map(ActionsEvent::Toggle));
+            }
             CollectionEvent::Rename(edit) if editable => {
                 if let EditEvent::Commit { after, .. } | EditEvent::Set { after, .. } = edit
                     && let ActionSelection::Action(action) = after.key

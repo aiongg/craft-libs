@@ -9,9 +9,9 @@ use craft_automation::ui::actions::{
     ActionMove, ActionPlace, ActionSelection, ActionsEvent, ActionsPanel, ActionsPanelState, ActionsSettings, DIALOG_COLUMN, INCLUDE_COLUMN,
     ShortcutChoice,
 };
-use craft_behavior::{EditEvent, Mixed};
+use craft_behavior::Mixed;
 use craft_keymap::Platform;
-use craft_ui::contract::Role;
+use craft_ui::contract::{Role, SweepStep};
 use craft_ui::testing::{Fixture, Target, pointer, trial};
 use egui::{Key, Modifiers, Pos2, Ui, Vec2};
 
@@ -115,12 +115,12 @@ fn double_click(fixture: &mut Fixture, pos: Pos2) {
     fixture.idle(2);
 }
 
-/// The cells the toggle gestures ended on (a `Commit` or a `Set`): row, column, state.
+/// The cells the toggle steps set (a `Flip`): row, column, state.
 fn toggles(events: &[ActionsEvent]) -> Vec<(ActionSelection, &'static str, bool)> {
     events
         .iter()
         .filter_map(|event| match event {
-            ActionsEvent::Toggle(EditEvent::Commit { after, .. } | EditEvent::Set { after, .. }) => {
+            ActionsEvent::Toggle(SweepStep::Flip(after)) => {
                 let column = if after.column == INCLUDE_COLUMN {
                     "include"
                 } else if after.column == DIALOG_COLUMN {
@@ -450,10 +450,9 @@ fn actions_panel_selection_follows_a_move() {
     assert_eq!(shared.borrow().state.selected, Some(ActionSelection::Step(0, 0)), "a pressed step is selected and follows its move");
 }
 
-/// A press on the include column is one gesture: a Begin and a Commit, so the app has one undo step; the events are
-/// the list's own.
+/// A press on the include column is one step: the cell flips once.
 #[trial]
-fn actions_panel_toggle_gesture_is_forwarded_whole() {
+fn actions_panel_include_press_is_one_flip() {
     let mut app = app(sample_list());
     app.state.expanded.insert("Sharpen".into());
     let (mut fixture, shared) = rig(app);
@@ -461,10 +460,32 @@ fn actions_panel_toggle_gesture_is_forwarded_whole() {
     fixture.click(&cell);
     fixture.idle(2);
     let events = take(&shared);
-    let begins = events.iter().filter(|event| matches!(event, ActionsEvent::Toggle(EditEvent::Begin { .. }))).count();
-    let commits = events.iter().filter(|event| matches!(event, ActionsEvent::Toggle(EditEvent::Commit { .. }))).count();
-    assert_eq!((begins, commits), (1, 1), "{events:?}");
+    assert_eq!(events.len(), 1, "{events:?}");
     assert_eq!(toggles(&events), [(ActionSelection::Step(0, 0), "include", false)]);
+}
+
+/// An Alt sweep down the include column reports Show Only once, for the pressed cell and nothing for the cells it
+/// crosses; Escape reports the undo of it.
+#[trial]
+fn actions_panel_alt_include_sweep_reports_show_only_then_its_undo() {
+    let mut app = app(sample_list());
+    app.state.expanded.insert("Sharpen".into());
+    let (mut fixture, shared) = rig(app);
+    let (from, to) = (node(&fixture, "Include in playback: Run levels").center(), node(&fixture, "Include in playback: Run blur").center());
+    fixture.hold(Modifiers::ALT);
+    fixture.frame(vec![pointer::moved(from)]);
+    fixture.frame(vec![pointer::press(from)]);
+    fixture.frame(vec![pointer::moved(from + DRAG_STEP)]);
+    fixture.frame(vec![pointer::moved(to)]);
+    fixture.idle(2);
+    let shown = take(&shared);
+    let only: Vec<_> = shown.iter().filter(|event| matches!(event, ActionsEvent::Toggle(SweepStep::ShowOnly(_)))).collect();
+    assert_eq!(only.len(), 1, "{shown:?}");
+    assert_eq!(shown.len(), 1, "{shown:?}");
+    fixture.key(Key::Escape, Modifiers::ALT);
+    fixture.idle(2);
+    let undone = take(&shared);
+    assert!(matches!(undone.as_slice(), [ActionsEvent::Toggle(SweepStep::UndoShowOnly(_))]), "{undone:?}");
 }
 
 /// An action with no steps shows no include box.

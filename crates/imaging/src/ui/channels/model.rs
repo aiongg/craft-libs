@@ -5,7 +5,7 @@ use craft_behavior::EditEvent;
 use craft_behavior::geometry::selection_op::SelectionOperation;
 use craft_keymap::Mods;
 use craft_theme::Srgba;
-use craft_ui::contract::{NoValue, Outcome, ReorderMove, ToggleEdit};
+use craft_ui::contract::{NoValue, Outcome, ReorderMove, SweepStep};
 use egui::Response;
 
 use super::footer::ChannelsFooterButton;
@@ -141,9 +141,10 @@ pub enum ChannelsEvent<K> {
     /// A click on a row (not with Cmd/Ctrl), or ↑ ↓ to a row: the app targets the channel
     /// (PhotoCraft: Quick Mask targets the composite).
     Target(K),
-    /// An eye click (`Set`) or a sweep over several eyes (`Begin`, `Update`, `Commit`; Esc and
-    /// focus loss `Cancel`).
-    Visibility(EditEvent<ToggleEdit<K>>),
+    /// An eye click or a sweep over several eyes, as the step to apply: `Flip` sets the eye to the step's value as
+    /// the pointer crosses it; Esc and focus loss give `Restore` for every eye flipped, with the value from before.
+    /// Alt is ignored. The app groups a sweep as one undo step.
+    Visibility(SweepStep<K>),
     /// Cmd/Ctrl-click on a row, or Cmd/Ctrl+Enter on the lead: load the channel as a selection
     /// with the operation of Shift and Alt.
     #[non_exhaustive]

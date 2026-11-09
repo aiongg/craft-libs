@@ -561,8 +561,7 @@ fn toggle_events<Id: Clone + PartialEq>(
             let edit = EditEvent::cancel(gesture, reason, Some(Mixed::Same(cell.on)));
             push_cell(events, Some(gesture), cell.key, column, edit);
         }
-        // The rows an Alt sweep turned off have no event to take them back.
-        SweepStep::UndoShowOnly(_) => {}
+        SweepStep::UndoShowOnly(cell) => events.push(LayersEvent::UndoShowOnly(cell.key)),
         _ => {}
     }
 }

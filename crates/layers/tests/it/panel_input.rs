@@ -328,6 +328,24 @@ fn escape_during_an_eye_sweep_restores_the_rows_crossed() {
     assert!(gestures.iter().all(Option::is_some) && gestures.windows(2).all(|pair| pair[0] == pair[1]), "one gesture: {gestures:?}");
 }
 
+/// Escape during an Alt eye sweep reports the undo of its Show Only, once and with no toggle.
+#[trial]
+fn escape_during_an_alt_eye_sweep_undoes_the_show_only() {
+    let (mut fixture, app) = rig(FakeLayers::sample());
+    let (start, end) = (node(&fixture, "Visibility Title").center(), node(&fixture, "Visibility Smart Object").center());
+    fixture.hold(Modifiers::ALT);
+    fixture.frame(vec![pointer::moved(start)]);
+    fixture.frame(vec![pointer::press(start)]);
+    fixture.frame(vec![pointer::moved(end)]);
+    take(&app);
+    fixture.key(Key::Escape, Modifiers::ALT);
+    fixture.idle(2);
+    let events = take(&app);
+    let undone: Vec<_> = events.iter().filter(|event| matches!(event, LayersEvent::UndoShowOnly(_))).collect();
+    assert_eq!(undone, [&LayersEvent::UndoShowOnly(LayerRowKey::Layer(4))], "events: {events:?}");
+    assert!(toggles(&events).is_empty(), "events: {events:?}");
+}
+
 /// A pick in the eye's colour menu colours every selected layer, and a row outside the selection alone.
 #[trial]
 fn the_eye_colour_menu_colours_every_selected_layer() {
