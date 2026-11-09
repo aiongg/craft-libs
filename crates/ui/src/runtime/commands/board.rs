@@ -483,6 +483,10 @@ pub(crate) fn publish(ctx: &Context, chain: &CommandChain, command: &CommandRef,
 /// region) takes the app commands of the frame that no earlier reader took; the rest stay for `FrameOutput.fired`.
 pub(crate) fn take<S>(ctx: &Context, instance: Option<Id>, app: bool, from_ref: fn(&CommandRef) -> Option<S>) -> Option<(S, Fired)> {
     let instance = instance?;
+    // Commands are for the real run: a copy would never run dry in the callers' `while let` loops.
+    if crate::runtime::measure::active(ctx) {
+        return None;
+    }
     with(ctx, |board| {
         if app {
             let at = board.out.iter().position(|fired| from_ref(&fired.command).is_some())?;
