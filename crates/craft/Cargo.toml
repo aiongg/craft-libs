@@ -88,12 +88,17 @@ screen-testing = [
     "craft-automation?/screen-testing",
     "craft-browse?/screen-testing",
     "craft-color?/screen-testing",
+    "craft-dialogs?/screen-testing",
     "craft-draw?/screen-testing",
+    "craft-font-manager?/screen-testing",
     "craft-imaging?/screen-testing",
     "craft-layers?/screen-testing",
     "craft-menu?/screen-testing",
+    "craft-pages?/screen-testing",
+    "craft-print?/screen-testing",
     "craft-review?/screen-testing",
     "craft-table?/screen-testing",
+    "craft-text?/screen-testing",
     "craft-theme-store?/screen-testing",
     "craft-timeline?/screen-testing",
     "craft-update?/screen-testing",
@@ -113,13 +118,13 @@ audio-peaks = ["audio", "craft-audio/peaks"]
 audio-serde = ["audio", "craft-audio/serde"]
 audio-symphonia = ["audio", "craft-audio/symphonia"]
 
-automation = ["dep:craft-automation"]
+automation = ["dep:craft-automation", "keymap"]
 
 browse = ["dep:craft-browse"]
 
 cms = ["dep:craft-cms"]
 
-color = ["dep:craft-color", "settings", "platform"]
+color = ["dep:craft-color", "keymap", "settings", "platform"]
 
 crw = ["dep:craft-crw"]
 
@@ -130,7 +135,7 @@ doc-pcraft-pixels = ["doc", "craft-doc/pcraft-pixels"]
 
 docpath = ["dep:craft-docpath"]
 
-draw = ["dep:craft-draw", "color", "settings"]
+draw = ["dep:craft-draw", "keymap", "color", "settings"]
 
 ecproj-format = ["dep:craft-ecproj-format"]
 
@@ -144,11 +149,12 @@ font-store-bundled-index = ["font-store", "craft-font-store/bundled-index"]
 
 i18n-collate = ["craft-i18n/collate"]
 
-imaging = ["dep:craft-imaging"]
+imaging = ["dep:craft-imaging", "keymap"]
 
 jpeg = ["dep:craft-jpeg"]
 
 keymap = ["dep:craft-keymap"]
+keymap-egui = ["keymap", "craft-keymap/egui"]
 
 layers = ["dep:craft-layers"]
 
@@ -190,11 +196,11 @@ proof = ["dep:craft-proof"]
 
 quit = ["dep:craft-quit"]
 
-review = ["dep:craft-review"]
+review = ["dep:craft-review", "keymap"]
 
 settings = ["dep:craft-settings"]
 
-table = ["dep:craft-table"]
+table = ["dep:craft-table", "keymap"]
 
 text = ["dep:craft-text"]
 text-afrikaans = ["text", "craft-text/afrikaans"]
@@ -260,7 +266,7 @@ text-ukrainian = ["text", "craft-text/ukrainian"]
 
 theme-store = ["dep:craft-theme-store"]
 
-timeline = ["dep:craft-timeline"]
+timeline = ["dep:craft-timeline", "keymap"]
 
 ui-app = ["ui", "craft-ui/app"]
 ui-color_fonts = ["ui", "craft-ui/color_fonts"]
@@ -276,3 +282,4 @@ web-api = ["dep:craft-web-api"]
 web-host = ["dep:craft-web-host"]
 
 window = ["dep:craft-window"]
+window-appkit = ["window", "craft-window/appkit"]

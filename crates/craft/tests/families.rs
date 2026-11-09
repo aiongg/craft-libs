@@ -5,8 +5,8 @@ mod common;
 use common::{Member, members};
 
 /// Family crates from the spec's crate list (inventory/crates.md), with the ones that exist.
-/// Kernel and non-UI data crates (craft-ui, craft-theme, craft-i18n, craft-host, craft-platform and
-/// the engines) are not listed: any family may use them.
+/// Kernel and non-UI data crates (craft-ui, craft-theme, craft-i18n, the layer-0 crates craft-host,
+/// craft-platform, craft-keymap, craft-quit and craft-window, and the engines) are not listed: any family may use them.
 const FAMILIES: &[&str] = &[
     "audio",
     "automation",
@@ -18,7 +18,6 @@ const FAMILIES: &[&str] = &[
     "font-manager",
     "gpu",
     "imaging",
-    "keymap",
     "layers",
     "menu",
     "pages",
@@ -29,7 +28,6 @@ const FAMILIES: &[&str] = &[
     "theme-store",
     "timeline",
     "update",
-    "window",
 ];
 
 /// Family crates any family's `ui` may depend on.

@@ -14,7 +14,6 @@ const NATIVE_ONLY: &[(&str, &str)] = &[
     ("dialogs", "native only: rfd's folder picker and file paths"),
     ("font-manager", "native only: needs craft-font-store's store and network client"),
     ("update", "native only: downloads and installs through getrandom without wasm support"),
-    ("window-restore", "native only: the window-restore store"),
 ];
 
 fn native_only(name: &str) -> Option<&'static str> {
