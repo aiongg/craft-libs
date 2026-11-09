@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::collections::BTreeSet;
 
 use craft_keymap::Platform;
-use craft_ui::contract::{NoValue, Outcome, ShowContainer as _};
+use craft_ui::contract::{NoValue, Outcome, ShowContainer as _, SweepApply};
 use craft_ui::layout_components::Stack;
 use craft_ui::list::ListWords;
 use craft_ui::runtime::env::Env;
@@ -171,12 +171,15 @@ pub enum ActionsEvent {
     /// A row was dragged or moved by key to a place: apply it with [`ActionList::move_action`] and
     /// [`ActionList::assign_set`] for an action, [`ActionList::move_step`] for a step.
     Reorder(ActionMove),
-    /// A press or sweep on the include or dialog column, as the list reports the gesture (one
-    /// undo step per sweep; Esc cancels it). Each `Update`, `Commit` and `Set` names a cell
-    /// and the state it takes: [`INCLUDE_COLUMN`](super::INCLUDE_COLUMN) of a step row is
+    /// A press or sweep on the include or dialog column, as the step to apply to a cell
+    /// ([`SweepStep`](craft_ui::contract::SweepStep)). `Flip` and `Restore` set the cell to the step's value as the
+    /// pointer crosses it or Escape cancels the sweep; `ShowOnly` (Alt on the first press of the include column) turns
+    /// every other include cell off, or on again when it is the only one on; `UndoShowOnly` puts the include cells back
+    /// as they were before it. The host groups one sweep as one undo step. The cell's column
+    /// [`INCLUDE_COLUMN`](super::INCLUDE_COLUMN) of a step row is
     /// [`ActionList::set_step`], of an action row [`ActionList::set_all`];
     /// [`DIALOG_COLUMN`](super::DIALOG_COLUMN) of a step row is [`ActionList::set_dialog`].
-    Toggle(craft_behavior::EditEvent<craft_ui::contract::ToggleEdit<ActionSelection>>),
+    Toggle(craft_ui::contract::SweepStep<ActionSelection>),
     /// The context menu's Color ([`ActionList::set_color`]).
     #[non_exhaustive]
     SetColor {
@@ -262,12 +265,22 @@ impl Outcome for ActionsPanelOutput {
 }
 
 /// What the panel keeps between passes, in its root slot.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub(super) struct Session {
     /// The menu the last context request chose.
     pub(super) menu: Option<OpenMenu>,
     /// The recording action and its row count when the list was last scrolled to the latest step.
     pub(super) revealed: Option<(usize, usize)>,
+    /// The readers of the include and dialog sweeps: Alt on the first press of an include sweep shows only that
+    /// cell (Photoshop); the dialog column ignores Alt.
+    pub(super) include: SweepApply,
+    pub(super) dialog: SweepApply,
+}
+
+impl Default for Session {
+    fn default() -> Self {
+        Session { menu: None, revealed: None, include: SweepApply::show_only(), dialog: SweepApply::new() }
+    }
 }
 
 /// The Actions panel (Photoshop's Window › Actions): sets, actions and steps as a tree, the

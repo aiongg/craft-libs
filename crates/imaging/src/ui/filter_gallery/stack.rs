@@ -134,10 +134,7 @@ impl<'a> EffectStack<'a> {
                 match event {
                     CollectionEvent::Toggle(edit) => {
                         if let Some(step) = cx.keep::<SweepApply>().feed(edit)
-                            && let SweepStep::Flip(toggle)
-                            | SweepStep::ShowOnly(toggle)
-                            | SweepStep::Restore(toggle)
-                            | SweepStep::UndoShowOnly(toggle) = step
+                            && let SweepStep::Flip(toggle) | SweepStep::Restore(toggle) = step
                             && effects.get(toggle.key).is_some_and(|effect| effect.visible != toggle.on)
                         {
                             change = Some(EffectChange::set_visible(toggle.key, toggle.on));

@@ -49,7 +49,7 @@ name = "ChannelsEvent"
 old = "craft_imaging::ui::channels::ChannelsEvent"
 new = "craft_imaging::ui::channels::ChannelsEvent"
 status = "same"
-note = "`Reorder` carries a `ReorderMove`; `Footer` carries the modifiers; `Command` carries a `ChannelsCommands`."
+note = "`Visibility` carries a `craft_ui::contract::SweepStep<K>` (`Flip` and `Restore`; Alt is ignored); `Reorder` carries a `ReorderMove`; `Footer` carries the modifiers; `Command` carries a `ChannelsCommands`."
 
 [[type]]
 name = "ChannelsOutput"

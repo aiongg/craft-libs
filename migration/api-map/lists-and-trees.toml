@@ -493,11 +493,11 @@ name = "SweepApply"
 old = ""
 new = "craft_ui::contract::SweepApply"
 status = "pending"
-note = "`SweepApply::default()`, then `feed(&EditEvent<ToggleEdit<K>>) -> Option<SweepStep<K>>` for every `CollectionEvent::Toggle` of a pass, in order: the one host-side reader of a toggle column's events. It replaces each host's own reading of `Update`, `Cancel` and `Alt`."
+note = "`SweepApply::new()` (also `Default`; plain: Alt is ignored) or `SweepApply::show_only()` (Alt plus the first press shows only that cell), then `feed(&EditEvent<ToggleEdit<K>>) -> Option<SweepStep<K>>` for every `CollectionEvent::Toggle` of a pass, in order: the one host-side reader of a toggle column's events; `gesture()` is the running sweep's first gesture, which a host that records a sweep as one undo step uses for all its events. It replaces each host's own reading of `Update`, `Cancel` and `Alt`."
 
 [[type]]
 name = "SweepStep"
 old = ""
 new = "craft_ui::contract::SweepStep"
 status = "pending"
-note = "`SweepStep<K> { Flip(ToggleEdit<K>), ShowOnly(ToggleEdit<K>), Restore(ToggleEdit<K>), UndoShowOnly(ToggleEdit<K>) }`, `#[non_exhaustive]` (matches outside craft-ui need a wildcard arm): what the host applies for one toggle event."
+note = "`SweepStep<K> { Flip(ToggleEdit<K>), ShowOnly(ToggleEdit<K>), Restore(ToggleEdit<K>), UndoShowOnly(ToggleEdit<K>) }`, `#[non_exhaustive]` (matches outside craft-ui need a wildcard arm): what the host applies for one toggle event. `ShowOnly` and `UndoShowOnly` come only from a `SweepApply::show_only()` column."

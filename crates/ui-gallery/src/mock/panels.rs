@@ -240,7 +240,7 @@ fn layers(ui: &mut Ui, cx: &mut BodyCx<'_>, document: &mut Document) {
     for event in events {
         let CollectionEvent::Toggle(edit) = event else { continue };
         let step = cx.keep::<SweepApply>().feed(&edit);
-        if let Some(SweepStep::Flip(toggle) | SweepStep::ShowOnly(toggle) | SweepStep::Restore(toggle) | SweepStep::UndoShowOnly(toggle)) = step {
+        if let Some(SweepStep::Flip(toggle) | SweepStep::Restore(toggle)) = step {
             document.set_visible(toggle.key, toggle.on);
         }
     }

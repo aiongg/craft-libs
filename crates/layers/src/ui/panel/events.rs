@@ -20,7 +20,7 @@ use crate::ui::tree::{LayerPart, LayerRowKey, SubRowGroup};
 /// for event in out.events {
 ///     match event {
 ///         LayersEvent::Select(s) => app.select(s.change, s.part),
-///         LayersEvent::Toggle(t) => app.toggle(t),          // one undo step per gesture
+///         LayersEvent::Toggle(t) => app.toggle(t),          // the events of one sweep are Updates of one gesture closed by a Commit; a plain press is a Set
 ///         LayersEvent::Properties(p) => app.set_properties(p),
 ///         LayersEvent::Drop(EditEvent::Set { after, .. }) => app.drop_rows(after),
 ///         _ => {}
@@ -39,6 +39,9 @@ pub enum LayersEvent<K> {
     Toggle(LayerToggle<K>),
     /// Alt-click on an eye: show only this layer, or restore when it already is (Photoshop).
     ShowOnly(LayerRowKey<K>),
+    /// Escape during an Alt eye sweep: undo the `ShowOnly` of that sweep, which turned the other layers' eyes off.
+    /// The key is the layer the sweep began on.
+    UndoShowOnly(LayerRowKey<K>),
     /// A pick in the eye cell's colour menu (None and the label colours): for every selected
     /// layer when the row is in a multi-selection, else for the row.
     #[non_exhaustive]
@@ -160,9 +163,9 @@ pub struct LayerToggle<Id> {
     pub rows: Vec<LayerRowKey<Id>>,
     /// Which column.
     pub column: LayerColumn,
-    /// The new state of every row, a `Set`. The events of one sweep share the gesture and arrive as the pointer
-    /// crosses more rows. Escape during the sweep reports the rows it crossed as a `Cancel` that carries the state
-    /// they had before.
+    /// The new state of every row. The events of one sweep are `Update`s of one gesture, which arrive as the pointer
+    /// crosses more rows, closed by a `Commit` on release; a plain press is a `Set`. Escape during the sweep reports
+    /// the rows it crossed as a `Cancel` of that gesture that carries the state they had before.
     pub edit: EditEvent<bool>,
 }
 

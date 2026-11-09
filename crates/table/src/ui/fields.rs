@@ -504,8 +504,7 @@ impl Model<'_> {
         for event in out.events {
             let CollectionEvent::Toggle(edit) = event else { continue };
             let step = cx.keep::<SweepApply>().feed(&edit);
-            let Some(SweepStep::Flip(toggle) | SweepStep::ShowOnly(toggle) | SweepStep::Restore(toggle) | SweepStep::UndoShowOnly(toggle)) = step
-            else {
+            let Some(SweepStep::Flip(toggle) | SweepStep::Restore(toggle)) = step else {
                 continue;
             };
             if self.ticked(&toggle.key) != toggle.on && seen.insert(toggle.key.clone()) {

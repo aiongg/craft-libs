@@ -4,7 +4,7 @@ use craft_behavior::EditEvent;
 use craft_behavior::geometry::selection_op::SelectionOperation;
 use craft_imaging::ui::channels::{ChannelKind, ChannelRow, ChannelsEvent, ChannelsFooterButton, ChannelsPanel, ColorIndicates, targeted_row};
 use craft_theme::Srgba;
-use craft_ui::contract::Role;
+use craft_ui::contract::{Role, SweepStep};
 use craft_ui::testing::{Fixture, Target, pointer, trial};
 use egui::{Key, Modifiers, Pos2, Vec2};
 use std::cell::RefCell;
@@ -139,6 +139,31 @@ fn a_click_targets_the_row() {
     fixture.hold(Modifiers::SHIFT);
     fixture.click(&row(&fixture, "Alpha 2"));
     assert_eq!(take(&app), [ChannelsEvent::Target(ALPHA_2)]);
+}
+
+/// A sweep down the eyes flips each eye it crosses once, ignoring Alt; Escape restores them with the value from before.
+#[trial]
+fn an_eye_sweep_flips_each_eye_and_escape_restores_them() {
+    let (mut fixture, app) = rig(sample_rows());
+    let (from, to) = (fixture.by_label("Visibility Red").expect("eye").center(), fixture.by_label("Visibility Blue").expect("eye").center());
+    fixture.hold(Modifiers::ALT);
+    fixture.frame(vec![pointer::moved(from)]);
+    fixture.frame(vec![pointer::press(from)]);
+    fixture.frame(vec![pointer::moved(from + DRAG_STEP)]);
+    fixture.frame(vec![pointer::moved(to)]);
+    fixture.idle(2);
+    let flips: Vec<_> = take(&app)
+        .into_iter()
+        .filter_map(|event| if let ChannelsEvent::Visibility(SweepStep::Flip(cell)) = event { Some(cell.key) } else { None })
+        .collect();
+    assert_eq!(flips, [1, 2, 3], "one flip per eye crossed");
+    fixture.key(Key::Escape, Modifiers::NONE);
+    fixture.idle(2);
+    let restored: Vec<_> = take(&app)
+        .into_iter()
+        .filter_map(|event| if let ChannelsEvent::Visibility(SweepStep::Restore(cell)) = event { Some(cell.key) } else { None })
+        .collect();
+    assert_eq!(restored, [1, 2, 3], "every flipped eye is restored");
 }
 
 /// Cmd/Ctrl-click on the thumbnail loads the channel as a selection with the operation Shift and Alt ask for, and

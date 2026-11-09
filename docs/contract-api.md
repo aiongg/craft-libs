@@ -2077,6 +2077,9 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `fn resolve_part<T: Mix>(&self, part: impl Into<PartRef>, look: &Stateful<T>) -> T`. The value of `look` for the state set of `part`.
 - `craft_ui::contract::SubNode`: re-export of `craft_ui::runtime::access::SubNode`.
 - `craft_ui::contract::SweepApply`: `pub struct SweepApply`. The one consumer of a toggle column's events (`CollectionEvent::Toggle`), for a host that applies a sweep live.
+  - `pub fn new() -> Self`. A plain column: Alt is ignored.
+  - `pub fn show_only() -> Self`. A column where Alt plus the first press shows only that cell.
+  - `pub fn gesture(&self) -> Option<GestureId>`. The first gesture of the running sweep, which a host that groups a sweep's edits as one undo step uses as the
   - `pub fn feed<K: Clone>(&mut self, edit: &EditEvent<ToggleEdit<K>>) -> Option<SweepStep<K>>`. The step for `edit`, if it asks the host for one. `Commit` repeats what its `Update` already applied.
 - `craft_ui::contract::SweepStep`: `pub enum SweepStep<K> { Flip(ToggleEdit<K>), ShowOnly(ToggleEdit<K>), Restore(ToggleEdit<K>), UndoShowOnly(ToggleEdit<K>) }`. What a host does for one toggle event, from [`SweepApply::feed`]. Each carries the cell's key, column and value.
 - `craft_ui::contract::ThemeScope`: re-export of `craft_ui::runtime::env::ThemeScope`.

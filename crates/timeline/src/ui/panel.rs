@@ -247,6 +247,8 @@ struct Memory {
     label_open: bool,
     /// The sweep reader of each switch column that has had one.
     sweeps: Vec<(ColumnKey, SweepApply)>,
+    /// The Mute or Solo state of the pane's tracks from before an Alt sweep showed only one, which Escape puts back.
+    before_show_only: Vec<(TrackId, bool)>,
 }
 
 /// What the panes reported in a pass that the panel works out across all of them.
@@ -344,7 +346,8 @@ impl Mapping<'_> {
                     let step = match column {
                         Some(column) => {
                             let at = memory.sweeps.iter().position(|(key, _)| key == column).unwrap_or_else(|| {
-                                memory.sweeps.push((column.clone(), SweepApply::default()));
+                                let sweep = if *column == MUTE || *column == SOLO { SweepApply::show_only() } else { SweepApply::new() };
+                                memory.sweeps.push((column.clone(), sweep));
                                 memory.sweeps.len() - 1
                             });
                             memory.sweeps[at].1.feed(edit)
@@ -357,8 +360,16 @@ impl Mapping<'_> {
                     };
                     let Some(step) = step else { continue };
                     let (toggled, exclusive) = match step {
-                        SweepStep::Flip(cell) | SweepStep::Restore(cell) | SweepStep::UndoShowOnly(cell) => (cell, false),
+                        SweepStep::Flip(cell) | SweepStep::Restore(cell) => (cell, false),
                         SweepStep::ShowOnly(cell) => (cell, true),
+                        SweepStep::UndoShowOnly(cell) => {
+                            // Every track the Alt sweep changed goes back, not only the one it started on.
+                            let switch = if cell.column == SOLO { TrackSwitch::Solo } else { TrackSwitch::Muted };
+                            for (track, value) in std::mem::take(&mut memory.before_show_only) {
+                                edits.push(TimelineEdit::Switch { track, switch, value, exclusive: false });
+                            }
+                            continue;
+                        }
                         _ => continue,
                     };
                     let switch = match &toggled.column {
@@ -370,6 +381,10 @@ impl Mapping<'_> {
                         column if *column == SOLO => TrackSwitch::Solo,
                         _ => continue,
                     };
+                    if exclusive {
+                        let state = |track: &TrackInfo<'_>| if switch == TrackSwitch::Solo { track.solo } else { track.muted };
+                        memory.before_show_only = self.pane.iter().filter_map(|track| Some((track.id, state(track)?))).collect();
+                    }
                     let exclusive = exclusive && matches!(switch, TrackSwitch::Muted | TrackSwitch::Solo);
                     edits.push(TimelineEdit::Switch { track: toggled.key, switch, value: toggled.on, exclusive });
                 }

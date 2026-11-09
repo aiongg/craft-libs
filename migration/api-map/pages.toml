@@ -209,7 +209,7 @@ name = "PageListEvent"
 old = "craft_pages::ui::list::PageListEvent"
 new = "craft_pages::ui::list::PageListEvent"
 status = "same"
-note = "`Lock` is `Toggle` (the edit names its column, visibility or lock); `Fit` goes (the row number is no longer a separate target); `Reorder` carries `EditEvent<ReorderMove<usize>>`."
+note = "`Lock` is `Toggle`, carrying a `craft_ui::contract::SweepStep<usize>` (the cell names its column, visibility or lock; the eye column gives `ShowOnly` on an Alt press); `Fit` goes (the row number is no longer a separate target); `Reorder` carries `EditEvent<ReorderMove<usize>>`."
 
 [[type]]
 name = "PageListOutput"

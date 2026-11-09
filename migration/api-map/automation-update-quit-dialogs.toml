@@ -196,7 +196,7 @@ name = "ActionsEvent"
 old = "craft_automation::ui::actions::ActionsEvent"
 new = "craft_automation::ui::actions::ActionsEvent"
 status = "same"
-note = "`Reorder` carries an `ActionMove { row, place }` (the place computed by the panel) in place of the list's `EditEvent<Move>`; `Toggle` carries `craft_behavior::EditEvent<craft_ui::contract::ToggleEdit<ActionSelection>>` whose `column` is a `ColumnKey` (`INCLUDE_COLUMN`, `DIALOG_COLUMN`) in place of an index."
+note = "`Reorder` carries an `ActionMove { row, place }` (the place computed by the panel) in place of the list's `EditEvent<Move>`; `Toggle` carries a `craft_ui::contract::SweepStep<ActionSelection>` (the step to apply; its cell's `column` is a `ColumnKey`, `INCLUDE_COLUMN` or `DIALOG_COLUMN`, in place of an index); the include column gives `ShowOnly` on an Alt press."
 
 [[type]]
 name = "ActionsHost"

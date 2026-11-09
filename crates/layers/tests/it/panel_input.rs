@@ -1,6 +1,7 @@
 //! `LayersPanel` input: eye and lock gestures, menus, renaming, keys, drops and the parts of a row.
 
-use craft_behavior::{EditEvent, Mixed, SelectionChange};
+use craft_behavior::edit_history::Step;
+use craft_behavior::{EditEvent, EditHistory, Mixed, SelectionChange};
 use craft_i18n::Direction;
 use craft_layers::ui::mock::FakeLayers;
 use craft_layers::ui::options::LayersSettings;
@@ -237,28 +238,70 @@ fn layer_drop(events: &[LayersEvent<u32>]) -> Option<(Vec<u32>, u32, LayerPositi
     })
 }
 
-/// A sweep down the eyes is one gesture that reports each row it crosses, in order, with the first row's new state.
+/// The eyes of layers 4 to 6 as a host keeps them, with the history that records the toggles it is given.
+struct Eyes {
+    now: Vec<bool>,
+    history: EditHistory<Vec<bool>>,
+    /// The state at the open gesture's `Begin`.
+    begun: Vec<bool>,
+}
+
+impl Eyes {
+    fn new() -> Self {
+        Eyes { now: vec![true; 3], history: EditHistory::new(&vec![true; 3]), begun: vec![true; 3] }
+    }
+
+    /// Applies the toggles among `events`, as an app would.
+    fn take(&mut self, events: &[LayersEvent<u32>]) {
+        for toggle in toggles(events) {
+            let rows: Vec<usize> = toggle.rows.iter().map(|row| *row.layer() as usize - 4).collect();
+            match &toggle.edit {
+                EditEvent::Begin { id, label, .. } => {
+                    self.begun = self.now.clone();
+                    self.history.record(&EditEvent::begin(*id, Mixed::Same(self.now.clone()), label.clone(), None));
+                }
+                EditEvent::Update { value, .. } => rows.iter().for_each(|row| self.now[*row] = *value),
+                EditEvent::Set { after, label, .. } => {
+                    let before = self.now.clone();
+                    rows.iter().for_each(|row| self.now[*row] = *after);
+                    self.history.record(&EditEvent::set(Mixed::Same(before), self.now.clone(), label.clone(), None));
+                }
+                EditEvent::Commit { id, .. } => self.history.record(&EditEvent::commit(*id, Mixed::Same(self.begun.clone()), self.now.clone())),
+                EditEvent::Cancel { id, reason, before: Some(Mixed::Same(before)), .. } => {
+                    rows.iter().for_each(|row| self.now[*row] = *before);
+                    self.history.record(&EditEvent::cancel(*id, *reason, None));
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+/// A sweep down the eyes is one undo step: one Undo through the host's history restores every row it crossed.
 #[trial]
-fn a_sweep_down_the_eyes_is_one_gesture() {
+fn a_sweep_down_the_eyes_is_one_undo_step() {
     let (mut fixture, app) = rig(FakeLayers::sample());
     let (start, end) = (node(&fixture, "Visibility Title").center(), node(&fixture, "Visibility Smart Object").center());
+    let mut eyes = Eyes::new();
     fixture.frame(vec![pointer::moved(start)]);
     fixture.frame(vec![pointer::press(start)]);
+    eyes.take(&take(&app));
     for step in [0.3, 0.6, 1.0] {
         fixture.frame(vec![pointer::moved(start + (end - start) * step)]);
+        eyes.take(&take(&app));
     }
     fixture.frame(vec![pointer::release(end)]);
     fixture.idle(2);
     let events = take(&app);
     let sweep = toggles(&events);
-    assert_eq!(sweep.len(), events.len(), "nothing but toggles: {events:?}");
-    let rows: Vec<_> = sweep.iter().flat_map(|toggle| toggle.rows.clone()).collect();
-    let crossed = [LayerRowKey::Layer(4), LayerRowKey::Layer(5), LayerRowKey::Layer(6)];
-    assert_eq!(rows, crossed, "every row crossed, in order: {events:?}");
     assert!(sweep.iter().all(|toggle| toggle.column == LayerColumn::Visibility), "{events:?}");
-    assert!(sweep.iter().all(|toggle| matches!(toggle.edit, EditEvent::Set { after: false, .. })), "the first row's new state: {events:?}");
-    let ids: Vec<_> = sweep.iter().map(|toggle| toggle.edit.id()).collect();
-    assert!(ids.windows(2).all(|pair| pair[0] == pair[1]), "one gesture: {ids:?}");
+    eyes.take(&events);
+    assert_eq!(eyes.now, vec![false; 3], "every crossed row is off after the sweep");
+    assert!(eyes.history.can_undo(), "the sweep made a step");
+    let mut state = eyes.now.clone();
+    assert!(eyes.history.step(&mut state, Step::Undo));
+    assert_eq!(state, vec![true; 3], "one Undo restores every crossed row");
+    assert!(!eyes.history.can_undo(), "the sweep was one step");
 }
 
 /// Escape during a sweep down the eyes reports the rows it crossed as cancelled, each with the state it had before.
@@ -281,6 +324,26 @@ fn escape_during_an_eye_sweep_restores_the_rows_crossed() {
         restored.iter().all(|toggle| matches!(toggle.edit, EditEvent::Cancel { before: Some(Mixed::Same(true)), .. })),
         "each with the state it had before: {events:?}"
     );
+    let gestures: Vec<_> = restored.iter().map(|toggle| toggle.edit.id()).collect();
+    assert!(gestures.iter().all(Option::is_some) && gestures.windows(2).all(|pair| pair[0] == pair[1]), "one gesture: {gestures:?}");
+}
+
+/// Escape during an Alt eye sweep reports the undo of its Show Only, once and with no toggle.
+#[trial]
+fn escape_during_an_alt_eye_sweep_undoes_the_show_only() {
+    let (mut fixture, app) = rig(FakeLayers::sample());
+    let (start, end) = (node(&fixture, "Visibility Title").center(), node(&fixture, "Visibility Smart Object").center());
+    fixture.hold(Modifiers::ALT);
+    fixture.frame(vec![pointer::moved(start)]);
+    fixture.frame(vec![pointer::press(start)]);
+    fixture.frame(vec![pointer::moved(end)]);
+    take(&app);
+    fixture.key(Key::Escape, Modifiers::ALT);
+    fixture.idle(2);
+    let events = take(&app);
+    let undone: Vec<_> = events.iter().filter(|event| matches!(event, LayersEvent::UndoShowOnly(_))).collect();
+    assert_eq!(undone, [&LayersEvent::UndoShowOnly(LayerRowKey::Layer(4))], "events: {events:?}");
+    assert!(toggles(&events).is_empty(), "events: {events:?}");
 }
 
 /// A pick in the eye's colour menu colours every selected layer, and a row outside the selection alone.
