@@ -304,6 +304,7 @@ Zoom rules as pure functions on a [`CanvasView`]: Photoshop's zoom range and Zoo
   - `const DRAFTS_ARE_VALUES: bool`. Every draft is a value (plain text): a draft applies as typed and never rejects.
   - `fn format(&self, v: &Self::Value) -> String`. The text of `v`.
   - `fn parse(&self, text: &str, start: &Self::Value) -> Result<Self::Value, NotAValue>`. The value of `text`; `start` is the value when editing began, for relative input.
+  - `fn parse_tagged(&self, text: &str, start: &Self::Value) -> Result<(Self::Value, Option<u32>), NotAValue>`. The value of `text` and the tag of the unit it named (`Reader::read_tagged`); the default names none.
   - `fn applies_as_typed(&self, _text: &str) -> bool`. Whether `text` applies as soon as it is typed rather than on commit.
   - `fn filter(&self, _c: char) -> bool`. Whether the codec takes `c` as typed.
   - `fn normalise(&self, _text: &str, v: &Self::Value) -> String`. The text the field shows after committing `v`, which was parsed from `text`.
@@ -314,6 +315,7 @@ Zoom rules as pure functions on a [`CanvasView`]: Photoshop's zoom range and Zoo
 - `craft_behavior::codec::NumberCodec`: `pub struct NumberCodec`. An optional number: empty text is `None`; anything else reads through a [`Reader`].
   - `pub fn new(reader: Reader, decimals: usize) -> Self`. A codec reading with `reader` and writing at most `decimals` decimal places.
   - `pub fn or_parse(mut self, parse: impl Fn(&str) -> Option<f64> + Send + Sync + 'static) -> Self`. The same codec with `parse` as a second reader: it runs when the reader rejects the text, so words of the
+  - `pub fn widest(&self, range: &RangeInclusive<f64>) -> String`. The widest text the codec writes for a number in `range`: the longer of its two ends, with every decimal
   - `pub fn decimals(&self) -> usize`. The most decimal places the codec writes.
   - `pub fn reader(&self) -> &Reader`. The reader the codec parses with.
 - `craft_behavior::codec::PlainText`: `pub struct PlainText`. Plain text: every draft is a value.
@@ -1312,8 +1314,10 @@ Pointer values and the press lifecycle (8.1, 8.2), egui-free: the runtime conver
   - `pub fn decimal(mut self, decimal: char) -> Self`. The decimal separator.
   - `pub fn group(mut self, group: char) -> Self`. The digit-group separator, which the reader skips between digits.
   - `pub fn unit(mut self, spelling: &str, factor: f64) -> Self`. A unit spelling (case-insensitive; letters or the symbols `%`, `°`, `×`) and its factor to the base unit.
+  - `pub fn unit_tagged(mut self, spelling: &str, factor: f64, tag: u32) -> Self`. Like [`Reader::unit`], with a `tag` that [`Reader::read_tagged`] returns when the text names this spelling.
   - `pub fn decimal_separator(&self) -> char`. The decimal separator the reader reads and writes.
   - `pub fn read(&self, text: &str, start: Option<f64>) -> Result<f64, NotAValue>`. The value of `text`. `start` is the value relative input applies to.
+  - `pub fn read_tagged(&self, text: &str, start: Option<f64>) -> Result<(f64, Option<u32>), NotAValue>`. The value of `text` and the tag of the unit its last quantity named (`None` for a bare number or an untagged
 - `craft_behavior::quantity::is_unit_spelling`: `pub fn is_unit_spelling(spelling: &str) -> bool`. Whether `spelling` can be registered with [`Reader::unit`]: letters and unit symbols only, so the reader can
 
 ## `craft_behavior::role_rule`
@@ -1460,6 +1464,7 @@ The library's sense set, for a root or a part.
   - `pub fn open(&self, run: &mut EditRun<C::Value>, start: &C::Value)`. Opens the run on `start` when none is open.
   - `pub fn edit(&self, run: &mut EditRun<C::Value>, start: &C::Value, text: &str) -> Typed<C::Value>`. The draft is now `text`: characters the codec refuses and characters past the limit drop out.
   - `pub fn commit(&self, run: &mut EditRun<C::Value>) -> Ended<C::Value>`. Commits the draft: a value closes the run, a draft that is no value keeps it open.
+  - `pub fn commit_tagged(&self, run: &mut EditRun<C::Value>) -> (Ended<C::Value>, Option<u32>)`. [`commit`](Self::commit), with the tag of the unit the committed text named (`Codec::parse_tagged`).
   - `pub fn cancel(&self, run: &mut EditRun<C::Value>) -> Option<C::Value>`. Closes the run without a commit and returns the value from before it; `None` when no run was open.
   - `pub fn escape(&self, run: &mut EditRun<C::Value>) -> Escaped<C::Value>`. Applies the escape rule. A codec that refuses the empty text keeps the cleared draft open under
 
@@ -1599,11 +1604,11 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `fn paint_outset(_tokens: &crate::style::UiTokens) -> f32`. How far the component paints outside its rect by design, in points (a graph node's ports sit on its edge).
   - `fn style(cx: &StyleCx<'_>, key: Self::StyleKey) -> Self::Style`. Pure function of the resolved context and the key.
   - `fn measure(&mut self, _cx: &MeasureCx<'_, Self>) -> Vec2`. Content size only; the pipeline adds padding and minimum size.
-  - `fn parts_follow_value(&self) -> bool`. Whether the component's parts or size depend on its value: a text commit that changes the value then runs the
   - `fn fills(&self) -> Option<craft_behavior::Axis>`. The axis along which the component takes all the room the flow offers when that is more than it measured,
   - `fn sense(&self) -> Sense`. The root's sense; the shape's default unless a canvas control.
   - `fn parts(&mut self, _rect: Rect, _cx: &mut PartsCx<'_, Self>)`. Named sub-rects: thumbs, chevrons, handles, segments and the roving groups over them.
   - `fn bind(&mut self) -> Option<BindMut<'_, ValueOf<Self>>>`. Value components return their binding; the same binding on every call, with no side effects.
+  - `fn same_value(&self, proposed: &ValueOf<Self>, host: &ValueOf<Self>) -> bool`. Whether `host`, a value the app wrote back, is the value `proposed` as the component holds values: a host that
   - `fn scrub(&self) -> Option<Scrub<ValueOf<Self>>>`. Lets a drag on the field's side label change the value; the pipeline runs the gesture (16.3, B2).
   - `fn scroll(&mut self) -> Option<BindMut<'_, ScrollPos>>`. The scroll offset's owner when the app drives scrolling; `None` keeps it in session memory. The app restores a
   - `fn content_env(&self, _cx: &Cx<'_, Self>, _values: &mut crate::runtime::env::AppValues)`. App values for content the component does not build: its body or its items. Runs once, at step 13.
@@ -1820,7 +1825,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `fn begin(&mut self)`. Opens a gesture.
   - `fn commit(&mut self)`. Commits the proposed value.
   - `fn cancel(&mut self, reason: CancelReason)`. Cancels the running gesture.
-- `craft_ui::contract::EditResponse`: `pub struct EditResponse<T> { pub response: Response, pub event: Option<EditEvent<T>>, pub submitted: bool, pub submit_mods: craft_keymap::Mods, pub escaped: bool, pub unparsed: bool, pub validity: Validity<T>, pub shown: Option<Mixed<Arc<T>>> }`. The output of a component that edits a value. Only `cx.edit_response()` builds it.
+- `craft_ui::contract::EditResponse`: `pub struct EditResponse<T> { pub response: Response, pub event: Option<EditEvent<T>>, pub submitted: bool, pub submit_mods: craft_keymap::Mods, pub left_by_tab: Option<bool>, pub escaped: bool, pub unparsed: bool, pub validity: Validity<T>, pub shown: Option<Mixed<Arc<T>>> }`. The output of a component that edits a value. Only `cx.edit_response()` builds it.
   - `pub fn lifted(response: Response, event: Option<EditEvent<T>>, shown: Option<Mixed<Arc<T>>>) -> Self`. The response of a composite that edits one value through several child components: `event` is the edit of the
   - `pub fn value(&self) -> Option<&T>`. The value the pass's event carries: a proposal, a commit or a set; `None` when nothing was edited or the event
   - `pub fn map<U>(self, f: impl Fn(T) -> U) -> EditResponse<U>`. The response of a child component's edit as the response of the edit of a value built from it: the event, the
@@ -1859,6 +1864,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `fn take_claimed(&mut self, chord: Chord) -> bool`. Whether `chord` arrived this pass for this component, consuming it.
   - `fn active_part(&self) -> Option<PartRef>`. The focused part while the component holds focus.
   - `fn focus_arrived(&self) -> Option<PartRef>`. The part focus moved onto in this frame (Tab or an arrow into a roving group, a focus request, a click), for
+  - `fn focus_arrived_by_key(&self) -> Option<PartRef>`. [`focus_arrived`](Focus::focus_arrived) when the part is not under a press: focus came by the keyboard or a
   - `fn is_focused(&self) -> bool`. The component holds key focus.
   - `fn focus_visible(&self) -> bool`. The component holds focus and shows it.
   - `fn reveal(&mut self, rect: Rect)`. Asks the nearest scroll owner to bring `rect` into view.
@@ -1957,6 +1963,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub fn draw_part(&self, part: impl Into<PartRef>) -> Draw<'_>`. The content-paint API for painting `part`: as [`draw`](Self::draw), and when the part was declared
   - `pub fn with_style<R>(&self, variant: Variant, f: impl FnOnce(&StyleCx<'_>) -> R) -> R`. Runs `f` with the style context of this component's env, so app hooks called from `paint` pick colours and
   - `pub fn child<C: Show>(&mut self, key: impl Hash + Debug, rect: Rect, child: C) -> C::Output`. Shows a child component at a physical rect, with id `cx.key(key)`. The child `Ui` is pinned left to
+  - `pub fn inner<C: Show>(&mut self, key: impl Hash + Debug, rect: Rect, child: C) -> C::Output`. Shows `child` as the owner's own control, such as a picker the owner draws its field with. The child's node
   - `pub fn child_with_tip<C: Show>(&mut self, key: impl Hash + Debug, rect: Rect, child: C, tip: impl FnOnce(&mut Ui)) -> C::Output`. Shows a child with rich tooltip content.
   - `pub fn labelled<C: Show>(&mut self, key: impl Hash + Debug, rect: Rect, label: Label, side: SideLabel, child: C) -> C::Output`. Runs the label step (B2) for one leaf child at `rect`: the label's placement beside or above the child, the
   - `pub fn face<C: Show>(&mut self, part: impl Into<PartRef>, face: C)`. Paints `face` as the look of `part`: its style, surface and state fill from the part's state merged with the
@@ -2435,9 +2442,9 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
   - `pub const fn key(self) -> PartKey`. The part key.
 - `craft_ui::primitives::TextLayout`: `pub struct TextLayout { pub galley: Arc<Galley>, pub elided: bool, pub full: String, pub first_baseline: f32, pub runs: Vec<LayoutRun>, pub rotation: f32 }`. A laid-out run.
   - `pub fn size(&self) -> egui::Vec2`. The galley size.
-- `craft_ui::primitives::TextOptions`: `pub struct TextOptions { pub placeholder: Option<Label>, pub lines: Option<usize>, pub limit: Option<usize>, pub mask: bool, pub live: bool, pub clear_on_escape: bool, pub mono: bool, pub role: TypeRole, pub ink: Option<Ink>, pub tab_inserts: bool, pub complete: Option<Arc<dyn Completer>>, pub replace_selection: Option<String>, pub commit_on: &'static [char], pub enabled: bool, pub steps_value: bool, pub select_on_focus: bool, pub submits: bool }`. How a text part behaves beyond its codec.
+- `craft_ui::primitives::TextOptions`: `pub struct TextOptions { pub placeholder: Option<Label>, pub lines: Option<usize>, pub limit: Option<usize>, pub mask: bool, pub live: bool, pub clear_on_escape: bool, pub mono: bool, pub role: TypeRole, pub ink: Option<Ink>, pub tab_inserts: bool, pub complete: Option<Arc<dyn Completer>>, pub replace_selection: Option<String>, pub commit_on: &'static [char], pub enabled: bool, pub steps_value: bool, pub select_on_focus: bool, pub submits: bool, pub mixed: bool }`. How a text part behaves beyond its codec.
   - `pub fn new() -> Self`. Options with every default.
-- `craft_ui::primitives::TextOutcome`: `pub struct TextOutcome<V> { pub rect: Rect, pub draft: Option<String>, pub value: Option<V>, pub layout: Option<super::TextLayout>, pub caret_visible: bool, pub invalid: bool, pub composing: bool, pub completions: Vec<super::Completion> }`. A text part's result this pass.
+- `craft_ui::primitives::TextOutcome`: `pub struct TextOutcome<V> { pub rect: Rect, pub draft: Option<String>, pub value: Option<V>, pub layout: Option<super::TextLayout>, pub caret_visible: bool, pub invalid: bool, pub committed_tag: Option<u32>, pub composing: bool, pub completions: Vec<super::Completion> }`. A text part's result this pass.
   - `pub const fn new(rect: Rect) -> Self`. An outcome over `rect` with no draft or value.
 - `craft_ui::primitives::TextRun`: `pub struct TextRun<'a> { pub spans: Vec<Span<'a>>, pub role: TypeRole, pub color: Option<StyleColor>, pub wrap: Wrap, pub ltr: bool, pub align: HAlign, pub rotation: f32 }`. The one description of UI text.
   - `pub fn new(text: impl Into<Cow<'a, str>>) -> Self`. A one-span run in the label role.
@@ -3260,8 +3267,8 @@ The pointer snapshot, press targets, the shape record and press cancels (8.1, 8.
 
 What a control asks of its host and what the host answers: the colour picker, the file dialog and the eyedropper.
 
-- `craft_ui::runtime::requests::ColorRequest`: `pub struct ColorRequest { pub key: String, pub title: Option<Label>, pub color: Srgba }`. A request for a colour: the host opens its colour picker with `title` and `color` and writes the answer into
-  - `pub fn new(key: impl Into<String>, color: Srgba) -> Self`. A request for `key`, opening the picker at `color`.
+- `craft_ui::runtime::requests::ColorRequest`: `pub struct ColorRequest { pub key: String, pub title: Option<Label>, pub color: Option<Srgba> }`. A request for a colour: the host opens its colour picker with `title` and `color` and writes the answer into
+  - `pub fn new(key: impl Into<String>, color: impl Into<Option<Srgba>>) -> Self`. A request for `key`, opening the picker at `color`, or with no colour for `None`.
   - `pub fn title(mut self, title: impl Into<Label>) -> Self`. The picker's title.
 - `craft_ui::runtime::requests::EyedropperRequest`: `pub struct EyedropperRequest { pub key: String }`. An eyedropper toggle of a colour row after a press: the host answers it with the colour the sampler picked for the
   - `pub fn new(key: impl Into<String>) -> Self`. A request for the dropper of `key`.
