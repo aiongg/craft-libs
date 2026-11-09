@@ -66,7 +66,7 @@ use craft_behavior::edit_history::Step;
 use craft_behavior::{CancelReason, Cursor, EditEvent, EditHistory, Mixed};
 use craft_ui::canvas::{NavigationOptions, PickStep, RasterSource, ToolHost, ViewCommands, tool_pick};
 use craft_ui::canvas_controls::brush::{BrushCursorOptions, TipFalloff};
-use craft_ui::contract::{Bind, NoValue, Outcome, Pattern, Remember as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, NoValue, Outcome, Pattern, Show as _, ShowContainer as _};
 use craft_ui::dialog::{FullWindowCanvas, FullWindowDialog, FullWindowSide, FullWindowTitle, FullWindowView, RasterOverlay};
 use craft_ui::layout_components::Row;
 use craft_ui::primitives::Checker;
@@ -224,7 +224,7 @@ impl Outcome for LiquifyOutput {
     }
 }
 
-/// What the dialog's body keeps between passes: the view, the strip's memory and the tool in progress. None of it is
+/// What the workspace keeps between passes besides the session: the view, the strip's memory and the tool in progress. None of it is
 /// the app's, and none of it is in the history.
 #[derive(Clone, Default)]
 struct LiquifyView {
@@ -236,7 +236,7 @@ struct LiquifyView {
 }
 
 /// The Liquify workspace: the session and its history and the settings, as one value the app keeps while Liquify
-/// is open. The view, the strip's memory and the stroke in progress live in the dialog's body.
+/// is open, with the view, the strip's memory and the stroke in progress.
 ///
 /// Keys ([`LiquifyCommands`], on the scope of the dialog's body): W R E C S B O F D L pick the Liquify tools and H, Z the Hand
 /// and Zoom tools; `[` and `]` scale the brush, ⌘H shows or hides the mask, ⌘I inverts the mask, ⌘D clears it. The
@@ -249,13 +249,12 @@ struct LiquifyView {
 /// with a header besides Select and Mask and Content-Aware Fill).
 #[derive(Clone, Pattern)]
 pub struct LiquifyWorkspace {
-    session: LiquifySession,
-    history: EditHistory<LiquifySession>,
-    settings: LiquifySettings,
+    edit: Edit,
+    /// The view, the strip's memory and the tool in progress.
+    view: LiquifyView,
     subject: String,
     navigation: NavigationOptions,
     checkerboard: Checker,
-    cursor_options: BrushCursorOptions,
     /// The backdrop the app was last asked for, while Show Backdrop is on.
     asked: Option<Option<u64>>,
     /// Events that happened between passes ([`step`](Self::step)), reported by the next `show`.
@@ -270,6 +269,16 @@ pub struct LiquifyWorkspace {
     timing: Option<LiquifyTiming>,
     /// The cursor the canvas tool asked for in the last pass.
     cursor: Option<Cursor>,
+}
+
+/// The parts of the workspace the canvas tool's gestures and the history change together: kept apart from the view so a
+/// method on them can run beside a borrow of the view.
+#[derive(Clone)]
+struct Edit {
+    session: LiquifySession,
+    history: EditHistory<LiquifySession>,
+    settings: LiquifySettings,
+    cursor_options: BrushCursorOptions,
     /// This pass's events.
     events: Vec<LiquifyEvent>,
 }
@@ -279,13 +288,17 @@ impl LiquifyWorkspace {
     pub fn new(open: LiquifyOpen) -> Self {
         let session = LiquifySession::from_steps(open.steps);
         Self {
-            history: EditHistory::new(&session),
-            session,
-            settings: open.settings,
+            edit: Edit {
+                history: EditHistory::new(&session),
+                session,
+                settings: open.settings,
+                cursor_options: open.cursor_options.unwrap_or_else(canvas::default_cursor_options),
+                events: Vec::new(),
+            },
+            view: LiquifyView::default(),
             subject: open.subject,
             navigation: open.navigation,
             checkerboard: open.checkerboard,
-            cursor_options: open.cursor_options.unwrap_or_else(canvas::default_cursor_options),
             asked: None,
             queued: Vec::new(),
             requested: Vec::new(),
@@ -293,7 +306,6 @@ impl LiquifyWorkspace {
             zoom_percent: 100.0,
             timing: None,
             cursor: None,
-            events: Vec::new(),
         }
     }
 
@@ -309,7 +321,7 @@ impl LiquifyWorkspace {
 
     /// The user's cursor options for the brush outline.
     pub fn cursor_options(&mut self, options: BrushCursorOptions) {
-        self.cursor_options = options;
+        self.edit.cursor_options = options;
     }
 
     /// Shows the workspace for this pass.
@@ -329,43 +341,54 @@ impl LiquifyWorkspace {
         let common = env.words::<CommonWords>();
         let layers = source.layers();
         let title = FullWindowTitle::new(words.name.clone()).subject(self.subject.clone()).zoom(self.zoom_percent).label(&env);
-        let settings_before = self.settings.clone();
+        let settings_before = self.edit.settings.clone();
         let mut asked_steps = std::mem::take(&mut self.requested);
-        self.events = std::mem::take(&mut self.queued);
-        if !self.settings.show_backdrop {
+        self.edit.events = std::mem::take(&mut self.queued);
+        if !self.edit.settings.show_backdrop {
             self.asked = None;
         } else if self.asked.is_none() {
             // Show Backdrop was already on when the workspace opened.
-            let of = backdrop_id(self.settings.backdrop);
-            self.events.push(LiquifyEvent::BackdropWanted(of));
+            let of = backdrop_id(self.edit.settings.backdrop);
+            self.edit.events.push(LiquifyEvent::BackdropWanted(of));
             self.asked = Some(of);
+        }
+        // An open stroke is cancelled first; the replay of the step supersedes the one the cancel reports. This runs before
+        // the container, so an undo during a releasing stroke cancels it instead of undoing.
+        for step in asked_steps.drain(..) {
+            self.edit.cancel_gesture(&ui.ctx().clone(), &mut self.view, CancelReason::UndoDuringGesture);
+            if self.edit.history.step(&mut self.edit.session, step) {
+                if matches!(self.edit.events.last(), Some(LiquifyEvent::Replay(_))) {
+                    self.edit.events.pop();
+                }
+                self.edit.events.push(LiquifyEvent::Replay(self.edit.session.steps().to_vec()));
+            }
         }
         let slots = LiquifyTool::slots();
         let this = RefCell::new(&mut *self);
 
-        let shown = FullWindowDialog::new(title)
+        let mut shown = FullWindowDialog::new(title)
             .command_scope(LiquifyCommands::SCOPE)
             .buttons([FooterButton::new(common.ok.clone(), DialogRole::Accept), FooterButton::new(common.cancel.clone(), DialogRole::Cancel)])
             .sides(|ui, _| {
                 let mut guard = this.borrow_mut();
                 let work: &mut LiquifyWorkspace = &mut **guard;
                 let Some(panel) = FullWindowSide::new(words.properties.clone())
-                    .show(ui, |ui, _| LiquifyPanel::new(Bind::bound(&mut work.settings)).layers(&layers).show(ui))
+                    .show(ui, |ui, _| LiquifyPanel::new(Bind::bound(&mut work.edit.settings)).layers(&layers).show(ui))
                     .inner
                 else {
                     return;
                 };
                 if let Some(op) = panel.global {
-                    work.record_global(None, op);
+                    work.edit.record_global(None, op);
                 }
                 if panel.restore_all {
-                    let before = work.session.clone();
-                    work.session.restore_all();
-                    work.record_history(before);
-                    work.events.push(LiquifyEvent::Replay(Vec::new()));
+                    let before = work.edit.session.clone();
+                    work.edit.session.restore_all();
+                    work.edit.record_history(before);
+                    work.edit.events.push(LiquifyEvent::Replay(Vec::new()));
                 }
                 if let Some(of) = panel.backdrop_wanted {
-                    work.events.push(LiquifyEvent::BackdropWanted(of));
+                    work.edit.events.push(LiquifyEvent::BackdropWanted(of));
                     work.asked = Some(of);
                 }
             })
@@ -373,21 +396,10 @@ impl LiquifyWorkspace {
                 let ctx = ui.ctx().clone();
                 let mut guard = this.borrow_mut();
                 let work: &mut LiquifyWorkspace = &mut **guard;
-                let mut state = std::mem::take(cx.keep::<LiquifyView>());
+                let state = &mut work.view;
                 state.canvas.navigate(work.navigation);
                 while let Some((command, _)) = cx.take_command::<ViewCommands>() {
                     state.view.apply(command);
-                }
-
-                // An open stroke is cancelled first; the replay of the step supersedes the one the cancel reports.
-                for step in asked_steps.drain(..) {
-                    work.cancel_gesture(&ctx, &mut state, CancelReason::UndoDuringGesture);
-                    if work.history.step(&mut work.session, step) {
-                        if matches!(work.events.last(), Some(LiquifyEvent::Replay(_))) {
-                            work.events.pop();
-                        }
-                        work.events.push(LiquifyEvent::Replay(work.session.steps().to_vec()));
-                    }
                 }
 
                 {
@@ -396,38 +408,38 @@ impl LiquifyWorkspace {
                             let slot = slots.iter().find(|slot| slot.tools.iter().any(|entry| entry.id == tool));
                             let tools: Vec<_> = slot.into_iter().flat_map(|slot| slot.tools.iter()).collect();
                             let picked = slot.and_then(|slot| {
-                                tool_pick(&tools, slot.id, &work.settings.tool, &state.last_used, PickStep::of(&fired), |_| true)
+                                tool_pick(&tools, slot.id, &work.edit.settings.tool, &state.last_used, PickStep::of(&fired), |_| true)
                                     .map(|entry| (slot.id, entry.id))
                             });
                             if let Some((slot_id, tool)) = picked {
-                                work.pick(&ctx, &mut state, tool);
+                                work.edit.pick(&ctx, state, tool);
                                 state.last_used.set(slot_id, tool);
                             }
                             continue;
                         }
                         match command {
-                            LiquifyCommands::Smaller => work.settings.brush = work.settings.brush.smaller(),
-                            LiquifyCommands::Larger => work.settings.brush = work.settings.brush.larger(),
-                            LiquifyCommands::ShowMask => work.settings.show_mask = !work.settings.show_mask,
-                            LiquifyCommands::InvertMask => work.record_global(Some(&mut state), LiquifyGlobal::InvertAll),
-                            LiquifyCommands::ClearMask => work.record_global(Some(&mut state), LiquifyGlobal::MaskNone),
+                            LiquifyCommands::Smaller => work.edit.settings.brush = work.edit.settings.brush.smaller(),
+                            LiquifyCommands::Larger => work.edit.settings.brush = work.edit.settings.brush.larger(),
+                            LiquifyCommands::ShowMask => work.edit.settings.show_mask = !work.edit.settings.show_mask,
+                            LiquifyCommands::InvertMask => work.edit.record_global(Some(&mut *state), LiquifyGlobal::InvertAll),
+                            LiquifyCommands::ClearMask => work.edit.record_global(Some(&mut *state), LiquifyGlobal::MaskNone),
                             _ => {}
                         }
                     }
 
-                    let backdrop = source.backdrop().filter(|_| work.settings.show_backdrop);
-                    let layering = BackdropLayering::of(backdrop.is_some(), work.settings.backdrop_mode, work.settings.backdrop_opacity);
+                    let backdrop = source.backdrop().filter(|_| work.edit.settings.show_backdrop);
+                    let layering = BackdropLayering::of(backdrop.is_some(), work.edit.settings.backdrop_mode, work.edit.settings.backdrop_opacity);
                     let layered = backdrop.filter(|_| !layering.is_plain()).map(|backdrop| LayeredImage::new(source.picture(), backdrop, layering));
                     let image: &dyn RasterSource = match &layered {
                         Some(layered) => layered,
                         None => source.picture(),
                     };
-                    let mask = source.freeze_mask().filter(|_| work.settings.show_mask).map(|(mask, texel)| MaskAtTexel {
+                    let mask = source.freeze_mask().filter(|_| work.edit.settings.show_mask).map(|(mask, texel)| MaskAtTexel {
                         mask,
                         texel,
                         document: image.size(),
                     });
-                    let edges = source.mesh(work.settings.mesh_size).filter(|_| work.settings.show_mesh).map(|mesh| mesh.edges());
+                    let edges = source.mesh(work.edit.settings.mesh_size).filter(|_| work.edit.settings.show_mesh).map(|mesh| mesh.edges());
                     let lasso = state.canvas.lasso_line();
                     let falloff = state.canvas.resize().dimensions().map(|dims| TipFalloff::from_hardness(dims.diameter / 2.0, dims.level));
                     let preview = falloff.as_ref().and_then(|falloff| state.canvas.resize().preview(falloff));
@@ -435,14 +447,15 @@ impl LiquifyWorkspace {
                     let shown = Row::new()
                         .fill()
                         .show(ui, |ui, _| {
-                            let rail = ToolRail::new(words.tools.clone(), &slots, &work.settings.tool, &state.last_used).show_rail(ui, |_, _| {});
+                            let rail =
+                                ToolRail::new(words.tools.clone(), &slots, &work.edit.settings.tool, &state.last_used).show_rail(ui, |_, _| {});
                             if let Some(next) = rail.last_used {
                                 state.last_used = next;
                             }
                             if let Some(tool) = rail.select {
-                                work.pick(&ctx, &mut state, tool);
+                                work.edit.pick(&ctx, state, tool);
                             }
-                            let LiquifyView { view, canvas: tools, .. } = &mut state;
+                            let LiquifyView { view, canvas: tools, .. } = &mut *state;
                             let mut canvas = FullWindowCanvas::new(Bind::bound(view), image)
                                 .checkerboard(work.checkerboard)
                                 .navigation(work.navigation)
@@ -460,37 +473,41 @@ impl LiquifyWorkspace {
                             if let Some(mask) = &mask {
                                 canvas = canvas.overlay(RasterOverlay::new(mask).tint(FREEZE_MASK_TINT));
                             }
-                            match work.settings.tool {
+                            match work.edit.settings.tool {
                                 LiquifyTool::Hand => canvas.tool(&mut tools.hand).show(ui),
                                 LiquifyTool::Zoom => canvas.tool(&mut tools.zoom).show(ui),
                                 _ => {
-                                    let mut tool = tools.tool(&mut work.settings, &work.cursor_options);
+                                    let mut tool = tools.tool(&mut work.edit.settings, &work.edit.cursor_options);
                                     canvas.tool(&mut tool).show(ui)
                                 }
                             }
                         })
                         .inner;
-                    if let Some(shown) = shown {
-                        state.canvas_id = Some(shown.response.id);
-                        work.cursor = shown.tool.cursor.clone();
-                    }
-                    work.zoom_percent = state.view.zoom_percent();
-
-                    work.absorb_canvas_events(&mut state);
-                    work.busy = state.canvas.busy();
-                    work.timing = state.canvas.timing();
+                    shown.map(|shown| (shown.response.id, shown.tool.cursor.clone()))
                 }
-                *cx.keep::<LiquifyView>() = state;
             });
+        // Once per pass, after the real run: what the canvas reported is stored and its events absorbed.
+        shown.settle(|_, canvas| {
+            let mut guard = this.borrow_mut();
+            let work: &mut LiquifyWorkspace = &mut **guard;
+            if let Some((id, cursor)) = canvas.take() {
+                work.view.canvas_id = Some(id);
+                work.cursor = cursor;
+            }
+            work.zoom_percent = work.view.view.zoom_percent();
+            work.edit.absorb_canvas_events(&mut work.view);
+            work.busy = work.view.canvas.busy();
+            work.timing = work.view.canvas.timing();
+        });
         let this = this.into_inner();
         let timing = this.timing;
         let picked = shown.output.picked.and_then(|at| [DialogRole::Accept, DialogRole::Cancel].get(at).copied());
         let closed = picked.or(shown.output.closed.map(|_| DialogRole::Cancel));
         LiquifyOutput {
-            events: std::mem::take(&mut this.events),
+            events: std::mem::take(&mut this.edit.events),
             closed,
             response: shown.output.response,
-            settings_changed: this.settings != settings_before,
+            settings_changed: this.edit.settings != settings_before,
             cursor: this.cursor.take(),
             timing,
         }
@@ -498,12 +515,12 @@ impl LiquifyWorkspace {
 
     /// What OK applies.
     pub fn session(&self) -> &LiquifySession {
-        &self.session
+        &self.edit.session
     }
 
     /// What the app persists (always: PhotoCraft remembers Liquify's settings on every close).
     pub fn settings(&self) -> &LiquifySettings {
-        &self.settings
+        &self.edit.settings
     }
 
     /// Undo or redo from the app's Edit menu. Returns whether a step will happen; its
@@ -514,20 +531,20 @@ impl LiquifyWorkspace {
         if self.busy {
             self.requested.push(step);
             return match step {
-                Step::Undo => self.history.can_undo(),
-                Step::Redo => self.history.can_redo(),
+                Step::Undo => self.edit.history.can_undo(),
+                Step::Redo => self.edit.history.can_redo(),
                 _ => false,
             };
         }
-        let stepped = self.history.step(&mut self.session, step);
+        let stepped = self.edit.history.step(&mut self.edit.session, step);
         if stepped {
-            self.queued.push(LiquifyEvent::Replay(self.session.steps().to_vec()));
+            self.queued.push(LiquifyEvent::Replay(self.edit.session.steps().to_vec()));
         }
         stepped
     }
 }
 
-impl LiquifyWorkspace {
+impl Edit {
     /// Records the session as one history step when it differs from `before`.
     fn record_history(&mut self, before: LiquifySession) {
         if before == self.session {
