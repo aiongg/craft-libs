@@ -938,10 +938,11 @@ Hit shapes, their priority and the arena's resolve rule (8.3).
 - `craft_behavior::hit::HitPriority`: `pub struct HitPriority { pub level: HitLevel, pub sub: u8 }`. A part's rank among the shapes of its stack position: a node editor ranks port above wire above node body.
   - `pub const fn new(level: HitLevel, sub: u8) -> Self`. A priority at `level` and `sub`.
   - `pub const BODY: HitPriority`. The priority of a component body.
-- `craft_behavior::hit::HitShape`: `pub enum HitShape { Rect(Rect), Circle { center: Pos2, radius: f32 }, Segment { a: Pos2, b: Pos2 }, Polyline { points: Vec<Pos2>, closed: bool }, Polygon(Vec<Pos2>) }`. The geometry a part registers: the shape painted is the shape hit.
+- `craft_behavior::hit::HitShape`: `pub enum HitShape { Rect(Rect), Circle { center: Pos2, radius: f32 }, Segment { a: Pos2, b: Pos2 }, Polyline { points: Vec<Pos2>, closed: bool }, Polygon(Vec<Pos2>), OutsidePolygon { within: Rect, polygon: Vec<Pos2> } }`. The geometry a part registers: the shape painted is the shape hit.
   - `pub const fn circle(center: Pos2, radius: f32) -> Self`. A disc.
   - `pub const fn segment(a: Pos2, b: Pos2) -> Self`. A line segment.
   - `pub fn polyline(points: Vec<Pos2>, closed: bool) -> Self`. A chain of segments, closed when `closed`.
+  - `pub fn outside_polygon(within: Rect, polygon: Vec<Pos2>) -> Self`. The part of `within` outside `polygon`.
   - `pub fn bounds(&self) -> Rect`. The smallest rectangle around the shape.
   - `pub fn hit_across(&self, point: Pos2, across: f32) -> bool`. Whether `point` hits the shape grown to be at least `across` wide and high: the hit area of a part is never
   - `pub fn hit(&self, point: Pos2) -> bool`. Whether `point` hits the shape.
@@ -1268,7 +1269,7 @@ Pointer values and the press lifecycle (8.1, 8.2), egui-free: the runtime conver
   - `pub const fn delta(mut self, delta: Vec2) -> Self`. The pointer movement of the pass.
   - `pub const fn cancel(mut self, cancel: Option<PressCancel>) -> Self`. A reason the captured press ends now.
 - `craft_behavior::press::PointerButton`: `pub enum PointerButton { Primary, Secondary, Middle, Extra1, Extra2 }`. A pointer button.
-- `craft_behavior::press::PointerEvent`: `pub enum PointerEvent { Moved(Pos2), Pressed { button: PointerButton, pos: Pos2, time: f64, clicks: u32 }, Released { button: PointerButton, pos: Pos2 } }`. A button event of one pass, in the order it arrived. The press lifecycle follows the primary button and the
+- `craft_behavior::press::PointerEvent`: `pub enum PointerEvent { Moved(Pos2), Pressed { button: PointerButton, pos: Pos2, time: f64, clicks: u32 }, Released { button: PointerButton, pos: Pos2 }, Gone }`. A button event of one pass, in the order it arrived. The press lifecycle follows the primary button and the
   - `pub const fn pressed(pos: Pos2, time: f64, clicks: u32) -> Self`. The primary button going down at `pos`, `time`, as the `clicks`th press in a row.
   - `pub const fn released(pos: Pos2) -> Self`. The primary button going up at `pos`.
   - `pub const fn pressed_by(button: PointerButton, pos: Pos2, time: f64, clicks: u32) -> Self`. `button` going down at `pos`, `time`, as the `clicks`th press in a row.
@@ -1474,8 +1475,8 @@ The value core of chapter 10: the bound every value type meets, `Mixed`, edit ev
   - `pub fn update(id: GestureId, value: T) -> Self`. A proposed value of the running gesture.
   - `pub fn commit(id: GestureId, before: Mixed<T>, after: T) -> Self`. The gesture committed `after`.
   - `pub fn cancel(id: GestureId, reason: CancelReason, before: Option<Mixed<T>>) -> Self`. The gesture ended without a commit.
-  - `pub fn set(id: GestureId, before: Mixed<T>, after: T, label: Arc<str>, doc_key: Option<DocKey>) -> Self`. A one-step change, named the way a `Begin` names its gesture.
-  - `pub fn id(&self) -> GestureId`. The gesture the event belongs to.
+  - `pub fn set(before: Mixed<T>, after: T, label: Arc<str>, doc_key: Option<DocKey>) -> Self`. A one-step change, named the way a `Begin` names its gesture.
+  - `pub fn id(&self) -> Option<GestureId>`. The gesture the event belongs to; a `Set` belongs to none.
   - `pub fn map<U>(self, f: impl Fn(T) -> U) -> EditEvent<U>`. Maps the carried values and keeps the gesture.
   - `pub fn value(&self) -> Option<&T>`. The value the event carries: a proposal, a commit or a set.
   - `pub fn phase(&self) -> Option<GesturePhase>`. Where the gesture stands after this event; a `Set` is not a gesture.
@@ -2075,6 +2076,9 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `fn resolve<T: Mix>(&self, look: &Stateful<T>) -> T`. The value of `look` for the component's state set.
   - `fn resolve_part<T: Mix>(&self, part: impl Into<PartRef>, look: &Stateful<T>) -> T`. The value of `look` for the state set of `part`.
 - `craft_ui::contract::SubNode`: re-export of `craft_ui::runtime::access::SubNode`.
+- `craft_ui::contract::SweepApply`: `pub struct SweepApply`. The one consumer of a toggle column's events (`CollectionEvent::Toggle`), for a host that applies a sweep live.
+  - `pub fn feed<K: Clone>(&mut self, edit: &EditEvent<ToggleEdit<K>>) -> Option<SweepStep<K>>`. The step for `edit`, if it asks the host for one. `Commit` repeats what its `Update` already applied.
+- `craft_ui::contract::SweepStep`: `pub enum SweepStep<K> { Flip(ToggleEdit<K>), ShowOnly(ToggleEdit<K>), Restore(ToggleEdit<K>), UndoShowOnly(ToggleEdit<K>) }`. What a host does for one toggle event, from [`SweepApply::feed`]. Each carries the cell's key, column and value.
 - `craft_ui::contract::ThemeScope`: re-export of `craft_ui::runtime::env::ThemeScope`.
 - `craft_ui::contract::ToggleColumn`: `pub struct ToggleColumn { pub sweepable: bool, pub exclusive: bool }`. A toggle column: its cells flip by click, and a drag across them sweeps one value over all of them.
   - `pub const fn sweepable() -> Self`. A sweepable toggle column (eye, lock, mute).
@@ -2285,12 +2289,13 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
 - `craft_ui::primitives::ContentPainterCx`: `pub struct ContentPainterCx<'a> { pub painter: Painter }`. The raw painter of an allowlisted content painter, clipped to its rect.
   - `pub fn ink(&self) -> Color32`. The colour of text and glyphs on the surface being painted: the resolved content-text colour `Draw` paints
   - `pub fn stroke_width(&self, width: StrokeWidth) -> f32`. The width in points of a named stroke width on this display, as `Draw::stroke` strokes it: a content painter
+  - `pub fn faded(&self, share: f32, paint: impl FnOnce(&ContentPainterCx<'_>))`. Runs `paint` with a `ContentPainterCx` whose painting is `share` as opaque as it would be: the fade
   - `pub fn layout(&self, text: &DocText<'_>) -> TextLayout`. The one sanctioned text layout for content painters: document runs with their own font, size and colour,
 - `craft_ui::primitives::Dashes`: `pub struct Dashes { pub dash: f32, pub gap: f32, pub phase: f32 }`. The lengths of a dashed stroke, in points along the path.
   - `pub fn new(dash: f32, gap: f32) -> Self`. Dashes of `dash` with gaps of `gap`, starting at the pattern's beginning.
   - `pub fn even(length: f32) -> Self`. Dashes of `length` with gaps of the same length, starting at the pattern's beginning.
   - `pub fn phase(mut self, phase: f32) -> Self`. The pattern advanced by `phase` points.
-- `craft_ui::primitives::DataStrokeWidth`: `pub enum DataStrokeWidth { Named(StrokeWidth), Data(DataWidth) }`. The width of a data stroke: a named theme width or one from the document.
+- `craft_ui::primitives::DataStrokeWidth`: `pub enum DataStrokeWidth { Named(StrokeWidth), Data(DataWidth) }`. The width of a stroke: a named theme width or one from the document.
 - `craft_ui::primitives::DataWidth`: `pub struct DataWidth`. A line width the data gives (a path's thickness, a pen size), in screen points: the caller maps a document width
   - `pub const fn points(points: f32) -> Self`. A width of `points`.
 - `craft_ui::primitives::DocRun`: `pub struct DocRun<'a> { pub text: Cow<'a, str>, pub font: FontRef, pub size: f32, pub weight: u16, pub italic: bool, pub color: DataColor, pub underline: bool, pub strikethrough: bool, pub indent: f32 }`. One run of document text.
@@ -2315,11 +2320,10 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
   - `pub fn rule(&self, kind: RuleKind, from: Pos2, to: Pos2)`. Paints the line of `kind` from `from` to `to`.
   - `pub fn surface(&self, rect: Rect, kind: SurfaceKind, corners: Corners)`. Paints a surface of `kind` (tracks, plot wells).
   - `pub fn fill(&self, shape: &PaintShape, color: StyleColor)`. Fills `shape`.
-  - `pub fn stroke(&self, shape: &PaintShape, width: StrokeWidth, color: StyleColor)`. Strokes `shape`.
+  - `pub fn stroke(&self, shape: &PaintShape, width: impl Into<DataStrokeWidth>, color: impl Into<StrokeColor>)`. Strokes `shape` at a theme width or a width from the document, in a theme colour or a colour from data (a
   - `pub fn data_fill(&self, shape: &PaintShape, color: DataColor)`. Fills `shape` with a colour from data (a swatch well, a layer label dot, an avatar). A `Draw` for an inactive
-  - `pub fn data_stroke(&self, shape: &PaintShape, width: impl Into<DataStrokeWidth>, color: DataColor)`. Strokes `shape` with a colour from data (a chart series, a curve) at a theme width or a width from the
   - `pub fn texture(&self, rect: Rect, texture: TextureId, uv: Rect)`. Paints the part `uv` of `texture` (from `TextureCache` or a `TextureStore`) into `rect`, untinted. A `Draw`
-  - `pub fn dashed(&self, path: &[Pos2], pattern: Dashes, width: StrokeWidth, color: StyleColor)`. Strokes the open path `path` as dashes (copy marks, drag previews, reference lines). [`kit::dashed`] is the one
+  - `pub fn dashed(&self, path: &[Pos2], pattern: Dashes, width: impl Into<DataStrokeWidth>, color: impl Into<StrokeColor>)`. Strokes the open path `path` as dashes (copy marks, drag previews, reference lines), with the width and colour
   - `pub fn clipped(&self, rect: Rect, paint: impl FnOnce(&Draw<'_>))`. Runs `paint` with a `Draw` whose painting is cut to `rect` (inside the clip already in force): scrolled content
   - `pub fn faded(&self, share: f32, paint: impl FnOnce(&Draw<'_>))`. Runs `paint` with a `Draw` whose fills, strokes, text runs, icons and pictures are all `share` as opaque as
 - `craft_ui::primitives::EditorLine`: `pub struct EditorLine<'a> { pub text: &'a str, pub rect: Rect, pub baseline: f32, pub runs: &'a [EditorRun<'a>] }`. One visible line of an own-caret editor.
@@ -2419,6 +2423,7 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
 - `craft_ui::primitives::StateLayer`: `pub struct StateLayer`. The state layer painter.
   - `pub fn shapes(kind: StateLayerKind, color: StyleColor, rect: Rect, radius: CornerRadius, width: f32) -> Vec<Shape>`. The shape of `color` over `rect`; an outline is `width` wide.
 - `craft_ui::primitives::StateLayerKind`: `pub enum StateLayerKind { Fill, Outline }`. How a state layer paints its colour.
+- `craft_ui::primitives::StrokeColor`: `pub enum StrokeColor { Theme(StyleColor), Data(DataColor) }`. The colour of a stroke: a theme colour or one from the data.
 - `craft_ui::primitives::StrokeWidth`: `pub enum StrokeWidth { Hairline, Thin, Medium, Thick }`. A line width from the theme, so content never picks a literal one.
 - `craft_ui::primitives::Surface`: `pub struct Surface`. The surface painter: shadow, fill, then edge.
   - `pub fn shapes(style: &SurfaceStyle, fill: Option<Color32>, rect: Rect, corners: Corners, direction: Direction, pixels_per_point: f32,) -> Vec<Shape>`. The shapes of `style` over `rect`, snapped to the pixel grid: shadow, fill, edge. `fill` replaces the
@@ -2707,6 +2712,7 @@ Per-pass and per-frame services and the one egui adapter.
   - `pub fn value(&mut self, text: impl Into<String>) -> &mut Self`. A plain text value, for a sub-node that shows text as its value and has no number.
   - `pub fn column(&mut self, key: craft_behavior::ColumnKey) -> &mut Self`. The column of a cell of an item row; the item step reads the cell's column index from the collection's
   - `pub fn access_key(&mut self, key: char) -> &mut Self`. The mnemonic letter.
+  - `pub fn shortcut(&mut self, text: impl Into<String>) -> &mut Self`. The key that activates the sub-node, as the access tree lists it (`Access::shortcut` for the component's own
   - `pub fn has_popup(&mut self, kind: PopupKind) -> &mut Self`. What kind of popup the sub-node opens.
   - `pub fn expanded(&mut self, on: bool) -> &mut Self`. Whether the sub-node's popup or region is open.
   - `pub fn current(&mut self, on: bool) -> &mut Self`. The sub-node is the current one of its set: the current page of a trail.
@@ -2827,6 +2833,7 @@ AccessKit node building, `register_accesskit_parent` and `set_accesskit_focus`: 
   - `pub fn name(&self, id: Id) -> Option<&str>`. The name of the node of `id`.
   - `pub fn description(&self, id: Id) -> Option<&str>`. The description of the node of `id`.
   - `pub fn description_of(&self, key: NodeKey) -> Option<&str>`. The description of a node by key.
+  - `pub fn shortcut_of(&self, key: NodeKey) -> Option<&str>`. The keyboard shortcut a node by key lists.
   - `pub fn value_of(&self, key: NodeKey) -> Option<&str>`. The text value of a node by key.
   - `pub fn value(&self, id: Id) -> Option<&str>`. The text value of the node of `id`.
   - `pub fn numeric(&self, id: Id) -> Option<Numeric>`. The numeric value and range of the node of `id`.
@@ -3492,6 +3499,7 @@ What the accessibility trials read: the AccessKit tree a frame produced, and the
   - `pub fn name(&self, id: Id) -> Option<&str>`. The name of the node of `id`.
   - `pub fn description(&self, id: Id) -> Option<&str>`. The description of the node of `id`.
   - `pub fn description_of(&self, key: NodeKey) -> Option<&str>`. The description of a node by key.
+  - `pub fn shortcut_of(&self, key: NodeKey) -> Option<&str>`. The keyboard shortcut a node by key lists.
   - `pub fn value_of(&self, key: NodeKey) -> Option<&str>`. The text value of a node by key.
   - `pub fn value(&self, id: Id) -> Option<&str>`. The text value of the node of `id`.
   - `pub fn numeric(&self, id: Id) -> Option<Numeric>`. The numeric value and range of the node of `id`.
@@ -3699,7 +3707,7 @@ Text dumps for tests: ordered `key = value` lines compared exactly with a file, 
   - `pub fn node_of(&self, component: Id) -> Option<Target>`. The node of the component `component`.
   - `pub fn click(&mut self, target: &Target) -> &mut Self`. Hover, press and release on `target`, in separate frames, then one idle frame.
   - `pub fn click_at(&mut self, pos: Pos2) -> &mut Self`. Hover, press and release at `pos`, in separate frames, then one idle frame.
-  - `pub fn hold(&mut self, modifiers: Modifiers) -> &mut Self`. The modifiers held in every following frame, until the next call.
+  - `pub fn hold(&mut self, modifiers: Modifiers) -> &mut Self`. The modifiers held in every following frame, until the next call. A key sent while they are held carries
   - `pub fn press(&mut self, target: &Target) -> &mut Self`. Press on `target`.
   - `pub fn release(&mut self, target: &Target) -> &mut Self`. Release at the middle of `target`.
   - `pub fn drag(&mut self, target: &Target, by: Vec2) -> &mut Self`. Press on `target`, move by `by` in four steps, release.
@@ -3707,7 +3715,7 @@ Text dumps for tests: ordered `key = value` lines compared exactly with a file, 
   - `pub fn drag_hold_at(&mut self, from: Pos2, by: Vec2) -> &mut Self`. The first half of a drag that pauses: press at `from`, move by `by` in four steps, and one frame with the
   - `pub fn release_at(&mut self, at: Pos2) -> &mut Self`. Releases the button at `at`, then a frame with no input.
   - `pub fn drag_at_pausing(&mut self, from: Pos2, by: Vec2, halt: impl FnOnce(&mut Fixture)) -> &mut Self`. A drag from `from` by `by` that pauses before the release: [`Fixture::drag_hold_at`], `halt` with the gesture
-  - `pub fn key(&mut self, key: Key, modifiers: Modifiers) -> &mut Self`. A key press and release with `modifiers`, in two frames as injected input frames them.
+  - `pub fn key(&mut self, key: Key, modifiers: Modifiers) -> &mut Self`. A key press and release with `modifiers` and the ones [`Fixture::hold`] keeps, as a keyboard reports them:
   - `pub fn type_text(&mut self, text: &str) -> &mut Self`. Typed `text`.
   - `pub fn access(&mut self, kind: AccessActionKind, target: &Target) -> &mut Self`. An AccessKit action on `target`.
   - `pub fn focused_stop(&self) -> Option<(Id, Option<PartRef>)>`. The stop that holds focus: the id of its component and the part when focus is on a part.
