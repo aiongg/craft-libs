@@ -986,9 +986,17 @@ pub(crate) fn show_container<C: Container, R>(
     tip: Option<TipFn<'_>>,
 ) -> Inner<C::Output, R> {
     let mut inner: Option<R> = None;
-    let mut call = |ui: &mut Ui, cx: &mut BodyCx<'_>| inner = Some(body(ui, cx));
+    let mut ran = false;
+    let mut call = |ui: &mut Ui, cx: &mut BodyCx<'_>| {
+        // The measuring run and a sizing parent's run are peek stages; only a real run settles.
+        ran |= !cx.memory.is_peek();
+        inner = Some(body(ui, cx));
+    };
+    let ctx = ui.ctx().clone();
     let output = run(comp, ui, at, tip, &mut super::body::BodyHooks::new(&mut call));
-    Inner { output, inner }
+    let id = crate::contract::Outcome::response(&output).id;
+    let settle = ran.then(|| super::settle::SettleAt { ctx, body: sub(id, "body"), owner: id });
+    Inner { output, inner, settle }
 }
 
 pub(crate) fn show_items<'r, C: Collection>(comp: C, ui: &mut Ui, source: &dyn ItemSource<C::Key>, item: &mut ItemFn<'r, C>) -> C::Output {

@@ -303,6 +303,15 @@ impl MemoryStage {
         stage
     }
 
+    /// A stage over `base` opened after the pass's real run wrote its own back: it claims nothing and stamps no
+    /// `Seen` for `base` (`appeared()` is unchanged), and the slots it creates are recorded under `owner`, so they
+    /// are evicted with the container.
+    pub(crate) fn open_after(ctx: &Context, base: Id, owner: Id) -> Self {
+        let stage = Self::new(ctx, base, owner, false);
+        stage.touched.borrow_mut().clear();
+        stage
+    }
+
     /// The stage of a sizing pass: it opens no lifetime stage, so a container's first appearance in a new
     /// layer cannot lose a kept value.
     pub(crate) fn open_peek(ctx: &Context, base: Id) -> Self {

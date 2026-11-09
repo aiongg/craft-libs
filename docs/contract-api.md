@@ -1634,7 +1634,10 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
 - `craft_ui::contract::HasProps`: `pub trait HasProps`. Written by the derive from a `#[container]` field, for containers and collections.
   - `fn props(&self, _: Internal) -> &ContainerProps`.
 - `craft_ui::contract::IdSource`: `pub enum IdSource { Auto, Salt(IdSalt), Id(Id) }`. Where an element's id comes from.
-- `craft_ui::contract::Inner`: `pub struct Inner<O, R> { pub output: O, pub inner: Option<R> }`. The container show output: the component's own output and the body's result.
+- `craft_ui::contract::Inner`: `pub struct Inner<O, R> { pub output: O, pub inner: Option<R> }`. The container show output: the component's own output and the body's result. `inner` is the last run's value; a state change made from it goes in `settle`.
+  - `pub fn settle<T>(&mut self, f: impl FnOnce(&mut SettleCx<'_>, &mut R) -> T) -> Option<T>`. Runs `f` once, after the pass's real run, with the body's memory and the real run's result. Not called when no real run ran the body.
+  - `pub fn map_output<O2>(self, f: impl FnOnce(O) -> O2) -> Inner<O2, R>`. Maps the component's own output and keeps the body's result and its settle handle.
+- `craft_ui::contract::SettleCx`: `pub struct SettleCx<'a>`. The body's memory after the real run: the same `Remember` access the body's context has, and the `Held` and `Bind` reads and writes that take it.
 - `craft_ui::contract::Internal`: `pub struct Internal`. A token only craft-ui can build: the private field and `pub(crate)` constructor let derive output in any
 - `craft_ui::contract::ItemFn`: `pub type ItemFn<'r, C> = dyn FnMut(&<C as Collection>::Key, &mut ItemCx<'_, 'r,<C as Collection>::Key>) -><C as Collection>::Item<'r> + 'r`. The item closure of `ShowCollection::show_items`: one call per visible key.
 - `craft_ui::contract::MAX_EXTENT`: `pub const MAX_EXTENT: f32`. The most a component may measure on either side, in points.
@@ -1897,10 +1900,10 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub const fn rule(mut self, on: bool) -> Self`. Whether a rule separates the header from the body.
   - `pub const fn inline(mut self, on: bool) -> Self`. Whether the header shares a line with the body.
   - `pub const fn trailing(mut self, on: bool) -> Self`. Whether the header has a trailing region for the container's controls.
-- `craft_ui::contract::Held`: `pub struct Held<'a, T>`. The caller's binding of a value a pattern edits in its body: the body reads the value at the start of its pass and
+- `craft_ui::contract::Held`: `pub struct Held<'a, T>`. The caller's binding of a value a pattern edits: the body reads the value at the start of its pass and returns the edited one in its result, and the caller writes it from `Inner::settle`, once per pass after the real run. A body may run more than once per pass, so it never writes.
   - `pub fn new(bind: Bind<'a, T>) -> Self`. Holds `bind`.
-  - `pub fn read(&mut self, cx: &mut BodyCx<'_>) -> Option<T>`. The bound value; `None` while a mixed or kept binding holds none.
-  - `pub fn write(&mut self, cx: &mut BodyCx<'_>, before: &T, after: T, name: &str)`. Replaces `before` with `after`, the edit named `name`.
+  - `pub fn read(&mut self, cx: &mut impl StageAccess) -> Option<T>`. The bound value; `None` while a mixed or kept binding holds none.
+  - `pub fn write(&mut self, cx: &mut impl StageAccess, before: &T, after: T, name: &str)`. Replaces `before` with `after`, the edit named `name`.
 - `craft_ui::contract::Input`: re-export of `craft_behavior::input::Input`.
 - `craft_ui::contract::Interpolate`: re-export of `craft_ui::runtime::motion::Interpolate`.
 - `craft_ui::contract::ItemCx`: `pub struct ItemCx<'a, 'r, K> { pub key: &'a K, pub at: usize, pub rect: Rect, pub row: super::RowState, pub depth: usize, pub set: crate::runtime::access::SetPosition, pub row_index: usize, pub row_count: usize, pub column_count: usize, pub env: EnvView<'a> }`. What the item closure reads for one item: a view over the pipeline's memory stage keyed by the item.

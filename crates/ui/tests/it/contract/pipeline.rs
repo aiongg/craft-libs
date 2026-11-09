@@ -48,6 +48,28 @@ fn a_body_runs_all_17_steps_and_its_closure_once_in_the_real_run_of_each_pass_an
     assert_eq!(steps(&frames.ctx, id.expect("the panel was shown")), WITH_CONTENT);
 }
 
+#[trial]
+fn settle_runs_once_per_pass_after_the_real_run_and_never_under_a_sizing_parent() {
+    let mut frames = Frames::new();
+    let settled = RefCell::new(Vec::new());
+    let passes = frames.frame(vec![], |ui| {
+        let mut out = Panel::new().show(ui, |ui, _| is_measuring(ui.ctx()));
+        let seen_by_caller = out.inner;
+        out.settle(|_, measured| settled.borrow_mut().push(*measured));
+        assert!(seen_by_caller.is_some(), "the body ran");
+    });
+    assert_eq!(*settled.borrow(), vec![false; passes], "settle ran once per pass with the real run's value");
+
+    let called = RefCell::new(0);
+    frames.frame(vec![], |ui| {
+        ui.scope_builder(egui::UiBuilder::new().sizing_pass(), |ui| {
+            let mut out = Panel::new().show(ui, |_, _| ());
+            out.settle(|_, _| *called.borrow_mut() += 1);
+        });
+    });
+    assert_eq!(*called.borrow(), 0, "no real run, no settle");
+}
+
 static ROWS: Mutex<Vec<(usize, Rect)>> = Mutex::new(Vec::new());
 
 #[trial]
