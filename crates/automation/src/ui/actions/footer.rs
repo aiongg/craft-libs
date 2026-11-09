@@ -57,6 +57,10 @@ pub(super) fn show_footer(ui: &mut Ui, body: &Body<'_>, state: &mut ActionsPanel
         FooterAction::new(icon("toggle_right"), words.button_mode.clone()).enabled(idle).pressed(state.settings.button_mode),
     ];
     let out = FooterBar::actions(actions).show_footer(ui);
+    // The footer runs twice per pass: the sizing pass measures it and must report nothing.
+    if ui.is_sizing_pass() {
+        return Vec::new();
+    }
 
     let mut events = Vec::new();
     match out.picked {

@@ -190,7 +190,16 @@ impl<'a> FileListPicker<'a> {
             .footer(|ui, cx| {
                 let mut pass = pass.borrow_mut();
                 let host = cx.env.host().cloned();
-                let now = pass.load(cx);
+                // The footer is measured in a sizing pass before it is shown: that pass only reads the list, so the
+                // answer is taken and the binding written once, in the shown pass.
+                let sizing = ui.is_sizing_pass();
+                let mut measured;
+                let now = if sizing {
+                    measured = pass.peek(cx);
+                    &mut measured
+                } else {
+                    pass.load(cx)
+                };
                 let folder = now.mode == FileListMode::Folder;
                 let (mut browse, mut remove, mut add_open, mut sort) = (false, false, false, false);
                 Row::new().show(ui, |ui, _| {
@@ -202,6 +211,9 @@ impl<'a> FileListPicker<'a> {
                     add_open = button(ui, &words.add_open_files, "add-open", !folder && !open_files.is_empty());
                     sort = button(ui, &words.sort_by_name, "sort", !folder && now.files.len() > 1);
                 });
+                if sizing {
+                    return;
+                }
                 if remove && let Some(path) = now.selected.take() {
                     now.files.retain(|file| *file != path);
                 }
@@ -285,6 +297,14 @@ impl Pass<'_> {
             (before, now)
         });
         now
+    }
+
+    /// The working copy as far as it is known, without taking the pick answer.
+    fn peek(&mut self, cx: &mut BodyCx<'_>) -> FileList {
+        match &self.seen {
+            Some((_, now)) => now.clone(),
+            None => self.held.read(cx).unwrap_or_default(),
+        }
     }
 
     /// Writes the working copy to the binding when the pass changed it.

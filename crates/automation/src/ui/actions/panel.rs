@@ -3,7 +3,7 @@
 use std::cell::RefCell;
 use std::collections::BTreeSet;
 
-use craft_keymap::Platform;
+use craft_keymap::{Chord, Key, Mods, Platform};
 use craft_ui::contract::{NoValue, Outcome, ShowContainer as _, SweepApply};
 use craft_ui::layout_components::Stack;
 use craft_ui::list::ListWords;
@@ -118,14 +118,29 @@ impl ShortcutChoice {
         Self { key, shift, command }
     }
 
-    /// The shortcut as a row shows it: "F2" and "⇧⌘F3" on macOS, "Ctrl+Shift+F3" elsewhere.
+    /// The shortcut as a row shows it, in the platform's chord text: "F2" and "⇧⌘F3" on macOS,
+    /// "Ctrl+Shift+F3" elsewhere.
     pub fn text(&self) -> String {
-        let (shift, command) = (self.shift, self.command);
-        if Platform::current().is_mac() {
-            format!("{}{}F{}", if shift { "⇧" } else { "" }, if command { "⌘" } else { "" }, self.key)
-        } else {
-            format!("{}{}F{}", if command { "Ctrl+" } else { "" }, if shift { "Shift+" } else { "" }, self.key)
-        }
+        self.chord().display(Platform::current())
+    }
+
+    /// The shortcut as a keymap chord; a key above 12 is taken as F12.
+    fn chord(&self) -> Chord {
+        let key = match self.key {
+            1 => Key::F1,
+            2 => Key::F2,
+            3 => Key::F3,
+            4 => Key::F4,
+            5 => Key::F5,
+            6 => Key::F6,
+            7 => Key::F7,
+            8 => Key::F8,
+            9 => Key::F9,
+            10 => Key::F10,
+            11 => Key::F11,
+            _ => Key::F12,
+        };
+        Chord::new(Mods { cmd: self.command, shift: self.shift, ..Mods::NONE }, key)
     }
 }
 
