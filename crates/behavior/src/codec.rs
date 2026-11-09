@@ -205,6 +205,18 @@ impl NumberCodec {
         self.decimals
     }
 
+    /// The value of `text` and the tag of the unit it named (`Reader::read_tagged`); `None` when the text named no
+    /// tagged unit or a custom parser read it.
+    pub fn parse_tagged(&self, text: &str, start: &Option<f64>) -> Result<(Option<f64>, Option<u32>), NotAValue> {
+        if text.trim().is_empty() {
+            return Ok((None, None));
+        }
+        match self.reader.read_tagged(text, *start) {
+            Ok((number, tag)) => Ok((Some(number), tag)),
+            Err(rejected) => self.custom.as_ref().and_then(|parse| parse(text.trim())).map(|number| (Some(number), None)).ok_or(rejected),
+        }
+    }
+
     /// The reader the codec parses with.
     pub fn reader(&self) -> &Reader {
         &self.reader
@@ -228,13 +240,7 @@ impl Codec for NumberCodec {
     }
 
     fn parse(&self, text: &str, start: &Option<f64>) -> Result<Option<f64>, NotAValue> {
-        if text.trim().is_empty() {
-            return Ok(None);
-        }
-        match self.reader.read(text, *start) {
-            Ok(number) => Ok(Some(number)),
-            Err(rejected) => self.custom.as_ref().and_then(|parse| parse(text.trim())).map(Some).ok_or(rejected),
-        }
+        self.parse_tagged(text, start).map(|(value, _)| value)
     }
 
     fn sample(&self, _current: &Option<f64>) -> Cow<'_, str> {
