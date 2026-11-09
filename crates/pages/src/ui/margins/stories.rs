@@ -27,12 +27,12 @@ fn drag_left_edge(fixture: &mut Fixture) {
 fn handles(ui: &mut Ui, edges: Bind<'_, PageEdges>) -> StoryOutput {
     let full = ui.available_rect_before_wrap();
     let view = CanvasView::new(full, CENTRE, 1.0);
-    let mut edges = Some(edges);
+    let mut edges = edges;
     Canvas::new("Pages")
         .view(view)
         .show(ui, |ui, body| {
             let page = demo_placed(1, CanvasView::new(body.rect, CENTRE, 1.0).to_screen(Point::ZERO)).remove(0);
-            edges.take().map(|edges| MarginHandles::new("Margins", &page, edges).header_footer().unit(UnitKind::Inches).show_at(ui, body.rect))
+            Some(MarginHandles::new("Margins", &page, edges.reborrowed()).header_footer().unit(UnitKind::Inches).show_at(ui, body.rect))
         })
         .inner
         .flatten()

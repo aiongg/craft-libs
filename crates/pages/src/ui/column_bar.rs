@@ -136,7 +136,14 @@ fn row(shares: &[f64], width: f32) -> Vec<Segment> {
 /// widths.
 fn pushed(widths: &[f64], at: usize, target: f32, width: f32) -> Vec<f64> {
     let total: f64 = widths.iter().sum();
-    let extents = resize(&row(&shares(widths), width), at, target);
+    let current = row(&shares(widths), width);
+    let extents = resize(&current, at, target);
+    // The widths round-trip through f32 extents, so a divider already at `target` would otherwise come back a few ulps
+    // off; it keeps its widths exactly.
+    let slack = width * f32::EPSILON * 4.0;
+    if current.iter().zip(&extents).all(|(old, new)| (old.extent - new).abs() <= slack) {
+        return widths.to_vec();
+    }
     let scale = if width > 0.0 { total / f64::from(width) } else { 0.0 };
     extents.into_iter().map(|extent| f64::from(extent) * scale).collect()
 }
