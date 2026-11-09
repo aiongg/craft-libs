@@ -24,6 +24,10 @@ fn owner_slot(inner: Id) -> Id {
     sub(inner, "fold_owner")
 }
 
+fn text_slot(widget: Id) -> Id {
+    sub(widget, "fold_text")
+}
+
 fn folded_slot(owner: Id) -> Id {
     sub(owner, "folded_inner")
 }
@@ -31,6 +35,17 @@ fn folded_slot(owner: Id) -> Id {
 /// Shows the component `inner` as a control of `owner`.
 pub(crate) fn request(ctx: &Context, inner: Id, owner: Id) {
     store::put(ctx, owner_slot(inner), Owner(owner));
+}
+
+/// Shows the text widget `widget` as the text control of `owner`.
+pub(crate) fn request_text(ctx: &Context, widget: Id, owner: Id) {
+    request(ctx, widget, owner);
+    store::put(ctx, text_slot(widget), ());
+}
+
+/// Whether `id` is a text widget that folds into its owner, as opposed to an inner component.
+pub(crate) fn is_text_widget(ctx: &Context, id: Id) -> bool {
+    store::peek_clone::<()>(ctx, text_slot(id)).is_some()
 }
 
 /// The owner `inner` folds into, if it is shown as an owner's control.
