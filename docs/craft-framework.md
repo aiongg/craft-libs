@@ -42,8 +42,9 @@ The Craft framework is the shared layer under every Craft app: the design system
     - [7.2 Translation rules](#72-translation-rules)
     - [7.3 Goals beyond the required list](#73-goals-beyond-the-required-list)
 - [8. Tests and gates](#8-tests-and-gates)
-    - [8.1 Gates](#81-gates)
-    - [8.2 Design lint](#82-design-lint)
+    - [8.1 What gets a test](#81-what-gets-a-test)
+    - [8.2 Gates](#82-gates)
+    - [8.3 Design lint](#83-design-lint)
 - [9. Migration and landing](#9-migration-and-landing)
     - [9.1 Migration strategy](#91-migration-strategy)
     - [9.2 Acceptance checklist](#92-acceptance-checklist)
@@ -495,7 +496,35 @@ These guide design where no rule exists. They are not acceptance criteria.
 
 ## 8. Tests and gates
 
-### 8.1 Gates
+### 8.1 What gets a test
+
+Every test names the regression it guards against: a plausible change to the code that would break something without anyone noticing. If no such change comes to mind, there is no test.
+
+Test:
+
+- Shared mechanisms that many components rely on: the contract pipeline, measuring, focus and key routing, undo grouping, the suite's own checks. Test each once, at the mechanism.
+- Logic with real room for mistakes: layout and room sharing, state machines, gesture sequences, geometry, parsing and saving our own file formats.
+- A bug that was hard to find, where the fix isn't obvious from the code.
+
+Don't test:
+
+- Code you can verify by reading it: a few lines, a single branch, a swap, a clamp, a short loop with no state.
+- Wiring: a button runs its command, a key calls a model function, a modifier picks copy instead of move.
+- Defaults, getters and mappings.
+- What the type system already guarantees.
+- Library behaviour: egui, std, serde or any other dependency.
+- Exact strings, values or sizes.
+- One test per combination of cases.
+- Per-component repeats of what the shared suite already checks on that type. The suite runs its shared cases on every type registered as a component; a pattern gets only the pattern trial.
+
+Where a test goes:
+
+- A component gets its own trial only for behaviour that is unique to it and not trivial.
+- Check behaviour at the level the user meets it, through the component, not in the helpers it calls. When a user-level test already goes through a helper's code path, the helper has no test of its own.
+
+New code follows the same rule. A new feature adds tests only for logic with real room for mistakes. A bug fix adds a test only when the bug was hard to find. A review finding needs no test case of its own.
+
+### 8.2 Gates
 
 | Gate | What it holds |
 | --- | --- |
@@ -520,7 +549,7 @@ cargo test -p craft-ui-gallery-legacy --release -- --include-ignored
 
 The release run takes about 3 minutes against about 10 in debug. The pseudo-locale checks exist in debug builds only, so run them with `cargo test -p craft-ui-gallery-legacy --test gallery -- --include-ignored pseudo`.
 
-### 8.2 Design lint
+### 8.3 Design lint
 
 - Rules: `literal-size/*`, `raw-colour/const`, `style-mutation`, `tooltip/stock`, `clippy/inner-allow`.
 - Exemption marker: `// design: allow(reason)`. Empty, invalid and unused markers are findings.
