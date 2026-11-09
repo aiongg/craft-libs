@@ -250,14 +250,17 @@ impl PageRangeOptions {
         let group = RadioGroup::new(label, Bind::given(range.all)).show(ui, |ui, cx| {
             Stack::new().show(ui, |ui, _| {
                 cx.labelled(ui, "all", words.all_pages.clone(), after.clone(), Radio::new(true));
-                Row::new().show(ui, |ui, _| {
+                // Two themed fields don't fit beside the radio in a narrow panel: "to" and its field wrap together.
+                Row::new().wrap(true).show(ui, |ui, _| {
                     cx.labelled(ui, "range", words.pages_from.clone(), after.clone(), Radio::new(false));
                     let field = |label: &Label, shown: usize| {
                         NumberField::new(label.clone(), Bind::given(Some(shown as f64))).codec(numbers.clone()).enabled(!range.all)
                     };
                     from = whole(&field(&words.pages_from, shown_from).show(ui).edit, shown_from);
-                    Text::new(words.to.clone()).show(ui);
-                    to = whole(&field(&words.to, shown_to).show(ui).edit, shown_to);
+                    Row::new().show(ui, |ui, _| {
+                        Text::new(words.to.clone()).show(ui);
+                        to = whole(&field(&words.to, shown_to).show(ui).edit, shown_to);
+                    });
                 });
             });
         });

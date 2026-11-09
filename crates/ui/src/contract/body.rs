@@ -1318,7 +1318,13 @@ impl<'b> BodyHooks<'b> {
             (Some(overlay), false) => Self::layer_room(ui.ctx(), overlay).size(),
             _ => match at {
                 ShowAt::Rect(rect) => rect.size(),
-                ShowAt::Flow => crate::layout::flow_room(ui),
+                ShowAt::Flow => {
+                    let room = crate::layout::flow_room(ui);
+                    // In a row that wraps, a body too wide for the rest of the line moves to the next one: it measures
+                    // in the whole line, so its allocation carries its width and the row can wrap it.
+                    let layout = ui.layout();
+                    if layout.main_wrap && layout.is_horizontal() { Vec2::new(room.x.max(ui.available_size().x), room.y) } else { room }
+                }
             },
         }
     }

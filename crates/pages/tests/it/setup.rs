@@ -336,9 +336,6 @@ fn a_screen_reader_steps_a_margin() {
     assert!(edges.borrow().margins.left > before, "Increment moves the edge toward the text: {:?}", edges.borrow());
 }
 
-/// The room the page range options are shown in.
-const RANGE_ROOM: Vec2 = Vec2::new(400.0, 200.0);
-
 /// A page range over twelve pages, and the range the options last reported.
 fn range_rig(start: PageRange) -> (Fixture, Rc<RefCell<PageRange>>) {
     let range = Rc::new(RefCell::new(start));
@@ -349,7 +346,6 @@ fn range_rig(start: PageRange) -> (Fixture, Rc<RefCell<PageRange>>) {
             *seen.borrow_mut() = next;
         }
     });
-    fixture.room(RANGE_ROOM);
     fixture.settle();
     (fixture, range)
 }
