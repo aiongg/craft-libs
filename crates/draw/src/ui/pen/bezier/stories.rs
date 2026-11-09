@@ -20,15 +20,13 @@ fn paths() -> Vec<EditPath> {
     vec![EditPath { key: 1, subpaths: vec![EditSubpath { knots: open, closed: false }], color: None }, EditPath { key: 2, subpaths, color: None }]
 }
 
-/// Shows `overlay` as the only canvas control of a canvas whose view has the document origin at its top left.
-fn on_canvas(ui: &mut Ui, overlay: BezierOverlay<'_>) -> StoryOutput {
+/// Shows the overlay `overlay` builds and shows as the only canvas control of a canvas whose view has the document
+/// origin at its top left. The canvas body runs more than once per pass, so `overlay` builds it on every run.
+fn on_canvas(ui: &mut Ui, mut overlay: impl FnMut(&mut Ui, egui::Rect) -> BezierOutput) -> StoryOutput {
     let room = ui.available_rect_before_wrap();
     let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
-    let mut overlay = Some(overlay);
-    let shown = Canvas::new("Document")
-        .view(view)
-        .show(ui, |ui, body| -> Option<BezierOutput> { overlay.take().map(|overlay| overlay.show_at(ui, body.rect)) });
-    shown.inner.flatten().map(StoryOutput::from).unwrap_or_default()
+    let shown = Canvas::new("Document").view(view).show(ui, |ui, body| overlay(ui, body.rect));
+    shown.inner.map(StoryOutput::from).unwrap_or_default()
 }
 
 fn selected() -> PathSelection {
@@ -38,34 +36,40 @@ fn selected() -> PathSelection {
 #[story(BezierOverlay<'static>, covers = [Default], drive = Drive::Drag(Grip::part(ANCHOR.at(index(0, KnotRef { subpath: 0, knot: 0 }))).toward(Vec2::X)))]
 fn direct_selection_with_a_selected_anchor(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let paths = data.value("paths", paths());
-    on_canvas(ui, BezierOverlay::new("Paths", Bind::bound(&mut *paths), &selected()))
+    on_canvas(ui, |ui, at| BezierOverlay::new("Paths", Bind::bound(&mut *paths), &selected()).show_at(ui, at))
 }
 
 #[story(BezierOverlay<'static>, covers = [Default], drive = Drive::Drag(Grip::part(ANCHOR.at(index(0, KnotRef { subpath: 0, knot: 0 }))).toward(Vec2::X)))]
 fn all_handles_shown(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let paths = data.value("paths", paths());
-    on_canvas(ui, BezierOverlay::new("Paths", Bind::bound(&mut *paths), &PathSelection::default()).handles(HandlesShown::All))
+    on_canvas(ui, |ui, at| {
+        BezierOverlay::new("Paths", Bind::bound(&mut *paths), &PathSelection::default()).handles(HandlesShown::All).show_at(ui, at)
+    })
 }
 
 #[story(BezierOverlay<'static>, covers = [Default], drive = Drive::Drag(Grip::part(ANCHOR.at(index(0, KnotRef { subpath: 0, knot: 0 }))).toward(Vec2::X)))]
 fn curvature_tool(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let paths = data.value("paths", paths());
-    on_canvas(ui, BezierOverlay::new("Paths", Bind::bound(&mut *paths), &selected()).tool(BezierTool::Curvature))
+    on_canvas(ui, |ui, at| BezierOverlay::new("Paths", Bind::bound(&mut *paths), &selected()).tool(BezierTool::Curvature).show_at(ui, at))
 }
 
 #[story(BezierOverlay<'static>, covers = [Default], drive = Drive::Drag(Grip::part(ANCHOR.at(index(0, KnotRef { subpath: 0, knot: 0 }))).toward(Vec2::X)))]
 fn add_anchor_tool(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let paths = data.value("paths", paths());
-    on_canvas(ui, BezierOverlay::new("Paths", Bind::bound(&mut *paths), &PathSelection::default()).tool(BezierTool::AddAnchor))
+    on_canvas(ui, |ui, at| {
+        BezierOverlay::new("Paths", Bind::bound(&mut *paths), &PathSelection::default()).tool(BezierTool::AddAnchor).show_at(ui, at)
+    })
 }
 
 #[story(BezierOverlay<'static>, covers = [Default], drive = Drive::Never)]
 fn outlines_only(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let paths = data.value("paths", paths());
-    on_canvas(
-        ui,
-        BezierOverlay::new("Paths", Bind::bound(&mut *paths), &PathSelection::default()).tool(BezierTool::Anchors).anchors(AnchorsShown::Hidden),
-    )
+    on_canvas(ui, |ui, at| {
+        BezierOverlay::new("Paths", Bind::bound(&mut *paths), &PathSelection::default())
+            .tool(BezierTool::Anchors)
+            .anchors(AnchorsShown::Hidden)
+            .show_at(ui, at)
+    })
 }
 
 #[story(BezierOverlay<'static>, covers = [Default], drive = Drive::Drag(Grip::part(ANCHOR.at(index(0, KnotRef { subpath: 0, knot: 0 }))).toward(Vec2::X)))]
@@ -76,5 +80,5 @@ fn a_path_in_its_own_colour(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         paths
     };
     let paths = data.value("paths", coloured());
-    on_canvas(ui, BezierOverlay::new("Paths", Bind::bound(&mut *paths), &selected()))
+    on_canvas(ui, |ui, at| BezierOverlay::new("Paths", Bind::bound(&mut *paths), &selected()).show_at(ui, at))
 }

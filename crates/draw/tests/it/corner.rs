@@ -57,9 +57,10 @@ fn show(host: Host) -> (Fixture, Rc<RefCell<Host>>) {
         let Host { targets, kinds, hide_above, zoom, cycled, activated } = &mut *host;
         let room = ui.available_rect_before_wrap();
         let view = CanvasView::new(room, Point::new(200.0, 150.0), *zoom);
-        let mut control = Some(CornerWidgets::new("Corner radius", Bind::bound(targets)).kinds(*kinds).hide_above(*hide_above));
-        let canvas = Canvas::new("Document").view(view).show(ui, |ui, body| control.take().map(|control| control.show_at(ui, body.rect)));
-        if let Some(Some(output)) = canvas.inner {
+        let canvas = Canvas::new("Document").view(view).show(ui, |ui, body| {
+            CornerWidgets::new("Corner radius", Bind::bound(&mut *targets)).kinds(*kinds).hide_above(*hide_above).show_at(ui, body.rect)
+        });
+        if let Some(output) = canvas.inner {
             cycled.extend(output.cycle_kind);
             activated.extend(output.activate);
         }

@@ -309,14 +309,12 @@ fn first_edit() -> ScopeZoneEdit {
 }
 
 /// The zones of a story over a picture, the value text of each, and the story's canvas.
-fn zones_story(ui: &mut Ui, value: Bind<'_, ScopeZoneEdit>) -> StoryOutput {
+fn zones_story(ui: &mut Ui, mut value: Bind<'_, ScopeZoneEdit>) -> StoryOutput {
     let zones = ToneZone::CAMERA_RAW;
     let texts: Vec<Label> = zones.iter().map(|zone| Label::from(zone_text(zone.key, 0.0))).collect();
     let image = MockImage::default();
-    let mut value = Some(value);
     story_canvas(ui, Some(&image), StoryView::Fit, |ui, rect| {
-        let value = value.take().unwrap_or_else(Bind::kept);
-        ToneZones::new("Tone zones", &zones, &texts).value(value).show_at(ui, rect).into()
+        ToneZones::new("Tone zones", &zones, &texts).value(value.reborrowed()).show_at(ui, rect).into()
     })
 }
 

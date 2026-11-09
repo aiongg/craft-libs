@@ -26,13 +26,13 @@ fn state(data: &mut StoryData, selected: StopRef) -> (&mut LineGradient, &mut Op
     (&mut state.0, &mut state.1)
 }
 
-/// Shows `overlay` as the only canvas control of a canvas whose view is the room it is given.
-fn on_canvas(ui: &mut Ui, overlay: impl FnOnce(&mut Ui, egui::Rect) -> craft_ui::contract::EditResponse<LineGradient>) -> StoryOutput {
+/// Shows the overlay `overlay` builds as the only canvas control of a canvas whose view is the room it is given. The
+/// canvas body runs more than once per pass, so `overlay` builds the overlay on every run.
+fn on_canvas(ui: &mut Ui, mut overlay: impl FnMut(&mut Ui, egui::Rect) -> craft_ui::contract::EditResponse<LineGradient>) -> StoryOutput {
     let room = ui.available_rect_before_wrap();
     let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
-    let mut overlay = Some(overlay);
-    let shown = Canvas::new("Document").view(view).show(ui, |ui, body| overlay.take().map(|overlay| overlay(ui, body.rect)));
-    shown.inner.flatten().map(StoryOutput::from).unwrap_or_default()
+    let shown = Canvas::new("Document").view(view).show(ui, |ui, body| overlay(ui, body.rect));
+    shown.inner.map(StoryOutput::from).unwrap_or_default()
 }
 
 #[story(GradientOverlay<'static>, covers = [Default], drive = Drive::Drag(Grip::new(END).toward(vec2(0.0, 1.0))))]

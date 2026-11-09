@@ -212,8 +212,7 @@ impl<'a> LayerStyleDialog<'a> {
     /// Draws the list and the page and reports this pass's change. List actions and field edits become the style edit;
     /// the page, Preview and Blend If channel are reported beside it.
     pub fn show(self, ui: &mut Ui) -> LayerStyleOutput {
-        let LayerStyleDialog { label, draft, channel_names, specs, blend_keys, blend_modes, patterns, user_contours, sampler, mut style_presets } =
-            self;
+        let LayerStyleDialog { label, draft, channel_names, specs, blend_keys, blend_modes, patterns, user_contours, sampler, style_presets } = self;
         let env = Env::of(ui);
         let words = env.words::<LayerStyleWords>();
         let contour_words = env.words::<ContourWords>();
@@ -252,7 +251,7 @@ impl<'a> LayerStyleDialog<'a> {
                     contour_words: &contour_words,
                     units: &units,
                 };
-                work.page(ui, &page, style_presets.take());
+                work.page(ui, &page, style_presets.as_ref());
             });
         });
         let Work { next, edit, extras } = work;
@@ -359,7 +358,7 @@ impl Work {
     }
 
     /// Draws the page of the pass; its controls add their edits to the pass's.
-    fn page(&mut self, ui: &mut Ui, env: &PageEnv<'_>, presets: Option<StylePresets<'_>>) {
+    fn page(&mut self, ui: &mut Ui, env: &PageEnv<'_>, presets: Option<&StylePresets<'_>>) {
         let (words, draft) = (env.words, env.draft);
         let instance = match draft.page {
             LayerStylePage::Effect(id) => draft.style.effect(id).cloned(),
@@ -438,12 +437,9 @@ fn page_title(page: LayerStylePage, draft: &LayerStyleDraft, words: &LayerStyleW
 }
 
 /// A page title in the title role with `end` at the row's end.
-pub(super) fn title_row(ui: &mut Ui, title: Label, end: impl FnOnce(&mut Ui)) {
-    let mut end = Some(end);
+pub(super) fn title_row(ui: &mut Ui, title: Label, mut end: impl FnMut(&mut Ui)) {
     Row::new().fill_width().align(RowAlign::SpaceBetween).show(ui, |ui, _| {
         Text::new(title.clone()).role(TypeRole::Title).show(ui);
-        if let Some(end) = end.take() {
-            end(ui);
-        }
+        end(ui);
     });
 }

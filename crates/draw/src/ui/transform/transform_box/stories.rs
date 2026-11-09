@@ -13,16 +13,13 @@ use egui::{Ui, vec2};
 const PICTURE: DocRect = DocRect::new(200.0, 120.0, 440.0, 280.0);
 
 /// Shows the box `configure` builds over the story's box as the only canvas control of a canvas.
-fn on_canvas(ui: &mut Ui, data: &mut StoryData, configure: impl for<'a> FnOnce(TransformBox<'a>) -> TransformBox<'a>) -> StoryOutput {
+fn on_canvas(ui: &mut Ui, data: &mut StoryData, configure: impl for<'a> Fn(TransformBox<'a>) -> TransformBox<'a>) -> StoryOutput {
     let state = data.value("box", BoxState::from_rect(PICTURE));
-    let mut configure = Some(configure);
     let room = ui.available_rect_before_wrap();
-    let shown = Canvas::new("Document").view(CanvasView::new(room, PICTURE.center(), 1.0)).show(ui, |ui, body| {
-        configure
-            .take()
-            .map(|configure| configure(TransformBox::new("Free Transform", Bind::bound(&mut *state), PICTURE, 0.0)).show_at(ui, body.rect))
-    });
-    shown.inner.flatten().map(|output| StoryOutput::from(output.edit)).unwrap_or_default()
+    let shown = Canvas::new("Document")
+        .view(CanvasView::new(room, PICTURE.center(), 1.0))
+        .show(ui, |ui, body| configure(TransformBox::new("Free Transform", Bind::bound(&mut *state), PICTURE, 0.0)).show_at(ui, body.rect));
+    shown.inner.map(|output| StoryOutput::from(output.edit)).unwrap_or_default()
 }
 
 #[story(TransformBox<'static>, covers = [Default], drive = Drive::Drag(Grip::part(BOX.at(BoxPart::Corner(2).index())).toward(vec2(1.0, 1.0))))]

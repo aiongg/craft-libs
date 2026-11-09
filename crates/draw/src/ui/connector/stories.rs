@@ -23,13 +23,13 @@ fn glued(target: u64, side: ConnectionSide) -> ConnectorEnd {
     ConnectorEnd::Glued { target, side, site: None, at: None }
 }
 
-/// Shows `handles` as the only canvas control of a canvas whose view has the document origin at its top left.
-fn on_canvas(ui: &mut Ui, handles: ConnectorHandles<'_>) -> StoryOutput {
+/// Shows the handles `handles` builds and shows as the only canvas control of a canvas whose view has the document
+/// origin at its top left. The canvas body runs more than once per pass, so `handles` builds them on every run.
+fn on_canvas<R: Into<StoryOutput>>(ui: &mut Ui, mut handles: impl FnMut(&mut Ui, egui::Rect) -> R) -> StoryOutput {
     let room = ui.available_rect_before_wrap();
     let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
-    let mut handles = Some(handles);
-    let shown = Canvas::new("Document").view(view).show(ui, |ui, body| handles.take().map(|handles| handles.show_at(ui, body.rect)));
-    shown.inner.flatten().map(StoryOutput::from).unwrap_or_default()
+    let shown = Canvas::new("Document").view(view).show(ui, |ui, body| handles(ui, body.rect));
+    shown.inner.map(Into::into).unwrap_or_default()
 }
 
 #[story(ConnectorHandles<'static>, covers = [Default], drive = Drive::Drag(Grip::part(super::handles::END.at(0)).toward(vec2(0.0, 1.0))))]
@@ -45,7 +45,7 @@ fn connector_glued_at_both_ends(ui: &mut Ui, data: &mut StoryData) -> StoryOutpu
             path: None,
         },
     );
-    on_canvas(ui, ConnectorHandles::new("Connector", Bind::bound(&mut *item), &targets))
+    on_canvas(ui, |ui, at| ConnectorHandles::new("Connector", Bind::bound(&mut *item), &targets).show_at(ui, at))
 }
 
 fn caps() -> Vec<StrokeChoice> {

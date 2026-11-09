@@ -23,7 +23,7 @@ use crate::ui::gradient::words::GradientWords;
 pub(super) const FIRST_FIELD: &str = "first-field";
 
 /// The setup closure of the popover's picker.
-pub(super) type PickerSetup<'a> = Box<dyn for<'b> FnOnce(ColorPicker<'b>) -> ColorPicker<'b> + 'a>;
+pub(super) type PickerSetup<'a> = Box<dyn for<'b> Fn(ColorPicker<'b>) -> ColorPicker<'b> + 'a>;
 
 /// Which number field of the fields row.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -74,7 +74,7 @@ pub(super) struct Row<'r, 'a> {
     pub enabled: bool,
     pub fields: bool,
     pub color_popover: bool,
-    pub picker: &'r mut Option<PickerSetup<'a>>,
+    pub picker: &'r Option<PickerSetup<'a>>,
     pub sampled: Option<Srgba>,
     /// The colour request of the bar, when the bar asked for one.
     pub requested: Option<usize>,
@@ -303,7 +303,7 @@ impl Row<'_, '_> {
     /// The colour popover of colour stop `i`, hung from `opener`, while it is open.
     fn popover(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>, now: &GradientStops, i: usize, opener: &egui::Response, report: &mut Report) {
         let rows = self.rules.rows;
-        let host = self.picker.take();
+        let host = self.picker.as_deref();
         let sampled = self.sampled;
         let mut open = cx.memory::<PopoverOpen>().0;
         let shown = ColorPopover::new(label(self.words.popover.as_str()), Bind::given(PickedColor::rgb(stop_color(now, rows, i))))

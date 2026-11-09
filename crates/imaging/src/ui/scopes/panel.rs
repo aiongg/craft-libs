@@ -289,12 +289,11 @@ pub struct ScopePanelState {
 static STATISTICS_COLUMNS: [ColumnWidth; 4] = [ColumnWidth::Content; 4];
 
 /// Runs `content` in a block that resolves the dark mode when `dark`, else in the flow.
-fn themed<R>(ui: &mut Ui, dark: bool, content: impl FnOnce(&mut Ui) -> R) -> Option<R> {
+fn themed<R>(ui: &mut Ui, dark: bool, mut content: impl FnMut(&mut Ui) -> R) -> Option<R> {
     if !dark {
         return Some(content(ui));
     }
-    let mut content = Some(content);
-    Stack::new().theme(ThemeScope::mode(Mode::Dark)).show(ui, |ui, _| content.take().map(|content| content(ui))).inner.flatten()
+    Stack::new().theme(ThemeScope::mode(Mode::Dark)).show(ui, |ui, _| content(ui)).inner
 }
 
 /// Photoshop's Histogram panel and Camera Raw's scope in one widget.
@@ -454,17 +453,17 @@ impl Pass<'_> {
         let plot = plot_data(set, shown, colored, words.colors.as_str());
         let value = Label::from(words.histogram_value.fill(&[("channel", &plot.name), ("source", source)]));
         let zoned = !self.panel.zones.is_empty();
-        let stale = (set.stale || set.cache_level > 1).then(|| StaleMark::Button(Label::from(words.refresh_hint.clone())));
+        let stale = set.stale || set.cache_level > 1;
         let dark = matches!(shown, Shown::Colors(_));
         let plot_label = Label::from(words.histogram.clone());
         let (markers, state) = (self.panel.markers, &mut *self.panel.state);
         let histogram = themed(ui, dark, |ui| {
-            let mut histogram = Histogram::new(plot_label.clone(), &plot.data).value(value).markers(markers).height(PlotHeight::Standard);
+            let mut histogram = Histogram::new(plot_label.clone(), &plot.data).value(value.clone()).markers(markers).height(PlotHeight::Standard);
             if let Some(outline) = &plot.outline {
                 histogram = histogram.outline(outline);
             }
-            if let Some(stale) = stale {
-                histogram = histogram.stale(stale);
+            if stale {
+                histogram = histogram.stale(StaleMark::Button(Label::from(words.refresh_hint.clone())));
             }
             // The selection and the zones both take the plot's drags and keys: with zones there is no selection.
             if zoned { histogram.show(ui) } else { histogram.selection(Bind::bound(&mut state.range)).show(ui) }
