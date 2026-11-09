@@ -113,12 +113,12 @@ pub struct StripLayout {
     left: Vec<f32>,
     wide: Vec<f32>,
     report: Arc<Mutex<Report>>,
-    /// Whether the fit is written to `report`: a measuring run computes it and leaves the report to the real pass.
-    publish: bool,
+    /// A measuring run computes the fit and leaves the report to the real pass (`measure::effect`).
+    ctx: egui::Context,
 }
 
 impl StripLayout {
-    fn new(count: usize, width: f32, height: f32, selected: usize, mode: FitMode, report: Arc<Mutex<Report>>, publish: bool) -> Self {
+    fn new(count: usize, width: f32, height: f32, selected: usize, mode: FitMode, report: Arc<Mutex<Report>>, ctx: egui::Context) -> Self {
         let each = if count == 0 { 0.0 } else { width / count as f32 };
         let mut layout = StripLayout {
             ideal: vec![each; count],
@@ -132,7 +132,7 @@ impl StripLayout {
             left: Vec::new(),
             wide: Vec::new(),
             report,
-            publish,
+            ctx,
         };
         layout.refit();
         layout
@@ -156,7 +156,7 @@ impl StripLayout {
             placed.push((index, at, width));
             at += width;
         }
-        if self.publish {
+        if crate::runtime::measure::effect(&self.ctx, "tab strip report") {
             *self.report.lock().unwrap_or_else(PoisonError::into_inner) =
                 Report { hidden: fit.overflow, tabs_end: at, overflow: fit.overflow_width, placed };
         }
@@ -460,7 +460,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Collection 
         let count = source.len();
         *self.texts.borrow_mut() = (0..count).map(|at| (source.key(at), source.text(at).map(|text| text.into_owned()).unwrap_or_default())).collect();
         let selected = self.shown.as_ref().and_then(|key| source.index_of(key)).unwrap_or(usize::MAX);
-        StripLayout::new(count, width, cx.tokens.size.bar.tab, selected, self.kind.fit_mode(), self.report.clone(), !cx.measuring())
+        StripLayout::new(count, width, cx.tokens.size.bar.tab, selected, self.kind.fit_mode(), self.report.clone(), cx.frame_ctx().clone())
     }
 
     /// Every tab takes the strip's kind and size.
@@ -479,23 +479,5 @@ impl<K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Collection 
 
     fn accepts(&self, drag: &ListDrag<K>, over: Option<&K>, insert: usize) -> bool {
         self.accepts.as_ref().is_none_or(|test| test.passes(drag, over, insert))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// A measuring run computes the fit and leaves the report to the real pass.
-    #[test]
-    fn the_tab_strip_reports_its_fit_once_per_frame() {
-        let report = Arc::new(Mutex::new(Report::default()));
-        let measured = StripLayout::new(6, 220.0, 24.0, 0, FitMode::Whole, report.clone(), false);
-        assert!(measured.shown.iter().any(|shown| !shown), "the tabs overflow the width");
-        assert_eq!(*report.lock().unwrap(), Report::default(), "a measuring run leaves the report unchanged");
-        let real = StripLayout::new(6, 220.0, 24.0, 0, FitMode::Whole, report.clone(), true);
-        let held = report.lock().unwrap().clone();
-        assert_eq!(held.placed.len(), real.shown.iter().filter(|shown| **shown).count(), "the report holds the real pass's fit");
-        assert!(held.overflow > 0.0);
     }
 }

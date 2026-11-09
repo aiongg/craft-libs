@@ -507,6 +507,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.room = room;
         self.header.measure(scx);
         let bounded = room.x.is_finite();
+        let mut widest = 0.0;
         let width = match (bounded, self.content_sized(comp)) {
             (true, false) => room.x,
             // No rows: the empty state has no ideal width, so it takes the room, or none where the room is unbounded.
@@ -520,14 +521,14 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             // An unbounded room (a horizontally scrolling body) takes the widest row, as a content-sized collection does.
             (_, _) => {
                 let floor = overlay::drawing_parent(ui.ctx()).map_or(0.0, |layer| super::overlay::floor_width(ui.ctx(), layer));
-                let widest = layout_memory::measured(ui.ctx(), sub(id, "widest")).map_or(0.0, |measured| measured.took.x);
+                widest = layout_memory::measured(ui.ctx(), sub(id, "widest")).map_or(0.0, |measured| measured.took.x);
                 widest.max(floor).min(room.x)
             }
         };
         let previous = self.layout.take().or_else(|| self.previous.take()).map(|held| Arc::try_unwrap(held).unwrap_or_else(|held| (*held).clone()));
         let mut layout = comp.item_layout_from(previous, self.source, width, scx);
         if self.header.has_columns() {
-            layout.set_columns(&if self.content_sized(comp) { self.header.columns_shared(width) } else { self.header.columns(width) });
+            layout.set_columns(&if self.content_sized(comp) { self.header.columns_measured(width, widest) } else { self.header.columns(width) });
         }
         let ctx = ui.ctx();
         rows::measured_heights(ctx, |height| layout.measured(&|at| height(rows::measured_id(id, &self.source.key(at)))));

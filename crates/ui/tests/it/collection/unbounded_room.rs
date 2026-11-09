@@ -44,7 +44,7 @@ fn a_content_list_builds_each_row_once_to_measure() {
     let mut fixture = Fixture::new(move |ui| {
         let ctx = ui.ctx().clone();
         let _ = List::<usize>::new("Rows").sizing(Sizing::Content).show_items(ui, &words, &mut |key, _| {
-            let counter = if craft_ui::testing::measuring_active(&ctx) { &m } else { &r };
+            let counter = if craft_ui::testing::is_measuring(&ctx) { &m } else { &r };
             counter.set(counter.get() + 1);
             ListRow::new(words.words[*key])
         });

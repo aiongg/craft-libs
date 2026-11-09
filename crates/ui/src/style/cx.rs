@@ -90,9 +90,9 @@ fn egui_color(c: Rgba) -> Color32 {
 }
 
 impl<'a> StyleCx<'a> {
-    /// Whether a measuring run is in progress, whose results the real pass replaces.
-    pub(crate) fn measuring(&self) -> bool {
-        crate::runtime::measure::active(self.ctx)
+    /// The frame's context, for the gate on effects in a measuring run.
+    pub(crate) fn frame_ctx(&self) -> &Context {
+        self.ctx
     }
 
     /// The contrast setting of the scope, for a style that adds a cue at high contrast.
