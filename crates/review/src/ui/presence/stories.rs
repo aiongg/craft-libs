@@ -4,7 +4,7 @@ use super::{FollowFrame, PeopleBar, RemoteCursor, RemoteCursors};
 use crate::collab::{CollabTransport, CursorChat, JoinState, PEOPLE_COLORS, Participant, ParticipantId, VoteSession};
 use craft_behavior::CanvasView;
 use craft_ui::canvas::Canvas;
-use craft_ui::contract::{Show as _, ShowContainer as _};
+use craft_ui::contract::ShowContainer as _;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 use kurbo::Point;
@@ -88,7 +88,10 @@ fn remote_cursors(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 
 #[story(FollowFrame, covers = [Default], drive = Drive::Never)]
 fn follow_frame(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    on_canvas(ui, |ui, at| {
-        let _ = FollowFrame::new("Following", PEOPLE_COLORS[1], "Following Bo Chen \u{b7} Esc to stop").show_at(ui, at);
-    })
+    let room = ui.available_rect_before_wrap();
+    let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
+    let _ = FollowFrame::new("Following", PEOPLE_COLORS[1], "Following Bo Chen \u{b7} Esc to stop").show(ui, |ui, _| {
+        Canvas::new("Document").view(view).show(ui, |_, _| {});
+    });
+    StoryOutput::default()
 }

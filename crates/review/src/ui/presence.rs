@@ -7,8 +7,8 @@ use craft_theme::variant::Variant;
 use craft_ui::buttons::IconButton;
 use craft_ui::canvas::canvas_space;
 use craft_ui::contract::{
-    Animate as _, CommandSet as _, Commands as _, Common, Component, Cx, Entry, MeasureCx, NoValue, Outcome, PaintUi, Pattern, Props, Remember as _,
-    Role, Show as _, ShowContainer as _, Trigger, spec,
+    Animate as _, CommandSet as _, Commands as _, Common, Component, Container, ContainerProps, Cx, Entry, MeasureCx, NoValue, Outcome, PaintUi,
+    Pattern, Props, Remember as _, Role, Show as _, ShowContainer as _, Sizing, Trigger, spec,
 };
 use craft_ui::display::Badge;
 use craft_ui::layout_components::{Row, Stack};
@@ -357,14 +357,17 @@ pub enum FollowCommand {
     StopFollowing,
 }
 
-/// A frame in the followed person's colour round the canvas, with "Following {name} · Esc to stop" at the top. The
-/// app shows it in the canvas body while it follows someone and stops following when the output says `stopped`
-/// (Escape, [`FollowCommand::StopFollowing`]).
+/// A frame in the followed person's colour round the canvas it holds, with "Following {name} · Esc to stop" at the
+/// top. It is a mode of that canvas: the app shows the canvas inside it while it follows someone, so the frame's
+/// command scope is around the canvas in every focus chain that holds the canvas. The app stops following when the
+/// output says `stopped` (Escape, [`FollowCommand::StopFollowing`]).
 #[derive(craft_ui::contract::Component)]
-#[component(canvas_control)]
+#[component(container)]
 pub struct FollowFrame {
     #[common]
     common: Common,
+    #[container]
+    props: ContainerProps,
     color: [u8; 3],
     text: String,
     stopped: bool,
@@ -392,14 +395,15 @@ impl Outcome for FollowFrameOutput {
 impl FollowFrame {
     /// A frame in `color` with `text` (built from [`PresenceWords`]'s `following`) at the top.
     pub fn new(label: impl Into<Label>, color: [u8; 3], text: impl Into<String>) -> Self {
-        FollowFrame { common: Common::new(), color, text: text.into(), stopped: false }.label(label).command_scope(FollowCommand::SCOPE)
+        let props = ContainerProps::new().sizing(Sizing::Fill).command_scope(FollowCommand::SCOPE);
+        FollowFrame { common: Common::new(), props, color, text: text.into(), stopped: false }.label(label)
     }
 }
 
+impl Container for FollowFrame {}
+
 impl Component for FollowFrame {
-    const ROLE: Role = Role::GRAPHICS_OBJECT;
-    const ALT_ROLES: &'static [Role] = &[Role::None];
-    const INPUT: Input = Input::Display;
+    const ROLE: Role = Role::GROUP;
     const PARTS: bool = false;
     const STOPS: bool = false;
     const OVERLAYS: bool = false;
@@ -410,23 +414,14 @@ impl Component for FollowFrame {
         cursor_style(cx)
     }
 
-    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
-        Vec2::ZERO
-    }
-
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         while cx.take_command::<FollowCommand>().is_some() {
             self.stopped = true;
         }
     }
 
-    fn access(&self, access: &mut craft_ui::contract::Access, _: &Cx<'_, Self>) {
-        access.role(Role::None);
-    }
-
-    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let Some(space) = canvas_space(&cx.env) else { return };
-        let (area, look) = (space.view.rect, &cx.style.bubble);
+    fn paint_over(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let (area, look) = (cx.rect, &cx.style.bubble);
         let draw = ui.draw();
         draw.stroke(&PaintShape::Rect(area, CornerRadius::ZERO), StrokeWidth::Thick, data(self.color));
         let run =

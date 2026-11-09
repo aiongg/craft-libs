@@ -255,11 +255,16 @@ fn escape_while_following_stops_following() {
         let view = craft_behavior::CanvasView::new(area, kurbo::Point::new(0.0, 0.0), 1.0);
         let mut shared = shared.borrow_mut();
         let on = shared.is_some();
-        Canvas::new("Document").view(view).show(ui, |ui, cx| {
-            if on && craft_review::ui::FollowFrame::new("Following", PEOPLE_COLORS[1], "Following Bo Chen").show_at(ui, cx.rect).stopped {
+        let canvas = |ui: &mut egui::Ui| {
+            Canvas::new("Document").view(view).show(ui, |_, _| {});
+        };
+        if on {
+            if craft_review::ui::FollowFrame::new("Following", PEOPLE_COLORS[1], "Following Bo Chen").show(ui, |ui, _| canvas(ui)).output.stopped {
                 *shared = None;
             }
-        });
+        } else {
+            canvas(ui);
+        }
     });
     fixture.settle();
     assert!(following.borrow().is_some());
@@ -278,11 +283,16 @@ fn escape_key_stops_following() {
         let view = craft_behavior::CanvasView::new(area, kurbo::Point::new(0.0, 0.0), 1.0);
         let mut shared = shared.borrow_mut();
         let on = shared.is_some();
-        Canvas::new("Document").view(view).show(ui, |ui, cx| {
-            if on && craft_review::ui::FollowFrame::new("Following", PEOPLE_COLORS[1], "Following Bo Chen").show_at(ui, cx.rect).stopped {
+        let canvas = |ui: &mut egui::Ui| {
+            Canvas::new("Document").view(view).show(ui, |_, _| {});
+        };
+        if on {
+            if craft_review::ui::FollowFrame::new("Following", PEOPLE_COLORS[1], "Following Bo Chen").show(ui, |ui, _| canvas(ui)).output.stopped {
                 *shared = None;
             }
-        });
+        } else {
+            canvas(ui);
+        }
     });
     fixture.settle();
     fixture.key(egui::Key::Escape, egui::Modifiers::NONE);
