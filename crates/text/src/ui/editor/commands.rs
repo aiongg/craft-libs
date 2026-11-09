@@ -13,7 +13,7 @@ const FAR: f32 = 5.0;
 /// The commands of a type session. Each runs on the editor that holds the keyboard; the host decides what a
 /// formatting command means for its text.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui::contract::CommandSet)]
-#[command(prefix = "textEditor")]
+#[command(prefix = "textEditor", scope = "textEditor")]
 #[non_exhaustive]
 pub enum TextEditorCommand {
     /// Commit the session and keep the text.

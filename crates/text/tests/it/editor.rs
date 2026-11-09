@@ -79,27 +79,27 @@ struct Session {
     fixture: Fixture,
     host: Rc<RefCell<Host>>,
     selection: Rc<RefCell<TextSelection>>,
-    commit: Rc<Cell<bool>>,
+    commits: Rc<Cell<u32>>,
 }
 
 fn session(text: &str, quotes: Option<QuoteStyle>) -> Session {
     let host = Rc::new(RefCell::new(Host { text: text.to_owned(), ..Host::default() }));
     let selection = Rc::new(RefCell::new(TextSelection::caret_at(text.chars().count())));
-    let commit = Rc::new(Cell::new(false));
-    let (shown_host, shown_selection, shown_commit) = (Rc::clone(&host), Rc::clone(&selection), Rc::clone(&commit));
+    let commits = Rc::new(Cell::new(0));
+    let (shown_host, shown_selection, shown_commits) = (Rc::clone(&host), Rc::clone(&selection), Rc::clone(&commits));
     let mut fixture = Fixture::new(move |ui| {
         let (mut host, mut selection) = (shown_host.borrow_mut(), shown_selection.borrow_mut());
         Canvas::new("Document").show(ui, |ui, body| {
             let bounds = Rect::from_min_size(body.rect.min, vec2(200.0, 20.0));
             let editor = TextEditor::new("Text", &mut *host, Bind::bound(&mut *selection));
             let output = if let Some(style) = quotes { editor.smart_quotes(style) } else { editor }.show_at(ui, bounds);
-            if output.commit {
-                shown_commit.set(true);
+            if matches!(output.edit.event, Some(craft_behavior::EditEvent::Commit { .. })) {
+                shown_commits.set(shown_commits.get() + 1);
             }
         });
     });
     fixture.settle();
-    Session { fixture, host, selection, commit }
+    Session { fixture, host, selection, commits }
 }
 
 impl Session {
@@ -185,8 +185,29 @@ fn a_change_from_outside_keeps_the_selection_in_the_text() {
 fn escape_commits_the_session() {
     let mut editor = session("abc", None);
     editor.focus();
-    editor.fixture.key(Key::Escape, Modifiers::NONE).settle();
-    assert!(editor.commit.get());
+    editor.fixture.type_text("d").key(Key::Escape, Modifiers::NONE).settle();
+    assert_eq!(editor.commits.get(), 1);
+}
+
+#[trial]
+fn command_enter_commits_one_session_and_a_session_without_edits_commits_nothing() {
+    let mut editor = session("abc", None);
+    editor.focus();
+    editor.fixture.key(Key::Enter, Modifiers::COMMAND).settle();
+    assert_eq!(editor.commits.get(), 0, "no text changed");
+    editor.fixture.type_text("d").key(Key::Enter, Modifiers::COMMAND).settle();
+    assert_eq!(editor.commits.get(), 1);
+    assert_eq!(editor.text(), "abcd");
+}
+
+#[trial]
+fn a_press_outside_commits_the_session_once() {
+    let mut editor = session("abc", None);
+    editor.focus();
+    editor.fixture.type_text("d").settle();
+    assert_eq!(editor.commits.get(), 0);
+    editor.fixture.click_at(pos2(150.0, 100.0)).settle();
+    assert_eq!(editor.commits.get(), 1);
 }
 
 #[trial]
