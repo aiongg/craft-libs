@@ -111,16 +111,20 @@ fn parts_take_presses_in_their_hit_areas(subject: &Subject) -> Result<(), String
                 ));
             }
         }
-        // A refused value is moved while the pointer drags and put back at the release, so the drag leaves no value.
-        let refused = story.covers.contains(&Required::Invalid);
-        if let (Plan::Drag(Grip { part, .. }), true, false) = (plan, probe.carries_value(), refused) {
+        if let (Plan::Drag(Grip { part, .. }), true) = (plan, probe.carries_value()) {
             let Some(grip) = fixture.root_id().and_then(|id| fixture.part(id, part)) else { continue };
             let off_middle = Pos2::new(grip.rect.center().x + 0.25 * grip.rect.width(), grip.rect.center().y);
             let mut fixture = fixture;
             let before = fixture.data().snapshot();
             let travel = 2.0 * input::max_click_dist(fixture.ctx());
-            gesture(&mut fixture, &at(&grip, off_middle), travel);
-            if fixture.data().changed_since(&before).is_empty() {
+            // A refused value is moved while the pointer drags and put back at the release, so it is read before the release.
+            let refused = story.covers.contains(&Required::Invalid);
+            let moved_live = Cell::new(false);
+            fixture.drag_at_pausing(off_middle, Vec2::new(travel, 0.0), |fixture| {
+                moved_live.set(!fixture.data().changed_since(&before).is_empty());
+            });
+            let moved = if refused { moved_live.get() } else { !fixture.data().changed_since(&before).is_empty() };
+            if !moved {
                 return Err(format!("{}: a drag from {off_middle:?}, inside the part {part:?}, moved no value", story.name));
             }
         }
