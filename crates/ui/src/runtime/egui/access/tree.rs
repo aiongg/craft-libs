@@ -212,8 +212,16 @@ impl AccessTree {
 
     /// The sort order a column header node by key shows: `true` descending.
     pub fn sort_of(&self, key: NodeKey) -> Option<bool> {
-        let order = self.lookup(NodeId(key.0))?.sort_direction()?;
-        Some(order == accesskit::SortDirection::Descending)
+        match self.lookup(NodeId(key.0))?.sort_direction()? {
+            accesskit::SortDirection::Descending => Some(true),
+            accesskit::SortDirection::Ascending => Some(false),
+            _ => None,
+        }
+    }
+
+    /// Whether a column header node declares a sort direction: it sorts when activated, sorted now or not.
+    pub fn declares_sort(&self, key: NodeKey) -> bool {
+        self.lookup(NodeId(key.0)).is_some_and(|node| node.sort_direction().is_some())
     }
 
     /// The expanded state of the node of `id`.

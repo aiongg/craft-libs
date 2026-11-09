@@ -72,6 +72,8 @@ pub(crate) struct NodeSpec {
     pub grid: crate::runtime::access::GridPlace,
     /// The header cell's sort order: `true` descending.
     pub sort: Option<bool>,
+    /// The header sorts when activated: it declares a sort direction while unsorted (`Other`).
+    pub sortable: bool,
     pub labelled_by: Vec<Id>,
     pub described_by: Vec<Id>,
     pub controls: Vec<Id>,
@@ -118,6 +120,7 @@ impl NodeSpec {
             level: None,
             grid: crate::runtime::access::GridPlace::default(),
             sort: None,
+            sortable: false,
             labelled_by: Vec::new(),
             described_by: Vec::new(),
             controls: Vec::new(),
@@ -220,6 +223,8 @@ fn write_identity(node: &mut accesskit::Node, spec: &NodeSpec) {
     }
     if let Some(descending) = spec.sort {
         node.set_sort_direction(if descending { accesskit::SortDirection::Descending } else { accesskit::SortDirection::Ascending });
+    } else if spec.sortable {
+        node.set_sort_direction(accesskit::SortDirection::Other);
     }
 }
 

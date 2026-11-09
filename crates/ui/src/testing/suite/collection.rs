@@ -391,7 +391,7 @@ fn selected_cell_reports_selected(story: &Story) -> Result<(), String> {
     Ok(())
 }
 
-/// Header cells carry a name. From the keyboard, Enter on a header cell that declares `Click` gives a column event,
+/// Header cells carry a name. From the keyboard, Enter on a header cell that declares `Click` and a sort direction (a sortable column) gives a column event,
 /// and the resize and move commands that are enabled for the focused column give one: a resize through the arrow
 /// keys, a move at once. A column that is not movable or resizable leaves its command disabled and is not read.
 fn header_cells_report_column_events(story: &Story) -> Result<(), String> {
@@ -406,7 +406,7 @@ fn header_cells_report_column_events(story: &Story) -> Result<(), String> {
     fixture.access(AccessActionKind::Focus, &first);
     fixture.idle(2);
     fixture.take_outputs();
-    if fixture.tree().declares_key(first.node, Declared::Click) {
+    if fixture.tree().declares_key(first.node, Declared::Click) && fixture.tree().declares_sort(first.node) {
         fixture.key(Key::Enter, Modifiers::NONE);
         fixture.idle(2);
         if !columns(&mut fixture) {
