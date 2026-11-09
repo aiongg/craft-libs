@@ -14,7 +14,7 @@ pub(crate) mod text;
 use crate::runtime::egui::access::{self as adapter, NodeRole, RunLink};
 use crate::runtime::env::Label;
 use craft_behavior::PartRef;
-use craft_theme::{Flags, Srgba, Tone};
+use craft_theme::{Flags, Srgba, variant::Tone};
 use egui::Id;
 use std::ops::RangeInclusive;
 

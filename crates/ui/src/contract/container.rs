@@ -135,9 +135,9 @@ pub enum Pad {
     None,
     /// `space.pad.control`.
     Control,
-    /// `space.pad.panel`.
+    /// `space.pad.regular`.
     Regular,
-    /// `space.pad.dialog`.
+    /// `space.pad.roomy`.
     Roomy,
 }
 

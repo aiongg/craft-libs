@@ -56,7 +56,7 @@ impl BubbleLook {
         BubbleLook {
             pad: Vec2::new(control.pad_x, tokens.space.gap.inline),
             gap: tokens.space.gap.tight,
-            radius: tokens.shape.radius.popup.round().clamp(0.0, 255.0) as u8,
+            radius: tokens.shape.radius.surface.round().clamp(0.0, 255.0) as u8,
             offset: Vec2::new(tokens.size.pointer_tip.x, tokens.size.pointer_tip.y),
             width: tokens.size.length.field,
             body: (body.size, body.line_height),

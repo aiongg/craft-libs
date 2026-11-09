@@ -149,17 +149,16 @@ pub(crate) fn leaves(b: &mut Preset) -> Vec<Leaf<'_>> {
         "base.space.gap.stack" Num 0.0..=32.0 => sp.gap.stack;
         "base.space.gap.section" Num 0.0..=32.0 => sp.gap.section;
         "base.space.pad.control" Num 0.0..=32.0 => sp.pad.control;
-        "base.space.pad.panel" Num 0.0..=32.0 => sp.pad.panel;
-        "base.space.pad.dialog" Num 0.0..=32.0 => sp.pad.dialog;
+        "base.space.pad.regular" Num 0.0..=32.0 => sp.pad.regular;
+        "base.space.pad.roomy" Num 0.0..=32.0 => sp.pad.roomy;
         "base.space.pad.chip" Num 0.0..=32.0 => sp.pad.chip;
         "base.space.inset.screen" Num 0.0..=64.0 => sp.inset.screen;
     }
     let r = &mut b.radius;
     leaves! { out;
         "base.radius.control" Length 0.0..=64.0 => r.control;
-        "base.radius.popup" Length 0.0..=64.0 => r.popup;
+        "base.radius.surface" Length 0.0..=64.0 => r.surface;
         "base.radius.window" Length 0.0..=64.0 => r.window;
-        "base.radius.panel" Length 0.0..=64.0 => r.panel;
         "base.radius.button" Length 0.0..=64.0 => r.button;
         "base.radius.pill" Length 0.0..=64.0 => r.pill;
     }

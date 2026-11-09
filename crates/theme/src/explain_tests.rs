@@ -211,7 +211,7 @@ fn a_pulled_anchored_token_names_its_target_and_the_pair() {
 #[test]
 fn explained_sizes_name_the_layer_that_set_each_value() {
     let sizes =
-        AppSizes::parse(br#"{ "all": { "size.control.md": 28, "typography.body.size": 15 }, "comfortable": { "space.pad.panel": 10 } }"#).unwrap();
+        AppSizes::parse(br#"{ "all": { "size.control.md": 28, "typography.body.size": 15 }, "comfortable": { "space.pad.regular": 10 } }"#).unwrap();
     let theme = unpinned();
     let origin = |e: &Explained, path: &str| e.sizes.iter().find(|o| o.path == path).cloned().unwrap_or_else(|| panic!("no size {path}"));
 
@@ -223,9 +223,9 @@ fn explained_sizes_name_the_layer_that_set_each_value() {
     assert_eq!(comfortable.resolved, resolve_sized(&theme, appearance(Mode::Dark, Contrast::Standard, Size::Comfortable), None, &sizes));
     let control = origin(&comfortable, "size.control.md");
     assert_eq!((control.layer, control.value, control.range), (SizeLayer::App, SizeValue::Number(28.0), (16.0, 48.0)));
-    assert_eq!(origin(&comfortable, "space.pad.panel").layer, SizeLayer::App);
+    assert_eq!(origin(&comfortable, "space.pad.regular").layer, SizeLayer::App);
     assert_eq!(origin(&comfortable, "space.gap.row").layer, SizeLayer::SizeSet);
 
     let compact = explain_sized(&theme, appearance(Mode::Dark, Contrast::Standard, Size::Compact), None, &sizes);
-    assert_eq!(origin(&compact, "space.pad.panel").layer, SizeLayer::SizeSet, "an override for the other set does not apply");
+    assert_eq!(origin(&compact, "space.pad.regular").layer, SizeLayer::SizeSet, "an override for the other set does not apply");
 }

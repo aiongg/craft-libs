@@ -101,7 +101,7 @@ fn update_shape(shape: &mut Map<String, Value>, s: &ShapeSeed) {
     }
     if let Some(r) = s.radius {
         with_object(shape, "radius", |radius| {
-            for (key, v) in [("control", r.control), ("popup", r.popup), ("window", r.window), ("panel", r.panel), ("button", r.button)] {
+            for (key, v) in [("control", r.control), ("surface", r.surface), ("window", r.window), ("button", r.button)] {
                 radius.insert(key.to_owned(), length(v));
             }
             // `pill` defaults to full, so only a set value is written.
@@ -117,7 +117,7 @@ fn update_shape(shape: &mut Map<String, Value>, s: &ShapeSeed) {
             shape.remove("radius_offset");
         }
         Some(o) => with_object(shape, "radius_offset", |m| {
-            for (key, v) in [("control", o.control), ("popup", o.popup), ("window", o.window)] {
+            for (key, v) in [("control", o.control), ("surface", o.surface), ("window", o.window)] {
                 m.insert(key.to_owned(), length(v));
             }
         }),

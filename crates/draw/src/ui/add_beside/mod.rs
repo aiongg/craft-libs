@@ -204,7 +204,7 @@ impl Component for AddBesideHandles<'_> {
             metrics: Metrics::new(),
             focus: cx.focus_look(),
             offset: tokens.space.gap.section,
-            radius: tokens.shape.radius.popup,
+            radius: tokens.shape.radius.surface,
             accent: cx.color(tokens.color.accent.solid),
             fill: cx.color(tokens.color.surface.raised),
             hot_fill: cx.color(tokens.color.accent.solid),

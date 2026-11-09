@@ -258,12 +258,12 @@ impl Parser {
                 Some(v) => p.length(v),
             })
         };
-        let (control, popup, window, panel, button) = (get("control"), get("popup"), get("window"), get("panel"), get("button"));
+        let (control, surface, window, button) = (get("control"), get("surface"), get("window"), get("button"));
         let pill = match r.get("pill") {
             None | Some(Value::Null) => Radius::Full.px(),
             Some(v) => self.at("pill", |p| p.length(v))?,
         };
-        Some(RadiusSet { sm: 0.0, control: control?, popup: popup?, window: window?, panel: panel?, button: button?, pill })
+        Some(RadiusSet { sm: 0.0, control: control?, surface: surface?, window: window?, button: button?, pill })
     }
 
     /// The radius offsets; each key is optional and defaults to 0.
@@ -272,8 +272,8 @@ impl Parser {
             None | Some(Value::Null) => Some(0.0),
             Some(v) => self.at(key, |p| p.offset(v)),
         };
-        let (control, popup, window) = (get("control"), get("popup"), get("window"));
-        Some(RadiusOffset { control: control?, popup: popup?, window: window? })
+        let (control, surface, window) = (get("control"), get("surface"), get("window"));
+        Some(RadiusOffset { control: control?, surface: surface?, window: window? })
     }
 
     /// A signed length in logical pixels.

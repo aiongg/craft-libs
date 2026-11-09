@@ -46,7 +46,7 @@ fn token_dumps() {
 }
 
 /// The sample app's size overrides: a base override for both sets and one for Comfortable.
-const SAMPLE_SIZES: &str = r#"{ "all": { "size.control.md": 28 }, "comfortable": { "space.pad.panel": 14 } }"#;
+const SAMPLE_SIZES: &str = r#"{ "all": { "size.control.md": 28 }, "comfortable": { "space.pad.regular": 14 } }"#;
 
 /// Comfortable with [`SAMPLE_SIZES`]: the app's base overrides on one theme.
 fn app_sizes_dump() -> (String, String) {

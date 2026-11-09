@@ -434,7 +434,7 @@ impl Component for FamilyCard {
             metrics: Metrics::new(),
             name: TextLook::new(TypeRole::BodyStrong, Stateful::new(cx.ink(Ink::OnPanel))),
             meta: TextLook::new(TypeRole::Caption, Stateful::new(cx.color(cx.tokens.color.text.faint))),
-            pad: cx.tokens.space.pad.panel,
+            pad: cx.tokens.space.pad.regular,
             gap: cx.tokens.space.gap.inline,
             line: cx.control().height,
         }

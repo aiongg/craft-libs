@@ -206,7 +206,7 @@ impl Component for ColorDisc<'_> {
         ColorDiscStyle {
             metrics: Metrics::new().min_size(Vec2::new(tokens.size.plot.width, tokens.size.plot.height)),
             focus: cx.focus_look(),
-            inset: tokens.space.pad.panel,
+            inset: tokens.space.pad.regular,
             marker: Stateful::new(tokens.size.handle.sm).when(Flags::SELECTED, tokens.size.handle.md),
             grab: tokens.size.hit.target,
             edge: cx.color(colors.line.control_edge),

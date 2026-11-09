@@ -79,10 +79,9 @@ overlay.trail
 shape.edge
 shape.radius.button
 shape.radius.control
-shape.radius.panel
 shape.radius.pill
-shape.radius.popup
 shape.radius.sm
+shape.radius.surface
 shape.radius.window
 shape.rows
 size.bar.options
@@ -142,8 +141,8 @@ space.gap.tight
 space.inset.screen
 space.pad.chip
 space.pad.control
-space.pad.dialog
-space.pad.panel
+space.pad.regular
+space.pad.roomy
 state.disabled_fill
 state.hover
 state.match

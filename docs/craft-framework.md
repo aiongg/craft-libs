@@ -369,7 +369,7 @@ This is the design: components name semantic tokens and never a pixel value or s
 | Icon sm / md / lg | 12 / 16 / 20 | 14 / 18 / 22 |
 | Gap inline / row / stack / section | 4 / 4 / 6 / 12 | 6 / 6 / 8 / 16 |
 | Padding control / panel / dialog | 6 / 8 / 16 | 8 / 12 / 20 |
-| Radius control / popup / window / panel | 3 / 4 / 6 / 0 | 6 / 8 / 12 / 0 |
+| Radius control / surface / window | 3 / 4 / 6 | 6 / 8 / 12 |
 | Radius button / pill | full / full | full / full |
 | Bar title / tab / status / options | 32 / 26 / 24 / 36 | 38 / 30 / 30 / 42 |
 | Panel header | 28 | 34 |
@@ -833,13 +833,12 @@ Ten themes, 17 mode variants. The suite default is ArtCraft.
 | Role | Components |
 | --- | --- |
 | `radius.control` | Fields, small controls, buttons that are not pills |
-| `radius.popup` | Popups, menus |
+| `radius.surface` | Popups, menus, docked panels |
 | `radius.window` | Windows, dialogs |
-| `radius.panel` | Docked panels (0 in every built-in size set) |
 | `radius.button` | Push buttons. `full` in the built-in size sets; Classic sets it to 0 |
 | `radius.pill` | Switch and slider tracks and knobs, progress bars, badges. Clamps to half the part's height; Classic sets it to 0 |
 
-A theme with its own shape replaces the radii or adds an offset to control, popup and window. Panel, button and pill are not offset.
+A theme with its own shape replaces the radii or adds an offset to control, surface and window. Button and pill are not offset.
 
 ### Size roles
 

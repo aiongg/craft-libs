@@ -677,7 +677,7 @@ impl Sizes {
             icon: control.icon,
             pad: control.pad_x,
             gap: control.gap,
-            trailing_pad: tokens.space.pad.panel,
+            trailing_pad: tokens.space.pad.regular,
             field: tokens.size.length.short,
             min_label: MIN_LABEL_HEIGHTS * control.height,
             thumbs: [thumbs.sm, thumbs.md, thumbs.lg],

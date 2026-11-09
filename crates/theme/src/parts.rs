@@ -5,7 +5,7 @@
 use crate::color::Rgba;
 use crate::contrast::{contrast_ratio, ensure_contrast};
 use crate::derive::over;
-use crate::tokens::{ColorTokens, StatusKind};
+use crate::tokens::ColorTokens;
 use crate::values;
 
 /// The two control sizes a family offers.
@@ -453,53 +453,5 @@ impl MenuTint {
             }
         }
         tint
-    }
-}
-
-/// What a notice or toast says about its subject.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
-pub enum Tone {
-    /// No status: a plain message.
-    #[default]
-    Neutral,
-    /// Information.
-    Info,
-    /// Success.
-    Good,
-    /// Needs attention.
-    Warn,
-    /// Failure.
-    Bad,
-}
-
-impl Tone {
-    /// Every tone, in path order.
-    pub const ALL: [Tone; 5] = [Tone::Neutral, Tone::Info, Tone::Good, Tone::Warn, Tone::Bad];
-
-    /// The path segment, e.g. `"good"`.
-    pub const fn name(self) -> &'static str {
-        match self {
-            Tone::Neutral => "neutral",
-            Tone::Info => "info",
-            Tone::Good => "good",
-            Tone::Warn => "warn",
-            Tone::Bad => "bad",
-        }
-    }
-
-    /// The tone whose [`name`](Tone::name) is `name`.
-    pub fn from_name(name: &str) -> Option<Tone> {
-        Tone::ALL.into_iter().find(|t| t.name() == name)
-    }
-
-    /// The status the tone reads its colours from; `None` for neutral.
-    pub const fn status(self) -> Option<StatusKind> {
-        match self {
-            Tone::Neutral => None,
-            Tone::Info => Some(StatusKind::Info),
-            Tone::Good => Some(StatusKind::Good),
-            Tone::Warn => Some(StatusKind::Warn),
-            Tone::Bad => Some(StatusKind::Bad),
-        }
     }
 }
