@@ -68,12 +68,12 @@ fn pressed_at(at: Pos2) -> bool {
 }
 
 #[trial]
-fn a_press_is_the_surrounds_outside_a_turned_corner_and_not_inside_the_box() {
-    {
-        let corner = area().center() + Vec2::splat(REACH - 2.0);
-        assert!(pressed_at(corner), "inside the bounding rectangle of the box, outside the box");
-    }
-    {
-        assert!(!pressed_at(area().center() + Vec2::splat(5.0)), "inside the box the press goes to what lies beneath");
-    }
+fn a_press_just_outside_a_turned_corner_is_the_surrounds() {
+    let corner = area().center() + Vec2::splat(REACH - 2.0);
+    assert!(pressed_at(corner), "inside the bounding rectangle of the box, outside the box");
+}
+
+#[trial]
+fn a_press_inside_a_turned_box_is_not_the_surrounds() {
+    assert!(!pressed_at(area().center() + Vec2::splat(5.0)), "inside the box the press goes to what lies beneath");
 }

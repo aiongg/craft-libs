@@ -41,34 +41,36 @@ fn rig() -> Rig {
     Rig { fixture, view }
 }
 
+/// A picture wider than the well declares ScrollLeft and ScrollRight on the pane, and no vertical scroll action.
 #[trial]
-fn a_pane_declares_the_scroll_actions_of_its_axes_and_as_arrows() {
-    {
-        let rig = rig();
-        let pane = rig.fixture.by_label("Preview").expect("the pane has a node");
-        let tree = rig.fixture.tree();
-        assert!(
-            tree.declares_key(pane.node, Declared::ScrollLeft) && tree.declares_key(pane.node, Declared::ScrollRight),
-            "the horizontal pan is declared"
-        );
-        assert!(
-            !tree.declares_key(pane.node, Declared::ScrollUp) && !tree.declares_key(pane.node, Declared::ScrollDown),
-            "a picture that fits vertically does not pan vertically"
-        );
-    }
-    {
-        let mut keyed = rig();
-        keyed.fixture.key(Key::Tab, Modifiers::NONE);
-        keyed.fixture.idle(2);
-        keyed.fixture.key(Key::ArrowRight, Modifiers::NONE);
-        keyed.fixture.idle(2);
-        let mut scrolled = rig();
-        let pane = scrolled.fixture.by_label("Preview").expect("the pane has a node");
-        scrolled.fixture.access(AccessActionKind::ScrollRight, &pane);
-        scrolled.fixture.idle(2);
-        assert!(keyed.view.borrow().transform.offset.x < 0.0, "the arrow pans");
-        assert_eq!(*scrolled.view.borrow(), *keyed.view.borrow(), "the scroll action pans the same way");
-    }
+fn a_pane_declares_the_scroll_actions_of_the_axes_it_pans_on() {
+    let rig = rig();
+    let pane = rig.fixture.by_label("Preview").expect("the pane has a node");
+    let tree = rig.fixture.tree();
+    assert!(
+        tree.declares_key(pane.node, Declared::ScrollLeft) && tree.declares_key(pane.node, Declared::ScrollRight),
+        "the horizontal pan is declared"
+    );
+    assert!(
+        !tree.declares_key(pane.node, Declared::ScrollUp) && !tree.declares_key(pane.node, Declared::ScrollDown),
+        "a picture that fits vertically does not pan vertically"
+    );
+}
+
+/// AccessKit ScrollRight pans the view as ArrowRight does.
+#[trial]
+fn scroll_right_pans_as_the_right_arrow_does() {
+    let mut keyed = rig();
+    keyed.fixture.key(Key::Tab, Modifiers::NONE);
+    keyed.fixture.idle(2);
+    keyed.fixture.key(Key::ArrowRight, Modifiers::NONE);
+    keyed.fixture.idle(2);
+    let mut scrolled = rig();
+    let pane = scrolled.fixture.by_label("Preview").expect("the pane has a node");
+    scrolled.fixture.access(AccessActionKind::ScrollRight, &pane);
+    scrolled.fixture.idle(2);
+    assert!(keyed.view.borrow().transform.offset.x < 0.0, "the arrow pans");
+    assert_eq!(*scrolled.view.borrow(), *keyed.view.borrow(), "the scroll action pans the same way");
 }
 
 /// Where the panes below sit, and their well.

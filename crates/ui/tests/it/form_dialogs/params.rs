@@ -94,37 +94,40 @@ fn row_conditions_and_unit_keys_follow_the_values() {
     assert!(cell.enabled(&fields));
 }
 
+/// Opening fills the keys with defaults, including the unit of a row with units, and keeps a value that is there.
 #[trial]
-fn opening_fills_defaults_unbound_and_through_the_binding() {
-    {
-        let units = vec![
-            NumberUnit::new("ppi", UnitKind::PixelsPerInch, "pixels/inch", 1.0),
-            NumberUnit::new("ppcm", UnitKind::PixelsPerCentimetre, "pixels/cm", 2.54),
-        ];
-        let params = vec![
-            Param::new("method", "Method", ParamKind::choice(vec![("a".into(), "A".into()), ("b".into(), "B".into())], None)),
-            Param::number_with_units("output", "Output", 72.0, 1.0, 2, units).default_unit("ppcm"),
-            Param::number("size", "Size", 3.0, 1.0, 0),
-        ];
-        let mut fields = DialogFields::from_pairs([("size", 9.0)]);
-        open_fields(&params, &mut fields);
-        assert_eq!(fields.text("method"), Some("a"));
-        assert_eq!((fields.number("output"), fields.text("output.unit")), (Some(72.0), Some("ppcm")));
-        assert_eq!(fields.number("size"), Some(9.0));
-        assert!(!fields.changed(), "the opening values are the snapshot");
-    }
-    {
-        let params = Rc::new(Param::parse_list(r#"{"radius":0.1..1000=1,"method":"spin|zoom"="zoom","note":text}"#));
-        let fields = Rc::new(RefCell::new(DialogFields::from_pairs([("note", "kept")])));
-        let (shown_params, shown_fields) = (params.clone(), fields.clone());
-        let mut fixture = Fixture::new(move |ui| {
-            let mut held = shown_fields.borrow_mut();
-            ParamRows::new("Filter", &shown_params, Bind::bound(&mut *held)).show(ui);
-        });
-        fixture.settle();
-        let fields = fields.borrow();
-        assert_eq!((fields.number("radius"), fields.text("method"), fields.text("note")), (Some(RADIUS_DEFAULT), Some("zoom"), Some("kept")));
-    }
+fn opening_fills_defaults_and_keeps_given_values() {
+    let units = vec![
+        NumberUnit::new("ppi", UnitKind::PixelsPerInch, "pixels/inch", 1.0),
+        NumberUnit::new("ppcm", UnitKind::PixelsPerCentimetre, "pixels/cm", 2.54),
+    ];
+    let params = vec![
+        Param::new("method", "Method", ParamKind::choice(vec![("a".into(), "A".into()), ("b".into(), "B".into())], None)),
+        Param::number_with_units("output", "Output", 72.0, 1.0, 2, units).default_unit("ppcm"),
+        Param::number("size", "Size", 3.0, 1.0, 0),
+    ];
+    let mut fields = DialogFields::from_pairs([("size", 9.0)]);
+    open_fields(&params, &mut fields);
+    assert_eq!(fields.text("method"), Some("a"));
+    assert_eq!((fields.number("output"), fields.text("output.unit")), (Some(72.0), Some("ppcm")));
+    assert_eq!(fields.number("size"), Some(9.0));
+    assert!(!fields.changed(), "the opening values are the snapshot");
+}
+
+/// The rows write the defaults of the parameters the bound values lack, through the binding, and keep a value that is
+/// there.
+#[trial]
+fn rows_fill_defaults_through_the_binding() {
+    let params = Rc::new(Param::parse_list(r#"{"radius":0.1..1000=1,"method":"spin|zoom"="zoom","note":text}"#));
+    let fields = Rc::new(RefCell::new(DialogFields::from_pairs([("note", "kept")])));
+    let (shown_params, shown_fields) = (params.clone(), fields.clone());
+    let mut fixture = Fixture::new(move |ui| {
+        let mut held = shown_fields.borrow_mut();
+        ParamRows::new("Filter", &shown_params, Bind::bound(&mut *held)).show(ui);
+    });
+    fixture.settle();
+    let fields = fields.borrow();
+    assert_eq!((fields.number("radius"), fields.text("method"), fields.text("note")), (Some(RADIUS_DEFAULT), Some("zoom"), Some("kept")));
 }
 
 fn sample() -> DialogFields {
@@ -166,27 +169,30 @@ fn remembered_values_that_no_longer_fit_are_dropped() {
     assert_eq!(fields.iter().map(|(k, _)| k).collect::<Vec<_>>(), ["seed"]);
 }
 
+/// A script writes `3` or `3.0` for the same value: ints read as numbers and whole numbers as ints.
 #[trial]
-fn numbers_ints_and_stored_tables_read_back() {
-    {
-        let fields = DialogFields::from_pairs([("a", FieldValue::Number(3.0)), ("b", FieldValue::Int(3)), ("c", FieldValue::Number(3.5))]);
-        assert_eq!((fields.int("a"), fields.number("b"), fields.int("c"), fields.int("missing")), (Some(3), Some(3.0), None, None));
-    }
-    {
-        let text = "whole = 3\nreal = 2.5\nname = \"spin\"\ncolour = [0.25, 0.5, 1.0]\nlist = [1, 2, 3, 4]\nnone = []\n";
-        let fields: DialogFields = toml::from_str(text).expect("a plain table parses");
-        assert_eq!((fields.get("whole"), fields.get("real")), (Some(&FieldValue::Int(3)), Some(&FieldValue::Number(2.5))));
-        assert_eq!(fields.text("name"), Some("spin"));
-        assert_eq!(fields.color("colour"), Some([0.25, 0.5, 1.0]));
-        assert_eq!(fields.list("list").map(|list| list.len()), Some(4));
-        assert_eq!(fields.list("none").map(|list| list.len()), Some(0));
-        assert_eq!(fields.list("whole"), None, "a scalar is no list");
+fn numbers_and_ints_read_each_other() {
+    let fields = DialogFields::from_pairs([("a", FieldValue::Number(3.0)), ("b", FieldValue::Int(3)), ("c", FieldValue::Number(3.5))]);
+    assert_eq!((fields.int("a"), fields.number("b"), fields.int("c"), fields.int("missing")), (Some(3), Some(3.0), None, None));
+}
 
-        let mut opened = DialogFields::from_pairs([("a", 1.0)]);
-        opened.snapshot();
-        opened.set("a", 2.0);
-        assert_eq!(opened, DialogFields::from_pairs([("a", 2.0)]));
-    }
+/// A stored table reads back with its integers as integers and its lists as lists, and equality ignores the opening
+/// snapshot.
+#[trial]
+fn a_stored_table_reads_back_by_kind() {
+    let text = "whole = 3\nreal = 2.5\nname = \"spin\"\ncolour = [0.25, 0.5, 1.0]\nlist = [1, 2, 3, 4]\nnone = []\n";
+    let fields: DialogFields = toml::from_str(text).expect("a plain table parses");
+    assert_eq!((fields.get("whole"), fields.get("real")), (Some(&FieldValue::Int(3)), Some(&FieldValue::Number(2.5))));
+    assert_eq!(fields.text("name"), Some("spin"));
+    assert_eq!(fields.color("colour"), Some([0.25, 0.5, 1.0]));
+    assert_eq!(fields.list("list").map(|list| list.len()), Some(4));
+    assert_eq!(fields.list("none").map(|list| list.len()), Some(0));
+    assert_eq!(fields.list("whole"), None, "a scalar is no list");
+
+    let mut opened = DialogFields::from_pairs([("a", 1.0)]);
+    opened.snapshot();
+    opened.set("a", 2.0);
+    assert_eq!(opened, DialogFields::from_pairs([("a", 2.0)]));
 }
 
 /// An arrow key in a radio param moves focus to the next option, Space picks it, and OK answers with the picked option.

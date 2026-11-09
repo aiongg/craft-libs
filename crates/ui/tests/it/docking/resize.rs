@@ -83,67 +83,65 @@ fn sizes() -> DockSizes {
 }
 
 #[trial]
-fn dragging_a_columns_inner_edge_reports_its_width_normal_or_iconic() {
-    {
-        let (mut fixture, actions) = bed(docked(Column::new(vec![Group::new(vec![FIRST], 0)]).with_width(COLUMN_WIDTH)));
-        let grip =
-            splitters(&fixture, true).into_iter().find(|bar| bar.rect.center().x <= COLUMN_WIDTH).expect("the column shows its inner edge grip");
-        let from = grip.rect.center();
-        drag(&mut fixture, from, from + Vec2::new(40.0, 0.0));
-        let width = actions.borrow().iter().rev().find_map(|action| match action {
-            Action::ResizeColumn { panel, width, .. } if *panel == FIRST => Some(*width),
-            _ => None,
-        });
-        let width = width.expect("the drag reports ResizeColumn");
-        assert!(width > COLUMN_WIDTH + 30.0, "the column is wider: {width}");
-        let grip = splitters(&fixture, true).into_iter().find(|bar| bar.rect.center().x > COLUMN_WIDTH).expect("the grip moved with the edge");
-        assert!(grip.rect.center().x > from.x + 30.0, "the dock follows the new width: {:?}", grip.rect);
-    }
-    {
-        let mut column = Column::new(vec![Group::new(vec![FIRST], 0)]).with_width(COLUMN_WIDTH);
-        column.iconic = true;
-        let (mut fixture, actions) = bed(docked(column));
-        let rail = sizes().iconic_least;
-        let grip = splitters(&fixture, true).into_iter().find(|bar| bar.rect.center().x <= rail).expect("the iconic column shows its edge grip");
-        let from = grip.rect.center();
-        drag(&mut fixture, from, from + Vec2::new(30.0, 0.0));
-        let width = actions.borrow().iter().rev().find_map(|action| match action {
-            Action::ResizeIconic { panel, width, .. } if *panel == FIRST => *width,
-            _ => None,
-        });
-        assert!(width.expect("the drag reports ResizeIconic") > rail + 20.0, "the column is wider than the rail");
-    }
+fn dragging_a_columns_inner_edge_reports_its_width_and_the_dock_follows() {
+    let (mut fixture, actions) = bed(docked(Column::new(vec![Group::new(vec![FIRST], 0)]).with_width(COLUMN_WIDTH)));
+    let grip = splitters(&fixture, true).into_iter().find(|bar| bar.rect.center().x <= COLUMN_WIDTH).expect("the column shows its inner edge grip");
+    let from = grip.rect.center();
+    drag(&mut fixture, from, from + Vec2::new(40.0, 0.0));
+    let width = actions.borrow().iter().rev().find_map(|action| match action {
+        Action::ResizeColumn { panel, width, .. } if *panel == FIRST => Some(*width),
+        _ => None,
+    });
+    let width = width.expect("the drag reports ResizeColumn");
+    assert!(width > COLUMN_WIDTH + 30.0, "the column is wider: {width}");
+    let grip = splitters(&fixture, true).into_iter().find(|bar| bar.rect.center().x > COLUMN_WIDTH).expect("the grip moved with the edge");
+    assert!(grip.rect.center().x > from.x + 30.0, "the dock follows the new width: {:?}", grip.rect);
 }
 
 #[trial]
-fn dragging_a_divider_between_sections_or_groups_reports_the_height() {
-    {
-        let entries = vec![StackEntry::new(FIRST), StackEntry::new(SECOND)];
-        let root = Node::split(Axis::X, SplitSize::FixedFirst(COLUMN_WIDTH), Node::stack(entries), Node::tabs(vec![CANVAS], 0));
-        let (mut fixture, actions) = bed(Layout::new(Some(root), Vec::new()));
-        let divider = splitters(&fixture, false).into_iter().next().expect("the open sections show a divider");
-        let from = divider.rect.center();
-        drag(&mut fixture, from, from + Vec2::new(0.0, 60.0));
-        assert!(
-            actions.borrow().iter().any(|action| matches!(action, Action::ResizeStack { panel, height: Some(_), .. } if *panel == FIRST)),
-            "the drag reports ResizeStack for the section above: {:?}",
-            actions.borrow()
-        );
-    }
-    {
-        let column = Column::new(vec![Group::new(vec![FIRST], 0), Group::new(vec![SECOND], 0)]).with_width(COLUMN_WIDTH);
-        let (mut fixture, actions) = bed(docked(column));
-        let divider =
-            splitters(&fixture, false).into_iter().find(|bar| bar.rect.center().x < COLUMN_WIDTH).expect("the stacked groups show a divider");
-        // The lower half of the band lies on the lower group's tab row, a root of its own; the divider stacks above it.
-        let from = Pos2::new(divider.rect.center().x, divider.rect.max.y - 1.0);
-        drag(&mut fixture, from, from + Vec2::new(0.0, 60.0));
-        assert!(
-            actions.borrow().iter().any(|action| matches!(action, Action::ResizeGroup { panel, height: Some(_), .. } if *panel == FIRST)),
-            "the drag reports ResizeGroup for the group above: {:?}",
-            actions.borrow()
-        );
-    }
+fn dragging_an_iconic_columns_edge_reports_its_width() {
+    let mut column = Column::new(vec![Group::new(vec![FIRST], 0)]).with_width(COLUMN_WIDTH);
+    column.iconic = true;
+    let (mut fixture, actions) = bed(docked(column));
+    let rail = sizes().iconic_least;
+    let grip = splitters(&fixture, true).into_iter().find(|bar| bar.rect.center().x <= rail).expect("the iconic column shows its edge grip");
+    let from = grip.rect.center();
+    drag(&mut fixture, from, from + Vec2::new(30.0, 0.0));
+    let width = actions.borrow().iter().rev().find_map(|action| match action {
+        Action::ResizeIconic { panel, width, .. } if *panel == FIRST => *width,
+        _ => None,
+    });
+    assert!(width.expect("the drag reports ResizeIconic") > rail + 20.0, "the column is wider than the rail");
+}
+
+#[trial]
+fn dragging_the_divider_between_accordion_sections_reports_the_section_height() {
+    let entries = vec![StackEntry::new(FIRST), StackEntry::new(SECOND)];
+    let root = Node::split(Axis::X, SplitSize::FixedFirst(COLUMN_WIDTH), Node::stack(entries), Node::tabs(vec![CANVAS], 0));
+    let (mut fixture, actions) = bed(Layout::new(Some(root), Vec::new()));
+    let divider = splitters(&fixture, false).into_iter().next().expect("the open sections show a divider");
+    let from = divider.rect.center();
+    drag(&mut fixture, from, from + Vec2::new(0.0, 60.0));
+    assert!(
+        actions.borrow().iter().any(|action| matches!(action, Action::ResizeStack { panel, height: Some(_), .. } if *panel == FIRST)),
+        "the drag reports ResizeStack for the section above: {:?}",
+        actions.borrow()
+    );
+}
+
+#[trial]
+fn dragging_the_lower_half_of_a_columns_group_divider_reports_the_group_height() {
+    let column = Column::new(vec![Group::new(vec![FIRST], 0), Group::new(vec![SECOND], 0)]).with_width(COLUMN_WIDTH);
+    let (mut fixture, actions) = bed(docked(column));
+    let divider = splitters(&fixture, false).into_iter().find(|bar| bar.rect.center().x < COLUMN_WIDTH).expect("the stacked groups show a divider");
+    // The lower half of the band lies on the lower group's tab row, a root of its own; the divider stacks above it.
+    let from = Pos2::new(divider.rect.center().x, divider.rect.max.y - 1.0);
+    drag(&mut fixture, from, from + Vec2::new(0.0, 60.0));
+    assert!(
+        actions.borrow().iter().any(|action| matches!(action, Action::ResizeGroup { panel, height: Some(_), .. } if *panel == FIRST)),
+        "the drag reports ResizeGroup for the group above: {:?}",
+        actions.borrow()
+    );
 }
 
 #[trial]

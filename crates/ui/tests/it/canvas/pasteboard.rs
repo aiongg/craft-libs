@@ -32,20 +32,20 @@ fn covered(view: &CanvasView, pages: &[PageFrame]) -> f64 {
 }
 
 #[trial]
-fn the_pasteboard_is_the_view_minus_the_pages_and_a_page_outside_takes_nothing() {
-    {
-        let pages = [page()];
-        let page_area = 40.0 * 20.0;
-        for view in [view(), view().rotation(TURN)] {
-            let expected = view.visible().area() - page_area;
-            assert!((covered(&view, &pages) - expected).abs() < AREA_TOLERANCE, "the quads cover the visible document but the page");
-        }
+fn the_pasteboard_is_the_view_minus_the_pages_whether_the_view_is_turned_or_not() {
+    let pages = [page()];
+    let page_area = 40.0 * 20.0;
+    for view in [view(), view().rotation(TURN)] {
+        let expected = view.visible().area() - page_area;
+        assert!((covered(&view, &pages) - expected).abs() < AREA_TOLERANCE, "the quads cover the visible document but the page");
     }
-    {
-        let far = PageFrame::new(DocRect::new(1000.0, 1000.0, 1100.0, 1100.0));
-        let view = view();
-        assert!((covered(&view, &[far]) - view.visible().area()).abs() < AREA_TOLERANCE);
-    }
+}
+
+#[trial]
+fn a_page_outside_the_view_takes_nothing_from_the_pasteboard() {
+    let far = PageFrame::new(DocRect::new(1000.0, 1000.0, 1100.0, 1100.0));
+    let view = view();
+    assert!((covered(&view, &[far]) - view.visible().area()).abs() < AREA_TOLERANCE);
 }
 
 #[trial]

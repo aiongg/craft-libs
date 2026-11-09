@@ -35,28 +35,28 @@ fn input(scroll: Vec2, mods: Mods) -> WheelInput {
 }
 
 #[trial]
-fn wheel_modifiers_scroll_zoom_and_swap() {
-    {
-        let options = NavigationOptions::default();
-        let mut wheel = WheelNavigation::default();
-        let scroll = Vec2::new(0.0, NOTCH);
-        assert_eq!(wheel.classify(input(scroll, Mods::NONE), &options), Some(WheelAction::Pan(scroll)));
-        let zoom = wheel.classify(input(scroll, Mods::ALT), &options);
-        assert!(matches!(zoom, Some(WheelAction::Zoom(factor)) if (factor - WheelNavigation::NOTCH).abs() < 1e-9), "an Alt notch zooms: {zoom:?}");
+fn the_wheel_scrolls_and_alt_wheel_zooms_unless_the_choice_swaps_them() {
+    let options = NavigationOptions::default();
+    let mut wheel = WheelNavigation::default();
+    let scroll = Vec2::new(0.0, NOTCH);
+    assert_eq!(wheel.classify(input(scroll, Mods::NONE), &options), Some(WheelAction::Pan(scroll)));
+    let zoom = wheel.classify(input(scroll, Mods::ALT), &options);
+    assert!(matches!(zoom, Some(WheelAction::Zoom(factor)) if (factor - WheelNavigation::NOTCH).abs() < 1e-9), "an Alt notch zooms: {zoom:?}");
 
-        let mut swapped = NavigationOptions::default();
-        swapped.zoom_with_wheel = true;
-        assert!(matches!(wheel.classify(input(scroll, Mods::NONE), &swapped), Some(WheelAction::Zoom(_))));
-        assert_eq!(wheel.classify(input(scroll, Mods::ALT), &swapped), Some(WheelAction::Pan(scroll)));
-    }
-    {
-        let options = NavigationOptions::default();
-        let mut wheel = WheelNavigation::default();
-        let scroll = Vec2::new(0.0, NOTCH);
-        assert_eq!(wheel.classify(input(scroll, Mods::SHIFT), &options), Some(WheelAction::Pan(Vec2::new(NOTCH, 0.0))));
-        let both = Mods { alt: true, shift: true, ..Mods::NONE };
-        assert_eq!(wheel.classify(input(scroll, both), &options), Some(WheelAction::SnapZoom(1)));
-    }
+    let mut swapped = NavigationOptions::default();
+    swapped.zoom_with_wheel = true;
+    assert!(matches!(wheel.classify(input(scroll, Mods::NONE), &swapped), Some(WheelAction::Zoom(_))));
+    assert_eq!(wheel.classify(input(scroll, Mods::ALT), &swapped), Some(WheelAction::Pan(scroll)));
+}
+
+#[trial]
+fn shift_wheel_scrolls_sideways_and_shift_alt_wheel_steps_the_ladder() {
+    let options = NavigationOptions::default();
+    let mut wheel = WheelNavigation::default();
+    let scroll = Vec2::new(0.0, NOTCH);
+    assert_eq!(wheel.classify(input(scroll, Mods::SHIFT), &options), Some(WheelAction::Pan(Vec2::new(NOTCH, 0.0))));
+    let both = Mods { alt: true, shift: true, ..Mods::NONE };
+    assert_eq!(wheel.classify(input(scroll, both), &options), Some(WheelAction::SnapZoom(1)));
 }
 
 #[trial]
@@ -364,55 +364,58 @@ fn holding_space_during_a_brush_pans_and_letting_go_returns_to_the_brush_without
 }
 
 #[trial]
-fn space_pans_the_canvas_with_a_slider_focused_nothing_focused_or_a_dialog_open() {
-    {
-        let slider = Rc::new(Cell::new(Id::NULL));
-        let (id, mut level) = (Rc::clone(&slider), 40.0);
-        let mut canvas = held(move |ui| id.set(Slider::new(Bind::bound(&mut level), 0.0..=100.0).label("Opacity").show(ui).response.id));
-        canvas.focus(slider.get());
-        assert_eq!(egui_focused(canvas.fixture.ctx()), Some(slider.get()), "the slider holds the focus");
-        let from = canvas.area.get().center();
-        let start = canvas.view.get().expect("the canvas showed a view").center;
+fn space_with_the_focus_in_a_slider_beside_the_canvas_pans_the_canvas() {
+    let slider = Rc::new(Cell::new(Id::NULL));
+    let (id, mut level) = (Rc::clone(&slider), 40.0);
+    let mut canvas = held(move |ui| id.set(Slider::new(Bind::bound(&mut level), 0.0..=100.0).label("Opacity").show(ui).response.id));
+    canvas.focus(slider.get());
+    assert_eq!(egui_focused(canvas.fixture.ctx()), Some(slider.get()), "the slider holds the focus");
+    let from = canvas.area.get().center();
+    let start = canvas.view.get().expect("the canvas showed a view").center;
 
-        canvas.fixture.frame(vec![key_press(Key::Space, Modifiers::NONE)]);
-        assert_eq!(canvas.momentary.borrow_mut().tool(Mods::NONE, false), Some(MomentaryTool::Hand), "the canvas's host took the Hand press");
-        drag(&mut canvas.fixture, from, Vec2::new(60.0, 40.0));
-        assert_eq!(canvas.brush.borrow().presses, 0, "the canvas beside the focus took Space");
-        assert_ne!(canvas.view.get().map(|view| view.center), Some(start), "the Hand pans the canvas");
-    }
-    {
-        let mut canvas = held(|_| {});
-        let from = canvas.area.get().center();
-        let start = canvas.view.get().expect("the canvas showed a view").center;
+    canvas.fixture.frame(vec![key_press(Key::Space, Modifiers::NONE)]);
+    assert_eq!(canvas.momentary.borrow_mut().tool(Mods::NONE, false), Some(MomentaryTool::Hand), "the canvas's host took the Hand press");
+    drag(&mut canvas.fixture, from, Vec2::new(60.0, 40.0));
+    assert_eq!(canvas.brush.borrow().presses, 0, "the canvas beside the focus took Space");
+    assert_ne!(canvas.view.get().map(|view| view.center), Some(start), "the Hand pans the canvas");
+}
 
-        canvas.fixture.frame(vec![key_press(Key::Space, Modifiers::NONE)]);
-        assert_eq!(canvas.momentary.borrow_mut().tool(Mods::NONE, false), Some(MomentaryTool::Hand), "the canvas's host took the Hand press");
-        drag(&mut canvas.fixture, from, Vec2::new(60.0, 40.0));
-        assert_eq!(canvas.brush.borrow().presses, 0, "the only canvas took Space");
-        assert_ne!(canvas.view.get().map(|view| view.center), Some(start), "the Hand pans the canvas");
-    }
-    {
-        let view = Rc::new(RefCell::new(FullWindowView::new()));
-        let brush = Rc::new(RefCell::new(Brush::default()));
-        let momentary = Rc::new(RefCell::new(Momentary::new(NavigationOptions::default())));
-        let (shown, tool, keys) = (Rc::clone(&view), Rc::clone(&brush), Rc::clone(&momentary));
-        let mut fixture = Fixture::new(move |ui| {
-            let mut open = true;
-            FullWindowDialog::new("Liquify").opened(Bind::bound(&mut open)).show(ui, |ui, _| {
-                let (mut tool, mut keys) = (tool.borrow_mut(), keys.borrow_mut());
-                FullWindowCanvas::new(Bind::bound(&mut shown.borrow_mut()), &Grey).tool(&mut *tool).momentary(&mut keys).show(ui);
-            });
+#[trial]
+fn space_with_nothing_focused_pans_the_canvas() {
+    let mut canvas = held(|_| {});
+    let from = canvas.area.get().center();
+    let start = canvas.view.get().expect("the canvas showed a view").center;
+
+    canvas.fixture.frame(vec![key_press(Key::Space, Modifiers::NONE)]);
+    assert_eq!(canvas.momentary.borrow_mut().tool(Mods::NONE, false), Some(MomentaryTool::Hand), "the canvas's host took the Hand press");
+    drag(&mut canvas.fixture, from, Vec2::new(60.0, 40.0));
+    assert_eq!(canvas.brush.borrow().presses, 0, "the only canvas took Space");
+    assert_ne!(canvas.view.get().map(|view| view.center), Some(start), "the Hand pans the canvas");
+}
+
+/// A full-window dialog's canvas is no `canvasView` instance: its host takes Space from the dialog around it.
+#[trial]
+fn space_in_a_full_window_dialog_pans_its_canvas() {
+    let view = Rc::new(RefCell::new(FullWindowView::new()));
+    let brush = Rc::new(RefCell::new(Brush::default()));
+    let momentary = Rc::new(RefCell::new(Momentary::new(NavigationOptions::default())));
+    let (shown, tool, keys) = (Rc::clone(&view), Rc::clone(&brush), Rc::clone(&momentary));
+    let mut fixture = Fixture::new(move |ui| {
+        let mut open = true;
+        FullWindowDialog::new("Liquify").opened(Bind::bound(&mut open)).show(ui, |ui, _| {
+            let (mut tool, mut keys) = (tool.borrow_mut(), keys.borrow_mut());
+            FullWindowCanvas::new(Bind::bound(&mut shown.borrow_mut()), &Grey).tool(&mut *tool).momentary(&mut keys).show(ui);
         });
-        fixture.settle();
-        let canvas = fixture.by_role(Role::CANVAS).into_iter().next().expect("the dialog shows its canvas");
-        fixture.click(&canvas).settle();
-        let (presses, start) = (brush.borrow().presses, view.borrow().view().center);
+    });
+    fixture.settle();
+    let canvas = fixture.by_role(Role::CANVAS).into_iter().next().expect("the dialog shows its canvas");
+    fixture.click(&canvas).settle();
+    let (presses, start) = (brush.borrow().presses, view.borrow().view().center);
 
-        fixture.frame(vec![key_press(Key::Space, Modifiers::NONE)]);
-        drag(&mut fixture, canvas.center(), Vec2::new(60.0, 40.0));
-        assert_eq!(brush.borrow().presses, presses, "the brush gets no press while Space is held");
-        assert_ne!(view.borrow().view().center, start, "the Hand pans the dialog's view");
-    }
+    fixture.frame(vec![key_press(Key::Space, Modifiers::NONE)]);
+    drag(&mut fixture, canvas.center(), Vec2::new(60.0, 40.0));
+    assert_eq!(brush.borrow().presses, presses, "the brush gets no press while Space is held");
+    assert_ne!(view.borrow().view().center, start, "the Hand pans the dialog's view");
 }
 
 /// An image of one grey, larger than a full-window dialog's canvas.

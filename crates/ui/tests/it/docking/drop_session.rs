@@ -157,39 +157,39 @@ fn tabs_by_x(fixture: &Fixture) -> Vec<craft_ui::testing::Target> {
 }
 
 #[trial]
-fn a_tab_drop_joins_docks_and_lands_between_tabs() {
-    {
-        let (mut fixture, layout, _) = bed(two_groups());
-        fixture.settle();
-        let layers = tabs_by_x(&fixture)[0];
-        let middle = Pos2::new(260.0, 150.0);
-        fixture.drag(&layers, middle - layers.center());
-        fixture.idle(2);
-        assert_eq!(groups(&layout.borrow()), vec![panels(&["Channels"]), panels(&["Properties", "Layers"])], "joining tabs adds no group");
+fn a_tab_joins_a_group_or_docks_beside_it_through_the_drop_target() {
+    let (mut fixture, layout, _) = bed(two_groups());
+    fixture.settle();
+    let layers = tabs_by_x(&fixture)[0];
+    let middle = Pos2::new(260.0, 150.0);
+    fixture.drag(&layers, middle - layers.center());
+    fixture.idle(2);
+    assert_eq!(groups(&layout.borrow()), vec![panels(&["Channels"]), panels(&["Properties", "Layers"])], "joining tabs adds no group");
 
-        let tabs = tabs_by_x(&fixture);
-        let joined = tabs.last().expect("the joined tab shows");
-        let edge = Pos2::new(395.0, 150.0);
-        fixture.drag(joined, edge - joined.center());
-        fixture.idle(2);
-        assert_eq!(
-            groups(&layout.borrow()),
-            vec![panels(&["Channels"]), panels(&["Properties"]), panels(&["Layers"])],
-            "the end edge of the right group docks the panel in a group after it"
-        );
-    }
-    {
-        let (mut fixture, layout, _) = bed(two_groups());
-        fixture.settle();
-        let tabs = tabs_by_x(&fixture);
-        let (first, properties) = (&tabs[0], &tabs[2]);
-        let between = Pos2::new(first.rect.right() - 2.0, first.center().y);
-        hold_and_move(&mut fixture, properties.center(), between);
-        assert!(drag::mark(fixture.ctx()).is_some(), "the strip takes the drop between two tabs");
-        fixture.frame(vec![release(between)]);
-        fixture.idle(2);
-        assert_eq!(groups(&layout.borrow())[0], panels(&["Layers", "Properties", "Channels"]));
-    }
+    let tabs = tabs_by_x(&fixture);
+    let joined = tabs.last().expect("the joined tab shows");
+    let edge = Pos2::new(395.0, 150.0);
+    fixture.drag(joined, edge - joined.center());
+    fixture.idle(2);
+    assert_eq!(
+        groups(&layout.borrow()),
+        vec![panels(&["Channels"]), panels(&["Properties"]), panels(&["Layers"])],
+        "the end edge of the right group docks the panel in a group after it"
+    );
+}
+
+#[trial]
+fn a_panel_dropped_between_two_tabs_lands_between_them() {
+    let (mut fixture, layout, _) = bed(two_groups());
+    fixture.settle();
+    let tabs = tabs_by_x(&fixture);
+    let (first, properties) = (&tabs[0], &tabs[2]);
+    let between = Pos2::new(first.rect.right() - 2.0, first.center().y);
+    hold_and_move(&mut fixture, properties.center(), between);
+    assert!(drag::mark(fixture.ctx()).is_some(), "the strip takes the drop between two tabs");
+    fixture.frame(vec![release(between)]);
+    fixture.idle(2);
+    assert_eq!(groups(&layout.borrow())[0], panels(&["Layers", "Properties", "Channels"]));
 }
 
 #[trial]

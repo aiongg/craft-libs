@@ -112,26 +112,26 @@ impl Rig {
 }
 
 #[trial]
-fn a_source_reports_damage_by_region_or_whole() {
-    {
-        let mut rig = rig(Document::new(400, 300), 1.0);
-        assert!(rig.frame().is_empty(), "nothing changed");
+fn a_source_that_reports_damage_is_read_again_in_that_region_only() {
+    let mut rig = rig(Document::new(400, 300), 1.0);
+    assert!(rig.frame().is_empty(), "nothing changed");
 
-        let rect = PixelRect::new(10, 20, 50, 60);
-        let reads = rig.change(2, Some(rect));
-        assert!(!reads.is_empty() && reads.iter().all(|read| *read == (rect, 1)), "damage is read alone: {reads:?}");
+    let rect = PixelRect::new(10, 20, 50, 60);
+    let reads = rig.change(2, Some(rect));
+    assert!(!reads.is_empty() && reads.iter().all(|read| *read == (rect, 1)), "damage is read alone: {reads:?}");
 
-        let reads = rig.change(3, Some(PixelRect::default()));
-        assert!(reads.is_empty(), "a change that touched no pixel reads nothing: {reads:?}");
-        assert!(rig.frame().is_empty(), "the same revision reads nothing");
-    }
-    {
-        let size = PixelSize::new(400, 300);
-        let mut rig = rig(Document::new(size.width, size.height), 1.0);
-        let reads = rig.change(2, None);
-        let whole = PixelRect::of_size(size);
-        assert!(!reads.is_empty() && reads.iter().all(|read| *read == (whole, 1)), "no damage to go by reads everything: {reads:?}");
-    }
+    let reads = rig.change(3, Some(PixelRect::default()));
+    assert!(reads.is_empty(), "a change that touched no pixel reads nothing: {reads:?}");
+    assert!(rig.frame().is_empty(), "the same revision reads nothing");
+}
+
+#[trial]
+fn a_source_that_cannot_place_a_change_is_read_whole() {
+    let size = PixelSize::new(400, 300);
+    let mut rig = rig(Document::new(size.width, size.height), 1.0);
+    let reads = rig.change(2, None);
+    let whole = PixelRect::of_size(size);
+    assert!(!reads.is_empty() && reads.iter().all(|read| *read == (whole, 1)), "no damage to go by reads everything: {reads:?}");
 }
 
 #[trial]

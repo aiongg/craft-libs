@@ -43,21 +43,21 @@ fn a_minimized_group_takes_the_strip_only() {
 }
 
 #[trial]
-fn heights_give_way_to_the_group_that_fills_and_shrink_towards_their_minimums() {
-    {
-        let mut roomy = open(MIN);
-        roomy.content = Some(DockHeights::new(250.0).compact(100.0));
-        let mut filling = open(MIN);
-        filling.content = Some(DockHeights::new(0.0).fill(200.0));
-        let heights = group_heights(&[roomy, filling], STRIP, ROOM);
-        assert_eq!(heights[1], 200.0, "the filling group gets its fill height");
-        assert_eq!(heights[0], ROOM - 200.0, "the other group gave way from its default of 250");
-        assert!(sum(&heights) <= ROOM, "the groups fit the room");
-    }
-    {
-        let heights = group_heights(&[open(MIN), open(MIN), open(MIN)], STRIP, 2.0 * MIN);
-        assert!(heights.iter().all(|height| *height >= MIN), "no group goes below its minimum");
-    }
+fn default_heights_give_way_to_the_group_that_fills_before_it_gets_less() {
+    let mut roomy = open(MIN);
+    roomy.content = Some(DockHeights::new(250.0).compact(100.0));
+    let mut filling = open(MIN);
+    filling.content = Some(DockHeights::new(0.0).fill(200.0));
+    let heights = group_heights(&[roomy, filling], STRIP, ROOM);
+    assert_eq!(heights[1], 200.0, "the filling group gets its fill height");
+    assert_eq!(heights[0], ROOM - 200.0, "the other group gave way from its default of 250");
+    assert!(sum(&heights) <= ROOM, "the groups fit the room");
+}
+
+#[trial]
+fn heights_shrink_towards_their_minimums_when_the_room_is_short() {
+    let heights = group_heights(&[open(MIN), open(MIN), open(MIN)], STRIP, 2.0 * MIN);
+    assert!(heights.iter().all(|height| *height >= MIN), "no group goes below its minimum");
 }
 
 #[trial]
@@ -83,34 +83,34 @@ fn run(open: &mut Option<u8>, shown: &Cell<Option<u8>>, ui: &mut egui::Ui) {
 }
 
 #[trial]
-fn the_bound_flyout_is_written_by_a_click_and_by_escape_and_opens_the_same_flyout() {
-    {
-        let open: Rc<RefCell<Option<u8>>> = Rc::default();
-        let shown: Rc<Cell<Option<u8>>> = Rc::default();
-        let (bound, group_active) = (Rc::clone(&open), Rc::clone(&shown));
-        let mut fixture = Fixture::new(move |ui| run(&mut bound.borrow_mut(), &group_active, ui));
-        fixture.settle();
-        let icon = fixture.by_label("Panel 1").expect("the second panel has an icon");
-        fixture.click(&icon);
-        fixture.idle(2);
-        assert_eq!(*open.borrow(), Some(1), "the click wrote the clicked panel");
-        assert_eq!(shown.get(), Some(1), "the flyout shows the group with the clicked panel active");
-        fixture.key(Key::Escape, Modifiers::NONE);
-        fixture.idle(2);
-        assert_eq!(*open.borrow(), None, "Escape wrote None");
-    }
-    {
-        let open: Rc<RefCell<Option<u8>>> = Rc::new(RefCell::new(Some(1)));
-        let shown: Rc<Cell<Option<u8>>> = Rc::default();
-        let (bound, group_active) = (Rc::clone(&open), Rc::clone(&shown));
-        let mut fixture = Fixture::new(move |ui| run(&mut bound.borrow_mut(), &group_active, ui));
-        fixture.settle();
-        assert_eq!(shown.get(), Some(1), "the bound panel's flyout is open");
-        *open.borrow_mut() = Some(1);
-        fixture.idle(2);
-        assert_eq!(shown.get(), Some(1), "writing the same panel again keeps it open");
-        assert_eq!(*open.borrow(), Some(1));
-    }
+fn clicking_an_icon_writes_the_bound_flyout_and_escape_writes_none() {
+    let open: Rc<RefCell<Option<u8>>> = Rc::default();
+    let shown: Rc<Cell<Option<u8>>> = Rc::default();
+    let (bound, group_active) = (Rc::clone(&open), Rc::clone(&shown));
+    let mut fixture = Fixture::new(move |ui| run(&mut bound.borrow_mut(), &group_active, ui));
+    fixture.settle();
+    let icon = fixture.by_label("Panel 1").expect("the second panel has an icon");
+    fixture.click(&icon);
+    fixture.idle(2);
+    assert_eq!(*open.borrow(), Some(1), "the click wrote the clicked panel");
+    assert_eq!(shown.get(), Some(1), "the flyout shows the group with the clicked panel active");
+    fixture.key(Key::Escape, Modifiers::NONE);
+    fixture.idle(2);
+    assert_eq!(*open.borrow(), None, "Escape wrote None");
+}
+
+#[trial]
+fn writing_the_bound_flyout_opens_the_same_flyout_as_a_click_and_writing_it_again_keeps_it_open() {
+    let open: Rc<RefCell<Option<u8>>> = Rc::new(RefCell::new(Some(1)));
+    let shown: Rc<Cell<Option<u8>>> = Rc::default();
+    let (bound, group_active) = (Rc::clone(&open), Rc::clone(&shown));
+    let mut fixture = Fixture::new(move |ui| run(&mut bound.borrow_mut(), &group_active, ui));
+    fixture.settle();
+    assert_eq!(shown.get(), Some(1), "the bound panel's flyout is open");
+    *open.borrow_mut() = Some(1);
+    fixture.idle(2);
+    assert_eq!(shown.get(), Some(1), "writing the same panel again keeps it open");
+    assert_eq!(*open.borrow(), Some(1));
 }
 
 /// A panel that opens at half the room: its flyout shows the panel's title row and the button under it whole.

@@ -91,36 +91,36 @@ fn title_of(rect: Rect) -> Pos2 {
 }
 
 #[trial]
-fn a_move_by_the_title_reports_the_rect_and_stops_at_the_bounds_and_a_size_drag_at_the_limits() {
-    {
-        let (caller, mut frames) = (Caller::new(), Frames::new());
-        let mut show = caller.show();
-        frames.idle(4, &mut show);
-        assert!(near(caller.shown.get(), START), "the group shows at the caller's rect: {:?}", caller.shown.get());
-        pointer::drag(&mut frames, title_of(START), MOVE, &mut show);
-        frames.idle(2, &mut show);
-        let change = caller.last_change();
-        assert_eq!(change.kind, PlacementKind::Move);
-        assert_eq!(change.phase, GesturePhase::Commit);
-        assert!((change.rect.min - (START.min + MOVE)).abs().max_elem() < SLACK, "the rect moved with the pointer: {:?}", change.rect);
-    }
-    {
-        let (caller, mut frames) = (Caller::new(), Frames::new());
-        let mut show = caller.show();
-        frames.idle(4, &mut show);
-        pointer::drag(&mut frames, title_of(START), Vec2::new(FAR, FAR), &mut show);
-        frames.idle(2, &mut show);
-        let moved = caller.rect.get();
-        assert!(BOUNDS.contains_rect(moved.shrink(SLACK)), "the move stayed inside the bounds: {moved:?}");
-        pointer::drag(&mut frames, moved.max - Vec2::splat(1.0), Vec2::splat(-FAR), &mut show);
-        frames.idle(2, &mut show);
-        let shrunk = caller.rect.get();
-        assert_eq!(caller.last_change().kind, PlacementKind::Size(craft_ui::runtime::windows::ResizeEdge::BottomRight));
-        assert!(shrunk.width() < moved.width() && shrunk.height() < moved.height(), "the size drag shrank the group: {shrunk:?}");
-        pointer::drag(&mut frames, shrunk.max - Vec2::splat(1.0), Vec2::splat(-FAR), &mut show);
-        frames.idle(2, &mut show);
-        assert!(near(caller.rect.get(), shrunk), "the limits stopped the second drag: {:?} then {:?}", shrunk, caller.rect.get());
-    }
+fn a_move_by_the_title_reports_the_new_rect() {
+    let (caller, mut frames) = (Caller::new(), Frames::new());
+    let mut show = caller.show();
+    frames.idle(4, &mut show);
+    assert!(near(caller.shown.get(), START), "the group shows at the caller's rect: {:?}", caller.shown.get());
+    pointer::drag(&mut frames, title_of(START), MOVE, &mut show);
+    frames.idle(2, &mut show);
+    let change = caller.last_change();
+    assert_eq!(change.kind, PlacementKind::Move);
+    assert_eq!(change.phase, GesturePhase::Commit);
+    assert!((change.rect.min - (START.min + MOVE)).abs().max_elem() < SLACK, "the rect moved with the pointer: {:?}", change.rect);
+}
+
+#[trial]
+fn a_move_stops_at_the_bounds_and_a_size_drag_at_the_panel_limits() {
+    let (caller, mut frames) = (Caller::new(), Frames::new());
+    let mut show = caller.show();
+    frames.idle(4, &mut show);
+    pointer::drag(&mut frames, title_of(START), Vec2::new(FAR, FAR), &mut show);
+    frames.idle(2, &mut show);
+    let moved = caller.rect.get();
+    assert!(BOUNDS.contains_rect(moved.shrink(SLACK)), "the move stayed inside the bounds: {moved:?}");
+    pointer::drag(&mut frames, moved.max - Vec2::splat(1.0), Vec2::splat(-FAR), &mut show);
+    frames.idle(2, &mut show);
+    let shrunk = caller.rect.get();
+    assert_eq!(caller.last_change().kind, PlacementKind::Size(craft_ui::runtime::windows::ResizeEdge::BottomRight));
+    assert!(shrunk.width() < moved.width() && shrunk.height() < moved.height(), "the size drag shrank the group: {shrunk:?}");
+    pointer::drag(&mut frames, shrunk.max - Vec2::splat(1.0), Vec2::splat(-FAR), &mut show);
+    frames.idle(2, &mut show);
+    assert!(near(caller.rect.get(), shrunk), "the limits stopped the second drag: {:?} then {:?}", shrunk, caller.rect.get());
 }
 
 #[trial]
