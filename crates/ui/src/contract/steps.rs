@@ -1276,7 +1276,7 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         role,
         rect: core.rect,
         label: resolved.label,
-        names_nothing: carried.as_deref() == Some(resolved.label),
+        names_nothing: access.value.is_none() && carried.as_deref() == Some(resolved.label),
         tooltip,
         elided: paint.elided.as_deref(),
         description: resolved.description,

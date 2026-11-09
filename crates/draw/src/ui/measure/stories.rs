@@ -1,5 +1,6 @@
 //! Stories of the Ruler tool's overlay and options bar.
 
+use super::model::RulerPart;
 use super::overlay::POINT;
 use super::{RulerBar, RulerLine, RulerOverlay};
 use craft_behavior::CanvasView;
@@ -22,7 +23,7 @@ fn on_canvas(ui: &mut Ui, line: &mut Option<RulerLine>) -> StoryOutput {
     shown.inner.map(StoryOutput::from).unwrap_or_default()
 }
 
-#[story(RulerOverlay<'static>, covers = [Default], drive = Drive::Drag(Grip::part(POINT.at(1))))]
+#[story(RulerOverlay<'static>, covers = [Default], drive = Drive::Drag(Grip::part(POINT.at(RulerPart::End.key()))))]
 fn ruler_overlay_with_a_line(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     on_canvas(ui, data.value("line", Some(line())))
 }
