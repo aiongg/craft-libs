@@ -1880,6 +1880,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                     Some(scroll) => {
                         scoped.scroll_owner = Some(id);
                         scoped.unbounded = (scroll.horizontal_on(), scroll.vertical_on());
+                        // A single-line row sizes to its content: a child that fills its height fills the row, not the room around it.
+                        if matches!(props.layout, layout::BodyLayout::Row { wrap: false, .. }) {
+                            scoped.unbounded.1 = true;
+                        }
                     }
                     // A container that sized an axis itself (a rect it was shown at, a fixed layer) bounds the room along it.
                     None => scoped.unbounded = (scoped.unbounded.0 && !self.room.x.is_finite(), scoped.unbounded.1 && !self.room.y.is_finite()),

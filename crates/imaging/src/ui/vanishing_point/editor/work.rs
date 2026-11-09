@@ -6,7 +6,6 @@ use craft_behavior::geometry::quad::Homography;
 use craft_behavior::kurbo::{Point, Rect};
 use craft_behavior::{EditEvent, GestureId, Mixed};
 use craft_keymap::Mods;
-use craft_ui::runtime::edit::next_gesture_id;
 
 use super::{DragStart, PlaneEdit, StampStroke, VanishingDrag, VanishingPointEditor, VanishingPointSession, VanishingPointSettings};
 use super::{VanishingPointEvent, VanishingTool};
@@ -166,7 +165,7 @@ impl Work<'_> {
     }
 
     fn begin_drag(&mut self, drag: VanishingDrag, before: DragStart, event: impl FnOnce(craft_behavior::GestureId) -> VanishingPointEvent) {
-        let id = self.gesture.take().unwrap_or_else(|| next_gesture_id(self.ctx));
+        let Some(id) = self.gesture.take() else { return };
         self.editor.drag = Some((id, drag));
         self.editor.before = Some(before);
         self.editor.events.push(event(id));
@@ -181,19 +180,19 @@ impl Work<'_> {
 
     /// Create Plane's click: the fourth corner makes the plane.
     pub fn add_corner(&mut self, p: [f64; 2], words: &VanishingPointWords) {
-        if self.session.planes.len() >= MAX_PLANES {
+        if self.session.planes.len() >= MAX_PLANES || self.gesture.is_none() {
             return;
         }
         self.editor.pending.push(p);
         if let Ok(corners) = <[[f64; 2]; 4]>::try_from(self.editor.pending.as_slice()) {
-            let id = self.gesture.take().unwrap_or_else(|| next_gesture_id(self.ctx));
+            let Some(id) = self.gesture.take() else { return };
             close_plane(self.editor, self.session, self.scene, corners, words.edit_planes_step.as_str(), id);
         }
     }
 
     /// Command-press on an edge node: a perpendicular plane, half as deep, whose far edge the drag moves.
     fn tear_off(&mut self, from: usize, edge: usize, p: [f64; 2], words: &VanishingPointWords) {
-        if self.session.planes.len() >= MAX_PLANES {
+        if self.session.planes.len() >= MAX_PLANES || self.gesture.is_none() {
             return;
         }
         let Some(&edge) = PlaneEdge::ALL.get(edge) else { return };
@@ -216,7 +215,9 @@ impl Work<'_> {
 
     /// A press on corner `corner` of plane `plane`, with Edit Plane picked.
     pub fn corner_down(&mut self, plane: usize, corner: usize, p: [f64; 2], words: &VanishingPointWords) {
-        let Some(c) = self.session.planes.get(plane).and_then(|pl| pl.corners.get(corner)).copied() else { return };
+        let Some(c) = self.session.planes.get(plane).and_then(|pl| pl.corners.get(corner)).copied().filter(|_| self.gesture.is_some()) else {
+            return;
+        };
         self.editor.selected = Some(plane);
         self.begin_plane_drag(VanishingDrag::Corner { plane, corner, offset: [c[0] - p[0], c[1] - p[1]] }, words);
     }
@@ -224,6 +225,9 @@ impl Work<'_> {
     /// A press on edge node `edge` of plane `plane`: Command tears off a plane; then Edit Plane slides the edge (or
     /// drags a torn plane's far edge) and Create Plane takes the press as a corner.
     pub fn edge_down(&mut self, plane: usize, edge: usize, p: [f64; 2], mods: Mods, words: &VanishingPointWords) {
+        if self.gesture.is_none() {
+            return;
+        }
         if mods.cmd {
             self.tear_off(plane, edge, p, words);
             return;
@@ -250,7 +254,7 @@ impl Work<'_> {
     /// A press on the canvas away from every node. `None`: nothing handled it.
     pub fn background_down(&mut self, p: [f64; 2], mods: Mods, words: &VanishingPointWords) -> Option<Pressed> {
         // pc: crates/ui-egui/src/dialogs/vp_ui.rs:658 `press`, :353 `add_corner`, :469 `stamp_press`.
-        if !p.iter().all(|v| v.is_finite()) {
+        if !p.iter().all(|v| v.is_finite()) || self.gesture.is_none() {
             return None;
         }
         self.editor.pointer = Some(p);
@@ -310,7 +314,7 @@ impl Work<'_> {
             self.session.aligned_from = Some((src, p));
         }
         let o = self.settings.stamp;
-        let stroke = StampStroke::new(src, vec![p], o.diameter, o.hardness / 100.0, o.opacity / 100.0);
+        let stroke = StampStroke::new(src, vec![p], o.diameter, o.hardness_share(), o.opacity_share());
         self.session.strokes.push(stroke.clone());
         let name = label(words.stamp_step.as_str());
         let first = stroke.clone();
@@ -427,7 +431,7 @@ impl Work<'_> {
     /// An arrow key on a focused corner: moves it by `by` document pixels and reports a `Set`. A torn plane's corners
     /// follow its parent and do not move.
     pub fn nudge_corner(&mut self, plane: usize, corner: usize, by: [f64; 2], words: &VanishingPointWords) {
-        if self.editor.drag.is_some() || self.session.torn.get(plane).copied().flatten().is_some() {
+        if self.gesture.is_none() || self.editor.drag.is_some() || self.session.torn.get(plane).copied().flatten().is_some() {
             return;
         }
         let before = self.plane_edit();
@@ -435,7 +439,7 @@ impl Work<'_> {
         *c = [c[0] + by[0], c[1] + by[1]];
         self.editor.selected = Some(plane);
         self.resolve();
-        let id = self.gesture.take().unwrap_or_else(|| next_gesture_id(self.ctx));
+        let Some(id) = self.gesture.take() else { return };
         let after = self.plane_edit();
         self.editor.events.push(VanishingPointEvent::Planes(EditEvent::set(
             id,

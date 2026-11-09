@@ -384,9 +384,7 @@ fn stamp_alt_click_sets_the_source_and_strokes_report_events() {
     draw_plane(&mut fixture);
     app.borrow_mut().workspace.tool(VanishingTool::Stamp);
     fixture.settle();
-    // The canvas's far corner is off every plane, whatever the room.
-    let canvas = fixture.by_role(Role::CANVAS).into_iter().next().expect("the workspace shows a canvas");
-    let off = canvas.rect.right_bottom() - Vec2::splat(10.0);
+    let off = at(&fixture, HALF * 1.5);
     fixture.hold(Modifiers::ALT);
     click(&mut fixture, off);
     fixture.hold(Modifiers::NONE);
@@ -408,7 +406,7 @@ fn stamp_alt_click_sets_the_source_and_strokes_report_events() {
     let kept = session(&app);
     let stroke = &kept.strokes[0];
     let options = VanishingPointSettings::default().stamp;
-    assert_eq!((stroke.source, stroke.hardness, stroke.opacity), (kept.source.expect("a source"), options.hardness / 100.0, options.opacity / 100.0));
+    assert_eq!((stroke.source, stroke.hardness, stroke.opacity), (kept.source.expect("a source"), options.hardness_share(), options.opacity_share()));
     assert!(stroke.points.len() > 1, "the drag laid dabs");
     // Aligned: the next stroke keeps the offset from its start; without Aligned it restarts at the source.
     drag(&mut fixture, start + Vec2::new(0.0, 10.0), start + Vec2::new(10.0, 10.0));
