@@ -7,6 +7,7 @@ use std::hash::Hash;
 
 use craft_behavior::geometry::selection_op::SelectionOperation;
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, IconId, ItemSource, Selection, SelectionChange};
+use craft_keymap::Mods;
 use craft_ui::contract::{
     Bind, CollectionEvent, ColumnKind, ColumnSpec, ListDrag, Props as _, ReorderRule, ShowCollection as _, ShowContainer as _, ToggleColumn,
     request_rename,
@@ -207,7 +208,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> ChannelsPanel<'a,
                     });
 
                 let mut found = Vec::new();
-                map_events(rows, out.events, &mut found, stack.memory::<Session<K>>());
+                map_events(rows, mods, out.events, &mut found, stack.memory::<Session<K>>());
                 events.borrow_mut().extend(found);
 
                 let open = stack.memory::<Session<K>>().menu.clone();
@@ -236,6 +237,7 @@ fn command_key(command: ChannelsCommands) -> bool {
 /// What the list's events mean for the app: targets, loads, eyes, renames, options, moves and deletes.
 fn map_events<K: Clone + PartialEq>(
     rows: &[ChannelRow<K>],
+    mods: Mods,
     list: Vec<CollectionEvent<K, RowEvent>>,
     events: &mut Vec<ChannelsEvent<K>>,
     session: &mut Session<K>,
@@ -253,6 +255,11 @@ fn map_events<K: Clone + PartialEq>(
             }
             CollectionEvent::Item(key, RowEvent::ThumbClicked { clicks: 2, .. }) if kind_of(&key).is_some_and(ChannelKind::has_options) => {
                 events.push(ChannelsEvent::Options(key));
+            }
+            // A collection activates on Enter with any modifier held, so Cmd+Enter reaches the panel as an activation
+            // rather than as the Load Channel as Selection chord.
+            CollectionEvent::Activate(key) if mods.cmd => {
+                events.push(ChannelsEvent::LoadSelection { key, operation: SelectionOperation::from_mods(mods) });
             }
             CollectionEvent::Activate(key) if kind_of(&key).is_some_and(ChannelKind::has_options) => events.push(ChannelsEvent::Options(key)),
             CollectionEvent::Toggle(edit) => events.push(ChannelsEvent::Visibility(edit)),
