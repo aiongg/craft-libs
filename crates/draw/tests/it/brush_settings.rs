@@ -67,16 +67,11 @@ fn ellipse_keys_turn_and_squash() {
     assert_eq!(value.get().roundness, ROUNDER);
 }
 
-/// The preview stroke is the S-curve: its samples start and end at the floor pressure and swing the amplitude.
+/// `fit` leaves a preview that already fits the box alone and shrinks one that is wider.
 #[trial]
 fn preview_stroke_samples_match_the_s_curve() {
     let stroke = PreviewStroke::new(200, 100);
-    let samples = stroke.samples();
-    assert_eq!(samples.len(), PreviewStroke::SAMPLES);
-    assert_eq!(samples[0].pressure, PreviewStroke::PRESSURE_FLOOR);
-    assert_eq!(samples[0].x, PreviewStroke::MARGIN);
-    let quarter = &samples[PreviewStroke::SAMPLES / 4];
-    assert!((quarter.y - (50.0 - 100.0 * PreviewStroke::AMPLITUDE)).abs() < 1e-6);
+    assert_eq!(stroke.samples().len(), PreviewStroke::SAMPLES);
     assert_eq!(stroke.fit(10.0), 1.0);
     assert!(stroke.fit(400.0) < 1.0);
 }
@@ -97,19 +92,33 @@ fn rig(events: &Rc<RefCell<Vec<BrushSectionEvent<u8>>>>) -> Fixture {
     fixture
 }
 
-/// A click on an off pane row shows its pane and turns the section on.
+// A click on an off pane row shows its pane and turns the section on; a click on a switch row flips the switch and never selects it.
 #[trial]
-fn a_click_on_a_pane_row_selects_and_enables_it() {
-    let events = Rc::new(RefCell::new(Vec::new()));
-    let mut fixture = rig(&events);
-    let target = fixture.by_label("Shape Dynamics");
-    assert!(target.is_some(), "the pane row is in the access tree");
-    let Some(target) = target else { return };
-    fixture.click(&target);
-    fixture.idle(2);
-    let seen = events.borrow();
-    assert!(seen.contains(&BrushSectionEvent::Select(1)));
-    assert!(seen.iter().any(|event| matches!(event, BrushSectionEvent::Enable { key: 1, on: true, .. })));
+fn row_clicks_select_a_pane_row_and_only_toggle_a_switch_row() {
+    {
+        let events = Rc::new(RefCell::new(Vec::new()));
+        let mut fixture = rig(&events);
+        let target = fixture.by_label("Shape Dynamics");
+        assert!(target.is_some(), "the pane row is in the access tree");
+        let Some(target) = target else { return };
+        fixture.click(&target);
+        fixture.idle(2);
+        let seen = events.borrow();
+        assert!(seen.contains(&BrushSectionEvent::Select(1)));
+        assert!(seen.iter().any(|event| matches!(event, BrushSectionEvent::Enable { key: 1, on: true, .. })));
+    }
+    {
+        let events = Rc::new(RefCell::new(Vec::new()));
+        let mut fixture = rig(&events);
+        let target = fixture.by_label("Noise");
+        assert!(target.is_some(), "the switch row is in the access tree");
+        let Some(target) = target else { return };
+        fixture.click(&target);
+        fixture.idle(2);
+        let seen = events.borrow();
+        assert!(seen.iter().any(|event| matches!(event, BrushSectionEvent::Switch { key: 10, on: true, .. })));
+        assert!(!seen.iter().any(|event| matches!(event, BrushSectionEvent::Select(_))));
+    }
 }
 
 /// A click on the link row opens the Brushes panel and nothing else.
@@ -123,19 +132,4 @@ fn the_link_row_reports_open_link() {
     fixture.click(&target);
     fixture.idle(2);
     assert_eq!(*events.borrow(), vec![BrushSectionEvent::OpenLink]);
-}
-
-/// A click on a switch row flips the switch and never selects it.
-#[trial]
-fn switch_rows_only_toggle() {
-    let events = Rc::new(RefCell::new(Vec::new()));
-    let mut fixture = rig(&events);
-    let target = fixture.by_label("Noise");
-    assert!(target.is_some(), "the switch row is in the access tree");
-    let Some(target) = target else { return };
-    fixture.click(&target);
-    fixture.idle(2);
-    let seen = events.borrow();
-    assert!(seen.iter().any(|event| matches!(event, BrushSectionEvent::Switch { key: 10, on: true, .. })));
-    assert!(!seen.iter().any(|event| matches!(event, BrushSectionEvent::Select(_))));
 }

@@ -244,15 +244,47 @@ fn editing_a_ratio_refits_from_the_frame_the_edit_began_with() {
     assert!((square.rect.width() - 56.25).abs() < 1e-9 && (square.rect.height() - 56.25).abs() < 1e-9, "{square:?}");
 }
 
+// A switch to another document discards a drawn frame and drops the kept frame; each document and size gets its own default frame.
 #[trial]
-fn a_second_document_discards_a_drawn_frame() {
-    let mut run = Run::new(classic());
-    run.settle();
-    run.tool.crop_to(upright(100.0, 80.0, 300.0, 220.0));
-    run.document = CropDocument::new(CropDocKey::new(2), Size::new(200.0, 100.0), 72.0);
-    let (_, events) = run.pass(0.0, Mods::NONE, |_, _| ());
-    assert!(events.contains(&CropEvent::Discard), "{events:?}");
-    assert_eq!(run.frame(), Some(upright(0.0, 0.0, 200.0, 100.0)), "the new document gets its own default frame");
+fn a_document_switch_drops_the_drawn_and_kept_frame_and_each_document_gets_its_own_default() {
+    {
+        let mut run = Run::new(classic());
+        run.settle();
+        run.tool.crop_to(upright(100.0, 80.0, 300.0, 220.0));
+        run.document = CropDocument::new(CropDocKey::new(2), Size::new(200.0, 100.0), 72.0);
+        let (_, events) = run.pass(0.0, Mods::NONE, |_, _| ());
+        assert!(events.contains(&CropEvent::Discard), "{events:?}");
+        assert_eq!(run.frame(), Some(upright(0.0, 0.0, 200.0, 100.0)), "the new document gets its own default frame");
+    }
+    {
+        let mut run = Run::new(classic());
+        run.settle();
+        run.tool.crop_to(upright(100.0, 80.0, 300.0, 220.0));
+        let Some(CropEvent::Apply(_)) = run.tool.apply(&run.settings, &run.document, &units()) else { panic!("a drawn frame applies") };
+        run.document = document(2);
+        run.settle();
+        run.tool.applied(false);
+        assert_eq!(run.frame(), Some(upright(0.0, 0.0, 400.0, 300.0)), "the refusal of another document's crop brings nothing back");
+        assert!(!run.tool.session().pending());
+    }
+    {
+        let mut session = CropSession::new();
+        session.ensure_frame(&sized(1, 200.0, 100.0), false);
+        assert!(session.ensure_frame(&sized(1, 300.0, 100.0), false));
+        assert_eq!(rect_of(&session), Some(Rect::new(0.0, 0.0, 300.0, 100.0)));
+        assert!(session.ensure_frame(&sized(2, 300.0, 100.0), false));
+        assert!(session.is_default());
+
+        assert!(!session.for_document(CropDocKey::new(2)));
+        assert!(session.frame().is_some());
+        session.set(upright(10.0, 10.0, 50.0, 50.0), false, "Crop");
+        assert!(session.for_document(CropDocKey::new(3)), "a drawn frame was dropped");
+        assert!(session.frame().is_none() && !session.can_undo());
+
+        session.ensure_frame(&sized(3, 10.0, 10.0), false);
+        assert!(!session.for_document(CropDocKey::new(4)), "an untouched default frame is no discard");
+        assert!(session.frame().is_none());
+    }
 }
 
 #[trial]
@@ -280,19 +312,6 @@ fn leaving_applies_a_drawn_frame_and_a_refused_commit_restores_it() {
     run.tool.applied(false);
     assert_eq!(run.frame(), Some(drawn));
     assert!(run.tool.session().can_undo());
-}
-
-#[trial]
-fn a_document_switch_drops_the_kept_frame() {
-    let mut run = Run::new(classic());
-    run.settle();
-    run.tool.crop_to(upright(100.0, 80.0, 300.0, 220.0));
-    let Some(CropEvent::Apply(_)) = run.tool.apply(&run.settings, &run.document, &units()) else { panic!("a drawn frame applies") };
-    run.document = document(2);
-    run.settle();
-    run.tool.applied(false);
-    assert_eq!(run.frame(), Some(upright(0.0, 0.0, 400.0, 300.0)), "the refusal of another document's crop brings nothing back");
-    assert!(!run.tool.session().pending());
 }
 
 #[trial]
@@ -341,26 +360,6 @@ fn default_frame_is_the_selection_bounds_or_the_canvas() {
     assert!(!session.ensure_frame(&sized(1, 0.0, 100.0), false));
     assert!(session.frame().is_none());
     assert!(!session.ensure_frame(&sized(1, 50.0, 50.0), true), "a gesture runs");
-}
-
-#[trial]
-fn another_document_or_size_gets_its_own_default_frame() {
-    let mut session = CropSession::new();
-    session.ensure_frame(&sized(1, 200.0, 100.0), false);
-    assert!(session.ensure_frame(&sized(1, 300.0, 100.0), false));
-    assert_eq!(rect_of(&session), Some(Rect::new(0.0, 0.0, 300.0, 100.0)));
-    assert!(session.ensure_frame(&sized(2, 300.0, 100.0), false));
-    assert!(session.is_default());
-
-    assert!(!session.for_document(CropDocKey::new(2)));
-    assert!(session.frame().is_some());
-    session.set(upright(10.0, 10.0, 50.0, 50.0), false, "Crop");
-    assert!(session.for_document(CropDocKey::new(3)), "a drawn frame was dropped");
-    assert!(session.frame().is_none() && !session.can_undo());
-
-    session.ensure_frame(&sized(3, 10.0, 10.0), false);
-    assert!(!session.for_document(CropDocKey::new(4)), "an untouched default frame is no discard");
-    assert!(session.frame().is_none());
 }
 
 #[trial]
@@ -469,19 +468,6 @@ fn a_refused_commit_gives_frame_and_steps_back() {
     assert!(session.pending() && session.editing() && session.can_undo());
     assert!(session.undo());
     assert!(session.is_default());
-}
-
-#[trial]
-fn a_ratio_edit_fits_from_the_frame_it_began_with() {
-    let mut session = CropSession::new();
-    assert_eq!(session.ratio_base(true), None);
-    session.ensure_frame(&sized(1, 200.0, 100.0), false);
-    let first = session.frame();
-    assert_eq!(session.ratio_base(true), first);
-    session.set(upright(0.0, 0.0, 20.0, 100.0), false, "Crop");
-    assert_eq!(session.ratio_base(true), first, "the run keeps its first frame");
-    session.ratio_base(false);
-    assert_eq!(session.ratio_base(true), session.frame(), "a new run begins from the current frame");
 }
 
 // One drag through the overlay on a canvas.

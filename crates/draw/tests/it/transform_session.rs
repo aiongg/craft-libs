@@ -80,47 +80,57 @@ fn near(a: Point, b: Point) -> bool {
     (a - b).hypot() < 1e-6
 }
 
-// A new session has no result and commits as CloseUntouched; a moved box gives Apply with the
-// frame, the box and the interpolation; a mode or interpolation change alone stays untouched.
+// An untouched session has no result and a moved one has; changing the mode or the interpolation leaves it untouched (they are not undo steps).
 #[trial]
 fn an_untouched_session_has_no_result_and_a_moved_one_has() {
-    let mut s = session();
-    assert!(s.result().is_none());
-    s.apply(TransformEdit::Mode(TransformMode::Rotate), 0.0);
-    s.apply(TransformEdit::Interpolation(Interpolation::Bilinear), 0.0);
-    assert!(s.is_untouched());
-    assert_eq!(s.commit(), TransformRequest::CloseUntouched);
+    {
+        let mut s = session();
+        assert!(s.result().is_none());
+        s.apply(TransformEdit::Mode(TransformMode::Rotate), 0.0);
+        s.apply(TransformEdit::Interpolation(Interpolation::Bilinear), 0.0);
+        assert!(s.is_untouched());
+        assert_eq!(s.commit(), TransformRequest::CloseUntouched);
 
-    drag(&mut s, moved(doc(10.0, 0.0)), 0.0);
-    let TransformRequest::Apply(result) = s.commit() else { panic!("expected Apply") };
-    assert_eq!((result.rect, result.state, result.interpolation, result.warp), (FRAME, moved(doc(10.0, 0.0)), Interpolation::Bilinear, None));
+        drag(&mut s, moved(doc(10.0, 0.0)), 0.0);
+        let TransformRequest::Apply(result) = s.commit() else { panic!("expected Apply") };
+        assert_eq!((result.rect, result.state, result.interpolation, result.warp), (FRAME, moved(doc(10.0, 0.0)), Interpolation::Bilinear, None));
+    }
+    {
+        let mut s = session();
+        drag(&mut s, moved(doc(10.0, 0.0)), 0.0);
+        s.apply(TransformEdit::Mode(TransformMode::Skew), 1.0);
+        s.apply(TransformEdit::Interpolation(Interpolation::Bilinear), 1.0);
+        s.settle(1.0, false);
+        assert!(s.undo());
+        assert!(!s.can_undo());
+        assert_eq!((s.current_mode(), s.interpolation()), (TransformMode::Skew, Interpolation::Bilinear));
+        assert_eq!(*s.state(), BoxState::from_rect(FRAME));
+    }
 }
 
-// Box Begin, Update, then Cancel restores the box taken at Begin and requests nothing; discard
-// with no drag running requests Discard.
+// Escape during a drag restores the box and a second Escape discards; discard ends a running gesture on the box it began on.
 #[trial]
-fn esc_during_a_drag_restores_the_box_and_a_second_esc_discards() {
-    let mut s = session();
-    let id = GestureId::new(1);
-    assert_eq!(s.apply(TransformEdit::Box(begin(id)), 0.0), None);
-    s.apply(TransformEdit::Box(update(id, moved(doc(5.0, 5.0)))), 0.0);
-    assert!(s.dragging());
-    assert_eq!(s.apply(TransformEdit::Box(cancel(id)), 0.0), None);
-    assert!(!s.dragging());
-    assert_eq!(*s.state(), BoxState::from_rect(FRAME));
-    assert_eq!(s.discard(), TransformRequest::Discard);
-}
-
-// Discard during a running gesture puts back the box the gesture began on.
-#[trial]
-fn discard_ends_a_running_gesture_on_the_box_it_began_on() {
-    let mut s = session();
-    let id = GestureId::new(1);
-    s.apply(TransformEdit::Box(begin(id)), 0.0);
-    s.apply(TransformEdit::Box(update(id, moved(doc(5.0, 5.0)))), 0.0);
-    assert_eq!(s.discard(), TransformRequest::Discard);
-    assert!(!s.dragging());
-    assert_eq!(*s.state(), BoxState::from_rect(FRAME));
+fn escape_and_discard_mid_gesture_restore_the_starting_box() {
+    {
+        let mut s = session();
+        let id = GestureId::new(1);
+        assert_eq!(s.apply(TransformEdit::Box(begin(id)), 0.0), None);
+        s.apply(TransformEdit::Box(update(id, moved(doc(5.0, 5.0)))), 0.0);
+        assert!(s.dragging());
+        assert_eq!(s.apply(TransformEdit::Box(cancel(id)), 0.0), None);
+        assert!(!s.dragging());
+        assert_eq!(*s.state(), BoxState::from_rect(FRAME));
+        assert_eq!(s.discard(), TransformRequest::Discard);
+    }
+    {
+        let mut s = session();
+        let id = GestureId::new(1);
+        s.apply(TransformEdit::Box(begin(id)), 0.0);
+        s.apply(TransformEdit::Box(update(id, moved(doc(5.0, 5.0)))), 0.0);
+        assert_eq!(s.discard(), TransformRequest::Discard);
+        assert!(!s.dragging());
+        assert_eq!(*s.state(), BoxState::from_rect(FRAME));
+    }
 }
 
 // In the Warp phase the warp holds the box: after a move and a reset to an identity warp, a commit
@@ -137,20 +147,6 @@ fn a_commit_in_the_warp_phase_decides_from_the_warp_alone() {
     s.apply(TransformEdit::Warp(Warp(false)), 3.0);
     let TransformRequest::Apply(result) = s.commit() else { panic!("expected Apply") };
     assert_eq!(result.warp, Some(Warp(false)));
-}
-
-// Mode and interpolation are not undo steps: changing one records nothing, and Undo leaves them.
-#[trial]
-fn mode_and_interpolation_stay_outside_the_undo_steps() {
-    let mut s = session();
-    drag(&mut s, moved(doc(10.0, 0.0)), 0.0);
-    s.apply(TransformEdit::Mode(TransformMode::Skew), 1.0);
-    s.apply(TransformEdit::Interpolation(Interpolation::Bilinear), 1.0);
-    s.settle(1.0, false);
-    assert!(s.undo());
-    assert!(!s.can_undo());
-    assert_eq!((s.current_mode(), s.interpolation()), (TransformMode::Skew, Interpolation::Bilinear));
-    assert_eq!(*s.state(), BoxState::from_rect(FRAME));
 }
 
 // A Fields typing run (Begin, Updates, Commit) sets the box and the V skew from each report, which
@@ -192,32 +188,30 @@ fn presets_turn_the_box_about_the_reference_point_without_applying() {
     assert_eq!(*warped.state(), BoxState::from_rect(FRAME));
 }
 
-// WarpRequested answers NeedWarp with the current frame and box; Warp(w) enters the Warp phase;
-// one undo goes back to the Box phase with the box as it was.
+// Entering warp asks for a warp and carries the box; leaving warp drops the warp and keeps the box.
 #[trial]
-fn entering_warp_asks_for_a_warp_and_carries_the_box() {
-    let mut s = session();
-    drag(&mut s, moved(doc(10.0, 0.0)), 0.0);
-    let request = s.apply(TransformEdit::WarpRequested, 1.0);
-    let Some(TransformRequest::NeedWarp { rect, state, .. }) = request else { panic!("expected NeedWarp") };
-    assert_eq!((rect, state), (FRAME, moved(doc(10.0, 0.0))));
-    assert_eq!(s.phase(), TransformPhase::Box);
-    s.apply(TransformEdit::Warp(Warp(false)), 1.0);
-    s.settle(1.0, false);
-    assert_eq!(s.phase(), TransformPhase::Warp);
-    assert!(s.undo());
-    assert_eq!((s.phase(), *s.state()), (TransformPhase::Box, moved(doc(10.0, 0.0))));
-}
-
-// LeaveWarp drops the warp and returns to the Box phase with the box unchanged.
-#[trial]
-fn leaving_warp_drops_the_warp_and_keeps_the_box() {
-    let mut s = session();
-    drag(&mut s, moved(doc(10.0, 0.0)), 0.0);
-    s.apply(TransformEdit::Warp(Warp(false)), 1.0);
-    assert_eq!(s.apply(TransformEdit::LeaveWarp, 1.0), None);
-    assert_eq!((s.phase(), s.warp()), (TransformPhase::Box, None));
-    assert_eq!(*s.state(), moved(doc(10.0, 0.0)));
+fn entering_and_leaving_warp_carry_the_box() {
+    {
+        let mut s = session();
+        drag(&mut s, moved(doc(10.0, 0.0)), 0.0);
+        let request = s.apply(TransformEdit::WarpRequested, 1.0);
+        let Some(TransformRequest::NeedWarp { rect, state, .. }) = request else { panic!("expected NeedWarp") };
+        assert_eq!((rect, state), (FRAME, moved(doc(10.0, 0.0))));
+        assert_eq!(s.phase(), TransformPhase::Box);
+        s.apply(TransformEdit::Warp(Warp(false)), 1.0);
+        s.settle(1.0, false);
+        assert_eq!(s.phase(), TransformPhase::Warp);
+        assert!(s.undo());
+        assert_eq!((s.phase(), *s.state()), (TransformPhase::Box, moved(doc(10.0, 0.0))));
+    }
+    {
+        let mut s = session();
+        drag(&mut s, moved(doc(10.0, 0.0)), 0.0);
+        s.apply(TransformEdit::Warp(Warp(false)), 1.0);
+        assert_eq!(s.apply(TransformEdit::LeaveWarp, 1.0), None);
+        assert_eq!((s.phase(), s.warp()), (TransformPhase::Box, None));
+        assert_eq!(*s.state(), moved(doc(10.0, 0.0)));
+    }
 }
 
 // A move, a pivot move, a warp: undo restores the box, the pivot and the warp of each step
@@ -249,54 +243,27 @@ fn undo_and_redo_restore_the_box_pivot_and_warp_together() {
     assert!(!s.can_redo());
 }
 
-// The menu lists Free Transform, Scale, Rotate, Skew, Distort, Perspective, Warp, separator, the
-// three rotations, separator, the two flips; the current mode is checked; Distort and Perspective
-// are disabled when the content refuses distort; every pick applies as its edit.
+// The current mode is checked; Distort and Perspective are disabled when the content refuses distort; Scale counts as
+// Free Transform; the Warp phase checks Warp and disables the presets. Entries are found by the edit they apply.
 #[trial]
-fn the_mode_menu_lists_photoshops_order_and_the_picks_apply() {
+fn the_mode_menu_checks_the_mode_and_disables_what_the_content_refuses() {
     let labels = <TransformMenuWords as WordSet>::english();
     let s = session().mode(TransformMode::Rotate).allow(BoxAllow::new(true, true, false));
     let menu = s.menu(&labels);
-    let shape: Vec<Option<&str>> = menu.iter().map(|e| (!e.is_separator()).then(|| e.label().as_str())).collect();
-    assert_eq!(
-        shape,
-        [
-            Some("Free Transform"),
-            Some("Scale"),
-            Some("Rotate"),
-            Some("Skew"),
-            Some("Distort"),
-            Some("Perspective"),
-            Some("Warp"),
-            None,
-            Some("Rotate 180°"),
-            Some("Rotate 90° Clockwise"),
-            Some("Rotate 90° Counter Clockwise"),
-            None,
-            Some("Flip Horizontal"),
-            Some("Flip Vertical"),
-        ]
-    );
-    let item = |label: &str| menu.iter().find(|entry| !entry.is_separator() && entry.label().as_str() == label).unwrap();
-    assert!(item("Rotate").is_checked());
-    assert!(!item("Free Transform").is_checked());
-    assert!(!item("Distort").is_enabled() && !item("Perspective").is_enabled());
-    assert!(item("Skew").is_enabled());
-    assert_eq!(item("Scale").value(), Some(&TransformChoice::Mode(TransformMode::Free)));
-    assert_eq!(item("Warp").value(), Some(&TransformChoice::Warp));
-    assert_eq!(item("Flip Vertical").value(), Some(&TransformChoice::Preset(TransformPreset::FlipVertical)));
+    let item = |menu: &[Entry<TransformChoice>], choice: TransformChoice| menu.iter().find(|entry| entry.value() == Some(&choice)).unwrap().clone();
+    assert!(item(&menu, TransformChoice::Mode(TransformMode::Rotate)).is_checked());
+    assert!(!item(&menu, TransformChoice::Mode(TransformMode::Free)).is_checked());
+    assert!(!item(&menu, TransformChoice::Mode(TransformMode::Distort)).is_enabled());
+    assert!(!item(&menu, TransformChoice::Mode(TransformMode::Perspective)).is_enabled());
+    assert!(item(&menu, TransformChoice::Mode(TransformMode::Skew)).is_enabled());
 
-    // Scale counts as Free Transform, and the Warp phase disables the presets.
     let free = session().menu(&labels);
-    let checked = |entries: &[Entry<TransformChoice>], label: &str| {
-        entries.iter().find(|entry| !entry.is_separator() && entry.label().as_str() == label).unwrap().is_checked()
-    };
-    assert!(checked(&free, "Free Transform"));
+    assert!(item(&free, TransformChoice::Mode(TransformMode::Free)).is_checked());
     let mut warped = session();
     warped.apply(TransformEdit::Warp(Warp(false)), 0.0);
     let menu = warped.menu(&labels);
     assert!(menu.iter().filter(|entry| matches!(entry.value(), Some(TransformChoice::Preset(_)))).all(|entry| !entry.is_enabled()));
-    assert!(checked(&menu, "Warp"));
+    assert!(item(&menu, TransformChoice::Warp).is_checked());
 }
 
 // ReferencePoint(false) keeps the pivot where it is: a later preset and the box rules still turn

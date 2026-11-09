@@ -13,17 +13,13 @@ fn near(a: f64, b: f64) -> bool {
 // `box_drag`: ⇧ gives both sides the larger extent with their signs kept; ⌥ doubles the box about
 // the press; the top left and size are whole pixels (PhotoCraft `shapes.rs:63-72`).
 #[test]
-fn shape_drag_shift_makes_square_alt_draws_from_centre() {
+fn shape_drag_rules() {
     let start = Point::new(100.0, 100.0);
     assert_eq!(box_drag(start, Point::new(130.0, 110.0), true, false), Some(Rect::new(100.0, 100.0, 130.0, 130.0)));
     assert_eq!(box_drag(start, Point::new(90.0, 60.0), true, false), Some(Rect::new(60.0, 60.0, 100.0, 100.0)));
     assert_eq!(box_drag(start, Point::new(110.0, 105.0), false, true), Some(Rect::new(90.0, 95.0, 110.0, 105.0)));
     assert_eq!(box_drag(Point::new(0.4, 0.4), Point::new(10.4, 20.6), false, false), Some(Rect::new(0.0, 0.0, 10.0, 20.0)));
-}
-
-// `box_drag` of 0.4 px wide and `line_drag` of 0.9 px long return `None`.
-#[test]
-fn shape_drag_under_one_pixel_draws_nothing() {
+    // Under one pixel draws nothing: `box_drag` of 0.4 px wide and `line_drag` of 0.9 px long.
     assert_eq!(box_drag(Point::new(10.0, 10.0), Point::new(10.4, 50.0), false, false), None);
     assert_eq!(line_drag(Point::new(10.0, 10.0), Point::new(10.9, 10.0)), None);
 }

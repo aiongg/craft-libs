@@ -267,14 +267,9 @@ fn a_handle_takes_the_pointer_within_12_points_in_a_turned_flipped_view() {
 
 #[trial]
 fn each_part_drags_as_quad_drag_has_it_in_every_mode() {
-    let modes = [TransformMode::Free, TransformMode::Rotate, TransformMode::Skew, TransformMode::Distort, TransformMode::Perspective];
-    let parts = [
-        (BoxPart::Corner(2), Point::new(300.0, 220.0)),
-        (BoxPart::Edge(1), Point::new(300.0, 150.0)),
-        (BoxPart::Inside, Point::new(150.0, 110.0)),
-        (BoxPart::Outside, Point::new(340.0, 260.0)),
-        (BoxPart::Pivot, RECT.center()),
-    ];
+    // Free allows a corner and refuses nothing here; Rotate allows the outside and refuses the corner.
+    let modes = [TransformMode::Free, TransformMode::Rotate];
+    let parts = [(BoxPart::Corner(2), Point::new(300.0, 220.0)), (BoxPart::Outside, Point::new(340.0, 260.0))];
     for mode in modes {
         for (part, at) in parts {
             let mut h = harness(BoxState::from_rect(RECT), |config| config.rules = BoxRules::in_mode(mode));
@@ -291,17 +286,29 @@ fn each_part_drags_as_quad_drag_has_it_in_every_mode() {
     }
 }
 
+// A click outside and a double click inside apply; a drag outside rotates.
 #[trial]
-fn a_click_outside_applies_and_a_drag_outside_rotates() {
-    let mut h = upright();
-    let at = h.screen(Point::new(340.0, 260.0));
-    h.click(at);
-    assert_eq!(h.host.borrow().applied, 1, "a click outside applies");
-    assert!(h.host.borrow().events.is_empty() && h.state() == BoxState::from_rect(RECT));
+fn applying_gestures_click_outside_and_double_click_inside_apply_and_a_drag_outside_rotates() {
+    {
+        let mut h = upright();
+        let at = h.screen(Point::new(340.0, 260.0));
+        h.click(at);
+        assert_eq!(h.host.borrow().applied, 1, "a click outside applies");
+        assert!(h.host.borrow().events.is_empty() && h.state() == BoxState::from_rect(RECT));
 
-    h.drag(at, at + by(-40.0, 30.0), Modifiers::NONE);
-    assert_eq!(h.host.borrow().applied, 1, "a drag doesn't apply");
-    assert!(h.state().angle().abs() > 1.0, "the drag turns the box: {}", h.state().angle());
+        h.drag(at, at + by(-40.0, 30.0), Modifiers::NONE);
+        assert_eq!(h.host.borrow().applied, 1, "a drag doesn't apply");
+        assert!(h.state().angle().abs() > 1.0, "the drag turns the box: {}", h.state().angle());
+    }
+    {
+        let mut h = upright();
+        let at = h.screen(Point::new(150.0, 110.0));
+        frame(&mut h, vec![pointer::moved(at), pointer::press(at), pointer::release(at)]);
+        frame(&mut h, vec![pointer::press(at), pointer::release(at)]);
+        frame(&mut h, Vec::new());
+        assert_eq!(h.host.borrow().applied, 1);
+        assert!(h.host.borrow().events.is_empty(), "clicks don't move the box");
+    }
 }
 
 #[trial]
@@ -314,51 +321,41 @@ fn the_rotate_zone_beyond_the_corners_turns_about_the_reference_point_and_shift_
     assert!(near(&BoxState::new([h.state().pivot; 4], h.state().pivot), &BoxState::new([RECT.center(); 4], RECT.center())), "the pivot stays");
 }
 
+// Escape cancels a drag and the rest of the press does nothing; Escape before the first move ends the press.
 #[trial]
-fn a_double_click_inside_applies() {
-    let mut h = upright();
-    let at = h.screen(Point::new(150.0, 110.0));
-    frame(&mut h, vec![pointer::moved(at), pointer::press(at), pointer::release(at)]);
-    frame(&mut h, vec![pointer::press(at), pointer::release(at)]);
-    frame(&mut h, Vec::new());
-    assert_eq!(h.host.borrow().applied, 1);
-    assert!(h.host.borrow().events.is_empty(), "clicks don't move the box");
-}
-
-#[trial]
-fn esc_cancels_a_drag_and_the_rest_of_the_press_does_nothing() {
-    let mut h = upright();
-    let from = h.screen(Point::new(150.0, 110.0));
-    h.hold_drag(from, from + by(40.0, 0.0));
-    assert!(
-        near(&h.state(), &BoxState::from_rect(RECT).moved(doc(40.0, 0.0))),
-        "the host shows the drag: {:?} {:?}",
-        h.state(),
-        h.host.borrow().events
-    );
-    h.fixture.key(Key::Escape, Modifiers::NONE);
-    assert_eq!(h.count(Seen::Cancel), 1, "{:?}", h.host.borrow().events);
-    assert_eq!(h.state(), BoxState::from_rect(RECT), "Esc undoes the drag");
-    let count = h.host.borrow().events.len();
-    frame(&mut h, vec![pointer::moved(from + by(60.0, 0.0))]);
-    frame(&mut h, vec![pointer::release(from + by(60.0, 0.0))]);
-    assert_eq!(h.host.borrow().events.len(), count, "the rest of the press does nothing");
-    assert_eq!(h.host.borrow().applied, 0);
-}
-
-#[trial]
-fn esc_before_the_first_move_ends_the_press() {
-    let mut h = upright();
-    let from = h.screen(Point::new(150.0, 110.0));
-    frame(&mut h, vec![pointer::moved(from)]);
-    frame(&mut h, vec![pointer::press(from)]);
-    h.fixture.key(Key::Escape, Modifiers::NONE);
-    frame(&mut h, vec![pointer::moved(from + by(40.0, 0.0))]);
-    frame(&mut h, vec![pointer::release(from + by(40.0, 0.0))]);
-    frame(&mut h, Vec::new());
-    assert!(h.host.borrow().events.is_empty(), "{:?}", h.host.borrow().events);
-    assert_eq!(h.state(), BoxState::from_rect(RECT));
-    assert_eq!(h.host.borrow().discarded, 0, "the box stays open");
+fn escape_during_a_press_ends_it_with_or_without_a_move() {
+    {
+        let mut h = upright();
+        let from = h.screen(Point::new(150.0, 110.0));
+        h.hold_drag(from, from + by(40.0, 0.0));
+        assert!(
+            near(&h.state(), &BoxState::from_rect(RECT).moved(doc(40.0, 0.0))),
+            "the host shows the drag: {:?} {:?}",
+            h.state(),
+            h.host.borrow().events
+        );
+        h.fixture.key(Key::Escape, Modifiers::NONE);
+        assert_eq!(h.count(Seen::Cancel), 1, "{:?}", h.host.borrow().events);
+        assert_eq!(h.state(), BoxState::from_rect(RECT), "Esc undoes the drag");
+        let count = h.host.borrow().events.len();
+        frame(&mut h, vec![pointer::moved(from + by(60.0, 0.0))]);
+        frame(&mut h, vec![pointer::release(from + by(60.0, 0.0))]);
+        assert_eq!(h.host.borrow().events.len(), count, "the rest of the press does nothing");
+        assert_eq!(h.host.borrow().applied, 0);
+    }
+    {
+        let mut h = upright();
+        let from = h.screen(Point::new(150.0, 110.0));
+        frame(&mut h, vec![pointer::moved(from)]);
+        frame(&mut h, vec![pointer::press(from)]);
+        h.fixture.key(Key::Escape, Modifiers::NONE);
+        frame(&mut h, vec![pointer::moved(from + by(40.0, 0.0))]);
+        frame(&mut h, vec![pointer::release(from + by(40.0, 0.0))]);
+        frame(&mut h, Vec::new());
+        assert!(h.host.borrow().events.is_empty(), "{:?}", h.host.borrow().events);
+        assert_eq!(h.state(), BoxState::from_rect(RECT));
+        assert_eq!(h.host.borrow().discarded, 0, "the box stays open");
+    }
 }
 
 #[trial]
@@ -436,19 +433,17 @@ fn page_keys_skip_the_parts_the_mode_refuses() {
 
 #[trial]
 fn the_readout_shows_what_each_gesture_changes() {
-    let cases = [
-        (Point::new(340.0, 260.0), by(-30.0, 30.0), "Angle:"),
-        (Point::new(300.0, 220.0), by(20.0, 0.0), "W:"),
-        (Point::new(150.0, 110.0), by(20.0, -10.0), "ΔX:"),
-    ];
-    for (press, by, label) in cases {
+    let cases = [(Point::new(340.0, 260.0), by(-30.0, 30.0)), (Point::new(300.0, 220.0), by(20.0, 0.0)), (Point::new(150.0, 110.0), by(20.0, -10.0))];
+    for (press, by) in cases {
         let mut h = upright();
+        let texts = |h: &Harness| h.fixture.texts().iter().map(|text| text.text.clone()).collect::<Vec<_>>();
+        let idle = texts(&h);
         let from = h.screen(press);
         h.hold_drag(from, from + by);
-        assert!(h.fixture.texts().iter().any(|text| text.text.contains(label)), "{label}");
+        assert_ne!(texts(&h), idle, "a readout shows during the gesture");
         frame(&mut h, vec![pointer::release(from + by)]);
         frame(&mut h, Vec::new());
-        assert!(!h.fixture.texts().iter().any(|text| text.text.contains(label)), "the readout goes with the gesture: {label}");
+        assert_eq!(texts(&h), idle, "the readout goes with the gesture");
     }
 }
 

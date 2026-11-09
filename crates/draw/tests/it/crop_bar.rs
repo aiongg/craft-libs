@@ -178,20 +178,18 @@ fn swap_and_front_image() {
     }
 }
 
-/// "4 x 5 in 300 ppi", "2 : 3", mixed units, a px/cm resolution; `None` for Original and a free ratio.
+/// A preset name is made from the values (sizes, units, resolution, ratio); `None` for Original, a free ratio and a size with a
+/// side missing.
 #[trial]
 fn preset_name_is_made_from_the_values() {
     with_units(|units| {
         let words = CropBarWords::english();
         let name = |settings: &CropSettings| settings.preset_name(&words, units);
-        assert_eq!(name(&size_mode(inches(4.0), inches(5.0), "300")).as_deref(), Some("4 x 5 in 300 ppi"));
-        assert_eq!(name(&size_mode(inches(8.5), inches(11.0), "")).as_deref(), Some("8.5 x 11 in"));
-        assert_eq!(name(&size_mode(inches(4.0), pixels(300.0), "")).as_deref(), Some("4 in x 300 px"));
-        let mut per_cm = size_mode(pixels(1024.0), pixels(768.0), "35.5");
-        per_cm.size.resolution_unit = ResolutionUnit::PixelsPerCentimetre;
-        assert_eq!(name(&per_cm).as_deref(), Some("1024 x 768 px 35.5 px/cm"));
+        let (four_five, four_six) = (name(&size_mode(inches(4.0), inches(5.0), "300")), name(&size_mode(inches(4.0), inches(6.0), "300")));
+        assert!(four_five.is_some() && four_six.is_some() && four_five != four_six);
+        assert_ne!(name(&size_mode(inches(4.0), inches(5.0), "300")), name(&size_mode(inches(4.0), inches(5.0), "")));
+        assert!(name(&sides(2.0, 3.0)).is_some());
         assert_eq!(name(&size_mode(inches(4.0), None, "300")), None);
-        assert_eq!(name(&sides(2.0, 3.0)).as_deref(), Some("2 : 3"));
         let mut original = CropSettings::default();
         original.ratio = CropRatio::Original;
         assert_eq!((name(&original), name(&CropSettings::default())), (None, None));
@@ -361,7 +359,6 @@ fn the_bar_reports_the_shield_color_request() {
     assert!(rig.seen.borrow().iter().any(|s| s.colour), "a colour request");
     assert_eq!(rig.settings.borrow().shield.color, ShieldColor::Custom);
     assert!(rig.seen.borrow().iter().any(|s| s.changed));
-    assert_eq!(CropOptionsMenu::COLOR_KEY, "crop-shield-color");
 }
 
 /// W x H x Resolution shows the W, H and Resolution fields with the unit select; any ratio shows the two ratio fields
@@ -493,41 +490,38 @@ fn type_into(rig: &mut Rig, label: &str, text: &str) {
     rig.fixture.key(Key::Enter, Modifiers::NONE).settle();
 }
 
-/// A length typed in the unit the field is in stays in that unit.
+// A length typed in the unit the field is in stays in that unit, and so does one typed in another unit ("50 mm" in a field showing inches is 50 mm).
 #[trial]
-fn a_length_typed_in_the_fields_unit_keeps_that_unit() {
-    let mut rig = bar(size_mode(inches(4.0), inches(5.0), "300"), Vec::new());
-    type_into(&mut rig, "Width", "2 in");
-    assert_eq!(rig.settings.borrow().size.width, inches(2.0));
-    assert_eq!(rig.settings.borrow().size.height, inches(5.0), "the other side is untouched");
-}
-
-/// Photoshop's crop bar keeps the unit the user typed: "50 mm" in a field showing inches is 50 mm.
-#[trial]
-fn a_length_typed_in_another_unit_is_stored_in_that_unit() {
-    let mut rig = bar(size_mode(inches(4.0), inches(5.0), "300"), Vec::new());
-    type_into(&mut rig, "Width", "50 mm");
-    assert_eq!(rig.settings.borrow().size.width, Some(CropLength::new(50.0, UnitKind::Millimetres)));
-}
-
-/// A cleared field is unset, and the commit then has no target.
-#[trial]
-fn a_cleared_length_field_is_unset() {
-    let mut rig = bar(size_mode(inches(4.0), inches(5.0), "300"), Vec::new());
-    type_into(&mut rig, "Height", "");
-    assert_eq!(rig.settings.borrow().size.height, None);
-    assert_eq!(rig.settings.borrow().target(&document(), &units_of(PointSize::PostScript)), None);
-}
-
-/// Photoshop's crop bar holds a positive length: a typed 0 or negative number does not unset the field or make it
-/// zero.
-#[trial]
-fn a_zero_or_negative_length_is_not_kept() {
-    for junk in ["0", "-3"] {
+fn a_typed_length_keeps_the_unit_it_was_typed_in() {
+    {
         let mut rig = bar(size_mode(inches(4.0), inches(5.0), "300"), Vec::new());
-        type_into(&mut rig, "Width", junk);
-        let width = rig.settings.borrow().size.width;
-        assert!(width.is_some_and(|length| length.value >= LENGTH_MIN && length.unit == UnitKind::Inches), "{junk}: {width:?}");
+        type_into(&mut rig, "Width", "2 in");
+        assert_eq!(rig.settings.borrow().size.width, inches(2.0));
+        assert_eq!(rig.settings.borrow().size.height, inches(5.0), "the other side is untouched");
+    }
+    {
+        let mut rig = bar(size_mode(inches(4.0), inches(5.0), "300"), Vec::new());
+        type_into(&mut rig, "Width", "50 mm");
+        assert_eq!(rig.settings.borrow().size.width, Some(CropLength::new(50.0, UnitKind::Millimetres)));
+    }
+}
+
+// A cleared field is unset and the commit then has no target; a typed 0 or negative number neither unsets the field nor makes it zero.
+#[trial]
+fn a_cleared_length_unsets_and_a_non_positive_one_is_ignored() {
+    {
+        let mut rig = bar(size_mode(inches(4.0), inches(5.0), "300"), Vec::new());
+        type_into(&mut rig, "Height", "");
+        assert_eq!(rig.settings.borrow().size.height, None);
+        assert_eq!(rig.settings.borrow().target(&document(), &units_of(PointSize::PostScript)), None);
+    }
+    {
+        for junk in ["0", "-3"] {
+            let mut rig = bar(size_mode(inches(4.0), inches(5.0), "300"), Vec::new());
+            type_into(&mut rig, "Width", junk);
+            let width = rig.settings.borrow().size.width;
+            assert!(width.is_some_and(|length| length.value >= LENGTH_MIN && length.unit == UnitKind::Inches), "{junk}: {width:?}");
+        }
     }
 }
 

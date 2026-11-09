@@ -81,23 +81,19 @@ fn pair() -> Vec<CornerTarget> {
     vec![rect(1, (50.0, 50.0, 200.0, 100.0), 0.0, true), rect(2, (260.0, 200.0, 80.0, 80.0), 0.0, false)]
 }
 
-/// At a radius over the inset a widget sits at the arc's centre: the first and third corner of a 100 by 60 rectangle
-/// at radius 20 are 60 and 20 apart. A radius of 0 puts the widget inside the corner along its diagonal.
+/// A widget follows the arc's centre: raising the radius by `d` moves the first and third corner's widgets `2 d` closer
+/// on each axis. A radius of 0 puts the widget inside the corner.
 #[trial]
 fn a_widget_sits_at_the_arc_centre_and_inside_a_sharp_corner() {
-    let (fixture, _) = show(host(vec![rect(1, BOX, ARC, true)]));
-    let (first, third) = (widget(&fixture, 1, 4).expect("corner 1"), widget(&fixture, 3, 4).expect("corner 3"));
-    let apart = third.center() - first.center();
-    let between_centres = vec2((BOX_WIDTH - ARC - ARC) as f32, (BOX_HEIGHT - ARC - ARC) as f32);
-    assert!((apart - between_centres).length() < SLACK, "{apart:?}");
-
-    let (fixture, _) = show(host(vec![rect(1, BOX, 0.0, true)]));
-    let (first, third) = (widget(&fixture, 1, 4).expect("corner 1"), widget(&fixture, 3, 4).expect("corner 3"));
-    let (inward_first, inward_third) = (first.center(), third.center());
-    assert!(
-        inward_third.x - inward_first.x < BOX_WIDTH as f32 && inward_third.y - inward_first.y < BOX_HEIGHT as f32,
-        "both widgets sit inside their corners"
-    );
+    let apart = |radius: f64| {
+        let (fixture, _) = show(host(vec![rect(1, BOX, radius, true)]));
+        let (first, third) = (widget(&fixture, 1, 4).expect("corner 1"), widget(&fixture, 3, 4).expect("corner 3"));
+        third.center() - first.center()
+    };
+    let (wide, narrow) = (apart(ARC), apart(ARC + PULL));
+    assert!(((wide - narrow) - vec2((2.0 * PULL) as f32, (2.0 * PULL) as f32)).length() < SLACK, "{wide:?} {narrow:?}");
+    let sharp = apart(0.0);
+    assert!(sharp.x < BOX_WIDTH as f32 && sharp.y < BOX_HEIGHT as f32, "both widgets sit inside their corners");
 }
 
 /// A side under the least length hides the corner's widget and zooming in shows it; an inner angle over the limit
@@ -119,17 +115,24 @@ fn widgets_hide_on_short_sides_and_wide_angles() {
     assert!(fixture.by_label("Corner 1 of 1").is_none());
 }
 
-/// A drag far past the limit gives each target its own maximum: half the short side of a rectangle, the tightest
-/// fillet of a triangle.
+// A drag far past the limit gives each target its own maximum (half the short side of a rectangle, the tightest fillet of a triangle); a drag back toward the corner never goes below 0.
 #[trial]
-fn a_drag_caps_the_radius_at_the_fillet_limit() {
-    let triangle = polygon(2, &[(260.0, 200.0), (360.0, 200.0), (310.0, 210.0)], 0.0, false);
-    let (mut fixture, state) = show(host(vec![rect(1, BOX, 0.0, true), triangle]));
-    let grabbed = widget(&fixture, 1, 7).expect("the rectangle's first widget");
-    fixture.drag(&grabbed, vec2(400.0, 400.0));
-    assert!(radii(&state, 0).iter().all(|radius| (radius - FILLET_CAP).abs() < 1e-6), "{:?}", radii(&state, 0));
-    let tight = radii(&state, 1);
-    assert!(tight[0] > 0.0 && tight[0] < FILLET_CAP && tight.iter().all(|radius| *radius == tight[0]), "{tight:?}");
+fn a_drag_clamps_the_radius_between_zero_and_the_fillet_limit() {
+    {
+        let triangle = polygon(2, &[(260.0, 200.0), (360.0, 200.0), (310.0, 210.0)], 0.0, false);
+        let (mut fixture, state) = show(host(vec![rect(1, BOX, 0.0, true), triangle]));
+        let grabbed = widget(&fixture, 1, 7).expect("the rectangle's first widget");
+        fixture.drag(&grabbed, vec2(400.0, 400.0));
+        assert!(radii(&state, 0).iter().all(|radius| (radius - FILLET_CAP).abs() < 1e-6), "{:?}", radii(&state, 0));
+        let tight = radii(&state, 1);
+        assert!(tight[0] > 0.0 && tight[0] < FILLET_CAP && tight.iter().all(|radius| *radius == tight[0]), "{tight:?}");
+    }
+    {
+        let (mut fixture, state) = show(host(vec![rect(1, (50.0, 50.0, 200.0, 100.0), 10.0, true)]));
+        let grabbed = widget(&fixture, 1, 4).expect("corner 1");
+        fixture.drag(&grabbed, vec2(-200.0, -200.0));
+        assert_eq!(radii(&state, 0), vec![0.0; 4]);
+    }
 }
 
 /// A drag sets the radius of every target; Alt sets one corner of a rectangle and every corner of a polygon.
@@ -147,15 +150,6 @@ fn a_drag_sets_every_target_and_alt_sets_one_corner() {
     fixture.drag(&grabbed, vec2(PULL as f32, PULL as f32));
     assert_eq!(radii(&state, 0), vec![PULL, 0.0, 0.0, 0.0], "one corner of the rectangle");
     assert_eq!(radii(&state, 1), vec![PULL; 4], "a polygon shares one radius");
-}
-
-/// A drag back toward the corner never goes below 0.
-#[trial]
-fn the_dragged_radius_never_goes_below_zero() {
-    let (mut fixture, state) = show(host(vec![rect(1, (50.0, 50.0, 200.0, 100.0), 10.0, true)]));
-    let grabbed = widget(&fixture, 1, 4).expect("corner 1");
-    fixture.drag(&grabbed, vec2(-200.0, -200.0));
-    assert_eq!(radii(&state, 0), vec![0.0; 4]);
 }
 
 /// A click without movement changes nothing.

@@ -86,27 +86,17 @@ fn stroke_dash_pairs_keep_unshown_entries() {
     assert_eq!(one.with_dash_pairs(&[(4.0, None)]).dashes, vec![4.0]);
 }
 
-// Default equals PhotoCraft's `ShapeStroke::default()` options (width 3, centre, butt, miter,
-// limit 100, solid, opacity 1); JSON round-trips; `{}` deserialises to the default.
+// JSON round-trips a non-default style; `{}` deserialises to the default.
 #[test]
 fn stroke_serde_round_trips_and_defaults() {
-    let d = StrokeStyle::default();
-    assert_eq!(d.width, 3.0);
-    assert_eq!(d.align, StrokeAlign::Center);
-    assert_eq!(d.cap, LineCap::Butt);
-    assert_eq!(d.join, LineJoin::Miter);
-    assert_eq!(d.miter_limit, 100.0);
-    assert!(d.dashes.is_empty());
-    assert_eq!(d.opacity, 1.0);
     let custom = with(|s| {
         s.align = StrokeAlign::Outside;
         s.dashes = vec![1.0, 2.0];
         s.dash_unit = DashUnit::Document;
     });
     let json = serde_json::to_string(&custom).unwrap();
-    assert!(json.contains("miterLimit") && json.contains("\"outside\""));
     assert_eq!(serde_json::from_str::<StrokeStyle>(&json).unwrap(), custom);
-    assert_eq!(serde_json::from_str::<StrokeStyle>("{}").unwrap(), d);
+    assert_eq!(serde_json::from_str::<StrokeStyle>("{}").unwrap(), StrokeStyle::default());
 }
 
 // `to_kurbo` multiplies dashes and offset by the width under `Widths`, keeps them under

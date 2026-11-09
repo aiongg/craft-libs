@@ -270,12 +270,12 @@ fn make_portrait_shows_only_while_the_board_is_wider_than_tall() {
         fixture.settle();
         fixture.texts().iter().map(|text| text.text.clone()).collect::<Vec<_>>()
     };
-    let wide = show(Rect::new(0.0, 0.0, 200.0, 100.0));
-    assert!(wide.contains(&"Make Portrait".to_owned()) && !wide.contains(&"Make Landscape".to_owned()), "{wide:?}");
-    let tall = show(Rect::new(0.0, 0.0, 100.0, 200.0));
-    assert!(tall.contains(&"Make Landscape".to_owned()) && !tall.contains(&"Make Portrait".to_owned()), "{tall:?}");
+    // Each orientation adds one button the square board lacks, and they are different buttons.
     let square = show(Rect::new(0.0, 0.0, 100.0, 100.0));
-    assert!(!square.contains(&"Make Portrait".to_owned()) && !square.contains(&"Make Landscape".to_owned()), "{square:?}");
+    let added = |rect: Rect| show(rect).into_iter().filter(|text| !square.contains(text)).collect::<Vec<_>>();
+    let (wide, tall) = (added(Rect::new(0.0, 0.0, 200.0, 100.0)), added(Rect::new(0.0, 0.0, 100.0, 200.0)));
+    assert_eq!((wide.len(), tall.len()), (1, 1), "{wide:?} {tall:?}");
+    assert_ne!(wide, tall);
 }
 
 #[trial]

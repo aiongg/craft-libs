@@ -150,29 +150,45 @@ fn scrubbing_a_size_is_one_gesture() {
     assert!(layer.changes().iter().all(|change| matches!(change, ShapeChange::Size { .. })), "{:?}", layer.events);
 }
 
-/// An arrow step down on a stroke width of 0 reports nothing; choosing Solid on the stroke chip at width 0 reports
-/// one `Stroke` change carrying width 3.
+// A zero stroke width reports nothing; choosing Solid on the Stroke chip, in the panel and on the bar, is one change carrying the enabled width.
 #[trial]
-fn stroke_width_zero_adds_no_stroke_and_turning_it_on_gives_three_px() {
-    let layer = Layer::new(look(0.0));
-    let mut fixture = panel(&layer);
-    let width = field(&fixture, "Stroke width");
-    fixture.click(&width);
-    fixture.key(Key::ArrowDown, Modifiers::NONE);
-    fixture.settle();
-    assert!(layer.borrow().events.is_empty(), "{:?}", layer.borrow().events);
+fn stroke_width_zero_reports_nothing_and_turning_the_stroke_on_is_one_change() {
+    {
+        let layer = Layer::new(look(0.0));
+        let mut fixture = panel(&layer);
+        let width = field(&fixture, "Stroke width");
+        fixture.click(&width);
+        fixture.key(Key::ArrowDown, Modifiers::NONE);
+        fixture.settle();
+        assert!(layer.borrow().events.is_empty(), "{:?}", layer.borrow().events);
 
-    let chip = chip(&fixture, "Stroke");
-    fixture.click(&chip);
-    fixture.settle();
-    let solid = fixture.by_label("Solid").expect("the Solid tab");
-    fixture.click(&solid);
-    fixture.settle();
-    let changes = layer.borrow().changes();
-    assert!(
-        matches!(changes.as_slice(), [ShapeChange::Stroke { paint: Paint::Solid(_), width: Some(w), .. }] if *w == ShapeChange::ENABLED_STROKE_WIDTH),
-        "{changes:?}"
-    );
+        let chip = chip(&fixture, "Stroke");
+        fixture.click(&chip);
+        fixture.settle();
+        let solid = fixture.by_label("Solid").expect("the Solid tab");
+        fixture.click(&solid);
+        fixture.settle();
+        let changes = layer.borrow().changes();
+        assert!(
+            matches!(changes.as_slice(), [ShapeChange::Stroke { paint: Paint::Solid(_), width: Some(w), .. }] if *w == ShapeChange::ENABLED_STROKE_WIDTH),
+            "{changes:?}"
+        );
+    }
+    {
+        let layer = Layer::new(look(0.0));
+        let mut fixture = bar(ShapeKind::Rectangle, &layer);
+        let chip = chip(&fixture, "Stroke");
+        fixture.click(&chip);
+        fixture.settle();
+        let solid = fixture.by_label("Solid").expect("the Solid tab");
+        fixture.click(&solid);
+        fixture.settle();
+        let changes = layer.borrow().changes();
+        assert!(
+            matches!(changes.as_slice(), [ShapeChange::Stroke { paint: Paint::Solid(_), width: Some(w), .. }] if *w == ShapeChange::ENABLED_STROKE_WIDTH),
+            "{changes:?}"
+        );
+    }
 }
 
 /// A locked layer makes every field read-only: typing into one changes nothing.
@@ -228,22 +244,4 @@ fn the_bar_shows_the_field_of_each_kind() {
         assert_eq!(layer.borrow().changes().last(), Some(&change), "{kind:?}");
     }
     assert_eq!(field_names(&bar(ShapeKind::Ellipse, &Layer::new(look(0.0)))), ["Stroke width"]);
-}
-
-/// Choosing Solid on the bar's Stroke chip at width 0 reports one change that carries the width 3.
-#[trial]
-fn the_bar_turning_the_stroke_on_is_one_change() {
-    let layer = Layer::new(look(0.0));
-    let mut fixture = bar(ShapeKind::Rectangle, &layer);
-    let chip = chip(&fixture, "Stroke");
-    fixture.click(&chip);
-    fixture.settle();
-    let solid = fixture.by_label("Solid").expect("the Solid tab");
-    fixture.click(&solid);
-    fixture.settle();
-    let changes = layer.borrow().changes();
-    assert!(
-        matches!(changes.as_slice(), [ShapeChange::Stroke { paint: Paint::Solid(_), width: Some(w), .. }] if *w == ShapeChange::ENABLED_STROKE_WIDTH),
-        "{changes:?}"
-    );
 }

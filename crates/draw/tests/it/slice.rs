@@ -204,25 +204,26 @@ fn slice_select_moves_the_whole_slice_when_the_press_hits_a_covered_piece() {
     assert!(h.events().iter().any(|event| matches!(event, SliceEvent::Select { number: Some(1), .. })));
 }
 
+// A drag of a handle resizes the edge it hangs off; a click on a handle resizes nothing.
 #[trial]
-fn slice_handles_resize_the_edges_they_hang_off() {
-    let mut h = harness(SliceMode::Select, |app| app.selected = Some(1));
-    let right = h.screen(120.0, 40.0);
-    h.drag(right, right + egui::vec2(20.0, 30.0), Modifiers::NONE);
-    assert_eq!(committed(&h.events(), 1, true), Some(Rect::new(0.0, 0.0, 140.0, 80.0)), "the middle handle moves one edge: {:?}", h.events());
-    let corner = h.screen(0.0, 0.0);
-    h.clear();
-    h.drag(corner, corner + egui::vec2(-10.0, -5.0), Modifiers::NONE);
-    assert_eq!(committed(&h.events(), 1, true), Some(Rect::new(-10.0, -5.0, 140.0, 80.0)));
-}
-
-#[trial]
-fn a_click_on_a_handle_resizes_nothing() {
-    let mut h = harness(SliceMode::Select, |app| app.selected = Some(1));
-    let right = h.screen(120.0, 40.0);
-    h.click(right);
-    assert!(committed(&h.events(), 1, true).is_none() && committed(&h.events(), 1, false).is_none(), "{:?}", h.events());
-    assert_eq!(h.rect(1), Rect::new(0.0, 0.0, 120.0, 80.0));
+fn slice_handle_gestures_a_drag_resizes_the_edge_and_a_click_changes_nothing() {
+    {
+        let mut h = harness(SliceMode::Select, |app| app.selected = Some(1));
+        let right = h.screen(120.0, 40.0);
+        h.drag(right, right + egui::vec2(20.0, 30.0), Modifiers::NONE);
+        assert_eq!(committed(&h.events(), 1, true), Some(Rect::new(0.0, 0.0, 140.0, 80.0)), "the middle handle moves one edge: {:?}", h.events());
+        let corner = h.screen(0.0, 0.0);
+        h.clear();
+        h.drag(corner, corner + egui::vec2(-10.0, -5.0), Modifiers::NONE);
+        assert_eq!(committed(&h.events(), 1, true), Some(Rect::new(-10.0, -5.0, 140.0, 80.0)));
+    }
+    {
+        let mut h = harness(SliceMode::Select, |app| app.selected = Some(1));
+        let right = h.screen(120.0, 40.0);
+        h.click(right);
+        assert!(committed(&h.events(), 1, true).is_none() && committed(&h.events(), 1, false).is_none(), "{:?}", h.events());
+        assert_eq!(h.rect(1), Rect::new(0.0, 0.0, 120.0, 80.0));
+    }
 }
 
 #[trial]
