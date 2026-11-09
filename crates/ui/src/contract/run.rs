@@ -547,7 +547,7 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     p.trace.mark(Step::Parts);
     let flow = Flow::new(rect, rtl);
     let mut parts = PartsStep { decls: Vec::new(), rovings: Vec::new(), scrolls: Vec::new(), text: super::text::TextStep::default() };
-    if !inert && C::INPUT == Input::Text {
+    if !inert && matches!(C::INPUT, Input::Text | Input::Editor) {
         parts.text.commit_now = focus::commit_now(&ctx) == Some(id);
     }
     // A component that declares no parts skips the step; a debug build runs it anyway to check the declaration.

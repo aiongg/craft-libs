@@ -201,6 +201,16 @@ fn command_enter_commits_one_session_and_a_session_without_edits_commits_nothing
 }
 
 #[trial]
+fn a_press_outside_commits_the_session_once() {
+    let mut editor = session("abc", None);
+    editor.focus();
+    editor.fixture.type_text("d").settle();
+    assert_eq!(editor.commits.get(), 0);
+    editor.fixture.click_at(pos2(150.0, 100.0)).settle();
+    assert_eq!(editor.commits.get(), 1);
+}
+
+#[trial]
 fn click_runs_select_word_line_paragraph_all() {
     let text = "one two\nthree";
     assert_eq!((1..=6).map(click_count).collect::<Vec<_>>(), [1, 2, 3, 4, 5, 1], "the sixth press starts over");

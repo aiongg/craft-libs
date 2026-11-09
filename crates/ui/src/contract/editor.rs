@@ -3,7 +3,7 @@
 //! undo state back to the IME engine and AccessKit.
 
 use super::Component;
-use super::cx::{Cx, PartsCx};
+use super::cx::{Cx, Edit as _, PartsCx};
 use crate::primitives::{EditorPurpose, EditorState, ImeSurface};
 use crate::runtime::access::text::{self as text_access, Line, Run, TextFacts};
 use crate::runtime::egui::{editor as egui_editor, focus as egui_focus};
@@ -51,6 +51,10 @@ pub(crate) fn keys_of(base: KeyUse, purpose: EditorPurpose) -> KeyUse {
 /// the editor cannot do go to the app command.
 pub(crate) fn run<C: Component>(cx: &mut Cx<'_, C>, ui: &mut Ui, step: &mut super::text::TextStep, keys: KeyUse) {
     let Some(decl) = step.editor.take() else { return };
+    // A press that leaves the editor ends its gesture, as a focus loss ends a text field's draft.
+    if step.commit_now {
+        cx.commit();
+    }
     let (ctx, id) = (cx.core.ctx.clone(), cx.core.id);
     let widget = ImeSurface::of(id, decl.key).widget();
     let focused = egui_editor::show(ui, widget, decl.rect, egui_focus::event_filter(keys.keep, false));
