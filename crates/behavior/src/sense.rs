@@ -35,6 +35,9 @@ bitflags! {
         /// A container root learns of a primary press on its own surface: inside its rect, on its layer, where no
         /// shape takes the press. The root takes no press and no focus by it, so it is no click target.
         const SURFACE = 4096;
+        /// A part of an item of a collection: an unmodified primary click on it also picks the item, as a click on the
+        /// item's own area does. The part reports its own click as well.
+        const PICKS_ITEM = 8192;
     }
 }
 

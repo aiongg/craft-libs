@@ -637,7 +637,7 @@ const PROGRESS: PartKey = PartKey::new("progress");
 const LINES: PartKey = PartKey::new("lines");
 const TRAILING: PartKey = PartKey::new("trailing");
 const TRAILING_ICON: PartKey = PartKey::new("trailing-icon");
-pub(crate) const THUMB: PartKey = PartKey::new("thumb");
+const THUMB: PartKey = PartKey::new("thumb");
 
 /// How far the hover tint of the layer form tints toward the accent.
 const LAYER_TINT: f32 = 0.12;
@@ -1289,7 +1289,8 @@ impl Component for ListRow<'_> {
         }
         let thumbs = placed.first.into_iter().chain(placed.extras.iter().map(|(thumb, _)| *thumb));
         for (at, thumb) in thumbs.enumerate() {
-            let sense = if self.drags.iter().any(|(held, _)| *held == target_at(at)) { Sense::CLICK | Sense::DRAG } else { Sense::CLICK };
+            let sense =
+                if self.drags.iter().any(|(held, _)| *held == target_at(at)) { Sense::CLICK | Sense::DRAG } else { Sense::CLICK } | Sense::PICKS_ITEM;
             cx.part(THUMB.at(at as u64), thumb).sense(sense).pointer_only("A thumbnail is a pointer target; the keys act on the row");
         }
     }

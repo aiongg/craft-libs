@@ -1243,7 +1243,8 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         // in the same pass.
         if let (Some(PressPhase::Release { click: true, start, .. }), Some(target)) = (outcome.phase, outcome.target)
             && start.button == craft_behavior::PointerButton::Primary
-            && target.part.is_some_and(|part| part.key == crate::list::row::THUMB)
+            && target.part.is_some()
+            && target.sense.contains(Sense::PICKS_ITEM)
             && local(start.origin).y >= 0.0
             && let Some(at) = layout.hit(local(start.origin), offset).filter(|&at| self.source.enabled(at) && layout.shown(at))
         {
