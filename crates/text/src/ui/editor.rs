@@ -27,12 +27,13 @@ use std::ops::Range;
 
 use craft_behavior::kurbo::Point;
 use craft_behavior::{
-    CanvasView, CursorIcon, CursorPriority, EditCommand, EditorInput, Granularity, Metrics, MoveMods, NavMove, PressPhase, Sense, TextPos,
+    CancelReason, CanvasView, CursorIcon, CursorPriority, EditCommand, EditorInput, GesturePhase, Granularity, Metrics, MoveMods, NavMove,
+    PressPhase, Sense, TextPos,
 };
 use craft_ui::canvas::canvas_space;
 use craft_ui::contract::{
-    Animate as _, Bind, BindMut, Commands as _, Common, Component, Cx, Edit as _, Focus as _, MeasureCx, Outcome, PaintUi, PartsCx, Pointer as _,
-    Props as _, Remember as _, Role,
+    Animate as _, Bind, BindMut, CommandSet as _, Commands as _, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Outcome,
+    PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role,
 };
 use craft_ui::primitives::{EditorLine, EditorPurpose, EditorRun, EditorState, PaintShape, StrokeWidth};
 use craft_ui::runtime::commands::ClipItem;
@@ -268,7 +269,7 @@ pub struct TextEditorStyle {
 /// What the editor did this pass.
 #[derive(Debug)]
 #[non_exhaustive]
-#[must_use = "end the session on `commit` and `cancel`"]
+#[must_use = "end the session on the `edit` event's `Commit` and `Cancel`"]
 pub struct TextEditorOutput {
     /// The editor's response.
     pub response: Response,
@@ -276,11 +277,12 @@ pub struct TextEditorOutput {
     pub changed: bool,
     /// The selection or caret moved.
     pub selection_changed: bool,
-    /// The user committed: Cmd+Enter, or Esc when Esc commits ([`TextEditor::esc_commits`], Photoshop's Use ESC Key
-    /// to Commit Text, on by default). The app ends the session and keeps the text.
-    pub commit: bool,
-    /// Esc when it doesn't commit: the app ends the session and undoes it.
-    pub cancel: bool,
+    /// The typing session as one gesture over the selection. The first text change gives `Begin`, later changes
+    /// `Update`. `Commit` is Cmd+Enter, or Esc when Esc commits ([`TextEditor::esc_commits`], Photoshop's Use ESC
+    /// Key to Commit Text, on by default): the app ends the session, keeps the text and records one undo step.
+    /// `Cancel` is Esc when it doesn't commit: the app ends the session and undoes it. A session with no text
+    /// change gives no `Commit` or `Cancel`.
+    pub edit: EditResponse<TextSelection>,
 }
 
 impl Outcome for TextEditorOutput {
@@ -288,6 +290,11 @@ impl Outcome for TextEditorOutput {
 
     fn response(&self) -> &Response {
         &self.response
+    }
+
+    #[cfg(feature = "screen-testing")]
+    fn story_facts(&self) -> craft_ui::testing::StoryOutput {
+        self.edit.story_facts()
     }
 }
 
@@ -323,25 +330,14 @@ pub struct TextEditor<'a> {
     esc_commits: bool,
     changed: bool,
     selection_changed: bool,
-    commit: bool,
-    cancel: bool,
 }
 
 impl<'a> TextEditor<'a> {
     /// An editor named `label` over the app's text `host`, with the selection bound to `selection`.
     pub fn new(label: impl Into<Label>, host: &'a mut dyn TextEditorHost, selection: Bind<'a, TextSelection>) -> Self {
-        TextEditor {
-            common: Common::new(),
-            host,
-            selection,
-            smart_quotes: None,
-            esc_commits: true,
-            changed: false,
-            selection_changed: false,
-            commit: false,
-            cancel: false,
-        }
-        .label(label)
+        TextEditor { common: Common::new(), host, selection, smart_quotes: None, esc_commits: true, changed: false, selection_changed: false }
+            .label(label)
+            .command_scope(TextEditorCommand::SCOPE)
     }
 }
 
@@ -504,7 +500,7 @@ impl Component for TextEditor<'_> {
                 }
                 EditorInput::ImeCommit => ending = edits.session.preedit.take(),
                 EditorInput::Text(text) => edits.done.changed |= edits.insert_typed(&text),
-                EditorInput::Newline => edits.done.changed |= edits.insert_text("\n", EditKind::Typed),
+                EditorInput::Newline if edits.session.preedit.is_none() => edits.done.changed |= edits.insert_text("\n", EditKind::Typed),
                 EditorInput::Tab => edits.done.changed |= edits.insert_text("\t", EditKind::Typed),
                 EditorInput::Move(step, mods) => edits.motion(step, mods),
                 EditorInput::Delete { forward, by, .. } => edits.done.changed |= edits.delete(forward, by),
@@ -514,7 +510,7 @@ impl Component for TextEditor<'_> {
                     edits.end_composition();
                     edits.selection = TextSelection { anchor: char_at(&lines, anchor), caret: char_at(&lines, focus) };
                 }
-                EditorInput::Cancel => {
+                EditorInput::Cancel if edits.session.preedit.is_none() => {
                     if edits.esc_commits {
                         edits.done.commit = true;
                     } else {
@@ -567,13 +563,22 @@ impl Component for TextEditor<'_> {
             cx.clipboard().put(&[ClipItem::Text(text.into())]);
         }
         cx.cursor(if vertical { CursorIcon::VerticalText } else { CursorIcon::Text }, CursorPriority::Hover);
-        if selection != before {
-            cx.set(selection);
+        if done.changed {
+            cx.propose(selection);
+        } else if selection != before {
+            if cx.gesture().is_some_and(|phase| matches!(phase, GesturePhase::Begin | GesturePhase::Update)) {
+                cx.propose(selection);
+            } else {
+                cx.set(selection);
+            }
+        }
+        if done.commit {
+            cx.commit();
+        } else if done.cancel {
+            cx.cancel(CancelReason::Escape);
         }
         self.changed = done.changed;
         self.selection_changed = selection != before;
-        self.commit = done.commit;
-        self.cancel = done.cancel;
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
@@ -653,13 +658,7 @@ impl Component for TextEditor<'_> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> TextEditorOutput {
-        TextEditorOutput {
-            response: cx.response.clone(),
-            changed: self.changed,
-            selection_changed: self.selection_changed,
-            commit: self.commit,
-            cancel: self.cancel,
-        }
+        TextEditorOutput { response: cx.response.clone(), changed: self.changed, selection_changed: self.selection_changed, edit: cx.edit_response() }
     }
 }
 
