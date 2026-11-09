@@ -27,6 +27,20 @@ new = "craft_draw::ui::gradient::GradientOverlay"
 status = "replaced"
 note = "A canvas control: `new(label, Bind<LineGradient>)` over the canvas's view, snap and arena. The host-driven `hit`, `press`, `track`, `release`, `double_click`, `paint` and `paint_focus` are gone: the arena gives a press on a part to the overlay."
 
+[[type]]
+name = "STOP_STEP"
+old = ""
+new = "craft_draw::ui::gradient::stops::STOP_STEP"
+status = "replaced"
+note = "New documented const: the share of the bar or line one Left or Right press moves a stop or midpoint."
+
+[[type]]
+name = "STOP_STEP_FAR"
+old = ""
+new = "craft_draw::ui::gradient::stops::STOP_STEP_FAR"
+status = "replaced"
+note = "New documented const: the share one Shift+arrow press moves a stop or midpoint."
+
 
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]

@@ -59,9 +59,9 @@ impl Default for StopRules {
 }
 
 /// One Left or Right press moves a stop or midpoint by this share of the bar or line.
-pub(crate) const STOP_STEP: f32 = 0.01;
+pub const STOP_STEP: f32 = 0.01;
 /// One Shift press.
-pub(crate) const STOP_STEP_FAR: f32 = 0.10;
+pub const STOP_STEP_FAR: f32 = 0.10;
 
 /// `location` clamped to 0..=1 and rounded to 0.001, as pointer locations are (PhotoCraft's
 /// Gradient Map).
@@ -80,7 +80,6 @@ pub(crate) trait Stop: Clone + PartialEq {
     fn set_location(&mut self, location: f32);
     fn midpoint(&self) -> f32;
     fn set_midpoint(&mut self, midpoint: f32);
-    fn tag(&self) -> u64;
 }
 
 impl Stop for ColorStop {
@@ -95,9 +94,6 @@ impl Stop for ColorStop {
     }
     fn set_midpoint(&mut self, midpoint: f32) {
         self.midpoint = midpoint;
-    }
-    fn tag(&self) -> u64 {
-        self.tag
     }
 }
 
@@ -114,17 +110,6 @@ impl Stop for OpacityStop {
     fn set_midpoint(&mut self, midpoint: f32) {
         self.midpoint = midpoint;
     }
-    fn tag(&self) -> u64 {
-        self.tag
-    }
-}
-
-/// Whether stop `k` of `new` is stop `i` of `old`: both exist and carry the same tag. A gradient
-/// line's carried-on drag finds its stop by this rule. Stops all have tag 0 unless the host sets
-/// tags, so stops an equal-length reorder swapped can't be told apart; a host that reorders stops
-/// from another control during a drag should tag them.
-pub(crate) fn same_stop<T: Stop>(old: &[T], i: usize, new: &[T], k: usize) -> bool {
-    matches!((old.get(i), new.get(k)), (Some(a), Some(b)) if a.tag() == b.tag())
 }
 
 /// The location of stop `i` of `row`.
