@@ -659,8 +659,13 @@ pub(crate) fn update_inputs(core: &mut CxCore<'_>) {
 
 /// Step 9, before the component: a gesture cancelled under its press is live again once the press is released, and a
 /// given caller's `Update` that fell in the pass of its `Begin` arrives now.
-pub(crate) fn gesture_gate<C: Component>(cx: &mut Cx<'_, C>) {
-    let held = cx.core.press_held();
+pub(crate) fn gesture_gate<C: Component>(comp: &C, cx: &mut Cx<'_, C>) {
+    use craft_behavior::PressPhase;
+    // A scrub by the field's label is carried by the label's press.
+    let label_held = comp.scrub().is_some_and(|scrub| !scrub.on_field)
+        && scope::field_label(&cx.core.ctx)
+            .is_some_and(|label| matches!(label.press.phase, PressPhase::Down { .. } | PressPhase::DragStart { .. } | PressPhase::Drag { .. }));
+    let held = cx.core.press_held() || label_held;
     let slot = gesture_key(cx.core.id);
     let gesture = cx.core.memory.shown::<Gesture<ValueOf<C>>>(slot);
     if gesture.dead && !held {
