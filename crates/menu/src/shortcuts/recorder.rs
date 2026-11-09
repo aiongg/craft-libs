@@ -34,6 +34,8 @@ pub(crate) struct RecorderOutput {
     pub chords: Vec<Chord>,
     /// A click or Enter asked to start recording.
     pub started: bool,
+    /// The field took this pass's input: false in a measuring run, so a caller changes its state only when true.
+    pub updated: bool,
 }
 
 impl Outcome for RecorderOutput {
@@ -87,6 +89,7 @@ struct Recorder {
     start: bool,
     chords: Vec<Chord>,
     started: bool,
+    updated: bool,
 }
 
 impl Component for Recorder {
@@ -114,6 +117,7 @@ impl Component for Recorder {
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        self.updated = true;
         if self.recording {
             if self.start {
                 focus::request(&cx.response.ctx, FocusTarget::Id(cx.response.id));
@@ -138,7 +142,7 @@ impl Component for Recorder {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> RecorderOutput {
-        RecorderOutput { response: cx.response.clone(), chords: self.chords, started: self.started }
+        RecorderOutput { response: cx.response.clone(), chords: self.chords, started: self.started, updated: self.updated }
     }
 }
 
@@ -174,7 +178,7 @@ impl ChordRecorder {
 
     fn component(self) -> (Recorder, Option<&'static str>) {
         let ChordRecorder { label, recording, shown, salt, start } = self;
-        (Recorder { common: Common::new(), recording, shown, start, chords: Vec::new(), started: false }.label(label), salt)
+        (Recorder { common: Common::new(), recording, shown, start, chords: Vec::new(), started: false, updated: false }.label(label), salt)
     }
 
     /// Shows the field.

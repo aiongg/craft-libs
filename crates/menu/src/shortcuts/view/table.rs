@@ -498,7 +498,7 @@ pub(super) fn show(ui: &mut Ui, now: f64, env: &mut Env<'_>, state: &mut DialogS
         ColumnSpec::new(SHORTCUT, words.shortcut.clone(), ColumnWidth::fill(SHORTCUT_SHARE)),
     ];
     let mut selection = Selection::new(position.into_iter().collect(), position, position);
-    let reveal = if std::mem::take(&mut state.reveal) { position } else { None };
+    let reveal = if state.reveal { position } else { None };
     let source = Lines(&built.lines);
     let stamp = stamp_of(&state.area, &state.query, &format!("{:?}", state.filter));
     let mut table = ShortcutTable::new(words.commands.clone(), columns)

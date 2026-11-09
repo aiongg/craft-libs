@@ -66,6 +66,8 @@ pub(crate) fn body(ui: &mut Ui, cx: &mut BodyCx<'_>, env: &mut Env<'_>, state: &
         Stack::new().fill().enabled(idle).show(ui, |ui, cx| middle(ui, cx, now, env, state));
     }
     bars::show(ui, cx, env, state);
+    // The request outlives every run of the table's body in this frame; the frame's last line spends it.
+    state.reveal = false;
 }
 
 /// The table beside the detail pane, with the keyboard pane under both while it is on.

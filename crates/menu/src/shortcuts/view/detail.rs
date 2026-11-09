@@ -139,7 +139,7 @@ fn new_shortcut(ui: &mut Ui, now: f64, env: &mut Env<'_>, state: &mut DialogStat
     let words = env.text.words();
     let title = words.new_shortcut.clone();
     if let Some(mut typed) = state.typing.clone() {
-        let take_focus = std::mem::take(&mut state.typing_focus);
+        let take_focus = state.typing_focus;
         let out = Field::new(title.clone()).id_salt("shortcuts.type").show(ui, |ui, _| {
             let field = TextField::new(title.clone(), Bind::bound(&mut typed)).placeholder("Cmd+Shift+K").id_salt("type").show(ui);
             if take_focus {
@@ -149,6 +149,9 @@ fn new_shortcut(ui: &mut Ui, now: f64, env: &mut Env<'_>, state: &mut DialogStat
         });
         state.typing = Some(typed.clone());
         if let Some(edit) = out.inner {
+            if edit.response.has_focus() {
+                state.typing_focus = false;
+            }
             if edit.escaped {
                 state.typing = None;
                 state.type_error = None;
@@ -177,29 +180,34 @@ fn new_shortcut(ui: &mut Ui, now: f64, env: &mut Env<'_>, state: &mut DialogStat
     };
     let value = if shown.is_empty() { words.none.as_str().to_owned() } else { shown.clone() };
     let name = words.new_shortcut_chord.fill(&[("chord", &value)]);
-    Row::new().show(ui, |ui, _| {
-        let start = recording && state.recording.as_ref().is_some_and(|recording| !recording.started);
-        let out = ChordRecorder::new(name.clone(), recording, shown.clone()).start(start).id_salt("new").show(ui);
-        if out.started && !recording {
-            state.record(env, Target::Field { command: command.clone() });
+    let start = recording && state.recording.as_ref().is_some_and(|recording| !recording.started);
+    let shown_row = Row::new()
+        .show(ui, |ui, _| {
+            let out = ChordRecorder::new(name.clone(), recording, shown.clone()).start(start).id_salt("new").show(ui);
+            let type_more = clicked(&Link::new(words.type_more.clone()).id_salt("typeMore").show(ui));
+            (out, type_more)
+        })
+        .inner;
+    let Some((out, type_more)) = shown_row else { return };
+    if out.started && !recording {
+        state.record(env, Target::Field { command: command.clone() });
+    }
+    if recording && out.updated {
+        if let Some(recording) = state.recording.as_mut() {
+            recording.started = true;
         }
-        if recording {
-            if let Some(recording) = state.recording.as_mut() {
-                recording.started = true;
-            }
-            if !out.chords.is_empty() {
-                state.feed(env, &out.chords, now);
-            } else if out.response.lost_focus() {
-                state.stop_recording();
-            }
-        }
-        if clicked(&Link::new(words.type_more.clone()).id_salt("typeMore").show(ui)) {
+        if !out.chords.is_empty() {
+            state.feed(env, &out.chords, now);
+        } else if out.response.lost_focus() {
             state.stop_recording();
-            state.typing = Some(String::new());
-            state.typing_focus = true;
-            state.type_error = None;
         }
-    });
+    }
+    if type_more {
+        state.stop_recording();
+        state.typing = Some(String::new());
+        state.typing_focus = true;
+        state.type_error = None;
+    }
 }
 
 fn context(ui: &mut Ui, env: &Env<'_>, state: &mut DialogState, command: &CommandRef) {
