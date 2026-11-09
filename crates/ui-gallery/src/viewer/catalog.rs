@@ -53,9 +53,7 @@ pub fn short_type(type_name: &str) -> String {
 
 /// Every story linked into the viewer, ordered by type then story name.
 pub fn entries() -> Vec<Entry> {
-    let mut entries: Vec<_> = stories().into_iter().map(|registration| Entry { registration, type_name: (registration.type_name)() }).collect();
-    entries.sort_by_key(|entry| (entry.type_name, entry.registration.story.name));
-    entries
+    stories().into_iter().map(|registration| Entry { registration, type_name: (registration.type_name)() }).collect()
 }
 
 /// What a registration says about a type: where it is declared and what it is for.
