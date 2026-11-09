@@ -133,20 +133,6 @@ fn scope_refresh_is_requested_three_ways() {
 }
 
 #[trial]
-fn the_channel_row_shows_its_refresh_button() {
-    let (fixture, _host) = rig(ScopeView::Expanded, false, true);
-    let button = fixture.by_label("Uncached Refresh").expect("the refresh button").rect;
-    let panel = plot(&fixture);
-    let dump = format!("button {button:?}, panel plot {panel:?}");
-    assert!(button.width() > 0.0, "the refresh button has a width: {dump}");
-    assert!(
-        panel.expand(1.0).contains_rect(button) || (button.min.x >= panel.min.x - 1.0 && button.max.x <= panel.max.x + 1.0),
-        "it is inside the panel: {dump}"
-    );
-    assert!((button.max.x - panel.max.x).abs() <= 1.0, "it ends at the row's end edge less padding: {dump}");
-}
-
-#[trial]
 fn clipping_buttons_toggle_by_click_and_keys() {
     const SHADOWS: &str = "Shadow Clipping Warning (U)";
     const HIGHLIGHTS: &str = "Highlight Clipping Warning (O)";

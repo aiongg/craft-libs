@@ -1058,8 +1058,6 @@ impl<'b> BodyHooks<'b> {
         match &props.mount {
             Mount::Pane(_) | Mount::Window { .. } => Sizing::Fill,
             Mount::Layer(_) | Mount::Viewport { .. } | Mount::FullWindow if self.fixed => Sizing::Fill,
-            // A layer the user can resize decides its own size: its body is given both axes.
-            Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } if overlay.fit == OverlayFit::Resizable => Sizing::Fill,
             Mount::Layer(_) | Mount::Viewport { .. } => Sizing::Content,
             _ => props.sizing,
         }
