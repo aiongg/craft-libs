@@ -290,12 +290,6 @@ pub trait Component: Meta + Sized {
         Vec2::ZERO
     }
 
-    /// Whether the component's parts or size depend on its value: a text commit that changes the value then runs the
-    /// pass again, so the parts show the new value.
-    fn parts_follow_value(&self) -> bool {
-        false
-    }
-
     /// The axis along which the component takes all the room the flow offers when that is more than it measured,
     /// as a container with `Sizing::Fill` does: a vertical rule fills its row's height.
     fn fills(&self) -> Option<craft_behavior::Axis> {

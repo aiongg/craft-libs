@@ -13,10 +13,10 @@ mod stories;
 
 use std::ops::RangeInclusive;
 
-use craft_behavior::{EditEvent, NumberCodec};
+use craft_behavior::{EditEvent, Mixed, NumberCodec};
 use craft_theme::variant::Tone;
 use craft_ui::choice::{Checkbox, Radio, RadioGroup};
-use craft_ui::contract::{Bind, Entry, FieldLayout, Pattern, Props, Remember as _, Show as _, ShowContainer as _, SideLabel, Trigger};
+use craft_ui::contract::{Bind, EditResponse, Entry, FieldLayout, Pattern, Props, Remember as _, Show as _, ShowContainer as _, SideLabel, Trigger};
 use craft_ui::display::Divider;
 use craft_ui::form::{Field, FieldGroup};
 use craft_ui::menu::{Menu, MenuItem};
@@ -205,12 +205,19 @@ struct Length {
     first: bool,
 }
 
-/// Runs one event of a number field of the dialog: `write` puts its value into the setup. A `Begin` keeps the setup as
-/// it was and a `Cancel` puts that back.
-fn apply(form: &mut FormCx<'_, '_>, setup: &mut PageSetup, event: Option<&EditEvent<Option<f64>>>, write: impl Fn(&mut PageSetup, f64)) {
-    let Some(event) = event else { return };
+/// Runs one event of a number field of the dialog: `write` puts its value into the setup. A `Begin` remembers the setup
+/// and writes the value the field shows in that pass; a `Cancel` puts the remembered setup back.
+fn apply(form: &mut FormCx<'_, '_>, setup: &mut PageSetup, edit: &EditResponse<Option<f64>>, write: impl Fn(&mut PageSetup, f64)) {
+    let Some(event) = edit.event.as_ref() else { return };
     match event {
-        EditEvent::Begin { .. } => form.memory::<Before>().0 = Some(setup.clone()),
+        EditEvent::Begin { .. } => {
+            form.memory::<Before>().0 = Some(setup.clone());
+            if let Some(Mixed::Same(shown)) = &edit.shown
+                && let Some(value) = **shown
+            {
+                write(setup, value);
+            }
+        }
         EditEvent::Cancel { .. } => {
             if let Some(before) = form.memory::<Before>().0.take() {
                 *setup = before;
@@ -253,7 +260,7 @@ impl Rows<'_> {
         if first && form.first() {
             focus::request(ui.ctx(), FocusTarget::Id(field.response.id));
         }
-        apply(form, setup, field.edit.event.as_ref(), |next, value| {
+        apply(form, setup, &field.edit, |next, value| {
             let points = if rounded(value, places) == shown { exact } else { to_points(unit, value).clamp(*range.start(), *range.end()) };
             set(next, points);
         });
@@ -342,7 +349,7 @@ impl Rows<'_> {
                     })
                     .inner;
                 let Some(field) = field else { return true };
-                apply(form, setup, field.edit.event.as_ref(), |next, value| {
+                apply(form, setup, &field.edit, |next, value| {
                     if value != shown {
                         next.pages = Some(value.round() as u32);
                     }

@@ -211,10 +211,6 @@ impl<C: Codec + Clone + 'static> Component for TextField<'_, C> {
         Sense::CLICK | Sense::FOCUS | Sense::TAKE_FOCUS
     }
 
-    fn parts_follow_value(&self) -> bool {
-        self.search
-    }
-
     /// The text, and the room the adornments take; a search field keeps the room of its clear button while the text is
     /// empty, so the field does not change width as the button comes and goes.
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
