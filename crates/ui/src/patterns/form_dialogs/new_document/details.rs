@@ -294,7 +294,6 @@ fn save_row(ui: &mut Ui, session: &mut Session, read: &Read<'_>, right: &mut Rig
         session.name_tried = false;
         session.focus_preset_name = true;
     }
-    eprintln!("DBG click={dbg_click:?} naming={:?} focus={}", session.naming, session.focus_preset_name);
     let Some(name) = session.naming.clone() else { return };
     let tried = session.name_tried;
     let library = read.library;
