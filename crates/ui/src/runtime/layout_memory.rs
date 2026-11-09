@@ -44,6 +44,15 @@ pub(crate) struct Measured {
     pub took: Vec2,
 }
 
+impl Measured {
+    /// Whether this record serves a run offered `now` along one axis, where it was offered `was` and what it measures
+    /// took `took`: the rooms are equal (within `tolerance`), or the axis is not `given`, the old room did not bound
+    /// what it took and it fits the room now. The one reuse rule for every record of this pass.
+    pub(crate) fn serves(now: f32, was: f32, given: bool, took: f32, tolerance: f32) -> bool {
+        now == was || (now - was).abs() <= tolerance || (!given && took < was - tolerance && took <= now + tolerance)
+    }
+}
+
 #[derive(Default)]
 struct Entries {
     entries: HashMap<Id, Entry>,

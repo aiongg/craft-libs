@@ -18,6 +18,7 @@ use crate::runtime::env::{AppValues, ArenaId, Env, ItemFacts};
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::{focus, frame, layout_memory, overlay, wheel};
 use crate::style::{StyleCx, scroll_bar_look};
+use craft_behavior::layout_memory::measure_tolerance;
 use craft_behavior::{
     Axis, ColumnKey, EditEvent, Flow, GestureId, Granularity, Intent, ItemLayout, ItemSource, Mixed, MoveMods, NavMove, NavState, NavStep, Outline,
     PressPhase, Proposal, ScrollPos, ScrollSpan, SelectionChange, SelectionModel, Sense, TypeAhead, WheelTaker, nav,
@@ -225,7 +226,7 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
     }
 
     /// Builds the rows once to measure the widest and records it under `sub(id, "widest")` for `extent`, when this
-    /// pass's width comes from the rows and no measuring run has recorded it yet.
+    /// pass's width comes from the rows and no record of this pass serves the room (`Measured::serves`).
     fn record_widest(&mut self, comp: &C, at: &Measuring<'_, '_>, id: Id) {
         let ctx = at.ui.ctx();
         let room = match at.at {
@@ -236,7 +237,11 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
             return;
         }
         let key = sub(id, "widest");
-        if layout_memory::measured(ctx, key).is_some() {
+        let tolerance = measure_tolerance(crate::runtime::egui::scale::pixels_per_point(ctx));
+        // The collection's width comes from its rows here: it is not given the width.
+        if layout_memory::measured(ctx, key)
+            .is_some_and(|found| layout_memory::Measured::serves(room.x, found.room.x, false, found.took.x, tolerance))
+        {
             return;
         }
         self.header.measure(at.scx);

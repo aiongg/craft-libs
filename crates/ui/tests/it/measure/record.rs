@@ -1,12 +1,13 @@
 //! A container's sizes come from this pass's measuring run: it measures its contents once per frame, before its real
 //! run, and the containers inside it reuse what that run recorded.
 
-use craft_ui::contract::{Props as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use craft_ui::display::Text;
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::sections::Section;
 use craft_ui::testing::layout::Block;
 use craft_ui::testing::{Fixture, Frames, measuring_runs, trial};
+use craft_ui::text::TextField;
 use egui::{Rect, Ui, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -154,4 +155,48 @@ fn a_six_deep_nest_runs_each_container_once_measuring_and_once_real() {
     assert!(runs.len() >= 6 && runs.iter().all(|(_, count)| *count == 1), "one measuring run per container: {runs:?}");
     // The outermost closure runs outside any container; every other one runs in one measuring run and one real run.
     assert_eq!(calls.borrow()[..5], [2; 5], "each container's contents run twice: {calls:?}");
+}
+
+/// Runs `show` until it settles, then one more frame: the measuring runs of that frame, by body.
+fn runs_of_a_settled_frame(mut show: impl FnMut(&mut Ui)) -> Vec<(egui::Id, u32)> {
+    let mut frames = Frames::new();
+    frames.idle(3, &mut show);
+    let passes = frames.frame(vec![], &mut show);
+    assert_eq!(passes, 1);
+    measuring_runs(&frames.ctx)
+}
+
+/// A content-sized section after a fill leaf in a given-width row is measured at the room it gets, so neither it nor
+/// the stacks inside it measure again in the real run.
+#[trial]
+fn a_section_after_a_fill_leaf_measures_once() {
+    let mut text = String::new();
+    let runs = runs_of_a_settled_frame(|ui| {
+        Row::new().fill().show(ui, |ui, _| {
+            let _ = TextField::new("Name", Bind::bound(&mut text)).show(ui);
+            Section::fixed("S").id_salt("section").show(ui, |ui, _| {
+                Stack::new().show(ui, |ui, _| {
+                    Stack::new().show(ui, |ui, _| Text::new("Inside").show(ui));
+                });
+            });
+        });
+    });
+    assert!(runs.len() >= 4, "every body measured: {runs:?}");
+    assert!(runs.iter().all(|(_, count)| *count == 1), "one measuring run per body: {runs:?}");
+}
+
+/// A fill-width stack sharing a given-width row with a fixed sibling is measured at its share, so it does not measure
+/// again in the real run.
+#[trial]
+fn a_fill_width_stack_beside_a_fixed_sibling_measures_once() {
+    let runs = runs_of_a_settled_frame(|ui| {
+        Row::new().fill().show(ui, |ui, _| {
+            Stack::new().fill_width().show(ui, |ui, _| {
+                Stack::new().show(ui, |ui, _| Text::new("Inside").show(ui));
+            });
+            Block::new(Vec2::new(80.0, 24.0)).show(ui);
+        });
+    });
+    assert!(runs.len() >= 3, "every body measured: {runs:?}");
+    assert!(runs.iter().all(|(_, count)| *count == 1), "one measuring run per body: {runs:?}");
 }

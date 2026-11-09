@@ -1090,9 +1090,7 @@ impl<'b> BodyHooks<'b> {
             |key: &str, has: bool| if has { layout_memory::measured(ctx, sub(id, key)).map_or(Vec2::ZERO, |region| region.took) } else { Vec2::ZERO };
         let (header, footer, end) =
             (region("header", props.header.is_some()), region("footer", props.footer.is_some()), region("end", props.end.is_some()));
-        let fits = |now: f32, was: f32, given: bool, took: f32| {
-            now == was || (now - was).abs() <= tolerance || (!given && took < was - tolerance && took <= now + tolerance)
-        };
+        let fits = |now: f32, was: f32, given: bool, took: f32| layout_memory::Measured::serves(now, was, given, took, tolerance);
         let full = self.regions_size(props, body.took, header, footer, end) + pad;
         if !(fits(self.room.x, body.room.x, self.given.0, full.x) && fits(self.room.y, body.room.y, self.given.1, full.y)) {
             return None;
