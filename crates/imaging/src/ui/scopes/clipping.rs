@@ -168,7 +168,7 @@ impl Component for ClipWarning<'_> {
     }
 
     fn sense(&self) -> Sense {
-        Sense::CLICK | Sense::FOCUS
+        Sense::CLICK | Sense::FOCUS | Sense::TAKE_FOCUS
     }
 
     fn bind(&mut self) -> Option<BindMut<'_, bool>> {
