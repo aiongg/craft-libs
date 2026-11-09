@@ -261,3 +261,37 @@ fn a_click_opens_a_select_and_a_click_on_a_row_picks_it() {
     assert_eq!(value.get(), 1, "a click on a row picks it");
     assert!(fixture.by_role(Role::LIST_BOX).is_empty(), "the pick closes the list");
 }
+
+/// A select beside the options of a two-valued radio group (a `bool` value, off) opens and picks by click: the group's
+/// value is no gate on its content.
+#[trial]
+fn a_select_in_a_radio_option_s_field_group_picks_by_click() {
+    use craft_ui::choice::{Radio, RadioGroup};
+    use craft_ui::form::FieldGroup;
+    use craft_ui::layout_components::Row;
+    let value = Rc::new(Cell::new(0u8));
+    let shown = value.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let entries = [Entry::new(0u8, "Blue"), Entry::new(1, "Red"), Entry::new(2, "Green")];
+        FieldGroup::new("Filter").show(ui, |ui, _| {
+            RadioGroup::new("Filter", Bind::given(false)).show(ui, |ui, _| {
+                Field::new("Preset").id_salt("preset").show(ui, |ui, _| {
+                    Row::new().show(ui, |ui, _| {
+                        Radio::new(false).label("Preset").show(ui);
+                        let mut color = shown.get();
+                        Select::new("Preset", Bind::bound(&mut color), &entries).id_salt("select").show(ui);
+                        shown.set(color);
+                    });
+                });
+            });
+        });
+    });
+    fixture.settle();
+    let select = fixture.by_role(Role::COMBO_BOX).into_iter().next().expect("the select is shown");
+    fixture.click(&select);
+    assert!(!fixture.by_role(Role::LIST_BOX).is_empty(), "a click opens the list");
+    let red = fixture.by_label("Red").expect("the open list shows its rows");
+    fixture.click(&red);
+    fixture.idle(FADE_FRAMES);
+    assert_eq!(value.get(), 1, "a click on a row picks it");
+}
