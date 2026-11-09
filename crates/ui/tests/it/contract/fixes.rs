@@ -150,6 +150,7 @@ fn hooks_run_in_pipeline_order_with_the_body_between_paint_and_paint_over() {
         "the real run"
     );
     let mut order = ["content_env", "body", "measure"].into_iter();
+    assert!(!measured.borrow().is_empty(), "the measuring run called the hooks");
     assert!(
         measured.borrow().iter().all(|call| order.any(|allowed| allowed == *call)),
         "a measuring run calls only content_env, body, measure, in this order: {:?}",

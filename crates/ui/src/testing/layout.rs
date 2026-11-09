@@ -16,7 +16,7 @@ pub fn body(ui: &mut Ui, key: &'static str, layout: &BodyLayout, sizes: &[Vec2])
     let id = sub(ui.scope_id(), key);
     let place = |ui: &mut Ui| sizes.iter().map(|size| place_in_flow(ui, *size)).collect::<Vec<_>>();
     let builder = egui::UiBuilder::new().max_rect(ui.available_rect_before_wrap()).sizing_pass().invisible();
-    ui.scope_builder(builder, |ui| run_body(ui, id, layout, Vec2::ZERO, place));
+    crate::runtime::measure::run(&ui.ctx().clone(), || ui.scope_builder(builder, |ui| run_body(ui, id, layout, Vec2::ZERO, place)));
     run_body(ui, id, layout, Vec2::ZERO, place)
 }
 

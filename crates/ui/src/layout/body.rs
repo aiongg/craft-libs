@@ -109,7 +109,7 @@ pub(crate) fn main_fill(ui: &Ui, axis: Axis) -> MainFill {
     if let Some(share) = env.fill_share {
         return MainFill::Share(share);
     }
-    if ui.is_sizing_pass() {
+    if measure::active(ui.ctx()) {
         Service::<FillCounts>::of(ui.ctx()).with(|counts| *counts.0.entry(body).or_insert(0) += 1);
         return MainFill::Measuring;
     }
@@ -127,7 +127,7 @@ pub(crate) fn fill_share(ui: &Ui, axis: Axis) -> Option<f32> {
 /// `axis` is only counted there, and its contents run in the second sweep, at its share.
 pub(crate) fn counting_fills(ui: &Ui, axis: Axis) -> bool {
     let env = Env::of(ui);
-    ui.is_sizing_pass() && env.fill_body.is_some_and(|(_, along)| along == axis) && env.fill_share.is_none()
+    measure::active(ui.ctx()) && env.fill_body.is_some_and(|(_, along)| along == axis) && env.fill_share.is_none()
 }
 
 /// Runs `body` as the content of the `Stack` (along y) or unwrapped `Row` (along x) body `id` in `ui`, the block
@@ -158,7 +158,7 @@ fn run_sharing<R>(ui: &mut Ui, id: Id, axis: Axis, layout: egui::Layout, mut bod
         Env::restore(&ctx, installed);
         inner
     };
-    if !ui.is_sizing_pass() {
+    if !measure::active(&ctx) {
         let (result, _) = child::block(ui, None, layout, |ui| {
             let room = along(ui.available_rect_before_wrap().size());
             let share = layout_memory::measured(&ctx, key)
@@ -329,7 +329,7 @@ fn row_id(grid: Id, index: usize) -> Id {
 }
 
 /// What the grid measured in this pass's measuring run.
-fn last_measure(ctx: &egui::Context, sizing: bool, grid: Id, columns: usize) -> GridMeasure {
+fn measured_tracks(ctx: &egui::Context, sizing: bool, grid: Id, columns: usize) -> GridMeasure {
     let rows = this_pass(ctx, sizing, sub(grid, "rows")).map_or(0, |count| count.x as usize);
     GridMeasure::new(
         (0..columns).map(|i| this_pass(ctx, sizing, column_id(grid, i)).map_or(0.0, |size| size.x)).collect(),
@@ -365,7 +365,7 @@ pub(crate) fn run_body<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap: Vec2, b
 pub(crate) fn run_body_measured<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap: Vec2, mut body: impl FnMut(&mut Ui) -> R) -> (R, Option<f32>) {
     let rtl = Env::of(ui).direction.is_rtl();
     let ctx = ui.ctx().clone();
-    let sizing = ui.is_sizing_pass();
+    let sizing = measure::active(&ctx);
     match layout {
         BodyLayout::Stack => (run_sharing(ui, id, Axis::Y, child::column_layout(rtl), body), None),
         BodyLayout::Row { wrap: false, align: RowAlign::SpaceBetween } => {
@@ -424,7 +424,7 @@ pub(crate) fn run_body_measured<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap
         }
         BodyLayout::Grid { columns } => {
             let inner = child::block(ui, None, child::column_layout(rtl), |ui| {
-                let last = last_measure(&ctx, sizing, id, columns.len());
+                let last = measured_tracks(&ctx, sizing, id, columns.len());
                 let content_run = measure::active(&ctx) && Env::of(ui).content.0;
                 // A measuring run under a body sized from its content gives each fill column the width its cells
                 // take, as a content column: the room it would share is not the body's to claim.
