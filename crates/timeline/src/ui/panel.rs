@@ -511,7 +511,7 @@ impl<M: TimelineModel> Timeline<'_, M> {
                             None => strip,
                         };
                         let strip = strip.show(ui);
-                        ruler_edits.extend(strip.span.event.clone().map(TimelineEdit::MarkerSpan));
+                        ruler_edits.extend(strip.span.map(TimelineEdit::MarkerSpan));
                         ruler_edits.extend(strip.edits.into_iter().map(TimelineEdit::Marker));
                         let ruler = TimelineRuler::new(words.overview.clone(), Bind::given(playhead)).in_out((mark_in, mark_out));
                         let ruler = match work_area {

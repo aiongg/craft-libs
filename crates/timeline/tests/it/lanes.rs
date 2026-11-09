@@ -3,7 +3,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use craft_behavior::{Selection, SelectionChange};
+use craft_behavior::{EditEvent, Selection, SelectionChange};
 use craft_timeline::ui::{
     KeyframeId, KeyframeInterpolation, KeyframeLane, KeyframeMark, KeyframeNavigator, LabelPalette, MarkerEdit, MarkerStrip, OverviewRun,
     ThumbnailMode, TimelineOverview, TimelineView, overview_runs, thumbnail_tiles,
@@ -130,7 +130,7 @@ fn lane_in(bounds: Option<TimeRange>, playhead: Tick) -> (Fixture, Rc<RefCell<Se
                     _ => seen.selection = Selection::default(),
                 }
             }
-            if let Some(&delta) = out.delta.value() {
+            if let Some(&delta) = out.delta.as_ref().and_then(EditEvent::value) {
                 seen.deltas.push(delta);
             }
             seen.deleted |= out.delete;
@@ -216,7 +216,7 @@ fn strip() -> (Fixture, Rc<RefCell<Strip>>) {
             .inner;
         if let Some(out) = out {
             seen.edits.extend(out.edits);
-            if let Some(span) = out.span.value() {
+            if let Some(span) = out.span.as_ref().and_then(EditEvent::value) {
                 seen.moved.push(span.start);
             }
         }

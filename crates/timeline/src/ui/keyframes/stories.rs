@@ -1,8 +1,7 @@
 //! Stories of the keyframe lane, the keyframe navigator and the animation toggle.
 
 use craft_behavior::Selection;
-use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
-use craft_ui::runtime::env::Message;
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
@@ -30,9 +29,6 @@ fn keys() -> Vec<KeyframeMark> {
     ]
 }
 
-/// The farthest the invalid story lets the keys move, in seconds.
-const FARTHEST_SECONDS: f64 = 2.0;
-
 /// The view a story starts from.
 fn start_view() -> TimeView {
     TimeView::new(Tick::ZERO, POINTS_PER_SECOND)
@@ -58,21 +54,7 @@ fn selected() -> Selection<KeyframeId> {
 fn linear_hold_and_bezier_keys(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let (keys, selection) = (keys(), selected());
     let mut view = *data.value("view", start_view());
-    let delta = data.value("delta", Tick::ZERO);
-    let shown = in_view(ui, &mut view, || KeyframeLane::new("Keyframes", &keys, &selection).playhead(seconds(4.0)).delta(Bind::bound(delta)));
-    *data.value("view", start_view()) = view;
-    shown
-}
-
-#[story(KeyframeLane<'static>, covers = [Invalid], drive = Drive::Never)]
-fn keys_moved_past_the_limit(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let (keys, selection) = (keys(), selected());
-    let mut view = *data.value("view", start_view());
-    let delta = data.value("far", seconds(FARTHEST_SECONDS + 1.0));
-    let not_too_far = |delta: &Tick| {
-        if *delta > seconds(FARTHEST_SECONDS) { Validity::Refuse(Message::new("The keys cannot move that far")) } else { Validity::Ok }
-    };
-    let shown = in_view(ui, &mut view, || KeyframeLane::new("Keyframes", &keys, &selection).delta(Bind::bound(delta).check(not_too_far)));
+    let shown = in_view(ui, &mut view, || KeyframeLane::new("Keyframes", &keys, &selection).playhead(seconds(4.0)));
     *data.value("view", start_view()) = view;
     shown
 }
