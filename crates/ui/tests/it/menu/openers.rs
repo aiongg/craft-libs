@@ -249,11 +249,7 @@ fn a_menu_taller_than_either_side_of_its_opener_stays_on_one_side_and_scrolls_to
     let menu = menu_rect(&fixture).expect("a press on the button opens the menu");
     let room = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0));
     assert!(room.contains_rect(menu), "the menu {menu:?} stays inside the room");
-    assert!(
-        menu.bottom() <= button.rect.top() + 0.5 || menu.top() >= button.rect.bottom() - 0.5,
-        "the menu {menu:?} leaves the opener {:?} uncovered",
-        button.rect
-    );
+    assert!(!menu.intersect(button.rect).is_positive(), "the menu {menu:?} leaves the opener {:?} uncovered", button.rect);
     for _ in 0..16 {
         fixture.key(Key::ArrowDown, Modifiers::NONE);
         fixture.settle();
