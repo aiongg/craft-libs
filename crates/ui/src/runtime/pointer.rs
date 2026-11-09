@@ -117,7 +117,8 @@ pub(crate) fn begin(ctx: &Context, hit: HitSizes) {
     }
     let wheel = input::wheel_read(ctx, WHEEL_LINE_POINTS, WHEEL_PAGE_POINTS);
     let hits = input::hit_targets(ctx);
-    let middle_pressed = read.events.iter().any(|event| matches!(event, PointerEvent::Pressed { button: PointerButton::Middle, .. }));
+    let other_pressed =
+        read.events.iter().any(|event| matches!(event, PointerEvent::Pressed { button: PointerButton::Middle | PointerButton::Secondary, .. }));
     let (events, targets) = PerViewport::<Memory>::with(ctx, viewport, |memory| {
         let mut events = read.events.clone();
         for event in &mut events {
@@ -126,7 +127,7 @@ pub(crate) fn begin(ctx: &Context, hit: HitSizes) {
                 memory.last_press = Some((*pos, *time, *clicks));
             }
         }
-        if read.primary_pressed || middle_pressed {
+        if read.primary_pressed || other_pressed {
             memory.press_targets = PressTargets { click: hits.0, drag: hits.1 };
         }
         (events, memory.press_targets)

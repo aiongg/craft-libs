@@ -252,9 +252,8 @@ impl WideAngleWorkspace {
             Step::Redo => self.history.can_redo(),
             _ => false,
         };
-        if can {
-            self.steps.push(step);
-        }
+        // The body ends a drag in its own pass, so a step is queued even when there is nothing to undo.
+        self.steps.push(step);
         can
     }
 

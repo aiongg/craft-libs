@@ -3,15 +3,18 @@
 
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::time::Duration;
 
 use craft_behavior::PixelSize;
 use craft_behavior::edit_history::Step;
 use craft_behavior::kurbo::Point;
+use craft_host::{AppInfo, Host, ManualJobs};
 use craft_imaging::ui::wide_angle::{
     ConstraintOrientation, PreviewDone, WideAngleConstraint, WideAngleGeometry, WideAngleOpen, WideAngleSession, WideAngleSource, WideAngleWorkspace,
 };
 use craft_ui::canvas::{PixelRect, RasterSource};
+use craft_ui::contract::Role;
 use craft_ui::primitives::Revision;
 use craft_ui::runtime::pending::Job;
 use craft_ui::testing::relations::equals_token;
@@ -97,6 +100,8 @@ struct App {
     sources: Sources,
     timing: Option<Duration>,
     closed: bool,
+    /// The preview job waits here until a trial runs it.
+    jobs: Arc<ManualJobs>,
 }
 
 fn line(a: [f64; 2], b: [f64; 2]) -> WideAngleConstraint {
@@ -110,15 +115,18 @@ fn fixture(constraints: Vec<WideAngleConstraint>) -> (Fixture, Rc<RefCell<App>>)
         sources: Sources { source: Grey(1), corrected: Grey(2) },
         timing: None,
         closed: false,
+        jobs: Arc::new(ManualJobs::new()),
     }));
     let shared = app.clone();
+    let jobs = app.borrow().jobs.clone();
     let mut fixture = Fixture::new(move |ui| {
         let mut app = shared.borrow_mut();
-        let App { workspace, sources, timing, closed } = &mut *app;
+        let App { workspace, sources, timing, closed, .. } = &mut *app;
         let out = workspace.show(ui, &Lines, sources);
         *timing = out.timing.or(*timing);
         *closed |= out.closed.is_some();
     });
+    fixture.host(Arc::new(Host::builder(AppInfo { id: "trial", name: "Trial", version: "0" }).jobs(jobs).build()));
     fixture.room(along(900.0, 600.0));
     fixture.settle();
     (fixture, app)
@@ -185,10 +193,11 @@ fn the_context_menu_changes_a_constraints_orientation_or_deletes_it() {
 
     let away = screen(&fixture, &app, [200.0, 40.0]);
     right_click(&mut fixture, away);
-    assert!(fixture.by_label("Horizontal").is_none(), "no menu away from a constraint");
+    assert!(fixture.by_role(Role::MENU).is_empty(), "no menu away from a constraint");
 
     right_click(&mut fixture, on_line);
-    let Some(delete) = fixture.by_label("Delete") else { panic!("the menu offers Delete") };
+    // The panel's constraint rows have a Delete button too: the menu's is its last row.
+    let Some(delete) = fixture.by_role(Role::MENU_ITEM).pop() else { panic!("the menu offers Delete") };
     fixture.click(&delete);
     fixture.idle(2);
     assert!(constraints(&app).is_empty());
@@ -205,7 +214,7 @@ fn preview_off_shows_the_source_and_the_curves_as_arcs() {
     fixture.idle(2);
     // With Preview off the curve is the source's arc: a right-click on it opens the menu.
     right_click(&mut fixture, unmapped);
-    assert!(fixture.by_label("Horizontal").is_some(), "the arc is where the source shows it");
+    assert!(!fixture.by_role(Role::MENU).is_empty(), "the arc is where the source shows it");
 }
 
 #[trial]
@@ -266,6 +275,8 @@ fn a_tool_switch_during_a_drag_cancels_the_drag() {
 fn the_output_reports_the_previews_timing() {
     let (mut fixture, app) = fixture(Vec::new());
     assert_eq!(app.borrow().timing, None, "nothing reported before the job runs");
+    let jobs = app.borrow().jobs.clone();
+    assert_eq!(jobs.run_all(), 1, "one preview job waits");
     fixture.idle(10);
     assert_eq!(app.borrow().timing, Some(Duration::from_millis(42)), "the finished preview job reports its time");
 }
