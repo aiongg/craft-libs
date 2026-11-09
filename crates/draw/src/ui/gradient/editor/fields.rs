@@ -138,7 +138,7 @@ pub(super) fn stop_color(stops: &GradientStops, rows: StopRows, i: usize) -> Srg
 }
 
 /// One `Set` of the stops, replacing `before`.
-fn set_event(ui: &Ui, before: &GradientStops, after: GradientStops, name: &str) -> EditEvent<GradientStops> {
+fn set_event(before: &GradientStops, after: GradientStops, name: &str) -> EditEvent<GradientStops> {
     EditEvent::set(Mixed::Same(before.clone()), after, Arc::from(name), None)
 }
 
@@ -296,7 +296,7 @@ impl Row<'_, '_> {
             && let Some((out, j)) = stops::remove(now, row, i, self.rules)
         {
             report.select = Some(Some(StopRef::stop(row, j)));
-            report.events.push(set_event(ui, now, out, self.words.delete.as_str()));
+            report.events.push(set_event(now, out, self.words.delete.as_str()));
         }
     }
 
