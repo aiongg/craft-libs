@@ -287,8 +287,8 @@ fn the_add_constraint_form_adds_a_constraint() {
     let Some(add) = fixture.by_label("Add Constraint…") else { panic!("the panel has the Add button") };
     fixture.click(&add);
     fixture.idle(3);
-    assert!(fixture.by_label("Start").is_some(), "the form opens");
-    fixture.key(Key::Enter, Modifiers::NONE);
+    let Some(ok) = fixture.by_label("OK").filter(|_| fixture.by_label("Start").is_some()) else { panic!("the form opens with its OK button") };
+    fixture.click(&ok);
     fixture.idle(3);
     let all = constraints(&app);
     let [added] = all.as_slice() else { panic!("one constraint: {all:?}") };

@@ -205,8 +205,6 @@ pub struct WideAngleWorkspace {
     /// The panel's Add button was pressed and the form is not open yet.
     add_requested: bool,
     steps: Vec<Step>,
-    /// A Constraint-tool drag was running as of the last pass: a step ends it even with nothing to undo.
-    dragging: bool,
 }
 
 impl WideAngleWorkspace {
@@ -223,7 +221,6 @@ impl WideAngleWorkspace {
             navigation: NavigationOptions::default(),
             add_requested: false,
             steps: Vec::new(),
-            dragging: false,
         }
     }
 
@@ -255,9 +252,8 @@ impl WideAngleWorkspace {
             Step::Redo => self.history.can_redo(),
             _ => false,
         };
-        if can || self.dragging {
-            self.steps.push(step);
-        }
+        // The body ends a drag in its own pass, so a step is queued even when there is nothing to undo.
+        self.steps.push(step);
         can
     }
 
@@ -283,7 +279,6 @@ impl WideAngleWorkspace {
         let timing = Cell::new(self.timing);
         let zoom_percent = Cell::new(self.zoom_percent);
         let add = Cell::new(self.add_requested);
-        let dragging = Cell::new(false);
         let common = env.words::<CommonWords>();
         let ctx = ui.ctx().clone();
 
@@ -316,7 +311,6 @@ impl WideAngleWorkspace {
                 if ending {
                     end_gesture(&ctx, &mut body, CancelReason::UndoDuringGesture);
                 }
-                dragging.set(body.constraint.dragging());
 
                 let slots: Vec<ToolSlot<WideAngleTool>> =
                     TOOL_SLOT.iter().zip(0..).map(|(&(tool, command), slot)| ToolSlot::new(slot, vec![RailTool::new(tool, command)])).collect();
@@ -445,7 +439,6 @@ impl WideAngleWorkspace {
 
         self.preview_on = preview_on.get();
         self.add_requested = add.get();
-        self.dragging = dragging.get();
         self.timing = timing.get();
         self.zoom_percent = zoom_percent.get();
         for step in steps {
