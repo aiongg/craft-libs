@@ -210,7 +210,7 @@ pub struct HarmonyPicked {
 }
 
 impl HarmonyPicked {
-    /// The chosen colours, in grid order.
+    /// The colours of a selection of two or more cells, in grid order.
     pub fn colors(&self) -> &[Srgba] {
         &self.colors
     }
@@ -345,7 +345,8 @@ impl<'a> HarmonyPanel<'a> {
             let mut cells = selection.items.clone();
             cells.sort_unstable();
             cells.dedup();
-            let colors: Vec<Srgba> = cells.iter().filter_map(|&i| flat.get(i).map(|(_, c)| *c)).collect();
+            // One selected cell is a click that chose its colour; Save Colors as Swatches takes a multi-cell selection.
+            let colors: Vec<Srgba> = if cells.len() > 1 { cells.iter().filter_map(|&i| flat.get(i).map(|(_, c)| *c)).collect() } else { Vec::new() };
             let after_picked = HarmonyPicked { selection, guide: stamp, colors };
             if after_picked != before_picked {
                 held_picked.write(cx, &before_picked, after_picked, words.variations.as_str());
