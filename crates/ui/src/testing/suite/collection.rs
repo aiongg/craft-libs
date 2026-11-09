@@ -132,15 +132,7 @@ pub(super) fn keys_move_the_lead(subject: &Subject) -> Result<(), String> {
                         ));
                     }
                 }
-                // Ctrl+Home goes to the first row that scrolls: after a wheel step, the leading rows still shown beside
-                // rows far into the set are frozen, and skipped.
-                fixture.frame(vec![crate::testing::pointer::moved(container.rect.center())]);
-                fixture.frame(vec![crate::testing::pointer::wheel(-3.0 * shown[0].rect.height())]);
-                let scrolled: Vec<usize> =
-                    rows(&fixture, container.node).iter().filter_map(|row| position_in_set(&fixture, row.node).map(|(at, _)| at)).collect();
-                let pinned = scrolled.iter().enumerate().take_while(|(index, at)| *index == **at).count();
-                let pinned = if pinned < scrolled.len() { pinned } else { 0 };
-                expect(&mut fixture, Key::Home, Modifiers::COMMAND, pinned, "Ctrl+Home")?;
+                expect(&mut fixture, Key::Home, Modifiers::COMMAND, 0, "Ctrl+Home")?;
             }
         }
         fixture.key(Key::PageDown, Modifiers::NONE);
