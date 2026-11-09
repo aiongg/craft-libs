@@ -160,6 +160,34 @@ fn variant(variant: &Variant) -> syn::Result<VariantAttrs> {
     Ok(attrs)
 }
 
+/// The builder calls that carry a variant's icon, kind, modal, paths and aliases.
+fn command_chain(attrs: &VariantAttrs) -> syn::Result<TokenStream> {
+    let mut chain = quote!();
+    if let Some(icon) = &attrs.icon {
+        chain.extend(quote!(.with_icon(#icon)));
+    }
+    match (&attrs.kind, &attrs.group) {
+        (Some(kind), group) => {
+            let kind = kind_tokens(kind, group.as_ref())?;
+            chain.extend(quote!(.with_kind(#kind)));
+        }
+        (None, Some(group)) => return Err(syn::Error::new(group.span(), "`group` needs `kind = \"radio\"` or `kind = \"tool\"`")),
+        (None, None) => {}
+    }
+    if let Some(modal) = &attrs.modal {
+        let modal = modal_tokens(modal)?;
+        chain.extend(quote!(.with_modal(#modal)));
+    }
+    for path in &attrs.paths {
+        let segments = path.value().split('/').map(str::to_owned).collect::<Vec<_>>();
+        chain.extend(quote!(.with_path(::std::vec![#(::std::string::String::from(#segments)),*])));
+    }
+    for alias in &attrs.aliases {
+        chain.extend(quote!(.with_alias(#alias)));
+    }
+    Ok(chain)
+}
+
 pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
     let input: DeriveInput = syn::parse2(input)?;
     let ident = &input.ident;
@@ -198,30 +226,8 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
         if ids.contains(&id) {
             return Err(syn::Error::new_spanned(v, format!("two variants make the command id `{id}`")));
         }
+        let chain = command_chain(&attrs)?;
         let label = attrs.label.ok_or_else(|| syn::Error::new_spanned(v, "a command has a label: `#[command(label = \"..\")]`"))?;
-        let mut chain = quote!();
-        if let Some(icon) = &attrs.icon {
-            chain.extend(quote!(.with_icon(#icon)));
-        }
-        match (&attrs.kind, &attrs.group) {
-            (Some(kind), group) => {
-                let kind = kind_tokens(kind, group.as_ref())?;
-                chain.extend(quote!(.with_kind(#kind)));
-            }
-            (None, Some(group)) => return Err(syn::Error::new(group.span(), "`group` needs `kind = \"radio\"` or `kind = \"tool\"`")),
-            (None, None) => {}
-        }
-        if let Some(modal) = &attrs.modal {
-            let modal = modal_tokens(modal)?;
-            chain.extend(quote!(.with_modal(#modal)));
-        }
-        for path in &attrs.paths {
-            let segments = path.value().split('/').map(str::to_owned).collect::<Vec<_>>();
-            chain.extend(quote!(.with_path(::std::vec![#(::std::string::String::from(#segments)),*])));
-        }
-        for alias in &attrs.aliases {
-            chain.extend(quote!(.with_alias(#alias)));
-        }
         let mut defaults = Vec::new();
         for text in &attrs.defaults {
             defaults.push(quote! {

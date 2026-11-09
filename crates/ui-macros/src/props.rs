@@ -215,10 +215,10 @@ fn forwarders(field: &Field, attr: &Attribute, owner: &str, list: &[Forwarded]) 
             format!("`#[{}]` is for a field of type `{owner}`", attr.path().get_ident().map_or_else(String::new, ToString::to_string)),
         ));
     }
-    if let Some(only) = &only {
-        if let Some(unknown) = only.iter().find(|name| !list.iter().any(|(listed, ..)| name.is_ident(listed))) {
-            return Err(syn::Error::new_spanned(unknown, format!("`{owner}` forwards no builder of this name")));
-        }
+    if let Some(only) = &only
+        && let Some(unknown) = only.iter().find(|name| !list.iter().any(|(listed, ..)| name.is_ident(listed)))
+    {
+        return Err(syn::Error::new_spanned(unknown, format!("`{owner}` forwards no builder of this name")));
     }
     list.iter()
         .filter(|(name, ..)| only.as_ref().is_none_or(|only| only.iter().any(|picked| picked.is_ident(name))))
