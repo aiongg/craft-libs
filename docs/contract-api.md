@@ -2200,6 +2200,7 @@ Chapter 15: the `Overlay` data, its presets, popup handles, `OverlayUi` and the 
   - `pub fn open<C: Component>(self, cx: &mut Cx<'_, C>)`. Queues an open that step 15 writes. For `Trigger::Manual` this and the binding are the only ways it opens.
   - `pub fn close<C: Component>(self, cx: &mut Cx<'_, C>)`. Queues a close; step 15 writes the slot, so this pass still shows the popup open.
   - `pub fn changed<C: Component>(self, cx: &mut Cx<'_, C>) -> bool`. Whether a toggle, `open` or `close` queued in this pass leaves the popup's open state different from the
+  - `pub fn bind_open<C: Component>(self, cx: &mut Cx<'_, C>, mut open: BindMut<'_, bool>) -> bool`. Binds the popup's open state to `open`: call it in `update`, after the toggles and closes the component
   - `pub fn is_open<C: Component>(self, cx: &mut Cx<'_, C>) -> bool`. Whether the popup is open in this pass: valid from step 8, with the changes queued so far applied.
 - `craft_ui::contract::overlay::Resize`: `pub struct Resize { pub grips: bool }`. How the user may resize a layer.
   - `pub const NONE: Resize`. The layer keeps its size.
@@ -3716,7 +3717,6 @@ Text dumps for tests: ordered `key = value` lines compared exactly with a file, 
   - `pub fn by_role(&self, role: Role) -> Vec<Target>`. The nodes of `role` in tree order.
   - `pub fn part(&self, component: Id, part: impl Into<PartRef>) -> Option<Target>`. The sub-node of `part` below the component `component`.
   - `pub fn part_rect(&self, owner: Id, part: impl Into<PartRef>) -> Option<Rect>`. The rect of the part `part` of the component `owner` as the sensing step recorded it, for parts that have no
-  - `pub fn node_of(&self, component: Id) -> Option<Target>`. The node of the component `component`.
   - `pub fn click(&mut self, target: &Target) -> &mut Self`. Hover, press and release on `target`, in separate frames, then one idle frame.
   - `pub fn click_at(&mut self, pos: Pos2) -> &mut Self`. Hover, press and release at `pos`, in separate frames, then one idle frame.
   - `pub fn hold(&mut self, modifiers: Modifiers) -> &mut Self`. The modifiers held in every following frame, until the next call. A key sent while they are held carries
