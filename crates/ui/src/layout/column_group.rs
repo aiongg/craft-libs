@@ -20,8 +20,9 @@ pub(crate) const GLYPHS: ColumnKey = ColumnKey::new("glyphs");
 struct Open(Vec<Frame>);
 
 enum Frame {
-    /// A group: rows report their widths and read the widest of last pass.
-    Group { id: Id, widest: HashMap<ColumnKey, f32>, room: Option<f32> },
+    /// A group: rows report their widths and read the widest this pass found. `beyond` is, per column, the widest a
+    /// row that sits beside its label in a content-sized column reaches past the column: the gap and its control.
+    Group { id: Id, widest: HashMap<ColumnKey, f32>, beyond: HashMap<ColumnKey, f32>, room: Option<f32> },
     /// No group: rows inside read none, whatever group is open outside.
     Barrier,
 }
@@ -34,19 +35,35 @@ pub struct ColumnGroup {
 }
 
 impl ColumnGroup {
-    /// Runs `rows` with a group named `key` under `ui`. The widths each row reported are recorded when it ends.
+    /// Runs `rows` with a group named `key` under `ui`. A measuring run records the widest width per column the rows
+    /// reported, and a real run's rows read it.
     pub fn scope<R>(ui: &mut Ui, key: impl Hash + Debug, rows: impl FnOnce(&mut Ui, &mut ColumnGroup) -> R) -> R {
+        Self::scope_measured(ui, key, rows).0
+    }
+
+    /// `scope`, with the width the group's rows take in a measuring run once every row has reported: the widest
+    /// column and what the rows beside it reach past it. Only the end of the scope knows the widest column, so a
+    /// row that ran before the widest one measured against a narrower column than the real run gives it.
+    pub(crate) fn scope_measured<R>(ui: &mut Ui, key: impl Hash + Debug, rows: impl FnOnce(&mut Ui, &mut ColumnGroup) -> R) -> (R, Option<f32>) {
         let ctx = ui.ctx().clone();
         let id = sub(ui.scope_id(), key);
-        Service::<Open>::run(&ctx, |open| open.0.push(Frame::Group { id, widest: HashMap::new(), room: None }));
+        Service::<Open>::run(&ctx, |open| open.0.push(Frame::Group { id, widest: HashMap::new(), beyond: HashMap::new(), room: None }));
         let mut group = ColumnGroup { id, ctx: ctx.clone() };
         let result = rows(ui, &mut group);
-        if let Some(Frame::Group { id, widest, .. }) = Service::<Open>::run(&ctx, |open| open.0.pop()) {
-            for (column, width) in &widest {
-                layout_memory::record(&ctx, sub(id, column), Vec2::new(*width, 0.0));
+        let Some(Frame::Group { id, widest, beyond, .. }) = Service::<Open>::run(&ctx, |open| open.0.pop()) else { return (result, None) };
+        if !ui.is_sizing_pass() {
+            return (result, None);
+        }
+        let mut extent = None::<f32>;
+        for (column, width) in &widest {
+            // A row whose record a later sweep reused reports nothing there, so the widest of the pass stands.
+            let width = column_width(&ctx, id, column).map_or(*width, |found| found.max(*width));
+            layout_memory::record_measured(&ctx, sub(id, column), layout_memory::Measured { room: Vec2::ZERO, took: Vec2::new(width, 0.0) });
+            if let Some(past) = beyond.get(column) {
+                extent = Some(extent.unwrap_or(0.0).max(width + past));
             }
         }
-        result
+        (result, extent)
     }
 
     /// Runs `rows` with no group open: a labelled row inside reads no column, so only the rows that sit directly in a
@@ -73,8 +90,8 @@ impl ColumnGroup {
         });
     }
 
-    /// The width every row gives column `column`: the widest content of last pass. `content` is this row's own
-    /// width, kept for the next pass.
+    /// The width every row gives column `column`: the widest content this pass's measuring run found, or in that run
+    /// the widest so far. `content` is this row's own width.
     pub fn width(&mut self, ui: &Ui, column: &ColumnKey, content: f32) -> f32 {
         debug_assert!(ui.ctx() == &self.ctx, "a column group is used in the context that opened it");
         shared_width(&self.ctx, self.id, column, content)
@@ -100,16 +117,32 @@ pub(crate) fn ambient_room(ctx: &Context) -> Option<f32> {
     })
 }
 
-fn shared_width(ctx: &Context, group: Id, column: &ColumnKey, content: f32) -> f32 {
+/// Reports that a row beside its label in column `column` of the innermost open group, in a content-sized column,
+/// reaches `past` beyond the column: the gap and its control. Nothing happens where no group is open or a barrier is.
+pub(crate) fn report_beyond(ctx: &Context, column: &ColumnKey, past: f32) {
     Service::<Open>::run(ctx, |open| {
-        let found = open.0.iter_mut().rev().find_map(|frame| match frame {
-            Frame::Group { id, widest, .. } if *id == group => Some(widest),
-            _ => None,
-        });
-        if let Some(widest) = found {
-            let widest = widest.entry(column.clone()).or_insert(0.0);
-            *widest = widest.max(content);
+        if let Some(Frame::Group { beyond, .. }) = open.0.last_mut() {
+            let widest = beyond.entry(column.clone()).or_insert(0.0);
+            *widest = widest.max(past);
         }
     });
-    layout_memory::read(ctx, sub(group, column)).map_or(0.0, |size| size.x)
+}
+
+fn shared_width(ctx: &Context, group: Id, column: &ColumnKey, content: f32) -> f32 {
+    let so_far = Service::<Open>::run(ctx, |open| {
+        let widest = open.0.iter_mut().rev().find_map(|frame| match frame {
+            Frame::Group { id, widest, .. } if *id == group => Some(widest),
+            _ => None,
+        })?;
+        let widest = widest.entry(column.clone()).or_insert(0.0);
+        *widest = widest.max(content);
+        Some(*widest)
+    })
+    .unwrap_or(content);
+    column_width(ctx, group, column).map_or(so_far, |found| found.max(so_far))
+}
+
+/// The widest width of `column` a measuring run of this pass recorded for `group`.
+fn column_width(ctx: &Context, group: Id, column: &ColumnKey) -> Option<f32> {
+    layout_memory::measured(ctx, sub(group, column)).map(|found| found.took.x)
 }
