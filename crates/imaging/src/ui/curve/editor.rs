@@ -7,7 +7,7 @@ use super::words::CurveWords;
 use crate::ui::histogram::HistogramData;
 use craft_behavior::{EditEvent, Mixed};
 use craft_ui::choice::Checkbox;
-use craft_ui::contract::{Bind, BodyCx, EditResponse, Outcome, Pattern, Props, Remember as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, BodyCx, EditResponse, Outcome, Pattern, Props, Remember as _, Show as _, ShowContainer as _, Sizing};
 use craft_ui::display::{Shade, Text};
 use craft_ui::form::Field;
 use craft_ui::layout_components::{Row, Stack};
@@ -321,7 +321,7 @@ impl FieldsRow<'_> {
                     field = field.unit(self.words.percent_unit.clone());
                 }
                 let mut field = Some(field);
-                let shown = Field::new(name).show(ui, |ui, _| field.take().map(|field| field.show(ui)));
+                let shown = Field::new(name).sizing(Sizing::Content).show(ui, |ui, _| field.take().map(|field| field.show(ui)));
                 if let Some(Some(output)) = shown.inner {
                     reports.push((axis, output.edit));
                 }

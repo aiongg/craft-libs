@@ -3,7 +3,7 @@
 
 use craft_behavior::{ColumnWidth, EditEvent, IconId};
 use craft_ui::buttons::ToggleButton;
-use craft_ui::contract::{Bind, Entry, FieldLayout, Props as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Entry, FieldLayout, Props as _, Show as _, ShowContainer as _, Sizing};
 use craft_ui::display::Divider;
 use craft_ui::form::Field;
 use craft_ui::layout_components::Row;
@@ -236,7 +236,7 @@ impl<'a> WarpFields<'a> {
         let mut edits = Vec::new();
         Row::new().show(ui, |ui, _| {
             Row::new().enabled(!on_type).show(ui, |ui, _| {
-                Field::new(words.split.clone()).layout(caption).show(ui, |ui, _| {
+                Field::new(words.split.clone()).layout(caption).sizing(Sizing::Content).show(ui, |ui, _| {
                     Row::new().show(ui, |ui, _| {
                         let tools = [
                             (WarpSplit::Cross, "split_cross", &words.split_crosswise),
@@ -253,7 +253,7 @@ impl<'a> WarpFields<'a> {
                     });
                 });
                 Divider::vertical().show(ui);
-                Field::new(words.grid.clone()).layout(caption).show(ui, |ui, _| {
+                Field::new(words.grid.clone()).layout(caption).sizing(Sizing::Content).show(ui, |ui, _| {
                     let entries = [
                         Entry::new(WarpGridChoice::Custom, words.custom.clone()),
                         Entry::new(WarpGridChoice::Default, words.default_grid.clone()),
@@ -271,7 +271,7 @@ impl<'a> WarpFields<'a> {
                 });
             });
             Divider::vertical().show(ui);
-            Field::new(words.warp.clone()).layout(caption).show(ui, |ui, _| {
+            Field::new(words.warp.clone()).layout(caption).sizing(Sizing::Content).show(ui, |ui, _| {
                 let entries: Vec<Entry<String>> = styles
                     .iter()
                     .filter(|entry| !(on_type && entry.custom))
@@ -300,7 +300,7 @@ impl<'a> WarpFields<'a> {
                     (&words.vertical, values.vertical_distortion, WarpFieldsEdit::Vertical),
                 ];
                 for (name, value, edit) in fields {
-                    Field::new(name.clone()).layout(caption).show(ui, |ui, _| {
+                    Field::new(name.clone()).layout(caption).sizing(Sizing::Content).show(ui, |ui, _| {
                         let field =
                             NumberField::new(name.clone(), Bind::given(Some(value))).range(DISTORTION_RANGE).unit_kind(UnitKind::Percent).show(ui);
                         if let Some(event) = field.edit.event.clone() {

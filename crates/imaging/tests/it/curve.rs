@@ -7,6 +7,7 @@ use craft_imaging::ui::{ChannelColor, HistogramData};
 use craft_theme::{Contrast, Mode};
 use craft_ui::contract::{Bind, Role, Show as _};
 use craft_ui::display::Text;
+use craft_ui::testing::access::name;
 use craft_ui::testing::pointer::{moved, press, release, secondary};
 use craft_ui::testing::{Fixture, style, trial};
 use egui::{Key, Modifiers, Pos2, Vec2, pos2, vec2};
@@ -114,13 +115,15 @@ impl Rig {
         self.origin = pos2(a.x - first[0] * self.scale.x, a.y - first[1] * self.scale.y);
     }
 
-    /// Maps `0..=levels` over the graph node's rect, the largest group.
+    /// Maps `0..=levels` over the graph node's rect: the editor and its graph share the label, and the graph is the
+    /// smaller of the two.
     fn calibrate_graph(&mut self, levels: f32) {
         let graph = self
             .fixture
             .by_role(Role::GROUP)
             .into_iter()
-            .max_by(|a, b| (a.rect.width() * a.rect.height()).total_cmp(&(b.rect.width() * b.rect.height())))
+            .filter(|group| name(self.fixture.tree(), group.node) == Some("Curve"))
+            .min_by(|a, b| (a.rect.width() * a.rect.height()).total_cmp(&(b.rect.width() * b.rect.height())))
             .expect("the graph");
         self.scale = vec2(graph.rect.width() / levels, -graph.rect.height() / levels);
         self.origin = graph.rect.left_bottom();
@@ -394,7 +397,12 @@ fn the_input_field_moves_the_selected_point_between_its_neighbours() {
 fn percent_fields_take_whole_percents_of_the_levels() {
     let mut rig = rig_with(Curve::smooth(THREE.to_vec()), Config { percent: true, ..Config::default() });
     rig.click([100.0, 100.0]);
-    let field = rig.fixture.by_role(Role::SPIN_BUTTON).into_iter().nth(1).expect("the Output field");
+    let field = rig
+        .fixture
+        .by_role(Role::SPIN_BUTTON)
+        .into_iter()
+        .find(|target| name(rig.fixture.tree(), target.node) == Some("Output"))
+        .expect("the Output field");
     rig.fixture.click(&field);
     rig.fixture.key(Key::A, Modifiers::COMMAND);
     rig.fixture.type_text("50");
