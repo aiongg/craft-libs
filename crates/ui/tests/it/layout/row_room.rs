@@ -109,3 +109,31 @@ fn a_section_of_labelled_rows_in_a_content_column_is_as_wide_as_its_widest_row()
     assert!(section.width() > 0.0 && section.width() < ROOM.x / 2.0, "the section is as wide as its row: {dump}");
     assert!(check.is_some_and(|check| check.max.x <= section.max.x + SLACK), "the row fits the section: {dump}");
 }
+
+/// The rects of a wrapping row's leading button and of the row nested after it, in a room `width` wide.
+fn wrapped(width: f32) -> (Rect, Rect) {
+    let seen = Rc::new(Cell::new((Rect::NOTHING, Rect::NOTHING)));
+    let out = Rc::clone(&seen);
+    let mut fixture = Fixture::new(move |ui| {
+        Row::new().wrap(true).show(ui, |ui, _| {
+            let lead = Button::new("Pages from").show(ui).rect;
+            let nested = Row::new().show(ui, |ui, _| {
+                Button::new("to").show(ui);
+                Button::new("Last page").show(ui);
+            });
+            out.set((lead, nested.output.rect));
+        });
+    });
+    fixture.room(Vec2::new(width, ROOM.y)).settle();
+    seen.get()
+}
+
+#[trial]
+fn a_row_too_wide_for_the_rest_of_a_wrapping_row_moves_to_the_next_line_whole() {
+    let (lead, nested) = wrapped(ROOM.x);
+    assert!((nested.top() - lead.top()).abs() <= SLACK, "the nested row fits beside the lead: lead {lead:?}, nested {nested:?}");
+    let width = nested.right() - lead.left() - 1.0;
+    let (lead, nested) = wrapped(width);
+    assert!(nested.top() >= lead.bottom() - SLACK, "the nested row wraps below the lead: lead {lead:?}, nested {nested:?}");
+    assert!(nested.right() <= width + SLACK, "the wrapped row stays in the room {width}: {nested:?}");
+}
