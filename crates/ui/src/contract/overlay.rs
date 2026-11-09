@@ -3,7 +3,7 @@
 //! One host (`host`) creates the egui layer through `runtime::egui::areas` and applies rank, backdrop, fit, scroll,
 //! dismissal and the focus scope. `OverlayUi::show` and the tooltip and toast hosts run it.
 
-use super::{BodyCx, Component, Cx, PartBuilder, Resolved};
+use super::{BindMut, BodyCx, Component, Cx, PartBuilder, Resolved};
 use crate::runtime::access::{self, PopupKind, PopupShown};
 use crate::runtime::commands::FireSource;
 use crate::runtime::egui::areas::{self, LayerSpec};
@@ -19,6 +19,7 @@ use crate::runtime::{frame, keys, layout_memory, pointer};
 use craft_behavior::PartRef;
 use craft_behavior::overlay::{Align, MinWidth, PlaceRequest, Side};
 use craft_behavior::{CancelRule, GesturePhase, Intent, OwnerClass, PointerButton};
+use craft_behavior::{EditEvent, Mixed};
 use craft_keymap::Mods;
 use egui::{Align2, Context, Id, Pos2, Rect, Response, Ui, Vec2};
 use std::collections::HashMap;
@@ -788,6 +789,10 @@ impl PopupHandle {
 #[derive(Clone, Copy, Default)]
 struct OpenSlot(bool);
 
+/// The value a popup's open binding held after the last pass, to tell a change made outside from the popup's own.
+#[derive(Clone, Copy, Default)]
+struct BoundOpen(Option<bool>);
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum OpenOp {
     Toggle,
@@ -1106,6 +1111,37 @@ impl PopupHandle {
         self.registered(cx);
         let began = cx.core.memory.shown::<OpenSlot>(self.id).0;
         open_now(cx.core.memory, self.id) != began
+    }
+
+    /// Binds the popup's open state to `open`: call it in `update`, after the toggles and closes the component
+    /// queues. A change of the bound value since the last pass opens or closes the popup through the open slot; an
+    /// open state that differs from the bound value is written to it. A value the bind refuses to take (a given one)
+    /// never forces the popup. Returns whether the popup is open in this pass.
+    pub fn bind_open<C: Component>(self, cx: &mut Cx<'_, C>, mut open: BindMut<'_, bool>) -> bool {
+        self.registered(cx);
+        let began = cx.core.memory.shown::<OpenSlot>(self.id).0;
+        let seen = cx.core.memory.session::<BoundOpen>(sub(self.id, "bound")).0.unwrap_or(began);
+        let held = match open.read(cx) {
+            Some(Mixed::Same(held)) => Some(held),
+            _ => None,
+        };
+        if let Some(held) = held
+            && held != seen
+        {
+            queue(&cx.core.ctx, self.id, if held { OpenOp::Open } else { OpenOp::Close });
+        }
+        let now = open_now(cx.core.memory, self.id);
+        let mut seen = held;
+        if let Some(held) = held
+            && held != now
+        {
+            let label = cx.core.label_arc();
+            if open.write(cx, &EditEvent::set(Mixed::Same(held), now, label, None)) {
+                seen = Some(now);
+            }
+        }
+        cx.core.memory.session::<BoundOpen>(sub(self.id, "bound")).0 = seen;
+        now
     }
 
     /// Whether the popup is open in this pass: valid from step 8, with the changes queued so far applied.

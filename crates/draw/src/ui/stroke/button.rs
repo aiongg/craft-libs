@@ -49,7 +49,8 @@ struct Opened(Option<Option<u64>>);
 /// - A click, Enter or Space opens the popover below the field and focus moves into it; Escape closes it and returns
 ///   focus to the field; a press outside closes it and reaches nothing under it. It closes when the
 ///   [`target`](Self::target) changes and when the field is disabled.
-/// - `open` follows the popover: the button writes whether it is open.
+/// - `open` is bound to the popover: the button writes whether it is open, and a change of the bound value opens or
+///   closes it.
 /// - The editor opens from the value, or from [`StrokeStyle::default`] when the value fails
 ///   [`StrokeStyle::validate`]. An edit is the button's edit of the value.
 ///
@@ -160,7 +161,7 @@ impl Component for StrokeButton<'_> {
     }
 
     /// Enter and Space toggle the popover (a click does through the face's `toggles`). A change of target closes it.
-    /// `open` is written when it differs from the popover.
+    /// `open` is bound to the popover.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let popup = cx.popup("editor");
         toggle_on_key(cx, popup);
@@ -175,12 +176,7 @@ impl Component for StrokeButton<'_> {
         } else {
             *cx.memory::<Opened>() = Opened(None);
         }
-        if let Some(Mixed::Same(held)) = self.open.reborrow().read(cx)
-            && held != is_open
-        {
-            let name: Arc<str> = cx.label().as_str().into();
-            let _ = self.open.reborrow().write(cx, &EditEvent::set(Mixed::Same(held), is_open, name, None));
-        }
+        popup.bind_open(cx, self.open.reborrow());
     }
 
     /// The popover: the editor over the value, from the title.
