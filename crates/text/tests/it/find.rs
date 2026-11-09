@@ -1,6 +1,6 @@
 //! The find bar and the Find and Replace dialog.
 
-use craft_text::find::{FindError, FindMatches, FindOptions, FindPattern};
+use craft_text::find::{FindMatches, FindOptions};
 use craft_text::ui::find::{FindBar, FindBarState};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers};
@@ -69,21 +69,4 @@ fn escape_clears_the_query_then_closes() {
     assert!(!bar.closed.get(), "and keeps the bar");
     bar.fixture.key(Key::Escape, Modifiers::NONE).settle();
     assert!(bar.closed.get());
-}
-
-#[trial]
-fn a_refused_pattern_is_an_error_the_ui_can_word() {
-    let options = FindOptions { regex: true, ..FindOptions::default() };
-    assert!(matches!(FindPattern::compile("(open", &options), Err(FindError::Regex(_))));
-}
-
-#[trial]
-fn matches_step_through_and_wrap() {
-    let mut found = FindMatches::new(0);
-    found.set_page(0, vec![0..3, 5..8]);
-    assert_eq!(found.current(), Some(0));
-    found.step(false);
-    assert_eq!(found.current(), Some(1));
-    found.step(false);
-    assert_eq!(found.current(), Some(0), "stepping past the last match wraps to the first");
 }

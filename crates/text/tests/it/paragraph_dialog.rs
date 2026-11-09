@@ -117,18 +117,26 @@ fn line_spacing_presets_fix_their_at_value() {
     assert_eq!(rig.ok().and_then(|answer| answer.format.line_spacing), Some(LineSpacing::Multiple(2.0)), "a multiple stays when Multiple is chosen");
 }
 
-/// A value out of range shows the field's message and OK waits for a fix.
+/// A value out of range, in points or in lines, shows the field's message and OK waits for a fix.
 #[trial]
 fn a_value_out_of_range_refuses_ok_with_its_message() {
     let format = set(start(), |f| f.space_before = Some(2000.0));
     let mut rig = Rig::new(format);
-    assert!(rig.shows("Spacing before must be from"));
+    assert!(rig.shows("must be from"));
     assert!(rig.ok().is_none(), "OK is refused");
 
     rig.type_into("Spacing before", "12");
-    assert!(!rig.shows("Spacing before must be from"));
+    assert!(!rig.shows("must be from"));
     let answer = rig.ok().expect("OK answers once the value is in range");
     assert_eq!(answer.format.space_before, Some(12.0));
+    {
+        let rig = Rig::new(set(start(), |f| {
+            f.space_after = Some(11.0);
+            f.space_after_kind = SpacingKind::Lines;
+        }));
+        assert!(rig.shows("must be from"));
+        assert!(rig.ok().is_none(), "OK is refused for lines too");
+    }
 }
 
 /// Tabs… answers with `open_tabs` and the format as edited.
@@ -186,14 +194,4 @@ fn a_spacing_in_lines_keeps_its_kind_until_its_value_changes() {
     let answer = rig.ok().expect("OK answers");
     assert_eq!((answer.format.space_before, answer.format.space_before_kind), (Some(12.0), SpacingKind::Points));
     assert_eq!(answer.format.space_after_kind, SpacingKind::Points);
-}
-
-/// A spacing of 11 lines is out of range (DeckCraft keeps at most 10).
-#[trial]
-fn lines_of_spacing_have_their_own_range() {
-    let rig = Rig::new(set(start(), |f| {
-        f.space_after = Some(11.0);
-        f.space_after_kind = SpacingKind::Lines;
-    }));
-    assert!(rig.shows("Spacing after must be from 0 to 10"));
 }

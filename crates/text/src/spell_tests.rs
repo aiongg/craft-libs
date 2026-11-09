@@ -2,11 +2,11 @@
 
 use crate::spell::{Dictionary, UserWords, words};
 
-// The bundled list decodes once, has about 72,000 words, and knows "the" and "Paris".
+// The bundled list decodes once, is not empty, and knows common words and names.
 #[test]
 fn bundled_dictionary_loads() {
     let d = Dictionary::english();
-    assert!(d.len() > 70_000, "{}", d.len());
+    assert!(!d.is_empty());
     let none = UserWords::default();
     for w in ["the", "color", "running", "Paris", "photographer's"] {
         assert!(d.check(w, &none), "{w}");

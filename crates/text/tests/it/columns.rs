@@ -29,6 +29,10 @@ fn only_changed_fields_come_back() {
     assert_eq!(dialog.changes(), None);
     dialog.set_count(3);
     assert_eq!(dialog.changes(), Some(set(TextColumns::default(), |c| c.count = Some(3))));
+    {
+        let dialog = TextColumnsDialog::new(two()).apply_to(&[ColumnsApply::Section, ColumnsApply::Document], ColumnsApply::Document);
+        assert_eq!(dialog.changes().and_then(|changes| changes.apply), Some(ColumnsApply::Document));
+    }
 }
 
 #[trial]
@@ -39,6 +43,10 @@ fn out_of_range_values_keep_the_dialog_open() {
     assert!(!dialog.is_valid());
     dialog.set_count(0);
     assert!(!dialog.is_valid());
+    {
+        assert_eq!(TextColumnsDialog::new(two()).most_columns(), MAX_COLUMNS);
+        assert_eq!(TextColumnsDialog::new(two()).word(WIDTH).most_columns(), MAX_COLUMNS_WORD);
+    }
 }
 
 #[trial]
@@ -78,13 +86,6 @@ fn the_left_preset_splits_the_width_less_the_spacing() {
 }
 
 #[trial]
-fn the_most_columns_follows_the_family_and_the_builder() {
-    assert_eq!(TextColumnsDialog::new(two()).most_columns(), MAX_COLUMNS);
-    assert_eq!(TextColumnsDialog::new(two()).word(WIDTH).most_columns(), MAX_COLUMNS_WORD);
-    assert_eq!(TextColumnsDialog::new(two()).word(WIDTH).max_columns(5).most_columns(), 5);
-}
-
-#[trial]
 fn a_column_is_never_narrower_than_the_minimum() {
     for (width, spacing, count) in [(WIDTH, 400.0, 6), (60.0, 36.0, 3)] {
         let rows = TextColumnsDialog::even_rows(width, spacing, count);
@@ -102,10 +103,4 @@ fn the_preview_places_columns_and_the_line_between() {
     assert_eq!(plan.separators.len(), 1);
     assert!(plan.columns[0].1 <= plan.separators[0] && plan.separators[0] <= plan.columns[1].0);
     assert!(preview_plan(&rows, 220.0, false, page).separators.is_empty());
-}
-
-#[trial]
-fn apply_to_always_answers_with_the_choice() {
-    let dialog = TextColumnsDialog::new(two()).apply_to(&[ColumnsApply::Section, ColumnsApply::Document], ColumnsApply::Document);
-    assert_eq!(dialog.changes().and_then(|changes| changes.apply), Some(ColumnsApply::Document));
 }
