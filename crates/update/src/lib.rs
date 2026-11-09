@@ -1,4 +1,4 @@
-//! Release checking, downloading, installing and self-updating for the Craft App Suite and ArtCraft Launcher.
+//! Native only (it downloads and installs through ureq): release checking, downloading, installing and self-updating for the Craft App Suite and ArtCraft Launcher.
 
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
