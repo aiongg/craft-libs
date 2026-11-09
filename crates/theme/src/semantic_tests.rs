@@ -1,6 +1,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use super::*;
 use crate::ThemeId;
@@ -278,7 +278,7 @@ const ANCHORED: [T; 8] =
     [T::SurfaceBackground, T::SurfaceRaised, T::SurfaceSunken, T::StateHover, T::StatePressed, T::StateSelected, T::LineDivider, T::LineControlEdge];
 
 #[test]
-fn anchored_greys_keep_the_curve_with_and_without_a_panel_pin() {
+fn background_greys_keep_their_curve_distance_from_a_pinned_panel() {
     let plain = grey_blue();
     let mut def = grey_blue();
     def.id = ThemeId::parse("test.panel-only").unwrap();
@@ -301,22 +301,30 @@ fn anchored_greys_keep_the_curve_with_and_without_a_panel_pin() {
         let anchored = ANCHORED.map(TokenRef::from);
         assert!(e.resolved.warnings.iter().all(|w| !anchored.contains(&w.fg) && !anchored.contains(&w.bg)), "{mode:?}: {:?}", e.resolved.warnings);
     }
+}
 
-    // Without a panel pin the greys sit on the curve itself.
-    {
-        for mode in [Mode::Light, Mode::Dark] {
-            for contrast in [Contrast::Standard, Contrast::High] {
-                let e = explain(&grey_blue(), app(mode, contrast), None);
-                for o in &e.colors {
-                    if let ColorSource::Anchored(n) | ColorSource::StateVariant { step: n, .. } = o.source {
-                        assert_eq!(o.value, e.ramps.neutral.step(n), "{mode:?} {contrast:?} {:?}", o.token);
-                        assert_eq!(
-                            o.anchoring.map(|a| (a.on, a.steps)),
-                            Some((T::SurfacePanel, e.ramps.neutral)),
-                            "{mode:?} {contrast:?} {:?}",
-                            o.token
-                        );
-                    }
+#[test]
+fn a_pinned_grey_overrides_its_anchored_value() {
+    let mut def = grey_blue();
+    def.id = ThemeId::parse("test.panel-and-raised").unwrap();
+    def.pins.dark = Pins::from_iter([(T::SurfacePanel, hex("#3a3a3a")), (T::SurfaceRaised, hex("#202020")), (T::StateHover, hex("#4a4a4a"))]);
+    let e = explain(&def, app(Mode::Dark, Contrast::Standard), None);
+    for (token, value) in [(T::SurfaceRaised, "#202020"), (T::StateHover, "#4a4a4a")] {
+        let o = e.color(token).unwrap();
+        assert_eq!(o.value, hex(value), "{token:?}");
+        assert_ne!(o.derived, o.value, "{token:?}: the anchored value is what the pin replaces");
+    }
+}
+
+#[test]
+fn anchoring_leaves_a_theme_without_a_panel_pin_on_the_curve() {
+    for mode in [Mode::Light, Mode::Dark] {
+        for contrast in [Contrast::Standard, Contrast::High] {
+            let e = explain(&grey_blue(), app(mode, contrast), None);
+            for o in &e.colors {
+                if let ColorSource::Anchored(n) | ColorSource::StateVariant { step: n, .. } = o.source {
+                    assert_eq!(o.value, e.ramps.neutral.step(n), "{mode:?} {contrast:?} {:?}", o.token);
+                    assert_eq!(o.anchoring.map(|a| (a.on, a.steps)), Some((T::SurfacePanel, e.ramps.neutral)), "{mode:?} {contrast:?} {:?}", o.token);
                 }
             }
         }
@@ -497,7 +505,7 @@ fn guide_colours_are_exempt_from_the_overlay_pairs() {
 }
 
 #[test]
-fn pins_replace_defaults_and_anchored_values_and_aliases_follow() {
+fn pins_replace_defaults_and_aliases_follow() {
     let mut def = grey_blue();
     let bg = hex("#203040");
     def.pins.dark = Pins::from_iter([(T::SurfaceBackground, bg), (T::AccentSolid, hex("#3050c0"))]);
@@ -508,19 +516,6 @@ fn pins_replace_defaults_and_anchored_values_and_aliases_follow() {
     assert_eq!(r.tokens.color(T::OverlayHandleStroke), hex("#3050c0"));
     let high = resolve(&def, app(Mode::Dark, Contrast::High), None);
     assert_eq!(high.tokens.color(T::SurfaceCanvas), Rgba::BLACK, "high-contrast pins apply over mode pins");
-
-    // A pinned grey replaces the value anchoring would give it.
-    {
-        let mut def = grey_blue();
-        def.id = ThemeId::parse("test.panel-and-raised").unwrap();
-        def.pins.dark = Pins::from_iter([(T::SurfacePanel, hex("#3a3a3a")), (T::SurfaceRaised, hex("#202020")), (T::StateHover, hex("#4a4a4a"))]);
-        let e = explain(&def, app(Mode::Dark, Contrast::Standard), None);
-        for (token, value) in [(T::SurfaceRaised, "#202020"), (T::StateHover, "#4a4a4a")] {
-            let o = e.color(token).unwrap();
-            assert_eq!(o.value, hex(value), "{token:?}");
-            assert_ne!(o.derived, o.value, "{token:?}: the anchored value is what the pin replaces");
-        }
-    }
 }
 
 #[test]
@@ -762,7 +757,7 @@ fn accent_strong_variants_are_distinct_and_carry_text_on_strong() {
 /// A pinned `accent.strong` stays in standard contrast: white text that misses on it turns black,
 /// as text on the other solids does, and pinned white text is kept and reported.
 #[test]
-fn pinned_accent_strong_is_kept_in_standard_and_moves_in_high() {
+fn pinned_accent_strong_is_kept() {
     let mut def = grey_blue();
     let light = hex("#78ADF6");
     def.pins.dark = Pins::from_iter([(T::AccentStrong, light)]);
@@ -773,19 +768,19 @@ fn pinned_accent_strong_is_kept_in_standard_and_moves_in_high() {
     let r = resolve(&def, app(Mode::Dark, Contrast::Standard), None);
     assert_eq!((r.tokens.color(T::AccentStrong), r.tokens.color(T::TextOnStrong)), (light, Rgba::WHITE));
     assert!(r.warnings.iter().any(|w| w.fg == TokenRef::Color(T::TextOnStrong) && w.bg == TokenRef::Color(T::AccentStrong)), "{:?}", r.warnings);
+}
 
-    // In high contrast a pinned `accent.strong` that white text misses on moves until it carries it.
+/// In high contrast a pinned `accent.strong` that white text misses on moves until it carries it.
+#[test]
+fn pinned_accent_strong_moves_in_high_contrast() {
     let mut def = grey_blue();
-    {
-        let mut def = grey_blue();
-        let light = hex("#78ADF6");
-        def.pins.dark = Pins::from_iter([(T::AccentStrong, light)]);
-        let r = resolve(&def, app(Mode::Dark, Contrast::High), None);
-        let (strong, text) = (r.tokens.color(T::AccentStrong), r.tokens.color(T::TextOnStrong));
-        assert_ne!(strong, light, "the pin gives way");
-        assert_eq!(text, Rgba::WHITE);
-        assert!(contrast_ratio(text, strong) >= 7.0, "{strong:?}");
-    }
+    let light = hex("#78ADF6");
+    def.pins.dark = Pins::from_iter([(T::AccentStrong, light)]);
+    let r = resolve(&def, app(Mode::Dark, Contrast::High), None);
+    let (strong, text) = (r.tokens.color(T::AccentStrong), r.tokens.color(T::TextOnStrong));
+    assert_ne!(strong, light, "the pin gives way");
+    assert_eq!(text, Rgba::WHITE);
+    assert!(contrast_ratio(text, strong) >= 7.0, "{strong:?}");
 }
 
 /// An unpinned `accent.strong` follows a pinned `accent.solid`: the same colour where white text

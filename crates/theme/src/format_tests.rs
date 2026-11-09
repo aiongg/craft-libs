@@ -368,18 +368,19 @@ fn references_resolve_to_the_final_value_in_every_appearance() {
             }
         }
     }
+}
 
-    // A reference to a derived token reads the value derived from the other references' final values.
-    {
-        let v = with_light(json!({ "surface.panel": "{surface.raised}", "surface.raised": "#d4d0c8", "text.muted": "{state.disabled_fill}" }));
-        let file = parse_value(&v).unwrap();
-        let a =
-            Appearance { mode: Mode::Light, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false };
-        let t = resolve(&file.theme, a, None).tokens;
-        assert_eq!(t.color(T::SurfacePanel), hex("#d4d0c8"));
-        assert_eq!(t.color(T::StateDisabledFill), hex("#d4d0c8"));
-        assert_eq!(t.color(T::TextMuted), hex("#d4d0c8"));
-    }
+/// A reference to a derived token reads the value derived from the other references' final
+/// values: `state.disabled_fill` is the panel, which here is itself a reference.
+#[test]
+fn a_reference_to_a_derived_token_reads_the_final_value() {
+    let v = with_light(json!({ "surface.panel": "{surface.raised}", "surface.raised": "#d4d0c8", "text.muted": "{state.disabled_fill}" }));
+    let file = parse_value(&v).unwrap();
+    let a = Appearance { mode: Mode::Light, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false };
+    let t = resolve(&file.theme, a, None).tokens;
+    assert_eq!(t.color(T::SurfacePanel), hex("#d4d0c8"));
+    assert_eq!(t.color(T::StateDisabledFill), hex("#d4d0c8"));
+    assert_eq!(t.color(T::TextMuted), hex("#d4d0c8"));
 }
 
 #[test]

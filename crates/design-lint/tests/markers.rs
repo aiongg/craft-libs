@@ -31,25 +31,27 @@ fn alone_marker_covers_a_multi_line_statement() {
 }
 
 #[test]
-fn alone_marker_before_a_block_covers_its_header_only() {
+fn alone_marker_before_a_fn_covers_its_header_not_its_body() {
     let src = "// design: allow(canvas units)\n#[inline]\nfn f(ui: &mut Ui) {\n    ui.add_space(4.0);\n    let _ = Color32::WHITE;\n}\n";
     let (findings, _) = run(src);
     assert_eq!(
         findings.iter().map(|f| (f.rule, f.line)).collect::<Vec<_>>(),
         [("marker/unused", 1), ("literal-size/add-space", 4), ("raw-colour/const", 5)]
     );
+}
 
-    {
-        let src = "fn f(ui: &mut Ui, w: f32) {\n    // design: allow(guard)\n    if w > vec2(1.0, 1.0).x {\n        ui.add_space(4.0);\n    }\n}\n";
-        let (findings, _) = run(src);
-        assert_eq!(findings.iter().map(|f| (f.rule, f.line)).collect::<Vec<_>>(), [("literal-size/add-space", 4)]);
-    }
+#[test]
+fn alone_marker_before_a_control_flow_statement_covers_its_header_only() {
+    let src = "fn f(ui: &mut Ui, w: f32) {\n    // design: allow(guard)\n    if w > vec2(1.0, 1.0).x {\n        ui.add_space(4.0);\n    }\n}\n";
+    let (findings, _) = run(src);
+    assert_eq!(findings.iter().map(|f| (f.rule, f.line)).collect::<Vec<_>>(), [("literal-size/add-space", 4)]);
+}
 
-    {
-        let src = "// design: allow(whole impl)\nimpl A {\n    fn f(&self, ui: &mut Ui) {\n        ui.add_space(4.0);\n    }\n}\n";
-        let (findings, _) = run(src);
-        assert_eq!(findings.iter().map(|f| (f.rule, f.line)).collect::<Vec<_>>(), [("marker/unused", 1), ("literal-size/add-space", 4)]);
-    }
+#[test]
+fn alone_marker_before_an_impl_covers_the_header_and_each_item_needs_its_own() {
+    let src = "// design: allow(whole impl)\nimpl A {\n    fn f(&self, ui: &mut Ui) {\n        ui.add_space(4.0);\n    }\n}\n";
+    let (findings, _) = run(src);
+    assert_eq!(findings.iter().map(|f| (f.rule, f.line)).collect::<Vec<_>>(), [("marker/unused", 1), ("literal-size/add-space", 4)]);
 }
 
 #[test]
@@ -85,17 +87,18 @@ fn empty_and_short_reasons_are_reported_and_do_not_suppress() {
 }
 
 #[test]
-fn unused_markers_are_reported() {
+fn unused_marker_is_a_warning_or_an_error_when_denied() {
     let src = "fn f() {\n    let x = 1; // design: allow(nothing here)\n}\n";
     let (findings, _) = run(src);
     assert_eq!(findings.len(), 1);
     assert_eq!((findings[0].rule, findings[0].line, findings[0].severity), ("marker/unused", 2, Severity::Warning));
     let denied = analyze_with_markers(src, false, true, &|_| false);
     assert_eq!(denied.findings[0].severity, Severity::Error);
+}
 
-    {
-        assert_eq!(rules("fn f() {}\n// design: allow(dangling)\n"), ["marker/unused"]);
-    }
+#[test]
+fn alone_marker_with_no_code_after_it_is_unused() {
+    assert_eq!(rules("fn f() {}\n// design: allow(dangling)\n"), ["marker/unused"]);
 }
 
 #[test]
@@ -122,7 +125,7 @@ fn allow_attributes_do_not_silence_syntax_rules() {
 }
 
 #[test]
-fn marker_rule_list_covers_only_listed_rules() {
+fn marker_with_a_rule_list_covers_only_those_rules() {
     let src = "fn f(ui: &mut Ui) {\n    // design: allow[literal-size/add-space](optical gap)\n    ui.add_space(4.0); let _ = Color32::RED;\n}\n";
     let (findings, markers) = run(src);
     assert_eq!(markers, 1);
@@ -130,11 +133,12 @@ fn marker_rule_list_covers_only_listed_rules() {
 
     let family = "fn f(ui: &mut Ui) {\n    ui.add_space(4.0); let _ = Color32::RED; // design: allow[literal-size, raw-colour](both)\n}\n";
     assert!(run(family).0.is_empty());
+}
 
-    {
-        let src = "fn f(ui: &mut Ui) {\n    ui.add_space(4.0); // design: allow[raw-colour](wrong rule)\n}\n";
-        assert_eq!(rules(src), ["literal-size/add-space", "marker/unused"]);
-    }
+#[test]
+fn marker_whose_listed_rules_match_nothing_is_unused() {
+    let src = "fn f(ui: &mut Ui) {\n    ui.add_space(4.0); // design: allow[raw-colour](wrong rule)\n}\n";
+    assert_eq!(rules(src), ["literal-size/add-space", "marker/unused"]);
 }
 
 #[test]

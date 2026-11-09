@@ -54,12 +54,15 @@ const REJECT: [(&str, &[&str]); 19] = [
 ];
 
 #[test]
-fn every_reject_fixture_fails_with_its_rules() {
+fn every_reject_fixture_fails_with_exactly_its_rules() {
     for (file, expected) in REJECT {
         let rules = rules_at(&fixture("reject", file), FAMILY, &scope());
         assert_eq!(rules, expected, "{file}");
     }
-    // Each shape of a rule is detected, not only the first.
+}
+
+#[test]
+fn each_reject_fixture_reports_every_shape() {
     let count = |file: &str, rule: &str| {
         analyze_contract(&fixture("reject", file), Path::new(FAMILY), &scope(), false).iter().filter(|f| f.rule == rule).count()
     };
@@ -146,11 +149,15 @@ fn shadow_findings(config: &Config) -> Vec<Severity> {
 }
 
 #[test]
-fn props_shadow_severity_follows_the_config_warn_list() {
+fn props_shadow_is_an_error_unless_the_config_warns() {
     let mut config = Config::new(["src"]);
     assert_eq!(shadow_findings(&config), [Severity::Error]);
     config.warn = vec!["props/shadow".to_owned()];
     assert_eq!(shadow_findings(&config), [Severity::Warning]);
+}
+
+#[test]
+fn config_warn_names_known_rules() {
     let ok = "[lint]\npaths = [\"src\"]\nwarn = [\"props/shadow\", \"style\"]\n";
     assert_eq!(Config::parse(Path::new("design-lint.toml"), ok).unwrap().warn, ["props/shadow", "style"]);
     for bad in ["props/nope", "parse", "marker", "marker/unused", "exemption/unused"] {

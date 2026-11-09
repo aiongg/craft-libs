@@ -262,7 +262,7 @@ fn a_newer_selection_is_never_overwritten() {
 }
 
 #[test]
-fn damaged_or_oversized_selection_keeps_the_last_state() {
+fn a_damaged_selection_keeps_the_last_state_and_moves_aside_only_when_written() {
     let tmp = tempfile::tempdir().unwrap();
     let path = tmp.path().join("selection.json");
     let mut store = open(tmp.path());
@@ -294,25 +294,25 @@ fn damaged_or_oversized_selection_keeps_the_last_state() {
     assert_eq!(moved.len(), 1);
     assert_eq!(fs::read_to_string(&moved[0]).unwrap(), damaged);
     assert!(moved[0].file_name().unwrap().to_str().unwrap().starts_with("selection.broken-"));
-
-    // An oversized file counts as damaged.
-    {
-        let tmp = tempfile::tempdir().unwrap();
-        let path = tmp.path().join("selection.json");
-        let big = format!(r#"{{"schema_version":2,"pad":"{}"}}"#, "x".repeat(crate::MAX_SELECTION_BYTES));
-        fs::write(&path, &big).unwrap();
-        let mut store = open(tmp.path());
-        assert!(matches!(store.load_selection(), Err(Problem::Selection(SelectionError::TooLarge { .. }))));
-        assert!(!store.is_read_only());
-        store.update(&Accepted::default(), whole("craft.graphite", ModeChoice::Dark)).unwrap();
-        let moved = store.take_moved_aside();
-        assert_eq!(fs::read_to_string(&moved[0]).unwrap(), big);
-        assert_eq!(selection_json(tmp.path())["suite"]["theme"]["dark"], "craft.graphite");
-    }
 }
 
 #[test]
-fn conflicts_and_independent_fields_across_stores() {
+fn an_oversized_selection_counts_as_damaged() {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("selection.json");
+    let big = format!(r#"{{"schema_version":2,"pad":"{}"}}"#, "x".repeat(crate::MAX_SELECTION_BYTES));
+    fs::write(&path, &big).unwrap();
+    let mut store = open(tmp.path());
+    assert!(matches!(store.load_selection(), Err(Problem::Selection(SelectionError::TooLarge { .. }))));
+    assert!(!store.is_read_only());
+    store.update(&Accepted::default(), whole("craft.graphite", ModeChoice::Dark)).unwrap();
+    let moved = store.take_moved_aside();
+    assert_eq!(fs::read_to_string(&moved[0]).unwrap(), big);
+    assert_eq!(selection_json(tmp.path())["suite"]["theme"]["dark"], "craft.graphite");
+}
+
+#[test]
+fn same_field_changed_elsewhere_is_a_conflict_and_writes_nothing() {
     let tmp = tempfile::tempdir().unwrap();
     let path = tmp.path().join("selection.json");
     let mut a = open(tmp.path());
@@ -331,36 +331,36 @@ fn conflicts_and_independent_fields_across_stores() {
     // A different field merges.
     let merged = a.update(&base, SelectionChange::mode(ModeChoice::Dark)).unwrap();
     assert_eq!(merged.suite, sel("craft.graphite", ModeChoice::Dark).into());
+}
 
-    // Fields changed by different apps on the same base all land; the same field conflicts.
-    {
-        let tmp = tempfile::tempdir().unwrap();
-        let mut a = open(tmp.path());
-        let mut b = open(tmp.path());
-        let base = a.update(&Accepted::default(), whole("craft.graphite", ModeChoice::Dark)).unwrap();
-        b.load_selection().unwrap();
-        // Each app changes other fields on the same base: all of them land.
-        b.update(&base, SelectionChange::theme_light(id("craft.soft")).then(SelectionChange::contrast(ContrastChoice::High))).unwrap();
-        let merged = a.update(&base, SelectionChange::size(Size::Comfortable).then(SelectionChange::text_size(TextSize::Medium))).unwrap();
-        assert_eq!(
-            merged.suite,
-            SuiteChoice {
-                theme_light: Some(id("craft.soft")),
-                theme_dark: Some(id("craft.graphite")),
-                mode: Some(ModeChoice::Dark),
-                contrast: Some(ContrastChoice::High),
-                motion: Some(MotionChoice::System),
-                size: Some(Size::Comfortable),
-                text_size: Some(TextSize::Medium),
-            }
-        );
-        // The same field on the stale base: a conflict, field by field.
-        for change in [SelectionChange::theme_light(id("craft.pro")), SelectionChange::contrast(ContrastChoice::Standard)] {
-            assert!(matches!(a.update(&base, change.clone()), Err(StoreError::Conflict { .. })), "{change:?}");
+#[test]
+fn the_new_fields_merge_one_by_one_across_stores() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut a = open(tmp.path());
+    let mut b = open(tmp.path());
+    let base = a.update(&Accepted::default(), whole("craft.graphite", ModeChoice::Dark)).unwrap();
+    b.load_selection().unwrap();
+    // Each app changes other fields on the same base: all of them land.
+    b.update(&base, SelectionChange::theme_light(id("craft.soft")).then(SelectionChange::contrast(ContrastChoice::High))).unwrap();
+    let merged = a.update(&base, SelectionChange::size(Size::Comfortable).then(SelectionChange::text_size(TextSize::Medium))).unwrap();
+    assert_eq!(
+        merged.suite,
+        SuiteChoice {
+            theme_light: Some(id("craft.soft")),
+            theme_dark: Some(id("craft.graphite")),
+            mode: Some(ModeChoice::Dark),
+            contrast: Some(ContrastChoice::High),
+            motion: Some(MotionChoice::System),
+            size: Some(Size::Comfortable),
+            text_size: Some(TextSize::Medium),
         }
-        let disk = selection_json(tmp.path());
-        assert_eq!((disk["suite"]["size"].as_str(), disk["suite"]["text_size"].as_str()), (Some("comfortable"), Some("medium")));
+    );
+    // The same field on the stale base: a conflict, field by field.
+    for change in [SelectionChange::theme_light(id("craft.pro")), SelectionChange::contrast(ContrastChoice::Standard)] {
+        assert!(matches!(a.update(&base, change.clone()), Err(StoreError::Conflict { .. })), "{change:?}");
     }
+    let disk = selection_json(tmp.path());
+    assert_eq!((disk["suite"]["size"].as_str(), disk["suite"]["text_size"].as_str()), (Some("comfortable"), Some("medium")));
 }
 
 #[test]

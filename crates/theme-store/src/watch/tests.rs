@@ -372,7 +372,7 @@ fn a_library_theme_not_in_use_previews_from_the_index() {
 }
 
 #[test]
-fn the_first_snapshot_holds_the_app_and_last_accepted_themes() {
+fn an_app_theme_named_at_open_is_in_the_first_snapshot() {
     let tmp = tempfile::tempdir().unwrap();
     store_with_sample(tmp.path());
     let sample = id(SAMPLE_THEME_ID);
@@ -394,20 +394,20 @@ fn the_first_snapshot_holds_the_app_and_last_accepted_themes() {
     // Already requested: naming it again sends nothing.
     client.set_app_theme(Some(pair));
     assert_eq!(client.watch().generation(), 0);
+}
 
-    // A damaged selection: the store keeps the last accepted state, and open reads its theme.
-    {
-        let tmp = tempfile::tempdir().unwrap();
-        store_with_sample(tmp.path());
-        fs::write(tmp.path().join("selection.json"), "{ damaged").unwrap();
-        let sample = id(SAMPLE_THEME_ID);
-        let last = Accepted::from_selection(sel(SAMPLE_THEME_ID, ModeChoice::Dark));
-        let (_, watch) = SuiteWatch::build(Store::open(&SuiteDir::at(tmp.path()), options().last_accepted(last)), Box::new(|| {}));
-        let first = watch.snapshot();
-        assert_eq!(first.generation, 0);
-        assert_eq!(ids(&first.active), [SAMPLE_THEME_ID]);
-        assert!(first.theme(&sample).is_some());
-    }
+#[test]
+fn the_last_accepted_suite_theme_is_in_the_first_snapshot() {
+    let tmp = tempfile::tempdir().unwrap();
+    store_with_sample(tmp.path());
+    fs::write(tmp.path().join("selection.json"), "{ damaged").unwrap();
+    let sample = id(SAMPLE_THEME_ID);
+    let last = Accepted::from_selection(sel(SAMPLE_THEME_ID, ModeChoice::Dark));
+    let (_, watch) = SuiteWatch::build(Store::open(&SuiteDir::at(tmp.path()), options().last_accepted(last)), Box::new(|| {}));
+    let first = watch.snapshot();
+    assert_eq!(first.generation, 0);
+    assert_eq!(ids(&first.active), [SAMPLE_THEME_ID]);
+    assert!(first.theme(&sample).is_some());
 }
 
 #[test]

@@ -104,11 +104,15 @@ mod tests {
     }
 
     #[test]
-    fn marker_stripping_and_index() {
+    fn the_index_is_the_character_of_the_letter_in_the_label_without_markers() {
         assert_eq!(assign(&["Save", "Save As"]), [Some(('S', 0)), Some(('A', 5))]);
         assert_eq!(assign(&["S&ave &As"]), [Some(('A', 1))]);
         assert_eq!(assign(&["Save && &Close"]), [Some(('C', 7))]);
         assert_eq!(assign(&["文件(&F)"]), [Some(('F', 3))]);
+    }
+
+    #[test]
+    fn marked_strips_the_marker_and_keeps_a_literal_ampersand() {
         assert_eq!(marked("&File"), ("File".to_owned(), Some('F')));
         assert_eq!(marked("Save && Close"), ("Save & Close".to_owned(), None));
         assert_eq!(marked("S&ave &As"), ("Save As".to_owned(), Some('A')));

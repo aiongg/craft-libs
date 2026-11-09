@@ -78,7 +78,7 @@ fn pins_report_their_layer() {
 }
 
 #[test]
-fn contrast_pass_reports_moved_and_fixed_pairs() {
+fn contrast_moves_report_the_value_before_the_pass() {
     let e = explain(&graphite(), appearance(Mode::Dark, Contrast::High, Size::Compact), None);
     let faint = e.color(T::TextFaint).unwrap();
     assert_eq!((faint.source, faint.pin), (ColorSource::Neutral(10), None));
@@ -90,29 +90,29 @@ fn contrast_pass_reports_moved_and_fixed_pairs() {
     let inactive = e.color(T::CaptionInactive).unwrap();
     assert_eq!((inactive.value, inactive.contrast_move), (faint.value, faint.contrast_move));
     assert_eq!(e.color(T::SurfacePanel).unwrap().contrast_move, None);
+}
 
-    {
-        let pair =
-            |e: &Explained, fg: ColorToken, bg: ColorToken| *e.pairs.iter().find(|p| p.pair.fg == fg.into() && p.pair.bg == bg.into()).unwrap();
-        let high = appearance(Mode::Dark, Contrast::High, Size::Compact);
-        let e = explain(&graphite(), high, None);
+#[test]
+fn fixed_and_moved_pairs_differ() {
+    let pair = |e: &Explained, fg: ColorToken, bg: ColorToken| *e.pairs.iter().find(|p| p.pair.fg == fg.into() && p.pair.bg == bg.into()).unwrap();
+    let high = appearance(Mode::Dark, Contrast::High, Size::Compact);
+    let e = explain(&graphite(), high, None);
 
-        let fixed = pair(&e, T::TextFaint, T::SurfacePanel);
-        assert!(fixed.ratio_before < fixed.pair.minimum && fixed.pair.passes());
-        assert!(fixed.moved_by_pass && fixed.fixed_by_pass);
+    let fixed = pair(&e, T::TextFaint, T::SurfacePanel);
+    assert!(fixed.ratio_before < fixed.pair.minimum && fixed.pair.passes());
+    assert!(fixed.moved_by_pass && fixed.fixed_by_pass);
 
-        let moved = pair(&e, T::TextMuted, T::SurfaceBackground);
-        assert!(moved.ratio_before >= moved.pair.minimum && moved.ratio_before != moved.pair.ratio);
-        assert!(moved.moved_by_pass && !moved.fixed_by_pass);
+    let moved = pair(&e, T::TextMuted, T::SurfaceBackground);
+    assert!(moved.ratio_before >= moved.pair.minimum && moved.ratio_before != moved.pair.ratio);
+    assert!(moved.moved_by_pass && !moved.fixed_by_pass);
 
-        // A pinned panel no text can reach 7:1 on: `text.normal` moves and still fails.
-        let mut def = unpinned();
-        def.high_contrast.dark = Pins::from_iter([(T::SurfacePanel, Rgba::rgb(0x77, 0x77, 0x77))]);
-        let e = explain(&def, high, None);
-        let failing = pair(&e, T::TextNormal, T::SurfacePanel);
-        assert!(!failing.pair.passes() && failing.ratio_before < failing.pair.minimum);
-        assert!(failing.moved_by_pass && !failing.fixed_by_pass);
-    }
+    // A pinned panel no text can reach 7:1 on: `text.normal` moves and still fails.
+    let mut def = unpinned();
+    def.high_contrast.dark = Pins::from_iter([(T::SurfacePanel, Rgba::rgb(0x77, 0x77, 0x77))]);
+    let e = explain(&def, high, None);
+    let failing = pair(&e, T::TextNormal, T::SurfacePanel);
+    assert!(!failing.pair.passes() && failing.ratio_before < failing.pair.minimum);
+    assert!(failing.moved_by_pass && !failing.fixed_by_pass);
 }
 
 #[test]

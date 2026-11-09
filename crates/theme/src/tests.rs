@@ -34,6 +34,10 @@ fn hex_parse_and_format() {
     assert_eq!(Rgba::from_hex("ff8000"), None);
     assert_eq!(Rgba::from_hex("#ff80"), None);
     assert_eq!(Rgba::from_hex("#gg0000"), None);
+}
+
+#[test]
+fn srgba_hex_accepts_three_six_and_eight_digits() {
     let orange = Srgba::from_hex("F80").unwrap();
     assert_eq!(orange.to_hex(), "#ff8800");
     assert_eq!(Srgba::from_hex(" #ff8800 "), Some(orange));

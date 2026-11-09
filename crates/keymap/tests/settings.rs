@@ -122,7 +122,7 @@ fn hand_written_array_of_tables_and_map_forms_load() {
 }
 
 #[test]
-fn non_list_values_load_as_empty_and_keep_the_rest() {
+fn a_shortcuts_value_that_is_not_a_list_loads_as_no_overrides() {
     for value in ["\"x\"", "5", "true"] {
         let tmp = tempfile::tempdir().unwrap();
         let text = format!("schema_version = 1\nshortcuts = {value}\n\n[general]\nlanguage = \"de\"\n");
@@ -133,15 +133,16 @@ fn non_list_values_load_as_empty_and_keep_the_rest() {
         let problems = keymap(store.get().shortcuts.clone()).problems();
         assert_eq!(problems, vec![Problem::Dropped { key: String::new(), reason: DropReason::NotAList }], "{value}");
     }
+}
 
-    {
-        for value in ["\"x\"", "5", "true"] {
-            let tmp = tempfile::tempdir().unwrap();
-            let text = format!("schema_version = 1\n\n[profiles]\nactive = \"Mine\"\nsets = {value}\n");
-            std::fs::write(tmp.path().join("config.toml"), text).unwrap();
-            let store = open(tmp.path());
-            assert_eq!(store.get().profiles.active(), "Mine", "{value}");
-            assert!(store.get().profiles.sets().is_empty(), "{value}");
-        }
+#[test]
+fn a_sets_value_that_is_not_a_list_keeps_the_rest_of_the_profiles() {
+    for value in ["\"x\"", "5", "true"] {
+        let tmp = tempfile::tempdir().unwrap();
+        let text = format!("schema_version = 1\n\n[profiles]\nactive = \"Mine\"\nsets = {value}\n");
+        std::fs::write(tmp.path().join("config.toml"), text).unwrap();
+        let store = open(tmp.path());
+        assert_eq!(store.get().profiles.active(), "Mine", "{value}");
+        assert!(store.get().profiles.sets().is_empty(), "{value}");
     }
 }

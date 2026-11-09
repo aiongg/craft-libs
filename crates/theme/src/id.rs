@@ -192,7 +192,10 @@ mod tests {
         assert_eq!(ThemeId::parse("a b"), Err(IdError::Char(' ')));
         assert_eq!(ThemeId::parse("a/b"), Err(IdError::Char('/')));
         assert_eq!(ThemeId::parse("aé"), Err(IdError::Char('é')));
-        // App ids follow the same form.
+    }
+
+    #[test]
+    fn app_ids_follow_the_theme_id_form() {
         for ok in ["ab", "photocraft", "film.craft_2"] {
             assert_eq!(AppId::parse(ok).map(|id| id.as_str().to_owned()), Ok(ok.to_owned()), "{ok}");
         }

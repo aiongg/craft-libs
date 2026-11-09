@@ -180,16 +180,16 @@ fn every_match_step_finds_its_command() {
     assert!(matches!(r.unreadable[0].reason, ForeignError::UnknownKey(_)));
     assert!(r.suggestions.is_empty(), "not asked for");
     assert_eq!(r.truncated, 0);
+}
 
-    // Normalising labels is the first match step.
-    {
-        assert_eq!(normalize_label("Check Spelling..."), "check spelling");
-        assert_eq!(normalize_label("Check  Spelling…"), "check spelling");
-        assert_eq!(normalize_label("Grids && Guides"), "grids guides");
-        assert_eq!(normalize_label("SHOW/HIDE  Guides"), "show/hide guides");
-        assert_eq!(normalize_label("Preferences: General…"), "preferences general");
-        assert_eq!(normalize_label("ÄRGER"), "ärger");
-    }
+#[test]
+fn labels_normalize_for_matching() {
+    assert_eq!(normalize_label("Check Spelling..."), "check spelling");
+    assert_eq!(normalize_label("Check  Spelling…"), "check spelling");
+    assert_eq!(normalize_label("Grids && Guides"), "grids guides");
+    assert_eq!(normalize_label("SHOW/HIDE  Guides"), "show/hide guides");
+    assert_eq!(normalize_label("Preferences: General…"), "preferences general");
+    assert_eq!(normalize_label("ÄRGER"), "ärger");
 }
 
 #[test]
@@ -474,11 +474,12 @@ fn hostile_sets_are_capped_and_counted() {
     has(&km, "edit.paste", &["Cmd+V"]);
     // Entries past the cap are left out.
     assert_eq!(r.unmatched_without_shortcut, keyless);
+}
 
-    {
-        let set = ForeignSet::new(vec![win("File", &["Close"], &[("Default", "Ctrl+Q")])]).with_truncated(7);
-        assert_eq!(plan(&set, &keymap(Platform::Windows), &default_context()).report.truncated, 7);
-    }
+#[test]
+fn entries_the_reader_dropped_count_as_truncated() {
+    let set = ForeignSet::new(vec![win("File", &["Close"], &[("Default", "Ctrl+Q")])]).with_truncated(7);
+    assert_eq!(plan(&set, &keymap(Platform::Windows), &default_context()).report.truncated, 7);
 }
 
 #[test]
@@ -580,7 +581,7 @@ fn unmatched(r: &ImportReport) -> Vec<(&str, UnmatchedReason)> {
 }
 
 #[test]
-fn menu_paths_aliases_and_labels_match() {
+fn panel_menu_entries_match_by_path_end_or_label() {
     let catalog = vec![
         command("type.allCaps", "All Caps", &["Panels", "Character", "All Caps"], &[]),
         command("pages.overrideAll", "Override All Parent Items", &["Pages", "Override All Parent Page Items"], &[]),
@@ -627,41 +628,43 @@ fn menu_paths_aliases_and_labels_match() {
             ("Character > All Caps", UnmatchedReason::NoMatch)
         ]
     );
+}
 
-    {
-        let catalog = vec![
-            command("app.quit", "Quit DesignCraft", &["File", "Quit DesignCraft"], &[]).with_alias("Exit"),
-            command("app.preferences", "Preferences…", &["Edit", "Preferences…"], &[]).with_alias("Preferences: General…"),
-            command("type.bold", "Bold", &["Type", "Style", "Bold"], &[]).with_alias("Apply bold"),
-            command("edit.paste", "Paste", &["Edit", "Paste"], &[]).with_alias("Einfügen"),
-        ];
-        let d = "Default";
-        let entries = vec![
-            win("File", &["Exit"], &[(d, "Ctrl+Q")]),
-            win("Edit", &["Preferences", "General..."], &[(d, "Ctrl+K")]),
-            entry(None, &["Apply Bold"], &[(d, "Ctrl+Shift+B")], Flavor::Windows),
-            win("Bearbeiten", &["Einfügen"], &[(d, "Ctrl+Shift+V")]),
-        ];
-        let (km, r) = import_into(catalog, entries, &default_context());
-        has(&km, "app.quit", &["Cmd+Q"]);
-        has(&km, "app.preferences", &["Cmd+K"]);
-        has(&km, "type.bold", &["Cmd+Shift+B"]);
-        has(&km, "edit.paste", &["Cmd+Shift+V"]);
-        assert!(r.unmatched.is_empty(), "{:?}", r.unmatched);
-    }
+#[test]
+fn aliases_match_like_labels() {
+    let catalog = vec![
+        command("app.quit", "Quit DesignCraft", &["File", "Quit DesignCraft"], &[]).with_alias("Exit"),
+        command("app.preferences", "Preferences…", &["Edit", "Preferences…"], &[]).with_alias("Preferences: General…"),
+        command("type.bold", "Bold", &["Type", "Style", "Bold"], &[]).with_alias("Apply bold"),
+        command("edit.paste", "Paste", &["Edit", "Paste"], &[]).with_alias("Einfügen"),
+    ];
+    let d = "Default";
+    let entries = vec![
+        win("File", &["Exit"], &[(d, "Ctrl+Q")]),
+        win("Edit", &["Preferences", "General..."], &[(d, "Ctrl+K")]),
+        entry(None, &["Apply Bold"], &[(d, "Ctrl+Shift+B")], Flavor::Windows),
+        win("Bearbeiten", &["Einfügen"], &[(d, "Ctrl+Shift+V")]),
+    ];
+    let (km, r) = import_into(catalog, entries, &default_context());
+    has(&km, "app.quit", &["Cmd+Q"]);
+    has(&km, "app.preferences", &["Cmd+K"]);
+    has(&km, "type.bold", &["Cmd+Shift+B"]);
+    has(&km, "edit.paste", &["Cmd+Shift+V"]);
+    assert!(r.unmatched.is_empty(), "{:?}", r.unmatched);
+}
 
-    {
-        let catalog = vec![
-            command("object.color", "Apply Color", &["Object", "Apply Color"], &[]),
-            command("color.applyColor", "Apply Color", &[], &[]).with_import_path(vec!["Tools".into(), "Apply Color".into()]),
-        ];
-        let d = "Default";
-        let entries = vec![win("Tools", &["Apply Color"], &[(d, "Ctrl+,")])];
-        let (km, r) = import_into(catalog, entries, &default_context());
-        has(&km, "color.applyColor", &["Cmd+,"]);
-        has(&km, "object.color", &[]);
-        assert!(r.unmatched.is_empty(), "{:?}", r.unmatched);
-    }
+#[test]
+fn import_paths_match_like_menu_paths() {
+    let catalog = vec![
+        command("object.color", "Apply Color", &["Object", "Apply Color"], &[]),
+        command("color.applyColor", "Apply Color", &[], &[]).with_import_path(vec!["Tools".into(), "Apply Color".into()]),
+    ];
+    let d = "Default";
+    let entries = vec![win("Tools", &["Apply Color"], &[(d, "Ctrl+,")])];
+    let (km, r) = import_into(catalog, entries, &default_context());
+    has(&km, "color.applyColor", &["Cmd+,"]);
+    has(&km, "object.color", &[]);
+    assert!(r.unmatched.is_empty(), "{:?}", r.unmatched);
 }
 
 #[test]

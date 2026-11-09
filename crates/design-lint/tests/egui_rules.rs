@@ -76,7 +76,7 @@ fn api_rule_reports_each_shape() {
 }
 
 #[test]
-fn allowed_locations_silence_only_their_rules() {
+fn allowed_location_passes_the_same_source() {
     let allowed_only = REJECT
         .iter()
         .filter(|(file, _, _)| !file.starts_with("test-") && !matches!(*file, "contract-layers-swallow.rs" | "contract-containers-scroll.rs"));
@@ -86,13 +86,13 @@ fn allowed_locations_silence_only_their_rules() {
     }
     let rules = rules_at(&fixture("reject", "test-kit.rs"), &format!("{ALLOWED_DIR}/a.rs"), &scope());
     assert!(rules.is_empty(), "{rules:?}");
+}
 
-    // Rules with no allowed location fire everywhere.
-    {
-        for file in ["contract-layers-swallow.rs", "contract-containers-scroll.rs"] {
-            let rules = rules_at(&fixture("reject", file), &format!("{ALLOWED_DIR}/a.rs"), &scope());
-            assert_eq!(rules.len(), 1, "{file}: {rules:?}");
-        }
+#[test]
+fn rules_with_no_allowed_location_fire_everywhere() {
+    for file in ["contract-layers-swallow.rs", "contract-containers-scroll.rs"] {
+        let rules = rules_at(&fixture("reject", file), &format!("{ALLOWED_DIR}/a.rs"), &scope());
+        assert_eq!(rules.len(), 1, "{file}: {rules:?}");
     }
 }
 
@@ -116,25 +116,25 @@ fn url_opening_is_matched_by_the_egui_path_not_the_method_name() {
 }
 
 #[test]
-fn test_code_may_assert_literal_sizes() {
+fn layer_zero_unit_tests_may_assert_literals() {
     let src = fixture("reject", "test-literal-size.rs");
     let layered = StaticScope::new().egui_linked("crates/x").layer("crates/x/tests", 0);
     assert!(rules_at(&src, "crates/x/tests/it/main.rs", &layered).is_empty());
+}
 
-    // The testing module may fill literal sizes like tests; the examples may not.
-    {
-        let root = Path::new(FIXTURES).join("testing-module");
-        let scope = StaticScope::new().egui_linked("crates/x");
-        let mut config = Config::new(["."]);
-        config.include_tests = true;
-        let report = check_with_scope(&config, &root, &scope).unwrap();
-        let hits: Vec<_> = report.findings.iter().map(|f| (f.path.display().to_string(), f.rule, f.line)).collect();
-        assert_eq!(
-            hits,
-            [("src/other.rs".to_owned(), "literal-size/vec2", 2), ("src/testing/examples/sheet.rs".to_owned(), "literal-size/vec2", 2)],
-            "the kit may fill literal sizes; the examples may not"
-        );
-    }
+#[test]
+fn literal_sizes_may_fill_the_testing_module_like_tests() {
+    let root = Path::new(FIXTURES).join("testing-module");
+    let scope = StaticScope::new().egui_linked("crates/x");
+    let mut config = Config::new(["."]);
+    config.include_tests = true;
+    let report = check_with_scope(&config, &root, &scope).unwrap();
+    let hits: Vec<_> = report.findings.iter().map(|f| (f.path.display().to_string(), f.rule, f.line)).collect();
+    assert_eq!(
+        hits,
+        [("src/other.rs".to_owned(), "literal-size/vec2", 2), ("src/testing/examples/sheet.rs".to_owned(), "literal-size/vec2", 2)],
+        "the kit may fill literal sizes; the examples may not"
+    );
 }
 
 #[test]
@@ -151,18 +151,19 @@ fn glob_and_alias_imports_resolve_to_egui() {
 }
 
 #[test]
-fn check_with_scope_applies_markers_and_exemptions_with_the_new_rule_ids() {
+fn check_with_scope_applies_scope_markers_and_exemptions() {
     let root = Path::new(FIXTURES).join("tree");
     let scope = StaticScope::new().allow("contract", "src/runtime/egui");
     let report = check_with_scope(&Config::new(["src"]), &root, &scope).unwrap();
     let hits: Vec<_> = report.findings.iter().map(|f| (f.path.display().to_string(), f.rule, f.line)).collect();
     assert_eq!(hits, [("src/ui/bad.rs".to_owned(), "contract/egui-widget", 2)]);
+}
 
-    // Exemptions accept the new rule ids.
-    {
-        let text = "[lint]\npaths = [\"src\"]\n[[exempt]]\npath = \"src/ui\"\nrules = [\"contract\", \"test\", \"api/non-exhaustive\"]\nreason = \"legacy\"\n";
-        assert!(Config::parse(Path::new("design-lint.toml"), text).is_ok());
-    }
+#[test]
+fn exemptions_and_markers_accept_the_new_rule_ids() {
+    let text =
+        "[lint]\npaths = [\"src\"]\n[[exempt]]\npath = \"src/ui\"\nrules = [\"contract\", \"test\", \"api/non-exhaustive\"]\nreason = \"legacy\"\n";
+    assert!(Config::parse(Path::new("design-lint.toml"), text).is_ok());
 }
 
 #[test]
@@ -224,15 +225,15 @@ fn tools_without_a_layer_may_draw_egui_text() {
 }
 
 #[test]
-fn shortcuts_are_flagged_on_a_ui_receiver_only() {
+fn widget_shortcuts_are_flagged_on_a_ui_receiver_only() {
     let on_ui = "fn f(ui: &mut Ui) { ui.radio(true, \"x\"); }";
     assert_eq!(rules_at(on_ui, "src/a.rs", &StaticScope::new()), ["contract/egui-widget"]);
     let on_model = "fn f(item: Item) { let _ = item.radio(true); let _ = Item::radio(true); }";
     assert!(rules_at(on_model, "src/a.rs", &StaticScope::new()).is_empty());
+}
 
-    // Text shortcuts on builders are not ui calls.
-    {
-        let src = "fn f(field: Field) { let _ = field.label(\"x\"); }";
-        assert!(rules_at(src, "src/a.rs", &StaticScope::new()).is_empty());
-    }
+#[test]
+fn text_shortcuts_on_builders_are_not_ui_calls() {
+    let src = "fn f(field: Field) { let _ = field.label(\"x\"); }";
+    assert!(rules_at(src, "src/a.rs", &StaticScope::new()).is_empty());
 }

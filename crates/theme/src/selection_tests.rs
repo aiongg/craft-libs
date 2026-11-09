@@ -158,7 +158,7 @@ fn single_variant_theme_in_the_other_slot_shows_its_own_variant() {
 }
 
 #[test]
-fn serde_forms_round_trip_and_legacy_parse() {
+fn serde_forms_round_trip() {
     let sel = Selection {
         theme: ThemePair { light: id("craft.pro"), dark: ThemeId::app_default() },
         mode: ModeChoice::System,
@@ -195,7 +195,11 @@ fn serde_forms_round_trip_and_legacy_parse() {
         )
         .is_err()
     );
-    // Choices stored before the motion choice existed still load.
+}
+
+/// `selection.json` files written before the motion choice have no such field.
+#[test]
+fn a_suite_choice_without_motion_still_parses() {
     let choice: SuiteChoice = serde_json::from_str(r#"{"mode":"dark","contrast":"high"}"#).unwrap();
     assert_eq!(choice.motion, None);
     let chosen: SuiteChoice = serde_json::from_str(r#"{"motion":"reduced"}"#).unwrap();

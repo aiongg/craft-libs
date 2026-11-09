@@ -67,7 +67,7 @@ fn app_radii_apply_unless_the_theme_has_its_own_shape() {
 }
 
 #[test]
-fn bad_paths_values_and_cross_rules_are_rejected() {
+fn bad_paths_and_values_are_rejected_naming_the_path() {
     let cases = [
         (json!({ "all": { "size.control.huge": 28 } }), "all.size.control.huge", ErrorKind::UnknownToken),
         (json!({ "all": { "edge": "flat" } }), "all.edge", ErrorKind::UnknownToken),
@@ -83,13 +83,17 @@ fn bad_paths_values_and_cross_rules_are_rejected() {
         assert_eq!(found.kind, kind, "{path}");
     }
     assert_eq!(rejected(&json!({ "everyone": {} })).0[0].path_string(), "everyone");
+}
+
+#[test]
+fn a_broken_cross_rule_is_rejected() {
     let errors = rejected(&json!({ "compact": { "size.control.sm": 30 } }));
     assert!(matches!(errors.0[0].kind, ErrorKind::CrossRule { .. }), "{errors}");
     assert_eq!(errors.0[0].path_string(), "compact.size.control.sm");
 }
 
 #[test]
-fn a_theme_file_rejects_sizes() {
+fn a_theme_file_still_rejects_a_size_path() {
     let theme = |path: &str| {
         json!({ "schema": "craft-design-theme", "schema_version": 1, "id": "test.sizes", "name": "Sizes",
             "seeds": { "neutral": "#535353", "accent": "#78ADF6", "status": { "good": "#85DC6A", "warn": "#E8B046", "bad": "#FF8080", "info": "#78ADF6" } },
@@ -100,10 +104,14 @@ fn a_theme_file_rejects_sizes() {
         assert!(errors.0.iter().any(|e| e.kind == ErrorKind::UnknownToken && e.path_string().contains(path)), "{path}: {errors}");
     }
     format::parse(theme("slider.thumb_width").to_string().as_bytes()).unwrap();
-    let apps = json!({ "schema": "craft-design-theme", "schema_version": 1, "id": "test.sizes", "name": "Sizes",
+}
+
+#[test]
+fn a_theme_apps_sizes_are_rejected() {
+    let theme = json!({ "schema": "craft-design-theme", "schema_version": 1, "id": "test.sizes", "name": "Sizes",
         "seeds": { "neutral": "#535353", "accent": "#78ADF6", "status": { "good": "#85DC6A", "warn": "#E8B046", "bad": "#FF8080", "info": "#78ADF6" } },
         "apps": { "photocraft": { "sizes": { "all": { "size.control.md": 28 } } } } });
-    let errors = format::parse(apps.to_string().as_bytes()).unwrap_err();
+    let errors = format::parse(theme.to_string().as_bytes()).unwrap_err();
     assert!(errors.0.iter().any(|e| e.kind == ErrorKind::UnknownToken && e.path_string().ends_with("photocraft.sizes")), "{errors}");
 }
 
